@@ -26,6 +26,7 @@ use Hyperf\Database\Model\SoftDeletes;
  * @property string $publish_status 发布状态
  * @property int $install_count 安装次数
  * @property null|int $sort_order 排序值，数值越大越靠前
+ * @property bool $is_featured 是否精选
  * @property Carbon $created_at 创建时间
  * @property Carbon $updated_at 更新时间
  * @property null|Carbon $deleted_at 软删除时间
@@ -51,6 +52,7 @@ class SkillMarketModel extends AbstractModel
         'publish_status',
         'install_count',
         'sort_order',
+        'is_featured',
     ];
 
     protected array $casts = [
@@ -68,6 +70,7 @@ class SkillMarketModel extends AbstractModel
         'publish_status' => 'string',
         'install_count' => 'integer',
         'sort_order' => 'integer',
+        'is_featured' => 'boolean',
         'created_at' => 'datetime',
         'updated_at' => 'datetime',
         'deleted_at' => 'datetime',

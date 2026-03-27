@@ -12,7 +12,7 @@ use App\Infrastructure\ExternalAPI\Sms\Enum\LanguageEnum;
 use Dtyq\SuperMagic\Domain\Skill\Entity\ValueObject\SkillSourceType;
 
 /**
- * Skill 基础实体.
+ * Skill base entity.
  */
 class SkillEntity extends AbstractEntity
 {
@@ -55,6 +55,11 @@ class SkillEntity extends AbstractEntity
      * @var null|array 多语言展示描述
      */
     protected ?array $descriptionI18n = null;
+
+    /**
+     * @var null|array Source information in i18n format
+     */
+    protected ?array $sourceI18n = null;
 
     /**
      * @var null|string 统一小写搜索字段
@@ -152,6 +157,7 @@ class SkillEntity extends AbstractEntity
             'package_description' => $this->packageDescription,
             'name_i18n' => $this->nameI18n,
             'description_i18n' => $this->descriptionI18n,
+            'source_i18n' => $this->sourceI18n,
             'search_text' => $this->searchText,
             'logo' => $this->logo,
             'file_key' => $this->fileKey,
@@ -269,6 +275,17 @@ class SkillEntity extends AbstractEntity
     public function setDescriptionI18n(?array $descriptionI18n): self
     {
         $this->descriptionI18n = $descriptionI18n;
+        return $this;
+    }
+
+    public function getSourceI18n(): ?array
+    {
+        return $this->sourceI18n;
+    }
+
+    public function setSourceI18n(?array $sourceI18n): self
+    {
+        $this->sourceI18n = $sourceI18n;
         return $this;
     }
 

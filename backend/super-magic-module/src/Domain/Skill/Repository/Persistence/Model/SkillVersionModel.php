@@ -21,9 +21,11 @@ use Hyperf\Database\Model\SoftDeletes;
  * @property string $version 当前生效版本号
  * @property array $name_i18n 多语言展示名
  * @property null|array $description_i18n 多语言展示描述
+ * @property null|array $source_i18n Source information in i18n format
  * @property null|string $search_text 统一小写搜索字段
  * @property null|string $logo Logo 图片 URL
  * @property string $file_key 压缩包在对象存储中的 key
+ * @property null|string $skill_file_key Skill.md file key snapshot
  * @property string $publish_status 发布状态
  * @property string $review_status 审核状态
  * @property string $publish_target_type 发布对象类型
@@ -56,9 +58,11 @@ class SkillVersionModel extends AbstractModel
         'version',
         'name_i18n',
         'description_i18n',
+        'source_i18n',
         'search_text',
         'logo',
         'file_key',
+        'skill_file_key',
         'publish_status',
         'review_status',
         'publish_target_type',
@@ -83,9 +87,11 @@ class SkillVersionModel extends AbstractModel
         'version' => 'string',
         'name_i18n' => 'array',
         'description_i18n' => 'array',
+        'source_i18n' => 'array',
         'search_text' => 'string',
         'logo' => 'string',
         'file_key' => 'string',
+        'skill_file_key' => 'string',
         'publish_status' => 'string',
         'review_status' => 'string',
         'publish_target_type' => 'string',

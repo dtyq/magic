@@ -15,6 +15,9 @@ Router::addGroup('/api/v1', static function () {
     Router::addGroup('/skill-market', static function () {
         // 获取市场技能库列表
         Router::post('/queries', [SkillMarketApi::class, 'queries']);
+
+        // 获取市场技能详情
+        Router::get('/{code}', [SkillMarketApi::class, 'show']);
     });
 
     Router::addGroup('/skills', static function () {

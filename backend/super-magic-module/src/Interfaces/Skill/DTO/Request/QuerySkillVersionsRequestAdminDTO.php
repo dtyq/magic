@@ -31,6 +31,11 @@ class QuerySkillVersionsRequestAdminDTO extends AbstractRequestDTO
     public ?string $version = null;
 
     /**
+     * 包名模糊检索（匹配 magic_skill_versions.package_name）.
+     */
+    public ?string $packageName = null;
+
+    /**
      * 技能名称模糊检索（匹配 magic_skill_versions.name_i18n 各语言键）.
      */
     public ?string $skillName = null;
@@ -88,6 +93,11 @@ class QuerySkillVersionsRequestAdminDTO extends AbstractRequestDTO
         return $this->version;
     }
 
+    public function getPackageName(): ?string
+    {
+        return $this->packageName;
+    }
+
     public function getSkillName(): ?string
     {
         return $this->skillName;
@@ -123,6 +133,7 @@ class QuerySkillVersionsRequestAdminDTO extends AbstractRequestDTO
             'publish_target_type' => 'nullable|string',
             'source_type' => 'nullable|string',
             'version' => 'nullable|string',
+            'package_name' => 'nullable|string|max:255',
             'skill_name' => 'nullable|string|max:255',
             'organization_code' => 'nullable|string|max:128',
             'order_by' => 'nullable|string|in:asc,desc',
@@ -144,6 +155,8 @@ class QuerySkillVersionsRequestAdminDTO extends AbstractRequestDTO
             'publish_target_type.string' => __('validation.string', ['attribute' => 'publish_target_type']),
             'source_type.string' => __('validation.string', ['attribute' => 'source_type']),
             'version.string' => __('validation.string', ['attribute' => 'version']),
+            'package_name.string' => __('validation.string', ['attribute' => 'package_name']),
+            'package_name.max' => __('validation.max.string', ['attribute' => 'package_name', 'max' => 255]),
             'skill_name.string' => __('validation.string', ['attribute' => 'skill_name']),
             'skill_name.max' => __('validation.max.string', ['attribute' => 'skill_name', 'max' => 255]),
             'organization_code.string' => __('validation.string', ['attribute' => 'organization_code']),

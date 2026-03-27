@@ -14,23 +14,19 @@ use App\Domain\Chat\Entity\MagicConversationEntity;
 use App\Domain\Chat\Entity\ValueObject\ConversationType;
 use App\Domain\Chat\Service\MagicConversationDomainService;
 use App\Domain\Contact\Entity\ValueObject\DataIsolation;
-use App\Domain\Kernel\Service\PlatformSettingsDomainService;
 use App\Domain\LongTermMemory\Service\LongTermMemoryDomainService;
 use App\Domain\MCP\Entity\ValueObject\MCPDataIsolation;
 use Dtyq\SuperMagic\Application\SuperAgent\DTO\TaskInitializationMessageDTO;
 use Dtyq\SuperMagic\Application\SuperAgent\Service\ClientMessageAppService;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ProjectEntity;
-use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\AgentRoleValueObject;
+use Dtyq\SuperMagic\Domain\SuperAgent\Entity\TopicEntity;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\ChatInstruction;
-use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\InitializationMetadataDTO;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\TaskContext;
 use Dtyq\SuperMagic\Domain\SuperAgent\Service\AgentDomainService;
 use Dtyq\SuperMagic\Domain\SuperAgent\Service\ProjectDomainService;
 use Dtyq\SuperMagic\Domain\SuperAgent\Service\TaskDomainService;
-use Dtyq\SuperMagic\Domain\SuperAgent\Service\TaskFileDomainService;
 use Dtyq\SuperMagic\Domain\SuperAgent\Service\TopicDomainService;
 use Dtyq\SuperMagic\Infrastructure\Utils\TaskTerminationUtil;
-use Dtyq\SuperMagic\Infrastructure\Utils\WorkDirectoryUtil;
 use Hyperf\Amqp\Annotation\Consumer;
 use Hyperf\Amqp\Message\ConsumerMessage;
 use Hyperf\Amqp\Result;
@@ -64,9 +60,7 @@ class TaskInitializationConsumer extends ConsumerMessage
         private readonly TaskDomainService $taskDomainService,
         private readonly TopicDomainService $topicDomainService,
         private readonly ProjectDomainService $projectDomainService,
-        private readonly TaskFileDomainService $taskFileDomainService,
         private readonly LongTermMemoryDomainService $longTermMemoryDomainService,
-        private readonly PlatformSettingsDomainService $platformSettingsDomainService,
         private readonly ClientMessageAppService $clientMessageAppService,
         private readonly MagicConversationDomainService $magicConversationDomainService,
         private readonly Redis $redis,
@@ -235,7 +229,8 @@ class TaskInitializationConsumer extends ConsumerMessage
         $sandboxId = $this->createAndInitializeSandbox(
             $dataIsolation,
             $taskContext,
-            $projectEntity
+            $projectEntity,
+            $topicEntity
         );
 
         $this->logger->info('Agent initialized successfully', [
@@ -245,67 +240,16 @@ class TaskInitializationConsumer extends ConsumerMessage
     }
 
     /**
-     * Create and initialize sandbox with interrupt support at any time.
+     * Create and initialize sandbox with interrupt support at every step.
      */
     private function createAndInitializeSandbox(
         DataIsolation $dataIsolation,
         TaskContext $taskContext,
-        ProjectEntity $projectEntity
+        ProjectEntity $projectEntity,
+        TopicEntity $topicEntity
     ): string {
         $taskId = $taskContext->getTask()->getId();
 
-        // Create sandbox container
-        $fullPrefix = $this->taskFileDomainService->getFullPrefix(
-            $projectEntity->getUserOrganizationCode()
-        );
-        $fullWorkdir = WorkDirectoryUtil::getFullWorkdir(
-            $fullPrefix,
-            $taskContext->getTask()->getWorkDir()
-        );
-
-        if (empty($taskContext->getSandboxId())) {
-            $sandboxId = (string) $taskContext->getTopicId();
-        } else {
-            $sandboxId = $taskContext->getSandboxId();
-        }
-
-        // Step 1: Create Sandbox (time-consuming operation)
-        $sandboxId = $this->agentDomainService->createSandbox(
-            $dataIsolation,
-            (string) $taskContext->getProjectId(),
-            $sandboxId,
-            $fullWorkdir
-        );
-
-        // [KEY POINT] Immediately update sandbox_id to database
-        // This allows interrupt API to send interrupt to Sandbox even if consumer is still processing
-        $this->topicDomainService->updateTopicSandboxId(
-            $dataIsolation,
-            $taskContext->getTopicId(),
-            $sandboxId
-        );
-        $this->taskDomainService->updateTaskSandboxId(
-            $dataIsolation,
-            $taskContext->getTask()->getId(),
-            $sandboxId
-        );
-        $taskContext->setSandboxId($sandboxId);
-
-        $this->logger->info('[Checkpoint 2] Sandbox created and updated, checking termination flag', [
-            'task_id' => $taskId,
-            'sandbox_id' => $sandboxId,
-        ]);
-
-        // [Checkpoint 2] Check termination flag after Sandbox creation
-        if ($this->checkTerminationFlag($taskId)) {
-            $this->logger->info('[Checkpoint 2] Task terminated after sandbox creation, stop processing', [
-                'task_id' => $taskId,
-                'sandbox_id' => $sandboxId,
-            ]);
-            return $sandboxId;
-        }
-
-        // user long term memory (structured, sandbox decides how to use it)
         $memories = $this->longTermMemoryDomainService->getEffectiveMemoriesForSandbox(
             $dataIsolation->getCurrentOrganizationCode(),
             AppCodeEnum::SUPER_MAGIC->value,
@@ -313,96 +257,37 @@ class TaskInitializationConsumer extends ConsumerMessage
             (string) $projectEntity->getId(),
         );
 
-        // Get agent role from platform settings
-        $language = $dataIsolation->getLanguage() ?? 'zh_CN';
-        $agentRoleName = $this->platformSettingsDomainService->getAgentRoleName($language);
-        $agentRoleDescription = $this->platformSettingsDomainService->getAgentRoleDescription(
-            $language
+        $agentContext = $this->agentDomainService->buildInitAgentContext(
+            dataIsolation: $dataIsolation,
+            projectEntity: $projectEntity,
+            topicEntity: $topicEntity,
+            taskEntity: $taskContext->getTask(),
+            sandboxId: (string) $topicEntity->getId(),
+            memories: $memories
         );
 
-        // Build agent role value object
-        $agentRole = new AgentRoleValueObject(
-            name: $agentRoleName,
-            description: $agentRoleDescription
-        );
-
-        // Create initialization metadata with agent role
-        $initMetadata = new InitializationMetadataDTO();
-        $initMetadata->setAgentRole($agentRole);
-        $initMetadata->setMemories($memories);
-
-        $this->logger->info('[Sandbox][Consumer] Preparing agent initialization with role', [
-            'sandbox_id' => $sandboxId,
-            'language' => $language,
-            'agent_name' => $agentRoleName,
-            'agent_description' => $agentRoleDescription,
-        ]);
-
-        // Step 2: Initialize agent with metadata (time-consuming operation)
-        $this->agentDomainService->initializeAgent(
+        $sandboxId = $this->agentDomainService->ensureSandboxInitialized(
             $dataIsolation,
-            $taskContext,
-            projectOrganizationCode: $projectEntity->getUserOrganizationCode(),
-            initMetadata: $initMetadata
-        );
-
-        $this->logger->info('[Checkpoint 3] Agent initialized, checking termination flag', [
-            'task_id' => $taskId,
-            'sandbox_id' => $sandboxId,
-        ]);
-
-        // [Checkpoint 3] Check termination flag after Agent initialization
-        /* @phpstan-ignore-next-line if.alwaysFalse - Termination flag can be set externally */
-        if ($this->checkTerminationFlag($taskId)) {
-            $this->logger->info('[Checkpoint 3] Task terminated after agent initialization, stop processing', [
-                'task_id' => $taskId,
-                'sandbox_id' => $sandboxId,
-            ]);
-            return $sandboxId;
-        }
-
-        // Step 3: Wait for workspace to be ready with interrupt check closure
-        // This is the most time-consuming operation, so we use closure for polling check
-        $this->logger->info('[Checkpoint 4] Starting to wait for workspace ready with interrupt check', [
-            'task_id' => $taskId,
-            'sandbox_id' => $sandboxId,
-        ]);
-
-        $isReady = $this->agentDomainService->waitForWorkspaceReady(
-            $sandboxId,
-            maxWaitSeconds: 60, // Check every 2 seconds
-            // [Checkpoint 4] Interrupt check closure: called on every polling iteration
+            $agentContext,
             interruptChecker: fn () => $this->checkTerminationFlag($taskId)
         );
 
-        if (! $isReady) {
-            // Interrupted during workspace ready wait
-            $this->logger->info('[Checkpoint 4] Task interrupted during workspace ready wait', [
-                'task_id' => $taskId,
-                'sandbox_id' => $sandboxId,
-            ]);
-            return $sandboxId;
-        }
+        $this->topicDomainService->updateTopicSandboxId($dataIsolation, $taskContext->getTopicId(), $sandboxId);
+        $this->taskDomainService->updateTaskSandboxId($dataIsolation, $taskContext->getTask()->getId(), $sandboxId);
+        $taskContext->setSandboxId($sandboxId);
 
-        $this->logger->info('[Checkpoint 5] Workspace ready, checking termination flag before sending message', [
-            'task_id' => $taskId,
-            'sandbox_id' => $sandboxId,
-        ]);
-
-        // [Checkpoint 5] Final check before sending message
         /* @phpstan-ignore-next-line if.alwaysFalse - Termination flag can be set externally */
         if ($this->checkTerminationFlag($taskId)) {
-            $this->logger->info('[Checkpoint 5] Task terminated before sending message', [
+            $this->logger->info('[Sandbox][Consumer] Task terminated before sending message', [
                 'task_id' => $taskId,
                 'sandbox_id' => $sandboxId,
             ]);
             return $sandboxId;
         }
 
-        // Step 4: Send message to agent
         $this->agentDomainService->sendChatMessage($dataIsolation, $taskContext);
 
-        $this->logger->info('[Success] Message sent to agent successfully', [
+        $this->logger->info('[Sandbox][Consumer] Message sent to agent successfully', [
             'task_id' => $taskId,
             'sandbox_id' => $sandboxId,
         ]);

@@ -10,9 +10,11 @@ namespace Dtyq\SuperMagic\Domain\Skill\Service;
 use App\Infrastructure\Core\ValueObject\Page;
 use Dtyq\SuperMagic\Domain\Skill\Entity\SkillMarketEntity;
 use Dtyq\SuperMagic\Domain\Skill\Entity\ValueObject\Query\SkillQuery;
+use Dtyq\SuperMagic\Domain\Skill\Entity\ValueObject\SkillDataIsolation;
 use Dtyq\SuperMagic\Domain\Skill\Repository\Facade\SkillCategoryRepositoryInterface;
 use Dtyq\SuperMagic\Domain\Skill\Repository\Facade\SkillMarketRepositoryInterface;
 use Dtyq\SuperMagic\Domain\Skill\Repository\Facade\SkillRepositoryInterface;
+use Dtyq\SuperMagic\Domain\Skill\Repository\Facade\SkillVersionRepositoryInterface;
 
 /**
  * 市场 Skill 领域服务.
@@ -22,7 +24,8 @@ class SkillMarketDomainService
     public function __construct(
         protected SkillRepositoryInterface $skillRepository,
         protected SkillMarketRepositoryInterface $skillMarketRepository,
-        protected SkillCategoryRepositoryInterface $skillCategoryRepository
+        protected SkillCategoryRepositoryInterface $skillCategoryRepository,
+        protected SkillVersionRepositoryInterface $skillVersionRepository
     ) {
     }
 
@@ -58,6 +61,14 @@ class SkillMarketDomainService
     }
 
     /**
+     * Find the latest published market skill by skill code.
+     */
+    public function findPublishedBySkillCode(string $skillCode): ?SkillMarketEntity
+    {
+        return $this->skillMarketRepository->findPublishedBySkillCode($skillCode);
+    }
+
+    /**
      * 保存市场技能.
      */
     public function saveStoreSkill(SkillMarketEntity $entity): SkillMarketEntity
@@ -90,6 +101,7 @@ class SkillMarketDomainService
         ?string $name18n,
         ?string $publisherType,
         ?string $skillCode,
+        ?string $packageName,
         ?string $startTime,
         ?string $endTime,
         string $orderBy,
@@ -101,6 +113,7 @@ class SkillMarketDomainService
             $name18n,
             $publisherType,
             $skillCode,
+            $packageName,
             $startTime,
             $endTime,
             $orderBy,
@@ -117,6 +130,26 @@ class SkillMarketDomainService
     public function findPublishedById(int $id): ?SkillMarketEntity
     {
         return $this->skillMarketRepository->findPublishedById($id);
+    }
+
+    /**
+     * 下架市场 Skill.
+     */
+    public function offlineById(SkillDataIsolation $dataIsolation, int $id): ?SkillMarketEntity
+    {
+        $marketSkill = $this->skillMarketRepository->findById($id);
+        if ($marketSkill === null) {
+            return null;
+        }
+
+        if (! $marketSkill->getPublishStatus()->isOffline()) {
+            $marketSkill->offline();
+            $this->skillMarketRepository->save($marketSkill);
+        }
+
+        $this->skillVersionRepository->offlinePublishedVersionsByCode($dataIsolation, $marketSkill->getSkillCode());
+
+        return $marketSkill;
     }
 
     /**
@@ -146,5 +179,15 @@ class SkillMarketDomainService
     public function updateSortOrderById(int $id, int $sortOrder): bool
     {
         return $this->skillMarketRepository->updateSortOrderById($id, $sortOrder);
+    }
+
+    /**
+     * 按传入字段部分更新市场 Skill 信息.
+     *
+     * @param array{sort_order?: null|int, is_featured?: bool} $payload
+     */
+    public function updateInfoById(int $id, array $payload): bool
+    {
+        return $this->skillMarketRepository->updateInfoById($id, $payload);
     }
 }

@@ -187,13 +187,14 @@ class GetAgentDetailResponseDTO extends AbstractDTO
             'playbooks' => $this->playbooks,
             'tools' => $this->tools,
             'project_id' => $this->projectId ? (string) $this->projectId : null,
-            'file_key' => $this->fileKey,
+            'file_key' => '',
             'latest_published_at' => $this->latestPublishedAt,
             'publish_type' => $this->publishType,
             'allowed_publish_target_types' => $this->allowedPublishTargetTypes,
         ];
 
         if ($withFileUrl) {
+            $result['file_key'] = $this->fileKey;
             $result['file_url'] = $this->fileUrl;
         }
 

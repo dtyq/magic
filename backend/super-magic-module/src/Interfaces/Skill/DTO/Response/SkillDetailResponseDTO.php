@@ -7,6 +7,7 @@ declare(strict_types=1);
 
 namespace Dtyq\SuperMagic\Interfaces\Skill\DTO\Response;
 
+use App\Interfaces\Kernel\DTO\OperatorDTO;
 use JsonSerializable;
 
 /**
@@ -31,6 +32,8 @@ class SkillDetailResponseDTO implements JsonSerializable
     private array $nameI18n;
 
     private array $descriptionI18n;
+
+    private array $sourceI18n;
 
     private string $logo;
 
@@ -58,6 +61,12 @@ class SkillDetailResponseDTO implements JsonSerializable
 
     private string $updatedAt;
 
+    private ?OperatorDTO $creatorInfo;
+
+    private bool $isFeatured;
+
+    private string $skillFileUrl;
+
     public function __construct(
         int $id,
         string $code,
@@ -68,6 +77,7 @@ class SkillDetailResponseDTO implements JsonSerializable
         ?string $pinnedAt,
         array $nameI18n,
         array $descriptionI18n,
+        array $sourceI18n,
         string $logo,
         string $packageName,
         ?string $packageDescription,
@@ -80,7 +90,10 @@ class SkillDetailResponseDTO implements JsonSerializable
         ?string $publishType,
         array $allowedPublishTargetTypes,
         string $createdAt,
-        string $updatedAt
+        string $updatedAt,
+        ?OperatorDTO $creatorInfo = null,
+        bool $isFeatured = false,
+        string $skillFileUrl = ''
     ) {
         $this->id = $id;
         $this->code = $code;
@@ -91,6 +104,7 @@ class SkillDetailResponseDTO implements JsonSerializable
         $this->pinnedAt = $pinnedAt;
         $this->nameI18n = $nameI18n;
         $this->descriptionI18n = $descriptionI18n;
+        $this->sourceI18n = $sourceI18n;
         $this->logo = $logo;
         $this->packageName = $packageName;
         $this->packageDescription = $packageDescription;
@@ -104,6 +118,9 @@ class SkillDetailResponseDTO implements JsonSerializable
         $this->allowedPublishTargetTypes = $allowedPublishTargetTypes;
         $this->createdAt = $createdAt;
         $this->updatedAt = $updatedAt;
+        $this->creatorInfo = $creatorInfo;
+        $this->isFeatured = $isFeatured;
+        $this->skillFileUrl = $skillFileUrl;
     }
 
     public function getProjectId(): ?int
@@ -138,6 +155,7 @@ class SkillDetailResponseDTO implements JsonSerializable
             'pinned_at' => $this->pinnedAt,
             'name_i18n' => $this->nameI18n,
             'description_i18n' => $this->descriptionI18n,
+            'source_i18n' => $this->sourceI18n,
             'logo' => $this->logo,
             'package_name' => $this->packageName,
             'package_description' => $this->packageDescription,
@@ -151,6 +169,9 @@ class SkillDetailResponseDTO implements JsonSerializable
             'allowed_publish_target_types' => $this->allowedPublishTargetTypes,
             'created_at' => $this->createdAt,
             'updated_at' => $this->updatedAt,
+            'creator_info' => $this->creatorInfo,
+            'is_featured' => $this->isFeatured,
+            'skill_file_url' => $this->skillFileUrl,
         ];
     }
 }

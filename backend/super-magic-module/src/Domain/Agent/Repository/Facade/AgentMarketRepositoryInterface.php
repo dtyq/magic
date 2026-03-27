@@ -110,4 +110,16 @@ interface AgentMarketRepositoryInterface
      * @return bool 是否更新成功
      */
     public function updateSortOrderById(int $id, int $sortOrder): bool;
+
+    /**
+     * 按传入字段部分更新市场员工信息.
+     *
+     * @param array{
+     *     category_id?: null|int,
+     *     sort_order?: null|int,
+     *     is_featured?: bool
+     * } $payload
+     * @return bool 是否更新成功
+     */
+    public function updateInfoById(int $id, array $payload): bool;
 }

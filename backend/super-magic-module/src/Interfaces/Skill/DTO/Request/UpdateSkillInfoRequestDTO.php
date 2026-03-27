@@ -12,73 +12,87 @@ use App\Infrastructure\Core\AbstractRequestDTO;
 use function Hyperf\Translation\__;
 
 /**
- * 更新技能基本信息请求 DTO.
+ * Request DTO for updating skill basic information.
  */
 class UpdateSkillInfoRequestDTO extends AbstractRequestDTO
 {
     /**
-     * 多语言名称（必须包含 default）.
+     * Name in i18n format.
      */
-    public array $nameI18n = [];
+    public ?array $nameI18n = null;
 
     /**
-     * 多语言描述.
+     * Description in i18n format.
      */
-    public array $descriptionI18n = [];
+    public ?array $descriptionI18n = null;
+
+    /**
+     * Source information in i18n format.
+     */
+    public ?array $sourceI18n = null;
 
     /**
      * Logo URL.
      */
-    public string $logo = '';
+    public ?string $logo = null;
 
     /**
-     * 获取多语言名称.
+     * Get the name in i18n format.
      */
-    public function getNameI18n(): array
+    public function getNameI18n(): ?array
     {
         return $this->nameI18n;
     }
 
     /**
-     * 获取多语言描述.
+     * Get the description in i18n format.
      */
-    public function getDescriptionI18n(): array
+    public function getDescriptionI18n(): ?array
     {
         return $this->descriptionI18n;
     }
 
     /**
-     * 获取 Logo URL.
+     * Get the source information in i18n format.
      */
-    public function getLogo(): string
+    public function getSourceI18n(): ?array
+    {
+        return $this->sourceI18n;
+    }
+
+    /**
+     * Get the logo URL.
+     */
+    public function getLogo(): ?string
     {
         return $this->logo;
     }
 
     /**
-     * 获取验证规则.
+     * Get validation rules.
      */
     protected static function getHyperfValidationRules(): array
     {
         return [
-            'name_i18n' => 'required|array',
-            'name_i18n.default' => 'required|string',
+            'name_i18n' => 'nullable|array',
+            'name_i18n.default' => 'required_with:name_i18n|string',
             'description_i18n' => 'nullable|array',
+            'source_i18n' => 'nullable|array',
             'logo' => 'nullable|string',
         ];
     }
 
     /**
-     * 获取验证错误消息.
+     * Get validation error messages.
      */
     protected static function getHyperfValidationMessage(): array
     {
         return [
-            'name_i18n.required' => __('skill.name_i18n_required'),
             'name_i18n.array' => __('skill.name_i18n_must_be_array'),
-            'name_i18n.default.required' => __('skill.name_i18n_en_required'),
+            'name_i18n.default.required_with' => __('skill.name_i18n_en_required'),
             'name_i18n.default.string' => __('skill.name_i18n_en_must_be_string'),
             'description_i18n.array' => __('skill.description_i18n_must_be_array'),
+            'source_i18n.array' => __('validation.array', ['attribute' => 'source_i18n']),
             'logo.string' => __('skill.logo_must_be_string'),
         ];
     }

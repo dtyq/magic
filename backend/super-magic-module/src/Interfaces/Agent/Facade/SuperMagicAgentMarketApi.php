@@ -70,8 +70,8 @@ class SuperMagicAgentMarketApi extends AbstractApi
             $result['user_agents_map'],
             $result['latest_versions_map'],
             $result['playbooks_map'] ?? [],
-            $result['page'],
-            $result['page_size'],
+            $requestDTO->getPage(),
+            $requestDTO->getPageSize(),
             $result['total']
         );
 

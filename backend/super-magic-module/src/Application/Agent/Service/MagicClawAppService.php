@@ -12,6 +12,8 @@ use Dtyq\CloudFile\Kernel\Struct\FileLink;
 use Dtyq\SuperMagic\Domain\Agent\Entity\MagicClawEntity;
 use Dtyq\SuperMagic\Domain\Agent\Event\BeforeCreateClawEvent;
 use Dtyq\SuperMagic\Domain\Agent\Service\MagicClawDomainService;
+use Dtyq\SuperMagic\Domain\SuperAgent\Service\ProjectDomainService;
+use Dtyq\SuperMagic\Infrastructure\ExternalAPI\SandboxOS\Gateway\SandboxGatewayInterface;
 use Dtyq\SuperMagic\Interfaces\Agent\DTO\Request\CreateMagicClawRequestDTO;
 use Dtyq\SuperMagic\Interfaces\Agent\DTO\Request\UpdateMagicClawRequestDTO;
 use Hyperf\Di\Annotation\Inject;
@@ -25,6 +27,12 @@ class MagicClawAppService extends AbstractSuperMagicAppService
 
     #[Inject]
     protected EventDispatcherInterface $eventDispatcher;
+
+    #[Inject]
+    protected ProjectDomainService $projectDomainService;
+
+    #[Inject]
+    protected SandboxGatewayInterface $sandboxGateway;
 
     /**
      * Create a new magic claw record (does not bind project; that is done at the API layer).
@@ -112,9 +120,10 @@ class MagicClawAppService extends AbstractSuperMagicAppService
     }
 
     /**
-     * Get paginated magic claw list with resolved icon URLs.
+     * Get paginated magic claw list with resolved icon URLs and sandbox status.
+     * Each item in list contains 'entity' (MagicClawEntity) and 'status' (?string).
      *
-     * @return array{total: int, list: MagicClawEntity[], page: int, page_size: int}
+     * @return array{total: int, list: array<array{entity: MagicClawEntity, status: null|string}>, page: int, page_size: int}
      */
     public function queries(Authenticatable $authorization, int $page, int $pageSize): array
     {
@@ -127,11 +136,19 @@ class MagicClawAppService extends AbstractSuperMagicAppService
             $pageSize
         );
 
-        $this->resolveIconUrls($dataIsolation->getCurrentOrganizationCode(), $result['list']);
+        $entities = $result['list'];
+        $this->resolveIconUrls($dataIsolation->getCurrentOrganizationCode(), $entities);
+
+        // Resolve sandbox status and attach to each list item directly
+        $statusByProjectId = $this->resolveSandboxStatusByProjectId($entities);
+        $list = array_map(fn (MagicClawEntity $entity) => [
+            'entity' => $entity,
+            'status' => $statusByProjectId[$entity->getProjectId()] ?? null,
+        ], $entities);
 
         return [
             'total' => $result['total'],
-            'list' => $result['list'],
+            'list' => $list,
             'page' => $page,
             'page_size' => $pageSize,
         ];
@@ -149,6 +166,59 @@ class MagicClawAppService extends AbstractSuperMagicAppService
             $dataIsolation->getCurrentOrganizationCode()
         );
         $this->magicClawDomainService->bindProject((int) $entity->getId(), $projectId);
+    }
+
+    /**
+     * Batch-resolve sandbox running status indexed by project ID.
+     * Flow: claws → projectIds → currentTopicIds (= sandboxIds) → getBatchSandboxStatus.
+     *
+     * @param MagicClawEntity[] $entities
+     * @return array<int, null|string> Map of projectId => sandbox status string (null if unavailable)
+     */
+    private function resolveSandboxStatusByProjectId(array $entities): array
+    {
+        // Collect non-null project IDs from the claw list
+        $projectIds = array_values(array_filter(
+            array_map(fn (MagicClawEntity $e) => $e->getProjectId(), $entities)
+        ));
+
+        if (empty($projectIds)) {
+            return [];
+        }
+
+        // Batch get projectId => currentTopicId mapping (topic_id is used as sandbox_id)
+        $topicIdMap = $this->projectDomainService->getTopicIdMapByProjectIds($projectIds);
+
+        // Collect non-null topic IDs as sandbox IDs
+        $sandboxIds = array_values(array_map(
+            'strval',
+            array_filter(array_values($topicIdMap))
+        ));
+
+        if (empty($sandboxIds)) {
+            return [];
+        }
+
+        // Batch query sandbox statuses in a single request
+        $batchResult = $this->sandboxGateway->getBatchSandboxStatus($sandboxIds);
+
+        // Build sandboxId => status lookup map
+        $statusBySandboxId = [];
+        foreach ($batchResult->getSandboxStatuses() as $item) {
+            if (isset($item['sandbox_id'])) {
+                $statusBySandboxId[$item['sandbox_id']] = $item['status'] ?? null;
+            }
+        }
+
+        // Build final projectId => status map
+        $result = [];
+        foreach ($topicIdMap as $projectId => $topicId) {
+            $result[$projectId] = $topicId !== null
+                ? ($statusBySandboxId[(string) $topicId] ?? null)
+                : null;
+        }
+
+        return $result;
     }
 
     /**

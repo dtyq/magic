@@ -23,7 +23,9 @@ use Dtyq\SuperMagic\Domain\Agent\Entity\ValueObject\Query\AgentMarketQuery;
 use Dtyq\SuperMagic\Domain\Agent\Entity\ValueObject\SuperMagicAgentDataIsolation;
 use Dtyq\SuperMagic\Domain\Agent\Service\SuperMagicAgentCategoryDomainService;
 use Dtyq\SuperMagic\Domain\Agent\Service\SuperMagicAgentMarketDomainService;
+use Dtyq\SuperMagic\Domain\Agent\Service\SuperMagicAgentPlaybookDomainService;
 use Dtyq\SuperMagic\Domain\Agent\Service\SuperMagicAgentVersionDomainService;
+use Dtyq\SuperMagic\Domain\Agent\Service\UserAgentDomainService;
 use Dtyq\SuperMagic\ErrorCode\SuperMagicErrorCode;
 use Dtyq\SuperMagic\Interfaces\Agent\DTO\Request\QueryAgentMarketsRequestDTO;
 use Hyperf\Di\Annotation\Inject;
@@ -39,6 +41,12 @@ class SuperMagicAgentMarketAppService extends AbstractSuperMagicAppService
 
     #[Inject]
     protected SuperMagicAgentMarketDomainService $superMagicAgentMarketDomainService;
+
+    #[Inject]
+    protected UserAgentDomainService $superMagicUserAgentDomainService;
+
+    #[Inject]
+    protected SuperMagicAgentPlaybookDomainService $superMagicAgentPlaybookDomainService;
 
     #[Inject]
     protected SuperMagicAgentVersionDomainService $superMagicAgentVersionDomainService;
@@ -114,8 +122,6 @@ class SuperMagicAgentMarketAppService extends AbstractSuperMagicAppService
      *     user_agents_map: array<string, UserAgentEntity>,
      *     latest_versions_map: array<string, AgentVersionEntity>,
      *     playbooks_map: array<int, array<int, AgentPlaybookEntity>>,
-     *     page: int,
-     *     page_size: int,
      *     total: int
      * }
      */
@@ -150,27 +156,30 @@ class SuperMagicAgentMarketAppService extends AbstractSuperMagicAppService
                 'latest_versions_map' => [],
                 'playbooks_map' => [],
                 'official_agent_codes' => [],
-                'page' => $requestDTO->getPage(),
-                'page_size' => $requestDTO->getPageSize(),
                 'total' => $total,
             ];
         }
 
         // Load the current user's installed agents to compute is_added.
         $agentCodes = array_map(fn ($agentMarket) => $agentMarket->getAgentCode(), $agentMarkets);
+
+        // load publisher user map
         $publisherUserMap = $this->loadPublisherUserMap($agentMarkets);
-        $userAgentsMap = $this->superMagicAgentMarketDomainService->getUserAgentsByAgentCodes(
-            $dataIsolation,
-            $agentCodes
-        );
+
+        // load user agents map
+        $userAgentsMap = $this->superMagicUserAgentDomainService->findUserAgentOwnershipsByCodes($dataIsolation, $agentCodes);
+
+        // merge visible agent ownerships
         $userAgentsMap = $this->mergeVisibleAgentOwnerships($dataIsolation, $agentCodes, $userAgentsMap);
-        $latestVersionsMap = $this->superMagicAgentVersionDomainService->getCurrentOrLatestByCodes($dataIsolation, $agentCodes);
+
+        // load latest versions map
+        $latestVersionsMap = $this->superMagicAgentVersionDomainService->getLatestPublishedByCodes($dataIsolation, $agentCodes);
 
         // Load playbooks in batch for the list cards.
         $agentVersionIds = array_map(fn ($agentMarket) => $agentMarket->getAgentVersionId(), $agentMarkets);
-        $playbooksMap = $this->superMagicAgentMarketDomainService->getPlaybooksByAgentVersionIds($agentVersionIds);
+        $playbooksMap = $this->superMagicAgentPlaybookDomainService->getByAgentVersionIds($agentVersionIds);
 
-        // 官方内置员工
+        // get official agent codes
         $officialAgentCodes = $this->getOfficialAgentCodes($authorization);
         foreach ($agentMarkets as $agentMarket) {
             if (in_array($agentMarket->getAgentCode(), $officialAgentCodes)) {
@@ -186,8 +195,6 @@ class SuperMagicAgentMarketAppService extends AbstractSuperMagicAppService
             'user_agents_map' => $userAgentsMap,
             'latest_versions_map' => $latestVersionsMap,
             'playbooks_map' => $playbooksMap,
-            'page' => $requestDTO->getPage(),
-            'page_size' => $requestDTO->getPageSize(),
             'total' => $total,
         ];
     }

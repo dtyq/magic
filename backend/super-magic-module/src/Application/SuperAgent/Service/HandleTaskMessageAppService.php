@@ -12,7 +12,6 @@ use App\Domain\Contact\Entity\MagicUserEntity;
 use App\Domain\Contact\Entity\ValueObject\DataIsolation;
 use App\Domain\Contact\Service\MagicDepartmentUserDomainService;
 use App\Domain\Contact\Service\MagicUserDomainService;
-use App\Domain\Kernel\Service\PlatformSettingsDomainService;
 use App\Domain\LongTermMemory\Service\LongTermMemoryDomainService;
 use App\Domain\ModelGateway\Entity\ValueObject\AccessTokenType;
 use App\Domain\ModelGateway\Service\AccessTokenDomainService;
@@ -27,20 +26,16 @@ use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ScriptTaskEntity;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\TaskEntity;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\TaskMessageEntity;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\TopicEntity;
-use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\AgentRoleValueObject;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\ChatInstruction;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\CreationSource;
-use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\InitializationMetadataDTO;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\TaskContext;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\TaskStatus;
 use Dtyq\SuperMagic\Domain\SuperAgent\Event\RunTaskBeforeEvent;
 use Dtyq\SuperMagic\Domain\SuperAgent\Service\AgentDomainService;
 use Dtyq\SuperMagic\Domain\SuperAgent\Service\ProjectDomainService;
 use Dtyq\SuperMagic\Domain\SuperAgent\Service\TaskDomainService;
-use Dtyq\SuperMagic\Domain\SuperAgent\Service\TaskFileDomainService;
 use Dtyq\SuperMagic\Domain\SuperAgent\Service\TopicDomainService;
 use Dtyq\SuperMagic\ErrorCode\SuperAgentErrorCode;
-use Dtyq\SuperMagic\Infrastructure\Utils\WorkDirectoryUtil;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\CreateScriptTaskRequestDTO;
 use Hyperf\Logger\LoggerFactory;
 use Hyperf\Odin\Message\Role;
@@ -58,7 +53,6 @@ class HandleTaskMessageAppService extends AbstractAppService
     public function __construct(
         private readonly TopicDomainService $topicDomainService,
         private readonly TaskDomainService $taskDomainService,
-        private readonly TaskFileDomainService $taskFileDomainService,
         private readonly MagicDepartmentUserDomainService $departmentUserDomainService,
         private readonly TopicTaskAppService $topicTaskAppService,
         private readonly FileProcessAppService $fileProcessAppService,
@@ -67,7 +61,6 @@ class HandleTaskMessageAppService extends AbstractAppService
         private readonly MagicUserDomainService $userDomainService,
         private readonly LongTermMemoryDomainService $longTermMemoryDomainService,
         private readonly ProjectDomainService $projectDomainService,
-        private readonly PlatformSettingsDomainService $platformSettingsDomainService,
         private readonly ChatAppService $chatAppService,
         LoggerFactory $loggerFactory
     ) {
@@ -156,7 +149,7 @@ class HandleTaskMessageAppService extends AbstractAppService
                 modelId: $userMessageDTO->getModelId(),
                 isFirstTask: $isFirstTask,
             );
-            $sandboxID = $this->createAgent($dataIsolation, $taskContext);
+            $sandboxID = $this->createAgent($dataIsolation, $taskContext, $topicEntity);
             $taskEntity->setSandboxId($sandboxID);
 
             // Update task status
@@ -377,20 +370,13 @@ class HandleTaskMessageAppService extends AbstractAppService
     /**
      * Initialize agent environment.
      */
-    private function createAgent(DataIsolation $dataIsolation, TaskContext $taskContext): string
+    private function createAgent(DataIsolation $dataIsolation, TaskContext $taskContext, TopicEntity $topicEntity): string
     {
-        // Create sandbox container
-        $fullPrefix = $this->taskFileDomainService->getFullPrefix($dataIsolation->getCurrentOrganizationCode());
-        $fullWorkdir = WorkDirectoryUtil::getFullWorkdir($fullPrefix, $taskContext->getTask()->getWorkDir());
-        if (empty($taskContext->getSandboxId())) {
-            $sandboxId = (string) $taskContext->getTopicId();
-        } else {
-            $sandboxId = $taskContext->getSandboxId();
+        $projectEntity = $this->projectDomainService->getProjectNotUserId($taskContext->getTask()->getProjectId());
+        if ($projectEntity === null) {
+            ExceptionBuilder::throw(SuperAgentErrorCode::PROJECT_NOT_FOUND);
         }
-        $sandboxId = $this->agentDomainService->createSandbox($dataIsolation, (string) $taskContext->getProjectId(), $sandboxId, $fullWorkdir);
-        $taskContext->setSandboxId($sandboxId);
 
-        // user long term memory (structured, sandbox decides how to use it)
         $memories = $this->longTermMemoryDomainService->getEffectiveMemoriesForSandbox(
             $dataIsolation->getCurrentOrganizationCode(),
             AppCodeEnum::SUPER_MAGIC->value,
@@ -398,38 +384,23 @@ class HandleTaskMessageAppService extends AbstractAppService
             (string) $taskContext->getProjectId(),
         );
 
-        $projectEntity = $this->projectDomainService->getProjectNotUserId($taskContext->getTask()->getProjectId());
-        if ($projectEntity === null) {
-            // 抛异常，任务不存在
-            ExceptionBuilder::throw(SuperAgentErrorCode::PROJECT_NOT_FOUND);
-        }
-        // Get agent role from platform settings
-        $language = $dataIsolation->getLanguage() ?? 'en_US';
-        $agentRole = new AgentRoleValueObject(
-            name: $this->platformSettingsDomainService->getAgentRoleName($language),
-            description: $this->platformSettingsDomainService->getAgentRoleDescription($language)
+        $agentContext = $this->agentDomainService->buildInitAgentContext(
+            dataIsolation: $dataIsolation,
+            projectEntity: $projectEntity,
+            topicEntity: $topicEntity,
+            taskEntity: $taskContext->getTask(),
+            sandboxId: (string) $topicEntity->getId(),
+            memories: $memories
         );
 
-        // Create initialization metadata with agent role
-        $initMetadata = new InitializationMetadataDTO();
-        $initMetadata->setAgentRole($agentRole);
-        $initMetadata->setMemories($memories);
+        $sandboxId = $this->agentDomainService->ensureSandboxInitialized($dataIsolation, $agentContext);
 
-        // Initialize agent
-        $this->agentDomainService->initializeAgent(
-            $dataIsolation,
-            $taskContext,
-            projectOrganizationCode: $projectEntity->getUserOrganizationCode(),
-            initMetadata: $initMetadata
-        );
+        $this->topicDomainService->updateTopicSandboxId($dataIsolation, $taskContext->getTopicId(), $sandboxId);
+        $this->taskDomainService->updateTaskSandboxId($dataIsolation, $taskContext->getTask()->getId(), $sandboxId);
+        $taskContext->setSandboxId($sandboxId);
 
-        // Wait for workspace to be ready
-        $this->agentDomainService->waitForWorkspaceReady($taskContext->getSandboxId());
-
-        // Send message to agent
         $this->agentDomainService->sendChatMessage($dataIsolation, $taskContext);
 
-        // Send message to agent
         return $sandboxId;
     }
 

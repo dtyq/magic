@@ -157,6 +157,7 @@ class SuperMagicAgentMarketAssembler
             publisherType: $agentMarket->getPublisherType()->value,
             publisher: $publisher,
             categoryId: $agentMarket->getCategoryId(),
+            isFeatured: $agentMarket->isFeatured(),
             isAdded: $isAdded,
             latestVersionCode: $latestVersionCode,
             allowDelete: $allowDelete,
@@ -201,17 +202,10 @@ class SuperMagicAgentMarketAssembler
      */
     private static function buildPublisher(PublisherType $publisherType, ?MagicUserEntity $userEntity = null): array
     {
-        if ($publisherType->isOfficial() || $publisherType->isOfficialBuiltin()) {
-            return [
-                'name' => $publisherType->value,
-                'avatar' => '',
-            ];
-        }
-
-        if ($userEntity !== null) {
+        if ($publisherType->isUser() && $userEntity !== null) {
             return [
                 'name' => $userEntity->getNickname() ?: $publisherType->value,
-                'avatar' => $userEntity->getAvatarUrl() ?? '',
+                'avatar' => '',
             ];
         }
 

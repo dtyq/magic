@@ -379,9 +379,17 @@ class AdminProviderDomainService extends AbstractProviderDomainService
      * @param Category $category 服务商类别
      * @return ProviderConfigModelsDTO[]
      */
-    public function queriesServiceProviderTemplates(?Category $category = null): array
+    public function queriesServiceProviderTemplates(string $organizationCode, ?Category $category = null): array
     {
         $serviceProviderEntities = $this->serviceProviderRepository->queriesServiceProviderTemplates($category);
+
+        if (! OfficialOrganizationUtil::isOfficialOrganization($organizationCode)) {
+            foreach ($serviceProviderEntities as $index => $serviceProviderEntity) {
+                if ($serviceProviderEntity->getProviderType() === ProviderType::Official) {
+                    unset($serviceProviderEntities[$index]);
+                }
+            }
+        }
 
         return ProviderAssembler::toDTOs($serviceProviderEntities);
     }

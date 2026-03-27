@@ -9,7 +9,6 @@ namespace Dtyq\SuperMagic\Domain\Agent\Repository\Persistence;
 
 use App\Infrastructure\Core\AbstractRepository;
 use App\Infrastructure\Core\ValueObject\Page;
-use App\Infrastructure\ExternalAPI\Sms\Enum\LanguageEnum;
 use App\Infrastructure\Util\IdGenerator\IdGenerator;
 use Dtyq\SuperMagic\Domain\Agent\Entity\AgentMarketEntity;
 use Dtyq\SuperMagic\Domain\Agent\Entity\ValueObject\PublishStatus;
@@ -177,10 +176,10 @@ class AgentMarketRepository extends AbstractRepository implements AgentMarketRep
             $builder->where('category_id', $query->getCategoryId());
         }
 
-        // 排序：sort_order 非空优先，数值越大越靠前；为空时回落按创建时间
-        $builder->orderByRaw('sort_order IS NULL ASC');
+        // 排序：精选优先，其次 sort_order 非空优先且数值越大越靠前；为空时回落按 id
+        $builder->orderBy('is_featured', 'DESC');
         $builder->orderBy('sort_order', 'DESC');
-        $builder->orderBy('created_at', 'DESC');
+        $builder->orderBy('id', 'DESC');
 
         // 分页查询
         $result = $this->getByPage($builder, $page, $query);
@@ -235,21 +234,8 @@ class AgentMarketRepository extends AbstractRepository implements AgentMarketRep
 
         $name18n = trim((string) $name18n);
         if ($name18n !== '') {
-            $like = '%' . $name18n . '%';
-            $localeKeys = LanguageEnum::getAllLanguageCodes();
-            $builder->where(function ($q) use ($like, $localeKeys) {
-                $first = true;
-                foreach ($localeKeys as $localeKey) {
-                    $expression = "JSON_EXTRACT(name_i18n, CONCAT('$.', ?)) LIKE ?";
-                    $bindings = [$localeKey, $like];
-                    if ($first) {
-                        $q->whereRaw($expression, $bindings);
-                        $first = false;
-                    } else {
-                        $q->orWhereRaw($expression, $bindings);
-                    }
-                }
-            });
+            $keyword = mb_strtolower(trim('%' . $name18n . '%'), 'UTF-8');
+            $builder->where('search_text', 'LIKE', '%' . $keyword . '%');
         }
 
         $startTime = trim((string) $startTime);
@@ -262,10 +248,10 @@ class AgentMarketRepository extends AbstractRepository implements AgentMarketRep
             $builder->where('created_at', '<=', DateFormatUtil::normalizeQueryRangeEnd($endTime));
         }
 
-        $createdAtOrder = strtolower($orderBy) === 'asc' ? 'asc' : 'desc';
-        $builder->orderByRaw('sort_order IS NULL ASC');
-        $builder->orderBy('sort_order', 'DESC');
-        $builder->orderBy('created_at', $createdAtOrder);
+        $idOrder = strtolower($orderBy) === 'asc' ? 'asc' : 'desc';
+        $builder->orderBy('is_featured', $idOrder);
+        $builder->orderBy('sort_order', $idOrder);
+        $builder->orderBy('id', $idOrder);
 
         $result = $this->getByPage($builder, $page);
         $list = [];
@@ -314,6 +300,11 @@ class AgentMarketRepository extends AbstractRepository implements AgentMarketRep
      */
     public function updateSortOrderById(int $id, int $sortOrder): bool
     {
+        return $this->updateInfoById($id, ['sort_order' => $sortOrder]);
+    }
+
+    public function updateInfoById(int $id, array $payload): bool
+    {
         /** @var null|AgentMarketModel $model */
         $model = $this->agentMarketModel::query()
             ->where('id', $id)
@@ -323,7 +314,22 @@ class AgentMarketRepository extends AbstractRepository implements AgentMarketRep
             return false;
         }
 
-        $model->sort_order = $sortOrder;
+        if (array_key_exists('sort_order', $payload)) {
+            $model->sort_order = $payload['sort_order'];
+        }
+
+        if (array_key_exists('is_featured', $payload)) {
+            $model->is_featured = $payload['is_featured'];
+        }
+
+        if (array_key_exists('category_id', $payload)) {
+            $model->category_id = $payload['category_id'];
+        }
+
+        if ($model->isDirty() === false) {
+            return true;
+        }
+
         return $model->save();
     }
 }

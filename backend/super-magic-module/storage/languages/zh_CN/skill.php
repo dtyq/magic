@@ -74,4 +74,5 @@ return [
     'query_codes_too_many' => 'codes 数量不能超过 200',
     'query_codes_item_must_be_string' => 'codes 中的每一项必须是字符串',
     'query_codes_item_too_long' => '单个 code 长度不能超过 64',
+    'export_failed' => '技能导出失败，请稍后重试',
 ];

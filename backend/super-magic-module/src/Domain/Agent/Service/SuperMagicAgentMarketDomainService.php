@@ -10,9 +10,7 @@ namespace Dtyq\SuperMagic\Domain\Agent\Service;
 use App\Infrastructure\Core\ValueObject\Page;
 use Dtyq\SuperMagic\Domain\Agent\Entity\AgentMarketEntity;
 use Dtyq\SuperMagic\Domain\Agent\Entity\AgentPlaybookEntity;
-use Dtyq\SuperMagic\Domain\Agent\Entity\UserAgentEntity;
 use Dtyq\SuperMagic\Domain\Agent\Entity\ValueObject\Query\AgentMarketQuery;
-use Dtyq\SuperMagic\Domain\Agent\Entity\ValueObject\SuperMagicAgentDataIsolation;
 use Dtyq\SuperMagic\Domain\Agent\Repository\Facade\AgentMarketRepositoryInterface;
 use Dtyq\SuperMagic\Domain\Agent\Repository\Facade\AgentPlaybookRepositoryInterface;
 
@@ -78,48 +76,6 @@ class SuperMagicAgentMarketDomainService
     }
 
     /**
-     * Resolve the current user's installed agents by market agent codes.
-     *
-     * @param SuperMagicAgentDataIsolation $dataIsolation Data isolation context
-     * @param string[] $agentCodes Market agent codes
-     * @return array<string, UserAgentEntity> User ownerships keyed by market agent code
-     */
-    public function getUserAgentsByAgentCodes(SuperMagicAgentDataIsolation $dataIsolation, array $agentCodes): array
-    {
-        $agentCodes = array_values(array_unique(array_filter($agentCodes)));
-        if ($agentCodes === []) {
-            return [];
-        }
-
-        $marketAgents = $this->agentMarketRepository->findByAgentCodes($agentCodes);
-        if ($marketAgents === []) {
-            return [];
-        }
-
-        $agentVersionIds = [];
-        foreach ($marketAgents as $marketAgent) {
-            $agentVersionIds[] = $marketAgent->getAgentVersionId();
-        }
-
-        $userAgentOwnerships = $this->userAgentDomainService->findUserAgentOwnershipsByVersionIds($dataIsolation, $agentVersionIds);
-        if ($userAgentOwnerships === []) {
-            return [];
-        }
-
-        $result = [];
-        foreach ($marketAgents as $marketAgentCode => $marketAgent) {
-            $userAgentOwnership = $userAgentOwnerships[$marketAgent->getAgentVersionId()] ?? null;
-            if ($userAgentOwnership === null) {
-                continue;
-            }
-
-            $result[$marketAgentCode] = $userAgentOwnership;
-        }
-
-        return $result;
-    }
-
-    /**
      * Load playbooks in batch for the market list.
      *
      * @param int[] $agentVersionIds Agent version ids
@@ -136,5 +92,15 @@ class SuperMagicAgentMarketDomainService
     public function updateSortOrderById(int $id, int $sortOrder): bool
     {
         return $this->agentMarketRepository->updateSortOrderById($id, $sortOrder);
+    }
+
+    /**
+     * 按传入字段部分更新市场员工信息.
+     *
+     * @param array{sort_order?: null|int, is_featured?: bool} $payload
+     */
+    public function updateInfoById(int $id, array $payload): bool
+    {
+        return $this->agentMarketRepository->updateInfoById($id, $payload);
     }
 }
