@@ -62,7 +62,7 @@ interface ApiConfigProps {
 
 const ApiConfig = memo(({ data, lang, isOfficial, onLangSave }: ApiConfigProps) => {
 	const { name, provider_code: code, category } = data || {}
-	const { styles, cx } = useStyles()
+	const { styles } = useStyles()
 	const { t } = useTranslation("admin/ai/model")
 
 	if (!code) return null

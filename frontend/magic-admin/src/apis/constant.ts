@@ -309,7 +309,7 @@ export const RequestUrl = {
 	/** 更改/AI能力详情 */
 	updateAiPower: "/api/v1/admin/ai-abilities/${code}",
 	/** 能力管理联通性测试  */
-	testAiPowerConnection: "/api/v1/admin/service-providers/ability-connectivity-test",
+	testAiPowerConnection: "/api/v1/admin/ai-abilities/connectivity-test",
 	/** —————— 平台管理 - 代理服务器 —————— */
 	/** 获取代理列表 */
 	getProxyServerList: "/api/v1/admin/proxy-servers/queries",

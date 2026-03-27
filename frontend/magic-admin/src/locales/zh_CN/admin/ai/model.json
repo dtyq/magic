@@ -157,7 +157,7 @@
 	"serviceConfig": "服务配置",
 	"status": "状态",
 	"testConnection": "连通性检测",
-	"testConnectionDesc": "本次连通性测试将会消耗少量 Token 进行检测，请确认操作。",
+	"testConnectionDesc": "本次连通性测试将会消耗少量 {{unit}} 进行检测，请确认操作。",
 	"testConnectionDesc2": "是否开启该模型连通性测试，以确保模型正常使用",
 	"testConnectionPlaceholder": "测试 Api Key 与代理地址是否正确填写",
 	"testStatus": "连通性：{{status}}",

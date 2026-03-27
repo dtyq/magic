@@ -156,7 +156,7 @@
 	"serviceConfig": "Service Configuration",
 	"status": "Status",
 	"testConnection": "Connectivity Test",
-	"testConnectionDesc": "This connectivity test will consume a small amount of Tokens for detection, please confirm the operation.",
+	"testConnectionDesc": "This connectivity test will consume a small amount of {{unit}} for detection, please confirm the operation.",
 	"testConnectionPlaceholder": "Test if the Api Key and proxy address are correctly filled in",
 	"testStatus": "Connectivity: {{status}}",
 	"testStatusError": "Error",

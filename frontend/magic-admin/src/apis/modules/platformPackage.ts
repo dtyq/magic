@@ -216,7 +216,6 @@ export const generatePlatformPackageApi = (client: HttpClient) => {
 			return client.post<PlatformPackage.TestAiPowerConnection>(
 				RequestUrl.testAiPowerConnection,
 				{ ai_ability: code },
-				{ unwrapData: false },
 			)
 		},
 

@@ -237,13 +237,11 @@ function AIPowerDetailPage() {
 				message: "missing power code",
 			}
 		}
-		const res = (await PlatformPackageApi.testAiPowerConnection(code)) as unknown as {
-			data: PlatformPackage.TestAiPowerConnection
-		}
+		const res = await PlatformPackageApi.testAiPowerConnection(code)
 
 		return {
-			...res?.data,
-			status: res?.data?.success ? 1 : 0,
+			...res,
+			status: res.success ? 1 : 0,
 		}
 	})
 

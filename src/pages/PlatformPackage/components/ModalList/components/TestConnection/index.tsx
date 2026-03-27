@@ -57,7 +57,12 @@ const TestConnection = forwardRef<TestConnectionRef, TestConnectionProps>(
 			openModal(WarningModal, {
 				open: true,
 				title: t("testConnection"),
-				content: t("testConnectionDesc"),
+				content: t("testConnectionDesc", {
+					unit:
+						type === TestConnectionType.Model
+							? "Token"
+							: t("point", { ns: "admin/platform/manage" }),
+				}),
 				showDeleteText: false,
 				dangerLevel: DangerLevel.Normal,
 				okButtonProps: {
