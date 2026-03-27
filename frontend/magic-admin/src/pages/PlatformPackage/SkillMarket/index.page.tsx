@@ -199,7 +199,6 @@ function SkillMarketPage() {
 					item.id === record.id ? { ...item, is_featured: nextFeatured } : item,
 				),
 			)
-			run(params)
 		} catch {
 			message.error(tCommon("message.updateFailed"))
 		} finally {
@@ -220,7 +219,6 @@ function SkillMarketPage() {
 					item.id === record.id ? { ...item, is_hidden: nextHidden } : item,
 				),
 			)
-			run(params)
 		} catch {
 			message.error(tCommon("message.updateFailed"))
 		} finally {
