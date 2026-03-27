@@ -50,11 +50,13 @@ use Dtyq\SuperMagic\Domain\Skill\Entity\ValueObject\SkillSourceType;
 use Dtyq\SuperMagic\Domain\Skill\Event\SkillImportedEvent;
 use Dtyq\SuperMagic\Domain\Skill\Service\SkillDomainService;
 use Dtyq\SuperMagic\Domain\Skill\Service\SkillMarketDomainService;
+use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ProjectEntity;
 use Dtyq\SuperMagic\Domain\SuperAgent\Service\ProjectDomainService;
 use Dtyq\SuperMagic\Domain\SuperAgent\Service\TaskFileDomainService;
 use Dtyq\SuperMagic\ErrorCode\SkillErrorCode;
 use Dtyq\SuperMagic\ErrorCode\SuperAgentErrorCode;
 use Dtyq\SuperMagic\ErrorCode\SuperMagicErrorCode;
+use Dtyq\SuperMagic\Infrastructure\Utils\SkillProjectConfigUtil;
 use Dtyq\SuperMagic\Interfaces\Skill\DTO\Request\AddSkillFromStoreRequestDTO;
 use Dtyq\SuperMagic\Interfaces\Skill\DTO\Request\GetLatestPublishedSkillVersionsRequestDTO;
 use Dtyq\SuperMagic\Interfaces\Skill\DTO\Request\GetSkillFileUrlsRequestDTO;
@@ -1290,7 +1292,8 @@ class SkillAppService extends AbstractSkillAppService
     /**
      * Export skill files from project by querying the file table and packaging locally.
      * Replaces the sandbox-based export with a direct approach:
-     * 1. Find .magic/skills/{packageName} directory via file table
+     * 1. Read .magic/skills/skill_config.yaml from project storage
+     * 2. Find .magic/skills/{skill.dir} directory via file table
      * 2. Verify it contains SKILL.md
      * 3. Download files from cloud storage
      * 4. Create ZIP archive
@@ -1301,11 +1304,6 @@ class SkillAppService extends AbstractSkillAppService
     private function exportSkillFromProjectLocal(MagicUserAuthorization $authorization, SkillEntity $skillEntity): array
     {
         $projectId = $skillEntity->getProjectId();
-        $packageName = $skillEntity->getPackageName();
-
-        if (empty($packageName)) {
-            ExceptionBuilder::throw(SkillErrorCode::FILE_NOT_FOUND, 'skill.file_not_found');
-        }
 
         $project = $this->projectDomainService->getProjectNotUserId($projectId);
         if (! $project) {
@@ -1314,8 +1312,10 @@ class SkillAppService extends AbstractSkillAppService
 
         $projectOrgCode = $project->getUserOrganizationCode();
         $organizationCode = $authorization->getOrganizationCode();
+        $skillConfig = $this->readSkillProjectConfig($projectId, $project);
+        $skillDirName = $skillConfig['skill']['dir'] ?? '';
 
-        $skillDirPath = '.magic/skills/' . $packageName;
+        $skillDirPath = SkillProjectConfigUtil::SKILLS_ROOT_PATH . '/' . $skillDirName;
         $skillDirEntity = $this->taskFileDomainService->findDirectoryByPath($projectId, $skillDirPath);
         if ($skillDirEntity === null) {
             ExceptionBuilder::throw(SkillErrorCode::EXTRACTED_DIRECTORY_NOT_FOUND, 'skill.extracted_directory_not_found');
@@ -1338,8 +1338,8 @@ class SkillAppService extends AbstractSkillAppService
         }
 
         $tempBaseDir = self::TEMP_DIR_BASE . 'skill_export_' . IdGenerator::getUniqueId32();
-        $tempContentDir = $tempBaseDir . '/' . $packageName;
-        $zipFilePath = $tempBaseDir . '/' . $packageName . '.zip';
+        $tempContentDir = $tempBaseDir . '/' . $skillDirName;
+        $zipFilePath = $tempBaseDir . '/' . $skillDirName . '.zip';
 
         if (! is_dir($tempContentDir)) {
             mkdir($tempContentDir, 0755, true);
@@ -1374,20 +1374,75 @@ class SkillAppService extends AbstractSkillAppService
                 );
             }
 
-            ZipUtil::compress($tempContentDir, $zipFilePath, $packageName);
+            ZipUtil::compress($tempContentDir, $zipFilePath, $skillDirName);
 
             $fileKey = $this->uploadFileToPrivateStorage($organizationCode, $zipFilePath, $skillEntity->getCode());
 
             return [
                 'file_key' => $fileKey,
                 'metadata' => [
-                    'package_name' => $packageName,
+                    'package_name' => $skillEntity->getPackageName(),
+                    'skill_dir' => $skillDirName,
                     'files_count' => count($allFiles),
                 ],
             ];
         } finally {
             if (is_dir($tempBaseDir)) {
                 $this->removeDirectory($tempBaseDir);
+            }
+        }
+    }
+
+    /**
+     * @return array{skill: array<string, string>}
+     */
+    private function readSkillProjectConfig(int $projectId, ProjectEntity $project): array
+    {
+        $skillsDirEntity = $this->taskFileDomainService->findDirectoryByPath($projectId, SkillProjectConfigUtil::SKILLS_ROOT_PATH);
+        if ($skillsDirEntity === null) {
+            ExceptionBuilder::throw(SkillErrorCode::SKILL_CONFIG_NOT_FOUND, 'skill.skill_config_not_found');
+        }
+
+        $configFileKey = rtrim($skillsDirEntity->getFileKey(), '/') . '/' . SkillProjectConfigUtil::CONFIG_FILE_NAME;
+        $configFileEntity = $this->taskFileDomainService->getByProjectIdAndFileKey($projectId, $configFileKey);
+        if ($configFileEntity === null) {
+            ExceptionBuilder::throw(SkillErrorCode::SKILL_CONFIG_NOT_FOUND, 'skill.skill_config_not_found');
+        }
+
+        $tempDir = self::TEMP_DIR_BASE . 'skill_config_' . IdGenerator::getUniqueId32();
+        if (! is_dir($tempDir)) {
+            mkdir($tempDir, 0755, true);
+        }
+
+        try {
+            $localConfigPath = $tempDir . '/' . SkillProjectConfigUtil::CONFIG_FILE_NAME;
+            $this->fileDomainService->downloadByChunks(
+                $project->getUserOrganizationCode(),
+                $configFileEntity->getFileKey(),
+                $localConfigPath,
+                StorageBucketType::SandBox
+            );
+
+            $configContent = file_get_contents($localConfigPath);
+            if ($configContent === false) {
+                ExceptionBuilder::throw(SkillErrorCode::SKILL_CONFIG_INVALID, 'skill.skill_config_invalid');
+            }
+
+            try {
+                $config = SkillProjectConfigUtil::parse($configContent);
+            } catch (Throwable) {
+                ExceptionBuilder::throw(SkillErrorCode::SKILL_CONFIG_INVALID, 'skill.skill_config_invalid');
+            }
+
+            $skillDirName = $config['skill']['dir'] ?? '';
+            if (! SkillProjectConfigUtil::isValidSkillDir($skillDirName)) {
+                ExceptionBuilder::throw(SkillErrorCode::SKILL_CONFIG_INVALID, 'skill.skill_config_invalid');
+            }
+
+            return $config;
+        } finally {
+            if (is_dir($tempDir)) {
+                $this->removeDirectory($tempDir);
             }
         }
     }

@@ -70,6 +70,8 @@ return [
     'publish_target_value_required' => '成员发布时必须选择至少一个成员或部门',
     'non_official_organization_cannot_publish_to_market' => '仅官方组织允许发布到市场',
     'skill_creator_cannot_add_from_market' => '技能创建者不能从市场添加自己的技能',
+    'skill_config_not_found' => '未找到 skill_config.yaml 配置文件',
+    'skill_config_invalid' => 'skill_config.yaml 配置无效',
     'query_codes_must_be_array' => 'codes 必须是数组',
     'query_codes_too_many' => 'codes 数量不能超过 200',
     'query_codes_item_must_be_string' => 'codes 中的每一项必须是字符串',
