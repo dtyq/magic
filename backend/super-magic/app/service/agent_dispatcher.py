@@ -498,12 +498,16 @@ class AgentDispatcher(Base):
         # state, but each HTTP request starts with no language set (ContextVar default
         # is None → zh_CN). Applying it here inside the task guarantees the correct
         # locale regardless of the caller's context state.
+        # Priority: current chat message language > init metadata language > zh_CN default.
         from app.i18n import i18n
-        metadata = self.agent_context.get_init_client_message_metadata()
-        if metadata and metadata.language:
-            i18n.set_language(metadata.language)
+        language = None
+        if message.metadata and message.metadata.language:
+            language = message.metadata.language
         else:
-            i18n.set_language("zh_CN")
+            init_metadata = self.agent_context.get_init_client_message_metadata()
+            if init_metadata and init_metadata.language:
+                language = init_metadata.language
+        i18n.set_language(language or "zh_CN")
 
         try:
             await self.dispatch_message(message)
