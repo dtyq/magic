@@ -94,6 +94,12 @@ class LarkChannel(BaseChannel):
         if credential is None or not credential.enabled:
             return False
 
+        from app.channel.lark.state import load_runtime_state
+        state = await load_runtime_state()
+        if state.last_chat_id:
+            self._last_chat_id = state.last_chat_id
+            logger.info(f"[LarkChannel] 恢复运行态: last_chat_id={state.last_chat_id}")
+
         await self.connect(credential.app_id, credential.app_secret)
         return True
 
@@ -225,9 +231,14 @@ class LarkChannel(BaseChannel):
         message_id = getattr(msg, "message_id", None) or ""
         chat_id = getattr(msg, "chat_id", None) or ""
 
-        # 缓存 chat_id，供 cron 主动推送复用
+        # 缓存 chat_id，供 cron 主动推送复用，并持久化供重启后使用
         if chat_id:
             self._last_chat_id = chat_id
+            try:
+                from app.channel.lark.state import LarkRuntimeState, save_runtime_state
+                await save_runtime_state(LarkRuntimeState(last_chat_id=chat_id))
+            except Exception as e:
+                logger.warning(f"[LarkChannel] 保存运行态失败: {e}")
 
         ctx = dispatcher.agent_context
         assert self._sdk_client is not None

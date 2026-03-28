@@ -64,6 +64,19 @@ class DingTalkChannel(BaseChannel):
         if credential is None or not credential.enabled:
             return False
 
+        from app.channel.dingtalk.state import load_runtime_state
+        state = await load_runtime_state()
+        if state.last_message_data:
+            try:
+                self._last_incoming_message = ChatbotMessage.from_dict(state.last_message_data)
+                # 与 _on_message 保持一致：补全缺失的 sender_staff_id
+                if not self._last_incoming_message.sender_staff_id:
+                    self._last_incoming_message.sender_staff_id = self._last_incoming_message.sender_id
+                sender = self._last_incoming_message.sender_staff_id or self._last_incoming_message.sender_id
+                logger.info(f"[DingTalkChannel] 恢复运行态: sender={sender}")
+            except Exception as e:
+                logger.warning(f"[DingTalkChannel] 恢复运行态失败，跳过: {e}")
+
         await self.connect(credential.client_id, credential.client_secret)
         return True
 
@@ -178,7 +191,7 @@ class DingTalkChannel(BaseChannel):
         self._client = None
         logger.info("[DingTalkChannel] 已断开")
 
-    async def _on_message(self, incoming_message: ChatbotMessage) -> None:
+    async def _on_message(self, incoming_message: ChatbotMessage, raw_data: dict | None = None) -> None:
         """处理文本消息：创建 AI 卡片 → 注册 stream + sink → dispatch → 清理。"""
         from app.service.agent_dispatcher import AgentDispatcher
 
@@ -206,6 +219,13 @@ class DingTalkChannel(BaseChannel):
 
         # 缓存本次消息上下文，供 cron 主动推送复用（sender_staff_id 已补全）
         self._last_incoming_message = incoming_message
+        # 持久化原始消息数据，供重启后恢复
+        if raw_data is not None:
+            try:
+                from app.channel.dingtalk.state import DingTalkRuntimeState, save_runtime_state
+                await save_runtime_state(DingTalkRuntimeState(last_message_data=raw_data))
+            except Exception as e:
+                logger.warning(f"[DingTalkChannel] 保存运行态失败: {e}")
 
         card = AIMarkdownCardInstance(self._client, incoming_message)
         # 使用 TS 连接器验证过的模板，仅声明 msgContent 字段避免渲染空占位（msgSlider 等）
@@ -297,5 +317,5 @@ class _DingTalkBotHandler(ChatbotHandler):
 
     async def process(self, callback: CallbackMessage) -> tuple:
         incoming_message = ChatbotMessage.from_dict(callback.data)
-        await self._manager._on_message(incoming_message)
+        await self._manager._on_message(incoming_message, raw_data=callback.data)
         return AckMessage.STATUS_OK, "OK"

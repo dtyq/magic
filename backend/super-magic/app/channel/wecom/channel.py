@@ -56,6 +56,13 @@ class WeComChannel(BaseChannel):
         if credential is None or not credential.enabled:
             return False
 
+        from app.channel.wecom.state import load_runtime_state
+        state = await load_runtime_state()
+        if state.last_frame:
+            self._last_frame = state.last_frame
+            user_id = state.last_frame.get("body", {}).get("sender", {}).get("userid", "")
+            logger.info(f"[WeComChannel] 恢复运行态: last_frame.sender.userid={user_id}")
+
         await self.connect(credential.bot_id, credential.secret)
         return True
 
@@ -104,8 +111,13 @@ class WeComChannel(BaseChannel):
         if not content:
             return
 
-        # 缓存 frame，供 cron 主动推送复用
+        # 缓存 frame，供 cron 主动推送复用，并持久化供重启后使用
         self._last_frame = frame
+        try:
+            from app.channel.wecom.state import WeComRuntimeState, save_runtime_state
+            await save_runtime_state(WeComRuntimeState(last_frame=frame))
+        except Exception as e:
+            logger.warning(f"[WeComChannel] 保存运行态失败: {e}")
 
         sender = body.get("sender", {})
         user_id = sender.get("userid", "wecom_user")
