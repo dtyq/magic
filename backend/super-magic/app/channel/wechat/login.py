@@ -19,7 +19,7 @@ import time
 import uuid
 from dataclasses import dataclass, field
 from enum import StrEnum
-from typing import Optional
+from typing import Awaitable, Callable, Optional
 
 import aiohttp
 
@@ -104,6 +104,10 @@ class WechatLoginSession:
     result: Optional[WechatLoginResult] = None
     _poll_task: Optional[asyncio.Task] = None
     _event_queue: "asyncio.Queue[WechatLoginOutcome]" = field(default_factory=asyncio.Queue)
+    # 登录成功后的自动激活回调，由 connect_wechat_bot 在发起会话时注册
+    _on_success: Optional[Callable[["WechatLoginResult"], Awaitable[None]]] = field(
+        default=None, repr=False
+    )
 
     def is_active(self) -> bool:
         return self.status in (LoginStatus.WAITING, LoginStatus.SCANNED)
@@ -326,6 +330,12 @@ class WechatLoginManager:
                         session._event_queue.put_nowait(outcome)
                         terminal_event_emitted = True
                         logger.info(f"[WechatLogin] login success, ilink_bot_id={result.ilink_bot_id}")
+                        # 触发自动激活回调（由 connect_wechat_bot 注册），不阻塞轮询主流程
+                        if session._on_success is not None:
+                            asyncio.create_task(
+                                _run_on_success(session._on_success, result),
+                                name=f"wechat-on-success-{session.session_id}",
+                            )
                         return
 
                     elif status == "expired":
@@ -389,3 +399,14 @@ class WechatLoginManager:
                         if self._active_session is session:
                             self._active_session = None
                     session._event_queue.put_nowait(final_outcome)
+
+
+async def _run_on_success(
+    callback: Callable[["WechatLoginResult"], Awaitable[None]],
+    result: "WechatLoginResult",
+) -> None:
+    """包装 _on_success 回调执行，捕获异常避免影响轮询主流程。"""
+    try:
+        await callback(result)
+    except Exception as e:
+        logger.error(f"[WechatLogin] _on_success callback failed: {e}")

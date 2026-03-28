@@ -10,7 +10,7 @@ from pydantic import Field
 from agentlang.context.tool_context import ToolContext
 from agentlang.logger import get_logger
 from agentlang.tools.tool_result import ToolResult
-from app.channel.wechat.login import WechatLoginManager, LoginStatus
+from app.channel.wechat.login import WechatLoginManager, WechatLoginResult, LoginStatus
 from app.core.context.agent_context import AgentContext
 from app.i18n import i18n
 from app.tools.core import BaseTool, BaseToolParams, tool
@@ -49,6 +49,31 @@ class ConnectWechatBot(BaseTool[ConnectWechatBotParams]):
                     await manager.cancel_session(session_id=captured_id)
 
                 agent_context.register_run_cleanup("wechat_login", _wechat_cleanup)
+
+            # 仅在新 session 上挂兜底回调，复用时已有回调无需重复注册。
+            # 作用：即使模型未调用 wait_wechat_login，扫码成功后也能自动写配置并激活渠道。
+            if session._on_success is None:
+                sandbox_id = tool_context.sandbox_id
+
+                async def _on_login_success(result: "WechatLoginResult") -> None:
+                    from app.channel.config import WechatCredential, load_config, save_config
+                    from app.channel.wechat.channel import WechatChannel
+                    config = await load_config()
+                    config.wechat = WechatCredential(
+                        bot_token=result.bot_token,
+                        ilink_bot_id=result.ilink_bot_id,
+                        base_url=result.base_url,
+                        ilink_user_id=result.ilink_user_id,
+                        sandbox_id=sandbox_id,
+                    )
+                    await save_config(config)
+                    logger.info(
+                        f"[ConnectWechatBot] auto-activating WechatChannel, "
+                        f"ilink_bot_id={result.ilink_bot_id}"
+                    )
+                    await WechatChannel.get_instance().connect(config.wechat)
+
+                session._on_success = _on_login_success
 
             # 复用已有 session 时，告知当前扫码状态
             status_text: str | None = None
