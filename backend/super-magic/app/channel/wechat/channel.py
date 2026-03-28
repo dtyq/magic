@@ -48,6 +48,9 @@ class WechatChannel(BaseChannel):
         # 缓存最后一次收到消息的用户 ID 和 context_token，供 cron 主动推送复用会话上下文
         self._last_to_user_id: Optional[str] = None
         self._last_context_token: Optional[str] = None
+        # 防止 connect_wechat_bot 的 _on_success 回调与 wait_wechat_login._activate_channel
+        # 并发调用 connect() 导致双重启动（两条路径都会在扫码成功后触发激活）
+        self._connect_lock: asyncio.Lock = asyncio.Lock()
         # TODO: 统一保活设施（大一统方案）
         # 当前各渠道各自持有独立的 ChannelKeepalive，相互隔离。
         # 后续应引入统一的保活注册中心（KeepaliveRegistry），各渠道/组件向其注册自己的存活条件，
@@ -139,27 +142,38 @@ class WechatChannel(BaseChannel):
         return True
 
     async def connect(self, credential: WechatCredential) -> None:
-        """启动 getupdates 长轮询（幂等：已运行则先停止再重启）。"""
-        if self.is_connected:
-            logger.info("[WechatChannel] 已有连接，先停止再重连")
-            await self.disconnect()
+        """启动 getupdates 长轮询（幂等：已连接且凭据相同时跳过；凭据不同则先断后连）。
+        持锁执行，防止 _on_success 回调与 wait_wechat_login._activate_channel 并发重入
+        导致双重启动（两个 poll_task + http_session 泄漏）。
+        """
+        async with self._connect_lock:
+            if self.is_connected:
+                if (
+                    self._credential is not None
+                    and self._credential.ilink_bot_id == credential.ilink_bot_id
+                ):
+                    logger.info("[WechatChannel] 凭据相同且已连接，跳过重连")
+                    return
+                logger.info("[WechatChannel] 已有连接，先停止再重连")
+                await self.disconnect()
 
-        self._credential = credential
-        self._http_session = aiohttp.ClientSession()
-        self._typing_config_manager = WechatTypingConfigManager(
-            http_session=self._http_session,
-            base_url=credential.base_url,
-            token=credential.bot_token,
-        )
-        state = await load_runtime_state()
-        self._get_updates_buf = state.get_updates_buf
-        self._last_to_user_id = state.last_to_user_id or None
-        self._last_context_token = state.last_context_token or None
-        self._poll_task = asyncio.create_task(self._poll_loop())
-        logger.info(
-            f"[WechatChannel] 启动轮询, ilink_bot_id={credential.ilink_bot_id}, "
-            f"get_updates_buf_len={len(self._get_updates_buf)}"
-        )
+            self._credential = credential
+            self._http_session = aiohttp.ClientSession()
+            self._typing_config_manager = WechatTypingConfigManager(
+                http_session=self._http_session,
+                base_url=credential.base_url,
+                token=credential.bot_token,
+            )
+            state = await load_runtime_state()
+            self._get_updates_buf = state.get_updates_buf
+            self._last_to_user_id = state.last_to_user_id or None
+            self._last_context_token = state.last_context_token or None
+            self._poll_task = asyncio.create_task(self._poll_loop())
+            self._keepalive.start()
+            logger.info(
+                f"[WechatChannel] 启动轮询, ilink_bot_id={credential.ilink_bot_id}, "
+                f"get_updates_buf_len={len(self._get_updates_buf)}"
+            )
 
     async def disconnect(self) -> None:
         """停止长轮询并释放 HTTP 会话。"""
@@ -178,6 +192,7 @@ class WechatChannel(BaseChannel):
         self._typing_config_manager = None
         self._credential = None
         self._session_pause_until_ms = 0
+        self._keepalive.stop()
         logger.info("[WechatChannel] 已断开")
 
     async def _sleep_ms(self, delay_ms: int) -> None:
