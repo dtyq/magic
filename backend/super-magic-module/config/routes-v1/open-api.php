@@ -11,6 +11,7 @@ use Dtyq\SuperMagic\Interfaces\Agent\Facade\Sandbox\SuperMagicAgentSandboxApi;
 use Dtyq\SuperMagic\Interfaces\Share\Facade\ShareApi;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\Facade\InternalApi\FileApi;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\Facade\InternalApi\SandboxApi as InternalSandboxApi;
+use Dtyq\SuperMagic\Interfaces\SuperAgent\Facade\InternalApi\TaskApi as InternalTaskApi;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\Facade\OpenApi\OpenMessageScheduleApi;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\Facade\OpenApi\OpenProjectApi;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\Facade\OpenApi\OpenTaskApi;
@@ -61,6 +62,12 @@ Router::addGroup(
             Router::post('/versions', [FileApi::class, 'createFileVersion']);
             // 获取文件树
             Router::post('/tree', [FileApi::class, 'getFileTree']);
+        });
+
+        // 超级助理内部消息相关
+        Router::addGroup('/super-agent/tasks', static function () {
+            // 第三方消息入站
+            Router::post('/ingest-third-party-message', [InternalTaskApi::class, 'ingestThirdPartyMessage']);
         });
 
         // 分享管理相关

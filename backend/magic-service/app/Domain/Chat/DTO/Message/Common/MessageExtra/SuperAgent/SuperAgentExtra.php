@@ -67,6 +67,12 @@ class SuperAgentExtra extends AbstractDTO
     protected ?bool $processedByApi = null;
 
     /**
+     * Third-party message source for user->agent messages.
+     * Example: {"channel":"feishu","message_id":"om_xxx","conversation_id":"oc_xxx","sender_id":"ou_xxx"}.
+     */
+    protected ?array $source = null;
+
+    /**
      * 获取 mentions 的 JSON 结构数组.
      */
     public function getMentionsJsonStruct(): ?array
@@ -252,5 +258,15 @@ class SuperAgentExtra extends AbstractDTO
     public function setProcessedByApi(?bool $processedByApi): void
     {
         $this->processedByApi = $processedByApi;
+    }
+
+    public function getSource(): ?array
+    {
+        return $this->source;
+    }
+
+    public function setSource(?array $source): void
+    {
+        $this->source = empty($source) ? null : $source;
     }
 }

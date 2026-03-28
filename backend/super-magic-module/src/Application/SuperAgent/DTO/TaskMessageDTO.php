@@ -33,6 +33,7 @@ class TaskMessageDTO
         private readonly ?string $correlationId = null,
         private readonly ?string $parentCorrelationId = null,
         private readonly ?string $contentType = null,
+        private readonly ?array $source = null,
     ) {
     }
 
@@ -136,12 +137,22 @@ class TaskMessageDTO
         return $this->contentType;
     }
 
+    public function getSource(): ?array
+    {
+        return $this->source;
+    }
+
     /**
      * Create DTO from array.
      */
     public static function fromArray(array $data): self
     {
         $topicId = (isset($data['topicId']) ? (int) $data['topicId'] : null);
+        $source = $data['source'] ?? null;
+        if (is_string($source)) {
+            $decoded = json_decode($source, true);
+            $source = is_array($decoded) ? $decoded : null;
+        }
         return new self(
             taskId: $data['task_id'] ?? $data['taskId'] ?? '',
             role: $data['role'] ?? '',
@@ -163,6 +174,7 @@ class TaskMessageDTO
             correlationId: $data['correlation_id'] ?? null,
             parentCorrelationId: $data['parent_correlation_id'] ?? null,
             contentType: $data['content_type'] ?? null,
+            source: $source,
         );
     }
 
@@ -192,6 +204,7 @@ class TaskMessageDTO
             'correlation_id' => $this->correlationId,
             'parent_correlation_id' => $this->parentCorrelationId,
             'content_type' => $this->contentType,
+            'source' => $this->source,
         ];
     }
 }

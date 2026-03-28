@@ -57,6 +57,7 @@ class TaskMessageModel extends AbstractModel
         'parent_correlation_id',
         'content_type',
         'usage',
+        'source',
         'created_at',
         'updated_at',
         'deleted_at',
@@ -82,5 +83,6 @@ class TaskMessageModel extends AbstractModel
         'parent_correlation_id' => 'string',
         'content_type' => 'string',
         'usage' => 'json',
+        'source' => 'json',
     ];
 }
