@@ -19,7 +19,7 @@ from app.channel.base.channel import BaseChannel
 from app.channel.base.keepalive import ChannelKeepalive
 from app.channel.config import IMChannelsConfig, WechatCredential
 from app.channel.wechat import api
-from app.channel.wechat.state import load_runtime_state, save_get_updates_buf
+from app.channel.wechat.state import WechatRuntimeState, load_runtime_state, save_runtime_state
 from app.channel.wechat.stream import WechatStream
 from app.channel.wechat.typing import WechatTypingConfigManager, WechatTypingController
 from app.core.entity.message.client_message import ChatClientMessage, Metadata
@@ -153,6 +153,8 @@ class WechatChannel(BaseChannel):
         )
         state = await load_runtime_state()
         self._get_updates_buf = state.get_updates_buf
+        self._last_to_user_id = state.last_to_user_id or None
+        self._last_context_token = state.last_context_token or None
         self._poll_task = asyncio.create_task(self._poll_loop())
         logger.info(
             f"[WechatChannel] 启动轮询, ilink_bot_id={credential.ilink_bot_id}, "
@@ -274,9 +276,13 @@ class WechatChannel(BaseChannel):
             if data.get("get_updates_buf"):
                 self._get_updates_buf = data["get_updates_buf"]
                 try:
-                    await save_get_updates_buf(self._get_updates_buf)
+                    await save_runtime_state(WechatRuntimeState(
+                        get_updates_buf=self._get_updates_buf,
+                        last_to_user_id=self._last_to_user_id or "",
+                        last_context_token=self._last_context_token or "",
+                    ))
                 except Exception as e:
-                    logger.warning(f"[WechatChannel] 持久化 get_updates_buf 失败: {e}")
+                    logger.warning(f"[WechatChannel] 持久化运行态失败: {e}")
 
             for msg in data.get("msgs") or []:
                 try:
@@ -301,9 +307,17 @@ class WechatChannel(BaseChannel):
         context_token: str = msg.get("context_token", "")
         user_id: str = msg.get("from_user_id", "wechat_user")
 
-        # 缓存最近一次活跃用户，供 cron 主动推送复用
+        # 缓存最近一次活跃用户，供 cron 主动推送复用，并持久化以跨重启保留
         self._last_to_user_id = user_id
         self._last_context_token = context_token
+        try:
+            await save_runtime_state(WechatRuntimeState(
+                get_updates_buf=self._get_updates_buf,
+                last_to_user_id=user_id,
+                last_context_token=context_token,
+            ))
+        except Exception as e:
+            logger.warning(f"[WechatChannel] 持久化用户上下文失败: {e}")
 
         # 下载媒体（图片/视频/文件/无转文字的语音），失败不阻断主流程
         assert self._http_session is not None
@@ -377,7 +391,8 @@ class WechatChannel(BaseChannel):
         """用缓存的最后一次会话上下文创建主动推送 stream。"""
         if (
             not self.is_connected
-            or self._last_to_user_id is None
+            or not self._last_to_user_id
+            or not self._last_context_token
             or self._credential is None
             or self._http_session is None
         ):

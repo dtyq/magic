@@ -186,6 +186,18 @@ async def try_notify_main_agent() -> None:
 
     prompt = t("cron.notify.intro") + "\n\n" + "\n\n---\n\n".join(task_blocks)
 
+    import uuid
+    from app.core.entity.message.client_message import ChatClientMessage
+    chat_msg = ChatClientMessage(
+        message_id=f"cron_{uuid.uuid4().hex[:16]}",
+        prompt=prompt,
+    )
+    # submit_message 内部会先 stop_run 再 reset_run_state，完成后 run_cleanup_registry 已清空。
+    # 必须在 submit_message 返回后再调用 register_run_cleanup（即 create_proactive_streams），
+    # 否则 stop_run 会把刚注册的 cleanup 触发一遍，把 WechatStream 提前移除。
+    await dispatcher.submit_message(chat_msg)
+    logger.info(f"cron notify: submitted {len(records)} notification(s) to main agent")
+
     # 为所有已连接且有缓存上下文的 IM 渠道注册主动推送 stream/sink，
     # 使 agent 的回复能同步推送到 IM，而不仅仅写入聊天历史文件。
     from app.channel.base.registry import build_default_channel_registry
@@ -206,12 +218,3 @@ async def try_notify_main_agent() -> None:
         logger.info(f"cron notify: proactive streams registered for channels: {registered_channels}")
     else:
         logger.info("cron notify: no connected channels with cached context, reply goes to history only")
-
-    import uuid
-    from app.core.entity.message.client_message import ChatClientMessage
-    chat_msg = ChatClientMessage(
-        message_id=f"cron_{uuid.uuid4().hex[:16]}",
-        prompt=prompt,
-    )
-    await dispatcher.submit_message(chat_msg)
-    logger.info(f"cron notify: submitted {len(records)} notification(s) to main agent")

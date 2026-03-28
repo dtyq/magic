@@ -25,6 +25,9 @@ _STATE_FILENAME = "wechat-runtime-state.json"
 @dataclass
 class WechatRuntimeState:
     get_updates_buf: str = ""
+    # 最后一次收到用户消息时的上下文，跨重启保留供 cron 主动推送复用
+    last_to_user_id: str = ""
+    last_context_token: str = ""
 
 
 def _state_file() -> Path:
@@ -44,15 +47,13 @@ async def load_runtime_state() -> WechatRuntimeState:
 
     return WechatRuntimeState(
         get_updates_buf=str(data.get("get_updates_buf") or ""),
+        last_to_user_id=str(data.get("last_to_user_id") or ""),
+        last_context_token=str(data.get("last_context_token") or ""),
     )
 
 
 async def save_runtime_state(state: WechatRuntimeState) -> None:
     await async_write_json(_state_file(), asdict(state), ensure_ascii=False)
-
-
-async def save_get_updates_buf(get_updates_buf: str) -> None:
-    await save_runtime_state(WechatRuntimeState(get_updates_buf=get_updates_buf))
 
 
 async def clear_runtime_state() -> None:
