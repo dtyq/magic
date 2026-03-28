@@ -177,6 +177,7 @@ class WechatChannel(BaseChannel):
 
     async def disconnect(self) -> None:
         """停止长轮询并释放 HTTP 会话。"""
+        self._keepalive.stop()
         if self._poll_task and not self._poll_task.done():
             self._poll_task.cancel()
             try:
