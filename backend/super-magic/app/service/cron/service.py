@@ -25,7 +25,7 @@ from app.service.cron.models import (
     ScheduleKind,
 )
 from app.service.cron.schedule import compute_next_run_ms, now_ms
-from app.service.cron.store import load_cron_state, save_cron_state, scan_jobs
+from app.service.cron.store import archive_completed_job, load_cron_state, save_cron_state, scan_jobs
 
 logger = get_logger(__name__)
 
@@ -208,6 +208,19 @@ class CronService:
                 else:
                     logger.warning(f"cron job [{job.id}] payload kind '{job.payload.kind}' not implemented, skipping")
                     result = CronRunResult(status="error", error=f"payload kind '{job.payload.kind}' not implemented")
+
+            # at 类型一次性任务执行成功后归档并删除原始文件
+            if result.status == "ok" and job.schedule.kind == ScheduleKind.AT:
+                from datetime import datetime, timezone as dt_timezone
+                run_at = datetime.now(dt_timezone.utc)
+                tz_str = job.timezone or getattr(job.schedule, "tz", None)
+                if tz_str:
+                    try:
+                        import pytz
+                        run_at = run_at.astimezone(pytz.timezone(tz_str))
+                    except Exception:
+                        pass
+                await archive_completed_job(job, result, run_at)
 
             async with self._state_lock:
                 state = await load_cron_state()

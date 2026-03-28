@@ -6,9 +6,12 @@ cron 持久化层
 - 读写 .cron-state.json → CronState / CronJobState
 - 写 cron-result/*.md
 - 构建 / 更新 cron job MD 文件内容
+- 归档已完成的一次性任务（at 类型成功后追加到 .archived-jobs.jsonl 并删除原文件）
 """
 from __future__ import annotations
 
+import asyncio
+import json
 import time
 from datetime import datetime, timezone
 from pathlib import Path
@@ -30,8 +33,11 @@ from app.utils.async_file_utils import (
     async_exists,
     async_mkdir,
     async_read_json,
+    async_read_text,
     async_scandir,
     async_try_read_markdown,
+    async_try_read_text,
+    async_unlink,
     async_write_json,
     async_write_text,
 )
@@ -41,6 +47,9 @@ logger = get_logger(__name__)
 # 结果文件截断限制
 _MAX_RESULT_BYTES = 500_000
 _MAX_RESULT_LINES = 2_000
+
+# 归档文件并发写入锁
+_archive_lock: asyncio.Lock = asyncio.Lock()
 
 
 # ── 任务文件扫描 ──────────────────────────────────────────────────────────────
@@ -351,3 +360,53 @@ def patch_job_md(
     new_body = body.strip() if body is not None else old_body
     fm_str = yaml.dump(meta, allow_unicode=True, default_flow_style=False).rstrip()
     return f"---\n{fm_str}\n---\n\n{new_body}\n"
+
+
+# ── 已完成一次性任务归档 ──────────────────────────────────────────────────────
+
+async def archive_completed_job(job: CronJob, result: CronRunResult, run_at: datetime) -> bool:
+    """
+    归档已成功完成的一次性任务（at 类型）。
+
+    将任务定义和执行摘要追加到 cron-result/{YYYY-MM-DD}/.archived-jobs.jsonl，
+    成功后删除 cron 目录下的原始 MD 文件。
+    归档失败时记录错误并返回 False，原始文件保留不删除。
+    """
+    date_dir = run_at.strftime("%Y-%m-%d")
+    archive_file = PathManager.get_cron_archived_jobs_file(date_dir)
+
+    record = {
+        "id": job.id,
+        "name": job.name,
+        "archived_at": run_at.isoformat(),
+        "status": result.status,
+        "duration_ms": result.duration_ms,
+        "schedule": {
+            "kind": str(job.schedule.kind),
+            "at": job.schedule.at,
+            "tz": job.schedule.tz,
+        },
+        "payload": {
+            "kind": str(job.payload.kind),
+            "agent_name": job.payload.agent_name,
+        },
+        "timezone": job.timezone,
+        "body": job.body,
+    }
+
+    try:
+        async with _archive_lock:
+            await async_mkdir(archive_file.parent, parents=True, exist_ok=True)
+            existing = await async_try_read_text(archive_file) or ""
+            if existing and not existing.endswith("\n"):
+                existing += "\n"
+            line = json.dumps(record, ensure_ascii=False)
+            await async_write_text(archive_file, existing + line + "\n")
+
+        job_file = PathManager.get_cron_dir() / f"{job.id}.md"
+        await async_unlink(job_file)
+        logger.info(f"cron: job [{job.id}] archived to {archive_file} and removed from cron dir")
+        return True
+    except Exception as e:
+        logger.error(f"cron: failed to archive job [{job.id}]: {e}")
+        return False

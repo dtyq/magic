@@ -469,6 +469,12 @@ class PathManager(BasePathManager):
         return cls.get_cron_result_dir() / ".pending-notifications.jsonl"
 
     @classmethod
+    def get_cron_archived_jobs_file(cls, date_dir: str) -> Path:
+        """获取指定日期的已归档一次性任务文件（.workspace/.magic/cron-result/{YYYY-MM-DD}/.archived-jobs.jsonl）。
+        每行一条 JSON，at 类型任务执行成功后追加，原始 MD 文件随后删除。"""
+        return cls.get_cron_result_dir() / date_dir / ".archived-jobs.jsonl"
+
+    @classmethod
     def get_wechat_im_uploads_dir(cls) -> Path:
         """获取微信 IM 媒体存储根目录（.workspace/uploads/im-channels/wechat/，按需创建）"""
         cls._ensure_app_initialization()
