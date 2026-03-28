@@ -117,3 +117,4 @@ Makefile
 .python-version
 
 /skills
+/scripts/test*
