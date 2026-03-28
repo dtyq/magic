@@ -17,6 +17,14 @@ use Hyperf\Codec\Json;
 
 use function Hyperf\Translation\__;
 
+/**
+ * MiniMax LLM connectivity test provider.
+ *
+ * Unlike the DeepSeek provider which only lists models, this provider
+ * validates connectivity by sending a lightweight chat completion request
+ * with the specified model version (similar to LLMVolcengineProvider).
+ * MiniMax requires temperature in (0.0, 1.0], so we clamp it explicitly.
+ */
 class LLMMiniMaxProvider implements IProvider
 {
     protected string $apiBase = 'https://api.minimax.io/v1';
@@ -32,7 +40,7 @@ class LLMMiniMaxProvider implements IProvider
             return $connectResponse;
         }
         try {
-            $this->fetchModels($apiKey);
+            $this->testChatCompletion($apiKey, $modelVersion);
         } catch (Exception $e) {
             $connectResponse->setStatus(false);
             if ($e instanceof ClientException) {
@@ -45,15 +53,34 @@ class LLMMiniMaxProvider implements IProvider
         return $connectResponse;
     }
 
-    protected function fetchModels(string $apiKey): array
+    /**
+     * Test connectivity by sending a minimal chat completion request.
+     *
+     * This validates both the API key and that the specific model version
+     * is accessible, rather than just listing available models.
+     * MiniMax requires temperature strictly in (0.0, 1.0].
+     */
+    protected function testChatCompletion(string $apiKey, string $modelVersion): array
     {
         $client = new Client();
+        $payload = [
+            'model' => $modelVersion,
+            'max_tokens' => 1,
+            'temperature' => 0.01,
+            'messages' => [
+                [
+                    'role' => 'user',
+                    'content' => 'Hi',
+                ],
+            ],
+        ];
 
-        $response = $client->request('GET', $this->apiBase . '/models', [
+        $response = $client->request('POST', $this->apiBase . '/chat/completions', [
             'headers' => [
                 'Authorization' => 'Bearer ' . $apiKey,
                 'Content-Type' => 'application/json',
             ],
+            'json' => $payload,
         ]);
 
         return Json::decode($response->getBody()->getContents());
