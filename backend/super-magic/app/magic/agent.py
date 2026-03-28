@@ -725,12 +725,21 @@ The following <dynamic_context> block contains system-provided context informati
         Returns:
             SessionPrepResult: 会话准备结果
         """
-        # 检测原始命令（在转换前）
-        original_command = Commands.get(query)
+        # magiclaw 模式下 query 格式为 "[Current time: ...]\n\n{prompt}"，
+        # 命令检测需要使用去除时间戳前缀后的原始 prompt，否则精确匹配会失败
+        raw_prompt = query
+        if query.startswith("[Current time:") and "\n\n" in query:
+            raw_prompt = query.split("\n\n", 1)[1]
+
+        # 检测原始命令（在转换前，使用去掉时间戳前缀的 prompt）
+        original_command = Commands.get(raw_prompt)
         is_continue_request = original_command and original_command.name == "continue"
 
-        # 处理用户命令转换（如 /compact -> 压缩请求内容）
-        query = await Commands.process(query, self)
+        # 处理用户命令转换（如 /compact、/new -> 替换内容）
+        # 命令时使用 raw_prompt 做匹配，返回的替换内容完整作为新 query（不保留时间戳前缀）
+        # 非命令时保留原始带时间戳的 query
+        if original_command:
+            query = await Commands.process(raw_prompt, self)
 
         # 如果没有聊天历史，直接添加用户消息
         if not self.chat_history.messages:
@@ -1689,6 +1698,41 @@ The following <dynamic_context> block contains system-provided context informati
         finally:
             # 压缩完成后还原 dynamic_model_id（无论成功或失败都执行）
             self._restore_pre_compact_model(reason="压缩完成")
+
+    async def _reset_for_new_session(self) -> None:
+        """
+        Reset chat history for a new session triggered by /new command.
+
+        Backs up the current history, clears it, then re-adds the system prompt
+        and refreshed dynamic context so the next user message starts from a clean slate.
+        """
+        try:
+            # 备份当前历史，与 compact 保持一致，避免数据丢失
+            await self._backup_before_compact()
+
+            # 清空内存中的对话历史
+            self.chat_history.messages.clear()
+
+            # 重新写入 system prompt（始终排第一）
+            await self.chat_history.append_system_message(self.system_prompt)
+
+            # 若存在 dynamic context，刷新动态变量后重新写入
+            if self._raw_dynamic_context_content:
+                dynamic_vars = self._prepare_prompt_dynamic_variables()
+                refreshed_dynamic_context = self._agent_loader.set_variables(
+                    self._raw_dynamic_context_content, dynamic_vars
+                )
+                await self.chat_history.append_user_message(refreshed_dynamic_context)
+                self.dynamic_context_prompt = refreshed_dynamic_context
+
+            # 重置文件时间戳管理器，强制所有文件需重新读取才能编辑
+            timestamp_manager = get_global_timestamp_manager()
+            await timestamp_manager.reset_all_timestamps()
+
+            logger.info("Chat history reset for new session via /new")
+
+        except Exception as e:
+            logger.error(f"Failed to reset chat history for new session: {e}", exc_info=True)
 
     async def _backup_before_compact(self) -> None:
         """Backup chat history before compact for recovery purposes"""

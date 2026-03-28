@@ -111,6 +111,21 @@ def handle_continue(agent: 'Agent') -> str:
     return "继续"
 
 
+async def handle_new_session(agent: 'Agent') -> str:
+    """处理新会话命令：清空上下文历史，触发 Session Startup 序列"""
+    logger.info("用户触发新会话重置 /new")
+    await agent._reset_for_new_session()
+    return (
+        "A new session was started via /new. The previous conversation history has been cleared. "
+        "If you have a Session Startup sequence defined in your workspace "
+        "(e.g., read SOUL.md, USER.md, today's and yesterday's memory files, and MEMORY.md "
+        "for a primary session), run it now before responding. "
+        "Then greet the user in your configured persona. "
+        "Keep it to 1-3 sentences and ask what they want to do. "
+        "Do not mention internal steps, files, or tools."
+    )
+
+
 # ===== 注册内置命令 =====
 
 Commands.register(
@@ -123,4 +138,10 @@ Commands.register(
     name="continue",
     variants=['', ' ', 'continue', '继续'],
     handler=handle_continue
+)
+
+Commands.register(
+    name="new",
+    variants=['/new', '/reset'],
+    handler=handle_new_session
 )
