@@ -31,6 +31,8 @@ class DingTalkChannel(BaseChannel):
         self._client: Optional[DingTalkStreamClient] = None
         self._connect_task: Optional[asyncio.Task] = None
         self._keepalive = ChannelKeepalive("DingTalk", is_active=lambda: self.is_connected)
+        # 缓存最后一次收到的用户消息，供 cron 主动推送复用会话上下文
+        self._last_incoming_message: Optional[ChatbotMessage] = None
 
     @classmethod
     def get_instance(cls) -> "DingTalkChannel":
@@ -41,7 +43,14 @@ class DingTalkChannel(BaseChannel):
     @property
     def is_connected(self) -> bool:
         websocket = self._client.websocket if self._client is not None else None
-        return websocket is not None and not websocket.closed
+        if websocket is None:
+            return False
+        # websockets >= 14 用 state 枚举替代了 closed bool 属性
+        try:
+            from websockets.connection import State
+            return websocket.state == State.OPEN
+        except (ImportError, AttributeError):
+            return not getattr(websocket, "closed", True)
 
     def summarize_config(self, config: IMChannelsConfig) -> str | None:
         credential = config.dingtalk
@@ -195,6 +204,9 @@ class DingTalkChannel(BaseChannel):
         if not incoming_message.sender_staff_id:
             incoming_message.sender_staff_id = incoming_message.sender_id
 
+        # 缓存本次消息上下文，供 cron 主动推送复用（sender_staff_id 已补全）
+        self._last_incoming_message = incoming_message
+
         card = AIMarkdownCardInstance(self._client, incoming_message)
         # 使用 TS 连接器验证过的模板，仅声明 msgContent 字段避免渲染空占位（msgSlider 等）
         card.card_template_id = "02fcf2f4-5e02-4a85-b672-46d1f715543e.schema"
@@ -238,6 +250,42 @@ class DingTalkChannel(BaseChannel):
                 ctx.remove_streaming_sink(dingtalk_driver)
 
         ctx.register_run_cleanup("dingtalk_stream", _cleanup)
+
+
+    async def create_proactive_streams(self, ctx, cleanup_key: str) -> bool:
+        """用缓存的最后一次会话上下文创建主动推送 stream/sink。"""
+        from app.channel.dingtalk.stream import DingTalkStream
+        from app.channel.dingtalk.streaming_driver import DingTalkStreamingDriver
+
+        if not self.is_connected or self._last_incoming_message is None or self._client is None:
+            return False
+
+        card = AIMarkdownCardInstance(self._client, self._last_incoming_message)
+        card.card_template_id = "02fcf2f4-5e02-4a85-b672-46d1f715543e.schema"
+        card.order = ["msgContent"]
+        try:
+            card_instance_id = await card.async_start(card.card_template_id, {})
+            card.card_instance_id = card_instance_id
+            if not card_instance_id:
+                logger.error("[DingTalkChannel] proactive card create failed: async_start returned empty")
+                return False
+            logger.info(f"[DingTalkChannel] proactive card created: card_instance_id={card_instance_id}")
+        except Exception as e:
+            logger.error(f"[DingTalkChannel] proactive card create exception: {e}")
+            return False
+
+        driver = DingTalkStreamingDriver(card, card_instance_id)
+        stream = DingTalkStream(card, card_instance_id, driver)
+        ctx.add_stream(stream)
+        ctx.add_streaming_sink(driver)
+
+        async def _cleanup() -> None:
+            ctx.remove_stream(stream)
+            ctx.remove_streaming_sink(driver)
+
+        ctx.register_run_cleanup(cleanup_key, _cleanup)
+        logger.info("[DingTalkChannel] proactive stream registered for cron notification")
+        return True
 
 
 class _DingTalkBotHandler(ChatbotHandler):

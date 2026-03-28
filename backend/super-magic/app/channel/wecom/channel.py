@@ -31,6 +31,8 @@ class WeComChannel(BaseChannel):
         self._ws_client: Optional[WSClient] = None
         self._connect_task: Optional[asyncio.Task] = None
         self._keepalive = ChannelKeepalive("WeCom", is_active=lambda: self.is_connected)
+        # 缓存最后一次收到的消息 frame，供 cron 主动推送复用会话上下文
+        self._last_frame: Optional[dict] = None
 
     @classmethod
     def get_instance(cls) -> "WeComChannel":
@@ -102,6 +104,9 @@ class WeComChannel(BaseChannel):
         if not content:
             return
 
+        # 缓存 frame，供 cron 主动推送复用
+        self._last_frame = frame
+
         sender = body.get("sender", {})
         user_id = sender.get("userid", "wecom_user")
 
@@ -129,3 +134,22 @@ class WeComChannel(BaseChannel):
             ctx.remove_streaming_sink(wecom_driver)
 
         ctx.register_run_cleanup("wecom_stream", _cleanup)
+
+    async def create_proactive_streams(self, ctx, cleanup_key: str) -> bool:
+        """用缓存的最后一次会话 frame 创建主动推送 stream/sink。"""
+        if not self.is_connected or self._last_frame is None or self._ws_client is None:
+            return False
+
+        stream_id = generate_req_id("wecom")
+        wecom_driver = WeComStreamingDriver(self._ws_client, self._last_frame, stream_id)
+        wecom_stream = WeComStream(self._ws_client, self._last_frame, stream_id, wecom_driver)
+        ctx.add_stream(wecom_stream)
+        ctx.add_streaming_sink(wecom_driver)
+
+        async def _cleanup() -> None:
+            ctx.remove_stream(wecom_stream)
+            ctx.remove_streaming_sink(wecom_driver)
+
+        ctx.register_run_cleanup(cleanup_key, _cleanup)
+        logger.info("[WeComChannel] proactive stream registered for cron notification")
+        return True

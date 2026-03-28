@@ -182,7 +182,11 @@ class MessageProcessor:
             logger.error(f"加载聊天消息失败: {e}")
             return None
 
-    async def _dispatch_delayed_init_event_if_needed(self, agent_context: AgentContext) -> None:
+    async def _dispatch_delayed_init_event_if_needed(
+        self,
+        agent_context: AgentContext,
+        preferred_language: Optional[str] = None,
+    ) -> None:
         """
         在 chat 消息处理时，检查并发送延迟的 init 事件
 
@@ -192,6 +196,8 @@ class MessageProcessor:
 
         Args:
             agent_context: Agent 上下文
+            preferred_language: 优先使用的语言（来自当前 chat 消息的 metadata.language）。
+                未提供时回退到 init metadata 的语言，再回退到默认 zh_CN。
         """
         # 检查 init 事件是否已经发送过
         if self.agent_dispatcher.is_init_event_dispatched():
@@ -212,16 +218,17 @@ class MessageProcessor:
             from agentlang.event.data import BeforeInitEventData, AfterInitEventData
             from app.i18n import i18n
 
-            # Restore language from saved init metadata before dispatching init events.
-            # ContextVar changes made inside asyncio.create_task() (INIT handler) are
-            # task-local and do not propagate to this new request's context, so we must
-            # re-apply the language here to ensure i18n translations use the correct locale.
-            if metadata and metadata.language:
-                i18n.set_language(metadata.language)
-                logger.info(f"延迟 init 事件：从 metadata 恢复用户语言: {metadata.language}")
+            # Determine effective language: chat message language takes priority over init metadata.
+            # ContextVar changes made inside asyncio.create_task() (INIT handler) are task-local
+            # and do not propagate to this new request's context, so we re-apply the language here.
+            if preferred_language:
+                effective_language = preferred_language
+            elif metadata and metadata.language:
+                effective_language = metadata.language
             else:
-                i18n.set_language("zh_CN")
-                logger.info("延迟 init 事件：metadata 无语言设置，使用默认语言: zh_CN")
+                effective_language = "zh_CN"
+                logger.info("均无语言设置，使用默认语言: zh_CN")
+            i18n.set_language(effective_language)
 
             # 创建 ToolContext
             tool_context = ToolContext(metadata=agent_context.get_metadata())
@@ -301,8 +308,17 @@ class MessageProcessor:
             if message.context_type in [ContextType.NORMAL, ContextType.FOLLOW_UP]:
                 self._save_chat_message(message)
 
-            # 检查并发送延迟的 init 事件（沙箱预启动场景）
-            await self._dispatch_delayed_init_event_if_needed(agent_context)
+            # 检查并发送延迟的 init 事件（沙箱预启动场景）。
+            # chat 消息的语言优先于 init metadata 的语言，统一在此处决策。
+            chat_language = message.metadata.language if message.metadata else None
+
+            # 每条 chat 消息都需要在当前 task 中设置语言。
+            # i18n._CURRENT_LANGUAGE 是 ContextVar，每个 asyncio task 独立，
+            if chat_language:
+                from app.i18n import i18n
+                i18n.set_language(chat_language)
+
+            await self._dispatch_delayed_init_event_if_needed(agent_context, preferred_language=chat_language)
 
             # Extract agent_code from dynamic_config and inject into AgentContext (agent-manager scenario)
             try:

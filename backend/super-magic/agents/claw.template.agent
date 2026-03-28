@@ -5,6 +5,8 @@ tools:
 skills:
   system_skills: "*"
   workspace_skills: "*"
+  excluded_skills:
+    - using-cron
 ---
 
 <identity>

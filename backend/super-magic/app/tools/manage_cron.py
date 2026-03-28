@@ -42,7 +42,7 @@ class ManageCronParams(BaseToolParams):
         description="""<!--zh: 操作类型及各自必填参数：
 - status: 无需额外参数
 - list: 可选 include_disabled
-- add: 必填 name / schedule / message，可选 payload_kind / agent_name / model_id / timeout_seconds / enabled
+- add: 必填 name / schedule / message，可选 payload_kind / model_id / timeout_seconds / enabled / notify_main_agent
 - update: 必填 job_id，其余字段按需传，省略则保持原值
 - remove: 必填 job_id
 - run: 必填 job_id（立即触发，忽略调度时间）
@@ -51,7 +51,7 @@ class ManageCronParams(BaseToolParams):
 Action to perform. Per-action required fields:
 - status: no extra params
 - list: optional include_disabled
-- add: name + schedule + message required; payload_kind/agent_name/model_id/timeout_seconds/enabled optional
+- add: name + schedule + message required; payload_kind/model_id/timeout_seconds/enabled/notify_main_agent optional
 - update: job_id required; any other field optional (omitted fields keep current value)
 - remove: job_id required
 - run: job_id required (triggers immediately, ignores schedule)
@@ -64,8 +64,12 @@ Job ID (filename without .md). Required for update/remove/run/runs."""
     )
     name: Optional[str] = Field(
         None,
-        description="""<!--zh: add 时用于生成文件名的任务名称，例如 "daily sales report" → daily-sales-report.md。必填于 add。-->
-Human-readable name used to derive the job ID (e.g. "daily sales report" → daily-sales-report.md). Required for add."""
+        description="""<!--zh: add 时用于生成文件名的任务名称。必填于 add。
+kind=at 的一次性任务必须在名称中包含触发时间，例如 "remind me to review PR at 2026-03-27 14:00"，
+这样生成的 job_id 才能唯一标识该任务，避免同名覆盖。-->
+Human-readable name used to derive the job ID. Required for add.
+For kind=at one-shot jobs, the name must include the trigger time so the job ID is unique and self-describing,
+e.g. "remind me to review PR at 2026-03-27 14:00" → remind-me-to-review-pr-at-2026-03-27-1400.md."""
     )
     schedule: Optional[Dict[str, Any]] = Field(
         None,
@@ -83,11 +87,6 @@ Schedule config. Required for add; optional for update (omit to keep unchanged).
         None,
         description="""<!--zh: 执行类型，默认 agent_turn（当前唯一可用值）-->
 Payload kind. Only "agent_turn" is currently supported (default)."""
-    )
-    agent_name: Optional[str] = Field(
-        None,
-        description="""<!--zh: 执行任务的 agent 类型，默认 magic-->
-Agent type to run the task. Defaults to "magic"."""
     )
     message: Optional[str] = Field(
         None,
@@ -114,6 +113,11 @@ Optional per-run timeout in seconds. Omit or null for no timeout."""
         description="""<!--zh: list 时是否包含已禁用的任务，默认只列出启用的-->
 For list: include disabled jobs. Defaults to false (only enabled jobs shown)."""
     )
+    notify_main_agent: Optional[bool] = Field(
+        None,
+        description="""<!--zh: 任务完成后是否通知主 agent。默认 true（即默认通知）。仅对不需要告知用户结果的后台周期性任务显式设为 false。-->
+Whether to notify the main agent when this job completes. Defaults to true. Set to false only for silent background jobs whose results do not need to be reported to the user."""
+    )
 
     @field_validator("schedule", mode="before")
     @classmethod
@@ -134,8 +138,49 @@ For list: include disabled jobs. Defaults to false (only enabled jobs shown)."""
 
 @tool()
 class ManageCron(BaseTool[ManageCronParams]):
-    """<!--zh: 管理定时 cron 任务。每个任务存储为 Markdown 文件。-->
+    """<!--zh
+管理定时 cron 任务。每个任务存储为 .workspace/.magic/cron/ 下的 Markdown 文件。
+
+何时使用 — 遇到以下情况应立即调用此工具，不能只回复文字：
+- 用户说"在某个时间提醒我"或"某件事前提醒我"   → add，kind=at
+- 用户说"每天/每周/每小时提醒我"               → add，kind=cron 或 kind=every
+- 用户想设置任何周期性或一次性定时任务          → add
+- 用户问"我有哪些提醒/定时任务"                → list
+- 用户想取消或删除某个提醒                      → remove
+- 用户想暂时停用某个提醒                        → update，enabled=false
+- 用户询问某个提醒是否已触发或想查看执行历史    → runs
+
+快速参考：
+  status                                   → 调度器状态 + 各任务摘要
+  list   [include_disabled]                → 列出任务
+  add    name schedule message [opts]      → 创建任务
+  update job_id [schedule] [message] [..] → 更新任务（省略的字段保持原值）
+  remove job_id                            → 删除任务文件
+  run    job_id                            → 立即触发（忽略调度时间）
+  runs   job_id                            → 执行历史（含状态和耗时）
+
+调度类型：
+  {"kind":"cron",  "expr":"0 9 * * 1-5", "tz":"Asia/Shanghai"}   cron 表达式
+  {"kind":"every", "every_ms":3600000}                            固定间隔（毫秒）
+  {"kind":"at",    "at":"2024-12-31T09:00:00+08:00"}             一次性指定时间
+
+重要约束：
+- 最小调度粒度为 1 分钟，every_ms < 60000 会被调度器忽略。
+- payload_kind 目前只支持 "agent_turn"。
+- job_id 在创建时由 name 派生，不能通过 update 修改。
+- 修改调度/内容/启用状态用 update；重命名任务用 remove + add。
+- notify_main_agent 默认 true（默认通知）；仅对不需要告知用户结果的后台任务显式设为 false。
+-->
 Manage scheduled cron jobs. Each job is stored as a Markdown file under .workspace/.magic/cron/.
+
+WHEN TO USE — call this tool immediately (do not just reply with text):
+- User says "remind me at [time]" or "remind me before [event]" → add, kind=at
+- User says "remind me every day/week/hour"                     → add, kind=cron or kind=every
+- User wants to set up any recurring or one-shot scheduled task → add
+- User asks "what reminders/tasks do I have scheduled"         → list
+- User wants to cancel or delete a reminder                    → remove
+- User wants to temporarily pause a reminder                   → update, enabled=false
+- User asks whether a reminder fired or wants to see history   → runs
 
 QUICK REFERENCE:
   status                                   → scheduler status + per-job summary
@@ -155,7 +200,8 @@ CRITICAL CONSTRAINTS:
 - Minimum scheduling unit is 1 minute (every_ms < 60000 is ignored by scheduler).
 - payload_kind only supports "agent_turn" currently.
 - job_id is derived from name at creation time and cannot be changed via update.
-- Use update to change schedule/message/enabled; use remove+add to rename a job."""
+- Use update to change schedule/message/enabled; use remove+add to rename a job.
+- notify_main_agent defaults to true; set notify_main_agent=false only for silent background jobs whose results should not be reported to the user."""
 
     async def execute(self, tool_context: ToolContext, params: ManageCronParams) -> ToolResult:
         try:
@@ -250,16 +296,23 @@ CRITICAL CONSTRAINTS:
         if agent_ctx and hasattr(agent_ctx, "get_user_timezone"):
             user_timezone = agent_ctx.get_user_timezone() or None
 
+        # 继承当前 agent 的文件标识符（如 openclaw、magic），不暴露给 LLM 作为参数。
+        # 必须用 agent_ctx.agent_name（文件标识符），不能用 get_agent_name()（返回展示名，如"龙虾"）。
+        agent_name = "magic"
+        if agent_ctx and hasattr(agent_ctx, "agent_name") and agent_ctx.agent_name:
+            agent_name = agent_ctx.agent_name
+
         content = build_job_md(
             schedule=params.schedule,
             payload_kind=params.payload_kind or "agent_turn",
-            agent_name=params.agent_name or "magic",
+            agent_name=agent_name,
             model_id=model_id,
             timeout_seconds=params.timeout_seconds,
             enabled=True if params.enabled is None else params.enabled,
             name=params.name,
             body=params.message,
             timezone=user_timezone,
+            notify_main_agent=True if params.notify_main_agent is None else params.notify_main_agent,
         )
         await async_write_text(path, content)
         return ToolResult(content=f"Created cron job '{job_id}' at {path}")
@@ -276,11 +329,12 @@ CRITICAL CONSTRAINTS:
             existing=existing,
             schedule=params.schedule,
             payload_kind=params.payload_kind,
-            agent_name=params.agent_name,
+            agent_name=None,  # agent_name 不允许通过 update 修改，创建时已绑定当前 agent
             model_id=params.model_id,
             timeout_seconds=params.timeout_seconds,
             enabled=params.enabled,
             body=params.message,
+            notify_main_agent=params.notify_main_agent,
         )
         await async_write_text(path, updated)
         return ToolResult(content=f"Updated cron job '{params.job_id}'")

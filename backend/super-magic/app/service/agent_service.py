@@ -679,6 +679,13 @@ class AgentService(Base):
         chat_client_message = agent_context.get_chat_client_message()
         query = chat_client_message.prompt
 
+        # magiclaw（claw agent）每条用户消息前注入当前时间戳，确保 LLM 能准确计算相对时间。
+        # dynamic_context_prompt 的时间仅在会话初始化时写入一次，长会话中会逐渐失准。
+        if str(chat_client_message.agent_mode) == "magiclaw":
+            from agentlang.utils.datetime_formatter import get_current_datetime_str
+            current_time_str = get_current_datetime_str(agent_context.get_user_timezone())
+            query = f"[Current time: {current_time_str}]\n\n{query}"
+
         # 🔥 ASR 录音纪要聊天模式：注入上下文 Diff
         try:
             asr_task_key = None

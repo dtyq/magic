@@ -189,8 +189,14 @@ class SocketIODriver(StreamingInterface):
             # 初始化消息队列系统
             await self._initialize_message_queue()
 
-            # 建立完整连接（包括命名空间连接确认）
-            await self._establish_full_connection()
+            try:
+                # 建立完整连接（包括命名空间连接确认）
+                await self._establish_full_connection()
+            except Exception:
+                # 连接失败时清理已创建的队列任务，防止 background task 泄漏
+                await self._shutdown_message_queue()
+                raise
+
             return StreamingResult(success=True, message="Socket.IO ready")
 
         except Exception as e:

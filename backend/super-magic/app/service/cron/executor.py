@@ -84,11 +84,19 @@ async def execute_agent_turn(job: CronJob) -> CronRunResult:
         started_at_ms=start_ms,
     )
 
+    result_file = None
     try:
-        await write_result_file(job, run_result)
+        result_file = await write_result_file(job, run_result)
     except Exception as e:
         logger.error(f"cron: failed to write result file for [{job.id}]: {e}")
 
-    # TODO: 通知主 agent（依赖 system_event / MessageProcessor 改造）
+    if job.payload.notify_main_agent:
+        try:
+            from app.service.cron.notification import append_notification, try_notify_main_agent
+            from pathlib import Path
+            await append_notification(job, run_result, result_file or Path())
+            asyncio.create_task(try_notify_main_agent(), name=f"cron-notify-{job.id}")
+        except Exception as e:
+            logger.error(f"cron: failed to handle notification for [{job.id}]: {e}")
 
     return run_result

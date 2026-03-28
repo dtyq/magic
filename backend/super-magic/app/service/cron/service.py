@@ -156,9 +156,11 @@ class CronService:
                 _recalculate_next_run(job, js, current_ms)
 
             # 清理已删除任务的状态
-            for removed_id in list(state.jobs.keys()):
-                if removed_id not in scanned_ids:
-                    del state.jobs[removed_id]
+            removed_ids = [rid for rid in list(state.jobs.keys()) if rid not in scanned_ids]
+            if removed_ids:
+                logger.info(f"cron tick: cleaning up removed jobs from state: {removed_ids}")
+            for removed_id in removed_ids:
+                del state.jobs[removed_id]
 
             # 5. 收集到期任务
             due_jobs = _collect_due_jobs(self._jobs, state, current_ms)
@@ -171,7 +173,12 @@ class CronService:
             # 有任务变化（新增/修改/删除）或有到期任务时，持久化状态
             # 注意：changed_ids 包含新增任务，若此时不保存，下次 tick 加载磁盘状态
             # 会拿到空 state，导致 next_run_at_ms 丢失，任务永远无法被调度
-            if due_jobs or changed_ids or (set(state.jobs.keys()) != scanned_ids):
+            should_save = bool(due_jobs or changed_ids or removed_ids or (set(state.jobs.keys()) != scanned_ids))
+            logger.info(
+                f"cron tick: jobs={sorted(scanned_ids)} due={[j.id for j in due_jobs]} "
+                f"changed={sorted(changed_ids)} removed={removed_ids} saved={should_save}"
+            )
+            if should_save:
                 await save_cron_state(state)
 
         # 7. 派发独立 task，不阻塞 tick 返回
@@ -184,6 +191,10 @@ class CronService:
 
         # 8. 更新下次最近到期时间，供 _compute_sleep 使用
         _update_next_due(self, state)
+
+        # 定期兜底：若有未发出的通知且主 agent 未运行，则触发（异步，不阻塞 tick）
+        from app.service.cron.notification import try_notify_main_agent
+        asyncio.create_task(try_notify_main_agent(), name="cron-tick-notify")
 
     async def _execute_and_update(self, job: CronJob) -> None:
         """
@@ -229,6 +240,8 @@ class CronService:
         """
         try:
             scanned = await scan_jobs({})
+            scanned_ids = {j.id for j in scanned}
+            logger.info(f"cron startup: scanned jobs={scanned_ids}")
             if not scanned:
                 return
 
@@ -237,6 +250,12 @@ class CronService:
 
             async with self._state_lock:
                 state = await load_cron_state()
+                stale_ids = [sid for sid in state.jobs if sid not in scanned_ids]
+                if stale_ids:
+                    logger.info(f"cron startup: removing stale state entries: {stale_ids}")
+                    for sid in stale_ids:
+                        del state.jobs[sid]
+
                 current_ms = now_ms()
 
                 overdue: List[CronJob] = []

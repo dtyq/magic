@@ -2,8 +2,17 @@
 let messageHistory = []; // 存储用户发送过的消息历史
 let currentTaskMode = "plan"; // 当前任务模式，默认为 plan（保留兼容性）
 let currentAgentMode = "magic"; // 当前Agent模式，默认为 magic
+let currentLanguage = "zh_CN"; // 当前语言，默认中文
 let currentFileName = ""; // 存储当前上传的文件名
 let isAdvancedMode = false; // 高级模式开关，开启后直接发送原始 JSON
+let isImMode = false; // IM 渠道模拟模式
+let currentImChannel = "dingtalk"; // 当前 IM 渠道
+let currentImUserId = ""; // 当前 IM 用户 ID
+
+// 工作区挂载目录名，空字符串表示直接展示根目录
+let mountDirName = localStorage.getItem('mountDirName') ?? '.workspace';
+// 用户通过文件选择器选中的原始项目根目录 handle
+let rootDirHandle = null;
 
 // WebSocket相关变量
 let websocket = null;
@@ -78,6 +87,7 @@ function renderLogEntry(entry) {
         case 'client':    renderClientEntry(entry); break;
         case 'ai':        showAIMessage(entry.content, entry.timestamp, true); break;
         case 'thinking':  showThinkingMessage(entry.content, entry.timestamp, true); break;
+        case 'tool_call': showToolCallMessage(entry.tool, entry.eventType, entry.timestamp, true); break;
         case 'event':     showEventLog(entry.data, true); break;
         case 'system':    showSystemMessage(entry.text, true); break;
     }
@@ -88,9 +98,17 @@ function renderClientEntry(entry) {
     messageDiv.className = 'message client';
     const header = document.createElement('div');
     header.className = 'message-header';
-    const agentMode = entry.agentMode ? entry.agentMode.toUpperCase() : 'N/A';
-    const modelId = entry.modelId ? ` - Model: ${entry.modelId}` : '';
-    header.textContent = `客户端消息 (${entry.time}) - Agent模式: ${agentMode}${modelId}`;
+    let headerText;
+    if (entry.imChannel) {
+        const channelLabel = { dingtalk: '钉钉', wechat: '微信', wecom: '企业微信', lark: '飞书' }[entry.imChannel] || entry.imChannel;
+        const userIdPart = entry.imUserId ? ` / user=${entry.imUserId}` : '';
+        headerText = `客户端消息 (${entry.time}) - IM渠道: ${channelLabel}${userIdPart}`;
+    } else {
+        const agentMode = entry.agentMode ? entry.agentMode.toUpperCase() : 'N/A';
+        const modelId = entry.modelId ? ` - Model: ${entry.modelId}` : '';
+        headerText = `客户端消息 (${entry.time}) - Agent模式: ${agentMode}${modelId}`;
+    }
+    header.textContent = headerText;
     const content = document.createElement('div');
     content.className = 'message-content';
     content.textContent = entry.prompt;
@@ -121,6 +139,10 @@ const agentCodeGroup = document.getElementById('agentCodeGroup');
 const modelIdInput = document.getElementById('modelIdInput');
 const advancedModeToggle = document.getElementById('advancedModeToggle');
 const rawJsonInput = document.getElementById('rawJsonInput');
+const languageSelect = document.getElementById('languageSelect');
+const imModeToggle = document.getElementById('imModeToggle');
+const imChannelSelect = document.getElementById('imChannelSelect');
+const imUserIdInput = document.getElementById('imUserIdInput');
 
 // 初始化配置折叠面板
 const configPanelToggle = document.getElementById('configPanelToggle');
@@ -277,10 +299,11 @@ document.addEventListener('DOMContentLoaded', () => {
     initSendHint();
 
     // Enter 发送，Shift+Enter 换行
+    // isComposing 用于屏蔽输入法合成过程中的 Enter（避免确认候选字时误触发发送）
     const messageInput = document.getElementById('messageInput');
     if (messageInput) {
         messageInput.addEventListener('keydown', function(e) {
-            if (e.key === 'Enter' && !e.shiftKey) {
+            if (e.key === 'Enter' && !e.shiftKey && !e.isComposing) {
                 e.preventDefault();
                 sendMessage(ContextType.NORMAL);
             }
@@ -290,7 +313,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const rawJsonInput = document.getElementById('rawJsonInput');
     if (rawJsonInput) {
         rawJsonInput.addEventListener('keydown', function(e) {
-            if (e.key === 'Enter' && !e.shiftKey) {
+            if (e.key === 'Enter' && !e.shiftKey && !e.isComposing) {
                 e.preventDefault();
                 sendMessage(ContextType.NORMAL);
             }
@@ -345,6 +368,27 @@ document.addEventListener('DOMContentLoaded', () => {
     // 高级模式切换事件
     if (advancedModeToggle) {
         advancedModeToggle.addEventListener('change', toggleAdvancedMode);
+    }
+
+    // IM 渠道模拟模式切换事件
+    if (imModeToggle) {
+        imModeToggle.addEventListener('change', toggleImMode);
+    }
+    if (imChannelSelect) {
+        imChannelSelect.addEventListener('change', () => {
+            currentImChannel = imChannelSelect.value;
+        });
+    }
+
+    // 语言切换事件
+    if (languageSelect) {
+        // 从 localStorage 恢复上次选择的语言
+        const savedLanguage = localStorage.getItem('selectedLanguage');
+        if (savedLanguage) {
+            currentLanguage = savedLanguage;
+            languageSelect.value = savedLanguage;
+        }
+        languageSelect.addEventListener('change', changeLanguage);
     }
 
     // 保留任务模式切换事件（兼容性）
@@ -513,8 +557,13 @@ async function sendMessage(contextType = ContextType.NORMAL) {
         return;
     }
 
-    // 创建聊天消息
-    const chatMessage = createChatMessage(message, contextType);
+    // IM 渠道模拟模式：只发最小字段
+    let chatMessage;
+    if (isImMode) {
+        chatMessage = createImChatMessage(message);
+    } else {
+        chatMessage = createChatMessage(message, contextType);
+    }
 
     // 显示客户端消息
     showClientMessage(chatMessage);
@@ -642,6 +691,63 @@ function updateFileNameDisplay() {
 }
 
 // 创建聊天消息
+// 切换 IM 渠道模拟模式
+function toggleImMode() {
+    isImMode = imModeToggle.checked;
+
+    const imChannelGroup = document.getElementById('imChannelGroup');
+    const imUserIdGroup = document.getElementById('imUserIdGroup');
+    const agentModeGroup = document.getElementById('agentModeGroup');
+    const modelIdGroup = document.getElementById('modelIdGroup');
+    const languageGroup = document.getElementById('languageGroup');
+
+    if (isImMode) {
+        // 显示 IM 专属控件，隐藏普通模式控件
+        imChannelGroup.style.display = '';
+        imUserIdGroup.style.display = '';
+        agentModeGroup.style.display = 'none';
+        if (agentCodeGroup) agentCodeGroup.style.display = 'none';
+        modelIdGroup.style.display = 'none';
+        languageGroup.style.display = 'none';
+        // IM 模式与高级模式互斥
+        if (isAdvancedMode) {
+            advancedModeToggle.checked = false;
+            toggleAdvancedMode();
+        }
+    } else {
+        imChannelGroup.style.display = 'none';
+        imUserIdGroup.style.display = 'none';
+        agentModeGroup.style.display = '';
+        modelIdGroup.style.display = '';
+        languageGroup.style.display = '';
+        // agentCodeGroup 的显示由 agent mode 决定，重新同步一次
+        changeAgentMode();
+    }
+}
+
+// 生成 IM 渠道风格的 message_id
+function generateImMessageId(channel, userId) {
+    const hex = () => Math.floor(Math.random() * 0xffffffff).toString(16).padStart(8, '0');
+    const id = hex() + hex();
+    if (channel === 'wechat') {
+        return `wechat-${userId || 'user'}-${id.slice(0, 16)}`;
+    }
+    return `${channel}_${id.slice(0, 16)}`;
+}
+
+// 构造最小 IM 渠道消息
+function createImChatMessage(prompt) {
+    const userId = (imUserIdInput ? imUserIdInput.value.trim() : '') || `${currentImChannel}_user`;
+    return {
+        message_id: generateImMessageId(currentImChannel, userId),
+        type: MessageType.CHAT,
+        prompt: prompt,
+        metadata: {
+            agent_user_id: userId,
+        },
+    };
+}
+
 function createChatMessage(prompt, contextType = ContextType.NORMAL, remark = null) {
     const message = {
         message_id: generateTimestampId(),
@@ -651,7 +757,9 @@ function createChatMessage(prompt, contextType = ContextType.NORMAL, remark = nu
         task_mode: currentTaskMode, // 保留兼容性
         agent_mode: currentAgentMode, // 新的 agent 模式
         attachments: [],
-        metadata: {}
+        metadata: {
+            language: currentLanguage
+        }
     };
 
     // Add model_id field if provided
@@ -699,11 +807,15 @@ function toggleMessageControls(enabled) {
 // 显示客户端消息
 function showClientMessage(message) {
     const time = new Date().toLocaleTimeString();
+    const imChannel = message.metadata && !message.agent_mode ? currentImChannel : '';
+    const imUserId = imChannel && message.metadata ? (message.metadata.agent_user_id || '') : '';
     pushLog({
         type: 'client',
         prompt: message.prompt || '',
         agentMode: message.agent_mode || '',
         modelId: message.model_id || '',
+        imChannel,
+        imUserId,
         time,
     });
     renderClientEntry({
@@ -711,6 +823,8 @@ function showClientMessage(message) {
         prompt: message.prompt || '',
         agentMode: message.agent_mode || '',
         modelId: message.model_id || '',
+        imChannel,
+        imUserId,
         time,
     });
     scrollToBottom();
@@ -765,6 +879,11 @@ function toggleAdvancedMode() {
     const advancedFields = document.getElementById('advancedModeFields');
 
     if (isAdvancedMode) {
+        // 高级模式与 IM 模式互斥
+        if (isImMode) {
+            imModeToggle.checked = false;
+            toggleImMode();
+        }
         normalFields.style.display = 'none';
         advancedFields.style.display = 'block';
         showSystemMessage("已切换到高级模式：粘贴完整 JSON 后点击「发送消息」");
@@ -773,6 +892,14 @@ function toggleAdvancedMode() {
         advancedFields.style.display = 'none';
         showSystemMessage("已切换到普通模式");
     }
+}
+
+// 切换语言
+function changeLanguage() {
+    currentLanguage = languageSelect.value;
+    localStorage.setItem('selectedLanguage', currentLanguage);
+    const displayName = languageSelect.options[languageSelect.selectedIndex].text;
+    showSystemMessage(`语言已切换为: ${displayName}`);
 }
 
 // 切换Agent模式
@@ -1167,6 +1294,14 @@ function handleWebSocketMessage(event) {
             } else {
                 showEventLog(data);
             }
+        } else if (eventType === 'before_tool_call' || eventType === 'after_tool_call') {
+            // 工具调用事件 → 紧凑的工具调用块，detail 默认折叠
+            const tool = payload && payload.tool;
+            if (tool) {
+                showToolCallMessage(tool, eventType, payload.send_timestamp);
+            } else {
+                showEventLog(data);
+            }
         } else {
             // 其余所有事件 → 折叠日志条目
             showEventLog(data);
@@ -1305,6 +1440,73 @@ function showThinkingMessage(content, timestamp, _noLog = false) {
     messageList.appendChild(wrapper);
 }
 
+// 显示工具调用消息块（before_tool_call / after_tool_call）
+function showToolCallMessage(tool, eventType, timestamp, _noLog = false) {
+    if (!_noLog) pushLog({ type: 'tool_call', tool, eventType, timestamp });
+
+    const timeStr = timestamp
+        ? new Date(timestamp * 1000).toLocaleTimeString()
+        : new Date().toLocaleTimeString();
+
+    const isRunning = tool.status === 'running';
+    const action = tool.action || tool.name || '工具调用';
+    const remark = tool.remark || '';
+    const detail = tool.detail || null;
+
+    const wrapper = document.createElement('div');
+    wrapper.className = `tool-call-block ${isRunning ? 'tool-call-running' : 'tool-call-finished'}`;
+
+    const header = document.createElement('div');
+    header.className = 'tool-call-header';
+
+    const statusDot = document.createElement('span');
+    statusDot.className = 'tool-call-status-dot';
+
+    const actionSpan = document.createElement('span');
+    actionSpan.className = 'tool-call-action';
+    actionSpan.textContent = action;
+
+    header.appendChild(statusDot);
+    header.appendChild(actionSpan);
+
+    if (remark) {
+        const remarkSpan = document.createElement('span');
+        remarkSpan.className = 'tool-call-remark';
+        remarkSpan.textContent = remark;
+        header.appendChild(remarkSpan);
+    }
+
+    const timeSpan = document.createElement('span');
+    timeSpan.className = 'tool-call-time';
+    timeSpan.textContent = timeStr;
+    header.appendChild(timeSpan);
+
+    wrapper.appendChild(header);
+
+    if (detail) {
+        const arrow = document.createElement('span');
+        arrow.className = 'tool-call-arrow';
+        arrow.textContent = '▶';
+        header.appendChild(arrow);
+
+        const detailEl = document.createElement('pre');
+        detailEl.className = 'tool-call-detail';
+        detailEl.style.display = 'none';
+        detailEl.textContent = JSON.stringify(detail, null, 2);
+
+        header.style.cursor = 'pointer';
+        header.addEventListener('click', () => {
+            const isHidden = detailEl.style.display === 'none';
+            detailEl.style.display = isHidden ? 'block' : 'none';
+            arrow.textContent = isHidden ? '▼' : '▶';
+        });
+
+        wrapper.appendChild(detailEl);
+    }
+
+    messageList.appendChild(wrapper);
+}
+
 // 显示折叠的事件日志条目
 function showEventLog(data, _noLog = false) {
     if (!_noLog) pushLog({ type: 'event', data });
@@ -1396,6 +1598,8 @@ function updateSubscribeButtonState(state, additionalInfo = '') {
 const filetreeContainer = document.getElementById('filetreeContainer');
 const selectWorkspaceBtn = document.getElementById('selectWorkspaceBtn');
 const refreshTreeBtn = document.getElementById('refreshTreeBtn');
+const mountDirInput = document.getElementById('mountDirInput');
+const applyMountDirBtn = document.getElementById('applyMountDirBtn');
 const filePreviewOverlay = document.getElementById('filePreviewOverlay');
 const filePreviewName = document.getElementById('filePreviewName');
 const filePreviewContent = document.getElementById('filePreviewContent');
@@ -1403,6 +1607,7 @@ const filePreviewClose = document.getElementById('filePreviewClose');
 
 let workspaceDirHandle = null;
 let filetreeRefreshTimer = null;
+let selectBtnState = 'default'; // 'default' | 'active' | 'need-auth'
 const expandedDirs = new Set();
 
 // ── IndexedDB 存取 DirectoryHandle ──
@@ -1446,41 +1651,62 @@ async function loadHandle() {
 
 // 更新按钮状态
 function updateSelectBtn(state) {
+    selectBtnState = state;
     if (!selectWorkspaceBtn) return;
     if (state === 'active') {
-        selectWorkspaceBtn.title = '重新选择目录';
-        selectWorkspaceBtn.textContent = '✓';
+        selectWorkspaceBtn.title = '切换项目根目录';
+        selectWorkspaceBtn.textContent = '📂';
         selectWorkspaceBtn.style.color = 'var(--wechat-green)';
     } else if (state === 'need-auth') {
-        selectWorkspaceBtn.title = '点击重新授权 .workspace';
+        const dirHint = mountDirName || '根目录';
+        selectWorkspaceBtn.title = `点击重新授权读取 ${dirHint}`;
         selectWorkspaceBtn.textContent = '🔓';
         selectWorkspaceBtn.style.color = 'var(--wechat-warning)';
     } else {
-        selectWorkspaceBtn.title = '选择项目根目录（自动进入 .workspace）';
+        selectWorkspaceBtn.title = '选择项目根目录';
         selectWorkspaceBtn.textContent = '📂';
         selectWorkspaceBtn.style.color = '';
     }
 }
 
 // 激活文件树（已有 handle）
-// 若选中的是项目根目录且含有 .workspace 子目录，自动进入 .workspace
+// 若配置了挂载目录且根目录下存在对应子目录，则自动进入该子目录
 async function activateFiletree(handle) {
+    rootDirHandle = handle;
     let target = handle;
-    try {
-        const sub = await handle.getDirectoryHandle('.workspace', { create: false });
-        target = sub;
-    } catch (e) {
-        // 没有 .workspace 子目录，直接展示所选目录
+    if (mountDirName) {
+        try {
+            const sub = await handle.getDirectoryHandle(mountDirName, { create: false });
+            target = sub;
+        } catch (e) {
+            // 子目录不存在，直接展示根目录
+        }
     }
     workspaceDirHandle = target;
-    await saveHandle(handle); // 存原始 handle，下次恢复时再次尝试进入 .workspace
+    await saveHandle(handle); // 存原始根目录 handle，下次恢复时再次尝试进入挂载目录
     updateSelectBtn('active');
     await renderFileTree();
     startFiletreeAutoRefresh();
 }
 
+// 应用挂载目录变更
+async function applyMountDir() {
+    const newMountDir = mountDirInput ? mountDirInput.value.trim() : '';
+    mountDirName = newMountDir;
+    localStorage.setItem('mountDirName', mountDirName);
+    if (!rootDirHandle) {
+        showSystemMessage('请先选择项目根目录');
+        return;
+    }
+    await activateFiletree(rootDirHandle);
+    showSystemMessage(`挂载目录已切换为: ${mountDirName || '(根目录)'}`);
+}
+
 // 页面加载时尝试恢复上次的目录
 (async () => {
+    // 初始化挂载目录输入框
+    if (mountDirInput) mountDirInput.value = mountDirName;
+
     const saved = await loadHandle();
     if (!saved) return;
     try {
@@ -1491,17 +1717,18 @@ async function activateFiletree(handle) {
             return;
         }
         // 权限过期，提示用户点击重新授权
-        workspaceDirHandle = saved;
+        rootDirHandle = saved;
         updateSelectBtn('need-auth');
         if (filetreeContainer) {
-            filetreeContainer.innerHTML = '<div class="filetree-empty">点击 🔓 重新授权读取 .workspace</div>';
+            const dirHint = mountDirName || '根目录';
+            filetreeContainer.innerHTML = `<div class="filetree-empty">点击 🔓 重新授权读取 ${dirHint}</div>`;
         }
     } catch (e) {
         console.warn('恢复目录句柄失败', e);
     }
 })();
 
-// 点击授权/重新授权按钮
+// 点击选择/切换目录按钮
 if (selectWorkspaceBtn) {
     selectWorkspaceBtn.addEventListener('click', async () => {
         if (!('showDirectoryPicker' in window)) {
@@ -1509,20 +1736,30 @@ if (selectWorkspaceBtn) {
             return;
         }
         try {
-            // 若已有 handle，先尝试 requestPermission 避免重新选目录
-            if (workspaceDirHandle) {
-                const perm = await workspaceDirHandle.requestPermission({ mode: 'read' });
+            // need-auth 状态：权限过期，先尝试对已有根目录重新授权，避免用户重新选
+            if (selectBtnState === 'need-auth' && rootDirHandle) {
+                const perm = await rootDirHandle.requestPermission({ mode: 'read' });
                 if (perm === 'granted') {
-                    await activateFiletree(workspaceDirHandle);
+                    await activateFiletree(rootDirHandle);
                     return;
                 }
             }
-            // 无 handle 或 requestPermission 失败，让用户重新选
+            // active / default 状态：直接弹出选择器，支持切换到新项目
             const handle = await window.showDirectoryPicker({ mode: 'read' });
             await activateFiletree(handle);
         } catch (e) {
             if (e.name !== 'AbortError') console.error('授权目录失败', e);
         }
+    });
+}
+
+// 挂载目录应用按钮
+if (applyMountDirBtn) {
+    applyMountDirBtn.addEventListener('click', applyMountDir);
+}
+if (mountDirInput) {
+    mountDirInput.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') applyMountDir();
     });
 }
 

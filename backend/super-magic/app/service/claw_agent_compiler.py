@@ -1,7 +1,8 @@
 """
 Claw Agent compiler.
 
-Reads claw definition files from agents/claws/<claw_code>/:
+Reads claw definition files from a given directory (typically the workspace
+.magic/ directory, or agents/claws/<claw_code>/ as fallback):
   IDENTITY.md  — role definition + agent metadata (required)
   SOUL.md      — personality (optional)
   AGENTS.md    — workspace instructions (optional)
@@ -11,6 +12,7 @@ Outputs agents/<claw_code>.agent with real tools in YAML frontmatter and
 @include directives pointing to the source files. Developer annotations
 (<!--zh -->) are stripped by agentlang's SyntaxProcessor at load time.
 """
+import os
 from pathlib import Path
 from typing import Any, Dict, List
 
@@ -60,7 +62,8 @@ class ClawAgentCompiler:
 
         tools_list = self._read_tools(tools.meta if tools else {}, claw_code)
 
-        rel_base = f"./claws/{claw_code}"
+        agents_dir = PathManager.get_agents_dir()
+        rel_base = os.path.relpath(claw_dir, agents_dir)
         path_map = {
             _PLACEHOLDER_IDENTITY: f"{rel_base}/IDENTITY.md",
             _PLACEHOLDER_SOUL:     f"{rel_base}/SOUL.md",

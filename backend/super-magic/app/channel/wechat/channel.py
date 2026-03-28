@@ -45,6 +45,16 @@ class WechatChannel(BaseChannel):
         self._get_updates_buf: str = ""
         self._typing_config_manager: Optional[WechatTypingConfigManager] = None
         self._session_pause_until_ms: int = 0
+        # 缓存最后一次收到消息的用户 ID 和 context_token，供 cron 主动推送复用会话上下文
+        self._last_to_user_id: Optional[str] = None
+        self._last_context_token: Optional[str] = None
+        # TODO: 统一保活设施（大一统方案）
+        # 当前各渠道各自持有独立的 ChannelKeepalive，相互隔离。
+        # 后续应引入统一的保活注册中心（KeepaliveRegistry），各渠道/组件向其注册自己的存活条件，
+        # 只要任意一个条件满足就续期沙盒活跃时间（例如微信失活但钉钉在线时仍应保活）。
+        # 此外，需细化 alive 判定条件：当前仅判断轮询任务是否在跑，
+        # 未来应加入"最近 N 天内有实际消息"等业务维度，长期无消息时主动放弃保活，让沙盒正常退出。
+        self._keepalive = ChannelKeepalive("Wechat", is_active=lambda: self.is_connected)
 
     @classmethod
     def get_instance(cls) -> "WechatChannel":
@@ -291,6 +301,10 @@ class WechatChannel(BaseChannel):
         context_token: str = msg.get("context_token", "")
         user_id: str = msg.get("from_user_id", "wechat_user")
 
+        # 缓存最近一次活跃用户，供 cron 主动推送复用
+        self._last_to_user_id = user_id
+        self._last_context_token = context_token
+
         # 下载媒体（图片/视频/文件/无转文字的语音），失败不阻断主流程
         assert self._http_session is not None
         media_rel_path: str | None = None
@@ -358,3 +372,31 @@ class WechatChannel(BaseChannel):
                 await typing_controller.stop()
 
         ctx.register_run_cleanup("wechat_stream", _stream_cleanup)
+
+    async def create_proactive_streams(self, ctx, cleanup_key: str) -> bool:
+        """用缓存的最后一次会话上下文创建主动推送 stream。"""
+        if (
+            not self.is_connected
+            or self._last_to_user_id is None
+            or self._credential is None
+            or self._http_session is None
+        ):
+            return False
+
+        stream_id = f"wechat-proactive-{id(self)}"
+        wechat_stream = WechatStream(
+            http_session=self._http_session,
+            bot_token=self._credential.bot_token,
+            to_user_id=self._last_to_user_id,
+            context_token=self._last_context_token or "",
+            base_url=self._credential.base_url,
+            stream_id=stream_id,
+        )
+        ctx.add_stream(wechat_stream)
+
+        async def _cleanup() -> None:
+            ctx.remove_stream(wechat_stream)
+
+        ctx.register_run_cleanup(cleanup_key, _cleanup)
+        logger.info("[WechatChannel] proactive stream registered for cron notification")
+        return True

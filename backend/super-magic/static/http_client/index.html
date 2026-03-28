@@ -49,11 +49,16 @@
                     <span class="filetree-title">工作区文件</span>
                     <div class="filetree-actions">
                         <button id="refreshTreeBtn" class="icon-btn" title="刷新">↻</button>
-                        <button id="selectWorkspaceBtn" class="icon-btn" title="选择目录">📂</button>
+                        <button id="selectWorkspaceBtn" class="icon-btn" title="选择项目根目录">📂</button>
                     </div>
                 </div>
+                <div class="mount-dir-row">
+                    <span class="mount-dir-label">挂载目录:</span>
+                    <input type="text" id="mountDirInput" class="mount-dir-input" placeholder="留空为根目录">
+                    <button id="applyMountDirBtn" class="icon-btn" title="应用挂载目录">✓</button>
+                </div>
                 <div id="filetreeContainer" class="filetree-container">
-                    <div class="filetree-empty">点击 📂 选择项目根目录<br>（会自动进入 .workspace）</div>
+                    <div class="filetree-empty">点击 📂 选择项目根目录</div>
                 </div>
             </div>
         </div>
@@ -80,9 +85,34 @@
                                 <span class="toggle-switch-slider"></span>
                             </label>
                         </div>
+
+                        <!-- IM 渠道模拟开关 -->
+                        <div class="advanced-mode-toggle">
+                            <label class="toggle-switch-label">IM 渠道</label>
+                            <label class="toggle-switch">
+                                <input type="checkbox" id="imModeToggle">
+                                <span class="toggle-switch-slider"></span>
+                            </label>
+                        </div>
+
+                        <!-- IM 渠道类型（仅 IM 模式显示） -->
+                        <div class="model-config" id="imChannelGroup" style="display:none">
+                            <select id="imChannelSelect" class="agent-mode-select">
+                                <option value="dingtalk">钉钉</option>
+                                <option value="wechat">微信</option>
+                                <option value="wecom">企业微信</option>
+                                <option value="lark">飞书</option>
+                            </select>
+                        </div>
+
+                        <!-- IM 用户 ID（仅 IM 模式显示） -->
+                        <div class="model-config" id="imUserIdGroup" style="display:none">
+                            <input type="text" id="imUserIdInput" class="model-id-input"
+                                placeholder="agent_user_id (留空用默认)">
+                        </div>
                         
-                        <!-- Agent模式选择 -->
-                        <div class="mode-switch">
+                        <!-- Agent模式选择（IM 模式下隐藏） -->
+                        <div class="mode-switch" id="agentModeGroup">
                             <select id="agentModeSelect" class="agent-mode-select">
                                 <option value="magic">magic — 通用模式（默认）</option>
                                 <option value="general">general — 通用模式（兼容）</option>
@@ -102,16 +132,24 @@
 
                         <!-- Agent Code（仅 magiclaw 模式显示） -->
                         <div class="model-config" id="agentCodeGroup" style="display:none">
-                            <select id="agentCodeInput" class="model-id-input">
+                            <select id="agentCodeInput" class="agent-mode-select">
                                 <option value="openclaw">openclaw</option>
                                 <option value="magishock">magishock</option>
                             </select>
                         </div>
 
-                        <!-- Model ID 配置 -->
-                        <div class="model-config">
+                        <!-- Model ID 配置（IM 模式下隐藏） -->
+                        <div class="model-config" id="modelIdGroup">
                             <input type="text" id="modelIdInput" class="model-id-input"
                                 placeholder="Model ID (留空默认)">
+                        </div>
+
+                        <!-- 语言选择（IM 模式下隐藏） -->
+                        <div class="model-config" id="languageGroup">
+                            <select id="languageSelect" class="agent-mode-select">
+                                <option value="zh_CN">中文（简体）</option>
+                                <option value="en_US">English (US)</option>
+                            </select>
                         </div>
                     </div>
 

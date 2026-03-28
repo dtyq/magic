@@ -69,6 +69,7 @@ class AgentDispatcher(Base):
         # 标记 init 事件是否已经发送过（用于沙箱预启动场景的延迟发送）
         self.init_event_dispatched: bool = False
 
+
         # 设置为单例实例
         self.__class__._instance = self
 
@@ -360,25 +361,43 @@ class AgentDispatcher(Base):
             logger.info(f"Set crew agent profile: name={name}, role={role}")
 
     async def _prepare_claw_agent(self, claw_code: str) -> None:
-        """Compile claw definition files into .agent (if needed) and set AgentProfile."""
+        """Compile claw definition files into .agent (if needed) and set AgentProfile.
+
+        Source files live in the workspace .magic/ directory. On first run the
+        template is copied from agents/claws/<claw_code>/ with SKIP strategy so
+        that existing workspace files are never overwritten.
+        """
+        from datetime import date
         from app.path_manager import PathManager
         from app.service.claw_agent_compiler import ClawAgentCompiler
         from app.core.entity.agent_profile import AgentProfile
-        from app.utils.async_file_utils import async_read_markdown
+        from app.utils.async_file_utils import async_copytree, async_read_markdown, CopyConflict
 
-        claw_dir = PathManager.get_claw_agent_dir(claw_code)
+        magic_dir = PathManager.get_magic_dir()
         output_agent_file = PathManager.get_compiled_agent_file(claw_code)
-        compiler = ClawAgentCompiler()
+
+        # 始终补全缺失的模板文件，已有文件不会被覆盖
+        claw_src = PathManager.get_claw_agent_dir(claw_code)
+        await async_copytree(claw_src, magic_dir, on_conflict=CopyConflict.SKIP)
+
+        # Rename the placeholder memory file to today's date so the agent starts
+        # with a correctly named daily log file instead of the template sentinel.
+        placeholder = magic_dir / "memory" / "1900-01-01-none.md"
+        if placeholder.exists():
+            today_file = magic_dir / "memory" / f"{date.today().isoformat()}.md"
+            if not today_file.exists():
+                placeholder.rename(today_file)
+                logger.info(f"Renamed memory placeholder to: {today_file.name}")
+            else:
+                placeholder.unlink()
+                logger.info(f"Removed memory placeholder (today's file already exists: {today_file.name})")
 
         if output_agent_file.exists():
             logger.info(f"Claw .agent already exists, skip compile: {output_agent_file}")
-            identity_file = claw_dir / "IDENTITY.md"
-            if not identity_file.exists():
-                logger.warning(f"IDENTITY.md not found for existing claw agent: {identity_file}")
-                return
-            identity_meta = (await async_read_markdown(identity_file)).meta
+            identity_meta = (await async_read_markdown(magic_dir / "IDENTITY.md")).meta
         else:
-            identity_meta = await compiler.compile(claw_code, claw_dir)
+            compiler = ClawAgentCompiler()
+            identity_meta = await compiler.compile(claw_code, magic_dir)
 
         name        = identity_meta.get("name", "")
         role        = identity_meta.get("role", "")
@@ -398,6 +417,50 @@ class AgentDispatcher(Base):
         except Exception as e:
             logger.error(f"Agent preparation failed (mode={agent_mode}, code={agent_code}): {e}")
             logger.info("Falling back to default agent profile")
+
+    @staticmethod
+    def _last_dispatch_message_file():
+        from app.path_manager import PathManager
+        return PathManager.get_chat_history_dir() / "last_dispatch_message.json"
+
+    async def get_last_dispatch_message(self) -> Optional[Dict]:
+        """获取上次 dispatch 的消息快照，文件不存在时返回 None。"""
+        from app.utils.async_file_utils import async_exists, async_read_json
+        path = self._last_dispatch_message_file()
+        if not await async_exists(path):
+            return None
+        try:
+            data = await async_read_json(path)
+            return data if isinstance(data, dict) else None
+        except Exception as e:
+            logger.warning(f"[AgentDispatcher] 读取上次 dispatch 消息快照失败，忽略: {e}")
+            return None
+
+    async def _fill_from_last_dispatch_message(self, message: ChatClientMessage) -> None:
+        """用上次保存的消息快照补全本次未显式设置的字段（白名单控制，后续扩展在此处加 case）。"""
+        last = await self.get_last_dispatch_message() or {}
+        if not last:
+            return
+        # agent_mode：当前未显式携带（None）时从 last 取
+        if message.agent_mode is None and last.get("agent_mode"):
+            message.agent_mode = last["agent_mode"]
+        # agent_code：当前未携带时从 last 取
+        current_agent_code = (message.dynamic_config or {}).get("agent_code")
+        last_agent_code = (last.get("dynamic_config") or {}).get("agent_code")
+        if not current_agent_code and last_agent_code:
+            message.dynamic_config = {**(message.dynamic_config or {}), "agent_code": last_agent_code}
+
+    async def _save_last_dispatch_message(self, message: ChatClientMessage) -> None:
+        """保存本次 dispatch 的完整消息快照到文件（.chat_history/last_dispatch_message.json）。"""
+        from app.utils.async_file_utils import async_write_json
+        new_data = message.model_dump(mode="json")
+        # 合并策略：以上次快照为基础，新值非 None 才覆盖，防止空值抹掉已存的有效配置
+        existing = await self.get_last_dispatch_message() or {}
+        merged = {**existing, **{k: v for k, v in new_data.items() if v is not None}}
+        try:
+            await async_write_json(self._last_dispatch_message_file(), merged, indent=2, ensure_ascii=False)
+        except Exception as e:
+            logger.warning(f"[AgentDispatcher] 保存 dispatch 消息快照失败，忽略: {e}")
 
     async def submit_message(self, message: ChatClientMessage) -> None:
         """
@@ -430,6 +493,18 @@ class AgentDispatcher(Base):
 
     async def _run_dispatch_task(self, message: ChatClientMessage) -> None:
         """Background task wrapper for dispatch_message, used by submit_message."""
+        # Re-apply language at the start of every dispatch task.
+        # asyncio.create_task() inherits a copy of the parent coroutine's ContextVar
+        # state, but each HTTP request starts with no language set (ContextVar default
+        # is None → zh_CN). Applying it here inside the task guarantees the correct
+        # locale regardless of the caller's context state.
+        from app.i18n import i18n
+        metadata = self.agent_context.get_init_client_message_metadata()
+        if metadata and metadata.language:
+            i18n.set_language(metadata.language)
+        else:
+            i18n.set_language("zh_CN")
+
         try:
             await self.dispatch_message(message)
         except asyncio.CancelledError:
@@ -476,6 +551,13 @@ class AgentDispatcher(Base):
                 )
                 return
 
+
+        await self._fill_from_last_dispatch_message(message)
+
+        # fill 后仍为 None 说明历史快照也没有，归一化为默认模式
+        if message.agent_mode is None:
+            message.agent_mode = AgentMode.GENERAL
+
         self.agent_context.set_chat_client_message(message)
 
         # Extract agent_code for crew agent dispatching
@@ -487,6 +569,9 @@ class AgentDispatcher(Base):
 
         # Compile agent files and set AgentProfile before loading the agent instance
         await self._prepare_agent(str(message.agent_mode), agent_code)
+
+        # 保存本次 dispatch 的完整消息快照（存储全量，补全侧用白名单控制应用范围）
+        await self._save_last_dispatch_message(message)
 
         # 使用 agent_mode 进行 agent 选择
         agent = await self.switch_agent(message.agent_mode, agent_code=agent_code)

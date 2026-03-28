@@ -280,6 +280,7 @@ The following <dynamic_context> block contains system-provided context informati
             system_skill_names = skills_config.get_system_skill_names()
             self.loaded_skills = system_skill_names
             self.agent_context.set_loaded_skills(system_skill_names)
+            self.agent_context.set_excluded_skills(skills_config.excluded_skills)
             skills_prompt_content = generate_skills_prompt(
                 skills_config,
                 agent_name=self.agent_name,

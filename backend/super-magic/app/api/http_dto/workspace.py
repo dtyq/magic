@@ -96,6 +96,11 @@ class WorkspaceExportRequest(BaseModel):
     upload_config: Dict[str, Any] = Field(
         ..., description="Object storage credentials and configuration (platform-specific)"
     )
+    source_path: str = Field(
+        "",
+        description="""<!--zh: 相对于工作区根目录的子目录路径（如 'skills/my-skill'），留空则导出整个工作区-->
+Relative path within the workspace root to export (e.g. 'skills/my-skill'). Defaults to the entire workspace.""",
+    )
 
 
 class WorkspaceExportData(BaseModel):

@@ -488,9 +488,14 @@ class StreamingHelper:
             chunk_id=chunk_id
         )
 
-        if success:
-            state.streaming_started = True
-            state.current_streaming_type = content_type
+        # 无论 driver 是否可用，始终更新 state。
+        # streaming_started / current_streaming_type 追踪的是"回复阶段是否已开始"，
+        # 而非"SocketIO 推送是否成功"。下游的 is_in_*_phase() 检查和
+        # after_agent_reply 事件触发都依赖这两个字段，若因 driver 不可用
+        # 而跳过赋值，会导致 before_agent_reply 已发出、after_agent_reply 却丢失的问题。
+        # end_current_stream / send_stream_end 内部已对 driver=None 做了安全处理。
+        state.streaming_started = True
+        state.current_streaming_type = content_type
 
         return success
 

@@ -119,17 +119,20 @@ def _parse_skills(data: Dict[str, Any]) -> Optional[SkillsConfig]:
 
     crew_skills = _parse_wildcard_source(raw.get("crew_skills"), "crew_skills")
     workspace_skills = _parse_wildcard_source(raw.get("workspace_skills"), "workspace_skills")
+    excluded_skills = _parse_excluded_skills(raw.get("excluded_skills"))
 
     cfg = SkillsConfig(
         system_skills=system_skills,
         system_skills_scan=system_skills_scan,
         crew_skills=crew_skills,
         workspace_skills=workspace_skills,
+        excluded_skills=excluded_skills,
     )
     logger.debug(
         f"解析 skills: system={[e.name for e in system_skills]}, "
         f"system_scan={system_skills_scan}, "
-        f"crew={crew_skills}, workspace={workspace_skills}"
+        f"crew={crew_skills}, workspace={workspace_skills}, "
+        f"excluded={excluded_skills}"
     )
     return cfg
 
@@ -163,6 +166,22 @@ def _parse_system_skills(raw: Any) -> List[SystemSkillEntry]:
         else:
             raise ValueError(f"system_skills 条目格式不合法: {item}")
     return entries
+
+
+def _parse_excluded_skills(raw: Any) -> List[str]:
+    """解析 excluded_skills 字段，返回要排除的 system skill 名称列表。"""
+    if raw is None:
+        return []
+    if isinstance(raw, list):
+        result = []
+        for item in raw:
+            if not isinstance(item, str):
+                raise ValueError(f"excluded_skills 条目格式不合法，期望字符串，实际: {type(item)}")
+            name = item.strip()
+            if name:
+                result.append(name)
+        return result
+    raise ValueError(f"excluded_skills 字段格式不合法，期望列表，实际: {type(raw)}")
 
 
 def _parse_wildcard_source(raw: Any, field_name: str) -> Optional[str]:

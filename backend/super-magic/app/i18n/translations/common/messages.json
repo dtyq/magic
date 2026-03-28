@@ -10,5 +10,41 @@
     "agent_profile.desc_without_role": {
         "zh_CN": "你叫{name}。{description}",
         "en_US": "Your name is {name}. {description}"
+    },
+    "cron.notify.intro": {
+        "zh_CN": "以下定时提醒刚刚触发。请你直接以温暖简洁的方式通知用户——就像贴心助手轻轻提醒一声。不要讨论调度机制、执行细节，或AI能做什么不能做什么。每条任务用一两句友好的话传达提醒即可。",
+        "en_US": "The following scheduled reminder(s) have just fired. Deliver each one directly to the user as a warm, concise notification — like a personal assistant tapping them on the shoulder. Do NOT discuss scheduling mechanics, execution details, or what AI can or cannot do. Just deliver the reminder in one or two friendly sentences per task."
+    },
+    "cron.notify.task_header": {
+        "zh_CN": "[任务 {index}]",
+        "en_US": "[Task {index}]"
+    },
+    "cron.notify.field_name": {
+        "zh_CN": "名称：{value}",
+        "en_US": "Name: {value}"
+    },
+    "cron.notify.field_status": {
+        "zh_CN": "状态：{value}",
+        "en_US": "Status: {value}"
+    },
+    "cron.notify.field_finished_at": {
+        "zh_CN": "完成时间：{value}",
+        "en_US": "Finished at: {value}"
+    },
+    "cron.notify.field_result_file": {
+        "zh_CN": "完整结果文件：{value}",
+        "en_US": "Full result file: {value}"
+    },
+    "cron.notify.field_summary": {
+        "zh_CN": "执行结果（摘要）：\n{value}",
+        "en_US": "Execution result (summary):\n{value}"
+    },
+    "cron.notify.status_ok": {
+        "zh_CN": "成功",
+        "en_US": "completed successfully"
+    },
+    "cron.notify.status_error": {
+        "zh_CN": "失败",
+        "en_US": "failed"
     }
 }

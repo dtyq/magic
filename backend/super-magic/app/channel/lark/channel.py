@@ -69,6 +69,8 @@ class LarkChannel(BaseChannel):
         self._ws_thread: Optional[threading.Thread] = None
         self._main_loop: Optional[asyncio.AbstractEventLoop] = None
         self._keepalive = ChannelKeepalive("Lark", is_active=lambda: self.is_connected)
+        # 缓存最后一次活跃的 chat_id，供 cron 主动推送复用会话上下文
+        self._last_chat_id: Optional[str] = None
 
     @classmethod
     def get_instance(cls) -> "LarkChannel":
@@ -223,6 +225,10 @@ class LarkChannel(BaseChannel):
         message_id = getattr(msg, "message_id", None) or ""
         chat_id = getattr(msg, "chat_id", None) or ""
 
+        # 缓存 chat_id，供 cron 主动推送复用
+        if chat_id:
+            self._last_chat_id = chat_id
+
         ctx = dispatcher.agent_context
         assert self._sdk_client is not None
 
@@ -340,6 +346,35 @@ class LarkChannel(BaseChannel):
         except Exception as e:
             logger.error(f"[LarkChannel] 发送卡片异常: {e}")
             return False
+
+    async def create_proactive_streams(self, ctx, cleanup_key: str) -> bool:
+        """用缓存的最后一次会话 chat_id 创建主动推送 stream/sink。"""
+        from app.channel.lark.stream import LarkStream
+        from app.channel.lark.streaming_driver import LarkStreamingDriver
+
+        if not self.is_connected or self._last_chat_id is None or self._sdk_client is None:
+            return False
+
+        card_id = await self._create_streaming_card()
+        if not card_id:
+            return False
+
+        send_ok = await self._send_card_reply(self._last_chat_id, card_id, is_reply=False)
+        if not send_ok:
+            return False
+
+        driver = LarkStreamingDriver(self._sdk_client, card_id)
+        stream = LarkStream(self._sdk_client, card_id, driver)
+        ctx.add_stream(stream)
+        ctx.add_streaming_sink(driver)
+
+        async def _cleanup() -> None:
+            ctx.remove_stream(stream)
+            ctx.remove_streaming_sink(driver)
+
+        ctx.register_run_cleanup(cleanup_key, _cleanup)
+        logger.info(f"[LarkChannel] proactive stream registered for cron notification: card_id={card_id}")
+        return True
 
     async def verify_permissions(self) -> Optional[str]:
         """验证飞书 AI Bot 所需权限是否已全部开通。

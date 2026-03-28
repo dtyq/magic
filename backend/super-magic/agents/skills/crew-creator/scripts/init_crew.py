@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Initialize a minimal set of employee definition files in .workspace/.
+Initialize a minimal set of employee definition files in .workspace/.magic/.
 
 Reads a JSON config (via --config <path>) containing employee metadata
 and generates the appropriate definition files.
@@ -25,9 +25,9 @@ Config JSON schema:
     }
 
 Files generated:
-    .workspace/IDENTITY.md   — always
-    .workspace/AGENTS.md     — if instructions provided
-    .workspace/SOUL.md       — if personality provided
+    .workspace/.magic/IDENTITY.md   — always
+    .workspace/.magic/AGENTS.md     — if instructions provided
+    .workspace/.magic/SOUL.md       — if personality provided
     (TOOLS.md / SKILLS.md are intentionally NOT created so the system uses defaults)
 """
 
@@ -97,7 +97,7 @@ def _build_soul(cfg: dict) -> str | None:
 
 def main() -> int:
     parser = argparse.ArgumentParser(
-        description="Initialize employee definition files in .workspace/",
+        description="Initialize employee definition files in .workspace/.magic/",
     )
     parser.add_argument(
         "--config",
@@ -130,7 +130,7 @@ def main() -> int:
         return 1
 
     project_root = _setup_project_root()
-    ws_dir = project_root / ".workspace"
+    ws_dir = project_root / ".workspace" / ".magic"
 
     identity_path = ws_dir / "IDENTITY.md"
     if identity_path.exists() and not args.overwrite:

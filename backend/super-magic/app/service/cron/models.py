@@ -43,6 +43,7 @@ class CronPayload:
     agent_name: str = "magic"
     model_id: Optional[str] = None
     timeout_seconds: Optional[int] = None
+    notify_main_agent: bool = True
 
 
 @dataclass
