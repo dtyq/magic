@@ -34,10 +34,15 @@ class WorkspaceExporterService extends AbstractSandboxOS implements WorkspaceExp
      */
     public function export(string $sandboxId, ExportWorkspaceRequest $request): ExportWorkspaceResponse
     {
+        $sourcePath = $request->getSourcePath();
+        $hasSourcePath = $sourcePath !== null && $sourcePath !== '';
+
         $this->logger->info('[Sandbox][Workspace] Exporting workspace', [
             'sandbox_id' => $sandboxId,
             'type' => $request->getType(),
             'code' => $request->getCode(),
+            'has_source_path' => $hasSourcePath,
+            'source_path' => $sourcePath,
         ]);
 
         try {
@@ -56,6 +61,8 @@ class WorkspaceExporterService extends AbstractSandboxOS implements WorkspaceExp
                     'type' => $request->getType(),
                     'code' => $request->getCode(),
                     'file_key' => $response->getFileKey(),
+                    'has_source_path' => $hasSourcePath,
+                    'source_path' => $sourcePath,
                 ]);
             } else {
                 $this->logger->error('[Sandbox][Workspace] Failed to export workspace', [
@@ -64,6 +71,8 @@ class WorkspaceExporterService extends AbstractSandboxOS implements WorkspaceExp
                     'code' => $request->getCode(),
                     'response_code' => $response->getCode(),
                     'response_message' => $response->getMessage(),
+                    'has_source_path' => $hasSourcePath,
+                    'source_path' => $sourcePath,
                 ]);
             }
 
@@ -74,6 +83,8 @@ class WorkspaceExporterService extends AbstractSandboxOS implements WorkspaceExp
                 'type' => $request->getType(),
                 'code' => $request->getCode(),
                 'error' => $e->getMessage(),
+                'has_source_path' => $hasSourcePath,
+                'source_path' => $sourcePath,
             ]);
 
             return ExportWorkspaceResponse::fromApiResponse([
