@@ -112,17 +112,29 @@ def handle_continue(agent: 'Agent') -> str:
 
 
 async def handle_new_session(agent: 'Agent') -> str:
-    """处理新会话命令：清空上下文历史，触发 Session Startup 序列"""
+    """处理新会话命令：清空上下文历史，根据 agent 模式发送对应的重置提示词"""
     logger.info("用户触发新会话重置 /new")
     await agent._reset_for_new_session()
+
+    # magiclaw 模式有工作区文件（SOUL.md / USER.md / memory）需要在响应前读取，
+    # 其他模式没有这套约定，只需简单问候即可
+    chat_message = agent.agent_context.get_chat_client_message()
+    is_magiclaw = chat_message and str(chat_message.agent_mode) == "magiclaw"
+
+    if is_magiclaw:
+        return (
+            "A new session was started via /new. The previous conversation history has been cleared. "
+            "Run your Session Startup sequence now before responding: read your workspace files "
+            "(SOUL.md, USER.md, today's and yesterday's memory files, and MEMORY.md "
+            "for a primary session). "
+            "Then greet the user in your configured persona. "
+            "Keep it to 1-3 sentences and ask what they want to do. "
+            "Do not mention internal steps, files, or tools."
+        )
     return (
         "A new session was started via /new. The previous conversation history has been cleared. "
-        "If you have a Session Startup sequence defined in your workspace "
-        "(e.g., read SOUL.md, USER.md, today's and yesterday's memory files, and MEMORY.md "
-        "for a primary session), run it now before responding. "
-        "Then greet the user in your configured persona. "
-        "Keep it to 1-3 sentences and ask what they want to do. "
-        "Do not mention internal steps, files, or tools."
+        "Greet the user briefly and ask what they want to do. "
+        "Keep it to 1-2 sentences. Do not mention internal steps or tools."
     )
 
 
