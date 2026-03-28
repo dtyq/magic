@@ -3,6 +3,8 @@ ConnectWechatBot — 发起微信官方 ClawBot 扫码登录的 Tool。
 
 不挂载到 LLM tool list，仅供 Skill snippet 通过 /api/skills/call_tool 调用。
 """
+from typing import Any, Dict
+
 from pydantic import Field
 
 from agentlang.context.tool_context import ToolContext
@@ -10,6 +12,7 @@ from agentlang.logger import get_logger
 from agentlang.tools.tool_result import ToolResult
 from app.channel.wechat.login import WechatLoginManager, LoginStatus
 from app.core.context.agent_context import AgentContext
+from app.i18n import i18n
 from app.tools.core import BaseTool, BaseToolParams, tool
 
 logger = get_logger(__name__)
@@ -55,6 +58,32 @@ class ConnectWechatBot(BaseTool[ConnectWechatBotParams]):
         except Exception as e:
             logger.error(f"[ConnectWechatBot] start session failed: {e}")
             return ToolResult.error(f"Failed to start the WeChat login flow: {e}")
+
+    async def get_after_tool_call_friendly_action_and_remark(
+        self,
+        tool_name: str,
+        tool_context: ToolContext,
+        result: ToolResult,
+        execution_time: float,
+        arguments: Dict[str, Any] = None,
+    ) -> Dict:
+        action = i18n.translate(self.name, category="tool.actions")
+        if not result.ok:
+            return {
+                "action": action,
+                "remark": i18n.translate(
+                    "channel.connect_wechat_bot.error",
+                    category="tool.messages",
+                    error=result.content,
+                ),
+            }
+        return {
+            "action": action,
+            "remark": i18n.translate(
+                "channel.connect_wechat_bot.success",
+                category="tool.messages",
+            ),
+        }
 
 
 def _build_qr_render_message(qrcode_js_string_literal: str, status_text: str | None = None) -> str:

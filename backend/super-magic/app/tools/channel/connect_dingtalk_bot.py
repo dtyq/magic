@@ -3,6 +3,8 @@ ConnectDingTalkBot — 建立钉钉 Stream 连接的 Tool。
 
 不挂载到 LLM tool list，仅供 Skill snippet 通过 /api/skills/call_tool 调用。
 """
+from typing import Any, Dict
+
 from pydantic import Field
 
 from agentlang.context.tool_context import ToolContext
@@ -10,6 +12,7 @@ from agentlang.tools.tool_result import ToolResult
 from agentlang.logger import get_logger
 from app.channel.dingtalk.channel import DingTalkChannel
 from app.channel.config import load_config, save_config, DingTalkCredential
+from app.i18n import i18n
 from app.tools.core import BaseTool, BaseToolParams, tool
 
 logger = get_logger(__name__)
@@ -67,3 +70,31 @@ class ConnectDingTalkBot(BaseTool[ConnectDingTalkBotParams]):
         except Exception as e:
             logger.error(f"[ConnectDingTalkBot] 连接失败: {e}")
             return ToolResult.error(f"DingTalk connection failed: {e}")
+
+    async def get_after_tool_call_friendly_action_and_remark(
+        self,
+        tool_name: str,
+        tool_context: ToolContext,
+        result: ToolResult,
+        execution_time: float,
+        arguments: Dict[str, Any] = None,
+    ) -> Dict:
+        action = i18n.translate(self.name, category="tool.actions")
+        if not result.ok:
+            return {
+                "action": action,
+                "remark": i18n.translate(
+                    "channel.connect_dingtalk_bot.error",
+                    category="tool.messages",
+                    error=result.content,
+                ),
+            }
+        client_id = (arguments or {}).get("client_id") or ""
+        return {
+            "action": action,
+            "remark": i18n.translate(
+                "channel.connect_dingtalk_bot.success",
+                category="tool.messages",
+                client_id=client_id,
+            ),
+        }

@@ -3,6 +3,8 @@ WaitWechatLogin — 等待微信官方 ClawBot 扫码结果的 Tool。
 
 不挂载到 LLM tool list，仅供 Skill snippet 通过 /api/skills/call_tool 调用。
 """
+from typing import Any, Dict
+
 from pydantic import Field
 
 from agentlang.context.tool_context import ToolContext
@@ -11,6 +13,7 @@ from agentlang.tools.tool_result import ToolResult
 from app.channel.config import WechatCredential, load_config, save_config
 from app.channel.wechat.login import WechatLoginManager, WechatLoginOutcome
 from app.channel.wechat.channel import WechatChannel
+from app.i18n import i18n
 from app.tools.core import BaseTool, BaseToolParams, tool
 
 logger = get_logger(__name__)
@@ -45,6 +48,32 @@ class WaitWechatLogin(BaseTool[WaitWechatLoginParams]):
         except Exception as e:
             logger.error(f"[WaitWechatLogin] wait_for_outcome failed: {e}")
             return ToolResult.error(f"WeChat login wait failed: {e}")
+
+    async def get_after_tool_call_friendly_action_and_remark(
+        self,
+        tool_name: str,
+        tool_context: ToolContext,
+        result: ToolResult,
+        execution_time: float,
+        arguments: Dict[str, Any] = None,
+    ) -> Dict:
+        action = i18n.translate(self.name, category="tool.actions")
+        if not result.ok:
+            return {
+                "action": action,
+                "remark": i18n.translate(
+                    "channel.wait_wechat_login.error",
+                    category="tool.messages",
+                    error=result.content,
+                ),
+            }
+        return {
+            "action": action,
+            "remark": i18n.translate(
+                "channel.wait_wechat_login.success",
+                category="tool.messages",
+            ),
+        }
 
     async def _activate_channel(self, outcome: WechatLoginOutcome, sandbox_id: str) -> None:
         """扫码成功后保存凭据并启动 WechatChannel。"""

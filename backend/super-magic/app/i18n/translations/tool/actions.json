@@ -334,5 +334,29 @@
     "manage_cron": {
         "zh_CN": "管理定时任务",
         "en_US": "Manage cron jobs"
+    },
+    "connect_wecom_bot": {
+        "zh_CN": "连接企业微信",
+        "en_US": "Connect WeCom"
+    },
+    "connect_wechat_bot": {
+        "zh_CN": "连接微信",
+        "en_US": "Connect WeChat"
+    },
+    "connect_lark_bot": {
+        "zh_CN": "连接飞书",
+        "en_US": "Connect Lark"
+    },
+    "connect_dingtalk_bot": {
+        "zh_CN": "连接钉钉",
+        "en_US": "Connect DingTalk"
+    },
+    "wait_wechat_login": {
+        "zh_CN": "等待微信登录",
+        "en_US": "Wait for WeChat login"
+    },
+    "get_im_channel_status": {
+        "zh_CN": "查询 IM 渠道状态",
+        "en_US": "Query IM channel status"
     }
 }

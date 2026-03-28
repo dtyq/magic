@@ -1114,5 +1114,53 @@
     "manage_cron.error": {
         "zh_CN": "定时任务操作失败: {{error}}",
         "en_US": "Cron job operation failed: {{error}}"
+    },
+    "channel.connect_wecom_bot.success": {
+        "zh_CN": "已提交企业微信 Bot 连接（Bot ID：{{bot_id}}）",
+        "en_US": "WeCom bot connection submitted (Bot ID: {{bot_id}})"
+    },
+    "channel.connect_wecom_bot.error": {
+        "zh_CN": "企业微信连接失败：{{error}}",
+        "en_US": "WeCom connection failed: {{error}}"
+    },
+    "channel.connect_wechat_bot.success": {
+        "zh_CN": "已发起微信扫码登录",
+        "en_US": "WeChat QR login started"
+    },
+    "channel.connect_wechat_bot.error": {
+        "zh_CN": "微信登录流程失败：{{error}}",
+        "en_US": "WeChat login flow failed: {{error}}"
+    },
+    "channel.connect_lark_bot.success": {
+        "zh_CN": "已提交飞书 Bot 连接（App ID：{{app_id}}）",
+        "en_US": "Lark bot connection submitted (App ID: {{app_id}})"
+    },
+    "channel.connect_lark_bot.error": {
+        "zh_CN": "飞书连接失败：{{error}}",
+        "en_US": "Lark connection failed: {{error}}"
+    },
+    "channel.connect_dingtalk_bot.success": {
+        "zh_CN": "已提交钉钉 Bot 连接（Client ID：{{client_id}}）",
+        "en_US": "DingTalk bot connection submitted (Client ID: {{client_id}})"
+    },
+    "channel.connect_dingtalk_bot.error": {
+        "zh_CN": "钉钉连接失败：{{error}}",
+        "en_US": "DingTalk connection failed: {{error}}"
+    },
+    "channel.wait_wechat_login.success": {
+        "zh_CN": "微信登录步骤已完成",
+        "en_US": "WeChat login step completed"
+    },
+    "channel.wait_wechat_login.error": {
+        "zh_CN": "等待微信登录失败：{{error}}",
+        "en_US": "WeChat login wait failed: {{error}}"
+    },
+    "channel.get_im_channel_status.success": {
+        "zh_CN": "已查询 IM 渠道状态",
+        "en_US": "IM channel status retrieved"
+    },
+    "channel.get_im_channel_status.error": {
+        "zh_CN": "查询 IM 渠道状态失败：{{error}}",
+        "en_US": "Failed to query IM channel status: {{error}}"
     }
 }
