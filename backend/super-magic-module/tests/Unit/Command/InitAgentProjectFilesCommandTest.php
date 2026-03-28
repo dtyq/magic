@@ -19,13 +19,16 @@ use PHPUnit\Framework\MockObject\MockObject;
 use PHPUnit\Framework\TestCase;
 use Psr\Log\LoggerInterface;
 
+/**
+ * @internal
+ */
 class InitAgentProjectFilesCommandTest extends TestCase
 {
-    private TaskFileRepositoryInterface|MockObject $taskFileRepository;
+    private MockObject|TaskFileRepositoryInterface $taskFileRepository;
 
-    private TaskFileDomainService|MockObject $taskFileDomainService;
+    private MockObject|TaskFileDomainService $taskFileDomainService;
 
-    private ProjectDomainService|MockObject $projectDomainService;
+    private MockObject|ProjectDomainService $projectDomainService;
 
     private LoggerFactory|MockObject $loggerFactory;
 
