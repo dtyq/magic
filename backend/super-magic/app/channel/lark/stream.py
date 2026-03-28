@@ -100,7 +100,10 @@ class LarkStream(Stream):
     async def _finish_card(self, content: str, reasoning: str = "", elapsed_ms: int = 0) -> None:
         """关闭流式通道并更新最终卡片。
 
-        序列：asettings(streaming_mode=false) → aupdate(最终卡片)，序列号延续 driver 计数。
+        序列：先停止 driver 的 send_loop 冻结序列号，再 asettings(streaming_mode=false) → aupdate(最终卡片)。
+        _send_loop 可能正在 await acontent()，此时 _sequence 尚未 +1，若直接读会拿到旧值导致
+        asettings 序列号冲突（code=300317 sequence number compare failed）。
+        finalize() 是幂等的，在此调用不影响外部再次调用的安全性。
         """
         from lark_oapi.api.cardkit.v1.model import (
             SettingsCardRequest,
@@ -110,6 +113,8 @@ class LarkStream(Stream):
             Card as CardkitCard,
         )
 
+        # 停止 send_loop，确保 _sequence 不再变化后再读取
+        await self._driver.finalize()
         seq = self._driver.sequence
 
         # 1. 关闭流式模式（streaming_mode=false），解锁卡片交互
