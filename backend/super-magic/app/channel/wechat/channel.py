@@ -16,6 +16,7 @@ import aiohttp
 
 from agentlang.logger import get_logger
 from app.channel.base.channel import BaseChannel
+from app.channel.base.keepalive import ChannelKeepalive
 from app.channel.config import IMChannelsConfig, WechatCredential
 from app.channel.wechat import api
 from app.channel.wechat.state import load_runtime_state, save_get_updates_buf
