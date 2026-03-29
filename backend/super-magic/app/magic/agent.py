@@ -1259,95 +1259,86 @@ The following <dynamic_context> block contains system-provided context informati
 
 记住：后续工作需要通过读取文件来恢复上下文，因此必须提供准确的文件路径并明确区分哪些是必读文件（恢复工作必需），哪些是参考文件（相关背景资料）。对于已经保存在文件中的内容，标注其位置即可，无需在总结中重复大段文字。
 
-在提供最终总结之前，请先填充 analysis 字段以组织你的思路并确保涵盖所有必要的要点。在分析过程中：
-
-1. 按时间顺序分析每条消息和对话的各个部分。对于每个部分都要全面识别：
-   - 用户的明确请求和意图
-   - 你处理用户请求的方法
-   - 关键决策和实现方式
-   - 具体细节，如文件名、完整内容片段、文件编辑等
-2. 仔细检查准确性和完整性，确保全面涵盖每个必需的要素。
-
 你的总结应包含以下部分：
 
-1. 主要请求和意图：详细记录用户的所有明确请求和意图（不只是笼统的业务目标，要具体到每个任务要求）
+1. 任务目标与实现方式：
+   - 详细记录用户的所有明确请求和意图（不只是笼统的业务目标，要具体到每个任务要求）
+   - 说明你采用的方法和策略（如数据处理方式、内容生成策略、信息组织方法等），但不需要重复系统提示词中的内容，若没有系统提示词外的内容，则可以写一个「略」
 
-2. 实现方式：说明你采用的方法和策略（如数据处理方式、内容生成策略、信息组织方法等），但不需要重复系统提示词中的内容，若没有系统提示词外的内容，则可以写一个「略」
+2. 关键文件与上下文资源（总结工作中最重要的部分，请务必详细、精确地梳理）：
+   - 按当前任务的重要性顺序列出所有相关文件与资源，不再区分必读和参考
+   - 每一项都要写出完整路径、作用、建议读取时机
+   - 优先覆盖：当前正在处理的文件和文件夹、项目大纲 / 方案文件、用户要求参考的文件、项目配置文件（如 magic.project.js）
+   - 若某些信息并未存储到文件中(无法给出准确文件路径的)，则必须指出并提供重新获取这些信息的方法
+   - 可以提醒后续恢复工作时先查看更重要的项，再根据当前任务进度按需、按序继续读取
+   - 可以提醒一次性读取全部文件可能再次挤占上下文，影响恢复质量
+   - 对于前后一致性要求较高的任务（如制作 PPT、系列内容续写、同类页面或章节延续），建议读取合适数量的已完成内容作为参考，以保持风格、结构和表达一致
 
-3. 文件和内容部分（总结工作中最重要的部分，请务必详细、精确地梳理）：
-   你需要列举所有相关文件，区分必读和参考两个级别。
-   必读文件（恢复工作必需）：
-   - 写出每个文件的完整路径和作用
-   包括：
-   - 当前正在处理的文件和文件夹
-   - 项目大纲 / 方案文件
-   - 用户要求参考的文件
-   - 项目配置文件 (如 magic.project.js)
+3. 恢复当前任务需要知道的 Skill：
+   - 按重要性列出对继续当前任务有帮助或有影响的 Skill
+   - 写出 Skill 名称与使用目的
+   - 是否需要继续参考，由恢复后的 Agent 自行判断
+   - 若没有，明确写「无」
 
-   非必读的弱相关性文件（相关背景资料）：
-   - 提供完整路径和简要说明，澄清读取时机
+4. 已解决问题与当前状态：
+   - 记录已解决的问题和正在进行的故障排查工作
+   - 详细描述在收到总结请求之前正在进行的工作，特别关注用户和助手的最新消息
+   - 包含文件名，短内容直接引用（<150字），长内容标注行号范围
 
-   若某些数据并未存储到文件中(无法给出准确文件路径的)，则必须要指出并提供重新获取这些数据的方法
-
-4. 问题解决：记录已解决的问题和正在进行的故障排查工作
-
-5. 待办任务：按顺序列出尚未完成的任务
+5. 未完成任务、下一步与延续性确认：
+   - 按顺序列出尚未完成的任务
    - 任务1
    - 任务2
    - ...（按执行顺序排列，无优先级概念）
+   - 列出你正继续打算做的下一步行动计划是什么
+   - 重要提示：确保下一步计划与用户的明确请求以及总结请求前你正在处理的任务直接相关。如果上一个任务已经完成，只有在明确符合用户要求的情况下才列出下一步。不要在未与用户确认的情况下开始处理无关的请求。
+   - 如果有下一步，请直接引用最近对话中的用户请求或你的回复原文，准确显示你正在处理的任务和进度
+   - 若任务已完成，则直接输出任务完成信息
 
-6. 当前工作：详细描述在收到总结请求之前正在进行的工作，特别关注用户和助手的最新消息。包含文件名，短内容直接引用（<150字），长内容标注行号范围。
-
-7. 可选的下一步行动计划：列出你正继续打算做的下一步行动计划是什么。重要提示：确保下一步计划与用户的明确请求以及总结请求前你正在处理的任务直接相关。如果上一个任务已经完成，只有在明确符合用户要求的情况下才列出下一步。不要在未与用户确认的情况下开始处理无关的请求。
-
-8. 高价值用户输入：对正在处理或后续任务开展有价值的用户消息的逐字引用，必须完整无误，不得提炼或省略用户所表达的内容细节
-
-9. 如果有下一步，请直接引用最近对话中的用户请求或你的回复原文，准确显示你正在处理的任务和进度。若任务已完成，则直接输出任务完成信息。
+6. 高价值用户输入：
+   - 对正在处理或后续任务开展有价值的用户消息的逐字引用，必须完整无误，不得提炼或省略用户所表达的内容细节
 
 若以上内容有重复的部分，可以合并输出，无需重复输出。
 
 以下是总结的输出结构示例：
 ```
-1. 主要请求和意图：
+1. 任务目标与实现方式：
    [详细描述每个具体请求]
-
-2. 技术实现方式：
    - [方法1]
    - [策略2]
    - [...]
 
-3. 文件和内容部分（重中之重）：
-   必读文件：
-   - [项目大纲文件路径] - 整体规划和结构，需要保持一致性
-   - [最新工作文件路径] - 当前进度，第X-Y行是关键内容
-   - [项目配置文件路径] - 项目设置和参数
-   - [.webview-reports/网页总结1.html] - 搜索得到的真实数据
-   - [.webview-reports/网页总结2.html] - 参考信息的原始来源
+2. 关键文件与上下文资源（重中之重）：
+   - [项目大纲文件路径] - 整体规划和结构 - 当需要确认全局目标与边界时读取
+   - [当前正在处理的文件路径] - 当前进度与关键上下文 - 恢复工作时优先考虑
+   - [用户指定的参考文件路径] - 用户明确要求参考的内容 - 涉及该部分时读取
+   - [同类已完成内容路径] - 风格、结构或表达参考 - 当任务需要保持前后一致时读取适量内容作为参考
+   - [项目配置文件路径] - 项目设置和参数 - 需要确认配置时读取
+   - [历史记录或备份路径] - 需要追溯时读取
+   - [信息名称] - 当前未落盘 - 重新获取方式: [具体方法]
+   读取原则：
+   - 建议先查看更重要、更贴近当前任务的项，再根据当前任务进度按需、按序继续读取
+   - 对于前后一致性要求较高的任务，建议读取适量已完成内容作为参考
+   - 不建议一次性读取全部文件，以免再次挤占上下文
 
-   参考文件：
-   - [images/素材图片.jpg] - 配图资源
-   - [前一版本文件路径] - 了解风格和格式参考
-   - [历史备份路径] - 之前的版本记录
+3. 恢复当前任务需要知道的 Skill：
+   - [高重要性] [Skill 名称] - [使用目的]
+   - [中重要性] [Skill 名称] - [使用目的]
+   - [低重要性] [Skill 名称] - [使用目的]
 
-4. 问题解决：
+4. 已解决问题与当前状态：
    [已解决问题和正在进行的故障排查的描述]
+   [当前工作的准确描述]
 
-5. 待办任务：
+5. 未完成任务、下一步与延续性确认：
    - 任务1
    - 任务2
    - [...]
-
-6. 当前工作：
-   [当前工作的准确描述]
-
-7. 可选的下一步行动计划：
    [可选的下一步行动计划]
+   [当前正在处理的任务和进度，或任务完成信息]
 
-8. 用户输入:
+6. 高价值用户输入:
    对正在处理或后续有价值的用户消息的逐字引用，必须完整无误，不得提炼或省略用户所表达的内容细节
-
-9. 延续性确认：
-   正在处理的任务和进度，是否需要继续处理，若不需要继续处理，则直接输出任务完成信息。
 ```
 
 请根据目前为止的对话提供你的总结，遵循这个结构并确保回复的准确性和全面性。
@@ -1609,11 +1600,11 @@ The following <dynamic_context> block contains system-provided context informati
                     break  # 退出循环
                 elif result.system == "COMPACT_HISTORY":
                     logger.info("检测到 COMPACT_HISTORY 工具调用，执行聊天历史压缩")
-                    # Get analysis and summary from extra_info
-                    if result.extra_info and 'analysis' in result.extra_info and 'summary' in result.extra_info:
-                        await self._execute_history_compact(result.extra_info['analysis'], result.extra_info['summary'])
+                    # Get summary from extra_info
+                    if result.extra_info and 'summary' in result.extra_info:
+                        await self._execute_history_compact(result.extra_info['summary'])
                     else:
-                        logger.error("COMPACT_HISTORY tool result missing analysis or summary in extra_info")
+                        logger.error("COMPACT_HISTORY tool result missing summary in extra_info")
                     # Continue the agent loop after compact
                     continue
             except ValueError as ve:
@@ -1679,12 +1670,11 @@ The following <dynamic_context> block contains system-provided context informati
             # 出错时返回False,不阻止任务完成
             return False, None
 
-    async def _execute_history_compact(self, analysis: str, summary: str) -> None:
+    async def _execute_history_compact(self, summary: str) -> None:
         """
-        Execute chat history compact with the provided analysis and summary
+        Execute chat history compact with the provided summary
 
         Args:
-            analysis: The thinking process and analysis from compact_chat_history tool
             summary: The detailed summary from compact_chat_history tool
         """
         try:
@@ -1711,12 +1701,8 @@ The following <dynamic_context> block contains system-provided context informati
                 # Update stored dynamic context prompt
                 self.dynamic_context_prompt = refreshed_dynamic_context
 
-            # 6. Add compressed analysis and summary as user message
+            # 6. Add compressed summary as user message
             compressed_content = f"""\
-<analysis>
-{analysis}
-</analysis>
-
 <summary>
 {summary}
 </summary>
