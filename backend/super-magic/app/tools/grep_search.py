@@ -720,12 +720,12 @@ class GrepSearch(WorkspaceTool[GrepSearchParams]):
 
             # 获取文件信息
             stat = file_path.stat()
-            rel_path = str(file_path.relative_to(self.base_dir))
+            display_path = str(file_path.resolve())
 
             # 创建 FileInfo 对象
             file_info = FileInfo(
                 name=file_path.name,
-                path=rel_path,
+                path=display_path,
                 is_dir=False,
                 size=stat.st_size,
                 last_modified=stat.st_mtime,
