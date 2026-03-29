@@ -70,14 +70,26 @@ print(result.content)
 
 ## Reply Format After Connection
 
-After the bot is connected and you are replying to WeChat users, use this format:
+When replying to WeChat users, write your response as plain text. Do not call any tool to send the reply — the system delivers your output automatically.
 
-- For text-only replies, output normal plain text.
-- When you need to send media, add one line per media item as `MEDIA: <path-or-url>`.
-- Supported media values should be an absolute local path, a `file://` URL, or an `https://` URL.
-- Do not use Markdown image syntax such as `![alt](url)`.
+To send a media file (image, video, or other file), include a `MEDIA:` line directly in your reply text. No tool call is needed; just write the line and the system will send the file.
+
+Format: one line per file, written as `MEDIA: <value>`. Supported values:
+- Absolute local path: `/path/to/file.jpg`
+- `file://` URL: `file:///path/to/file.jpg`
+- Remote URL: `https://example.com/image.png`
+
+Example reply that sends one image followed by a text message:
+
+```
+MEDIA: /workspace/uploads/image.jpg
+Here is the image you requested.
+```
+
+Rules:
+- Do not use Markdown image syntax `![alt](url)` — it will not be sent as a WeChat image.
 - Do not put `MEDIA:` lines inside fenced code blocks.
-- Keep any `MEDIA:` lines outside the visible explanatory text you want the WeChat user to read.
+- Place `MEDIA:` lines outside any explanatory text meant for the WeChat user to read.
 
 ## Notes
 
