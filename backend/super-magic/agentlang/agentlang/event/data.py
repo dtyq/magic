@@ -145,7 +145,7 @@ class AgentSuspendedEventData(BaseEventData):
     """agent终止事件的数据结构"""
 
     agent_context: AgentContextInterface
-    final_task_state: Optional[FinalTaskState] = None
+    final_task_state: FinalTaskState
 
 
 class BeforeMainAgentRunEventData(BaseEventData):
@@ -176,7 +176,5 @@ class ChatHistoryChangedEventData(BaseEventData):
 
 class ErrorEventData(BaseEventData):
     """错误事件的数据结构"""
-    exception: Optional[Exception] = None
     agent_context: AgentContextInterface
-    error_message: str
     final_task_state: FinalTaskState

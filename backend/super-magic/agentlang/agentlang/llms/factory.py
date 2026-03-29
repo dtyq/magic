@@ -586,7 +586,6 @@ class LLMFactory:
                 logger.warning(
                     f"[{request_id}] 检测到上下文超长错误: status_code={error_snapshot.status_code}, message={error_snapshot.primary_message}"
                 )
-                LLMErrorClassifier.attach_snapshot(exception, error_snapshot)
 
         except Exception as e:
             logger.debug(f"[{request_id}] 上下文超长错误检查失败: {e}")

@@ -408,8 +408,6 @@ class MessageProcessor:
                     EventType.ERROR,
                     ErrorEventData(
                         agent_context=self.agent_dispatcher.agent_context,
-                        error_message="消息处理异常",
-                        exception=e,
                         final_task_state=final_task_state,
                     )
                 )

@@ -35,6 +35,10 @@
         "zh_CN": "智能体尚未初始化，请先初始化工作区后再试。",
         "en_US": "The agent has not been initialized yet. Please initialize the workspace first."
     },
+    "messages.internal_dispatch_failed": {
+        "zh_CN": "当前请求处理失败，请联系管理员。",
+        "en_US": "Failed to dispatch the request internally. Please contact the administrator."
+    },
     "messages.message_processing_failed": {
         "zh_CN": "消息处理失败，请稍后再试。",
         "en_US": "Failed to process the message. Please try again later."

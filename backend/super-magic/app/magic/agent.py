@@ -657,8 +657,8 @@ The following <dynamic_context> block contains system-provided context informati
                     vendor_message=current.message,
                 )
 
-            snapshot = LLMErrorClassifier.get_attached_snapshot(current)
-            if snapshot is None and (
+            snapshot = None
+            if (
                 hasattr(current, "response")
                 or hasattr(current, "body")
                 or hasattr(current, "message")
@@ -704,9 +704,7 @@ The following <dynamic_context> block contains system-provided context informati
                 )
                 self.agent_context.set_final_task_state(final_task_state)
                 await self.agent_context.dispatch_event(EventType.ERROR, ErrorEventData(
-                    exception=e,
                     agent_context=self.agent_context,
-                    error_message=e.get_user_friendly_message(),
                     final_task_state=final_task_state,
                 ))
     async def run(self, query: str):

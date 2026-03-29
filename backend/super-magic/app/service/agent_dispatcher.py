@@ -523,7 +523,7 @@ class AgentDispatcher(Base):
                 from agentlang.event.event import EventType
                 if self.agent_context:
                     final_task_state = build_final_task_state(
-                        FinalTaskStateCode.MESSAGE_PROCESSING_FAILED,
+                        FinalTaskStateCode.INTERNAL_DISPATCH_FAILED,
                         vendor_message=str(e),
                     )
                     self.agent_context.set_final_task_state(final_task_state)
@@ -531,8 +531,6 @@ class AgentDispatcher(Base):
                         EventType.ERROR,
                         ErrorEventData(
                             agent_context=self.agent_context,
-                            error_message="Failed to process the request. Please contact the administrator.",
-                            exception=e,
                             final_task_state=final_task_state,
                         ),
                     )
@@ -560,7 +558,6 @@ class AgentDispatcher(Base):
                     EventType.ERROR,
                     ErrorEventData(
                         agent_context=self.agent_context,
-                        error_message="智能体未初始化，请先调用工作区初始化",
                         final_task_state=final_task_state,
                     ),
                 )

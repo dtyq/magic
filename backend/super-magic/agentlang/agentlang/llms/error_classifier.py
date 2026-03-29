@@ -14,7 +14,6 @@ class LLMErrorSnapshot:
 class LLMErrorClassifier:
     """集中处理 LLM 厂商错误归类，避免异常定义与检测逻辑耦合"""
 
-    SNAPSHOT_ATTR = "_llm_error_snapshot"
     CONTEXT_WINDOW_STATUS_CODES = {400, 413, 422}
     CONTEXT_WINDOW_STRONG_MARKERS = (
         "messages prompt is too long",
@@ -47,10 +46,6 @@ class LLMErrorClassifier:
     @classmethod
     def extract_snapshot(cls, exception: Exception) -> LLMErrorSnapshot:
         """从异常中提取统一错误快照，兼容不同厂商 SDK 的字段差异"""
-        attached_snapshot = cls.get_attached_snapshot(exception)
-        if attached_snapshot is not None:
-            return attached_snapshot
-
         response = getattr(exception, "response", None)
 
         if hasattr(exception, "message"):
@@ -66,20 +61,6 @@ class LLMErrorClassifier:
             primary_message=candidate_texts[0] if candidate_texts else error_message,
             candidate_texts=candidate_texts,
         )
-
-    @classmethod
-    def attach_snapshot(cls, exception: BaseException, snapshot: LLMErrorSnapshot) -> None:
-        """把归一化快照挂到原始异常上，避免深层逻辑再造一层业务异常。"""
-        try:
-            setattr(exception, cls.SNAPSHOT_ATTR, snapshot)
-        except Exception:
-            pass
-
-    @classmethod
-    def get_attached_snapshot(cls, exception: BaseException) -> LLMErrorSnapshot | None:
-        """读取已挂载的快照。"""
-        snapshot = getattr(exception, cls.SNAPSHOT_ATTR, None)
-        return snapshot if isinstance(snapshot, LLMErrorSnapshot) else None
 
     @classmethod
     def is_context_window_exceeded(cls, snapshot: LLMErrorSnapshot) -> bool:

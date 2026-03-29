@@ -63,14 +63,16 @@ class TaskMessageFactory:
     def create_error_message(
         cls,
         agent_context: AgentContext,
-        error_message: str,
         final_task_state: FinalTaskState,
     ) -> ServerMessage:
         """
         创建错误消息
         """
         seq_id = agent_context.get_next_seq_id()  # 获取序列号
-        content = render_final_task_state_message(final_task_state) or error_message
+        content = render_final_task_state_message(final_task_state) or i18n.translate(
+            "messages.task.failed",
+            category="common.messages",
+        )
         status = final_task_state.task_status
 
         return ServerMessage(
@@ -193,7 +195,7 @@ class TaskMessageFactory:
     def create_agent_suspended_message(
         cls,
         agent_context: AgentContext,
-        final_task_state: Optional[FinalTaskState] = None,
+        final_task_state: FinalTaskState,
     ) -> ServerMessage:
         """
         创建挂起消息
@@ -202,12 +204,11 @@ class TaskMessageFactory:
             agent_context: Agent上下文
             final_task_state: 最终任务终态
         """
-        final_task_state = final_task_state or agent_context.get_final_task_state()
         content = render_final_task_state_message(final_task_state) or i18n.translate(
             "messages.agent_suspended",
             category="common.messages",
         )
-        status = final_task_state.task_status if final_task_state else TaskStatus.SUSPENDED
+        status = final_task_state.task_status
 
         seq_id = agent_context.get_next_seq_id()  # 获取序列号
 

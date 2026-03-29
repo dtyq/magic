@@ -66,6 +66,11 @@ class FinalTaskStateCode(str, Enum):
         TaskStatus.ERROR,
         "messages.agent_not_initialized",
     )
+    INTERNAL_DISPATCH_FAILED = (
+        "internal_dispatch_failed",
+        TaskStatus.ERROR,
+        "messages.internal_dispatch_failed",
+    )
     MESSAGE_PROCESSING_FAILED = (
         "message_processing_failed",
         TaskStatus.ERROR,
