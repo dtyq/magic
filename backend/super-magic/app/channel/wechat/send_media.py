@@ -37,6 +37,7 @@ from app.utils.async_file_utils import (
 logger = get_logger(__name__)
 
 CDN_UPLOAD_MAX_RETRIES = 3
+_ENCODE_URI_COMPONENT_SAFE_CHARS = "-_.!~*'()"
 
 
 @dataclass(slots=True)
@@ -238,6 +239,11 @@ def _encrypt_aes_ecb(plaintext: bytes, key: bytes) -> bytes:
     return encryptor.update(padded) + encryptor.finalize()
 
 
+def _encode_uri_component(value: str) -> str:
+    """按 encodeURIComponent 规则编码查询参数值。"""
+    return quote(value, safe=_ENCODE_URI_COMPONENT_SAFE_CHARS)
+
+
 async def _upload_ciphertext_to_cdn(
     http_session: aiohttp.ClientSession,
     *,
@@ -247,8 +253,8 @@ async def _upload_ciphertext_to_cdn(
     cdn_base_url: str,
 ) -> str:
     cdn_url = (
-        f"{cdn_base_url}/upload?encrypted_query_param={quote(upload_param, safe='')}"
-        f"&filekey={quote(filekey, safe='')}"
+        f"{cdn_base_url}/upload?encrypted_query_param={_encode_uri_component(upload_param)}"
+        f"&filekey={_encode_uri_component(filekey)}"
     )
 
     last_error: Exception | None = None
@@ -288,7 +294,8 @@ def _build_media_item(
     file_name: str,
     uploaded: UploadedWechatMedia,
 ) -> dict:
-    aes_key_base64 = base64.b64encode(bytes.fromhex(uploaded.aeskey_hex)).decode()
+    # 官方发送协议使用 base64(hex-string)，接收端再回退还原成原始 16 字节 AES key。
+    aes_key_base64 = base64.b64encode(uploaded.aeskey_hex.encode("ascii")).decode()
 
     if mime_type.startswith("image/"):
         return api.build_image_message_item(

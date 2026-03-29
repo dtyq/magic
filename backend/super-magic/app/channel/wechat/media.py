@@ -15,7 +15,7 @@ import secrets
 import time
 from pathlib import Path
 from typing import Any
-from urllib.parse import urlencode
+from urllib.parse import quote
 
 import aiohttp
 from cryptography.hazmat.primitives import padding
@@ -31,10 +31,17 @@ logger = get_logger(__name__)
 CDN_BASE_URL = "https://novac2c.cdn.weixin.qq.com/c2c"
 
 # 媒体类型常量，与官方 types.ts MessageItemType 对齐
+_ITEM_TYPE_TEXT = 1
 _ITEM_TYPE_IMAGE = 2
 _ITEM_TYPE_VOICE = 3
 _ITEM_TYPE_FILE = 4
 _ITEM_TYPE_VIDEO = 5
+_ENCODE_URI_COMPONENT_SAFE_CHARS = "-_.!~*'()"
+
+
+def _encode_uri_component(value: str) -> str:
+    """按 encodeURIComponent 规则编码查询参数值。"""
+    return quote(value, safe=_ENCODE_URI_COMPONENT_SAFE_CHARS)
 
 
 def _parse_aes_key(aes_key_b64: str) -> bytes:
@@ -70,7 +77,8 @@ def _decrypt_aes_ecb(ciphertext: bytes, key: bytes) -> bytes:
 
 
 def _build_cdn_url(encrypt_query_param: str, cdn_base_url: str = CDN_BASE_URL) -> str:
-    return f"{cdn_base_url}/download?{urlencode({'encrypted_query_param': encrypt_query_param})}"
+    encoded_param = _encode_uri_component(encrypt_query_param)
+    return f"{cdn_base_url}/download?encrypted_query_param={encoded_param}"
 
 
 async def _fetch_bytes(session: aiohttp.ClientSession, url: str, label: str) -> bytes:
@@ -162,7 +170,7 @@ async def download_message_media(
     candidate = _find_media_item(item_list)
     from_quote = False
     if candidate is None:
-        candidate = _find_media_item(_extract_ref_message_items(item_list))
+        candidate = _extract_ref_media_item(item_list)
         from_quote = candidate is not None
     if candidate is None:
         return None
@@ -183,14 +191,24 @@ async def download_message_media(
     return None
 
 
-def _extract_ref_message_items(item_list: list[dict[str, Any]]) -> list[dict[str, Any]]:
-    ref_items: list[dict[str, Any]] = []
+def _extract_ref_media_item(item_list: list[dict[str, Any]]) -> dict[str, Any] | None:
     for item in item_list:
+        if item.get("type") != _ITEM_TYPE_TEXT:
+            continue
         ref_msg = item.get("ref_msg") or {}
         ref_item = ref_msg.get("message_item")
-        if isinstance(ref_item, dict):
-            ref_items.append(ref_item)
-    return ref_items
+        if isinstance(ref_item, dict) and _is_media_item(ref_item):
+            return ref_item
+    return None
+
+
+def _is_media_item(item: dict[str, Any]) -> bool:
+    return item.get("type") in {
+        _ITEM_TYPE_IMAGE,
+        _ITEM_TYPE_VOICE,
+        _ITEM_TYPE_FILE,
+        _ITEM_TYPE_VIDEO,
+    }
 
 
 def _find_media_item(item_list: list[dict[str, Any]]) -> dict[str, Any] | None:
