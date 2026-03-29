@@ -56,13 +56,22 @@ class ConnectWechatBot(BaseTool[ConnectWechatBotParams]):
                 sandbox_id = tool_context.sandbox_id
 
                 async def _on_login_success(result: "WechatLoginResult") -> None:
-                    from app.channel.config import WechatCredential, load_config, save_config
+                    from app.channel.config import (
+                        DEFAULT_WECHAT_CDN_BASE_URL,
+                        WechatCredential,
+                        load_config,
+                        save_config,
+                    )
                     from app.channel.wechat.channel import WechatChannel
                     config = await load_config()
+                    existing_cdn_base_url = (
+                        config.wechat.cdn_base_url if config.wechat else DEFAULT_WECHAT_CDN_BASE_URL
+                    )
                     config.wechat = WechatCredential(
                         bot_token=result.bot_token,
                         ilink_bot_id=result.ilink_bot_id,
                         base_url=result.base_url,
+                        cdn_base_url=existing_cdn_base_url,
                         ilink_user_id=result.ilink_user_id,
                         sandbox_id=sandbox_id,
                     )

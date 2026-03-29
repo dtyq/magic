@@ -10,6 +10,7 @@ from app.utils.async_file_utils import async_read_json, async_write_json, async_
 logger = get_logger(__name__)
 
 _CONFIG_FILENAME = "im-channels.json"
+DEFAULT_WECHAT_CDN_BASE_URL = "https://novac2c.cdn.weixin.qq.com/c2c"
 
 
 def _config_path() -> Path:
@@ -47,6 +48,7 @@ class WechatCredential:
     ilink_bot_id: str
     # getupdates 使用的域名，由 get_qrcode_status 返回
     base_url: str
+    cdn_base_url: str = DEFAULT_WECHAT_CDN_BASE_URL
     ilink_user_id: str = ""
     enabled: bool = True
     sandbox_id: str = ""

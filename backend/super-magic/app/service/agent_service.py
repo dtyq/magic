@@ -8,11 +8,11 @@ import zipfile
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
-from app.core.context.agent_context import AgentContext
 from agentlang.context.tool_context import ToolContext
 from agentlang.event.data import AfterInitEventData, BeforeInitEventData
 from agentlang.environment import Environment
 from agentlang.event.event import EventType
+from app.core.context.agent_context import AgentContext
 from app.core.stream.base import Stream
 from app.infrastructure.storage.base import BaseFileProcessor
 from app.infrastructure.storage.factory import StorageFactory
@@ -26,6 +26,7 @@ from app.utils.init_client_message_util import InitClientMessageUtil
 from app.utils.path_utils import get_workspace_dir
 from app.utils.path_utils import get_storage_dir
 from app.service.asr.asr_context_diff_service import AsrContextDiffService
+from app.service.channel_context_service import ChannelContextService
 from app.service.image_model_sizes_service import ImageModelSizesService
 from app.service.mcp_servers_service import MCPServersService
 from app.infrastructure.observability import install_tool_monitoring_listener
@@ -712,6 +713,8 @@ class AgentService(Base):
         # 处理输入框内联引用（[@file_path:格式）
         query = agent._process_user_input_with_mentions(query, [])
 
+        query = ChannelContextService.append_channel_context(query, chat_client_message.metadata)
+
         if chat_client_message and hasattr(chat_client_message, "attachments") and chat_client_message.attachments:
             query = await self._process_attachments(agent_context, query, chat_client_message.attachments)
 
@@ -865,3 +868,4 @@ class AgentService(Base):
         else:
             logger.info("没有成功下载的附件，返回原始查询")
             return query
+

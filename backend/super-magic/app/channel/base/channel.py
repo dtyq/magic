@@ -7,6 +7,7 @@ from typing import TYPE_CHECKING, ClassVar
 if TYPE_CHECKING:
     from app.channel.config import IMChannelsConfig
     from app.core.context.agent_context import AgentContext
+    from app.core.entity.message.client_message import Metadata
 
 
 class BaseChannel(ABC):
@@ -42,6 +43,10 @@ class BaseChannel(ABC):
         无缓存或创建失败时返回 False。
         """
         return False
+
+    def build_agent_context_fragment(self, metadata: "Metadata" | None) -> str:
+        """把渠道专属元数据转成给模型读的上下文片段。"""
+        return ""
 
     def render_status_lines(self, config: IMChannelsConfig) -> list[str]:
         """返回面向状态面板的展示文案。"""

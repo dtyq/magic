@@ -10,7 +10,12 @@ from pydantic import Field
 from agentlang.context.tool_context import ToolContext
 from agentlang.logger import get_logger
 from agentlang.tools.tool_result import ToolResult
-from app.channel.config import WechatCredential, load_config, save_config
+from app.channel.config import (
+    DEFAULT_WECHAT_CDN_BASE_URL,
+    WechatCredential,
+    load_config,
+    save_config,
+)
 from app.channel.wechat.login import WechatLoginManager, WechatLoginOutcome
 from app.channel.wechat.channel import WechatChannel
 from app.i18n import i18n
@@ -82,10 +87,14 @@ class WaitWechatLogin(BaseTool[WaitWechatLoginParams]):
 
         result = outcome.result
         config = await load_config()
+        existing_cdn_base_url = (
+            config.wechat.cdn_base_url if config.wechat else DEFAULT_WECHAT_CDN_BASE_URL
+        )
         config.wechat = WechatCredential(
             bot_token=result.bot_token,
             ilink_bot_id=result.ilink_bot_id,
             base_url=result.base_url,
+            cdn_base_url=existing_cdn_base_url,
             ilink_user_id=result.ilink_user_id,
             sandbox_id=sandbox_id,
         )

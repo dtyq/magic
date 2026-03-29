@@ -68,6 +68,17 @@ result = tool.call("get_im_channel_status", {})
 print(result.content)
 ```
 
+## Reply Format After Connection
+
+After the bot is connected and you are replying to WeChat users, use this format:
+
+- For text-only replies, output normal plain text.
+- When you need to send media, add one line per media item as `MEDIA: <path-or-url>`.
+- Supported media values should be an absolute local path, a `file://` URL, or an `https://` URL.
+- Do not use Markdown image syntax such as `![alt](url)`.
+- Do not put `MEDIA:` lines inside fenced code blocks.
+- Keep any `MEDIA:` lines outside the visible explanatory text you want the WeChat user to read.
+
 ## Notes
 
 - The QR has a limited lifetime. When it expires, the wait tool returns a fresh QR payload that must be rendered again with the same HTML template.

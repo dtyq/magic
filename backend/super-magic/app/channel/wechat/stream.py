@@ -1,7 +1,9 @@
 """
-WechatStream — 侦听 agent 事件，在 after_main_agent_run 时通过官方 sendMessage 结构发送最终回复。
+WechatStream — 侦听 agent 事件，在 after_main_agent_run 时发送最终回复。
 
-当前仅发送最终文本，不实现 token 级流式推送。
+支持：
+- 纯文本回复
+- `MEDIA:` 协议驱动的图片 / 视频 / 文件发送
 """
 import json
 from typing import Optional
@@ -10,6 +12,8 @@ import aiohttp
 
 from agentlang.logger import get_logger
 from app.channel.wechat import api
+from app.channel.wechat.reply_media_parser import parse_reply_media
+from app.channel.wechat.send_media import send_media_file
 from app.channel.wechat.typing import WechatTypingController
 from app.core.stream import Stream
 
@@ -24,6 +28,7 @@ class WechatStream(Stream):
         to_user_id: str,
         context_token: str,
         base_url: str,
+        cdn_base_url: str,
         stream_id: str,
         typing_controller: WechatTypingController | None = None,
     ) -> None:
@@ -33,6 +38,7 @@ class WechatStream(Stream):
         self._to_user_id = to_user_id
         self._context_token = context_token
         self._base_url = base_url
+        self._cdn_base_url = cdn_base_url
         self._stream_id = stream_id
         self._typing_controller = typing_controller
         self._finished = False
@@ -56,17 +62,26 @@ class WechatStream(Stream):
                 self._finished = True
                 try:
                     if self._last_content:
-                        await api.send_message(
-                            self._http_session,
-                            base_url=self._base_url,
-                            token=self._bot_token,
-                            to_user_id=self._to_user_id,
-                            context_token=self._context_token,
-                            text=api.markdown_to_plain_text(self._last_content),
-                        )
+                        parsed_reply = parse_reply_media(self._last_content)
+                        visible_text = api.markdown_to_plain_text(parsed_reply.text)
+
+                        if parsed_reply.media_urls:
+                            await self._send_media_reply(
+                                caption_text=visible_text,
+                                media_urls=parsed_reply.media_urls,
+                            )
+                        elif visible_text:
+                            await api.send_message(
+                                self._http_session,
+                                base_url=self._base_url,
+                                token=self._bot_token,
+                                to_user_id=self._to_user_id,
+                                context_token=self._context_token,
+                                text=visible_text,
+                            )
                         logger.info(f"[WechatStream] 已发送回复, stream_id={self._stream_id}")
                 except Exception as e:
-                    logger.error(f"[WechatStream] send_message 失败: {e}")
+                    logger.error(f"[WechatStream] 发送回复失败: {e}")
                 finally:
                     await self._stop_typing()
 
@@ -83,3 +98,22 @@ class WechatStream(Stream):
         controller = self._typing_controller
         self._typing_controller = None
         await controller.stop()
+
+    async def _send_media_reply(self, *, caption_text: str, media_urls: list[str]) -> None:
+        pending_caption = caption_text
+        for index, media_url in enumerate(media_urls, 1):
+            logger.info(
+                f"[WechatStream] 发送媒体 {index}/{len(media_urls)}, "
+                f"stream_id={self._stream_id} media={media_url}"
+            )
+            await send_media_file(
+                self._http_session,
+                base_url=self._base_url,
+                token=self._bot_token,
+                to_user_id=self._to_user_id,
+                context_token=self._context_token,
+                media_target=media_url,
+                cdn_base_url=self._cdn_base_url,
+                caption_text=pending_caption,
+            )
+            pending_caption = ""

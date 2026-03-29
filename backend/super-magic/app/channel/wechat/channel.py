@@ -19,7 +19,14 @@ from app.channel.base.channel import BaseChannel
 from app.channel.base.keepalive import ChannelKeepalive
 from app.channel.config import IMChannelsConfig, WechatCredential
 from app.channel.wechat import api
-from app.channel.wechat.state import WechatRuntimeState, load_runtime_state, save_runtime_state
+from app.channel.wechat.state import (
+    WechatUserContext,
+    WechatRuntimeState,
+    get_latest_context,
+    load_runtime_state,
+    save_context_token,
+    save_runtime_state,
+)
 from app.channel.wechat.stream import WechatStream
 from app.channel.wechat.typing import WechatTypingConfigManager, WechatTypingController
 from app.core.entity.message.client_message import ChatClientMessage, Metadata
@@ -45,9 +52,9 @@ class WechatChannel(BaseChannel):
         self._get_updates_buf: str = ""
         self._typing_config_manager: Optional[WechatTypingConfigManager] = None
         self._session_pause_until_ms: int = 0
-        # 缓存最后一次收到消息的用户 ID 和 context_token，供 cron 主动推送复用会话上下文
-        self._last_to_user_id: Optional[str] = None
-        self._last_context_token: Optional[str] = None
+        # 缓存最近活跃用户和按用户保存的 context_token，供回复与主动发送复用
+        self._last_active_user_id: Optional[str] = None
+        self._context_tokens_by_user: dict[str, WechatUserContext] = {}
         # 防止 connect_wechat_bot 的 _on_success 回调与 wait_wechat_login._activate_channel
         # 并发调用 connect() 导致双重启动（两条路径都会在扫码成功后触发激活）
         self._connect_lock: asyncio.Lock = asyncio.Lock()
@@ -78,6 +85,23 @@ class WechatChannel(BaseChannel):
         if credential is None:
             return None
         return f"Bot ID: {credential.ilink_bot_id}"
+
+    def build_agent_context_fragment(self, metadata: Metadata | None) -> str:
+        if metadata is None or not metadata.wechat_media:
+            return ""
+
+        lines = [
+            "[WeChat inbound media]",
+            "The following files were downloaded into the workspace from the user's WeChat message.",
+            "Use these paths when you need to inspect or reference the media.",
+        ]
+        for index, item in enumerate(metadata.wechat_media, 1):
+            quote_suffix = " (from quoted message)" if item.from_quote else ""
+            lines.append(
+                f"{index}. type={item.media_type.value} mime={item.mime_type} "
+                f"path={item.relative_path}{quote_suffix}"
+            )
+        return "\n".join(lines)
 
     def render_status_lines(self, config: IMChannelsConfig) -> list[str]:
         from app.channel.wechat.login import LoginStatus, WechatLoginManager
@@ -166,8 +190,8 @@ class WechatChannel(BaseChannel):
             )
             state = await load_runtime_state()
             self._get_updates_buf = state.get_updates_buf
-            self._last_to_user_id = state.last_to_user_id or None
-            self._last_context_token = state.last_context_token or None
+            self._last_active_user_id = state.last_active_user_id or None
+            self._context_tokens_by_user = dict(state.context_tokens_by_user)
             self._poll_task = asyncio.create_task(self._poll_loop())
             self._keepalive.start()
             logger.info(
@@ -291,11 +315,7 @@ class WechatChannel(BaseChannel):
             if data.get("get_updates_buf"):
                 self._get_updates_buf = data["get_updates_buf"]
                 try:
-                    await save_runtime_state(WechatRuntimeState(
-                        get_updates_buf=self._get_updates_buf,
-                        last_to_user_id=self._last_to_user_id or "",
-                        last_context_token=self._last_context_token or "",
-                    ))
+                    await self._persist_runtime_state()
                 except Exception as e:
                     logger.warning(f"[WechatChannel] 持久化运行态失败: {e}")
 
@@ -322,31 +342,28 @@ class WechatChannel(BaseChannel):
         context_token: str = msg.get("context_token", "")
         user_id: str = msg.get("from_user_id", "wechat_user")
 
-        # 缓存最近一次活跃用户，供 cron 主动推送复用，并持久化以跨重启保留
-        self._last_to_user_id = user_id
-        self._last_context_token = context_token
+        # 缓存最近活跃用户的 context_token，供回复和主动发送复用
+        self._cache_context_token(user_id=user_id, context_token=context_token)
         try:
-            await save_runtime_state(WechatRuntimeState(
-                get_updates_buf=self._get_updates_buf,
-                last_to_user_id=user_id,
-                last_context_token=context_token,
-            ))
+            await self._persist_runtime_state()
         except Exception as e:
             logger.warning(f"[WechatChannel] 持久化用户上下文失败: {e}")
 
         # 下载媒体（图片/视频/文件/无转文字的语音），失败不阻断主流程
         assert self._http_session is not None
-        media_rel_path: str | None = None
+        wechat_media = None
         try:
-            media_rel_path = await download_message_media(
-                self._http_session, msg.get("item_list") or [], user_id
+            wechat_media = await download_message_media(
+                self._http_session,
+                msg.get("item_list") or [],
+                user_id,
+                cdn_base_url=self._credential.cdn_base_url,
             )
         except Exception as e:
             logger.warning(f"[WechatChannel] 媒体下载失败，忽略: {e}")
 
-        if media_rel_path:
-            content = f"{content}\n\n[Media saved to workspace: {media_rel_path}]"
-            logger.info(f"[WechatChannel] 媒体已保存: {media_rel_path}")
+        if wechat_media:
+            logger.info(f"[WechatChannel] 媒体已保存: {wechat_media.relative_path}")
 
 
         assert self._credential is not None
@@ -379,6 +396,7 @@ class WechatChannel(BaseChannel):
             to_user_id=user_id,
             context_token=context_token,
             base_url=self._credential.base_url,
+            cdn_base_url=self._credential.cdn_base_url,
             stream_id=stream_id,
             typing_controller=typing_controller,
         )
@@ -387,7 +405,11 @@ class WechatChannel(BaseChannel):
         chat_msg = ChatClientMessage(
             message_id=stream_id,
             prompt=content,
-            metadata=Metadata(agent_user_id=user_id),
+            metadata=Metadata(
+                agent_user_id=user_id,
+                channel_name="wechat",
+                wechat_media=[wechat_media] if wechat_media else [],
+            ),
         )
         logger.info(f"[WechatChannel] 分发消息: user_id={user_id}, len={len(content)}")
 
@@ -404,22 +426,22 @@ class WechatChannel(BaseChannel):
 
     async def create_proactive_streams(self, ctx, cleanup_key: str) -> bool:
         """用缓存的最后一次会话上下文创建主动推送 stream。"""
-        if (
-            not self.is_connected
-            or not self._last_to_user_id
-            or not self._last_context_token
-            or self._credential is None
-            or self._http_session is None
-        ):
+        latest_context = self._get_latest_context()
+        if not self.is_connected or self._credential is None or self._http_session is None:
+            logger.info("[WechatChannel] proactive stream skipped: channel not connected")
+            return False
+        if not latest_context.user_id or not latest_context.context_token:
+            logger.info("[WechatChannel] proactive stream skipped: no cached user/context_token")
             return False
 
         stream_id = f"wechat-proactive-{id(self)}"
         wechat_stream = WechatStream(
             http_session=self._http_session,
             bot_token=self._credential.bot_token,
-            to_user_id=self._last_to_user_id,
-            context_token=self._last_context_token or "",
+            to_user_id=latest_context.user_id,
+            context_token=latest_context.context_token,
             base_url=self._credential.base_url,
+            cdn_base_url=self._credential.cdn_base_url,
             stream_id=stream_id,
         )
         ctx.add_stream(wechat_stream)
@@ -430,3 +452,26 @@ class WechatChannel(BaseChannel):
         ctx.register_run_cleanup(cleanup_key, _cleanup)
         logger.info("[WechatChannel] proactive stream registered for cron notification")
         return True
+
+    def _build_runtime_state(self) -> WechatRuntimeState:
+        return WechatRuntimeState(
+            get_updates_buf=self._get_updates_buf,
+            last_active_user_id=self._last_active_user_id or "",
+            context_tokens_by_user=dict(self._context_tokens_by_user),
+        )
+
+    async def _persist_runtime_state(self) -> None:
+        await save_runtime_state(self._build_runtime_state())
+
+    def _cache_context_token(self, *, user_id: str, context_token: str) -> None:
+        state = save_context_token(
+            self._build_runtime_state(),
+            user_id=user_id,
+            context_token=context_token,
+        )
+        self._last_active_user_id = state.last_active_user_id or None
+        self._context_tokens_by_user = dict(state.context_tokens_by_user)
+
+    def _get_latest_context(self) -> WechatUserContext:
+        state = self._build_runtime_state()
+        return get_latest_context(state)
