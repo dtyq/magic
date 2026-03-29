@@ -8,7 +8,7 @@ Attachment Processing:
 """
 
 from app.i18n import i18n
-from app.core.entity.final_error import render_final_error
+from app.core.entity.final_task_state import FinalTaskState, render_final_task_state_message
 from app.core.context.agent_context import AgentContext
 from app.core.entity.attachment import Attachment, AttachmentTag
 from app.core.entity.event.event import (
@@ -60,11 +60,18 @@ class TaskMessageFactory:
 
 
     @classmethod
-    def create_error_message(cls, agent_context: AgentContext, error_message: str) -> ServerMessage:
+    def create_error_message(
+        cls,
+        agent_context: AgentContext,
+        error_message: str,
+        final_task_state: FinalTaskState,
+    ) -> ServerMessage:
         """
         创建错误消息
         """
         seq_id = agent_context.get_next_seq_id()  # 获取序列号
+        content = render_final_task_state_message(final_task_state) or error_message
+        status = final_task_state.task_status
 
         return ServerMessage(
             metadata=agent_context.get_metadata(),
@@ -72,8 +79,8 @@ class TaskMessageFactory:
                 task_id="",
                 sandbox_id=agent_context.get_sandbox_id(),
                 message_type=MessageType.CHAT,
-                status=TaskStatus.ERROR,
-                content=error_message,
+                status=status,
+                content=content,
                 seq_id=seq_id,  # 传递序列号
                 event=EventType.ERROR
             )
@@ -183,16 +190,24 @@ class TaskMessageFactory:
         )
         # 创建挂起消息
     @classmethod
-    def create_agent_suspended_message(cls, agent_context: AgentContext, remark: Optional[str] = None) -> ServerMessage:
+    def create_agent_suspended_message(
+        cls,
+        agent_context: AgentContext,
+        final_task_state: Optional[FinalTaskState] = None,
+    ) -> ServerMessage:
         """
         创建挂起消息
 
         Args:
             agent_context: Agent上下文
-            remark: 自定义终止消息，如果为None则使用空字符串, 不显示给用户
+            final_task_state: 最终任务终态
         """
-        # Use remark if provided, otherwise use default message
-        content = remark if remark else ""
+        final_task_state = final_task_state or agent_context.get_final_task_state()
+        content = render_final_task_state_message(final_task_state) or i18n.translate(
+            "messages.agent_suspended",
+            category="common.messages",
+        )
+        status = final_task_state.task_status if final_task_state else TaskStatus.SUSPENDED
 
         seq_id = agent_context.get_next_seq_id()  # 获取序列号
 
@@ -202,7 +217,7 @@ class TaskMessageFactory:
                 task_id=agent_context.get_task_id(),
                 sandbox_id=agent_context.get_sandbox_id(),
                 message_type=MessageType.CHAT,
-                status=TaskStatus.SUSPENDED,
+                status=status,
                 content=content,
                 event=EventType.AGENT_SUSPENDED,
                 seq_id=seq_id,  # 传递序列号
@@ -240,17 +255,23 @@ class TaskMessageFactory:
 
         # 根据 agent_state 决定最终消息状态
         logger.info(f"TaskMessageFactory: 接收到 agent_state = {event.data.agent_state}")
-        final_response = agent_context.get_final_response()
-        final_error_info = agent_context.get_final_error_info()
-        if event.data.agent_state == TaskStatus.FINISHED.value:
+        final_task_state = agent_context.get_final_task_state()
+        if final_task_state:
+            status = final_task_state.task_status
+            content = render_final_task_state_message(final_task_state) or (
+                i18n.translate("messages.agent_suspended", category="common.messages")
+                if status == TaskStatus.SUSPENDED
+                else i18n.translate("messages.task.failed", category="common.messages")
+            )
+        elif event.data.agent_state == TaskStatus.FINISHED.value:
             status = TaskStatus.FINISHED
             content = i18n.translate("task.completed", category="tool.messages")
         elif event.data.agent_state == TaskStatus.SUSPENDED.value:
             status = TaskStatus.SUSPENDED
-            content = final_response
+            content = i18n.translate("messages.agent_suspended", category="common.messages")
         else:
             status = TaskStatus.ERROR
-            content = render_final_error(final_error_info) or i18n.translate("messages.task.failed", category="common.messages")
+            content = i18n.translate("messages.task.failed", category="common.messages")
 
         # 获取会话消耗的 token 总量，复用与压缩工具相同的 tokens_count() 逻辑
         token_used = None

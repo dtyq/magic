@@ -19,6 +19,7 @@ from app.service.agent_dispatcher import AgentDispatcher
 from app.core.context.agent_context import AgentContext
 from agentlang.config.non_human_config import NonHumanConfigManager
 from app.core.entity.event.event import AfterClientChatEventData
+from app.core.entity.final_task_state import FinalTaskStateCode, build_final_task_state
 from agentlang.event.data import AgentSuspendedEventData, ErrorEventData
 from app.core.entity.message.client_message import (
     ChatClientMessage,
@@ -371,11 +372,16 @@ class MessageProcessor:
                     async with self._interrupt_lock:
                         # 停止当前 run（不 reset：中断状态保留到下次 stop_run）
                         await agent_context.stop_run(reason=message.remark or "用户主动中断")
+                        final_task_state = build_final_task_state(
+                            FinalTaskStateCode.USER_INTERRUPTED,
+                            custom_message=message.remark or None,
+                        )
+                        agent_context.set_final_task_state(final_task_state)
                         await agent_context.dispatch_event(
                             EventType.AGENT_SUSPENDED,
                             AgentSuspendedEventData(
                                 agent_context=agent_context,
-                                remark=message.remark,
+                                final_task_state=final_task_state,
                             )
                         )
                         return create_success_response("任务已中断")
@@ -393,12 +399,18 @@ class MessageProcessor:
             logger.error(traceback.format_exc())
 
             if self.agent_dispatcher.agent_context:
+                final_task_state = build_final_task_state(
+                    FinalTaskStateCode.MESSAGE_PROCESSING_FAILED,
+                    vendor_message=str(e),
+                )
+                self.agent_dispatcher.agent_context.set_final_task_state(final_task_state)
                 await self.agent_dispatcher.agent_context.dispatch_event(
                     EventType.ERROR,
                     ErrorEventData(
                         agent_context=self.agent_dispatcher.agent_context,
                         error_message="消息处理异常",
-                        exception=e
+                        exception=e,
+                        final_task_state=final_task_state,
                     )
                 )
             return create_error_response("消息处理失败")

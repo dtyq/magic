@@ -7,6 +7,38 @@
         "zh_CN": "当前对话上下文已过长，请点击输入框右侧的上下文占比圆环，在弹出的面板中选择“压缩上下文”后再继续。",
         "en_US": "The conversation context is too long. Click the context usage ring on the right side of the input box, choose \"Compact Context\" from the panel, and then continue."
     },
+    "messages.agent_suspended": {
+        "zh_CN": "当前任务已暂停，请稍后再试。",
+        "en_US": "The current task has been suspended. Please try again later."
+    },
+    "messages.insufficient_points": {
+        "zh_CN": "当前可用积分不足，请稍后再试。",
+        "en_US": "There are not enough available points right now. Please try again later."
+    },
+    "messages.consumption_rounds_limit_exceeded": {
+        "zh_CN": "当前任务的单次轮数已达到上限，请稍后再试。",
+        "en_US": "This task has reached the per-run round limit. Please try again later."
+    },
+    "messages.task_concurrency_limit_exceeded": {
+        "zh_CN": "当前并发任务数已达到上限，请稍后再试。",
+        "en_US": "The concurrent task limit has been reached. Please try again later."
+    },
+    "messages.user_interrupted": {
+        "zh_CN": "任务已中断。",
+        "en_US": "The task has been interrupted."
+    },
+    "messages.session_restore_failed": {
+        "zh_CN": "恢复会话状态失败，请重新发送消息。",
+        "en_US": "Failed to restore the session state. Please send the message again."
+    },
+    "messages.agent_not_initialized": {
+        "zh_CN": "智能体尚未初始化，请先初始化工作区后再试。",
+        "en_US": "The agent has not been initialized yet. Please initialize the workspace first."
+    },
+    "messages.message_processing_failed": {
+        "zh_CN": "消息处理失败，请稍后再试。",
+        "en_US": "Failed to process the message. Please try again later."
+    },
     "agent_profile.desc_with_role": {
         "zh_CN": "你叫{name}，是一名{role}。{description}",
         "en_US": "Your name is {name}, you are a {role}. {description}"

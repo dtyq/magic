@@ -8,6 +8,7 @@ import importlib.metadata
 import inspect
 
 from app.core.context.agent_context import AgentContext
+from app.core.entity.final_task_state import FinalTaskStateCode, build_final_task_state
 from agentlang.event.data import ErrorEventData
 from agentlang.event.event import EventType
 from app.core.stream.http_subscription_stream import HTTPSubscriptionStream
@@ -521,12 +522,18 @@ class AgentDispatcher(Base):
                 from agentlang.event.data import ErrorEventData
                 from agentlang.event.event import EventType
                 if self.agent_context:
+                    final_task_state = build_final_task_state(
+                        FinalTaskStateCode.MESSAGE_PROCESSING_FAILED,
+                        vendor_message=str(e),
+                    )
+                    self.agent_context.set_final_task_state(final_task_state)
                     await self.agent_context.dispatch_event(
                         EventType.ERROR,
                         ErrorEventData(
                             agent_context=self.agent_context,
                             error_message="Failed to process the request. Please contact the administrator.",
                             exception=e,
+                            final_task_state=final_task_state,
                         ),
                     )
             except Exception:
@@ -547,10 +554,14 @@ class AgentDispatcher(Base):
             initialized = await self.load_init_client_message()
             if not initialized:
                 logger.error("智能体未初始化，请先调用工作区初始化")
+                final_task_state = build_final_task_state(FinalTaskStateCode.AGENT_NOT_INITIALIZED)
+                self.agent_context.set_final_task_state(final_task_state)
                 await self.agent_context.dispatch_event(
                     EventType.ERROR,
                     ErrorEventData(
-                        agent_context=self.agent_context, error_message="智能体未初始化，请先调用工作区初始化"
+                        agent_context=self.agent_context,
+                        error_message="智能体未初始化，请先调用工作区初始化",
+                        final_task_state=final_task_state,
                     ),
                 )
                 return

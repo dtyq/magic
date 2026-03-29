@@ -7,6 +7,7 @@ from agentlang.interface.context import AgentContextInterface
 from agentlang.context.tool_context import ToolContext
 from agentlang.tools.tool_result import ToolResult
 from agentlang.llms.token_usage.models import TokenUsage
+from app.core.entity.final_task_state import FinalTaskState
 
 class BeforeInitEventData(BaseEventData):
     """初始化前事件的数据结构"""
@@ -144,7 +145,7 @@ class AgentSuspendedEventData(BaseEventData):
     """agent终止事件的数据结构"""
 
     agent_context: AgentContextInterface
-    remark: Optional[str] = None  # Custom termination message from client
+    final_task_state: Optional[FinalTaskState] = None
 
 
 class BeforeMainAgentRunEventData(BaseEventData):
@@ -175,6 +176,7 @@ class ChatHistoryChangedEventData(BaseEventData):
 
 class ErrorEventData(BaseEventData):
     """错误事件的数据结构"""
-    exception: Exception
+    exception: Optional[Exception] = None
     agent_context: AgentContextInterface
     error_message: str
+    final_task_state: FinalTaskState

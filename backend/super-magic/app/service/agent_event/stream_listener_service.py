@@ -333,7 +333,7 @@ class StreamListenerService:
 
         task_message = TaskMessageFactory.create_agent_suspended_message(
             event.data.agent_context,
-            event.data.remark
+            event.data.final_task_state,
         )
         tool_context = ToolContext(metadata=event.data.agent_context.get_metadata())
         tool_context.register_extension("agent_context", event.data.agent_context)
@@ -380,7 +380,11 @@ class StreamListenerService:
         Args:
             event: 错误事件对象，包含ErrorEventData数据
         """
-        task_message = TaskMessageFactory.create_error_message(event.data.agent_context, event.data.error_message)
+        task_message = TaskMessageFactory.create_error_message(
+            event.data.agent_context,
+            event.data.error_message,
+            final_task_state=event.data.final_task_state,
+        )
         tool_context = ToolContext(metadata=event.data.agent_context.get_metadata())
         tool_context.register_extension("agent_context", event.data.agent_context)
         tool_context.register_extension("event_context", EventContext())

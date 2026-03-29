@@ -28,6 +28,7 @@ from agentlang.event.data import (
     ErrorEventData,
 )
 from agentlang.event.event import EventType
+from agentlang.llms.error_classifier import LLMErrorClassifier
 from agentlang.llms.factory import LLMFactory
 from agentlang.llms.processors.processor_config import ProcessorConfig
 from app.streaming.message_builder import LLMStreamingMessageBuilder
@@ -38,13 +39,18 @@ from agentlang.tools.tool_result import ToolResult
 from agentlang.utils.token_estimator import num_tokens_from_string
 from agentlang.utils.annotation_remover import remove_developer_annotations
 from agentlang.utils.datetime_formatter import get_current_datetime_str
-from agentlang.exceptions import AgentTerminalError, UserFriendlyException, ResourceLimitExceededException
+from agentlang.exceptions import UserFriendlyException, ResourceLimitExceededException
 from agentlang.utils.tool_param_utils import preprocess_tool_calls_batch
 from openai.types.chat import ChatCompletion, ChatCompletionMessage, ChatCompletionMessageToolCall
 
 from app.core.ai_abilities import get_compact_model_id
 from app.core.context.agent_context import AgentContext
-from app.core.entity.final_error import FinalErrorInfo
+from app.core.entity.final_task_state import (
+    FinalTaskState,
+    FinalTaskStateCode,
+    build_final_task_state,
+)
+from app.core.entity.message.server_message import TaskStatus
 from app.core.entity.message.client_message import MemoryItem
 
 # 多语言支持
@@ -65,23 +71,6 @@ from app.core.skill_manager import generate_skills_prompt
 from app.core.skill_utils.skill_sources import get_workspace_skills_dir
 
 logger = get_logger(__name__)
-
-
-class AgentSuspendedException(Exception):
-    """Agent 暂停异常，用于优雅退出循环
-
-    当 Agent 因积分不足等原因需要暂停时抛出此异常，
-    用于优雅地退出 Agent 循环处理，不触发重试机制。
-    """
-
-    def __init__(self, message: str = ""):
-        """初始化 Agent 暂停异常
-
-        Args:
-            message: 暂停原因消息
-        """
-        self.message = message
-        super().__init__(message)
 
 
 # Agent Loop Context Objects for clean parameter passing and state management
@@ -628,6 +617,63 @@ The following <dynamic_context> block contains system-provided context informati
         logger.info(f"自动生成新的 Agent ID: {new_id}")
         return new_id
 
+    def _apply_final_task_state(self, final_task_state: FinalTaskState) -> None:
+        """应用最终任务终态并同步 Agent 状态。"""
+        self.agent_context.set_final_task_state(final_task_state)
+        self.agent_context.set_final_response(None)
+        if final_task_state.task_status == TaskStatus.SUSPENDED:
+            self.set_agent_state(AgentState.SUSPENDED)
+        else:
+            self.set_agent_state(AgentState.ERROR)
+
+    def _iter_exception_chain(self, exception: Exception) -> List[Exception]:
+        """按因果链遍历异常，避免同一对象重复处理。"""
+        exceptions: List[Exception] = []
+        current: Optional[BaseException] = exception
+        seen_ids: set[int] = set()
+
+        while isinstance(current, Exception) and id(current) not in seen_ids:
+            exceptions.append(current)
+            seen_ids.add(id(current))
+            current = current.__cause__ or current.__context__
+
+        return exceptions
+
+    def _build_final_task_state_from_exception(self, exception: Exception) -> Optional[FinalTaskState]:
+        """把已知终态异常直接归一成 FinalTaskState。"""
+        for current in self._iter_exception_chain(exception):
+            if isinstance(current, ResourceLimitExceededException):
+                if current.is_insufficient_points_error():
+                    code = FinalTaskStateCode.INSUFFICIENT_POINTS
+                elif current.is_consumption_rounds_limit_error():
+                    code = FinalTaskStateCode.CONSUMPTION_ROUNDS_LIMIT_EXCEEDED
+                elif current.is_concurrency_limit_error():
+                    code = FinalTaskStateCode.TASK_CONCURRENCY_LIMIT_EXCEEDED
+                else:
+                    continue
+
+                return build_final_task_state(
+                    code,
+                    vendor_message=current.message,
+                )
+
+            snapshot = LLMErrorClassifier.get_attached_snapshot(current)
+            if snapshot is None and (
+                hasattr(current, "response")
+                or hasattr(current, "body")
+                or hasattr(current, "message")
+            ):
+                snapshot = LLMErrorClassifier.extract_snapshot(current)
+
+            if snapshot and LLMErrorClassifier.is_context_window_exceeded(snapshot):
+                return build_final_task_state(
+                    FinalTaskStateCode.CONTEXT_WINDOW_EXCEEDED,
+                    vendor_message=snapshot.primary_message,
+                    status_code=snapshot.status_code,
+                )
+
+        return None
+
     async def run_main_agent(self, query: str):
         """运行主 agent"""
         try:
@@ -651,15 +697,23 @@ The following <dynamic_context> block contains system-provided context informati
         except Exception as e:
             logger.error(f"主 agent 运行异常: {e!s}")
             if isinstance(e, UserFriendlyException):
+                final_task_state = self._build_final_task_state_from_exception(e) or build_final_task_state(
+                    FinalTaskStateCode.MESSAGE_PROCESSING_FAILED,
+                    vendor_message=str(e),
+                    custom_message=e.get_user_friendly_message(),
+                )
+                self.agent_context.set_final_task_state(final_task_state)
                 await self.agent_context.dispatch_event(EventType.ERROR, ErrorEventData(
                     exception=e,
                     agent_context=self.agent_context,
-                    error_message=e.get_user_friendly_message()
+                    error_message=e.get_user_friendly_message(),
+                    final_task_state=final_task_state,
                 ))
     async def run(self, query: str):
         """运行 agent"""
         self.set_agent_state(AgentState.RUNNING)
-        self.agent_context.set_final_error_info(None)
+        self.agent_context.set_final_task_state(None)
+        self.agent_context.set_final_response(None)
 
         logger.info(f"开始运行 agent: {self.agent_name}, id: {self.id}, query: {query}")
 
@@ -817,7 +871,11 @@ The following <dynamic_context> block contains system-provided context informati
                     # 使用恢复的会话
                     restored_context = await self._restore_session_state(restore_context.assistant_message)
                     if restored_context.action == SessionRestoreAction.ERROR:
-                        loop_state.final_response = restored_context.error_message
+                        loop_state.last_llm_message = None
+                        self._apply_final_task_state(build_final_task_state(
+                            FinalTaskStateCode.SESSION_RESTORE_FAILED,
+                            vendor_message=restored_context.error_message or "",
+                        ))
                         break
 
                     loop_state.last_llm_message = restored_context.llm_response  # 也更新last_llm_message
@@ -829,7 +887,11 @@ The following <dynamic_context> block contains system-provided context informati
                         request_id=None  # 会话恢复的情况下没有 request_id
                     )
                 elif restore_context.action == SessionRestoreAction.ERROR:
-                    loop_state.final_response = restore_context.error_message
+                    loop_state.last_llm_message = None
+                    self._apply_final_task_state(build_final_task_state(
+                        FinalTaskStateCode.SESSION_RESTORE_FAILED,
+                        vendor_message=restore_context.error_message or "",
+                    ))
                     break
                 else:
                     # 调用LLM获取响应
@@ -1773,24 +1835,22 @@ The following <dynamic_context> block contains system-provided context informati
         """
         logger.error(f"Agent循环执行过程中发生错误: {exception!r}")
         logger.error(f"错误堆栈: {traceback.format_exc()}")
-        self.set_agent_state(AgentState.ERROR)
 
         # 处理中断的工具调用
         await self._handle_interrupted_tool_calls(exception)
 
-        if isinstance(exception, AgentTerminalError):
-            logger.warning(f"检测到终态异常 {exception.error_code}，停止当前任务的自动重试")
+        final_task_state = self._build_final_task_state_from_exception(exception)
+        if final_task_state is not None:
+            logger.warning(f"检测到终态异常 {final_task_state.code.value}，停止当前任务的自动重试")
             # 本轮调用没有成功拿到新的最终文本，避免 finalize 误回落到旧的 LLM 内容。
             loop_state.last_llm_message = None
-            self.agent_context.set_final_error_info(FinalErrorInfo(
-                error_code=exception.error_code,
-                vendor_message=exception.vendor_message,
-                status_code=exception.status_code,
-            ))
+            self._apply_final_task_state(final_task_state)
             return ExceptionHandlingResult(
                 should_continue=False,
                 final_response=None
             )
+
+        self.set_agent_state(AgentState.ERROR)
 
         # 更新计数器
         loop_state.llm_retry_count += 1
@@ -1810,20 +1870,23 @@ The following <dynamic_context> block contains system-provided context informati
         if can_continue:
             if loop_state.run_exception_count == 1:
                 error_content = (
-                    "任务执行异常，通常有如下两个原因：\n"
-                    "1. 输出内容过大：你一次性输出了过大的内容，你必须少量多次地分段输出，一次性只输出一小段内容，严禁一次性输出过大的内容。\n"
-                    "2. 工具调用参数错误：你输出的内容存在错误，通常是工具的参数有语法错误、类型错误或遗漏了参数，你需要修复后重试。"
+                    "Task execution failed. Common causes:\n"
+                    "1. Your output was too large. You must split it into small chunks and send only a small portion at a time.\n"
+                    "2. Your tool call arguments were invalid. Check for syntax errors, type mismatches, or missing required fields, then try again."
                 )
                 logger.info(f"将等待{wait_time:.1f}秒后进行第{loop_state.run_exception_count}次重试（总计已等待{total_retry_wait_time:.1f}秒）")
             elif loop_state.run_exception_count == 2:
-                error_content = "你必须输出少量的内容，分段完成任务"
+                error_content = "You must keep the output small and complete the task in short chunks."
             elif loop_state.run_exception_count == 3:
-                error_content = "你绝对不能输出过大的内容，你必须输出少量的内容，分段完成任务！重要的事情说三遍！"
+                error_content = "Do not output too much at once. Keep every response short and complete the task in small chunks."
             else:
                 # skip, do not append error content anymore
                 pass
         else:
-            error_content = "当前任务执行环境处于异常状态，且无法被修复，任务不应当再继续。你应该已经完成了任务的一部分，我需要你检查你当前的任务进度，总结已完成的内容和遇到的异常情况，然后结束当前任务。"
+            error_content = (
+                "The execution environment is in an unrecoverable state, so the task should not continue. "
+                "Review your progress, summarize what you completed and what errors you encountered, then end the task."
+            )
 
         # 添加错误消息到历史
         if error_content:
@@ -2035,20 +2098,8 @@ The following <dynamic_context> block contains system-provided context informati
                 enable_llm_response_events=True,  # 开启LLM响应事件触发
                 retry_count=retry_count  # 传递重试次数
             )
-        except ResourceLimitExceededException as e:
-            # 处理资源限制异常：触发 AGENT_SUSPENDED 事件并优雅退出
-            error_type = "积分不足" if e.is_insufficient_points_error() else \
-                        "单次消耗轮数超限" if e.is_consumption_rounds_limit_error() else \
-                        "任务并发数超限" if e.is_concurrency_limit_error() else \
-                        f"资源限制 (错误码: {e.error_code})"
-
-            logger.warning(f"检测到{error_type}，触发 AGENT_SUSPENDED 事件")
-
-            # 设置 agent 状态为 SUSPENDED
-            self.set_agent_state(AgentState.SUSPENDED)
-
-            # 直接抛出 AgentSuspendedException，传递具体的错误消息
-            raise AgentSuspendedException(e.message) from e
+        except ResourceLimitExceededException:
+            raise
 
         # 检查 model_extra 中的响应状态码
         if hasattr(llm_response, 'model_extra') and llm_response.model_extra:
