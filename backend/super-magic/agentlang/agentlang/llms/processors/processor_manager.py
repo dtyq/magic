@@ -12,6 +12,7 @@ from openai.types.chat import ChatCompletion
 
 from agentlang.interface.context import AgentContextInterface
 from agentlang.logger import get_logger
+from agentlang.llms.error_classifier import LLMErrorClassifier
 from .streaming_call_processor import StreamingCallProcessor
 from .processor_config import ProcessorConfig
 from .regular_call_processor import RegularCallProcessor
@@ -91,6 +92,13 @@ class ProcessorManager:
                 return response
 
             except Exception as stream_error:
+                error_snapshot = LLMErrorClassifier.extract_snapshot(stream_error)
+                if LLMErrorClassifier.is_context_window_exceeded(error_snapshot):
+                    logger.warning(
+                        f"[{request_id}] 流式调用命中上下文超长错误，跳过非流式降级重试: {error_snapshot.primary_message}"
+                    )
+                    raise
+
                 # 流式调用失败，自动降级为非流式调用重试
                 logger.warning(f"[{request_id}] 流式调用失败: {str(stream_error)}，自动降级为非流式模式重试")
 

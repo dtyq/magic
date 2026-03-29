@@ -3,6 +3,10 @@
         "zh_CN": "系统繁忙，请稍后再试",
         "en_US": "The system is busy, please try again later"
     },
+    "messages.context_window_exceeded": {
+        "zh_CN": "当前对话上下文已过长，请点击输入框右侧的上下文占比圆环，在弹出的面板中选择“压缩上下文”后再继续。",
+        "en_US": "The conversation context is too long. Click the context usage ring on the right side of the input box, choose \"Compact Context\" from the panel, and then continue."
+    },
     "agent_profile.desc_with_role": {
         "zh_CN": "你叫{name}，是一名{role}。{description}",
         "en_US": "Your name is {name}, you are a {role}. {description}"

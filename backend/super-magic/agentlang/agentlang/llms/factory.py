@@ -25,6 +25,7 @@ from agentlang.llms.token_usage.tracker import TokenUsageTracker
 from agentlang.llms.token_usage.pricing import ModelPricing
 from agentlang.llms.token_usage.report import TokenUsageReport
 from agentlang.llms.processors import ProcessorConfig, ProcessorManager
+from agentlang.llms.error_classifier import LLMErrorClassifier
 from agentlang.logger import get_logger
 from agentlang.utils.metadata import MetadataUtil
 from agentlang.utils.security import sanitize_api_key
@@ -277,6 +278,7 @@ class LLMFactory:
             exception = e
             # Check for resource limit errors (insufficient points, consumption rounds limit, concurrency limit)
             cls._check_and_handle_resource_limit_error(e, request_id)
+            cls._check_and_handle_context_window_error(e, request_id)
 
             # 记录错误耗时
             end_time = time.time()
@@ -573,3 +575,27 @@ class LLMFactory:
             # If error handling itself fails, log and continue
             logger.debug(f"[{request_id}] 资源限制错误检查失败: {e}")
             # Don't raise here, let the original exception propagate
+
+    @classmethod
+    def _check_and_handle_context_window_error(cls, exception: Exception, request_id: str) -> None:
+        """检查并处理上下文超长/请求体过大的不可恢复错误"""
+        try:
+            from agentlang.exceptions import ContextWindowExceededException
+
+            error_snapshot = LLMErrorClassifier.extract_snapshot(exception)
+
+            if LLMErrorClassifier.is_context_window_exceeded(error_snapshot):
+                logger.warning(
+                    f"[{request_id}] 检测到上下文超长错误: status_code={error_snapshot.status_code}, message={error_snapshot.primary_message}"
+                )
+                raise ContextWindowExceededException(
+                    status_code=error_snapshot.status_code,
+                    vendor_message=error_snapshot.primary_message,
+                )
+
+        except Exception as e:
+            from agentlang.exceptions import ContextWindowExceededException
+            if isinstance(e, ContextWindowExceededException):
+                raise
+
+            logger.debug(f"[{request_id}] 上下文超长错误检查失败: {e}")

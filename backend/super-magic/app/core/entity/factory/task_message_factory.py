@@ -8,6 +8,7 @@ Attachment Processing:
 """
 
 from app.i18n import i18n
+from app.core.entity.final_error import render_final_error
 from app.core.context.agent_context import AgentContext
 from app.core.entity.attachment import Attachment, AttachmentTag
 from app.core.entity.event.event import (
@@ -239,15 +240,17 @@ class TaskMessageFactory:
 
         # 根据 agent_state 决定最终消息状态
         logger.info(f"TaskMessageFactory: 接收到 agent_state = {event.data.agent_state}")
+        final_response = agent_context.get_final_response()
+        final_error_info = agent_context.get_final_error_info()
         if event.data.agent_state == TaskStatus.FINISHED.value:
             status = TaskStatus.FINISHED
             content = i18n.translate("task.completed", category="tool.messages")
         elif event.data.agent_state == TaskStatus.SUSPENDED.value:
             status = TaskStatus.SUSPENDED
-            content = agent_context.get_final_response()
+            content = final_response
         else:
             status = TaskStatus.ERROR
-            content = i18n.translate("messages.task.failed", category="common.messages")
+            content = render_final_error(final_error_info) or i18n.translate("messages.task.failed", category="common.messages")
 
         # 获取会话消耗的 token 总量，复用与压缩工具相同的 tokens_count() 逻辑
         token_used = None

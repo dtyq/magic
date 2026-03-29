@@ -38,12 +38,13 @@ from agentlang.tools.tool_result import ToolResult
 from agentlang.utils.token_estimator import num_tokens_from_string
 from agentlang.utils.annotation_remover import remove_developer_annotations
 from agentlang.utils.datetime_formatter import get_current_datetime_str
-from agentlang.exceptions import UserFriendlyException, ResourceLimitExceededException
+from agentlang.exceptions import AgentTerminalError, UserFriendlyException, ResourceLimitExceededException
 from agentlang.utils.tool_param_utils import preprocess_tool_calls_batch
 from openai.types.chat import ChatCompletion, ChatCompletionMessage, ChatCompletionMessageToolCall
 
 from app.core.ai_abilities import get_compact_model_id
 from app.core.context.agent_context import AgentContext
+from app.core.entity.final_error import FinalErrorInfo
 from app.core.entity.message.client_message import MemoryItem
 
 # 多语言支持
@@ -658,6 +659,7 @@ The following <dynamic_context> block contains system-provided context informati
     async def run(self, query: str):
         """运行 agent"""
         self.set_agent_state(AgentState.RUNNING)
+        self.agent_context.set_final_error_info(None)
 
         logger.info(f"开始运行 agent: {self.agent_name}, id: {self.id}, query: {query}")
 
@@ -1775,6 +1777,20 @@ The following <dynamic_context> block contains system-provided context informati
 
         # 处理中断的工具调用
         await self._handle_interrupted_tool_calls(exception)
+
+        if isinstance(exception, AgentTerminalError):
+            logger.warning(f"检测到终态异常 {exception.error_code}，停止当前任务的自动重试")
+            # 本轮调用没有成功拿到新的最终文本，避免 finalize 误回落到旧的 LLM 内容。
+            loop_state.last_llm_message = None
+            self.agent_context.set_final_error_info(FinalErrorInfo(
+                error_code=exception.error_code,
+                vendor_message=exception.vendor_message,
+                status_code=exception.status_code,
+            ))
+            return ExceptionHandlingResult(
+                should_continue=False,
+                final_response=None
+            )
 
         # 更新计数器
         loop_state.llm_retry_count += 1

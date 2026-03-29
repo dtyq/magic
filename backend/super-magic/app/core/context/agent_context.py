@@ -24,6 +24,7 @@ from app.core.stream import Stream
 from agentlang.logger import get_logger
 from app.path_manager import PathManager
 from app.core.context.run_interruption import RunCancelState, RunCleanupRegistry, RunCancellationHandle
+from app.core.entity.final_error import FinalErrorInfo
 from loguru import logger
 from app.infrastructure.storage.types import PlatformType
 from agentlang.llms.token_usage.report import TokenUsageReport
@@ -187,6 +188,7 @@ class AgentContext(BaseAgentContext):
             "organization_code": (None, Optional[str]),
             "final_token_usage_report": (None, Optional[TokenUsageReport]),
             "final_response": (None, Optional[str]),
+            "final_error_info": (None, Optional[FinalErrorInfo]),
             "finish_task_files": (None, Optional[List[str]]),
             # LLM 请求ID
             "current_llm_request_id": (None, Optional[str]),
@@ -802,6 +804,14 @@ class AgentContext(BaseAgentContext):
             Optional[str]: 最终响应字符串
         """
         return self.shared_context.get_field("final_response")
+
+    def set_final_error_info(self, error_info: Optional[FinalErrorInfo]) -> None:
+        """设置最终错误信息"""
+        self.shared_context.update_field("final_error_info", error_info)
+
+    def get_final_error_info(self) -> Optional[FinalErrorInfo]:
+        """获取最终错误信息"""
+        return self.shared_context.get_field("final_error_info")
 
     # ====== 序列号管理相关方法 ======
 

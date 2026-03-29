@@ -110,6 +110,50 @@ class ResourceLimitExceededException(UserFriendlyException):
         return self.error_code == 6400
 
 
+class AgentTerminalError(Exception):
+    """Agent 终态异常基类
+
+    用于那些已经有明确处理结论的异常：
+    - 不应继续走指数退避重试
+    - 应由 Agent 主循环直接转成最终任务结果
+    """
+
+    ERROR_CODE = "agent_terminal_error"
+
+    def __init__(
+        self,
+        message: str,
+        *,
+        error_code: Optional[str] = None,
+        status_code: Optional[int] = None,
+        vendor_message: str = ""
+    ):
+        self.error_code = error_code or self.ERROR_CODE
+        self.status_code = status_code
+        self.vendor_message = vendor_message
+        super().__init__(message)
+
+
+class ContextWindowExceededException(AgentTerminalError):
+    """上下文窗口超限异常"""
+
+    ERROR_CODE = "context_window_exceeded"
+
+    def __init__(
+        self,
+        message: str = "Context window exceeded.",
+        *,
+        status_code: Optional[int] = None,
+        vendor_message: str = ""
+    ):
+        super().__init__(
+            message,
+            error_code=self.ERROR_CODE,
+            status_code=status_code,
+            vendor_message=vendor_message,
+        )
+
+
 @dataclass
 class ErrorDetail:
     """API错误详情结构
