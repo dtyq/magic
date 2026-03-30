@@ -466,6 +466,32 @@ async def async_count_text_lines(file_path: Union[str, Path], encoding: str = 'u
         raise
 
 
+async def async_try_count_text_lines(file_path: Union[str, Path], encoding: str = 'utf-8') -> Optional[int]:
+    """
+    安全统计文本文件行数（不抛异常）
+
+    与 async_count_text_lines 的区别：
+    - async_count_text_lines: 文件不存在或统计失败时抛出异常
+    - async_try_count_text_lines: 返回 None，适合附加信息统计场景
+
+    Args:
+        file_path: 文件路径
+        encoding: 编码格式，默认utf-8
+
+    Returns:
+        Optional[int]: 文件总行数，失败或不存在返回 None
+    """
+    path_obj = Path(file_path)
+
+    try:
+        return await async_count_text_lines(path_obj, encoding=encoding)
+    except FileNotFoundError:
+        return None
+    except Exception as e:
+        logger.error(f"统计文件 {path_obj} 行数失败: {e}")
+        return None
+
+
 async def async_read_bytes(file_path: Union[str, Path], size: Optional[int] = None, offset: int = 0) -> bytes:
     """
     异步读取二进制文件
