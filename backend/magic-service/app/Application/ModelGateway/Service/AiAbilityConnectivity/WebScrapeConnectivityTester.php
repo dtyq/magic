@@ -26,6 +26,7 @@ class WebScrapeConnectivityTester implements AiAbilityConnectivityTesterInterfac
             'formats' => ['MARKDOWN'],
             'mode' => 'fast',
             'options' => [],
+            'provider' => $requestDTO->getProvider(),
         ]);
         $webScrapeRequestDTO->setAccessToken($requestDTO->getAccessToken());
         $webScrapeRequestDTO->setIps($requestDTO->getIps());

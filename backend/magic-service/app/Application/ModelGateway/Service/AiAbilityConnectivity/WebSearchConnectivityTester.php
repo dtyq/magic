@@ -28,6 +28,7 @@ class WebSearchConnectivityTester implements AiAbilityConnectivityTesterInterfac
             'mkt' => 'en-US',
             'safe_search' => 'Off',
             'set_lang' => 'en',
+            'provider' => $requestDTO->getProvider(),
         ]);
         $searchRequestDTO->setAccessToken($requestDTO->getAccessToken());
         $searchRequestDTO->setIps($requestDTO->getIps());

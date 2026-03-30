@@ -25,6 +25,7 @@ class ImageSearchConnectivityTester implements AiAbilityConnectivityTesterInterf
             'query' => 'cat',
             'count' => 1,
             'offset' => 0,
+            'provider' => $requestDTO->getProvider(),
         ]);
         $imageSearchRequestDTO->setAccessToken($requestDTO->getAccessToken());
         $imageSearchRequestDTO->setIps($requestDTO->getIps());

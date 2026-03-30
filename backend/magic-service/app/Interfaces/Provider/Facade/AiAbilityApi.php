@@ -103,7 +103,7 @@ class AiAbilityApi extends AbstractApi
             'organization_id' => $authorization->getOrganizationCode(),
             'organization_code' => $authorization->getOrganizationCode(),
             'user_id' => $authorization->getId(),
-            'source_id' => 'connectivity_test',
+            'source_id' => 'ai_ability_connectivity_test',
         ]);
 
         return $this->aiAbilityConnectivityTestAppService->connectivityTest($connectivityTestRequestDTO);

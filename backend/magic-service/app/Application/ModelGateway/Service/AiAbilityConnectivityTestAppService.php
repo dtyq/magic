@@ -29,7 +29,7 @@ class AiAbilityConnectivityTestAppService
     {
         $startTime = microtime(true);
         $aiAbility = $requestDTO->getAiAbility();
-        $provider = '';
+        $provider = $requestDTO->getProvider();
         $dataIsolation = null;
 
         try {

@@ -29,10 +29,13 @@ class AiAbilityConnectivityTestRequestDTO extends AbstractRequestDTO
 
     private string $aiAbility = '';
 
+    private string $provider = '';
+
     public static function createDTO(array $data): self
     {
         $dto = new self();
         $dto->setAiAbility((string) ($data['ai_ability'] ?? ''));
+        $dto->setProvider((string) ($data['provider'] ?? ''));
         return $dto;
     }
 
@@ -49,6 +52,17 @@ class AiAbilityConnectivityTestRequestDTO extends AbstractRequestDTO
     public function setAiAbility(string $aiAbility): self
     {
         $this->aiAbility = trim($aiAbility);
+        return $this;
+    }
+
+    public function getProvider(): string
+    {
+        return $this->provider;
+    }
+
+    public function setProvider(string $provider): self
+    {
+        $this->provider = trim($provider);
         return $this;
     }
 
