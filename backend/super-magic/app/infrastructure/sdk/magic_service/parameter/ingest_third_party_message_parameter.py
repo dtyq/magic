@@ -66,11 +66,12 @@ class IngestThirdPartyMessageParameter(MagicServiceAbstractParameter):
                 },
             },
         }
-        source = body["message_content"]["extra"]["super_agent"]["source"]
-        if self.source_conversation_id:
-            source["conversation_id"] = self.source_conversation_id
-        if self.source_sender_id:
-            source["sender_id"] = self.source_sender_id
+        # TODO: sync conversation_id and sender_id when magic-service starts consuming them
+        # source = body["message_content"]["extra"]["super_agent"]["source"]
+        # if self.source_conversation_id:
+        #     source["conversation_id"] = self.source_conversation_id
+        # if self.source_sender_id:
+        #     source["sender_id"] = self.source_sender_id
         return body
 
     def to_query_params(self) -> Dict[str, Any]:
