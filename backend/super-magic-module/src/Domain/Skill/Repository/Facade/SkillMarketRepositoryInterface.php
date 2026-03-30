@@ -130,7 +130,8 @@ interface SkillMarketRepositoryInterface
      * @param array{
      *     category_id?: null|int,
      *     sort_order?: null|int,
-     *     is_featured?: bool
+     *     is_featured?: bool,
+     *     is_hidden?: bool
      * } $payload
      * @return bool 是否更新成功
      */

@@ -163,7 +163,8 @@ class AgentMarketRepository extends AbstractRepository implements AgentMarketRep
     public function queries(AgentMarketQuery $query, Page $page): array
     {
         $builder = $this->agentMarketModel::query()
-            ->where('publish_status', PublishStatus::PUBLISHED->value);
+            ->where('publish_status', PublishStatus::PUBLISHED->value)
+            ->where('is_hidden', false);
 
         // 关键词搜索优先使用统一搜索字段；旧数据无该字段时回退到历史 JSON 搜索。
         if (! empty($query->getKeyword()) && ! empty($query->getLanguageCode())) {
@@ -320,6 +321,10 @@ class AgentMarketRepository extends AbstractRepository implements AgentMarketRep
 
         if (array_key_exists('is_featured', $payload)) {
             $model->is_featured = $payload['is_featured'];
+        }
+
+        if (array_key_exists('is_hidden', $payload)) {
+            $model->is_hidden = $payload['is_hidden'];
         }
 
         if (array_key_exists('category_id', $payload)) {

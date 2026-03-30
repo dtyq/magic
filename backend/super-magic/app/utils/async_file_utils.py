@@ -81,6 +81,7 @@ async def async_copytree(
     src: Union[str, Path],
     dst: Union[str, Path],
     on_conflict: CopyConflict = CopyConflict.ERROR,
+    exclude: Optional[set] = None,
 ) -> None:
     """
     异步复制目录树
@@ -92,6 +93,7 @@ async def async_copytree(
             - ERROR: 目标存在即报错（默认，向后兼容）
             - OVERWRITE: 目录合并，同名文件覆盖
             - SKIP: 目录合并，已有文件保留不动
+        exclude: 要跳过的文件名集合（仅匹配文件名，不含路径）
 
     Raises:
         FileNotFoundError: 源目录不存在
@@ -100,9 +102,10 @@ async def async_copytree(
     """
     src_path = Path(src)
     dst_path = Path(dst)
+    ignore_func = shutil.ignore_patterns(*exclude) if exclude else None
 
     try:
-        logger.debug(f"开始异步复制目录: {src_path} -> {dst_path} (on_conflict={on_conflict})")
+        logger.debug(f"开始异步复制目录: {src_path} -> {dst_path} (on_conflict={on_conflict}, exclude={exclude})")
 
         if on_conflict == CopyConflict.SKIP:
             def _copy_skip(src_f: str, dst_f: str) -> None:
@@ -112,13 +115,15 @@ async def async_copytree(
             await asyncio.to_thread(
                 shutil.copytree, src_path, dst_path,
                 copy_function=_copy_skip, dirs_exist_ok=True,
+                ignore=ignore_func,
             )
         elif on_conflict == CopyConflict.OVERWRITE:
             await asyncio.to_thread(
                 shutil.copytree, src_path, dst_path, dirs_exist_ok=True,
+                ignore=ignore_func,
             )
         else:
-            await asyncio.to_thread(shutil.copytree, src_path, dst_path)
+            await asyncio.to_thread(shutil.copytree, src_path, dst_path, ignore=ignore_func)
 
         logger.debug(f"异步复制目录完成: {src_path} -> {dst_path}")
 
@@ -217,6 +222,30 @@ async def async_unlink(path: Union[str, Path]) -> None:
 
     except Exception as e:
         logger.error(f"异步删除文件失败 {path_str}: {e}")
+        raise
+
+
+async def async_rename(src: Union[str, Path], dst: Union[str, Path]) -> None:
+    """
+    异步重命名/移动文件或目录
+
+    Args:
+        src: 源路径
+        dst: 目标路径
+
+    Raises:
+        FileNotFoundError: 源路径不存在
+        PermissionError: 权限不足
+    """
+    src_str = str(src)
+    dst_str = str(dst)
+
+    try:
+        logger.debug(f"开始异步重命名: {src_str} -> {dst_str}")
+        await aiofiles.os.rename(src_str, dst_str)
+        logger.debug(f"异步重命名完成: {src_str} -> {dst_str}")
+    except Exception as e:
+        logger.error(f"异步重命名失败 {src_str} -> {dst_str}: {e}")
         raise
 
 

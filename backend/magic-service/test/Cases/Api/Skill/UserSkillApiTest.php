@@ -1462,6 +1462,7 @@ class UserSkillApiTest extends AbstractApiTest
             $this->assertArrayHasKey('is_creator', $item);
             $this->assertArrayHasKey('created_at', $item);
             $this->assertArrayHasKey('updated_at', $item);
+            $this->assertArrayHasKey('latest_version', $item);
 
             // 验证字段类型
             $this->assertIsString($item['id']);
@@ -1471,6 +1472,7 @@ class UserSkillApiTest extends AbstractApiTest
             $this->assertIsString($item['publisher_type']);
             $this->assertIsArray($item['publisher']);
             $this->assertIsString($item['publish_status']);
+            $this->assertIsString($item['latest_version']);
             $this->assertIsBool($item['is_added']);
             $this->assertIsBool($item['need_upgrade']);
             $this->assertIsBool($item['is_creator']);
@@ -1700,6 +1702,150 @@ class UserSkillApiTest extends AbstractApiTest
                 }
             }
         }
+    }
+
+    public function testAdminSkillMarketCanUpdateIsHiddenAndPublicListExcludesHiddenItem(): void
+    {
+        $storeSkill = $this->createPublishedStoreSkillRecord();
+        $headers = $this->getCommonHeaders();
+
+        $adminQueryResponse = $this->post(
+            '/api/v1/admin/skills/markets/queries',
+            [
+                'page' => 1,
+                'page_size' => 20,
+                'skill_code' => $storeSkill['skill_code'],
+            ],
+            $headers
+        );
+
+        if (isset($adminQueryResponse['code']) && in_array($adminQueryResponse['code'], [401, 403, 2179, 3035, 4001, 4003], true)) {
+            $this->markTestSkipped('接口需要管理员权限，跳过测试');
+            return;
+        }
+
+        $this->assertEquals(1000, $adminQueryResponse['code'], $adminQueryResponse['message'] ?? '');
+        $this->assertArrayHasKey('data', $adminQueryResponse);
+        $this->assertIsArray($adminQueryResponse['data']['list'] ?? null);
+        $this->assertNotEmpty($adminQueryResponse['data']['list']);
+
+        $marketItem = null;
+        foreach ($adminQueryResponse['data']['list'] as $item) {
+            if (($item['skill_code'] ?? null) === $storeSkill['skill_code']) {
+                $marketItem = $item;
+                break;
+            }
+        }
+
+        $this->assertNotNull($marketItem, '应该能在管理后台市场列表中查到目标技能');
+        $this->assertSame($storeSkill['package_name'], $marketItem['package_name'] ?? null);
+        $this->assertArrayHasKey('is_hidden', $marketItem);
+        $this->assertFalse($marketItem['is_hidden']);
+
+        $adminUpdateResponse = $this->put(
+            '/api/v1/admin/skills/markets/' . $storeSkill['store_skill_id'],
+            ['is_hidden' => true],
+            $headers
+        );
+        $this->assertEquals(1000, $adminUpdateResponse['code'], $adminUpdateResponse['message'] ?? '');
+
+        $marketModel = SkillMarketModel::query()->find($storeSkill['store_skill_id']);
+        $this->assertNotNull($marketModel);
+        $this->assertTrue((bool) $marketModel->is_hidden);
+
+        $adminQueryAfterUpdateResponse = $this->post(
+            '/api/v1/admin/skills/markets/queries',
+            [
+                'page' => 1,
+                'page_size' => 20,
+                'skill_code' => $storeSkill['skill_code'],
+            ],
+            $headers
+        );
+        $this->assertEquals(1000, $adminQueryAfterUpdateResponse['code'], $adminQueryAfterUpdateResponse['message'] ?? '');
+
+        $updatedMarketItem = null;
+        foreach ($adminQueryAfterUpdateResponse['data']['list'] as $item) {
+            if (($item['skill_code'] ?? null) === $storeSkill['skill_code']) {
+                $updatedMarketItem = $item;
+                break;
+            }
+        }
+
+        $this->assertNotNull($updatedMarketItem);
+        $this->assertTrue($updatedMarketItem['is_hidden']);
+
+        $publicQueryResponse = $this->post(
+            '/api/v1/skill-market/queries',
+            [
+                'page' => 1,
+                'page_size' => 20,
+                'codes' => [$storeSkill['skill_code']],
+            ],
+            $headers
+        );
+        $this->assertEquals(1000, $publicQueryResponse['code'], $publicQueryResponse['message'] ?? '');
+        $this->assertSame(0, $publicQueryResponse['data']['total']);
+        $this->assertSame([], $publicQueryResponse['data']['list']);
+    }
+
+    public function testAdminSkillMarketQueriesCanSearchByPackageName(): void
+    {
+        $storeSkill = $this->createPublishedStoreSkillRecord();
+        $headers = $this->getCommonHeaders();
+
+        $response = $this->post(
+            '/api/v1/admin/skills/markets/queries',
+            [
+                'page' => 1,
+                'page_size' => 20,
+                'package_name' => substr($storeSkill['package_name'], -12),
+            ],
+            $headers
+        );
+
+        if (isset($response['code']) && in_array($response['code'], [401, 403, 2179, 3035, 4001, 4003], true)) {
+            $this->markTestSkipped('接口需要管理员权限，跳过测试');
+            return;
+        }
+
+        $this->assertEquals(1000, $response['code'], $response['message'] ?? '');
+        $this->assertIsArray($response['data']['list'] ?? null);
+
+        $marketItem = null;
+        foreach ($response['data']['list'] as $item) {
+            if (($item['skill_code'] ?? null) === $storeSkill['skill_code']) {
+                $marketItem = $item;
+                break;
+            }
+        }
+
+        $this->assertNotNull($marketItem, '应该能通过 package_name 模糊搜索到目标技能');
+        $this->assertSame($storeSkill['package_name'], $marketItem['package_name'] ?? null);
+    }
+
+    public function testPublicSkillMarketQueriesReturnLatestVersion(): void
+    {
+        $storeSkill = $this->createPublishedStoreSkillRecord();
+        $headers = $this->getCommonHeaders();
+
+        $response = $this->post(
+            '/api/v1/skill-market/queries',
+            [
+                'page' => 1,
+                'page_size' => 20,
+                'codes' => [$storeSkill['skill_code']],
+            ],
+            $headers
+        );
+
+        $this->assertEquals(1000, $response['code'], $response['message'] ?? '');
+        $this->assertSame(1, $response['data']['total']);
+        $this->assertCount(1, $response['data']['list']);
+
+        $item = $response['data']['list'][0];
+        $this->assertSame($storeSkill['skill_code'], $item['skill_code'] ?? null);
+        $this->assertSame('1.0.0', $item['latest_version'] ?? null);
     }
 
     /**
@@ -2261,6 +2407,116 @@ MD;
             'store_skill_id' => $storeSkillId,
             'skill_code' => $skillCode,
             'version_id' => $versionId,
+        ];
+    }
+
+    /**
+     * 直接创建已发布的市场技能记录，避免依赖发布链路中的无关逻辑.
+     *
+     * @return array{store_skill_id: int, skill_code: string, version_id: int, package_name: string}
+     */
+    private function createPublishedStoreSkillRecord(): array
+    {
+        $this->switchUserTest1();
+        $headers = $this->getCommonHeaders();
+        $organizationCode = $headers['organization-code'];
+        $userId = $headers['user-id'];
+        $skillCode = 'SKILL-' . IdGenerator::getUniqueId32();
+        $skillId = IdGenerator::getSnowId();
+        $versionId = IdGenerator::getSnowId();
+        $publishedAt = date('Y-m-d H:i:s');
+        $packageName = 'pkg-' . strtolower(IdGenerator::getUniqueId32());
+
+        SkillModel::query()->create([
+            'id' => $skillId,
+            'organization_code' => $organizationCode,
+            'code' => $skillCode,
+            'creator_id' => $userId,
+            'package_name' => $packageName,
+            'package_description' => 'Published test skill package',
+            'name_i18n' => [
+                'zh_CN' => '市场技能',
+                'en_US' => 'Market Skill',
+            ],
+            'description_i18n' => [
+                'zh_CN' => '市场技能描述',
+                'en_US' => 'Market skill description',
+            ],
+            'search_text' => 'market skill description',
+            'logo' => '',
+            'file_key' => 'temp/skills/' . strtolower(IdGenerator::getUniqueId32()) . '.zip',
+            'source_type' => 'LOCAL_UPLOAD',
+            'version_id' => $versionId,
+            'version_code' => '1.0.0',
+            'is_enabled' => true,
+            'latest_published_at' => $publishedAt,
+            'created_at' => $publishedAt,
+            'updated_at' => $publishedAt,
+        ]);
+
+        SkillVersionModel::query()->create([
+            'id' => $versionId,
+            'code' => $skillCode,
+            'organization_code' => $organizationCode,
+            'creator_id' => $userId,
+            'package_name' => $packageName,
+            'package_description' => 'Published test skill package',
+            'version' => '1.0.0',
+            'name_i18n' => [
+                'zh_CN' => '市场技能',
+                'en_US' => 'Market Skill',
+            ],
+            'description_i18n' => [
+                'zh_CN' => '市场技能描述',
+                'en_US' => 'Market skill description',
+            ],
+            'search_text' => 'market skill description',
+            'logo' => '',
+            'file_key' => 'temp/skills/' . strtolower(IdGenerator::getUniqueId32()) . '.zip',
+            'skill_file_key' => 'temp/skills/' . strtolower(IdGenerator::getUniqueId32()) . '/SKILL.md',
+            'publish_status' => 'PUBLISHED',
+            'review_status' => 'APPROVED',
+            'publish_target_type' => 'MARKET',
+            'version_description_i18n' => [
+                'zh_CN' => '市场版本说明',
+                'en_US' => 'Market version description',
+            ],
+            'publisher_user_id' => $userId,
+            'published_at' => $publishedAt,
+            'is_current_version' => true,
+            'source_type' => 'LOCAL_UPLOAD',
+            'created_at' => $publishedAt,
+            'updated_at' => $publishedAt,
+        ]);
+
+        $storeSkillId = IdGenerator::getSnowId();
+        SkillMarketModel::query()->create([
+            'id' => $storeSkillId,
+            'organization_code' => $organizationCode,
+            'skill_code' => $skillCode,
+            'skill_version_id' => $versionId,
+            'name_i18n' => [
+                'zh_CN' => '市场技能',
+                'en_US' => 'Market Skill',
+            ],
+            'description_i18n' => [
+                'zh_CN' => '市场技能描述',
+                'en_US' => 'Market skill description',
+            ],
+            'search_text' => 'market skill description',
+            'logo' => '',
+            'publisher_id' => $userId,
+            'publisher_type' => 'USER',
+            'publish_status' => 'PUBLISHED',
+            'created_at' => $publishedAt,
+            'updated_at' => $publishedAt,
+        ]);
+
+        return [
+            'store_skill_id' => $storeSkillId,
+            'skill_code' => $skillCode,
+            'version_id' => $versionId,
+            'package_name' => $packageName,
         ];
     }
 

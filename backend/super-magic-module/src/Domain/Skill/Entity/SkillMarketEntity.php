@@ -98,6 +98,11 @@ class SkillMarketEntity extends AbstractEntity
     protected bool $isFeatured = false;
 
     /**
+     * @var bool 是否隐藏
+     */
+    protected bool $isHidden = false;
+
+    /**
      * @var null|string 创建时间
      */
     protected ?string $createdAt = null;
@@ -139,6 +144,7 @@ class SkillMarketEntity extends AbstractEntity
             'install_count' => $this->installCount,
             'sort_order' => $this->sortOrder,
             'is_featured' => $this->isFeatured,
+            'is_hidden' => $this->isHidden,
             'created_at' => $this->createdAt,
             'updated_at' => $this->updatedAt,
             'deleted_at' => $this->deletedAt,
@@ -351,6 +357,22 @@ class SkillMarketEntity extends AbstractEntity
             $this->isFeatured = $isFeatured;
         } else {
             $this->isFeatured = filter_var((string) $isFeatured, FILTER_VALIDATE_BOOLEAN);
+        }
+
+        return $this;
+    }
+
+    public function isHidden(): bool
+    {
+        return $this->isHidden;
+    }
+
+    public function setIsHidden(bool|int|string $isHidden): self
+    {
+        if (is_bool($isHidden)) {
+            $this->isHidden = $isHidden;
+        } else {
+            $this->isHidden = filter_var((string) $isHidden, FILTER_VALIDATE_BOOLEAN);
         }
 
         return $this;
