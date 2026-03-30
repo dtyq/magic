@@ -237,7 +237,10 @@ function AIPowerDetailPage() {
 				message: "missing power code",
 			}
 		}
-		const res = await PlatformPackageApi.testAiPowerConnection(code)
+		const res = await PlatformPackageApi.testAiPowerConnection({
+			ai_ability: code,
+			provider: selectedProvider,
+		})
 
 		return {
 			...res,

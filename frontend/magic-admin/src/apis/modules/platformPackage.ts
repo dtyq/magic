@@ -212,10 +212,10 @@ export const generatePlatformPackageApi = (client: HttpClient) => {
 		},
 
 		/** 能力管理联通性测试 */
-		testAiPowerConnection(code: string) {
+		testAiPowerConnection(data: { ai_ability: string; provider: string }) {
 			return client.post<PlatformPackage.TestAiPowerConnection>(
 				RequestUrl.testAiPowerConnection,
-				{ ai_ability: code },
+				data,
 			)
 		},
 
