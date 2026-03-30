@@ -225,6 +225,30 @@ async def async_unlink(path: Union[str, Path]) -> None:
         raise
 
 
+async def async_rename(src: Union[str, Path], dst: Union[str, Path]) -> None:
+    """
+    异步重命名/移动文件或目录
+
+    Args:
+        src: 源路径
+        dst: 目标路径
+
+    Raises:
+        FileNotFoundError: 源路径不存在
+        PermissionError: 权限不足
+    """
+    src_str = str(src)
+    dst_str = str(dst)
+
+    try:
+        logger.debug(f"开始异步重命名: {src_str} -> {dst_str}")
+        await aiofiles.os.rename(src_str, dst_str)
+        logger.debug(f"异步重命名完成: {src_str} -> {dst_str}")
+    except Exception as e:
+        logger.error(f"异步重命名失败 {src_str} -> {dst_str}: {e}")
+        raise
+
+
 async def async_rmdir(path: Union[str, Path]) -> None:
     """
     异步删除空目录

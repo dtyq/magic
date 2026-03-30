@@ -371,7 +371,7 @@ class AgentDispatcher(Base):
         from app.path_manager import PathManager
         from app.service.claw_agent_compiler import ClawAgentCompiler
         from app.core.entity.agent_profile import AgentProfile
-        from app.utils.async_file_utils import async_copytree, async_read_markdown, CopyConflict
+        from app.utils.async_file_utils import async_copytree, async_read_markdown, async_exists, async_rename, async_unlink, CopyConflict
 
         magic_dir = PathManager.get_magic_dir()
         output_agent_file = PathManager.get_compiled_agent_file(claw_code)
@@ -390,13 +390,13 @@ class AgentDispatcher(Base):
             # Rename the placeholder memory file to today's date so the agent starts
             # with a correctly named daily log file instead of the template sentinel.
             placeholder = magic_dir / "memory" / "1900-01-01-none.md"
-            if placeholder.exists():
+            if await async_exists(placeholder):
                 today_file = magic_dir / "memory" / f"{date.today().isoformat()}.md"
-                if not today_file.exists():
-                    placeholder.rename(today_file)
+                if not await async_exists(today_file):
+                    await async_rename(placeholder, today_file)
                     logger.info(f"Renamed memory placeholder to: {today_file.name}")
                 else:
-                    placeholder.unlink()
+                    await async_unlink(placeholder)
                     logger.info(f"Removed memory placeholder (today's file already exists: {today_file.name})")
 
             compiler = ClawAgentCompiler()
