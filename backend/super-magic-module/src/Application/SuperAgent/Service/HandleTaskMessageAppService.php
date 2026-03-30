@@ -8,13 +8,17 @@ declare(strict_types=1);
 namespace Dtyq\SuperMagic\Application\SuperAgent\Service;
 
 use App\Application\LongTermMemory\Enum\AppCodeEnum;
+use App\Application\ModelGateway\Mapper\ModelGatewayMapper;
+use App\Domain\Chat\DTO\Message\Common\MessageExtra\SuperAgent\SuperAgentExtra;
 use App\Domain\Contact\Entity\MagicUserEntity;
 use App\Domain\Contact\Entity\ValueObject\DataIsolation;
 use App\Domain\Contact\Service\MagicDepartmentUserDomainService;
 use App\Domain\Contact\Service\MagicUserDomainService;
 use App\Domain\LongTermMemory\Service\LongTermMemoryDomainService;
 use App\Domain\ModelGateway\Entity\ValueObject\AccessTokenType;
+use App\Domain\ModelGateway\Entity\ValueObject\ModelGatewayDataIsolation;
 use App\Domain\ModelGateway\Service\AccessTokenDomainService;
+use App\Infrastructure\Util\IdGenerator\IdGenerator;
 use App\Infrastructure\Core\Exception\BusinessException;
 use App\Infrastructure\Core\Exception\EventException;
 use App\Infrastructure\Core\Exception\ExceptionBuilder;
@@ -62,6 +66,7 @@ class HandleTaskMessageAppService extends AbstractAppService
         private readonly LongTermMemoryDomainService $longTermMemoryDomainService,
         private readonly ProjectDomainService $projectDomainService,
         private readonly ChatAppService $chatAppService,
+        private readonly ModelGatewayMapper $modelGatewayMapper,
         LoggerFactory $loggerFactory
     ) {
         $this->logger = $loggerFactory->get(get_class($this));
@@ -89,8 +94,12 @@ class HandleTaskMessageAppService extends AbstractAppService
             $agentUserId = $this->chatAppService->getSuperMagicAgentUserId($dataIsolation);
             $chatConversationId = $this->chatAppService->getSuperMagicAgentConversationId($dataIsolation);
 
+            // Pre-generate task ID so that RunTaskBeforeEvent subscribers (e.g. image_model_versions,
+            // ai_abilities) can register dynamic configs keyed by this ID before sendChatMessage reads them.
+            $taskId = (string) IdGenerator::getSnowId();
+
             // Check message before task starts
-            $this->beforeHandleChatMessage($dataIsolation, $userMessageDTO->getInstruction(), $topicEntity, $userMessageDTO->getLanguage(), $userMessageDTO->getModelId(), $userMessageDTO->getPrompt(), $userMessageDTO->getMentions());
+            $this->beforeHandleChatMessage($dataIsolation, $userMessageDTO->getInstruction(), $topicEntity, $userMessageDTO->getLanguage(), $userMessageDTO->getModelId(), $taskId, $userMessageDTO->getPrompt(), $userMessageDTO->getMentions());
 
             // Get task mode from DTO, fallback to topic's task mode if empty
             $taskMode = $userMessageDTO->getTaskMode();
@@ -99,6 +108,7 @@ class HandleTaskMessageAppService extends AbstractAppService
             }
 
             $data = [
+                'id' => (int) $taskId,
                 'user_id' => $dataIsolation->getCurrentUserId(),
                 'workspace_id' => $topicEntity->getWorkspaceId(),
                 'project_id' => $topicEntity->getProjectId(),
@@ -135,6 +145,9 @@ class HandleTaskMessageAppService extends AbstractAppService
             $isFirstTask = (empty($topicEntity->getCurrentTaskId()) || empty($topicEntity->getSandboxId()))
                 && CreationSource::fromValue($topicEntity->getSource()) !== CreationSource::COPY;
 
+            // Resolve image model: use the caller-supplied ID or fall back to first available model.
+            $extra = $this->buildExtraWithImageModel($dataIsolation, $userMessageDTO->getImageModelId());
+
             // Send message to agent
             $taskContext = new TaskContext(
                 task: $taskEntity,
@@ -148,7 +161,7 @@ class HandleTaskMessageAppService extends AbstractAppService
                 agentMode: $userMessageDTO->getTopicMode(),
                 modelId: $userMessageDTO->getModelId(),
                 isFirstTask: $isFirstTask,
-                extra: $userMessageDTO->getExtra(),
+                extra: $extra,
             );
             $taskContext = $this->appendVideoModelDynamicConfig($taskContext, $userMessageDTO->getExtra());
             $sandboxID = $this->createAgent($dataIsolation, $taskContext, $topicEntity);
@@ -310,7 +323,7 @@ class HandleTaskMessageAppService extends AbstractAppService
     /**
      * Pre-task detection.
      */
-    private function beforeHandleChatMessage(DataIsolation $dataIsolation, ChatInstruction $instruction, TopicEntity $topicEntity, string $language, string $modelId = '', string $prompt = '', ?string $mentions = null): void
+    private function beforeHandleChatMessage(DataIsolation $dataIsolation, ChatInstruction $instruction, TopicEntity $topicEntity, string $language, string $modelId = '', string $taskId = '', string $prompt = '', ?string $mentions = null): void
     {
         // Get running topic IDs and calculate current task run count
         $runningTopicIds = $this->pullUserTopicStatus($dataIsolation);
@@ -322,8 +335,8 @@ class HandleTaskMessageAppService extends AbstractAppService
         foreach ($departmentUserEntities as $departmentUserEntity) {
             $departmentIds[] = $departmentUserEntity->getDepartmentId();
         }
-        AsyncEventUtil::dispatch(new RunTaskBeforeEvent($dataIsolation->getCurrentOrganizationCode(), $dataIsolation->getCurrentUserId(), $topicEntity->getId(), $taskRound, $currentTaskRunCount, $runningTopicIds, $departmentIds, $language, $modelId, '', $prompt, $mentions ?? ''));
-        $this->logger->info(sprintf('Dispatched task start event, topic id: %s, round: %d, currentTaskRunCount: %d (after real status check)', $topicEntity->getId(), $taskRound, $currentTaskRunCount));
+        AsyncEventUtil::dispatch(new RunTaskBeforeEvent($dataIsolation->getCurrentOrganizationCode(), $dataIsolation->getCurrentUserId(), $topicEntity->getId(), $taskRound, $currentTaskRunCount, $runningTopicIds, $departmentIds, $language, $modelId, $taskId, $prompt, $mentions ?? ''));
+        $this->logger->info(sprintf('Dispatched task start event, topic id: %s, task id: %s, round: %d, currentTaskRunCount: %d (after real status check)', $topicEntity->getId(), $taskId, $taskRound, $currentTaskRunCount));
     }
 
     /**
@@ -449,5 +462,28 @@ class HandleTaskMessageAppService extends AbstractAppService
         // Process user uploaded attachments
         $attachmentsStr = $userMessageDTO->getAttachments();
         $this->fileProcessAppService->processInitialAttachments($attachmentsStr, $taskEntity, $dataIsolation);
+    }
+
+    /**
+     * Build SuperAgentExtra with image model.
+     * Uses the provided imageModelId, or falls back to the first available model for the organisation.
+     */
+    private function buildExtraWithImageModel(DataIsolation $dataIsolation, string $imageModelId): SuperAgentExtra
+    {
+        if (empty($imageModelId)) {
+            $gatewayIsolation = ModelGatewayDataIsolation::createByOrganizationCodeWithoutSubscription(
+                $dataIsolation->getCurrentOrganizationCode()
+            );
+            $imageModels = $this->modelGatewayMapper->getImageModels($gatewayIsolation);
+            if (! empty($imageModels)) {
+                $imageModelId = $imageModels[0]->getKey();
+            }
+        }
+
+        $extra = new SuperAgentExtra([]);
+        if (! empty($imageModelId)) {
+            $extra->setImageModel(['model_id' => $imageModelId]);
+        }
+        return $extra;
     }
 }

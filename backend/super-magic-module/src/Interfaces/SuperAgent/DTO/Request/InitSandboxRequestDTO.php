@@ -21,6 +21,8 @@ class InitSandboxRequestDTO extends AbstractRequestDTO
 
     protected string $modelId = '';
 
+    protected string $imageModelId = '';
+
     protected string $workspaceId = '';
 
     protected string $projectId = '';
@@ -52,6 +54,7 @@ class InitSandboxRequestDTO extends AbstractRequestDTO
             // 'tool_name' => 'required_if:task_type,tool|string',//如果是tool模式，则需要传入tool_name
             // 'custom_name' => 'required_if:task_type,custom|string',//如果是custom模式，则需要传入custom_name
             'model_id' => 'string', // 模型ID
+            'image_model_id' => 'string', // 图像模型ID
             'workspace_id' => 'string', // 工作区ID
             'project_id' => 'string', // 项目ID
             'project_mode' => 'string', // 项目模式
@@ -70,6 +73,7 @@ class InitSandboxRequestDTO extends AbstractRequestDTO
             // 'tool_name.required_if' => 'tool名称不能为空',
             // 'custom_name.required_if' => 'custom名称不能为空',
             'model_id.string' => '模型ID不能为空',
+            'image_model_id.string' => '图像模型ID格式错误',
             'workspace_id.integer' => '工作区ID不能为空',
             'project_id.integer' => '项目ID不能为空',
             'project_mode.string' => '项目模式不能为空',
@@ -91,6 +95,7 @@ class InitSandboxRequestDTO extends AbstractRequestDTO
             'tool_name' => 'tool名称',
             'custom_name' => 'custom名称',
             'model_id' => '模型ID',
+            'image_model_id' => '图像模型ID',
             'workspace_id' => '工作区ID',
             'project_id' => '项目ID',
             'project_mode' => '项目模式',
@@ -125,6 +130,11 @@ class InitSandboxRequestDTO extends AbstractRequestDTO
     public function getModelId(): string
     {
         return $this->modelId;
+    }
+
+    public function getImageModelId(): string
+    {
+        return $this->imageModelId;
     }
 
     public function getWorkspaceId(): string

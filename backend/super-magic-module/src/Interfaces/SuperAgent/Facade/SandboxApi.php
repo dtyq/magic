@@ -153,6 +153,7 @@ class SandboxApi extends AbstractApi
             'topic_mode' => $requestDTO->getTopicMode(),
             'task_mode' => '',
             'model_id' => $requestDTO->getModelId(),
+            'image_model_id' => $requestDTO->getImageModelId(),
         ];
         $userMessageDTO = UserMessageDTO::fromArray($userMessage);
 
