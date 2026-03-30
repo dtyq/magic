@@ -22,6 +22,8 @@ class UpdateAgentMarketRequestAdminDTO extends AbstractRequestDTO
 
     protected ?bool $isFeatured = null;
 
+    protected ?bool $isHidden = null;
+
     public function setCategoryId(null|int|string $value): void
     {
         $this->categoryId = $value === null ? null : (int) $value;
@@ -47,11 +49,27 @@ class UpdateAgentMarketRequestAdminDTO extends AbstractRequestDTO
         $this->isFeatured = filter_var((string) $value, FILTER_VALIDATE_BOOLEAN);
     }
 
+    public function setIsHidden(null|bool|int|string $value): void
+    {
+        if ($value === null) {
+            $this->isHidden = null;
+            return;
+        }
+
+        if (is_bool($value)) {
+            $this->isHidden = $value;
+            return;
+        }
+
+        $this->isHidden = filter_var((string) $value, FILTER_VALIDATE_BOOLEAN);
+    }
+
     /**
      * @return array{
      *     category_id?: int,
      *     sort_order?: int,
-     *     is_featured?: bool
+     *     is_featured?: bool,
+     *     is_hidden?: bool
      * }
      */
     public function getUpdatePayload(): array
@@ -66,6 +84,9 @@ class UpdateAgentMarketRequestAdminDTO extends AbstractRequestDTO
         if ($this->isFeatured !== null) {
             $payload['is_featured'] = $this->isFeatured;
         }
+        if ($this->isHidden !== null) {
+            $payload['is_hidden'] = $this->isHidden;
+        }
 
         return $payload;
     }
@@ -74,7 +95,8 @@ class UpdateAgentMarketRequestAdminDTO extends AbstractRequestDTO
     {
         return $this->categoryId !== null
             || $this->sortOrder !== null
-            || $this->isFeatured !== null;
+            || $this->isFeatured !== null
+            || $this->isHidden !== null;
     }
 
     protected static function getHyperfValidationRules(): array
@@ -83,6 +105,7 @@ class UpdateAgentMarketRequestAdminDTO extends AbstractRequestDTO
             'category_id' => 'sometimes|nullable|integer',
             'sort_order' => 'sometimes|nullable|integer',
             'is_featured' => 'sometimes|boolean',
+            'is_hidden' => 'sometimes|boolean',
         ];
     }
 
@@ -92,6 +115,7 @@ class UpdateAgentMarketRequestAdminDTO extends AbstractRequestDTO
             'category_id.integer' => __('validation.integer', ['attribute' => 'category_id']),
             'sort_order.integer' => __('validation.integer', ['attribute' => 'sort_order']),
             'is_featured.boolean' => __('validation.boolean', ['attribute' => 'is_featured']),
+            'is_hidden.boolean' => __('validation.boolean', ['attribute' => 'is_hidden']),
         ];
     }
 }
