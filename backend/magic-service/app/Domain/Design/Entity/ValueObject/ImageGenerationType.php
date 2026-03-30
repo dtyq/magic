@@ -40,6 +40,11 @@ enum ImageGenerationType: int
     case ERASER = 5;
 
     /**
+     * 扩图（扩展画布图 + mask 图，填充扩展区域）.
+     */
+    case EXPAND = 6;
+
+    /**
      * 获取所有类型值
      */
     public static function values(): array

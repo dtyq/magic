@@ -29,5 +29,8 @@ Router::addGroup('/api/v1', static function () {
 
         // 橡皮擦
         Router::post('/eraser', [DesignApi::class, 'eraser']);
+
+        // 扩图
+        Router::post('/expand-image', [DesignApi::class, 'expandImage']);
     }, ['middleware' => [RequestContextMiddleware::class]]);
 });

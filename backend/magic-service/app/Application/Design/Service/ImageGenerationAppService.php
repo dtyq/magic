@@ -129,6 +129,25 @@ class ImageGenerationAppService extends DesignAppService
     }
 
     /**
+     * 扩图（扩展画布图 + mask 图，由模型填充扩展区域）.
+     */
+    public function generateExpandImage(Authenticatable $authenticatable, ImageGenerationEntity $entity): ImageGenerationEntity
+    {
+        $entity->setType(ImageGenerationType::EXPAND);
+        $entity->setPrompt(
+            'You are given three images. '
+            . 'The first image is the original photo. '
+            . 'The second image is an expanded canvas where the original image is placed at its original position and the surrounding extended areas are filled with black. '
+            . 'The third image is a black-and-white mask where the white region marks the extended areas to be generated. '
+            . 'Your task: use the original photo as reference, and fill the white masked areas in the expanded canvas with realistic, natural content that seamlessly extends the original image. '
+            . 'The generated content should be coherent with the style, lighting, perspective, and context of the original image. '
+            . 'Do not alter any part of the image outside the white masked region.'
+        );
+
+        return $this->generateImage($authenticatable, $entity);
+    }
+
+    /**
      * 去背景（将传入图片作为参考图，注入固定去背景提示词进行图生图）.
      */
     public function generateRemoveBackground(Authenticatable $authenticatable, ImageGenerationEntity $entity): ImageGenerationEntity

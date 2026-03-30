@@ -179,6 +179,7 @@ class DesignImageGenerationSubscriber implements ListenerInterface
 
                     $response = di(ImageLLMAppService::class)->imageConvertHighV2($imageConvertHighReq);
                     return;
+                case ImageGenerationType::EXPAND:
                 case ImageGenerationType::ERASER:
                     // 橡皮擦场景：reference_images[0] 为原图（SandBox），reference_images[1] 为标记图（design-mark 走 Private）
                     $eraserDTO = new TextGenerateImageDTO();
@@ -342,6 +343,17 @@ class DesignImageGenerationSubscriber implements ListenerInterface
 
             $timestamp = date('YmdHis');
             return $originalFileName . '_erased_' . $timestamp;
+        }
+
+        if ($imageGenerationEntity->getType() === ImageGenerationType::EXPAND) {
+            // 扩图，用画布图文件名拼上 expanded_时间
+            $originalFileName = pathinfo($imageGenerationEntity->getReferenceImages()[0], PATHINFO_FILENAME);
+
+            $originalFileName = preg_replace('/_expanded_\d{14}$/', '', $originalFileName);
+            $originalFileName = preg_replace('/_\d{14}$/', '', $originalFileName);
+
+            $timestamp = date('YmdHis');
+            return $originalFileName . '_expanded_' . $timestamp;
         }
 
         // 如果 prompt 小于 10 个字符，直接使用 prompt 作为文件名

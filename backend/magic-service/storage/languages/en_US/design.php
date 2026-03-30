@@ -36,6 +36,7 @@ return [
         'reference_image' => 'Reference Image',
         'file_path' => 'File Path',
         'mark_path' => 'Mark Image Path',
+        'canvas_path' => 'Expanded Canvas Image Path',
         'mark' => 'Mark Position',
         'mark_coordinate' => 'Mark Coordinate',
     ],

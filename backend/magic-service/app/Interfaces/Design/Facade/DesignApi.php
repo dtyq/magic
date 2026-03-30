@@ -16,6 +16,7 @@ use App\Interfaces\Design\Assembler\ImageGenerationAssembler;
 use App\Interfaces\Design\DTO\ImageGenerationDTO;
 use App\Interfaces\Design\RequestForm\ConvertHighImageFormRequest;
 use App\Interfaces\Design\RequestForm\EraserFormRequest;
+use App\Interfaces\Design\RequestForm\ExpandImageFormRequest;
 use App\Interfaces\Design\RequestForm\GenerateImageFormRequest;
 use App\Interfaces\Design\RequestForm\IdentifyImageMarkFormRequest;
 use App\Interfaces\Design\RequestForm\QueryImageGenerationResultFormRequest;
@@ -156,6 +157,27 @@ class DesignApi extends AbstractApi
         $DO->setReferenceImages([$filePath, $markPath]);
 
         $resultEntity = $this->imageGenerationAppService->generateEraser($authenticatable, $DO);
+
+        return ImageGenerationAssembler::toDTO($resultEntity);
+    }
+
+    /**
+     * 扩图（扩展画布图 + mask 图，由模型填充扩展区域）.
+     */
+    public function expandImage(ExpandImageFormRequest $request)
+    {
+        $request->validateResolved();
+        $authenticatable = $this->getAuthorization();
+        $dto = new ImageGenerationDTO($request->validated());
+        $DO = ImageGenerationAssembler::toDO($dto);
+
+        $filePath = (string) $this->request->input('file_path');
+        $canvasPath = (string) $this->request->input('canvas_path');
+        $maskPath = (string) $this->request->input('mask_path');
+        // 原图、扩展画布图、mask 图依次作为三张参考图
+        $DO->setReferenceImages([$filePath, $canvasPath, $maskPath]);
+
+        $resultEntity = $this->imageGenerationAppService->generateExpandImage($authenticatable, $DO);
 
         return ImageGenerationAssembler::toDTO($resultEntity);
     }
