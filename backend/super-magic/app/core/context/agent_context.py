@@ -112,6 +112,9 @@ class AgentContext(BaseAgentContext):
 
         # 初始化中断事件通知
         self._interruption_event = asyncio.Event()
+        self._cancelable_event = asyncio.Event()
+        if self.shared_context.get_field("cancel_blocker_count") == 0:
+            self._cancelable_event.set()
         self._subagent_depth = 0
         self._subagent_parent_agent_name: Optional[str] = None
 
@@ -940,6 +943,8 @@ class AgentContext(BaseAgentContext):
         current_count = self.shared_context.get_field("cancel_blocker_count")
         new_count = current_count + 1
         self.shared_context.update_field("cancel_blocker_count", new_count)
+        if current_count == 0:
+            self._cancelable_event.clear()
         logger.info(f"增加cancel阻止计数: {current_count} -> {new_count}")
 
     def decrement_cancel_blocker(self) -> None:
@@ -947,6 +952,8 @@ class AgentContext(BaseAgentContext):
         current_count = self.shared_context.get_field("cancel_blocker_count")
         new_count = max(0, current_count - 1)  # 确保计数不会小于0
         self.shared_context.update_field("cancel_blocker_count", new_count)
+        if new_count == 0:
+            self._cancelable_event.set()
         logger.info(f"减少cancel阻止计数: {current_count} -> {new_count}")
 
         # 如果计数异常小于0，记录警告
@@ -968,6 +975,24 @@ class AgentContext(BaseAgentContext):
             int: 当前阻止cancel的操作计数
         """
         return self.shared_context.get_field("cancel_blocker_count")
+
+    async def wait_until_cancelable(
+        self,
+        timeout_s: float = _CANCEL_BLOCKER_WAIT_TIMEOUT_S,
+    ) -> bool:
+        """等待直到当前 run 可被 cancel，超时返回 False。"""
+        if self.is_cancelable():
+            return True
+
+        try:
+            await asyncio.wait_for(self._cancelable_event.wait(), timeout=timeout_s)
+            return True
+        except asyncio.TimeoutError:
+            logger.warning(
+                f"[AgentContext] cancel_blocker timeout after {timeout_s}s "
+                f"(count={self.get_cancel_blocker_count()}), proceeding"
+            )
+            return False
 
     # ====== Run-level interruption 框架 ======
 
@@ -1000,15 +1025,7 @@ class AgentContext(BaseAgentContext):
         logger.info(f"[AgentContext] stop_run started: {reason}")
 
         # 等待 cancel blocker 归零（超时后强制继续）
-        start = time.time()
-        while not self.is_cancelable():
-            if time.time() - start > _CANCEL_BLOCKER_WAIT_TIMEOUT_S:
-                logger.warning(
-                    f"[AgentContext] cancel_blocker timeout after {_CANCEL_BLOCKER_WAIT_TIMEOUT_S}s "
-                    f"(count={self.get_cancel_blocker_count()}), proceeding"
-                )
-                break
-            await asyncio.sleep(0.05)
+        await self.wait_until_cancelable()
 
         # 先 cleanup 再 cancel worker，确保业务子系统内部异步延续点先被切断
         await self._run_cleanup_registry.run_all()

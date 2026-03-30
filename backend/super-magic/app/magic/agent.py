@@ -707,57 +707,16 @@ The following <dynamic_context> block contains system-provided context informati
                     agent_context=self.agent_context,
                     final_task_state=final_task_state,
                 ))
+
     async def run(self, query: str):
         """运行 agent"""
-        self.set_agent_state(AgentState.RUNNING)
         self.agent_context.set_final_task_state(None)
         self.agent_context.set_final_response(None)
 
+        session_prep_result = await self._prepare_run_session(query)
+
+        self.set_agent_state(AgentState.RUNNING)
         logger.info(f"开始运行 agent: {self.agent_name}, id: {self.id}, query: {query}")
-
-        # 执行安全检查 (disable temporarily)
-        # query = await self._apply_safety_check(query)
-
-        # 切换到工作空间目录
-        try:
-            # 使用os.chdir()替代os.chroot()，避免需要root权限
-            workspace_dir = self.agent_context._workspace_dir
-            if os.path.exists(workspace_dir):
-                os.chdir(workspace_dir)
-                logger.info(f"已切换工作目录到: {workspace_dir}")
-            else:
-                logger.warning(f"工作空间目录不存在: {workspace_dir}")
-        except Exception as e:
-            logger.error(f"切换工作目录时出错: {e!s}")
-
-        # 构造 chat_history
-        # ChatHistory 初始化时已加载历史
-        # 检查是否需要添加 System Prompt (仅在历史为空时)
-        if not self.chat_history.messages:
-            logger.info("聊天记录为空，添加主 System Prompt")
-            await self.chat_history.append_system_message(self.system_prompt)
-
-            # 如果存在 dynamic_context_prompt，添加为第二条 user message，确保不影响第一条 system prompt 命中缓存
-            if self.dynamic_context_prompt:
-                logger.info("添加 Dynamic Context System Prompt 作为第二条 user message")
-                await self.chat_history.append_user_message(self.dynamic_context_prompt)
-
-            if self.agent_context.get_subagent_depth() > 0:
-                parent_agent_name = self.agent_context.get_subagent_parent_agent_name() or "the parent agent"
-                subagent_context_message = (
-                    "Sub-agent execution context:\n"
-                    f"- You are running as a sub-agent invoked by {parent_agent_name}.\n"
-                    "- The next visible user message is the delegated task from the parent agent, not a direct end-user chat.\n"
-                    "- Focus on completing the delegated task for the parent agent."
-                )
-                await self.chat_history.append_user_message(subagent_context_message, show_in_ui=False)
-        else:
-            # 聊天记录存在时，更新第一条 system message 为最新的 system_prompt
-            # 因为代码会更新，聊天记录不会更新，需要在 agent 每次运行时更新最新的 system prompt
-            await self.chat_history.update_first_system_prompt(self.system_prompt)
-
-        # 准备会话：处理pending工具调用和用户查询
-        session_prep_result = await self._prepare_session_for_new_query(query)
 
         # 根据 stream_mode 选择不同的 Agent Loop 方式
         try:
@@ -768,6 +727,61 @@ The following <dynamic_context> block contains system-provided context informati
         finally:
             # 任务被用户终止时，agent 协程会被 cancel 异常强制挂掉，需要在这里关闭所有资源
             await self.agent_context.close_all_resources()
+
+    async def _prepare_run_session(self, query: str) -> SessionPrepResult:
+        """准备本轮运行需要的会话状态，并保证 prepare 段完整收尾。"""
+        prepare_blocker_acquired = False
+        try:
+            # prepare 阶段要确保能完整写入会话，再进入可取消的主循环。
+            self.agent_context.increment_cancel_blocker()
+            prepare_blocker_acquired = True
+
+            # 执行安全检查 (disable temporarily)
+            # query = await self._apply_safety_check(query)
+
+            # 切换到工作空间目录
+            try:
+                # 使用os.chdir()替代os.chroot()，避免需要root权限
+                workspace_dir = self.agent_context._workspace_dir
+                if os.path.exists(workspace_dir):
+                    os.chdir(workspace_dir)
+                    logger.info(f"已切换工作目录到: {workspace_dir}")
+                else:
+                    logger.warning(f"工作空间目录不存在: {workspace_dir}")
+            except Exception as e:
+                logger.error(f"切换工作目录时出错: {e!s}")
+
+            # 构造 chat_history
+            # ChatHistory 初始化时已加载历史
+            # 检查是否需要添加 System Prompt (仅在历史为空时)
+            if not self.chat_history.messages:
+                logger.info("聊天记录为空，添加主 System Prompt")
+                await self.chat_history.append_system_message(self.system_prompt)
+
+                # 如果存在 dynamic_context_prompt，添加为第二条 user message，确保不影响第一条 system prompt 命中缓存
+                if self.dynamic_context_prompt:
+                    logger.info("添加 Dynamic Context System Prompt 作为第二条 user message")
+                    await self.chat_history.append_user_message(self.dynamic_context_prompt)
+
+                if self.agent_context.get_subagent_depth() > 0:
+                    parent_agent_name = self.agent_context.get_subagent_parent_agent_name() or "the parent agent"
+                    subagent_context_message = (
+                        "Sub-agent execution context:\n"
+                        f"- You are running as a sub-agent invoked by {parent_agent_name}.\n"
+                        "- The next visible user message is the delegated task from the parent agent, not a direct end-user chat.\n"
+                        "- Focus on completing the delegated task for the parent agent."
+                    )
+                    await self.chat_history.append_user_message(subagent_context_message, show_in_ui=False)
+            else:
+                # 聊天记录存在时，更新第一条 system message 为最新的 system_prompt
+                # 因为代码会更新，聊天记录不会更新，需要在 agent 每次运行时更新最新的 system prompt
+                await self.chat_history.update_first_system_prompt(self.system_prompt)
+
+            # 准备会话：处理pending工具调用和用户查询
+            return await self._prepare_session_for_new_query(query)
+        finally:
+            if prepare_blocker_acquired:
+                self.agent_context.decrement_cancel_blocker()
 
     async def _prepare_session_for_new_query(self, query: str) -> SessionPrepResult:
         """
