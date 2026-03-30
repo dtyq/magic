@@ -541,6 +541,21 @@ models:
       output_price: 0.0006
       currency: "CNY"
 
+  qwen3.5-plus:
+    api_key: "${QWEN_API_KEY}"
+    api_base_url: "${QWEN_API_BASE_URL:-https://dashscope.aliyuncs.com/compatible-mode/v1}"
+    name: "${QWEN3_5_PLUS_MODEL:-qwen3.5-plus}"
+    type: "llm"
+    supports_tool_use: true
+    provider: "openai"
+    max_output_tokens: 65536
+    max_context_tokens: 1000000
+    temperature: 0.7
+    pricing:
+      input_price: 0.002
+      output_price: 0.008
+      currency: "CNY"
+
   qwen-flash:
     api_key: "${MAGIC_API_KEY}"
     api_base_url: "${MAGIC_API_BASE_URL}"

@@ -84,9 +84,9 @@ AI_ABILITY_DEFAULTS: Dict[str, Dict[str, Any]] = {
 
     # Compact Ability (v1.2)
     # 上下文压缩专属模型，不配置（或配置为空）时使用主 Agent 模型
-    # 默认配置为 qwen3.5-flash；若模型配置不可用，运行时仍会回退到主 Agent 模型
+    # 默认配置为 qwen3.5-plus；若模型配置不可用，运行时仍会回退到主 Agent 模型
     AIAbility.COMPACT: {
-        "model_id": "qwen3.5-flash",
+        "model_id": "qwen3.5-plus",
         "enabled": True,
         # TODO: compact 当前未消费 enabled 开关，后续可接入统一的能力启停控制
     },
