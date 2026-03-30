@@ -315,8 +315,9 @@ class ListDir(WorkspaceTool[ListDirParams]):
             )
             return [error_node]
 
-        # 过滤隐藏文件
-        items = [item for item in items if not item.name.startswith('.')]
+        # 过滤隐藏文件，但允许 .magic 目录
+        _ALLOWED_HIDDEN = {".magic"}
+        items = [item for item in items if not item.name.startswith('.') or item.name in _ALLOWED_HIDDEN]
 
         # 过滤二进制文件
         if filter_binary:
