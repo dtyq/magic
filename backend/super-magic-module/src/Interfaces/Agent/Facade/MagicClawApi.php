@@ -280,6 +280,34 @@ class MagicClawApi extends AbstractApi
     }
 
     /**
+     * Start sandbox without deleting existing one (no image version check).
+     *
+     * @return array<string,mixed>
+     */
+    public function startSandbox(RequestContext $requestContext): array
+    {
+        $authorization = $this->getAuthorization();
+        $requestContext->setUserAuthorization($authorization);
+
+        $topicId = $this->request->input('topic_id', '');
+        if (empty($topicId)) {
+            ExceptionBuilder::throw(GenericErrorCode::ParameterMissing, 'topic_id is required');
+        }
+
+        // 权限校验：确保话题属于当前用户
+        $this->topicAppService->getTopic($requestContext, (int) $topicId);
+
+        $dataIsolation = new DataIsolation();
+        $dataIsolation->setCurrentUserId($authorization->getId());
+        $dataIsolation->setCurrentOrganizationCode($authorization->getOrganizationCode());
+        $dataIsolation->setThirdPartyOrganizationCode($authorization->getOrganizationCode());
+
+        $sandboxId = $this->agentAppService->startSandbox($dataIsolation, (int) $topicId);
+
+        return ['sandbox_id' => $sandboxId];
+    }
+
+    /**
      * Restart sandbox unconditionally (no image version check).
      *
      * @return array<string,mixed>

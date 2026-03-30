@@ -54,6 +54,24 @@ readonly class AgentAppService
     }
 
     /**
+     * 启动沙箱：直接走创建+初始化流程，不删除已有沙箱，不检查镜像版本.
+     *
+     * 正确流程：createSandbox → initAgent → waitForWorkspaceReady。
+     *
+     * @param DataIsolation $dataIsolation 数据隔离上下文
+     * @param int $topicId 话题ID（sandbox_id 即 topic_id）
+     * @return string 沙箱ID
+     */
+    public function startSandbox(DataIsolation $dataIsolation, int $topicId): string
+    {
+        $this->logger->info('[Sandbox][App] Starting sandbox via reinit (no delete)', [
+            'topic_id' => $topicId,
+        ]);
+
+        return $this->ensureSandboxInitialized($dataIsolation, $topicId);
+    }
+
+    /**
      * 重启沙箱：无条件删除旧沙箱，再走完整的创建+初始化流程，不检查镜像版本.
      *
      * 正确流程：delete → createSandbox → initAgent → waitForWorkspaceReady。
