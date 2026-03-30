@@ -174,6 +174,9 @@ func chooseContainerProxy(
 	if len(candidates) == 0 {
 		return ""
 	}
+
+	var fallback string
+
 	for _, c := range candidates {
 		if policy.RequireReachability {
 			if err := containerProxyConnectivityProbe(ctx, c); err != nil {
@@ -181,14 +184,25 @@ func chooseContainerProxy(
 				continue
 			}
 		}
+
 		if err := containerProxyEgressProbe(ctx, c); err != nil {
 			log.Logw("deploy", "%s", err)
-			if policy.RequireEgress {
-				continue
+			// Record as fallback only when egress is not strictly required.
+			if !policy.RequireEgress && fallback == "" {
+				fallback = c
 			}
+			continue
 		}
+
+		// Both reachability (if required) and egress passed — optimal candidate.
 		return c
 	}
+
+	if !policy.RequireEgress && fallback != "" {
+		log.Logw("deploy", "using fallback container proxy (egress probe failed for all candidates)")
+		return fallback
+	}
+
 	log.Logw("deploy", "no usable container proxy candidate found; container proxy disabled")
 	return ""
 }

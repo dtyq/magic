@@ -545,6 +545,118 @@ func TestResolveContainerProxy_PolicyCombinations_CancelledContext(t *testing.T)
 	}
 }
 
+// TestChooseContainerProxy_MultipleCandidates_FirstEgressFail_SecondEgressOk
+// verifies that when the first candidate passes reachability but fails egress,
+// and the second candidate passes both, the second candidate is selected.
+func TestChooseContainerProxy_MultipleCandidates_FirstEgressFail_SecondEgressOk(t *testing.T) {
+	origConn := containerProxyConnectivityProbe
+	origEgress := containerProxyEgressProbe
+	t.Cleanup(func() {
+		containerProxyConnectivityProbe = origConn
+		containerProxyEgressProbe = origEgress
+	})
+
+	// Both candidates pass reachability.
+	containerProxyConnectivityProbe = func(context.Context, string) error { return nil }
+
+	// Track which candidates egress probe sees.
+	egressCalls := []string{}
+	containerProxyEgressProbe = func(_ context.Context, candidate string) error {
+		egressCalls = append(egressCalls, candidate)
+		// First candidate fails egress, second succeeds.
+		if len(egressCalls) == 1 {
+			return errors.New("simulated egress failure for first candidate")
+		}
+		return nil
+	}
+
+	// Use loopback hostProxy to produce multiple candidates.
+	ctx := context.Background()
+	got := chooseContainerProxy(ctx, nolog(), "http://127.0.0.1:7897", "", ProxyPolicyConfig{
+		RequireReachability: true,
+		RequireEgress:       false,
+	})
+	// With the new fallback logic, the second candidate (which passes egress)
+	// must be selected instead of the first (which fails egress).
+	assert.NotEmpty(t, got, "should select a candidate")
+	assert.Equal(t, 2, len(egressCalls), "should have probed both candidates")
+	// The returned candidate must NOT be the first one probed (which failed egress).
+	assert.NotEqual(t, egressCalls[0], got,
+		"must not return the first candidate whose egress failed")
+}
+
+// TestChooseContainerProxy_AllEgressFail_RequireEgressFalse_Fallback
+// verifies that when all candidates fail egress and RequireEgress=false,
+// the first candidate that passed reachability is returned as fallback.
+func TestChooseContainerProxy_AllEgressFail_RequireEgressFalse_Fallback(t *testing.T) {
+	origConn := containerProxyConnectivityProbe
+	origEgress := containerProxyEgressProbe
+	t.Cleanup(func() {
+		containerProxyConnectivityProbe = origConn
+		containerProxyEgressProbe = origEgress
+	})
+
+	containerProxyConnectivityProbe = func(context.Context, string) error { return nil }
+	containerProxyEgressProbe = func(context.Context, string) error {
+		return errors.New("simulated egress failure")
+	}
+
+	ctx := context.Background()
+	got := chooseContainerProxy(ctx, nolog(), "http://127.0.0.1:7897", "", ProxyPolicyConfig{
+		RequireReachability: true,
+		RequireEgress:       false,
+	})
+	assert.NotEmpty(t, got, "RequireEgress=false: should fallback to first reachable candidate")
+}
+
+// TestChooseContainerProxy_AllEgressFail_RequireEgressTrue_ReturnsEmpty
+// verifies that when all candidates fail egress and RequireEgress=true,
+// no candidate is returned (fallback disabled).
+func TestChooseContainerProxy_AllEgressFail_RequireEgressTrue_ReturnsEmpty(t *testing.T) {
+	origConn := containerProxyConnectivityProbe
+	origEgress := containerProxyEgressProbe
+	t.Cleanup(func() {
+		containerProxyConnectivityProbe = origConn
+		containerProxyEgressProbe = origEgress
+	})
+
+	containerProxyConnectivityProbe = func(context.Context, string) error { return nil }
+	containerProxyEgressProbe = func(context.Context, string) error {
+		return errors.New("simulated egress failure")
+	}
+
+	ctx := context.Background()
+	got := chooseContainerProxy(ctx, nolog(), "http://127.0.0.1:7897", "", ProxyPolicyConfig{
+		RequireReachability: true,
+		RequireEgress:       true,
+	})
+	assert.Empty(t, got, "RequireEgress=true: must not fallback when all egress probes fail")
+}
+
+// TestChooseContainerProxy_SingleCandidate_EgressFail_RequireEgressFalse_Fallback
+// verifies single-candidate fallback (same as legacy behavior).
+func TestChooseContainerProxy_SingleCandidate_EgressFail_RequireEgressFalse_Fallback(t *testing.T) {
+	origConn := containerProxyConnectivityProbe
+	origEgress := containerProxyEgressProbe
+	t.Cleanup(func() {
+		containerProxyConnectivityProbe = origConn
+		containerProxyEgressProbe = origEgress
+	})
+
+	containerProxyConnectivityProbe = func(context.Context, string) error { return nil }
+	containerProxyEgressProbe = func(context.Context, string) error {
+		return errors.New("simulated egress failure")
+	}
+
+	ctx := context.Background()
+	const proxy = "http://10.10.10.10:7897"
+	got := chooseContainerProxy(ctx, nolog(), proxy, "", ProxyPolicyConfig{
+		RequireReachability: false,
+		RequireEgress:       false,
+	})
+	assert.Equal(t, proxy, got, "single candidate with RequireEgress=false must still be returned as fallback")
+}
+
 // ── patchConfigProxySection ──────────────────────────────────────────────────
 
 func TestPatchConfigProxySection_NoInput_FileUnchanged(t *testing.T) {
