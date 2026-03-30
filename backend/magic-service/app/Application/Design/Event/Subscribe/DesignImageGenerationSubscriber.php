@@ -179,6 +179,7 @@ class DesignImageGenerationSubscriber implements ListenerInterface
 
                     $response = di(ImageLLMAppService::class)->imageConvertHighV2($imageConvertHighReq);
                     return;
+                case ImageGenerationType::REMOVE_BACKGROUND:
                 case ImageGenerationType::IMAGE_TO_IMAGE:
                 case ImageGenerationType::TEXT_TO_IMAGE:
                     // 调用第三方接口生成图片
@@ -274,6 +275,18 @@ class DesignImageGenerationSubscriber implements ListenerInterface
 
             $timestamp = date('YmdHis');
             return $originalFileName . '_high_' . $timestamp;
+        }
+
+        if ($imageGenerationEntity->getType() === ImageGenerationType::REMOVE_BACKGROUND) {
+            // 如果是去背景，用原来的文件名拼上 no_bg_时间
+            $originalFileName = pathinfo($imageGenerationEntity->getReferenceImages()[0], PATHINFO_FILENAME);
+
+            // 如果文件名已经包含时间戳，先去掉
+            $originalFileName = preg_replace('/_no_bg_\d{14}$/', '', $originalFileName);
+            $originalFileName = preg_replace('/_\d{14}$/', '', $originalFileName);
+
+            $timestamp = date('YmdHis');
+            return $originalFileName . '_no_bg_' . $timestamp;
         }
 
         // 如果 prompt 小于 10 个字符，直接使用 prompt 作为文件名

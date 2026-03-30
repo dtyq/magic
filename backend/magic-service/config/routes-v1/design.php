@@ -23,5 +23,8 @@ Router::addGroup('/api/v1', static function () {
 
         // 获取图片转高清配置信息
         Router::get('/convert-high/config', [DesignApi::class, 'imageConvertHighConfig']);
+
+        // 去背景
+        Router::post('/remove-background', [DesignApi::class, 'removeBackground']);
     }, ['middleware' => [RequestContextMiddleware::class]]);
 });

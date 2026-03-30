@@ -46,9 +46,17 @@ class ImageGenerationAppService extends DesignAppService
         // 判断是否具有该项目的权限
         $this->validateRoleHigherOrEqual($dataIsolation, $project, MemberRole::EDITOR);
 
-        // 前端传入的是相对路径，需要拼接成完整路径进行验证
-        $relativeFileDir = $entity->getFileDir();
         $filePrefix = $this->fileDomainService->getFullPrefix($dataIsolation->getCurrentOrganizationCode());
+        $workspacePrefix = PathFactory::getWorkspacePrefix($filePrefix, $project->getId());
+
+        // 兼容传入完整路径的场景：若已包含工作区前缀，剥离后转为相对路径
+        $fileDir = $entity->getFileDir();
+        if (str_starts_with($fileDir, $workspacePrefix)) {
+            $fileDir = substr($fileDir, strlen($workspacePrefix));
+            $entity->setFileDir($fileDir);
+        }
+
+        $relativeFileDir = $entity->getFileDir();
         $fullFileDir = $entity->getFullFileDir($filePrefix);
 
         // 检查当前目录是否存在
@@ -58,16 +66,25 @@ class ImageGenerationAppService extends DesignAppService
         }
         $entity->setFileDirId($taskFileDir->getFileId());
 
-        // 检查引用图片是否存在（前端传入的也是相对路径，需要拼接成完整路径验证）
+        // 检查引用图片是否存在，同样兼容完整路径
         $referenceImages = $entity->getReferenceImages() ?? [];
+        $normalizedReferenceImages = [];
         foreach ($referenceImages as $referenceImage) {
-            // 拼接完整路径进行验证
-            $fullReferenceImage = PathFactory::getWorkspacePrefix($filePrefix, $project->getId()) . $referenceImage;
+            // 若已包含工作区前缀，剥离后转为相对路径
+            if (str_starts_with($referenceImage, $workspacePrefix)) {
+                $referenceImage = substr($referenceImage, strlen($workspacePrefix));
+            }
+            $normalizedReferenceImages[] = $referenceImage;
+            $fullReferenceImage = $workspacePrefix . $referenceImage;
 
             $taskFile = $this->taskFileDomainService->getByFileKey($fullReferenceImage);
             if (! $taskFile || $taskFile->getIsDirectory()) {
                 ExceptionBuilder::throw(DesignErrorCode::InvalidArgument, 'design.image_generation.reference_image_not_exists', ['file_key' => $referenceImage]);
             }
+        }
+        // 将归一化后的相对路径写回实体，保证后续 subscriber 正确拼接
+        if (! empty($normalizedReferenceImages)) {
+            $entity->setReferenceImages($normalizedReferenceImages);
         }
 
         $this->domainService->createTask($dataIsolation, $entity);
@@ -81,6 +98,18 @@ class ImageGenerationAppService extends DesignAppService
         $entity->setPrompt('');
         // 先临时使用一个 model_id，在任务执行完成后，会修改这个值
         $entity->setModelId('design_image_high');
+
+        // 复用生图逻辑，使用同一个表来完成
+        return $this->generateImage($authenticatable, $entity);
+    }
+
+    /**
+     * 去背景（将传入图片作为参考图，注入固定去背景提示词进行图生图）.
+     */
+    public function generateRemoveBackground(Authenticatable $authenticatable, ImageGenerationEntity $entity): ImageGenerationEntity
+    {
+        $entity->setType(ImageGenerationType::REMOVE_BACKGROUND);
+        $entity->setPrompt('Remove the background from this image. Make the background completely transparent. Keep the main subject perfectly intact with clean, sharp edges.');
 
         // 复用生图逻辑，使用同一个表来完成
         return $this->generateImage($authenticatable, $entity);

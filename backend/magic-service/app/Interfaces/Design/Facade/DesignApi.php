@@ -18,6 +18,7 @@ use App\Interfaces\Design\RequestForm\ConvertHighImageFormRequest;
 use App\Interfaces\Design\RequestForm\GenerateImageFormRequest;
 use App\Interfaces\Design\RequestForm\IdentifyImageMarkFormRequest;
 use App\Interfaces\Design\RequestForm\QueryImageGenerationResultFormRequest;
+use App\Interfaces\Design\RequestForm\RemoveBackgroundFormRequest;
 use Dtyq\ApiResponse\Annotation\ApiResponse;
 use Hyperf\Di\Annotation\Inject;
 
@@ -136,6 +137,25 @@ class DesignApi extends AbstractApi
         }
 
         return $response;
+    }
+
+    /**
+     * 去背景.
+     */
+    public function removeBackground(RemoveBackgroundFormRequest $request)
+    {
+        $request->validateResolved();
+        $authenticatable = $this->getAuthorization();
+        $dto = new ImageGenerationDTO($request->validated());
+        $DO = ImageGenerationAssembler::toDO($dto);
+
+        $filePath = (string) $this->request->input('file_path');
+        // 将源图片路径设置为参考图
+        $DO->setReferenceImages([$filePath]);
+
+        $resultEntity = $this->imageGenerationAppService->generateRemoveBackground($authenticatable, $DO);
+
+        return ImageGenerationAssembler::toDTO($resultEntity);
     }
 
     /**

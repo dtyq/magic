@@ -9,6 +9,7 @@ use App\ErrorCode\AppMenuErrorCode;
 use App\ErrorCode\AsrErrorCode;
 use App\ErrorCode\AuthenticationErrorCode;
 use App\ErrorCode\ChatErrorCode;
+use App\ErrorCode\DesignErrorCode;
 use App\ErrorCode\EventErrorCode;
 use App\ErrorCode\FlowErrorCode;
 use App\ErrorCode\GenericErrorCode;
@@ -51,5 +52,6 @@ return [
         AppMenuErrorCode::class => [46000, 46999],
         MCPErrorCode::class => [51500, 51599],
         SuperMagicErrorCode::class => [60000, 60999],
+        DesignErrorCode::class => [14000, 14999],
     ],
 ];

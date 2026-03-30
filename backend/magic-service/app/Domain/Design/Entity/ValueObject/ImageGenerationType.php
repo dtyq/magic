@@ -30,6 +30,11 @@ enum ImageGenerationType: int
     case UPSCALE = 3;
 
     /**
+     * 去背景.
+     */
+    case REMOVE_BACKGROUND = 4;
+
+    /**
      * 获取所有类型值
      */
     public static function values(): array
