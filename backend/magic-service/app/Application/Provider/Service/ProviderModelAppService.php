@@ -58,7 +58,10 @@ class ProviderModelAppService extends AbstractProviderAppService
                 $model->setName($model->getModelId());
             }
 
-            $providerModelDetailDTOs[] = new ProviderModelItemDTO($model->toArray());
+            $providerModelItemDTO = new ProviderModelItemDTO($model->toArray());
+            var_dump($model);
+            $providerModelItemDTO->setImageSizeConfig($this->getImageSizeConfig($model));
+            $providerModelDetailDTOs[] = $providerModelItemDTO;
         }
 
         return [
