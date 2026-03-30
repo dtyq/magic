@@ -54,6 +54,19 @@ const TestConnection = forwardRef<TestConnectionRef, TestConnectionProps>(
 
 		/* 测试连接 */
 		const checkConnection = useMemoizedFn(async (model?: AiManage.ModelInfo) => {
+			// 能力连通性：直接调回调，无需二次确认
+			if (type === TestConnectionType.Power && connectOk) {
+				try {
+					setLoading(true)
+					setTestResult(await connectOk())
+				} catch (error) {
+					console.error("测试连接失败", error)
+				} finally {
+					setLoading(false)
+				}
+				return
+			}
+
 			openModal(WarningModal, {
 				open: true,
 				title: t("testConnection"),
@@ -70,28 +83,19 @@ const TestConnection = forwardRef<TestConnectionRef, TestConnectionProps>(
 				},
 				okText: tCommon("button.confirm"),
 				onOk: async () => {
+					if (type !== TestConnectionType.Model || !model) return
+
 					try {
 						setLoading(true)
-						/** 模型连通性测试 */
-						if (type === TestConnectionType.Model && model) {
-							const params = {
-								service_provider_config_id: model.service_provider_config_id,
-								model_version: model.model_version,
-								model_id: model.id,
-							}
-							const result = isOfficialOrg
-								? await AIManageApi.testConnection(params)
-								: await AIManageApi.testConnectionNonOfficial(params)
-
-							setTestResult(result)
-							return
+						const params = {
+							service_provider_config_id: model.service_provider_config_id,
+							model_version: model.model_version,
+							model_id: model.id,
 						}
-						/** 能力连通性测试 */
-						if (type === TestConnectionType.Power && connectOk) {
-							const result = await connectOk()
-							setTestResult(result)
-							return
-						}
+						const result = isOfficialOrg
+							? await AIManageApi.testConnection(params)
+							: await AIManageApi.testConnectionNonOfficial(params)
+						setTestResult(result)
 					} catch (error) {
 						console.error("测试连接失败", error)
 					} finally {
