@@ -604,13 +604,14 @@ class TopicTaskAppService extends AbstractAppService
 
     /**
      * Ingest a third-party user message through the shared task creation flow.
+     * Only persists the message and pushes it to IM; does NOT deliver to the agent queue.
      */
     public function ingestThirdPartyMessage(
         DataIsolation $dataIsolation,
         CreateTaskRequestDTO $requestDTO,
         array $source
     ): array {
-        return $this->createTaskByDataIsolation($dataIsolation, $requestDTO, $source);
+        return $this->createTaskByDataIsolation($dataIsolation, $requestDTO, $source, deliverToQueue: false);
     }
 
     /**
@@ -698,7 +699,8 @@ class TopicTaskAppService extends AbstractAppService
     private function createTaskByDataIsolation(
         DataIsolation $dataIsolation,
         CreateTaskRequestDTO $requestDTO,
-        ?array $source = null
+        ?array $source = null,
+        bool $deliverToQueue = true
     ): array {
         $preparedRequestDTO = $this->createTaskRequestDTOWithSource($requestDTO, $source);
 
@@ -754,14 +756,16 @@ class TopicTaskAppService extends AbstractAppService
                 $source
             );
 
-            $this->deliverMessageToQueue(
-                $dataIsolation,
-                $topicEntity,
-                $taskEntity,
-                $preparedRequestDTO,
-                $persistResult['agentUserId'],
-                $persistResult['extraData']
-            );
+            if ($deliverToQueue) {
+                $this->deliverMessageToQueue(
+                    $dataIsolation,
+                    $topicEntity,
+                    $taskEntity,
+                    $preparedRequestDTO,
+                    $persistResult['agentUserId'],
+                    $persistResult['extraData']
+                );
+            }
 
             return [
                 'task_id' => (string) $taskEntity->getId(),
