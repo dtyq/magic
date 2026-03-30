@@ -54,7 +54,38 @@ readonly class AgentAppService
     }
 
     /**
-     * 升级沙箱：先删除旧沙箱，再走完整的创建+初始化流程.
+     * 重启沙箱：无条件删除旧沙箱，再走完整的创建+初始化流程，不检查镜像版本.
+     *
+     * 正确流程：delete → createSandbox → initAgent → waitForWorkspaceReady。
+     *
+     * @param DataIsolation $dataIsolation 数据隔离上下文
+     * @param int $topicId 话题ID（sandbox_id 即 topic_id）
+     * @return string 沙箱ID
+     */
+    public function restartSandbox(DataIsolation $dataIsolation, int $topicId): string
+    {
+        $this->logger->info('[Sandbox][App] Restarting sandbox via delete + reinit', [
+            'topic_id' => $topicId,
+        ]);
+
+        // 删除旧沙箱，如果已不存在则忽略错误继续重建
+        try {
+            $this->agentDomainService->stopSandbox((string) $topicId);
+            $this->logger->info('[Sandbox][App] Old sandbox deleted for restart', [
+                'sandbox_id' => $topicId,
+            ]);
+        } catch (Throwable $e) {
+            $this->logger->warning('[Sandbox][App] Failed to delete sandbox during restart (may not exist), proceeding with reinit', [
+                'sandbox_id' => $topicId,
+                'error' => $e->getMessage(),
+            ]);
+        }
+
+        return $this->ensureSandboxInitialized($dataIsolation, $topicId);
+    }
+
+    /**
+     * 升级沙箱：检查镜像版本，有新版本时才执行重启+重建流程.
      *
      * 不直接调用网关 upgrade 接口，原因是 upgrade 接口跳过了 initAgent + waitForWorkspaceReady 步骤。
      * 正确流程：delete → createSandbox → initAgent → waitForWorkspaceReady。
@@ -69,20 +100,18 @@ readonly class AgentAppService
             'topic_id' => $topicId,
         ]);
 
-        // 删除旧沙箱，如果已不存在则忽略错误继续重建
-        try {
-            $this->agentDomainService->stopSandbox((string) $topicId);
-            $this->logger->info('[Sandbox][App] Old sandbox deleted for upgrade', [
-                'sandbox_id' => $topicId,
+        // 检查当前沙箱镜像与最新 agent 镜像是否一致，一致则无需升级
+        $versionInfo = $this->sandboxVersionDomainService->checkSandboxVersion($topicId);
+        if (! $versionInfo['needs_update']) {
+            $this->logger->info('[Sandbox][App] Sandbox image is already up-to-date, skipping upgrade', [
+                'topic_id' => $topicId,
+                'current_version' => $versionInfo['current_version'],
+                'latest_version' => $versionInfo['latest_version'],
             ]);
-        } catch (Throwable $e) {
-            $this->logger->warning('[Sandbox][App] Failed to delete sandbox during upgrade (may not exist), proceeding with reinit', [
-                'sandbox_id' => $topicId,
-                'error' => $e->getMessage(),
-            ]);
+            return (string) $topicId;
         }
 
-        return $this->ensureSandboxInitialized($dataIsolation, $topicId);
+        return $this->restartSandbox($dataIsolation, $topicId);
     }
 
     /**

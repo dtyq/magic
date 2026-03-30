@@ -79,6 +79,7 @@ Router::addGroup('/api/v1/magic-claw', static function () {
     Router::addGroup('/sandbox', static function () {
         Router::get('/status', [MagicClawApi::class, 'getSandboxStatus']);
         Router::delete('', [MagicClawApi::class, 'stopSandbox']);
+        Router::put('/restart', [MagicClawApi::class, 'restartSandbox']);
         Router::put('/upgrade', [MagicClawApi::class, 'upgradeSandbox']);
         Router::get('/version-check', [MagicClawApi::class, 'checkSandboxVersion']);
     });
