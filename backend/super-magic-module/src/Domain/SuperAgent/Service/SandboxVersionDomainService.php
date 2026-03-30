@@ -43,6 +43,11 @@ readonly class SandboxVersionDomainService
             ExceptionBuilder::throw(SuperAgentErrorCode::TOPIC_NOT_FOUND, 'topic.topic_not_found');
         }
 
+        // 沙箱尚未创建（无 sandbox_id）时不需要升级
+        if (empty($topicEntity->getSandboxId())) {
+            return $this->buildSandboxVersionResult('', '');
+        }
+
         return $this->buildSandboxVersionResult(
             $topicEntity->getAgentImage() ?? '',
             $this->getLatestAgentImageWithCache()
@@ -73,6 +78,11 @@ readonly class SandboxVersionDomainService
         $latestImage = $this->getLatestAgentImageWithCache();
         $needUpgradeMap = [];
         foreach ($topics as $topic) {
+            // 沙箱尚未创建（无 sandbox_id）时不需要升级
+            if (empty($topic->getSandboxId())) {
+                $needUpgradeMap[$topic->getId()] = false;
+                continue;
+            }
             $needUpgradeMap[$topic->getId()] = $this->buildSandboxVersionResult(
                 $topic->getAgentImage() ?? '',
                 $latestImage
