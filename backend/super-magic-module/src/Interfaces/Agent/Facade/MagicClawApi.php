@@ -266,24 +266,17 @@ class MagicClawApi extends AbstractApi
             ExceptionBuilder::throw(GenericErrorCode::ParameterMissing, 'topic_id is required');
         }
 
-        $topic = $this->topicAppService->getTopic($requestContext, (int) $topicId);
-        $sandboxId = $topic->getSandboxId();
-
-        if (empty($sandboxId)) {
-            ExceptionBuilder::throw(GenericErrorCode::ParameterMissing, 'sandbox_id is required');
-        }
-
-        $project = $this->projectAppService->getProjectNotUserId((int) $topic->getProjectId());
-        $workDir = $project->getWorkDir() ?? '';
+        // 权限校验：确保话题属于当前用户
+        $this->topicAppService->getTopic($requestContext, (int) $topicId);
 
         $dataIsolation = new DataIsolation();
         $dataIsolation->setCurrentUserId($authorization->getId());
         $dataIsolation->setCurrentOrganizationCode($authorization->getOrganizationCode());
         $dataIsolation->setThirdPartyOrganizationCode($authorization->getOrganizationCode());
 
-        $result = $this->agentAppService->upgradeSandbox($dataIsolation, $sandboxId, (string) $topic->getProjectId(), $workDir);
+        $sandboxId = $this->agentAppService->upgradeSandbox($dataIsolation, (int) $topicId);
 
-        return $result->toArray();
+        return ['sandbox_id' => $sandboxId];
     }
 
     /**

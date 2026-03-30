@@ -21,6 +21,7 @@ use Dtyq\SuperMagic\Infrastructure\ExternalAPI\SandboxOS\Gateway\Result\GatewayR
 use Dtyq\SuperMagic\Infrastructure\ExternalAPI\SandboxOS\Gateway\Result\SandboxStatusResult;
 use Hyperf\Logger\LoggerFactory;
 use Psr\Log\LoggerInterface;
+use Throwable;
 
 /**
  * Agent应用服务
@@ -53,17 +54,35 @@ readonly class AgentAppService
     }
 
     /**
-     * 升级沙箱到最新 Agent 镜像.
+     * 升级沙箱：先删除旧沙箱，再走完整的创建+初始化流程.
+     *
+     * 不直接调用网关 upgrade 接口，原因是 upgrade 接口跳过了 initAgent + waitForWorkspaceReady 步骤。
+     * 正确流程：delete → createSandbox → initAgent → waitForWorkspaceReady。
      *
      * @param DataIsolation $dataIsolation 数据隔离上下文
-     * @param string $sandboxId 沙箱ID
-     * @param string $projectId 项目ID
-     * @param string $workDir 工作目录（项目 OSS 路径）
-     * @return GatewayResult 升级结果，data 包含 sandbox_id、pod_name、namespace、agent_image
+     * @param int $topicId 话题ID（sandbox_id 即 topic_id）
+     * @return string 沙箱ID
      */
-    public function upgradeSandbox(DataIsolation $dataIsolation, string $sandboxId, string $projectId, string $workDir): GatewayResult
+    public function upgradeSandbox(DataIsolation $dataIsolation, int $topicId): string
     {
-        return $this->agentDomainService->upgradeSandbox($dataIsolation, $sandboxId, $projectId, $workDir);
+        $this->logger->info('[Sandbox][App] Upgrading sandbox via delete + reinit', [
+            'topic_id' => $topicId,
+        ]);
+
+        // 删除旧沙箱，如果已不存在则忽略错误继续重建
+        try {
+            $this->agentDomainService->stopSandbox((string) $topicId);
+            $this->logger->info('[Sandbox][App] Old sandbox deleted for upgrade', [
+                'sandbox_id' => $topicId,
+            ]);
+        } catch (Throwable $e) {
+            $this->logger->warning('[Sandbox][App] Failed to delete sandbox during upgrade (may not exist), proceeding with reinit', [
+                'sandbox_id' => $topicId,
+                'error' => $e->getMessage(),
+            ]);
+        }
+
+        return $this->ensureSandboxInitialized($dataIsolation, $topicId);
     }
 
     /**
