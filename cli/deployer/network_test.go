@@ -2,8 +2,10 @@ package deployer
 
 import (
 	"context"
+	"errors"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 
@@ -347,6 +349,79 @@ func TestBuildContainerProxyCandidates_ExplicitContainerOnly(t *testing.T) {
 	assert.Equal(t, "http://proxy.example.com:8888", candidates[0])
 }
 
+// TestBuildContainerProxyCandidates_LinuxLoopback_Priority asserts Linux loopback
+// order: bridge gateway (if discoverable) → host.docker.internal → original loopback.
+func TestBuildContainerProxyCandidates_LinuxLoopback_Priority(t *testing.T) {
+	if runtime.GOOS != "linux" {
+		t.Skip("Linux-only container proxy candidate ordering")
+	}
+	const host = "http://127.0.0.1:7897"
+	candidates := buildContainerProxyCandidates(context.Background(), host, "")
+	require.GreaterOrEqual(t, len(candidates), 2, "expect at least host.docker.internal + original loopback")
+	assert.Equal(t, host, candidates[len(candidates)-1], "original loopback must be last on Linux")
+
+	switch len(candidates) {
+	case 2:
+		assert.Contains(t, candidates[0], "host.docker.internal", "without bridge gateway, host.docker.internal is first")
+	case 3:
+		assert.NotContains(t, candidates[0], "host.docker.internal", "first candidate should be bridge gateway, not docker.internal")
+		assert.Contains(t, candidates[1], "host.docker.internal")
+	default:
+		t.Fatalf("unexpected candidate count %d: %v", len(candidates), candidates)
+	}
+}
+
+// TestBuildContainerProxyCandidates_LinuxLoopback_LocalhostAndIPv6SameDerivedPrefix
+// asserts localhost and [::1] take the same derived-candidate prefix as 127.0.0.1
+// (gateway / host.docker.internal slots identical; only the final loopback URL differs).
+func TestBuildContainerProxyCandidates_LinuxLoopback_LocalhostAndIPv6SameDerivedPrefix(t *testing.T) {
+	if runtime.GOOS != "linux" {
+		t.Skip("Linux-only loopback derivation parity")
+	}
+	ctx := context.Background()
+	ref := buildContainerProxyCandidates(ctx, "http://127.0.0.1:7897", "")
+	require.GreaterOrEqual(t, len(ref), 2, "expect host.docker.internal + original loopback at minimum")
+
+	for _, hostURL := range []string{"http://localhost:7897", "http://[::1]:7897"} {
+		got := buildContainerProxyCandidates(ctx, hostURL, "")
+		require.Equal(t, len(ref), len(got), "candidate count must match 127.0.0.1 for %q", hostURL)
+		for i := 0; i < len(got)-1; i++ {
+			assert.Equal(t, ref[i], got[i], "derived prefix index %d must match 127.0.0.1 baseline for %q", i, hostURL)
+		}
+		assert.Equal(t, hostURL, got[len(got)-1], "last candidate must be the original host URL for %q", hostURL)
+	}
+}
+
+// TestBuildContainerProxyCandidates_DarwinWindows_Loopback_Order documents platform
+// ordering: original loopback first, then host.docker.internal, then bridge gateway when present.
+func TestBuildContainerProxyCandidates_DarwinWindows_Loopback_Order(t *testing.T) {
+	if runtime.GOOS != "darwin" && runtime.GOOS != "windows" {
+		t.Skip("darwin/windows-only container proxy candidate ordering")
+	}
+	const host = "http://127.0.0.1:7897"
+	candidates := buildContainerProxyCandidates(context.Background(), host, "")
+	require.GreaterOrEqual(t, len(candidates), 2, "expect at least original loopback + host.docker.internal")
+	assert.Equal(t, host, candidates[0], "original loopback must be first on darwin/windows")
+	assert.Contains(t, candidates[1], "host.docker.internal", "second slot is host.docker.internal")
+	switch len(candidates) {
+	case 2:
+		// no bridge gateway discovered
+	case 3:
+		assert.NotContains(t, candidates[2], "host.docker.internal", "third slot should be bridge gateway, not docker.internal")
+	default:
+		t.Fatalf("unexpected candidate count %d: %v", len(candidates), candidates)
+	}
+}
+
+func TestIsLoopbackHost_Localhost127AndIPv6(t *testing.T) {
+	assert.True(t, isLoopbackHost("127.0.0.1"))
+	assert.True(t, isLoopbackHost("LOCALHOST"))
+	assert.True(t, isLoopbackHost("::1"))
+	assert.True(t, isLoopbackHost("  ::1  "))
+	assert.False(t, isLoopbackHost("host.docker.internal"))
+	assert.False(t, isLoopbackHost("10.0.0.1"))
+}
+
 // ── chooseContainerProxy ─────────────────────────────────────────────────────
 
 func TestChooseContainerProxy_ReachabilityRequired_AllFail_ReturnsEmpty(t *testing.T) {
@@ -373,6 +448,101 @@ func TestChooseContainerProxy_ReachabilityFalse_AllowsUnreachableCandidate(t *te
 	)
 	// At least one candidate exists; with no reachability check it should be returned.
 	assert.NotEmpty(t, got)
+}
+
+// TestChooseContainerProxy_ReachabilityOkEgressFail_PolicyEgress distinguishes
+// RequireEgress when reachability passes but egress fails (injected probes).
+func TestChooseContainerProxy_ReachabilityOkEgressFail_PolicyEgress(t *testing.T) {
+	origConn := containerProxyConnectivityProbe
+	origEgress := containerProxyEgressProbe
+	t.Cleanup(func() {
+		containerProxyConnectivityProbe = origConn
+		containerProxyEgressProbe = origEgress
+	})
+	containerProxyConnectivityProbe = func(context.Context, string) error { return nil }
+	containerProxyEgressProbe = func(context.Context, string) error {
+		return errors.New("simulated egress failure")
+	}
+
+	ctx := context.Background()
+	const proxy = "http://10.10.10.10:7897" // single non-loopback candidate
+
+	got := chooseContainerProxy(ctx, nolog(), proxy, "", ProxyPolicyConfig{
+		RequireReachability: true,
+		RequireEgress:       false,
+	})
+	assert.Equal(t, proxy, got, "RequireEgress=false: egress failure must not block selection")
+
+	got = chooseContainerProxy(ctx, nolog(), proxy, "", ProxyPolicyConfig{
+		RequireReachability: true,
+		RequireEgress:       true,
+	})
+	assert.Empty(t, got, "RequireEgress=true: egress failure must yield no candidate")
+}
+
+// TestChooseContainerProxy_PolicyCombinations_CancelledContext locks policy behaviour
+// when Docker probes fail immediately: reachability required → no candidate;
+// reachability optional → first candidate despite failed egress when RequireEgress=false.
+func TestChooseContainerProxy_PolicyCombinations_CancelledContext(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+
+	tests := []struct {
+		name      string
+		rr, re    bool
+		wantEmpty bool
+	}{
+		{"requireReachability_true_requireEgress_false", true, false, true},
+		{"requireReachability_true_requireEgress_true", true, true, true},
+		{"requireReachability_false_requireEgress_false", false, false, false},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := chooseContainerProxy(
+				ctx, nolog(),
+				"http://127.0.0.1:7897", "",
+				ProxyPolicyConfig{RequireReachability: tt.rr, RequireEgress: tt.re},
+			)
+			if tt.wantEmpty {
+				assert.Empty(t, got)
+			} else {
+				assert.NotEmpty(t, got)
+			}
+		})
+	}
+}
+
+// TestResolveContainerProxy_PolicyCombinations_CancelledContext mirrors chooseContainerProxy
+// expectations through the public resolve path (normalized loopback host).
+func TestResolveContainerProxy_PolicyCombinations_CancelledContext(t *testing.T) {
+	clearAllProxyEnv(t)
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+
+	tests := []struct {
+		name      string
+		rr, re    bool
+		wantEmpty bool
+	}{
+		{"requireReachability_true_requireEgress_false", true, false, true},
+		{"requireReachability_true_requireEgress_true", true, true, true},
+		{"requireReachability_false_requireEgress_false", false, false, false},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			cfg := ProxyConfig{
+				Enabled: true,
+				Host:    ProxyEndpointConfig{URL: "http://127.0.0.1:7897"},
+				Policy:  ProxyPolicyConfig{RequireReachability: tt.rr, RequireEgress: tt.re},
+			}
+			got := resolveContainerProxy(ctx, nolog(), cfg)
+			if tt.wantEmpty {
+				assert.Empty(t, got)
+			} else {
+				assert.NotEmpty(t, got)
+			}
+		})
+	}
 }
 
 // ── patchConfigProxySection ──────────────────────────────────────────────────

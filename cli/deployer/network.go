@@ -176,12 +176,12 @@ func chooseContainerProxy(
 	}
 	for _, c := range candidates {
 		if policy.RequireReachability {
-			if err := checkContainerProxyConnectivity(ctx, c); err != nil {
+			if err := containerProxyConnectivityProbe(ctx, c); err != nil {
 				log.Logw("deploy", "%s", err)
 				continue
 			}
 		}
-		if err := checkContainerProxyEgress(ctx, c); err != nil {
+		if err := containerProxyEgressProbe(ctx, c); err != nil {
 			log.Logw("deploy", "%s", err)
 			if policy.RequireEgress {
 				continue
@@ -214,9 +214,9 @@ func buildContainerProxyCandidates(ctx context.Context, hostProxy, containerProx
 	if strings.TrimSpace(hostProxy) == "" {
 		return candidates
 	}
-	appendUnique(hostProxy)
 	parsedHost, err := url.Parse(hostProxy)
 	if err != nil || parsedHost.Hostname() == "" || !isLoopbackHost(parsedHost.Hostname()) {
+		appendUnique(hostProxy)
 		return candidates
 	}
 	gateway := dockerBridgeGateway(ctx)
@@ -229,16 +229,18 @@ func buildContainerProxyCandidates(ctx context.Context, hostProxy, containerProx
 		}
 		return u.String()
 	}
-	if runtime.GOOS == "darwin" || runtime.GOOS == "windows" {
-		appendUnique(build("host.docker.internal"))
+	if runtime.GOOS == "linux" {
 		if gateway != "" {
 			appendUnique(build(gateway))
 		}
+		appendUnique(build("host.docker.internal"))
+		appendUnique(hostProxy)
 	} else {
+		appendUnique(hostProxy)
+		appendUnique(build("host.docker.internal"))
 		if gateway != "" {
 			appendUnique(build(gateway))
 		}
-		appendUnique(build("host.docker.internal"))
 	}
 	return candidates
 }
@@ -311,6 +313,14 @@ func checkContainerProxyEgress(ctx context.Context, proxyURL string) error {
 	}
 	return fmt.Errorf("container proxy egress probe did not show proxy endpoint usage for %s", proxyURL)
 }
+
+// containerProxyConnectivityProbe and containerProxyEgressProbe are the checks
+// chooseContainerProxy runs. Defaults mirror checkContainerProxyConnectivity /
+// checkContainerProxyEgress; tests may replace them to simulate outcomes.
+var (
+	containerProxyConnectivityProbe = checkContainerProxyConnectivity
+	containerProxyEgressProbe       = checkContainerProxyEgress
+)
 
 // patchConfigProxySection writes the resolved proxy configuration back to the
 // config file. It uses a yaml.Node AST to surgically update only the
