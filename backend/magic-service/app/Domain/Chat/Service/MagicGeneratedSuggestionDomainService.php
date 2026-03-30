@@ -58,7 +58,8 @@ class MagicGeneratedSuggestionDomainService
         int|string $relationId,
         GeneratedSuggestionStatus $status,
         array $suggestions = [],
+        array $params = [],
     ): void {
-        $this->generatedSuggestionRepository->updateStatus($type, $relationId, $status, $suggestions);
+        $this->generatedSuggestionRepository->updateStatus($type, $relationId, $status, $suggestions, $params);
     }
 }

@@ -26,7 +26,7 @@ use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\TaskContext;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\TaskFileSource;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\TaskStatus;
 use Dtyq\SuperMagic\Domain\SuperAgent\Event\RunTaskCallbackEvent;
-use Dtyq\SuperMagic\Domain\SuperAgent\Event\TopicMessageSentSuccessEvent;
+use Dtyq\SuperMagic\Domain\SuperAgent\Event\TaskMessageSendSuccessEvent;
 use Dtyq\SuperMagic\Domain\SuperAgent\Service\AgentDomainService;
 use Dtyq\SuperMagic\Domain\SuperAgent\Service\TaskDomainService;
 use Dtyq\SuperMagic\Domain\SuperAgent\Service\TaskFileDomainService;
@@ -384,7 +384,7 @@ class HandleAgentMessageAppService extends AbstractAppService
 
             // 等待magic_chat_messages 和 magic_super_agent_message两个都落库后开始触发事件
             if ((int) $seqId > 0) {
-                AsyncEventUtil::dispatch(new TopicMessageSentSuccessEvent(
+                AsyncEventUtil::dispatch(new TaskMessageSendSuccessEvent(
                     organizationCode: $taskContext->getCurrentOrganizationCode(),
                     userId: $taskContext->getCurrentUserId(),
                     topicId: $taskContext->getTopicId(),

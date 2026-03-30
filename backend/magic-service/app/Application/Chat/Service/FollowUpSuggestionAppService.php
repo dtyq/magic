@@ -47,6 +47,7 @@ class FollowUpSuggestionAppService extends AbstractAppService
         $modelGatewayDataIsolation = $this->createFollowUpModelGatewayDataIsolation($isolation);
         $microAgent = MicroAgentFactory::fast('follow_up_generator');
         if (! $microAgent->isEnabled()) {
+            $this->logger->error('follow_up_generator model configuration error');
             $this->updateSuperMagicTopicFollowUpStatus(
                 $taskId,
                 GeneratedSuggestionStatus::Failed,
@@ -67,6 +68,14 @@ class FollowUpSuggestionAppService extends AbstractAppService
 
 当前时间：{$currentTime}
 PROMPT;
+
+        // magic_generated_suggestions构建上下文参数
+        $params = $this->buildFollowUpSuggestionParams(
+            $taskId,
+            $topicId,
+            $isolation->getLanguage(),
+            $historyContext,
+        );
 
         try {
             // 调用简易chat链路
@@ -94,6 +103,8 @@ PROMPT;
             $this->updateSuperMagicTopicFollowUpStatus(
                 $taskId,
                 GeneratedSuggestionStatus::Failed,
+                [],
+                $params,
             );
             return;
         }
@@ -102,6 +113,7 @@ PROMPT;
             $taskId,
             GeneratedSuggestionStatus::Done,
             $this->parseSuggestions($content),
+            $params,
         );
     }
 
@@ -110,20 +122,12 @@ PROMPT;
      */
     public function createSuperMagicTopicFollowUpGenerating(
         string $taskId,
-        int $topicId,
-        ?string $language = null,
         ?string $createdUid = null,
     ): array {
         return $this->generatedSuggestionDomainService->createGenerating(
             GeneratedSuggestionType::SUPER_MAGIC_TOPIC_FOLLOW_UP,
             $taskId,
-            [
-                'task_id' => $taskId,
-                'topic_id' => (string) $topicId,
-                'source' => 'super_magic',
-                'generator' => 'follow_up_generator',
-                'language' => $language,
-            ],
+            [],
             $createdUid,
         );
     }
@@ -139,11 +143,12 @@ PROMPT;
     }
 
     /**
-     * 查询当前话题下的最近3轮对话问 + 答.
+     * 查询当前话题下的最近 N 轮对话问 + 答（合并排序后的 prompt 行文本）.
      */
     private function buildFollowUpHistoryContextExcerpt(int $topicId, int $roundLimit = 3): string
     {
-        $userLines = $this->taskMessageDomainService->buildFollowUpContextUserLines($topicId, $roundLimit);
+        $userMessages = $this->taskMessageDomainService->findFollowUpContextUserMessages($topicId, $roundLimit);
+        $userLines = $this->mapTaskMessagesToFollowUpContextLines($userMessages);
         $assistantLines = $this->magicChatDomainService->buildFollowUpAssistantContextLines($topicId, $roundLimit);
         $merged = array_merge($userLines, $assistantLines);
         if ($merged === []) {
@@ -161,6 +166,31 @@ PROMPT;
         }
 
         return $lines === [] ? '' : implode("\n", $lines);
+    }
+
+    /**
+     * SAM 用户消息实体 -> Chat 侧 FollowUpContextLine.
+     */
+    private function mapTaskMessagesToFollowUpContextLines(array $messages): array
+    {
+        $lines = [];
+        foreach ($messages as $message) {
+            $content = trim((string) preg_replace('/\s+/u', ' ', $message->getContent()));
+            if ($content === '') {
+                continue;
+            }
+
+            $sendTs = $message->getSendTimestamp();
+            $lines[] = new FollowUpContextLine(
+                $sendTs,
+                $message->getId(),
+                date('Y-m-d H:i:s', $sendTs),
+                $content,
+                true,
+            );
+        }
+
+        return $lines;
     }
 
     /**
@@ -196,6 +226,22 @@ PROMPT;
         return $dataIsolation;
     }
 
+    private function buildFollowUpSuggestionParams(
+        string $taskId,
+        int $topicId,
+        ?string $language,
+        string $historyContext,
+    ): array {
+        return [
+            'task_id' => $taskId,
+            'topic_id' => (string) $topicId,
+            'source' => 'super_magic',
+            'generator' => 'follow_up_generator',
+            'language' => $language,
+            'content' => $historyContext,
+        ];
+    }
+
     /**
      * 更新生成推荐状态.
      */
@@ -203,12 +249,14 @@ PROMPT;
         string $taskId,
         GeneratedSuggestionStatus $status,
         array $suggestions = [],
+        array $params = [],
     ): void {
         $this->generatedSuggestionDomainService->updateStatus(
             GeneratedSuggestionType::SUPER_MAGIC_TOPIC_FOLLOW_UP,
             $taskId,
             $status,
             $suggestions,
+            $params,
         );
     }
 }

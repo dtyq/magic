@@ -11,7 +11,7 @@ use App\Application\Chat\Service\FollowUpSuggestionAppService;
 use App\Domain\Contact\Entity\ValueObject\DataIsolation;
 use App\Infrastructure\Util\Context\CoContext;
 use Dtyq\AsyncEvent\Kernel\Annotation\AsyncListener;
-use Dtyq\SuperMagic\Domain\SuperAgent\Event\TopicMessageSentSuccessEvent;
+use Dtyq\SuperMagic\Domain\SuperAgent\Event\TaskMessageSendSuccessEvent;
 use Hyperf\Contract\TranslatorInterface;
 use Hyperf\Event\Annotation\Listener;
 use Hyperf\Event\Contract\ListenerInterface;
@@ -36,13 +36,13 @@ class FollowUpSuggestionGenerateSubscriber implements ListenerInterface
     public function listen(): array
     {
         return [
-            TopicMessageSentSuccessEvent::class,
+            TaskMessageSendSuccessEvent::class,
         ];
     }
 
     public function process(object $event): void
     {
-        if (! $event instanceof TopicMessageSentSuccessEvent) {
+        if (! $event instanceof TaskMessageSendSuccessEvent) {
             return;
         }
 
@@ -57,8 +57,6 @@ class FollowUpSuggestionGenerateSubscriber implements ListenerInterface
             $dataIsolation->setLanguage($event->getLanguage());
             $this->followUpSuggestionAppService->createSuperMagicTopicFollowUpGenerating(
                 $event->getTaskId(),
-                $event->getTopicId(),
-                $event->getLanguage(),
                 $event->getUserId() !== '' ? $event->getUserId() : null,
             );
 

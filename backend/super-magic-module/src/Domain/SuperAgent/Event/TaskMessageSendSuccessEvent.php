@@ -7,7 +7,7 @@ declare(strict_types=1);
 
 namespace Dtyq\SuperMagic\Domain\SuperAgent\Event;
 
-class TopicMessageSentSuccessEvent extends AbstractEvent
+class TaskMessageSendSuccessEvent extends AbstractEvent
 {
     public function __construct(
         private readonly string $organizationCode,

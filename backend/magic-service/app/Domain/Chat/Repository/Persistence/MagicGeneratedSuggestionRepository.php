@@ -69,6 +69,7 @@ class MagicGeneratedSuggestionRepository implements MagicGeneratedSuggestionRepo
         int|string $relationId,
         GeneratedSuggestionStatus $status,
         array $suggestions = [],
+        array $params = [],
     ): void {
         $record = $this->model::query()
             ->where('type', $type)
@@ -79,6 +80,7 @@ class MagicGeneratedSuggestionRepository implements MagicGeneratedSuggestionRepo
         }
 
         $record->status = $status->value;
+        $record->params = $params === [] ? null : $params;
         $record->updated_at = date('Y-m-d H:i:s');
         if ($status === GeneratedSuggestionStatus::Done) {
             $record->suggestions = array_values($suggestions);

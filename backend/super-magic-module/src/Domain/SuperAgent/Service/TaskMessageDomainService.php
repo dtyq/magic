@@ -7,7 +7,6 @@ declare(strict_types=1);
 
 namespace Dtyq\SuperMagic\Domain\SuperAgent\Service;
 
-use App\Domain\Chat\Entity\ValueObject\FollowUpContextLine;
 use App\Infrastructure\Core\Traits\HasLogger;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\TaskMessageEntity;
 use Dtyq\SuperMagic\Domain\SuperAgent\Repository\Facade\TaskFileRepositoryInterface;
@@ -26,31 +25,11 @@ class TaskMessageDomainService
     }
 
     /**
-     * follow-up：用户问行。经 TaskMessageRepository 查 SAM 单表后，直接组装为 FollowUpContextLine。
-     *
-     * @return FollowUpContextLine[]
+     * follow-up：按 topic 拉取最近 $roundLimit 条用户侧消息.
      */
-    public function buildFollowUpContextUserLines(int $topicId, int $roundLimit = 3): array
+    public function findFollowUpContextUserMessages(int $topicId, int $roundLimit = 3): array
     {
-        $messages = $this->messageRepository->findFollowUpContextUserMessages($topicId, $roundLimit);
-        $lines = [];
-        foreach ($messages as $message) {
-            $content = trim((string) preg_replace('/\s+/u', ' ', $message->getContent()));
-            if ($content === '') {
-                continue;
-            }
-
-            $sendTs = $message->getSendTimestamp();
-            $lines[] = new FollowUpContextLine(
-                $sendTs,
-                $message->getId(),
-                date('Y-m-d H:i:s', $sendTs),
-                $content,
-                true,
-            );
-        }
-
-        return $lines;
+        return $this->messageRepository->findFollowUpContextUserMessages($topicId, $roundLimit);
     }
 
     public function getNextSeqId(int $topicId, int $taskId): int
