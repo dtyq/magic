@@ -70,26 +70,41 @@ print(result.content)
 
 ## Reply Format After Connection
 
-When replying to WeChat users, write your response as plain text. Do not call any tool to send the reply — the system delivers your output automatically.
+Write your reply in **Markdown** (GitHub-Flavored). Do not call any tool to send the reply.
 
-To send a media file (image, video, or other file), include a `MEDIA:` line directly in your reply text. No tool call is needed; just write the line and the system will send the file.
+To send an image or video, embed it directly in your reply:
 
-Format: one line per file, written as `MEDIA: <value>`. Supported values:
-- Absolute local path: `/path/to/file.jpg`
-- `file://` URL: `file:///path/to/file.jpg`
-- Remote URL: `https://example.com/image.png`
+| Type | Syntax |
+|------|--------|
+| Image | `![description](path)` |
+| Image (HTML) | `<img src="path">` |
+| Video | `<video src="path"></video>` |
 
-Example reply that sends one image followed by a text message:
+Path values — prefer **workspace-relative paths** (relative to the `.workspace` directory):
 
 ```
-MEDIA: /workspace/uploads/image.jpg
-Here is the image you requested.
+charts/output.png          ← workspace-relative (recommended)
+uploads/report.pdf
 ```
 
-Rules:
-- Do not use Markdown image syntax `![alt](url)` — it will not be sent as a WeChat image.
-- Do not put `MEDIA:` lines inside fenced code blocks.
-- Place `MEDIA:` lines outside any explanatory text meant for the WeChat user to read.
+Absolute paths and remote URLs also work:
+
+```
+/absolute/path/to/file.jpg
+https://example.com/image.png
+```
+
+Example reply with an image:
+
+```
+Here is the chart:
+
+![monthly trend](charts/trend.png)
+
+Let me know if you need any adjustments.
+```
+
+- Do not put media references inside fenced code blocks.
 
 ## Notes
 

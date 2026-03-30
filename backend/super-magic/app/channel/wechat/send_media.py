@@ -121,10 +121,9 @@ async def _prepare_media_file(
         return await _download_remote_media(http_session, media_target)
 
     file_path = Path(media_target)
-    if file_path.is_absolute():
-        return await _build_local_media(file_path)
-
-    raise ValueError(f"Unsupported media target: {media_target}")
+    if not file_path.is_absolute():
+        file_path = PathManager.get_workspace_dir() / file_path
+    return await _build_local_media(file_path)
 
 
 async def _build_local_media(file_path: Path) -> PreparedWechatMedia:
