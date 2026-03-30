@@ -115,15 +115,10 @@ Router::addGroup('/api/v2/super-magic', static function () {
 }, ['middleware' => [SandboxUserAuthMiddleware::class]]);
 
 Router::addGroup('/api/v1/magic-claw', static function () {
-    // 查询 magic-claw 列表；静态路由需放在 /{code} 前。
-    Router::post('/queries', [MagicClawApi::class, 'queries']); // 静态路由必须在 /{code} 前定义
-    // 创建 magic-claw 记录。
+    Router::post('/queries', [MagicClawApi::class, 'queries']); // static route must be before /{code}
     Router::post('', [MagicClawApi::class, 'create']);
-    // 根据 code 获取 magic-claw 详情。
     Router::get('/{code}', [MagicClawApi::class, 'show']);
-    // 根据 code 更新 magic-claw 数据。
     Router::put('/{code}', [MagicClawApi::class, 'update']);
-    // 根据 code 删除 magic-claw 数据。
     Router::delete('/{code}', [MagicClawApi::class, 'destroy']);
 }, ['middleware' => [SandboxUserAuthMiddleware::class]]);
 
