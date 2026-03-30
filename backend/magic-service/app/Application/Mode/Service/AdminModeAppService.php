@@ -158,7 +158,12 @@ class AdminModeAppService extends AbstractModeAppService
 
             // 重新获取聚合根信息
             $updatedModeAggregate = $this->modeDomainService->getModeDetailById($dataIsolation, $updatedMode->getId());
-            return AdminModeAssembler::aggregateToAdminDTO($updatedModeAggregate);
+            $updatedModeAggregateDTO = AdminModeAssembler::aggregateToAdminDTO($updatedModeAggregate);
+            $this->processModeAggregateIcons($updatedModeAggregateDTO);
+            $this->replaceModeAggregateNameI18nFromAgent($authorization, $updatedModeAggregateDTO);
+            $this->replaceModeAggregateIconUrlFromAgent($authorization, $updatedModeAggregateDTO);
+
+            return $updatedModeAggregateDTO;
         } catch (Exception $exception) {
             $this->logger->warning('Update mode failed: ' . $exception->getMessage());
             Db::rollBack();
@@ -369,6 +374,33 @@ class AdminModeAppService extends AbstractModeAppService
         if ($agent !== null) {
             // 如果查询到 agent，替换 name_i18n
             $modeDTO->setNameI18n($agent->getNameI18n());
+        }
+    }
+
+    /**
+     * 根据 modeAggregateDTO 中的 mode identifier 查询 agent，如果查询到则替换 icon_url.
+     */
+    private function replaceModeAggregateIconUrlFromAgent(MagicUserAuthorization $authorization, AdminModeAggregateDTO $modeAggregateDTO): void
+    {
+        $modeDTO = $modeAggregateDTO->getMode();
+        $identifier = $modeDTO->getIdentifier();
+        if (empty($identifier)) {
+            return;
+        }
+
+        $agentDataIsolation = SuperMagicAgentDataIsolation::create(
+            $authorization->getOrganizationCode(),
+            $authorization->getId()
+        );
+
+        $agent = $this->superMagicAgentDomainService->getByCode($agentDataIsolation, $identifier);
+        if ($agent !== null) {
+            $this->updateAgentEntitiesIcon([$agent]);
+            $agentIconUrl = (string) ($agent->getIcon()['url'] ?? $agent->getIcon()['value'] ?? '');
+            if ($agentIconUrl !== '') {
+                $modeDTO->setIconUrl($agentIconUrl);
+                $modeDTO->setIconType($agent->getIconType());
+            }
         }
     }
 
