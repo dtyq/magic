@@ -45,17 +45,6 @@ interface SandboxGatewayInterface
     public function createSandbox(string $projectId, string $sandboxId, string $workDir): GatewayResult;
 
     /**
-     * 升级沙箱到最新 Agent 镜像.
-     * 若沙箱已是最新版本则跳过重建，直接返回成功结果.
-     *
-     * @param string $sandboxId Sandbox ID
-     * @param string $projectId Project ID
-     * @param string $workDir Sandbox working directory (project OSS path)
-     * @return GatewayResult 升级结果，成功时data包含sandbox_id、pod_name、namespace、agent_image
-     */
-    public function upgradeSandbox(string $sandboxId, string $projectId, string $workDir): GatewayResult;
-
-    /**
      * 删除（停止）沙箱.
      *
      * @param string $sandboxId Sandbox ID
