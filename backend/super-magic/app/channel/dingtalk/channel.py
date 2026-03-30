@@ -14,6 +14,7 @@ from agentlang.logger import get_logger
 from app.channel.base.channel import BaseChannel
 from app.core.entity.message.client_message import ChatClientMessage, Metadata
 from app.channel.base.keepalive import ChannelKeepalive
+from app.channel.base.third_party_message import dispatch_third_party_message
 from app.channel.dingtalk.stream import DingTalkStream
 from app.channel.dingtalk.streaming_driver import DingTalkStreamingDriver
 from app.channel.config import IMChannelsConfig
@@ -229,7 +230,14 @@ class DingTalkChannel(BaseChannel):
             metadata=Metadata(agent_user_id=user_id),
         )
         logger.info(f"[DingTalkChannel] 分发消息: user_id={user_id}, len={len(content)}")
-        await dispatcher.submit_message(chat_msg)
+        await dispatch_third_party_message(
+            dispatcher=dispatcher,
+            channel=self.key,
+            source_message_id=message_id,
+            source_conversation_id="",
+            source_sender_id=user_id,
+            chat_message=chat_msg,
+        )
 
         async def _cleanup() -> None:
             if dingtalk_stream:

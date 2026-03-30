@@ -21,6 +21,7 @@ from app.channel.wechat import api
 from app.channel.wechat.state import load_runtime_state, save_get_updates_buf
 from app.channel.wechat.stream import WechatStream
 from app.channel.wechat.typing import WechatTypingConfigManager, WechatTypingController
+from app.channel.base.third_party_message import dispatch_third_party_message
 from app.core.entity.message.client_message import ChatClientMessage, Metadata
 
 logger = get_logger(__name__)
@@ -348,7 +349,14 @@ class WechatChannel(BaseChannel):
         logger.info(f"[WechatChannel] 分发消息: user_id={user_id}, len={len(content)}")
 
         # 打断当前 run（如有），以非阻塞 task 启动新 run，poll 循环可继续接收消息
-        await dispatcher.submit_message(chat_msg)
+        await dispatch_third_party_message(
+            dispatcher=dispatcher,
+            channel=self.key,
+            source_message_id=stream_id,
+            source_conversation_id=context_token,
+            source_sender_id=user_id,
+            chat_message=chat_msg,
+        )
 
         # 在 reset_run_state 之后注册本次 run 的 stream/typing cleanup
         async def _stream_cleanup() -> None:

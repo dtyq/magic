@@ -309,6 +309,26 @@ class InitClientMessageUtil:
         return config_data.get("upload_config")
 
     @classmethod
+    def get_agent_type(cls) -> Optional[str]:
+        """
+        从 init_client_message 获取 agent.type。
+
+        Returns:
+            Optional[str]: agent.type 值，未配置时返回 None
+        """
+        try:
+            config_data = cls.get_full_config()
+            agent_config = config_data.get("agent")
+            if not isinstance(agent_config, dict):
+                return None
+            agent_type = agent_config.get("type")
+            if isinstance(agent_type, str) and agent_type.strip():
+                return agent_type.strip()
+        except Exception as e:
+            logger.debug(f"获取 agent.type 失败: {e}")
+        return None
+
+    @classmethod
     def get_platform_type(cls) -> Optional[str]:
         """
         从 init_client_message 获取平台类型
