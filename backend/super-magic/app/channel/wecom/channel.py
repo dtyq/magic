@@ -108,7 +108,8 @@ class WeComChannel(BaseChannel):
         user_id = sender.get("userid", "wecom_user")
 
         stream_id = generate_req_id("wecom")
-        message_id = f"wecom_{uuid.uuid4().hex[:16]}"
+        local_id = f"wecom_{uuid.uuid4().hex[:16]}"
+        platform_msg_id = body.get("msgid", "")
         ctx = dispatcher.agent_context
 
         # WeComStreamingDriver：token 级，负责流式推送 finish=False（模型不支持流式时静默）
@@ -120,7 +121,7 @@ class WeComChannel(BaseChannel):
         ctx.add_streaming_sink(wecom_driver)
 
         chat_msg = ChatClientMessage(
-            message_id=message_id,
+            message_id=local_id,
             prompt=content,
             metadata=Metadata(agent_user_id=user_id),
         )
@@ -128,8 +129,8 @@ class WeComChannel(BaseChannel):
         await dispatch_third_party_message(
             dispatcher=dispatcher,
             channel=self.key,
-            source_message_id=message_id,
-            source_conversation_id="",
+            source_message_id=platform_msg_id or local_id,
+            source_conversation_id=body.get("chatid", ""),
             source_sender_id=user_id,
             chat_message=chat_msg,
         )

@@ -1,6 +1,7 @@
 """第三方 IM 入站统一构建与分发。"""
 from __future__ import annotations
 
+import hashlib
 import json
 from typing import Any, Optional
 
@@ -13,6 +14,25 @@ from app.path_manager import PathManager
 from app.utils.async_file_utils import async_read_json
 
 logger = get_logger(__name__)
+
+# Server stores message_id as "tp:{channel}:{source_message_id}".
+# The longest channel prefix is "tp:dingtalk:" (12 chars).
+# To stay within VARCHAR(64): 64 - 12 = 52, use 50 as safe threshold.
+_SOURCE_ID_MAX_LEN = 50
+
+
+def _safe_source_id(raw: str) -> str:
+    """Shorten source_message_id to fit the server-side DB column.
+
+    The server stores the idempotency key as "tp:{channel}:{source_message_id}".
+    When the raw ID exceeds _SOURCE_ID_MAX_LEN, replace it with a deterministic
+    32-char SHA-256 hex digest so idempotency is preserved without truncation loss.
+    """
+    if len(raw) <= _SOURCE_ID_MAX_LEN:
+        return raw
+    digest = hashlib.sha256(raw.encode()).hexdigest()[:32]
+    logger.debug(f"[ThirdPartyMessage] source_message_id too long ({len(raw)} chars), hashed to {digest}")
+    return digest
 
 
 def _normalize_text(value: Any) -> Optional[str]:
@@ -102,6 +122,7 @@ class ThirdPartyMessagePayloadBuilder:
         if not source_message_id:
             logger.warning(f"[ThirdPartyMessage] {channel} 缺少稳定 source_message_id，跳过持久化事件")
             return None
+        source_message_id = _safe_source_id(source_message_id)
 
         try:
             init_client_message = agent_context.get_init_client_message() if agent_context else None

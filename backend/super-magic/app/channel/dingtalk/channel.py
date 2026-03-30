@@ -222,10 +222,11 @@ class DingTalkChannel(BaseChannel):
         if dingtalk_driver:
             ctx.add_streaming_sink(dingtalk_driver)
 
-        message_id = f"dingtalk_{uuid.uuid4().hex[:16]}"
+        local_id = f"dingtalk_{uuid.uuid4().hex[:16]}"
+        platform_msg_id = incoming_message.message_id or ""
 
         chat_msg = ChatClientMessage(
-            message_id=message_id,
+            message_id=local_id,
             prompt=content,
             metadata=Metadata(agent_user_id=user_id),
         )
@@ -233,8 +234,8 @@ class DingTalkChannel(BaseChannel):
         await dispatch_third_party_message(
             dispatcher=dispatcher,
             channel=self.key,
-            source_message_id=message_id,
-            source_conversation_id="",
+            source_message_id=platform_msg_id or local_id,
+            source_conversation_id=incoming_message.conversation_id or "",
             source_sender_id=user_id,
             chat_message=chat_msg,
         )
