@@ -19,6 +19,7 @@ from app.tools.workspace_tool import WorkspaceTool
 from app.utils.file_timestamp_manager import get_global_timestamp_manager
 from app.core.entity.message.server_message import DisplayType, FileContent, ToolDetail
 from app.utils.file_utils import is_binary_file
+from app.utils.async_file_utils import async_count_text_lines, async_stat
 
 logger = get_logger(__name__)
 
@@ -719,7 +720,7 @@ class GrepSearch(WorkspaceTool[GrepSearchParams]):
                 continue
 
             # 获取文件信息
-            stat = file_path.stat()
+            stat = await async_stat(file_path)
             display_path = str(file_path.resolve())
 
             # 创建 FileInfo 对象
@@ -729,7 +730,7 @@ class GrepSearch(WorkspaceTool[GrepSearchParams]):
                 is_dir=False,
                 size=stat.st_size,
                 last_modified=stat.st_mtime,
-                line_count=self._count_lines(file_path),
+                line_count=await self._count_lines(file_path),
             )
 
             # 添加文件信息
@@ -760,12 +761,11 @@ class GrepSearch(WorkspaceTool[GrepSearchParams]):
             size /= 1024
         return f"{size:.1f}TB"
 
-    def _count_lines(self, file_path: Path) -> Optional[int]:
+    async def _count_lines(self, file_path: Path) -> Optional[int]:
         """计算文件行数"""
         try:
-            with file_path.open("r", encoding="utf-8") as f:
-                return sum(1 for _ in f)
-        except:
+            return await async_count_text_lines(file_path)
+        except (OSError, UnicodeDecodeError):
             return None
 
     async def get_tool_detail(self, tool_context: ToolContext, result: ToolResult, arguments: Dict[str, Any] = None) -> Optional[ToolDetail]:

@@ -32,6 +32,7 @@ from app.utils.line_number_handler import LineNumberHandler
 from app.utils.diff_generator import DiffGenerator
 from app.utils.punctuation_matcher import PunctuationMatcher
 from app.utils.input_diagnoser import InputDiagnoser
+from app.utils.async_file_utils import async_exists
 
 logger = get_logger(__name__)
 
@@ -161,7 +162,7 @@ When editing the same file multiple times:
                 )
 
             # Edit existing file
-            if not file_path.exists():
+            if not await async_exists(file_path):
                 tool_context.set_metadata("error_type", "edit_file.error_file_not_exist")
                 return ToolResult(
                     error=f"File does not exist: {file_path}\n"

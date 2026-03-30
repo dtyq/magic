@@ -15,6 +15,7 @@ from app.tools.abstract_file_tool import AbstractFileTool
 from app.tools.core import BaseToolParams, tool
 from app.tools.workspace_tool import WorkspaceTool
 from agentlang.utils.syntax_checker import SyntaxChecker
+from app.utils.async_file_utils import async_exists
 
 logger = get_logger(__name__)
 
@@ -176,7 +177,7 @@ class WriteFile(AbstractFileTool[WriteFileParams], WorkspaceTool[WriteFileParams
         """创建文件所需的目录结构"""
         directory = file_path.parent
 
-        if not directory.exists():
+        if not await async_exists(directory):
             await asyncio.to_thread(os.makedirs, directory, exist_ok=True)
             logger.info(f"创建目录: {directory}")
 

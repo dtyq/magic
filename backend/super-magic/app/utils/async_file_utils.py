@@ -433,6 +433,39 @@ async def async_read_text(file_path: Union[str, Path], encoding: str = 'utf-8') 
         raise
 
 
+def _count_text_lines_sync(file_path: Path, encoding: str) -> int:
+    """同步统计文本文件行数，供 asyncio.to_thread 调用。"""
+    with file_path.open('r', encoding=encoding) as f:
+        return sum(1 for _ in f)
+
+
+async def async_count_text_lines(file_path: Union[str, Path], encoding: str = 'utf-8') -> int:
+    """
+    异步统计文本文件行数
+
+    通过线程池执行流式逐行统计，避免阻塞事件循环，也避免整文件读入内存。
+
+    Args:
+        file_path: 文件路径
+        encoding: 编码格式，默认utf-8
+
+    Returns:
+        int: 文件总行数
+
+    Raises:
+        FileNotFoundError: 文件不存在
+        IOError: IO操作失败
+        UnicodeDecodeError: 文本解码失败
+    """
+    path_obj = Path(file_path)
+
+    try:
+        return await asyncio.to_thread(_count_text_lines_sync, path_obj, encoding)
+    except Exception as e:
+        logger.error(f"异步统计文本文件行数失败 {path_obj}: {e}")
+        raise
+
+
 async def async_read_bytes(file_path: Union[str, Path], size: Optional[int] = None, offset: int = 0) -> bytes:
     """
     异步读取二进制文件
