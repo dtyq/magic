@@ -7,7 +7,6 @@ declare(strict_types=1);
 
 namespace App\Interfaces\Design\Facade;
 
-use Dtyq\ApiResponse\Annotation\ApiResponse;
 use App\Application\Design\Service\ImageConvertHighConfigAppService;
 use App\Application\Design\Service\ImageGenerationAppService;
 use App\Application\Design\Service\ImageMarkIdentifyAppService;
@@ -19,6 +18,7 @@ use App\Interfaces\Design\RequestForm\ConvertHighImageFormRequest;
 use App\Interfaces\Design\RequestForm\GenerateImageFormRequest;
 use App\Interfaces\Design\RequestForm\IdentifyImageMarkFormRequest;
 use App\Interfaces\Design\RequestForm\QueryImageGenerationResultFormRequest;
+use Dtyq\ApiResponse\Annotation\ApiResponse;
 use Hyperf\Di\Annotation\Inject;
 
 #[ApiResponse('low_code')]
