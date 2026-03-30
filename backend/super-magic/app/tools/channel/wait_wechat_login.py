@@ -26,9 +26,9 @@ logger = get_logger(__name__)
 
 class WaitWechatLoginParams(BaseToolParams):
     timeout_seconds: int = Field(
-        default=60,
-        description="""<!--zh: 等待扫码完成的最长秒数，默认 60 秒-->
-Maximum seconds to wait for the QR confirmation. Defaults to 60.""",
+        default=300,
+        description="""<!--zh: 等待扫码完成的最长秒数，默认 300 秒-->
+Maximum seconds to wait for the QR confirmation. Defaults to 300.""",
     )
 
 

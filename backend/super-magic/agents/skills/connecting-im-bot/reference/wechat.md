@@ -46,7 +46,7 @@ Call this only after you have rendered the QR HTML from the previous step:
 from sdk.tool import tool
 
 result = tool.call("wait_wechat_login", {
-    "timeout_seconds": 60
+    "timeout_seconds": 300
 })
 print(result.content)
 ```
