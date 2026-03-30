@@ -60,11 +60,11 @@ def _build_identity(cfg: dict) -> str:
     header = (
         f"---\n"
         f"name: {cfg['name']}\n"
-        f"name_cn: {cfg['name_cn']}\n"
+        f"name-cn: {cfg['name_cn']}\n"
         f"role: {cfg['role']}\n"
-        f"role_cn: {cfg['role_cn']}\n"
+        f"role-cn: {cfg['role_cn']}\n"
         f"description: {cfg['description']}\n"
-        f"description_cn: {cfg['description_cn']}\n"
+        f"description-cn: {cfg['description_cn']}\n"
         f"---\n"
     )
 

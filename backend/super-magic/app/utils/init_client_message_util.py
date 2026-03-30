@@ -4,6 +4,7 @@ Init Client Message Utility Module
 Provides utilities for reading and accessing initialization configuration data.
 """
 import json
+import os
 from typing import Dict, Any, Optional
 
 from agentlang.logger import get_logger
@@ -327,6 +328,26 @@ class InitClientMessageUtil:
         except Exception as e:
             logger.debug(f"获取 agent.type 失败: {e}")
         return None
+
+    @classmethod
+    def get_sandbox_id(cls) -> str:
+        """
+        Get sandbox_id from metadata, falling back to SANDBOX_ID env var.
+
+        Returns:
+            str: sandbox_id value, or empty string if not found anywhere
+        """
+        try:
+            sandbox_id = cls.get_metadata().get("sandbox_id", "")
+            if sandbox_id:
+                return sandbox_id
+        except Exception as e:
+            logger.info(f"Failed to get sandbox_id from metadata: {e}")
+
+        env_sandbox_id = os.environ.get("SANDBOX_ID", "")
+        if env_sandbox_id:
+            logger.info(f"Using sandbox_id from environment variable: {env_sandbox_id}")
+        return env_sandbox_id
 
     @classmethod
     def get_platform_type(cls) -> Optional[str]:

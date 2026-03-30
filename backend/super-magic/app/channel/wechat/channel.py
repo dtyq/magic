@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import asyncio
 import time
+import uuid
 from typing import Optional
 
 import aiohttp
@@ -308,7 +309,8 @@ class WechatChannel(BaseChannel):
 
         assert self._credential is not None
 
-        stream_id = msg.get("client_id") or msg.get("message_id") or f"wechat-{user_id}-{id(msg)}"
+        platform_msg_id = msg.get("client_id") or msg.get("message_id") or ""
+        message_id = f"wechat_{uuid.uuid4().hex[:16]}"
         ctx = dispatcher.agent_context
         typing_controller: WechatTypingController | None = None
 
@@ -336,13 +338,13 @@ class WechatChannel(BaseChannel):
             to_user_id=user_id,
             context_token=context_token,
             base_url=self._credential.base_url,
-            stream_id=stream_id,
+            stream_id=platform_msg_id or message_id,
             typing_controller=typing_controller,
         )
         ctx.add_stream(wechat_stream)
 
         chat_msg = ChatClientMessage(
-            message_id=stream_id,
+            message_id=message_id,
             prompt=content,
             metadata=Metadata(agent_user_id=user_id),
         )
@@ -352,7 +354,7 @@ class WechatChannel(BaseChannel):
         await dispatch_third_party_message(
             dispatcher=dispatcher,
             channel=self.key,
-            source_message_id=stream_id,
+            source_message_id=platform_msg_id or message_id,
             source_conversation_id=context_token,
             source_sender_id=user_id,
             chat_message=chat_msg,
