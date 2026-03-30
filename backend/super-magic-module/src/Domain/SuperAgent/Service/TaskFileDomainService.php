@@ -2701,6 +2701,25 @@ class TaskFileDomainService
     }
 
     /**
+     * Check whether a file with the given name exists anywhere in the project (case-insensitive).
+     */
+    public function existsFileByName(int $projectId, string $fileName): bool
+    {
+        $entity = $this->taskFileRepository->getByProjectIdAndFileName($projectId, $fileName);
+        if ($entity !== null) {
+            return true;
+        }
+
+        // Case-insensitive fallback
+        $lower = strtolower($fileName);
+        if ($lower !== $fileName) {
+            return $this->taskFileRepository->getByProjectIdAndFileName($projectId, $lower) !== null;
+        }
+
+        return false;
+    }
+
+    /**
      * Normalize relative path.
      * Removes leading './', '/', and handles edge cases.
      *

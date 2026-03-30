@@ -1494,9 +1494,21 @@ class SuperMagicAgentAppService extends AbstractSuperMagicAppService
     /**
      * Export agent workspace to object storage via sandbox.
      *
-     * @param Authenticatable $authorization User authorization
      * @return array{file_key: string, metadata: array} Export result
      */
+    /**
+     * Validate that IDENTITY.md exists in the agent project before publishing.
+     */
+    private function validateIdentityMdExists(int $projectId, ?string $sourcePath): void
+    {
+        if (! $this->taskFileDomainService->existsFileByName($projectId, 'IDENTITY.md')) {
+            ExceptionBuilder::throw(
+                SuperAgentErrorCode::PUBLISH_IDENTITY_MD_NOT_FOUND,
+                'super_magic.agent.publish.identity_md_not_found'
+            );
+        }
+    }
+
     private function exportFileFromProject(
         Authenticatable $authorization,
         string $code,
@@ -1981,6 +1993,7 @@ class SuperMagicAgentAppService extends AbstractSuperMagicAppService
     ): AgentVersionEntity {
         if ($shouldExportFile) {
             $sourcePath = $this->resolvePublishExportSourcePath($agentEntity->getProjectId());
+            $this->validateIdentityMdExists($agentEntity->getProjectId(), $sourcePath);
             $fileMetadata = $this->exportFileFromProject($authorization, $code, $agentEntity->getProjectId(), $sourcePath);
             $agentEntity->setFileKey($fileMetadata['file_key']);
         } else {

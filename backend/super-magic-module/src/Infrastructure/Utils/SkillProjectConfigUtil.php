@@ -68,8 +68,21 @@ final class SkillProjectConfigUtil
                 continue;
             }
 
+            // Quoted value: dir: "value"
             if (preg_match('/^\s{2}([A-Za-z0-9-]+):\s*"((?:\\\.|[^"])*)"\s*$/', $line, $matches) === 1) {
                 $skill[$matches[1]] = stripcslashes($matches[2]);
+                continue;
+            }
+
+            // Unquoted value (standard YAML): dir: value
+            if (preg_match('/^\s{2}([A-Za-z0-9-]+):\s*([^"\'#\s][^\s#]*)\s*$/', $line, $matches) === 1) {
+                $skill[$matches[1]] = $matches[2];
+                continue;
+            }
+
+            // Empty value: dir:
+            if (preg_match('/^\s{2}([A-Za-z0-9-]+):\s*$/', $line, $matches) === 1) {
+                $skill[$matches[1]] = '';
                 continue;
             }
 

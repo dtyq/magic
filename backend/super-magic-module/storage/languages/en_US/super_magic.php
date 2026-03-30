@@ -156,6 +156,9 @@ return [
             'invalid_package' => 'Invalid package format. Required file IDENTITY.md is missing',
             'extract_failed' => 'Failed to extract the archive. Please verify the file and try again',
         ],
+        'publish' => [
+            'identity_md_not_found' => 'IDENTITY.md file is missing. Please initialize the agent first, then publish',
+        ],
         'export_failed' => 'Agent export failed. Please try again later',
     ],
     'task' => [

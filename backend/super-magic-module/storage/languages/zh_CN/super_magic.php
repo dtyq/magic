@@ -156,6 +156,9 @@ return [
             'invalid_package' => '压缩包格式无效，缺少必要的 IDENTITY.md 文件',
             'extract_failed' => '压缩包解压失败，请确认文件完整性后重试',
         ],
+        'publish' => [
+            'identity_md_not_found' => '缺少 IDENTITY.md 文件，请初始化员工后，再点击发布',
+        ],
         'export_failed' => '智能体导出失败，请稍后重试',
     ],
     'task' => [
