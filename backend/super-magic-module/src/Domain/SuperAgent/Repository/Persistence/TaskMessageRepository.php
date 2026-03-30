@@ -36,15 +36,6 @@ class TaskMessageRepository implements TaskMessageRepositoryInterface
         $this->model::query()->create($message->toArray());
     }
 
-    public function batchSave(array $messages): void
-    {
-        $data = array_map(function (TaskMessageEntity $message) {
-            return $message->toArray();
-        }, $messages);
-
-        $this->model::query()->insert($data);
-    }
-
     /**
      * 根据话题ID和任务ID获取用户消息列表（优化索引+过滤用户消息）.
      * @return TaskMessageEntity[]
@@ -67,28 +58,31 @@ class TaskMessageRepository implements TaskMessageRepositoryInterface
     /**
      * @return TaskMessageEntity[]
      */
-    public function findFollowUpContextUserMessages(int $topicId, int $roundLimit): array
+    public function findFollowUpContextMessages(int $topicId, int $roundLimit): array
     {
         if ($topicId <= 0) {
             return [];
         }
 
         $roundLimit = max(1, $roundLimit);
-
-        $records = $this->model::query()
-            ->where('topic_id', $topicId)
-            ->whereNull('status')
-            ->where('sender_type', 'user')
-            ->orderByDesc('id')
-            ->limit($roundLimit)
-            ->get();
-
-        $messages = [];
-        foreach ($records as $record) {
-            $messages[] = new TaskMessageEntity($record->toArray());
+        $roundStarts = $this->findRecentFollowUpRoundStarts($topicId, $roundLimit);
+        if ($roundStarts === []) {
+            return [];
         }
 
-        return $messages;
+        $roundStarts = array_reverse($roundStarts);
+        $finalAssistantReplies = $this->findFinalAssistantRepliesForRounds($topicId, $roundStarts);
+        $contextMessages = [];
+        foreach ($roundStarts as $index => $roundStart) {
+            $contextMessages[] = $roundStart;
+
+            $finalAssistantAnswer = $finalAssistantReplies[$roundStart->getId()] ?? null;
+            if ($finalAssistantAnswer !== null) {
+                $contextMessages[] = $finalAssistantAnswer;
+            }
+        }
+
+        return $contextMessages;
     }
 
     /**
@@ -180,22 +174,6 @@ class TaskMessageRepository implements TaskMessageRepositoryInterface
             return null;
         }
         return new TaskMessageEntity($record->toArray());
-    }
-
-    public function findPendingMessagesByTopicId(int $topicId, string $processingStatus, string $senderType = 'assistant', int $limit = 50): array
-    {
-        $query = $this->model::query()
-            ->where('topic_id', $topicId)
-            ->where('processing_status', $processingStatus)
-            ->where('sender_type', $senderType)
-            ->orderBy('seq_id', 'asc')
-            ->limit($limit);
-
-        $result = Db::select($query->toSql(), $query->getBindings());
-
-        return array_map(function ($record) {
-            return new TaskMessageEntity((array) $record);
-        }, $result);
     }
 
     public function updateProcessingStatus(int $id, string $processingStatus, ?string $errorMessage = null, int $retryCount = 0): void
@@ -435,5 +413,134 @@ class TaskMessageRepository implements TaskMessageRepositoryInterface
         $this->model::query()
             ->where('id', $id)
             ->update(['im_seq_id' => $imSeqId]);
+    }
+
+    /**
+     * @return TaskMessageEntity[]
+     */
+    private function findRecentFollowUpRoundStarts(int $topicId, int $roundLimit): array
+    {
+        $records = $this->model::query()
+            ->where('topic_id', $topicId)
+            ->whereNull('status')
+            ->where('sender_type', 'user')
+            ->where(function ($query) {
+                $query->whereNull('event')
+                    ->orWhere('event', '');
+            })
+            ->orderByDesc('send_timestamp')
+            ->orderByDesc('seq_id')
+            ->orderByDesc('id')
+            ->limit($roundLimit)
+            ->get();
+
+        $messages = [];
+        foreach ($records as $record) {
+            $messages[] = new TaskMessageEntity($record->toArray());
+        }
+
+        return $messages;
+    }
+
+    /**
+     * @param TaskMessageEntity[] $roundStarts
+     * @return array<int, TaskMessageEntity>
+     */
+    private function findFinalAssistantRepliesForRounds(int $topicId, array $roundStarts): array
+    {
+        $oldestRoundStart = $roundStarts[0] ?? null;
+        if ($oldestRoundStart === null) {
+            return [];
+        }
+
+        $query = $this->model::query()
+            ->where('topic_id', $topicId)
+            ->where('sender_type', 'assistant')
+            ->where('event', 'after_agent_reply')
+            ->where('content_type', 'content');
+
+        $this->applyAfterRoundStartBoundary($query, $oldestRoundStart);
+
+        $records = $query
+            ->orderByDesc('send_timestamp')
+            ->orderByDesc('seq_id')
+            ->orderByDesc('id')
+            ->get();
+
+        $candidates = [];
+        foreach ($records as $record) {
+            $candidates[] = new TaskMessageEntity($record->toArray());
+        }
+
+        $finalReplies = [];
+        foreach ($candidates as $candidate) {
+            foreach ($roundStarts as $index => $roundStart) {
+                if (isset($finalReplies[$roundStart->getId()])) {
+                    continue;
+                }
+
+                $nextRoundStart = $roundStarts[$index + 1] ?? null;
+                if (! $this->isMessageWithinFollowUpRound($candidate, $roundStart, $nextRoundStart)) {
+                    continue;
+                }
+
+                $finalReplies[$roundStart->getId()] = $candidate;
+                break;
+            }
+
+            if (count($finalReplies) === count($roundStarts)) {
+                break;
+            }
+        }
+
+        return $finalReplies;
+    }
+
+    private function isMessageWithinFollowUpRound(
+        TaskMessageEntity $message,
+        TaskMessageEntity $roundStart,
+        ?TaskMessageEntity $nextRoundStart,
+    ): bool {
+        if (! $this->isAfterRoundStart($message, $roundStart)) {
+            return false;
+        }
+
+        return $nextRoundStart === null || $this->isBeforeNextRoundStart($message, $nextRoundStart);
+    }
+
+    private function isAfterRoundStart(TaskMessageEntity $message, TaskMessageEntity $roundStart): bool
+    {
+        return $this->compareBySendTimestampAndId($message, $roundStart) > 0;
+    }
+
+    private function isBeforeNextRoundStart(TaskMessageEntity $message, TaskMessageEntity $nextRoundStart): bool
+    {
+        return $this->compareBySendTimestampAndId($message, $nextRoundStart) < 0;
+    }
+
+    private function compareBySendTimestampAndId(
+        TaskMessageEntity $left,
+        TaskMessageEntity $right,
+    ): int {
+        $timestampCompare = $left->getSendTimestamp() <=> $right->getSendTimestamp();
+        if ($timestampCompare !== 0) {
+            return $timestampCompare;
+        }
+
+        return $left->getId() <=> $right->getId();
+    }
+
+    private function applyAfterRoundStartBoundary($query, TaskMessageEntity $roundStart): void
+    {
+        $startTimestamp = $roundStart->getSendTimestamp();
+        $startId = $roundStart->getId();
+
+        $query->where(function ($boundaryQuery) use ($startTimestamp, $startId) {
+            $boundaryQuery->where('send_timestamp', '>', $startTimestamp)
+                ->orWhere(function ($equalTimestampQuery) use ($startTimestamp, $startId) {
+                    $equalTimestampQuery->where('send_timestamp', $startTimestamp)
+                        ->where('id', '>', $startId);
+                });
+        });
     }
 }

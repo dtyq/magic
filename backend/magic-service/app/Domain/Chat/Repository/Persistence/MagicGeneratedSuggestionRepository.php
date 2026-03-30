@@ -58,7 +58,7 @@ class MagicGeneratedSuggestionRepository implements MagicGeneratedSuggestionRepo
             ->orderByDesc('id')
             ->first();
 
-        return $record === null ? null : $this->mapModelToEntity($record);
+        return $record === null ? null : new MagicGeneratedSuggestionEntity($record->toArray());
     }
 
     /**
@@ -69,7 +69,6 @@ class MagicGeneratedSuggestionRepository implements MagicGeneratedSuggestionRepo
         int|string $relationId,
         GeneratedSuggestionStatus $status,
         array $suggestions = [],
-        array $params = [],
     ): void {
         $record = $this->model::query()
             ->where('type', $type)
@@ -80,7 +79,6 @@ class MagicGeneratedSuggestionRepository implements MagicGeneratedSuggestionRepo
         }
 
         $record->status = $status->value;
-        $record->params = $params === [] ? null : $params;
         $record->updated_at = date('Y-m-d H:i:s');
         if ($status === GeneratedSuggestionStatus::Done) {
             $record->suggestions = array_values($suggestions);
@@ -106,19 +104,4 @@ class MagicGeneratedSuggestionRepository implements MagicGeneratedSuggestionRepo
         return (string) $value;
     }
 
-    private function mapModelToEntity(MagicGeneratedSuggestionModel $record): MagicGeneratedSuggestionEntity
-    {
-        $entity = new MagicGeneratedSuggestionEntity();
-        $entity->setId($record->id);
-        $entity->setType((int) $record->type);
-        $entity->setRelationId((string) $record->relation_id);
-        $entity->setParams($record->params ?? []);
-        $entity->setSuggestions($record->suggestions ?? []);
-        $entity->setStatus($record->status !== null ? (int) $record->status : null);
-        $entity->setCreatedUid($record->created_uid);
-        $entity->setCreatedAt($record->created_at ?? '');
-        $entity->setUpdatedAt($record->updated_at ?? '');
-
-        return $entity;
-    }
 }

@@ -382,8 +382,8 @@ class HandleAgentMessageAppService extends AbstractAppService
 
             $this->taskMessageDomainService->updateMessageSeqId($messageEntity->getId(), (int) $seqId);
 
-            // 等待magic_chat_messages 和 magic_super_agent_message两个都落库后开始触发事件
-            if ((int) $seqId > 0) {
+            // 仅在任务完成且消息发送成功后，再触发 follow-up 相关事件
+            if ($this->shouldDispatchFollowUpEvent($messageData, $seqId)) {
                 AsyncEventUtil::dispatch(new TaskMessageSendSuccessEvent(
                     organizationCode: $taskContext->getCurrentOrganizationCode(),
                     userId: $taskContext->getCurrentUserId(),
@@ -393,6 +393,12 @@ class HandleAgentMessageAppService extends AbstractAppService
                 ));
             }
         }
+    }
+
+    private function shouldDispatchFollowUpEvent(array $messageData, string $seqId): bool
+    {
+        return $messageData['status'] === TaskStatus::FINISHED->value
+            && (int) $seqId > 0;
     }
 
     private function isSendMessage(TaskContext $taskContext): bool

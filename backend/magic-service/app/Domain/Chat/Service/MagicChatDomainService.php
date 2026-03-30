@@ -28,7 +28,6 @@ use App\Domain\Chat\Entity\MagicTopicEntity;
 use App\Domain\Chat\Entity\ValueObject\ChatSocketIoNameSpace;
 use App\Domain\Chat\Entity\ValueObject\ConversationStatus;
 use App\Domain\Chat\Entity\ValueObject\ConversationType;
-use App\Domain\Chat\Entity\ValueObject\FollowUpContextLine;
 use App\Domain\Chat\Entity\ValueObject\MagicMessageStatus;
 use App\Domain\Chat\Entity\ValueObject\MessagePriority;
 use App\Domain\Chat\Entity\ValueObject\MessageType\ChatMessageType;
@@ -46,7 +45,6 @@ use App\Infrastructure\Util\SocketIO\SocketIOUtil;
 use App\Interfaces\Chat\Assembler\MessageAssembler;
 use App\Interfaces\Chat\Assembler\PageListAssembler;
 use App\Interfaces\Chat\Assembler\SeqAssembler;
-use Carbon\Carbon;
 use Hyperf\Codec\Json;
 use Hyperf\Collection\Arr;
 use Hyperf\Contract\TranslatorInterface;
@@ -1013,23 +1011,6 @@ class MagicChatDomainService extends AbstractDomainService
     }
 
     /**
-     * follow-up：存在 IM 映射的助手答行（已含排序键与展示文案），供与用户问合并排序.
-     */
-    public function buildFollowUpAssistantContextLines(int $topicId, int $roundLimit): array
-    {
-        $rows = $this->magicMessageRepository->findFollowUpAssistantMessagesWithImByTopicId($topicId, $roundLimit);
-        $lines = [];
-        foreach ($rows as $cm) {
-            $line = $this->mapAssistantMagicRowToFollowUpLine($cm);
-            if ($line !== null) {
-                $lines[] = $line;
-            }
-        }
-
-        return $lines;
-    }
-
-    /**
      * 去取数据库记录中content字段里面的具体消息.
      */
     public static function extractDisplayContentFromMagicMessageForFollowUp(MagicMessageModel $message): string
@@ -1210,38 +1191,6 @@ class MagicChatDomainService extends AbstractDomainService
             $unreadList = [$conversationEntity->getReceiveId()];
         }
         return $unreadList;
-    }
-
-    private function mapAssistantMagicRowToFollowUpLine(MagicMessageModel $message): ?FollowUpContextLine
-    {
-        $content = trim((string) preg_replace(
-            '/\s+/u',
-            ' ',
-            self::extractDisplayContentFromMagicMessageForFollowUp($message),
-        ));
-        if ($content === '') {
-            return null;
-        }
-
-        $samId = (int) ($message->sam_id ?? 0);
-        $samSendTs = (int) ($message->sam_send_timestamp ?? 0);
-        $sortTs = $samSendTs;
-        $displayTime = date('Y-m-d H:i:s', $samSendTs);
-        if ($message->send_time !== null && $message->send_time !== '') {
-            $sendTime = $message->send_time instanceof Carbon
-                ? $message->send_time
-                : Carbon::parse($message->send_time);
-            $sortTs = (int) $sendTime->timestamp;
-            $displayTime = $sendTime->format('Y-m-d H:i:s');
-        }
-
-        return new FollowUpContextLine(
-            $sortTs,
-            $samId,
-            $displayTime,
-            $content,
-            false,
-        );
     }
 
     private function getStreamMessageCacheKey(string $appMessageId): string

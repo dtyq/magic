@@ -15,7 +15,6 @@ use App\Interfaces\Chat\Assembler\MessageAssembler;
 use Hyperf\Cache\Annotation\Cacheable;
 use Hyperf\Cache\Annotation\CacheEvict;
 use Hyperf\Codec\Json;
-use Hyperf\Database\Model\Collection;
 use Hyperf\DbConnection\Db;
 
 class MagicMessageRepository implements MagicMessageRepositoryInterface
@@ -151,40 +150,6 @@ class MagicMessageRepository implements MagicMessageRepositoryInterface
         }
 
         return MessageAssembler::getMessageEntity($message->toArray());
-    }
-
-    /**
-     * follow-up：助手 after_agent_reply 且已落 IM。
-     * 主表 magic_chat_messages，JOIN SAM 过滤 topic / 事件；结果行为 MagicMessageModel，含 sam_id、sam_send_timestamp。
-     */
-    public function findFollowUpAssistantMessagesWithImByTopicId(int $topicId, int $roundLimit): Collection
-    {
-        if ($topicId <= 0) {
-            return new Collection();
-        }
-
-        $roundLimit = max(1, $roundLimit);
-        $cmTable = $this->magicMessage->getTable();
-
-        /* @var Collection<int, MagicMessageModel> */
-        return $this->magicMessage::query()
-            ->from($cmTable)
-            ->join('magic_super_agent_message as sam', function ($join) use ($cmTable) {
-                $join->whereRaw($cmTable . '.app_message_id COLLATE utf8mb4_unicode_ci = CAST(sam.id AS CHAR) COLLATE utf8mb4_unicode_ci');
-            })
-            ->whereNull($cmTable . '.deleted_at')
-            ->whereNull('sam.deleted_at')
-            ->where('sam.topic_id', $topicId)
-            ->where('sam.event', 'after_agent_reply')
-            ->where('sam.sender_type', 'assistant')
-            ->orderByDesc('sam.id')
-            ->limit($roundLimit)
-            ->select([
-                $cmTable . '.*',
-                Db::raw('sam.id as sam_id'),
-                Db::raw('sam.send_timestamp as sam_send_timestamp'),
-            ])
-            ->get();
     }
 
     /**

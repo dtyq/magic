@@ -29,6 +29,5 @@ interface MagicGeneratedSuggestionRepositoryInterface
         int|string $relationId,
         GeneratedSuggestionStatus $status,
         array $suggestions = [],
-        array $params = [],
     ): void;
 }
