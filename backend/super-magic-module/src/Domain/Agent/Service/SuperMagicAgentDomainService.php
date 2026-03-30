@@ -241,6 +241,20 @@ readonly class SuperMagicAgentDomainService
     }
 
     /**
+     * 根据 project_id 更新 Agent 的 updated_at 时间.
+     *
+     * @param SuperMagicAgentDataIsolation $dataIsolation 数据隔离对象
+     * @param int $projectId 项目ID
+     * @return bool 是否更新成功
+     */
+    #[Transactional]
+    public function updateUpdatedAtByProjectId(SuperMagicAgentDataIsolation $dataIsolation, int $projectId): bool
+    {
+        $modifier = $dataIsolation->getCurrentUserId();
+        return $this->superMagicAgentRepository->updateUpdatedAtByProjectId($dataIsolation, $projectId, $modifier);
+    }
+
+    /**
      * 获取指定创建者的智能体编码列表.
      * @return array<string>
      */
