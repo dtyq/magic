@@ -40,6 +40,8 @@ use App\Application\MCP\Utils\MCPExecutor\ExternalStdioExecutor;
 use App\Application\MCP\Utils\MCPExecutor\ExternalStdioExecutorInterface;
 use App\Application\ModelGateway\Component\Points\PointComponent;
 use App\Application\ModelGateway\Component\Points\PointComponentInterface;
+use App\Domain\Design\Repository\Facade\ImageGenerationRepositoryInterface;
+use App\Domain\Design\Repository\Persistence\ImageGenerationRepository;
 use App\Domain\Admin\Repository\Facade\AdminGlobalSettingsRepositoryInterface;
 use App\Domain\Admin\Repository\Persistence\AdminGlobalSettingsRepository;
 use App\Domain\Agent\Repository\Facade\AgentRepositoryInterface;
@@ -451,6 +453,9 @@ $dependencies = [
     ThirdPlatformDocumentFileStrategyInterface::class => ThirdPlatformDocumentFileStrategyDriver::class,
     ExternalDocumentFileInterface::class => ExternalDocumentFile::class,
     ThirdPlatformDocumentFileInterface::class => ThirdPlatformDocumentFile::class,
+
+    // design
+    ImageGenerationRepositoryInterface::class => ImageGenerationRepository::class,
 
     // admin
     AdminGlobalSettingsRepositoryInterface::class => AdminGlobalSettingsRepository::class,
