@@ -22,7 +22,7 @@ from cryptography.hazmat.primitives import padding
 from cryptography.hazmat.primitives.ciphers import Cipher, algorithms, modes
 
 from agentlang.logger import get_logger
-from app.core.entity.message.client_message import WechatMediaContext, WechatMediaType
+from app.channel.wechat.models import WechatMediaContext, WechatMediaType
 from app.path_manager import PathManager
 from app.utils.async_file_utils import async_mkdir, async_write_bytes
 

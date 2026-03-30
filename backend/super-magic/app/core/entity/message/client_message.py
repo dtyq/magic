@@ -33,25 +33,6 @@ class User(BaseModel):
     departments: Optional[List[Department]] = Field(default_factory=list)
 
 
-class WechatMediaType(str, Enum):
-    """微信媒体类型"""
-
-    IMAGE = "image"
-    VIDEO = "video"
-    FILE = "file"
-    VOICE = "voice"
-
-
-class WechatMediaContext(BaseModel):
-    """微信入站媒体上下文"""
-
-    relative_path: str
-    absolute_path: str
-    media_type: WechatMediaType
-    mime_type: str
-    from_quote: bool = False
-
-
 class MemoryItem(BaseModel):
     """长期记忆项"""
 
@@ -76,10 +57,6 @@ class Metadata(BaseModel):
     user: Optional[User] = None
     language: Optional[str] = Field(default="zh_CN", description="用户语言偏好，支持 zh_CN(中文) 和 en_US(英文)")
     channel_name: Optional[str] = Field(default=None, description="消息来源渠道名称")
-    wechat_media: List[WechatMediaContext] = Field(
-        default_factory=list,
-        description="<!--zh: 微信入站媒体上下文，仅微信消息使用-->\nInbound WeChat media context. Used only for WeChat-originated messages.",
-    )
     authorization: Optional[str] = Field(default=None, description="认证授权令牌")
     skip_init_messages: Optional[bool] = Field(
         default=None,
@@ -167,6 +144,10 @@ class ChatClientMessage(ClientMessage):
     remark: Optional[str] = None  # 备注信息，用于中断消息等场景
     mcp_config: Optional[Dict[str, Any]] = None  # MCP 服务器配置，格式与 config/mcp.json 保持一致
     metadata: Optional[Metadata] = None  # 元数据信息，使用强类型
+    channel_context: Optional[Dict[str, Any]] = Field(
+        default=None,
+        description="Channel-specific payload, owned and interpreted by the originating channel plugin.",
+    )
 
     # 🔥 新增：动态模型选择和配置字段
     model_id: Optional[str] = Field(

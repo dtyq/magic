@@ -10,7 +10,7 @@ from __future__ import annotations
 
 import asyncio
 import time
-from typing import Optional
+from typing import List, Optional
 
 import aiohttp
 
@@ -29,6 +29,7 @@ from app.channel.wechat.state import (
 )
 from app.channel.wechat.stream import WechatStream
 from app.channel.wechat.typing import WechatTypingConfigManager, WechatTypingController
+from app.channel.wechat.models import WechatMediaContext
 from app.core.entity.message.client_message import ChatClientMessage, Metadata
 
 logger = get_logger(__name__)
@@ -86,8 +87,10 @@ class WechatChannel(BaseChannel):
             return None
         return f"Bot ID: {credential.ilink_bot_id}"
 
-    def build_agent_context_fragment(self, metadata: Metadata | None) -> str:
-        if metadata is None or not metadata.wechat_media:
+    def build_agent_context_fragment(self, message: ChatClientMessage | None) -> str:
+        ctx = message.channel_context if message else None
+        raw_media: List[dict] = ctx.get("wechat_media", []) if ctx else []
+        if not raw_media:
             return ""
 
         lines = [
@@ -95,11 +98,11 @@ class WechatChannel(BaseChannel):
             "The following files were downloaded into the workspace from the user's WeChat message.",
             "Use these paths when you need to inspect or reference the media.",
         ]
-        for index, item in enumerate(metadata.wechat_media, 1):
-            quote_suffix = " (from quoted message)" if item.from_quote else ""
+        for index, item in enumerate(raw_media, 1):
+            quote_suffix = " (from quoted message)" if item.get("from_quote") else ""
             lines.append(
-                f"{index}. type={item.media_type.value} mime={item.mime_type} "
-                f"path={item.relative_path}{quote_suffix}"
+                f"{index}. type={item.get('media_type')} mime={item.get('mime_type')} "
+                f"path={item.get('relative_path')}{quote_suffix}"
             )
         return "\n".join(lines)
 
@@ -408,8 +411,10 @@ class WechatChannel(BaseChannel):
             metadata=Metadata(
                 agent_user_id=user_id,
                 channel_name="wechat",
-                wechat_media=[wechat_media] if wechat_media else [],
             ),
+            channel_context={
+                "wechat_media": [wechat_media.model_dump()] if wechat_media else []
+            },
         )
         logger.info(f"[WechatChannel] 分发消息: user_id={user_id}, len={len(content)}")
 

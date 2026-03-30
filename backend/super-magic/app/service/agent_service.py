@@ -713,7 +713,7 @@ class AgentService(Base):
         # 处理输入框内联引用（[@file_path:格式）
         query = agent._process_user_input_with_mentions(query, [])
 
-        query = ChannelContextService.append_channel_context(query, chat_client_message.metadata)
+        query = ChannelContextService.append_channel_context(query, chat_client_message)
 
         if chat_client_message and hasattr(chat_client_message, "attachments") and chat_client_message.attachments:
             query = await self._process_attachments(agent_context, query, chat_client_message.attachments)
