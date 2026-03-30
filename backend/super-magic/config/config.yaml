@@ -92,8 +92,6 @@ agent:
   enable_parallel_tool_calls: ${AGENT_ENABLE_PARALLEL_TOOL_CALLS:-false}
   # Timeout for parallel tool execution in seconds (None = no timeout)
   parallel_tool_calls_timeout: ${AGENT_PARALLEL_TOOL_CALLS_TIMEOUT:-None}
-  # Model used for safety checking and content filtering
-  safety_checker_model_id: ${AGENT_SAFETY_MODEL_ID:-gpt-4.1}
 
 # 图片生成服务配置
 image_generator:

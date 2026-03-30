@@ -13,8 +13,6 @@ from app.core.context.agent_context import AgentContext
 from app.core.entity.attachment import Attachment, AttachmentTag
 from app.core.entity.event.event import (
     AfterClientChatEventData,
-    BeforeSafetyCheckEventData,
-    AfterSafetyCheckEventData,
     BeforeMcpInitEventData,
     AfterMcpInitEventData,
 )
@@ -758,72 +756,6 @@ class TaskMessageFactory:
                 seq_id=seq_id,  # 传递序列号
                 correlation_id=event.data.correlation_id,  # 传入关联ID
                 parent_correlation_id=parent_correlation_id,  # 传递父级关联ID
-            )
-        )
-
-    @classmethod
-    def create_before_safety_check_message(cls, event: Event[BeforeSafetyCheckEventData]) -> ServerMessage:
-        """
-        创建安全检查前的任务消息
-
-        Args:
-            event: 安全检查前事件
-
-        Returns:
-            ServerMessage: 安全检查前的任务消息
-        """
-        content = "正在进行安全检查"
-
-        agent_context = event.data.agent_context
-        seq_id = agent_context.get_next_seq_id()  # 获取序列号
-
-        return ServerMessage.create(
-            metadata=agent_context.get_metadata(),
-            payload=ServerMessagePayload.create(
-                task_id=agent_context.get_task_id(),
-                sandbox_id=agent_context.get_sandbox_id(),
-                message_type=MessageType.THINKING,
-                status=TaskStatus.RUNNING,
-                content=content,
-                event=event.event_type,
-                show_in_ui=False,
-                seq_id=seq_id,  # 传递序列号
-                correlation_id=event.data.correlation_id  # 传入关联ID
-            )
-        )
-
-    @classmethod
-    def create_after_safety_check_message(cls, event: Event[AfterSafetyCheckEventData]) -> ServerMessage:
-        """
-        创建安全检查后的任务消息
-
-        Args:
-            event: 安全检查后事件
-
-        Returns:
-            ServerMessage: 安全检查后的任务消息
-        """
-        if event.data.is_safe:
-            content = "安全检查通过"
-            status = TaskStatus.RUNNING
-        else:
-            content = "安全检查未通过"
-            status = TaskStatus.RUNNING
-
-        agent_context = event.data.agent_context
-        seq_id = agent_context.get_next_seq_id()  # 获取序列号
-
-        return ServerMessage.create(
-            metadata=agent_context.get_metadata(),
-            payload=ServerMessagePayload.create(
-                task_id=agent_context.get_task_id(),
-                sandbox_id=agent_context.get_sandbox_id(),
-                message_type=MessageType.THINKING,
-                status=status,
-                content=content,
-                event=event.event_type,
-                seq_id=seq_id,  # 传递序列号
-                correlation_id=event.data.correlation_id  # 传入关联ID
             )
         )
 
