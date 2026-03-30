@@ -75,6 +75,12 @@ class ImageGenerationAppService extends DesignAppService
                 $referenceImage = substr($referenceImage, strlen($workspacePrefix));
             }
             $normalizedReferenceImages[] = $referenceImage;
+
+            // design-mark 临时文件不在工作区内，跳过 DB 校验
+            if (str_contains($referenceImage, 'design-mark/')) {
+                continue;
+            }
+
             $fullReferenceImage = $workspacePrefix . $referenceImage;
 
             $taskFile = $this->taskFileDomainService->getByFileKey($fullReferenceImage);
@@ -100,6 +106,25 @@ class ImageGenerationAppService extends DesignAppService
         $entity->setModelId('design_image_high');
 
         // 复用生图逻辑，使用同一个表来完成
+        return $this->generateImage($authenticatable, $entity);
+    }
+
+    /**
+     * 橡皮擦（原图 + 标记图，擦除标记区域）.
+     */
+    public function generateEraser(Authenticatable $authenticatable, ImageGenerationEntity $entity): ImageGenerationEntity
+    {
+        $entity->setType(ImageGenerationType::ERASER);
+        $entity->setPrompt(
+            'You are given two images. '
+            . 'The first image is the original photo. '
+            . 'The second image is a black-and-white mask where the white region indicates the area to be erased. '
+            . 'Your task: remove the content inside the white masked area from the original photo, '
+            . 'and fill that area with a realistic, seamless background inferred from the surrounding pixels. '
+            . 'The result should look natural, as if the erased object was never there. '
+            . 'Do not alter any part of the image outside the white masked region.'
+        );
+
         return $this->generateImage($authenticatable, $entity);
     }
 

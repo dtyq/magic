@@ -35,6 +35,7 @@ return [
         'reference_images' => '参考图片',
         'reference_image' => '参考图片',
         'file_path' => '文件路径',
+        'mark_path' => '标记图片路径',
         'mark' => '标记位置',
         'mark_coordinate' => '标记坐标',
     ],

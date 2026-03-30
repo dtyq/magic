@@ -26,5 +26,8 @@ Router::addGroup('/api/v1', static function () {
 
         // 去背景
         Router::post('/remove-background', [DesignApi::class, 'removeBackground']);
+
+        // 橡皮擦
+        Router::post('/eraser', [DesignApi::class, 'eraser']);
     }, ['middleware' => [RequestContextMiddleware::class]]);
 });

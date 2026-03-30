@@ -179,6 +179,50 @@ class DesignImageGenerationSubscriber implements ListenerInterface
 
                     $response = di(ImageLLMAppService::class)->imageConvertHighV2($imageConvertHighReq);
                     return;
+                case ImageGenerationType::ERASER:
+                    // 橡皮擦场景：reference_images[0] 为原图（SandBox），reference_images[1] 为标记图（design-mark 走 Private）
+                    $eraserDTO = new TextGenerateImageDTO();
+                    /* @phpstan-ignore-next-line constant is defined at runtime */
+                    $eraserDTO->setAccessToken(MAGIC_ACCESS_TOKEN);
+                    $eraserDTO->setModel($imageGenerationEntity->getModelId());
+                    $eraserDTO->setBusinessParams([
+                        'organization_code' => $dataIsolation->getCurrentOrganizationCode(),
+                        'user_id' => $dataIsolation->getCurrentUserId(),
+                        'source_id' => 'design_image_generation',
+                    ]);
+                    $eraserDTO->setPrompt($imageGenerationEntity->getPrompt());
+                    $eraserDTO->setN(1);
+
+                    $imageUrls = [];
+                    foreach ($imageGenerationEntity->getReferenceImages() ?? [] as $referenceImage) {
+                        if (str_contains($referenceImage, 'design-mark/')) {
+                            // 临时标记图，使用绝对路径直接从 Private bucket 获取链接
+                            $imageUrl = $this->fileDomainService->getLink(
+                                $dataIsolation->getCurrentOrganizationCode(),
+                                $referenceImage,
+                                StorageBucketType::Private
+                            )?->getUrl();
+                        } else {
+                            // 普通工作区图片，拼接完整路径从 SandBox 获取链接
+                            $fullReferenceImage = $workspacePrefix . $referenceImage;
+                            $imageUrl = $this->fileDomainService->getLink(
+                                $dataIsolation->getCurrentOrganizationCode(),
+                                $fullReferenceImage,
+                                StorageBucketType::SandBox
+                            )?->getUrl();
+                        }
+                        if ($imageUrl) {
+                            $imageUrls[] = $imageUrl;
+                        }
+                    }
+                    if (! empty($imageUrls)) {
+                        $eraserDTO->setImages($imageUrls);
+                    }
+                    if ($imageGenerationEntity->getSize()) {
+                        $eraserDTO->setSize($imageGenerationEntity->getSize());
+                    }
+                    $response = di(LLMAppService::class)->textGenerateImageV2($eraserDTO);
+                    break;
                 case ImageGenerationType::REMOVE_BACKGROUND:
                 case ImageGenerationType::IMAGE_TO_IMAGE:
                 case ImageGenerationType::TEXT_TO_IMAGE:
@@ -287,6 +331,17 @@ class DesignImageGenerationSubscriber implements ListenerInterface
 
             $timestamp = date('YmdHis');
             return $originalFileName . '_no_bg_' . $timestamp;
+        }
+
+        if ($imageGenerationEntity->getType() === ImageGenerationType::ERASER) {
+            // 橡皮擦，用原图文件名拼上 erased_时间
+            $originalFileName = pathinfo($imageGenerationEntity->getReferenceImages()[0], PATHINFO_FILENAME);
+
+            $originalFileName = preg_replace('/_erased_\d{14}$/', '', $originalFileName);
+            $originalFileName = preg_replace('/_\d{14}$/', '', $originalFileName);
+
+            $timestamp = date('YmdHis');
+            return $originalFileName . '_erased_' . $timestamp;
         }
 
         // 如果 prompt 小于 10 个字符，直接使用 prompt 作为文件名

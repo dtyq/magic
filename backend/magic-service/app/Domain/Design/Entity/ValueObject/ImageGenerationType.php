@@ -35,6 +35,11 @@ enum ImageGenerationType: int
     case REMOVE_BACKGROUND = 4;
 
     /**
+     * 橡皮擦（原图 + 标记图，擦除标记区域）.
+     */
+    case ERASER = 5;
+
+    /**
      * 获取所有类型值
      */
     public static function values(): array

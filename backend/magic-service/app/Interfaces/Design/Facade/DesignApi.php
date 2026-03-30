@@ -15,6 +15,7 @@ use App\Domain\Design\Entity\ValueObject\ImageMarkIdentifyType;
 use App\Interfaces\Design\Assembler\ImageGenerationAssembler;
 use App\Interfaces\Design\DTO\ImageGenerationDTO;
 use App\Interfaces\Design\RequestForm\ConvertHighImageFormRequest;
+use App\Interfaces\Design\RequestForm\EraserFormRequest;
 use App\Interfaces\Design\RequestForm\GenerateImageFormRequest;
 use App\Interfaces\Design\RequestForm\IdentifyImageMarkFormRequest;
 use App\Interfaces\Design\RequestForm\QueryImageGenerationResultFormRequest;
@@ -137,6 +138,26 @@ class DesignApi extends AbstractApi
         }
 
         return $response;
+    }
+
+    /**
+     * 橡皮擦（原图 + 标记图，擦除标记区域）.
+     */
+    public function eraser(EraserFormRequest $request)
+    {
+        $request->validateResolved();
+        $authenticatable = $this->getAuthorization();
+        $dto = new ImageGenerationDTO($request->validated());
+        $DO = ImageGenerationAssembler::toDO($dto);
+
+        $filePath = (string) $this->request->input('file_path');
+        $markPath = (string) $this->request->input('mark_path');
+        // 原图作为第一张参考图，标记图作为第二张参考图
+        $DO->setReferenceImages([$filePath, $markPath]);
+
+        $resultEntity = $this->imageGenerationAppService->generateEraser($authenticatable, $DO);
+
+        return ImageGenerationAssembler::toDTO($resultEntity);
     }
 
     /**
