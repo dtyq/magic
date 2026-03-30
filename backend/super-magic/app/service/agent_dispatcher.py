@@ -25,7 +25,7 @@ from app.service.agent_event.checkpoint_listener_service import CheckpointListen
 from app.infrastructure.observability import install_tool_monitoring_listener
 from app.service.mcp_service import MCPService
 from app.path_manager import PathManager
-from app.channel.startup import auto_connect_channels_for_current_sandbox
+from app.service.agent_event.channel_startup_listener_service import ChannelStartupListenerService
 from app.core.entity.message.client_message import InitClientMessage, ChatClientMessage, AgentMode
 from agentlang.logger import get_logger
 from app.core.base_service import Base
@@ -93,6 +93,7 @@ class AgentDispatcher(Base):
         # FileListenerService.register_standard_listeners(self.agent_context)
         CheckpointListenerService.register_standard_listeners(self.agent_context)
         ResourceCleanupListenerService.register_standard_listeners(self.agent_context)
+        ChannelStartupListenerService.register_standard_listeners(self.agent_context)
 
         # 注册工具监控监听器（非侵入式）
         install_tool_monitoring_listener(self.agent_context)
@@ -122,10 +123,6 @@ class AgentDispatcher(Base):
             except Exception as e:
                 logger.error(f"注册监听器 {entry_point.name} 时出错: {e!s}")
                 # 继续处理其他监听器，不中断流程
-
-        # TODO： 更优雅的方式管理所有需要自启的设施
-        # 自动重连上次保存的 IM 渠道（connect 内部已非阻塞，此处 await 仅等待参数传递）
-        await auto_connect_channels_for_current_sandbox()
 
         logger.info("AgentDispatcher 初始化完成")
         return self
@@ -332,21 +329,21 @@ class AgentDispatcher(Base):
         from app.service.crew_downloader import CrewDownloader
         from app.service.crew_agent_compiler import CrewAgentCompiler
         from app.core.entity.agent_profile import AgentProfile
-        from app.utils.async_file_utils import async_read_markdown
+        from app.utils.async_file_utils import async_read_markdown, async_exists
 
         crew_dir = PathManager.get_crew_agent_dir(agent_code)
         output_agent_file = PathManager.get_compiled_agent_file(agent_code)
         identity_file = PathManager.get_crew_identity_file(agent_code)
         compiler = CrewAgentCompiler()
 
-        if output_agent_file.exists():
+        if await async_exists(output_agent_file):
             logger.info(f"Crew .agent already exists, skip download/compile: {output_agent_file}")
-            if not identity_file.exists():
+            if not await async_exists(identity_file):
                 logger.warning(f"IDENTITY.md not found for existing crew agent, skip profile setup: {identity_file}")
                 return
             identity_meta = (await async_read_markdown(identity_file)).meta
         else:
-            if not identity_file.exists():
+            if not await async_exists(identity_file):
                 logger.info(f"Crew files not found locally, downloading: {agent_code}")
                 downloader = CrewDownloader()
                 await downloader.download_and_extract(agent_code, crew_dir)
@@ -378,7 +375,7 @@ class AgentDispatcher(Base):
         output_agent_file = PathManager.get_compiled_agent_file(claw_code)
         claw_src = PathManager.get_claw_agent_dir(claw_code)
 
-        if output_agent_file.exists():
+        if await async_exists(output_agent_file):
             # 已初始化：补全可能缺失的模板文件，但跳过 BOOTSTRAP.md
             # （BOOTSTRAP 仅用于首次初始化，agent 处理完后会自行删除，不应重新写入）
             await async_copytree(claw_src, magic_dir, on_conflict=CopyConflict.SKIP, exclude={"BOOTSTRAP.md", "memory"})
