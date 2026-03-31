@@ -17,6 +17,7 @@ use App\Domain\Contact\Entity\ValueObject\DataIsolation;
 use App\Domain\ModelGateway\Entity\ValueObject\ModelGatewayDataIsolation;
 use App\Interfaces\Chat\Assembler\MagicGeneratedSuggestionAssembler;
 use App\Interfaces\Chat\DTO\Response\FollowUpSuggestionQueryResponseDTO;
+use Dtyq\SuperMagic\Domain\SuperAgent\Entity\TaskMessageEntity;
 use Dtyq\SuperMagic\Domain\SuperAgent\Service\TaskMessageDomainService;
 use Hyperf\Codec\Json;
 use Hyperf\Context\ApplicationContext;
@@ -163,7 +164,8 @@ PROMPT;
     private function buildFollowUpHistoryContextExcerpt(int $topicId, int $roundLimit = 3): string
     {
         $contextMessages = $this->taskMessageDomainService->findFollowUpContextMessages($topicId, $roundLimit);
-        $linesToRender = $this->mapTaskMessagesToFollowUpContextLines($contextMessages);
+        $filteredMessages = $this->filterFollowUpContextMessages($contextMessages, $roundLimit);
+        $linesToRender = $this->mapTaskMessagesToFollowUpContextLines($filteredMessages);
         if ($linesToRender === []) {
             return '';
         }
@@ -179,6 +181,53 @@ PROMPT;
         }
 
         return $lines === [] ? '' : implode("\n", $lines);
+    }
+
+    /**
+     * 在应用层将最近 N 轮原始消息压缩为「问题 + 每轮最后一条回答」。
+     */
+    private function filterFollowUpContextMessages(array $messages, int $roundLimit): array
+    {
+        $rounds = [];
+        $currentQuestion = null;
+        $currentAnswer = null;
+
+        foreach ($messages as $message) {
+            if ($message->getEvent() === '') {
+                if ($currentQuestion !== null) {
+                    $rounds[] = [
+                        'question' => $currentQuestion,
+                        'answer' => $currentAnswer,
+                    ];
+                }
+
+                $currentQuestion = $message;
+                $currentAnswer = null;
+                continue;
+            }
+
+            if ($message->getEvent() === 'after_agent_reply' && $currentQuestion !== null) {
+                $currentAnswer = $message;
+            }
+        }
+
+        if ($currentQuestion !== null) {
+            $rounds[] = [
+                'question' => $currentQuestion,
+                'answer' => $currentAnswer,
+            ];
+        }
+
+        $rounds = array_slice($rounds, -$roundLimit);
+        $contextMessages = [];
+        foreach ($rounds as $round) {
+            $contextMessages[] = $round['question'];
+            if ($round['answer'] instanceof TaskMessageEntity) {
+                $contextMessages[] = $round['answer'];
+            }
+        }
+
+        return $contextMessages;
     }
 
     /**

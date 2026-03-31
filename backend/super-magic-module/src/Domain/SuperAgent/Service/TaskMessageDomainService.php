@@ -23,7 +23,7 @@ class TaskMessageDomainService
     }
 
     /**
-     * follow-up：按 topic 拉取最近 $roundLimit 轮「用户问 + 最终助手答」消息.
+     * follow-up：按 topic 拉取最近 $roundLimit 轮原始消息候选集.
      */
     public function findFollowUpContextMessages(int $topicId, int $roundLimit = 3): array
     {

@@ -23,18 +23,30 @@ interface TaskMessageRepositoryInterface
     public function save(TaskMessageEntity $message): void;
 
     /**
+     * 批量保存消息.
+     * @param TaskMessageEntity[] $messages
+     */
+    public function batchSave(array $messages): void;
+
+    /**
      * 根据话题ID和任务ID获取用户消息列表（优化索引+过滤用户消息）.
      * @return TaskMessageEntity[]
      */
     public function findUserMessagesByTopicIdAndTaskId(int $topicId, string $taskId): array;
 
     /**
-     * follow-up 摘录：从 magic_super_agent_message 单表提取最近 N 轮「用户问 + 最终助手答」上下文。
+     * 根据任务ID获取消息列表.
+     * @return TaskMessageEntity[]
+     */
+    public function findByTaskId(string $taskId): array;
+
+    /**
+     * 从 magic_super_agent_message 单表提取最近 N 轮原始消息候选集。
      *
      * 轮次规则：
      * - sender_type = user 且 event 为空 视为一轮开始
      * - 该轮结束于下一条满足上述条件的用户消息之前
-     * - 每轮助手答只取最后一条 event = after_agent_reply 且 content_type = content 的记录
+     * - 返回该范围内的问题消息与 assistant after_agent_reply 候选消息
      *
      * @return TaskMessageEntity[]
      */
@@ -53,6 +65,16 @@ interface TaskMessageRepositoryInterface
     public function findByTopicId(int $topicId, int $page = 1, int $pageSize = 20, bool $shouldPage = true, string $sortDirection = 'asc', bool $showInUi = true): array;
 
     public function getUserFirstMessageByTopicId(int $topicId, string $userId): ?TaskMessageEntity;
+
+    /**
+     * 根据topic_id和处理状态查询消息列表，按seq_id升序排列.
+     * @param int $topicId 话题ID
+     * @param string $processingStatus 处理状态
+     * @param string $senderType 发送者类型
+     * @param int $limit 限制数量
+     * @return TaskMessageEntity[]
+     */
+    public function findPendingMessagesByTopicId(int $topicId, string $processingStatus, string $senderType = 'assistant', int $limit = 50): array;
 
     /**
      * 更新消息处理状态.

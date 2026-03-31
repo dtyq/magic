@@ -36,6 +36,15 @@ class TaskMessageRepository implements TaskMessageRepositoryInterface
         $this->model::query()->create($message->toArray());
     }
 
+    public function batchSave(array $messages): void
+    {
+        $data = array_map(function (TaskMessageEntity $message) {
+            return $message->toArray();
+        }, $messages);
+
+        $this->model::query()->insert($data);
+    }
+
     /**
      * 根据话题ID和任务ID获取用户消息列表（优化索引+过滤用户消息）.
      * @return TaskMessageEntity[]
@@ -47,6 +56,19 @@ class TaskMessageRepository implements TaskMessageRepositoryInterface
             ->where('task_id', $taskId)
             ->where('sender_type', 'user')
             ->orderBy('id');
+
+        $result = Db::select($query->toSql(), $query->getBindings());
+
+        return array_map(function ($record) {
+            return new TaskMessageEntity((array) $record);
+        }, $result);
+    }
+
+    public function findByTaskId(string $taskId): array
+    {
+        $query = $this->model::query()
+            ->where('task_id', $taskId)
+            ->orderBy('send_timestamp', 'asc');
 
         $result = Db::select($query->toSql(), $query->getBindings());
 
@@ -75,7 +97,7 @@ class TaskMessageRepository implements TaskMessageRepositoryInterface
             return [];
         }
 
-        return $this->filterFollowUpContextMessages($candidateMessages, $roundLimit);
+        return $candidateMessages;
     }
 
     /**
@@ -167,6 +189,22 @@ class TaskMessageRepository implements TaskMessageRepositoryInterface
             return null;
         }
         return new TaskMessageEntity($record->toArray());
+    }
+
+    public function findPendingMessagesByTopicId(int $topicId, string $processingStatus, string $senderType = 'assistant', int $limit = 50): array
+    {
+        $query = $this->model::query()
+            ->where('topic_id', $topicId)
+            ->where('processing_status', $processingStatus)
+            ->where('sender_type', $senderType)
+            ->orderBy('seq_id', 'asc')
+            ->limit($limit);
+
+        $result = Db::select($query->toSql(), $query->getBindings());
+
+        return array_map(function ($record) {
+            return new TaskMessageEntity((array) $record);
+        }, $result);
     }
 
     public function updateProcessingStatus(int $id, string $processingStatus, ?string $errorMessage = null, int $retryCount = 0): void
@@ -454,53 +492,5 @@ class TaskMessageRepository implements TaskMessageRepositoryInterface
         }
 
         return $messages;
-    }
-
-    /**
-     * @param TaskMessageEntity[] $candidateMessages
-     * @return TaskMessageEntity[]
-     */
-    private function filterFollowUpContextMessages(array $candidateMessages, int $roundLimit): array
-    {
-        $rounds = [];
-        $currentQuestion = null;
-        $currentAnswer = null;
-
-        foreach ($candidateMessages as $message) {
-            if ($message->getEvent() === '') {
-                if ($currentQuestion !== null) {
-                    $rounds[] = [
-                        'question' => $currentQuestion,
-                        'answer' => $currentAnswer,
-                    ];
-                }
-
-                $currentQuestion = $message;
-                $currentAnswer = null;
-                continue;
-            }
-
-            if ($message->getEvent() === 'after_agent_reply' && $currentQuestion !== null) {
-                $currentAnswer = $message;
-            }
-        }
-
-        if ($currentQuestion !== null) {
-            $rounds[] = [
-                'question' => $currentQuestion,
-                'answer' => $currentAnswer,
-            ];
-        }
-
-        $rounds = array_slice($rounds, -$roundLimit);
-        $contextMessages = [];
-        foreach ($rounds as $round) {
-            $contextMessages[] = $round['question'];
-            if ($round['answer'] instanceof TaskMessageEntity) {
-                $contextMessages[] = $round['answer'];
-            }
-        }
-
-        return $contextMessages;
     }
 }
