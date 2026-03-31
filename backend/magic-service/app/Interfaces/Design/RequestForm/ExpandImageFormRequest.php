@@ -23,7 +23,6 @@ class ExpandImageFormRequest extends FormRequest
         return [
             'project_id' => 'required|integer|min:1',
             'image_id' => 'required|string|max:80',
-            'model_id' => 'required|string|max:80',
             'file_dir' => 'required|string|max:512',
             'file_path' => 'required|string|max:512',
             'canvas_path' => 'required|string|max:512',
@@ -42,7 +41,6 @@ class ExpandImageFormRequest extends FormRequest
         return [
             'project_id' => trans('design.attributes.project_id'),
             'image_id' => trans('design.attributes.image_id'),
-            'model_id' => trans('design.attributes.model_id'),
             'file_dir' => trans('design.attributes.file_dir'),
             'file_path' => trans('design.attributes.file_path'),
             'canvas_path' => trans('design.attributes.canvas_path'),

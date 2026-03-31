@@ -15,6 +15,7 @@ return [
         'missing_image_data_error_prompt_only' => '图片生成失败，可能是提示词不够清晰，请检查提示词描述是否准确、详细，调整后重试。',
         'missing_image_data_error_with_reference' => '图片生成失败，可能是提示词不够清晰或参考图像有问题，请检查提示词描述是否准确，参考图像是否有效，调整后重试。',
         'project_not_exists' => '项目不存在: :project_id',
+        'feature_unavailable' => '当前功能不可用',
     ],
     'image_mark_identify' => [
         'project_not_exists' => '项目不存在: :project_id',
