@@ -933,8 +933,14 @@ export namespace PlatformPackage {
 		AI_OPTIMIZATION = "ai_optimization",
 		/** 网页爬取  */
 		WEB_SCRAPE = "web_scrape",
-		/* 图片转换高清 */
+		/** 图片转换高清 */
 		IMAGE_CONVERT_HIGH = "image_convert_high",
+		/** 扩图 */
+		IMAGE_EXPAND = "image_expand",
+		/** 去背景 */
+		IMAGE_REMOVE_BACKGROUND = "image_remove_background",
+		/** 橡皮擦 */
+		IMAGE_ERASER = "image_eraser",
 	}
 
 	/** 能力管理联通性测试 */
