@@ -27,6 +27,7 @@ class MagicGeneratedSuggestionAssembler
         $dto = new FollowUpSuggestionQueryResponseDTO();
         $dto->type = $entity->getType();
         $dto->relationId = $entity->getRelationId();
+        $dto->status = $entity->getStatus()?->value;
         $dto->suggestions = $entity->getSuggestions();
 
         return $dto;

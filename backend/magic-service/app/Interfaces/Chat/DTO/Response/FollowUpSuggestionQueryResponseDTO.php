@@ -15,6 +15,8 @@ class FollowUpSuggestionQueryResponseDTO extends AbstractDTO
 
     public string $relationId = '';
 
+    public ?int $status = null;
+
     /** @var string[] */
     public array $suggestions = [];
 }
