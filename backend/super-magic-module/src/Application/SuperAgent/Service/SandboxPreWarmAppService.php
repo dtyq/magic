@@ -151,6 +151,11 @@ class SandboxPreWarmAppService
         }
 
         if ($workspaceEntity->getUserId() !== $userId) {
+            $this->logger->error('话题外沙箱预启动：工作区归属校验失败', [
+                'workspace_id' => $workspaceId,
+                'workspace_owner_user_id' => $workspaceEntity->getUserId(),
+                'request_user_id' => $userId,
+            ]);
             ExceptionBuilder::throw(SuperAgentErrorCode::WORKSPACE_ACCESS_DENIED, 'workspace.access_denied');
         }
 

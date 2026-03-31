@@ -10,6 +10,7 @@ namespace Dtyq\SuperMagic\Interfaces\Agent\Facade;
 use App\Domain\Contact\Entity\ValueObject\DataIsolation;
 use App\ErrorCode\AgentErrorCode;
 use App\ErrorCode\GenericErrorCode;
+use App\Infrastructure\Core\Exception\EventException;
 use App\Infrastructure\Core\Exception\ExceptionBuilder;
 use App\Infrastructure\Util\Context\RequestContext;
 use Dtyq\ApiResponse\Annotation\ApiResponse;
@@ -26,7 +27,9 @@ use Dtyq\SuperMagic\Interfaces\Agent\DTO\Request\UpdateMagicClawRequestDTO;
 use Dtyq\SuperMagic\Interfaces\Agent\DTO\Response\SandboxStatusResponseDTO;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\Facade\AbstractApi;
 use Hyperf\HttpServer\Contract\RequestInterface;
+use Hyperf\Logger\LoggerFactory;
 use RuntimeException;
+use Throwable;
 
 use function Hyperf\Support\retry;
 
@@ -39,6 +42,7 @@ class MagicClawApi extends AbstractApi
         private readonly ProjectAppService $projectAppService,
         private readonly TopicAppService $topicAppService,
         private readonly AgentAppService $agentAppService,
+        private readonly LoggerFactory $loggerFactory,
     ) {
         parent::__construct($request);
     }
@@ -56,40 +60,59 @@ class MagicClawApi extends AbstractApi
 
         $dto = CreateMagicClawRequestDTO::fromRequest($this->request);
 
-        // 1. Insert claw record
-        $clawEntity = $this->magicClawAppService->create($authorization, $dto);
+        try {
+            // 1. Insert claw record (dispatches BeforeCreateClawEvent; listeners may throw EventException)
+            $clawEntity = $this->magicClawAppService->create($authorization, $dto);
 
-        // 2. Create project (with retry for resilience)
-        $projectResult = retry(3, function () use ($requestContext, $clawEntity) {
-            $projectRequestDTO = new CreateAgentProjectRequestDTO();
-            $projectRequestDTO->setProjectName($clawEntity->getName());
-            $projectRequestDTO->setInitTemplateFiles(true);
+            // 2. Create project (with retry for resilience)
+            $projectResult = retry(3, function () use ($requestContext, $clawEntity) {
+                $projectRequestDTO = new CreateAgentProjectRequestDTO();
+                $projectRequestDTO->setProjectName($clawEntity->getName());
+                $projectRequestDTO->setInitTemplateFiles(false);
 
-            $result = $this->projectAppService->createAgentProject(
-                $requestContext,
-                $projectRequestDTO,
-                ProjectMode::MAGICLAW
-            );
+                $result = $this->projectAppService->createAgentProject(
+                    $requestContext,
+                    $projectRequestDTO,
+                    ProjectMode::MAGICLAW
+                );
 
-            $projectId = (int) ($result['project']['id'] ?? 0);
-            if ($projectId <= 0) {
-                throw new RuntimeException('Failed to create project: project ID is invalid');
+                $projectId = (int) ($result['project']['id'] ?? 0);
+                if ($projectId <= 0) {
+                    throw new RuntimeException('Failed to create project: project ID is invalid');
+                }
+
+                return $result;
+            }, 1000);
+
+            // 3. Bind project_id back to claw record
+            $projectId = (int) ($projectResult['project']['id'] ?? 0);
+            if ($projectId > 0) {
+                $this->magicClawAppService->bindProject($authorization, $clawEntity->getCode(), $projectId);
+                $clawEntity->setProjectId($projectId);
             }
 
-            return $result;
-        }, 1000);
-
-        // 3. Bind project_id back to claw record
-        $projectId = (int) ($projectResult['project']['id'] ?? 0);
-        if ($projectId > 0) {
-            $this->magicClawAppService->bindProject($authorization, $clawEntity->getCode(), $projectId);
-            $clawEntity->setProjectId($projectId);
+            return MagicClawAssembler::toItem($clawEntity, [
+                'project' => $projectResult['project'] ?? [],
+                'topic' => $projectResult['topic'] ?? [],
+            ]);
+        } catch (EventException $e) {
+            $this->loggerFactory->get(self::class)->warning(sprintf(
+                '创建 Magic Claw 时事件处理失败: %s, code: %d',
+                $e->getMessage(),
+                $e->getCode()
+            ));
+            throw $e;
+        } catch (Throwable $e) {
+            $this->loggerFactory->get(self::class)->error(sprintf(
+                '创建 Magic Claw 失败: %s, User: %s, file: %s, line: %s, trace: %s',
+                $e->getMessage(),
+                (string) $authorization->getId(),
+                $e->getFile(),
+                $e->getLine(),
+                $e->getTraceAsString()
+            ));
+            ExceptionBuilder::throw(GenericErrorCode::SystemError, 'super_magic.magic_claw.create_system_error');
         }
-
-        return MagicClawAssembler::toItem($clawEntity, [
-            'project' => $projectResult['project'] ?? [],
-            'topic' => $projectResult['topic'] ?? [],
-        ]);
     }
 
     /**
@@ -153,7 +176,12 @@ class MagicClawApi extends AbstractApi
 
         $list = [];
         foreach ($result['list'] as $item) {
-            $list[] = MagicClawAssembler::toListItem($item['entity'], $item['status']);
+            $list[] = MagicClawAssembler::toListItem(
+                $item['entity'],
+                $item['status'],
+                $item['topic_id'] ?? null,
+                (bool) ($item['need_upgrade'] ?? false)
+            );
         }
 
         return [
@@ -238,24 +266,73 @@ class MagicClawApi extends AbstractApi
             ExceptionBuilder::throw(GenericErrorCode::ParameterMissing, 'topic_id is required');
         }
 
-        $topic = $this->topicAppService->getTopic($requestContext, (int) $topicId);
-        $sandboxId = $topic->getSandboxId();
-
-        if (empty($sandboxId)) {
-            ExceptionBuilder::throw(GenericErrorCode::ParameterMissing, 'sandbox_id is required');
-        }
-
-        $project = $this->projectAppService->getProjectNotUserId((int) $topic->getProjectId());
-        $workDir = $project->getWorkDir() ?? '';
+        // 权限校验：确保话题属于当前用户
+        $this->topicAppService->getTopic($requestContext, (int) $topicId);
 
         $dataIsolation = new DataIsolation();
         $dataIsolation->setCurrentUserId($authorization->getId());
         $dataIsolation->setCurrentOrganizationCode($authorization->getOrganizationCode());
         $dataIsolation->setThirdPartyOrganizationCode($authorization->getOrganizationCode());
 
-        $result = $this->agentAppService->upgradeSandbox($dataIsolation, $sandboxId, (string) $topic->getProjectId(), $workDir);
+        $sandboxId = $this->agentAppService->upgradeSandbox($dataIsolation, (int) $topicId);
 
-        return $result->toArray();
+        return ['sandbox_id' => $sandboxId];
+    }
+
+    /**
+     * Start sandbox without deleting existing one (no image version check).
+     *
+     * @return array<string,mixed>
+     */
+    public function startSandbox(RequestContext $requestContext): array
+    {
+        $authorization = $this->getAuthorization();
+        $requestContext->setUserAuthorization($authorization);
+
+        $topicId = $this->request->input('topic_id', '');
+        if (empty($topicId)) {
+            ExceptionBuilder::throw(GenericErrorCode::ParameterMissing, 'topic_id is required');
+        }
+
+        // 权限校验：确保话题属于当前用户
+        $this->topicAppService->getTopic($requestContext, (int) $topicId);
+
+        $dataIsolation = new DataIsolation();
+        $dataIsolation->setCurrentUserId($authorization->getId());
+        $dataIsolation->setCurrentOrganizationCode($authorization->getOrganizationCode());
+        $dataIsolation->setThirdPartyOrganizationCode($authorization->getOrganizationCode());
+
+        $sandboxId = $this->agentAppService->startSandbox($dataIsolation, (int) $topicId);
+
+        return ['sandbox_id' => $sandboxId];
+    }
+
+    /**
+     * Restart sandbox unconditionally (no image version check).
+     *
+     * @return array<string,mixed>
+     */
+    public function restartSandbox(RequestContext $requestContext): array
+    {
+        $authorization = $this->getAuthorization();
+        $requestContext->setUserAuthorization($authorization);
+
+        $topicId = $this->request->input('topic_id', '');
+        if (empty($topicId)) {
+            ExceptionBuilder::throw(GenericErrorCode::ParameterMissing, 'topic_id is required');
+        }
+
+        // 权限校验：确保话题属于当前用户
+        $this->topicAppService->getTopic($requestContext, (int) $topicId);
+
+        $dataIsolation = new DataIsolation();
+        $dataIsolation->setCurrentUserId($authorization->getId());
+        $dataIsolation->setCurrentOrganizationCode($authorization->getOrganizationCode());
+        $dataIsolation->setThirdPartyOrganizationCode($authorization->getOrganizationCode());
+
+        $sandboxId = $this->agentAppService->restartSandbox($dataIsolation, (int) $topicId);
+
+        return ['sandbox_id' => $sandboxId];
     }
 
     /**

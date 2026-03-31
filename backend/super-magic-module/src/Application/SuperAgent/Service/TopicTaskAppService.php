@@ -595,67 +595,23 @@ class TopicTaskAppService extends AbstractAppService
             $userAuthorization->getOrganizationCode(),
             $userAuthorization->getId()
         );
-        // Note: Language will be set from request header in middleware or default to 'en_US'
-        // $dataIsolation->setLanguage() is called in middleware if needed
+        $result = $this->createTaskByDataIsolation($dataIsolation, $requestDTO);
 
-        $topicId = 0;
-        $taskId = '';
+        return [
+            'task_id' => $result['task_id'],
+        ];
+    }
 
-        try {
-            // Step 1: Validate and parse message structure
-            $contentStruct = $this->validateAndParseMessage($requestDTO);
-
-            // Step 2: Check topic existence and ownership
-            $topicEntity = $this->checkTopicPermission(
-                $dataIsolation,
-                (int) $requestDTO->getTopicId()
-            );
-            $topicId = $topicEntity->getId();
-
-            // Step 3: Pre-initialize task_id
-            $taskId = (string) IdGenerator::getSnowId();
-
-            // Step 4: Dispatch pre-check event
-            $this->dispatchPreCheckEvent($dataIsolation, $topicEntity, $contentStruct, $taskId);
-
-            // Step 5: Initialize task entity
-            $taskEntity = $this->initializeTask($dataIsolation, $topicEntity, $requestDTO, $taskId, $contentStruct);
-
-            // Step 6: Persist user message and push to IM
-            $messageId = (int) IdGenerator::getSnowId();
-            $persistResult = $this->persistAndPushUserMessage(
-                $dataIsolation,
-                $topicEntity,
-                $taskEntity,
-                $requestDTO,
-                $contentStruct,
-                $messageId
-            );
-
-            // Step 7: Deliver message to queue for async processing
-            $this->deliverMessageToQueue(
-                $dataIsolation,
-                $topicEntity,
-                $taskEntity,
-                $requestDTO,
-                $persistResult['agentUserId'],
-                $persistResult['extraData']
-            );
-
-            return [
-                'task_id' => (string) $taskEntity->getId(),
-            ];
-        } catch (Throwable $e) {
-            $this->logger->error('Failed to create task', [
-                'topic_id' => $topicId,
-                'task_id' => $taskId,
-                'error' => $e->getMessage(),
-                'file' => $e->getFile(),
-                'line' => $e->getLine(),
-                'trace' => $e->getTraceAsString(),
-            ]);
-            throw $e;
-        }
+    /**
+     * Ingest a third-party user message through the shared task creation flow.
+     * Only persists the message and pushes it to IM; does NOT deliver to the agent queue.
+     */
+    public function ingestThirdPartyMessage(
+        DataIsolation $dataIsolation,
+        CreateTaskRequestDTO $requestDTO,
+        array $source
+    ): array {
+        return $this->createTaskByDataIsolation($dataIsolation, $requestDTO, $source, deliverToQueue: false);
     }
 
     /**
@@ -733,6 +689,103 @@ class TopicTaskAppService extends AbstractAppService
             'err_msg' => $taskEntity->getErrMsg(),
             'updated_at' => $taskEntity->getUpdatedAt(),
         ];
+    }
+
+    /**
+     * Shared task creation flow for both first-party and third-party user messages.
+     *
+     * @return array{task_id: string, message_id: string, im_seq_id: ?string, deduplicated: bool}
+     */
+    private function createTaskByDataIsolation(
+        DataIsolation $dataIsolation,
+        CreateTaskRequestDTO $requestDTO,
+        ?array $source = null,
+        bool $deliverToQueue = true
+    ): array {
+        $preparedRequestDTO = $this->createTaskRequestDTOWithSource($requestDTO, $source);
+
+        $topicId = 0;
+        $taskId = '';
+        $businessMessageId = '';
+
+        try {
+            $contentStruct = $this->validateAndParseMessage($preparedRequestDTO);
+
+            $topicEntity = $this->checkTopicPermission(
+                $dataIsolation,
+                (int) $preparedRequestDTO->getTopicId()
+            );
+            $topicId = $topicEntity->getId();
+
+            if ($topicEntity->getProjectId() !== (int) $preparedRequestDTO->getProjectId()) {
+                ExceptionBuilder::throw(
+                    SuperAgentErrorCode::VALIDATE_FAILED,
+                    'Project ID does not match topic'
+                );
+            }
+
+            $businessMessageId = $this->resolveUserMessageId($source);
+            if ($businessMessageId !== '') {
+                $existingMessage = $this->taskMessageDomainService->findByTopicIdAndMessageId($topicEntity->getId(), $businessMessageId);
+                if ($existingMessage !== null) {
+                    return [
+                        'task_id' => $existingMessage->getTaskId(),
+                        'message_id' => $existingMessage->getMessageId(),
+                        'im_seq_id' => $existingMessage->getImSeqId() !== null ? (string) $existingMessage->getImSeqId() : null,
+                        'deduplicated' => true,
+                    ];
+                }
+            }
+
+            $taskId = (string) IdGenerator::getSnowId();
+
+            $this->dispatchPreCheckEvent($dataIsolation, $topicEntity, $contentStruct, $taskId);
+
+            $taskEntity = $this->initializeTask($dataIsolation, $topicEntity, $preparedRequestDTO, $taskId, $contentStruct);
+
+            $recordId = (int) IdGenerator::getSnowId();
+            $businessMessageId = $businessMessageId !== '' ? $businessMessageId : (string) $recordId;
+            $persistResult = $this->persistAndPushUserMessage(
+                $dataIsolation,
+                $topicEntity,
+                $taskEntity,
+                $preparedRequestDTO,
+                $contentStruct,
+                $recordId,
+                $businessMessageId,
+                $source
+            );
+
+            if ($deliverToQueue) {
+                $this->deliverMessageToQueue(
+                    $dataIsolation,
+                    $topicEntity,
+                    $taskEntity,
+                    $preparedRequestDTO,
+                    $persistResult['agentUserId'],
+                    $persistResult['extraData']
+                );
+            }
+
+            return [
+                'task_id' => (string) $taskEntity->getId(),
+                'message_id' => $businessMessageId,
+                'im_seq_id' => $persistResult['imSeqId'] !== null ? (string) $persistResult['imSeqId'] : null,
+                'deduplicated' => false,
+            ];
+        } catch (Throwable $e) {
+            $this->logger->error('Failed to create task', [
+                'topic_id' => $topicId,
+                'task_id' => $taskId,
+                'message_id' => $businessMessageId,
+                'source' => $source,
+                'error' => $e->getMessage(),
+                'file' => $e->getFile(),
+                'line' => $e->getLine(),
+                'trace' => $e->getTraceAsString(),
+            ]);
+            throw $e;
+        }
     }
 
     /**
@@ -1173,7 +1226,7 @@ class TopicTaskAppService extends AbstractAppService
     /**
      * Persist user message and push to IM immediately.
      *
-     * @return array{taskMessageEntity: TaskMessageEntity, agentUserId: string, extraData: ?array}
+     * @return array{taskMessageEntity: TaskMessageEntity, agentUserId: string, extraData: ?array, imSeqId: ?int}
      */
     private function persistAndPushUserMessage(
         DataIsolation $dataIsolation,
@@ -1181,7 +1234,9 @@ class TopicTaskAppService extends AbstractAppService
         TaskEntity $taskEntity,
         CreateTaskRequestDTO $requestDTO,
         TextContentInterface $contentStruct,
-        int $messageId
+        int $recordId,
+        string $messageId,
+        ?array $source = null
     ): array {
         // 1. Get agent user
         $aiUserEntity = $this->userDomainService->getByAiCode(
@@ -1224,8 +1279,8 @@ class TopicTaskAppService extends AbstractAppService
 
         // 4. Create and populate task message entity
         $taskMessageEntity = new TaskMessageEntity();
-        $taskMessageEntity->setId($messageId);
-        $taskMessageEntity->setMessageId((string) $messageId);
+        $taskMessageEntity->setId($recordId);
+        $taskMessageEntity->setMessageId($messageId);
         $taskMessageEntity->setTaskId((string) $taskEntity->getId());
         $taskMessageEntity->setTopicId($taskEntity->getTopicId());
 
@@ -1245,6 +1300,9 @@ class TopicTaskAppService extends AbstractAppService
         }
         if (! empty($mentions)) {
             $taskMessageEntity->setMentions($mentions);
+        }
+        if (! empty($source)) {
+            $taskMessageEntity->setSource($source);
         }
 
         // Status
@@ -1277,7 +1335,46 @@ class TopicTaskAppService extends AbstractAppService
             'taskMessageEntity' => $taskMessageEntity,
             'agentUserId' => $aiUserEntity->getUserId(),
             'extraData' => $extraData,
+            'imSeqId' => $taskMessageEntity->getImSeqId(),
         ];
+    }
+
+    private function createTaskRequestDTOWithSource(CreateTaskRequestDTO $requestDTO, ?array $source = null): CreateTaskRequestDTO
+    {
+        if (empty($source)) {
+            return $requestDTO;
+        }
+
+        $messageContent = $requestDTO->getMessageContent();
+        if (! isset($messageContent['extra']) || ! is_array($messageContent['extra'])) {
+            $messageContent['extra'] = [];
+        }
+        if (! isset($messageContent['extra']['super_agent']) || ! is_array($messageContent['extra']['super_agent'])) {
+            $messageContent['extra']['super_agent'] = [];
+        }
+        $messageContent['extra']['super_agent']['source'] = $source;
+
+        return new CreateTaskRequestDTO([
+            'project_id' => $requestDTO->getProjectId(),
+            'topic_id' => $requestDTO->getTopicId(),
+            'message_type' => $requestDTO->getMessageType(),
+            'message_content' => $messageContent,
+        ]);
+    }
+
+    private function resolveUserMessageId(?array $source = null): string
+    {
+        if (empty($source)) {
+            return '';
+        }
+
+        $channel = (string) ($source['channel'] ?? '');
+        $messageId = (string) ($source['message_id'] ?? '');
+        if ($channel === '' || $messageId === '') {
+            return '';
+        }
+
+        return sprintf('tp:%s:%s', $channel, $messageId);
     }
 
     /**
@@ -1319,6 +1416,10 @@ class TopicTaskAppService extends AbstractAppService
             $superAgentExtra = $messageExtra->getSuperAgent();
             if ($superAgentExtra === null) {
                 $superAgentExtra = new SuperAgentExtra();
+            }
+            $source = $messageContent['extra']['super_agent']['source'] ?? null;
+            if (is_array($source) && ! empty($source)) {
+                $superAgentExtra->setSource($source);
             }
             $superAgentExtra->setProcessedByApi(true);
             $messageExtra->setSuperAgent($superAgentExtra);

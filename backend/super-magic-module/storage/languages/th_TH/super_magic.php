@@ -73,8 +73,14 @@ return [
         'publisher_type_must_be_string' => 'Publisher type must be a string',
         'publisher_type_invalid' => 'Invalid publisher type',
         'publish_target_value_required' => 'publish_target_value is required for current publish target type',
+        'publish' => [
+            'identity_md_not_found' => 'ไม่พบไฟล์ IDENTITY.md กรุณาเริ่มต้นพนักงานก่อน แล้วจึงกดเผยแพร่',
+        ],
     ],
     'task' => [
         'prompt_length_exceeded' => 'ข้อความที่ป้อนยาวเกินไป กรุณาอัปโหลดเป็นไฟล์และอ้างอิงในกล่องโต้ตอบ',
+    ],
+    'magic_claw' => [
+        'create_system_error' => 'เกิดข้อผิดพลาดของระบบ กรุณาลองอีกครั้งในภายหลัง',
     ],
 ];

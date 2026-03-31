@@ -400,7 +400,10 @@ class ProjectMemberAppService extends AbstractAppService
             $requestDTO->getProjectName(),
             $requestDTO->getPage(),
             $requestDTO->getPageSize(),
-            $paidOrganizationCodes
+            $paidOrganizationCodes,
+            'last_active_at',
+            'desc',
+            $requestDTO->getShowHidden()
         );
 
         // 2. 提取工作区ID并获取名称

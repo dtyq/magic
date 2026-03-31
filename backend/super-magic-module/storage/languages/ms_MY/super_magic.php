@@ -73,8 +73,14 @@ return [
         'publisher_type_must_be_string' => 'Publisher type must be a string',
         'publisher_type_invalid' => 'Invalid publisher type',
         'publish_target_value_required' => 'publish_target_value is required for current publish target type',
+        'publish' => [
+            'identity_md_not_found' => 'Fail IDENTITY.md tiada. Sila mulakan pekerja terlebih dahulu, kemudian klik terbit',
+        ],
     ],
     'task' => [
         'prompt_length_exceeded' => 'Teks input terlalu panjang. Sila muat naik sebagai fail dan rujuk dalam dialog.',
+    ],
+    'magic_claw' => [
+        'create_system_error' => 'Ralat sistem berlaku. Sila cuba lagi kemudian.',
     ],
 ];

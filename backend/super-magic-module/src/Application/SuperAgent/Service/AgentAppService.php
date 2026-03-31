@@ -9,19 +9,19 @@ namespace Dtyq\SuperMagic\Application\SuperAgent\Service;
 
 use App\Domain\Contact\Entity\ValueObject\DataIsolation;
 use App\Infrastructure\Core\Exception\BusinessException;
-use App\Infrastructure\Core\Exception\ExceptionBuilder;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\TaskContext;
 use Dtyq\SuperMagic\Domain\SuperAgent\Service\AgentDomainService;
 use Dtyq\SuperMagic\Domain\SuperAgent\Service\ProjectDomainService;
+use Dtyq\SuperMagic\Domain\SuperAgent\Service\SandboxVersionDomainService;
 use Dtyq\SuperMagic\Domain\SuperAgent\Service\TaskDomainService;
 use Dtyq\SuperMagic\Domain\SuperAgent\Service\TopicDomainService;
-use Dtyq\SuperMagic\ErrorCode\SuperAgentErrorCode;
 use Dtyq\SuperMagic\Infrastructure\ExternalAPI\SandboxOS\Agent\Response\AgentResponse;
 use Dtyq\SuperMagic\Infrastructure\ExternalAPI\SandboxOS\Gateway\Result\BatchStatusResult;
 use Dtyq\SuperMagic\Infrastructure\ExternalAPI\SandboxOS\Gateway\Result\GatewayResult;
 use Dtyq\SuperMagic\Infrastructure\ExternalAPI\SandboxOS\Gateway\Result\SandboxStatusResult;
 use Hyperf\Logger\LoggerFactory;
 use Psr\Log\LoggerInterface;
+use Throwable;
 
 /**
  * Agent应用服务
@@ -36,7 +36,8 @@ readonly class AgentAppService
         private readonly AgentDomainService $agentDomainService,
         private readonly ProjectDomainService $projectDomainService,
         private readonly TopicDomainService $topicDomainService,
-        private readonly TaskDomainService $taskDomainService
+        private readonly TaskDomainService $taskDomainService,
+        private readonly SandboxVersionDomainService $sandboxVersionDomainService,
     ) {
         $this->logger = $this->loggerFactory->get('sandbox');
     }
@@ -53,17 +54,82 @@ readonly class AgentAppService
     }
 
     /**
-     * 升级沙箱到最新 Agent 镜像.
+     * 启动沙箱：直接走创建+初始化流程，不删除已有沙箱，不检查镜像版本.
+     *
+     * 正确流程：createSandbox → initAgent → waitForWorkspaceReady。
      *
      * @param DataIsolation $dataIsolation 数据隔离上下文
-     * @param string $sandboxId 沙箱ID
-     * @param string $projectId 项目ID
-     * @param string $workDir 工作目录（项目 OSS 路径）
-     * @return GatewayResult 升级结果，data 包含 sandbox_id、pod_name、namespace、agent_image
+     * @param int $topicId 话题ID（sandbox_id 即 topic_id）
+     * @return string 沙箱ID
      */
-    public function upgradeSandbox(DataIsolation $dataIsolation, string $sandboxId, string $projectId, string $workDir): GatewayResult
+    public function startSandbox(DataIsolation $dataIsolation, int $topicId): string
     {
-        return $this->agentDomainService->upgradeSandbox($dataIsolation, $sandboxId, $projectId, $workDir);
+        $this->logger->info('[Sandbox][App] Starting sandbox via reinit (no delete)', [
+            'topic_id' => $topicId,
+        ]);
+
+        return $this->ensureSandboxInitialized($dataIsolation, $topicId);
+    }
+
+    /**
+     * 重启沙箱：无条件删除旧沙箱，再走完整的创建+初始化流程，不检查镜像版本.
+     *
+     * 正确流程：delete → createSandbox → initAgent → waitForWorkspaceReady。
+     *
+     * @param DataIsolation $dataIsolation 数据隔离上下文
+     * @param int $topicId 话题ID（sandbox_id 即 topic_id）
+     * @return string 沙箱ID
+     */
+    public function restartSandbox(DataIsolation $dataIsolation, int $topicId): string
+    {
+        $this->logger->info('[Sandbox][App] Restarting sandbox via delete + reinit', [
+            'topic_id' => $topicId,
+        ]);
+
+        // 删除旧沙箱，如果已不存在则忽略错误继续重建
+        try {
+            $this->agentDomainService->stopSandbox((string) $topicId);
+            $this->logger->info('[Sandbox][App] Old sandbox deleted for restart', [
+                'sandbox_id' => $topicId,
+            ]);
+        } catch (Throwable $e) {
+            $this->logger->warning('[Sandbox][App] Failed to delete sandbox during restart (may not exist), proceeding with reinit', [
+                'sandbox_id' => $topicId,
+                'error' => $e->getMessage(),
+            ]);
+        }
+
+        return $this->ensureSandboxInitialized($dataIsolation, $topicId);
+    }
+
+    /**
+     * 升级沙箱：检查镜像版本，有新版本时才执行重启+重建流程.
+     *
+     * 不直接调用网关 upgrade 接口，原因是 upgrade 接口跳过了 initAgent + waitForWorkspaceReady 步骤。
+     * 正确流程：delete → createSandbox → initAgent → waitForWorkspaceReady。
+     *
+     * @param DataIsolation $dataIsolation 数据隔离上下文
+     * @param int $topicId 话题ID（sandbox_id 即 topic_id）
+     * @return string 沙箱ID
+     */
+    public function upgradeSandbox(DataIsolation $dataIsolation, int $topicId): string
+    {
+        $this->logger->info('[Sandbox][App] Upgrading sandbox via delete + reinit', [
+            'topic_id' => $topicId,
+        ]);
+
+        // 检查当前沙箱镜像与最新 agent 镜像是否一致，一致则无需升级
+        $versionInfo = $this->sandboxVersionDomainService->checkSandboxVersion($topicId);
+        if (! $versionInfo['needs_update']) {
+            $this->logger->info('[Sandbox][App] Sandbox image is already up-to-date, skipping upgrade', [
+                'topic_id' => $topicId,
+                'current_version' => $versionInfo['current_version'],
+                'latest_version' => $versionInfo['latest_version'],
+            ]);
+            return (string) $topicId;
+        }
+
+        return $this->restartSandbox($dataIsolation, $topicId);
     }
 
     /**
@@ -85,23 +151,18 @@ readonly class AgentAppService
      */
     public function checkSandboxVersion(int $topicId): array
     {
-        $topicEntity = $this->topicDomainService->getTopicById($topicId);
-        if (! $topicEntity) {
-            ExceptionBuilder::throw(SuperAgentErrorCode::TOPIC_NOT_FOUND, 'topic.topic_not_found');
-        }
+        return $this->sandboxVersionDomainService->checkSandboxVersion($topicId);
+    }
 
-        $currentImage = $topicEntity->getAgentImage() ?? '';
-        $latestImage = $this->agentDomainService->getLatestAgentImage();
-
-        $currentVersion = self::extractImageVersion($currentImage);
-        $latestVersion = self::extractImageVersion($latestImage);
-
-        return [
-            'current_version' => $currentVersion,
-            'latest_version' => $latestVersion,
-            // 网关有最新版本时：当前版本未知（agent_image 未入库）或版本不一致，均视为需要更新
-            'needs_update' => ! empty($latestVersion) && $currentVersion !== $latestVersion,
-        ];
+    /**
+     * 批量检查话题沙箱镜像版本，返回每个 topic_id 是否需要升级.
+     *
+     * @param int[] $topicIds
+     * @return array<int, bool> topicId => needUpgrade
+     */
+    public function checkSandboxVersionsByTopicIds(array $topicIds): array
+    {
+        return $this->sandboxVersionDomainService->checkNeedUpgradeByTopicIds($topicIds);
     }
 
     /**
@@ -464,18 +525,5 @@ readonly class AgentAppService
         }
 
         return $response;
-    }
-
-    /**
-     * 从镜像字符串中提取版本号（冒号后面的部分）.
-     * 例如：registry.example.com/agent:v1.2.3 → v1.2.3.
-     */
-    private static function extractImageVersion(string $image): string
-    {
-        if (empty($image)) {
-            return '';
-        }
-        $pos = strrpos($image, ':');
-        return $pos !== false ? substr($image, $pos + 1) : '';
     }
 }
