@@ -103,5 +103,4 @@ class MagicGeneratedSuggestionRepository implements MagicGeneratedSuggestionRepo
 
         return (string) $value;
     }
-
 }

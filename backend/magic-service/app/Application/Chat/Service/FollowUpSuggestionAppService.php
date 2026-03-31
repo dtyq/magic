@@ -40,7 +40,7 @@ class FollowUpSuggestionAppService extends AbstractAppService
     /**
      * 异步生成追问建议并持久化，不阻塞主链路.
      */
-    public function generateAndPersist(DataIsolation $isolation, int $topicId, string $taskId): void
+    public function generateAndPersist(DataIsolation $isolation, int $topicId, string $taskId, string $historyContext): void
     {
         // 初始化模型配置
         $modelGatewayDataIsolation = $this->createFollowUpModelGatewayDataIsolation($isolation);
@@ -56,7 +56,6 @@ class FollowUpSuggestionAppService extends AbstractAppService
 
         // 构建上下文
         $currentTime = date('Y-m-d H:i:s');
-        $historyContext = $this->buildFollowUpHistoryContextExcerpt($topicId, 3);
         $userPrompt = <<<PROMPT
 请基于以下用户问题摘录，生成3个最自然的后续追问。
 
@@ -122,17 +121,29 @@ PROMPT;
     }
 
     /**
-     * 构建 super magic 追问建议上下文参数.
+     * 构建 super magic 追问建议上下文.
      */
-    public function buildSuperMagicTopicFollowUpParams(int $topicId, string $taskId, ?string $language): array
+    public function buildSuperMagicTopicFollowUpHistoryContext(int $topicId, int $roundLimit = 3): string
     {
+        return $this->buildFollowUpHistoryContextExcerpt($topicId, $roundLimit);
+    }
+
+    /**
+     * 基于上下文构建 super magic 追问建议参数.
+     */
+    public function buildSuperMagicTopicFollowUpParams(
+        string $taskId,
+        int $topicId,
+        ?string $language,
+        string $historyContext,
+    ): array {
         return [
             'task_id' => $taskId,
             'topic_id' => (string) $topicId,
             'source' => 'super_magic',
             'generator' => 'follow_up_generator',
             'language' => $language,
-            'content' => $this->buildFollowUpHistoryContextExcerpt($topicId, 3),
+            'content' => $historyContext,
         ];
     }
 

@@ -55,10 +55,14 @@ class FollowUpSuggestionGenerateSubscriber implements ListenerInterface
             // 先生成一条保底数据库记录
             $dataIsolation = DataIsolation::simpleMake($event->getOrganizationCode(), $event->getUserId());
             $dataIsolation->setLanguage($event->getLanguage());
-            $params = $this->followUpSuggestionAppService->buildSuperMagicTopicFollowUpParams(
+            $historyContext = $this->followUpSuggestionAppService->buildSuperMagicTopicFollowUpHistoryContext(
                 $event->getTopicId(),
+            );
+            $params = $this->followUpSuggestionAppService->buildSuperMagicTopicFollowUpParams(
                 $event->getTaskId(),
+                $event->getTopicId(),
                 $event->getLanguage(),
+                $historyContext,
             );
             $this->followUpSuggestionAppService->createSuperMagicTopicFollowUpGenerating(
                 $event->getTaskId(),
@@ -71,6 +75,7 @@ class FollowUpSuggestionGenerateSubscriber implements ListenerInterface
                 $dataIsolation,
                 $event->getTopicId(),
                 $event->getTaskId(),
+                $historyContext,
             );
         } catch (Throwable $throwable) {
             $this->logger->error('generate follow-up suggestions failed', [
