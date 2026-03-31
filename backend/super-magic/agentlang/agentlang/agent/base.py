@@ -275,19 +275,6 @@ class BaseAgent(ABC):
             # 这里只是为了兼容旧代码，不做实际注册操作
             logger.debug(f"工具 {tool_name} 已通过装饰器注册，无需手动注册")
 
-    @abstractmethod
-    async def _check_query_safety(self, query: str) -> tuple[bool, str, str]:
-        """
-        检测用户输入是否包含恶意内容。
-
-        Args:
-            query: 用户输入的查询内容
-
-        Returns:
-            tuple[bool, str, str]: (是否安全, 具体原因, 不安全类型)
-        """
-        pass
-
     def print_token_usage(self) -> None:
         """
         打印token使用报告。
