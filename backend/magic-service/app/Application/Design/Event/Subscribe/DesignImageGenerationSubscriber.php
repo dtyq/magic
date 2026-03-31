@@ -27,6 +27,7 @@ use App\Infrastructure\Core\ValueObject\StorageBucketType;
 use App\Infrastructure\ExternalAPI\ImageGenerateAPI\Response\OpenAIFormatResponse;
 use App\Interfaces\Authorization\Web\MagicUserAuthorization;
 use Dtyq\AsyncEvent\Kernel\Annotation\AsyncListener;
+use Dtyq\CloudFile\Kernel\Struct\ImageProcessOptions;
 use Dtyq\CloudFile\Kernel\Struct\UploadFile;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\TaskFileEntity;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\FileType;
@@ -243,10 +244,24 @@ class DesignImageGenerationSubscriber implements ListenerInterface
 
                     // 参考图（存储的是相对路径，需要拼接成完整路径）
                     $imageUrls = [];
+                    $referenceImageOptions = $imageGenerationEntity->getReferenceImageOptions() ?? [];
 
-                    foreach ($imageGenerationEntity->getReferenceImages() ?? [] as $referenceImage) {
+                    foreach ($imageGenerationEntity->getReferenceImages() ?? [] as $idx => $referenceImage) {
                         $fullReferenceImage = $workspacePrefix . $referenceImage;
-                        $imageUrl = $this->fileDomainService->getLink($dataIsolation->getCurrentOrganizationCode(), $fullReferenceImage, StorageBucketType::SandBox)?->getUrl();
+                        // 构建图片处理选项（如 crop 参数）
+                        $linkOptions = [];
+                        if (! empty($referenceImageOptions[$idx]['crop'])) {
+                            $cropData = $referenceImageOptions[$idx]['crop'];
+                            $imageProcessOptions = new ImageProcessOptions();
+                            $imageProcessOptions->crop([
+                                'width' => (int) round((float) ($cropData['width'] ?? 0)),
+                                'height' => (int) round((float) ($cropData['height'] ?? 0)),
+                                'x' => (int) round((float) ($cropData['x'] ?? 0)),
+                                'y' => (int) round((float) ($cropData['y'] ?? 0)),
+                            ]);
+                            $linkOptions['image'] = $imageProcessOptions;
+                        }
+                        $imageUrl = $this->fileDomainService->getLink($dataIsolation->getCurrentOrganizationCode(), $fullReferenceImage, StorageBucketType::SandBox, [], $linkOptions)?->getUrl();
                         if ($imageUrl) {
                             $imageUrls[] = $imageUrl;
                         }

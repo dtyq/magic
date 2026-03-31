@@ -35,6 +35,7 @@ class ImageGenerationFactory
         $entity->setFileDir($model->file_dir);
         $entity->setFileName($model->file_name);
         $entity->setReferenceImages($model->reference_images);
+        $entity->setReferenceImageOptions($model->reference_image_options);
         $entity->setType(ImageGenerationType::make($model->type));
         $entity->setStatus(ImageGenerationStatus::from($model->status));
         $entity->setErrorMessage($model->error_message);

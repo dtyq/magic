@@ -196,6 +196,12 @@ class DesignApi extends AbstractApi
         // 将源图片路径设置为参考图
         $DO->setReferenceImages([$filePath]);
 
+        // 若前端传入了裁剪参数，记录到第 0 张参考图的处理选项中
+        $crop = $this->request->input('crop');
+        if (! empty($crop) && is_array($crop)) {
+            $DO->setReferenceImageOptions([0 => ['crop' => $crop]]);
+        }
+
         $resultEntity = $this->imageGenerationAppService->generateRemoveBackground($authenticatable, $DO);
 
         return ImageGenerationAssembler::toDTO($resultEntity);

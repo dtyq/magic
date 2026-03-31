@@ -25,6 +25,7 @@ use Hyperf\Snowflake\Concern\Snowflake;
  * @property string $file_dir
  * @property ?string $file_name
  * @property ?array $reference_images
+ * @property ?array $reference_image_options
  * @property int $type
  * @property string $status
  * @property ?string $error_message
@@ -50,6 +51,7 @@ class ImageGenerationModel extends Model
         'file_dir',
         'file_name',
         'reference_images',
+        'reference_image_options',
         'type',
         'status',
         'error_message',
@@ -70,6 +72,7 @@ class ImageGenerationModel extends Model
         'file_dir' => 'string',
         'file_name' => 'string',
         'reference_images' => 'array',
+        'reference_image_options' => 'array',
         'type' => 'int',
         'status' => 'string',
         'error_message' => 'string',

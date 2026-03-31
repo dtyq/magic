@@ -44,6 +44,13 @@ class ImageGenerationEntity extends AbstractEntity
 
     protected ?array $referenceImages = null;
 
+    /**
+     * 每张参考图的图片处理选项，key 为参考图索引（从 0 开始）.
+     * 目前用于去背景场景传入 crop 参数，例如：[0 => ['crop' => ['width' => 596, 'height' => 1024, 'x' => 194, 'y' => 0]]].
+     * 该字段不持久化到数据库，仅在事件流转期间使用.
+     */
+    protected ?array $referenceImageOptions = null;
+
     protected ImageGenerationType $type;
 
     protected ImageGenerationStatus $status;
@@ -227,6 +234,16 @@ class ImageGenerationEntity extends AbstractEntity
     public function setReferenceImages(?array $referenceImages): void
     {
         $this->referenceImages = $referenceImages;
+    }
+
+    public function getReferenceImageOptions(): ?array
+    {
+        return $this->referenceImageOptions;
+    }
+
+    public function setReferenceImageOptions(?array $referenceImageOptions): void
+    {
+        $this->referenceImageOptions = $referenceImageOptions;
     }
 
     public function getType(): ImageGenerationType
