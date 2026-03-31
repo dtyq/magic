@@ -108,6 +108,10 @@ return [
                     ['label' => '16:9', 'value' => '2560x1440', 'scale' => null],
                     ['label' => '21:9', 'value' => '2048x2048', 'scale' => null],
                 ],
+                'total_pixels_range' => [
+                    'min' => 921600,
+                    'max' => 16777216,
+                ],
                 'max_reference_images' => 14,
             ],
         ],
@@ -145,6 +149,10 @@ return [
                     // 21:9
                     ['label' => '21:9', 'value' => '2048x878', 'scale' => '2K'],
                     ['label' => '21:9', 'value' => '4096x1755', 'scale' => '4K'],
+                ],
+                'total_pixels_range' => [
+                    'min' => 3686400,
+                    'max' => 16777216,
                 ],
                 'max_reference_images' => 14,
             ],
@@ -210,6 +218,10 @@ return [
                     ['label' => '16:9', 'value' => '1920x1080', 'scale' => null],
                     // 21:9
                     ['label' => '21:9', 'value' => '2048x872', 'scale' => null],
+                ],
+                'total_pixels_range' => [
+                    'min' => 262144,
+                    'max' => 4194304,
                 ],
                 'max_reference_images' => 3,
             ],
