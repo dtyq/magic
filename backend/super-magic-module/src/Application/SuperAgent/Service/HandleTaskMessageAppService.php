@@ -10,7 +10,6 @@ namespace Dtyq\SuperMagic\Application\SuperAgent\Service;
 use App\Application\LongTermMemory\Enum\AppCodeEnum;
 use App\Application\ModelGateway\Mapper\ModelGatewayMapper;
 use App\Domain\Chat\DTO\Message\Common\MessageExtra\SuperAgent\SuperAgentExtra;
-use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\DynamicConfig\DynamicConfigManager;
 use App\Domain\Contact\Entity\MagicUserEntity;
 use App\Domain\Contact\Entity\ValueObject\DataIsolation;
 use App\Domain\Contact\Service\MagicDepartmentUserDomainService;
@@ -19,10 +18,10 @@ use App\Domain\LongTermMemory\Service\LongTermMemoryDomainService;
 use App\Domain\ModelGateway\Entity\ValueObject\AccessTokenType;
 use App\Domain\ModelGateway\Entity\ValueObject\ModelGatewayDataIsolation;
 use App\Domain\ModelGateway\Service\AccessTokenDomainService;
-use App\Infrastructure\Util\IdGenerator\IdGenerator;
 use App\Infrastructure\Core\Exception\BusinessException;
 use App\Infrastructure\Core\Exception\EventException;
 use App\Infrastructure\Core\Exception\ExceptionBuilder;
+use App\Infrastructure\Util\IdGenerator\IdGenerator;
 use Dtyq\AsyncEvent\AsyncEventUtil;
 use Dtyq\SuperMagic\Application\Chat\Service\ChatAppService;
 use Dtyq\SuperMagic\Application\SuperAgent\DTO\TaskMessageDTO;
@@ -33,6 +32,7 @@ use Dtyq\SuperMagic\Domain\SuperAgent\Entity\TaskMessageEntity;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\TopicEntity;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\ChatInstruction;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\CreationSource;
+use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\DynamicConfig\DynamicConfigManager;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\TaskContext;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\TaskStatus;
 use Dtyq\SuperMagic\Domain\SuperAgent\Event\RunTaskBeforeEvent;
@@ -479,7 +479,7 @@ class HandleTaskMessageAppService extends AbstractAppService
      * Each ability value is itself merged at the key level, so callers can pass just
      * { "analysis_audio": { "model_id": "xxx" } } without having to repeat the full map.
      *
-     * @param string     $taskId   Pre-generated task ID used as Redis key
+     * @param string $taskId Pre-generated task ID used as Redis key
      * @param null|array $override Per-request ai_abilities map (may be null/empty → no-op)
      */
     private function applyAiAbilitiesOverride(string $taskId, ?array $override): void
