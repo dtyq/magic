@@ -342,6 +342,67 @@ return [
             'status' => env('AI_ABILITY_IMAGE_CONVERT_HIGH_STATUS', true),
             'config' => [
                 'model_id' => env('AI_ABILITY_IMAGE_CONVERT_HIGH_MODEL_ID', null), // 对应service_provider_models.model_id
+                'prompt' => env('AI_ABILITY_IMAGE_CONVERT_HIGH_PROMPT', ''),
+            ],
+        ],
+
+        // 去背景
+        'image_remove_background' => [
+            'code' => 'image_remove_background',
+            'name' => [
+                'zh_CN' => '去背景',
+                'en_US' => 'Remove Background',
+            ],
+            'description' => [
+                'zh_CN' => '本能力覆盖平台所有图片去背景的应用场景，通过AI技术自动识别主体并去除图片背景，保留主体完整边缘。',
+                'en_US' => 'This capability covers all image background removal scenarios on the platform, automatically identifying subjects and removing backgrounds through AI technology while preserving clean subject edges.',
+            ],
+            'icon' => 'image-remove-background-icon',
+            'sort_order' => 16,
+            'status' => env('AI_ABILITY_IMAGE_REMOVE_BACKGROUND_STATUS', true),
+            'config' => [
+                'model_id' => env('AI_ABILITY_IMAGE_REMOVE_BACKGROUND_MODEL_ID', null),
+                'prompt' => env('AI_ABILITY_IMAGE_REMOVE_BACKGROUND_PROMPT', ''),
+            ],
+        ],
+
+        // 橡皮擦
+        'image_eraser' => [
+            'code' => 'image_eraser',
+            'name' => [
+                'zh_CN' => '橡皮擦',
+                'en_US' => 'Image Eraser',
+            ],
+            'description' => [
+                'zh_CN' => '本能力覆盖平台所有图片橡皮擦的应用场景，通过AI技术根据标记区域擦除图片内容，并以自然背景无缝填充。',
+                'en_US' => 'This capability covers all image eraser scenarios on the platform, removing marked regions from images through AI technology and filling them with seamless, natural backgrounds.',
+            ],
+            'icon' => 'image-eraser-icon',
+            'sort_order' => 17,
+            'status' => env('AI_ABILITY_IMAGE_ERASER_STATUS', true),
+            'config' => [
+                'model_id' => env('AI_ABILITY_IMAGE_ERASER_MODEL_ID', null),
+                'prompt' => env('AI_ABILITY_IMAGE_ERASER_PROMPT', ''),
+            ],
+        ],
+
+        // 扩图
+        'image_expand' => [
+            'code' => 'image_expand',
+            'name' => [
+                'zh_CN' => '扩图',
+                'en_US' => 'Image Expand',
+            ],
+            'description' => [
+                'zh_CN' => '本能力覆盖平台所有图片扩图的应用场景，通过AI技术将图片向外延伸，以符合原图风格、光照和透视的内容填充扩展区域。',
+                'en_US' => 'This capability covers all image outpainting scenarios on the platform, extending images outward through AI technology and filling expanded areas with content coherent with the original style, lighting, and perspective.',
+            ],
+            'icon' => 'image-expand-icon',
+            'sort_order' => 18,
+            'status' => env('AI_ABILITY_IMAGE_EXPAND_STATUS', true),
+            'config' => [
+                'model_id' => env('AI_ABILITY_IMAGE_EXPAND_MODEL_ID', null),
+                'prompt' => env('AI_ABILITY_IMAGE_EXPAND_PROMPT', ''),
             ],
         ],
 
