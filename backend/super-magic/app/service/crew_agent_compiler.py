@@ -66,11 +66,14 @@ class CrewAgentCompiler:
 
         tools_list  = self._build_item_list(tools.meta  if tools  else {}, "tools",  DEFAULT_TOOLS,  base=DEFAULT_TOOLS)
         skills_list = self._build_item_list(skills.meta if skills else {}, "skills", DEFAULT_SKILLS)
+        preload_raw = (skills.meta if skills else {}).get("preload") or []
 
         # Use template frontmatter as base, inject dynamic fields
         header = dict(template.meta)
         header["tools"] = tools_list
         header.setdefault("skills", {})["system_skills"] = [{"name": s} for s in skills_list]
+        if preload_raw:
+            header["skills"]["preload"] = preload_raw
 
         body = template.body
         body = body.replace("CREW_ROLE",         identity.body)
