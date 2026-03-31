@@ -393,6 +393,9 @@ class ProviderModelRepository extends AbstractProviderModelRepository implements
         if (! is_null($query->getModelType())) {
             $builder->where('model_type', $query->getModelType()->value);
         }
+        if (! is_null($query->getProviderModelType())) {
+            $builder->where('type', $query->getProviderModelType()->value);
+        }
 
         $data = $this->getByPage($builder, $page, $query);
         $list = [];

@@ -9,6 +9,7 @@ namespace App\Domain\Provider\Entity\ValueObject\Query;
 
 use App\Domain\Provider\Entity\ValueObject\Category;
 use App\Domain\Provider\Entity\ValueObject\ModelType;
+use App\Domain\Provider\Entity\ValueObject\ProviderModelType;
 use App\Domain\Provider\Entity\ValueObject\Status;
 
 class ProviderModelQuery extends Query
@@ -28,6 +29,8 @@ class ProviderModelQuery extends Query
     protected bool $isModelIdFilter = false;
 
     protected ?array $modelIds = null;
+
+    protected ?ProviderModelType $providerModelType = null;
 
     public function getModelIds(): ?array
     {
@@ -114,5 +117,15 @@ class ProviderModelQuery extends Query
     public function setIsModelIdFilter(bool $isModelIdFilter): void
     {
         $this->isModelIdFilter = $isModelIdFilter;
+    }
+
+    public function getProviderModelType(): ?ProviderModelType
+    {
+        return $this->providerModelType;
+    }
+
+    public function setProviderModelType(?ProviderModelType $providerModelType): void
+    {
+        $this->providerModelType = $providerModelType;
     }
 }

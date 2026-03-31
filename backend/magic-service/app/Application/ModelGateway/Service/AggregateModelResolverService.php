@@ -8,6 +8,7 @@ declare(strict_types=1);
 namespace App\Application\ModelGateway\Service;
 
 use App\Domain\ModelGateway\Entity\ValueObject\ModelGatewayDataIsolation;
+use App\Domain\Provider\Entity\ProviderModelEntity;
 use App\Domain\Provider\Entity\ValueObject\AggregateStrategy;
 use App\Domain\Provider\Entity\ValueObject\ModelType;
 use App\Domain\Provider\Entity\ValueObject\ProviderDataIsolation;
@@ -28,6 +29,32 @@ class AggregateModelResolverService
     public function __construct(
         private ProviderModelRepositoryInterface $providerModelRepository
     ) {
+    }
+
+    /**
+     * 解析聚合模型，返回真实模型ID.
+     * 使用已知的可用模型 ID 列表判断子模型权限，避免重复查询订阅信息.
+     *
+     * @param ProviderModelEntity $dynamicModel 已加载的动态模型实体
+     * @param null|array $availableModelIds 当前套餐可用的模型 ID 列表（null 表示不限制）
+     * @return null|string 解析出的真实模型 ID，null 表示无可用子模型
+     */
+    public function resolveWithAvailableIds(ProviderModelEntity $dynamicModel, ?array $availableModelIds): ?string
+    {
+        $config = $dynamicModel->getAggregateConfig();
+        if (! $config) {
+            return null;
+        }
+
+        $models = $config['models'] ?? [];
+        if (empty($models)) {
+            return null;
+        }
+
+        $strategy = $config['strategy'] ?? 'permission_fallback';
+        $strategyConfig = $config['strategy_config'] ?? ['order' => 'asc'];
+
+        return $this->resolveByStrategyWithAvailableIds($strategy, $models, $strategyConfig, $availableModelIds);
     }
 
     /**
@@ -87,6 +114,41 @@ class AggregateModelResolverService
             // 未来可扩展其他策略：'random', 'weighted', etc.
             default => throw new InvalidArgumentException("Unknown strategy: {$strategy}")
         };
+    }
+
+    /**
+     * 使用已知可用模型 ID 列表按策略解析真实模型ID.
+     */
+    private function resolveByStrategyWithAvailableIds(string $strategy, array $models, array $strategyConfig, ?array $availableModelIds): ?string
+    {
+        return match ($strategy) {
+            AggregateStrategy::PERMISSION_FALLBACK->value => $this->resolveByPermissionFallbackWithAvailableIds($models, $strategyConfig, $availableModelIds),
+            default => throw new InvalidArgumentException("Unknown strategy: {$strategy}")
+        };
+    }
+
+    /**
+     * 使用已知可用模型 ID 列表按权限降级策略解析真实模型ID.
+     * availableModelIds 为 null 时表示不限制，直接返回第一个子模型.
+     */
+    private function resolveByPermissionFallbackWithAvailableIds(array $models, array $strategyConfig, ?array $availableModelIds): ?string
+    {
+        $order = $strategyConfig['order'] ?? 'asc';
+        $modelsToCheck = $order === 'desc' ? array_reverse($models) : $models;
+
+        foreach ($modelsToCheck as $modelItem) {
+            $subModelId = $this->extractModelId($modelItem);
+            if (! $subModelId) {
+                continue;
+            }
+
+            // availableModelIds 为 null 表示不限制权限，直接返回第一个可用子模型
+            if ($availableModelIds === null || in_array($subModelId, $availableModelIds, true)) {
+                return $subModelId;
+            }
+        }
+
+        return null;
     }
 
     /**

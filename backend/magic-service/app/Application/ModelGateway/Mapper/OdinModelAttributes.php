@@ -24,6 +24,7 @@ readonly class OdinModelAttributes
         private string $providerId = '',
         private int $modelType = 1,
         private string $description = '',
+        private string $resolvedModelId = '',
     ) {
     }
 
@@ -82,6 +83,11 @@ readonly class OdinModelAttributes
         return $this->description;
     }
 
+    public function getResolvedModelId(): string
+    {
+        return $this->resolvedModelId;
+    }
+
     public function toArray(): array
     {
         return [
@@ -97,6 +103,7 @@ readonly class OdinModelAttributes
             'provider_id' => $this->providerId,
             'model_type' => $this->modelType,
             'description' => $this->description,
+            'resolved_model_id' => $this->resolvedModelId,
         ];
     }
 }

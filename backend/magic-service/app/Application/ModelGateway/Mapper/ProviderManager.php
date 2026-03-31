@@ -12,6 +12,7 @@ use App\Domain\Provider\Entity\ProviderEntity;
 use App\Domain\Provider\Entity\ProviderModelEntity;
 use App\Domain\Provider\Entity\ValueObject\ModelType;
 use App\Domain\Provider\Entity\ValueObject\ProviderDataIsolation;
+use App\Domain\Provider\Entity\ValueObject\ProviderModelType;
 use App\Domain\Provider\Entity\ValueObject\Query\ProviderConfigQuery;
 use App\Domain\Provider\Entity\ValueObject\Query\ProviderModelQuery;
 use App\Domain\Provider\Entity\ValueObject\Query\ProviderQuery;
@@ -49,6 +50,30 @@ readonly class ProviderManager
         $query->setModelType($modelType);
 
         $query->setOrder(['model_id' => 'asc']);
+        $data = $this->providerModelDomainService->queries($providerDataIsolation, $query, Page::createNoPage());
+        return $data['list'] ?? [];
+    }
+
+    /**
+     * 获取指定 model_id 范围内的动态模型列表（type=DYNAMIC）.
+     *
+     * @param ProviderDataIsolation $providerDataIsolation 数据隔离对象
+     * @param null|array $modelIds 可用模型ID范围，null 表示不限制
+     * @param null|ModelType $modelType 模型类型过滤
+     * @return array<ProviderModelEntity>
+     */
+    public function getDynamicModelsByModelIds(ProviderDataIsolation $providerDataIsolation, ?array $modelIds, ?ModelType $modelType): array
+    {
+        if ($providerDataIsolation->isOfficialOrganization()) {
+            $modelIds = null;
+        }
+        $query = new ProviderModelQuery();
+        $query->setModelIds($modelIds);
+        $query->setStatus(Status::Enabled);
+        $query->setModelType($modelType);
+        $query->setProviderModelType(ProviderModelType::DYNAMIC);
+        $query->setOrder(['model_id' => 'asc']);
+
         $data = $this->providerModelDomainService->queries($providerDataIsolation, $query, Page::createNoPage());
         return $data['list'] ?? [];
     }

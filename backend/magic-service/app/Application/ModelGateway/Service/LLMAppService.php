@@ -115,18 +115,18 @@ class LLMAppService extends AbstractLLMAppService
     /**
      * @return array<ModelConfigEntity>
      */
-    public function models(string $accessToken, bool $withInfo = false, string $type = '', array $businessParams = []): array
+    public function models(string $accessToken, bool $withInfo = false, string $type = '', array $businessParams = [], bool $withDynamicModels = false): array
     {
         $dataIsolation = $this->createModelGatewayDataIsolationByAccessToken($accessToken, $businessParams);
 
         $models = match ($type) {
-            'chat' => $this->modelGatewayMapper->getChatModels($dataIsolation),
-            'embedding' => $this->modelGatewayMapper->getEmbeddingModels($dataIsolation),
-            'image' => $this->modelGatewayMapper->getImageModels($dataIsolation),
+            'chat' => $this->modelGatewayMapper->getChatModels($dataIsolation, $withDynamicModels),
+            'embedding' => $this->modelGatewayMapper->getEmbeddingModels($dataIsolation, $withDynamicModels),
+            'image' => $this->modelGatewayMapper->getImageModels($dataIsolation, $withDynamicModels),
             default => array_merge(
-                $this->modelGatewayMapper->getChatModels($dataIsolation),
-                $this->modelGatewayMapper->getEmbeddingModels($dataIsolation),
-                $this->modelGatewayMapper->getImageModels($dataIsolation),
+                $this->modelGatewayMapper->getChatModels($dataIsolation, $withDynamicModels),
+                $this->modelGatewayMapper->getEmbeddingModels($dataIsolation, $withDynamicModels),
+                $this->modelGatewayMapper->getImageModels($dataIsolation, $withDynamicModels),
             ),
         };
 
