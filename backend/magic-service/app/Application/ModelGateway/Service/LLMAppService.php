@@ -7,13 +7,12 @@ declare(strict_types=1);
 
 namespace App\Application\ModelGateway\Service;
 
-use App\Application\Audit\ModelCall\Support\AuditDetailInfo;
 use App\Application\ModelGateway\Event\ImageSearchUsageEvent;
+use App\Application\ModelGateway\Event\ModelInvocationCompletedEvent;
 use App\Application\ModelGateway\Event\ModelUsageEvent;
 use App\Application\ModelGateway\Event\WebSearchUsageEvent;
 use App\Application\ModelGateway\Mapper\OdinModel;
-use App\Domain\Audit\ModelCall\Entity\ValueObject\AuditStatus;
-use App\Domain\Audit\ModelCall\Entity\ValueObject\AuditType;
+use App\Application\ModelGateway\Support\InvocationDetailInfo;
 use App\Domain\Chat\DTO\ImageConvertHigh\Request\MagicChatImageConvertHighReqDTO;
 use App\Domain\Chat\Entity\ValueObject\AIImage\AIImageGenerateParamsVO;
 use App\Domain\ImageGenerate\ValueObject\ImageGenerateSourceEnum;
@@ -116,7 +115,7 @@ class LLMAppService extends AbstractLLMAppService
     private const int CONVERSATION_ENDPOINT_TTL = 3600; // 1 hour
 
     /**
-     * Audit product code for Bing Search V1.
+     * Bing Search V1 产品标识（网关侧统计/透传）.
      */
     private const string AUDIT_PRODUCT_BING_SEARCH_V1 = 'bing_search_v1';
 
@@ -334,21 +333,21 @@ class LLMAppService extends AbstractLLMAppService
             }
         }
 
-        $this->dispatchAuditEventOnce(
+        $this->dispatchModelInvocationCompleted(new ModelInvocationCompletedEvent(
             userInfo: [
                 'organization_code' => $authorization->getOrganizationCode(),
                 'user_id' => $authorization->getId(),
                 'user_name' => trim($authorization->getRealName() ?: $authorization->getNickname()),
             ],
             ip: '',
-            type: AuditType::IMAGE,
+            invocationCategory: 'IMAGE',
             productCode: $productCodeForAudit,
             accessToken: '',
             startTime: $startTime,
             latencyMs: $latencyMs,
-            status: AuditStatus::SUCCESS,
+            outcome: 'success',
             usage: ['count' => $auditCount],
-            detailInfo: AuditDetailInfo::forModel(
+            detailInfo: InvocationDetailInfo::forModel(
                 '',
                 (string) ($data['source_id'] ?? ''),
                 $providerConfigItem->getProviderModelId(),
@@ -357,7 +356,7 @@ class LLMAppService extends AbstractLLMAppService
             ),
             businessParams: $imageGenerateAuditBusinessParams,
             sourceMarker: 'imageGenerate'
-        );
+        ));
 
         // 发布图片生成事件
         $imageGeneratedEvent = new ImageGeneratedEvent();
@@ -419,21 +418,21 @@ class LLMAppService extends AbstractLLMAppService
             }
         }
 
-        $this->dispatchAuditEventOnce(
+        $this->dispatchModelInvocationCompleted(new ModelInvocationCompletedEvent(
             userInfo: [
                 'organization_code' => $userAuthorization->getOrganizationCode(),
                 'user_id' => $userAuthorization->getId(),
                 'user_name' => trim($userAuthorization->getRealName() ?: $userAuthorization->getNickname()),
             ],
             ip: '',
-            type: AuditType::IMAGE,
+            invocationCategory: 'IMAGE',
             productCode: $providerConfigItem->getModelVersion(),
             accessToken: '',
             startTime: $startTime,
             latencyMs: $latencyMs,
-            status: AuditStatus::SUCCESS,
+            outcome: 'success',
             usage: ['count' => 1],
-            detailInfo: AuditDetailInfo::forModel(
+            detailInfo: InvocationDetailInfo::forModel(
                 '',
                 $reqDTO->getSourceId(),
                 $providerConfigItem->getProviderModelId(),
@@ -442,7 +441,7 @@ class LLMAppService extends AbstractLLMAppService
             ),
             businessParams: $imageConvertHighAuditBusinessParams,
             sourceMarker: 'imageConvertHigh'
-        );
+        ));
 
         // 审计同步落库后再派发计费事件，异步 worker 消费时便于先存在审计行再回填积分等
         $imageGeneratedEvent = new ImageGeneratedEvent();
@@ -563,22 +562,22 @@ class LLMAppService extends AbstractLLMAppService
                 'response_time' => $responseTime,
             ]);
 
-            // Dispatch audit event for success
-            $this->dispatchAuditEventOnce(
+            // 派发模型调用完成（成功）
+            $this->dispatchModelInvocationCompleted(new ModelInvocationCompletedEvent(
                 userInfo: [
                     'organization_code' => $modelGatewayDataIsolation->getCurrentOrganizationCode(),
                     'user_id' => $modelGatewayDataIsolation->getCurrentUserId(),
                     'user_name' => $modelGatewayDataIsolation->getUserName(),
                 ],
                 ip: implode(',', $ips),
-                type: AuditType::SEARCH,
+                invocationCategory: 'SEARCH',
                 productCode: self::AUDIT_PRODUCT_BING_SEARCH_V1,
                 accessToken: $accessToken,
                 startTime: $startTime,
                 latencyMs: $responseTime,
-                status: AuditStatus::SUCCESS,
+                outcome: 'success',
                 usage: ['count' => 1],
-                detailInfo: AuditDetailInfo::forTool(
+                detailInfo: InvocationDetailInfo::forTool(
                     $modelGatewayDataIsolation->getAppId(),
                     $modelGatewayDataIsolation->getSourceId(),
                     self::AUDIT_PRODUCT_BING_SEARCH_V1,
@@ -586,7 +585,7 @@ class LLMAppService extends AbstractLLMAppService
                 ),
                 businessParams: $businessParams,
                 sourceMarker: 'bingSearch'
-            );
+            ));
 
             // 9. Return native Bing API format
             return $result;
@@ -605,22 +604,22 @@ class LLMAppService extends AbstractLLMAppService
             $failStart = $startTime;
             $failLatency = (int) ((microtime(true) - $failStart) * 1000);
 
-            // Dispatch audit event for failure
-            $this->dispatchAuditEventOnce(
+            // 派发模型调用完成（失败）
+            $this->dispatchModelInvocationCompleted(new ModelInvocationCompletedEvent(
                 userInfo: [
                     'organization_code' => $modelGatewayDataIsolation->getCurrentOrganizationCode(),
                     'user_id' => $modelGatewayDataIsolation->getCurrentUserId(),
                     'user_name' => $modelGatewayDataIsolation->getUserName(),
                 ],
                 ip: implode(',', $ips),
-                type: AuditType::SEARCH,
+                invocationCategory: 'SEARCH',
                 productCode: self::AUDIT_PRODUCT_BING_SEARCH_V1,
                 accessToken: $accessToken,
                 startTime: $failStart,
                 latencyMs: $failLatency,
-                status: AuditStatus::FAIL,
+                outcome: 'failure',
                 usage: [],
-                detailInfo: AuditDetailInfo::forTool(
+                detailInfo: InvocationDetailInfo::forTool(
                     $modelGatewayDataIsolation->getAppId(),
                     $modelGatewayDataIsolation->getSourceId(),
                     self::AUDIT_PRODUCT_BING_SEARCH_V1,
@@ -628,7 +627,7 @@ class LLMAppService extends AbstractLLMAppService
                 ),
                 businessParams: $businessParams,
                 sourceMarker: 'bingSearch'
-            );
+            ));
 
             ExceptionBuilder::throw(
                 MagicApiErrorCode::MODEL_RESPONSE_FAIL,
@@ -702,22 +701,22 @@ class LLMAppService extends AbstractLLMAppService
                 'response_time' => $responseTime,
             ]);
 
-            // Dispatch audit event for success
-            $this->dispatchAuditEventOnce(
+            // 派发模型调用完成（成功）
+            $this->dispatchModelInvocationCompleted(new ModelInvocationCompletedEvent(
                 userInfo: [
                     'organization_code' => $modelGatewayDataIsolation->getCurrentOrganizationCode(),
                     'user_id' => $modelGatewayDataIsolation->getCurrentUserId(),
                     'user_name' => $modelGatewayDataIsolation->getUserName(),
                 ],
                 ip: implode(',', $webScrapeRequestDTO->getIps()),
-                type: AuditType::WEB_SCRAPE,
+                invocationCategory: 'WEB_SCRAPE',
                 productCode: $response->getProvider(),
                 accessToken: $webScrapeRequestDTO->getAccessToken(),
                 startTime: $startTime,
                 latencyMs: $responseTime,
-                status: AuditStatus::SUCCESS,
+                outcome: 'success',
                 usage: ['count' => 1],
-                detailInfo: AuditDetailInfo::forTool(
+                detailInfo: InvocationDetailInfo::forTool(
                     $modelGatewayDataIsolation->getAppId(),
                     $modelGatewayDataIsolation->getSourceId(),
                     $response->getProvider(),
@@ -725,7 +724,7 @@ class LLMAppService extends AbstractLLMAppService
                 ),
                 businessParams: $webScrapeRequestDTO->getBusinessParams(),
                 sourceMarker: 'webScrape'
-            );
+            ));
 
             // Return unified format
             $result = $response->toArray();
@@ -749,22 +748,22 @@ class LLMAppService extends AbstractLLMAppService
             $failStart = $startTime;
             $failLatency = (int) ((microtime(true) - $failStart) * 1000);
 
-            // Dispatch audit event for failure
-            $this->dispatchAuditEventOnce(
+            // 派发模型调用完成（失败）
+            $this->dispatchModelInvocationCompleted(new ModelInvocationCompletedEvent(
                 userInfo: [
                     'organization_code' => $modelGatewayDataIsolation->getCurrentOrganizationCode(),
                     'user_id' => $modelGatewayDataIsolation->getCurrentUserId(),
                     'user_name' => $modelGatewayDataIsolation->getUserName(),
                 ],
                 ip: implode(',', $webScrapeRequestDTO->getIps()),
-                type: AuditType::WEB_SCRAPE,
+                invocationCategory: 'WEB_SCRAPE',
                 productCode: '',
                 accessToken: $webScrapeRequestDTO->getAccessToken(),
                 startTime: $failStart,
                 latencyMs: $failLatency,
-                status: AuditStatus::FAIL,
+                outcome: 'failure',
                 usage: [],
-                detailInfo: AuditDetailInfo::forTool(
+                detailInfo: InvocationDetailInfo::forTool(
                     $modelGatewayDataIsolation->getAppId(),
                     $modelGatewayDataIsolation->getSourceId(),
                     '',
@@ -772,7 +771,7 @@ class LLMAppService extends AbstractLLMAppService
                 ),
                 businessParams: $webScrapeRequestDTO->getBusinessParams(),
                 sourceMarker: 'webScrape'
-            );
+            ));
 
             ExceptionBuilder::throw(
                 MagicApiErrorCode::MODEL_RESPONSE_FAIL,
@@ -886,22 +885,22 @@ class LLMAppService extends AbstractLLMAppService
                 'offset' => $searchRequestDTO->getOffset(),
             ]);
 
-            // Dispatch audit event for success
-            $this->dispatchAuditEventOnce(
+            // 派发模型调用完成（成功）
+            $this->dispatchModelInvocationCompleted(new ModelInvocationCompletedEvent(
                 userInfo: [
                     'organization_code' => $modelGatewayDataIsolation->getCurrentOrganizationCode(),
                     'user_id' => $modelGatewayDataIsolation->getCurrentUserId(),
                     'user_name' => $modelGatewayDataIsolation->getUserName(),
                 ],
                 ip: implode(',', $searchRequestDTO->getIps()),
-                type: AuditType::SEARCH,
+                invocationCategory: 'SEARCH',
                 productCode: $adapter->getEngineName(),
                 accessToken: $searchRequestDTO->getAccessToken(),
                 startTime: $startTime,
                 latencyMs: $responseTime,
-                status: AuditStatus::SUCCESS,
+                outcome: 'success',
                 usage: ['count' => 1],
-                detailInfo: AuditDetailInfo::forTool(
+                detailInfo: InvocationDetailInfo::forTool(
                     $modelGatewayDataIsolation->getAppId(),
                     $modelGatewayDataIsolation->getSourceId(),
                     $adapter->getEngineName(),
@@ -909,7 +908,7 @@ class LLMAppService extends AbstractLLMAppService
                 ),
                 businessParams: $searchRequestDTO->getBusinessParams(),
                 sourceMarker: 'unifiedSearch'
-            );
+            ));
 
             $businessParams['response_duration'] = $responseTime;
             $businessParams['source_id'] = $modelGatewayDataIsolation->getSourceId();
@@ -955,22 +954,22 @@ class LLMAppService extends AbstractLLMAppService
             $failLatency = (int) ((microtime(true) - $startTime) * 1000);
             $failProductCode = $adapter?->getEngineName() ?? '';
 
-            // Dispatch audit event for failure
-            $this->dispatchAuditEventOnce(
+            // 派发模型调用完成（失败）
+            $this->dispatchModelInvocationCompleted(new ModelInvocationCompletedEvent(
                 userInfo: [
                     'organization_code' => $modelGatewayDataIsolation->getCurrentOrganizationCode(),
                     'user_id' => $modelGatewayDataIsolation->getCurrentUserId(),
                     'user_name' => $modelGatewayDataIsolation->getUserName(),
                 ],
                 ip: implode(',', $searchRequestDTO->getIps()),
-                type: AuditType::SEARCH,
+                invocationCategory: 'SEARCH',
                 productCode: $failProductCode,
                 accessToken: $searchRequestDTO->getAccessToken(),
                 startTime: $startTime,
                 latencyMs: $failLatency,
-                status: AuditStatus::FAIL,
+                outcome: 'failure',
                 usage: [],
-                detailInfo: AuditDetailInfo::forTool(
+                detailInfo: InvocationDetailInfo::forTool(
                     $modelGatewayDataIsolation->getAppId(),
                     $modelGatewayDataIsolation->getSourceId(),
                     $failProductCode,
@@ -978,7 +977,7 @@ class LLMAppService extends AbstractLLMAppService
                 ),
                 businessParams: $searchRequestDTO->getBusinessParams(),
                 sourceMarker: 'unifiedSearch'
-            );
+            ));
 
             ExceptionBuilder::throw(
                 MagicApiErrorCode::MODEL_RESPONSE_FAIL,
@@ -1086,22 +1085,22 @@ class LLMAppService extends AbstractLLMAppService
                 'offset' => $imageSearchRequestDTO->getOffset(),
             ]);
 
-            // Dispatch audit event for success
-            $this->dispatchAuditEventOnce(
+            // 派发模型调用完成（成功）
+            $this->dispatchModelInvocationCompleted(new ModelInvocationCompletedEvent(
                 userInfo: [
                     'organization_code' => $modelGatewayDataIsolation->getCurrentOrganizationCode(),
                     'user_id' => $modelGatewayDataIsolation->getCurrentUserId(),
                     'user_name' => $modelGatewayDataIsolation->getUserName(),
                 ],
                 ip: implode(',', $imageSearchRequestDTO->getIps()),
-                type: AuditType::SEARCH,
+                invocationCategory: 'SEARCH',
                 productCode: $adapter->getEngineName(),
                 accessToken: $imageSearchRequestDTO->getAccessToken(),
                 startTime: $startTime,
                 latencyMs: $responseTime,
-                status: AuditStatus::SUCCESS,
+                outcome: 'success',
                 usage: ['count' => 1],
-                detailInfo: AuditDetailInfo::forTool(
+                detailInfo: InvocationDetailInfo::forTool(
                     $modelGatewayDataIsolation->getAppId(),
                     $modelGatewayDataIsolation->getSourceId(),
                     $adapter->getEngineName(),
@@ -1109,7 +1108,7 @@ class LLMAppService extends AbstractLLMAppService
                 ),
                 businessParams: $imageSearchRequestDTO->getBusinessParams(),
                 sourceMarker: 'imageSearch'
-            );
+            ));
 
             $businessParams['response_duration'] = $responseTime;
             $businessParams['call_time'] = date('Y-m-d H:i:s');
@@ -1156,22 +1155,22 @@ class LLMAppService extends AbstractLLMAppService
             $failLatency = (int) ((microtime(true) - $startTime) * 1000);
             $failProductCode = $adapter?->getEngineName() ?? '';
 
-            // Dispatch audit event for failure
-            $this->dispatchAuditEventOnce(
+            // 派发模型调用完成（失败）
+            $this->dispatchModelInvocationCompleted(new ModelInvocationCompletedEvent(
                 userInfo: [
                     'organization_code' => $modelGatewayDataIsolation->getCurrentOrganizationCode(),
                     'user_id' => $modelGatewayDataIsolation->getCurrentUserId(),
                     'user_name' => $modelGatewayDataIsolation->getUserName(),
                 ],
                 ip: implode(',', $imageSearchRequestDTO->getIps()),
-                type: AuditType::SEARCH,
+                invocationCategory: 'SEARCH',
                 productCode: $failProductCode,
                 accessToken: $imageSearchRequestDTO->getAccessToken(),
                 startTime: $startTime,
                 latencyMs: $failLatency,
-                status: AuditStatus::FAIL,
+                outcome: 'failure',
                 usage: [],
-                detailInfo: AuditDetailInfo::forTool(
+                detailInfo: InvocationDetailInfo::forTool(
                     $modelGatewayDataIsolation->getAppId(),
                     $modelGatewayDataIsolation->getSourceId(),
                     $failProductCode,
@@ -1179,7 +1178,7 @@ class LLMAppService extends AbstractLLMAppService
                 ),
                 businessParams: $imageSearchRequestDTO->getBusinessParams(),
                 sourceMarker: 'imageSearch'
-            );
+            ));
 
             ExceptionBuilder::throw(
                 MagicApiErrorCode::MODEL_RESPONSE_FAIL,
@@ -1271,22 +1270,22 @@ class LLMAppService extends AbstractLLMAppService
                     $auditCount = 1;
                 }
 
-                // Dispatch audit event for success
-                $this->dispatchAuditEventOnce(
+                // 派发模型调用完成（成功）
+                $this->dispatchModelInvocationCompleted(new ModelInvocationCompletedEvent(
                     userInfo: [
                         'organization_code' => $modelGatewayDataIsolation->getCurrentOrganizationCode(),
                         'user_id' => $modelGatewayDataIsolation->getCurrentUserId(),
                         'user_name' => $modelGatewayDataIsolation->getUserName(),
                     ],
                     ip: implode(',', $textGenerateImageDTO->getIps()),
-                    type: AuditType::IMAGE,
+                    invocationCategory: 'IMAGE',
                     productCode: $modelId,
                     accessToken: $textGenerateImageDTO->getAccessToken(),
                     startTime: $startTime,
                     latencyMs: $latencyMs,
-                    status: AuditStatus::SUCCESS,
+                    outcome: 'success',
                     usage: ['count' => $auditCount],
-                    detailInfo: AuditDetailInfo::forModel(
+                    detailInfo: InvocationDetailInfo::forModel(
                         $modelGatewayDataIsolation->getAppId(),
                         $modelGatewayDataIsolation->getSourceId(),
                         $imageModel->getProviderModelId(),
@@ -1295,7 +1294,7 @@ class LLMAppService extends AbstractLLMAppService
                     ),
                     businessParams: $textGenerateImageDTO->getBusinessParams(),
                     sourceMarker: 'textGenerateImage'
-                );
+                ));
 
                 $this->dispatchImageGeneratedEvent(
                     $creator,
@@ -1317,22 +1316,22 @@ class LLMAppService extends AbstractLLMAppService
 
         $latencyMs = (int) ((microtime(true) - $startTime) * 1000);
 
-        // Dispatch audit event for failure
-        $this->dispatchAuditEventOnce(
+        // 派发模型调用完成（失败）
+        $this->dispatchModelInvocationCompleted(new ModelInvocationCompletedEvent(
             userInfo: [
                 'organization_code' => $modelGatewayDataIsolation->getCurrentOrganizationCode(),
                 'user_id' => $modelGatewayDataIsolation->getCurrentUserId(),
                 'user_name' => $modelGatewayDataIsolation->getUserName(),
             ],
             ip: implode(',', $textGenerateImageDTO->getIps()),
-            type: AuditType::IMAGE,
+            invocationCategory: 'IMAGE',
             productCode: $modelId,
             accessToken: $textGenerateImageDTO->getAccessToken(),
             startTime: $startTime,
             latencyMs: $latencyMs,
-            status: AuditStatus::FAIL,
+            outcome: 'failure',
             usage: [],
-            detailInfo: AuditDetailInfo::forModel(
+            detailInfo: InvocationDetailInfo::forModel(
                 $modelGatewayDataIsolation->getAppId(),
                 $modelGatewayDataIsolation->getSourceId(),
                 $imageModel->getProviderModelId(),
@@ -1341,7 +1340,7 @@ class LLMAppService extends AbstractLLMAppService
             ),
             businessParams: $textGenerateImageDTO->getBusinessParams(),
             sourceMarker: 'textGenerateImage'
-        );
+        ));
 
         ExceptionBuilder::throw(ImageGenerateErrorCode::GENERAL_ERROR, $errorMessage);
     }
@@ -1416,22 +1415,22 @@ class LLMAppService extends AbstractLLMAppService
             if (! empty($generateImageRaw)) {
                 $latencyMs = (int) ((microtime(true) - $startTime) * 1000);
 
-                // Dispatch audit event for success
-                $this->dispatchAuditEventOnce(
+                // 派发模型调用完成（成功）
+                $this->dispatchModelInvocationCompleted(new ModelInvocationCompletedEvent(
                     userInfo: [
                         'organization_code' => $modelGatewayDataIsolation->getCurrentOrganizationCode(),
                         'user_id' => $modelGatewayDataIsolation->getCurrentUserId(),
                         'user_name' => $modelGatewayDataIsolation->getUserName(),
                     ],
                     ip: implode(',', $imageEditDTO->getIps()),
-                    type: AuditType::IMAGE,
+                    invocationCategory: 'IMAGE',
                     productCode: $modelId,
                     accessToken: $imageEditDTO->getAccessToken(),
                     startTime: $startTime,
                     latencyMs: $latencyMs,
-                    status: AuditStatus::SUCCESS,
+                    outcome: 'success',
                     usage: ['count' => 1],
-                    detailInfo: AuditDetailInfo::forModel(
+                    detailInfo: InvocationDetailInfo::forModel(
                         $modelGatewayDataIsolation->getAppId(),
                         $modelGatewayDataIsolation->getSourceId(),
                         $imageModel->getProviderModelId(),
@@ -1440,7 +1439,7 @@ class LLMAppService extends AbstractLLMAppService
                     ),
                     businessParams: $imageEditDTO->getBusinessParams(),
                     sourceMarker: 'imageEdit'
-                );
+                ));
 
                 // 统一触发事件（图生图默认 1 张）
                 $this->dispatchImageGeneratedEvent(
@@ -1462,22 +1461,22 @@ class LLMAppService extends AbstractLLMAppService
 
         $latencyMs = (int) ((microtime(true) - $startTime) * 1000);
 
-        // Dispatch audit event for failure
-        $this->dispatchAuditEventOnce(
+        // 派发模型调用完成（失败）
+        $this->dispatchModelInvocationCompleted(new ModelInvocationCompletedEvent(
             userInfo: [
                 'organization_code' => $modelGatewayDataIsolation->getCurrentOrganizationCode(),
                 'user_id' => $modelGatewayDataIsolation->getCurrentUserId(),
                 'user_name' => $modelGatewayDataIsolation->getUserName(),
             ],
             ip: implode(',', $imageEditDTO->getIps()),
-            type: AuditType::IMAGE,
+            invocationCategory: 'IMAGE',
             productCode: $modelId,
             accessToken: $imageEditDTO->getAccessToken(),
             startTime: $startTime,
             latencyMs: $latencyMs,
-            status: AuditStatus::FAIL,
+            outcome: 'failure',
             usage: [],
-            detailInfo: AuditDetailInfo::forModel(
+            detailInfo: InvocationDetailInfo::forModel(
                 $modelGatewayDataIsolation->getAppId(),
                 $modelGatewayDataIsolation->getSourceId(),
                 $imageModel->getProviderModelId(),
@@ -1486,7 +1485,7 @@ class LLMAppService extends AbstractLLMAppService
             ),
             businessParams: $imageEditDTO->getBusinessParams(),
             sourceMarker: 'imageEdit'
-        );
+        ));
 
         ExceptionBuilder::throw(ImageGenerateErrorCode::NOT_FOUND_ERROR_CODE);
     }
@@ -1708,22 +1707,22 @@ class LLMAppService extends AbstractLLMAppService
 
             $detailExtras = ['original_model_id' => $originalModelId];
 
-            // Dispatch audit event for success（流式首包后同步 INSERT，最终 usage 由 AuditLogSubscriber 在 AfterChatCompletionsStreamEvent 同步回填）
-            $this->dispatchAuditEventOnce(
+            // 派发模型调用完成（成功）；流式首包后同步落库事实，最终 usage 仍由 AuditLogSubscriber 在 AfterChatCompletionsStreamEvent 回填
+            $this->dispatchModelInvocationCompleted(new ModelInvocationCompletedEvent(
                 userInfo: [
                     'organization_code' => $modelGatewayDataIsolation->getCurrentOrganizationCode(),
                     'user_id' => $modelGatewayDataIsolation->getCurrentUserId(),
                     'user_name' => $modelGatewayDataIsolation->getUserName(),
                 ],
                 ip: implode(',', $proxyModelRequest->getIps()),
-                type: $this->resolveAuditType($proxyModelRequest->getType()),
+                invocationCategory: $this->resolveInvocationCategory($proxyModelRequest->getType()),
                 productCode: $proxyModelRequest->getModel(),
                 accessToken: $proxyModelRequest->getAccessToken(),
                 startTime: $startTime,
                 latencyMs: $responseTime,
-                status: AuditStatus::SUCCESS,
+                outcome: 'success',
                 usage: $response->getUsage()?->toArray() ?? [],
-                detailInfo: AuditDetailInfo::forModel(
+                detailInfo: InvocationDetailInfo::forModel(
                     $modelGatewayDataIsolation->getAppId(),
                     $modelGatewayDataIsolation->getSourceId(),
                     $modelAttributes?->getProviderModelId() ?? '',
@@ -1732,7 +1731,7 @@ class LLMAppService extends AbstractLLMAppService
                 ),
                 businessParams: $proxyModelRequest->getBusinessParams(),
                 sourceMarker: 'processRequest'
-            );
+            ));
 
             return $response;
         } catch (Throwable $throwable) {
@@ -1741,22 +1740,22 @@ class LLMAppService extends AbstractLLMAppService
             $failStart = $startTime ?? microtime(true);
             $failLatency = (int) ((microtime(true) - $failStart) * 1000);
 
-            // Dispatch audit event for failure
-            $this->dispatchAuditEventOnce(
+            // 派发模型调用完成（失败）
+            $this->dispatchModelInvocationCompleted(new ModelInvocationCompletedEvent(
                 userInfo: [
                     'organization_code' => $modelGatewayDataIsolation?->getCurrentOrganizationCode() ?? '',
                     'user_id' => $modelGatewayDataIsolation?->getCurrentUserId() ?? '',
                     'user_name' => $modelGatewayDataIsolation?->getUserName() ?? '',
                 ],
                 ip: implode(',', $proxyModelRequest->getIps()),
-                type: $this->resolveAuditType($proxyModelRequest->getType()),
+                invocationCategory: $this->resolveInvocationCategory($proxyModelRequest->getType()),
                 productCode: $proxyModelRequest->getModel(),
                 accessToken: $proxyModelRequest->getAccessToken(),
                 startTime: $failStart,
                 latencyMs: $failLatency,
-                status: AuditStatus::FAIL,
+                outcome: 'failure',
                 usage: [],
-                detailInfo: AuditDetailInfo::forModel(
+                detailInfo: InvocationDetailInfo::forModel(
                     $modelGatewayDataIsolation?->getAppId() ?? '',
                     $modelGatewayDataIsolation?->getSourceId() ?? '',
                     $modelAttributes?->getProviderModelId() ?? '',
@@ -1768,7 +1767,7 @@ class LLMAppService extends AbstractLLMAppService
                 ),
                 businessParams: $proxyModelRequest->getBusinessParams(),
                 sourceMarker: 'processRequest'
-            );
+            ));
 
             $message = '';
             if ($throwable instanceof OdinException || $throwable instanceof InvalidArgumentException || $throwable instanceof BusinessException) {
@@ -1811,15 +1810,15 @@ class LLMAppService extends AbstractLLMAppService
     }
 
     /**
-     * Resolve audit type from request type.
+     * 请求类型 → 调用类别（TEXT / EMBEDDING / IMAGE，字符串与现网审计分类取值一致）.
      */
-    protected function resolveAuditType(string $requestType): AuditType
+    protected function resolveInvocationCategory(string $requestType): string
     {
         return match ($requestType) {
-            'chat' => AuditType::TEXT,
-            'embedding' => AuditType::EMBEDDING,
-            'image' => AuditType::IMAGE,
-            default => AuditType::TEXT,
+            'chat' => 'TEXT',
+            'embedding' => 'EMBEDDING',
+            'image' => 'IMAGE',
+            default => 'TEXT',
         };
     }
 

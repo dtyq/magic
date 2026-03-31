@@ -16,8 +16,8 @@ use App\Domain\Contact\Service\MagicUserDomainService;
 use App\Infrastructure\Core\ValueObject\Page;
 use App\Infrastructure\Util\StringMaskUtil;
 use App\Interfaces\Chat\DTO\UserDetailDTO;
+use Dtyq\AsyncEvent\AsyncEventUtil;
 use Hyperf\Logger\LoggerFactory;
-use Psr\EventDispatcher\EventDispatcherInterface;
 use Psr\Log\LoggerInterface;
 use Throwable;
 
@@ -27,7 +27,6 @@ class AuditService
 
     public function __construct(
         LoggerFactory $loggerFactory,
-        private readonly EventDispatcherInterface $eventDispatcher,
         private readonly ModelCallAuditDomainService $modelCallAuditDomainService,
         private readonly MagicUserDomainService $magicUserDomainService,
     ) {
@@ -80,7 +79,7 @@ class AuditService
                 accessScope: $accessScope,
             );
 
-            $this->eventDispatcher->dispatch($event);
+            AsyncEventUtil::dispatch($event);
         } catch (Throwable $throwable) {
             $this->logger->error('Model audit dispatchAuditEvent failed', [
                 'type' => $type->value,

@@ -7,14 +7,11 @@ declare(strict_types=1);
 
 namespace App\Application\ModelGateway\Service;
 
-use App\Application\Audit\ModelCall\Service\AuditService;
 use App\Application\Kernel\AbstractKernelAppService;
 use App\Application\Kernel\EnvManager;
 use App\Application\ModelGateway\Component\Points\PointComponentInterface;
+use App\Application\ModelGateway\Event\ModelInvocationCompletedEvent;
 use App\Application\ModelGateway\Mapper\ModelGatewayMapper;
-use App\Domain\Audit\ModelCall\Entity\ValueObject\AuditStatus;
-use App\Domain\Audit\ModelCall\Entity\ValueObject\AuditType;
-use App\Domain\Audit\ModelCall\Entity\ValueObject\ModelAuditAccessScope;
 use App\Domain\Contact\Service\MagicUserDomainService;
 use App\Domain\File\Service\FileDomainService;
 use App\Domain\ImageGenerate\Contract\WatermarkConfigInterface;
@@ -32,7 +29,7 @@ use App\Domain\Provider\Service\ProviderModelDomainService;
 use App\ErrorCode\MagicApiErrorCode;
 use App\Infrastructure\Core\Exception\ExceptionBuilder;
 use App\Infrastructure\ImageGenerate\ImageWatermarkProcessor;
-use Hyperf\Context\Context;
+use Dtyq\AsyncEvent\AsyncEventUtil;
 use Hyperf\HttpServer\Contract\RequestInterface;
 use Hyperf\Logger\LoggerFactory;
 use Psr\Log\LoggerInterface;
@@ -40,8 +37,6 @@ use Throwable;
 
 abstract class AbstractLLMAppService extends AbstractKernelAppService
 {
-    private const string AUDIT_DISPATCHED_KEYS = 'model_gateway.audit.dispatched_keys';
-
     protected LoggerInterface $logger;
 
     public function __construct(
@@ -62,7 +57,6 @@ abstract class AbstractLLMAppService extends AbstractKernelAppService
         protected PackageFilterInterface $packageFilter,
         protected ProviderModelDomainService $providerModelDomainService,
         protected AggregateModelResolverService $aggregateModelResolverService,
-        protected readonly AuditService $auditService
     ) {
         $this->logger = $this->loggerFactory->get(static::class);
     }
@@ -124,109 +118,9 @@ abstract class AbstractLLMAppService extends AbstractKernelAppService
         return $dataIsolation;
     }
 
-    protected function dispatchAuditEventOnce(
-        array $userInfo,
-        string $ip,
-        AuditType $type,
-        string $productCode,
-        string $accessToken,
-        float $startTime,
-        int $latencyMs,
-        AuditStatus $status,
-        array $usage = [],
-        ?array $detailInfo = null,
-        array $businessParams = [],
-        string $sourceMarker = ''
-    ): void {
-        $dispatchBusinessParams = $businessParams;
-        if ($sourceMarker !== '') {
-            $dispatchBusinessParams['audit_source_marker'] = $sourceMarker;
-        }
-
-        $accessScope = $this->resolveAccessScopeForAudit($dispatchBusinessParams, $accessToken);
-
-        $dispatchKey = $this->buildAuditDispatchKey($type, $dispatchBusinessParams);
-        if ($dispatchKey === '') {
-            $this->auditService->dispatchAuditEvent(
-                userInfo: $userInfo,
-                ip: $ip,
-                type: $type,
-                productCode: $productCode,
-                accessToken: $accessToken,
-                startTime: $startTime,
-                latencyMs: $latencyMs,
-                status: $status,
-                usage: $usage,
-                detailInfo: $detailInfo,
-                businessParams: $dispatchBusinessParams,
-                accessScope: $accessScope,
-            );
-            return;
-        }
-
-        $dispatchedKeys = Context::get(self::AUDIT_DISPATCHED_KEYS, []);
-        if (! is_array($dispatchedKeys)) {
-            $dispatchedKeys = [];
-        }
-
-        if (in_array($dispatchKey, $dispatchedKeys, true)) {
-            return;
-        }
-
-        $dispatchedKeys[] = $dispatchKey;
-        Context::set(self::AUDIT_DISPATCHED_KEYS, $dispatchedKeys);
-
-        $this->auditService->dispatchAuditEvent(
-            userInfo: $userInfo,
-            ip: $ip,
-            type: $type,
-            productCode: $productCode,
-            accessToken: $accessToken,
-            startTime: $startTime,
-            latencyMs: $latencyMs,
-            status: $status,
-            usage: $usage,
-            detailInfo: $detailInfo,
-            businessParams: $dispatchBusinessParams,
-            accessScope: $accessScope,
-        );
-    }
-
-    /**
-     * 与 {@see createModelGatewayDataIsolationByAccessToken} 一致：User→开放平台，Application→Magic；无 token 字符串的会话类审计视为 Magic.
-     */
-    protected function resolveAccessScopeForAudit(array $businessParams, string $accessToken): ModelAuditAccessScope
+    protected function dispatchModelInvocationCompleted(ModelInvocationCompletedEvent $event): void
     {
-        $tokenType = (string) ($businessParams['access_token_type'] ?? '');
-        if ($tokenType === AccessTokenType::User->value) {
-            return ModelAuditAccessScope::ApiPlatform;
-        }
-        if ($tokenType === AccessTokenType::Application->value) {
-            return ModelAuditAccessScope::Magic;
-        }
-        if ($accessToken === '') {
-            return ModelAuditAccessScope::Magic;
-        }
-        $tokenEntity = $this->accessTokenDomainService->getByAccessToken($accessToken);
-        if ($tokenEntity === null) {
-            return ModelAuditAccessScope::Magic;
-        }
-
-        return ModelAuditAccessScope::fromAccessTokenType($tokenEntity->getType());
-    }
-
-    protected function buildAuditDispatchKey(AuditType $type, array $businessParams = []): string
-    {
-        $requestId = (string) ($businessParams['request_id'] ?? '');
-        if ($requestId === '') {
-            return '';
-        }
-
-        return implode('|', [
-            $requestId,
-            $type->value,
-            (string) ($businessParams['audit_source_marker'] ?? ''),
-        ]);
+        AsyncEventUtil::dispatch($event);
     }
 
     private function getApplicationOrganizationCode(array $businessParams = []): string
