@@ -669,7 +669,8 @@ readonly class SuperMagicAgentDomainService
         $uploadConfig = $this->cloudFileRepository->getStsTemporaryCredential(
             $dataIsolation->getCurrentOrganizationCode(),
             StorageBucketType::Private,
-            '/agent_export'
+            '/agent_export',
+            options: ['internal_endpoint' => true]
         );
 
         // Call sandbox workspace export API via proxy request
