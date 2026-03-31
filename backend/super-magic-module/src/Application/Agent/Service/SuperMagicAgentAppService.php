@@ -382,7 +382,7 @@ class SuperMagicAgentAppService extends AbstractSuperMagicAppService
     /**
      * 查询“团队共享的员工”列表。
      *
-     * 仅返回当前用户可见、但并非自己创建，也不是从市场安装的 Agent。
+     * 仅返回当前用户可见、但并非自己创建，也不是从市场安装、且不含官方内置的 Agent。
      *
      * @return array{
      *     agents: array<int, SuperMagicAgentEntity>,
@@ -397,24 +397,18 @@ class SuperMagicAgentAppService extends AbstractSuperMagicAppService
     public function queriesTeamShared(Authenticatable $authorization, QueryAgentsRequestDTO $requestDTO): array
     {
         $dataIsolation = $this->createSuperMagicDataIsolation($authorization);
-        $accessibleAgentResult = $this->getAccessibleAgentCodes($dataIsolation, $dataIsolation->getCurrentUserId());
         $marketInstalledCodes = $this->userAgentDomainService->findAgentCodesBySourceTypes(
             $dataIsolation,
             [AgentSourceType::MARKET->value]
         );
-        $officialCodes = $this->getOfficialAgentCodes($authorization);
-        $queryCodes = array_values(array_unique(array_merge(
-            array_diff($accessibleAgentResult['accessible'], $marketInstalledCodes),
-            $officialCodes
-        )));
 
-        return $this->queryPublishedVisibleAgentsByCodes($dataIsolation, $requestDTO, $queryCodes);
+        return $this->queryPublishedVisibleAgentsByCodes($dataIsolation, $requestDTO, $marketInstalledCodes);
     }
 
     /**
      * 查询“从市场安装的员工”列表。
      *
-     * 仅返回当前用户通过市场安装的 Agent。
+     * 返回当前用户通过市场安装的 Agent，并包含官方内置 Agent。
      *
      * @return array{
      *     agents: array<int, SuperMagicAgentEntity>,
@@ -429,10 +423,12 @@ class SuperMagicAgentAppService extends AbstractSuperMagicAppService
     public function queriesMarketInstalled(Authenticatable $authorization, QueryAgentsRequestDTO $requestDTO): array
     {
         $dataIsolation = $this->createSuperMagicDataIsolation($authorization);
-        $queryCodes = $this->userAgentDomainService->findAgentCodesBySourceTypes(
+        $marketCodes = $this->userAgentDomainService->findAgentCodesBySourceTypes(
             $dataIsolation,
             [AgentSourceType::MARKET->value]
         );
+        $officialCodes = $this->getOfficialAgentCodes($authorization);
+        $queryCodes = array_values(array_unique(array_merge($marketCodes, $officialCodes)));
 
         return $this->queryPublishedVisibleAgentsByCodes($dataIsolation, $requestDTO, $queryCodes, true);
     }
