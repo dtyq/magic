@@ -30,9 +30,4 @@ final class ModelInvocationCompletedEvent
         public string $sourceMarker = '',
     ) {
     }
-
-    public function getBusinessParam(string $key, mixed $default = null): mixed
-    {
-        return $this->businessParams[$key] ?? $default;
-    }
 }

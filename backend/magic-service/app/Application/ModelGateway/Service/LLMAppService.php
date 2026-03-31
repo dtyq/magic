@@ -68,6 +68,7 @@ use App\Infrastructure\ExternalAPI\WebScrape\WebScrapeFactory;
 use App\Infrastructure\ImageGenerate\ImageWatermarkProcessor;
 use App\Infrastructure\ImageGenerate\WatermarkPolicyInterface;
 use App\Infrastructure\Util\Context\CoContext;
+use App\Infrastructure\Util\Http\RequestHelper;
 use App\Infrastructure\Util\SSRF\Exception\SSRFException;
 use App\Infrastructure\Util\SSRF\SSRFUtil;
 use App\Infrastructure\Util\StringMaskUtil;
@@ -339,7 +340,7 @@ class LLMAppService extends AbstractLLMAppService
                 'user_id' => $authorization->getId(),
                 'user_name' => trim($authorization->getRealName() ?: $authorization->getNickname()),
             ],
-            ip: '',
+            ip: RequestHelper::getClientIpFromContainer() ?? '',
             invocationCategory: 'IMAGE',
             productCode: $productCodeForAudit,
             accessToken: '',
@@ -424,7 +425,7 @@ class LLMAppService extends AbstractLLMAppService
                 'user_id' => $userAuthorization->getId(),
                 'user_name' => trim($userAuthorization->getRealName() ?: $userAuthorization->getNickname()),
             ],
-            ip: '',
+            ip: RequestHelper::getClientIpFromContainer() ?? '',
             invocationCategory: 'IMAGE',
             productCode: $providerConfigItem->getModelVersion(),
             accessToken: '',

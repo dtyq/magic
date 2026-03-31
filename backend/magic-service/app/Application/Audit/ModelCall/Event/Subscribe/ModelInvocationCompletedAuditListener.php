@@ -53,35 +53,19 @@ class ModelInvocationCompletedAuditListener implements ListenerInterface
         $accessScope = $this->resolveAccessScopeForAudit($dispatchBusinessParams, $event->accessToken);
         $dispatchKey = $this->buildAuditDispatchKey($auditType, $dispatchBusinessParams);
 
-        if ($dispatchKey === '') {
-            $this->auditService->dispatchAuditEvent(
-                userInfo: $event->userInfo,
-                ip: $event->ip,
-                type: $auditType,
-                productCode: $event->productCode,
-                accessToken: $event->accessToken,
-                startTime: $event->startTime,
-                latencyMs: $event->latencyMs,
-                status: $auditStatus,
-                usage: $event->usage,
-                detailInfo: $event->detailInfo,
-                businessParams: $dispatchBusinessParams,
-                accessScope: $accessScope,
-            );
-            return;
-        }
+        if ($dispatchKey !== '') {
+            $dispatchedKeys = Context::get(self::AUDIT_DISPATCHED_KEYS, []);
+            if (! is_array($dispatchedKeys)) {
+                $dispatchedKeys = [];
+            }
 
-        $dispatchedKeys = Context::get(self::AUDIT_DISPATCHED_KEYS, []);
-        if (! is_array($dispatchedKeys)) {
-            $dispatchedKeys = [];
-        }
+            if (in_array($dispatchKey, $dispatchedKeys, true)) {
+                return;
+            }
 
-        if (in_array($dispatchKey, $dispatchedKeys, true)) {
-            return;
+            $dispatchedKeys[] = $dispatchKey;
+            Context::set(self::AUDIT_DISPATCHED_KEYS, $dispatchedKeys);
         }
-
-        $dispatchedKeys[] = $dispatchKey;
-        Context::set(self::AUDIT_DISPATCHED_KEYS, $dispatchedKeys);
 
         $this->auditService->dispatchAuditEvent(
             userInfo: $event->userInfo,
