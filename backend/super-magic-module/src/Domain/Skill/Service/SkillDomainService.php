@@ -187,7 +187,8 @@ class SkillDomainService
         $uploadConfig = $this->cloudFileRepository->getStsTemporaryCredential(
             $dataIsolation->getCurrentOrganizationCode(),
             StorageBucketType::Private,
-            '/skill_export'
+            '/skill_export',
+            options: ['internal_endpoint' => true]
         );
 
         // Call sandbox workspace export API via proxy request
