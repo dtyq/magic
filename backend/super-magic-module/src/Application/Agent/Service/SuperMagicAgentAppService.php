@@ -402,7 +402,11 @@ class SuperMagicAgentAppService extends AbstractSuperMagicAppService
             $dataIsolation,
             [AgentSourceType::MARKET->value]
         );
-        $queryCodes = array_values(array_diff($accessibleAgentResult['accessible'], $marketInstalledCodes));
+        $officialCodes = $this->getOfficialAgentCodes($authorization);
+        $queryCodes = array_values(array_unique(array_merge(
+            array_diff($accessibleAgentResult['accessible'], $marketInstalledCodes),
+            $officialCodes
+        )));
 
         return $this->queryPublishedVisibleAgentsByCodes($dataIsolation, $requestDTO, $queryCodes);
     }
