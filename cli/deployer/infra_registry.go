@@ -43,11 +43,25 @@ type RabbitMQSpec struct{ VHost, Username, Tags string }
 // ACLRules follows Redis ACL syntax, e.g. "+@all ~* &*".
 type RedisSpec struct{ Username, ACLRules string }
 
+// MinIOPolicyStatement is one statement in a named MinIO IAM policy.
+type MinIOPolicyStatement struct {
+	Resources []string `yaml:"resources"`
+	Effect    string   `yaml:"effect"`
+	Actions   []string `yaml:"actions"`
+}
+
+// MinIOPolicy is a named policy definition for MinIO provisioning (caller-declared).
+type MinIOPolicy struct {
+	Name       string                 `yaml:"name"`
+	Statements []MinIOPolicyStatement `yaml:"statements"`
+}
+
 // MinIOSpec requests a MinIO user with named policies.
 type MinIOSpec struct {
-	Username string
-	Policies []string
-	Buckets  []MinIOBucket
+	Username          string
+	Policies          []string
+	Buckets           []MinIOBucket
+	PolicyDefinitions []MinIOPolicy
 }
 
 func (MySQLSpec) infraKind() InfraKind    { return KindMySQL }
@@ -170,6 +184,7 @@ type MinioCreds struct {
 	RootPassword string        `yaml:"rootPassword"`
 	Users        []MinIOUser   `yaml:"users"`
 	Buckets      []MinIOBucket `yaml:"buckets"`
+	Policies     []MinIOPolicy `yaml:"policies"`
 }
 
 // MinIOUser is one MinIO account with its policy list.
@@ -375,6 +390,15 @@ func (r *InfraRegistry) ResolveCredentials() error {
 		return fmt.Errorf("redis users: %w", err)
 	}
 
+	policies, err := collectMinIOPoliciesFromSpecs(r.resources)
+	if err != nil {
+		return fmt.Errorf("minio policies: %w", err)
+	}
+	if err := validateMinIOPolicyReferences(r.resources, policies); err != nil {
+		return fmt.Errorf("minio policy references: %w", err)
+	}
+	r.MinIO.Policies = policies
+
 	r.MinIO.Users, err = resolveUsers(r.resources, KindMinIO, r.MinIO.Users, gen,
 		func(spec InfraSpec, pwd string) MinIOUser {
 			s := spec.(MinIOSpec)
@@ -422,6 +446,121 @@ func collectMinIOBucketsFromSpecs(resources map[string]map[InfraKind]InfraSpec) 
 		out = append(out, byName[name])
 	}
 	return out
+}
+
+// collectMinIOPoliciesFromSpecs merges MinIOSpec.PolicyDefinitions across apps.
+// Policy names must be non-empty, unique per spec and globally; statements must
+// have non-empty resources and actions. Output is sorted by policy name.
+func collectMinIOPoliciesFromSpecs(resources map[string]map[InfraKind]InfraSpec) ([]MinIOPolicy, error) {
+	apps := make([]string, 0, len(resources))
+	for app := range resources {
+		apps = append(apps, app)
+	}
+	sort.Strings(apps)
+
+	byName := make(map[string]MinIOPolicy)
+	ownerApp := make(map[string]string)
+
+	for _, app := range apps {
+		appSpecs := resources[app]
+		spec, ok := appSpecs[KindMinIO]
+		if !ok {
+			continue
+		}
+		minio := spec.(MinIOSpec)
+		seenInSpec := make(map[string]bool)
+		for _, pol := range minio.PolicyDefinitions {
+			name := strings.TrimSpace(pol.Name)
+			if name == "" {
+				return nil, fmt.Errorf("app %q: minio policy name is empty", app)
+			}
+			if seenInSpec[name] {
+				return nil, fmt.Errorf("app %q: duplicate minio policy %q in PolicyDefinitions", app, name)
+			}
+			seenInSpec[name] = true
+
+			if err := validateMinIOPolicyStatements(app, name, pol.Statements); err != nil {
+				return nil, err
+			}
+
+			normalized := MinIOPolicy{Name: name, Statements: pol.Statements}
+			if first, dup := ownerApp[name]; dup {
+				return nil, fmt.Errorf("minio policy %q: conflicting definitions in app %q and app %q", name, first, app)
+			}
+			byName[name] = normalized
+			ownerApp[name] = app
+		}
+	}
+
+	names := make([]string, 0, len(byName))
+	for n := range byName {
+		names = append(names, n)
+	}
+	sort.Strings(names)
+
+	out := make([]MinIOPolicy, 0, len(names))
+	for _, n := range names {
+		out = append(out, byName[n])
+	}
+	return out, nil
+}
+
+func validateMinIOPolicyStatements(app, policyName string, stmts []MinIOPolicyStatement) error {
+	if len(stmts) == 0 {
+		return fmt.Errorf("app %q: minio policy %q: at least one statement is required", app, policyName)
+	}
+	for i := range stmts {
+		st := stmts[i]
+		if !minIOPolicyStringListHasNonEmpty(st.Resources) {
+			return fmt.Errorf("app %q: minio policy %q: statement %d: resources must include at least one non-empty entry", app, policyName, i)
+		}
+		if !minIOPolicyStringListHasNonEmpty(st.Actions) {
+			return fmt.Errorf("app %q: minio policy %q: statement %d: actions must include at least one non-empty entry", app, policyName, i)
+		}
+	}
+	return nil
+}
+
+func minIOPolicyStringListHasNonEmpty(xs []string) bool {
+	for _, x := range xs {
+		if strings.TrimSpace(x) != "" {
+			return true
+		}
+	}
+	return false
+}
+
+// validateMinIOPolicyReferences ensures each MinIOSpec.Policies entry names a
+// collected policy definition.
+func validateMinIOPolicyReferences(resources map[string]map[InfraKind]InfraSpec, policies []MinIOPolicy) error {
+	defined := make(map[string]bool, len(policies))
+	for _, p := range policies {
+		defined[strings.TrimSpace(p.Name)] = true
+	}
+
+	apps := make([]string, 0, len(resources))
+	for app := range resources {
+		apps = append(apps, app)
+	}
+	sort.Strings(apps)
+
+	for _, app := range apps {
+		spec, ok := resources[app][KindMinIO]
+		if !ok {
+			continue
+		}
+		minio := spec.(MinIOSpec)
+		for _, ref := range minio.Policies {
+			rname := strings.TrimSpace(ref)
+			if rname == "" {
+				return fmt.Errorf("app %q: minio policy reference name is empty", app)
+			}
+			if !defined[rname] {
+				return fmt.Errorf("app %q: minio policy %q is not defined", app, rname)
+			}
+		}
+	}
+	return nil
 }
 
 // resolveUsers merges persisted users with newly registered specs, generating

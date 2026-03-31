@@ -82,17 +82,26 @@ func newMagicStage(d *Deployer, reg *InfraRegistry) *MagicStage {
 		InfraResource{App: "magic", Spec: RedisSpec{Username: "magic", ACLRules: "+@all ~* &*"}},
 		InfraResource{App: "magic", Spec: MinIOSpec{
 			Username: "magic",
-			Policies: []string{"full-access-policy"},
-			Buckets: []MinIOBucket{
-				minioBucket("magic", "private", "magic"),
-				minioBucket("magic-public", "public", "magic"),
+			Policies: []string{"magic-access-policy"},
+			PolicyDefinitions: []MinIOPolicy{
+				{
+					Name: "magic-access-policy",
+					Statements: []MinIOPolicyStatement{
+						{
+							Resources: []string{
+								"arn:aws:s3:::magic-private", "arn:aws:s3:::magic-private/*",
+								"arn:aws:s3:::magic-public", "arn:aws:s3:::magic-public/*",
+								"arn:aws:s3:::magic-sandbox", "arn:aws:s3:::magic-sandbox/*",
+							},
+							Effect:  "Allow",
+							Actions: []string{"s3:*"},
+						},
+					},
+				},
 			},
-		}},
-		InfraResource{App: "magic-sandbox", Spec: MinIOSpec{
-			Username: "magic-sandbox",
-			Policies: []string{"magic-sandbox-access-policy"},
 			Buckets: []MinIOBucket{
-				minioBucket("magic-sandbox", "private", "magic-sandbox"),
+				minioBucket("magic-private", "private", "magic"),
+				minioBucket("magic-public", "public", "magic"),
 			},
 		}},
 	)
@@ -202,7 +211,22 @@ func newMagicSandboxStage(d *Deployer, reg *InfraRegistry) *MagicSandboxStage {
 	reg.Register(
 		InfraResource{App: "magic-sandbox", Spec: MinIOSpec{
 			Username: "magic-sandbox",
-			Policies: []string{"full-access-policy"},
+			Policies: []string{"magic-sandbox-access-policy"},
+			PolicyDefinitions: []MinIOPolicy{
+				{
+					Name: "magic-sandbox-access-policy",
+					Statements: []MinIOPolicyStatement{
+						{
+							Resources: []string{
+								"arn:aws:s3:::magic-sandbox",
+								"arn:aws:s3:::magic-sandbox/*",
+							},
+							Effect:  "Allow",
+							Actions: []string{"s3:*"},
+						},
+					},
+				},
+			},
 			Buckets: []MinIOBucket{
 				minioBucket("magic-sandbox", "private", "magic-sandbox"),
 			},
@@ -348,6 +372,7 @@ func minioBucket(name, typeTag, app string) MinIOBucket {
 		},
 	}
 }
+
 
 func resolveMinIOBucketName(reg *InfraRegistry, app, typeTag string) (string, error) {
 	if reg == nil {
