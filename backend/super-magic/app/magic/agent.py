@@ -846,6 +846,18 @@ The following <dynamic_context> block contains system-provided context informati
                     # 添加工具调用响应到历史（现在包含修复后的参数）
                     await self._add_tool_calls_to_history(llm_context)
 
+                    # State recovery checkpoint: runs immediately after a successful LLM call,
+                    # regardless of whether the response contains tool calls or not.
+                    # If the state is ERROR, it means a previous call failed but this retry succeeded.
+                    # Must be placed here (before break/continue branches) so it is never skipped.
+                    if self.is_agent_error():
+                        retry_info = f"（重试 {loop_state.llm_retry_count} 次，异常 {loop_state.run_exception_count} 次）" if loop_state.run_exception_count > 0 else ""
+                        logger.info(f"从 ERROR 状态恢复为 RUNNING{retry_info}")
+                        self.set_agent_state(AgentState.RUNNING)
+                        # Reset counters after successful recovery
+                        loop_state.llm_retry_count = 0
+                        loop_state.run_exception_count = 0
+
                     # 处理无工具调用的情况
                     if not llm_context.has_tool_calls and llm_context.message.role == "assistant":
                         await self._handle_no_tool_calls(llm_context, loop_state)
@@ -859,14 +871,13 @@ The following <dynamic_context> block contains system-provided context informati
                     # Reset no_tool_call_count when tools are called successfully
                     loop_state.no_tool_call_count = 0
 
-                # 统一的状态恢复检查点：无论通过哪个分支获得 llm_context，在执行工具前都检查状态
-                # 能执行到这里说明本次成功获得了响应（如果失败会进入except块）
-                # 如果状态是ERROR，说明之前失败过，现在应该恢复为RUNNING
+                # Unified state recovery for the session-restore branch (SKIP_LLM path).
+                # The LLM-call branch now handles recovery earlier (above), but for the
+                # session-restore path we still need this guard before executing tool calls.
                 if self.is_agent_error():
                     retry_info = f"（重试 {loop_state.llm_retry_count} 次，异常 {loop_state.run_exception_count} 次）" if loop_state.run_exception_count > 0 else ""
-                    logger.info(f"从 ERROR 状态恢复为 RUNNING{retry_info}")
+                    logger.info(f"从 ERROR 状态恢复为 RUNNING（会话恢复路径）{retry_info}")
                     self.set_agent_state(AgentState.RUNNING)
-                    # 恢复成功后重置计数器
                     loop_state.llm_retry_count = 0
                     loop_state.run_exception_count = 0
 

@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import asyncio
 import time
+import uuid
 from typing import Optional
 
 import aiohttp
@@ -22,6 +23,7 @@ from app.channel.wechat import api
 from app.channel.wechat.state import WechatRuntimeState, load_runtime_state, save_runtime_state
 from app.channel.wechat.stream import WechatStream
 from app.channel.wechat.typing import WechatTypingConfigManager, WechatTypingController
+from app.channel.base.third_party_message import dispatch_third_party_message
 from app.core.entity.message.client_message import ChatClientMessage, Metadata
 
 logger = get_logger(__name__)
@@ -352,7 +354,8 @@ class WechatChannel(BaseChannel):
 
         assert self._credential is not None
 
-        stream_id = msg.get("client_id") or msg.get("message_id") or f"wechat-{user_id}-{id(msg)}"
+        platform_msg_id = msg.get("client_id") or msg.get("message_id") or ""
+        message_id = f"wechat_{uuid.uuid4().hex[:16]}"
         ctx = dispatcher.agent_context
         typing_controller: WechatTypingController | None = None
 
@@ -380,20 +383,27 @@ class WechatChannel(BaseChannel):
             to_user_id=user_id,
             context_token=context_token,
             base_url=self._credential.base_url,
-            stream_id=stream_id,
+            stream_id=platform_msg_id or message_id,
             typing_controller=typing_controller,
         )
         ctx.add_stream(wechat_stream)
 
         chat_msg = ChatClientMessage(
-            message_id=stream_id,
+            message_id=message_id,
             prompt=content,
             metadata=Metadata(agent_user_id=user_id),
         )
         logger.info(f"[WechatChannel] 分发消息: user_id={user_id}, len={len(content)}")
 
         # 打断当前 run（如有），以非阻塞 task 启动新 run，poll 循环可继续接收消息
-        await dispatcher.submit_message(chat_msg)
+        await dispatch_third_party_message(
+            dispatcher=dispatcher,
+            channel=self.key,
+            source_message_id=platform_msg_id or message_id,
+            source_conversation_id=context_token,
+            source_sender_id=user_id,
+            chat_message=chat_msg,
+        )
 
         # 在 reset_run_state 之后注册本次 run 的 stream/typing cleanup
         async def _stream_cleanup() -> None:

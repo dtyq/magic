@@ -21,6 +21,7 @@ from app.service.agent_event.rag_listener_service import RagListenerService
 from app.service.agent_event.resource_cleanup_listener_service import ResourceCleanupListenerService
 from app.service.agent_event.stream_listener_service import StreamListenerService
 from app.service.agent_event.checkpoint_listener_service import CheckpointListenerService
+from app.service.agent_event.third_party_message_listener_service import ThirdPartyMessageListenerService
 from app.infrastructure.observability import install_tool_monitoring_listener
 from app.service.mcp_service import MCPService
 from app.path_manager import PathManager
@@ -92,6 +93,7 @@ class AgentDispatcher(Base):
         # FileListenerService.register_standard_listeners(self.agent_context)
         CheckpointListenerService.register_standard_listeners(self.agent_context)
         ResourceCleanupListenerService.register_standard_listeners(self.agent_context)
+        ThirdPartyMessageListenerService.register_standard_listeners(self.agent_context)
 
         # 注册工具监控监听器（非侵入式）
         install_tool_monitoring_listener(self.agent_context)
