@@ -397,12 +397,14 @@ class SuperMagicAgentAppService extends AbstractSuperMagicAppService
     public function queriesTeamShared(Authenticatable $authorization, QueryAgentsRequestDTO $requestDTO): array
     {
         $dataIsolation = $this->createSuperMagicDataIsolation($authorization);
+        $accessibleAgentResult = $this->getAccessibleAgentCodes($dataIsolation, $dataIsolation->getCurrentUserId());
         $marketInstalledCodes = $this->userAgentDomainService->findAgentCodesBySourceTypes(
             $dataIsolation,
             [AgentSourceType::MARKET->value]
         );
+        $queryCodes = array_values(array_diff($accessibleAgentResult['accessible'], $marketInstalledCodes));
 
-        return $this->queryPublishedVisibleAgentsByCodes($dataIsolation, $requestDTO, $marketInstalledCodes);
+        return $this->queryPublishedVisibleAgentsByCodes($dataIsolation, $requestDTO, $queryCodes);
     }
 
     /**
