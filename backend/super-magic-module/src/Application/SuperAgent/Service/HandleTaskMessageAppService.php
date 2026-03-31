@@ -518,7 +518,7 @@ class HandleTaskMessageAppService extends AbstractAppService
             );
             $imageModels = $this->modelGatewayMapper->getImageModels($gatewayIsolation);
             if (! empty($imageModels)) {
-                $imageModelId = $imageModels[0]->getKey();
+                $imageModelId = reset($imageModels)->getKey();
             }
         }
 
