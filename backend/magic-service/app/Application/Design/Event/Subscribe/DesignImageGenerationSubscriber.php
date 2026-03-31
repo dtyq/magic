@@ -196,7 +196,9 @@ class DesignImageGenerationSubscriber implements ListenerInterface
                     $eraserDTO->setN(1);
 
                     $imageUrls = [];
-                    foreach ($imageGenerationEntity->getReferenceImages() ?? [] as $referenceImage) {
+                    $eraserReferenceImageOptions = $imageGenerationEntity->getReferenceImageOptions() ?? [];
+
+                    foreach ($imageGenerationEntity->getReferenceImages() ?? [] as $idx => $referenceImage) {
                         if (str_contains($referenceImage, 'design-mark/')) {
                             // 临时标记图，使用绝对路径直接从 Private bucket 获取链接
                             $imageUrl = $this->fileDomainService->getLink(
@@ -205,12 +207,26 @@ class DesignImageGenerationSubscriber implements ListenerInterface
                                 StorageBucketType::Private
                             )?->getUrl();
                         } else {
-                            // 普通工作区图片，拼接完整路径从 SandBox 获取链接
+                            // 普通工作区图片，拼接完整路径从 SandBox 获取链接，原图支持附带 crop 处理参数
                             $fullReferenceImage = $workspacePrefix . $referenceImage;
+                            $linkOptions = [];
+                            if (! empty($eraserReferenceImageOptions[$idx]['crop'])) {
+                                $cropData = $eraserReferenceImageOptions[$idx]['crop'];
+                                $imageProcessOptions = new ImageProcessOptions();
+                                $imageProcessOptions->crop([
+                                    'width' => (int) round((float) ($cropData['width'] ?? 0)),
+                                    'height' => (int) round((float) ($cropData['height'] ?? 0)),
+                                    'x' => (int) round((float) ($cropData['x'] ?? 0)),
+                                    'y' => (int) round((float) ($cropData['y'] ?? 0)),
+                                ]);
+                                $linkOptions['image'] = $imageProcessOptions;
+                            }
                             $imageUrl = $this->fileDomainService->getLink(
                                 $dataIsolation->getCurrentOrganizationCode(),
                                 $fullReferenceImage,
-                                StorageBucketType::SandBox
+                                StorageBucketType::SandBox,
+                                [],
+                                $linkOptions
                             )?->getUrl();
                         }
                         if ($imageUrl) {
