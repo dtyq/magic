@@ -504,6 +504,9 @@ class SuperMagicAgentApiTest extends AbstractApiTest
         $this->assertSame('LOCAL_CREATE', $sharedItem['source_type']);
         $this->assertSame('6.1.0', $sharedItem['latest_version_code']);
         $this->assertFalse($sharedItem['allow_delete']);
+        $this->assertArrayHasKey('creator_info', $sharedItem);
+        $this->assertNull($sharedItem['creator_info']['id'] ?? null);
+        $this->assertNotEmpty($sharedItem['creator_info']['name'] ?? null);
     }
 
     public function testQueryMarketInstalledAgentsEndpoint(): void
