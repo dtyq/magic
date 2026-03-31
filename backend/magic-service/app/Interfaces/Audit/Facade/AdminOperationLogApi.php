@@ -69,8 +69,12 @@ class AdminOperationLogApi extends AbstractPermissionApi
 
     /**
      * 模型调用审计列表（展示接口）.
+     * 需 workspace 或 platform 模型调用审计查询权限（择一）.
      */
-    #[CheckPermission(MagicResourceEnum::SAFE_MODEL_AUDIT_LOG, MagicOperationEnum::QUERY)]
+    #[CheckPermission(
+        [MagicResourceEnum::WORKSPACE_AI_MODEL_AUDIT_LOG, MagicResourceEnum::PLATFORM_AI_MODEL_AUDIT_LOG],
+        MagicOperationEnum::QUERY
+    )]
     public function listModelAudit(): array
     {
         $authorization = $this->getAuthorization();
