@@ -156,6 +156,12 @@ class DesignApi extends AbstractApi
         // 原图作为第一张参考图，标记图作为第二张参考图
         $DO->setReferenceImages([$filePath, $markPath]);
 
+        // 若前端传入了原图裁剪参数，记录到第 0 张参考图的处理选项中
+        $crop = $this->request->input('crop');
+        if (! empty($crop) && is_array($crop)) {
+            $DO->setReferenceImageOptions([0 => ['crop' => $crop]]);
+        }
+
         $resultEntity = $this->imageGenerationAppService->generateEraser($authenticatable, $DO);
 
         return ImageGenerationAssembler::toDTO($resultEntity);
@@ -176,6 +182,12 @@ class DesignApi extends AbstractApi
         $maskPath = (string) $this->request->input('mask_path');
         // 原图、扩展画布图、mask 图依次作为三张参考图
         $DO->setReferenceImages([$filePath, $canvasPath, $maskPath]);
+
+        // 若前端传入了原图裁剪参数，记录到第 0 张参考图的处理选项中
+        $crop = $this->request->input('crop');
+        if (! empty($crop) && is_array($crop)) {
+            $DO->setReferenceImageOptions([0 => ['crop' => $crop]]);
+        }
 
         $resultEntity = $this->imageGenerationAppService->generateExpandImage($authenticatable, $DO);
 
