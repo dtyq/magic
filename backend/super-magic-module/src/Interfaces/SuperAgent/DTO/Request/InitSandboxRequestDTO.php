@@ -23,6 +23,13 @@ class InitSandboxRequestDTO extends AbstractRequestDTO
 
     protected string $imageModelId = '';
 
+    /**
+     * Per-request AI ability overrides.
+     * Format: { "analysis_audio": { "model_id": "xxx" }, "visual_understanding": { "model_id": "yyy" } }
+     * Merged with (and taking priority over) the global system-level AI ability config.
+     */
+    protected ?array $aiAbilities = null;
+
     protected string $workspaceId = '';
 
     protected string $projectId = '';
@@ -55,6 +62,7 @@ class InitSandboxRequestDTO extends AbstractRequestDTO
             // 'custom_name' => 'required_if:task_type,custom|string',//如果是custom模式，则需要传入custom_name
             'model_id' => 'string', // 模型ID
             'image_model_id' => 'string', // 图像模型ID
+            'ai_abilities' => 'array', // AI 能力覆盖配置
             'workspace_id' => 'string', // 工作区ID
             'project_id' => 'string', // 项目ID
             'project_mode' => 'string', // 项目模式
@@ -96,6 +104,7 @@ class InitSandboxRequestDTO extends AbstractRequestDTO
             'custom_name' => 'custom名称',
             'model_id' => '模型ID',
             'image_model_id' => '图像模型ID',
+            'ai_abilities' => 'AI能力覆盖配置',
             'workspace_id' => '工作区ID',
             'project_id' => '项目ID',
             'project_mode' => '项目模式',
@@ -135,6 +144,11 @@ class InitSandboxRequestDTO extends AbstractRequestDTO
     public function getImageModelId(): string
     {
         return $this->imageModelId;
+    }
+
+    public function getAiAbilities(): ?array
+    {
+        return $this->aiAbilities;
     }
 
     public function getWorkspaceId(): string

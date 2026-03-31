@@ -10,6 +10,7 @@ namespace Dtyq\SuperMagic\Application\SuperAgent\Service;
 use App\Application\LongTermMemory\Enum\AppCodeEnum;
 use App\Application\ModelGateway\Mapper\ModelGatewayMapper;
 use App\Domain\Chat\DTO\Message\Common\MessageExtra\SuperAgent\SuperAgentExtra;
+use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\DynamicConfig\DynamicConfigManager;
 use App\Domain\Contact\Entity\MagicUserEntity;
 use App\Domain\Contact\Entity\ValueObject\DataIsolation;
 use App\Domain\Contact\Service\MagicDepartmentUserDomainService;
@@ -67,6 +68,7 @@ class HandleTaskMessageAppService extends AbstractAppService
         private readonly ProjectDomainService $projectDomainService,
         private readonly ChatAppService $chatAppService,
         private readonly ModelGatewayMapper $modelGatewayMapper,
+        private readonly DynamicConfigManager $dynamicConfigManager,
         LoggerFactory $loggerFactory
     ) {
         $this->logger = $loggerFactory->get(get_class($this));
@@ -144,6 +146,11 @@ class HandleTaskMessageAppService extends AbstractAppService
             // If topic source is COPY, it's not the first task
             $isFirstTask = (empty($topicEntity->getCurrentTaskId()) || empty($topicEntity->getSandboxId()))
                 && CreationSource::fromValue($topicEntity->getSource()) !== CreationSource::COPY;
+
+            // If the caller supplied ai_abilities overrides, merge them (per-ability key) on top of
+            // the global ai_abilities that CustomAiAbilitySubscriber already wrote to Redis.
+            // This allows API clients to dynamically override e.g. analysis_audio.model_id per request.
+            $this->applyAiAbilitiesOverride($taskId, $userMessageDTO->getAiAbilities());
 
             // Resolve image model: use the caller-supplied ID or fall back to first available model.
             $extra = $this->buildExtraWithImageModel($dataIsolation, $userMessageDTO->getImageModelId());
@@ -462,6 +469,41 @@ class HandleTaskMessageAppService extends AbstractAppService
         // Process user uploaded attachments
         $attachmentsStr = $userMessageDTO->getAttachments();
         $this->fileProcessAppService->processInitialAttachments($attachmentsStr, $taskEntity, $dataIsolation);
+    }
+
+    /**
+     * Merge per-request ai_abilities overrides on top of the global ai_abilities config that
+     * CustomAiAbilitySubscriber already stored in Redis for this task.
+     *
+     * Only entries present in $override are written; other abilities remain untouched.
+     * Each ability value is itself merged at the key level, so callers can pass just
+     * { "analysis_audio": { "model_id": "xxx" } } without having to repeat the full map.
+     *
+     * @param string     $taskId   Pre-generated task ID used as Redis key
+     * @param null|array $override Per-request ai_abilities map (may be null/empty → no-op)
+     */
+    private function applyAiAbilitiesOverride(string $taskId, ?array $override): void
+    {
+        if (empty($taskId) || empty($override)) {
+            return;
+        }
+
+        // Read what CustomAiAbilitySubscriber wrote synchronously during beforeHandleChatMessage.
+        $currentConfig = $this->dynamicConfigManager->getByTaskId($taskId);
+        $globalAbilities = $currentConfig['ai_abilities'] ?? [];
+
+        // Deep merge: for each ability in the override, merge its keys into the global ability config.
+        foreach ($override as $abilityKey => $abilityConfig) {
+            if (! is_string($abilityKey) || ! is_array($abilityConfig)) {
+                continue;
+            }
+            $globalAbilities[$abilityKey] = array_merge(
+                $globalAbilities[$abilityKey] ?? [],
+                $abilityConfig
+            );
+        }
+
+        $this->dynamicConfigManager->addByTaskId($taskId, 'ai_abilities', $globalAbilities);
     }
 
     /**
