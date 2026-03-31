@@ -15,6 +15,7 @@ return [
         'missing_image_data_error_prompt_only' => 'Image generation failed. The prompt may be unclear. Please check if the prompt description is accurate and detailed, then try again.',
         'missing_image_data_error_with_reference' => 'Image generation failed. The prompt may be unclear or the reference image may be invalid. Please check if the prompt description is accurate and the reference image is valid, then try again.',
         'project_not_exists' => 'Project does not exist: :project_id',
+        'feature_unavailable' => 'ฟีเจอร์นี้ไม่พร้อมใช้งานในขณะนี้',
     ],
     'image_mark_identify' => [
         'project_not_exists' => 'Project does not exist: :project_id',

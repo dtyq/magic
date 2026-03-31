@@ -13,6 +13,9 @@ use App\Domain\Design\Entity\ValueObject\ImageGenerationType;
 use App\Domain\Design\Factory\PathFactory;
 use App\Domain\Design\Service\ImageGenerationDomainService;
 use App\Domain\File\Service\FileDomainService;
+use App\Domain\Provider\Entity\ValueObject\AiAbilityCode;
+use App\Domain\Provider\Entity\ValueObject\ProviderDataIsolation;
+use App\Domain\Provider\Service\AiAbilityDomainService;
 use App\ErrorCode\DesignErrorCode;
 use App\Infrastructure\Core\Exception\ExceptionBuilder;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\MemberRole;
@@ -30,6 +33,7 @@ class ImageGenerationAppService extends DesignAppService
         private readonly ProjectDomainService $projectDomainService,
         private readonly FileDomainService $fileDomainService,
         private readonly TaskFileDomainService $taskFileDomainService,
+        private readonly AiAbilityDomainService $aiAbilityDomainService,
     ) {
     }
 
@@ -115,15 +119,18 @@ class ImageGenerationAppService extends DesignAppService
     public function generateEraser(Authenticatable $authenticatable, ImageGenerationEntity $entity): ImageGenerationEntity
     {
         $entity->setType(ImageGenerationType::ERASER);
-        $entity->setPrompt(
-            'You are given two images. '
+
+        $defaultPrompt = 'You are given two images. '
             . 'The first image is the original photo. '
             . 'The second image is a black-and-white mask where the white region indicates the area to be erased. '
             . 'Your task: remove the content inside the white masked area from the original photo, '
             . 'and fill that area with a realistic, seamless background inferred from the surrounding pixels. '
             . 'The result should look natural, as if the erased object was never there. '
-            . 'Do not alter any part of the image outside the white masked region.'
-        );
+            . 'Do not alter any part of the image outside the white masked region.';
+
+        [$modelId, $prompt] = $this->resolveAbilityModelAndPrompt(AiAbilityCode::ImageEraser, $defaultPrompt);
+        $entity->setModelId($modelId);
+        $entity->setPrompt($prompt);
 
         return $this->generateImage($authenticatable, $entity);
     }
@@ -134,15 +141,18 @@ class ImageGenerationAppService extends DesignAppService
     public function generateExpandImage(Authenticatable $authenticatable, ImageGenerationEntity $entity): ImageGenerationEntity
     {
         $entity->setType(ImageGenerationType::EXPAND);
-        $entity->setPrompt(
-            'You are given three images. '
+
+        $defaultPrompt = 'You are given three images. '
             . 'The first image is the original photo. '
             . 'The second image is an expanded canvas where the original image is placed at its original position and the surrounding extended areas are filled with black. '
             . 'The third image is a black-and-white mask where the white region marks the extended areas to be generated. '
             . 'Your task: use the original photo as reference, and fill the white masked areas in the expanded canvas with realistic, natural content that seamlessly extends the original image. '
             . 'The generated content should be coherent with the style, lighting, perspective, and context of the original image. '
-            . 'Do not alter any part of the image outside the white masked region.'
-        );
+            . 'Do not alter any part of the image outside the white masked region.';
+
+        [$modelId, $prompt] = $this->resolveAbilityModelAndPrompt(AiAbilityCode::ImageExpand, $defaultPrompt);
+        $entity->setModelId($modelId);
+        $entity->setPrompt($prompt);
 
         return $this->generateImage($authenticatable, $entity);
     }
@@ -153,7 +163,12 @@ class ImageGenerationAppService extends DesignAppService
     public function generateRemoveBackground(Authenticatable $authenticatable, ImageGenerationEntity $entity): ImageGenerationEntity
     {
         $entity->setType(ImageGenerationType::REMOVE_BACKGROUND);
-        $entity->setPrompt('Remove the background from this image. Make the background completely transparent. Keep the main subject perfectly intact with clean, sharp edges.');
+
+        $defaultPrompt = 'Remove the background from this image. Make the background completely transparent. Keep the main subject perfectly intact with clean, sharp edges.';
+
+        [$modelId, $prompt] = $this->resolveAbilityModelAndPrompt(AiAbilityCode::ImageRemoveBackground, $defaultPrompt);
+        $entity->setModelId($modelId);
+        $entity->setPrompt($prompt);
 
         // 复用生图逻辑，使用同一个表来完成
         return $this->generateImage($authenticatable, $entity);
@@ -200,5 +215,31 @@ class ImageGenerationAppService extends DesignAppService
         $entity->setFileUrl($fileUrl);
 
         return $entity;
+    }
+
+    /**
+     * 从 AI 能力配置中解析 model_id 和 prompt.
+     * 若能力未启用或 model_id 未配置则抛出异常；prompt 为空时退回到默认值.
+     *
+     * @return array{0: string, 1: string} [modelId, prompt]
+     */
+    private function resolveAbilityModelAndPrompt(AiAbilityCode $code, string $defaultPrompt): array
+    {
+        $entity = $this->aiAbilityDomainService->getByCode(ProviderDataIsolation::create('')->disabled(), $code);
+
+        if ($entity === null || ! $entity->isEnabled()) {
+            ExceptionBuilder::throw(DesignErrorCode::InvalidArgument, 'design.image_generation.feature_unavailable');
+        }
+
+        $config = $entity->getConfig();
+        $modelId = $config['model_id'] ?? null;
+
+        if (empty($modelId)) {
+            ExceptionBuilder::throw(DesignErrorCode::InvalidArgument, 'design.image_generation.feature_unavailable');
+        }
+
+        $prompt = ! empty($config['prompt']) ? (string) $config['prompt'] : $defaultPrompt;
+
+        return [$modelId, $prompt];
     }
 }
