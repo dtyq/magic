@@ -455,10 +455,19 @@ def _mark_cancelled(
     state.interrupt_reason = reason
     state.active_tool_call_id = None
     state.last_tool_call_id = tool_call_id or state.last_tool_call_id
+
+    # reason == "cancelled" 表示 Task 被直接 cancel（用户点击终止），子 Agent context
+    # 未设置 interruption_reason，不应提示主 Agent 自动重试
+    is_user_cancel = not reason or reason == "cancelled"
+    resume_hint = (
+        "This sub-agent was stopped by user request. Do not call call_subagent again automatically — wait for the user's next instruction."
+        if is_user_cancel
+        else "Send a new prompt with the same agent_id to continue the conversation."
+    )
     state.cached_tool_result = _build_payload(
         state=state,
         mode=mode,
-        resume_hint="Send a new prompt with the same agent_id to continue the conversation.",
+        resume_hint=resume_hint,
     )
 
 

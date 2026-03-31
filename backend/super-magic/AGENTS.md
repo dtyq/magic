@@ -134,7 +134,18 @@ Python 代码中凡是涉及文件操作，必须使用 `app/utils/async_file_ut
 | 获取 stat | `async_stat` |
 | 遍历目录 | `async_scandir`（返回 DirEntry，判断类型无需额外 stat）/ `async_iterdir`（返回 Path） |
 
-## 11. 每次改动前自检
+## 11. 新功能必须支持用户中断（Cancel）机制
+
+中断链路：用户点击终止 → `stop_run()` 设置 `interruption_event` → 所有监听该事件的等待点检测到信号后退出 → 抛 `asyncio.CancelledError` 终止当前 run。
+
+新增长时操作时，逐项检查：
+
+- 耗时等待是否同时监听了 `agent_context.get_interruption_event()`？应使用 `asyncio.wait([work_task, interrupt_task], return_when=FIRST_COMPLETED)` 并行等待，interrupt_task 完成即退出。参考 `streaming_context.py` 中 chunk_task 与 interrupt_task 的写法。
+- 中断退出时必须抛 `asyncio.CancelledError`，不能抛 `RuntimeError`。`CancelledError` 是 `BaseException`，不被 `except Exception` 捕获，能正确终止 Agent；`RuntimeError` 则会被上层 `except Exception` 捕获并触发降级重试，导致中断信号被静默绕过。典型陷阱：流式调用检测到中断信号提前退出、收到 0 个 chunks，若此时抛 `RuntimeError("No stream data received")`，`processor_manager` 会降级为非流式重试，中断完全失效。
+- 检查所有 `except Exception` / `except BaseException` / 裸 `except:` 块，确认不会吞掉 `CancelledError`。如果 fallback 逻辑需要在中断时跳过，在进入 fallback 前先检查 `agent_context.is_interruption_requested()`。
+- 新建的 `asyncio.create_task()` 子任务若需随父级一并取消（如调用子 Agent），在父级的 `_run_cleanup_registry` 中注册清理逻辑，不要依赖 Python 自动传播（父 Task 被 cancel 不会自动取消独立创建的子 Task）。
+
+## 12. 每次改动前自检
 
 - 这是在解决真实问题，还是在满足抽象冲动？
 - 这层包装有没有新增语义？

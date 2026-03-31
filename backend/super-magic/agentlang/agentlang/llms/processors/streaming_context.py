@@ -304,8 +304,9 @@ class StreamResponseHandler:
 
                         # 检查是哪个任务完成了
                         if interrupt_task and interrupt_task in done:
-                            # 中断任务完成 = 收到中断信号
+                            # 中断任务完成 = 收到中断信号，标记后退出
                             StreamingLogger.log_stream_interrupted(request_id, state, correlation_id)
+                            state.interrupted_by_signal = True
                             break
 
                         if chunk_task in done:
@@ -663,6 +664,10 @@ class StreamResponseHandler:
 
         # 检查是否收到了有效的响应数据
         if not state.has_received_chunks():
+            if state.interrupted_by_signal:
+                # 中断信号导致退出（非服务端错误），抛 CancelledError 让上层感知中断
+                # 不能抛 RuntimeError，否则 processor_manager 会降级为非流式重试，导致中断失效
+                raise asyncio.CancelledError("LLM streaming stopped by interruption signal")
             StreamingLogger.log_no_data_received(request_id, correlation_id)
             raise RuntimeError(f"No stream data received from server. This may indicate a server-side error or timeout.")
 

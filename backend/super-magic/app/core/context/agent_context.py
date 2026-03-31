@@ -1012,9 +1012,16 @@ class AgentContext(BaseAgentContext):
         4. 执行 worker cancel
         5. 标记完成
         """
-        if self._run_cancel_state.cleanup_started:
+        if self._run_cancel_state.cleanup_started and not self._run_cancel_state.cleanup_finished:
+            # 正在执行中，忽略重复请求
             logger.debug(f"[AgentContext] stop_run already in progress, skip (reason={reason})")
             return
+
+        if self._run_cancel_state.cleanup_started and self._run_cancel_state.cleanup_finished:
+            # 上次 stop_run 已完成，但 agent 仍在运行（首次中断未完全生效），允许重新发起
+            logger.info(f"[AgentContext] previous stop_run completed but agent still running, re-stopping (reason={reason})")
+            self._run_cancel_state = RunCancelState()
+            self._run_cleanup_registry = RunCleanupRegistry()
 
         self._run_cancel_state.requested = True
         self._run_cancel_state.reason = reason
