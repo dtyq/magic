@@ -16,6 +16,25 @@ const (
 	defaultImagePrepullMaxWaitSec = 300
 	imagePrepullLabelSelector     = "app.kubernetes.io/component=image-prepull"
 	nonImagePrepullLabelSelector  = "app.kubernetes.io/component!=image-prepull"
+	magicPrivateBucketName        = "magic-private"
+	magicPublicBucketName         = "magic-public"
+	magicSandboxBucketName        = "magic-sandbox"
+)
+
+// minioS3BucketActions and minioS3ObjectActions are the allowed S3
+// IAM actions for MinIO policies (no s3:*).
+var (
+	minioS3BucketActions = []string{
+		"s3:ListBucket",
+		"s3:GetBucketLocation",
+	}
+	minioS3ObjectActions = []string{
+		"s3:GetObject",
+		"s3:PutObject",
+		"s3:DeleteObject",
+		"s3:AbortMultipartUpload",
+		"s3:ListMultipartUploadParts",
+	}
 )
 
 // minioCredConfig mirrors values.yaml fileDriver.minio.{private,sandbox}.
@@ -86,22 +105,16 @@ func newMagicStage(d *Deployer, reg *InfraRegistry) *MagicStage {
 			PolicyDefinitions: []MinIOPolicy{
 				{
 					Name: "magic-access-policy",
-					Statements: []MinIOPolicyStatement{
-						{
-							Resources: []string{
-								"arn:aws:s3:::magic-private", "arn:aws:s3:::magic-private/*",
-								"arn:aws:s3:::magic-public", "arn:aws:s3:::magic-public/*",
-								"arn:aws:s3:::magic-sandbox", "arn:aws:s3:::magic-sandbox/*",
-							},
-							Effect:  "Allow",
-							Actions: []string{"s3:*"},
-						},
-					},
+					Statements: minioPolicyStatements(
+						magicPrivateBucketName,
+						magicPublicBucketName,
+						magicSandboxBucketName,
+					),
 				},
 			},
 			Buckets: []MinIOBucket{
-				minioBucket("magic-private", "private", "magic"),
-				minioBucket("magic-public", "public", "magic"),
+				minioBucket(magicPrivateBucketName, "private", "magic"),
+				minioBucket(magicPublicBucketName, "public", "magic"),
 			},
 		}},
 	)
@@ -214,21 +227,12 @@ func newMagicSandboxStage(d *Deployer, reg *InfraRegistry) *MagicSandboxStage {
 			Policies: []string{"magic-sandbox-access-policy"},
 			PolicyDefinitions: []MinIOPolicy{
 				{
-					Name: "magic-sandbox-access-policy",
-					Statements: []MinIOPolicyStatement{
-						{
-							Resources: []string{
-								"arn:aws:s3:::magic-sandbox",
-								"arn:aws:s3:::magic-sandbox/*",
-							},
-							Effect:  "Allow",
-							Actions: []string{"s3:*"},
-						},
-					},
+					Name:       "magic-sandbox-access-policy",
+					Statements: minioPolicyStatements(magicSandboxBucketName),
 				},
 			},
 			Buckets: []MinIOBucket{
-				minioBucket("magic-sandbox", "private", "magic-sandbox"),
+				minioBucket(magicSandboxBucketName, "private", "magic-sandbox"),
 			},
 		}},
 	)
@@ -360,6 +364,31 @@ func roleArn(bucket string) string {
 	return fmt.Sprintf("arn:aws:s3:::%s", bucket)
 }
 
+func objectArn(bucket string) string {
+	return roleArn(bucket) + "/*"
+}
+
+func minioPolicyStatements(buckets ...string) []MinIOPolicyStatement {
+	bucketResources := make([]string, 0, len(buckets))
+	objectResources := make([]string, 0, len(buckets))
+	for _, bucket := range buckets {
+		bucketResources = append(bucketResources, roleArn(bucket))
+		objectResources = append(objectResources, objectArn(bucket))
+	}
+	return []MinIOPolicyStatement{
+		{
+			Resources: bucketResources,
+			Effect:    "Allow",
+			Actions:   minioS3BucketActions,
+		},
+		{
+			Resources: objectResources,
+			Effect:    "Allow",
+			Actions:   minioS3ObjectActions,
+		},
+	}
+}
+
 func minioBucket(name, typeTag, app string) MinIOBucket {
 	return MinIOBucket{
 		Name:       name,
@@ -372,7 +401,6 @@ func minioBucket(name, typeTag, app string) MinIOBucket {
 		},
 	}
 }
-
 
 func resolveMinIOBucketName(reg *InfraRegistry, app, typeTag string) (string, error) {
 	if reg == nil {

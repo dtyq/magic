@@ -146,7 +146,7 @@ func TestInfraRegistry_ResolveCredentials_MinIOPolicies_DuplicateNameAcrossApps(
 			Policies: []string{"magic-access-policy"},
 			PolicyDefinitions: []MinIOPolicy{
 				{
-					Name: "magic-access-policy",
+					Name:       "magic-access-policy",
 					Statements: []MinIOPolicyStatement{{Resources: []string{"arn:aws:s3:::magic/*"}, Effect: "Allow", Actions: []string{"s3:*"}}},
 				},
 			},
@@ -156,7 +156,7 @@ func TestInfraRegistry_ResolveCredentials_MinIOPolicies_DuplicateNameAcrossApps(
 			Policies: []string{"magic-access-policy"},
 			PolicyDefinitions: []MinIOPolicy{
 				{
-					Name: "magic-access-policy",
+					Name:       "magic-access-policy",
 					Statements: []MinIOPolicyStatement{{Resources: []string{"arn:aws:s3:::magic-sandbox/*"}, Effect: "Allow", Actions: []string{"s3:*"}}},
 				},
 			},
@@ -198,6 +198,85 @@ func TestInfraRegistry_ResolveCredentials_MinIOPolicies_EmptyPolicyName(t *testi
 	require.Error(t, err)
 	assert.ErrorContains(t, err, "magic")
 	assert.ErrorContains(t, err, "empty")
+}
+
+func TestInfraRegistry_ResolveCredentials_MinIOPolicies_InvalidEffect(t *testing.T) {
+	reg := newTestRegistry(t)
+	reg.Register(InfraResource{App: "magic", Spec: MinIOSpec{
+		Username: "magic",
+		Policies: []string{"p"},
+		PolicyDefinitions: []MinIOPolicy{
+			{Name: "p", Statements: []MinIOPolicyStatement{
+				{Resources: []string{"arn:aws:s3:::magic/*"}, Effect: "ALLOW_ALL", Actions: []string{"s3:GetObject"}},
+			}},
+		},
+	}})
+	err := reg.ResolveCredentials()
+	require.Error(t, err)
+	assert.ErrorContains(t, err, `app "magic"`)
+	assert.ErrorContains(t, err, `policy "p"`)
+	assert.ErrorContains(t, err, "statement 0")
+	assert.ErrorContains(t, err, "effect must be Allow or Deny")
+}
+
+func TestInfraRegistry_ResolveCredentials_MinIOPolicies_InvalidAction(t *testing.T) {
+	reg := newTestRegistry(t)
+	reg.Register(InfraResource{App: "magic", Spec: MinIOSpec{
+		Username: "magic",
+		Policies: []string{"p"},
+		PolicyDefinitions: []MinIOPolicy{
+			{Name: "p", Statements: []MinIOPolicyStatement{
+				{Resources: []string{"arn:aws:s3:::magic/*"}, Effect: "Allow", Actions: []string{"iam:PassRole"}},
+			}},
+		},
+	}})
+	err := reg.ResolveCredentials()
+	require.Error(t, err)
+	assert.ErrorContains(t, err, `app "magic"`)
+	assert.ErrorContains(t, err, `policy "p"`)
+	assert.ErrorContains(t, err, "statement 0")
+	assert.ErrorContains(t, err, "invalid action")
+}
+
+func TestInfraRegistry_ResolveCredentials_MinIOPolicies_InvalidResourceARN(t *testing.T) {
+	reg := newTestRegistry(t)
+	reg.Register(InfraResource{App: "magic", Spec: MinIOSpec{
+		Username: "magic",
+		Policies: []string{"p"},
+		PolicyDefinitions: []MinIOPolicy{
+			{Name: "p", Statements: []MinIOPolicyStatement{
+				{Resources: []string{"s3://magic/*"}, Effect: "Allow", Actions: []string{"s3:GetObject"}},
+			}},
+		},
+	}})
+	err := reg.ResolveCredentials()
+	require.Error(t, err)
+	assert.ErrorContains(t, err, `app "magic"`)
+	assert.ErrorContains(t, err, `policy "p"`)
+	assert.ErrorContains(t, err, "statement 0")
+	assert.ErrorContains(t, err, "invalid resource arn")
+}
+
+func TestInfraRegistry_ResolveCredentials_MinIOPolicies_NormalizeActionResource(t *testing.T) {
+	reg := newTestRegistry(t)
+	reg.Register(InfraResource{App: "magic", Spec: MinIOSpec{
+		Username: "magic",
+		Policies: []string{"p"},
+		PolicyDefinitions: []MinIOPolicy{
+			{Name: "p", Statements: []MinIOPolicyStatement{
+				{
+					Resources: []string{"  arn:aws:s3:::magic/*  ", "arn:aws:s3:::magic/*", " "},
+					Effect:    "allow",
+					Actions:   []string{" s3:GetObject ", "s3:GetObject", ""},
+				},
+			}},
+		},
+	}})
+	require.NoError(t, reg.ResolveCredentials())
+	got := reg.MinIO.Policies[0].Statements[0]
+	assert.Equal(t, "Allow", got.Effect)
+	assert.Equal(t, []string{"arn:aws:s3:::magic/*"}, got.Resources)
+	assert.Equal(t, []string{"s3:GetObject"}, got.Actions)
 }
 
 func TestInfraRegistry_ResolveCredentials_MinIOPolicies_MissingReference(t *testing.T) {

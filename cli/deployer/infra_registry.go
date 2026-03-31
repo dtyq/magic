@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"regexp"
 	"sort"
 	"strings"
 	"text/template"
@@ -479,11 +480,12 @@ func collectMinIOPoliciesFromSpecs(resources map[string]map[InfraKind]InfraSpec)
 			}
 			seenInSpec[name] = true
 
-			if err := validateMinIOPolicyStatements(app, name, pol.Statements); err != nil {
+			normalizedStmts, err := normalizeAndValidateMinIOPolicyStatements(app, name, pol.Statements)
+			if err != nil {
 				return nil, err
 			}
 
-			normalized := MinIOPolicy{Name: name, Statements: pol.Statements}
+			normalized := MinIOPolicy{Name: name, Statements: normalizedStmts}
 			if first, dup := ownerApp[name]; dup {
 				return nil, fmt.Errorf("minio policy %q: conflicting definitions in app %q and app %q", name, first, app)
 			}
@@ -503,31 +505,6 @@ func collectMinIOPoliciesFromSpecs(resources map[string]map[InfraKind]InfraSpec)
 		out = append(out, byName[n])
 	}
 	return out, nil
-}
-
-func validateMinIOPolicyStatements(app, policyName string, stmts []MinIOPolicyStatement) error {
-	if len(stmts) == 0 {
-		return fmt.Errorf("app %q: minio policy %q: at least one statement is required", app, policyName)
-	}
-	for i := range stmts {
-		st := stmts[i]
-		if !minIOPolicyStringListHasNonEmpty(st.Resources) {
-			return fmt.Errorf("app %q: minio policy %q: statement %d: resources must include at least one non-empty entry", app, policyName, i)
-		}
-		if !minIOPolicyStringListHasNonEmpty(st.Actions) {
-			return fmt.Errorf("app %q: minio policy %q: statement %d: actions must include at least one non-empty entry", app, policyName, i)
-		}
-	}
-	return nil
-}
-
-func minIOPolicyStringListHasNonEmpty(xs []string) bool {
-	for _, x := range xs {
-		if strings.TrimSpace(x) != "" {
-			return true
-		}
-	}
-	return false
 }
 
 // validateMinIOPolicyReferences ensures each MinIOSpec.Policies entry names a
@@ -729,4 +706,71 @@ func defaultInfraCredentialsPath() (string, error) {
 func generateInfraPassword() (string, error) {
 	// 24 chars: 4 digits, 0 symbols, mixed case, repeats allowed.
 	return password.Generate(24, 4, 0, false, true)
+}
+
+var (
+	minIOIAMActionPattern     = regexp.MustCompile(`^s3:[A-Za-z0-9*]+$`)
+	minIOS3ResourceARNPattern = regexp.MustCompile(`^arn:aws:s3:::[^/\s]+(?:/\*)?$`)
+)
+
+// normalizeMinIOPolicyStringList trims entries, drops empties, dedupes preserving first occurrence order.
+func normalizeMinIOPolicyStringList(xs []string) []string {
+	seen := make(map[string]bool, len(xs))
+	out := make([]string, 0, len(xs))
+	for _, x := range xs {
+		t := strings.TrimSpace(x)
+		if t == "" || seen[t] {
+			continue
+		}
+		seen[t] = true
+		out = append(out, t)
+	}
+	return out
+}
+
+// normalizeAndValidateMinIOPolicyStatements returns statements with normalized effect, actions, and resources.
+func normalizeAndValidateMinIOPolicyStatements(app, policyName string, stmts []MinIOPolicyStatement) ([]MinIOPolicyStatement, error) {
+	if len(stmts) == 0 {
+		return nil, fmt.Errorf(`app %q policy %q: at least one statement is required`, app, policyName)
+	}
+	out := make([]MinIOPolicyStatement, 0, len(stmts))
+	for i, st := range stmts {
+		eff := strings.TrimSpace(st.Effect)
+		var normEff string
+		switch {
+		case strings.EqualFold(eff, "allow"):
+			normEff = "Allow"
+		case strings.EqualFold(eff, "deny"):
+			normEff = "Deny"
+		default:
+			return nil, fmt.Errorf(`app %q policy %q statement %d: effect must be Allow or Deny`, app, policyName, i)
+		}
+
+		actions := normalizeMinIOPolicyStringList(st.Actions)
+		if len(actions) == 0 {
+			return nil, fmt.Errorf(`app %q policy %q statement %d: actions must include at least one non-empty entry`, app, policyName, i)
+		}
+		for _, a := range actions {
+			if !minIOIAMActionPattern.MatchString(a) {
+				return nil, fmt.Errorf(`app %q policy %q statement %d: invalid action %q`, app, policyName, i, a)
+			}
+		}
+
+		resources := normalizeMinIOPolicyStringList(st.Resources)
+		if len(resources) == 0 {
+			return nil, fmt.Errorf(`app %q policy %q statement %d: resources must include at least one non-empty entry`, app, policyName, i)
+		}
+		for _, r := range resources {
+			if !minIOS3ResourceARNPattern.MatchString(r) {
+				return nil, fmt.Errorf(`app %q policy %q statement %d: invalid resource arn %q`, app, policyName, i, r)
+			}
+		}
+
+		out = append(out, MinIOPolicyStatement{
+			Effect:    normEff,
+			Actions:   actions,
+			Resources: resources,
+		})
+	}
+	return out, nil
 }
