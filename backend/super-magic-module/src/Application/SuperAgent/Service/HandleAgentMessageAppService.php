@@ -26,7 +26,6 @@ use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\TaskContext;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\TaskFileSource;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\TaskStatus;
 use Dtyq\SuperMagic\Domain\SuperAgent\Event\RunTaskCallbackEvent;
-use Dtyq\SuperMagic\Domain\SuperAgent\Event\TaskMessageSendSuccessEvent;
 use Dtyq\SuperMagic\Domain\SuperAgent\Service\AgentDomainService;
 use Dtyq\SuperMagic\Domain\SuperAgent\Service\TaskDomainService;
 use Dtyq\SuperMagic\Domain\SuperAgent\Service\TaskFileDomainService;
@@ -381,24 +380,7 @@ class HandleAgentMessageAppService extends AbstractAppService
             $seqId = $this->sendMessageToClient($messageEntity->getId(), $messageData, $taskContext);
 
             $this->taskMessageDomainService->updateMessageSeqId($messageEntity->getId(), (int) $seqId);
-
-            // 仅在任务完成且消息发送成功后，再触发 follow-up 相关事件
-            if ($this->shouldDispatchFollowUpEvent($messageData, $seqId)) {
-                AsyncEventUtil::dispatch(new TaskMessageSendSuccessEvent(
-                    organizationCode: $taskContext->getCurrentOrganizationCode(),
-                    userId: $taskContext->getCurrentUserId(),
-                    topicId: $taskContext->getTopicId(),
-                    taskId: (string) $taskContext->getTask()->getId(),
-                    language: $messageDTO->getMetadata()?->getLanguage(),
-                ));
-            }
         }
-    }
-
-    private function shouldDispatchFollowUpEvent(array $messageData, string $seqId): bool
-    {
-        return $messageData['status'] === TaskStatus::FINISHED->value
-            && (int) $seqId > 0;
     }
 
     private function isSendMessage(TaskContext $taskContext): bool

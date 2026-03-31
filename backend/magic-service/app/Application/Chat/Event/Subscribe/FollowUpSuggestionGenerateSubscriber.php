@@ -11,7 +11,8 @@ use App\Application\Chat\Service\FollowUpSuggestionAppService;
 use App\Domain\Contact\Entity\ValueObject\DataIsolation;
 use App\Infrastructure\Util\Context\CoContext;
 use Dtyq\AsyncEvent\Kernel\Annotation\AsyncListener;
-use Dtyq\SuperMagic\Domain\SuperAgent\Event\TaskMessageSendSuccessEvent;
+use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\TaskStatus;
+use Dtyq\SuperMagic\Domain\SuperAgent\Event\RunTaskCallbackEvent;
 use Hyperf\Contract\TranslatorInterface;
 use Hyperf\Event\Annotation\Listener;
 use Hyperf\Event\Contract\ListenerInterface;
@@ -36,17 +37,21 @@ class FollowUpSuggestionGenerateSubscriber implements ListenerInterface
     public function listen(): array
     {
         return [
-            TaskMessageSendSuccessEvent::class,
+            RunTaskCallbackEvent::class,
         ];
     }
 
     public function process(object $event): void
     {
-        if (! $event instanceof TaskMessageSendSuccessEvent) {
+        if (! $event instanceof RunTaskCallbackEvent) {
             return;
         }
 
         try {
+            if ($event->getTaskMessage()->getPayload()->getStatus() !== TaskStatus::FINISHED->value) {
+                return;
+            }
+
             if (! empty($event->getLanguage())) {
                 CoContext::setLanguage($event->getLanguage());
                 $this->translator->setLocale($event->getLanguage());
@@ -58,14 +63,15 @@ class FollowUpSuggestionGenerateSubscriber implements ListenerInterface
             $historyContext = $this->followUpSuggestionAppService->buildSuperMagicTopicFollowUpHistoryContext(
                 $event->getTopicId(),
             );
+            $taskId = (string) $event->getTaskId();
             $params = $this->followUpSuggestionAppService->buildSuperMagicTopicFollowUpParams(
-                $event->getTaskId(),
+                $taskId,
                 $event->getTopicId(),
                 $event->getLanguage(),
                 $historyContext,
             );
             $this->followUpSuggestionAppService->createSuperMagicTopicFollowUpGenerating(
-                $event->getTaskId(),
+                $taskId,
                 $params,
                 $event->getUserId() !== '' ? $event->getUserId() : null,
             );
@@ -74,7 +80,7 @@ class FollowUpSuggestionGenerateSubscriber implements ListenerInterface
             $this->followUpSuggestionAppService->generateAndPersist(
                 $dataIsolation,
                 $event->getTopicId(),
-                $event->getTaskId(),
+                $taskId,
                 $historyContext,
             );
         } catch (Throwable $throwable) {
