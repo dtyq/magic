@@ -127,12 +127,12 @@ func TestNewMagicStage_RegistersMinIOPolicyDefinitions(t *testing.T) {
 	require.Len(t, magicSpec.PolicyDefinitions, 1)
 	stmts := magicSpec.PolicyDefinitions[0].Statements
 	require.Len(t, stmts, 2)
-	// bucket 级 statement
+	// bucket-level statement
 	assert.Contains(t, stmts[0].Resources, "arn:aws:s3:::magic-private")
 	assert.Contains(t, stmts[0].Resources, "arn:aws:s3:::magic-public")
 	assert.Contains(t, stmts[0].Resources, "arn:aws:s3:::magic-sandbox")
 	assert.Equal(t, []string{"s3:ListBucket", "s3:GetBucketLocation"}, stmts[0].Actions)
-	// object 级 statement
+	// object-level statement
 	assert.Contains(t, stmts[1].Resources, "arn:aws:s3:::magic-private/*")
 	assert.Contains(t, stmts[1].Resources, "arn:aws:s3:::magic-public/*")
 	assert.Contains(t, stmts[1].Resources, "arn:aws:s3:::magic-sandbox/*")
@@ -154,10 +154,10 @@ func TestNewMagicSandboxStage_RegistersMinIOSandboxAccessPolicy(t *testing.T) {
 	require.Len(t, spec.PolicyDefinitions, 1)
 	stmts := spec.PolicyDefinitions[0].Statements
 	require.Len(t, stmts, 2)
-	// bucket 级 statement
+	// bucket-level statement
 	assert.Equal(t, []string{"arn:aws:s3:::magic-sandbox"}, stmts[0].Resources)
 	assert.Equal(t, []string{"s3:ListBucket", "s3:GetBucketLocation"}, stmts[0].Actions)
-	// object 级 statement
+	// object-level statement
 	assert.Equal(t, []string{"arn:aws:s3:::magic-sandbox/*"}, stmts[1].Resources)
 	assert.Equal(t, []string{
 		"s3:GetObject", "s3:PutObject", "s3:DeleteObject",
