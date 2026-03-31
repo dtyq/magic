@@ -131,6 +131,9 @@ class CallSubagent(BaseTool[CallSubagentParams]):
 
                 if params.model_id:
                     new_agent_context.set_dynamic_model_id(params.model_id)
+                elif parent and parent.has_dynamic_model_id():
+                    # 未指定模型时，继承调用方 Agent 的动态模型 ID
+                    new_agent_context.set_dynamic_model_id(parent.get_dynamic_model_id())
 
                 agent = Agent(
                     params.agent_name,
