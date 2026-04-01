@@ -58,7 +58,7 @@ enum ProviderTemplateId: string
     case BaiduLlm = '23';
     case SCNetLlm = '24';
     case MoonshotLlm = '25';
-    case ZhipuLlm = '26';
+    case GLMLlm = '26';
     case MiniMaxLlm = '27';
     case SiliconFlowLlm = '28';
 
@@ -94,7 +94,7 @@ enum ProviderTemplateId: string
             [ProviderCode::Baidu, Category::LLM] => self::BaiduLlm,
             [ProviderCode::SCNet, Category::LLM] => self::SCNetLlm,
             [ProviderCode::Moonshot, Category::LLM] => self::MoonshotLlm,
-            [ProviderCode::Zhipu, Category::LLM] => self::ZhipuLlm,
+            [ProviderCode::GLM, Category::LLM] => self::GLMLlm,
             [ProviderCode::MiniMax, Category::LLM] => self::MiniMaxLlm,
             [ProviderCode::SiliconFlow, Category::LLM] => self::SiliconFlowLlm,
             default => null,
@@ -135,7 +135,7 @@ enum ProviderTemplateId: string
             self::BaiduLlm => ['providerCode' => ProviderCode::Baidu, 'category' => Category::LLM],
             self::SCNetLlm => ['providerCode' => ProviderCode::SCNet, 'category' => Category::LLM],
             self::MoonshotLlm => ['providerCode' => ProviderCode::Moonshot, 'category' => Category::LLM],
-            self::ZhipuLlm => ['providerCode' => ProviderCode::Zhipu, 'category' => Category::LLM],
+            self::GLMLlm => ['providerCode' => ProviderCode::GLM, 'category' => Category::LLM],
             self::MiniMaxLlm => ['providerCode' => ProviderCode::MiniMax, 'category' => Category::LLM],
             self::SiliconFlowLlm => ['providerCode' => ProviderCode::SiliconFlow, 'category' => Category::LLM],
         };
@@ -158,7 +158,7 @@ enum ProviderTemplateId: string
             ProviderCode::Baidu => '百度千帆',
             ProviderCode::SCNet => '国家超算平台',
             ProviderCode::Moonshot => 'Kimi 开放平台',
-            ProviderCode::Zhipu => '智谱 AI 开放平台',
+            ProviderCode::GLM => '智谱 AI 开放平台',
             ProviderCode::MiniMax => 'MiniMax 开放平台',
             ProviderCode::SiliconFlow => '硅基流动',
             ProviderCode::TTAPI => 'TTAPI',

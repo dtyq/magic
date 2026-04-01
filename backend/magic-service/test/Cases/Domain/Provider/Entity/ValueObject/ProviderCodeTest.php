@@ -25,7 +25,7 @@ class ProviderCodeTest extends TestCase
         $this->assertTrue(ProviderCode::Baidu->isNonOfficialOrganizationLlmWhitelist());
         $this->assertTrue(ProviderCode::SCNet->isNonOfficialOrganizationLlmWhitelist());
         $this->assertTrue(ProviderCode::Moonshot->isNonOfficialOrganizationLlmWhitelist());
-        $this->assertTrue(ProviderCode::Zhipu->isNonOfficialOrganizationLlmWhitelist());
+        $this->assertTrue(ProviderCode::GLM->isNonOfficialOrganizationLlmWhitelist());
         $this->assertTrue(ProviderCode::MiniMax->isNonOfficialOrganizationLlmWhitelist());
         $this->assertTrue(ProviderCode::SiliconFlow->isNonOfficialOrganizationLlmWhitelist());
         $this->assertFalse(ProviderCode::OpenAI->isNonOfficialOrganizationLlmWhitelist());
@@ -67,7 +67,7 @@ class ProviderCodeTest extends TestCase
         );
         $this->assertSame(
             'https://open.bigmodel.cn/api/paas/v4',
-            ProviderCode::Zhipu->getDefaultUrl()
+            ProviderCode::GLM->getDefaultUrl()
         );
         $this->assertSame(
             'https://api.minimaxi.com/v1',
@@ -86,7 +86,7 @@ class ProviderCodeTest extends TestCase
         $this->assertSame(['baidubce.com'], ProviderCode::Baidu->getAllowedPrimaryDomains());
         $this->assertSame(['scnet.cn'], ProviderCode::SCNet->getAllowedPrimaryDomains());
         $this->assertSame(['moonshot.cn'], ProviderCode::Moonshot->getAllowedPrimaryDomains());
-        $this->assertSame(['bigmodel.cn'], ProviderCode::Zhipu->getAllowedPrimaryDomains());
+        $this->assertSame(['bigmodel.cn'], ProviderCode::GLM->getAllowedPrimaryDomains());
         $this->assertSame(['minimaxi.com'], ProviderCode::MiniMax->getAllowedPrimaryDomains());
         $this->assertSame(['siliconflow.cn'], ProviderCode::SiliconFlow->getAllowedPrimaryDomains());
         $this->assertSame([], ProviderCode::OpenAI->getAllowedPrimaryDomains());
@@ -104,7 +104,7 @@ class ProviderCodeTest extends TestCase
             ProviderCode::Baidu->isAllowedPrimaryDomainUrl('https://qianfan.baidubce.com/v2')
         );
         $this->assertTrue(
-            ProviderCode::Zhipu->isAllowedPrimaryDomainUrl('https://open.bigmodel.cn/api/paas/v4')
+            ProviderCode::GLM->isAllowedPrimaryDomainUrl('https://open.bigmodel.cn/api/paas/v4')
         );
         $this->assertTrue(
             ProviderCode::SiliconFlow->isAllowedPrimaryDomainUrl('https://api.siliconflow.cn/v1/chat/completions')
