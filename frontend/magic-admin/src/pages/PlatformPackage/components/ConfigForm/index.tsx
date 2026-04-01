@@ -373,7 +373,7 @@ const ConfigForm = memo(({ category, code, name, descPosition = "left" }: Config
 
 	return (
 		<>
-			{/* Service Account: 导入 JSON 快速填充 */}
+			{/* Google Cloud Vertex AI: 导入 JSON 快速填充 */}
 			{isGoogle && authType === AiManage.AuthType.SERVICE_ACCOUNT && (
 				<Flex
 					justify="space-between"
@@ -381,7 +381,7 @@ const ConfigForm = memo(({ category, code, name, descPosition = "left" }: Config
 					align={isLeftDesc ? "center" : "flex-start"}
 				>
 					<Flex gap={4} vertical className={styles.label}>
-						<div className={styles.labelText}>Service Account JSON</div>
+						<div className={styles.labelText}>Google Cloud Vertex AI JSON</div>
 						{isLeftDesc && (
 							<div className={styles.labelDesc}>{t("form.importJsonDesc")}</div>
 						)}
