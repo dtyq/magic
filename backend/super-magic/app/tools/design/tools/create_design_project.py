@@ -45,7 +45,6 @@ class CreateDesignProject(BaseDesignTool[CreateDesignProjectParams]):
     此工具用于在工作区自动创建设计项目的完整结构：
     - 自动创建项目文件夹
     - 生成 magic.project.js（画布项目标识文件）
-    - 创建 images/ 文件夹用于存放图片资源
 
     项目创建后，可以使用其他工具操作画布元素（创建、更新、删除、查询等）。
 
@@ -57,8 +56,7 @@ class CreateDesignProject(BaseDesignTool[CreateDesignProjectParams]):
     项目结构：
     ```
     产品海报设计/
-    ├── magic.project.js  # 画布项目标识文件（工具自动管理）
-    └── images/           # 图片资源文件夹
+    └── magic.project.js  # 画布项目标识文件（工具自动管理）
     ```
     -->
     Create design project tool
@@ -66,7 +64,6 @@ class CreateDesignProject(BaseDesignTool[CreateDesignProjectParams]):
     This tool auto-creates complete design project structure in workspace:
     - Auto-create project folder
     - Generate magic.project.js (canvas project identifier file)
-    - Create images/ folder for image resources
 
     After project creation, you can use other tools to operate canvas elements (create, update, delete, query, etc.).
 
@@ -78,8 +75,7 @@ class CreateDesignProject(BaseDesignTool[CreateDesignProjectParams]):
     Project structure:
     ```
     brand-design-2024/
-    ├── magic.project.js  # Canvas project identifier file (auto-managed by tools)
-    └── images/           # Image resource folder
+    └── magic.project.js  # Canvas project identifier file (auto-managed by tools)
     ```
     """
 
@@ -121,8 +117,6 @@ class CreateDesignProject(BaseDesignTool[CreateDesignProjectParams]):
 
             # 定义所有文件路径，使用基类方法
             project_js_path = self._get_magic_project_js_path(project_path)
-            images_path = self._get_images_folder_path(project_path)
-
             # 从路径中提取项目名称，使用基类方法
             project_name = self._get_project_name(project_path)
 
@@ -207,14 +201,6 @@ class CreateDesignProject(BaseDesignTool[CreateDesignProjectParams]):
                     extra_info={"error_type": "design.error_unexpected"}
                 )
 
-            # 创建 images 文件夹（检查是否已存在）
-            images_already_exists = await async_exists(images_path)
-            if not images_already_exists:
-                await async_mkdir(images_path, parents=True, exist_ok=False)
-                logger.info(f"Created image resource folder: {images_path}")
-            else:
-                logger.info(f"Image resource folder already exists: {images_path}")
-
             # 生成结果信息
             result_content = self._generate_result_content(project_path, params, project_name)
 
@@ -251,8 +237,7 @@ class CreateDesignProject(BaseDesignTool[CreateDesignProjectParams]):
         """
         result = f"""Project structure:
 {params.project_path}/
-├── magic.project.js  # Canvas project identifier (auto-managed)
-└── images/           # Image resources
+└── magic.project.js  # Canvas project identifier (auto-managed)
 
 Project: {project_name} (canvas project)"""
 

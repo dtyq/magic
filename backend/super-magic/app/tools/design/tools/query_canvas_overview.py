@@ -354,10 +354,16 @@ class QueryCanvasOverview(BaseDesignTool[QueryCanvasOverviewParams]):
         }
 
         # 对于图片元素，添加额外信息
-        if element.type == 'image':
+        if element.type in {'image', 'video'}:
             # 1. 添加生成提示词（如果有）
+            generation_request = None
             if hasattr(element, 'generateImageRequest') and element.generateImageRequest:
-                gir = element.generateImageRequest
+                generation_request = element.generateImageRequest
+            elif hasattr(element, 'generateVideoRequest') and element.generateVideoRequest:
+                generation_request = element.generateVideoRequest
+
+            if generation_request:
+                gir = generation_request
                 if isinstance(gir, dict):
                     prompt = gir.get('prompt')
                 else:
@@ -366,8 +372,8 @@ class QueryCanvasOverview(BaseDesignTool[QueryCanvasOverviewParams]):
                 if prompt:
                     data["prompt"] = prompt
 
-            # 2. 添加视觉理解摘要（如果有）
-            if hasattr(element, 'visualUnderstanding') and element.visualUnderstanding:
+            # 2. 图片元素保留视觉理解摘要；视频元素当前只输出 src/poster，不做自动理解。
+            if element.type == 'image' and hasattr(element, 'visualUnderstanding') and element.visualUnderstanding:
                 vu = element.visualUnderstanding
                 if isinstance(vu, dict):
                     summary = vu.get('summary')
@@ -376,6 +382,12 @@ class QueryCanvasOverview(BaseDesignTool[QueryCanvasOverviewParams]):
 
                 if summary:
                     data["visual_summary"] = summary
+
+            if element.type == 'video':
+                if hasattr(element, 'src') and element.src:
+                    data["video_src"] = element.src
+                if hasattr(element, 'poster') and element.poster:
+                    data["poster"] = element.poster
 
         return data
 

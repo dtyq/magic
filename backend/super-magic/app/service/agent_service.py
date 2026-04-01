@@ -28,6 +28,7 @@ from app.utils.path_utils import get_storage_dir
 from app.service.asr.asr_context_diff_service import AsrContextDiffService
 from app.service.image_model_sizes_service import ImageModelSizesService
 from app.service.mcp_servers_service import MCPServersService
+from app.service.video_model_config_service import VideoModelConfigService
 from app.infrastructure.observability import install_tool_monitoring_listener
 from app.core.base_service import Base
 from app.service.mention import MentionContextBuilder
@@ -721,6 +722,13 @@ class AgentService(Base):
             chat_client_message.dynamic_config,
             agent
         )
+
+        video_model_config_message = VideoModelConfigService.build_runtime_video_model_config_message(
+            chat_client_message.dynamic_config,
+            agent,
+        )
+        if video_model_config_message:
+            agent.enqueue_runtime_user_message(video_model_config_message)
 
         # 处理 MCP 服务器信息：为加载了 using-mcp skill 的 agent 追加可用服务器信息
         query = await MCPServersService.append_mcp_servers_to_query(query, agent)

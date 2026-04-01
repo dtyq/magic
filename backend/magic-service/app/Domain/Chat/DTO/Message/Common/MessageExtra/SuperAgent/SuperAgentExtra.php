@@ -10,7 +10,6 @@ namespace App\Domain\Chat\DTO\Message\Common\MessageExtra\SuperAgent;
 use App\Domain\Chat\DTO\Message\Common\MessageExtra\SuperAgent\Mention\MentionInterface;
 use App\Infrastructure\Core\AbstractDTO;
 use App\Interfaces\Agent\Assembler\MentionAssembler;
-use Hyperf\Codec\Json;
 
 class SuperAgentExtra extends AbstractDTO
 {
@@ -44,6 +43,14 @@ class SuperAgentExtra extends AbstractDTO
     protected ?array $model = null;
 
     protected ?array $imageModel = null;
+
+    /**
+     * 视频模型配置。
+     *
+     * 这里和 imageModel 保持同一层级，供 super-magic-module 在消息 extra 中
+     * 存取 video_model，再在发送聊天消息时桥接到 dynamic_config.video_model。
+     */
+    protected ?array $videoModel = null;
 
     /**
      * Queue ID for message processing.
@@ -199,6 +206,27 @@ class SuperAgentExtra extends AbstractDTO
     public function setImageModel(?array $imageModel): void
     {
         $this->imageModel = $imageModel;
+    }
+
+    public function getVideoModel(): ?array
+    {
+        return $this->videoModel;
+    }
+
+    public function getVideoModelId(): string
+    {
+        if (empty($this->videoModel)) {
+            return '';
+        }
+        if (is_array($this->videoModel) && isset($this->videoModel['model_id']) && is_string($this->videoModel['model_id'])) {
+            return $this->videoModel['model_id'];
+        }
+        return '';
+    }
+
+    public function setVideoModel(?array $videoModel): void
+    {
+        $this->videoModel = $videoModel;
     }
 
     public function getQueueId(): ?string

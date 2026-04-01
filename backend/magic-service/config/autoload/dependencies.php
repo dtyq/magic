@@ -148,6 +148,9 @@ use App\Domain\Mode\Repository\Facade\ModeRepositoryInterface;
 use App\Domain\Mode\Repository\Persistence\ModeGroupRelationRepository;
 use App\Domain\Mode\Repository\Persistence\ModeGroupRepository;
 use App\Domain\Mode\Repository\Persistence\ModeRepository;
+use App\Domain\ModelGateway\Contract\QueueOperationExecutorInterface;
+use App\Domain\ModelGateway\Contract\VideoGenerationProviderAdapterFactoryInterface;
+use App\Domain\ModelGateway\Contract\VideoMediaProbeInterface;
 use App\Domain\ModelGateway\Repository\Facade\AccessTokenRepositoryInterface;
 use App\Domain\ModelGateway\Repository\Facade\ApplicationRepositoryInterface;
 use App\Domain\ModelGateway\Repository\Facade\ModelConfigRepositoryInterface;
@@ -160,6 +163,9 @@ use App\Domain\ModelGateway\Repository\Persistence\ModelConfigRepository;
 use App\Domain\ModelGateway\Repository\Persistence\MsgLogRepository;
 use App\Domain\ModelGateway\Repository\Persistence\OrganizationConfigRepository;
 use App\Domain\ModelGateway\Repository\Persistence\UserConfigRepository;
+use App\Domain\ModelGateway\Repository\QueueCoreRepositoryInterface;
+use App\Domain\ModelGateway\Repository\QueueExecutorConfigRepositoryInterface;
+use App\Domain\ModelGateway\Repository\VideoQueueOperationRepositoryInterface;
 use App\Domain\OrganizationEnvironment\Entity\Facade\OpenPlatformConfigInterface;
 use App\Domain\OrganizationEnvironment\Entity\Item\OpenPlatformConfigItem;
 use App\Domain\OrganizationEnvironment\Repository\Facade\EnvironmentRepositoryInterface;
@@ -243,11 +249,17 @@ use App\Infrastructure\ExternalAPI\Sms\SmsInterface;
 use App\Infrastructure\ExternalAPI\Sms\TemplateInterface;
 use App\Infrastructure\ExternalAPI\Sms\Volcengine\Template;
 use App\Infrastructure\ExternalAPI\Sms\Volcengine\VolceApiClient;
+use App\Infrastructure\ExternalAPI\VideoGenerateAPI\VideoGenerateFactory;
+use App\Infrastructure\ExternalAPI\VideoGenerateAPI\VideoProviderOperationExecutor;
 use App\Infrastructure\ImageGenerate\DefaultFontProvider;
 use App\Infrastructure\ImageGenerate\DefaultWatermarkConfig;
 use App\Infrastructure\ImageGenerate\DefaultWatermarkPolicy;
 use App\Infrastructure\ImageGenerate\NullImageEnhancementProcessor;
 use App\Infrastructure\ImageGenerate\WatermarkPolicyInterface;
+use App\Infrastructure\ModelGateway\FfprobeVideoMediaProbe;
+use App\Infrastructure\ModelGateway\Queue\RedisQueueCoreRepository;
+use App\Infrastructure\ModelGateway\Queue\RedisVideoQueueOperationRepository;
+use App\Infrastructure\ModelGateway\QueueExecutorConfigRepository;
 use App\Infrastructure\Repository\LongTermMemory\MySQLLongTermMemoryRepository;
 use App\Infrastructure\Util\Auth\Permission\Permission;
 use App\Infrastructure\Util\Auth\Permission\PermissionInterface;
@@ -281,6 +293,14 @@ $dependencies = [
 
     SmsInterface::class => VolceApiClient::class,
     LockerInterface::class => RedisLocker::class,
+    QueueCoreRepositoryInterface::class => RedisQueueCoreRepository::class,
+    QueueExecutorConfigRepositoryInterface::class => QueueExecutorConfigRepository::class,
+    VideoQueueOperationRepositoryInterface::class => RedisVideoQueueOperationRepository::class,
+    QueueOperationExecutorInterface::class => VideoProviderOperationExecutor::class,
+    VideoMediaProbeInterface::class => FfprobeVideoMediaProbe::class,
+    // 统一视频参数的能力来源由各 provider adapter 自行声明，
+    // domain 通过这个工厂接口拿到 adapter，保持依赖方向正确。
+    VideoGenerationProviderAdapterFactoryInterface::class => VideoGenerateFactory::class,
     MagicTokenRepositoryInterface::class => MagicMagicTokenRepository::class,
     TemplateInterface::class => Template::class,
 

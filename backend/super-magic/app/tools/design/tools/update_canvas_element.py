@@ -277,13 +277,19 @@ class UpdateCanvasElement(BaseDesignTool[UpdateCanvasElementParams]):
                     # Deep merge
                     merged_properties = self._deep_merge_dict(current_properties, params.properties)
 
-                    # 特殊处理：如果是图片元素且 src 发生变化
+                    # 媒体元素（图片/视频）更换 src 时，都需要同步清理旧的 AI 元数据，
+                    # 避免 magic.project.js 中残留上一份产物的生成记录。
                     if element.type == 'image':
                         await self._handle_image_src_change(
                             tool_context=tool_context,
                             element=element,
                             params=params,
                             updates=updates,
+                            merged_properties=merged_properties
+                        )
+                    elif element.type == 'video':
+                        self._handle_video_src_change(
+                            element=element,
                             merged_properties=merged_properties
                         )
 
@@ -526,6 +532,28 @@ class UpdateCanvasElement(BaseDesignTool[UpdateCanvasElementParams]):
         # 将视觉理解结果保存到 merged_properties
         if hasattr(temp_element, 'visualUnderstanding') and temp_element.visualUnderstanding:
             merged_properties['visualUnderstanding'] = temp_element.visualUnderstanding
+
+    def _handle_video_src_change(
+        self,
+        element: Any,
+        merged_properties: Dict[str, Any]
+    ) -> None:
+        """处理视频元素 src 变更时的特殊逻辑。
+
+        视频元素当前不做自动视觉理解，但更换 src 后必须清理旧的 generateVideoRequest，
+        否则设计项目中会残留上一轮 operation_id 和模型参数。
+        """
+        new_src = merged_properties.get('src')
+        old_src = getattr(element, 'src', None)
+
+        if new_src is None or new_src == old_src:
+            return
+
+        logger.info(f"[SM_VIDEO] 检测到视频 src 变更: {old_src} -> {new_src}")
+
+        if 'generateVideoRequest' in merged_properties:
+            merged_properties['generateVideoRequest'] = None
+            logger.info("[SM_VIDEO] 已清除 generateVideoRequest（因为视频 src 已变更）")
 
     # noinspection PyMethodMayBeStatic
     def _generate_result_content(

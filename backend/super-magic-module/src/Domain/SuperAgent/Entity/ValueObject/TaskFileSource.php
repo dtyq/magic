@@ -7,6 +7,8 @@ declare(strict_types=1);
 
 namespace Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject;
 
+use ValueError;
+
 /**
  * 任务文件来源枚举.
  */
@@ -37,10 +39,23 @@ enum TaskFileSource: int
      */
     case MOVE = 6;
 
+    case AI_VIDEO_GENERATION = 7;
+
     /**
      * Skill.
      */
     case SKILL = 8;
+
+    /**
+     * 是否为 AI 生成来源.
+     */
+    public function isAIGenerated(): bool
+    {
+        return match ($this) {
+            self::AI_IMAGE_GENERATION, self::AI_VIDEO_GENERATION => true,
+            default => false,
+        };
+    }
 
     /**
      * 获取来源名称.
@@ -56,6 +71,7 @@ enum TaskFileSource: int
             self::AI_IMAGE_GENERATION => 'AI图片生成',
             self::MOVE => '移动',
             self::SKILL => 'Skill',
+            self::AI_VIDEO_GENERATION => 'AI视频生成',
         };
     }
 
@@ -64,7 +80,22 @@ enum TaskFileSource: int
      */
     public static function fromValue(int|string $value): self
     {
+        try {
+            return self::fromStrictValue($value);
+        } catch (ValueError) {
+            return self::DEFAULT;
+        }
+    }
+
+    /**
+     * 从字符串或整数严格创建枚举实例.
+     */
+    public static function fromStrictValue(int|string $value): self
+    {
         if (is_string($value)) {
+            if (! preg_match('/^-?\d+$/', $value)) {
+                throw new ValueError(sprintf('"%s" is not a valid backing value for enum %s', $value, self::class));
+            }
             $value = (int) $value;
         }
 
@@ -75,6 +106,7 @@ enum TaskFileSource: int
             4 => self::COPY,
             5 => self::AI_IMAGE_GENERATION,
             6 => self::MOVE,
+            7 => self::AI_VIDEO_GENERATION,
             8 => self::SKILL,
             default => self::DEFAULT,
         };

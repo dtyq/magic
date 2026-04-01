@@ -20,7 +20,7 @@ class SandboxFileNotificationDataValueObject
      * @param string $filePath Relative file path
      * @param int $fileSize File size in bytes
      * @param int $isDirectory Whether the path is a directory (1 for directory, 0 for file)
-     * @param int $source Source of the file (TaskFileSource::HOME->value, TaskFileSource::PROJECT_DIRECTORY->value, TaskFileSource::AGENT->value, TaskFileSource::COPY->value, TaskFileSource::AI_IMAGE_GENERATION->value)
+     * @param int $source Source of the file (TaskFileSource::HOME->value, TaskFileSource::PROJECT_DIRECTORY->value, TaskFileSource::AGENT->value, TaskFileSource::COPY->value, TaskFileSource::AI_IMAGE_GENERATION->value, TaskFileSource::AI_VIDEO_GENERATION->value)
      */
     public function __construct(
         private int $timestamp,

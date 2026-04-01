@@ -19,6 +19,8 @@ tools:
   - download_from_urls
   - download_from_markdown
   - generate_image
+  - generate_video
+  - query_video_generation
   - create_memory
   - update_memory
   - delete_memory

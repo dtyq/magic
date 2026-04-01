@@ -133,6 +133,7 @@ class ProviderModelSyncAppService
         return match ($category) {
             Category::LLM => ['chat', 'embedding'],
             Category::VLM => ['image'],
+            Category::VGM => ['video'],
             default => [],
         };
     }
@@ -145,7 +146,7 @@ class ProviderModelSyncAppService
         // 获取API地址
         $apiUrl = $this->buildModelsApiUrl($url);
 
-        $allModels = [];
+        $modelGroups = [];
 
         // 为每个type调用API
         foreach ($types as $type) {
@@ -153,7 +154,9 @@ class ProviderModelSyncAppService
                 $models = retry(3, function () use ($apiUrl, $apiKey, $type, $language) {
                     return $this->callModelsApi($apiUrl, $apiKey, $type, $language);
                 }, 500);
-                $allModels = array_merge($allModels, $models);
+                if ($models !== []) {
+                    $modelGroups[] = $models;
+                }
             } catch (Throwable $e) {
                 $this->logger->error("拉取{$type}类型模型失败", [
                     'type' => $type,
@@ -163,7 +166,11 @@ class ProviderModelSyncAppService
             }
         }
 
-        return $allModels;
+        if ($modelGroups === []) {
+            return [];
+        }
+
+        return array_merge(...$modelGroups);
     }
 
     /**
@@ -367,10 +374,17 @@ class ProviderModelSyncAppService
         ]);
 
         // 设置category
-        $objectType = $modelData['object'] ?? 'model';
-        $category = $objectType === 'image' ? Category::VLM : Category::LLM;
-        $saveDTO->setCategory($category);
+        $saveDTO->setCategory($this->resolveModelCategory((string) ($modelData['object'] ?? 'model')));
         return $saveDTO;
+    }
+
+    private function resolveModelCategory(string $objectType): Category
+    {
+        return match ($objectType) {
+            'image' => Category::VLM,
+            'video' => Category::VGM,
+            default => Category::LLM,
+        };
     }
 
     /**

@@ -10,7 +10,6 @@ namespace App\Application\Mode\Assembler;
 use App\Application\Mode\DTO\ModeAggregateDTO;
 use App\Application\Mode\DTO\ModeDTO;
 use App\Application\Mode\DTO\ModeGroupAggregateDTO;
-use App\Application\Mode\DTO\ModeGroupDetailDTO;
 use App\Application\Mode\DTO\ModeGroupDTO;
 use App\Application\Mode\DTO\ModeGroupModelDTO;
 use App\Application\Mode\DTO\ValueObject\ModelStatus;
@@ -18,22 +17,46 @@ use App\Domain\Mode\Entity\ModeAggregate;
 use App\Domain\Mode\Entity\ModeEntity;
 use App\Domain\Mode\Entity\ModeGroupAggregate;
 use App\Domain\Mode\Entity\ModeGroupEntity;
+use App\Domain\ModelGateway\Entity\ValueObject\VideoGenerationConfig;
 use App\Domain\Provider\Entity\ProviderModelEntity;
 use App\Infrastructure\ExternalAPI\ImageGenerateAPI\SizeManager;
 use Hyperf\Contract\TranslatorInterface;
 
+/**
+ * Mode 聚合根 DTO 装配器。
+ *
+ * 在统一视频参数设计里，这一层不参与任何业务判断：
+ * - 不解析 provider 能力
+ * - 不做多 provider 交集
+ * - 只把 app 层准备好的 featured 配置挂到返回 DTO
+ */
 class ModeAssembler
 {
-    public static function aggregateToDTO(ModeAggregate $aggregate, array $providerModels = [], array $upgradeRequiredModelIds = [], array $providerImageModels = [], bool $loadImageModelConfig = true): ModeAggregateDTO
-    {
+    public static function aggregateToDTO(
+        ModeAggregate $aggregate,
+        array $providerModels = [],
+        array $upgradeRequiredModelIds = [],
+        array $providerImageModels = [],
+        array $providerVideoModels = [],
+        array $featuredVideoGenerationConfigs = [],
+        bool $loadImageModelConfig = true
+    ): ModeAggregateDTO {
         $dto = new ModeAggregateDTO();
         $dto->setMode(self::modeToDTO($aggregate->getMode()));
 
         $groupAggregatesDTOs = [];
         foreach ($aggregate->getGroupAggregates() as $groupAggregate) {
-            $groupDTO = self::groupAggregateToDTO($groupAggregate, $providerModels, $upgradeRequiredModelIds, $providerImageModels, $loadImageModelConfig);
-            // 只有当分组下有模型或图像模型时才添加（前台过滤空分组）
-            if (! empty($groupDTO->getModels()) || ! empty($groupDTO->getImageModels())) {
+            $groupDTO = self::groupAggregateToDTO(
+                $groupAggregate,
+                $providerModels,
+                $upgradeRequiredModelIds,
+                $providerImageModels,
+                $providerVideoModels,
+                $featuredVideoGenerationConfigs,
+                $loadImageModelConfig
+            );
+            // 只有当分组下有模型、图像模型或视频模型时才添加（前台过滤空分组）
+            if (! empty($groupDTO->getModels()) || ! empty($groupDTO->getImageModels()) || ! empty($groupDTO->getVideoModels())) {
                 $groupAggregatesDTOs[] = $groupDTO;
             }
         }
@@ -46,9 +69,17 @@ class ModeAssembler
     /**
      * @param array<string, ProviderModelEntity> $providerModels
      * @param array<string, ProviderModelEntity> $providerImageModels
+     * @param array<string, VideoGenerationConfig> $featuredVideoGenerationConfigs
      */
-    public static function groupAggregateToDTO(ModeGroupAggregate $groupAggregate, array $providerModels, array $upgradeRequiredModelIds = [], array $providerImageModels = [], bool $loadImageModelConfig = true): ModeGroupAggregateDTO
-    {
+    public static function groupAggregateToDTO(
+        ModeGroupAggregate $groupAggregate,
+        array $providerModels,
+        array $upgradeRequiredModelIds = [],
+        array $providerImageModels = [],
+        array $providerVideoModels = [],
+        array $featuredVideoGenerationConfigs = [],
+        bool $loadImageModelConfig = true
+    ): ModeGroupAggregateDTO {
         $dto = new ModeGroupAggregateDTO();
         $dto->setGroup(self::groupEntityToDTO($groupAggregate->getGroup()));
         $locale = di(TranslatorInterface::class)->getLocale();
@@ -62,14 +93,7 @@ class ModeAssembler
             $providerModelId = $relation->getModelId();
             if (isset($providerModels[$providerModelId])) {
                 $providerModel = $providerModels[$providerModelId];
-                $modelDTO->setModelName($providerModel->getLocalizedName($locale));
-                $modelDTO->setModelIcon($providerModel->getIcon());
-                $modelDTO->setModelDescription($providerModel->getLocalizedDescription($locale));
-
-                if (in_array($providerModel->getModelId(), $upgradeRequiredModelIds, true)) {
-                    $modelDTO->setTags(['VIP']);
-                    $modelDTO->setModelStatus(ModelStatus::Disabled);
-                }
+                self::fillModelDTO($modelDTO, $providerModel, $locale, $upgradeRequiredModelIds);
                 $models[] = $modelDTO;
             }
         }
@@ -82,14 +106,7 @@ class ModeAssembler
             $providerModelId = $relation->getModelId();
             if (isset($providerImageModels[$providerModelId])) {
                 $providerModel = $providerImageModels[$providerModelId];
-                $modelDTO->setModelName($providerModel->getLocalizedName($locale));
-                $modelDTO->setModelIcon($providerModel->getIcon());
-                $modelDTO->setModelDescription($providerModel->getLocalizedDescription($locale));
-
-                if (in_array($providerModel->getModelId(), $upgradeRequiredModelIds, true)) {
-                    $modelDTO->setTags(['VIP']);
-                    $modelDTO->setModelStatus(ModelStatus::Disabled);
-                }
+                self::fillModelDTO($modelDTO, $providerModel, $locale, $upgradeRequiredModelIds);
 
                 /*
                  * 添加图像模型的尺寸信息.
@@ -116,8 +133,35 @@ class ModeAssembler
             }
         }
 
+        $videoModels = [];
+        $handledVideoModelIds = [];
+        foreach ($groupAggregate->getRelations() as $relation) {
+            $modelDTO = new ModeGroupModelDTO($relation->toArray());
+
+            $providerModelId = $relation->getModelId();
+            if (! isset($providerVideoModels[$providerModelId])) {
+                continue;
+            }
+
+            $providerModel = $providerVideoModels[$providerModelId];
+            $logicalModelId = $providerModel->getModelId();
+            // 同一个逻辑视频模型可能接了多个 provider，
+            // featured 对外只返回一份，因此这里按逻辑 model_id 去重。
+            if (isset($handledVideoModelIds[$logicalModelId])) {
+                continue;
+            }
+
+            self::fillModelDTO($modelDTO, $providerModel, $locale, $upgradeRequiredModelIds);
+            // 具体 video_generation_config 已经在 app/domain 层求好，这里只负责挂载。
+            $modelDTO->setVideoGenerationConfig($featuredVideoGenerationConfigs[$logicalModelId] ?? null);
+
+            $videoModels[] = $modelDTO;
+            $handledVideoModelIds[$logicalModelId] = true;
+        }
+
         $dto->setModels($models);
         $dto->setImageModels($imageModels);
+        $dto->setVideoModels($videoModels);
 
         return $dto;
     }
@@ -135,66 +179,32 @@ class ModeAssembler
         return $modeDTO;
     }
 
-    /**
-     * 将ModeAggregate转换为扁平化的分组DTO数组.
-     * @param $providerModels ProviderModelEntity[]
-     * @return ModeGroupDetailDTO[]
-     */
-    public static function aggregateToFlatGroupsDTO(ModeAggregate $aggregate, array $providerModels = []): array
+    private static function groupEntityToDTO(ModeGroupEntity $group): ModeGroupDTO
     {
-        $flatGroups = [];
-
-        foreach ($aggregate->getGroupAggregates() as $groupAggregate) {
-            $modeGroupEntity = $groupAggregate->getGroup();
-            $modeGroupDetailDTO = new ModeGroupDetailDTO($modeGroupEntity->toArray());
-            $locale = di(TranslatorInterface::class)->getLocale();
-            $modeGroupDetailDTO->setName($modeGroupEntity->getNameI18n()[$locale]);
-
-            // 设置模型信息
-            $models = [];
-            foreach ($groupAggregate->getRelations() as $relation) {
-                $modelDTO = new ModeGroupModelDTO($relation->toArray());
-
-                // 如果提供了模型信息，则填充模型名称和图标
-                $providerModelId = $relation->getModelId();
-                if (isset($providerModels[$providerModelId])) {
-                    $providerModel = $providerModels[$providerModelId];
-                    $modelDTO->setModelName($providerModel->getName());
-                    $modelDTO->setModelIcon($providerModel->getIcon());
-
-                    $description = '';
-                    $translate = $providerModel->getTranslate();
-                    if (is_array($translate) && isset($translate['description'][$locale])) {
-                        $description = $translate['description'][$locale];
-                    } else {
-                        $description = $providerModel->getDescription();
-                    }
-                    $modelDTO->setModelDescription($description);
-                    $models[] = $modelDTO;
-                }
-            }
-
-            // 只有当分组下有模型时才添加（前台过滤空分组）
-            if (! empty($models)) {
-                $modeGroupDetailDTO->setModels($models);
-                $modeGroupDetailDTO->sortModels(); // 对模型排序
-                $flatGroups[] = $modeGroupDetailDTO;
-            }
-        }
-
-        // 对分组排序（降序，越大越前）
-        usort($flatGroups, function ($a, $b) {
-            return $b->getSort() <=> $a->getSort();
-        });
-
-        return $flatGroups;
+        $dto = new ModeGroupDTO($group->toArray());
+        $locale = di(TranslatorInterface::class)->getLocale();
+        $dto->setName($group->getNameI18n()[$locale]);
+        return $dto;
     }
 
-    private static function groupEntityToDTO(ModeGroupEntity $getGroup)
-    {
-        $dto = new ModeGroupDTO($getGroup->toArray());
-        $locale = di(TranslatorInterface::class)->getLocale();
-        $dto->setName($getGroup->getNameI18n()[$locale]);
-        return $dto;
+    /**
+     * @param list<string> $upgradeRequiredModelIds
+     */
+    private static function fillModelDTO(
+        ModeGroupModelDTO $modelDTO,
+        ProviderModelEntity $providerModel,
+        string $locale,
+        array $upgradeRequiredModelIds
+    ): void {
+        $modelDTO->setModelName($providerModel->getLocalizedName($locale));
+        $modelDTO->setModelIcon($providerModel->getIcon());
+        $modelDTO->setModelDescription($providerModel->getLocalizedDescription($locale));
+
+        if (! in_array($providerModel->getModelId(), $upgradeRequiredModelIds, true)) {
+            return;
+        }
+
+        $modelDTO->setTags(['VIP']);
+        $modelDTO->setModelStatus(ModelStatus::Disabled);
     }
 }

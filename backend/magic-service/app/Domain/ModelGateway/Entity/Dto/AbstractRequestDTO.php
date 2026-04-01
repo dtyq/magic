@@ -135,12 +135,27 @@ abstract class AbstractRequestDTO extends AbstractEntity implements ProxyModelRe
 
     public function getTopicId(): ?string
     {
-        return $this->getHeaderConfig('magic-topic-id') ?? '';
+        return $this->resolveStringFromHeaderOrBusinessParams('magic-topic-id', ['magic_topic_id', 'topic_id']);
     }
 
     public function getTaskId(): ?string
     {
-        return $this->getHeaderConfig('magic-task-id');
+        return $this->resolveStringFromHeaderOrBusinessParams('magic-task-id', ['magic_task_id', 'task_id']);
+    }
+
+    public function getProjectId(): ?int
+    {
+        $projectId = $this->getBusinessParam('project_id');
+        if (is_string($projectId) && is_numeric($projectId)) {
+            $projectId = (int) $projectId;
+        }
+
+        return is_int($projectId) && $projectId > 0 ? $projectId : null;
+    }
+
+    public function getSourceId(): ?string
+    {
+        return $this->resolveStringBusinessParam(['source_id']);
     }
 
     public function isEnableHighAvailability(): bool
@@ -151,5 +166,30 @@ abstract class AbstractRequestDTO extends AbstractEntity implements ProxyModelRe
     public function setEnableHighAvailability(bool $enableHighAvailability): void
     {
         $this->enableHighAvailability = $enableHighAvailability;
+    }
+
+    private function resolveStringFromHeaderOrBusinessParams(string $headerKey, array $businessParamKeys): ?string
+    {
+        $headerValue = $this->getHeaderConfig($headerKey);
+        if (is_string($headerValue) && trim($headerValue) !== '') {
+            return trim($headerValue);
+        }
+
+        return $this->resolveStringBusinessParam($businessParamKeys);
+    }
+
+    /**
+     * @param list<string> $keys
+     */
+    private function resolveStringBusinessParam(array $keys): ?string
+    {
+        foreach ($keys as $key) {
+            $value = $this->getBusinessParam($key);
+            if (is_string($value) && trim($value) !== '') {
+                return trim($value);
+            }
+        }
+
+        return null;
     }
 }

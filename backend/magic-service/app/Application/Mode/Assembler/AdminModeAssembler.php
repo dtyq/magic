@@ -86,6 +86,9 @@ class AdminModeAssembler
         $locale = di(TranslatorInterface::class)->getLocale();
 
         $models = [];
+        $textModels = [];
+        $imageModels = [];
+        $videoModels = [];
         foreach ($groupAggregate->getRelations() as $relation) {
             $modelDTO = new AdminModeGroupModelDTO($relation->toArray());
 
@@ -124,10 +127,24 @@ class AdminModeAssembler
                 $modelDTO->setModelStatus($status);
             }
 
+            $category = $modelDTO->getModelCategory();
             $models[] = $modelDTO;
+            if ($category === 'vlm') {
+                $imageModels[] = $modelDTO;
+                continue;
+            }
+            if ($category === 'vgm') {
+                $videoModels[] = $modelDTO;
+                continue;
+            }
+
+            $textModels[] = $modelDTO;
         }
 
         $dto->setModels($models);
+        $dto->setTextModels($textModels);
+        $dto->setImageModels($imageModels);
+        $dto->setVideoModels($videoModels);
 
         return $dto;
     }
@@ -194,7 +211,7 @@ class AdminModeAssembler
     {
         $group = self::groupDTOToEntity($dto->getGroup());
         $relations = [];
-        foreach ($dto->getModels() as $model) {
+        foreach (array_merge($dto->getTextModels(), $dto->getImageModels(), $dto->getVideoModels()) as $model) {
             $relation = new ModeGroupRelationEntity($model->toArray());
             $relation->setModeId($group->getModeId());
             $relation->setGroupId($group->getId());

@@ -576,7 +576,9 @@ async def notify_file_change(request: FileNotificationRequest) -> BaseResponse:
             logger.info(f"Magic Service 配置加载成功: {config.api_base_url}")
 
             async with MagicServiceClient(config) as client:
-                logger.info(f"即将调用 Magic Service API: {client._send_file_notification_internal}")
+                logger.info(
+                    f"即将调用 Magic Service API: {MagicServiceClient.send_file_notification.__qualname__}"
+                )
                 result = await client.send_file_notification(
                     metadata=metadata,
                     notification_data=request.model_dump()

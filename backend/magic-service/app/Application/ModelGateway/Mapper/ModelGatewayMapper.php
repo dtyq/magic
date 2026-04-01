@@ -18,9 +18,11 @@ use App\Domain\Provider\Service\AdminProviderDomainService;
 use App\Infrastructure\Core\Contract\Model\RerankInterface;
 use App\Infrastructure\Core\DataIsolation\BaseDataIsolation;
 use App\Infrastructure\Core\Model\ImageGenerationModel;
+use App\Infrastructure\Core\Model\VideoGenerationModel;
 use App\Infrastructure\ExternalAPI\ImageGenerateAPI\ImageModel;
 use App\Infrastructure\ExternalAPI\MagicAIApi\MagicAILocalModel;
 use App\Infrastructure\ExternalAPI\Proxy\ProxyConfigResolverInterface;
+use App\Infrastructure\ExternalAPI\VideoGenerateAPI\VideoModel;
 use DateTime;
 use Hyperf\Contract\ConfigInterface;
 use Hyperf\Logger\LoggerFactory;
@@ -65,6 +67,7 @@ class ModelGatewayMapper extends ModelMapper
     public function exists(BaseDataIsolation $dataIsolation, string $model): bool
     {
         $dataIsolation = ModelGatewayDataIsolation::createByBaseDataIsolation($dataIsolation);
+        $model = $this->resolveOfficeModelId(Category::VGM, $model) ?? $model;
         if (isset($this->models['chat'][$model]) || isset($this->models['embedding'][$model])) {
             return true;
         }
@@ -159,6 +162,19 @@ class ModelGatewayMapper extends ModelMapper
         return null;
     }
 
+    public function getOrganizationVideoModel(BaseDataIsolation $dataIsolation, string $model): ?VideoModel
+    {
+        $dataIsolation = ModelGatewayDataIsolation::createByBaseDataIsolation($dataIsolation);
+        $model = $this->resolveOfficeModelId(Category::VGM, $model) ?? $model;
+        $result = $this->getByAdmin($dataIsolation, $model, ModelType::TEXT_TO_VIDEO);
+
+        if ($result instanceof VideoModel) {
+            return $result;
+        }
+
+        return null;
+    }
+
     /**
      * 获取当前组织下的所有可用 chat 模型.
      * @return OdinModel[]
@@ -190,6 +206,10 @@ class ModelGatewayMapper extends ModelMapper
 
         $odinModels = [];
         foreach ($officeModels as $model) {
+            if (! $model->getModelType()->isImageGeneration()) {
+                continue;
+            }
+
             $key = $model->getModelId();
 
             // Create virtual image generation model
@@ -216,6 +236,49 @@ class ModelGatewayMapper extends ModelMapper
             // Create OdinModel
             $odinModel = new OdinModel($key, $imageModel, $attributes);
             $odinModels[$key] = $odinModel;
+        }
+
+        return $odinModels;
+    }
+
+    /**
+     * get all available video models under the current organization.
+     * @return OdinModel[]
+     */
+    public function getVideoModels(BaseDataIsolation $dataIsolation): array
+    {
+        $dataIsolation = ModelGatewayDataIsolation::createByBaseDataIsolation($dataIsolation);
+        $serviceProviderDomainService = di(AdminProviderDomainService::class);
+        $officeModels = $serviceProviderDomainService->getOfficeModels(Category::VGM);
+
+        $odinModels = [];
+        foreach ($officeModels as $model) {
+            if (! $model->getModelType()->isVideoGeneration()) {
+                continue;
+            }
+
+            $key = $model->getModelId();
+            $videoModel = new VideoGenerationModel(
+                $model->getModelId(),
+                [],
+                $this->logger,
+            );
+
+            $attributes = new OdinModelAttributes(
+                key: $key,
+                name: $model->getModelVersion(),
+                label: $model->getName() ?: 'Video Generation',
+                icon: $model->getIcon() ?: '',
+                tags: [['type' => 1, 'value' => 'Video Generation']],
+                createdAt: $model->getCreatedAt() ?? new DateTime(),
+                owner: 'MagicAI',
+                providerAlias: '',
+                providerModelId: (string) $model->getId(),
+                description: $model->getLocalizedDescription($dataIsolation->getLanguage()) ?? '',
+                modelType: $model->getModelType()->value,
+            );
+
+            $odinModels[$key] = new OdinModel($key, $videoModel, $attributes);
         }
 
         return $odinModels;
@@ -311,8 +374,9 @@ class ModelGatewayMapper extends ModelMapper
         $providerConfigIds = [];
         foreach ($providerModels as $providerModel) {
             $providerConfigIds[] = $providerModel->getServiceProviderConfigId();
-            $modelLogs[$providerModel->getModelId()] = [
-                'model_id' => $providerModel->getModelId(),
+            $tempModelId = $providerModel->getModelId();
+            $modelLogs[$tempModelId] = [
+                'model_id' => $tempModelId,
                 'provider_config_id' => (string) $providerModel->getServiceProviderConfigId(),
                 'is_office' => $providerModel->isOffice(),
             ];
@@ -372,7 +436,7 @@ class ModelGatewayMapper extends ModelMapper
         ProviderModelEntity $providerModelEntity,
         ProviderConfigEntity $providerConfigEntity,
         ProviderEntity $providerEntity,
-    ): null|ImageModel|OdinModel {
+    ): null|ImageModel|OdinModel|VideoModel {
         if (! $providerDataIsolation->isOfficialOrganization() && (! $providerModelEntity->getStatus()->isEnabled() || ! $providerConfigEntity->getStatus()->isEnabled())) {
             return null;
         }
@@ -412,8 +476,17 @@ class ModelGatewayMapper extends ModelMapper
         }
 
         // 根据模型类型返回不同的包装对象
-        if ($providerModelEntity->getModelType()->isVLM()) {
+        if ($providerModelEntity->getModelType()->isImageGeneration()) {
             return new ImageModel($providerConfigItem->toArray(), $providerModelEntity->getModelVersion(), (string) $providerModelEntity->getId(), $providerEntity->getProviderCode());
+        }
+
+        if ($providerModelEntity->getModelType()->isVideoGeneration()) {
+            return new VideoModel(
+                $providerConfigItem->toArray(),
+                $providerModelEntity->getModelVersion(),
+                (string) $providerModelEntity->getId(),
+                $providerConfigEntity->getProviderCode() ?? $providerEntity->getProviderCode(),
+            );
         }
 
         $proxy = '';
@@ -460,7 +533,7 @@ class ModelGatewayMapper extends ModelMapper
         );
     }
 
-    private function getByAdmin(ModelGatewayDataIsolation $dataIsolation, string $model, ?ModelType $modelType = null): null|ImageModel|OdinModel
+    private function getByAdmin(ModelGatewayDataIsolation $dataIsolation, string $model, ?ModelType $modelType = null): null|ImageModel|OdinModel|VideoModel
     {
         $providerDataIsolation = ProviderDataIsolation::createByBaseDataIsolation($dataIsolation);
         $providerDataIsolation->setContainOfficialOrganization(true);
@@ -508,6 +581,21 @@ class ModelGatewayMapper extends ModelMapper
         }
 
         return $this->createModelByProvider($providerDataIsolation, $providerModelEntity, $providerConfigEntity, $providerEntity);
+    }
+
+    private function resolveOfficeModelId(Category $category, string $modelIdOrVersion): ?string
+    {
+        $serviceProviderDomainService = di(AdminProviderDomainService::class);
+        foreach ($serviceProviderDomainService->getOfficeModels($category) as $officeModel) {
+            if (
+                $officeModel->getModelId() === $modelIdOrVersion
+                || $officeModel->getModelVersion() === $modelIdOrVersion
+            ) {
+                return $officeModel->getModelId();
+            }
+        }
+
+        return null;
     }
 
     private function createProxy(ModelGatewayDataIsolation $dataIsolation, string $model, ModelOptions $modelOptions, ApiOptions $apiOptions, bool $useOfficialAccessToken = false): MagicAILocalModel
