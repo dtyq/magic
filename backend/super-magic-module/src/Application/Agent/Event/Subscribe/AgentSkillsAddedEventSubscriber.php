@@ -96,7 +96,6 @@ class AgentSkillsAddedEventSubscriber implements ListenerInterface
             $this->logger->error('Agent skill file sync failed', [
                 'agent_code' => $agentCode,
                 'error' => $e->getMessage(),
-                'trace' => $e->getTraceAsString(),
             ]);
         } finally {
             $this->locker->release($lockKey, $lockOwner);
@@ -229,10 +228,10 @@ class AgentSkillsAddedEventSubscriber implements ListenerInterface
 
         $this->logger->info('Agent skill file sync completed', [
             'agent_code' => $agentCode,
-            'skill_codes' => $skillCodes,
+            'skill_count' => count($skillCodes),
             'project_id' => $projectId,
             'files_created' => count($allCreatedFiles),
-            'added_packages' => $addedPackageNames,
+            'added_package_count' => count($addedPackageNames),
         ]);
     }
 
@@ -406,7 +405,8 @@ class AgentSkillsAddedEventSubscriber implements ListenerInterface
     /**
      * Resolve agent skill directory location.
      * Always uses ".magic/skills" as the standard structure.
-     * The ".magic" directory will be created if it does not yet exist in the file index.
+     * When is_magic_structure is true, the caller is responsible for ensuring the ".magic"
+     * parent directory exists before creating the "skills" subdirectory.
      *
      * @return array{relative_path: string, is_magic_structure: bool}
      */

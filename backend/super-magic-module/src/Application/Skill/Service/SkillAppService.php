@@ -1818,7 +1818,7 @@ class SkillAppService extends AbstractSkillAppService
             if ($packageName !== '') {
                 $skillEntity->setPackageName($packageName);
             }
-            $this->logger->info('publishSkill', ['id' => $skillEntity->getId(), 'code' => $code, 'project_id' => $skillEntity->getProjectId(), 'file_key' => $fileMetadata['file_key'], 'package_name' => $skillEntity->getPackageName()]);
+            $this->logger->debug('publishSkill metadata resolved', ['id' => $skillEntity->getId(), 'code' => $code, 'project_id' => $skillEntity->getProjectId()]);
         }
 
         if (empty($skillEntity->getFileKey())) {

@@ -89,7 +89,6 @@ class AgentSkillsRemovedEventSubscriber implements ListenerInterface
             $this->logger->error('Agent skill file removal failed', [
                 'agent_code' => $agentCode,
                 'error' => $e->getMessage(),
-                'trace' => $e->getTraceAsString(),
             ]);
         } finally {
             $this->locker->release($lockKey, $lockOwner);
@@ -208,10 +207,10 @@ class AgentSkillsRemovedEventSubscriber implements ListenerInterface
 
         $this->logger->info('Agent skill file removal completed', [
             'agent_code' => $agentCode,
-            'skill_codes' => $skillCodes,
+            'skill_count' => count($skillCodes),
             'project_id' => $projectId,
             'total_files_deleted' => count($allDeletedFileIds),
-            'removed_packages' => $removedPackageNames,
+            'removed_package_count' => count($removedPackageNames),
         ]);
     }
 

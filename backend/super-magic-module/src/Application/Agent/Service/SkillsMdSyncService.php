@@ -11,6 +11,7 @@ use App\Domain\Contact\Entity\ValueObject\DataIsolation;
 use App\Domain\File\Service\FileDomainService;
 use App\Infrastructure\Core\ValueObject\StorageBucketType;
 use App\Infrastructure\Util\IdGenerator\IdGenerator;
+use App\Infrastructure\Util\ZipUtil;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ProjectEntity;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\TaskFileSource;
 use Dtyq\SuperMagic\Domain\SuperAgent\Service\TaskFileDomainService;
@@ -73,7 +74,6 @@ class SkillsMdSyncService
                 'project_id' => $projectId,
                 'operation' => $operation,
                 'error' => $e->getMessage(),
-                'trace' => $e->getTraceAsString(),
             ]);
         }
     }
@@ -205,7 +205,7 @@ class SkillsMdSyncService
         $this->logger->info('[SkillsMdSyncService] SKILLS.md synced', [
             'project_id' => $projectId,
             'operation' => $operation,
-            'skill_names' => $skillNames,
+            'skill_count' => count($skillNames),
         ]);
     }
 
@@ -247,7 +247,7 @@ class SkillsMdSyncService
 
         $this->logger->info('[SkillsMdSyncService] SKILLS.md created', [
             'project_id' => $projectId,
-            'skill_names' => $skillNames,
+            'skill_count' => count($skillNames),
         ]);
     }
 
@@ -290,12 +290,7 @@ class SkillsMdSyncService
             $content = file_get_contents($tempFile);
             return $content === false ? null : $content;
         } finally {
-            if (file_exists($tempFile)) {
-                @unlink($tempFile);
-            }
-            if (is_dir($tempDir)) {
-                @rmdir($tempDir);
-            }
+            ZipUtil::removeDirectory($tempDir);
         }
     }
 

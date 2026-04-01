@@ -20,6 +20,9 @@ final class SkillProjectConfigUtil
 
     public const CONFIG_PATH = self::SKILLS_ROOT_PATH . '/' . self::CONFIG_FILE_NAME;
 
+    /** Maximum allowed YAML content size in bytes (64 KB). */
+    private const MAX_CONTENT_SIZE = 65536;
+
     /**
      * @return array{skill: array{dir: string}}
      */
@@ -45,8 +48,14 @@ final class SkillProjectConfigUtil
      */
     public static function parse(string $content): array
     {
+        if (strlen($content) > self::MAX_CONTENT_SIZE) {
+            throw new InvalidArgumentException(
+                sprintf('Skill project config exceeds maximum allowed size (%d bytes).', self::MAX_CONTENT_SIZE)
+            );
+        }
+
         try {
-            $parsed = Yaml::parse($content);
+            $parsed = Yaml::parse($content, Yaml::PARSE_EXCEPTION_ON_INVALID_TYPE);
         } catch (ParseException $e) {
             throw new InvalidArgumentException('Invalid skill project config format: ' . $e->getMessage(), 0, $e);
         }

@@ -996,9 +996,9 @@ class SuperMagicAgentAppService extends AbstractSuperMagicAppService
         $versionEntities = $this->superMagicAgentVersionDomainService->getLatestPublishedByCodes($dataIsolation, $queryAgentCodes);
         $agentEntities = $this->buildExternalVisibleAgentsFromVersions($dataIsolation, $versionEntities);
 
+        $accessible = $accessibleAgentResult['accessible'] ?? [];
         foreach ($agentEntities as $agentEntity) {
-            // 设置是否为公开的智能体
-            if (in_array($agentEntity->getCode(), $accessibleAgentResult['accessible'])) {
+            if (in_array($agentEntity->getCode(), $accessible, true)) {
                 $agentEntity->setType(SuperMagicAgentType::Public->value);
             }
         }
