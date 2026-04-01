@@ -272,9 +272,6 @@ class AgentDispatcher(Base):
             if normalized_mode == "custom_agent":
                 if agent_code and agent_code.strip():
                     agent_type = agent_code.strip()
-                    if agent_type in self.agents:
-                        logger.info(f"清理已缓存的 crew Agent: {agent_type}")
-                        del self.agents[agent_type]
                     logger.info(f"使用编译后的 crew agent: {agent_type}.agent")
                 else:
                     logger.warning("custom_agent 未提供 agent_code，回退到默认模式")
@@ -284,8 +281,6 @@ class AgentDispatcher(Base):
             elif normalized_mode == "magiclaw":
                 if agent_code and agent_code.strip():
                     agent_type = agent_code.strip()
-                    if agent_type in self.agents:
-                        del self.agents[agent_type]
                     logger.info(f"magiclaw 模式，使用编译后的 claw agent: {agent_type}.agent")
                 else:
                     logger.warning("magiclaw 未提供 agent_code，回退到默认模式")
@@ -303,13 +298,15 @@ class AgentDispatcher(Base):
             # 使用 AgentMode 的 get_agent_type 方法
             agent_type = agent_mode.get_agent_type()
 
-        # 按需创建agent
+        # 主 Agent 进程内常驻：命中缓存时直接复用，不重新创建。
+        # 产品上永远只有一个主 Agent，且选定后不会切换；切换约束由前端保证，后端暂不额外校验。
+        if agent_type in self.agents:
+            logger.info(f"复用已缓存的主 Agent: {agent_type}")
+            return self.agents[agent_type]
+
+        logger.info(f"首次创建主 Agent: {agent_type}")
         self.agents[agent_type] = await self.agent_service.create_agent(agent_type, self.agent_context)
-
-        # 获取选中的agent实例
-        selected_agent = self.agents[agent_type]
-
-        return selected_agent
+        return self.agents[agent_type]
 
     async def run_agent(self, agent: Agent):
         """
