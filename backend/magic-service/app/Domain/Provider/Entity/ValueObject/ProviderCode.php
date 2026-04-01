@@ -31,7 +31,7 @@ enum ProviderCode: string
     case Baidu = 'Baidu';
     case SCNet = 'SCNet';
     case Moonshot = 'Moonshot';
-    case GLM = 'GLM';
+    case BigModel = 'BigModel';
     case MiniMax = 'MiniMax';
     case SiliconFlow = 'SiliconFlow';
     case TTAPI = 'TTAPI';
@@ -125,7 +125,7 @@ enum ProviderCode: string
             self::Baidu,
             self::SCNet,
             self::Moonshot,
-            self::GLM,
+            self::BigModel,
             self::MiniMax,
             self::SiliconFlow => true,
             default => false,
@@ -160,7 +160,7 @@ enum ProviderCode: string
             self::Baidu => 'https://qianfan.baidubce.com/v2',
             self::SCNet => 'https://api.scnet.cn/api/llm/v1',
             self::Moonshot => 'https://api.moonshot.cn/v1',
-            self::GLM => 'https://open.bigmodel.cn/api/paas/v4',
+            self::BigModel => 'https://open.bigmodel.cn/api/paas/v4',
             self::MiniMax => 'https://api.minimaxi.com/v1',
             self::SiliconFlow => 'https://api.siliconflow.cn/v1',
             default => '',
@@ -182,7 +182,7 @@ enum ProviderCode: string
             self::Baidu => ['baidubce.com'],
             self::SCNet => ['scnet.cn'],
             self::Moonshot => ['moonshot.cn'],
-            self::GLM => ['bigmodel.cn'],
+            self::BigModel => ['bigmodel.cn'],
             self::MiniMax => ['minimaxi.com'],
             self::SiliconFlow => ['siliconflow.cn'],
             default => [],
@@ -235,7 +235,7 @@ enum ProviderCode: string
             self::Baidu => 10,
             self::SCNet => 11,
             self::Moonshot => 12,
-            self::GLM => 13,
+            self::BigModel => 13,
             self::MiniMax => 14,
             self::SiliconFlow => 15,
             default => 999, // 其他服务商排在最后
