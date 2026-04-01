@@ -41,12 +41,10 @@ CMD 和 Git Bash 为 best-effort 支持。
 
 ### 前置依赖
 
-执行 `magicrew deploy` 前，请确保下列命令在 `PATH` 中可用：
+执行 `magicrew deploy` 前，请确保必需命令在 `PATH` 中可用：
 
-- `docker`
-- `kind`
-- `kubectl`
-- `helm`
+- 必需：`docker`
+- 可选：`kubectl`
 
 ### 默认配置目录行为
 
