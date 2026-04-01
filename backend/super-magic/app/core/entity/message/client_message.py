@@ -102,7 +102,6 @@ class AgentMode(str, Enum):
     SUMMARY_VIDEO = "summary-video"  # 视频分析模式，使用video.agent
     DESIGN = "design"         # 画布设计模式，使用design.agent
     TEST = "test"  # 工具模式，使用tool.agent
-    SKILL = "skill"  # Skill模式，使用skill.agent
     CREW_CREATOR = "crew-creator"  # Crew管理模式，使用crew-creator.agent
     SKILL_CREATOR = "skill-creator"  # Skill 创作模式，使用skill-creator.agent
     MAGICLAW = "magiclaw"  # Magic Claw 模式，从 agents/claws/<claw_code>/ 编译运行
@@ -119,7 +118,6 @@ class AgentMode(str, Enum):
             AgentMode.SUMMARY_VIDEO: "video",  # 模式名称保持summary-video，但使用video.agent文件
             AgentMode.DESIGN: "design",  # 画布设计模式
             AgentMode.TEST: "test",
-            AgentMode.SKILL: "skill",
             AgentMode.CREW_CREATOR: "crew-creator",
             AgentMode.SKILL_CREATOR: "skill-creator",
             AgentMode.MAGICLAW: "magiclaw",
