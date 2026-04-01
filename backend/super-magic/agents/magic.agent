@@ -38,7 +38,7 @@ skills:
     - name: deep-research
     - name: using-llm
     - name: using-cron
-    - name: connecting-im-bot
+    - name: im-channels
   workspace_skills: "*"
 ---
 

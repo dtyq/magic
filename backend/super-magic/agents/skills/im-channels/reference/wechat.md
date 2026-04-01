@@ -57,17 +57,6 @@ Interpret the wait tool result like this:
 - If it returns a success message, tell the user to send `hi` in the WeChat ClawBot chat.
 - If it returns a timeout or failure message, relay it and stop.
 
-## Check Status
-
-Use `run_skills_snippet` with this `python_code`:
-
-```python
-from sdk.tool import tool
-
-result = tool.call("get_im_channel_status", {})
-print(result.content)
-```
-
 ## Reply Format After Connection
 
 Write your reply in **Markdown** (GitHub-Flavored). Do not call any tool to send the reply.

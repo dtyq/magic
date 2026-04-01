@@ -44,6 +44,7 @@ RETRY_DELAY_MS = 2_000
 class WechatChannel(BaseChannel):
     key = "wechat"
     label = "微信"
+    source_name = "WeChat"
 
     _instance: Optional["WechatChannel"] = None
 
@@ -90,20 +91,18 @@ class WechatChannel(BaseChannel):
     def build_agent_context_fragment(self, message: ChatClientMessage | None) -> str:
         ctx = message.channel_context if message else None
         raw_media: List[dict] = ctx.get("wechat_media", []) if ctx else []
-        if not raw_media:
-            return ""
 
-        lines = [
-            "[WeChat inbound media]",
-            "The following files were downloaded into the workspace from the user's WeChat message.",
-            "Use these paths when you need to inspect or reference the media.",
-        ]
-        for index, item in enumerate(raw_media, 1):
-            quote_suffix = " (from quoted message)" if item.get("from_quote") else ""
+        if not raw_media:
+            return f'<im source="{self.source_name}" />'
+
+        lines = [f'<im source="{self.source_name}">', "  <media>"]
+        for item in raw_media:
+            quoted = ' from="quoted"' if item.get("from_quote") else ""
             lines.append(
-                f"{index}. type={item.get('media_type')} mime={item.get('mime_type')} "
-                f"path={item.get('relative_path')}{quote_suffix}"
+                f'    <file type="{item.get("media_type")}" mime="{item.get("mime_type")}"'
+                f' path="{item.get("relative_path")}"{quoted} />'
             )
+        lines.extend(["  </media>", "</im>"])
         return "\n".join(lines)
 
     def render_status_lines(self, config: IMChannelsConfig) -> list[str]:
@@ -219,7 +218,7 @@ class WechatChannel(BaseChannel):
                         "Casually let the user know when appropriate — they can reconnect by scanning a new QR code, "
                         "or leave it disconnected. Don't treat this as a blocking issue. "
                         "If you are unsure how to initiate a WeChat reconnection, "
-                        "read 'connecting-im-bot' skill first."
+                        "read 'im-channels' skill first."
                     ),
                 )
         except Exception as e:

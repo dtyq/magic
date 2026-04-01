@@ -27,7 +27,7 @@
 
 ## 什么是 Skill？
 
-Skill 是一组指令、脚本和资源的文件夹，Claude 会动态加载以提升在特定任务上的表现。Skill 教会 Claude 如何以可重复的方式完成特定任务，例如：
+Skill 是一组指令、脚本和资源的文件夹，Agent 会动态加载以提升在特定任务上的表现。Skill 教会 Agent 如何以可重复的方式完成特定任务，例如：
 - 使用公司的品牌指南创建文档
 - 使用组织特定的工作流程分析数据
 - 自动化个人任务
@@ -69,17 +69,22 @@ description: 清晰描述 Skill 的功能和使用场景
 
 | 字段 | 说明 | 限制 |
 |------|------|------|
-| `name` | Skill 的唯一标识符 | 最多 64 字符，仅限小写字母、数字和连字符，不能包含 `anthropic` 或 `claude` |
-| `description` | 描述 Skill 的功能和使用时机 | 最多 1024 字符，**非常关键** - Claude 使用此描述来决定何时调用 Skill |
+| `name` | Skill 的唯一标识符 | 仅限小写字母、数字和连字符 |
+| `description` | 描述 Skill 的功能和使用时机 | 最多 1024 字符，**非常关键** - Agent 使用此描述来决定何时调用 Skill |
 
 #### 命名规范
 
-推荐使用**动名词形式**（verb + -ing），清晰描述 Skill 提供的能力：
+名字应和 Skill 的核心身份完全吻合——既不过宽也不过窄，一眼就能判断它的职责边界。
 
-- ✅ 好的命名：`processing-pdfs`、`analyzing-spreadsheets`、`testing-code`
-- ⚠️ 可接受：`pdf-processing`、`process-pdfs`
-- ❌ 避免：`helper`、`utils`、`tools`（太模糊）
-- ❌ 避免：`anthropic-helper`、`claude-tools`（保留词）
+好的命名示例：
+- `find-skill`：职责单一明确，名字就是它的完整定义
+- `skill-creator`：名词复合，描述它扮演的角色
+- `deep-research`：修饰语 + 名词，描述能力的性质与深度
+- `im-channels`：领域名词，覆盖该领域下所有操作
+
+避免用动词形式（如 `creating-slides`）——动词会把名称锁定在单一操作上，Skill 功能一扩展就名不副实。涵盖多种操作的 Skill 用名词（`slides`）更准确。
+
+同样避免过于宽泛的词：`helper`、`utils`、`tools`、`documents`、`data`。
 
 ### 可选元数据字段
 
@@ -335,7 +340,7 @@ for file in data_files:
 
 ### 2. 编写清晰的描述
 
-`description` 字段非常关键，Claude 使用它来决定何时调用 Skill。要具体说明适用场景。
+`description` 字段非常关键，Agent 使用它来决定何时调用 Skill。要具体说明适用场景。
 
 **好的描述示例：**
 ```yaml
@@ -353,7 +358,7 @@ description: 一个设计工具
 
 ### 4. 使用示例
 
-在 SKILL.md 中包含输入输出示例，帮助 Claude 理解预期效果。
+在 SKILL.md 中包含输入输出示例，帮助 Agent 理解预期效果。
 
 ### 5. 渐进式测试
 
@@ -361,10 +366,10 @@ description: 一个设计工具
 
 ### 6. 渐进式披露
 
-SKILL.md 作为概述，指向详细材料供 Claude 按需加载（类似于指南中的目录）：
+SKILL.md 作为概述，指向详细材料供 Agent 按需加载（类似于指南中的目录）：
 - SKILL.md 正文保持在 500 行以内
 - 接近限制时拆分内容到单独文件
-- Claude 只在需要时加载引用的文件
+- Agent 只在需要时加载引用的文件
 
 ### 7. 清晰的参数和返回值说明
 
@@ -808,7 +813,7 @@ my-skill/
 - **JavaScript/Node.js**: 各类 npm 包
 - **Shell 脚本**: Bash 等
 
-> **注意**: Claude 可以在加载 Skill 时从标准仓库（PyPI, npm）安装包。
+> **注意**: Agent 可以在加载 Skill 时从标准仓库（PyPI, npm）安装包。
 
 #### 脚本文档规范
 

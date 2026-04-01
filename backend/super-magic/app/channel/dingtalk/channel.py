@@ -25,6 +25,7 @@ logger = get_logger(__name__)
 class DingTalkChannel(BaseChannel):
     key = "dingtalk"
     label = "钉钉"
+    source_name = "DingTalk"
 
     _instance: Optional["DingTalkChannel"] = None
 
@@ -260,7 +261,7 @@ class DingTalkChannel(BaseChannel):
         chat_msg = ChatClientMessage(
             message_id=local_id,
             prompt=content,
-            metadata=Metadata(agent_user_id=user_id),
+            metadata=Metadata(agent_user_id=user_id, channel_name=self.key),
         )
         logger.info(f"[DingTalkChannel] 分发消息: user_id={user_id}, len={len(content)}")
         await dispatch_third_party_message(

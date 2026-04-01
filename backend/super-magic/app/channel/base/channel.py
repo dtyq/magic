@@ -17,6 +17,8 @@ class BaseChannel(ABC):
     key: ClassVar[str]
     # 子类提供面向用户的展示名。
     label: ClassVar[str]
+    # 子类提供给 LLM 读的英文来源名，用于 <im> 块注入。
+    source_name: ClassVar[str]
 
     @property
     @abstractmethod
@@ -45,8 +47,8 @@ class BaseChannel(ABC):
         return False
 
     def build_agent_context_fragment(self, message: "ChatClientMessage | None") -> str:
-        """把渠道专属的请求上下文转成给模型读的 prompt 片段。"""
-        return ""
+        """把渠道专属的请求上下文转成给模型读的 prompt 片段，追加在用户消息后。"""
+        return f'<im source="{self.source_name}" />'
 
     def render_status_lines(self, config: IMChannelsConfig) -> list[str]:
         """返回面向状态面板的展示文案。"""
