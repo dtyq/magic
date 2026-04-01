@@ -13,6 +13,9 @@ use App\Domain\File\Service\FileDomainService;
 use App\Domain\ModelGateway\Entity\Dto\CompletionDTO;
 use App\Domain\ModelGateway\Entity\Dto\EmbeddingsDTO;
 use App\Domain\ModelGateway\Entity\ValueObject\ModelGatewayDataIsolation;
+use App\Domain\OrganizationEnvironment\Entity\ValueObject\DeploymentEnum;
+use App\Domain\OrganizationEnvironment\Service\MagicOrganizationEnvDomainService;
+use App\Domain\Permission\Service\OrganizationAdminDomainService;
 use App\Domain\Provider\DTO\ProviderConfigDTO;
 use App\Domain\Provider\DTO\ProviderConfigModelsDTO;
 use App\Domain\Provider\DTO\ProviderModelDetailDTO;
@@ -22,6 +25,7 @@ use App\Domain\Provider\Entity\ProviderModelEntity;
 use App\Domain\Provider\Entity\ValueObject\Category;
 use App\Domain\Provider\Entity\ValueObject\ModelType;
 use App\Domain\Provider\Entity\ValueObject\NaturalLanguageProcessing;
+use App\Domain\Provider\Entity\ValueObject\ProviderCode;
 use App\Domain\Provider\Entity\ValueObject\ProviderDataIsolation;
 use App\Domain\Provider\Entity\ValueObject\Query\ProviderModelQuery;
 use App\Domain\Provider\Entity\ValueObject\Status;
@@ -35,6 +39,7 @@ use App\Domain\Provider\Service\ConnectivityTest\ConnectResponse;
 use App\Domain\Provider\Service\ProviderConfigDomainService;
 use App\Domain\Provider\Service\ProviderModelDomainService;
 use App\ErrorCode\ServiceProviderErrorCode;
+use App\Infrastructure\Core\DataIsolation\ValueObject\OrganizationType;
 use App\Infrastructure\Core\Exception\ExceptionBuilder;
 use App\Infrastructure\Core\Traits\HasLogger;
 use App\Infrastructure\Util\FuzzMatchUtil;
@@ -60,6 +65,8 @@ readonly class AdminProviderAppService
         private ProviderModelDomainService $providerModelDomainService,
         private AdminProviderDomainService $adminProviderDomainService,
         private EventDispatcherInterface $eventDispatcher,
+        private OrganizationAdminDomainService $organizationAdminDomainService,
+        private MagicOrganizationEnvDomainService $magicOrganizationEnvDomainService,
     ) {
     }
 
@@ -88,6 +95,12 @@ readonly class AdminProviderAppService
         return $providerModels;
     }
 
+    /**
+     * 更新服务商配置。
+     *
+     * 在国内 SaaS 个人组织的 LLM 受控场景下，提交配置前会统一归一化，
+     * 仅保留 api_key，并由后端补齐服务商默认 URL。
+     */
     public function updateProvider(
         MagicUserAuthorization $authorization,
         UpdateProviderConfigRequest $updateProviderConfigRequest
@@ -103,19 +116,27 @@ readonly class AdminProviderAppService
         }
 
         $serviceProviderId = $existingConfigEntity->getServiceProviderId();
-        $providerCode = $existingConfigEntity->getProviderCode();
         if ($updateProviderConfigRequest->getServiceProviderId()) {
             $serviceProviderId = (int) $updateProviderConfigRequest->getServiceProviderId();
         }
 
-        if (! $providerCode || $updateProviderConfigRequest->getServiceProviderId()) {
-            $serviceProviderEntity = $this->providerConfigDomainService->getProviderById($dataIsolation, $serviceProviderId);
-            if (is_null($serviceProviderEntity)) {
-                ExceptionBuilder::throw(ServiceProviderErrorCode::ServiceProviderNotFound);
-            }
-            $providerCode = $serviceProviderEntity->getProviderCode();
-            $serviceProviderId = $serviceProviderEntity->getId();
+        // 前端允许在编辑时切换服务商，这里统一按最终的 service_provider_id 重新获取服务商实体，
+        // 确保 providerCode、category 和后续配置归一化逻辑都基于最新选择的服务商执行。
+        $serviceProviderEntity = $this->providerConfigDomainService->getProviderById($dataIsolation, $serviceProviderId);
+        if (is_null($serviceProviderEntity)) {
+            ExceptionBuilder::throw(ServiceProviderErrorCode::ServiceProviderNotFound);
         }
+
+        $providerCode = $serviceProviderEntity->getProviderCode();
+        $serviceProviderId = $serviceProviderEntity->getId();
+
+        // 受控场景下前端不允许自定义 URL，这里统一收口为 api_key + 默认 URL。
+        $updateProviderConfigRequest->setConfig($this->normalizeProviderConfig(
+            $authorization->getOrganizationCode(),
+            $serviceProviderEntity->getProviderCode(),
+            $serviceProviderEntity->getCategory(),
+            $updateProviderConfigRequest->getConfig(),
+        ));
 
         $providerConfigEntity = ProviderAdminAssembler::updateRequestToEntity($updateProviderConfigRequest, $providerCode, $authorization->getOrganizationCode(), $serviceProviderId);
 
@@ -135,6 +156,12 @@ readonly class AdminProviderAppService
         return ProviderAdminAssembler::entityToModelsDTO($providerConfigEntity);
     }
 
+    /**
+     * 创建服务商配置。
+     *
+     * 在国内 SaaS 个人组织的 LLM 受控场景下，提交配置前会统一归一化，
+     * 仅保留 api_key，并由后端补齐服务商默认 URL。
+     */
     public function createProvider(
         MagicUserAuthorization $authorization,
         CreateProviderConfigRequest $createProviderConfigRequest
@@ -148,6 +175,14 @@ readonly class AdminProviderAppService
         if ($providerEntity === null) {
             ExceptionBuilder::throw(ServiceProviderErrorCode::ServiceProviderNotFound);
         }
+
+        // 受控场景下前端不允许自定义 URL，这里统一收口为 api_key + 默认 URL。
+        $createProviderConfigRequest->setConfig($this->normalizeProviderConfig(
+            $authorization->getOrganizationCode(),
+            $providerEntity->getProviderCode(),
+            $providerEntity->getCategory(),
+            $createProviderConfigRequest->getConfig(),
+        ));
 
         $providerConfigEntity = ProviderAdminAssembler::createRequestToEntity($createProviderConfigRequest, $providerEntity->getProviderCode(), $authorization->getOrganizationCode());
 
@@ -352,7 +387,7 @@ readonly class AdminProviderAppService
     }
 
     /**
-     * 获取所有非官方服务商列表，不依赖于组织.
+     * 获取服务商列表，不依赖于组织.
      *
      * @param ?Category $category 服务商分类
      * @param string $organizationCode 组织编码
@@ -365,6 +400,16 @@ readonly class AdminProviderAppService
 
         if (empty($serviceProviders)) {
             return [];
+        }
+
+        if ($this->shouldRestrictDomesticPersonalSaasLlmTemplates($organizationCode, $category)) {
+            // 仅国内 SaaS 个人组织的 LLM 模板做白名单收口，其他场景保持原样。
+            $serviceProviders = array_values(array_filter(
+                $serviceProviders,
+                static fn (ProviderConfigModelsDTO $serviceProvider): bool => $serviceProvider->getProviderCode()?->isDomesticPersonalSaasLlmWhitelist() ?? false
+            ));
+
+            $this->applyTemplateConfigSchema($serviceProviders, $category);
         }
 
         // 处理图标
@@ -973,5 +1018,81 @@ readonly class AdminProviderAppService
                 }
             }
         }
+    }
+
+    /**
+     * /**
+     * 为服务商模板补充前端渲染所需的配置 schema。
+     */
+    private function applyTemplateConfigSchema(array $serviceProviders, ?Category $category): void
+    {
+        if ($category === null) {
+            return;
+        }
+
+        foreach ($serviceProviders as $serviceProvider) {
+            $providerCode = $serviceProvider->getProviderCode();
+            // 前端按 schema 渲染表单，受控模板只会看到 api_key 字段。
+            $serviceProvider->setConfigSchema($providerCode?->getTemplateConfigSchema($category) ?? []);
+        }
+    }
+
+    /**
+     * 归一化服务商配置。
+     *
+     * 在国内 SaaS 个人组织的 LLM 受控场景下，仅保留 api_key，并强制写入服务商默认 URL。
+     */
+    private function normalizeProviderConfig(
+        string $organizationCode,
+        ProviderCode $providerCode,
+        Category $category,
+        array $config,
+    ): array {
+        if (! $this->shouldRestrictDomesticPersonalSaasLlmTemplates($organizationCode, $category)
+            || ! $providerCode->isDomesticPersonalSaasLlmWhitelist()) {
+            return $config;
+        }
+
+        $normalizedConfig = [];
+        if (array_key_exists('api_key', $config)) {
+            $normalizedConfig['api_key'] = $config['api_key'];
+        } elseif (array_key_exists('apiKey', $config)) {
+            $normalizedConfig['api_key'] = $config['apiKey'];
+        }
+
+        $defaultUrl = $providerCode->getDefaultUrl();
+        if ($defaultUrl !== '') {
+            $normalizedConfig['url'] = $defaultUrl;
+        }
+
+        return $normalizedConfig;
+    }
+
+    /**
+     * 判断当前组织是否命中“国内 SaaS + 个人组织 + LLM”模板收口场景。
+     *
+     * 这里统一封装组织上下文获取和规则判断，避免调用方同时关心“如何取上下文”和“如何判定规则”。
+     */
+    private function shouldRestrictDomesticPersonalSaasLlmTemplates(
+        string $organizationCode,
+        ?Category $category,
+    ): bool {
+        if ($category !== Category::LLM) {
+            return false;
+        }
+
+        $dataIsolation = ProviderDataIsolation::create($organizationCode);
+        $organizationEntity = $this->organizationAdminDomainService->getOrganizationInfo($dataIsolation);
+        $organizationType = $organizationEntity === null ? null : OrganizationType::tryFrom($organizationEntity->getType());
+
+        if ($organizationType !== OrganizationType::Personal) {
+            return false;
+        }
+
+        $organizationEnvDTO = $this->magicOrganizationEnvDomainService->getOrganizationsEnvironmentDTO($organizationCode);
+        $deployment = $organizationEnvDTO?->getDeployment();
+
+        return $organizationType === OrganizationType::Personal
+            && $deployment === DeploymentEnum::SaaS;
     }
 }

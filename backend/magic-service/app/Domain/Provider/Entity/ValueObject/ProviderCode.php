@@ -107,6 +107,52 @@ enum ProviderCode: string
     }
 
     /**
+     * 判断当前服务商是否属于国内 SaaS 个人组织 LLM 模板白名单。
+     */
+    public function isDomesticPersonalSaasLlmWhitelist(): bool
+    {
+        return match ($this) {
+            self::DashScope, self::Volcengine, self::DeepSeek => true,
+            default => false,
+        };
+    }
+
+    /**
+     * 获取服务商默认请求地址。
+     *
+     * 在国内 SaaS 个人组织的 LLM 场景下，前端不再填写 URL，由后端统一补齐。
+     */
+    public function getDefaultUrl(): string
+    {
+        return match ($this) {
+            self::DashScope => 'https://dashscope.aliyuncs.com/compatible-mode/v1',
+            self::Volcengine => 'https://ark.cn-beijing.volces.com/api/v3',
+            self::DeepSeek => 'https://api.deepseek.com',
+            default => '',
+        };
+    }
+
+    /**
+     * 获取模板配置 schema。
+     *
+     * 受控场景下只返回 api_key，前端据此隐藏自定义 URL 输入项。
+     */
+    public function getTemplateConfigSchema(Category $category): array
+    {
+        if ($category !== Category::LLM || ! $this->isDomesticPersonalSaasLlmWhitelist()) {
+            return [];
+        }
+
+        // 受控模板只暴露 api_key，避免前端出现自定义 URL 输入框。
+        return [
+            'api_key' => [
+                'required' => true,
+                'type' => 'string',
+            ],
+        ];
+    }
+
+    /**
      * 获取服务商的排序顺序（用于非官方服务商列表展示）.
      * 按照指定顺序：Microsoft Azure -> Google -> Amazon Bedrock -> OpenRouter -> Aliyun -> Volcengine -> DeepSeek -> Custom Provider.
      *
@@ -127,8 +173,14 @@ enum ProviderCode: string
         };
     }
 
+    /**
+     * 获取模型实际使用的请求地址。
+     *
+     * 当配置里没有显式保存 URL 时，自动回落到服务商默认地址。
+     */
     private function getModelUrl(AbstractProviderConfigItem $config): string
     {
-        return $config->getUrl() ?? '';
+        // 兼容只保存 api_key 的场景，运行时自动回落到服务商默认地址。
+        return $config->getUrl() ?: $this->getDefaultUrl();
     }
 }
