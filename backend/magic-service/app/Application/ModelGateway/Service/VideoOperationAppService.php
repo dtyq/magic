@@ -77,7 +77,8 @@ readonly class VideoOperationAppService
     {
         $dataIsolation = $this->llmAppService->createModelGatewayDataIsolationByAccessToken($accessToken, $requestDTO->getBusinessParams());
         $this->pointComponent->checkPointsSufficient($requestDTO, $dataIsolation);
-        $videoModel = $this->modelGatewayMapper->getOrganizationVideoModel($dataIsolation, $requestDTO->getModel());
+        $videoModelEntry = $this->modelGatewayMapper->getOrganizationVideoModel($dataIsolation, $requestDTO->getModel());
+        $videoModel = $videoModelEntry?->getVideoModel();
         if ($videoModel === null) {
             ExceptionBuilder::throw(MagicApiErrorCode::MODEL_NOT_SUPPORT);
         }

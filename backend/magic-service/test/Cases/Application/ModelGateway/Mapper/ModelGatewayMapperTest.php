@@ -7,12 +7,12 @@ declare(strict_types=1);
 
 namespace HyperfTest\Cases\Application\ModelGateway\Mapper;
 
+use App\Application\ModelGateway\Mapper\ModelEntry;
 use App\Application\ModelGateway\Mapper\ModelGatewayMapper;
 use App\Domain\ModelGateway\Entity\ValueObject\ModelGatewayDataIsolation;
 use App\Domain\Provider\Entity\ValueObject\ProviderCode;
 use App\Domain\Provider\Repository\Persistence\Model\ProviderConfigModel;
 use App\Domain\Provider\Repository\Persistence\Model\ProviderModelModel;
-use App\Infrastructure\ExternalAPI\VideoGenerateAPI\VideoModel;
 use App\Interfaces\Provider\Assembler\ProviderConfigAssembler;
 use HyperfTest\Support\UsesOfficialVideoProviderFixtures;
 use PHPUnit\Framework\TestCase;
@@ -68,12 +68,14 @@ class ModelGatewayMapperTest extends TestCase
         $providerModel = $this->getOfficialVideoProviderModel((int) $providerConfig->id, $this->officialFastVideoModelId());
 
         $mapper = di(ModelGatewayMapper::class);
-        $model = $mapper->getOrganizationVideoModel(
+        $entry = $mapper->getOrganizationVideoModel(
             ModelGatewayDataIsolation::create(self::TEST_ORGANIZATION_CODE, 'user-test'),
             $this->officialFastVideoModelId(),
         );
 
-        $this->assertInstanceOf(VideoModel::class, $model);
+        $this->assertInstanceOf(ModelEntry::class, $entry);
+        $model = $entry->getVideoModel();
+        $this->assertNotNull($model);
         $this->assertSame($this->officialFastVideoModelVersion(), $model->getModelVersion());
         $this->assertSame((string) $providerModel->id, $model->getProviderModelId());
         $this->assertSame(ProviderCode::Wuyin, $model->getProviderCode());
@@ -86,27 +88,29 @@ class ModelGatewayMapperTest extends TestCase
         $providerModel = $this->getOfficialVideoProviderModel((int) $providerConfig->id, $this->officialProVideoModelId());
 
         $mapper = di(ModelGatewayMapper::class);
-        $model = $mapper->getOrganizationVideoModel(
+        $entry = $mapper->getOrganizationVideoModel(
             ModelGatewayDataIsolation::create(self::TEST_ORGANIZATION_CODE, 'user-test'),
             $this->officialProVideoModelId(),
         );
 
-        $this->assertInstanceOf(VideoModel::class, $model);
+        $this->assertInstanceOf(ModelEntry::class, $entry);
+        $model = $entry->getVideoModel();
+        $this->assertNotNull($model);
         $this->assertSame($this->officialProVideoModelVersion(), $model->getModelVersion());
         $this->assertSame((string) $providerModel->id, $model->getProviderModelId());
         $this->assertSame(ProviderCode::Wuyin, $model->getProviderCode());
     }
 
-    public function testGetOrganizationVideoModelSupportsModelVersionFromOfficeDatabase(): void
+    public function testGetOrganizationVideoModelReturnsNullForModelVersion(): void
     {
+        // model_version 查询不再支持，应与 getOrganizationImageModel 保持一致，使用 model_id 查询
         $mapper = di(ModelGatewayMapper::class);
-        $model = $mapper->getOrganizationVideoModel(
+        $entry = $mapper->getOrganizationVideoModel(
             ModelGatewayDataIsolation::create(self::TEST_ORGANIZATION_CODE, 'user-test'),
             $this->officialFastVideoModelVersion(),
         );
 
-        $this->assertInstanceOf(VideoModel::class, $model);
-        $this->assertSame($this->officialFastVideoModelVersion(), $model->getModelVersion());
+        $this->assertNull($entry);
     }
 
     public function testGetVideoModelsReturnsSeededVideoModelsFromDatabase(): void
@@ -128,11 +132,12 @@ class ModelGatewayMapperTest extends TestCase
         ));
     }
 
-    public function testExistsSupportsOfficeVideoModelVersion(): void
+    public function testExistsReturnsFalseForVideoModelVersion(): void
     {
+        // model_version 查询不再支持，exists 只接受 model_id，与图片模型保持一致
         $mapper = di(ModelGatewayMapper::class);
 
-        $this->assertTrue($mapper->exists(
+        $this->assertFalse($mapper->exists(
             ModelGatewayDataIsolation::create(self::TEST_ORGANIZATION_CODE, 'user-test'),
             $this->officialFastVideoModelVersion(),
         ));
@@ -190,12 +195,14 @@ class ModelGatewayMapperTest extends TestCase
         ]);
 
         $mapper = di(ModelGatewayMapper::class);
-        $model = $mapper->getOrganizationVideoModel(
+        $entry = $mapper->getOrganizationVideoModel(
             ModelGatewayDataIsolation::create(self::TEST_ORGANIZATION_CODE, 'user-test'),
             $this->officialFastVideoModelId(),
         );
 
-        $this->assertInstanceOf(VideoModel::class, $model);
+        $this->assertInstanceOf(ModelEntry::class, $entry);
+        $model = $entry->getVideoModel();
+        $this->assertNotNull($model);
         $this->assertSame($this->officialFastVideoModelVersion(), $model->getModelVersion());
     }
 

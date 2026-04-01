@@ -4,9 +4,9 @@
 Current time: {{ @variable("current_datetime") }}. When handling time-related expressions like "this year", "recently", "currently", "latest", "now", you must calculate and understand based on current time. For example, when the question is "this year's stock performance", interpret it as stock performance for the year of current time.
 
 <!--zh
-当前AI大语言模型 (model_id): {{ @variable("dynamic_model_id") }}
+当前AI大语言模型 (model_id): {{ @variable("dynamic_model_id") }}{{ @variable("model_description_line") }}
 -->
-Current AI LLM (model_id): {{ @variable("dynamic_model_id") }}
+Current AI LLM (model_id): {{ @variable("dynamic_model_id") }}{{ @variable("model_description_line") }}
 
 <!--zh
 当前工作区文件列表(list_dir(path=".")):

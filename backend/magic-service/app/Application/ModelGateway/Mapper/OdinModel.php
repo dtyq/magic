@@ -15,7 +15,6 @@ readonly class OdinModel
     public function __construct(
         private string $key,
         private EmbeddingInterface|ModelInterface $model,
-        private OdinModelAttributes $attributes,
     ) {
     }
 
@@ -27,10 +26,5 @@ readonly class OdinModel
     public function getModel(): EmbeddingInterface|ModelInterface
     {
         return $this->model;
-    }
-
-    public function getAttributes(): OdinModelAttributes
-    {
-        return $this->attributes;
     }
 }

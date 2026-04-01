@@ -127,10 +127,9 @@ class CompactionConfig:
         if model_config:
             match_texts.extend([model_config.name, model_config.provider])
             metadata = model_config.metadata or {}
-            for key in ("provider_model_id", "provider_alias", "label"):
-                value = metadata.get(key)
-                if value:
-                    match_texts.append(str(value))
+            label = metadata.get("label")
+            if label:
+                match_texts.append(str(label))
         return [text.lower() for text in match_texts if text]
 
     def _match_pricing_tier_rule(self, match_texts: List[str]) -> Optional[PricingTierCompactionRule]:

@@ -10,6 +10,7 @@ namespace App\Application\ModelGateway\Service;
 use App\Application\ModelGateway\Event\ImageSearchUsageEvent;
 use App\Application\ModelGateway\Event\ModelUsageEvent;
 use App\Application\ModelGateway\Event\WebSearchUsageEvent;
+use App\Application\ModelGateway\Mapper\ModelEntry;
 use App\Application\ModelGateway\Mapper\OdinModel;
 use App\Domain\Chat\DTO\ImageConvertHigh\Request\MagicChatImageConvertHighReqDTO;
 use App\Domain\Chat\Entity\ValueObject\AIImage\AIImageGenerateParamsVO;
@@ -45,8 +46,6 @@ use App\Infrastructure\Core\HighAvailability\DTO\EndpointRequestDTO;
 use App\Infrastructure\Core\HighAvailability\DTO\EndpointResponseDTO;
 use App\Infrastructure\Core\HighAvailability\Entity\ValueObject\HighAvailabilityAppType;
 use App\Infrastructure\Core\HighAvailability\Interface\HighAvailabilityInterface;
-use App\Infrastructure\Core\Model\ImageGenerationModel;
-use App\Infrastructure\Core\Model\VideoGenerationModel;
 use App\Infrastructure\Core\ValueObject\StorageBucketType;
 use App\Infrastructure\ExternalAPI\ImageGenerateAPI\ImageGenerateFactory;
 use App\Infrastructure\ExternalAPI\ImageGenerateAPI\ImageGenerateModelType;
@@ -116,87 +115,87 @@ class LLMAppService extends AbstractLLMAppService
     /**
      * @return array<ModelConfigEntity>
      */
-    public function models(string $accessToken, bool $withInfo = false, string $type = '', array $businessParams = []): array
+    public function models(string $accessToken, bool $withInfo = false, string $type = '', array $businessParams = [], bool $withDynamicModels = false): array
     {
         $dataIsolation = $this->createModelGatewayDataIsolationByAccessToken($accessToken, $businessParams);
 
         $models = match ($type) {
-            'chat' => $this->modelGatewayMapper->getChatModels($dataIsolation),
-            'embedding' => $this->modelGatewayMapper->getEmbeddingModels($dataIsolation),
-            'image' => $this->modelGatewayMapper->getImageModels($dataIsolation),
-            'video' => $this->modelGatewayMapper->getVideoModels($dataIsolation),
-            default => array_merge(
-                $this->modelGatewayMapper->getChatModels($dataIsolation),
-                $this->modelGatewayMapper->getEmbeddingModels($dataIsolation),
-                $this->modelGatewayMapper->getImageModels($dataIsolation),
-                $this->modelGatewayMapper->getVideoModels($dataIsolation),
-            ),
+            'chat' => $this->modelGatewayMapper->getChatModels($dataIsolation, $withDynamicModels),
+            'embedding' => $this->modelGatewayMapper->getEmbeddingModels($dataIsolation, $withDynamicModels),
+            'image' => $this->modelGatewayMapper->getImageModels($dataIsolation, $withDynamicModels),
+            'video' => $this->modelGatewayMapper->getVideoModels($dataIsolation, $withDynamicModels),
+            default => $this->modelGatewayMapper->getAllModels($dataIsolation, $withDynamicModels),
         };
 
         if ($withInfo) {
             $iconPaths = [];
-            foreach ($models as $model) {
-                $iconPath = $model->getAttributes()->getIcon();
-                $iconPaths[] = $iconPath;
+            foreach ($models as $entry) {
+                $iconPaths[] = $entry->getAttributes()->getIcon();
             }
             $icons = $this->getIconsWithSmartOrganization($iconPaths);
         }
 
         $list = [];
-        foreach ($models as $name => $odinModel) {
-            /** @var AbstractModel $model */
-            $model = $odinModel->getModel();
+        foreach ($models as $name => $entry) {
+            $impl = $entry->getModel();
+            $isImageModel = $entry->isImageModel();
+            $isVideoModel = $entry->isVideoModel();
+            $objectType = match (true) {
+                $isVideoModel => 'video',
+                $isImageModel => 'image',
+                default => 'model',
+            };
 
             $modelConfigEntity = new ModelConfigEntity();
 
-            // Determine object type based on model class name
-            $isImageModel = $model instanceof ImageGenerationModel;
-            $isVideoModel = $model instanceof VideoGenerationModel;
-            $objectType = 'model';
-            if ($isImageModel) {
-                $objectType = 'image';
-            } elseif ($isVideoModel) {
-                $objectType = 'video';
+            // 图片/视频模型用 modelVersion，LLM/Embedding 用 getModelName()
+            if ($isImageModel || $isVideoModel) {
+                $modelConfigEntity->setModel($impl->getModelVersion());
+            } else {
+                /** @var AbstractModel $odinImpl */
+                $odinImpl = $impl->getModel();
+                $modelConfigEntity->setModel($odinImpl->getModelName());
             }
 
-            // Set common fields
-            $modelConfigEntity->setModel($model->getModelName());
-            $modelConfigEntity->setType($odinModel->getAttributes()->getKey());
-            $modelConfigEntity->setName($odinModel->getAttributes()->getLabel() ?: $odinModel->getAttributes()->getName());
-            $modelConfigEntity->setOwnerBy($odinModel->getAttributes()->getOwner());
-            $modelConfigEntity->setCreatedAt($odinModel->getAttributes()->getCreatedAt());
+            $modelConfigEntity->setType($entry->getAttributes()->getKey());
+            $modelConfigEntity->setName($entry->getAttributes()->getLabel() ?: $entry->getAttributes()->getName());
+            $modelConfigEntity->setOwnerBy($entry->getAttributes()->getOwner());
+            $modelConfigEntity->setCreatedAt($entry->getAttributes()->getCreatedAt());
             $modelConfigEntity->setObject($objectType);
 
-            // Only set info for non-image models when withInfo is true
             if ($withInfo) {
-                $attributes = $odinModel->getAttributes()->toArray();
+                $attributes = $entry->getAttributes()->toShowArray();
                 if (isset($icons[$attributes['icon']])) {
                     $attributes['icon'] = $icons[$attributes['icon']]->getUrl();
                 } else {
                     $attributes['icon'] = '';
                 }
 
-                $info = [
-                    'attributes' => $attributes,
-                    'options' => $model->getModelOptions()->toArray(),
-                ];
-
-                /*
-                 * 如果是 image 模型，添加尺寸信息
-                 *
-                 * 说明：当前模型配置中没有尺寸模版字段，为了简化实现和维护成本，
-                 * 采用配置文件方式管理各图像模型支持的尺寸和分辨率信息。
-                 *
-                 * 维护说明：
-                 * 1. 新增模型时，在 image_models.php 中添加对应的 match 规则和 config 配置
-                 * 2. 优先使用 model_version 精准匹配，避免误匹配
-                 * 3. 使用 model_id 进行模糊匹配（如豆包4.0/4.5）
-                 */
-                if ($isImageModel) {
-                    $attributes = $odinModel->getAttributes();
+                if ($isVideoModel) {
+                    $info = [
+                        'attributes' => $attributes,
+                        'options' => [],
+                    ];
+                } elseif ($isImageModel) {
+                    $info = [
+                        'attributes' => $attributes,
+                        'options' => [],
+                    ];
+                    /*
+                     * 如果是 image 模型，添加尺寸信息
+                     *
+                     * 说明：当前模型配置中没有尺寸模版字段，为了简化实现和维护成本，
+                     * 采用配置文件方式管理各图像模型支持的尺寸和分辨率信息。
+                     *
+                     * 维护说明：
+                     * 1. 新增模型时，在 image_models.php 中添加对应的 match 规则和 config 配置
+                     * 2. 优先使用 model_version 精准匹配，避免误匹配
+                     * 3. 使用 model_id 进行模糊匹配（如豆包4.0/4.5）
+                     */
+                    $entryAttributes = $entry->getAttributes();
                     $imageModelConfig = SizeManager::matchConfig(
-                        $attributes->getName(), // name 对应 modelVersion
-                        $attributes->getKey() // key 对应 model_id
+                        $entryAttributes->getName(),
+                        $entryAttributes->getKey()
                     );
                     if ($imageModelConfig !== null) {
                         $info['image_size_config'] = [
@@ -204,6 +203,13 @@ class LLMAppService extends AbstractLLMAppService
                             'max_reference_images' => $imageModelConfig['max_reference_images'] ?? 0,
                         ];
                     }
+                } else {
+                    /** @var AbstractModel $odinImpl */
+                    $odinImpl = $impl->getModel();
+                    $info = [
+                        'attributes' => $attributes,
+                        'options' => $odinImpl->getModelOptions()->toArray(),
+                    ];
                 }
 
                 $modelConfigEntity->setInfo($info);
@@ -255,7 +261,8 @@ class LLMAppService extends AbstractLLMAppService
         // 只有model_id参数，则获取model_version
         if (empty($modelVersion) && $modelId) {
             $providerDataIsolation = new ProviderDataIsolation($authorization->getOrganizationCode(), $authorization->getId(), $authorization->getMagicId());
-            $imageModel = $this->modelGatewayMapper->getOrganizationImageModel($providerDataIsolation, $modelId);
+            $imageModelEntry = $this->modelGatewayMapper->getOrganizationImageModel($providerDataIsolation, $modelId);
+            $imageModel = $imageModelEntry?->getImageModel();
             if (! $imageModel) {
                 ExceptionBuilder::throw(MagicApiErrorCode::MODEL_NOT_SUPPORT);
             }
@@ -874,7 +881,7 @@ class LLMAppService extends AbstractLLMAppService
         $modelId = $textGenerateImageDTO->getModel();
 
         $modelGatewayDataIsolation = $this->createModelGatewayDataIsolationByAccessToken($textGenerateImageDTO->getAccessToken(), $textGenerateImageDTO->getBusinessParams());
-        $imageModel = $this->modelGatewayMapper->getOrganizationImageModel($modelGatewayDataIsolation, $modelId);
+        $imageModel = $this->modelGatewayMapper->getOrganizationImageModel($modelGatewayDataIsolation, $modelId)?->getImageModel();
 
         if (empty($imageModel)) {
             ExceptionBuilder::throw(ServiceProviderErrorCode::ModelNotFound);
@@ -967,7 +974,7 @@ class LLMAppService extends AbstractLLMAppService
         $modelId = $imageEditDTO->getModel();
 
         $modelGatewayDataIsolation = $this->createModelGatewayDataIsolationByAccessToken($imageEditDTO->getAccessToken(), $imageEditDTO->getBusinessParams());
-        $imageModel = $this->modelGatewayMapper->getOrganizationImageModel($modelGatewayDataIsolation, $modelId);
+        $imageModel = $this->modelGatewayMapper->getOrganizationImageModel($modelGatewayDataIsolation, $modelId)?->getImageModel();
 
         if (empty($imageModel)) {
             ExceptionBuilder::throw(ServiceProviderErrorCode::ModelNotFound);
@@ -1151,11 +1158,13 @@ class LLMAppService extends AbstractLLMAppService
                     'chat' => $this->modelGatewayMapper->getOrganizationChatModel($modelGatewayDataIsolation, $modeId),
                     'embedding' => $this->modelGatewayMapper->getOrganizationEmbeddingModel($modelGatewayDataIsolation, $modeId),
                     'image' => $this->modelGatewayMapper->getOrganizationImageModel($modelGatewayDataIsolation, $modeId),
+                    'video' => $this->modelGatewayMapper->getOrganizationVideoModel($modelGatewayDataIsolation, $modeId),
                     default => null
                 };
-                if ($model instanceof OdinModel) {
+                if ($model instanceof ModelEntry) {
                     $modelAttributes = $model->getAttributes();
-                    $model = $model->getModel();
+                    $impl = $model->getModel();
+                    $model = $impl instanceof OdinModel ? $impl->getModel() : $impl;
                 }
                 // Try to use model_name to get real data again
                 if ($model instanceof MagicAILocalModel) {
@@ -1165,9 +1174,10 @@ class LLMAppService extends AbstractLLMAppService
                         'embedding' => $this->modelGatewayMapper->getOrganizationEmbeddingModel($modelGatewayDataIsolation, $modelId),
                         default => null
                     };
-                    if ($model instanceof OdinModel) {
+                    if ($model instanceof ModelEntry) {
                         $modelAttributes = $model->getAttributes();
-                        $model = $model->getModel();
+                        $impl = $model->getModel();
+                        $model = $impl instanceof OdinModel ? $impl->getModel() : $impl;
                     }
                 }
             } catch (Throwable $throwable) {
