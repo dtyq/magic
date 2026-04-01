@@ -413,7 +413,13 @@ class ModelGatewayMapper extends ModelMapper
 
         // 根据模型类型返回不同的包装对象
         if ($providerModelEntity->getModelType()->isVLM()) {
-            return new ImageModel($providerConfigItem->toArray(), $providerModelEntity->getModelVersion(), (string) $providerModelEntity->getId(), $providerEntity->getProviderCode());
+            return new ImageModel(
+                $providerConfigItem->toArray(),
+                $providerModelEntity->getModelVersion(),
+                (string) $providerModelEntity->getId(),
+                $providerEntity->getProviderCode(),
+                $providerModelEntity->getModelId()
+            );
         }
 
         $proxy = '';

@@ -58,6 +58,9 @@ return [
     'too_many_reference_images_limit_14' => 'Terlalu banyak imej rujukan, maksimum yang dibenarkan ialah 14',
     'too_many_reference_images_limit_3' => 'Terlalu banyak imej rujukan, maksimum yang dibenarkan ialah 3',
     'too_many_reference_images_limit' => 'Terlalu banyak imej rujukan, maksimum yang dibenarkan ialah :limit',
+    'google_gemini_model_or_endpoint_not_found' => 'Model atau endpoint Google Gemini tidak ditemui (model: :model)',
+    'api_request_failed_after_retries' => 'Permintaan API gagal selepas percubaan semula',
+    'unsupported_output_format' => 'Model semasa tidak menyokong format output :format, format yang disokong ialah: :supported',
     # 水印相关
     'image_watermark' => 'Dijana oleh Maiji AI',
 ];

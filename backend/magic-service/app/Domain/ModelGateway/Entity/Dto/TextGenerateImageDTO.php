@@ -27,6 +27,8 @@ class TextGenerateImageDTO extends AbstractRequestDTO
 
     protected array $sequentialImageGenerationOptions = [];
 
+    protected string $outputFormat = '';
+
     public function getPrompt(): string
     {
         return $this->prompt;
@@ -119,5 +121,15 @@ class TextGenerateImageDTO extends AbstractRequestDTO
     public function setImages(array $images): void
     {
         $this->images = $images;
+    }
+
+    public function getOutputFormat(): string
+    {
+        return $this->outputFormat;
+    }
+
+    public function setOutputFormat(string $outputFormat): void
+    {
+        $this->outputFormat = $outputFormat;
     }
 }

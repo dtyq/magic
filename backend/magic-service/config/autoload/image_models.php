@@ -159,6 +159,48 @@ return [
         ],
 
         // ==========================================================
+        // Doubao Seedream 5.0 lite（1K/4K 等档位及中间过渡暂不支持文档说明；配置 2K/3K 两档尺寸）- model_id 匹配
+        // 总像素范围：[2560x1440=3686400, 3072x3072x1.1025≈10404496]
+        // ==========================================================
+        [
+            'match' => [
+                ['field' => 'model_id', 'value' => 'seedream-5\.0-lite'],
+                ['field' => 'model_id', 'value' => 'seedream-5-0-lite'],
+            ],
+            'config' => [
+                'supported_output_formats' => [
+                    'image/jpeg' => 'jpeg',
+                    'image/png' => 'png',
+                ],
+                'sizes' => [
+                    // 2K 档
+                    ['label' => '1:1', 'value' => '2048x2048', 'scale' => '2K'],
+                    ['label' => '3:4', 'value' => '1728x2304', 'scale' => '2K'],
+                    ['label' => '4:3', 'value' => '2304x1728', 'scale' => '2K'],
+                    ['label' => '16:9', 'value' => '2848x1600', 'scale' => '2K'],
+                    ['label' => '9:16', 'value' => '1600x2848', 'scale' => '2K'],
+                    ['label' => '3:2', 'value' => '2496x1664', 'scale' => '2K'],
+                    ['label' => '2:3', 'value' => '1664x2496', 'scale' => '2K'],
+                    ['label' => '21:9', 'value' => '3136x1344', 'scale' => '2K'],
+                    // 3K 档
+                    ['label' => '1:1', 'value' => '3072x3072', 'scale' => '3K'],
+                    ['label' => '3:4', 'value' => '2592x3456', 'scale' => '3K'],
+                    ['label' => '4:3', 'value' => '3456x2592', 'scale' => '3K'],
+                    ['label' => '16:9', 'value' => '4096x2304', 'scale' => '3K'],
+                    ['label' => '9:16', 'value' => '2304x4096', 'scale' => '3K'],
+                    ['label' => '2:3', 'value' => '2496x3744', 'scale' => '3K'],
+                    ['label' => '3:2', 'value' => '3744x2496', 'scale' => '3K'],
+                    ['label' => '21:9', 'value' => '4704x2016', 'scale' => '3K'],
+                ],
+                'total_pixels_range' => [
+                    'min' => 3686400,
+                    'max' => 10404496,
+                ],
+                'max_reference_images' => 10,
+            ],
+        ],
+
+        // ==========================================================
         // Qwen Image (不支持放大倍数)
         // ==========================================================
         [
