@@ -200,16 +200,6 @@ class ModelGatewayMapper extends ModelMapper
     }
 
     /**
-     * 获取当前组织下所有类型的可用模型.
-     * @return ModelEntry[]
-     */
-    public function getAllModels(BaseDataIsolation $dataIsolation, bool $withDynamicModels = false): array
-    {
-        $dataIsolation = ModelGatewayDataIsolation::createByBaseDataIsolation($dataIsolation);
-        return $this->getModelsByType($dataIsolation, ModelType::cases(), $withDynamicModels);
-    }
-
-    /**
      * get all available video models under the current organization.
      * @return ModelEntry[]
      */
@@ -217,6 +207,16 @@ class ModelGatewayMapper extends ModelMapper
     {
         $dataIsolation = ModelGatewayDataIsolation::createByBaseDataIsolation($dataIsolation);
         return $this->getModelsByType($dataIsolation, [ModelType::TEXT_TO_VIDEO], $withDynamicModels);
+    }
+
+    /**
+     * 获取当前组织下所有类型的可用模型.
+     * @return ModelEntry[]
+     */
+    public function getAllModels(BaseDataIsolation $dataIsolation, bool $withDynamicModels = false): array
+    {
+        $dataIsolation = ModelGatewayDataIsolation::createByBaseDataIsolation($dataIsolation);
+        return $this->getModelsByType($dataIsolation, [ModelType::LLM, ModelType::EMBEDDING, ModelType::TEXT_TO_IMAGE, ModelType::IMAGE_TO_IMAGE, ModelType::TEXT_TO_VIDEO], $withDynamicModels);
     }
 
     protected function loadEnvModels(): void
