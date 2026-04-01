@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
+	"log"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -55,6 +56,12 @@ type MinIOPolicyStatement struct {
 type MinIOPolicy struct {
 	Name       string                 `yaml:"name"`
 	Statements []MinIOPolicyStatement `yaml:"statements"`
+}
+
+// SkippedMinIOPolicy records a MinIO policy dropped during ResolveCredentials (soft skip).
+type SkippedMinIOPolicy struct {
+	Name   string
+	Reason error
 }
 
 // MinIOSpec requests a MinIO user with named policies.
@@ -391,14 +398,24 @@ func (r *InfraRegistry) ResolveCredentials() error {
 		return fmt.Errorf("redis users: %w", err)
 	}
 
+	validPersisted, persistSkipped := normalizePersistedMinIOPolicies(r.MinIO.Policies)
+	for _, sk := range persistSkipped {
+		policyLabel := sk.Name
+		if policyLabel == "" {
+			policyLabel = "(empty name)"
+		}
+		log.Printf("warning: skipping MinIO policy %q: %v", policyLabel, sk.Reason)
+	}
+
 	policies, err := collectMinIOPoliciesFromSpecs(r.resources)
 	if err != nil {
 		return fmt.Errorf("minio policies: %w", err)
 	}
-	if err := validateMinIOPolicyReferences(r.resources, policies); err != nil {
+	mergedPolicies := mergeMinIOPolicies(validPersisted, policies)
+	if err := validateMinIOPolicyReferences(r.resources, mergedPolicies); err != nil {
 		return fmt.Errorf("minio policy references: %w", err)
 	}
-	r.MinIO.Policies = mergeMinIOPolicies(r.MinIO.Policies, policies)
+	r.MinIO.Policies = mergedPolicies
 
 	r.MinIO.Users, err = resolveUsers(r.resources, KindMinIO, r.MinIO.Users, gen,
 		func(spec InfraSpec, pwd string) MinIOUser {
@@ -447,6 +464,31 @@ func collectMinIOBucketsFromSpecs(resources map[string]map[InfraKind]InfraSpec) 
 		out = append(out, byName[name])
 	}
 	return out
+}
+
+// normalizePersistedMinIOPolicies validates and normalizes policies loaded from disk.
+// Invalid entries are returned in skipped; valid entries use the same rules as spec-defined policies
+// via normalizeAndValidateMinIOPolicyStatements.
+func normalizePersistedMinIOPolicies(persisted []MinIOPolicy) (valid []MinIOPolicy, skipped []SkippedMinIOPolicy) {
+	for _, p := range persisted {
+		name := strings.TrimSpace(p.Name)
+		if name == "" {
+			skipped = append(skipped, SkippedMinIOPolicy{
+				Reason: fmt.Errorf("minio policy name is empty"),
+			})
+			continue
+		}
+		normalizedStmts, err := normalizeAndValidateMinIOPolicyStatements(name, p.Statements)
+		if err != nil {
+			skipped = append(skipped, SkippedMinIOPolicy{
+				Name:   name,
+				Reason: err,
+			})
+			continue
+		}
+		valid = append(valid, MinIOPolicy{Name: name, Statements: normalizedStmts})
+	}
+	return valid, skipped
 }
 
 // mergeMinIOPolicies merges persisted and spec-derived policies by name.
@@ -515,9 +557,9 @@ func collectMinIOPoliciesFromSpecs(resources map[string]map[InfraKind]InfraSpec)
 			}
 			seenInSpec[name] = true
 
-			normalizedStmts, err := normalizeAndValidateMinIOPolicyStatements(app, name, pol.Statements)
+			normalizedStmts, err := normalizeAndValidateMinIOPolicyStatements(name, pol.Statements)
 			if err != nil {
-				return nil, err
+				return nil, fmt.Errorf(`app %q: %w`, app, err)
 			}
 
 			normalized := MinIOPolicy{Name: name, Statements: normalizedStmts}
@@ -543,10 +585,12 @@ func collectMinIOPoliciesFromSpecs(resources map[string]map[InfraKind]InfraSpec)
 }
 
 // validateMinIOPolicyReferences ensures each MinIOSpec.Policies entry names a
-// collected policy definition.
-func validateMinIOPolicyReferences(resources map[string]map[InfraKind]InfraSpec, policies []MinIOPolicy) error {
-	defined := make(map[string]bool, len(policies))
-	for _, p := range policies {
+// policy in mergedPolicies: valid persisted definitions plus valid spec definitions
+// (spec wins on name collision). Call only after normalizePersistedMinIOPolicies,
+// collectMinIOPoliciesFromSpecs, and mergeMinIOPolicies.
+func validateMinIOPolicyReferences(resources map[string]map[InfraKind]InfraSpec, mergedPolicies []MinIOPolicy) error {
+	defined := make(map[string]bool, len(mergedPolicies))
+	for _, p := range mergedPolicies {
 		defined[strings.TrimSpace(p.Name)] = true
 	}
 
@@ -568,7 +612,7 @@ func validateMinIOPolicyReferences(resources map[string]map[InfraKind]InfraSpec,
 				return fmt.Errorf("app %q: minio policy reference name is empty", app)
 			}
 			if !defined[rname] {
-				return fmt.Errorf("app %q: minio policy %q is not defined", app, rname)
+				return fmt.Errorf("app %q: minio policy reference %q is not defined (no valid spec or persisted definition)", app, rname)
 			}
 		}
 	}
@@ -744,9 +788,60 @@ func generateInfraPassword() (string, error) {
 }
 
 var (
-	minIOIAMActionPattern     = regexp.MustCompile(`^s3:[A-Za-z0-9*]+$`)
-	minIOS3ResourceARNPattern = regexp.MustCompile(`^arn:aws:s3:::[^/\s]+(/[^\s/]+)*(/\*)?$`)
+	// minIOIAMActionPattern matches S3 IAM action identifiers for MinIO policies.
+	// Wildcard s3:* is allowed alongside concrete actions (e.g. s3:GetObject); resource ARNs are validated separately.
+	minIOIAMActionPattern = regexp.MustCompile(`^s3:[A-Za-z0-9*]+$`)
+	// Object key path after bucket/ (bucket itself validated separately).
+	minIOS3ObjectKeySuffixPattern = regexp.MustCompile(`^([^/\s]+/)*[^/\s]+(/\*)?$`)
 )
+
+const minIOS3ARNPrefix = "arn:aws:s3:::"
+
+// validMinIOS3BucketName enforces S3 DNS-style bucket naming subset used for policy resource ARNs:
+// length 3–63, [a-z0-9.-] only, no "..", and no leading/trailing '.' or '-'.
+func validMinIOS3BucketName(name string) bool {
+	n := len(name)
+	if n < 3 || n > 63 {
+		return false
+	}
+	if strings.Contains(name, "..") {
+		return false
+	}
+	if name[0] == '.' || name[0] == '-' || name[n-1] == '.' || name[n-1] == '-' {
+		return false
+	}
+	for i := 0; i < n; i++ {
+		c := name[i]
+		switch {
+		case c >= 'a' && c <= 'z', c >= '0' && c <= '9', c == '.', c == '-':
+		default:
+			return false
+		}
+	}
+	return true
+}
+
+// isValidMinIOS3ResourceARN accepts bucket-only, bucket/*, bucket/prefix/*, and bucket/object-key ARNs.
+func isValidMinIOS3ResourceARN(arn string) bool {
+	if !strings.HasPrefix(arn, minIOS3ARNPrefix) {
+		return false
+	}
+	rest := strings.TrimPrefix(arn, minIOS3ARNPrefix)
+	if rest == "" {
+		return false
+	}
+	bucket, keyPart, hasKey := strings.Cut(rest, "/")
+	if !validMinIOS3BucketName(bucket) {
+		return false
+	}
+	if !hasKey {
+		return true
+	}
+	if keyPart == "*" {
+		return true
+	}
+	return minIOS3ObjectKeySuffixPattern.MatchString(keyPart)
+}
 
 // normalizeMinIOPolicyStringList trims entries, drops empties, dedupes preserving first occurrence order.
 func normalizeMinIOPolicyStringList(xs []string) []string {
@@ -764,9 +859,11 @@ func normalizeMinIOPolicyStringList(xs []string) []string {
 }
 
 // normalizeAndValidateMinIOPolicyStatements returns statements with normalized effect, actions, and resources.
-func normalizeAndValidateMinIOPolicyStatements(app, policyName string, stmts []MinIOPolicyStatement) ([]MinIOPolicyStatement, error) {
+// Actions must match minIOIAMActionPattern (including s3:*). Resources must be arn:aws:s3:::… with a DNS-style bucket segment per validMinIOS3BucketName.
+func normalizeAndValidateMinIOPolicyStatements(policyName string, stmts []MinIOPolicyStatement) ([]MinIOPolicyStatement, error) {
+	prefix := fmt.Sprintf(`policy %q`, policyName)
 	if len(stmts) == 0 {
-		return nil, fmt.Errorf(`app %q policy %q: at least one statement is required`, app, policyName)
+		return nil, fmt.Errorf(`%s: at least one statement is required`, prefix)
 	}
 	out := make([]MinIOPolicyStatement, 0, len(stmts))
 	for i, st := range stmts {
@@ -778,26 +875,26 @@ func normalizeAndValidateMinIOPolicyStatements(app, policyName string, stmts []M
 		case strings.EqualFold(eff, "deny"):
 			normEff = "Deny"
 		default:
-			return nil, fmt.Errorf(`app %q policy %q statement %d: effect must be Allow or Deny`, app, policyName, i)
+			return nil, fmt.Errorf(`%s statement %d: effect must be Allow or Deny`, prefix, i)
 		}
 
 		actions := normalizeMinIOPolicyStringList(st.Actions)
 		if len(actions) == 0 {
-			return nil, fmt.Errorf(`app %q policy %q statement %d: actions must include at least one non-empty entry`, app, policyName, i)
+			return nil, fmt.Errorf(`%s statement %d: actions must include at least one non-empty entry`, prefix, i)
 		}
 		for _, a := range actions {
 			if !minIOIAMActionPattern.MatchString(a) {
-				return nil, fmt.Errorf(`app %q policy %q statement %d: invalid action %q`, app, policyName, i, a)
+				return nil, fmt.Errorf(`%s statement %d: invalid action %q`, prefix, i, a)
 			}
 		}
 
 		resources := normalizeMinIOPolicyStringList(st.Resources)
 		if len(resources) == 0 {
-			return nil, fmt.Errorf(`app %q policy %q statement %d: resources must include at least one non-empty entry`, app, policyName, i)
+			return nil, fmt.Errorf(`%s statement %d: resources must include at least one non-empty entry`, prefix, i)
 		}
 		for _, r := range resources {
-			if !minIOS3ResourceARNPattern.MatchString(r) {
-				return nil, fmt.Errorf(`app %q policy %q statement %d: invalid resource arn %q`, app, policyName, i, r)
+			if !isValidMinIOS3ResourceARN(r) {
+				return nil, fmt.Errorf(`%s statement %d: invalid resource arn %q`, prefix, i, r)
 			}
 		}
 

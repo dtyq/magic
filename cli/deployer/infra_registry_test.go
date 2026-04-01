@@ -1,9 +1,12 @@
 package deployer
 
 import (
+	"bytes"
 	"context"
+	"log"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -191,7 +194,7 @@ func TestInfraRegistry_ResolveCredentials_MinIOPolicies_EmptyPolicyName(t *testi
 		Username: "magic",
 		Policies: []string{"ok-policy"},
 		PolicyDefinitions: []MinIOPolicy{
-			{Name: "   ", Statements: []MinIOPolicyStatement{{Resources: []string{"arn:aws:s3:::x/*"}, Effect: "Allow", Actions: []string{"s3:*"}}}},
+			{Name: "   ", Statements: []MinIOPolicyStatement{{Resources: []string{"arn:aws:s3:::xab/*"}, Effect: "Allow", Actions: []string{"s3:*"}}}},
 		},
 	}})
 	err := reg.ResolveCredentials()
@@ -258,6 +261,23 @@ func TestInfraRegistry_ResolveCredentials_MinIOPolicies_InvalidResourceARN(t *te
 }
 
 func TestInfraRegistry_ResolveCredentials_MinIOPolicies_PrefixResourceARN(t *testing.T) {
+	t.Run("s3_star_action_still_valid", func(t *testing.T) {
+		reg := newTestRegistry(t)
+		reg.Register(InfraResource{App: "magic", Spec: MinIOSpec{
+			Username: "magic",
+			Policies: []string{"p"},
+			PolicyDefinitions: []MinIOPolicy{
+				{Name: "p", Statements: []MinIOPolicyStatement{
+					{Resources: []string{"arn:aws:s3:::my-bucket/data/*"}, Effect: "Allow", Actions: []string{"s3:*"}},
+				}},
+			},
+		}})
+		require.NoError(t, reg.ResolveCredentials())
+		got := reg.MinIO.Policies[0].Statements[0]
+		assert.Equal(t, []string{"s3:*"}, got.Actions)
+		assert.Equal(t, []string{"arn:aws:s3:::my-bucket/data/*"}, got.Resources)
+	})
+
 	validARNs := []string{
 		"arn:aws:s3:::bucket",
 		"arn:aws:s3:::bucket/*",
@@ -282,28 +302,43 @@ func TestInfraRegistry_ResolveCredentials_MinIOPolicies_PrefixResourceARN(t *tes
 		})
 	}
 
-	invalidARNs := []string{
-		"s3://bucket/*",
-		"arn:aws:s3:::",
-		"arn:aws:s3:::bucket//key",
-		"arn:aws:s3:::bucket/",
-		"arn:aws:s3:::bucket/ key",
-		"arn:aws:s3:::bucket/pre fix/*",
+	longBucket := strings.Repeat("a", 64)
+	invalidARNCases := []struct {
+		name string
+		arn  string
+	}{
+		{name: "wrong_scheme", arn: "s3://bucket/*"},
+		{name: "empty_after_prefix", arn: "arn:aws:s3:::"},
+		{name: "double_slash_key", arn: "arn:aws:s3:::bucket//key"},
+		{name: "trailing_slash_only", arn: "arn:aws:s3:::bucket/"},
+		{name: "space_in_key", arn: "arn:aws:s3:::bucket/ key"},
+		{name: "space_in_prefix_segment", arn: "arn:aws:s3:::bucket/pre fix/*"},
+		{name: "bucket_too_short", arn: "arn:aws:s3:::ab/*"},
+		{name: "bucket_too_long", arn: "arn:aws:s3:::" + longBucket + "/*"},
+		{name: "bucket_leading_dot", arn: "arn:aws:s3:::.bucket/*"},
+		{name: "bucket_leading_hyphen", arn: "arn:aws:s3:::-bucket/*"},
+		{name: "bucket_trailing_dot", arn: "arn:aws:s3:::bucket./key"},
+		{name: "bucket_trailing_hyphen", arn: "arn:aws:s3:::bucket-/key"},
+		{name: "bucket_double_dot", arn: "arn:aws:s3:::foo..bar/*"},
+		{name: "bucket_uppercase", arn: "arn:aws:s3:::Bucket/*"},
+		{name: "bucket_underscore", arn: "arn:aws:s3:::my_bucket/*"},
+		{name: "bucket_invalid_char_plus", arn: "arn:aws:s3:::buck+et/*"},
+		{name: "bucket_only_trailing_hyphen", arn: "arn:aws:s3:::abc-"},
 	}
-	for _, arn := range invalidARNs {
-		t.Run("invalid_"+arn, func(t *testing.T) {
+	for _, tc := range invalidARNCases {
+		t.Run("invalid_"+tc.name, func(t *testing.T) {
 			reg := newTestRegistry(t)
 			reg.Register(InfraResource{App: "magic", Spec: MinIOSpec{
 				Username: "magic",
 				Policies: []string{"p"},
 				PolicyDefinitions: []MinIOPolicy{
 					{Name: "p", Statements: []MinIOPolicyStatement{
-						{Resources: []string{arn}, Effect: "Allow", Actions: []string{"s3:GetObject"}},
+						{Resources: []string{tc.arn}, Effect: "Allow", Actions: []string{"s3:GetObject"}},
 					}},
 				},
 			}})
 			err := reg.ResolveCredentials()
-			require.Error(t, err, "ARN %q should be rejected", arn)
+			require.Error(t, err, "ARN %q should be rejected", tc.arn)
 			assert.ErrorContains(t, err, "invalid resource arn")
 		})
 	}
@@ -344,6 +379,7 @@ func TestInfraRegistry_ResolveCredentials_MinIOPolicies_MissingReference(t *test
 	require.Error(t, err)
 	assert.ErrorContains(t, err, "magic")
 	assert.ErrorContains(t, err, "missing-policy")
+	assert.ErrorContains(t, err, "minio policy reference")
 }
 
 func TestInfraRegistry_ResolveCredentials_MinIOPolicies_EmptyPolicyReferenceName(t *testing.T) {
@@ -368,14 +404,14 @@ func TestInfraRegistry_ResolveCredentials_MinIOPolicies_SortedByName(t *testing.
 			Username: "user-b",
 			Policies: []string{"zebra-policy"},
 			PolicyDefinitions: []MinIOPolicy{
-				{Name: "zebra-policy", Statements: []MinIOPolicyStatement{{Resources: []string{"arn:aws:s3:::z/*"}, Effect: "Allow", Actions: []string{"s3:*"}}}},
+				{Name: "zebra-policy", Statements: []MinIOPolicyStatement{{Resources: []string{"arn:aws:s3:::zeb/*"}, Effect: "Allow", Actions: []string{"s3:*"}}}},
 			},
 		}},
 		InfraResource{App: "app-a", Spec: MinIOSpec{
 			Username: "user-a",
 			Policies: []string{"alpha-policy"},
 			PolicyDefinitions: []MinIOPolicy{
-				{Name: "alpha-policy", Statements: []MinIOPolicyStatement{{Resources: []string{"arn:aws:s3:::a/*"}, Effect: "Allow", Actions: []string{"s3:*"}}}},
+				{Name: "alpha-policy", Statements: []MinIOPolicyStatement{{Resources: []string{"arn:aws:s3:::alp/*"}, Effect: "Allow", Actions: []string{"s3:*"}}}},
 			},
 		}},
 	)
@@ -383,6 +419,94 @@ func TestInfraRegistry_ResolveCredentials_MinIOPolicies_SortedByName(t *testing.
 	require.Len(t, reg.MinIO.Policies, 2)
 	assert.Equal(t, "alpha-policy", reg.MinIO.Policies[0].Name)
 	assert.Equal(t, "zebra-policy", reg.MinIO.Policies[1].Name)
+}
+
+func TestInfraRegistry_ResolveCredentials_MinIOPolicies_SkipInvalidPersistedPolicy(t *testing.T) {
+	tmpFile := filepath.Join(t.TempDir(), infraCredentialsFileName)
+	stale := []byte(`minio:
+  rootPassword: seeded-root
+  policies:
+    - name: bad-persisted
+      statements:
+        - resources: ["s3://not-an-arn/*"]
+          effect: Allow
+          actions: ["s3:GetObject"]
+  users: []
+  buckets: []
+`)
+	require.NoError(t, os.WriteFile(tmpFile, stale, 0o600))
+	reg := newInfraRegistry()
+	reg.persistPathFunc = func() (string, error) { return tmpFile, nil }
+	reg.Register(InfraResource{App: "magic", Spec: MinIOSpec{
+		Username: "magic",
+		Policies: []string{"live-policy"},
+		PolicyDefinitions: []MinIOPolicy{
+			{Name: "live-policy", Statements: []MinIOPolicyStatement{{Resources: []string{"arn:aws:s3:::live/*"}, Effect: "Allow", Actions: []string{"s3:GetObject"}}}},
+		},
+	}})
+
+	var logBuf bytes.Buffer
+	log.SetOutput(&logBuf)
+	t.Cleanup(func() { log.SetOutput(os.Stderr) })
+
+	require.NoError(t, reg.ResolveCredentials())
+
+	require.Len(t, reg.MinIO.Policies, 1)
+	assert.Equal(t, "live-policy", reg.MinIO.Policies[0].Name)
+
+	logOut := logBuf.String()
+	assert.Contains(t, logOut, "bad-persisted")
+	assert.Contains(t, logOut, "invalid resource arn")
+
+	overlay, err := reg.RenderOverlayFromBytes([]byte(testInfraValuesTemplate))
+	require.NoError(t, err)
+	minio := mapValue(overlay["minio"])
+	provisioning := mapValue(minio["provisioning"])
+	policies, ok := provisioning["policies"].([]interface{})
+	require.True(t, ok)
+	require.Len(t, policies, 1)
+	p0 := mapValue(policies[0])
+	assert.Equal(t, "live-policy", p0["name"])
+}
+
+func TestInfraRegistry_ResolveCredentials_MinIOPolicies_SkipMultipleInvalidPersistedPolicies(t *testing.T) {
+	tmpFile := filepath.Join(t.TempDir(), infraCredentialsFileName)
+	stale := []byte(`minio:
+  rootPassword: seeded-root
+  policies:
+    - name: bad-effect
+      statements:
+        - resources: ["arn:aws:s3:::xab/*"]
+          effect: Maybe
+          actions: ["s3:GetObject"]
+    - name: bad-action
+      statements:
+        - resources: ["arn:aws:s3:::xab/*"]
+          effect: Allow
+          actions: ["iam:PassRole"]
+  users: []
+  buckets: []
+`)
+	require.NoError(t, os.WriteFile(tmpFile, stale, 0o600))
+	reg := newInfraRegistry()
+	reg.persistPathFunc = func() (string, error) { return tmpFile, nil }
+	reg.Register(InfraResource{App: "magic", Spec: MinIOSpec{
+		Username: "magic",
+		Policies: []string{"ok-policy"},
+		PolicyDefinitions: []MinIOPolicy{
+			{Name: "ok-policy", Statements: []MinIOPolicyStatement{{Resources: []string{"arn:aws:s3:::oky/*"}, Effect: "Allow", Actions: []string{"s3:GetObject"}}}},
+		},
+	}})
+
+	require.NoError(t, reg.ResolveCredentials())
+
+	data, err := os.ReadFile(tmpFile)
+	require.NoError(t, err)
+	assert.NotContains(t, string(data), "bad-effect")
+	assert.NotContains(t, string(data), "bad-action")
+	assert.Contains(t, string(data), "ok-policy")
+	require.Len(t, reg.MinIO.Policies, 1)
+	assert.Equal(t, "ok-policy", reg.MinIO.Policies[0].Name)
 }
 
 func TestInfraRegistry_ResolveCredentials_MinIOPolicies_PersistedPoliciesMergedWithSpecs(t *testing.T) {
@@ -449,6 +573,64 @@ func TestInfraRegistry_ResolveCredentials_MinIOPolicies_SpecsOverridePersistedDe
 	assert.Equal(t, "shared-policy", reg.MinIO.Policies[0].Name)
 	assert.Equal(t, []string{"arn:aws:s3:::live/*"}, reg.MinIO.Policies[0].Statements[0].Resources)
 	assert.Equal(t, []string{"s3:PutObject"}, reg.MinIO.Policies[0].Statements[0].Actions)
+}
+
+func TestInfraRegistry_ResolveCredentials_MinIOPolicies_ReferenceSkippedPersistedFails(t *testing.T) {
+	tmpFile := filepath.Join(t.TempDir(), infraCredentialsFileName)
+	stale := []byte(`minio:
+  rootPassword: seeded-root
+  policies:
+    - name: bad-persisted
+      statements:
+        - resources: ["s3://not-an-arn/*"]
+          effect: Allow
+          actions: ["s3:GetObject"]
+  users: []
+  buckets: []
+`)
+	require.NoError(t, os.WriteFile(tmpFile, stale, 0o600))
+	reg := newInfraRegistry()
+	reg.persistPathFunc = func() (string, error) { return tmpFile, nil }
+	reg.Register(InfraResource{App: "magic", Spec: MinIOSpec{
+		Username: "magic",
+		Policies: []string{"bad-persisted"},
+	}})
+
+	var logBuf bytes.Buffer
+	log.SetOutput(&logBuf)
+	t.Cleanup(func() { log.SetOutput(os.Stderr) })
+
+	err := reg.ResolveCredentials()
+	require.Error(t, err)
+	assert.ErrorContains(t, err, "magic")
+	assert.ErrorContains(t, err, "bad-persisted")
+	assert.ErrorContains(t, err, "minio policy reference")
+	assert.Contains(t, logBuf.String(), "bad-persisted")
+}
+
+func TestInfraRegistry_ResolveCredentials_MinIOPolicies_ReferenceValidPersistedSucceeds(t *testing.T) {
+	tmpFile := filepath.Join(t.TempDir(), infraCredentialsFileName)
+	stale := []byte(`minio:
+  rootPassword: seeded-root
+  policies:
+    - name: persisted-only
+      statements:
+        - resources: ["arn:aws:s3:::bucket/*"]
+          effect: Allow
+          actions: ["s3:GetObject"]
+  users: []
+  buckets: []
+`)
+	require.NoError(t, os.WriteFile(tmpFile, stale, 0o600))
+	reg := newInfraRegistry()
+	reg.persistPathFunc = func() (string, error) { return tmpFile, nil }
+	reg.Register(InfraResource{App: "magic", Spec: MinIOSpec{
+		Username: "magic",
+		Policies: []string{"persisted-only"},
+	}})
+	require.NoError(t, reg.ResolveCredentials())
+	require.Len(t, reg.MinIO.Policies, 1)
+	assert.Equal(t, "persisted-only", reg.MinIO.Policies[0].Name)
 }
 
 func TestInfraRegistry_ResolveCredentials_PersistsAndReuses(t *testing.T) {
@@ -548,7 +730,7 @@ func TestInfraRegistry_GetMinIO_ReturnsCorrectCredential(t *testing.T) {
 		Username: "magic_minio",
 		Policies: []string{"p1"},
 		PolicyDefinitions: []MinIOPolicy{
-			{Name: "p1", Statements: []MinIOPolicyStatement{{Resources: []string{"arn:aws:s3:::b/*"}, Effect: "Allow", Actions: []string{"s3:*"}}}},
+			{Name: "p1", Statements: []MinIOPolicyStatement{{Resources: []string{"arn:aws:s3:::box/*"}, Effect: "Allow", Actions: []string{"s3:*"}}}},
 		},
 	}})
 	require.NoError(t, reg.ResolveCredentials())
@@ -702,7 +884,7 @@ func TestInfraRegistry_RenderOverlay_ProducesValidYAML(t *testing.T) {
 			PolicyDefinitions: []MinIOPolicy{
 				{
 					Name:       "sandbox-policy",
-					Statements: []MinIOPolicyStatement{{Resources: []string{"arn:aws:s3:::sb/*"}, Effect: "Allow", Actions: []string{"s3:*"}}},
+					Statements: []MinIOPolicyStatement{{Resources: []string{"arn:aws:s3:::sbx/*"}, Effect: "Allow", Actions: []string{"s3:*"}}},
 				},
 			},
 			Buckets: []MinIOBucket{

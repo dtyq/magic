@@ -21,8 +21,9 @@ const (
 	magicSandboxBucketName        = "magic-sandbox"
 )
 
-// minioS3BucketActions and minioS3ObjectActions are the allowed S3
-// IAM actions for MinIO policies (no s3:*).
+// minioS3BucketActions and minioS3ObjectActions are the concrete S3 actions used
+// by built-in magic / magic-sandbox policy statements. Custom MinIOPolicy definitions
+// may use s3:* or other s3:… actions allowed by infra_registry validation (same pattern as spec-defined policies).
 var (
 	minioS3BucketActions = []string{
 		"s3:ListBucket",
