@@ -16,13 +16,16 @@ use App\Domain\Provider\Entity\ProviderEntity;
 use App\Domain\Provider\Entity\ProviderModelEntity;
 use App\Domain\Provider\Entity\ProviderOriginalModelEntity;
 use App\Domain\Provider\Entity\ValueObject\ProviderCode;
-use App\Interfaces\Provider\DTO\CreateProviderConfigRequest;
-use App\Interfaces\Provider\DTO\UpdateProviderConfigRequest;
+use App\Interfaces\Provider\DTO\SaveProviderConfigRequest;
 
 class ProviderAdminAssembler
 {
-    public static function createRequestToEntity(CreateProviderConfigRequest $request, ProviderCode $providerCode, string $organizationCode): ProviderConfigEntity
-    {
+    public static function requestToEntity(
+        SaveProviderConfigRequest $request,
+        ProviderCode $providerCode,
+        string $organizationCode,
+        ?int $serviceProviderId = null,
+    ): ProviderConfigEntity {
         // 1. 先将 request 转换为数组，但移除 config 字段，避免 BaseObject 初始化时调用 setConfig 报错
         $data = $request->toArray();
         unset($data['config']);
@@ -30,6 +33,7 @@ class ProviderAdminAssembler
         $entity = new ProviderConfigEntity($data);
         $entity->setOrganizationCode($organizationCode);
         $entity->setProviderCode($providerCode);
+        $serviceProviderId && $entity->setServiceProviderId($serviceProviderId);
         $entity->setConfig(
             ProviderConfigFactory::create($providerCode, $config)
         );
@@ -50,23 +54,6 @@ class ProviderAdminAssembler
         $config->maskSensitiveFields();
         $dto->setConfig($config);
         return $dto;
-    }
-
-    public static function updateRequestToEntity(UpdateProviderConfigRequest $request, ProviderCode $providerCode, string $organizationCode, ?int $serviceProviderId = null): ProviderConfigEntity
-    {
-        // 1. 先将 request 转换为数组，但移除 config 字段，避免 BaseObject 初始化时调用 setConfig 报错
-        $data = $request->toArray();
-        unset($data['config']);
-
-        $config = self::trimConfig($request->getConfig());
-        $entity = new ProviderConfigEntity($data);
-        $entity->setOrganizationCode($organizationCode);
-        $entity->setProviderCode($providerCode);
-        $serviceProviderId && $entity->setServiceProviderId($serviceProviderId);
-        $entity->setConfig(
-            ProviderConfigFactory::create($providerCode, $config)
-        );
-        return $entity;
     }
 
     /**

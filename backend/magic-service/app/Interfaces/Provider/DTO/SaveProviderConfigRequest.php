@@ -9,8 +9,10 @@ namespace App\Interfaces\Provider\DTO;
 
 use App\Infrastructure\Core\AbstractDTO;
 
-class CreateProviderConfigRequest extends AbstractDTO
+class SaveProviderConfigRequest extends AbstractDTO
 {
+    protected string $id = '';
+
     protected string $alias;
 
     protected array $config = [];
@@ -22,6 +24,16 @@ class CreateProviderConfigRequest extends AbstractDTO
     protected array $translate;
 
     protected int $sort = 0;
+
+    public function getId(): string
+    {
+        return $this->id;
+    }
+
+    public function setId(null|int|string $id): void
+    {
+        $this->id = $id === null ? '' : (string) $id;
+    }
 
     public function getAlias(): string
     {

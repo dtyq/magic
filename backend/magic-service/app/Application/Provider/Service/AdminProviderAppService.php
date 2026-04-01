@@ -45,9 +45,8 @@ use App\Infrastructure\Util\Redis\ProviderModelCacheUtil;
 use App\Interfaces\Agent\Assembler\FileAssembler;
 use App\Interfaces\Authorization\Web\MagicUserAuthorization;
 use App\Interfaces\Provider\Assembler\ProviderAdminAssembler;
-use App\Interfaces\Provider\DTO\CreateProviderConfigRequest;
+use App\Interfaces\Provider\DTO\SaveProviderConfigRequest;
 use App\Interfaces\Provider\DTO\SaveProviderModelDTO;
-use App\Interfaces\Provider\DTO\UpdateProviderConfigRequest;
 use Exception;
 use Hyperf\DbConnection\Db;
 use Hyperf\Odin\Api\Response\ChatCompletionResponse;
@@ -95,122 +94,86 @@ readonly class AdminProviderAppService
     }
 
     /**
-     * 更新服务商配置。
+     * 创建、更新服务商配置统一入口。
      *
-     * 非官方组织下，受控服务商仍由前端填写 URL，这里只负责校验服务商是否允许接入，
-     * 并校验用户填写的 URL 一级域名是否与服务商匹配。
+     * 通过请求里的 id 判断是创建还是更新，并统一处理服务商解析、白名单校验、
+     * URL 一级域名校验和最终落库逻辑。
      */
-    public function updateProvider(
+    public function saveProviderConfig(
         MagicUserAuthorization $authorization,
-        UpdateProviderConfigRequest $updateProviderConfigRequest
+        SaveProviderConfigRequest $saveProviderConfigRequest,
     ): ProviderConfigModelsDTO {
         $dataIsolation = ProviderDataIsolation::create(
             $authorization->getOrganizationCode(),
             $authorization->getId(),
         );
 
-        $existingConfigEntity = $this->providerConfigDomainService->getConfigByIdWithoutOrganizationFilter((int) $updateProviderConfigRequest->getId());
-        if ($existingConfigEntity === null) {
-            ExceptionBuilder::throw(ServiceProviderErrorCode::ServiceProviderNotFound);
+        $isUpdate = $saveProviderConfigRequest->getId() !== '';
+        $existingConfigEntity = null;
+        $serviceProviderId = $saveProviderConfigRequest->getServiceProviderId();
+
+        // 更新时，获取现有配置实体
+        if ($isUpdate) {
+            $existingConfigEntity = $this->providerConfigDomainService->getConfigByIdWithoutOrganizationFilter((int) $saveProviderConfigRequest->getId());
+            if ($existingConfigEntity === null) {
+                ExceptionBuilder::throw(ServiceProviderErrorCode::ServiceProviderNotFound);
+            }
+            $serviceProviderId ??= (string) $existingConfigEntity->getServiceProviderId();
         }
 
-        $serviceProviderId = $existingConfigEntity->getServiceProviderId();
-        if ($updateProviderConfigRequest->getServiceProviderId()) {
-            $serviceProviderId = (int) $updateProviderConfigRequest->getServiceProviderId();
-        }
-
-        // 前端允许在编辑时切换服务商，这里统一按最终的 service_provider_id 重新获取服务商实体，
-        // 确保 providerCode、category 和后续配置归一化逻辑都基于最新选择的服务商执行。
-        $serviceProviderEntity = $this->providerConfigDomainService->getProviderById($dataIsolation, $serviceProviderId);
-        if (is_null($serviceProviderEntity)) {
-            ExceptionBuilder::throw(ServiceProviderErrorCode::ServiceProviderNotFound);
-        }
-
-        $providerCode = $serviceProviderEntity->getProviderCode();
-        $serviceProviderId = $serviceProviderEntity->getId();
-
-        // 非官方组织也只能选择白名单内的服务商。
-        $this->validateAllowedProviderForNonOfficialOrganization(
-            $authorization->getOrganizationCode(),
-            $serviceProviderEntity->getProviderCode(),
-            $serviceProviderEntity->getCategory(),
-        );
-
-        // 非官方组织下，需要基于最终选中的服务商校验接入权限和 URL 一级域名，
-        $updateProviderConfigRequest->setConfig($this->normalizeProviderConfig(
-            $authorization->getOrganizationCode(),
-            $serviceProviderEntity->getProviderCode(),
-            $serviceProviderEntity->getCategory(),
-            $updateProviderConfigRequest->getConfig(),
-        ));
-
-        $providerConfigEntity = ProviderAdminAssembler::updateRequestToEntity($updateProviderConfigRequest, $providerCode, $authorization->getOrganizationCode(), $serviceProviderId);
-
-        if (is_null($updateProviderConfigRequest->getStatus())) {
-            $providerConfigEntity->setStatus($existingConfigEntity->getStatus());
-        }
-
-        $providerConfigEntity = $this->providerConfigDomainService->updateProviderConfig($dataIsolation, $providerConfigEntity);
-
-        // 触发服务商配置更新事件
-        $this->eventDispatcher->dispatch(new ProviderConfigUpdatedEvent(
-            $providerConfigEntity,
-            $authorization->getOrganizationCode(),
-            $dataIsolation->getLanguage()
-        ));
-
-        return ProviderAdminAssembler::entityToModelsDTO($providerConfigEntity);
-    }
-
-    /**
-     * 创建服务商配置。
-     *
-     * 非官方组织下，受控服务商仍由前端填写 URL，这里只负责校验服务商是否允许接入，
-     */
-    public function createProvider(
-        MagicUserAuthorization $authorization,
-        CreateProviderConfigRequest $createProviderConfigRequest
-    ): ProviderConfigModelsDTO {
-        $dataIsolation = ProviderDataIsolation::create(
-            $authorization->getOrganizationCode(),
-            $authorization->getId(),
-        );
-
-        $providerEntity = $this->providerConfigDomainService->getProviderById($dataIsolation, (int) $createProviderConfigRequest->getServiceProviderId());
+        // 获取服务商实体
+        $providerEntity = $this->providerConfigDomainService->getProviderById($dataIsolation, (int) $serviceProviderId);
         if ($providerEntity === null) {
             ExceptionBuilder::throw(ServiceProviderErrorCode::ServiceProviderNotFound);
         }
 
-        // 非官方组织也只能选择白名单内的服务商。
+        // 非官方国内 SaaS 组织只能选择白名单内的服务商，避免绕过前端限制直接调接口。
         $this->validateAllowedProviderForNonOfficialOrganization(
             $authorization->getOrganizationCode(),
             $providerEntity->getProviderCode(),
             $providerEntity->getCategory(),
         );
 
-        // 非官方组织下，需要在创建前校验服务商是否允许接入以及 URL 一级域名，
-        $createProviderConfigRequest->setConfig($this->normalizeProviderConfig(
+        // 标准化配置
+        $saveProviderConfigRequest->setConfig($this->normalizeProviderConfig(
             $authorization->getOrganizationCode(),
             $providerEntity->getProviderCode(),
             $providerEntity->getCategory(),
-            $createProviderConfigRequest->getConfig(),
+            $saveProviderConfigRequest->getConfig(),
         ));
 
-        $providerConfigEntity = ProviderAdminAssembler::createRequestToEntity($createProviderConfigRequest, $providerEntity->getProviderCode(), $authorization->getOrganizationCode());
+        // 组装服务商配置实体
+        $providerConfigEntity = ProviderAdminAssembler::requestToEntity(
+            $saveProviderConfigRequest,
+            $providerEntity->getProviderCode(),
+            $authorization->getOrganizationCode(),
+            $providerEntity->getId(),
+        );
 
+        // 更新时，更新服务商配置
+        if ($isUpdate) {
+            if ($existingConfigEntity !== null && is_null($saveProviderConfigRequest->getStatus())) {
+                $providerConfigEntity->setStatus($existingConfigEntity->getStatus());
+            }
+
+            $providerConfigEntity = $this->providerConfigDomainService->updateProviderConfig($dataIsolation, $providerConfigEntity);
+            $this->eventDispatcher->dispatch(new ProviderConfigUpdatedEvent(
+                $providerConfigEntity,
+                $authorization->getOrganizationCode(),
+                $dataIsolation->getLanguage()
+            ));
+
+            return ProviderAdminAssembler::entityToModelsDTO($providerConfigEntity);
+        }
+
+        // 创建时，创建服务商配置
         $providerConfigEntity = $this->providerConfigDomainService->createProviderConfig($dataIsolation, $providerConfigEntity);
-
-        // 触发服务商配置创建事件
         $this->eventDispatcher->dispatch(new ProviderConfigCreatedEvent(
             $providerConfigEntity,
             $authorization->getOrganizationCode(),
             $dataIsolation->getLanguage()
         ));
 
-        $providerEntity = $this->providerConfigDomainService->getProviderById($dataIsolation, $providerConfigEntity->getServiceProviderId());
-        if ($providerEntity === null) {
-            ExceptionBuilder::throw(ServiceProviderErrorCode::ServiceProviderNotFound);
-        }
         $providerModelsDTO = ProviderAdminAssembler::entityToModelsDTO($providerConfigEntity);
         $providerModelsDTO->setId((string) $providerConfigEntity->getId());
 
@@ -219,7 +182,6 @@ readonly class AdminProviderAppService
     }
 
     // 删除服务商
-
     /**
      * @throws Exception
      */
