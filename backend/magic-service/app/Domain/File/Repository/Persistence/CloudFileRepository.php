@@ -125,7 +125,7 @@ class CloudFileRepository implements CloudFileRepositoryInterface
         return $links;
     }
 
-    public function uploadByCredential(string $organizationCode, UploadFile $uploadFile, StorageBucketType $storage = StorageBucketType::Private, bool $autoDir = true, ?string $contentType = null): void
+    public function uploadByCredential(string $organizationCode, UploadFile $uploadFile, StorageBucketType $storage = StorageBucketType::Private, bool $autoDir = true, ?string $contentType = null, array $options = []): void
     {
         $filesystem = $this->getFilesystem($storage->value);
         $credentialPolicy = new CredentialPolicy([
@@ -135,7 +135,10 @@ class CloudFileRepository implements CloudFileRepositoryInterface
             'dir' => $autoDir ? $organizationCode . '/open/' . md5($storage->value) : '',
             'content_type' => $contentType,
         ]);
-        $filesystem->uploadByCredential($uploadFile, $credentialPolicy, $this->getOptions($organizationCode));
+        $uploadOptions = ($options['internal_endpoint'] ?? false) === true
+            ? $this->getInternalEndpointOptions($organizationCode, $options)
+            : $this->getOptions($organizationCode, $options);
+        $filesystem->uploadByCredential($uploadFile, $credentialPolicy, $uploadOptions);
     }
 
     /**
