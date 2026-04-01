@@ -22,6 +22,8 @@ enum ProviderCode: string
 {
     case None = 'None';
     case Official = 'Official'; // 官方
+    case Wuyin = 'Wuyin';
+    case Cloudsway = 'Cloudsway';
     case Volcengine = 'Volcengine'; // 火山
     case OpenAI = 'OpenAI';
     case MicrosoftAzure = 'MicrosoftAzure';
@@ -47,7 +49,6 @@ enum ProviderCode: string
             self::Gemini => GeminiModel::class,
             self::DeepSeek => DeepSeekModel::class,
             self::DashScope => DashScopeModel::class,
-            self::OpenRouter => OpenAIModel::class,
             default => OpenAIModel::class,
         };
     }

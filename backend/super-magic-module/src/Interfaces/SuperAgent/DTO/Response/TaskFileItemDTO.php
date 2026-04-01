@@ -125,6 +125,7 @@ class TaskFileItemDTO extends AbstractDTO
         $dto->sort = $entity->getSort();
         $dto->parentId = (string) $entity->getParentId();
         $dto->updatedAt = (string) $entity->getUpdatedAt();
+        $dto->source = $entity->getSource();
 
         // Handle metadata JSON decoding
         $metadata = $entity->getMetadata();
@@ -169,10 +170,13 @@ class TaskFileItemDTO extends AbstractDTO
         $dto->isDirectory = isset($data['is_directory']) ? (bool) $data['is_directory'] : false;
         $dto->sort = $data['sort'] ?? 0;
         $dto->parentId = (string) ($data['parent_id'] ?? '');
-        if (isset($data['source']) && is_string($data['source'])) {
-            $dto->source = TaskFileSource::fromValue($data['source']);
-        } else {
+        if (! array_key_exists('source', $data)) {
             $dto->source = TaskFileSource::DEFAULT;
+        } else {
+            $source = $data['source'];
+            $dto->source = is_int($source) || is_string($source)
+                ? TaskFileSource::fromValue($source)
+                : TaskFileSource::DEFAULT;
         }
 
         // Handle metadata - could be string (JSON) or array

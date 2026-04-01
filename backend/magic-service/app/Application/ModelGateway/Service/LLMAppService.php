@@ -46,6 +46,7 @@ use App\Infrastructure\Core\HighAvailability\DTO\EndpointResponseDTO;
 use App\Infrastructure\Core\HighAvailability\Entity\ValueObject\HighAvailabilityAppType;
 use App\Infrastructure\Core\HighAvailability\Interface\HighAvailabilityInterface;
 use App\Infrastructure\Core\Model\ImageGenerationModel;
+use App\Infrastructure\Core\Model\VideoGenerationModel;
 use App\Infrastructure\Core\ValueObject\StorageBucketType;
 use App\Infrastructure\ExternalAPI\ImageGenerateAPI\ImageGenerateFactory;
 use App\Infrastructure\ExternalAPI\ImageGenerateAPI\ImageGenerateModelType;
@@ -123,10 +124,12 @@ class LLMAppService extends AbstractLLMAppService
             'chat' => $this->modelGatewayMapper->getChatModels($dataIsolation),
             'embedding' => $this->modelGatewayMapper->getEmbeddingModels($dataIsolation),
             'image' => $this->modelGatewayMapper->getImageModels($dataIsolation),
+            'video' => $this->modelGatewayMapper->getVideoModels($dataIsolation),
             default => array_merge(
                 $this->modelGatewayMapper->getChatModels($dataIsolation),
                 $this->modelGatewayMapper->getEmbeddingModels($dataIsolation),
                 $this->modelGatewayMapper->getImageModels($dataIsolation),
+                $this->modelGatewayMapper->getVideoModels($dataIsolation),
             ),
         };
 
@@ -148,7 +151,13 @@ class LLMAppService extends AbstractLLMAppService
 
             // Determine object type based on model class name
             $isImageModel = $model instanceof ImageGenerationModel;
-            $objectType = $isImageModel ? 'image' : 'model';
+            $isVideoModel = $model instanceof VideoGenerationModel;
+            $objectType = 'model';
+            if ($isImageModel) {
+                $objectType = 'image';
+            } elseif ($isVideoModel) {
+                $objectType = 'video';
+            }
 
             // Set common fields
             $modelConfigEntity->setModel($model->getModelName());

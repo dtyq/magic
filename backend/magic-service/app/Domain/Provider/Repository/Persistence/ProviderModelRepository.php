@@ -24,10 +24,8 @@ use App\Infrastructure\Core\ValueObject\Page;
 use App\Infrastructure\Util\OfficialOrganizationUtil;
 use App\Interfaces\Provider\Assembler\ProviderModelAssembler;
 use App\Interfaces\Provider\DTO\SaveProviderModelDTO;
-use Hyperf\Codec\Json;
 use Hyperf\Database\Model\Builder;
 use Hyperf\DbConnection\Db;
-use Hyperf\Redis\Redis;
 
 class ProviderModelRepository extends AbstractProviderModelRepository implements ProviderModelRepositoryInterface
 {
@@ -40,13 +38,36 @@ class ProviderModelRepository extends AbstractProviderModelRepository implements
 
     public function getAvailableByModelIdOrId(ProviderDataIsolation $dataIsolation, string $modelId, bool $checkStatus = true): ?ProviderModelEntity
     {
-        $builder = $this->createBuilder($dataIsolation, ProviderModelModel::query());
-        if (is_numeric($modelId)) {
-            $builder->where('id', $modelId);
-        } else {
-            $builder->where('model_id', $modelId);
+        $builder = ProviderModelModel::query()
+            ->from('service_provider_models')
+            ->select('service_provider_models.*')
+            ->join('service_provider_configs', 'service_provider_configs.id', '=', 'service_provider_models.service_provider_config_id')
+            ->whereNull('service_provider_models.deleted_at')
+            ->whereNull('service_provider_configs.deleted_at');
+
+        $organizationCodes = $dataIsolation->isOnlyOfficialOrganization()
+            ? array_filter($dataIsolation->getOfficialOrganizationCodes())
+            : array_filter($dataIsolation->getOrganizationCodes());
+        if (count($organizationCodes) === 1) {
+            $builder->where('service_provider_models.organization_code', $organizationCodes[0]);
+        } elseif ($organizationCodes !== []) {
+            $builder->whereIn('service_provider_models.organization_code', $organizationCodes);
         }
-        $checkStatus && $builder->where('status', Status::Enabled->value);
+
+        if (is_numeric($modelId)) {
+            $builder->where('service_provider_models.id', $modelId);
+        } else {
+            $builder->where('service_provider_models.model_id', $modelId);
+        }
+        if ($checkStatus) {
+            $builder->where('service_provider_models.status', Status::Enabled->value)
+                ->where('service_provider_configs.status', Status::Enabled->value);
+        }
+
+        $builder->orderByDesc('service_provider_models.sort')
+            ->orderByDesc('service_provider_configs.sort')
+            ->orderByDesc('service_provider_models.id');
+
         $result = Db::select($builder->toSql(), $builder->getBindings());
         if (! isset($result[0])) {
             return null;
@@ -384,15 +405,7 @@ class ProviderModelRepository extends AbstractProviderModelRepository implements
     public function queries(ProviderDataIsolation $dataIsolation, ProviderModelQuery $query, Page $page): array
     {
         $builder = $this->createBuilder($dataIsolation, ProviderModelModel::query());
-        if (! is_null($query->getModelIds())) {
-            $builder->whereIn('model_id', $query->getModelIds());
-        }
-        if (! is_null($query->getStatus())) {
-            $builder->where('status', $query->getStatus()->value);
-        }
-        if (! is_null($query->getModelType())) {
-            $builder->where('model_type', $query->getModelType()->value);
-        }
+        $this->applyProviderModelQueryFilters($builder, $query);
 
         $data = $this->getByPage($builder, $page, $query);
         $list = [];
@@ -419,17 +432,7 @@ class ProviderModelRepository extends AbstractProviderModelRepository implements
     public function getModelIdsGroupByType(ProviderDataIsolation $dataIsolation, ProviderModelQuery $query): array
     {
         $builder = $this->createBuilder($dataIsolation, ProviderModelModel::query());
-
-        // 应用查询条件
-        if (! is_null($query->getModelIds())) {
-            $builder->whereIn('model_id', $query->getModelIds());
-        }
-        if (! is_null($query->getStatus())) {
-            $builder->where('status', $query->getStatus()->value);
-        }
-        if (! is_null($query->getModelType())) {
-            $builder->where('model_type', $query->getModelType()->value);
-        }
+        $this->applyProviderModelQueryFilters($builder, $query);
 
         // 选择 model_id 和 model_type 字段
         $builder->select('model_id', 'model_type');
@@ -497,7 +500,7 @@ class ProviderModelRepository extends AbstractProviderModelRepository implements
 
         // 如果指定了模型类型，添加模型类型过滤条件
         if (! empty($modelTypes)) {
-            $modelTypeValues = array_map(fn ($type) => $type->value, $modelTypes);
+            $modelTypeValues = array_map(static fn ($type) => $type->value, $modelTypes);
             $organizationModelsBuilder->whereIn('model_type', $modelTypeValues);
         }
 
@@ -511,14 +514,10 @@ class ProviderModelRepository extends AbstractProviderModelRepository implements
 
             // 如果指定了模型类型，过滤Magic模型
             if (! empty($modelTypes)) {
-                $magicModels = array_filter($magicModels, function ($model) use ($modelTypes) {
-                    foreach ($modelTypes as $modelType) {
-                        if ($model->getModelType() === $modelType) {
-                            return true;
-                        }
-                    }
-                    return false;
-                });
+                $magicModels = array_filter(
+                    $magicModels,
+                    static fn (ProviderModelEntity $model): bool => in_array($model->getModelType(), $modelTypes, true)
+                );
             }
         }
 
@@ -540,6 +539,19 @@ class ProviderModelRepository extends AbstractProviderModelRepository implements
     {
         $builder = ProviderModelModel::query()->where('organization_code', $dataIsolation->getCurrentOrganizationCode());
         $builder->where('id', $id)->update(['status' => $status->value]);
+    }
+
+    private function applyProviderModelQueryFilters(Builder $builder, ProviderModelQuery $query): void
+    {
+        if ($query->getModelIds() !== null) {
+            $builder->whereIn('model_id', $query->getModelIds());
+        }
+        if ($query->getStatus() !== null) {
+            $builder->where('status', $query->getStatus()->value);
+        }
+        if ($query->getModelType() !== null) {
+            $builder->where('model_type', $query->getModelType()->value);
+        }
     }
 
     /**

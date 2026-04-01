@@ -13,12 +13,9 @@
 - VolcEngine 模型：data.image_urls 数组
 """
 
-from app.i18n import i18n
-import asyncio
 import json
 import os
 import time
-import traceback
 from collections import defaultdict
 from pathlib import Path
 from typing import Any, Dict, List, Optional
@@ -39,20 +36,21 @@ from agentlang.tools.tool_result import ToolResult
 from agentlang.utils.file import generate_safe_filename
 from agentlang.utils.metadata import MetadataUtil
 from agentlang.utils.retry import retry_with_exponential_backoff
-from app.utils.async_file_utils import async_exists, async_stat, async_mkdir, async_unlink
-from app.tools.visual_understanding_utils.image_compress_utils import compress_if_needed
-from app.api.http_dto.file_notification_dto import FileNotificationRequest
 from app.core.context.agent_context import AgentContext
 from app.core.entity.message.server_message import DisplayType, FileContent, ToolDetail
 from app.core.entity.tool.tool_result_types import ImageToolResult
-from app.infrastructure.magic_service.client import MagicServiceClient
-from app.infrastructure.magic_service.config import MagicServiceConfigLoader
-from app.service.file_service import FileService
+from app.i18n import i18n
+from app.service.media_generation_service import (
+    AI_IMAGE_GENERATION_SOURCE,
+    generate_presigned_url_for_file,
+    notify_generated_media_file,
+)
 from app.tools.abstract_file_tool import AbstractFileTool
 from app.tools.core import BaseToolParams, tool
+from app.tools.visual_understanding_utils.image_compress_utils import compress_if_needed
 from app.tools.workspace_tool import WorkspaceTool
+from app.utils.async_file_utils import async_exists, async_mkdir, async_stat, async_unlink
 from app.utils.credential_utils import sanitize_headers
-from app.utils.init_client_message_util import InitClientMessageUtil, InitializationError
 
 logger = get_logger(__name__)
 
@@ -432,34 +430,10 @@ Call generate_image tool directly when user has following scenarios:
             return False
 
     async def _generate_presigned_url_for_file(self, file_path: str) -> Optional[str]:
-        """
-        为文件生成预签名 URL
-        支持多个存储平台：TOS、阿里云 OSS、本地存储
+        return await generate_presigned_url_for_file(file_path)
 
-        Args:
-            file_path: 文件在存储系统中的路径（相对路径）
-
-        Returns:
-            str: 预签名 URL，失败则返回 None
-        """
-        try:
-            # 创建文件服务实例
-            file_service = FileService()
-
-            # 获取文件下载链接
-            download_result = await file_service.get_file_download_url(file_path, expires_in=7200, options={"size": 80})
-
-            # 提取下载URL
-            presigned_url = download_result.get("download_url")
-            platform = download_result.get("platform")
-
-            logger.info(f"为 {platform} 存储生成预签名 URL，file_path: {file_path}")
-            logger.info(f"生成的预签名 URL: {presigned_url}")
-            return presigned_url
-
-        except Exception as e:
-            logger.error(f"为文件 {file_path} 生成预签名 URL 失败: {e}")
-            return None
+    async def generate_presigned_url_for_file(self, file_path: str) -> Optional[str]:
+        return await self._generate_presigned_url_for_file(file_path)
 
     async def _convert_local_image_to_url(self, image_path: str, output_path: str) -> Optional[str]:
         """将本地图片文件转换为可访问的预签名 URL"""
@@ -990,39 +964,16 @@ Call generate_image tool directly when user has following scenarios:
 
     async def _send_file_notification(self, file_path: str, file_existed: bool, file_size: Optional[int] = None) -> None:
         """图片下载后发送文件变更通知"""
-        try:
-            # 如果未提供大小，则从磁盘获取
-            if file_size is None:
-                stat_result = await async_stat(file_path)
-                file_size = stat_result.st_size
+        await notify_generated_media_file(
+            file_path=file_path,
+            base_dir=self.base_dir,
+            file_existed=file_existed,
+            file_size=file_size,
+            source=AI_IMAGE_GENERATION_SOURCE,
+        )
 
-            # 根据文件是否存在确定操作类型（CREATE/UPDATE/DELETE）
-            operation = "UPDATE" if file_existed else "CREATE"
-
-            # 获取相对路径（相对于工作区）
-            try:
-                relative_path = Path(file_path).relative_to(self.base_dir)
-            except ValueError:
-                # 如果文件不在工作区内，使用文件名
-                relative_path = Path(file_path).name
-
-            # 创建文件通知请求
-            notification_request = FileNotificationRequest(
-                timestamp=int(time.time()),
-                operation=operation,
-                file_path=str(relative_path),
-                file_size=file_size,
-                is_directory=0,  # 图片文件不是目录
-                source=5,  # AI 图片生成
-            )
-
-            # 发送通知
-            await send_file_notification(notification_request)
-            logger.info(f"文件通知已发送: {operation} {relative_path} ({file_size} 字节)")
-
-        except Exception as e:
-            logger.error(f"发送文件通知失败 {file_path}: {e}")
-            # 不抛出异常，避免影响主流程
+    async def send_file_notification(self, file_path: str, file_existed: bool, file_size: Optional[int] = None) -> None:
+        await self._send_file_notification(file_path, file_existed, file_size)
 
     async def execute(self, tool_context: ToolContext, params: GenerateImageParams) -> ImageToolResult:
         """执行图片生成或编辑（工具系统入口）"""
@@ -1242,7 +1193,7 @@ Call generate_image tool directly when user has following scenarios:
                 return None
 
             # 验证它确实是图片文件
-            if not safe_path.suffix.lower() in [".jpg", ".jpeg", ".png", ".gif", ".webp"]:
+            if safe_path.suffix.lower() not in [".jpg", ".jpeg", ".png", ".gif", ".webp"]:
                 logger.warning(f"文件不是识别的图片格式: {safe_path}")
                 return None
 
@@ -1398,60 +1349,6 @@ Call generate_image tool directly when user has following scenarios:
                 }
 
         return {"action": i18n.translate(action_code, category="tool.actions"), "remark": self._get_remark_content(result, arguments)}
-
-
-async def send_file_notification(request: FileNotificationRequest) -> None:
-    """
-    发送图片下载完成通知给 Magic Service
-
-    Args:
-        request: 图片下载完成通知请求，包含时间戳、操作类型、文件路径、文件大小和是否为目录
-    Returns:
-        None
-    Example:
-        send_file_notification(request)
-        {
-            "timestamp": 1757041481,
-            "operation": "UPDATE",
-            "file_path": ".visual",
-            "file_size": 0,
-            "is_directory": 0,
-            "source": 5
-        }
-    """
-    try:
-        # 1. 打印请求参数，方便后续调试
-        logger.info(f"收到图片下载完成通知: {request.model_dump_json()}")
-        logger.info(
-            f"图片路径: {request.file_path}, 操作: {request.operation}, 大小: {request.file_size} bytes, 是否目录: {request.is_directory}"
-        )
-
-        # 2. 调用 InitClientMessageUtil 获取 metadata
-        try:
-            metadata = InitClientMessageUtil.get_metadata()
-            logger.info(f"成功获取系统初始化 metadata，包含 {len(metadata)} 个字段")
-        except InitializationError as e:
-            logger.error(f"系统未初始化: {e}")
-
-        # 3. 初始化 magic-service 客户端并调用远程接口
-        try:
-            config = MagicServiceConfigLoader.load_with_fallback()
-            logger.info(f"Magic Service 配置加载成功: {config.api_base_url}")
-
-            async with MagicServiceClient(config) as client:
-                logger.info(f"即将调用 Magic Service API: {client._send_file_notification_internal}")
-                result = await client.send_file_notification(metadata=metadata, notification_data=request.model_dump())
-
-            logger.info("图片下载完成通知成功转发到 Magic Service")
-
-        except Exception as e:
-            logger.error(f"Magic Service 配置或调用异常: {e}")
-            logger.error(traceback.format_exc())
-    except Exception as e:
-        logger.error(f"处理图片下载完成通知时发生未知错误: {e}")
-        logger.error(traceback.format_exc())
-
-
 class ResponseParser:
     """解析 API 响应的基类"""
 

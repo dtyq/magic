@@ -31,6 +31,7 @@ use Hyperf\Snowflake\Concern\Snowflake;
  * @property array $visible_organizations
  * @property array $visible_applications
  * @property array $visible_packages
+ * @property int $load_balancing_weight
  * @property int $is_office
  * @property int $super_magic_display_state
  * @property string $type

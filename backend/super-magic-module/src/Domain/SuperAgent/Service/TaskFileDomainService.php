@@ -521,10 +521,10 @@ class TaskFileDomainService
                 $fileEntity->setSource($taskFileEntity->getSource() ?? TaskFileSource::DEFAULT);
                 $fileEntity->setCreatedAt($currentTime);
             } else {
-                // 避免S3监听文件变动时，将AI图片生成文件的来源从AI_IMAGE_GENERATION改为AGENT
-                if ($taskFileEntity->getSource() === TaskFileSource::AI_IMAGE_GENERATION) {
+                // 避免S3监听文件变动时，将 AI 生成文件的来源改为 AGENT
+                if ($taskFileEntity->getSource()->isAIGenerated()) {
                     $fileEntity->setSource($taskFileEntity->getSource());
-                } elseif ($fileEntity->getSource() === TaskFileSource::AI_IMAGE_GENERATION) {
+                } elseif ($fileEntity->getSource()->isAIGenerated()) {
                     $fileEntity->setSource($fileEntity->getSource());
                 }
             }
@@ -3076,7 +3076,7 @@ class TaskFileDomainService
             $filename,
             $downloadMode,
             $addWatermark,
-            $fileEntity->getSource()->value
+            $fileEntity->getSource()
         );
     }
 

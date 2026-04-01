@@ -327,6 +327,12 @@ class OpenTaskApi extends AbstractApi
             ];
         }
 
+        if (! empty($openTaskDTO->getVideoModelId())) {
+            $messageContent['extra']['super_agent']['video_model'] = [
+                'model_id' => $openTaskDTO->getVideoModelId(),
+            ];
+        }
+
         // 6. Build complete CreateTaskRequestDTO
         $taskRequestData = [
             'project_id' => $openTaskDTO->getProjectId(),
