@@ -8,15 +8,16 @@ declare(strict_types=1);
 namespace App\Application\ModelGateway\Mapper;
 
 use App\Infrastructure\ExternalAPI\ImageGenerateAPI\ImageModel;
+use App\Infrastructure\ExternalAPI\VideoGenerateAPI\VideoModel;
 
 /**
- * 统一模型容器，持有显示属性和执行实现（LLM/Embedding 用 OdinModel，图片生成用 ImageModel）.
+ * 统一模型容器，持有显示属性和执行实现（LLM/Embedding 用 OdinModel，图片生成用 ImageModel，视频生成用 VideoModel）.
  */
 readonly class ModelEntry
 {
     public function __construct(
         private ModelAttributes $attributes,
-        private OdinModel|ImageModel $model,
+        private ImageModel|OdinModel|VideoModel $model,
     ) {
     }
 
@@ -30,7 +31,7 @@ readonly class ModelEntry
         return $this->attributes;
     }
 
-    public function getModel(): OdinModel|ImageModel
+    public function getModel(): ImageModel|OdinModel|VideoModel
     {
         return $this->model;
     }
@@ -38,6 +39,11 @@ readonly class ModelEntry
     public function isImageModel(): bool
     {
         return $this->model instanceof ImageModel;
+    }
+
+    public function isVideoModel(): bool
+    {
+        return $this->model instanceof VideoModel;
     }
 
     public function getOdinModel(): ?OdinModel
@@ -48,5 +54,10 @@ readonly class ModelEntry
     public function getImageModel(): ?ImageModel
     {
         return $this->model instanceof ImageModel ? $this->model : null;
+    }
+
+    public function getVideoModel(): ?VideoModel
+    {
+        return $this->model instanceof VideoModel ? $this->model : null;
     }
 }

@@ -46,8 +46,6 @@ use App\Infrastructure\Core\HighAvailability\DTO\EndpointRequestDTO;
 use App\Infrastructure\Core\HighAvailability\DTO\EndpointResponseDTO;
 use App\Infrastructure\Core\HighAvailability\Entity\ValueObject\HighAvailabilityAppType;
 use App\Infrastructure\Core\HighAvailability\Interface\HighAvailabilityInterface;
-use App\Infrastructure\Core\Model\ImageGenerationModel;
-use App\Infrastructure\Core\Model\VideoGenerationModel;
 use App\Infrastructure\Core\ValueObject\StorageBucketType;
 use App\Infrastructure\ExternalAPI\ImageGenerateAPI\ImageGenerateFactory;
 use App\Infrastructure\ExternalAPI\ImageGenerateAPI\ImageGenerateModelType;
@@ -125,6 +123,7 @@ class LLMAppService extends AbstractLLMAppService
             'chat' => $this->modelGatewayMapper->getChatModels($dataIsolation, $withDynamicModels),
             'embedding' => $this->modelGatewayMapper->getEmbeddingModels($dataIsolation, $withDynamicModels),
             'image' => $this->modelGatewayMapper->getImageModels($dataIsolation, $withDynamicModels),
+            'video' => $this->modelGatewayMapper->getVideoModels($dataIsolation, $withDynamicModels),
             default => $this->modelGatewayMapper->getAllModels($dataIsolation, $withDynamicModels),
         };
 
@@ -140,12 +139,17 @@ class LLMAppService extends AbstractLLMAppService
         foreach ($models as $name => $entry) {
             $impl = $entry->getModel();
             $isImageModel = $entry->isImageModel();
-            $objectType = $isImageModel ? 'image' : 'model';
+            $isVideoModel = $entry->isVideoModel();
+            $objectType = match (true) {
+                $isVideoModel => 'video',
+                $isImageModel => 'image',
+                default => 'model',
+            };
 
             $modelConfigEntity = new ModelConfigEntity();
 
-            // 图片模型用 modelVersion，LLM/Embedding 用 getModelName()
-            if ($isImageModel) {
+            // 图片/视频模型用 modelVersion，LLM/Embedding 用 getModelName()
+            if ($isImageModel || $isVideoModel) {
                 $modelConfigEntity->setModel($impl->getModelVersion());
             } else {
                 /** @var AbstractModel $odinImpl */
@@ -167,7 +171,12 @@ class LLMAppService extends AbstractLLMAppService
                     $attributes['icon'] = '';
                 }
 
-                if ($isImageModel) {
+                if ($isVideoModel) {
+                    $info = [
+                        'attributes' => $attributes,
+                        'options' => [],
+                    ];
+                } elseif ($isImageModel) {
                     $info = [
                         'attributes' => $attributes,
                         'options' => [],
@@ -1149,6 +1158,7 @@ class LLMAppService extends AbstractLLMAppService
                     'chat' => $this->modelGatewayMapper->getOrganizationChatModel($modelGatewayDataIsolation, $modeId),
                     'embedding' => $this->modelGatewayMapper->getOrganizationEmbeddingModel($modelGatewayDataIsolation, $modeId),
                     'image' => $this->modelGatewayMapper->getOrganizationImageModel($modelGatewayDataIsolation, $modeId),
+                    'video' => $this->modelGatewayMapper->getOrganizationVideoModel($modelGatewayDataIsolation, $modeId),
                     default => null
                 };
                 if ($model instanceof ModelEntry) {

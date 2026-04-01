@@ -16,6 +16,7 @@ use App\Domain\ModelGateway\Factory\AccessTokenFactory;
 use App\Domain\ModelGateway\Repository\Facade\AccessTokenRepositoryInterface;
 use App\Domain\ModelGateway\Repository\Persistence\Model\AccessTokenModel;
 use App\Infrastructure\Core\ValueObject\Page;
+use DateTime;
 
 class AccessTokenRepository extends AbstractRepository implements AccessTokenRepositoryInterface
 {
@@ -117,7 +118,7 @@ class AccessTokenRepository extends AbstractRepository implements AccessTokenRep
         return $model ? AccessTokenFactory::modelToEntity($model) : null;
     }
 
-    public function updateLastUsedAt(int $id, \DateTime $lastUsedAt): void
+    public function updateLastUsedAt(int $id, DateTime $lastUsedAt): void
     {
         AccessTokenModel::query()->where('id', $id)->update([
             'last_used_at' => $lastUsedAt->format('Y-m-d H:i:s'),

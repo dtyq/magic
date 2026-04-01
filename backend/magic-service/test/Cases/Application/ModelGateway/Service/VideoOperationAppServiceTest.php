@@ -8,6 +8,8 @@ declare(strict_types=1);
 namespace HyperfTest\Cases\Application\ModelGateway\Service;
 
 use App\Application\ModelGateway\Component\Points\PointComponentInterface;
+use App\Application\ModelGateway\Mapper\ModelAttributes;
+use App\Application\ModelGateway\Mapper\ModelEntry;
 use App\Application\ModelGateway\Mapper\ModelGatewayMapper;
 use App\Application\ModelGateway\Service\LLMAppService;
 use App\Application\ModelGateway\Service\VideoOperationAppService;
@@ -51,6 +53,7 @@ use App\Infrastructure\ExternalAPI\VideoGenerateAPI\WuyinGrokVideoAdapter;
 use App\Infrastructure\ExternalAPI\VideoGenerateAPI\WuyinVeoVideoAdapter;
 use App\Infrastructure\ExternalAPI\VideoGenerateAPI\WuyinVideoAdapterRouter;
 use App\Infrastructure\ExternalAPI\VideoGenerateAPI\WuyinVideoClient;
+use DateTime;
 use Dtyq\CloudFile\Kernel\Struct\ChunkUploadFile;
 use Dtyq\CloudFile\Kernel\Struct\FileLink;
 use Dtyq\CloudFile\Kernel\Struct\FilePreSignedUrl;
@@ -127,7 +130,7 @@ class VideoOperationAppServiceTest extends TestCase
         $modelGatewayMapper->expects($this->once())
             ->method('getOrganizationVideoModel')
             ->with($dataIsolation, 'veo-3.1-fast-generate-preview')
-            ->willReturn(new VideoModel([], 'veo3.1_fast', 'provider-model', ProviderCode::Wuyin));
+            ->willReturn($this->createVideoModelEntry(new VideoModel([], 'veo3.1_fast', 'provider-model', ProviderCode::Wuyin)));
         $videoGenerationConfigDomainService = $this->createVideoGenerationConfigDomainService();
 
         $service = new VideoOperationAppService(
@@ -191,7 +194,7 @@ class VideoOperationAppServiceTest extends TestCase
         $modelGatewayMapper->expects($this->once())
             ->method('getOrganizationVideoModel')
             ->with($dataIsolation, 'veo-3.1-fast-generate-preview')
-            ->willReturn(new VideoModel([], 'LCnVzCkkMnVulyrz', 'provider-model-veo', ProviderCode::Cloudsway));
+            ->willReturn($this->createVideoModelEntry(new VideoModel([], 'LCnVzCkkMnVulyrz', 'provider-model-veo', ProviderCode::Cloudsway)));
 
         $service = new VideoOperationAppService(
             $llmAppService,
@@ -259,7 +262,7 @@ class VideoOperationAppServiceTest extends TestCase
         $modelGatewayMapper->expects($this->once())
             ->method('getOrganizationVideoModel')
             ->with($dataIsolation, 'seedance-1.5-pro')
-            ->willReturn(new VideoModel([], 'rrpvTsUlqilBwMXg', 'provider-model-seedance', ProviderCode::Cloudsway));
+            ->willReturn($this->createVideoModelEntry(new VideoModel([], 'rrpvTsUlqilBwMXg', 'provider-model-seedance', ProviderCode::Cloudsway)));
 
         $service = new VideoOperationAppService(
             $llmAppService,
@@ -327,7 +330,7 @@ class VideoOperationAppServiceTest extends TestCase
         $modelGatewayMapper->expects($this->once())
             ->method('getOrganizationVideoModel')
             ->with($dataIsolation, 'keling-3.0-video')
-            ->willReturn(new VideoModel([], 'YGNqszpCuuWLpyUt', 'provider-model-keling', ProviderCode::Cloudsway));
+            ->willReturn($this->createVideoModelEntry(new VideoModel([], 'YGNqszpCuuWLpyUt', 'provider-model-keling', ProviderCode::Cloudsway)));
 
         $service = new VideoOperationAppService(
             $llmAppService,
@@ -913,7 +916,7 @@ class VideoOperationAppServiceTest extends TestCase
         $modelGatewayMapper = $this->createMock(ModelGatewayMapper::class);
         $modelGatewayMapper->expects($this->once())
             ->method('getOrganizationVideoModel')
-            ->willReturn(new VideoModel([], 'veo3.1_fast', 'provider-model', ProviderCode::Wuyin));
+            ->willReturn($this->createVideoModelEntry(new VideoModel([], 'veo3.1_fast', 'provider-model', ProviderCode::Wuyin)));
 
         $service = new VideoOperationAppService(
             $llmAppService,
@@ -978,6 +981,24 @@ class VideoOperationAppServiceTest extends TestCase
         $this->assertSame('failed', $response->getStatus());
         $this->assertSame('provider says operationName is invalid', $response->getError()?->getMessage());
         $this->assertSame(VideoOperationStatus::FAILED, $operationRepository->operations[$operation->getId()]->getStatus());
+    }
+
+    private function createVideoModelEntry(VideoModel $videoModel): ModelEntry
+    {
+        return new ModelEntry(
+            new ModelAttributes(
+                key: $videoModel->getProviderModelId(),
+                name: $videoModel->getModelVersion(),
+                label: $videoModel->getModelVersion(),
+                icon: '',
+                tags: [],
+                createdAt: new DateTime(),
+                owner: 'MagicAI',
+                providerModelId: $videoModel->getProviderModelId(),
+                modelType: 5,
+            ),
+            $videoModel,
+        );
     }
 
     private function createVideoBillingDetailsResolver(): VideoBillingDetailsResolver

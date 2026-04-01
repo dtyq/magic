@@ -12,6 +12,7 @@ use App\Domain\ModelGateway\Entity\ValueObject\AccessTokenType;
 use App\Domain\ModelGateway\Entity\ValueObject\LLMDataIsolation;
 use App\Domain\ModelGateway\Entity\ValueObject\Query\AccessTokenQuery;
 use App\Infrastructure\Core\ValueObject\Page;
+use DateTime;
 
 interface AccessTokenRepositoryInterface
 {
@@ -36,5 +37,5 @@ interface AccessTokenRepositoryInterface
 
     public function getByName(LLMDataIsolation $dataIsolation, string $name): ?AccessTokenEntity;
 
-    public function updateLastUsedAt(int $id, \DateTime $lastUsedAt): void;
+    public function updateLastUsedAt(int $id, DateTime $lastUsedAt): void;
 }

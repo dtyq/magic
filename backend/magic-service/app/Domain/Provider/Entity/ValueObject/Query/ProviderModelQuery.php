@@ -20,7 +20,7 @@ class ProviderModelQuery extends Query
 
     protected ?ModelType $modelType = null;
 
-    /** @var ModelType[]|null */
+    /** @var null|ModelType[] */
     protected ?array $modelTypes = null;
 
     protected ?bool $superMagicDisplay = null;
@@ -102,7 +102,7 @@ class ProviderModelQuery extends Query
         $this->modelType = $modelType;
     }
 
-    /** @return ModelType[]|null */
+    /** @return null|ModelType[] */
     public function getModelTypes(): ?array
     {
         return $this->modelTypes;
