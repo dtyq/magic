@@ -5,7 +5,6 @@ import React, { createContext, useEffect, useImperativeHandle, useMemo, useState
 import { ErrorBoundary } from "react-error-boundary"
 import { useTranslation } from "react-i18next"
 import { ConfigProvider, message } from "antd"
-import "antd/dist/reset.css"
 import { reaction } from "mobx"
 import { observer } from "mobx-react"
 import { ExpressionSource } from "@/MagicExpressionWidget/types"

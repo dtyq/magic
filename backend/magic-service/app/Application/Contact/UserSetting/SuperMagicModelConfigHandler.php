@@ -45,6 +45,10 @@ class SuperMagicModelConfigHandler extends AbstractUserSettingHandler
                     'name' => $providerModel->getName(),
                     'icon' => $this->fileDomainService->getLink($providerDataIsolation->getCurrentOrganizationCode(), $providerModel->getIcon())?->getUrl() ?? '',
                 ];
+            } else {
+                $result['model'] = [
+                    'model_id' => $modelId,
+                ];
             }
         }
 
@@ -58,6 +62,10 @@ class SuperMagicModelConfigHandler extends AbstractUserSettingHandler
                     'id' => (string) $imageProviderModel->getId(),
                     'name' => $imageProviderModel->getName(),
                     'icon' => $this->fileDomainService->getLink($providerDataIsolation->getCurrentOrganizationCode(), $imageProviderModel->getIcon())?->getUrl() ?? '',
+                ];
+            } else {
+                $result['image_model'] = [
+                    'model_id' => $modelId,
                 ];
             }
         }

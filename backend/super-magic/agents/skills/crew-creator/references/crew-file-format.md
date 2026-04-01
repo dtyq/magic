@@ -278,15 +278,37 @@ skills:
 ```
 
 <!--zh
+也可以附加 `preload` 字段，指定哪些 skill 的文件要预加载进系统提示词：
+-->
+You can also add a `preload` field to specify which skill files should be pre-loaded into the system prompt:
+
+```markdown
+---
+skills:
+  - find-skill
+  - using-mcp
+  - env-manager
+preload:
+  - find-skill              # shorthand: loads SKILL.md by default
+  - name: env-manager
+    files:
+      - SKILL.md
+      - QUICK-REF.md        # load additional reference files
+---
+```
+
+<!--zh
 ### 编译规则
 
 - YAML `skills` 列表 → 覆盖编译后 `.agent` 文件 frontmatter 中的 `skills.system_skills` 字段
-- 不提供 SKILLS.md → 使用 `crew.template.agent` 中的默认技能集
+- YAML `preload` 列表 → 注入到编译后 `.agent` 文件 frontmatter 中的 `skills.preload` 字段
+- 不提供 SKILLS.md → 使用 `crew.template.agent` 中的默认技能集，无预加载
 -->
 ### Compilation Rules
 
 - YAML `skills` list → overwrites the `skills.system_skills` field in the compiled `.agent` file frontmatter
-- No SKILLS.md provided → uses default skill set from `crew.template.agent`
+- YAML `preload` list → injected into the `skills.preload` field in the compiled `.agent` file frontmatter
+- No SKILLS.md provided → uses default skill set from `crew.template.agent`, no preloads
 
 ---
 

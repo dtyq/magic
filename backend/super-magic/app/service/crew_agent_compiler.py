@@ -30,9 +30,6 @@ DEFAULT_TOOLS: List[str] = [
     "compact_chat_history",
 ]
 
-DEFAULT_SKILLS: List[str] = ["find-skill", "using-mcp", "using-llm", "env-manager"]
-
-
 class CrewAgentCompiler:
     """Compiles crew definition files into a .agent file."""
 
@@ -65,12 +62,17 @@ class CrewAgentCompiler:
         template = await async_read_markdown(template_path)
 
         tools_list  = self._build_item_list(tools.meta  if tools  else {}, "tools",  DEFAULT_TOOLS,  base=DEFAULT_TOOLS)
-        skills_list = self._build_item_list(skills.meta if skills else {}, "skills", DEFAULT_SKILLS)
+        skills_meta  = skills.meta if skills else {}
+        crew_skills_raw = skills_meta.get("skills")
+        preload_raw     = skills_meta.get("preload") or []
 
-        # Use template frontmatter as base, inject dynamic fields
+        # 以模板为基准，SKILLS.md 中的 skills 列表覆盖 crew_skills（没有则保持模板默认 *）
         header = dict(template.meta)
         header["tools"] = tools_list
-        header.setdefault("skills", {})["system_skills"] = [{"name": s} for s in skills_list]
+        if crew_skills_raw and isinstance(crew_skills_raw, list):
+            header.setdefault("skills", {})["crew_skills"] = [{"name": str(s).strip()} for s in crew_skills_raw if str(s).strip()]
+        if preload_raw:
+            header.setdefault("skills", {})["preload"] = preload_raw
 
         body = template.body
         body = body.replace("CREW_ROLE",         identity.body)

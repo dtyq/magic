@@ -1,7 +1,6 @@
 /* eslint-disable jsx-a11y/no-noninteractive-element-interactions */
 import { useControllableValue, useMemoizedFn, useUpdateEffect } from "ahooks"
 import { Cascader, ConfigProvider, Modal } from "antd"
-import "antd/dist/reset.css"
 // import { FIELDS_NAME, VALUE_TYPE } from "cai-json-edit/dist/JsonSchemaEditor/constants"
 import _, { cloneDeep, isEqual } from "lodash"
 import React, { useEffect, useMemo, useRef, useState } from "react"

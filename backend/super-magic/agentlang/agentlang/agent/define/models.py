@@ -3,7 +3,7 @@
 对应 .agent 文件 YAML frontmatter 中各字段的结构化表示。
 """
 from dataclasses import dataclass, field
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Union
 
 
 @dataclass
@@ -11,39 +11,49 @@ class SystemSkillEntry:
     """system_skills 列表中的单个 skill 条目"""
 
     name: str
-    # 自定义目录路径；不填则按默认规则从 agents/skills/ 查找
+    # 自定义目录路径；不填则按默认规则查找
     path: Optional[str] = None
-    # 是否将 skill 完整内容内联进系统提示；False 时只写入元数据（name/description/location）
-    preload: bool = False
+
+
+@dataclass
+class SkillPreloadEntry:
+    """preload 列表中的单个条目：指定某个 skill 要预加载的文件"""
+
+    name: str
+    # 要预加载的文件列表；不填默认加载 SKILL.md
+    files: List[str] = field(default_factory=lambda: ["SKILL.md"])
 
 
 @dataclass
 class SkillsConfig:
     """YAML frontmatter 中 skills 字段的完整配置
 
-    - system_skills: 显式列出的具名 skill 条目；值为 "*" 时扫描整个 agents/skills/ 目录
-    - system_skills_scan: 内部字段，由 parser 从 system_skills: "*" 派生，不直接对应 YAML key
-    - crew_skills: 值为 "*" 时扫描整个 crew skills 目录；None 表示不纳入 prompt
-    - workspace_skills: 值为 "*" 时扫描整个 workspace skills 目录；None 表示不纳入 prompt
-    - excluded_skills: 排除的 system skill 名称列表；扫描/加载后过滤，不进入 prompt 也不在 skill_list 中显示
+    三个来源字段（system_skills / crew_skills / workspace_skills）均支持：
+    - 不填 / []       → 不加载该来源
+    - "*"             → 扫描整个对应目录
+    - List[entry]     → 只加载显式列出的条目
+
+    - excluded_skills: 排除的 skill 名称列表；加载后过滤，不进入 prompt
+    - preload: 需要预加载文件内容的 skill 列表，与加载方式无关
     """
 
-    system_skills: List[SystemSkillEntry] = field(default_factory=list)
-    system_skills_scan: Optional[str] = None
-    crew_skills: Optional[str] = None
-    workspace_skills: Optional[str] = None
+    system_skills: Union[str, List[SystemSkillEntry]] = field(default_factory=list)
+    crew_skills: Union[str, List[SystemSkillEntry]] = field(default_factory=list)
+    workspace_skills: Union[str, List[SystemSkillEntry]] = field(default_factory=list)
     excluded_skills: List[str] = field(default_factory=list)
+    preload: List[SkillPreloadEntry] = field(default_factory=list)
 
     def is_empty(self) -> bool:
         return (
             not self.system_skills
-            and self.system_skills_scan is None
-            and self.crew_skills is None
-            and self.workspace_skills is None
+            and not self.crew_skills
+            and not self.workspace_skills
         )
 
     def get_system_skill_names(self) -> List[str]:
-        return [e.name for e in self.system_skills]
+        if isinstance(self.system_skills, list):
+            return [e.name for e in self.system_skills]
+        return []
 
 
 @dataclass
