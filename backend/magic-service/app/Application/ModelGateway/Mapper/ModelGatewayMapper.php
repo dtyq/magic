@@ -321,6 +321,15 @@ class ModelGatewayMapper extends ModelMapper
         // 需要包含官方组织的数据
         $providerDataIsolation = $this->createProviderDataIsolationWithOfficial($dataIsolation);
 
+        // availableModelIds 不为 null（有限制）且需要动态模型时，额外追加 DYNAMIC 模型 ID
+        // DYNAMIC 模型不在 subscription 里，不能依赖 getAvailableModelIds 拿到
+        if ($availableModelIds !== null && $withDynamicModels) {
+            $dynamicModelIds = $this->providerManager->getDynamicModelIds($providerDataIsolation, $modelTypes);
+            if (! empty($dynamicModelIds)) {
+                $availableModelIds = array_values(array_unique(array_merge($availableModelIds, $dynamicModelIds)));
+            }
+        }
+
         // 加载 模型
         $providerModels = $this->providerManager->getModelsByModelIds($providerDataIsolation, $availableModelIds, $modelTypes);
 
