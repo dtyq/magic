@@ -52,6 +52,7 @@ class ModelInfoEnricher:
             # Build query parameters (fixed proxy API extension parameters)
             params = {
                 "with_info": "1",  # Request extended information
+                "with_dynamic_models": "1",
                 "type": "chat"     # Only get chat models
             }
 
