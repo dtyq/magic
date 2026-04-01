@@ -61,7 +61,7 @@ from app.tools.core.tool_factory import tool_factory
 from app.tools.list_dir import ListDir
 from app.infrastructure.magic_service.client import MagicServiceClient
 from app.infrastructure.magic_service.config import MagicServiceConfigLoader
-from app.utils.file_utils import convert_file_tree_to_string
+from app.utils.file_utils import convert_file_tree_to_string, extract_paths_from_local_tree, extract_paths_from_magic_tree, WorkspaceSnapshot
 from agentlang.environment import Environment
 from app.core.skill_manager import generate_skills_prompt
 from app.core.skill_utils.skill_sources import get_workspace_skills_dir
@@ -350,16 +350,8 @@ class Agent(BaseAgent):
 
         return variables
 
-    async def _get_file_tree_from_magic_service(self) -> Optional[str]:
-        """
-        从 Magic Service 获取文件目录树
-
-        Returns:
-            Optional[str]: 格式化的目录树字符串，失败时返回 None
-
-        Raises:
-            不会抛出异常，所有异常都被捕获并记录
-        """
+    async def _get_file_tree_from_magic_service(self) -> Optional[WorkspaceSnapshot]:
+        """从 Magic Service 获取文件目录树，失败时返回 None。"""
         try:
             # 获取 sandbox_id 和 topic_id
             sandbox_id = self.agent_context.get_metadata().get("sandbox_id")
@@ -385,33 +377,49 @@ class Agent(BaseAgent):
                 depth=5  # 使用相同的层级深度
             )
 
-            # 将 File 树转换为字符串格式（不显示文件大小以节省 token）
-            workspace_dir_files_list = convert_file_tree_to_string(file_tree_root, show_file_size=False)
+            display = convert_file_tree_to_string(file_tree_root, show_file_size=True)
+            entries = extract_paths_from_magic_tree(file_tree_root)
             logger.info("成功从 Magic Service 获取目录树")
-            return workspace_dir_files_list
+            return WorkspaceSnapshot(display=display, entries=entries)
 
         except Exception as e:
             logger.warning(f"从 Magic Service 获取目录树失败: {e}")
             logger.debug(f"详细错误: {traceback.format_exc()}")
             return None
 
-    async def _get_file_tree_from_local_filesystem(self) -> str:
-        """
-        从本地文件系统扫描获取文件目录树
-
-        Returns:
-            str: 格式化的目录树字符串
-        """
+    async def _get_file_tree_from_local_filesystem(self) -> WorkspaceSnapshot:
+        """从本地文件系统扫描获取文件目录树。"""
         logger.info("使用本地文件系统扫描获取目录树")
         list_dir_tool = ListDir()
-
-        # Asynchronously get the formatted directory content (runs in thread pool)
-        workspace_dir_files_list = await list_dir_tool.get_file_tree_string_async(
+        content = await list_dir_tool.get_file_tree_async(
             relative_workspace_path=".",
-            level=5,  # Reasonable recursion depth
-            filter_binary=False,  # Don't filter binary files
+            level=5,
+            filter_binary=False,
         )
-        return workspace_dir_files_list
+        display = list_dir_tool._convert_file_tree_to_string(content)
+        entries = extract_paths_from_local_tree(content.tree)
+        return WorkspaceSnapshot(display=display, entries=entries)
+
+    async def _get_workspace_snapshot(self) -> WorkspaceSnapshot:
+        """统一入口：获取工作区文件树快照。
+
+        生产环境优先走 Magic Service API（S3 文件系统必须通过 API 获取），
+        失败或开发环境降级为本地扫描。
+        """
+        snapshot: Optional[WorkspaceSnapshot] = None
+        if Environment.is_dev():
+            logger.info("开发环境：使用本地文件系统扫描获取目录树")
+            snapshot = await self._get_file_tree_from_local_filesystem()
+        else:
+            logger.info("生产环境：尝试使用 Magic Service 获取目录树")
+            snapshot = await self._get_file_tree_from_magic_service()
+            if snapshot is None:
+                logger.warning("Magic Service 获取目录树失败，降级使用本地文件系统扫描")
+                snapshot = await self._get_file_tree_from_local_filesystem()
+
+        if not snapshot.display or "目录为空，没有文件" in snapshot.display:
+            return WorkspaceSnapshot(display="当前工作目录为空，没有文件", entries=[])
+        return snapshot
 
     async def async_complete_dynamic_init(self) -> None:
         """异步完成动态初始化，将 workspace 文件树、memory、用户语言同步到 AgentHorizon。
@@ -422,20 +430,8 @@ class Agent(BaseAgent):
         horizon = self.agent_context.horizon
 
         # ── workspace 文件树（异步扫描）──────────────────────────────────────
-        workspace_files = ""
-        if Environment.is_dev():
-            logger.info("开发环境：使用本地文件系统扫描获取目录树")
-            workspace_files = await self._get_file_tree_from_local_filesystem()
-        else:
-            logger.info("生产环境：尝试使用 Magic Service 获取目录树")
-            workspace_files = await self._get_file_tree_from_magic_service()
-            if not workspace_files:
-                logger.warning("Magic Service 获取目录树失败，降级使用本地文件系统扫描")
-                workspace_files = await self._get_file_tree_from_local_filesystem()
-
-        if not workspace_files or "目录为空，没有文件" in workspace_files:
-            workspace_files = "当前工作目录为空，没有文件"
-        await horizon.set_workspace_files(workspace_files)
+        snapshot = await self._get_workspace_snapshot()
+        await horizon.set_workspace_snapshot(snapshot)
 
         # ── 用户长期记忆（来自 InitClientMessage）────────────────────────────
         init_client_message = self.agent_context.get_init_client_message()
@@ -454,21 +450,10 @@ class Agent(BaseAgent):
     async def refresh_workspace_files(self) -> None:
         """每次用户消息前调用，刷新工作区文件树并更新 horizon。
 
-        与 async_complete_dynamic_init 使用相同的获取策略：
-        生产环境优先走 Magic Service API（S3 文件系统必须通过 API 获取），
-        失败或开发环境降级为本地扫描。
-        horizon 内部比对变化，有 diff 时会在下次 system_injected_context 中报告。
+        horizon 内部比对路径集合变化，有 diff 时会在下次 system_injected_context 中报告。
         """
-        if Environment.is_dev():
-            workspace_files = await self._get_file_tree_from_local_filesystem()
-        else:
-            workspace_files = await self._get_file_tree_from_magic_service()
-            if not workspace_files:
-                workspace_files = await self._get_file_tree_from_local_filesystem()
-
-        if not workspace_files or "目录为空，没有文件" in workspace_files:
-            workspace_files = "当前工作目录为空，没有文件"
-        await self.agent_context.horizon.set_workspace_files(workspace_files)
+        snapshot = await self._get_workspace_snapshot()
+        await self.agent_context.horizon.set_workspace_snapshot(snapshot)
 
     def _extract_memory_content(self, init_client_message) -> str:
         """

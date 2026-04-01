@@ -43,7 +43,8 @@ class HorizonState:
     pending_notifications: list[PendingNotification] = field(default_factory=list)
     loaded_skills: list[str] = field(default_factory=list)
     image_model: ImageModelState = field(default_factory=ImageModelState)
-    # 以下三个字段用于 Diff 追踪：上次注入给 LLM 的值，变化时才输出 diff
+    # 以下字段用于 Diff 追踪：上次注入给 LLM 的值，变化时才输出 diff
     user_preferred_language: str = ""
-    workspace_files: str = ""
+    workspace_files: str = ""      # 格式化树形字符串，用于注入 LLM 展示
+    workspace_entries: list = field(default_factory=list)  # 结构化条目 [{"path": str, "size": int|None}]，用于 diff
     memory: str = ""

@@ -14,6 +14,7 @@ from typing import TYPE_CHECKING, Any, Optional, Set, Tuple, Union
 
 if TYPE_CHECKING:
     from app.core.context.agent_context import AgentContext
+    from app.utils.file_utils import WorkspaceSnapshot
 
 from agentlang.logger import get_logger
 from app.core.horizon.diff_builder import detect_file_changes
@@ -37,33 +38,50 @@ def _abs(path: Union[str, Path]) -> str:
     return str(Path(path).resolve())
 
 
-# 目录树装饰字符，用于提取纯文件/目录名
-_TREE_CHARS = str.maketrans("", "", "├└─│ ")
+def _workspace_entries_to_path_set(entries: list) -> Set[str]:
+    """从结构化条目列表提取路径集合，用于 diff 比对。"""
+    return {e["path"] for e in entries if isinstance(e, dict) and "path" in e}
 
 
-def _parse_tree_entries(tree: str) -> Set[str]:
-    """从目录树字符串中提取所有文件/目录条目名。"""
-    entries: Set[str] = set()
-    for line in tree.splitlines():
-        name = line.translate(_TREE_CHARS)
-        if name and name not in (".", "./"):
-            entries.add(name)
-    return entries
+def _workspace_files_diff(old_entries: list, new_entries: list) -> str:
+    """语义化工作区文件变化：报告新增/删除的文件和目录。
 
-
-def _workspace_files_diff(old: str, new: str) -> str:
-    """语义化工作区文件变化：报告新增/删除的文件和目录。"""
-    added = _parse_tree_entries(new) - _parse_tree_entries(old)
-    removed = _parse_tree_entries(old) - _parse_tree_entries(new)
-    if not added and not removed:
+    added 条目带文件大小（size 存于 new_entries 中），removed 不带（文件已不存在）。
+    """
+    old_paths = _workspace_entries_to_path_set(old_entries)
+    new_paths = _workspace_entries_to_path_set(new_entries)
+    added_paths = new_paths - old_paths
+    removed_paths = old_paths - new_paths
+    if not added_paths and not removed_paths:
         return ""
+
+    # 建立 path -> size 映射，用于展示新增文件的大小
+    new_size_map: dict[str, Optional[int]] = {
+        e["path"]: e.get("size") for e in new_entries if isinstance(e, dict)
+    }
+
+    def _fmt_size(size: Optional[int]) -> str:
+        if not size:
+            return ""
+        if size < 1024:
+            return f" ({size}B)"
+        if size < 1024 * 1024:
+            return f" ({size / 1024:.1f}KB)"
+        return f" ({size / (1024 * 1024):.1f}MB)"
+
     parts = []
-    if added:
-        names = ", ".join(sorted(added))
-        parts.append(f"+{len(added)} added: {names}" if len(added) <= 8 else f"+{len(added)} files/dirs added")
-    if removed:
-        names = ", ".join(sorted(removed))
-        parts.append(f"-{len(removed)} removed: {names}" if len(removed) <= 8 else f"-{len(removed)} files/dirs removed")
+    if added_paths:
+        if len(added_paths) <= 8:
+            names = ", ".join(f"{p}{_fmt_size(new_size_map.get(p))}" for p in sorted(added_paths))
+            parts.append(f"+{len(added_paths)} added: {names}")
+        else:
+            parts.append(f"+{len(added_paths)} files/dirs added")
+    if removed_paths:
+        if len(removed_paths) <= 8:
+            names = ", ".join(sorted(removed_paths))
+            parts.append(f"-{len(removed_paths)} removed: {names}")
+        else:
+            parts.append(f"-{len(removed_paths)} files/dirs removed")
     return "\n".join(parts)
 
 
@@ -104,8 +122,8 @@ class AgentHorizon:
 
         # 首次注入标志：True 时输出完整 <initial_context>，compact/new 后重置
         self._is_first_injection: bool = True
-        # 上次注入时的字符串快照，用于 diff 检测（None 表示尚未注入过，初始化后再设）
-        self._workspace_files_prev: Optional[str] = None
+        # 上次注入时的快照，用于 diff 检测（None 表示尚未注入过）
+        self._workspace_entries_prev: Optional[list] = None  # 结构化条目列表
         self._memory_prev: Optional[str] = None
         self._language_prev: Optional[str] = None
 
@@ -344,11 +362,14 @@ class AgentHorizon:
     # 字符串值 setter（用于 diff 追踪）
     # ─────────────────────────────────────────────────────────────────────────
 
-    async def set_workspace_files(self, files: str) -> None:
-        """async_complete_dynamic_init 完成后调用，更新工作区文件树快照。"""
+    async def set_workspace_snapshot(self, snapshot: "WorkspaceSnapshot") -> None:
+        """更新工作区快照：展示字符串（注入 LLM）+ 结构化路径条目（供 diff 比对）。"""
         await self._ensure_loaded()
-        if files != self._state.workspace_files:
-            self._state.workspace_files = files
+        new_paths = _workspace_entries_to_path_set(snapshot.entries)
+        old_paths = _workspace_entries_to_path_set(self._state.workspace_entries)
+        if snapshot.display != self._state.workspace_files or new_paths != old_paths:
+            self._state.workspace_files = snapshot.display
+            self._state.workspace_entries = snapshot.entries
             await self._save()
 
     async def set_memory(self, memory: str) -> None:
@@ -530,10 +551,13 @@ class AgentHorizon:
                 parts.append("</model_info>")
 
             # 字符串 Diff：与上次注入时的 prev 快照对比（_state 中存的是最新值）
-            if self._workspace_files_prev is not None and self._workspace_files_prev != self._state.workspace_files:
-                diff = _workspace_files_diff(self._workspace_files_prev, self._state.workspace_files)
-                if diff:
-                    parts.append(f"<workspace_files_changed>\n{diff}\n</workspace_files_changed>")
+            if self._workspace_entries_prev is not None:
+                cur_paths = _workspace_entries_to_path_set(self._state.workspace_entries)
+                prev_paths = _workspace_entries_to_path_set(self._workspace_entries_prev)
+                if cur_paths != prev_paths:
+                    diff = _workspace_files_diff(self._workspace_entries_prev, self._state.workspace_entries)
+                    if diff:
+                        parts.append(f"<workspace_files_changed>\n{diff}\n</workspace_files_changed>")
 
             if self._memory_prev is not None and self._memory_prev != self._state.memory:
                 diff = _string_diff(self._memory_prev, self._state.memory)
@@ -546,7 +570,7 @@ class AgentHorizon:
                 )
 
         # 更新 prev 快照（首次注入和增量注入后都需要更新，作为下次的对比基准）
-        self._workspace_files_prev = self._state.workspace_files
+        self._workspace_entries_prev = list(self._state.workspace_entries)
         self._memory_prev = self._state.memory
         self._language_prev = self._state.user_preferred_language
 

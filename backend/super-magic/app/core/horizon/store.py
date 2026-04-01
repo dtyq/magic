@@ -92,6 +92,7 @@ class HorizonStore:
             )
             state.user_preferred_language = data.get("user_preferred_language", "")
             state.workspace_files = data.get("workspace_files", "")
+            state.workspace_entries = data.get("workspace_entries", [])
             state.memory = data.get("memory", "")
             return state
         except Exception as e:
@@ -107,6 +108,7 @@ class HorizonStore:
             "image_model": {"model_id": state.image_model.model_id, "sizes": state.image_model.sizes},
             "user_preferred_language": state.user_preferred_language,
             "workspace_files": state.workspace_files,
+            "workspace_entries": state.workspace_entries,
             "memory": state.memory,
         }
         tmp = self._path.with_suffix(".tmp")

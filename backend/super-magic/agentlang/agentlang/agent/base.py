@@ -119,27 +119,6 @@ class BaseAgent(ABC):
         """
         pass
 
-    @abstractmethod
-    def _prepare_prompt_dynamic_variables(self) -> Dict[str, str]:
-        """
-        准备动态变量（会随时间变化的变量）。
-
-        Returns:
-            Dict[str, str]: 包含动态变量名和对应值的字典
-        """
-        pass
-
-    def _prepare_prompt_variables(self) -> Dict[str, str]:
-        """
-        准备用于替换prompt中变量的字典（合并静态和动态变量）。
-
-        Returns:
-            Dict[str, str]: 包含所有变量名和对应值的字典
-        """
-        static_vars = self._prepare_prompt_static_variables()
-        dynamic_vars = self._prepare_prompt_dynamic_variables()
-        # 合并两个字典
-        return {**static_vars, **dynamic_vars}
 
     @abstractmethod
     async def run(self, query: str):
@@ -314,7 +293,7 @@ class BaseAgent(ABC):
         logger.info(f"加载 agent 配置: {agent_name}")
 
         # 准备变量
-        variables = self._prepare_prompt_variables()
+        variables = self._prepare_prompt_static_variables()
 
         # 加载 agent 配置，传递变量
         agent_define = self._agent_loader.load_agent(agent_name, variables)

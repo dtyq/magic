@@ -8,7 +8,7 @@ import os
 import asyncio
 import hashlib
 import aiofiles
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Union, Optional, List, TYPE_CHECKING
 
@@ -16,6 +16,7 @@ from agentlang.logger import get_logger
 
 if TYPE_CHECKING:
     from app.core.entity.file import File as FileEntity
+    from app.core.entity.message.server_message import FileTreeNode
 
 logger = get_logger(__name__)
 
@@ -139,6 +140,47 @@ def format_file_size(size: int) -> str:
         return f"{size / (1024 * 1024):.1f}MB"
     else:
         return f"{size / (1024 * 1024 * 1024):.1f}GB"
+
+
+@dataclass
+class WorkspaceSnapshot:
+    """工作区文件树快照，同时承载展示和 diff 两种用途。"""
+    display: str                        # 格式化树形字符串，注入 LLM 展示
+    entries: List[dict] = field(default_factory=list)  # [{"path": str, "size": int|None}]
+
+
+def extract_paths_from_local_tree(nodes: List["FileTreeNode"]) -> List[dict]:
+    """从本地扫描的 FileTreeNode 列表中提取结构化路径条目。
+
+    每条条目：{"path": 相对路径, "size": 文件大小字节或 None（目录）}
+    目录路径以 "/" 结尾，与文件区分。
+    """
+    entries: List[dict] = []
+    for node in (nodes or []):
+        if node.error:
+            continue
+        if node.is_directory:
+            entries.append({"path": node.relative_file_path + "/", "size": None})
+            entries.extend(extract_paths_from_local_tree(node.children or []))
+        else:
+            entries.append({"path": node.relative_file_path, "size": node.file_size})
+    return entries
+
+
+def extract_paths_from_magic_tree(root: "FileEntity", prefix: str = "") -> List[dict]:
+    """从 Magic Service 返回的 File 树中提取结构化路径条目。
+
+    每条条目：{"path": 相对路径, "size": 文件大小字节或 None（目录）}
+    """
+    entries: List[dict] = []
+    for child in (root.children or []):
+        rel = f"{prefix}{child.name}" if prefix else child.name
+        if child.is_directory:
+            entries.append({"path": rel + "/", "size": None})
+            entries.extend(extract_paths_from_magic_tree(child, prefix=rel + "/"))
+        else:
+            entries.append({"path": rel, "size": child.size})
+    return entries
 
 
 def convert_file_tree_to_string(file_tree_root: Optional['FileEntity'], show_file_size: bool = False) -> str:
