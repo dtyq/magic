@@ -63,7 +63,6 @@ const providersByCategory = {
 			AiModel.ServiceProvider.DeepSeek,
 			AiModel.ServiceProvider.OpenAI,
 			AiModel.ServiceProvider.Official,
-			AiModel.ServiceProvider.Gemini,
 			AiModel.ServiceProvider.DashScope,
 			AiModel.ServiceProvider.OpenRouter,
 		],
@@ -87,7 +86,6 @@ const providersByCategory = {
 			AiModel.ServiceProvider.MicrosoftAzure,
 			AiModel.ServiceProvider.TTAPI,
 			AiModel.ServiceProvider.Qwen,
-			AiModel.ServiceProvider.GoogleImage,
 			AiModel.ServiceProvider.VolcengineArk,
 			AiModel.ServiceProvider.Official,
 			AiModel.ServiceProvider.QwenGlobal,
@@ -170,11 +168,11 @@ const ConfigForm = memo(({ category, code, name, descPosition = "left" }: Config
 	const options = useMemo(() => {
 		return [
 			{
-				label: "API Key",
+				label: "Google AI Studio",
 				value: AiManage.AuthType.API_KEY,
 			},
 			{
-				label: "Service Account",
+				label: "Google Cloud Vertex AI",
 				value: AiManage.AuthType.SERVICE_ACCOUNT,
 			},
 		]
