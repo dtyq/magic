@@ -26,7 +26,6 @@ tools:
   - delete_memory
   - call_subagent
   - get_sub_agent_results
-  - compact_chat_history
 skills:
   system_skills:
     - name: skill-vetter

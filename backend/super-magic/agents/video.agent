@@ -22,7 +22,6 @@ tools:
   - web_search
   - read_webpages_as_markdown
   - download_from_url
-  - compact_chat_history
 skills:
   system_skills:
     - name: skill-vetter

@@ -27,7 +27,6 @@ tools:
   - create_memory
   - update_memory
   - delete_memory
-  - compact_chat_history
 skills:
   system_skills:
     - name: skill-vetter

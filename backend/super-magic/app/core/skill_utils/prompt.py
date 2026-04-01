@@ -150,6 +150,17 @@ async def _do_generate(
         if actually_excluded:
             logger.info(f"已排除 {len(actually_excluded)} 个 system skill: {actually_excluded}")
 
+    # ── 3c. 永久挂载 compact-chat-history（excluded_skills 之后追加，确保始终可见）──
+    _ALWAYS_MOUNT_SKILL = "compact-chat-history"
+    if _ALWAYS_MOUNT_SKILL not in loaded_names:
+        compact_skill = await skill_manager.get_skill(_ALWAYS_MOUNT_SKILL, search_path=system_skills_dir)
+        if compact_skill:
+            skills_metadata.append(compact_skill)
+            loaded_names.add(_ALWAYS_MOUNT_SKILL)
+            logger.info(f"永久挂载 compact skill: {_ALWAYS_MOUNT_SKILL}")
+        else:
+            logger.warning(f"永久挂载 skill 未找到，跳过: {_ALWAYS_MOUNT_SKILL}")
+
     if not skills_metadata:
         logger.warning("未能加载任何 skills")
         return None
