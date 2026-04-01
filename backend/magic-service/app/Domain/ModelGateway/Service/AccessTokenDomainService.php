@@ -91,7 +91,7 @@ class AccessTokenDomainService extends AbstractDomainService
         }
         $accessToken->prepareForUsed();
         defer(function () use ($accessToken): void {
-            $this->accessTokenRepository->save(LLMDataIsolation::create()->disabled(), $accessToken);
+            $this->accessTokenRepository->updateLastUsedAt($accessToken->getId(), $accessToken->getLastUsedAt());
         });
         return $accessToken;
     }

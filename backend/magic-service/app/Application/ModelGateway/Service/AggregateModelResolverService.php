@@ -14,7 +14,6 @@ use App\Domain\Provider\Entity\ValueObject\ModelType;
 use App\Domain\Provider\Entity\ValueObject\ProviderDataIsolation;
 use App\Domain\Provider\Repository\Facade\ProviderModelRepositoryInterface;
 use App\ErrorCode\ServiceProviderErrorCode;
-use App\Infrastructure\Core\Exception\BusinessException;
 use App\Infrastructure\Core\Exception\ExceptionBuilder;
 use InvalidArgumentException;
 
@@ -24,7 +23,7 @@ use function Hyperf\Translation\__;
  * 聚合模型解析服务.
  * 用于解析动态模型（聚合模型），根据策略返回真实模型ID.
  */
-class AggregateModelResolverService
+readonly class AggregateModelResolverService
 {
     public function __construct(
         private ProviderModelRepositoryInterface $providerModelRepository
@@ -33,13 +32,40 @@ class AggregateModelResolverService
 
     /**
      * 解析聚合模型，返回真实模型ID.
-     * 使用已知的可用模型 ID 列表判断子模型权限，避免重复查询订阅信息.
+     *
+     * @param string $modelId 原始 model_id（可能是聚合模型）
+     * @param ModelGatewayDataIsolation $dataIsolation 数据隔离对象
+     * @return string 真实模型ID（如果是普通模型，直接返回原值）
+     */
+    public function resolve(string $modelId, ModelGatewayDataIsolation $dataIsolation): string
+    {
+        $providerDataIsolation = ProviderDataIsolation::createByBaseDataIsolation($dataIsolation);
+        $providerDataIsolation->setContainOfficialOrganization(true);
+
+        $model = $this->providerModelRepository->getByModelId($providerDataIsolation, $modelId);
+
+        if (! $model || ! $model->isDynamicModel()) {
+            return $modelId;
+        }
+
+        $realModelId = $this->resolveModel($model, $dataIsolation);
+
+        if (! $realModelId) {
+            ExceptionBuilder::throw(ServiceProviderErrorCode::InvalidParameter, __('service_provider.insufficient_permission_for_model'));
+        }
+
+        return $realModelId;
+    }
+
+    /**
+     * 解析聚合模型，返回真实模型ID（基于已加载实体，避免重复查库）.
+     * 使用订阅管理器做实时权限判断，与请求时 resolve() 的行为保持一致.
      *
      * @param ProviderModelEntity $dynamicModel 已加载的动态模型实体
-     * @param null|array $availableModelIds 当前套餐可用的模型 ID 列表（null 表示不限制）
+     * @param ModelGatewayDataIsolation $dataIsolation 数据隔离对象
      * @return null|string 解析出的真实模型 ID，null 表示无可用子模型
      */
-    public function resolveWithAvailableIds(ProviderModelEntity $dynamicModel, ?array $availableModelIds): ?string
+    public function resolveModel(ProviderModelEntity $dynamicModel, ModelGatewayDataIsolation $dataIsolation): ?string
     {
         $config = $dynamicModel->getAggregateConfig();
         if (! $config) {
@@ -54,54 +80,7 @@ class AggregateModelResolverService
         $strategy = $config['strategy'] ?? 'permission_fallback';
         $strategyConfig = $config['strategy_config'] ?? ['order' => 'asc'];
 
-        return $this->resolveByStrategyWithAvailableIds($strategy, $models, $strategyConfig, $availableModelIds);
-    }
-
-    /**
-     * 解析聚合模型，返回真实模型ID.
-     *
-     * @param string $modelId 原始 model_id（可能是聚合模型）
-     * @param ModelGatewayDataIsolation $dataIsolation 数据隔离对象
-     * @return string 真实模型ID（如果是普通模型，直接返回原值）
-     * @throws BusinessException 如果聚合模型的所有子模型都无权限
-     */
-    public function resolve(string $modelId, ModelGatewayDataIsolation $dataIsolation): string
-    {
-        // 1. 查询模型实体
-        $providerDataIsolation = ProviderDataIsolation::createByBaseDataIsolation($dataIsolation);
-        $providerDataIsolation->setContainOfficialOrganization(true);
-
-        $model = $this->providerModelRepository->getByModelId($providerDataIsolation, $modelId);
-
-        if (! $model || ! $model->isDynamicModel()) {
-            // 普通模型，直接返回原值
-            return $modelId;
-        }
-
-        $modelType = $model->getModelType();
-
-        // 2. 解析聚合配置
-        $config = $model->getAggregateConfig();
-        if (! $config) {
-            ExceptionBuilder::throw(ServiceProviderErrorCode::InvalidParameter, __('service_provider.dynamic_model_config_invalid'));
-        }
-
-        $models = $config['models'] ?? [];
-        if (empty($models)) {
-            ExceptionBuilder::throw(ServiceProviderErrorCode::InvalidParameter, __('service_provider.dynamic_model_sub_models_empty'));
-        }
-
-        $strategy = $config['strategy'] ?? 'permission_fallback';
-        $strategyConfig = $config['strategy_config'] ?? ['order' => 'asc'];
-
-        // 3. 根据策略解析真实模型ID
-        $realModelId = $this->resolveByStrategy($strategy, $models, $strategyConfig, $dataIsolation, $modelType);
-
-        if (! $realModelId) {
-            ExceptionBuilder::throw(ServiceProviderErrorCode::InvalidParameter, __('service_provider.insufficient_permission_for_model'));
-        }
-
-        return $realModelId;
+        return $this->resolveByStrategy($strategy, $models, $strategyConfig, $dataIsolation, $dynamicModel->getModelType());
     }
 
     /**
@@ -114,41 +93,6 @@ class AggregateModelResolverService
             // 未来可扩展其他策略：'random', 'weighted', etc.
             default => throw new InvalidArgumentException("Unknown strategy: {$strategy}")
         };
-    }
-
-    /**
-     * 使用已知可用模型 ID 列表按策略解析真实模型ID.
-     */
-    private function resolveByStrategyWithAvailableIds(string $strategy, array $models, array $strategyConfig, ?array $availableModelIds): ?string
-    {
-        return match ($strategy) {
-            AggregateStrategy::PERMISSION_FALLBACK->value => $this->resolveByPermissionFallbackWithAvailableIds($models, $strategyConfig, $availableModelIds),
-            default => throw new InvalidArgumentException("Unknown strategy: {$strategy}")
-        };
-    }
-
-    /**
-     * 使用已知可用模型 ID 列表按权限降级策略解析真实模型ID.
-     * availableModelIds 为 null 时表示不限制，直接返回第一个子模型.
-     */
-    private function resolveByPermissionFallbackWithAvailableIds(array $models, array $strategyConfig, ?array $availableModelIds): ?string
-    {
-        $order = $strategyConfig['order'] ?? 'asc';
-        $modelsToCheck = $order === 'desc' ? array_reverse($models) : $models;
-
-        foreach ($modelsToCheck as $modelItem) {
-            $subModelId = $this->extractModelId($modelItem);
-            if (! $subModelId) {
-                continue;
-            }
-
-            // availableModelIds 为 null 表示不限制权限，直接返回第一个可用子模型
-            if ($availableModelIds === null || in_array($subModelId, $availableModelIds, true)) {
-                return $subModelId;
-            }
-        }
-
-        return null;
     }
 
     /**

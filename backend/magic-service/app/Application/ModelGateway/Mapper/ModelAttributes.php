@@ -9,7 +9,7 @@ namespace App\Application\ModelGateway\Mapper;
 
 use DateTime;
 
-readonly class OdinModelAttributes
+readonly class ModelAttributes
 {
     public function __construct(
         private string $key,
@@ -101,6 +101,17 @@ readonly class OdinModelAttributes
             'provider_alias' => $this->providerAlias,
             'provider_model_id' => $this->providerModelId,
             'provider_id' => $this->providerId,
+            'model_type' => $this->modelType,
+            'description' => $this->description,
+            'resolved_model_id' => $this->resolvedModelId,
+        ];
+    }
+
+    public function toShowArray(): array
+    {
+        return [
+            'label' => $this->label,
+            'icon' => $this->icon,
             'model_type' => $this->modelType,
             'description' => $this->description,
             'resolved_model_id' => $this->resolvedModelId,

@@ -390,7 +390,9 @@ class ProviderModelRepository extends AbstractProviderModelRepository implements
         if (! is_null($query->getStatus())) {
             $builder->where('status', $query->getStatus()->value);
         }
-        if (! is_null($query->getModelType())) {
+        if (! is_null($query->getModelTypes())) {
+            $builder->whereIn('model_type', array_map(fn ($t) => $t->value, $query->getModelTypes()));
+        } elseif (! is_null($query->getModelType())) {
             $builder->where('model_type', $query->getModelType()->value);
         }
         if (! is_null($query->getProviderModelType())) {
@@ -430,7 +432,9 @@ class ProviderModelRepository extends AbstractProviderModelRepository implements
         if (! is_null($query->getStatus())) {
             $builder->where('status', $query->getStatus()->value);
         }
-        if (! is_null($query->getModelType())) {
+        if (! is_null($query->getModelTypes())) {
+            $builder->whereIn('model_type', array_map(fn ($t) => $t->value, $query->getModelTypes()));
+        } elseif (! is_null($query->getModelType())) {
             $builder->where('model_type', $query->getModelType()->value);
         }
 

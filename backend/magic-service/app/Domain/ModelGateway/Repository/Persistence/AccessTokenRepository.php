@@ -116,4 +116,11 @@ class AccessTokenRepository extends AbstractRepository implements AccessTokenRep
         $model = $builder->where('name', $name)->first();
         return $model ? AccessTokenFactory::modelToEntity($model) : null;
     }
+
+    public function updateLastUsedAt(int $id, \DateTime $lastUsedAt): void
+    {
+        AccessTokenModel::query()->where('id', $id)->update([
+            'last_used_at' => $lastUsedAt->format('Y-m-d H:i:s'),
+        ]);
+    }
 }

@@ -162,15 +162,6 @@ class ModelInfoEnricher:
             if "icon" in attributes and attributes["icon"]:
                 metadata["icon"] = str(attributes["icon"])
 
-            if "provider_alias" in attributes and attributes["provider_alias"]:
-                metadata["provider_alias"] = str(attributes["provider_alias"])
-
-            if "provider_model_id" in attributes and attributes["provider_model_id"]:
-                metadata["provider_model_id"] = str(attributes["provider_model_id"])
-
-            if "provider_id" in attributes and attributes["provider_id"]:
-                metadata["provider_id"] = str(attributes["provider_id"])
-
             if metadata:
                 extracted["metadata"] = metadata
 

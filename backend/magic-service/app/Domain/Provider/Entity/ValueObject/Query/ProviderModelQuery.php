@@ -20,6 +20,9 @@ class ProviderModelQuery extends Query
 
     protected ?ModelType $modelType = null;
 
+    /** @var ModelType[]|null */
+    protected ?array $modelTypes = null;
+
     protected ?bool $superMagicDisplay = null;
 
     protected ?array $providerConfigIds = null;
@@ -97,6 +100,18 @@ class ProviderModelQuery extends Query
     public function setModelType(?ModelType $modelType): void
     {
         $this->modelType = $modelType;
+    }
+
+    /** @return ModelType[]|null */
+    public function getModelTypes(): ?array
+    {
+        return $this->modelTypes;
+    }
+
+    /** @param ModelType[] $modelTypes */
+    public function setModelTypes(array $modelTypes): void
+    {
+        $this->modelTypes = $modelTypes ?: null;
     }
 
     public function isOffice(): bool

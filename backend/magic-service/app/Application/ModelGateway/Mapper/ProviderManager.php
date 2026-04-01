@@ -37,9 +37,10 @@ readonly class ProviderManager
     }
 
     /**
+     * @param ModelType[] $modelTypes 模型类型过滤，空数组表示不限制
      * @return array<ProviderModelEntity>
      */
-    public function getModelsByModelIds(ProviderDataIsolation $providerDataIsolation, ?array $modelIds, ?ModelType $modelType): array
+    public function getModelsByModelIds(ProviderDataIsolation $providerDataIsolation, ?array $modelIds, array $modelTypes): array
     {
         if ($providerDataIsolation->isOfficialOrganization()) {
             $modelIds = null;
@@ -47,7 +48,9 @@ readonly class ProviderManager
         $query = new ProviderModelQuery();
         $query->setModelIds($modelIds);
         $query->setStatus(Status::Enabled);
-        $query->setModelType($modelType);
+        if (! empty($modelTypes)) {
+            $query->setModelTypes($modelTypes);
+        }
 
         $query->setOrder(['model_id' => 'asc']);
         $data = $this->providerModelDomainService->queries($providerDataIsolation, $query, Page::createNoPage());

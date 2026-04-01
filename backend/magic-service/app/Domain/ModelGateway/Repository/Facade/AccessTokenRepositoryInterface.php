@@ -35,4 +35,6 @@ interface AccessTokenRepositoryInterface
     public function incrementUseAmount(LLMDataIsolation $dataIsolation, AccessTokenEntity $accessTokenEntity, float $amount): void;
 
     public function getByName(LLMDataIsolation $dataIsolation, string $name): ?AccessTokenEntity;
+
+    public function updateLastUsedAt(int $id, \DateTime $lastUsedAt): void;
 }
