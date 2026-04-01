@@ -1,21 +1,36 @@
 # -*- coding: utf-8 -*-
-"""
-图片模型尺寸服务
-
-处理图片生成模型的尺寸配置，将可用尺寸信息追加到用户查询中
-"""
+"""图片模型尺寸服务：提取 dynamic_config 中的图片模型配置并同步到 AgentHorizon。"""
 
 import json
-from typing import Any, Dict, List, Optional
+from typing import TYPE_CHECKING, Any, Dict, List, Optional
 
 from agentlang.logger import get_logger
 from app.magic.agent import Agent
+
+if TYPE_CHECKING:
+    from app.core.horizon.agent_horizon import AgentHorizon
 
 logger = get_logger(__name__)
 
 
 class ImageModelSizesService:
-    """图片模型尺寸服务类"""
+    """图片模型尺寸服务。"""
+
+    @staticmethod
+    async def sync_to_horizon(dynamic_config: Optional[Dict[str, Any]], horizon: "AgentHorizon") -> None:
+        """从 dynamic_config 中提取图片模型配置并同步到 horizon（内部判断是否变化）。"""
+        try:
+            if not dynamic_config:
+                return
+            image_model_config = dynamic_config.get("image_model")
+            if not image_model_config or not isinstance(image_model_config, dict):
+                return
+            model_id = image_model_config.get("model_id", "")
+            sizes = image_model_config.get("sizes", [])
+            if model_id and sizes:
+                await horizon.update_image_model(model_id, sizes)
+        except Exception as e:
+            logger.warning(f"[ImageModelSizesService] sync_to_horizon 失败: {e}")
 
     @staticmethod
     def build_image_sizes_context(sizes: List[Dict[str, Any]], is_model_changed: bool = False) -> str:

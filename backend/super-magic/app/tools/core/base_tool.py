@@ -73,6 +73,13 @@ class BaseTool(Generic[T], ABC):
         """
         return True
 
+    def get_horizon(self, tool_context: "ToolContext") -> "AgentHorizon":
+        """从 tool_context 获取当前 agent 的 AgentHorizon 实例。"""
+        from app.core.context.agent_context import AgentContext
+        from app.core.horizon import AgentHorizon
+        agent_context = tool_context.get_extension_typed("agent_context", AgentContext)
+        return agent_context.horizon
+
     def __init_subclass__(cls, **kwargs):
         """子类初始化时处理元数据
 

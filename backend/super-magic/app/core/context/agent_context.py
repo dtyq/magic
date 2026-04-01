@@ -8,7 +8,10 @@ import asyncio
 import os
 import json
 import time
-from typing import Any, Dict, List, Optional
+from typing import TYPE_CHECKING, Any, Dict, List, Optional
+
+if TYPE_CHECKING:
+    from app.core.horizon.agent_horizon import AgentHorizon
 from datetime import datetime, timedelta
 
 from agentlang.context.base_agent_context import BaseAgentContext
@@ -146,6 +149,10 @@ class AgentContext(BaseAgentContext):
         self._run_cleanup_registry: RunCleanupRegistry = RunCleanupRegistry()
         self._run_cancellation_handle: RunCancellationHandle = RunCancellationHandle()
 
+        # AgentHorizon 懒初始化，per-agent 上下文工程基础设施
+        self._horizon: Optional["AgentHorizon"] = None
+        self._horizon_agent_id: Optional[str] = None
+
     def set_subagent_depth(self, depth: int) -> None:
         """设置子 Agent 深度。"""
         self._subagent_depth = max(depth, 0)
@@ -161,6 +168,48 @@ class AgentContext(BaseAgentContext):
     def get_subagent_parent_agent_name(self) -> Optional[str]:
         """获取父 Agent 名称；主 Agent 返回 None。"""
         return self._subagent_parent_agent_name
+
+    @property
+    def horizon(self) -> "AgentHorizon":
+        """per-agent 上下文工程基础设施（懒初始化）。"""
+        if self._horizon is None:
+            from app.core.horizon import AgentHorizon
+            from app.core.horizon.store import HorizonStore
+
+            # 用 agent_name（文件名如 "magic"），而非 get_agent_name()（返回 profile 显示名）
+            agent_name = self.agent_name
+            chat_history_dir = self.get_chat_history_dir()
+            # agent_id 此时可能未设置，用 "main" 兜底；agent.py 初始化完成后可通过 reset 更新
+            agent_id = getattr(self, "_horizon_agent_id", None) or "main"
+
+            store = HorizonStore(
+                chat_history_dir=chat_history_dir,
+                agent_name=agent_name,
+                agent_id=agent_id,
+            )
+            self._horizon = AgentHorizon(store=store, agent_id=agent_id, agent_context=self)
+        return self._horizon
+
+    def set_horizon_agent_id(self, agent_id: str) -> None:
+        """在 agent.py 完成 ID 分配后调用，确保持久化文件名正确。
+
+        若 horizon 还未初始化则直接设置待用 ID；
+        若已初始化则重建（agent_id 改变时需要换文件）。
+        """
+        if self._horizon is None:
+            self._horizon_agent_id = agent_id
+        else:
+            from app.core.horizon import AgentHorizon
+            from app.core.horizon.store import HorizonStore
+            agent_name = self.agent_name
+            chat_history_dir = self.get_chat_history_dir()
+            store = HorizonStore(
+                chat_history_dir=chat_history_dir,
+                agent_name=agent_name,
+                agent_id=agent_id,
+            )
+            self._horizon = AgentHorizon(store=store, agent_id=agent_id, agent_context=self)
+        self._horizon_agent_id = agent_id
 
     def _init_shared_fields(self):
         """初始化共享字段并注册到 shared_context"""

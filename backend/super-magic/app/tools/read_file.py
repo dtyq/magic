@@ -24,7 +24,6 @@ from app.tools.markitdown_plugins.csv_plugin import CSVConverter
 from app.tools.markitdown_plugins.docx_plugin import DocxConverter
 from app.tools.markitdown_plugins.excel_plugin import ExcelConverter
 from app.tools.workspace_tool import WorkspaceTool
-from app.utils.file_timestamp_manager import get_global_timestamp_manager
 from app.utils.file_constants import CONVERSION_RECOMMENDED_TYPES
 from app.utils.file_utils import is_binary_file
 from app.utils.file_parse.utils.libreoffice_util import LibreOfficeUtil
@@ -313,7 +312,7 @@ Documents like PDF, PowerPoint will be auto-converted to Markdown (e.g., `report
 """
 
 
-    async def _convert_legacy_format(self, file_path: Path) -> Optional[Path]:
+    async def _convert_legacy_format(self, file_path: Path, tool_context: Optional[ToolContext] = None) -> Optional[Path]:
         """
         转换旧格式文件到新格式（.xls -> .xlsx, .doc -> .docx）
 
@@ -352,7 +351,9 @@ Documents like PDF, PowerPoint will be auto-converted to Markdown (e.g., `report
             # 检查是否已有转换结果且文件未修改
             if await aiofiles.os.path.exists(converted_path):
                 # 检查原文件是否有修改
-                is_valid, _ = await get_global_timestamp_manager().validate_file_not_modified(file_path)
+                is_valid = False
+                if tool_context:
+                    is_valid, _ = await self.get_horizon(tool_context).validate_file_not_modified(file_path)
                 if is_valid:
                     logger.info(f"使用已存在的转换文件: {converted_filename}")
                     return converted_path
@@ -379,7 +380,7 @@ Documents like PDF, PowerPoint will be auto-converted to Markdown (e.g., `report
             logger.error(f"使用 LibreOffice 转换文件失败: {file_path.name}, error={e}")
             return None
 
-    async def _try_read_with_plugin(self, file_path: Path, params: ReadFileParams) -> Optional[ToolResult]:
+    async def _try_read_with_plugin(self, file_path: Path, params: ReadFileParams, tool_context: Optional[ToolContext] = None) -> Optional[ToolResult]:
         """
         尝试使用 MarkItDown plugin 读取文件
 
@@ -434,7 +435,7 @@ Documents like PDF, PowerPoint will be auto-converted to Markdown (e.g., `report
 
         if file_extension in ['.xls', '.doc']:
             logger.info(f"检测到旧格式文件，尝试转换: {file_path.name}")
-            converted_path = await self._convert_legacy_format(file_path)
+            converted_path = await self._convert_legacy_format(file_path, tool_context)
 
             # 使用 LibreOffice 转换旧格式文件失败，提示大模型让用户手动进行转换
             if not converted_path:
@@ -483,7 +484,8 @@ Documents like PDF, PowerPoint will be auto-converted to Markdown (e.g., `report
         }
 
         # 读取文件后更新时间戳
-        await get_global_timestamp_manager().update_timestamp(file_path)
+        if tool_context:
+            await self.get_horizon(tool_context).update_timestamp(file_path)
 
         return ToolResult(
             content=content_with_meta,
@@ -534,7 +536,7 @@ Documents like PDF, PowerPoint will be auto-converted to Markdown (e.g., `report
             logger.error(f"Error using MarkItDown to read file {file_path.name}: {e}")
             return None
 
-    async def _check_and_get_converted_path(self, file_path: Path) -> tuple[Optional[Path], Optional[str], Optional[str]]:
+    async def _check_and_get_converted_path(self, file_path: Path, tool_context: Optional[ToolContext] = None) -> tuple[Optional[Path], Optional[str], Optional[str]]:
         """
         检查和获取转换后的文件路径
 
@@ -563,13 +565,13 @@ Documents like PDF, PowerPoint will be auto-converted to Markdown (e.g., `report
                 return None, None, None
 
             # 1. 检查是否已有转换结果
-            converted_path = await self._check_converted_file(file_path)
+            converted_path = await self._check_converted_file(file_path, tool_context)
             if converted_path:
                 logger.info(f"使用已存在的转换结果: {file_path.name} -> {converted_path.name}")
                 return converted_path, None, None
 
             # 2. 执行自动转换
-            converted_file_path, conversion_strategy = await self._perform_auto_conversion(file_path)
+            converted_file_path, conversion_strategy = await self._perform_auto_conversion(file_path, tool_context)
             if converted_file_path:
                 logger.info(f"执行自动转换成功: {file_path.name} -> {converted_file_path.name}, 策略: {conversion_strategy}")
                 return converted_file_path, None, conversion_strategy
@@ -588,7 +590,7 @@ Documents like PDF, PowerPoint will be auto-converted to Markdown (e.g., `report
             error_msg = f"处理文件转换时出错，请使用 `convert_to_markdown` 工具手动转换文件 `{file_path.name}`。"
             return None, error_msg, None
 
-    async def _check_converted_file(self, file_path: Path) -> Optional[Path]:
+    async def _check_converted_file(self, file_path: Path, tool_context: Optional[ToolContext] = None) -> Optional[Path]:
         """
         检查是否已有转换文件
 
@@ -598,13 +600,16 @@ Documents like PDF, PowerPoint will be auto-converted to Markdown (e.g., `report
 
         Args:
             file_path: 原始文件路径
+            tool_context: 工具上下文
 
         Returns:
             Optional[Path]: 转换文件路径，如果不存在则返回 None
         """
         try:
             # 检查文件是否未被修改
-            is_file_valid, _ = await get_global_timestamp_manager().validate_file_not_modified(file_path)
+            is_file_valid = False
+            if tool_context:
+                is_file_valid, _ = await self.get_horizon(tool_context).validate_file_not_modified(file_path)
             if not is_file_valid:
                 logger.debug(f"文件已修改，缓存失效: {file_path.name}")
                 return None
@@ -635,7 +640,7 @@ Documents like PDF, PowerPoint will be auto-converted to Markdown (e.g., `report
             logger.debug(f"验证转换后文件失败: {converted_file_path}, error={e}")
             return False
 
-    async def _perform_auto_conversion(self, file_path: Path) -> tuple[Optional[Path], Optional[str]]:
+    async def _perform_auto_conversion(self, file_path: Path, tool_context: Optional[ToolContext] = None) -> tuple[Optional[Path], Optional[str]]:
         """
         执行自动转换并保存，带缓存检查
 
@@ -655,7 +660,9 @@ Documents like PDF, PowerPoint will be auto-converted to Markdown (e.g., `report
 
             # 1. 检查缓存：文件是否有变动
             try:
-                is_file_valid, _ = await get_global_timestamp_manager().validate_file_not_modified(file_path)
+                is_file_valid = False
+                if tool_context:
+                    is_file_valid, _ = await self.get_horizon(tool_context).validate_file_not_modified(file_path)
                 if is_file_valid:
                     # 文件没有变动，检查转换文件是否存在
                     converted_filename = _get_converted_filename(file_path)
@@ -781,7 +788,7 @@ Documents like PDF, PowerPoint will be auto-converted to Markdown (e.g., `report
                 return ToolResult.error(f"指定路径是个文件夹: {params.file_path}，请使用 list_dir 工具获取文件夹内容")
 
             # === 第一步：尝试使用 plugin 直接读取 ===
-            plugin_result = await self._try_read_with_plugin(file_path, params)
+            plugin_result = await self._try_read_with_plugin(file_path, params, tool_context)
             if plugin_result is not None:
                 # 如果有模糊匹配警告，添加到 plugin 读取结果的末尾
                 if fuzzy_warning and plugin_result.ok:
@@ -794,7 +801,7 @@ Documents like PDF, PowerPoint will be auto-converted to Markdown (e.g., `report
             conversion_strategy = None  # 记录转换策略
 
             # 检查是否有转换后的文件可以读取
-            converted_path, error_msg, strategy = await self._check_and_get_converted_path(file_path)
+            converted_path, error_msg, strategy = await self._check_and_get_converted_path(file_path, tool_context)
             if error_msg:
                 # 转换失败，直接返回错误
                 if tool_context:
@@ -953,8 +960,37 @@ Documents like PDF, PowerPoint will be auto-converted to Markdown (e.g., `report
             if fuzzy_warning:
                 content_with_meta = f"{content_with_meta}\n\n---\n\n{fuzzy_warning}"
 
-            # 读取文件后更新时间戳
-            await get_global_timestamp_manager().update_timestamp(file_path)
+            # 记录文件读取快照（用于后续 diff 检测）
+            if tool_context:
+                try:
+                    from app.utils.file_utils import calculate_file_hash, get_fresh_file_stat
+                    import hashlib as _hashlib
+
+                    _stat = await get_fresh_file_stat(str(file_path))
+                    _full_hash = await calculate_file_hash(str(file_path))
+
+                    _raw_no_lineno = extra_info.get("raw_content_without_line_numbers") or ""
+                    _rc_hash = _hashlib.blake2b(
+                        _raw_no_lineno.encode("utf-8", errors="replace"), digest_size=16
+                    ).hexdigest()
+
+                    _offset = params.offset if params.offset else 0
+                    _limit = params.limit if params.limit and params.limit > 0 else -1
+                    _end = _offset + _limit if _limit > 0 else -1
+
+                    await self.get_horizon(tool_context).record_file_read(
+                        path=file_path,
+                        read_content=_raw_no_lineno,
+                        read_content_hash=_rc_hash,
+                        full_file_hash=_full_hash,
+                        mtime_ms=_stat.mtime * 1000,
+                        size=_stat.size,
+                        ranges=[(_offset, _end)],
+                        truncated=extra_info.get("was_truncated", False),
+                        tool_name="read_file",
+                    )
+                except Exception as _horizon_err:
+                    logger.warning(f"[read_file] record_file_read 失败: {_horizon_err}")
 
             return ToolResult(
                 content=content_with_meta,

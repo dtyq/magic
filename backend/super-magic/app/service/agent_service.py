@@ -680,13 +680,6 @@ class AgentService(Base):
         chat_client_message = agent_context.get_chat_client_message()
         query = chat_client_message.prompt
 
-        # magiclaw（claw agent）每条用户消息前注入当前时间戳，确保 LLM 能准确计算相对时间。
-        # dynamic_context_prompt 的时间仅在会话初始化时写入一次，长会话中会逐渐失准。
-        if str(chat_client_message.agent_mode) == "magiclaw":
-            from agentlang.utils.datetime_formatter import get_current_datetime_str
-            current_time_str = get_current_datetime_str(agent_context.get_user_timezone())
-            query = f"[Current time: {current_time_str}]\n\n{query}"
-
         # 🔥 ASR 录音纪要聊天模式：注入上下文 Diff
         try:
             asr_task_key = None
@@ -713,17 +706,23 @@ class AgentService(Base):
         # 处理输入框内联引用（[@file_path:格式）
         query = agent._process_user_input_with_mentions(query, [])
 
+        # 追加渠道专属上下文片段（如微信消息携带的媒体文件路径），不支持的渠道返回空串不影响
         query = ChannelContextService.append_channel_context(query, chat_client_message)
 
         if chat_client_message and hasattr(chat_client_message, "attachments") and chat_client_message.attachments:
             query = await self._process_attachments(agent_context, query, chat_client_message.attachments)
 
-        # 处理图片模型尺寸信息：在 query 中追加当前可用 size（仅当 image_model_id 或 sizes 变化时）
-        query = ImageModelSizesService.append_image_sizes_to_query(
-            query,
+        # 将图片模型信息同步到 horizon（sizes 变化时 horizon 会在下次 system_injected_context 中通知 LLM）
+        await ImageModelSizesService.sync_to_horizon(
             chat_client_message.dynamic_config,
-            agent
+            agent.agent_context.horizon,
         )
+
+        # 每次用户消息前刷新工作区文件树，让 horizon 检测用户上传/删除文件等变化
+        try:
+            await agent.refresh_workspace_files()
+        except Exception as _e:
+            logger.warning(f"[AgentService] 刷新工作区文件树失败: {_e}")
 
         # 处理 MCP 服务器信息：为加载了 using-mcp skill 的 agent 追加可用服务器信息
         query = await MCPServersService.append_mcp_servers_to_query(query, agent)
@@ -868,4 +867,3 @@ class AgentService(Base):
         else:
             logger.info("没有成功下载的附件，返回原始查询")
             return query
-

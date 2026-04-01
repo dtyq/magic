@@ -20,7 +20,6 @@ from app.core.entity.message.server_message import DisplayType, FileContent, Too
 from app.tools.abstract_file_tool import AbstractFileTool
 from app.tools.core import BaseToolParams, tool
 from app.tools.workspace_tool import WorkspaceTool
-from app.utils.file_timestamp_manager import get_global_timestamp_manager
 from app.utils.line_number_handler import LineNumberHandler
 from app.utils.diff_generator import DiffGenerator
 from app.utils.punctuation_matcher import PunctuationMatcher
@@ -126,8 +125,7 @@ IMPORTANT: Copy text exactly as it appears in the file, including punctuation st
                 )
 
             # Verify file hasn't been modified externally
-            timestamp_manager = get_global_timestamp_manager()
-            is_valid, error_message = await timestamp_manager.validate_file_not_modified(file_path)
+            is_valid, error_message = await self.get_horizon(tool_context).validate_file_not_modified(file_path)
             if not is_valid:
                 tool_context.set_metadata("error_type", "edit_file.error_file_modified")
                 return ToolResult.error(error_message)

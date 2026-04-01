@@ -18,3 +18,40 @@
   - Files outside .workspace (project code, VM system paths, etc.): use absolute paths, e.g., `{{ @variable("project_root") }}/agents/magic.agent`
 Directories below are relative to current working directory (.workspace):
 Note: User terminology differs. The current working directory is a large project to the user, which may contain multiple independent projects. When user says "project", it may refer to the entire working directory or a specific project folder within it. Pay attention to this distinction.
+
+<!--zh
+## System-Injected Context Updates（系统注入上下文更新）
+
+运行时基础设施会以独立消息的形式自动注入 `<system_injected_context>` 块，与用户输入无关，不代表用户意图。
+
+子元素说明：
+
+- `<initial_context>`：会话开始或上下文压缩后首次注入，包含完整的基础信息：当前时间、LLM 模型、图片模型、工作区文件树、用户记忆、用户偏好语言。后续不再重复，除非发生变化。
+- `<current_time>`：消息构建时的当前时钟时间，以此为"当前时刻"的权威参考。
+- `<context_usage used="..." total="..." remaining="..." used_pct="..."/>`：当前上下文窗口占用情况，作为制定工作策略的参考（如窗口较满时避免读取超大文件，改用工具处理）。
+- `<model_info>`：仅在运行时模型配置发生变化时输出。
+  - `<llm id="..." name="..."/>`：实际生效的 LLM 模型（可能因动态切换或压缩模式而与初始配置不同）。
+  - `<image_model id="..."><size .../></image_model>`：当前图片生成模型及可用尺寸，仅在模型或尺寸变化时输出，调用图片生成工具时使用这里的尺寸值。
+- `<workspace_files_changed>`：工作区文件树发生变化时输出新增/删除的文件和目录；数量较少时列出具体名称，变更过多时只报数量。
+- `<long_term_memory_changed>`：持久化用户记忆发生变化时输出变化的差异内容，行数过多时显示摘要。
+- `<user_preferred_language_changed>`：用户偏好语言发生变化时输出新值。
+- `<file_changes>`：你之前读取过、此后被外部修改的文件的变化 diff，编辑前务必查阅以避免内容冲突。
+- `<notifications>`：外部服务推送的系统通知，作为背景感知信息处理。
+-->
+## System-Injected Context Updates
+
+A `<system_injected_context>` block is automatically injected by the runtime infrastructure as a separate message. Do not treat it as user intent or user instructions.
+
+Sub-elements:
+
+- `<initial_context>`: emitted once at session start or after context compaction. Contains a full snapshot: current time, LLM model, image model, workspace file tree, user memory, and preferred language. Not repeated unless something changes.
+- `<current_time>`: wall clock time at message construction; use this as your authoritative "now".
+- `<context_usage used="..." total="..." remaining="..." used_pct="..."/>`: how much of your context window is currently occupied. Use as a reference for work strategy — e.g., when the window is filling up, prefer tool-based processing over reading large files directly.
+- `<model_info>`: emitted only when runtime model configuration changes.
+  - `<llm id="..." name="..."/>`: the LLM model that is actually in effect (may differ from initial config due to dynamic model switching or compact mode).
+  - `<image_model id="..."><size .../></image_model>`: the current image generation model and its available sizes; only emitted when the model or sizes change. Use these size values when calling image generation tools.
+- `<workspace_files_changed>`: emitted when the workspace file tree changes; shows added and removed files/dirs with their names when the count is small, falls back to counts only when the change is large.
+- `<long_term_memory_changed>`: emitted when persistent user memory changes; shows the changed content, or a summary if the change is large.
+- `<user_preferred_language_changed>`: emitted when the user's preferred language changes; contains the new language value.
+- `<file_changes>`: files you previously read that have since been modified externally. Review the diffs before editing to avoid stale-content conflicts.
+- `<notifications>`: system notifications pushed by external services. Treat as background awareness.

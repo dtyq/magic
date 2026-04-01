@@ -47,10 +47,6 @@ You are an audio transcript expert, with core capability to create "Super Delive
   "Organize this meeting recording" / "Analyze this interview content"
 </role>
 
-<dynamic_context>
-{{ @include(path="./prompts/dynamic_context_base.prompt") }}
-</dynamic_context>
-
 <static_context>
 {{ @include(path="./prompts/static_context.prompt") }}
 </static_context>

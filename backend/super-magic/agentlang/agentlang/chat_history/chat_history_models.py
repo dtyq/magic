@@ -54,13 +54,13 @@ class CompactionConfig:
 
     # 触发阈值配置
     token_threshold: int = 0  # 触发压缩的 Token 阈值
-    max_conversation_rounds: int = 300  # 触发压缩的消息数量阈值
+    max_conversation_rounds: int = 500  # 触发压缩的消息数量阈值
 
     # Dynamic threshold calculation (kept for compatibility)
     default_token_threshold: int = 100_000
     min_token_threshold: int = 100_000
-    max_token_threshold: int = 160_000
-    context_usage_ratio: float = 0.8
+    max_token_threshold: int = 180_000
+    context_usage_ratio: float = 0.9
     # FIXME: 临时措施：定价分区压缩策略表（硬编码）
     # 命中规则优先于 context_usage_ratio；未命中时回退到比例策略。
     pricing_tier_rules: List[PricingTierCompactionRule] = field(
@@ -428,16 +428,21 @@ class UserMessage:
     content: str # 用户消息内容，不能为空
     role: Literal["user"] = "user"
     created_at: str = field(default_factory=lambda: datetime.now().strftime("%Y-%m-%d %H:%M:%S"))
-    show_in_ui: bool = True # <--- 重命名并设置默认值
+    show_in_ui: bool = True
+    # 消息来源标记：None = 真实用户输入；"horizon" = AgentHorizon 注入；其他值供扩展使用
+    source: Optional[str] = None
 
     def to_dict(self) -> Dict[str, Any]:
-        return {
+        d: Dict[str, Any] = {
             "id": str(uuid.uuid4()), # 运行时 ID
             "timestamp": self.created_at,
             "role": self.role,
             "content": self.content,
             "show_in_ui": self.show_in_ui,
         }
+        if self.source is not None:
+            d["source"] = self.source
+        return d
 
     def to_llm_dict(self) -> Dict[str, Any]:
         """Convert to LLM API compatible format with whitelist fields only"""
@@ -455,6 +460,7 @@ class UserMessage:
             role=data.get("role", "user"),
             show_in_ui=data.get("show_in_ui", True),
             created_at=data.get("timestamp", datetime.now().isoformat()),
+            source=data.get("source"),
         )
 
 @dataclass

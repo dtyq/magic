@@ -194,10 +194,6 @@ Not recommended: "This user message time is..."
 Recommended: "The time you just sent me a message is..."
 </user_mindset>
 
-<dynamic_context>
-{{ @include(path="./prompts/dynamic_context_base.prompt") }}
-</dynamic_context>
-
 <static_context>
 {{ @include(path="./prompts/static_context.prompt") }}
 </static_context>

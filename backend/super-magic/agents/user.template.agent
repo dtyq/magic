@@ -38,10 +38,6 @@ skills:
 {{ @variable("agent_profile") }}
 </role>
 
-<dynamic_context>
-{{ @include(path="./prompts/dynamic_context_base.prompt") }}
-</dynamic_context>
-
 <static_context>
 {{ @include(path="./prompts/static_context.prompt") }}
 </static_context>

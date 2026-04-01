@@ -13,10 +13,6 @@ skills:
 {{ @include(path="CLAW_IDENTITY_PATH") }}
 </identity>
 
-<dynamic_context>
-{{ @include(path="./prompts/dynamic_context_base.prompt") }}
-</dynamic_context>
-
 <static_context>
 {{ @include(path="./prompts/static_context.prompt") }}
 </static_context>

@@ -16,7 +16,6 @@ from agentlang.utils.schema import FileInfo
 from agentlang.utils.token_estimator import num_tokens_from_string
 from app.tools.core import BaseToolParams, tool
 from app.tools.workspace_tool import WorkspaceTool
-from app.utils.file_timestamp_manager import get_global_timestamp_manager
 from app.core.entity.message.server_message import DisplayType, FileContent, ToolDetail
 from app.utils.file_utils import is_binary_file
 from app.utils.async_file_utils import async_count_text_lines, async_stat
@@ -139,7 +138,7 @@ class GrepSearch(WorkspaceTool[GrepSearchParams]):
         )
 
         # 更新匹配文件的时间戳
-        await self._update_file_timestamps(search_result.matched_files)
+        await self._update_file_timestamps(tool_context, search_result.matched_files)
 
         # 准备 extra_info 用于前端展示
         extra_info = {}
@@ -317,19 +316,20 @@ class GrepSearch(WorkspaceTool[GrepSearchParams]):
             content += WARNINGS_SECTION + stderr_str
         return content
 
-    async def _update_file_timestamps(self, matched_files: List[Path]) -> None:
+    async def _update_file_timestamps(self, tool_context: ToolContext, matched_files: List[Path]) -> None:
         """更新匹配文件的时间戳
 
         Args:
+            tool_context: 工具上下文
             matched_files: 匹配的文件路径列表
         """
         if not matched_files:
             return
 
-        timestamp_manager = get_global_timestamp_manager()
+        horizon = self.get_horizon(tool_context)
         for file_path in matched_files:
             try:
-                await timestamp_manager.update_timestamp(file_path)
+                await horizon.update_timestamp(file_path)
                 logger.debug(f"已更新搜索结果文件时间戳: {file_path}")
             except Exception as e:
                 logger.warning(f"更新文件时间戳失败 {file_path}: {e}")

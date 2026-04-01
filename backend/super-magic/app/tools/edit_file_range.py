@@ -20,7 +20,6 @@ from app.tools.abstract_file_tool import AbstractFileTool
 from app.tools.core import BaseToolParams, tool
 from app.tools.workspace_tool import WorkspaceTool
 from agentlang.utils.syntax_checker import SyntaxChecker
-from app.utils.file_timestamp_manager import get_global_timestamp_manager
 from app.utils.diff_generator import DiffGenerator
 from app.utils.replace_range_resolver import resolve_replace_range
 
@@ -132,8 +131,7 @@ On failure: re-read and verify anchor existence/uniqueness -> increase anchor le
                           "Use write_file to create new files."
                 )
 
-            timestamp_manager = get_global_timestamp_manager()
-            is_valid, error_message = await timestamp_manager.validate_file_not_modified(file_path)
+            is_valid, error_message = await self.get_horizon(tool_context).validate_file_not_modified(file_path)
             if not is_valid:
                 tool_context.set_metadata("error_type", "edit_file.error_file_modified")
                 return ToolResult.error(error_message)

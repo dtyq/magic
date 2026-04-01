@@ -709,9 +709,9 @@ class ChatHistory:
         message = SystemMessage(content=content, show_in_ui=show_in_ui)
         await self.add_message(message)
 
-    async def append_user_message(self, content: str, show_in_ui: bool = True) -> None:
-        """添加一条用户消息"""
-        message = UserMessage(content=content, show_in_ui=show_in_ui)
+    async def append_user_message(self, content: str, show_in_ui: bool = True, source: Optional[str] = None) -> None:
+        """添加一条用户消息。source 用于标记消息来源（None=用户，"horizon"=系统注入等）。"""
+        message = UserMessage(content=content, show_in_ui=show_in_ui, source=source)
         await self.add_message(message)
 
     async def append_assistant_message(self,

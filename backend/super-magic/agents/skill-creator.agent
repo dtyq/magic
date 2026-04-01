@@ -71,10 +71,6 @@ Workflow (see skill-creator for full details):
 8. Ask about packaging
 </role>
 
-<dynamic_context>
-{{ @include(path="./prompts/dynamic_context_base.prompt") }}
-</dynamic_context>
-
 <static_context>
 {{ @include(path="./prompts/static_context.prompt") }}
 </static_context>
