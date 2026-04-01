@@ -1456,7 +1456,7 @@ class SkillAppService extends AbstractSkillAppService
             return [
                 'file_key' => $fileKey,
                 'metadata' => [
-                    'package_name' => $skillEntity->getPackageName(),
+                    'package_name' => $skillDirName,
                     'skill_dir' => $skillDirName,
                     'files_count' => count($allFiles),
                 ],
@@ -1812,7 +1812,13 @@ class SkillAppService extends AbstractSkillAppService
             $this->logger->info('publishSkill', ['id' => $skillEntity->getId(), 'code' => $code, 'project_id' => $skillEntity->getProjectId()]);
             $fileMetadata = $this->exportSkillFromProjectLocal($authorization, $skillEntity);
             $skillEntity->setFileKey($fileMetadata['file_key']);
-            $this->logger->info('publishSkill', ['id' => $skillEntity->getId(), 'code' => $code, 'project_id' => $skillEntity->getProjectId(), 'file_key' => $fileMetadata['file_key']]);
+            // Write back the package_name resolved from skill_config.yaml so that both
+            // magic_skills and magic_skill_versions receive the correct value.
+            $packageName = $fileMetadata['metadata']['package_name'] ?? '';
+            if ($packageName !== '') {
+                $skillEntity->setPackageName($packageName);
+            }
+            $this->logger->info('publishSkill', ['id' => $skillEntity->getId(), 'code' => $code, 'project_id' => $skillEntity->getProjectId(), 'file_key' => $fileMetadata['file_key'], 'package_name' => $skillEntity->getPackageName()]);
         }
 
         if (empty($skillEntity->getFileKey())) {

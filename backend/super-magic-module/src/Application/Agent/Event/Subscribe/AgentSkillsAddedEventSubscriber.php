@@ -17,6 +17,7 @@ use App\Infrastructure\Util\Locker\LockerInterface;
 use App\Infrastructure\Util\SkillUtil;
 use App\Infrastructure\Util\SocketIO\SocketIOUtil;
 use App\Infrastructure\Util\ZipUtil;
+use Dtyq\SuperMagic\Application\Agent\Service\SkillsMdSyncService;
 use Dtyq\SuperMagic\Domain\Agent\Event\AgentSkillsAddedEvent;
 use Dtyq\SuperMagic\Domain\Agent\Service\SuperMagicAgentDomainService;
 use Dtyq\SuperMagic\Domain\Skill\Entity\ValueObject\SkillDataIsolation;
@@ -52,6 +53,7 @@ class AgentSkillsAddedEventSubscriber implements ListenerInterface
         private readonly TaskFileDomainService $taskFileDomainService,
         private readonly MagicUserRepository $magicUserRepository,
         private readonly LockerInterface $locker,
+        private readonly SkillsMdSyncService $skillsMdSyncService,
         LoggerFactory $loggerFactory
     ) {
         $this->logger = $loggerFactory->get(static::class);
@@ -211,6 +213,13 @@ class AgentSkillsAddedEventSubscriber implements ListenerInterface
                 $organizationCode
             );
         }
+
+        $this->skillsMdSyncService->syncSkillsMd(
+            $projectId,
+            $projectEntity,
+            $organizationCode,
+            $projectOrgCode
+        );
 
         $this->logger->info('Agent skill file sync completed', [
             'agent_code' => $agentCode,
@@ -389,23 +398,16 @@ class AgentSkillsAddedEventSubscriber implements ListenerInterface
 
     /**
      * Resolve agent skill directory location.
-     * Uses ".magic/skills" when project already contains ".magic", otherwise falls back to "skills".
+     * Always uses ".magic/skills" as the standard structure.
+     * The ".magic" directory will be created if it does not yet exist in the file index.
      *
      * @return array{relative_path: string, is_magic_structure: bool}
      */
     private function resolveSkillsDirectoryConfig(int $projectId): array
     {
-        $magicDir = $this->taskFileDomainService->findDirectoryByPath($projectId, '.magic');
-        if ($magicDir !== null) {
-            return [
-                'relative_path' => '.magic/skills',
-                'is_magic_structure' => true,
-            ];
-        }
-
         return [
-            'relative_path' => 'skills',
-            'is_magic_structure' => false,
+            'relative_path' => '.magic/skills',
+            'is_magic_structure' => true,
         ];
     }
 

@@ -2720,6 +2720,33 @@ class TaskFileDomainService
     }
 
     /**
+     * Overwrite an existing project file's content in cloud storage and update its size in the DB.
+     * Returns null if the file does not exist in the task file index.
+     */
+    public function overwriteProjectFileContent(
+        ProjectEntity $projectEntity,
+        string $fileKey,
+        string $content
+    ): ?TaskFileEntity {
+        $entity = $this->taskFileRepository->getByFileKey($fileKey);
+        if ($entity === null) {
+            return null;
+        }
+
+        $this->cloudFileRepository->createFileByCredential(
+            WorkDirectoryUtil::getPrefix($projectEntity->getWorkDir()),
+            $projectEntity->getUserOrganizationCode(),
+            $fileKey,
+            $content,
+            StorageBucketType::SandBox
+        );
+
+        $entity->setFileSize(strlen($content));
+        $entity->setUpdatedAt(date('Y-m-d H:i:s'));
+        return $this->taskFileRepository->updateById($entity);
+    }
+
+    /**
      * Normalize relative path.
      * Removes leading './', '/', and handles edge cases.
      *

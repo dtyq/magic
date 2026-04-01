@@ -102,6 +102,9 @@ class SuperMagicAgentAppService extends AbstractSuperMagicAppService
     protected TaskFileDomainService $taskFileDomainService;
 
     #[Inject]
+    protected SkillsMdSyncService $skillsMdSyncService;
+
+    #[Inject]
     protected MagicDepartmentDomainService $magicDepartmentDomainService;
 
     #[Inject]
@@ -993,12 +996,10 @@ class SuperMagicAgentAppService extends AbstractSuperMagicAppService
         $versionEntities = $this->superMagicAgentVersionDomainService->getLatestPublishedByCodes($dataIsolation, $queryAgentCodes);
         $agentEntities = $this->buildExternalVisibleAgentsFromVersions($dataIsolation, $versionEntities);
 
-        if ($accessibleAgentResult !== null) {
-            foreach ($agentEntities as $agentEntity) {
-                // 设置是否为公开的智能体
-                if (in_array($agentEntity->getCode(), $accessibleAgentResult['accessible'])) {
-                    $agentEntity->setType(SuperMagicAgentType::Public->value);
-                }
+        foreach ($agentEntities as $agentEntity) {
+            // 设置是否为公开的智能体
+            if (in_array($agentEntity->getCode(), $accessibleAgentResult['accessible'])) {
+                $agentEntity->setType(SuperMagicAgentType::Public->value);
             }
         }
 
@@ -2121,6 +2122,17 @@ class SuperMagicAgentAppService extends AbstractSuperMagicAppService
         bool $shouldExportFile
     ): AgentVersionEntity {
         if ($shouldExportFile) {
+            $projectId = $agentEntity->getProjectId();
+            $projectEntity = $this->projectDomainService->getProjectNotUserId($projectId);
+            if ($projectEntity !== null) {
+                $this->skillsMdSyncService->syncSkillsMd(
+                    $projectId,
+                    $projectEntity,
+                    $dataIsolation->getCurrentOrganizationCode(),
+                    $projectEntity->getUserOrganizationCode()
+                );
+            }
+
             $sourcePath = $this->resolvePublishExportSourcePath($agentEntity->getProjectId());
             $this->validateIdentityMdExists($agentEntity->getProjectId(), $sourcePath);
             $fileMetadata = $this->exportFileFromProject($authorization, $code, $agentEntity->getProjectId(), $sourcePath);

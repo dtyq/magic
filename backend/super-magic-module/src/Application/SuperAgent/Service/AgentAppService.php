@@ -99,7 +99,7 @@ readonly class AgentAppService
             ]);
         }
 
-        return $this->ensureSandboxInitialized($dataIsolation, $topicId);
+        return $this->ensureSandboxInitialized($dataIsolation, $topicId, skipInitMessages: true);
     }
 
     /**
@@ -228,9 +228,11 @@ readonly class AgentAppService
     public function ensureSandboxInitialized(
         DataIsolation $dataIsolation,
         int $topicId,
+        bool $skipInitMessages = false,
     ): string {
         $this->logger->info('[Sandbox][App] Ensuring sandbox is initialized', [
             'topic_id' => $topicId,
+            'skip_init_messages' => $skipInitMessages,
         ]);
 
         // Prepare metadata using Trait
@@ -248,7 +250,7 @@ readonly class AgentAppService
         // init task
         $taskEntity = $this->taskDomainService->initDefaultTask($dataIsolation, $topicEntity);
 
-        $agentContext = $this->agentDomainService->buildInitAgentContext($dataIsolation, $projectEntity, $topicEntity, $taskEntity);
+        $agentContext = $this->agentDomainService->buildInitAgentContext($dataIsolation, $projectEntity, $topicEntity, $taskEntity, skipInitMessage: $skipInitMessages);
 
         // Delegate to domain service
         return $this->agentDomainService->ensureSandboxInitialized(

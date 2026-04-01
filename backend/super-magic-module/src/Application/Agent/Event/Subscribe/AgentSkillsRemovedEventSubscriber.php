@@ -13,6 +13,7 @@ use App\Domain\Contact\Repository\Persistence\MagicUserRepository;
 use App\Infrastructure\Util\IdGenerator\IdGenerator;
 use App\Infrastructure\Util\Locker\LockerInterface;
 use App\Infrastructure\Util\SocketIO\SocketIOUtil;
+use Dtyq\SuperMagic\Application\Agent\Service\SkillsMdSyncService;
 use Dtyq\SuperMagic\Domain\Agent\Event\AgentSkillsRemovedEvent;
 use Dtyq\SuperMagic\Domain\Agent\Service\SuperMagicAgentDomainService;
 use Dtyq\SuperMagic\Domain\Skill\Entity\ValueObject\SkillDataIsolation;
@@ -45,6 +46,7 @@ class AgentSkillsRemovedEventSubscriber implements ListenerInterface
         private readonly TaskFileRepositoryInterface $taskFileRepository,
         private readonly MagicUserRepository $magicUserRepository,
         private readonly LockerInterface $locker,
+        private readonly SkillsMdSyncService $skillsMdSyncService,
         LoggerFactory $loggerFactory
     ) {
         $this->logger = $loggerFactory->get(static::class);
@@ -192,6 +194,13 @@ class AgentSkillsRemovedEventSubscriber implements ListenerInterface
             );
         }
 
+        $this->skillsMdSyncService->syncSkillsMd(
+            $projectId,
+            $projectEntity,
+            $organizationCode,
+            $projectOrgCode
+        );
+
         $this->logger->info('Agent skill file removal completed', [
             'agent_code' => $agentCode,
             'skill_codes' => $skillCodes,
@@ -268,17 +277,14 @@ class AgentSkillsRemovedEventSubscriber implements ListenerInterface
 
     /**
      * Resolve skill directory file keys for deletion.
-     * If ".magic" exists, delete both ".magic/skills" and legacy "skills" paths.
+     * Always checks both ".magic/skills" and legacy "skills" paths to handle
+     * data that may have been written to either location.
      *
      * @return string[]
      */
     private function resolveSkillsDirectoryFileKeys(int $projectId, string $fullPrefix, string $workDir): array
     {
-        $relativePaths = ['skills'];
-        $magicDir = $this->taskFileDomainService->findDirectoryByPath($projectId, '.magic');
-        if ($magicDir !== null) {
-            $relativePaths = ['.magic/skills', 'skills'];
-        }
+        $relativePaths = ['.magic/skills', 'skills'];
 
         $fileKeys = [];
         foreach ($relativePaths as $relativePath) {
