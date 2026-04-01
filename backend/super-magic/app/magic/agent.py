@@ -192,6 +192,7 @@ class Agent(BaseAgent):
 
     def __init__(self, agent_name: str, agent_context: AgentContext = None, agent_id: str = None):
         self.agent_name = agent_name
+        self._runtime_user_messages: List[str] = []
 
         # 设置Agent上下文
         self.agent_context = self._setup_agent_context(agent_context)
@@ -647,6 +648,24 @@ The following <dynamic_context> block contains system-provided context informati
         logger.info(f"自动生成新的 Agent ID: {new_id}")
         return new_id
 
+    def set_runtime_user_messages(self, messages: List[str]) -> None:
+        """设置本轮运行前需要注入的隐藏 user messages。"""
+        self._runtime_user_messages = [message for message in messages if isinstance(message, str) and message.strip()]
+
+    def enqueue_runtime_user_message(self, message: Optional[str]) -> None:
+        """追加本轮运行前需要注入的一条隐藏 user message。"""
+        if not isinstance(message, str) or not message.strip():
+            return
+        self._runtime_user_messages.append(message)
+
+    async def _append_runtime_user_messages(self) -> None:
+        """将本轮待注入的隐藏 user messages 追加到聊天历史。"""
+        runtime_user_messages = list(getattr(self, "_runtime_user_messages", []))
+        self._runtime_user_messages = []
+
+        for message in runtime_user_messages:
+            await self.chat_history.append_user_message(message, show_in_ui=False)
+
     async def run_main_agent(self, query: str):
         """运行主 agent"""
         try:
@@ -721,6 +740,8 @@ The following <dynamic_context> block contains system-provided context informati
             # 聊天记录存在时，更新第一条 system message 为最新的 system_prompt
             # 因为代码会更新，聊天记录不会更新，需要在 agent 每次运行时更新最新的 system prompt
             await self.chat_history.update_first_system_prompt(self.system_prompt)
+
+        await self._append_runtime_user_messages()
 
         # 准备会话：处理pending工具调用和用户查询
         session_prep_result = await self._prepare_session_for_new_query(query)
@@ -1414,7 +1435,7 @@ The following <dynamic_context> block contains system-provided context informati
             dynamic_model_id = self.agent_context.get_dynamic_model_id()
             if dynamic_model_id and dynamic_model_id.strip():
                 try:
-                    LLMFactory.get(dynamic_model_id)  # 确保配置被加载
+                    LLMFactory.get(dynamic_model_id)
                     model_config = LLMFactory.get_model_config(dynamic_model_id)
                     dynamic_model_name = model_config.name
                     resolved_model_id = model_config.resolved_model_id

@@ -7,6 +7,7 @@ from typing import List, Optional
 from typing import Dict
 
 from agentlang.skills.models import SkillMetadata
+from agentlang.skills.loader import SkillLoader
 from agentlang.agent.define import SkillsConfig
 from agentlang.logger import get_logger
 from agentlang.agent.syntax import SyntaxProcessor
@@ -265,8 +266,17 @@ async def _build_preloaded_skills_xml(
         for filename in files:
             is_skill_md = filename.upper() == "SKILL.MD"
             if is_skill_md:
-                file_content = meta.content
-                file_path = meta.skill_file
+                if not meta.skill_dir:
+                    logger.warning(f"skill {skill_name} 无 skill_dir，无法读取 SKILL.md")
+                    continue
+                skill_file_path = meta.skill_file or (meta.skill_dir / "SKILL.md")
+                try:
+                    loaded = await SkillLoader().load_from_file(skill_file_path)
+                    file_content = loaded.content
+                    file_path = loaded.skill_file
+                except Exception as e:
+                    logger.warning(f"preload skill {skill_name} SKILL.md 加载失败: {e}")
+                    continue
             else:
                 if not meta.skill_dir:
                     logger.warning(f"skill {skill_name} 无 skill_dir，无法读取 {filename}")

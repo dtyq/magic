@@ -24,6 +24,7 @@ return [
     'model_officially_disabled' => '模型已被官方禁用',
     'magic_provider_not_found' => 'Magic服务商配置不存在',
     'original_model_id_already_exists' => '原始模型ID已存在',
+    'original_model_id_already_exists_in_group' => '分组「:group_name」中的动态模型配置已存在：:model_label，请直接编辑现有模型',
     'original_model_not_found' => '原始模型不存在',
     'invalid_pricing' => '价格不能小于0',
     'creativity_temperature_conflict' => 'creativity 和 temperature 不能同时设置值',

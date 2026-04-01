@@ -47,6 +47,7 @@ use App\Infrastructure\Core\HighAvailability\DTO\EndpointResponseDTO;
 use App\Infrastructure\Core\HighAvailability\Entity\ValueObject\HighAvailabilityAppType;
 use App\Infrastructure\Core\HighAvailability\Interface\HighAvailabilityInterface;
 use App\Infrastructure\Core\Model\ImageGenerationModel;
+use App\Infrastructure\Core\Model\VideoGenerationModel;
 use App\Infrastructure\Core\ValueObject\StorageBucketType;
 use App\Infrastructure\ExternalAPI\ImageGenerateAPI\ImageGenerateFactory;
 use App\Infrastructure\ExternalAPI\ImageGenerateAPI\ImageGenerateModelType;

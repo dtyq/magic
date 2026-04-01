@@ -7,6 +7,7 @@ declare(strict_types=1);
 use App\Infrastructure\Util\Middleware\RequestContextMiddleware;
 use App\Interfaces\Middleware\Auth\ApiKeyMiddleware;
 use App\Interfaces\ModelGateway\Facade\Open\OpenAIProxyApi;
+use App\Interfaces\ModelGateway\Facade\Open\VideoApi;
 use App\Interfaces\Provider\Facade\ServiceProviderApi;
 use Hyperf\HttpServer\Router\Router;
 
@@ -17,6 +18,8 @@ Router::addGroup('/v1', function () {
     Router::get('/models', [OpenAIProxyApi::class, 'models']);
     Router::post('/images/generations', [OpenAIProxyApi::class, 'textGenerateImage']);
     Router::post('/images/edits', [OpenAIProxyApi::class, 'imageEdit']);
+    Router::post('/videos', [VideoApi::class, 'create']);
+    Router::get('/videos/{id}', [VideoApi::class, 'get']);
     // @deprecated Use /v2/search instead - supports multiple search engines
     Router::get('/search', [OpenAIProxyApi::class, 'bingSearch']);
 }, ['middleware' => [ApiKeyMiddleware::class]]);

@@ -27,6 +27,7 @@ return [
     'model_officially_disabled' => 'Model has been officially disabled',
     'magic_provider_not_found' => 'Magic service provider configuration not found',
     'original_model_id_already_exists' => 'Original model ID already exists',
+    'original_model_id_already_exists_in_group' => 'The dynamic model configuration already exists in group ":group_name": :model_label. Please edit the existing model directly',
     'original_model_not_found' => 'Original model not found',
     'invalid_pricing' => 'Pricing cannot be less than 0',
     'creativity_temperature_conflict' => 'creativity and temperature cannot be set at the same time',

@@ -22,6 +22,7 @@ from app.tools.design.utils.canvas_image_utils import get_image_info
 from app.tools.design.utils.canvas_layout_utils import calculate_next_element_position
 from app.tools.design.utils.magic_project_design_parser import (
     ImageElement,
+    VideoElement,
     TextElement,
     RectangleElement,
     EllipseElement,
@@ -494,6 +495,17 @@ class CreateCanvasElement(BaseDesignTool[CreateCanvasElementParams]):
                 loading=properties.get('loading', False),
                 generateImageRequest=properties.get('generateImageRequest'),
                 visualUnderstanding=properties.get('visualUnderstanding')
+            )
+
+        elif params.element_type == 'video':
+            return VideoElement(
+                **common_attrs,
+                src=properties.get('src'),
+                poster=properties.get('poster'),
+                loading=properties.get('loading', False),
+                status=properties.get('status'),
+                errorMessage=properties.get('errorMessage'),
+                generateVideoRequest=properties.get('generateVideoRequest')
             )
 
         elif params.element_type == 'text':

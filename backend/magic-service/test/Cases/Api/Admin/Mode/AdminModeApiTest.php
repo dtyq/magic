@@ -270,6 +270,109 @@ class AdminModeApiTest extends AbstractApiTest
         $this->assertTrue($detailDynamicModelFound, '详情接口中应该包含动态模型');
     }
 
+    public function testSaveModeConfigReturnsAllModelsAndCategorizedBucketsForImageModels(): void
+    {
+        $this->switchUserTest1();
+
+        $requestData = [
+            'mode' => [
+                'id' => $this->modeId,
+                'name_i18n' => [
+                    'en_US' => '测试',
+                    'zh_CN' => '测试图片模型回显',
+                ],
+                'placeholder_i18n' => [
+                    'en_US' => '',
+                    'zh_CN' => '测试图片模型回显',
+                ],
+                'identifier' => 'test-image-model-echo',
+                'icon' => '',
+                'color' => '#be5f00',
+                'icon_type' => 2,
+                'icon_url' => '/TGosRaFhvb/588417216353927169/4c9184f37cff01bcdc32dc486ec36961/ihfWlzfFD6m5TI_esYJ-0.png',
+                'description' => '',
+                'distribution_type' => 1,
+                'follow_mode_id' => '0',
+                'is_default' => 0,
+                'status' => true,
+                'sort' => 0,
+                'created_at' => '2025-11-18 11:22:04',
+                'organization_whitelist' => '',
+            ],
+            'groups' => [
+                [
+                    'group' => [
+                        'id' => '870254238134796289',
+                        'mode_id' => $this->modeId,
+                        'name_i18n' => [
+                            'en_US' => 'doubao',
+                            'zh_CN' => '超级豆包',
+                        ],
+                        'icon' => '/MAGIC/588417216353927169/4c9184f37cff01bcdc32dc486ec36961/default-files/68b16b1d298e6.png',
+                        'description' => '',
+                        'sort' => 0,
+                        'status' => true,
+                        'created_at' => '2026-01-15 10:39:38',
+                    ],
+                    'models' => [
+                        [
+                            'id' => 'text-model-' . time(),
+                            'provider_model_id' => '836641895902928897',
+                            'group_id' => '870254238134796289',
+                            'model_id' => 'max',
+                            'model_name' => 'MAX',
+                            'model_icon' => '',
+                            'model_description' => '',
+                            'sort' => 0,
+                            'model_status' => 'normal',
+                            'model_category' => 'llm',
+                        ],
+                        [
+                            'id' => 'image-model-' . time(),
+                            'provider_model_id' => '766766339641110529',
+                            'group_id' => '870254238134796289',
+                            'model_id' => 'flux1-dev',
+                            'model_name' => 'flux1-dev',
+                            'model_icon' => '',
+                            'model_description' => '',
+                            'sort' => 1,
+                            'model_status' => 'normal',
+                            'model_category' => 'vlm',
+                        ],
+                    ],
+                ],
+            ],
+        ];
+
+        $saveResponse = $this->put(self::BASE_URI . "/{$this->modeId}/config", $requestData, $this->getCommonHeaders());
+
+        $this->assertSame(1000, $saveResponse['code'], $saveResponse['message'] ?? '');
+        $this->assertIsArray($saveResponse['data']);
+        $this->assertArrayHasKey('groups', $saveResponse['data']);
+        $this->assertNotEmpty($saveResponse['data']['groups']);
+        $this->assertModeGroupModelBuckets(
+            $saveResponse['data']['groups'][0],
+            ['max', 'flux1-dev'],
+            ['max'],
+            ['flux1-dev'],
+            []
+        );
+
+        $detailResponse = $this->get(self::BASE_URI . "/{$this->modeId}", [], $this->getCommonHeaders());
+
+        $this->assertSame(1000, $detailResponse['code'], $detailResponse['message'] ?? '');
+        $this->assertIsArray($detailResponse['data']);
+        $this->assertArrayHasKey('groups', $detailResponse['data']);
+        $this->assertNotEmpty($detailResponse['data']['groups']);
+        $this->assertModeGroupModelBuckets(
+            $detailResponse['data']['groups'][0],
+            ['max', 'flux1-dev'],
+            ['max'],
+            ['flux1-dev'],
+            []
+        );
+    }
+
     /**
      * 测试列表接口能正确显示动态模型.
      */
@@ -908,5 +1011,23 @@ class AdminModeApiTest extends AbstractApiTest
         }
 
         $this->assertTrue($updatedDynamicModelFound, '应该找到更新后的动态模型');
+    }
+
+    private function assertModeGroupModelBuckets(
+        array $group,
+        array $expectedModelIds,
+        array $expectedTextModelIds,
+        array $expectedImageModelIds,
+        array $expectedVideoModelIds
+    ): void {
+        $this->assertArrayHasKey('models', $group);
+        $this->assertArrayHasKey('text_models', $group);
+        $this->assertArrayHasKey('image_models', $group);
+        $this->assertArrayHasKey('video_models', $group);
+
+        $this->assertSame($expectedModelIds, array_column($group['models'], 'model_id'));
+        $this->assertSame($expectedTextModelIds, array_column($group['text_models'], 'model_id'));
+        $this->assertSame($expectedImageModelIds, array_column($group['image_models'], 'model_id'));
+        $this->assertSame($expectedVideoModelIds, array_column($group['video_models'], 'model_id'));
     }
 }

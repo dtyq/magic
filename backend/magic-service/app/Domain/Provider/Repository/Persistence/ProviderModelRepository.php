@@ -24,10 +24,8 @@ use App\Infrastructure\Core\ValueObject\Page;
 use App\Infrastructure\Util\OfficialOrganizationUtil;
 use App\Interfaces\Provider\Assembler\ProviderModelAssembler;
 use App\Interfaces\Provider\DTO\SaveProviderModelDTO;
-use Hyperf\Codec\Json;
 use Hyperf\Database\Model\Builder;
 use Hyperf\DbConnection\Db;
-use Hyperf\Redis\Redis;
 
 class ProviderModelRepository extends AbstractProviderModelRepository implements ProviderModelRepositoryInterface
 {
@@ -504,7 +502,7 @@ class ProviderModelRepository extends AbstractProviderModelRepository implements
 
         // 如果指定了模型类型，添加模型类型过滤条件
         if (! empty($modelTypes)) {
-            $modelTypeValues = array_map(fn ($type) => $type->value, $modelTypes);
+            $modelTypeValues = array_map(static fn ($type) => $type->value, $modelTypes);
             $organizationModelsBuilder->whereIn('model_type', $modelTypeValues);
         }
 
@@ -518,14 +516,10 @@ class ProviderModelRepository extends AbstractProviderModelRepository implements
 
             // 如果指定了模型类型，过滤Magic模型
             if (! empty($modelTypes)) {
-                $magicModels = array_filter($magicModels, function ($model) use ($modelTypes) {
-                    foreach ($modelTypes as $modelType) {
-                        if ($model->getModelType() === $modelType) {
-                            return true;
-                        }
-                    }
-                    return false;
-                });
+                $magicModels = array_filter(
+                    $magicModels,
+                    static fn (ProviderModelEntity $model): bool => in_array($model->getModelType(), $modelTypes, true)
+                );
             }
         }
 

@@ -559,7 +559,6 @@ class TopicTaskAppService extends AbstractAppService
                 }
                 $message->setAttachments($attachments);
             }
-
             // 处理工具附件
             $tool = $message->getTool();
             if (! empty($tool) && ! empty($tool['attachments'])) {
@@ -1257,13 +1256,13 @@ class TopicTaskAppService extends AbstractAppService
             $extraData = [];
             $imageModel = $superAgentExtra->getImageModel();
             $model = $superAgentExtra->getModel();
-
             if ($imageModel !== null && isset($imageModel['model_id'])) {
                 $extraData['image_model_id'] = $imageModel['model_id'];
             }
             if ($model !== null && isset($model['model_id'])) {
                 $extraData['model_id'] = $model['model_id'];
             }
+            $extraData = $this->appendVideoModelExtraData($extraData, $superAgentExtra);
 
             // Only keep extraData if it has values
             if (empty($extraData)) {

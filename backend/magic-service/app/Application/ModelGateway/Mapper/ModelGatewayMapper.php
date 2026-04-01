@@ -17,9 +17,12 @@ use App\Domain\Provider\Entity\ValueObject\ProviderDataIsolation;
 use App\Domain\Provider\Entity\ValueObject\ProviderModelType;
 use App\Infrastructure\Core\Contract\Model\RerankInterface;
 use App\Infrastructure\Core\DataIsolation\BaseDataIsolation;
+use App\Infrastructure\Core\Model\ImageGenerationModel;
+use App\Infrastructure\Core\Model\VideoGenerationModel;
 use App\Infrastructure\ExternalAPI\ImageGenerateAPI\ImageModel;
 use App\Infrastructure\ExternalAPI\MagicAIApi\MagicAILocalModel;
 use App\Infrastructure\ExternalAPI\Proxy\ProxyConfigResolverInterface;
+use App\Infrastructure\ExternalAPI\VideoGenerateAPI\VideoModel;
 use DateTime;
 use Hyperf\Contract\ConfigInterface;
 use Hyperf\Logger\LoggerFactory;
@@ -64,6 +67,7 @@ class ModelGatewayMapper extends ModelMapper
     public function exists(BaseDataIsolation $dataIsolation, string $model): bool
     {
         $dataIsolation = ModelGatewayDataIsolation::createByBaseDataIsolation($dataIsolation);
+        $model = $this->resolveOfficeModelId(Category::VGM, $model) ?? $model;
         if (isset($this->models['chat'][$model]) || isset($this->models['embedding'][$model])) {
             return true;
         }
@@ -156,6 +160,19 @@ class ModelGatewayMapper extends ModelMapper
         return null;
     }
 
+    public function getOrganizationVideoModel(BaseDataIsolation $dataIsolation, string $model): ?VideoModel
+    {
+        $dataIsolation = ModelGatewayDataIsolation::createByBaseDataIsolation($dataIsolation);
+        $model = $this->resolveOfficeModelId(Category::VGM, $model) ?? $model;
+        $result = $this->getByAdmin($dataIsolation, $model, ModelType::TEXT_TO_VIDEO);
+
+        if ($result instanceof VideoModel) {
+            return $result;
+        }
+
+        return null;
+    }
+
     /**
      * 获取当前组织下的所有可用 chat 模型.
      * @return ModelEntry[]
@@ -194,6 +211,49 @@ class ModelGatewayMapper extends ModelMapper
     {
         $dataIsolation = ModelGatewayDataIsolation::createByBaseDataIsolation($dataIsolation);
         return $this->getModelsByType($dataIsolation, [ModelType::LLM, ModelType::EMBEDDING, ModelType::TEXT_TO_IMAGE, ModelType::IMAGE_TO_IMAGE], $withDynamicModels);
+    }
+
+    /**
+     * get all available video models under the current organization.
+     * @return OdinModel[]
+     */
+    public function getVideoModels(BaseDataIsolation $dataIsolation): array
+    {
+        $dataIsolation = ModelGatewayDataIsolation::createByBaseDataIsolation($dataIsolation);
+        $serviceProviderDomainService = di(AdminProviderDomainService::class);
+        $officeModels = $serviceProviderDomainService->getOfficeModels(Category::VGM);
+
+        $odinModels = [];
+        foreach ($officeModels as $model) {
+            if (! $model->getModelType()->isVideoGeneration()) {
+                continue;
+            }
+
+            $key = $model->getModelId();
+            $videoModel = new VideoGenerationModel(
+                $model->getModelId(),
+                [],
+                $this->logger,
+            );
+
+            $attributes = new OdinModelAttributes(
+                key: $key,
+                name: $model->getModelVersion(),
+                label: $model->getName() ?: 'Video Generation',
+                icon: $model->getIcon() ?: '',
+                tags: [['type' => 1, 'value' => 'Video Generation']],
+                createdAt: $model->getCreatedAt() ?? new DateTime(),
+                owner: 'MagicAI',
+                providerAlias: '',
+                providerModelId: (string) $model->getId(),
+                description: $model->getLocalizedDescription($dataIsolation->getLanguage()) ?? '',
+                modelType: $model->getModelType()->value,
+            );
+
+            $odinModels[$key] = new OdinModel($key, $videoModel, $attributes);
+        }
+
+        return $odinModels;
     }
 
     protected function loadEnvModels(): void
@@ -633,6 +693,21 @@ class ModelGatewayMapper extends ModelMapper
         }
 
         return $this->createModelByProvider($providerDataIsolation, $providerModelEntity, $providerConfigEntity, $providerEntity, $proxy);
+    }
+
+    private function resolveOfficeModelId(Category $category, string $modelIdOrVersion): ?string
+    {
+        $serviceProviderDomainService = di(AdminProviderDomainService::class);
+        foreach ($serviceProviderDomainService->getOfficeModels($category) as $officeModel) {
+            if (
+                $officeModel->getModelId() === $modelIdOrVersion
+                || $officeModel->getModelVersion() === $modelIdOrVersion
+            ) {
+                return $officeModel->getModelId();
+            }
+        }
+
+        return null;
     }
 
     private function createProxy(ModelGatewayDataIsolation $dataIsolation, string $model, ModelOptions $modelOptions, ApiOptions $apiOptions, bool $useOfficialAccessToken = false): MagicAILocalModel
