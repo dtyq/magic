@@ -15,7 +15,6 @@ use App\Domain\ModelGateway\Entity\Dto\EmbeddingsDTO;
 use App\Domain\ModelGateway\Entity\ValueObject\ModelGatewayDataIsolation;
 use App\Domain\OrganizationEnvironment\Entity\ValueObject\DeploymentEnum;
 use App\Domain\OrganizationEnvironment\Service\MagicOrganizationEnvDomainService;
-use App\Domain\Permission\Service\OrganizationAdminDomainService;
 use App\Domain\Provider\DTO\ProviderConfigDTO;
 use App\Domain\Provider\DTO\ProviderConfigModelsDTO;
 use App\Domain\Provider\DTO\ProviderModelDetailDTO;
@@ -39,7 +38,6 @@ use App\Domain\Provider\Service\ConnectivityTest\ConnectResponse;
 use App\Domain\Provider\Service\ProviderConfigDomainService;
 use App\Domain\Provider\Service\ProviderModelDomainService;
 use App\ErrorCode\ServiceProviderErrorCode;
-use App\Infrastructure\Core\DataIsolation\ValueObject\OrganizationType;
 use App\Infrastructure\Core\Exception\ExceptionBuilder;
 use App\Infrastructure\Core\Traits\HasLogger;
 use App\Infrastructure\Util\FuzzMatchUtil;
@@ -55,6 +53,8 @@ use Hyperf\DbConnection\Db;
 use Hyperf\Odin\Api\Response\ChatCompletionResponse;
 use Psr\EventDispatcher\EventDispatcherInterface;
 
+use function Hyperf\Translation\__;
+
 readonly class AdminProviderAppService
 {
     use HasLogger;
@@ -65,7 +65,6 @@ readonly class AdminProviderAppService
         private ProviderModelDomainService $providerModelDomainService,
         private AdminProviderDomainService $adminProviderDomainService,
         private EventDispatcherInterface $eventDispatcher,
-        private OrganizationAdminDomainService $organizationAdminDomainService,
         private MagicOrganizationEnvDomainService $magicOrganizationEnvDomainService,
     ) {
     }
@@ -98,8 +97,8 @@ readonly class AdminProviderAppService
     /**
      * 更新服务商配置。
      *
-     * 在国内 SaaS 个人组织的 LLM 受控场景下，提交配置前会统一归一化，
-     * 仅保留 api_key，并由后端补齐服务商默认 URL。
+     * 非官方组织下，受控服务商仍由前端填写 URL，这里只负责校验服务商是否允许接入，
+     * 并校验用户填写的 URL 一级域名是否与服务商匹配。
      */
     public function updateProvider(
         MagicUserAuthorization $authorization,
@@ -130,7 +129,14 @@ readonly class AdminProviderAppService
         $providerCode = $serviceProviderEntity->getProviderCode();
         $serviceProviderId = $serviceProviderEntity->getId();
 
-        // 受控场景下前端不允许自定义 URL，这里统一收口为 api_key + 默认 URL。
+        // 非官方组织也只能选择白名单内的服务商。
+        $this->validateAllowedProviderForNonOfficialOrganization(
+            $authorization->getOrganizationCode(),
+            $serviceProviderEntity->getProviderCode(),
+            $serviceProviderEntity->getCategory(),
+        );
+
+        // 非官方组织下，需要基于最终选中的服务商校验接入权限和 URL 一级域名，
         $updateProviderConfigRequest->setConfig($this->normalizeProviderConfig(
             $authorization->getOrganizationCode(),
             $serviceProviderEntity->getProviderCode(),
@@ -159,8 +165,7 @@ readonly class AdminProviderAppService
     /**
      * 创建服务商配置。
      *
-     * 在国内 SaaS 个人组织的 LLM 受控场景下，提交配置前会统一归一化，
-     * 仅保留 api_key，并由后端补齐服务商默认 URL。
+     * 非官方组织下，受控服务商仍由前端填写 URL，这里只负责校验服务商是否允许接入，
      */
     public function createProvider(
         MagicUserAuthorization $authorization,
@@ -176,7 +181,14 @@ readonly class AdminProviderAppService
             ExceptionBuilder::throw(ServiceProviderErrorCode::ServiceProviderNotFound);
         }
 
-        // 受控场景下前端不允许自定义 URL，这里统一收口为 api_key + 默认 URL。
+        // 非官方组织也只能选择白名单内的服务商。
+        $this->validateAllowedProviderForNonOfficialOrganization(
+            $authorization->getOrganizationCode(),
+            $providerEntity->getProviderCode(),
+            $providerEntity->getCategory(),
+        );
+
+        // 非官方组织下，需要在创建前校验服务商是否允许接入以及 URL 一级域名，
         $createProviderConfigRequest->setConfig($this->normalizeProviderConfig(
             $authorization->getOrganizationCode(),
             $providerEntity->getProviderCode(),
@@ -402,14 +414,13 @@ readonly class AdminProviderAppService
             return [];
         }
 
-        if ($this->shouldRestrictDomesticPersonalSaasLlmTemplates($organizationCode, $category)) {
-            // 仅国内 SaaS 个人组织的 LLM 模板做白名单收口，其他场景保持原样。
+        if ($this->shouldRestrictNonOfficialOrganizationTemplates($organizationCode, $category)) {
+            // 非官方组织只展示受控白名单内的服务商模板，官方组织保持原样。
             $serviceProviders = array_values(array_filter(
                 $serviceProviders,
-                static fn (ProviderConfigModelsDTO $serviceProvider): bool => $serviceProvider->getProviderCode()?->isDomesticPersonalSaasLlmWhitelist() ?? false
+                static fn (ProviderConfigModelsDTO $serviceProvider): bool => $category !== null
+                    && ($serviceProvider->getProviderCode()?->isNonOfficialOrganizationTemplateWhitelist($category) ?? false)
             ));
-
-            $this->applyTemplateConfigSchema($serviceProviders, $category);
         }
 
         // 处理图标
@@ -432,6 +443,13 @@ readonly class AdminProviderAppService
 
         if (empty($serviceProviders)) {
             return [];
+        }
+
+        if ($this->shouldRestrictNonOfficialOrganizationTemplates($organizationCode, $category)) {
+            $serviceProviders = array_values(array_filter(
+                $serviceProviders,
+                static fn (ProviderConfigModelsDTO $serviceProvider): bool => $serviceProvider->getProviderCode()?->isNonOfficialOrganizationTemplateWhitelist($category) ?? false
+            ));
         }
 
         // 处理图标
@@ -1021,26 +1039,10 @@ readonly class AdminProviderAppService
     }
 
     /**
-     * /**
-     * 为服务商模板补充前端渲染所需的配置 schema。
-     */
-    private function applyTemplateConfigSchema(array $serviceProviders, ?Category $category): void
-    {
-        if ($category === null) {
-            return;
-        }
-
-        foreach ($serviceProviders as $serviceProvider) {
-            $providerCode = $serviceProvider->getProviderCode();
-            // 前端按 schema 渲染表单，受控模板只会看到 api_key 字段。
-            $serviceProvider->setConfigSchema($providerCode?->getTemplateConfigSchema($category) ?? []);
-        }
-    }
-
-    /**
      * 归一化服务商配置。
      *
-     * 在国内 SaaS 个人组织的 LLM 受控场景下，仅保留 api_key，并强制写入服务商默认 URL。
+     * 非官方组织下仍允许前端直接填写 URL，这里只负责统一校验：
+     * 1. URL 的一级域名是否和服务商匹配
      */
     private function normalizeProviderConfig(
         string $organizationCode,
@@ -1048,51 +1050,60 @@ readonly class AdminProviderAppService
         Category $category,
         array $config,
     ): array {
-        if (! $this->shouldRestrictDomesticPersonalSaasLlmTemplates($organizationCode, $category)
-            || ! $providerCode->isDomesticPersonalSaasLlmWhitelist()) {
+        if (! $this->shouldRestrictNonOfficialOrganizationTemplates($organizationCode, $category)) {
             return $config;
         }
 
-        $normalizedConfig = [];
-        if (array_key_exists('api_key', $config)) {
-            $normalizedConfig['api_key'] = $config['api_key'];
-        } elseif (array_key_exists('apiKey', $config)) {
-            $normalizedConfig['api_key'] = $config['apiKey'];
+        $url = trim((string) ($config['url'] ?? ''));
+        if ($url === '' || ! $providerCode->isAllowedPrimaryDomainUrl($url)) {
+            ExceptionBuilder::throw(
+                ServiceProviderErrorCode::InvalidParameter,
+                __('service_provider.invalid_parameter')
+            );
         }
 
-        $defaultUrl = $providerCode->getDefaultUrl();
-        if ($defaultUrl !== '') {
-            $normalizedConfig['url'] = $defaultUrl;
-        }
-
-        return $normalizedConfig;
+        return $config;
     }
 
     /**
-     * 判断当前组织是否命中“国内 SaaS + 个人组织 + LLM”模板收口场景。
-     *
-     * 这里统一封装组织上下文获取和规则判断，避免调用方同时关心“如何取上下文”和“如何判定规则”。
+     * 非官方组织在国内 SaaS 下只能接入白名单内的服务商，避免通过接口直接绕过前端限制。
      */
-    private function shouldRestrictDomesticPersonalSaasLlmTemplates(
+    private function validateAllowedProviderForNonOfficialOrganization(
+        string $organizationCode,
+        ProviderCode $providerCode,
+        Category $category,
+    ): void {
+        if (! $this->shouldRestrictNonOfficialOrganizationTemplates($organizationCode, $category)) {
+            return;
+        }
+
+        if ($providerCode->isNonOfficialOrganizationTemplateWhitelist($category)) {
+            return;
+        }
+
+        ExceptionBuilder::throw(
+            ServiceProviderErrorCode::InvalidParameter,
+            __('service_provider.invalid_parameter')
+        );
+    }
+
+    /**
+     * 判断当前组织是否命中“非官方组织 + 国内 SaaS + 受控模型分类”模板收口场景。
+     */
+    private function shouldRestrictNonOfficialOrganizationTemplates(
         string $organizationCode,
         ?Category $category,
     ): bool {
-        if ($category !== Category::LLM) {
+        if ($category !== Category::LLM && $category !== Category::VLM) {
             return false;
         }
 
-        $dataIsolation = ProviderDataIsolation::create($organizationCode);
-        $organizationEntity = $this->organizationAdminDomainService->getOrganizationInfo($dataIsolation);
-        $organizationType = $organizationEntity === null ? null : OrganizationType::tryFrom($organizationEntity->getType());
-
-        if ($organizationType !== OrganizationType::Personal) {
+        if ($this->isOfficialOrganization($organizationCode)) {
             return false;
         }
 
         $organizationEnvDTO = $this->magicOrganizationEnvDomainService->getOrganizationsEnvironmentDTO($organizationCode);
-        $deployment = $organizationEnvDTO?->getDeployment();
 
-        return $organizationType === OrganizationType::Personal
-            && $deployment === DeploymentEnum::SaaS;
+        return $organizationEnvDTO?->getDeployment() === DeploymentEnum::SaaS;
     }
 }

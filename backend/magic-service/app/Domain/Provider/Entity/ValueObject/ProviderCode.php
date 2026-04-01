@@ -28,6 +28,12 @@ enum ProviderCode: string
     case Qwen = 'Qwen';
     case DeepSeek = 'DeepSeek';
     case Tencent = 'Tencent';
+    case Baidu = 'Baidu';
+    case SCNet = 'SCNet';
+    case Moonshot = 'Moonshot';
+    case Zhipu = 'Zhipu';
+    case MiniMax = 'MiniMax';
+    case SiliconFlow = 'SiliconFlow';
     case TTAPI = 'TTAPI';
     case MiracleVision = 'MiracleVision';
     case AWSBedrock = 'AWSBedrock';
@@ -107,20 +113,42 @@ enum ProviderCode: string
     }
 
     /**
-     * 判断当前服务商是否属于国内 SaaS 个人组织 LLM 模板白名单。
+     * 判断当前服务商是否属于非官方组织的文本模型模板白名单。
      */
-    public function isDomesticPersonalSaasLlmWhitelist(): bool
+    public function isNonOfficialOrganizationLlmWhitelist(): bool
     {
         return match ($this) {
-            self::DashScope, self::Volcengine, self::DeepSeek => true,
+            self::DashScope,
+            self::Volcengine,
+            self::DeepSeek,
+            self::Tencent,
+            self::Baidu,
+            self::SCNet,
+            self::Moonshot,
+            self::Zhipu,
+            self::MiniMax,
+            self::SiliconFlow => true,
             default => false,
         };
     }
 
     /**
-     * 获取服务商默认请求地址。
-     *
-     * 在国内 SaaS 个人组织的 LLM 场景下，前端不再填写 URL，由后端统一补齐。
+     * 判断当前服务商是否属于非官方组织模板白名单。
+     */
+    public function isNonOfficialOrganizationTemplateWhitelist(Category $category): bool
+    {
+        return match ($category) {
+            Category::LLM => $this->isNonOfficialOrganizationLlmWhitelist(),
+            Category::VLM => match ($this) {
+                self::Qwen, self::VolcengineArk, self::TTAPI, self::MiracleVision, self::Volcengine => true,
+                default => false,
+            },
+            default => false,
+        };
+    }
+
+    /**
+     * 获取服务商推荐接入地址。
      */
     public function getDefaultUrl(): string
     {
@@ -128,33 +156,67 @@ enum ProviderCode: string
             self::DashScope => 'https://dashscope.aliyuncs.com/compatible-mode/v1',
             self::Volcengine => 'https://ark.cn-beijing.volces.com/api/v3',
             self::DeepSeek => 'https://api.deepseek.com',
+            self::Tencent => 'https://api.hunyuan.cloud.tencent.com/v1',
+            self::Baidu => 'https://qianfan.baidubce.com/v2',
+            self::SCNet => 'https://api.scnet.cn/api/llm/v1',
+            self::Moonshot => 'https://api.moonshot.cn/v1',
+            self::Zhipu => 'https://open.bigmodel.cn/api/paas/v4',
+            self::MiniMax => 'https://api.minimaxi.com/v1',
+            self::SiliconFlow => 'https://api.siliconflow.cn/v1',
             default => '',
         };
     }
 
     /**
-     * 获取模板配置 schema。
+     * 获取服务商允许的一级域名后缀。
      *
-     * 受控场景下只返回 api_key，前端据此隐藏自定义 URL 输入项。
+     * 非官方组织下，用户填写的 URL 只要命中这些一级域名即可通过校验。
      */
-    public function getTemplateConfigSchema(Category $category): array
+    public function getAllowedPrimaryDomains(): array
     {
-        if ($category !== Category::LLM || ! $this->isDomesticPersonalSaasLlmWhitelist()) {
-            return [];
+        return match ($this) {
+            self::DashScope, self::Qwen => ['aliyuncs.com'],
+            self::Volcengine, self::VolcengineArk => ['volces.com'],
+            self::DeepSeek => ['deepseek.com'],
+            self::Tencent => ['tencent.com'],
+            self::Baidu => ['baidubce.com'],
+            self::SCNet => ['scnet.cn'],
+            self::Moonshot => ['moonshot.cn'],
+            self::Zhipu => ['bigmodel.cn'],
+            self::MiniMax => ['minimaxi.com'],
+            self::SiliconFlow => ['siliconflow.cn'],
+            default => [],
+        };
+    }
+
+    /**
+     * 判断服务商配置的 URL 是否命中了允许的一级域名。
+     */
+    public function isAllowedPrimaryDomainUrl(string $url): bool
+    {
+        $allowedPrimaryDomains = $this->getAllowedPrimaryDomains();
+        if ($allowedPrimaryDomains === []) {
+            return true;
         }
 
-        // 受控模板只暴露 api_key，避免前端出现自定义 URL 输入框。
-        return [
-            'api_key' => [
-                'required' => true,
-                'type' => 'string',
-            ],
-        ];
+        $host = strtolower((string) parse_url($url, PHP_URL_HOST));
+        if ($host === '') {
+            return false;
+        }
+
+        foreach ($allowedPrimaryDomains as $primaryDomain) {
+            $primaryDomain = strtolower($primaryDomain);
+            if ($host === $primaryDomain || str_ends_with($host, '.' . $primaryDomain)) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     /**
      * 获取服务商的排序顺序（用于非官方服务商列表展示）.
-     * 按照指定顺序：Microsoft Azure -> Google -> Amazon Bedrock -> OpenRouter -> Aliyun -> Volcengine -> DeepSeek -> Custom Provider.
+     * 排序优先级与当前服务商模板展示顺序保持一致。
      *
      * @return int 排序值，值越小越靠前
      */
@@ -169,18 +231,22 @@ enum ProviderCode: string
             self::OpenRouter => 6,
             self::Volcengine, self::VolcengineArk => 7,
             self::DeepSeek => 8,
+            self::Tencent => 9,
+            self::Baidu => 10,
+            self::SCNet => 11,
+            self::Moonshot => 12,
+            self::Zhipu => 13,
+            self::MiniMax => 14,
+            self::SiliconFlow => 15,
             default => 999, // 其他服务商排在最后
         };
     }
 
     /**
      * 获取模型实际使用的请求地址。
-     *
-     * 当配置里没有显式保存 URL 时，自动回落到服务商默认地址。
      */
     private function getModelUrl(AbstractProviderConfigItem $config): string
     {
-        // 兼容只保存 api_key 的场景，运行时自动回落到服务商默认地址。
-        return $config->getUrl() ?: $this->getDefaultUrl();
+        return $config->getUrl();
     }
 }

@@ -55,6 +55,12 @@ enum ProviderTemplateId: string
     case GoogleVlm = '20';
     case VolcengineArkVlm = '21';
     case Gemini = '22';
+    case BaiduLlm = '23';
+    case SCNetLlm = '24';
+    case MoonshotLlm = '25';
+    case ZhipuLlm = '26';
+    case MiniMaxLlm = '27';
+    case SiliconFlowLlm = '28';
 
     /**
      * 根据ProviderCode和Category获取对应的模板ID.
@@ -85,6 +91,12 @@ enum ProviderTemplateId: string
             [ProviderCode::Google, Category::VLM] => self::GoogleVlm,
             [ProviderCode::VolcengineArk, Category::VLM] => self::VolcengineArkVlm,
             [ProviderCode::Gemini, Category::LLM] => self::Gemini,
+            [ProviderCode::Baidu, Category::LLM] => self::BaiduLlm,
+            [ProviderCode::SCNet, Category::LLM] => self::SCNetLlm,
+            [ProviderCode::Moonshot, Category::LLM] => self::MoonshotLlm,
+            [ProviderCode::Zhipu, Category::LLM] => self::ZhipuLlm,
+            [ProviderCode::MiniMax, Category::LLM] => self::MiniMaxLlm,
+            [ProviderCode::SiliconFlow, Category::LLM] => self::SiliconFlowLlm,
             default => null,
         };
     }
@@ -120,6 +132,12 @@ enum ProviderTemplateId: string
             self::GoogleVlm => ['providerCode' => ProviderCode::Google, 'category' => Category::VLM],
             self::VolcengineArkVlm => ['providerCode' => ProviderCode::VolcengineArk, 'category' => Category::VLM],
             self::Gemini => ['providerCode' => ProviderCode::Gemini, 'category' => Category::LLM],
+            self::BaiduLlm => ['providerCode' => ProviderCode::Baidu, 'category' => Category::LLM],
+            self::SCNetLlm => ['providerCode' => ProviderCode::SCNet, 'category' => Category::LLM],
+            self::MoonshotLlm => ['providerCode' => ProviderCode::Moonshot, 'category' => Category::LLM],
+            self::ZhipuLlm => ['providerCode' => ProviderCode::Zhipu, 'category' => Category::LLM],
+            self::MiniMaxLlm => ['providerCode' => ProviderCode::MiniMax, 'category' => Category::LLM],
+            self::SiliconFlowLlm => ['providerCode' => ProviderCode::SiliconFlow, 'category' => Category::LLM],
         };
     }
 
@@ -136,7 +154,13 @@ enum ProviderTemplateId: string
             ProviderCode::MicrosoftAzure => 'Microsoft Azure',
             ProviderCode::Qwen => '通义千问',
             ProviderCode::DeepSeek => 'DeepSeek',
-            ProviderCode::Tencent => '腾讯云',
+            ProviderCode::Tencent => '腾讯云混元',
+            ProviderCode::Baidu => '百度千帆',
+            ProviderCode::SCNet => '国家超算平台',
+            ProviderCode::Moonshot => 'Kimi 开放平台',
+            ProviderCode::Zhipu => '智谱 AI 开放平台',
+            ProviderCode::MiniMax => 'MiniMax 开放平台',
+            ProviderCode::SiliconFlow => '硅基流动',
             ProviderCode::TTAPI => 'TTAPI',
             ProviderCode::MiracleVision => 'MiracleVision',
             ProviderCode::AWSBedrock => 'AWS Bedrock',

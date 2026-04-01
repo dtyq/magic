@@ -73,8 +73,6 @@ class ProviderConfigDTO extends AbstractDTO
 
     protected int $sort = 0;
 
-    protected array $configSchema = [];
-
     public function __construct(array $data = [])
     {
         parent::__construct($data);
@@ -263,23 +261,6 @@ class ProviderConfigDTO extends AbstractDTO
             $this->sort = 0;
         } else {
             $this->sort = (int) $sort;
-        }
-    }
-
-    public function getConfigSchema(): array
-    {
-        return $this->configSchema;
-    }
-
-    public function setConfigSchema(null|array|string $configSchema): void
-    {
-        if ($configSchema === null) {
-            $this->configSchema = [];
-        } elseif (is_string($configSchema)) {
-            $decoded = Json::decode($configSchema);
-            $this->configSchema = is_array($decoded) ? $decoded : [];
-        } else {
-            $this->configSchema = $configSchema;
         }
     }
 
