@@ -9,6 +9,8 @@ namespace Dtyq\SuperMagic\Infrastructure\Utils;
 
 use Dtyq\SuperMagic\Domain\Skill\Entity\SkillEntity;
 use InvalidArgumentException;
+use Symfony\Component\Yaml\Exception\ParseException;
+use Symfony\Component\Yaml\Yaml;
 
 final class SkillProjectConfigUtil
 {
@@ -35,13 +37,7 @@ final class SkillProjectConfigUtil
      */
     public static function render(array $config): string
     {
-        $skill = $config['skill'] ?? [];
-
-        return implode("\n", [
-            'skill:',
-            sprintf('  dir: "%s"', self::escapeValue($skill['dir'] ?? '')),
-            '',
-        ]);
+        return Yaml::dump($config, 2, 2);
     }
 
     /**
@@ -49,48 +45,19 @@ final class SkillProjectConfigUtil
      */
     public static function parse(string $content): array
     {
-        $lines = preg_split('/\r\n|\r|\n/', $content) ?: [];
-        $inSkillBlock = false;
-        $skill = [];
-
-        foreach ($lines as $line) {
-            $trimmedLine = trim($line);
-            if ($trimmedLine === '') {
-                continue;
-            }
-
-            if ($trimmedLine === 'skill:') {
-                $inSkillBlock = true;
-                continue;
-            }
-
-            if (! $inSkillBlock) {
-                continue;
-            }
-
-            // Quoted value: dir: "value"
-            if (preg_match('/^\s{2}([A-Za-z0-9-]+):\s*"((?:\\\.|[^"])*)"\s*$/', $line, $matches) === 1) {
-                $skill[$matches[1]] = stripcslashes($matches[2]);
-                continue;
-            }
-
-            // Unquoted value (standard YAML): dir: value
-            if (preg_match('/^\s{2}([A-Za-z0-9-]+):\s*([^"\'#\s][^\s#]*)\s*$/', $line, $matches) === 1) {
-                $skill[$matches[1]] = $matches[2];
-                continue;
-            }
-
-            // Empty value: dir:
-            if (preg_match('/^\s{2}([A-Za-z0-9-]+):\s*$/', $line, $matches) === 1) {
-                $skill[$matches[1]] = '';
-                continue;
-            }
-
-            throw new InvalidArgumentException('Invalid skill project config format.');
+        try {
+            $parsed = Yaml::parse($content);
+        } catch (ParseException $e) {
+            throw new InvalidArgumentException('Invalid skill project config format: ' . $e->getMessage(), 0, $e);
         }
 
-        if (! $inSkillBlock) {
+        if (! is_array($parsed) || ! isset($parsed['skill']) || ! is_array($parsed['skill'])) {
             throw new InvalidArgumentException('Missing skill block in skill project config.');
+        }
+
+        $skill = [];
+        foreach ($parsed['skill'] as $key => $value) {
+            $skill[(string) $key] = is_string($value) ? $value : (string) $value;
         }
 
         return ['skill' => $skill];
@@ -111,10 +78,5 @@ final class SkillProjectConfigUtil
         }
 
         return ! str_contains($dir, '..');
-    }
-
-    private static function escapeValue(string $value): string
-    {
-        return addcslashes($value, "\\\"\n\r\t");
     }
 }

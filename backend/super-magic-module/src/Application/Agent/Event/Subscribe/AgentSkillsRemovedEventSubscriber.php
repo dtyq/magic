@@ -138,6 +138,7 @@ class AgentSkillsRemovedEventSubscriber implements ListenerInterface
         $skillDataIsolation->disabled();
 
         $allDeletedFileIds = [];
+        $removedPackageNames = [];
 
         foreach ($skillCodes as $skillCode) {
             try {
@@ -152,6 +153,8 @@ class AgentSkillsRemovedEventSubscriber implements ListenerInterface
                     $this->logger->warning('Skill packageName is empty for removal', ['skill_code' => $skillCode]);
                     continue;
                 }
+
+                $removedPackageNames[] = $packageName;
 
                 foreach ($skillsDirFileKeys as $skillsDirFileKey) {
                     $targetPath = $skillsDirFileKey . $packageName . '/';
@@ -198,7 +201,9 @@ class AgentSkillsRemovedEventSubscriber implements ListenerInterface
             $projectId,
             $projectEntity,
             $organizationCode,
-            $projectOrgCode
+            $projectOrgCode,
+            $removedPackageNames,
+            SkillsMdSyncService::OPERATION_REMOVE
         );
 
         $this->logger->info('Agent skill file removal completed', [
@@ -206,6 +211,7 @@ class AgentSkillsRemovedEventSubscriber implements ListenerInterface
             'skill_codes' => $skillCodes,
             'project_id' => $projectId,
             'total_files_deleted' => count($allDeletedFileIds),
+            'removed_packages' => $removedPackageNames,
         ]);
     }
 

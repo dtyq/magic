@@ -25,7 +25,7 @@ class SkillProjectConfigUtilTest extends TestCase
         $yaml = SkillProjectConfigUtil::render($config);
 
         self::assertSame('my-skill', $config['skill']['dir']);
-        self::assertSame("skill:\n  dir: \"my-skill\"\n", $yaml);
+        self::assertSame("skill:\n  dir: my-skill\n", $yaml);
     }
 
     public function testParseSupportsMinimalConfig(): void

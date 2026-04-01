@@ -178,10 +178,11 @@ class AgentSkillsAddedEventSubscriber implements ListenerInterface
         $skillDataIsolation->disabled();
 
         $allCreatedFiles = [];
+        $addedPackageNames = [];
 
         foreach ($skillCodes as $skillCode) {
             try {
-                $createdFiles = $this->syncSingleSkill(
+                [$createdFiles, $packageName] = $this->syncSingleSkill(
                     $skillDataIsolation,
                     $skillCode,
                     $projectId,
@@ -194,6 +195,9 @@ class AgentSkillsAddedEventSubscriber implements ListenerInterface
                     $skillsDirectoryConfig['relative_path']
                 );
                 $allCreatedFiles = array_merge($allCreatedFiles, $createdFiles);
+                if ($packageName !== null) {
+                    $addedPackageNames[] = $packageName;
+                }
             } catch (Throwable $e) {
                 $this->logger->error('Failed to sync skill file', [
                     'skill_code' => $skillCode,
@@ -218,7 +222,9 @@ class AgentSkillsAddedEventSubscriber implements ListenerInterface
             $projectId,
             $projectEntity,
             $organizationCode,
-            $projectOrgCode
+            $projectOrgCode,
+            $addedPackageNames,
+            SkillsMdSyncService::OPERATION_ADD
         );
 
         $this->logger->info('Agent skill file sync completed', [
@@ -226,11 +232,12 @@ class AgentSkillsAddedEventSubscriber implements ListenerInterface
             'skill_codes' => $skillCodes,
             'project_id' => $projectId,
             'files_created' => count($allCreatedFiles),
+            'added_packages' => $addedPackageNames,
         ]);
     }
 
     /**
-     * @return TaskFileEntity[]
+     * @return array{0: TaskFileEntity[], 1: null|string}
      */
     private function syncSingleSkill(
         SkillDataIsolation $skillDataIsolation,
@@ -247,19 +254,19 @@ class AgentSkillsAddedEventSubscriber implements ListenerInterface
         $skillEntity = $this->skillRepository->findByCode($skillDataIsolation, $skillCode);
         if ($skillEntity === null) {
             $this->logger->warning('Skill not found', ['skill_code' => $skillCode]);
-            return [];
+            return [[], null];
         }
 
         $fileKey = $skillEntity->getFileKey();
         if (empty($fileKey)) {
             $this->logger->warning('Skill file_key is empty', ['skill_code' => $skillCode]);
-            return [];
+            return [[], null];
         }
 
         $packageName = $skillEntity->getPackageName();
         if (empty($packageName)) {
             $this->logger->warning('Skill packageName is empty', ['skill_code' => $skillCode]);
-            return [];
+            return [[], null];
         }
 
         $skillOrganizationCode = $skillEntity->getOrganizationCode();
@@ -280,7 +287,7 @@ class AgentSkillsAddedEventSubscriber implements ListenerInterface
 
             if (! file_exists($localZipPath)) {
                 $this->logger->error('Skill file download failed', ['skill_code' => $skillCode, 'file_key' => $fileKey]);
-                return [];
+                return [[], null];
             }
 
             $extractDir = $tempDir . '/extracted';
@@ -319,7 +326,7 @@ class AgentSkillsAddedEventSubscriber implements ListenerInterface
                 $createdFiles
             );
 
-            return $createdFiles;
+            return [$createdFiles, $packageName];
         } finally {
             ZipUtil::removeDirectory($tempDir);
         }
