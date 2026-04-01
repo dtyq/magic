@@ -101,6 +101,7 @@ func TestWaitForHostEndpoint_Timeout(t *testing.T) {
 func TestRegistryConfigHostPath(t *testing.T) {
 	home := t.TempDir()
 	t.Setenv("HOME", home)
+	t.Setenv("XDG_CONFIG_HOME", filepath.Join(home, ".config"))
 	p := registryConfigHostPath(Config{Name: "magic-kind-registry"})
 	assert.Equal(t, filepath.Join(home, ".config", "magicrew", "registry-magic-kind-registry-config.yml"), p)
 }
@@ -108,6 +109,7 @@ func TestRegistryConfigHostPath(t *testing.T) {
 func TestWriteRegistryConfig_PersistentPathAndContent(t *testing.T) {
 	home := t.TempDir()
 	t.Setenv("HOME", home)
+	t.Setenv("XDG_CONFIG_HOME", filepath.Join(home, ".config"))
 	cfg := Config{
 		Name: "magic-kind-registry",
 		Proxy: ProxyConfig{
@@ -133,6 +135,7 @@ func TestWriteRegistryConfig_PersistentPathAndContent(t *testing.T) {
 func TestWriteRegistryConfig_DirPermission(t *testing.T) {
 	home := t.TempDir()
 	t.Setenv("HOME", home)
+	t.Setenv("XDG_CONFIG_HOME", filepath.Join(home, ".config"))
 	cfg := Config{
 		Name: "magic-kind-registry",
 		Proxy: ProxyConfig{
@@ -153,6 +156,7 @@ func TestWriteRegistryConfig_DirPermission(t *testing.T) {
 func TestWriteRegistryConfig_FilePermission(t *testing.T) {
 	home := t.TempDir()
 	t.Setenv("HOME", home)
+	t.Setenv("XDG_CONFIG_HOME", filepath.Join(home, ".config"))
 	cfg := Config{
 		Name: "magic-kind-registry",
 		Proxy: ProxyConfig{

@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"path/filepath"
 	"strings"
 
 	"github.com/dtyq/magicrew-cli/deployer"
@@ -93,7 +94,7 @@ func runDeploy(cmd *cobra.Command, args []string) error {
 // resolveDeployValuesFile chooses the values file path for deploy, in order:
 // 1) CLI --values
 // 2) deploy.values in config.yml
-// 3) ~/.config/magicrew/values.yaml (only when the file exists)
+// 3) values.yaml under ConfigDir() (only when the file exists)
 // Returns an empty string when none of the above is available.
 func resolveDeployValuesFile(cliValuesFile, configValuesFile string) string {
 	if cliValuesFile != "" {
@@ -102,7 +103,7 @@ func resolveDeployValuesFile(cliValuesFile, configValuesFile string) string {
 	if configValuesFile != "" {
 		return configValuesFile
 	}
-	defaultValuesFile := util.ExpandTilde("~/.config/magicrew/values.yaml")
+	defaultValuesFile := filepath.Join(util.ConfigDir(), "values.yaml")
 	if _, err := os.Stat(defaultValuesFile); err == nil {
 		return defaultValuesFile
 	}

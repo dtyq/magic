@@ -8,7 +8,7 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-func TestResolveDeployValuesFile_Priority(t *testing.T) {
+func Test_resolveDeployValuesFile(t *testing.T) {
 	t.Run("cli flag has highest priority", func(t *testing.T) {
 		got := resolveDeployValuesFile("/tmp/cli-values.yaml", "/tmp/config-values.yaml")
 		assert.Equal(t, "/tmp/cli-values.yaml", got)
@@ -22,6 +22,7 @@ func TestResolveDeployValuesFile_Priority(t *testing.T) {
 	t.Run("fallback to user home values file when it exists", func(t *testing.T) {
 		home := t.TempDir()
 		t.Setenv("HOME", home)
+		t.Setenv("XDG_CONFIG_HOME", filepath.Join(home, ".config"))
 		want := filepath.Join(home, ".config", "magicrew", "values.yaml")
 		requireNoError(t, os.MkdirAll(filepath.Dir(want), 0o755))
 		requireNoError(t, os.WriteFile(want, []byte("x: 1\n"), 0o644))
@@ -33,6 +34,7 @@ func TestResolveDeployValuesFile_Priority(t *testing.T) {
 	t.Run("keep empty when fallback file does not exist", func(t *testing.T) {
 		home := t.TempDir()
 		t.Setenv("HOME", home)
+		t.Setenv("XDG_CONFIG_HOME", filepath.Join(home, ".config"))
 		got := resolveDeployValuesFile("", "")
 		assert.Equal(t, "", got)
 	})

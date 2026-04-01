@@ -128,11 +128,7 @@ func initConfig() {
 	util.NoSudo(func() error {
 		// determine config file path
 		if cfgFile == "" {
-			xdgConfigHome := os.Getenv("XDG_CONFIG_HOME")
-			if xdgConfigHome == "" {
-				xdgConfigHome = "~/.config"
-			}
-			cfgFile = filepath.Join(xdgConfigHome, "magicrew", "config.yml")
+			cfgFile = filepath.Join(util.ConfigDir(), "config.yml")
 		}
 		cfgFile = util.ExpandTilde(cfgFile)
 		lg.Logd("init", "config file path: %s", cfgFile)

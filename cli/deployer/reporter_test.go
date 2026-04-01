@@ -248,6 +248,10 @@ func TestNewPodReporter_NonTTYNoDuplicateSummary(t *testing.T) {
 }
 
 func TestNewPodReporter_TTYSpinnerAndFailureReason(t *testing.T) {
+	t.Setenv("NO_COLOR", "")
+	t.Setenv("TERM", "xterm")
+	t.Setenv("MAGICREW_CLI_NO_ANSI", "")
+	t.Setenv("MAGICREW_CLI_FORCE_ANSI", "")
 	spy, lg := spyLoggerGroup()
 	var out bytes.Buffer
 	withWaitOutputForTest(t, &out, true)
@@ -264,6 +268,10 @@ func TestNewPodReporter_TTYSpinnerAndFailureReason(t *testing.T) {
 }
 
 func TestNewPodReporter_TTYDoesNotShowCompletedAsFailure(t *testing.T) {
+	t.Setenv("NO_COLOR", "")
+	t.Setenv("TERM", "xterm")
+	t.Setenv("MAGICREW_CLI_NO_ANSI", "")
+	t.Setenv("MAGICREW_CLI_FORCE_ANSI", "")
 	spy, lg := spyLoggerGroup()
 	var out bytes.Buffer
 	withWaitOutputForTest(t, &out, true)
@@ -277,5 +285,83 @@ func TestNewPodReporter_TTYDoesNotShowCompletedAsFailure(t *testing.T) {
 	assert.Contains(t, s, "[waiting] infra pods")
 	assert.Contains(t, s, "infra-minio")
 	assert.NotContains(t, s, "失败原因")
+	assert.Empty(t, spy.lines)
+}
+
+// ── reporter ANSI policy (NO_COLOR / TERM / MAGICREW_*) ─────────────────────
+
+func TestNewPodReporter_AnsiNO_ColorDisablesSpinnerDespiteTTY(t *testing.T) {
+	t.Setenv("NO_COLOR", "1")
+	spy, lg := spyLoggerGroup()
+	var out bytes.Buffer
+	withWaitOutputForTest(t, &out, true)
+	reporter := newPodReporter(lg, "myapp")
+	reporter([]corev1.Pod{podNamedWithWaiting("pod-a", "ImagePullBackOff")})
+
+	assert.NotContains(t, out.String(), "\x1b[", "NO_COLOR should disable ANSI escapes")
+	assert.True(t, spy.contains("[waiting]"), "expected log fallback when ANSI disabled")
+}
+
+func TestNewPodReporter_AnsiTERM_DumbDisablesSpinnerDespiteTTY(t *testing.T) {
+	t.Setenv("TERM", "dumb")
+	spy, lg := spyLoggerGroup()
+	var out bytes.Buffer
+	withWaitOutputForTest(t, &out, true)
+	reporter := newPodReporter(lg, "myapp")
+	reporter([]corev1.Pod{podNamedWithWaiting("pod-a", "ImagePullBackOff")})
+
+	assert.NotContains(t, out.String(), "\x1b[")
+	assert.True(t, spy.contains("[waiting]"))
+}
+
+func TestNewPodReporter_AnsiMagicrewForceEnablesSpinnerWithoutTTY(t *testing.T) {
+	t.Setenv("MAGICREW_CLI_FORCE_ANSI", "1")
+	spy, lg := spyLoggerGroup()
+	var out bytes.Buffer
+	withWaitOutputForTest(t, &out, false)
+	reporter := newPodReporter(lg, "myapp")
+	reporter([]corev1.Pod{podNamedWithWaiting("pod-a", "ImagePullBackOff")})
+
+	s := out.String()
+	assert.Contains(t, s, "\x1b[2K")
+	assert.Contains(t, s, "[waiting] myapp pods")
+	assert.Empty(t, spy.lines)
+}
+
+func TestNewPodReporter_AnsiMagicrewNoAnsiDisablesSpinnerDespiteTTY(t *testing.T) {
+	t.Setenv("MAGICREW_CLI_NO_ANSI", "1")
+	spy, lg := spyLoggerGroup()
+	var out bytes.Buffer
+	withWaitOutputForTest(t, &out, true)
+	reporter := newPodReporter(lg, "myapp")
+	reporter([]corev1.Pod{podNamedWithWaiting("pod-a", "ImagePullBackOff")})
+
+	assert.NotContains(t, out.String(), "\x1b[")
+	assert.True(t, spy.contains("[waiting]"))
+}
+
+func TestNewPodReporter_AnsiMagicrewNoAnsiWinsOverForce(t *testing.T) {
+	t.Setenv("MAGICREW_CLI_NO_ANSI", "1")
+	t.Setenv("MAGICREW_CLI_FORCE_ANSI", "1")
+	spy, lg := spyLoggerGroup()
+	var out bytes.Buffer
+	withWaitOutputForTest(t, &out, true)
+	reporter := newPodReporter(lg, "myapp")
+	reporter([]corev1.Pod{podNamedWithWaiting("pod-a", "ImagePullBackOff")})
+
+	assert.NotContains(t, out.String(), "\x1b[")
+	assert.True(t, spy.contains("[waiting]"))
+}
+
+func TestNewPodReporter_AnsiForceOverridesNO_COLOR(t *testing.T) {
+	t.Setenv("NO_COLOR", "1")
+	t.Setenv("MAGICREW_CLI_FORCE_ANSI", "1")
+	spy, lg := spyLoggerGroup()
+	var out bytes.Buffer
+	withWaitOutputForTest(t, &out, true)
+	reporter := newPodReporter(lg, "myapp")
+	reporter([]corev1.Pod{podNamedWithWaiting("pod-a", "ImagePullBackOff")})
+
+	assert.Contains(t, out.String(), "\x1b[2K")
 	assert.Empty(t, spy.lines)
 }
