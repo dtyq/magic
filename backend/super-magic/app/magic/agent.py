@@ -176,7 +176,6 @@ class Agent(BaseAgent):
 
     def __init__(self, agent_name: str, agent_context: AgentContext = None, agent_id: str = None):
         self.agent_name = agent_name
-        self._runtime_user_messages: List[str] = []
 
         # 设置Agent上下文
         self.agent_context = self._setup_agent_context(agent_context)
@@ -322,29 +321,6 @@ class Agent(BaseAgent):
                 logger.warning(f"幻灯片模板文件不存在: {template_path}")
         except Exception as e:
             logger.error(f"读取幻灯片模板文件时出错: {e}")
-
-        # 获取动态模型ID，优先使用 resolved_model_id（更真实的底层模型）
-        dynamic_model_id = ""
-        if self.agent_context and self.agent_context.has_dynamic_model_id():
-            raw_model_id = self.agent_context.get_dynamic_model_id() or ""
-            if raw_model_id:
-                try:
-                    model_cfg = model_config_utils.get_model_config(raw_model_id)
-                    dynamic_model_id = (
-                        model_cfg.resolved_model_id
-                        if model_cfg and model_cfg.resolved_model_id
-                        else raw_model_id
-                    )
-                except Exception:
-                    dynamic_model_id = raw_model_id
-
-        # 特殊聚合模型的描述说明，有值时作为独立行附加在 model_id 之后，默认为空
-        _SPECIAL_MODEL_DESCRIPTIONS = {
-            "auto": "automatically selects the most efficient AI model for the current task",
-            "max": "automatically selects the most capable AI model for the current scenario",
-        }
-        _desc = _SPECIAL_MODEL_DESCRIPTIONS.get(dynamic_model_id.lower(), "")
-        model_description_line = f"\nModel description: {_desc}" if _desc else ""
 
         # 获取当前用户偏好语言
         # 检查用户是否手动设置过语言
@@ -620,24 +596,6 @@ class Agent(BaseAgent):
 
         return None
 
-    def set_runtime_user_messages(self, messages: List[str]) -> None:
-        """设置本轮运行前需要注入的隐藏 user messages。"""
-        self._runtime_user_messages = [message for message in messages if isinstance(message, str) and message.strip()]
-
-    def enqueue_runtime_user_message(self, message: Optional[str]) -> None:
-        """追加本轮运行前需要注入的一条隐藏 user message。"""
-        if not isinstance(message, str) or not message.strip():
-            return
-        self._runtime_user_messages.append(message)
-
-    async def _append_runtime_user_messages(self) -> None:
-        """将本轮待注入的隐藏 user messages 追加到聊天历史。"""
-        runtime_user_messages = list(getattr(self, "_runtime_user_messages", []))
-        self._runtime_user_messages = []
-
-        for message in runtime_user_messages:
-            await self.chat_history.append_user_message(message, show_in_ui=False)
-
     async def run_main_agent(self, query: str):
         """运行主 agent"""
         try:
@@ -741,7 +699,6 @@ class Agent(BaseAgent):
                 # 因为代码会更新，聊天记录不会更新，需要在 agent 每次运行时更新最新的 system prompt
                 await self.chat_history.update_first_system_prompt(self.system_prompt)
 
-            await self._append_runtime_user_messages()# 准备会话：处理pending工具调用和用户查询
             return await self._prepare_session_for_new_query(query)
         finally:
             if prepare_blocker_acquired:
@@ -1377,7 +1334,18 @@ class Agent(BaseAgent):
                 if hasattr(self, "model_config") and self.model_config
                 else 0
             )
-            self.agent_context.horizon.update_llm_model(effective_model_id, effective_model_name)
+            # 特殊聚合模型（auto/max）附加描述，让 LLM 知道背后的选择逻辑
+            _SPECIAL_MODEL_DESCRIPTIONS = {
+                "auto": "automatically selects the most efficient AI model for the current task",
+                "max": "automatically selects the most capable AI model for the current scenario",
+            }
+            try:
+                _cfg = LLMFactory.get_model_config(effective_model_id)
+                _display_id = (_cfg.resolved_model_id or effective_model_id) if _cfg else effective_model_id
+            except Exception:
+                _display_id = effective_model_id
+            _desc = _SPECIAL_MODEL_DESCRIPTIONS.get(_display_id.lower(), "")
+            self.agent_context.horizon.update_llm_model(_display_id, effective_model_name, _desc)
             self.agent_context.horizon.update_context_usage(token_usage.input_tokens, context_window_total)
         except Exception as _horizon_err:
             logger.warning(f"[AgentHorizon] 更新模型/上下文用量失败: {_horizon_err}")

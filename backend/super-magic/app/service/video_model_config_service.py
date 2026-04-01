@@ -1,25 +1,15 @@
 # -*- coding: utf-8 -*-
-"""
-视频模型配置服务
-
-处理视频生成模型的 featured 配置，按需生成运行时隐藏 user message。
-"""
+"""视频模型配置服务：提取 dynamic_config 中的视频模型配置并同步到 AgentHorizon。"""
 
 import json
-from typing import Any, Dict, Optional, Protocol
+from typing import TYPE_CHECKING, Any, Dict, Optional
 
 from app.utils.video_logger import get_video_logger
 
+if TYPE_CHECKING:
+    from app.core.horizon.agent_horizon import AgentHorizon
+
 logger = get_video_logger(__name__)
-
-
-class SessionConfigChatHistory(Protocol):
-    def get_last_session_config(self) -> Dict[str, Any]:
-        """返回上次会话配置。"""
-
-
-class AgentSessionConfigReader(Protocol):
-    chat_history: SessionConfigChatHistory
 
 
 class VideoModelConfigService:
@@ -139,51 +129,17 @@ class VideoModelConfigService:
         return "\n".join(lines)
 
     @staticmethod
-    def build_runtime_video_model_config_message(
-        dynamic_config: Optional[Dict[str, Any]],
-        agent: AgentSessionConfigReader,
-    ) -> Optional[str]:
-        """从 dynamic_config 中提取视频模型能力信息并构建运行时隐藏 user message。
-
-        行为与旧的 query 追加逻辑保持一致：
-        - 只在 video_model_id 或 video_generation_config 发生变化时产出消息
-        - 如果当前会话与上次会话的模型和能力配置都未变化，则直接跳过
-
-        之所以不只比较 model_id，是因为同一个模型在不同环境/发布阶段下，
-        featured 配置本身也可能变化；这里要确保提示词与实际能力配置一致。
-        """
+    async def sync_to_horizon(dynamic_config: Optional[Dict[str, Any]], horizon: "AgentHorizon") -> None:
+        """从 dynamic_config 中提取视频模型配置并同步到 horizon（内部判断是否变化）。"""
         try:
             if not dynamic_config:
-                return None
-
+                return
             video_model = dynamic_config.get("video_model")
             if not isinstance(video_model, dict):
-                return None
-
-            current_video_model_id = video_model.get("model_id")
-            current_video_generation_config = video_model.get("video_generation_config")
-            if not isinstance(current_video_generation_config, dict) or not current_video_generation_config:
-                return None
-
-            last_session_config = agent.chat_history.get_last_session_config()
-            last_video_model_id = last_session_config.get("video_model_id")
-            last_video_generation_config = last_session_config.get("video_generation_config")
-
-            # 和图片模型尺寸信息类似，这里通过比较“上次会话配置”和“当前动态配置”
-            # 来决定是否需要再次把视频能力信息追加到 query 中。
-            current_config_json = json.dumps(current_video_generation_config, sort_keys=True, ensure_ascii=False)
-            if isinstance(last_video_generation_config, dict):
-                last_config_json = json.dumps(last_video_generation_config, sort_keys=True, ensure_ascii=False)
-                if last_config_json == current_config_json and last_video_model_id == current_video_model_id:
-                    logger.debug("视频模型 video_generation_config 未变化，跳过追加")
-                    return None
-
-            is_model_changed = bool(last_video_model_id and last_video_model_id != current_video_model_id)
-            return VideoModelConfigService.build_video_model_context(
-                current_video_model_id or "",
-                current_video_generation_config,
-                is_model_changed,
-            )
+                return
+            model_id = video_model.get("model_id") or ""
+            config = video_model.get("video_generation_config")
+            if model_id and isinstance(config, dict) and config:
+                await horizon.update_video_model(model_id, config)
         except Exception as e:
-            logger.warning(f"处理视频模型配置时出错: {e}")
-            return None
+            logger.warning(f"[VideoModelConfigService] sync_to_horizon 失败: {e}")

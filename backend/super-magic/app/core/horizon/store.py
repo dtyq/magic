@@ -13,7 +13,7 @@ from typing import Optional
 import aiofiles
 
 from agentlang.logger import get_logger
-from app.core.horizon.models import HorizonState, FileReadRecord, PendingNotification, ImageModelState
+from app.core.horizon.models import HorizonState, FileReadRecord, PendingNotification, ImageModelState, VideoModelState
 
 logger = get_logger(__name__)
 
@@ -90,6 +90,11 @@ class HorizonStore:
                 model_id=img.get("model_id", ""),
                 sizes=img.get("sizes", []),
             )
+            vid = data.get("video_model", {})
+            state.video_model = VideoModelState(
+                model_id=vid.get("model_id", ""),
+                config=vid.get("config", {}),
+            )
             state.user_preferred_language = data.get("user_preferred_language", "")
             state.workspace_files = data.get("workspace_files", "")
             state.workspace_entries = data.get("workspace_entries", [])
@@ -106,6 +111,7 @@ class HorizonStore:
             "pending_notifications": [_notif_to_dict(n) for n in state.pending_notifications],
             "file_records": {k: _record_to_dict(v) for k, v in state.file_records.items()},
             "image_model": {"model_id": state.image_model.model_id, "sizes": state.image_model.sizes},
+            "video_model": {"model_id": state.video_model.model_id, "config": state.video_model.config},
             "user_preferred_language": state.user_preferred_language,
             "workspace_files": state.workspace_files,
             "workspace_entries": state.workspace_entries,

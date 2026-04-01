@@ -36,6 +36,13 @@ class ImageModelState:
 
 
 @dataclass
+class VideoModelState:
+    """持久化的视频生成模型状态，用于跨对话检测配置是否变化。"""
+    model_id: str = ""
+    config: dict = field(default_factory=dict)  # video_generation_config 原始 dict
+
+
+@dataclass
 class HorizonState:
     """AgentHorizon 的持久化状态。"""
     agent_id: str
@@ -43,6 +50,7 @@ class HorizonState:
     pending_notifications: list[PendingNotification] = field(default_factory=list)
     loaded_skills: list[str] = field(default_factory=list)
     image_model: ImageModelState = field(default_factory=ImageModelState)
+    video_model: VideoModelState = field(default_factory=VideoModelState)
     # 以下字段用于 Diff 追踪：上次注入给 LLM 的值，变化时才输出 diff
     user_preferred_language: str = ""
     workspace_files: str = ""      # 格式化树形字符串，用于注入 LLM 展示

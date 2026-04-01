@@ -18,7 +18,7 @@ if TYPE_CHECKING:
 
 from agentlang.logger import get_logger
 from app.core.horizon.diff_builder import detect_file_changes
-from app.core.horizon.models import FileReadRecord, HorizonState, ImageModelState, PendingNotification
+from app.core.horizon.models import FileReadRecord, HorizonState, ImageModelState, PendingNotification, VideoModelState
 from app.core.horizon.store import HorizonStore
 from app.utils.file_utils import calculate_file_hash, get_fresh_file_stat
 
@@ -115,8 +115,11 @@ class AgentHorizon:
         # 以下为纯内存状态，不持久化（session 级别）
         self._last_llm_model_id: str = ""
         self._last_llm_model_name: str = ""
+        self._last_llm_model_description: str = ""
         self._llm_model_changed: bool = False
         self._image_model_changed: bool = False
+        self._video_model_changed: bool = False
+        self._video_model_switched: bool = False  # 区分"首次/配置变化"和"模型切换"
         self._context_used: int = 0    # 上一次 LLM 调用的 input_tokens
         self._context_total: int = 0   # 模型最大上下文窗口
 
@@ -243,7 +246,7 @@ class AgentHorizon:
         """聊天历史压缩或 /new 后调用，重置与上下文内容相关的所有状态。
 
         - file_records：清空，强制重新读取才能编辑
-        - image_model：清空，确保新上下文重新获得图片模型尺寸信息
+        - image_model / video_model：清空，确保新上下文重新获得模型信息
         - _is_first_injection：重置为 True，下次 build_context_update 输出完整 initial_context
         - pending_notifications：保留，下次 build_context_update 仍会投递到新上下文
         - workspace_files/memory/language：保留（首次注入时重新全量输出给新上下文）
@@ -252,13 +255,16 @@ class AgentHorizon:
         await self._ensure_loaded()
         self._state.file_records.clear()
         self._state.image_model = ImageModelState()
+        self._state.video_model = VideoModelState()
         await self._save()
         self._context_used = 0
         self._context_total = 0
         self._llm_model_changed = False
         self._image_model_changed = False
+        self._video_model_changed = False
+        self._video_model_switched = False
         self._is_first_injection = True
-        logger.info("[AgentHorizon] 已重置上下文相关状态（文件记录、图片模型、首次注入标志）")
+        logger.info("[AgentHorizon] 已重置上下文相关状态（文件记录、图片/视频模型、首次注入标志）")
 
     # ─────────────────────────────────────────────────────────────────────────
     # 内容快照
@@ -329,17 +335,37 @@ class AgentHorizon:
     # 运行时状态更新
     # ─────────────────────────────────────────────────────────────────────────
 
-    def update_llm_model(self, model_id: str, model_name: str) -> None:
+    def update_llm_model(self, model_id: str, model_name: str, description: str = "") -> None:
         """LLM 调用返回后调用，记录实际生效的模型信息；仅在模型变化时标记需要注入。"""
         if model_id != self._last_llm_model_id or model_name != self._last_llm_model_name:
             self._last_llm_model_id = model_id
             self._last_llm_model_name = model_name
+            self._last_llm_model_description = description
             self._llm_model_changed = True
 
     def update_context_usage(self, input_tokens: int, context_window_total: int) -> None:
         """LLM 调用返回后调用，更新上下文窗口使用量。"""
         self._context_used = input_tokens
         self._context_total = context_window_total
+
+    async def update_video_model(self, model_id: str, config: dict) -> None:
+        """用户消息处理时调用，检测视频模型配置是否变化；变化则标记需注入并持久化。"""
+        if not model_id or not config:
+            return
+        await self._ensure_loaded()
+        try:
+            import json
+            new_json = json.dumps(config, sort_keys=True, ensure_ascii=False)
+            stored = self._state.video_model
+            old_json = json.dumps(stored.config, sort_keys=True, ensure_ascii=False)
+            if model_id != stored.model_id or new_json != old_json:
+                is_model_switched = bool(stored.model_id and stored.model_id != model_id)
+                self._state.video_model = VideoModelState(model_id=model_id, config=config)
+                self._video_model_changed = True
+                self._video_model_switched = is_model_switched
+                await self._save()
+        except Exception as e:
+            logger.warning(f"[AgentHorizon] update_video_model 失败: {e}")
 
     async def update_image_model(self, model_id: str, sizes: list) -> None:
         """用户消息处理时调用，检测图片模型是否变化；变化则标记需注入并持久化。"""
@@ -458,8 +484,9 @@ class AgentHorizon:
 
             # LLM 模型（首次注入时无论是否"变化"都输出）
             if self._last_llm_model_id:
+                desc_attr = f' description="{self._last_llm_model_description}"' if self._last_llm_model_description else ""
                 init_parts.append(
-                    f'<llm id="{self._last_llm_model_id}" name="{self._last_llm_model_name}"/>'
+                    f'<llm id="{self._last_llm_model_id}" name="{self._last_llm_model_name}"{desc_attr}/>'
                 )
 
             # 图片模型
@@ -476,6 +503,14 @@ class AgentHorizon:
                     img_lines.append(f'  <size {attrs}/>')
                 img_lines.append("</image_model>")
                 init_parts.extend(img_lines)
+
+            # 视频模型（首次注入时全量输出）
+            vid = self._state.video_model
+            if vid.model_id and vid.config:
+                from app.service.video_model_config_service import VideoModelConfigService
+                vid_text = VideoModelConfigService.build_video_model_context(vid.model_id, vid.config, is_model_changed=False)
+                if vid_text:
+                    init_parts.append(vid_text)
 
             # 工作区文件树：说明这是当前工作目录的文件列表
             if self._state.workspace_files:
@@ -507,6 +542,8 @@ class AgentHorizon:
             self._is_first_injection = False
             self._llm_model_changed = False
             self._image_model_changed = False
+            self._video_model_changed = False
+            self._video_model_switched = False
 
         else:
             # 常规增量注入
@@ -524,8 +561,9 @@ class AgentHorizon:
             # 模型信息（仅变化时输出）
             model_info_parts: list[str] = []
             if self._llm_model_changed and self._last_llm_model_id:
+                desc_attr = f' description="{self._last_llm_model_description}"' if self._last_llm_model_description else ""
                 model_info_parts.append(
-                    f'<llm id="{self._last_llm_model_id}" name="{self._last_llm_model_name}"/>'
+                    f'<llm id="{self._last_llm_model_id}" name="{self._last_llm_model_name}"{desc_attr}/>'
                 )
                 self._llm_model_changed = False
 
@@ -544,6 +582,18 @@ class AgentHorizon:
                     img_lines.append("</image_model>")
                     model_info_parts.extend(img_lines)
                 self._image_model_changed = False
+
+            if self._video_model_changed:
+                vid = self._state.video_model
+                if vid.model_id and vid.config:
+                    from app.service.video_model_config_service import VideoModelConfigService
+                    vid_text = VideoModelConfigService.build_video_model_context(
+                        vid.model_id, vid.config, is_model_changed=self._video_model_switched
+                    )
+                    if vid_text:
+                        model_info_parts.append(vid_text)
+                self._video_model_changed = False
+                self._video_model_switched = False
 
             if model_info_parts:
                 parts.append("<model_info>")
