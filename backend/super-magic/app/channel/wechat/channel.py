@@ -30,7 +30,6 @@ from app.channel.wechat.state import (
 )
 from app.channel.wechat.stream import WechatStream
 from app.channel.wechat.typing import WechatTypingConfigManager, WechatTypingController
-from app.channel.wechat.models import WechatMediaContext
 from app.channel.base.third_party_message import dispatch_third_party_message
 from app.core.entity.message.client_message import ChatClientMessage, Metadata
 
@@ -113,16 +112,6 @@ class WechatChannel(BaseChannel):
         credential = config.wechat
         lines = [self.key]
         active_session = WechatLoginManager.get_instance().get_active_session()
-
-        if self.is_session_paused:
-            remaining_ms = self.get_session_pause_remaining_ms()
-            remaining_minutes = max(1, (remaining_ms + 59_999) // 60_000)
-            lines.append(f"  Status: session paused (retry in about {remaining_minutes} minute(s))")
-            if credential is not None:
-                lines.append(f"  Bot ID: {credential.ilink_bot_id}")
-                if credential.ilink_user_id:
-                    lines.append(f"  User ID: {credential.ilink_user_id}")
-            return lines
 
         if self.is_connected and credential is not None:
             lines.append("  Status: connected")
@@ -209,7 +198,6 @@ class WechatChannel(BaseChannel):
 
         self._typing_config_manager = None
         self._credential = None
-        self._session_pause_until_ms = 0
         logger.info("[WechatChannel] 已断开")
 
     async def _sleep_ms(self, delay_ms: int) -> None:
