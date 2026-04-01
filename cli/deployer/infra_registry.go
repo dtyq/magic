@@ -398,7 +398,7 @@ func (r *InfraRegistry) ResolveCredentials() error {
 	if err := validateMinIOPolicyReferences(r.resources, policies); err != nil {
 		return fmt.Errorf("minio policy references: %w", err)
 	}
-	r.MinIO.Policies = policies
+	r.MinIO.Policies = mergeMinIOPolicies(r.MinIO.Policies, policies)
 
 	r.MinIO.Users, err = resolveUsers(r.resources, KindMinIO, r.MinIO.Users, gen,
 		func(spec InfraSpec, pwd string) MinIOUser {
@@ -443,6 +443,41 @@ func collectMinIOBucketsFromSpecs(resources map[string]map[InfraKind]InfraSpec) 
 	sort.Strings(names)
 
 	out := make([]MinIOBucket, 0, len(names))
+	for _, name := range names {
+		out = append(out, byName[name])
+	}
+	return out
+}
+
+// mergeMinIOPolicies merges persisted and spec-derived policies by name.
+// Policies defined in specs take precedence; persisted-only policies are kept.
+// The returned slice is sorted by policy name for deterministic output.
+func mergeMinIOPolicies(persisted []MinIOPolicy, fromSpecs []MinIOPolicy) []MinIOPolicy {
+	byName := make(map[string]MinIOPolicy, len(persisted)+len(fromSpecs))
+	for _, p := range persisted {
+		name := strings.TrimSpace(p.Name)
+		if name == "" {
+			continue
+		}
+		byName[name] = p
+	}
+	for _, p := range fromSpecs {
+		name := strings.TrimSpace(p.Name)
+		if name == "" {
+			continue
+		}
+		normalized := p
+		normalized.Name = name
+		byName[name] = normalized
+	}
+
+	names := make([]string, 0, len(byName))
+	for name := range byName {
+		names = append(names, name)
+	}
+	sort.Strings(names)
+
+	out := make([]MinIOPolicy, 0, len(names))
 	for _, name := range names {
 		out = append(out, byName[name])
 	}

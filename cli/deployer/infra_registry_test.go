@@ -385,7 +385,7 @@ func TestInfraRegistry_ResolveCredentials_MinIOPolicies_SortedByName(t *testing.
 	assert.Equal(t, "zebra-policy", reg.MinIO.Policies[1].Name)
 }
 
-func TestInfraRegistry_ResolveCredentials_MinIOPolicies_PersistedPoliciesOverwrittenBySpecs(t *testing.T) {
+func TestInfraRegistry_ResolveCredentials_MinIOPolicies_PersistedPoliciesMergedWithSpecs(t *testing.T) {
 	tmpFile := filepath.Join(t.TempDir(), infraCredentialsFileName)
 	stale := []byte(`minio:
   rootPassword: seeded-root
@@ -409,12 +409,46 @@ func TestInfraRegistry_ResolveCredentials_MinIOPolicies_PersistedPoliciesOverwri
 		},
 	}})
 	require.NoError(t, reg.ResolveCredentials())
-	require.Len(t, reg.MinIO.Policies, 1)
+	require.Len(t, reg.MinIO.Policies, 2)
 	assert.Equal(t, "live-policy", reg.MinIO.Policies[0].Name)
+	assert.Equal(t, "stale-only", reg.MinIO.Policies[1].Name)
 	data, err := os.ReadFile(tmpFile)
 	require.NoError(t, err)
 	assert.Contains(t, string(data), "live-policy")
-	assert.NotContains(t, string(data), "stale-only")
+	assert.Contains(t, string(data), "stale-only")
+}
+
+func TestInfraRegistry_ResolveCredentials_MinIOPolicies_SpecsOverridePersistedDefinition(t *testing.T) {
+	tmpFile := filepath.Join(t.TempDir(), infraCredentialsFileName)
+	persisted := []byte(`minio:
+  rootPassword: seeded-root
+  policies:
+    - name: shared-policy
+      statements:
+        - resources: ["arn:aws:s3:::old/*"]
+          effect: Allow
+          actions: ["s3:GetObject"]
+  users: []
+  buckets: []
+`)
+	require.NoError(t, os.WriteFile(tmpFile, persisted, 0o600))
+
+	reg := newInfraRegistry()
+	reg.persistPathFunc = func() (string, error) { return tmpFile, nil }
+	reg.Register(InfraResource{App: "magic", Spec: MinIOSpec{
+		Username: "magic",
+		Policies: []string{"shared-policy"},
+		PolicyDefinitions: []MinIOPolicy{
+			{Name: "shared-policy", Statements: []MinIOPolicyStatement{{Resources: []string{"arn:aws:s3:::live/*"}, Effect: "Allow", Actions: []string{"s3:PutObject"}}}},
+		},
+	}})
+
+	require.NoError(t, reg.ResolveCredentials())
+	require.Len(t, reg.MinIO.Policies, 1)
+	require.Len(t, reg.MinIO.Policies[0].Statements, 1)
+	assert.Equal(t, "shared-policy", reg.MinIO.Policies[0].Name)
+	assert.Equal(t, []string{"arn:aws:s3:::live/*"}, reg.MinIO.Policies[0].Statements[0].Resources)
+	assert.Equal(t, []string{"s3:PutObject"}, reg.MinIO.Policies[0].Statements[0].Actions)
 }
 
 func TestInfraRegistry_ResolveCredentials_PersistsAndReuses(t *testing.T) {
