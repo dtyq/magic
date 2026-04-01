@@ -257,6 +257,58 @@ func TestInfraRegistry_ResolveCredentials_MinIOPolicies_InvalidResourceARN(t *te
 	assert.ErrorContains(t, err, "invalid resource arn")
 }
 
+func TestInfraRegistry_ResolveCredentials_MinIOPolicies_PrefixResourceARN(t *testing.T) {
+	validARNs := []string{
+		"arn:aws:s3:::bucket",
+		"arn:aws:s3:::bucket/*",
+		"arn:aws:s3:::bucket/prefix/*",
+		"arn:aws:s3:::bucket/some/deep/prefix/*",
+		"arn:aws:s3:::bucket/specific-key",
+		"arn:aws:s3:::my-bucket/data/2024",
+	}
+	for _, arn := range validARNs {
+		t.Run("valid_"+arn, func(t *testing.T) {
+			reg := newTestRegistry(t)
+			reg.Register(InfraResource{App: "magic", Spec: MinIOSpec{
+				Username: "magic",
+				Policies: []string{"p"},
+				PolicyDefinitions: []MinIOPolicy{
+					{Name: "p", Statements: []MinIOPolicyStatement{
+						{Resources: []string{arn}, Effect: "Allow", Actions: []string{"s3:GetObject"}},
+					}},
+				},
+			}})
+			require.NoError(t, reg.ResolveCredentials(), "ARN %q should be accepted", arn)
+		})
+	}
+
+	invalidARNs := []string{
+		"s3://bucket/*",
+		"arn:aws:s3:::",
+		"arn:aws:s3:::bucket//key",
+		"arn:aws:s3:::bucket/",
+		"arn:aws:s3:::bucket/ key",
+		"arn:aws:s3:::bucket/pre fix/*",
+	}
+	for _, arn := range invalidARNs {
+		t.Run("invalid_"+arn, func(t *testing.T) {
+			reg := newTestRegistry(t)
+			reg.Register(InfraResource{App: "magic", Spec: MinIOSpec{
+				Username: "magic",
+				Policies: []string{"p"},
+				PolicyDefinitions: []MinIOPolicy{
+					{Name: "p", Statements: []MinIOPolicyStatement{
+						{Resources: []string{arn}, Effect: "Allow", Actions: []string{"s3:GetObject"}},
+					}},
+				},
+			}})
+			err := reg.ResolveCredentials()
+			require.Error(t, err, "ARN %q should be rejected", arn)
+			assert.ErrorContains(t, err, "invalid resource arn")
+		})
+	}
+}
+
 func TestInfraRegistry_ResolveCredentials_MinIOPolicies_NormalizeActionResource(t *testing.T) {
 	reg := newTestRegistry(t)
 	reg.Register(InfraResource{App: "magic", Spec: MinIOSpec{

@@ -710,7 +710,7 @@ func generateInfraPassword() (string, error) {
 
 var (
 	minIOIAMActionPattern     = regexp.MustCompile(`^s3:[A-Za-z0-9*]+$`)
-	minIOS3ResourceARNPattern = regexp.MustCompile(`^arn:aws:s3:::[^/\s]+(?:/\*)?$`)
+	minIOS3ResourceARNPattern = regexp.MustCompile(`^arn:aws:s3:::[^/\s]+(/[^\s/]+)*(/\*)?$`)
 )
 
 // normalizeMinIOPolicyStringList trims entries, drops empties, dedupes preserving first occurrence order.
