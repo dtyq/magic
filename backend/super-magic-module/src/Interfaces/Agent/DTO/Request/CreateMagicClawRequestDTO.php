@@ -27,7 +27,7 @@ class CreateMagicClawRequestDTO extends AbstractRequestDTO
     public string $icon = '';
 
     /**
-     * Template code: openclaw or magicshock.
+     * Template code: openclaw or magishock.
      */
     public string $templateCode = '';
 
@@ -57,7 +57,7 @@ class CreateMagicClawRequestDTO extends AbstractRequestDTO
             'name' => 'required|string|max:255',
             'description' => 'nullable|string|max:500',
             'icon' => 'nullable|string|max:512',
-            'template_code' => 'required|string|in:openclaw,magicshock',
+            'template_code' => 'required|string|in:openclaw,magishock',
         ];
     }
 
@@ -73,7 +73,7 @@ class CreateMagicClawRequestDTO extends AbstractRequestDTO
             'icon.max' => 'Icon cannot exceed 512 characters',
             'template_code.required' => 'Template code cannot be empty',
             'template_code.string' => 'Template code must be a string',
-            'template_code.in' => 'Template code must be one of: openclaw, magicshock',
+            'template_code.in' => 'Template code must be one of: openclaw, magishock',
         ];
     }
 }

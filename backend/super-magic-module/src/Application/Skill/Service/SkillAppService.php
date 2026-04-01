@@ -53,13 +53,14 @@ use Dtyq\SuperMagic\Domain\Skill\Entity\ValueObject\SkillSourceType;
 use Dtyq\SuperMagic\Domain\Skill\Event\SkillImportedEvent;
 use Dtyq\SuperMagic\Domain\Skill\Service\SkillDomainService;
 use Dtyq\SuperMagic\Domain\Skill\Service\SkillMarketDomainService;
+use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ProjectEntity;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\TaskFileEntity;
 use Dtyq\SuperMagic\Domain\SuperAgent\Service\ProjectDomainService;
 use Dtyq\SuperMagic\Domain\SuperAgent\Service\TaskFileDomainService;
 use Dtyq\SuperMagic\ErrorCode\SkillErrorCode;
 use Dtyq\SuperMagic\ErrorCode\SuperAgentErrorCode;
 use Dtyq\SuperMagic\ErrorCode\SuperMagicErrorCode;
-use Dtyq\SuperMagic\Infrastructure\Utils\WorkDirectoryUtil;
+use Dtyq\SuperMagic\Infrastructure\Utils\SkillProjectConfigUtil;
 use Dtyq\SuperMagic\Interfaces\Skill\DTO\Request\AddSkillFromStoreRequestDTO;
 use Dtyq\SuperMagic\Interfaces\Skill\DTO\Request\GetLatestPublishedSkillVersionsRequestDTO;
 use Dtyq\SuperMagic\Interfaces\Skill\DTO\Request\GetSkillFileUrlsRequestDTO;
@@ -87,16 +88,16 @@ class SkillAppService extends AbstractSkillAppService
     private const SKILL_FILE_NAME = 'SKILL.md';
 
     /**
-     * 文件大小限制：10MB（文档要求）
+     * 文件大小限制：20MB
      * 用于校验上传的压缩包文件大小上限.
      */
-    private const MAX_FILE_SIZE = 10 * 1024 * 1024;
+    private const MAX_FILE_SIZE = 20 * 1024 * 1024;
 
     /**
-     * 解压后文件总大小限制：10MB（文档要求）
+     * 解压后文件总大小限制：20MB
      * 用于防 Zip Bomb 攻击，校验解压后的文件总大小上限.
      */
-    private const MAX_EXTRACTED_SIZE = 10 * 1024 * 1024;
+    private const MAX_EXTRACTED_SIZE = 20 * 1024 * 1024;
 
     /**
      * import_token 有效期：30分钟（1800秒，文档要求）
@@ -1364,30 +1365,172 @@ class SkillAppService extends AbstractSkillAppService
     }
 
     /**
-     * Export agent workspace to object storage via sandbox.
+     * Export skill files from project by querying the file table and packaging locally.
+     * Replaces the sandbox-based export with a direct approach:
+     * 1. Read .magic/skills/skill_config.yaml from project storage
+     * 2. Find .magic/skills/{skill.dir} directory via file table
+     * 2. Verify it contains SKILL.md
+     * 3. Download files from cloud storage
+     * 4. Create ZIP archive
+     * 5. Upload to private storage.
      *
-     * @param MagicUserAuthorization $authorization User authorization
      * @return array{file_key: string, metadata: array} Export result
      */
-    private function exportFileFromProject(MagicUserAuthorization $authorization, string $code, int $projectId): array
+    private function exportSkillFromProjectLocal(MagicUserAuthorization $authorization, SkillEntity $skillEntity): array
     {
-        $dataIsolation = $this->createSkillDataIsolation($authorization);
+        $projectId = $skillEntity->getProjectId();
 
-        // Get project entity to build the full working directory
         $project = $this->projectDomainService->getProjectNotUserId($projectId);
         if (! $project) {
             ExceptionBuilder::throw(SuperAgentErrorCode::PROJECT_NOT_FOUND, 'project.project_not_found');
         }
 
-        $fullPrefix = $this->taskFileDomainService->getFullPrefix($project->getUserOrganizationCode());
-        $fullWorkdir = WorkDirectoryUtil::getFullWorkdir($fullPrefix, $project->getWorkDir());
+        $projectOrgCode = $project->getUserOrganizationCode();
+        $organizationCode = $authorization->getOrganizationCode();
+        $skillConfig = $this->readSkillProjectConfig($projectId, $project);
+        $skillDirName = $skillConfig['skill']['dir'] ?? '';
 
-        return $this->skillDomainService->exportAgentFromSandbox(
-            $dataIsolation,
-            $code,
+        $skillDirPath = SkillProjectConfigUtil::SKILLS_ROOT_PATH . '/' . $skillDirName;
+        $skillDirEntity = $this->taskFileDomainService->findDirectoryByPath($projectId, $skillDirPath);
+        if ($skillDirEntity === null) {
+            ExceptionBuilder::throw(SkillErrorCode::EXTRACTED_DIRECTORY_NOT_FOUND, 'skill.extracted_directory_not_found');
+        }
+
+        $allFiles = $this->taskFileDomainService->findFilesRecursivelyByParentId(
             $projectId,
-            $fullWorkdir
+            $skillDirEntity->getFileId()
         );
+
+        $hasSkillMd = false;
+        foreach ($allFiles as $file) {
+            if (! $file->getIsDirectory() && $file->getFileName() === 'SKILL.md') {
+                $hasSkillMd = true;
+                break;
+            }
+        }
+        if (! $hasSkillMd) {
+            ExceptionBuilder::throw(SkillErrorCode::SKILL_MD_NOT_FOUND, 'skill.skill_md_not_found');
+        }
+
+        $tempBaseDir = self::TEMP_DIR_BASE . 'skill_export_' . IdGenerator::getUniqueId32();
+        $tempContentDir = $tempBaseDir . '/' . $skillDirName;
+        $zipFilePath = $tempBaseDir . '/' . $skillDirName . '.zip';
+
+        if (! is_dir($tempContentDir)) {
+            mkdir($tempContentDir, 0755, true);
+        }
+
+        try {
+            $skillDirKeyPrefix = rtrim($skillDirEntity->getFileKey(), '/') . '/';
+
+            foreach ($allFiles as $file) {
+                if ($file->getIsDirectory()) {
+                    $relativePath = $this->computeRelativePath($file->getFileKey(), $skillDirKeyPrefix);
+                    $localDir = $tempContentDir . '/' . $relativePath;
+                    if (! is_dir($localDir)) {
+                        mkdir($localDir, 0755, true);
+                    }
+                    continue;
+                }
+
+                $relativePath = $this->computeRelativePath($file->getFileKey(), $skillDirKeyPrefix);
+                $localFilePath = $tempContentDir . '/' . $relativePath;
+
+                $localFileDir = dirname($localFilePath);
+                if (! is_dir($localFileDir)) {
+                    mkdir($localFileDir, 0755, true);
+                }
+
+                $this->fileDomainService->downloadByChunks(
+                    $projectOrgCode,
+                    $file->getFileKey(),
+                    $localFilePath,
+                    StorageBucketType::SandBox
+                );
+            }
+
+            ZipUtil::compress($tempContentDir, $zipFilePath, $skillDirName);
+
+            $fileKey = $this->uploadFileToPrivateStorage($organizationCode, $zipFilePath, $skillEntity->getCode());
+
+            return [
+                'file_key' => $fileKey,
+                'metadata' => [
+                    'package_name' => $skillEntity->getPackageName(),
+                    'skill_dir' => $skillDirName,
+                    'files_count' => count($allFiles),
+                ],
+            ];
+        } finally {
+            if (is_dir($tempBaseDir)) {
+                $this->removeDirectory($tempBaseDir);
+            }
+        }
+    }
+
+    /**
+     * @return array{skill: array<string, string>}
+     */
+    private function readSkillProjectConfig(int $projectId, ProjectEntity $project): array
+    {
+        $skillsDirEntity = $this->taskFileDomainService->findDirectoryByPath($projectId, SkillProjectConfigUtil::SKILLS_ROOT_PATH);
+        if ($skillsDirEntity === null) {
+            ExceptionBuilder::throw(SkillErrorCode::SKILL_CONFIG_NOT_FOUND, 'skill.skill_config_not_found');
+        }
+
+        $configFileKey = rtrim($skillsDirEntity->getFileKey(), '/') . '/' . SkillProjectConfigUtil::CONFIG_FILE_NAME;
+        $configFileEntity = $this->taskFileDomainService->getByProjectIdAndFileKey($projectId, $configFileKey);
+        if ($configFileEntity === null) {
+            ExceptionBuilder::throw(SkillErrorCode::SKILL_CONFIG_NOT_FOUND, 'skill.skill_config_not_found');
+        }
+
+        $tempDir = self::TEMP_DIR_BASE . 'skill_config_' . IdGenerator::getUniqueId32();
+        if (! is_dir($tempDir)) {
+            mkdir($tempDir, 0755, true);
+        }
+
+        try {
+            $localConfigPath = $tempDir . '/' . SkillProjectConfigUtil::CONFIG_FILE_NAME;
+            $this->fileDomainService->downloadByChunks(
+                $project->getUserOrganizationCode(),
+                $configFileEntity->getFileKey(),
+                $localConfigPath,
+                StorageBucketType::SandBox
+            );
+
+            $configContent = file_get_contents($localConfigPath);
+            if ($configContent === false) {
+                ExceptionBuilder::throw(SkillErrorCode::SKILL_CONFIG_INVALID, 'skill.skill_config_invalid');
+            }
+
+            try {
+                $config = SkillProjectConfigUtil::parse($configContent);
+            } catch (Throwable) {
+                ExceptionBuilder::throw(SkillErrorCode::SKILL_CONFIG_INVALID, 'skill.skill_config_invalid');
+            }
+
+            $skillDirName = $config['skill']['dir'] ?? '';
+            if (! SkillProjectConfigUtil::isValidSkillDir($skillDirName)) {
+                ExceptionBuilder::throw(SkillErrorCode::SKILL_CONFIG_INVALID, 'skill.skill_config_invalid');
+            }
+
+            return $config;
+        } finally {
+            if (is_dir($tempDir)) {
+                $this->removeDirectory($tempDir);
+            }
+        }
+    }
+
+    /**
+     * Compute relative path by stripping the directory key prefix from the file key.
+     */
+    private function computeRelativePath(string $fileKey, string $dirKeyPrefix): string
+    {
+        if (str_starts_with($fileKey, $dirKeyPrefix)) {
+            return rtrim(substr($fileKey, strlen($dirKeyPrefix)), '/');
+        }
+        return basename(rtrim($fileKey, '/'));
     }
 
     /**
@@ -1667,7 +1810,7 @@ class SkillAppService extends AbstractSkillAppService
 
         if ($requestDTO->getExportFileFromProject()) {
             $this->logger->info('publishSkill', ['id' => $skillEntity->getId(), 'code' => $code, 'project_id' => $skillEntity->getProjectId()]);
-            $fileMetadata = $this->exportFileFromProject($authorization, $code, $skillEntity->getProjectId());
+            $fileMetadata = $this->exportSkillFromProjectLocal($authorization, $skillEntity);
             $skillEntity->setFileKey($fileMetadata['file_key']);
             $this->logger->info('publishSkill', ['id' => $skillEntity->getId(), 'code' => $code, 'project_id' => $skillEntity->getProjectId(), 'file_key' => $fileMetadata['file_key']]);
         }

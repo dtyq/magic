@@ -19,7 +19,7 @@ const routeNameToPathMap: Record<RouteName, RoutePath> = {
 	[RouteName.Admin]: RoutePath.Admin,
 	[RouteName.AdminHome]: RoutePath.AdminHome,
 	[RouteName.AdminApplicationManager]: RoutePath.AdminApplicationManager,
-	[RouteName.AdminKeewood]: RoutePath.Teamshare,
+	[RouteName.AdminKeewood]: RoutePath.AdminHome,
 
 	[RouteName.AdminAILayout]: RoutePath.AI,
 	[RouteName.AdminAICustomModel]: RoutePath.AICustomModel,
@@ -39,6 +39,7 @@ const routeNameToPathMap: Record<RouteName, RoutePath> = {
 	[RouteName.AdminPlatformAIModelDetails]: RoutePath.PlatformAIModelDetail,
 	[RouteName.AdminPlatformAIDrawing]: RoutePath.PlatformAIDrawing,
 	[RouteName.AdminPlatformAIDrawingDetails]: RoutePath.PlatformAIDrawingDetail,
+	[RouteName.AdminPlatformModelAuditLog]: RoutePath.PlatformModelAuditLog,
 
 	[RouteName.AdminAgentEnhancement]: RoutePath.PlatformAgent,
 	[RouteName.AdminSystemAgent]: RoutePath.PlatformAgentMode,

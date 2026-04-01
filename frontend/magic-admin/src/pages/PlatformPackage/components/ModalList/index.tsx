@@ -1,14 +1,7 @@
 import { Empty, Flex, message } from "antd"
-import { memo, useEffect, useRef, useState, useMemo } from "react"
+import { memo, useEffect, useState, useMemo, useRef } from "react"
 import { useTranslation } from "react-i18next"
-import {
-	IconPlus,
-	IconCircleCheckFilled,
-	IconEdit,
-	IconTrash,
-	IconCircleXFilled,
-	IconCopy,
-} from "@tabler/icons-react"
+import { IconPlus, IconEdit, IconTrash, IconCopy } from "@tabler/icons-react"
 import { useMemoizedFn, useRequest } from "ahooks"
 import {
 	MagicButton,
@@ -27,8 +20,8 @@ import { useIsMobile } from "@/hooks/useIsMobile"
 import { useAdminStore } from "@/stores/admin"
 import { useStyles } from "./styles"
 import { AddModelModal } from "./components/AddModelModal"
-import { FailDetailModal } from "./components/FailDetailModal"
 import BaseModelItem from "./components/BaseModelItem"
+import TestConnection, { type TestConnectionRef } from "./components/TestConnection/index"
 
 interface ModelGroup {
 	key: AiModel.ModelTypeGroup
@@ -43,18 +36,18 @@ interface ModalListProps {
 }
 
 const ModalList = ({ data, hasEditRight, setData }: ModalListProps) => {
-	const { styles, cx } = useStyles()
+	const { styles } = useStyles()
 	const isMobile = useIsMobile()
 	const { t } = useTranslation("admin/ai/model")
 	const { t: tCommon } = useTranslation("admin/common")
-	const openModal = useOpenModal()
 
+	const openModal = useOpenModal()
 	const { AIManageApi } = useApis()
 	const { isOfficialOrg } = useAdminStore()
 
 	const [models, setModels] = useState<AiManage.ModelInfo[]>([])
 	const [currentModel, setCurrentModel] = useState<AiManage.ModelInfo | null>(null)
-	const [loading, setLoading] = useState<boolean>(false)
+	const testConnectionRefMap = useRef<Record<string, TestConnectionRef | null>>({})
 
 	const { run: trigger, loading: isMutating } = useRequest(
 		(params: AiManage.UpdateModelStatusParams) =>
@@ -68,8 +61,6 @@ const ModalList = ({ data, hasEditRight, setData }: ModalListProps) => {
 	const isOfficial = data?.provider_type === AiModel.ProviderType.Official
 	/* 大语言模型 */
 	const isLLM = data?.category === AiModel.ServiceProviderCategory.LLM
-
-	const modelConnectionResultMap = useRef<Map<string, AiManage.TestConnectionResult>>(new Map())
 
 	useEffect(() => {
 		if (data) {
@@ -148,6 +139,7 @@ const ModalList = ({ data, hasEditRight, setData }: ModalListProps) => {
 
 	/* 更新switch */
 	const onChangeStatus = async (checked: boolean, item: AiManage.ModelInfo) => {
+		setCurrentModel(item)
 		if (checked) {
 			await updateModelStatus(item.id, checked)
 		} else {
@@ -162,105 +154,6 @@ const ModalList = ({ data, hasEditRight, setData }: ModalListProps) => {
 				},
 			})
 		}
-	}
-
-	/* 测试连接 */
-	const checkConnection = async (model: AiManage.ModelInfo) => {
-		setCurrentModel(model)
-		openModal(WarningModal, {
-			open: true,
-			title: t("testConnection"),
-			content: t("testConnectionDesc"),
-			showDeleteText: false,
-			dangerLevel: DangerLevel.Normal,
-			okButtonProps: {
-				danger: false,
-			},
-			okText: tCommon("button.confirm"),
-			onOk: async () => {
-				try {
-					setLoading(true)
-					const params = {
-						service_provider_config_id: model?.service_provider_config_id,
-						model_version: model?.model_version,
-						model_id: model?.id,
-					}
-					const result = isOfficialOrg
-						? await AIManageApi.testConnection(params)
-						: await AIManageApi.testConnectionNonOfficial(params)
-					setLoading(false)
-					modelConnectionResultMap.current.set(model.id, result)
-				} catch (error) {
-					setLoading(false)
-				}
-			},
-		})
-	}
-
-	/* 获取测试状态 */
-	const getTestStatus = useMemoizedFn((id: string) => {
-		const result = modelConnectionResultMap.current.get(id)
-
-		if (result) {
-			if (result.status)
-				return {
-					text: t("testStatusNormal"),
-				}
-			return { text: t("testStatusError"), error: JSON.stringify(result.message) }
-		}
-		return null
-	})
-
-	/* 查看错误详情 */
-	const checkErrorDetail = (res: { text: string; error?: string }) => {
-		openModal(FailDetailModal, {
-			currentResult: res,
-		})
-	}
-
-	/* 获取测试状态渲染 */
-	const getTestStatusRender = (id: string) => {
-		const result = getTestStatus(id)
-		const isError = !!result?.error
-
-		if (result?.text) {
-			return (
-				<Flex
-					gap={4}
-					className={cx(styles.testStatus, isError && styles.error)}
-					align="center"
-				>
-					{isError ? (
-						<IconCircleXFilled
-							color="currentColor"
-							size={20}
-							onClick={() => {
-								if (isMobile) {
-									checkErrorDetail(result)
-								}
-							}}
-						/>
-					) : (
-						<IconCircleCheckFilled color="currentColor" size={20} />
-					)}
-
-					{!isMobile && (
-						<>
-							<div>{t("testStatus", { status: result.text })}</div>
-							{isError && (
-								<div
-									className={styles.checkDetail}
-									onClick={() => checkErrorDetail(result)}
-								>
-									{t("checkDetail")}
-								</div>
-							)}
-						</>
-					)}
-				</Flex>
-			)
-		}
-		return null
 	}
 
 	/* 删除模型 */
@@ -313,7 +206,10 @@ const ModalList = ({ data, hasEditRight, setData }: ModalListProps) => {
 			content: t("testConnectionDesc2"),
 			dangerLevel: DangerLevel.Normal,
 			onOk: () => {
-				checkConnection(res)
+				const modelId = res.id || id
+				if (modelId) {
+					testConnectionRefMap.current[modelId]?.checkConnection(res)
+				}
 			},
 		})
 	}
@@ -367,6 +263,14 @@ const ModalList = ({ data, hasEditRight, setData }: ModalListProps) => {
 		return null
 	})
 
+	const bindTestConnectionRef = (modelId: string, node: TestConnectionRef | null) => {
+		if (node) {
+			testConnectionRefMap.current[modelId] = node
+			return
+		}
+		delete testConnectionRefMap.current[modelId]
+	}
+
 	return (
 		<Flex gap={isMobile ? 4 : 10} vertical key={data?.id}>
 			{modelGroup?.map(({ key, title, list }) => {
@@ -385,16 +289,12 @@ const ModalList = ({ data, hasEditRight, setData }: ModalListProps) => {
 									style={{ flexShrink: 0 }}
 								>
 									{!isOfficial && (
-										<>
-											{getTestStatusRender(item.id)}
-											<MagicButton
-												size={isMobile ? "small" : "middle"}
-												loading={loading && currentModel?.id === item.id}
-												onClick={() => checkConnection(item)}
-											>
-												{t("testConnection")}
-											</MagicButton>
-										</>
+										<TestConnection
+											key={item.id}
+											ref={(node) => bindTestConnectionRef(item.id, node)}
+											data={item}
+											isOfficialOrg={isOfficialOrg}
+										/>
 									)}
 									<MagicSwitch
 										size={isMobile ? "small" : "default"}

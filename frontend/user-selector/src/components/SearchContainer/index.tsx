@@ -24,6 +24,8 @@ export interface SearchContainerProps extends PropsWithChildren, BaseProps {
 	isMobile?: boolean
 	/** 是否禁选用户 */
 	disableUser?: boolean
+	/** 是否显示搜索框 */
+	showSearch?: boolean
 	/* 搜索框事件 */
 	onSearchChange?: (value: string) => void
 }
@@ -45,6 +47,7 @@ function SearchContainer(
 		checkboxOptions,
 		isMobile = false,
 		disableUser = false,
+		showSearch = true,
 		onSearchChange,
 	}: SearchContainerProps,
 	ref: Ref<SearchContainerRef>,
@@ -80,30 +83,32 @@ function SearchContainer(
 				className,
 			)}
 		>
-			<div className="relative shrink-0">
-				<IconSearch
-					size={16}
-					className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground"
-				/>
-				<Input
-					className={cn(
-						"w-full h-9",
-						"pl-9 pr-9 rounded-lg border border-input bg-background text-foreground shadow-sm placeholder:text-muted-foreground focus-visible:ring-1 focus-visible:ring-ring",
+			{showSearch && (
+				<div className="relative shrink-0">
+					<IconSearch
+						size={16}
+						className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground"
+					/>
+					<Input
+						className={cn(
+							"w-full h-9",
+							"pl-9 pr-9 rounded-lg border border-input bg-background text-foreground shadow-sm placeholder:text-muted-foreground focus-visible:ring-1 focus-visible:ring-ring",
+						)}
+						placeholder={placeholder ?? locale.search}
+						value={searchValue}
+						onChange={onChange}
+					/>
+					{searchValue && (
+						<button
+							type="button"
+							onClick={clearValue}
+							className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+						>
+							<IconX size={14} />
+						</button>
 					)}
-					placeholder={placeholder ?? locale.search}
-					value={searchValue}
-					onChange={onChange}
-				/>
-				{searchValue && (
-					<button
-						type="button"
-						onClick={clearValue}
-						className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
-					>
-						<IconX size={14} />
-					</button>
-				)}
-			</div>
+				</div>
+			)}
 			<div className="min-h-0 flex-1 overflow-hidden">
 				{searchValue ? (
 					<CommonListPanel<TreeNode>

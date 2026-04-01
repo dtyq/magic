@@ -2,7 +2,7 @@ import { Divider, Flex, Form, message, Tooltip } from "antd"
 import { ButtonGroup, MagicCard, MagicSwitch, MagicAvatar } from "components"
 import { lazy, useMemo, useState } from "react"
 import { useParams } from "react-router-dom"
-import { useMount, useRequest, useUnmount } from "ahooks"
+import { useMemoizedFn, useMount, useRequest, useUnmount } from "ahooks"
 import { useTranslation } from "react-i18next"
 import type { DefaultOptionType } from "antd/es/select"
 import { useApis } from "@/apis"
@@ -30,7 +30,7 @@ function AIPowerDetailPage() {
 
 	const hasEditRight = useRights(PERMISSION_KEY_MAP.AI_ABILITY_MANAGEMENT_EDIT)
 
-	// 是否使用服务商配置的工具类型
+	/** 是否使用服务商配置的工具类型 */
 	const useProvidersConfig = useMemo(() => {
 		return code ? ServiceConfigList.includes(code as PlatformPackage.PowerCode) : false
 	}, [code])
@@ -65,14 +65,15 @@ function AIPowerDetailPage() {
 					: "",
 			})
 
+			const { config } = res
 			// 如果使用 providers 配置结构的工具类型
 			if (useProvidersConfig) {
 				const defaultList = DefaultProviderListMap[res.code] || []
 
-				if (res.config?.providers) {
+				if (config?.providers) {
 					// 支持服务商多个配置
-					if (Array.isArray(res.config.providers)) {
-						const list = res.config.providers
+					if (Array.isArray(config.providers)) {
+						const list = config.providers
 						setProviderList(list)
 						setProviderOptions(
 							list.map((item) => ({
@@ -88,17 +89,17 @@ function AIPowerDetailPage() {
 						form.setFieldValue(["config", "providers"], initialProvider)
 					} else {
 						// 支持服务商单个配置
-						setProviderList([res.config.providers])
+						setProviderList([config.providers])
 						setProviderOptions([
 							{
 								label:
-									res.config.providers.name ||
-									toFirstLetterUpperCase(res.config.providers.provider),
-								value: res.config.providers.provider,
+									config.providers.name ||
+									toFirstLetterUpperCase(config.providers.provider),
+								value: config.providers.provider,
 							},
 						])
-						setSelectedProvider(res.config.providers.provider)
-						form.setFieldValue(["config", "providers"], res.config.providers)
+						setSelectedProvider(config.providers.provider)
+						form.setFieldValue(["config", "providers"], config.providers)
 					}
 				} else {
 					// 使用默认配置
@@ -229,6 +230,24 @@ function AIPowerDetailPage() {
 		}
 	}
 
+	const onConnectivityTest = useMemoizedFn(async () => {
+		if (!code) {
+			return {
+				status: 0,
+				message: "missing power code",
+			}
+		}
+		const res = await PlatformPackageApi.testAiPowerConnection({
+			ai_ability: code,
+			provider: selectedProvider,
+		})
+
+		return {
+			...res,
+			status: res.success ? 1 : 0,
+		}
+	})
+
 	return (
 		<div className={styles.container}>
 			<Form className={styles.cardContainer} form={form} onValuesChange={handleValuesChange}>
@@ -247,6 +266,7 @@ function AIPowerDetailPage() {
 						providerOptions={providerOptions}
 						currentProvider={selectedProvider}
 						onProviderChange={handleProviderChange}
+						onConnectivityTest={onConnectivityTest}
 					/>
 				) : (
 					/* 能力模型 */

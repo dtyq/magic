@@ -10,24 +10,31 @@ namespace Dtyq\SuperMagic\Application\Skill\Event\Subscribe;
 use App\Domain\Chat\Entity\ValueObject\SocketEventType;
 use App\Domain\Contact\Entity\ValueObject\DataIsolation;
 use App\Domain\Contact\Repository\Persistence\MagicUserRepository;
+use App\Domain\File\Repository\Persistence\Facade\CloudFileRepositoryInterface;
 use App\Domain\File\Service\FileDomainService;
 use App\Infrastructure\Core\ValueObject\StorageBucketType;
 use App\Infrastructure\Util\Context\RequestContext;
 use App\Infrastructure\Util\IdGenerator\IdGenerator;
 use App\Infrastructure\Util\Locker\LockerInterface;
+use App\Infrastructure\Util\SkillUtil;
 use App\Infrastructure\Util\SocketIO\SocketIOUtil;
 use App\Infrastructure\Util\ZipUtil;
 use Dtyq\SuperMagic\Application\SuperAgent\DTO\Request\CreateAgentProjectRequestDTO;
 use Dtyq\SuperMagic\Application\SuperAgent\Service\ProjectAppService;
+use Dtyq\SuperMagic\Domain\Skill\Entity\SkillEntity;
 use Dtyq\SuperMagic\Domain\Skill\Entity\ValueObject\SkillDataIsolation;
 use Dtyq\SuperMagic\Domain\Skill\Event\SkillImportedEvent;
 use Dtyq\SuperMagic\Domain\Skill\Service\SkillDomainService;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ProjectEntity;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\TaskFileEntity;
+use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\FileType;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\ProjectMode;
+use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\StorageType;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\TaskFileSource;
 use Dtyq\SuperMagic\Domain\SuperAgent\Service\ProjectDomainService;
 use Dtyq\SuperMagic\Domain\SuperAgent\Service\TaskFileDomainService;
+use Dtyq\SuperMagic\Infrastructure\Utils\SkillProjectConfigUtil;
+use Dtyq\SuperMagic\Infrastructure\Utils\WorkDirectoryUtil;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Response\TaskFileItemDTO;
 use Hyperf\Coroutine\Coroutine;
 use Hyperf\Event\Annotation\Listener;
@@ -52,6 +59,7 @@ class SkillImportedEventSubscriber implements ListenerInterface
         private readonly SkillDomainService $skillDomainService,
         private readonly ProjectDomainService $projectDomainService,
         private readonly FileDomainService $fileDomainService,
+        private readonly CloudFileRepositoryInterface $cloudFileRepository,
         private readonly TaskFileDomainService $taskFileDomainService,
         private readonly MagicUserRepository $magicUserRepository,
         private readonly LockerInterface $locker,
@@ -170,6 +178,10 @@ class SkillImportedEventSubscriber implements ListenerInterface
             $extractDir = $tempDir . '/extracted';
             ZipUtil::extract($localZipPath, $extractDir);
 
+            // Strip wrapper directories in zip (e.g. SKILL-{code}/skill-name/)
+            // to find the actual content directory containing SKILL.md
+            $actualContentDir = SkillUtil::findSkillMdDirectory($extractDir) ?? $extractDir;
+
             $rootDirId = $this->taskFileDomainService->findOrCreateProjectRootDirectory(
                 $projectId,
                 $workDir,
@@ -179,11 +191,35 @@ class SkillImportedEventSubscriber implements ListenerInterface
                 TaskFileSource::SKILL
             );
 
-            $packageDirId = $this->taskFileDomainService->createDirectory(
+            $magicDirId = $this->taskFileDomainService->createDirectory(
                 $projectId,
                 $rootDirId,
+                '.magic',
+                '.magic',
+                $workDir,
+                $userId,
+                $organizationCode,
+                $projectOrgCode,
+                TaskFileSource::SKILL
+            );
+
+            $skillsDirId = $this->taskFileDomainService->createDirectory(
+                $projectId,
+                $magicDirId,
+                'skills',
+                '.magic/skills',
+                $workDir,
+                $userId,
+                $organizationCode,
+                $projectOrgCode,
+                TaskFileSource::SKILL
+            );
+
+            $packageDirId = $this->taskFileDomainService->createDirectory(
+                $projectId,
+                $skillsDirId,
                 $packageName,
-                $packageName,
+                '.magic/skills/' . $packageName,
                 $workDir,
                 $userId,
                 $organizationCode,
@@ -197,13 +233,22 @@ class SkillImportedEventSubscriber implements ListenerInterface
             $this->uploadExtractedFiles(
                 $contactDataIsolation,
                 $projectEntity,
-                $extractDir,
+                $actualContentDir,
                 $packageDirId,
                 $projectId,
-                $packageName,
+                '.magic/skills/' . $packageName,
                 $workDir,
                 $userId,
                 $organizationCode,
+                $projectOrgCode,
+                $createdFiles
+            );
+
+            $this->upsertSkillConfigFile(
+                $contactDataIsolation,
+                $projectEntity,
+                $skillEntity,
+                $skillsDirId,
                 $projectOrgCode,
                 $createdFiles
             );
@@ -297,6 +342,68 @@ class SkillImportedEventSubscriber implements ListenerInterface
                 $createdFiles[] = $fileEntity;
             }
         }
+    }
+
+    /**
+     * @param TaskFileEntity[] $createdFiles
+     */
+    private function upsertSkillConfigFile(
+        DataIsolation $dataIsolation,
+        ProjectEntity $projectEntity,
+        SkillEntity $skillEntity,
+        int $skillsDirId,
+        string $projectOrgCode,
+        array &$createdFiles
+    ): void {
+        $configContent = SkillProjectConfigUtil::render(
+            SkillProjectConfigUtil::buildConfig($skillEntity)
+        );
+
+        $existingConfigFile = $this->findSkillConfigFile($projectEntity->getId(), $projectOrgCode, $projectEntity->getWorkDir());
+        if ($existingConfigFile === null) {
+            $createdFiles[] = $this->taskFileDomainService->createProjectFileWithContent(
+                $dataIsolation,
+                $projectEntity,
+                $skillsDirId,
+                SkillProjectConfigUtil::CONFIG_FILE_NAME,
+                $configContent,
+                TaskFileSource::SKILL
+            );
+            return;
+        }
+
+        $this->cloudFileRepository->createFileByCredential(
+            WorkDirectoryUtil::getPrefix($projectEntity->getWorkDir()),
+            $projectOrgCode,
+            $existingConfigFile->getFileKey(),
+            $configContent,
+            StorageBucketType::SandBox
+        );
+
+        $taskFileEntity = new TaskFileEntity();
+        $taskFileEntity->setFileKey($existingConfigFile->getFileKey());
+        $taskFileEntity->setFileName(SkillProjectConfigUtil::CONFIG_FILE_NAME);
+        $taskFileEntity->setFileSize(strlen($configContent));
+        $taskFileEntity->setFileType(FileType::USER_UPLOAD->value);
+        $taskFileEntity->setIsDirectory(false);
+        $taskFileEntity->setSource(TaskFileSource::SKILL);
+        $taskFileEntity->setStorageType(StorageType::WORKSPACE->value);
+
+        $this->taskFileDomainService->saveProjectFile(
+            $dataIsolation,
+            $projectEntity,
+            $taskFileEntity,
+            isUpdated: true,
+            withTrash: true
+        );
+    }
+
+    private function findSkillConfigFile(int $projectId, string $projectOrgCode, string $workDir): ?TaskFileEntity
+    {
+        $fullPrefix = $this->taskFileDomainService->getFullPrefix($projectOrgCode);
+        $configFileKey = WorkDirectoryUtil::getFullFileKey($fullPrefix, $workDir, SkillProjectConfigUtil::CONFIG_PATH);
+
+        return $this->taskFileDomainService->getByProjectIdAndFileKey($projectId, $configFileKey);
     }
 
     private function createSkillProject(

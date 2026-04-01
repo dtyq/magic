@@ -48,6 +48,7 @@ export enum RoutePath {
 	PlatformAIModelDetail = "/admin/platform/model/llm/:id",
 	PlatformAIDrawing = "/admin/platform/model/vlm",
 	PlatformAIDrawingDetail = "/admin/platform/model/vlm/:id",
+	PlatformModelAuditLog = "/admin/platform/model/audit-log",
 	PlatformAgent = "/admin/platform/agent",
 	PlatformAgentMode = "/admin/platform/agent/mode",
 	PlatformAgentSkill = "/admin/platform/agent/skill",
@@ -65,10 +66,6 @@ export enum RoutePath {
 	PlatformMaintenance = "/admin/platform/manage/maintenance",
 	PlatformProxyServer = "/admin/platform/manage/proxy-server",
 	PlatformAIAudit = "/admin/platform/manage/audit",
-
-	// Security Control paths
-
-	Teamshare = "/admin/home",
 }
 
 export enum RouteName {
@@ -114,6 +111,8 @@ export enum RouteName {
 	AdminPlatformAIDrawing = "AdminPlatformAIDrawing",
 	/** 平台模型 - 生图大模型详情 */
 	AdminPlatformAIDrawingDetails = "AdminPlatformAIDrawingDetails",
+	/** 平台模型 - 模型审计日志 */
+	AdminPlatformModelAuditLog = "AdminPlatformModelAuditLog",
 
 	/** 智能体增强 */
 	AdminAgentEnhancement = "AdminAgentEnhancement",

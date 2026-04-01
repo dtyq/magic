@@ -31,6 +31,7 @@ from .parameter.share_resource_id_parameter import ShareResourceIdParameter
 from .parameter.create_share_parameter import CreateShareParameter, TargetId
 from .parameter.find_similar_share_parameter import FindSimilarShareParameter
 from .parameter.cancel_share_parameter import CancelShareParameter
+from .parameter.ingest_third_party_message_parameter import IngestThirdPartyMessageParameter
 
 # Result classes
 from .result.agent_details_result import (
@@ -49,6 +50,7 @@ from .result.share_result import (
     CancelShareResult,
     FindSimilarSharesResult,
 )
+from .result.ingest_third_party_message_result import IngestThirdPartyMessageResult
 
 # Kernel classes
 from .kernel.magic_service_exception import (
@@ -91,6 +93,7 @@ __all__ = [
     'TargetId',
     'FindSimilarShareParameter',
     'CancelShareParameter',
+    'IngestThirdPartyMessageParameter',
 
     # Result classes
     'AgentDetailsResult',
@@ -103,6 +106,7 @@ __all__ = [
     'ShareResult',
     'CancelShareResult',
     'FindSimilarSharesResult',
+    'IngestThirdPartyMessageResult',
 
     # Kernel classes
     'MagicServiceException',

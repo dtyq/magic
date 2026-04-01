@@ -2666,6 +2666,60 @@ class TaskFileDomainService
     }
 
     /**
+     * Navigate directory tree by path segments starting from project root.
+     * e.g. ".magic/skills/my-skill" will traverse root -> .magic -> skills -> my-skill.
+     *
+     * @param int $projectId Project ID
+     * @param string $path Relative path from project root (e.g. ".magic/skills/my-skill")
+     * @return null|TaskFileEntity Target directory entity or null if any segment not found
+     */
+    public function findDirectoryByPath(int $projectId, string $path): ?TaskFileEntity
+    {
+        $segments = array_filter(explode('/', trim($path, '/')), static fn (string $s) => $s !== '');
+        if (empty($segments)) {
+            return null;
+        }
+
+        $rootDir = $this->getRootFile($projectId);
+        if ($rootDir === null) {
+            return null;
+        }
+
+        $currentParentId = $rootDir->getFileId();
+        $currentEntity = $rootDir;
+
+        foreach ($segments as $segment) {
+            $found = $this->findDirectoryByParentIdAndName($currentParentId, $segment, $projectId);
+            if ($found === null) {
+                return null;
+            }
+            $currentParentId = $found->getFileId();
+            $currentEntity = $found;
+        }
+
+        return $currentEntity;
+    }
+
+    /**
+     * Check whether a file with the given name exists anywhere in the project (case-insensitive).
+     */
+    public function existsFileByName(int $projectId, string $fileName): bool
+    {
+        $entity = $this->taskFileRepository->getByProjectIdAndFileName($projectId, $fileName);
+        if ($entity !== null) {
+            return true;
+        }
+
+        // Case-insensitive fallback
+        $lower = strtolower($fileName);
+        if ($lower !== $fileName) {
+            return $this->taskFileRepository->getByProjectIdAndFileName($projectId, $lower) !== null;
+        }
+
+        return false;
+    }
+
+    /**
      * Normalize relative path.
      * Removes leading './', '/', and handles edge cases.
      *

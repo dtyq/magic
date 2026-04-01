@@ -1623,11 +1623,27 @@ class SuperMagicAgentAppService extends AbstractSuperMagicAppService
     /**
      * Export agent workspace to object storage via sandbox.
      *
-     * @param Authenticatable $authorization User authorization
      * @return array{file_key: string, metadata: array} Export result
      */
-    private function exportFileFromProject(Authenticatable $authorization, string $code, int $projectId): array
+    /**
+     * Validate that IDENTITY.md exists in the agent project before publishing.
+     */
+    private function validateIdentityMdExists(int $projectId, ?string $sourcePath): void
     {
+        if (! $this->taskFileDomainService->existsFileByName($projectId, 'IDENTITY.md')) {
+            ExceptionBuilder::throw(
+                SuperAgentErrorCode::PUBLISH_IDENTITY_MD_NOT_FOUND,
+                'super_magic.agent.publish.identity_md_not_found'
+            );
+        }
+    }
+
+    private function exportFileFromProject(
+        Authenticatable $authorization,
+        string $code,
+        int $projectId,
+        ?string $sourcePath = null
+    ): array {
         $dataIsolation = $this->createSuperMagicDataIsolation($authorization);
 
         // Get project entity to build the full working directory
@@ -1643,8 +1659,24 @@ class SuperMagicAgentAppService extends AbstractSuperMagicAppService
             $dataIsolation,
             $code,
             $projectId,
-            $fullWorkdir
+            $fullWorkdir,
+            $sourcePath
         );
+    }
+
+    /**
+     * Resolve optional source path for publish export.
+     * Only when ".magic" directory exists in file table do we export from that subdirectory.
+     */
+    private function resolvePublishExportSourcePath(int $projectId): ?string
+    {
+        if ($projectId <= 0) {
+            return null;
+        }
+
+        $magicDir = $this->taskFileDomainService->findDirectoryByPath($projectId, '.magic');
+
+        return $magicDir !== null ? '.magic' : null;
     }
 
     /**
@@ -2089,7 +2121,9 @@ class SuperMagicAgentAppService extends AbstractSuperMagicAppService
         bool $shouldExportFile
     ): AgentVersionEntity {
         if ($shouldExportFile) {
-            $fileMetadata = $this->exportFileFromProject($authorization, $code, $agentEntity->getProjectId());
+            $sourcePath = $this->resolvePublishExportSourcePath($agentEntity->getProjectId());
+            $this->validateIdentityMdExists($agentEntity->getProjectId(), $sourcePath);
+            $fileMetadata = $this->exportFileFromProject($authorization, $code, $agentEntity->getProjectId(), $sourcePath);
             $agentEntity->setFileKey($fileMetadata['file_key']);
         } else {
             $agentEntity->setFileKey('');

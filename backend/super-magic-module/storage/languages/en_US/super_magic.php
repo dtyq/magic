@@ -156,9 +156,15 @@ return [
             'invalid_package' => 'Invalid package format. Required file IDENTITY.md is missing',
             'extract_failed' => 'Failed to extract the archive. Please verify the file and try again',
         ],
+        'publish' => [
+            'identity_md_not_found' => 'IDENTITY.md file is missing. Please initialize the agent first, then publish',
+        ],
         'export_failed' => 'Agent export failed. Please try again later',
     ],
     'task' => [
         'prompt_length_exceeded' => 'Input text is too long. Please upload it as a file and reference it in the dialog.',
+    ],
+    'magic_claw' => [
+        'create_system_error' => 'A system error occurred. Please try again later.',
     ],
 ];

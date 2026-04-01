@@ -41,10 +41,16 @@ class MagicClawAssembler
      * Status is resolved externally via sandbox gateway and passed in — not stored on the entity.
      *
      * @param null|string $status Sandbox running status (e.g. Running, Exited, Pending) or null if unknown
+     * @param null|int $topicId Current topic ID of the associated project, or null if none assigned
+     * @param bool $needUpgrade Whether the sandbox requires upgrade
      * @return array<string,mixed>
      */
-    public static function toListItem(MagicClawEntity $entity, ?string $status = null): array
-    {
+    public static function toListItem(
+        MagicClawEntity $entity,
+        ?string $status = null,
+        ?int $topicId = null,
+        bool $needUpgrade = false
+    ): array {
         return [
             'id' => (string) $entity->getId(),
             'code' => $entity->getCode(),
@@ -53,7 +59,9 @@ class MagicClawAssembler
             'description' => $entity->getDescription(),
             'template_code' => $entity->getTemplateCode(),
             'project_id' => (string) ($entity->getProjectId() ?? ''),
+            'topic_id' => (string) ($topicId ?? ''),
             'status' => $status,
+            'need_upgrade' => $needUpgrade,
         ];
     }
 }

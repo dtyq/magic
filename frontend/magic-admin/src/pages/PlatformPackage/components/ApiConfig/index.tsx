@@ -62,33 +62,13 @@ interface ApiConfigProps {
 
 const ApiConfig = memo(({ data, lang, isOfficial, onLangSave }: ApiConfigProps) => {
 	const { name, provider_code: code, category } = data || {}
-	const { styles, cx } = useStyles()
+	const { styles } = useStyles()
 	const { t } = useTranslation("admin/ai/model")
 
 	if (!code) return null
 
 	return (
 		<>
-			{/* 用户输入地址 */}
-			{isOfficial && (
-				<Flex justify="space-between" gap={50} align="center">
-					<div className={cx(styles.label, styles.labelText, styles.required)}>
-						{t("form.userInputUrl")}
-					</div>
-					<Form.Item
-						name={["config", "url"]}
-						className={styles.formItem}
-						rules={[
-							{
-								required: true,
-								message: t("form.userInputUrlPlaceholder"),
-							},
-						]}
-					>
-						<Input placeholder={t("form.userInputUrlPlaceholder")} />
-					</Form.Item>
-				</Flex>
-			)}
 			{/* 别名 */}
 			{category === AiModel.ServiceProviderCategory.LLM && !isOfficial && (
 				<Flex justify="space-between" gap={50} align="center">

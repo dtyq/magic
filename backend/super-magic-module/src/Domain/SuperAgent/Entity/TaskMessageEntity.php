@@ -170,6 +170,11 @@ class TaskMessageEntity extends AbstractEntity
      */
     protected ?array $usage = null;
 
+    /**
+     * @var null|array Third-party source for user->agent messages
+     */
+    protected ?array $source = null;
+
     public function __construct(array $data = [])
     {
         $this->id = IdGenerator::getSnowId();
@@ -531,6 +536,23 @@ class TaskMessageEntity extends AbstractEntity
         return $this;
     }
 
+    public function getSource(): ?array
+    {
+        return $this->source;
+    }
+
+    public function setSource(null|array|string $source): self
+    {
+        if (is_string($source)) {
+            $decoded = Json::decode($source);
+            $this->source = is_array($decoded) ? $decoded : null;
+            return $this;
+        }
+
+        $this->source = empty($source) ? null : $source;
+        return $this;
+    }
+
     public function toArray(): array
     {
         $result = [
@@ -565,6 +587,7 @@ class TaskMessageEntity extends AbstractEntity
             'parent_correlation_id' => $this->parentCorrelationId,
             'content_type' => $this->contentType,
             'usage' => $this->usage,
+            'source' => $this->source,
         ];
 
         return array_filter($result, function ($value) {
@@ -603,6 +626,7 @@ class TaskMessageEntity extends AbstractEntity
             'correlation_id' => $this->correlationId,
             'parent_correlation_id' => $this->parentCorrelationId,
             'content_type' => $this->contentType,
+            'source' => $this->getSource() !== null ? json_encode($this->getSource(), JSON_UNESCAPED_UNICODE) : null,
         ];
     }
 
@@ -649,6 +673,10 @@ class TaskMessageEntity extends AbstractEntity
         // Add content_type if provided
         if ($taskMessageDTO->getContentType() !== null) {
             $messageData['content_type'] = $taskMessageDTO->getContentType();
+        }
+
+        if ($taskMessageDTO->getSource() !== null) {
+            $messageData['source'] = $taskMessageDTO->getSource();
         }
 
         return new TaskMessageEntity($messageData);

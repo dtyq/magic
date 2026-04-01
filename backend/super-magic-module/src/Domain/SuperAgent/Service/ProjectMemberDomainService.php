@@ -317,6 +317,7 @@ class ProjectMemberDomainService
         ?array $organizationCodes = null,
         string $sortField = 'last_active_at',
         string $sortDirection = 'desc',
+        bool $showHidden = false,
     ): array {
         // 判断是否限制工作区
         $limitWorkspace = $workspaceId > 0;
@@ -330,7 +331,8 @@ class ProjectMemberDomainService
             $pageSize,
             $sortField,
             $sortDirection,
-            $organizationCodes
+            $organizationCodes,
+            $showHidden
         );
     }
 

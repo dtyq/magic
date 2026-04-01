@@ -307,6 +307,7 @@ const MobileUserSelector: ForwardRefRenderFunction<UserSelectorRef, MobileUserSe
 						maxCount={maxCount}
 						disableUser={disableUser}
 						isMobile
+						showSearch={segment !== SegmentType.ShareToGroup}
 					>
 						{renderContent()}
 					</SearchContainer>

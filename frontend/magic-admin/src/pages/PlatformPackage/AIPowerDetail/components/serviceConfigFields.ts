@@ -101,6 +101,7 @@ export const webSearchConfig: Record<string, FieldConfig[]> = {
 	bing: WEB_SERVICE_FIELDS,
 	cloudsway: WEB_SERVICE_FIELDS,
 	google: WEB_SERVICE_FIELDS,
+	baidu: WEB_SERVICE_FIELDS,
 }
 
 /**

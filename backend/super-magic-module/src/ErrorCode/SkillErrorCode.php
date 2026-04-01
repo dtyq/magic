@@ -121,4 +121,10 @@ enum SkillErrorCode: int
 
     #[ErrorMessage('skill.publish_target_value_required')]
     case PUBLISH_TARGET_VALUE_REQUIRED = 51274;
+
+    #[ErrorMessage('skill.skill_config_not_found')]
+    case SKILL_CONFIG_NOT_FOUND = 51275;
+
+    #[ErrorMessage('skill.skill_config_invalid')]
+    case SKILL_CONFIG_INVALID = 51276;
 }
