@@ -377,7 +377,7 @@ class ModelGatewayMapper extends ModelMapper
 
     /**
      * 批量解析 providerConfig 列表对应的 proxy 字符串.
-     * 以 providerConfigId 为 key 缓存结果，避免同一个 proxy_server 被重复查询.
+     * 以 providerConfigId 为 key 缓存结果，相同 proxy_server_id 只查询一次数据库.
      *
      * @param ProviderConfigEntity[] $providerConfigs key 为 providerConfigId
      * @return array<int, string> key 为 providerConfigId，value 为 proxy 字符串（空字符串表示不使用代理）
@@ -386,6 +386,8 @@ class ModelGatewayMapper extends ModelMapper
     {
         $resolver = di(ProxyConfigResolverInterface::class);
         $proxyCache = [];
+        // 按 proxy_server_id 缓存解析结果，避免多个 providerConfig 指向同一 proxy 时重复查库
+        $proxyServerCache = [];
 
         foreach ($providerConfigs as $configId => $providerConfig) {
             $configItem = $providerConfig->getConfig();
@@ -393,7 +395,16 @@ class ModelGatewayMapper extends ModelMapper
                 $proxyCache[$configId] = '';
                 continue;
             }
-            $proxyCache[$configId] = (string) ($resolver->resolve($configItem->toArray()) ?? '');
+            $proxyServerId = $configItem->getProxyServer()['id'] ?? null;
+            if ($proxyServerId !== null && array_key_exists($proxyServerId, $proxyServerCache)) {
+                $proxyCache[$configId] = $proxyServerCache[$proxyServerId];
+                continue;
+            }
+            $resolved = (string) ($resolver->resolve($configItem->toArray()) ?? '');
+            if ($proxyServerId !== null) {
+                $proxyServerCache[$proxyServerId] = $resolved;
+            }
+            $proxyCache[$configId] = $resolved;
         }
 
         return $proxyCache;
