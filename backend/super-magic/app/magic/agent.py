@@ -30,6 +30,7 @@ from agentlang.event.data import (
 from agentlang.event.event import EventType
 from agentlang.llms.factory import LLMFactory
 from agentlang.llms.processors.processor_config import ProcessorConfig
+from agentlang.config.model_config import model_config_utils
 from app.streaming.message_builder import LLMStreamingMessageBuilder
 from app.streaming.config_generator import StreamingConfigGenerator
 from agentlang.llms.token_usage.models import TokenUsage
@@ -368,10 +369,28 @@ The following <dynamic_context> block contains system-provided context informati
         except Exception as e:
             logger.error(f"读取幻灯片模板文件时出错: {e}")
 
-        # 获取动态模型ID
+        # 获取动态模型ID，优先使用 resolved_model_id（更真实的底层模型）
         dynamic_model_id = ""
         if self.agent_context and self.agent_context.has_dynamic_model_id():
-            dynamic_model_id = self.agent_context.get_dynamic_model_id() or ""
+            raw_model_id = self.agent_context.get_dynamic_model_id() or ""
+            if raw_model_id:
+                try:
+                    model_cfg = model_config_utils.get_model_config(raw_model_id)
+                    dynamic_model_id = (
+                        model_cfg.resolved_model_id
+                        if model_cfg and model_cfg.resolved_model_id
+                        else raw_model_id
+                    )
+                except Exception:
+                    dynamic_model_id = raw_model_id
+
+        # 特殊聚合模型的描述说明，有值时作为独立行附加在 model_id 之后，默认为空
+        _SPECIAL_MODEL_DESCRIPTIONS = {
+            "auto": "automatically selects the most efficient AI model for the current task",
+            "max": "automatically selects the most capable AI model for the current scenario",
+        }
+        _desc = _SPECIAL_MODEL_DESCRIPTIONS.get(dynamic_model_id.lower(), "")
+        model_description_line = f"\nModel description: {_desc}" if _desc else ""
 
         # 获取当前用户偏好语言
         # 检查用户是否手动设置过语言
@@ -393,6 +412,7 @@ The following <dynamic_context> block contains system-provided context informati
             "agent_name": agent_name,
             "agent_profile": agent_profile_text,
             "dynamic_model_id": dynamic_model_id,
+            "model_description_line": model_description_line,
             "user_preferred_language": user_preferred_language,
             "workspace_dir": self.agent_context._workspace_dir,
             "workspace_skills_dir": str(get_workspace_skills_dir().relative_to(PathManager.get_workspace_dir())),
@@ -1394,18 +1414,18 @@ The following <dynamic_context> block contains system-provided context informati
             dynamic_model_id = self.agent_context.get_dynamic_model_id()
             if dynamic_model_id and dynamic_model_id.strip():
                 try:
-                    # 🔥 先调用get()确保配置被加载到_configs中，然后获取配置信息
                     LLMFactory.get(dynamic_model_id)  # 确保配置被加载
                     model_config = LLMFactory.get_model_config(dynamic_model_id)
                     dynamic_model_name = model_config.name
+                    resolved_model_id = model_config.resolved_model_id
 
                     # 只在首次使用动态模型或模型发生变化时记录INFO日志
                     previous_model = getattr(self, '_last_effective_model_id', None)
                     if previous_model != dynamic_model_id:
-                        logger.info(f"🎯 切换到动态模型: {dynamic_model_id} ({dynamic_model_name})")
+                        logger.info(f"切换到动态模型: {resolved_model_id} ({dynamic_model_name})")
                         self._last_effective_model_id = dynamic_model_id
                     else:
-                        logger.debug(f"继续使用动态模型: {dynamic_model_id} ({dynamic_model_name})")
+                        logger.debug(f"继续使用动态模型: {resolved_model_id} ({dynamic_model_name})")
 
                     return dynamic_model_id, dynamic_model_name
                 except Exception as e:

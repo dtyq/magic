@@ -166,6 +166,10 @@ class ModelInfoEnricher:
             if metadata:
                 extracted["metadata"] = metadata
 
+            # resolved_model_id 表示该模型实际解析到的底层模型 ID
+            if "resolved_model_id" in attributes and attributes["resolved_model_id"]:
+                extracted["resolved_model_id"] = str(attributes["resolved_model_id"])
+
         return extracted
 
     def merge_model_config(
