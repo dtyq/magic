@@ -70,6 +70,13 @@ class SuperMagicModelConfigHandler extends AbstractUserSettingHandler
             }
         }
 
+        $videoModelId = $value['video_model']['model_id'] ?? null;
+        if (! empty($videoModelId)) {
+            $result['video_model'] = [
+                'model_id' => $videoModelId,
+            ];
+        }
+
         $setting->setValue($result);
     }
 
