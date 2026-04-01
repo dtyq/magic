@@ -489,7 +489,10 @@ class ModelGatewayMapper extends ModelMapper
 
         $resolvedImpl = $resolvedEntry->getModel();
         $model = match (true) {
-            $resolvedImpl instanceof OdinModel => new OdinModel(key: $dynamicModelId, model: $resolvedImpl->getModel()),
+            $resolvedImpl instanceof OdinModel => new OdinModel(
+                key: $dynamicModelId,
+                model: $this->buildDynamicUnderlyingModel($dynamicModel, $resolvedImpl->getModel()),
+            ),
             $resolvedImpl instanceof VideoModel => new VideoModel(
                 $resolvedImpl->getConfig(),
                 $resolvedImpl->getModelVersion(),
@@ -685,5 +688,30 @@ class ModelGatewayMapper extends ModelMapper
             throw new InvalidArgumentException(sprintf('Implementation %s is not defined.', MagicAILocalModel::class));
         }
         return $odinModel;
+    }
+
+    /**
+     * 为动态模型构建底层 model 实例。
+     * 则在 atom model 选项的基础上进行覆盖；否则直接复用 atom model。
+     * 只有 AbstractModel 才持有 ModelOptions，非 AbstractModel 时原样返回。
+     */
+    private function buildDynamicUnderlyingModel(
+        ProviderModelEntity $dynamicModel,
+        EmbeddingInterface|ModelInterface $atomModel,
+    ): EmbeddingInterface|ModelInterface {
+        if (! $atomModel instanceof AbstractModel) {
+            return $atomModel;
+        }
+
+        $dynamicConfig = $dynamicModel->getConfig();
+
+        $cloned = clone $atomModel;
+        $cloned->setModelOptions(new ModelOptions(array_merge($atomModel->getModelOptions()->toArray(), array_filter([
+            'max_tokens' => $dynamicConfig?->getMaxTokens(),
+            'max_output_tokens' => $dynamicConfig?->getMaxOutputTokens(),
+            'default_temperature' => $dynamicConfig?->getCreativity(),
+            'fixed_temperature' => $dynamicConfig?->getTemperature(),
+        ], static fn ($v) => $v !== null))));
+        return $cloned;
     }
 }
