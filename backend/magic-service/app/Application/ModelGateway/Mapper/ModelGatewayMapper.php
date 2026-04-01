@@ -345,18 +345,13 @@ class ModelGatewayMapper extends ModelMapper
         // 预先批量解析所有 providerConfig 对应的 proxy 字符串，避免循环内重复查询
         $proxyCache = $this->resolveProxyConfigs($providerConfigs);
 
-        // 第一遍：组装原子模型
+        // 第一遍：组装原子模型，暂存 DYNAMIC 待第二遍处理
+        $pendingDynamicModels = [];
         foreach ($providerModels as $providerModel) {
             if ($providerModel->getType() === ProviderModelType::DYNAMIC) {
-                if (! $withDynamicModels) {
-                    continue;
+                if ($withDynamicModels) {
+                    $pendingDynamicModels[] = $providerModel;
                 }
-                $dynamicModel = $this->createDynamicOdinModel($providerModel, $list, $dataIsolation);
-                if (! $dynamicModel) {
-                    continue;
-                }
-                $list[$dynamicModel->getKey()] = $dynamicModel;
-                $modelLogs['success'][] = "dynamic|{$providerModel->getModelId()}|{$dynamicModel->getAttributes()->getResolvedModelId()}";
                 continue;
             }
             if (! $providerConfig = $providerConfigs[$providerModel->getServiceProviderConfigId()] ?? null) {
@@ -380,6 +375,16 @@ class ModelGatewayMapper extends ModelMapper
             }
             $modelLogs['success'][] = "{$providerLabel}|{$providerModel->getModelId()}";
             $list[$model->getKey()] = $model;
+        }
+
+        // 第二遍：所有原子模型就绪后，再处理 DYNAMIC 模型
+        foreach ($pendingDynamicModels as $providerModel) {
+            $dynamicModel = $this->createDynamicOdinModel($providerModel, $list, $dataIsolation);
+            if (! $dynamicModel) {
+                continue;
+            }
+            $list[$dynamicModel->getKey()] = $dynamicModel;
+            $modelLogs['success'][] = "dynamic|{$providerModel->getModelId()}|{$dynamicModel->getAttributes()->getResolvedModelId()}";
         }
 
         // 按照 $availableModelIds 排序
@@ -491,7 +496,7 @@ class ModelGatewayMapper extends ModelMapper
         $model = match (true) {
             $resolvedImpl instanceof OdinModel => new OdinModel(
                 key: $dynamicModelId,
-                model: $this->buildDynamicUnderlyingModel($dynamicModel, $resolvedImpl->getModel()),
+                model: $this->buildDynamicUnderlyingModel($resolvedImpl->getModel()),
             ),
             $resolvedImpl instanceof VideoModel => new VideoModel(
                 $resolvedImpl->getConfig(),
@@ -696,22 +701,14 @@ class ModelGatewayMapper extends ModelMapper
      * 只有 AbstractModel 才持有 ModelOptions，非 AbstractModel 时原样返回。
      */
     private function buildDynamicUnderlyingModel(
-        ProviderModelEntity $dynamicModel,
         EmbeddingInterface|ModelInterface $atomModel,
     ): EmbeddingInterface|ModelInterface {
         if (! $atomModel instanceof AbstractModel) {
             return $atomModel;
         }
 
-        $dynamicConfig = $dynamicModel->getConfig();
-
         $cloned = clone $atomModel;
-        $cloned->setModelOptions(new ModelOptions(array_merge($atomModel->getModelOptions()->toArray(), array_filter([
-            'max_tokens' => $dynamicConfig?->getMaxTokens(),
-            'max_output_tokens' => $dynamicConfig?->getMaxOutputTokens(),
-            'default_temperature' => $dynamicConfig?->getCreativity(),
-            'fixed_temperature' => $dynamicConfig?->getTemperature(),
-        ], static fn ($v) => $v !== null))));
+        $cloned->setModelOptions(new ModelOptions($atomModel->getModelOptions()->toArray()));
         return $cloned;
     }
 }
