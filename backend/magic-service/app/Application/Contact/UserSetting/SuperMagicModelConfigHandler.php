@@ -45,6 +45,10 @@ class SuperMagicModelConfigHandler extends AbstractUserSettingHandler
                     'name' => $providerModel->getName(),
                     'icon' => $this->fileDomainService->getLink($providerDataIsolation->getCurrentOrganizationCode(), $providerModel->getIcon())?->getUrl() ?? '',
                 ];
+            } else {
+                $result['model'] = [
+                    'model_id' => $modelId,
+                ];
             }
         }
 
@@ -59,7 +63,18 @@ class SuperMagicModelConfigHandler extends AbstractUserSettingHandler
                     'name' => $imageProviderModel->getName(),
                     'icon' => $this->fileDomainService->getLink($providerDataIsolation->getCurrentOrganizationCode(), $imageProviderModel->getIcon())?->getUrl() ?? '',
                 ];
+            } else {
+                $result['image_model'] = [
+                    'model_id' => $modelId,
+                ];
             }
+        }
+
+        $videoModelId = $value['video_model']['model_id'] ?? null;
+        if (! empty($videoModelId)) {
+            $result['video_model'] = [
+                'model_id' => $videoModelId,
+            ];
         }
 
         $setting->setValue($result);

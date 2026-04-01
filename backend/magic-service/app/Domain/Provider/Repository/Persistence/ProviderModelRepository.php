@@ -24,10 +24,8 @@ use App\Infrastructure\Core\ValueObject\Page;
 use App\Infrastructure\Util\OfficialOrganizationUtil;
 use App\Interfaces\Provider\Assembler\ProviderModelAssembler;
 use App\Interfaces\Provider\DTO\SaveProviderModelDTO;
-use Hyperf\Codec\Json;
 use Hyperf\Database\Model\Builder;
 use Hyperf\DbConnection\Db;
-use Hyperf\Redis\Redis;
 
 class ProviderModelRepository extends AbstractProviderModelRepository implements ProviderModelRepositoryInterface
 {
@@ -390,8 +388,13 @@ class ProviderModelRepository extends AbstractProviderModelRepository implements
         if (! is_null($query->getStatus())) {
             $builder->where('status', $query->getStatus()->value);
         }
-        if (! is_null($query->getModelType())) {
+        if (! is_null($query->getModelTypes())) {
+            $builder->whereIn('model_type', array_map(fn ($t) => $t->value, $query->getModelTypes()));
+        } elseif (! is_null($query->getModelType())) {
             $builder->where('model_type', $query->getModelType()->value);
+        }
+        if (! is_null($query->getProviderModelType())) {
+            $builder->where('type', $query->getProviderModelType()->value);
         }
 
         $data = $this->getByPage($builder, $page, $query);
@@ -427,7 +430,9 @@ class ProviderModelRepository extends AbstractProviderModelRepository implements
         if (! is_null($query->getStatus())) {
             $builder->where('status', $query->getStatus()->value);
         }
-        if (! is_null($query->getModelType())) {
+        if (! is_null($query->getModelTypes())) {
+            $builder->whereIn('model_type', array_map(fn ($t) => $t->value, $query->getModelTypes()));
+        } elseif (! is_null($query->getModelType())) {
             $builder->where('model_type', $query->getModelType()->value);
         }
 
@@ -497,7 +502,7 @@ class ProviderModelRepository extends AbstractProviderModelRepository implements
 
         // 如果指定了模型类型，添加模型类型过滤条件
         if (! empty($modelTypes)) {
-            $modelTypeValues = array_map(fn ($type) => $type->value, $modelTypes);
+            $modelTypeValues = array_map(static fn ($type) => $type->value, $modelTypes);
             $organizationModelsBuilder->whereIn('model_type', $modelTypeValues);
         }
 
@@ -511,14 +516,10 @@ class ProviderModelRepository extends AbstractProviderModelRepository implements
 
             // 如果指定了模型类型，过滤Magic模型
             if (! empty($modelTypes)) {
-                $magicModels = array_filter($magicModels, function ($model) use ($modelTypes) {
-                    foreach ($modelTypes as $modelType) {
-                        if ($model->getModelType() === $modelType) {
-                            return true;
-                        }
-                    }
-                    return false;
-                });
+                $magicModels = array_filter(
+                    $magicModels,
+                    static fn (ProviderModelEntity $model): bool => in_array($model->getModelType(), $modelTypes, true)
+                );
             }
         }
 

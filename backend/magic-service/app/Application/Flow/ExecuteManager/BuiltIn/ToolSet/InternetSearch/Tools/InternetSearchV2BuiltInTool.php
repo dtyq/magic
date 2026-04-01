@@ -40,7 +40,7 @@ class InternetSearchV2BuiltInTool extends AbstractBuiltInTool
 
     public function getDescription(): string
     {
-        return '麦吉互联网搜索，批量对用户的多个含义相同或者不同的问题进行互联网搜索。';
+        return '互联网搜索，批量对用户的多个含义相同或者不同的问题进行互联网搜索。';
     }
 
     public function getCallback(): ?Closure

@@ -54,6 +54,7 @@ class LLMClientConfig(BaseModel):
     extra_params: Dict[str, Any] = {}
     supports_tool_use: bool = True
     type: str = "llm"
+    resolved_model_id: Optional[str] = None
 
 class LLMFactory:
     """Factory for creating LLM clients."""
@@ -175,6 +176,7 @@ class LLMFactory:
 
         # 获取模型配置
         llm_config = cls.get_model_config(model_id)
+        display_model_id = llm_config.resolved_model_id or model_id
 
         # Get current token count from chat history
         current_tokens = await get_current_tokens(agent_context, request_id)
@@ -228,7 +230,7 @@ class LLMFactory:
 
         # 发送请求并获取响应
         retry_info = f" (重试第 {retry_count} 次)" if retry_count > 0 else ""
-        logger.info(f"[{request_id}] 发送聊天完成请求到 {model_id}:{llm_config.name}, 流式模式: {use_stream_mode}{retry_info}")
+        logger.info(f"[{request_id}] 发送聊天完成请求到 {display_model_id}:{llm_config.name}, 流式模式: {use_stream_mode}{retry_info}")
 
         # 执行 LLM 调用（统一管理流式/非流式及降级重试）
         response = None
@@ -271,7 +273,7 @@ class LLMFactory:
             # 记录成功响应日志和耗时
             end_time = time.time()
             elapsed_time = (end_time - start_time) * 1000  # 转换为毫秒
-            logger.info(f"[{request_id}] 请求完成 {model_id}:{llm_config.name}, 耗时: {elapsed_time:.2f}ms, tokens: {response.usage.total_tokens if response.usage else 'N/A'}")
+            logger.info(f"[{request_id}] 请求完成 {display_model_id}:{llm_config.name}, 耗时: {elapsed_time:.2f}ms, tokens: {response.usage.total_tokens if response.usage else 'N/A'}")
 
             return response
         except Exception as e:
@@ -286,7 +288,7 @@ class LLMFactory:
 
             # 简洁的错误日志
             retry_info = f" (重试第 {retry_count} 次)" if retry_count > 0 else ""
-            logger.critical(f"[{request_id}] 调用 LLM {model_id} 时出错: {str(e)}，耗时: {elapsed_time:.2f}ms{retry_info}")
+            logger.critical(f"[{request_id}] 调用 LLM {display_model_id}:{llm_config.name} 时出错: {str(e)}，耗时: {elapsed_time:.2f}ms{retry_info}")
 
             raise
         finally:
@@ -389,6 +391,7 @@ class LLMFactory:
                 temperature=model_config.get("temperature", 0.7),
                 top_p=model_config.get("top_p", 1.0),
                 type=model_config["type"],
+                resolved_model_id=model_config.get("resolved_model_id") or None,
             )
         except Exception as e:
             logger.error(f"创建配置失败: {e}")

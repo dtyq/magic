@@ -29,8 +29,6 @@ If the user explicitly confirms they want to proceed without review, skip the ve
 read_skills(skill_names=["skill-vetter"])
 ```
 
-{{ @variable("mcp_notice") }}
-
 <!--zh
 ## 调用工具
 此 SDK 调用方式仅用于通过 run_skills_snippet 执行的 Python 代码片段内部，不是 agent 直接工具调用。先读文档了解工具名称和参数，再在代码片段中调用：
@@ -83,3 +81,5 @@ When executing any skill script, you **MUST** set cwd to the skill directory's *
 <available_skills>
 {{ @variable("skills_content") }}
 </available_skills>
+
+{{ @variable("preloaded_skills_content") }}

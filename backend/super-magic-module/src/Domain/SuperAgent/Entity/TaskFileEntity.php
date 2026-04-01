@@ -258,7 +258,7 @@ class TaskFileEntity extends AbstractEntity
         if ($source instanceof TaskFileSource) {
             $this->source = $source;
         } else {
-            $this->source = TaskFileSource::fromValue($source);
+            $this->source = TaskFileSource::fromStrictValue($source);
         }
     }
 

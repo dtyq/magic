@@ -30,6 +30,7 @@ from app.tools.design.utils.magic_project_design_parser import (
     ViewportState,
     BaseElement,
     ImageElement,
+    VideoElement,
     TextElement,
     RectangleElement,
     EllipseElement,
@@ -427,6 +428,12 @@ class CanvasManager:
                     lines.append(f"  Image Source: {element.src}")
                 if hasattr(element, 'visualUnderstanding') and element.visualUnderstanding:
                     lines.append(f"  Image Description: {element.visualUnderstanding.summary}")
+
+            elif isinstance(element, VideoElement):
+                if hasattr(element, 'src') and element.src:
+                    lines.append(f"  Video Source: {element.src}")
+                if hasattr(element, 'poster') and element.poster:
+                    lines.append(f"  Poster Source: {element.poster}")
 
             elif isinstance(element, TextElement):
                 if hasattr(element, 'content') and element.content:

@@ -373,6 +373,12 @@ class DynamicConfig:
                 enriched_models, enrich_warnings = await enricher.enrich_models_config(
                     models_config
                 )
+
+                # 提取别名映射（不是真正的模型配置，需单独处理）
+                model_aliases = enriched_models.pop("__model_aliases__", {})
+                if model_aliases:
+                    config_copy["model_aliases"] = model_aliases
+
                 models_config = enriched_models
                 warnings.extend(enrich_warnings)
 

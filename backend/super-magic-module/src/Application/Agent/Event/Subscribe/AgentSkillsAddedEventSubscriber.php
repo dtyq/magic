@@ -17,6 +17,7 @@ use App\Infrastructure\Util\Locker\LockerInterface;
 use App\Infrastructure\Util\SkillUtil;
 use App\Infrastructure\Util\SocketIO\SocketIOUtil;
 use App\Infrastructure\Util\ZipUtil;
+use Dtyq\SuperMagic\Application\Agent\Service\SkillsMdSyncService;
 use Dtyq\SuperMagic\Domain\Agent\Event\AgentSkillsAddedEvent;
 use Dtyq\SuperMagic\Domain\Agent\Service\SuperMagicAgentDomainService;
 use Dtyq\SuperMagic\Domain\Skill\Entity\ValueObject\SkillDataIsolation;
@@ -52,6 +53,7 @@ class AgentSkillsAddedEventSubscriber implements ListenerInterface
         private readonly TaskFileDomainService $taskFileDomainService,
         private readonly MagicUserRepository $magicUserRepository,
         private readonly LockerInterface $locker,
+        private readonly SkillsMdSyncService $skillsMdSyncService,
         LoggerFactory $loggerFactory
     ) {
         $this->logger = $loggerFactory->get(static::class);
@@ -94,7 +96,6 @@ class AgentSkillsAddedEventSubscriber implements ListenerInterface
             $this->logger->error('Agent skill file sync failed', [
                 'agent_code' => $agentCode,
                 'error' => $e->getMessage(),
-                'trace' => $e->getTraceAsString(),
             ]);
         } finally {
             $this->locker->release($lockKey, $lockOwner);
@@ -176,10 +177,11 @@ class AgentSkillsAddedEventSubscriber implements ListenerInterface
         $skillDataIsolation->disabled();
 
         $allCreatedFiles = [];
+        $addedPackageNames = [];
 
         foreach ($skillCodes as $skillCode) {
             try {
-                $createdFiles = $this->syncSingleSkill(
+                [$createdFiles, $packageName] = $this->syncSingleSkill(
                     $skillDataIsolation,
                     $skillCode,
                     $projectId,
@@ -192,6 +194,9 @@ class AgentSkillsAddedEventSubscriber implements ListenerInterface
                     $skillsDirectoryConfig['relative_path']
                 );
                 $allCreatedFiles = array_merge($allCreatedFiles, $createdFiles);
+                if ($packageName !== null) {
+                    $addedPackageNames[] = $packageName;
+                }
             } catch (Throwable $e) {
                 $this->logger->error('Failed to sync skill file', [
                     'skill_code' => $skillCode,
@@ -212,16 +217,26 @@ class AgentSkillsAddedEventSubscriber implements ListenerInterface
             );
         }
 
+        $this->skillsMdSyncService->syncSkillsMd(
+            $projectId,
+            $projectEntity,
+            $organizationCode,
+            $projectOrgCode,
+            $addedPackageNames,
+            SkillsMdSyncService::OPERATION_ADD
+        );
+
         $this->logger->info('Agent skill file sync completed', [
             'agent_code' => $agentCode,
-            'skill_codes' => $skillCodes,
+            'skill_count' => count($skillCodes),
             'project_id' => $projectId,
             'files_created' => count($allCreatedFiles),
+            'added_package_count' => count($addedPackageNames),
         ]);
     }
 
     /**
-     * @return TaskFileEntity[]
+     * @return array{0: TaskFileEntity[], 1: null|string}
      */
     private function syncSingleSkill(
         SkillDataIsolation $skillDataIsolation,
@@ -238,19 +253,19 @@ class AgentSkillsAddedEventSubscriber implements ListenerInterface
         $skillEntity = $this->skillRepository->findByCode($skillDataIsolation, $skillCode);
         if ($skillEntity === null) {
             $this->logger->warning('Skill not found', ['skill_code' => $skillCode]);
-            return [];
+            return [[], null];
         }
 
         $fileKey = $skillEntity->getFileKey();
         if (empty($fileKey)) {
             $this->logger->warning('Skill file_key is empty', ['skill_code' => $skillCode]);
-            return [];
+            return [[], null];
         }
 
         $packageName = $skillEntity->getPackageName();
         if (empty($packageName)) {
             $this->logger->warning('Skill packageName is empty', ['skill_code' => $skillCode]);
-            return [];
+            return [[], null];
         }
 
         $skillOrganizationCode = $skillEntity->getOrganizationCode();
@@ -271,7 +286,7 @@ class AgentSkillsAddedEventSubscriber implements ListenerInterface
 
             if (! file_exists($localZipPath)) {
                 $this->logger->error('Skill file download failed', ['skill_code' => $skillCode, 'file_key' => $fileKey]);
-                return [];
+                return [[], null];
             }
 
             $extractDir = $tempDir . '/extracted';
@@ -310,7 +325,7 @@ class AgentSkillsAddedEventSubscriber implements ListenerInterface
                 $createdFiles
             );
 
-            return $createdFiles;
+            return [$createdFiles, $packageName];
         } finally {
             ZipUtil::removeDirectory($tempDir);
         }
@@ -389,23 +404,17 @@ class AgentSkillsAddedEventSubscriber implements ListenerInterface
 
     /**
      * Resolve agent skill directory location.
-     * Uses ".magic/skills" when project already contains ".magic", otherwise falls back to "skills".
+     * Always uses ".magic/skills" as the standard structure.
+     * When is_magic_structure is true, the caller is responsible for ensuring the ".magic"
+     * parent directory exists before creating the "skills" subdirectory.
      *
      * @return array{relative_path: string, is_magic_structure: bool}
      */
     private function resolveSkillsDirectoryConfig(int $projectId): array
     {
-        $magicDir = $this->taskFileDomainService->findDirectoryByPath($projectId, '.magic');
-        if ($magicDir !== null) {
-            return [
-                'relative_path' => '.magic/skills',
-                'is_magic_structure' => true,
-            ];
-        }
-
         return [
-            'relative_path' => 'skills',
-            'is_magic_structure' => false,
+            'relative_path' => '.magic/skills',
+            'is_magic_structure' => true,
         ];
     }
 

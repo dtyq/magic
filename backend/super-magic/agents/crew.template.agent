@@ -2,6 +2,12 @@
 llm: main_llm
 skills:
   crew_skills: "*"
+  system_skills:
+    - name: find-skill
+    - name: using-mcp
+    - name: using-llm
+    - name: env-manager
+  workspace_skills: "*"
 ---
 
 <identity>

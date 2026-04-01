@@ -627,6 +627,8 @@ class AgentDispatcher(Base):
             current_model_id = message.model_id or agent.llm_id
             current_image_model_id = None
             current_image_model_sizes = None
+            current_video_model_id = None
+            current_video_generation_config = None
             current_mcp_servers = None
 
             if message.dynamic_config:
@@ -634,6 +636,11 @@ class AgentDispatcher(Base):
                 if image_model_config and isinstance(image_model_config, dict):
                     current_image_model_id = image_model_config.get("model_id")
                     current_image_model_sizes = image_model_config.get("sizes")
+
+                video_model_config = message.dynamic_config.get("video_model")
+                if video_model_config and isinstance(video_model_config, dict):
+                    current_video_model_id = video_model_config.get("model_id")
+                    current_video_generation_config = video_model_config.get("video_generation_config")
 
             # 获取当前 MCP 服务器信息（仅在加载了 using-mcp skill 时）
             agent_context = agent.agent_context
@@ -646,6 +653,13 @@ class AgentDispatcher(Base):
                         tools = manager.get_server_tools(server_name)
                         current_mcp_servers[server_name] = tools
 
-            agent.chat_history.save_session_config(current_model_id, current_image_model_id, current_image_model_sizes, current_mcp_servers)
+            agent.chat_history.save_session_config(
+                current_model_id,
+                current_image_model_id,
+                current_image_model_sizes,
+                current_video_model_id,
+                current_video_generation_config,
+                current_mcp_servers,
+            )
         except Exception as e:
             logger.debug(f"保存会话配置时出错: {e}")

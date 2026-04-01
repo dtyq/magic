@@ -21,11 +21,11 @@ class InternetSearchToolSet extends AbstractBuiltInToolSet
 
     public function getName(): string
     {
-        return '麦吉互联网搜索工具合集';
+        return '互联网搜索工具合集';
     }
 
     public function getDescription(): string
     {
-        return '麦吉互联网搜索工具合集';
+        return '互联网搜索工具合集';
     }
 }

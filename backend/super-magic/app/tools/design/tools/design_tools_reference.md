@@ -20,12 +20,11 @@
 
 ### 🎯 工具说明
 
-创建设计项目的完整结构，包括项目文件夹、配置文件和资源文件夹。
+创建设计项目的基础结构，包括项目文件夹和配置文件。
 
 **功能特性：**
 - 自动创建项目文件夹
 - 生成 `magic.project.js`（画布项目标识文件）
-- 创建 `images/` 文件夹用于存放图片资源
 - 支持国际化项目名称（中文、日文、英文等）
 
 **使用场景：**
@@ -81,8 +80,7 @@
 ToolResult(
     content="""Project structure:
 {project_path}/
-├── magic.project.js  # Canvas project identifier (auto-managed)
-└── images/           # Image resources
+└── magic.project.js  # Canvas project identifier (auto-managed)
 
 Project: {project_name} (canvas project)"""
 )
@@ -101,12 +99,11 @@ ToolResult.error("Failed to create design project: {error_message}")
 **LLM 在 `execute` 方法中看到的内容：**
 
 1. **成功创建时的完整信息：**
-   - 项目结构说明（包含 `magic.project.js` 和 `images/` 文件夹）
+   - 项目结构说明（包含 `magic.project.js`）
    - 项目名称和路径
 
 2. **引导 LLM 的关键信息：**
    - `magic.project.js` 是画布项目标识文件，由工具自动管理
-   - `images/` 文件夹用于存放图片资源
    - 输出格式简洁，避免冗余信息
 
 **示例 LLM 输出：**
@@ -114,8 +111,7 @@ ToolResult.error("Failed to create design project: {error_message}")
 ```
 Project structure:
 产品海报设计/
-├── magic.project.js  # Canvas project identifier (auto-managed)
-└── images/           # Image resources
+└── magic.project.js  # Canvas project identifier (auto-managed)
 
 Project: 产品海报设计 (canvas project)
 ```
@@ -152,8 +148,7 @@ Project: 产品海报设计 (canvas project)
 ### 项目结构
 ```
 产品海报设计/
-├── magic.project.js  # 画布项目标识文件（自动管理）
-└── images/           # 图片资源文件夹
+└── magic.project.js  # 画布项目标识文件（自动管理）
 ```
 ```
 

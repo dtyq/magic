@@ -29,6 +29,7 @@ from app.service.asr.asr_context_diff_service import AsrContextDiffService
 from app.service.channel_context_service import ChannelContextService
 from app.service.image_model_sizes_service import ImageModelSizesService
 from app.service.mcp_servers_service import MCPServersService
+from app.service.video_model_config_service import VideoModelConfigService
 from app.infrastructure.observability import install_tool_monitoring_listener
 from app.core.base_service import Base
 from app.service.mention import MentionContextBuilder
@@ -723,6 +724,13 @@ class AgentService(Base):
             await agent.refresh_workspace_files()
         except Exception as _e:
             logger.warning(f"[AgentService] 刷新工作区文件树失败: {_e}")
+
+        video_model_config_message = VideoModelConfigService.build_runtime_video_model_config_message(
+            chat_client_message.dynamic_config,
+            agent,
+        )
+        if video_model_config_message:
+            agent.enqueue_runtime_user_message(video_model_config_message)
 
         # 处理 MCP 服务器信息：为加载了 using-mcp skill 的 agent 追加可用服务器信息
         query = await MCPServersService.append_mcp_servers_to_query(query, agent)

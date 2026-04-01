@@ -20,13 +20,13 @@
     <prompt 正文，可含 <!--zh ... --> 等 HTML 注解>
 """
 import re
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional, Tuple, Union
 
 import yaml
 
 from agentlang.logger import get_logger
 from agentlang.utils.annotation_remover import remove_developer_annotations
-from .models import AgentDefine, SkillsConfig, SystemSkillEntry
+from .models import AgentDefine, SkillPreloadEntry, SkillsConfig, SystemSkillEntry
 
 logger = get_logger(__name__)
 
@@ -108,33 +108,50 @@ def _parse_skills(data: Dict[str, Any]) -> Optional[SkillsConfig]:
     if not isinstance(raw, dict):
         raise ValueError(f"skills 字段格式不合法，期望 mapping，实际: {type(raw)}")
 
-    # system_skills: "*" 表示全量扫描，与 crew_skills/workspace_skills 的通配符语义一致
-    system_skills_raw = raw.get("system_skills")
-    if system_skills_raw == "*":
-        system_skills = []
-        system_skills_scan = "*"
-    else:
-        system_skills = _parse_system_skills(system_skills_raw)
-        system_skills_scan = None
-
-    crew_skills = _parse_wildcard_source(raw.get("crew_skills"), "crew_skills")
-    workspace_skills = _parse_wildcard_source(raw.get("workspace_skills"), "workspace_skills")
+    system_skills = _parse_skill_source(raw.get("system_skills"), "system_skills")
+    crew_skills = _parse_skill_source(raw.get("crew_skills"), "crew_skills")
+    workspace_skills = _parse_skill_source(raw.get("workspace_skills"), "workspace_skills")
     excluded_skills = _parse_excluded_skills(raw.get("excluded_skills"))
+    preload = _parse_preload(raw.get("preload"))
+
+    def _names(src: object) -> object:
+        return src if src == "*" else [e.name for e in src]  # type: ignore[union-attr]
 
     cfg = SkillsConfig(
         system_skills=system_skills,
-        system_skills_scan=system_skills_scan,
         crew_skills=crew_skills,
         workspace_skills=workspace_skills,
         excluded_skills=excluded_skills,
+        preload=preload,
     )
     logger.debug(
-        f"解析 skills: system={[e.name for e in system_skills]}, "
-        f"system_scan={system_skills_scan}, "
-        f"crew={crew_skills}, workspace={workspace_skills}, "
-        f"excluded={excluded_skills}"
+        f"解析 skills: system={_names(system_skills)}, "
+        f"crew={_names(crew_skills)}, workspace={_names(workspace_skills)}, "
+        f"excluded={excluded_skills}, preload={[e.name for e in preload]}"
     )
     return cfg
+
+
+def _normalize_files(raw: Any) -> List[str]:
+    """将 preload entry 的 files 字段归一化为文件名列表。
+
+    - None / 不填     → []（调用方按需补默认值）
+    - true            → ["SKILL.md"]
+    - "QUICK-REF.md"  → ["QUICK-REF.md"]
+    - ["A.md", "B.md"] → ["A.md", "B.md"]
+    """
+    if raw is None:
+        return []
+    if raw is True:
+        return ["SKILL.md"]
+    if raw is False:
+        return []
+    if isinstance(raw, str):
+        name = raw.strip()
+        return [name] if name else []
+    if isinstance(raw, list):
+        return [str(f).strip() for f in raw if f and str(f).strip()]
+    return []
 
 
 def _parse_system_skills(raw: Any) -> List[SystemSkillEntry]:
@@ -160,11 +177,39 @@ def _parse_system_skills(raw: Any) -> List[SystemSkillEntry]:
                 SystemSkillEntry(
                     name=str(name).strip(),
                     path=item.get("path") or None,
-                    preload=bool(item.get("preload", False)),
                 )
             )
         else:
             raise ValueError(f"system_skills 条目格式不合法: {item}")
+    return entries
+
+
+def _parse_preload(raw: Any) -> List[SkillPreloadEntry]:
+    """解析顶层 preload 字段，返回 SkillPreloadEntry 列表。
+
+    支持写法：
+    - 字符串条目：  - using-cron         （等价于 files: [SKILL.md]）
+    - 字典条目：    - name: using-cron
+                     files: QUICK-REF.md  （或列表）
+    """
+    if not raw:
+        return []
+    if not isinstance(raw, list):
+        raise ValueError(f"preload 字段格式不合法，期望列表，实际: {type(raw)}")
+
+    entries: List[SkillPreloadEntry] = []
+    for item in raw:
+        if isinstance(item, str):
+            entries.append(SkillPreloadEntry(name=item.strip()))
+        elif isinstance(item, dict):
+            name = item.get("name")
+            if not name:
+                raise ValueError(f"preload 条目缺少 name 字段: {item}")
+            raw_files = item.get("files")
+            files = _normalize_files(raw_files) if raw_files is not None else ["SKILL.md"]
+            entries.append(SkillPreloadEntry(name=str(name).strip(), files=files))
+        else:
+            raise ValueError(f"preload 条目格式不合法: {item}")
     return entries
 
 
@@ -184,15 +229,24 @@ def _parse_excluded_skills(raw: Any) -> List[str]:
     raise ValueError(f"excluded_skills 字段格式不合法，期望列表，实际: {type(raw)}")
 
 
-def _parse_wildcard_source(raw: Any, field_name: str) -> Optional[str]:
-    """解析 crew_skills / workspace_skills 字段，目前只支持 "*" 或不填。"""
+def _parse_skill_source(raw: Any, field_name: str) -> Union[str, List[SystemSkillEntry]]:
+    """解析 system_skills / crew_skills / workspace_skills 字段。
+
+    - 不填 / None → []（不加载该来源）
+    - "*"          → "*"（扫描整个目录）
+    - 列表          → List[SystemSkillEntry]（只加载显式列出的条目）
+    """
     if raw is None:
-        return None
-    value = str(raw).strip()
-    if value != "*":
-        raise ValueError(
-            f"{field_name} 字段值不合法，目前只支持 \"*\"，实际: {raw!r}"
-        )
-    return "*"
+        return []
+    if isinstance(raw, str):
+        value = raw.strip()
+        if value != "*":
+            raise ValueError(
+                f"{field_name} 字段值不合法，期望 \"*\" 或条目列表，实际: {raw!r}"
+            )
+        return "*"
+    if isinstance(raw, list):
+        return _parse_system_skills(raw)
+    raise ValueError(f"{field_name} 字段格式不合法，期望字符串或列表，实际: {type(raw)}")
 
 

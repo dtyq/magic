@@ -26,6 +26,7 @@ use Hyperf\Snowflake\Concern\Snowflake;
  * @property DateTime $deleted_at
  * @property array $translate
  * @property string $remark
+ * @property int $sort_order
  */
 class ProviderModel extends AbstractModel
 {
@@ -36,7 +37,7 @@ class ProviderModel extends AbstractModel
     protected array $fillable = [
         'id', 'name', 'provider_code', 'description', 'icon', 'provider_type', 'category',
         'status', 'is_models_enable', 'created_at', 'updated_at', 'deleted_at',
-        'translate', 'remark',
+        'translate', 'remark', 'sort_order',
     ];
 
     protected array $casts = [
@@ -54,5 +55,6 @@ class ProviderModel extends AbstractModel
         'deleted_at' => 'datetime',
         'translate' => 'json',
         'remark' => 'string',
+        'sort_order' => 'integer',
     ];
 }

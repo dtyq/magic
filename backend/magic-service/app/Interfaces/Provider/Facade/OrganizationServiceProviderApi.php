@@ -136,10 +136,8 @@ class OrganizationServiceProviderApi extends AbstractApi
     {
         /** @var MagicUserAuthorization $authenticatable */
         $authenticatable = $this->getAuthorization();
-        $serviceProviderConfigId = $request->input('service_provider_config_id');
-        $modelVersion = $request->input('model_version');
         $modelPrimaryId = $request->input('model_id');
-        return $this->adminProviderAppService->connectivityTest($serviceProviderConfigId, $modelVersion, $modelPrimaryId, $authenticatable);
+        return $this->adminProviderAppService->connectivityTest($modelPrimaryId, $authenticatable);
     }
 
     // 删除模型

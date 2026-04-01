@@ -181,9 +181,9 @@ class TaskInitializationConsumer extends ConsumerMessage
 
         // Reconstruct SuperAgentExtra from extraData
         $extra = null;
+        $extraData = $messageDTO->getExtraData();
         if ($messageDTO->getExtraData() !== null) {
             $extra = new SuperAgentExtra();
-            $extraData = $messageDTO->getExtraData();
 
             if (! empty($extraData['image_model_id'])) {
                 $extra->setImageModel(['model_id' => $extraData['image_model_id']]);
@@ -213,6 +213,19 @@ class TaskInitializationConsumer extends ConsumerMessage
             isFirstTask: empty($topicEntity->getSandboxId()),
             extra: $extra
         );
+        if (is_array($extraData)) {
+            $videoModel = array_filter([
+                'model_id' => ! empty($extraData['video_model_id']) ? $extraData['video_model_id'] : null,
+                'video_generation_config' => is_array($extraData['video_generation_config'] ?? null)
+                    ? $extraData['video_generation_config']
+                    : null,
+            ], static fn (mixed $value): bool => $value !== null);
+            if ($videoModel !== []) {
+                $dynamicConfig = $taskContext->getDynamicConfig();
+                $dynamicConfig['video_model'] = $videoModel;
+                $taskContext = $taskContext->setDynamicConfig($dynamicConfig);
+            }
+        }
 
         // Add MCP config
         $mcpDataIsolation = MCPDataIsolation::create(

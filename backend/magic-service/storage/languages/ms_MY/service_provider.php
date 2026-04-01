@@ -24,6 +24,7 @@ return [
     'model_officially_disabled' => 'Model telah dilarang secara rasmi',
     'magic_provider_not_found' => 'Konfigurasi penyedia perkhidmatan Magic tidak wujud',
     'original_model_id_already_exists' => 'ID model asal sudah wujud',
+    'original_model_id_already_exists_in_group' => 'The dynamic model configuration already exists in group ":group_name": :model_label. Please edit the existing model directly',
     'original_model_not_found' => 'Model asal tidak wujud',
     'invalid_pricing' => 'Harga tidak boleh kurang daripada 0',
     'creativity_temperature_conflict' => 'creativity dan temperature tidak boleh ditetapkan nilai secara serentak',

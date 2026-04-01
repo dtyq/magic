@@ -52,7 +52,7 @@ class ExceptionBuilder
 
     /**
      * @param string $message 允许传入自定义的错误信息
-     * @return never-return // 为了phpstan检测
+     * @return never // 为了phpstan检测
      */
     public static function throw(BackedEnum $error, string $message = '', array $replace = [], ?string $locale = null, ?Throwable $throwable = null): void
     {

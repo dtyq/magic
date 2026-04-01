@@ -1,0 +1,30 @@
+<?php
+
+declare(strict_types=1);
+/**
+ * Copyright (c) The Magic , Distributed under the software license
+ */
+
+namespace App\Infrastructure\ExternalAPI\VideoGenerateAPI;
+
+use App\Domain\Provider\Entity\ValueObject\ProviderCode;
+use InvalidArgumentException;
+
+enum VideoGenerateProviderType: string
+{
+    case Wuyin = 'Wuyin';
+    case Cloudsway = 'Cloudsway';
+
+    public static function fromProviderCode(ProviderCode $providerCode, ?string $modelVersion = null): self
+    {
+        return match ($providerCode) {
+            ProviderCode::Wuyin => self::Wuyin,
+            ProviderCode::Cloudsway => self::Cloudsway,
+            default => throw new InvalidArgumentException(sprintf(
+                'unsupported video provider code %s for model %s',
+                $providerCode->value,
+                $modelVersion,
+            )),
+        };
+    }
+}

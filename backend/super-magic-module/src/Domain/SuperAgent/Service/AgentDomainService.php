@@ -146,8 +146,8 @@ class AgentDomainService
             instruction: ChatInstruction::Normal->value,
             sandboxId: $sandboxId,
             superMagicTaskId: (string) $taskEntity->getId(),
-            workspaceId: (string) $projectEntity->getWorkspaceId() ?? '',
-            projectId: (string) $projectEntity->getId() ?? '',
+            workspaceId: (string) ($projectEntity->getWorkspaceId() ?? ''),
+            projectId: (string) ($projectEntity->getId() ?? ''),
             language: $dataIsolation->getLanguage() ?? 'zh_CN',
             authorization: $authToken,
             userInfo: $userInfo,
@@ -508,7 +508,9 @@ class AgentDomainService
             }
         }
 
-        // Add image_model configuration if imageModelId exists
+        // 图片模型不走 init 顶层字段，而是跟现有生图链路保持一致，
+        // 在发送聊天消息时桥接到 dynamic_config。视频模型由应用层提前写入
+        // TaskContext.dynamicConfig，领域层这里不再从 extra 派生，避免重复桥接。
         $extra = $taskContext->getExtra();
         if ($extra !== null) {
             $imageModelId = $extra->getImageModelId();
@@ -672,27 +674,6 @@ class AgentDomainService
         ]);
 
         return $result;
-    }
-
-    /**
-     * 检查工作区是否已就绪.
-     *
-     * @param string $sandboxId 沙箱ID
-     * @return bool 是否就绪
-     */
-    public function isWorkspaceReady(string $sandboxId): bool
-    {
-        try {
-            $response = $this->getWorkspaceStatus($sandboxId);
-            $status = $response->getDataValue('status');
-            return WorkspaceStatus::isReady($status);
-        } catch (Throwable $e) {
-            $this->logger->warning('[Sandbox][App] Failed to check workspace ready status', [
-                'sandbox_id' => $sandboxId,
-                'error' => $e->getMessage(),
-            ]);
-            return false;
-        }
     }
 
     /**

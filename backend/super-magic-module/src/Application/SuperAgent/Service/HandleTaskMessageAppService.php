@@ -148,7 +148,9 @@ class HandleTaskMessageAppService extends AbstractAppService
                 agentMode: $userMessageDTO->getTopicMode(),
                 modelId: $userMessageDTO->getModelId(),
                 isFirstTask: $isFirstTask,
+                extra: $userMessageDTO->getExtra(),
             );
+            $taskContext = $this->appendVideoModelDynamicConfig($taskContext, $userMessageDTO->getExtra());
             $sandboxID = $this->createAgent($dataIsolation, $taskContext, $topicEntity);
             $taskEntity->setSandboxId($sandboxID);
 
@@ -250,8 +252,11 @@ class HandleTaskMessageAppService extends AbstractAppService
             taskId: (string) $taskEntity->getId(),
             instruction: ChatInstruction::FollowUp,
             agentMode: $userMessageDTO->getTopicMode(),
+            modelId: $userMessageDTO->getModelId(),
             isFirstTask: $isFirstTask,
+            extra: $userMessageDTO->getExtra(),
         );
+        $taskContext = $this->appendVideoModelDynamicConfig($taskContext, $userMessageDTO->getExtra());
         $this->agentDomainService->sendChatMessage($dataIsolation, $taskContext);
         $taskEntity->setTaskId((string) $taskEntity->getId());
         return $taskEntity;

@@ -521,10 +521,10 @@ class TaskFileDomainService
                 $fileEntity->setSource($taskFileEntity->getSource() ?? TaskFileSource::DEFAULT);
                 $fileEntity->setCreatedAt($currentTime);
             } else {
-                // 避免S3监听文件变动时，将AI图片生成文件的来源从AI_IMAGE_GENERATION改为AGENT
-                if ($taskFileEntity->getSource() === TaskFileSource::AI_IMAGE_GENERATION) {
+                // 避免S3监听文件变动时，将 AI 生成文件的来源改为 AGENT
+                if ($taskFileEntity->getSource()->isAIGenerated()) {
                     $fileEntity->setSource($taskFileEntity->getSource());
-                } elseif ($fileEntity->getSource() === TaskFileSource::AI_IMAGE_GENERATION) {
+                } elseif ($fileEntity->getSource()->isAIGenerated()) {
                     $fileEntity->setSource($fileEntity->getSource());
                 }
             }
@@ -2720,6 +2720,36 @@ class TaskFileDomainService
     }
 
     /**
+     * Overwrite an existing project file's content in cloud storage and update its size in the DB.
+     * Returns null if the file does not exist in the task file index or does not belong to the given project.
+     */
+    public function overwriteProjectFileContent(
+        ProjectEntity $projectEntity,
+        string $fileKey,
+        string $content
+    ): ?TaskFileEntity {
+        $entity = $this->taskFileRepository->getByProjectIdAndFileKey($projectEntity->getId(), $fileKey);
+        if ($entity === null) {
+            return null;
+        }
+
+        // Use the key from the verified entity to prevent caller-supplied key substitution.
+        $verifiedFileKey = $entity->getFileKey();
+
+        $this->cloudFileRepository->createFileByCredential(
+            WorkDirectoryUtil::getPrefix($projectEntity->getWorkDir()),
+            $projectEntity->getUserOrganizationCode(),
+            $verifiedFileKey,
+            $content,
+            StorageBucketType::SandBox
+        );
+
+        $entity->setFileSize(strlen($content));
+        $entity->setUpdatedAt(date('Y-m-d H:i:s'));
+        return $this->taskFileRepository->updateById($entity);
+    }
+
+    /**
      * Normalize relative path.
      * Removes leading './', '/', and handles edge cases.
      *
@@ -3076,7 +3106,7 @@ class TaskFileDomainService
             $filename,
             $downloadMode,
             $addWatermark,
-            $fileEntity->getSource()->value
+            $fileEntity->getSource()
         );
     }
 

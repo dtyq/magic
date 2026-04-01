@@ -23,6 +23,11 @@ class ModeGroupAggregateDTO extends AbstractDTO
      */
     protected array $imageModels = [];
 
+    /**
+     * @var ModeGroupModelDTO[] 该分组对应的视频模型详细信息数组（VGM）
+     */
+    protected array $videoModels = [];
+
     public function __construct(array $data = [])
     {
         parent::__construct($data);
@@ -154,5 +159,39 @@ class ModeGroupAggregateDTO extends AbstractDTO
         }
 
         $this->imageModels = $modelData;
+    }
+
+    /**
+     * @return ModeGroupModelDTO[]
+     */
+    public function getVideoModels(): array
+    {
+        return $this->videoModels;
+    }
+
+    public function setVideoModels(array $videoModels): void
+    {
+        $modelData = [];
+        foreach ($videoModels as $model) {
+            $modelData[] = $model instanceof ModeGroupModelDTO ? $model : new ModeGroupModelDTO($model);
+        }
+
+        $this->videoModels = $modelData;
+    }
+
+    /**
+     * @return string[]
+     */
+    public function getImageModelIds(): array
+    {
+        return array_map(fn ($model) => $model->getModelId(), $this->imageModels);
+    }
+
+    /**
+     * @return string[]
+     */
+    public function getVideoModelIds(): array
+    {
+        return array_map(fn ($model) => $model->getModelId(), $this->videoModels);
     }
 }

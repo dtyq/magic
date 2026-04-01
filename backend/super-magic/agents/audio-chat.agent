@@ -18,6 +18,8 @@ tools:
   - multi_edit_file_range
   - delete_files
   - generate_image
+  - generate_video
+  - query_video_generation
   - read_webpages_as_markdown
   - download_from_urls
   - download_from_markdown

@@ -553,6 +553,8 @@ class ProjectAppService extends AbstractAppService
         $conditions = [];
         $conditions['user_id'] = $dataIsolation->getCurrentUserId();
         $conditions['user_organization_code'] = $dataIsolation->getCurrentOrganizationCode();
+        // Exclude hidden projects from the list by default
+        $conditions['is_hidden'] = 0;
 
         if ($requestDTO->getWorkspaceId()) {
             $conditions['workspace_id'] = $requestDTO->getWorkspaceId();

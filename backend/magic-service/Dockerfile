@@ -26,6 +26,7 @@ RUN --mount=type=cache,id=alpine-apk-3.23-${TARGETARCH},target=/var/cache/apk \
     sed -i.bak "s/dl-cdn.alpinelinux.org/${APK_MIRROR}/g" /etc/apk/repositories && \
     apk update && \
     apk add \
+        ffmpeg \
         icu-data-full \
         tzdata \
         tini \
