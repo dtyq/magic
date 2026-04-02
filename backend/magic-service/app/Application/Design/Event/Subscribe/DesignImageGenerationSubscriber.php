@@ -290,6 +290,11 @@ class DesignImageGenerationSubscriber implements ListenerInterface
                         $textGenerateImageDTO->setSize($imageGenerationEntity->getSize());
                     }
 
+                    // 去背景要求输出 PNG 格式以保留透明通道
+                    if ($imageGenerationEntity->getType() === ImageGenerationType::REMOVE_BACKGROUND) {
+                        $textGenerateImageDTO->setOutputFormat('png');
+                    }
+
                     $response = di(LLMAppService::class)->textGenerateImageV2($textGenerateImageDTO);
                     break;
                 default:
