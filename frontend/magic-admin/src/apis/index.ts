@@ -5,6 +5,7 @@ import { generatePlatformPackageApi } from "./modules/platformPackage"
 import { generatePlatformInfoApi } from "./modules/platformInfo"
 import { generateFileApi } from "./modules/file"
 import { generateAppMenuApi } from "./modules/appMenu"
+import { generateModelAuditApi } from "./modules/modelAudit"
 
 export function useApis() {
 	const { apiClients } = useAdmin()
@@ -22,6 +23,8 @@ export function useApis() {
 		PlatformPackageApi: generatePlatformPackageApi(magicClient),
 		/** 平台信息 - API */
 		PlatformInfoApi: generatePlatformInfoApi(magicClient),
+		/** 模型审计日志 - API */
+		ModelAuditApi: generateModelAuditApi(magicClient),
 
 		/** 文件 - API */
 		FileApi: generateFileApi(magicClient),

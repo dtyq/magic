@@ -6,6 +6,7 @@ WeComChannel — 单例，管理 WeCom AI Bot WebSocket 生命周期和消息分
 from __future__ import annotations
 
 import asyncio
+import uuid
 from typing import Optional
 
 from agentlang.logger import get_logger
@@ -14,6 +15,7 @@ from wecom_aibot_sdk import WSClient, generate_req_id
 from app.channel.base.channel import BaseChannel
 from app.core.entity.message.client_message import ChatClientMessage, Metadata
 from app.channel.base.keepalive import ChannelKeepalive
+from app.channel.base.third_party_message import dispatch_third_party_message
 from app.channel.wecom.stream import WeComStream
 from app.channel.wecom.streaming_driver import WeComStreamingDriver
 from app.channel.config import IMChannelsConfig
@@ -123,6 +125,8 @@ class WeComChannel(BaseChannel):
         user_id = sender.get("userid", "wecom_user")
 
         stream_id = generate_req_id("wecom")
+        local_id = f"wecom_{uuid.uuid4().hex[:16]}"
+        platform_msg_id = body.get("msgid", "")
         ctx = dispatcher.agent_context
 
         # WeComStreamingDriver：token 级，负责流式推送 finish=False（模型不支持流式时静默）
@@ -134,12 +138,19 @@ class WeComChannel(BaseChannel):
         ctx.add_streaming_sink(wecom_driver)
 
         chat_msg = ChatClientMessage(
-            message_id=stream_id,
+            message_id=local_id,
             prompt=content,
             metadata=Metadata(agent_user_id=user_id),
         )
         logger.info(f"[WeComChannel] 分发消息: user_id={user_id}, len={len(content)}")
-        await dispatcher.submit_message(chat_msg)
+        await dispatch_third_party_message(
+            dispatcher=dispatcher,
+            channel=self.key,
+            source_message_id=platform_msg_id or local_id,
+            source_conversation_id=body.get("chatid", ""),
+            source_sender_id=user_id,
+            chat_message=chat_msg,
+        )
 
         async def _cleanup() -> None:
             ctx.remove_stream(wecom_stream)

@@ -48,6 +48,11 @@ class CreateOpenTaskRequestDTO extends AbstractRequestDTO
     public string $imageModelId = '';
 
     /**
+     * Video model ID (optional).
+     */
+    public string $videoModelId = '';
+
+    /**
      * Enable web search.
      */
     public bool $enableWebSearch = true;
@@ -82,6 +87,11 @@ class CreateOpenTaskRequestDTO extends AbstractRequestDTO
         return $this->imageModelId;
     }
 
+    public function getVideoModelId(): string
+    {
+        return $this->videoModelId;
+    }
+
     public function getEnableWebSearch(): bool
     {
         return $this->enableWebSearch;
@@ -99,6 +109,7 @@ class CreateOpenTaskRequestDTO extends AbstractRequestDTO
             'agent_mode' => 'nullable|string|max:50',
             'model_id' => 'nullable|string|max:100',
             'image_model_id' => 'nullable|string|max:100',
+            'video_model_id' => 'nullable|string|max:100',
             'enable_web_search' => 'nullable|boolean',
         ];
     }
@@ -122,6 +133,8 @@ class CreateOpenTaskRequestDTO extends AbstractRequestDTO
             'model_id.max' => 'Model ID cannot exceed 100 characters',
             'image_model_id.string' => 'Image model ID must be a string',
             'image_model_id.max' => 'Image model ID cannot exceed 100 characters',
+            'video_model_id.string' => 'Video model ID must be a string',
+            'video_model_id.max' => 'Video model ID cannot exceed 100 characters',
             'enable_web_search.boolean' => 'Enable web search must be a boolean value',
         ];
     }

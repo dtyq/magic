@@ -21,11 +21,11 @@ class AIImageToolSet extends AbstractBuiltInToolSet
 
     public function getName(): string
     {
-        return '麦吉AI文生图工具合集';
+        return 'AI文生图工具合集';
     }
 
     public function getDescription(): string
     {
-        return '麦吉AI文生图工具合集';
+        return 'AI文生图工具合集';
     }
 }

@@ -7,20 +7,20 @@ declare(strict_types=1);
 
 namespace App\Application\ModelGateway\Mapper;
 
+use App\Application\ModelGateway\Service\AggregateModelResolverService;
 use App\Domain\ModelGateway\Entity\ValueObject\ModelGatewayDataIsolation;
 use App\Domain\Provider\Entity\ProviderConfigEntity;
 use App\Domain\Provider\Entity\ProviderEntity;
 use App\Domain\Provider\Entity\ProviderModelEntity;
-use App\Domain\Provider\Entity\ValueObject\Category;
 use App\Domain\Provider\Entity\ValueObject\ModelType;
 use App\Domain\Provider\Entity\ValueObject\ProviderDataIsolation;
-use App\Domain\Provider\Service\AdminProviderDomainService;
+use App\Domain\Provider\Entity\ValueObject\ProviderModelType;
 use App\Infrastructure\Core\Contract\Model\RerankInterface;
 use App\Infrastructure\Core\DataIsolation\BaseDataIsolation;
-use App\Infrastructure\Core\Model\ImageGenerationModel;
 use App\Infrastructure\ExternalAPI\ImageGenerateAPI\ImageModel;
 use App\Infrastructure\ExternalAPI\MagicAIApi\MagicAILocalModel;
 use App\Infrastructure\ExternalAPI\Proxy\ProxyConfigResolverInterface;
+use App\Infrastructure\ExternalAPI\VideoGenerateAPI\VideoModel;
 use DateTime;
 use Hyperf\Contract\ConfigInterface;
 use Hyperf\Logger\LoggerFactory;
@@ -40,7 +40,7 @@ class ModelGatewayMapper extends ModelMapper
 {
     /**
      * 持久化的自定义数据.
-     * @var array<string, OdinModelAttributes>
+     * @var array<string, ModelAttributes>
      */
     protected array $attributes = [];
 
@@ -88,8 +88,8 @@ class ModelGatewayMapper extends ModelMapper
         $firstModel = trim($models[0]);
         $dataIsolation = ModelGatewayDataIsolation::createByBaseDataIsolation($dataIsolation);
         $odinModel = $this->getOrganizationChatModel($dataIsolation, $firstModel);
-        if ($odinModel instanceof OdinModel) {
-            $odinModel = $odinModel->getModel();
+        if ($odinModel instanceof ModelEntry) {
+            $odinModel = $odinModel->getOdinModel()?->getModel();
         }
         if (! $odinModel instanceof AbstractModel) {
             throw new InvalidArgumentException(sprintf('Model %s is not a valid Odin model.', $model));
@@ -104,10 +104,9 @@ class ModelGatewayMapper extends ModelMapper
     public function getEmbeddingModelProxy(BaseDataIsolation $dataIsolation, string $model): MagicAILocalModel
     {
         $dataIsolation = ModelGatewayDataIsolation::createByBaseDataIsolation($dataIsolation);
-        /** @var AbstractModel $odinModel */
         $odinModel = $this->getOrganizationEmbeddingModel($dataIsolation, $model);
-        if ($odinModel instanceof OdinModel) {
-            $odinModel = $odinModel->getModel();
+        if ($odinModel instanceof ModelEntry) {
+            $odinModel = $odinModel->getOdinModel()?->getModel();
         }
         if (! $odinModel instanceof AbstractModel) {
             throw new InvalidArgumentException(sprintf('Model %s is not a valid Odin model.', $model));
@@ -121,12 +120,12 @@ class ModelGatewayMapper extends ModelMapper
      * 仅 ModelGateway 领域使用.
      * @param string $model 预期是管理后台的 model_id，过度阶段接受传入 model_version
      */
-    public function getOrganizationChatModel(BaseDataIsolation $dataIsolation, string $model): ModelInterface|OdinModel
+    public function getOrganizationChatModel(BaseDataIsolation $dataIsolation, string $model): ModelEntry|ModelInterface
     {
         $dataIsolation = ModelGatewayDataIsolation::createByBaseDataIsolation($dataIsolation);
-        $odinModel = $this->getByAdmin($dataIsolation, $model, ModelType::LLM);
-        if ($odinModel) {
-            return $odinModel;
+        $entry = $this->getByAdmin($dataIsolation, $model, ModelType::LLM);
+        if ($entry) {
+            return $entry;
         }
         return $this->getChatModel($model);
     }
@@ -136,24 +135,35 @@ class ModelGatewayMapper extends ModelMapper
      * 仅 ModelGateway 领域使用.
      * @param string $model 模型名称 预期是管理后台的 model_id，过度阶段接受 model_version
      */
-    public function getOrganizationEmbeddingModel(BaseDataIsolation $dataIsolation, string $model): EmbeddingInterface|OdinModel
+    public function getOrganizationEmbeddingModel(BaseDataIsolation $dataIsolation, string $model): EmbeddingInterface|ModelEntry
     {
         $dataIsolation = ModelGatewayDataIsolation::createByBaseDataIsolation($dataIsolation);
-        $odinModel = $this->getByAdmin($dataIsolation, $model, ModelType::EMBEDDING);
-        if ($odinModel) {
-            return $odinModel;
+        $entry = $this->getByAdmin($dataIsolation, $model, ModelType::EMBEDDING);
+        if ($entry) {
+            return $entry;
         }
         return $this->getEmbeddingModel($model);
     }
 
-    public function getOrganizationImageModel(BaseDataIsolation $dataIsolation, string $model): ?ImageModel
+    public function getOrganizationImageModel(BaseDataIsolation $dataIsolation, string $model): ?ModelEntry
     {
         $dataIsolation = ModelGatewayDataIsolation::createByBaseDataIsolation($dataIsolation);
-        $result = $this->getByAdmin($dataIsolation, $model);
+        $entry = $this->getByAdmin($dataIsolation, $model);
 
-        // 只返回 ImageGenerationModelWrapper 类型的结果
-        if ($result instanceof ImageModel) {
-            return $result;
+        if ($entry instanceof ModelEntry && $entry->isImageModel()) {
+            return $entry;
+        }
+
+        return null;
+    }
+
+    public function getOrganizationVideoModel(BaseDataIsolation $dataIsolation, string $model): ?ModelEntry
+    {
+        $dataIsolation = ModelGatewayDataIsolation::createByBaseDataIsolation($dataIsolation);
+        $entry = $this->getByAdmin($dataIsolation, $model);
+
+        if ($entry instanceof ModelEntry && $entry->isVideoModel()) {
+            return $entry;
         }
 
         return null;
@@ -161,64 +171,52 @@ class ModelGatewayMapper extends ModelMapper
 
     /**
      * 获取当前组织下的所有可用 chat 模型.
-     * @return OdinModel[]
+     * @return ModelEntry[]
      */
-    public function getChatModels(BaseDataIsolation $dataIsolation): array
+    public function getChatModels(BaseDataIsolation $dataIsolation, bool $withDynamicModels = false): array
     {
         $dataIsolation = ModelGatewayDataIsolation::createByBaseDataIsolation($dataIsolation);
-        return $this->getModelsByType($dataIsolation, ModelType::LLM);
+        return $this->getModelsByType($dataIsolation, [ModelType::LLM], $withDynamicModels);
     }
 
     /**
      * 获取当前组织下的所有可用 embedding 模型.
-     * @return OdinModel[]
+     * @return ModelEntry[]
      */
-    public function getEmbeddingModels(BaseDataIsolation $dataIsolation): array
+    public function getEmbeddingModels(BaseDataIsolation $dataIsolation, bool $withDynamicModels = false): array
     {
         $dataIsolation = ModelGatewayDataIsolation::createByBaseDataIsolation($dataIsolation);
-        return $this->getModelsByType($dataIsolation, ModelType::EMBEDDING);
+        return $this->getModelsByType($dataIsolation, [ModelType::EMBEDDING], $withDynamicModels);
     }
 
     /**
      * get all available image models under the current organization.
-     * @return OdinModel[]
+     * @return ModelEntry[]
      */
-    public function getImageModels(BaseDataIsolation $dataIsolation): array
+    public function getImageModels(BaseDataIsolation $dataIsolation, bool $withDynamicModels = false): array
     {
-        $serviceProviderDomainService = di(AdminProviderDomainService::class);
-        $officeModels = $serviceProviderDomainService->getOfficeModels(Category::VLM);
+        $dataIsolation = ModelGatewayDataIsolation::createByBaseDataIsolation($dataIsolation);
+        return $this->getModelsByType($dataIsolation, [ModelType::TEXT_TO_IMAGE, ModelType::IMAGE_TO_IMAGE], $withDynamicModels);
+    }
 
-        $odinModels = [];
-        foreach ($officeModels as $model) {
-            $key = $model->getModelId();
+    /**
+     * get all available video models under the current organization.
+     * @return ModelEntry[]
+     */
+    public function getVideoModels(BaseDataIsolation $dataIsolation, bool $withDynamicModels = false): array
+    {
+        $dataIsolation = ModelGatewayDataIsolation::createByBaseDataIsolation($dataIsolation);
+        return $this->getModelsByType($dataIsolation, [ModelType::TEXT_TO_VIDEO], $withDynamicModels);
+    }
 
-            // Create virtual image generation model
-            $imageModel = new ImageGenerationModel(
-                $model->getModelId(),
-                [], // Empty config array
-                $this->logger
-            );
-
-            // Create model attributes
-            $attributes = new OdinModelAttributes(
-                key: $key,
-                name: $model->getModelVersion(),
-                label: $model->getName() ?: 'Image Generation',
-                icon: $model->getIcon() ?: '',
-                tags: [['type' => 1, 'value' => 'Image Generation']],
-                createdAt: $model->getCreatedAt() ?? new DateTime(),
-                owner: 'MagicAI',
-                providerAlias: '',
-                providerModelId: (string) $model->getId(),
-                description: $model->getLocalizedDescription($dataIsolation->getLanguage()) ?? '',
-            );
-
-            // Create OdinModel
-            $odinModel = new OdinModel($key, $imageModel, $attributes);
-            $odinModels[$key] = $odinModel;
-        }
-
-        return $odinModels;
+    /**
+     * 获取当前组织下所有类型的可用模型.
+     * @return ModelEntry[]
+     */
+    public function getAllModels(BaseDataIsolation $dataIsolation, bool $withDynamicModels = false): array
+    {
+        $dataIsolation = ModelGatewayDataIsolation::createByBaseDataIsolation($dataIsolation);
+        return $this->getModelsByType($dataIsolation, [ModelType::LLM, ModelType::EMBEDDING, ModelType::TEXT_TO_IMAGE, ModelType::IMAGE_TO_IMAGE, ModelType::TEXT_TO_VIDEO], $withDynamicModels);
     }
 
     protected function loadEnvModels(): void
@@ -230,7 +228,7 @@ class ModelGatewayMapper extends ModelMapper
          */
         foreach ($this->models['chat'] as $name => $model) {
             $key = $name;
-            $this->attributes[$key] = new OdinModelAttributes(
+            $this->attributes[$key] = new ModelAttributes(
                 key: $key,
                 name: $name,
                 label: $name,
@@ -239,6 +237,7 @@ class ModelGatewayMapper extends ModelMapper
                 createdAt: new DateTime(),
                 owner: 'MagicOdin',
                 description: '',
+                resolvedModelId: $key,
             );
             $this->logger->info('EnvModelRegister', [
                 'key' => $name,
@@ -248,7 +247,7 @@ class ModelGatewayMapper extends ModelMapper
         }
         foreach ($this->models['embedding'] as $name => $model) {
             $key = $name;
-            $this->attributes[$key] = new OdinModelAttributes(
+            $this->attributes[$key] = new ModelAttributes(
                 key: $key,
                 name: $name,
                 label: $name,
@@ -257,6 +256,7 @@ class ModelGatewayMapper extends ModelMapper
                 createdAt: new DateTime(),
                 owner: 'MagicOdin',
                 description: '',
+                resolvedModelId: $key,
             );
             $this->logger->info('EnvModelRegister', [
                 'key' => $name,
@@ -268,54 +268,76 @@ class ModelGatewayMapper extends ModelMapper
     }
 
     /**
-     * 获取当前组织下指定类型的所有可用模型.
-     * @return OdinModel[]
+     * 获取当前组织下指定类型的所有可用模型，支持同时查询多种类型.
+     *
+     * @param ModelType[] $modelTypes 需要查询的模型类型，不可为空
+     * @return ModelEntry[]
      */
-    private function getModelsByType(ModelGatewayDataIsolation $dataIsolation, ModelType $modelType): array
+    private function getModelsByType(ModelGatewayDataIsolation $dataIsolation, array $modelTypes, bool $withDynamicModels = false): array
     {
         $list = [];
 
-        // 获取已持久化的配置
-        $models = $this->getModels($modelType->isLLM() ? 'chat' : 'embedding');
-        foreach ($models as $name => $model) {
-            switch ($modelType) {
-                case ModelType::LLM:
+        // 加载 env 模型（仅 LLM/EMBEDDING 有 env 模型，其他类型跳过）
+        foreach ($modelTypes as $modelType) {
+            if ($modelType->isLLM()) {
+                foreach ($this->getModels('chat') as $name => $model) {
                     if ($model instanceof AbstractModel && ! $model->getModelOptions()->isChat()) {
-                        continue 2;
+                        continue;
                     }
-                    break;
-                case ModelType::EMBEDDING:
+                    $list[$name] = new ModelEntry(
+                        attributes: $this->attributes[$name],
+                        model: new OdinModel(key: $name, model: $model),
+                    );
+                }
+            } elseif ($modelType->isEmbedding()) {
+                foreach ($this->getModels('embedding') as $name => $model) {
                     if ($model instanceof AbstractModel && ! $model->getModelOptions()->isEmbedding()) {
-                        continue 2;
+                        continue;
                     }
-                    break;
-                default:
-                    // 如果没有指定类型，则全部添加
-                    break;
+                    $list[$name] = new ModelEntry(
+                        attributes: $this->attributes[$name],
+                        model: new OdinModel(key: $name, model: $model),
+                    );
+                }
             }
-            $list[$name] = new OdinModel(key: $name, model: $model, attributes: $this->attributes[$name]);
         }
 
-        // 获取当前套餐下的可用模型
-        $availableModelIds = $dataIsolation->getSubscriptionManager()->getAvailableModelIds($modelType);
+        // 合并多个类型的可用模型 ID，任意类型返回 null（不限制）则整体不限制
+        $availableModelIds = [];
+        foreach ($modelTypes as $modelType) {
+            $ids = $dataIsolation->getSubscriptionManager()->getAvailableModelIds($modelType);
+            if ($ids === null) {
+                $availableModelIds = null;
+                break;
+            }
+            foreach ($ids as $id) {
+                $availableModelIds[$id] = true;
+            }
+        }
+        if (is_array($availableModelIds)) {
+            $availableModelIds = array_keys($availableModelIds);
+        }
 
         // 需要包含官方组织的数据
-        $providerDataIsolation = ProviderDataIsolation::createByBaseDataIsolation($dataIsolation);
-        $providerDataIsolation->setContainOfficialOrganization(true);
+        $providerDataIsolation = $this->createProviderDataIsolationWithOfficial($dataIsolation);
+
+        // availableModelIds 不为 null（有限制）且需要动态模型时，额外追加 DYNAMIC 模型 ID
+        // DYNAMIC 模型不在 subscription 里，不能依赖 getAvailableModelIds 拿到
+        if ($availableModelIds !== null && $withDynamicModels) {
+            $dynamicModelIds = $this->providerManager->getDynamicModelIds($providerDataIsolation, $modelTypes);
+            if (! empty($dynamicModelIds)) {
+                $availableModelIds = array_values(array_unique(array_merge($availableModelIds, $dynamicModelIds)));
+            }
+        }
 
         // 加载 模型
-        $providerModels = $this->providerManager->getModelsByModelIds($providerDataIsolation, $availableModelIds, $modelType);
+        $providerModels = $this->providerManager->getModelsByModelIds($providerDataIsolation, $availableModelIds, $modelTypes);
 
         $modelLogs = [];
 
         $providerConfigIds = [];
         foreach ($providerModels as $providerModel) {
             $providerConfigIds[] = $providerModel->getServiceProviderConfigId();
-            $modelLogs[$providerModel->getModelId()] = [
-                'model_id' => $providerModel->getModelId(),
-                'provider_config_id' => (string) $providerModel->getServiceProviderConfigId(),
-                'is_office' => $providerModel->isOffice(),
-            ];
         }
         $providerConfigIds = array_unique($providerConfigIds);
 
@@ -329,26 +351,49 @@ class ModelGatewayMapper extends ModelMapper
         // 获取 服务商
         $providers = $this->providerManager->getProvidersByIds($providerDataIsolation, $providerIds);
 
-        // 组装数据
+        // 预先批量解析所有 providerConfig 对应的 proxy 字符串，避免循环内重复查询
+        $proxyCache = $this->resolveProxyConfigs($providerConfigs);
+
+        // 第一遍：组装原子模型，暂存 DYNAMIC 待第二遍处理
+        $pendingDynamicModels = [];
         foreach ($providerModels as $providerModel) {
-            if (! $providerConfig = $providerConfigs[$providerModel->getServiceProviderConfigId()] ?? null) {
-                $modelLogs[$providerModel->getModelId()]['error'] = 'ProviderConfig not found';
+            if ($providerModel->getType() === ProviderModelType::DYNAMIC) {
+                if ($withDynamicModels) {
+                    $pendingDynamicModels[] = $providerModel;
+                }
                 continue;
             }
+            if (! $providerConfig = $providerConfigs[$providerModel->getServiceProviderConfigId()] ?? null) {
+                $modelLogs['provider_config_not_found'][] = "{$providerModel->getServiceProviderConfigId()}|{$providerModel->getModelId()}";
+                continue;
+            }
+            $providerLabel = $providerConfig->getAlias() ?: (string) $providerConfig->getId();
             if (! $providerConfig->getStatus()->isEnabled()) {
-                $modelLogs[$providerModel->getModelId()]['error'] = 'ProviderConfig disabled';
+                $modelLogs['provider_config_disabled'][] = "{$providerLabel}|{$providerModel->getModelId()}";
                 continue;
             }
             if (! $provider = $providers[$providerConfig->getServiceProviderId()] ?? null) {
-                $modelLogs[$providerModel->getModelId()]['error'] = 'Provider not found';
+                $modelLogs['provider_not_found'][] = "{$providerLabel}|{$providerModel->getModelId()}";
                 continue;
             }
-            $model = $this->createModelByProvider($providerDataIsolation, $providerModel, $providerConfig, $provider);
+            $proxy = $proxyCache[$providerModel->getServiceProviderConfigId()] ?? '';
+            $model = $this->createModelByProvider($providerDataIsolation, $providerModel, $providerConfig, $provider, $proxy);
             if (! $model) {
-                $modelLogs[$providerModel->getModelId()]['error'] = 'Model disabled or invalid';
+                $modelLogs['model_disabled_or_invalid'][] = "{$providerLabel}|{$providerModel->getModelId()}";
                 continue;
             }
-            $list[$model->getAttributes()->getKey()] = $model;
+            $modelLogs['success'][] = "{$providerLabel}|{$providerModel->getModelId()}";
+            $list[$model->getKey()] = $model;
+        }
+
+        // 第二遍：所有原子模型就绪后，再处理 DYNAMIC 模型
+        foreach ($pendingDynamicModels as $providerModel) {
+            $dynamicModel = $this->createDynamicOdinModel($providerModel, $list, $dataIsolation);
+            if (! $dynamicModel) {
+                continue;
+            }
+            $list[$dynamicModel->getKey()] = $dynamicModel;
+            $modelLogs['success'][] = "dynamic|{$providerModel->getModelId()}|{$dynamicModel->getAttributes()->getResolvedModelId()}";
         }
 
         // 按照 $availableModelIds 排序
@@ -362,9 +407,121 @@ class ModelGatewayMapper extends ModelMapper
             $list = $orderedList;
         }
 
-        $this->logger->debug('检索到模型', $modelLogs);
+        $this->logger->info('模型加载结果', $modelLogs);
 
         return $list;
+    }
+
+    /**
+     * 批量解析 providerConfig 列表对应的 proxy 字符串.
+     * 以 providerConfigId 为 key 缓存结果，相同 proxy_server_id 只查询一次数据库.
+     *
+     * @param ProviderConfigEntity[] $providerConfigs key 为 providerConfigId
+     * @return array<int, string> key 为 providerConfigId，value 为 proxy 字符串（空字符串表示不使用代理）
+     */
+    private function resolveProxyConfigs(array $providerConfigs): array
+    {
+        $resolver = di(ProxyConfigResolverInterface::class);
+        $proxyCache = [];
+        // 按 proxy_server_id 缓存解析结果，避免多个 providerConfig 指向同一 proxy 时重复查库
+        $proxyServerCache = [];
+
+        foreach ($providerConfigs as $configId => $providerConfig) {
+            $configItem = $providerConfig->getConfig();
+            if ($configItem === null || ! $configItem->getUseProxy()) {
+                $proxyCache[$configId] = '';
+                continue;
+            }
+            $proxyServerId = $configItem->getProxyServer()['id'] ?? null;
+            if ($proxyServerId !== null && array_key_exists($proxyServerId, $proxyServerCache)) {
+                $proxyCache[$configId] = $proxyServerCache[$proxyServerId];
+                continue;
+            }
+            $resolved = (string) ($resolver->resolve($configItem->toArray()) ?? '');
+            if ($proxyServerId !== null) {
+                $proxyServerCache[$proxyServerId] = $resolved;
+            }
+            $proxyCache[$configId] = $resolved;
+        }
+
+        return $proxyCache;
+    }
+
+    /**
+     * 创建包含官方组织的 ProviderDataIsolation.
+     */
+    private function createProviderDataIsolationWithOfficial(BaseDataIsolation $dataIsolation): ProviderDataIsolation
+    {
+        $providerDataIsolation = ProviderDataIsolation::createByBaseDataIsolation($dataIsolation);
+        $providerDataIsolation->setContainOfficialOrganization(true);
+        return $providerDataIsolation;
+    }
+
+    /**
+     * 将单个 DYNAMIC 类型的 ProviderModelEntity 解析为 ModelEntry.
+     * 使用订阅管理器做实时权限判断，resolvedModelId 与请求时实际使用的模型保持一致.
+     * 解析失败（无可用子模型或子模型不在可用列表中）时返回 null.
+     *
+     * @param ModelEntry[] $atomList 已构建好的原子模型列表
+     */
+    private function createDynamicOdinModel(
+        ProviderModelEntity $dynamicModel,
+        array $atomList,
+        ModelGatewayDataIsolation $dataIsolation,
+    ): ?ModelEntry {
+        $aggregateResolver = di(AggregateModelResolverService::class);
+        $resolvedModelId = $aggregateResolver->resolveModel($dynamicModel, $dataIsolation);
+        if (! $resolvedModelId) {
+            $this->logger->debug('动态模型无可用子模型，跳过', ['model_id' => $dynamicModel->getModelId()]);
+            return null;
+        }
+
+        $resolvedEntry = $atomList[$resolvedModelId] ?? null;
+        if (! $resolvedEntry instanceof ModelEntry) {
+            $this->logger->debug('动态模型解析的子模型不在可用列表中', [
+                'dynamic_model_id' => $dynamicModel->getModelId(),
+                'resolved_model_id' => $resolvedModelId,
+            ]);
+            return null;
+        }
+
+        $dynamicModelId = $dynamicModel->getModelId();
+        $dynamicAttributes = new ModelAttributes(
+            key: $dynamicModelId,
+            name: $dynamicModel->getModelId(),
+            label: $dynamicModel->getName(),
+            icon: $dynamicModel->getIcon(),
+            tags: [['type' => 1, 'value' => 'Magic']],
+            createdAt: $dynamicModel->getCreatedAt() ?? new DateTime(),
+            owner: 'MagicAI',
+            providerAlias: '',
+            providerModelId: (string) $dynamicModel->getId(),
+            modelType: $dynamicModel->getModelType()->value,
+            description: $dynamicModel->getLocalizedDescription($dataIsolation->getLanguage()),
+            resolvedModelId: $resolvedModelId,
+        );
+
+        $resolvedImpl = $resolvedEntry->getModel();
+        $model = match (true) {
+            $resolvedImpl instanceof OdinModel => new OdinModel(
+                key: $dynamicModelId,
+                model: $this->buildDynamicUnderlyingModel($resolvedImpl->getModel()),
+            ),
+            $resolvedImpl instanceof VideoModel => new VideoModel(
+                $resolvedImpl->getConfig(),
+                $resolvedImpl->getModelVersion(),
+                $resolvedImpl->getProviderModelId(),
+                $resolvedImpl->getProviderCode(),
+            ),
+            default => new ImageModel(
+                $resolvedImpl->getConfig(),
+                $resolvedImpl->getModelVersion(),
+                $resolvedImpl->getProviderModelId(),
+                $resolvedImpl->getProviderCode(),
+            ),
+        };
+
+        return new ModelEntry(attributes: $dynamicAttributes, model: $model);
     }
 
     private function createModelByProvider(
@@ -372,7 +529,8 @@ class ModelGatewayMapper extends ModelMapper
         ProviderModelEntity $providerModelEntity,
         ProviderConfigEntity $providerConfigEntity,
         ProviderEntity $providerEntity,
-    ): null|ImageModel|OdinModel {
+        string $proxy = '',
+    ): ?ModelEntry {
         if (! $providerDataIsolation->isOfficialOrganization() && (! $providerModelEntity->getStatus()->isEnabled() || ! $providerConfigEntity->getStatus()->isEnabled())) {
             return null;
         }
@@ -411,56 +569,64 @@ class ModelGatewayMapper extends ModelMapper
             $providerName = 'Magic';
         }
 
-        // 根据模型类型返回不同的包装对象
-        if ($providerModelEntity->getModelType()->isVLM()) {
-            return new ImageModel($providerConfigItem->toArray(), $providerModelEntity->getModelVersion(), (string) $providerModelEntity->getId(), $providerEntity->getProviderCode());
-        }
-
-        $proxy = '';
-        if ($providerConfigItem->getUseProxy()) {
-            $proxy = di(ProxyConfigResolverInterface::class)->resolve($providerConfigItem->toArray());
-        }
-
-        // 对于LLM/Embedding模型，保持原有逻辑
-        return new OdinModel(
+        $attributes = new ModelAttributes(
             key: $key,
-            model: $this->createModel($providerModelEntity->getModelVersion(), [
-                'model' => $providerModelEntity->getModelVersion(),
-                'implementation' => $implementation,
-                'config' => $implementationConfig,
-                'model_options' => [
-                    'chat' => $chat,
-                    'function_call' => $functionCall,
-                    'embedding' => $embedding,
-                    'multi_modal' => $multiModal,
-                    'vector_size' => $vectorSize,
-                    'max_tokens' => $providerModelEntity->getConfig()?->getMaxTokens(),
-                    'max_output_tokens' => $providerModelEntity->getConfig()?->getMaxOutputTokens(),
-                    'default_temperature' => $providerModelEntity->getConfig()?->getCreativity(),
-                    'fixed_temperature' => $providerModelEntity->getConfig()?->getTemperature(),
-                ],
-                'api_options' => [
-                    'proxy' => $proxy,
-                ],
-            ]),
-            attributes: new OdinModelAttributes(
+            name: $providerModelEntity->getModelId(),
+            label: $providerModelEntity->getName(),
+            icon: $providerModelEntity->getIcon(),
+            tags: [['type' => 1, 'value' => "{$providerName}"]],
+            createdAt: $providerEntity->getCreatedAt(),
+            owner: 'MagicAI',
+            providerAlias: $providerConfigEntity->getAlias() ?? $providerEntity->getName(),
+            providerModelId: (string) $providerModelEntity->getId(),
+            providerId: (string) $providerConfigEntity->getId(),
+            modelType: $providerModelEntity->getModelType()->value,
+            description: $providerModelEntity->getLocalizedDescription($providerDataIsolation->getLanguage()),
+            resolvedModelId: $key,
+        );
+
+        if ($providerModelEntity->getModelType()->isVLM()) {
+            return new ModelEntry(
+                attributes: $attributes,
+                model: new ImageModel($providerConfigItem->toArray(), $providerModelEntity->getModelVersion(), (string) $providerModelEntity->getId(), $providerEntity->getProviderCode()),
+            );
+        }
+
+        if ($providerModelEntity->getModelType()->isVideoGeneration()) {
+            return new ModelEntry(
+                attributes: $attributes,
+                model: new VideoModel($providerConfigItem->toArray(), $providerModelEntity->getModelVersion(), (string) $providerModelEntity->getId(), $providerEntity->getProviderCode()),
+            );
+        }
+
+        return new ModelEntry(
+            attributes: $attributes,
+            model: new OdinModel(
                 key: $key,
-                name: $providerModelEntity->getModelId(),
-                label: $providerModelEntity->getName(),
-                icon: $providerModelEntity->getIcon(),
-                tags: [['type' => 1, 'value' => "{$providerName}"]],
-                createdAt: $providerEntity->getCreatedAt(),
-                owner: 'MagicAI',
-                providerAlias: $providerConfigEntity->getAlias() ?? $providerEntity->getName(),
-                providerModelId: (string) $providerModelEntity->getId(),
-                providerId: (string) $providerConfigEntity->getId(),
-                modelType: $providerModelEntity->getModelType()->value,
-                description: $providerModelEntity->getLocalizedDescription($providerDataIsolation->getLanguage()),
-            )
+                model: $this->createModel($providerModelEntity->getModelVersion(), [
+                    'model' => $providerModelEntity->getModelVersion(),
+                    'implementation' => $implementation,
+                    'config' => $implementationConfig,
+                    'model_options' => [
+                        'chat' => $chat,
+                        'function_call' => $functionCall,
+                        'embedding' => $embedding,
+                        'multi_modal' => $multiModal,
+                        'vector_size' => $vectorSize,
+                        'max_tokens' => $providerModelEntity->getConfig()?->getMaxTokens(),
+                        'max_output_tokens' => $providerModelEntity->getConfig()?->getMaxOutputTokens(),
+                        'default_temperature' => $providerModelEntity->getConfig()?->getCreativity(),
+                        'fixed_temperature' => $providerModelEntity->getConfig()?->getTemperature(),
+                    ],
+                    'api_options' => [
+                        'proxy' => $proxy,
+                    ],
+                ]),
+            ),
         );
     }
 
-    private function getByAdmin(ModelGatewayDataIsolation $dataIsolation, string $model, ?ModelType $modelType = null): null|ImageModel|OdinModel
+    private function getByAdmin(ModelGatewayDataIsolation $dataIsolation, string $model, ?ModelType $modelType = null): ?ModelEntry
     {
         $providerDataIsolation = ProviderDataIsolation::createByBaseDataIsolation($dataIsolation);
         $providerDataIsolation->setContainOfficialOrganization(true);
@@ -507,7 +673,13 @@ class ModelGatewayMapper extends ModelMapper
             return null;
         }
 
-        return $this->createModelByProvider($providerDataIsolation, $providerModelEntity, $providerConfigEntity, $providerEntity);
+        $proxy = '';
+        $configItem = $providerConfigEntity->getConfig();
+        if ($configItem !== null && $configItem->getUseProxy()) {
+            $proxy = (string) (di(ProxyConfigResolverInterface::class)->resolve($configItem->toArray()) ?? '');
+        }
+
+        return $this->createModelByProvider($providerDataIsolation, $providerModelEntity, $providerConfigEntity, $providerEntity, $proxy);
     }
 
     private function createProxy(ModelGatewayDataIsolation $dataIsolation, string $model, ModelOptions $modelOptions, ApiOptions $apiOptions, bool $useOfficialAccessToken = false): MagicAILocalModel
@@ -530,5 +702,22 @@ class ModelGatewayMapper extends ModelMapper
             throw new InvalidArgumentException(sprintf('Implementation %s is not defined.', MagicAILocalModel::class));
         }
         return $odinModel;
+    }
+
+    /**
+     * 为动态模型构建底层 model 实例。
+     * 则在 atom model 选项的基础上进行覆盖；否则直接复用 atom model。
+     * 只有 AbstractModel 才持有 ModelOptions，非 AbstractModel 时原样返回。
+     */
+    private function buildDynamicUnderlyingModel(
+        EmbeddingInterface|ModelInterface $atomModel,
+    ): EmbeddingInterface|ModelInterface {
+        if (! $atomModel instanceof AbstractModel) {
+            return $atomModel;
+        }
+
+        $cloned = clone $atomModel;
+        $cloned->setModelOptions(new ModelOptions($atomModel->getModelOptions()->toArray()));
+        return $cloned;
     }
 }

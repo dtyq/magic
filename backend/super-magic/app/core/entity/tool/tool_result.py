@@ -230,3 +230,21 @@ class ImageToolResult(ToolResult):
         # 同时更新image_url以保持向后兼容
         if images:
             self.image_url = images[0]
+
+
+class VideoToolResult(ToolResult):
+    """视频工具的结构化结果"""
+    video_url: Optional[str] = Field(default=None, description="视频的URL（已弃用，请使用videos）")
+    videos: List[str] = Field(default_factory=list, description="视频路径列表")
+
+    def set_video_url(self, video_url: str) -> None:
+        """设置单个视频 URL 或路径。"""
+        self.video_url = video_url
+        if video_url and video_url not in self.videos:
+            self.videos.append(video_url)
+
+    def set_videos(self, videos: List[str]) -> None:
+        """设置视频 URL 或路径列表。"""
+        self.videos = videos
+        if videos:
+            self.video_url = videos[0]

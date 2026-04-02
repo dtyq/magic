@@ -463,6 +463,50 @@
         "zh_CN": "保存到: {{paths}}",
         "en_US": "Saved to: {{paths}}"
     },
+    "generate_video.success": {
+        "zh_CN": "视频生成成功，文件：{{file_name}}",
+        "en_US": "Video generation successful, file: {{file_name}}"
+    },
+    "generate_video.pending": {
+        "zh_CN": "视频仍在生成中，可稍后继续查询。operation_id={{operation_id}}，当前状态={{status}}",
+        "en_US": "Video is still generating. Query it later with operation_id={{operation_id}}, current status={{status}}"
+    },
+    "generate_video.error": {
+        "zh_CN": "视频生成失败: {{error}}",
+        "en_US": "Video generation failed: {{error}}"
+    },
+    "query_video_generation.success": {
+        "zh_CN": "视频任务完成，文件：{{file_name}}",
+        "en_US": "Video task completed, file: {{file_name}}"
+    },
+    "query_video_generation.pending": {
+        "zh_CN": "视频任务仍在处理中。operation_id={{operation_id}}，当前状态={{status}}",
+        "en_US": "Video task is still processing. operation_id={{operation_id}}, current status={{status}}"
+    },
+    "query_video_generation.error": {
+        "zh_CN": "查询视频任务失败: {{error}}",
+        "en_US": "Failed to query video task: {{error}}"
+    },
+    "task_progress.queued_message": {
+        "zh_CN": "{{task_label}}排队中（{{percentage}}%）",
+        "en_US": "{{task_label}} queued ({{percentage}}%)"
+    },
+    "task_progress.processing_message": {
+        "zh_CN": "{{task_label}}处理中（{{percentage}}%）",
+        "en_US": "{{task_label}} processing ({{percentage}}%)"
+    },
+    "task_progress.completed_message": {
+        "zh_CN": "{{task_label}}已完成（{{percentage}}%）",
+        "en_US": "{{task_label}} completed ({{percentage}}%)"
+    },
+    "task_progress.failed_message": {
+        "zh_CN": "{{task_label}}失败{{status_reason}}",
+        "en_US": "{{task_label}} failed{{status_reason}}"
+    },
+    "task_progress.canceled_message": {
+        "zh_CN": "{{task_label}}已取消{{status_reason}}",
+        "en_US": "{{task_label}} canceled{{status_reason}}"
+    },
     "edit_image.multiple": {
         "zh_CN": "共{{count}}张图片",
         "en_US": "{{count}} images edited"
@@ -762,6 +806,10 @@
     "generate_images_to_canvas.success_single": {
         "zh_CN": "成功生成图片 '{{name}}' 并添加到画布",
         "en_US": "Successfully generated image '{{name}}' and added to canvas"
+    },
+    "generate_videos_to_canvas.summary": {
+        "zh_CN": "视频结果：完成 {{completed}} 个，处理中 {{processing}} 个，失败 {{failed}} 个",
+        "en_US": "Video result: {{completed}} completed, {{processing}} processing, {{failed}} failed"
     },
     "thinking.start_deep_thinking": {
         "zh_CN": "开始深入思考问题：{{problem}}",

@@ -19,6 +19,7 @@ class ExportWorkspaceRequest implements RequestInterface
         private readonly string $type,
         private readonly string $code,
         private readonly array $uploadConfig,
+        private readonly ?string $sourcePath = null,
     ) {
     }
 
@@ -37,12 +38,23 @@ class ExportWorkspaceRequest implements RequestInterface
         return $this->uploadConfig;
     }
 
+    public function getSourcePath(): ?string
+    {
+        return $this->sourcePath;
+    }
+
     public function toArray(): array
     {
-        return [
+        $request = [
             'type' => $this->type,
             'code' => $this->code,
             'upload_config' => $this->uploadConfig,
         ];
+
+        if ($this->sourcePath !== null && $this->sourcePath !== '') {
+            $request['source_path'] = $this->sourcePath;
+        }
+
+        return $request;
     }
 }

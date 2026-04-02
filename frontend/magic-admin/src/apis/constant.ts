@@ -23,10 +23,9 @@ export const RequestUrl = {
 	/** AI管理 */
 	/** AI管理 - 模型管理 */
 	/** 获取服务提供商（非官方数据） */
-	getServiceProvider: "/api/v1/admin/service-providers/non-official/queries",
+	getServiceProvider: "/api/v1/admin/service-providers/templates/queries",
 	/** 非官方组织获取服务提供商 */
-	getServiceProviderNonOfficial:
-		"/api/v1/organization/admin/service-providers/non-official/queries",
+	getServiceProviderNonOfficial: "/api/v1/organization/admin/service-providers/templates/queries",
 	/** 官方组织获取服务商列表 */
 	getServiceProviderList: "/api/v1/admin/service-providers",
 	/** 非官方组织获取服务商列表 */
@@ -264,6 +263,8 @@ export const RequestUrl = {
 	saveModeConfig: "/api/v1/official/admin/modes/${id}/config",
 	/** 获取所有模型列表 */
 	getAllModelList: "/api/v1/admin/service-providers/models/queries",
+	/** 模型调用审计日志列表 */
+	getModelAuditLogList: "/api/v1/admin/model-audit-logs/list",
 	/** 创建分组 */
 	createModeGroup: "/api/v1/official/admin/mode-groups",
 	/** 修改分组 */
@@ -278,14 +279,14 @@ export const RequestUrl = {
 	reviewAgentVersion: "/api/v2/admin/super-magic/agents/versions/${id}/review",
 	/** 员工市场列表 */
 	getAgentMarketList: "/api/v2/admin/super-magic/agents/markets/queries",
-	/** 更新员工市场排序 */
-	updateAgentMarketSortOrder: "/api/v2/admin/super-magic/agents/markets/${id}/sort-order",
+	/** 更新员工市场信息 */
+	updateAgentMarketInfo: "/api/v2/admin/super-magic/agents/markets/${id}",
 	/** Skill版本列表 */
 	getSkillVersionList: "/api/v1/admin/skills/versions/queries",
 	/** Skill 市场列表 */
 	getSkillMarketList: "/api/v1/admin/skills/markets/queries",
-	/** 更新 Skill 市场排序 */
-	updateSkillMarketSortOrder: "/api/v1/admin/skills/markets/${id}/sort-order",
+	/** 更新 Skill 市场信息 */
+	updateSkillMarketInfo: "/api/v1/admin/skills/markets/${id}",
 	/** 审核 Skill 版本 */
 	reviewSkillVersion: "/api/v1/admin/skills/versions/${id}/review",
 	/** —————— 平台管理 - 组织管理 —————— */
@@ -303,11 +304,13 @@ export const RequestUrl = {
 	addOrgPoints: "/api/v1/super-agent/admin/billing-manager/organization-credits",
 	/** 绑定套餐 */
 	bindPackage: "/api/v1/super-agent/admin/billing-manager/organizations-package",
-	/** —————— 平台管理 - AI管理 —————— */
+	/** —————— 平台管理 - 能力管理 —————— */
 	/** 获取AI能力列表 */
 	getAiPowerList: "/api/v1/admin/ai-abilities",
 	/** 更改/AI能力详情 */
 	updateAiPower: "/api/v1/admin/ai-abilities/${code}",
+	/** 能力管理联通性测试  */
+	testAiPowerConnection: "/api/v1/admin/ai-abilities/connectivity-test",
 	/** —————— 平台管理 - 代理服务器 —————— */
 	/** 获取代理列表 */
 	getProxyServerList: "/api/v1/admin/proxy-servers/queries",

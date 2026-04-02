@@ -96,6 +96,8 @@ export const PERMISSION_KEY_MAP = {
 	PLATFORM_INTELLIGENT_DRAWING_QUERY: "platform.ai.image_generation.query",
 	/** 平台管理 - 智能绘图-编辑 */
 	PLATFORM_INTELLIGENT_DRAWING_EDIT: "platform.ai.image_generation.edit",
+	/** 模型审计日志-查询 */
+	SAFE_MODEL_AUDIT_LOG_QUERY: "admin.safe.model_audit_log.query",
 	/** 系统智能体-查询 */
 	MODE_MANAGEMENT_QUERY: "platform.ai.mode_management.query",
 	/** 系统智能体-编辑 */
@@ -221,6 +223,7 @@ export const PLATFORM_MODEL_MANAGEMENT = [
 	PERMISSION_KEY_MAP.PLATFORM_MODEL_MANAGEMENT_EDIT,
 	PERMISSION_KEY_MAP.PLATFORM_INTELLIGENT_DRAWING_QUERY,
 	PERMISSION_KEY_MAP.PLATFORM_INTELLIGENT_DRAWING_EDIT,
+	PERMISSION_KEY_MAP.SAFE_MODEL_AUDIT_LOG_QUERY,
 ]
 
 /**  平台管理 - 智能体增强 */

@@ -10,6 +10,7 @@ namespace App\Interfaces\Middleware\Auth;
 use App\Application\Authentication\DTO\ApiKeyAuthResult;
 use App\Application\Authentication\Service\AuthApiKeyAppService;
 use App\Application\ModelGateway\Official\MagicAccessToken;
+use App\Application\ModelGateway\Request\ModelGatewayRequestCoContext;
 use App\ErrorCode\HttpErrorCode;
 use App\Infrastructure\Core\Exception\ExceptionBuilder;
 use App\Infrastructure\Util\Context\RequestCoContext;
@@ -68,6 +69,9 @@ class ApiKeyMiddleware extends BaseAuthMiddleware
     private function fillApiKeyContext(ApiKeyAuthResult $result): void
     {
         RequestCoContext::setApiKey($result->apiKey ?? '');
+        if ($result->accessTokenEntity) {
+            ModelGatewayRequestCoContext::setAccessToken($result->accessTokenEntity);
+        }
 
         if ($result->userAuthorization !== null) {
             RequestCoContext::setUserAuthorization($result->userAuthorization);

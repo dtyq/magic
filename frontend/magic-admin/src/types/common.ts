@@ -1,5 +1,11 @@
-import type { NodeType } from "@feb/user-selector"
 import type { AiModel } from "../const/aiModel"
+
+export enum NodeType {
+	/** 部门 */
+	Department = "department",
+	/** 用户 */
+	User = "user",
+}
 
 export interface TeamshareUserInfo {
 	id: string

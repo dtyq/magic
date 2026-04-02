@@ -212,6 +212,17 @@ readonly class ProviderModelDomainService
     }
 
     /**
+     * 仅查询 type=DYNAMIC 的启用模型的 model_id 列表，不 SELECT 全字段.
+     *
+     * @param ModelType[] $modelTypes 模型类型过滤，空数组表示不限制
+     * @return string[]
+     */
+    public function getDynamicModelIds(ProviderDataIsolation $dataIsolation, array $modelTypes = []): array
+    {
+        return $this->providerModelRepository->getDynamicModelIds($dataIsolation, $modelTypes);
+    }
+
+    /**
      * 获取指定模型的最新配置版本ID.
      *
      * @param ProviderDataIsolation $dataIsolation 数据隔离对象

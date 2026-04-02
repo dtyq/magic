@@ -521,10 +521,10 @@ class TaskFileDomainService
                 $fileEntity->setSource($taskFileEntity->getSource() ?? TaskFileSource::DEFAULT);
                 $fileEntity->setCreatedAt($currentTime);
             } else {
-                // 避免S3监听文件变动时，将AI图片生成文件的来源从AI_IMAGE_GENERATION改为AGENT
-                if ($taskFileEntity->getSource() === TaskFileSource::AI_IMAGE_GENERATION) {
+                // 避免S3监听文件变动时，将 AI 生成文件的来源改为 AGENT
+                if ($taskFileEntity->getSource()->isAIGenerated()) {
                     $fileEntity->setSource($taskFileEntity->getSource());
-                } elseif ($fileEntity->getSource() === TaskFileSource::AI_IMAGE_GENERATION) {
+                } elseif ($fileEntity->getSource()->isAIGenerated()) {
                     $fileEntity->setSource($fileEntity->getSource());
                 }
             }
@@ -2666,6 +2666,90 @@ class TaskFileDomainService
     }
 
     /**
+     * Navigate directory tree by path segments starting from project root.
+     * e.g. ".magic/skills/my-skill" will traverse root -> .magic -> skills -> my-skill.
+     *
+     * @param int $projectId Project ID
+     * @param string $path Relative path from project root (e.g. ".magic/skills/my-skill")
+     * @return null|TaskFileEntity Target directory entity or null if any segment not found
+     */
+    public function findDirectoryByPath(int $projectId, string $path): ?TaskFileEntity
+    {
+        $segments = array_filter(explode('/', trim($path, '/')), static fn (string $s) => $s !== '');
+        if (empty($segments)) {
+            return null;
+        }
+
+        $rootDir = $this->getRootFile($projectId);
+        if ($rootDir === null) {
+            return null;
+        }
+
+        $currentParentId = $rootDir->getFileId();
+        $currentEntity = $rootDir;
+
+        foreach ($segments as $segment) {
+            $found = $this->findDirectoryByParentIdAndName($currentParentId, $segment, $projectId);
+            if ($found === null) {
+                return null;
+            }
+            $currentParentId = $found->getFileId();
+            $currentEntity = $found;
+        }
+
+        return $currentEntity;
+    }
+
+    /**
+     * Check whether a file with the given name exists anywhere in the project (case-insensitive).
+     */
+    public function existsFileByName(int $projectId, string $fileName): bool
+    {
+        $entity = $this->taskFileRepository->getByProjectIdAndFileName($projectId, $fileName);
+        if ($entity !== null) {
+            return true;
+        }
+
+        // Case-insensitive fallback
+        $lower = strtolower($fileName);
+        if ($lower !== $fileName) {
+            return $this->taskFileRepository->getByProjectIdAndFileName($projectId, $lower) !== null;
+        }
+
+        return false;
+    }
+
+    /**
+     * Overwrite an existing project file's content in cloud storage and update its size in the DB.
+     * Returns null if the file does not exist in the task file index or does not belong to the given project.
+     */
+    public function overwriteProjectFileContent(
+        ProjectEntity $projectEntity,
+        string $fileKey,
+        string $content
+    ): ?TaskFileEntity {
+        $entity = $this->taskFileRepository->getByProjectIdAndFileKey($projectEntity->getId(), $fileKey);
+        if ($entity === null) {
+            return null;
+        }
+
+        // Use the key from the verified entity to prevent caller-supplied key substitution.
+        $verifiedFileKey = $entity->getFileKey();
+
+        $this->cloudFileRepository->createFileByCredential(
+            WorkDirectoryUtil::getPrefix($projectEntity->getWorkDir()),
+            $projectEntity->getUserOrganizationCode(),
+            $verifiedFileKey,
+            $content,
+            StorageBucketType::SandBox
+        );
+
+        $entity->setFileSize(strlen($content));
+        $entity->setUpdatedAt(date('Y-m-d H:i:s'));
+        return $this->taskFileRepository->updateById($entity);
+    }
+
+    /**
      * Normalize relative path.
      * Removes leading './', '/', and handles edge cases.
      *
@@ -3022,7 +3106,7 @@ class TaskFileDomainService
             $filename,
             $downloadMode,
             $addWatermark,
-            $fileEntity->getSource()->value
+            $fileEntity->getSource()
         );
     }
 

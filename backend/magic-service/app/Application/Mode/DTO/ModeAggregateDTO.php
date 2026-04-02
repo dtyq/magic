@@ -86,11 +86,18 @@ class ModeAggregateDTO extends AbstractDTO
      */
     public function getAllModelIds(): array
     {
-        $allModelIds = [];
+        $allModelIdGroups = [];
         foreach ($this->groups as $groupAggregate) {
-            $allModelIds = array_merge($allModelIds, $groupAggregate->getModelIds());
+            $allModelIdGroups[] = $groupAggregate->getModelIds();
+            $allModelIdGroups[] = $groupAggregate->getImageModelIds();
+            $allModelIdGroups[] = $groupAggregate->getVideoModelIds();
         }
-        return array_unique($allModelIds);
+
+        if ($allModelIdGroups === []) {
+            return [];
+        }
+
+        return array_unique(array_merge(...$allModelIdGroups));
     }
 
     /**
@@ -109,6 +116,8 @@ class ModeAggregateDTO extends AbstractDTO
         $count = 0;
         foreach ($this->groups as $groupAggregate) {
             $count += $groupAggregate->getModelCount();
+            $count += count($groupAggregate->getImageModels());
+            $count += count($groupAggregate->getVideoModels());
         }
         return $count;
     }

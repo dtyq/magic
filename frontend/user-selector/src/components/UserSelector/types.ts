@@ -13,7 +13,7 @@ export interface Pagination<T> {
 	hasMore?: boolean
 	/** 加载更多数据 */
 	loadMore?: () => void
-	[key: string]: unknown
+	[key: string]: any
 }
 
 /** 组织信息 */
@@ -78,7 +78,7 @@ export interface Department {
 	has_child?: boolean
 	/** 员工数量 */
 	employee_sum?: number
-	[key: string]: unknown
+	[key: string]: any
 }
 
 /** 路径节点 */

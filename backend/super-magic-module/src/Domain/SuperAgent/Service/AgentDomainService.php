@@ -146,8 +146,8 @@ class AgentDomainService
             instruction: ChatInstruction::Normal->value,
             sandboxId: $sandboxId,
             superMagicTaskId: (string) $taskEntity->getId(),
-            workspaceId: (string) $projectEntity->getWorkspaceId() ?? '',
-            projectId: (string) $projectEntity->getId() ?? '',
+            workspaceId: (string) ($projectEntity->getWorkspaceId() ?? ''),
+            projectId: (string) ($projectEntity->getId() ?? ''),
             language: $dataIsolation->getLanguage() ?? 'zh_CN',
             authorization: $authToken,
             userInfo: $userInfo,
@@ -396,50 +396,6 @@ class AgentDomainService
     }
 
     /**
-     * 升级沙箱到最新 Agent 镜像.
-     *
-     * @param DataIsolation $dataIsolation 数据隔离上下文
-     * @param string $sandboxId 沙箱ID
-     * @param string $projectId 项目ID
-     * @param string $workDir 工作目录（项目 OSS 路径）
-     * @return GatewayResult 升级结果
-     */
-    public function upgradeSandbox(DataIsolation $dataIsolation, string $sandboxId, string $projectId, string $workDir): GatewayResult
-    {
-        $this->logger->debug('[Sandbox][Domain] Upgrading sandbox', [
-            'sandbox_id' => $sandboxId,
-            'project_id' => $projectId,
-        ]);
-
-        $this->gateway->setUserContext($dataIsolation->getCurrentUserId(), $dataIsolation->getCurrentOrganizationCode());
-        $result = $this->gateway->upgradeSandbox($sandboxId, $projectId, $workDir);
-
-        if (! $result->isSuccess()) {
-            $this->logger->error('[Sandbox][Domain] Failed to upgrade sandbox', [
-                'sandbox_id' => $sandboxId,
-                'project_id' => $projectId,
-                'code' => $result->getCode(),
-                'message' => $result->getMessage(),
-            ]);
-            throw new SandboxOperationException('Upgrade sandbox', $result->getMessage(), $result->getCode());
-        }
-
-        $agentImage = (string) ($result->getDataValue('agent_image') ?? '');
-
-        $this->logger->info('[Sandbox][Domain] Sandbox upgraded successfully', [
-            'sandbox_id' => $sandboxId,
-            'agent_image' => $agentImage,
-        ]);
-
-        // sandbox_id 即 topic_id，升级成功后立即持久化最新 agent 镜像版本
-        if (! empty($agentImage) && ! empty($sandboxId)) {
-            $this->topicDomainService->updateTopicAgentImage($dataIsolation, (int) $sandboxId, $agentImage);
-        }
-
-        return $result;
-    }
-
-    /**
      * 删除（停止）沙箱.
      *
      * @param string $sandboxId 沙箱ID
@@ -552,7 +508,9 @@ class AgentDomainService
             }
         }
 
-        // Add image_model configuration if imageModelId exists
+        // 图片模型不走 init 顶层字段，而是跟现有生图链路保持一致，
+        // 在发送聊天消息时桥接到 dynamic_config。视频模型由应用层提前写入
+        // TaskContext.dynamicConfig，领域层这里不再从 extra 派生，避免重复桥接。
         $extra = $taskContext->getExtra();
         if ($extra !== null) {
             $imageModelId = $extra->getImageModelId();
@@ -716,27 +674,6 @@ class AgentDomainService
         ]);
 
         return $result;
-    }
-
-    /**
-     * 检查工作区是否已就绪.
-     *
-     * @param string $sandboxId 沙箱ID
-     * @return bool 是否就绪
-     */
-    public function isWorkspaceReady(string $sandboxId): bool
-    {
-        try {
-            $response = $this->getWorkspaceStatus($sandboxId);
-            $status = $response->getDataValue('status');
-            return WorkspaceStatus::isReady($status);
-        } catch (Throwable $e) {
-            $this->logger->warning('[Sandbox][App] Failed to check workspace ready status', [
-                'sandbox_id' => $sandboxId,
-                'error' => $e->getMessage(),
-            ]);
-            return false;
-        }
     }
 
     /**

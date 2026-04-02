@@ -27,6 +27,7 @@ from app.tools.get_js_cdn_address import GetJsCdnAddress
 from app.tools.grep_search import GrepSearch
 
 from app.tools.generate_image import GenerateImage
+from app.tools.generate_video import GenerateVideo, QueryVideoGeneration
 from app.tools.image_search import ImageSearch
 from app.tools.list_dir import ListDir
 from app.tools.purify import Purify
@@ -100,6 +101,7 @@ from app.tools.design.tools import (
     BatchCreateCanvasElements,
     BatchUpdateCanvasElements,
     GenerateImagesToCanvas,
+    GenerateVideosToCanvas,
     SearchImagesToCanvas,
 )
 
@@ -154,6 +156,8 @@ __all__ = [
     "GrepSearch",
     "ImageSearch",
     "GenerateImage",
+    "GenerateVideo",
+    "QueryVideoGeneration",
     "GetIMChannelStatus",
     "ListDir",
     "Purify",
@@ -222,6 +226,7 @@ __all__ = [
     "BatchCreateCanvasElements",
     "BatchUpdateCanvasElements",
     "GenerateImagesToCanvas",
+    "GenerateVideosToCanvas",
     "SearchImagesToCanvas",
 ]
 

@@ -22,6 +22,13 @@ export const DefaultWebSearchProviderList = [
 		api_key: "",
 		enable: false,
 	},
+	{
+		provider: "baidu",
+		name: "Baidu",
+		request_url: "",
+		api_key: "",
+		enable: false,
+	},
 ]
 
 // OCR识别 - 默认服务商列表
@@ -76,5 +83,12 @@ export const ServiceConfigList = [
 	PlatformPackage.PowerCode.WEB_SCRAPE,
 	PlatformPackage.PowerCode.REALTIME_SPEECH_RECOGNITION,
 	PlatformPackage.PowerCode.AUDIO_FILE_RECOGNITION,
+	PlatformPackage.PowerCode.IMAGE_SEARCH,
+]
+
+// 支持联通性测试的工具类型
+export const ConnectivityTestCodes = [
+	PlatformPackage.PowerCode.WEB_SEARCH,
+	PlatformPackage.PowerCode.WEB_SCRAPE,
 	PlatformPackage.PowerCode.IMAGE_SEARCH,
 ]

@@ -30,6 +30,7 @@ from agentlang.event.data import (
 from agentlang.event.event import EventType
 from agentlang.llms.factory import LLMFactory
 from agentlang.llms.processors.processor_config import ProcessorConfig
+from agentlang.config.model_config import model_config_utils
 from app.streaming.message_builder import LLMStreamingMessageBuilder
 from app.streaming.config_generator import StreamingConfigGenerator
 from agentlang.llms.token_usage.models import TokenUsage
@@ -191,6 +192,7 @@ class Agent(BaseAgent):
 
     def __init__(self, agent_name: str, agent_context: AgentContext = None, agent_id: str = None):
         self.agent_name = agent_name
+        self._runtime_user_messages: List[str] = []
 
         # 设置Agent上下文
         self.agent_context = self._setup_agent_context(agent_context)
@@ -368,10 +370,28 @@ The following <dynamic_context> block contains system-provided context informati
         except Exception as e:
             logger.error(f"读取幻灯片模板文件时出错: {e}")
 
-        # 获取动态模型ID
+        # 获取动态模型ID，优先使用 resolved_model_id（更真实的底层模型）
         dynamic_model_id = ""
         if self.agent_context and self.agent_context.has_dynamic_model_id():
-            dynamic_model_id = self.agent_context.get_dynamic_model_id() or ""
+            raw_model_id = self.agent_context.get_dynamic_model_id() or ""
+            if raw_model_id:
+                try:
+                    model_cfg = model_config_utils.get_model_config(raw_model_id)
+                    dynamic_model_id = (
+                        model_cfg.resolved_model_id
+                        if model_cfg and model_cfg.resolved_model_id
+                        else raw_model_id
+                    )
+                except Exception:
+                    dynamic_model_id = raw_model_id
+
+        # 特殊聚合模型的描述说明，有值时作为独立行附加在 model_id 之后，默认为空
+        _SPECIAL_MODEL_DESCRIPTIONS = {
+            "auto": "automatically selects the most efficient AI model for the current task",
+            "max": "automatically selects the most capable AI model for the current scenario",
+        }
+        _desc = _SPECIAL_MODEL_DESCRIPTIONS.get(dynamic_model_id.lower(), "")
+        model_description_line = f"\nModel description: {_desc}" if _desc else ""
 
         # 获取当前用户偏好语言
         # 检查用户是否手动设置过语言
@@ -393,6 +413,7 @@ The following <dynamic_context> block contains system-provided context informati
             "agent_name": agent_name,
             "agent_profile": agent_profile_text,
             "dynamic_model_id": dynamic_model_id,
+            "model_description_line": model_description_line,
             "user_preferred_language": user_preferred_language,
             "workspace_dir": self.agent_context._workspace_dir,
             "workspace_skills_dir": str(get_workspace_skills_dir().relative_to(PathManager.get_workspace_dir())),
@@ -627,6 +648,24 @@ The following <dynamic_context> block contains system-provided context informati
         logger.info(f"自动生成新的 Agent ID: {new_id}")
         return new_id
 
+    def set_runtime_user_messages(self, messages: List[str]) -> None:
+        """设置本轮运行前需要注入的隐藏 user messages。"""
+        self._runtime_user_messages = [message for message in messages if isinstance(message, str) and message.strip()]
+
+    def enqueue_runtime_user_message(self, message: Optional[str]) -> None:
+        """追加本轮运行前需要注入的一条隐藏 user message。"""
+        if not isinstance(message, str) or not message.strip():
+            return
+        self._runtime_user_messages.append(message)
+
+    async def _append_runtime_user_messages(self) -> None:
+        """将本轮待注入的隐藏 user messages 追加到聊天历史。"""
+        runtime_user_messages = list(getattr(self, "_runtime_user_messages", []))
+        self._runtime_user_messages = []
+
+        for message in runtime_user_messages:
+            await self.chat_history.append_user_message(message, show_in_ui=False)
+
     async def run_main_agent(self, query: str):
         """运行主 agent"""
         try:
@@ -701,6 +740,8 @@ The following <dynamic_context> block contains system-provided context informati
             # 聊天记录存在时，更新第一条 system message 为最新的 system_prompt
             # 因为代码会更新，聊天记录不会更新，需要在 agent 每次运行时更新最新的 system prompt
             await self.chat_history.update_first_system_prompt(self.system_prompt)
+
+        await self._append_runtime_user_messages()
 
         # 准备会话：处理pending工具调用和用户查询
         session_prep_result = await self._prepare_session_for_new_query(query)
@@ -846,6 +887,18 @@ The following <dynamic_context> block contains system-provided context informati
                     # 添加工具调用响应到历史（现在包含修复后的参数）
                     await self._add_tool_calls_to_history(llm_context)
 
+                    # State recovery checkpoint: runs immediately after a successful LLM call,
+                    # regardless of whether the response contains tool calls or not.
+                    # If the state is ERROR, it means a previous call failed but this retry succeeded.
+                    # Must be placed here (before break/continue branches) so it is never skipped.
+                    if self.is_agent_error():
+                        retry_info = f"（重试 {loop_state.llm_retry_count} 次，异常 {loop_state.run_exception_count} 次）" if loop_state.run_exception_count > 0 else ""
+                        logger.info(f"从 ERROR 状态恢复为 RUNNING{retry_info}")
+                        self.set_agent_state(AgentState.RUNNING)
+                        # Reset counters after successful recovery
+                        loop_state.llm_retry_count = 0
+                        loop_state.run_exception_count = 0
+
                     # 处理无工具调用的情况
                     if not llm_context.has_tool_calls and llm_context.message.role == "assistant":
                         await self._handle_no_tool_calls(llm_context, loop_state)
@@ -859,14 +912,13 @@ The following <dynamic_context> block contains system-provided context informati
                     # Reset no_tool_call_count when tools are called successfully
                     loop_state.no_tool_call_count = 0
 
-                # 统一的状态恢复检查点：无论通过哪个分支获得 llm_context，在执行工具前都检查状态
-                # 能执行到这里说明本次成功获得了响应（如果失败会进入except块）
-                # 如果状态是ERROR，说明之前失败过，现在应该恢复为RUNNING
+                # Unified state recovery for the session-restore branch (SKIP_LLM path).
+                # The LLM-call branch now handles recovery earlier (above), but for the
+                # session-restore path we still need this guard before executing tool calls.
                 if self.is_agent_error():
                     retry_info = f"（重试 {loop_state.llm_retry_count} 次，异常 {loop_state.run_exception_count} 次）" if loop_state.run_exception_count > 0 else ""
-                    logger.info(f"从 ERROR 状态恢复为 RUNNING{retry_info}")
+                    logger.info(f"从 ERROR 状态恢复为 RUNNING（会话恢复路径）{retry_info}")
                     self.set_agent_state(AgentState.RUNNING)
-                    # 恢复成功后重置计数器
                     loop_state.llm_retry_count = 0
                     loop_state.run_exception_count = 0
 
@@ -1383,18 +1435,18 @@ The following <dynamic_context> block contains system-provided context informati
             dynamic_model_id = self.agent_context.get_dynamic_model_id()
             if dynamic_model_id and dynamic_model_id.strip():
                 try:
-                    # 🔥 先调用get()确保配置被加载到_configs中，然后获取配置信息
-                    LLMFactory.get(dynamic_model_id)  # 确保配置被加载
+                    LLMFactory.get(dynamic_model_id)
                     model_config = LLMFactory.get_model_config(dynamic_model_id)
                     dynamic_model_name = model_config.name
+                    resolved_model_id = model_config.resolved_model_id
 
                     # 只在首次使用动态模型或模型发生变化时记录INFO日志
                     previous_model = getattr(self, '_last_effective_model_id', None)
                     if previous_model != dynamic_model_id:
-                        logger.info(f"🎯 切换到动态模型: {dynamic_model_id} ({dynamic_model_name})")
+                        logger.info(f"切换到动态模型: {resolved_model_id} ({dynamic_model_name})")
                         self._last_effective_model_id = dynamic_model_id
                     else:
-                        logger.debug(f"继续使用动态模型: {dynamic_model_id} ({dynamic_model_name})")
+                        logger.debug(f"继续使用动态模型: {resolved_model_id} ({dynamic_model_name})")
 
                     return dynamic_model_id, dynamic_model_name
                 except Exception as e:

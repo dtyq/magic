@@ -21,6 +21,7 @@ from app.tools.design.tools.base_design_tool import BaseDesignTool
 from app.tools.design.utils.canvas_image_utils import get_image_info
 from app.tools.design.utils.magic_project_design_parser import (
     ImageElement,
+    VideoElement,
     TextElement,
     RectangleElement,
     EllipseElement,
@@ -995,6 +996,17 @@ class BatchCreateCanvasElements(BaseDesignTool[BatchCreateCanvasElementsParams])
                 status=properties.get('status'),
                 generateImageRequest=properties.get('generateImageRequest'),
                 visualUnderstanding=properties.get('visualUnderstanding')
+            )
+
+        elif spec.element_type == 'video':
+            return VideoElement(
+                **common_attrs,
+                src=properties.get('src'),
+                poster=properties.get('poster'),
+                loading=properties.get('loading', False),
+                status=properties.get('status'),
+                errorMessage=properties.get('errorMessage'),
+                generateVideoRequest=properties.get('generateVideoRequest')
             )
 
         elif spec.element_type == 'text':

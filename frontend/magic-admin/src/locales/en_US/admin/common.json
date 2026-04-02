@@ -128,6 +128,7 @@
 			"proxyServer": "Proxy Server",
 			"modelManagement": "LLM Management",
 			"intelligentDrawing": "AI Drawing Management",
+			"modelAuditLog": "Model Audit Logs",
 			"agentEnhancement": "Official Agent Management",
 			"systemAgent": "System Agent",
 			"systemSkill": "Skill Management",

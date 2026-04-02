@@ -26,11 +26,11 @@ logger = get_logger(__name__)
 
 
 # 元素类型定义
-ElementType = Literal["image", "text", "rectangle", "ellipse", "triangle", "star", "frame", "group"]
+ElementType = Literal["image", "video", "text", "rectangle", "ellipse", "triangle", "star", "frame", "group"]
 
 # 允许的元素类型
 ALLOWED_ELEMENT_TYPES = {
-    "image", "text", "rectangle", "ellipse", "triangle", "star", "frame", "group"
+    "image", "video", "text", "rectangle", "ellipse", "triangle", "star", "frame", "group"
 }
 
 # 项目配置必需字段
@@ -124,6 +124,27 @@ class GenerateImageRequest:
 
 
 @dataclass
+class GenerateVideoRequest:
+    """视频生成请求信息
+
+    该结构对齐 generateImageRequest 的设计思路，但单独保留视频字段。
+    后续前端渲染视频元素时，应直接复用这里定义的字段名，而不是再发明一套协议。
+    """
+    model_id: str
+    prompt: str
+    operation_id: str
+    aspect_ratio: Optional[str] = None
+    duration_seconds: Optional[int] = None
+    resolution: Optional[str] = None
+    fps: Optional[int] = None
+    seed: Optional[int] = None
+    watermark: Optional[bool] = None
+    reference_images: List[str] = field(default_factory=list)
+    frames: List[Dict[str, str]] = field(default_factory=list)
+    file_dir: Optional[str] = None
+
+
+@dataclass
 class BaseElement:
     """画布元素基类，包含通用属性"""
     # 必需字段
@@ -191,6 +212,21 @@ class ImageElement(BaseElement):
 
 
 @dataclass
+class VideoElement(BaseElement):
+    """视频元素
+
+    这里先把后端协议落到 magic.project.js 中，供 super-magic 设计工具写盘。
+    当前前端即使还没有渲染能力，也应该继续沿用这套字段，避免后续二次迁移。
+    """
+    src: Optional[str] = None
+    poster: Optional[str] = None
+    loading: Optional[bool] = None
+    status: Optional[Literal["pending", "processing", "completed", "failed"]] = None
+    errorMessage: Optional[str] = None
+    generateVideoRequest: Optional[GenerateVideoRequest] = None
+
+
+@dataclass
 class TextElement(BaseElement):
     """文本元素，支持富文本"""
     content: List[RichTextParagraph] = field(default_factory=list)
@@ -247,6 +283,7 @@ class FrameElement(BaseElement):
 # 所有画布元素的联合类型
 CanvasElement = Union[
     ImageElement,
+    VideoElement,
     TextElement,
     RectangleElement,
     EllipseElement,
@@ -353,6 +390,7 @@ def _generate_default_element_name(element_type: str, element_id: str) -> str:
     # 类型名称映射（中文）
     type_names = {
         "image": "图片",
+        "video": "视频",
         "text": "文本",
         "rectangle": "矩形",
         "ellipse": "椭圆",
@@ -456,6 +494,10 @@ def _dict_to_element(data: Dict[str, Any]) -> Optional[CanvasElement]:
         if element_type == "image":
             filtered_data = _filter_dataclass_fields(data, ImageElement)
             return ImageElement(**filtered_data)
+        elif element_type == "video":
+            # 视频元素沿用图片元素的公共画布字段，但生成协议独立为 generateVideoRequest。
+            filtered_data = _filter_dataclass_fields(data, VideoElement)
+            return VideoElement(**filtered_data)
         elif element_type == "text":
             filtered_data = _filter_dataclass_fields(data, TextElement)
             return TextElement(**filtered_data)

@@ -127,6 +127,7 @@
 			"proxyServer": "代理服务器",
 			"modelManagement": "文本大模型",
 			"intelligentDrawing": "生图大模型",
+			"modelAuditLog": "模型审计日志",
 			"agentEnhancement": "智能体增强",
 			"systemAgent": "官方员工管理",
 			"systemSkill": "Skill审核",

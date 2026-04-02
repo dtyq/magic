@@ -2,6 +2,7 @@ import { useMemo } from "react"
 import { useTranslation } from "react-i18next"
 import {
 	IconInfoCircle,
+	IconListDetails,
 	IconTool,
 	IconRobot,
 	IconSettingsAi,
@@ -68,6 +69,17 @@ function PlatformPackageLayout() {
 								permissions.includes(
 									PERMISSION_KEY_MAP.PLATFORM_INTELLIGENT_DRAWING_EDIT,
 								)
+							)
+						},
+					},
+					{
+						key: RoutePath.PlatformModelAuditLog,
+						label: t("nav.platformSubMenu.modelAuditLog"),
+						icon: <IconListDetails size={20} />,
+						validate: (permissions: string[], isSuperAdmin?: boolean) => {
+							return (
+								isSuperAdmin ||
+								permissions.includes(PERMISSION_KEY_MAP.SAFE_MODEL_AUDIT_LOG_QUERY)
 							)
 						},
 					},

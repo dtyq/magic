@@ -72,53 +72,6 @@ class SandboxApi extends AbstractApi
         return $result->toArray();
     }
 
-    #[ApiResponse('low_code')]
-    public function checkSandboxVersion(RequestContext $requestContext): array
-    {
-        $requestContext->setUserAuthorization($this->getAuthorization());
-        $topicId = $this->request->input('topic_id', '');
-
-        if (empty($topicId)) {
-            ExceptionBuilder::throw(GenericErrorCode::ParameterMissing, 'topic_id is required');
-        }
-
-        // 权限校验：确保话题属于当前用户
-        $this->topicAppService->getTopic($requestContext, (int) $topicId);
-
-        return $this->agentAppService->checkSandboxVersion((int) $topicId);
-    }
-
-    #[ApiResponse('low_code')]
-    public function upgradeSandbox(RequestContext $requestContext): array
-    {
-        $requestContext->setUserAuthorization($this->getAuthorization());
-        $topicId = $this->request->input('topic_id', '');
-
-        if (empty($topicId)) {
-            ExceptionBuilder::throw(GenericErrorCode::ParameterMissing, 'topic_id is required');
-        }
-
-        $topic = $this->topicAppService->getTopic($requestContext, (int) $topicId);
-        $sandboxId = $topic->getSandboxId();
-
-        if (empty($sandboxId)) {
-            ExceptionBuilder::throw(GenericErrorCode::ParameterMissing, 'sandbox_id is required');
-        }
-
-        $project = $this->projectAppService->getProjectNotUserId((int) $topic->getProjectId());
-        $workDir = $project->getWorkDir() ?? '';
-
-        $authorization = $this->getAuthorization();
-        $dataIsolation = new DataIsolation();
-        $dataIsolation->setCurrentUserId($authorization->getId());
-        $dataIsolation->setCurrentOrganizationCode($authorization->getOrganizationCode());
-        $dataIsolation->setThirdPartyOrganizationCode($authorization->getOrganizationCode());
-
-        $result = $this->agentAppService->upgradeSandbox($dataIsolation, $sandboxId, (string) $topic->getProjectId(), $workDir);
-
-        return $result->toArray();
-    }
-
     // 创建一个任务，支持agent、tool、custom三种模式，鉴权使用api-key进行鉴权
     #[ApiResponse('low_code')]
     public function initSandboxByApiKey(RequestContext $requestContext, InitSandboxRequestDTO $requestDTO): array

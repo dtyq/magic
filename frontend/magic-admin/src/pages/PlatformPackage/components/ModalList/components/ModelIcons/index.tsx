@@ -7,7 +7,6 @@ import { useMemoizedFn } from "ahooks"
 import type { AiManage } from "@/types/aiManage"
 import { AiModel } from "@/const/aiModel"
 import { IMAGE_TYPE } from "@/const/common"
-import { getImageInfo } from "@/utils/imgTool"
 import { useApis } from "@/apis"
 import { useUpload } from "@/hooks/useUpload"
 import type { Upload } from "@/types/upload"
@@ -46,7 +45,7 @@ export const ModelIcons = memo(
 			storageType: "public",
 		})
 
-		const beforeUpload = async (fileList: Upload.FileData[]) => {
+		const beforeUpload = useMemoizedFn(async (fileList: Upload.FileData[]) => {
 			if (fileList.length > 1) return false
 			const { file } = fileList[0]
 			if (!file) return false
@@ -55,19 +54,8 @@ export const ModelIcons = memo(
 				message.error(t("form.uploadTypeError"))
 				return false
 			}
-			const isLt200KB = file.size / 1024 < 200
-			if (!isLt200KB) {
-				message.error(t("form.uploadSizeError2"))
-				return false
-			}
-
-			// 检查图片尺寸
-			const { isValidSize } = await getImageInfo(file, 128)
-			if (!isValidSize) {
-				return false
-			}
-			return isJpgOrPng && isLt200KB && isValidSize
-		}
+			return isJpgOrPng
+		})
 
 		const handleDeleteIcon = async (key: string, url: string) => {
 			openModal(WarningModal, {
@@ -104,6 +92,7 @@ export const ModelIcons = memo(
 					return [...prev, newIcon]
 				})
 				uploadList.current.push(path)
+				handleSelectIcon(path)
 			}
 		})
 

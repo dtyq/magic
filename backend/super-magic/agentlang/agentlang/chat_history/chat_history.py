@@ -231,6 +231,8 @@ class ChatHistory:
             "model_id": None,
             "image_model_id": None,
             "image_model_sizes": None,
+            "video_model_id": None,
+            "video_generation_config": None,
             "mcp_servers": None,
         }
 
@@ -269,7 +271,7 @@ class ChatHistory:
         获取上次保存的会话配置（last）。
 
         Returns:
-            Dict[str, Any]: 包含 model_id、image_model_id、image_model_sizes 和 mcp_servers 的字典
+            Dict[str, Any]: 包含 model_id、image/video model 配置和 mcp_servers 的字典
         """
         try:
             last_config = self._load_session_document().get("last", {})
@@ -277,13 +279,30 @@ class ChatHistory:
                 "model_id": last_config.get("model_id"),
                 "image_model_id": last_config.get("image_model_id"),
                 "image_model_sizes": last_config.get("image_model_sizes"),
+                "video_model_id": last_config.get("video_model_id"),
+                "video_generation_config": last_config.get("video_generation_config"),
                 "mcp_servers": last_config.get("mcp_servers")
             }
         except Exception as e:
             logger.debug(f"读取会话配置失败: {e}")
-        return {"model_id": None, "image_model_id": None, "image_model_sizes": None, "mcp_servers": None}
+        return {
+            "model_id": None,
+            "image_model_id": None,
+            "image_model_sizes": None,
+            "video_model_id": None,
+            "video_generation_config": None,
+            "mcp_servers": None,
+        }
 
-    def save_session_config(self, model_id: Optional[str], image_model_id: Optional[str], image_model_sizes: Optional[List[Dict[str, Any]]] = None, mcp_servers: Optional[Dict[str, List[str]]] = None) -> None:
+    def save_session_config(
+        self,
+        model_id: Optional[str],
+        image_model_id: Optional[str],
+        image_model_sizes: Optional[List[Dict[str, Any]]] = None,
+        video_model_id: Optional[str] = None,
+        video_generation_config: Optional[Dict[str, Any]] = None,
+        mcp_servers: Optional[Dict[str, List[str]]] = None
+    ) -> None:
         """
         保存当前会话配置。
 
@@ -296,6 +315,8 @@ class ChatHistory:
             model_id: 当前使用的 LLM 模型 ID
             image_model_id: 当前使用的图片生成模型 ID
             image_model_sizes: 当前图片生成模型可用的尺寸列表
+            video_model_id: 当前使用的视频生成模型 ID
+            video_generation_config: 当前视频生成模型 featured 配置
             mcp_servers: 当前可用的 MCP 服务器及其工具列表
         """
         try:
@@ -303,6 +324,8 @@ class ChatHistory:
                 "model_id": model_id,
                 "image_model_id": image_model_id,
                 "image_model_sizes": image_model_sizes,
+                "video_model_id": video_model_id,
+                "video_generation_config": video_generation_config,
                 "mcp_servers": mcp_servers
             }
             existing_config = self._load_session_document()
@@ -310,7 +333,10 @@ class ChatHistory:
             existing_config["last"] = last_config if isinstance(last_config, dict) and last_config else self._default_session_config_block()
             existing_config["current"] = current_config
             self._save_session_document(existing_config)
-            logger.debug(f"会话配置已保存: current model_id={model_id}, image_model_id={image_model_id}, mcp_servers={len(mcp_servers) if mcp_servers else 0} servers")
+            logger.debug(
+                f"会话配置已保存: current model_id={model_id}, image_model_id={image_model_id}, "
+                f"video_model_id={video_model_id}, mcp_servers={len(mcp_servers) if mcp_servers else 0} servers"
+            )
         except Exception as e:
             logger.warning(f"保存会话配置失败: {e}")
 

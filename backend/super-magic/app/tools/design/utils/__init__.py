@@ -9,6 +9,7 @@ from .magic_project_design_parser import (
     ViewportState,
     BaseElement,
     ImageElement,
+    VideoElement,
     TextElement,
     RectangleElement,
     EllipseElement,
@@ -25,6 +26,7 @@ from .magic_project_design_parser import (
     ParagraphStyle,
     VisualUnderstanding,
     GenerateImageRequest,
+    GenerateVideoRequest,
     ValidationResult,
     # Functions
     read_magic_project_js,
@@ -40,6 +42,7 @@ __all__ = [
     "ViewportState",
     "BaseElement",
     "ImageElement",
+    "VideoElement",
     "TextElement",
     "RectangleElement",
     "EllipseElement",
@@ -56,6 +59,7 @@ __all__ = [
     "ParagraphStyle",
     "VisualUnderstanding",
     "GenerateImageRequest",
+    "GenerateVideoRequest",
     "ValidationResult",
     # Functions
     "read_magic_project_js",

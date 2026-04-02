@@ -719,6 +719,8 @@ class GenerateImagesToCanvas(BaseDesignTool[GenerateImagesToCanvasParams]):
                 )
                 updates.append(update)
 
+            elements_detail = placeholder_result.extra_info.get("elements", [])
+
             # 执行批量更新
             if updates:
                 try:
@@ -732,6 +734,8 @@ class GenerateImagesToCanvas(BaseDesignTool[GenerateImagesToCanvasParams]):
                     if not update_result.ok:
                         logger.warning(f"更新占位符失败，但占位符已创建: {update_result.content}")
                         # 即使更新失败，也不影响整体流程，因为占位符已经创建
+                    else:
+                        elements_detail = update_result.extra_info.get("elements", elements_detail)
                 except Exception as update_error:
                     logger.error(f"批量更新阶段异常: {update_error}", exc_info=True)
                     # 更新失败不影响整体结果，占位符仍然存在
@@ -768,9 +772,6 @@ class GenerateImagesToCanvas(BaseDesignTool[GenerateImagesToCanvasParams]):
                 succeeded_count,
                 failed_count
             )
-
-            # 获取完整的元素详情（从 batch_create 的结果中）
-            elements_detail = placeholder_result.extra_info.get("elements", [])
 
             return ToolResult(
                 content=result_content,

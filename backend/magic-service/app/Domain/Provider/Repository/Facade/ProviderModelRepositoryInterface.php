@@ -10,6 +10,7 @@ namespace App\Domain\Provider\Repository\Facade;
 use App\Domain\Provider\Entity\ProviderEntity;
 use App\Domain\Provider\Entity\ProviderModelEntity;
 use App\Domain\Provider\Entity\ValueObject\Category;
+use App\Domain\Provider\Entity\ValueObject\ModelType;
 use App\Domain\Provider\Entity\ValueObject\ProviderDataIsolation;
 use App\Domain\Provider\Entity\ValueObject\Query\ProviderModelQuery;
 use App\Domain\Provider\Entity\ValueObject\Status;
@@ -104,4 +105,13 @@ interface ProviderModelRepositoryInterface
      * @return ProviderModelEntity[] 模型实体数组
      */
     public function getEnableModelsByConfigIds(ProviderDataIsolation $dataIsolation, array $configIds, ?Category $category = null, array $modelTypes = []): array;
+
+    /**
+     * 仅查询 type=DYNAMIC 的启用模型的 model_id 列表，不 SELECT 全字段.
+     *
+     * @param ProviderDataIsolation $dataIsolation 数据隔离对象
+     * @param ModelType[] $modelTypes 模型类型过滤，空数组表示不限制
+     * @return string[]
+     */
+    public function getDynamicModelIds(ProviderDataIsolation $dataIsolation, array $modelTypes = []): array;
 }

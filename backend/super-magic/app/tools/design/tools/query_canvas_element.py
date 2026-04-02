@@ -20,6 +20,7 @@ from app.tools.design.manager.canvas_manager import CanvasManager
 from app.tools.design.tools.base_design_tool import BaseDesignTool
 from app.tools.design.utils.magic_project_design_parser import (
     ImageElement,
+    VideoElement,
     TextElement,
     RectangleElement,
     EllipseElement,
@@ -299,10 +300,10 @@ class QueryCanvasElement(BaseDesignTool[QueryCanvasElementParams]):
         # 标准化查询路径：去除开头的 /
         normalized_src = src.lstrip('/')
 
-        # 遍历所有元素，查找匹配的图片元素
+        # 遍历所有元素，查找匹配的媒体元素。
+        # 设计生视频会把 src 写到 video 元素里，因此这里同时支持 image/video。
         for element in config.canvas.elements:
-            # 只查找图片类型的元素
-            if isinstance(element, ImageElement):
+            if isinstance(element, (ImageElement, VideoElement)):
                 if hasattr(element, 'src') and element.src:
                     # 标准化元素的 src：去除开头的 /
                     element_src_normalized = element.src.lstrip('/')
@@ -312,7 +313,7 @@ class QueryCanvasElement(BaseDesignTool[QueryCanvasElementParams]):
                         logger.info(f"通过 src 找到元素: {element.name} (id: {element.id}), src: {element.src}")
                         return element
 
-        logger.warning(f"未找到 src 为 '{src}' 的图片元素")
+        logger.warning(f"未找到 src 为 '{src}' 的媒体元素")
         return None
 
     async def _build_element_detail(
@@ -355,6 +356,8 @@ class QueryCanvasElement(BaseDesignTool[QueryCanvasElementParams]):
         # Add type-specific properties
         if isinstance(element, ImageElement):
             detail["image_properties"] = await self._get_image_properties(element, project_path)
+        elif isinstance(element, VideoElement):
+            detail["video_properties"] = await self._get_video_properties(element)
         elif isinstance(element, TextElement):
             detail["text_properties"] = self._get_text_properties(element)
         elif isinstance(element, (RectangleElement, EllipseElement, TriangleElement, StarElement)):
@@ -437,6 +440,34 @@ class QueryCanvasElement(BaseDesignTool[QueryCanvasElementParams]):
                     "has_cache": True,
                     "summary": getattr(vu, 'summary', None),
                     "detailed": getattr(vu, 'detailed', None)
+                }
+
+        return properties
+
+    async def _get_video_properties(self, element: VideoElement) -> Dict[str, Any]:
+        """Get video element specific properties."""
+        properties: Dict[str, Any] = {
+            "src": element.src,
+            "poster": element.poster,
+            "status": element.status,
+            "error_message": element.errorMessage,
+        }
+
+        if hasattr(element, 'generateVideoRequest') and element.generateVideoRequest:
+            gen_req = element.generateVideoRequest
+            if isinstance(gen_req, dict):
+                properties["generation_info"] = {
+                    "is_generated": True,
+                    "model": gen_req.get('model_id'),
+                    "prompt": gen_req.get('prompt'),
+                    "operation_id": gen_req.get('operation_id'),
+                }
+            else:
+                properties["generation_info"] = {
+                    "is_generated": True,
+                    "model": getattr(gen_req, 'model_id', None),
+                    "prompt": getattr(gen_req, 'prompt', None),
+                    "operation_id": getattr(gen_req, 'operation_id', None),
                 }
 
         return properties

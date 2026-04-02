@@ -21,6 +21,7 @@ from agentlang.logger import get_logger
 from app.channel.base.channel import BaseChannel
 from app.core.entity.message.client_message import ChatClientMessage, Metadata
 from app.channel.base.keepalive import ChannelKeepalive
+from app.channel.base.third_party_message import dispatch_third_party_message
 from app.channel.lark.stream import LarkStream
 from app.channel.lark.streaming_driver import LarkStreamingDriver
 from app.channel.config import IMChannelsConfig
@@ -264,14 +265,21 @@ class LarkChannel(BaseChannel):
         ctx.add_stream(stream)
         ctx.add_streaming_sink(driver)
 
-        task_id = f"lark_{uuid.uuid4().hex[:16]}"
+        local_id = f"lark_{uuid.uuid4().hex[:16]}"
         chat_msg = ChatClientMessage(
-            message_id=task_id,
+            message_id=local_id,
             prompt=text,
             metadata=Metadata(agent_user_id=user_id),
         )
         logger.info(f"[LarkChannel] 分发消息: user_id={user_id}, len={len(text)}")
-        await dispatcher.submit_message(chat_msg)
+        await dispatch_third_party_message(
+            dispatcher=dispatcher,
+            channel=self.key,
+            source_message_id=message_id or local_id,
+            source_conversation_id=chat_id,
+            source_sender_id=user_id,
+            chat_message=chat_msg,
+        )
 
         async def _cleanup() -> None:
             ctx.remove_stream(stream)

@@ -139,6 +139,22 @@
         "zh_CN": "生成图像",
         "en_US": "Generate image"
     },
+    "generate_video": {
+        "zh_CN": "生成视频",
+        "en_US": "Generate video"
+    },
+    "video_generation_progress": {
+        "zh_CN": "视频生成进度通知",
+        "en_US": "Video generation progress"
+    },
+    "query_video_generation": {
+        "zh_CN": "查询视频任务",
+        "en_US": "Query video task"
+    },
+    "task_progress": {
+        "zh_CN": "查询任务进度",
+        "en_US": "Query task progress"
+    },
     "edit_image": {
         "zh_CN": "编辑图像",
         "en_US": "Edit image"
@@ -254,6 +270,10 @@
     "generate_images_to_canvas": {
         "zh_CN": "生成图片",
         "en_US": "Generate images"
+    },
+    "generate_videos_to_canvas": {
+        "zh_CN": "生成视频",
+        "en_US": "Generate videos"
     },
     "thinking": {
         "zh_CN": "深度思考",

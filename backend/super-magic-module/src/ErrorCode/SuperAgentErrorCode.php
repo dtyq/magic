@@ -302,6 +302,10 @@ enum SuperAgentErrorCode: int
     #[ErrorMessage('transfer.cannot_transfer_empty_workspace')]
     case CANNOT_TRANSFER_EMPTY_WORKSPACE = 51285;
 
+    // Publish related error codes (51243-51250)
+    #[ErrorMessage('super_magic.agent.publish.identity_md_not_found')]
+    case PUBLISH_IDENTITY_MD_NOT_FOUND = 51243;
+
     // Import related error codes (51239-51242)
     #[ErrorMessage('super_magic.agent.import.invalid_file_type')]
     case IMPORT_INVALID_FILE_TYPE = 51239;

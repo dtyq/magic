@@ -166,6 +166,7 @@ interface ProjectMemberRepositoryInterface
      * @param string $sortField 排序字段
      * @param string $sortDirection 排序方向
      * @param null|array $organizationCodes 组织编码
+     * @param bool $showHidden 是否显示隐藏项目
      * @return array ['total' => int, 'list' => array]
      */
     public function getParticipatedProjects(
@@ -177,7 +178,8 @@ interface ProjectMemberRepositoryInterface
         int $pageSize = 10,
         string $sortField = 'last_active_at',
         string $sortDirection = 'desc',
-        ?array $organizationCodes = null
+        ?array $organizationCodes = null,
+        bool $showHidden = false
     ): array;
 
     /**

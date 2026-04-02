@@ -10,8 +10,10 @@ namespace App\Domain\Provider\Repository\Persistence;
 use App\Domain\Provider\Entity\ProviderEntity;
 use App\Domain\Provider\Entity\ProviderModelEntity;
 use App\Domain\Provider\Entity\ValueObject\Category;
+use App\Domain\Provider\Entity\ValueObject\ModelType;
 use App\Domain\Provider\Entity\ValueObject\ProviderCode;
 use App\Domain\Provider\Entity\ValueObject\ProviderDataIsolation;
+use App\Domain\Provider\Entity\ValueObject\ProviderModelType;
 use App\Domain\Provider\Entity\ValueObject\Query\ProviderModelQuery;
 use App\Domain\Provider\Entity\ValueObject\Status;
 use App\Domain\Provider\Repository\Facade\MagicProviderAndModelsInterface;
@@ -24,10 +26,8 @@ use App\Infrastructure\Core\ValueObject\Page;
 use App\Infrastructure\Util\OfficialOrganizationUtil;
 use App\Interfaces\Provider\Assembler\ProviderModelAssembler;
 use App\Interfaces\Provider\DTO\SaveProviderModelDTO;
-use Hyperf\Codec\Json;
 use Hyperf\Database\Model\Builder;
 use Hyperf\DbConnection\Db;
-use Hyperf\Redis\Redis;
 
 class ProviderModelRepository extends AbstractProviderModelRepository implements ProviderModelRepositoryInterface
 {
@@ -390,8 +390,13 @@ class ProviderModelRepository extends AbstractProviderModelRepository implements
         if (! is_null($query->getStatus())) {
             $builder->where('status', $query->getStatus()->value);
         }
-        if (! is_null($query->getModelType())) {
+        if (! is_null($query->getModelTypes())) {
+            $builder->whereIn('model_type', array_map(fn ($t) => $t->value, $query->getModelTypes()));
+        } elseif (! is_null($query->getModelType())) {
             $builder->where('model_type', $query->getModelType()->value);
+        }
+        if (! is_null($query->getProviderModelType())) {
+            $builder->where('type', $query->getProviderModelType()->value);
         }
 
         $data = $this->getByPage($builder, $page, $query);
@@ -427,7 +432,9 @@ class ProviderModelRepository extends AbstractProviderModelRepository implements
         if (! is_null($query->getStatus())) {
             $builder->where('status', $query->getStatus()->value);
         }
-        if (! is_null($query->getModelType())) {
+        if (! is_null($query->getModelTypes())) {
+            $builder->whereIn('model_type', array_map(fn ($t) => $t->value, $query->getModelTypes()));
+        } elseif (! is_null($query->getModelType())) {
             $builder->where('model_type', $query->getModelType()->value);
         }
 
@@ -497,7 +504,7 @@ class ProviderModelRepository extends AbstractProviderModelRepository implements
 
         // 如果指定了模型类型，添加模型类型过滤条件
         if (! empty($modelTypes)) {
-            $modelTypeValues = array_map(fn ($type) => $type->value, $modelTypes);
+            $modelTypeValues = array_map(static fn ($type) => $type->value, $modelTypes);
             $organizationModelsBuilder->whereIn('model_type', $modelTypeValues);
         }
 
@@ -511,14 +518,10 @@ class ProviderModelRepository extends AbstractProviderModelRepository implements
 
             // 如果指定了模型类型，过滤Magic模型
             if (! empty($modelTypes)) {
-                $magicModels = array_filter($magicModels, function ($model) use ($modelTypes) {
-                    foreach ($modelTypes as $modelType) {
-                        if ($model->getModelType() === $modelType) {
-                            return true;
-                        }
-                    }
-                    return false;
-                });
+                $magicModels = array_filter(
+                    $magicModels,
+                    static fn (ProviderModelEntity $model): bool => in_array($model->getModelType(), $modelTypes, true)
+                );
             }
         }
 
@@ -531,6 +534,31 @@ class ProviderModelRepository extends AbstractProviderModelRepository implements
         });
 
         return $allModels;
+    }
+
+    /**
+     * 仅查询 type=DYNAMIC 的启用模型的 model_id 列表，不 SELECT 全字段.
+     *
+     * @param ModelType[] $modelTypes 模型类型过滤，空数组表示不限制
+     * @return string[]
+     */
+    public function getDynamicModelIds(ProviderDataIsolation $dataIsolation, array $modelTypes = []): array
+    {
+        $builder = $this->createBuilder($dataIsolation, ProviderModelModel::query());
+        $builder->where('type', ProviderModelType::DYNAMIC->value);
+        $builder->where('status', Status::Enabled->value);
+        if (! empty($modelTypes)) {
+            $builder->whereIn('model_type', array_map(fn ($t) => $t->value, $modelTypes));
+        }
+        $builder->select('model_id');
+
+        $result = Db::select($builder->toSql(), $builder->getBindings());
+
+        $ids = [];
+        foreach ($result as $row) {
+            $ids[] = $row['model_id'];
+        }
+        return array_values(array_unique($ids));
     }
 
     /**
