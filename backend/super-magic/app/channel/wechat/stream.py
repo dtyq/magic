@@ -4,13 +4,16 @@ WechatStream — 侦听 agent 事件，在 after_main_agent_run 时发送最终�
 支持：
 - 纯文本回复
 - `MEDIA:` 协议驱动的图片 / 视频 / 文件发送
+- `<split delay="N" />` 标记拆成多段延时发送
 """
+import asyncio
 import json
 from typing import Optional
 
 import aiohttp
 
 from agentlang.logger import get_logger
+from app.channel.base.message_splitter import split_reply
 from app.channel.wechat import api
 from app.channel.wechat.reply_media_parser import parse_reply_media
 from app.channel.wechat.send_media import send_media_file
@@ -62,24 +65,27 @@ class WechatStream(Stream):
                 self._finished = True
                 try:
                     if self._last_content:
-                        parsed_reply = parse_reply_media(self._last_content)
-                        visible_text = api.markdown_to_plain_text(parsed_reply.text)
-
-                        if parsed_reply.media_urls:
-                            await self._send_media_reply(
-                                caption_text=visible_text,
-                                media_urls=parsed_reply.media_urls,
-                            )
-                        elif visible_text:
-                            await api.send_message(
-                                self._http_session,
-                                base_url=self._base_url,
-                                token=self._bot_token,
-                                to_user_id=self._to_user_id,
-                                context_token=self._context_token,
-                                text=visible_text,
-                            )
-                        logger.info(f"[WechatStream] 已发送回复, stream_id={self._stream_id}")
+                        segments = split_reply(self._last_content)
+                        for i, (seg_text, delay) in enumerate(segments):
+                            if i > 0 and delay > 0:
+                                await asyncio.sleep(delay)
+                            parsed_reply = parse_reply_media(seg_text)
+                            visible_text = api.markdown_to_plain_text(parsed_reply.text)
+                            if parsed_reply.media_urls:
+                                await self._send_media_reply(
+                                    caption_text=visible_text,
+                                    media_urls=parsed_reply.media_urls,
+                                )
+                            elif visible_text:
+                                await api.send_message(
+                                    self._http_session,
+                                    base_url=self._base_url,
+                                    token=self._bot_token,
+                                    to_user_id=self._to_user_id,
+                                    context_token=self._context_token,
+                                    text=visible_text,
+                                )
+                        logger.info(f"[WechatStream] 已发送回复({len(segments)}段), stream_id={self._stream_id}")
                 except Exception as e:
                     logger.error(f"[WechatStream] 发送回复失败: {e}")
                 finally:

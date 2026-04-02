@@ -24,7 +24,7 @@ from app.channel.base.keepalive import ChannelKeepalive
 from app.channel.base.third_party_message import dispatch_third_party_message
 from app.channel.lark.stream import LarkStream
 from app.channel.lark.streaming_driver import LarkStreamingDriver
-from app.channel.config import IMChannelsConfig
+from app.channel.config import IMChannelsConfig, IMChannelDisplay
 
 if TYPE_CHECKING:
     import lark_oapi as lark
@@ -71,6 +71,7 @@ class LarkChannel(BaseChannel):
         self._ws_thread: Optional[threading.Thread] = None
         self._main_loop: Optional[asyncio.AbstractEventLoop] = None
         self._keepalive = ChannelKeepalive("Lark", is_active=lambda: self.is_connected)
+        self._display = IMChannelDisplay()
         # 缓存最后一次活跃的 chat_id，供 cron 主动推送复用会话上下文
         self._last_chat_id: Optional[str] = None
 
@@ -102,6 +103,7 @@ class LarkChannel(BaseChannel):
             self._last_chat_id = state.last_chat_id
             logger.info(f"[LarkChannel] 恢复运行态: last_chat_id={state.last_chat_id}")
 
+        self._display = credential.display
         await self.connect(credential.app_id, credential.app_secret)
         return True
 
@@ -261,8 +263,8 @@ class LarkChannel(BaseChannel):
         logger.info(f"[LarkChannel] 卡片发送成功: card_id={card_id}")
 
         # Step 3: 注册流式驱动和事件流到 agent context
-        driver = LarkStreamingDriver(self._sdk_client, card_id)
-        stream = LarkStream(self._sdk_client, card_id, driver)
+        driver = LarkStreamingDriver(self._sdk_client, card_id, self._display)
+        stream = LarkStream(self._sdk_client, card_id, driver, self._display)
         ctx.add_stream(stream)
         ctx.add_streaming_sink(driver)
 
@@ -383,8 +385,8 @@ class LarkChannel(BaseChannel):
         if not send_ok:
             return False
 
-        driver = LarkStreamingDriver(self._sdk_client, card_id)
-        stream = LarkStream(self._sdk_client, card_id, driver)
+        driver = LarkStreamingDriver(self._sdk_client, card_id, self._display)
+        stream = LarkStream(self._sdk_client, card_id, driver, self._display)
         ctx.add_stream(stream)
         ctx.add_streaming_sink(driver)
 

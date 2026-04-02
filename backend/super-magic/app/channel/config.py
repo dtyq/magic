@@ -1,5 +1,5 @@
 """IM 渠道凭证持久化（存储于 .workspace/.magic/config/im-channels.json）。"""
-from dataclasses import dataclass, asdict
+from dataclasses import dataclass, asdict, field
 from pathlib import Path
 from typing import Optional
 
@@ -13,6 +13,13 @@ _CONFIG_FILENAME = "im-channels.json"
 DEFAULT_WECHAT_CDN_BASE_URL = "https://novac2c.cdn.weixin.qq.com/c2c"
 
 
+@dataclass
+class IMChannelDisplay:
+    """控制 IM 渠道向用户展示哪些内容，默认全部关闭。"""
+    show_reasoning: bool = False
+    show_tools: bool = False
+
+
 def _config_path() -> Path:
     return PathManager.get_magic_config_dir() / _CONFIG_FILENAME
 
@@ -24,6 +31,11 @@ class WeComCredential:
     enabled: bool = True
     # 绑定的沙盒 ID，防止多沙盒同时抢占同一 WS 连接
     sandbox_id: str = ""
+    display: IMChannelDisplay = field(default_factory=IMChannelDisplay)
+
+    def __post_init__(self) -> None:
+        if isinstance(self.display, dict):
+            self.display = IMChannelDisplay(**self.display)
 
 
 @dataclass
@@ -32,6 +44,11 @@ class DingTalkCredential:
     client_secret: str
     enabled: bool = True
     sandbox_id: str = ""
+    display: IMChannelDisplay = field(default_factory=IMChannelDisplay)
+
+    def __post_init__(self) -> None:
+        if isinstance(self.display, dict):
+            self.display = IMChannelDisplay(**self.display)
 
 
 @dataclass
@@ -40,6 +57,11 @@ class LarkCredential:
     app_secret: str
     enabled: bool = True
     sandbox_id: str = ""
+    display: IMChannelDisplay = field(default_factory=IMChannelDisplay)
+
+    def __post_init__(self) -> None:
+        if isinstance(self.display, dict):
+            self.display = IMChannelDisplay(**self.display)
 
 
 @dataclass
@@ -52,6 +74,11 @@ class WechatCredential:
     ilink_user_id: str = ""
     enabled: bool = True
     sandbox_id: str = ""
+    display: IMChannelDisplay = field(default_factory=IMChannelDisplay)
+
+    def __post_init__(self) -> None:
+        if isinstance(self.display, dict):
+            self.display = IMChannelDisplay(**self.display)
 
 
 @dataclass

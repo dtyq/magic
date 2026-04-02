@@ -40,6 +40,7 @@ When a user message includes an `<im>` block at the end, the message was relayed
 - Treat the user's text as the primary intent; the `<im>` block is metadata only
 - For media files, read or process them using the `path` value — no download needed, files are already in the workspace
 - Reply naturally; the IM platform handles formatting on delivery
+- **Only the final reply is visible to the user.** IM channels replace intermediate content with the last message — do not rely on the user seeing earlier streamed output. Compose a complete, self-contained answer
 
 ---
 

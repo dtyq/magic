@@ -18,7 +18,7 @@ from app.channel.base.keepalive import ChannelKeepalive
 from app.channel.base.third_party_message import dispatch_third_party_message
 from app.channel.wecom.stream import WeComStream
 from app.channel.wecom.streaming_driver import WeComStreamingDriver
-from app.channel.config import IMChannelsConfig
+from app.channel.config import IMChannelsConfig, IMChannelDisplay
 
 logger = get_logger(__name__)
 
@@ -34,6 +34,7 @@ class WeComChannel(BaseChannel):
         self._ws_client: Optional[WSClient] = None
         self._connect_task: Optional[asyncio.Task] = None
         self._keepalive = ChannelKeepalive("WeCom", is_active=lambda: self.is_connected)
+        self._display = IMChannelDisplay()
         # 缓存最后一次收到的消息 frame，供 cron 主动推送复用会话上下文
         self._last_frame: Optional[dict] = None
 
@@ -66,6 +67,7 @@ class WeComChannel(BaseChannel):
             user_id = state.last_frame.get("body", {}).get("sender", {}).get("userid", "")
             logger.info(f"[WeComChannel] 恢复运行态: last_frame.sender.userid={user_id}")
 
+        self._display = credential.display
         await self.connect(credential.bot_id, credential.secret)
         return True
 
@@ -131,9 +133,9 @@ class WeComChannel(BaseChannel):
         ctx = dispatcher.agent_context
 
         # WeComStreamingDriver：token 级，负责流式推送 finish=False（模型不支持流式时静默）
-        wecom_driver = WeComStreamingDriver(self._ws_client, frame, stream_id)
+        wecom_driver = WeComStreamingDriver(self._ws_client, frame, stream_id, self._display)
         # WeComStream：事件级，负责捕获内容 + 发送 finish=True；需引用 driver 以读取推理数据
-        wecom_stream = WeComStream(self._ws_client, frame, stream_id, wecom_driver)
+        wecom_stream = WeComStream(self._ws_client, frame, stream_id, wecom_driver, self._display)
 
         ctx.add_stream(wecom_stream)
         ctx.add_streaming_sink(wecom_driver)
@@ -165,8 +167,8 @@ class WeComChannel(BaseChannel):
             return False
 
         stream_id = generate_req_id("wecom")
-        wecom_driver = WeComStreamingDriver(self._ws_client, self._last_frame, stream_id)
-        wecom_stream = WeComStream(self._ws_client, self._last_frame, stream_id, wecom_driver)
+        wecom_driver = WeComStreamingDriver(self._ws_client, self._last_frame, stream_id, self._display)
+        wecom_stream = WeComStream(self._ws_client, self._last_frame, stream_id, wecom_driver, self._display)
         ctx.add_stream(wecom_stream)
         ctx.add_streaming_sink(wecom_driver)
 

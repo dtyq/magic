@@ -17,7 +17,7 @@ from app.channel.base.keepalive import ChannelKeepalive
 from app.channel.base.third_party_message import dispatch_third_party_message
 from app.channel.dingtalk.stream import DingTalkStream
 from app.channel.dingtalk.streaming_driver import DingTalkStreamingDriver
-from app.channel.config import IMChannelsConfig
+from app.channel.config import IMChannelsConfig, IMChannelDisplay
 
 logger = get_logger(__name__)
 
@@ -33,6 +33,7 @@ class DingTalkChannel(BaseChannel):
         self._client: Optional[DingTalkStreamClient] = None
         self._connect_task: Optional[asyncio.Task] = None
         self._keepalive = ChannelKeepalive("DingTalk", is_active=lambda: self.is_connected)
+        self._display = IMChannelDisplay()
         # 缓存最后一次收到的用户消息，供 cron 主动推送复用会话上下文
         self._last_incoming_message: Optional[ChatbotMessage] = None
 
@@ -79,6 +80,7 @@ class DingTalkChannel(BaseChannel):
             except Exception as e:
                 logger.warning(f"[DingTalkChannel] 恢复运行态失败，跳过: {e}")
 
+        self._display = credential.display
         await self.connect(credential.client_id, credential.client_secret)
         return True
 
@@ -246,9 +248,9 @@ class DingTalkChannel(BaseChannel):
             card_instance_id = None
 
         # DingTalkStreamingDriver：token 级，负责流式推送 finished=False（含推理阶段 blockquote）
-        dingtalk_driver = DingTalkStreamingDriver(card, card_instance_id) if card_instance_id else None
+        dingtalk_driver = DingTalkStreamingDriver(card, card_instance_id, self._display) if card_instance_id else None
         # DingTalkStream：事件级，负责捕获内容 + 发送 finished=True；需引用 driver 以读取推理数据
-        dingtalk_stream = DingTalkStream(card, card_instance_id, dingtalk_driver) if card_instance_id else None
+        dingtalk_stream = DingTalkStream(card, card_instance_id, dingtalk_driver, self._display) if card_instance_id else None
 
         if dingtalk_stream:
             ctx.add_stream(dingtalk_stream)
@@ -304,8 +306,8 @@ class DingTalkChannel(BaseChannel):
             logger.error(f"[DingTalkChannel] proactive card create exception: {e}")
             return False
 
-        driver = DingTalkStreamingDriver(card, card_instance_id)
-        stream = DingTalkStream(card, card_instance_id, driver)
+        driver = DingTalkStreamingDriver(card, card_instance_id, self._display)
+        stream = DingTalkStream(card, card_instance_id, driver, self._display)
         ctx.add_stream(stream)
         ctx.add_streaming_sink(driver)
 

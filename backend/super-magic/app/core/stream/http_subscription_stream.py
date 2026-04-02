@@ -248,6 +248,11 @@ class HTTPSubscriptionStream(Stream):
         try:
             await self._ensure_session()
 
+            # 剥离 <split .../> 标记，避免 web 端渲染出裸标签
+            if "<split" in data:
+                from app.channel.base.message_splitter import strip_split_tags_from_json
+                data = strip_split_tags_from_json(data)
+
             # 准备请求数据（可能包含混淆）
             processed_data = self._prepare_request_data(data)
 
