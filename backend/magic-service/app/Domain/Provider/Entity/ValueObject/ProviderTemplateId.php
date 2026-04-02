@@ -56,6 +56,9 @@ enum ProviderTemplateId: string
     case VolcengineArkVlm = '21';
     case Gemini = '22';
 
+    // MiniMax 相关
+    case MiniMaxLlm = '23';
+
     /**
      * 根据ProviderCode和Category获取对应的模板ID.
      */
@@ -85,6 +88,7 @@ enum ProviderTemplateId: string
             [ProviderCode::Google, Category::VLM] => self::GoogleVlm,
             [ProviderCode::VolcengineArk, Category::VLM] => self::VolcengineArkVlm,
             [ProviderCode::Gemini, Category::LLM] => self::Gemini,
+            [ProviderCode::MiniMax, Category::LLM] => self::MiniMaxLlm,
             default => null,
         };
     }
@@ -120,6 +124,7 @@ enum ProviderTemplateId: string
             self::GoogleVlm => ['providerCode' => ProviderCode::Google, 'category' => Category::VLM],
             self::VolcengineArkVlm => ['providerCode' => ProviderCode::VolcengineArk, 'category' => Category::VLM],
             self::Gemini => ['providerCode' => ProviderCode::Gemini, 'category' => Category::LLM],
+            self::MiniMaxLlm => ['providerCode' => ProviderCode::MiniMax, 'category' => Category::LLM],
         };
     }
 
@@ -143,6 +148,7 @@ enum ProviderTemplateId: string
             ProviderCode::Google => 'Google',
             ProviderCode::VolcengineArk => '火山引擎-方舟',
             ProviderCode::Gemini => 'Google Gemini',
+            ProviderCode::MiniMax => 'MiniMax',
             default => '未知服务商',
         };
 

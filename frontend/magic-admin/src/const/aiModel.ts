@@ -52,6 +52,8 @@ export namespace AiModel {
 		QwenGlobal = "QwenGlobal",
 		/** OpenRouter */
 		OpenRouter = "OpenRouter",
+		/** MiniMax */
+		MiniMax = "MiniMax",
 	}
 
 	/** 服务商默认 URL */
@@ -64,6 +66,7 @@ export namespace AiModel {
 		[ServiceProvider.Gemini]: "https://api.gemini.com",
 		[ServiceProvider.GoogleImage]: "https://api.googleimage.com",
 		[ServiceProvider.OpenRouter]: "https://openrouter.ai/api/v1/chat/completions",
+		[ServiceProvider.MiniMax]: "https://api.minimax.io/v1",
 	}
 
 	/** 权限 */

@@ -306,11 +306,37 @@ class ServiceProviderInitializer
                 ]),
                 'remark' => '',
             ],
+            // MiniMax - LLM
+            [
+                'name' => 'MiniMax',
+                'provider_code' => ProviderCode::MiniMax->value,
+                'sort_order' => 992,
+                'description' => 'MiniMax 是一家领先的 AI 大模型公司，提供高性能的 MiniMax-M2.7 和 MiniMax-M2.5 系列模型，支持百万级超长上下文、工具调用和深度思考能力，通过 OpenAI 兼容接口提供服务。',
+                'icon' => 'MAGIC/713471849556451329/default/default.png',
+                'provider_type' => 0,
+                'category' => 'llm',
+                'status' => 1,
+                'is_models_enable' => 0,
+                'created_at' => $now,
+                'updated_at' => $now,
+                'deleted_at' => null,
+                'translate' => json_encode([
+                    'name' => [
+                        'en_US' => 'MiniMax',
+                        'zh_CN' => 'MiniMax',
+                    ],
+                    'description' => [
+                        'en_US' => 'MiniMax is a leading AI large model company, providing high-performance MiniMax-M2.7 and MiniMax-M2.5 series models with million-token context, tool calling and deep thinking capabilities, served via an OpenAI-compatible API.',
+                        'zh_CN' => 'MiniMax 是一家领先的 AI 大模型公司，提供高性能的 MiniMax-M2.7 和 MiniMax-M2.5 系列模型，支持百万级超长上下文、工具调用和深度思考能力，通过 OpenAI 兼容接口提供服务。',
+                    ],
+                ]),
+                'remark' => '',
+            ],
             // DeepSeek - LLM
             [
                 'name' => 'DeepSeek',
                 'provider_code' => ProviderCode::DeepSeek->value,
-                'sort_order' => 992,
+                'sort_order' => 991,
                 'description' => 'DeepSeek 是一家专注于 AI 大模型的公司，提供高性能的 AI 语言模型服务。',
                 'icon' => 'MAGIC/713471849556451329/default/default.png',
                 'provider_type' => 0,
@@ -336,7 +362,7 @@ class ServiceProviderInitializer
             [
                 'name' => '自定义提供商',
                 'provider_code' => ProviderCode::OpenAI->value,
-                'sort_order' => 991,
+                'sort_order' => 990,
                 'description' => '请使用接口与 OpenAI API 相同形式的服务商',
                 'icon' => 'MAGIC/713471849556451329/default/默认图标.png',
                 'provider_type' => 0,
