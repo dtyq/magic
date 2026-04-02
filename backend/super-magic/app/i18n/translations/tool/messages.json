@@ -884,24 +884,24 @@
         "en_US": "Current conversation is too long. {{agent_name}} will organize its memory, which may cause some details from previous conversations to be forgotten. Long conversations will affect {{agent_name}}'s work efficiency."
     },
     "read_skills.success": {
-        "zh_CN": "技能学习成功",
-        "en_US": "Skill learned"
+        "zh_CN": "技能装备成功",
+        "en_US": "Skill loaded"
     },
     "read_skills.success_multiple": {
-        "zh_CN": "已学习 {{skill_name}} 等 {{count}} 个技能",
-        "en_US": "Learned {{skill_name}} and {{count}} other Skills"
+        "zh_CN": "已装备 {{skill_name}} 等 {{count}} 个技能",
+        "en_US": "Loaded {{skill_name}} and {{count}} other Skills"
     },
     "read_skills.success_single": {
-        "zh_CN": "已学习技能 {{skill_name}}",
-        "en_US": "Learned Skill {{skill_name}}"
+        "zh_CN": "已装备技能 {{skill_name}}",
+        "en_US": "Loaded Skill {{skill_name}}"
     },
     "read_skills.error": {
-        "zh_CN": "技能学习失败",
-        "en_US": "Failed to learn Skill"
+        "zh_CN": "技能装备失败",
+        "en_US": "Failed to load Skill"
     },
     "read_skills.error_with_name": {
-        "zh_CN": "学习技能 {{skill_name}} 失败",
-        "en_US": "Failed to learn Skill {{skill_name}}"
+        "zh_CN": "装备技能 {{skill_name}} 失败",
+        "en_US": "Failed to load Skill {{skill_name}}"
     },
     "create_memory.success": {
         "zh_CN": "{{preview}}",
