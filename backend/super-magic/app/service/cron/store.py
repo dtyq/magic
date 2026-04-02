@@ -126,7 +126,7 @@ async def _parse_job_file(path: Path, job_id: str, mtime: float) -> Optional[Cro
             model_id=payload_cfg.get("model_id"),
             image_model_id=payload_cfg.get("image_model_id"),
             timeout_seconds=payload_cfg.get("timeout_seconds"),
-            notify_main_agent=bool(payload_cfg.get("notify_main_agent", True)),
+            notify_user=bool(payload_cfg.get("notify_user", payload_cfg.get("notify_main_agent", True))),
         )
 
         enabled = meta.get("enabled", True)
@@ -253,7 +253,22 @@ async def write_result_file(job: CronJob, result: CronRunResult) -> Path:
         f"{body}\n"
     )
     await async_write_text(path, content)
+    await _prune_result_files(path.parent, keep=5)
     return path
+
+
+async def _prune_result_files(job_result_dir: Path, keep: int = 5) -> None:
+    """保留目录下最新的 keep 条 .md 结果文件，删除更旧的。"""
+    try:
+        entries = await async_scandir(job_result_dir)
+        md_names = sorted(
+            [e.name for e in entries if e.name.endswith(".md")],
+            reverse=True,
+        )
+        for old_name in md_names[keep:]:
+            await async_unlink(job_result_dir / old_name)
+    except Exception as e:
+        logger.warning(f"cron: failed to prune result files in {job_result_dir}: {e}")
 
 
 # ── job MD 文件构建 / 更新 ────────────────────────────────────────────────────
@@ -269,7 +284,7 @@ def build_job_md(
     name: Optional[str],
     body: str,
     timezone: Optional[str] = None,
-    notify_main_agent: bool = False,
+    notify_user: bool = True,
 ) -> str:
     """构建新 cron job MD 文件内容。"""
     import yaml
@@ -301,8 +316,8 @@ def build_job_md(
         frontmatter["payload"]["image_model_id"] = image_model_id
     if timeout_seconds is not None:
         frontmatter["payload"]["timeout_seconds"] = timeout_seconds
-    if not notify_main_agent:
-        frontmatter["payload"]["notify_main_agent"] = False
+    if not notify_user:
+        frontmatter["payload"]["notify_user"] = False
 
     fm_str = yaml.dump(frontmatter, allow_unicode=True, default_flow_style=False).rstrip()
     return f"---\n{fm_str}\n---\n\n{body.strip()}\n"
@@ -318,7 +333,7 @@ def patch_job_md(
     timeout_seconds: Optional[int],
     enabled: Optional[bool],
     body: Optional[str],
-    notify_main_agent: Optional[bool] = None,
+    notify_user: Optional[bool] = None,
 ) -> str:
     """
     对已有 MD 文件进行局部更新。
@@ -358,11 +373,11 @@ def patch_job_md(
         payload["image_model_id"] = image_model_id
     if timeout_seconds is not None:
         payload["timeout_seconds"] = timeout_seconds
-    if notify_main_agent is not None:
-        if not notify_main_agent:
-            payload["notify_main_agent"] = False
+    if notify_user is not None:
+        if not notify_user:
+            payload["notify_user"] = False
         else:
-            payload.pop("notify_main_agent", None)
+            payload.pop("notify_user", None)
     meta["payload"] = payload
 
     new_body = body.strip() if body is not None else old_body

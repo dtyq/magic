@@ -455,12 +455,11 @@ class PathManager(BasePathManager):
         return cls.get_magic_dir() / "cron-result"
 
     @classmethod
-    def get_cron_result_file(cls, job_id: str, run_at: datetime) -> Path:
-        """获取单次 cron 任务结果文件路径（.workspace/.magic/cron-result/{YYYY-MM-DD}/{job_id}-{ts}.md）。
-        run_at 应已转换为 job 配置的时区，目录日期和文件名均以该时区为准。"""
-        date_dir = run_at.strftime("%Y-%m-%d")
+    def get_cron_result_file(cls, job_stem: str, run_at: datetime) -> Path:
+        """获取单次 cron 任务结果文件路径（.workspace/.magic/cron-result/{job_stem}/{ts}.md）。
+        run_at 应已转换为 job 配置的时区，文件名时间戳以该时区为准。每个任务目录下最多保留 5 条记录。"""
         ts = run_at.strftime("%Y%m%dT%H%M%S")
-        return cls.get_cron_result_dir() / date_dir / f"{job_id}-{ts}.md"
+        return cls.get_cron_result_dir() / job_stem / f"{ts}.md"
 
     @classmethod
     def get_cron_pending_notifications_file(cls) -> Path:
@@ -470,9 +469,9 @@ class PathManager(BasePathManager):
 
     @classmethod
     def get_cron_archived_jobs_file(cls, date_dir: str) -> Path:
-        """获取指定日期的已归档一次性任务文件（.workspace/.magic/cron-result/{YYYY-MM-DD}/.archived-jobs.jsonl）。
+        """获取指定日期的已归档一次性任务文件（.workspace/.magic/cron-result/archive/{YYYY-MM-DD}/.archived-jobs.jsonl）。
         每行一条 JSON，at 类型任务执行成功后追加，原始 MD 文件随后删除。"""
-        return cls.get_cron_result_dir() / date_dir / ".archived-jobs.jsonl"
+        return cls.get_cron_result_dir() / "archive" / date_dir / ".archived-jobs.jsonl"
 
     @classmethod
     def get_wechat_im_uploads_dir(cls) -> Path:
