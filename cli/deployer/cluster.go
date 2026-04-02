@@ -4,12 +4,10 @@ import (
 	"context"
 	"fmt"
 	"os"
-	"path/filepath"
 
 	"github.com/dtyq/magicrew-cli/cluster"
 	"github.com/dtyq/magicrew-cli/kube"
 	"github.com/dtyq/magicrew-cli/registry"
-	"github.com/dtyq/magicrew-cli/util"
 )
 
 // BootstrapClusterStage creates (or reuses) a kind cluster and initialises the kube client.
@@ -34,7 +32,7 @@ func (s *BootstrapClusterStage) Exec(ctx context.Context) error {
 	defer restoreContainerProxy()
 
 	// Mutate opts.Kind in place so later stages and introspection see effective paths/registry host.
-	if err := resolveKindMountDirs(&s.d.opts.Kind); err != nil {
+	if err := s.d.resolveKindMountDirs(&s.d.opts.Kind); err != nil {
 		return err
 	}
 	if s.d.opts.Kind.RegistryHost == "" {
@@ -77,31 +75,26 @@ func (s *BootstrapClusterStage) Exec(ctx context.Context) error {
 }
 
 // resolveKindMountDirs sets LocalPathProvisionerHostDir and ClusterNodeDataHostDir on kind to the
-// paths used for bind mounts, creating directories as needed. Empty fields become ~/.magicrew/docker/...
-func resolveKindMountDirs(kind *cluster.KindClusterConfig) error {
-	return util.NoSudo(func() error {
-		homeDir, err := os.UserHomeDir()
-		if err != nil {
-			return fmt.Errorf("get home dir: %w", err)
-		}
-		defaultLocal := filepath.Join(homeDir, ".magicrew", "docker", "local-path-provisioner")
-		defaultData := filepath.Join(homeDir, ".magicrew", "docker", "data")
+// paths used for bind mounts, creating directories as needed.
+// Empty fields become <DataDir>/docker/....
+func (d *Deployer) resolveKindMountDirs(kind *cluster.KindClusterConfig) error {
+	defaultLocal := d.dataPath("docker", "local-path-provisioner")
+	defaultData := d.dataPath("docker", "data")
 
-		localPath := kind.LocalPathProvisionerHostDir
-		if localPath == "" {
-			localPath = defaultLocal
+	localPath := kind.LocalPathProvisionerHostDir
+	if localPath == "" {
+		localPath = defaultLocal
+	}
+	dataDir := kind.ClusterNodeDataHostDir
+	if dataDir == "" {
+		dataDir = defaultData
+	}
+	for _, dir := range []string{localPath, dataDir} {
+		if err := os.MkdirAll(dir, 0o755); err != nil {
+			return fmt.Errorf("create mount dir %s: %w", dir, err)
 		}
-		dataDir := kind.ClusterNodeDataHostDir
-		if dataDir == "" {
-			dataDir = defaultData
-		}
-		for _, dir := range []string{localPath, dataDir} {
-			if err := os.MkdirAll(dir, 0o755); err != nil {
-				return fmt.Errorf("create mount dir %s: %w", dir, err)
-			}
-		}
-		kind.LocalPathProvisionerHostDir = localPath
-		kind.ClusterNodeDataHostDir = dataDir
-		return nil
-	})
+	}
+	kind.LocalPathProvisionerHostDir = localPath
+	kind.ClusterNodeDataHostDir = dataDir
+	return nil
 }

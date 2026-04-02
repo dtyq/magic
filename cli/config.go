@@ -3,6 +3,7 @@ package cli
 import (
 	"os"
 	"path/filepath"
+	"strings"
 
 	"go.yaml.in/yaml/v3"
 
@@ -125,10 +126,13 @@ deploy:
 `
 
 func initConfig() {
+	configDir = resolveValue(configDir, envNameCLIConfigDir, filepath.Join(util.ConfigDir(), "magicrew"))
+	dataDir = resolveValue(dataDir, envNameCLIDataDir, filepath.Join(util.HomeDir(), ".magicrew"))
+
 	util.NoSudo(func() error {
 		// determine config file path
 		if cfgFile == "" {
-			cfgFile = filepath.Join(util.ConfigDir(), "config.yml")
+			cfgFile = filepath.Join(configDir, "config.yml")
 		} else {
 			cfgFile = util.ExpandTilde(cfgFile)
 		}
@@ -218,4 +222,16 @@ func init() {
 		// impossible to happen
 		panic(err)
 	}
+}
+
+// resolveValue returns the effective value from flag, env, or fallback.
+// Priority: flag > env > fallback.
+func resolveValue(flagValue, envKey, fallback string) string {
+	if v := strings.TrimSpace(flagValue); v != "" {
+		return v
+	}
+	if v := strings.TrimSpace(os.Getenv(envKey)); v != "" {
+		return v
+	}
+	return fallback
 }

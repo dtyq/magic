@@ -8,12 +8,14 @@ import (
 	"strings"
 
 	"github.com/dtyq/magicrew-cli/deployer"
-	"github.com/dtyq/magicrew-cli/util"
+	"github.com/dtyq/magicrew-cli/registry"
 	"github.com/spf13/cobra"
 )
 
-const envMagicWebBaseURL = "MAGIC_WEB_BASE_URL"
-const envMagicrewCliAutoRecoverRelease = "MAGICREW_CLI_AUTO_RECOVER_RELEASE"
+const envNameCLIWebBaseURL = "MAGICREW_CLI_WEB_BASE_URL"
+const envNameCLIAutoRecoverRelease = "MAGICREW_CLI_AUTO_RECOVER_RELEASE"
+const envNameCLIConfigDir = "MAGICREW_CLI_CONFIG_DIR"
+const envNameCLIDataDir = "MAGICREW_CLI_DATA_DIR"
 
 var (
 	deployChartsDir          string
@@ -35,7 +37,7 @@ func init() {
 	deployCmd.Flags().StringVar(&deployValuesFile, "values", "", "Additional values file (merged with highest priority)")
 	deployCmd.Flags().StringVar(&deployChartRepo, "chart-repo", "", "Remote chart repository URL (supports https:// and oci://)")
 	deployCmd.Flags().BoolVar(&deployPlainHTTP, "plain-http", false, "Use plain HTTP for OCI chart repository")
-	deployCmd.Flags().StringVar(&deployWebURL, "web-url", "", "magic-web external access URL (for server deploy; overrides MAGIC_WEB_BASE_URL)")
+	deployCmd.Flags().StringVar(&deployWebURL, "web-url", "", "magic-web external access URL (for server deploy; overrides MAGICREW_CLI_WEB_BASE_URL)")
 	deployCmd.Flags().BoolVar(&deployAutoRecoverRelease, "auto-recover-release", false, "Automatically recover pending Helm releases without interactive confirmation")
 	deployCmd.Flags().BoolP("help", "h", false, "Help for deploy")
 	rootCmd.AddCommand(deployCmd)
@@ -50,25 +52,23 @@ func runDeploy(cmd *cobra.Command, args []string) error {
 	if deployPlainHTTP {
 		plainHTTP = true
 	}
-	valuesFile := resolveDeployValuesFile(deployValuesFile, cfg.Deploy.Values)
 
 	chartsDir := deployChartsDir
 	if chartsDir == "" && chartRepoURL == "" {
 		return fmt.Errorf("either --charts-dir or chart repository URL must be provided")
 	}
 
-	webBaseURL := deployWebURL
-	if webBaseURL == "" {
-		webBaseURL = os.Getenv(envMagicWebBaseURL)
-	}
+	webBaseURL := resolveValue(deployWebURL, envNameCLIWebBaseURL, "")
 	autoRecoverRelease, err := resolveAutoRecoverRelease(
 		deployAutoRecoverRelease,
 		cmd.Flags().Changed("auto-recover-release"),
-		os.Getenv(envMagicrewCliAutoRecoverRelease),
+		os.Getenv(envNameCLIAutoRecoverRelease),
 	)
 	if err != nil {
 		return err
 	}
+
+	valuesFile := resolveDeployValuesFile(deployValuesFile, cfg.Deploy.Values, configDir)
 
 	chartSpecs := buildChartSpecsFromConfig()
 	return deployer.New(deployer.Options{
@@ -81,12 +81,14 @@ func runDeploy(cmd *cobra.Command, args []string) error {
 		ChartSpecs:         chartSpecs,
 		ValuesFile:         valuesFile,
 		WebBaseURL:         webBaseURL,
-		Registry:           cfg.Deploy.Registry,
+		Registry:           withRegistryConfigDir(cfg.Deploy.Registry, configDir),
 		Kind:               cfg.Deploy.Kind,
 		InfraUseProxy:      cfg.Deploy.InfraUseProxy,
 		ConfigFile:         cfgFile,
 		Proxy:              cfg.Deploy.Proxy,
 		AutoRecoverRelease: autoRecoverRelease,
+		ConfigDir:          configDir,
+		DataDir:            dataDir,
 		Log:                lg,
 	}).Run(context.Background())
 }
@@ -94,16 +96,16 @@ func runDeploy(cmd *cobra.Command, args []string) error {
 // resolveDeployValuesFile chooses the values file path for deploy, in order:
 // 1) CLI --values
 // 2) deploy.values in config.yml
-// 3) values.yaml under ConfigDir() (only when the file exists)
+// 3) values.yaml under configDir (only when the file exists)
 // Returns an empty string when none of the above is available.
-func resolveDeployValuesFile(cliValuesFile, configValuesFile string) string {
+func resolveDeployValuesFile(cliValuesFile, configValuesFile, configDir string) string {
 	if cliValuesFile != "" {
 		return cliValuesFile
 	}
 	if configValuesFile != "" {
 		return configValuesFile
 	}
-	defaultValuesFile := filepath.Join(util.ConfigDir(), "values.yaml")
+	defaultValuesFile := filepath.Join(configDir, "values.yaml")
 	if _, err := os.Stat(defaultValuesFile); err == nil {
 		return defaultValuesFile
 	}
@@ -137,7 +139,12 @@ func resolveAutoRecoverRelease(flagValue bool, flagChanged bool, envValue string
 	default:
 		return false, fmt.Errorf(
 			"invalid %s value %q: use true/false, 1/0, yes/no, on/off",
-			envMagicrewCliAutoRecoverRelease, envValue,
+			envNameCLIAutoRecoverRelease, envValue,
 		)
 	}
+}
+
+func withRegistryConfigDir(cfg registry.Config, configDir string) registry.Config {
+	cfg.ConfigDir = configDir
+	return cfg
 }

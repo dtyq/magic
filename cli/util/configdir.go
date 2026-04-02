@@ -7,7 +7,7 @@ import (
 	"strings"
 )
 
-// BaseConfigDir returns the base directory for user configuration (XDG config home),
+// ConfigDir returns the base directory for user configuration (XDG config home),
 // before per-application segments such as "magicrew".
 //
 // Windows order: XDG_CONFIG_HOME, then APPDATA, then USERPROFILE/.config, then
@@ -15,7 +15,7 @@ import (
 //
 // Unix order: XDG_CONFIG_HOME, else filepath.Join(HomeDir(), ".config").
 // HomeDir is the unified home resolution entry point (including NoSudo on Unix).
-func BaseConfigDir() string {
+func ConfigDir() string {
 	if v := strings.TrimSpace(os.Getenv("XDG_CONFIG_HOME")); v != "" {
 		return filepath.Clean(v)
 	}
@@ -31,13 +31,4 @@ func BaseConfigDir() string {
 		return filepath.Clean(filepath.Join(h, ".config"))
 	}
 	return ""
-}
-
-// ConfigDir returns the application config directory for magicrew.
-func ConfigDir() string {
-	base := BaseConfigDir()
-	if base == "" {
-		return ""
-	}
-	return filepath.Clean(filepath.Join(base, "magicrew"))
 }

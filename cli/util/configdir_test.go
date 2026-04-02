@@ -8,7 +8,7 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-func TestBaseConfigDir_XDGOverrides(t *testing.T) {
+func TestConfigDir_XDGOverrides(t *testing.T) {
 	if runtime.GOOS == "windows" {
 		t.Skip("use TestConfigDir_Windows for Windows-specific env layering")
 	}
@@ -17,10 +17,10 @@ func TestBaseConfigDir_XDGOverrides(t *testing.T) {
 	t.Setenv("HOME", home)
 	t.Setenv("XDG_CONFIG_HOME", xdg)
 
-	assert.Equal(t, xdg, BaseConfigDir())
+	assert.Equal(t, xdg, ConfigDir())
 }
 
-func TestBaseConfigDir_UnixDefaultUnderHome(t *testing.T) {
+func TestConfigDir_UnixDefaultUnderHome(t *testing.T) {
 	if runtime.GOOS == "windows" {
 		t.Skip("Windows uses APPDATA / USERPROFILE ordering")
 	}
@@ -29,10 +29,10 @@ func TestBaseConfigDir_UnixDefaultUnderHome(t *testing.T) {
 	t.Setenv("XDG_CONFIG_HOME", "")
 
 	want := filepath.Join(home, ".config")
-	assert.Equal(t, want, BaseConfigDir())
+	assert.Equal(t, want, ConfigDir())
 }
 
-func TestBaseConfigDir_Windows(t *testing.T) {
+func TestConfigDir_Windows(t *testing.T) {
 	if runtime.GOOS != "windows" {
 		t.Skip("Windows env precedence")
 	}
@@ -45,14 +45,14 @@ func TestBaseConfigDir_Windows(t *testing.T) {
 		t.Setenv("XDG_CONFIG_HOME", xdg)
 		t.Setenv("APPDATA", appData)
 		t.Setenv("USERPROFILE", profile)
-		assert.Equal(t, xdg, BaseConfigDir())
+		assert.Equal(t, xdg, ConfigDir())
 	})
 
 	t.Run("APPDATA when no XDG", func(t *testing.T) {
 		t.Setenv("XDG_CONFIG_HOME", "")
 		t.Setenv("APPDATA", appData)
 		t.Setenv("USERPROFILE", profile)
-		assert.Equal(t, appData, BaseConfigDir())
+		assert.Equal(t, appData, ConfigDir())
 	})
 
 	t.Run("USERPROFILE/.config when no XDG and no APPDATA", func(t *testing.T) {
@@ -60,11 +60,11 @@ func TestBaseConfigDir_Windows(t *testing.T) {
 		t.Setenv("APPDATA", "")
 		t.Setenv("USERPROFILE", profile)
 		want := filepath.Join(profile, ".config")
-		assert.Equal(t, want, BaseConfigDir())
+		assert.Equal(t, want, ConfigDir())
 	})
 }
 
-func TestConfigDir_AppDirUnderBase(t *testing.T) {
+func TestConfigDir_ReturnsBaseDirOnly(t *testing.T) {
 	if runtime.GOOS == "windows" {
 		t.Skip("base dir precedence is covered by Windows-specific tests")
 	}
@@ -72,11 +72,11 @@ func TestConfigDir_AppDirUnderBase(t *testing.T) {
 	t.Setenv("HOME", home)
 	t.Setenv("XDG_CONFIG_HOME", "")
 
-	want := filepath.Join(home, ".config", "magicrew")
+	want := filepath.Join(home, ".config")
 	assert.Equal(t, want, ConfigDir())
 }
 
-func TestBaseConfigDir_XDGCleansDotDotAndRedundantSegments(t *testing.T) {
+func TestConfigDir_XDGCleansDotDotAndRedundantSegments(t *testing.T) {
 	if runtime.GOOS == "windows" {
 		t.Skip("Windows XDG clean path covered by TestBaseConfigDir_WindowsXDGClean")
 	}
@@ -86,10 +86,10 @@ func TestBaseConfigDir_XDGCleansDotDotAndRedundantSegments(t *testing.T) {
 	t.Setenv("HOME", home)
 	t.Setenv("XDG_CONFIG_HOME", dirty)
 
-	assert.Equal(t, want, BaseConfigDir())
+	assert.Equal(t, want, ConfigDir())
 }
 
-func TestBaseConfigDir_XDGCleansRedundantSeparators(t *testing.T) {
+func TestConfigDir_XDGCleansRedundantSeparators(t *testing.T) {
 	if runtime.GOOS == "windows" {
 		t.Skip("separator normalization differs on Windows; XDG branch still uses filepath.Clean")
 	}
@@ -100,23 +100,23 @@ func TestBaseConfigDir_XDGCleansRedundantSeparators(t *testing.T) {
 	t.Setenv("HOME", home)
 	t.Setenv("XDG_CONFIG_HOME", dirty)
 
-	assert.Equal(t, want, BaseConfigDir())
+	assert.Equal(t, want, ConfigDir())
 }
 
-func TestConfigDir_JoinsMagicrewAfterCleanBase(t *testing.T) {
+func TestConfigDir_CleansBasePath(t *testing.T) {
 	if runtime.GOOS == "windows" {
 		t.Skip("same clean semantics as Unix; base precedence covered elsewhere")
 	}
 	home := t.TempDir()
 	dirty := filepath.Join(home, "a", "..", "b", "xdg")
-	want := filepath.Join(filepath.Clean(dirty), "magicrew")
+	want := filepath.Clean(dirty)
 	t.Setenv("HOME", home)
 	t.Setenv("XDG_CONFIG_HOME", dirty)
 
 	assert.Equal(t, want, ConfigDir())
 }
 
-func TestBaseConfigDir_WindowsXDGClean(t *testing.T) {
+func TestConfigDir_WindowsXDGClean(t *testing.T) {
 	if runtime.GOOS != "windows" {
 		t.Skip("Windows-only")
 	}
@@ -130,5 +130,5 @@ func TestBaseConfigDir_WindowsXDGClean(t *testing.T) {
 	t.Setenv("APPDATA", appData)
 	t.Setenv("USERPROFILE", profile)
 
-	assert.Equal(t, want, BaseConfigDir())
+	assert.Equal(t, want, ConfigDir())
 }

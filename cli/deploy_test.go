@@ -10,32 +10,26 @@ import (
 
 func Test_resolveDeployValuesFile(t *testing.T) {
 	t.Run("cli flag has highest priority", func(t *testing.T) {
-		got := resolveDeployValuesFile("/tmp/cli-values.yaml", "/tmp/config-values.yaml")
+		got := resolveDeployValuesFile("/tmp/cli-values.yaml", "/tmp/config-values.yaml", t.TempDir())
 		assert.Equal(t, "/tmp/cli-values.yaml", got)
 	})
 
 	t.Run("config value is used when cli flag is empty", func(t *testing.T) {
-		got := resolveDeployValuesFile("", "/tmp/config-values.yaml")
+		got := resolveDeployValuesFile("", "/tmp/config-values.yaml", t.TempDir())
 		assert.Equal(t, "/tmp/config-values.yaml", got)
 	})
 
-	t.Run("fallback to user home values file when it exists", func(t *testing.T) {
-		home := t.TempDir()
-		t.Setenv("HOME", home)
-		t.Setenv("XDG_CONFIG_HOME", filepath.Join(home, ".config"))
-		want := filepath.Join(home, ".config", "magicrew", "values.yaml")
-		requireNoError(t, os.MkdirAll(filepath.Dir(want), 0o755))
+	t.Run("fallback to configDir values file when it exists", func(t *testing.T) {
+		configDir := t.TempDir()
+		want := filepath.Join(configDir, "values.yaml")
 		requireNoError(t, os.WriteFile(want, []byte("x: 1\n"), 0o644))
 
-		got := resolveDeployValuesFile("", "")
+		got := resolveDeployValuesFile("", "", configDir)
 		assert.Equal(t, want, got)
 	})
 
 	t.Run("keep empty when fallback file does not exist", func(t *testing.T) {
-		home := t.TempDir()
-		t.Setenv("HOME", home)
-		t.Setenv("XDG_CONFIG_HOME", filepath.Join(home, ".config"))
-		got := resolveDeployValuesFile("", "")
+		got := resolveDeployValuesFile("", "", t.TempDir())
 		assert.Equal(t, "", got)
 	})
 }
@@ -74,7 +68,7 @@ func TestResolveAutoRecoverRelease(t *testing.T) {
 	t.Run("invalid env returns error", func(t *testing.T) {
 		_, err := resolveAutoRecoverRelease(false, false, "maybe")
 		assert.Error(t, err)
-		assert.Contains(t, err.Error(), envMagicrewCliAutoRecoverRelease)
+		assert.Contains(t, err.Error(), envNameCLIAutoRecoverRelease)
 	})
 }
 
