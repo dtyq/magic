@@ -119,11 +119,11 @@ result = tool.call('generate_videos_to_canvas', {
 
 <!--zh
 ### 2. 继续查询视频任务
-仅在用户明确要求查询进度时使用。
+仅在创建工具已轮询到超时、且用户明确要求查询进度时使用。
 -->
 ### 2. Follow Up an Existing Video Task
 
-Only use this when the user explicitly asks to check progress.
+Only use this after the creation tool has already timed out and the user explicitly asks to check progress.
 
 ```python
 from sdk.tool import tool
@@ -175,17 +175,15 @@ result = tool.call('generate_videos_to_canvas', {
 
 <!--zh
 ### 路径 B：后续续查
-- 系统会在后台继续轮询进度、给用户推送消息，并主动把结果回报给 AI
-- 默认不要为了盯进度而主动反复查询
-- 只有当用户明确要求查询进度时，才使用 `query_video_generation`
+- 创建工具本身会先阻塞轮询，并在等待期间持续给用户发进度消息
+- 只有创建工具已轮询到超时、且用户明确要求查询进度时，才使用 `query_video_generation`
 - 查询时优先复用上次结果中的 `operation_id` / `request_id`
 - 在画布场景中，尽量同时传 `project_path` + `element_id`，让工具自动回填元素状态
 - 禁止因为视频仍在处理中就重新创建一个新任务
 -->
 ### Path B: Follow-Up
-- The system keeps polling progress in the background, pushes updates to the user, and proactively reports results back to the AI
-- Do not keep querying just to watch progress by default
-- Only use `query_video_generation` when the user explicitly asks to check progress
+- The creation tool itself blocks and polls first, while continuously sending progress updates to the user
+- Only use `query_video_generation` after the creation tool has already timed out and the user explicitly asks to check progress
 - `operation_id` is the primary follow-up input
 - Reuse `request_id`, `project_path`, and `element_id` when already known
 - In canvas scenarios, prefer passing both `project_path` and `element_id` so the tool can backfill element state
@@ -201,11 +199,11 @@ result = tool.call('generate_videos_to_canvas', {
 <!--zh
 - 用户要的是动态结果时，不要退回 `generate_images_to_canvas`
 - 只有用户明确改要静态海报、封面、截图时，才切回图片工作流
-- 系统会后台轮询视频任务进度、给用户推送消息，并主动把结果回报给 AI
+- 视频创建工具会先阻塞轮询，并在工具返回前持续给用户发进度消息
 - 默认不要因为任务还在处理中就主动调用查询能力
-- 只有用户明确要求“查进度 / 刷新 / 好了没 / 再查一下”时，才做续查
+- 只有在创建工具已轮询到超时后，且用户明确要求“查进度 / 刷新 / 好了没 / 再查一下”时，才做续查
 - 续查时优先复用已有的 `operation_id`、`request_id`、`element_id`
-- 如果工具返回 `pending_operations`，这些就是下一次续查的权威来源
+- 如果工具返回 `pending_operations`，表示本次已轮询到超时；这些就是下一次续查的权威来源
 - 调用前先参考会话里之前已经注入的运行时视频模型能力配置消息
 - 重点先填这几类信息：生成目标、画布落点、尺寸/分辨率需求、时长需求、参考输入
 - 非重点参数如果用户没明确要求，就尽量不填，不要把所有可选参数一次性传满
@@ -214,11 +212,11 @@ result = tool.call('generate_videos_to_canvas', {
 -->
 - When the user wants dynamic output, do not fall back to `generate_images_to_canvas`
 - Only switch back to image workflow when the user explicitly asks for a still result
-- The system polls video progress in the background, pushes updates to the user, and proactively reports results back to the AI
+- The video creation tool blocks and polls first, while continuously sending progress updates before returning
 - Do not proactively call the query capability just because a task is still in progress
-- Only follow up when the user explicitly asks to check progress
+- Only follow up when the creation tool has already timed out and the user explicitly asks to check progress
 - On follow-up, prefer reusing existing `operation_id`, `request_id`, and `element_id`
-- If the tool returns `pending_operations`, treat them as the source of truth for the next follow-up
+- If the tool returns `pending_operations`, treat them as timed-out in-progress tasks and the source of truth for the next follow-up
 - Before calling video tools, refer to the runtime video-model capability message that was already injected earlier in the conversation
 - Prioritize only these categories of information first: the generation goal, canvas placement, size/resolution intent, duration intent, and reference inputs
 - If the user did not explicitly ask for extra controls, keep non-priority parameters empty instead of filling every optional field

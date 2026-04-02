@@ -125,7 +125,7 @@ Canvas Design Core Concepts:
 - 通用属性调整（位置、尺寸、图层、可见性等）使用 update_canvas_element 或 batch_update_canvas_elements
 - 任何图片内容变动（修改或添加）都必须使用 generate_images_to_canvas 创建新元素
 - 任何视频内容生成都必须通过 `designing-canvas-videos` skill 创建新 video 元素
-- 当视频任务处于 queued/running/processing 时，默认依赖系统后台轮询、推送和回报给 AI；只有用户明确要求查询时，才继续按 `designing-canvas-videos` skill 做任务续查，且不能回退到图片工具
+- 当视频任务处于 queued/running/processing 时，说明创建工具已先阻塞轮询到超时；只有用户明确要求查询时，才继续按 `designing-canvas-videos` skill 做任务续查，且不能回退到图片工具
 - 用户要的是动态内容、镜头、动画、短片时，不能用图片工具替代视频工具
 - "在图片上添加XX"应理解为：用图生图方式生成包含新内容的图片，而不是在画布上创建独立的XX元素
 - update_canvas_element 仅用于调整元素属性（位置、尺寸、图层等）
@@ -134,7 +134,7 @@ Canvas Design Core Concepts:
 - 工具选择优先级：
   * 用户要静态视觉结果（海报、插画、封面、静态图）时优先图片工具
   * 用户要动态结果（视频、动画、镜头、短片、片段）时优先视频工具
-  * 视频任务进入处理中后，默认等待系统后台推进；用户明确要求查进度时，再复用 `designing-canvas-videos` skill
+  * 视频任务进入处理中后，说明创建工具已轮询到超时；用户明确要求查进度时，再复用 `designing-canvas-videos` skill
 -->
 Multimedia Processing Core Principles:
 
@@ -151,7 +151,7 @@ Correct approach:
 - Use update_canvas_element or batch_update_canvas_elements only for generic properties such as position, size, layer, and visibility
 - Any image content change (modify or add) MUST use generate_images_to_canvas to create a new element
 - Any video content generation MUST go through the `designing-canvas-videos` skill to create a new video element
-- When a video task is queued/running/processing, rely on the system background polling, user push notifications, and AI status reporting by default; only when the user explicitly asks to check progress should follow-up continue through the `designing-canvas-videos` skill, and it must not fall back to image tools
+- When a video task is queued/running/processing, it means the creation tool already polled until timeout; only when the user explicitly asks to check progress should follow-up continue through the `designing-canvas-videos` skill, and it must not fall back to image tools
 - If the user wants dynamic output such as video, animation, shot, or clip, DO NOT substitute image tools
 - "Add XX to image" should be understood as: use image-to-image to generate new image with added content, NOT create separate XX element on canvas
 - update_canvas_element is only for adjusting element properties (position, size, layer, etc.)
@@ -160,7 +160,7 @@ Correct approach:
 - Tool priority:
   * Static visual results (poster, illustration, cover, still image) → prefer image tools
   * Dynamic results (video, animation, shot, clip) → prefer video tools
-  * Once a video task is in progress, let the system continue in the background by default; if the user explicitly asks for progress, reuse the `designing-canvas-videos` skill
+  * Once a video task is in progress, treat it as a timed-out in-progress result from the creation flow; if the user explicitly asks for progress, reuse the `designing-canvas-videos` skill
 </multimedia_processing_principles>
 
 <project_concept>
@@ -358,12 +358,12 @@ AI 视频生成：designing-canvas-videos
    - 首次生成：skill 内部调用 `generate_videos_to_canvas`
    - 用户主动要求查询进度时：skill 内部调用 `query_video_generation`
    - 自动处理：generateVideoRequest 元数据保存、占位元素创建、任务状态回填
-   - 系统会后台轮询进度、给用户推送消息，并主动把结果上报给 AI
+   - 创建工具会先阻塞轮询，并在工具返回前持续给用户推送进度
    - 文生视频：只提供 prompts
    - 参考图/首尾帧视频：通过 reference_image_paths、frame_start_path、frame_end_path 提供素材
    - 用户要动态结果（视频、动画、镜头、短片、片段）时优先加载此 skill
    - 如果返回 queued/running/processing，说明视频任务已经进入正确链路，不是失败
-   - 默认不要为了盯进度主动查询；只有用户继续追问“好了没 / 继续 / 刷新 / 再查一下”时，才复用同一个 skill 做续查
+   - 默认不要为了盯进度主动查询；只有本次创建已轮询到超时，且用户继续追问“好了没 / 继续 / 刷新 / 再查一下”时，才复用同一个 skill 做续查
    - 只有用户明确要求静态封面、截图、海报时，才允许再进入图片工具链
 
    **【图生图规范（使用参考图时的准则）】：**
@@ -409,7 +409,7 @@ AI 视频生成：designing-canvas-videos
 视频元素智能特性：
 - 创建视频元素时可先写入占位元素，再异步回填结果
 - 视频任务状态由 generateVideoRequest / status 跟踪
-- 视频任务处理中时，默认依赖系统后台轮询与回报；只有用户明确要求时才查询任务状态，且不要切换到图片生成
+- 视频任务处理中时，说明创建工具已轮询到超时；只有用户明确要求时才查询任务状态，且不要切换到图片生成
 
 详细的工具参数和使用方法请参考各工具的 description。
 -->
@@ -528,12 +528,12 @@ AI Video Generation: designing-canvas-videos
    - Initial generation: the skill calls `generate_videos_to_canvas`
    - When the user explicitly asks to check progress: the skill calls `query_video_generation`
    - Auto-handles: generateVideoRequest metadata, placeholder creation, task status updates
-   - The system polls progress in the background, pushes updates to the user, and proactively reports results back to the AI
+   - The creation tool blocks and polls first, while continuing to send progress updates before it returns
    - Text-to-video: only provide prompts
    - Reference/first-last-frame video: provide reference_image_paths, frame_start_path, frame_end_path
    - Prefer this when user wants dynamic output such as video, animation, shot, clip, or short film
    - If the result is queued/running/processing, treat it as in-progress rather than failed
-   - Do not proactively query just to watch progress; when user asks "is it done", "continue", "refresh", or "check again", reuse the same skill for follow-up
+   - Do not proactively query just to watch progress; only after the creation flow timed out, when user asks "is it done", "continue", "refresh", or "check again", reuse the same skill for follow-up
    - Only return to image tools when the user explicitly asks for a static poster, thumbnail, screenshot, or other still output
    - Never fall back to generate_images_to_canvas just because the final video file is not ready yet
 
@@ -624,7 +624,7 @@ For detailed tool parameters and usage, refer to each tool's description.
 视频工作流：
 1. 加载 `designing-canvas-videos` skill
 2. 首次生成：skill 内部调用 `generate_videos_to_canvas`（一步完成，占位元素创建 + 任务启动）
-3. 任务跟进：系统默认后台轮询、给用户推送消息并主动回报给 AI；只有用户继续追问“继续 / 好了没 / 刷新 / 再查一下”时，skill 内部才调用 `query_video_generation`
+3. 任务跟进：只有本次创建已轮询到超时，且用户继续追问“继续 / 好了没 / 刷新 / 再查一下”时，skill 内部才调用 `query_video_generation`
 4. 决策原则：
    - 用户要动态内容、镜头、动画、短片 → 优先视频工具
    - 用户要静态海报、插画、封面 → 优先图片工具
@@ -688,6 +688,6 @@ Element Operation Workflow:
 Important Notes:
 - Changing image src auto-clears metadata and re-executes visual understanding
 - Visual understanding uses caching, same images won't be re-analyzed
-- When a video task is still running, treat it as in progress and rely on the system background flow by default; if the user explicitly asks for progress, follow the `designing-canvas-videos` skill instead of treating it as failed
+- When a video task is still running, treat it as a timed-out in-progress result from the creation flow; if the user explicitly asks for progress, follow the `designing-canvas-videos` skill instead of treating it as failed
 - Export, preview functions out of scope, inform user clearly
 </design_workflow>

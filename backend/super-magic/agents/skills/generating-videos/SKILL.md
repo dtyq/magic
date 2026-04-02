@@ -124,11 +124,11 @@ result = tool.call('generate_video', {
 
 <!--zh
 ### 3. 续查任务
-仅在用户明确要求查询进度时使用。
+仅在创建工具已轮询到超时、且用户明确要求查询进度时使用。
 -->
 ### 3. Follow Up a Task
 
-Only use this when the user explicitly asks to check progress.
+Only use this after the creation tool has already timed out and the user explicitly asks to check progress.
 
 ```python
 from sdk.tool import tool
@@ -181,18 +181,16 @@ result = tool.call('generate_video', {
 
 <!--zh
 ### 路径 B：续查
-- 系统会在后台继续轮询进度、给用户推送消息，并主动把结果回报给 AI
-- 默认不要为了盯进度而主动反复查询
-- 只有用户明确要求查询进度时，才使用 `query_video_generation`
+- 创建工具本身会先阻塞轮询，并在等待期间持续给用户发进度消息
+- 只有创建工具已轮询到超时、且用户明确要求查询进度时，才使用 `query_video_generation`
 - `operation_id` 是续查的主输入
 - 已知时再复用 `request_id`、`video_name`、`output_path`
 - `queued` / `running` / `processing` 只说明仍在生成，不代表失败
 - 任务未完成时，禁止重复发起新的生成任务
 -->
 ### Path B: Follow-Up
-- The system keeps polling progress in the background, pushes updates to the user, and proactively reports results back to the AI
-- Do not keep querying just to watch progress by default
-- Only use `query_video_generation` when the user explicitly asks to check progress
+- The creation tool itself blocks and polls first, while continuously sending progress updates to the user
+- Only use `query_video_generation` after the creation tool has already timed out and the user explicitly asks to check progress
 - `operation_id` is the primary follow-up input
 - Reuse `request_id`, `video_name`, and `output_path` only when already known
 - `queued` / `running` / `processing` mean in progress, not failed
@@ -208,9 +206,9 @@ result = tool.call('generate_video', {
 <!--zh
 - prompt 里要写清主体、动作、镜头、光线、风格
 - 用户给了参考图，不要脱离参考图自由发挥
-- 系统会后台轮询视频任务进度、给用户推送消息，并主动把结果回报给 AI
+- 视频创建工具会先阻塞轮询，并在工具返回前持续给用户发进度消息
 - 默认不要因为任务还在处理中就主动调用查询能力
-- 只有用户明确要求“查进度 / 刷新 / 好了没 / 再查一下”时，才做续查
+- 只有在创建工具已轮询到超时后，且用户明确要求“查进度 / 刷新 / 好了没 / 再查一下”时，才做续查
 - 续查优先于重建任务
 - 只有用户明确说“重新生成/重做一个”时，才重新发起生成
 - 调用前先参考会话中之前已注入的运行时视频模型能力配置消息
@@ -221,9 +219,9 @@ result = tool.call('generate_video', {
 -->
 - The prompt should clearly describe subject, motion, camera, lighting, and style
 - If the user provides reference images, do not drift away from them
-- The system polls video progress in the background, pushes updates to the user, and proactively reports results back to the AI
+- The video creation tool blocks and polls first, while continuously sending progress updates before returning
 - Do not proactively call the query capability just because a task is still in progress
-- Only follow up when the user explicitly asks to check progress
+- Only follow up when the creation tool has already timed out and the user explicitly asks to check progress
 - Follow-up is preferred over recreating tasks
 - Only regenerate when the user explicitly asks to regenerate or make a new version
 - Before calling video tools, refer to the runtime video-model capability message that was already injected earlier in the conversation

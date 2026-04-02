@@ -20,7 +20,7 @@
 - 不要为了“再试一次”偷偷创建一个新视频任务，除非用户明确要求重新生成
 
 ## 结果读取
-- `pending_operations`：后续续查的权威来源
+- `pending_operations`：本次创建工具已轮询到超时、后续续查的权威来源
 - `created_elements`：这次创建的画布元素
 - `elements`：更新后的元素详情
 -->
@@ -46,6 +46,6 @@
 - Do not silently create a new video job “to try again” unless the user explicitly asks for regeneration
 
 ## Reading Results
-- `pending_operations`: source of truth for future follow-up
+- `pending_operations`: source of truth for future follow-up after the creation flow timed out
 - `created_elements`: elements created in this run
 - `elements`: updated element details

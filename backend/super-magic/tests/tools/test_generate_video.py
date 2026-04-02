@@ -750,6 +750,32 @@ class TestGenerateVideoUrlNormalization:
         assert result.extra_info["metadata"]["actual_height"] is None
 
     @pytest.mark.asyncio
+    async def test_build_operation_result_marks_pending_as_timed_out_result(self, tool):
+        operation = {
+            "id": "op_video_pending",
+            "status": "processing",
+            "timed_out": True,
+            "output": {},
+        }
+
+        result = await tool._build_operation_result(
+            tool_context=None,
+            operation=operation,
+            output_path="videos",
+            video_name="demo",
+            override=False,
+            metadata={"operation_id": "op_video_pending", "request_id": "req_video_pending"},
+            success_message_code="generate_video.success",
+            pending_message_code="generate_video.pending",
+        )
+
+        assert result.ok
+        assert result.extra_info["timed_out"] is True
+        assert result.extra_info["status"] == "processing"
+        assert result.content
+        assert result.extra_info["operation_id"] == "op_video_pending"
+
+    @pytest.mark.asyncio
     async def test_query_video_generation_forwards_request_id(self, tmp_path):
         tool = QueryVideoGeneration(base_dir=tmp_path)
 

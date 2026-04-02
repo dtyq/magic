@@ -46,6 +46,7 @@ class VideoCanvasGenerationResult:
     status: str
     operation_id: str
     metadata: Dict[str, Any]
+    timed_out: bool = False
     saved_video_relative_path: Optional[str] = None
     saved_poster_relative_path: Optional[str] = None
     error_message: Optional[str] = None
@@ -229,6 +230,7 @@ class GenerateVideosToCanvas(BaseDesignTool[GenerateVideosToCanvasParams]):
                         status=str(extra_info.get("status", "failed")),
                         operation_id=str(extra_info.get("operation_id", "")),
                         metadata=metadata,
+                        timed_out=bool(extra_info.get("timed_out")),
                         saved_video_relative_path=extra_info.get("saved_video_relative_path"),
                         saved_poster_relative_path=extra_info.get("saved_poster_relative_path"),
                         error_message=None if generate_result.ok else generate_result.content,
@@ -274,7 +276,7 @@ class GenerateVideosToCanvas(BaseDesignTool[GenerateVideosToCanvasParams]):
                     if actual_width is not None and actual_height is not None:
                         properties["width"] = actual_width
                         properties["height"] = actual_height
-                elif result.success:
+                elif result.success and result.timed_out:
                     pending_status = result.status or "queued"
                     processing_count += 1
                     properties.update({"status": "processing"})
@@ -289,10 +291,13 @@ class GenerateVideosToCanvas(BaseDesignTool[GenerateVideosToCanvasParams]):
                     )
                 else:
                     failed_count += 1
+                    error_message = result.raw_error_message or result.error_message or "视频生成失败"
+                    if result.success:
+                        error_message = f"视频生成未在预期轮询语义下结束，当前状态={result.status or 'unknown'}"
                     properties.update(
                         {
                             "status": "failed",
-                            "errorMessage": result.raw_error_message or result.error_message or "视频生成失败",
+                            "errorMessage": error_message,
                         }
                     )
 
@@ -463,8 +468,8 @@ class GenerateVideosToCanvas(BaseDesignTool[GenerateVideosToCanvasParams]):
             lines.extend(
                 [
                     "",
-                    "In-progress video tasks are already on the correct path.",
-                    "Use query_video_generation to continue checking these video tasks. Do not switch to generate_images_to_canvas unless the user explicitly asks for a static image result.",
+                    "These video tasks were polled until timeout and are still in progress.",
+                    "If the user explicitly asks to check progress later, use query_video_generation. Do not switch to generate_images_to_canvas unless the user explicitly asks for a static image result.",
                     "Pending Operations:",
                 ]
             )
