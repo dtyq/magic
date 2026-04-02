@@ -91,7 +91,7 @@ async def execute_agent_turn(job: CronJob) -> CronRunResult:
     except Exception as e:
         logger.error(f"cron: failed to write result file for [{job.id}]: {e}")
 
-    if job.payload.notify_main_agent:
+    if job.payload.notify_user:
         try:
             from app.service.cron.notification import append_notification, try_notify_main_agent
             from pathlib import Path
