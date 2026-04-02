@@ -1210,5 +1210,53 @@
     "channel.get_im_channel_status.error": {
         "zh_CN": "查询 IM 渠道状态失败：{{error}}",
         "en_US": "Failed to query IM channel status: {{error}}"
+    },
+    "channel.wecom.label": {
+        "zh_CN": "企业微信",
+        "en_US": "WeCom"
+    },
+    "channel.wechat.label": {
+        "zh_CN": "微信",
+        "en_US": "WeChat"
+    },
+    "channel.lark.label": {
+        "zh_CN": "飞书",
+        "en_US": "Lark"
+    },
+    "channel.dingtalk.label": {
+        "zh_CN": "钉钉",
+        "en_US": "DingTalk"
+    },
+    "channel.status.connected": {
+        "zh_CN": "已连接",
+        "en_US": "Connected"
+    },
+    "channel.status.disconnected": {
+        "zh_CN": "未连接",
+        "en_US": "Disconnected"
+    },
+    "channel.status.not_configured": {
+        "zh_CN": "未配置",
+        "en_US": "Not Configured"
+    },
+    "channel.status.field.status": {
+        "zh_CN": "状态",
+        "en_US": "Status"
+    },
+    "channel.status.field.config": {
+        "zh_CN": "配置",
+        "en_US": "Config"
+    },
+    "channel.status.field.auto_connect": {
+        "zh_CN": "自动连接",
+        "en_US": "Auto-connect"
+    },
+    "channel.status.auto_connect_enabled": {
+        "zh_CN": "已启用",
+        "en_US": "enabled"
+    },
+    "channel.status.auto_connect_disabled": {
+        "zh_CN": "已禁用",
+        "en_US": "disabled"
     }
 }
