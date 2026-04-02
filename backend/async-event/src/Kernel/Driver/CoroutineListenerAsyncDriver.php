@@ -23,16 +23,24 @@ class CoroutineListenerAsyncDriver implements ListenerAsyncDriverInterface
         $this->asyncListenerExecutor = $container->get(AsyncListenerExecutor::class);
     }
 
-    public function publish(AsyncEventModel $asyncEventModel, object $event, callable $listener): void
+    public function publish(AsyncEventModel $asyncEventModel, object $event, callable $listener, bool $immediate = false): void
     {
         // Read context data based on config
         $contextData = ContextDataUtil::readContextData();
 
-        Coroutine::defer(function () use ($asyncEventModel, $event, $listener, $contextData) {
+        $callback = function () use ($asyncEventModel, $event, $listener, $contextData) {
             // Set context data before executing listener
             ContextDataUtil::setContextData($contextData);
 
             $this->asyncListenerExecutor->run($asyncEventModel, $event, $listener, 'coroutine');
-        });
+        };
+
+        if ($immediate) {
+            // 立即派生新协程，与当前协程并发执行，不等待同步监听
+            Coroutine::create($callback);
+        } else {
+            // 延迟到当前协程结束后执行
+            Coroutine::defer($callback);
+        }
     }
 }
