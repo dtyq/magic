@@ -5,6 +5,16 @@ import (
 	"strings"
 )
 
+// NormalizePath trims surrounding ASCII whitespace; returns "" if the result is empty.
+// Otherwise expands a leading ~/ or ~\ via ExpandTilde, then applies filepath.Clean.
+func NormalizePath(path string) string {
+	s := strings.TrimSpace(path)
+	if s == "" {
+		return ""
+	}
+	return filepath.Clean(ExpandTilde(s))
+}
+
 // ExpandTilde replaces a leading "~/" or "~\" with the current user's home directory.
 // Returns the path unchanged if it does not start with those prefixes or home resolution yields empty.
 func ExpandTilde(path string) string {

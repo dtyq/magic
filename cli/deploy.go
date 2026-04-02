@@ -9,6 +9,7 @@ import (
 
 	"github.com/dtyq/magicrew-cli/deployer"
 	"github.com/dtyq/magicrew-cli/registry"
+	"github.com/dtyq/magicrew-cli/util"
 	"github.com/spf13/cobra"
 )
 
@@ -53,7 +54,7 @@ func runDeploy(cmd *cobra.Command, args []string) error {
 		plainHTTP = true
 	}
 
-	chartsDir := deployChartsDir
+	chartsDir := util.NormalizePath(deployChartsDir)
 	if chartsDir == "" && chartRepoURL == "" {
 		return fmt.Errorf("either --charts-dir or chart repository URL must be provided")
 	}
@@ -99,13 +100,14 @@ func runDeploy(cmd *cobra.Command, args []string) error {
 // 3) values.yaml under configDir (only when the file exists)
 // Returns an empty string when none of the above is available.
 func resolveDeployValuesFile(cliValuesFile, configValuesFile, configDir string) string {
-	if cliValuesFile != "" {
-		return cliValuesFile
+	if n := util.NormalizePath(cliValuesFile); n != "" {
+		return n
 	}
-	if configValuesFile != "" {
-		return configValuesFile
+	if n := util.NormalizePath(configValuesFile); n != "" {
+		return n
 	}
-	defaultValuesFile := filepath.Join(configDir, "values.yaml")
+	normConfigDir := util.NormalizePath(configDir)
+	defaultValuesFile := filepath.Join(normConfigDir, "values.yaml")
 	if _, err := os.Stat(defaultValuesFile); err == nil {
 		return defaultValuesFile
 	}

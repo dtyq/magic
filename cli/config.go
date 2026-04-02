@@ -126,25 +126,28 @@ deploy:
 `
 
 func initConfig() {
-	configDir = resolveValue(configDir, envNameCLIConfigDir, filepath.Join(util.ConfigDir(), "magicrew"))
-	dataDir = resolveValue(dataDir, envNameCLIDataDir, filepath.Join(util.HomeDir(), ".magicrew"))
+	fallbackConfigDir := filepath.Join(util.ConfigDir(), "magicrew")
+	fallbackDataDir := filepath.Join(util.HomeDir(), ".magicrew")
+	configDir = normalizeResolvedDir(configDir, envNameCLIConfigDir, fallbackConfigDir)
+	dataDir = normalizeResolvedDir(dataDir, envNameCLIDataDir, fallbackDataDir)
 
 	util.NoSudo(func() error {
+		_ = os.MkdirAll(configDir, 0o700)
+
 		// determine config file path
 		if cfgFile == "" {
 			cfgFile = filepath.Join(configDir, "config.yml")
+		} else if p := util.NormalizePath(cfgFile); p != "" {
+			cfgFile = p
 		} else {
-			cfgFile = util.ExpandTilde(cfgFile)
+			cfgFile = filepath.Join(configDir, "config.yml")
 		}
 		lg.Logd("init", "config file path: %s", cfgFile)
 
 		// check if config file exists
 		if _, err := os.Stat(cfgFile); os.IsNotExist(err) {
 			lg.Logd("init", "config file not found, creating default config file")
-			// best effort to create config file directory and file
-			// create config file directory
-			os.MkdirAll(filepath.Dir(cfgFile), 0755)
-			// create config file
+			_ = os.MkdirAll(filepath.Dir(cfgFile), 0o700)
 			os.WriteFile(cfgFile, []byte(defaultConfig), 0644)
 		}
 		return nil
@@ -234,4 +237,20 @@ func resolveValue(flagValue, envKey, fallback string) string {
 		return v
 	}
 	return fallback
+}
+
+// normalizeResolvedDir applies util.NormalizePath after resolveValue. Empty normalization
+// falls back to the default path so callers never end up with "" or unintended ".".
+func normalizeResolvedDir(flagValue, envKey, fallback string) string {
+	raw := resolveValue(flagValue, envKey, fallback)
+	if n := util.NormalizePath(raw); n != "" {
+		return n
+	}
+	if n := util.NormalizePath(fallback); n != "" {
+		return n
+	}
+	if t := strings.TrimSpace(fallback); t != "" {
+		return filepath.Clean(t)
+	}
+	return ""
 }
