@@ -20,7 +20,7 @@ use Hyperf\Logger\LoggerFactory;
 use Psr\Log\LoggerInterface;
 use Throwable;
 
-#[AsyncListener]
+#[AsyncListener(driver: 'coroutine', waitForSync: false)]
 #[Listener]
 class FollowUpSuggestionGenerateSubscriber implements ListenerInterface
 {
