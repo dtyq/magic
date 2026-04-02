@@ -20,7 +20,6 @@ tools:
   - generate_image
   - read_webpages_as_markdown
   - download_from_urls
-  - download_from_markdown
 skills:
   system_skills:
     - name: skill-vetter

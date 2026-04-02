@@ -7,7 +7,6 @@ tools:
   - convert_to_markdown
   - image_search
   - download_from_urls
-  - download_from_markdown
   - generate_image
   - list_dir
   - file_search
