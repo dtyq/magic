@@ -1,5 +1,5 @@
 from dataclasses import asdict
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Optional
 
 from pydantic import Field
 
@@ -11,6 +11,7 @@ from app.tools.core.base_tool import BaseTool
 from app.tools.subagent_runtime_models import SubagentQueryResult, SubagentQueryStatus, SubagentStatus, utc_now
 from app.tools.subagent_runtime_store import SubagentRuntimeStore
 from app.tools.subagent_session_manager import subagent_session_manager
+from app.core.entity.message.server_message import DisplayType, FileContent, ToolDetail
 
 
 class GetSubAgentResultsParams(BaseToolParams):
@@ -67,6 +68,51 @@ class GetSubAgentResults(BaseTool[GetSubAgentResultsParams]):
         return ToolResult(
             content=_build_results_text(results),
             data={"results": [asdict(result) for result in results]},
+        )
+
+    async def get_tool_detail(
+        self, tool_context: ToolContext, result: ToolResult, arguments: Dict[str, Any] = None
+    ) -> Optional[ToolDetail]:
+        if not result.ok:
+            return None
+
+        data = result.data if isinstance(result.data, dict) else {}
+        items = data.get("results", [])
+        if not items:
+            return None
+
+        t = lambda key: i18n.translate(f"call_subagent.detail.{key}", category="tool.messages")
+        sections = []
+        for item in items:
+            agent_name = item.get("agent_name", "")
+            agent_id = item.get("agent_id", "")
+            status = item.get("status", "")
+            agent_result = item.get("result") or ""
+            error = item.get("error") or ""
+
+            lines = []
+            if agent_name:
+                lines.append(f"**{t('sub_agent')}：** {agent_name}")
+            if agent_id:
+                lines.append(f"**{t('session_id')}：** {agent_id}")
+            if status:
+                lines.append(f"**{t('status')}：** {status}")
+            if agent_result:
+                lines.append(f"\n**{t('result')}：**\n{agent_result}")
+            if error:
+                lines.append(f"\n**{t('error')}：** {error}")
+            if lines:
+                sections.append("\n".join(lines))
+
+        if not sections:
+            return None
+
+        return ToolDetail(
+            type=DisplayType.MD,
+            data=FileContent(
+                file_name="subagent_results.md",
+                content="\n\n---\n\n".join(sections),
+            ),
         )
 
     async def get_after_tool_call_friendly_action_and_remark(

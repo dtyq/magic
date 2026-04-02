@@ -875,6 +875,70 @@
         "zh_CN": "未知子智能体",
         "en_US": "Unknown sub-agent"
     },
+    "call_subagent.status.accepted": {
+        "zh_CN": "已接收任务",
+        "en_US": "Task accepted"
+    },
+    "call_subagent.status.running": {
+        "zh_CN": "正在执行",
+        "en_US": "Running"
+    },
+    "call_subagent.status.done": {
+        "zh_CN": "已完成",
+        "en_US": "Done"
+    },
+    "call_subagent.status.failed": {
+        "zh_CN": "执行失败",
+        "en_US": "Failed"
+    },
+    "call_subagent.status.interrupted": {
+        "zh_CN": "已中断",
+        "en_US": "Interrupted"
+    },
+    "call_subagent.detail.sub_agent": {
+        "zh_CN": "子智能体",
+        "en_US": "Sub-agent"
+    },
+    "call_subagent.detail.session_id": {
+        "zh_CN": "会话 ID",
+        "en_US": "Session ID"
+    },
+    "call_subagent.detail.mode": {
+        "zh_CN": "执行模式",
+        "en_US": "Mode"
+    },
+    "call_subagent.detail.mode_sync": {
+        "zh_CN": "同步",
+        "en_US": "Sync"
+    },
+    "call_subagent.detail.mode_background": {
+        "zh_CN": "后台并行",
+        "en_US": "Background (parallel)"
+    },
+    "call_subagent.detail.model": {
+        "zh_CN": "模型",
+        "en_US": "Model"
+    },
+    "call_subagent.detail.task": {
+        "zh_CN": "任务",
+        "en_US": "Task"
+    },
+    "call_subagent.detail.status": {
+        "zh_CN": "状态",
+        "en_US": "Status"
+    },
+    "call_subagent.detail.result": {
+        "zh_CN": "结果",
+        "en_US": "Result"
+    },
+    "call_subagent.detail.error": {
+        "zh_CN": "错误",
+        "en_US": "Error"
+    },
+    "call_subagent.detail.next_step": {
+        "zh_CN": "下一步",
+        "en_US": "Next step"
+    },
     "get_sub_agent_results.error": {
         "zh_CN": "获取子智能体任务进展失败: {{error}}",
         "en_US": "Failed to query sub-agent results: {{error}}"

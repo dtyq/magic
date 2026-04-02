@@ -22,6 +22,7 @@ from app.tools.subagent_runtime_models import (
 )
 from app.tools.subagent_runtime_store import SubagentRuntimeStore
 from app.tools.subagent_session_manager import subagent_session_manager
+from app.core.entity.message.server_message import DisplayType, FileContent, ToolDetail
 
 logger = get_logger(__name__)
 
@@ -190,6 +191,76 @@ class CallSubagent(BaseTool[CallSubagentParams]):
                 },
             )
 
+    async def get_before_tool_call_friendly_action_and_remark(
+        self, tool_name: str, tool_context: ToolContext, arguments: Dict[str, Any] = None
+    ) -> Dict:
+        args = arguments or {}
+        agent_name = args.get("agent_name", "")
+        agent_id = args.get("agent_id", "")
+        action = (
+            i18n.translate("call_subagent.assign", category="tool.messages", agent_name=agent_name)
+            if agent_name
+            else i18n.translate("call_subagent", category="tool.actions")
+        )
+        status_text = i18n.translate("call_subagent.status.accepted", category="tool.messages")
+        return {"action": action, "remark": _build_status_remark(agent_id, status_text)}
+
+    async def get_before_tool_detail(
+        self, tool_context: ToolContext, arguments: Dict[str, Any] = None
+    ) -> Optional[ToolDetail]:
+        args = arguments or {}
+        agent_name = args.get("agent_name", "")
+        agent_id = args.get("agent_id", "")
+        prompt = args.get("prompt", "")
+        background = args.get("background", False)
+        model_id = args.get("model_id")
+
+        if not prompt:
+            return None
+
+        t = lambda key: i18n.translate(f"call_subagent.detail.{key}", category="tool.messages")
+        lines = []
+        if agent_name:
+            lines.append(f"**{t('sub_agent')}：** {agent_name}")
+        if agent_id:
+            lines.append(f"**{t('session_id')}：** {agent_id}")
+        mode_text = t("mode_background") if background else t("mode_sync")
+        lines.append(f"**{t('mode')}：** {mode_text}")
+        if model_id:
+            lines.append(f"**{t('model')}：** {model_id}")
+        lines.append(f"\n**{t('task')}：**\n{prompt}")
+
+        return ToolDetail(
+            type=DisplayType.MD,
+            data=FileContent(
+                file_name=f"{agent_id or agent_name}.md",
+                content="\n".join(lines),
+            ),
+        )
+
+    async def get_tool_detail(
+        self, tool_context: ToolContext, result: ToolResult, arguments: Dict[str, Any] = None
+    ) -> Optional[ToolDetail]:
+        args = arguments or {}
+        agent_name = args.get("agent_name", "")
+        agent_id = args.get("agent_id", "")
+
+        if result.ok:
+            data = result.data if isinstance(result.data, dict) else {}
+            status = data.get("status", "")
+            agent_result = data.get("result") or ""
+            error = data.get("error") or ""
+            resume_hint = data.get("resume_hint") or ""
+        else:
+            # Python 级异常（如配置错误、网络异常），错误信息在 extra_info
+            extra = result.extra_info or {}
+            status = "error"
+            agent_result = ""
+            error = extra.get("error") or result.content or ""
+            resume_hint = ""
+
+        return _build_subagent_tool_detail(agent_name, agent_id, status, agent_result, error, resume_hint)
+
     def get_prompt_hint(self) -> str:
         return """\
 <!--zh
@@ -242,43 +313,32 @@ Example: Research report is ready: [@file_path:reports/market-research.md]
         execution_time: float,
         arguments: Dict[str, Any] = None,
     ) -> Dict:
-        agent_name = (arguments or {}).get("agent_name", "")
-        action = i18n.translate(
-            "call_subagent.assign",
-            category="tool.messages",
-            agent_name=agent_name,
-        ) if agent_name else i18n.translate("call_subagent", category="tool.actions")
+        args = arguments or {}
+        agent_name = args.get("agent_name", "")
+        agent_id = args.get("agent_id", "")
+        action = (
+            i18n.translate("call_subagent.assign", category="tool.messages", agent_name=agent_name)
+            if agent_name
+            else i18n.translate("call_subagent", category="tool.actions")
+        )
+
         if not result.ok:
-            return {
-                "action": action,
-                "remark": i18n.translate(
-                    "call_subagent.failed",
-                    category="tool.messages",
-                    agent_name=agent_name,
-                    error=result.content,
-                ) if agent_name else i18n.translate("call_subagent.error", category="tool.messages", error=result.content),
-            }
-        payload = result.data
-        status = payload.get("status", "") if isinstance(payload, dict) else ""
-        if agent_name:
-            if status in {SubagentStatus.PENDING, SubagentStatus.RUNNING}:
-                remark = i18n.translate("call_subagent.running", category="tool.messages", agent_name=agent_name)
-            elif status == SubagentStatus.DONE:
-                remark = i18n.translate("call_subagent.done", category="tool.messages", agent_name=agent_name)
-            elif status == SubagentStatus.ERROR:
-                remark = i18n.translate(
-                    "call_subagent.failed",
-                    category="tool.messages",
-                    agent_name=agent_name,
-                    error=payload.get("error", i18n.translate("unknown.message", category="tool.messages")),
-                )
-            elif status == SubagentStatus.INTERRUPTED:
-                remark = i18n.translate("call_subagent.interrupted", category="tool.messages", agent_name=agent_name)
-            else:
-                remark = i18n.translate("call_subagent.start", category="tool.messages", agent_name=agent_name)
-        else:
-            remark = i18n.translate("call_subagent.unknown_agent", category="tool.messages")
-        return {"action": action, "remark": remark}
+            status_text = i18n.translate("call_subagent.status.failed", category="tool.messages")
+            return {"action": action, "remark": _build_status_remark(agent_id, status_text)}
+
+        payload = result.data if isinstance(result.data, dict) else {}
+        status = payload.get("status", "")
+
+        _status_key_map = {
+            SubagentStatus.PENDING: "call_subagent.status.running",
+            SubagentStatus.RUNNING: "call_subagent.status.running",
+            SubagentStatus.DONE: "call_subagent.status.done",
+            SubagentStatus.ERROR: "call_subagent.status.failed",
+            SubagentStatus.INTERRUPTED: "call_subagent.status.interrupted",
+        }
+        status_key = _status_key_map.get(status, "call_subagent.status.accepted")
+        status_text = i18n.translate(status_key, category="tool.messages")
+        return {"action": action, "remark": _build_status_remark(agent_id, status_text)}
 
 
 def _mode_from_background(background: bool) -> SubagentExecutionMode:
@@ -525,4 +585,46 @@ def _mark_failed(
         state=state,
         mode=mode,
         resume_hint="Inspect the error and call call_subagent again with the same agent_id if needed.",
+    )
+
+
+def _build_status_remark(agent_id: str, status_text: str) -> str:
+    """拼接 remark：agent_id · 状态文案。"""
+    if agent_id:
+        return f"{agent_id} · {status_text}"
+    return status_text
+
+
+def _build_subagent_tool_detail(
+    agent_name: str,
+    agent_id: str,
+    status: str,
+    agent_result: str,
+    error: str,
+    resume_hint: str,
+) -> Optional[ToolDetail]:
+    """构建子智能体 MD 详情卡片，供 before/after detail 复用。"""
+    t = lambda key: i18n.translate(f"call_subagent.detail.{key}", category="tool.messages")
+    lines = []
+    if agent_name:
+        lines.append(f"**{t('sub_agent')}：** {agent_name}")
+    if agent_id:
+        lines.append(f"**{t('session_id')}：** {agent_id}")
+    if status:
+        lines.append(f"**{t('status')}：** {status}")
+    if agent_result:
+        lines.append(f"\n**{t('result')}：**\n{agent_result}")
+    if error:
+        lines.append(f"\n**{t('error')}：** {error}")
+    if resume_hint:
+        lines.append(f"\n**{t('next_step')}：** {resume_hint}")
+    content = "\n".join(lines)
+    if not content.strip():
+        return None
+    return ToolDetail(
+        type=DisplayType.MD,
+        data=FileContent(
+            file_name=f"{agent_id or agent_name}_result.md",
+            content=content,
+        ),
     )
