@@ -54,7 +54,7 @@
 			"AWSBedrock": "Amazon Bedrock",
 			"DashScope": "阿里云(百炼)",
 			"DeepSeek": "DeepSeek",
-			"Gemini": "Google (AI Studio)",
+			"Gemini": "Google",
 			"MicrosoftAzure": "Microsoft Azure",
 			"OfficialOpenAI": "OpenAI 官方",
 			"OpenAI": "OpenAI 兼容",

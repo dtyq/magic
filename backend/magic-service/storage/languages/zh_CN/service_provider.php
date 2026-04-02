@@ -42,8 +42,8 @@ return [
     'provider_name' => [
         'Official' => 'Magic',
         'MicrosoftAzure' => 'Microsoft Azure',
-        'Google-Image' => 'Google (AI Studio)',
-        'Gemini' => 'Google (AI Studio)',
+        'Google-Image' => 'Google',
+        'Gemini' => 'Google',
         'AWSBedrock' => 'Amazon Bedrock',
         'TTAPI' => 'OpenRouter',
         'DashScope' => '阿里云(百炼)',
