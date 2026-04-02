@@ -51,8 +51,10 @@ class HorizonState:
     loaded_skills: list[str] = field(default_factory=list)
     image_model: ImageModelState = field(default_factory=ImageModelState)
     video_model: VideoModelState = field(default_factory=VideoModelState)
-    # 以下字段用于 Diff 追踪：上次注入给 LLM 的值，变化时才输出 diff
+    # 以下字段表示模型上次已经看到的 baseline，而不是“本轮刚采集到的最新值”
     user_preferred_language: str = ""
-    workspace_files: str = ""      # 格式化树形字符串，用于注入 LLM 展示
-    workspace_entries: list = field(default_factory=list)  # 结构化条目 [{"path": str, "size": int|None}]，用于 diff
-    memory: str = ""
+    workspace_files: str = ""      # 上次注入给 LLM 的工作区树形字符串
+    workspace_entries: list = field(default_factory=list)  # 上次注入给 LLM 的结构化工作区条目
+    memory: str = ""               # 上次注入给 LLM 的 memory
+    # 当前上下文窗口是否已经完成过 initial_context 注入
+    initial_context_injected: bool = False

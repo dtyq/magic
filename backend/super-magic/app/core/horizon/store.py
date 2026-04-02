@@ -99,6 +99,7 @@ class HorizonStore:
             state.workspace_files = data.get("workspace_files", "")
             state.workspace_entries = data.get("workspace_entries", [])
             state.memory = data.get("memory", "")
+            state.initial_context_injected = bool(data.get("initial_context_injected", False))
             return state
         except Exception as e:
             logger.warning(f"[HorizonStore] 加载失败，使用空状态: {e}")
@@ -116,6 +117,7 @@ class HorizonStore:
             "workspace_files": state.workspace_files,
             "workspace_entries": state.workspace_entries,
             "memory": state.memory,
+            "initial_context_injected": state.initial_context_injected,
         }
         tmp = self._path.with_suffix(".tmp")
         try:
