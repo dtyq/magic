@@ -219,6 +219,14 @@ Three patterns to follow based on task type:
 2. Single file (report, document, etc.): the whole file is one unit; concurrent writes conflict. Either assign the full task to one agent, or have each agent draft its assigned section independently, then designate one agent to merge everything into the final file.
 
 3. Fully independent outputs (separate reports per topic, separate canvases per theme, etc.): each agent produces its own distinct deliverable. Specify each agent's output target separately. No coordination needed.
+
+<!--zh
+子智能体可能在结果里包含产物文件路径。向用户汇报时，将这些路径转为 [@file_path:路径] 格式，
+前端会渲染为可点击蓝色链接。
+示例：调研报告已完成：[@file_path:reports/market-research.md]
+-->
+Sub-agents may include output file paths in their results. When reporting to the user, present those paths as [@file_path:path] — the frontend renders them as clickable blue links.
+Example: Research report is ready: [@file_path:reports/market-research.md]
 """
 
     async def get_before_tool_call_friendly_content(

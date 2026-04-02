@@ -734,7 +734,8 @@ class Agent(BaseAgent):
                         "Sub-agent execution context:\n"
                         f"- You are running as a sub-agent invoked by {parent_agent_name}.\n"
                         "- The next visible user message is the delegated task from the parent agent, not a direct end-user chat.\n"
-                        "- Focus on completing the delegated task for the parent agent."
+                        "- Focus on completing the delegated task for the parent agent.\n"
+                        "- When you finish, include the paths of key deliverable files (if any) in your final reply — only files the user would care about, not temporary or intermediate ones."
                     )
                     await self.chat_history.append_user_message(subagent_context_message, show_in_ui=False)
             else:
