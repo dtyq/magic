@@ -9,7 +9,13 @@ from agentlang.tools.tool_result import ToolResult
 from app.i18n import i18n
 from app.tools.core import BaseToolParams, tool
 from app.tools.core.base_tool import BaseTool
-from app.tools.subagent_runtime_models import SubagentQueryResult, SubagentQueryStatus, SubagentStatus, utc_now
+from app.tools.subagent_runtime_models import (
+    SubagentQueryResult,
+    SubagentQueryStatus,
+    SubagentSessionState,
+    SubagentStatus,
+    utc_now,
+)
 from app.tools.subagent_runtime_store import SubagentRuntimeStore
 from app.tools.subagent_session_manager import SubagentSessionHandle, subagent_session_manager
 from app.core.entity.message.server_message import DisplayType, TerminalContent, ToolDetail
@@ -22,13 +28,13 @@ class WaitForSubagentsParams(BaseToolParams):
     )
     timeout: float = Field(
         30.0,
-        description="Max seconds to wait for all agents to finish. After timeout, returns current states (some may still be running). Default: 30 seconds."
+        description="Max seconds to wait for all agents to finish. Default: 30 seconds."
     )
 
 
 @tool()
 class WaitForSubagents(BaseTool[WaitForSubagentsParams]):
-    """Block until all specified background sub-agents finish (or timeout). Idempotent: already-finished agents return immediately."""
+    """Wait for specified background sub-agents to finish."""
 
     async def execute(self, tool_context: ToolContext, params: WaitForSubagentsParams) -> ToolResult:
         # Phase 1: resolve agent_ids to handles or immediate error results
@@ -59,7 +65,7 @@ class WaitForSubagents(BaseTool[WaitForSubagentsParams]):
             for (_, _, handle, err) in resolved
             if err is None and handle is not None and handle.is_running()
         }
-        if running_tasks and params.timeout > 0:
+        if running_tasks and params.timeout != 0:
             await _wait_for_tasks(running_tasks, params.timeout, tool_context)
 
         # Phase 3: read final state for each resolved agent
@@ -70,11 +76,9 @@ class WaitForSubagents(BaseTool[WaitForSubagentsParams]):
                 continue
             async with handle.state_lock:
                 state = await SubagentRuntimeStore.load_state(agent_name, agent_id)
-                # 子 agent task 已停但状态还是 RUNNING → 进程已重启或任务丢失
-                if state.status == SubagentStatus.RUNNING and not handle.is_running():
-                    state.status = SubagentStatus.INTERRUPTED
-                    state.last_error = state.last_error or "process_restarted_or_task_missing"
-                    state.finished_at = state.finished_at or utc_now()
+                # 子 agent task 已停但状态仍是进行中，说明任务已丢失或进程已重启。
+                if state.status in _IN_FLIGHT_STATUSES and not handle.is_running():
+                    _mark_missing_inflight_as_interrupted(state)
                     await SubagentRuntimeStore.save_state(state)
             results.append(SubagentQueryResult(
                 agent_id=agent_id,
@@ -139,7 +143,7 @@ class WaitForSubagents(BaseTool[WaitForSubagentsParams]):
             data=TerminalContent(
                 command=command,
                 output="\n\n".join(sections),
-                exit_code=0,
+                exit_code=_resolve_terminal_exit_code(items),
             ),
         )
 
@@ -212,16 +216,46 @@ async def _wait_for_tasks(
     if interrupt_task is not None:
         awaitables.add(interrupt_task)
 
-    done, _ = await asyncio.wait(awaitables, timeout=timeout, return_when=asyncio.FIRST_COMPLETED)
-
-    # 清理 wrapper tasks（不影响实际 agent task）
-    wait_task.cancel()
-    if interrupt_task is not None:
-        interrupt_task.cancel()
+    try:
+        if timeout < 0:
+            done, _ = await asyncio.wait(awaitables, return_when=asyncio.FIRST_COMPLETED)
+        else:
+            done, _ = await asyncio.wait(awaitables, timeout=timeout, return_when=asyncio.FIRST_COMPLETED)
+    finally:
+        # 清理 wrapper tasks（不影响实际 agent task）
+        wait_task.cancel()
+        if interrupt_task is not None:
+            interrupt_task.cancel()
 
     if interrupt_task is not None and interrupt_task in done:
         raise asyncio.CancelledError("Interrupted while waiting for sub-agents")
     # 超时（wait_task 未完成）→ 直接返回，调用方会读到仍在 running 的状态
+
+
+_IN_FLIGHT_STATUSES = {
+    SubagentStatus.PENDING,
+    SubagentStatus.RUNNING,
+}
+
+
+def _mark_missing_inflight_as_interrupted(state: SubagentSessionState) -> None:
+    state.status = SubagentStatus.INTERRUPTED
+    state.last_error = state.last_error or "process_restarted_or_task_missing"
+    state.finished_at = state.finished_at or utc_now()
+
+
+def _resolve_terminal_exit_code(items: list[dict[str, Any]]) -> int:
+    statuses = {item.get("status", "") for item in items}
+    if statuses & {
+        SubagentQueryStatus.NOT_FOUND,
+        SubagentQueryStatus.AMBIGUOUS,
+        SubagentStatus.ERROR,
+        SubagentStatus.INTERRUPTED,
+    }:
+        return 1
+    if statuses & _IN_FLIGHT_STATUSES:
+        return 124
+    return 0
 
 
 def _build_results_text(results: list[SubagentQueryResult]) -> str:

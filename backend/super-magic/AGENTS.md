@@ -149,7 +149,12 @@ Python 代码中凡是涉及文件操作，必须使用 `app/utils/async_file_ut
 
 在 `app/tools/` 增加新工具，需同步在 `app/tools/__init__.py` 中 `import` 该类并加入 `__all__`。未在 `__init__.py` 显式导入将导致工具模块未被加载，运行期报错 `No module named 'app.tools.<tool_name>'`。
 
-## 13. 每次改动前自检
+## 13. 不要手动修改工具定义缓存
+
+- `config/tool_definitions.json` 是缓存文件，不要手动编辑
+- 修改工具的真实来源应为 `app/tools/` 下的工具代码；缓存如有需要应走项目既有生成流程刷新
+
+## 14. 每次改动前自检
 
 - 这是在解决真实问题，还是在满足抽象冲动？
 - 这层包装有没有新增语义？
