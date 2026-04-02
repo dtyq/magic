@@ -8,21 +8,30 @@ import (
 
 // HomeDir returns the home directory for the current user.
 //
-// On Windows, resolution follows kubernetes client-go/util/homedir (kubectl):
+// On Windows, resolution follows kubernetes client-go/util/homedir (kubectl) ordering,
+// but probes for ".magicrew/config.yml" instead of ".kube/config":
 //  1. First non-empty path among %HOME%, %HOMEDRIVE%%HOMEPATH%, %USERPROFILE%
-//     that contains a ".kube/config" file (or ".kube\\config" on disk).
-//  2. If none contain kubeconfig: first among %HOME%, %USERPROFILE%, %HOMEDRIVE%%HOMEPATH%
-//     that exists, is a directory, and passes the same writability heuristic as client-go.
+//     that contains a ".magicrew/config.yml" file.
+//  2. If none contain magicrew config: first among %HOME%, %USERPROFILE%, %HOMEDRIVE%%HOMEPATH%
+//     that exists, is a directory, and passes a tempfile create/remove writability probe.
 //  3. Else first path that exists.
 //  4. Else first path that is set (non-empty).
 //
 // On Unix-like systems, $HOME is preferred when set; otherwise os.UserHomeDir is used.
 // The lookup runs inside NoSudo so behavior stays consistent with sudo elevation on Linux/macOS.
+//
+// Non-empty results are passed through filepath.Clean on all platforms.
 func HomeDir() string {
+	var s string
 	if runtime.GOOS == "windows" {
-		return homeDirWindows()
+		s = homeDirWindows()
+	} else {
+		s = NoSudo(homeDirUnix)
 	}
-	return NoSudo(homeDirUnix)
+	if s != "" {
+		return filepath.Clean(s)
+	}
+	return ""
 }
 
 func homeDirUnix() string {
@@ -34,6 +43,19 @@ func homeDirUnix() string {
 		return ""
 	}
 	return dir
+}
+
+func homeDirWritableProbe(dir string) bool {
+	f, err := os.CreateTemp(dir, "magicrew-writable-*")
+	if err != nil {
+		return false
+	}
+	name := f.Name()
+	if err := f.Close(); err != nil {
+		_ = os.Remove(name)
+		return false
+	}
+	return os.Remove(name) == nil
 }
 
 func homeDirWindows() string {
@@ -48,7 +70,7 @@ func homeDirWindows() string {
 		if len(p) == 0 {
 			continue
 		}
-		if _, err := os.Stat(filepath.Join(p, ".kube", "config")); err != nil {
+		if _, err := os.Stat(filepath.Join(p, ".config", "magicrew", "config.yml")); err != nil {
 			continue
 		}
 		return p
@@ -70,7 +92,7 @@ func homeDirWindows() string {
 		if firstExistingPath == "" {
 			firstExistingPath = p
 		}
-		if info.IsDir() && info.Mode().Perm()&(1<<(uint(7))) != 0 {
+		if info.IsDir() && homeDirWritableProbe(p) {
 			return p
 		}
 	}

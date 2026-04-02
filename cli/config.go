@@ -129,8 +129,9 @@ func initConfig() {
 		// determine config file path
 		if cfgFile == "" {
 			cfgFile = filepath.Join(util.ConfigDir(), "config.yml")
+		} else {
+			cfgFile = util.ExpandTilde(cfgFile)
 		}
-		cfgFile = util.ExpandTilde(cfgFile)
 		lg.Logd("init", "config file path: %s", cfgFile)
 
 		// check if config file exists

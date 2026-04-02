@@ -24,15 +24,11 @@ func BaseConfigDir() string {
 			return filepath.Clean(v)
 		}
 		if profile := strings.TrimSpace(os.Getenv("USERPROFILE")); profile != "" {
-			return filepath.Join(profile, ".config")
+			return filepath.Clean(filepath.Join(profile, ".config"))
 		}
-		if h := HomeDir(); h != "" {
-			return filepath.Join(h, ".config")
-		}
-		return ""
 	}
 	if h := HomeDir(); h != "" {
-		return filepath.Join(h, ".config")
+		return filepath.Clean(filepath.Join(h, ".config"))
 	}
 	return ""
 }
@@ -43,5 +39,5 @@ func ConfigDir() string {
 	if base == "" {
 		return ""
 	}
-	return filepath.Join(base, "magicrew")
+	return filepath.Clean(filepath.Join(base, "magicrew"))
 }
