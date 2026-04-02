@@ -119,7 +119,6 @@ class AgentHorizon:
         self._llm_model_changed: bool = False
         self._image_model_changed: bool = False
         self._video_model_changed: bool = False
-        self._video_model_switched: bool = False  # 区分"首次/配置变化"和"模型切换"
         self._context_used: int = 0    # 上一次 LLM 调用的 input_tokens
         self._context_total: int = 0   # 模型最大上下文窗口
 
@@ -271,7 +270,6 @@ class AgentHorizon:
         self._llm_model_changed = False
         self._image_model_changed = False
         self._video_model_changed = False
-        self._video_model_switched = False
         self._is_first_injection = True
 
         # magiclaw：重算固定文件 / BOOTSTRAP 状态，重新进入必读文件流程
@@ -472,10 +470,8 @@ class AgentHorizon:
             stored = self._state.video_model
             old_json = json.dumps(stored.config, sort_keys=True, ensure_ascii=False)
             if model_id != stored.model_id or new_json != old_json:
-                is_model_switched = bool(stored.model_id and stored.model_id != model_id)
                 self._state.video_model = VideoModelState(model_id=model_id, config=config)
                 self._video_model_changed = True
-                self._video_model_switched = is_model_switched
                 await self._save()
         except Exception as e:
             logger.warning(f"[AgentHorizon] update_video_model 失败: {e}")
@@ -496,6 +492,58 @@ class AgentHorizon:
                 await self._save()
         except Exception as e:
             logger.warning(f"[AgentHorizon] update_image_model 失败: {e}")
+
+    def _build_media_model_info(
+        self,
+        *,
+        include_image: bool,
+        include_video: bool,
+        image_changed: bool,
+        video_changed: bool,
+    ) -> list[str]:
+        """统一构建紧凑媒体模型信息，避免首次和增量注入格式漂移。"""
+        media_parts: list[str] = []
+        has_video = False
+
+        # 首次注入和增量注入共用这一层组装，目的是让模型始终看到同一种结构，
+        # 避免 initial_context 和 model_info 里出现两套不同格式，增加理解负担。
+        if include_image:
+            from app.service.image_model_sizes_service import ImageModelSizesService
+
+            img = self._state.image_model
+            image_text = ImageModelSizesService.build_image_model_info(
+                img.model_id,
+                img.sizes,
+                changed=image_changed,
+            )
+            if image_text:
+                media_parts.append(image_text)
+
+        if include_video:
+            from app.service.video_model_config_service import VideoModelConfigService
+
+            vid = self._state.video_model
+            video_text = VideoModelConfigService.build_video_model_info(
+                vid.model_id,
+                vid.config,
+                changed=video_changed,
+            )
+            if video_text:
+                media_parts.append(video_text)
+                has_video = True
+
+        if not media_parts:
+            return []
+
+        from app.service.video_model_config_service import VideoModelConfigService
+
+        # 规则块放在 media_model_info 之后，让 LLM 先拿到事实，再读很短的决策约束。
+        return [
+            "<media_model_info>",
+            *media_parts,
+            "</media_model_info>",
+            VideoModelConfigService.build_media_model_rules(has_video=has_video),
+        ]
 
     # ─────────────────────────────────────────────────────────────────────────
     # 字符串值 setter（用于 diff 追踪）
@@ -602,28 +650,14 @@ class AgentHorizon:
                     f'<llm id="{self._last_llm_model_id}" name="{self._last_llm_model_name}"{desc_attr}/>'
                 )
 
-            # 图片模型
-            img = self._state.image_model
-            if img.model_id and img.sizes:
-                img_lines = [f'<image_model id="{img.model_id}">']
-                for s in img.sizes:
-                    label = s.get("label", "")
-                    value = s.get("value", "")
-                    scale = s.get("scale", "")
-                    attrs = f'label="{label}" value="{value}"'
-                    if scale:
-                        attrs += f' scale="{scale}"'
-                    img_lines.append(f'  <size {attrs}/>')
-                img_lines.append("</image_model>")
-                init_parts.extend(img_lines)
-
-            # 视频模型（首次注入时全量输出）
-            vid = self._state.video_model
-            if vid.model_id and vid.config:
-                from app.service.video_model_config_service import VideoModelConfigService
-                vid_text = VideoModelConfigService.build_video_model_context(vid.model_id, vid.config, is_model_changed=False)
-                if vid_text:
-                    init_parts.append(vid_text)
+            init_parts.extend(
+                self._build_media_model_info(
+                    include_image=bool(self._state.image_model.model_id and self._state.image_model.sizes),
+                    include_video=bool(self._state.video_model.model_id and self._state.video_model.config),
+                    image_changed=False,
+                    video_changed=False,
+                )
+            )
 
             # 工作区文件树：说明这是当前工作目录的文件列表
             if self._state.workspace_files:
@@ -656,7 +690,6 @@ class AgentHorizon:
             self._llm_model_changed = False
             self._image_model_changed = False
             self._video_model_changed = False
-            self._video_model_switched = False
 
         else:
             # 常规增量注入
@@ -680,33 +713,17 @@ class AgentHorizon:
                 )
                 self._llm_model_changed = False
 
-            if self._image_model_changed:
-                img = self._state.image_model
-                if img.model_id:
-                    img_lines = [f'<image_model id="{img.model_id}">']
-                    for s in img.sizes:
-                        label = s.get("label", "")
-                        value = s.get("value", "")
-                        scale = s.get("scale", "")
-                        attrs = f'label="{label}" value="{value}"'
-                        if scale:
-                            attrs += f' scale="{scale}"'
-                        img_lines.append(f'  <size {attrs}/>')
-                    img_lines.append("</image_model>")
-                    model_info_parts.extend(img_lines)
-                self._image_model_changed = False
-
-            if self._video_model_changed:
-                vid = self._state.video_model
-                if vid.model_id and vid.config:
-                    from app.service.video_model_config_service import VideoModelConfigService
-                    vid_text = VideoModelConfigService.build_video_model_context(
-                        vid.model_id, vid.config, is_model_changed=self._video_model_switched
+            if self._image_model_changed or self._video_model_changed:
+                model_info_parts.extend(
+                    self._build_media_model_info(
+                        include_image=self._image_model_changed and bool(self._state.image_model.model_id),
+                        include_video=self._video_model_changed and bool(self._state.video_model.model_id and self._state.video_model.config),
+                        image_changed=self._image_model_changed,
+                        video_changed=self._video_model_changed,
                     )
-                    if vid_text:
-                        model_info_parts.append(vid_text)
+                )
+                self._image_model_changed = False
                 self._video_model_changed = False
-                self._video_model_switched = False
 
             if model_info_parts:
                 parts.append("<model_info>")
