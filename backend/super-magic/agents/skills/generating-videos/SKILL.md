@@ -45,6 +45,7 @@ Read by scenario:
 本技能中的 Python 示例必须通过 `run_skills_snippet` 执行。
 -->
 All Python examples in this skill must be executed via `run_skills_snippet`.
+Video-related tool calls in this skill automatically use long timeouts. Do not ask the model to reason about timeout values.
 
 ```python
 run_skills_snippet(

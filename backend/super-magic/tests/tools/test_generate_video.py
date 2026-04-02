@@ -1223,6 +1223,28 @@ class TestGenerateVideoUrlNormalization:
         assert mock_dispatch_progress.await_count == 2
 
     @pytest.mark.asyncio
+    async def test_execute_purely_applies_internal_poll_timeout_buffer_for_long_timeout(self, tool):
+        with patch.object(tool, "_resolve_model", return_value="veo-3.1-fast-generate-preview"), \
+             patch.object(tool, "_resolve_video_generation_config", return_value=None), \
+             patch.object(tool, "_build_create_payload", new_callable=AsyncMock, return_value=({"prompt": "test"}, {}, None)), \
+             patch.object(tool, "_wait_for_operation", new_callable=AsyncMock, return_value={"id": "op_123", "status": "queued"}) as mock_wait, \
+             patch.object(tool, "_build_result_metadata", return_value={"operation_id": "op_123", "request_id": "req_123"}), \
+             patch.object(tool, "_build_operation_result", new_callable=AsyncMock, return_value=VideoToolResult(ok=True, content="done")), \
+             patch.object(tool, "_request_json", new_callable=AsyncMock, return_value={"id": "op_123", "status": "queued"}), \
+             patch("app.tools.generate_video.uuid.uuid4", return_value="req_123"):
+            await tool.execute_purely(
+                None,
+                GenerateVideoParams(
+                    prompt="test",
+                    model_id="veo-3.1-fast-generate-preview",
+                    poll_interval_seconds=10,
+                    poll_timeout_seconds=3600,
+                ),
+            )
+
+        assert mock_wait.await_args.kwargs["poll_timeout_seconds"] == 3580
+
+    @pytest.mark.asyncio
     async def test_wait_for_operation_queries_with_versionless_video_path(self, tool):
         with patch.object(tool, "_request_json", new_callable=AsyncMock, return_value={"id": "op_123", "status": "succeeded"}) as mock_request_json:
             await tool._wait_for_operation(
@@ -1233,3 +1255,14 @@ class TestGenerateVideoUrlNormalization:
             )
 
         assert mock_request_json.await_args_list[0].args == ("GET", "/videos/op_123")
+
+    @pytest.mark.asyncio
+    async def test_wait_for_operation_applies_internal_poll_timeout_buffer_for_long_timeout(self, tool):
+        with patch.object(tool, "_wait_for_operation", new_callable=AsyncMock, return_value={"id": "op_123", "status": "queued"}) as mock_wait:
+            await tool.wait_for_operation(
+                operation_id="op_123",
+                poll_interval_seconds=10,
+                poll_timeout_seconds=3600,
+            )
+
+        assert mock_wait.await_args.kwargs["poll_timeout_seconds"] == 3580
