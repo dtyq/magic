@@ -143,5 +143,14 @@ interface SkillRepositoryInterface
      */
     public function findByIds(SkillDataIsolation $dataIsolation, array $skillIds): array;
 
+    /**
+     * 根据 project_id 更新 Skill 的 updated_at 时间.
+     *
+     * @param SkillDataIsolation $dataIsolation 数据隔离对象
+     * @param int $projectId 项目ID
+     * @return bool 是否更新成功
+     */
+    public function updateUpdatedAtByProjectId(SkillDataIsolation $dataIsolation, int $projectId): bool;
+
     public function findUserSkillsByIds(SkillDataIsolation $dataIsolation, array $skillIds): array;
 }

@@ -339,7 +339,8 @@ class SuperMagicAgentAssembler
         int $page,
         int $pageSize,
         int $total,
-        array $publisherUserMap = []
+        array $publisherUserMap = [],
+        array $creatorUserMap = []
     ): QueryAgentsResponseDTO {
         $list = [];
         foreach ($agents as $agent) {
@@ -349,7 +350,8 @@ class SuperMagicAgentAssembler
                 $storeAgentsMap,
                 $latestVersionsMap,
                 $userAgentsMap,
-                $publisherUserMap
+                $publisherUserMap,
+                self::buildSimpleCreatorInfo($agent->getCreator(), $creatorUserMap)
             );
         }
 
@@ -448,7 +450,8 @@ class SuperMagicAgentAssembler
         array $storeAgentsMap,
         array $latestVersionsMap,
         array $userAgentsMap = [],
-        array $publisherUserMap = []
+        array $publisherUserMap = [],
+        ?array $creatorInfo = null
     ): AgentListItemDTO {
         $playbooks = $playbooksMap[$agent->getCode()] ?? [];
         $features = [];
@@ -496,7 +499,24 @@ class SuperMagicAgentAssembler
             createdAt: $agent->getCreatedAt(),
             publisherType: $publisher['type'] ?? null,
             publisher: $publisher['info'] ?? null,
+            creatorInfo: $creatorInfo,
         );
+    }
+
+    /**
+     * @param array<string, MagicUserEntity> $creatorUserMap
+     */
+    private static function buildSimpleCreatorInfo(string $creatorId, array $creatorUserMap): ?array
+    {
+        $creator = $creatorUserMap[$creatorId] ?? null;
+        if ($creator === null) {
+            return null;
+        }
+
+        return [
+            'id' => (string) $creator->getId(),
+            'name' => $creator->getNickname(),
+        ];
     }
 
     /**
