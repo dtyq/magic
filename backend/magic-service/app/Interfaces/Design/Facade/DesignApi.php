@@ -53,6 +53,12 @@ class DesignApi extends AbstractApi
             $DO->setType(ImageGenerationType::IMAGE_TO_IMAGE);
         }
 
+        // 若前端传入了原图裁剪参数，记录到第 0 张参考图的处理选项中
+        $crop = $this->request->input('crop');
+        if (! empty($crop) && is_array($crop)) {
+            $DO->setReferenceImageOptions([0 => ['crop' => $crop]]);
+        }
+
         $entity = $this->imageGenerationAppService->generateImage($authenticatable, $DO);
 
         return ImageGenerationAssembler::toDTO($entity);
