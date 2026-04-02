@@ -31,6 +31,8 @@ class ProviderModelItemDTO extends AbstractDTO
 
     protected string $serviceProviderConfigId = '';
 
+    protected ?array $imageSizeConfig = null;
+
     public function getId(): string
     {
         return $this->id;
@@ -148,6 +150,25 @@ class ProviderModelItemDTO extends AbstractDTO
         } else {
             $this->serviceProviderConfigId = (string) $serviceProviderConfigId;
         }
+        return $this;
+    }
+
+    public function getImageSizeConfig(): ?array
+    {
+        return $this->imageSizeConfig;
+    }
+
+    public function setImageSizeConfig(?array $imageSizeConfig): self
+    {
+        if (empty($imageSizeConfig)) {
+            $this->imageSizeConfig = null;
+            return $this;
+        }
+
+        $this->imageSizeConfig = [
+            'sizes' => $imageSizeConfig['sizes'] ?? [],
+            'max_reference_images' => $imageSizeConfig['max_reference_images'] ?? 0,
+        ];
         return $this;
     }
 }
