@@ -29,6 +29,8 @@ interface FieldConfig {
 	normalize?: (value: unknown) => unknown
 	/* 显示条件 */
 	shouldShow?: boolean
+	/** 一键填入的默认 API 地址（与占位一致，有预设时展示快捷入口） */
+	fillDefaultUrl?: string
 }
 
 interface ConfigFormProps {
@@ -65,6 +67,13 @@ const providersByCategory = {
 			AiModel.ServiceProvider.Official,
 			AiModel.ServiceProvider.DashScope,
 			AiModel.ServiceProvider.OpenRouter,
+			AiModel.ServiceProvider.Baidu,
+			AiModel.ServiceProvider.SCNet,
+			AiModel.ServiceProvider.SiliconFlow,
+			AiModel.ServiceProvider.Moonshot,
+			AiModel.ServiceProvider.MiniMax,
+			AiModel.ServiceProvider.BigModel,
+			AiModel.ServiceProvider.Tencent,
 		],
 		apiAgent: [
 			AiModel.ServiceProvider.MicrosoftAzure,
@@ -75,6 +84,13 @@ const providersByCategory = {
 			AiModel.ServiceProvider.DashScope,
 			AiModel.ServiceProvider.OpenRouter,
 			AiModel.ServiceProvider.Official,
+			AiModel.ServiceProvider.Baidu,
+			AiModel.ServiceProvider.SCNet,
+			AiModel.ServiceProvider.SiliconFlow,
+			AiModel.ServiceProvider.Moonshot,
+			AiModel.ServiceProvider.MiniMax,
+			AiModel.ServiceProvider.BigModel,
+			AiModel.ServiceProvider.Tencent,
 		],
 		apiVersion: [AiModel.ServiceProvider.MicrosoftAzure],
 		accessKey: [AiModel.ServiceProvider.AWSBedrock],
@@ -297,6 +313,7 @@ const ConfigForm = memo(({ category, code, name, descPosition = "left" }: Config
 
 		/* API 地址 */
 		if (useApiAgent.includes(code)) {
+			const defaultApiUrl = AiModel.ServiceProviderUrl[code]
 			configs.push({
 				name: ["config", "url"],
 				label: t("apiAgent"),
@@ -304,10 +321,8 @@ const ConfigForm = memo(({ category, code, name, descPosition = "left" }: Config
 					code === AiModel.ServiceProvider.MicrosoftAzure
 						? t("azureApiAgentPlaceholder")
 						: t("apiAgentPlaceholder"),
-				placeholder:
-					AiModel.ServiceProviderUrl[
-						code as unknown as keyof typeof AiModel.ServiceProviderUrl
-					],
+				placeholder: defaultApiUrl,
+				fillDefaultUrl: defaultApiUrl?.trim() ? defaultApiUrl : undefined,
 				required: !isGoogle,
 				rules: [
 					{
