@@ -17,10 +17,6 @@ use App\Infrastructure\ExternalAPI\VideoGenerateAPI\CloudswayVeoVideoAdapter;
 use App\Infrastructure\ExternalAPI\VideoGenerateAPI\CloudswayVideoAdapterRouter;
 use App\Infrastructure\ExternalAPI\VideoGenerateAPI\CloudswayVideoClient;
 use App\Infrastructure\ExternalAPI\VideoGenerateAPI\VideoGenerateFactory;
-use App\Infrastructure\ExternalAPI\VideoGenerateAPI\WuyinGrokVideoAdapter;
-use App\Infrastructure\ExternalAPI\VideoGenerateAPI\WuyinVeoVideoAdapter;
-use App\Infrastructure\ExternalAPI\VideoGenerateAPI\WuyinVideoAdapterRouter;
-use App\Infrastructure\ExternalAPI\VideoGenerateAPI\WuyinVideoClient;
 use Hyperf\Guzzle\ClientFactory;
 use PHPUnit\Framework\TestCase;
 
@@ -29,19 +25,6 @@ use PHPUnit\Framework\TestCase;
  */
 class VideoGenerationConfigDomainServiceTest extends TestCase
 {
-    public function testResolveReturnsAdapterBackedWuyinVeoConfig(): void
-    {
-        $service = $this->createService();
-
-        $config = $service->resolve('veo3.1_pro', 'wuyin-veo-3.1-generate-preview', ProviderCode::Wuyin);
-
-        $this->assertNotNull($config);
-        $this->assertSame(['text_prompt', 'image', 'last_frame'], $config->toArray()['supported_inputs']);
-        $this->assertSame([], $config->toArray()['generation']['durations']);
-        $this->assertCount(6, $config->toArray()['generation']['sizes']);
-        $this->assertFalse($config->toArray()['generation']['supports_generate_audio']);
-    }
-
     public function testResolveFeaturedSkipsUnconfiguredProviderAndIntersectsConfigs(): void
     {
         $service = $this->createService();
@@ -58,28 +41,13 @@ class VideoGenerationConfigDomainServiceTest extends TestCase
         $this->assertCount(5, $config->toArray()['generation']['sizes']);
     }
 
-    public function testResolveReturnsAdapterBackedWuyinGrokConfig(): void
+    public function testResolveRejectsUnsupportedProviderCode(): void
     {
         $service = $this->createService();
 
-        $config = $service->resolve('grok_imagine', 'wuyin-grok-imagine', ProviderCode::Wuyin);
+        $veoConfig = $service->resolve('veo3.1_fast', 'veo-3.1-fast-generate-preview', ProviderCode::OpenAI);
 
-        $this->assertNotNull($config);
-        $this->assertSame(['text_prompt', 'reference_images'], $config->toArray()['supported_inputs']);
-        $this->assertSame(1, $config->toArray()['reference_images']['max_count']);
-        $this->assertSame([6, 10, 15], $config->toArray()['generation']['durations']);
-        $this->assertArrayNotHasKey('sizes', $config->toArray()['generation']);
-    }
-
-    public function testResolveKeepsLegacyWuyinModelIdsCompatibleForQueuedOperations(): void
-    {
-        $service = $this->createService();
-
-        $veoConfig = $service->resolve('veo3.1_fast', 'veo-3.1-fast-generate-preview', ProviderCode::Wuyin);
-        $grokConfig = $service->resolve('grok_imagine', 'grok-imagine', ProviderCode::Wuyin);
-
-        $this->assertNotNull($veoConfig);
-        $this->assertNotNull($grokConfig);
+        $this->assertNull($veoConfig);
     }
 
     public function testIntersectShrinksBooleanListRangeAndConstraintFields(): void
@@ -195,14 +163,8 @@ class VideoGenerationConfigDomainServiceTest extends TestCase
 
     private function createService(): VideoGenerationConfigDomainService
     {
-        $client = new WuyinVideoClient($this->createMock(ClientFactory::class));
-
         return new VideoGenerationConfigDomainService(
             new VideoGenerateFactory(
-                new WuyinVideoAdapterRouter(
-                    new WuyinVeoVideoAdapter($client),
-                    new WuyinGrokVideoAdapter($client),
-                ),
                 new CloudswayVideoAdapterRouter(
                     new CloudswayVeoVideoAdapter(new CloudswayVideoClient($this->createMock(ClientFactory::class))),
                     new CloudswaySeedanceVideoAdapter(new CloudswayVideoClient($this->createMock(ClientFactory::class))),

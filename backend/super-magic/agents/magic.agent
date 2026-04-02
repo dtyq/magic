@@ -9,8 +9,6 @@ tools:
   - download_from_urls
   - download_from_markdown
   - generate_image
-  - generate_video
-  - query_video_generation
   - list_dir
   - file_search
   - read_files
@@ -37,6 +35,7 @@ skills:
     - name: env-manager
     - name: skill-creator
     - name: designing-canvas-images
+    - name: generating-videos
     - name: creating-slides
     - name: deep-research
     - name: using-llm

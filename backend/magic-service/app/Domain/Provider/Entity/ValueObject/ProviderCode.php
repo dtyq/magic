@@ -22,7 +22,6 @@ enum ProviderCode: string
 {
     case None = 'None';
     case Official = 'Official'; // 官方
-    case Wuyin = 'Wuyin';
     case Cloudsway = 'Cloudsway';
     case Volcengine = 'Volcengine'; // 火山
     case OpenAI = 'OpenAI';

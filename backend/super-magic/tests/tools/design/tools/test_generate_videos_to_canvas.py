@@ -471,7 +471,8 @@ class TestGenerateVideosToCanvas:
             }
         ]
         assert result.extra_info["elements"][0]["status"] == "processing"
-        assert "query_video_generation" in result.content
+        assert "polled until timeout" in result.content
+        assert "If the user explicitly asks to check progress later, use query_video_generation" in result.content
         assert "Do not switch to generate_images_to_canvas" in result.content
 
         update_params = mock_batch_update.call_args[0][1]
@@ -510,6 +511,7 @@ class TestGenerateVideosToCanvas:
                     "operation_id": "op_video_partial_1",
                     "request_id": "req_video_partial_1",
                     "status": "processing",
+                    "timed_out": True,
                     "metadata": {
                         "model_id": "veo-3.1-fast-generate-preview",
                         "prompt": "生成一段产品宣传视频",

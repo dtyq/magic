@@ -52,9 +52,10 @@ logger = get_video_logger(__name__)
 
 DEFAULT_VIDEO_MODEL = "veo-3.1-fast-generate-preview"
 DEFAULT_VIDEO_OUTPUT_DIR = "videos"
-DEFAULT_POLL_INTERVAL_SECONDS = 5
-DEFAULT_POLL_TIMEOUT_SECONDS = 300
-DEFAULT_VIDEO_PROGRESS_ESTIMATE_SECONDS = 60
+DEFAULT_POLL_INTERVAL_SECONDS = 10
+DEFAULT_POLL_TIMEOUT_SECONDS = 3600
+VIDEO_POLL_TIMEOUT_BUFFER_SECONDS = 20
+DEFAULT_VIDEO_PROGRESS_ESTIMATE_SECONDS = 600
 MAX_VIDEO_DOWNLOAD_BYTES = 500 * 1024 * 1024
 VIDEO_PROGRESS_TOOL_NAME = "video_generation_progress"
 TERMINAL_VIDEO_STATUSES = {"succeeded", "failed", "canceled"}
@@ -314,6 +315,12 @@ class GenerateVideo(AbstractFileTool[GenerateVideoParams], WorkspaceTool[Generat
                 f"{_format_tool_context_for_log(tool_context)} "
                 f"output_path={params.output_path} video_name={params.video_name or ''}"
             )
+            effective_poll_timeout_seconds = self._resolve_effective_poll_timeout_seconds(params.poll_timeout_seconds)
+            if effective_poll_timeout_seconds != params.poll_timeout_seconds:
+                logger.info(
+                    "视频轮询超时应用内部缓冲: "
+                    f"requested={params.poll_timeout_seconds} effective={effective_poll_timeout_seconds}"
+                )
             model_id = self._resolve_model(params.model_id)
             video_generation_config = self._resolve_video_generation_config(model_id)
             if video_generation_config is None:
@@ -344,7 +351,7 @@ class GenerateVideo(AbstractFileTool[GenerateVideoParams], WorkspaceTool[Generat
             operation = await self._wait_for_operation(
                 operation_id=operation_id,
                 poll_interval_seconds=params.poll_interval_seconds,
-                poll_timeout_seconds=params.poll_timeout_seconds,
+                poll_timeout_seconds=effective_poll_timeout_seconds,
                 initial_response=create_response,
                 request_id=request_id,
                 tool_context=tool_context,
@@ -812,6 +819,13 @@ class GenerateVideo(AbstractFileTool[GenerateVideoParams], WorkspaceTool[Generat
     def _normalize_status(operation: Dict[str, Any]) -> str:
         return _normalize_video_operation_status(operation)
 
+    @staticmethod
+    def _resolve_effective_poll_timeout_seconds(poll_timeout_seconds: int) -> int:
+        normalized_timeout = max(int(poll_timeout_seconds), 1)
+        if normalized_timeout <= VIDEO_POLL_TIMEOUT_BUFFER_SECONDS:
+            return normalized_timeout
+        return normalized_timeout - VIDEO_POLL_TIMEOUT_BUFFER_SECONDS
+
     async def wait_for_operation(
         self,
         operation_id: str,
@@ -822,10 +836,17 @@ class GenerateVideo(AbstractFileTool[GenerateVideoParams], WorkspaceTool[Generat
         tool_context: Optional[ToolContext] = None,
         progress_payload: Optional[Dict[str, Any]] = None,
     ) -> Dict[str, Any]:
+        effective_poll_timeout_seconds = self._resolve_effective_poll_timeout_seconds(poll_timeout_seconds)
+        if effective_poll_timeout_seconds != poll_timeout_seconds:
+            logger.info(
+                "视频查询轮询超时应用内部缓冲: "
+                f"requested={poll_timeout_seconds} effective={effective_poll_timeout_seconds} "
+                f"operation_id={operation_id}"
+            )
         return await self._wait_for_operation(
             operation_id=operation_id,
             poll_interval_seconds=poll_interval_seconds,
-            poll_timeout_seconds=poll_timeout_seconds,
+            poll_timeout_seconds=effective_poll_timeout_seconds,
             initial_response=initial_response,
             request_id=request_id,
             tool_context=tool_context,
@@ -1019,7 +1040,6 @@ class GenerateVideo(AbstractFileTool[GenerateVideoParams], WorkspaceTool[Generat
 
         save_dir = os.path.join(str(self.base_dir), output_path or DEFAULT_VIDEO_OUTPUT_DIR)
         await async_mkdir(save_dir, parents=True, exist_ok=True)
-        downloaded_size = 0
 
         async with aiohttp.ClientSession() as session:
             async with session.get(url, timeout=600) as response:
