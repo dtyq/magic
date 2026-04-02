@@ -190,6 +190,37 @@ class CallSubagent(BaseTool[CallSubagentParams]):
                 },
             )
 
+    def get_prompt_hint(self) -> str:
+        return """\
+<!--zh
+调用多个子智能体并行处理任务时，必须在每个子智能体的 prompt 中明确写清楚它的输出目标，
+子智能体之间没有共享上下文，无法相互感知，也无法从对话历史中推断目标对象。
+目标对象不写清楚，子智能体会自行猜测，通常的结果是它创建了一个不该创建的新对象。
+
+根据任务性质，有三种典型场景需要区别对待：
+
+1. 共享容器（画布、PPT 等）：由独立元素组成，多个子智能体可以并行往同一个容器里添加各自负责的内容。
+   必须把同一个容器标识（如 project_path、文件路径）传给所有子智能体，并说明每个子智能体负责哪一部分。
+   不得让子智能体自行创建或选择容器。
+
+2. 单一文件（报告、文档等）：整个文件是一个整体，不支持并发写入。
+   要么交给一个子智能体完整完成，要么让各子智能体分别生成各自负责的草稿段落，
+   最后指定一个子智能体将所有段落合并进同一个文件。
+
+3. 各自独立输出（不同主题的调研报告、不同内容的画布等）：每个子智能体生成自己的独立产物，互不干扰。
+   为每个子智能体单独指定其输出目标，不需要协调或合并。
+-->
+When dispatching multiple sub-agents in parallel, always specify each agent's output target explicitly in its prompt. Sub-agents share no context — they cannot sense each other or infer targets from conversation history. If the output target is missing, the sub-agent will guess, and will usually create a new object it shouldn't.
+
+Three patterns to follow based on task type:
+
+1. Shared container (canvas, presentation slides, etc.): composed of independent elements; agents can work in parallel. Pass the same container identifier (e.g. project path) to every agent, and tell each one which part it owns. Do not let agents create or choose their own container.
+
+2. Single file (report, document, etc.): the whole file is one unit; concurrent writes conflict. Either assign the full task to one agent, or have each agent draft its assigned section independently, then designate one agent to merge everything into the final file.
+
+3. Fully independent outputs (separate reports per topic, separate canvases per theme, etc.): each agent produces its own distinct deliverable. Specify each agent's output target separately. No coordination needed.
+"""
+
     async def get_before_tool_call_friendly_content(
         self, tool_context: ToolContext, arguments: Dict[str, Any] = None
     ) -> str:
