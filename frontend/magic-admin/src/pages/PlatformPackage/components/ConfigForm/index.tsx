@@ -4,34 +4,11 @@ import { Flex, Form, Upload, message } from "antd"
 import { IconUpload } from "@tabler/icons-react"
 import { useTranslation } from "react-i18next"
 import { MagicButton, MagicSelect } from "components"
-import type { Rule } from "antd/es/form"
 import { AiManage } from "@/types/aiManage"
 import { AiModel } from "@/const/aiModel"
 import { useStyles } from "./styles"
 import FormField from "./FormField"
-
-interface FieldConfig {
-	/* 字段名称 */
-	name: string | string[]
-	/* 标签文本 */
-	label: string
-	/* 描述文本 */
-	description?: string
-	/* 占位符 */
-	placeholder?: string
-	/* 是否必填 */
-	required?: boolean
-	/* 输入类型 */
-	inputType?: "text" | "password" | "textarea"
-	/* 验证规则 */
-	rules?: Rule[]
-	/* 提交前规范化（如 trim），可避免尾随空格导致校验报错 */
-	normalize?: (value: unknown) => unknown
-	/* 显示条件 */
-	shouldShow?: boolean
-	/** 一键填入的默认 API 地址（与占位一致，有预设时展示快捷入口） */
-	fillDefaultUrl?: string
-}
+import type { FieldConfig } from "./FormField"
 
 interface ConfigFormProps {
 	/* 服务商名称 */
@@ -322,7 +299,7 @@ const ConfigForm = memo(({ category, code, name, descPosition = "left" }: Config
 						? t("azureApiAgentPlaceholder")
 						: t("apiAgentPlaceholder"),
 				placeholder: defaultApiUrl,
-				fillDefaultUrl: defaultApiUrl?.trim() ? defaultApiUrl : undefined,
+				initialValue: defaultApiUrl?.trim() ? defaultApiUrl : undefined,
 				required: !isGoogle,
 				rules: [
 					{

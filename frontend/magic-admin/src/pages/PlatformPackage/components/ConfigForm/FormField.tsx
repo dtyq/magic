@@ -1,11 +1,10 @@
-import { memo, useCallback } from "react"
-import { Flex, Form, Input, Space } from "antd"
+import { memo, useEffect } from "react"
+import { Flex, Form, Input } from "antd"
 import type { Rule } from "antd/es/form"
 import { useTranslation } from "react-i18next"
-import { MagicButton } from "components"
 import { useStyles } from "./styles"
 
-interface FieldConfig {
+export interface FieldConfig {
 	/* 字段名称 */
 	name: string | string[]
 	/* 标签文本 */
@@ -20,10 +19,12 @@ interface FieldConfig {
 	inputType?: "text" | "password" | "textarea"
 	/* 验证规则 */
 	rules?: Rule[]
-	/* 提交前规范化（如 trim） */
+	/* 提交前规范化（如 trim），可避免尾随空格导致校验报错 */
 	normalize?: (value: unknown) => unknown
-	/* 一键填入默认 API 地址 */
-	fillDefaultUrl?: string
+	/* 显示条件 */
+	shouldShow?: boolean
+	/* 初始值 */
+	initialValue?: string
 }
 
 interface FormFieldProps extends FieldConfig {
@@ -40,20 +41,12 @@ function FormField({
 	inputType = "text",
 	rules = [],
 	normalize,
-	fillDefaultUrl,
+	initialValue,
 	isLeftDesc,
 }: FormFieldProps) {
 	const { t } = useTranslation("admin/ai/model")
 	const { styles, cx } = useStyles({ isLeftDesc })
 	const form = Form.useFormInstance()
-
-	const handleFillDefaultUrl = useCallback(() => {
-		if (!fillDefaultUrl) return
-		form.setFieldValue(name, fillDefaultUrl)
-		void form.validateFields([name]).catch(() => {
-			/* 仅刷新校验态，失败时保留表单项错误提示 */
-		})
-	}, [fillDefaultUrl, form, name])
 
 	const defaultRules: Rule[] = required
 		? [
@@ -71,6 +64,12 @@ function FormField({
 			? Input.TextArea
 			: Input
 
+	useEffect(() => {
+		if (initialValue) {
+			form.setFieldValue(name, initialValue)
+		}
+	}, [initialValue, form, name])
+
 	return (
 		<Flex
 			justify="space-between"
@@ -82,27 +81,14 @@ function FormField({
 				{isLeftDesc && description && <div className={styles.labelDesc}>{description}</div>}
 			</Flex>
 			<Flex vertical gap={6} flex={60}>
-				<Space.Compact>
-					<Form.Item
-						className={
-							inputType === "textarea" ? styles.textareaFormItem : styles.formItem
-						}
-						name={name}
-						rules={[...defaultRules, ...rules]}
-						normalize={normalize}
-					>
-						<InputComponent placeholder={placeholder} />
-					</Form.Item>
-					{fillDefaultUrl && inputType === "text" && (
-						<MagicButton
-							size="small"
-							className={styles.fillDefaultUrlBtn}
-							onClick={handleFillDefaultUrl}
-						>
-							{t("form.useDefaultApiUrl")}
-						</MagicButton>
-					)}
-				</Space.Compact>
+				<Form.Item
+					className={inputType === "textarea" ? styles.textareaFormItem : styles.formItem}
+					name={name}
+					rules={[...defaultRules, ...rules]}
+					normalize={normalize}
+				>
+					<InputComponent placeholder={placeholder} />
+				</Form.Item>
 				{!isLeftDesc && description && (
 					<div className={styles.labelDesc}>{description}</div>
 				)}

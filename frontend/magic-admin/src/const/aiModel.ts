@@ -86,6 +86,7 @@ export namespace AiModel {
 		[ServiceProvider.Gemini]: "https://api.gemini.com",
 		[ServiceProvider.GoogleImage]: "https://api.googleimage.com",
 		[ServiceProvider.OpenRouter]: "https://openrouter.ai/api/v1/chat/completions",
+		[ServiceProvider.Google]: "https://generativelanguage.googleapis.com/v1beta",
 	}
 
 	/** 权限 */
