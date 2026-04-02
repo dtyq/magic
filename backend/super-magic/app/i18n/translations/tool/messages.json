@@ -848,12 +848,12 @@
         "en_US": "Calling sub-agent: {{agent_name}}"
     },
     "call_subagent.error": {
-        "zh_CN": "分配子智能体任务失败: {{error}}",
+        "zh_CN": "调用子智能体失败: {{error}}",
         "en_US": "Sub-agent call failed: {{error}}"
     },
     "call_subagent.assign": {
-        "zh_CN": "分配给 {{agent_name}} 子智能体",
-        "en_US": "Assign to sub-agent {{agent_name}}"
+        "zh_CN": "{{agent_name}} 子智能体",
+        "en_US": "{{agent_name}} sub-agent"
     },
     "call_subagent.running": {
         "zh_CN": "{{agent_name}} 正在执行任务",

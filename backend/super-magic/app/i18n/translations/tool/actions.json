@@ -288,7 +288,7 @@
         "en_US": "Deep write"
     },
     "call_subagent": {
-        "zh_CN": "分配子智能体任务",
+        "zh_CN": "调用子智能体",
         "en_US": "Call sub-agent"
     },
     "wait_for_subagents": {
