@@ -939,9 +939,9 @@
         "zh_CN": "下一步",
         "en_US": "Next step"
     },
-    "get_sub_agent_results.error": {
-        "zh_CN": "获取子智能体任务进展失败: {{error}}",
-        "en_US": "Failed to query sub-agent results: {{error}}"
+    "wait_for_subagents.error": {
+        "zh_CN": "等待子智能体失败: {{error}}",
+        "en_US": "Failed while waiting for sub-agents: {{error}}"
     },
     "compact_chat_history.remark": {
         "zh_CN": "当前对话内容过长，「{{agent_name}}」将整理自己的记忆，可能导致先前对话中的一些细节被遗忘；太长的对话会影响「{{agent_name}}」的工作效率",

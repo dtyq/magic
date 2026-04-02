@@ -7,7 +7,7 @@
 from app.tools.dummy_tool import DummyTool # DummyTool 必须在第一个位置导入，否则其他工具会因为循环依赖导致收集不到
 from app.tools.web_search import WebSearch
 from app.tools.call_subagent import CallSubagent
-from app.tools.get_sub_agent_results import GetSubAgentResults
+from app.tools.wait_for_subagents import WaitForSubagents
 from app.tools.compact_chat_history import CompactChatHistory
 from app.tools.core import BaseTool, BaseToolParams, tool, tool_factory
 from app.tools.create_slide import CreateSlide
@@ -131,7 +131,7 @@ __all__ = [
     "AppendToFile",
     "WebSearch",
     "CallAgent",
-    "GetSubAgentResults",
+    "WaitForSubagents",
     "ConnectDingTalkBot",
     "ConnectLarkBot",
     "ConnectWecomBot",

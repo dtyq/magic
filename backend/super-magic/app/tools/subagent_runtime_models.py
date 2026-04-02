@@ -51,7 +51,7 @@ class SubagentPayload:
 
 @dataclass
 class SubagentQueryResult:
-    """`get_sub_agent_results` 的单项查询结果。"""
+    """`wait_for_subagents` 的单项查询结果。"""
 
     agent_id: str
     status: SubagentQueryStatus

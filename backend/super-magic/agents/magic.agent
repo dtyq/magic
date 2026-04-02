@@ -21,7 +21,7 @@ tools:
   - multi_edit_file_range
   - delete_files
   - call_subagent
-  - get_sub_agent_results
+  - wait_for_subagents
 skills:
   system_skills:
     - name: skill-vetter

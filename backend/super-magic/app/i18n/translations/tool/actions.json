@@ -291,9 +291,9 @@
         "zh_CN": "分配子智能体任务",
         "en_US": "Call sub-agent"
     },
-    "get_sub_agent_results": {
-        "zh_CN": "查看子智能体任务进展",
-        "en_US": "Query sub-agent results"
+    "wait_for_subagents": {
+        "zh_CN": "等待子智能体完成",
+        "en_US": "Wait for sub-agents"
     },
     "compact_chat_history": {
         "zh_CN": "整理对话内容",

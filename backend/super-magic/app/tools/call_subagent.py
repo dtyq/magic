@@ -22,7 +22,7 @@ from app.tools.subagent_runtime_models import (
 )
 from app.tools.subagent_runtime_store import SubagentRuntimeStore
 from app.tools.subagent_session_manager import subagent_session_manager
-from app.core.entity.message.server_message import DisplayType, FileContent, ToolDetail
+from app.core.entity.message.server_message import DisplayType, TerminalContent, ToolDetail
 
 logger = get_logger(__name__)
 
@@ -61,7 +61,7 @@ class CallSubagentParams(BaseToolParams):
         False,
         description=(
             "If true, dispatch sub-agent as background asyncio task and return immediately. "
-            "Use get_sub_agent_results(agent_ids=[agent_id]) to poll result later. "
+            "Use wait_for_subagents(agent_ids=[agent_id]) to wait for the result. "
             "Use this for ALL parallel workloads — call multiple agents with background=True "
             "sequentially, they run concurrently regardless of whether the model supports "
             "parallel tool call output. Also used for in-process scheduler tasks."
@@ -167,7 +167,7 @@ class CallSubagent(BaseTool[CallSubagentParams]):
                 return _success_result(_build_payload(
                     state=state,
                     mode=SubagentExecutionMode.BACKGROUND,
-                    resume_hint="Sub-agent is running in background. Use get_sub_agent_results(agent_ids) when you need the result.",
+                    resume_hint="Sub-agent is running in background. Use wait_for_subagents(agent_ids) to block until it finishes.",
                 ))
 
             result_state = await task
@@ -221,20 +221,22 @@ class CallSubagent(BaseTool[CallSubagentParams]):
         t = lambda key: i18n.translate(f"call_subagent.detail.{key}", category="tool.messages")
         lines = []
         if agent_name:
-            lines.append(f"**{t('sub_agent')}：** {agent_name}")
+            lines.append(f"{t('sub_agent')}: {agent_name}")
         if agent_id:
-            lines.append(f"**{t('session_id')}：** {agent_id}")
+            lines.append(f"{t('session_id')}: {agent_id}")
         mode_text = t("mode_background") if background else t("mode_sync")
-        lines.append(f"**{t('mode')}：** {mode_text}")
+        lines.append(f"{t('mode')}: {mode_text}")
         if model_id:
-            lines.append(f"**{t('model')}：** {model_id}")
-        lines.append(f"\n**{t('task')}：**\n{prompt}")
+            lines.append(f"{t('model')}: {model_id}")
+        lines.append(f"\n{t('task')}:\n{prompt}")
 
+        command = f"call_subagent {agent_name}/{agent_id}" if agent_name and agent_id else f"call_subagent {agent_name or agent_id}"
         return ToolDetail(
-            type=DisplayType.MD,
-            data=FileContent(
-                file_name=f"{agent_id or agent_name}.md",
-                content="\n".join(lines),
+            type=DisplayType.TERMINAL,
+            data=TerminalContent(
+                command=command,
+                output="\n".join(lines),
+                exit_code=0,
             ),
         )
 
@@ -595,6 +597,16 @@ def _build_status_remark(agent_id: str, status_text: str) -> str:
     return status_text
 
 
+_STATUS_EMOJI: Dict[str, str] = {
+    "done": "✅",
+    "error": "❌",
+    "interrupted": "⚠️",
+    "running": "⏳",
+    "pending": "⏳",
+    "idle": "💤",
+}
+
+
 def _build_subagent_tool_detail(
     agent_name: str,
     agent_id: str,
@@ -603,28 +615,32 @@ def _build_subagent_tool_detail(
     error: str,
     resume_hint: str,
 ) -> Optional[ToolDetail]:
-    """构建子智能体 MD 详情卡片，供 before/after detail 复用。"""
+    """构建子智能体终端风格详情卡片，供 before/after detail 复用。"""
     t = lambda key: i18n.translate(f"call_subagent.detail.{key}", category="tool.messages")
+    status_emoji = _STATUS_EMOJI.get(status, "🔄")
     lines = []
     if agent_name:
-        lines.append(f"**{t('sub_agent')}：** {agent_name}")
+        lines.append(f"{t('sub_agent')}: {agent_name}")
     if agent_id:
-        lines.append(f"**{t('session_id')}：** {agent_id}")
+        lines.append(f"{t('session_id')}: {agent_id}")
     if status:
-        lines.append(f"**{t('status')}：** {status}")
+        lines.append(f"{t('status')}: {status_emoji} {status}")
     if agent_result:
-        lines.append(f"\n**{t('result')}：**\n{agent_result}")
+        lines.append(f"\n{t('result')}:\n{agent_result}")
     if error:
-        lines.append(f"\n**{t('error')}：** {error}")
+        lines.append(f"\n{t('error')}: {error}")
     if resume_hint:
-        lines.append(f"\n**{t('next_step')}：** {resume_hint}")
+        lines.append(f"\n{t('next_step')}: {resume_hint}")
     content = "\n".join(lines)
     if not content.strip():
         return None
+    exit_code = 1 if status == "error" else 0
+    command = f"call_subagent {agent_name}/{agent_id}" if agent_name and agent_id else f"call_subagent {agent_name or agent_id}"
     return ToolDetail(
-        type=DisplayType.MD,
-        data=FileContent(
-            file_name=f"{agent_id or agent_name}_result.md",
-            content=content,
+        type=DisplayType.TERMINAL,
+        data=TerminalContent(
+            command=command,
+            output=content,
+            exit_code=exit_code,
         ),
     )

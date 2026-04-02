@@ -203,7 +203,7 @@ tools:
 |------|-------------|
 | `call_agent` | Delegate a task to another specialized agent |
 | `call_subagent` | Call a sub-agent for a specific task |
-| `get_sub_agent_results` | Retrieve results from a sub-agent |
+| `wait_for_subagents` | Wait for one or more background sub-agents to finish |
 
 <!--zh
 ### 演示与幻灯片类

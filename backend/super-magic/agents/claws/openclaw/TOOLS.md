@@ -31,7 +31,7 @@ tools:
 
   # 协作与会话
   - call_subagent
-  - get_sub_agent_results
+  - wait_for_subagents
   - compact_chat_history
 ---
 
