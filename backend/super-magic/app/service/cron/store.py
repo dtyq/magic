@@ -253,7 +253,22 @@ async def write_result_file(job: CronJob, result: CronRunResult) -> Path:
         f"{body}\n"
     )
     await async_write_text(path, content)
+    await _prune_result_files(path.parent, keep=5)
     return path
+
+
+async def _prune_result_files(job_result_dir: Path, keep: int = 5) -> None:
+    """保留目录下最新的 keep 条 .md 结果文件，删除更旧的。"""
+    try:
+        entries = await async_scandir(job_result_dir)
+        md_names = sorted(
+            [e.name for e in entries if e.name.endswith(".md")],
+            reverse=True,
+        )
+        for old_name in md_names[keep:]:
+            await async_unlink(job_result_dir / old_name)
+    except Exception as e:
+        logger.warning(f"cron: failed to prune result files in {job_result_dir}: {e}")
 
 
 # ── job MD 文件构建 / 更新 ────────────────────────────────────────────────────

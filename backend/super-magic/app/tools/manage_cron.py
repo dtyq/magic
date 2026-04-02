@@ -32,8 +32,8 @@ from app.utils.async_file_utils import (
 
 logger = get_logger(__name__)
 
-# runs 最多展示的结果条数
-_RUNS_LIMIT = 20
+# runs 最多展示的结果条数（与磁盘保留数量一致）
+_RUNS_LIMIT = 5
 
 
 class ManageCronParams(BaseToolParams):
@@ -374,14 +374,13 @@ CRITICAL CONSTRAINTS:
     async def _runs(self, params: ManageCronParams) -> ToolResult:
         if not params.job_id:
             return ToolResult.error("job_id is required for action=runs")
-        result_dir = PathManager.get_cron_result_dir()
-        if not await async_exists(result_dir):
-            return ToolResult(content="No results yet.")
+        job_result_dir = PathManager.get_cron_result_dir() / params.job_id
+        if not await async_exists(job_result_dir):
+            return ToolResult(content=f"No results yet for job '{params.job_id}'.")
 
-        entries = await async_scandir(result_dir)
-        prefix = f"{params.job_id}-"
+        entries = await async_scandir(job_result_dir)
         names = sorted(
-            [e.name for e in entries if e.name.startswith(prefix) and e.name.endswith(".md")],
+            [e.name for e in entries if e.name.endswith(".md")],
             reverse=True,
         )[:_RUNS_LIMIT]
 
@@ -391,10 +390,10 @@ CRITICAL CONSTRAINTS:
         records: List[Dict[str, Any]] = []
         lines: List[str] = []
         for name in names:
-            path = result_dir / name
+            path = job_result_dir / name
             md = await async_try_read_markdown(path)
             meta = (md.meta or {}) if md else {}
-            run_at = meta.get("run_at", "-")
+            run_at = meta.get("started_at", "-")
             status = meta.get("status", "-")
             duration_ms = meta.get("duration_ms", "-")
             lines.append(f"- {name}: status={status} duration={duration_ms}ms run_at={run_at}")
