@@ -145,7 +145,11 @@ Python 代码中凡是涉及文件操作，必须使用 `app/utils/async_file_ut
 - 检查所有 `except Exception` / `except BaseException` / 裸 `except:` 块，确认不会吞掉 `CancelledError`。如果 fallback 逻辑需要在中断时跳过，在进入 fallback 前先检查 `agent_context.is_interruption_requested()`。
 - 新建的 `asyncio.create_task()` 子任务若需随父级一并取消（如调用子 Agent），在父级的 `_run_cleanup_registry` 中注册清理逻辑，不要依赖 Python 自动传播（父 Task 被 cancel 不会自动取消独立创建的子 Task）。
 
-## 12. 每次改动前自检
+## 12. 工具新增后需在 `__init__.py` 显式导入
+
+在 `app/tools/` 增加新工具，需同步在 `app/tools/__init__.py` 中 `import` 该类并加入 `__all__`。未在 `__init__.py` 显式导入将导致工具模块未被加载，运行期报错 `No module named 'app.tools.<tool_name>'`。
+
+## 13. 每次改动前自检
 
 - 这是在解决真实问题，还是在满足抽象冲动？
 - 这层包装有没有新增语义？
