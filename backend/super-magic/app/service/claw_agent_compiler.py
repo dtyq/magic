@@ -3,16 +3,15 @@ Claw Agent compiler.
 
 Reads claw definition files from a given directory (typically the workspace
 .magic/ directory, or agents/claws/<claw_code>/ as fallback):
-  IDENTITY.md  — role definition + agent metadata (required)
-  SOUL.md      — personality (optional)
-  AGENTS.md    — workspace instructions (optional)
+  IDENTITY.md  — role definition + agent metadata (required, frontmatter only)
   TOOLS.md     — tools YAML list (optional)
 
-Outputs agents/<claw_code>.agent with real tools in YAML frontmatter and
-@include directives pointing to the source files. Developer annotations
-(<!--zh -->) are stripped by agentlang's SyntaxProcessor at load time.
+Outputs agents/<claw_code>.agent with real tools in YAML frontmatter.
+IDENTITY.md, SOUL.md, AGENTS.md are NOT inlined into the system prompt;
+instead the runtime injects a <magiclaw_startup> block requiring the agent
+to read them from the workspace. Developer annotations (<!--zh -->) are
+stripped by agentlang's SyntaxProcessor at load time.
 """
-import os
 from pathlib import Path
 from typing import Any, Dict, List
 
@@ -29,11 +28,6 @@ from app.utils.async_file_utils import (
 )
 
 logger = get_logger(__name__)
-
-# 模板中的路径占位符
-_PLACEHOLDER_IDENTITY = "CLAW_IDENTITY_PATH"
-_PLACEHOLDER_SOUL     = "CLAW_SOUL_PATH"
-_PLACEHOLDER_AGENTS   = "CLAW_AGENTS_PATH"
 
 
 class ClawAgentCompiler:
@@ -62,15 +56,7 @@ class ClawAgentCompiler:
 
         tools_list = self._read_tools(tools.meta if tools else {}, claw_code)
 
-        agents_dir = PathManager.get_agents_dir()
-        rel_base = os.path.relpath(claw_dir, agents_dir)
-        path_map = {
-            _PLACEHOLDER_IDENTITY: f"{rel_base}/IDENTITY.md",
-            _PLACEHOLDER_SOUL:     f"{rel_base}/SOUL.md",
-            _PLACEHOLDER_AGENTS:   f"{rel_base}/AGENTS.md",
-        }
-
-        compiled = self._build_agent_file(template, tools_list, path_map)
+        compiled = self._build_agent_file(template, tools_list)
         output_path = PathManager.get_compiled_agent_file(claw_code)
         await async_write_text(output_path, compiled)
         logger.info(f"Compiled claw agent: {output_path}")
@@ -84,10 +70,8 @@ class ClawAgentCompiler:
             return []
         return [str(t).strip() for t in tools if str(t).strip()]
 
-    def _build_agent_file(
-        self, template: MarkdownFile, tools_list: List[str], path_map: Dict[str, str]
-    ) -> str:
-        """Inject real tools into YAML frontmatter and resolve @include path placeholders.
+    def _build_agent_file(self, template: MarkdownFile, tools_list: List[str]) -> str:
+        """Inject real tools into YAML frontmatter.
 
         Template-level tools (base tools shared by all claw agents) are merged with
         claw-specific tools from TOOLS.md. Template tools come first; duplicates are removed.
@@ -102,9 +86,4 @@ class ClawAgentCompiler:
                 merged.append(t)
         header["tools"] = merged
         yaml_str = yaml.dump(header, default_flow_style=False, allow_unicode=True, sort_keys=False)
-
-        body = template.body
-        for placeholder, resolved in path_map.items():
-            body = body.replace(placeholder, resolved)
-
-        return f"---\n{yaml_str}---\n{body}"
+        return f"---\n{yaml_str}---\n{template.body}"

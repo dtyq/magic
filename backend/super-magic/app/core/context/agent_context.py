@@ -317,6 +317,11 @@ class AgentContext(BaseAgentContext):
         """
         return self.shared_context.get_field("agent_code")
 
+    def is_magiclaw(self) -> bool:
+        """当前会话是否为 magiclaw 模式（龙虾 claw agent）。"""
+        msg = self.get_chat_client_message()
+        return msg is not None and str(getattr(msg, "agent_mode", "")) == "magiclaw"
+
     def set_sandbox_id(self, sandbox_id: str) -> None:
         """设置沙盒ID
 

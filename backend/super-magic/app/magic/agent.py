@@ -491,6 +491,11 @@ class Agent(BaseAgent):
             language = i18n.get_language_display_name()
         await horizon.set_user_preferred_language(language)
 
+        # magiclaw 文件驱动启动初始化（非 magiclaw 会话直接跳过）
+        if self.agent_context.is_magiclaw():
+            from app.path_manager import PathManager
+            await self.agent_context.horizon.init_magiclaw_startup(PathManager.get_magic_dir())
+
         logger.info("async_complete_dynamic_init 完成：workspace files、memory、language 已同步到 horizon")
 
     async def refresh_workspace_files(self) -> None:

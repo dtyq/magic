@@ -358,7 +358,7 @@ class AgentDispatcher(Base):
             logger.info(f"Set crew agent profile: name={name}, role={role}")
 
     async def _prepare_claw_agent(self, claw_code: str) -> None:
-        """Compile claw definition files into .agent (if needed) and set AgentProfile.
+        """Compile claw definition files into .agent and set AgentProfile.
 
         Source files live in the workspace .magic/ directory. On first run the
         template is copied from agents/claws/<claw_code>/ with SKIP strategy so
@@ -368,7 +368,7 @@ class AgentDispatcher(Base):
         from app.path_manager import PathManager
         from app.service.claw_agent_compiler import ClawAgentCompiler
         from app.core.entity.agent_profile import AgentProfile
-        from app.utils.async_file_utils import async_copytree, async_read_markdown, async_exists, async_rename, async_unlink, CopyConflict
+        from app.utils.async_file_utils import async_copytree, async_exists, async_rename, async_unlink, CopyConflict
 
         magic_dir = PathManager.get_magic_dir()
         output_agent_file = PathManager.get_compiled_agent_file(claw_code)
@@ -378,8 +378,7 @@ class AgentDispatcher(Base):
             # 已初始化：补全可能缺失的模板文件，但跳过 BOOTSTRAP.md
             # （BOOTSTRAP 仅用于首次初始化，agent 处理完后会自行删除，不应重新写入）
             await async_copytree(claw_src, magic_dir, on_conflict=CopyConflict.SKIP, exclude={"BOOTSTRAP.md", "memory"})
-            logger.info(f"Claw .agent already exists, skip compile: {output_agent_file}")
-            identity_meta = (await async_read_markdown(magic_dir / "IDENTITY.md")).meta
+            logger.info(f"Claw .agent already exists, refresh compile: {output_agent_file}")
         else:
             # 首次初始化：从模板复制全部文件（已有文件不会被覆盖）
             await async_copytree(claw_src, magic_dir, on_conflict=CopyConflict.SKIP)
@@ -396,8 +395,10 @@ class AgentDispatcher(Base):
                     await async_unlink(placeholder)
                     logger.info(f"Removed memory placeholder (today's file already exists: {today_file.name})")
 
-            compiler = ClawAgentCompiler()
-            identity_meta = await compiler.compile(claw_code, magic_dir)
+        # .agent 是从模板和 .magic 源文件派生出的可再生缓存。
+        # magiclaw 会话是长寿命的，必须在每次 prepare 时刷新编译结果，避免继续使用旧模板。
+        compiler = ClawAgentCompiler()
+        identity_meta = await compiler.compile(claw_code, magic_dir)
 
         name        = identity_meta.get("name", "")
         role        = identity_meta.get("role", "")

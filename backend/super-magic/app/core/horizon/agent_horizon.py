@@ -130,6 +130,15 @@ class AgentHorizon:
         self._memory_prev: Optional[str] = None
         self._language_prev: Optional[str] = None
 
+        # magiclaw 文件驱动启动状态（纯内存，per-context-window，不持久化）
+        self._is_magiclaw: bool = False              # 会话是否为 magiclaw 模式
+        self._magiclaw_dir: Optional[Path] = None    # .magic 目录，用于重置时重算文件集合
+        self._magiclaw_required_paths: frozenset[str] = frozenset()
+        self._magiclaw_read_paths: set[str] = set()
+        self._magiclaw_missing_fixed_files: tuple[str, ...] = tuple()
+        self._magiclaw_bootstrap_exists: bool = False
+        self._magiclaw_startup_done: bool = True     # 启动阶段是否已完成（非 magiclaw 恒为 True）
+
     # ─────────────────────────────────────────────────────────────────────────
     # 初始化
     # ─────────────────────────────────────────────────────────────────────────
@@ -264,6 +273,12 @@ class AgentHorizon:
         self._video_model_changed = False
         self._video_model_switched = False
         self._is_first_injection = True
+
+        # magiclaw：重算固定文件 / BOOTSTRAP 状态，重新进入必读文件流程
+        if self._is_magiclaw and self._magiclaw_dir is not None:
+            await self.init_magiclaw_startup(self._magiclaw_dir)
+            logger.info("[AgentHorizon] magiclaw 启动状态已重置，重新进入必读文件流程")
+
         logger.info("[AgentHorizon] 已重置上下文相关状态（文件记录、图片/视频模型、首次注入标志）")
 
     # ─────────────────────────────────────────────────────────────────────────
@@ -283,9 +298,13 @@ class AgentHorizon:
         tool_name: str,
         metadata: Optional[dict] = None,
     ) -> None:
-        """read_file / read_files 工具在成功读取后调用，存储内容快照。"""
+        """read_file / read_files 工具在成功读取后调用，存储内容快照。
+
+        同时通知 magiclaw 启动跟踪：若该文件是本轮必读绝对路径，标记为已真实读取。
+        """
         await self._ensure_loaded()
         abs_path = _abs(path)
+        record_saved = False
         try:
             ts = max(time.time() * 1000, mtime_ms) + NETWORK_FS_MTIME_BUFFER * 1000
             self._state.file_records[abs_path] = FileReadRecord(
@@ -302,12 +321,106 @@ class AgentHorizon:
                 metadata=metadata or {},
             )
             await self._save()
+            record_saved = True
         except Exception as e:
             logger.warning(f"[AgentHorizon] record_file_read 失败 {abs_path}: {e}")
 
+        # 仅在启动阶段且快照已成功落账时才追踪，避免把失败读取误记成已读
+        if record_saved and not self._magiclaw_startup_done:
+            self.mark_magiclaw_file_read(abs_path)
+
     # ─────────────────────────────────────────────────────────────────────────
-    # Skill 记录
+    # magiclaw 文件驱动启动
     # ─────────────────────────────────────────────────────────────────────────
+
+    async def init_magiclaw_startup(self, magic_dir: Path) -> None:
+        """magiclaw 会话初始化时调用，确定本轮必读文件集合。
+
+        magic_dir 是工作区 .magic/ 目录（workspace 内），用于检测 BOOTSTRAP.md 是否存在。
+        此方法同时兼做重置逻辑：首次运行、/new、/compact 都会重新计算固定文件、
+        BOOTSTRAP 存在性和软提醒文案，确保状态不会使用过期快照。
+        """
+        from app.utils.async_file_utils import async_exists
+
+        fixed_paths = {
+            "IDENTITY.md": magic_dir / "IDENTITY.md",
+            "SOUL.md": magic_dir / "SOUL.md",
+            "AGENTS.md": magic_dir / "AGENTS.md",
+            "USER.md": magic_dir / "USER.md",
+            "MEMORY.md": magic_dir / "MEMORY.md",
+        }
+        required_paths: set[str] = set()
+        missing_fixed_files: list[str] = []
+        for filename, file_path in fixed_paths.items():
+            if await async_exists(file_path):
+                required_paths.add(_abs(file_path))
+            else:
+                missing_fixed_files.append(filename)
+
+        bootstrap_path = magic_dir / "BOOTSTRAP.md"
+        bootstrap_exists = await async_exists(bootstrap_path)
+        if bootstrap_exists:
+            required_paths.add(_abs(bootstrap_path))
+
+        self._is_magiclaw = True
+        self._magiclaw_dir = magic_dir
+        self._magiclaw_required_paths = frozenset(required_paths)
+        self._magiclaw_read_paths = set()
+        self._magiclaw_missing_fixed_files = tuple(sorted(missing_fixed_files))
+        self._magiclaw_bootstrap_exists = bootstrap_exists
+        self._magiclaw_startup_done = not bool(required_paths)
+        logger.info(
+            "[magiclaw] 启动状态初始化: "
+            f"required={sorted(Path(p).name for p in required_paths)}, "
+            f"missing_fixed={sorted(missing_fixed_files)}, "
+            f"bootstrap_exists={bootstrap_exists}"
+        )
+
+    def mark_magiclaw_file_read(self, abs_path: str) -> None:
+        """read_file 工具成功读取后调用，记录必读文件完成情况。
+
+        只有绝对路径在必读集合中时才更新状态，避免被其他同名文件误命中。
+        """
+        if self._magiclaw_startup_done or abs_path not in self._magiclaw_required_paths:
+            return
+        self._magiclaw_read_paths.add(abs_path)
+        if self._magiclaw_required_paths <= self._magiclaw_read_paths:
+            self._magiclaw_startup_done = True
+            logger.info("[magiclaw] 所有必读文件已真实读取，停止启动提醒")
+        else:
+            remaining = sorted(Path(p).name for p in (self._magiclaw_required_paths - self._magiclaw_read_paths))
+            logger.info(f"[magiclaw] 已读取 {Path(abs_path).name}，剩余必读: {remaining}")
+
+    def _build_magiclaw_startup_context(self) -> str:
+        """生成 magiclaw 运行时必读文件提醒块。未完成时返回非空字符串，完成后返回空串。"""
+        if self._magiclaw_startup_done:
+            return ""
+        unread = sorted(Path(p).name for p in (self._magiclaw_required_paths - self._magiclaw_read_paths))
+        read_done = sorted(Path(p).name for p in self._magiclaw_read_paths)
+        lines = ["<magiclaw_startup>"]
+        lines.append(
+            "You are in a file-driven startup phase. Read all required workspace files "
+            "before responding normally to the user."
+        )
+        if self._magiclaw_bootstrap_exists and "BOOTSTRAP.md" in unread:
+            lines.append(
+                "PRIORITY: BOOTSTRAP.md exists — read it FIRST. "
+                "Complete every item in it before deleting the file."
+            )
+        if self._magiclaw_missing_fixed_files:
+            lines.append(
+                "These fixed startup files are not present in the workspace yet: "
+                + ", ".join(self._magiclaw_missing_fixed_files)
+            )
+        lines.append(f"Still need to read: {', '.join(unread)}")
+        if read_done:
+            lines.append(f"Already read this session: {', '.join(read_done)}")
+        lines.append(
+            "Also review today's and yesterday's files in memory/ if present. "
+            "This is recommended startup context, but it does not block startup completion."
+        )
+        lines.append("</magiclaw_startup>")
+        return "\n".join(lines)
 
     async def record_skill_loaded(self, skill_name: str) -> None:
         await self._ensure_loaded()
@@ -633,6 +746,11 @@ class AgentHorizon:
             parts.append("<notifications>")
             parts.extend(notif_blocks)
             parts.append("</notifications>")
+
+        # magiclaw 启动提醒：每轮都注入，直到所有必读文件完成
+        magiclaw_ctx = self._build_magiclaw_startup_context()
+        if magiclaw_ctx:
+            parts.append(magiclaw_ctx)
 
         parts.append("</system_injected_context>")
 
