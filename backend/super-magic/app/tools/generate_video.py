@@ -1019,7 +1019,6 @@ class GenerateVideo(AbstractFileTool[GenerateVideoParams], WorkspaceTool[Generat
 
         save_dir = os.path.join(str(self.base_dir), output_path or DEFAULT_VIDEO_OUTPUT_DIR)
         await async_mkdir(save_dir, parents=True, exist_ok=True)
-        downloaded_size = 0
 
         async with aiohttp.ClientSession() as session:
             async with session.get(url, timeout=600) as response:
