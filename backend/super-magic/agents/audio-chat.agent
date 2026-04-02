@@ -21,9 +21,6 @@ tools:
   - read_webpages_as_markdown
   - download_from_urls
   - download_from_markdown
-  - create_memory
-  - update_memory
-  - delete_memory
 skills:
   system_skills:
     - name: skill-vetter

@@ -22,9 +22,6 @@ tools:
   - edit_file_range
   - multi_edit_file
   - multi_edit_file_range
-  - create_memory
-  - update_memory
-  - delete_memory
 skills:
   system_skills:
     - name: skill-vetter

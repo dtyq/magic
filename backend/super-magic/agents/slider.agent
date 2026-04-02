@@ -19,9 +19,6 @@ tools:
   - download_from_urls
   - download_from_markdown
   - generate_image
-  - create_memory
-  - update_memory
-  - delete_memory
 skills:
   system_skills:
     - name: skill-vetter

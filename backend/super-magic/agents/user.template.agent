@@ -21,9 +21,6 @@ tools:
   - multi_edit_file
   - multi_edit_file_range
   - delete_files
-  - create_memory
-  - update_memory
-  - delete_memory
 skills:
   system_skills:
     - name: find-skill

@@ -215,10 +215,6 @@ tools:
   - edit_file
   - edit_file_range
   - delete_files
-  - create_memory
-  - update_memory
-  - delete_memory
-  - compact_chat_history
 ---
 
 <!--zh

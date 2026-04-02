@@ -29,9 +29,6 @@ tools:
   - update_dashboard_cards
   - delete_dashboard_cards
   - query_dashboard_cards
-  - create_memory
-  - update_memory
-  - delete_memory
 skills:
   system_skills:
     - name: skill-vetter
