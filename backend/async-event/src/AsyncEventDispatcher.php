@@ -87,7 +87,7 @@ class AsyncEventDispatcher implements EventDispatcherInterface
                 $this->resolveDriver($listenerName)->publish($eventModel, $event, $listener);
             } catch (Throwable $throwable) {
                 // 保证其他异步事件可以继续投递
-                LogUtil::dump(1, $listenerName, $eventName, $throwable);
+                LogUtil::dump(1, $listenerName, $eventName, $throwable, ['driver' => $this->resolveDriverKey($listenerName)]);
             }
         }
 
@@ -104,17 +104,29 @@ class AsyncEventDispatcher implements EventDispatcherInterface
      */
     private function resolveDriver(string $listenerName): ListenerAsyncDriverInterface
     {
-        /** @var AsyncListener|null $annotation */
-        $annotation = $this->asyncListeners[$listenerName] ?? null;
-        $driverKey = ($annotation instanceof AsyncListener && $annotation->driver !== '')
-            ? $annotation->driver
-            : '';
+        $driverKey = $this->resolveDriverKey($listenerName);
 
         if (! isset($this->driverCache[$driverKey])) {
             $this->driverCache[$driverKey] = $this->listenerAsyncDriverFactory->create($driverKey ?: null);
         }
 
         return $this->driverCache[$driverKey];
+    }
+
+    /**
+     * 返回 listener 实际使用的 driver 标识。
+     * 注解指定了 driver 则校验合法性，非法时回退到全局配置并打印警告。
+     */
+    private function resolveDriverKey(string $listenerName): string
+    {
+        /** @var AsyncListener|null $annotation */
+        $annotation = $this->asyncListeners[$listenerName] ?? null;
+        if ($annotation instanceof AsyncListener && $annotation->driver !== ''
+            && in_array($annotation->driver, ListenerAsyncDriverFactory::VALID_DRIVERS, true)
+        ) {
+            return $annotation->driver;
+        }
+        return config('async_event.listener_exec_driver', 'coroutine');
     }
 
     private function getListenerName($listener): string

@@ -11,6 +11,9 @@ use Hyperf\Context\ApplicationContext;
 
 class ListenerAsyncDriverFactory
 {
+    /** 所有合法的驱动标识 */
+    public const VALID_DRIVERS = ['coroutine', 'queue_amqp'];
+
     /**
      * @param null|string $driver 驱动标识，为空时读取全局配置 async_event.listener_exec_driver
      */

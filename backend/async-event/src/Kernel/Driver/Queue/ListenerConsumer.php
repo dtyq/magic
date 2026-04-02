@@ -47,7 +47,7 @@ class ListenerConsumer extends ConsumerMessage
         ContextDataUtil::setContextData($contextData);
 
         $this->logger->info('ListenerConsumerReceivedMessage', ['id' => $id, 'data' => $data]);
-        $this->asyncListenerExecutor->runWithId($id);
+        $this->asyncListenerExecutor->runWithId($id, 'queue_amqp');
         return Result::ACK;
     }
 }

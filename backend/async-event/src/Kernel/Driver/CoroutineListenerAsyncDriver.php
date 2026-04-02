@@ -32,7 +32,7 @@ class CoroutineListenerAsyncDriver implements ListenerAsyncDriverInterface
             // Set context data before executing listener
             ContextDataUtil::setContextData($contextData);
 
-            $this->asyncListenerExecutor->run($asyncEventModel, $event, $listener);
+            $this->asyncListenerExecutor->run($asyncEventModel, $event, $listener, 'coroutine');
         });
     }
 }
