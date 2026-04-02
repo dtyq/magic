@@ -238,8 +238,9 @@ class VideoModelConfigService:
         lines = [
             "  <video",
             f'    model="{video_model_id}"',
-            f'    changed="{"true" if changed else "false"}"',
         ]
+        if changed:
+            lines.append('    changed="true"')
 
         # 这里按"模型决策真正会用到的字段"逐项输出，缺失字段故意不补默认，
         # 这样规则层才能把"未声明 = 不支持"稳定传达给 LLM。

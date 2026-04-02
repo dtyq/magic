@@ -62,5 +62,5 @@ class ImageModelSizesService:
             f"{ratio}[{','.join(entries)}]"
             for ratio, entries in grouped_sizes.items()
         )
-        changed_attr = "true" if changed else "false"
-        return f'  <image model="{model_id}" changed="{changed_attr}" sizes="{sizes_attr}"/>'
+        changed_attr = ' changed="true"' if changed else ""
+        return f'  <image model="{model_id}"{changed_attr} sizes="{sizes_attr}"/>'

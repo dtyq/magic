@@ -1651,6 +1651,7 @@ Since your subsequent output will be merged with pre-interruption content and di
 
             # 8. 重置 AgentHorizon 上下文相关状态
             await self.agent_context.horizon.on_context_reset()
+            await self._rehydrate_media_models_after_context_reset()
 
         except Exception as e:
             logger.error(f"Failed to execute history compact: {e}", exc_info=True)
@@ -1679,11 +1680,30 @@ Since your subsequent output will be merged with pre-interruption content and di
 
             # horizon 重置：下次 build_context_update 会输出完整 initial_context 给新上下文
             await self.agent_context.horizon.on_context_reset()
+            await self._rehydrate_media_models_after_context_reset()
 
             logger.info("Chat history reset for new session via /new")
 
         except Exception as e:
             logger.error(f"Failed to reset chat history for new session: {e}", exc_info=True)
+
+    async def _rehydrate_media_models_after_context_reset(self) -> None:
+        """在 reset 清空 horizon 后，用当前请求的 dynamic_config 重新回填图片/视频模型信息。"""
+        chat_message = self.agent_context.get_chat_client_message()
+        if not chat_message:
+            return
+
+        dynamic_config = getattr(chat_message, "dynamic_config", None)
+        if not dynamic_config:
+            return
+
+        # /new 和 /compact 都会先清空 horizon 中的媒体模型状态。
+        # 这里立刻用当前请求重新同步，确保紧随其后的 initial_context 看到的是最新配置，而不是空状态。
+        from app.service.image_model_sizes_service import ImageModelSizesService
+        from app.service.video_model_config_service import VideoModelConfigService
+
+        await ImageModelSizesService.sync_to_horizon(dynamic_config, self.agent_context.horizon)
+        await VideoModelConfigService.sync_to_horizon(dynamic_config, self.agent_context.horizon)
 
     async def _backup_before_compact(self) -> None:
         """Backup chat history before compact for recovery purposes"""
