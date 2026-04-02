@@ -56,9 +56,10 @@ class BaseAgentContext(BaseContext, AgentContextInterface):
 
         self.shared_context.register_fields({
             "event_dispatcher": (EventDispatcher(), EventDispatcherInterface),
-            "dynamic_model_id": (None, Optional[str]),  # 动态模型ID管理
-            "non_human_options": (None, Optional[Any]),  # 非人类限流配置
-            "user_timezone": (None, Optional[str]),  # 用户时区（IANA 名称），None 时回落系统时区
+            "dynamic_model_id": (None, Optional[str]),       # 动态 LLM 模型 ID
+            "dynamic_image_model_id": (None, Optional[str]), # 动态图片生成模型 ID
+            "non_human_options": (None, Optional[Any]),      # 非人类限流配置
+            "user_timezone": (None, Optional[str]),          # 用户时区（IANA 名称），None 时回落系统时区
         })
 
     def get_workspace_dir(self) -> str:
