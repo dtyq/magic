@@ -26,7 +26,10 @@ class AsyncEventDispatcher implements EventDispatcherInterface
 
     private AsyncEventService $asyncEventService;
 
-    private ListenerAsyncDriverInterface $listenerAsyncDriver;
+    private ListenerAsyncDriverFactory $listenerAsyncDriverFactory;
+
+    /** @var ListenerAsyncDriverInterface[] 按 driver 标识缓存已创建的驱动实例 */
+    private array $driverCache = [];
 
     public function __construct(
         ListenerProviderInterface $listeners,
@@ -35,7 +38,7 @@ class AsyncEventDispatcher implements EventDispatcherInterface
     ) {
         $this->listeners = $listeners;
         $this->asyncEventService = $asyncEventService;
-        $this->listenerAsyncDriver = $listenerAsyncDriverFactory->create();
+        $this->listenerAsyncDriverFactory = $listenerAsyncDriverFactory;
 
         $this->asyncListeners = AnnotationCollector::getClassesByAnnotation(AsyncListener::class);
     }
@@ -81,7 +84,7 @@ class AsyncEventDispatcher implements EventDispatcherInterface
                 // 保证先落库后投递
                 $eventRecord = $this->asyncEventService->buildAsyncEventData($eventName, $listenerName, $event);
                 $eventModel = $this->asyncEventService->create($eventRecord);
-                $this->listenerAsyncDriver->publish($eventModel, $event, $listener);
+                $this->resolveDriver($listenerName)->publish($eventModel, $event, $listener);
             } catch (Throwable $throwable) {
                 // 保证其他异步事件可以继续投递
                 LogUtil::dump(1, $listenerName, $eventName, $throwable);
@@ -93,6 +96,25 @@ class AsyncEventDispatcher implements EventDispatcherInterface
         }
 
         return $event;
+    }
+
+    /**
+     * 根据 listener 注解上的 driver 字段解析对应驱动，driver 为空时使用全局配置。
+     * 同一进程内按 driver key 缓存实例。
+     */
+    private function resolveDriver(string $listenerName): ListenerAsyncDriverInterface
+    {
+        /** @var AsyncListener|null $annotation */
+        $annotation = $this->asyncListeners[$listenerName] ?? null;
+        $driverKey = ($annotation instanceof AsyncListener && $annotation->driver !== '')
+            ? $annotation->driver
+            : '';
+
+        if (! isset($this->driverCache[$driverKey])) {
+            $this->driverCache[$driverKey] = $this->listenerAsyncDriverFactory->create($driverKey ?: null);
+        }
+
+        return $this->driverCache[$driverKey];
     }
 
     private function getListenerName($listener): string

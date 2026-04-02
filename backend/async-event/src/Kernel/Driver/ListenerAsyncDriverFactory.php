@@ -11,10 +11,13 @@ use Hyperf\Context\ApplicationContext;
 
 class ListenerAsyncDriverFactory
 {
-    public function create(): ListenerAsyncDriverInterface
+    /**
+     * @param null|string $driver 驱动标识，为空时读取全局配置 async_event.listener_exec_driver
+     */
+    public function create(?string $driver = null): ListenerAsyncDriverInterface
     {
         $container = ApplicationContext::getContainer();
-        $driver = config('async_event.listener_exec_driver', 'coroutine');
+        $driver = $driver ?: config('async_event.listener_exec_driver', 'coroutine');
         $class = match ($driver) {
             'queue_amqp' => QueueAMQPListenerAsyncDriver::class,
             default => CoroutineListenerAsyncDriver::class,
