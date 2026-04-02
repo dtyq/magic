@@ -272,10 +272,10 @@ class AgentHorizon:
         self._video_model_changed = False
         self._is_first_injection = True
 
-        # magiclaw：重算固定文件 / BOOTSTRAP 状态，重新进入必读文件流程
+        # magiclaw：重算固定文件集合和 BOOTSTRAP 状态，清空已读记录，强制重新进入必读流程
+        # file_records 已被清空，所以无法从中恢复已读状态，这里必须走完整重置
         if self._is_magiclaw and self._magiclaw_dir is not None:
-            await self.init_magiclaw_startup(self._magiclaw_dir)
-            logger.info("[AgentHorizon] magiclaw 启动状态已重置，重新进入必读文件流程")
+            await self.reset_magiclaw_startup(self._magiclaw_dir)
 
         logger.info("[AgentHorizon] 已重置上下文相关状态（文件记录、图片/视频模型、首次注入标志）")
 
@@ -331,16 +331,16 @@ class AgentHorizon:
     # magiclaw 文件驱动启动
     # ─────────────────────────────────────────────────────────────────────────
 
-    async def init_magiclaw_startup(self, magic_dir: Path) -> None:
-        """magiclaw 会话初始化时调用，确定本轮必读文件集合。
+    async def _scan_magiclaw_required_paths(
+        self, magic_dir: Path
+    ) -> tuple[frozenset[str], tuple[str, ...], bool]:
+        """扫描 .magic/ 目录，返回 (required_abs_paths, missing_fixed_names, bootstrap_exists)。
 
-        magic_dir 是工作区 .magic/ 目录（workspace 内），用于检测 BOOTSTRAP.md 是否存在。
-        此方法同时兼做重置逻辑：首次运行、/new、/compact 都会重新计算固定文件、
-        BOOTSTRAP 存在性和软提醒文案，确保状态不会使用过期快照。
+        只做文件系统扫描，不修改任何实例状态，可被 reset/restore 两条路径复用。
         """
         from app.utils.async_file_utils import async_exists
 
-        fixed_paths = {
+        fixed_files = {
             "IDENTITY.md": magic_dir / "IDENTITY.md",
             "SOUL.md": magic_dir / "SOUL.md",
             "AGENTS.md": magic_dir / "AGENTS.md",
@@ -348,31 +348,70 @@ class AgentHorizon:
             "MEMORY.md": magic_dir / "MEMORY.md",
         }
         required_paths: set[str] = set()
-        missing_fixed_files: list[str] = []
-        for filename, file_path in fixed_paths.items():
+        missing_fixed: list[str] = []
+        for filename, file_path in fixed_files.items():
             if await async_exists(file_path):
                 required_paths.add(_abs(file_path))
             else:
-                missing_fixed_files.append(filename)
+                missing_fixed.append(filename)
 
         bootstrap_path = magic_dir / "BOOTSTRAP.md"
         bootstrap_exists = await async_exists(bootstrap_path)
         if bootstrap_exists:
             required_paths.add(_abs(bootstrap_path))
 
+        return frozenset(required_paths), tuple(sorted(missing_fixed)), bootstrap_exists
+
+    async def reset_magiclaw_startup(self, magic_dir: Path) -> None:
+        """magiclaw 上下文显式重置时调用（/new 或 /compact 触发）。
+
+        清空已读状态，强制重新扫描必读文件集合，要求模型重新读取所有必读文件。
+        """
+        required_paths, missing_fixed, bootstrap_exists = await self._scan_magiclaw_required_paths(magic_dir)
+
         self._is_magiclaw = True
         self._magiclaw_dir = magic_dir
-        self._magiclaw_required_paths = frozenset(required_paths)
-        self._magiclaw_read_paths = set()
-        self._magiclaw_missing_fixed_files = tuple(sorted(missing_fixed_files))
+        self._magiclaw_required_paths = required_paths
+        self._magiclaw_read_paths = set()  # 硬重置：/new|/compact 后必须重读所有文件
+        self._magiclaw_missing_fixed_files = missing_fixed
         self._magiclaw_bootstrap_exists = bootstrap_exists
         self._magiclaw_startup_done = not bool(required_paths)
         logger.info(
-            "[magiclaw] 启动状态初始化: "
+            "[magiclaw] startup reset（/new 或 /compact）: "
             f"required={sorted(Path(p).name for p in required_paths)}, "
-            f"missing_fixed={sorted(missing_fixed_files)}, "
-            f"bootstrap_exists={bootstrap_exists}"
+            f"missing_fixed={list(missing_fixed)}, bootstrap_exists={bootstrap_exists}"
         )
+
+    async def restore_magiclaw_startup(self, magic_dir: Path) -> None:
+        """Agent 实例重建或容器重启后调用，从持久化 file_records 恢复已读状态。
+
+        从 .horizon.json 中的 file_records 反推哪些必读文件已经真实读取过，
+        只对真正未读过的文件继续提醒，避免容器重启后把已完成的 startup 重置掉。
+        """
+        await self._ensure_loaded()
+
+        required_paths, missing_fixed, bootstrap_exists = await self._scan_magiclaw_required_paths(magic_dir)
+
+        # 从持久化 file_records 恢复已读必读文件集合
+        persisted_paths = set(self._state.file_records.keys())
+        restored_read_paths = required_paths & persisted_paths
+
+        self._is_magiclaw = True
+        self._magiclaw_dir = magic_dir
+        self._magiclaw_required_paths = required_paths
+        self._magiclaw_read_paths = restored_read_paths
+        self._magiclaw_missing_fixed_files = missing_fixed
+        self._magiclaw_bootstrap_exists = bootstrap_exists
+        self._magiclaw_startup_done = required_paths <= restored_read_paths
+
+        if self._magiclaw_startup_done:
+            logger.info("[magiclaw] startup restore：所有必读文件已从 file_records 恢复，跳过 startup 提醒")
+        else:
+            remaining = sorted(Path(p).name for p in (required_paths - restored_read_paths))
+            logger.info(
+                "[magiclaw] startup restore：部分必读文件尚未读取，继续提醒: "
+                f"remaining={remaining}, bootstrap_exists={bootstrap_exists}"
+            )
 
     def mark_magiclaw_file_read(self, abs_path: str) -> None:
         """read_file 工具成功读取后调用，记录必读文件完成情况。
