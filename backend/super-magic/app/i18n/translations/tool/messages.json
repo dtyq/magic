@@ -880,8 +880,8 @@
         "en_US": "Failed to query sub-agent results: {{error}}"
     },
     "compact_chat_history.remark": {
-        "zh_CN": "当前对话内容过长，{{agent_name}}将整理自己的记忆，可能导致先前对话中的一些细节被遗忘；太长的对话会影响{{agent_name}}的工作效率，建议在处理新的事务时新建话题",
-        "en_US": "Current conversation is too long. {{agent_name}} will organize its memory, which may cause some details from previous conversations to be forgotten. Long conversations will affect {{agent_name}}'s work efficiency. It's recommended to start a new topic when handling new tasks."
+        "zh_CN": "当前对话内容过长，「{{agent_name}}」将整理自己的记忆，可能导致先前对话中的一些细节被遗忘；太长的对话会影响「{{agent_name}}」的工作效率",
+        "en_US": "Current conversation is too long. {{agent_name}} will organize its memory, which may cause some details from previous conversations to be forgotten. Long conversations will affect {{agent_name}}'s work efficiency."
     },
     "read_skills.success": {
         "zh_CN": "技能学习成功",
