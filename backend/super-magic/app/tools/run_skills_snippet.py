@@ -21,6 +21,13 @@ from app.utils.process_executor import ProcessExecutor
 
 logger = get_logger(__name__)
 
+VIDEO_TOOL_NAMES = (
+    "generate_video",
+    "generate_videos_to_canvas",
+    "query_video_generation",
+)
+VIDEO_SKILL_SNIPPET_TIMEOUT_SECONDS = 3600
+
 
 class RunSkillsSnippetParams(BaseToolParams):
     """Skill 代码片段执行参数"""
@@ -78,6 +85,13 @@ class RunSkillsSnippet(AbstractFileTool[RunSkillsSnippetParams]):
         """
         return False
 
+    @staticmethod
+    def _contains_video_tool_call(python_code: str) -> bool:
+        return any(
+            f"'{tool_name}'" in python_code or f'"{tool_name}"' in python_code
+            for tool_name in VIDEO_TOOL_NAMES
+        )
+
     async def execute(self, tool_context: ToolContext, params: RunSkillsSnippetParams) -> ToolResult:
         """执行 Skill Python 代码片段
 
@@ -119,13 +133,21 @@ class RunSkillsSnippet(AbstractFileTool[RunSkillsSnippetParams]):
 
             # 第二步：使用 ProcessExecutor 执行Python脚本
             command = f"python {script_filename}"
+            effective_timeout = params.timeout
+            if self._contains_video_tool_call(params.python_code):
+                effective_timeout = max(effective_timeout, VIDEO_SKILL_SNIPPET_TIMEOUT_SECONDS)
+                if effective_timeout != params.timeout:
+                    logger.info(
+                        f"检测到视频 skill 调用，自动提升 run_skills_snippet 超时: "
+                        f"requested={params.timeout}, effective={effective_timeout}"
+                    )
 
             # 在 .runtime/skills_scripts 目录中执行脚本
             # 启用 Python 命令重写，使其可以使用打包的依赖
             terminal_result = await ProcessExecutor.execute_command(
                 command=command,
                 cwd=runtime_dir,
-                timeout=params.timeout,
+                timeout=effective_timeout,
                 enable_python_rewrite=True
             )
 

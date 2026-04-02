@@ -468,8 +468,8 @@
         "en_US": "Video generation successful, file: {{file_name}}"
     },
     "generate_video.pending": {
-        "zh_CN": "视频仍在生成中，可稍后继续查询。operation_id={{operation_id}}，当前状态={{status}}",
-        "en_US": "Video is still generating. Query it later with operation_id={{operation_id}}, current status={{status}}"
+        "zh_CN": "视频创建工具已轮询到超时，任务仍在生成中。若用户后续明确要求查询，可使用 operation_id={{operation_id}} 继续查询，当前状态={{status}}",
+        "en_US": "The video creation tool timed out while polling and the task is still running. If the user explicitly asks later, continue querying with operation_id={{operation_id}}, current status={{status}}"
     },
     "generate_video.error": {
         "zh_CN": "视频生成失败: {{error}}",

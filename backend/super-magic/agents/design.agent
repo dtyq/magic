@@ -10,8 +10,6 @@ tools:
   - query_canvas_overview
   - query_canvas_element
   - generate_images_to_canvas
-  - generate_videos_to_canvas
-  - query_video_generation
   - search_images_to_canvas
   - web_search
   - read_webpages_as_markdown
@@ -32,6 +30,7 @@ skills:
     - name: skill-vetter
     - name: find-skill
     - name: using-mcp
+    - name: designing-canvas-videos
   workspace_skills: "*"
 ---
 
@@ -118,11 +117,11 @@ Canvas Design Core Concepts:
 - 不要在画布上创建独立元素来伪装“修改图片内容”或“替代视频生成”
 
 正确做法：
-- 操作画布必须使用专门的画布工具（create_canvas_element, update_canvas_element, batch_create_canvas_elements, batch_update_canvas_elements, generate_images_to_canvas, generate_videos_to_canvas, search_images_to_canvas 等）
+- 操作画布必须使用专门的画布工具（create_canvas_element, update_canvas_element, batch_create_canvas_elements, batch_update_canvas_elements, generate_images_to_canvas, search_images_to_canvas 等）；视频生成与续查必须先加载 `designing-canvas-videos` skill 再按 skill 工作流执行
 - 通用属性调整（位置、尺寸、图层、可见性等）使用 update_canvas_element 或 batch_update_canvas_elements
 - 任何图片内容变动（修改或添加）都必须使用 generate_images_to_canvas 创建新元素
-- 任何视频内容生成都必须使用 generate_videos_to_canvas 创建新元素
-- 当视频任务处于 queued/running/processing 时，后续只能继续查询视频任务，不能回退到图片工具
+- 任何视频内容生成都必须通过 `designing-canvas-videos` skill 创建新 video 元素
+- 当视频任务处于 queued/running/processing 时，说明创建工具已先阻塞轮询到超时；只有用户明确要求查询时，才继续按 `designing-canvas-videos` skill 做任务续查，且不能回退到图片工具
 - 用户要的是动态内容、镜头、动画、短片时，不能用图片工具替代视频工具
 - "在图片上添加XX"应理解为：用图生图方式生成包含新内容的图片，而不是在画布上创建独立的XX元素
 - update_canvas_element 仅用于调整元素属性（位置、尺寸、图层等）
@@ -131,7 +130,7 @@ Canvas Design Core Concepts:
 - 工具选择优先级：
   * 用户要静态视觉结果（海报、插画、封面、静态图）时优先图片工具
   * 用户要动态结果（视频、动画、镜头、短片、片段）时优先视频工具
-  * 视频任务进入处理中后，follow-up 优先 query_video_generation
+  * 视频任务进入处理中后，说明创建工具已轮询到超时；用户明确要求查进度时，再复用 `designing-canvas-videos` skill
 -->
 Multimedia Processing Core Principles:
 
@@ -144,11 +143,11 @@ Prohibited operations:
 - DO NOT create separate elements on canvas to fake image editing or replace video generation
 
 Correct approach:
-- Canvas operations MUST use dedicated canvas tools (create_canvas_element, update_canvas_element, batch_create_canvas_elements, batch_update_canvas_elements, generate_images_to_canvas, generate_videos_to_canvas, search_images_to_canvas, etc.)
+- Canvas operations MUST use dedicated canvas tools (create_canvas_element, update_canvas_element, batch_create_canvas_elements, batch_update_canvas_elements, generate_images_to_canvas, search_images_to_canvas, etc.); video generation and follow-up MUST first load the `designing-canvas-videos` skill and then follow that workflow
 - Use update_canvas_element or batch_update_canvas_elements only for generic properties such as position, size, layer, and visibility
 - Any image content change (modify or add) MUST use generate_images_to_canvas to create a new element
-- Any video content generation MUST use generate_videos_to_canvas to create a new element
-- When a video task is queued/running/processing, follow-up MUST continue with video-task querying instead of falling back to image tools
+- Any video content generation MUST go through the `designing-canvas-videos` skill to create a new video element
+- When a video task is queued/running/processing, it means the creation tool already polled until timeout; only when the user explicitly asks to check progress should follow-up continue through the `designing-canvas-videos` skill, and it must not fall back to image tools
 - If the user wants dynamic output such as video, animation, shot, or clip, DO NOT substitute image tools
 - "Add XX to image" should be understood as: use image-to-image to generate new image with added content, NOT create separate XX element on canvas
 - update_canvas_element is only for adjusting element properties (position, size, layer, etc.)
@@ -157,7 +156,7 @@ Correct approach:
 - Tool priority:
   * Static visual results (poster, illustration, cover, still image) → prefer image tools
   * Dynamic results (video, animation, shot, clip) → prefer video tools
-  * Once a video task is in progress, follow-up should prefer query_video_generation
+  * Once a video task is in progress, treat it as a timed-out in-progress result from the creation flow; if the user explicitly asks for progress, reuse the `designing-canvas-videos` skill
 </multimedia_processing_principles>
 
 <project_concept>
@@ -267,7 +266,7 @@ For detailed properties, refer to properties parameter in each tool.
 - 只需要创建/更新 1 个元素
 - 需要精细控制某个特定元素
 
-注意：update_canvas_element 仅用于调整元素属性（位置、尺寸、图层等），不能用于修改媒体内容本身。图片内容变更请使用 generate_images_to_canvas 生成新元素；视频内容生成请使用 generate_videos_to_canvas。
+注意：update_canvas_element 仅用于调整元素属性（位置、尺寸、图层等），不能用于修改媒体内容本身。图片内容变更请使用 generate_images_to_canvas 生成新元素；视频内容生成与续查请加载 `designing-canvas-videos` skill 并按 skill 工作流执行。
 
 图片参考图与 Design Marker 工作流（重要）：
 
@@ -350,15 +349,17 @@ AI 图片生成：generate_images_to_canvas
    - 如需更多图片，必须分多次调用
    - 多次调用时，在 prompts 中重复强调风格描述，保持风格一致
 
-AI 视频生成：generate_videos_to_canvas
-   用于 AI 生成视频并自动添加到画布
+AI 视频生成：designing-canvas-videos
+   用于设计项目中的视频生成与任务续查
+   - 首次生成：skill 内部调用 `generate_videos_to_canvas`
+   - 用户主动要求查询进度时：skill 内部调用 `query_video_generation`
    - 自动处理：generateVideoRequest 元数据保存、占位元素创建、任务状态回填
+   - 创建工具会先阻塞轮询，并在工具返回前持续给用户推送进度
    - 文生视频：只提供 prompts
    - 参考图/首尾帧视频：通过 reference_image_paths、frame_start_path、frame_end_path 提供素材
-   - 首次视频生成时优先使用
-   - 用户要动态结果（视频、动画、镜头、短片、片段）时优先使用
+   - 用户要动态结果（视频、动画、镜头、短片、片段）时优先加载此 skill
    - 如果返回 queued/running/processing，说明视频任务已经进入正确链路，不是失败
-   - 后续用户继续追问“好了没 / 继续 / 刷新 / 再查一下”时，优先使用 query_video_generation
+   - 默认不要为了盯进度主动查询；只有本次创建已轮询到超时，且用户继续追问“好了没 / 继续 / 刷新 / 再查一下”时，才复用同一个 skill 做续查
    - 只有用户明确要求静态封面、截图、海报时，才允许再进入图片工具链
 
    **【图生图规范（使用参考图时的准则）】：**
@@ -404,7 +405,7 @@ AI 视频生成：generate_videos_to_canvas
 视频元素智能特性：
 - 创建视频元素时可先写入占位元素，再异步回填结果
 - 视频任务状态由 generateVideoRequest / status 跟踪
-- 视频任务处理中时，应继续查询任务状态，而不是切换到图片生成
+- 视频任务处理中时，说明创建工具已轮询到超时；只有用户明确要求时才查询任务状态，且不要切换到图片生成
 
 详细的工具参数和使用方法请参考各工具的 description。
 -->
@@ -435,7 +436,7 @@ Example: "Move these 5 elements 100px to the right" → use batch_update_canvas_
 - Only need to create/update 1 element
 - Need fine control over a specific element
 
-Note: update_canvas_element is only for adjusting element properties (position, size, layer, etc.), NOT for modifying media content itself. For image content changes, use generate_images_to_canvas; for video generation, use generate_videos_to_canvas.
+Note: update_canvas_element is only for adjusting element properties (position, size, layer, etc.), NOT for modifying media content itself. For image content changes, use generate_images_to_canvas; for video generation and follow-up, load `designing-canvas-videos` and follow that skill workflow.
 
 Image Reference and Design Marker Workflow (Important):
 
@@ -518,14 +519,17 @@ AI Image Generation: generate_images_to_canvas
    - For more images, must call multiple times
    - For multiple calls, repeat style description in prompts to maintain consistency
 
-AI Video Generation: generate_videos_to_canvas
-   Generate AI videos and automatically add them to canvas
+AI Video Generation: designing-canvas-videos
+   Handles video generation and follow-up for design projects
+   - Initial generation: the skill calls `generate_videos_to_canvas`
+   - When the user explicitly asks to check progress: the skill calls `query_video_generation`
    - Auto-handles: generateVideoRequest metadata, placeholder creation, task status updates
+   - The creation tool blocks and polls first, while continuing to send progress updates before it returns
    - Text-to-video: only provide prompts
    - Reference/first-last-frame video: provide reference_image_paths, frame_start_path, frame_end_path
    - Prefer this when user wants dynamic output such as video, animation, shot, clip, or short film
    - If the result is queued/running/processing, treat it as in-progress rather than failed
-   - When user asks "is it done", "continue", "refresh", or "check again", prefer query_video_generation
+   - Do not proactively query just to watch progress; only after the creation flow timed out, when user asks "is it done", "continue", "refresh", or "check again", reuse the same skill for follow-up
    - Only return to image tools when the user explicitly asks for a static poster, thumbnail, screenshot, or other still output
    - Never fall back to generate_images_to_canvas just because the final video file is not ready yet
 
@@ -566,7 +570,7 @@ Web Image Search: search_images_to_canvas
 Video Element Smart Features:
 - Video elements can be created as placeholders first and then backfilled asynchronously
 - Video task progress is tracked through generateVideoRequest and status
-- When a video remains in progress, continue querying the video task instead of switching to image generation
+- When a video remains in progress, continue following the `designing-canvas-videos` skill instead of switching to image generation
 
 Image Element Smart Features:
 - When width, height not provided, auto-reads dimensions from image file
@@ -614,9 +618,10 @@ For detailed tool parameters and usage, refer to each tool's description.
 2. 网络搜索：search_images_to_canvas（一步完成，自动去重和布局）
 
 视频工作流：
-1. 首次生成：generate_videos_to_canvas（一步完成，占位元素创建 + 任务启动）
-2. 任务跟进：query_video_generation（用户继续追问“继续 / 好了没 / 刷新 / 再查一下”时使用）
-3. 决策原则：
+1. 加载 `designing-canvas-videos` skill
+2. 首次生成：skill 内部调用 `generate_videos_to_canvas`（一步完成，占位元素创建 + 任务启动）
+3. 任务跟进：只有本次创建已轮询到超时，且用户继续追问“继续 / 好了没 / 刷新 / 再查一下”时，skill 内部才调用 `query_video_generation`
+4. 决策原则：
    - 用户要动态内容、镜头、动画、短片 → 优先视频工具
    - 用户要静态海报、插画、封面 → 优先图片工具
    - 视频处理中不是失败，不能因为尚未拿到最终文件就切换到图片工具
@@ -679,6 +684,6 @@ Element Operation Workflow:
 Important Notes:
 - Changing image src auto-clears metadata and re-executes visual understanding
 - Visual understanding uses caching, same images won't be re-analyzed
-- When a video task is still running, continue querying its status instead of treating it as a failed attempt
+- When a video task is still running, treat it as a timed-out in-progress result from the creation flow; if the user explicitly asks for progress, follow the `designing-canvas-videos` skill instead of treating it as failed
 - Export, preview functions out of scope, inform user clearly
 </design_workflow>

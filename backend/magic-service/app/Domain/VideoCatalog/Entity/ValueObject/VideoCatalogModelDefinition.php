@@ -23,7 +23,7 @@ readonly class VideoCatalogModelDefinition
         private array $translate = [],
         private array $config = [],
         private array $runtimeConfig = [],
-        private string $providerCode = 'Wuyin',
+        private string $providerCode = 'Cloudsway',
         private int $sort = 0,
     ) {
     }

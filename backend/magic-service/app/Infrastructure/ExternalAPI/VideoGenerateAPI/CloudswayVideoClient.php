@@ -129,11 +129,7 @@ readonly class CloudswayVideoClient
         }
 
         $providerMessage = $this->extractProviderMessageFromBody($body);
-        if ($providerMessage !== null) {
-            return $providerMessage;
-        }
-
-        return sprintf(
+        return $providerMessage ?? sprintf(
             'cloudsway video %s failed: HTTP %d %s: %s',
             $action,
             $statusCode,
@@ -161,7 +157,7 @@ readonly class CloudswayVideoClient
             return $value;
         }
 
-        if ($fieldName !== null && in_array($fieldName, ['bytesBase64Encoded', 'bytes_base64_encoded', 'b64_json'], true)) {
+        if (in_array($fieldName, ['bytesBase64Encoded', 'bytes_base64_encoded', 'b64_json'], true)) {
             return $this->summarizeString($trimmedValue, 'base64');
         }
 

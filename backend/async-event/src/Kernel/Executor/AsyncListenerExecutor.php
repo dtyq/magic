@@ -35,9 +35,9 @@ class AsyncListenerExecutor
         $this->logger = $container->get(LoggerInterface::class);
     }
 
-    public function runWithId(int $id): void
+    public function runWithId(int $id, string $driver = ''): void
     {
-        $this->locker->get(function () use ($id) {
+        $this->locker->get(function () use ($id, $driver) {
             $record = $this->asyncEventService->getById($id);
             if (! $record) {
                 return;
@@ -57,14 +57,14 @@ class AsyncListenerExecutor
                 $exception = $throwable;
                 $this->asyncEventService->markAsExecuting($record->id);
             } finally {
-                LogUtil::dump($id, $record->listener, $record->event, $exception);
+                LogUtil::dump($id, $record->listener, $record->event, $exception, $driver ? ['driver' => $driver] : []);
             }
         }, 'async_event_run_' . $id);
     }
 
-    public function run(AsyncEventModel $asyncEventModel, object $event, callable $listener): void
+    public function run(AsyncEventModel $asyncEventModel, object $event, callable $listener, string $driver = ''): void
     {
-        $this->locker->get(function () use ($asyncEventModel, $listener, $event) {
+        $this->locker->get(function () use ($asyncEventModel, $listener, $event, $driver) {
             // Restore context data before executing listener
             $this->restoreContextData($asyncEventModel);
 
@@ -75,7 +75,7 @@ class AsyncListenerExecutor
             } catch (Throwable $exception) {
                 $this->asyncEventService->markAsExecuting($asyncEventModel->id);
             } finally {
-                LogUtil::dump($asyncEventModel->id, $asyncEventModel->listener, $asyncEventModel->event, $exception);
+                LogUtil::dump($asyncEventModel->id, $asyncEventModel->listener, $asyncEventModel->event, $exception, $driver ? ['driver' => $driver] : []);
             }
         }, "async_event_run_{$asyncEventModel->id}");
     }

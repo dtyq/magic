@@ -14,6 +14,7 @@ export { default as PlatformPackageRoutes } from "@/pages/PlatformPackage/routes
 export { otherRoutes } from "@/routes"
 
 export * from "@/const/common"
+export { AiModel } from "@/const/aiModel"
 
 // 3. 导出路由常量
 export { RouteName, RoutePath } from "@/const/routes"

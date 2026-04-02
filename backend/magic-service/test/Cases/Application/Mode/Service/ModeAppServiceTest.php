@@ -41,10 +41,6 @@ use App\Infrastructure\ExternalAPI\VideoGenerateAPI\CloudswayVeoVideoAdapter;
 use App\Infrastructure\ExternalAPI\VideoGenerateAPI\CloudswayVideoAdapterRouter;
 use App\Infrastructure\ExternalAPI\VideoGenerateAPI\CloudswayVideoClient;
 use App\Infrastructure\ExternalAPI\VideoGenerateAPI\VideoGenerateFactory;
-use App\Infrastructure\ExternalAPI\VideoGenerateAPI\WuyinGrokVideoAdapter;
-use App\Infrastructure\ExternalAPI\VideoGenerateAPI\WuyinVeoVideoAdapter;
-use App\Infrastructure\ExternalAPI\VideoGenerateAPI\WuyinVideoAdapterRouter;
-use App\Infrastructure\ExternalAPI\VideoGenerateAPI\WuyinVideoClient;
 use App\Infrastructure\Util\Locker\LockerInterface;
 use App\Interfaces\Authorization\Web\MagicUserAuthorization;
 use Hyperf\Guzzle\ClientFactory;
@@ -184,33 +180,6 @@ class ModeAppServiceTest extends TestCase
         ], $config->toArray()['constraints']);
     }
 
-    public function testBuildModeRuntimeDataIncludesGrokVideoConfigWithoutVeoSpecificFields(): void
-    {
-        $service = $this->createService(
-            [11 => $this->createProviderConfigEntity(11, ProviderCode::Wuyin)],
-            [
-                'wuyin-grok-imagine' => [
-                    $this->createProviderModel('wuyin-grok-imagine', Category::VGM, 'grok_imagine', 11),
-                ],
-            ]
-        );
-        $authorization = (new MagicUserAuthorization())->setOrganizationCode('TGosRaFhvb');
-        $aggregate = $this->createAggregateWithRelations([
-            'wuyin-grok-imagine',
-        ]);
-
-        $runtimeData = $this->invokePrivateMethod($service, 'buildModeRuntimeData', [
-            $authorization,
-            [$aggregate],
-        ]);
-
-        $config = $runtimeData['models']['1']->getVideoGenerationConfig();
-        $this->assertNotNull($config);
-        $this->assertSame([6, 10, 15], $config->toArray()['generation']['durations']);
-        $this->assertArrayNotHasKey('sizes', $config->toArray()['generation']);
-        $this->assertArrayNotHasKey('default_resolution', $config->toArray()['generation']);
-    }
-
     public function testBuildModeRuntimeDataIncludesKelingResolutionConfigWithoutSizes(): void
     {
         $service = $this->createService(
@@ -290,13 +259,7 @@ class ModeAppServiceTest extends TestCase
 
     private function createVideoGenerateFactory(): VideoGenerationProviderAdapterFactoryInterface
     {
-        $client = new WuyinVideoClient($this->createMock(ClientFactory::class));
-
         return new VideoGenerateFactory(
-            new WuyinVideoAdapterRouter(
-                new WuyinVeoVideoAdapter($client),
-                new WuyinGrokVideoAdapter($client),
-            ),
             new CloudswayVideoAdapterRouter(
                 new CloudswayVeoVideoAdapter(new CloudswayVideoClient($this->createMock(ClientFactory::class))),
                 new CloudswaySeedanceVideoAdapter(new CloudswayVideoClient($this->createMock(ClientFactory::class))),

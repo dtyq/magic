@@ -46,7 +46,7 @@ class CronPayload:
     model_id: Optional[str] = None
     image_model_id: Optional[str] = None
     timeout_seconds: Optional[int] = None
-    notify_main_agent: bool = True
+    notify_user: bool = True
 
 
 @dataclass
