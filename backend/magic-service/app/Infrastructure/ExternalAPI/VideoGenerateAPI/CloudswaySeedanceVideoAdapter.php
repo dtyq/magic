@@ -11,6 +11,7 @@ use App\Domain\ModelGateway\Entity\ValueObject\QueueExecutorConfig;
 use App\Domain\ModelGateway\Entity\ValueObject\VideoGenerationConfig;
 use App\Domain\ModelGateway\Entity\VideoQueueOperationEntity;
 
+/** @noinspection SpellCheckingInspection */
 readonly class CloudswaySeedanceVideoAdapter extends AbstractCloudswayVideoAdapter
 {
     private const string MODEL_ID = 'seedance-1.5-pro';
@@ -233,32 +234,26 @@ readonly class CloudswaySeedanceVideoAdapter extends AbstractCloudswayVideoAdapt
                 $ignoredParams[] = 'generation.aspect_ratio';
             }
         }
+        $durationSeconds = self::DEFAULT_DURATION_SECONDS;
         if (array_key_exists('duration_seconds', $generation)) {
             if (in_array((int) $generation['duration_seconds'], self::SUPPORTED_DURATIONS, true)) {
-                $suffixes[] = '--dur ' . (int) $generation['duration_seconds'];
-                $acceptedParams[] = 'generation.duration_seconds';
+                $durationSeconds = (int) $generation['duration_seconds'];
             } else {
                 $ignoredParams[] = 'generation.duration_seconds';
-                $suffixes[] = '--dur ' . self::DEFAULT_DURATION_SECONDS;
-                $acceptedParams[] = 'generation.duration_seconds';
             }
-        } else {
-            $suffixes[] = '--dur ' . self::DEFAULT_DURATION_SECONDS;
-            $acceptedParams[] = 'generation.duration_seconds';
         }
+        $suffixes[] = '--dur ' . $durationSeconds;
+        $acceptedParams[] = 'generation.duration_seconds';
+        $resolution = self::DEFAULT_RESOLUTION;
         if (array_key_exists('resolution', $generation)) {
             if (in_array((string) $generation['resolution'], self::SUPPORTED_RESOLUTIONS, true)) {
-                $suffixes[] = '--rs ' . trim((string) $generation['resolution']);
-                $acceptedParams[] = 'generation.resolution';
+                $resolution = trim((string) $generation['resolution']);
             } else {
                 $ignoredParams[] = 'generation.resolution';
-                $suffixes[] = '--rs ' . self::DEFAULT_RESOLUTION;
-                $acceptedParams[] = 'generation.resolution';
             }
-        } else {
-            $suffixes[] = '--rs ' . self::DEFAULT_RESOLUTION;
-            $acceptedParams[] = 'generation.resolution';
         }
+        $suffixes[] = '--rs ' . $resolution;
+        $acceptedParams[] = 'generation.resolution';
 
         return trim($prompt . ' ' . implode(' ', $suffixes));
     }

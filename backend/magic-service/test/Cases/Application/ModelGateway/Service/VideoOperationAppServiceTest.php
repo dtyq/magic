@@ -49,10 +49,6 @@ use App\Infrastructure\ExternalAPI\VideoGenerateAPI\CloudswayVideoClient;
 use App\Infrastructure\ExternalAPI\VideoGenerateAPI\ProviderVideoException;
 use App\Infrastructure\ExternalAPI\VideoGenerateAPI\VideoGenerateFactory;
 use App\Infrastructure\ExternalAPI\VideoGenerateAPI\VideoModel;
-use App\Infrastructure\ExternalAPI\VideoGenerateAPI\WuyinGrokVideoAdapter;
-use App\Infrastructure\ExternalAPI\VideoGenerateAPI\WuyinVeoVideoAdapter;
-use App\Infrastructure\ExternalAPI\VideoGenerateAPI\WuyinVideoAdapterRouter;
-use App\Infrastructure\ExternalAPI\VideoGenerateAPI\WuyinVideoClient;
 use DateTime;
 use Dtyq\CloudFile\Kernel\Struct\ChunkUploadFile;
 use Dtyq\CloudFile\Kernel\Struct\FileLink;
@@ -111,7 +107,7 @@ class VideoOperationAppServiceTest extends TestCase
         $operationRepository = new InMemoryVideoQueueOperationRepository();
         $videoQueueDomainService = new VideoQueueDomainService($operationRepository);
         $executionDomainService = new QueueOperationExecutionDomainService(
-            new FixedQueueExecutorConfigRepository(new QueueExecutorConfig('https://api.wuyinkeji.com', 'secret', 3, 20)),
+            new FixedQueueExecutorConfigRepository(new QueueExecutorConfig('https://genaiapi.cloudsway.net', 'secret', 3, 20)),
             new RecordingQueueOperationExecutor(submitResult: 'provider-task-1'),
         );
 
@@ -130,7 +126,7 @@ class VideoOperationAppServiceTest extends TestCase
         $modelGatewayMapper->expects($this->once())
             ->method('getOrganizationVideoModel')
             ->with($dataIsolation, 'veo-3.1-fast-generate-preview')
-            ->willReturn($this->createVideoModelEntry(new VideoModel([], 'veo3.1_fast', 'provider-model', ProviderCode::Wuyin)));
+            ->willReturn($this->createVideoModelEntry(new VideoModel([], 'LCnVzCkkMnVulyrz', 'provider-model', ProviderCode::Cloudsway)));
         $videoGenerationConfigDomainService = $this->createVideoGenerationConfigDomainService();
 
         $service = new VideoOperationAppService(
@@ -600,7 +596,7 @@ class VideoOperationAppServiceTest extends TestCase
         $operationRepository->operations['op-2'] = $operation;
         $videoQueueDomainService = new VideoQueueDomainService($operationRepository);
         $executionDomainService = new QueueOperationExecutionDomainService(
-            new FixedQueueExecutorConfigRepository(new QueueExecutorConfig('https://api.wuyinkeji.com', 'secret', 3, 20)),
+            new FixedQueueExecutorConfigRepository(new QueueExecutorConfig('https://genaiapi.cloudsway.net', 'secret', 3, 20)),
             new RecordingQueueOperationExecutor(
                 submitResult: 'provider-task-ignored',
                 queryResult: [
@@ -916,13 +912,13 @@ class VideoOperationAppServiceTest extends TestCase
         $modelGatewayMapper = $this->createMock(ModelGatewayMapper::class);
         $modelGatewayMapper->expects($this->once())
             ->method('getOrganizationVideoModel')
-            ->willReturn($this->createVideoModelEntry(new VideoModel([], 'veo3.1_fast', 'provider-model', ProviderCode::Wuyin)));
+            ->willReturn($this->createVideoModelEntry(new VideoModel([], 'LCnVzCkkMnVulyrz', 'provider-model', ProviderCode::Cloudsway)));
 
         $service = new VideoOperationAppService(
             $llmAppService,
             new VideoQueueDomainService(new InMemoryVideoQueueOperationRepository()),
             new QueueOperationExecutionDomainService(
-                new FixedQueueExecutorConfigRepository(new QueueExecutorConfig('https://api.wuyinkeji.com', 'secret', 3, 20)),
+                new FixedQueueExecutorConfigRepository(new QueueExecutorConfig('https://genaiapi.cloudsway.net', 'secret', 3, 20)),
                 new RecordingQueueOperationExecutor(
                     submitResult: 'unused',
                     submitThrowable: new ProviderVideoException('provider says duration_seconds=9 is invalid'),
@@ -962,7 +958,7 @@ class VideoOperationAppServiceTest extends TestCase
             $llmAppService,
             new VideoQueueDomainService($operationRepository),
             new QueueOperationExecutionDomainService(
-                new FixedQueueExecutorConfigRepository(new QueueExecutorConfig('https://api.wuyinkeji.com', 'secret', 3, 20)),
+                new FixedQueueExecutorConfigRepository(new QueueExecutorConfig('https://genaiapi.cloudsway.net', 'secret', 3, 20)),
                 new RecordingQueueOperationExecutor(
                     submitResult: 'unused',
                     queryThrowable: new ProviderVideoException('provider says operationName is invalid'),
@@ -1019,10 +1015,10 @@ class VideoOperationAppServiceTest extends TestCase
             id: $id,
             endpoint: 'video:test',
             model: 'veo-3.1-fast-generate-preview',
-            modelVersion: 'veo3.1_fast',
+            modelVersion: 'LCnVzCkkMnVulyrz',
             providerModelId: 'provider-model',
-            providerCode: 'Wuyin',
-            providerName: 'wuyin',
+            providerCode: ProviderCode::Cloudsway->value,
+            providerName: 'cloudsway',
             organizationCode: 'org-test',
             userId: 'user-test',
             status: VideoOperationStatus::QUEUED,
@@ -1046,14 +1042,8 @@ class VideoOperationAppServiceTest extends TestCase
 
     private function createVideoGenerationConfigDomainService(): VideoGenerationConfigDomainService
     {
-        $client = new WuyinVideoClient($this->createMock(ClientFactory::class));
-
         return new VideoGenerationConfigDomainService(
             new VideoGenerateFactory(
-                new WuyinVideoAdapterRouter(
-                    new WuyinVeoVideoAdapter($client),
-                    new WuyinGrokVideoAdapter($client),
-                ),
                 new CloudswayVideoAdapterRouter(
                     new CloudswayVeoVideoAdapter(new CloudswayVideoClient($this->createMock(ClientFactory::class))),
                     new CloudswaySeedanceVideoAdapter(new CloudswayVideoClient($this->createMock(ClientFactory::class))),

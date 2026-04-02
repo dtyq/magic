@@ -39,7 +39,7 @@ trait UsesOfficialVideoProviderFixtures
         $this->setIsolatedConfig('service_provider.office_organization', $organizationCode);
         $this->setIsolatedConfig('model_gateway.video_providers', [
             $this->officialVideoProviderEndpointSeed(
-                baseUrl: 'https://wuyin-video.mock.example.test',
+                baseUrl: 'https://cloudsway-video.mock.example.test',
                 apiKey: '',
                 models: $this->defaultOfficialVideoProviderModels(),
             ),
@@ -259,7 +259,7 @@ trait UsesOfficialVideoProviderFixtures
         ?array $models = null,
         ?array $provider = null,
         ?array $config = null,
-        string $providerCode = 'Wuyin'
+        string $providerCode = 'Cloudsway'
     ): array {
         $providerSeed = array_merge(
             $this->officialVideoProviderSeed($providerCode),
@@ -312,7 +312,7 @@ trait UsesOfficialVideoProviderFixtures
     /**
      * @return array<string, mixed>
      */
-    protected function officialVideoProviderSeed(string $providerCode = 'Wuyin'): array
+    protected function officialVideoProviderSeed(string $providerCode = 'Cloudsway'): array
     {
         return [
             'provider_code' => $providerCode,
