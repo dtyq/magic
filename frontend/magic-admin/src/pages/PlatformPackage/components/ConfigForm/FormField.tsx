@@ -1,10 +1,10 @@
-import { memo } from "react"
+import { memo, useEffect } from "react"
 import { Flex, Form, Input } from "antd"
 import type { Rule } from "antd/es/form"
 import { useTranslation } from "react-i18next"
 import { useStyles } from "./styles"
 
-interface FieldConfig {
+export interface FieldConfig {
 	/* 字段名称 */
 	name: string | string[]
 	/* 标签文本 */
@@ -19,8 +19,12 @@ interface FieldConfig {
 	inputType?: "text" | "password" | "textarea"
 	/* 验证规则 */
 	rules?: Rule[]
-	/* 提交前规范化（如 trim） */
+	/* 提交前规范化（如 trim），可避免尾随空格导致校验报错 */
 	normalize?: (value: unknown) => unknown
+	/* 显示条件 */
+	shouldShow?: boolean
+	/* 初始值 */
+	initialValue?: string
 }
 
 interface FormFieldProps extends FieldConfig {
@@ -37,10 +41,12 @@ function FormField({
 	inputType = "text",
 	rules = [],
 	normalize,
+	initialValue,
 	isLeftDesc,
 }: FormFieldProps) {
 	const { t } = useTranslation("admin/ai/model")
 	const { styles, cx } = useStyles({ isLeftDesc })
+	const form = Form.useFormInstance()
 
 	const defaultRules: Rule[] = required
 		? [
@@ -57,6 +63,12 @@ function FormField({
 			: inputType === "textarea"
 			? Input.TextArea
 			: Input
+
+	useEffect(() => {
+		if (initialValue) {
+			form.setFieldValue(name, initialValue)
+		}
+	}, [initialValue, form, name])
 
 	return (
 		<Flex

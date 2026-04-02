@@ -38,6 +38,7 @@ use Dtyq\SuperMagic\Infrastructure\ExternalAPI\SandboxOS\Workspace\Request\Impor
 use Dtyq\SuperMagic\Infrastructure\ExternalAPI\SandboxOS\Workspace\WorkspaceExporterInterface;
 use Dtyq\SuperMagic\Infrastructure\ExternalAPI\SandboxOS\Workspace\WorkspaceImporterInterface;
 use Dtyq\SuperMagic\Infrastructure\Utils\WorkDirectoryUtil;
+use Hyperf\DbConnection\Annotation\Transactional;
 use Hyperf\DbConnection\Db;
 use Throwable;
 use ValueError;
@@ -118,6 +119,15 @@ class SkillDomainService
     {
         $entity->setSearchText(SkillMarketSearchTextBuilder::buildFromSkill($entity));
         return $this->skillRepository->save($dataIsolation, $entity);
+    }
+
+    /**
+     * 根据 project_id 更新 Skill 的 updated_at 时间.
+     */
+    #[Transactional]
+    public function updateUpdatedAtByProjectId(SkillDataIsolation $dataIsolation, int $projectId): bool
+    {
+        return $this->skillRepository->updateUpdatedAtByProjectId($dataIsolation, $projectId);
     }
 
     /**

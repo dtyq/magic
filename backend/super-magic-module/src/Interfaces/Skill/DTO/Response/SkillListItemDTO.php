@@ -7,7 +7,6 @@ declare(strict_types=1);
 
 namespace Dtyq\SuperMagic\Interfaces\Skill\DTO\Response;
 
-use App\Interfaces\Kernel\DTO\OperatorDTO;
 use JsonSerializable;
 
 /**
@@ -47,7 +46,7 @@ class SkillListItemDTO implements JsonSerializable
 
     private string $description;
 
-    private ?OperatorDTO $creatorInfo;
+    private ?array $creatorInfo;
 
     private ?string $publisherType;
 
@@ -70,7 +69,7 @@ class SkillListItemDTO implements JsonSerializable
         ?string $latestPublishedAt,
         string $latestVersion = '',
         string $packageName = '',
-        ?OperatorDTO $creatorInfo = null,
+        ?array $creatorInfo = null,
         ?string $publisherType = null,
         ?array $publisher = null
     ) {

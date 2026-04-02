@@ -116,6 +116,7 @@ async def run_isolated_agent(
     prompt: str,
     parent_context: Optional["AgentContext"] = None,
     model_id: Optional[str] = None,
+    image_model_id: Optional[str] = None,
 ) -> Optional[str]:
     """
     运行一个隔离 sub-agent，等待完成并返回结果。
@@ -140,6 +141,8 @@ async def run_isolated_agent(
     elif parent_context is not None and parent_context.has_dynamic_model_id():
         # 未指定模型时，继承父 Agent 的动态模型 ID
         new_context.set_dynamic_model_id(parent_context.get_dynamic_model_id())
+    if image_model_id:
+        new_context.set_dynamic_image_model_id(image_model_id)
 
     agent = Agent(agent_name, agent_id=agent_id, agent_context=new_context)
     handle = await subagent_session_manager.get_handle(agent_name, agent_id)

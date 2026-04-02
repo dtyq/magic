@@ -110,6 +110,7 @@ async def _parse_job_file(path: Path, job_id: str, mtime: float) -> Optional[Cro
             tz=schedule_cfg.get("tz", "UTC"),
             at=schedule_cfg.get("at"),
             every_ms=schedule_cfg.get("every_ms"),
+            end_at=schedule_cfg.get("end_at"),
         )
 
         payload_kind_str = payload_cfg.get("kind", PayloadKind.AGENT_TURN)
@@ -123,6 +124,7 @@ async def _parse_job_file(path: Path, job_id: str, mtime: float) -> Optional[Cro
             kind=payload_kind,
             agent_name=payload_cfg.get("agent_name", "magic"),
             model_id=payload_cfg.get("model_id"),
+            image_model_id=payload_cfg.get("image_model_id"),
             timeout_seconds=payload_cfg.get("timeout_seconds"),
             notify_main_agent=bool(payload_cfg.get("notify_main_agent", True)),
         )
@@ -261,6 +263,7 @@ def build_job_md(
     payload_kind: str,
     agent_name: str,
     model_id: Optional[str],
+    image_model_id: Optional[str],
     timeout_seconds: Optional[int],
     enabled: bool,
     name: Optional[str],
@@ -294,6 +297,8 @@ def build_job_md(
         frontmatter["timezone"] = timezone
     if model_id is not None:
         frontmatter["payload"]["model_id"] = model_id
+    if image_model_id is not None:
+        frontmatter["payload"]["image_model_id"] = image_model_id
     if timeout_seconds is not None:
         frontmatter["payload"]["timeout_seconds"] = timeout_seconds
     if not notify_main_agent:
@@ -309,6 +314,7 @@ def patch_job_md(
     payload_kind: Optional[str],
     agent_name: Optional[str],
     model_id: Optional[str],
+    image_model_id: Optional[str],
     timeout_seconds: Optional[int],
     enabled: Optional[bool],
     body: Optional[str],
@@ -348,6 +354,8 @@ def patch_job_md(
         payload["agent_name"] = agent_name
     if model_id is not None:
         payload["model_id"] = model_id
+    if image_model_id is not None:
+        payload["image_model_id"] = image_model_id
     if timeout_seconds is not None:
         payload["timeout_seconds"] = timeout_seconds
     if notify_main_agent is not None:

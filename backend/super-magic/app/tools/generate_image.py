@@ -479,7 +479,7 @@ Call generate_image tool directly when user has following scenarios:
             logger.error(f"将本地图片转换为 URL 失败: {file_path}，错误: {e}")
             return None
 
-    async def _generate_image_via_magic_service(self, params: GenerateImageParams) -> List[str]:
+    async def _generate_image_via_magic_service(self, params: GenerateImageParams, tool_context: Optional[ToolContext] = None) -> List[str]:
         """通过 magic-service 平台生成图片"""
         try:
             # 获取 magic-service 相关配置
@@ -492,19 +492,26 @@ Call generate_image tool directly when user has following scenarios:
             # 构建请求 URL
             url = f"{api_base_url.rstrip('/')}/images/generations"
 
-            # 优先从 dynamic_config.yaml 的 image_model.model_id 获取模型
+            # 优先从 agent context 获取图片模型（含回落到 dynamic_config.yaml）
             model = params.model
             try:
-                config_data = dynamic_config.read_dynamic_config()
-                if config_data:
-                    image_model_config = config_data.get("image_model", {})
-                    if isinstance(image_model_config, dict):
-                        model_id = image_model_config.get("model_id")
-                        if model_id and isinstance(model_id, str) and model_id.strip():
-                            model = model_id.strip()
-                            logger.info(f"从 dynamic_config.yaml 的 image_model.model_id 获取模型: {model}")
+                agent_context = tool_context.get_extension_typed("agent_context", AgentContext) if tool_context else None
+                if agent_context:
+                    resolved = agent_context.get_dynamic_image_model_id()
+                    if resolved:
+                        model = resolved
+                        logger.info(f"使用图片模型: {model}")
+                else:
+                    config_data = dynamic_config.read_dynamic_config()
+                    if config_data:
+                        image_model_config = config_data.get("image_model", {})
+                        if isinstance(image_model_config, dict):
+                            model_id = image_model_config.get("model_id")
+                            if model_id and isinstance(model_id, str) and model_id.strip():
+                                model = model_id.strip()
+                                logger.info(f"从 dynamic_config.yaml 的 image_model.model_id 获取模型: {model}")
             except Exception as e:
-                logger.debug(f"读取 dynamic_config.yaml 中的 image_model.model_id 失败，使用 params.model: {e}")
+                logger.debug(f"获取图片模型失败，使用 params.model: {e}")
 
             # 如果 model 仍然为空，使用兜底默认模型
             if not model or not model.strip():
@@ -575,7 +582,7 @@ Call generate_image tool directly when user has following scenarios:
             logger.error(f"magic-service 图片生成失败: {e}")
             raise
 
-    async def _edit_image_via_magic_service(self, params: GenerateImageParams) -> List[str]:
+    async def _edit_image_via_magic_service(self, params: GenerateImageParams, tool_context: Optional[ToolContext] = None) -> List[str]:
         """通过 magic-service 平台编辑图片"""
         # 记录本次调用中压缩产生的临时文件，用于最终清理
         compressed_temp_files: List[str] = []
@@ -590,19 +597,26 @@ Call generate_image tool directly when user has following scenarios:
             # 构建请求 URL
             url = f"{api_base_url.rstrip('/')}/images/edits"
 
-            # 优先从 dynamic_config.yaml 的 image_model.model_id 获取模型
+            # 优先从 agent context 获取图片模型（含回落到 dynamic_config.yaml）
             model = params.model
             try:
-                config_data = dynamic_config.read_dynamic_config()
-                if config_data:
-                    image_model_config = config_data.get("image_model", {})
-                    if isinstance(image_model_config, dict):
-                        model_id = image_model_config.get("model_id")
-                        if model_id and isinstance(model_id, str) and model_id.strip():
-                            model = model_id.strip()
-                            logger.info(f"从 dynamic_config.yaml 的 image_model.model_id 获取模型: {model}")
+                agent_context = tool_context.get_extension_typed("agent_context", AgentContext) if tool_context else None
+                if agent_context:
+                    resolved = agent_context.get_dynamic_image_model_id()
+                    if resolved:
+                        model = resolved
+                        logger.info(f"使用图片模型: {model}")
+                else:
+                    config_data = dynamic_config.read_dynamic_config()
+                    if config_data:
+                        image_model_config = config_data.get("image_model", {})
+                        if isinstance(image_model_config, dict):
+                            model_id = image_model_config.get("model_id")
+                            if model_id and isinstance(model_id, str) and model_id.strip():
+                                model = model_id.strip()
+                                logger.info(f"从 dynamic_config.yaml 的 image_model.model_id 获取模型: {model}")
             except Exception as e:
-                logger.debug(f"读取 dynamic_config.yaml 中的 image_model.model_id 失败，使用 params.model: {e}")
+                logger.debug(f"获取图片模型失败，使用 params.model: {e}")
 
             # 如果 model 仍然为空，使用兜底默认模型
             if not model or not model.strip():
@@ -1025,7 +1039,7 @@ Call generate_image tool directly when user has following scenarios:
                     raise ValueError("Must provide at least one image path or URL for editing")
 
                 # 编辑图片
-                image_urls = await self._edit_image_via_magic_service(params)
+                image_urls = await self._edit_image_via_magic_service(params, tool_context)
                 operation_type = "edit"
                 message_codes = {
                     "success": "edit_image.success",
@@ -1051,7 +1065,7 @@ Call generate_image tool directly when user has following scenarios:
                     raise ValueError("Maximum 4 images can be generated at once")
 
                 # 生成图片（使用 params.model 指定的模型，仅支持 magic-service 平台）
-                image_urls = await self._generate_image_via_magic_service(params)
+                image_urls = await self._generate_image_via_magic_service(params, tool_context)
 
                 operation_type = "generate"
                 message_codes = {

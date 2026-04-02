@@ -42,7 +42,7 @@ class ManageCronParams(BaseToolParams):
         description="""<!--zh: 操作类型及各自必填参数：
 - status: 无需额外参数
 - list: 可选 include_disabled
-- add: 必填 name / schedule / message，可选 payload_kind / model_id / timeout_seconds / enabled / notify_main_agent
+- add: 必填 name / schedule / message，可选 payload_kind / timeout_seconds / enabled / notify_main_agent
 - update: 必填 job_id，其余字段按需传，省略则保持原值
 - remove: 必填 job_id
 - run: 必填 job_id（立即触发，忽略调度时间）
@@ -51,7 +51,7 @@ class ManageCronParams(BaseToolParams):
 Action to perform. Per-action required fields:
 - status: no extra params
 - list: optional include_disabled
-- add: name + schedule + message required; payload_kind/model_id/timeout_seconds/enabled/notify_main_agent optional
+- add: name + schedule + message required; payload_kind/timeout_seconds/enabled/notify_main_agent optional
 - update: job_id required; any other field optional (omitted fields keep current value)
 - remove: job_id required
 - run: job_id required (triggers immediately, ignores schedule)
@@ -77,11 +77,15 @@ e.g. "remind me to review PR at 2026-03-27 14:00" → remind-me-to-review-pr-at-
 - cron 表达式（最小粒度分钟）：{"kind":"cron","expr":"0 9 * * 1-5","tz":"Asia/Shanghai"}
 - 固定间隔（every_ms 为毫秒，3600000=1h，86400000=1d）：{"kind":"every","every_ms":3600000}
 - 一次性指定时间：{"kind":"at","at":"2024-12-31T18:00:00+08:00"}
+cron 和 every 类型可加 end_at（ISO 8601）；达到该时间后任务自动禁用：
+  {"kind":"cron","expr":"0 9 * * 1-5","tz":"Asia/Shanghai","end_at":"2026-12-31T23:59:59+08:00"}
 -->
 Schedule config. Required for add; optional for update (omit to keep unchanged).
   {"kind":"cron",  "expr":"<5-field>", "tz":"<IANA>"}       cron expr, minute-level minimum
   {"kind":"every", "every_ms":<ms>}                          fixed interval (3600000=1h, 86400000=1d)
-  {"kind":"at",    "at":"<ISO-8601>"}                        one-shot at specific time"""
+  {"kind":"at",    "at":"<ISO-8601>"}                        one-shot at specific time
+For cron/every, optional end_at (ISO-8601) stops the job after that time:
+  {"kind":"every", "every_ms":3600000, "end_at":"2026-12-31T23:59:59+08:00"}"""
     )
     payload_kind: Optional[str] = Field(
         None,
@@ -97,11 +101,6 @@ Task body (Markdown). For agent_turn this is the full prompt sent to the agent. 
         None,
         description="""<!--zh: 是否启用任务。add 时默认 true；update 时可用于启用/禁用任务。-->
 Whether the job is enabled. Defaults to true for add. Use in update to enable/disable."""
-    )
-    model_id: Optional[str] = Field(
-        None,
-        description="""<!--zh: 可选，覆盖 agent 的默认模型-->
-Optional LLM model override for this job."""
     )
     timeout_seconds: Optional[int] = Field(
         None,
@@ -195,6 +194,8 @@ SCHEDULE TYPES:
   {"kind":"cron",  "expr":"0 9 * * 1-5", "tz":"Asia/Shanghai"}   cron expression
   {"kind":"every", "every_ms":3600000}                            interval (ms)
   {"kind":"at",    "at":"2024-12-31T09:00:00+08:00"}             one-shot
+For cron/every, add end_at (ISO-8601) to auto-disable after that time:
+  {"kind":"every", "every_ms":3600000, "end_at":"2026-12-31T23:59:59+08:00"}
 
 CRITICAL CONSTRAINTS:
 - Minimum scheduling unit is 1 minute (every_ms < 60000 is ignored by scheduler).
@@ -287,10 +288,13 @@ CRITICAL CONSTRAINTS:
 
         agent_ctx = tool_context.get_extension("agent_context")
 
-        model_id = params.model_id
-        if model_id is None:
-            if agent_ctx and hasattr(agent_ctx, "get_real_model_id"):
-                model_id = agent_ctx.get_real_model_id() or None
+        model_id = None
+        if agent_ctx and hasattr(agent_ctx, "get_real_model_id"):
+            model_id = agent_ctx.get_real_model_id() or None
+
+        image_model_id = None
+        if agent_ctx and hasattr(agent_ctx, "get_dynamic_image_model_id"):
+            image_model_id = agent_ctx.get_dynamic_image_model_id() or None
 
         user_timezone = None
         if agent_ctx and hasattr(agent_ctx, "get_user_timezone"):
@@ -307,6 +311,7 @@ CRITICAL CONSTRAINTS:
             payload_kind=params.payload_kind or "agent_turn",
             agent_name=agent_name,
             model_id=model_id,
+            image_model_id=image_model_id,
             timeout_seconds=params.timeout_seconds,
             enabled=True if params.enabled is None else params.enabled,
             name=params.name,
@@ -330,7 +335,8 @@ CRITICAL CONSTRAINTS:
             schedule=params.schedule,
             payload_kind=params.payload_kind,
             agent_name=None,  # agent_name 不允许通过 update 修改，创建时已绑定当前 agent
-            model_id=params.model_id,
+            model_id=None,
+            image_model_id=None,
             timeout_seconds=params.timeout_seconds,
             enabled=params.enabled,
             body=params.message,

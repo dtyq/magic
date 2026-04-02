@@ -10,8 +10,10 @@ namespace App\Domain\Provider\Repository\Persistence;
 use App\Domain\Provider\Entity\ProviderEntity;
 use App\Domain\Provider\Entity\ProviderModelEntity;
 use App\Domain\Provider\Entity\ValueObject\Category;
+use App\Domain\Provider\Entity\ValueObject\ModelType;
 use App\Domain\Provider\Entity\ValueObject\ProviderCode;
 use App\Domain\Provider\Entity\ValueObject\ProviderDataIsolation;
+use App\Domain\Provider\Entity\ValueObject\ProviderModelType;
 use App\Domain\Provider\Entity\ValueObject\Query\ProviderModelQuery;
 use App\Domain\Provider\Entity\ValueObject\Status;
 use App\Domain\Provider\Repository\Facade\MagicProviderAndModelsInterface;
@@ -532,6 +534,31 @@ class ProviderModelRepository extends AbstractProviderModelRepository implements
         });
 
         return $allModels;
+    }
+
+    /**
+     * 仅查询 type=DYNAMIC 的启用模型的 model_id 列表，不 SELECT 全字段.
+     *
+     * @param ModelType[] $modelTypes 模型类型过滤，空数组表示不限制
+     * @return string[]
+     */
+    public function getDynamicModelIds(ProviderDataIsolation $dataIsolation, array $modelTypes = []): array
+    {
+        $builder = $this->createBuilder($dataIsolation, ProviderModelModel::query());
+        $builder->where('type', ProviderModelType::DYNAMIC->value);
+        $builder->where('status', Status::Enabled->value);
+        if (! empty($modelTypes)) {
+            $builder->whereIn('model_type', array_map(fn ($t) => $t->value, $modelTypes));
+        }
+        $builder->select('model_id');
+
+        $result = Db::select($builder->toSql(), $builder->getBindings());
+
+        $ids = [];
+        foreach ($result as $row) {
+            $ids[] = $row['model_id'];
+        }
+        return array_values(array_unique($ids));
     }
 
     /**

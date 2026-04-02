@@ -531,7 +531,7 @@ class GenerateImagesToCanvas(BaseDesignTool[GenerateImagesToCanvasParams]):
             logger.info("阶段2: 生成图片")
 
             # 准备公共参数
-            model = self._get_model_from_config()
+            model = self._get_model_from_config(tool_context)
             clean_name = self._sanitize_filename(params.name)
             timestamp = datetime.now().strftime("%Y%m%d%H%M%S")
 
@@ -1100,27 +1100,34 @@ class GenerateImagesToCanvas(BaseDesignTool[GenerateImagesToCanvasParams]):
         # 返回结果列表（已按索引顺序）
         return list(results)
 
-    # noinspection PyMethodMayBeStatic
-    def _get_model_from_config(self) -> str:
-        """从 dynamic_config.yaml 获取图片生成模型
+    def _get_model_from_config(self, tool_context: Optional[ToolContext] = None) -> str:
+        """获取图片生成模型
 
-        优先从 dynamic_config.yaml 的 image_model.model_id 获取模型，
-        如果获取失败，使用默认模型 "doubao-seedream-4-0-250828"
+        优先从 agent context 获取（含回落到 dynamic_config.yaml），
+        均未配置时使用默认模型。
         """
+        from app.core.context.agent_context import AgentContext
         default_model = "doubao-seedream-4-0-250828"
 
         try:
-            config_data = dynamic_config.read_dynamic_config()
-            if config_data:
-                image_model_config = config_data.get("image_model", {})
-                if isinstance(image_model_config, dict):
-                    model_id = image_model_config.get("model_id")
-                    if model_id and isinstance(model_id, str) and model_id.strip():
-                        model = model_id.strip()
-                        logger.info(f"从 dynamic_config.yaml 的 image_model.model_id 获取模型: {model}")
-                        return model
+            agent_context = tool_context.get_extension_typed("agent_context", AgentContext) if tool_context else None
+            if agent_context:
+                resolved = agent_context.get_dynamic_image_model_id()
+                if resolved:
+                    logger.info(f"使用图片模型: {resolved}")
+                    return resolved
+            else:
+                config_data = dynamic_config.read_dynamic_config()
+                if config_data:
+                    image_model_config = config_data.get("image_model", {})
+                    if isinstance(image_model_config, dict):
+                        model_id = image_model_config.get("model_id")
+                        if model_id and isinstance(model_id, str) and model_id.strip():
+                            model = model_id.strip()
+                            logger.info(f"从 dynamic_config.yaml 的 image_model.model_id 获取模型: {model}")
+                            return model
         except Exception as e:
-            logger.debug(f"读取 dynamic_config.yaml 中的 image_model.model_id 失败，使用默认模型: {e}")
+            logger.debug(f"获取图片模型失败，使用默认模型: {e}")
 
         logger.debug(f"使用默认模型: {default_model}")
         return default_model
