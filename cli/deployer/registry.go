@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/dtyq/magicrew-cli/registry"
+	"github.com/dtyq/magicrew-cli/util"
 )
 
 // BootstrapRegistryStage ensures the local Docker registry is running.
@@ -40,7 +41,7 @@ func (s *BootstrapRegistryStage) Exec(ctx context.Context) error {
 
 func (d *Deployer) resolveRegistryDataDir(configured string) (string, error) {
 	if configured != "" {
-		return configured, nil
+		return util.NormalizePath(configured), nil
 	}
 	dir := d.dataPath("docker", "registry-data")
 	if err := os.MkdirAll(dir, 0o755); err != nil {

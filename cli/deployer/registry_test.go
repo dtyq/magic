@@ -18,6 +18,17 @@ func TestResolveRegistryDataDir_UsesConfiguredPath(t *testing.T) {
 	assert.Equal(t, configured, got)
 }
 
+func TestResolveRegistryDataDir_NormalizesConfiguredPath(t *testing.T) {
+	d := &Deployer{}
+	base := t.TempDir()
+	configured := filepath.Join(base, "nested", "..", "explicit-registry-data")
+	want := filepath.Clean(configured)
+
+	got, err := d.resolveRegistryDataDir(configured)
+	require.NoError(t, err)
+	assert.Equal(t, want, got)
+}
+
 func TestResolveRegistryDataDir_FallsBackToDataDir(t *testing.T) {
 	base := t.TempDir()
 	d := &Deployer{opts: Options{DataDir: base}}
