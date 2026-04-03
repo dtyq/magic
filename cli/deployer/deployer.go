@@ -3,6 +3,7 @@ package deployer
 import (
 	"context"
 	"fmt"
+	"path/filepath"
 	"time"
 
 	"github.com/dtyq/magicrew-cli/chart"
@@ -40,13 +41,15 @@ type Options struct {
 	PassCredsAll       bool
 	ChartSpecs         map[string]ChartSpec
 	ValuesFile         string
-	WebBaseURL         string // magic-web external URL (CLI --web-url or MAGIC_WEB_BASE_URL)
+	WebBaseURL         string // magic-web external URL (CLI --web-url or MAGICREW_CLI_WEB_BASE_URL)
 	Registry           registry.Config
 	Kind               cluster.KindClusterConfig
 	InfraUseProxy      bool // route infra image pulls through the local registry proxy
 	ConfigFile         string
 	Proxy              ProxyConfig
-	AutoRecoverRelease bool // auto recover pending helm release without TTY confirmation
+	AutoRecoverRelease bool   // auto recover pending helm release without TTY confirmation
+	ConfigDir          string // config directory for config.yml, values.yaml and infra credentials
+	DataDir            string // data directory for local Docker-backed state
 	Log                util.LoggerGroup
 }
 
@@ -94,13 +97,19 @@ type Deployer struct {
 // before InfraStage's Prep resolves them.
 func New(opts Options) *Deployer {
 	opts.Kind = cluster.NormalizeKindCluster(opts.Kind)
+	if opts.ConfigDir == "" {
+		opts.ConfigDir = filepath.Join(util.ConfigDir(), "magicrew")
+	}
+	if opts.DataDir == "" {
+		opts.DataDir = filepath.Join(util.HomeDir(), ".magicrew")
+	}
 	d := &Deployer{
 		log:        opts.Log,
 		opts:       opts,
 		chartSpecs: normalizeChartSpecs(opts.ChartSpecs),
 		valuesFile: opts.ValuesFile,
 	}
-	reg := newInfraRegistry()
+	reg := newInfraRegistry(opts.ConfigDir)
 	d.infraRegistry = reg
 	d.stages = []Stage{
 		newPreflightStage(d),
@@ -147,4 +156,14 @@ func installChartWithWaitSelector(ctx context.Context, d *Deployer, name, namesp
 		return fmt.Errorf("wait for %s pods: %w", name, err)
 	}
 	return nil
+}
+
+// configPath returns a child path under the configured config directory.
+func (d *Deployer) configPath(parts ...string) string {
+	return filepath.Join(d.opts.ConfigDir, filepath.Join(parts...))
+}
+
+// dataPath returns a child path under the configured data directory.
+func (d *Deployer) dataPath(parts ...string) string {
+	return filepath.Join(d.opts.DataDir, filepath.Join(parts...))
 }

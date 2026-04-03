@@ -83,10 +83,21 @@ readonly class SandboxVersionDomainService
                 $needUpgradeMap[$topic->getId()] = false;
                 continue;
             }
-            $needUpgradeMap[$topic->getId()] = $this->buildSandboxVersionResult(
-                $topic->getAgentImage() ?? '',
-                $latestImage
-            )['needs_update'];
+            $currentImage = $topic->getAgentImage() ?? '';
+            $versionResult = $this->buildSandboxVersionResult($currentImage, $latestImage);
+            $needUpgradeMap[$topic->getId()] = $versionResult['needs_update'];
+
+            $this->logger->info('[Sandbox][Version] checkNeedUpgrade detail', [
+                'topic_id' => $topic->getId(),
+                'sandbox_id' => $topic->getSandboxId(),
+                'db_agent_image_raw' => $currentImage,
+                'db_agent_image_hex' => bin2hex($currentImage),
+                'latest_image_raw' => $latestImage,
+                'latest_image_hex' => bin2hex($latestImage),
+                'current_version' => $versionResult['current_version'],
+                'latest_version' => $versionResult['latest_version'],
+                'needs_update' => $versionResult['needs_update'],
+            ]);
         }
 
         return $needUpgradeMap;

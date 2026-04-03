@@ -22,6 +22,29 @@ var isWaitTTY = func() bool {
 	return isatty.IsTerminal(f.Fd())
 }
 
+// reporterAnsiEnabled decides whether to use cursor-movement ANSI sequences (spinner UI).
+// Priority: MAGICREW_CLI_NO_ANSI=1 disables; MAGICREW_CLI_FORCE_ANSI=1 enables; else NO_COLOR,
+// TERM=dumb, or non-TTY disable; otherwise enable.
+func reporterAnsiEnabled() bool {
+	if envMagicrewFlag("MAGICREW_CLI_NO_ANSI") {
+		return false
+	}
+	if envMagicrewFlag("MAGICREW_CLI_FORCE_ANSI") {
+		return true
+	}
+	if os.Getenv("NO_COLOR") != "" {
+		return false
+	}
+	if strings.EqualFold(strings.TrimSpace(os.Getenv("TERM")), "dumb") {
+		return false
+	}
+	return isWaitTTY()
+}
+
+func envMagicrewFlag(name string) bool {
+	return strings.TrimSpace(os.Getenv(name)) == "1"
+}
+
 // newPodReporter returns a reporter func suitable for passing to WaitForPodsReady.
 // It shows a single-line spinner in TTY; non-TTY falls back to concise changed-only logs.
 func newPodReporter(log util.LoggerGroup, label string) func([]corev1.Pod) {
@@ -42,7 +65,7 @@ func newPodReporter(log util.LoggerGroup, label string) func([]corev1.Pod) {
 		reason := firstFailureReason(pods)
 		allReady := total > 0 && ready == total
 
-		if isWaitTTY() {
+		if reporterAnsiEnabled() {
 			frame := frames[frameIdx%len(frames)]
 			frameIdx++
 			lines := []string{fmt.Sprintf("%c [waiting] %s pods (%d/%d ready)", frame, label, ready, total)}

@@ -49,6 +49,11 @@ class SearchRequestDTO extends AbstractRequestDTO
      */
     private string $freshness = '';
 
+    /**
+     * Preferred provider/engine. Falls back to the enabled default when empty.
+     */
+    private string $provider = '';
+
     public function __construct(array $data = [])
     {
         parent::__construct($data);
@@ -66,6 +71,7 @@ class SearchRequestDTO extends AbstractRequestDTO
         $this->safeSearch = (string) ($data['safeSearch'] ?? $data['safe_search'] ?? '');
 
         $this->freshness = (string) ($data['freshness'] ?? '');
+        $this->provider = (string) ($data['provider'] ?? $data['engine'] ?? '');
     }
 
     public static function createDTO(array $data): self
@@ -78,6 +84,7 @@ class SearchRequestDTO extends AbstractRequestDTO
         $searchRequestDTO->setSetLang((string) ($data['setLang'] ?? $data['set_lang'] ?? ''));
         $searchRequestDTO->setSafeSearch((string) ($data['safeSearch'] ?? $data['safe_search'] ?? ''));
         $searchRequestDTO->setFreshness((string) ($data['freshness'] ?? ''));
+        $searchRequestDTO->setProvider((string) ($data['provider'] ?? $data['engine'] ?? ''));
         return $searchRequestDTO;
     }
 
@@ -160,6 +167,17 @@ class SearchRequestDTO extends AbstractRequestDTO
     public function setFreshness(string $freshness): self
     {
         $this->freshness = $freshness;
+        return $this;
+    }
+
+    public function getProvider(): string
+    {
+        return $this->provider;
+    }
+
+    public function setProvider(string $provider): self
+    {
+        $this->provider = trim($provider);
         return $this;
     }
 
