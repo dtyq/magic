@@ -8,6 +8,7 @@ declare(strict_types=1);
 namespace App\Infrastructure\ExternalAPI\VideoGenerateAPI;
 
 use App\Domain\ModelGateway\Contract\VideoGenerationProviderAdapterInterface;
+use App\Domain\ModelGateway\Entity\ValueObject\QueueExecutorConfig;
 use App\Domain\ModelGateway\Entity\VideoQueueOperationEntity;
 use RuntimeException;
 
@@ -91,6 +92,36 @@ abstract readonly class AbstractCloudswayVideoAdapter implements VideoGeneration
         ], static fn (string $value): bool => trim($value) !== '');
     }
 
+    protected function buildVeoMediaFromUri(string $uri): array
+    {
+        $normalizedUri = trim($uri);
+        if ($normalizedUri === '') {
+            throw new RuntimeException('cloudsway veo media uri is empty');
+        }
+
+        if (preg_match('#^data:(?<mime>[-\w.+/]+);base64,(?<data>.+)$#is', $normalizedUri, $matches) === 1) {
+            return [
+                'bytesBase64Encoded' => preg_replace('/\s+/', '', $matches['data']) ?? '',
+                'mimeType' => strtolower(trim($matches['mime'])),
+            ];
+        }
+
+        if (str_starts_with($normalizedUri, 'gs://')) {
+            return $this->buildMediaFromUri($normalizedUri);
+        }
+
+        if (preg_match('#^https?://#i', $normalizedUri) === 1) {
+            $media = $this->cloudswayVideoClient->downloadMediaAsBase64($normalizedUri);
+
+            return [
+                'bytesBase64Encoded' => $media['bytes_base64_encoded'],
+                'mimeType' => $media['mime_type'],
+            ];
+        }
+
+        return $this->buildMediaFromUri($normalizedUri);
+    }
+
     protected function guessMimeType(string $uri, string $default = 'image/png'): string
     {
         $path = strtolower(parse_url($uri, PHP_URL_PATH) ?? '');
@@ -126,5 +157,59 @@ abstract readonly class AbstractCloudswayVideoAdapter implements VideoGeneration
         }
 
         return $fallback;
+    }
+
+    protected function buildLogContext(VideoQueueOperationEntity $operation, ?string $providerTaskId = null): array
+    {
+        $context = [
+            'video_id' => $operation->getVideoId(),
+            'operation_id' => $operation->getId(),
+            'provider_task_id' => $providerTaskId,
+            'model' => $operation->getModel(),
+            'endpoint' => $operation->getEndpoint(),
+        ];
+
+        foreach ($context as $key => $value) {
+            if ($value === null) {
+                unset($context[$key]);
+                continue;
+            }
+
+            if (trim($value) === '') {
+                unset($context[$key]);
+            }
+        }
+
+        return $context;
+    }
+
+    protected function postWithOperationContext(
+        VideoQueueOperationEntity $operation,
+        QueueExecutorConfig $config,
+        string $path,
+        array $payload,
+        ?string $providerTaskId = null,
+    ): array {
+        return $this->cloudswayVideoClient->post(
+            $config->getBaseUrl(),
+            $config->getApiKey(),
+            $path,
+            $payload,
+            $this->buildLogContext($operation, $providerTaskId),
+        );
+    }
+
+    protected function getWithOperationContext(
+        VideoQueueOperationEntity $operation,
+        QueueExecutorConfig $config,
+        string $path,
+        ?string $providerTaskId = null,
+    ): array {
+        return $this->cloudswayVideoClient->get(
+            $config->getBaseUrl(),
+            $config->getApiKey(),
+            $path,
+            $this->buildLogContext($operation, $providerTaskId),
+        );
     }
 }

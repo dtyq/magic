@@ -82,11 +82,11 @@ class CloudswayVeoVideoAdapterTest extends TestCase
                 'prompt' => 'make a veo video',
                 'inputs' => [
                     'frames' => [
-                        ['role' => 'start', 'uri' => 'https://example.com/start.png'],
-                        ['role' => 'end', 'uri' => 'https://example.com/end.png'],
+                        ['role' => 'start', 'uri' => 'data:image/png;base64,c3RhcnQ='],
+                        ['role' => 'end', 'uri' => 'data:image/jpeg;base64,ZW5k'],
                     ],
                     'reference_images' => [
-                        ['uri' => 'https://example.com/ref.png', 'type' => 'asset'],
+                        ['uri' => 'data:image/webp;base64,cmVm', 'type' => 'asset'],
                     ],
                 ],
                 'generation' => [
@@ -103,13 +103,65 @@ class CloudswayVeoVideoAdapterTest extends TestCase
         $payload = $adapter->buildProviderPayload($operation);
 
         $this->assertSame('make a veo video', $payload['instances'][0]['prompt']);
-        $this->assertSame('https://example.com/start.png', $payload['instances'][0]['image']['gcsUri']);
-        $this->assertSame('https://example.com/end.png', $payload['instances'][0]['lastFrame']['gcsUri']);
-        $this->assertSame('https://example.com/ref.png', $payload['instances'][0]['referenceImages'][0]['image']['gcsUri']);
+        $this->assertSame('c3RhcnQ=', $payload['instances'][0]['image']['bytesBase64Encoded']);
+        $this->assertSame('image/png', $payload['instances'][0]['image']['mimeType']);
+        $this->assertSame('ZW5k', $payload['instances'][0]['lastFrame']['bytesBase64Encoded']);
+        $this->assertSame('image/jpeg', $payload['instances'][0]['lastFrame']['mimeType']);
+        $this->assertSame('cmVm', $payload['instances'][0]['referenceImages'][0]['image']['bytesBase64Encoded']);
+        $this->assertSame('image/webp', $payload['instances'][0]['referenceImages'][0]['image']['mimeType']);
         $this->assertSame('16:9', $payload['parameters']['aspectRatio']);
         $this->assertSame(8, $payload['parameters']['durationSeconds']);
         $this->assertSame('1080p', $payload['parameters']['resolution']);
         $this->assertTrue($payload['parameters']['generateAudio']);
+    }
+
+    public function testBuildProviderPayloadDownloadsHttpsImageForVeoMedia(): void
+    {
+        $httpClient = $this->createMock(Client::class);
+        $httpClient->expects($this->once())
+            ->method('get')
+            ->with('https://example.com/start.png', [
+                'headers' => [
+                    'Accept' => '*/*',
+                ],
+            ])
+            ->willReturn(new Response(200, ['Content-Type' => 'image/png'], 'start'));
+
+        $clientFactory = $this->createMock(ClientFactory::class);
+        $clientFactory->expects($this->once())
+            ->method('create')
+            ->willReturn($httpClient);
+
+        $adapter = new CloudswayVeoVideoAdapter(new CloudswayVideoClient($clientFactory));
+        $operation = new VideoQueueOperationEntity(
+            id: 'op-veo-http-image',
+            endpoint: 'video:veo-3.1-generate-preview',
+            model: 'veo-3.1-generate-preview',
+            modelVersion: self::ENDPOINT_ID,
+            providerModelId: 'provider-model-veo',
+            providerCode: 'Cloudsway',
+            providerName: 'cloudsway',
+            organizationCode: 'org-1',
+            userId: 'user-1',
+            status: VideoOperationStatus::QUEUED,
+            seq: 1,
+            rawRequest: [
+                'prompt' => 'make a veo video',
+                'inputs' => [
+                    'frames' => [
+                        ['role' => 'start', 'uri' => 'https://example.com/start.png'],
+                    ],
+                ],
+            ],
+            createdAt: date(DATE_ATOM),
+            heartbeatAt: date(DATE_ATOM),
+        );
+
+        $payload = $adapter->buildProviderPayload($operation);
+
+        $this->assertSame('c3RhcnQ=', $payload['instances'][0]['image']['bytesBase64Encoded']);
+        $this->assertSame('image/png', $payload['instances'][0]['image']['mimeType']);
+        $this->assertArrayNotHasKey('gcsUri', $payload['instances'][0]['image']);
     }
 
     public function testBuildProviderPayloadAlwaysIncludesRequiredParametersForTextToVideo(): void
@@ -193,8 +245,8 @@ class CloudswayVeoVideoAdapterTest extends TestCase
                 'prompt' => 'make a veo pro video',
                 'inputs' => [
                     'reference_images' => [
-                        ['uri' => 'https://example.com/ref-asset.png', 'type' => 'asset'],
-                        ['uri' => 'https://example.com/ref-style.png', 'type' => 'style'],
+                        ['uri' => 'data:image/png;base64,cmVmLWFzc2V0', 'type' => 'asset'],
+                        ['uri' => 'data:image/png;base64,cmVmLXN0eWxl', 'type' => 'style'],
                     ],
                 ],
                 'generation' => [

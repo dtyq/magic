@@ -39,11 +39,11 @@ from app.i18n import i18n
 from app.infrastructure.magic_service.config import MagicServiceConfig, MagicServiceConfigLoader
 from app.service.media_generation_service import (
     AI_VIDEO_GENERATION_SOURCE,
-    generate_presigned_url_for_file,
     notify_generated_media_file,
 )
 from app.tools.abstract_file_tool import AbstractFileTool
 from app.tools.core import BaseToolParams, tool
+from app.tools.visual_understanding_utils.image_conversion_utils import local_file_to_base64
 from app.tools.workspace_tool import WorkspaceTool
 from app.utils.async_file_utils import async_exists, async_mkdir
 from app.utils.video_logger import get_video_logger
@@ -61,7 +61,7 @@ VIDEO_PROGRESS_TOOL_NAME = "video_generation_progress"
 TERMINAL_VIDEO_STATUSES = {"succeeded", "failed", "canceled"}
 LOCAL_INPUT_ERROR_PREFIXES = (
     "本地文件不存在:",
-    "无法将本地文件转换为可访问 URL:",
+    "无法将本地文件转换为 Base64:",
 )
 
 
@@ -105,16 +105,18 @@ def _summarize_video_request_payload(payload: Optional[Dict[str, Any]]) -> Optio
 
     inputs = payload.get("inputs") if isinstance(payload.get("inputs"), dict) else {}
     generation = payload.get("generation") if isinstance(payload.get("generation"), dict) else {}
+    business_params = payload.get("business_params") if isinstance(payload.get("business_params"), dict) else {}
     reference_images = inputs.get("reference_images")
 
     return {
         "keys": sorted(payload.keys()),
         "model_id": payload.get("model_id"),
+        "video_id": business_params.get("video_id"),
         "prompt_length": len(payload["prompt"]) if isinstance(payload.get("prompt"), str) else None,
         "inputs_keys": sorted(inputs.keys()),
         "reference_image_count": len(reference_images) if isinstance(reference_images, list) else 0,
-        "has_frame_start": bool(inputs.get("frame_start")),
-        "has_frame_end": bool(inputs.get("frame_end")),
+        "has_frame_start": any(isinstance(frame, dict) and frame.get("role") == "start" for frame in inputs.get("frames", [])),
+        "has_frame_end": any(isinstance(frame, dict) and frame.get("role") == "end" for frame in inputs.get("frames", [])),
         "generation": generation,
     }
 
@@ -165,8 +167,8 @@ Output directory relative to workspace root. Default: videos"""
     )
     reference_image_paths: List[str] = Field(
         default_factory=list,
-        description="""<!--zh: 参考图片路径或 URL 列表。相对路径会先转可访问 URL，再传给 magic-service-->
-Reference image paths or URLs. Relative paths are converted to accessible URLs before calling magic-service"""
+        description="""<!--zh: 参考图片路径或 URL 列表。相对路径会先转 Base64 data URL，再传给 magic-service-->
+Reference image paths or URLs. Relative paths are converted to Base64 data URLs before calling magic-service"""
     )
     frame_start_path: str = Field(
         "",
@@ -327,9 +329,11 @@ class GenerateVideo(AbstractFileTool[GenerateVideoParams], WorkspaceTool[Generat
                 logger.info(f"视频模型 {model_id} 缺少 featured 能力配置，继续按现有兜底逻辑执行")
 
             request_id = str(uuid.uuid4())
+            video_id = str(uuid.uuid4())
             request_payload, applied_generation, matched_size = await self._build_create_payload(
                 params,
                 model_id,
+                video_id,
                 video_generation_config,
             )
             create_response = await self._request_json(
@@ -343,7 +347,7 @@ class GenerateVideo(AbstractFileTool[GenerateVideoParams], WorkspaceTool[Generat
                 raise ValueError("magic-service /v1/videos 响应缺少 operation id")
             logger.info(
                 "视频任务创建成功: "
-                f"operation_id={operation_id} request_id={request_id} model_id={model_id} "
+                f"video_id={video_id} operation_id={operation_id} request_id={request_id} model_id={model_id} "
                 f"{_format_tool_context_for_log(tool_context)}"
             )
 
@@ -366,6 +370,7 @@ class GenerateVideo(AbstractFileTool[GenerateVideoParams], WorkspaceTool[Generat
             metadata = self._build_result_metadata(
                 params,
                 model_id,
+                video_id,
                 operation_id,
                 request_id,
                 applied_generation,
@@ -373,7 +378,7 @@ class GenerateVideo(AbstractFileTool[GenerateVideoParams], WorkspaceTool[Generat
             )
             logger.info(
                 "普通视频生成轮询结束: "
-                f"operation_id={operation_id} request_id={request_id} "
+                f"video_id={video_id} operation_id={operation_id} request_id={request_id} "
                 f"status={self._normalize_status(operation) or ''}"
             )
             return await self._build_operation_result(
@@ -413,7 +418,7 @@ class GenerateVideo(AbstractFileTool[GenerateVideoParams], WorkspaceTool[Generat
         normalized_error = error_message.strip()
         if normalized_error.startswith("本地文件不存在:"):
             return "video.local_input_not_found"
-        if normalized_error.startswith("无法将本地文件转换为可访问 URL:"):
+        if normalized_error.startswith("无法将本地文件转换为 Base64:"):
             return "video.local_input_url_conversion_failed"
         if any(normalized_error.startswith(prefix) for prefix in LOCAL_INPUT_ERROR_PREFIXES):
             return "video.local_input_error"
@@ -479,6 +484,7 @@ class GenerateVideo(AbstractFileTool[GenerateVideoParams], WorkspaceTool[Generat
         self,
         params: GenerateVideoParams,
         model_id: str,
+        video_id: str,
         video_generation_config: Optional[Dict[str, Any]] = None,
     ) -> Tuple[Dict[str, Any], Dict[str, Any], Optional[Dict[str, Any]]]:
         inputs: Dict[str, Any] = {}
@@ -511,7 +517,7 @@ class GenerateVideo(AbstractFileTool[GenerateVideoParams], WorkspaceTool[Generat
             payload["generation"] = generation
         if params.extensions:
             payload["extensions"] = params.extensions
-        business_params = self._build_business_params_from_metadata()
+        business_params = self._build_business_params_from_metadata(video_id)
         if business_params:
             payload["business_params"] = business_params
 
@@ -1001,11 +1007,10 @@ class GenerateVideo(AbstractFileTool[GenerateVideoParams], WorkspaceTool[Generat
             return media_path
 
         resolved_path = await self._resolve_workspace_file(media_path)
-        relative_path = self._relative_to_workspace(resolved_path)
-        url = await generate_presigned_url_for_file(relative_path)
-        if not url:
-            raise ValueError(f"无法将本地文件转换为可访问 URL: {media_path}")
-        return url
+        try:
+            return await local_file_to_base64(str(resolved_path))
+        except Exception as exc:
+            raise ValueError(f"无法将本地文件转换为 Base64: {media_path}") from exc
 
     async def _resolve_workspace_file(self, media_path: str) -> Path:
         path_obj = Path(media_path)
@@ -1132,21 +1137,23 @@ class GenerateVideo(AbstractFileTool[GenerateVideoParams], WorkspaceTool[Generat
         return headers
 
     @staticmethod
-    def _build_business_params_from_metadata() -> Dict[str, Any]:
+    def _build_business_params_from_metadata(video_id: str) -> Dict[str, Any]:
+        business_params: Dict[str, Any] = {"video_id": video_id}
         if not MetadataUtil.is_initialized():
-            return {}
+            return business_params
 
         metadata = MetadataUtil.get_metadata()
         project_id = metadata.get("project_id")
         if isinstance(project_id, str) and project_id.strip():
-            return {"project_id": project_id.strip()}
+            business_params["project_id"] = project_id.strip()
 
-        return {}
+        return business_params
 
     @staticmethod
     def _build_result_metadata(
         params: GenerateVideoParams,
         model_id: str,
+        video_id: str,
         operation_id: str,
         request_id: str,
         applied_generation: Dict[str, Any],
@@ -1161,6 +1168,7 @@ class GenerateVideo(AbstractFileTool[GenerateVideoParams], WorkspaceTool[Generat
         return {
             "model_id": model_id,
             "prompt": params.prompt,
+            "video_id": video_id,
             "operation_id": operation_id,
             "request_id": request_id,
             "requested_size": params.size or None,
