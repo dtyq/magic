@@ -18,6 +18,7 @@ from app.core.stream import Stream
 from agentlang.logger import get_logger
 from agentlang.utils.shadow_code import ShadowCode
 from agentlang.utils.metadata import MetadataUtil
+from app.i18n.i18n_manager import I18nManager
 
 logger = get_logger(__name__)
 
@@ -259,6 +260,7 @@ class HTTPSubscriptionStream(Stream):
             # 准备请求头和内容
             headers = dict(self._config.headers)
             headers["Request-ID"] = request_id
+            headers["Language"] = I18nManager.get_language()
 
             # 添加 Magic-Authorization 与 User-Authorization 请求头
             MetadataUtil.add_magic_and_user_authorization_headers(headers)
