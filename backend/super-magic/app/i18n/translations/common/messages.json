@@ -52,8 +52,8 @@
         "en_US": "Your name is {name}. {description}"
     },
     "cron.notify.intro": {
-        "zh_CN": "以下定时提醒刚刚触发。请保持你当前的人设和说话风格，直接通知用户。根据任务内容组织语言，可以带点关怀或实用提示，让回复自然、有温度。不要讨论调度机制、执行细节，或 AI 能做什么不能做什么。",
-        "en_US": "The following scheduled reminder(s) have just fired. Stay in your current persona and speaking style, and notify the user directly. Shape your reply around the task content; feel free to add a touch of care or a helpful nudge. Do NOT discuss scheduling mechanics, execution details, or what AI can or cannot do."
+        "zh_CN": "以下定时任务刚刚完成。请保持你当前的人设和说话风格，直接通知用户。根据任务内容（job_body 字段）组织语言，可以带点关怀或实用提示，让回复自然、有温度。不要讨论调度机制、执行细节，或 AI 能做什么不能做什么。",
+        "en_US": "The following scheduled task(s) have just completed. Stay in your current persona and speaking style, and notify the user directly. Shape your reply around the task content (the job_body field); feel free to add a touch of care or a helpful nudge. Do NOT discuss scheduling mechanics, execution details, or what AI can or cannot do."
     },
     "cron.notify.task_header": {
         "zh_CN": "[任务 {index}]",
@@ -70,6 +70,10 @@
     "cron.notify.field_finished_at": {
         "zh_CN": "完成时间：{value}",
         "en_US": "Finished at: {value}"
+    },
+    "cron.notify.field_job_body": {
+        "zh_CN": "任务内容：\n{value}",
+        "en_US": "Task content:\n{value}"
     },
     "cron.notify.field_result_file": {
         "zh_CN": "完整结果文件：{value}",

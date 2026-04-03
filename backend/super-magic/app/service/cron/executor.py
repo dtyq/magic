@@ -32,9 +32,18 @@ async def execute_agent_turn(job: CronJob) -> CronRunResult:
     parent_context=None：CronService 是系统级服务，内部创建 root context。
     """
     agent_id = f"cron-{job.id}"
+    # <!--zh
+    # 明确告知子 agent 当前是自动化执行模式，不是用户对话：
+    # - 禁止自我介绍或添加元评论
+    # - 直接处理任务内容并输出结果
+    # 这样可以避免子 agent 误以为在和用户聊天，输出自我介绍等无关内容。
+    # -->
+    # Explicitly set automated execution context so the sub-agent does not introduce
+    # itself or add conversational meta-commentary — just execute and return a result.
     prompt = (
-        f"[Scheduled task: {job.name or job.id}]\n"
-        f"Current time: {_format_time()}\n\n"
+        f"[Automated task execution — do not introduce yourself]\n"
+        f"Task: {job.name or job.id}\n"
+        f"Triggered at: {_format_time()}\n\n"
         f"{job.body}"
     )
 

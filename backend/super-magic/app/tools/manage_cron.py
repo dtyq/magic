@@ -89,8 +89,23 @@ For cron/every, optional end_at (ISO-8601) stops the job after that time:
     )
     message: Optional[str] = Field(
         None,
-        description="""<!--zh: 任务正文（Markdown），agent_turn 时是发给 agent 的完整 prompt。add 时必填。-->
-Task body (Markdown). For agent_turn this is the full prompt sent to the agent. Required for add."""
+        description="""<!--zh:
+任务正文（Markdown），agent_turn 时是发给子 agent 的完整 prompt，也是触发后通知用户的核心内容，add 时必填。
+
+写法指导（按任务类型分）：
+- 提醒类（吃药、喝水、休息等）：写成完整的通知短文。保持当前人设和语气，带关怀或实用提示。
+  不要只写一句话，可以包含：要做什么、为什么重要、一两句贴心叮嘱。
+  示例：用户说"2分钟后提醒我喝水" → body 写"该喝水了！久坐容易忘记补水，趁现在起来喝一杯。保持水分有助于保持注意力和精力。"
+- 调研/汇报类：写成完整的任务指令，说清楚要做什么、怎么做、输出什么格式。
+- 维护/后台类：写成具体的执行步骤。
+-->
+Task body (Markdown). For agent_turn, this is both the full prompt sent to the sub-agent and the core content shown to the user as the notification. Required for add.
+
+Writing guidelines by task type:
+- Reminder tasks (medication, water, break, etc.): write a complete notification message in your current persona and tone, with care or practical tips. Do not use a single generic sentence; include what to do, why it matters, and a warm nudge.
+  Example: user says "remind me to drink water in 2 minutes" → body: "Time to hydrate! It's easy to forget when you're focused — step away and drink a glass now. Staying hydrated keeps your mind sharp and energy up."
+- Research/report tasks: write a complete instruction covering what to do, how to do it, and the expected output format.
+- Maintenance/background tasks: write specific execution steps."""
     )
     enabled: Optional[bool] = Field(
         None,
