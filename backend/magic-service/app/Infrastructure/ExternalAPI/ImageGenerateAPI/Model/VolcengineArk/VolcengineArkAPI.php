@@ -33,7 +33,11 @@ class VolcengineArkAPI
         ?string $proxyUrl = null
     ) {
         $this->apiKey = $apiKey;
-        $this->baseUrl = rtrim($baseUrl, '/');
+        $normalized = rtrim($baseUrl, '/');
+        if (str_ends_with($normalized, '/api/v3')) {
+            $normalized .= '/images/generations';
+        }
+        $this->baseUrl = $normalized;
         $this->proxyUrl = $proxyUrl;
         $this->logger = di(LoggerFactory::class)->get(static::class);
     }
