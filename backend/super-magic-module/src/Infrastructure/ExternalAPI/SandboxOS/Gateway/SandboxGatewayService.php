@@ -479,18 +479,41 @@ class SandboxGatewayService extends AbstractSandboxOS implements SandboxGatewayI
                     }
 
                     $proxyPath = $this->buildProxyPath($sandboxId, $path);
-                    // $proxyPath = $path;
 
                     $response = $this->getClient()->request($method, $this->buildApiPath($proxyPath), $requestOptions);
 
+                    $statusCode = $response->getStatusCode();
                     $body = $response->getBody()->getContents();
+
+                    if ($statusCode >= 500) {
+                        $this->logger->error('[Sandbox][Gateway] Server error when proxying request', [
+                            'attempt' => $attempt,
+                            'max_retries' => $maxRetries,
+                            'sandbox_id' => $sandboxId,
+                            'method' => $method,
+                            'path' => $path,
+                            'http_status' => $statusCode,
+                            'response_body' => mb_substr($body, 0, 200),
+                        ]);
+                        throw new RuntimeException(sprintf('HTTP %d error from gateway', $statusCode));
+                    }
+
                     $responseData = Json::decode($body);
                     if (empty($responseData)) {
                         throw new RuntimeException('Proxy sandbox status response is empty');
                     }
-                    $suppressSuccessInfo = $this->shouldSuppressSuccessInfo($path);
                     $result = GatewayResult::fromApiResponse($responseData);
 
+                    if ($result->isNotFound()) {
+                        $this->logger->info('[Sandbox][Gateway] Sandbox not found', [
+                            'sandbox_id' => $sandboxId,
+                            'method' => $method,
+                            'path' => $path,
+                        ]);
+                        return $result;
+                    }
+
+                    $suppressSuccessInfo = $this->shouldSuppressSuccessInfo($path);
                     $logContext = [
                         'mode' => $mode,
                         'sandbox_id' => $sandboxId,
@@ -501,7 +524,6 @@ class SandboxGatewayService extends AbstractSandboxOS implements SandboxGatewayI
                         'response_message' => $result->getMessage(),
                     ];
 
-                    // 成功/失败分流：成功且未被减噪则 info，失败统一 warning
                     if (! $result->isSuccess()) {
                         $this->logger->warning('[Sandbox][Gateway] Proxy request failed', $logContext);
                     } elseif (! $suppressSuccessInfo) {
@@ -523,12 +545,10 @@ class SandboxGatewayService extends AbstractSandboxOS implements SandboxGatewayI
                         'is_retryable' => $isRetryableError,
                     ]);
 
-                    // Only retry for retryable errors
                     if (! $isRetryableError) {
                         return GatewayResult::error('HTTP request failed: ' . $e->getMessage());
                     }
 
-                    // Re-throw for retry mechanism to handle
                     throw $e;
                 } catch (Exception $e) {
                     $this->logger->error('[Sandbox][Gateway] Unexpected error when proxying request', [
@@ -541,7 +561,7 @@ class SandboxGatewayService extends AbstractSandboxOS implements SandboxGatewayI
                     ]);
                     throw $e;
                 }
-            }, 1000); // Start with 1-second delay
+            }, 1000);
         } catch (Throwable $e) {
             $this->logger->error('[Sandbox][Gateway] All retry attempts failed', [
                 'sandbox_id' => $sandboxId,

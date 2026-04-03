@@ -254,7 +254,7 @@ class AgentDomainService
                 'lock_owner' => $lockOwner,
             ]);
 
-            // Step 1: Check workspace status
+            // Step 1: Check workspace status (quick-returns if sandbox already ready)
             try {
                 $response = $this->getWorkspaceStatus($sandboxId);
                 $status = $response->getDataValue('status');
@@ -272,9 +272,12 @@ class AgentDomainService
                     'workspace_status' => $status,
                 ]);
             } catch (SandboxOperationException $e) {
-                $this->logger->warning('[Sandbox][Domain] Failed to check workspace status, will reinitialize', [
+                $isNotFound = $e->getCode() === ResponseCode::NOT_FOUND;
+                $logLevel = $isNotFound ? 'info' : 'warning';
+                $this->logger->{$logLevel}('[Sandbox][Domain] Failed to check workspace status, will create sandbox', [
                     'sandbox_id' => $sandboxId,
                     'error' => $e->getMessage(),
+                    'is_not_found' => $isNotFound,
                 ]);
             }
 
