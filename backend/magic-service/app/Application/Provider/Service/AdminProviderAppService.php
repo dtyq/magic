@@ -363,9 +363,10 @@ readonly class AdminProviderAppService
      *
      * @param ?Category $category 服务商分类
      * @param string $organizationCode 组织编码
+     * @param bool $isFrontend 是否前台（开放）场景；为 true 且分类为 VLM 时仅返回火山与通义千问模板
      * @return ProviderConfigModelsDTO[] 非官方服务商列表
      */
-    public function queriesServiceProviderTemplates(?Category $category, string $organizationCode): array
+    public function queriesServiceProviderTemplates(?Category $category, string $organizationCode, bool $isFrontend = false): array
     {
         // 获取所有非官方服务商
         $serviceProviders = $this->adminProviderDomainService->queriesServiceProviderTemplates($organizationCode, $category);
@@ -374,12 +375,22 @@ readonly class AdminProviderAppService
             return [];
         }
 
+        // 非官方组织只展示受控白名单内的服务商模板，官方组织保持原样。
         if ($this->shouldRestrictNonOfficialOrganizationTemplates($organizationCode, $category)) {
             // 非官方组织只展示受控白名单内的服务商模板，官方组织保持原样。
             $serviceProviders = array_values(array_filter(
                 $serviceProviders,
                 static fn (ProviderConfigModelsDTO $serviceProvider): bool => $category !== null
                     && ($serviceProvider->getProviderCode()?->isNonOfficialOrganizationTemplateWhitelist($category) ?? false)
+            ));
+        }
+
+        // 前台场景仅返回火山与通义千问模板
+        if ($isFrontend && $category === Category::VLM) {
+            $frontendVlmWhitelist = [ProviderCode::Volcengine, ProviderCode::Qwen];
+            $serviceProviders = array_values(array_filter(
+                $serviceProviders,
+                static fn (ProviderConfigModelsDTO $serviceProvider): bool => in_array($serviceProvider->getProviderCode(), $frontendVlmWhitelist, true)
             ));
         }
 
