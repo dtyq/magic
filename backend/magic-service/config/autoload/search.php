@@ -5,6 +5,7 @@ declare(strict_types=1);
  * Copyright (c) The Magic , Distributed under the software license
  */
 use App\Domain\Chat\Entity\ValueObject\SearchEngineType;
+use App\Infrastructure\ExternalAPI\Search\Adapter\BaiduSearchAdapter;
 use App\Infrastructure\ExternalAPI\Search\Adapter\BingSearchAdapter;
 use App\Infrastructure\ExternalAPI\Search\Adapter\CloudswaySearchAdapter;
 use App\Infrastructure\ExternalAPI\Search\Adapter\DuckDuckGoSearchAdapter;
@@ -42,6 +43,11 @@ return [
             'endpoint' => env('BING_SEARCH_ENDPOINT', 'https://api.bing.microsoft.com/v7.0/search'),
             'api_key' => env('BING_SEARCH_API_KEY', ''),
             'mkt' => env('BING_SEARCH_MKT', 'zh-CN'),
+        ],
+        SearchEngineType::Baidu->value => [
+            'class_name' => BaiduSearchAdapter::class,
+            'endpoint' => env('BAIDU_SEARCH_ENDPOINT', 'https://qianfan.baidubce.com/v2/ai_search/web_search'),
+            'api_key' => env('BAIDU_SEARCH_API_KEY', ''),
         ],
         SearchEngineType::DuckDuckGo->value => [
             'class_name' => DuckDuckGoSearchAdapter::class,
