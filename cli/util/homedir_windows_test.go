@@ -8,37 +8,30 @@ import (
 	"testing"
 )
 
-func TestHomeDir_WindowsPrefersPathWithMagicrewConfig(t *testing.T) {
-	withoutMagicrew := t.TempDir()
-	withMagicrew := t.TempDir()
-	cfgDir := filepath.Join(withMagicrew, ".config", "magicrew")
-	if err := os.MkdirAll(cfgDir, 0o755); err != nil {
-		t.Fatal(err)
+func TestHomeDir_WindowsMatchesUserProfileEnv(t *testing.T) {
+	got := HomeDir()
+	if got == "" {
+		t.Fatal("HomeDir() returned empty string")
 	}
-	if err := os.WriteFile(filepath.Join(cfgDir, "config.yml"), []byte("workdir: .\n"), 0o600); err != nil {
-		t.Fatal(err)
+	want := filepath.Clean(os.Getenv("USERPROFILE"))
+	if want == "" {
+		t.Skip("USERPROFILE not set in test environment")
 	}
-
-	t.Setenv("HOME", withoutMagicrew)
-	t.Setenv("USERPROFILE", withMagicrew)
-	t.Setenv("HOMEDRIVE", "")
-	t.Setenv("HOMEPATH", "")
-
-	want := filepath.Clean(withMagicrew)
-	if got := HomeDir(); got != want {
-		t.Fatalf("HomeDir() = %q, want %q (directory holding .config/magicrew/config.yml)", got, want)
+	if got != want {
+		t.Fatalf("HomeDir() = %q, want %q (expected same as USERPROFILE for interactive token)", got, want)
 	}
 }
 
-func TestHomeDir_WindowsUsesWindowsResolverBranch(t *testing.T) {
-	home := t.TempDir()
-	t.Setenv("HOME", home)
-	t.Setenv("USERPROFILE", "")
-	t.Setenv("HOMEDRIVE", "")
-	t.Setenv("HOMEPATH", "")
-
-	want := filepath.Clean(home)
-	if got := HomeDir(); got != want {
-		t.Fatalf("HomeDir() = %q, want %q from windows resolver branch", got, want)
+func TestHomeDir_WindowsIgnoresHomeAndUserProfileEnv(t *testing.T) {
+	baseline := HomeDir()
+	if baseline == "" {
+		t.Fatal("HomeDir() returned empty string")
+	}
+	t.Setenv("HOME", `C:\This\Path\Must\Not\Be\Used`)
+	t.Setenv("HOMEDRIVE", "X:")
+	t.Setenv("HOMEPATH", `\fake`)
+	t.Setenv("USERPROFILE", `C:\Also\Ignored\For\Resolution`)
+	if got := HomeDir(); got != baseline {
+		t.Fatalf("HomeDir() = %q after overriding HOME/HOMEDRIVE/HOMEPATH/USERPROFILE, want unchanged %q", got, baseline)
 	}
 }
