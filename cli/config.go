@@ -132,7 +132,9 @@ func initConfig() {
 	dataDir = normalizeResolvedDir(dataDir, envNameCLIDataDir, fallbackDataDir)
 
 	util.NoSudo(func() error {
-		_ = os.MkdirAll(configDir, 0o700)
+		if err := os.MkdirAll(configDir, 0o700); err != nil {
+			lg.Logw("init", "failed to create config dir %s: %v", configDir, err)
+		}
 
 		// determine config file path
 		if cfgFile == "" {
@@ -147,8 +149,14 @@ func initConfig() {
 		// check if config file exists
 		if _, err := os.Stat(cfgFile); os.IsNotExist(err) {
 			lg.Logd("init", "config file not found, creating default config file")
-			_ = os.MkdirAll(filepath.Dir(cfgFile), 0o700)
-			os.WriteFile(cfgFile, []byte(defaultConfig), 0644)
+			if err := os.MkdirAll(filepath.Dir(cfgFile), 0o700); err != nil {
+				lg.Logw("init", "failed to create config parent dir %s: %v", filepath.Dir(cfgFile), err)
+			}
+			if err := os.WriteFile(cfgFile, []byte(defaultConfig), 0o600); err != nil {
+				lg.Logw("init", "failed to create default config file %s: %v", cfgFile, err)
+			}
+		} else if err != nil {
+			lg.Logw("init", "failed to stat config file %s: %v", cfgFile, err)
 		}
 		return nil
 	})

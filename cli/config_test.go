@@ -113,6 +113,23 @@ func TestInitConfig_EnvConfigDirAndDataDir(t *testing.T) {
 	assert.Equal(t, filepath.Clean(filepath.Join(base, "from-env", "data")), dataDir)
 }
 
+func TestInitConfig_EmptyFlagAndEnvFallbackToUserDirs(t *testing.T) {
+	home := t.TempDir()
+	applyControlledHomeEnv(t, home)
+	t.Setenv(envNameCLIConfigDir, "")
+	t.Setenv(envNameCLIDataDir, "")
+	defer restoreInitConfigGlobals(snapshotInitConfigGlobals())
+
+	cfgFile = ""
+	configDir = ""
+	dataDir = ""
+
+	initConfig()
+
+	assert.Equal(t, filepath.Join(home, ".config", "magicrew"), configDir)
+	assert.Equal(t, filepath.Join(home, ".magicrew"), dataDir)
+}
+
 func TestInitConfig_FlagOverridesEnvForDirs(t *testing.T) {
 	base := t.TempDir()
 	flagCD := filepath.Join(base, "flag-cfg")
@@ -152,6 +169,27 @@ func TestInitConfig_ConfigDirMkdir0700(t *testing.T) {
 	require.NoError(t, err)
 	assert.True(t, fi.IsDir())
 	assert.Equal(t, os.FileMode(0o700), fi.Mode().Perm())
+}
+
+func TestInitConfig_DefaultConfigFilePermission600(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("file permission bits are not asserted on Windows")
+	}
+	base := t.TempDir()
+	cfgDir := filepath.Join(base, "cfg")
+	defer restoreInitConfigGlobals(snapshotInitConfigGlobals())
+	t.Setenv(envNameCLIConfigDir, "")
+	t.Setenv(envNameCLIDataDir, "")
+
+	cfgFile = ""
+	configDir = cfgDir
+	dataDir = filepath.Join(base, "data")
+
+	initConfig()
+
+	info, err := os.Stat(filepath.Join(cfgDir, "config.yml"))
+	require.NoError(t, err)
+	assert.Equal(t, os.FileMode(0o600), info.Mode().Perm())
 }
 
 func TestDefaultConfig_ProxyDeserializesToDeployerProxyConfig(t *testing.T) {
