@@ -45,6 +45,19 @@ class TaskMessageRepository implements TaskMessageRepositoryInterface
         $this->model::query()->insert($data);
     }
 
+    public function findByTaskId(string $taskId): array
+    {
+        $query = $this->model::query()
+            ->where('task_id', $taskId)
+            ->orderBy('send_timestamp', 'asc');
+
+        $result = Db::select($query->toSql(), $query->getBindings());
+
+        return array_map(function ($record) {
+            return new TaskMessageEntity((array) $record);
+        }, $result);
+    }
+
     /**
      * 根据话题ID和任务ID获取用户消息列表（优化索引+过滤用户消息）.
      * @return TaskMessageEntity[]
@@ -56,19 +69,6 @@ class TaskMessageRepository implements TaskMessageRepositoryInterface
             ->where('task_id', $taskId)
             ->where('sender_type', 'user')
             ->orderBy('id');
-
-        $result = Db::select($query->toSql(), $query->getBindings());
-
-        return array_map(function ($record) {
-            return new TaskMessageEntity((array) $record);
-        }, $result);
-    }
-
-    public function findByTaskId(string $taskId): array
-    {
-        $query = $this->model::query()
-            ->where('task_id', $taskId)
-            ->orderBy('send_timestamp', 'asc');
 
         $result = Db::select($query->toSql(), $query->getBindings());
 
