@@ -48,11 +48,13 @@ CMD 和 Git Bash 为 best-effort 支持。
 
 ### 默认配置目录行为
 
-CLI 按以下优先级解析基础配置目录：
+CLI 按平台解析基础配置目录：
 
-1. `XDG_CONFIG_HOME`（非空时）
-2. Windows 下：`APPDATA`
-3. Windows 下：`USERPROFILE/.config`
-4. 回退：`~/.config`
+- Windows 下：
+  1. 使用当前用户的系统默认 roaming 配置目录
+  2. 若该查询失败：`<user-home>/.config`
+- 非 Windows 下：
+  1. `XDG_CONFIG_HOME`（非空时）
+  2. 回退：`~/.config`
 
 不会自动迁移历史路径；如需继续使用旧位置，请通过 `--config` 显式指定配置文件路径。

@@ -48,11 +48,13 @@ Ensure the required command is available in `PATH` before running `magicrew depl
 
 ### Default config directory behavior
 
-The CLI resolves the base config directory in this order:
+The CLI resolves the base config directory by platform:
 
-1. `XDG_CONFIG_HOME` (when non-empty)
-2. On Windows: `APPDATA`
-3. On Windows: `USERPROFILE/.config`
-4. Fallback: `~/.config`
+- On Windows:
+  1. Use the current user's roaming config directory (system default)
+  2. If that lookup fails: `<user-home>/.config`
+- On non-Windows:
+  1. `XDG_CONFIG_HOME` (when non-empty)
+  2. Fallback: `~/.config`
 
 There is no automatic migration from historical paths. Use `--config` to explicitly point to an existing config file when needed.
