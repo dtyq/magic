@@ -136,6 +136,7 @@ class ProviderModelAppService extends AbstractProviderAppService
         $itemDTO->setInputPoints($this->convertPricingToPoints($config->getInputPricing(), $billingCurrency));
         $itemDTO->setOutputPoints($this->convertPricingToPoints($config->getOutputPricing(), $billingCurrency));
         $itemDTO->setTimePoints($this->convertPricingToPoints($config->getTimePricing(), $billingCurrency));
+        $itemDTO->setSecondPoints($this->convertPricingToPoints($config->getSecondPricing(), $billingCurrency));
 
         return $itemDTO;
     }
@@ -176,6 +177,7 @@ class ProviderModelAppService extends AbstractProviderAppService
         $itemDTO->setInputPoints($this->convertPricingToPoints($this->formatFloatPricing($configVersion->getInputPricing()), $billingCurrency));
         $itemDTO->setOutputPoints($this->convertPricingToPoints($this->formatFloatPricing($configVersion->getOutputPricing()), $billingCurrency));
         $itemDTO->setTimePoints($this->convertPricingToPoints($this->formatFloatPricing($configVersion->getTimePricing()), $billingCurrency));
+        $itemDTO->setSecondPoints($this->convertPricingToPoints($this->formatFloatPricing($configVersion->getSecondPricing()), $billingCurrency));
 
         return $itemDTO;
     }
@@ -208,6 +210,10 @@ class ProviderModelAppService extends AbstractProviderAppService
 
         if ($billingType->isTimes()) {
             return $config->getTimePricing() !== null ? (float) $config->getTimePricing() : 0;
+        }
+
+        if ($billingType->isPerSecond()) {
+            return $config->getSecondPricing() !== null ? (float) $config->getSecondPricing() : 0;
         }
 
         return 0;
