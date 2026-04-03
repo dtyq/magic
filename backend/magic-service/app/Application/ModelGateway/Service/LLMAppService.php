@@ -517,10 +517,18 @@ class LLMAppService extends AbstractLLMAppService
             ExceptionBuilder::throw(MagicApiErrorCode::MODEL_RESPONSE_FAIL, 'Web scrape configuration is not set');
         }
 
+        $providerConfig = $this->resolveAiAbilityProviderConfig(
+            $config['providers'] ?? [],
+            $webScrapeRequestDTO->getProvider(),
+            'No enabled web scrape provider configuration found'
+        );
+        $provider = (string) ($providerConfig['provider'] ?? '');
+
         // Log request
         $this->logger->info('WebScrapeRequest', [
             'organization_code' => $modelGatewayDataIsolation->getCurrentOrganizationCode(),
             'user_id' => $modelGatewayDataIsolation->getCurrentUserId(),
+            'provider' => $provider,
             'url' => $webScrapeRequestDTO->getUrl(),
             'formats' => $webScrapeRequestDTO->getFormats(),
             'mode' => $webScrapeRequestDTO->getMode(),
@@ -530,7 +538,7 @@ class LLMAppService extends AbstractLLMAppService
             $startTime = microtime(true);
 
             // Create web scrape instance via factory
-            $webScrape = WebScrapeFactory::create($config);
+            $webScrape = WebScrapeFactory::createByProviderConfig($providerConfig);
 
             // Execute scrape
             $response = $webScrape->scrape(
@@ -565,6 +573,7 @@ class LLMAppService extends AbstractLLMAppService
             $this->logger->error('WebScrapeFailed', [
                 'organization_code' => $modelGatewayDataIsolation->getCurrentOrganizationCode(),
                 'user_id' => $modelGatewayDataIsolation->getCurrentUserId(),
+                'provider' => $provider,
                 'url' => $webScrapeRequestDTO->getUrl(),
                 'error' => $e->getMessage(),
                 'file' => $e->getFile(),
@@ -608,22 +617,11 @@ class LLMAppService extends AbstractLLMAppService
             );
         }
 
-        // 6. Find enabled configuration
-        $configs = $aiAbilityEntity->getConfig()['providers'] ?? [];
-        $enabledConfig = null;
-        foreach ($configs as $cfg) {
-            if (($cfg['enable'] ?? false) === true) {
-                $enabledConfig = $cfg;
-                break;
-            }
-        }
-
-        if ($enabledConfig === null) {
-            ExceptionBuilder::throw(
-                MagicApiErrorCode::MODEL_RESPONSE_FAIL,
-                'No enabled search engine configuration found'
-            );
-        }
+        $enabledConfig = $this->resolveAiAbilityProviderConfig(
+            $aiAbilityEntity->getConfig()['providers'] ?? [],
+            $searchRequestDTO->getProvider(),
+            'No enabled search engine configuration found'
+        );
 
         $provider = $enabledConfig['provider'] ?? null;
 
@@ -755,22 +753,11 @@ class LLMAppService extends AbstractLLMAppService
             );
         }
 
-        // Find enabled configuration
-        $configs = $aiAbilityEntity->getConfig()['providers'] ?? [];
-        $enabledConfig = null;
-        foreach ($configs as $cfg) {
-            if (($cfg['enable'] ?? false) === true) {
-                $enabledConfig = $cfg;
-                break;
-            }
-        }
-
-        if ($enabledConfig === null) {
-            ExceptionBuilder::throw(
-                MagicApiErrorCode::MODEL_RESPONSE_FAIL,
-                'No enabled image search provider configuration found'
-            );
-        }
+        $enabledConfig = $this->resolveAiAbilityProviderConfig(
+            $aiAbilityEntity->getConfig()['providers'] ?? [],
+            $imageSearchRequestDTO->getProvider(),
+            'No enabled image search provider configuration found'
+        );
 
         $provider = $enabledConfig['provider'] ?? null;
 
@@ -2126,5 +2113,45 @@ class LLMAppService extends AbstractLLMAppService
     {
         // 调用 Resolver 解析
         return di(ProxyConfigResolverInterface::class)->resolve($config);
+    }
+
+    /**
+     * @param array<int, array<string, mixed>> $providers
+     * @return array<string, mixed>
+     */
+    private function resolveAiAbilityProviderConfig(array $providers, string $requestedProvider, string $defaultErrorMessage): array
+    {
+        $requestedProvider = strtolower(trim($requestedProvider));
+
+        if ($requestedProvider !== '') {
+            $matchedProviderConfig = null;
+            foreach ($providers as $providerConfig) {
+                $providerName = strtolower(trim((string) ($providerConfig['provider'] ?? '')));
+                if ($providerName === $requestedProvider) {
+                    $matchedProviderConfig = $providerConfig;
+                    break;
+                }
+            }
+
+            if ($matchedProviderConfig === null) {
+                ExceptionBuilder::throw(
+                    MagicApiErrorCode::MODEL_RESPONSE_FAIL,
+                    sprintf("Specified provider '%s' is not configured", $requestedProvider)
+                );
+            }
+
+            return $matchedProviderConfig;
+        }
+
+        foreach ($providers as $providerConfig) {
+            if (($providerConfig['enable'] ?? false) === true) {
+                return $providerConfig;
+            }
+        }
+
+        ExceptionBuilder::throw(
+            MagicApiErrorCode::MODEL_RESPONSE_FAIL,
+            $defaultErrorMessage
+        );
     }
 }
