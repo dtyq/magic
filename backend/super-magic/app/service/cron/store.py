@@ -67,7 +67,7 @@ async def scan_jobs(known_mtimes: Dict[str, float]) -> List[CronJob]:
     jobs: List[CronJob] = []
     entries = await async_scandir(cron_dir)
     for entry in entries:
-        if not entry.name.endswith(".md") or entry.name.startswith("."):
+        if entry.is_dir() or not entry.name.endswith(".md") or entry.name.startswith("."):
             continue
         job_id = entry.name[:-3]  # 去掉 .md
         try:
