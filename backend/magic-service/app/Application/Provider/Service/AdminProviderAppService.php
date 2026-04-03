@@ -13,8 +13,6 @@ use App\Domain\File\Service\FileDomainService;
 use App\Domain\ModelGateway\Entity\Dto\CompletionDTO;
 use App\Domain\ModelGateway\Entity\Dto\EmbeddingsDTO;
 use App\Domain\ModelGateway\Entity\ValueObject\ModelGatewayDataIsolation;
-use App\Domain\OrganizationEnvironment\Entity\ValueObject\DeploymentEnum;
-use App\Domain\OrganizationEnvironment\Service\MagicOrganizationEnvDomainService;
 use App\Domain\Provider\DTO\ProviderConfigDTO;
 use App\Domain\Provider\DTO\ProviderConfigModelsDTO;
 use App\Domain\Provider\DTO\ProviderModelDetailDTO;
@@ -40,6 +38,7 @@ use App\Domain\Provider\Service\ProviderModelDomainService;
 use App\ErrorCode\ServiceProviderErrorCode;
 use App\Infrastructure\Core\Exception\ExceptionBuilder;
 use App\Infrastructure\Core\Traits\HasLogger;
+use App\Infrastructure\Util\DeploymentIdConstant;
 use App\Infrastructure\Util\FuzzMatchUtil;
 use App\Infrastructure\Util\Redis\ProviderModelCacheUtil;
 use App\Interfaces\Agent\Assembler\FileAssembler;
@@ -64,7 +63,6 @@ readonly class AdminProviderAppService
         private ProviderModelDomainService $providerModelDomainService,
         private AdminProviderDomainService $adminProviderDomainService,
         private EventDispatcherInterface $eventDispatcher,
-        private MagicOrganizationEnvDomainService $magicOrganizationEnvDomainService,
     ) {
     }
 
@@ -1050,7 +1048,7 @@ readonly class AdminProviderAppService
     }
 
     /**
-     * 判断当前组织是否命中“非官方组织 + 国内 SaaS + 受控模型分类”模板收口场景。
+     * 判断当前实例是否为国内受控部署，且组织为非官方、模型分类为 LLM/VLM 的模板收口场景。
      */
     private function shouldRestrictNonOfficialOrganizationTemplates(
         string $organizationCode,
@@ -1059,13 +1057,10 @@ readonly class AdminProviderAppService
         if ($category !== Category::LLM && $category !== Category::VLM) {
             return false;
         }
-
         if ($this->isOfficialOrganization($organizationCode)) {
             return false;
         }
 
-        $organizationEnvDTO = $this->magicOrganizationEnvDomainService->getOrganizationsEnvironmentDTO($organizationCode);
-
-        return $organizationEnvDTO?->getDeployment() === DeploymentEnum::SaaS;
+        return DeploymentIdConstant::isDomestic();
     }
 }
