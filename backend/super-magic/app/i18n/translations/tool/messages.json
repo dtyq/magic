@@ -949,23 +949,31 @@
     },
     "read_skills.success": {
         "zh_CN": "技能装备成功",
-        "en_US": "Skill loaded"
-    },
-    "read_skills.success_multiple": {
-        "zh_CN": "已装备 {{skill_name}} 等 {{count}} 个技能",
-        "en_US": "Loaded {{skill_name}} and {{count}} other Skills"
+        "en_US": "Skill equipped"
     },
     "read_skills.success_single": {
         "zh_CN": "已装备技能 {{skill_name}}",
-        "en_US": "Loaded Skill {{skill_name}}"
+        "en_US": "Equipped Skill {{skill_name}}"
+    },
+    "read_skills.success_multiple": {
+        "zh_CN": "已装备 {{count}} 个技能",
+        "en_US": "Equipped {{count}} Skills"
+    },
+    "read_skills.partial": {
+        "zh_CN": "已装备 {{success_count}} 个技能，{{failure_count}} 个失败",
+        "en_US": "Equipped {{success_count}} Skills, {{failure_count}} failed"
+    },
+    "read_skills.fail_single": {
+        "zh_CN": "装备技能 {{skill_name}} 失败",
+        "en_US": "Failed to equip Skill {{skill_name}}"
+    },
+    "read_skills.fail_multiple": {
+        "zh_CN": "装备 {{count}} 个技能失败",
+        "en_US": "Failed to equip {{count}} Skills"
     },
     "read_skills.error": {
         "zh_CN": "技能装备失败",
-        "en_US": "Failed to load Skill"
-    },
-    "read_skills.error_with_name": {
-        "zh_CN": "装备技能 {{skill_name}} 失败",
-        "en_US": "Failed to load Skill {{skill_name}}"
+        "en_US": "Failed to equip Skill"
     },
     "create_memory.success": {
         "zh_CN": "{{preview}}",

@@ -300,8 +300,8 @@
         "en_US": "Compact chat history"
     },
     "read_skills": {
-        "zh_CN": "学习技能",
-        "en_US": "Learn Skill"
+        "zh_CN": "装备技能",
+        "en_US": "Equip Skill"
     },
     "todo_create": {
         "zh_CN": "创建任务列表",
