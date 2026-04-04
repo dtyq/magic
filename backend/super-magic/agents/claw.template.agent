@@ -1,6 +1,27 @@
 ---
 llm: main_llm
 tools:
+  - web_search
+  - read_webpages_as_markdown
+  - image_search
+  - download_from_urls
+  - visual_understanding
+  - convert_to_markdown
+  - generate_image
+  - list_dir
+  - file_search
+  - read_files
+  - grep_search
+  - write_file
+  - edit_file
+  - edit_file_range
+  - multi_edit_file
+  - multi_edit_file_range
+  - delete_files
+  - shell_exec
+  - run_python_snippet
+  - call_subagent
+  - wait_for_subagents
   - manage_cron
 skills:
   system_skills: "*"

@@ -1,5 +1,25 @@
 ---
 llm: main_llm
+tools:
+  - web_search
+  - read_webpages_as_markdown
+  - visual_understanding
+  - convert_to_markdown
+  - image_search
+  - download_from_urls
+  - generate_image
+  - list_dir
+  - file_search
+  - read_files
+  - grep_search
+  - run_python_snippet
+  - shell_exec
+  - write_file
+  - edit_file
+  - edit_file_range
+  - multi_edit_file
+  - multi_edit_file_range
+  - delete_files
 skills:
   crew_skills: "*"
   system_skills:

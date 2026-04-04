@@ -1,12 +1,17 @@
 """
-Crew Agent compiler.
+Crew Agent 编译器。
 
-Reads crew definition files (IDENTITY.md, AGENTS.md, SOUL.md, TOOLS.md, SKILLS.md)
-and compiles them into a .agent file using crew.template.agent.
+crew.template.agent 是 Crew Agent 的基底模板，最终运行的 .agent 由它和用户定义的文件
+（IDENTITY.md / AGENTS.md / SOUL.md / TOOLS.md / SKILLS.md）共同编译而成。
+
+工具合成规则：模板默认工具 + TOOLS.md.tools（追加）- TOOLS.md.exclude_builtin_tools（排除）
+
+这是运行时链路，和发布链路（/workspace/export）无关。
+完整链路说明见 agents/AGENT_RUNTIME_AND_PUBLISH_GUIDE.md。
 """
 
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Tuple
 
 import yaml
 
@@ -21,14 +26,59 @@ from app.utils.async_file_utils import (
 
 logger = get_logger(__name__)
 
-DEFAULT_TOOLS: List[str] = [
-    "web_search", "read_webpages_as_markdown", "visual_understanding", "convert_to_markdown",
-    "image_search", "download_from_urls", "download_from_markdown", "generate_image",
-    "list_dir", "file_search", "read_files", "grep_search", "run_python_snippet", "shell_exec",
-    "write_file", "edit_file", "edit_file_range", "multi_edit_file", "multi_edit_file_range",
-    "delete_files", "create_memory", "update_memory", "delete_memory",
-    "compact_chat_history",
-]
+
+def _normalize_item_names(raw_items: Any) -> List[str]:
+    """Normalize a list field into a deduplicated, ordered list of names."""
+    if not isinstance(raw_items, list):
+        return []
+
+    seen: set[str] = set()
+    normalized: List[str] = []
+    for item in raw_items:
+        item_name = str(item).strip()
+        if not item_name or item_name in seen:
+            continue
+        seen.add(item_name)
+        normalized.append(item_name)
+    return normalized
+
+
+def resolve_crew_tools(
+    builtin_tools: Any,
+    extra_tools: Any,
+    excluded_builtin_tools: Any,
+) -> List[str]:
+    """Resolve the final crew tool list from builtin, excluded, and extra tools."""
+    builtin = _normalize_item_names(builtin_tools)
+    extra = _normalize_item_names(extra_tools)
+    excluded = set(_normalize_item_names(excluded_builtin_tools))
+
+    seen: set[str] = set()
+    merged: List[str] = []
+
+    for tool_name in builtin:
+        if tool_name in excluded or tool_name in seen:
+            continue
+        seen.add(tool_name)
+        merged.append(tool_name)
+
+    for tool_name in extra:
+        if tool_name in seen:
+            continue
+        seen.add(tool_name)
+        merged.append(tool_name)
+
+    return merged
+
+
+def parse_crew_tool_config(meta: Any) -> Tuple[List[str], List[str]]:
+    """Parse crew TOOLS.md frontmatter into extra and excluded builtin tools."""
+    if not isinstance(meta, dict):
+        return [], []
+
+    extra_tools_raw = meta.get("tools", [])
+    excluded_tools_raw = meta.get("exclude_builtin_tools", [])
+    return _normalize_item_names(extra_tools_raw), _normalize_item_names(excluded_tools_raw)
 
 class CrewAgentCompiler:
     """Compiles crew definition files into a .agent file."""
@@ -61,14 +111,17 @@ class CrewAgentCompiler:
             raise FileNotFoundError(f"Template not found: {template_path}")
         template = await async_read_markdown(template_path)
 
-        tools_list  = self._build_item_list(tools.meta  if tools  else {}, "tools",  DEFAULT_TOOLS,  base=DEFAULT_TOOLS)
+        extra_tools, excluded_builtin_tools = self._read_tool_config(tools.meta if tools else {})
         skills_meta  = skills.meta if skills else {}
         crew_skills_raw = skills_meta.get("skills")
         preload_raw     = skills_meta.get("preload") or []
 
-        # 以模板为基准，SKILLS.md 中的 skills 列表覆盖 crew_skills（没有则保持模板默认 *）
         header = dict(template.meta)
-        header["tools"] = tools_list
+        header["tools"] = resolve_crew_tools(
+            builtin_tools=header.get("tools") or [],
+            extra_tools=extra_tools,
+            excluded_builtin_tools=excluded_builtin_tools,
+        )
         if crew_skills_raw and isinstance(crew_skills_raw, list):
             header.setdefault("skills", {})["crew_skills"] = [{"name": str(s).strip()} for s in crew_skills_raw if str(s).strip()]
         if preload_raw:
@@ -88,29 +141,5 @@ class CrewAgentCompiler:
 
         return identity.meta
 
-    def _build_item_list(
-        self, meta: Dict[str, Any], key: str, default: List[str],
-        base: Optional[List[str]] = None,
-    ) -> List[str]:
-        """Build a list of item names from YAML metadata, with fallback to default.
-
-        When *base* is provided and the user supplies a custom list, the result
-        is ``base ∪ user_items`` (deduplicated, base order first) so that
-        essential items are never accidentally removed.
-        """
-        items = meta.get(key)
-        if not items or not isinstance(items, list):
-            return list(default)
-
-        user_items = [str(item).strip() for item in items if str(item).strip()]
-
-        if not base:
-            return user_items
-
-        seen: set[str] = set()
-        merged: List[str] = []
-        for item in list(base) + user_items:
-            if item not in seen:
-                seen.add(item)
-                merged.append(item)
-        return merged
+    def _read_tool_config(self, meta: Dict[str, Any]) -> Tuple[List[str], List[str]]:
+        return parse_crew_tool_config(meta)
