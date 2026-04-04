@@ -56,5 +56,8 @@ class HorizonState:
     workspace_files: str = ""      # 上次注入给 LLM 的工作区树形字符串
     workspace_entries: list = field(default_factory=list)  # 上次注入给 LLM 的结构化工作区条目
     memory: str = ""               # 上次注入给 LLM 的 memory
+    context_usage_baseline_used: int = 0       # 上次注入给 LLM 的 used tokens
+    context_usage_baseline_total: int = 0      # 上次注入给 LLM 的 context window total
+    context_usage_baseline_used_pct: int = 0   # 上次注入给 LLM 的 used_pct 整数百分比
     # 当前上下文窗口是否已经完成过 initial_context 注入
     initial_context_injected: bool = False

@@ -30,6 +30,18 @@ NETWORK_FS_MTIME_BUFFER = 1.0                  # seconds
 VALIDATION_ERROR_NOT_READ = "File must be read before editing. Please read the file first."
 VALIDATION_ERROR_CHANGED = "File changed since last read. Please read the file again."
 
+# context usage 注入灵敏度规则：
+# - 当前占用 < 70%：变化不到 5 个百分点时，不再重复注入
+# - 当前占用 >= 70% 且 < 80%：变化达到 3 个百分点就注入
+# - 当前占用 >= 80%：变化达到 1 个百分点就注入
+# 这里的“变化”指绝对百分点差值，不是相对变化率。
+# 例如：40% -> 44% 的变化量是 4，81% -> 82% 的变化量是 1。
+CONTEXT_USAGE_MEDIUM_USAGE_START_PCT = 70
+CONTEXT_USAGE_HIGH_USAGE_START_PCT = 80
+CONTEXT_USAGE_LOW_USAGE_DIFF_THRESHOLD_PCT = 5
+CONTEXT_USAGE_MEDIUM_USAGE_DIFF_THRESHOLD_PCT = 3
+CONTEXT_USAGE_HIGH_USAGE_DIFF_THRESHOLD_PCT = 1
+
 def _iso_now() -> str:
     return datetime.now(timezone.utc).isoformat()
 
@@ -276,6 +288,9 @@ class AgentHorizon:
         self._video_model_changed = False
         self._is_first_injection = True
         self._state.initial_context_injected = False
+        self._state.context_usage_baseline_used = 0
+        self._state.context_usage_baseline_total = 0
+        self._state.context_usage_baseline_used_pct = 0
 
         # magiclaw：重算固定文件集合和 BOOTSTRAP 状态，清空已读记录，强制重新进入必读流程
         # file_records 已被清空，所以无法从中恢复已读状态，这里必须走完整重置
@@ -504,6 +519,46 @@ class AgentHorizon:
         self._context_used = input_tokens
         self._context_total = context_window_total
 
+    def _calculate_context_used_pct(self, used: int, total: int) -> int:
+        return int(used / total * 100)
+
+    def _get_context_usage_diff_threshold_pct(self, current_used_pct: int) -> int:
+        """按当前占用区间返回最小注入阈值。
+
+        规则保持和常量区注释一致：
+        - <70% => 5
+        - 70%~79% => 3
+        - >=80% => 1
+        """
+        if current_used_pct >= CONTEXT_USAGE_HIGH_USAGE_START_PCT:
+            return CONTEXT_USAGE_HIGH_USAGE_DIFF_THRESHOLD_PCT
+        if current_used_pct >= CONTEXT_USAGE_MEDIUM_USAGE_START_PCT:
+            return CONTEXT_USAGE_MEDIUM_USAGE_DIFF_THRESHOLD_PCT
+        return CONTEXT_USAGE_LOW_USAGE_DIFF_THRESHOLD_PCT
+
+    def _should_inject_context_usage(self, current_used_pct: int) -> bool:
+        """按绝对百分点差值判断是否需要再次注入 context usage。
+
+        baseline 不存在时先注入一次，后续再按阈值做节流。
+        """
+        if self._state.context_usage_baseline_total <= 0:
+            return True
+        used_pct_diff = abs(current_used_pct - self._state.context_usage_baseline_used_pct)
+        return used_pct_diff >= self._get_context_usage_diff_threshold_pct(current_used_pct)
+
+    def _update_context_usage_baseline(self, used: int, total: int, used_pct: int) -> bool:
+        """只有真正把 usage 发给模型后，才推进 last injected baseline。"""
+        if (
+            self._state.context_usage_baseline_used == used
+            and self._state.context_usage_baseline_total == total
+            and self._state.context_usage_baseline_used_pct == used_pct
+        ):
+            return False
+        self._state.context_usage_baseline_used = used
+        self._state.context_usage_baseline_total = total
+        self._state.context_usage_baseline_used_pct = used_pct
+        return True
+
     async def update_video_model(self, model_id: str, config: dict) -> None:
         """用户消息处理时调用，检测视频模型配置是否变化；变化则标记需注入并持久化。"""
         if not model_id or not config:
@@ -641,7 +696,7 @@ class AgentHorizon:
 
         后续注入按需包含：
           <current_time>     — 始终输出
-          <context_usage>    — context_total > 0 时
+          <context_usage>    — context_total > 0 且达到分段阈值时
           <model_info>       — LLM 模型或图片模型发生变化时
           <workspace_files_changed> — workspace_files 变化时
           <memory_changed>   — memory 变化时
@@ -692,6 +747,10 @@ class AgentHorizon:
         current_workspace_entries = self._get_workspace_entries_current()
         current_memory = self._get_memory_current()
         current_language = self._get_language_current()
+        context_usage_injected = False
+        injected_context_usage_used = 0
+        injected_context_usage_total = 0
+        injected_context_usage_used_pct = 0
 
         parts = ["<system_injected_context>"]
 
@@ -755,14 +814,19 @@ class AgentHorizon:
             # 常规增量注入
             parts.append(f"<current_time>{now_str}</current_time>")
 
-            # 上下文窗口使用量（有数据时始终输出）
+            # 上下文窗口使用量：只有达到绝对百分点阈值时才再次告诉模型。
             if self._context_total > 0:
                 remaining = max(0, self._context_total - self._context_used)
-                used_pct = int(self._context_used / self._context_total * 100)
-                parts.append(
-                    f'<context_usage used="{self._context_used}" total="{self._context_total}"'
-                    f' remaining="{remaining}" used_pct="{used_pct}%"/>'
-                )
+                used_pct = self._calculate_context_used_pct(self._context_used, self._context_total)
+                if self._should_inject_context_usage(used_pct):
+                    parts.append(
+                        f'<context_usage used="{self._context_used}" total="{self._context_total}"'
+                        f' remaining="{remaining}" used_pct="{used_pct}%"/>'
+                    )
+                    context_usage_injected = True
+                    injected_context_usage_used = self._context_used
+                    injected_context_usage_total = self._context_total
+                    injected_context_usage_used_pct = used_pct
 
             # 模型信息（仅变化时输出）
             model_info_parts: list[str] = []
@@ -825,6 +889,15 @@ class AgentHorizon:
         if self._state.user_preferred_language != current_language:
             self._state.user_preferred_language = current_language
             persistence_changed = True
+        if context_usage_injected:
+            persistence_changed = (
+                self._update_context_usage_baseline(
+                    injected_context_usage_used,
+                    injected_context_usage_total,
+                    injected_context_usage_used_pct,
+                )
+                or persistence_changed
+            )
 
         if file_blocks:
             parts.append("<file_changes>")

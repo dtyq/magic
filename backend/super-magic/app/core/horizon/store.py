@@ -99,6 +99,9 @@ class HorizonStore:
             state.workspace_files = data.get("workspace_files", "")
             state.workspace_entries = data.get("workspace_entries", [])
             state.memory = data.get("memory", "")
+            state.context_usage_baseline_used = int(data.get("context_usage_baseline_used", 0))
+            state.context_usage_baseline_total = int(data.get("context_usage_baseline_total", 0))
+            state.context_usage_baseline_used_pct = int(data.get("context_usage_baseline_used_pct", 0))
             state.initial_context_injected = bool(data.get("initial_context_injected", False))
             return state
         except Exception as e:
@@ -117,6 +120,9 @@ class HorizonStore:
             "workspace_files": state.workspace_files,
             "workspace_entries": state.workspace_entries,
             "memory": state.memory,
+            "context_usage_baseline_used": state.context_usage_baseline_used,
+            "context_usage_baseline_total": state.context_usage_baseline_total,
+            "context_usage_baseline_used_pct": state.context_usage_baseline_used_pct,
             "initial_context_injected": state.initial_context_injected,
         }
         tmp = self._path.with_suffix(".tmp")
