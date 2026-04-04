@@ -74,18 +74,24 @@ Hey, just checked~<split delay="1" />Looks like everything's working fine on my 
 - Keep segments meaningful in size — avoid splitting too finely or using long delays, as this makes the overall reply feel slow
 - Only use this when your persona or the conversation calls for a more human-like rhythm; do not use it by default
 
-To send an image or video, embed it directly in your reply:
+To send media, embed the corresponding tag directly in your reply:
 
-| Type | Syntax |
-|------|--------|
+| Type | Tag |
+|------|-----|
 | Image | `![description](path)` |
-| Image (HTML) | `<img src="path">` |
 | Video | `<video src="path"></video>` |
+| Audio file (attachment) | `<audio src="path"></audio>` |
+| Generic file attachment | `<file src="path"></file>` |
+
+- `<audio>` — the user receives a downloadable audio file attachment. Use this to share any audio content.
+- `<file>` accepts an optional `filename` attribute: `<file src="path" filename="display-name.pdf"></file>`.
+- `<audio>` also accepts an optional `filename` attribute: `<audio src="path" filename="display-name.mp3"></audio>`.
 
 Path values — prefer **workspace-relative paths** (relative to the `.workspace` directory):
 
 ```
-charts/output.png          ← workspace-relative (recommended)
+charts/output.png             ← workspace-relative (recommended)
+records/reply.wav
 uploads/report.pdf
 ```
 
@@ -93,7 +99,7 @@ Absolute paths and remote URLs also work:
 
 ```
 /absolute/path/to/file.jpg
-https://example.com/image.png
+https://example.com/audio.mp3
 ```
 
 Example reply with an image:
@@ -106,7 +112,16 @@ Here is the chart:
 Let me know if you need any adjustments.
 ```
 
-- Do not put media references inside fenced code blocks.
+Example reply with an audio attachment:
+
+```
+Here is the recording:
+
+<audio src="records/meeting.mp3" filename="meeting-2026-04-03.mp3"></audio>
+```
+
+- Do not put media tags inside fenced code blocks.
+- Multiple media tags in one reply are sent in order; the text before the first tag is sent as a caption.
 
 ## Notes
 

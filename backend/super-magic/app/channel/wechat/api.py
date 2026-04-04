@@ -37,6 +37,11 @@ SESSION_PAUSE_DURATION_MS = 60 * 60 * 1000
 UPLOAD_MEDIA_TYPE_IMAGE = 1
 UPLOAD_MEDIA_TYPE_VIDEO = 2
 UPLOAD_MEDIA_TYPE_FILE = 3
+UPLOAD_MEDIA_TYPE_VOICE = 4
+
+# VoiceItem.encode_type 枚举值（来自官方协议 proto）
+VOICE_ENCODE_TYPE_SILK = 6
+VOICE_ENCODE_TYPE_MP3 = 7
 
 
 class WechatAPIError(RuntimeError):
@@ -225,7 +230,12 @@ async def get_upload_url(
         timeout_ms=timeout_ms,
         label="getUploadUrl",
     )
-    return json.loads(raw) if raw else {}
+    resp_data: dict[str, Any] = json.loads(raw) if raw else {}
+    if is_api_error_response(resp_data):
+        raise WechatAPIError(
+            f"getUploadUrl: server error ret={resp_data.get('ret')} errmsg={resp_data.get('errmsg')!r}"
+        )
+    return resp_data
 
 
 def build_send_text_message_body(
@@ -327,6 +337,35 @@ def build_file_message_item(
     }
 
 
+def build_voice_message_item(
+    *,
+    encrypt_query_param: str,
+    aes_key_base64: str,
+    voice_size: int,
+    encode_type: int = VOICE_ENCODE_TYPE_SILK,
+    sample_rate: int = 16000,
+    playtime: int = 0,
+) -> dict[str, Any]:
+    """
+    构造 voice_item 消息体（type=3）。
+    encode_type: 见 VOICE_ENCODE_TYPE_* 常量。
+    playtime: 语音时长，单位毫秒；未知时填 0。
+    """
+    return {
+        "type": 3,
+        "voice_item": {
+            "media": {
+                "encrypt_query_param": encrypt_query_param,
+                "aes_key": aes_key_base64,
+                "encrypt_type": 1,
+            },
+            "encode_type": encode_type,
+            "sample_rate": sample_rate,
+            "playtime": playtime,
+        },
+    }
+
+
 async def send_message(
     session: aiohttp.ClientSession,
     *,
@@ -352,7 +391,7 @@ async def send_message(
         },
         ensure_ascii=False,
     )
-    await _api_fetch(
+    raw = await _api_fetch(
         session,
         base_url=base_url,
         endpoint="ilink/bot/sendmessage",
@@ -361,6 +400,10 @@ async def send_message(
         timeout_ms=timeout_ms,
         label="sendMessage",
     )
+    if raw:
+        resp_data = json.loads(raw) if raw else {}
+        if is_api_error_response(resp_data):
+            raise WechatAPIError(f"sendMessage: server error ret={resp_data.get('ret')} errmsg={resp_data.get('errmsg')!r}")
 
 
 async def send_message_items(
@@ -387,15 +430,19 @@ async def send_message_items(
         },
         ensure_ascii=False,
     )
-    await _api_fetch(
+    raw = await _api_fetch(
         session,
         base_url=base_url,
         endpoint="ilink/bot/sendmessage",
         body=body,
         token=token,
         timeout_ms=timeout_ms,
-        label="sendMessage",
+        label="sendMessage(items)",
     )
+    if raw:
+        resp_data = json.loads(raw) if raw else {}
+        if is_api_error_response(resp_data):
+            raise WechatAPIError(f"sendMessage(items): server error ret={resp_data.get('ret')} errmsg={resp_data.get('errmsg')!r}")
 
 
 async def get_config(
