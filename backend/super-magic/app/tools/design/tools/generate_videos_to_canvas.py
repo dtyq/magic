@@ -517,7 +517,7 @@ class GenerateVideosToCanvas(BaseDesignTool[GenerateVideosToCanvasParams]):
             return self._handle_design_tool_error(
                 result,
                 default_action_code="generate_videos_to_canvas",
-                default_success_message_code="create_canvas_element.success",
+                default_success_message_code="generate_videos_to_canvas.exception",
             )
 
         extra_info = result.extra_info or {}

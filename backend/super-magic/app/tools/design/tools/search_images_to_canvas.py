@@ -753,13 +753,13 @@ class SearchImagesToCanvas(BaseDesignTool[SearchImagesToCanvasParams]):
     def _get_remark_content(self, result: ToolResult, arguments: Dict[str, Any] = None) -> str:
         """获取备注内容"""
         if not arguments:
-            return i18n.translate("create_canvas_element.exception", category="tool.messages")
+            return i18n.translate("search_images_to_canvas.exception", category="tool.messages")
 
         # 从 extra_info 获取实际数量
         succeeded_count = result.extra_info.get("succeeded_count", 0) if result.extra_info else 0
 
         if not result.ok:
-            return i18n.translate("create_canvas_element.exception", category="tool.messages")
+            return i18n.translate("search_images_to_canvas.exception", category="tool.messages")
 
         # 成功时返回简单消息
         if succeeded_count == 1:
@@ -787,7 +787,7 @@ class SearchImagesToCanvas(BaseDesignTool[SearchImagesToCanvasParams]):
         return self._handle_design_tool_error(
             result,
             default_action_code="search_images_to_canvas",
-            default_success_message_code="create_canvas_element.success"
+            default_success_message_code="search_images_to_canvas.exception"
         ) if not result.ok else {
             "action": i18n.translate("search_images_to_canvas", category="tool.actions"),
             "remark": self._get_remark_content(result, arguments)

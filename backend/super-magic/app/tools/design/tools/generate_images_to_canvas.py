@@ -159,168 +159,33 @@ Relative path to the design project (folder containing magic.project.js, the can
 
     prompts: List[str] = Field(
         ...,
-        description="""<!--zh: 提示词列表（必填）
-
-【两种模式】
-1. 单提示词 + image_count（组图模式）：
-   - prompts = ["北京景点合集，包含长城、故宫、天坛、颐和园"]
-   - image_count = 4
-   - 结果：生成4张组图，每张图包含多个景点
-
-2. 多提示词（独立图片模式）：
-   - prompts = ["长城全景，专业摄影", "故宫太和殿，专业摄影", "天坛祈年殿，专业摄影"]
-   - image_count 参数将被忽略
-   - 结果：生成3张独立图片，每张图一个主题
-
-【提示词要求】
-- 能力：生成海报、漫画、插画、卡通、手绘、油画、水彩、素描、版画等
-- 严格禁止：色情、暴力、种族歧视等风险关键词
-- 明确主题：清晰说明图像主题（活动、产品、电影等）
-- 详细描述：形状、颜色、位置等主要元素
-- 突出风格：科技感、时尚感、复古风等，通过色彩搭配体现
-- 合理布局：元素排列、大小比例等
-- 关键信息：标题、标语、时间、地点等（如需要）
-
-【限制】
-- 单提示词：最多配合 image_count=4 生成4张组图
-- 多提示词：最多6个提示词（生成6张独立图片）-->
-Prompts list (required)
-
-【Two Modes】
-1. Single prompt + image_count (group image mode):
-   - prompts = ["Beijing landmarks collection including Great Wall, Forbidden City, Temple of Heaven, Summer Palace"]
-   - image_count = 4
-   - Result: Generate 4 group images, each containing multiple landmarks
-
-2. Multiple prompts (independent images mode):
-   - prompts = ["Great Wall panorama, professional photography", "Forbidden City Hall, professional photography", "Temple of Heaven, professional photography"]
-   - image_count parameter will be ignored
-   - Result: Generate 3 independent images, each with one theme
-
-【Prompt Requirements】
-- Capabilities: Generate posters, comics, illustrations, cartoons, hand-drawn, oil paintings, watercolors, sketches, prints
-- Strict prohibitions: Pornography, violence, racism or other risk keywords
-- Clear theme: Clearly state image theme (event, product, movie, etc.)
-- Detailed description: Main elements like shape, color, position
-- Highlight style: Tech feel, fashion sense, retro style, etc., reflected through color matching
-- Reasonable layout: Element arrangement, size proportions
-- Key information: Title, slogan, time, location (if needed)
-
-【Limits】
-- Single prompt: Max image_count=4 for group images
-- Multiple prompts: Max 6 prompts (6 independent images)
-"""
+        description="""<!--zh: 图片生成提示词列表，最多 6 条。单条时与 image_count 配合生成变体，多条时每条独立生成一张图。-->
+Image generation prompts, up to 6 entries. One entry pairs with image_count for variations; multiple entries each produce an independent image."""
     )
 
     size: str = Field(
         ...,
-        description="""<!--zh: 图片尺寸（必需），格式：'宽度x高度'，例如 '1024x1024', '2048x2048'
-
-可用尺寸从当前图片生成模型的配置中获取，请从用户消息中的"当前图片生成模型可用的尺寸选项"中选择。
-
-常见尺寸（如果配置中未提供可用尺寸时使用）：
-- '2048x2048' - 2K 正方形（推荐，适合大多数场景）
-- '2304x1728' - 横版矩形
-- '1728x2304' - 竖版矩形
-- '2560x1440' - 16:9 横版
-- '1440x2560' - 9:16 竖版
-- '2496x1664' - 3:2 横版
-- '1664x2496' - 2:3 竖版
-- '3024x1296' - 超宽横版
-
-【重要】图生图模式（image_paths 非空）时的尺寸处理流程：
-1. 先使用 query_canvas_element 工具通过 src 参数查询参考图信息，获取参考图的实际尺寸
-2. 如果用户没有明确要求特定尺寸，应该使用参考图的原始尺寸（如 '1920x1080'）
-3. 如果用户明确指定了尺寸要求，则使用用户指定的尺寸
-4. 这样可以确保生成的图片与参考图尺寸一致，避免变形-->
-Image size (required). Format: 'widthxheight', e.g. '1024x1024', '2048x2048'
-
-Available sizes are obtained from the current image generation model configuration. Please select from the "当前图片生成模型可用的尺寸选项" in the user message.
-
-Common sizes (use when no available sizes in configuration):
-- '2048x2048' - 2K square (recommended, suitable for most scenarios)
-- '2304x1728' - Horizontal rectangle
-- '1728x2304' - Vertical rectangle
-- '2560x1440' - 16:9 horizontal
-- '1440x2560' - 9:16 vertical
-- '2496x1664' - 3:2 horizontal
-- '1664x2496' - 2:3 vertical
-- '3024x1296' - Ultra-wide horizontal
-
-【Important】Size handling process in image-to-image mode (image_paths is not empty):
-1. First use query_canvas_element tool with src parameter to query reference image info and get the actual dimensions
-2. If user hasn't explicitly requested a specific size, should use the reference image's original dimensions (e.g., '1920x1080')
-3. If user explicitly specified a size requirement, use the user-specified size
-4. This ensures the generated image has the same dimensions as the reference image, avoiding distortion
-"""
+        description="""<!--zh: 输出图片尺寸，格式 'WxH'。优先从上下文提供的可用尺寸信息中选取；无配置时常用备选：2048x2048（方）、1440x2560（9:16）、2560x1440（16:9）、1728x2304（2:3）、2304x1728（3:2）。-->
+Output image dimensions. Format: 'WxH'. Prefer sizes listed in the model's available options in context. Common fallbacks: 2048x2048 (square), 1440x2560 (9:16), 2560x1440 (16:9), 1728x2304 (2:3), 2304x1728 (3:2)."""
     )
 
     name: str = Field(
         ...,
-        description="""<!--zh: 元素名称（必需），用于标识画布元素，便于查找和管理。多张图片时会自动添加序号后缀 _1, _2, _3...
-
-示例：
-- 单张：name="产品图" → 元素名称为 "产品图"
-- 多张：name="产品图" → 元素名称为 "产品图_1", "产品图_2", "产品图_3", "产品图_4"-->
-Element name (required), used to identify canvas elements for easier finding and management. For multiple images, number suffixes _1, _2, _3... will be automatically added.
-
-Examples:
-- Single: name="Product Image" → element name is "Product Image"
-- Multiple: name="Product Image" → element names are "Product Image_1", "Product Image_2", "Product Image_3", "Product Image_4"
-"""
+        description="""<!--zh: 画布元素名称。生成多张时自动追加序号后缀（_1, _2, …）。-->
+Canvas element label. Multiple images automatically receive index suffixes (_1, _2, …)."""
     )
 
     # ========== 非必填参数 ==========
     image_count: int = Field(
         1,
-        description="""<!--zh: 要生成的图片数量（非必需），范围：1-4
-
-【使用规则】
-- 仅在单提示词模式下生效（len(prompts) == 1）
-- 多提示词模式下（len(prompts) > 1）**请勿生成此参数**，该参数会被忽略
-- 1：生成1张图片
-- 2-4：生成组图，一个 prompt 会生成多张变体图片-->
-Number of images to generate (optional), range: 1-4
-
-【Usage Rules】
-- Only effective in single prompt mode (len(prompts) == 1)
-- In multiple prompts mode (len(prompts) > 1), **DO NOT generate this parameter**, it will be ignored
-- 1: Generate 1 image
-- 2-4: Generate group images, one prompt generates multiple variations
-"""
+        description="""<!--zh: 单提示词模式下生成的变体数量（1-4，默认 1）。多提示词模式下此参数被忽略。-->
+Number of variations in single-prompt mode (1–4, default 1). Ignored when multiple prompts are provided."""
     )
 
-    image_paths: List[str] = Field(
-        default_factory=list,
-        description="""<!--zh: 参考图片路径列表（图生图模式）（非必需）
-
-- 为空：文生图模式（generate）
-- 有值：图生图模式（edit），以这些图片为参考生成新图片
-- 示例：['images/cat.jpg'] 或 ['images/cat1.jpg', 'images/cat2.jpg']
-- 注意：原图不会被修改，会生成新图片
-
-【重要建议】图生图模式的最佳实践：
-1. 先使用 query_canvas_element 工具，通过 src 参数查询参考图信息
-   例如：query_canvas_element(project_path="...", src="images/cat.jpg")
-2. 从查询结果中获取参考图的实际尺寸（width × height）
-3. 如果用户没有明确指定尺寸要求，将 size 参数设置为与参考图相同的尺寸（如 '1920x1080'）
-4. 如果用户明确指定了尺寸，则使用用户指定的尺寸
-5. 这样可以保持生成图片与参考图尺寸一致，避免变形-->
-Reference image paths (image-to-image mode) (optional)
-
-- Empty: Text-to-image mode (generate)
-- With values: Image-to-image mode (edit), generate new images based on these references
-- Example: ['images/cat.jpg'] or ['images/cat1.jpg', 'images/cat2.jpg']
-- Note: Original images remain unchanged, new images will be generated
-
-【Important Suggestion】Best practices for image-to-image mode:
-1. First use query_canvas_element tool with src parameter to query reference image info
-   Example: query_canvas_element(project_path="...", src="images/cat.jpg")
-2. Get the actual dimensions (width × height) from the query result
-3. If user hasn't explicitly specified size requirement, set size parameter to match the reference image dimensions (e.g., '1920x1080')
-4. If user explicitly specified a size, use the user-specified size
-5. This keeps the generated image dimensions consistent with the reference image, avoiding distortion
-"""
+    reference_images: List[str] = Field(
+        ...,
+        description="""<!--zh: 参考图片路径列表（必填）。无参考图时传入空列表 []。参考图为生成提供视觉锚点（结构、风格、构图），模型以其为起点创作，而非复制。-->
+Reference image paths (required). Pass [] for text-only generation. Reference images serve as a visual anchor — structure, style, or composition — that the model builds upon rather than copies."""
     )
 
     @field_validator('prompts')
@@ -355,57 +220,49 @@ Reference image paths (image-to-image mode) (optional)
 
 @tool()
 class GenerateImagesToCanvas(BaseDesignTool[GenerateImagesToCanvasParams]):
-    """<!--zh
-    生成 AI 图片并自动添加到画布
-
-    用于 AI 生成图片并直接添加到画布，自动处理图片生成、布局和元数据保存。
-
-    支持两种模式：
-    1. 单 prompt + image_count：生成风格统一的多张变体图片（组图模式）
-    2. 多 prompts：生成完全不同主题的独立图片（独立图片模式）
-
-    关键用法：
-    - 生成不同主题的图片：prompts=["主题1", "主题2", "主题3"]
-    - 生成风格统一的变体：prompts=["通用描述"] + image_count=4
-    - 图生图修改：提供 image_paths 参数
-
-    重要提示：
-    - 应使用详细、描述性的 prompt 以获得最佳效果
-    - 对于用户简单的描述（如"北京景点"），应扩展为详细 prompt（如"北京著名景点，专业旅游摄影，清晰细节，蓝天白云，4K高清"）
-    - 对描述性不足、较为简单的 prompt 有明显提升效果
-    - 【图生图模式最佳实践】如果提供了参考图（image_paths）：
-      1. 先用 query_canvas_element 工具通过 src 查询参考图信息
-      2. 从查询结果获取参考图的尺寸
-      3. 如果用户没有明确要求特定尺寸，使用参考图的原始尺寸作为 size 参数
-      4. 这样能确保生成的图片与参考图尺寸一致
-
-    限制：单次最多 6 张图片（多 prompts 模式）或 4 张组图（单 prompt + image_count 模式）
-    -->
-    Generate AI images and automatically add to canvas
-
-    Used to generate AI images and directly add them to the canvas, automatically handling image generation, layout, and metadata saving.
-
-    Supports two modes:
-    1. Single prompt + image_count: Generate multiple variations with unified style (group image mode)
-    2. Multiple prompts: Generate independent images with completely different themes (independent images mode)
-
-    Key usage:
-    - Generate different themed images: prompts=["Theme1", "Theme2", "Theme3"]
-    - Generate style-unified variations: prompts=["General description"] + image_count=4
-    - Image-to-image modification: Provide image_paths parameter
-
-    Important tips:
-    - Use detailed, descriptive prompts for best results
-    - For simple user descriptions (e.g., "Beijing landmarks"), expand to detailed prompts (e.g., "Famous Beijing landmarks, professional travel photography, clear details, blue sky, 4K resolution")
-    - Significantly improves results for insufficient or simple prompts
-    - 【Image-to-image mode best practice】If reference images are provided (image_paths):
-      1. First use query_canvas_element tool to query reference image info by src
-      2. Get the reference image dimensions from query result
-      3. If user hasn't explicitly requested a specific size, use the reference image's original dimensions as size parameter
-      4. This ensures the generated images match the reference image dimensions
-
-    Limit: Max 6 images per call (multiple prompts mode) or 4 group images (single prompt + image_count mode)
+    """<!--zh: 生成 AI 图片并自动添加到画布，支持文生图和图生图两种锚点，支持单主题变体和多主题独立图两种输出结构。-->
+    Generate AI images and automatically add them to the canvas. Supports text-only and reference-anchored generation, with either single-theme variations or multi-theme independent outputs.
     """
+
+    def get_prompt_hint(self) -> str:
+        return """\
+<!--zh
+调用前需明确两个独立决策：
+
+【决策一：输出结构】
+- 单提示词 + image_count=N：对同一主题生成 N 张风格各异的变体（prompts 只有1条，用户想看多个版本）
+- 多提示词：每条 prompt 独立生成一张图，主题完全不同（prompts 有多条，image_count 被忽略）
+
+【决策二：生成锚点（reference_images，必须显式填写）】
+核心问题不是"用户有没有说参考图"，而是"用户是否希望输出与某张现有图片保持视觉关联"：
+- 用户上传了附件、提到了画布上的某张图、或表达了"基于这个/参考这个/做成类似风格" → 填入对应路径
+- 用户纯粹用文字描述一个想象中的画面 → 填 []
+两种情况都必须显式填写，不可省略。
+
+【size 选取】
+优先遵循用户明确指定的尺寸；未指定时，若 reference_images 非空，先用 query_canvas_element(src=...) 查询参考图的实际尺寸，以保持一致；否则默认 2048x2048。
+
+【prompt 质量】
+将用户的简短描述扩写为包含主体、风格、构图、光线、色调的完整描述。描述越模糊，生成结果越随机。
+-->
+Two decisions required before calling:
+
+[Decision 1: Output structure]
+- Single prompt + image_count=N: generates N variations of the same theme (user wants alternatives for one idea)
+- Multiple prompts: each prompt produces one independent image with a distinct theme; image_count is ignored
+
+[Decision 2: Generation anchor — reference_images, always required]
+The question is not whether the user said "reference image" but whether they want the output to have visual continuity with an existing image:
+- Uploaded a file, mentioned a canvas asset, or expressed "based on this / reference this / in this style" → include those paths
+- Describing something purely from imagination → pass []
+Both cases require explicit reference_images — never omit it.
+
+[Size selection]
+Follow any size the user explicitly states. If reference_images is non-empty and no size is stated, use query_canvas_element(src=...) to get the reference image's actual dimensions and match them. Otherwise default to 2048x2048.
+
+[Prompt quality]
+Expand brief user descriptions into full prompts covering subject, style, composition, lighting, and color tone. Vague inputs produce vague outputs.
+"""
 
     def __init__(self, **data):
         super().__init__(**data)
@@ -468,7 +325,7 @@ class GenerateImagesToCanvas(BaseDesignTool[GenerateImagesToCanvasParams]):
             logger.debug(f"Workspace path: {workspace_path}")
 
             # 2. 准备基本信息
-            mode = "edit" if params.image_paths else "generate"
+            mode = "edit" if params.reference_images else "generate"
             logger.info(
                 f"开始生成图片并添加到画布（3阶段流程）: mode={mode}({'图生图' if mode == 'edit' else '文生图'}), "
                 f"{mode_desc}, project={params.project_path}"
@@ -555,7 +412,7 @@ class GenerateImagesToCanvas(BaseDesignTool[GenerateImagesToCanvasParams]):
                     size=params.size,
                     image_name=f"{clean_name}_{timestamp}",
                     output_path=relative_output_path,
-                    image_paths=params.image_paths,
+                    image_paths=params.reference_images,
                     workspace_path=workspace_path
                 )
             else:
@@ -570,7 +427,7 @@ class GenerateImagesToCanvas(BaseDesignTool[GenerateImagesToCanvasParams]):
                     base_name=clean_name,
                     timestamp=timestamp,
                     output_path=relative_output_path,
-                    image_paths=params.image_paths,
+                    image_paths=params.reference_images,
                     workspace_path=workspace_path
                 )
                 succeeded_count = sum(1 for r in generation_results if r.is_success)
@@ -1328,13 +1185,13 @@ class GenerateImagesToCanvas(BaseDesignTool[GenerateImagesToCanvasParams]):
     def _get_remark_content(self, result: ToolResult, arguments: Dict[str, Any] = None) -> str:
         """获取备注内容"""
         if not arguments:
-            return i18n.translate("create_canvas_element.exception", category="tool.messages")
+            return i18n.translate("generate_images_to_canvas.exception", category="tool.messages")
 
         image_count = arguments.get("image_count", 1)
         name = arguments.get("name", "图片")
 
         if not result.ok:
-            return i18n.translate("create_canvas_element.exception", category="tool.messages")
+            return i18n.translate("generate_images_to_canvas.exception", category="tool.messages")
 
         # 检查实际的生成结果
         extra_info = result.extra_info or {}
@@ -1377,7 +1234,7 @@ class GenerateImagesToCanvas(BaseDesignTool[GenerateImagesToCanvasParams]):
         return self._handle_design_tool_error(
             result,
             default_action_code="generate_images_to_canvas",
-            default_success_message_code="create_canvas_element.success"
+            default_success_message_code="generate_images_to_canvas.exception"
         ) if not result.ok else {
             "action": i18n.translate("generate_images_to_canvas", category="tool.actions"),
             "remark": self._get_remark_content(result, arguments)

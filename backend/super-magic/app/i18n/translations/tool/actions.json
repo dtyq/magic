@@ -235,18 +235,6 @@
         "zh_CN": "查询画布概览",
         "en_US": "Query canvas overview"
     },
-    "create_canvas_element": {
-        "zh_CN": "创建画布元素",
-        "en_US": "Create canvas element"
-    },
-    "update_canvas_element": {
-        "zh_CN": "更新画布元素",
-        "en_US": "Update canvas element"
-    },
-    "reorder_canvas_elements": {
-        "zh_CN": "调整图层顺序",
-        "en_US": "Reorder canvas elements"
-    },
     "query_canvas_element": {
         "zh_CN": "查询元素详情",
         "en_US": "Query canvas element"

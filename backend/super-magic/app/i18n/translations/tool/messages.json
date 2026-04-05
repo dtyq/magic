@@ -775,29 +775,17 @@
         "zh_CN": "查询画布概览异常，请重试",
         "en_US": "Query canvas overview failed, please try again"
     },
-    "create_canvas_element.success": {
-        "zh_CN": "元素 {{element_name}} ({{element_type}}) 创建成功",
-        "en_US": "Element {{element_name}} ({{element_type}}) created successfully"
+    "generate_images_to_canvas.exception": {
+        "zh_CN": "AI 图片生成异常，请重试",
+        "en_US": "AI image generation exception, please retry"
     },
-    "create_canvas_element.exception": {
-        "zh_CN": "创建元素异常，请重试",
-        "en_US": "Element creation exception, please retry"
+    "search_images_to_canvas.exception": {
+        "zh_CN": "图片搜索异常，请重试",
+        "en_US": "Image search exception, please retry"
     },
-    "update_canvas_element.success": {
-        "zh_CN": "元素 {{element_display}} 更新成功",
-        "en_US": "Element {{element_display}} updated successfully"
-    },
-    "update_canvas_element.exception": {
-        "zh_CN": "更新元素异常，请重试",
-        "en_US": "Element update exception, please retry"
-    },
-    "reorder_canvas_elements.success": {
-        "zh_CN": "元素 {{element_display}} 图层调整成功 ({{action}})",
-        "en_US": "Element {{element_display}} layer reordered successfully ({{action}})"
-    },
-    "reorder_canvas_elements.exception": {
-        "zh_CN": "调整图层异常，请重试",
-        "en_US": "Layer reorder exception, please retry"
+    "generate_videos_to_canvas.exception": {
+        "zh_CN": "AI 视频生成异常，请重试",
+        "en_US": "AI video generation exception, please retry"
     },
     "query_canvas_element.success": {
         "zh_CN": "元素 {{element_id}} 详情查询完成",

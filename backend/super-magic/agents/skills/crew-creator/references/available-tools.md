@@ -278,16 +278,11 @@ tools:
 | Tool | Description |
 |------|-------------|
 | `create_design_project` | Create a design project |
-| `create_canvas_element` | Create a canvas element |
-| `update_canvas_element` | Update a canvas element |
 | `delete_canvas_element` | Delete a canvas element |
 | `query_canvas_overview` | Query canvas overview |
 | `query_canvas_element` | Query a specific canvas element |
-| `batch_create_canvas_elements` | Batch create canvas elements |
-| `batch_update_canvas_elements` | Batch update canvas elements |
 | `generate_images_to_canvas` | Generate images directly to canvas |
 | `search_images_to_canvas` | Search and add images to canvas |
-| `reorder_canvas_elements` | Reorder canvas elements |
 
 <!--zh
 ### 数据看板类
