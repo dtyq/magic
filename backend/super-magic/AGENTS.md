@@ -238,7 +238,8 @@ Python 代码中凡是涉及文件操作，必须使用 `app/utils/async_file_ut
 |------|------|---------|
 | Agent 运行时与发布链路 | `agents/guides/AGENT_RUNTIME_AND_PUBLISH_GUIDE.md` | 需要理解 Crew/Claw 运行时、Agent 编译流程、发布链路时 |
 | 工具/Skill/Code Mode/CLI 范式 | `agents/guides/AGENT_TOOL_SKILL_CODE_MODE_CLI.md` | 设计新能力、决定用工具还是 Skill、理解 Code Mode 机制时 |
-| Skill + Tool 双活机制 | `agents/guides/SKILL_TOOL_DUAL_ACTIVE.md` | 将工具迁移到 Skill 范式时、理解为何工具层提示词必须完整保留时 |
+| Skill + Tool 双活机制 | `agents/guides/TOOL_OR_SKILL.md` | 将工具迁移到 Skill 范式时、理解工具层与 Skill 层信息隔离规则、preload 机制时 |
+| Skill 概念与加载链路 | `agents/guides/SKILLS_OVERVIEW.md` | 快速了解 Skill 是什么、加载方式、来源与模型使用规则时 |
 | Skill 开发指南 | `agents/guides/SKILLS_DEVELOPMENT_GUIDE.md` | 新建或修改 Skill、需要了解 SKILL.md 规范和最佳实践时 |
 
 ## 16. 每次改动前自检
