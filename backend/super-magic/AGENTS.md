@@ -57,12 +57,54 @@
 - [错误] 把所有兼容写法都写进技能文档，让模型在 Markdown、HTML、自定义标签之间来回切换。
 - 适用场景：自定义标签协议、工具参数格式、结构化输出格式、命令片段模板等"模型来写、程序来解析"的地方。
 
-### 5.4 有效提示正文的语言要求
+#### 5.3.2 Skill、Code Mode 与直接挂载工具的边界
 
-- 给大模型看的有效提示正文使用英文
-- 若需同时保留中文说明，中文必须放在注释包裹块中，仅供程序员阅读，不作为有效提示正文
-- 双语提示词统一采用"中文注释在上，英文正文在下"的格式，避免中英正文混排
-- 只有非注释包裹的英文内容进入提示词；这样既保留维护可读性，也能在部分模型 tokenizer 下减少 token 消耗
+- `Skill` 是能力说明的按需加载入口，解决“什么时候把什么说明送进模型上下文”的问题
+- `Code Mode` 是“模型先生成代码，再由代码调用工具”的执行模式，不属于 Skill 私有能力；Skill 只是它的常见承载方式之一
+- `直接挂载工具` 是工具本身直接暴露给模型；此时模型主要依赖工具自己的 docstring、参数 description、`get_prompt_hint()` 来理解如何使用工具
+- `Code Mode` 的典型形态：
+  ```python
+  from sdk.tool import tool
+
+  result = tool.call("call_subagent", {
+      "agent_name": "explore",
+      "prompt": "Analyze the target module and summarize key risks.",
+  })
+  print(result.content)
+  ```
+- 或：
+  ```python
+  from sdk.mcp import mcp
+
+  result = mcp.call("server_name", "tool_name", {
+      "key": "value",
+  })
+  print(result.content)
+  ```
+- 其运行链路是：模型先生成 Python 代码，代码由 `run_skills_snippet` 等执行环境运行，再通过 SDK 发起真实工具调用；因此 Code Mode 本质上是“代码调工具”，不是“Skill 专属工具”
+- Skill 与直接挂载工具是两条并行能力链路，不是互斥关系；Skill 可以补充高层工作流、长示例、多步决策
+- 但只要某个工具仍可能被直接挂载给模型，它自身的提示词就必须足以支持独立使用；不要因为“这个能力已经写进 Skill”就把本应留在工具上的关键信息转移走
+- 只有在明确取消直接挂载工具入口并完成统一迁移后，才可以同步收缩该工具面向模型的高层提示内容
+- 判断标准：如果模型完全不读 Skill、只看工具定义，是否仍能正确理解并使用这个工具？如果不能，说明你把本应属于工具的信息错误地转移到了 Skill
+
+### 5.4 双语注释的适用范围与语言要求
+
+`<!--zh -->` 中文注释由 `annotation_remover.py` 在内容进入模型前自动剥离，给模型看的有效正文使用英文，中文仅作开发者注释。双语格式统一采用"中文注释在上，英文正文在下"，避免中英混排。
+
+**允许使用双语格式的场景**（代码会自动剥离中文部分）：
+
+- `.agent` 文件的 prompt 正文（frontmatter 后的内容）
+- `.prompt` 文件（由 `SyntaxProcessor` 处理）
+- 工具类（`@tool()`）的 docstring（工具描述）
+- 工具参数的 `Field(description=...)` 字符串
+- `get_prompt_hint()` 的返回值
+
+**禁止使用双语格式的场景**：
+
+- `SKILL.md` 及 skill 目录下的引用文件——Skill 文档直接面向 agent，必须直接写高质量英文
+- `.agent` / `SKILL.md` 的 frontmatter YAML 字段——不经过注释剥离，写了会原样进入模型
+- Python 普通注释（`#`）、非工具类的 docstring——不进入模型，直接用中文写即可
+- `AGENTS.md`、`guides/`、`docs/` 等人类文档——直接用中文写即可
 
 ### 5.5 双语格式与书写方式
 
@@ -171,16 +213,23 @@ Python 代码中凡是涉及文件操作，必须使用 `app/utils/async_file_ut
 - 检查所有 `except Exception` / `except BaseException` / 裸 `except:` 块，确认不会吞掉 `CancelledError`。如果 fallback 逻辑需要在中断时跳过，在进入 fallback 前先检查 `agent_context.is_interruption_requested()`。
 - 新建的 `asyncio.create_task()` 子任务若需随父级一并取消（如调用子 Agent），在父级的 `_run_cleanup_registry` 中注册清理逻辑，不要依赖 Python 自动传播（父 Task 被 cancel 不会自动取消独立创建的子 Task）。
 
-## 12. 工具新增后需在 `__init__.py` 显式导入
+## 12. 业务逻辑必须保持主线程单事件循环语义
+
+- 项目的业务逻辑一律运行在主线程的主事件循环中；`AgentDispatcher`、`AgentContext`、subagent 运行时、工具调度、运行时注册表等设施默认都建立在这个前提上
+- 子线程只允许用于文件 I/O、同步库封装、阻塞式 SDK 回调桥接等辅助工作，不允许在子线程中直接执行业务逻辑，也不允许直接读写上述运行时设施
+- 来自子线程的回调或事件，必须先通过 `asyncio.run_coroutine_threadsafe(...)` 或 `loop.call_soon_threadsafe(...)` 切回主事件循环，再进入业务逻辑
+- 默认不要为业务运行时设施增加多线程锁；如果未来某个设施必须被多线程直接访问，必须先明确这是架构变更，并单独设计线程安全边界，而不是局部补锁
+
+## 13. 工具新增后需在 `__init__.py` 显式导入
 
 在 `app/tools/` 增加新工具，需同步在 `app/tools/__init__.py` 中 `import` 该类并加入 `__all__`。未在 `__init__.py` 显式导入将导致工具模块未被加载，运行期报错 `No module named 'app.tools.<tool_name>'`。
 
-## 13. 不要手动修改工具定义缓存
+## 14. 不要手动修改工具定义缓存
 
 - `config/tool_definitions.json` 是缓存文件，不要手动编辑
 - 修改工具的真实来源应为 `app/tools/` 下的工具代码；缓存如有需要应走项目既有生成流程刷新
 
-## 14. 每次改动前自检
+## 15. 每次改动前自检
 
 - 这是在解决真实问题，还是在满足抽象冲动？
 - 这层包装有没有新增语义？
