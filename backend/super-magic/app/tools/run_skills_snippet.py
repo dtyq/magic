@@ -92,6 +92,23 @@ class RunSkillsSnippet(AbstractFileTool[RunSkillsSnippetParams]):
             for tool_name in VIDEO_TOOL_NAMES
         )
 
+    @staticmethod
+    def _build_snippet_extra_env(project_root: "Path") -> dict[str, str]:
+        import os
+
+        project_root_str = str(project_root)
+        path_parts = [
+            part for part in os.environ.get("PYTHONPATH", "").split(os.pathsep)
+            if part
+        ]
+        if project_root_str in path_parts:
+            path_parts = [part for part in path_parts if part != project_root_str]
+
+        return {
+            "PYTHONPATH": os.pathsep.join([project_root_str, *path_parts]),
+            "SUPER_MAGIC_PROJECT_ROOT": project_root_str,
+        }
+
     async def execute(self, tool_context: ToolContext, params: RunSkillsSnippetParams) -> ToolResult:
         """执行 Skill Python 代码片段
 
@@ -143,12 +160,13 @@ class RunSkillsSnippet(AbstractFileTool[RunSkillsSnippetParams]):
                     )
 
             # 在 .runtime/skills_scripts 目录中执行脚本
-            # 启用 Python 命令重写，使其可以使用打包的依赖
+            # 主写法固定使用 from sdk.tool import tool，环境兼容由运行时兜底。
             terminal_result = await ProcessExecutor.execute_command(
                 command=command,
                 cwd=runtime_dir,
                 timeout=effective_timeout,
-                enable_python_rewrite=True
+                enable_python_rewrite=True,
+                extra_env=self._build_snippet_extra_env(project_root),
             )
 
             # 转换为简单的 ToolResult

@@ -293,7 +293,8 @@ class ProcessExecutor:
         command: str,
         cwd: Optional[Path] = None,
         timeout: int = 60,
-        enable_python_rewrite: bool = False
+        enable_python_rewrite: bool = False,
+        extra_env: Optional[Dict[str, str]] = None,
     ) -> TerminalToolResult:
         """
         执行命令并返回结果
@@ -303,6 +304,7 @@ class ProcessExecutor:
             cwd: 工作目录，默认为None
             timeout: 超时时间（秒），默认60秒
             enable_python_rewrite: 是否启用 Python 命令改写（仅在特定场景如 skills 执行时启用），默认为 False
+            extra_env: 仅对当前子进程附加的环境变量，优先级高于默认环境
 
         Returns:
             TerminalToolResult: 执行结果
@@ -313,6 +315,8 @@ class ProcessExecutor:
 
             # 构建过滤后的环境变量
             env_vars = ProcessExecutor._build_filtered_env()
+            if extra_env:
+                env_vars.update(extra_env)
 
             # Use bash to execute command for bash features support (like brace expansion)
             # Use shlex.quote to ensure command is safely quoted
