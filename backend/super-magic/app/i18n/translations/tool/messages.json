@@ -71,6 +71,38 @@
         "zh_CN": "未知文件",
         "en_US": "Unknown file"
     },
+    "read_file.detail_failed_title": {
+        "zh_CN": "读取文件失败",
+        "en_US": "Failed to Read Files"
+    },
+    "read_file.detail_failed_summary": {
+        "zh_CN": "共 {{total}} 个文件，成功 {{success}} 个，失败 {{failed}} 个",
+        "en_US": "{{total}} files total — {{success}} succeeded, {{failed}} failed"
+    },
+    "read_file.detail_failed_list_header": {
+        "zh_CN": "失败文件：",
+        "en_US": "Failed files:"
+    },
+    "read_file.detail_reason_not_exist": {
+        "zh_CN": "文件不存在",
+        "en_US": "File not found"
+    },
+    "read_file.detail_reason_is_directory": {
+        "zh_CN": "路径是文件夹",
+        "en_US": "Path is a directory"
+    },
+    "read_file.detail_reason_conversion_failed": {
+        "zh_CN": "格式转换失败",
+        "en_US": "Format conversion failed"
+    },
+    "read_file.detail_reason_unexpected": {
+        "zh_CN": "读取异常",
+        "en_US": "Unexpected error"
+    },
+    "read_file.detail_reason_unknown": {
+        "zh_CN": "未知错误",
+        "en_US": "Unknown error"
+    },
     "read_file.conversion_strategy_balanced": {
         "zh_CN": "平衡模式",
         "en_US": "Balanced"

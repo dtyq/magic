@@ -241,7 +241,17 @@ class ReadFiles(AbstractFileTool[ReadFilesParams], WorkspaceTool[ReadFilesParams
             content=formatted_result,
             system=summary,
             extra_info={
-                "files_without_line_numbers": files_without_line_numbers
+                "files_without_line_numbers": files_without_line_numbers,
+                "file_results": [
+                    {
+                        "file_path": item.file_path,
+                        "is_success": item.is_success,
+                        "error_type": item.error_type,
+                    }
+                    for item in results
+                ],
+                "success_count": success_count,
+                "failure_count": read_failure_count,
             }
         )
 
@@ -361,6 +371,7 @@ class ReadFiles(AbstractFileTool[ReadFilesParams], WorkspaceTool[ReadFilesParams
 
         # 添加每个文件的内容
         truncated_files = []  # 收集所有被截断的文件，用于最后生成详细指导
+        has_relative_path_not_found = False  # 是否有相对路径找不到文件，用于批量输出 Skill Hint
 
         for idx, result in enumerate(results):
             # 添加文件分隔符（除了第一个文件）
@@ -375,26 +386,29 @@ class ReadFiles(AbstractFileTool[ReadFilesParams], WorkspaceTool[ReadFilesParams
                 if result.was_truncated:
                     truncated_files.append(result)
             else:
-                # 对失败的文件添加具体的错误信息
+                # 对失败的文件只输出错误信息，不在每个文件下重复 Skill Hint
                 if result.error_message:
-                    error_text = result.error_message
-                    # 文件不存在且路径为相对路径时，提示模型使用绝对路径
-                    # 用 error_type code 判断，不依赖特定语言的错误文本
+                    formatted_parts.append(f"## 文件: {result.file_path}\n\n**读取失败**: {result.error_message}\n")
+                    # 标记：有相对路径找不到的情况，稍后统一输出一次 Skill Hint
                     if (
                         result.error_type == "read_file.error_file_not_exist"
                         and not result.file_path.startswith("/")
                     ):
-                        error_text += (
-                            "\n\n[Hint] The file path is relative and was not found. "
-                            "If you are reading a skill-related file, you MUST construct an absolute path: "
-                            "take the absolute path from the skill's `<location>` tag, strip the filename "
-                            "to get the skill directory, then append the relative path from the skill content. "
-                            "Example: read_files(operations=[{'file_path': '/absolute/path/to/skill-dir/reference/doc.md'}])"
-                        )
-                    formatted_parts.append(f"## 文件: {result.file_path}\n\n**读取失败**: {error_text}\n")
+                        has_relative_path_not_found = True
                 else:
                     error_detail = i18n.translate("read_file.error_detail", category="tool.messages")
                     formatted_parts.append(f"## 文件: {result.file_path}\n\n{error_detail}\n")
+
+        # Skill 相对路径 Hint：整批只输出一次，位于所有文件内容之后
+        if has_relative_path_not_found:
+            formatted_parts.append(
+                "\n\n[Hint] One or more file paths are relative and were not found. "
+                "If you are reading skill-related files, you MUST construct absolute paths. "
+                "Prefer the `<skill_dir>` tag for the absolute skill directory; "
+                "if unavailable, strip the filename from the `<location>` tag to get the skill directory, "
+                "then append the relative path from the skill content.\n"
+                "Example: `read_files(operations=[{'file_path': '/absolute/path/to/skill-dir/reference/doc.md'}])`"
+            )
 
         # 在最后统一添加所有被截断文件的详细指导
         # 这部分不参与前面的token限制计算，确保大模型一定能看到
@@ -445,6 +459,73 @@ class ReadFiles(AbstractFileTool[ReadFilesParams], WorkspaceTool[ReadFilesParams
 
         return "\n".join(formatted_parts)
 
+    def _get_failure_reason_label(self, error_type: Optional[str]) -> str:
+        if error_type == "read_file.error_file_not_exist":
+            key = "read_file.detail_reason_not_exist"
+        elif error_type == "read_file.error_is_directory":
+            key = "read_file.detail_reason_is_directory"
+        elif error_type == "read_file.error_conversion_failed":
+            key = "read_file.detail_reason_conversion_failed"
+        elif error_type == "read_file.error_unexpected":
+            key = "read_file.detail_reason_unexpected"
+        else:
+            key = "read_file.detail_reason_unknown"
+        return i18n.translate(key, category="tool.messages")
+
+    def _build_failure_detail_markdown(
+        self,
+        file_results: list[dict[str, Any]],
+        success_count: int,
+        failure_count: int,
+    ) -> Optional[str]:
+        """构造给前端展示的人类可读失败摘要（不含给 AI 的诊断信息）。"""
+        file_count = len(file_results)
+        if file_count == 0:
+            return None
+
+        title = i18n.translate("read_file.detail_failed_title", category="tool.messages")
+        summary = i18n.translate(
+            "read_file.detail_failed_summary",
+            category="tool.messages",
+            total=file_count,
+            success=success_count,
+            failed=failure_count,
+        )
+        list_header = i18n.translate("read_file.detail_failed_list_header", category="tool.messages")
+
+        lines = [f"## {title}", "", summary, "", list_header]
+        for item in file_results:
+            if item.get("is_success"):
+                continue
+            reason = self._get_failure_reason_label(item.get("error_type"))
+            lines.append(f"- `{os.path.basename(item.get('file_path', ''))}` — {reason}")
+
+        return "\n".join(lines)
+
+    def _build_failure_tool_detail(
+        self,
+        file_results: list[dict[str, Any]],
+        success_count: int,
+        failure_count: int,
+    ) -> Optional[ToolDetail]:
+        """构造失败时给前端展示的人类可读摘要（不含给 AI 的诊断信息）。"""
+        markdown = self._build_failure_detail_markdown(
+            file_results=file_results,
+            success_count=success_count,
+            failure_count=failure_count,
+        )
+        if markdown is None:
+            return None
+
+        title = i18n.translate("read_file.detail_failed_title", category="tool.messages")
+        return ToolDetail(
+            type=DisplayType.MD,
+            data=FileContent(
+                file_name=title,
+                content=markdown,
+            )
+        )
+
     def _escape_code_blocks_for_display(self, content: str) -> str:
         """
         转义内容中的代码块标记以避免前端 Markdown 渲染问题
@@ -470,9 +551,6 @@ class ReadFiles(AbstractFileTool[ReadFilesParams], WorkspaceTool[ReadFilesParams
         Returns:
             Optional[ToolDetail]: 工具详情对象，可能为None
         """
-        if not result.ok:
-            return None
-
         if not arguments or "operations" not in arguments:
             logger.warning("没有提供operations参数")
             return None
@@ -480,6 +558,15 @@ class ReadFiles(AbstractFileTool[ReadFilesParams], WorkspaceTool[ReadFilesParams
         operations = arguments["operations"]
         file_count = len(operations)
         file_paths = [op["file_path"] if isinstance(op, dict) else op.file_path for op in operations]
+        files_data = (result.extra_info or {}).get("files_without_line_numbers") or []
+        file_results = (result.extra_info or {}).get("file_results") or []
+        success_count = int((result.extra_info or {}).get("success_count", len(files_data)))
+        failure_count = int((result.extra_info or {}).get("failure_count", 0))
+
+        # 失败时：展示给人看的简洁失败摘要（走 i18n，不含给 AI 的诊断信息）
+        # read_files 在“全部子项失败”时也可能保持 result.ok=True，因此不能只看 result.ok
+        if (not result.ok) or (failure_count > 0 and success_count == 0):
+            return self._build_failure_tool_detail(file_results=file_results, success_count=success_count, failure_count=failure_count)
 
         # 单个文件：像 read_file.py 一样处理
         if file_count == 1:
@@ -514,7 +601,6 @@ class ReadFiles(AbstractFileTool[ReadFilesParams], WorkspaceTool[ReadFilesParams
                                    count=file_count)
 
         # 构建多文件显示内容
-        files_data = (result.extra_info or {}).get("files_without_line_numbers")
         if files_data:
             display_parts = []
             for idx, file_data in enumerate(files_data):
@@ -537,9 +623,16 @@ class ReadFiles(AbstractFileTool[ReadFilesParams], WorkspaceTool[ReadFilesParams
                     display_parts.append(f"```\n{escaped_content}\n```")
 
             content_for_display = "".join(display_parts)
+            if failure_count > 0:
+                failure_markdown = self._build_failure_detail_markdown(
+                    file_results=file_results,
+                    success_count=success_count,
+                    failure_count=failure_count,
+                )
+                if failure_markdown:
+                    content_for_display = failure_markdown + "\n\n---\n\n" + content_for_display
         else:
-            # 回退到原始内容
-            content_for_display = result.content
+            content_for_display = ""
 
         return ToolDetail(
             type=DisplayType.MD,

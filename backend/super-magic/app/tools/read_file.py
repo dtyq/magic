@@ -774,7 +774,9 @@ Documents like PDF, PowerPoint will be auto-converted to Markdown (e.g., `report
         """
         try:
             # 使用父类方法获取安全的文件路径（包含模糊匹配）
-            file_path, fuzzy_warning = self.resolve_path_fuzzy(params.file_path)
+            resolved = self.resolve_path_fuzzy(params.file_path)
+            file_path = resolved.path
+            fuzzy_warning = resolved.warning
             # 检查文件是否存在
             if not await aiofiles.os.path.exists(file_path):
                 if tool_context:
