@@ -159,6 +159,17 @@ class RunSkillsSnippet(AbstractFileTool[RunSkillsSnippetParams]):
                         f"requested={params.timeout}, effective={effective_timeout}"
                     )
 
+            # 将调用方 AgentContext 的 context_id 注入子进程，供 SDK 带入 HTTP 请求，
+            # 使服务端能精确路由到正确的 Agent 上下文。
+            extra_env = self._build_snippet_extra_env(project_root)
+            agent_ctx = tool_context.get_extension("agent_context")
+            if agent_ctx is None:
+                raise RuntimeError(
+                    "run_skills_snippet: tool_context 中不存在 agent_context，"
+                    "无法确定调用方 Agent 标识"
+                )
+            extra_env["SUPER_MAGIC_AGENT_CONTEXT_ID"] = agent_ctx.context_id
+
             # 在 .runtime/skills_scripts 目录中执行脚本
             # 主写法固定使用 from sdk.tool import tool，环境兼容由运行时兜底。
             terminal_result = await ProcessExecutor.execute_command(
@@ -166,7 +177,7 @@ class RunSkillsSnippet(AbstractFileTool[RunSkillsSnippetParams]):
                 cwd=runtime_dir,
                 timeout=effective_timeout,
                 enable_python_rewrite=True,
-                extra_env=self._build_snippet_extra_env(project_root),
+                extra_env=extra_env,
             )
 
             # 转换为简单的 ToolResult

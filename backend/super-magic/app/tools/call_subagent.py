@@ -55,7 +55,7 @@ class CallSubagentParams(BaseToolParams):
     )
     model_id: Optional[str] = Field(
         None,
-        description="Override the LLM model. Defaults to the model defined in the .agent config."
+        description="Override the model for this sub-agent. Defaults to inheriting the caller's model."
     )
     background: bool = Field(
         False,
@@ -74,6 +74,9 @@ class CallSubagent(BaseTool[CallSubagentParams]):
     """Call another agent to complete a task. Each sub-agent runs with an isolated context and its own chat history."""
 
     async def execute(self, tool_context: ToolContext, params: CallSubagentParams) -> ToolResult:
+        new_agent_context: Optional["AgentContext"] = None
+        agent: Optional["Agent"] = None
+        task: Optional[asyncio.Task] = None
         try:
             from app.core.context.agent_context import AgentContext
             from app.magic.agent import Agent
@@ -178,6 +181,8 @@ class CallSubagent(BaseTool[CallSubagentParams]):
             ))
 
         except Exception as e:
+            if agent is not None and task is None:
+                agent.close()
             logger.exception(f"调用智能体失败: {e!s}")
             return ToolResult.error(
                 _build_call_subagent_error_text(
@@ -513,6 +518,7 @@ async def _run_subagent(
             state.interrupt_reason = agent.agent_context.get_interruption_reason()
             async with handle.state_lock:
                 await SubagentRuntimeStore.save_state(state)
+        agent.close()
         if current_task is not None:
             await subagent_session_manager.clear_run(agent.agent_name, agent.id, current_task)
 

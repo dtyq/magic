@@ -7,7 +7,7 @@
 import asyncio
 import os
 import json
-import time
+import uuid
 from typing import TYPE_CHECKING, Any, Dict, List, Optional
 
 if TYPE_CHECKING:
@@ -121,6 +121,14 @@ class AgentContext(BaseAgentContext):
         self._subagent_depth = 0
         self._subagent_parent_agent_name: Optional[str] = None
 
+        # 运行时身份 / 上下文标识
+        # context_id 用于 Skill Code Mode 路由；
+        self._context_id: str = uuid.uuid4().hex
+        # agent_id 用于运行时 session 标识；
+        self._agent_id: Optional[str] = None
+        # horizon_agent_id 用于 Horizon 持久化文件名。
+        self._horizon_agent_id: Optional[str] = None
+
         # 设置工作空间目录
         try:
             self.set_workspace_dir(str(PathManager.get_workspace_dir()))
@@ -151,7 +159,11 @@ class AgentContext(BaseAgentContext):
 
         # AgentHorizon 懒初始化，per-agent 上下文工程基础设施
         self._horizon: Optional["AgentHorizon"] = None
-        self._horizon_agent_id: Optional[str] = None
+
+    @property
+    def context_id(self) -> str:
+        """当前 AgentContext 实例的唯一标识符（UUID hex），供全局注册表路由使用。"""
+        return self._context_id
 
     def set_subagent_depth(self, depth: int) -> None:
         """设置子 Agent 深度。"""
@@ -168,6 +180,20 @@ class AgentContext(BaseAgentContext):
     def get_subagent_parent_agent_name(self) -> Optional[str]:
         """获取父 Agent 名称；主 Agent 返回 None。"""
         return self._subagent_parent_agent_name
+
+    def set_agent_id(self, agent_id: str) -> None:
+        """设置运行时 agent_id，并同步更新依赖该 ID 的上下文设施。"""
+        self._agent_id = agent_id
+        self.set_horizon_agent_id(agent_id)
+
+    def get_agent_id(self) -> Optional[str]:
+        """获取运行时 agent_id。"""
+        return self._agent_id
+
+    def get_agent_session_label(self) -> str:
+        """获取用于日志和文件名的人类可读标识，如 `magic<main>`。"""
+        agent_id = self._agent_id or "unknown"
+        return f"{self.agent_name}<{agent_id}>"
 
     @property
     def horizon(self) -> "AgentHorizon":

@@ -179,6 +179,8 @@ class Agent(BaseAgent):
 
     def __init__(self, agent_name: str, agent_context: AgentContext = None, agent_id: str = None):
         self.agent_name = agent_name
+        self._closed = False
+        self._context_registered = False
 
         # 设置Agent上下文
         self.agent_context = self._setup_agent_context(agent_context)
@@ -214,6 +216,8 @@ class Agent(BaseAgent):
             # 如果未提供 agent_id，则生成一个新的
             self.id = self._generate_agent_id()
 
+        self.agent_context.set_agent_id(self.id)
+
 
         # 初始化压缩配置（Agent 用于判断何时触发压缩）
         self.compaction_config = CompactionConfig(
@@ -234,6 +238,27 @@ class Agent(BaseAgent):
         self.agent_context.chat_history = self.chat_history
         logger.debug("已将 chat_history 设置到 agent_context 中，以便工具访问")
         logger.debug("Agent MCP 支持已初始化")
+
+        from app.core.context.agent_context_registry import AgentContextRegistry
+        AgentContextRegistry.get_instance().register(self.agent_context)
+        self._context_registered = True
+        logger.info(f"Agent context 已注册: {self.agent_context.get_agent_session_label()}")
+
+    def close(self) -> None:
+        """关闭 Agent 并释放当前已注册的运行时资源。"""
+        if self._closed:
+            return
+        self._closed = True
+
+        if self._context_registered:
+            from app.core.context.agent_context_registry import AgentContextRegistry
+            AgentContextRegistry.get_instance().unregister(self.agent_context)
+            self._context_registered = False
+            logger.info(f"Agent context 已注销: {self.agent_context.get_agent_session_label()}")
+
+    def dispose(self) -> None:
+        """兼容性别名，语义等同于 close()。"""
+        self.close()
 
     # compact-chat-history skill 永久挂载，无需在 .agent 文件中声明
     _ALWAYS_MOUNT_SKILL = "compact-chat-history"

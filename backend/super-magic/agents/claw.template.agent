@@ -20,8 +20,6 @@ tools:
   - delete_files
   - shell_exec
   - run_python_snippet
-  - call_subagent
-  - wait_for_subagents
   - manage_cron
 skills:
   system_skills: "*"

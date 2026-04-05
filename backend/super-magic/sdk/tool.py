@@ -81,10 +81,14 @@ class ToolSDK:
             tool_call_id = f"call_{uuid.uuid4().hex[:24]}"
 
         # 构建请求数据
+        # agent_context_id 由 run_skills_snippet 注入到子进程环境变量，
+        # 服务端用它精确路由到发起调用的 Agent context。
+        agent_context_id = os.getenv("SUPER_MAGIC_AGENT_CONTEXT_ID", "")
         request_data = {
             "tool_name": tool_name,
             "tool_params": tool_params,
             "tool_call_id": tool_call_id,
+            "agent_context_id": agent_context_id,
         }
 
         # 发起 HTTP 请求
