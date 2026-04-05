@@ -229,7 +229,17 @@ Python 代码中凡是涉及文件操作，必须使用 `app/utils/async_file_ut
 - `config/tool_definitions.json` 是缓存文件，不要手动编辑
 - 修改工具的真实来源应为 `app/tools/` 下的工具代码；缓存如有需要应走项目既有生成流程刷新
 
-## 15. 每次改动前自检
+## 15. 深度参考文档索引
+
+以下文档不需要常驻上下文，按需查阅：
+
+| 文档 | 路径 | 何时查阅 |
+|------|------|---------|
+| Agent 运行时与发布链路 | `agents/AGENT_RUNTIME_AND_PUBLISH_GUIDE.md` | 需要理解 Crew/Claw 运行时、Agent 编译流程、发布链路时 |
+| 工具/Skill/Code Mode/CLI 范式 | `agents/AGENT_TOOL_SKILL_CODE_MODE_CLI.md` | 设计新能力、决定用工具还是 Skill、理解 Code Mode 机制时 |
+| Skill 开发指南 | `agents/SKILLS_DEVELOPMENT_GUIDE.md` | 新建或修改 Skill、需要了解 SKILL.md 规范和最佳实践时 |
+
+## 16. 每次改动前自检
 
 - 这是在解决真实问题，还是在满足抽象冲动？
 - 这层包装有没有新增语义？
