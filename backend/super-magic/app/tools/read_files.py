@@ -371,7 +371,7 @@ class ReadFiles(AbstractFileTool[ReadFilesParams], WorkspaceTool[ReadFilesParams
 
         # 添加每个文件的内容
         truncated_files = []  # 收集所有被截断的文件，用于最后生成详细指导
-        has_relative_path_not_found = False  # 是否有相对路径找不到文件，用于批量输出 Skill Hint
+        has_skill_reference_path_not_found = False  # 仅当像 skill reference 路径时才输出 Skill Hint
 
         for idx, result in enumerate(results):
             # 添加文件分隔符（除了第一个文件）
@@ -389,18 +389,19 @@ class ReadFiles(AbstractFileTool[ReadFilesParams], WorkspaceTool[ReadFilesParams
                 # 对失败的文件只输出错误信息，不在每个文件下重复 Skill Hint
                 if result.error_message:
                     formatted_parts.append(f"## 文件: {result.file_path}\n\n**读取失败**: {result.error_message}\n")
-                    # 标记：有相对路径找不到的情况，稍后统一输出一次 Skill Hint
+                    # 标记：只有相对路径且路径段里包含 reference 时，才认为像 skill reference 路径
                     if (
                         result.error_type == "read_file.error_file_not_exist"
                         and not result.file_path.startswith("/")
+                        and "reference" in Path(result.file_path).parts
                     ):
-                        has_relative_path_not_found = True
+                        has_skill_reference_path_not_found = True
                 else:
                     error_detail = i18n.translate("read_file.error_detail", category="tool.messages")
                     formatted_parts.append(f"## 文件: {result.file_path}\n\n{error_detail}\n")
 
         # Skill 相对路径 Hint：整批只输出一次，位于所有文件内容之后
-        if has_relative_path_not_found:
+        if has_skill_reference_path_not_found:
             formatted_parts.append(
                 "\n\n[Hint] One or more file paths are relative and were not found. "
                 "If you are reading skill-related files, you MUST construct absolute paths. "
