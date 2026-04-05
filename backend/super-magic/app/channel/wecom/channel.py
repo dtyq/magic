@@ -14,11 +14,12 @@ from wecom_aibot_sdk import WSClient, generate_req_id
 
 from app.channel.base.channel import BaseChannel
 from app.core.entity.message.client_message import ChatClientMessage, Metadata
-from app.channel.base.keepalive import ChannelKeepalive
 from app.channel.base.third_party_message import dispatch_third_party_message
 from app.channel.wecom.stream import WeComStream
 from app.channel.wecom.streaming_driver import WeComStreamingDriver
 from app.channel.config import IMChannelsConfig, IMChannelDisplay
+from app.core.keepalive_registry import KeepaliveRegistry
+from app.utils.time_utils import now_ms
 
 logger = get_logger(__name__)
 
@@ -33,7 +34,7 @@ class WeComChannel(BaseChannel):
     def __init__(self) -> None:
         self._ws_client: Optional[WSClient] = None
         self._connect_task: Optional[asyncio.Task] = None
-        self._keepalive = ChannelKeepalive("WeCom", is_active=lambda: self.is_connected)
+        self._last_message_at_ms: int = 0
         self._display = IMChannelDisplay()
         # 缓存最后一次收到的消息 frame，供 cron 主动推送复用会话上下文
         self._last_frame: Optional[dict] = None
@@ -66,6 +67,7 @@ class WeComChannel(BaseChannel):
             self._last_frame = state.last_frame
             user_id = state.last_frame.get("body", {}).get("sender", {}).get("userid", "")
             logger.info(f"[WeComChannel] 恢复运行态: last_frame.sender.userid={user_id}")
+        self._last_message_at_ms = state.last_message_at_ms
 
         self._display = credential.display
         await self.connect(credential.bot_id, credential.secret)
@@ -82,18 +84,23 @@ class WeComChannel(BaseChannel):
             secret=secret,
             max_reconnect_attempts=-1,
         )
-        self._ws_client.on("authenticated", lambda: logger.info("[WeComChannel] 认证成功"))
+        def _on_authenticated() -> None:
+            logger.info("[WeComChannel] 认证成功")
+            keepalive_registry = KeepaliveRegistry.get_instance()
+            keepalive_registry.restore_message_time(self.key, self._last_message_at_ms)
+            keepalive_registry.notify_connected_once(self.key)
+
+        self._ws_client.on("authenticated", _on_authenticated)
         self._ws_client.on("disconnected", lambda reason: logger.warning(f"[WeComChannel] 断开: {reason}"))
         self._ws_client.on("error", lambda e: logger.error(f"[WeComChannel] 错误: {e}"))
         self._ws_client.on("message.text", self._on_text)
 
         self._connect_task = asyncio.create_task(self._ws_client.connect())
-        self._keepalive.start()
         logger.info(f"[WeComChannel] 连接中，bot_id={bot_id}")
 
     async def disconnect(self) -> None:
         """断开连接并清理资源。"""
-        self._keepalive.stop()
+        KeepaliveRegistry.get_instance().reset_source(self.key)
         if self._ws_client:
             await self._ws_client.disconnect()
             self._ws_client = None
@@ -116,11 +123,19 @@ class WeComChannel(BaseChannel):
         if not content:
             return
 
+        current_message_at_ms = now_ms()
+        self._last_message_at_ms = current_message_at_ms
+        KeepaliveRegistry.get_instance().notify_message(self.key, current_message_at_ms)
         # 缓存 frame，供 cron 主动推送复用，并持久化供重启后使用
         self._last_frame = frame
         try:
             from app.channel.wecom.state import WeComRuntimeState, save_runtime_state
-            await save_runtime_state(WeComRuntimeState(last_frame=frame))
+            await save_runtime_state(
+                WeComRuntimeState(
+                    last_frame=frame,
+                    last_message_at_ms=current_message_at_ms,
+                )
+            )
         except Exception as e:
             logger.warning(f"[WeComChannel] 保存运行态失败: {e}")
 

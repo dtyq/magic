@@ -22,6 +22,7 @@ _STATE_FILENAME = "lark-runtime-state.json"
 class LarkRuntimeState:
     # 最后一次收到用户消息的 chat_id，跨重启保留供 cron 主动推送复用
     last_chat_id: str = ""
+    last_message_at_ms: int = 0
 
 
 def _state_file() -> Path:
@@ -41,6 +42,7 @@ async def load_runtime_state() -> LarkRuntimeState:
 
     return LarkRuntimeState(
         last_chat_id=str(data.get("last_chat_id") or ""),
+        last_message_at_ms=int(data.get("last_message_at_ms") or 0),
     )
 
 

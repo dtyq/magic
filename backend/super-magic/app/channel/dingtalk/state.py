@@ -24,6 +24,7 @@ _STATE_FILENAME = "dingtalk-runtime-state.json"
 class DingTalkRuntimeState:
     # 最后一次收到用户消息时的原始 callback.data dict，跨重启保留供 cron 主动推送复用
     last_message_data: dict[str, Any] = field(default_factory=dict)
+    last_message_at_ms: int = 0
 
 
 def _state_file() -> Path:
@@ -43,12 +44,18 @@ async def load_runtime_state() -> DingTalkRuntimeState:
 
     return DingTalkRuntimeState(
         last_message_data=data.get("last_message_data") or {},
+        last_message_at_ms=int(data.get("last_message_at_ms") or 0),
     )
 
 
 async def save_runtime_state(state: DingTalkRuntimeState) -> None:
     await async_write_json(
-        _state_file(), {"last_message_data": state.last_message_data}, ensure_ascii=False
+        _state_file(),
+        {
+            "last_message_data": state.last_message_data,
+            "last_message_at_ms": state.last_message_at_ms,
+        },
+        ensure_ascii=False,
     )
 
 
