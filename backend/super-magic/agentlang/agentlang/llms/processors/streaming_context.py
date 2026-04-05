@@ -32,7 +32,8 @@ from .chunk_processor import ChunkProcessor
 logger = get_logger(__name__)
 
 DEFAULT_TIMEOUT = int(config.get("llm.api_timeout", 1800))
-CHUNK_TIMEOUT = int(config.get("llm.chunk_timeout", 120))
+# 后续 chunk 超时的全局兜底值（正常路径由 ProcessorConfig.stream_chunk_timeout_seconds 覆盖）
+CHUNK_TIMEOUT = int(config.get("llm.chunk_timeout", 10))
 
 
 @dataclass
@@ -253,8 +254,17 @@ class StreamResponseHandler:
         finish_reason: Optional[str] = None
         usage: Optional[CompletionUsage] = None
 
-        # 添加流处理超时控制，设置为DEFAULT_TIMEOUT + 60秒的缓冲
+        # 流处理整体超时兜底（保留宽松上限，防止极端情况下进程永久挂起）
         stream_timeout = DEFAULT_TIMEOUT + 60
+
+        # 首包 deadline：http_request_start_time + 首包窗口；响应头返回后，首个 chunk 只使用剩余预算
+        first_chunk_timeout = processor_config.stream_first_chunk_timeout_seconds
+        first_chunk_deadline = (
+            (http_request_start_time or stream_start_time) + first_chunk_timeout
+            if first_chunk_timeout else None
+        )
+        chunk_timeout = processor_config.stream_chunk_timeout_seconds or CHUNK_TIMEOUT
+
         last_chunk = None  # 保存最后一个 chunk 用于日志输出（仅用于日志）
 
         try:
@@ -267,9 +277,16 @@ class StreamResponseHandler:
                 # 并行任务机制：同时等待chunk和中断事件
                 stream_iter = aiter(stream)
                 while True:
+                    # 首个 chunk 使用首包剩余预算，后续 chunk 使用固定超时
+                    if state.received_chunk_count == 0 and first_chunk_deadline is not None:
+                        remaining = max(first_chunk_deadline - time.time(), 0.001)
+                        effective_chunk_timeout = remaining
+                    else:
+                        effective_chunk_timeout = chunk_timeout
+
                     # 创建chunk等待任务
                     chunk_task = asyncio.create_task(
-                        asyncio.wait_for(anext(stream_iter), timeout=CHUNK_TIMEOUT),
+                        asyncio.wait_for(anext(stream_iter), timeout=effective_chunk_timeout),
                         name=f"chunk_wait_{state.received_chunk_count}"
                     )
 

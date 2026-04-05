@@ -38,7 +38,7 @@ from agentlang.llms.token_usage.models import TokenUsage
 from agentlang.logger import get_logger
 from agentlang.tools.tool_result import ToolResult
 from agentlang.utils.token_estimator import num_tokens_from_string
-from agentlang.exceptions import UserFriendlyException, ResourceLimitExceededException
+from agentlang.exceptions import UserFriendlyException, ResourceLimitExceededException, LLMFastRetryExhaustedException
 from agentlang.utils.tool_param_utils import preprocess_tool_calls_batch
 from openai.types.chat import ChatCompletion, ChatCompletionMessage, ChatCompletionMessageToolCall
 
@@ -81,6 +81,8 @@ class AgentLoopState:
     final_response: Optional[str] = None
     last_llm_message: Optional[ChatCompletionMessage] = None
     should_continue: bool = True
+    retry_guidance_injected: bool = False  # 同一个 run 只注入一次重试 guidance
+    llm_call_in_progress: bool = False  # 当前异常是否发生在 LLM 调用阶段
 
 
 @dataclass
@@ -867,7 +869,9 @@ class Agent(BaseAgent):
                     if loop_state.llm_retry_count > 0:
                         logger.info(f"开始调用LLM（第{loop_state.llm_retry_count}次重试）")
 
+                    loop_state.llm_call_in_progress = True
                     llm_context = await self._prepare_and_call_llm(retry_count=loop_state.llm_retry_count)
+                    loop_state.llm_call_in_progress = False
                     loop_state.last_llm_message = llm_context.message  # 保存用于循环结束时的最终响应
 
                     # ✨ 新增：在保存到聊天记录前先预处理工具参数
@@ -933,6 +937,7 @@ class Agent(BaseAgent):
             except Exception as e:
                 # 处理其他异常情况
                 exception_result = await self._handle_agent_loop_exception(e, loop_state)
+                loop_state.llm_call_in_progress = False
                 if exception_result.final_response:
                     loop_state.final_response = exception_result.final_response
                 if not exception_result.should_continue:
@@ -1744,6 +1749,17 @@ Since your subsequent output will be merged with pre-interruption content and di
         # 处理中断的工具调用
         await self._handle_interrupted_tool_calls(exception)
 
+        # LLM 内层快速重试已耗尽：直接结束本轮，不再外层退避重试
+        for exc in self._iter_exception_chain(exception):
+            if isinstance(exc, LLMFastRetryExhaustedException):
+                logger.warning(f"LLM 快速重试已耗尽，停止外层泛化重试: {exc}")
+                loop_state.last_llm_message = None
+                self._apply_final_task_state(build_final_task_state(
+                    FinalTaskStateCode.MESSAGE_PROCESSING_FAILED,
+                    vendor_message=str(exc),
+                ))
+                return ExceptionHandlingResult(should_continue=False, final_response=None)
+
         final_task_state = self._build_final_task_state_from_exception(exception)
         if final_task_state is not None:
             logger.warning(f"检测到终态异常 {final_task_state.code.value}，停止当前任务的自动重试")
@@ -1758,8 +1774,9 @@ Since your subsequent output will be merged with pre-interruption content and di
         self.set_agent_state(AgentState.ERROR)
 
         # 更新计数器
-        loop_state.llm_retry_count += 1
         loop_state.run_exception_count += 1
+        if loop_state.llm_call_in_progress:
+            loop_state.llm_retry_count += 1
 
         # 计算重试策略
         max_retries = 10
@@ -1770,33 +1787,27 @@ Since your subsequent output will be merged with pre-interruption content and di
         # 判断是否可以继续重试
         can_continue = loop_state.run_exception_count < max_retries and total_retry_wait_time < 900
 
-        # 准备错误内容
-        error_content = None
-        if can_continue:
-            if loop_state.run_exception_count == 1:
-                error_content = (
-                    "Task execution failed. Common causes:\n"
-                    "1. Your output was too large. You must split it into small chunks and send only a small portion at a time.\n"
-                    "2. Your tool call arguments were invalid. Check for syntax errors, type mismatches, or missing required fields, then try again."
-                )
-                logger.info(f"将等待{wait_time:.1f}秒后进行第{loop_state.run_exception_count}次重试（总计已等待{total_retry_wait_time:.1f}秒）")
-            elif loop_state.run_exception_count == 2:
-                error_content = "You must keep the output small and complete the task in short chunks."
-            elif loop_state.run_exception_count == 3:
-                error_content = "Do not output too much at once. Keep every response short and complete the task in small chunks."
-            else:
-                # skip, do not append error content anymore
-                pass
-        else:
-            error_content = (
+        # 错误 guidance：整个 run 只注入一次
+        if can_continue and not loop_state.retry_guidance_injected:
+            guidance = (
+                "Task execution failed. Keep every reply short, avoid large outputs, "
+                "and verify tool call arguments before retrying."
+            )
+            try:
+                await self.chat_history.append_user_message(guidance, show_in_ui=False)
+                loop_state.retry_guidance_injected = True
+            except Exception as append_err:
+                logger.error(f"添加重试 guidance 到历史记录时失败: {append_err}")
+
+        # 终态 guidance：通知模型自行收尾
+        final_guidance = None
+        if not can_continue:
+            final_guidance = (
                 "The execution environment is in an unrecoverable state, so the task should not continue. "
                 "Review your progress, summarize what you completed and what errors you encountered, then end the task."
             )
-
-        # 添加错误消息到历史
-        if error_content:
             try:
-                await self.chat_history.append_user_message(error_content, show_in_ui=False)
+                await self.chat_history.append_user_message(final_guidance, show_in_ui=False)
             except Exception as append_err:
                 logger.error(f"添加最终错误消息到历史记录时失败: {append_err}")
 
@@ -1807,7 +1818,7 @@ Since your subsequent output will be merged with pre-interruption content and di
             return ExceptionHandlingResult(should_continue=True, final_response=None)
         else:
             logger.warning(f"已达到最大重试次数({max_retries})或最大等待时间(15分钟)，退出循环")
-            return ExceptionHandlingResult(should_continue=False, final_response=error_content)
+            return ExceptionHandlingResult(should_continue=False, final_response=final_guidance)
 
     async def _handle_interrupted_tool_calls(self, exception: Exception) -> None:
         """

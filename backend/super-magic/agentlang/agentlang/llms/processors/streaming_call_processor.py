@@ -115,10 +115,20 @@ class StreamingCallProcessor:
 
                 # 记录HTTP请求发送时间
                 http_request_start_time = time.time()
-                logger.info(f"[{request_id}] 发送HTTP流式请求... (correlation_id={correlation_id})")
+                first_chunk_timeout = processor_config.stream_first_chunk_timeout_seconds
+                logger.info(
+                    f"[{request_id}] 发送HTTP流式请求... "
+                    f"首包窗口={first_chunk_timeout}s (correlation_id={correlation_id})"
+                )
 
-                # 发送流式请求并处理响应
-                stream: AsyncIterator[ChatCompletionChunk] = await client.chat.completions.create(**request_params)
+                # 首包预算覆盖"请求发出 -> 响应头 -> 首个 chunk"整段总时间
+                if first_chunk_timeout:
+                    stream: AsyncIterator[ChatCompletionChunk] = await asyncio.wait_for(
+                        client.chat.completions.create(**request_params),
+                        timeout=first_chunk_timeout,
+                    )
+                else:
+                    stream: AsyncIterator[ChatCompletionChunk] = await client.chat.completions.create(**request_params)
 
                 # HTTP响应头返回时间
                 http_response_time = time.time()

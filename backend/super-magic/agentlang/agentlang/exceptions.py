@@ -42,6 +42,24 @@ class UserFriendlyException(Exception, ABC):
         pass
 
 
+class LLMFastRetryExhaustedException(Exception):
+    """内层 LLM 快速重试已耗尽：流式多次尝试 + 非流式 fallback 全部失败。
+
+    agent.py 收到此异常后应直接结束本轮，不再继续外层泛化退避重试。
+    """
+
+    def __init__(
+        self,
+        message: str,
+        *,
+        stream_error: Optional[Exception] = None,
+        fallback_error: Optional[Exception] = None,
+    ):
+        super().__init__(message)
+        self.stream_error = stream_error
+        self.fallback_error = fallback_error
+
+
 class ResourceLimitExceededException(UserFriendlyException):
     """资源限制超出异常，用于处理各种资源超限情况
 
