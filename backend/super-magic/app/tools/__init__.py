@@ -93,10 +93,7 @@ import app.tools.design.utils  # pyright: ignore[reportUnusedImport]
 import app.tools.design  # pyright: ignore[reportUnusedImport]
 from app.tools.design.tools import (
     CreateDesignProject,
-    CreateCanvasElement,
-    UpdateCanvasElement,
     DeleteCanvasElement,
-    ReorderCanvasElements,
     QueryCanvasOverview,
     QueryCanvasElement,
     BatchCreateCanvasElements,
@@ -219,10 +216,7 @@ __all__ = [
 
     # 设计模式工具
     "CreateDesignProject",
-    "CreateCanvasElement",
-    "UpdateCanvasElement",
     "DeleteCanvasElement",
-    "ReorderCanvasElements",
     "QueryCanvasOverview",
     "QueryCanvasElement",
     "BatchCreateCanvasElements",
