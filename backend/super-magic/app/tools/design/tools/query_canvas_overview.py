@@ -182,13 +182,10 @@ class QueryCanvasOverview(BaseDesignTool[QueryCanvasOverviewParams]):
 
             # Initialize CanvasManager
             manager = CanvasManager(str(project_path))
-            await manager.load()
-
-            # Get project configuration
-            config = manager.config
+            config = await manager.read_current_canvas()
 
             # Get canvas statistics
-            stats = await manager.get_statistics()
+            stats = await manager.get_statistics(config=config)
 
             # Build query conditions
             query = ElementQuery(
@@ -196,7 +193,7 @@ class QueryCanvasOverview(BaseDesignTool[QueryCanvasOverviewParams]):
             )
 
             # Query elements
-            elements = await manager.query_elements(query)
+            elements = await manager.query_elements(query, config=config)
 
             # Filter by element types if specified
             if params.element_types:

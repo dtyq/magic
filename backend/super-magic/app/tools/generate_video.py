@@ -1714,8 +1714,7 @@ class QueryVideoGeneration(AbstractFileTool[QueryVideoGenerationParams], Workspa
         from app.tools.design.manager.canvas_manager import CanvasManager
 
         manager = CanvasManager(str(self.resolve_path(project_path)))
-        await manager.load()
-        element = await manager.get_element_by_id(element_id)
+        element = await manager.read_current_element_by_id(element_id)
         if element is None:
             raise ValueError(f"未找到需要回填的视频元素: {element_id}")
 

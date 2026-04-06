@@ -28,6 +28,8 @@ from app.tools.design.utils.magic_project_design_parser import (
     StarElement,
     FrameElement,
     GroupElement,
+    MagicProjectConfig,
+    flatten_all_elements,
 )
 
 logger = get_logger(__name__)
@@ -202,7 +204,7 @@ class QueryCanvasElement(BaseDesignTool[QueryCanvasElementParams]):
 
             # Initialize CanvasManager
             manager = CanvasManager(str(project_path))
-            await manager.load()
+            current_config = await manager.read_current_canvas()
 
             # Get element by ID or src
             element = None
@@ -210,13 +212,13 @@ class QueryCanvasElement(BaseDesignTool[QueryCanvasElementParams]):
 
             if params.element_id:
                 # 优先使用 element_id 查询
-                element = await manager.get_element_by_id(params.element_id)
+                element = await manager.get_element_by_id(params.element_id, config=current_config)
                 query_info = f"element_id: {params.element_id}"
                 if element is None:
                     return self._error_element_not_found(params.element_id)
             elif params.src:
                 # 使用 src 查询
-                element = await self._find_element_by_src(manager, params.src)
+                element = await self._find_element_by_src(current_config, params.src)
                 query_info = f"src: {params.src}"
                 if element is None:
                     return ToolResult.error(
@@ -235,33 +237,47 @@ class QueryCanvasElement(BaseDesignTool[QueryCanvasElementParams]):
                 # 检查是否是新生成的（通过 analyzedAt 判断）
                 vu = element.visualUnderstanding
                 if (isinstance(vu, dict) and vu.get('analyzedAt')) or (hasattr(vu, 'analyzedAt') and vu.analyzedAt):
-                    logger.info(f"保存新生成的视觉理解信息到元素 {params.element_id}")
+                    target_element_id = element.id
+                    logger.info(f"保存新生成的视觉理解信息到元素 {target_element_id}")
                     updates = {'visualUnderstanding': element.visualUnderstanding}
-                    await manager.update_element(params.element_id, updates)
-
                     # 获取配置文件路径
                     config_file = self._get_magic_project_js_path(project_path)
 
-                    # 触发文件更新前事件（保存旧内容用于checkpoint回滚）
-                    await self._dispatch_file_event(tool_context, str(config_file), EventType.BEFORE_FILE_UPDATED)
-
-                    # 安全地保存更改
-                    save_error = await self._safe_save_canvas(manager, "query element with visual understanding")
-                    if save_error:
+                    try:
+                        await manager.run_write_transaction(
+                            lambda config: manager.update_element(
+                                target_element_id,
+                                updates,
+                                config=config,
+                            ),
+                            verify_content=lambda verified_config, _: any(
+                                candidate.id == target_element_id
+                                and getattr(candidate, "visualUnderstanding", None)
+                                for candidate in flatten_all_elements(verified_config)
+                            ),
+                            before_write=lambda: self._dispatch_file_event(
+                                tool_context,
+                                str(config_file),
+                                EventType.BEFORE_FILE_UPDATED,
+                            ),
+                            after_write=lambda _: self._dispatch_file_event(
+                                tool_context,
+                                str(config_file),
+                                EventType.FILE_UPDATED,
+                            ),
+                        )
+                    except Exception as save_error:  # noqa: BLE001
                         # 视觉理解保存失败不影响查询结果，仅记录警告
-                        logger.warning(f"保存视觉理解结果失败: {save_error.content}")
-                    else:
-                        # 触发文件更新后事件（通知其他系统）
-                        await self._dispatch_file_event(tool_context, str(config_file), EventType.FILE_UPDATED)
+                        logger.warning(f"保存视觉理解结果失败: {save_error}")
 
             # Add surrounding elements analysis if requested
             if params.include_surrounding:
-                surrounding = await self._analyze_surrounding_elements(element, manager)
+                surrounding = await self._analyze_surrounding_elements(element, current_config)
                 element_data["surrounding_elements"] = surrounding
 
             # Add layer context if requested
             if params.include_layer_context:
-                layer_context = await self._analyze_layer_context(element, manager)
+                layer_context = await self._analyze_layer_context(element, current_config)
                 element_data["layer_context"] = layer_context
 
             # Generate result content
@@ -283,17 +299,16 @@ class QueryCanvasElement(BaseDesignTool[QueryCanvasElementParams]):
                 extra_info={"error_type": "design.error_unexpected"}
             )
 
-    async def _find_element_by_src(self, manager: CanvasManager, src: str) -> Optional[Any]:
+    async def _find_element_by_src(self, config: MagicProjectConfig, src: str) -> Optional[Any]:
         """通过 src 查找图片元素
 
         Args:
-            manager: Canvas manager
+            config: 当前画布配置
             src: 图片的 src 路径（可能带或不带开头的 /）
 
         Returns:
             找到的元素对象，如果没找到返回 None
         """
-        config = manager.config
         if not config.canvas or not config.canvas.elements:
             return None
 
@@ -617,19 +632,17 @@ class QueryCanvasElement(BaseDesignTool[QueryCanvasElementParams]):
     async def _analyze_surrounding_elements(
         self,
         element: Any,
-        manager: CanvasManager
+        config: MagicProjectConfig
     ) -> List[Dict[str, Any]]:
         """Analyze surrounding elements
 
         Args:
             element: Target element
-            manager: Canvas manager
+            config: 当前画布配置
 
         Returns:
             List of surrounding elements with distance info
         """
-        # Get all elements
-        config = manager.config
         if not config.canvas or not config.canvas.elements:
             return []
 
@@ -670,18 +683,17 @@ class QueryCanvasElement(BaseDesignTool[QueryCanvasElementParams]):
     async def _analyze_layer_context(
         self,
         element: Any,
-        manager: CanvasManager
+        config: MagicProjectConfig
     ) -> Dict[str, Any]:
         """Analyze layer context
 
         Args:
             element: Target element
-            manager: Canvas manager
+            config: 当前画布配置
 
         Returns:
             Layer context information
         """
-        config = manager.config
         if not config.canvas or not config.canvas.elements:
             return {"below": [], "above": []}
 

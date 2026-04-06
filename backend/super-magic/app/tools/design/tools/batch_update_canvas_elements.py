@@ -18,6 +18,7 @@ from app.tools.core import BaseToolParams, tool
 from app.tools.design.manager.canvas_manager import CanvasManager
 from app.tools.design.tools.base_design_tool import BaseDesignTool
 from app.tools.design.constants import MAX_BATCH_ELEMENTS
+from app.tools.design.utils.magic_project_design_parser import flatten_all_elements
 
 logger = get_logger(__name__)
 
@@ -250,73 +251,62 @@ class BatchUpdateCanvasElements(BaseDesignTool[BatchUpdateCanvasElementsParams])
 
             # 2. 获取项目管理器
             manager = CanvasManager(str(project_path))
+            config_file = self._get_magic_project_js_path(project_path)
 
-            # 3. 批量更新（只加载和保存一次文件）
-            async with manager.with_lock():
-                await manager.load()
+            results = await manager.run_write_transaction(
+                lambda config: self._apply_batch_updates(manager, config, params.updates),
+                verify_content=lambda verified_config, transaction_results: all(
+                    (not result.get("success"))
+                    or any(
+                        candidate.id == result["element_id"]
+                        for candidate in flatten_all_elements(verified_config)
+                    )
+                    for result in transaction_results
+                ),
+                before_write=lambda: self._dispatch_file_event(
+                    tool_context,
+                    str(config_file),
+                    EventType.BEFORE_FILE_UPDATED,
+                ),
+                after_write=lambda _: self._dispatch_file_event(
+                    tool_context,
+                    str(config_file),
+                    EventType.FILE_UPDATED,
+                ),
+            )
 
-                results = []
-                updated_ids = []
-
-                # 4. 逐个更新元素
-                for update in params.updates:
-                    try:
-                        # 4.1 检查元素是否存在
-                        element = await manager.get_element_by_id(update.element_id)
-                        if element is None:
-                            raise ValueError(f"Element not found: {update.element_id}")
-
-                        # 4.2 构建更新字典
-                        updates_dict = self._build_updates_dict(update)
-                        if not updates_dict:
-                            raise ValueError("No valid updates provided")
-
-                        # 4.3 应用更新
-                        success = await manager.update_element(
-                            update.element_id, updates_dict
+            visual_updates = await self._perform_visual_understanding_for_updated_images(
+                manager=manager,
+                project_path=project_path,
+                results=results,
+                updates=params.updates
+            )
+            if visual_updates:
+                await manager.run_write_transaction(
+                    lambda config: self._apply_visual_understanding_updates(
+                        manager,
+                        config,
+                        visual_updates,
+                    ),
+                    verify_content=lambda verified_config, _: all(
+                        any(
+                            candidate.id == element_id
+                            and getattr(candidate, "visualUnderstanding", None)
+                            for candidate in flatten_all_elements(verified_config)
                         )
-                        if not success:
-                            raise ValueError("Update failed")
-
-                        # 4.4 记录成功
-                        results.append({
-                            "success": True,
-                            "element_id": update.element_id,
-                            "element_name": element.name,
-                            "element_type": element.type,
-                            "updated_fields": list(updates_dict.keys())
-                        })
-                        updated_ids.append(update.element_id)
-
-                    except Exception as e:
-                        logger.error(f"Failed to update element {update.element_id}: {e}")
-                        results.append({
-                            "success": False,
-                            "element_id": update.element_id,
-                            "error": str(e)
-                        })
-
-                # 5. 在保存前，对更新了 src 的图片元素执行视觉理解
-                await self._perform_visual_understanding_for_updated_images(
-                    manager=manager,
-                    project_path=project_path,
-                    results=results,
-                    updates=params.updates
+                        for element_id in visual_updates
+                    ),
+                    before_write=lambda: self._dispatch_file_event(
+                        tool_context,
+                        str(config_file),
+                        EventType.BEFORE_FILE_UPDATED,
+                    ),
+                    after_write=lambda _: self._dispatch_file_event(
+                        tool_context,
+                        str(config_file),
+                        EventType.FILE_UPDATED,
+                    ),
                 )
-
-                # 6. 保存配置（一次性保存，包含视觉理解结果）并触发文件更新事件
-                config_file = self._get_magic_project_js_path(project_path)
-
-                # 触发文件更新前事件（保存旧内容用于checkpoint回滚）
-                await self._dispatch_file_event(tool_context, str(config_file), EventType.BEFORE_FILE_UPDATED)
-
-                # 安全地保存更改（包含批量更新 + 视觉理解结果）
-                save_error = await self._safe_save_canvas(manager, "batch update elements with visual understanding")
-                if save_error:
-                    return save_error
-
-                # 触发文件更新后事件（通知其他系统）
-                await self._dispatch_file_event(tool_context, str(config_file), EventType.FILE_UPDATED)
 
             # 7. 格式化输出结果
             return await self._format_batch_result(results, project_path, params, manager)
@@ -372,13 +362,71 @@ class BatchUpdateCanvasElements(BaseDesignTool[BatchUpdateCanvasElementsParams])
 
         return updates_dict
 
+    async def _apply_batch_updates(
+        self,
+        manager: CanvasManager,
+        config,
+        updates: List[ElementUpdate],
+    ) -> List[Dict[str, Any]]:
+        """在单次写事务里完成批量更新。"""
+        results: List[Dict[str, Any]] = []
+
+        for update in updates:
+            try:
+                element = await manager.get_element_by_id(update.element_id, config=config)
+                if element is None:
+                    raise ValueError(f"Element not found: {update.element_id}")
+
+                updates_dict = self._build_updates_dict(update)
+                if not updates_dict:
+                    raise ValueError("No valid updates provided")
+
+                success = await manager.update_element(
+                    update.element_id,
+                    updates_dict,
+                    config=config,
+                )
+                if not success:
+                    raise ValueError("Update failed")
+
+                results.append({
+                    "success": True,
+                    "element_id": update.element_id,
+                    "element_name": element.name,
+                    "element_type": element.type,
+                    "updated_fields": list(updates_dict.keys()),
+                })
+            except Exception as error:  # noqa: BLE001
+                logger.error(f"Failed to update element {update.element_id}: {error}")
+                results.append({
+                    "success": False,
+                    "element_id": update.element_id,
+                    "error": str(error),
+                })
+
+        return results
+
+    async def _apply_visual_understanding_updates(
+        self,
+        manager: CanvasManager,
+        config,
+        visual_updates: Dict[str, Any],
+    ) -> None:
+        """把视觉理解结果落到最新文件。"""
+        for element_id, visual_understanding in visual_updates.items():
+            await manager.update_element(
+                element_id,
+                {"visualUnderstanding": visual_understanding},
+                config=config,
+            )
+
     async def _perform_visual_understanding_for_updated_images(
         self,
         manager: CanvasManager,
         project_path: Path,
         results: List[Dict[str, Any]],
         updates: List[ElementUpdate]
-    ) -> None:
+    ) -> Dict[str, Any]:
         """对更新了 src 的图片元素自动执行视觉理解
 
         Args:
@@ -387,6 +435,8 @@ class BatchUpdateCanvasElements(BaseDesignTool[BatchUpdateCanvasElementsParams])
             results: 更新结果列表
             updates: 更新参数列表
         """
+        current_config = await manager.read_current_canvas()
+
         # 1. 收集所有更新了 src 的图片元素
         elements_to_analyze = []
 
@@ -404,7 +454,7 @@ class BatchUpdateCanvasElements(BaseDesignTool[BatchUpdateCanvasElementsParams])
                 continue
 
             # 获取元素
-            element = await manager.get_element_by_id(update.element_id)
+            element = await manager.get_element_by_id(update.element_id, config=current_config)
             if element is None:
                 logger.warning(f"无法找到元素 {update.element_id}，跳过视觉理解")
                 continue
@@ -417,7 +467,7 @@ class BatchUpdateCanvasElements(BaseDesignTool[BatchUpdateCanvasElementsParams])
 
         if not elements_to_analyze:
             logger.info("没有需要执行视觉理解的图片元素")
-            return
+            return {}
 
         logger.info(f"开始对 {len(elements_to_analyze)} 个更新了 src 的图片元素执行视觉理解（并发）")
 
@@ -440,7 +490,11 @@ class BatchUpdateCanvasElements(BaseDesignTool[BatchUpdateCanvasElementsParams])
         succeeded = sum(1 for _, success, _ in results if success)
         failed = len(results) - succeeded
         logger.info(f"视觉理解完成，共 {len(elements_to_analyze)} 个元素（成功: {succeeded}, 失败: {failed}）")
-        # 注意：不在此处保存，由调用方统一保存（包含批量更新 + 视觉理解结果）
+        return {
+            element_id: element.visualUnderstanding
+            for element_id, element in elements_to_analyze
+            if getattr(element, "visualUnderstanding", None)
+        }
 
     async def _format_batch_result(
         self, results: List[Dict[str, Any]], project_path: Path, params: BatchUpdateCanvasElementsParams, manager: CanvasManager

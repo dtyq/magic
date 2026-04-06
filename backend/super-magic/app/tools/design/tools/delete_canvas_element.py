@@ -16,6 +16,7 @@ from app.core.entity.message.server_message import ToolDetail, DisplayType, File
 from app.tools.core import BaseToolParams, tool
 from app.tools.design.manager.canvas_manager import CanvasManager
 from app.tools.design.tools.base_design_tool import BaseDesignTool
+from app.tools.design.utils.magic_project_design_parser import flatten_all_elements
 
 logger = get_logger(__name__)
 
@@ -130,43 +131,42 @@ class DeleteCanvasElement(BaseDesignTool[DeleteCanvasElementParams]):
             # Initialize CanvasManager
             manager = CanvasManager(str(project_path))
 
-            # Use canvas lock to protect the entire operation (prevent concurrent modifications)
-            async with manager.with_lock():
-                await manager.load()
+            current_config = await manager.read_current_canvas()
 
-                # Find which elements exist and collect their info before deletion
-                found_elements = []
-                not_found_ids = []
+            # Find which elements exist and collect their info before deletion
+            found_elements = []
+            not_found_ids = []
 
-                for element_id in element_ids_list:
-                    element = await manager.get_element_by_id(element_id)
-                    if element:
-                        found_elements.append(element)
-                    else:
-                        not_found_ids.append(element_id)
-
-                # Delete elements
-                if found_elements:
-                    found_ids = [e.id for e in found_elements]
-                    deleted_count = await manager.delete_elements(found_ids)
+            for element_id in element_ids_list:
+                element = await manager.get_element_by_id(element_id, config=current_config)
+                if element:
+                    found_elements.append(element)
                 else:
-                    deleted_count = 0
+                    not_found_ids.append(element_id)
 
-                # 获取配置文件路径
+            if found_elements:
+                found_ids = [element.id for element in found_elements]
                 config_file = self._get_magic_project_js_path(project_path)
 
-                # If any elements were deleted, save and dispatch events
-                if deleted_count > 0:
-                    # 触发文件更新前事件（保存旧内容用于checkpoint回滚）
-                    await self._dispatch_file_event(tool_context, str(config_file), EventType.BEFORE_FILE_UPDATED)
-
-                    # 安全地保存更改
-                    save_error = await self._safe_save_canvas(manager, "delete element")
-                    if save_error:
-                        return save_error
-
-                    # 触发文件更新后事件（通知其他系统）
-                    await self._dispatch_file_event(tool_context, str(config_file), EventType.FILE_UPDATED)
+                deleted_count = await manager.run_write_transaction(
+                    lambda config: manager.delete_elements(found_ids, config=config),
+                    verify_content=lambda verified_config, _: all(
+                        candidate.id not in set(found_ids)
+                        for candidate in flatten_all_elements(verified_config)
+                    ),
+                    before_write=lambda: self._dispatch_file_event(
+                        tool_context,
+                        str(config_file),
+                        EventType.BEFORE_FILE_UPDATED,
+                    ),
+                    after_write=lambda _: self._dispatch_file_event(
+                        tool_context,
+                        str(config_file),
+                        EventType.FILE_UPDATED,
+                    ),
+                )
+            else:
+                deleted_count = 0
 
             # Generate result content
             result_content = self._generate_result_content(

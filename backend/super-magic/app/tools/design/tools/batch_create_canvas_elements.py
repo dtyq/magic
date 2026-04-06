@@ -29,7 +29,9 @@ from app.tools.design.utils.magic_project_design_parser import (
     StarElement,
     FrameElement,
     GroupElement,
+    MagicProjectConfig,
     ALLOWED_ELEMENT_TYPES,
+    flatten_all_elements,
 )
 from app.tools.design.constants import (
     DEFAULT_ELEMENT_SPACING,
@@ -333,110 +335,37 @@ class BatchCreateCanvasElements(BaseDesignTool[BatchCreateCanvasElementsParams])
 
             # 3. 获取画布管理器
             manager = CanvasManager(str(project_path))
+            config_file = self._get_magic_project_js_path(project_path)
 
-            # 4. 执行批量创建
-            async with manager.with_lock():
-                await manager.load()
+            transaction_result = await manager.run_write_transaction(
+                lambda config: self._create_elements_in_transaction(
+                    tool_context,
+                    manager,
+                    params,
+                    config,
+                ),
+                verify_content=lambda verified_config, result: all(
+                    (not item.get("success"))
+                    or any(
+                        candidate.id == item["element_id"]
+                        for candidate in flatten_all_elements(verified_config)
+                    )
+                    for item in result["results"]
+                ),
+                before_write=lambda: self._dispatch_file_event(
+                    tool_context,
+                    str(config_file),
+                    EventType.BEFORE_FILE_UPDATED,
+                ),
+                after_write=lambda _: self._dispatch_file_event(
+                    tool_context,
+                    str(config_file),
+                    EventType.FILE_UPDATED,
+                ),
+            )
 
-                # 初始化结果列表
-                results = []
-                created_ids = []
-
-                # 获取基础 z-index（批量创建的元素使用相同的 z-index）
-                # 因为批量创建通常是平铺元素，不需要叠放
-                base_z_index = await manager.get_next_z_index()
-                if base_z_index == 0:
-                    base_z_index = 1  # 如果画布为空，从 1 开始
-
-                # 计算布局（如果启用自动布局）
-                positions = await self._calculate_layout(params, manager)
-
-                # 批量创建元素
-                for i, spec in enumerate(params.elements):
-                    try:
-                        # 应用自动布局
-                        if positions and i < len(positions):
-                            if spec.x is None:
-                                spec.x = positions[i]['x']
-                            if spec.y is None:
-                                spec.y = positions[i]['y']
-
-                        # 如果没有布局模式，但元素缺少坐标，使用智能位置计算
-                        elif spec.x is None or spec.y is None:
-                            # 获取元素尺寸（用于位置计算）
-                            element_width, element_height = await self._get_element_dimensions_with_fallback(
-                                element_type=spec.element_type,
-                                provided_width=spec.width,
-                                provided_height=spec.height,
-                                properties=spec.properties,
-                                default_width=DEFAULT_ELEMENT_WIDTH,
-                                default_height=DEFAULT_ELEMENT_HEIGHT
-                            )
-
-                            # 使用智能位置计算
-                            from app.tools.design.utils.canvas_layout_utils import calculate_next_element_position
-                            try:
-                                auto_x, auto_y = calculate_next_element_position(
-                                    config=manager.config,
-                                    element_width=element_width,
-                                    element_height=element_height
-                                )
-                                if spec.x is None:
-                                    spec.x = auto_x
-                                if spec.y is None:
-                                    spec.y = auto_y
-                                logger.info(
-                                    f"元素 {spec.name} 自动计算位置: ({spec.x}, {spec.y})"
-                                )
-                            except Exception as e:
-                                logger.warning(f"自动计算位置失败: {e}")
-                                # 失败时使用默认值
-                                if spec.x is None:
-                                    spec.x = 100.0
-                                if spec.y is None:
-                                    spec.y = 100.0
-
-                        # 创建单个元素（传入预计算的 z-index）
-                        element_id, element = await self._create_single_element(
-                            tool_context, manager, spec, i, base_z_index
-                        )
-
-                        results.append({
-                            "success": True,
-                            "index": i + 1,
-                            "element_id": element_id,
-                            "name": element.name,
-                            "type": element.type,
-                            "x": element.x,
-                            "y": element.y,
-                            "width": element.width,
-                            "height": element.height
-                        })
-                        created_ids.append(element_id)
-
-                    except Exception as e:
-                        logger.error(f"Failed to create element {spec.name}: {e}")
-                        results.append({
-                            "success": False,
-                            "index": i + 1,
-                            "name": spec.name,
-                            "type": spec.element_type,
-                            "error": str(e)
-                        })
-
-                # 保存配置（只保存一次）并触发文件更新事件
-                config_file = self._get_magic_project_js_path(project_path)
-
-                # 触发文件更新前事件（保存旧内容用于checkpoint回滚）
-                await self._dispatch_file_event(tool_context, str(config_file), EventType.BEFORE_FILE_UPDATED)
-
-                # 安全地保存更改
-                save_error = await self._safe_save_canvas(manager, "batch create elements")
-                if save_error:
-                    return save_error
-
-                # 触发文件更新后事件（通知其他系统）
-                await self._dispatch_file_event(tool_context, str(config_file), EventType.FILE_UPDATED)
+            results = transaction_result["results"]
+            created_ids = transaction_result["created_ids"]
 
             # 5. 对图片元素执行视觉理解（批量，并发限制为 10）
             image_element_ids = [
@@ -526,16 +455,100 @@ class BatchCreateCanvasElements(BaseDesignTool[BatchCreateCanvasElementsParams])
 
         return width, height
 
+    async def _create_elements_in_transaction(
+        self,
+        tool_context: ToolContext,
+        manager: CanvasManager,
+        params: BatchCreateCanvasElementsParams,
+        config: MagicProjectConfig,
+    ) -> Dict[str, Any]:
+        """在单次写事务里创建元素。"""
+        results: List[Dict[str, Any]] = []
+        created_ids: List[str] = []
+
+        base_z_index = await manager.get_next_z_index(config=config)
+        if base_z_index == 0:
+            base_z_index = 1
+
+        positions = await self._calculate_layout(params, config)
+        for index, spec in enumerate(params.elements):
+            try:
+                if positions and index < len(positions):
+                    if spec.x is None:
+                        spec.x = positions[index]["x"]
+                    if spec.y is None:
+                        spec.y = positions[index]["y"]
+                elif spec.x is None or spec.y is None:
+                    element_width, element_height = await self._get_element_dimensions_with_fallback(
+                        element_type=spec.element_type,
+                        provided_width=spec.width,
+                        provided_height=spec.height,
+                        properties=spec.properties,
+                        default_width=DEFAULT_ELEMENT_WIDTH,
+                        default_height=DEFAULT_ELEMENT_HEIGHT,
+                    )
+                    from app.tools.design.utils.canvas_layout_utils import calculate_next_element_position
+
+                    try:
+                        auto_x, auto_y = calculate_next_element_position(
+                            config=config,
+                            element_width=element_width,
+                            element_height=element_height,
+                        )
+                        if spec.x is None:
+                            spec.x = auto_x
+                        if spec.y is None:
+                            spec.y = auto_y
+                        logger.info(f"元素 {spec.name} 自动计算位置: ({spec.x}, {spec.y})")
+                    except Exception as error:  # noqa: BLE001
+                        logger.warning(f"自动计算位置失败: {error}")
+                        if spec.x is None:
+                            spec.x = 100.0
+                        if spec.y is None:
+                            spec.y = 100.0
+
+                element_id, element = await self._create_single_element(
+                    tool_context,
+                    manager,
+                    spec,
+                    index,
+                    base_z_index,
+                    config,
+                )
+                results.append({
+                    "success": True,
+                    "index": index + 1,
+                    "element_id": element_id,
+                    "name": element.name,
+                    "type": element.type,
+                    "x": element.x,
+                    "y": element.y,
+                    "width": element.width,
+                    "height": element.height,
+                })
+                created_ids.append(element_id)
+            except Exception as error:  # noqa: BLE001
+                logger.error(f"Failed to create element {spec.name}: {error}")
+                results.append({
+                    "success": False,
+                    "index": index + 1,
+                    "name": spec.name,
+                    "type": spec.element_type,
+                    "error": str(error),
+                })
+
+        return {"results": results, "created_ids": created_ids}
+
     async def _calculate_layout(
         self,
         params: BatchCreateCanvasElementsParams,
-        manager: CanvasManager
+        config: MagicProjectConfig
     ) -> Optional[List[Dict[str, float]]]:
         """计算自动布局位置
 
         Args:
             params: 批量创建参数
-            manager: 画布管理器
+        config: 当前画布配置
 
         Returns:
             位置列表，每个元素为 {"x": float, "y": float}；如果不需要自动布局则返回 None
@@ -559,9 +572,8 @@ class BatchCreateCanvasElements(BaseDesignTool[BatchCreateCanvasElementsParams])
         actual_start_y = params.start_y
 
         # 如果画布上已有元素，自动计算一个不重叠的起始位置
-        if manager.config and manager.config.canvas and manager.config.canvas.elements:
+        if config.canvas and config.canvas.elements:
             from app.tools.design.utils.canvas_layout_utils import calculate_next_element_position
-            from app.tools.design.utils.magic_project_design_parser import flatten_all_elements
 
             # 使用第一个元素的预估尺寸来计算起始位置
             first_elem = params.elements[0]
@@ -581,7 +593,7 @@ class BatchCreateCanvasElements(BaseDesignTool[BatchCreateCanvasElementsParams])
                 total_batch_width = count * estimated_width + (count - 1) * params.spacing
 
                 # 获取所有元素（包含子元素）
-                all_elements = flatten_all_elements(manager.config)
+                all_elements = flatten_all_elements(config)
 
                 # 检查是否有元素在当前预期的起始行（y 坐标接近 start_y）
                 # 如果有，说明当前行已经被占用，应该换到新行
@@ -606,7 +618,7 @@ class BatchCreateCanvasElements(BaseDesignTool[BatchCreateCanvasElementsParams])
             try:
                 if should_start_new_row:
                     # 换到新行：找到所有元素的最大 Y + 最大 height
-                    all_elements = flatten_all_elements(manager.config)
+                    all_elements = flatten_all_elements(config)
                     if all_elements:
                         max_bottom = max(
                             (e.absolute_y or 0) + (e.height or 0)
@@ -625,7 +637,7 @@ class BatchCreateCanvasElements(BaseDesignTool[BatchCreateCanvasElementsParams])
                 else:
                     # 不需要换行，使用智能位置计算
                     auto_x, auto_y = calculate_next_element_position(
-                        config=manager.config,
+                        config=config,
                         element_width=estimated_width,
                         element_height=estimated_height
                     )
@@ -633,7 +645,7 @@ class BatchCreateCanvasElements(BaseDesignTool[BatchCreateCanvasElementsParams])
                     actual_start_y = auto_y
                     logger.info(
                         f"批量布局自动计算起始位置: ({actual_start_x}, {actual_start_y})，"
-                        f"避免与现有 {len(manager.config.canvas.elements)} 个元素重叠"
+                        f"避免与现有 {len(config.canvas.elements)} 个元素重叠"
                     )
             except Exception as e:
                 logger.warning(f"自动计算起始位置失败，使用默认值: {e}")
@@ -822,7 +834,8 @@ class BatchCreateCanvasElements(BaseDesignTool[BatchCreateCanvasElementsParams])
         manager: CanvasManager,
         spec: ElementCreationSpec,
         index: int,
-        base_z_index: int
+        base_z_index: int,
+        config: MagicProjectConfig,
     ) -> tuple[str, Any]:
         """创建单个元素
 
@@ -872,9 +885,23 @@ class BatchCreateCanvasElements(BaseDesignTool[BatchCreateCanvasElementsParams])
         element = self._create_element_object(element_id, spec, z_index)
 
         # 8. 添加元素到画布
-        await manager.add_element(element)
+        await manager.add_element(element, config=config)
 
         return element_id, element
+
+    async def _apply_visual_understanding_updates(
+        self,
+        manager: CanvasManager,
+        config: MagicProjectConfig,
+        visual_updates: Dict[str, Any],
+    ) -> None:
+        """把视觉理解结果落到最新文件。"""
+        for element_id, visual_understanding in visual_updates.items():
+            await manager.update_element(
+                element_id,
+                {"visualUnderstanding": visual_understanding},
+                config=config,
+            )
 
     async def _auto_fill_image_dimensions(
         self,
@@ -1093,63 +1120,71 @@ class BatchCreateCanvasElements(BaseDesignTool[BatchCreateCanvasElementsParams])
 
         logger.info(f"开始批量视觉理解，共 {len(image_element_ids)} 个图片元素，并发数: {concurrency}")
 
-        # 重新加载最新状态
-        async with manager.with_lock():
-            await manager.load()
+        current_config = await manager.read_current_canvas()
+        image_elements = []
+        for element_id in image_element_ids:
+            element = await manager.get_element_by_id(element_id, config=current_config)
+            if element and hasattr(element, 'src') and element.src:
+                image_elements.append((element_id, element))
 
-            # 收集所有需要处理的图片元素
-            image_elements = []
-            for element_id in image_element_ids:
-                element = await manager.get_element_by_id(element_id)
-                if element and hasattr(element, 'src') and element.src:
-                    image_elements.append((element_id, element))
+        if not image_elements:
+            logger.info("没有需要执行视觉理解的图片元素")
+            return
 
-            if not image_elements:
-                logger.info("没有需要执行视觉理解的图片元素")
-                return
+        semaphore = asyncio.Semaphore(concurrency)
 
-            # 使用信号量限制并发数
-            semaphore = asyncio.Semaphore(concurrency)
+        async def process_single_image(element_id: str, element: ImageElement):
+            async with semaphore:
+                try:
+                    await self._perform_visual_understanding(element, project_path)
+                    logger.info(f"图片 {element_id} 视觉理解完成")
+                except Exception as e:
+                    logger.warning(f"图片 {element_id} 视觉理解失败: {e}")
 
-            async def process_single_image(element_id: str, element: ImageElement):
-                """处理单个图片的视觉理解"""
-                async with semaphore:
-                    try:
-                        await self._perform_visual_understanding(element, project_path)
-                        logger.info(f"图片 {element_id} 视觉理解完成")
-                    except Exception as e:
-                        # 视觉理解失败不影响元素创建
-                        logger.warning(f"图片 {element_id} 视觉理解失败: {e}")
+        await asyncio.gather(
+            *[process_single_image(element_id, element) for element_id, element in image_elements],
+            return_exceptions=True,
+        )
 
-            # 并发执行所有图片的视觉理解
-            tasks = [
-                process_single_image(element_id, element)
-                for element_id, element in image_elements
-            ]
-            await asyncio.gather(*tasks, return_exceptions=True)
+        visual_updates = {
+            element_id: element.visualUnderstanding
+            for element_id, element in image_elements
+            if getattr(element, "visualUnderstanding", None)
+        }
+        if not visual_updates:
+            logger.info("批量视觉理解完成，但没有需要写回的新视觉理解结果")
+            return
 
-            # 批量更新视觉理解结果
-            for element_id, element in image_elements:
-                if hasattr(element, 'visualUnderstanding') and element.visualUnderstanding:
-                    await manager.update_element(
-                        element_id,
-                        {'visualUnderstanding': element.visualUnderstanding}
+        config_file = self._get_magic_project_js_path(project_path)
+        try:
+            await manager.run_write_transaction(
+                lambda config: self._apply_visual_understanding_updates(
+                    manager,
+                    config,
+                    visual_updates,
+                ),
+                verify_content=lambda verified_config, _: all(
+                    any(
+                        candidate.id == element_id
+                        and getattr(candidate, "visualUnderstanding", None)
+                        for candidate in flatten_all_elements(verified_config)
                     )
-
-            # 保存所有更改并触发文件更新事件
-            config_file = self._get_magic_project_js_path(project_path)
-
-            # 触发文件更新前事件（保存旧内容用于checkpoint回滚）
-            await self._dispatch_file_event(tool_context, str(config_file), EventType.BEFORE_FILE_UPDATED)
-
-            # 安全地保存更改
-            save_error = await self._safe_save_canvas(manager, "batch visual understanding update")
-            if save_error:
-                logger.error(f"保存视觉理解结果失败: {save_error.content}")
-                return  # 视觉理解是后台任务，失败不影响主流程
-
-            # 触发文件更新后事件（通知其他系统）
-            await self._dispatch_file_event(tool_context, str(config_file), EventType.FILE_UPDATED)
+                    for element_id in visual_updates
+                ),
+                before_write=lambda: self._dispatch_file_event(
+                    tool_context,
+                    str(config_file),
+                    EventType.BEFORE_FILE_UPDATED,
+                ),
+                after_write=lambda _: self._dispatch_file_event(
+                    tool_context,
+                    str(config_file),
+                    EventType.FILE_UPDATED,
+                ),
+            )
+        except Exception as error:  # noqa: BLE001
+            logger.error(f"保存视觉理解结果失败: {error}")
+            return
 
         logger.info(f"批量视觉理解完成")
 

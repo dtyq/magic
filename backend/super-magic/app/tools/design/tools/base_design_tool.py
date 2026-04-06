@@ -450,25 +450,6 @@ class BaseDesignTool(AbstractFileTool[T], WorkspaceTool[T], Generic[T]):
 
         return sanitized
 
-    async def _safe_save_canvas(
-        self,
-        manager: CanvasManager,
-        operation_name: str = "operation"
-    ) -> Optional[ToolResult]:
-        """保存画布配置
-
-        画布场景下始终覆盖写入，不做文件变更检测。
-
-        Args:
-            manager: CanvasManager 实例
-            operation_name: 操作名称，用于日志（如 "create element", "update element"）
-
-        Returns:
-            None（保存成功），其他异常由调用方的 except 捕获
-        """
-        await manager.save()
-        return None
-
     def _handle_design_tool_error(
         self,
         result: ToolResult,
