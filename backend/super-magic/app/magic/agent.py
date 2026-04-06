@@ -507,8 +507,12 @@ class Agent(BaseAgent):
         await horizon.set_workspace_snapshot(snapshot)
 
         # ── 用户长期记忆（来自 InitClientMessage）────────────────────────────
+        # magiclaw 使用文件系统作为记忆机制（.magic/MEMORY.md 等），不注入外部 long_term_memory
         init_client_message = self.agent_context.get_init_client_message()
-        memory_content = self._extract_memory_content(init_client_message)
+        if self.agent_context.is_magiclaw():
+            memory_content = ""
+        else:
+            memory_content = self._extract_memory_content(init_client_message)
         await horizon.set_memory(memory_content)
 
         # ── 用户偏好语言 ─────────────────────────────────────────────────────
