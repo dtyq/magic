@@ -30,11 +30,41 @@ from app.utils.file_parse.utils.libreoffice_util import LibreOfficeUtil
 
 logger = get_logger(__name__) # noqa: F811
 
-# 设置最大Token限制
-MAX_TOTAL_TOKENS = 20000
+# 单文件读取 token 上限（与 Claude Code 取值对齐）
+DEFAULT_MAX_TOKENS = 25000
+# 动态上限：占剩余上下文窗口的比例，上下文充足时达到 DEFAULT_MAX_TOKENS
+MAX_TOKENS_RATIO = 0.40
+# 保底：上下文极度紧张时仍保留最小可用量
+MIN_MAX_TOKENS = 5000
 
 # 超大文件阈值：超过这个Token数的文件，强烈建议使用 grep_search
 LARGE_FILE_TOKEN_THRESHOLD = 100000
+
+def _compute_max_tokens(tool_context: Optional["ToolContext"]) -> int:
+    """根据剩余上下文窗口动态计算本次读取上限。
+
+    上下文充足时返回 DEFAULT_MAX_TOKENS，不足时按比例收缩，最低保底 MIN_MAX_TOKENS。
+    无法获取上下文信息时直接返回默认值。
+    """
+    remaining = _get_context_remaining(tool_context)
+    if remaining <= 0:
+        return DEFAULT_MAX_TOKENS
+    dynamic = int(remaining * MAX_TOKENS_RATIO)
+    return max(MIN_MAX_TOKENS, min(DEFAULT_MAX_TOKENS, dynamic))
+
+
+def _get_context_remaining(tool_context: Optional["ToolContext"]) -> int:
+    """从 AgentHorizon 获取当前剩余上下文 token 数，获取失败返回 0。"""
+    if tool_context is None:
+        return 0
+    try:
+        agent_context = tool_context.get_extension("agent_context")
+        if agent_context is None:
+            return 0
+        return agent_context.horizon.get_context_usage().remaining
+    except Exception:
+        return 0
+
 
 async def get_or_create_converted_dir(original_file_path: Path) -> Path:
     """获取或创建转换文件目录，目录跟随原文件位置
@@ -55,31 +85,27 @@ def _get_converted_filename(file_path: Path) -> str:
 
 @dataclass
 class TruncationInfo:
-    """
-    截断信息数据类
-    用于存储文件内容被截断时的详细信息，帮助生成对大模型友好的提示
-    """
-    # 文件总行数
-    total_lines: int
-    # 截断位置的最后一个完整行的行号（从1开始）
-    last_complete_line: int
-    # 最后一行是否完整（是否以换行符结尾）
-    is_last_line_complete: bool
-    # 下次读取应该使用的 offset 值（从0开始）
-    next_offset: int
-    # 已读取的行数
-    lines_read: int
-    # 剩余未读的行数
-    lines_remaining: int
-    # 原始文件的总Token数（截断前）
-    original_tokens: int
-    # 当前已读取的Token数（截断后）
-    current_tokens: int
-    # 预计还需要读取的次数
-    times_needed: int
+    """文件截断信息，用于生成对大模型友好的提示。"""
+    total_lines: int            # 文件总行数
+    last_complete_line: int     # 截断处最后一个完整行的行号（1-based）
+    is_last_line_complete: bool # 最后一行是否完整
+    next_offset: int            # 下次读取的 offset（0-based）
+    lines_read: int             # 已读行数
+    lines_remaining: int        # 剩余未读行数
+    original_tokens: int        # 文件总 token 数（截断前估算）
+    current_tokens: int         # 本次已读 token 数
+    times_needed: int           # 预计剩余需要读取的次数
+    context_remaining: int = 0  # 本次读取前的剩余上下文 token 数（0 = 未知）
 
 
-def _parse_truncation_info(original_content: str, truncated_content: str, original_tokens: int, current_tokens: int) -> TruncationInfo:
+def _parse_truncation_info(
+    original_content: str,
+    truncated_content: str,
+    original_tokens: int,
+    current_tokens: int,
+    max_tokens: int = DEFAULT_MAX_TOKENS,
+    context_remaining: int = 0,
+) -> TruncationInfo:
     """
     解析截断信息，计算行号、偏移量等关键数据
 
@@ -138,10 +164,9 @@ def _parse_truncation_info(original_content: str, truncated_content: str, origin
     lines_read = last_complete_line
     lines_remaining = total_lines - lines_read
 
-    # 6. 计算预计还需要读取的次数
-    # 基于剩余Token数和每次最大可读取的Token数（MAX_TOTAL_TOKENS）来估算
+    # 6. 计算预计剩余需要读取的次数（用实际动态上限估算，比固定值更准）
     remaining_tokens = original_tokens - current_tokens
-    times_needed = math.ceil(remaining_tokens / MAX_TOTAL_TOKENS) if remaining_tokens > 0 else 0
+    times_needed = math.ceil(remaining_tokens / max_tokens) if remaining_tokens > 0 else 0
 
     return TruncationInfo(
         total_lines=total_lines,
@@ -152,7 +177,8 @@ def _parse_truncation_info(original_content: str, truncated_content: str, origin
         lines_remaining=lines_remaining,
         original_tokens=original_tokens,
         current_tokens=current_tokens,
-        times_needed=times_needed
+        times_needed=times_needed,
+        context_remaining=context_remaining,
     )
 
 
@@ -173,71 +199,71 @@ def _build_truncation_message(info: TruncationInfo, file_path: str) -> str:
         str: 格式化的提示消息
     """
     lines = []
-    lines.append("\n\n⚠️ 文件内容已截断（内容超出单次读取上限）\n")
+    lines.append("\n\n[File truncated: content exceeded the single-read token limit]\n")
 
-    # 1. 文件基本信息
-    lines.append("【文件信息】")
-    lines.append(f"文件总行数：{info.total_lines} 行\n")
+    # 1. Estimated context cost — helps model decide whether continuing is worth it.
+    # All token numbers are estimates (tiktoken-based), not the actual API billing count.
+    remaining_file_tokens = info.original_tokens - info.current_tokens
+    if info.context_remaining > 0:
+        cost_pct = round(info.current_tokens / info.context_remaining * 100, 1)
+        rest_pct = round(remaining_file_tokens / info.context_remaining * 100, 1)
+        lines.append("[Estimated context cost]")
+        lines.append(f"This read: ~{info.current_tokens:,} tokens (est. {cost_pct}% of remaining context before this read)")
+        lines.append(f"Rest of file: ~{remaining_file_tokens:,} tokens more (est. {rest_pct}% of remaining context before this read)")
+        lines.append(f"Remaining context before this read: ~{info.context_remaining:,} tokens\n")
 
-    # 2. 本次读取情况
-    lines.append("【本次读取】")
-    lines.append(f"已读取：第 1 行到第 {info.last_complete_line} 行（共 {info.lines_read} 行）")
+    # 2. File info
+    lines.append("[File info]")
+    lines.append(f"Total lines: {info.total_lines}\n")
 
-    # 如果最后一行不完整，特别提示
+    # 3. Read summary
+    lines.append("[This read]")
+    lines.append(f"Read: line 1 to line {info.last_complete_line} ({info.lines_read} lines)")
+
     if not info.is_last_line_complete:
-        lines.append(f"⚠️ 注意：第 {info.last_complete_line} 行内容不完整，已在末尾标记 ...")
+        lines.append(f"Note: line {info.last_complete_line} is incomplete, marked with ... at end")
 
-    lines.append(f"剩余未读：第 {info.last_complete_line + 1} 行到第 {info.total_lines} 行（共 {info.lines_remaining} 行）\n")
+    lines.append(f"Remaining: line {info.last_complete_line + 1} to line {info.total_lines} ({info.lines_remaining} lines)\n")
 
-    # 3. 截断位置说明
-    lines.append("【截断位置】")
-    if info.is_last_line_complete:
-        lines.append(f"当前截断在第 {info.last_complete_line} 行末尾")
-        lines.append(f"如需继续读取，请使用 offset: {info.next_offset}（offset={info.next_offset} 表示从第 {info.next_offset + 1} 行开始）\n")
-    else:
-        lines.append(f"当前截断在第 {info.last_complete_line} 行中间")
-        lines.append(f"如需继续读取，请使用 offset: {info.next_offset}（offset={info.next_offset} 表示从第 {info.next_offset + 1} 行开始，重新读取完整内容）\n")
+    # 4. How to continue
+    lines.append("[How to continue reading]")
 
-    # 4. 根据文件大小和预计读取次数给出建议
-    lines.append("【继续读取方法】")
-
-    # 判断是否为超大文件
     is_very_large = info.original_tokens > LARGE_FILE_TOKEN_THRESHOLD
 
     if is_very_large:
-        # 超大文件：强烈不建议继续读取
-        lines.append(f"🚫 该文件内容非常大，预计需要读取 {info.times_needed}+ 次才能读完")
-        lines.append("🚫 非常不建议分次读取完整文件，会消耗大量上下文\n")
-        lines.append("强烈建议：")
-        lines.append("✓ 使用 grep_search 工具搜索具体内容")
-        lines.append("✓ 明确需要查看的函数、类或代码段，然后精准读取")
-        lines.append("✓ 询问用户具体需要了解文件的哪部分内容\n")
-        lines.append("仅在万不得已时才继续读取：")
+        lines.append(f"This file is very large — est. {info.times_needed}+ more reads to finish.")
+        lines.append("Reading it fully will consume substantial context. Strongly consider alternatives:\n")
+        lines.append("- Use grep_search to locate specific content")
+        lines.append("- Identify the exact function/class you need, then read that range only")
+        lines.append("- Ask the user which part of the file they care about\n")
+        lines.append("If you must continue:")
     elif info.times_needed >= 4:
-        # 需要读取4次以上：强烈建议grep
-        lines.append(f"⚠️ 预计还需读取 {info.times_needed} 次才能读完整个文件")
-        lines.append("⚠️ 强烈建议使用 grep_search 工具精准搜索所需内容，避免浪费大量上下文\n")
-        lines.append("仅在用户明确要求完整阅读时，才使用以下方法继续：")
+        lines.append(f"Est. {info.times_needed} more reads to finish this file.")
+        lines.append("Strongly recommend grep_search for targeted lookup instead of reading the whole file.\n")
+        lines.append("Only continue if the user explicitly asked for the full content:")
     elif info.times_needed >= 2:
-        # 需要读取2-3次：建议grep但可以继续
-        lines.append(f"预计还需读取 {info.times_needed} 次才能读完整个文件")
-        lines.append("建议优先使用 grep_search 搜索关键内容，如必须阅读可继续：")
+        lines.append(f"Est. {info.times_needed} more reads to finish this file.")
+        lines.append("Consider grep_search for targeted content; or continue reading:")
     else:
-        # 只需要读取1次：可以继续
-        lines.append(f"预计还需读取 {info.times_needed} 次即可完成")
+        lines.append(f"Est. {info.times_needed} more read(s) to finish.")
 
-    # 5. 给出具体的继续读取指令
-    lines.append("```")
-    lines.append(f'file_path: "{file_path}"')
-    lines.append(f"offset: {info.next_offset}  # 从第 {info.next_offset + 1} 行开始读取")
-    lines.append("limit: -1     # 读取到文件末尾")
-    lines.append("```")
+    if info.is_last_line_complete:
+        lines.append("```")
+        lines.append(f'file_path: "{file_path}"')
+        lines.append(f"offset: {info.next_offset}  # starts at line {info.next_offset + 1}")
+        lines.append("limit: -1")
+        lines.append("```")
+    else:
+        lines.append("```")
+        lines.append(f'file_path: "{file_path}"')
+        lines.append(f"offset: {info.next_offset}  # re-reads line {info.next_offset + 1} (last line was incomplete)")
+        lines.append("limit: -1")
+        lines.append("```")
 
-    # 6. 如果建议使用 grep_search，给出推荐做法
     if is_very_large or info.times_needed >= 2:
-        lines.append("\n推荐做法：")
-        lines.append("• 使用 grep_search 搜索关键词、函数名、类名等")
-        lines.append("• 定位到具体位置后，再用读文件工具读取局部内容")
+        lines.append("\nRecommended approach:")
+        lines.append("- grep_search for keywords, function names, class names")
+        lines.append("- Then read only the relevant range")
 
     return "\n".join(lines)
 
@@ -856,6 +882,10 @@ Documents like PDF, PowerPoint will be auto-converted to Markdown (e.g., `report
             content = text_result.with_line_numbers
             # --- 内容读取逻辑结束 ---
 
+            # 根据当前上下文剩余量动态决定本次读取上限
+            max_tokens = _compute_max_tokens(tool_context)
+            context_remaining = _get_context_remaining(tool_context)
+
             # 计算token数量并处理截断
             original_content = content  # 保存原始完整内容，用于解析截断信息
             original_tokens = num_tokens_from_string(content)
@@ -863,12 +893,11 @@ Documents like PDF, PowerPoint will be auto-converted to Markdown (e.g., `report
             total_chars = len(content)
             content_truncated = False
 
-            if content_tokens > MAX_TOTAL_TOKENS:
-                logger.info(f"文件 {read_path.name} (原始: {original_file_name}) 内容token数 ({content_tokens}) 超出限制 ({MAX_TOTAL_TOKENS})，进行截断")
+            if content_tokens > max_tokens:
+                logger.info(f"文件 {read_path.name} (原始: {original_file_name}) 内容token数 ({content_tokens}) 超出限制 ({max_tokens})，进行截断")
                 content_truncated = True
 
                 # 使用二分查找确定最佳截断点
-                # 目标：找到最大的内容长度，使得Token数不超过 MAX_TOTAL_TOKENS
                 left, right = 0, len(content)
                 best_content = ""
                 best_tokens = 0
@@ -878,36 +907,31 @@ Documents like PDF, PowerPoint will be auto-converted to Markdown (e.g., `report
                     truncated = content[:mid]
                     tokens = num_tokens_from_string(truncated)
 
-                    if tokens <= MAX_TOTAL_TOKENS:
+                    if tokens <= max_tokens:
                         best_content = truncated
                         best_tokens = tokens
                         left = mid + 1
                     else:
                         right = mid - 1
 
-                # 更新为截断后的内容
                 truncated_content = best_content
                 content_tokens = best_tokens
 
-                # 解析截断信息：计算行号、offset等
                 truncation_info = _parse_truncation_info(
                     original_content=original_content,
                     truncated_content=truncated_content,
                     original_tokens=original_tokens,
-                    current_tokens=content_tokens
+                    current_tokens=content_tokens,
+                    max_tokens=max_tokens,
+                    context_remaining=context_remaining,
                 )
 
-                # 如果最后一行不完整，在末尾添加省略号标记
                 if not truncation_info.is_last_line_complete:
                     truncated_content += "..."
 
-                # 根据模式决定如何处理截断提示
                 if raw_mode:
-                    # 原始模式：不在content中添加提示，纯粹的数据通过extra_info传递
                     content = truncated_content
-                    # 截断信息会在后面添加到extra_info中，供调用者使用
                 else:
-                    # 格式化模式：生成并添加面向大模型的详细截断提示
                     truncation_message = _build_truncation_message(truncation_info, original_file_name)
                     content = truncated_content + truncation_message
 

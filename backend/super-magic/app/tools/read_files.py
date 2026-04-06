@@ -14,13 +14,26 @@ from app.core.entity.message.server_message import (DisplayType, FileContent,
                                                     ToolDetail)
 from app.tools.abstract_file_tool import AbstractFileTool
 from app.tools.core import BaseToolParams, tool
-from app.tools.read_file import ReadFile, ReadFileParams, TruncationInfo
+from app.tools.read_file import ReadFile, ReadFileParams, TruncationInfo, _compute_max_tokens, _get_context_remaining
 from app.tools.workspace_tool import WorkspaceTool
 
 logger = get_logger(__name__)
 
-# 设置最大Token限制
-MAX_TOTAL_TOKENS = 50000
+# 批量读取的 token 总量上限（高于单文件，允许一次性读多个文件）
+DEFAULT_BATCH_MAX_TOKENS = 60000
+# 动态上限：占剩余上下文窗口的比例（与单文件工具共用同一比例）
+BATCH_MAX_TOKENS_RATIO = 0.40
+# 保底：上下文极度紧张时仍保留最小可用量
+BATCH_MIN_MAX_TOKENS = 5000
+
+
+def _compute_batch_max_tokens(tool_context) -> int:
+    """根据剩余上下文窗口动态计算批量读取的总 token 上限。"""
+    remaining = _get_context_remaining(tool_context)
+    if remaining <= 0:
+        return DEFAULT_BATCH_MAX_TOKENS
+    dynamic = int(remaining * BATCH_MAX_TOKENS_RATIO)
+    return max(BATCH_MIN_MAX_TOKENS, min(DEFAULT_BATCH_MAX_TOKENS, dynamic))
 
 
 class FileReadOperation(BaseModel):
@@ -205,9 +218,9 @@ class ReadFiles(AbstractFileTool[ReadFilesParams], WorkspaceTool[ReadFilesParams
         # 检查是否需要截断内容以符合token限制
         total_content_tokens = sum(result.tokens for result in results if result.is_success)
 
-        # 为摘要预留token
-        header_tokens = 500  # 为头部预留的token
-        available_tokens = MAX_TOTAL_TOKENS - header_tokens
+        # 根据剩余上下文动态计算批量上限，预留 500 token 给摘要头部
+        batch_max = _compute_batch_max_tokens(tool_context)
+        available_tokens = max(0, batch_max - 500)
 
         # 如果内容token数超出限制，进行截断
         if total_content_tokens > available_tokens:
@@ -290,7 +303,7 @@ class ReadFiles(AbstractFileTool[ReadFilesParams], WorkspaceTool[ReadFilesParams
                 if allocated_tokens < 300:
                     # 剩余token太少，无法保留有意义的内容，直接标记为截断
                     result.was_truncated = True
-                    result.content = "[文件内容因token限制无法显示，请单独读取]"
+                    result.content = "[File content cannot be shown: token budget exhausted. Read this file separately.]"
                     result.tokens = 0
                 else:
                     # 截断到剩余token数
@@ -361,10 +374,8 @@ class ReadFiles(AbstractFileTool[ReadFilesParams], WorkspaceTool[ReadFilesParams
         # 添加摘要信息
         formatted_parts.append(f"# 读取文件结果\n\n{summary}\n")
 
-        # 简化的顶部提示（如果有截断）
         if has_truncation:
-            # 顶部只给出简要提示，详细指导放在最后
-            formatted_parts.append("> ⚠️ 部分文件内容已截断，详细的继续读取指导见文末\n")
+            formatted_parts.append("> [Some file content was truncated. See end of output for how to continue reading.]\n")
 
         # 添加分隔线
         formatted_parts.append("-" * 80 + "\n")
@@ -411,25 +422,22 @@ class ReadFiles(AbstractFileTool[ReadFilesParams], WorkspaceTool[ReadFilesParams
                 "Example: `read_files(operations=[{'file_path': '/absolute/path/to/skill-dir/reference/doc.md'}])`"
             )
 
-        # 在最后统一添加所有被截断文件的详细指导
-        # 这部分不参与前面的token限制计算，确保大模型一定能看到
+        # Truncation guidance appended after all file content — not counted against the token budget,
+        # so the model always sees the instructions even when budget is tight.
         if truncated_files:
             formatted_parts.append("\n\n" + "=" * 80 + "\n")
-            formatted_parts.append("# ⚠️ 截断文件的继续读取指导\n")
-            formatted_parts.append("\n以下文件内容已被截断，如需完整阅读，请参考下方指导：\n")
+            formatted_parts.append("# [Truncated files — how to continue reading]\n")
+            formatted_parts.append("\nThe following files were truncated. Use the parameters below to read the rest:\n")
 
             for result in truncated_files:
-                # 根据截断信息的来源生成相应的指导
                 if result.truncation_info:
                     if isinstance(result.truncation_info, TruncationInfo):
-                        # 来自read_file的完整截断信息（TruncationInfo对象）
                         guidance = _build_truncation_guidance_from_truncation_info(
                             result.file_path,
                             result.truncation_info
                         )
                         formatted_parts.append(guidance)
                     elif isinstance(result.truncation_info, dict):
-                        # 来自read_files的简化截断信息（字典）
                         last_line = result.truncation_info.get("last_line")
                         is_complete = result.truncation_info.get("is_last_line_complete", True)
                         if last_line:
@@ -440,23 +448,17 @@ class ReadFiles(AbstractFileTool[ReadFilesParams], WorkspaceTool[ReadFilesParams
                             )
                             formatted_parts.append(guidance)
                         else:
-                            # 缺少行号信息
-                            formatted_parts.append(f"\n## 📄 文件: `{result.file_path}`\n")
-                            formatted_parts.append("该文件内容已截断，建议使用读文件工具单独读取完整内容\n")
+                            formatted_parts.append(f"\n## File: `{result.file_path}`\n")
+                            formatted_parts.append("Content truncated. Read this file separately to get the full content.\n")
                     else:
-                        # 未知类型
-                        formatted_parts.append(f"\n## 📄 文件: `{result.file_path}`\n")
-                        formatted_parts.append("该文件内容已截断，建议使用读文件工具单独读取完整内容\n")
+                        formatted_parts.append(f"\n## File: `{result.file_path}`\n")
+                        formatted_parts.append("Content truncated. Read this file separately to get the full content.\n")
                 else:
-                    # 无截断信息
-                    formatted_parts.append(f"\n## 📄 文件: `{result.file_path}`\n")
-                    formatted_parts.append("该文件内容已截断，建议使用读文件工具单独读取完整内容\n")
+                    formatted_parts.append(f"\n## File: `{result.file_path}`\n")
+                    formatted_parts.append("Content truncated. Read this file separately to get the full content.\n")
 
-            # 添加通用建议
             formatted_parts.append("\n" + "-" * 80 + "\n")
-            formatted_parts.append("\n💡 **其他建议**：\n")
-            formatted_parts.append("• 如果只需查找特定内容，建议使用 grep_search 工具精准搜索\n")
-            formatted_parts.append("• grep_search 可以快速定位关键词、函数名、类名等，避免读取大量无关内容\n")
+            formatted_parts.append("\nTip: use grep_search to locate specific content (keywords, function names, class names) instead of reading large files in full.\n")
 
         return "\n".join(formatted_parts)
 
@@ -825,22 +827,21 @@ def _build_simple_truncation_guidance(file_path: str, last_line: int, is_complet
         str: 格式化的截断指导信息
     """
     lines = []
-    lines.append(f"\n### 📄 文件 `{file_path}` 的继续读取指导\n")
+    lines.append(f"\n### File: `{file_path}`\n")
 
     if is_complete:
         next_offset = last_line
-        lines.append(f"当前已读取到第 {last_line} 行（完整）")
-        lines.append(f"如需继续读取，请使用 offset: {next_offset}（从第 {next_offset + 1} 行开始）\n")
+        lines.append(f"Read up to line {last_line} (complete).")
+        lines.append(f"To continue, use offset: {next_offset} (starts at line {next_offset + 1})\n")
     else:
         next_offset = last_line - 1
-        lines.append(f"当前已读取到第 {last_line} 行（内容不完整，末尾已标记 ...）")
-        lines.append(f"如需继续读取，请使用 offset: {next_offset}（从第 {next_offset + 1} 行重新开始，读取完整内容）\n")
+        lines.append(f"Read up to line {last_line} (incomplete, marked with ... at end).")
+        lines.append(f"To continue, use offset: {next_offset} (re-reads line {next_offset + 1} to get complete content)\n")
 
-    lines.append("继续读取参数：")
     lines.append("```")
     lines.append(f'file_path: "{file_path}"')
     lines.append(f"offset: {next_offset}")
-    lines.append("limit: -1  # 读取到文件末尾")
+    lines.append("limit: -1")
     lines.append("```")
 
     return "\n".join(lines)

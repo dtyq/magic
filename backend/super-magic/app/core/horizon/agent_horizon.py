@@ -18,7 +18,7 @@ if TYPE_CHECKING:
 
 from agentlang.logger import get_logger
 from app.core.horizon.diff_builder import detect_file_changes
-from app.core.horizon.models import FileReadRecord, HorizonState, ImageModelState, PendingNotification, VideoModelState
+from app.core.horizon.models import ContextUsage, FileReadRecord, HorizonState, ImageModelState, PendingNotification, VideoModelState
 from app.core.horizon.store import HorizonStore
 from app.utils.file_utils import calculate_file_hash, get_fresh_file_stat
 
@@ -513,6 +513,10 @@ class AgentHorizon:
             self._last_llm_model_name = model_name
             self._last_llm_model_description = description
             self._llm_model_changed = True
+
+    def get_context_usage(self) -> ContextUsage:
+        """返回当前上下文窗口使用情况，供工具决策使用。total=0 表示尚未获得模型数据。"""
+        return ContextUsage(used=self._context_used, total=self._context_total)
 
     def update_context_usage(self, input_tokens: int, context_window_total: int) -> None:
         """LLM 调用返回后调用，更新上下文窗口使用量。"""

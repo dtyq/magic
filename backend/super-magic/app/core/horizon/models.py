@@ -43,6 +43,21 @@ class VideoModelState:
 
 
 @dataclass
+class ContextUsage:
+    """当前 LLM 上下文窗口使用情况，由 AgentHorizon.get_context_usage() 返回。"""
+    used: int    # 已使用的 token 数
+    total: int   # 总上下文窗口大小（0 表示未知）
+
+    @property
+    def remaining(self) -> int:
+        return max(0, self.total - self.used) if self.total > 0 else 0
+
+    @property
+    def is_known(self) -> bool:
+        return self.total > 0
+
+
+@dataclass
 class HorizonState:
     """AgentHorizon 的持久化状态。"""
     agent_id: str
