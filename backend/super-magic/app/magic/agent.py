@@ -103,6 +103,14 @@ class LLMResponseContext:
         return bool(self.tool_calls)
 
 
+@dataclass
+class HorizonLlmModelInfo:
+    """注入给 horizon 的展示态模型信息。"""
+    model_id: str
+    model_name: str
+    description: str = ""
+
+
 class SessionRestoreAction(Enum):
     """Session restore action types"""
     SKIP_LLM = "skip_llm"
@@ -736,6 +744,7 @@ class Agent(BaseAgent):
 
         # 注入点1：用户消息入库后、第一次 LLM 调用前，注入 system_injected_context
         try:
+            self._sync_horizon_llm_model_info()
             ctx_update = await self.agent_context.horizon.build_context_update()
             await self.chat_history.append_user_message(ctx_update, show_in_ui=False, source="horizon")
             logger.debug("[AgentHorizon] 已注入 user query 后 system_injected_context")
@@ -983,6 +992,7 @@ class Agent(BaseAgent):
                 # 注入点 2：tool result 返回后，注入 system_injected_context
                 # 无论是否 should_exit 都注入，因为 hidden message 会留在 chat history 供后续 LLM call 读取
                 try:
+                    self._sync_horizon_llm_model_info()
                     ctx_update = await self.agent_context.horizon.build_context_update()
                     await self.chat_history.append_user_message(ctx_update, show_in_ui=False, source="horizon")
                     logger.debug("[AgentHorizon] 已注入 tool result 后 system_injected_context")
@@ -1350,23 +1360,20 @@ class Agent(BaseAgent):
 
         # 更新 horizon：实际生效的 LLM 模型 + 当前上下文窗口使用量
         try:
+            horizon_model_info = self._build_horizon_llm_model_info(
+                effective_model_id=effective_model_id,
+                effective_model_name=effective_model_name,
+            )
             context_window_total = (
                 self.model_config.max_context_tokens
                 if hasattr(self, "model_config") and self.model_config
                 else 0
             )
-            # 特殊聚合模型（auto/max）附加描述，让 LLM 知道背后的选择逻辑
-            _SPECIAL_MODEL_DESCRIPTIONS = {
-                "auto": "automatically selects the most efficient AI model for the current task",
-                "max": "automatically selects the most capable AI model for the current scenario",
-            }
-            try:
-                _cfg = LLMFactory.get_model_config(effective_model_id)
-                _display_id = (_cfg.resolved_model_id or effective_model_id) if _cfg else effective_model_id
-            except Exception:
-                _display_id = effective_model_id
-            _desc = _SPECIAL_MODEL_DESCRIPTIONS.get(_display_id.lower(), "")
-            self.agent_context.horizon.update_llm_model(_display_id, effective_model_name, _desc)
+            self.agent_context.horizon.update_llm_model(
+                horizon_model_info.model_id,
+                horizon_model_info.model_name,
+                horizon_model_info.description,
+            )
             self.agent_context.horizon.update_context_usage(token_usage.input_tokens, context_window_total)
         except Exception as _horizon_err:
             logger.warning(f"[AgentHorizon] 更新模型/上下文用量失败: {_horizon_err}")
@@ -1456,6 +1463,48 @@ class Agent(BaseAgent):
             logger.debug(f"继续使用Agent默认模型: {self.llm_id} ({self.llm_name})")
 
         return self.llm_id, self.llm_name
+
+    def _build_horizon_llm_model_info(
+        self,
+        *,
+        effective_model_id: Optional[str] = None,
+        effective_model_name: Optional[str] = None,
+    ) -> HorizonLlmModelInfo:
+        """把当前生效模型标准化为注入给 horizon 的展示态信息。"""
+        if not effective_model_id or not effective_model_name:
+            effective_model_id, effective_model_name = self._resolve_effective_model_info()
+
+        # 对 LLM 展示时优先使用 resolved_model_id，避免暴露不友好的选择态占位值。
+        display_model_id = effective_model_id
+        display_model_name = effective_model_name
+        try:
+            model_config = LLMFactory.get_model_config(effective_model_id)
+            if model_config:
+                display_model_id = model_config.resolved_model_id or effective_model_id
+                display_model_name = model_config.name or effective_model_name
+        except Exception:
+            pass
+
+        # 聚合模型要额外保留选择语义，否则只看到落地模型，看不出背后调度策略。
+        special_model_descriptions = {
+            "auto": "automatically selects the most efficient AI model for the current task",
+            "max": "automatically selects the most capable AI model for the current scenario",
+        }
+        description = special_model_descriptions.get(effective_model_id.lower(), "")
+        return HorizonLlmModelInfo(
+            model_id=display_model_id,
+            model_name=display_model_name,
+            description=description,
+        )
+
+    def _sync_horizon_llm_model_info(self) -> None:
+        """在注入 system_injected_context 前预同步模型信息，确保首包可见。"""
+        horizon_model_info = self._build_horizon_llm_model_info()
+        self.agent_context.horizon.update_llm_model(
+            horizon_model_info.model_id,
+            horizon_model_info.model_name,
+            horizon_model_info.description,
+        )
 
 
     async def _add_tool_calls_to_history(self, llm_context: LLMResponseContext) -> None:
