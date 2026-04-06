@@ -53,12 +53,12 @@ llm:
   custom_api_headers: ${LLM_CUSTOM_API_HEADERS:-None}
   # 流式快速重试策略
   # 首包窗口覆盖"请求发出到首个 chunk"的总时间（含等响应头），下标对应 retry_count
-  stream_first_chunk_timeout_schedule_seconds: [20, 20, 30, 60]
+  stream_first_chunk_timeout_schedule_seconds: [15, 20, 30]
   # 收到首包后，后续每个 chunk 的等待上限
-  stream_chunk_timeout_seconds: 10
-  # retry_count 达到此值后流式失败才允许一次非流式 fallback（之前只做流式重试）
-  stream_retry_count_before_non_stream_fallback: 3
-  # 非流式 fallback 单独超时（300s 供应商观测极限 + 30s 冗余）
+  stream_chunk_timeout_seconds: 6
+  # 是否启用非流式 fallback；默认关闭，只保留代码路径便于后续按需重新打开
+  enable_non_stream_fallback: false
+  # 非流式 fallback 单独超时（当前默认关闭，仅在显式开启时生效）
   non_stream_fallback_timeout_seconds: 330
 
 # 当前活动的 Agent 模式 (可通过 ACTIVE_AGENT_MODE 环境变量覆盖)
@@ -101,6 +101,8 @@ agent:
   enable_parallel_tool_calls: ${AGENT_ENABLE_PARALLEL_TOOL_CALLS:-false}
   # Timeout for parallel tool execution in seconds (None = no timeout)
   parallel_tool_calls_timeout: ${AGENT_PARALLEL_TOOL_CALLS_TIMEOUT:-None}
+  # Whether the agent loop should auto-retry after non-terminal exceptions
+  enable_agent_loop_retry: ${AGENT_ENABLE_AGENT_LOOP_RETRY:-false}
 
 # 图片生成服务配置
 image_generator:

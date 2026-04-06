@@ -2,9 +2,9 @@
 Processor Manager
 
 统一管理流式和非流式 LLM 调用。策略：
-- 前三次失败（retry_count < 3）：只做流式，失败直接抛出
-- 第四次（retry_count >= 3）：流式失败后允许一次非流式 fallback（超时 330s）
-- 流式 + 非流式 fallback 均失败：抛出 LLMFastRetryExhaustedException，通知上层停止泛化重试
+- 默认只做三次流式尝试，首包窗口由 schedule 决定
+- 非流式 fallback 代码路径保留，但默认通过配置显式关闭
+- 所有尝试都失败后：抛出 LLMFastRetryExhaustedException，通知上层停止泛化重试
 """
 
 import time
@@ -25,30 +25,32 @@ from .regular_call_processor import RegularCallProcessor
 logger = get_logger(__name__)
 
 # 默认快速重试策略常量（可被 config.yaml 覆盖）
-_DEFAULT_FIRST_CHUNK_SCHEDULE: List[int] = [20, 20, 30, 60]
-_DEFAULT_CHUNK_TIMEOUT: int = 10
-_DEFAULT_FALLBACK_THRESHOLD: int = 3
+_DEFAULT_FIRST_CHUNK_SCHEDULE: List[int] = [15, 20, 30]
+_DEFAULT_CHUNK_TIMEOUT: int = 6
+_DEFAULT_ENABLE_NON_STREAM_FALLBACK: bool = False
 _DEFAULT_NON_STREAM_TIMEOUT: int = 330
 
 
-def _resolve_retry_policy(retry_count: int, processor_config: ProcessorConfig) -> None:
-    """根据 retry_count 把 schedule 解析为本轮有效超时参数，就地修改 processor_config。"""
+def _resolve_retry_policy(llm_call_retry_count: int, processor_config: ProcessorConfig) -> None:
+    """根据 llm call 重试次数解析本轮有效超时参数，就地修改 processor_config。"""
     schedule: List[int] = config.get(
         "llm.stream_first_chunk_timeout_schedule_seconds", _DEFAULT_FIRST_CHUNK_SCHEDULE
     )
     chunk_timeout: int = config.get("llm.stream_chunk_timeout_seconds", _DEFAULT_CHUNK_TIMEOUT)
-    fallback_threshold: int = config.get(
-        "llm.stream_retry_count_before_non_stream_fallback", _DEFAULT_FALLBACK_THRESHOLD
+    enable_non_stream_fallback: bool = config.get(
+        "llm.enable_non_stream_fallback", _DEFAULT_ENABLE_NON_STREAM_FALLBACK
     )
     non_stream_timeout: int = config.get(
         "llm.non_stream_fallback_timeout_seconds", _DEFAULT_NON_STREAM_TIMEOUT
     )
 
-    idx = min(retry_count, len(schedule) - 1)
+    idx = min(llm_call_retry_count, len(schedule) - 1)
+    is_last_stream_attempt = llm_call_retry_count >= len(schedule) - 1
     processor_config.stream_first_chunk_timeout_seconds = schedule[idx]
     processor_config.stream_chunk_timeout_seconds = chunk_timeout
     processor_config.non_stream_timeout_seconds = non_stream_timeout
-    processor_config.allow_non_stream_fallback = retry_count >= fallback_threshold
+    # 即便未来重新打开 fallback，也只允许在流式预算耗尽后的最后一轮触发。
+    processor_config.allow_non_stream_fallback = enable_non_stream_fallback and is_last_stream_attempt
 
 
 class ProcessorManager:
@@ -64,7 +66,7 @@ class ProcessorManager:
         agent_context: Optional[AgentContextInterface] = None,
         request_id: Optional[str] = None,
         enable_llm_response_events: bool = True,
-        retry_count: int = 0
+        llm_call_retry_count: int = 0
     ) -> ChatCompletion:
         """执行 LLM 调用，自动处理流式/非流式及降级重试
 
@@ -77,7 +79,7 @@ class ProcessorManager:
             agent_context: Agent上下文
             request_id: 请求ID
             enable_llm_response_events: 是否启用LLM响应事件
-            retry_count: 重试次数
+            llm_call_retry_count: LLM call 重试次数
 
         Returns:
             ChatCompletion响应
@@ -88,7 +90,7 @@ class ProcessorManager:
 
         # 解析本轮重试策略（填充首包超时、chunk 超时、是否允许非流式 fallback）
         if processor_config.use_stream_mode:
-            _resolve_retry_policy(retry_count, processor_config)
+            _resolve_retry_policy(llm_call_retry_count, processor_config)
 
         # 从 processor_config 中获取流式模式
         use_stream_mode = processor_config.use_stream_mode
@@ -105,7 +107,7 @@ class ProcessorManager:
         if use_stream_mode:
             # 标记本次调用是否会增加 cancel_blocker_count
             # 只有首次流式调用（非重试）时会增加计数，agent.py 根据此标记决定是否减少计数
-            is_retry = retry_count > 0
+            is_retry = llm_call_retry_count > 0
             will_increment_cancel_blocker = not is_retry
             if agent_context:
                 agent_context.set_metadata("_llm_call_entered_stream_phase", will_increment_cancel_blocker)
@@ -122,7 +124,7 @@ class ProcessorManager:
                     request_id=request_id,
                     correlation_id=correlation_id,
                     enable_llm_response_events=enable_llm_response_events,
-                    retry_count=retry_count
+                    llm_call_retry_count=llm_call_retry_count
                 )
                 return response
 
@@ -135,16 +137,24 @@ class ProcessorManager:
                     raise
 
                 if not processor_config.allow_non_stream_fallback:
-                    # 前三次只做流式重试，失败直接抛出让外层再次触发下一轮流式
+                    # 默认只做流式快重试；只有流式预算耗尽后的最后一轮，且显式开启开关时，
+                    # 才允许进入保留的非流式 fallback 路径。
                     logger.warning(
-                        f"[{request_id}] 流式调用失败（retry_count={retry_count}），"
-                        f"未达到非流式 fallback 阈值，直接抛出: {stream_error}"
+                        f"[{request_id}] 流式调用失败（llm_call_retry_count={llm_call_retry_count}），"
+                        f"当前轮次不允许非流式 fallback，直接抛出: {stream_error}"
                     )
+                    if llm_call_retry_count >= len(
+                        config.get("llm.stream_first_chunk_timeout_schedule_seconds", _DEFAULT_FIRST_CHUNK_SCHEDULE)
+                    ) - 1:
+                        raise LLMFastRetryExhaustedException(
+                            f"LLM call retry exhausted after {llm_call_retry_count + 1} stream attempts",
+                            stream_error=stream_error,
+                        ) from stream_error
                     raise
 
-                # 第四次及以后：允许一次非流式 fallback
+                # 显式开启开关后，才允许进入保留的非流式 fallback 路径
                 logger.warning(
-                    f"[{request_id}] 流式调用失败（retry_count={retry_count}），"
+                    f"[{request_id}] 流式调用失败（llm_call_retry_count={llm_call_retry_count}），"
                     f"触发非流式 fallback: {stream_error}"
                 )
 
@@ -164,13 +174,12 @@ class ProcessorManager:
                         agent_context=agent_context,
                         request_id=request_id,
                         enable_llm_response_events=enable_llm_response_events,
-                        retry_count=retry_count,
                         timeout_seconds=processor_config.non_stream_timeout_seconds,
                     )
                 except Exception as fallback_error:
                     # 流式已耗尽 + 非流式也失败：通知 agent.py 直接结束本轮
                     raise LLMFastRetryExhaustedException(
-                        f"LLM fast retry exhausted after {retry_count + 1} stream attempts and one non-stream fallback",
+                        f"LLM call retry exhausted after {llm_call_retry_count + 1} stream attempts and one non-stream fallback",
                         stream_error=stream_error,
                         fallback_error=fallback_error,
                     ) from fallback_error
@@ -191,7 +200,6 @@ class ProcessorManager:
                 model_id=model_id,
                 agent_context=agent_context,
                 request_id=request_id,
-                enable_llm_response_events=enable_llm_response_events,
-                retry_count=retry_count
+                enable_llm_response_events=enable_llm_response_events
             )
             return response

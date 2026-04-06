@@ -64,8 +64,8 @@ class StreamProcessContext:
 
     @property
     def should_trigger_events(self) -> bool:
-        """Check if events should be triggered (first call and events enabled)"""
-        return self.enable_llm_response_events and self.retry_count == 0
+        """Check if reply events should be triggered for the current stream."""
+        return self.enable_llm_response_events
 
     def get_non_human_options(self):
         """Get non-human options from agent context"""

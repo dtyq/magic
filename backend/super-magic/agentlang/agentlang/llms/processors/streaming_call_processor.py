@@ -77,7 +77,7 @@ class StreamingCallProcessor:
         request_id: Optional[str] = None,
         correlation_id: Optional[str] = None,
         enable_llm_response_events: bool = True,
-        retry_count: int = 0
+        llm_call_retry_count: int = 0
     ) -> ChatCompletion:
         """使用流式调用LLM的方法
 
@@ -91,7 +91,7 @@ class StreamingCallProcessor:
             request_id: 请求ID
             correlation_id: 关联ID
             enable_llm_response_events: 是否启用LLM响应事件
-            retry_count: 重试次数
+            llm_call_retry_count: LLM call 重试次数
 
         Returns:
             ChatCompletion响应
@@ -106,7 +106,7 @@ class StreamingCallProcessor:
         streaming_driver = None
 
         # 使用上下文管理器确保流式模式下计数的严格一一对应
-        async with StreamCancelBlockerContext(agent_context, request_id, retry_count):
+        async with StreamCancelBlockerContext(agent_context, request_id, llm_call_retry_count):
             try:
                 # 初始化流式推送驱动
                 streaming_driver = await StreamingCallProcessor.initialize_streaming_driver(
@@ -144,7 +144,7 @@ class StreamingCallProcessor:
                     agent_context=agent_context,
                     http_request_start_time=http_request_start_time,
                     enable_llm_response_events=enable_llm_response_events,
-                    retry_count=retry_count
+                    retry_count=llm_call_retry_count
                 )
 
                 # 处理流式响应（包含开始消息、流式chunk处理、完成消息推送）

@@ -131,7 +131,7 @@ class LLMFactory:
         agent_context: Optional[AgentContextInterface] = None,
         processor_config: Optional[ProcessorConfig] = None,
         enable_llm_response_events: bool = False,
-        retry_count: int = 0
+        llm_call_retry_count: int = 0
     ) -> ChatCompletion:
         """使用工具支持调用 LLM。
 
@@ -146,7 +146,7 @@ class LLMFactory:
             agent_context: Agent 上下文接口，可选。
             processor_config: 处理器配置，包含流式模式、推流配置等，可选。
             enable_llm_response_events: 是否开启LLM响应事件触发，默认为 False。
-            retry_count: 重试次数，0表示第一次调用，>0表示重试调用，默认为 0。
+            llm_call_retry_count: LLM call 重试次数，0表示第一次调用，>0表示重试调用，默认为 0。
 
         Returns:
             LLM 响应。
@@ -229,7 +229,7 @@ class LLMFactory:
             logger.debug(f"[{request_id}] 动态设置请求头: {list(extra_headers.keys())}")
 
         # 发送请求并获取响应
-        retry_info = f" (重试第 {retry_count} 次)" if retry_count > 0 else ""
+        retry_info = f" (LLM call 重试第 {llm_call_retry_count} 次)" if llm_call_retry_count > 0 else ""
         logger.info(f"[{request_id}] 发送聊天完成请求到 {display_model_id}:{llm_config.name}, 流式模式: {use_stream_mode}{retry_info}")
 
         # 执行 LLM 调用（统一管理流式/非流式及降级重试）
@@ -245,7 +245,7 @@ class LLMFactory:
                 agent_context=agent_context,
                 request_id=request_id,
                 enable_llm_response_events=enable_llm_response_events,
-                retry_count=retry_count
+                llm_call_retry_count=llm_call_retry_count
             )
 
             # 统一修复工具调用参数的JSON格式
@@ -287,7 +287,7 @@ class LLMFactory:
             elapsed_time = (end_time - start_time) * 1000  # 转换为毫秒
 
             # 简洁的错误日志
-            retry_info = f" (重试第 {retry_count} 次)" if retry_count > 0 else ""
+            retry_info = f" (LLM call 重试第 {llm_call_retry_count} 次)" if llm_call_retry_count > 0 else ""
             logger.critical(f"[{request_id}] 调用 LLM {display_model_id}:{llm_config.name} 时出错: {str(e)}，耗时: {elapsed_time:.2f}ms{retry_info}")
 
             raise
