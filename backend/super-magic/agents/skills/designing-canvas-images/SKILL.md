@@ -125,6 +125,11 @@ Returns: `{ id, name, size: { width, height }, image_properties.src }`
 - Query the canvas with `query_canvas_overview` before operating on existing content
 - Never assume file paths — always use paths obtained from query results
 - For image-to-image: always query the reference image's dimensions first with `query_canvas_element(src=...)`
+- When the user references a canvas image, check `image_properties.visual_understanding` in the `query_canvas_element` response first. Only call a dedicated visual understanding tool if `has_cache` is false or the cached description is clearly insufficient for the task.
+
+**Generation timeout handling:**
+- Image generation takes 1–3 minutes. Always pass `timeout=180` to `run_skills_snippet` when calling `generate_images_to_canvas`.
+- If the call returns a timeout error, do NOT retry immediately. First call `query_canvas_overview` to check whether an element with the expected name already exists. Only re-generate if it is absent. Retrying blindly creates duplicate elements because generation is not idempotent.
 
 ---
 
@@ -188,12 +193,13 @@ result = tool.call('generate_images_to_canvas', {
 
 ### Mode 3 — Image-to-image (reference-anchored)
 
-Always query the reference image's dimensions first, then generate at the same size:
+Always query the reference image's dimensions first, then generate at the same size.
+Pass `timeout=180` to `run_skills_snippet` — image generation typically takes 1–3 minutes:
 
 ```python
 from sdk.tool import tool
 
-# Step 1: Get reference image dimensions
+# Step 1: Get reference image dimensions (also check visual_understanding cache here)
 result = tool.call('query_canvas_element', {
     "project_path": "my-design",
     "src": "my-design/images/cat.jpg"
@@ -213,6 +219,8 @@ if result.ok and result.data:
         "size": f"{width}x{height}"
     })
 ```
+
+Note: wrap this code in `run_skills_snippet` with `timeout=180`. If that call returns a timeout error, check `query_canvas_overview` before retrying — the element may have been created already.
 
 ### Image-to-Image Principles
 

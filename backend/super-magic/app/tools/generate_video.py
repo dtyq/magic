@@ -44,11 +44,18 @@ from app.service.media_generation_service import (
 )
 from app.tools.abstract_file_tool import AbstractFileTool
 from app.tools.core import BaseToolParams, tool
+from app.tools.snippet_timeout_registry import SnippetTimeoutRegistry
 from app.tools.workspace_tool import WorkspaceTool
 from app.utils.async_file_utils import async_exists, async_mkdir
 from app.utils.video_logger import get_video_logger
 
 logger = get_video_logger(__name__)
+
+# 视频生成涉及异步轮询，注册最小超时供 run_skills_snippet 自动提升
+SnippetTimeoutRegistry.register(
+    ["generate_video", "generate_videos_to_canvas", "query_video_generation"],
+    min_timeout=3600,
+)
 
 DEFAULT_VIDEO_MODEL = "veo-3.1-fast-generate-preview"
 DEFAULT_VIDEO_OUTPUT_DIR = "videos"

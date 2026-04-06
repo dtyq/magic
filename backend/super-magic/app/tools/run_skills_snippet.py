@@ -17,16 +17,10 @@ from agentlang.logger import get_logger
 from app.path_manager import PathManager
 from app.tools.core import BaseToolParams, tool
 from app.tools.abstract_file_tool import AbstractFileTool
+from app.tools.snippet_timeout_registry import SnippetTimeoutRegistry
 from app.utils.process_executor import ProcessExecutor
 
 logger = get_logger(__name__)
-
-VIDEO_TOOL_NAMES = (
-    "generate_video",
-    "generate_videos_to_canvas",
-    "query_video_generation",
-)
-VIDEO_SKILL_SNIPPET_TIMEOUT_SECONDS = 3600
 
 
 class RunSkillsSnippetParams(BaseToolParams):
@@ -37,9 +31,9 @@ class RunSkillsSnippetParams(BaseToolParams):
 Python code to execute in Skills"""
     )
     timeout: int = Field(
-        60,
-        description="""<!--zh: 代码执行超时时间（秒），默认60秒-->
-Code execution timeout (seconds), default 60 seconds"""
+        120,
+        description="""<!--zh: 代码执行超时时间（秒），默认120秒。图片生成建议传180，视频生成自动提升至3600-->
+Code execution timeout (seconds), default 120. Recommend 180 for image generation; video generation auto-elevates to 3600."""
     )
 
 
@@ -84,13 +78,6 @@ class RunSkillsSnippet(AbstractFileTool[RunSkillsSnippetParams]):
             bool: False，不触发事件
         """
         return False
-
-    @staticmethod
-    def _contains_video_tool_call(python_code: str) -> bool:
-        return any(
-            f"'{tool_name}'" in python_code or f'"{tool_name}"' in python_code
-            for tool_name in VIDEO_TOOL_NAMES
-        )
 
     @staticmethod
     def _build_snippet_extra_env(project_root: "Path") -> dict[str, str]:
@@ -150,14 +137,14 @@ class RunSkillsSnippet(AbstractFileTool[RunSkillsSnippetParams]):
 
             # 第二步：使用 ProcessExecutor 执行Python脚本
             command = f"python {script_filename}"
-            effective_timeout = params.timeout
-            if self._contains_video_tool_call(params.python_code):
-                effective_timeout = max(effective_timeout, VIDEO_SKILL_SNIPPET_TIMEOUT_SECONDS)
-                if effective_timeout != params.timeout:
-                    logger.info(
-                        f"检测到视频 skill 调用，自动提升 run_skills_snippet 超时: "
-                        f"requested={params.timeout}, effective={effective_timeout}"
-                    )
+            effective_timeout = SnippetTimeoutRegistry.get_effective_timeout(
+                params.python_code, params.timeout
+            )
+            if effective_timeout != params.timeout:
+                logger.info(
+                    f"run_skills_snippet 超时自动提升: "
+                    f"requested={params.timeout}s, effective={effective_timeout}s"
+                )
 
             # 将调用方 AgentContext 的 context_id 注入子进程，供 SDK 带入 HTTP 请求，
             # 使服务端能精确路由到正确的 Agent 上下文。
