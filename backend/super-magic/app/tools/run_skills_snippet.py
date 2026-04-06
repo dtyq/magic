@@ -9,6 +9,7 @@ Skill 代码片段执行工具
 
 
 import aiofiles
+from pathlib import Path
 from pydantic import Field
 
 from agentlang.context.tool_context import ToolContext
@@ -80,7 +81,7 @@ class RunSkillsSnippet(AbstractFileTool[RunSkillsSnippetParams]):
         return False
 
     @staticmethod
-    def _build_snippet_extra_env(project_root: "Path") -> dict[str, str]:
+    def _build_snippet_extra_env(project_root: Path) -> dict[str, str]:
         import os
 
         project_root_str = str(project_root)
@@ -107,7 +108,6 @@ class RunSkillsSnippet(AbstractFileTool[RunSkillsSnippetParams]):
             ToolResult: 执行结果
         """
         import uuid
-        from pathlib import Path
 
         script_file_path = None
 
