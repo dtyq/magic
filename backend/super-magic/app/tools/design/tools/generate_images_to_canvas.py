@@ -293,6 +293,10 @@ Expand brief user descriptions into full prompts covering subject, style, compos
             ToolResult: 包含创建结果详细信息
         """
         try:
+            # reference_images 路径可能来自前端（file_dir 带 / 前缀），统一规范化为相对路径
+            if params.reference_images:
+                params.reference_images = [p.lstrip("/") for p in params.reference_images]
+
             # 0. 判断模式并确定生成数量
             prompts_count = len(params.prompts)
 

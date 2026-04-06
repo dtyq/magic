@@ -377,8 +377,11 @@ class QueryCanvasElement(BaseDesignTool[QueryCanvasElementParams]):
         Returns:
             Image properties dictionary
         """
+        # 去掉 src 开头的 / 前缀，图像生成服务返回的 file_dir 带 /，
+        # 前端拼接后写入 magic.project.js，这里统一规范化为相对路径供模型使用
+        src = element.src.lstrip("/") if element.src else element.src
         properties: Dict[str, Any] = {
-            "src": element.src
+            "src": src
         }
 
         # Check file existence and get file info
@@ -446,9 +449,11 @@ class QueryCanvasElement(BaseDesignTool[QueryCanvasElementParams]):
 
     async def _get_video_properties(self, element: VideoElement) -> Dict[str, Any]:
         """Get video element specific properties."""
+        # 图像生成服务返回的 file_dir 带 / 前缀，前端拼接写入 magic.project.js，
+        # 这里统一规范化为相对路径，确保模型看到的路径格式一致
         properties: Dict[str, Any] = {
-            "src": element.src,
-            "poster": element.poster,
+            "src": element.src.lstrip("/") if element.src else element.src,
+            "poster": element.poster.lstrip("/") if element.poster else element.poster,
             "status": element.status,
             "error_message": element.errorMessage,
         }

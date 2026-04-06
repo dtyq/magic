@@ -425,15 +425,17 @@ class CanvasManager:
             # Type-specific attributes
             if isinstance(element, ImageElement):
                 if hasattr(element, 'src') and element.src:
-                    lines.append(f"  Image Source: {element.src}")
+                    # 图像生成服务返回的路径带 / 前缀，规范化后输出，保证模型看到干净的相对路径
+                    lines.append(f"  Image Source: {element.src.lstrip('/')}")
                 if hasattr(element, 'visualUnderstanding') and element.visualUnderstanding:
                     lines.append(f"  Image Description: {element.visualUnderstanding.summary}")
 
             elif isinstance(element, VideoElement):
                 if hasattr(element, 'src') and element.src:
-                    lines.append(f"  Video Source: {element.src}")
+                    # 同上，路径带 / 前缀，规范化后输出
+                    lines.append(f"  Video Source: {element.src.lstrip('/')}")
                 if hasattr(element, 'poster') and element.poster:
-                    lines.append(f"  Poster Source: {element.poster}")
+                    lines.append(f"  Poster Source: {element.poster.lstrip('/')}")
 
             elif isinstance(element, TextElement):
                 if hasattr(element, 'content') and element.content:

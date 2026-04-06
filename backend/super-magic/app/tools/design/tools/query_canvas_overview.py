@@ -384,10 +384,11 @@ class QueryCanvasOverview(BaseDesignTool[QueryCanvasOverviewParams]):
                     data["visual_summary"] = summary
 
             if element.type == 'video':
+                # 图像生成服务返回的路径带 / 前缀，规范化后输出，保证模型看到干净的相对路径
                 if hasattr(element, 'src') and element.src:
-                    data["video_src"] = element.src
+                    data["video_src"] = element.src.lstrip("/")
                 if hasattr(element, 'poster') and element.poster:
-                    data["poster"] = element.poster
+                    data["poster"] = element.poster.lstrip("/")
 
         return data
 

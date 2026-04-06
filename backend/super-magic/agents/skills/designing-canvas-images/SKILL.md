@@ -193,13 +193,12 @@ result = tool.call('generate_images_to_canvas', {
 
 ### Mode 3 — Image-to-image (reference-anchored)
 
-Always query the reference image's dimensions first, then generate at the same size.
-Pass `timeout=180` to `run_skills_snippet` — image generation typically takes 1–3 minutes:
+Always query the reference image's dimensions first, then generate at the same size:
 
 ```python
 from sdk.tool import tool
 
-# Step 1: Get reference image dimensions (also check visual_understanding cache here)
+# Step 1: Get reference image dimensions
 result = tool.call('query_canvas_element', {
     "project_path": "my-design",
     "src": "my-design/images/cat.jpg"
@@ -220,7 +219,28 @@ if result.ok and result.data:
     })
 ```
 
-Note: wrap this code in `run_skills_snippet` with `timeout=180`. If that call returns a timeout error, check `query_canvas_overview` before retrying — the element may have been created already.
+**Replacement scenario (element swap):** When the user says "replace the character in image A with image B", use both images as references:
+
+```python
+from sdk.tool import tool
+
+result = tool.call('generate_images_to_canvas', {
+    "project_path": "my-design",
+    "name": "banner-hero-swap",
+    "prompts": [
+        "Keep the entire composition of the first reference image unchanged — background, text, layout, and all other characters. "
+        "Replace only the [target character] in the center with the character from the second reference image: "
+        "[describe the replacement character's pose, armor, and key visual features]. "
+        "The replacement character should occupy the same position and scale as the original. "
+        "Do not alter any other element."
+    ],
+    "size": "2048x869",
+    "reference_images": [
+        "my-design/images/original-banner.png",   # composition anchor — first
+        "my-design/images/new-character.png",     # replacement source — second
+    ]
+})
+```
 
 ### Image-to-Image Principles
 
@@ -228,6 +248,8 @@ Apply all four when the user provides reference images:
 
 **1. Mandatory reference inclusion**
 Include the path in `reference_images`. State explicitly in the prompt: "Strictly adhere to the visual identity in the reference image. Maintain consistency in product color, texture, and branding." Do not deviate from the reference or invent content freely.
+
+For element swap (replace X in image A with image B): pass both in `reference_images` — composition anchor first, replacement source second; state each image's role explicitly in the prompt. See Replacement scenario example above.
 
 **2. Subject integrity**
 Do not add products, components, or decorations absent from the original (unless the user explicitly requests). If the original contains multiple products (SKUs), require in the prompt: "Show all products from the reference image simultaneously and clearly." Keep product count and types consistent.
