@@ -38,10 +38,10 @@ This document provides quick guidance and core tool descriptions. For details, r
 ## 代码执行方式 / Code Execution Method
 
 <!--zh
-本技能中所有通过 `from sdk.tool import tool` 调用的工具，必须通过 `run_skills_snippet` 的 `python_code` 参数传入执行。
+本技能中所有通过 `from sdk.tool import tool` 调用的工具，必须通过 `run_sdk_snippet` 的 `python_code` 参数传入执行。
 -->
 
-All tool calls via `from sdk.tool import tool` in this skill must be executed by passing code to `run_skills_snippet`'s `python_code` parameter.
+All tool calls via `from sdk.tool import tool` in this skill must be executed by passing code to `run_sdk_snippet`'s `python_code` parameter.
 
 ---
 

@@ -36,7 +36,7 @@ class CallToolRequest(BaseModel):
     tool_name: str = Field(..., description="工具名称")
     tool_params: Dict[str, Any] = Field(..., description="工具参数字典")
     tool_call_id: Optional[str] = Field(None, description="工具调用ID，如果不提供则自动生成")
-    agent_context_id: str = Field(..., description="调用方 AgentContext 的唯一标识符，由 run_skills_snippet 注入子进程环境变量")
+    agent_context_id: str = Field(..., description="调用方 AgentContext 的唯一标识符，由 run_sdk_snippet 注入子进程环境变量")
 
 
 @router.post("/call_tool", response_model=BaseResponse)
@@ -135,7 +135,7 @@ class McpCallRequest(BaseModel):
     tool_name: str = Field(..., description="工具名称（原始名称）")
     tool_params: Dict[str, Any] = Field(..., description="工具参数字典")
     tool_call_id: Optional[str] = Field(None, description="工具调用ID")
-    agent_context_id: str = Field(..., description="调用方 AgentContext 的唯一标识符，由 run_skills_snippet 注入子进程环境变量")
+    agent_context_id: str = Field(..., description="调用方 AgentContext 的唯一标识符，由 run_sdk_snippet 注入子进程环境变量")
 
 
 @router.post("/mcp_call", response_model=BaseResponse)

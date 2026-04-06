@@ -42,14 +42,14 @@ This document provides the quick path. Read the matching reference for detailed 
 ## Code Execution Method (Critical)
 
 <!--zh
-本技能中的 Python 示例必须通过 `run_skills_snippet` 执行。
+本技能中的 Python 示例必须通过 `run_sdk_snippet` 执行。
 -->
-All Python examples in this skill must be executed via `run_skills_snippet`.
+All Python examples in this skill must be executed via `run_sdk_snippet`.
 Video-related tool calls in this skill automatically use long timeouts. Do not ask the model to reason about timeout values.
 
 ```python
-# Correct: execute through run_skills_snippet
-run_skills_snippet(
+# Correct: execute through run_sdk_snippet
+run_sdk_snippet(
     python_code="""
 from sdk.tool import tool
 

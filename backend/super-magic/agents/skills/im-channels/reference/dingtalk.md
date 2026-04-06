@@ -18,7 +18,7 @@
 
 ## 建立连接
 
-（用 run_skills_snippet 工具，python_code 参数为：）
+（用 run_sdk_snippet 工具，python_code 参数为：）
 
 ```
 from sdk.tool import tool

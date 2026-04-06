@@ -1,10 +1,11 @@
 """
-Skill 代码片段执行工具
+SDK 代码片段执行工具（Code Mode 执行器）
 
-专门用于执行 Skill 中的 Python 代码片段
-与 run_python_snippet 的主要区别：
+执行模型生成的 Python 代码片段，代码通过 sdk.tool / sdk.mcp 调用底层工具，
+中间结果在执行环境内部流转，不进入模型上下文。
+与 run_python_snippet 的区别：
 1. should_trigger_events() 返回 False，不触发工具调用事件
-2. 自动注入 agent_context 到子进程环境变量，供 Skill SDK 使用
+2. 自动注入 agent_context 到子进程环境变量，供 SDK 带入 HTTP 请求
 """
 
 
@@ -24,12 +25,12 @@ from app.utils.process_executor import ProcessExecutor
 logger = get_logger(__name__)
 
 
-class RunSkillsSnippetParams(BaseToolParams):
-    """Skill 代码片段执行参数"""
+class RunSdkSnippetParams(BaseToolParams):
+    """SDK 代码片段执行参数"""
     python_code: str = Field(
         ...,
-        description="""<!--zh: 在 Skill 中执行的 Python 代码-->
-Python code to execute in Skills"""
+        description="""<!--zh: 要执行的 Python 代码，通过 sdk.tool / sdk.mcp 调用工具-->
+Python code to execute; use sdk.tool / sdk.mcp to call tools or MCP primitives"""
     )
     timeout: int = Field(
         120,
@@ -39,15 +40,17 @@ Code execution timeout (seconds), default 120. Recommend 180 for image generatio
 
 
 @tool()
-class RunSkillsSnippet(AbstractFileTool[RunSkillsSnippetParams]):
+class RunSdkSnippet(AbstractFileTool[RunSdkSnippetParams]):
     """<!--zh
-    Skill 代码执行工具，用于运行 Skill 中的 Python 代码
+    Code Mode 执行器：运行模型生成的 Python 代码片段，代码通过 sdk.tool / sdk.mcp 调用底层工具。
+    中间结果在执行环境内流转，不进入模型上下文，适合多步编排和复杂逻辑。
+    常与 Skill 配合使用——Skill 描述工作流，此工具负责执行。
 
     适用场景：
-    - Skill 需要编程方式组合多个工具调用
-    - Skill 需要进行数据处理、转换、分析
-    - Skill 需要实现条件判断、循环等复杂逻辑
-    - Skill 需要调用外部 Python 库
+    - 需要编程方式组合多个工具调用
+    - 需要进行数据处理、转换、分析
+    - 需要实现条件判断、循环等复杂逻辑
+    - 需要调用外部 Python 库
 
     使用示例：
     ```python
@@ -56,13 +59,16 @@ class RunSkillsSnippet(AbstractFileTool[RunSkillsSnippetParams]):
     }
     ```
     -->
-    Skill code execution tool for running Python code in Skills
+    Code Mode executor: runs model-generated Python code that calls tools via sdk.tool / sdk.mcp.
+    Intermediate results stay in the execution environment and do not flow through model context,
+    making it efficient for multi-step orchestration and complex logic.
+    Commonly used in Skills — Skills describe the workflow, this tool handles execution.
 
     Use cases:
-    - Skills need to programmatically combine multiple tool calls
-    - Skills need data processing, transformation, or analysis
-    - Skills need conditional logic, loops, or complex control flow
-    - Skills need to use external Python libraries
+    - Programmatically combine multiple tool calls
+    - Data processing, transformation, or analysis
+    - Conditional logic, loops, or complex control flow
+    - Use external Python libraries
 
     Usage example:
     ```python
@@ -73,11 +79,7 @@ class RunSkillsSnippet(AbstractFileTool[RunSkillsSnippetParams]):
     """
 
     def should_trigger_events(self) -> bool:
-        """Skill 代码执行不触发工具调用事件
-
-        Returns:
-            bool: False，不触发事件
-        """
+        """Code Mode 执行不触发工具调用事件，对对话透明"""
         return False
 
     @staticmethod
@@ -97,52 +99,38 @@ class RunSkillsSnippet(AbstractFileTool[RunSkillsSnippetParams]):
             "SUPER_MAGIC_PROJECT_ROOT": project_root_str,
         }
 
-    async def execute(self, tool_context: ToolContext, params: RunSkillsSnippetParams) -> ToolResult:
-        """执行 Skill Python 代码片段
-
-        Args:
-            tool_context: 工具上下文
-            params: 参数对象
-
-        Returns:
-            ToolResult: 执行结果
-        """
+    async def execute(self, tool_context: ToolContext, params: RunSdkSnippetParams) -> ToolResult:
         import uuid
 
         script_file_path = None
 
         try:
-            # 自动生成临时脚本文件名（使用 UUID 确保唯一性）
-            script_filename = f"temp_skill_{uuid.uuid4().hex[:8]}.py"
+            script_filename = f"temp_sdk_{uuid.uuid4().hex[:8]}.py"
 
-            # 使用项目根目录下的 .runtime/skills_scripts 目录
             project_root = PathManager.get_project_root()
 
-            runtime_dir = project_root / ".runtime" / "skills_scripts"
+            runtime_dir = project_root / ".runtime" / "sdk_scripts"
             runtime_dir.mkdir(parents=True, exist_ok=True)
 
-            # 构建完整的脚本文件路径
             script_file_path = runtime_dir / script_filename
 
-            logger.info(f"创建 Skill Python 脚本: {script_file_path}")
+            logger.info(f"创建 SDK 代码片段脚本: {script_file_path}")
 
-            # 第一步：写入Python代码到文件
             try:
                 async with aiofiles.open(script_file_path, 'w', encoding='utf-8') as f:
                     await f.write(params.python_code)
-                logger.debug(f"成功写入 Skill Python 代码到: {script_file_path}")
+                logger.debug(f"成功写入代码到: {script_file_path}")
             except Exception as e:
-                logger.exception(f"写入 Skill Python 脚本失败: {e}")
-                return ToolResult.error(f"写入 Skill Python 脚本失败: {e}")
+                logger.exception(f"写入 SDK 代码片段失败: {e}")
+                return ToolResult.error(f"写入 SDK 代码片段失败: {e}")
 
-            # 第二步：使用 ProcessExecutor 执行Python脚本
             command = f"python {script_filename}"
             effective_timeout = SnippetTimeoutRegistry.get_effective_timeout(
                 params.python_code, params.timeout
             )
             if effective_timeout != params.timeout:
                 logger.info(
-                    f"run_skills_snippet 超时自动提升: "
+                    f"run_sdk_snippet 超时自动提升: "
                     f"requested={params.timeout}s, effective={effective_timeout}s"
                 )
 
@@ -152,12 +140,11 @@ class RunSkillsSnippet(AbstractFileTool[RunSkillsSnippetParams]):
             agent_ctx = tool_context.get_extension("agent_context")
             if agent_ctx is None:
                 raise RuntimeError(
-                    "run_skills_snippet: tool_context 中不存在 agent_context，"
+                    "run_sdk_snippet: tool_context 中不存在 agent_context，"
                     "无法确定调用方 Agent 标识"
                 )
             extra_env["SUPER_MAGIC_AGENT_CONTEXT_ID"] = agent_ctx.context_id
 
-            # 在 .runtime/skills_scripts 目录中执行脚本
             # 主写法固定使用 from sdk.tool import tool，环境兼容由运行时兜底。
             terminal_result = await ProcessExecutor.execute_command(
                 command=command,
@@ -167,12 +154,11 @@ class RunSkillsSnippet(AbstractFileTool[RunSkillsSnippetParams]):
                 extra_env=extra_env,
             )
 
-            # 转换为简单的 ToolResult
             if terminal_result.ok:
                 return ToolResult(content=terminal_result.content)
             else:
                 return ToolResult.error(terminal_result.content)
 
         except Exception as e:
-            logger.exception(f"执行 Skill Python 代码片段时出错: {e}")
-            return ToolResult.error(f"执行 Skill Python 代码片段时出错: {e}")
+            logger.exception(f"执行 SDK 代码片段时出错: {e}")
+            return ToolResult.error(f"执行 SDK 代码片段时出错: {e}")

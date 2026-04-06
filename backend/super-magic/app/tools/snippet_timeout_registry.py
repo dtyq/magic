@@ -1,7 +1,7 @@
 """Snippet 超时注册表
 
 各工具模块在模块级调用 register() 声明自己的最小超时需求，
-run_skills_snippet 通过注册表动态计算生效超时，不感知具体工具实现。
+run_sdk_snippet 通过注册表动态计算生效超时，不感知具体工具实现。
 """
 
 from __future__ import annotations
@@ -10,7 +10,7 @@ from collections.abc import Callable, Sequence
 
 
 class SnippetTimeoutRegistry:
-    """全局单例注册表，管理 run_skills_snippet 的超时提升规则。
+    """全局单例注册表，管理 run_sdk_snippet 的超时提升规则。
 
     注册规则由各工具模块在模块导入时自行注册，彼此解耦。
     执行时遍历所有规则，取 max(requested_timeout, all matched min_timeouts)。

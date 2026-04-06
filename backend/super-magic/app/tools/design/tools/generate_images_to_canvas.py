@@ -32,7 +32,7 @@ from app.tools.snippet_timeout_registry import SnippetTimeoutRegistry
 
 logger = get_logger(__name__)
 
-# 图片生成耗时较长，注册最小超时供 run_skills_snippet 自动提升
+# 图片生成耗时较长，注册最小超时供 run_sdk_snippet 自动提升
 SnippetTimeoutRegistry.register("generate_images_to_canvas", min_timeout=180)
 
 

@@ -11,10 +11,10 @@ Covers all canvas design fundamentals: project management, element types, multim
 
 ## Execution
 
-All Python code in this skill runs via `run_skills_snippet`:
+All Python code in this skill runs via `run_sdk_snippet`:
 
 ```python
-run_skills_snippet(
+run_sdk_snippet(
     python_code="""
 from sdk.tool import tool
 result = tool.call('create_design_project', {"project_path": "my-design"})
@@ -128,7 +128,7 @@ Returns: `{ id, name, size: { width, height }, image_properties.src }`
 - When the user references a canvas image, check `image_properties.visual_understanding` in the `query_canvas_element` response first. Only call a dedicated visual understanding tool if `has_cache` is false or the cached description is clearly insufficient for the task.
 
 **Generation timeout handling:**
-- Image generation takes 1–3 minutes. Always pass `timeout=180` to `run_skills_snippet` when calling `generate_images_to_canvas`.
+- Image generation takes 1–3 minutes. Always pass `timeout=180` to `run_sdk_snippet` when calling `generate_images_to_canvas`.
 - If the call returns a timeout error, do NOT retry immediately. First call `query_canvas_overview` to check whether an element with the expected name already exists. Only re-generate if it is absent. Retrying blindly creates duplicate elements because generation is not idempotent.
 
 ---

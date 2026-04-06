@@ -23,7 +23,7 @@ Reply with exactly this `html` fenced code block, except for replacing `{{QRCODE
 
 ## Start Login
 
-Use `run_skills_snippet` with this `python_code`:
+Use `run_sdk_snippet` with this `python_code`:
 
 ```python
 from sdk.tool import tool

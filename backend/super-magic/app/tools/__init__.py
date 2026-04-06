@@ -105,7 +105,7 @@ from app.tools.design.tools import (
 
 # Skill 管理工具
 from app.tools.read_skills import ReadSkills
-from app.tools.run_skills_snippet import RunSkillsSnippet
+from app.tools.run_sdk_snippet import RunSdkSnippet
 from app.tools.skill_list import SkillList
 
 # Import design package modules to ensure they are available in encrypted environment
@@ -162,7 +162,7 @@ __all__ = [
     "Purify",
     "RunPythonSnippet",
     "ReadSkills",
-    "RunSkillsSnippet",
+    "RunSdkSnippet",
     "SkillList",
     "ReadFile",
     "ReadFiles",

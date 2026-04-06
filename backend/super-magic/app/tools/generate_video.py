@@ -51,7 +51,7 @@ from app.utils.video_logger import get_video_logger
 
 logger = get_video_logger(__name__)
 
-# 视频生成涉及异步轮询，注册最小超时供 run_skills_snippet 自动提升
+# 视频生成涉及异步轮询，注册最小超时供 run_sdk_snippet 自动提升
 SnippetTimeoutRegistry.register(
     ["generate_video", "generate_videos_to_canvas", "query_video_generation"],
     min_timeout=3600,

@@ -66,7 +66,7 @@ Load the matching reference file for credentials and exact steps:
 
 ### Step 3 — Collect credentials and connect
 
-Follow the instructions in the reference file. Run the `run_skills_snippet` code to establish the connection.
+Follow the instructions in the reference file. Run the `run_sdk_snippet` code to establish the connection.
 
 ### Step 4 — Report the result
 
