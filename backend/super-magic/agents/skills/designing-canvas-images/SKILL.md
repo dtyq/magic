@@ -62,7 +62,6 @@ Design projects are uniquely identified by `project_path`. All canvas tools requ
 **Tool priority:**
 - Static output (poster, illustration, cover, still image) → image tools
 - Dynamic output (video, animation, shot, clip) → `designing-canvas-videos` skill
-- Do not fall back to image tools just because a video task is still processing
 
 ---
 
@@ -99,16 +98,6 @@ Returns: `{ created_elements: [{ id, name, type, x, y, width, height }], succeed
 
 Returns: `{ elements: [{ id, name, type, size, position }], canvas_info.total_elements, project_name }`
 
-### query_canvas_element
-
-| Parameter | Required | Description |
-|---|---|---|
-| `project_path` | Yes | Project path |
-| `element_id` | No | Element ID (either this or `src`) |
-| `src` | No | Image path — use to find element by path and retrieve its dimensions |
-
-Returns: `{ id, name, size: { width, height }, image_properties.src }`
-
 ---
 
 ## Canvas Rules
@@ -124,11 +113,11 @@ Returns: `{ id, name, size: { width, height }, image_properties.src }`
 - Default to reusing the existing canvas project; only create a new one when the user explicitly asks
 - Query the canvas with `query_canvas_overview` before operating on existing content
 - Never assume file paths — always use paths obtained from query results
-- For image-to-image: always query the reference image's dimensions first with `query_canvas_element(src=...)`
-- When the user references a canvas image, check `image_properties.visual_understanding` in the `query_canvas_element` response first. Only call a dedicated visual understanding tool if `has_cache` is false or the cached description is clearly insufficient for the task.
+- For image-to-image: use `visual_understanding` to analyze the reference image first — it returns both content description and dimensions. Use the dimensions for `size` and the description to inform your prompt.
+- When the user references a canvas image, always call `visual_understanding` to understand its content before generating. This ensures your prompt accurately describes what to preserve and what to change.
 
 **Generation timeout handling:**
-- Image generation takes 1–3 minutes. Always pass `timeout=180` to `run_sdk_snippet` when calling `generate_images_to_canvas`.
+- `run_sdk_snippet` automatically enforces a minimum 10-minute timeout for `generate_images_to_canvas` calls. You do not need to pass `timeout` unless the task is expected to take longer than 10 minutes.
 - If the call returns a timeout error, do NOT retry immediately. First call `query_canvas_overview` to check whether an element with the expected name already exists. Only re-generate if it is absent. Retrying blindly creates duplicate elements because generation is not idempotent.
 
 ---
@@ -152,11 +141,119 @@ Image-to-image: use the reference image's original dimensions unless the user sp
 
 ---
 
+## Prompt Engineering
+
+Modern image generation models reason about prompts before generating — they understand spatial relationships, logical constraints, and intent. This means prompt quality determines output quality more than any parameter setting.
+
+There is no universal formula. The right prompt depends on the scene. What matters is understanding *why* these models work the way they do, so you can construct the right prompt for any situation from first principles.
+
+### How to think about a prompt
+
+A prompt is a **creative brief**, not a keyword list. Ask yourself: if you were directing a film crew or briefing a photographer, what would you tell them? Prompts that read like clear directions produce images that look like clear decisions.
+
+The most common failure mode is vagueness-by-omission: the model fills in gaps with its defaults, and the result looks "generic". Specificity is not about length — it is about removing ambiguity for every visual decision that matters for this particular image.
+
+What "matters" depends entirely on the task:
+- A product shot → exact surface, lighting direction, reflections, what not to change
+- A portrait → expression, angle, relationship between subject and background
+- A concept art scene → atmosphere, scale cues, relationship between elements
+- A style transfer → which parts come from which reference, and what stays locked
+
+Identify the 2–3 things that would make this image fail if they were wrong, and make those explicit in the prompt.
+
+### Writing principle: specificity over adjectives
+
+Adjectives like "beautiful", "stunning", "dramatic" give the model nothing to work with. Replace them with what actually creates that effect:
+
+- "dramatic" → specify *what* is dramatic: harsh side-lighting, extreme low angle, deep shadow
+- "professional" → specify the medium: shot on medium-format film, editorial composition, clean negative space
+- "cozy" → specify what makes it feel cozy: warm tungsten light, close framing, shallow DOF with blurred surroundings
+
+The test: could another person reconstruct the visual from your prompt alone?
+
+### Separating content from style
+
+This is the most important principle for image-to-image and product work. Conflating them is the most common cause of unwanted changes.
+
+**Content (What)** = the subject itself — its shape, color, texture, quantity, identity. Must not drift.
+**Style (How)** = photography approach, background, lighting, color grade, mood. Can change freely.
+
+When the user says "redesign this in a dark moody style", they almost certainly mean: keep the product/subject unchanged, change the presentation. Make this separation explicit in the prompt.
+
+### Positive framing
+
+Describe what should be present. Negative instructions ("no cars", "don't change the background") are less reliable than their positive equivalents ("empty street", "keep the background exactly as it appears in the first image"). When something must be preserved, say explicitly what it is and that it stays unchanged.
+
+### Technical language as a precision tool
+
+Photography and cinematography vocabulary gives the model precise, unambiguous anchors for visual decisions it would otherwise default on. Use these when the output needs specific visual qualities — not as boilerplate to append to every prompt.
+
+Camera bodies encode color science (Fujifilm → warm, organic tones; GoPro → wide, immersive distortion). Lens specs control perspective and depth (85mm → compressed, flattering; wide-angle → environmental, expansive). Lighting setups encode mood (softbox → clean commercial; chiaroscuro → cinematic tension; golden hour → warmth, nostalgia). Color grade sets emotional register.
+
+Only include these when they are relevant to what the image needs to communicate.
+
+### Using reference images
+
+Every reference image carries multiple visual attributes simultaneously: subject identity, composition structure, color palette, lighting, texture, style, background. Without guidance, the model blends all of them — which is almost never what you want.
+
+The prompt's job is to decompose each reference into its constituent attributes, then explicitly assign each attribute: which image it comes from, whether it is locked or free to change, and what part of the output it applies to.
+
+Answer these questions in the prompt for each reference:
+- What specific visual attribute am I extracting from this image?
+- Is that attribute locked (must be preserved exactly) or used as guidance (can evolve)?
+- Which part of the output does it govern?
+
+When multiple images are passed, cite them by their position in `reference_images` — the model indexes inputs by order, and filenames are not visible. Use "the first image", "the second image", or equivalent in whichever language the prompt is written in.
+
+```
+# Subject consistency + new context
+"Use the character from the first image — preserve their exact facial features, hair, and outfit.
+Place them in an outdoor market environment. The background, lighting, and framing are free."
+
+# Composition lock + style transfer
+"The second image defines the composition: maintain its layout, subject placement, and proportions exactly.
+Apply the color palette, texture, and lighting style from the first image to that composition."
+
+# Object fidelity in a new scene
+"The first image shows the product. Preserve its shape, color, material, and all surface details exactly.
+Generate a new lifestyle context around it — environment, props, and background are unconstrained."
+```
+
+The failure mode is listing references without declaring roles: the model interpolates between all input images and the result satisfies none of your requirements precisely.
+
+### From user intent to prompt
+
+When the user asks for an image, you are translating intent into a visual specification. This is a reasoning task, not a template-fill.
+
+**Step 1 — Identify what the user cares about.** What makes or breaks this image for them? A product shot fails if the product looks wrong. A mood illustration fails if the atmosphere is off. A character portrait fails if the face drifts. Start from the failure conditions.
+
+**Step 2 — Fill in visual decisions the user left open.** The user said "a cat on a rooftop at sunset" — they did not specify camera angle, lens, depth of field, color palette, or the cat's pose. These are decisions you need to make. Choose what serves the image's purpose; do not leave them for the model to default on.
+
+**Step 3 — Construct the prompt as a coherent scene description.** Write it as if briefing someone who will create this image. The prompt should read as clear prose or structured direction — not as a comma-separated keyword dump.
+
+### Prompt language
+
+Write the prompt in the same language the user is using. If the user speaks Chinese, the prompt should be in Chinese. Modern image models handle multilingual prompts natively — there is no quality advantage in translating to English.
+
+### Handling user-provided prompts
+
+**User gives a vague idea** (e.g. "draw a cat at sunset"):
+This is an intent signal, not a finished prompt. Expand it into a complete visual specification. Include the user's original phrasing naturally within the expanded prompt so their core intent passes through to the model.
+
+**User provides a detailed, crafted prompt** (e.g. they clearly spent effort writing it):
+Respect their work. Use their prompt as the primary body. Only append supplementary context (dimensions, technical specs, reference image roles) that the generation API needs but the user's prompt does not cover. Do not rewrite, restructure, or "improve" their wording.
+
+**In both cases:** the user's own words — their specific nouns, adjectives, and descriptive phrases — must be preserved in the final prompt. This is not about mechanical verbatim copying; it is about ensuring that the user's intent, expressed in their chosen words, reaches the image model without being filtered through your interpretation.
+
+---
+
 ## AI Image Generation
 
-### Mode 1 — Multiple themes (up to 6 independent images)
+### Text-to-image (no references)
 
-Use multiple prompts when each image has a distinct subject:
+Use when generating from description alone. Each prompt in `prompts` produces one independent image.
+
+**Multiple themes** — up to 6 prompts, each a distinct image:
 
 ```python
 from sdk.tool import tool
@@ -165,134 +262,119 @@ result = tool.call('generate_images_to_canvas', {
     "project_path": "landmarks",
     "name": "beijing-landmarks",
     "prompts": [
-        "Great Wall of China panoramic view, golden hour lighting, professional landscape photography, ...",
-        "Forbidden City Hall of Supreme Harmony, dramatic clouds, professional architectural photography, ...",
-        "Temple of Heaven main hall, clear blue sky, professional travel photography, ..."
+        "The Great Wall winding across mountain ridges toward the horizon, "
+        "late afternoon sun casting long shadows along the stone walkway, "
+        "aerial perspective from a drone at 200m altitude, "
+        "warm golden light with cool blue shadows in the valleys",
+
+        "The Hall of Supreme Harmony in the Forbidden City, "
+        "low-angle shot from the courtyard emphasizing the layered rooflines, "
+        "overcast sky with dramatic cloud formations breaking above the ridge, "
+        "symmetrical composition with the central staircase as the leading line",
+
+        "The Temple of Heaven's Hall of Prayer, "
+        "shot from ground level looking up at the triple-tiered circular roof, "
+        "early morning with clear sky, the deep blue and gold roof tiles "
+        "catching the first direct sunlight against the pale sky"
     ],
-    "size": "2048x2048",
+    "size": "2560x1440",
     "reference_images": []
 })
 ```
 
-### Mode 2 — Variations (up to 4 versions of one theme)
-
-Use single prompt + `image_count` when the user wants alternatives for one idea:
+**Variations** — up to 4 versions of one theme:
 
 ```python
-from sdk.tool import tool
-
 result = tool.call('generate_images_to_canvas', {
     "project_path": "product",
-    "name": "product-shots",
-    "prompts": ["Skincare bottle on white marble surface, soft studio lighting, minimalist e-commerce photography, ..."],
+    "name": "moisturizer-options",
+    "prompts": [
+        "A frosted glass moisturizer jar on a slab of raw white marble, "
+        "single soft light source from the upper left creating a gentle gradient shadow, "
+        "clean negative space around the product, "
+        "shallow depth of field with the brand label tack-sharp, "
+        "neutral warm color grade, e-commerce product photography"
+    ],
     "image_count": 4,
     "size": "2048x2048",
     "reference_images": []
 })
 ```
 
-### Mode 3 — Image-to-image (reference-anchored)
+### Image-to-image (with references)
 
-Always query the reference image's dimensions first, then generate at the same size:
+Always query the reference image's dimensions first, then generate at the same size.
+
+The prompt must declare what each reference contributes. The model receives images in array order; cite them as "the first image", "the second image", etc. (or the equivalent in the prompt's language).
+
+**Single reference — targeted edit:**
+
+Before generating, call `visual_understanding` on the reference image. It returns the image's dimensions and a content description — use both to build the prompt and set the correct `size`.
 
 ```python
 from sdk.tool import tool
 
-# Step 1: Get reference image dimensions
-result = tool.call('query_canvas_element', {
+# visual_understanding has already been called on "my-design/images/cat.jpg"
+# and returned dimensions 1920x1080 and a description of the cat
+
+tool.call('generate_images_to_canvas', {
     "project_path": "my-design",
-    "src": "my-design/images/cat.jpg"
+    "name": "cat-red-ear",
+    "reference_images": ["my-design/images/cat.jpg"],
+    "prompts": [
+        "Based on the reference image, change only the ear in the upper-right area to bright red. "
+        "Preserve the cat's face, body, pose, background, and every other detail exactly as they appear. "
+        "The red ear should look natural — same fur texture, same lighting direction, just the color changed."
+    ],
+    "size": "1920x1080"
 })
-
-if result.ok and result.data:
-    width = result.data['size']['width']
-    height = result.data['size']['height']
-    src = result.data['image_properties']['src']
-
-    # Step 2: Generate at same size with reference
-    result2 = tool.call('generate_images_to_canvas', {
-        "project_path": "my-design",
-        "name": "modified-cat",
-        "reference_images": [src],
-        "prompts": ["Change the ear at the top-right to red while keeping all other parts completely unchanged, strictly follow the reference image, ..."],
-        "size": f"{width}x{height}"
-    })
 ```
 
-**Replacement scenario (element swap):** When the user says "replace the character in image A with image B", use both images as references:
+**Multiple references — element swap:**
 
 ```python
-from sdk.tool import tool
-
-result = tool.call('generate_images_to_canvas', {
+tool.call('generate_images_to_canvas', {
     "project_path": "my-design",
     "name": "banner-hero-swap",
     "prompts": [
-        "Keep the entire composition of the first reference image unchanged — background, text, layout, and all other characters. "
-        "Replace only the [target character] in the center with the character from the second reference image: "
-        "[describe the replacement character's pose, armor, and key visual features]. "
-        "The replacement character should occupy the same position and scale as the original. "
-        "Do not alter any other element."
+        "The first image is the composition anchor: keep its background, layout, text overlays, "
+        "and all secondary characters exactly unchanged. "
+        "The second image provides the replacement character. "
+        "Remove the original central figure and place the character from the second image "
+        "in the same position and at the same scale. "
+        "Match the lighting direction and color temperature of the first image onto the new character "
+        "so they integrate naturally into the scene."
     ],
     "size": "2048x869",
     "reference_images": [
-        "my-design/images/original-banner.png",   # composition anchor — first
-        "my-design/images/new-character.png",     # replacement source — second
+        "my-design/images/original-banner.png",
+        "my-design/images/new-character.png",
     ]
 })
 ```
 
-### Image-to-Image Principles
+**Style transfer:**
 
-Apply all four when the user provides reference images:
-
-**1. Mandatory reference inclusion**
-Include the path in `reference_images`. State explicitly in the prompt: "Strictly adhere to the visual identity in the reference image. Maintain consistency in product color, texture, and branding." Do not deviate from the reference or invent content freely.
-
-For element swap (replace X in image A with image B): pass both in `reference_images` — composition anchor first, replacement source second; state each image's role explicitly in the prompt. See Replacement scenario example above.
-
-**2. Subject integrity**
-Do not add products, components, or decorations absent from the original (unless the user explicitly requests). If the original contains multiple products (SKUs), require in the prompt: "Show all products from the reference image simultaneously and clearly." Keep product count and types consistent.
-
-**3. Subject–style separation**
-Distinguish subject content (What) from style expression (How). The subject's exact features (e.g., pink handle, white bristles) must not change. Style attributes — photography style, background, lighting — can change. Example: "Redesign in Apple style" → keep the product unchanged, only change photography style, background, and lighting.
-
-**4. Precise requirement delivery**
-Do not blur or simplify user requirements. Every keyword the user mentions (e.g., "fan-shaped spread", "firework explosion", "minimalist floating") must appear in the prompt as a modifier. Specify how to use the reference: state "rearrange objects from the reference image" for layout changes, or "apply the reference image's style to the current subject" for style transfers.
+```python
+tool.call('generate_images_to_canvas', {
+    "project_path": "my-design",
+    "name": "product-lifestyle",
+    "reference_images": [product_src, style_ref_src],
+    "prompts": [
+        "The first image shows the product. Preserve its shape, color, material finish, "
+        "and all surface details — these are non-negotiable. "
+        "The second image defines the target visual style: adopt its lighting setup, "
+        "color grading, and background treatment. "
+        "Place the product in a new lifestyle setting that matches the second image's aesthetic, "
+        "while keeping the product itself pixel-accurate to the first image."
+    ],
+    "size": f"{w}x{h}"
+})
+```
 
 ### Batching (> 4 images)
 
-A single call supports at most 6 prompts (Mode 1) or 4 variations (Mode 2). For more images, split into multiple calls:
-
-```python
-from sdk.tool import tool
-
-# First batch
-result = tool.call('generate_images_to_canvas', {
-    "project_path": "animals",
-    "name": "dogs",
-    "prompts": [
-        "Golden retriever puppy in a sunny park, natural lighting, professional pet photography, ...",
-        "Husky with blue eyes against a snowy background, professional pet photography, ...",
-        "Corgi on green grass, playful expression, warm natural light, ...",
-        "German shepherd in a forest, alert posture, professional pet photography, ..."
-    ],
-    "size": "2048x2048",
-    "reference_images": []
-})
-
-# Second batch
-result2 = tool.call('generate_images_to_canvas', {
-    "project_path": "animals",
-    "name": "dogs-2",
-    "prompts": [
-        "Samoyed with fluffy white coat in an outdoor setting, professional photography, ...",
-        "Border collie mid-action on an agility field, dynamic shot, professional photography, ..."
-    ],
-    "size": "2048x2048",
-    "reference_images": []
-})
-```
+A single call supports at most 6 prompts or 4 variations. For more images, split into multiple calls with distinct `name` values.
 
 ---
 
@@ -301,15 +383,15 @@ result2 = tool.call('generate_images_to_canvas', {
 Users annotate canvas images with `[@design_marker:name]` to request modifications. Example marker:
 
 ```
-[@design_marker:红色耳朵]
-- 图片位置: my-design/images/dog.jpg
-- 标记区域: 图片上方右侧的小区域
-- 坐标: 左上角(64.0%, 7.0%)
+[@design_marker:red-ear]
+- Image location: my-design/images/dog.jpg
+- Marked area: Small area at top-right of image
+- Coordinates: Top-left (64.0%, 7.0%)
 ```
 
 Processing steps:
 1. **Parse** — extract image path, marked area, and user intent from the marker
-2. **Query size** — `query_canvas_element(src=...)` to get original image dimensions
+2. **Understand** — call `visual_understanding` on the image to get its dimensions and content description
 3. **Build prompt** — `[location] + [what to change] + [preserve everything else]`
 4. **Generate** — `generate_images_to_canvas` with `reference_images` pointing to the original image
 
@@ -335,9 +417,9 @@ Need a new canvas project?
 
 Generate AI images?
 ├─ Yes → generate_images_to_canvas
-│   ├─ Has reference image? → query_canvas_element(src) first, then reference_images=[src]
-│   ├─ Different themes? → multiple prompts (Mode 1, max 6)
-│   └─ Same theme, multiple versions? → single prompt + image_count (Mode 2, max 4)
+│   ├─ Has reference image? → visual_understanding first, then reference_images=[path]
+│   ├─ Different themes? → multiple prompts (max 6)
+│   └─ Same theme, multiple versions? → single prompt + image_count (max 4)
 └─ No → continue
 
 Generate video?
@@ -349,9 +431,7 @@ Search web images?
 └─ No → continue
 
 Query canvas info?
-├─ Overview → query_canvas_overview
-├─ By element ID → query_canvas_element(element_id)
-└─ By image path → query_canvas_element(src)
+└─ Overview → query_canvas_overview
 ```
 
 ---
