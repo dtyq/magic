@@ -14,7 +14,6 @@ WechatLoginManager 是唯一状态所有者：
 from __future__ import annotations
 
 import asyncio
-import json
 import time
 import uuid
 from dataclasses import dataclass, field
@@ -88,10 +87,6 @@ class WechatLoginOutcome:
     def requires_qr_render(self) -> bool:
         return self.kind == LoginOutcomeKind.QR_RENDER
 
-    def qrcode_js_string_literal(self) -> str:
-        """返回可直接塞进 Skill 模板的 JS 字符串字面量。"""
-        return json.dumps(self.qrcode_content, ensure_ascii=False)
-
 
 @dataclass
 class WechatLoginSession:
@@ -113,9 +108,6 @@ class WechatLoginSession:
 
     def is_fresh(self) -> bool:
         return int(time.time() * 1000) - self.started_at_ms < LOGIN_SESSION_TTL_MS
-
-    def qrcode_js_string_literal(self) -> str:
-        return json.dumps(self.qrcode_content, ensure_ascii=False)
 
 
 class WechatLoginManager:
