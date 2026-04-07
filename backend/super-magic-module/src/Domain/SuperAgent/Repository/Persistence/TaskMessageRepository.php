@@ -78,6 +78,29 @@ class TaskMessageRepository implements TaskMessageRepositoryInterface
     }
 
     /**
+     * @return TaskMessageEntity[]
+     */
+    public function findFollowUpContextMessages(int $topicId, int $roundLimit): array
+    {
+        if ($topicId <= 0) {
+            return [];
+        }
+
+        $roundLimit = max(1, $roundLimit);
+        $boundaryQuestion = $this->findFollowUpBoundaryQuestion($topicId, $roundLimit);
+        if ($boundaryQuestion === null) {
+            $candidateMessages = $this->findFollowUpCandidateMessages($topicId, null);
+        } else {
+            $candidateMessages = $this->findFollowUpCandidateMessages($topicId, $boundaryQuestion->getSendTimestamp());
+        }
+        if ($candidateMessages === []) {
+            return [];
+        }
+
+        return $candidateMessages;
+    }
+
+    /**
      * 根据话题ID获取消息列表，支持分页.
      *
      * @param int $topicId 话题ID
@@ -421,5 +444,53 @@ class TaskMessageRepository implements TaskMessageRepositoryInterface
         $this->model::query()
             ->where('id', $id)
             ->update(['im_seq_id' => $imSeqId]);
+    }
+
+    private function findFollowUpBoundaryQuestion(int $topicId, int $roundLimit): ?TaskMessageEntity
+    {
+        $offset = max(0, $roundLimit - 1);
+        $record = $this->model::query()
+            ->where('topic_id', $topicId)
+            ->where(function ($query) {
+                $query->whereNull('event')
+                    ->orWhere('event', '');
+            })
+            ->orderByDesc('send_timestamp')
+            ->orderByDesc('seq_id')
+            ->offset($offset)
+            ->limit(1)
+            ->first();
+
+        return $record === null ? null : new TaskMessageEntity($record->toArray());
+    }
+
+    /**
+     * @return TaskMessageEntity[]
+     */
+    private function findFollowUpCandidateMessages(int $topicId, ?int $boundaryTimestamp): array
+    {
+        $query = $this->model::query()
+            ->where('topic_id', $topicId)
+            ->where(function ($query) {
+                $query->whereNull('event')
+                    ->orWhere('event', '')
+                    ->orWhere('event', 'after_agent_reply');
+            });
+        if ($boundaryTimestamp !== null) {
+            $query->where('send_timestamp', '>=', $boundaryTimestamp);
+        }
+
+        $records = $query
+            ->orderBy('send_timestamp')
+            ->orderBy('seq_id')
+            ->orderBy('id')
+            ->get();
+
+        $messages = [];
+        foreach ($records as $record) {
+            $messages[] = new TaskMessageEntity($record->toArray());
+        }
+
+        return $messages;
     }
 }

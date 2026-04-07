@@ -29,16 +29,28 @@ interface TaskMessageRepositoryInterface
     public function batchSave(array $messages): void;
 
     /**
+     * 根据话题ID和任务ID获取用户消息列表（优化索引+过滤用户消息）.
+     * @return TaskMessageEntity[]
+     */
+    public function findUserMessagesByTopicIdAndTaskId(int $topicId, string $taskId): array;
+
+    /**
      * 根据任务ID获取消息列表.
      * @return TaskMessageEntity[]
      */
     public function findByTaskId(string $taskId): array;
 
     /**
-     * 根据话题ID和任务ID获取用户消息列表（优化索引+过滤用户消息）.
+     * 从 magic_super_agent_message 单表提取最近 N 轮原始消息候选集。
+     *
+     * 轮次规则：
+     * - sender_type = user 且 event 为空 视为一轮开始
+     * - 该轮结束于下一条满足上述条件的用户消息之前
+     * - 返回该范围内的问题消息与 assistant after_agent_reply 候选消息
+     *
      * @return TaskMessageEntity[]
      */
-    public function findUserMessagesByTopicIdAndTaskId(int $topicId, string $taskId): array;
+    public function findFollowUpContextMessages(int $topicId, int $roundLimit): array;
 
     /**
      * 根据话题ID获取消息列表，支持分页.
