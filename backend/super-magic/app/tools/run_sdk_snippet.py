@@ -34,8 +34,8 @@ Python code to execute; use sdk.tool / sdk.mcp to call tools or MCP primitives""
     )
     timeout: int = Field(
         120,
-        description="""<!--zh: 代码执行超时时间（秒），默认120秒。图片生成建议传180，视频生成自动提升至3600-->
-Code execution timeout (seconds), default 120. Recommend 180 for image generation; video generation auto-elevates to 3600."""
+        description="""<!--zh: 代码执行超时时间（秒），默认120秒，按预期执行时长调整-->
+Code execution timeout in seconds, default 120. Adjust based on expected operation duration."""
     )
 
 
