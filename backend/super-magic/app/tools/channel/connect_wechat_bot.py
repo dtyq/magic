@@ -1,7 +1,7 @@
 """
 ConnectWechatBot — 发起微信官方 ClawBot 扫码登录的 Tool。
 
-不挂载到 LLM tool list，仅供 Skill snippet 通过 /api/skills/call_tool 调用。
+不挂载到 LLM tool list，仅供 SDK snippet 通过 /api/sdk-runtime/call_tool 调用。
 """
 from typing import Any, Dict
 
@@ -29,9 +29,9 @@ Force-cancel the current login session and generate a new QR flow when set to tr
 @tool()
 class ConnectWechatBot(BaseTool[ConnectWechatBotParams]):
     """<!--zh
-    发起微信官方 ClawBot 扫码登录。仅供 Skill snippet 调用，不挂载到 LLM。
+    发起微信官方 ClawBot 扫码登录。仅供 SDK snippet 调用，不挂载到 LLM。
     -->
-    Start the WeChat ClawBot QR login flow. Intended for skill snippets only and not exposed as a normal LLM tool.
+    Start the WeChat ClawBot QR login flow. Intended for SDK snippets only and not exposed as a normal LLM tool.
     """
 
     async def execute(self, tool_context: ToolContext, params: ConnectWechatBotParams) -> ToolResult:

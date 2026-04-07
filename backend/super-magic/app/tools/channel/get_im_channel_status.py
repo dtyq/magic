@@ -1,7 +1,7 @@
 """
 GetIMChannelStatus — 查询 IM 渠道配置与连接状态。
 
-不挂载到 LLM tool list，仅供 Skill snippet 通过 /api/skills/call_tool 调用。
+不挂载到 LLM tool list，仅供 SDK snippet 通过 /api/sdk-runtime/call_tool 调用。
 """
 from typing import Any, Dict, Optional
 
@@ -17,9 +17,9 @@ from app.tools.core import BaseTool, BaseToolParams, tool
 @tool()
 class GetIMChannelStatus(BaseTool[BaseToolParams]):
     """<!--zh
-    查询企业微信、钉钉、飞书、微信的配置情况与实时连接状态。仅供 Skill snippet 调用，不挂载到 LLM。
+    查询企业微信、钉钉、飞书、微信的配置情况与实时连接状态。仅供 SDK snippet 调用，不挂载到 LLM。
     -->
-    Query configuration and live connection status for WeCom, DingTalk, Lark, and WeChat. Intended for skill snippets only and not exposed as a normal LLM tool.
+    Query configuration and live connection status for WeCom, DingTalk, Lark, and WeChat. Intended for SDK snippets only and not exposed as a normal LLM tool.
     """
 
     async def execute(self, tool_context: ToolContext, params: BaseToolParams) -> ToolResult:

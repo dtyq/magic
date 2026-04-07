@@ -1,7 +1,7 @@
 """
 ConnectWecomBot — 建立企微 AI Bot WS 连接的 Tool。
 
-不挂载到 LLM tool list，仅供 Skill snippet 通过 /api/skills/call_tool 调用。
+不挂载到 LLM tool list，仅供 SDK snippet 通过 /api/sdk-runtime/call_tool 调用。
 """
 from typing import Any, Dict
 
@@ -34,9 +34,9 @@ The WeCom AI Bot secret from the WeCom admin console.""",
 @tool()
 class ConnectWecomBot(BaseTool[ConnectWecomBotParams]):
     """<!--zh
-    建立企业微信 AI Bot WebSocket 长连接。仅供 Skill snippet 调用，不挂载到 LLM。
+    建立企业微信 AI Bot WebSocket 长连接。仅供 SDK snippet 调用，不挂载到 LLM。
     -->
-    Start the WeCom AI Bot WebSocket connection. Intended for skill snippets only and not exposed as a normal LLM tool.
+    Start the WeCom AI Bot WebSocket connection. Intended for SDK snippets only and not exposed as a normal LLM tool.
     """
 
     async def execute(self, tool_context: ToolContext, params: ConnectWecomBotParams) -> ToolResult:

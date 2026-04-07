@@ -1,7 +1,7 @@
 """
 WaitWechatLogin — 等待微信官方 ClawBot 扫码结果的 Tool。
 
-不挂载到 LLM tool list，仅供 Skill snippet 通过 /api/skills/call_tool 调用。
+不挂载到 LLM tool list，仅供 SDK snippet 通过 /api/sdk-runtime/call_tool 调用。
 """
 from typing import Any, Dict
 
@@ -35,9 +35,9 @@ Maximum seconds to wait for the QR confirmation. Defaults to 300.""",
 @tool()
 class WaitWechatLogin(BaseTool[WaitWechatLoginParams]):
     """<!--zh
-    等待微信扫码登录结果。仅供 Skill snippet 调用，不挂载到 LLM。
+    等待微信扫码登录结果。仅供 SDK snippet 调用，不挂载到 LLM。
     -->
-    Wait for the WeChat QR login result. Intended for skill snippets only and not exposed as a normal LLM tool.
+    Wait for the WeChat QR login result. Intended for SDK snippets only and not exposed as a normal LLM tool.
     """
 
     async def execute(self, tool_context: ToolContext, params: WaitWechatLoginParams) -> ToolResult:

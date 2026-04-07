@@ -1,7 +1,7 @@
 """
 SDK Tool 接口
 
-提供简化的工具调用接口，让 AI 在 Skill 代码中可以轻松调用工具
+提供简化的工具调用接口，让 AI 在 SDK 代码片段中可以轻松调用工具
 
 通过 HTTP 请求调用工具，避免子进程和 agent_context 传递的复杂性
 """
@@ -15,7 +15,7 @@ from typing import Dict, Any, Optional
 from .result import Result
 
 # 视频相关工具会在服务端阻塞轮询较长时间，并持续推送进度事件。
-# Skill 通过 HTTP 调工具时如果仍沿用默认 60 秒超时，会先在 SDK 层断开，
+# SDK 代码片段通过 HTTP 调工具时如果仍沿用默认 60 秒超时，会先在 SDK 层断开，
 # 造成“外层 skill 已超时、内层视频任务仍在继续”的错位。
 # 因此这里按工具名自动切到长超时，避免把这类实现细节交给模型显式传参。
 VIDEO_TOOL_NAMES = {
@@ -32,7 +32,7 @@ class ToolSDK:
     示例:
         from sdk.tool import tool
 
-        # 同步调用（推荐，用于 skill 代码片段）
+        # 同步调用（推荐，用于 SDK 代码片段）
         result = tool.call('tool_name', {'param': 'value'})
     """
 
@@ -82,7 +82,7 @@ class ToolSDK:
 
         # 构建请求数据
         # agent_context_id 由 run_sdk_snippet 注入到子进程环境变量，
-        # 服务端用它精确路由到发起调用的 Agent context。
+        # SDK Runtime 服务端用它精确路由到发起调用的 Agent context。
         agent_context_id = os.getenv("SUPER_MAGIC_AGENT_CONTEXT_ID", "")
         request_data = {
             "tool_name": tool_name,
@@ -92,7 +92,7 @@ class ToolSDK:
         }
 
         # 发起 HTTP 请求
-        url = f"{self.api_base_url}/api/skills/call_tool"
+        url = f"{self.api_base_url}/api/sdk-runtime/call_tool"
         request_timeout = self._resolve_request_timeout(tool_name, timeout, self.api_timeout)
 
         try:
