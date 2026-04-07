@@ -6,18 +6,18 @@ from dataclasses import dataclass, field
 
 @dataclass
 class FileReadRecord:
-    """LLM 读取某个文件时的快照，用于后续 Diff 检测和编辑校验。"""
+    """文件读取记录，用于后续变化检测、Diff 生成和编辑校验。"""
     path: str                           # 绝对路径
-    read_at: str                        # ISO 8601 datetime
-    read_ranges: list[tuple[int, int]]  # [(start_line, end_line)], end=-1 表示到文件末尾
-    read_content: str                   # LLM 看到的原始文本（无行号前缀），Diff old 基准
-    read_content_hash: str              # BLAKE2b of read_content
-    full_file_hash: str                 # BLAKE2b of 完整文件（用于快速检测任意变化）
-    file_mtime_ms: float                # 读取时的 mtime（毫秒，大文件时间戳校验用）
+    file_hash: str                      # 文件级变化探测信号（小文件真 hash，大文件 __mtime__ 伪 hash）
+    file_mtime_ms: float                # 读取时的 mtime（毫秒）
     file_size_bytes: int                # 读取时的文件大小（bytes）
-    truncated: bool                     # 是否因 token 限制被截断
+    file_content: str                   # 整文件文本快照（小文件存全文，大文件置空）
     tool_name: str                      # 触发读取的工具名
-    metadata: dict = field(default_factory=dict)  # 透传原 FileTimestampManager.metadatas
+    truncated: bool                     # 是否因 token 限制被截断
+    metadata: dict = field(default_factory=dict)
+    # 留档字段：不参与主链路判断，但保留用于排查
+    read_at: str = ""                   # ISO 8601 datetime
+    read_ranges: list[tuple[int, int]] = field(default_factory=list)  # 当时读取的行号区间
 
 
 @dataclass
