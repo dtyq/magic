@@ -2750,6 +2750,123 @@ class TaskFileDomainService
     }
 
     /**
+     * Clear all descendants under the given directory while keeping the parent node itself.
+     *
+     * @return array{
+     *     project_id:int,
+     *     parent_id:int,
+     *     deleted_total:int,
+     *     deleted_files:int,
+     *     deleted_directories:int,
+     *     deleted_objects:int
+     * }
+     */
+    public function clearProjectFile(int $projectId, string $organizationCode, int $parentId): array
+    {
+        $projectEntity = $this->projectRepository->findById($projectId);
+        if ($projectEntity === null) {
+            ExceptionBuilder::throw(SuperAgentErrorCode::PROJECT_NOT_FOUND, trans('project.project_not_found'));
+        }
+
+        $workDir = $projectEntity->getWorkDir();
+        if ($workDir === '') {
+            ExceptionBuilder::throw(SuperAgentErrorCode::WORK_DIR_NOT_FOUND, trans('project.work_dir.not_found'));
+        }
+
+        if ($projectEntity->getUserOrganizationCode() !== $organizationCode) {
+            ExceptionBuilder::throw(SuperAgentErrorCode::FILE_PERMISSION_DENIED, trans('file.permission_denied'));
+        }
+
+        $parentEntity = $this->taskFileRepository->getById($parentId);
+        if ($parentEntity === null || $parentEntity->getProjectId() !== $projectId) {
+            ExceptionBuilder::throw(SuperAgentErrorCode::FILE_NOT_FOUND, trans('file.file_not_found'));
+        }
+        if (! $parentEntity->getIsDirectory()) {
+            ExceptionBuilder::throw(SuperAgentErrorCode::FILE_OPERATION_NOT_ALLOWED, trans('file.cannot_replace_directory'));
+        }
+
+        $descendants = $this->findFilesRecursivelyByParentId($projectId, $parentId, 100);
+        if ($descendants === []) {
+            return [
+                'project_id' => $projectId,
+                'parent_id' => $parentId,
+                'deleted_total' => 0,
+                'deleted_files' => 0,
+                'deleted_directories' => 0,
+                'deleted_objects' => 0,
+            ];
+        }
+
+        $fullPrefix = $this->getFullPrefix($organizationCode);
+        $fullWorkdir = WorkDirectoryUtil::getFullWorkdir($fullPrefix, $workDir);
+        $parentPrefix = rtrim($parentEntity->getFileKey(), '/') . '/';
+        $fileIds = [];
+        $fileKeys = [];
+        $deletedFiles = 0;
+        $deletedDirectories = 0;
+
+        foreach ($descendants as $entity) {
+            $fileKey = $entity->getFileKey();
+
+            if (
+                $entity->getProjectId() !== $projectId
+                || ! WorkDirectoryUtil::checkEffectiveFileKey($fullWorkdir, $fileKey)
+                || ! str_starts_with($fileKey, $parentPrefix)
+            ) {
+                ExceptionBuilder::throw(SuperAgentErrorCode::FILE_ILLEGAL_KEY, trans('file.illegal_file_key'));
+            }
+
+            $fileIds[] = $entity->getFileId();
+            $fileKeys[] = $fileKey;
+
+            if ($entity->getIsDirectory()) {
+                ++$deletedDirectories;
+            } else {
+                ++$deletedFiles;
+            }
+        }
+
+        $deleteResult = $this->cloudFileRepository->deleteObjectsByCredential(
+            WorkDirectoryUtil::getPrefix($workDir),
+            $organizationCode,
+            $fileKeys,
+            StorageBucketType::SandBox
+        );
+
+        if (! empty($deleteResult['errors'])) {
+            $this->logger->error('Failed to clear project files from storage', [
+                'project_id' => $projectId,
+                'parent_id' => $parentId,
+                'errors' => $deleteResult['errors'],
+            ]);
+            ExceptionBuilder::throw(SuperAgentErrorCode::FILE_DELETE_FAILED, trans('file.batch_delete_failed'));
+        }
+
+        Db::beginTransaction();
+        try {
+            $this->taskFileRepository->deleteByIds($fileIds);
+            Db::commit();
+        } catch (Throwable $e) {
+            Db::rollBack();
+            $this->logger->error('Failed to clear project files from database', [
+                'project_id' => $projectId,
+                'parent_id' => $parentId,
+                'error' => $e->getMessage(),
+            ]);
+            ExceptionBuilder::throw(SuperAgentErrorCode::FILE_DELETE_FAILED, trans('file.batch_delete_failed'));
+        }
+
+        return [
+            'project_id' => $projectId,
+            'parent_id' => $parentId,
+            'deleted_total' => count($descendants),
+            'deleted_files' => $deletedFiles,
+            'deleted_directories' => $deletedDirectories,
+            'deleted_objects' => count($deleteResult['deleted'] ?? []),
+        ];
+    }
+
+    /**
      * Normalize relative path.
      * Removes leading './', '/', and handles edge cases.
      *

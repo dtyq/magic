@@ -145,10 +145,7 @@ class SkillImportedEventSubscriber implements ListenerInterface
             throw new RuntimeException('Skill packageName is empty');
         }
 
-        $projectEntity = $this->projectDomainService->getProjectNotUserId($projectId);
-        if ($projectEntity === null) {
-            throw new RuntimeException('Project not found for imported skill');
-        }
+        $projectEntity = $this->projectDomainService->getProject($projectId, $userId);
 
         $workDir = $projectEntity->getWorkDir();
         if (empty($workDir)) {
@@ -190,6 +187,8 @@ class SkillImportedEventSubscriber implements ListenerInterface
                 $projectOrgCode,
                 TaskFileSource::SKILL
             );
+
+            $this->taskFileDomainService->clearProjectFile($projectId, $projectOrgCode, $rootDirId);
 
             $magicDirId = $this->taskFileDomainService->createDirectory(
                 $projectId,
@@ -266,7 +265,9 @@ class SkillImportedEventSubscriber implements ListenerInterface
             $this->logger->info('Skill import post-process completed', [
                 'skill_code' => $skillCode,
                 'project_id' => $projectId,
+                'package_name' => $packageName,
                 'files_created' => count($createdFiles),
+                'workspace_cleared' => true,
             ]);
         } finally {
             ZipUtil::removeDirectory($tempDir);

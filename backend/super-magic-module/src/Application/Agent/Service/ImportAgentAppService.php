@@ -44,9 +44,9 @@ use function Hyperf\Support\retry;
  * Flow:
  *   1. Parse the ZIP → ParsedAgentData
  *   2. Idempotent create-or-update the Agent entity (keyed on name + orgCode)
- *   3. Upload the original ZIP to private object storage → set file_key
- *   4. Create and bind a CUSTOM_AGENT project if agent has none
- *   5. Upload all extracted files (including skills/) to the project file tree
+ *   3. Create and bind a CUSTOM_AGENT project if agent has none
+ *   4. Clear the project workspace and rebuild it under .magic/
+ *   5. Upload the original ZIP to private object storage → set file_key
  *   6. Auto-publish the agent (organization-wide) using the already-uploaded ZIP
  *   7. Clean up temp directory
  */
@@ -94,20 +94,30 @@ class ImportAgentAppService extends AbstractSuperMagicAppService
             // 2. Idempotent create-or-update the agent
             $agentName = $parsedData->nameI18n['en_US'] ?? ($parsedData->nameI18n['default'] ?? '');
             $existingAgent = $this->superMagicAgentDomainService->findByNameAndOrgCode($agentName, $orgCode);
+            if ($existingAgent !== null) {
+                $existingAgent = $this->superMagicAgentDomainService->getByCodeWithUserCheck(
+                    $dataIsolation,
+                    $existingAgent->getCode()
+                );
+            }
 
             $entityToSave = $this->buildAgentEntity($parsedData, $existingAgent);
 
             $savedEntity = $this->superMagicAgentDomainService->save($dataIsolation, $entityToSave, false);
             $agentCode = $savedEntity->getCode();
 
-            // 3. Upload ZIP to private bucket and record file_key
-            $fileKey = $this->uploadZipToStorage($orgCode, $agentCode, $tempZipPath);
-
-            // 4. Create and bind project if agent has none
+            // 3. Create and bind project if agent has none
             $projectId = $savedEntity->getProjectId();
             if (empty($projectId)) {
                 $projectId = $this->createAndBindProject($requestContext, $savedEntity->getName(), $agentCode);
             }
+
+            // 4. Rebuild the project workspace under .magic/
+            $projectEntity = $this->projectDomainService->getProject((int) $projectId, $userId);
+            $this->rebuildProjectWorkspace($projectEntity, $parsedData->agentDir, $userId);
+
+            // 5. Upload ZIP to private bucket and record file_key
+            $fileKey = $this->uploadZipToStorage($orgCode, $agentCode, $tempZipPath);
 
             // Persist file_key and project_id in one save
             $savedEntity->setFileKey($fileKey);
@@ -115,10 +125,6 @@ class ImportAgentAppService extends AbstractSuperMagicAppService
             $savedEntity->setModifier($userId);
             $savedEntity->setUpdatedAt(new DateTime());
             $this->superMagicAgentDomainService->saveDirectly($dataIsolation, $savedEntity);
-
-            // 5. Upload all extracted files to the project file tree
-            $projectEntity = $this->projectDomainService->getProjectNotUserId((int) $projectId);
-            $this->uploadFilesToProject($dataIsolation, $projectEntity, $parsedData->agentDir, $orgCode, $userId);
 
             // 6. Auto-publish (skip sandbox export — reuse the already-uploaded ZIP as file_key)
             $versionEntity = new AgentVersionEntity();
@@ -243,25 +249,37 @@ class ImportAgentAppService extends AbstractSuperMagicAppService
     }
 
     /**
-     * Recursively upload all files in the agent directory to the project file tree.
+     * Clear the project workspace and upload the extracted agent package under .magic/.
      */
-    private function uploadFilesToProject(
-        SuperMagicAgentDataIsolation $dataIsolation,
+    private function rebuildProjectWorkspace(
         ProjectEntity $projectEntity,
         string $agentDir,
-        string $orgCode,
         string $userId
     ): void {
         $projectId = (int) $projectEntity->getId();
         $workDir = $projectEntity->getWorkDir();
         $projectOrgCode = $projectEntity->getUserOrganizationCode();
-        $contactDataIsolation = DataIsolation::simpleMake($orgCode, $userId);
+        $contactDataIsolation = DataIsolation::simpleMake($projectOrgCode, $userId);
 
         $rootDirId = $this->taskFileDomainService->findOrCreateProjectRootDirectory(
             $projectId,
             $workDir,
             $userId,
-            $orgCode,
+            $projectOrgCode,
+            $projectOrgCode,
+            TaskFileSource::AGENT
+        );
+
+        $this->taskFileDomainService->clearProjectFile($projectId, $projectOrgCode, $rootDirId);
+
+        $magicDirId = $this->taskFileDomainService->createDirectory(
+            $projectId,
+            $rootDirId,
+            '.magic',
+            '.magic',
+            $workDir,
+            $userId,
+            $projectOrgCode,
             $projectOrgCode,
             TaskFileSource::AGENT
         );
@@ -270,12 +288,12 @@ class ImportAgentAppService extends AbstractSuperMagicAppService
             $contactDataIsolation,
             $projectEntity,
             $agentDir,
-            $rootDirId,
+            $magicDirId,
             $projectId,
-            '',
+            '.magic',
             $workDir,
             $userId,
-            $orgCode,
+            $projectOrgCode,
             $projectOrgCode
         );
     }
