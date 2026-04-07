@@ -195,14 +195,30 @@ class WechatChannel(BaseChannel):
         self._credential = None
         logger.info("[WechatChannel] 已断开")
 
+    async def _disable_in_config(self) -> None:
+        """Session 过期后关闭持久化配置的 enabled，防止 AFTER_INIT 反复重连。
+
+        用户重新扫码会写入新凭据并重新 enabled=True，此处关闭不影响后续重连。
+        """
+        try:
+            from app.channel.config import load_config, save_config
+            config = await load_config()
+            if config.wechat and config.wechat.enabled:
+                config.wechat.enabled = False
+                await save_config(config)
+                logger.info("[WechatChannel] 已将 wechat.enabled 设为 False（session 过期）")
+        except Exception as e:
+            logger.warning(f"[WechatChannel] 关闭 wechat.enabled 失败: {e}")
+
     async def _sleep_ms(self, delay_ms: int) -> None:
         await asyncio.sleep(max(delay_ms, 0) / 1000)
 
     def _handle_session_expired(self) -> None:
-        """session 过期：自动断连 + 通知 LLM，用户扫码重连后自动恢复。"""
+        """session 过期：自动断连 + 关闭配置 + 通知 LLM，用户扫码重连后自动恢复。"""
         logger.warning(f"[WechatChannel] session 已过期(errcode={api.SESSION_EXPIRED_ERRCODE})，自动断连")
-        # 在 poll loop 内部不能直接 await disconnect()，用 create_task 让它在 poll loop 退出后执行
+        # poll loop 内部不能直接 await，用 create_task 异步执行
         asyncio.create_task(self.disconnect())
+        asyncio.create_task(self._disable_in_config())
         try:
             from app.service.agent_dispatcher import AgentDispatcher
             ctx = AgentDispatcher.get_instance().agent_context
