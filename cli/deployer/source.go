@@ -25,34 +25,33 @@ func normalizeChartSpecs(specs map[string]ChartSpec) map[string]ChartSpec {
 }
 
 func (d *Deployer) resolveChartRefs() error {
-	if len(d.chartSpecs) == 0 {
+	if len(d.opts.chartSpecs) == 0 {
 		return fmt.Errorf("deploy.charts must not be empty")
 	}
 
-	refs := make(map[string]chart.ChartReference, len(d.chartSpecs))
-	repo := strings.TrimSpace(d.opts.ChartRepo)
+	refs := make(map[string]chart.ChartReference, len(d.opts.chartSpecs))
+	repo := strings.TrimSpace(d.opts.chartRepo.URL)
 
 	switch {
 	case strings.HasPrefix(repo, "oci://"):
-		normalizedRepo := normalizeOCIRepoForHost(repo, d.opts.Registry)
-		for release, spec := range d.chartSpecs {
-			refs[release] = chart.NewOCIReference(normalizedRepo, spec.Name, spec.Version, d.opts.PlainHTTP)
+		normalizedRepo := normalizeOCIRepoForHost(repo, d.opts.registry)
+		for release, spec := range d.opts.chartSpecs {
+			refs[release] = chart.NewOCIReference(normalizedRepo, spec.Name, spec.Version, d.opts.chartRepo.PlainHTTP)
 		}
 	case strings.HasPrefix(repo, "https://"), strings.HasPrefix(repo, "http://"):
-		for release, spec := range d.chartSpecs {
+		for release, spec := range d.opts.chartSpecs {
 			refs[release] = chart.NewHTTPReference(
 				repo,
 				spec.Name,
 				spec.Version,
-				d.opts.ChartRepoUser,
-				d.opts.ChartRepoPass,
-				d.opts.PassCredsAll,
+				d.opts.chartRepo.Username,
+				d.opts.chartRepo.Password,
+				d.opts.chartRepo.PassCredentialsAll,
 			)
 		}
 	default:
-		// local mode: path from opts.ChartsDir per release key
-		for release := range d.chartSpecs {
-			refs[release] = chart.NewLocalReference(filepath.Join(d.opts.ChartsDir, release))
+		for release := range d.opts.chartSpecs {
+			refs[release] = chart.NewLocalReference(filepath.Join(d.opts.chartsDir, release))
 		}
 	}
 

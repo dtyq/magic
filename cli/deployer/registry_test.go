@@ -10,7 +10,7 @@ import (
 )
 
 func TestResolveRegistryDataDir_UsesConfiguredPath(t *testing.T) {
-	d := &Deployer{}
+	d := &Deployer{opts: &options{}}
 	configured := filepath.Join(t.TempDir(), "explicit-registry-data")
 
 	got, err := d.resolveRegistryDataDir(configured)
@@ -19,7 +19,7 @@ func TestResolveRegistryDataDir_UsesConfiguredPath(t *testing.T) {
 }
 
 func TestResolveRegistryDataDir_NormalizesConfiguredPath(t *testing.T) {
-	d := &Deployer{}
+	d := &Deployer{opts: &options{}}
 	base := t.TempDir()
 	configured := filepath.Join(base, "nested", "..", "explicit-registry-data")
 	want := filepath.Clean(configured)
@@ -31,7 +31,7 @@ func TestResolveRegistryDataDir_NormalizesConfiguredPath(t *testing.T) {
 
 func TestResolveRegistryDataDir_FallsBackToDataDir(t *testing.T) {
 	base := t.TempDir()
-	d := &Deployer{opts: Options{DataDir: base}}
+	d := &Deployer{opts: &options{dataDir: base}}
 
 	got, err := d.resolveRegistryDataDir("")
 	require.NoError(t, err)

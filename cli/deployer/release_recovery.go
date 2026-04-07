@@ -59,7 +59,7 @@ func ensureReleaseReadyForInstall(ctx context.Context, d *Deployer, name, namesp
 				confirmIO.in,
 				confirmIO.out,
 				confirmIO.interactive,
-				d.opts.AutoRecoverRelease,
+				d.opts.autoRecoverRelease,
 				name,
 				namespace,
 				status,

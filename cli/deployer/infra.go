@@ -79,8 +79,8 @@ func (s *InfraStage) Exec(ctx context.Context) error {
 	// infra/ingress-nginx images come from public sources (Docker Hub, registry.k8s.io).
 	// Only proxy through kind-registry when the user opted in by configuring global.imageRegistry,
 	// which implies those images are also mirrored to the image registry.
-	if s.d.opts.InfraUseProxy {
-		merged = withRegistryEndpoint(merged, registry.ContainerEndpoint(s.d.opts.Registry))
+	if s.d.opts.infraUseProxy {
+		merged = withRegistryEndpoint(merged, registry.ContainerEndpoint(s.d.opts.registry))
 	}
 	return installChart(ctx, s.d, releaseNameInfra, s.namespace, s.ref, merged)
 }

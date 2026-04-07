@@ -13,7 +13,7 @@ import (
 func TestResolveKindMountDirs_UsesDefaultsUnderHome(t *testing.T) {
 	dataDir := t.TempDir()
 
-	d := &Deployer{opts: Options{DataDir: dataDir}}
+	d := &Deployer{opts: &options{dataDir: dataDir}}
 	k := cluster.NormalizeKindCluster(cluster.KindClusterConfig{})
 	require.NoError(t, d.resolveKindMountDirs(&k))
 
@@ -31,7 +31,7 @@ func TestResolveKindMountDirs_UsesConfiguredPaths(t *testing.T) {
 	customLP := filepath.Join(t.TempDir(), "lp")
 	customData := filepath.Join(t.TempDir(), "data")
 
-	d := &Deployer{opts: Options{DataDir: t.TempDir()}}
+	d := &Deployer{opts: &options{dataDir: t.TempDir()}}
 	k := cluster.NormalizeKindCluster(cluster.KindClusterConfig{
 		LocalPathProvisionerHostDir: customLP,
 		ClusterNodeDataHostDir:      customData,

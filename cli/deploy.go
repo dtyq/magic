@@ -59,6 +59,9 @@ func runDeploy(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("either --charts-dir or chart repository URL must be provided")
 	}
 
+	cfg.Deploy.ChartRepo.URL = chartRepoURL
+	cfg.Deploy.ChartRepo.PlainHTTP = plainHTTP
+
 	webBaseURL := resolveValue(deployWebURL, envNameCLIWebBaseURL, "")
 	autoRecoverRelease, err := resolveAutoRecoverRelease(
 		deployAutoRecoverRelease,
@@ -72,26 +75,22 @@ func runDeploy(cmd *cobra.Command, args []string) error {
 	valuesFile := resolveDeployValuesFile(deployValuesFile, cfg.Deploy.Values, configDir)
 
 	chartSpecs := buildChartSpecsFromConfig()
-	return deployer.New(deployer.Options{
-		ChartsDir:          chartsDir,
-		ChartRepo:          chartRepoURL,
-		PlainHTTP:          plainHTTP,
-		ChartRepoUser:      cfg.Deploy.ChartRepo.Username,
-		ChartRepoPass:      cfg.Deploy.ChartRepo.Password,
-		PassCredsAll:       cfg.Deploy.ChartRepo.PassCredentialsAll,
-		ChartSpecs:         chartSpecs,
-		ValuesFile:         valuesFile,
-		WebBaseURL:         webBaseURL,
-		Registry:           withRegistryConfigDir(cfg.Deploy.Registry, configDir),
-		Kind:               cfg.Deploy.Kind,
-		InfraUseProxy:      cfg.Deploy.InfraUseProxy,
-		ConfigFile:         cfgFile,
-		Proxy:              cfg.Deploy.Proxy,
-		AutoRecoverRelease: autoRecoverRelease,
-		ConfigDir:          configDir,
-		DataDir:            dataDir,
-		Log:                lg,
-	}).Run(context.Background())
+	return deployer.New(
+		deployer.WithChartRepo(cfg.Deploy.ChartRepo),
+		deployer.WithChartsDir(chartsDir),
+		deployer.WithChartSpecs(chartSpecs),
+		deployer.WithValuesFile(valuesFile),
+		deployer.WithWebBaseURL(webBaseURL),
+		deployer.WithRegistry(withRegistryConfigDir(cfg.Deploy.Registry, configDir)),
+		deployer.WithKind(cfg.Deploy.Kind),
+		deployer.WithInfraUseProxy(cfg.Deploy.InfraUseProxy),
+		deployer.WithConfigFile(cfgFile),
+		deployer.WithProxy(cfg.Deploy.Proxy),
+		deployer.WithAutoRecoverRelease(autoRecoverRelease),
+		deployer.WithConfigDir(configDir),
+		deployer.WithDataDir(dataDir),
+		deployer.WithLog(lg),
+	).Run(context.Background())
 }
 
 // resolveDeployValuesFile chooses the values file path for deploy, in order:

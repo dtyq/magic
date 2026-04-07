@@ -7,9 +7,7 @@ import (
 	"time"
 
 	"github.com/dtyq/magicrew-cli/chart"
-	"github.com/dtyq/magicrew-cli/cluster"
 	"github.com/dtyq/magicrew-cli/kube"
-	"github.com/dtyq/magicrew-cli/registry"
 	"github.com/dtyq/magicrew-cli/util"
 )
 
@@ -31,51 +29,10 @@ type ChartSpec struct {
 	Version string
 }
 
-// Options holds the configuration for a Deployer.
-type Options struct {
-	ChartsDir          string
-	ChartRepo          string
-	PlainHTTP          bool // use plain HTTP for OCI chart repo
-	ChartRepoUser      string
-	ChartRepoPass      string
-	PassCredsAll       bool
-	ChartSpecs         map[string]ChartSpec
-	ValuesFile         string
-	WebBaseURL         string // magic-web external URL (CLI --web-url or MAGICREW_CLI_WEB_BASE_URL)
-	Registry           registry.Config
-	Kind               cluster.KindClusterConfig
-	InfraUseProxy      bool // route infra image pulls through the local registry proxy
-	ConfigFile         string
-	Proxy              ProxyConfig
-	AutoRecoverRelease bool   // auto recover pending helm release without TTY confirmation
-	ConfigDir          string // config directory for config.yml, values.yaml and infra credentials
-	DataDir            string // data directory for local Docker-backed state
-	Log                util.LoggerGroup
-}
-
-type ProxyEndpointConfig struct {
-	URL     string   `yaml:"url"`
-	NoProxy []string `yaml:"-"`
-}
-
-type ProxyPolicyConfig struct {
-	UseHostProxy        bool `yaml:"useHostProxy"`
-	RequireReachability bool `yaml:"requireReachability"`
-	RequireEgress       bool `yaml:"requireEgress"`
-}
-
-type ProxyConfig struct {
-	Enabled   bool                `yaml:"enabled"`
-	Host      ProxyEndpointConfig `yaml:"host"`
-	Container ProxyEndpointConfig `yaml:"container"`
-	Policy    ProxyPolicyConfig   `yaml:"policy"`
-}
-
 // Deployer orchestrates the multi-stage deploy pipeline.
 type Deployer struct {
 	log        util.LoggerGroup
-	opts       Options
-	chartSpecs map[string]ChartSpec
+	opts       *options
 	valuesFile string
 
 	// populated by PreflightStage
@@ -95,21 +52,19 @@ type Deployer struct {
 // Construction order: Deployer → InfraRegistry → Stages (pass d pointer to each).
 // This order ensures stage constructors can register InfraRegistry dependencies
 // before InfraStage's Prep resolves them.
-func New(opts Options) *Deployer {
-	opts.Kind = cluster.NormalizeKindCluster(opts.Kind)
-	if opts.ConfigDir == "" {
-		opts.ConfigDir = filepath.Join(util.ConfigDir(), "magicrew")
+func New(opts ...Option) *Deployer {
+	o := defaultOptions()
+	for _, opt := range opts {
+		opt(o)
 	}
-	if opts.DataDir == "" {
-		opts.DataDir = filepath.Join(util.HomeDir(), ".magicrew")
-	}
+	o.chartSpecs = normalizeChartSpecs(o.chartSpecs)
+
 	d := &Deployer{
-		log:        opts.Log,
-		opts:       opts,
-		chartSpecs: normalizeChartSpecs(opts.ChartSpecs),
-		valuesFile: opts.ValuesFile,
+		log:        o.log,
+		opts:       o,
+		valuesFile: o.valuesFile,
 	}
-	reg := newInfraRegistry(opts.ConfigDir)
+	reg := newInfraRegistry(o.configDir)
 	d.infraRegistry = reg
 	d.stages = []Stage{
 		newPreflightStage(d),
@@ -160,10 +115,10 @@ func installChartWithWaitSelector(ctx context.Context, d *Deployer, name, namesp
 
 // configPath returns a child path under the configured config directory.
 func (d *Deployer) configPath(parts ...string) string {
-	return filepath.Join(d.opts.ConfigDir, filepath.Join(parts...))
+	return filepath.Join(d.opts.configDir, filepath.Join(parts...))
 }
 
 // dataPath returns a child path under the configured data directory.
 func (d *Deployer) dataPath(parts ...string) string {
-	return filepath.Join(d.opts.DataDir, filepath.Join(parts...))
+	return filepath.Join(d.opts.dataDir, filepath.Join(parts...))
 }

@@ -151,7 +151,7 @@ func (s *MagicStage) Prep(ctx context.Context) error {
 		return err
 	}
 	internalEndpoint := minioConn.url
-	externalEndpoint := fmt.Sprintf("http://localhost:%d", s.d.opts.Kind.MinIOHostPort)
+	externalEndpoint := fmt.Sprintf("http://localhost:%d", s.d.opts.kind.MinIOHostPort)
 
 	s.fileDriver = fileDriverConfig{
 		Driver: "minio",
@@ -203,7 +203,7 @@ func (s *MagicStage) Exec(ctx context.Context) error {
 	}
 	merged := deepMerge(cloneMap(s.d.merged), overlay)
 	// magic images live in our image registry; always route through the local proxy.
-	merged = withRegistryEndpoint(merged, registry.ContainerEndpoint(s.d.opts.Registry))
+	merged = withRegistryEndpoint(merged, registry.ContainerEndpoint(s.d.opts.registry))
 	namespace := chartNamespace(merged, releaseNameMagic, defaultMagicNamespace)
 	ref, err := s.d.chartRef(releaseNameMagic)
 	if err != nil {
@@ -269,7 +269,7 @@ func (s *MagicSandboxStage) Exec(ctx context.Context) error {
 	}
 	merged := deepMerge(cloneMap(s.d.merged), overlay)
 	// magic-sandbox images live in our image registry; always route through the local proxy.
-	merged = withRegistryEndpoint(merged, registry.ContainerEndpoint(s.d.opts.Registry))
+	merged = withRegistryEndpoint(merged, registry.ContainerEndpoint(s.d.opts.registry))
 	namespace := chartNamespace(merged, releaseNameMagicSandbox, defaultMagicSandboxNamespace)
 	// Remove any stale image-prepull pods (e.g. ImagePullBackOff from a previous
 	// deploy) before (re)installing so Helm starts with a clean slate.
