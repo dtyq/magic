@@ -176,7 +176,7 @@ class ServiceProviderInitializer
             ],
             // Gemini - LLM
             [
-                'name' => 'Google (AI Studio)',
+                'name' => 'Google',
                 'provider_code' => ProviderCode::Gemini->value,
                 'sort_order' => 997,
                 'description' => 'Google Gemini 是 Google 开发的多模态 AI 模型，支持文本、图像等多种输入。',
@@ -190,8 +190,8 @@ class ServiceProviderInitializer
                 'deleted_at' => null,
                 'translate' => json_encode([
                     'name' => [
-                        'en_US' => 'Google (AI Studio)',
-                        'zh_CN' => 'Google (AI Studio)',
+                        'en_US' => 'Google',
+                        'zh_CN' => 'Google',
                     ],
                     'description' => [
                         'en_US' => 'Google Gemini is a multimodal AI model developed by Google, supporting various inputs such as text and images.',
@@ -385,7 +385,7 @@ class ServiceProviderInitializer
             ],
             // Google Cloud - VLM
             [
-                'name' => 'Google (AI Studio)',
+                'name' => 'Google',
                 'provider_code' => ProviderCode::Google->value,
                 'sort_order' => 997,
                 'description' => '提供 Gemini 2.5 Flash Image (Nano Banana) 图像生成模型，具备角色一致性高、精准图像编辑等。',
@@ -399,8 +399,8 @@ class ServiceProviderInitializer
                 'deleted_at' => null,
                 'translate' => json_encode([
                     'name' => [
-                        'en_US' => 'Google (AI Studio)',
-                        'zh_CN' => 'Google (AI Studio)',
+                        'en_US' => 'Google',
+                        'zh_CN' => 'Google',
                     ],
                     'description' => [
                         'en_US' => 'Gemini 2.5 Flash Image (Nano Banana) image generation model is provided, featuring high character consistency and precise image editing, etc.',

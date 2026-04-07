@@ -23,6 +23,7 @@ use App\Domain\Provider\Entity\ProviderModelEntity;
 use App\Domain\Provider\Entity\ValueObject\Category;
 use App\Domain\Provider\Entity\ValueObject\ModelType;
 use App\Domain\Provider\Entity\ValueObject\NaturalLanguageProcessing;
+use App\Domain\Provider\Entity\ValueObject\ProviderCode;
 use App\Domain\Provider\Entity\ValueObject\ProviderDataIsolation;
 use App\Domain\Provider\Entity\ValueObject\Query\ProviderModelQuery;
 use App\Domain\Provider\Entity\ValueObject\Status;
@@ -38,19 +39,21 @@ use App\Domain\Provider\Service\ProviderModelDomainService;
 use App\ErrorCode\ServiceProviderErrorCode;
 use App\Infrastructure\Core\Exception\ExceptionBuilder;
 use App\Infrastructure\Core\Traits\HasLogger;
+use App\Infrastructure\Util\DeploymentIdConstant;
 use App\Infrastructure\Util\FuzzMatchUtil;
 use App\Infrastructure\Util\Redis\ProviderModelCacheUtil;
 use App\Interfaces\Agent\Assembler\FileAssembler;
 use App\Interfaces\Authorization\Web\MagicUserAuthorization;
 use App\Interfaces\Provider\Assembler\ProviderAdminAssembler;
-use App\Interfaces\Provider\DTO\CreateProviderConfigRequest;
+use App\Interfaces\Provider\DTO\SaveProviderConfigRequest;
 use App\Interfaces\Provider\DTO\SaveProviderModelDTO;
-use App\Interfaces\Provider\DTO\UpdateProviderConfigRequest;
 use Exception;
 use Hyperf\DbConnection\Db;
 use Hyperf\Odin\Api\Response\ChatCompletionResponse;
 use JsonException;
 use Psr\EventDispatcher\EventDispatcherInterface;
+
+use function Hyperf\Translation\__;
 
 readonly class AdminProviderAppService
 {
@@ -90,82 +93,87 @@ readonly class AdminProviderAppService
         return $providerModels;
     }
 
-    public function updateProvider(
+    /**
+     * 创建、更新服务商配置统一入口。
+     *
+     * 通过请求里的 id 判断是创建还是更新，并统一处理服务商解析、白名单校验、
+     * URL 一级域名校验和最终落库逻辑。
+     */
+    public function saveProviderConfig(
         MagicUserAuthorization $authorization,
-        UpdateProviderConfigRequest $updateProviderConfigRequest
+        SaveProviderConfigRequest $saveProviderConfigRequest,
     ): ProviderConfigModelsDTO {
         $dataIsolation = ProviderDataIsolation::create(
             $authorization->getOrganizationCode(),
             $authorization->getId(),
         );
 
-        $existingConfigEntity = $this->providerConfigDomainService->getConfigByIdWithoutOrganizationFilter((int) $updateProviderConfigRequest->getId());
-        if ($existingConfigEntity === null) {
-            ExceptionBuilder::throw(ServiceProviderErrorCode::ServiceProviderNotFound);
-        }
+        $isUpdate = $saveProviderConfigRequest->getId() !== '';
+        $existingConfigEntity = null;
+        $serviceProviderId = $saveProviderConfigRequest->getServiceProviderId();
 
-        $serviceProviderId = $existingConfigEntity->getServiceProviderId();
-        $providerCode = $existingConfigEntity->getProviderCode();
-        if ($updateProviderConfigRequest->getServiceProviderId()) {
-            $serviceProviderId = (int) $updateProviderConfigRequest->getServiceProviderId();
-        }
-
-        if (! $providerCode || $updateProviderConfigRequest->getServiceProviderId()) {
-            $serviceProviderEntity = $this->providerConfigDomainService->getProviderById($dataIsolation, $serviceProviderId);
-            if (is_null($serviceProviderEntity)) {
+        // 更新时，获取现有配置实体
+        if ($isUpdate) {
+            $existingConfigEntity = $this->providerConfigDomainService->getConfigByIdWithoutOrganizationFilter((int) $saveProviderConfigRequest->getId());
+            if ($existingConfigEntity === null) {
                 ExceptionBuilder::throw(ServiceProviderErrorCode::ServiceProviderNotFound);
             }
-            $providerCode = $serviceProviderEntity->getProviderCode();
-            $serviceProviderId = $serviceProviderEntity->getId();
+            $serviceProviderId ??= (string) $existingConfigEntity->getServiceProviderId();
         }
 
-        $providerConfigEntity = ProviderAdminAssembler::updateRequestToEntity($updateProviderConfigRequest, $providerCode, $authorization->getOrganizationCode(), $serviceProviderId);
-
-        if (is_null($updateProviderConfigRequest->getStatus())) {
-            $providerConfigEntity->setStatus($existingConfigEntity->getStatus());
-        }
-
-        $providerConfigEntity = $this->providerConfigDomainService->updateProviderConfig($dataIsolation, $providerConfigEntity);
-
-        // 触发服务商配置更新事件
-        $this->eventDispatcher->dispatch(new ProviderConfigUpdatedEvent(
-            $providerConfigEntity,
-            $authorization->getOrganizationCode(),
-            $dataIsolation->getLanguage()
-        ));
-
-        return ProviderAdminAssembler::entityToModelsDTO($providerConfigEntity);
-    }
-
-    public function createProvider(
-        MagicUserAuthorization $authorization,
-        CreateProviderConfigRequest $createProviderConfigRequest
-    ): ProviderConfigModelsDTO {
-        $dataIsolation = ProviderDataIsolation::create(
-            $authorization->getOrganizationCode(),
-            $authorization->getId(),
-        );
-
-        $providerEntity = $this->providerConfigDomainService->getProviderById($dataIsolation, (int) $createProviderConfigRequest->getServiceProviderId());
+        // 获取服务商实体
+        $providerEntity = $this->providerConfigDomainService->getProviderById($dataIsolation, (int) $serviceProviderId);
         if ($providerEntity === null) {
             ExceptionBuilder::throw(ServiceProviderErrorCode::ServiceProviderNotFound);
         }
 
-        $providerConfigEntity = ProviderAdminAssembler::createRequestToEntity($createProviderConfigRequest, $providerEntity->getProviderCode(), $authorization->getOrganizationCode());
+        // 非官方国内 SaaS 组织只能选择白名单内的服务商，避免绕过前端限制直接调接口。
+        $this->validateAllowedProviderForNonOfficialOrganization(
+            $authorization->getOrganizationCode(),
+            $providerEntity->getProviderCode(),
+            $providerEntity->getCategory(),
+        );
 
+        // 标准化配置
+        $saveProviderConfigRequest->setConfig($this->normalizeProviderConfig(
+            $authorization->getOrganizationCode(),
+            $providerEntity->getProviderCode(),
+            $providerEntity->getCategory(),
+            $saveProviderConfigRequest->getConfig(),
+        ));
+
+        // 组装服务商配置实体
+        $providerConfigEntity = ProviderAdminAssembler::requestToEntity(
+            $saveProviderConfigRequest,
+            $providerEntity->getProviderCode(),
+            $authorization->getOrganizationCode(),
+            $providerEntity->getId(),
+        );
+
+        // 更新时，更新服务商配置
+        if ($isUpdate) {
+            if ($existingConfigEntity !== null && is_null($saveProviderConfigRequest->getStatus())) {
+                $providerConfigEntity->setStatus($existingConfigEntity->getStatus());
+            }
+
+            $providerConfigEntity = $this->providerConfigDomainService->updateProviderConfig($dataIsolation, $providerConfigEntity);
+            $this->eventDispatcher->dispatch(new ProviderConfigUpdatedEvent(
+                $providerConfigEntity,
+                $authorization->getOrganizationCode(),
+                $dataIsolation->getLanguage()
+            ));
+
+            return ProviderAdminAssembler::entityToModelsDTO($providerConfigEntity);
+        }
+
+        // 创建时，创建服务商配置
         $providerConfigEntity = $this->providerConfigDomainService->createProviderConfig($dataIsolation, $providerConfigEntity);
-
-        // 触发服务商配置创建事件
         $this->eventDispatcher->dispatch(new ProviderConfigCreatedEvent(
             $providerConfigEntity,
             $authorization->getOrganizationCode(),
             $dataIsolation->getLanguage()
         ));
 
-        $providerEntity = $this->providerConfigDomainService->getProviderById($dataIsolation, $providerConfigEntity->getServiceProviderId());
-        if ($providerEntity === null) {
-            ExceptionBuilder::throw(ServiceProviderErrorCode::ServiceProviderNotFound);
-        }
         $providerModelsDTO = ProviderAdminAssembler::entityToModelsDTO($providerConfigEntity);
         $providerModelsDTO->setId((string) $providerConfigEntity->getId());
 
@@ -174,7 +182,6 @@ readonly class AdminProviderAppService
     }
 
     // 删除服务商
-
     /**
      * @throws Exception
      */
@@ -354,19 +361,39 @@ readonly class AdminProviderAppService
     }
 
     /**
-     * 获取所有非官方服务商列表，不依赖于组织.
+     * 获取服务商列表，不依赖于组织.
      *
      * @param ?Category $category 服务商分类
      * @param string $organizationCode 组织编码
+     * @param bool $isFrontend 是否前台（开放）场景；为 true 且分类为 VLM 时仅返回火山与通义千问模板
      * @return ProviderConfigModelsDTO[] 非官方服务商列表
      */
-    public function queriesServiceProviderTemplates(?Category $category, string $organizationCode): array
+    public function queriesServiceProviderTemplates(?Category $category, string $organizationCode, bool $isFrontend = false): array
     {
         // 获取所有非官方服务商
         $serviceProviders = $this->adminProviderDomainService->queriesServiceProviderTemplates($organizationCode, $category);
 
         if (empty($serviceProviders)) {
             return [];
+        }
+
+        // 非官方组织只展示受控白名单内的服务商模板，官方组织保持原样。
+        if ($this->shouldRestrictNonOfficialOrganizationTemplates($organizationCode, $category)) {
+            // 非官方组织只展示受控白名单内的服务商模板，官方组织保持原样。
+            $serviceProviders = array_values(array_filter(
+                $serviceProviders,
+                static fn (ProviderConfigModelsDTO $serviceProvider): bool => $category !== null
+                    && ($serviceProvider->getProviderCode()?->isNonOfficialOrganizationTemplateWhitelist($category) ?? false)
+            ));
+        }
+
+        // 前台场景仅返回火山与通义千问模板
+        if ($isFrontend && $category === Category::VLM) {
+            $frontendVlmWhitelist = [ProviderCode::Volcengine, ProviderCode::Qwen];
+            $serviceProviders = array_values(array_filter(
+                $serviceProviders,
+                static fn (ProviderConfigModelsDTO $serviceProvider): bool => in_array($serviceProvider->getProviderCode(), $frontendVlmWhitelist, true)
+            ));
         }
 
         // 处理图标
@@ -389,6 +416,13 @@ readonly class AdminProviderAppService
 
         if (empty($serviceProviders)) {
             return [];
+        }
+
+        if ($this->shouldRestrictNonOfficialOrganizationTemplates($organizationCode, $category)) {
+            $serviceProviders = array_values(array_filter(
+                $serviceProviders,
+                static fn (ProviderConfigModelsDTO $serviceProvider): bool => $serviceProvider->getProviderCode()?->isNonOfficialOrganizationTemplateWhitelist($category) ?? false
+            ));
         }
 
         // 处理图标
@@ -932,5 +966,71 @@ readonly class AdminProviderAppService
                 }
             }
         }
+    }
+
+    /**
+     * 归一化服务商配置。
+     *
+     * 非官方组织下仍允许前端直接填写 URL，这里只负责统一校验：
+     * 1. URL 的一级域名是否和服务商匹配
+     */
+    private function normalizeProviderConfig(
+        string $organizationCode,
+        ProviderCode $providerCode,
+        Category $category,
+        array $config,
+    ): array {
+        if (! $this->shouldRestrictNonOfficialOrganizationTemplates($organizationCode, $category)) {
+            return $config;
+        }
+
+        $url = trim((string) ($config['url'] ?? ''));
+        if ($url === '' || ! $providerCode->isAllowedPrimaryDomainUrl($url)) {
+            ExceptionBuilder::throw(
+                ServiceProviderErrorCode::InvalidParameter,
+                __('service_provider.invalid_parameter')
+            );
+        }
+
+        return $config;
+    }
+
+    /**
+     * 非官方组织在国内 SaaS 下只能接入白名单内的服务商，避免通过接口直接绕过前端限制。
+     */
+    private function validateAllowedProviderForNonOfficialOrganization(
+        string $organizationCode,
+        ProviderCode $providerCode,
+        Category $category,
+    ): void {
+        if (! $this->shouldRestrictNonOfficialOrganizationTemplates($organizationCode, $category)) {
+            return;
+        }
+
+        if ($providerCode->isNonOfficialOrganizationTemplateWhitelist($category)) {
+            return;
+        }
+
+        ExceptionBuilder::throw(
+            ServiceProviderErrorCode::InvalidParameter,
+            __('service_provider.invalid_parameter')
+        );
+    }
+
+    /**
+     * 判断当前实例是否为国内受控部署，且组织为非官方、模型分类为 LLM/VLM 的模板收口场景。
+     */
+    private function shouldRestrictNonOfficialOrganizationTemplates(
+        string $organizationCode,
+        ?Category $category,
+    ): bool {
+        if ($category !== Category::LLM && $category !== Category::VLM) {
+            return false;
+        }
+        if ($this->isOfficialOrganization($organizationCode)) {
+            return false;
+        }
+
+        return DeploymentIdConstant::isDomestic();
     }
 }
