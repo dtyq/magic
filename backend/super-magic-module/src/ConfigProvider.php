@@ -65,6 +65,8 @@ use Dtyq\SuperMagic\Domain\Skill\Repository\Persistence\SkillVersionRepository;
 use Dtyq\SuperMagic\Domain\Skill\Repository\Persistence\UserSkillRepository;
 use Dtyq\SuperMagic\Domain\SuperAgent\Repository\Facade\AudioMarkerRepositoryInterface;
 use Dtyq\SuperMagic\Domain\SuperAgent\Repository\Facade\AudioProjectRepositoryInterface;
+use Dtyq\SuperMagic\Domain\SuperAgent\Repository\Facade\BatchDownloadPackRepositoryInterface;
+use Dtyq\SuperMagic\Domain\SuperAgent\Repository\Facade\FileTreeIndexRepositoryInterface;
 use Dtyq\SuperMagic\Domain\SuperAgent\Repository\Facade\MessageQueueRepositoryInterface;
 use Dtyq\SuperMagic\Domain\SuperAgent\Repository\Facade\MessageScheduleLogRepositoryInterface;
 use Dtyq\SuperMagic\Domain\SuperAgent\Repository\Facade\MessageScheduleRepositoryInterface;
@@ -84,6 +86,7 @@ use Dtyq\SuperMagic\Domain\SuperAgent\Repository\Facade\WorkspaceRepositoryInter
 use Dtyq\SuperMagic\Domain\SuperAgent\Repository\Facade\WorkspaceVersionRepositoryInterface;
 use Dtyq\SuperMagic\Domain\SuperAgent\Repository\Persistence\AudioMarkerRepository;
 use Dtyq\SuperMagic\Domain\SuperAgent\Repository\Persistence\AudioProjectRepository;
+use Dtyq\SuperMagic\Domain\SuperAgent\Repository\Persistence\FileTreeIndexRepository;
 use Dtyq\SuperMagic\Domain\SuperAgent\Repository\Persistence\MessageQueueRepository;
 use Dtyq\SuperMagic\Domain\SuperAgent\Repository\Persistence\MessageScheduleLogRepository;
 use Dtyq\SuperMagic\Domain\SuperAgent\Repository\Persistence\MessageScheduleRepository;
@@ -113,6 +116,7 @@ use Dtyq\SuperMagic\Infrastructure\ExternalAPI\SandboxOS\Agent\SandboxAgentInter
 use Dtyq\SuperMagic\Infrastructure\ExternalAPI\SandboxOS\Agent\SandboxAgentService;
 use Dtyq\SuperMagic\Infrastructure\ExternalAPI\SandboxOS\AsrRecorder\AsrRecorderInterface;
 use Dtyq\SuperMagic\Infrastructure\ExternalAPI\SandboxOS\AsrRecorder\AsrRecorderService;
+use Dtyq\SuperMagic\Infrastructure\ExternalAPI\SandboxOS\BatchDownloadPack\BatchDownloadPackRepository;
 use Dtyq\SuperMagic\Infrastructure\ExternalAPI\SandboxOS\FileConverter\FileConverterInterface;
 use Dtyq\SuperMagic\Infrastructure\ExternalAPI\SandboxOS\FileConverter\FileConverterService;
 use Dtyq\SuperMagic\Infrastructure\ExternalAPI\SandboxOS\Gateway\SandboxGatewayInterface;
@@ -169,6 +173,7 @@ class ConfigProvider
                 WorkspaceRepositoryInterface::class => WorkspaceRepository::class,
                 TaskMessageRepositoryInterface::class => TaskMessageRepository::class,
                 ProjectRepositoryInterface::class => ProjectRepository::class,
+                FileTreeIndexRepositoryInterface::class => FileTreeIndexRepository::class,
                 ProjectOperationLogRepositoryInterface::class => ProjectOperationLogRepository::class,
                 ProjectOperationLogDomainService::class => ProjectOperationLogDomainService::class,
                 SandboxInterface::class => SandboxService::class,
@@ -178,6 +183,7 @@ class ConfigProvider
                 SandboxGatewayInterface::class => SandboxGatewayService::class,
                 SandboxAgentInterface::class => SandboxAgentService::class,
                 FileConverterInterface::class => FileConverterService::class,
+                BatchDownloadPackRepositoryInterface::class => BatchDownloadPackRepository::class,
                 WorkspaceExporterInterface::class => WorkspaceExporterService::class,
                 WorkspaceImporterInterface::class => WorkspaceImporterService::class,
                 AsrRecorderInterface::class => AsrRecorderService::class,

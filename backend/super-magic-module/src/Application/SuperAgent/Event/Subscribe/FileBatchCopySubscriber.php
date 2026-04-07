@@ -9,9 +9,11 @@ namespace Dtyq\SuperMagic\Application\SuperAgent\Event\Subscribe;
 
 use App\Domain\Contact\Entity\ValueObject\DataIsolation;
 use App\Infrastructure\Util\Locker\LockerInterface;
+use Dtyq\SuperMagic\Domain\MagicFS\Service\MagicFSFileDomainService;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ProjectEntity;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\TaskFileEntity;
 use Dtyq\SuperMagic\Domain\SuperAgent\Event\FileBatchCopyEvent;
+use Dtyq\SuperMagic\Domain\SuperAgent\Event\FileUploadedEvent;
 use Dtyq\SuperMagic\Domain\SuperAgent\Service\ProjectDomainService;
 use Dtyq\SuperMagic\Domain\SuperAgent\Service\TaskFileDomainService;
 use Dtyq\SuperMagic\Infrastructure\Utils\FileBatchOperationStatusManager;
@@ -23,7 +25,9 @@ use Hyperf\Amqp\Result;
 use Hyperf\Logger\LoggerFactory;
 use PhpAmqpLib\Message\AMQPMessage;
 use PhpAmqpLib\Wire\AMQPTable;
+use Psr\EventDispatcher\EventDispatcherInterface;
 use Psr\Log\LoggerInterface;
+use RuntimeException;
 use Throwable;
 
 /**
@@ -75,7 +79,9 @@ class FileBatchCopySubscriber extends ConsumerMessage
     public function __construct(
         private readonly ProjectDomainService $projectDomainService,
         private readonly TaskFileDomainService $taskFileDomainService,
+        private readonly MagicFSFileDomainService $magicFSFileDomainService,
         private readonly FileBatchOperationStatusManager $statusManager,
+        private readonly EventDispatcherInterface $eventDispatcher,
         private readonly LockerInterface $locker,
         LoggerFactory $loggerFactory
     ) {
@@ -198,83 +204,44 @@ class FileBatchCopySubscriber extends ConsumerMessage
         array $node,
         ProjectEntity $sourceProject,
         ProjectEntity $targetProject,
-        string $parentDir,
         TaskFileEntity $targetParentEntity,
         array $keepBothFileIds = []
-    ) {
+    ): void {
         try {
             // Extract file information from node
             $fileId = (int) ($node['file_id'] ?? 0);
-            $oldFileKey = $node['file_key'] ?? '';
             $fileName = $node['file_name'] ?? '';
             $isDirectory = $node['is_directory'] ?? false;
             $children = $node['children'] ?? [];
 
-            if ($fileId <= 0 || empty($oldFileKey) || empty($fileName)) {
+            if ($fileId <= 0 || empty($fileName)) {
                 $this->logger->warning('Invalid file node data', ['node' => $node]);
                 return;
             }
 
-            // Calculate target file key
-            $newFileKey = $this->calculateNewFileKey($oldFileKey, $fileName, $parentDir, $isDirectory);
-            $targetEntity = $this->taskFileDomainService->getByFileKey($newFileKey);
-
             if ($isDirectory) {
-                // Check if should keep both for directory
-                $sourceFileIdStr = (string) $fileId;
-                $shouldKeepBoth = in_array($sourceFileIdStr, $keepBothFileIds, true);
-
-                // If target exists and should keep both, generate unique name
-                if ($shouldKeepBoth && ! empty($targetEntity)) {
-                    $newFileKey = $this->generateUniqueDirectoryName(
-                        $parentDir,
-                        $fileName,
-                        $targetProject->getId()
-                    );
-
-                    // Extract new file name from the new file key
-                    // e.g., "workspace/图片目录(1)/" -> "图片目录(1)"
-                    $newFileName = basename(rtrim($newFileKey, '/'));
-
-                    $this->logger->info('Directory conflict resolved by generating unique name', [
-                        'source_file_id' => $fileId,
-                        'original_name' => $fileName,
-                        'new_name' => $newFileName,
-                        'original_path' => $oldFileKey,
-                        'new_path' => $newFileKey,
-                        'existing_file_id' => $targetEntity->getFileId(),
-                    ]);
-
-                    // Update fileName in node for consistency
-                    $node['file_name'] = $newFileName;
-
-                    // Re-check with new path
-                    $targetEntity = $this->taskFileDomainService->getByFileKey($newFileKey);
-                }
-
                 $newTargetEntity = $this->handleDirectory(
                     $node,
                     $sourceProject,
                     $targetProject,
                     $targetParentEntity->getFileId(),
-                    $newFileKey,
-                    $targetEntity,
-                    $shouldKeepBoth
+                    $keepBothFileIds
                 );
                 if (! empty($children)) {
-                    // For children, use the NEW directory path as parent
-                    $newParentDir = $newFileKey;
                     foreach ($children as $child) {
-                        $this->copyFile($dataIsolation, $child, $sourceProject, $targetProject, $newParentDir, $newTargetEntity, $keepBothFileIds);
+                        $this->copyFile($dataIsolation, $child, $sourceProject, $targetProject, $newTargetEntity, $keepBothFileIds);
                     }
                 }
             } else {
                 // Get file entity
                 $fileEntity = $this->getFileEntityForCache($fileId);
-                $sourceFileIdStr = (string) $fileId;
+                if ($fileEntity === null) {
+                    $this->logger->warning('Source file entity not found while copying node', ['node' => $node]);
+                    return;
+                }
 
                 // Always use copyProjectFile which handles conflict resolution
-                $this->taskFileDomainService->copyProjectFile(
+                $copiedFileEntity = $this->taskFileDomainService->copyProjectFile(
                     $dataIsolation,
                     $fileEntity,
                     $sourceProject,
@@ -282,13 +249,24 @@ class FileBatchCopySubscriber extends ConsumerMessage
                     $targetParentEntity->getFileId(),
                     $keepBothFileIds
                 );
+
+                $this->syncTreeAfterProjectCopy(
+                    $copiedFileEntity,
+                    $targetParentEntity->getFileId(),
+                    $targetProject->getUserOrganizationCode()
+                );
+
+                // Dispatch file uploaded event for the new copy so clients get notified
+                $this->eventDispatcher->dispatch(new FileUploadedEvent(
+                    $copiedFileEntity,
+                    $dataIsolation->getCurrentUserId(),
+                    $dataIsolation->getCurrentOrganizationCode()
+                ));
             }
 
             $this->logger->info('Copying file/directory in batch operation', [
                 'file_id' => $fileId,
-                'old_file_key' => $oldFileKey,
-                'new_file_key' => $newFileKey,
-                'parent_dir' => $parentDir,
+                'target_parent_id' => $targetParentEntity->getFileId(),
                 'source_project' => $sourceProject->getId(),
                 'target_project' => $targetProject->getId(),
                 'is_directory' => $isDirectory,
@@ -312,9 +290,7 @@ class FileBatchCopySubscriber extends ConsumerMessage
      * @param ProjectEntity $sourceProject Source project
      * @param ProjectEntity $targetProject Target project
      * @param int $parentId Target parent ID
-     * @param string $newFileKey Target file key (may be renamed to avoid conflict)
-     * @param null|TaskFileEntity $targetFileEntity Existing target directory entity (if exists)
-     * @param bool $shouldKeepBoth Whether to keep both directories (for keep_both mode)
+     * @param array $keepBothFileIds Array of source file IDs that should not overwrite when conflict occurs
      * @return TaskFileEntity Created or existing directory entity
      */
     private function handleDirectory(
@@ -322,54 +298,64 @@ class FileBatchCopySubscriber extends ConsumerMessage
         ProjectEntity $sourceProject,
         ProjectEntity $targetProject,
         int $parentId,
-        string $newFileKey,
-        ?TaskFileEntity $targetFileEntity,
-        bool $shouldKeepBoth = false
+        array $keepBothFileIds = []
     ): TaskFileEntity {
         $oldFileEntity = $this->getFileEntityForCache((int) $file['file_id']);
+        if ($oldFileEntity === null) {
+            throw new RuntimeException('Source directory entity not found');
+        }
 
-        // Updated logic: consider shouldKeepBoth flag
-        // If target exists:
-        // - In keep_both mode: always create new directory
-        // - In overwrite mode: reuse existing only if path changed
-        if (! empty($targetFileEntity)) {
-            if ($shouldKeepBoth) {
-                // Keep both mode: should have already generated unique name
-                // targetEntity should be null at this point
-                $this->logger->info('Creating new directory for keep_both mode', [
-                    'source_id' => $oldFileEntity->getFileId(),
-                    'new_path' => $newFileKey,
-                ]);
-            } elseif ($file['file_key'] !== $newFileKey) {
-                // Overwrite mode + path changed: reuse existing directory
+        $sourceFileId = $oldFileEntity->getFileId();
+        $sourceFileIdStr = (string) $sourceFileId;
+        $sourceFileName = $oldFileEntity->getFileName();
+        $shouldKeepBoth = in_array($sourceFileIdStr, $keepBothFileIds, true);
+
+        $targetFileEntity = $this->taskFileDomainService->getByProjectParentAndName(
+            $targetProject->getId(),
+            $parentId,
+            $sourceFileName
+        );
+
+        // Copying a directory to the same parent should keep both.
+        if ($targetFileEntity !== null && $targetFileEntity->getFileId() === $sourceFileId) {
+            $shouldKeepBoth = true;
+            $targetFileEntity = null;
+        }
+
+        $newDirName = $sourceFileName;
+        if ($targetFileEntity !== null && $shouldKeepBoth) {
+            $newDirName = $this->generateUniqueDirectoryName(
+                $sourceFileName,
+                $targetProject->getId(),
+                $parentId
+            );
+            $targetFileEntity = null;
+        }
+
+        if (! $shouldKeepBoth && $targetFileEntity !== null) {
+            if ($targetFileEntity->getIsDirectory()) {
                 $this->logger->info('Reusing existing directory at new location', [
-                    'source_id' => $oldFileEntity->getFileId(),
+                    'source_id' => $sourceFileId,
                     'existing_id' => $targetFileEntity->getFileId(),
-                    'path' => $newFileKey,
+                    'target_parent_id' => $parentId,
                 ]);
                 return $targetFileEntity;
             }
-            // else: same path + overwrite mode -> will update existing record
+
+            // Overwrite file with directory in copy mode.
+            $this->magicFSFileDomainService->deleteFile((string) $targetFileEntity->getFileId());
         }
 
-        // Get the updated file name from node (important for keep_both mode)
-        // In keep_both mode, $file['file_name'] has been updated to include the sequence number
-        $newFileName = $file['file_name'] ?? $oldFileEntity->getFileName();
-
-        // Update the old entity with the new file name for consistency
-        if ($newFileName !== $oldFileEntity->getFileName()) {
-            $oldFileEntity->setFileName($newFileName);
-        }
-
-        // Create new directory or update existing
-        return $this->taskFileDomainService->createFolderFromFileEntity(
-            $oldFileEntity,
-            $parentId,
-            $newFileKey,
-            $targetProject->getWorkDir(),
-            $targetProject->getId(),
-            $targetProject->getUserOrganizationCode()
+        $createdDirectory = $this->magicFSFileDomainService->createFile(
+            $newDirName,
+            (string) $parentId,
+            true,
+            null,
+            $oldFileEntity->getSort()
         );
+        $createdDirectory->setMetadata($oldFileEntity->getMetadata());
+        $createdDirectory->setDisplayConfig($oldFileEntity->getDisplayConfig());
+        return $this->taskFileDomainService->updateById($createdDirectory);
     }
 
     private function getFileEntityForCache(int $fileId): ?TaskFileEntity
@@ -381,80 +367,50 @@ class FileBatchCopySubscriber extends ConsumerMessage
     }
 
     /**
-     * Calculate new file key based on target parent path.
-     */
-    private function calculateNewFileKey(string $oldFileKey, string $fileName, string $targetParentKey, bool $isDirectory): string
-    {
-        // Ensure target parent key ends with /
-        $targetParentKey = rtrim($targetParentKey, '/') . '/';
-
-        // Generate new file key
-        $newFileKey = $targetParentKey . $fileName;
-
-        // For directories, ensure it ends with /
-        if ($isDirectory) {
-            $newFileKey = rtrim($newFileKey, '/') . '/';
-        }
-
-        return $newFileKey;
-    }
-
-    /**
      * Generate unique directory name when conflict occurs.
-     * Similar to file name generation, but for directories.
-     *
-     * @param string $parentPath Parent directory path
-     * @param string $originalDirName Original directory name (without trailing /)
-     * @param int $projectId Project ID
-     * @return string Unique directory path (with trailing /)
      */
     private function generateUniqueDirectoryName(
-        string $parentPath,
         string $originalDirName,
-        int $projectId
+        int $projectId,
+        int $parentId
     ): string {
-        $parentPath = rtrim($parentPath, '/');
-
-        // Remove trailing slash from directory name if exists
         $baseDirName = rtrim($originalDirName, '/');
 
-        // Generate 10 candidate directory names
-        $candidatePaths = [];
-        for ($i = 1; $i <= 10; ++$i) {
-            $newDirName = $baseDirName . '(' . $i . ')';
-            $newPath = $parentPath . '/' . $newDirName . '/';  // Add trailing slash for directories
-            $candidatePaths[] = $newPath;
+        $siblings = $this->taskFileDomainService->getChildrenByParentAndProject(
+            $projectId,
+            $parentId,
+            10000
+        );
+
+        $existingNames = [];
+        foreach ($siblings as $sibling) {
+            $existingNames[$sibling->getFileName()] = true;
         }
 
-        // Batch query to check existence
-        $existingFiles = $this->taskFileDomainService->getByFileKeys($candidatePaths);
-        $existingPaths = array_keys($existingFiles);
+        if (! isset($existingNames[$baseDirName])) {
+            return $baseDirName;
+        }
 
-        // Find first available candidate
-        foreach ($candidatePaths as $candidatePath) {
-            if (! in_array($candidatePath, $existingPaths, true)) {
-                $this->logger->info('Generated unique directory name', [
-                    'original' => $originalDirName,
-                    'result' => basename(rtrim($candidatePath, '/')),
-                    'project_id' => $projectId,
-                ]);
-                return $candidatePath;
+        for ($i = 1; $i <= 20; ++$i) {
+            $candidate = $baseDirName . '(' . $i . ')';
+            if (! isset($existingNames[$candidate])) {
+                return $candidate;
             }
         }
 
-        // Fallback: use timestamp if all candidates exist
-        $timestamp = time();
-        $microtime = substr((string) microtime(true), -6);
-        $fallbackName = $baseDirName . '_' . $timestamp . $microtime;
-        $fallbackPath = $parentPath . '/' . $fallbackName . '/';
+        return $baseDirName . '_' . time() . substr((string) microtime(true), -6);
+    }
 
-        $this->logger->warning('All 10 directory candidates existed, using timestamp fallback', [
-            'original' => $originalDirName,
-            'fallback' => $fallbackName,
-            'project_id' => $projectId,
-        ]);
-
-        return $fallbackPath;
+    private function syncTreeAfterProjectCopy(
+        TaskFileEntity $copiedFileEntity,
+        int $targetParentId,
+        string $targetOrganizationCode
+    ): void {
+        $this->magicFSFileDomainService->syncTreeAfterExternalCopy(
+            $copiedFileEntity->getFileId(),
+            $targetParentId,
+            $targetOrganizationCode
+        );
     }
 
     /**
@@ -554,6 +510,17 @@ class FileBatchCopySubscriber extends ConsumerMessage
             'file_count' => count($fileIds),
         ]);
 
+        try {
+            // Dispatch only after actual batch copy success.
+            $this->eventDispatcher->dispatch($event);
+        } catch (Throwable $e) {
+            // Keep copy task success state even if downstream notification/logging fails.
+            $this->logger->warning('Batch copy succeeded but event dispatch failed', [
+                'batch_key' => $batchKey,
+                'error' => $e->getMessage(),
+            ]);
+        }
+
         $this->logger->info('File batch copy business logic completed successfully', [
             'batch_key' => $batchKey,
             'file_count' => count($fileIds),
@@ -569,9 +536,12 @@ class FileBatchCopySubscriber extends ConsumerMessage
         array $keepBothFileIds = []
     ) {
         $targetParentEntity = $this->taskFileDomainService->getById($targetParentId);
-
-        // For top-level files in the tree, the parent directory should be the target location
-        $targetParentDir = $targetParentEntity->getFileKey();
+        if ($targetParentEntity === null) {
+            $this->logger->warning('Target parent entity not found during batch copy', [
+                'target_parent_id' => $targetParentId,
+            ]);
+            return;
+        }
 
         // Initialize progress tracking - simple count of file tree
         $this->totalTopLevelFiles = count($fileTree);
@@ -582,8 +552,7 @@ class FileBatchCopySubscriber extends ConsumerMessage
                 continue;
             }
 
-            // For top-level nodes, use target parent directory
-            $this->copyFile($dataIsolation, $node, $sourceProject, $targetProject, $targetParentDir, $targetParentEntity, $keepBothFileIds);
+            $this->copyFile($dataIsolation, $node, $sourceProject, $targetProject, $targetParentEntity, $keepBothFileIds);
 
             // Update progress after each file copy
             ++$this->processedTopLevelFiles;
@@ -603,7 +572,11 @@ class FileBatchCopySubscriber extends ConsumerMessage
             $status = $this->statusManager->getTaskStatus($batchKey);
 
             // Check if task is completed or failed
-            if (! empty($status) && in_array($status['status'] ?? '', ['completed', 'failed'])) {
+            if (! empty($status) && in_array(
+                $status['status'] ?? '',
+                [FileBatchOperationStatusManager::STATUS_SUCCESS, FileBatchOperationStatusManager::STATUS_FAILED],
+                true
+            )) {
                 return true;
             }
 

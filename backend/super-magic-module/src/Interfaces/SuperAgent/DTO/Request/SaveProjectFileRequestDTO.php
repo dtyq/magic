@@ -84,6 +84,11 @@ class SaveProjectFileRequestDTO implements JsonSerializable
     private int $source = 0;
 
     /**
+     * Whether the file is hidden.
+     */
+    private bool $isHidden = false;
+
+    /**
      * 从请求数据创建DTO.
      */
     public static function fromRequest(array $data): self
@@ -103,6 +108,7 @@ class SaveProjectFileRequestDTO implements JsonSerializable
         $instance->parentId = isset($data['parent_id']) ? $data['parent_id'] : '';
         $instance->storageType = $data['storage_type'] ?? StorageType::WORKSPACE;
         $instance->preFileId = $data['pre_file_id'] ?? '-1';
+        $instance->isHidden = (bool) ($data['is_hidden'] ?? false);
 
         return $instance;
     }
@@ -250,6 +256,17 @@ class SaveProjectFileRequestDTO implements JsonSerializable
         return $this;
     }
 
+    public function getIsHidden(): bool
+    {
+        return $this->isHidden;
+    }
+
+    public function setIsHidden(bool $isHidden): self
+    {
+        $this->isHidden = $isHidden;
+        return $this;
+    }
+
     /**
      * 转换为 TaskFileEntity 实体.
      */
@@ -283,7 +300,7 @@ class SaveProjectFileRequestDTO implements JsonSerializable
             $taskFileEntity->setSource(TaskFileSource::DEFAULT);
         }
 
-        $taskFileEntity->setIsHidden(false);
+        $taskFileEntity->setIsHidden($this->isHidden);
 
         return $taskFileEntity;
     }
@@ -307,6 +324,7 @@ class SaveProjectFileRequestDTO implements JsonSerializable
             'parent_id' => $this->parentId,
             'storage_type' => $this->storageType,
             'pre_file_id' => $this->preFileId,
+            'is_hidden' => $this->isHidden,
         ];
     }
 }

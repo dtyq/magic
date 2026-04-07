@@ -23,6 +23,9 @@ use App\Infrastructure\Util\IdGenerator\IdGenerator;
 use Dtyq\AsyncEvent\AsyncEventUtil;
 use Dtyq\SuperMagic\Application\SuperAgent\DTO\TaskMessageDTO;
 use Dtyq\SuperMagic\Application\SuperAgent\DTO\UserMessageDTO;
+use Dtyq\SuperMagic\Domain\MagicFS\Service\MagicFSFileDomainService;
+use Dtyq\SuperMagic\Domain\MagicFS\Service\UpsertProjectFileNodeDTO;
+use Dtyq\SuperMagic\Domain\SuperAgent\Constant\ProjectFileConstant;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ProjectEntity;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\TaskEntity;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\TaskFileEntity;
@@ -35,10 +38,10 @@ use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\StorageType;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\TaskContext;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\TaskFileSource;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\TaskStatus;
+use Dtyq\SuperMagic\Domain\SuperAgent\Event\AttachmentsProcessedEvent;
 use Dtyq\SuperMagic\Domain\SuperAgent\Event\RunTaskBeforeEvent;
 use Dtyq\SuperMagic\Domain\SuperAgent\Service\AgentDomainService;
 use Dtyq\SuperMagic\Domain\SuperAgent\Service\TaskDomainService;
-use Dtyq\SuperMagic\Domain\SuperAgent\Service\TaskFileDomainService;
 use Dtyq\SuperMagic\Domain\SuperAgent\Service\TopicDomainService;
 use Dtyq\SuperMagic\ErrorCode\SuperAgentErrorCode;
 use Dtyq\SuperMagic\Infrastructure\ExternalAPI\SandboxOS\Gateway\Constant\SandboxStatus;
@@ -50,6 +53,7 @@ use Hyperf\Redis\Redis;
 use Psr\Log\LoggerInterface;
 use Throwable;
 
+use function event_dispatch;
 use function Hyperf\Translation\trans;
 
 /**
@@ -72,7 +76,7 @@ class HandleUserMessageAppService extends AbstractAppService
         private readonly ClientMessageAppService $clientMessageAppService,
         private readonly AgentDomainService $agentDomainService,
         private readonly LongTermMemoryDomainService $longTermMemoryDomainService,
-        private readonly TaskFileDomainService $taskFileDomainService,
+        private readonly MagicFSFileDomainService $magicFSFileDomainService,
         private readonly Redis $redis,
         LoggerFactory $loggerFactory
     ) {
@@ -607,13 +611,26 @@ class HandleUserMessageAppService extends AbstractAppService
                 try {
                     $taskFileEntity = $this->convertAttachmentToTaskFileEntity($attachment, $taskEntity, $dataIsolation);
                     if ($taskFileEntity) {
-                        $this->taskFileDomainService->saveProjectFile(
-                            $dataIsolation,
-                            $projectEntity,
-                            $taskFileEntity,
-                            StorageType::WORKSPACE->value,
-                            false
+                        $upsertedEntity = $this->magicFSFileDomainService->upsertProjectFileNode(
+                            new UpsertProjectFileNodeDTO(
+                                projectId: $projectEntity->getId(),
+                                projectWorkDir: $projectEntity->getWorkDir(),
+                                projectOrganizationCode: $projectEntity->getUserOrganizationCode(),
+                                operatorUserId: $dataIsolation->getCurrentUserId(),
+                                operatorOrganizationCode: $dataIsolation->getCurrentOrganizationCode(),
+                                taskFileEntity: $taskFileEntity,
+                                storageTypeOverride: StorageType::WORKSPACE->value,
+                                isUpdated: false
+                            )
                         );
+                        // Dispatch AttachmentsProcessedEvent if a metadata file was upserted
+                        if (ProjectFileConstant::isSetMetadataFile($upsertedEntity->getFileName())) {
+                            event_dispatch(new AttachmentsProcessedEvent(
+                                $upsertedEntity->getParentId(),
+                                $upsertedEntity->getProjectId(),
+                                $upsertedEntity->getTaskId()
+                            ));
+                        }
                         ++$stats['success'];
 
                         $this->logger->debug(sprintf(

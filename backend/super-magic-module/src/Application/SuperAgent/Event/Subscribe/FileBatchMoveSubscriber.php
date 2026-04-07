@@ -10,9 +10,15 @@ namespace Dtyq\SuperMagic\Application\SuperAgent\Event\Subscribe;
 use App\Domain\Contact\Entity\ValueObject\DataIsolation;
 use App\Infrastructure\Util\Locker\LockerInterface;
 use App\Interfaces\Authorization\Web\MagicUserAuthorization;
+use Dtyq\SuperMagic\Domain\MagicFS\Service\MagicFSFileDomainService;
+use Dtyq\SuperMagic\Domain\SuperAgent\Constant\ProjectFileConstant;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ProjectEntity;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\TaskFileEntity;
+use Dtyq\SuperMagic\Domain\SuperAgent\Event\AttachmentsProcessedEvent;
+use Dtyq\SuperMagic\Domain\SuperAgent\Event\DirectoryDeletedEvent;
 use Dtyq\SuperMagic\Domain\SuperAgent\Event\FileBatchMoveEvent;
+use Dtyq\SuperMagic\Domain\SuperAgent\Event\FileDeletedEvent;
+use Dtyq\SuperMagic\Domain\SuperAgent\Service\ProjectDisplayConfigDomainService;
 use Dtyq\SuperMagic\Domain\SuperAgent\Service\ProjectDomainService;
 use Dtyq\SuperMagic\Domain\SuperAgent\Service\TaskFileDomainService;
 use Dtyq\SuperMagic\Infrastructure\Utils\FileBatchOperationStatusManager;
@@ -24,7 +30,9 @@ use Hyperf\Amqp\Result;
 use Hyperf\Logger\LoggerFactory;
 use PhpAmqpLib\Message\AMQPMessage;
 use PhpAmqpLib\Wire\AMQPTable;
+use Psr\EventDispatcher\EventDispatcherInterface;
 use Psr\Log\LoggerInterface;
+use RuntimeException;
 use Throwable;
 
 /**
@@ -76,8 +84,11 @@ class FileBatchMoveSubscriber extends ConsumerMessage
     public function __construct(
         private readonly ProjectDomainService $projectDomainService,
         private readonly TaskFileDomainService $taskFileDomainService,
+        private readonly MagicFSFileDomainService $magicFSFileDomainService,
         private readonly FileBatchOperationStatusManager $statusManager,
+        private readonly EventDispatcherInterface $eventDispatcher,
         private readonly LockerInterface $locker,
+        private readonly ProjectDisplayConfigDomainService $projectDisplayConfigDomainService,
         LoggerFactory $loggerFactory
     ) {
         $this->logger = $loggerFactory->get('FileBatchMove');
@@ -196,10 +207,9 @@ class FileBatchMoveSubscriber extends ConsumerMessage
         array $node,
         ProjectEntity $sourceProject,
         ProjectEntity $targetProject,
-        string $parentDir,
         TaskFileEntity $targetParentEntity,
         array $keepBothFileIds = []
-    ) {
+    ): void {
         try {
             // Extract file information from node
             $fileId = (int) ($node['file_id'] ?? 0);
@@ -208,74 +218,94 @@ class FileBatchMoveSubscriber extends ConsumerMessage
             $isDirectory = $node['is_directory'] ?? false;
             $children = $node['children'] ?? [];
 
-            if ($fileId <= 0 || empty($oldFileKey) || empty($fileName)) {
+            if ($fileId <= 0 || empty($fileName)) {
                 $this->logger->warning('Invalid file node data', ['node' => $node]);
                 return;
             }
 
-            // 判断目标位置是否存在
-            $newFileKey = $this->calculateNewFileKey($oldFileKey, $fileName, $parentDir, $isDirectory);
-            $targetEntity = $this->taskFileDomainService->getByFileKey($newFileKey);
-
             if ($isDirectory) {
-                $newTargetEntity = $this->handleDirectory(
+                $directoryResult = $this->handleDirectory(
                     $node,
+                    $dataIsolation,
                     $sourceProject,
                     $targetProject,
-                    $targetParentEntity->getFileId(),
-                    $newFileKey,
-                    $targetEntity
+                    $targetParentEntity,
+                    $keepBothFileIds
                 );
+
+                /** @var TaskFileEntity $newTargetEntity */
+                $newTargetEntity = $directoryResult['target_dir'];
+                $deleteSourceDirAfterChildren = (bool) ($directoryResult['delete_source_dir_after_children'] ?? false);
+
                 if (! empty($children)) {
-                    // For children, the parent directory should be the new location of this file/directory
-                    $newParentDir = $newFileKey;
                     foreach ($children as $child) {
-                        $this->moveFile($dataIsolation, $child, $sourceProject, $targetProject, $newParentDir, $newTargetEntity, $keepBothFileIds);
+                        $this->moveFile($dataIsolation, $child, $sourceProject, $targetProject, $newTargetEntity, $keepBothFileIds);
+                    }
+                }
+
+                if ($deleteSourceDirAfterChildren) {
+                    // Fetch entity before deletion so we can build the DirectoryDeletedEvent
+                    $sourceDirEntity = $this->getFileEntityForCache($fileId);
+                    $this->magicFSFileDomainService->deleteFile((string) $fileId, false);
+                    if ($sourceDirEntity !== null) {
+                        $dirUserAuth = new MagicUserAuthorization();
+                        $dirUserAuth->setId($sourceDirEntity->getUserId());
+                        $dirUserAuth->setOrganizationCode($sourceDirEntity->getOrganizationCode());
+                        $this->eventDispatcher->dispatch(new DirectoryDeletedEvent($sourceDirEntity, $dirUserAuth));
                     }
                 }
             } else {
-                // Check if current file ID is in keep_both_file_ids
                 $fileEntity = $this->getFileEntityForCache($fileId);
-                $sourceFileIdStr = (string) $fileId;
+                if ($fileEntity === null) {
+                    $this->logger->warning('Source file entity not found while moving node', ['node' => $node]);
+                    return;
+                }
 
-                if (in_array($sourceFileIdStr, $keepBothFileIds, true)) {
-                    // Use moveProjectFile method which supports conflict resolution
-                    $this->taskFileDomainService->moveProjectFile(
-                        $dataIsolation,
-                        $fileEntity,
-                        $sourceProject,
-                        $targetProject,
-                        $targetParentEntity->getFileId(),
-                        $keepBothFileIds
+                $oldParentId = $fileEntity->getParentId();
+                $newParentId = $targetParentEntity->getFileId();
+
+                $this->taskFileDomainService->moveProjectFile(
+                    $dataIsolation,
+                    $fileEntity,
+                    $sourceProject,
+                    $targetProject,
+                    $newParentId,
+                    $keepBothFileIds
+                );
+
+                $this->syncTreeAfterProjectMove(
+                    $fileEntity,
+                    $newParentId,
+                    $sourceProject,
+                    $targetProject
+                );
+
+                // When a metadata file (magic.project.js / index.html) is moved to a different
+                // directory, clear the stale display_config from the old location
+                if (ProjectFileConstant::isSetMetadataFile($fileEntity->getFileName())
+                    && $oldParentId !== null
+                    && $oldParentId !== $newParentId
+                ) {
+                    $this->projectDisplayConfigDomainService->clearDisplayConfigForOldDirectory(
+                        $oldParentId,
+                        $fileEntity->getProjectId()
                     );
-                } else {
-                    // Original overwrite logic: delete target file BEFORE moving source file
-                    if (! empty($targetEntity) && $fileEntity->getFileKey() !== $newFileKey) {
-                        // Overwrite logic: delete target file first to avoid unique key conflict
-                        $this->taskFileDomainService->deleteById($targetEntity->getFileId());
+                }
 
-                        $this->logger->info('Deleted existing target file before move in batch operation', [
-                            'deleted_file_id' => $targetEntity->getFileId(),
-                            'deleted_file_key' => $targetEntity->getFileKey(),
-                            'source_file_id' => $fileEntity->getFileId(),
-                        ]);
-                    }
-
-                    $this->taskFileDomainService->moveFile(
-                        $fileEntity,
-                        $sourceProject,
-                        $targetProject,
-                        $newFileKey,
-                        $targetParentEntity->getFileId()
-                    );
+                // Dispatch AttachmentsProcessedEvent for the new location if it's a metadata file
+                if (ProjectFileConstant::isSetMetadataFile($fileEntity->getFileName())) {
+                    $this->eventDispatcher->dispatch(new AttachmentsProcessedEvent(
+                        $newParentId,
+                        $fileEntity->getProjectId(),
+                        $fileEntity->getTaskId()
+                    ));
                 }
             }
 
             $this->logger->info('Moving file in batch operation', [
                 'file_id' => $fileId,
                 'old_file_key' => $oldFileKey,
-                'new_file_key' => $newFileKey,
-                'parent_dir' => $parentDir,
+                'target_parent_id' => $targetParentEntity->getFileId(),
                 'source_project' => $sourceProject->getId(),
                 'target_project' => $targetProject->getId(),
             ]);
@@ -303,7 +333,11 @@ class FileBatchMoveSubscriber extends ConsumerMessage
             $status = $this->statusManager->getTaskStatus($batchKey);
 
             // Check if task is completed or failed
-            if (! empty($status) && in_array($status['status'] ?? '', ['completed', 'failed'])) {
+            if (! empty($status) && in_array(
+                $status['status'] ?? '',
+                [FileBatchOperationStatusManager::STATUS_SUCCESS, FileBatchOperationStatusManager::STATUS_FAILED],
+                true
+            )) {
                 return true;
             }
 
@@ -376,7 +410,6 @@ class FileBatchMoveSubscriber extends ConsumerMessage
         $fileIds = $event->getFileIds();
         $sourceProjectId = $event->getSourceProjectId();
         $targetProjectId = $event->getTargetProjectId();
-        $preFileId = $event->getPreFileId();
         $targetParentId = $event->getTargetParentId();
         $keepBothFileIds = $event->getKeepBothFileIds();
 
@@ -390,7 +423,6 @@ class FileBatchMoveSubscriber extends ConsumerMessage
             'file_ids' => $fileIds,
             'source_project_id' => $sourceProjectId,
             'target_project_id' => $targetProjectId,
-            'pre_file_id' => $preFileId,
             'target_parent_id' => $targetParentId,
             'keep_both_file_ids' => $keepBothFileIds,
             'file_count' => count($fileIds),
@@ -442,17 +474,8 @@ class FileBatchMoveSubscriber extends ConsumerMessage
         $this->updateProgress(10, 'Starting file move operations');
         $this->moveFileByTree($dataIsolation, $fileTree, $sourceProject, $targetProject, $targetParentId, $keepBothFileIds);
 
-        // Rebalancing phase (90% - 95%)
-        $this->updateProgress(90, 'Rebalancing directory sort order');
-        $this->taskFileDomainService->rebalanceAndCalculateSort($targetParentId, $preFileId);
-
         // Finalizing (95% - 100%)
         $this->updateProgress(95, 'Finalizing batch file move operation');
-
-        // 发布文件批量移动完成事件
-        $userAuthorization = new MagicUserAuthorization();
-        $userAuthorization->setId($userId);
-        $userAuthorization->setOrganizationCode($organizationCode);
 
         // Mark as completed
         $this->statusManager->setTaskCompleted($batchKey, [
@@ -462,6 +485,17 @@ class FileBatchMoveSubscriber extends ConsumerMessage
             'message' => 'Batch file move completed successfully',
             'file_count' => count($fileIds),
         ]);
+
+        try {
+            // Dispatch only after actual batch move success.
+            $this->eventDispatcher->dispatch($event);
+        } catch (Throwable $e) {
+            // Keep move task success state even if downstream notification/logging fails.
+            $this->logger->warning('Batch move succeeded but event dispatch failed', [
+                'batch_key' => $batchKey,
+                'error' => $e->getMessage(),
+            ]);
+        }
 
         $this->logger->info('File batch move business logic completed successfully', [
             'batch_key' => $batchKey,
@@ -478,9 +512,12 @@ class FileBatchMoveSubscriber extends ConsumerMessage
         array $keepBothFileIds = []
     ) {
         $targetParentEntity = $this->taskFileDomainService->getById($targetParentId);
-
-        // For top-level files in the tree, the parent directory should be the target location
-        $targetParentDir = $targetParentEntity->getFileKey();
+        if ($targetParentEntity === null) {
+            $this->logger->warning('Target parent entity not found during batch move', [
+                'target_parent_id' => $targetParentId,
+            ]);
+            return;
+        }
 
         // Initialize progress tracking - simple count of file tree
         $this->totalTopLevelFiles = count($fileTree);
@@ -491,8 +528,7 @@ class FileBatchMoveSubscriber extends ConsumerMessage
                 continue;
             }
 
-            // For top-level nodes, use target parent directory
-            $this->moveFile($dataIsolation, $node, $sourceProject, $targetProject, $targetParentDir, $targetParentEntity, $keepBothFileIds);
+            $this->moveFile($dataIsolation, $node, $sourceProject, $targetProject, $targetParentEntity, $keepBothFileIds);
 
             // Update progress after each file move
             ++$this->processedTopLevelFiles;
@@ -502,44 +538,130 @@ class FileBatchMoveSubscriber extends ConsumerMessage
 
     private function handleDirectory(
         array $file,
+        DataIsolation $dataIsolation,
         ProjectEntity $sourceProject,
         ProjectEntity $targetProject,
-        int $parentId,
-        string $newFileKey,
-        ?TaskFileEntity $targetFileEntity
-    ): TaskFileEntity {
+        TaskFileEntity $targetParentEntity,
+        array $keepBothFileIds = []
+    ): array {
         $oldFileEntity = $this->getFileEntityForCache((int) $file['file_id']);
-        $actualChildrenCount = $this->taskFileDomainService->getSiblingCountByParentId((int) $file['file_id'], $sourceProject->getId());
+        if ($oldFileEntity === null) {
+            throw new RuntimeException('Source directory entity not found');
+        }
 
-        // 如果目标文件夹存在，并且源文件夹的子文件已经没有文件了，那么就删除源文件夹, 且不能等于相同的文件
-        if (! empty($targetFileEntity) && ($file['file_key'] !== $newFileKey) && ($actualChildrenCount === 0 || count($file['children']) === $actualChildrenCount)) {
-            $this->taskFileDomainService->deleteProjectFiles(
-                $sourceProject->getUserOrganizationCode(),
-                $oldFileEntity,
-                $sourceProject->getWorkDir()
-            );
-            return $targetFileEntity;
-        }
-        // 如果不存在，分为两种情况
-        // 第一种是历史文件夹 存在文件的时候，这种需要创建新的文件夹
-        if ($actualChildrenCount > count($file['children'])) {
-            return $this->taskFileDomainService->createFolderFromFileEntity(
-                $oldFileEntity,
-                $parentId,
-                $newFileKey,
-                $targetProject->getWorkDir(),
-                $targetProject->getId(),
-                $targetProject->getUserOrganizationCode()
-            );
-        }
-        // 否则使用原先的记录，更换路径
-        return $this->taskFileDomainService->renameFolderFromFileEntity(
-            $oldFileEntity,
-            $parentId,
-            $newFileKey,
-            $targetProject->getWorkDir(),
+        $sourceFileId = $oldFileEntity->getFileId();
+        $sourceFileIdStr = (string) $sourceFileId;
+        $sourceFileName = $oldFileEntity->getFileName();
+        $targetParentId = $targetParentEntity->getFileId();
+        $shouldKeepBoth = in_array($sourceFileIdStr, $keepBothFileIds, true);
+
+        $targetFileEntity = $this->taskFileDomainService->getByProjectParentAndName(
             $targetProject->getId(),
-            $targetProject->getUserOrganizationCode()
+            $targetParentId,
+            $sourceFileName
+        );
+
+        if ($targetFileEntity !== null && $targetFileEntity->getFileId() === $sourceFileId) {
+            $targetFileEntity = null;
+        }
+
+        $actualChildrenCount = $this->taskFileDomainService->getSiblingCountByParentId((int) $file['file_id'], $sourceProject->getId());
+        $selectedChildrenCount = is_array($file['children'] ?? null) ? count($file['children']) : 0;
+        $fullMove = $actualChildrenCount === 0 || $selectedChildrenCount === $actualChildrenCount;
+
+        if (! $shouldKeepBoth && $targetFileEntity !== null && ! $targetFileEntity->getIsDirectory()) {
+            $conflictEntity = $targetFileEntity;
+            $this->magicFSFileDomainService->deleteFile((string) $conflictEntity->getFileId());
+            $this->eventDispatcher->dispatch(new FileDeletedEvent(
+                $conflictEntity,
+                $conflictEntity->getUserId(),
+                $conflictEntity->getOrganizationCode()
+            ));
+            $targetFileEntity = null;
+        }
+
+        if (! $shouldKeepBoth && $targetFileEntity !== null && $targetFileEntity->getIsDirectory()) {
+            // Batch move keeps directory-merge behavior for compatibility: reuse target directory.
+            return [
+                'target_dir' => $targetFileEntity,
+                'delete_source_dir_after_children' => $fullMove,
+            ];
+        }
+
+        if ($fullMove) {
+            $this->taskFileDomainService->moveProjectFile(
+                $dataIsolation,
+                $oldFileEntity,
+                $sourceProject,
+                $targetProject,
+                $targetParentId,
+                $keepBothFileIds
+            );
+
+            $this->syncTreeAfterProjectMove(
+                $oldFileEntity,
+                $targetParentId,
+                $sourceProject,
+                $targetProject
+            );
+
+            $movedDirectory = $this->taskFileDomainService->getById($sourceFileId) ?? $oldFileEntity;
+
+            return [
+                'target_dir' => $movedDirectory,
+                'delete_source_dir_after_children' => false,
+            ];
+        }
+
+        $newDirName = $sourceFileName;
+        if ($shouldKeepBoth && $targetFileEntity !== null) {
+            $newDirName = $this->generateUniqueDirectoryName(
+                $sourceFileName,
+                $targetProject->getId(),
+                $targetParentId
+            );
+        }
+
+        $createdDirectory = $this->magicFSFileDomainService->createFile(
+            $newDirName,
+            (string) $targetParentId,
+            true,
+            null,
+            $oldFileEntity->getSort()
+        );
+
+        $createdDirectory->setMetadata($oldFileEntity->getMetadata());
+        $createdDirectory->setDisplayConfig($oldFileEntity->getDisplayConfig());
+        $createdDirectory = $this->taskFileDomainService->updateById($createdDirectory);
+
+        return [
+            'target_dir' => $createdDirectory,
+            'delete_source_dir_after_children' => false,
+        ];
+    }
+
+    private function syncTreeAfterProjectMove(
+        TaskFileEntity $sourceFileEntity,
+        int $targetParentId,
+        ProjectEntity $sourceProject,
+        ProjectEntity $targetProject
+    ): void {
+        $oldParentId = $sourceFileEntity->getParentId();
+        $sourceOrganizationCode = $sourceProject->getUserOrganizationCode();
+        $targetOrganizationCode = $targetProject->getUserOrganizationCode();
+        $crossOrganization = $sourceOrganizationCode !== $targetOrganizationCode;
+        $parentChanged = $oldParentId !== $targetParentId;
+
+        if (! $crossOrganization && ! $parentChanged) {
+            return;
+        }
+
+        $this->magicFSFileDomainService->syncTreeAfterExternalMove(
+            $sourceFileEntity->getFileId(),
+            $oldParentId,
+            $targetParentId,
+            $sourceOrganizationCode,
+            $targetOrganizationCode
         );
     }
 
@@ -551,23 +673,36 @@ class FileBatchMoveSubscriber extends ConsumerMessage
         return $this->taskFileDomainService->getById($fileId);
     }
 
-    /**
-     * Calculate new file key based on target parent path.
-     */
-    private function calculateNewFileKey(string $oldFileKey, string $fileName, string $targetParentKey, bool $isDirectory): string
-    {
-        // Ensure target parent key ends with /
-        $targetParentKey = rtrim($targetParentKey, '/') . '/';
+    private function generateUniqueDirectoryName(
+        string $originalDirName,
+        int $projectId,
+        int $parentId
+    ): string {
+        $baseDirName = rtrim($originalDirName, '/');
 
-        // Generate new file key
-        $newFileKey = $targetParentKey . $fileName;
+        $siblings = $this->taskFileDomainService->getChildrenByParentAndProject(
+            $projectId,
+            $parentId,
+            10000
+        );
 
-        // For directories, ensure it ends with /
-        if ($isDirectory) {
-            $newFileKey = rtrim($newFileKey, '/') . '/';
+        $existingNames = [];
+        foreach ($siblings as $sibling) {
+            $existingNames[$sibling->getFileName()] = true;
         }
 
-        return $newFileKey;
+        if (! isset($existingNames[$baseDirName])) {
+            return $baseDirName;
+        }
+
+        for ($i = 1; $i <= 20; ++$i) {
+            $candidate = $baseDirName . '(' . $i . ')';
+            if (! isset($existingNames[$candidate])) {
+                return $candidate;
+            }
+        }
+
+        return $baseDirName . '_' . time() . substr((string) microtime(true), -6);
     }
 
     /**

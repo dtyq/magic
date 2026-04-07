@@ -17,7 +17,8 @@ class FileMovedEvent extends AbstractEvent
 {
     public function __construct(
         private readonly TaskFileEntity $fileEntity,
-        private readonly MagicUserAuthorization $userAuthorization
+        private readonly MagicUserAuthorization $userAuthorization,
+        private readonly ?int $oldParentId = null
     ) {
         parent::__construct();
     }
@@ -30,5 +31,10 @@ class FileMovedEvent extends AbstractEvent
     public function getUserAuthorization(): MagicUserAuthorization
     {
         return $this->userAuthorization;
+    }
+
+    public function getOldParentId(): ?int
+    {
+        return $this->oldParentId;
     }
 }

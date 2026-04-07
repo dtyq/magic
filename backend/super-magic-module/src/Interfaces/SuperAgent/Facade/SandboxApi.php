@@ -28,6 +28,7 @@ use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\CreateProjectRequestDTO;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\InitSandboxRequestDTO;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\SaveTopicRequestDTO;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\SaveWorkspaceRequestDTO;
+use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\UpgradeSandboxRequestDTO;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Response\InitSandboxResponseDTO;
 use Hyperf\HttpServer\Contract\RequestInterface;
 
@@ -115,6 +116,37 @@ class SandboxApi extends AbstractApi
         $requestDTO->setTopicMode($topic->getTopicMode());
 
         return $this->initSandbox($requestContext, $requestDTO, $this->getAuthorization());
+    }
+
+    /**
+     * 升级沙箱镜像.
+     */
+    #[ApiResponse('low_code')]
+    public function upgradeSandbox(RequestContext $requestContext): array
+    {
+        $requestContext->setUserAuthorization($this->getAuthorization());
+
+        // 验证请求参数
+        $requestDTO = UpgradeSandboxRequestDTO::fromRequest($this->request);
+
+        $messageId = $requestDTO->getMessageId();
+        $contextType = $requestDTO->getContextType();
+
+        if (empty($messageId)) {
+            ExceptionBuilder::throw(GenericErrorCode::ParameterMissing, 'message_id is required');
+        }
+
+        // 创建数据隔离对象
+        $dataIsolation = new DataIsolation();
+        $dataIsolation->setCurrentUserId($this->getAuthorization()->getId());
+        $dataIsolation->setCurrentOrganizationCode($this->getAuthorization()->getOrganizationCode());
+        $dataIsolation->setThirdPartyOrganizationCode($this->getAuthorization()->getOrganizationCode());
+        $dataIsolation->setUserType(UserType::Human);
+
+        // 调用应用服务执行升级，messageId 即为 topic_id
+        $sandboxId = $this->agentAppService->upgradeSandbox($dataIsolation, (int) $messageId);
+
+        return ['sandbox_id' => $sandboxId];
     }
 
     protected function initSandbox(RequestContext $requestContext, InitSandboxRequestDTO $requestDTO, MagicUserAuthorization $magicUserAuthorization): array

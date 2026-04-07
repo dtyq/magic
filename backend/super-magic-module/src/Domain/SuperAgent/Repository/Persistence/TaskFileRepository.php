@@ -30,19 +30,33 @@ class TaskFileRepository implements TaskFileRepositoryInterface
         return new TaskFileEntity($model->toArray());
     }
 
-    public function getFilesByIds(array $fileIds, int $projectId = 0): array
+    public function getFilesByIds(array $fileIds, int $projectId = 0, ?string $storageType = null): array
     {
-        $query = $this->model::query()->whereIn('file_id', $fileIds);
-
-        if ($projectId > 0) {
-            $query->where('project_id', $projectId);
+        // 如果 ID 列表为空，直接返回空数组
+        if (empty($fileIds)) {
+            return [];
         }
 
-        $models = $query->get();
-
+        // 分批查询，每批 500 个 ID（与项目其他地方保持一致）
+        $chunks = array_chunk($fileIds, 500);
         $list = [];
-        foreach ($models as $model) {
-            $list[] = new TaskFileEntity($model->toArray());
+
+        foreach ($chunks as $chunk) {
+            $query = $this->model::query()->whereIn('file_id', $chunk);
+
+            if ($projectId > 0) {
+                $query->where('project_id', $projectId);
+            }
+
+            if ($storageType !== null) {
+                $query->where('storage_type', $storageType);
+            }
+
+            $models = $query->get();
+
+            foreach ($models as $model) {
+                $list[] = new TaskFileEntity($model->toArray());
+            }
         }
 
         return $list;
@@ -57,15 +71,20 @@ class TaskFileRepository implements TaskFileRepositoryInterface
             return [];
         }
 
-        $query = $this->model::query()->whereIn('file_id', $ids);
-        if ($projectId > 0) {
-            $query = $query->where('project_id', $projectId);
-        }
-        $models = $query->get();
-
+        // 分批查询，每批 500 个 ID（与项目其他地方保持一致）
+        $chunks = array_chunk($ids, 500);
         $entities = [];
-        foreach ($models as $model) {
-            $entities[] = new TaskFileEntity($model->toArray());
+
+        foreach ($chunks as $chunk) {
+            $query = $this->model::query()->whereIn('file_id', $chunk);
+            if ($projectId > 0) {
+                $query = $query->where('project_id', $projectId);
+            }
+            $models = $query->get();
+
+            foreach ($models as $model) {
+                $entities[] = new TaskFileEntity($model->toArray());
+            }
         }
 
         return $entities;
@@ -141,15 +160,35 @@ class TaskFileRepository implements TaskFileRepositoryInterface
 
     public function getByProjectIdAndFileName(int $projectId, string $fileName): ?TaskFileEntity
     {
-        // Pick the newest non-directory record so repeated uploads/edits of SKILL.md
-        // always resolve to the latest workspace file entry.
         $model = $this->model::query()
             ->where('project_id', $projectId)
             ->where('file_name', $fileName)
-            ->where('is_directory', 0)
-            ->orderByDesc('file_id')
             ->first();
 
+        if (! $model) {
+            return null;
+        }
+
+        return new TaskFileEntity($model->toArray());
+    }
+
+    public function getByProjectParentAndName(int $projectId, ?int $parentId, string $fileName, bool $withTrash = false): ?TaskFileEntity
+    {
+        // 根据withTrash参数决定查询范围
+        if ($withTrash) {
+            $query = $this->model::withTrashed();
+        } else {
+            $query = $this->model::query();
+        }
+        $query = $query->where('project_id', $projectId)->where('file_name', $fileName);
+
+        if ($parentId === null) {
+            $query->whereNull('parent_id');
+        } else {
+            $query->where('parent_id', $parentId);
+        }
+
+        $model = $query->first();
         if (! $model) {
             return null;
         }
@@ -696,14 +735,18 @@ class TaskFileRepository implements TaskFileRepositoryInterface
      * 根据 parent_id 和 project_id 查找子文件列表.
      * 此查询会使用索引: idx_project_parent_sort (project_id, parent_id, sort, file_id).
      */
-    public function getChildrenByParentAndProject(int $projectId, int $parentId, int $limit = 500): array
+    public function getChildrenByParentAndProject(int $projectId, int $parentId, int $limit = 500, ?string $storageType = null): array
     {
-        $models = $this->model::query()
+        $query = $this->model::query()
             ->where('project_id', $projectId)
             ->where('parent_id', $parentId)
-            ->whereNull('deleted_at')
-            ->limit($limit)
-            ->get();
+            ->whereNull('deleted_at');
+
+        if ($storageType !== null) {
+            $query->where('storage_type', $storageType);
+        }
+
+        $models = $query->limit($limit)->get();
 
         $list = [];
         foreach ($models as $model) {
@@ -799,17 +842,24 @@ class TaskFileRepository implements TaskFileRepositoryInterface
     }
 
     /**
-     * 批量删除文件（物理删除）.
+     * 批量删除文件.
+     *
+     * @param array $fileIds 文件ID数组
+     * @param bool $forceDelete 是否强制删除（物理删除），默认为true，false为软删除
      */
-    public function deleteByIds(array $fileIds): void
+    public function deleteByIds(array $fileIds, bool $forceDelete = true): void
     {
         if (empty($fileIds)) {
             return;
         }
 
-        $this->model::query()
-            ->whereIn('file_id', $fileIds)
-            ->forceDelete();
+        $query = $this->model::query()->whereIn('file_id', $fileIds);
+
+        if ($forceDelete) {
+            $query->forceDelete();
+        } else {
+            $query->delete();
+        }
     }
 
     /**
@@ -960,7 +1010,9 @@ class TaskFileRepository implements TaskFileRepositoryInterface
 
     public function findLatestUpdatedByProjectId(int $projectId): ?TaskFileEntity
     {
-        $model = $this->model::withTrashed()
+        /** @phpstan-ignore-next-line - TaskFileModel uses SoftDeletes trait which provides withTrashed() */
+        $model = $this->model::query()
+            ->withTrashed()
             ->where('project_id', $projectId)
             ->orderBy('updated_at', 'desc')
             ->first();
@@ -979,7 +1031,9 @@ class TaskFileRepository implements TaskFileRepositoryInterface
      */
     public function getLatestUpdatedTimeByProjectId(int $projectId): ?string
     {
-        return $this->model::withTrashed()
+        /* @phpstan-ignore-next-line - TaskFileModel uses SoftDeletes trait which provides withTrashed() */
+        return $this->model::query()
+            ->withTrashed()
             ->where('project_id', $projectId)
             ->max('updated_at');
     }
@@ -1119,12 +1173,128 @@ class TaskFileRepository implements TaskFileRepositoryInterface
      */
     public function restoreFile(int $fileId): void
     {
+        /* @phpstan-ignore-next-line - TaskFileModel uses SoftDeletes trait which provides withTrashed() and restore() */
         $this->model::withTrashed()
             ->where('file_id', $fileId)
+            ->restore();
+    }
+
+    /**
+     * 递增指定文件的版本号（原子操作）.
+     */
+    public function incrementVersionById(int $fileId): int
+    {
+        $now = date('Y-m-d H:i:s');
+
+        // 使用原子操作递增版本号
+        $this->model::query()
+            ->where('file_id', $fileId)
+            ->whereNull('deleted_at')
             ->update([
-                'deleted_at' => null,
-                'updated_at' => date('Y-m-d H:i:s'),
+                'latest_version' => Db::raw('latest_version + 1'),
+                'updated_at' => $now,
             ]);
+
+        // 返回更新后的版本号
+        $version = $this->model::query()
+            ->where('file_id', $fileId)
+            ->value('latest_version');
+
+        return (int) ($version ?? 1);
+    }
+
+    /**
+     * 批量获取文件版本号.
+     */
+    public function getVersionsByIds(array $fileIds): array
+    {
+        if (empty($fileIds)) {
+            return [];
+        }
+
+        $results = $this->model::query()
+            ->select(['file_id', 'latest_version'])
+            ->whereIn('file_id', $fileIds)
+            ->whereNull('deleted_at')
+            ->get();
+
+        $versions = [];
+        foreach ($results as $result) {
+            $versions[(string) $result->file_id] = (int) ($result->latest_version ?? 1);
+        }
+
+        return $versions;
+    }
+
+    /**
+     * 递增指定文件的元数据版本号（原子操作）.
+     * 用于 MagicFS，在文件重命名、移动、权限修改等元数据操作时调用.
+     */
+    public function incrementMetadataVersionById(int $fileId): int
+    {
+        $now = date('Y-m-d H:i:s');
+
+        // 使用原子操作递增元数据版本号
+        $this->model::query()
+            ->where('file_id', $fileId)
+            ->whereNull('deleted_at')
+            ->update([
+                'metadata_version' => Db::raw('metadata_version + 1'),
+                'updated_at' => $now,
+            ]);
+
+        // 返回更新后的元数据版本号
+        $metadataVersion = $this->model::query()
+            ->where('file_id', $fileId)
+            ->value('metadata_version');
+
+        return (int) ($metadataVersion ?? 1);
+    }
+
+    /**
+     * 批量递增多个文件的元数据版本号（原子操作）.
+     * 用于优化版本链更新性能，一次 SQL 操作更新多个文件.
+     */
+    public function incrementMetadataVersionByIds(array $fileIds): void
+    {
+        if (empty($fileIds)) {
+            return;
+        }
+
+        $now = date('Y-m-d H:i:s');
+
+        // 使用原子操作批量递增元数据版本号
+        $this->model::query()
+            ->whereIn('file_id', $fileIds)
+            ->whereNull('deleted_at')
+            ->update([
+                'metadata_version' => Db::raw('metadata_version + 1'),
+                'updated_at' => $now,
+            ]);
+    }
+
+    /**
+     * 批量获取文件元数据版本号.
+     * 用于 MagicFS 客户端检查缓存是否失效.
+     */
+    public function getMetadataVersionsByIds(array $fileIds): array
+    {
+        if (empty($fileIds)) {
+            return [];
+        }
+
+        $results = $this->model::query()
+            ->select(['file_id', 'metadata_version'])
+            ->whereIn('file_id', $fileIds)
+            ->whereNull('deleted_at')
+            ->get();
+
+        $versions = [];
+        foreach ($results as $result) {
+            $versions[(string) $result->file_id] = (int) ($result->metadata_version ?? 1);
+        }
+
+        return $versions;
     }
 
     /**
@@ -1264,6 +1434,27 @@ class TaskFileRepository implements TaskFileRepositoryInterface
             ->where('project_id', $projectId)
             ->whereNull('parent_id')
             ->where('is_directory', true)
+            ->first();
+
+        if (! $model) {
+            return null;
+        }
+
+        return new TaskFileEntity($model->toArray());
+    }
+
+    /**
+     * Find root directory by project ID.
+     * Root directory is identified by: parent_id IS NULL AND file_name = '/' AND is_directory = true.
+     */
+    public function findRootDirectoryByProjectId(int $projectId): ?TaskFileEntity
+    {
+        $model = $this->model::query()
+            ->where('project_id', $projectId)
+            ->whereNull('parent_id')
+            ->where('file_name', '/')
+            ->where('is_directory', true)
+            ->orderBy('file_id', 'asc')
             ->first();
 
         if (! $model) {

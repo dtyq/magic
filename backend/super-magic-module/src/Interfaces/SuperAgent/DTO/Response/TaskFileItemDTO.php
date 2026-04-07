@@ -90,6 +90,11 @@ class TaskFileItemDTO extends AbstractDTO
     public ?array $metadata = null;
 
     /**
+     * 前端展示配置，解析后的数组.
+     */
+    public ?array $displayConfig = null;
+
+    /**
      * 排序值.
      */
     public int $sort = 0;
@@ -134,6 +139,15 @@ class TaskFileItemDTO extends AbstractDTO
             $dto->metadata = (json_last_error() === JSON_ERROR_NONE) ? $decodedMetadata : null;
         } else {
             $dto->metadata = null;
+        }
+
+        // Handle display_config JSON decoding
+        $displayConfig = $entity->getDisplayConfig();
+        if ($displayConfig !== null) {
+            $decodedDisplayConfig = json_decode($displayConfig, true);
+            $dto->displayConfig = (json_last_error() === JSON_ERROR_NONE) ? $decodedDisplayConfig : null;
+        } else {
+            $dto->displayConfig = null;
         }
         // relative_file_path
         if (! empty($workDir)) {
@@ -194,6 +208,21 @@ class TaskFileItemDTO extends AbstractDTO
             $dto->metadata = null;
         }
 
+        // Handle display_config - could be string (JSON) or array
+        $displayConfig = $data['display_config'] ?? null;
+        if ($displayConfig !== null) {
+            if (is_string($displayConfig)) {
+                $decodedDisplayConfig = json_decode($displayConfig, true);
+                $dto->displayConfig = (json_last_error() === JSON_ERROR_NONE) ? $decodedDisplayConfig : null;
+            } elseif (is_array($displayConfig)) {
+                $dto->displayConfig = $displayConfig;
+            } else {
+                $dto->displayConfig = null;
+            }
+        } else {
+            $dto->displayConfig = null;
+        }
+
         return $dto;
     }
 
@@ -219,6 +248,7 @@ class TaskFileItemDTO extends AbstractDTO
             'updated_at' => $this->updatedAt,
             'is_directory' => $this->isDirectory,
             'metadata' => $this->metadata,
+            'display_config' => $this->displayConfig,
             'sort' => $this->sort,
             'parent_id' => $this->parentId,
             'source' => $this->source->value,

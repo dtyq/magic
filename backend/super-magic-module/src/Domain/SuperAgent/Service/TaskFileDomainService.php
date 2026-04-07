@@ -11,11 +11,13 @@ use App\Domain\Contact\Entity\ValueObject\DataIsolation;
 use App\Domain\File\Repository\Persistence\Facade\CloudFileRepositoryInterface;
 use App\ErrorCode\GenericErrorCode;
 use App\Infrastructure\Core\CloudFile\ImageProcessFactory;
+use App\Infrastructure\Core\Exception\BusinessException;
 use App\Infrastructure\Core\Exception\ExceptionBuilder;
 use App\Infrastructure\Core\ValueObject\StorageBucketType;
 use App\Infrastructure\Util\IdGenerator\IdGenerator;
 use App\Infrastructure\Util\Locker\LockerInterface;
-use Dtyq\SuperMagic\Domain\SuperAgent\Constant\ProjectFileConstant;
+use Dtyq\SuperMagic\Domain\MagicFS\Service\MagicFSFileDomainService;
+use Dtyq\SuperMagic\Domain\MagicFS\Service\UpsertProjectFileNodeDTO;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ProjectEntity;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ProjectForkEntity;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\TaskEntity;
@@ -27,6 +29,7 @@ use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\SandboxFileNotification
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\StorageType;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\TaskFileSource;
 use Dtyq\SuperMagic\Domain\SuperAgent\Event\AttachmentsProcessedEvent;
+use Dtyq\SuperMagic\Domain\SuperAgent\Repository\Facade\FileTreeIndexRepositoryInterface;
 use Dtyq\SuperMagic\Domain\SuperAgent\Repository\Facade\ProjectForkRepositoryInterface;
 use Dtyq\SuperMagic\Domain\SuperAgent\Repository\Facade\ProjectRepositoryInterface;
 use Dtyq\SuperMagic\Domain\SuperAgent\Repository\Facade\TaskFileRepositoryInterface;
@@ -46,7 +49,6 @@ use Psr\Log\LoggerInterface;
 use Psr\SimpleCache\CacheInterface;
 use Throwable;
 
-use function event_dispatch;
 use function Hyperf\Translation\trans;
 
 class TaskFileDomainService
@@ -79,6 +81,7 @@ class TaskFileDomainService
         protected CloudFileRepositoryInterface $cloudFileRepository,
         protected ProjectRepositoryInterface $projectRepository,
         protected ProjectForkRepositoryInterface $projectForkRepository,
+        protected FileTreeIndexRepositoryInterface $fileTreeIndexRepository,
         protected SandboxGatewayInterface $sandboxGateway,
         protected LockerInterface $locker,
         protected TaskFileVersionRepositoryInterface $taskFileVersionRepository,
@@ -106,6 +109,24 @@ class TaskFileDomainService
     }
 
     /**
+     * Get project root directory file ID for sandbox initialization.
+     *
+     * @throws BusinessException
+     */
+    public function getProjectRootFileId(int $projectId): int
+    {
+        $rootDir = $this->taskFileRepository->findRootDirectoryByProjectId($projectId);
+        if ($rootDir === null) {
+            ExceptionBuilder::throw(
+                SuperAgentErrorCode::FILE_NOT_FOUND,
+                trans('file.root_directory_not_found')
+            );
+        }
+
+        return $rootDir->getFileId();
+    }
+
+    /**
      * Get file by file key.
      */
     public function getByFileKey(string $fileKey): ?TaskFileEntity
@@ -121,12 +142,9 @@ class TaskFileDomainService
         return $this->taskFileRepository->getByProjectIdAndFileKey($projectId, $fileKey);
     }
 
-    /**
-     * Get file by project ID and file name.
-     */
-    public function getByProjectIdAndFileName(int $projectId, string $fileName): ?TaskFileEntity
+    public function getByProjectParentAndName(int $projectId, ?int $parentId, string $fileName): ?TaskFileEntity
     {
-        return $this->taskFileRepository->getByProjectIdAndFileName($projectId, $fileName);
+        return $this->taskFileRepository->getByProjectParentAndName($projectId, $parentId, $fileName);
     }
 
     /**
@@ -470,11 +488,18 @@ class TaskFileDomainService
             $parentId
         );
 
+        $this->initializeBoundFileTreeIndexes(
+            $unboundFileIds,
+            $parentId,
+            $dataIsolation->getCurrentOrganizationCode()
+        );
+
         return true;
     }
 
     /**
      * Save project file.
+     * @deprecated Use MagicFSFileDomainService::upsertProjectFileNode()
      *
      * @param DataIsolation $dataIsolation Data isolation context
      * @param ProjectEntity $projectEntity Project entity
@@ -492,108 +517,19 @@ class TaskFileDomainService
         bool $isUpdated = true,
         bool $withTrash = true,
     ): ?TaskFileEntity {
-        // 检查输入参数
-        if (empty($taskFileEntity->getFileKey())) {
-            ExceptionBuilder::throw(
-                SuperAgentErrorCode::FILE_NOT_FOUND,
-                trans('file.file_not_found')
-            );
-        }
-        try {
-            // 查找文件是否存在
-            $fileEntity = $this->taskFileRepository->getByFileKey($taskFileEntity->getFileKey(), withTrash: $withTrash);
-            if ($withTrash && $fileEntity?->getDeletedAt() !== null) {
-                $this->taskFileRepository->restoreFile($fileEntity->getFileId());
-                $fileEntity->setDeletedAt(null);
-            }
-
-            if (! empty($fileEntity) && $isUpdated === false) {
-                return $fileEntity;
-            }
-
-            $currentTime = date('Y-m-d H:i:s');
-            if (empty($fileEntity)) {
-                $fileEntity = new TaskFileEntity();
-                $fileEntity->setFileId(IdGenerator::getSnowId());
-                $fileEntity->setFileKey($taskFileEntity->getFileKey());
-                $fileEntity->setTopicId($taskFileEntity->getTopicId());
-                $fileEntity->setTaskId($taskFileEntity->getTaskId());
-                $fileEntity->setSource($taskFileEntity->getSource() ?? TaskFileSource::DEFAULT);
-                $fileEntity->setCreatedAt($currentTime);
-            } else {
-                // 避免S3监听文件变动时，将 AI 生成文件的来源改为 AGENT
-                if ($taskFileEntity->getSource()->isAIGenerated()) {
-                    $fileEntity->setSource($taskFileEntity->getSource());
-                } elseif ($fileEntity->getSource()->isAIGenerated()) {
-                    $fileEntity->setSource($fileEntity->getSource());
-                }
-            }
-
-            // id 相关设置
-            $fileEntity->setProjectId($projectEntity->getId());
-            $fileEntity->setUserId($dataIsolation->getCurrentUserId());
-            $fileEntity->setOrganizationCode($dataIsolation->getCurrentOrganizationCode());
-            if (! empty($taskFileEntity->getTopicId()) && ($taskFileEntity->getTopicId() !== $fileEntity->getLatestModifiedTopicId())) {
-                $fileEntity->setLatestModifiedTopicId($taskFileEntity->getTopicId());
-            }
-            if (! empty($taskFileEntity->getTaskId()) && ($taskFileEntity->getTaskId() !== $taskFileEntity->getLatestModifiedTaskId())) {
-                $fileEntity->setLatestModifiedTaskId($taskFileEntity->getTaskId());
-            }
-            // 文件信息相关设置
-            $fileEntity->setFileType(! empty($taskFileEntity->getFileType()) ? $taskFileEntity->getFileType() : FileType::PROCESS->value);
-            $fileEntity->setFileName(! empty($taskFileEntity->getFileName()) ? $taskFileEntity->getFileName() : basename($taskFileEntity->getFileKey()));
-            $fileEntity->setFileExtension(! empty($taskFileEntity->getFileExtension()) ? $taskFileEntity->getFileExtension() : pathinfo($fileEntity->getFileName(), PATHINFO_EXTENSION));
-            $fileEntity->setFileSize(! empty($taskFileEntity->getFileSize()) ? $taskFileEntity->getFileSize() : 0);
-
-            // 设置存储类型，由于其他快照文件也存储到工作区，这里需要做下处理
-            if (empty($storageType)) {
-                if ($taskFileEntity->getStorageType() == StorageType::WORKSPACE->value && WorkFileUtil::isSnapshotFile($fileEntity->getFileKey())) {
-                    $fileEntity->setStorageType(StorageType::SNAPSHOT);
-                } else {
-                    $fileEntity->setStorageType($taskFileEntity->getStorageType());
-                }
-            } else {
-                $fileEntity->setStorageType($storageType);
-            }
-            $fileEntity->setIsHidden(WorkFileUtil::isHiddenFile($fileEntity->getFileKey()));
-            $fileEntity->setIsDirectory($taskFileEntity->getIsDirectory());
-            $fileEntity->setSort(! empty($taskFileEntity->getSort()) ? $taskFileEntity->getSort() : 0);
-
-            if (empty($taskFileEntity->getParentId())) {
-                $parentId = $this->findOrCreateDirectoryAndGetParentId(
-                    projectId: $projectEntity->getId(),
-                    userId: $dataIsolation->getCurrentUserId(),
-                    organizationCode: $dataIsolation->getCurrentOrganizationCode(),
-                    projectOrganizationCode: $projectEntity->getUserOrganizationCode(),
-                    fullFileKey: $fileEntity->getFileKey(),
-                    workDir: $projectEntity->getWorkDir(),
-                    source: $fileEntity->getSource()
-                );
-                $fileEntity->setParentId($parentId);
-            } else {
-                $fileEntity->setParentId($taskFileEntity->getParentId());
-            }
-
-            $fileEntity->setMetadata(! empty($taskFileEntity->getMetadata()) ? $taskFileEntity->getMetadata() : '');
-            $fileEntity->setUpdatedAt($currentTime);
-
-            $newFileEntity = $this->taskFileRepository->insertOrUpdate($fileEntity);
-            // set meta data file
-            // Dispatch AttachmentsProcessedEvent for special file processing (like project.js)
-            if (ProjectFileConstant::isSetMetadataFile($newFileEntity->getFileName())) {
-                event_dispatch(new AttachmentsProcessedEvent($newFileEntity->getParentId(), $newFileEntity->getProjectId(), $newFileEntity->getTaskId()));
-                $this->logger->info(sprintf(
-                    'Dispatched AttachmentsProcessedEvent for saveProjectFile processed attachments, parentId: %d, projectId: %d, taskId: %d',
-                    $newFileEntity->getParentId(),
-                    $newFileEntity->getProjectId(),
-                    $newFileEntity->getTaskId()
-                ));
-            }
-            return $newFileEntity;
-        } catch (Throwable $e) {
-            $this->logger->error('Error saving project file', ['file_key' => $taskFileEntity->getFileKey(), 'error' => $e->getMessage()]);
-            throw $e;
-        }
+        return $this->getMagicFSFileDomainService()->upsertProjectFileNode(
+            new UpsertProjectFileNodeDTO(
+                projectId: $projectEntity->getId(),
+                projectWorkDir: $projectEntity->getWorkDir(),
+                projectOrganizationCode: $projectEntity->getUserOrganizationCode(),
+                operatorUserId: $dataIsolation->getCurrentUserId(),
+                operatorOrganizationCode: $dataIsolation->getCurrentOrganizationCode(),
+                taskFileEntity: $taskFileEntity,
+                storageTypeOverride: $storageType,
+                isUpdated: $isUpdated,
+                withTrash: $withTrash,
+            )
+        );
     }
 
     /**
@@ -1158,57 +1094,81 @@ class TaskFileDomainService
             );
         }
 
-        // 4. Build initial target file path
-        $baseFileName = basename($fileEntity->getFileKey());
-        $targetPath = rtrim($targetParentEntity->getFileKey(), '/') . '/' . $baseFileName;
+        $sameProject = $sourceProject->getId() === $targetProject->getId();
+        $sameOrganization = $sourceProject->getUserOrganizationCode() === $targetProject->getUserOrganizationCode();
 
-        // 5. Validate target path is within target project's work directory
-        $fullWorkdir = WorkDirectoryUtil::getFullWorkdir(
-            $this->getFullPrefix($targetProject->getUserOrganizationCode()),
-            $targetProject->getWorkDir()
+        // 4. Resolve target name and conflict strategy with parent_id + file_name semantics
+        $targetFileName = $fileEntity->getFileName();
+        $existingTargetFile = $this->taskFileRepository->getByProjectParentAndName(
+            $targetProject->getId(),
+            $targetParentId,
+            $targetFileName
         );
-        if (! WorkDirectoryUtil::checkEffectiveFileKey($fullWorkdir, $targetPath)) {
-            ExceptionBuilder::throw(SuperAgentErrorCode::FILE_ILLEGAL_KEY, trans('file.illegal_file_key'));
+
+        $sourceFileIdStr = (string) $fileEntity->getFileId();
+        $shouldKeepBoth = in_array($sourceFileIdStr, $keepBothFileIds, true);
+
+        if ($existingTargetFile !== null && $existingTargetFile->getFileId() === $fileEntity->getFileId()) {
+            // Existing target is source file itself: no conflict.
+            $existingTargetFile = null;
+            $shouldKeepBoth = false;
         }
 
-        // 6. Check if file path actually needs to change
-        $sameProject = $sourceProject->getId() === $targetProject->getId();
-        if ($fileEntity->getFileKey() === $targetPath && $sameProject) {
+        if ($existingTargetFile !== null && $shouldKeepBoth) {
+            $targetFileName = $this->generateUniqueFileNameInParent(
+                $targetProject->getId(),
+                $targetParentId,
+                $targetFileName
+            );
+            $existingTargetFile = null;
+        }
+
+        // 5. Resolve target file_key by move domain rule
+        $targetFileKey = $fileEntity->getFileKey();
+        if (! $sameProject || ! $sameOrganization) {
+            $targetFileKey = WorkDirectoryUtil::getFullFileKey(
+                $this->getFullPrefix($targetProject->getUserOrganizationCode()),
+                $targetProject->getWorkDir(),
+                (string) $fileEntity->getFileId()
+            );
+        }
+
+        // 6. Check if operation actually changes state
+        if ($sameProject
+            && $fileEntity->getParentId() === $targetParentId
+            && $fileEntity->getFileName() === $targetFileName
+            && $fileEntity->getFileKey() === $targetFileKey) {
             return; // No change needed
         }
 
-        // 7. Check if target file already exists
-        $existingTargetFile = $this->taskFileRepository->getByFileKey($targetPath);
-
-        // 8. Determine conflict resolution strategy
-        $shouldKeepBoth = false;
-        if (! empty($existingTargetFile)) {
-            // Check if current SOURCE file ID is in keep_both_file_ids
-            $sourceFileIdStr = (string) $fileEntity->getFileId();
-            if (in_array($sourceFileIdStr, $keepBothFileIds, true)) {
-                $shouldKeepBoth = true;
-
-                // Generate new TARGET filename to avoid conflict
-                $targetPath = $this->generateUniqueFileName(
-                    $targetParentEntity->getFileKey(),
-                    $baseFileName,
-                    $targetProject->getId()
-                );
-
-                $this->logger->info('Conflict resolved by renaming target path', [
+        // 7. Deterministic key collision protection
+        if ($targetFileKey !== $fileEntity->getFileKey()) {
+            $occupiedFile = $this->taskFileRepository->getByFileKey($targetFileKey);
+            if ($occupiedFile !== null && $occupiedFile->getFileId() !== $fileEntity->getFileId()) {
+                $this->logger->error('Deterministic target file_key occupied during move', [
                     'source_file_id' => $fileEntity->getFileId(),
-                    'original_target' => $baseFileName,
-                    'new_target_path' => $targetPath,
-                    'existing_file_id' => $existingTargetFile->getFileId(),
+                    'occupied_file_id' => $occupiedFile->getFileId(),
+                    'target_file_key' => $targetFileKey,
+                    'source_project_id' => $sourceProject->getId(),
+                    'target_project_id' => $targetProject->getId(),
                 ]);
+                ExceptionBuilder::throw(SuperAgentErrorCode::FILE_MOVE_FAILED, trans('file.file_move_failed'));
             }
         }
 
-        // 9. Execute move operation
+        // 8. Execute move operation
         Db::beginTransaction();
         try {
-            // Delete existing target file BEFORE updating source file to avoid unique key conflict
-            if (! empty($existingTargetFile) && ! $shouldKeepBoth) {
+            // Overwrite mode: delete existing target file before move.
+            if ($existingTargetFile !== null && ! $shouldKeepBoth) {
+                if ($existingTargetFile->getIsDirectory()) {
+                    ExceptionBuilder::throw(SuperAgentErrorCode::FILE_EXIST, trans('file.file_exist'));
+                }
+
+                $this->fileTreeIndexRepository->deleteNodeIndexes(
+                    $existingTargetFile->getFileId(),
+                    $existingTargetFile->getOrganizationCode()
+                );
                 $this->taskFileRepository->deleteById($existingTargetFile->getFileId());
 
                 $this->logger->info('Deleted existing target file before move', [
@@ -1223,7 +1183,8 @@ class TaskFileDomainService
                 $fileEntity,
                 $sourceProject,
                 $targetProject,
-                $targetPath,
+                $targetFileKey,
+                $targetFileName,
                 $targetParentId
             );
 
@@ -1237,7 +1198,8 @@ class TaskFileDomainService
                 'target_project_id' => $targetProject->getId(),
                 'target_parent_id' => $targetParentId,
                 'should_keep_both' => $shouldKeepBoth,
-                'target_path' => $targetPath,
+                'target_file_key' => $targetFileKey,
+                'target_file_name' => $targetFileName,
                 'error' => $e->getMessage(),
             ]);
             throw $e;
@@ -1289,52 +1251,62 @@ class TaskFileDomainService
             );
         }
 
-        // 4. Build initial target file path
-        $baseFileName = basename($fileEntity->getFileKey());
-        $targetPath = rtrim($targetParentEntity->getFileKey(), '/') . '/' . $baseFileName;
+        // 4. Resolve target file name by parent_id + file_name semantics.
+        $targetFileName = $fileEntity->getFileName();
+        $existingTargetFile = $this->taskFileRepository->getByProjectParentAndName(
+            $targetProject->getId(),
+            $targetParentId,
+            $targetFileName
+        );
 
-        // 5. Validate target path is within target project's work directory
+        $sourceFileIdStr = (string) $fileEntity->getFileId();
+        $shouldKeepBoth = in_array($sourceFileIdStr, $keepBothFileIds, true);
+
+        if ($existingTargetFile !== null && $existingTargetFile->getFileId() === $fileEntity->getFileId()) {
+            // Copying to the same directory should not overwrite itself.
+            $shouldKeepBoth = true;
+            $existingTargetFile = null;
+        }
+
+        if ($existingTargetFile !== null && $shouldKeepBoth) {
+            $targetFileName = $this->generateUniqueFileNameInParent(
+                $targetProject->getId(),
+                $targetParentId,
+                $targetFileName
+            );
+            $existingTargetFile = null;
+        }
+
+        $newFileId = IdGenerator::getSnowId();
+        $targetFileKey = WorkDirectoryUtil::getFullFileKey(
+            $this->getFullPrefix($targetProject->getUserOrganizationCode()),
+            $targetProject->getWorkDir(),
+            (string) $newFileId
+        );
+
+        // 5. Validate target key is within target project's work directory.
         $fullWorkdir = WorkDirectoryUtil::getFullWorkdir(
             $this->getFullPrefix($targetProject->getUserOrganizationCode()),
             $targetProject->getWorkDir()
         );
-        if (! WorkDirectoryUtil::checkEffectiveFileKey($fullWorkdir, $targetPath)) {
+        if (! WorkDirectoryUtil::checkEffectiveFileKey($fullWorkdir, $targetFileKey)) {
             ExceptionBuilder::throw(SuperAgentErrorCode::FILE_ILLEGAL_KEY, trans('file.illegal_file_key'));
         }
 
-        // 6. Check if target file already exists
-        $existingTargetFile = $this->taskFileRepository->getByFileKey($targetPath);
-
-        // 7. Determine conflict resolution strategy
-        $shouldKeepBoth = false;
-        if (! empty($existingTargetFile)) {
-            // Check if current SOURCE file ID is in keep_both_file_ids
-            $sourceFileIdStr = (string) $fileEntity->getFileId();
-            if (in_array($sourceFileIdStr, $keepBothFileIds, true)) {
-                $shouldKeepBoth = true;
-
-                // Generate new TARGET filename to avoid conflict
-                $targetPath = $this->generateUniqueFileName(
-                    $targetParentEntity->getFileKey(),
-                    $baseFileName,
-                    $targetProject->getId()
-                );
-
-                $this->logger->info('Conflict resolved by renaming target path', [
-                    'source_file_id' => $fileEntity->getFileId(),
-                    'original_target' => $baseFileName,
-                    'new_target_path' => $targetPath,
-                    'existing_file_id' => $existingTargetFile->getFileId(),
-                ]);
-            }
-        }
-
-        // 8. Execute copy operation
+        // 6. Execute copy operation
         Db::beginTransaction();
         try {
-            // Delete existing target file BEFORE copying to avoid unique key conflict (overwrite mode)
-            if (! empty($existingTargetFile) && ! $shouldKeepBoth) {
-                $this->taskFileRepository->deleteById($existingTargetFile->getFileId(), true);
+            // Overwrite mode: delete existing file. Directory conflict is not allowed.
+            if ($existingTargetFile !== null && ! $shouldKeepBoth) {
+                if ($existingTargetFile->getIsDirectory()) {
+                    ExceptionBuilder::throw(SuperAgentErrorCode::FILE_EXIST, trans('file.file_exist'));
+                }
+
+                $this->fileTreeIndexRepository->deleteNodeIndexes(
+                    $existingTargetFile->getFileId(),
+                    $existingTargetFile->getOrganizationCode()
+                );
+                $this->taskFileRepository->deleteById($existingTargetFile->getFileId());
 
                 $this->logger->info('Deleted existing target file before copy', [
                     'deleted_file_id' => $existingTargetFile->getFileId(),
@@ -1348,22 +1320,22 @@ class TaskFileDomainService
                 $fileEntity,
                 $sourceProject,
                 $targetProject,
-                $targetPath
+                $targetFileKey
             );
 
             // Create new file record
             $newFileEntity = new TaskFileEntity();
-            $newFileEntity->setFileId(IdGenerator::getSnowId());
+            $newFileEntity->setFileId($newFileId);
             $newFileEntity->setProjectId($targetProject->getId());
             $newFileEntity->setUserId($dataIsolation->getCurrentUserId());
             $newFileEntity->setOrganizationCode($targetProject->getUserOrganizationCode());
             $newFileEntity->setFileType($fileEntity->getFileType());
-            $newFileEntity->setFileName(basename($targetPath));
-            $fileInfo = pathinfo($targetPath);
+            $newFileEntity->setFileName($targetFileName);
+            $fileInfo = pathinfo($targetFileName);
             $extension = isset($fileInfo['extension']) ? $fileInfo['extension'] : '';
             $newFileEntity->setFileExtension($extension);
             $newFileEntity->setFileSize($fileEntity->getFileSize());
-            $newFileEntity->setFileKey($targetPath);
+            $newFileEntity->setFileKey($targetFileKey);
             $newFileEntity->setCreatedAt(date('Y-m-d H:i:s'));
             $newFileEntity->setUpdatedAt(date('Y-m-d H:i:s'));
             $newFileEntity->setStorageType($fileEntity->getStorageType());
@@ -1371,25 +1343,15 @@ class TaskFileDomainService
             $newFileEntity->setIsDirectory($fileEntity->getIsDirectory());
             $newFileEntity->setParentId($targetParentId);
             $newFileEntity->setMetadata($fileEntity->getMetadata());
+            $newFileEntity->setDisplayConfig($fileEntity->getDisplayConfig());
             $newFileEntity->setSource(TaskFileSource::COPY->value);
+            $newFileEntity->setLatestVersion(1);
+            $newFileEntity->setMetadataVersion(1);
 
             $createdFileEntity = $this->taskFileRepository->insert($newFileEntity);
 
-            // Dispatch AttachmentsProcessedEvent for metadata files after copy
-            if (ProjectFileConstant::isSetMetadataFile($createdFileEntity->getFileName())) {
-                event_dispatch(new AttachmentsProcessedEvent(
-                    $createdFileEntity->getParentId(),
-                    $createdFileEntity->getProjectId(),
-                    $createdFileEntity->getTaskId()
-                ));
-                $this->logger->info(sprintf(
-                    'Dispatched AttachmentsProcessedEvent for copyProjectFile, fileName: %s, parentId: %d, projectId: %d, taskId: %d',
-                    $createdFileEntity->getFileName(),
-                    $createdFileEntity->getParentId(),
-                    $createdFileEntity->getProjectId(),
-                    $createdFileEntity->getTaskId()
-                ));
-            }
+            // Display config processing is handled by AttachmentsProcessedEventSubscriber
+            // reacting to the FileUploadedEvent dispatched by the caller after this method returns.
 
             Db::commit();
 
@@ -1398,7 +1360,8 @@ class TaskFileDomainService
                 'new_file_id' => $createdFileEntity->getFileId(),
                 'source_project_id' => $sourceProject->getId(),
                 'target_project_id' => $targetProject->getId(),
-                'target_path' => $targetPath,
+                'target_file_name' => $targetFileName,
+                'target_file_key' => $targetFileKey,
                 'should_keep_both' => $shouldKeepBoth,
             ]);
 
@@ -1412,7 +1375,8 @@ class TaskFileDomainService
                 'target_project_id' => $targetProject->getId(),
                 'target_parent_id' => $targetParentId,
                 'should_keep_both' => $shouldKeepBoth,
-                'target_path' => $targetPath,
+                'target_file_name' => $targetFileName,
+                'target_file_key' => $targetFileKey,
                 'error' => $e->getMessage(),
             ]);
             throw $e;
@@ -1425,61 +1389,56 @@ class TaskFileDomainService
      * @param TaskFileEntity $fileEntity File entity to move
      * @param ProjectEntity $sourceProject Source project entity
      * @param ProjectEntity $targetProject Target project entity
-     * @param string $targetPath Target file path
      * @param int $targetParentId Target parent directory ID
      */
     public function moveFile(
         TaskFileEntity $fileEntity,
         ProjectEntity $sourceProject,
         ProjectEntity $targetProject,
-        string $targetPath,
+        string $targetFileKey,
+        string $targetFileName,
         int $targetParentId
     ): void {
         try {
             $sameProject = $sourceProject->getId() === $targetProject->getId();
+            $sameOrganization = $sourceProject->getUserOrganizationCode() === $targetProject->getUserOrganizationCode();
+            $keyChanged = $fileEntity->getFileKey() !== $targetFileKey;
+            $nameChanged = $fileEntity->getFileName() !== $targetFileName;
+            $parentChanged = $fileEntity->getParentId() !== $targetParentId;
 
-            if ($fileEntity->getFileKey() === $targetPath && $sameProject) {
+            if (! $keyChanged && ! $nameChanged && ! $parentChanged && $sameProject) {
                 return;
             }
 
-            // 1. Handle cloud storage operation
-            $this->moveFileInCloudStorage(
-                $fileEntity,
-                $sourceProject,
-                $targetProject,
-                $targetPath
-            );
+            // 1. Handle cloud storage operation only when key/org changes.
+            // Directories have no physical objects in object storage, so skip cloud operations for them.
+            if (! $fileEntity->getIsDirectory() && ($keyChanged || ! $sameOrganization)) {
+                $this->moveFileInCloudStorage(
+                    $fileEntity,
+                    $sourceProject,
+                    $targetProject,
+                    $targetFileKey
+                );
+            }
 
             // 2. Update database record
             $this->updateFileRecord(
                 $fileEntity,
                 $sourceProject,
                 $targetProject,
-                $targetPath,
+                $targetFileKey,
+                $targetFileName,
                 $targetParentId
             );
 
-            // 3. Dispatch AttachmentsProcessedEvent for metadata files after move
-            $fileName = basename($targetPath);
-            if (ProjectFileConstant::isSetMetadataFile($fileName)) {
-                event_dispatch(new AttachmentsProcessedEvent(
-                    $targetParentId,
-                    $targetProject->getId(),
-                    $fileEntity->getTaskId()
-                ));
-                $this->logger->info(sprintf(
-                    'Dispatched AttachmentsProcessedEvent for moveFile, fileName: %s, parentId: %d, projectId: %d, taskId: %d',
-                    $fileName,
-                    $targetParentId,
-                    $targetProject->getId(),
-                    $fileEntity->getTaskId()
-                ));
-            }
+            // AttachmentsProcessedEvent dispatching is handled by the application-layer caller
+            // (FileBatchMoveSubscriber::moveFile()) after this method returns.
         } catch (Throwable $e) {
             $this->logger->error('moveFile error', [
                 'file_id' => $fileEntity->getFileId(),
                 'file_key' => $fileEntity->getFileKey(),
-                'target_path' => $targetPath,
+                'target_file_key' => $targetFileKey,
+                'target_file_name' => $targetFileName,
                 'error' => $e->getMessage(),
             ]);
             throw $e;
@@ -1517,6 +1476,7 @@ class TaskFileDomainService
             $targetFileEntity->setParentId($targetParentId);
             $targetFileEntity->setSort($fileEntity->getSort() + 1);
             $targetFileEntity->setMetadata($fileEntity->getMetadata());
+            $targetFileEntity->setDisplayConfig($fileEntity->getDisplayConfig());
             $targetFileEntity->setSource(TaskFileSource::COPY->value);
 
             return $this->taskFileRepository->insert($targetFileEntity);
@@ -1527,16 +1487,23 @@ class TaskFileDomainService
 
     public function getDirectoryFileIds(DataIsolation $dataIsolation, TaskFileEntity $dirEntity): array
     {
-        $fileEntities = $this->taskFileRepository->findFilesByDirectoryPath($dirEntity->getProjectId(), $dirEntity->getFileKey(), 5000);
-        if (empty($fileEntities)) {
+        // Deprecated for move main flow. Kept for compatibility.
+        $fileTree = $this->getMagicFSFileDomainService()->getFileTree((string) $dirEntity->getFileId());
+        $rootEntity = $fileTree['root'] ?? null;
+        if (! $rootEntity instanceof TaskFileEntity) {
             return [];
         }
 
-        $fileIds = [];
-        foreach ($fileEntities as $fileEntity) {
-            $fileIds[] = $fileEntity->getFileId();
+        $fileIds = [$rootEntity->getFileId()];
+        $children = $fileTree['children'] ?? [];
+        if (is_array($children)) {
+            foreach ($children as $fileEntity) {
+                if ($fileEntity instanceof TaskFileEntity) {
+                    $fileIds[] = $fileEntity->getFileId();
+                }
+            }
         }
-        return $fileIds;
+        return array_values(array_unique($fileIds));
     }
 
     /**
@@ -1709,7 +1676,18 @@ class TaskFileDomainService
             // Get file information from cloud storage
             $fileInfo = $this->getFileInfoFromCloudStorage($fileKey, $projectOrganizationCode);
             $taskFileEntity->setFileSize($fileInfo['size']);
-            $fileEntity = $this->saveProjectFile($dataIsolation, $projectEntity, $taskFileEntity, isUpdated: $isUpdate, withTrash: true);
+            $fileEntity = $this->getMagicFSFileDomainService()->upsertProjectFileNode(
+                new UpsertProjectFileNodeDTO(
+                    projectId: $projectEntity->getId(),
+                    projectWorkDir: $projectEntity->getWorkDir(),
+                    projectOrganizationCode: $projectEntity->getUserOrganizationCode(),
+                    operatorUserId: $dataIsolation->getCurrentUserId(),
+                    operatorOrganizationCode: $dataIsolation->getCurrentOrganizationCode(),
+                    taskFileEntity: $taskFileEntity,
+                    isUpdated: $isUpdate,
+                    withTrash: true,
+                )
+            );
 
             Db::commit();
             return $fileEntity;
@@ -1782,6 +1760,11 @@ class TaskFileDomainService
         $rootDir = $this->findDirectoryByParentIdAndName(null, '/', $projectId);
 
         if ($rootDir !== null) {
+            $this->fileTreeIndexRepository->createNodeIndexes(
+                $rootDir->getFileId(),
+                null,
+                $rootDir->getOrganizationCode() ?: $organizationCode
+            );
             return $rootDir->getFileId();
         }
         $fullPrefix = $this->getFullPrefix($projectOrganizationCode);
@@ -1815,6 +1798,12 @@ class TaskFileDomainService
         $rootDirEntity->setDeletedAt(null);
 
         $rootDirEntity = $this->insertOrUpdate($rootDirEntity);
+
+        $this->fileTreeIndexRepository->createNodeIndexes(
+            $rootDirEntity->getFileId(),
+            null,
+            $rootDirEntity->getOrganizationCode()
+        );
 
         return $rootDirEntity->getFileId();
     }
@@ -2362,6 +2351,7 @@ class TaskFileDomainService
         $dirEntity->setIsHidden($oldFileEntity->getIsHidden());
         $dirEntity->setSort($oldFileEntity->getSort());
         $dirEntity->setMetadata($oldFileEntity->getMetadata());  // Preserve metadata when creating folder
+        $dirEntity->setDisplayConfig($oldFileEntity->getDisplayConfig());  // Preserve display config when creating folder
         $dirEntity->setFileId(IdGenerator::getSnowId());
         $dirEntity->setFileName($oldFileEntity->getFileName());
         $dirEntity->setFileKey($newFileKey);
@@ -2701,6 +2691,14 @@ class TaskFileDomainService
     }
 
     /**
+     * Get file by project ID and file name (searches across all directories).
+     */
+    public function getByProjectIdAndFileName(int $projectId, string $fileName): ?TaskFileEntity
+    {
+        return $this->taskFileRepository->getByProjectIdAndFileName($projectId, $fileName);
+    }
+
+    /**
      * Check whether a file with the given name exists anywhere in the project (case-insensitive).
      */
     public function existsFileByName(int $projectId, string $fileName): bool
@@ -2747,6 +2745,33 @@ class TaskFileDomainService
         $entity->setFileSize(strlen($content));
         $entity->setUpdatedAt(date('Y-m-d H:i:s'));
         return $this->taskFileRepository->updateById($entity);
+    }
+
+    private function getMagicFSFileDomainService(): MagicFSFileDomainService
+    {
+        return di(MagicFSFileDomainService::class);
+    }
+
+    /**
+     * 为绑定到项目的文件补齐闭包表索引。
+     *
+     * 说明：
+     * - 根目录需要先存在 self 索引，子节点才能建立 ancestor->descendant 关系
+     * - createNodeIndexes 已做幂等补全，重复调用不会报唯一键冲突
+     *
+     * @param array<int> $fileIds
+     */
+    private function initializeBoundFileTreeIndexes(array $fileIds, int $parentId, string $organizationCode): void
+    {
+        if (empty($fileIds)) {
+            return;
+        }
+
+        $this->fileTreeIndexRepository->createNodeIndexes($parentId, null, $organizationCode);
+
+        foreach ($fileIds as $fileId) {
+            $this->fileTreeIndexRepository->createNodeIndexes((int) $fileId, $parentId, $organizationCode);
+        }
     }
 
     /**
@@ -2808,72 +2833,6 @@ class TaskFileDomainService
         usort($sourceFiles, fn ($a, $b) => $a->getFileId() <=> $b->getFileId());
 
         return $sourceFiles;
-    }
-
-    /**
-     * Generate unique filename by appending (1), (2), etc. when file exists.
-     * Optimized: batch generate candidates and query once.
-     *
-     * @param string $parentPath Parent directory path
-     * @param string $originalFileName Original file name
-     * @param int $projectId Project ID for checking existence
-     * @return string Unique file path
-     */
-    private function generateUniqueFileName(
-        string $parentPath,
-        string $originalFileName,
-        int $projectId
-    ): string {
-        $parentPath = rtrim($parentPath, '/');
-
-        // Parse file name and extension
-        $pathInfo = pathinfo($originalFileName);
-        $baseName = $pathInfo['filename'];
-        $extension = isset($pathInfo['extension']) ? '.' . $pathInfo['extension'] : '';
-
-        // Handle double extensions like .tar.gz
-        if (preg_match('/^(.+?)(\.[a-z0-9]+\.[a-z0-9]+)$/i', $originalFileName, $matches)) {
-            $baseName = $matches[1];
-            $extension = $matches[2];
-        }
-
-        // Generate 10 candidate filenames at once
-        $candidatePaths = [];
-        for ($i = 1; $i <= 10; ++$i) {
-            $newFileName = $baseName . '(' . $i . ')' . $extension;
-            $newPath = $parentPath . '/' . $newFileName;
-            $candidatePaths[] = $newPath;
-        }
-
-        // Batch query: use existing getByFileKeys method
-        $existingFiles = $this->taskFileRepository->getByFileKeys($candidatePaths);
-        $existingPaths = array_keys($existingFiles);
-
-        // Find first available candidate
-        foreach ($candidatePaths as $candidatePath) {
-            if (! in_array($candidatePath, $existingPaths, true)) {
-                $this->logger->info('Generated unique filename', [
-                    'original' => $originalFileName,
-                    'result' => basename($candidatePath),
-                    'project_id' => $projectId,
-                ]);
-                return $candidatePath;
-            }
-        }
-
-        // Fallback: all 10 candidates exist, use timestamp
-        $timestamp = time();
-        $microtime = substr((string) microtime(true), -6);  // Last 6 digits for uniqueness
-        $fallbackName = $baseName . '_' . $timestamp . $microtime . $extension;
-        $fallbackPath = $parentPath . '/' . $fallbackName;
-
-        $this->logger->warning('All 10 candidates existed, using timestamp fallback', [
-            'original' => $originalFileName,
-            'fallback' => $fallbackName,
-            'project_id' => $projectId,
-        ]);
-
-        return $fallbackPath;
     }
 
     /**
@@ -2988,14 +2947,14 @@ class TaskFileDomainService
      * @param TaskFileEntity $fileEntity File entity
      * @param ProjectEntity $sourceProject Source project
      * @param ProjectEntity $targetProject Target project
-     * @param string $targetPath Target path
      * @param int $targetParentId Target parent ID
      */
     private function updateFileRecord(
         TaskFileEntity $fileEntity,
         ProjectEntity $sourceProject,
         ProjectEntity $targetProject,
-        string $targetPath,
+        string $targetFileKey,
+        string $targetFileName,
         int $targetParentId
     ): void {
         $sameProject = $sourceProject->getId() === $targetProject->getId();
@@ -3003,12 +2962,16 @@ class TaskFileDomainService
 
         // Build update fields
         $updateFields = [
-            'file_key' => $targetPath,
-            'file_name' => basename($targetPath),  // Extract filename from path
+            'file_name' => $targetFileName,
             'parent_id' => $targetParentId,
             'metadata' => $fileEntity->getMetadata(),  // Preserve metadata when moving
+            'display_config' => $fileEntity->getDisplayConfig(),  // Preserve display config when moving
             'updated_at' => date('Y-m-d H:i:s'),
         ];
+
+        if ($fileEntity->getFileKey() !== $targetFileKey || ! $sameProject || ! $sameOrganization) {
+            $updateFields['file_key'] = $targetFileKey;
+        }
 
         // Update project_id if cross-project
         if (! $sameProject) {
@@ -3024,6 +2987,39 @@ class TaskFileDomainService
             ['file_id' => $fileEntity->getFileId()],
             $updateFields
         );
+    }
+
+    /**
+     * Generate unique file name in target parent using parent_id + file_name semantics.
+     */
+    private function generateUniqueFileNameInParent(
+        int $projectId,
+        int $parentId,
+        string $originalFileName
+    ): string {
+        $siblings = $this->taskFileRepository->getChildrenByParentAndProject($projectId, $parentId, 10000);
+
+        $existingNames = [];
+        foreach ($siblings as $sibling) {
+            $existingNames[$sibling->getFileName()] = true;
+        }
+
+        if (! isset($existingNames[$originalFileName])) {
+            return $originalFileName;
+        }
+
+        $pathInfo = pathinfo($originalFileName);
+        $baseName = $pathInfo['filename'] ?? $originalFileName;
+        $extension = isset($pathInfo['extension']) ? '.' . $pathInfo['extension'] : '';
+
+        for ($i = 1; $i <= 20; ++$i) {
+            $candidate = $baseName . '(' . $i . ')' . $extension;
+            if (! isset($existingNames[$candidate])) {
+                return $candidate;
+            }
+        }
+
+        return $baseName . '_' . time() . substr((string) microtime(true), -6) . $extension;
     }
 
     /**
@@ -3278,6 +3274,7 @@ class TaskFileDomainService
         $newTaskFile->setSort($sourceFile->getSort());
         $newTaskFile->setStorageType($sourceFile->getStorageType());
         $newTaskFile->setMetadata($sourceFile->getMetadata());
+        $newTaskFile->setDisplayConfig($sourceFile->getDisplayConfig());
         $newTaskFile->setUserId($userId);
         $newTaskFile->setOrganizationCode($organizationCode);
         $newTaskFile->setSource(TaskFileSource::DEFAULT->value);

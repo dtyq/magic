@@ -258,7 +258,13 @@ class TopicTaskAppService extends AbstractAppService
                 // Create new message
                 $messageEntity = $this->parseMessageContent($messageDTO);
                 $messageEntity->setTopicId($topicId);
-                $this->processMessageAttachment($dataIsolation, $taskEntity, $messageEntity);
+                // Special status handling: generate output content tool when task is finished
+                if ($messageEntity->getStatus() === TaskStatus::FINISHED->value) {
+                    $outputTool = ToolProcessor::generateOutputContentTool($messageEntity->getAttachments());
+                    if ($outputTool !== null) {
+                        $messageEntity->setTool($outputTool);
+                    }
+                }
                 $this->processToolContent($dataIsolation, $taskEntity, $messageEntity);
                 // Set usage if task is finished
                 if (! empty($usage)) {
@@ -876,20 +882,20 @@ class TopicTaskAppService extends AbstractAppService
             return;
         }
 
-        $fileKey = '';
+        $fileId = '';
         $attachments = $tool['attachments'] ?? [];
         foreach ($attachments as $attachment) {
             if ($attachment['filename'] === $fileName) {
-                $fileKey = $attachment['file_key'];
+                $fileId = $attachment['file_id'];
                 break; // Exit loop once found
             }
         }
 
-        if (empty($fileKey)) {
+        if (empty($fileId)) {
             return;
         }
 
-        $taskFileEntity = $this->taskFileDomainService->getByFileKey($fileKey);
+        $taskFileEntity = $this->taskFileDomainService->getById((int) $fileId);
         if ($taskFileEntity === null) {
             return;
         }

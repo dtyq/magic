@@ -422,4 +422,11 @@ class TaskMessageRepository implements TaskMessageRepositoryInterface
             ->where('id', $id)
             ->update(['im_seq_id' => $imSeqId]);
     }
+
+    public function hasMessagesByTopicId(int $topicId): bool
+    {
+        return $this->model::query()
+            ->where('topic_id', $topicId)
+            ->exists();
+    }
 }
