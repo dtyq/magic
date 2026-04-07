@@ -183,6 +183,9 @@ class AgentHorizon:
             # 容器重启 / Agent 实例重建时，只恢复“这个上下文窗口是否已经发过首包”。
             # baseline 已经在 state.* 里；current 由本轮运行时重新采集，不应从旧进程内存恢复。
             self._is_first_injection = not loaded.initial_context_injected
+            # 恢复 LLM 模型 baseline，避免重启后误判为"模型变更"
+            self._last_llm_model_id = loaded.llm_model_id
+            self._last_llm_model_name = loaded.llm_model_name
         self._loaded = True
 
     async def _save(self) -> None:
@@ -907,6 +910,10 @@ class AgentHorizon:
             persistence_changed = True
         if self._state.memory != current_memory:
             self._state.memory = current_memory
+            persistence_changed = True
+        if self._state.llm_model_id != self._last_llm_model_id or self._state.llm_model_name != self._last_llm_model_name:
+            self._state.llm_model_id = self._last_llm_model_id
+            self._state.llm_model_name = self._last_llm_model_name
             persistence_changed = True
         if self._state.user_preferred_language != current_language:
             self._state.user_preferred_language = current_language

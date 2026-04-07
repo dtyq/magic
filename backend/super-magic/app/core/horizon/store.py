@@ -96,6 +96,8 @@ class HorizonStore:
                 model_id=vid.get("model_id", ""),
                 config=vid.get("config", {}),
             )
+            state.llm_model_id = data.get("llm_model_id", "")
+            state.llm_model_name = data.get("llm_model_name", "")
             state.user_preferred_language = data.get("user_preferred_language", "")
             state.workspace_files = data.get("workspace_files", "")
             state.workspace_entries = data.get("workspace_entries", [])
@@ -118,6 +120,8 @@ class HorizonStore:
             "file_records": {k: _record_to_dict(v) for k, v in state.file_records.items()},
             "image_model": {"model_id": state.image_model.model_id, "sizes": state.image_model.sizes},
             "video_model": {"model_id": state.video_model.model_id, "config": state.video_model.config},
+            "llm_model_id": state.llm_model_id,
+            "llm_model_name": state.llm_model_name,
             "user_preferred_language": state.user_preferred_language,
             "workspace_files": state.workspace_files,
             "workspace_entries": state.workspace_entries,

@@ -61,12 +61,15 @@ class ContextUsage:
 class HorizonState:
     """AgentHorizon 的持久化状态。"""
     agent_id: str
-    file_records: dict[str, FileReadRecord] = field(default_factory=dict)        # abs_path → record
+    file_records: dict[str, FileReadRecord] = field(default_factory=dict)        # abs_path -> record
     pending_notifications: list[PendingNotification] = field(default_factory=list)
     loaded_skills: list[str] = field(default_factory=list)
     image_model: ImageModelState = field(default_factory=ImageModelState)
     video_model: VideoModelState = field(default_factory=VideoModelState)
-    # 以下字段表示模型上次已经看到的 baseline，而不是“本轮刚采集到的最新值”
+    # LLM 模型 baseline：与 image_model/video_model 对齐，持久化避免重启后误判为"模型变更"
+    llm_model_id: str = ""
+    llm_model_name: str = ""
+    # 以下字段表示模型上次已经看到的 baseline，而不是"本轮刚采集到的最新值"
     user_preferred_language: str = ""
     workspace_files: str = ""      # 上次注入给 LLM 的工作区树形字符串
     workspace_entries: list = field(default_factory=list)  # 上次注入给 LLM 的结构化工作区条目
