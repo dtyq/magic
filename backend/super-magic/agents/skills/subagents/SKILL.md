@@ -45,6 +45,7 @@ Maps to a `.agent` filename under `agents/`. Built-in types:
 - `magic`: general-purpose, full tool access (web, files, code). Use for complex multi-step tasks.
 - `explore`: read-only. Searches files, reads code, answers structural questions. Cannot modify anything.
 - `shell`: shell command specialist. Runs scripts, installs deps, performs system operations.
+- `search`: web research specialist. Searches the web and reads pages to gather external information. Cannot modify local files.
 
 Other `.agent` files (e.g. `data-analyst`) can also be used by name.
 
@@ -69,16 +70,15 @@ The sub-agent has **no access to the parent's conversation history**. The prompt
 Bad:
 
 ```text
-Continue the previous analysis and finish it.
+Find out what competitors are doing and summarize.
 ```
 
 Good:
 
 ```text
-Read app/api/routes/skills.py and summarize how agent_context_id is validated.
-Do not modify files. Return:
-1. the validation flow
-2. error behavior when lookup fails
+Search the web for the top 3 competitors of [product category] that have launched or updated in the past 12 months.
+For each, return: product name, target users, main differentiator, and source URL.
+Focus on product launch articles, review sites, and tech media. Do not modify files.
 ```
 
 ### background
@@ -140,9 +140,13 @@ from sdk.tool import tool
 
 result = tool.call("call_subagent", {
     "agent_name": "explore",
-    "agent_id": "routing-audit",
-    "prompt": """Read app/api/routes/skills.py.
-Return how call_tool resolves agent_context_id and what happens on lookup failure.
+    "agent_id": "find-product-positioning-doc",
+    "prompt": """Find the single workspace document that is most useful for answering: "What is this project, who is it for, and what does it provide?"
+Check workspace folders that are likely to contain project briefs, product analysis, requirements, launch materials, or internal planning before searching elsewhere.
+Return:
+1. the file path
+2. a 3-5 bullet summary
+3. one related file worth reading next
 Do not modify files.""",
     "background": False,
 })
@@ -159,22 +163,28 @@ from sdk.tool import tool
 
 def dispatch(agent_id, prompt):
     tool.call("call_subagent", {
-        "agent_name": "explore",
+        "agent_name": "search",
         "agent_id": agent_id,
         "prompt": prompt,
         "background": True,
     })
 
-dispatch("read-api", "Read app/api/routes/skills.py. Summarize the request routing flow. Return only proven code facts.")
-dispatch("read-sdk", "Read sdk/tool.py and sdk/mcp.py. Summarize how agent_context_id is propagated from skill snippets.")
+dispatch("research-competitors", """Search the web for the top 3-5 competitors in this product space.
+For each, return: product name, target users, main differentiator, and source URL.
+Focus on product launches, review sites, and tech media from the past 12 months.""")
+dispatch("research-market-signals", """Search the web for recent market signals in this product space.
+Return:
+1. notable user needs or pain points (with source URLs)
+2. recurring themes across articles or community discussions
+3. any emerging trends worth tracking""")
 ```
 
 Then wait:
 
 ```python
 result = tool.call("wait_for_subagents", {
-    "agent_ids": ["read-api", "read-sdk"],
-    "timeout": 30,
+    "agent_ids": ["research-competitors", "research-market-signals"],
+    "timeout": 60,
 })
 
 print(result.content)
