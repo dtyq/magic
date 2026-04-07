@@ -261,6 +261,10 @@ class FilesystemProxy extends Filesystem
      * 获取文件链接.
      * @return array<string, FileLink>
      */
+    /**
+     * 获取文件链接.
+     * @return array<string, FileLink>
+     */
     public function getLinks(array $paths, array $downloadNames = [], int $expires = 3600, array $options = []): array
     {
         $paths = $this->formatPaths($paths);
@@ -274,10 +278,10 @@ class FilesystemProxy extends Filesystem
         if ($this->isPublicRead && ! empty($this->publicDomain) && empty($downloadNames)) {
             foreach ($paths as $path) {
                 // Build base URL
-                if ($this->adapterName === AdapterName::FILE_SERVICE && $platform === 'minio') {
-                    $uri = $this->publicDomain . '/' . $this->config['key'] . '/' . $path;
+                if ($platform === 'minio') {
+                    $uri = $this->publicDomain . '/' . $this->config['key'] . '/' . ltrim($path, '/');
                 } else {
-                    $uri = $this->publicDomain . '/' . $path;
+                    $uri = $this->publicDomain . '/' . ltrim($path, '/');
                 }
 
                 // Append image processing parameters if present (only for ImageProcessOptions)
@@ -324,6 +328,9 @@ class FilesystemProxy extends Filesystem
                     $data->setUrl($noSignUrl);
                     // 首次加载时，设置公共域名
                     $this->publicDomain = $noSignUrlParsed['scheme'] . '://' . $noSignUrlParsed['host'] . $port;
+                    if ($this->adapterName === 'minio' && ! empty($this->config['bucket'])) {
+                        $this->publicDomain .= '/' . trim((string) $this->config['bucket'], '/');
+                    }
                 }
                 $list[$path] = $data;
                 $cacheKey = md5($path . serialize($downloadNames[$path] ?? '') . $expires . serialize($options));

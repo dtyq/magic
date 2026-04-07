@@ -21,6 +21,7 @@ import { generateCrewApi } from "./modules/crew"
 import { generateOrgAiModelProviderApi } from "./modules/org-ai-model-provider"
 import { generateRecycleBinApi } from "./modules/recycle-bin"
 import { generateInitializationApi } from "./modules/initialization"
+import { generateMagicClawApi } from "./modules/magicClaw"
 
 /** 重置服务 */
 export const UserApi = generateUserApi(magicClient)
@@ -54,3 +55,16 @@ export const OrgAiModelProviderApi = generateOrgAiModelProviderApi(magicClient)
 
 /** Initialization (first-time setup) */
 export const InitializationApi = generateInitializationApi(magicClient)
+
+/** Magic Claw (Magi Claw) sandbox APIs */
+export const MagicClawApi = generateMagicClawApi(magicClient)
+
+export type {
+	MagicClawExtra,
+	MagicClawItem,
+	MagicClawListData,
+	MagicClawProjectExtra,
+	MagicClawTopicExtra,
+	CreateMagicClawBody,
+	UpdateMagicClawBody,
+} from "./modules/magicClaw"

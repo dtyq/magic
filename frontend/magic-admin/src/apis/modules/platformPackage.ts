@@ -112,15 +112,9 @@ export const generatePlatformPackageApi = (client: HttpClient) => {
 			)
 		},
 
-		/** 更新 Skill 市场排序 */
-		updateSkillMarketSortOrder(
-			id: string,
-			data: PlatformPackage.UpdateSkillMarketSortOrderParams,
-		) {
-			return client.put<null>(
-				genRequestUrl(RequestUrl.updateSkillMarketSortOrder, { id }),
-				data,
-			)
+		/** 更新 Skill 市场信息 */
+		updateSkillMarketInfo(id: string, data: PlatformPackage.UpdateSkillMarketInfoParams) {
+			return client.put<null>(genRequestUrl(RequestUrl.updateSkillMarketInfo, { id }), data)
 		},
 
 		/** 获取员工审核列表 */
@@ -144,15 +138,9 @@ export const generatePlatformPackageApi = (client: HttpClient) => {
 			)
 		},
 
-		/** 更新员工市场排序 */
-		updateAgentMarketSortOrder(
-			id: string,
-			data: PlatformPackage.UpdateAgentMarketSortOrderParams,
-		) {
-			return client.put<null>(
-				genRequestUrl(RequestUrl.updateAgentMarketSortOrder, { id }),
-				data,
-			)
+		/** 更新员工市场信息 */
+		updateAgentMarketInfo(id: string, data: PlatformPackage.UpdateAgentMarketInfoParams) {
+			return client.put<null>(genRequestUrl(RequestUrl.updateAgentMarketInfo, { id }), data)
 		},
 
 		/** 审核 Skill 版本 */
@@ -207,6 +195,14 @@ export const generatePlatformPackageApi = (client: HttpClient) => {
 		updateAiPower(data: PlatformPackage.UpdateAiPowerParams) {
 			return client.put<PlatformPackage.AiPower>(
 				genRequestUrl(RequestUrl.updateAiPower, { code: data.code }),
+				data,
+			)
+		},
+
+		/** 能力管理联通性测试 */
+		testAiPowerConnection(data: { ai_ability: string; provider: string }) {
+			return client.post<PlatformPackage.TestAiPowerConnection>(
+				RequestUrl.testAiPowerConnection,
 				data,
 			)
 		},

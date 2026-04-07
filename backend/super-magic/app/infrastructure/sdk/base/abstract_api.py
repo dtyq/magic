@@ -7,6 +7,7 @@ Base class for all SDK API implementations.
 from abc import ABC
 from typing import Dict, Any, Optional
 from urllib.parse import urljoin, urlparse
+import uuid
 import httpx
 
 from .sdk_base import SdkBase
@@ -120,6 +121,50 @@ class AbstractApi(ABC):
         # Execute async request
         return await self._execute_request_async(request)
 
+    # 不打印到日志的敏感 header 名（全小写匹配）
+    _SENSITIVE_HEADERS = frozenset({
+        'authorization',
+        'proxy-authorization',
+        'user-authorization',
+        'cookie',
+        'set-cookie',
+        'x-api-key',
+        'api-key',
+        'x-auth-token',
+    })
+
+    def _mask_headers(self, headers: Dict[str, Any]) -> Dict[str, Any]:
+        """将敏感 header 的值替换为 ***"""
+        return {
+            k: '***' if k.lower() in self._SENSITIVE_HEADERS else v
+            for k, v in headers.items()
+        }
+
+    def _log_request(self, method: str, url: str, options: Dict[str, Any], request_id: str) -> None:
+        """记录请求的 method、URL、headers（脱敏）和 body 到 info 日志"""
+        logger = self.sdk_base.get_logger()
+        if logger is None:
+            return
+        raw_headers = options.get('headers', {})
+        params = options.get('params')
+        json_body = options.get('json')
+        data = options.get('data')
+        logger.info(
+            f"SDK request [{request_id}]: {method} {url} | "
+            f"headers={self._mask_headers(raw_headers)} | "
+            f"params={params} | "
+            f"json={json_body} | "
+            f"data={data}"
+        )
+
+    def _inject_request_id(self, options: Dict[str, Any]) -> str:
+        """向 options['headers'] 中注入 request-id，返回生成的 id"""
+        request_id = str(uuid.uuid4())
+        headers = options.get('headers', {})
+        headers['request-id'] = request_id
+        options['headers'] = headers
+        return request_id
+
     def _execute_request(self, request: Request) -> httpx.Response:
         """
         Execute HTTP request
@@ -136,6 +181,9 @@ class AbstractApi(ABC):
         try:
             options = _prepare_request_options(request)
             url = self._get_full_url(request.get_url())
+            request_id = self._inject_request_id(options)
+
+            self._log_request(request.get_method(), url, options, request_id)
 
             response = self.sdk_base.get_client().request(
                 request.get_method(),
@@ -168,6 +216,9 @@ class AbstractApi(ABC):
         try:
             options = _prepare_request_options(request)
             url = self._get_full_url(request.get_url())
+            request_id = self._inject_request_id(options)
+
+            self._log_request(request.get_method(), url, options, request_id)
 
             response = await self.sdk_base.get_async_client().request(
                 request.get_method(),

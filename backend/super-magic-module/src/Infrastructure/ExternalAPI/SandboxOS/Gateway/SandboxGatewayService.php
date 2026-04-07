@@ -158,6 +158,72 @@ class SandboxGatewayService extends AbstractSandboxOS implements SandboxGatewayI
     }
 
     /**
+     * 删除（停止）沙箱.
+     */
+    public function deleteSandbox(string $sandboxId): GatewayResult
+    {
+        if (! $this->isEnabledSandbox()) {
+            $this->logger->debug('[Sandbox][Gateway] Local debugging mode: skipping sandbox deletion', [
+                'sandbox_id' => $sandboxId,
+            ]);
+            return GatewayResult::success(['sandbox_id' => $sandboxId], 'Sandbox deletion skipped (local debugging mode)');
+        }
+
+        $this->logger->debug('[Sandbox][Gateway] Deleting sandbox', ['sandbox_id' => $sandboxId]);
+
+        try {
+            return retry(3, function () use ($sandboxId) {
+                try {
+                    $response = $this->getClient()->delete(
+                        $this->buildApiPath(sprintf('api/v1/sandboxes/%s', $sandboxId)),
+                        ['headers' => $this->getCommonHeaders(), 'timeout' => 60]
+                    );
+
+                    $body = $response->getBody()->getContents();
+                    $responseData = Json::decode($body);
+                    $result = GatewayResult::fromApiResponse($responseData ?? []);
+
+                    if ($result->isSuccess()) {
+                        $this->logger->info('[Sandbox][Gateway] Sandbox deleted successfully', ['sandbox_id' => $sandboxId]);
+                    } else {
+                        $this->logger->error('[Sandbox][Gateway] Failed to delete sandbox', [
+                            'sandbox_id' => $sandboxId,
+                            'code' => $result->getCode(),
+                            'message' => $result->getMessage(),
+                        ]);
+                    }
+
+                    return $result;
+                } catch (GuzzleException $e) {
+                    $isRetryableError = $this->isRetryableError($e);
+                    $this->logger->error('[Sandbox][Gateway] HTTP error when deleting sandbox', [
+                        'sandbox_id' => $sandboxId,
+                        'error' => $e->getMessage(),
+                        'code' => $e->getCode(),
+                        'is_retryable' => $isRetryableError,
+                    ]);
+                    if (! $isRetryableError) {
+                        return GatewayResult::error('HTTP request failed: ' . $e->getMessage());
+                    }
+                    throw $e;
+                } catch (Exception $e) {
+                    $this->logger->error('[Sandbox][Gateway] Unexpected error when deleting sandbox', [
+                        'sandbox_id' => $sandboxId,
+                        'error' => $e->getMessage(),
+                    ]);
+                    return GatewayResult::error('Unexpected error: ' . $e->getMessage());
+                }
+            }, 3000);
+        } catch (Throwable $e) {
+            $this->logger->error('[Sandbox][Gateway] All retry attempts failed for deleting sandbox', [
+                'sandbox_id' => $sandboxId,
+                'error' => $e->getMessage(),
+            ]);
+            return GatewayResult::error('HTTP request failed after retries: ' . $e->getMessage());
+        }
+    }
+
+    /**
      * 获取单个沙箱状态
      */
     public function getSandboxStatus(string $sandboxId): SandboxStatusResult
@@ -413,18 +479,41 @@ class SandboxGatewayService extends AbstractSandboxOS implements SandboxGatewayI
                     }
 
                     $proxyPath = $this->buildProxyPath($sandboxId, $path);
-                    // $proxyPath = $path;
 
                     $response = $this->getClient()->request($method, $this->buildApiPath($proxyPath), $requestOptions);
 
+                    $statusCode = $response->getStatusCode();
                     $body = $response->getBody()->getContents();
+
+                    if ($statusCode >= 500) {
+                        $this->logger->error('[Sandbox][Gateway] Server error when proxying request', [
+                            'attempt' => $attempt,
+                            'max_retries' => $maxRetries,
+                            'sandbox_id' => $sandboxId,
+                            'method' => $method,
+                            'path' => $path,
+                            'http_status' => $statusCode,
+                            'response_body' => mb_substr($body, 0, 200),
+                        ]);
+                        throw new RuntimeException(sprintf('HTTP %d error from gateway', $statusCode));
+                    }
+
                     $responseData = Json::decode($body);
                     if (empty($responseData)) {
                         throw new RuntimeException('Proxy sandbox status response is empty');
                     }
-                    $suppressSuccessInfo = $this->shouldSuppressSuccessInfo($path);
                     $result = GatewayResult::fromApiResponse($responseData);
 
+                    if ($result->isNotFound()) {
+                        $this->logger->info('[Sandbox][Gateway] Sandbox not found', [
+                            'sandbox_id' => $sandboxId,
+                            'method' => $method,
+                            'path' => $path,
+                        ]);
+                        return $result;
+                    }
+
+                    $suppressSuccessInfo = $this->shouldSuppressSuccessInfo($path);
                     $logContext = [
                         'mode' => $mode,
                         'sandbox_id' => $sandboxId,
@@ -435,7 +524,6 @@ class SandboxGatewayService extends AbstractSandboxOS implements SandboxGatewayI
                         'response_message' => $result->getMessage(),
                     ];
 
-                    // 成功/失败分流：成功且未被减噪则 info，失败统一 warning
                     if (! $result->isSuccess()) {
                         $this->logger->warning('[Sandbox][Gateway] Proxy request failed', $logContext);
                     } elseif (! $suppressSuccessInfo) {
@@ -457,12 +545,10 @@ class SandboxGatewayService extends AbstractSandboxOS implements SandboxGatewayI
                         'is_retryable' => $isRetryableError,
                     ]);
 
-                    // Only retry for retryable errors
                     if (! $isRetryableError) {
                         return GatewayResult::error('HTTP request failed: ' . $e->getMessage());
                     }
 
-                    // Re-throw for retry mechanism to handle
                     throw $e;
                 } catch (Exception $e) {
                     $this->logger->error('[Sandbox][Gateway] Unexpected error when proxying request', [
@@ -475,7 +561,7 @@ class SandboxGatewayService extends AbstractSandboxOS implements SandboxGatewayI
                     ]);
                     throw $e;
                 }
-            }, 1000); // Start with 1-second delay
+            }, 1000);
         } catch (Throwable $e) {
             $this->logger->error('[Sandbox][Gateway] All retry attempts failed', [
                 'sandbox_id' => $sandboxId,
@@ -698,82 +784,39 @@ class SandboxGatewayService extends AbstractSandboxOS implements SandboxGatewayI
     }
 
     /**
-     * 升级沙箱镜像.
+     * 获取沙箱网关当前部署的最新 Agent 镜像.
      */
-    public function upgradeSandbox(string $messageId, string $contextType = 'continue'): GatewayResult
+    public function getLatestAgentImage(): string
     {
-        $config = [
-            'message_id' => $messageId,
-            'context_type' => $contextType,
-        ];
-
-        $this->logger->debug('[Sandbox][Gateway] Upgrading sandbox', [
-            'message_id' => $messageId,
-            'context_type' => $contextType,
-            'max_retries' => 3,
-        ]);
+        if (! $this->isEnabledSandbox()) {
+            $this->logger->debug('[Sandbox][Gateway] Local debugging mode: skipping getLatestAgentImage');
+            return '';
+        }
 
         try {
-            return retry(3, function () use ($config, $messageId) {
-                try {
-                    $response = $this->getClient()->put($this->buildApiPath('api/v1/sandboxes/upgrade'), [
-                        'headers' => $this->getCommonHeaders(),
-                        'json' => $config,
-                        'timeout' => 300, // 升级可能需要更长时间
-                    ]);
-
-                    $body = $response->getBody()->getContents();
-                    $responseData = Json::decode($body);
-
-                    $this->logger->debug('[Sandbox][Gateway] Raw upgrade API response', [
-                        'response_data' => $responseData,
-                        'message_id' => $messageId,
-                    ]);
-
-                    $result = GatewayResult::fromApiResponse($responseData ?? []);
-
-                    if ($result->isSuccess()) {
-                        $this->logger->debug('[Sandbox][Gateway] Sandbox upgraded successfully', [
-                            'message_id' => $messageId,
-                        ]);
-                    } else {
-                        $this->logger->error('[Sandbox][Gateway] Failed to upgrade sandbox', [
-                            'message_id' => $messageId,
-                            'code' => $result->getCode(),
-                            'message' => $result->getMessage(),
-                        ]);
-                    }
-
-                    return $result;
-                } catch (GuzzleException $e) {
-                    $isRetryableError = $this->isRetryableError($e);
-
-                    $this->logger->error('[Sandbox][Gateway] HTTP error when upgrading sandbox', [
-                        'message_id' => $messageId,
-                        'error' => $e->getMessage(),
-                        'code' => $e->getCode(),
-                        'is_retryable' => $isRetryableError,
-                    ]);
-
-                    if (! $isRetryableError) {
-                        return GatewayResult::error('HTTP request failed: ' . $e->getMessage());
-                    }
-
-                    throw $e;
-                } catch (Exception $e) {
-                    $this->logger->error('[Sandbox][Gateway] Unexpected error when upgrading sandbox', [
-                        'message_id' => $messageId,
-                        'error' => $e->getMessage(),
-                    ]);
-                    return GatewayResult::error('Unexpected error: ' . $e->getMessage());
-                }
-            }, 1000);
-        } catch (Throwable $e) {
-            $this->logger->error('[Sandbox][Gateway] All retry attempts failed for upgrading sandbox', [
-                'message_id' => $messageId,
-                'error' => $e->getMessage(),
+            $response = $this->getClient()->get($this->buildApiPath(SandboxEndpoints::GATEWAY_AGENT_IMAGE), [
+                'headers' => $this->getCommonHeaders(),
+                'timeout' => 10,
             ]);
-            return GatewayResult::error('HTTP request failed after retries: ' . $e->getMessage());
+
+            $body = $response->getBody()->getContents();
+            $responseData = Json::decode($body);
+            $result = GatewayResult::fromApiResponse($responseData ?? []);
+
+            if (! $result->isSuccess()) {
+                $this->logger->error('[Sandbox][Gateway] Failed to get latest agent image', [
+                    'code' => $result->getCode(),
+                    'message' => $result->getMessage(),
+                ]);
+                return '';
+            }
+
+            $image = (string) ($result->getDataValue('image') ?? '');
+            $this->logger->info('[Sandbox][Gateway] Latest agent image retrieved', ['image' => $image]);
+            return $image;
+        } catch (Throwable $e) {
+            $this->logger->error('[Sandbox][Gateway] Error getting latest agent image', ['error' => $e->getMessage()]);
+            return '';
         }
     }
 

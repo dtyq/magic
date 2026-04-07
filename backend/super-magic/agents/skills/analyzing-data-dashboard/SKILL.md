@@ -19,29 +19,29 @@ Provides complete data analysis dashboard (仪表板) development capabilities, 
 ## 如何使用本文档 / How to Use This Document
 
 <!--zh
-本文档提供快速指引和核心工具说明。当需要了解细节时，阅读对应的 reference 文档（使用 skill_read_references 工具）：
-- **项目准备** → reference/project-setup.md（数据源、卡片规划、项目结构、模板工具）
-- **看板开发** → reference/dashboard-development.md（卡片 DSL、外观排版、ECharts v6、卡片管理工具）
-- **数据清洗** → reference/dashboard-data-cleaning.md
-- **完整工作流程** → reference/dashboard-workflow.md
+本文档提供快速指引和核心工具说明。需要了解细节时，可阅读以下 reference 文档：
+- **项目准备** → references/project-setup.md（数据源、卡片规划、项目结构、模板工具）
+- **看板开发** → references/dashboard-development.md（卡片 DSL、外观排版、ECharts v6、卡片管理工具）
+- **数据清洗** → references/dashboard-data-cleaning.md
+- **完整工作流程** → references/dashboard-workflow.md
 -->
 
-This document provides quick guidance and core tool descriptions. When needing details, read the corresponding reference document (use skill_read_references tool):
+This document provides quick guidance and core tool descriptions. For details, refer to the following reference documents:
 
-- **Project setup** → reference/project-setup.md (data sources, card planning, project structure, template tools)
-- **Dashboard development** → reference/dashboard-development.md (card DSL, appearance, ECharts v6, card management tools)
-- **Data cleaning** → reference/dashboard-data-cleaning.md
-- **Full workflow** → reference/dashboard-workflow.md
+- **Project setup** → references/project-setup.md (data sources, card planning, project structure, template tools)
+- **Dashboard development** → references/dashboard-development.md (card DSL, appearance, ECharts v6, card management tools)
+- **Data cleaning** → references/dashboard-data-cleaning.md
+- **Full workflow** → references/dashboard-workflow.md
 
 ---
 
 ## 代码执行方式 / Code Execution Method
 
 <!--zh
-本技能中所有通过 `from sdk.tool import tool` 调用的工具，必须通过 `run_skills_snippet` 的 `python_code` 参数传入执行。
+本技能中所有通过 `from sdk.tool import tool` 调用的工具，必须通过 `run_sdk_snippet` 的 `python_code` 参数传入执行。
 -->
 
-All tool calls via `from sdk.tool import tool` in this skill must be executed by passing code to `run_skills_snippet`'s `python_code` parameter.
+All tool calls via `from sdk.tool import tool` in this skill must be executed by passing code to `run_sdk_snippet`'s `python_code` parameter.
 
 ---
 

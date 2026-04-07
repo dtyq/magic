@@ -164,6 +164,35 @@ class ZipUtil
     }
 
     /**
+     * Compress a directory into a ZIP archive.
+     * Uses addFile() to avoid loading file contents into memory.
+     *
+     * @param string $sourceDir Source directory to compress
+     * @param string $zipFilePath Target ZIP file path
+     * @param null|string $rootDirName Optional root directory name inside the ZIP (defaults to source dir basename)
+     * @throws RuntimeException When ZIP creation fails
+     */
+    public static function compress(string $sourceDir, string $zipFilePath, ?string $rootDirName = null): void
+    {
+        if (! is_dir($sourceDir)) {
+            throw new RuntimeException('Source directory does not exist: ' . $sourceDir);
+        }
+
+        $zip = new ZipArchive();
+        if ($zip->open($zipFilePath, ZipArchive::CREATE | ZipArchive::OVERWRITE) !== true) {
+            throw new RuntimeException('Failed to create ZIP file: ' . $zipFilePath);
+        }
+
+        $rootName = $rootDirName ?? basename($sourceDir);
+
+        try {
+            self::addDirectoryToZip($zip, $sourceDir, $rootName);
+        } finally {
+            $zip->close();
+        }
+    }
+
+    /**
      * 递归删除目录及其所有内容.
      *
      * @param string $dir 要删除的目录路径
@@ -184,5 +213,25 @@ class ZipUtil
             }
         }
         rmdir($dir);
+    }
+
+    /**
+     * Recursively add directory contents to a ZipArchive.
+     */
+    private static function addDirectoryToZip(ZipArchive $zip, string $localDir, string $zipPath): void
+    {
+        $zip->addEmptyDir($zipPath);
+
+        $items = array_diff(scandir($localDir), ['.', '..']);
+        foreach ($items as $item) {
+            $localPath = $localDir . '/' . $item;
+            $entryPath = $zipPath . '/' . $item;
+
+            if (is_dir($localPath)) {
+                self::addDirectoryToZip($zip, $localPath, $entryPath);
+            } else {
+                $zip->addFile($localPath, $entryPath);
+            }
+        }
     }
 }

@@ -272,6 +272,7 @@ function UserSelector(props: UserSelectorProps, ref: Ref<UserSelectorRef>) {
 						checkboxOptions={organizationCheckboxOptions}
 						maxCount={maxCount}
 						disableUser={disableUser}
+						showSearch={segment !== SegmentType.ShareToGroup}
 					>
 						{segmentData ? (
 							<div className="flex h-full flex-col gap-1.5 overflow-hidden">

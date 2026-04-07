@@ -52,6 +52,11 @@ interface TaskFileRepositoryInterface
     public function getByProjectIdAndFileKey(int $projectId, string $fileKey): ?TaskFileEntity;
 
     /**
+     * Get file by project ID and file name.
+     */
+    public function getByProjectIdAndFileName(int $projectId, string $fileName): ?TaskFileEntity;
+
+    /**
      * Get files by project ID and file keys.
      *
      * @param int $projectId Project ID

@@ -13,7 +13,7 @@ from agentlang.event.interface import EventDispatcherInterface
 from agentlang.interface.context import AgentContextInterface
 from agentlang.event.dispatcher import EventDispatcher
 from agentlang.logger import get_logger
-from agentlang.context.shared_context import AgentSharedContext
+from agentlang.context.shared_context import AgentSharedContext, GLOBAL_AGENT_SHARED_CONTEXT
 
 logger = get_logger(__name__)
 
@@ -27,11 +27,11 @@ class BaseAgentContext(BaseContext, AgentContextInterface):
     _resources: Dict[str, Any]
     _user_id: Optional[str]
 
-    def __init__(self):
+    def __init__(self, shared_context: Optional[AgentSharedContext] = None):
         """初始化基础代理上下文"""
         super().__init__()
-        # 使用已存在的单例实例而非尝试创建新实例
-        self.shared_context = AgentSharedContext
+        # 主 Agent 默认共享全局实例；子 Agent 可显式传入独立实例。
+        self.shared_context = shared_context or GLOBAL_AGENT_SHARED_CONTEXT
 
         self._workspace_dir = ""
         self._resources: Dict[str, Any] = {}
@@ -56,8 +56,10 @@ class BaseAgentContext(BaseContext, AgentContextInterface):
 
         self.shared_context.register_fields({
             "event_dispatcher": (EventDispatcher(), EventDispatcherInterface),
-            "dynamic_model_id": (None, Optional[str]),  # 动态模型ID管理
-            "non_human_options": (None, Optional[Any]),  # 非人类限流配置
+            "dynamic_model_id": (None, Optional[str]),       # 动态 LLM 模型 ID
+            "dynamic_image_model_id": (None, Optional[str]), # 动态图片生成模型 ID
+            "non_human_options": (None, Optional[Any]),      # 非人类限流配置
+            "user_timezone": (None, Optional[str]),          # 用户时区（IANA 名称），None 时回落系统时区
         })
 
     def get_workspace_dir(self) -> str:
@@ -98,10 +100,6 @@ class BaseAgentContext(BaseContext, AgentContextInterface):
         """
         self.is_main_agent = is_main
         logger.debug(f"设置是否为主代理: {is_main}")
-
-    def is_main_agent(self) -> bool:
-        """获取是否为主代理"""
-        return self.is_main_agent
 
     def set_stream_mode(self, enabled: bool) -> None:
         """设置是否使用流式输出
@@ -290,6 +288,34 @@ class BaseAgentContext(BaseContext, AgentContextInterface):
         self.shared_context.update_field("dynamic_model_id", None)
         logger.debug("已清除动态模型ID设置")
 
+    def set_dynamic_image_model_id(self, model_id: str) -> None:
+        """设置动态图片模型ID（生图工具优先使用此值，覆盖 dynamic_config.yaml 的配置）"""
+        self.shared_context.update_field("dynamic_image_model_id", model_id)
+        logger.info(f"已设置动态图片模型ID: {model_id}")
+
+    def get_dynamic_image_model_id(self) -> Optional[str]:
+        """获取图片生成模型ID。
+
+        优先返回通过 set_dynamic_image_model_id 设置的值；
+        未设置时回落到 dynamic_config.yaml 的 image_model.model_id；
+        均未配置时返回 None。
+        """
+        model_id = self.shared_context.get_field("dynamic_image_model_id")
+        if model_id and isinstance(model_id, str) and model_id.strip():
+            return model_id.strip()
+        try:
+            from agentlang.config.dynamic_config import dynamic_config
+            config_data = dynamic_config.read_dynamic_config()
+            if config_data:
+                image_model_config = config_data.get("image_model", {})
+                if isinstance(image_model_config, dict):
+                    cfg_id = image_model_config.get("model_id")
+                    if cfg_id and isinstance(cfg_id, str) and cfg_id.strip():
+                        return cfg_id.strip()
+        except Exception:
+            pass
+        return None
+
     # 非人类限流配置管理接口（使用shared_context）
     def set_non_human_options(self, options: Any) -> None:
         """设置非人类限流配置
@@ -400,26 +426,9 @@ class BaseAgentContext(BaseContext, AgentContextInterface):
         """
         return 0
 
-    async def handle_user_interruption(self, cancel_task_func, reason: str = "用户主动中断", timeout: float = 10.0) -> bool:
-        """处理用户中断请求（默认实现：直接执行cancel_task_func）
-
-        子类应该重写此方法以提供具体的中断处理逻辑
-
-        Args:
-            cancel_task_func: 取消任务的函数
-            reason: 中断原因
-            timeout: 等待超时时间（秒）
-
-        Returns:
-            bool: 始终返回True
-        """
-        try:
-            logger.debug(f"BaseAgentContext处理用户中断: {reason}")
-            await cancel_task_func()
-            return True
-        except Exception as e:
-            logger.error(f"BaseAgentContext处理用户中断失败: {e}")
-            return False
+    async def stop_run(self, reason: str = "") -> None:
+        """停止当前 run（默认实现：子类应重写以提供具体流程）。"""
+        raise NotImplementedError
 
     # ====== LLM Request ID 相关方法 ======
 
@@ -439,3 +448,18 @@ class BaseAgentContext(BaseContext, AgentContextInterface):
             Optional[str]: 当前 LLM 请求的 request_id，如果没有则返回 None
         """
         return self.shared_context.get_field("current_llm_request_id")
+
+    # ====== 时区 ======
+
+    def set_user_timezone(self, tz: str) -> None:
+        """设置用户时区（IANA 名称，如 Asia/Shanghai）。"""
+        self.shared_context.update_field("user_timezone", tz)
+
+    def get_user_timezone(self) -> str:
+        """获取用户时区（IANA 名称）。
+
+        优先返回通过 set_user_timezone() 设置的值，未设置时回落到系统时区。
+        """
+        from agentlang.utils.timezone_utils import get_system_timezone
+        tz = self.shared_context.get_field("user_timezone")
+        return tz if tz else get_system_timezone()

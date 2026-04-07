@@ -1,6 +1,7 @@
 <div align="left">
   <a href="./README.md"><img alt="README in English" src="https://img.shields.io/badge/English-d9d9d9" height="20"></a>
   <a href="./README_CN.md"><img alt="简体中文版自述文件" src="https://img.shields.io/badge/简体中文-d9d9d9" height="20"></a>
+  <a href="#self-hosted-deployment"><img alt="Deploy now!" src="https://img.shields.io/badge/Deploy%20now%21-red" height="20"></a>
 </div>
 
 # 🔥 Magic - Enterprise-Grade Open-Source AI Agent Platform
@@ -23,7 +24,7 @@
       <img alt="Discussion posts" src="https://img.shields.io/github/discussions/dtyq/magic?labelColor=%20%239b8afb&color=%20%237a5af8">
     </a>
     <a href="https://www.magicrew.ai" target="_blank">
-      <img alt="Static Badge" src="https://img.shields.io/badge/Build with Magic 🔮-301AD2">
+      <img alt="Static Badge" src="https://img.shields.io/badge/Built with Magic 🔮-301AD2">
     </a>
   </p>
 </div>
@@ -164,9 +165,18 @@ Codify the know-how and workflows of legal, finance, sales, operations, and ever
 
 ### Self-Hosted Deployment
 
-We built a lightweight local Kubernetes deployment stack on top of [kind](https://kind.sigs.k8s.io/). The `magicrew-cli` tool handles the full pipeline in one command: environment checks, local image registry, cluster creation, infrastructure provisioning (MySQL / Redis / RabbitMQ / MinIO), and service deployment — ready out of the box.
+**Requirements:** Docker + curl. Supports macOS and Linux (Windows support is coming soon).
 
-The deployment toolchain is being finalized and will be open-sourced shortly. Stay tuned.
+```bash
+curl -fsSL https://getmagicrew.sh | bash
+```
+
+The script handles everything — cluster creation, infrastructure, and service deployment. Once complete:
+
+- Web UI: **http://localhost:38080**
+- Teardown: `magicrew teardown`
+
+→ [Full deployment guide](./docs/en/development/deploy/docker.md)
 
 ### Cloud Service
 

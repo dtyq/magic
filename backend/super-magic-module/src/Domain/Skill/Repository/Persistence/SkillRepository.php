@@ -389,6 +389,17 @@ class SkillRepository extends AbstractRepository implements SkillRepositoryInter
         return $result;
     }
 
+    public function updateUpdatedAtByProjectId(SkillDataIsolation $dataIsolation, int $projectId): bool
+    {
+        $builder = $this->createBuilder($dataIsolation, $this->skillModel::query());
+        $updated = $builder->where('project_id', $projectId)
+            ->update([
+                'updated_at' => date('Y-m-d H:i:s'),
+            ]);
+
+        return $updated > 0;
+    }
+
     /**
      * 根据 ID 列表批量查询技能详情.
      *
@@ -429,6 +440,11 @@ class SkillRepository extends AbstractRepository implements SkillRepositoryInter
             $descriptionI18n = Json::decode($descriptionI18n);
         }
 
+        $sourceI18n = $data['source_i18n'] ?? null;
+        if (is_string($sourceI18n)) {
+            $sourceI18n = Json::decode($sourceI18n);
+        }
+
         $sourceMeta = $data['source_meta'] ?? null;
         if (is_string($sourceMeta)) {
             $sourceMeta = Json::decode($sourceMeta);
@@ -443,6 +459,7 @@ class SkillRepository extends AbstractRepository implements SkillRepositoryInter
             'package_description' => $data['package_description'] ?? null,
             'name_i18n' => $nameI18n,
             'description_i18n' => $descriptionI18n,
+            'source_i18n' => $sourceI18n,
             'search_text' => $data['search_text'] ?? null,
             'logo' => $data['logo'] ?? null,
             'file_key' => $data['file_key'] ?? '',
@@ -474,6 +491,7 @@ class SkillRepository extends AbstractRepository implements SkillRepositoryInter
             'package_description' => $entity->getPackageDescription(),
             'name_i18n' => $entity->getNameI18n(),
             'description_i18n' => $entity->getDescriptionI18n(),
+            'source_i18n' => $entity->getSourceI18n(),
             'search_text' => $entity->getSearchText(),
             'logo' => $entity->getLogo(),
             'file_key' => $entity->getFileKey(),

@@ -20,10 +20,12 @@ from typing import Optional, TYPE_CHECKING
 from agentlang.logger import get_logger
 from app.channel.base.channel import BaseChannel
 from app.core.entity.message.client_message import ChatClientMessage, Metadata
-from app.channel.base.keepalive import ChannelKeepalive
+from app.channel.base.third_party_message import dispatch_third_party_message
 from app.channel.lark.stream import LarkStream
 from app.channel.lark.streaming_driver import LarkStreamingDriver
-from app.channel.config import IMChannelsConfig
+from app.channel.config import IMChannelsConfig, IMChannelDisplay
+from app.core.keepalive_registry import KeepaliveRegistry
+from app.utils.time_utils import now_ms
 
 if TYPE_CHECKING:
     import lark_oapi as lark
@@ -59,6 +61,7 @@ _STREAMING_THINKING_CARD = {
 class LarkChannel(BaseChannel):
     key = "lark"
     label = "飞书"
+    source_name = "Lark"
 
     _instance: Optional["LarkChannel"] = None
 
@@ -68,7 +71,10 @@ class LarkChannel(BaseChannel):
         self._sdk_client: Optional["lark.Client"] = None
         self._ws_thread: Optional[threading.Thread] = None
         self._main_loop: Optional[asyncio.AbstractEventLoop] = None
-        self._keepalive = ChannelKeepalive("Lark", is_active=lambda: self.is_connected)
+        self._last_message_at_ms: int = 0
+        self._display = IMChannelDisplay()
+        # 缓存最后一次活跃的 chat_id，供 cron 主动推送复用会话上下文
+        self._last_chat_id: Optional[str] = None
 
     @classmethod
     def get_instance(cls) -> "LarkChannel":
@@ -85,19 +91,27 @@ class LarkChannel(BaseChannel):
         if credential is None:
             return None
 
-        return f"App ID：{credential.app_id}"
+        return f"App ID: {credential.app_id}"
 
     async def start_from_config(self, config: IMChannelsConfig) -> bool:
         credential = config.lark
         if credential is None or not credential.enabled:
             return False
 
+        from app.channel.lark.state import load_runtime_state
+        state = await load_runtime_state()
+        if state.last_chat_id:
+            self._last_chat_id = state.last_chat_id
+            logger.info(f"[LarkChannel] 恢复运行态: last_chat_id={state.last_chat_id}")
+        self._last_message_at_ms = state.last_message_at_ms
+
+        self._display = credential.display
         await self.connect(credential.app_id, credential.app_secret)
         return True
 
     async def disconnect(self) -> None:
         """停止保活并清理本地连接引用。"""
-        self._keepalive.stop()
+        KeepaliveRegistry.get_instance().reset_source(self.key)
         if self._ws_thread is not None and self._ws_thread.is_alive():
             # SDK 线程是阻塞式 start()，当前只能停止保活，避免误报成已彻底断开。
             logger.warning("[LarkChannel] 当前无法主动停止已启动的 WebSocket 线程，仅停止保活")
@@ -143,7 +157,10 @@ class LarkChannel(BaseChannel):
             name="lark-ws",
         )
         self._ws_thread.start()
-        self._keepalive.start()
+        keepalive_registry = KeepaliveRegistry.get_instance()
+        keepalive_registry.restore_message_time(self.key, self._last_message_at_ms)
+        # 飞书 SDK 没有暴露可靠的“连接完成”事件。
+        # 这里只恢复历史消息时间，不把“线程已启动”误当成“连接已成功”，避免白拿一次续期。
         logger.info(f"[LarkChannel] 连接中，app_id={app_id}")
 
     def _run_ws(self) -> None:
@@ -217,11 +234,28 @@ class LarkChannel(BaseChannel):
         if not text:
             return
 
+        current_message_at_ms = now_ms()
+        self._last_message_at_ms = current_message_at_ms
+        KeepaliveRegistry.get_instance().notify_message(self.key, current_message_at_ms)
         sender = getattr(event_data, "sender", None)
         sender_id_obj = getattr(sender, "sender_id", None) if sender else None
         user_id = getattr(sender_id_obj, "open_id", None) or "lark_user"
         message_id = getattr(msg, "message_id", None) or ""
         chat_id = getattr(msg, "chat_id", None) or ""
+
+        # 缓存 chat_id，供 cron 主动推送复用，并持久化供重启后使用
+        if chat_id:
+            self._last_chat_id = chat_id
+        try:
+            from app.channel.lark.state import LarkRuntimeState, save_runtime_state
+            await save_runtime_state(
+                LarkRuntimeState(
+                    last_chat_id=self._last_chat_id or "",
+                    last_message_at_ms=current_message_at_ms,
+                )
+            )
+        except Exception as e:
+            logger.warning(f"[LarkChannel] 保存运行态失败: {e}")
 
         ctx = dispatcher.agent_context
         assert self._sdk_client is not None
@@ -242,25 +276,32 @@ class LarkChannel(BaseChannel):
         logger.info(f"[LarkChannel] 卡片发送成功: card_id={card_id}")
 
         # Step 3: 注册流式驱动和事件流到 agent context
-        driver = LarkStreamingDriver(self._sdk_client, card_id)
-        stream = LarkStream(self._sdk_client, card_id, driver)
+        driver = LarkStreamingDriver(self._sdk_client, card_id, self._display)
+        stream = LarkStream(self._sdk_client, card_id, driver, self._display)
         ctx.add_stream(stream)
         ctx.add_streaming_sink(driver)
 
-        task_id = f"lark_{uuid.uuid4().hex[:16]}"
-        try:
-            chat_msg = ChatClientMessage(
-                message_id=task_id,
-                prompt=text,
-                metadata=Metadata(agent_user_id=user_id),
-            )
-            logger.info(f"[LarkChannel] 分发消息: user_id={user_id}, len={len(text)}")
-            await dispatcher.dispatch_agent(chat_msg)
-        except Exception as e:
-            logger.error(f"[LarkChannel] dispatch_agent 失败: {e}")
-        finally:
+        local_id = f"lark_{uuid.uuid4().hex[:16]}"
+        chat_msg = ChatClientMessage(
+            message_id=local_id,
+            prompt=text,
+            metadata=Metadata(agent_user_id=user_id, channel_name=self.key),
+        )
+        logger.info(f"[LarkChannel] 分发消息: user_id={user_id}, len={len(text)}")
+        await dispatch_third_party_message(
+            dispatcher=dispatcher,
+            channel=self.key,
+            source_message_id=message_id or local_id,
+            source_conversation_id=chat_id,
+            source_sender_id=user_id,
+            chat_message=chat_msg,
+        )
+
+        async def _cleanup() -> None:
             ctx.remove_stream(stream)
             ctx.remove_streaming_sink(driver)
+
+        ctx.register_run_cleanup("lark_stream", _cleanup)
 
     async def _create_streaming_card(self) -> Optional[str]:
         """创建 CardKit 流式卡片，返回 card_id，失败返回 None。"""
@@ -340,6 +381,35 @@ class LarkChannel(BaseChannel):
         except Exception as e:
             logger.error(f"[LarkChannel] 发送卡片异常: {e}")
             return False
+
+    async def create_proactive_streams(self, ctx, cleanup_key: str) -> bool:
+        """用缓存的最后一次会话 chat_id 创建主动推送 stream/sink。"""
+        from app.channel.lark.stream import LarkStream
+        from app.channel.lark.streaming_driver import LarkStreamingDriver
+
+        if not self.is_connected or self._last_chat_id is None or self._sdk_client is None:
+            return False
+
+        card_id = await self._create_streaming_card()
+        if not card_id:
+            return False
+
+        send_ok = await self._send_card_reply(self._last_chat_id, card_id, is_reply=False)
+        if not send_ok:
+            return False
+
+        driver = LarkStreamingDriver(self._sdk_client, card_id, self._display)
+        stream = LarkStream(self._sdk_client, card_id, driver, self._display)
+        ctx.add_stream(stream)
+        ctx.add_streaming_sink(driver)
+
+        async def _cleanup() -> None:
+            ctx.remove_stream(stream)
+            ctx.remove_streaming_sink(driver)
+
+        ctx.register_run_cleanup(cleanup_key, _cleanup)
+        logger.info(f"[LarkChannel] proactive stream registered for cron notification: card_id={card_id}")
+        return True
 
     async def verify_permissions(self) -> Optional[str]:
         """验证飞书 AI Bot 所需权限是否已全部开通。

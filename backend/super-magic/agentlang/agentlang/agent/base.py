@@ -40,8 +40,6 @@ class BaseAgent(ABC):
     agent_name = None
     agent_context = None
     stream_mode = False
-    attributes = {}
-
     tools = []
     llm_client = None
     system_prompt = None
@@ -99,18 +97,6 @@ class BaseAgent(ABC):
         if self.agent_context:
             self.agent_context.set_stream_mode(stream_mode)
 
-    def has_attribute(self, attribute_name: str) -> bool:
-        """
-        检查是否存在某个属性。
-
-        Args:
-            attribute_name: 属性名称
-
-        Returns:
-            bool: 是否存在该属性
-        """
-        return attribute_name in self.attributes
-
     @abstractmethod
     def _initialize_agent(self) -> None:
         """初始化 Agent 配置、工具和 LLM。
@@ -133,27 +119,6 @@ class BaseAgent(ABC):
         """
         pass
 
-    @abstractmethod
-    def _prepare_prompt_dynamic_variables(self) -> Dict[str, str]:
-        """
-        准备动态变量（会随时间变化的变量）。
-
-        Returns:
-            Dict[str, str]: 包含动态变量名和对应值的字典
-        """
-        pass
-
-    def _prepare_prompt_variables(self) -> Dict[str, str]:
-        """
-        准备用于替换prompt中变量的字典（合并静态和动态变量）。
-
-        Returns:
-            Dict[str, str]: 包含所有变量名和对应值的字典
-        """
-        static_vars = self._prepare_prompt_static_variables()
-        dynamic_vars = self._prepare_prompt_dynamic_variables()
-        # 合并两个字典
-        return {**static_vars, **dynamic_vars}
 
     @abstractmethod
     async def run(self, query: str):
@@ -289,19 +254,6 @@ class BaseAgent(ABC):
             # 这里只是为了兼容旧代码，不做实际注册操作
             logger.debug(f"工具 {tool_name} 已通过装饰器注册，无需手动注册")
 
-    @abstractmethod
-    async def _check_query_safety(self, query: str) -> tuple[bool, str, str]:
-        """
-        检测用户输入是否包含恶意内容。
-
-        Args:
-            query: 用户输入的查询内容
-
-        Returns:
-            tuple[bool, str, str]: (是否安全, 具体原因, 不安全类型)
-        """
-        pass
-
     def print_token_usage(self) -> None:
         """
         打印token使用报告。
@@ -336,29 +288,27 @@ class BaseAgent(ABC):
         """
         从 .agent 文件加载 agent 配置并设置相关属性
 
-        从.agent文件中加载模型定义、工具定义、属性定义和提示词，并设置到实例属性中
+        从 .agent 文件中加载模型定义、工具定义和提示词，并设置到实例属性中
         """
         logger.info(f"加载 agent 配置: {agent_name}")
 
         # 准备变量
-        variables = self._prepare_prompt_variables()
+        variables = self._prepare_prompt_static_variables()
 
         # 加载 agent 配置，传递变量
-        model_id, tools_definition, attributes_definition, prompt = self._agent_loader.load_agent(agent_name, variables)
-        self.system_prompt = prompt
+        agent_define = self._agent_loader.load_agent(agent_name, variables)
+        self.system_prompt = agent_define.prompt
 
         # 如果存在工具验证器，则过滤无效工具，否则使用所有工具
         if self._tool_validator is not None:
-            self.tools = self._tool_validator.filter_valid_tools(tools_definition)
+            self.tools = self._tool_validator.filter_valid_tools(agent_define.tools_config)
         else:
-            self.tools = tools_definition
-
-        self.attributes = attributes_definition
+            self.tools = agent_define.tools_config
 
         # 保持 llm_id 始终是 Agent 文件中定义的原始模型ID
         # 动态模型选择完全由每次对话时的 _resolve_effective_model_info() 处理
-        self.llm_id = model_id
-        logger.info(f"加载完成: 原始模型={model_id}, 工具数量={len(self.tools)}")
+        self.llm_id = agent_define.model_id
+        logger.info(f"加载完成: model_id={agent_define.model_id}, 工具数量={len(self.tools)}")
 
         # 记录动态模型配置情况（仅用于日志）
         if self.agent_context and self.agent_context.has_dynamic_model_id():

@@ -8,6 +8,8 @@ ARG TARGETARCH
 # 环境变量
 ARG TZ=Asia/Shanghai
 ENV TZ=${TZ} \
+    LANG=C.UTF-8 \
+    LC_ALL=C.UTF-8 \
     PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
     TIKTOKEN_CACHE_DIR=/app/tiktoken_cache \
@@ -118,7 +120,7 @@ RUN --mount=type=cache,id=debian-${DEBIAN_VERSION}-apt-${TARGETARCH},target=/var
     chmod +x /entrypoint.sh
 
 # 设置工作目录
-WORKDIR /build
+WORKDIR /app
 
 # 创建venv，安装依赖
 COPY requirements.txt requirements_sandbox.txt .
@@ -165,4 +167,4 @@ ENTRYPOINT [ "/entrypoint.sh" ]
 EXPOSE 8000
 EXPOSE 8002
 
-CMD ["./main", "start", "ws-server"]
+CMD ["python3", "./main.py", "start", "ws-server"]

@@ -9,6 +9,7 @@ namespace App\Domain\Provider\Entity\ValueObject\Query;
 
 use App\Domain\Provider\Entity\ValueObject\Category;
 use App\Domain\Provider\Entity\ValueObject\ModelType;
+use App\Domain\Provider\Entity\ValueObject\ProviderModelType;
 use App\Domain\Provider\Entity\ValueObject\Status;
 
 class ProviderModelQuery extends Query
@@ -19,6 +20,9 @@ class ProviderModelQuery extends Query
 
     protected ?ModelType $modelType = null;
 
+    /** @var null|ModelType[] */
+    protected ?array $modelTypes = null;
+
     protected ?bool $superMagicDisplay = null;
 
     protected ?array $providerConfigIds = null;
@@ -28,6 +32,8 @@ class ProviderModelQuery extends Query
     protected bool $isModelIdFilter = false;
 
     protected ?array $modelIds = null;
+
+    protected ?ProviderModelType $providerModelType = null;
 
     public function getModelIds(): ?array
     {
@@ -96,6 +102,18 @@ class ProviderModelQuery extends Query
         $this->modelType = $modelType;
     }
 
+    /** @return null|ModelType[] */
+    public function getModelTypes(): ?array
+    {
+        return $this->modelTypes;
+    }
+
+    /** @param ModelType[] $modelTypes */
+    public function setModelTypes(array $modelTypes): void
+    {
+        $this->modelTypes = $modelTypes ?: null;
+    }
+
     public function isOffice(): bool
     {
         return $this->isOffice;
@@ -114,5 +132,15 @@ class ProviderModelQuery extends Query
     public function setIsModelIdFilter(bool $isModelIdFilter): void
     {
         $this->isModelIdFilter = $isModelIdFilter;
+    }
+
+    public function getProviderModelType(): ?ProviderModelType
+    {
+        return $this->providerModelType;
+    }
+
+    public function setProviderModelType(?ProviderModelType $providerModelType): void
+    {
+        $this->providerModelType = $providerModelType;
     }
 }

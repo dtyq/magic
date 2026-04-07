@@ -7,6 +7,8 @@ declare(strict_types=1);
 
 namespace Dtyq\SuperMagic\Infrastructure\Utils;
 
+use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\TaskFileSource;
+
 use function Hyperf\Translation\trans;
 
 /**
@@ -21,14 +23,14 @@ class FileDownloadUrlHelper
      * @param string $filename File name
      * @param string $downloadMode Download mode: 'preview', 'inline', 'high_quality', 'download'
      * @param bool $addWatermark Whether to add watermark for images
-     * @param null|int $fileSourceValue File source value (for watermark logic)
+     * @param null|TaskFileSource $fileSource File source (for watermark logic)
      * @return array URL options array with content_type, custom_query, and filename
      */
     public static function prepareFileUrlOptions(
         string $filename,
         string $downloadMode = 'download',
         bool $addWatermark = false,
-        ?int $fileSourceValue = null
+        null|int|string|TaskFileSource $fileSource = null
     ): array {
         $urlOptions = [];
 
@@ -50,7 +52,7 @@ class FileDownloadUrlHelper
 
                 // Add watermark parameters if enabled and file is an image
                 if ($addWatermark && self::isImageFile($filename)) {
-                    $watermarkParams = self::getWatermarkParameters($fileSourceValue);
+                    $watermarkParams = self::getWatermarkParameters(self::normalizeFileSource($fileSource));
                     if (! empty($watermarkParams)) {
                         $urlOptions['custom_query'] = array_merge($urlOptions['custom_query'] ?? [], $watermarkParams);
                     }
@@ -75,6 +77,15 @@ class FileDownloadUrlHelper
         return $urlOptions;
     }
 
+    private static function normalizeFileSource(null|int|string|TaskFileSource $fileSource): ?TaskFileSource
+    {
+        if ($fileSource instanceof TaskFileSource || $fileSource === null) {
+            return $fileSource;
+        }
+
+        return TaskFileSource::fromValue($fileSource);
+    }
+
     /**
      * Check if file is an image based on file extension.
      *
@@ -91,11 +102,15 @@ class FileDownloadUrlHelper
     /**
      * Get watermark parameters for cloud storage.
      *
-     * @param null|int $fileSourceValue File source value
+     * @param null|TaskFileSource $fileSource File source
      * @return array Watermark parameters for the cloud storage driver
      */
-    private static function getWatermarkParameters(?int $fileSourceValue): array
+    private static function getWatermarkParameters(?TaskFileSource $fileSource): array
     {
+        if ($fileSource === null || ! $fileSource->isAIGenerated()) {
+            return [];
+        }
+
         $driver = env('FILE_SERVICE_PUBLIC_PLATFORM') ?? env('FILE_SERVICE_PRIVATE_PLATFORM');
 
         if (empty($driver)) {
@@ -122,12 +137,7 @@ class FileDownloadUrlHelper
         // Use base64url encoding for cloud storage compatibility
         $base64WatermarkKey = self::base64UrlEncode($watermarkText);
 
-        // AI_IMAGE_GENERATION = 5
-        if ($fileSourceValue === 5) {
-            $watermark = 'image/watermark,image_' . $base64WatermarkKey . ',t_100,g_se,x_10,y_10';
-        } else {
-            $watermark = '';
-        }
+        $watermark = 'image/watermark,image_' . $base64WatermarkKey . ',t_100,g_se,x_10,y_10';
 
         switch ($driver) {
             case 'aliyun':

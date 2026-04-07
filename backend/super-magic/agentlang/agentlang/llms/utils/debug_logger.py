@@ -67,7 +67,7 @@ async def save_llm_debug_log(
             return
 
         # 创建聊天历史目录下的 llm_request 子目录
-        from agentlang.paths import PathManager
+        from agentlang.path_manager import PathManager
         chat_history_dir = PathManager.get_chat_history_dir()
         llm_request_dir = chat_history_dir / "llm_request"
         llm_request_dir.mkdir(exist_ok=True)

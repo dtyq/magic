@@ -10,6 +10,8 @@ use Dtyq\SuperMagic\Interfaces\Agent\Facade\Sandbox\SkillSandboxApi;
 use Dtyq\SuperMagic\Interfaces\Agent\Facade\Sandbox\SuperMagicAgentSandboxApi;
 use Dtyq\SuperMagic\Interfaces\Share\Facade\ShareApi;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\Facade\InternalApi\FileApi;
+use Dtyq\SuperMagic\Interfaces\SuperAgent\Facade\InternalApi\SandboxApi as InternalSandboxApi;
+use Dtyq\SuperMagic\Interfaces\SuperAgent\Facade\InternalApi\TaskApi as InternalTaskApi;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\Facade\OpenApi\OpenMessageScheduleApi;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\Facade\OpenApi\OpenProjectApi;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\Facade\OpenApi\OpenTaskApi;
@@ -49,12 +51,23 @@ Router::addGroup(
 Router::addGroup(
     '/api/v1/open-api/sandbox',
     static function () {
+        // 沙箱自我升级
+        Router::put('/upgrade', [InternalSandboxApi::class, 'upgradeSandbox']);
+        // 检查沙箱镜像版本（当前版本 vs 最新版本）
+        Router::get('/version-check', [InternalSandboxApi::class, 'checkSandboxVersion']);
+
         // 文件管理相关
         Router::addGroup('/file', static function () {
             // 创建文件版本
             Router::post('/versions', [FileApi::class, 'createFileVersion']);
             // 获取文件树
             Router::post('/tree', [FileApi::class, 'getFileTree']);
+        });
+
+        // 超级助理内部消息相关
+        Router::addGroup('/super-agent/tasks', static function () {
+            // 第三方消息入站
+            Router::post('/ingest-third-party-message', [InternalTaskApi::class, 'ingestThirdPartyMessage']);
         });
 
         // 分享管理相关

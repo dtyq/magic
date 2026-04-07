@@ -52,6 +52,8 @@ class AgentMarketListItemDTO extends AbstractDTO
 
     private ?int $categoryId;
 
+    private bool $isFeatured;
+
     private ?string $latestVersionCode;
 
     private bool $allowDelete;
@@ -69,6 +71,7 @@ class AgentMarketListItemDTO extends AbstractDTO
         string $publisherType,
         array $publisher,
         ?int $categoryId,
+        bool $isFeatured,
         bool $isAdded,
         ?string $latestVersionCode,
         bool $allowDelete,
@@ -87,6 +90,7 @@ class AgentMarketListItemDTO extends AbstractDTO
         $this->publisherType = $publisherType;
         $this->publisher = $publisher;
         $this->categoryId = $categoryId;
+        $this->isFeatured = $isFeatured;
         $this->isAdded = $isAdded;
         $this->latestVersionCode = $latestVersionCode;
         $this->allowDelete = $allowDelete;
@@ -112,6 +116,7 @@ class AgentMarketListItemDTO extends AbstractDTO
             'publisher_type' => $this->publisherType,
             'publisher' => $this->publisher,
             'category_id' => (string) $this->categoryId,
+            'is_featured' => $this->isFeatured,
             'is_added' => $this->isAdded,
             'latest_version_code' => $this->latestVersionCode,
             'allow_delete' => $this->allowDelete,

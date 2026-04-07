@@ -31,7 +31,7 @@ func (s *SummaryStage) Exec(_ context.Context) error {
 	fmt.Println("✓ Deployment complete!")
 	fmt.Printf("  Access magic-web: %s\n", webURL)
 	if strings.Contains(webURL, "localhost") {
-		fmt.Println("  To access from another machine, set MAGIC_WEB_BASE_URL, e.g. export MAGIC_WEB_BASE_URL=http://your-server:38080")
+		fmt.Println("  To access from another machine, set MAGICREW_CLI_WEB_BASE_URL, e.g. export MAGICREW_CLI_WEB_BASE_URL=http://your-server:38080")
 	}
 	fmt.Println()
 	fmt.Println("To remove the cluster, run: magicrew teardown")

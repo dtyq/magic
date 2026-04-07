@@ -14,11 +14,13 @@ from ..parameter.import_skill_from_agent_parameter import ImportSkillFromAgentPa
 from ..parameter.add_agent_skills_parameter import AddAgentSkillsParameter
 from ..parameter.delete_agent_skills_parameter import DeleteAgentSkillsParameter
 from ..parameter.tool_execute_parameter import ToolExecuteParameter
+from ..parameter.ingest_third_party_message_parameter import IngestThirdPartyMessageParameter
 from ..result.agent_details_result import AgentDetailsResult
 from ..result.agent_openapi_result import AgentOpenApiResult
 from ..result.update_agent_result import UpdateAgentResult
 from ..result.skill_file_urls_result import SkillFileUrlsResult
 from ..result.import_skill_result import ImportSkillResult
+from ..result.ingest_third_party_message_result import IngestThirdPartyMessageResult
 from ..result.tool_execute_result import ToolExecuteResult
 
 
@@ -105,9 +107,60 @@ class AgentApi(MagicServiceAbstractApi):
         # Return structured result
         return ToolExecuteResult(data)
 
+    def ingest_third_party_message(
+        self,
+        parameter: IngestThirdPartyMessageParameter
+    ) -> IngestThirdPartyMessageResult:
+        """
+        Persist a third-party inbound IM message.
+
+        Args:
+            parameter: IngestThirdPartyMessageParameter instance
+
+        Returns:
+            IngestThirdPartyMessageResult containing task/message identifiers
+        """
+        endpoint_path = "/api/v1/open-api/sandbox/super-agent/tasks/ingest-third-party-message"
+        data = self.request_by_parameter(parameter, "POST", endpoint_path)
+        return IngestThirdPartyMessageResult(data)
+
+    async def ingest_third_party_message_async(
+        self,
+        parameter: IngestThirdPartyMessageParameter
+    ) -> IngestThirdPartyMessageResult:
+        """
+        Persist a third-party inbound IM message (async).
+
+        Args:
+            parameter: IngestThirdPartyMessageParameter instance
+
+        Returns:
+            IngestThirdPartyMessageResult containing task/message identifiers
+        """
+        endpoint_path = "/api/v1/open-api/sandbox/super-agent/tasks/ingest-third-party-message"
+        data = await self.request_by_parameter_async(parameter, "POST", endpoint_path)
+        return IngestThirdPartyMessageResult(data)
+
     # ==================== Open API Methods ====================
 
-    async def get_agent_by_code_async(
+    def get_agent_by_code(
+        self,
+        parameter: GetAgentOpenApiParameter
+    ) -> AgentOpenApiResult:
+        """
+        Get agent details by code via open-api (sync)
+
+        Args:
+            parameter: GetAgentOpenApiParameter instance
+
+        Returns:
+            AgentOpenApiResult containing agent details
+        """
+        endpoint_path = f"/api/v1/open-api/sandbox/agents/{parameter.get_code()}"
+        data = self.request_by_parameter(parameter, 'GET', endpoint_path)
+        return AgentOpenApiResult(data)
+
+    async def get_agent_by_code_latest_version(
         self,
         parameter: GetAgentOpenApiParameter
     ) -> AgentOpenApiResult:
@@ -120,7 +173,7 @@ class AgentApi(MagicServiceAbstractApi):
         Returns:
             AgentOpenApiResult containing agent details
         """
-        endpoint_path = f"/api/v1/open-api/sandbox/agents/{parameter.get_code()}"
+        endpoint_path = f"/api/v1/open-api/sandbox/agents/{parameter.get_code()}/latest-version"
         data = await self.request_by_parameter_async(parameter, 'GET', endpoint_path)
         return AgentOpenApiResult(data)
 

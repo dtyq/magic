@@ -71,7 +71,6 @@ db.sqlite3-journal
 docker-compose*
 .dockerignore
 Dockerfile
-Dockerfile.pyinstaller
 
 # 临时文件和调试
 tmp/

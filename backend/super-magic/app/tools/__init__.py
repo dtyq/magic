@@ -6,7 +6,8 @@
 # 导出工具类
 from app.tools.dummy_tool import DummyTool # DummyTool 必须在第一个位置导入，否则其他工具会因为循环依赖导致收集不到
 from app.tools.web_search import WebSearch
-from app.tools.call_agent import CallAgent
+from app.tools.call_subagent import CallSubagent
+from app.tools.wait_for_subagents import WaitForSubagents
 from app.tools.compact_chat_history import CompactChatHistory
 from app.tools.core import BaseTool, BaseToolParams, tool, tool_factory
 from app.tools.create_slide import CreateSlide
@@ -27,11 +28,13 @@ from app.tools.get_js_cdn_address import GetJsCdnAddress
 from app.tools.grep_search import GrepSearch
 
 from app.tools.generate_image import GenerateImage
+from app.tools.generate_video import GenerateVideo, QueryVideoGeneration
 from app.tools.image_search import ImageSearch
 from app.tools.list_dir import ListDir
 from app.tools.purify import Purify
 from app.tools.markitdown_plugins import excel_plugin, docx_plugin
 
+# 导出工具类
 from app.tools.read_file import ReadFile
 from app.tools.read_files import ReadFiles
 from app.tools.read_webpages_as_markdown import ReadWebpagesAsMarkdown
@@ -45,8 +48,10 @@ from app.tools.todo_read import TodoRead
 from app.tools.todo_create import TodoCreate
 from app.tools.todo_update import TodoUpdate
 from app.tools.update_memory import UpdateMemory
+from app.tools.upgrade_sandbox import UpgradeSandbox
 from app.tools.use_browser import UseBrowser
 from app.tools.write_file import WriteFile
+from app.tools.manage_cron import ManageCron
 from app.tools.abstract_file_tool import AbstractFileTool
 from app.tools.append_to_file import AppendToFile
 from app.tools.convert_pdf import ConvertPdf
@@ -54,7 +59,7 @@ from app.tools.convert_to_markdown import ConvertToMarkdown
 from app.tools.visual_understanding import VisualUnderstanding
 from app.tools.visual_understanding_webpage import VisualUnderstandingWebpage
 from app.tools.analysis_slide_webpage import AnalysisSlideWebpage
-from app.tools.channel import ConnectDingTalkBot, ConnectLarkBot, ConnectWecomBot, GetIMChannelStatus
+from app.tools.channel import ConnectDingTalkBot, ConnectLarkBot, ConnectWecomBot, ConnectWechatBot, GetIMChannelStatus, WaitWechatLogin
 
 # 数据分析看板工具
 from app.tools.data_analyst_dashboard_tools import (
@@ -88,22 +93,25 @@ import app.tools.design.utils  # pyright: ignore[reportUnusedImport]
 import app.tools.design  # pyright: ignore[reportUnusedImport]
 from app.tools.design.tools import (
     CreateDesignProject,
-    CreateCanvasElement,
-    UpdateCanvasElement,
     DeleteCanvasElement,
-    ReorderCanvasElements,
     QueryCanvasOverview,
     QueryCanvasElement,
     BatchCreateCanvasElements,
     BatchUpdateCanvasElements,
     GenerateImagesToCanvas,
+    GenerateVideosToCanvas,
     SearchImagesToCanvas,
 )
 
 # Skill 管理工具
-from app.tools.skills_read import SkillsRead
-from app.tools.skill_read_references import SkillReadReferences
-from app.tools.run_skills_snippet import RunSkillsSnippet
+from app.tools.read_skills import ReadSkills
+from app.tools.run_sdk_snippet import RunSdkSnippet
+from app.tools.skill_list import SkillList
+
+# Import design package modules to ensure they are available in encrypted environment
+import app.tools.design.manager
+import app.tools.design.utils
+import app.tools.design
 
 __all__ = [
     "DummyTool",
@@ -120,9 +128,12 @@ __all__ = [
     "AppendToFile",
     "WebSearch",
     "CallAgent",
+    "WaitForSubagents",
     "ConnectDingTalkBot",
     "ConnectLarkBot",
     "ConnectWecomBot",
+    "ConnectWechatBot",
+    "WaitWechatLogin",
     "CompactChatHistory",
     "ConvertPdf",
     "ConvertToMarkdown",
@@ -144,13 +155,15 @@ __all__ = [
     "GrepSearch",
     "ImageSearch",
     "GenerateImage",
+    "GenerateVideo",
+    "QueryVideoGeneration",
     "GetIMChannelStatus",
     "ListDir",
     "Purify",
     "RunPythonSnippet",
-    "SkillsRead",
-    "SkillReadReferences",
-    "RunSkillsSnippet",
+    "ReadSkills",
+    "RunSdkSnippet",
+    "SkillList",
     "ReadFile",
     "ReadFiles",
     "ReadWebpagesAsMarkdown",
@@ -166,6 +179,7 @@ __all__ = [
     "VisualUnderstanding",
     "VisualUnderstandingWebpage",
     "WriteFile",
+    "ManageCron",
     "excel_plugin",
     "docx_plugin",
 
@@ -193,16 +207,22 @@ __all__ = [
     "DeleteDashboardCards",
     "QueryDashboardCards",
 
+    # Agent 管理工具
+    "GetAgentInfo",
+    "UpdateAgent",
+    "CreateSkill",
+    "EditSkill",
+    "UploadSkill",
+
     # 设计模式工具
     "CreateDesignProject",
-    "CreateCanvasElement",
-    "UpdateCanvasElement",
     "DeleteCanvasElement",
-    "ReorderCanvasElements",
     "QueryCanvasOverview",
     "QueryCanvasElement",
     "BatchCreateCanvasElements",
     "BatchUpdateCanvasElements",
     "GenerateImagesToCanvas",
+    "GenerateVideosToCanvas",
     "SearchImagesToCanvas",
 ]
+

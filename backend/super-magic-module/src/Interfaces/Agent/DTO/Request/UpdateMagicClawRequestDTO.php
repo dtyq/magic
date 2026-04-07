@@ -22,9 +22,9 @@ class UpdateMagicClawRequestDTO extends AbstractRequestDTO
     public string $description = '';
 
     /**
-     * Icon file key.
+     * Icon file key (optional; JSON null is allowed).
      */
-    public string $icon = '';
+    public ?string $icon = null;
 
     public function getName(): string
     {
@@ -38,7 +38,7 @@ class UpdateMagicClawRequestDTO extends AbstractRequestDTO
 
     public function getIcon(): string
     {
-        return $this->icon;
+        return $this->icon ?? '';
     }
 
     protected static function getHyperfValidationRules(): array

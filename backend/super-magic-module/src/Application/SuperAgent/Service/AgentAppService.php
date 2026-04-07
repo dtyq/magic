@@ -12,11 +12,12 @@ use App\Infrastructure\Core\Exception\BusinessException;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\TaskContext;
 use Dtyq\SuperMagic\Domain\SuperAgent\Service\AgentDomainService;
 use Dtyq\SuperMagic\Domain\SuperAgent\Service\ProjectDomainService;
+use Dtyq\SuperMagic\Domain\SuperAgent\Service\SandboxVersionDomainService;
 use Dtyq\SuperMagic\Domain\SuperAgent\Service\TaskDomainService;
 use Dtyq\SuperMagic\Domain\SuperAgent\Service\TopicDomainService;
 use Dtyq\SuperMagic\Infrastructure\ExternalAPI\SandboxOS\Agent\Response\AgentResponse;
-use Dtyq\SuperMagic\Infrastructure\ExternalAPI\SandboxOS\Exception\SandboxOperationException;
 use Dtyq\SuperMagic\Infrastructure\ExternalAPI\SandboxOS\Gateway\Result\BatchStatusResult;
+use Dtyq\SuperMagic\Infrastructure\ExternalAPI\SandboxOS\Gateway\Result\GatewayResult;
 use Dtyq\SuperMagic\Infrastructure\ExternalAPI\SandboxOS\Gateway\Result\SandboxStatusResult;
 use Hyperf\Logger\LoggerFactory;
 use Psr\Log\LoggerInterface;
@@ -35,7 +36,8 @@ readonly class AgentAppService
         private readonly AgentDomainService $agentDomainService,
         private readonly ProjectDomainService $projectDomainService,
         private readonly TopicDomainService $topicDomainService,
-        private readonly TaskDomainService $taskDomainService
+        private readonly TaskDomainService $taskDomainService,
+        private readonly SandboxVersionDomainService $sandboxVersionDomainService,
     ) {
         $this->logger = $this->loggerFactory->get('sandbox');
     }
@@ -49,6 +51,118 @@ readonly class AgentAppService
     public function getSandboxStatus(string $sandboxId): SandboxStatusResult
     {
         return $this->agentDomainService->getSandboxStatus($sandboxId);
+    }
+
+    /**
+     * 启动沙箱：直接走创建+初始化流程，不删除已有沙箱，不检查镜像版本.
+     *
+     * 正确流程：createSandbox → initAgent → waitForWorkspaceReady。
+     *
+     * @param DataIsolation $dataIsolation 数据隔离上下文
+     * @param int $topicId 话题ID（sandbox_id 即 topic_id）
+     * @return string 沙箱ID
+     */
+    public function startSandbox(DataIsolation $dataIsolation, int $topicId): string
+    {
+        $this->logger->info('[Sandbox][App] Starting sandbox via reinit (no delete)', [
+            'topic_id' => $topicId,
+        ]);
+
+        return $this->ensureSandboxInitialized($dataIsolation, $topicId);
+    }
+
+    /**
+     * 重启沙箱：无条件删除旧沙箱，再走完整的创建+初始化流程，不检查镜像版本.
+     *
+     * 正确流程：delete → createSandbox → initAgent → waitForWorkspaceReady。
+     *
+     * @param DataIsolation $dataIsolation 数据隔离上下文
+     * @param int $topicId 话题ID（sandbox_id 即 topic_id）
+     * @return string 沙箱ID
+     */
+    public function restartSandbox(DataIsolation $dataIsolation, int $topicId): string
+    {
+        $this->logger->info('[Sandbox][App] Restarting sandbox via delete + reinit', [
+            'topic_id' => $topicId,
+        ]);
+
+        // 删除旧沙箱，如果已不存在则忽略错误继续重建
+        try {
+            $this->agentDomainService->stopSandbox((string) $topicId);
+            $this->logger->info('[Sandbox][App] Old sandbox deleted for restart', [
+                'sandbox_id' => $topicId,
+            ]);
+        } catch (Throwable $e) {
+            $this->logger->warning('[Sandbox][App] Failed to delete sandbox during restart (may not exist), proceeding with reinit', [
+                'sandbox_id' => $topicId,
+                'error' => $e->getMessage(),
+            ]);
+        }
+
+        return $this->ensureSandboxInitialized($dataIsolation, $topicId, skipInitMessages: true);
+    }
+
+    /**
+     * 升级沙箱：检查镜像版本，有新版本时才执行重启+重建流程.
+     *
+     * 不直接调用网关 upgrade 接口，原因是 upgrade 接口跳过了 initAgent + waitForWorkspaceReady 步骤。
+     * 正确流程：delete → createSandbox → initAgent → waitForWorkspaceReady。
+     *
+     * @param DataIsolation $dataIsolation 数据隔离上下文
+     * @param int $topicId 话题ID（sandbox_id 即 topic_id）
+     * @return string 沙箱ID
+     */
+    public function upgradeSandbox(DataIsolation $dataIsolation, int $topicId): string
+    {
+        $this->logger->info('[Sandbox][App] Upgrading sandbox via delete + reinit', [
+            'topic_id' => $topicId,
+        ]);
+
+        // 检查当前沙箱镜像与最新 agent 镜像是否一致，一致则无需升级
+        $versionInfo = $this->sandboxVersionDomainService->checkSandboxVersion($topicId);
+        if (! $versionInfo['needs_update']) {
+            $this->logger->info('[Sandbox][App] Sandbox image is already up-to-date, skipping upgrade', [
+                'topic_id' => $topicId,
+                'current_version' => $versionInfo['current_version'],
+                'latest_version' => $versionInfo['latest_version'],
+            ]);
+            return (string) $topicId;
+        }
+
+        return $this->restartSandbox($dataIsolation, $topicId);
+    }
+
+    /**
+     * 删除（停止）沙箱.
+     *
+     * @param string $sandboxId 沙箱ID
+     * @return GatewayResult 删除结果
+     */
+    public function stopSandbox(string $sandboxId): GatewayResult
+    {
+        return $this->agentDomainService->stopSandbox($sandboxId);
+    }
+
+    /**
+     * 检查话题沙箱的镜像版本，返回当前版本和最新版本.
+     *
+     * @param int $topicId 话题ID
+     * @return array{current_version: string, latest_version: string, needs_update: bool}
+     */
+    public function checkSandboxVersion(int $topicId): array
+    {
+        return $this->sandboxVersionDomainService->checkSandboxVersion($topicId);
+    }
+
+    /**
+     * 批量检查话题沙箱镜像版本，返回每个 topic_id 是否需要升级.
+     *
+     * @param int[] $topicIds
+     * @return array<int, bool> topicId => needUpgrade
+     */
+    public function checkSandboxVersionsByTopicIds(array $topicIds): array
+    {
+        return $this->sandboxVersionDomainService->checkNeedUpgradeByTopicIds($topicIds);
     }
 
     /**
@@ -114,9 +228,11 @@ readonly class AgentAppService
     public function ensureSandboxInitialized(
         DataIsolation $dataIsolation,
         int $topicId,
+        bool $skipInitMessages = false,
     ): string {
         $this->logger->info('[Sandbox][App] Ensuring sandbox is initialized', [
             'topic_id' => $topicId,
+            'skip_init_messages' => $skipInitMessages,
         ]);
 
         // Prepare metadata using Trait
@@ -134,7 +250,7 @@ readonly class AgentAppService
         // init task
         $taskEntity = $this->taskDomainService->initDefaultTask($dataIsolation, $topicEntity);
 
-        $agentContext = $this->agentDomainService->buildInitAgentContext($dataIsolation, $projectEntity, $topicEntity, $taskEntity);
+        $agentContext = $this->agentDomainService->buildInitAgentContext($dataIsolation, $projectEntity, $topicEntity, $taskEntity, skipInitMessage: $skipInitMessages);
 
         // Delegate to domain service
         return $this->agentDomainService->ensureSandboxInitialized(
@@ -411,59 +527,5 @@ readonly class AgentAppService
         }
 
         return $response;
-    }
-
-    /**
-     * 升级沙箱镜像.
-     *
-     * @param DataIsolation $dataIsolation 数据隔离上下文
-     * @param string $messageId 消息ID
-     * @param string $contextType 上下文类型，默认为continue
-     * @return AgentResponse 升级响应结果
-     * @throws BusinessException 当升级失败时抛出异常
-     */
-    public function upgradeSandbox(
-        DataIsolation $dataIsolation,
-        string $messageId,
-        string $contextType = 'continue'
-    ): AgentResponse {
-        $this->logger->info('[Sandbox][App] Upgrading sandbox image', [
-            'message_id' => $messageId,
-            'context_type' => $contextType,
-            'user_id' => $dataIsolation->getCurrentUserId(),
-            'organization_code' => $dataIsolation->getCurrentOrganizationCode(),
-        ]);
-
-        try {
-            // 调用领域服务执行升级
-            $response = $this->agentDomainService->upgradeSandbox($messageId, $contextType);
-
-            $this->logger->info('[Sandbox][App] Sandbox upgrade completed successfully', [
-                'message_id' => $messageId,
-                'context_type' => $contextType,
-                'user_id' => $dataIsolation->getCurrentUserId(),
-            ]);
-
-            return $response;
-        } catch (SandboxOperationException $e) {
-            $this->logger->error('[Sandbox][App] Sandbox upgrade failed', [
-                'message_id' => $messageId,
-                'context_type' => $contextType,
-                'user_id' => $dataIsolation->getCurrentUserId(),
-                'error' => $e->getMessage(),
-                'code' => $e->getCode(),
-            ]);
-
-            throw new BusinessException('Sandbox upgrade failed: ' . $e->getMessage());
-        } catch (Throwable $e) {
-            $this->logger->error('[Sandbox][App] Unexpected error during sandbox upgrade', [
-                'message_id' => $messageId,
-                'context_type' => $contextType,
-                'user_id' => $dataIsolation->getCurrentUserId(),
-                'error' => $e->getMessage(),
-            ]);
-
-            throw new BusinessException('Unexpected error during sandbox upgrade: ' . $e->getMessage());
-        }
     }
 }

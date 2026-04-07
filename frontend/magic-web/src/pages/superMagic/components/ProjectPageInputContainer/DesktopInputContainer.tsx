@@ -99,7 +99,7 @@ function DesktopInputContainer({
 						>
 							<div
 								id={SCENE_INPUT_IDS.INPUT_CONTAINER}
-								className="h-full"
+								className="flex h-full items-center justify-center [&>div]:w-full"
 								style={{ minHeight: INPUT_CONTAINER_MIN_HEIGHT.TopicPage }}
 							></div>
 						</div>

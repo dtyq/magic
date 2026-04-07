@@ -36,7 +36,7 @@ class RegularCallProcessor:
         agent_context: Optional[AgentContextInterface] = None,
         request_id: Optional[str] = None,
         enable_llm_response_events: bool = True,
-        retry_count: int = 0
+        timeout_seconds: Optional[int] = None,
     ) -> ChatCompletion:
         """使用非流式调用LLM的方法。
 
@@ -48,7 +48,7 @@ class RegularCallProcessor:
             agent_context: Agent上下文
             request_id: 请求ID
             enable_llm_response_events: 是否启用LLM响应事件
-            retry_count: 重试次数
+            timeout_seconds: 本次请求超时（秒），None 时沿用客户端全局配置
 
         Returns:
             ChatCompletion响应
@@ -72,15 +72,20 @@ class RegularCallProcessor:
         # 记录开始时间
         start_time = time.time()
 
+        # 非流式 fallback 使用独立超时（覆盖客户端全局配置）
+        create_kwargs = {**request_params}
+        if timeout_seconds is not None:
+            create_kwargs["timeout"] = timeout_seconds
+
         # 发送非流式请求
-        response: ChatCompletion = await client.chat.completions.create(**request_params)
+        response: ChatCompletion = await client.chat.completions.create(**create_kwargs)
 
         # 计算执行时间
         end_time = time.time()
         elapsed_time = (end_time - start_time) * 1000  # 转换为毫秒
 
-        # 判断是否应该触发事件（首次调用且启用事件）
-        should_trigger_events = enable_llm_response_events and agent_context and retry_count == 0
+        # 非流式 fallback 重新启用后，重试轮次也应该维持完整的 reply 生命周期。
+        should_trigger_events = enable_llm_response_events and agent_context
 
         if should_trigger_events:
             # 触发事件（与流式模式逻辑一致）

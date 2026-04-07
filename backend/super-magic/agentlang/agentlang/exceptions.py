@@ -7,10 +7,10 @@
 
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
-from typing import Any, Dict, Optional, Union
+from typing import Any, Dict, Optional
 import json
 
-class UserFriendlyException(BaseException, ABC):
+class UserFriendlyException(Exception, ABC):
     """用户友好异常接口类
     
     定义了可以向用户展示友好错误消息的异常接口。
@@ -40,6 +40,24 @@ class UserFriendlyException(BaseException, ABC):
             str: 格式化后的用户友好消息
         """
         pass
+
+
+class LLMFastRetryExhaustedException(Exception):
+    """内层 LLM 快速重试已耗尽：流式多次尝试 + 非流式 fallback 全部失败。
+
+    agent.py 收到此异常后应直接结束本轮，不再继续外层泛化退避重试。
+    """
+
+    def __init__(
+        self,
+        message: str,
+        *,
+        stream_error: Optional[Exception] = None,
+        fallback_error: Optional[Exception] = None,
+    ):
+        super().__init__(message)
+        self.stream_error = stream_error
+        self.fallback_error = fallback_error
 
 
 class ResourceLimitExceededException(UserFriendlyException):
@@ -108,7 +126,6 @@ class ResourceLimitExceededException(UserFriendlyException):
             bool: True if error code is 6400, False otherwise
         """
         return self.error_code == 6400
-
 
 @dataclass
 class ErrorDetail:

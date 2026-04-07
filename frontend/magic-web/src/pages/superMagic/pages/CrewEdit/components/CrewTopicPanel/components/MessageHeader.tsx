@@ -45,6 +45,8 @@ interface MessageHeaderProps {
 	detailPanelVisible?: boolean
 	selectedProject: ProjectListItem | null
 	topicStore: TopicStore
+	/** Hide mode tag in topic history list rows */
+	hideTopicListModeIcon?: boolean
 }
 
 const headerIconButtonClassName = "!size-6 !min-h-6 !min-w-6 !rounded-md !p-0"
@@ -58,6 +60,7 @@ function MessageHeader({
 	detailPanelVisible = true,
 	selectedProject,
 	topicStore,
+	hideTopicListModeIcon = false,
 }: MessageHeaderProps) {
 	const { t } = useTranslation("super")
 
@@ -381,6 +384,7 @@ function MessageHeader({
 							onCreateTopic={handleCreateTopic}
 							placement="bottomRight"
 							onDropdownOpenChange={handleTopicHistoryDropdownOpenChange}
+							hideTopicListModeIcon={hideTopicListModeIcon}
 						>
 							<span>
 								<MagicTooltip title={t("messageHeader.historyTopics")}>
@@ -508,6 +512,7 @@ function MessageHeader({
 										isConversationPanelCollapsed ? "leftBottom" : "bottomRight"
 									}
 									onDropdownOpenChange={handleTopicHistoryDropdownOpenChange}
+									hideTopicListModeIcon={hideTopicListModeIcon}
 								>
 									<span>
 										<MagicTooltip title={t("messageHeader.historyTopics")}>

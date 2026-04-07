@@ -14,6 +14,7 @@ enum ModelType: int
     case IMAGE_ENHANCE = 2; // 图片增强
     case LLM = 3; // 大模型
     case EMBEDDING = 4; // 嵌入
+    case TEXT_TO_VIDEO = 5; // 文生视频
 
     public function label(): string
     {
@@ -23,6 +24,7 @@ enum ModelType: int
             self::IMAGE_ENHANCE => '图片增强',
             self::LLM => '大模型',
             self::EMBEDDING => '嵌入',
+            self::TEXT_TO_VIDEO => '文生视频',
         };
     }
 
@@ -38,7 +40,17 @@ enum ModelType: int
 
     public function isVLM(): bool
     {
+        return $this->isImageGeneration();
+    }
+
+    public function isImageGeneration(): bool
+    {
         return $this === self::TEXT_TO_IMAGE || $this === self::IMAGE_TO_IMAGE;
+    }
+
+    public function isVideoGeneration(): bool
+    {
+        return $this === self::TEXT_TO_VIDEO;
     }
 
     public function isImageToImage(): bool

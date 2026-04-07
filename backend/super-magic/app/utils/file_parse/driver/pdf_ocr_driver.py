@@ -13,7 +13,7 @@ from .abstract_driver import AbstractDriver
 from app.infrastructure.sdk.magic_service.factory import get_magic_service_sdk
 from app.infrastructure.sdk.magic_service.parameter.tool_execute_parameter import ToolExecuteParameter
 # from app.service.file_service import FileService  # 延迟导入以避免循环导入
-from agentlang.paths import PathManager
+from agentlang.path_manager import PathManager
 
 logger = get_logger(__name__)
 

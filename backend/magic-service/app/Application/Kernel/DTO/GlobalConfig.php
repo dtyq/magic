@@ -13,7 +13,7 @@ class GlobalConfig
 
     private string $maintenanceDescription = '';
 
-    private bool $needInitial = true;
+    private string $bootstrapStatus = '';
 
     public function __construct()
     {
@@ -42,14 +42,14 @@ class GlobalConfig
         $this->maintenanceDescription = $maintenanceDescription;
     }
 
-    public function isNeedInitial(): bool
+    public function getBootstrapStatus(): string
     {
-        return $this->needInitial;
+        return $this->bootstrapStatus;
     }
 
-    public function setNeedInitial(bool $needInitial): void
+    public function setBootstrapStatus(string $bootstrapStatus): void
     {
-        $this->needInitial = $needInitial;
+        $this->bootstrapStatus = trim($bootstrapStatus);
     }
 
     public function toArray(): array
@@ -57,7 +57,7 @@ class GlobalConfig
         return [
             'is_maintenance' => $this->isMaintenance,
             'maintenance_description' => $this->maintenanceDescription,
-            'need_initial' => $this->needInitial,
+            'bootstrap_status' => $this->bootstrapStatus,
         ];
     }
 
@@ -66,7 +66,7 @@ class GlobalConfig
         $instance = new self();
         $instance->setIsMaintenance((bool) ($data['is_maintenance'] ?? false));
         $instance->setMaintenanceDescription((string) ($data['maintenance_description'] ?? ''));
-        $instance->setNeedInitial((bool) ($data['need_initial'] ?? true));
+        $instance->setBootstrapStatus((string) ($data['bootstrap_status'] ?? ''));
         return $instance;
     }
 }

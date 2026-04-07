@@ -35,6 +35,8 @@ class SkillMarketListItemDTO implements JsonSerializable
 
     private array $descriptionI18n;
 
+    private array $sourceI18n;
+
     private string $logo;
 
     private string $publisherType;
@@ -48,6 +50,8 @@ class SkillMarketListItemDTO implements JsonSerializable
     private bool $needUpgrade;
 
     private bool $isCreator;
+
+    private bool $isFeatured;
 
     private string $createdAt;
 
@@ -63,6 +67,8 @@ class SkillMarketListItemDTO implements JsonSerializable
 
     private string $packageName;
 
+    private string $latestVersion;
+
     public function __construct(
         int $id,
         string $skillCode,
@@ -71,6 +77,7 @@ class SkillMarketListItemDTO implements JsonSerializable
         string $description,
         array $nameI18n,
         array $descriptionI18n,
+        array $sourceI18n,
         string $logo,
         string $publisherType,
         array $publisher,
@@ -78,11 +85,13 @@ class SkillMarketListItemDTO implements JsonSerializable
         bool $isAdded,
         bool $needUpgrade,
         bool $isCreator,
+        bool $isFeatured,
         string $createdAt,
         string $updatedAt,
         string $fileKey = '',
         ?string $fileUrl = null,
         string $packageName = '',
+        string $latestVersion = '',
     ) {
         $this->id = $id;
         $this->code = $skillCode;
@@ -92,6 +101,7 @@ class SkillMarketListItemDTO implements JsonSerializable
         $this->description = $description;
         $this->nameI18n = $nameI18n;
         $this->descriptionI18n = $descriptionI18n;
+        $this->sourceI18n = $sourceI18n;
         $this->logo = $logo;
         $this->publisherType = $publisherType;
         $this->publisher = $publisher;
@@ -99,11 +109,13 @@ class SkillMarketListItemDTO implements JsonSerializable
         $this->isAdded = $isAdded;
         $this->needUpgrade = $needUpgrade;
         $this->isCreator = $isCreator;
+        $this->isFeatured = $isFeatured;
         $this->createdAt = $createdAt;
         $this->updatedAt = $updatedAt;
         $this->fileKey = $fileKey;
         $this->fileUrl = $fileUrl;
         $this->packageName = $packageName;
+        $this->latestVersion = $latestVersion;
     }
 
     public function jsonSerialize(): array
@@ -118,6 +130,7 @@ class SkillMarketListItemDTO implements JsonSerializable
             'description' => $this->description,
             'name_i18n' => $this->nameI18n,
             'description_i18n' => $this->descriptionI18n,
+            'source_i18n' => $this->sourceI18n,
             'logo' => $this->logo,
             'publisher_type' => $this->publisherType,
             'publisher' => $this->publisher,
@@ -125,11 +138,13 @@ class SkillMarketListItemDTO implements JsonSerializable
             'is_added' => $this->isAdded,
             'need_upgrade' => $this->needUpgrade,
             'is_creator' => $this->isCreator,
+            'is_featured' => $this->isFeatured,
             'created_at' => $this->createdAt,
             'updated_at' => $this->updatedAt,
             'file_key' => $this->fileKey,
             'file_url' => $this->fileUrl,
             'package_name' => $this->packageName,
+            'latest_version' => $this->latestVersion,
         ];
     }
 }

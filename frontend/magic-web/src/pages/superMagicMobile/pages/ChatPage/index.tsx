@@ -9,7 +9,7 @@ import ChatDrawer from "./components/ChatDrawer"
 import HierarchicalWorkspacePopup from "@/pages/superMagicMobile/components/HierarchicalWorkspacePopup"
 import type { HierarchicalWorkspacePopupRef } from "@/pages/superMagicMobile/components/HierarchicalWorkspacePopup/types"
 import { useMemoizedFn } from "ahooks"
-import { ModeItem, TopicMode } from "@/pages/superMagic/pages/Workspace/types"
+import { CrewItem, TaskStatus, TopicMode } from "@/pages/superMagic/pages/Workspace/types"
 import { roleStore } from "@/pages/superMagic/stores/RoleStore"
 import MobileInputContainer, {
 	type MobileInputContainerRef,
@@ -19,10 +19,13 @@ import { topicStore, projectStore, workspaceStore } from "@/pages/superMagic/sto
 import { SceneEditorContext } from "@/pages/superMagic/components/MainInputContainer/components/editors/types"
 import SuperMagicService from "@/pages/superMagic/services"
 import { useTranslation } from "react-i18next"
+import { userStore } from "@/models/user"
+import { useTaskInterrupt } from "@/pages/superMagic/hooks/useTaskInterrupt"
 
 const ChatPage = observer(() => {
 	const { t } = useTranslation(["super", "sidebar"])
 	const [drawerOpen, setDrawerOpen] = useState(false)
+	const [stopEventLoading, setStopEventLoading] = useState(false)
 	const hierarchicalWorkspacePopupRef = useRef<HierarchicalWorkspacePopupRef>(null)
 	const mobileInputContainerRef = useRef<MobileInputContainerRef>(null)
 
@@ -30,8 +33,8 @@ const ChatPage = observer(() => {
 
 	const currentRole = roleStore.currentRole
 
-	const handleCrewSelect = useMemoizedFn((mode: ModeItem) => {
-		roleStore.setCurrentRole(mode.mode.identifier as TopicMode)
+	const handleCrewSelect = useMemoizedFn((crew: CrewItem) => {
+		roleStore.setCurrentRole(crew.mode.identifier as TopicMode)
 	})
 
 	// 默认选中第一个 mode
@@ -46,6 +49,17 @@ const ChatPage = observer(() => {
 	const selectedProject = projectStore.selectedProject
 	const selectedWorkspace = workspaceStore.selectedWorkspace ?? workspaceStore.firstWorkspace
 	const displayWorkspaceName = selectedWorkspace?.name || t("super:workspace.unnamedWorkspace")
+	const userId = userStore.user.userInfo?.user_id
+	const isTaskRunning = selectedTopic?.task_status === TaskStatus.RUNNING
+
+	const { handleInterrupt } = useTaskInterrupt({
+		selectedTopic,
+		userId,
+		isStopping: stopEventLoading,
+		setIsStopping: setStopEventLoading,
+		canInterrupt: isTaskRunning,
+	})
+
 	const editorContext = useMemo<SceneEditorContext>(
 		() => ({
 			selectedTopic,
@@ -57,6 +71,10 @@ const ChatPage = observer(() => {
 			setTopicMode: roleStore.setCurrentRole,
 			topicExamplesMode: currentRole,
 			layoutConfig: MOBILE_LAYOUT_CONFIG,
+			showLoading: isTaskRunning,
+			isTaskRunning,
+			stopEventLoading,
+			handleInterrupt,
 			onSendSuccess: ({ currentProject, currentTopic }) => {
 				if (!selectedWorkspace || !currentProject || !currentTopic) return
 				mobileInputContainerRef.current?.closeRealInput()
@@ -64,7 +82,15 @@ const ChatPage = observer(() => {
 			},
 			autoFocus: true,
 		}),
-		[currentRole, selectedTopic, selectedProject, selectedWorkspace],
+		[
+			currentRole,
+			selectedTopic,
+			selectedProject,
+			selectedWorkspace,
+			isTaskRunning,
+			stopEventLoading,
+			handleInterrupt,
+		],
 	)
 
 	return (

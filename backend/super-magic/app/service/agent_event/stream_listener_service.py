@@ -9,8 +9,6 @@ from agentlang.config.non_human_config import NonHumanConfigManager
 from agentlang.context.tool_context import ToolContext
 from app.core.entity.event.event import (
     AfterClientChatEventData,
-    AfterSafetyCheckEventData,
-    BeforeSafetyCheckEventData,
     BeforeMcpInitEventData,
     AfterMcpInitEventData,
 )
@@ -60,8 +58,6 @@ class StreamListenerService:
         event_listeners = {
             EventType.BEFORE_INIT: StreamListenerService._handle_before_init,
             EventType.AFTER_INIT: StreamListenerService._handle_after_init,
-            EventType.BEFORE_SAFETY_CHECK: StreamListenerService._handle_before_safety_check,
-            EventType.AFTER_SAFETY_CHECK: StreamListenerService._handle_after_safety_check,
             EventType.AFTER_CLIENT_CHAT: StreamListenerService._handle_after_client_chat,
             EventType.BEFORE_LLM_REQUEST: StreamListenerService._handle_before_llm_request,
             EventType.AFTER_LLM_REQUEST: StreamListenerService._handle_after_llm_response,
@@ -73,7 +69,6 @@ class StreamListenerService:
             EventType.AFTER_TOOL_CALL: StreamListenerService._handle_after_tool_call,
             EventType.PENDING_TOOL_CALL: StreamListenerService._handle_pending_tool_call,
             EventType.AGENT_SUSPENDED: StreamListenerService._handle_agent_suspended,
-            EventType.BEFORE_MAIN_AGENT_RUN: StreamListenerService._handle_before_main_agent_run,
             EventType.AFTER_MAIN_AGENT_RUN: StreamListenerService._handle_after_main_agent_run,
             EventType.ERROR: StreamListenerService._handle_error,
             EventType.FILE_CREATED: StreamListenerService._handle_file_created,
@@ -333,24 +328,8 @@ class StreamListenerService:
 
         task_message = TaskMessageFactory.create_agent_suspended_message(
             event.data.agent_context,
-            event.data.remark
+            event.data.final_task_state,
         )
-        tool_context = ToolContext(metadata=event.data.agent_context.get_metadata())
-        tool_context.register_extension("agent_context", event.data.agent_context)
-        tool_context.register_extension("event_context", EventContext())
-
-        await StreamListenerService._send_task_message(tool_context, task_message, event)
-
-    @staticmethod
-    async def _handle_before_main_agent_run(event: Event[BeforeSafetyCheckEventData]) -> None:
-        """
-        处理主agent运行前事件
-
-        Args:
-            event: 主agent运行前事件对象，包含BeforeSafetyCheckEventData数据
-        """
-        task_message = TaskMessageFactory.create_before_safety_check_message(event)
-
         tool_context = ToolContext(metadata=event.data.agent_context.get_metadata())
         tool_context.register_extension("agent_context", event.data.agent_context)
         tool_context.register_extension("event_context", EventContext())
@@ -380,46 +359,16 @@ class StreamListenerService:
         Args:
             event: 错误事件对象，包含ErrorEventData数据
         """
-        task_message = TaskMessageFactory.create_error_message(event.data.agent_context, event.data.error_message)
+        task_message = TaskMessageFactory.create_error_message(
+            event.data.agent_context,
+            event.data.final_task_state,
+        )
         tool_context = ToolContext(metadata=event.data.agent_context.get_metadata())
         tool_context.register_extension("agent_context", event.data.agent_context)
         tool_context.register_extension("event_context", EventContext())
 
         await StreamListenerService._send_task_message(tool_context, task_message, event)
 
-    @staticmethod
-    async def _handle_before_safety_check(event: Event[BeforeSafetyCheckEventData]) -> None:
-        """
-        处理安全检查前事件
-
-        Args:
-            event: 安全检查前事件对象，包含BeforeSafetyCheckEventData数据
-        """
-        task_message = TaskMessageFactory.create_before_safety_check_message(event)
-
-        tool_context = ToolContext(metadata=event.data.agent_context.get_metadata())
-        tool_context.register_extension("agent_context", event.data.agent_context)
-        tool_context.register_extension("event_context", EventContext())
-
-        await StreamListenerService._send_task_message(tool_context, task_message, event)
-
-    @staticmethod
-    async def _handle_after_safety_check(event: Event[AfterSafetyCheckEventData]) -> None:
-        """
-        处理安全检查后事件
-
-        Args:
-            event: 安全检查后事件对象，包含AfterSafetyCheckEventData数据
-        """
-        task_message = TaskMessageFactory.create_after_safety_check_message(event)
-
-        tool_context = ToolContext(metadata=event.data.agent_context.get_metadata())
-        tool_context.register_extension("agent_context", event.data.agent_context)
-        tool_context.register_extension("event_context", EventContext())
-
-        await StreamListenerService._send_task_message(tool_context, task_message, event)
-
-    @staticmethod
     async def _create_steps_from_todo_items(agent_context: AgentContext) -> List[TaskStep]:
         """
         从todo文件中加载todo列表并创建步骤列表

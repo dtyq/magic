@@ -15,7 +15,7 @@ const Header = observer(function Header({ className }: { className?: string }) {
 	return (
 		<Flex
 			className={cn(
-				"w-full flex-none select-none items-center justify-between bg-transparent",
+				"w-full flex-none shrink-0 select-none items-center justify-between bg-transparent",
 				"px-3 py-0",
 				className,
 			)}

@@ -71,6 +71,38 @@
         "zh_CN": "未知文件",
         "en_US": "Unknown file"
     },
+    "read_file.detail_failed_title": {
+        "zh_CN": "读取文件失败",
+        "en_US": "Failed to Read Files"
+    },
+    "read_file.detail_failed_summary": {
+        "zh_CN": "共 {{total}} 个文件，成功 {{success}} 个，失败 {{failed}} 个",
+        "en_US": "{{total}} files total — {{success}} succeeded, {{failed}} failed"
+    },
+    "read_file.detail_failed_list_header": {
+        "zh_CN": "失败文件：",
+        "en_US": "Failed files:"
+    },
+    "read_file.detail_reason_not_exist": {
+        "zh_CN": "文件不存在",
+        "en_US": "File not found"
+    },
+    "read_file.detail_reason_is_directory": {
+        "zh_CN": "路径是文件夹",
+        "en_US": "Path is a directory"
+    },
+    "read_file.detail_reason_conversion_failed": {
+        "zh_CN": "格式转换失败",
+        "en_US": "Format conversion failed"
+    },
+    "read_file.detail_reason_unexpected": {
+        "zh_CN": "读取异常",
+        "en_US": "Unexpected error"
+    },
+    "read_file.detail_reason_unknown": {
+        "zh_CN": "未知错误",
+        "en_US": "Unknown error"
+    },
     "read_file.conversion_strategy_balanced": {
         "zh_CN": "平衡模式",
         "en_US": "Balanced"
@@ -463,6 +495,50 @@
         "zh_CN": "保存到: {{paths}}",
         "en_US": "Saved to: {{paths}}"
     },
+    "generate_video.success": {
+        "zh_CN": "视频生成成功，文件：{{file_name}}",
+        "en_US": "Video generation successful, file: {{file_name}}"
+    },
+    "generate_video.pending": {
+        "zh_CN": "视频创建工具已轮询到超时，任务仍在生成中。若用户后续明确要求查询，可使用 operation_id={{operation_id}} 继续查询，当前状态={{status}}",
+        "en_US": "The video creation tool timed out while polling and the task is still running. If the user explicitly asks later, continue querying with operation_id={{operation_id}}, current status={{status}}"
+    },
+    "generate_video.error": {
+        "zh_CN": "视频生成失败: {{error}}",
+        "en_US": "Video generation failed: {{error}}"
+    },
+    "query_video_generation.success": {
+        "zh_CN": "视频任务完成，文件：{{file_name}}",
+        "en_US": "Video task completed, file: {{file_name}}"
+    },
+    "query_video_generation.pending": {
+        "zh_CN": "视频任务仍在处理中。operation_id={{operation_id}}，当前状态={{status}}",
+        "en_US": "Video task is still processing. operation_id={{operation_id}}, current status={{status}}"
+    },
+    "query_video_generation.error": {
+        "zh_CN": "查询视频任务失败: {{error}}",
+        "en_US": "Failed to query video task: {{error}}"
+    },
+    "task_progress.queued_message": {
+        "zh_CN": "{{task_label}}排队中（{{percentage}}%）",
+        "en_US": "{{task_label}} queued ({{percentage}}%)"
+    },
+    "task_progress.processing_message": {
+        "zh_CN": "{{task_label}}处理中（{{percentage}}%）",
+        "en_US": "{{task_label}} processing ({{percentage}}%)"
+    },
+    "task_progress.completed_message": {
+        "zh_CN": "{{task_label}}已完成（{{percentage}}%）",
+        "en_US": "{{task_label}} completed ({{percentage}}%)"
+    },
+    "task_progress.failed_message": {
+        "zh_CN": "{{task_label}}失败{{status_reason}}",
+        "en_US": "{{task_label}} failed{{status_reason}}"
+    },
+    "task_progress.canceled_message": {
+        "zh_CN": "{{task_label}}已取消{{status_reason}}",
+        "en_US": "{{task_label}} canceled{{status_reason}}"
+    },
     "edit_image.multiple": {
         "zh_CN": "共{{count}}张图片",
         "en_US": "{{count}} images edited"
@@ -699,29 +775,17 @@
         "zh_CN": "查询画布概览异常，请重试",
         "en_US": "Query canvas overview failed, please try again"
     },
-    "create_canvas_element.success": {
-        "zh_CN": "元素 {{element_name}} ({{element_type}}) 创建成功",
-        "en_US": "Element {{element_name}} ({{element_type}}) created successfully"
+    "generate_images_to_canvas.exception": {
+        "zh_CN": "AI 图片生成异常，请重试",
+        "en_US": "AI image generation exception, please retry"
     },
-    "create_canvas_element.exception": {
-        "zh_CN": "创建元素异常，请重试",
-        "en_US": "Element creation exception, please retry"
+    "search_images_to_canvas.exception": {
+        "zh_CN": "图片搜索异常，请重试",
+        "en_US": "Image search exception, please retry"
     },
-    "update_canvas_element.success": {
-        "zh_CN": "元素 {{element_display}} 更新成功",
-        "en_US": "Element {{element_display}} updated successfully"
-    },
-    "update_canvas_element.exception": {
-        "zh_CN": "更新元素异常，请重试",
-        "en_US": "Element update exception, please retry"
-    },
-    "reorder_canvas_elements.success": {
-        "zh_CN": "元素 {{element_display}} 图层调整成功 ({{action}})",
-        "en_US": "Element {{element_display}} layer reordered successfully ({{action}})"
-    },
-    "reorder_canvas_elements.exception": {
-        "zh_CN": "调整图层异常，请重试",
-        "en_US": "Layer reorder exception, please retry"
+    "generate_videos_to_canvas.exception": {
+        "zh_CN": "AI 视频生成异常，请重试",
+        "en_US": "AI video generation exception, please retry"
     },
     "query_canvas_element.success": {
         "zh_CN": "元素 {{element_id}} 详情查询完成",
@@ -763,6 +827,10 @@
         "zh_CN": "成功生成图片 '{{name}}' 并添加到画布",
         "en_US": "Successfully generated image '{{name}}' and added to canvas"
     },
+    "generate_videos_to_canvas.summary": {
+        "zh_CN": "视频结果：完成 {{completed}} 个，处理中 {{processing}} 个，失败 {{failed}} 个",
+        "en_US": "Video result: {{completed}} completed, {{processing}} processing, {{failed}} failed"
+    },
     "thinking.start_deep_thinking": {
         "zh_CN": "开始深入思考问题：{{problem}}",
         "en_US": "Starting deep thinking on problem: {{problem}}"
@@ -795,61 +863,137 @@
         "zh_CN": "深度写作问题: {{question}}",
         "en_US": "Deep writing question: {{question}}"
     },
-    "call_agent.start": {
-        "zh_CN": "调用智能体: {{agent_name}}",
-        "en_US": "Calling agent: {{agent_name}}"
+    "call_subagent.start": {
+        "zh_CN": "{{agent_name}} 已接收任务",
+        "en_US": "Calling sub-agent: {{agent_name}}"
     },
-    "call_agent.error": {
-        "zh_CN": "代理调用失败: {{error}}",
-        "en_US": "Agent call failed: {{error}}"
+    "call_subagent.error": {
+        "zh_CN": "调用子智能体失败: {{error}}",
+        "en_US": "Sub-agent call failed: {{error}}"
     },
-    "call_agent.unknown_agent": {
-        "zh_CN": "未知智能体",
-        "en_US": "Unknown agent"
+    "call_subagent.assign": {
+        "zh_CN": "{{agent_name}} 子智能体",
+        "en_US": "{{agent_name}} sub-agent"
+    },
+    "call_subagent.running": {
+        "zh_CN": "{{agent_name}} 正在执行任务",
+        "en_US": "{{agent_name}} is working on the task"
+    },
+    "call_subagent.done": {
+        "zh_CN": "{{agent_name}} 已完成任务",
+        "en_US": "{{agent_name}} completed the task"
+    },
+    "call_subagent.failed": {
+        "zh_CN": "{{agent_name}} 执行失败：{{error}}",
+        "en_US": "{{agent_name}} failed to complete the task: {{error}}"
+    },
+    "call_subagent.interrupted": {
+        "zh_CN": "{{agent_name}} 的任务已中断",
+        "en_US": "{{agent_name}} was interrupted"
+    },
+    "call_subagent.unknown_agent": {
+        "zh_CN": "未知子智能体",
+        "en_US": "Unknown sub-agent"
+    },
+    "call_subagent.status.accepted": {
+        "zh_CN": "已接收任务",
+        "en_US": "Task accepted"
+    },
+    "call_subagent.status.running": {
+        "zh_CN": "正在执行",
+        "en_US": "Running"
+    },
+    "call_subagent.status.done": {
+        "zh_CN": "已完成",
+        "en_US": "Done"
+    },
+    "call_subagent.status.failed": {
+        "zh_CN": "执行失败",
+        "en_US": "Failed"
+    },
+    "call_subagent.status.interrupted": {
+        "zh_CN": "已中断",
+        "en_US": "Interrupted"
+    },
+    "call_subagent.detail.sub_agent": {
+        "zh_CN": "子智能体",
+        "en_US": "Sub-agent"
+    },
+    "call_subagent.detail.session_id": {
+        "zh_CN": "会话 ID",
+        "en_US": "Session ID"
+    },
+    "call_subagent.detail.mode": {
+        "zh_CN": "执行模式",
+        "en_US": "Mode"
+    },
+    "call_subagent.detail.mode_sync": {
+        "zh_CN": "同步",
+        "en_US": "Sync"
+    },
+    "call_subagent.detail.mode_background": {
+        "zh_CN": "后台并行",
+        "en_US": "Background (parallel)"
+    },
+    "call_subagent.detail.model": {
+        "zh_CN": "模型",
+        "en_US": "Model"
+    },
+    "call_subagent.detail.task": {
+        "zh_CN": "任务",
+        "en_US": "Task"
+    },
+    "call_subagent.detail.status": {
+        "zh_CN": "状态",
+        "en_US": "Status"
+    },
+    "call_subagent.detail.result": {
+        "zh_CN": "结果",
+        "en_US": "Result"
+    },
+    "call_subagent.detail.error": {
+        "zh_CN": "错误",
+        "en_US": "Error"
+    },
+    "call_subagent.detail.next_step": {
+        "zh_CN": "下一步",
+        "en_US": "Next step"
+    },
+    "wait_for_subagents.error": {
+        "zh_CN": "等待子智能体失败: {{error}}",
+        "en_US": "Failed while waiting for sub-agents: {{error}}"
     },
     "compact_chat_history.remark": {
-        "zh_CN": "当前对话内容过长，{{agent_name}}将整理自己的记忆，可能导致先前对话中的一些细节被遗忘；太长的对话会影响{{agent_name}}的工作效率，建议在处理新的事务时新建话题",
-        "en_US": "Current conversation is too long. {{agent_name}} will organize its memory, which may cause some details from previous conversations to be forgotten. Long conversations will affect {{agent_name}}'s work efficiency. It's recommended to start a new topic when handling new tasks."
+        "zh_CN": "当前对话内容过长，「{{agent_name}}」将整理自己的记忆，可能导致先前对话中的一些细节被遗忘；太长的对话会影响「{{agent_name}}」的工作效率",
+        "en_US": "Current conversation is too long. {{agent_name}} will organize its memory, which may cause some details from previous conversations to be forgotten. Long conversations will affect {{agent_name}}'s work efficiency."
     },
-    "skills_read.success": {
-        "zh_CN": "技能学习成功",
-        "en_US": "Skill learned"
+    "read_skills.success": {
+        "zh_CN": "技能装备成功",
+        "en_US": "Skill equipped"
     },
-    "skills_read.success_multiple": {
-        "zh_CN": "已学习 {{skill_name}} 等 {{count}} 个技能",
-        "en_US": "Learned {{skill_name}} and {{count}} other Skills"
+    "read_skills.success_single": {
+        "zh_CN": "已装备技能 {{skill_name}}",
+        "en_US": "Equipped Skill {{skill_name}}"
     },
-    "skills_read.success_single": {
-        "zh_CN": "已学习技能 {{skill_name}}",
-        "en_US": "Learned Skill {{skill_name}}"
+    "read_skills.success_multiple": {
+        "zh_CN": "已装备 {{count}} 个技能",
+        "en_US": "Equipped {{count}} Skills"
     },
-    "skills_read.error": {
-        "zh_CN": "技能学习失败",
-        "en_US": "Failed to learn Skill"
+    "read_skills.partial": {
+        "zh_CN": "已装备 {{success_count}} 个技能，{{failure_count}} 个失败",
+        "en_US": "Equipped {{success_count}} Skills, {{failure_count}} failed"
     },
-    "skills_read.error_with_name": {
-        "zh_CN": "学习技能 {{skill_name}} 失败",
-        "en_US": "Failed to learn Skill {{skill_name}}"
+    "read_skills.fail_single": {
+        "zh_CN": "装备技能 {{skill_name}} 失败",
+        "en_US": "Failed to equip Skill {{skill_name}}"
     },
-    "skill_read_references.success": {
-        "zh_CN": "深入学习技能成功",
-        "en_US": "Skill references explored"
+    "read_skills.fail_multiple": {
+        "zh_CN": "装备 {{count}} 个技能失败",
+        "en_US": "Failed to equip {{count}} Skills"
     },
-    "skill_read_references.success_multiple": {
-        "zh_CN": "已深入学习 {{skill_name}} 等 {{count}} 份技能参考文档",
-        "en_US": "Explored {{skill_name}} and {{count}} other Skill references"
-    },
-    "skill_read_references.success_single": {
-        "zh_CN": "已深入学习 {{skill_name}} 技能参考文档",
-        "en_US": "Explored {{skill_name}} Skill references"
-    },
-    "skill_read_references.error": {
-        "zh_CN": "深入学习技能失败",
-        "en_US": "Failed to explore Skill references"
-    },
-    "skill_read_references.error_with_name": {
-        "zh_CN": "深入学习 {{skill_name}} 技能参考文档失败",
-        "en_US": "Failed to explore {{skill_name}} Skill references"
+    "read_skills.error": {
+        "zh_CN": "技能装备失败",
+        "en_US": "Failed to equip Skill"
     },
     "create_memory.success": {
         "zh_CN": "{{preview}}",
@@ -1046,5 +1190,165 @@
     "video.project_path_not_directory": {
         "zh_CN": "路径有误，将尝试解决...",
         "en_US": "Path error, attempting to resolve..."
+    },
+    "skill_list.success": {
+        "zh_CN": "已列出可用技能",
+        "en_US": "Skills listed"
+    },
+    "skill_list.error": {
+        "zh_CN": "列出技能失败",
+        "en_US": "Failed to list skills"
+    },
+    "upgrade_sandbox.success": {
+        "zh_CN": "沙箱升级请求已提交",
+        "en_US": "Sandbox upgrade initiated"
+    },
+    "upgrade_sandbox.error": {
+        "zh_CN": "沙箱升级失败",
+        "en_US": "Sandbox upgrade failed"
+    },
+    "manage_cron.status": {
+        "zh_CN": "查看定时任务状态",
+        "en_US": "Checking cron job status"
+    },
+    "manage_cron.list": {
+        "zh_CN": "列出定时任务",
+        "en_US": "Listing cron jobs"
+    },
+    "manage_cron.add": {
+        "zh_CN": "创建定时任务",
+        "en_US": "Creating cron job"
+    },
+    "manage_cron.update": {
+        "zh_CN": "更新定时任务",
+        "en_US": "Updating cron job"
+    },
+    "manage_cron.remove": {
+        "zh_CN": "删除定时任务",
+        "en_US": "Removing cron job"
+    },
+    "manage_cron.run": {
+        "zh_CN": "立即触发定时任务",
+        "en_US": "Triggering cron job"
+    },
+    "manage_cron.runs": {
+        "zh_CN": "查看定时任务执行记录",
+        "en_US": "Listing cron job runs"
+    },
+    "manage_cron.added": {
+        "zh_CN": "已创建定时任务 {{job_id}}",
+        "en_US": "Created cron job {{job_id}}"
+    },
+    "manage_cron.updated": {
+        "zh_CN": "已更新定时任务 {{job_id}}",
+        "en_US": "Updated cron job {{job_id}}"
+    },
+    "manage_cron.removed": {
+        "zh_CN": "已删除定时任务 {{job_id}}",
+        "en_US": "Removed cron job {{job_id}}"
+    },
+    "manage_cron.triggered": {
+        "zh_CN": "已触发定时任务 {{job_id}}",
+        "en_US": "Triggered cron job {{job_id}}"
+    },
+    "manage_cron.error": {
+        "zh_CN": "定时任务操作失败: {{error}}",
+        "en_US": "Cron job operation failed: {{error}}"
+    },
+    "channel.connect_wecom_bot.success": {
+        "zh_CN": "已提交企业微信 Bot 连接（Bot ID：{{bot_id}}）",
+        "en_US": "WeCom bot connection submitted (Bot ID: {{bot_id}})"
+    },
+    "channel.connect_wecom_bot.error": {
+        "zh_CN": "企业微信连接失败：{{error}}",
+        "en_US": "WeCom connection failed: {{error}}"
+    },
+    "channel.connect_wechat_bot.success": {
+        "zh_CN": "已发起微信扫码登录",
+        "en_US": "WeChat QR login started"
+    },
+    "channel.connect_wechat_bot.error": {
+        "zh_CN": "微信登录流程失败：{{error}}",
+        "en_US": "WeChat login flow failed: {{error}}"
+    },
+    "channel.connect_lark_bot.success": {
+        "zh_CN": "已提交飞书 Bot 连接（App ID：{{app_id}}）",
+        "en_US": "Lark bot connection submitted (App ID: {{app_id}})"
+    },
+    "channel.connect_lark_bot.error": {
+        "zh_CN": "飞书连接失败：{{error}}",
+        "en_US": "Lark connection failed: {{error}}"
+    },
+    "channel.connect_dingtalk_bot.success": {
+        "zh_CN": "已提交钉钉 Bot 连接（Client ID：{{client_id}}）",
+        "en_US": "DingTalk bot connection submitted (Client ID: {{client_id}})"
+    },
+    "channel.connect_dingtalk_bot.error": {
+        "zh_CN": "钉钉连接失败：{{error}}",
+        "en_US": "DingTalk connection failed: {{error}}"
+    },
+    "channel.wait_wechat_login.success": {
+        "zh_CN": "微信登录步骤已完成",
+        "en_US": "WeChat login step completed"
+    },
+    "channel.wait_wechat_login.error": {
+        "zh_CN": "等待微信登录失败：{{error}}",
+        "en_US": "WeChat login wait failed: {{error}}"
+    },
+    "channel.get_im_channel_status.success": {
+        "zh_CN": "已查询 IM 渠道状态",
+        "en_US": "IM channel status retrieved"
+    },
+    "channel.get_im_channel_status.error": {
+        "zh_CN": "查询 IM 渠道状态失败：{{error}}",
+        "en_US": "Failed to query IM channel status: {{error}}"
+    },
+    "channel.wecom.label": {
+        "zh_CN": "企业微信",
+        "en_US": "WeCom"
+    },
+    "channel.wechat.label": {
+        "zh_CN": "微信",
+        "en_US": "WeChat"
+    },
+    "channel.lark.label": {
+        "zh_CN": "飞书",
+        "en_US": "Lark"
+    },
+    "channel.dingtalk.label": {
+        "zh_CN": "钉钉",
+        "en_US": "DingTalk"
+    },
+    "channel.status.connected": {
+        "zh_CN": "已连接",
+        "en_US": "Connected"
+    },
+    "channel.status.disconnected": {
+        "zh_CN": "未连接",
+        "en_US": "Disconnected"
+    },
+    "channel.status.not_configured": {
+        "zh_CN": "未配置",
+        "en_US": "Not Configured"
+    },
+    "channel.status.field.status": {
+        "zh_CN": "状态",
+        "en_US": "Status"
+    },
+    "channel.status.field.config": {
+        "zh_CN": "配置",
+        "en_US": "Config"
+    },
+    "channel.status.field.auto_connect": {
+        "zh_CN": "自动连接",
+        "en_US": "Auto-connect"
+    },
+    "channel.status.auto_connect_enabled": {
+        "zh_CN": "已启用",
+        "en_US": "enabled"
+    },
+    "channel.status.auto_connect_disabled": {
+        "zh_CN": "已禁用",
+        "en_US": "disabled"
     }
 }

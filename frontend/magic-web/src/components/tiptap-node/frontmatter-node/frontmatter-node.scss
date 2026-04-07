@@ -1,0 +1,76 @@
+.tiptap.ProseMirror {
+  --tt-frontmatter-bg: var(--tt-gray-light-50);
+  --tt-frontmatter-border: var(--tt-gray-light-a-300);
+  --tt-frontmatter-text: var(--tt-gray-light-700);
+  --tt-frontmatter-muted: var(--tt-gray-light-600);
+  --tt-frontmatter-surface: var(--tt-gray-light-a-100);
+  --tt-frontmatter-error: var(--tt-red-light-600);
+
+  .dark & {
+    --tt-frontmatter-bg: var(--tt-gray-dark-a-50);
+    --tt-frontmatter-border: var(--tt-gray-dark-a-300);
+    --tt-frontmatter-text: var(--tt-gray-dark-200);
+    --tt-frontmatter-muted: var(--tt-gray-dark-300);
+    --tt-frontmatter-surface: var(--tt-gray-dark-a-100);
+    --tt-frontmatter-error: var(--tt-red-dark-500);
+  }
+
+  .markdown-frontmatter-node {
+    margin: 0 0 1rem;
+    padding: 1rem;
+    border: 1px solid var(--tt-frontmatter-border);
+    border-radius: 0.75rem;
+    background: var(--tt-frontmatter-bg);
+    color: var(--tt-frontmatter-text);
+  }
+
+  .ProseMirror-selectednode.markdown-frontmatter-node {
+    outline: 2px solid var(--tt-brand-color-500);
+    outline-offset: 2px;
+  }
+
+  .markdown-frontmatter-node__raw-label {
+    font-size: 0.75rem;
+    font-weight: 700;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--tt-frontmatter-muted);
+    display: block;
+    margin-bottom: 0.5rem;
+  }
+
+  .markdown-frontmatter-node__raw,
+  .markdown-frontmatter-node__textarea {
+    width: 100%;
+    margin: 0;
+    padding: 0.75rem;
+    border-radius: 0.625rem;
+    border: 1px solid var(--tt-frontmatter-border);
+    background: var(--tt-frontmatter-surface);
+    white-space: pre-wrap;
+    word-break: break-word;
+    font-size: 0.875rem;
+    line-height: 1.5;
+    font-family: "JetBrains Mono NL", "SF Mono", Monaco, Menlo, Consolas, "Ubuntu Mono",
+      "Liberation Mono", "DejaVu Sans Mono", "Courier New", monospace;
+  }
+
+  .markdown-frontmatter-node__textarea {
+    min-height: 240px;
+    resize: vertical;
+    color: var(--tt-frontmatter-text);
+    outline: none;
+
+    &:focus {
+      border-color: var(--tt-brand-color-500);
+      box-shadow: 0 0 0 2px rgb(var(--primary-rgb) / 0.12);
+    }
+  }
+
+  .markdown-frontmatter-node__error {
+    margin-top: 0.625rem;
+    color: var(--tt-frontmatter-error);
+    font-size: 0.875rem;
+    font-weight: 600;
+  }
+}

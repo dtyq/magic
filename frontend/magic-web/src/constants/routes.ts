@@ -96,6 +96,8 @@ export const enum RoutePath {
 	CrewMarketCrew = "/market/crew",
 	CrewMarketSkills = "/market/skills",
 	CrewEdit = "/crew/:id",
+	SkillEdit = "/skill/:code",
+	ClawPlayground = "/claw/:code",
 	MySkills = "/my-skills",
 	MyCrew = "/my-crew",
 	MagiClaw = "/magi-claw",

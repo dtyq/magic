@@ -38,7 +38,7 @@ class AppMenuSaveRequest extends FormRequest
             'icon_url' => [
                 'nullable',
                 'string',
-                'max:255',
+                'max:2048',
                 Rule::requiredIf(fn (): bool => $this->getRequestedIconType() === AppMenuIconType::Image),
             ],
             'icon_type' => [
@@ -68,7 +68,7 @@ class AppMenuSaveRequest extends FormRequest
             'icon.max' => '图标最大长度为255个字符',
             'icon_url.required' => '图标图片不能为空',
             'icon_url.string' => '图标图片必须是字符串',
-            'icon_url.max' => '图标图片最大长度为255个字符',
+            'icon_url.max' => '图标图片最大长度为2048个字符',
             'icon_type.required' => '图标类型不能为空',
             'icon_type.integer' => '图标类型必须是整数',
             'icon_type.in' => '图标类型不合法',

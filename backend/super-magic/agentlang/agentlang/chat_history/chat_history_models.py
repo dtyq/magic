@@ -54,25 +54,29 @@ class CompactionConfig:
 
     # 触发阈值配置
     token_threshold: int = 0  # 触发压缩的 Token 阈值
-    max_conversation_rounds: int = 300  # 触发压缩的消息数量阈值
+    max_conversation_rounds: int = 500  # 触发压缩的消息数量阈值
 
     # Dynamic threshold calculation (kept for compatibility)
     default_token_threshold: int = 100_000
     min_token_threshold: int = 100_000
-    max_token_threshold: int = 160_000
-    context_usage_ratio: float = 0.75
+    max_token_threshold: int = 180_000
+    context_usage_ratio: float = 0.9
     # FIXME: 临时措施：定价分区压缩策略表（硬编码）
     # 命中规则优先于 context_usage_ratio；未命中时回退到比例策略。
     pricing_tier_rules: List[PricingTierCompactionRule] = field(
         default_factory=lambda: [
-            # 已知价格在 200K 输入附近跳档的模型，固定在 180K 触发压缩
+            # 已知价格在 200K 输入附近跳档的模型，固定在 180K 触发压缩。
+            # Claude 关键词同时兼容两种命名顺序，这是历史遗留导致的模型命名不规范问题。
             PricingTierCompactionRule(
                 name="pricing_cliff_200k",
                 pricing_interval="200K",
                 model_keywords=(
                     "claude-sonnet-4.6",
+                    "claude-4.6-sonnet",
                     "claude-sonnet-4.5",
+                    "claude-4.5-sonnet",
                     "claude-sonnet-4",
+                    "claude-4-sonnet",
                     "gemini-3-pro",
                     "gemini-3-pro-preview",
                     "gemini-3.1-pro",
@@ -127,10 +131,9 @@ class CompactionConfig:
         if model_config:
             match_texts.extend([model_config.name, model_config.provider])
             metadata = model_config.metadata or {}
-            for key in ("provider_model_id", "provider_alias", "label"):
-                value = metadata.get(key)
-                if value:
-                    match_texts.append(str(value))
+            label = metadata.get("label")
+            if label:
+                match_texts.append(str(label))
         return [text.lower() for text in match_texts if text]
 
     def _match_pricing_tier_rule(self, match_texts: List[str]) -> Optional[PricingTierCompactionRule]:
@@ -424,16 +427,21 @@ class UserMessage:
     content: str # 用户消息内容，不能为空
     role: Literal["user"] = "user"
     created_at: str = field(default_factory=lambda: datetime.now().strftime("%Y-%m-%d %H:%M:%S"))
-    show_in_ui: bool = True # <--- 重命名并设置默认值
+    show_in_ui: bool = True
+    # 消息来源标记：None = 真实用户输入；"horizon" = AgentHorizon 注入；其他值供扩展使用
+    source: Optional[str] = None
 
     def to_dict(self) -> Dict[str, Any]:
-        return {
+        d: Dict[str, Any] = {
             "id": str(uuid.uuid4()), # 运行时 ID
             "timestamp": self.created_at,
             "role": self.role,
             "content": self.content,
             "show_in_ui": self.show_in_ui,
         }
+        if self.source is not None:
+            d["source"] = self.source
+        return d
 
     def to_llm_dict(self) -> Dict[str, Any]:
         """Convert to LLM API compatible format with whitelist fields only"""
@@ -451,6 +459,7 @@ class UserMessage:
             role=data.get("role", "user"),
             show_in_ui=data.get("show_in_ui", True),
             created_at=data.get("timestamp", datetime.now().isoformat()),
+            source=data.get("source"),
         )
 
 @dataclass

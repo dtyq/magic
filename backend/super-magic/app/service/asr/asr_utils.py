@@ -9,7 +9,7 @@ from pathlib import Path
 
 from loguru import logger
 
-from app.paths import PathManager
+from app.path_manager import PathManager
 
 
 def check_ffmpeg_installed() -> bool:

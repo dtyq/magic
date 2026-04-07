@@ -1,9 +1,8 @@
 """
 工具参数处理工具模块
-统一处理工具参数的验证、修复和Unicode转义解码
+统一处理工具参数的验证和修复
 """
 
-import codecs
 import json
 import json_repair
 from typing import Dict, Any, List
@@ -64,54 +63,6 @@ def parse_multiline_kv(kv_string: str, param_name: str) -> Dict[str, str]:
             logger.warning(f"{param_name} 包含空键或空值: {line}")
 
     return result
-
-
-def decode_unicode_escapes_in_dict(data: Dict[str, Any]) -> Dict[str, Any]:
-    """
-    递归处理字典中的Unicode转义字符，将转义序列转换为实际字符
-
-    注意：Unicode转义序列（如\u4e2a）在JSON中是完全合法的，
-    此函数只是为了解决部分大模型输出异常，将转义序列解码为可读的字符。
-
-    Args:
-        data: 包含可能需要Unicode解码的字典
-
-    Returns:
-        Dict[str, Any]: 解码后的字典，如果不包含转义字符则返回原字典
-    """
-    def decode_unicode_string(s: str) -> str:
-        """
-        使用 codecs.decode 解码字符串中的 Unicode 转义序列
-        该方法能正确处理 \\uXXXX 格式的转义序列，避免编码问题
-        """
-        try:
-            return codecs.decode(s, 'unicode_escape')
-        except (UnicodeDecodeError, UnicodeError, AttributeError):
-            return s  # 解码失败时返回原字符串
-
-    result = {}
-    for key, value in data.items():
-        # 处理key中的Unicode转义
-        if isinstance(key, str) and '\\u' in key:
-            key = decode_unicode_string(key)
-
-        # 处理value
-        if isinstance(value, str) and '\\u' in value:
-            result[key] = decode_unicode_string(value)
-        elif isinstance(value, dict):
-            result[key] = decode_unicode_escapes_in_dict(value)
-        elif isinstance(value, list):
-            result[key] = [
-                decode_unicode_escapes_in_dict(item) if isinstance(item, dict)
-                else decode_unicode_string(item) if isinstance(item, str) and '\\u' in item
-                else item
-                for item in value
-            ]
-        else:
-            result[key] = value
-
-    return result
-
 
 def fix_stringified_json_with_schema(
     arguments_dict: Dict[str, Any],
@@ -221,8 +172,7 @@ def preprocess_tool_call_arguments(tool_call) -> bool:
     处理流程：
     1. 修复 JSON 结构问题（语法错误、格式错误等）
     2. 修复字符串化的 JSON 值（基于 schema 智能修复类型错误）
-    3. 处理 Unicode 转义解码（显示优化，\u4e2a -> 个）
-    4. 标准化 JSON 格式并回写
+    3. 标准化 JSON 格式并回写
 
     直接修改 tool_call 对象的 arguments 字段
 
@@ -230,7 +180,7 @@ def preprocess_tool_call_arguments(tool_call) -> bool:
         tool_call: 工具调用对象（ToolCall 类型，避免循环导入）
 
     Returns:
-        bool: 是否进行了任何处理（修复或解码）
+        bool: 是否进行了任何处理
     """
     arguments_str = tool_call.function.arguments
     original_arguments = arguments_str
@@ -291,21 +241,13 @@ def preprocess_tool_call_arguments(tool_call) -> bool:
     if fixed_stringified_count > 0:
         logger.info(f"工具 '{tool_name}' 参数预处理：修复了 {fixed_stringified_count} 个字符串化字段")
 
-    # 第二步：处理Unicode转义解码（显示优化）
-    decoded_dict = decode_unicode_escapes_in_dict(tool_arguments_dict)
-    unicode_decoded = (decoded_dict != tool_arguments_dict)
-
-    # 第三步：标准化并回写
-    normalized_json_str = json.dumps(decoded_dict, ensure_ascii=False, separators=(',', ':'))
+    # 第二步：标准化并回写
+    normalized_json_str = json.dumps(tool_arguments_dict, ensure_ascii=False, separators=(',', ':'))
     tool_call.function.arguments = normalized_json_str
 
     # 记录处理结果（任何一种处理都算处理过）
-    if fixed_stringified_count > 0 or unicode_decoded or normalized_json_str != original_arguments:
-        if unicode_decoded:
-            logger.info(f"工具 '{tool_name}' 参数预处理：Unicode转义解码完成")
-            logger.debug(f"原始: {original_arguments}")
-            logger.debug(f"解码后: {normalized_json_str}")
-        elif normalized_json_str != original_arguments and fixed_stringified_count == 0:
+    if fixed_stringified_count > 0 or normalized_json_str != original_arguments:
+        if normalized_json_str != original_arguments and fixed_stringified_count == 0:
             logger.debug(f"工具 '{tool_name}' 参数预处理：JSON标准化完成")
         return True
     else:

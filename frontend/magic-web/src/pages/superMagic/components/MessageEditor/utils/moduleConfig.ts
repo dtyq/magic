@@ -27,6 +27,7 @@ export interface ResolvedMessageEditorModules {
 	mcp: ResolvedMessageEditorMCPModuleConfig
 	upload: ResolvedMessageEditorUploadModuleConfig
 	voiceInput: ResolvedMessageEditorModuleConfig
+	send: ResolvedMessageEditorModuleConfig
 }
 
 const LAYOUT_SLOTS: (keyof MessageEditorLayoutConfig)[] = [
@@ -54,6 +55,9 @@ export const DEFAULT_MESSAGE_EDITOR_MODULES: ResolvedMessageEditorModules = {
 		confirmDelete: true,
 	},
 	voiceInput: {
+		enabled: true,
+	},
+	send: {
 		enabled: true,
 	},
 }
@@ -139,6 +143,15 @@ export function resolveMessageEditorModules({
 					? hasToolbarButton(layoutConfig, ToolbarButton.VOICE_INPUT)
 					: providerConfig?.enableVoiceInput,
 				DEFAULT_MESSAGE_EDITOR_MODULES.voiceInput.enabled,
+			),
+		},
+		send: {
+			enabled: resolveModuleEnabled(
+				modules?.send,
+				layoutConfig
+					? hasToolbarButton(layoutConfig, ToolbarButton.SEND_BUTTON)
+					: undefined,
+				DEFAULT_MESSAGE_EDITOR_MODULES.send.enabled,
 			),
 		},
 	}

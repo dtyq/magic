@@ -25,13 +25,13 @@ from agentlang.tools.tool_result import ToolResult
 from agentlang.logger import get_logger
 from app.tools.abstract_file_tool import AbstractFileTool
 from app.tools.core import BaseToolParams, tool
-from app.tools.workspace_guard_tool import WorkspaceGuardTool
+from app.tools.workspace_tool import WorkspaceTool
 from agentlang.utils.syntax_checker import SyntaxChecker
-from app.utils.file_timestamp_manager import get_global_timestamp_manager
 from app.utils.line_number_handler import LineNumberHandler
 from app.utils.diff_generator import DiffGenerator
 from app.utils.punctuation_matcher import PunctuationMatcher
 from app.utils.input_diagnoser import InputDiagnoser
+from app.utils.async_file_utils import async_exists
 
 logger = get_logger(__name__)
 
@@ -57,7 +57,7 @@ class EditFileParams(BaseToolParams):
 
 
 @tool()
-class EditFile(AbstractFileTool[EditFileParams], WorkspaceGuardTool[EditFileParams]):
+class EditFile(AbstractFileTool[EditFileParams], WorkspaceTool[EditFileParams]):
     """<!--zh
     在文件中执行精确的字符串替换，严格验证替换次数。
 
@@ -126,10 +126,9 @@ When editing the same file multiple times:
         """
         try:
             # Get safe file path with fuzzy matching
-            file_path, error, fuzzy_warning = self.get_safe_path_with_fuzzy_match(params.file_path)
-            if error:
-                return ToolResult(error=error)
-
+            resolved = self.resolve_path_fuzzy(params.file_path)
+            file_path = resolved.path
+            fuzzy_warning = resolved.warning
             # Check and strip line numbers from old_string
             old_string_cleaned, had_line_numbers, line_warning = LineNumberHandler.detect_and_strip(params.old_string)
             if had_line_numbers:
@@ -164,7 +163,7 @@ When editing the same file multiple times:
                 )
 
             # Edit existing file
-            if not file_path.exists():
+            if not await async_exists(file_path):
                 tool_context.set_metadata("error_type", "edit_file.error_file_not_exist")
                 return ToolResult(
                     error=f"File does not exist: {file_path}\n"
@@ -172,11 +171,10 @@ When editing the same file multiple times:
                 )
 
             # Verify file hasn't been modified externally
-            timestamp_manager = get_global_timestamp_manager()
-            is_valid, error_message = await timestamp_manager.validate_file_not_modified(file_path)
+            is_valid, error_message = await self.get_horizon(tool_context).validate_file_not_modified(file_path)
             if not is_valid:
                 tool_context.set_metadata("error_type", "edit_file.error_file_modified")
-                return ToolResult(error=error_message)
+                return ToolResult.error(error_message)
 
             # Read file content
             original_content = await self._read_file(file_path)
@@ -189,17 +187,17 @@ When editing the same file multiple times:
 
             if occurrences == 0:
                 # Try to auto-fix punctuation mismatch
-                corrected_string, fix_warning = PunctuationMatcher.try_auto_fix_punctuation(
+                fix_result = PunctuationMatcher.try_auto_fix_punctuation(
                     params.old_string,
                     original_content
                 )
 
-                if corrected_string and fix_warning:
+                if fix_result:
                     # Auto-fix succeeded! Use the corrected string
                     logger.info(
-                        f"Auto-fixed punctuation in old_string: '{params.old_string[:50]}...' -> '{corrected_string[:50]}...'")
-                    params.old_string = corrected_string
-                    punctuation_fix_warning = fix_warning
+                        f"Auto-fixed punctuation in old_string: '{params.old_string[:50]}...' -> '{fix_result.actual[:50]}...'")
+                    params.old_string = fix_result.actual
+                    punctuation_fix_warning = fix_result.warning
                     # Recount with corrected string
                     occurrences = original_content.count(params.old_string)
 
@@ -267,7 +265,7 @@ When editing the same file multiple times:
                         "Remove the extra escape characters from your strings."
                     )
 
-                return ToolResult(error=error_msg)
+                return ToolResult.error(error_msg)
 
             # Handle count mismatch
             if occurrences != params.expected_replacements:
@@ -285,7 +283,7 @@ When editing the same file multiple times:
                 if locations:
                     error_msg += f"Match locations:\n{locations}"
 
-                return ToolResult(error=error_msg)
+                return ToolResult.error(error_msg)
 
             # Perform replacement
             new_content = original_content.replace(params.old_string, params.new_string, params.expected_replacements)

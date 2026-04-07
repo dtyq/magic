@@ -30,9 +30,19 @@ class PublishSkillRequestDTO extends AbstractRequestDTO
         return $this->version;
     }
 
+    public function setVersion(string $version): void
+    {
+        $this->version = $version;
+    }
+
     public function getVersionDescriptionI18n(): ?array
     {
         return $this->versionDescriptionI18n;
+    }
+
+    public function setVersionDescriptionI18n(?array $versionDescriptionI18n): void
+    {
+        $this->versionDescriptionI18n = $versionDescriptionI18n;
     }
 
     public function getPublishTargetType(): string
@@ -40,14 +50,29 @@ class PublishSkillRequestDTO extends AbstractRequestDTO
         return $this->publishTargetType;
     }
 
+    public function setPublishTargetType(string $publishTargetType): void
+    {
+        $this->publishTargetType = $publishTargetType;
+    }
+
     public function getPublishTargetValue(): ?array
     {
         return $this->publishTargetValue;
     }
 
+    public function setPublishTargetValue(?array $publishTargetValue): void
+    {
+        $this->publishTargetValue = $publishTargetValue;
+    }
+
     public function getExportFileFromProject(): bool
     {
         return $this->exportFileFromProject;
+    }
+
+    public function setExportFileFromProject(bool $exportFileFromProject): void
+    {
+        $this->exportFileFromProject = $exportFileFromProject;
     }
 
     public function toPublishTargetValue(): ?PublishTargetValue

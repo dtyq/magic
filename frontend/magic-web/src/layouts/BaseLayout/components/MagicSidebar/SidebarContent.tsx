@@ -21,6 +21,7 @@ import { RouteName } from "@/routes/constants"
 import { getRoutePath, routesPathMatch } from "@/routes/history/helpers"
 import Divider from "@/components/other/Divider"
 import { useSidebarMarketMenuItems } from "./hooks/useSidebarMarketMenuItems"
+import { getClawBrandTranslationValues } from "@/pages/superMagic/utils/clawBrand"
 
 const CollaborationProjectsPanel = lazy(
 	() =>
@@ -29,6 +30,7 @@ const CollaborationProjectsPanel = lazy(
 
 function SidebarContent({ collapsed }: SidebarContentProps) {
 	const { t } = useTranslation(["sidebar", "super"])
+	const clawBrandValues = getClawBrandTranslationValues()
 	const [shareProjectsPanelOpen, setShareProjectsPanelOpen] = useState(false)
 	const location = useLocation()
 	const workspaces = workspaceStore.workspaces
@@ -60,11 +62,14 @@ function SidebarContent({ collapsed }: SidebarContentProps) {
 		testId,
 		Icon,
 	}: (typeof sidebarMarketMenuItems)[number]) {
+		const title =
+			titleKey === "sidebar:superLobster.title" ? t(titleKey, clawBrandValues) : t(titleKey)
+
 		return (
 			<SidebarMenuItem key={routeName}>
 				<SidebarMenuButton
 					asChild
-					tooltip={collapsed ? t(titleKey) : undefined}
+					tooltip={collapsed ? title : undefined}
 					data-testid={testId}
 					className="text-[#0a0a0a] dark:text-[#fafafa]"
 				>
@@ -75,7 +80,7 @@ function SidebarContent({ collapsed }: SidebarContentProps) {
 					>
 						<Icon className="h-4 w-4 shrink-0" />
 						<span className="flex-1 overflow-hidden text-ellipsis whitespace-nowrap text-left text-sm leading-5">
-							{t(titleKey)}
+							{title}
 						</span>
 					</a>
 				</SidebarMenuButton>
@@ -122,6 +127,7 @@ function SidebarContent({ collapsed }: SidebarContentProps) {
 								</a>
 							</SidebarMenuButton>
 						</SidebarMenuItem>
+						{sidebarMarketMenuItems.map(renderSidebarMarketMenuItem)}
 						<SidebarMenuItem>
 							<AppsSubMenu>
 								<SidebarMenuButton
@@ -139,7 +145,6 @@ function SidebarContent({ collapsed }: SidebarContentProps) {
 								</SidebarMenuButton>
 							</AppsSubMenu>
 						</SidebarMenuItem>
-						{sidebarMarketMenuItems.map(renderSidebarMarketMenuItem)}
 					</SidebarMenu>
 				</SidebarGroupContent>
 			</SidebarGroup>

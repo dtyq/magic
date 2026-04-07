@@ -5,7 +5,14 @@
 		"previous": "Previous",
 		"submitting": "Submitting..."
 	},
+	"configDialog": {
+		"description": "Some AI capabilities may require additional configuration to use. You can go to the admin panel now, or configure them later in \"My - Magic Admin\".",
+		"goToConfig": "Go to Config",
+		"skip": "Configure Later",
+		"title": "Initialization Successful!"
+	},
 	"errors": {
+		"missingPreviousSteps": "Please complete the previous steps first, redirecting to step 1...",
 		"submitFailed": "Initialization failed, please try again"
 	},
 	"step1": {
@@ -35,8 +42,10 @@
 		"azureApiVersionHint": "Azure API version following YYYY-MM-DD format",
 		"azureApiVersionPlaceholder": "e.g., 2024-02-15",
 		"deploymentName": "Deployment Name",
-		"deploymentNameHint": "Model deployment identifier (required for Azure OpenAI)",
-		"deploymentNamePlaceholder": "e.g., gpt-4-turbo",
+		"deploymentNameHint": "Model deployment name or ID",
+		"deploymentNamePlaceholder": "e.g., gpt-4-turbo, gpt-4o, claude-3-opus",
+		"deploymentNameRequired": "Please enter deployment name",
+		"deploymentNameTooltip": "Model deployment name",
 		"errors": {
 			"missingConfig": "Please fill in API URL and API Key first"
 		},
@@ -45,9 +54,10 @@
 			"AWSBedrock": "Amazon Bedrock",
 			"DashScope": "Aliyun (Bailian)",
 			"DeepSeek": "DeepSeek",
-			"Gemini": "Google (AI Studio)",
+			"Gemini": "Google",
 			"MicrosoftAzure": "Microsoft Azure",
-			"OpenAI": "Custom Provider",
+			"OfficialOpenAI": "Official OpenAI",
+			"OpenAI": "OpenAI Compatible",
 			"OpenRouter": "OpenRouter",
 			"Volcengine": "Volcengine"
 		},
@@ -113,6 +123,9 @@
 		"step3": "Digital Workers"
 	},
 	"subtitle": "Let's take a few minutes to complete the initialization setup",
+	"success": {
+		"initialized": "Initialization successful!"
+	},
 	"title": "MagiCrew",
 	"welcomeTo": "Welcome to"
 }

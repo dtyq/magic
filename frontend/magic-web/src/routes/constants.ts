@@ -56,8 +56,6 @@ export enum RouteName {
 	MobileTabsSuperTopic = "MobileTabsSuperTopic",
 	/** 移动端 Tabs - AI 录音总结 */
 	MobileTabsRecording = "MobileTabsRecording",
-	/** 回收站（移动端占位页） */
-	/**  */
 	SuperMagicNavigate = "SuperMagicNavigate",
 	SuperAssistant = "SuperAssistant",
 	/** Crew Market - 员工市场（入口，重定向到 Crew 子页） */
@@ -68,6 +66,10 @@ export enum RouteName {
 	CrewMarketSkills = "CrewMarketSkills",
 	/** Crew Edit - 编辑 Crew（创建后跳转或编辑现有） */
 	CrewEdit = "CrewEdit",
+	/** Skill Edit - 编辑 Skill */
+	SkillEdit = "SkillEdit",
+	/** Claw Playground - 创建后进入的工作区 */
+	ClawPlayground = "ClawPlayground",
 	/** My Skills - 我的技能 */
 	MySkills = "MySkills",
 	/** My Crew - 我的员工 */

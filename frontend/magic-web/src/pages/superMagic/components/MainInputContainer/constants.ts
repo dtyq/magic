@@ -13,8 +13,15 @@ export const SCENE_INPUT_IDS = {
  * Scene input container min height (prevent layout shift)
  */
 export const INPUT_CONTAINER_MIN_HEIGHT = {
-	HomePage: 150,
+	HomePage: 170,
 	TopicPage: 172,
+}
+
+/**
+ * Scene config area min height to keep centered layout stable
+ */
+export const SCENE_PANEL_MIN_HEIGHT = {
+	HomePage: 204,
 }
 
 /**
@@ -23,16 +30,16 @@ export const INPUT_CONTAINER_MIN_HEIGHT = {
  */
 export const SCENE_ANIMATION_CONFIG = {
 	initial: {
-		opacity: 0.8,
-		scale: 0.99,
+		opacity: 1,
+		scale: 1,
 	},
 	animate: {
 		opacity: 1,
 		scale: 1,
 	},
 	exit: {
-		opacity: 0.6,
-		scale: 0.98,
+		opacity: 1,
+		scale: 1,
 	},
 	transition: {
 		duration: 0.15,

@@ -18,6 +18,7 @@ from app.core.stream import Stream
 from agentlang.logger import get_logger
 from agentlang.utils.shadow_code import ShadowCode
 from agentlang.utils.metadata import MetadataUtil
+from app.i18n.i18n_manager import I18nManager
 
 logger = get_logger(__name__)
 
@@ -248,12 +249,18 @@ class HTTPSubscriptionStream(Stream):
         try:
             await self._ensure_session()
 
+            # 剥离 <split .../> 标记，避免 web 端渲染出裸标签
+            if "<split" in data:
+                from app.channel.base.message_splitter import strip_split_tags_from_json
+                data = strip_split_tags_from_json(data)
+
             # 准备请求数据（可能包含混淆）
             processed_data = self._prepare_request_data(data)
 
             # 准备请求头和内容
             headers = dict(self._config.headers)
             headers["Request-ID"] = request_id
+            headers["Language"] = I18nManager.get_language()
 
             # 添加 Magic-Authorization 与 User-Authorization 请求头
             MetadataUtil.add_magic_and_user_authorization_headers(headers)

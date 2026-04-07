@@ -52,18 +52,41 @@ export namespace AiModel {
 		QwenGlobal = "QwenGlobal",
 		/** OpenRouter */
 		OpenRouter = "OpenRouter",
+		/** 百度  */
+		Baidu = "Baidu",
+		/** 国家超算平台 */
+		SCNet = "SCNet",
+		/** Kimi平台 */
+		Moonshot = "Moonshot",
+		/** 硅流 */
+		SiliconFlow = "SiliconFlow",
+		/** 智谱AI */
+		BigModel = "BigModel",
+		/** MiniMax 开放平台 */
+		MiniMax = "MiniMax",
 	}
 
-	/** 服务商默认 URL */
-	export const ServiceProviderUrl = {
+	/** 服务商默认 API 地址（与后端默认占位一致） */
+	export const ServiceProviderUrl: Partial<Record<ServiceProvider, string>> = {
 		[ServiceProvider.OpenAI]: "https://api.openai.com/v1",
 		[ServiceProvider.MicrosoftAzure]: "https://docs-test-001.openai.azure.com",
-		[ServiceProvider.Volcengine]: " https://ark.cn-beijing.volces.com/api/v3",
+		[ServiceProvider.Volcengine]: "https://ark.cn-beijing.volces.com/api/v3",
+		[ServiceProvider.VolcengineArk]: "https://ark.cn-beijing.volces.com/api/v3",
+		[ServiceProvider.Tencent]: "https://api.hunyuan.cloud.tencent.com/v1",
 		[ServiceProvider.Qwen]: "https://dashscope.aliyuncs.com/compatible-mode/v1",
+		[ServiceProvider.DashScope]: "https://dashscope.aliyuncs.com/compatible-mode/v1",
+		[ServiceProvider.QwenGlobal]: "https://dashscope-intl.aliyuncs.com/compatible-mode/v1",
 		[ServiceProvider.DeepSeek]: "https://api.deepseek.com",
+		[ServiceProvider.Baidu]: "https://qianfan.baidubce.com/v2",
+		[ServiceProvider.SCNet]: "https://api.scnet.cn/api/llm/v1",
+		[ServiceProvider.Moonshot]: "https://api.moonshot.cn/v1",
+		[ServiceProvider.BigModel]: "https://open.bigmodel.cn/api/paas/v4",
+		[ServiceProvider.MiniMax]: "https://api.minimaxi.com/v1",
+		[ServiceProvider.SiliconFlow]: "https://api.siliconflow.cn/v1",
 		[ServiceProvider.Gemini]: "https://api.gemini.com",
 		[ServiceProvider.GoogleImage]: "https://api.googleimage.com",
 		[ServiceProvider.OpenRouter]: "https://openrouter.ai/api/v1/chat/completions",
+		[ServiceProvider.Google]: "https://generativelanguage.googleapis.com/v1beta",
 	}
 
 	/** 权限 */

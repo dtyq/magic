@@ -3,6 +3,7 @@ import { Command as CommandPrimitive } from "cmdk"
 import { SearchIcon } from "lucide-react"
 
 import { cn } from "@/lib/utils"
+// PROJECT OVERRIDE — project dialog; CommandDialog forwards showCloseButton.
 import {
 	Dialog,
 	DialogContent,

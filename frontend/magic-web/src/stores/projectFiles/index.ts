@@ -136,4 +136,8 @@ export class ProjectFilesStore {
 
 const projectFilesStore = new ProjectFilesStore()
 
+export const createProjectFilesStore = () => {
+	return new ProjectFilesStore()
+}
+
 export default projectFilesStore

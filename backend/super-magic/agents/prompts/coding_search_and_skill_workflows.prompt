@@ -1,0 +1,3 @@
+{{ @include(path="./prompts/coding_design_rules.prompt") }}
+
+{{ @include(path="./prompts/common_workflows.prompt") }}

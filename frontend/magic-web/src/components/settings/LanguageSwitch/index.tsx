@@ -1,3 +1,4 @@
+import { isLanguageSwitchEnabled } from "@/models/config/languagePolicy"
 import { useGlobalLanguage, useSupportLanguageOptions } from "@/models/config/hooks"
 import { Select } from "antd"
 import { observer } from "mobx-react-lite"
@@ -16,6 +17,7 @@ interface LanguageSwitchProps {
 const LanguageSwitch = observer((props: LanguageSwitchProps) => {
 	const { className, popupClassName, variant } = props
 	const { styles, cx } = useStyles()
+	if (!isLanguageSwitchEnabled()) return null
 
 	const lang = useGlobalLanguage()
 	const languageSelected = useGlobalLanguage(false)

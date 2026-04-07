@@ -10,7 +10,10 @@ interface SmartTooltipProps {
 	style?: React.CSSProperties
 	placement?: "top" | "bottom" | "left" | "right"
 	maxWidth?: number
-	/** Max lines, if not set, detect single line overflow */
+	/**
+	 * Line limit: 1 = single-line ellipsis (default); >1 = line clamp;
+	 * 0 = wrap naturally (no clamp), use with width constraints
+	 */
 	maxLines?: number
 	content?: ReactNode
 	trigger?: ActionType[]
@@ -39,7 +42,7 @@ const SmartTooltip = memo(function SmartTooltip({
 	elementType = "div",
 	...props
 }: SmartTooltipProps) {
-	const textRef = useRef<HTMLElement>(null)
+	const textRef = useRef<HTMLDivElement | HTMLSpanElement>(null)
 	const [showTooltip, setShowTooltip] = useState(false)
 
 	// Convert trigger array to open state management for shadcn/ui
@@ -53,12 +56,16 @@ const SmartTooltip = memo(function SmartTooltip({
 			const element = textRef.current
 			let isOverflowing = false
 
-			if (maxLines && maxLines > 1) {
-				// Multi-line text detection: compare scrollHeight and clientHeight
-				// If scrollHeight > clientHeight, content is hidden by CSS
+			if (maxLines > 1) {
+				// Multi-line clamp: hidden lines increase scrollHeight
 				isOverflowing = element.scrollHeight > element.clientHeight
+			} else if (maxLines === 0) {
+				// Wrapped text: overflow when height or width is constrained
+				isOverflowing =
+					element.scrollHeight > element.clientHeight ||
+					element.scrollWidth > element.clientWidth
 			} else {
-				// Single-line text detection: compare scrollWidth and clientWidth
+				// Single-line: compare scrollWidth and clientWidth
 				isOverflowing = element.scrollWidth > element.clientWidth
 			}
 
@@ -85,19 +92,27 @@ const SmartTooltip = memo(function SmartTooltip({
 	}
 
 	const textClasses = cn(
-		"overflow-hidden text-ellipsis text-sm font-normal leading-5",
-		maxLines && maxLines > 1
-			? "[-webkit-box-orient:vertical] [display:-webkit-box]"
-			: "whitespace-nowrap",
+		"text-sm font-normal leading-5",
+		maxLines > 1
+			? "overflow-hidden text-ellipsis [-webkit-box-orient:vertical] [display:-webkit-box]"
+			: maxLines === 0
+				? "min-w-0 whitespace-normal break-words"
+				: "overflow-hidden text-ellipsis whitespace-nowrap",
 		className,
 	)
 
 	const textStyle: React.CSSProperties = {
 		...(maxWidth && { maxWidth: `${maxWidth}px` }),
-		...(maxLines && maxLines > 1 && { WebkitLineClamp: maxLines }),
+		...(maxLines > 1 && { WebkitLineClamp: maxLines }),
 	}
 
-	const ElementTag = elementType
+	const sharedProps = {
+		className: textClasses,
+		style: { ...textStyle, ...style },
+		onClick: handleTriggerClick,
+		onDoubleClick,
+		...props,
+	}
 
 	return (
 		<Tooltip
@@ -105,19 +120,24 @@ const SmartTooltip = memo(function SmartTooltip({
 			onOpenChange={shouldUseControlled ? setOpen : undefined}
 		>
 			<TooltipTrigger asChild>
-				<ElementTag
-					ref={textRef}
-					className={textClasses}
-					style={{ ...textStyle, ...style }}
-					onClick={handleTriggerClick}
-					onDoubleClick={onDoubleClick}
-					{...props}
-				>
-					{children}
-				</ElementTag>
+				{elementType === "div" ? (
+					<div ref={textRef as React.RefObject<HTMLDivElement>} {...sharedProps}>
+						{children}
+					</div>
+				) : (
+					<span ref={textRef as React.RefObject<HTMLSpanElement>} {...sharedProps}>
+						{children}
+					</span>
+				)}
 			</TooltipTrigger>
 			{showTooltip && (
-				<TooltipContent className="z-tooltip" sideOffset={sideOffset} side={placement}>
+				<TooltipContent
+					className={cn(
+						"z-tooltip max-w-[min(20rem,var(--radix-tooltip-content-available-width,100vw))] whitespace-normal break-words",
+					)}
+					sideOffset={sideOffset}
+					side={placement}
+				>
 					{content || children}
 				</TooltipContent>
 			)}

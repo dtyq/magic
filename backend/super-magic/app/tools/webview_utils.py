@@ -24,7 +24,7 @@ from agentlang.context.tool_context import ToolContext
 from agentlang.logger import get_logger
 from agentlang.utils.file import generate_safe_filename_with_timestamp
 from agentlang.llms.factory import LLMFactory
-from app.paths import PathManager
+from app.path_manager import PathManager
 
 logger = get_logger(__name__)
 

@@ -1,29 +1,64 @@
-import { useEffect, useCallback, useRef, useState } from "react"
-import { CirclePlus, Loader2 } from "lucide-react"
+import { useCallback, useEffect, useRef, useState } from "react"
+import { Check, CirclePlus, Loader2 } from "lucide-react"
 import { observer } from "mobx-react-lite"
 import { useTranslation } from "react-i18next"
 import { Button } from "@/components/shadcn-ui/button"
 import { ScrollArea } from "@/components/shadcn-ui/scroll-area"
 import { useConfirmDialog } from "@/components/shadcn-composed/confirm-dialog"
+import { CrewDetailDialog } from "@/pages/superMagic/components/CrewDetailDialog"
 import useNavigate from "@/routes/hooks/useNavigate"
 import { RouteName } from "@/routes/constants"
+import { RoutePath } from "@/constants/routes"
+import { configStore } from "@/models/config"
+import { userStore } from "@/models/user"
 import PageTopBar from "@/pages/superMagic/components/PageTopBar"
 import { crewService } from "@/services/crew/CrewService"
+import { defaultClusterCode } from "@/routes/helpers"
+import { fillRoute } from "@/routes/history/helpers"
+import { CREW_EDIT_STEP } from "@/pages/superMagic/pages/CrewEdit/store"
+import { useAutoLoadMoreSentinel } from "@/pages/superMagic/hooks/useAutoLoadMoreSentinel"
+import { useDelayedVisibility } from "@/pages/superMagic/hooks/useDelayedVisibility"
+import {
+	UserWorkspaceMapCache,
+	WorkspaceStateCache,
+} from "@/pages/superMagic/utils/superMagicCache"
 import { MyCrewStore } from "./stores/my-crew"
-import MyCrewCard from "./components/MyCrewCard"
+import CreatedCrewCard from "./components/CreatedCrewCard"
+import HiredCrewCard from "./components/HiredCrewCard"
+import MyCrewCrewTypeTabs, { type MyCrewCrewTypeTab } from "./components/MyCrewCrewTypeTabs"
+import type { MyCrewView } from "@/services/crew/CrewService"
+import {
+	resolveMyCrewDisableActionDisabled,
+	resolveMyCrewDisableActionLabel,
+	resolveMyCrewHiredActionKind,
+} from "./components/my-crew-card-shared"
 
 function MyCrewPage() {
 	const { t } = useTranslation("crew/market")
 	const navigate = useNavigate()
+	const clusterCode = configStore.cluster.clusterCode || defaultClusterCode
 	const storeRef = useRef(new MyCrewStore())
+	const scrollViewportRef = useRef<HTMLDivElement | null>(null)
 	const store = storeRef.current
+	const [isCreating, setIsCreating] = useState(false)
+	const [crewTypeTab, setCrewTypeTab] = useState<MyCrewCrewTypeTab>("created")
+	const [selectedAgent, setSelectedAgent] = useState<MyCrewView | null>(null)
+	const handleAutoLoadMore = useCallback(() => {
+		void store.loadMore()
+	}, [store])
+	const loadMoreSentinelRef = useAutoLoadMoreSentinel({
+		rootRef: scrollViewportRef,
+		disabled: store.loading || store.loadingMore || !store.hasMore,
+		onLoadMore: handleAutoLoadMore,
+	})
+	const shouldShowLoadingMoreIndicator = useDelayedVisibility({
+		visible: store.loadingMore,
+	})
 
 	useEffect(() => {
-		store.fetchAgents()
+		store.fetchAgents({ listVariant: crewTypeTab })
 		return () => store.reset()
-	}, [store])
-
-	const [isCreating, setIsCreating] = useState(false)
+	}, [crewTypeTab, store])
 
 	async function handleCreateCrew() {
 		if (isCreating) return
@@ -45,19 +80,82 @@ function MyCrewPage() {
 		[navigate],
 	)
 
+	const handleCrewCardNavigate = useCallback(
+		(agentCode: string, event: React.MouseEvent<HTMLElement>) => {
+			if (
+				event.button !== 0 ||
+				event.metaKey ||
+				event.ctrlKey ||
+				event.shiftKey ||
+				event.altKey
+			) {
+				return
+			}
+			event.preventDefault()
+			navigate({ name: RouteName.CrewEdit, params: { id: agentCode } })
+		},
+		[navigate],
+	)
+
+	const getCrewEditHref = useCallback(
+		(agentCode: string) =>
+			fillRoute(`/:clusterCode${RoutePath.CrewEdit}`, {
+				clusterCode,
+				id: agentCode,
+			}) || "#",
+		[clusterCode],
+	)
+
 	const { confirm, dialog } = useConfirmDialog()
 
-	const handleDismiss = useCallback(
+	const handleDeleteCreatedCrew = useCallback(
 		(agentCode: string) => {
 			const employee = store.list.find((e) => e.agentCode === agentCode)
+			const displayName = employee?.name?.trim() || t("crew/create:untitledCrew") || agentCode
 			confirm({
-				title: t("myCrewPage.dismissConfirm.title"),
-				description: t("myCrewPage.dismissConfirm.description", {
-					name: (employee?.name || t("crew/create:untitledCrew")) ?? agentCode,
-				}),
+				title: t("myCrewPage.deleteConfirm.title", { name: displayName }),
+				description: t("myCrewPage.deleteConfirm.description"),
+				confirmText: t("myCrewPage.deleteConfirm.confirm"),
+				variant: "destructive",
+				destructivePresentation: "soft",
+				dialogSize: "sm",
+				onConfirm: () => store.deleteAgent(agentCode),
+			})
+		},
+		[store, t, confirm],
+	)
+
+	const handleDismissHiredCrew = useCallback(
+		(agentCode: string) => {
+			const employee = store.list.find((e) => e.agentCode === agentCode)
+			if (!employee?.allowDelete) return
+			const displayName = employee?.name?.trim() || t("crew/create:untitledCrew") || agentCode
+			confirm({
+				title: t("myCrewPage.dismissConfirm.title", { name: displayName }),
+				description: t("myCrewPage.dismissConfirm.description"),
 				confirmText: t("myCrewPage.dismissConfirm.confirm"),
 				variant: "destructive",
+				destructivePresentation: "soft",
+				dialogSize: "sm",
 				onConfirm: () => store.deleteAgent(agentCode),
+			})
+		},
+		[store, t, confirm],
+	)
+
+	const handleDisableHiredCrew = useCallback(
+		(agentCode: string) => {
+			const employee = store.list.find((e) => e.agentCode === agentCode)
+			if (!employee?.enabled) return
+			const displayName = employee?.name?.trim() || t("crew/create:untitledCrew") || agentCode
+			confirm({
+				title: t("myCrewPage.disableConfirm.title", { name: displayName }),
+				description: t("myCrewPage.disableConfirm.description"),
+				confirmText: t("myCrewPage.disableConfirm.confirm"),
+				variant: "destructive",
+				destructivePresentation: "soft",
+				dialogSize: "sm",
+				onConfirm: () => store.offlineAgent(agentCode),
 			})
 		},
 		[store, t, confirm],
@@ -70,8 +168,88 @@ function MyCrewPage() {
 		[store],
 	)
 
+	const handleOpenDetails = useCallback(
+		(agentCode: string) => {
+			const target = store.list.find((item) => item.agentCode === agentCode)
+			if (!target) return
+			setSelectedAgent(target)
+		},
+		[store],
+	)
+
+	const handleOpenPublishPanel = useCallback(
+		(agentCode: string) => {
+			navigate({
+				name: RouteName.CrewEdit,
+				params: { id: agentCode },
+				query: {
+					panel: CREW_EDIT_STEP.Publishing,
+				},
+			})
+		},
+		[navigate],
+	)
+
+	function resolveFallbackWorkspaceId() {
+		const userInfo = userStore.user.userInfo
+		const cachedWorkspaceState = WorkspaceStateCache.get(userInfo)
+		return cachedWorkspaceState.workspaceId || UserWorkspaceMapCache.get(userInfo)
+	}
+
+	const handleOpenConversation = useCallback(
+		(agentCode: string) => {
+			const fallbackWorkspaceId = resolveFallbackWorkspaceId()
+			navigate({
+				name: fallbackWorkspaceId ? RouteName.SuperWorkspaceState : RouteName.Super,
+				params: fallbackWorkspaceId
+					? {
+							workspaceId: fallbackWorkspaceId,
+						}
+					: undefined,
+				query: {
+					agentCode,
+				},
+			})
+		},
+		[navigate],
+	)
+
 	return (
 		<>
+			<CrewDetailDialog
+				open={selectedAgent != null}
+				onOpenChange={(open) => {
+					if (!open) setSelectedAgent(null)
+				}}
+				agentCode={selectedAgent?.agentCode ?? null}
+				detailSource={selectedAgent?.sourceType === "MARKET" ? "market" : "employee"}
+				versionCode={selectedAgent?.latestVersionCode}
+				avatarUrl={selectedAgent?.icon}
+				primaryAction={
+					selectedAgent != null
+						? resolveMyCrewHiredActionKind(selectedAgent.sourceType) === "dismiss"
+							? {
+									label: t("dismiss"),
+									variant: "destructive",
+									testId: "my-crew-detail-dismiss-button",
+									onClick: () => handleDismissHiredCrew(selectedAgent.agentCode),
+								}
+							: {
+									label: resolveMyCrewDisableActionLabel(
+										selectedAgent.allowDelete,
+										t,
+									),
+									variant: "secondary",
+									disabled: resolveMyCrewDisableActionDisabled(
+										selectedAgent.allowDelete,
+										selectedAgent.enabled,
+									),
+									testId: "my-crew-detail-disable-button",
+									onClick: () => handleDisableHiredCrew(selectedAgent.agentCode),
+								}
+						: undefined
+				}
+			/>
 			{dialog}
 			<div
 				className="flex h-full min-h-0 w-full min-w-0 flex-col overflow-hidden rounded-xl border border-border bg-background shadow-xs"
@@ -81,7 +259,7 @@ function MyCrewPage() {
 				<PageTopBar data-testid="my-crew-top-bar" backButtonTestId="my-crew-back-button" />
 
 				{/* Main scrollable section */}
-				<ScrollArea className="min-h-0 flex-1">
+				<ScrollArea className="min-h-0 flex-1" viewportRef={scrollViewportRef}>
 					<div className="mx-auto flex w-full min-w-0 max-w-6xl flex-col gap-5 px-4 py-5 sm:gap-6 sm:px-6 sm:py-7">
 						{/* Title + action buttons */}
 						<div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
@@ -109,6 +287,12 @@ function MyCrewPage() {
 								</Button>
 							</div>
 						</div>
+
+						<MyCrewCrewTypeTabs
+							value={crewTypeTab}
+							onChange={setCrewTypeTab}
+							className="max-w-md sm:max-w-lg"
+						/>
 
 						{/* Loading state */}
 						{store.loading && (
@@ -148,20 +332,70 @@ function MyCrewPage() {
 
 						{/* Crew card grid */}
 						{!store.loading && store.list.length > 0 && (
-							<div
-								className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-3"
-								data-testid="my-crew-card-grid"
-							>
-								{store.list.map((employee) => (
-									<MyCrewCard
-										key={employee.id}
-										employee={employee}
-										onEdit={handleEdit}
-										onDismiss={handleDismiss}
-										onUpgrade={handleUpgrade}
-									/>
-								))}
-							</div>
+							<>
+								<div
+									className="grid grid-cols-1 items-stretch gap-x-3 gap-y-14 pt-12 md:grid-cols-2 lg:grid-cols-4"
+									data-testid="my-crew-card-grid"
+								>
+									{store.list.map((employee) =>
+										crewTypeTab === "created" ? (
+											<CreatedCrewCard
+												key={employee.id}
+												employee={employee}
+												href={getCrewEditHref(employee.agentCode)}
+												onNavigate={(event) =>
+													handleCrewCardNavigate(
+														employee.agentCode,
+														event,
+													)
+												}
+												onEdit={handleEdit}
+												onConversation={handleOpenConversation}
+												onUpgrade={handleUpgrade}
+												onPublishToStore={handleOpenPublishPanel}
+												onDelete={handleDeleteCreatedCrew}
+											/>
+										) : (
+											<HiredCrewCard
+												key={employee.id}
+												employee={employee}
+												href={getCrewEditHref(employee.agentCode)}
+												onEdit={handleOpenDetails}
+												onConversation={handleOpenConversation}
+												onDismiss={handleDismissHiredCrew}
+												onDisable={handleDisableHiredCrew}
+											/>
+										),
+									)}
+								</div>
+
+								<div
+									ref={loadMoreSentinelRef}
+									className="h-1 w-full"
+									data-testid="my-crew-scroll-sentinel"
+								/>
+
+								{shouldShowLoadingMoreIndicator ? (
+									<div
+										className="flex items-center justify-center py-2"
+										data-testid="my-crew-loading-more"
+									>
+										<Loader2 className="size-4 animate-spin text-muted-foreground" />
+									</div>
+								) : null}
+
+								{!store.hasMore ? (
+									<div
+										className="flex items-center justify-center gap-1 py-2 opacity-30"
+										data-testid="my-crew-no-more"
+									>
+										<Check className="size-4" />
+										<span className="text-xs">
+											{t("skillsLibrary.noMoreData")}
+										</span>
+									</div>
+								) : null}
+							</>
 						)}
 					</div>
 				</ScrollArea>

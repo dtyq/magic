@@ -38,6 +38,10 @@ import { HorizontalRule } from "@/components/tiptap-node/horizontal-rule-node/ho
 import { CodeBlockNode } from "@/components/tiptap-node/code-block-node"
 import { LinkNode } from "@/components/tiptap-node/link-node"
 import { HeadingNode } from "@/components/tiptap-node/heading-node"
+import {
+	MarkdownFrontmatterNode,
+	preprocessMarkdownFrontmatter,
+} from "@/components/tiptap-node/frontmatter-node"
 import { Placeholder } from "@/pages/superMagic/components/MessageEditor/extensions/placeholder"
 import { TableWithWrapper } from "@/components/tiptap-node/table-node/table-node-extension"
 
@@ -88,6 +92,10 @@ export const SimpleEditor = React.forwardRef<SimpleEditorRef, SimpleEditorProps>
 	const { t } = useTranslation("tiptap")
 	const { prefersColorScheme } = useTheme()
 	const isDark = prefersColorScheme === "dark"
+	const processedContent = React.useMemo(
+		() => (typeof content === "string" ? preprocessMarkdownFrontmatter(content) : content),
+		[content],
+	)
 
 	// Enhanced slash config with internationalization
 	const enhancedSlashConfig = React.useMemo(
@@ -147,6 +155,7 @@ export const SimpleEditor = React.forwardRef<SimpleEditorRef, SimpleEditorProps>
 				// showOnlyWhenEditable: true,
 				// showOnlyCurrent: true,
 			}),
+			MarkdownFrontmatterNode,
 			HorizontalRule,
 			CodeBlockNode,
 			TextAlign.configure({ types: ["heading", "paragraph"] }),
@@ -173,7 +182,7 @@ export const SimpleEditor = React.forwardRef<SimpleEditorRef, SimpleEditorProps>
 			TableHeader,
 			...(additionalExtensions ?? []),
 		],
-		content,
+		content: processedContent,
 		onPaste: (...args) => pasteHandlersRef.current.handleOnPaste?.(...args),
 		onUpdate: (...args) => pasteHandlersRef.current.handleEditorUpdate?.(...args),
 	})
@@ -187,9 +196,9 @@ export const SimpleEditor = React.forwardRef<SimpleEditorRef, SimpleEditorProps>
 	// 内容变化时，如果不可编辑，则更新编辑器内容
 	useUpdateEffect(() => {
 		if (!isEditable) {
-			editor?.commands?.setContent?.(content ?? [])
+			editor?.commands?.setContent?.(processedContent ?? [])
 		}
-	}, [content])
+	}, [processedContent])
 
 	// Handle dynamic placeholder updates
 	React.useEffect(() => {
@@ -240,7 +249,7 @@ export const SimpleEditor = React.forwardRef<SimpleEditorRef, SimpleEditorProps>
 			editor,
 			setContent: (content: string) => {
 				if (!editor) return
-				editor.commands.setContent(content)
+				editor.commands.setContent(preprocessMarkdownFrontmatter(content))
 			},
 		}),
 		[editor],

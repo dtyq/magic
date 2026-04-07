@@ -404,6 +404,171 @@ class SuperMagicAgentApiTest extends AbstractApiTest
         $this->assertTrue($marketItem['allow_delete']);
     }
 
+    public function testQueryCreatedAgentsEndpoint(): void
+    {
+        $this->switchUserTest2();
+        $publisherHeaders = $this->getCommonHeaders();
+        $marketAgentCode = 'market_' . IdGenerator::getUniqueId32();
+        $this->createPublishedAgentVersionRecord($marketAgentCode, '5.0.0', $publisherHeaders, true);
+
+        $this->switchUserTest1();
+        $headers = $this->getCommonHeaders();
+        $createdAgentCode = $this->createTestAgent();
+
+        $hireResponse = $this->post(
+            '/api/v2/super-magic/agent-market/' . $marketAgentCode . '/hire',
+            [],
+            $headers
+        );
+        $this->assertEquals(1000, $hireResponse['code'], $hireResponse['message'] ?? '');
+
+        $response = $this->post(
+            self::BASE_URI . '/queries/created',
+            ['page' => 1, 'page_size' => 20],
+            $headers
+        );
+
+        $this->assertEquals(1000, $response['code'], $response['message'] ?? '');
+        $codes = array_column($response['data']['list'], 'code');
+        $this->assertContains($createdAgentCode, $codes);
+        $this->assertNotContains($marketAgentCode, $codes);
+
+        $createdItem = null;
+        foreach ($response['data']['list'] as $item) {
+            if (($item['code'] ?? null) === $createdAgentCode) {
+                $createdItem = $item;
+                break;
+            }
+        }
+
+        $this->assertNotNull($createdItem);
+        $this->assertSame('LOCAL_CREATE', $createdItem['source_type']);
+        $this->assertFalse($createdItem['allow_delete']);
+    }
+
+    public function testQueryTeamSharedAgentsEndpoint(): void
+    {
+        $this->switchUserTest2();
+        $publisherHeaders = $this->getCommonHeaders();
+        $marketAgentCode = 'market_' . IdGenerator::getUniqueId32();
+        $this->createPublishedAgentVersionRecord($marketAgentCode, '6.0.0', $publisherHeaders, true);
+        $sharedAgentCode = $this->createTestAgent();
+
+        $publishSharedResponse = $this->post(
+            self::BASE_URI . '/' . $sharedAgentCode . '/publish',
+            [
+                'version' => '6.1.0',
+                'version_description_i18n' => [
+                    'zh_CN' => '团队共享版本',
+                    'en_US' => 'Team shared version',
+                ],
+                'publish_target_type' => 'PRIVATE',
+            ],
+            $publisherHeaders
+        );
+        $this->assertEquals(1000, $publishSharedResponse['code'], $publishSharedResponse['message'] ?? '');
+        $this->shareAgentWithUser($sharedAgentCode, $publisherHeaders['user-id'], env('TEST1_USER_ID'));
+
+        $this->switchUserTest1();
+        $headers = $this->getCommonHeaders();
+        $createdAgentCode = $this->createTestAgent();
+
+        $hireResponse = $this->post(
+            '/api/v2/super-magic/agent-market/' . $marketAgentCode . '/hire',
+            [],
+            $headers
+        );
+        $this->assertEquals(1000, $hireResponse['code'], $hireResponse['message'] ?? '');
+
+        $response = $this->post(
+            self::BASE_URI . '/queries/team-shared',
+            ['page' => 1, 'page_size' => 20],
+            $headers
+        );
+
+        $this->assertEquals(1000, $response['code'], $response['message'] ?? '');
+        $codes = array_column($response['data']['list'], 'code');
+        $this->assertContains($sharedAgentCode, $codes);
+        $this->assertNotContains($createdAgentCode, $codes);
+        $this->assertNotContains($marketAgentCode, $codes);
+
+        $sharedItem = null;
+        foreach ($response['data']['list'] as $item) {
+            if (($item['code'] ?? null) === $sharedAgentCode) {
+                $sharedItem = $item;
+                break;
+            }
+        }
+
+        $this->assertNotNull($sharedItem);
+        $this->assertSame('LOCAL_CREATE', $sharedItem['source_type']);
+        $this->assertSame('6.1.0', $sharedItem['latest_version_code']);
+        $this->assertFalse($sharedItem['allow_delete']);
+        $this->assertArrayHasKey('creator_info', $sharedItem);
+        $this->assertNull($sharedItem['creator_info']['id'] ?? null);
+        $this->assertNotEmpty($sharedItem['creator_info']['name'] ?? null);
+    }
+
+    public function testQueryMarketInstalledAgentsEndpoint(): void
+    {
+        $this->switchUserTest2();
+        $publisherHeaders = $this->getCommonHeaders();
+        $marketAgentCode = 'market_' . IdGenerator::getUniqueId32();
+        $this->createPublishedAgentVersionRecord($marketAgentCode, '7.0.0', $publisherHeaders, true);
+        $sharedAgentCode = $this->createTestAgent();
+
+        $publishSharedResponse = $this->post(
+            self::BASE_URI . '/' . $sharedAgentCode . '/publish',
+            [
+                'version' => '7.1.0',
+                'version_description_i18n' => [
+                    'zh_CN' => '仅团队共享版本',
+                    'en_US' => 'Team only version',
+                ],
+                'publish_target_type' => 'PRIVATE',
+            ],
+            $publisherHeaders
+        );
+        $this->assertEquals(1000, $publishSharedResponse['code'], $publishSharedResponse['message'] ?? '');
+        $this->shareAgentWithUser($sharedAgentCode, $publisherHeaders['user-id'], env('TEST1_USER_ID'));
+
+        $this->switchUserTest1();
+        $headers = $this->getCommonHeaders();
+        $createdAgentCode = $this->createTestAgent();
+
+        $hireResponse = $this->post(
+            '/api/v2/super-magic/agent-market/' . $marketAgentCode . '/hire',
+            [],
+            $headers
+        );
+        $this->assertEquals(1000, $hireResponse['code'], $hireResponse['message'] ?? '');
+
+        $response = $this->post(
+            self::BASE_URI . '/queries/market-installed',
+            ['page' => 1, 'page_size' => 20],
+            $headers
+        );
+
+        $this->assertEquals(1000, $response['code'], $response['message'] ?? '');
+        $codes = array_column($response['data']['list'], 'code');
+        $this->assertContains($marketAgentCode, $codes);
+        $this->assertNotContains($sharedAgentCode, $codes);
+        $this->assertNotContains($createdAgentCode, $codes);
+
+        $marketItem = null;
+        foreach ($response['data']['list'] as $item) {
+            if (($item['code'] ?? null) === $marketAgentCode) {
+                $marketItem = $item;
+                break;
+            }
+        }
+
+        $this->assertNotNull($marketItem);
+        $this->assertSame('MARKET', $marketItem['source_type']);
+        $this->assertSame('7.0.0', $marketItem['latest_version_code']);
+        $this->assertTrue($marketItem['allow_delete']);
+    }
+
     public function testQueryAgentMarketReturnsLatestVersionAndAllowDelete(): void
     {
         $this->switchUserTest2();
@@ -512,6 +677,98 @@ class SuperMagicAgentApiTest extends AbstractApiTest
         $this->assertFalse($marketItemAfterDelete['is_added']);
         $this->assertFalse($marketItemAfterDelete['allow_delete']);
         $this->assertNull($marketItemAfterDelete['user_code']);
+    }
+
+    public function testAdminAgentMarketCanUpdateIsHiddenAndPublicListExcludesHiddenItem(): void
+    {
+        $this->switchUserTest1();
+        $headers = $this->getCommonHeaders();
+        $agentCode = 'market_' . IdGenerator::getUniqueId32();
+        $this->createPublishedAgentVersionRecord($agentCode, '5.0.0', $headers, true);
+
+        $marketRecord = AgentMarketModel::query()
+            ->where('agent_code', $agentCode)
+            ->first();
+        $this->assertNotNull($marketRecord);
+
+        $adminQueryResponse = $this->post(
+            '/api/v2/admin/super-magic/agents/markets/queries',
+            [
+                'page' => 1,
+                'page_size' => 20,
+                'agent_code' => $agentCode,
+            ],
+            $headers
+        );
+
+        if (isset($adminQueryResponse['code']) && in_array($adminQueryResponse['code'], [401, 403, 2179, 3035, 4001, 4003], true)) {
+            $this->markTestSkipped('接口需要管理员权限，跳过测试');
+            return;
+        }
+
+        $this->assertEquals(1000, $adminQueryResponse['code'], $adminQueryResponse['message'] ?? '');
+        $this->assertArrayHasKey('data', $adminQueryResponse);
+        $this->assertIsArray($adminQueryResponse['data']['list'] ?? null);
+        $this->assertNotEmpty($adminQueryResponse['data']['list']);
+
+        $marketItem = null;
+        foreach ($adminQueryResponse['data']['list'] as $item) {
+            if (($item['agent_code'] ?? null) === $agentCode) {
+                $marketItem = $item;
+                break;
+            }
+        }
+
+        $this->assertNotNull($marketItem, '应该能在管理后台市场列表中查到目标员工');
+        $this->assertArrayHasKey('is_hidden', $marketItem);
+        $this->assertFalse($marketItem['is_hidden']);
+
+        $adminUpdateResponse = $this->put(
+            '/api/v2/admin/super-magic/agents/markets/' . $marketRecord->id,
+            ['is_hidden' => true],
+            $headers
+        );
+        $this->assertEquals(1000, $adminUpdateResponse['code'], $adminUpdateResponse['message'] ?? '');
+
+        $marketRecord->refresh();
+        $this->assertTrue((bool) $marketRecord->is_hidden);
+
+        $adminQueryAfterUpdateResponse = $this->post(
+            '/api/v2/admin/super-magic/agents/markets/queries',
+            [
+                'page' => 1,
+                'page_size' => 20,
+                'agent_code' => $agentCode,
+            ],
+            $headers
+        );
+        $this->assertEquals(1000, $adminQueryAfterUpdateResponse['code'], $adminQueryAfterUpdateResponse['message'] ?? '');
+
+        $updatedMarketItem = null;
+        foreach ($adminQueryAfterUpdateResponse['data']['list'] as $item) {
+            if (($item['agent_code'] ?? null) === $agentCode) {
+                $updatedMarketItem = $item;
+                break;
+            }
+        }
+
+        $this->assertNotNull($updatedMarketItem);
+        $this->assertTrue($updatedMarketItem['is_hidden']);
+
+        $publicQueryResponse = $this->post(
+            '/api/v2/super-magic/agent-market/queries',
+            [
+                'page' => 1,
+                'page_size' => 20,
+                'keyword' => 'Market Agent',
+            ],
+            $headers
+        );
+        $this->assertEquals(1000, $publicQueryResponse['code'], $publicQueryResponse['message'] ?? '');
+
+        foreach ($publicQueryResponse['data']['list'] as $item) {
+            $this->assertNotSame($agentCode, $item['agent_code'] ?? null);
+        }
     }
 
     /**

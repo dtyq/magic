@@ -13,4 +13,9 @@ enum PublisherType: string
     case OFFICIAL = 'OFFICIAL';
     case VERIFIED_CREATOR = 'VERIFIED_CREATOR';
     case PARTNER = 'PARTNER';
+
+    public function isUser(): bool
+    {
+        return $this === self::USER;
+    }
 }

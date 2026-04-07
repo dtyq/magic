@@ -38,6 +38,7 @@ use Dtyq\SuperMagic\Infrastructure\ExternalAPI\SandboxOS\Workspace\Request\Impor
 use Dtyq\SuperMagic\Infrastructure\ExternalAPI\SandboxOS\Workspace\WorkspaceExporterInterface;
 use Dtyq\SuperMagic\Infrastructure\ExternalAPI\SandboxOS\Workspace\WorkspaceImporterInterface;
 use Dtyq\SuperMagic\Infrastructure\Utils\WorkDirectoryUtil;
+use Hyperf\DbConnection\Annotation\Transactional;
 use Hyperf\DbConnection\Db;
 use Throwable;
 use ValueError;
@@ -81,7 +82,7 @@ class SkillDomainService
         return $skillEntity;
     }
 
-    public function findSkillByCode(SkillDataIsolation $dataIsolation, string $code): ?SkillEntity
+    public function findSkillByCode(SkillDataIsolation $dataIsolation, string $code): SkillEntity
     {
         $skillEntity = $this->skillRepository->findByCode($dataIsolation, $code);
         if (! $skillEntity) {
@@ -118,6 +119,15 @@ class SkillDomainService
     {
         $entity->setSearchText(SkillMarketSearchTextBuilder::buildFromSkill($entity));
         return $this->skillRepository->save($dataIsolation, $entity);
+    }
+
+    /**
+     * 根据 project_id 更新 Skill 的 updated_at 时间.
+     */
+    #[Transactional]
+    public function updateUpdatedAtByProjectId(SkillDataIsolation $dataIsolation, int $projectId): bool
+    {
+        return $this->skillRepository->updateUpdatedAtByProjectId($dataIsolation, $projectId);
     }
 
     /**
@@ -187,7 +197,8 @@ class SkillDomainService
         $uploadConfig = $this->cloudFileRepository->getStsTemporaryCredential(
             $dataIsolation->getCurrentOrganizationCode(),
             StorageBucketType::Private,
-            '/skill_export'
+            '/skill_export',
+            options: ['internal_endpoint' => true]
         );
 
         // Call sandbox workspace export API via proxy request
@@ -195,7 +206,7 @@ class SkillDomainService
         $response = $this->workspaceExporter->export($sandboxId, $request);
 
         if (! $response->isSuccess()) {
-            ExceptionBuilder::throw(SuperMagicErrorCode::OperationFailed, 'super_magic.agent.export_failed');
+            ExceptionBuilder::throw(SuperMagicErrorCode::OperationFailed, 'super_magic.skill.export_failed');
         }
 
         return $response->toArray();
@@ -553,20 +564,21 @@ class SkillDomainService
     }
 
     /**
-     * 更新技能基本信息.
+     * Update skill basic information.
      *
-     * @param SkillDataIsolation $dataIsolation 数据隔离对象
-     * @param SkillEntity $skillEntity Skill 实体
-     * @param null|array $nameI18n 多语言名称（可选）
-     * @param null|array $descriptionI18n 多语言描述（可选）
-     * @param null|string $logo Logo URL（可选，空字符串表示清空）
-     * @return SkillEntity 更新后的 Skill 实体
+     * @param SkillDataIsolation $dataIsolation Data isolation object
+     * @param SkillEntity $skillEntity Skill entity
+     * @param null|array $nameI18n Name in i18n format, optional
+     * @param null|array $descriptionI18n Description in i18n format, optional
+     * @param null|string $logo Logo URL, optional; empty string means clear
+     * @return SkillEntity Updated skill entity
      */
     public function updateSkillInfo(
         SkillDataIsolation $dataIsolation,
         SkillEntity $skillEntity,
         ?array $nameI18n = null,
         ?array $descriptionI18n = null,
+        ?array $sourceI18n = null,
         ?string $logo = null
     ): SkillEntity {
         if ($nameI18n !== null) {
@@ -574,6 +586,9 @@ class SkillDomainService
         }
         if ($descriptionI18n !== null) {
             $skillEntity->setDescriptionI18n($descriptionI18n);
+        }
+        if ($sourceI18n !== null) {
+            $skillEntity->setSourceI18n($sourceI18n);
         }
         if ($logo !== null) {
             $skillEntity->setLogo($logo === '' ? null : $logo);
@@ -583,20 +598,21 @@ class SkillDomainService
     }
 
     /**
-     * 更新技能版本基本信息.
+     * Update skill version basic information.
      *
-     * @param SkillDataIsolation $dataIsolation 数据隔离对象
-     * @param SkillVersionEntity $versionEntity Skill 版本实体
-     * @param null|array $nameI18n 多语言名称（可选）
-     * @param null|array $descriptionI18n 多语言描述（可选）
-     * @param null|string $logo Logo URL（可选，空字符串表示清空）
-     * @return SkillVersionEntity 更新后的 Skill 版本实体
+     * @param SkillDataIsolation $dataIsolation Data isolation object
+     * @param SkillVersionEntity $versionEntity Skill version entity
+     * @param null|array $nameI18n Name in i18n format, optional
+     * @param null|array $descriptionI18n Description in i18n format, optional
+     * @param null|string $logo Logo URL, optional; empty string means clear
+     * @return SkillVersionEntity Updated skill version entity
      */
     public function updateSkillVersionInfo(
         SkillDataIsolation $dataIsolation,
         SkillVersionEntity $versionEntity,
         ?array $nameI18n = null,
         ?array $descriptionI18n = null,
+        ?array $sourceI18n = null,
         ?string $logo = null
     ): SkillVersionEntity {
         if ($nameI18n !== null) {
@@ -604,6 +620,9 @@ class SkillDomainService
         }
         if ($descriptionI18n !== null) {
             $versionEntity->setDescriptionI18n($descriptionI18n);
+        }
+        if ($sourceI18n !== null) {
+            $versionEntity->setSourceI18n($sourceI18n);
         }
         if ($logo !== null) {
             $versionEntity->setLogo($logo === '' ? null : $logo);
@@ -732,6 +751,7 @@ class SkillDomainService
         $versionEntity->setPackageDescription($skillEntity->getPackageDescription());
         $versionEntity->setNameI18n($skillEntity->getNameI18n());
         $versionEntity->setDescriptionI18n($skillEntity->getDescriptionI18n());
+        $versionEntity->setSourceI18n($skillEntity->getSourceI18n());
         $versionEntity->setLogo($logoPath ?: null);
         $versionEntity->setFileKey($skillEntity->getFileKey());
         $versionEntity->setSourceType($skillEntity->getSourceType());
@@ -806,6 +826,7 @@ class SkillDomainService
         ?string $publishTargetType,
         ?string $sourceType,
         ?string $version,
+        ?string $packageName,
         ?string $skillName,
         ?string $organizationCode,
         ?string $startTime,
@@ -820,6 +841,7 @@ class SkillDomainService
             $publishTargetType,
             $sourceType,
             $version,
+            $packageName,
             $skillName,
             $organizationCode,
             $startTime,
@@ -1069,6 +1091,7 @@ class SkillDomainService
                 'package_description' => $skillVersion->getPackageDescription(),
                 'name_i18n' => $marketSkill->getNameI18n() ?? $skillVersion->getNameI18n() ?? [],
                 'description_i18n' => $marketSkill->getDescriptionI18n() ?? $skillVersion->getDescriptionI18n(),
+                'source_i18n' => $skillVersion->getSourceI18n(),
                 'logo' => $marketSkill->getLogo() ?? $skillVersion->getLogo(),
                 'file_key' => $skillVersion->getFileKey(),
                 'source_type' => $userSkillEntity->getSourceType()->value,
@@ -1104,6 +1127,7 @@ class SkillDomainService
         $skillEntity->setPackageDescription($skillVersionEntity->getPackageDescription());
         $skillEntity->setNameI18n($skillVersionEntity->getNameI18n());
         $skillEntity->setDescriptionI18n($skillVersionEntity->getDescriptionI18n());
+        $skillEntity->setSourceI18n($skillVersionEntity->getSourceI18n());
         $skillEntity->setLogo($skillVersionEntity->getLogo());
         $skillEntity->setFileKey($skillVersionEntity->getFileKey() ?? '');
         $skillEntity->setSourceType($userSkillEntity->getSourceType());
@@ -1129,6 +1153,7 @@ class SkillDomainService
         $skillEntity->setPackageDescription($skillVersionEntity->getPackageDescription());
         $skillEntity->setNameI18n($skillVersionEntity->getNameI18n());
         $skillEntity->setDescriptionI18n($skillVersionEntity->getDescriptionI18n());
+        $skillEntity->setSourceI18n($skillVersionEntity->getSourceI18n());
         $skillEntity->setLogo($skillVersionEntity->getLogo());
         $skillEntity->setFileKey($skillVersionEntity->getFileKey() ?? '');
         $skillEntity->setSourceType($skillVersionEntity->getSourceType());

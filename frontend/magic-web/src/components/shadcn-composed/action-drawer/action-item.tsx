@@ -6,7 +6,15 @@ import type { ActionItemProps } from "./types"
  * ActionItem - Individual action button within a group
  */
 function ActionItemComponent(props: ActionItemProps) {
-	const { label, icon, onClick, disabled = false, variant = "default", className } = props
+	const {
+		label,
+		icon,
+		onClick,
+		disabled = false,
+		variant = "default",
+		className,
+		"data-testid": dataTestId,
+	} = props
 
 	const isDestructive = variant === "destructive"
 
@@ -21,6 +29,7 @@ function ActionItemComponent(props: ActionItemProps) {
 			type="button"
 			onClick={handleClick}
 			disabled={disabled}
+			data-testid={dataTestId}
 			className={cn(
 				"flex h-10 w-full items-center gap-2 bg-transparent px-2 transition-colors",
 				"text-sm text-foreground",

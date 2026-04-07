@@ -42,6 +42,7 @@ export const RecordSummaryEditorPanel = forwardRef<
 		isPaused,
 		isRecording,
 		isSmall,
+		isMobile,
 		isStartingRecord,
 		isTaskRunning,
 		isWaitingSummarize,
@@ -125,7 +126,8 @@ export const RecordSummaryEditorPanel = forwardRef<
 		<>
 			<div
 				className={cn(
-					"flex flex-col rounded-lg border border-border bg-white p-2.5",
+					"flex flex-col rounded-2xl border border-border bg-white p-2.5",
+					isMobile && "rounded-none border-none",
 					containerClassName,
 				)}
 			>
@@ -135,7 +137,7 @@ export const RecordSummaryEditorPanel = forwardRef<
 				{UploadModal}
 			</div>
 			{panelMode !== "recording" && isSmall ? (
-				<div className="flex items-center gap-1">{leftToolbar}</div>
+				<div className="mt-1 flex items-center gap-1">{leftToolbar}</div>
 			) : null}
 			{ProjectSelectorComponent}
 		</>

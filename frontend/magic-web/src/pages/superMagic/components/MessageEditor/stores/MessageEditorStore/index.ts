@@ -1,6 +1,7 @@
 import { makeAutoObservable } from "mobx"
 import type { JSONContent } from "@tiptap/react"
 import type { DataService } from "@/components/business/MentionPanel/types"
+import type { ProjectFilesStore } from "@/stores/projectFiles"
 import { EditorStore } from "../EditorStore"
 import { DraftStore } from "../DraftStore"
 import { FileUploadStore } from "../FileUploadStore"
@@ -39,7 +40,9 @@ export class MessageEditorStore {
 		// Initialize sub-stores
 		this.editorStore = new EditorStore()
 		this.draftStore = new DraftStore(this.editorStore)
-		this.fileUploadStore = new FileUploadStore()
+		this.fileUploadStore = new FileUploadStore({
+			projectFilesStore: options.projectFilesStore,
+		})
 		this.topicModelStore = createSuperMagicTopicModelStore()
 		// Note: config parameter will be added in Phase 2 for fileUploadStore
 		if (options.mentionPanelStore) {
@@ -120,4 +123,5 @@ interface SetValueOptions {
 
 interface MessageEditorStoreOptions {
 	mentionPanelStore?: DataService
+	projectFilesStore?: ProjectFilesStore
 }

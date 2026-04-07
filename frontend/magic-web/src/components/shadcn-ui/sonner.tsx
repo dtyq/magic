@@ -13,6 +13,7 @@ import { Toaster as Sonner, type ToasterProps } from "sonner"
 const Toaster = ({ ...props }: ToasterProps) => {
 	const { theme = "system" } = useTheme()
 
+	// PROJECT OVERRIDE — rgb(var(--*-rgb)) aligns with theme-token-oklch runtime.
 	return (
 		<Sonner
 			theme={theme as ToasterProps["theme"]}

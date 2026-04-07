@@ -10,7 +10,6 @@ namespace App\Domain\Chat\DTO\Message\Common\MessageExtra\SuperAgent;
 use App\Domain\Chat\DTO\Message\Common\MessageExtra\SuperAgent\Mention\MentionInterface;
 use App\Infrastructure\Core\AbstractDTO;
 use App\Interfaces\Agent\Assembler\MentionAssembler;
-use Hyperf\Codec\Json;
 
 class SuperAgentExtra extends AbstractDTO
 {
@@ -46,6 +45,14 @@ class SuperAgentExtra extends AbstractDTO
     protected ?array $imageModel = null;
 
     /**
+     * 视频模型配置。
+     *
+     * 这里和 imageModel 保持同一层级，供 super-magic-module 在消息 extra 中
+     * 存取 video_model，再在发送聊天消息时桥接到 dynamic_config.video_model。
+     */
+    protected ?array $videoModel = null;
+
+    /**
      * Queue ID for message processing.
      */
     protected ?string $queueId;
@@ -65,6 +72,12 @@ class SuperAgentExtra extends AbstractDTO
      * Used to distinguish between IM-triggered events and API-triggered events.
      */
     protected ?bool $processedByApi = null;
+
+    /**
+     * Third-party message source for user->agent messages.
+     * Example: {"channel":"feishu","message_id":"om_xxx","conversation_id":"oc_xxx","sender_id":"ou_xxx"}.
+     */
+    protected ?array $source = null;
 
     /**
      * 获取 mentions 的 JSON 结构数组.
@@ -195,6 +208,27 @@ class SuperAgentExtra extends AbstractDTO
         $this->imageModel = $imageModel;
     }
 
+    public function getVideoModel(): ?array
+    {
+        return $this->videoModel;
+    }
+
+    public function getVideoModelId(): string
+    {
+        if (empty($this->videoModel)) {
+            return '';
+        }
+        if (is_array($this->videoModel) && isset($this->videoModel['model_id']) && is_string($this->videoModel['model_id'])) {
+            return $this->videoModel['model_id'];
+        }
+        return '';
+    }
+
+    public function setVideoModel(?array $videoModel): void
+    {
+        $this->videoModel = $videoModel;
+    }
+
     public function getQueueId(): ?string
     {
         return $this->queueId ?? null;
@@ -252,5 +286,15 @@ class SuperAgentExtra extends AbstractDTO
     public function setProcessedByApi(?bool $processedByApi): void
     {
         $this->processedByApi = $processedByApi;
+    }
+
+    public function getSource(): ?array
+    {
+        return $this->source;
+    }
+
+    public function setSource(?array $source): void
+    {
+        $this->source = empty($source) ? null : $source;
     }
 }

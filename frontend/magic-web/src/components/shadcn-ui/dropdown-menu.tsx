@@ -22,6 +22,7 @@ function DropdownMenuTrigger({
 	return <DropdownMenuPrimitive.Trigger data-slot="dropdown-menu-trigger" {...props} />
 }
 
+// PROJECT OVERRIDE — z-dropdown; optional Portal container for fullscreen stacking.
 function DropdownMenuContent({
 	className,
 	sideOffset = 4,
@@ -29,7 +30,7 @@ function DropdownMenuContent({
 	container,
 	...props
 }: React.ComponentProps<typeof DropdownMenuPrimitive.Content> & {
-	/** 指定下拉内容挂载的 DOM 节点，用于全屏等场景 */
+	/** Portal mount node (e.g. fullscreen stacking). */
 	container?: HTMLElement | null
 }) {
 	return (
@@ -203,6 +204,7 @@ function DropdownMenuSubContent({
 	className,
 	...props
 }: React.ComponentProps<typeof DropdownMenuPrimitive.SubContent>) {
+	// PROJECT OVERRIDE — z-dropdown matches DropdownMenuContent stacking.
 	return (
 		<DropdownMenuPrimitive.SubContent
 			data-slot="dropdown-menu-sub-content"

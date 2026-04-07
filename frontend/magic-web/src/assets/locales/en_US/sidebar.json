@@ -10,7 +10,7 @@
 		"more": "More"
 	},
 	"crewMarket": {
-		"title": "My Crews"
+		"title": "Digtal Crew"
 	},
 	"footer": {
 		"defaultUser": "User",
@@ -44,16 +44,45 @@
 		"enterName": "Enter new project name",
 		"loading": "Loading..."
 	},
+	"skillsLibrary": {
+		"title": "Skills Library"
+	},
 	"superLobster": {
 		"card": {
 			"betaAccess": "Limited Beta Access",
 			"description": "One-Click Cloud Deployment, Available 24/7",
-			"title": "Create Your SuperClaw AI Assistant"
+			"title": "Create Your {{clawBrand}} AI Assistant"
+		},
+		"createDialog": {
+			"avatarLabel": "Avatar",
+			"nameLabel": "Name",
+			"namePlaceholder": "Enter {{clawBrand}}'s name",
+			"removeUploadedAvatar": "Remove uploaded avatar",
+			"submitting": "Creating…",
+			"subtitle": "One-Click Cloud Deployment, Available 24/7",
+			"title": "Create",
+			"uploadAvatarFailed": "Could not upload avatar. Please try again."
+		},
+		"created": {
+			"chat": "Chat",
+			"create": "Create",
+			"createFailed": "Could not create {{clawBrand}}. Please try again.",
+			"delete": "Delete",
+			"deleteConfirmDescription": "This action cannot be undone.",
+			"deleteConfirmTitle": "Delete \"{{name}}\"?",
+			"deleteFailed": "Could not delete {{clawBrand}}. Please try again.",
+			"deleteSuccess": "Deleted successfully",
+			"listEmpty": "No {{clawBrand}} yet. Create one with the button above.",
+			"listLoadFailed": "Failed to load the list. Please try again.",
+			"listLoading": "Loading…",
+			"listRetry": "Retry",
+			"title": "Created {{clawBrand}}",
+			"userGuide": "User Guide"
 		},
 		"description": "Your 24/7 Personalized AI Assistant",
 		"features": {
 			"connect": {
-				"description": "Seamlessly integrates with popular platforms like Lark, WeChat, DingTalk, and more. Break down app barriers and make SuperClaw your go-to assistant, always within reach.",
+				"description": "Seamlessly integrates with popular platforms like Lark, WeChat, DingTalk, and more. Break down app barriers and make {{clawBrand}} your go-to assistant, always within reach.",
 				"title": "Connect Anywhere, Chat Wherever You Like"
 			},
 			"customization": {
@@ -66,8 +95,24 @@
 			}
 		},
 		"getStarted": "Get Started",
-		"title": "Super Claw",
-		"titleAccent": "Claw"
+		"heroLead": "{{clawLead}}",
+		"mobile": {
+			"moreActions": "More options",
+			"mySuperClaw": "My {{clawBrand}}"
+		},
+		"title": "{{clawBrand}}",
+		"titleAccent": "Claw",
+		"workspace": {
+			"back": "Back",
+			"emptyHeroAccent": "Claw",
+			"emptyHeroLead": "{{clawLead}}",
+			"emptyHeroSubtitle": "Describe your idea, and I'll bring it to life",
+			"emptySubtitle": "Upload files or start a conversation with your {{clawBrand}}.",
+			"emptyTitle": "Ready to build",
+			"loadFailed": "Failed to load the {{clawBrand}} workspace.",
+			"skillInstallPromptPrefix": "Help me install this skill ",
+			"untitledProject": "Untitled {{clawBrand}}"
+		}
 	},
 	"workspace": {
 		"add": "New Workspace",

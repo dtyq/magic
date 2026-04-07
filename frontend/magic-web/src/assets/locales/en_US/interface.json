@@ -120,7 +120,7 @@
 		"myApps": "Apps",
 		"noDescription": "No Description",
 		"openApp": "Open",
-		"powerBy": "Powered by ${company}"
+		"powerBy": "Powered by {{company}}"
 	},
 	"backHome": "Return to homepage",
 	"bonusPointsModal": {
@@ -2159,13 +2159,16 @@
 		"message": "Messenger",
 		"mobileTabBar": {
 			"approval": "Approval",
+			"apps": "Apps",
 			"calendar": "Calendar",
 			"chat": "Chat",
 			"cloudDrive": "Drive",
 			"contacts": "Contacts",
 			"favorites": "Favorites",
 			"knowledge": "Knowledge",
+			"magiClaw": "{{clawBrand}}",
 			"more": "More",
+			"noOtherApps": "No other apps available",
 			"profile": "Me",
 			"recording": "Recording",
 			"super": "$t(common:platform.name)",

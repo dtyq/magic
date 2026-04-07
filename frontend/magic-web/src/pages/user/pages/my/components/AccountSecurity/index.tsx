@@ -7,6 +7,7 @@ import { Button } from "@/components/shadcn-ui/button"
 import { useUserInfo } from "@/models/user/hooks"
 import { useTranslation } from "react-i18next"
 import { encryptPhoneWithCountryCode } from "@/utils/phone"
+import { ViewTransitionPresets } from "@/types/viewTransition"
 import SettingItem from "../common/SettingItem"
 import ChangePhoneModal from "@/components/business/ChangePhoneModal"
 import ChangePasswordModal from "@/components/business/ChangePasswordModal"
@@ -24,6 +25,7 @@ function AccountSecurity() {
 	const handleBack = useMemoizedFn(() => {
 		navigate({
 			delta: -1,
+			viewTransition: ViewTransitionPresets.slideRight,
 		})
 	})
 

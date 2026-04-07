@@ -12,7 +12,7 @@ from agentlang.tools.tool_result import ToolResult
 from agentlang.event.event import EventType
 from agentlang.logger import get_logger
 from app.tools.core import BaseToolParams, tool
-from app.tools.workspace_guard_tool import WorkspaceGuardTool
+from app.tools.workspace_tool import WorkspaceTool
 from app.tools.abstract_file_tool import AbstractFileTool
 from app.core.entity.message.server_message import DisplayType, FileContent, ToolDetail, TerminalContent
 from app.utils.async_file_utils import async_copy2
@@ -47,7 +47,7 @@ Whether to update index.html main page file"""
 
 
 @tool()
-class UpdateDashboardTemplate(AbstractFileTool[UpdateDashboardTemplateParams], WorkspaceGuardTool[UpdateDashboardTemplateParams]):
+class UpdateDashboardTemplate(AbstractFileTool[UpdateDashboardTemplateParams], WorkspaceTool[UpdateDashboardTemplateParams]):
     """<!--zh
     更新数据分析看板模板文件工具
 
@@ -80,25 +80,22 @@ class UpdateDashboardTemplate(AbstractFileTool[UpdateDashboardTemplateParams], W
             if not template_source.exists():
                 error_msg = "Template source directory does not exist"
                 logger.error(error_msg)
-                return ToolResult(error=error_msg)
+                return ToolResult.error(error_msg)
 
             # 获取安全的目标路径
-            target_path, error = self.get_safe_path(params.target_project)
-            if error:
-                return ToolResult(error=error)
-
+            target_path = self.resolve_path(params.target_project)
             logger.info(f"目标项目路径: {target_path}")
 
             # 检查目标项目是否存在
             if not target_path.exists():
                 error_msg = f"Project does not exist: {params.target_project}"
                 logger.error(error_msg)
-                return ToolResult(error=error_msg)
+                return ToolResult.error(error_msg)
 
             if not target_path.is_dir():
                 error_msg = f"Path is not a directory: {params.target_project}"
                 logger.error(error_msg)
-                return ToolResult(error=error_msg)
+                return ToolResult.error(error_msg)
 
             # 定义需要更新的文件列表
             files_to_update = []
@@ -114,7 +111,7 @@ class UpdateDashboardTemplate(AbstractFileTool[UpdateDashboardTemplateParams], W
             if not files_to_update:
                 error_msg = "No files specified for update"
                 logger.error(error_msg)
-                return ToolResult(error=error_msg)
+                return ToolResult.error(error_msg)
 
             # 更新指定的文件
             for file_name in files_to_update:
@@ -192,7 +189,7 @@ class UpdateDashboardTemplate(AbstractFileTool[UpdateDashboardTemplateParams], W
             # 回滚：恢复备份文件
             await self._rollback_from_backup(backup_files)
 
-            return ToolResult(error="Template update failed")
+            return ToolResult.error("Template update failed")
 
     def _extract_ready_value_from_html(self, html_content: str) -> bool:
         """

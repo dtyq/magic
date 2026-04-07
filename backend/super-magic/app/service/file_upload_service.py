@@ -16,7 +16,7 @@ from app.infrastructure.storage.exceptions import InitException, UploadException
 from app.infrastructure.magic_service import MagicServiceConfigLoader, MagicServiceClient
 from app.infrastructure.magic_service.exceptions import ConfigurationError, ApiError
 from app.api.http_dto.file_upload_dto import FileUploadResult, FileUploadResponse
-from app.paths import PathManager
+from app.path_manager import PathManager
 from app.core.base_service import Base
 
 logger = logging.getLogger(__name__)

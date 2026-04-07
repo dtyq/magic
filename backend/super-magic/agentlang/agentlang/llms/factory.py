@@ -25,6 +25,7 @@ from agentlang.llms.token_usage.tracker import TokenUsageTracker
 from agentlang.llms.token_usage.pricing import ModelPricing
 from agentlang.llms.token_usage.report import TokenUsageReport
 from agentlang.llms.processors import ProcessorConfig, ProcessorManager
+from agentlang.llms.error_classifier import LLMErrorClassifier
 from agentlang.logger import get_logger
 from agentlang.utils.metadata import MetadataUtil
 from agentlang.utils.security import sanitize_api_key
@@ -53,6 +54,7 @@ class LLMClientConfig(BaseModel):
     extra_params: Dict[str, Any] = {}
     supports_tool_use: bool = True
     type: str = "llm"
+    resolved_model_id: Optional[str] = None
 
 class LLMFactory:
     """Factory for creating LLM clients."""
@@ -129,7 +131,7 @@ class LLMFactory:
         agent_context: Optional[AgentContextInterface] = None,
         processor_config: Optional[ProcessorConfig] = None,
         enable_llm_response_events: bool = False,
-        retry_count: int = 0
+        llm_call_retry_count: int = 0
     ) -> ChatCompletion:
         """使用工具支持调用 LLM。
 
@@ -144,7 +146,7 @@ class LLMFactory:
             agent_context: Agent 上下文接口，可选。
             processor_config: 处理器配置，包含流式模式、推流配置等，可选。
             enable_llm_response_events: 是否开启LLM响应事件触发，默认为 False。
-            retry_count: 重试次数，0表示第一次调用，>0表示重试调用，默认为 0。
+            llm_call_retry_count: LLM call 重试次数，0表示第一次调用，>0表示重试调用，默认为 0。
 
         Returns:
             LLM 响应。
@@ -174,6 +176,7 @@ class LLMFactory:
 
         # 获取模型配置
         llm_config = cls.get_model_config(model_id)
+        display_model_id = llm_config.resolved_model_id or model_id
 
         # Get current token count from chat history
         current_tokens = await get_current_tokens(agent_context, request_id)
@@ -226,8 +229,8 @@ class LLMFactory:
             logger.debug(f"[{request_id}] 动态设置请求头: {list(extra_headers.keys())}")
 
         # 发送请求并获取响应
-        retry_info = f" (重试第 {retry_count} 次)" if retry_count > 0 else ""
-        logger.info(f"[{request_id}] 发送聊天完成请求到 {model_id}:{llm_config.name}, 流式模式: {use_stream_mode}{retry_info}")
+        retry_info = f" (LLM call 重试第 {llm_call_retry_count} 次)" if llm_call_retry_count > 0 else ""
+        logger.info(f"[{request_id}] 发送聊天完成请求到 {display_model_id}:{llm_config.name}, 流式模式: {use_stream_mode}{retry_info}")
 
         # 执行 LLM 调用（统一管理流式/非流式及降级重试）
         response = None
@@ -242,25 +245,21 @@ class LLMFactory:
                 agent_context=agent_context,
                 request_id=request_id,
                 enable_llm_response_events=enable_llm_response_events,
-                retry_count=retry_count
+                llm_call_retry_count=llm_call_retry_count
             )
 
             # 统一修复工具调用参数的JSON格式
             if response and response.choices and len(response.choices) > 0:
                 message = response.choices[0].message
                 if message and message.tool_calls:
-                    # 记录修复前的原始 tool_calls
-                    logger.info(f"[{request_id}] LLM原始响应包含 {len(message.tool_calls)} 个工具调用")
-                    for i, tc in enumerate(message.tool_calls):
-                        logger.info(f"[{request_id}] [修复前] Tool Call #{i}: id={tc.id}, name={tc.function.name}")
-                        logger.info(f"[{request_id}] [修复前] Tool Call #{i} arguments原始内容: {tc.function.arguments}")
-
                     from agentlang.utils.tool_param_utils import preprocess_tool_calls_batch
+                    # 保存修复前的原始参数，用于修复后对比日志
+                    original_arguments = [tc.function.arguments for tc in message.tool_calls]
                     processed_count = preprocess_tool_calls_batch(message.tool_calls)
                     if processed_count > 0:
                         logger.info(f"[{request_id}] LLM响应修复了 {processed_count} 个工具调用的参数格式")
-                        # 记录修复后的结果
                         for i, tc in enumerate(message.tool_calls):
+                            logger.info(f"[{request_id}] [修复前] Tool Call #{i}: id={tc.id}, name={tc.function.name}, arguments: {original_arguments[i]}")
                             logger.info(f"[{request_id}] [修复后] Tool Call #{i} arguments: {tc.function.arguments}")
 
             # 统一记录 token 使用情况
@@ -274,21 +273,22 @@ class LLMFactory:
             # 记录成功响应日志和耗时
             end_time = time.time()
             elapsed_time = (end_time - start_time) * 1000  # 转换为毫秒
-            logger.info(f"[{request_id}] 请求完成 {model_id}:{llm_config.name}, 耗时: {elapsed_time:.2f}ms, tokens: {response.usage.total_tokens if response.usage else 'N/A'}")
+            logger.info(f"[{request_id}] 请求完成 {display_model_id}:{llm_config.name}, 耗时: {elapsed_time:.2f}ms, tokens: {response.usage.total_tokens if response.usage else 'N/A'}")
 
             return response
         except Exception as e:
             exception = e
             # Check for resource limit errors (insufficient points, consumption rounds limit, concurrency limit)
             cls._check_and_handle_resource_limit_error(e, request_id)
+            cls._check_and_handle_context_window_error(e, request_id)
 
             # 记录错误耗时
             end_time = time.time()
             elapsed_time = (end_time - start_time) * 1000  # 转换为毫秒
 
             # 简洁的错误日志
-            retry_info = f" (重试第 {retry_count} 次)" if retry_count > 0 else ""
-            logger.critical(f"[{request_id}] 调用 LLM {model_id} 时出错: {str(e)}，耗时: {elapsed_time:.2f}ms{retry_info}")
+            retry_info = f" (LLM call 重试第 {llm_call_retry_count} 次)" if llm_call_retry_count > 0 else ""
+            logger.critical(f"[{request_id}] 调用 LLM {display_model_id}:{llm_config.name} 时出错: {str(e)}，耗时: {elapsed_time:.2f}ms{retry_info}")
 
             raise
         finally:
@@ -391,6 +391,7 @@ class LLMFactory:
                 temperature=model_config.get("temperature", 0.7),
                 top_p=model_config.get("top_p", 1.0),
                 type=model_config["type"],
+                resolved_model_id=model_config.get("resolved_model_id") or None,
             )
         except Exception as e:
             logger.error(f"创建配置失败: {e}")
@@ -420,7 +421,7 @@ class LLMFactory:
             AsyncOpenAI 客户端实例。
         """
         default_headers = cls._build_default_headers()
-        
+
         logger.debug(
             f"OpenAI 客户端配置 - base_url: {llm_config.api_base_url}, "
             f"headers: {list(default_headers.keys())}"
@@ -437,54 +438,54 @@ class LLMFactory:
     @classmethod
     def _build_default_headers(cls) -> Dict[str, str]:
         """构建 OpenAI 客户端的默认请求头。
-        
+
         包含以下请求头（按优先级顺序添加）：
         1. Magic-Authorization：Magic 认证头
         2. User-Authorization：用户授权转发（如果启用）
         3. metadata headers：业务元数据（如 Magic-Task-Id 等）
         4. custom headers：配置文件中的自定义请求头
-        
+
         Returns:
             请求头字典。
         """
         headers: Dict[str, str] = {}
-        
+
         # 1-2. 添加 Magic-Authorization 与 User-Authorization
         MetadataUtil.add_magic_and_user_authorization_headers(headers)
-        
+
         # 3. 添加业务元数据请求头
         headers.update(MetadataUtil.get_llm_request_headers())
-        
+
         # 4. 添加自定义请求头
         headers.update(cls._parse_custom_headers())
-        
+
         return headers
 
     @classmethod
     def _parse_custom_headers(cls) -> Dict[str, str]:
         """解析配置文件中的自定义请求头。
-        
+
         支持 dict 或 JSON 字符串格式。
-        
+
         Returns:
             解析后的请求头字典，解析失败返回空字典。
         """
         try:
             raw = config.get("llm.custom_api_headers", {})
-            
+
             if isinstance(raw, dict):
                 return raw
-            
+
             if isinstance(raw, str) and raw.strip():
                 parsed = json.loads(raw)
                 if isinstance(parsed, dict):
                     return parsed
-                    
+
         except json.JSONDecodeError as e:
             logger.warning(f"解析自定义 API 请求头 JSON 失败: {e}")
         except Exception as e:
             logger.warning(f"处理自定义 API 请求头配置时出错: {e}")
-        
+
         return {}
 
     @classmethod
@@ -577,3 +578,17 @@ class LLMFactory:
             # If error handling itself fails, log and continue
             logger.debug(f"[{request_id}] 资源限制错误检查失败: {e}")
             # Don't raise here, let the original exception propagate
+
+    @classmethod
+    def _check_and_handle_context_window_error(cls, exception: Exception, request_id: str) -> None:
+        """检查并标记上下文超长/请求体过大的不可恢复错误"""
+        try:
+            error_snapshot = LLMErrorClassifier.extract_snapshot(exception)
+
+            if LLMErrorClassifier.is_context_window_exceeded(error_snapshot):
+                logger.warning(
+                    f"[{request_id}] 检测到上下文超长错误: status_code={error_snapshot.status_code}, message={error_snapshot.primary_message}"
+                )
+
+        except Exception as e:
+            logger.debug(f"[{request_id}] 上下文超长错误检查失败: {e}")

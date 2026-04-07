@@ -241,6 +241,20 @@ readonly class SuperMagicAgentDomainService
     }
 
     /**
+     * 根据 project_id 更新 Agent 的 updated_at 时间.
+     *
+     * @param SuperMagicAgentDataIsolation $dataIsolation 数据隔离对象
+     * @param int $projectId 项目ID
+     * @return bool 是否更新成功
+     */
+    #[Transactional]
+    public function updateUpdatedAtByProjectId(SuperMagicAgentDataIsolation $dataIsolation, int $projectId): bool
+    {
+        $modifier = $dataIsolation->getCurrentUserId();
+        return $this->superMagicAgentRepository->updateUpdatedAtByProjectId($dataIsolation, $projectId, $modifier);
+    }
+
+    /**
      * 获取指定创建者的智能体编码列表.
      * @return array<string>
      */
@@ -297,7 +311,11 @@ readonly class SuperMagicAgentDomainService
      */
     public function getDetail(SuperMagicAgentDataIsolation $dataIsolation, string $agentCode): SuperMagicAgentEntity
     {
-        $agent = $this->getByCodeWithException($dataIsolation, $agentCode);
+        $agent = $this->superMagicAgentRepository->getByCode($dataIsolation, $agentCode);
+        if (! $agent) {
+            ExceptionBuilder::throw(SuperMagicErrorCode::NotFound, 'common.not_found', ['label' => $agentCode]);
+        }
+
         $agent->setName($agent->getI18nName($dataIsolation->getLanguage()));
         $agent->setDescription($agent->getI18nDescription($dataIsolation->getLanguage()));
 
@@ -505,6 +523,8 @@ readonly class SuperMagicAgentDomainService
      * @param string $action 审核操作：APPROVED=通过, REJECTED=拒绝
      * @param string $modifier 修改者
      * @param null|string $publisherType 发布者类型（仅在 action=APPROVED 时有效）
+     * @param null|bool $marketIsFeatured 上架市场时的「是否精选」；为 null 且已有市场记录时保留原值
+     * @param null|int $marketSortOrder 上架市场时的排序权重（越大越靠前）；为 null 且已有市场记录时保留原值
      */
     #[Transactional]
     public function reviewAgentVersion(
@@ -512,7 +532,9 @@ readonly class SuperMagicAgentDomainService
         int $versionId,
         string $action,
         string $modifier,
-        ?string $publisherType = null
+        ?string $publisherType = null,
+        ?bool $marketIsFeatured = null,
+        ?int $marketSortOrder = null
     ): void {
         $dataIsolation->disabled();
 
@@ -604,6 +626,18 @@ readonly class SuperMagicAgentDomainService
                 $storeAgentEntity->setId($existingStoreAgent->getId());
             }
 
+            if ($marketIsFeatured !== null) {
+                $storeAgentEntity->setIsFeatured($marketIsFeatured);
+            } elseif ($existingStoreAgent !== null) {
+                $storeAgentEntity->setIsFeatured($existingStoreAgent->isFeatured());
+            }
+
+            if ($marketSortOrder !== null) {
+                $storeAgentEntity->setSortOrder($marketSortOrder);
+            } elseif ($existingStoreAgent !== null) {
+                $storeAgentEntity->setSortOrder($existingStoreAgent->getSortOrder());
+            }
+
             $this->storeAgentRepository->saveOrUpdate($dataIsolation, $storeAgentEntity);
         } else {
             // 审核拒绝
@@ -628,10 +662,16 @@ readonly class SuperMagicAgentDomainService
      * @param string $code Agent code, e.g. "SMA-xxx"
      * @param int $projectId Associated project ID
      * @param string $fullWorkdir Full working directory path on object storage
+     * @param null|string $sourcePath Optional relative source path under workspace root
      * @return array{file_key: string, metadata: array} Export result containing file_key and metadata
      */
-    public function exportAgentFromSandbox(SuperMagicAgentDataIsolation $dataIsolation, string $code, int $projectId, string $fullWorkdir): array
-    {
+    public function exportAgentFromSandbox(
+        SuperMagicAgentDataIsolation $dataIsolation,
+        string $code,
+        int $projectId,
+        string $fullWorkdir,
+        ?string $sourcePath = null
+    ): array {
         // Build sandbox ID (same strategy as file converter)
         $sandboxId = WorkDirectoryUtil::generateUniqueCodeFromSnowflakeId($projectId . '_custom_agent');
 
@@ -643,11 +683,12 @@ readonly class SuperMagicAgentDomainService
         $uploadConfig = $this->cloudFileRepository->getStsTemporaryCredential(
             $dataIsolation->getCurrentOrganizationCode(),
             StorageBucketType::Private,
-            '/agent_export'
+            '/agent_export',
+            options: ['internal_endpoint' => true]
         );
 
         // Call sandbox workspace export API via proxy request
-        $request = new ExportWorkspaceRequest(ProjectMode::CUSTOM_AGENT->value, $code, $uploadConfig);
+        $request = new ExportWorkspaceRequest(ProjectMode::CUSTOM_AGENT->value, $code, $uploadConfig, $sourcePath);
         $response = $this->workspaceExporter->export($sandboxId, $request);
 
         if (! $response->isSuccess()) {

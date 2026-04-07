@@ -78,14 +78,21 @@ class AgentOpenApiResult(AbstractResult):
         self.prompt = self.get('prompt')
         self.enabled = self.get('enabled', False)
         self.source_type = self.get('source_type', '')
+        self.is_store_offline = self.get('is_store_offline')
         self.pinned_at = self.get('pinned_at')
         self.project_id = self.get('project_id')
+        self.file_key = self.get('file_key')
+        self.file_url = self.get('file_url')
+        self.latest_published_at = self.get('latest_published_at')
         self.created_at = self.get('created_at', '')
         self.updated_at = self.get('updated_at', '')
 
         # Parse skills
         skills_data = self.get('skills', [])
         self.skills: List[AgentSkillInfo] = [AgentSkillInfo(s) for s in skills_data] if skills_data else []
+
+        # Parse playbooks (raw list)
+        self.playbooks = self.get('playbooks', [])
 
         # Tools raw data
         self.tools = self.get('tools', [])

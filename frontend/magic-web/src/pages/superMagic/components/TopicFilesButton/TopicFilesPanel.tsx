@@ -18,6 +18,7 @@ import { useFileReplace } from "./hooks/useFileReplace"
 import { cn } from "@/lib/utils"
 import magicToast from "@/components/base/MagicToaster/utils"
 import { type PresetFileType } from "./constant"
+import type { TopicFileRowDecorationResolver } from "./topic-file-row-decoration.types"
 
 interface TopicFilesPanelProps {
 	className?: string
@@ -45,6 +46,7 @@ interface TopicFilesPanelProps {
 	filterBatchDownloadLayerMenuItems?: (menuItems: any[]) => any[]
 	// 是否允许下载（用于分享页面权限控制）
 	allowDownload?: boolean
+	resolveTopicFileRowDecoration?: TopicFileRowDecorationResolver
 }
 
 export interface TopicFilesPanelRef {
@@ -75,6 +77,7 @@ const TopicFilesPanel = forwardRef<TopicFilesPanelRef, TopicFilesPanelProps>(
 			filterMenuItems,
 			filterBatchDownloadLayerMenuItems,
 			allowDownload,
+			resolveTopicFileRowDecoration,
 		},
 		ref,
 	) {
@@ -325,6 +328,7 @@ const TopicFilesPanel = forwardRef<TopicFilesPanelRef, TopicFilesPanelProps>(
 						filterMenuItems={filterMenuItems}
 						filterBatchDownloadLayerMenuItems={filterBatchDownloadLayerMenuItems}
 						allowDownload={allowDownload}
+						resolveTopicFileRowDecoration={resolveTopicFileRowDecoration}
 					/>
 				</div>
 

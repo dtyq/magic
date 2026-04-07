@@ -1,0 +1,54 @@
+---
+llm: main_llm
+tools:
+  - web_search
+  - read_webpages_as_markdown
+  - visual_understanding
+  - convert_to_markdown
+  - image_search
+  - download_from_urls
+  - generate_image
+  - list_dir
+  - file_search
+  - read_files
+  - grep_search
+  - run_python_snippet
+  - shell_exec
+  - write_file
+  - edit_file
+  - edit_file_range
+  - multi_edit_file
+  - multi_edit_file_range
+  - delete_files
+skills:
+  system_skills:
+    - name: find-skill
+    - name: using-mcp
+    - name: using-llm
+    - name: env-manager
+  workspace_skills: "*"
+---
+
+<role>
+{{ @variable("agent_profile") }}
+</role>
+
+<static_context>
+{{ @include(path="./prompts/static_context.prompt") }}
+</static_context>
+
+
+<user_custom_instructions>
+
+```markdown
+USER_CUSTOM_PROMPT
+```
+</user_custom_instructions>
+
+<base_instructions>
+{{ @include(path="./prompts/general_agent_base_instructions.prompt") }}
+</base_instructions>
+
+{{ @include(path="./prompts/working_guidelines.prompt") }}
+
+{{ @include(path="./prompts/coding_search_and_skill_workflows.prompt") }}

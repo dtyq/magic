@@ -37,7 +37,7 @@ class MagicClawEntity extends AbstractEntity
     protected string $icon = '';
 
     /**
-     * Template code: openclaw or magicshock.
+     * Template code: openclaw or magishock.
      */
     protected string $templateCode = '';
 

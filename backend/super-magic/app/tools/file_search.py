@@ -10,7 +10,8 @@ from agentlang.tools.tool_result import ToolResult
 from agentlang.logger import get_logger
 from agentlang.utils.schema import FileInfo
 from app.tools.core import BaseToolParams, tool
-from app.tools.workspace_guard_tool import WorkspaceGuardTool
+from app.tools.workspace_tool import WorkspaceTool
+from app.utils.async_file_utils import async_try_count_text_lines
 
 logger = get_logger(__name__)
 
@@ -24,7 +25,7 @@ Fuzzy file name to search"""
 
 
 @tool()
-class FileSearch(WorkspaceGuardTool[FileSearchParams]):
+class FileSearch(WorkspaceTool[FileSearchParams]):
     """<!--zh
     基于对文件路径的模糊匹配的快速文件搜索。
     如果你知道文件路径的一部分但不确切知道它的位置，请使用此工具。响应将限制为10个结果。如果需要进一步过滤结果，请使查询更具体。
@@ -44,12 +45,12 @@ class FileSearch(WorkspaceGuardTool[FileSearchParams]):
             ToolResult: 包含搜索结果
         """
         # 调用_run方法获取结果
-        result = self._run(params.query)
+        result = await self._run(params.query)
 
         # 返回ToolResult
         return ToolResult(content=result)
 
-    def _run(self, query: str) -> str:
+    async def _run(self, query: str) -> str:
         """运行工具并返回搜索结果"""
         try:
             # 获取所有文件路径
@@ -77,7 +78,7 @@ class FileSearch(WorkspaceGuardTool[FileSearchParams]):
                     is_dir=False,
                     size=stat.st_size,
                     last_modified=stat.st_mtime,
-                    line_count=self._count_lines(file_path)
+                    line_count=await async_try_count_text_lines(file_path)
                     if file_path.suffix in [".py", ".js", ".ts", ".jsx", ".tsx", ".vue", ".md", ".txt"]
                     else None,
                 )
@@ -133,16 +134,6 @@ class FileSearch(WorkspaceGuardTool[FileSearchParams]):
                 return f"{size:.1f}{unit}"
             size /= 1024
         return f"{size:.1f}TB"
-
-    def _count_lines(self, file_path: Path) -> int:
-        """计算文件行数"""
-        try:
-            with file_path.open("r", encoding="utf-8") as f:
-                return sum(1 for _ in f)
-        except:
-            return None
-
-
 
     def _get_remark_content(self, result: ToolResult, arguments: Dict[str, Any] = None) -> str:
         """获取备注内容"""

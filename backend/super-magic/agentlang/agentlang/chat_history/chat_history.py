@@ -224,30 +224,85 @@ class ChatHistory:
         filename = f"{self.agent_name}<{self.agent_id}>.session.json"
         return os.path.join(self.chat_history_dir, filename)
 
+    @staticmethod
+    def _default_session_config_block() -> Dict[str, Any]:
+        """默认的会话配置块。"""
+        return {
+            "model_id": None,
+            "image_model_id": None,
+            "image_model_sizes": None,
+            "video_model_id": None,
+            "video_generation_config": None,
+            "mcp_servers": None,
+        }
+
+    def _load_session_document(self) -> Dict[str, Any]:
+        """读取完整会话状态文档，保留未知字段以支持未来扩展。"""
+        config_file = self._build_model_config_filename()
+        default_document = {
+            "last": self._default_session_config_block(),
+            "current": self._default_session_config_block(),
+        }
+        try:
+            if not os.path.exists(config_file):
+                return default_document
+            with open(config_file, 'r', encoding='utf-8') as f:
+                loaded = json.load(f)
+            if not isinstance(loaded, dict):
+                return default_document
+            document = default_document | loaded
+            if not isinstance(document.get("last"), dict):
+                document["last"] = self._default_session_config_block()
+            if not isinstance(document.get("current"), dict):
+                document["current"] = self._default_session_config_block()
+            return document
+        except Exception as e:
+            logger.debug(f"读取会话状态文档失败: {e}")
+            return default_document
+
+    def _save_session_document(self, document: Dict[str, Any]) -> None:
+        """保存完整会话状态文档。"""
+        config_file = self._build_model_config_filename()
+        with open(config_file, 'w', encoding='utf-8') as f:
+            json.dump(document, f, ensure_ascii=False, indent=2)
+
     def get_last_session_config(self) -> Dict[str, Any]:
         """
         获取上次保存的会话配置（last）。
 
         Returns:
-            Dict[str, Any]: 包含 model_id、image_model_id、image_model_sizes 和 mcp_servers 的字典
+            Dict[str, Any]: 包含 model_id、image/video model 配置和 mcp_servers 的字典
         """
-        config_file = self._build_model_config_filename()
         try:
-            if os.path.exists(config_file):
-                with open(config_file, 'r', encoding='utf-8') as f:
-                    config = json.load(f)
-                    last_config = config.get("last", {})
-                    return {
-                        "model_id": last_config.get("model_id"),
-                        "image_model_id": last_config.get("image_model_id"),
-                        "image_model_sizes": last_config.get("image_model_sizes"),
-                        "mcp_servers": last_config.get("mcp_servers")
-                    }
+            last_config = self._load_session_document().get("last", {})
+            return {
+                "model_id": last_config.get("model_id"),
+                "image_model_id": last_config.get("image_model_id"),
+                "image_model_sizes": last_config.get("image_model_sizes"),
+                "video_model_id": last_config.get("video_model_id"),
+                "video_generation_config": last_config.get("video_generation_config"),
+                "mcp_servers": last_config.get("mcp_servers")
+            }
         except Exception as e:
             logger.debug(f"读取会话配置失败: {e}")
-        return {"model_id": None, "image_model_id": None, "image_model_sizes": None, "mcp_servers": None}
+        return {
+            "model_id": None,
+            "image_model_id": None,
+            "image_model_sizes": None,
+            "video_model_id": None,
+            "video_generation_config": None,
+            "mcp_servers": None,
+        }
 
-    def save_session_config(self, model_id: Optional[str], image_model_id: Optional[str], image_model_sizes: Optional[List[Dict[str, Any]]] = None, mcp_servers: Optional[Dict[str, List[str]]] = None) -> None:
+    def save_session_config(
+        self,
+        model_id: Optional[str],
+        image_model_id: Optional[str],
+        image_model_sizes: Optional[List[Dict[str, Any]]] = None,
+        video_model_id: Optional[str] = None,
+        video_generation_config: Optional[Dict[str, Any]] = None,
+        mcp_servers: Optional[Dict[str, List[str]]] = None
+    ) -> None:
         """
         保存当前会话配置。
 
@@ -260,42 +315,28 @@ class ChatHistory:
             model_id: 当前使用的 LLM 模型 ID
             image_model_id: 当前使用的图片生成模型 ID
             image_model_sizes: 当前图片生成模型可用的尺寸列表
+            video_model_id: 当前使用的视频生成模型 ID
+            video_generation_config: 当前视频生成模型 featured 配置
             mcp_servers: 当前可用的 MCP 服务器及其工具列表
         """
-        config_file = self._build_model_config_filename()
         try:
-            # 读取现有配置
             current_config = {
                 "model_id": model_id,
                 "image_model_id": image_model_id,
                 "image_model_sizes": image_model_sizes,
+                "video_model_id": video_model_id,
+                "video_generation_config": video_generation_config,
                 "mcp_servers": mcp_servers
             }
-
-            last_config = None
-            if os.path.exists(config_file):
-                try:
-                    with open(config_file, 'r', encoding='utf-8') as f:
-                        existing_config = json.load(f)
-                        # 把之前的 current 更新到 last 中
-                        last_config = existing_config.get("current", {})
-                except Exception:
-                    pass
-
-            # 构建新的配置：last 和 current
-            config = {
-                "last": last_config if last_config else {
-                    "model_id": None,
-                    "image_model_id": None,
-                    "image_model_sizes": None,
-                    "mcp_servers": None
-                },
-                "current": current_config
-            }
-
-            with open(config_file, 'w', encoding='utf-8') as f:
-                json.dump(config, f, ensure_ascii=False, indent=2)
-            logger.debug(f"会话配置已保存: current model_id={model_id}, image_model_id={image_model_id}, mcp_servers={len(mcp_servers) if mcp_servers else 0} servers")
+            existing_config = self._load_session_document()
+            last_config = existing_config.get("current", {})
+            existing_config["last"] = last_config if isinstance(last_config, dict) and last_config else self._default_session_config_block()
+            existing_config["current"] = current_config
+            self._save_session_document(existing_config)
+            logger.debug(
+                f"会话配置已保存: current model_id={model_id}, image_model_id={image_model_id}, "
+                f"video_model_id={video_model_id}, mcp_servers={len(mcp_servers) if mcp_servers else 0} servers"
+            )
         except Exception as e:
             logger.warning(f"保存会话配置失败: {e}")
 
@@ -694,9 +735,9 @@ class ChatHistory:
         message = SystemMessage(content=content, show_in_ui=show_in_ui)
         await self.add_message(message)
 
-    async def append_user_message(self, content: str, show_in_ui: bool = True) -> None:
-        """添加一条用户消息"""
-        message = UserMessage(content=content, show_in_ui=show_in_ui)
+    async def append_user_message(self, content: str, show_in_ui: bool = True, source: Optional[str] = None) -> None:
+        """添加一条用户消息。source 用于标记消息来源（None=用户，"horizon"=系统注入等）。"""
+        message = UserMessage(content=content, show_in_ui=show_in_ui, source=source)
         await self.add_message(message)
 
     async def append_assistant_message(self,

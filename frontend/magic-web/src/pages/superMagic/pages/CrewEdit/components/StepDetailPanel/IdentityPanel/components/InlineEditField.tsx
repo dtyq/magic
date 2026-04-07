@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect } from "react"
+import { useState, useCallback, useEffect, useRef } from "react"
 import { PencilLine } from "lucide-react"
 import SmartTooltip from "@/components/other/SmartTooltip"
 import { cn } from "@/lib/tiptap-utils"
@@ -14,7 +14,7 @@ export interface InlineEditFieldProps {
 	multiline?: boolean
 	multilineRows?: number
 	align?: "center" | "left"
-	onSave: (val: string) => void
+	onSave: (val: string) => void | Promise<void>
 	testId?: string
 	maxLength?: number
 	disabled?: boolean
@@ -45,12 +45,15 @@ export function InlineEditField({
 }: InlineEditFieldProps) {
 	const [editing, setEditing] = useState(false)
 	const [draft, setDraft] = useState(value)
+	const [isSaving, setIsSaving] = useState(false)
+	const isCommittingRef = useRef(false)
 
 	useEffect(() => {
 		if (disabled) setEditing(false)
 	}, [disabled])
 
 	const startEdit = useCallback(() => {
+		if (isSaving) return
 		if (disabled) return
 		if (onClick) {
 			onClick()
@@ -58,12 +61,26 @@ export function InlineEditField({
 		}
 		setDraft(value)
 		setEditing(true)
-	}, [disabled, onClick, value])
+	}, [disabled, isSaving, onClick, value])
 
-	const commit = useCallback(() => {
-		onSave(draft.trim())
+	const commit = useCallback(async () => {
+		if (isCommittingRef.current) return
+
+		const nextValue = draft.trim()
 		setEditing(false)
-	}, [draft, onSave])
+
+		if (nextValue === value.trim()) return
+
+		isCommittingRef.current = true
+		setIsSaving(true)
+
+		try {
+			await onSave(nextValue)
+		} finally {
+			isCommittingRef.current = false
+			setIsSaving(false)
+		}
+	}, [draft, onSave, value])
 
 	const handleKeyDown = useCallback(
 		(e: React.KeyboardEvent) => {
@@ -104,6 +121,7 @@ export function InlineEditField({
 							onChange={(e) => setDraft(e.target.value)}
 							onBlur={commit}
 							onKeyDown={handleKeyDown}
+							disabled={isSaving}
 							className={cn(inputClass, "resize-none overflow-auto leading-relaxed")}
 							data-testid={testId}
 							maxLength={maxLength}
@@ -116,6 +134,7 @@ export function InlineEditField({
 							onChange={(e) => setDraft(e.target.value)}
 							onBlur={commit}
 							onKeyDown={handleKeyDown}
+							disabled={isSaving}
 							className={cn(inputClass, "overflow-hidden")}
 							data-testid={testId}
 							maxLength={maxLength}
@@ -152,10 +171,10 @@ export function InlineEditField({
 			className={cn(
 				CONTAINER_BASE,
 				"rounded-sm border-transparent",
-				disabled ? "cursor-default" : "hover:bg-accent/60",
+				disabled || isSaving ? "cursor-default" : "hover:bg-accent/60",
 			)}
 			onClick={startEdit}
-			disabled={disabled}
+			disabled={disabled || isSaving}
 			data-testid={testId}
 		>
 			{displayTooltipContent ? (
@@ -170,7 +189,7 @@ export function InlineEditField({
 			) : (
 				<span className={displayTextClasses}>{value || placeholder}</span>
 			)}
-			{disabled ? null : (
+			{disabled || isSaving ? null : (
 				<PencilLine className="absolute right-1.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground opacity-0 transition-opacity group-hover:opacity-60" />
 			)}
 		</button>

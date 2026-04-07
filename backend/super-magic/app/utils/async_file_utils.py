@@ -7,13 +7,18 @@
 """
 
 import asyncio
+import re
 import aiofiles
 import aiofiles.os
 import shutil
 import json
 import os
+from dataclasses import dataclass, field
+from enum import StrEnum
 from pathlib import Path
 from typing import Union, Any, Dict, Optional
+
+import yaml
 
 from agentlang.logger import get_logger
 
@@ -65,26 +70,60 @@ async def async_copy2(src: Union[str, Path], dst: Union[str, Path]) -> None:
         raise
 
 
-async def async_copytree(src: Union[str, Path], dst: Union[str, Path]) -> None:
+class CopyConflict(StrEnum):
+    """File conflict strategy for async_copytree."""
+    ERROR = "error"
+    OVERWRITE = "overwrite"
+    SKIP = "skip"
+
+
+async def async_copytree(
+    src: Union[str, Path],
+    dst: Union[str, Path],
+    on_conflict: CopyConflict = CopyConflict.ERROR,
+    exclude: Optional[set] = None,
+) -> None:
     """
     异步复制目录树
 
     Args:
         src: 源目录路径
         dst: 目标目录路径
+        on_conflict: 目标已存在时的冲突策略
+            - ERROR: 目标存在即报错（默认，向后兼容）
+            - OVERWRITE: 目录合并，同名文件覆盖
+            - SKIP: 目录合并，已有文件保留不动
+        exclude: 要跳过的文件名集合（仅匹配文件名，不含路径）
 
     Raises:
         FileNotFoundError: 源目录不存在
-        FileExistsError: 目标目录已存在
+        FileExistsError: 目标目录已存在（仅 ERROR 策略）
         PermissionError: 权限不足
     """
     src_path = Path(src)
     dst_path = Path(dst)
+    ignore_func = shutil.ignore_patterns(*exclude) if exclude else None
 
     try:
-        logger.debug(f"开始异步复制目录: {src_path} -> {dst_path}")
+        logger.debug(f"开始异步复制目录: {src_path} -> {dst_path} (on_conflict={on_conflict}, exclude={exclude})")
 
-        await asyncio.to_thread(shutil.copytree, src_path, dst_path)
+        if on_conflict == CopyConflict.SKIP:
+            def _copy_skip(src_f: str, dst_f: str) -> None:
+                if not os.path.exists(dst_f):
+                    shutil.copy2(src_f, dst_f)
+
+            await asyncio.to_thread(
+                shutil.copytree, src_path, dst_path,
+                copy_function=_copy_skip, dirs_exist_ok=True,
+                ignore=ignore_func,
+            )
+        elif on_conflict == CopyConflict.OVERWRITE:
+            await asyncio.to_thread(
+                shutil.copytree, src_path, dst_path, dirs_exist_ok=True,
+                ignore=ignore_func,
+            )
+        else:
+            await asyncio.to_thread(shutil.copytree, src_path, dst_path, ignore=ignore_func)
 
         logger.debug(f"异步复制目录完成: {src_path} -> {dst_path}")
 
@@ -183,6 +222,30 @@ async def async_unlink(path: Union[str, Path]) -> None:
 
     except Exception as e:
         logger.error(f"异步删除文件失败 {path_str}: {e}")
+        raise
+
+
+async def async_rename(src: Union[str, Path], dst: Union[str, Path]) -> None:
+    """
+    异步重命名/移动文件或目录
+
+    Args:
+        src: 源路径
+        dst: 目标路径
+
+    Raises:
+        FileNotFoundError: 源路径不存在
+        PermissionError: 权限不足
+    """
+    src_str = str(src)
+    dst_str = str(dst)
+
+    try:
+        logger.debug(f"开始异步重命名: {src_str} -> {dst_str}")
+        await aiofiles.os.rename(src_str, dst_str)
+        logger.debug(f"异步重命名完成: {src_str} -> {dst_str}")
+    except Exception as e:
+        logger.error(f"异步重命名失败 {src_str} -> {dst_str}: {e}")
         raise
 
 
@@ -321,6 +384,48 @@ async def async_write_text(file_path: Union[str, Path], content: str, encoding: 
         raise
 
 
+async def async_write_bytes(
+    file_path: Union[str, Path],
+    content: bytes | bytearray | memoryview,
+) -> None:
+    """
+    异步写入二进制文件
+
+    Args:
+        file_path: 文件路径
+        content: 二进制内容
+
+    Raises:
+        PermissionError: 权限不足
+        IOError: IO操作失败
+        TypeError: 内容不是 bytes / bytearray / memoryview
+    """
+    path_obj = Path(file_path)
+
+    try:
+        logger.debug(f"开始异步写入二进制文件: {path_obj}")
+
+        if isinstance(content, bytes):
+            normalized_content = content
+        elif isinstance(content, (bytearray, memoryview)):
+            normalized_content = bytes(content)
+        else:
+            raise TypeError("二进制内容必须是 bytes、bytearray 或 memoryview 类型")
+
+        # 确保目录存在
+        await async_mkdir(path_obj.parent, parents=True, exist_ok=True)
+
+        # 异步写入文件
+        async with aiofiles.open(path_obj, 'wb') as f:
+            await f.write(normalized_content)
+
+        logger.debug(f"异步写入二进制文件完成: {path_obj}, 写入了 {len(normalized_content)} 字节")
+
+    except Exception as e:
+        logger.error(f"异步写入二进制文件失败 {path_obj}: {e}")
+        raise
+
+
 async def async_read_text(file_path: Union[str, Path], encoding: str = 'utf-8') -> str:
     """
     异步读取文本文件
@@ -355,6 +460,65 @@ async def async_read_text(file_path: Union[str, Path], encoding: str = 'utf-8') 
     except Exception as e:
         logger.error(f"异步读取文本文件失败 {path_obj}: {e}")
         raise
+
+
+def _count_text_lines_sync(file_path: Path, encoding: str) -> int:
+    """同步统计文本文件行数，供 asyncio.to_thread 调用。"""
+    with file_path.open('r', encoding=encoding) as f:
+        return sum(1 for _ in f)
+
+
+async def async_count_text_lines(file_path: Union[str, Path], encoding: str = 'utf-8') -> int:
+    """
+    异步统计文本文件行数
+
+    通过线程池执行流式逐行统计，避免阻塞事件循环，也避免整文件读入内存。
+
+    Args:
+        file_path: 文件路径
+        encoding: 编码格式，默认utf-8
+
+    Returns:
+        int: 文件总行数
+
+    Raises:
+        FileNotFoundError: 文件不存在
+        IOError: IO操作失败
+        UnicodeDecodeError: 文本解码失败
+    """
+    path_obj = Path(file_path)
+
+    try:
+        return await asyncio.to_thread(_count_text_lines_sync, path_obj, encoding)
+    except Exception as e:
+        logger.error(f"异步统计文本文件行数失败 {path_obj}: {e}")
+        raise
+
+
+async def async_try_count_text_lines(file_path: Union[str, Path], encoding: str = 'utf-8') -> Optional[int]:
+    """
+    安全统计文本文件行数（不抛异常）
+
+    与 async_count_text_lines 的区别：
+    - async_count_text_lines: 文件不存在或统计失败时抛出异常
+    - async_try_count_text_lines: 返回 None，适合附加信息统计场景
+
+    Args:
+        file_path: 文件路径
+        encoding: 编码格式，默认utf-8
+
+    Returns:
+        Optional[int]: 文件总行数，失败或不存在返回 None
+    """
+    path_obj = Path(file_path)
+
+    try:
+        return await async_count_text_lines(path_obj, encoding=encoding)
+    except FileNotFoundError:
+        return None
+    except Exception as e:
+        logger.error(f"统计文件 {path_obj} 行数失败: {e}")
+        return None
 
 
 async def async_read_bytes(file_path: Union[str, Path], size: Optional[int] = None, offset: int = 0) -> bytes:
@@ -559,3 +723,48 @@ async def async_iterdir(path: Union[str, Path]) -> list[Path]:
     except Exception as e:
         logger.error(f"异步遍历目录失败 {path_str}: {e}")
         raise
+
+
+# ── Markdown with YAML frontmatter ───────────────────────────────────────────
+
+_FRONTMATTER_RE = re.compile(r"^---\s*\n(.*?)\n---\s*\n?", re.DOTALL)
+
+
+@dataclass
+class MarkdownFile:
+    """Parsed Markdown file with optional YAML frontmatter.
+
+    Attributes:
+        raw:  Original file content as-is.
+        meta: Parsed YAML frontmatter dict; empty if none present.
+        body: Content after stripping the frontmatter block.
+    """
+    raw: str
+    meta: Dict[str, Any] = field(default_factory=dict)
+    body: str = ""
+
+
+def _parse_markdown(raw: str) -> MarkdownFile:
+    m = _FRONTMATTER_RE.match(raw)
+    if not m:
+        return MarkdownFile(raw=raw, meta={}, body=raw)
+    try:
+        meta = yaml.safe_load(m.group(1)) or {}
+    except yaml.YAMLError:
+        meta = {}
+    return MarkdownFile(raw=raw, meta=meta, body=raw[m.end():])
+
+
+async def async_read_markdown(file_path: Union[str, Path]) -> MarkdownFile:
+    """Read and parse a Markdown file with optional YAML frontmatter.
+
+    Raises:
+        FileNotFoundError: if the file does not exist.
+    """
+    return _parse_markdown(await async_read_text(file_path))
+
+
+async def async_try_read_markdown(file_path: Union[str, Path]) -> Optional[MarkdownFile]:
+    """Read and parse a Markdown file; return None if the file does not exist."""
+    raw = await async_try_read_text(file_path)
+    return _parse_markdown(raw) if raw is not None else None

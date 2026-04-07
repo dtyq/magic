@@ -5,6 +5,7 @@ from typing import List, Dict, Optional, Any
 from datetime import datetime
 from agentlang.logger import get_logger
 from agentlang.llms.factory import LLMFactory
+from app.i18n import i18n
 from app.utils.async_file_utils import async_exists
 from .models import BatchImageProcessingResults, SingleImageResult
 from .image_conversion_utils import local_file_to_base64
@@ -16,6 +17,7 @@ logger = get_logger(__name__)
 # 系统提示模板
 DEFAULT_SYSTEM_PROMPT = """你是一个专业的视觉理解助手，擅长依据用户需求，准确地分析和解释图片内容。
 若用户传入了多张图片并要求你给出每张图片的分析结果而非整体分析结果，你需要确保分析结果与每张图片的对应关系清晰明确。
+用最少的字表达最多的内容，但不丢失任何细节，尽最大努力提高你回答的信息密度。
 当前时间：{current_time}"""
 
 
@@ -60,8 +62,12 @@ class LLMRequestHandler:
         # 自动获取系统提示（包含当前时间）
         system_content = LLMRequestHandler.get_system_prompt()
 
-        # 构建用户消息内容
-        content = [{"type": "text", "text": user_prompt}]
+        # 构建用户消息内容，语言已设置时追加语言要求
+        prompt_text = user_prompt
+        if i18n.is_language_manually_set():
+            lang = i18n.get_language_display_name()
+            prompt_text = f"{user_prompt}\n\nPlease reply in {lang}."
+        content = [{"type": "text", "text": prompt_text}]
 
         # 添加图片内容（只添加成功的图片）
         for result in batch_results.successful_results:

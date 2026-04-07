@@ -40,8 +40,19 @@ class AdminModeAggregateDTO extends AbstractDTO
     {
         $groupData = [];
         foreach ($groups as $group) {
+            if ($group instanceof AdminModeGroupAggregateDTO) {
+                $groupData[] = $group;
+                continue;
+            }
+
             if (isset($group['group'])) {
-                $groupData[] = $group['group'] instanceof AdminModeGroupAggregateDTO ? $group['group'] : new AdminModeGroupAggregateDTO($group['group'], $group['models']);
+                $groupData[] = new AdminModeGroupAggregateDTO(
+                    $group['group'],
+                    $group['models'] ?? [],
+                    $group['imageModels'] ?? $group['image_models'] ?? [],
+                    $group['videoModels'] ?? $group['video_models'] ?? [],
+                    $group['textModels'] ?? $group['text_models'] ?? [],
+                );
             }
         }
 

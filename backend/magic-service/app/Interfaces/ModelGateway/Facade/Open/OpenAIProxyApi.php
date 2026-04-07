@@ -9,7 +9,6 @@ namespace App\Interfaces\ModelGateway\Facade\Open;
 
 use App\Application\ModelGateway\Service\ImageLLMAppService;
 use App\Application\ModelGateway\Service\LLMAppService;
-use App\Domain\ModelGateway\Entity\Dto\AbstractRequestDTO;
 use App\Domain\ModelGateway\Entity\Dto\CompletionDTO;
 use App\Domain\ModelGateway\Entity\Dto\EmbeddingsDTO;
 use App\Domain\ModelGateway\Entity\Dto\ImageConvertHighDTO;
@@ -19,9 +18,6 @@ use App\Domain\ModelGateway\Entity\Dto\SearchRequestDTO;
 use App\Domain\ModelGateway\Entity\Dto\TextGenerateImageDTO;
 use App\Domain\ModelGateway\Entity\Dto\WebScrapeRequestDTO;
 use App\Infrastructure\ExternalAPI\ImageGenerateAPI\Response\OpenAIFormatResponse;
-use App\Infrastructure\Util\Context\RequestCoContext;
-use App\Infrastructure\Util\RequestUtil;
-use App\Interfaces\Authorization\Web\MagicUserAuthorization;
 use App\Interfaces\ModelGateway\Assembler\LLMAssembler;
 use Hyperf\Di\Annotation\Inject;
 use Hyperf\HttpServer\Contract\RequestInterface;
@@ -81,9 +77,10 @@ class OpenAIProxyApi extends AbstractOpenApi
         $accessToken = $this->getAccessToken();
         $withInfo = (bool) $this->request->input('with_info', false);
         $type = $this->request->input('type', '');
+        $withDynamicModels = (bool) $this->request->input('with_dynamic_models', false);
         $businessParams = $this->getBusinessParamsFromContext();
 
-        $list = $this->llmAppService->models($accessToken, $withInfo, $type, $businessParams);
+        $list = $this->llmAppService->models($accessToken, $withInfo, $type, $businessParams, withDynamicModels: $withDynamicModels);
         return LLMAssembler::createModels($list, $withInfo);
     }
 
@@ -263,13 +260,16 @@ class OpenAIProxyApi extends AbstractOpenApi
      *
      * Query Parameters:
      * - query or q: Search keywords (required)
-     * - engine: Search engine (optional, bing|google|tavily|duckduckgo|jina, default: from config)
      * - count: Number of results (optional, default: 10, max: 50)
      * - offset: Pagination offset (optional, default: 0, max: 1000)
      * - mkt: Market code (optional, default: zh-CN)
      * - set_lang or setLang: UI language (optional)
      * - safe_search or safeSearch: Safe search level (optional, Strict/Moderate/Off)
      * - freshness: Time filter (optional, Day/Week/Month)
+     *
+     * Search Provider:
+     * - Actual provider is selected by the platform web_search ability configuration
+     * - Supported providers include bing, baidu, google, tavily, duckduckgo, jina, cloudsway, magic
      *
      * Headers:
      * - Authorization: Bearer {access_token}
@@ -321,94 +321,5 @@ class OpenAIProxyApi extends AbstractOpenApi
 
         // 3. Call LLMAppService with image search and return array directly
         return $this->llmAppService->imageSearch($imageSearchRequestDTO)->toArray();
-    }
-
-    /**
-     * 从协程上下文获取业务参数（用户授权信息）.
-     *
-     * 该方法从协程上下文中获取 MagicUserAuthorization，提取 user_id 和 organization_code。
-     * 适用于不使用 DTO 的接口（如 models、bingSearch）。
-     *
-     * @return array 包含 user_id、organization_id、organization_code 的业务参数数组
-     */
-    private function getBusinessParamsFromContext(): array
-    {
-        $businessParams = [];
-
-        $magicUserAuthorization = RequestCoContext::getUserAuthorization();
-        if (! $magicUserAuthorization instanceof MagicUserAuthorization) {
-            return $businessParams;
-        }
-
-        $userId = $magicUserAuthorization->getId();
-        $organizationCode = $magicUserAuthorization->getOrganizationCode();
-
-        if ($userId !== '') {
-            $businessParams['user_id'] = $userId;
-        }
-
-        if ($organizationCode !== '') {
-            $businessParams['organization_id'] = $organizationCode;
-            $businessParams['organization_code'] = $organizationCode;
-        }
-
-        return $businessParams;
-    }
-
-    /**
-     * 丰富请求 DTO，设置请求头配置和业务参数.
-     *
-     * 该方法会执行以下操作：
-     * 1. 将请求头转换为小写键名的配置数组，并设置到 DTO 的 headerConfigs
-     * 2. 从 header 中提取业务参数
-     * 3. 从协程上下文中获取用户授权信息，添加到业务参数
-     * 4. 从协程上下文获取 API-Key（如果 DTO 中未设置）
-     *
-     * @param AbstractRequestDTO $abstractRequestDTO 待配置的请求 DTO
-     * @param array $headers 请求头数组
-     */
-    private function enrichRequestDTO(AbstractRequestDTO $abstractRequestDTO, array $headers): void
-    {
-        // 1. 设置请求头配置
-        $headerConfigs = RequestUtil::normalizeHeaders($headers);
-        $abstractRequestDTO->setHeaderConfigs($headerConfigs);
-
-        // 2. 从 header 中提取业务参数
-        $this->addBusinessParamsFromHeaders($abstractRequestDTO, $headerConfigs);
-
-        // 3. 从协程上下文获取用户授权信息，并设置业务参数
-        $contextParams = $this->getBusinessParamsFromContext();
-        foreach ($contextParams as $key => $value) {
-            $abstractRequestDTO->addBusinessParam($key, $value);
-        }
-
-        // 4. 从协程上下文获取 API-Key（如果 DTO 中未设置）
-        if (empty($abstractRequestDTO->getAccessToken()) && RequestCoContext::hasApiKey()) {
-            $abstractRequestDTO->setAccessToken(RequestCoContext::getApiKey());
-        }
-    }
-
-    /**
-     * 从请求头中提取业务参数并添加到 DTO.
-     * @todo 为了安全，后续要移除组织编码/用户 id 的请求头获取。 最后要移除 除 business_id 以外的请求头获取。
-     */
-    private function addBusinessParamsFromHeaders(AbstractRequestDTO $abstractRequestDTO, array $headerConfigs): void
-    {
-        $mapping = [
-            'business_id' => 'business_id',
-            'magic-topic-id' => 'magic_topic_id',
-            'magic-chat-topic-id' => 'magic_chat_topic_id',
-            'magic-task-id' => 'magic_task_id',
-            'magic-language' => 'language',
-            'magic-organization-code' => 'organization_id',
-            'magic-user-id' => 'user_id',
-        ];
-
-        foreach ($mapping as $headerKey => $paramKey) {
-            $value = $headerConfigs[$headerKey] ?? '';
-            if ($value !== '') {
-                $abstractRequestDTO->addBusinessParam($paramKey, $value);
-            }
-        }
     }
 }

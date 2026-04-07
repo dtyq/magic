@@ -11,6 +11,7 @@ import { useIsMobile } from "@/hooks/useIsMobile"
 import { PlatformPackage } from "@/types/platformPackage"
 import BaseModelItem from "../../components/ModalList/components/BaseModelItem"
 import { useStyles } from "../styles"
+import { ImageToolCodes } from "../constants"
 
 const ModelConfig = () => {
 	const { t } = useTranslation("admin/ai/power")
@@ -21,13 +22,16 @@ const ModelConfig = () => {
 
 	const { PlatformPackageApi } = useApis()
 
+	const isImageTool = useMemo(() => {
+		return ImageToolCodes.includes(code as PlatformPackage.PowerCode)
+	}, [code])
+
 	const { run, data: modelList } = useRequest(
 		() =>
 			PlatformPackageApi.getAllModelList({
-				category:
-					code === PlatformPackage.PowerCode.IMAGE_CONVERT_HIGH
-						? AiModel.ServiceProviderCategory.VLM
-						: AiModel.ServiceProviderCategory.LLM,
+				category: isImageTool
+					? AiModel.ServiceProviderCategory.VLM
+					: AiModel.ServiceProviderCategory.LLM,
 				is_model_id_filter: true,
 				status: 1,
 			}),
@@ -94,7 +98,7 @@ const ModelConfig = () => {
 					/>
 				</Form.Item>
 			</Flex>
-			{code === PlatformPackage.PowerCode.IMAGE_CONVERT_HIGH && (
+			{isImageTool && (
 				<Flex
 					vertical={isMobile}
 					gap={10}

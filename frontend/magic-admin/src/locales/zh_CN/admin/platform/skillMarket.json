@@ -1,5 +1,6 @@
 {
 	"skillCode": "技能编码",
+	"packageName": "包名",
 	"skillName": "技能名称",
 	"description": "技能描述",
 	"organization": "组织",
@@ -8,6 +9,10 @@
 	"publisherTypeUser": "个人",
 	"publisherTypeOfficial": "官方",
 	"publishStatus": "发布状态",
+	"isFeatured": "是否精选",
+	"isHidden": "是否隐藏",
+	"yes": "是",
+	"no": "否",
 	"installCount": "安装次数",
 	"sortOrder": "排序值",
 	"sortOrderRequired": "请输入排序值",

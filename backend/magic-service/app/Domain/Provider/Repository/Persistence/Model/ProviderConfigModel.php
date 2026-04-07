@@ -22,6 +22,7 @@ use function Hyperf\Config\config;
  * @property null|array|string $config
  * @property int $status
  * @property string $category
+ * @property int $sort
  * @property null|DateTime $created_at
  * @property null|DateTime $updated_at
  * @property null|DateTime $deleted_at

@@ -38,6 +38,11 @@ class SkillMarketEntity extends AbstractEntity
     protected int $skillVersionId;
 
     /**
+     * @var string 关联 Skill 版本的包名
+     */
+    protected string $packageName = '';
+
+    /**
      * @var null|array 多语言展示名称
      */
     protected ?array $nameI18n = null;
@@ -88,6 +93,16 @@ class SkillMarketEntity extends AbstractEntity
     protected ?int $sortOrder = null;
 
     /**
+     * @var bool 是否精选
+     */
+    protected bool $isFeatured = false;
+
+    /**
+     * @var bool 是否隐藏
+     */
+    protected bool $isHidden = false;
+
+    /**
      * @var null|string 创建时间
      */
     protected ?string $createdAt = null;
@@ -117,6 +132,7 @@ class SkillMarketEntity extends AbstractEntity
             'organization_code' => $this->organizationCode,
             'skill_code' => $this->skillCode,
             'skill_version_id' => $this->skillVersionId,
+            'package_name' => $this->packageName,
             'name_i18n' => $this->nameI18n,
             'description_i18n' => $this->descriptionI18n,
             'search_text' => $this->searchText,
@@ -127,6 +143,8 @@ class SkillMarketEntity extends AbstractEntity
             'publish_status' => $this->publishStatus->value,
             'install_count' => $this->installCount,
             'sort_order' => $this->sortOrder,
+            'is_featured' => $this->isFeatured,
+            'is_hidden' => $this->isHidden,
             'created_at' => $this->createdAt,
             'updated_at' => $this->updatedAt,
             'deleted_at' => $this->deletedAt,
@@ -182,6 +200,17 @@ class SkillMarketEntity extends AbstractEntity
     public function setSkillVersionId(int|string $skillVersionId): self
     {
         $this->skillVersionId = is_string($skillVersionId) ? (int) $skillVersionId : $skillVersionId;
+        return $this;
+    }
+
+    public function getPackageName(): string
+    {
+        return $this->packageName;
+    }
+
+    public function setPackageName(string $packageName): self
+    {
+        $this->packageName = $packageName;
         return $this;
     }
 
@@ -285,6 +314,12 @@ class SkillMarketEntity extends AbstractEntity
         return $this;
     }
 
+    public function offline(): self
+    {
+        $this->publishStatus = PublishStatus::OFFLINE;
+        return $this;
+    }
+
     public function getInstallCount(): int
     {
         return $this->installCount;
@@ -308,6 +343,38 @@ class SkillMarketEntity extends AbstractEntity
         } else {
             $this->sortOrder = is_string($sortOrder) ? (int) $sortOrder : $sortOrder;
         }
+        return $this;
+    }
+
+    public function isFeatured(): bool
+    {
+        return $this->isFeatured;
+    }
+
+    public function setIsFeatured(bool|int|string $isFeatured): self
+    {
+        if (is_bool($isFeatured)) {
+            $this->isFeatured = $isFeatured;
+        } else {
+            $this->isFeatured = filter_var((string) $isFeatured, FILTER_VALIDATE_BOOLEAN);
+        }
+
+        return $this;
+    }
+
+    public function isHidden(): bool
+    {
+        return $this->isHidden;
+    }
+
+    public function setIsHidden(bool|int|string $isHidden): self
+    {
+        if (is_bool($isHidden)) {
+            $this->isHidden = $isHidden;
+        } else {
+            $this->isHidden = filter_var((string) $isHidden, FILTER_VALIDATE_BOOLEAN);
+        }
+
         return $this;
     }
 

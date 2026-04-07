@@ -1,9 +1,21 @@
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { useSearchParams } from "react-router-dom"
-import { Rocket } from "lucide-react"
 import { useTranslation } from "react-i18next"
+import { CheckCircle2 } from "lucide-react"
+import { toast } from "sonner"
 import { Card } from "@/components/shadcn-ui/card"
 import { Separator } from "@/components/shadcn-ui/separator"
+import { Toaster } from "@/components/shadcn-ui/sonner"
+import {
+	AlertDialog,
+	AlertDialogAction,
+	AlertDialogCancel,
+	AlertDialogContent,
+	AlertDialogDescription,
+	AlertDialogFooter,
+	AlertDialogHeader,
+	AlertDialogTitle,
+} from "@/components/shadcn-ui/alert-dialog"
 import { InitializationApi } from "@/apis"
 import type { InitializationData } from "@/apis/types"
 import { LoginValueKey } from "@/pages/login/constants"
@@ -17,18 +29,64 @@ import Step2Provider from "./components/Step2Provider"
 import Step3Workers from "./components/Step3Workers"
 import LanguageSelect from "@/layouts/SSOLayout/components/LanguageSelect"
 import logo from "@/assets/logos/magic-crew.png"
-import magicToast from "@/components/base/MagicToaster/utils"
 
 const TOTAL_STEPS = 3
+const STEP_PARAM_KEY = "step"
 
 export default function InitializationPage() {
 	const { t } = useTranslation("initialization")
-	const [searchParams] = useSearchParams()
+	const [searchParams, setSearchParams] = useSearchParams()
 
 	const { currentStep, setCurrentStep, formData, setFormData } = usePersistentState()
 	const [submitting, setSubmitting] = useState(false)
+	const [showConfigDialog, setShowConfigDialog] = useState(false)
+	const [isInitialized, setIsInitialized] = useState(false)
 
 	const redirectUrl = searchParams.get(LoginValueKey.REDIRECT_URL) || "/"
+
+	// 初始化时从 URL 读取步骤，优先级高于 sessionStorage
+	useEffect(() => {
+		const stepFromUrl = searchParams.get(STEP_PARAM_KEY)
+		if (stepFromUrl) {
+			const step = parseInt(stepFromUrl, 10)
+			if (step >= 1 && step <= TOTAL_STEPS) {
+				setCurrentStep(step)
+			}
+		} else {
+			// 如果 URL 没有步骤参数，同步当前步骤到 URL（使用 replace 避免产生历史记录）
+			setSearchParams(
+				(prev) => {
+					prev.set(STEP_PARAM_KEY, currentStep.toString())
+					return prev
+				},
+				{ replace: true },
+			)
+		}
+		setIsInitialized(true)
+		// eslint-disable-next-line react-hooks/exhaustive-deps
+	}, [])
+
+	// 更新 URL 中的步骤参数（用于用户操作，创建历史记录）
+	const updateUrlStep = (step: number) => {
+		setSearchParams((prev) => {
+			prev.set(STEP_PARAM_KEY, step.toString())
+			return prev
+		})
+	}
+
+	// 监听 URL 变化，同步到状态（支持浏览器前进后退）
+	useEffect(() => {
+		if (!isInitialized) return
+
+		const stepFromUrl = searchParams.get(STEP_PARAM_KEY)
+		if (stepFromUrl) {
+			const step = parseInt(stepFromUrl, 10)
+			if (step >= 1 && step <= TOTAL_STEPS && step !== currentStep) {
+				setCurrentStep(step)
+			}
+		}
+		// eslint-disable-next-line react-hooks/exhaustive-deps
+	}, [searchParams, isInitialized])
 
 	const steps = [
 		{ number: 1, label: t("steps.step1") },
@@ -40,18 +98,26 @@ export default function InitializationPage() {
 	const handleStep1Complete = (data: Step1FormData) => {
 		setFormData((prev) => ({ ...prev, step1: data }))
 		setCurrentStep(2)
+		updateUrlStep(2)
 	}
 
 	// 步骤2完成处理
 	const handleStep2Complete = (data: Step2FormData) => {
 		setFormData((prev) => ({ ...prev, step2: data }))
 		setCurrentStep(3)
+		updateUrlStep(3)
 	}
 
 	// 步骤3完成 - 统一提交所有数据
 	const handleFinish = async (step3Data: Step3FormData) => {
 		if (!formData.step1 || !formData.step2) {
 			console.error("Previous step data is missing")
+			toast.error(t("errors.missingPreviousSteps"))
+			// 引导用户回到第一步
+			setTimeout(() => {
+				setCurrentStep(1)
+				updateUrlStep(1)
+			}, 1500)
 			return
 		}
 
@@ -78,26 +144,46 @@ export default function InitializationPage() {
 			// 提交成功后清除 sessionStorage
 			clearInitializationState()
 
-			// 跳转回原页面
-			window.location.href = redirectUrl
+			// 显示配置提示对话框
+			setShowConfigDialog(true)
 		} catch (error) {
 			console.error("Initialization failed:", error)
-			// TODO: 显示错误提示
-			magicToast.error((error as Error)?.message || t("errors.submitFailed"))
+			const errorMessage =
+				error && typeof error === "object" && "message" in error
+					? (error as { message: string }).message
+					: t("errors.submitFailed")
+			toast.error(errorMessage)
 		} finally {
 			setSubmitting(false)
 		}
 	}
 
+	// 前往配置页面
+	const handleGoToConfig = () => {
+		window.open("/admin/platform/agent/capability", "_blank")
+	}
+
+	// 跳过配置，执行正常流程
+	const handleSkipConfig = () => {
+		setShowConfigDialog(false)
+		setTimeout(() => {
+			window.location.href = redirectUrl
+		}, 500)
+	}
+
 	// 返回上一步
 	const handlePrevStep = () => {
 		if (currentStep > 1) {
-			setCurrentStep(currentStep - 1)
+			const prevStep = currentStep - 1
+			setCurrentStep(prevStep)
+			updateUrlStep(prevStep)
 		}
 	}
 
 	return (
 		<div className="fixed inset-0 overflow-y-auto bg-background">
+			<Toaster position="top-center" />
+
 			{/* Language Switch - 右上角 */}
 			<div className="absolute right-6 top-6">
 				<LanguageSelect />
@@ -188,6 +274,35 @@ export default function InitializationPage() {
 					</a>
 				</div>
 			</div>
+
+			{/* 配置提示对话框 */}
+			<AlertDialog open={showConfigDialog} onOpenChange={setShowConfigDialog}>
+				<AlertDialogContent>
+					<AlertDialogHeader>
+						<div className="flex items-center gap-3">
+							<div className="flex h-12 w-12 items-center justify-center rounded-full bg-green-100 dark:bg-green-900/20">
+								<CheckCircle2 className="h-6 w-6 text-green-600 dark:text-green-500" />
+							</div>
+							<div className="flex-1">
+								<AlertDialogTitle className="text-xl">
+									{t("configDialog.title")}
+								</AlertDialogTitle>
+							</div>
+						</div>
+						<AlertDialogDescription className="pt-2">
+							{t("configDialog.description")}
+						</AlertDialogDescription>
+					</AlertDialogHeader>
+					<AlertDialogFooter>
+						<AlertDialogCancel onClick={handleSkipConfig}>
+							{t("configDialog.skip")}
+						</AlertDialogCancel>
+						<AlertDialogAction onClick={handleGoToConfig}>
+							{t("configDialog.goToConfig")}
+						</AlertDialogAction>
+					</AlertDialogFooter>
+				</AlertDialogContent>
+			</AlertDialog>
 		</div>
 	)
 }

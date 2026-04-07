@@ -101,6 +101,11 @@ cache/
 docs
 .runtime/
 
+# agent 的临时文件
+agents/SMA-*
+agents/crews/
+agents/openclaw.agent
+
 debug/
 backup/
 qdrant_data/
@@ -112,3 +117,4 @@ Makefile
 .python-version
 
 /skills
+/scripts/test*

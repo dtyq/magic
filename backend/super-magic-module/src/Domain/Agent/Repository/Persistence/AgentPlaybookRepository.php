@@ -105,6 +105,8 @@ class AgentPlaybookRepository extends SuperMagicAbstractRepository implements Ag
 
     /**
      * 批量根据 agent_code 列表查询 Playbook 列表.
+     *
+     * @return array<string, array<int, AgentPlaybookEntity>> 按 agent_code 分组的 Playbook 实体数组
      */
     public function getByAgentCodesForCurrentVersion(SuperMagicAgentDataIsolation $dataIsolation, array $agentCodes, ?bool $isEnabled = null): array
     {

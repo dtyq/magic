@@ -21,7 +21,7 @@ from app.api.http_dto.response import (
 )
 from app.infrastructure.magic_service import MagicServiceClient, MagicServiceConfigLoader
 from app.infrastructure.magic_service.exceptions import ApiError, ConnectionError as MagicServiceConnectionError
-from app.paths import PathManager
+from app.path_manager import PathManager
 from app.service.file_save_service import FileSaveService
 from app.service.file_service import FileService
 from app.service.file_upload_service import FileUploadService
@@ -576,7 +576,9 @@ async def notify_file_change(request: FileNotificationRequest) -> BaseResponse:
             logger.info(f"Magic Service 配置加载成功: {config.api_base_url}")
 
             async with MagicServiceClient(config) as client:
-                logger.info(f"即将调用 Magic Service API: {client._send_file_notification_internal}")
+                logger.info(
+                    f"即将调用 Magic Service API: {MagicServiceClient.send_file_notification.__qualname__}"
+                )
                 result = await client.send_file_notification(
                     metadata=metadata,
                     notification_data=request.model_dump()

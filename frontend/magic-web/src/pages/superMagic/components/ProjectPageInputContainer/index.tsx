@@ -1,4 +1,4 @@
-import { useDebounceFn, useMemoizedFn } from "ahooks"
+import { useMemoizedFn } from "ahooks"
 import { cn } from "@/lib/utils"
 import React, { useEffect, useMemo, useState } from "react"
 import { TopicMode } from "../../pages/Workspace/types"
@@ -27,6 +27,7 @@ import DesktopInputContainer from "./DesktopInputContainer"
 import { MOBILE_LAYOUT_CONFIG } from "../MainInputContainer/components/editors/constant"
 import { createMessageEditorDraftKey } from "../MessageEditor/utils/draftKey"
 import { userStore } from "@/models/user"
+import { useTaskInterrupt } from "@/pages/superMagic/hooks/useTaskInterrupt"
 
 /**
  * 这个组件作为项目页的编辑器组件
@@ -53,6 +54,7 @@ const ProjectPageInputContainerComponent: React.FC<ProjectPageInputContainerProp
 	isShowLoadingInit = false,
 	mentionPanelStore = GlobalMentionPanelStore,
 	topicModeLogic: topicModeLogicProps,
+	size = "small",
 	enableMessageSendByContent = true,
 	editorLayoutConfig,
 	showTopicModeExamplePortal = true,
@@ -62,6 +64,7 @@ const ProjectPageInputContainerComponent: React.FC<ProjectPageInputContainerProp
 	const taskData = taskDataProp ?? taskDataFromStore
 
 	const [isFocused, setIsFocused] = useState(false)
+	const [stopEventLoading, setStopEventLoading] = useState(false)
 	const [sceneStateStore] = useState(() => createSceneStateStore())
 	const organizationCode = userStore.user.organizationCode
 	const userId = userStore.user.userInfo?.user_id
@@ -95,6 +98,14 @@ const ProjectPageInputContainerComponent: React.FC<ProjectPageInputContainerProp
 		}
 	})
 
+	const { handleInterrupt } = useTaskInterrupt({
+		selectedTopic: selectedTopic ?? null,
+		userId,
+		isStopping: stopEventLoading,
+		setIsStopping: setStopEventLoading,
+		canInterrupt: showLoading,
+	})
+
 	/** 消息队列 */
 	const messageQueue = useMessageQueue({
 		projectId: selectedProject?.id,
@@ -103,13 +114,6 @@ const ProjectPageInputContainerComponent: React.FC<ProjectPageInputContainerProp
 		isEmptyStatus,
 		isShowLoadingInit,
 	})
-
-	const { run: handleInterrupt } = useDebounceFn(
-		(callback?: () => void) => {
-			pubsub.publish("send_interrupt_message", callback)
-		},
-		{ wait: 3000, leading: true, trailing: false },
-	)
 
 	useEffect(() => {
 		sceneStateStore.resetState()
@@ -169,7 +173,7 @@ const ProjectPageInputContainerComponent: React.FC<ProjectPageInputContainerProp
 		setTabPatternWithFocus,
 	])
 
-	const editorSize = "small" as MessageEditorSize
+	const editorSize = size as MessageEditorSize
 
 	const editPanelClassName = classNames?.editorContent
 
@@ -232,6 +236,9 @@ const ProjectPageInputContainerComponent: React.FC<ProjectPageInputContainerProp
 			className: editPanelClassName,
 			containerClassName: editPanelContainerClassName,
 			showLoading: !!showLoading,
+			isTaskRunning: !!showLoading,
+			stopEventLoading,
+			handleInterrupt,
 			isEmptyStatus: !!isEmptyStatus,
 			messagesLength: (messages ?? []).length,
 			enableMessageSendByContent,
@@ -253,7 +260,6 @@ const ProjectPageInputContainerComponent: React.FC<ProjectPageInputContainerProp
 				setIsFocused(false)
 				onEditorBlur?.()
 			},
-			onInterrupt: handleInterrupt,
 			queueContext: {
 				editingQueueItem: messageQueue.editingQueueItem,
 				addToQueue: messageQueue.addToQueue,
@@ -270,9 +276,12 @@ const ProjectPageInputContainerComponent: React.FC<ProjectPageInputContainerProp
 		topicModeLogic.topicMode,
 		topicModeLogic.setTopicMode,
 		tabPattern,
+		editorSize,
 		editPanelClassName,
 		editPanelContainerClassName,
 		showLoading,
+		stopEventLoading,
+		handleInterrupt,
 		isEmptyStatus,
 		messages,
 		enableMessageSendByContent,
@@ -281,7 +290,6 @@ const ProjectPageInputContainerComponent: React.FC<ProjectPageInputContainerProp
 		attachments,
 		mentionPanelStore,
 		onFileClick,
-		handleInterrupt,
 		messageQueue.editingQueueItem,
 		messageQueue.addToQueue,
 		messageQueue.finishEditQueueItem,

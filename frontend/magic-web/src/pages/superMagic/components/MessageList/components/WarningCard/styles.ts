@@ -92,7 +92,7 @@ export const useStyles = createStyles(({ token, css }) => {
 			height: 32px;
 			padding: 6px 12px;
 			border-radius: 8px;
-			background: linear-gradient(272deg, #ca58ff 3.75%, #6c8eff 51.14%, #4768d4 98.53%);
+			/* background: linear-gradient(272deg, #ca58ff 3.75%, #6c8eff 51.14%, #4768d4 98.53%); */
 			border: none;
 			font-family: "PingFang SC", sans-serif;
 			font-weight: 400;
@@ -100,7 +100,7 @@ export const useStyles = createStyles(({ token, css }) => {
 			color: ${token.magicColorUsages.white};
 			flex: 1;
 
-			&:hover {
+			/* &:hover {
 				background: linear-gradient(
 					272deg,
 					#ca58ff 3.75%,
@@ -109,7 +109,7 @@ export const useStyles = createStyles(({ token, css }) => {
 				) !important;
 				border: none;
 				opacity: 0.9;
-			}
+			} */
 
 			&:focus {
 				background: linear-gradient(

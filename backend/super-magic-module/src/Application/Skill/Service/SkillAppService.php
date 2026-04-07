@@ -34,12 +34,15 @@ use App\Infrastructure\Util\Locker\LockerInterface;
 use App\Infrastructure\Util\SkillUtil;
 use App\Infrastructure\Util\ZipUtil;
 use App\Interfaces\Authorization\Web\MagicUserAuthorization;
+use App\Interfaces\Kernel\Assembler\OperatorAssembler;
 use Dtyq\AsyncEvent\AsyncEventUtil;
 use Dtyq\CloudFile\Kernel\Struct\UploadFile;
 use Dtyq\SuperMagic\Application\SuperAgent\Service\ProjectAppService;
 use Dtyq\SuperMagic\Domain\Skill\Entity\SkillEntity;
+use Dtyq\SuperMagic\Domain\Skill\Entity\SkillMarketEntity;
 use Dtyq\SuperMagic\Domain\Skill\Entity\SkillVersionEntity;
 use Dtyq\SuperMagic\Domain\Skill\Entity\UserSkillEntity;
+use Dtyq\SuperMagic\Domain\Skill\Entity\ValueObject\PublisherType;
 use Dtyq\SuperMagic\Domain\Skill\Entity\ValueObject\PublishStatus;
 use Dtyq\SuperMagic\Domain\Skill\Entity\ValueObject\PublishTargetType;
 use Dtyq\SuperMagic\Domain\Skill\Entity\ValueObject\PublishType;
@@ -50,12 +53,14 @@ use Dtyq\SuperMagic\Domain\Skill\Entity\ValueObject\SkillSourceType;
 use Dtyq\SuperMagic\Domain\Skill\Event\SkillImportedEvent;
 use Dtyq\SuperMagic\Domain\Skill\Service\SkillDomainService;
 use Dtyq\SuperMagic\Domain\Skill\Service\SkillMarketDomainService;
+use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ProjectEntity;
+use Dtyq\SuperMagic\Domain\SuperAgent\Entity\TaskFileEntity;
 use Dtyq\SuperMagic\Domain\SuperAgent\Service\ProjectDomainService;
 use Dtyq\SuperMagic\Domain\SuperAgent\Service\TaskFileDomainService;
 use Dtyq\SuperMagic\ErrorCode\SkillErrorCode;
 use Dtyq\SuperMagic\ErrorCode\SuperAgentErrorCode;
 use Dtyq\SuperMagic\ErrorCode\SuperMagicErrorCode;
-use Dtyq\SuperMagic\Infrastructure\Utils\WorkDirectoryUtil;
+use Dtyq\SuperMagic\Infrastructure\Utils\SkillProjectConfigUtil;
 use Dtyq\SuperMagic\Interfaces\Skill\DTO\Request\AddSkillFromStoreRequestDTO;
 use Dtyq\SuperMagic\Interfaces\Skill\DTO\Request\GetLatestPublishedSkillVersionsRequestDTO;
 use Dtyq\SuperMagic\Interfaces\Skill\DTO\Request\GetSkillFileUrlsRequestDTO;
@@ -80,17 +85,19 @@ use Throwable;
  */
 class SkillAppService extends AbstractSkillAppService
 {
-    /**
-     * 文件大小限制：10MB（文档要求）
-     * 用于校验上传的压缩包文件大小上限.
-     */
-    private const MAX_FILE_SIZE = 10 * 1024 * 1024;
+    private const SKILL_FILE_NAME = 'SKILL.md';
 
     /**
-     * 解压后文件总大小限制：10MB（文档要求）
+     * 文件大小限制：20MB
+     * 用于校验上传的压缩包文件大小上限.
+     */
+    private const MAX_FILE_SIZE = 20 * 1024 * 1024;
+
+    /**
+     * 解压后文件总大小限制：20MB
      * 用于防 Zip Bomb 攻击，校验解压后的文件总大小上限.
      */
-    private const MAX_EXTRACTED_SIZE = 10 * 1024 * 1024;
+    private const MAX_EXTRACTED_SIZE = 20 * 1024 * 1024;
 
     /**
      * import_token 有效期：30分钟（1800秒，文档要求）
@@ -212,6 +219,7 @@ class SkillAppService extends AbstractSkillAppService
         $userAuthorization = $requestContext->getUserAuthorization();
         $userId = $userAuthorization->getId();
         $organizationCode = $userAuthorization->getOrganizationCode();
+        $sourceType = $requestDTO->getSourceType();
 
         // 1. 校验并解析 import_token
         $tokenData = $this->validateAndParseImportToken($requestDTO->getImportToken());
@@ -267,11 +275,15 @@ class SkillAppService extends AbstractSkillAppService
                         $packageDescription,
                         $fileKey,
                         $skillCode,
-                        SkillSourceType::LOCAL_UPLOAD,
+                        $sourceType,
                         $requestDTO->getNameI18n(),
                         $requestDTO->getDescriptionI18n(),
                         $requestDTO->getLogo()
                     );
+                }
+
+                if ($sourceType === SkillSourceType::CREW_IMPORT) {
+                    $this->publishImportedCrewSkill($requestContext, $dataIsolation, $result);
                 }
 
                 Db::commit();
@@ -495,11 +507,26 @@ class SkillAppService extends AbstractSkillAppService
         $creatorUserMap = $this->buildCreatorUserMapFromSkillVersions($dataIsolation, $result['list']);
         $latestVersionMap = $this->buildLatestVersionMapFromSkillVersions($result['list']);
 
+        $marketCodes = [];
+        foreach ($result['list'] as $skillVersionEntity) {
+            if ($skillVersionEntity->getPublishTargetType()->isMarket()) {
+                $marketCodes[] = $skillVersionEntity->getCode();
+            }
+        }
+
+        $marketEntityMap = $publisherUserMap = [];
+        if ($marketCodes) {
+            $marketEntityMap = $this->skillMarketDomainService->findLatestPublishedBySkillCodes($marketCodes);
+            $publisherUserMap = $this->buildPublisherUserMapFromSkillMarkets($dataIsolation, $marketEntityMap);
+        }
+
         return [
             'list' => $result['list'],
             'total' => $result['total'],
             'creatorUserMap' => $creatorUserMap,
             'latestVersionMap' => $latestVersionMap,
+            'marketEntityMap' => $marketEntityMap,
+            'publisherUserMap' => $publisherUserMap,
         ];
     }
 
@@ -565,15 +592,18 @@ class SkillAppService extends AbstractSkillAppService
         // 更新 magic_skills 表
         $nameI18n = $requestDTO->getNameI18n();
         $descriptionI18n = $requestDTO->getDescriptionI18n();
+        $sourceI18n = $requestDTO->getSourceI18n();
+        $logo = $requestDTO->getLogo();
 
-        // 处理 logo：如果传入的是完整 URL，提取路径部分；如果为空字符串，设置为 null
-        $logoPath = EasyFileTools::formatPath($requestDTO->getLogo());
+        // Do not update logo when omitted or null; clear it on empty string; normalize URL to storage path when provided.
+        $logoPath = $logo === null ? null : EasyFileTools::formatPath($logo);
 
         $this->skillDomainService->updateSkillInfo(
             $dataIsolation,
             $skillEntity,
-            ! empty($nameI18n) ? $nameI18n : null,
-            ! empty($descriptionI18n) ? $descriptionI18n : null,
+            $nameI18n,
+            $descriptionI18n,
+            $sourceI18n,
             $logoPath
         );
     }
@@ -593,12 +623,25 @@ class SkillAppService extends AbstractSkillAppService
             $authorization->getId()
         );
 
-        $this->checkPermission($dataIsolation, $code);
+        if (empty($this->getAccessibleSkillCodes($dataIsolation, [$code]))) {
+            ExceptionBuilder::throw(SkillErrorCode::SKILL_ACCESS_DENIED, 'skill.skill_access_denied');
+        }
 
         // 查询技能记录（校验权限）
         $dataIsolation->disabled();
-        $skillEntity = $this->skillDomainService->findUserSkillByCode($dataIsolation, $code);
+        $skillEntity = $this->skillDomainService->findSkillByCode($dataIsolation, $code);
+
         $latestVersionEntity = $this->skillDomainService->findLatestSkillVersionByCode($dataIsolation, $code);
+        // Use the latest published version as the source of truth for creator metadata.
+        // This keeps creator_info stable for shared and market-installed skills.
+        $creatorUserMap = $latestVersionEntity !== null
+            ? $this->buildCreatorUserMapFromSkillVersions($dataIsolation, [$latestVersionEntity])
+            : $this->buildCreatorUserMapFromSkillEntities($dataIsolation, [$skillEntity]);
+        $marketEntityMap = $this->skillMarketDomainService->findLatestPublishedBySkillCodes([$code]);
+
+        $creatorId = $latestVersionEntity?->getCreatorId() ?? $skillEntity->getCreatorId();
+        $creatorCreatedAt = $latestVersionEntity?->getCreatedAt() ?? $skillEntity->getCreatedAt();
+        $skillFileUrl = $this->resolveSkillDetailFileUrl($authorization, $skillEntity, $latestVersionEntity);
 
         // 更新 logo URL（如果存储的是路径，需要转换为完整URL）
         $this->updateSkillLogoUrl($dataIsolation, [$skillEntity]);
@@ -609,13 +652,14 @@ class SkillAppService extends AbstractSkillAppService
         return new SkillDetailResponseDTO(
             $skillEntity->getId(),
             $skillEntity->getCode(),
-            $skillEntity->getVersionId(),
-            $skillEntity->getVersionCode(),
+            $latestVersionEntity?->getId() ?? $skillEntity->getVersionId(),
+            $latestVersionEntity?->getVersion() ?? $skillEntity->getVersionCode(),
             $skillEntity->getSourceType()->value,
             $skillEntity->getIsEnabled() ? 1 : 0,
             $skillEntity->getPinnedAt(),
             $skillEntity->getNameI18n(),
             $skillEntity->getDescriptionI18n() ?? [],
+            $skillEntity->getSourceI18n() ?? [],
             $skillEntity->getLogo() ?? '',
             $skillEntity->getPackageName(),
             $skillEntity->getPackageDescription(),
@@ -628,7 +672,13 @@ class SkillAppService extends AbstractSkillAppService
             $publishType?->value,
             $allowedPublishTargetTypes,
             $skillEntity->getCreatedAt() ?? '',
-            $skillEntity->getUpdatedAt() ?? ''
+            $skillEntity->getUpdatedAt() ?? '',
+            OperatorAssembler::createOperatorDTOByUserEntity(
+                $creatorUserMap[$creatorId] ?? null,
+                $creatorCreatedAt
+            ),
+            isset($marketEntityMap[$code]) ? $marketEntityMap[$code]->isFeatured() : false,
+            $skillFileUrl
         );
     }
 
@@ -686,32 +736,9 @@ class SkillAppService extends AbstractSkillAppService
 
         $skillEntity = $this->skillDomainService->findUserSkillByCode($dataIsolation, $code);
 
-        $versionEntity = new SkillVersionEntity();
-        $versionEntity->setVersion($requestDTO->getVersion());
-        $versionEntity->setVersionDescriptionI18n($requestDTO->getVersionDescriptionI18n());
-        $versionEntity->setPublishTargetType($requestDTO->getPublishTargetType());
-        $versionEntity->setPublishTargetValue($requestDTO->toPublishTargetValue());
-
-        // 如果相等代表没有任何修改
-        if ($requestDTO->getExportFileFromProject()) {
-            //            if ($skillEntity->getSourceType()->isDialogueCreation()) {
-            $this->logger->info('publishSkill', ['id' => $skillEntity->getId(), 'code' => $code, 'project_id' => $skillEntity->getProjectId()]);
-            $fileMetadata = $this->exportFileFromProject($authorization, $code, $skillEntity->getProjectId());
-            $skillEntity->setFileKey($fileMetadata['file_key']);
-            $this->logger->info('publishSkill', ['id' => $skillEntity->getId(), 'code' => $code, 'project_id' => $skillEntity->getProjectId(), 'file_key' => $fileMetadata['file_key']]);
-            //            } else {
-            //                $this->logger->info('非agent_created创建跳过', ['id' => $skillEntity->getId(), 'code' => $code]);
-            //            }
-        }
-
-        if (empty($skillEntity->getFileKey())) {
-            ExceptionBuilder::throw(SkillErrorCode::FILE_NOT_FOUND, 'skill.file_not_found');
-        }
-
         Db::beginTransaction();
         try {
-            $versionEntity = $this->skillDomainService->publishSkill($dataIsolation, $skillEntity, $versionEntity);
-            $this->syncPublishedSkillScope($dataIsolation, $skillEntity, $versionEntity);
+            $versionEntity = $this->executePublishSkill($authorization, $dataIsolation, $skillEntity, $code, $requestDTO);
             Db::commit();
             return $versionEntity;
         } catch (Throwable $throwable) {
@@ -1076,6 +1103,37 @@ class SkillAppService extends AbstractSkillAppService
     }
 
     /**
+     * @param array<int, SkillMarketEntity> $skillMarketEntities
+     * @return array<string, MagicUserEntity>
+     */
+    private function buildPublisherUserMapFromSkillMarkets(
+        SkillDataIsolation $dataIsolation,
+        array $skillMarketEntities
+    ): array {
+        $publisherIds = [];
+        foreach ($skillMarketEntities as $skillMarketEntity) {
+            if ($skillMarketEntity->getPublisherType() !== PublisherType::OFFICIAL) {
+                $publisherIds[] = $skillMarketEntity->getPublisherId();
+            }
+        }
+
+        $publisherIds = array_values(array_unique($publisherIds));
+        if ($publisherIds === []) {
+            return [];
+        }
+
+        $userEntities = $this->magicUserDomainService->getUserByIdsWithoutOrganization($publisherIds);
+        $this->updateUserAvatarUrl($dataIsolation, $userEntities);
+
+        $publisherUserMap = [];
+        foreach ($userEntities as $userEntity) {
+            $publisherUserMap[$userEntity->getUserId()] = $userEntity;
+        }
+
+        return $publisherUserMap;
+    }
+
+    /**
      * @return string[]
      */
     private function resolveAllowedPublishTargetTypes(
@@ -1307,30 +1365,172 @@ class SkillAppService extends AbstractSkillAppService
     }
 
     /**
-     * Export agent workspace to object storage via sandbox.
+     * Export skill files from project by querying the file table and packaging locally.
+     * Replaces the sandbox-based export with a direct approach:
+     * 1. Read .magic/skills/skill_config.yaml from project storage
+     * 2. Find .magic/skills/{skill.dir} directory via file table
+     * 2. Verify it contains SKILL.md
+     * 3. Download files from cloud storage
+     * 4. Create ZIP archive
+     * 5. Upload to private storage.
      *
-     * @param MagicUserAuthorization $authorization User authorization
      * @return array{file_key: string, metadata: array} Export result
      */
-    private function exportFileFromProject(MagicUserAuthorization $authorization, string $code, int $projectId): array
+    private function exportSkillFromProjectLocal(MagicUserAuthorization $authorization, SkillEntity $skillEntity): array
     {
-        $dataIsolation = $this->createSkillDataIsolation($authorization);
+        $projectId = $skillEntity->getProjectId();
 
-        // Get project entity to build the full working directory
         $project = $this->projectDomainService->getProjectNotUserId($projectId);
         if (! $project) {
             ExceptionBuilder::throw(SuperAgentErrorCode::PROJECT_NOT_FOUND, 'project.project_not_found');
         }
 
-        $fullPrefix = $this->taskFileDomainService->getFullPrefix($project->getUserOrganizationCode());
-        $fullWorkdir = WorkDirectoryUtil::getFullWorkdir($fullPrefix, $project->getWorkDir());
+        $projectOrgCode = $project->getUserOrganizationCode();
+        $organizationCode = $authorization->getOrganizationCode();
+        $skillConfig = $this->readSkillProjectConfig($projectId, $project);
+        $skillDirName = $skillConfig['skill']['dir'] ?? '';
 
-        return $this->skillDomainService->exportAgentFromSandbox(
-            $dataIsolation,
-            $code,
+        $skillDirPath = SkillProjectConfigUtil::SKILLS_ROOT_PATH . '/' . $skillDirName;
+        $skillDirEntity = $this->taskFileDomainService->findDirectoryByPath($projectId, $skillDirPath);
+        if ($skillDirEntity === null) {
+            ExceptionBuilder::throw(SkillErrorCode::EXTRACTED_DIRECTORY_NOT_FOUND, 'skill.extracted_directory_not_found');
+        }
+
+        $allFiles = $this->taskFileDomainService->findFilesRecursivelyByParentId(
             $projectId,
-            $fullWorkdir
+            $skillDirEntity->getFileId()
         );
+
+        $hasSkillMd = false;
+        foreach ($allFiles as $file) {
+            if (! $file->getIsDirectory() && $file->getFileName() === 'SKILL.md') {
+                $hasSkillMd = true;
+                break;
+            }
+        }
+        if (! $hasSkillMd) {
+            ExceptionBuilder::throw(SkillErrorCode::SKILL_MD_NOT_FOUND, 'skill.skill_md_not_found');
+        }
+
+        $tempBaseDir = self::TEMP_DIR_BASE . 'skill_export_' . IdGenerator::getUniqueId32();
+        $tempContentDir = $tempBaseDir . '/' . $skillDirName;
+        $zipFilePath = $tempBaseDir . '/' . $skillDirName . '.zip';
+
+        if (! is_dir($tempContentDir)) {
+            mkdir($tempContentDir, 0755, true);
+        }
+
+        try {
+            $skillDirKeyPrefix = rtrim($skillDirEntity->getFileKey(), '/') . '/';
+
+            foreach ($allFiles as $file) {
+                if ($file->getIsDirectory()) {
+                    $relativePath = $this->computeRelativePath($file->getFileKey(), $skillDirKeyPrefix);
+                    $localDir = $tempContentDir . '/' . $relativePath;
+                    if (! is_dir($localDir)) {
+                        mkdir($localDir, 0755, true);
+                    }
+                    continue;
+                }
+
+                $relativePath = $this->computeRelativePath($file->getFileKey(), $skillDirKeyPrefix);
+                $localFilePath = $tempContentDir . '/' . $relativePath;
+
+                $localFileDir = dirname($localFilePath);
+                if (! is_dir($localFileDir)) {
+                    mkdir($localFileDir, 0755, true);
+                }
+
+                $this->fileDomainService->downloadByChunks(
+                    $projectOrgCode,
+                    $file->getFileKey(),
+                    $localFilePath,
+                    StorageBucketType::SandBox
+                );
+            }
+
+            ZipUtil::compress($tempContentDir, $zipFilePath, $skillDirName);
+
+            $fileKey = $this->uploadFileToPrivateStorage($organizationCode, $zipFilePath, $skillEntity->getCode());
+
+            return [
+                'file_key' => $fileKey,
+                'metadata' => [
+                    'package_name' => $skillDirName,
+                    'skill_dir' => $skillDirName,
+                    'files_count' => count($allFiles),
+                ],
+            ];
+        } finally {
+            if (is_dir($tempBaseDir)) {
+                $this->removeDirectory($tempBaseDir);
+            }
+        }
+    }
+
+    /**
+     * @return array{skill: array<string, string>}
+     */
+    private function readSkillProjectConfig(int $projectId, ProjectEntity $project): array
+    {
+        $skillsDirEntity = $this->taskFileDomainService->findDirectoryByPath($projectId, SkillProjectConfigUtil::SKILLS_ROOT_PATH);
+        if ($skillsDirEntity === null) {
+            ExceptionBuilder::throw(SkillErrorCode::SKILL_CONFIG_NOT_FOUND, 'skill.skill_config_not_found');
+        }
+
+        $configFileKey = rtrim($skillsDirEntity->getFileKey(), '/') . '/' . SkillProjectConfigUtil::CONFIG_FILE_NAME;
+        $configFileEntity = $this->taskFileDomainService->getByProjectIdAndFileKey($projectId, $configFileKey);
+        if ($configFileEntity === null) {
+            ExceptionBuilder::throw(SkillErrorCode::SKILL_CONFIG_NOT_FOUND, 'skill.skill_config_not_found');
+        }
+
+        $tempDir = self::TEMP_DIR_BASE . 'skill_config_' . IdGenerator::getUniqueId32();
+        if (! is_dir($tempDir)) {
+            mkdir($tempDir, 0755, true);
+        }
+
+        try {
+            $localConfigPath = $tempDir . '/' . SkillProjectConfigUtil::CONFIG_FILE_NAME;
+            $this->fileDomainService->downloadByChunks(
+                $project->getUserOrganizationCode(),
+                $configFileEntity->getFileKey(),
+                $localConfigPath,
+                StorageBucketType::SandBox
+            );
+
+            $configContent = file_get_contents($localConfigPath);
+            if ($configContent === false) {
+                ExceptionBuilder::throw(SkillErrorCode::SKILL_CONFIG_INVALID, 'skill.skill_config_invalid');
+            }
+
+            try {
+                $config = SkillProjectConfigUtil::parse($configContent);
+            } catch (Throwable) {
+                ExceptionBuilder::throw(SkillErrorCode::SKILL_CONFIG_INVALID, 'skill.skill_config_invalid');
+            }
+
+            $skillDirName = $config['skill']['dir'] ?? '';
+            if (! SkillProjectConfigUtil::isValidSkillDir($skillDirName)) {
+                ExceptionBuilder::throw(SkillErrorCode::SKILL_CONFIG_INVALID, 'skill.skill_config_invalid');
+            }
+
+            return $config;
+        } finally {
+            if (is_dir($tempDir)) {
+                $this->removeDirectory($tempDir);
+            }
+        }
+    }
+
+    /**
+     * Compute relative path by stripping the directory key prefix from the file key.
+     */
+    private function computeRelativePath(string $fileKey, string $dirKeyPrefix): string
+    {
+        if (str_starts_with($fileKey, $dirKeyPrefix)) {
+            return rtrim(substr($fileKey, strlen($dirKeyPrefix)), '/');
+        }
+        return basename(rtrim($fileKey, '/'));
     }
 
     /**
@@ -1567,6 +1767,111 @@ class SkillAppService extends AbstractSkillAppService
         );
     }
 
+    private function publishImportedCrewSkill(
+        RequestContext $requestContext,
+        SkillDataIsolation $dataIsolation,
+        SkillEntity $skillEntity
+    ): void {
+        $publishRequestDTO = new PublishSkillRequestDTO();
+        $publishRequestDTO->setVersion(sprintf(
+            '%d.0.0',
+            $this->skillDomainService->countSkillVersionsByCode($dataIsolation, $skillEntity->getCode()) + 1
+        ));
+        $publishRequestDTO->setVersionDescriptionI18n($skillEntity->getDescriptionI18n() ?? []);
+        $publishRequestDTO->setPublishTargetType(PublishTargetType::PRIVATE->value);
+        $publishRequestDTO->setPublishTargetValue(null);
+        $publishRequestDTO->setExportFileFromProject(false);
+
+        $this->executePublishSkill(
+            $requestContext->getUserAuthorization(),
+            $dataIsolation,
+            $skillEntity,
+            $skillEntity->getCode(),
+            $publishRequestDTO
+        );
+    }
+
+    private function executePublishSkill(
+        MagicUserAuthorization $authorization,
+        SkillDataIsolation $dataIsolation,
+        SkillEntity $skillEntity,
+        string $code,
+        PublishSkillRequestDTO $requestDTO
+    ): SkillVersionEntity {
+        $versionEntity = new SkillVersionEntity();
+        $versionEntity->setVersion($requestDTO->getVersion());
+        $versionEntity->setVersionDescriptionI18n($requestDTO->getVersionDescriptionI18n());
+        $versionEntity->setPublishTargetType($requestDTO->getPublishTargetType());
+        $versionEntity->setPublishTargetValue($requestDTO->toPublishTargetValue());
+        // Persist a snapshot of the SKILL.md file key on publish so non-creators
+        // can still access the published skill document after the project changes.
+        $taskFileEntity = $this->resolveSkillFileKeyByProjectId($skillEntity->getProjectId());
+        $versionEntity->setSkillFileKey($taskFileEntity?->getFileKey());
+
+        if ($requestDTO->getExportFileFromProject()) {
+            $this->logger->info('publishSkill', ['id' => $skillEntity->getId(), 'code' => $code, 'project_id' => $skillEntity->getProjectId()]);
+            $fileMetadata = $this->exportSkillFromProjectLocal($authorization, $skillEntity);
+            $skillEntity->setFileKey($fileMetadata['file_key']);
+            // Write back the package_name resolved from skill_config.yaml so that both
+            // magic_skills and magic_skill_versions receive the correct value.
+            $packageName = $fileMetadata['metadata']['package_name'] ?? '';
+            if ($packageName !== '') {
+                $skillEntity->setPackageName($packageName);
+            }
+            $this->logger->debug('publishSkill metadata resolved', ['id' => $skillEntity->getId(), 'code' => $code, 'project_id' => $skillEntity->getProjectId()]);
+        }
+
+        if (empty($skillEntity->getFileKey())) {
+            ExceptionBuilder::throw(SkillErrorCode::FILE_NOT_FOUND, 'skill.file_not_found');
+        }
+
+        $versionEntity = $this->skillDomainService->publishSkill($dataIsolation, $skillEntity, $versionEntity);
+        $this->syncPublishedSkillScope($dataIsolation, $skillEntity, $versionEntity);
+
+        return $versionEntity;
+    }
+
+    private function resolveSkillFileKeyByProjectId(?int $projectId): ?TaskFileEntity
+    {
+        if ($projectId === null) {
+            return null;
+        }
+
+        // Always resolve the latest SKILL.md entry from the workspace file table.
+        return $this->taskFileDomainService->getByProjectIdAndFileName($projectId, self::SKILL_FILE_NAME);
+    }
+
+    private function resolveSkillDetailFileUrl(
+        MagicUserAuthorization $authorization,
+        SkillEntity $skillEntity,
+        ?SkillVersionEntity $latestVersionEntity
+    ): string {
+        $taskFileEntity = null;
+        $creatorId = $latestVersionEntity?->getCreatorId() ?? $skillEntity->getCreatorId();
+        if ($creatorId === $authorization->getId()) {
+            // The creator should read the current SKILL.md from the bound project.
+            $taskFileEntity = $this->resolveSkillFileKeyByProjectId($skillEntity->getProjectId());
+        }
+
+        if ($taskFileEntity === null) {
+            // Shared and market-installed skills read from the published snapshot.
+            $skillFileKey = $latestVersionEntity?->getSkillFileKey();
+            if (! empty($skillFileKey)) {
+                $taskFileEntity = new TaskFileEntity();
+                $taskFileEntity->setFileKey($skillFileKey);
+                $taskFileEntity->setFileName(basename($skillFileKey));
+                $taskFileEntity->setIsDirectory(false);
+            }
+        }
+
+        if ($taskFileEntity === null || empty($taskFileEntity->getFileKey())) {
+            return '';
+        }
+
+        $organizationCode = $latestVersionEntity?->getOrganizationCode() ?? $skillEntity->getOrganizationCode();
+        return $this->taskFileDomainService->getFilePreSignedUrl($organizationCode, $taskFileEntity);
+    }
+
     /**
      * Grant owner permission for a local skill.
      */
@@ -1721,12 +2026,13 @@ class SkillAppService extends AbstractSkillAppService
     /**
      * @return array<string>
      */
-    private function getAccessibleSkillCodes(SkillDataIsolation $dataIsolation): array
+    private function getAccessibleSkillCodes(SkillDataIsolation $dataIsolation, ?array $resourceCode = null): array
     {
         return $this->resourceVisibilityDomainService->getUserAccessibleResourceCodes(
             $this->createPermissionDataIsolation($dataIsolation),
             $dataIsolation->getCurrentUserId(),
-            ResourceVisibilityResourceType::SKILL
+            ResourceVisibilityResourceType::SKILL,
+            $resourceCode
         );
     }
 

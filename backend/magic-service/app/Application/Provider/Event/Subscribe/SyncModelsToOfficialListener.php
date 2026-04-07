@@ -10,6 +10,8 @@ namespace App\Application\Provider\Event\Subscribe;
 use App\Application\Provider\Service\ProviderModelSyncAppService;
 use App\Domain\Provider\Event\ProviderConfigCreatedEvent;
 use App\Domain\Provider\Event\ProviderConfigUpdatedEvent;
+use Dtyq\AsyncEvent\Kernel\Annotation\AsyncListener;
+use Hyperf\Event\Annotation\Listener;
 use Hyperf\Event\Contract\ListenerInterface;
 use Hyperf\Logger\LoggerFactory;
 use Psr\Container\ContainerInterface;
@@ -20,6 +22,8 @@ use Throwable;
  * 同步模型到Official服务商监听器.
  * 监听服务商配置创建/更新事件，从外部API拉取模型并同步到Official服务商.
  */
+#[AsyncListener]
+#[Listener]
 class SyncModelsToOfficialListener implements ListenerInterface
 {
     private LoggerInterface $logger;
@@ -33,8 +37,8 @@ class SyncModelsToOfficialListener implements ListenerInterface
     public function listen(): array
     {
         return [
-            //            ProviderConfigCreatedEvent::class,
-            //            ProviderConfigUpdatedEvent::class,
+            ProviderConfigCreatedEvent::class,
+            ProviderConfigUpdatedEvent::class,
         ];
     }
 

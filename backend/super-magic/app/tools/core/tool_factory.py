@@ -21,7 +21,7 @@ from dataclasses import dataclass
 from agentlang.context.tool_context import ToolContext
 from agentlang.tools.tool_result import ToolResult
 from agentlang.logger import get_logger
-from agentlang.utils.annotation_remover import remove_human_annotations
+from agentlang.utils.annotation_remover import remove_developer_annotations
 from app.tools.core import BaseTool
 from app.tools.core.tool_definition import tool_definition_manager, ToolDefinition
 from app.tools.remote.remote_tool_manager import remote_tool_manager
@@ -391,9 +391,9 @@ class ToolFactory:
                 remote_tool_instance = remote_tool_manager.get_remote_tool_instance(tool_name)
                 hint = remote_tool_instance.get_prompt_hint()
                 logger.debug(f"成功获取远程工具 {tool_name} 的提示信息")
-                # 移除人类注解
+                # 移除开发者注解
                 if hint:
-                    hint = remove_human_annotations(hint)
+                    hint = remove_developer_annotations(hint)
                 return hint
             except Exception as e:
                 logger.debug(f"获取远程工具 {tool_name} 提示失败: {e}")
@@ -410,9 +410,9 @@ class ToolFactory:
                 temp_instance = tool_class()
                 hint = temp_instance.get_prompt_hint()
                 logger.debug(f"成功获取工具 {tool_name} 的提示信息")
-                # 移除人类注解
+                # 移除开发者注解
                 if hint:
-                    hint = remove_human_annotations(hint)
+                    hint = remove_developer_annotations(hint)
                 return hint
             except Exception as e:
                 logger.debug(f"延迟加载获取工具 {tool_name} 提示失败: {e}")
@@ -423,9 +423,9 @@ class ToolFactory:
             try:
                 temp_instance = tool_info.tool_class()
                 hint = temp_instance.get_prompt_hint()
-                # 移除人类注解
+                # 移除开发者注解
                 if hint:
-                    hint = remove_human_annotations(hint)
+                    hint = remove_developer_annotations(hint)
                 return hint
             except Exception as e:
                 logger.debug(f"获取工具 {tool_name} 提示失败: {e}")
@@ -657,7 +657,14 @@ class ToolFactory:
         tools_entry_points = list(importlib.metadata.entry_points(group='agentlang.tools'))
         package_names = [package_name]
 
+        # 检查是否启用 filebase 工具
+        enable_filebase_watcher = os.getenv("ENABLE_FILEBASE_WATCHER", "false").lower() in ("true", "1", "yes", "on")
+
         for entry_point in tools_entry_points:
+            # 如果是 filebase 工具包且未启用，则跳过
+            if entry_point.value == "filebase.tools" and not enable_filebase_watcher:
+                logger.info(f"跳过加载工具包 {entry_point.value}: ENABLE_FILEBASE_WATCHER 未启用 (当前值: {os.getenv('ENABLE_FILEBASE_WATCHER', 'false')})")
+                continue
             package_names.append(entry_point.value)
             logger.info(f"发现工具包: {entry_point.value}")
         try:

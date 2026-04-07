@@ -47,4 +47,9 @@ class SandboxEndpoints
      * Workspace import endpoint.
      */
     public const WORKSPACE_IMPORT = 'api/v1/workspace/import';
+
+    /**
+     * 获取沙箱网关当前部署的最新 Agent 镜像端点.
+     */
+    public const GATEWAY_AGENT_IMAGE = 'api/v1/sandboxes/agent-image';
 }

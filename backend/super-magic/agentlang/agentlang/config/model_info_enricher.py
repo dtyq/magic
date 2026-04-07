@@ -52,6 +52,7 @@ class ModelInfoEnricher:
             # Build query parameters (fixed proxy API extension parameters)
             params = {
                 "with_info": "1",  # Request extended information
+                "with_dynamic_models": "1",
                 "type": "chat"     # Only get chat models
             }
 
@@ -162,17 +163,12 @@ class ModelInfoEnricher:
             if "icon" in attributes and attributes["icon"]:
                 metadata["icon"] = str(attributes["icon"])
 
-            if "provider_alias" in attributes and attributes["provider_alias"]:
-                metadata["provider_alias"] = str(attributes["provider_alias"])
-
-            if "provider_model_id" in attributes and attributes["provider_model_id"]:
-                metadata["provider_model_id"] = str(attributes["provider_model_id"])
-
-            if "provider_id" in attributes and attributes["provider_id"]:
-                metadata["provider_id"] = str(attributes["provider_id"])
-
             if metadata:
                 extracted["metadata"] = metadata
+
+            # resolved_model_id 表示该模型实际解析到的底层模型 ID
+            if "resolved_model_id" in attributes and attributes["resolved_model_id"]:
+                extracted["resolved_model_id"] = str(attributes["resolved_model_id"])
 
         return extracted
 

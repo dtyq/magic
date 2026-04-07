@@ -138,7 +138,7 @@ function WorkspaceItemMobile({
 			{isExpanded && (
 				<div className="flex w-full flex-col">
 					{isLoading ? (
-						<div className="flex items-center justify-center py-8 text-sm text-muted-foreground">
+						<div className="flex items-center justify-center py-8 text-xs text-muted-foreground">
 							{t("common.loading")}
 						</div>
 					) : projects.length > 0 ? (

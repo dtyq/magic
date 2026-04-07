@@ -20,7 +20,7 @@ project_root = Path(__file__).resolve().parent
 sys.path.append(str(project_root))
 
 # 初始化 PathManager
-from app.paths import PathManager
+from app.path_manager import PathManager
 PathManager.set_project_root(project_root)
 from agentlang.context.application_context import ApplicationContext
 ApplicationContext.set_path_manager(PathManager)

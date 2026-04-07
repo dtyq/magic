@@ -21,21 +21,22 @@ import { Button } from "@/components/shadcn-ui/button"
 import StepIndicator from "./components/StepIndicator"
 import FileUploadStep from "./components/FileUploadStep"
 import IdentityStep from "./components/IdentityStep"
-import {
-	createEmptySkillI18nText,
-	createInitialSkillIdentityData,
-	normalizeSkillI18nText,
-} from "./types"
+import { createInitialSkillIdentityData, normalizeSkillI18nText } from "./types"
 import type { UploadedFile, SkillIdentityData } from "./types"
 import { ScrollArea } from "@/components/shadcn-ui/scroll-area"
 import { useUpload } from "@/hooks/useUploadFiles"
 import { skillsService } from "@/services/skills/SkillsService"
-import type { ParseSkillResponse, ImportSkillResponse } from "@/apis/modules/skills"
+import type {
+	ImportSkillResponse,
+	ParseSkillResponse,
+	SkillSourceType,
+} from "@/apis/modules/skills"
 import magicToast from "@/components/base/MagicToaster/utils"
 import {
 	IMPORT_SKILL_DROP_ERROR,
 	ImportSkillDropError,
 	createSkillArchiveFromSelectedFolderFiles,
+	normalizeSkillImportFile,
 	resolveDroppedSkillImportFile,
 } from "./utils"
 
@@ -44,6 +45,7 @@ interface ImportSkillDialogProps {
 	onOpenChange: (open: boolean) => void
 	/** Called after a skill is successfully imported, with the import result */
 	onSuccess?: (result: ImportSkillResponse) => void | Promise<void>
+	importSourceType?: SkillSourceType
 }
 
 // 0=upload, 1=identity — maps to indicator steps 0 and 1
@@ -61,12 +63,16 @@ function mapParseResultToIdentity(r: ParseSkillResponse): SkillIdentityData {
 	return {
 		iconUrl: r.logo || undefined,
 		name: normalizeSkillI18nText(r.name_i18n, r.package_name),
-		role: createEmptySkillI18nText(),
 		description: normalizeSkillI18nText(r.description_i18n, r.package_description),
 	}
 }
 
-function ImportSkillDialog({ open, onOpenChange, onSuccess }: ImportSkillDialogProps) {
+function ImportSkillDialog({
+	open,
+	onOpenChange,
+	onSuccess,
+	importSourceType,
+}: ImportSkillDialogProps) {
 	const { t } = useTranslation("crew/market")
 
 	const [view, setView] = useState<ContentView>("upload")
@@ -131,8 +137,9 @@ function ImportSkillDialog({ open, onOpenChange, onSuccess }: ImportSkillDialogP
 	)
 
 	const handleFileSelect = useCallback(
-		(file: File) => {
-			void handlePreparedFile(file)
+		async (file: File) => {
+			const normalizedFile = await normalizeSkillImportFile(file)
+			await handlePreparedFile(normalizedFile)
 		},
 		[handlePreparedFile],
 	)
@@ -140,9 +147,16 @@ function ImportSkillDialog({ open, onOpenChange, onSuccess }: ImportSkillDialogP
 	const handleDropDataTransfer = useCallback(
 		async (dataTransfer: DataTransfer) => {
 			try {
-				const droppedFile = await resolveDroppedSkillImportFile(dataTransfer)
-				if (!droppedFile) return
-				await handlePreparedFile(droppedFile)
+				const droppedItem = await resolveDroppedSkillImportFile(dataTransfer)
+				if (!droppedItem) return
+
+				if (droppedItem.kind === "folder") {
+					await handlePreparedFile(droppedItem.file)
+					return
+				}
+
+				const normalizedFile = await normalizeSkillImportFile(droppedItem.file)
+				await handlePreparedFile(normalizedFile)
 			} catch (error) {
 				if (
 					error instanceof ImportSkillDropError &&
@@ -234,12 +248,14 @@ function ImportSkillDialog({ open, onOpenChange, onSuccess }: ImportSkillDialogP
 				name_i18n: identity.name,
 				description_i18n: identity.description,
 				logo,
+				...(importSourceType ? { source_type: importSourceType } : {}),
 			})
 
 			await onSuccess?.(result)
 			handleClose()
 		} catch {
-			magicToast.error(t("importSkill.errors.importFailed"))
+			console.error("importSkill.errors.importFailed")
+			// magicToast.error(t("importSkill.errors.importFailed"))
 		} finally {
 			setIsSubmitting(false)
 		}
@@ -253,6 +269,8 @@ function ImportSkillDialog({ open, onOpenChange, onSuccess }: ImportSkillDialogP
 				<DialogContent
 					className="w-[586px] !max-w-[586px] gap-0 p-0"
 					data-testid="import-skill-dialog"
+					onInteractOutside={(event) => event.preventDefault()}
+					onPointerDownOutside={(event) => event.preventDefault()}
 				>
 					<DialogHeader className="border-b border-border px-3 py-3">
 						<DialogTitle className="text-base font-semibold">

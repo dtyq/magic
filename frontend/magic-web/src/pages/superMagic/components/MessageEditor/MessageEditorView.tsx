@@ -19,9 +19,6 @@ import AiCompletionTip from "@/pages/chatNew/components/MessageEditor/components
 import { SummaryGuideDOMId } from "@/pages/superMagic/components/MessagePanel/components/TopicExamples/SummaryGuide"
 import { GuideTourElementId } from "@/pages/superMagic/components/LazyGuideTour"
 import { useIsMobile } from "@/hooks/useIsMobile"
-import { createPortal } from "react-dom"
-import usePortalTarget from "@/hooks/usePortalTarget"
-import { SCENE_INPUT_IDS } from "../MainInputContainer/constants"
 
 interface MessageEditorViewProps {
 	className?: string
@@ -39,7 +36,6 @@ interface MessageEditorViewProps {
 	onPaste: (e: ClipboardEvent) => void
 	onCompositionStart: () => void
 	onCompositionEnd: () => void
-	onClick: (e: MouseEvent) => void
 	topBarLeftContent?: ReactNode
 	topBarRightContent?: ReactNode
 	bottomLeftContent?: ReactNode
@@ -63,7 +59,6 @@ function MessageEditorView({
 	onPaste,
 	onCompositionStart,
 	onCompositionEnd,
-	onClick,
 	topBarLeftContent,
 	topBarRightContent,
 	bottomLeftContent,
@@ -120,7 +115,6 @@ function MessageEditorView({
 								className={cn(messageEditorContentVariants({ size }), className)}
 								onCompositionStart={onCompositionStart}
 								onCompositionEnd={onCompositionEnd}
-								onClick={onClick}
 								data-testid="super-message-editor-content"
 								id={SummaryGuideDOMId.MessageEditorContent}
 							/>

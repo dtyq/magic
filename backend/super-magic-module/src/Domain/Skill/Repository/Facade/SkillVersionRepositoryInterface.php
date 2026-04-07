@@ -111,6 +111,11 @@ interface SkillVersionRepositoryInterface
     public function invalidateAwaitingReviewVersionsByCode(SkillDataIsolation $dataIsolation, string $code): int;
 
     /**
+     * 批量下架某 Skill 下所有已发布版本，并将发布范围收口为 PRIVATE.
+     */
+    public function offlinePublishedVersionsByCode(SkillDataIsolation $dataIsolation, string $code): int;
+
+    /**
      * 清空当前版本标记.
      */
     public function clearCurrentVersion(SkillDataIsolation $dataIsolation, string $code): int;
@@ -164,6 +169,7 @@ interface SkillVersionRepositoryInterface
         ?string $publishTargetType,
         ?string $sourceType,
         ?string $version,
+        ?string $packageName,
         ?string $skillName,
         ?string $organizationCode,
         ?string $startTime,

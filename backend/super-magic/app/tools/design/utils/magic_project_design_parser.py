@@ -12,12 +12,12 @@ import os
 import re
 from dataclasses import dataclass, field, asdict, fields
 from pathlib import Path
-from typing import List, Optional, Union, Literal, Dict, Any
+from typing import List, Optional, Union, Literal, Dict, Any, Callable
 
 import aiofiles
 import aiofiles.os
 
-from agentlang.paths import PathManager
+from agentlang.path_manager import PathManager
 from agentlang.logger import get_logger
 from app.tools.design.constants import DEFAULT_ELEMENT_WIDTH, DEFAULT_ELEMENT_HEIGHT
 from app.utils.async_file_utils import async_exists, async_mkdir
@@ -26,11 +26,11 @@ logger = get_logger(__name__)
 
 
 # 元素类型定义
-ElementType = Literal["image", "text", "rectangle", "ellipse", "triangle", "star", "frame", "group"]
+ElementType = Literal["image", "video", "text", "rectangle", "ellipse", "triangle", "star", "frame", "group"]
 
 # 允许的元素类型
 ALLOWED_ELEMENT_TYPES = {
-    "image", "text", "rectangle", "ellipse", "triangle", "star", "frame", "group"
+    "image", "video", "text", "rectangle", "ellipse", "triangle", "star", "frame", "group"
 }
 
 # 项目配置必需字段
@@ -124,6 +124,27 @@ class GenerateImageRequest:
 
 
 @dataclass
+class GenerateVideoRequest:
+    """视频生成请求信息
+
+    该结构对齐 generateImageRequest 的设计思路，但单独保留视频字段。
+    后续前端渲染视频元素时，应直接复用这里定义的字段名，而不是再发明一套协议。
+    """
+    model_id: str
+    prompt: str
+    operation_id: str
+    aspect_ratio: Optional[str] = None
+    duration_seconds: Optional[int] = None
+    resolution: Optional[str] = None
+    fps: Optional[int] = None
+    seed: Optional[int] = None
+    watermark: Optional[bool] = None
+    reference_images: List[str] = field(default_factory=list)
+    frames: List[Dict[str, str]] = field(default_factory=list)
+    file_dir: Optional[str] = None
+
+
+@dataclass
 class BaseElement:
     """画布元素基类，包含通用属性"""
     # 必需字段
@@ -191,6 +212,21 @@ class ImageElement(BaseElement):
 
 
 @dataclass
+class VideoElement(BaseElement):
+    """视频元素
+
+    这里先把后端协议落到 magic.project.js 中，供 super-magic 设计工具写盘。
+    当前前端即使还没有渲染能力，也应该继续沿用这套字段，避免后续二次迁移。
+    """
+    src: Optional[str] = None
+    poster: Optional[str] = None
+    loading: Optional[bool] = None
+    status: Optional[Literal["pending", "processing", "completed", "failed"]] = None
+    errorMessage: Optional[str] = None
+    generateVideoRequest: Optional[GenerateVideoRequest] = None
+
+
+@dataclass
 class TextElement(BaseElement):
     """文本元素，支持富文本"""
     content: List[RichTextParagraph] = field(default_factory=list)
@@ -247,6 +283,7 @@ class FrameElement(BaseElement):
 # 所有画布元素的联合类型
 CanvasElement = Union[
     ImageElement,
+    VideoElement,
     TextElement,
     RectangleElement,
     EllipseElement,
@@ -353,6 +390,7 @@ def _generate_default_element_name(element_type: str, element_id: str) -> str:
     # 类型名称映射（中文）
     type_names = {
         "image": "图片",
+        "video": "视频",
         "text": "文本",
         "rectangle": "矩形",
         "ellipse": "椭圆",
@@ -456,6 +494,10 @@ def _dict_to_element(data: Dict[str, Any]) -> Optional[CanvasElement]:
         if element_type == "image":
             filtered_data = _filter_dataclass_fields(data, ImageElement)
             return ImageElement(**filtered_data)
+        elif element_type == "video":
+            # 视频元素沿用图片元素的公共画布字段，但生成协议独立为 generateVideoRequest。
+            filtered_data = _filter_dataclass_fields(data, VideoElement)
+            return VideoElement(**filtered_data)
         elif element_type == "text":
             filtered_data = _filter_dataclass_fields(data, TextElement)
             return TextElement(**filtered_data)
@@ -714,73 +756,13 @@ async def read_magic_project_js(project_path: str) -> MagicProjectConfig:
             except Exception as e:
                 logger.warning(f"Failed to release read lock or close file: {e}")
 
-    # 从 JSONP 格式提取 JSON: window.magicProjectConfig = {...}
-    # 支持两种模式以提高兼容性
-    # 分号是可选的，以兼容不同的代码风格
-    # 注意：优先匹配不带分号的（与 magic.project.template.js 模板一致）
-    patterns = [
-        # 优先匹配不带分号的（匹配到文件末尾或下一个语句）
-        r"window\.magicProjectConfig\s*=\s*({[\s\S]*})(?:\s*;|\s*$)",
-        r"magicProjectConfig\s*=\s*({[\s\S]*})(?:\s*;|\s*$)",
-        # 兼容旧格式：严格带分号的
-        r"window\.magicProjectConfig\s*=\s*({[\s\S]*?});",
-        r"magicProjectConfig\s*=\s*({[\s\S]*?});"
-    ]
-
-    json_str = None
-    for pattern in patterns:
-        match = re.search(pattern, content)
-        if match:
-            json_str = match.group(1)
-            break
-
-    if not json_str:
-        # 打印文件原始内容以便排查问题
-        logger.error(
-            f"Invalid JSONP format in magic.project.js at: {file_path}\n"
-            f"File content (length: {len(content)} chars):\n{content}"
-        )
-        raise ValueError(
-            f"Invalid JSONP format in magic.project.js.\n"
-            f"Expected: window.magicProjectConfig = {{...}} or window.magicProjectConfig = {{...}};\n"
-            f"File may be corrupted."
-        )
-
-    # 解析 JSON
-    try:
-        data = json.loads(json_str)
-    except json.JSONDecodeError as e:
-        # 打印提取的 JSON 内容以便排查问题
-        logger.error(
-            f"Failed to parse JSON in magic.project.js at: {file_path}\n"
-            f"JSON parsing error: {str(e)}\n"
-            f"Extracted JSON content (length: {len(json_str)} chars):\n{json_str}"
-        )
-        raise json.JSONDecodeError(
-            f"Failed to parse JSON in magic.project.js: {str(e)}",
-            e.doc,
-            e.pos
-        )
-
-    # 仅验证项目级配置（不验证元素级，让解析阶段的容错机制处理）
-    validation = validate_project_config(data, validate_elements=False)
-    if not validation.is_valid:
-        raise ValueError(
-            f"Invalid project configuration:\n" + "\n".join(f"  - {err}" for err in validation.errors)
-        )
-
-    # 解析为类型化配置（会自动跳过格式错误的元素）
-    config = _parse_config_dict(data)
-
-    # 计算所有元素的父子关系和绝对坐标
-    _compute_element_hierarchy_and_absolute_coords(config)
-
-    return config
+    return _parse_magic_project_content(content, file_path)
 
 
 async def write_magic_project_js(
     project_path: str,
-    config: MagicProjectConfig
+    config: MagicProjectConfig,
+    content_verifier: Optional[Callable[[MagicProjectConfig], bool]] = None
 ) -> bool:
     """
     将配置写入 magic.project.js 文件（JSONP 格式，异步）
@@ -852,46 +834,7 @@ async def write_magic_project_js(
         finally:
             os.close(dir_fd)
 
-        # 等待并验证文件写入（带重试机制，适应 TOS 同步延迟）
-        max_retries = 5
-        retry_delay = 0.2
-        expected_size = len(content.encode('utf-8'))
-
-        for attempt in range(max_retries):
-            await asyncio.sleep(retry_delay)
-
-            # 验证文件大小
-            stat_info = await aiofiles.os.stat(file_path)
-            if stat_info.st_size == expected_size:
-                logger.info(f"Write verified, file size: {stat_info.st_size} bytes (attempt: {attempt + 1})")
-                break
-            elif stat_info.st_size == 0:
-                # 文件为空，严重问题
-                if attempt < max_retries - 1:
-                    logger.warning(
-                        f"File is empty after write, retrying... "
-                        f"(attempt {attempt + 1}/{max_retries})"
-                    )
-                    continue
-                raise IOError(
-                    f"File is empty after write and retries: {file_path}"
-                )
-            else:
-                # 大小不匹配
-                if attempt < max_retries - 1:
-                    logger.warning(
-                        f"File size mismatch: expected {expected_size}, got {stat_info.st_size}, "
-                        f"retrying... (attempt {attempt + 1}/{max_retries})"
-                    )
-                    continue
-                # 最后一次也不匹配，但至少不是空的，记录警告后继续
-                logger.warning(
-                    f"File size mismatch after retries: expected {expected_size}, "
-                    f"got {stat_info.st_size}. Continuing anyway."
-                )
-                break
-
-        return True
+        logger.info(f"文件内容写入完成，等待重新读取校验: {file_path}")
 
     except Exception as e:
         logger.error(f"Failed to write magic.project.js: {str(e)}")
@@ -911,6 +854,84 @@ async def write_magic_project_js(
                 logger.info(f"Released write lock and closed file: {file_path}")
             except Exception as e:
                 logger.warning(f"Failed to release lock or close file: {e}")
+
+    max_retries = 5
+    retry_delay = 0.2
+    last_error: Optional[Exception] = None
+    for attempt in range(max_retries):
+        await asyncio.sleep(retry_delay)
+        try:
+            verified_config = await read_magic_project_js(project_path)
+            if content_verifier is not None and not content_verifier(verified_config):
+                raise ValueError("写后内容校验失败：目标变更未在最新文件中可见")
+
+            logger.info(f"Write verified by content (attempt: {attempt + 1})")
+            return True
+        except Exception as error:  # noqa: BLE001
+            last_error = error
+            if attempt == max_retries - 1:
+                break
+            logger.warning(
+                "写后内容校验失败，将重试 (attempt %s/%s): %s",
+                attempt + 1,
+                max_retries,
+                error,
+            )
+
+    raise IOError(f"Failed to verify magic.project.js by content: {last_error}")
+
+
+def _parse_magic_project_content(content: str, file_path: str) -> MagicProjectConfig:
+    """把 magic.project.js 文本解析为配置对象。"""
+    patterns = [
+        r"window\.magicProjectConfig\s*=\s*({[\s\S]*})(?:\s*;|\s*$)",
+        r"magicProjectConfig\s*=\s*({[\s\S]*})(?:\s*;|\s*$)",
+        r"window\.magicProjectConfig\s*=\s*({[\s\S]*?});",
+        r"magicProjectConfig\s*=\s*({[\s\S]*?});",
+    ]
+
+    json_str = None
+    for pattern in patterns:
+        match = re.search(pattern, content)
+        if match:
+            json_str = match.group(1)
+            break
+
+    if not json_str:
+        logger.error(
+            f"Invalid JSONP format in magic.project.js at: {file_path}\n"
+            f"File content (length: {len(content)} chars):\n{content}"
+        )
+        raise ValueError(
+            "Invalid JSONP format in magic.project.js.\n"
+            "Expected: window.magicProjectConfig = {...} or window.magicProjectConfig = {...};\n"
+            "File may be corrupted."
+        )
+
+    try:
+        data = json.loads(json_str)
+    except json.JSONDecodeError as e:
+        logger.error(
+            f"Failed to parse JSON in magic.project.js at: {file_path}\n"
+            f"JSON parsing error: {str(e)}\n"
+            f"Extracted JSON content (length: {len(json_str)} chars):\n{json_str}"
+        )
+        raise json.JSONDecodeError(
+            f"Failed to parse JSON in magic.project.js: {str(e)}",
+            e.doc,
+            e.pos,
+        )
+
+    validation = validate_project_config(data, validate_elements=False)
+    if not validation.is_valid:
+        raise ValueError(
+            "Invalid project configuration:\n"
+            + "\n".join(f"  - {err}" for err in validation.errors)
+        )
+
+    config = _parse_config_dict(data)
+    _compute_element_hierarchy_and_absolute_coords(config)
+    return config
 
 
 def validate_project_config(config: Dict[str, Any], validate_elements: bool = True) -> ValidationResult:

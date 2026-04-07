@@ -51,6 +51,15 @@ llm:
   api_max_retries: ${LLM_API_MAX_RETRIES:-3}
   # 自定义API请求头配置 - 所有请求头都从环境变量读取
   custom_api_headers: ${LLM_CUSTOM_API_HEADERS:-None}
+  # 流式快速重试策略
+  # 首包窗口覆盖"请求发出到首个 chunk"的总时间（含等响应头），下标对应 retry_count
+  stream_first_chunk_timeout_schedule_seconds: [45, 60, 90]
+  # 收到首包后，后续每个 chunk 的等待上限
+  stream_chunk_timeout_seconds: 30
+  # 是否启用非流式 fallback；默认关闭，只保留代码路径便于后续按需重新打开
+  enable_non_stream_fallback: false
+  # 非流式 fallback 单独超时（当前默认关闭，仅在显式开启时生效）
+  non_stream_fallback_timeout_seconds: 330
 
 # 当前活动的 Agent 模式 (可通过 ACTIVE_AGENT_MODE 环境变量覆盖)
 # 可选值: apex(至强模式), efficient(高性价比模式), flash(极速模式)
@@ -92,8 +101,8 @@ agent:
   enable_parallel_tool_calls: ${AGENT_ENABLE_PARALLEL_TOOL_CALLS:-false}
   # Timeout for parallel tool execution in seconds (None = no timeout)
   parallel_tool_calls_timeout: ${AGENT_PARALLEL_TOOL_CALLS_TIMEOUT:-None}
-  # Model used for safety checking and content filtering
-  safety_checker_model_id: ${AGENT_SAFETY_MODEL_ID:-gpt-4.1}
+  # Whether the agent loop should auto-retry after non-terminal exceptions
+  enable_agent_loop_retry: ${AGENT_ENABLE_AGENT_LOOP_RETRY:-false}
 
 # 图片生成服务配置
 image_generator:
@@ -528,6 +537,36 @@ models:
       output_price: 0.004
       currency: "CNY"
 
+  qwen3.5-flash:
+    api_key: "${QWEN_API_KEY}"
+    api_base_url: "${QWEN_API_BASE_URL:-https://dashscope.aliyuncs.com/compatible-mode/v1}"
+    name: "${QWEN3_5_FLASH_MODEL:-qwen3.5-flash}"
+    type: "llm"
+    supports_tool_use: true
+    provider: "openai"
+    max_output_tokens: 16384
+    max_context_tokens: 131072
+    temperature: 0.7
+    pricing:
+      input_price: 0.0003
+      output_price: 0.0006
+      currency: "CNY"
+
+  qwen3.5-plus:
+    api_key: "${QWEN_API_KEY}"
+    api_base_url: "${QWEN_API_BASE_URL:-https://dashscope.aliyuncs.com/compatible-mode/v1}"
+    name: "${QWEN3_5_PLUS_MODEL:-qwen3.5-plus}"
+    type: "llm"
+    supports_tool_use: true
+    provider: "openai"
+    max_output_tokens: 65536
+    max_context_tokens: 1000000
+    temperature: 0.7
+    pricing:
+      input_price: 0.002
+      output_price: 0.008
+      currency: "CNY"
+
   qwen-flash:
     api_key: "${MAGIC_API_KEY}"
     api_base_url: "${MAGIC_API_BASE_URL}"
@@ -541,6 +580,23 @@ models:
     pricing:
       input_price: 0.0003
       output_price: 0.0006
+      currency: "CNY"
+
+  kimi-k2.5:
+    api_key: "${KIMI_API_KEY}"
+    api_base_url: "${KIMI_API_BASE_URL:-https://api.moonshot.cn/v1}"
+    name: "${KIMI_K2_5_MODEL:-kimi-k2.5}"
+    type: "llm"
+    supports_tool_use: true
+    provider: "openai"
+    max_output_tokens: 16384
+    max_context_tokens: 131072
+    temperature: 0.7
+    pricing:
+      input_price: 0.004
+      output_price: 0.021
+      cache_write_price: 0.004
+      cache_hit_price: 0.0007
       currency: "CNY"
 
   gemini-2.0-flash:
@@ -731,11 +787,27 @@ image_search:
   # 默认图片搜索引擎: bing, serpapi 或 magic
   default_engine: "${IMAGE_SEARCH_DEFAULT_ENGINE:-magic}"
 
+filebase:
+  embedding_model_id: "${FILEBASE_EMBEDDING_MODEL_ID:-magic-embedding}"
+  collection_prefix: "${FILEBASE_COLLECTION_PREFIX:-SUPERMAGIC-FILEBASE}"
+  max_vectorization_concurrency: "${FILEBASE_MAX_VECTORIZATION_CONCURRENCY:-20}"
+  max_embedding_retry_attempts: "${FILEBASE_MAX_EMBEDDING_RETRY_ATTEMPTS:-5}"
+
 token_service:
   address: "${TOKEN_SERVICE_ADDRESS}"
   redis_uri: "${REDIS_URI}"
   app_id: "${APP_ID}"
   app_secret: "${APP_SECRET}"
+
+qdrant:
+  base_uri: "${QDRANT_BASE_URI}"
+  api_key: "${QDRANT_API_KEY}"
+  collection_prefix: "${QDRANT_COLLECTION_PREFIX:-SUPERMAGIC-}"
+  filebase_prefix: "${QDRANT_FILEBASE_PREFIX:-SUPERMAGIC-FILEBASE-}"
+
+# TikHub配置
+tikhub:
+  api_key: "${TIKHUB_API_KEY}"
 
 # 存储服务配置
 storage:
@@ -803,7 +875,7 @@ ai_abilities:
   # Visual Understanding Ability (视觉理解能力)
   # Used for image analysis and visual content understanding
   visual_understanding:
-    model_id: "${VISUAL_UNDERSTANDING_MODEL_ID:-doubao-seed-1.6-vision}"
+    model_id: "${VISUAL_UNDERSTANDING_MODEL_ID:-qwen3.5-flash}"
     timeout: 120
     max_images: 10
     enabled: true
@@ -865,6 +937,8 @@ web_scraping:
 
   # SearchAPI 配置 (第三方网页爬取服务)
   search_api:
+    # API 端点地址
+#    endpoint: ${SEARCH_API_ENDPOINT:-https://searchapi.cloudsway.net/search/HcAMcybqJTnDtGiJ/read}
     # API Token (必须通过环境变量 MAGIC_API_KEY 设置, 走magic-service代理)
     token: ${MAGIC_API_KEY}
     # 爬取模式: quality (质量优先) 或 speed (速度优先)

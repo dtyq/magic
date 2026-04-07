@@ -411,6 +411,29 @@ class ProjectDomainService
     }
 
     /**
+     * Batch get current topic IDs indexed by project ID.
+     * Used to resolve sandbox IDs for batch sandbox status queries.
+     * Returns null for projects that have no current topic assigned.
+     *
+     * @param int[] $projectIds Project ID array
+     * @return array<int, null|int> Map of projectId => currentTopicId (null if none)
+     */
+    public function getTopicIdMapByProjectIds(array $projectIds): array
+    {
+        if (empty($projectIds)) {
+            return [];
+        }
+
+        $projects = $this->projectRepository->findByIds($projectIds);
+        $result = [];
+        foreach ($projects as $project) {
+            $result[$project->getId()] = $project->getCurrentTopicId();
+        }
+
+        return $result;
+    }
+
+    /**
      * Batch get project names by IDs.
      *
      * @param array $projectIds Project ID array

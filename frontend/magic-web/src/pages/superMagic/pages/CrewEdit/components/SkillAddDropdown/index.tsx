@@ -1,16 +1,17 @@
-import { type ReactNode, useCallback, useMemo, useState } from "react"
+import { type ReactNode, useCallback } from "react"
 import { Upload, SquareLibrary } from "lucide-react"
 import { useTranslation } from "react-i18next"
-import MagicDropdown from "@/components/base/MagicDropdown"
-import { cn } from "@/lib/utils"
-import ImportSkillDialog from "@/pages/superMagic/components/ImportSkillDialog"
-import type { ImportSkillResponse } from "@/apis/modules/skills"
+import SkillActionDropdown from "@/pages/superMagic/components/SkillActionDropdown"
+import type { ImportSkillResponse, SkillSourceType } from "@/apis/modules/skills"
 
 interface SkillAddDropdownProps {
 	onImportSkill?: () => void
 	onAddFromLibrary?: () => void
 	/** Called after a skill is successfully imported via the dialog */
 	onImportSuccess?: (result: ImportSkillResponse) => void | Promise<void>
+	/** Show publish navigation prompt (reuses ImportSkillPublishPromptDialog) */
+	promptPublishAfterImport?: boolean
+	importSourceType?: SkillSourceType
 	children: ReactNode
 	placement?: string
 	className?: string
@@ -20,20 +21,15 @@ function SkillAddDropdown({
 	onImportSkill,
 	onAddFromLibrary,
 	onImportSuccess,
+	promptPublishAfterImport = false,
+	importSourceType,
 	children,
 	placement = "bottomRight",
 	className,
 }: SkillAddDropdownProps) {
 	const { t } = useTranslation("crew/create")
-	const [importDialogOpen, setImportDialogOpen] = useState(false)
-
-	const handleImportSkill = useCallback(() => {
-		setImportDialogOpen(true)
-		onImportSkill?.()
-	}, [onImportSkill])
-
-	const menuItems = useMemo(
-		() => [
+	const createMenuItems = useCallback(
+		({ openImportDialog }: { openImportDialog: () => void }) => [
 			{
 				key: "import-skill",
 				icon: <Upload className="mt-0.5 size-4 shrink-0" />,
@@ -45,7 +41,10 @@ function SkillAddDropdown({
 						</span>
 					</div>
 				),
-				onClick: handleImportSkill,
+				onClick: () => {
+					openImportDialog()
+					onImportSkill?.()
+				},
 				"data-testid": "skill-add-menu-import",
 			},
 			{
@@ -63,28 +62,20 @@ function SkillAddDropdown({
 				"data-testid": "skill-add-menu-library",
 			},
 		],
-		[t, handleImportSkill, onAddFromLibrary],
+		[t, onAddFromLibrary, onImportSkill],
 	)
 
 	return (
-		<>
-			<MagicDropdown
-				menu={{ items: menuItems }}
-				placement={placement}
-				overlayClassName={cn(
-					"min-w-[228px]",
-					"[&_[data-slot='dropdown-menu-item']]:items-start",
-					"[&_[data-slot='dropdown-menu-item']]:!p-2",
-				)}
-			>
-				<span className={className}>{children}</span>
-			</MagicDropdown>
-			<ImportSkillDialog
-				open={importDialogOpen}
-				onOpenChange={setImportDialogOpen}
-				onSuccess={onImportSuccess}
-			/>
-		</>
+		<SkillActionDropdown
+			createMenuItems={createMenuItems}
+			onImportSuccess={onImportSuccess}
+			promptPublishAfterImport={promptPublishAfterImport}
+			importSourceType={importSourceType}
+			placement={placement}
+			className={className}
+		>
+			{children}
+		</SkillActionDropdown>
 	)
 }
 

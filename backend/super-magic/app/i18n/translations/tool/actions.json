@@ -139,6 +139,22 @@
         "zh_CN": "生成图像",
         "en_US": "Generate image"
     },
+    "generate_video": {
+        "zh_CN": "生成视频",
+        "en_US": "Generate video"
+    },
+    "video_generation_progress": {
+        "zh_CN": "视频生成进度通知",
+        "en_US": "Video generation progress"
+    },
+    "query_video_generation": {
+        "zh_CN": "查询视频任务",
+        "en_US": "Query video task"
+    },
+    "task_progress": {
+        "zh_CN": "查询任务进度",
+        "en_US": "Query task progress"
+    },
     "edit_image": {
         "zh_CN": "编辑图像",
         "en_US": "Edit image"
@@ -219,18 +235,6 @@
         "zh_CN": "查询画布概览",
         "en_US": "Query canvas overview"
     },
-    "create_canvas_element": {
-        "zh_CN": "创建画布元素",
-        "en_US": "Create canvas element"
-    },
-    "update_canvas_element": {
-        "zh_CN": "更新画布元素",
-        "en_US": "Update canvas element"
-    },
-    "reorder_canvas_elements": {
-        "zh_CN": "调整图层顺序",
-        "en_US": "Reorder canvas elements"
-    },
     "query_canvas_element": {
         "zh_CN": "查询元素详情",
         "en_US": "Query canvas element"
@@ -255,6 +259,10 @@
         "zh_CN": "生成图片",
         "en_US": "Generate images"
     },
+    "generate_videos_to_canvas": {
+        "zh_CN": "生成视频",
+        "en_US": "Generate videos"
+    },
     "thinking": {
         "zh_CN": "深度思考",
         "en_US": "Thinking process"
@@ -267,21 +275,21 @@
         "zh_CN": "深度写作",
         "en_US": "Deep write"
     },
-    "call_agent": {
-        "zh_CN": "调用代理",
-        "en_US": "Call agent"
+    "call_subagent": {
+        "zh_CN": "调用子智能体",
+        "en_US": "Call sub-agent"
+    },
+    "wait_for_subagents": {
+        "zh_CN": "等待子智能体完成",
+        "en_US": "Wait for sub-agents"
     },
     "compact_chat_history": {
         "zh_CN": "整理对话内容",
         "en_US": "Compact chat history"
     },
-    "skills_read": {
-        "zh_CN": "学习技能",
-        "en_US": "Learn Skill"
-    },
-    "skill_read_references": {
-        "zh_CN": "深入学习技能",
-        "en_US": "Deep dive into Skill"
+    "read_skills": {
+        "zh_CN": "装备技能",
+        "en_US": "Equip Skill"
     },
     "todo_create": {
         "zh_CN": "创建任务列表",
@@ -306,5 +314,57 @@
     "delete_memory": {
         "zh_CN": "删除记忆",
         "en_US": "Delete memory"
+    },
+    "get_agent_info": {
+        "zh_CN": "获取员工信息",
+        "en_US": "Get employee info"
+    },
+    "update_agent": {
+        "zh_CN": "更新员工",
+        "en_US": "Update employee"
+    },
+    "create_skill": {
+        "zh_CN": "创建技能",
+        "en_US": "Create skill"
+    },
+    "edit_skill": {
+        "zh_CN": "编辑技能",
+        "en_US": "Edit skill"
+    },
+    "upload_skill": {
+        "zh_CN": "上传技能",
+        "en_US": "Upload skill"
+    },
+    "upgrade_sandbox": {
+        "zh_CN": "升级沙箱",
+        "en_US": "Upgrade sandbox"
+    },
+    "manage_cron": {
+        "zh_CN": "管理定时任务",
+        "en_US": "Manage cron jobs"
+    },
+    "connect_wecom_bot": {
+        "zh_CN": "连接企业微信",
+        "en_US": "Connect WeCom"
+    },
+    "connect_wechat_bot": {
+        "zh_CN": "连接微信",
+        "en_US": "Connect WeChat"
+    },
+    "connect_lark_bot": {
+        "zh_CN": "连接飞书",
+        "en_US": "Connect Lark"
+    },
+    "connect_dingtalk_bot": {
+        "zh_CN": "连接钉钉",
+        "en_US": "Connect DingTalk"
+    },
+    "wait_wechat_login": {
+        "zh_CN": "等待微信登录",
+        "en_US": "Wait for WeChat login"
+    },
+    "get_im_channel_status": {
+        "zh_CN": "查询 IM 渠道状态",
+        "en_US": "Query IM channel status"
     }
 }

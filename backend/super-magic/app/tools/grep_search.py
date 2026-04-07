@@ -1,4 +1,5 @@
 from app.i18n import i18n
+import os
 import re
 import json
 import asyncio
@@ -14,10 +15,10 @@ from agentlang.logger import get_logger
 from agentlang.utils.schema import FileInfo
 from agentlang.utils.token_estimator import num_tokens_from_string
 from app.tools.core import BaseToolParams, tool
-from app.tools.workspace_guard_tool import WorkspaceGuardTool
-from app.utils.file_timestamp_manager import get_global_timestamp_manager
+from app.tools.workspace_tool import WorkspaceTool
 from app.core.entity.message.server_message import DisplayType, FileContent, ToolDetail
 from app.utils.file_utils import is_binary_file
+from app.utils.async_file_utils import async_count_text_lines, async_stat
 
 logger = get_logger(__name__)
 
@@ -29,6 +30,19 @@ MAX_MATCH_WINDOWS_PER_LINE = 3
 MAX_CONTEXT_LINE_PREVIEW_CHARS = 320
 MAX_FORMATTED_OUTPUT_TOKENS = 10000
 MAX_FORMATTED_OUTPUT_CHARS = 120000
+
+# Filesystem mode profiles: broad glob over many files is slow regardless of fs type,
+# but network mounts (s3/nfs) need much stricter limits to avoid download storms.
+# Set WORKSPACE_FS_MODE=local to relax limits when running on a local disk.
+_FS_PROFILES: Dict[str, Dict[str, int]] = {
+    "network": {"max_files": 300,  "preflight_timeout": 10, "execution_timeout": 30},
+    "local":   {"max_files": 2000, "preflight_timeout": 30, "execution_timeout": 120},
+}
+_fs_profile = _FS_PROFILES.get(os.getenv("WORKSPACE_FS_MODE", "network"), _FS_PROFILES["network"])
+
+MAX_SEARCH_FILES   = _fs_profile["max_files"]
+PREFLIGHT_TIMEOUT  = _fs_profile["preflight_timeout"]
+EXECUTION_TIMEOUT  = _fs_profile["execution_timeout"]
 
 # Default ignore patterns for common binary/non-text files
 DEFAULT_IGNORE_PATTERNS = [
@@ -77,7 +91,7 @@ class GrepSearchParams(BaseToolParams):
 
 
 @tool()
-class GrepSearch(WorkspaceGuardTool[GrepSearchParams]):
+class GrepSearch(WorkspaceTool[GrepSearchParams]):
     """<!--zh
     - 快速内容搜索工具，适用于任何大小的代码库
     - 使用完整正则语法搜索文件内容（如 "log.*Error", "function\\s+\\w+"）
@@ -86,6 +100,7 @@ class GrepSearch(WorkspaceGuardTool[GrepSearchParams]):
     - 返回最多20个最相关的文件，按修改时间排序
     - 自动忽略二进制文件和常见目录（node_modules, .git等）
     - 需要在多个文件中查找特定代码模式或文本时使用此工具
+    - 必须指定具体的 path 和精确的 include 模式，避免在整个工作区使用宽泛的 glob（如 "*.html"），文件过多会导致搜索极慢或超时
     - 如需额外上下文，根据文件大小使用 read file：小文件（<200行）- 完整读取；中等文件（200-500行）- 按需判断；大文件（>500行）- 使用 offset/limit 参数读取特定部分
     -->
     - Fast content search tool that works with any codebase size
@@ -95,6 +110,7 @@ class GrepSearch(WorkspaceGuardTool[GrepSearchParams]):
     - Returns up to 20 most relevant files sorted by modification time
     - Automatically ignores binary files and common directories (node_modules, .git, etc.)
     - Use this tool when you need to find specific code patterns or text across multiple files
+    - Always specify a concrete path and a narrow include pattern; avoid broad globs (e.g. "*.html") over the entire workspace as too many files will make the search extremely slow or time out
     - If additional context is needed, use read file based on file size: small files (<200 lines) - read entirely; medium files (200-500 lines) - judge by need; large files (>500 lines) - read specific sections with offset/limit parameters.
     """
 
@@ -112,7 +128,7 @@ class GrepSearch(WorkspaceGuardTool[GrepSearchParams]):
         try:
             re.compile(params.pattern)
         except re.error as e:
-            return ToolResult(error=f"Invalid regex pattern: {e}")
+            return ToolResult.error(f"Invalid regex pattern: {e}")
 
         # 执行搜索
         search_result = await self._run(
@@ -122,7 +138,7 @@ class GrepSearch(WorkspaceGuardTool[GrepSearchParams]):
         )
 
         # 更新匹配文件的时间戳
-        await self._update_file_timestamps(search_result.matched_files)
+        await self._update_file_timestamps(tool_context, search_result.matched_files)
 
         # 准备 extra_info 用于前端展示
         extra_info = {}
@@ -149,13 +165,13 @@ class GrepSearch(WorkspaceGuardTool[GrepSearchParams]):
         max_results: int = 50
     ) -> Dict[str, Any]:
         """无Context纯粹执行grep，供其他工具内部调用
-        
+
         Args:
             pattern: 搜索模式（正则表达式）
             include: 文件包含模式（如 "*.csv"）
             path: 搜索路径（相对于base_dir）
             max_results: 最大返回匹配行数
-            
+
         Returns:
             {
                 "success": bool,
@@ -171,7 +187,7 @@ class GrepSearch(WorkspaceGuardTool[GrepSearchParams]):
                 include=include,
                 path=path
             )
-            
+
             if not search_result.has_matches:
                 return {
                     "success": False,
@@ -179,7 +195,7 @@ class GrepSearch(WorkspaceGuardTool[GrepSearchParams]):
                     "content": search_result.content,
                     "matched_files": []
                 }
-            
+
             # 从格式化内容中提取纯粹的匹配行（复用已有的解析逻辑）
             # 重新执行ripgrep获取JSON格式（用于纯粹模式）
             cmd = [
@@ -192,14 +208,14 @@ class GrepSearch(WorkspaceGuardTool[GrepSearchParams]):
                 "--max-columns", str(MAX_LINE_LENGTH),
                 "--context", "0"  # 纯粹模式不需要上下文
             ]
-            
+
             if not include:
                 for ignore_pattern in DEFAULT_IGNORE_PATTERNS:
                     cmd.extend(["--glob", f"!{ignore_pattern}"])
-            
+
             if include:
                 cmd.extend(["--glob", include])
-            
+
             # 确定搜索目录
             if path:
                 search_path = Path(path)
@@ -209,22 +225,37 @@ class GrepSearch(WorkspaceGuardTool[GrepSearchParams]):
                     search_dir = self.base_dir / search_path
             else:
                 search_dir = self.base_dir
-            
+
             cmd.extend([pattern, str(search_dir)])
-            
+
             process = await asyncio.create_subprocess_exec(
                 *cmd,
                 stdout=asyncio.subprocess.PIPE,
                 stderr=asyncio.subprocess.PIPE,
                 cwd=str(self.base_dir)
             )
-            stdout, _ = await process.communicate()
+            try:
+                stdout, _ = await asyncio.wait_for(
+                    process.communicate(), timeout=EXECUTION_TIMEOUT
+                )
+            except asyncio.TimeoutError:
+                try:
+                    process.kill()
+                    await process.wait()
+                except Exception:
+                    pass
+                return {
+                    "success": False,
+                    "matches": [],
+                    "content": f"Search timed out after {EXECUTION_TIMEOUT}s. Try a more specific path or pattern.",
+                    "matched_files": []
+                }
             stdout_str = stdout.decode('utf-8').strip()
-            
+
             # 解析JSON输出为简单格式
             matches = []
             matched_files = set()
-            
+
             for line in stdout_str.splitlines():
                 if len(matches) >= max_results:
                     break
@@ -234,7 +265,7 @@ class GrepSearch(WorkspaceGuardTool[GrepSearchParams]):
                         file_path = data["data"]["path"]["text"]
                         line_number = data["data"]["line_number"]
                         content = data["data"]["lines"]["text"].rstrip()
-                        
+
                         matches.append({
                             "content": content,
                             "file": file_path,
@@ -243,14 +274,14 @@ class GrepSearch(WorkspaceGuardTool[GrepSearchParams]):
                         matched_files.add(file_path)
                 except (json.JSONDecodeError, KeyError):
                     continue
-            
+
             return {
                 "success": len(matches) > 0,
                 "matches": matches,
                 "content": f"Found {len(matches)} matches in {len(matched_files)} files",
                 "matched_files": list(matched_files)
             }
-            
+
         except Exception as e:
             logger.error(f"execute_purely failed: {e}", exc_info=True)
             return {
@@ -285,27 +316,120 @@ class GrepSearch(WorkspaceGuardTool[GrepSearchParams]):
             content += WARNINGS_SECTION + stderr_str
         return content
 
-    async def _update_file_timestamps(self, matched_files: List[Path]) -> None:
+    async def _update_file_timestamps(self, tool_context: ToolContext, matched_files: List[Path]) -> None:
         """更新匹配文件的时间戳
 
         Args:
+            tool_context: 工具上下文
             matched_files: 匹配的文件路径列表
         """
         if not matched_files:
             return
 
-        timestamp_manager = get_global_timestamp_manager()
+        horizon = self.get_horizon(tool_context)
         for file_path in matched_files:
             try:
-                await timestamp_manager.update_timestamp(file_path)
+                await horizon.update_timestamp(file_path)
                 logger.debug(f"已更新搜索结果文件时间戳: {file_path}")
             except Exception as e:
                 logger.warning(f"更新文件时间戳失败 {file_path}: {e}")
 
+    async def _count_matching_files(self, include: str, search_dir: Path) -> Optional[int]:
+        """预检：统计将被搜索的文件数，超限时提前中止，避免 S3 大量下载。
+
+        只运行 rg --files（S3 LIST，便宜），不读取文件内容（S3 GET，昂贵）。
+        一旦计数超过 MAX_SEARCH_FILES 立即 kill，不等全部列完。
+
+        Returns:
+            文件数量；超时返回 None（视为未知，由调用方决策）
+        """
+        cmd = ["rg", "--files"]
+        if not include:
+            for pattern in DEFAULT_IGNORE_PATTERNS:
+                cmd.extend(["--glob", f"!{pattern}"])
+        if include:
+            cmd.extend(["--glob", include])
+        cmd.append(str(search_dir))
+
+        process = await asyncio.create_subprocess_exec(
+            *cmd,
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.DEVNULL,
+            cwd=str(self.base_dir)
+        )
+
+        count = 0
+
+        async def _read_until_limit() -> None:
+            nonlocal count
+            assert process.stdout is not None
+            while True:
+                line = await process.stdout.readline()
+                if not line:
+                    break
+                count += 1
+                if count > MAX_SEARCH_FILES:
+                    return  # 已超限，不需要继续计数
+
+        try:
+            await asyncio.wait_for(_read_until_limit(), timeout=PREFLIGHT_TIMEOUT)
+        except asyncio.TimeoutError:
+            logger.warning(f"Pre-flight file count timed out after {PREFLIGHT_TIMEOUT}s, counted {count} files so far")
+            try:
+                process.kill()
+                await process.wait()
+            except Exception:
+                pass
+            return None
+        else:
+            try:
+                process.kill()
+                await process.wait()
+            except Exception:
+                pass
+
+        return count
+
     async def _run(self, pattern: str, include: str = "", path: str = "") -> SearchResult:
         """运行工具并返回搜索结果"""
         try:
-            # 构建 ripgrep 命令 - 简化版本
+            # 确定搜索目录
+            if path:
+                search_path = Path(path)
+                if search_path.is_absolute():
+                    search_dir = search_path
+                else:
+                    search_dir = self.base_dir / search_path
+            else:
+                search_dir = self.base_dir
+
+            # 预检：统计匹配文件数，防止 S3 大量 GET 下载
+            file_count = await self._count_matching_files(include, search_dir)
+            if file_count is None:
+                return SearchResult(
+                    content=(
+                        f"Search aborted: file enumeration timed out after {PREFLIGHT_TIMEOUT}s. "
+                        f"The search scope is too broad for a network filesystem. "
+                        f"Narrow the search by specifying a more specific path or include pattern."
+                    ),
+                    matched_files=[],
+                    has_matches=False
+                )
+            if file_count > MAX_SEARCH_FILES:
+                return SearchResult(
+                    content=(
+                        f"Search aborted: {file_count}+ files match the search scope "
+                        f"(limit: {MAX_SEARCH_FILES}). "
+                        f"On a network filesystem, searching too many files triggers excessive downloads. "
+                        f"Narrow the search by:\n"
+                        f"- Using a more specific subdirectory path (e.g., path='src/components')\n"
+                        f"- Combining include with a specific path instead of searching the entire workspace"
+                    ),
+                    matched_files=[],
+                    has_matches=False
+                )
+
+            # 构建 ripgrep 命令
             cmd = [
                 "rg",
                 "--line-number",
@@ -327,28 +451,35 @@ class GrepSearch(WorkspaceGuardTool[GrepSearchParams]):
             if include:
                 cmd.extend(["--glob", include])
 
-            # 确定搜索目录
-            if path:
-                # 处理相对路径
-                search_path = Path(path)
-                if search_path.is_absolute():
-                    search_dir = search_path
-                else:
-                    search_dir = self.base_dir / search_path
-            else:
-                search_dir = self.base_dir
-
             # 添加搜索模式和目录
             cmd.extend([pattern, str(search_dir)])
 
-            # 执行命令 - 使用异步版本
+            # 执行命令 - 使用异步版本，带总超时防止卡住
             process = await asyncio.create_subprocess_exec(
                 *cmd,
                 stdout=asyncio.subprocess.PIPE,
                 stderr=asyncio.subprocess.PIPE,
                 cwd=str(self.base_dir)
             )
-            stdout, stderr = await process.communicate()
+            try:
+                stdout, stderr = await asyncio.wait_for(
+                    process.communicate(), timeout=EXECUTION_TIMEOUT
+                )
+            except asyncio.TimeoutError:
+                try:
+                    process.kill()
+                    await process.wait()
+                except Exception:
+                    pass
+                return SearchResult(
+                    content=(
+                        f"Search timed out after {EXECUTION_TIMEOUT}s. "
+                        f"The search scope may still be too broad. "
+                        f"Try a more specific path or pattern."
+                    ),
+                    matched_files=[],
+                    has_matches=False
+                )
 
             # 处理结果 - 统一组合 stdout 和 stderr
             stdout_str = stdout.decode('utf-8').strip()
@@ -589,17 +720,17 @@ class GrepSearch(WorkspaceGuardTool[GrepSearchParams]):
                 continue
 
             # 获取文件信息
-            stat = file_path.stat()
-            rel_path = str(file_path.relative_to(self.base_dir))
+            stat = await async_stat(file_path)
+            display_path = str(file_path.resolve())
 
             # 创建 FileInfo 对象
             file_info = FileInfo(
                 name=file_path.name,
-                path=rel_path,
+                path=display_path,
                 is_dir=False,
                 size=stat.st_size,
                 last_modified=stat.st_mtime,
-                line_count=self._count_lines(file_path),
+                line_count=await self._count_lines(file_path),
             )
 
             # 添加文件信息
@@ -630,12 +761,11 @@ class GrepSearch(WorkspaceGuardTool[GrepSearchParams]):
             size /= 1024
         return f"{size:.1f}TB"
 
-    def _count_lines(self, file_path: Path) -> Optional[int]:
+    async def _count_lines(self, file_path: Path) -> Optional[int]:
         """计算文件行数"""
         try:
-            with file_path.open("r", encoding="utf-8") as f:
-                return sum(1 for _ in f)
-        except:
+            return await async_count_text_lines(file_path)
+        except (OSError, UnicodeDecodeError):
             return None
 
     async def get_tool_detail(self, tool_context: ToolContext, result: ToolResult, arguments: Dict[str, Any] = None) -> Optional[ToolDetail]:

@@ -20,7 +20,6 @@ class EventPairType(str, Enum):
     """事件配对类型枚举"""
     # 核心流程事件配对
     INIT = "init"                        # BEFORE_INIT <-> AFTER_INIT
-    SAFETY_CHECK = "safety_check"        # BEFORE_SAFETY_CHECK <-> AFTER_SAFETY_CHECK
     LLM_REQUEST = "llm_request"          # BEFORE_LLM_REQUEST <-> AFTER_LLM_REQUEST
     AGENT_THINK = "agent_think"          # BEFORE_AGENT_THINK <-> AFTER_AGENT_THINK
     AGENT_REPLY = "agent_reply"          # BEFORE_AGENT_REPLY <-> AFTER_AGENT_REPLY
@@ -37,10 +36,6 @@ EVENT_TYPE_TO_PAIR_TYPE = {
     # INIT 事件配对
     "before_init": EventPairType.INIT,
     "after_init": EventPairType.INIT,
-
-    # SAFETY_CHECK 事件配对
-    "before_safety_check": EventPairType.SAFETY_CHECK,
-    "after_safety_check": EventPairType.SAFETY_CHECK,
 
     # LLM_REQUEST 事件配对
     "before_llm_request": EventPairType.LLM_REQUEST,

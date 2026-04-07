@@ -7,7 +7,6 @@ declare(strict_types=1);
 
 namespace Dtyq\SuperMagic\Interfaces\Skill\DTO\Response;
 
-use App\Interfaces\Kernel\DTO\OperatorDTO;
 use JsonSerializable;
 
 /**
@@ -22,6 +21,8 @@ class SkillListItemDTO implements JsonSerializable
     private array $nameI18n;
 
     private array $descriptionI18n;
+
+    private array $sourceI18n;
 
     private string $logo;
 
@@ -45,7 +46,11 @@ class SkillListItemDTO implements JsonSerializable
 
     private string $description;
 
-    private ?OperatorDTO $creatorInfo;
+    private ?array $creatorInfo;
+
+    private ?string $publisherType;
+
+    private ?array $publisher;
 
     public function __construct(
         string $id,
@@ -54,6 +59,7 @@ class SkillListItemDTO implements JsonSerializable
         string $description,
         array $nameI18n,
         array $descriptionI18n,
+        array $sourceI18n,
         string $logo,
         string $sourceType,
         int $isEnabled,
@@ -63,7 +69,9 @@ class SkillListItemDTO implements JsonSerializable
         ?string $latestPublishedAt,
         string $latestVersion = '',
         string $packageName = '',
-        ?OperatorDTO $creatorInfo = null
+        ?array $creatorInfo = null,
+        ?string $publisherType = null,
+        ?array $publisher = null
     ) {
         $this->id = $id;
         $this->code = $code;
@@ -71,6 +79,7 @@ class SkillListItemDTO implements JsonSerializable
         $this->description = $description;
         $this->nameI18n = $nameI18n;
         $this->descriptionI18n = $descriptionI18n;
+        $this->sourceI18n = $sourceI18n;
         $this->logo = $logo;
         $this->sourceType = $sourceType;
         $this->isEnabled = $isEnabled;
@@ -81,6 +90,8 @@ class SkillListItemDTO implements JsonSerializable
         $this->latestVersion = $latestVersion;
         $this->packageName = $packageName;
         $this->creatorInfo = $creatorInfo;
+        $this->publisherType = $publisherType;
+        $this->publisher = $publisher;
     }
 
     public function jsonSerialize(): array
@@ -92,6 +103,7 @@ class SkillListItemDTO implements JsonSerializable
             'description' => $this->description,
             'name_i18n' => $this->nameI18n,
             'description_i18n' => $this->descriptionI18n,
+            'source_i18n' => $this->sourceI18n,
             'logo' => $this->logo,
             'source_type' => $this->sourceType,
             'is_enabled' => $this->isEnabled,
@@ -102,6 +114,8 @@ class SkillListItemDTO implements JsonSerializable
             'updated_at' => $this->updatedAt,
             'created_at' => $this->createdAt,
             'creator_info' => $this->creatorInfo,
+            'publisher_type' => $this->publisherType,
+            'publisher' => $this->publisher,
         ];
     }
 }

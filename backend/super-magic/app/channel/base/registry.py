@@ -40,6 +40,7 @@ def build_default_channel_registry() -> ChannelRegistry:
     from app.channel.dingtalk.channel import DingTalkChannel
     from app.channel.lark.channel import LarkChannel
     from app.channel.wecom.channel import WeComChannel
+    from app.channel.wechat.channel import WechatChannel
 
     registry = ChannelRegistry()
     # 这里注册的是各渠道单例，保证状态查询与自动连接看到的是同一份运行态。
@@ -47,6 +48,7 @@ def build_default_channel_registry() -> ChannelRegistry:
         WeComChannel.get_instance(),
         DingTalkChannel.get_instance(),
         LarkChannel.get_instance(),
+        WechatChannel.get_instance(),
     ):
         registry.register(channel)
     return registry

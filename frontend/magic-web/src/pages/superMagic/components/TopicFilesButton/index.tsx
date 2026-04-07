@@ -3,10 +3,16 @@ import { useStyles } from "./style"
 import TopicFilesPanel, { TopicFilesPanelRef } from "./TopicFilesPanel"
 import type { AttachmentItem } from "./hooks/types"
 import type { PresetFileType } from "./constant"
+import type { TopicFileRowDecorationResolver } from "./topic-file-row-decoration.types"
 
 export { PRESET_FILE_TYPES, type PresetFileType } from "./constant"
+export type {
+	TopicFileRowDecoration,
+	TopicFileRowDecorationContext,
+	TopicFileRowDecorationResolver,
+} from "./topic-file-row-decoration.types"
 
-interface TopicFilesButtonProps {
+export interface TopicFilesButtonProps {
 	className?: string
 	attachments?: AttachmentItem[]
 	setUserSelectDetail?: (detail: any) => void
@@ -31,6 +37,7 @@ interface TopicFilesButtonProps {
 	filterBatchDownloadLayerMenuItems?: (menuItems: any[]) => any[]
 	// 是否允许下载（用于分享页面权限控制）
 	allowDownload?: boolean
+	resolveTopicFileRowDecoration?: TopicFileRowDecorationResolver
 }
 
 export interface TopicFilesButtonRef {
@@ -61,6 +68,7 @@ const TopicFilesButton = forwardRef<TopicFilesButtonRef, TopicFilesButtonProps>(
 			filterMenuItems,
 			filterBatchDownloadLayerMenuItems,
 			allowDownload,
+			resolveTopicFileRowDecoration,
 		},
 		ref,
 	) {
@@ -106,6 +114,7 @@ const TopicFilesButton = forwardRef<TopicFilesButtonRef, TopicFilesButtonProps>(
 					filterMenuItems={filterMenuItems}
 					filterBatchDownloadLayerMenuItems={filterBatchDownloadLayerMenuItems}
 					allowDownload={allowDownload}
+					resolveTopicFileRowDecoration={resolveTopicFileRowDecoration}
 				/>
 			</div>
 		)

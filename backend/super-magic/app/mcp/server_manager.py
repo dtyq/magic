@@ -515,18 +515,18 @@ class MCPServerManager:
 
         # 解析工具名称格式: mcp_{letter}_{original_name}
         if not tool_name.startswith("mcp_"):
-            return ToolResult(error=f"无效的 MCP 工具名称格式: {tool_name}")  # type: ignore
+            return ToolResult.error(f"无效的 MCP 工具名称格式: {tool_name}")  # type: ignore
 
         tool_info = self.tools.get(tool_name)
         if not tool_info:
-            return ToolResult(error=f"未找到 MCP 工具: {tool_name}")  # type: ignore
+            return ToolResult.error(f"未找到 MCP 工具: {tool_name}")  # type: ignore
 
         server_name = tool_info.server_name
         original_name = tool_info.original_name
 
         client = self.clients.get(server_name)
         if not client:
-            return ToolResult(error=f"MCP 服务器 '{server_name}' 不可用")  # type: ignore
+            return ToolResult.error(f"MCP 服务器 '{server_name}' 不可用")  # type: ignore
 
         try:
             # 调用工具（客户端内部会自动处理连接检测和重连）
@@ -555,7 +555,7 @@ class MCPServerManager:
                     # 区分网络/协议错误和业务逻辑错误
                     # 只有网络错误或者500错误才算工具调用失败，业务逻辑错误应该返回给大模型处理
                     if self._is_system_error(error_msg):
-                        return ToolResult(error=error_msg)  # type: ignore
+                        return ToolResult.error(error_msg)  # type: ignore
                     else:
                         # 业务逻辑错误，作为正常内容返回给大模型
                         return ToolResult(content=error_msg)
@@ -601,7 +601,7 @@ class MCPServerManager:
 
         except Exception as e:
             logger.warning(f"调用 MCP 工具 '{tool_name}' 失败: {e}")
-            return ToolResult(error=f"MCP 工具调用失败: {e}")  # type: ignore
+            return ToolResult.error(f"MCP 工具调用失败: {e}")  # type: ignore
 
     async def shutdown(self) -> None:
         """关闭所有 MCP 连接并清理注册的工具"""

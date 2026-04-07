@@ -16,6 +16,26 @@ const (
 	defaultImagePrepullMaxWaitSec = 300
 	imagePrepullLabelSelector     = "app.kubernetes.io/component=image-prepull"
 	nonImagePrepullLabelSelector  = "app.kubernetes.io/component!=image-prepull"
+	magicPrivateBucketName        = "magic-private"
+	magicPublicBucketName         = "magic-public"
+	magicSandboxBucketName        = "magic-sandbox"
+)
+
+// minioS3BucketActions and minioS3ObjectActions are the concrete S3 actions used
+// by built-in magic / magic-sandbox policy statements. Custom MinIOPolicy definitions
+// may use s3:* or other s3:… actions allowed by infra_registry validation (same pattern as spec-defined policies).
+var (
+	minioS3BucketActions = []string{
+		"s3:ListBucket",
+		"s3:GetBucketLocation",
+	}
+	minioS3ObjectActions = []string{
+		"s3:GetObject",
+		"s3:PutObject",
+		"s3:DeleteObject",
+		"s3:AbortMultipartUpload",
+		"s3:ListMultipartUploadParts",
+	}
 )
 
 // minioCredConfig mirrors values.yaml fileDriver.minio.{private,sandbox}.
@@ -82,17 +102,20 @@ func newMagicStage(d *Deployer, reg *InfraRegistry) *MagicStage {
 		InfraResource{App: "magic", Spec: RedisSpec{Username: "magic", ACLRules: "+@all ~* &*"}},
 		InfraResource{App: "magic", Spec: MinIOSpec{
 			Username: "magic",
-			Policies: []string{"full-access-policy"},
-			Buckets: []MinIOBucket{
-				minioBucket("magic", "private", "magic"),
-				minioBucket("magic-public", "public", "magic"),
+			Policies: []string{"magic-access-policy"},
+			PolicyDefinitions: []MinIOPolicy{
+				{
+					Name: "magic-access-policy",
+					Statements: minioPolicyStatements(
+						magicPrivateBucketName,
+						magicPublicBucketName,
+						magicSandboxBucketName,
+					),
+				},
 			},
-		}},
-		InfraResource{App: "magic-sandbox", Spec: MinIOSpec{
-			Username: "magic-sandbox",
-			Policies: []string{"magic-sandbox-access-policy"},
 			Buckets: []MinIOBucket{
-				minioBucket("magic-sandbox", "private", "magic-sandbox"),
+				minioBucket(magicPrivateBucketName, "private", "magic"),
+				minioBucket(magicPublicBucketName, "public", "magic"),
 			},
 		}},
 	)
@@ -202,9 +225,15 @@ func newMagicSandboxStage(d *Deployer, reg *InfraRegistry) *MagicSandboxStage {
 	reg.Register(
 		InfraResource{App: "magic-sandbox", Spec: MinIOSpec{
 			Username: "magic-sandbox",
-			Policies: []string{"full-access-policy"},
+			Policies: []string{"magic-sandbox-access-policy"},
+			PolicyDefinitions: []MinIOPolicy{
+				{
+					Name:       "magic-sandbox-access-policy",
+					Statements: minioPolicyStatements(magicSandboxBucketName),
+				},
+			},
 			Buckets: []MinIOBucket{
-				minioBucket("magic-sandbox", "private", "magic-sandbox"),
+				minioBucket(magicSandboxBucketName, "private", "magic-sandbox"),
 			},
 		}},
 	)
@@ -242,6 +271,9 @@ func (s *MagicSandboxStage) Exec(ctx context.Context) error {
 	// magic-sandbox images live in our image registry; always route through the local proxy.
 	merged = withRegistryEndpoint(merged, registry.ContainerEndpoint(s.d.opts.Registry))
 	namespace := chartNamespace(merged, releaseNameMagicSandbox, defaultMagicSandboxNamespace)
+	// Remove any stale image-prepull pods (e.g. ImagePullBackOff from a previous
+	// deploy) before (re)installing so Helm starts with a clean slate.
+	s.cleanupStaleImagePrepull(ctx, namespace)
 	ref, err := s.d.chartRef(releaseNameMagicSandbox)
 	if err != nil {
 		return err
@@ -284,22 +316,78 @@ func (s *MagicSandboxStage) waitForImagePrepull(ctx context.Context, namespace s
 	var err error
 	switch policy {
 	case "scheduled":
-		err = s.d.kubeClient.WaitForPodsScheduled(waitCtx, namespace, imagePrepullLabelSelector, time.Duration(maxWaitSec)*time.Second, nil)
+		err = s.d.kubeClient.WaitForDaemonSetsSettled(waitCtx, namespace, imagePrepullLabelSelector, time.Duration(maxWaitSec)*time.Second, false, nil)
 	case "ready":
-		err = s.d.kubeClient.WaitForPodsReady(waitCtx, namespace, imagePrepullLabelSelector, time.Duration(maxWaitSec)*time.Second, newPodReporter(s.d.log, "image-prepull"))
+		err = s.d.kubeClient.WaitForDaemonSetsSettled(waitCtx, namespace, imagePrepullLabelSelector, time.Duration(maxWaitSec)*time.Second, true, nil)
 	default:
 		s.d.log.Logw("deploy", "unknown image pre-pull wait policy %q; skip waiting", policy)
 		return
 	}
 	if err != nil {
-		s.d.log.Logw("deploy", "image pre-pull wait timed out or failed (%v); continue in background", err)
+		s.d.log.Logw("deploy", "image pre-pull wait timed out or failed (%v); continue deploy", err)
 		return
 	}
 	s.d.log.Logi("deploy", "image pre-pull wait condition satisfied (%s)", policy)
 }
 
+// cleanupStaleImagePrepull checks whether any existing image-prepull pods are stuck
+// in an image-pull failure state (ImagePullBackOff / ErrImagePull). If so, the
+// DaemonSet is deleted so that the upcoming Helm install starts with a clean slate.
+func (s *MagicSandboxStage) cleanupStaleImagePrepull(ctx context.Context, namespace string) {
+	if s.d.kubeClient == nil {
+		s.d.log.Logw("deploy", "image-prepull stale-check skipped: kube client not initialized")
+		return
+	}
+
+	checkCtx, cancel := context.WithTimeout(ctx, 15*time.Second)
+	defer cancel()
+
+	hasStale, err := s.d.kubeClient.HasPodsWithImagePullFailure(checkCtx, namespace, imagePrepullLabelSelector)
+	if err != nil {
+		s.d.log.Logw("deploy", "image-prepull stale-check: %v", err)
+		return
+	}
+	if !hasStale {
+		return
+	}
+
+	s.d.log.Logi("deploy", "stale image-prepull pods detected (image pull failure); deleting pods before redeploy")
+	delCtx, delCancel := context.WithTimeout(ctx, 30*time.Second)
+	defer delCancel()
+	if err := s.d.kubeClient.DeletePodsByLabel(delCtx, namespace, imagePrepullLabelSelector); err != nil {
+		s.d.log.Logw("deploy", "image-prepull pod cleanup: %v", err)
+	} else {
+		s.d.log.Logi("deploy", "stale image-prepull pods deleted")
+	}
+}
+
 func roleArn(bucket string) string {
 	return fmt.Sprintf("arn:aws:s3:::%s", bucket)
+}
+
+func objectArn(bucket string) string {
+	return roleArn(bucket) + "/*"
+}
+
+func minioPolicyStatements(buckets ...string) []MinIOPolicyStatement {
+	bucketResources := make([]string, 0, len(buckets))
+	objectResources := make([]string, 0, len(buckets))
+	for _, bucket := range buckets {
+		bucketResources = append(bucketResources, roleArn(bucket))
+		objectResources = append(objectResources, objectArn(bucket))
+	}
+	return []MinIOPolicyStatement{
+		{
+			Resources: bucketResources,
+			Effect:    "Allow",
+			Actions:   minioS3BucketActions,
+		},
+		{
+			Resources: objectResources,
+			Effect:    "Allow",
+			Actions:   minioS3ObjectActions,
+		},
+	}
 }
 
 func minioBucket(name, typeTag, app string) MinIOBucket {

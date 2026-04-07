@@ -1,132 +1,84 @@
-import json
 from typing import Any, Dict, Optional
-from pydantic import BaseModel, Field, model_validator
+from pydantic import BaseModel, Field
 from agentlang.utils.json import json_dumps
 
+
 class ToolResult(BaseModel):
-    """Represents the result of a tool execution.
+    """工具执行结果。
 
-    正确的使用方式:
-    1. 成功结果:
-       ```python
-       # 返回成功结果
-       return ToolResult(
-           content="操作成功的结果内容",  # 必填，结果内容
-           system="可选的系统信息，不会展示给用户",  # 可选
-           name="工具名称"  # 可选
-       )
-       ```
+    字段受众严格区分，不要混用：
+    - content    → 大模型：必填，人类可读的执行结果文本
+    - data       → 前端/调用方：结构化数据，不进入模型上下文
+    - extra_info → Python 内部：进程内流转数据，不出进程、不给大模型
+    - system     → orchestrator：特殊控制信号（如 "ASK_USER"），不做普通输出用
 
-    2. 带结构化数据的结果:
-       ```python
-       # 返回结构化数据（可被 AI 读取）
-       return ToolResult(
-           content="查询到元素信息",
-           data={
-               "element_id": "abc123",
-               "element_name": "产品图",
-               "width": 1920,
-               "height": 1080
-           }
-       )
-       ```
-
-    3. 错误结果:
-       ```python
-       # 使用 error 参数
-       return ToolResult(
-           error="发生了错误: xxx"  # 验证器会自动设置 content 并将 ok 设为 False
-       )
-       ```
-
-    注意:
-    - 不能同时设置 error 和 content 参数
-    - error 参数会被自动转换为 content 内容，并将 ok 设为 False
-    - 在异常处理中，推荐使用 error 参数来标记错误
-    - data 字段用于返回结构化数据，AI 可以直接读取和使用（适用于 skills）
-    - extra_info 字段不会传给 AI，仅用于内部系统使用
+    创建错误结果必须用类方法，不要用构造器：
+      [正确] ToolResult.error("出错原因")
+      [错误] result.error        # 不存在此属性
+      [错误] ToolResult(error=x) # 不支持此参数
     """
 
-    content: str = Field(description="工具执行的结果内容，将作为输出返回给 AI 大模型")
-    ok: bool = Field(default=True, description="工具执行是否成功")
-    data: Optional[Dict[str, Any]] = Field(default=None, description="结构化数据（字典），适用于 skills 中需要程序化处理的数据")
-    extra_info: Dict[str, Any] = Field(default_factory=dict, description="工具执行的额外信息，不会展示给用户，也不会传给 AI 大模型")
-    system: Optional[str] = Field(default=None)
+    content: str = Field(description="给大模型的执行结果文本")
+    ok: bool = Field(default=True, description="执行是否成功")
+    data: Dict[str, Any] = Field(
+        default_factory=dict,
+        description="给前端/调用方的结构化数据，不进入模型上下文",
+    )
+    extra_info: Dict[str, Any] = Field(
+        default_factory=dict,
+        description="Python 内部流转数据，不出进程、不给大模型",
+    )
+    system: Optional[str] = Field(
+        default=None,
+        description="orchestrator 控制信号（如 ASK_USER、COMPACT_HISTORY），不做普通输出用",
+    )
+    execution_time: float = Field(default=0.0, description="工具执行耗时（秒）")
     tool_call_id: Optional[str] = Field(default=None)
     name: Optional[str] = Field(default=None)
-    execution_time: float = Field(default=0.0, description="工具执行耗时（秒）")
-    explanation: Optional[str] = Field(default=None, description="大模型执行此工具的意图解释")
-    use_custom_remark: bool = Field(default=False, description="是否使用工具自定义的 remark，默认 False 使用通用错误提示")
-
-    # 方案：在 ToolResult 类中添加一个模型验证器，当通过 error 参数传入值时，自动设置 content 字段并将 ok 置为 false。
-    @model_validator(mode='before')
-    @classmethod
-    def handle_error_parameter(cls, data):
-        if not isinstance(data, dict):
-            return data
-
-        if 'error' in data and data['error'] is not None:
-            if data.get('content') and data['content'] != "":
-                raise ValueError("不能同时设置 'error' 和 'content' 参数")
-
-            # 将 error 的值设置到 content
-            data['content'] = data.pop('error')
-            # 将 ok 设为 False
-            data['ok'] = False
-
-        return data
+    use_custom_remark: bool = Field(
+        default=False,
+        description="True 时使用工具自定义的 remark，False 时使用通用错误提示",
+    )
 
     @classmethod
-    def error(cls, message: str, **kwargs) -> 'ToolResult':
-        """创建错误结果的快捷方法
+    def error(cls, message: str, **kwargs) -> "ToolResult":
+        """创建失败结果。
 
         Args:
-            message: 错误消息
-            **kwargs: 其他可选参数 (extra_info, system, tool_call_id, name 等)
-
-        Returns:
-            ToolResult: 错误结果对象，ok=False
+            message: 错误描述，将作为 content 返回给大模型
+            **kwargs: 其他字段（extra_info、system、tool_call_id、name 等）
 
         Example:
-            >>> ToolResult.error("文件不存在")
-            >>> ToolResult.error("转换失败", extra_info={"file_path": "/path/to/file"})
+            ToolResult.error("文件不存在")
+            ToolResult.error("转换失败", extra_info={"path": "/tmp/file"})
         """
         return cls(content=message, ok=False, **kwargs)
 
     class Config:
         arbitrary_types_allowed = True
 
-    def __bool__(self):
+    def __bool__(self) -> bool:
         return any(getattr(self, field) for field in self.model_fields)
 
-    def __add__(self, other: "ToolResult"):
-        def combine_fields(field: Optional[str], other_field: Optional[str], concatenate: bool = True):
-            if field and other_field:
-                if concatenate:
-                    return field + other_field
-                raise ValueError("Cannot combine tool results")
-            return field or other_field or ""
+    def __add__(self, other: "ToolResult") -> "ToolResult":
+        def combine(a: Optional[str], b: Optional[str], concat: bool = True) -> str:
+            if a and b:
+                if concat:
+                    return a + b
+                raise ValueError("Cannot combine tool results with conflicting fields")
+            return a or b or ""
 
         return ToolResult(
-            content=combine_fields(self.content, other.content),
-            system=combine_fields(self.system, other.system),
+            content=combine(self.content, other.content),
+            system=combine(self.system, other.system),
             tool_call_id=self.tool_call_id or other.tool_call_id,
             name=self.name or other.name,
-            execution_time=self.execution_time + other.execution_time,  # 累加执行时间
-            explanation=self.explanation or other.explanation,  # 保留第一个非空的explanation
-            ok=self.ok and other.ok,  # 只有两者都成功才算成功
+            execution_time=self.execution_time + other.execution_time,
+            ok=self.ok and other.ok,
         )
 
-    def __str__(self):
+    def __str__(self) -> str:
         return f"Error: {self.content}" if not self.ok else self.content
 
     def model_dump_json(self, **kwargs) -> str:
-        """将ToolResult对象转换为JSON字符串
-
-        Args:
-            **kwargs: 传递给json.dumps的参数
-
-        Returns:
-            str: JSON字符串
-        """
         return json_dumps(self.model_dump(), **kwargs)

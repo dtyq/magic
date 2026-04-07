@@ -11,7 +11,7 @@ from agentlang.tools.tool_result import ToolResult
 from agentlang.logger import get_logger
 from app.tools.abstract_file_tool import AbstractFileTool
 from app.tools.core import BaseToolParams, tool
-from app.tools.workspace_guard_tool import WorkspaceGuardTool
+from app.tools.workspace_tool import WorkspaceTool
 from app.core.entity.message.server_message import DisplayType, TerminalContent, ToolDetail
 
 # Import audio project setup tool for reuse
@@ -380,7 +380,7 @@ Example: 'dQw4w9WgXcQ'
 
 
 @tool()
-class SetupVideoProject(AbstractFileTool[SetupVideoProjectParams], WorkspaceGuardTool[SetupVideoProjectParams]):
+class SetupVideoProject(AbstractFileTool[SetupVideoProjectParams], WorkspaceTool[SetupVideoProjectParams]):
     """<!--zh
     搭建视频项目基础架构。调用前必须：完整读取文字稿，否则将无法识别所有说话人并完成映射！
 
@@ -452,13 +452,13 @@ class SetupVideoProject(AbstractFileTool[SetupVideoProjectParams], WorkspaceGuar
             if params.platform == "local" and not params.video_file:
                 error_msg = "当 platform 为 local 时，必须提供 video_file 参数，否则无法显示视频"
                 logger.error(error_msg)
-                return ToolResult(error=error_msg)
+                return ToolResult.error(error_msg)
 
             # Validate: youtube platform must have youtube_video_id
             if params.platform == "youtube" and not params.youtube_video_id:
                 error_msg = "当 platform 为 youtube 时，必须提供 youtube_video_id 参数"
                 logger.error(error_msg)
-                return ToolResult(error=error_msg)
+                return ToolResult.error(error_msg)
 
             # Convert video params to audio params
             audio_params = SetupAudioProjectParams(
@@ -481,10 +481,7 @@ class SetupVideoProject(AbstractFileTool[SetupVideoProjectParams], WorkspaceGuar
 
             # If audio setup succeeded, add video-specific metadata
             if result.ok:
-                project_path, error = self.get_safe_path(params.project_path)
-                if error:
-                    return ToolResult(error=error)
-
+                project_path = self.resolve_path(params.project_path)
                 # Update config with video-specific fields
                 await self._add_video_metadata(project_path, params)
 
@@ -496,7 +493,7 @@ class SetupVideoProject(AbstractFileTool[SetupVideoProjectParams], WorkspaceGuar
 
         except Exception as e:
             logger.exception(f"视频项目搭建失败: {e!s}")
-            return ToolResult(error="Failed to setup video project")
+            return ToolResult.error("Failed to setup video project")
 
     async def _add_video_metadata(self, project_path: Path, params: SetupVideoProjectParams):
         """

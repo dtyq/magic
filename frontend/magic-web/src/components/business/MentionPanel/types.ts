@@ -73,7 +73,10 @@ export interface SkillMentionData {
 	name: string
 	icon: string
 	description: string
+	mention_source?: SkillMentionSource
 }
+
+export type SkillMentionSource = "system" | "agent" | "mine"
 
 export interface AgentMentionData {
 	agent_id: string
@@ -174,18 +177,18 @@ export type MentionData =
 export interface MentionResult<T extends string = string> {
 	type: T
 	data: T extends "mcp"
-	? McpMentionData
-	: T extends "agent"
-	? AgentMentionData
-	: T extends "skill"
-	? SkillMentionData
-	: T extends "project_file"
-	? ProjectFileMentionData
-	: T extends "upload_file"
-	? UploadFileMentionData
-	: T extends "cloud_file"
-	? CloudFileMentionData
-	: MentionData
+		? McpMentionData
+		: T extends "agent"
+			? AgentMentionData
+			: T extends "skill"
+				? SkillMentionData
+				: T extends "project_file"
+					? ProjectFileMentionData
+					: T extends "upload_file"
+						? UploadFileMentionData
+						: T extends "cloud_file"
+							? CloudFileMentionData
+							: MentionData
 }
 
 // Navigation item interface
@@ -389,6 +392,7 @@ export interface PanelContainerProps extends BaseComponentProps {
 // Data service interfaces
 export interface DataService {
 	fetchMcpList: () => void
+	setRefreshHandler?: (handler: (() => void) | undefined) => void
 	getDefaultItems: (t: I18nTexts) => Promise<MentionItem[]> | MentionItem[]
 	searchItems: (query: string) => Promise<MentionItem[]> | MentionItem[]
 	getFolderItems: (directoryId: string) => Promise<MentionItem[]> | MentionItem[]
@@ -396,6 +400,7 @@ export interface DataService {
 	getMcpExtensions: () => Promise<MentionItem[]> | MentionItem[]
 	getAgents: () => Promise<MentionItem[]> | MentionItem[]
 	getSkills: () => Promise<MentionItem[]> | MentionItem[]
+	refreshSkills?: () => Promise<MentionItem[]> | MentionItem[]
 	getToolItems: (collectionId: string) => Promise<MentionItem[]> | MentionItem[]
 	preLoadList: () => void
 	getAllHistory: () => Promise<MentionItem[]> | MentionItem[]

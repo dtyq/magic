@@ -156,11 +156,16 @@ class HandleUserMessageAppService extends AbstractAppService
         ];
 
         $taskEntity = TaskEntity::fromArray($data);
+
+        // Resolve agent_code before initTopicTask
+        $agentCode = $userMessageDTO->getExtra()?->getAgentCode() ?? '';
+
         // Initialize task
         $taskEntity = $this->taskDomainService->initTopicTask(
             dataIsolation: $dataIsolation,
             topicEntity: $topicEntity,
-            taskEntity: $taskEntity
+            taskEntity: $taskEntity,
+            agentCode: $agentCode
         );
 
         // Check if this is the first task for the topic
@@ -169,7 +174,7 @@ class HandleUserMessageAppService extends AbstractAppService
             && CreationSource::fromValue($topicEntity->getSource()) !== CreationSource::COPY;
 
         // Send message to agent
-        return new TaskContext(
+        $taskContext = new TaskContext(
             task: $taskEntity,
             dataIsolation: $dataIsolation,
             chatConversationId: $userMessageDTO->getChatConversationId(),
@@ -178,10 +183,12 @@ class HandleUserMessageAppService extends AbstractAppService
             sandboxId: $topicEntity->getSandboxId(),
             taskId: (string) $taskEntity->getId(),
             instruction: ChatInstruction::FollowUp,
-            agentMode: $userMessageDTO->getTopicMode(),
+            agentMode: $topicEntity->getTopicMode(),
             isFirstTask: $isFirstTask,
             extra: $userMessageDTO->getExtra(),
+            agentCode: $topicEntity->getAgentCode(),
         );
+        return $this->appendVideoModelDynamicConfig($taskContext, $userMessageDTO->getExtra());
     }
 
     /*
@@ -260,16 +267,23 @@ class HandleUserMessageAppService extends AbstractAppService
 
             $taskEntity = TaskEntity::fromArray($data);
 
+            // Resolve agent_code before initTopicTask (no dependency on task initialization)
+            $agentCode = $userMessageDTO->getExtra()?->getAgentCode() ?? '';
+
             // Initialize task
             $taskEntity = $this->taskDomainService->initTopicTask(
                 dataIsolation: $dataIsolation,
                 topicEntity: $topicEntity,
                 taskEntity: $taskEntity,
-                topicMode: $userMessageDTO->getTopicMode()
+                topicMode: $userMessageDTO->getTopicMode(),
+                agentCode: $agentCode
             );
 
             // Save user information
             $this->saveUserMessage($dataIsolation, $taskEntity, $userMessageDTO);
+
+            // Use resolved agent_code from topicEntity (handles SMA- prefix and persistence)
+            $resolvedAgentCode = $topicEntity->getAgentCode();
 
             // Generate task context
             $taskContext = new TaskContext(
@@ -287,7 +301,9 @@ class HandleUserMessageAppService extends AbstractAppService
                 messageId: $userMessageDTO->getMessageId(),
                 isFirstTask: $isFirstTask,
                 extra: $userMessageDTO->getExtra(),
+                agentCode: $resolvedAgentCode,
             );
+            $taskContext = $this->appendVideoModelDynamicConfig($taskContext, $userMessageDTO->getExtra());
             // Add MCP config to task context
             $mcpDataIsolation = MCPDataIsolation::create(
                 $dataIsolation->getCurrentOrganizationCode(),
@@ -297,12 +313,9 @@ class HandleUserMessageAppService extends AbstractAppService
             $taskContext = $taskContext->setMcpConfig($mcpConfig);
 
             // Write agent_code into dynamicConfig independently (always pass through, regardless of skills)
-            $agentCode = $userMessageDTO->getExtra()?->getAgentCode();
-            if (! empty($agentCode)) {
-                $dynamicConfig = $taskContext->getDynamicConfig();
-                $dynamicConfig['agent_code'] = $agentCode;
-                $taskContext = $taskContext->setDynamicConfig($dynamicConfig);
-            }
+            $dynamicConfig = $taskContext->getDynamicConfig();
+            $dynamicConfig['agent_code'] = $resolvedAgentCode;
+            $taskContext = $taskContext->setDynamicConfig($dynamicConfig);
 
             // Append skill dynamic config independently (separate from agent_code and MCP config)
             $this->supperMagicAgentSkill?->appendSkillDynamicConfig($dataIsolation, $taskContext);

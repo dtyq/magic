@@ -458,7 +458,8 @@ class ProjectMemberRepository implements ProjectMemberRepositoryInterface
         int $pageSize = 10,
         string $sortField = 'last_active_at',
         string $sortDirection = 'desc',
-        ?array $organizationCodes = null
+        ?array $organizationCodes = null,
+        bool $showHidden = false
     ): array {
         // 构建基础查询（去掉软删除全局 scope，改用别名 pm 引用 deleted_at，避免表别名与字段引用不一致）
         $query = $this->projectMemberModel::query()
@@ -525,6 +526,11 @@ class ProjectMemberRepository implements ProjectMemberRepositoryInterface
         }
         // showCollaboration = 1 时，显示所有参与的项目（默认情况）
 
+        // 隐藏项目过滤：默认不显示隐藏项目
+        if (! $showHidden) {
+            $query->where('p.is_hidden', 0);
+        }
+
         // 获取总数
         $totalQuery = clone $query;
         $total = $totalQuery->select('p.id')->distinct()->count();
@@ -542,6 +548,7 @@ class ProjectMemberRepository implements ProjectMemberRepositoryInterface
             'p.project_mode',
             'p.user_id',
             'p.user_organization_code as organization_code',
+            'p.is_hidden',
             'p.is_collaboration_enabled',
             'p.default_join_permission',
             'p.created_at',

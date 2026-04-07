@@ -76,6 +76,19 @@ export const isInternationalEnv = (): boolean =>
 	)
 
 /**
+ * @description 获取登录授权白名单
+ * @returns {string[]} 登录授权白名单
+ */
+export const isLoginAuthorizationWhitelist = (url: string): boolean => {
+	try {
+		const whitelist = env("MAGIC_LOGIN_AUTHORIZATION_WHITELIST")
+		return (typeof whitelist === "string" ? whitelist.split(",") : []).includes(url)
+	} catch (error) {
+		return false
+	}
+}
+
+/**
  * @description 是否生产环境（包括国内和国际）
  * @returns {boolean} 是否生产环境
  */

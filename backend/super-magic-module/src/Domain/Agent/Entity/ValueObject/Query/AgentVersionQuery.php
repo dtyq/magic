@@ -28,6 +28,11 @@ class AgentVersionQuery extends AbstractQuery
      */
     protected ?array $codes = null;
 
+    /**
+     * published_only：true 时仅返回已发布版本.
+     */
+    protected ?bool $publishedOnly = null;
+
     public function getKeyword(): ?string
     {
         return $this->keyword;
@@ -72,5 +77,15 @@ class AgentVersionQuery extends AbstractQuery
     public function setCodes(?array $codes): void
     {
         $this->codes = $codes;
+    }
+
+    public function getPublishedOnly(): ?bool
+    {
+        return $this->publishedOnly;
+    }
+
+    public function setPublishedOnly(?bool $publishedOnly): void
+    {
+        $this->publishedOnly = $publishedOnly;
     }
 }

@@ -1,7 +1,24 @@
-<!-- tools: convert_to_markdown, list_dir, read_file, read_files, write_file, edit_file, edit_file_range, multi_edit_file, multi_edit_file_range, delete_files, file_search -->
-
-<!-- llm: main_llm -->
-<!-- attributes: main -->
+---
+llm: main_llm
+tools:
+  - convert_to_markdown
+  - list_dir
+  - read_file
+  - read_files
+  - write_file
+  - edit_file
+  - edit_file_range
+  - multi_edit_file
+  - multi_edit_file_range
+  - delete_files
+  - file_search
+skills:
+  system_skills:
+    - name: skill-vetter
+    - name: find-skill
+    - name: using-mcp
+  workspace_skills: "*"
+---
 
 <role>
 {{ @variable("agent_profile") }}

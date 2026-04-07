@@ -8,6 +8,7 @@ declare(strict_types=1);
 namespace Dtyq\SuperMagic\Interfaces\Skill\DTO\Request;
 
 use App\Infrastructure\Core\AbstractRequestDTO;
+use Dtyq\SuperMagic\Domain\Skill\Entity\ValueObject\SkillSourceType;
 
 use function Hyperf\Translation\__;
 
@@ -35,6 +36,11 @@ class ImportSkillRequestDTO extends AbstractRequestDTO
      * Logo URL.
      */
     public string $logo = '';
+
+    /**
+     * 来源类型.
+     */
+    public string $sourceType = SkillSourceType::LOCAL_UPLOAD->value;
 
     /**
      * 获取导入 token.
@@ -68,6 +74,11 @@ class ImportSkillRequestDTO extends AbstractRequestDTO
         return $this->logo;
     }
 
+    public function getSourceType(): SkillSourceType
+    {
+        return SkillSourceType::tryFrom($this->sourceType) ?? SkillSourceType::LOCAL_UPLOAD;
+    }
+
     /**
      * 获取验证规则.
      */
@@ -80,6 +91,7 @@ class ImportSkillRequestDTO extends AbstractRequestDTO
             'description_i18n' => 'required|array',
             'description_i18n.en_US' => 'required|string',
             'logo' => 'nullable|string',
+            'source_type' => 'nullable|string|in:' . implode(',', SkillSourceType::values()),
         ];
     }
 
@@ -100,6 +112,8 @@ class ImportSkillRequestDTO extends AbstractRequestDTO
             'description_i18n.en_US.required' => __('skill.description_i18n_en_required'),
             'description_i18n.en_US.string' => __('skill.description_i18n_en_must_be_string'),
             'logo.string' => __('skill.logo_must_be_string'),
+            'source_type.string' => __('validation.string', ['attribute' => 'source_type']),
+            'source_type.in' => __('validation.in', ['attribute' => 'source_type']),
         ];
     }
 }

@@ -73,6 +73,14 @@ class GatewayResult
     }
 
     /**
+     * Check if the response indicates the resource was not found (e.g. sandbox does not exist).
+     */
+    public function isNotFound(): bool
+    {
+        return ResponseCode::isNotFound($this->code);
+    }
+
+    /**
      * Get response code.
      */
     public function getCode(): int

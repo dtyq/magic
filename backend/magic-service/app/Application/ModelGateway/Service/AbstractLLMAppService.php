@@ -12,6 +12,7 @@ use App\Application\Kernel\EnvManager;
 use App\Application\ModelGateway\Component\Points\PointComponentInterface;
 use App\Application\ModelGateway\Event\ModelInvocationCompletedEvent;
 use App\Application\ModelGateway\Mapper\ModelGatewayMapper;
+use App\Application\ModelGateway\Request\ModelGatewayRequestCoContext;
 use App\Domain\Contact\Service\MagicUserDomainService;
 use App\Domain\File\Service\FileDomainService;
 use App\Domain\ImageGenerate\Contract\WatermarkConfigInterface;
@@ -66,7 +67,10 @@ abstract class AbstractLLMAppService extends AbstractKernelAppService
         if (empty($inputAccessToken)) {
             ExceptionBuilder::throw(MagicApiErrorCode::TOKEN_NOT_EXIST);
         }
-        $accessToken = $this->accessTokenDomainService->getByAccessToken($inputAccessToken);
+        if (! $accessToken = ModelGatewayRequestCoContext::getAccessToken()) {
+            $accessToken = $this->accessTokenDomainService->getByAccessToken($inputAccessToken);
+        }
+
         if (! $accessToken) {
             ExceptionBuilder::throw(MagicApiErrorCode::TOKEN_NOT_EXIST);
         }

@@ -23,9 +23,8 @@ use App\Infrastructure\Util\OfficialOrganizationUtil;
 use App\Infrastructure\Util\Permission\Annotation\CheckPermission;
 use App\Interfaces\Authorization\Web\MagicUserAuthorization;
 use App\Interfaces\Provider\DTO\ConnectivityTestByConfigRequest;
-use App\Interfaces\Provider\DTO\CreateProviderConfigRequest;
+use App\Interfaces\Provider\DTO\SaveProviderConfigRequest;
 use App\Interfaces\Provider\DTO\SaveProviderModelDTO;
-use App\Interfaces\Provider\DTO\UpdateProviderConfigRequest;
 use Dtyq\ApiResponse\Annotation\ApiResponse;
 use Exception;
 use Hyperf\Di\Annotation\Inject;
@@ -85,8 +84,8 @@ class OrganizationServiceProviderApi extends AbstractApi
     {
         /** @var MagicUserAuthorization $authenticatable */
         $authenticatable = $this->getAuthorization();
-        $updateProviderConfigRequest = new UpdateProviderConfigRequest($request->all());
-        return $this->adminProviderAppService->updateProvider($authenticatable, $updateProviderConfigRequest);
+        $updateProviderConfigRequest = new SaveProviderConfigRequest($request->all());
+        return $this->adminProviderAppService->saveProviderConfig($authenticatable, $updateProviderConfigRequest);
     }
 
     // 修改模型状态
@@ -136,10 +135,8 @@ class OrganizationServiceProviderApi extends AbstractApi
     {
         /** @var MagicUserAuthorization $authenticatable */
         $authenticatable = $this->getAuthorization();
-        $serviceProviderConfigId = $request->input('service_provider_config_id');
-        $modelVersion = $request->input('model_version');
         $modelPrimaryId = $request->input('model_id');
-        return $this->adminProviderAppService->connectivityTest($serviceProviderConfigId, $modelVersion, $modelPrimaryId, $authenticatable);
+        return $this->adminProviderAppService->connectivityTest($modelPrimaryId, $authenticatable);
     }
 
     // 删除模型
@@ -179,8 +176,8 @@ class OrganizationServiceProviderApi extends AbstractApi
     {
         /** @var MagicUserAuthorization $authenticatable */
         $authenticatable = $this->getAuthorization();
-        $createProviderConfigRequest = new CreateProviderConfigRequest($request->all());
-        return $this->adminProviderAppService->createProvider($authenticatable, $createProviderConfigRequest);
+        $createProviderConfigRequest = new SaveProviderConfigRequest($request->all());
+        return $this->adminProviderAppService->saveProviderConfig($authenticatable, $createProviderConfigRequest);
     }
 
     // 删除服务商

@@ -18,6 +18,7 @@ use Dtyq\SuperMagic\Domain\SuperAgent\Entity\TaskFileEntity;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\TaskMessageEntity;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\TopicEntity;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\FileType;
+use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\ProjectMode;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\StorageType;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\TaskFileSource;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\TaskStatus;
@@ -56,10 +57,11 @@ class TaskDomainService
      * @param TopicEntity $topicEntity Topic entity
      * @param TaskEntity $taskEntity Task entity
      * @param string $topicMode Topic mode
+     * @param string $agentCode Agent code for custom agent mode
      * @return TaskEntity Task entity
      * @throws RuntimeException If task repository or topic repository not injected
      */
-    public function initTopicTask(DataIsolation $dataIsolation, TopicEntity $topicEntity, TaskEntity $taskEntity, string $topicMode = ''): TaskEntity
+    public function initTopicTask(DataIsolation $dataIsolation, TopicEntity $topicEntity, TaskEntity $taskEntity, string $topicMode = '', string $agentCode = ''): TaskEntity
     {
         // Get current user ID
         $userId = $dataIsolation->getCurrentUserId();
@@ -69,6 +71,13 @@ class TaskDomainService
         if ($topicMode === '') {
             $topicMode = $topicEntity->getTopicMode();
         }
+
+        // Handle SMA- prefix: treat as custom_agent mode with the original value as agent_code
+        if (str_starts_with($topicMode, 'SMA-')) {
+            $agentCode = $topicMode;
+            $topicMode = ProjectMode::CUSTOM_AGENT->value;
+        }
+
         // if project mode is empty and topic mode is data analysis, set project mode to data analysis
         $projectEntity = $this->projectRepository->findById($topicEntity->getProjectId());
         if (empty($projectEntity->getProjectMode())) {
@@ -112,6 +121,10 @@ class TaskDomainService
         if (empty($topicEntity->getTopicMode())) {
             $topicEntity->setTopicMode($topicMode);
             $data['topic_mode'] = $topicMode;
+            if (! empty($agentCode)) {
+                $topicEntity->setAgentCode($agentCode);
+                $data['agent_code'] = $agentCode;
+            }
         }
         $this->topicRepository->updateTopicByCondition($conditions, $data);
         return $taskEntity;

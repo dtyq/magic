@@ -28,6 +28,7 @@ use App\Infrastructure\Core\ValueObject\Page;
 use App\Infrastructure\Util\File\EasyFileTools;
 use DateTime;
 use Dtyq\CloudFile\Kernel\Struct\FileLink;
+use Dtyq\SuperMagic\Domain\Agent\Entity\AgentVersionEntity;
 use Dtyq\SuperMagic\Domain\Agent\Entity\SuperMagicAgentEntity;
 use Dtyq\SuperMagic\Domain\Agent\Entity\ValueObject\SuperMagicAgentDataIsolation;
 use Dtyq\SuperMagic\Domain\Agent\Entity\ValueObject\SuperMagicAgentType;
@@ -270,7 +271,7 @@ abstract class AbstractSuperMagicAppService extends AbstractKernelAppService
     /**
      * 更新AgentIcon.
      *
-     * @param SuperMagicAgentEntity[] $agentEntities
+     * @param AgentVersionEntity[]|SuperMagicAgentEntity[] $agentEntities
      * @return SuperMagicAgentEntity[]
      */
     protected function updateAgentEntitiesIcon(array $agentEntities): array

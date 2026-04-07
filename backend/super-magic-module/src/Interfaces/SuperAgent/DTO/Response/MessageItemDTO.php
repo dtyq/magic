@@ -106,6 +106,8 @@ class MessageItemDTO implements JsonSerializable
      */
     protected ?string $contentType;
 
+    protected ?array $source;
+
     /**
      * 构造函数.
      */
@@ -138,6 +140,8 @@ class MessageItemDTO implements JsonSerializable
         $this->correlationId = $data['correlation_id'] ?? null;
         $this->parentCorrelationId = $data['parent_correlation_id'] ?? null;
         $this->contentType = $data['content_type'] ?? null;
+        $source = $data['source'] ?? null;
+        $this->source = is_string($source) ? json_decode($source, true) : $source;
     }
 
     /**
@@ -165,6 +169,7 @@ class MessageItemDTO implements JsonSerializable
             'correlation_id' => $this->correlationId,
             'parent_correlation_id' => $this->parentCorrelationId,
             'content_type' => $this->contentType,
+            'source' => $this->source,
         ];
     }
 

@@ -267,7 +267,7 @@ const ChatDrawer = observer(({ open, onClose, hierarchicalWorkspacePopupRef }: C
 			<Sheet open={open} onOpenChange={onClose}>
 				<SheetContent
 					side="right"
-					className="z-drawer w-80 gap-0 p-0 pt-safe-top"
+					className="z-drawer w-80 gap-0 px-0 !pb-safe-bottom pt-safe-top"
 					showClose={false}
 					overlayClassName="z-drawer backdrop-blur-sm"
 				>

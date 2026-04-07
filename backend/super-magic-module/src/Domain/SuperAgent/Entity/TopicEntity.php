@@ -68,6 +68,11 @@ class TopicEntity extends AbstractEntity
     protected ?string $sandboxConfig = null;
 
     /**
+     * @var null|string 沙箱网关 create/upgrade 接口返回的 Agent 镜像版本
+     */
+    protected ?string $agentImage = null;
+
+    /**
      * @var string 工作目录
      */
     protected string $workDir = '';
@@ -91,6 +96,11 @@ class TopicEntity extends AbstractEntity
      * @var string 话题模式 (支持自定义字符串)
      */
     protected string $topicMode = '';
+
+    /**
+     * @var string Agent code for custom agent mode
+     */
+    protected string $agentCode = '';
 
     /**
      * @var float 话题成本
@@ -185,11 +195,13 @@ class TopicEntity extends AbstractEntity
             'chat_conversation_id' => $this->chatConversationId ?? '',
             'sandbox_id' => $this->sandboxId ?? '',
             'sandbox_config' => $this->sandboxConfig,
+            'agent_image' => $this->agentImage,
             'work_dir' => $this->workDir ?? '',
             'topic_name' => $this->topicName ?? '',
             'description' => $this->description,
             'task_mode' => $this->taskMode ?? 'chat',
             'topic_mode' => $this->topicMode,
+            'agent_code' => $this->agentCode,
             'cost' => $this->cost ?? 0.0,
             'token_used' => $this->tokenUsed,
             'source' => $this->source,
@@ -366,6 +378,17 @@ class TopicEntity extends AbstractEntity
     public function setSandboxConfig(?string $sandboxConfig): self
     {
         $this->sandboxConfig = $sandboxConfig;
+        return $this;
+    }
+
+    public function getAgentImage(): ?string
+    {
+        return $this->agentImage;
+    }
+
+    public function setAgentImage(?string $agentImage): self
+    {
+        $this->agentImage = $agentImage;
         return $this;
     }
 
@@ -546,8 +569,24 @@ class TopicEntity extends AbstractEntity
      */
     public function setTopicMode(?string $topicMode): self
     {
-        // 如果传入 null，转换为空字符串
         $this->topicMode = $topicMode ?? '';
+        return $this;
+    }
+
+    /**
+     * Get agent code.
+     */
+    public function getAgentCode(): string
+    {
+        return $this->agentCode;
+    }
+
+    /**
+     * Set agent code.
+     */
+    public function setAgentCode(?string $agentCode): self
+    {
+        $this->agentCode = $agentCode ?? '';
         return $this;
     }
 

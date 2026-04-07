@@ -4,11 +4,7 @@ import { userStore } from "@/models/user"
 import { ModelSwitchProps } from "./types"
 import MagicPopup from "@/components/base-mobile/MagicPopup"
 import FlexBox from "@/components/base/FlexBox"
-import {
-	TooltipProvider,
-	TooltipTrigger,
-	TooltipContent,
-} from "@/components/shadcn-ui/tooltip"
+import { TooltipProvider, TooltipTrigger, TooltipContent } from "@/components/shadcn-ui/tooltip"
 import * as TooltipPrimitive from "@radix-ui/react-tooltip"
 import {
 	DropdownMenu,
@@ -126,7 +122,7 @@ export const ModelSwitch = observer(function ModelSwitch({
 
 	const ADD_MODEL_DROPDOWN_CONTENT_CLASS = "model-switch-add-model-dropdown-content"
 
-	// // Check if language model list has any models (only block render when language tab has no models)
+	// // Check if large language model list has any models (only block render when language tab has no models)
 	// const hasLanguageModels =
 	// 	modelList.length > 0 && modelList.some((item) => (item.models ?? []).length > 0)
 

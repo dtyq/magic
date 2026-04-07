@@ -18,9 +18,8 @@ from agentlang.tools.tool_result import ToolResult
 from agentlang.logger import get_logger
 from app.tools.abstract_file_tool import AbstractFileTool
 from app.tools.core import BaseToolParams, tool
-from app.tools.workspace_guard_tool import WorkspaceGuardTool
+from app.tools.workspace_tool import WorkspaceTool
 from agentlang.utils.syntax_checker import SyntaxChecker
-from app.utils.file_timestamp_manager import get_global_timestamp_manager
 from app.utils.diff_generator import DiffGenerator
 from app.utils.replace_range_resolver import resolve_replace_range
 
@@ -47,7 +46,7 @@ class EditFileRangeParams(BaseToolParams):
 
 
 @tool()
-class EditFileRange(AbstractFileTool[EditFileRangeParams], WorkspaceGuardTool[EditFileRangeParams]):
+class EditFileRange(AbstractFileTool[EditFileRangeParams], WorkspaceTool[EditFileRangeParams]):
     """<!--zh
     基于替换边界编辑文件，替换从 replace_start 到 replace_end 的整个区间（包含边界）。
     优先用 edit_file；old_string 过长时才用本工具。创建新文件用 write_file。
@@ -116,17 +115,16 @@ On failure: re-read and verify anchor existence/uniqueness -> increase anchor le
             ToolResult: Operation result with diff
         """
         try:
-            file_path, error, fuzzy_warning = self.get_safe_path_with_fuzzy_match(params.file_path)
-            if error:
-                return ToolResult(error=error)
-
+            resolved = self.resolve_path_fuzzy(params.file_path)
+            file_path = resolved.path
+            fuzzy_warning = resolved.warning
             ai_warnings = []
             if fuzzy_warning:
                 ai_warnings.append(fuzzy_warning)
 
             if params.replace_start == "" and params.replace_end == "":
                 tool_context.set_metadata("error_type", "edit_file.error_validation_failed")
-                return ToolResult(error="replace_start and replace_end cannot both be empty.")
+                return ToolResult.error("replace_start and replace_end cannot both be empty.")
 
             if not file_path.exists():
                 tool_context.set_metadata("error_type", "edit_file.error_file_not_exist")
@@ -135,20 +133,21 @@ On failure: re-read and verify anchor existence/uniqueness -> increase anchor le
                           "Use write_file to create new files."
                 )
 
-            timestamp_manager = get_global_timestamp_manager()
-            is_valid, error_message = await timestamp_manager.validate_file_not_modified(file_path)
+            is_valid, error_message = await self.get_horizon(tool_context).validate_file_not_modified(file_path)
             if not is_valid:
                 tool_context.set_metadata("error_type", "edit_file.error_file_modified")
-                return ToolResult(error=error_message)
+                return ToolResult.error(error_message)
 
             original_content = await self._read_file(file_path)
 
             try:
-                matched_range = resolve_replace_range(
+                resolution = resolve_replace_range(
                     original_content,
                     params.replace_start,
                     params.replace_end
                 )
+                matched_range = resolution.matched_range
+                ai_warnings.extend(resolution.warnings)
             except ValueError as match_error:
                 tool_context.set_metadata("error_type", "edit_file.error_match_failed")
                 return ToolResult(

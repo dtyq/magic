@@ -12,6 +12,7 @@ import json
 from typing import Optional, TYPE_CHECKING
 
 from agentlang.logger import get_logger
+from app.channel.config import IMChannelDisplay
 from app.core.stream import Stream
 
 if TYPE_CHECKING:
@@ -57,11 +58,13 @@ class LarkStream(Stream):
         sdk_client: "lark.Client",
         card_id: str,
         driver: "LarkStreamingDriver",
+        display: IMChannelDisplay | None = None,
     ) -> None:
         super().__init__()
         self._client = sdk_client
         self._card_id = card_id
         self._driver = driver  # 共享 sequence 计数器，确保序列号连续
+        self._display = display or IMChannelDisplay()
         self._finished = False
         self._last_content = ""
         self._last_reasoning = ""
@@ -86,12 +89,15 @@ class LarkStream(Stream):
 
             elif event == "after_main_agent_run":
                 self._finished = True
-                reasoning = self._driver.reasoning_accumulated or self._last_reasoning
-                await self._finish_card(
-                    self._last_content,
-                    reasoning,
-                    self._driver.reasoning_elapsed_ms,
-                )
+                if self._display.show_reasoning:
+                    reasoning = self._driver.reasoning_accumulated or self._last_reasoning
+                    await self._finish_card(
+                        self._last_content,
+                        reasoning,
+                        self._driver.reasoning_elapsed_ms,
+                    )
+                else:
+                    await self._finish_card(self._last_content)
 
         except Exception as e:
             logger.error(f"[LarkStream] write 失败: {e}")
@@ -100,7 +106,10 @@ class LarkStream(Stream):
     async def _finish_card(self, content: str, reasoning: str = "", elapsed_ms: int = 0) -> None:
         """关闭流式通道并更新最终卡片。
 
-        序列：asettings(streaming_mode=false) → aupdate(最终卡片)，序列号延续 driver 计数。
+        序列：先停止 driver 的 send_loop 冻结序列号，再 asettings(streaming_mode=false) → aupdate(最终卡片)。
+        _send_loop 可能正在 await acontent()，此时 _sequence 尚未 +1，若直接读会拿到旧值导致
+        asettings 序列号冲突（code=300317 sequence number compare failed）。
+        finalize() 是幂等的，在此调用不影响外部再次调用的安全性。
         """
         from lark_oapi.api.cardkit.v1.model import (
             SettingsCardRequest,
@@ -110,6 +119,8 @@ class LarkStream(Stream):
             Card as CardkitCard,
         )
 
+        # 停止 send_loop，确保 _sequence 不再变化后再读取
+        await self._driver.finalize()
         seq = self._driver.sequence
 
         # 1. 关闭流式模式（streaming_mode=false），解锁卡片交互

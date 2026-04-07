@@ -23,6 +23,7 @@ import { JSONContent } from "@tiptap/core"
 import { merge } from "lodash-es"
 import { useMessageChanges } from "@/pages/superMagic/hooks/useMessageChanges"
 import { LongMemory } from "@/types/longMemory"
+import { resolveMessageSendContext } from "@/pages/superMagic/services/messageSendPreparation"
 import { createMessageSendService } from "@/pages/superMagic/services/messageSendFlowService"
 import { convertFileToTabItem } from "@/pages/superMagic/components/Detail/components/FilesViewer/utils/tabUtils"
 import MessageListFallback from "./components/MessageListFallback"
@@ -36,7 +37,13 @@ export interface AiChatProps {
 }
 
 export function AiChat(props: AiChatProps) {
-	const { attachments, attachmentList, checkNowDebounced, recordSummaryFileStore } = props
+	const {
+		attachments,
+		attachmentList,
+		checkNowDebounced,
+		recordSummaryFileStore,
+		projectFilesStore,
+	} = props
 
 	const recordSummaryService = initializeService()
 	const { styles } = useStyles()
@@ -107,11 +114,23 @@ export function AiChat(props: AiChatProps) {
 		scopedMessageSendService.sendContent({
 			content,
 			showLoading: messages?.length > 1 && showLoading,
-			options: {
-				..._options,
-				_tempProject: selectedProject ?? undefined,
-				_tempTopic: selectedTopic ?? undefined,
-			},
+			options: _options,
+			context: resolveMessageSendContext({
+				selectedProject,
+				selectedTopic,
+				selectedWorkspace,
+				setSelectedProject: recordingSummaryStore.setProject,
+				setSelectedTopic: recordingSummaryStore.setChatTopic,
+				setSelectedWorkspace: recordingSummaryStore.setWorkspace,
+				updateTopicName: (topicId, topicName) => {
+					if (selectedTopic?.id === topicId) {
+						recordingSummaryStore.setChatTopic({
+							...selectedTopic,
+							topic_name: topicName,
+						})
+					}
+				},
+			}),
 		})
 
 		// 延迟200ms通知MessageList组件滚动到底部
@@ -186,6 +205,7 @@ export function AiChat(props: AiChatProps) {
 			allowUserMessageCopy: false,
 			allowScheduleTaskCreate: false,
 			allowMessageTooltip: true,
+			allowCreateNewTopic: false,
 		}
 	}, [])
 
@@ -220,9 +240,9 @@ export function AiChat(props: AiChatProps) {
 				selectedTopic={selectedTopic}
 				selectedProject={selectedProject}
 				mentionPanelStore={recordSummaryFileStore}
+				projectFilesStore={projectFilesStore}
 				isShowLoadingInit={isShowLoadingInit}
 				showLoading={showLoading}
-				handleSendMsg={handleSendMsg}
 			/>
 			<PreviewDetailPopup
 				ref={previewDetailPopupRef}

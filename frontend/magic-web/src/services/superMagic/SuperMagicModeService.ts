@@ -2,7 +2,11 @@ import { BUSINESS_API_ERROR_CODE } from "@/constants/api"
 import { MODEL_TYPE_IMAGE, MODEL_TYPE_LLM } from "@/apis/modules/org-ai-model-provider"
 import { userStore } from "@/models/user"
 import type { ModelItem } from "@/pages/superMagic/components/MessageEditor/types"
-import { ModeItem, TopicMode } from "@/pages/superMagic/pages/Workspace/types"
+import {
+	ModeItem,
+	ModeModelGroupItemResponse,
+	TopicMode,
+} from "@/pages/superMagic/pages/Workspace/types"
 import superMagicCustomModelService from "./SuperMagicCustomModelService"
 import { IconType } from "@/pages/superMagic/components/AgentSelector/types"
 import { logger as Logger } from "@/utils/log"
@@ -37,6 +41,8 @@ class SuperMagicModeService {
 	_fetchPromise: Promise<ModeItem[]> | null = null
 
 	modeListReaction: ReturnType<typeof reaction> | null = null
+
+	private _defaultModeModelList: ModeModelGroupItemResponse[] | null = null
 
 	// LEGACY_MODE_CONFIG = {
 	// 	[TopicMode.DataAnalysis]: {
@@ -97,7 +103,7 @@ class SuperMagicModeService {
 
 		this.modeListReaction = reaction(
 			() => [
-				configStore.i18n.language,
+				configStore.i18n.displayLanguage,
 				userStore.user.organizationCode,
 				userStore.user.userInfo?.user_id,
 			],
@@ -188,7 +194,7 @@ class SuperMagicModeService {
 	 * @returns
 	 */
 	getModelListByMode(mode: string) {
-		return this._modeMap.get(mode)?.groups.flatMap((item) => item.models) ?? []
+		return this._modeMap.get(mode)?.groups.flatMap((item) => item.models ?? []) ?? []
 	}
 
 	/**
@@ -287,7 +293,14 @@ class SuperMagicModeService {
 	 * @returns
 	 */
 	isModeValid(mode: string) {
-		const isValid = this._modeMap.has(mode)
+		const isValid =
+			this._modeMap.has(mode) ||
+			[
+				TopicMode.Default,
+				TopicMode.CrewCreator,
+				TopicMode.SkillCreator,
+				TopicMode.MagiClaw,
+			].includes(mode as TopicMode)
 		if (interfaceStore.isMobile) {
 			return isValid && mode !== TopicMode.Chat
 		}
@@ -377,6 +390,10 @@ class SuperMagicModeService {
 					this._modeMap = new Map(
 						this._modeList.map((item) => [item.mode.identifier, item]),
 					)
+
+					// 获取默认模式模型列表
+					this.fetchDefaultModeModelList()
+
 					this.saveToLocalStorage(this._modeList)
 					// Clear retry timer on success
 					this.cleanup()
@@ -461,6 +478,23 @@ class SuperMagicModeService {
 			})
 
 		return this._fetchPromise
+	}
+
+	/**
+	 * 获取默认模式模型列表
+	 * @returns 默认模式模型列表
+	 */
+	fetchDefaultModeModelList() {
+		return SuperMagicApi.getDefaultModeModelList().then((res) => {
+			this._modeMap.set(TopicMode.Default, {
+				...res,
+				groups: res.groups.map((group) => ({
+					...group,
+					models: group.model_ids.map((modelId) => res.models[modelId]).filter(Boolean),
+					image_models: group.image_model_ids.map((modelId) => res.models[modelId]),
+				})),
+			})
+		})
 	}
 
 	/**

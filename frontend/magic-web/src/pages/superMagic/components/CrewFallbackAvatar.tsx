@@ -4,12 +4,12 @@ import { memo } from "react"
  * Default crew/agent avatar icon when no custom icon is provided.
  * Uses currentColor so parent can control appearance via text-* classes.
  */
-function CrewFallbackAvatar() {
+function CrewFallbackAvatar({ iconSize = 35 }: { iconSize?: number }) {
 	return (
 		<svg
 			xmlns="http://www.w3.org/2000/svg"
-			width="35"
-			height="33"
+			width={iconSize}
+			height={iconSize}
 			viewBox="0 0 35 33"
 			fill="none"
 			className="shrink-0"

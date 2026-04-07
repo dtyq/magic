@@ -15,7 +15,7 @@ from typing import Any, Dict, Generic, Optional, Type, TypeVar, ClassVar, get_ar
 from pydantic import ConfigDict, ValidationError
 
 from agentlang.utils.snowflake import Snowflake
-from agentlang.utils.annotation_remover import remove_human_annotations
+from agentlang.utils.annotation_remover import remove_developer_annotations
 from agentlang.context.tool_context import ToolContext
 from app.core.entity.message.server_message import ToolDetail
 from agentlang.tools.tool_result import ToolResult
@@ -72,6 +72,13 @@ class BaseTool(Generic[T], ABC):
             bool: 如果工具可用返回True，否则返回False
         """
         return True
+
+    def get_horizon(self, tool_context: "ToolContext") -> "AgentHorizon":
+        """从 tool_context 获取当前 agent 的 AgentHorizon 实例。"""
+        from app.core.context.agent_context import AgentContext
+        from app.core.horizon import AgentHorizon
+        agent_context = tool_context.get_extension_typed("agent_context", AgentContext)
+        return agent_context.horizon
 
     def __init_subclass__(cls, **kwargs):
         """子类初始化时处理元数据
@@ -137,7 +144,7 @@ class BaseTool(Generic[T], ABC):
                     # 检查是否为BaseTool[ParamType]形式
                     continue  # Generic基类不提取
 
-                # 检查是否为像WorkspaceGuardTool[ParamType]这样的特定泛型工具
+                # 检查是否为像WorkspaceTool[ParamType]这样的特定泛型工具
                 if hasattr(base, '__origin__') and hasattr(base, '__args__') and len(base.__args__) > 0:
                     origin = get_origin(base)
                     if origin is not None and issubclass(origin, BaseTool):
@@ -883,17 +890,17 @@ class BaseTool(Generic[T], ABC):
 
     @staticmethod
     def _remove_annotations_recursive(obj):
-        """递归移除对象中所有字符串的人类注解（唯一过滤点）"""
+        """递归移除对象中所有字符串的开发者注解（唯一过滤点）"""
         if isinstance(obj, dict):
             for key, value in obj.items():
                 if isinstance(value, str):
-                    obj[key] = remove_human_annotations(value)
+                    obj[key] = remove_developer_annotations(value)
                 elif isinstance(value, (dict, list)):
                     BaseTool._remove_annotations_recursive(value)
         elif isinstance(obj, list):
             for i, item in enumerate(obj):
                 if isinstance(item, str):
-                    obj[i] = remove_human_annotations(item)
+                    obj[i] = remove_developer_annotations(item)
                 elif isinstance(item, (dict, list)):
                     BaseTool._remove_annotations_recursive(item)
 

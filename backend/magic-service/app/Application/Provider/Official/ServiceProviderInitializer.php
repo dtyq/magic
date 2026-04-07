@@ -51,21 +51,10 @@ class ServiceProviderInitializer
             }
 
             // Step 2: Initialize service_provider_configs table (organization-specific configurations)
-            // Ensure the official organization has an enabled provider config
             $configCount = self::initializeProviderConfigs($officialOrgCode);
             $insertedCount += $configCount;
 
             Db::commit();
-
-            $message = $existingProviderCount > 0
-                ? "Service provider table already has {$existingProviderCount} records. Configs initialized: {$configCount}."
-                : "Successfully initialized {$insertedCount} items (providers + configs).";
-
-            return [
-                'success' => true,
-                'message' => $message,
-                'count' => $insertedCount,
-            ];
         } catch (Throwable $e) {
             Db::rollBack();
             return [
@@ -74,6 +63,17 @@ class ServiceProviderInitializer
                 'count' => 0,
             ];
         }
+
+        $message = $existingProviderCount > 0
+            ? "Service provider table already has {$existingProviderCount} records. Configs initialized: {$configCount}."
+            : "Successfully initialized {$insertedCount} items (providers + configs).";
+        $message .= ' Official video providers must be initialized manually via /api/v1/bootstrap/video-providers.';
+
+        return [
+            'success' => true,
+            'message' => $message,
+            'count' => $insertedCount,
+        ];
     }
 
     /**
@@ -87,45 +87,43 @@ class ServiceProviderInitializer
         $count = 0;
         $now = now();
 
-        // Step 1: Get the official LLM provider ID from service_provider table
-        $officialProvider = Db::table('service_provider')
+        $officialProviders = Db::table('service_provider')
             ->where('provider_type', 1) // Official provider type
-            ->where('category', 'llm')
-            ->first();
+            ->whereIn('category', ['llm', 'vlm'])
+            ->get();
 
-        if (! $officialProvider) {
-            // No official provider found, skip config initialization
+        if ($officialProviders->isEmpty()) {
             return 0;
         }
 
-        $providerData = is_object($officialProvider) ? $officialProvider : (object) $officialProvider;
-        $officialProviderId = $providerData->id;
+        foreach ($officialProviders as $officialProvider) {
+            $providerData = is_object($officialProvider) ? $officialProvider : (object) $officialProvider;
+            $officialProviderId = $providerData->id;
 
-        // Step 2: Check if config exists for this organization and official provider
-        $existingConfig = Db::table('service_provider_configs')
-            ->where('organization_code', $orgCode)
-            ->where('service_provider_id', $officialProviderId)
-            ->first();
+            $existingConfig = Db::table('service_provider_configs')
+                ->where('organization_code', $orgCode)
+                ->where('service_provider_id', $officialProviderId)
+                ->first();
 
-        if ($existingConfig) {
-            // Config exists, ensure it's enabled
-            $configData = is_object($existingConfig) ? $existingConfig : (object) $existingConfig;
-            if ($configData->status != 1) {
-                Db::table('service_provider_configs')
-                    ->where('id', $configData->id)
-                    ->update(['status' => 1, 'updated_at' => $now]);
-                ++$count;
+            if ($existingConfig) {
+                $configData = is_object($existingConfig) ? $existingConfig : (object) $existingConfig;
+                if ($configData->status != 1) {
+                    Db::table('service_provider_configs')
+                        ->where('id', $configData->id)
+                        ->update(['status' => 1, 'updated_at' => $now]);
+                    ++$count;
+                }
+                continue;
             }
-        } else {
-            // Config doesn't exist, create a new one with enabled status
+
             Db::table('service_provider_configs')->insert([
                 'organization_code' => $orgCode,
                 'service_provider_id' => $officialProviderId,
-                'alias' => 'Magic Official',
+                'alias' => $providerData->category === 'vlm' ? 'Magic Official Vision' : 'Magic Official',
                 'translate' => json_encode([
                     'alias' => [
-                        'en_US' => 'Magic Official',
-                        'zh_CN' => 'Magic 官方',
+                        'en_US' => $providerData->category === 'vlm' ? 'Magic Official Vision' : 'Magic Official',
+                        'zh_CN' => $providerData->category === 'vlm' ? 'Magic 官方视觉' : 'Magic 官方',
                     ],
                 ]),
                 'config' => json_encode([]),
@@ -178,7 +176,7 @@ class ServiceProviderInitializer
             ],
             // Gemini - LLM
             [
-                'name' => 'Google (AI Studio)',
+                'name' => 'Google',
                 'provider_code' => ProviderCode::Gemini->value,
                 'sort_order' => 997,
                 'description' => 'Google Gemini 是 Google 开发的多模态 AI 模型，支持文本、图像等多种输入。',
@@ -192,8 +190,8 @@ class ServiceProviderInitializer
                 'deleted_at' => null,
                 'translate' => json_encode([
                     'name' => [
-                        'en_US' => 'Google (AI Studio)',
-                        'zh_CN' => 'Google (AI Studio)',
+                        'en_US' => 'Google',
+                        'zh_CN' => 'Google',
                     ],
                     'description' => [
                         'en_US' => 'Google Gemini is a multimodal AI model developed by Google, supporting various inputs such as text and images.',
@@ -387,7 +385,7 @@ class ServiceProviderInitializer
             ],
             // Google Cloud - VLM
             [
-                'name' => 'Google (AI Studio)',
+                'name' => 'Google',
                 'provider_code' => ProviderCode::Google->value,
                 'sort_order' => 997,
                 'description' => '提供 Gemini 2.5 Flash Image (Nano Banana) 图像生成模型，具备角色一致性高、精准图像编辑等。',
@@ -401,8 +399,8 @@ class ServiceProviderInitializer
                 'deleted_at' => null,
                 'translate' => json_encode([
                     'name' => [
-                        'en_US' => 'Google (AI Studio)',
-                        'zh_CN' => 'Google (AI Studio)',
+                        'en_US' => 'Google',
+                        'zh_CN' => 'Google',
                     ],
                     'description' => [
                         'en_US' => 'Gemini 2.5 Flash Image (Nano Banana) image generation model is provided, featuring high character consistency and precise image editing, etc.',

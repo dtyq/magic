@@ -15,7 +15,7 @@ from agentlang.logger import get_logger
 from agentlang.utils.file import safe_delete
 from app.tools.abstract_file_tool import AbstractFileTool
 from app.tools.core import BaseToolParams, tool
-from app.tools.workspace_guard_tool import WorkspaceGuardTool
+from app.tools.workspace_tool import WorkspaceTool
 from app.tools.download_from_markdown import DownloadFromMarkdown, DownloadFromMarkdownParams
 from app.utils.async_file_utils import async_copy2
 
@@ -71,7 +71,7 @@ Content will be used to create slide-todo.md file for recording slide content pl
 
 
 @tool()
-class CreateSlideProject(AbstractFileTool[CreateSlideProjectParams], WorkspaceGuardTool[CreateSlideProjectParams]):
+class CreateSlideProject(AbstractFileTool[CreateSlideProjectParams], WorkspaceTool[CreateSlideProjectParams]):
     """<!--zh
     创建幻灯片项目工具
 
@@ -423,10 +423,7 @@ Note: Ensure valid JSONP syntax after modification (valid JavaScript code)
 
         try:
             # 使用父类方法获取安全的项目路径
-            project_path, error = self.get_safe_path(params.project_path)
-            if error:
-                return ToolResult(error=error)
-
+            project_path = self.resolve_path(params.project_path)
             # 检查项目文件夹是否已存在
             folder_already_exists = await asyncio.to_thread(project_path.exists)
 
@@ -438,7 +435,7 @@ Note: Ensure valid JSONP syntax after modification (valid JavaScript code)
                     logger.info(f"创建新项目文件夹: {project_path}")
                 except Exception as e:
                     logger.error(f"创建项目文件夹失败: {e}")
-                    return ToolResult(error="Failed to create project folder")
+                    return ToolResult.error("Failed to create project folder")
             else:
                 logger.info(f"使用现有项目文件夹: {project_path}")
 
@@ -459,7 +456,7 @@ Note: Ensure valid JSONP syntax after modification (valid JavaScript code)
                     logger.info(f"创建 slide-todo.md 文件: {slide_todo_path}")
                 except Exception as e:
                     logger.error(f"创建 slide-todo.md 文件失败: {e}")
-                    return ToolResult(error="Failed to create slide-todo.md file")
+                    return ToolResult.error("Failed to create slide-todo.md file")
 
             # 创建 slide-images.md 文件（仅当内容非空时）
             if params.slide_images_content and params.slide_images_content.strip():
@@ -470,7 +467,7 @@ Note: Ensure valid JSONP syntax after modification (valid JavaScript code)
                     logger.info(f"创建 slide-images.md 文件: {slide_images_path}")
                 except Exception as e:
                     logger.error(f"创建 slide-images.md 文件失败: {e}")
-                    return ToolResult(error="Failed to create slide-images.md file")
+                    return ToolResult.error("Failed to create slide-images.md file")
 
             # 复制 index.html 模板文件（无需修改）
             source_index_path = Path(__file__).parent / "magic_slide" / "index.html"
@@ -486,7 +483,7 @@ Note: Ensure valid JSONP syntax after modification (valid JavaScript code)
                 logger.info(f"复制入口文件: {target_index_path}")
             except Exception as e:
                 logger.error(f"复制 index.html 文件失败: {e}")
-                return ToolResult(error="Failed to copy index.html file")
+                return ToolResult.error("Failed to copy index.html file")
 
             # 生成 magic.project.js 配置文件
             config_data = {
@@ -510,7 +507,7 @@ window.magicProjectConfigure(window.magicProjectConfig);
                 logger.info(f"创建项目配置文件: {project_js_path}")
             except Exception as e:
                 logger.error(f"创建 magic.project.js 文件失败: {e}")
-                return ToolResult(error="Failed to create magic.project.js file")
+                return ToolResult.error("Failed to create magic.project.js file")
 
             # 创建 images 文件夹（检查是否已存在）
             images_already_exists = await asyncio.to_thread(images_path.exists)
@@ -522,7 +519,7 @@ window.magicProjectConfigure(window.magicProjectConfig);
                     logger.info(f"创建图片资源文件夹: {images_path}")
                 except Exception as e:
                     logger.error(f"创建图片资源文件夹失败: {e}")
-                    return ToolResult(error="Failed to create images folder")
+                    return ToolResult.error("Failed to create images folder")
             else:
                 logger.info(f"图片资源文件夹已存在: {images_path}")
 
@@ -558,7 +555,7 @@ window.magicProjectConfigure(window.magicProjectConfig);
                 logger.info(f"复制bridge文件: {target_bridge_path}")
             except Exception as e:
                 logger.error(f"复制 slide-bridge.js 文件失败: {e}")
-                return ToolResult(error="Failed to copy slide-bridge.js file")
+                return ToolResult.error("Failed to copy slide-bridge.js file")
 
             # 生成结果信息
             result_content = self._generate_result_content(project_path, target_index_path, images_path, params, download_report)
@@ -571,7 +568,7 @@ window.magicProjectConfigure(window.magicProjectConfig);
             # 回滚：删除已创建的文件和文件夹
             await self._rollback_created_files(created_files)
 
-            return ToolResult(error="Failed to create slide project")
+            return ToolResult.error("Failed to create slide project")
 
     async def _rollback_created_files(self, created_files: list):
         """

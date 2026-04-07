@@ -45,6 +45,8 @@ class ModelConfig:
     stop: Optional[List[str]] = None
     extra_params: Dict[str, Any] = field(default_factory=dict)
     metadata: Dict[str, Any] = field(default_factory=dict)
+    # 实际解析后的底层模型 ID（动态聚合模型会指向真实的原子模型）
+    resolved_model_id: Optional[str] = None
 
     @classmethod
     def from_dict(cls, model_id: str, config_dict: Dict[str, Any]) -> "ModelConfig":
@@ -71,7 +73,8 @@ class ModelConfig:
             supports_tool_use=bool(config_dict.get("supports_tool_use", False)),
             stop=config_dict.get("stop"),
             extra_params=config_dict.get("extra_params", {}),
-            metadata=config_dict.get("metadata", {})
+            metadata=config_dict.get("metadata", {}),
+            resolved_model_id=config_dict.get("resolved_model_id") or None,
         )
 
     def to_dict(self) -> Dict[str, Any]:
@@ -100,6 +103,8 @@ class ModelConfig:
             result["extra_params"] = self.extra_params
         if self.metadata:
             result["metadata"] = self.metadata
+        if self.resolved_model_id:
+            result["resolved_model_id"] = self.resolved_model_id
 
         return result
 

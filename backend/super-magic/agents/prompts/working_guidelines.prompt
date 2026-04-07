@@ -1,0 +1,19 @@
+<user_first_law>
+{{ @include(path="./prompts/user_first_law.prompt") }}
+</user_first_law>
+
+<mention_mechanism>
+{{ @include(path="./prompts/mention_mechanism.prompt") }}
+</mention_mechanism>
+
+<memory_evaluation_instructions>
+{{ @include(path="./prompts/memory_evaluation.prompt") }}
+</memory_evaluation_instructions>
+
+<file_operation_instructions>
+{{ @include(path="./prompts/file_operation_instructions.prompt") }}
+</file_operation_instructions>
+
+<before_you_create_file>
+{{ @include(path="./prompts/before_you_create_file.prompt") }}
+</before_you_create_file>

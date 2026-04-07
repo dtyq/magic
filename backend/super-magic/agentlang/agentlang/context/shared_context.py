@@ -1,7 +1,7 @@
 """
 共享上下文模块
 
-提供全局统一的 AgentSharedContext，用于在多个代理实例间共享状态
+提供 AgentSharedContext 类型、全局共享实例和独立实例工厂。
 """
 
 from typing import Dict, Any, Optional, Type, TypeVar, Generic, List, Tuple, Union
@@ -286,17 +286,17 @@ class AgentSharedContext:
         return self.__str__()
 
     @classmethod
-    def reset(cls):
-        """重置共享上下文"""
-        global AgentSharedContext
+    def reset_global_instance(cls):
+        """重置全局共享上下文实例"""
+        global GLOBAL_AGENT_SHARED_CONTEXT
         # 记录旧实例的id
-        old_id = id(AgentSharedContext)
+        old_id = id(GLOBAL_AGENT_SHARED_CONTEXT)
 
         # 直接创建一个新的实例
-        AgentSharedContext = cls()
+        GLOBAL_AGENT_SHARED_CONTEXT = cls()
 
         # 确保不共享引用
-        new_id = id(AgentSharedContext)
+        new_id = id(GLOBAL_AGENT_SHARED_CONTEXT)
         if old_id == new_id:
             logger.error(f"重置失败：新旧实例是同一个对象 (id={old_id})")
         else:
@@ -305,5 +305,10 @@ class AgentSharedContext:
             logger.debug("新的共享上下文初始化状态已重置为 False")
 
 
-# 创建单例实例
-AgentSharedContext = AgentSharedContext()
+def create_agent_shared_context() -> AgentSharedContext:
+    """创建一个新的独立共享上下文实例。"""
+    return AgentSharedContext()
+
+
+# 全局单例实例：主 Agent 默认共享它，子 Agent 可按需创建独立实例。
+GLOBAL_AGENT_SHARED_CONTEXT = create_agent_shared_context()

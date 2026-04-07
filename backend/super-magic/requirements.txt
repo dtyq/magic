@@ -14,7 +14,8 @@ json_repair>=0.47.7  # JSON 修复和解析库
 click>=8.0.0  # CLI 框架
 rich>=12.0.0  # 终端美化和表格输出
 
-# 数据处理
+# 数据处理与向量存储
+qdrant-client==1.9.2
 numpy>=1.26.4  # Python 3.12 使用 1.26.4，Python 3.13 使用 >=2.1.0
 pandas>=2.2.0  # 更新到支持 Python 3.12 的版本
 matplotlib>=3.8.0
@@ -63,11 +64,11 @@ beautifulsoup4==4.13.4
 # 文件处理依赖
 markitdown>=0.1.0  # 文档转换插件框架
 PyMuPDF==1.26.3  # markitdown PDF 插件和转换工具，提供 fitz 模块。注意：不要安装其他 fitz 包以避免冲突
-PyPDF2>=3.0.0  # PDF 解析器
-python-docx>=1.0.0  # Word 文档解析器
+PyPDF2>=3.0.0  # filebase PDF 解析器 (已废弃但仍在使用)
+python-docx>=1.0.0  # filebase Word 文档解析器
 mammoth>=1.8.0  # markitdown Word 文档插件，高质量转换
-openpyxl>=3.1.2  # Excel 解析器
-python-pptx>=0.6.21  # PowerPoint 解析器
+openpyxl>=3.1.2  # filebase 和 markitdown Excel 解析器
+python-pptx>=0.6.21  # filebase PowerPoint 解析器
 
 # Excel 文件读取库
 xlrd>=2.0.1
@@ -113,6 +114,7 @@ PyExecJS>=1.5.1
 
 # 时区处理
 pytz>=2022.5  # 添加pytz依赖以确保与yfinance兼容
+croniter>=1.4.0  # cron 表达式解析，用于 CronService 调度计算
 pytest-cov==6.1.1
 
 # PDF and HTML Processing

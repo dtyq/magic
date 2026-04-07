@@ -53,4 +53,23 @@ class SkillMarketApi extends AbstractApi
             $result['skillVersionMap'] ?? []
         );
     }
+
+    /**
+     * 获取市场技能详情.
+     */
+    public function show(RequestContext $requestContext, string $code)
+    {
+        $requestContext->setUserAuthorization($this->getAuthorization());
+
+        $result = $this->skillMarketAppService->show($requestContext, $code);
+
+        return SkillAssembler::createMarketDetailResponseDTO(
+            $result['skillMarket'],
+            $result['skillVersion'],
+            $result['isAdded'],
+            $result['isCreator'],
+            $result['publisherUser'],
+            $result['skillFileUrl']
+        );
+    }
 }

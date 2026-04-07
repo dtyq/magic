@@ -15,10 +15,12 @@ from ..kernel.magic_service_api import MagicServiceAbstractApi, _process_magic_s
 from ..parameter.query_skills_parameter import QuerySkillsParameter
 from ..parameter.get_skill_file_urls_parameter import GetSkillFileUrlsParameter
 from ..parameter.import_skill_from_agent_parameter import ImportSkillFromAgentParameter
+from ..parameter.get_latest_published_skill_versions_parameter import GetLatestPublishedSkillVersionsParameter
 from ..result.skill_list_result import SkillListResult
 from ..result.skill_file_urls_result import SkillFileUrlsResult
 from ..result.import_skill_from_agent_result import ImportSkillFromAgentResult
 from ..result.skill_market_list_result import SkillMarketListResult
+from ..result.latest_published_skill_versions_result import LatestPublishedSkillVersionsResult
 from app.infrastructure.sdk.base.exceptions import HttpRequestError
 
 
@@ -154,6 +156,38 @@ class SkillApi(MagicServiceAbstractApi):
 
         result_data = _process_magic_service_response(response)
         return ImportSkillFromAgentResult(result_data)
+
+    def query_latest_published_versions(
+        self, parameter: GetLatestPublishedSkillVersionsParameter
+    ) -> LatestPublishedSkillVersionsResult:
+        """
+        Batch query the latest published version of skills by codes.
+
+        Args:
+            parameter: GetLatestPublishedSkillVersionsParameter instance
+
+        Returns:
+            LatestPublishedSkillVersionsResult containing paginated version list
+        """
+        endpoint_path = "/api/v1/open-api/sandbox/skills/last-versions/queries"
+        data = self.request_by_parameter(parameter, 'POST', endpoint_path)
+        return LatestPublishedSkillVersionsResult(data)
+
+    async def query_latest_published_versions_async(
+        self, parameter: GetLatestPublishedSkillVersionsParameter
+    ) -> LatestPublishedSkillVersionsResult:
+        """
+        Batch query the latest published version of skills by codes (async version).
+
+        Args:
+            parameter: GetLatestPublishedSkillVersionsParameter instance
+
+        Returns:
+            LatestPublishedSkillVersionsResult containing paginated version list
+        """
+        endpoint_path = "/api/v1/open-api/sandbox/skills/last-versions/queries"
+        data = await self.request_by_parameter_async(parameter, 'POST', endpoint_path)
+        return LatestPublishedSkillVersionsResult(data)
 
     # --- Skill market endpoints ---
 

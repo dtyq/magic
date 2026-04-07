@@ -98,7 +98,7 @@
 					"title": "Select Color"
 				},
 				"description": "Description",
-				"descriptionPlaceholder": "Paste a URL for an instant summary.",
+				"descriptionPlaceholder": "Enter description",
 				"enable": "Enable",
 				"icon": "Icon",
 				"iconPicker": {
@@ -125,7 +125,7 @@
 				"save": "Save",
 				"title": "Basic Information"
 			},
-			"createPlaybook": "Create Playbook",
+			"createPlaybook": "Edit Playbook",
 			"enable": "Enable",
 			"filter": {
 				"all": "All",
@@ -392,12 +392,24 @@
 		"retry": "Retry",
 		"searchPlaceholder": "Search",
 		"selectAll": "Select All",
+		"selectPlaybook": "Select a playbook from the left list",
 		"title": "Playbook",
 		"untitled": "Untitled",
 		"untitledDescription": "No description",
 		"updatedAt": "Updated on {{date}}"
 	},
+	"publishNameDialog": {
+		"confirm": "Confirm and continue",
+		"description": "",
+		"placeholder": "Enter crew name",
+		"required": "Please enter a crew name",
+		"title": "Name the crew before publishing"
+	},
 	"scenarioPresets": "Playbooks",
+	"sidebarTabs": {
+		"advanced": "Advanced",
+		"files": "Files"
+	},
 	"skills": {
 		"addFromLibrary": "Add from Skills Library",
 		"addFromLibraryDesc": "Add skills directly in Skills Library",
@@ -411,7 +423,9 @@
 		"importSkillDesc": "Upload .Skill, .Zip or folder",
 		"install": "Install",
 		"library": "Skills Library",
+		"loadingMore": "Loading more...",
 		"mySkills": "My Skills",
+		"noMoreData": "No more data.",
 		"remove": "Remove",
 		"title": "Skills",
 		"uninstall": "Uninstall"

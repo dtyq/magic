@@ -519,14 +519,15 @@ class ProjectRepository extends AbstractRepository implements ProjectRepositoryI
 
     public function getProjectByTopicId(int $topicId): ?ProjectEntity
     {
-        $model = ProjectModel::query()
-            ->where('current_topic_id', $topicId)
-            ->whereNull('deleted_at')
+        $project = ProjectModel::query()
+            ->join('magic_super_agent_topics', 'magic_super_agent_topics.project_id', '=', 'magic_super_agent_project.id')
+            ->where('magic_super_agent_topics.id', $topicId)
+            ->select('magic_super_agent_project.*')
             ->first();
-        if ($model === null) {
+        if ($project === null) {
             return null;
         }
-        return $this->toEntity($model->toArray());
+        return $this->toEntity($project->toArray());
     }
 
     /**

@@ -4,7 +4,7 @@ import PluginTips from "../components/PluginTips"
 import { AgentCommonModal } from "@/components/Agent/AgentCommonModal"
 import AgentSettings from "@/components/Agent/MCP/AgentSettings"
 import CurrentSceneBadge from "../components/SelectedSkillBadge"
-import { SCENE_INPUT_IDS, INPUT_CONTAINER_MIN_HEIGHT } from "../constants"
+import { SCENE_INPUT_IDS, INPUT_CONTAINER_MIN_HEIGHT, SCENE_PANEL_MIN_HEIGHT } from "../constants"
 import { TopicMode } from "../../../pages/Workspace/types"
 import superMagicModeService from "@/services/superMagic/SuperMagicModeService"
 import { observer } from "mobx-react-lite"
@@ -27,11 +27,15 @@ import { userStore } from "@/models/user"
 interface EditorLayoutProps {
 	mode?: TopicMode
 	sceneStateStore?: SceneStateStore
+	autoFocus?: boolean
+	onAutoFocusHandled?: () => void
 }
 
 function EditorLayout({
 	mode = TopicMode.General,
 	sceneStateStore = defaultSceneStateStore,
+	autoFocus = false,
+	onAutoFocusHandled,
 }: EditorLayoutProps) {
 	const editorContainerRef = useRef<HTMLDivElement>(null)
 	const [mcpModalOpen, setMcpModalOpen] = useState(false)
@@ -59,6 +63,8 @@ function EditorLayout({
 			setTopicMode: roleStore.setCurrentRole,
 			topicExamplesMode: mode,
 			enableMessageSendByContent: true,
+			autoFocus,
+			onEditorFocus: onAutoFocusHandled,
 			onSendSuccess: ({ currentProject, currentTopic }) => {
 				if (!selectedWorkspace || !currentProject || !currentTopic) return
 
@@ -74,7 +80,7 @@ function EditorLayout({
 				},
 			},
 		}),
-		[mode, selectedTopic, selectedProject, selectedWorkspace],
+		[mode, selectedTopic, selectedProject, selectedWorkspace, autoFocus, onAutoFocusHandled],
 	)
 
 	// Automatically scroll to scene panel when scene config loaded
@@ -129,7 +135,12 @@ function EditorLayout({
 				</div>
 
 				{/* skill config container with smooth transition */}
-				<div className="w-full p-2 pb-[160px] transition-all duration-200 ease-in-out">
+				<div
+					className="w-full p-2 pb-[40px] transition-all duration-200 ease-in-out"
+					style={{
+						minHeight: selectedScene ? SCENE_PANEL_MIN_HEIGHT.HomePage : undefined,
+					}}
+				>
 					<LazyScenePanel scenes={scenes} editorContext={editorContext} />
 				</div>
 			</div>

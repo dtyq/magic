@@ -8,17 +8,17 @@ import zipfile
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
-from app.core.context.agent_context import AgentContext
 from agentlang.context.tool_context import ToolContext
 from agentlang.event.data import AfterInitEventData, BeforeInitEventData
 from agentlang.environment import Environment
 from agentlang.event.event import EventType
+from app.core.context.agent_context import AgentContext
 from app.core.stream.base import Stream
 from app.infrastructure.storage.base import BaseFileProcessor
 from app.infrastructure.storage.factory import StorageFactory
 from agentlang.logger import get_logger
 from app.magic.agent import Agent
-from app.paths import PathManager
+from app.path_manager import PathManager
 from app.service.agent_event.file_storage_listener_service import FileStorageListenerService
 from app.service.attachment_service import AttachmentService
 from app.core.entity.project_archive import ProjectArchiveInfo
@@ -26,8 +26,10 @@ from app.utils.init_client_message_util import InitClientMessageUtil
 from app.utils.path_utils import get_workspace_dir
 from app.utils.path_utils import get_storage_dir
 from app.service.asr.asr_context_diff_service import AsrContextDiffService
+from app.service.channel_context_service import ChannelContextService
 from app.service.image_model_sizes_service import ImageModelSizesService
 from app.service.mcp_servers_service import MCPServersService
+from app.service.video_model_config_service import VideoModelConfigService
 from app.infrastructure.observability import install_tool_monitoring_listener
 from app.core.base_service import Base
 from app.service.mention import MentionContextBuilder
@@ -705,15 +707,28 @@ class AgentService(Base):
         # 处理输入框内联引用（[@file_path:格式）
         query = agent._process_user_input_with_mentions(query, [])
 
+        # 追加渠道专属上下文片段（如微信消息携带的媒体文件路径），不支持的渠道返回空串不影响
+        query = ChannelContextService.append_channel_context(query, chat_client_message)
+
         if chat_client_message and hasattr(chat_client_message, "attachments") and chat_client_message.attachments:
             query = await self._process_attachments(agent_context, query, chat_client_message.attachments)
 
-        # 处理图片模型尺寸信息：在 query 中追加当前可用 size（仅当 image_model_id 或 sizes 变化时）
-        query = ImageModelSizesService.append_image_sizes_to_query(
-            query,
+        # 将图片/视频模型信息同步到 horizon（配置变化时 horizon 会在下次 system_injected_context 中注入，
+        # 首次和上下文压缩后也会通过 initial_context 全量注入）
+        await ImageModelSizesService.sync_to_horizon(
             chat_client_message.dynamic_config,
-            agent
+            agent.agent_context.horizon,
         )
+        await VideoModelConfigService.sync_to_horizon(
+            chat_client_message.dynamic_config,
+            agent.agent_context.horizon,
+        )
+
+        # 每次用户消息前刷新工作区文件树，让 horizon 检测用户上传/删除文件等变化
+        try:
+            await agent.refresh_workspace_files()
+        except Exception as _e:
+            logger.warning(f"[AgentService] 刷新工作区文件树失败: {_e}")
 
         # 处理 MCP 服务器信息：为加载了 using-mcp skill 的 agent 追加可用服务器信息
         query = await MCPServersService.append_mcp_servers_to_query(query, agent)
@@ -728,7 +743,6 @@ class AgentService(Base):
         self,
         stream_mode: bool,
         streams: Optional[List[Stream]] = [],
-        agent_type: Optional[str] = None,
         llm: Optional[str] = None,
         task_id: Optional[str] = "",
         is_main_agent: bool = False,
@@ -741,7 +755,6 @@ class AgentService(Base):
         Args:
             stream_mode: 是否启用流式输出
             streams: 可选的通信流实例
-            agent_type: 代理类型，用于从 agent 文件中提取模型名称
             llm: 大语言模型名称
             task_id: 任务ID，若为None则自动生成
             is_main_agent: 标记当前agent是否是主agent，默认为False
@@ -762,26 +775,6 @@ class AgentService(Base):
 
         for stream in streams:
             agent_context.add_stream(stream)
-
-        # 如果提供了 agent_type，从文件中提取 llm
-        if agent_type:
-            # 读取 agent 文件内容
-            agent_file = self.get_agent_file(agent_type)
-            if os.path.exists(agent_file):
-                try:
-                    with open(agent_file, "r", encoding="utf-8") as f:
-                        content = f.read()
-
-                    # 使用正则表达式直接从内容中提取模型名称
-                    model_pattern = r"<!--\s*llm:\s*([a-zA-Z0-9-_.]+)\s*-->"
-                    match = re.search(model_pattern, content, re.IGNORECASE)
-
-                    if match:
-                        model_name = match.group(1).strip()
-                        agent_context.llm = model_name
-                        logger.info(f"从 {agent_type}.agent 文件提取模型名称并设置为: {model_name}")
-                except Exception as e:
-                    logger.error(f"从 agent 文件提取 llm 时出错: {e}")
 
         return agent_context
 

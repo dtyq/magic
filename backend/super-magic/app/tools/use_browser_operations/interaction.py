@@ -100,7 +100,7 @@ class InteractionOperations(OperationGroup):
         if not page_id:
             page_id = await browser.get_active_page_id()
             if not page_id:
-                return ToolResult(error="没有可操作的页面或页面加载失败，请传入具体的 page_id 或使用 goto 跳转到可用的页面。")
+                return ToolResult.error("没有可操作的页面或页面加载失败，请传入具体的 page_id 或使用 goto 跳转到可用的页面。")
 
         scope = params.scope
 
@@ -110,7 +110,7 @@ class InteractionOperations(OperationGroup):
 
             # 处理结果
             if isinstance(result, MagicBrowserError):
-                return ToolResult(error=result.error)
+                return ToolResult.error(result.error)
             elif isinstance(result, InteractiveElementsSuccess):
                 # 获取元素数据
                 elements_by_category = result.elements_by_category
@@ -185,11 +185,11 @@ class InteractionOperations(OperationGroup):
                 return ToolResult(content=markdown_content)
             else:
                 logger.error(f"get_interactive_elements 操作返回了未知类型: {type(result)}")
-                return ToolResult(error="get_interactive_elements 操作返回了意外的结果类型。")
+                return ToolResult.error("get_interactive_elements 操作返回了意外的结果类型。")
 
         except Exception as e:
             logger.error(f"get_interactive_elements 外部处理失败: {e!s}", exc_info=True)
-            return ToolResult(error="Failed to get interactive elements")
+            return ToolResult.error("Failed to get interactive elements")
 
     @operation(
         example={
@@ -210,7 +210,7 @@ class InteractionOperations(OperationGroup):
         if not page_id:
             page_id = await browser.get_active_page_id()
             if not page_id:
-                return ToolResult(error="没有可操作的页面或页面加载失败，请传入具体的 page_id 或使用 goto 跳转到可用的页面。")
+                return ToolResult.error("没有可操作的页面或页面加载失败，请传入具体的 page_id 或使用 goto 跳转到可用的页面。")
 
         logger.info(f"开始视觉定位: 页面={page_id}, 描述='{params.element_description}'")
 
@@ -220,7 +220,7 @@ class InteractionOperations(OperationGroup):
             # 加载标记JS模块
             load_result = await browser.ensure_js_module_loaded(page_id, ["marker"])
             if not load_result.get("marker"):
-                return ToolResult(error="加载视觉标记JS模块失败")
+                return ToolResult.error("加载视觉标记JS模块失败")
             await asyncio.sleep(0.5) # 等待标记渲染稳定
 
             logger.info(f"截取带标记的页面 {page_id} 截图...")
@@ -229,10 +229,10 @@ class InteractionOperations(OperationGroup):
 
             if isinstance(screenshot_result, MagicBrowserError):
                 logger.error(f"视觉定位截图失败: {screenshot_result.error}")
-                return ToolResult(error=f"视觉定位准备截图失败: {screenshot_result.error}")
+                return ToolResult.error(f"视觉定位准备截图失败: {screenshot_result.error}")
             elif not isinstance(screenshot_result, ScreenshotSuccess):
                 logger.error(f"take_screenshot 返回未知类型: {type(screenshot_result)}")
-                return ToolResult(error="截图操作返回意外结果类型。")
+                return ToolResult.error("截图操作返回意外结果类型。")
 
             screenshot_path_obj = screenshot_result.path
             logger.info(f"视觉定位截图成功，路径: {screenshot_path_obj}")
@@ -248,7 +248,7 @@ class InteractionOperations(OperationGroup):
             if not vision_result.ok:
                 error_msg = vision_result.content or "视觉模型执行失败"
                 logger.error(f"视觉标记查找失败: {error_msg}")
-                return ToolResult(error=f"视觉标记查找失败: {error_msg}")
+                return ToolResult.error(f"视觉标记查找失败: {error_msg}")
 
             # 解析视觉模型返回的标记ID
             found_marker_ids_str = vision_result.content.strip()
@@ -259,7 +259,7 @@ class InteractionOperations(OperationGroup):
             if not marker_ids or "未找到" in found_marker_ids_str:
                 logger.warning(f"视觉模型未能找到匹配 \"{params.element_description}\" 的标记ID。")
                 # --- 修改错误提示，引导用户调整描述或使用其他方法 ---
-                return ToolResult(error=f"无法根据描述 \"{params.element_description}\" 在当前视口上定位到任何元素。请尝试使用 visual_query 结合用户需求查看网页结构以便更精准地描述要找的元素。如果重复失败，可以尝试使用 get_interactive_elements 查看所有可选元素。")
+                return ToolResult.error(f"无法根据描述 \"{params.element_description}\" 在当前视口上定位到任何元素。请尝试使用 visual_query 结合用户需求查看网页结构以便更精准地描述要找的元素。如果重复失败，可以尝试使用 get_interactive_elements 查看所有可选元素。")
 
             logger.info(f"成功解析出 {len(marker_ids)} 个可能的标记 ID: {marker_ids}")
 
@@ -366,11 +366,11 @@ class InteractionOperations(OperationGroup):
             else:
                 # 虽然找到了标记，但JS未能定位到任何一个有效元素
                 logger.warning(f"根据描述 \"{params.element_description}\" 找到了 {len(marker_ids)} 个标记 ({marker_ids})，但无法在页面上定位到任何有效的可交互元素。")
-                return ToolResult(error=f"根据描述 \"{params.element_description}\" 找到了视觉标记，但无法在页面上定位到任何有效的可交互元素。可能是元素已消失、被遮挡或不可交互。请尝试使用 get_interactive_elements。")
+                return ToolResult.error(f"根据描述 \"{params.element_description}\" 找到了视觉标记，但无法在页面上定位到任何有效的可交互元素。可能是元素已消失、被遮挡或不可交互。请尝试使用 get_interactive_elements。")
 
         except Exception as e:
             logger.exception(f"视觉定位操作中发生未预期的错误: {e!s}")
-            return ToolResult(error="Visual location failed")
+            return ToolResult.error("Visual location failed")
 
     @operation(
         example={
@@ -390,14 +390,14 @@ class InteractionOperations(OperationGroup):
         if not page_id:
             page_id = await browser.get_active_page_id()
             if not page_id:
-                return ToolResult(error="没有可操作的页面或页面加载失败，请传入具体的 page_id 或使用 goto 跳转到可用的页面。")
+                return ToolResult.error("没有可操作的页面或页面加载失败，请传入具体的 page_id 或使用 goto 跳转到可用的页面。")
 
         selector = params.selector
 
         try:
             # 检查 selector 是否为空
             if not selector:
-                return ToolResult(error="无效的 selector，选择器不能为空。")
+                return ToolResult.error("无效的 selector，选择器不能为空。")
 
             # 获取页面信息用于结果展示
             page = await browser.get_page_by_id(page_id)
@@ -408,7 +408,7 @@ class InteractionOperations(OperationGroup):
             result = await browser.click(page_id, selector)
 
             if isinstance(result, MagicBrowserError):
-                return ToolResult(error=result.error)
+                return ToolResult.error(result.error)
             elif isinstance(result, ClickSuccess):
                 # 格式化成功结果
                 markdown_content = (
@@ -425,11 +425,11 @@ class InteractionOperations(OperationGroup):
                 return ToolResult(content=markdown_content)
             else:
                 logger.error(f"click 操作返回了未知类型: {type(result)}")
-                return ToolResult(error="click 操作返回了意外的结果类型。")
+                return ToolResult.error("click 操作返回了意外的结果类型。")
 
         except Exception as e:
             logger.error(f"click 外部处理失败: {e!s}", exc_info=True)
-            return ToolResult(error=f"Failed to click element '{selector}'")
+            return ToolResult.error(f"Failed to click element '{selector}'")
 
     @operation(
         example={
@@ -454,7 +454,7 @@ class InteractionOperations(OperationGroup):
         if not page_id:
             page_id = await browser.get_active_page_id()
             if not page_id:
-                return ToolResult(error="没有可操作的页面或页面加载失败，请传入具体的 page_id 或使用 goto 跳转到可用的页面。")
+                return ToolResult.error("没有可操作的页面或页面加载失败，请传入具体的 page_id 或使用 goto 跳转到可用的页面。")
 
         selector = params.selector
         text = params.text
@@ -464,7 +464,7 @@ class InteractionOperations(OperationGroup):
         try:
             # 检查 selector 是否为空
             if not selector:
-                return ToolResult(error="无效的 selector，选择器不能为空。")
+                return ToolResult.error("无效的 selector，选择器不能为空。")
 
             # 获取页面信息用于结果展示
             page = await browser.get_page_by_id(page_id)
@@ -475,7 +475,7 @@ class InteractionOperations(OperationGroup):
             result = await browser.input_text(page_id, selector, text, clear_first, press_enter)
 
             if isinstance(result, MagicBrowserError):
-                return ToolResult(error=result.error)
+                return ToolResult.error(result.error)
             elif isinstance(result, InputSuccess):
                 # 格式化成功结果
                 action_desc = "输入" if not press_enter else "输入并按下 Enter"
@@ -494,11 +494,11 @@ class InteractionOperations(OperationGroup):
                 return ToolResult(content=markdown_content)
             else:
                 logger.error(f"input_text 操作返回了未知类型: {type(result)}")
-                return ToolResult(error="input_text 操作返回了意外的结果类型。")
+                return ToolResult.error("input_text 操作返回了意外的结果类型。")
 
         except Exception as e:
             logger.error(f"input_text 外部处理失败: {e!s}", exc_info=True)
-            return ToolResult(error=f"Failed to input text to '{selector}'")
+            return ToolResult.error(f"Failed to input text to '{selector}'")
 
     @operation(
         example={
@@ -517,7 +517,7 @@ class InteractionOperations(OperationGroup):
         if not page_id:
             page_id = await browser.get_active_page_id()
             if not page_id:
-                return ToolResult(error="没有可操作的页面或页面加载失败，请传入具体的 page_id 或使用 goto 跳转到可用的页面。")
+                return ToolResult.error("没有可操作的页面或页面加载失败，请传入具体的 page_id 或使用 goto 跳转到可用的页面。")
 
         screen_number = params.screen_number
 
@@ -526,7 +526,7 @@ class InteractionOperations(OperationGroup):
             result = await browser.scroll_to(page_id, screen_number)
 
             if isinstance(result, MagicBrowserError):
-                return ToolResult(error=result.error)
+                return ToolResult.error(result.error)
             elif isinstance(result, ScrollToSuccess):
                 # 构建结果描述
                 screen_number = result.screen_number
@@ -541,8 +541,8 @@ class InteractionOperations(OperationGroup):
                 return ToolResult(content=markdown_content)
             else:
                 logger.error(f"scroll_to 操作返回了未知类型: {type(result)}")
-                return ToolResult(error="scroll_to 操作返回了意外的结果类型。")
+                return ToolResult.error("scroll_to 操作返回了意外的结果类型。")
 
         except Exception as e:
             logger.error(f"scroll_to 外部处理失败: {e!s}", exc_info=True)
-            return ToolResult(error=f"Failed to scroll to screen {screen_number}")
+            return ToolResult.error(f"Failed to scroll to screen {screen_number}")

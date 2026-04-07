@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"time"
 
+	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	storagev1 "k8s.io/api/storage/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
@@ -13,6 +14,70 @@ import (
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/clientcmd"
 )
+
+// HasPodsWithImagePullFailure returns true if any pods matching labelSelector in
+// namespace have at least one container (init or regular) stuck in ImagePullBackOff
+// or ErrImagePull, or if the pod itself is in Failed phase.
+func (c *Client) HasPodsWithImagePullFailure(ctx context.Context, namespace, labelSelector string) (bool, error) {
+	pods, err := c.cs.CoreV1().Pods(namespace).List(ctx, metav1.ListOptions{
+		LabelSelector: labelSelector,
+	})
+	if err != nil {
+		return false, fmt.Errorf("list pods (selector=%s): %w", labelSelector, err)
+	}
+	for _, pod := range pods.Items {
+		if podHasImagePullFailure(pod) {
+			return true, nil
+		}
+	}
+	return false, nil
+}
+
+func podHasImagePullFailure(pod corev1.Pod) bool {
+	if pod.Status.Phase == corev1.PodFailed {
+		return true
+	}
+	for _, cs := range pod.Status.InitContainerStatuses {
+		if isImagePullFailureReason(cs.State) {
+			return true
+		}
+	}
+	for _, cs := range pod.Status.ContainerStatuses {
+		if isImagePullFailureReason(cs.State) {
+			return true
+		}
+	}
+	return false
+}
+
+func isImagePullFailureReason(s corev1.ContainerState) bool {
+	if s.Waiting == nil {
+		return false
+	}
+	switch s.Waiting.Reason {
+	case "ImagePullBackOff", "ErrImagePull", "CrashLoopBackOff":
+		return true
+	}
+	return false
+}
+
+// DeletePodsByLabel deletes all pods in namespace matching labelSelector.
+// Not-found errors are silently ignored so the call is idempotent.
+// For pods owned by a DaemonSet the controller will immediately recreate them.
+func (c *Client) DeletePodsByLabel(ctx context.Context, namespace, labelSelector string) error {
+	pods, err := c.cs.CoreV1().Pods(namespace).List(ctx, metav1.ListOptions{
+		LabelSelector: labelSelector,
+	})
+	if err != nil {
+		return fmt.Errorf("list pods (selector=%s): %w", labelSelector, err)
+	}
+	for _, pod := range pods.Items {
+		if err := c.cs.CoreV1().Pods(namespace).Delete(ctx, pod.Name, metav1.DeleteOptions{}); err != nil && !apierrors.IsNotFound(err) {
+			return fmt.Errorf("delete pod %s/%s: %w", namespace, pod.Name, err)
+		}
+	}
+	return nil
+}
 
 // Client wraps a Kubernetes clientset and the rest.Config used to build it.
 type Client struct {
@@ -141,6 +206,40 @@ func (c *Client) WaitForPodsScheduled(ctx context.Context, namespace, labelSelec
 	}
 }
 
+// WaitForDaemonSetsSettled polls until all DaemonSets matching labelSelector in
+// the given namespace are observed and converged.
+// - requireReady=true: updated/current/ready all reach desired.
+// - requireReady=false: updated/current reach desired (ready may lag).
+func (c *Client) WaitForDaemonSetsSettled(ctx context.Context, namespace, labelSelector string, timeout time.Duration, requireReady bool, reporter func([]appsv1.DaemonSet)) error {
+	deadline := time.Now().Add(timeout)
+	for {
+		if time.Now().After(deadline) {
+			return fmt.Errorf("timeout waiting for daemonsets settled in %s (selector: %s)", namespace, labelSelector)
+		}
+
+		daemonSets, err := c.cs.AppsV1().DaemonSets(namespace).List(ctx, metav1.ListOptions{
+			LabelSelector: labelSelector,
+		})
+		if err != nil {
+			return fmt.Errorf("list daemonsets: %w", err)
+		}
+
+		if reporter != nil {
+			reporter(daemonSets.Items)
+		}
+
+		if len(daemonSets.Items) > 0 && allDaemonSetsSettled(daemonSets.Items, requireReady) {
+			return nil
+		}
+
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		case <-time.After(podWaitPollInterval):
+		}
+	}
+}
+
 // WaitForPodsReady polls until all pods matching labelSelector in the given
 // namespace are Ready, or until the context deadline is exceeded.
 // If reporter is non-nil, it is called after each poll with the current pod list.
@@ -188,6 +287,35 @@ func allScheduled(pods []corev1.Pod) bool {
 		if !isPodScheduled(pod) {
 			return false
 		}
+	}
+	return true
+}
+
+func allDaemonSetsSettled(daemonSets []appsv1.DaemonSet, requireReady bool) bool {
+	for _, ds := range daemonSets {
+		if !isDaemonSetSettled(ds, requireReady) {
+			return false
+		}
+	}
+	return true
+}
+
+func isDaemonSetSettled(ds appsv1.DaemonSet, requireReady bool) bool {
+	desired := ds.Status.DesiredNumberScheduled
+	if desired == 0 {
+		return false
+	}
+	if ds.Status.ObservedGeneration < ds.Generation {
+		return false
+	}
+	if ds.Status.UpdatedNumberScheduled < desired {
+		return false
+	}
+	if ds.Status.CurrentNumberScheduled < desired {
+		return false
+	}
+	if requireReady && ds.Status.NumberReady < desired {
+		return false
 	}
 	return true
 }

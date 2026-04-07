@@ -40,6 +40,19 @@ class ProcessorConfig:
     model_name: Optional[str] = None
     """模型名称"""
 
+    # 本轮解析后的有效重试策略（由 ProcessorManager._resolve_retry_policy 填充）
+    stream_first_chunk_timeout_seconds: Optional[int] = None
+    """本轮首包超时（覆盖"请求发出到首个 chunk"的总时间）"""
+
+    stream_chunk_timeout_seconds: Optional[int] = None
+    """本轮后续每个 chunk 的等待上限"""
+
+    non_stream_timeout_seconds: Optional[int] = None
+    """非流式 fallback 的请求超时"""
+
+    allow_non_stream_fallback: bool = False
+    """本轮流式失败后是否允许非流式 fallback"""
+
     @classmethod
     def create_default(cls) -> 'ProcessorConfig':
         """创建默认配置（不启用流式）"""

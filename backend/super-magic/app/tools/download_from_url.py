@@ -21,7 +21,7 @@ from agentlang.event.event import EventType
 from agentlang.logger import get_logger
 from app.tools.abstract_file_tool import AbstractFileTool
 from app.tools.core import BaseToolParams, tool
-from app.tools.workspace_guard_tool import WorkspaceGuardTool
+from app.tools.workspace_tool import WorkspaceTool
 from agentlang.utils.file import generate_safe_filename
 from app.tools.webview_utils import IMAGE_DOWNLOAD_HEADERS
 from app.utils.async_file_utils import async_copy2, async_stat, async_exists
@@ -204,7 +204,7 @@ class DownloadCacheManager:
 
 
 @tool()
-class DownloadFromUrl(AbstractFileTool[DownloadFromUrlParams], WorkspaceGuardTool[DownloadFromUrlParams]):
+class DownloadFromUrl(AbstractFileTool[DownloadFromUrlParams], WorkspaceTool[DownloadFromUrlParams]):
     """<!--zh
     URL文件下载工具
 
@@ -300,13 +300,10 @@ class DownloadFromUrl(AbstractFileTool[DownloadFromUrlParams], WorkspaceGuardToo
                         }
                     )
                 else:
-                    return ToolResult(error="缓存下载失败")
+                    return ToolResult.error("缓存下载失败")
 
             # Normal mode: use safe path validation
-            full_path, error = self.get_safe_path(params.file_path)
-            if error:
-                return ToolResult(error=error)
-
+            full_path = self.resolve_path(params.file_path)
             # 从安全路径对象中提取父目录和原始文件名
             parent_dir = full_path.parent
             original_name = full_path.name
@@ -379,7 +376,7 @@ class DownloadFromUrl(AbstractFileTool[DownloadFromUrlParams], WorkspaceGuardToo
 
         except Exception as e:
             logger.error(f"下载文件失败: {e!s}")
-            return ToolResult(error="Failed to download file")
+            return ToolResult.error("Failed to download file")
 
     async def _create_directories(self, file_path: Path) -> None:
         """创建文件所需的目录结构"""
@@ -637,7 +634,7 @@ class DownloadFromUrl(AbstractFileTool[DownloadFromUrlParams], WorkspaceGuardToo
             return None
 
         file_path = arguments["file_path"]
-        file_path_path, _ = self.get_safe_path(file_path)
+        file_path_path = self.resolve_path(file_path)
         if not file_path_path or not file_path_path.exists():
             return None
 

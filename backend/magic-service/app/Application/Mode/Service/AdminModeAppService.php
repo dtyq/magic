@@ -7,6 +7,7 @@ declare(strict_types=1);
 
 namespace App\Application\Mode\Service;
 
+use App\Application\Kernel\SmartFileLinks;
 use App\Application\Mode\Assembler\AdminModeAssembler;
 use App\Application\Mode\DTO\Admin\AdminModeAggregateDTO;
 use App\Application\Mode\DTO\Admin\AdminModeDTO;
@@ -26,8 +27,11 @@ use Dtyq\SuperMagic\Domain\Agent\Entity\ValueObject\Query\SuperMagicAgentQuery;
 use Dtyq\SuperMagic\Domain\Agent\Entity\ValueObject\SuperMagicAgentDataIsolation;
 use Dtyq\SuperMagic\Domain\Agent\Service\SuperMagicAgentDomainService;
 use Exception;
+use Hyperf\Contract\TranslatorInterface;
 use Hyperf\DbConnection\Db;
 use Hyperf\Di\Annotation\Inject;
+
+use function Hyperf\Translation\__;
 
 class AdminModeAppService extends AbstractModeAppService
 {
@@ -158,7 +162,12 @@ class AdminModeAppService extends AbstractModeAppService
 
             // 重新获取聚合根信息
             $updatedModeAggregate = $this->modeDomainService->getModeDetailById($dataIsolation, $updatedMode->getId());
-            return AdminModeAssembler::aggregateToAdminDTO($updatedModeAggregate);
+            $updatedModeAggregateDTO = AdminModeAssembler::aggregateToAdminDTO($updatedModeAggregate);
+            $this->processModeAggregateIcons($updatedModeAggregateDTO);
+            $this->replaceModeAggregateNameI18nFromAgent($authorization, $updatedModeAggregateDTO);
+            $this->replaceModeAggregateIconUrlFromAgent($authorization, $updatedModeAggregateDTO);
+
+            return $updatedModeAggregateDTO;
         } catch (Exception $exception) {
             $this->logger->warning('Update mode failed: ' . $exception->getMessage());
             Db::rollBack();
@@ -206,8 +215,11 @@ class AdminModeAppService extends AbstractModeAppService
 
         Db::beginTransaction();
         try {
-            // 处理动态模型：创建/更新动态模型记录
-            $this->processDynamicModels($authorization, $modeAggregateDTO);
+            // 跟随模式只保存跟随关系，不应同步动态模型，否则会把被跟随模式的动态模型误判为新增。
+            if (! $modeAggregateDTO->getMode()->getDistributionType()->isInherited()) {
+                // 处理动态模型：创建/更新动态模型记录
+                $this->processDynamicModels($authorization, $modeAggregateDTO);
+            }
 
             // 将DTO转换为领域对象
             $modeAggregateEntity = AdminModeAssembler::aggregateDTOToEntity($modeAggregateDTO);
@@ -238,7 +250,13 @@ class AdminModeAppService extends AbstractModeAppService
         $modeGroupRelationEntities = $this->modeDomainService->getModeGroupRelationsIndexedById($dataIsolation, $modeAggregateDTO->getMode()->getId());
 
         foreach ($modeAggregateDTO->getGroups() as $groupAggregateDTO) {
-            foreach ($groupAggregateDTO->getModels() as $modelDTO) {
+            $groupModels = array_merge(
+                $groupAggregateDTO->getTextModels(),
+                $groupAggregateDTO->getImageModels(),
+                $groupAggregateDTO->getVideoModels()
+            );
+
+            foreach ($groupModels as $modelDTO) {
                 // 检查是否为动态模型
                 if (! $modelDTO->getModelTypeEnum()->isDynamic()) {
                     continue;
@@ -249,7 +267,32 @@ class AdminModeAppService extends AbstractModeAppService
                 // 需检查是否重复model_id，重复则报错
                 if ($modelId && ! isset($modeGroupRelationEntities[$modelDTO->getId()])) {
                     $existingModel = $this->providerModelDomainService->getByModelId($providerDataIsolation, $modelId);
-                    $existingModel && ExceptionBuilder::throw(ServiceProviderErrorCode::OriginalModelIdAlreadyExists);
+                    if ($existingModel) {
+                        $group = $groupAggregateDTO->getGroup();
+                        $groupName = $this->resolveGroupDisplayName($group?->getNameI18n() ?? []);
+                        $modelName = $modelDTO->getModelName() !== '' ? $modelDTO->getModelName() : $modelId;
+                        $modelLabel = $this->buildDynamicModelDisplayLabel($modelName, $modelDTO->getAggregateConfig());
+
+                        $this->logger->warning('Duplicate dynamic model model_id detected while saving mode config', [
+                            'mode_id' => $modeAggregateDTO->getMode()->getId(),
+                            'group_id' => $group?->getId() ?? '',
+                            'group_name' => $groupName,
+                            'relation_id' => $modelDTO->getId(),
+                            'provider_model_id' => $modelDTO->getProviderModelId(),
+                            'model_name' => $modelName,
+                            'model_label' => $modelLabel,
+                            'model_id' => $modelId,
+                            'existing_provider_model_id' => (string) $existingModel->getId(),
+                        ]);
+
+                        ExceptionBuilder::throw(
+                            ServiceProviderErrorCode::OriginalModelIdAlreadyExists,
+                            __('service_provider.original_model_id_already_exists_in_group', [
+                                'group_name' => $groupName,
+                                'model_label' => $modelLabel,
+                            ])
+                        );
+                    }
                 }
 
                 $aggregateConfig = $modelDTO->getAggregateConfig();
@@ -274,6 +317,55 @@ class AdminModeAppService extends AbstractModeAppService
                 $modelDTO->setProviderModelId((string) $dynamicModel->getId());
             }
         }
+    }
+
+    private function resolveGroupDisplayName(array $nameI18n): string
+    {
+        $locale = di(TranslatorInterface::class)->getLocale();
+        $normalizedLocale = str_replace('-', '_', $locale);
+
+        return $nameI18n[$normalizedLocale]
+            ?? $nameI18n['zh_CN']
+            ?? $nameI18n['en_US']
+            ?? reset($nameI18n)
+            ?: '';
+    }
+
+    private function buildDynamicModelDisplayLabel(string $modelName, ?array $aggregateConfig): string
+    {
+        $subModels = $aggregateConfig['models'] ?? [];
+        if (! is_array($subModels) || $subModels === []) {
+            return $modelName;
+        }
+
+        $subModelNames = [];
+        foreach ($subModels as $subModel) {
+            if (! is_array($subModel)) {
+                continue;
+            }
+
+            $subModelName = trim((string) ($subModel['model_name'] ?? $subModel['model_id'] ?? ''));
+            if ($subModelName === '') {
+                continue;
+            }
+
+            $subModelNames[] = $subModelName;
+            if (count($subModelNames) === 3) {
+                break;
+            }
+        }
+
+        if ($subModelNames === []) {
+            return $modelName;
+        }
+
+        $suffix = implode('、', $subModelNames);
+        $totalSubModelCount = count($subModels);
+        if ($totalSubModelCount > count($subModelNames)) {
+            $suffix .= sprintf(' 等%d个子模型', $totalSubModelCount);
+        }
+
+        return sprintf('%s（%s）', $modelName, $suffix);
     }
 
     /**
@@ -373,6 +465,33 @@ class AdminModeAppService extends AbstractModeAppService
     }
 
     /**
+     * 根据 modeAggregateDTO 中的 mode identifier 查询 agent，如果查询到则替换 icon_url.
+     */
+    private function replaceModeAggregateIconUrlFromAgent(MagicUserAuthorization $authorization, AdminModeAggregateDTO $modeAggregateDTO): void
+    {
+        $modeDTO = $modeAggregateDTO->getMode();
+        $identifier = $modeDTO->getIdentifier();
+        if (empty($identifier)) {
+            return;
+        }
+
+        $agentDataIsolation = SuperMagicAgentDataIsolation::create(
+            $authorization->getOrganizationCode(),
+            $authorization->getId()
+        );
+
+        $agent = $this->superMagicAgentDomainService->getByCode($agentDataIsolation, $identifier);
+        if ($agent !== null) {
+            $this->updateAgentEntitiesIcon([$agent]);
+            $agentIconUrl = (string) ($agent->getIcon()['url'] ?? $agent->getIcon()['value'] ?? '');
+            if ($agentIconUrl !== '') {
+                $modeDTO->setIconUrl($agentIconUrl);
+                $modeDTO->setIconType($agent->getIconType());
+            }
+        }
+    }
+
+    /**
      * 批量处理模式列表的icon_url，将file_key转换为完整的URL.
      *
      * @param AdminModeDTO[] $modeDTOs 模式DTO列表
@@ -383,8 +502,6 @@ class AdminModeAppService extends AbstractModeAppService
             return;
         }
 
-        // 收集所有图标路径按组织编码分组
-        $iconsByOrg = [];
         $iconToModeMap = [];
 
         foreach ($modeDTOs as $modeDTO) {
@@ -394,28 +511,15 @@ class AdminModeAppService extends AbstractModeAppService
             }
 
             $iconUrl = FileAssembler::formatPath($iconUrl);
-            $organizationCode = substr($iconUrl, 0, strpos($iconUrl, '/'));
-
-            if (! isset($iconsByOrg[$organizationCode])) {
-                $iconsByOrg[$organizationCode] = [];
-            }
-            $iconsByOrg[$organizationCode][] = $iconUrl;
-
-            if (! isset($iconToModeMap[$iconUrl])) {
-                $iconToModeMap[$iconUrl] = [];
-            }
             $iconToModeMap[$iconUrl][] = $modeDTO;
         }
 
-        // 批量获取图标URL
-        $iconUrlMap = [];
-        foreach ($iconsByOrg as $organizationCode => $icons) {
-            $links = $this->fileDomainService->getLinks($organizationCode, array_unique($icons));
-            $iconUrlMap = array_merge($iconUrlMap, $links);
+        if (empty($iconToModeMap)) {
+            return;
         }
 
         // 设置图标URL
-        foreach ($iconUrlMap as $icon => $fileLink) {
+        foreach (SmartFileLinks::list(array_keys($iconToModeMap)) as $icon => $fileLink) {
             if (isset($iconToModeMap[$icon])) {
                 $url = $fileLink ? $fileLink->getUrl() : '';
                 foreach ($iconToModeMap[$icon] as $modeDTO) {

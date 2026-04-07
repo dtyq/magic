@@ -9,24 +9,30 @@ namespace App\Application\Mode\Service;
 
 use App\Application\Mode\Assembler\ModeAssembler;
 use App\Application\Mode\DTO\ModeAggregateDTO;
-use App\Application\Mode\DTO\ModeGroupDetailDTO;
 use App\Domain\Mode\Entity\ModeAggregate;
 use App\Domain\Mode\Entity\ValueQuery\ModeQuery;
 use App\Domain\Provider\Entity\ProviderModelEntity;
 use App\Domain\Provider\Entity\ValueObject\Category;
-use App\Domain\Provider\Entity\ValueObject\ProviderDataIsolation;
-use App\Domain\Provider\Entity\ValueObject\Status;
 use App\ErrorCode\ModeErrorCode;
 use App\Infrastructure\Core\Exception\ExceptionBuilder;
 use App\Infrastructure\Core\ValueObject\Page;
 use App\Infrastructure\Util\File\EasyFileTools;
-use App\Infrastructure\Util\OfficialOrganizationUtil;
 use App\Interfaces\Authorization\Web\MagicUserAuthorization;
 use Dtyq\SuperMagic\Application\Agent\Service\Old\SuperMagicAgentOldAppService;
 use Dtyq\SuperMagic\Application\Agent\Service\SuperMagicAgentAppService;
 use Dtyq\SuperMagic\Domain\Agent\Entity\SuperMagicAgentEntity;
 use Dtyq\SuperMagic\Domain\Agent\Entity\ValueObject\Query\SuperMagicAgentQuery;
 
+/**
+ * 前台模式 app service。
+ *
+ * 统一视频参数设计落地后，这里只负责组织以下步骤：
+ * - 查询并过滤当前组织可用模型
+ * - 调用 domain service 解析 featured 视频配置
+ * - 把结果交给 assembler 输出 DTO
+ *
+ * 不在这里实现 provider 能力规则和交集细节。
+ */
 class ModeAppService extends AbstractModeAppService
 {
     /**
@@ -66,74 +72,7 @@ class ModeAppService extends AbstractModeAppService
 
         // 批量构建模式聚合根
         $modeAggregates = $this->modeDomainService->batchBuildModeAggregates($modeDataIsolation, $modeEnabledList);
-
-        // ===== 性能优化：批量预查询 =====
-
-        // 步骤1：预收集所有需要的modelId
-        $allModelIds = [];
-        foreach ($modeAggregates as $aggregate) {
-            foreach ($aggregate->getGroupAggregates() as $groupAggregate) {
-                foreach ($groupAggregate->getRelations() as $relation) {
-                    $allModelIds[] = $relation->getModelId();
-                }
-            }
-        }
-
-        // 步骤2：批量查询所有模型和服务商状态
-        $allProviderModelsWithStatus = $this->getModelsBatch(array_unique($allModelIds));
-
-        // 步骤3：组织模型过滤
-
-        // 首先收集所有需要过滤的模型（LLM）
-        $allAggregateModels = [];
-        foreach ($modeAggregates as $aggregate) {
-            $aggregateModels = $this->getModelsForAggregate($aggregate, $allProviderModelsWithStatus);
-            $allAggregateModels = array_merge($allAggregateModels, $aggregateModels);
-        }
-
-        // 收集所有需要过滤的图像模型（VLM）
-        $allAggregateImageModels = [];
-        foreach ($modeAggregates as $aggregate) {
-            $aggregateImageModels = $this->getImageModelsForAggregate($aggregate, $allProviderModelsWithStatus);
-            $allAggregateImageModels = array_merge($allAggregateImageModels, $aggregateImageModels);
-        }
-
-        // 需要升级套餐
-        $upgradeRequiredModelIds = [];
-
-        // 使用组织过滤器进行过滤（LLM）
-        if ($this->organizationModelFilter) {
-            $providerModels = $this->organizationModelFilter->filterModelsByOrganization(
-                $authorization->getOrganizationCode(),
-                $allAggregateModels
-            );
-            $upgradeRequiredModelIds = $this->organizationModelFilter->getUpgradeRequiredModelIds($authorization->getOrganizationCode());
-        } else {
-            // 如果没有组织过滤器，返回所有模型（开源版本行为）
-            $providerModels = $allAggregateModels;
-        }
-
-        // 使用组织过滤器进行过滤（VLM）
-        if ($this->organizationModelFilter) {
-            $providerImageModels = $this->organizationModelFilter->filterModelsByOrganization(
-                $authorization->getOrganizationCode(),
-                $allAggregateImageModels
-            );
-        } else {
-            // 如果没有组织过滤器，返回所有模型（开源版本行为）
-            $providerImageModels = $allAggregateImageModels;
-        }
-
-        // 转换为DTO数组
-        $modeAggregateDTOs = [];
-        foreach ($modeAggregates as $aggregate) {
-            $modeAggregateDTOs[$aggregate->getMode()->getIdentifier()] = ModeAssembler::aggregateToDTO($aggregate, $providerModels, $upgradeRequiredModelIds, $providerImageModels);
-        }
-
-        // 处理图标URL转换
-        foreach ($modeAggregateDTOs as $aggregateDTO) {
-            $this->processModeAggregateIcons($aggregateDTO);
-        }
+        $modeAggregateDTOs = $this->buildModeAggregateDTOs($authorization, $modeAggregates);
 
         $list = [];
         foreach ($allAgents as $agent) {
@@ -180,24 +119,6 @@ class ModeAppService extends AbstractModeAppService
             'total' => count($list),
             'list' => $list,
         ];
-    }
-
-    /**
-     * @return ModeGroupDetailDTO[]
-     */
-    public function getModeByIdentifier(MagicUserAuthorization $authorization, string $identifier): array
-    {
-        $modeDataIsolation = $this->getModeDataIsolation($authorization);
-        $modeDataIsolation->disabled();
-        $modeAggregate = $this->modeDomainService->getModeDetailByIdentifier($modeDataIsolation, $identifier);
-
-        $providerModels = $this->getModels($modeAggregate);
-        $modeGroupDetailDTOS = ModeAssembler::aggregateToFlatGroupsDTO($modeAggregate, $providerModels);
-
-        // 处理图标路径转换为完整URL
-        $this->processModeGroupDetailIcons($authorization, $modeGroupDetailDTOS);
-
-        return $modeGroupDetailDTOS;
     }
 
     public function getFeaturedAgent(MagicUserAuthorization $authorization): array
@@ -338,56 +259,19 @@ class ModeAppService extends AbstractModeAppService
                 'models' => [],
             ];
         }
-
-        $allProviderModelsWithStatus = $this->getProviderModelsByModeAggregates($modeAggregates);
-
-        $allAggregateModels = [];
-        foreach ($modeAggregates as $aggregate) {
-            $aggregateModels = $this->getModelsForAggregate($aggregate, $allProviderModelsWithStatus);
-            $allAggregateModels = array_merge($allAggregateModels, $aggregateModels);
-        }
-
-        $allAggregateImageModels = [];
-        foreach ($modeAggregates as $aggregate) {
-            $aggregateImageModels = $this->getImageModelsForAggregate($aggregate, $allProviderModelsWithStatus);
-            $allAggregateImageModels = array_merge($allAggregateImageModels, $aggregateImageModels);
-        }
-
-        $upgradeRequiredModelIds = [];
-        if ($this->organizationModelFilter) {
-            $providerModels = $this->organizationModelFilter->filterModelsByOrganization(
-                $authorization->getOrganizationCode(),
-                $allAggregateModels
-            );
-            $providerImageModels = $this->organizationModelFilter->filterModelsByOrganization(
-                $authorization->getOrganizationCode(),
-                $allAggregateImageModels
-            );
-            $upgradeRequiredModelIds = $this->organizationModelFilter->getUpgradeRequiredModelIds($authorization->getOrganizationCode());
-        } else {
-            $providerModels = $allAggregateModels;
-            $providerImageModels = $allAggregateImageModels;
-        }
-
-        $modeAggregateDTOs = [];
-        foreach ($modeAggregates as $aggregate) {
-            $modeAggregateDTOs[$aggregate->getMode()->getIdentifier()] = ModeAssembler::aggregateToDTO(
-                $aggregate,
-                $providerModels,
-                $upgradeRequiredModelIds,
-                $providerImageModels
-            );
-        }
+        $modeAggregateDTOs = $this->buildModeAggregateDTOs($authorization, $modeAggregates);
 
         $allModels = [];
         foreach ($modeAggregateDTOs as $aggregateDTO) {
-            $this->processModeAggregateIcons($aggregateDTO);
             foreach ($aggregateDTO->getGroups() as $groupAggregateDTO) {
                 foreach ($groupAggregateDTO->getModels() as $model) {
                     $allModels[$model->getId()] = $model;
                 }
                 foreach ($groupAggregateDTO->getImageModels() as $imageModel) {
                     $allModels[$imageModel->getId()] = $imageModel;
+                }
+                foreach ($groupAggregateDTO->getVideoModels() as $videoModel) {
+                    $allModels[$videoModel->getId()] = $videoModel;
                 }
             }
         }
@@ -404,8 +288,9 @@ class ModeAppService extends AbstractModeAppService
         foreach ($modeAggregateDTO->getGroups() as $group) {
             $modeGroups[] = [
                 'group' => $group->getGroup()->toArray(),
-                'model_ids' => array_map(fn ($model) => $model->getId(), $group->getModels()),
-                'image_model_ids' => array_map(fn ($model) => $model->getId(), $group->getImageModels()),
+                'model_ids' => array_map(static fn ($model) => $model->getId(), $group->getModels()),
+                'image_model_ids' => array_map(static fn ($model) => $model->getId(), $group->getImageModels()),
+                'video_model_ids' => array_map(static fn ($model) => $model->getId(), $group->getVideoModels()),
             ];
         }
 
@@ -424,6 +309,75 @@ class ModeAppService extends AbstractModeAppService
     }
 
     /**
+     * @param ModeAggregate[] $modeAggregates
+     * @return array<string, ModeAggregateDTO>
+     */
+    private function buildModeAggregateDTOs(MagicUserAuthorization $authorization, array $modeAggregates): array
+    {
+        $allProviderModelsWithStatus = $this->getProviderModelsByModeAggregates($modeAggregates);
+
+        $allAggregateModels = [];
+        $allAggregateImageModels = [];
+        $allAggregateVideoModels = [];
+        foreach ($modeAggregates as $aggregate) {
+            foreach ($this->getModelsForAggregate($aggregate, $allProviderModelsWithStatus) as $modelId => $model) {
+                $allAggregateModels[$modelId] = $model;
+            }
+            foreach ($this->getImageModelsForAggregate($aggregate, $allProviderModelsWithStatus) as $modelId => $model) {
+                $allAggregateImageModels[$modelId] = $model;
+            }
+            foreach ($this->getVideoModelsForAggregate($aggregate, $allProviderModelsWithStatus) as $modelId => $model) {
+                $allAggregateVideoModels[$modelId] = $model;
+            }
+        }
+
+        $upgradeRequiredModelIds = [];
+        if ($this->organizationModelFilter) {
+            $providerModels = $this->organizationModelFilter->filterModelsByOrganization(
+                $authorization->getOrganizationCode(),
+                $allAggregateModels
+            );
+            $providerImageModels = $this->organizationModelFilter->filterModelsByOrganization(
+                $authorization->getOrganizationCode(),
+                $allAggregateImageModels
+            );
+            $providerVideoModels = $this->organizationModelFilter->filterModelsByOrganization(
+                $authorization->getOrganizationCode(),
+                $allAggregateVideoModels
+            );
+            $upgradeRequiredModelIds = $this->organizationModelFilter->getUpgradeRequiredModelIds($authorization->getOrganizationCode());
+        } else {
+            $providerModels = $allAggregateModels;
+            $providerImageModels = $allAggregateImageModels;
+            $providerVideoModels = $allAggregateVideoModels;
+        }
+
+        // 按逻辑 model_id 预先求出 featured 视频能力配置，
+        // assembler 只负责挂载，不再直接解析模型能力。
+        $featuredVideoGenerationConfigs = $this->videoGenerationConfigDomainService->resolveFeatured(
+            $this->buildVideoGenerationConfigCandidates(array_keys($providerVideoModels))
+        );
+
+        $modeAggregateDTOs = [];
+        foreach ($modeAggregates as $aggregate) {
+            $modeAggregateDTOs[$aggregate->getMode()->getIdentifier()] = ModeAssembler::aggregateToDTO(
+                $aggregate,
+                $providerModels,
+                $upgradeRequiredModelIds,
+                $providerImageModels,
+                $providerVideoModels,
+                $featuredVideoGenerationConfigs
+            );
+        }
+
+        foreach ($modeAggregateDTOs as $aggregateDTO) {
+            $this->processModeAggregateIcons($aggregateDTO);
+        }
+
+        return $modeAggregateDTOs;
+    }
+
+    /**
      * 批量获取模型和服务商状态（性能优化版本）.
      * @param array $allModelIds 所有需要查询的modelId
      * @return array<string, ProviderModelEntity> 已通过级联状态筛选的可用模型
@@ -433,77 +387,9 @@ class ModeAppService extends AbstractModeAppService
         if (empty($allModelIds)) {
             return [];
         }
+        $groupedModels = $this->getModelGroupsBatch($allModelIds);
 
-        $providerDataIsolation = new ProviderDataIsolation(OfficialOrganizationUtil::getOfficialOrganizationCode());
-
-        // 批量获取模型
-        $allModels = $this->providerModelDomainService->getModelsByModelIds($providerDataIsolation, $allModelIds);
-
-        // 提取所有服务商ID
-        $providerConfigIds = [];
-        foreach ($allModels as $models) {
-            foreach ($models as $model) {
-                $providerConfigIds[] = $model->getServiceProviderConfigId();
-            }
-        }
-
-        // 批量获取服务商状态（第2次SQL查询）
-        $providerStatuses = [];
-        if (! empty($providerConfigIds)) {
-            $providerConfigs = $this->providerConfigDomainService->getByIds($providerDataIsolation, array_unique($providerConfigIds));
-            foreach ($providerConfigs as $config) {
-                $providerStatuses[$config->getId()] = $config->getStatus();
-            }
-        }
-
-        // 应用级联状态筛选，返回可用模型
-        $availableModels = [];
-        foreach ($allModels as $modelId => $models) {
-            $bestModel = $this->selectBestModelForBatch($models, $providerStatuses);
-            if ($bestModel) {
-                $availableModels[$modelId] = $bestModel;
-            }
-        }
-
-        return $availableModels;
-    }
-
-    /**
-     * 为批量查询优化的模型选择方法.
-     * @param ProviderModelEntity[] $models 模型列表
-     * @param array $providerStatuses 服务商状态映射
-     */
-    private function selectBestModelForBatch(array $models, array $providerStatuses): ?ProviderModelEntity
-    {
-        if (empty($models)) {
-            return null;
-        }
-
-        // 优先选择服务商启用且模型启用的模型
-        foreach ($models as $model) {
-            // 动态模型忽略服务商状态检查
-            if ($model->isDynamicModel()) {
-                if ($model->getStatus() && $model->getStatus()->value === Status::Enabled->value) {
-                    return $model;
-                }
-                continue;
-            }
-
-            $providerId = $model->getServiceProviderConfigId();
-            $providerStatus = $providerStatuses[$providerId] ?? Status::Disabled;
-
-            // 服务商禁用，跳过该模型
-            if ($providerStatus === Status::Disabled) {
-                continue;
-            }
-
-            // 服务商启用，检查模型状态
-            if ($model->getStatus() && $model->getStatus()->value === Status::Enabled->value) {
-                return $model;
-            }
-        }
-
-        return null;
+        return $this->filterAvailableModels($groupedModels, []);
     }
 
     /**
@@ -524,12 +410,10 @@ class ModeAppService extends AbstractModeAppService
                     continue;
                 }
 
-                // 排除VLM类型的模型（VLM模型应该通过getImageModelsForAggregate处理）
-                if ($providerModel->getCategory() === Category::VLM) {
+                if (in_array($providerModel->getCategory(), [Category::VLM, Category::VGM], true)) {
                     continue;
                 }
 
-                // 动态模型跳过 isSupportFunction 检查（动态模型是虚拟模型，不需要检查 function 支持）
                 if (! $providerModel->isDynamicModel() && ! $providerModel->getConfig()->isSupportFunction()) {
                     continue;
                 }
@@ -549,7 +433,32 @@ class ModeAppService extends AbstractModeAppService
      */
     private function getImageModelsForAggregate(ModeAggregate $aggregate, array $allProviderModels): array
     {
-        $aggregateImageModels = [];
+        return $this->getCategorizedModelsForAggregate($aggregate, $allProviderModels, Category::VLM);
+    }
+
+    /**
+     * 从批量查询结果中提取特定聚合根的视频模型（VGM）.
+     *
+     * @param ModeAggregate $aggregate 模式聚合根
+     * @param array<string, ProviderModelEntity> $allProviderModels 批量查询的所有模型结果
+     * @return array<string, ProviderModelEntity> 该聚合根相关的视频模型
+     */
+    private function getVideoModelsForAggregate(ModeAggregate $aggregate, array $allProviderModels): array
+    {
+        // 这里只筛出视频类模型；同一逻辑模型多 provider 的去重在 assembler 中完成。
+        return $this->getCategorizedModelsForAggregate($aggregate, $allProviderModels, Category::VGM);
+    }
+
+    /**
+     * @param array<string, ProviderModelEntity> $allProviderModels
+     * @return array<string, ProviderModelEntity>
+     */
+    private function getCategorizedModelsForAggregate(
+        ModeAggregate $aggregate,
+        array $allProviderModels,
+        Category $category
+    ): array {
+        $aggregateModels = [];
 
         foreach ($aggregate->getGroupAggregates() as $groupAggregate) {
             foreach ($groupAggregate->getRelations() as $relation) {
@@ -558,15 +467,14 @@ class ModeAppService extends AbstractModeAppService
                 if (! $providerModel = $allProviderModels[$modelId] ?? null) {
                     continue;
                 }
-                // 只返回 VLM 类型的模型
-                if ($providerModel->getCategory() !== Category::VLM) {
+                if ($providerModel->getCategory() !== $category) {
                     continue;
                 }
-                $aggregateImageModels[$modelId] = $providerModel;
+                $aggregateModels[$modelId] = $providerModel;
             }
         }
 
-        return $aggregateImageModels;
+        return $aggregateModels;
     }
 
     /**
@@ -574,7 +482,6 @@ class ModeAppService extends AbstractModeAppService
      */
     private function getProviderModelsByModeAggregates(array $modeAggregates): array
     {
-        // 步骤1：预收集所有需要的modelId
         $allModelIds = [];
         foreach ($modeAggregates as $aggregate) {
             foreach ($aggregate->getGroupAggregates() as $groupAggregate) {
@@ -584,7 +491,6 @@ class ModeAppService extends AbstractModeAppService
             }
         }
 
-        // 步骤2：批量查询所有模型和服务商状态
         return $this->getModelsBatch(array_unique($allModelIds));
     }
 }

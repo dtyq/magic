@@ -1,6 +1,7 @@
 <div align="left">
   <a href="./README.md"><img alt="README in English" src="https://img.shields.io/badge/English-d9d9d9" height="20"></a>
   <a href="./README_CN.md"><img alt="简体中文版自述文件" src="https://img.shields.io/badge/简体中文-d9d9d9" height="20"></a>
+  <a href="#自托管部署"><img alt="现在部署！" src="https://img.shields.io/badge/现在部署%21-red" height="20"></a>
 </div>
 
 # 🔥 超级麦吉 - 企业级开源 AI Agent 平台
@@ -23,7 +24,7 @@
       <img alt="Discussion posts" src="https://img.shields.io/github/discussions/dtyq/magic?labelColor=%20%239b8afb&color=%20%237a5af8">
     </a>
     <a href="https://www.magicrew.ai" target="_blank">
-      <img alt="Static Badge" src="https://img.shields.io/badge/Build with Magic 🔮-301AD2">
+      <img alt="Static Badge" src="https://img.shields.io/badge/Built with Magic 🔮-301AD2">
     </a>
   </p>
 </div>
@@ -164,9 +165,18 @@
 
 ### 自托管部署
 
-我们基于 [kind](https://kind.sigs.k8s.io/) 构建了一套轻量本地 Kubernetes 部署方案，通过 `magicrew-cli` 一键完成环境检查、本地镜像仓库、集群创建、基础设施（MySQL / Redis / RabbitMQ / MinIO）及业务服务的全流程编排，开箱即用。
+**前置要求：** Docker + curl，支持 macOS 和 Linux（Windows 支持即将上线）。
 
-部署工具链目前正在整理中，即将开源，敬请期待。
+```bash
+curl -fsSL https://getmagicrew.sh | bash
+```
+
+一条命令搞定一切——集群创建、基础设施、服务部署，全程自动。完成后：
+
+- Web 访问：**http://localhost:38080**
+- 清理环境：`magicrew teardown`
+
+→ [完整部署指南](./docs/zh/development/deploy/docker.md)
 
 ### 云服务版本
 

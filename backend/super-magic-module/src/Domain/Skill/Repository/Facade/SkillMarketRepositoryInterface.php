@@ -42,6 +42,11 @@ interface SkillMarketRepositoryInterface
     public function findBySkillCode(string $skillCode): ?SkillMarketEntity;
 
     /**
+     * Find the latest published market skill by skill code.
+     */
+    public function findPublishedBySkillCode(string $skillCode): ?SkillMarketEntity;
+
+    /**
      * 保存市场技能.
      *
      * @param SkillMarketEntity $entity 市场技能实体
@@ -72,11 +77,20 @@ interface SkillMarketRepositoryInterface
         ?string $name18n,
         ?string $publisherType,
         ?string $skillCode,
+        ?string $packageName,
         ?string $startTime,
         ?string $endTime,
         string $orderBy,
         Page $page
     ): array;
+
+    /**
+     * 根据 ID 查找市场技能.
+     *
+     * @param int $id 市场技能 ID
+     * @return null|SkillMarketEntity 不存在返回 null
+     */
+    public function findById(int $id): ?SkillMarketEntity;
 
     /**
      * 根据 ID 查找市场技能（仅查询已发布的）.
@@ -109,4 +123,17 @@ interface SkillMarketRepositoryInterface
      * @return bool 是否更新成功
      */
     public function updateSortOrderById(int $id, int $sortOrder): bool;
+
+    /**
+     * 按传入字段部分更新市场技能信息.
+     *
+     * @param array{
+     *     category_id?: null|int,
+     *     sort_order?: null|int,
+     *     is_featured?: bool,
+     *     is_hidden?: bool
+     * } $payload
+     * @return bool 是否更新成功
+     */
+    public function updateInfoById(int $id, array $payload): bool;
 }

@@ -13,6 +13,7 @@ import {
 } from "lucide-react"
 import { IconDeviceImacCog, IconLogout, IconShare3 } from "@tabler/icons-react"
 import MagicIcon from "@/components/base/MagicIcon"
+import { isLanguageSwitchEnabled } from "@/models/config/languagePolicy"
 import { UserMenuKey } from "../constants"
 import { userStore } from "@/models/user"
 import useLanguageOptions from "./useLanguageOptions"
@@ -25,6 +26,7 @@ function useUserMenu({ isPreviewMode }: UseUserMenuProps) {
 	const { t } = useTranslation("interface")
 	const { languageOptions, languageLabel } = useLanguageOptions()
 	const { isAdmin, isPersonalOrganization } = userStore.user
+	const isLanguageSwitchVisible = isLanguageSwitchEnabled()
 
 	const menu = useMemo<MenuProps["items"]>(() => {
 		if (isPreviewMode) {
@@ -86,7 +88,7 @@ function useUserMenu({ isPreviewMode }: UseUserMenuProps) {
 				icon: <IconShare3 />,
 				"data-testid": "user-menus-share-management",
 			},
-			{
+			isLanguageSwitchVisible && {
 				label: (
 					<span className="inline-flex w-full items-center justify-between gap-1">
 						{t("sider.switchLanguage")}
@@ -131,7 +133,15 @@ function useUserMenu({ isPreviewMode }: UseUserMenuProps) {
 				"data-testid": "user-menus-logout",
 			},
 		].filter(Boolean) as ItemType[]
-	}, [isPreviewMode, t, languageLabel, languageOptions, isAdmin])
+	}, [
+		isPreviewMode,
+		t,
+		isLanguageSwitchVisible,
+		languageLabel,
+		languageOptions,
+		isPersonalOrganization,
+		isAdmin,
+	])
 
 	return { menu }
 }

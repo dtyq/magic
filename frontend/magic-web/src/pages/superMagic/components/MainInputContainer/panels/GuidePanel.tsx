@@ -32,12 +32,12 @@ const GuidePanel = observer(({ config, onItemClick }: GuidePanelProps) => {
 			expandable={config.expandable}
 			defaultExpanded={config.default_expanded}
 		>
-			<div className="flex w-full gap-2">
+			<div className="grid w-full grid-cols-1 gap-2 md:grid-cols-2 xl:grid-cols-3">
 				{config.guide.items.map((item) => (
 					<div
 						key={item.key}
 						onClick={() => handleItemClick(item)}
-						className="flex flex-1 cursor-pointer items-center gap-2 overflow-clip rounded-md border border-border bg-background p-3.5 transition-colors hover:bg-accent"
+						className="flex cursor-pointer items-center gap-2 overflow-clip rounded-md border border-border bg-background p-3.5 transition-colors hover:bg-accent"
 					>
 						{/* Icon Container */}
 						{item.icon && (

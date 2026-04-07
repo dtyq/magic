@@ -19,7 +19,7 @@ from app.infrastructure.storage.exceptions import InitException, UploadException
 from app.infrastructure.magic_service import MagicServiceConfigLoader, MagicServiceClient, MagicServiceConfig
 from app.infrastructure.magic_service.exceptions import ConfigurationError, ApiError
 from agentlang.logger import get_logger, setup_logger
-from app.paths import PathManager
+from app.path_manager import PathManager
 
 
 cli_app = typer.Typer(name="storage-uploader", help="Storage Uploader Tool for various backends.", no_args_is_help=True)

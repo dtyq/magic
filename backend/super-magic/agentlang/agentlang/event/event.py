@@ -9,9 +9,8 @@ class EventType(str, Enum):
 
     BEFORE_INIT = "before_init"
     AFTER_INIT = "after_init"
-    BEFORE_SAFETY_CHECK = "before_safety_check"
-    AFTER_SAFETY_CHECK = "after_safety_check"
     AFTER_CLIENT_CHAT = "after_client_chat"
+    THIRD_PARTY_MESSAGE_RECEIVED = "third_party_message_received"
     BEFORE_LLM_REQUEST = "before_llm_request"  # 请求大模型前的事件 [DEPRECATED: 不再触发]
     AFTER_LLM_REQUEST = "after_llm_request"  # 请求大模型后的事件 [DEPRECATED: 不再触发]
     BEFORE_AGENT_THINK = "before_agent_think"  # 智能体思考开始前的事件（思考容器）

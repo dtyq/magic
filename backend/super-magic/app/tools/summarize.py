@@ -116,7 +116,7 @@ class Summarize(BaseTool[SummarizeParams]):
             # 读取文件内容
             file_content = await self._read_file(file_path)
             if not file_content:
-                return ToolResult(error=f"无法读取文件: {file_path}")
+                return ToolResult.error(f"无法读取文件: {file_path}")
 
             # 提取文件名用于显示
             file_name = file_path.split('/')[-1]
@@ -130,7 +130,7 @@ class Summarize(BaseTool[SummarizeParams]):
             )
 
             if not summary_content:
-                return ToolResult(error="信息精炼失败")
+                return ToolResult.error("信息精炼失败")
 
             # 创建结果
             result = ToolResult(
@@ -142,7 +142,7 @@ class Summarize(BaseTool[SummarizeParams]):
 
         except Exception as e:
             logger.exception(f"信息精炼操作失败: {e!s}")
-            return ToolResult(error="Summarization failed")
+            return ToolResult.error("Summarization failed")
 
     async def summarize_content(
         self,

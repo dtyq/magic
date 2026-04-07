@@ -4,7 +4,6 @@ import { MenuProps } from "antd"
 import { collectFileIds } from "../utils/collectFileIds"
 import { collectSelectedItemIds } from "../utils/collectSelectedItemIds"
 import {
-	IconAlertTriangleFilled,
 	IconDownload,
 	IconFileTypePdf,
 	IconFileTypePpt,
@@ -23,6 +22,8 @@ import { getAppEntryFile } from "../../MessageList/components/MessageAttachment/
 import { SuperMagicApi } from "@/apis"
 import useShareRoute from "../../../hooks/useShareRoute"
 import magicToast from "@/components/base/MagicToaster/utils"
+import { useFileActionVisibility } from "@/pages/superMagic/providers/file-action-visibility-provider"
+import { normalizeMenuItems } from "../utils/menu-items"
 
 interface UseBatchDownloadOptions {
 	projectId?: string
@@ -95,6 +96,7 @@ export function useBatchDownload(options: UseBatchDownloadOptions) {
 	const { t } = useTranslation("super")
 	const isMobile = useIsMobile()
 	const { isShareRoute, isFileShare } = useShareRoute()
+	const { hideCopyTo, hideMoveTo, hideShare } = useFileActionVisibility()
 
 	// 批量导出进度控制辅助函数
 	const handleBatchExportStart = (convertType: "pdf" | "ppt") => {
@@ -161,11 +163,11 @@ export function useBatchDownload(options: UseBatchDownloadOptions) {
 			title: t("topicFiles.contextMenu.deleteTip"),
 			content: containsFolders
 				? t("topicFiles.contextMenu.confirmBatchDeleteWithFolders", {
-					count: selectedItems.size,
-				})
+						count: selectedItems.size,
+					})
 				: t("topicFiles.contextMenu.confirmBatchDelete", {
-					count: selectedItems.size,
-				}),
+						count: selectedItems.size,
+					}),
 			variant: "destructive",
 			showIcon: true,
 			okText: t("topicFiles.contextMenu.delete"),
@@ -182,11 +184,11 @@ export function useBatchDownload(options: UseBatchDownloadOptions) {
 			title: t("topicFiles.contextMenu.deleteTip"),
 			content: containsFolders
 				? t("topicFiles.contextMenu.confirmBatchDeleteWithFolders", {
-					count: selectedItems.size,
-				})
+						count: selectedItems.size,
+					})
 				: t("topicFiles.contextMenu.confirmBatchDelete", {
-					count: selectedItems.size,
-				}),
+						count: selectedItems.size,
+					}),
 			variant: "destructive",
 			showIcon: true,
 			okText: t("topicFiles.contextMenu.delete"),
@@ -454,183 +456,183 @@ export function useBatchDownload(options: UseBatchDownloadOptions) {
 	}
 
 	// 创建下拉菜单项配置
-	const batchMenuItems: MenuProps["items"] = [
+	const batchMenuItems = normalizeMenuItems([
 		// 分享文件（仅在项目内显示）
-		...(isInProject && allowEdit
+		...(isInProject && allowEdit && !hideShare
 			? [
-				{
-					key: "share",
-					label: (
-						<div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-							<IconShare3 size={16} stroke={1.5} />
-							<span>{t("topicFiles.contextMenu.shareFile")}</span>
-						</div>
-					),
-					onClick: handleBatchShare,
-					disabled: batchLoading || !onBatchShareClick,
-				},
-			]
+					{
+						key: "share",
+						label: (
+							<div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+								<IconShare3 size={16} stroke={1.5} />
+								<span>{t("topicFiles.contextMenu.shareFile")}</span>
+							</div>
+						),
+						onClick: handleBatchShare,
+						disabled: batchLoading || !onBatchShareClick,
+					},
+				]
 			: []),
 		// 批量下载（带二级菜单）
 		...(isInProject
 			? [
-				{
-					key: "download",
-					label: (
-						<div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-							<IconDownload size={16} stroke={1.5} />
-							<span>{t("topicFiles.downloadTitle")}</span>
-						</div>
-					),
-					disabled: batchLoading,
-					children: [
-						{
-							key: "download-selected",
-							label: (
-								<div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-									<IconDownload size={16} stroke={1.5} />
-									<span>
-										{t("topicFiles.downloadSelected", {
-											count: selectedItems.size,
-										})}
-									</span>
-								</div>
-							),
-							onClick: handleBatchDownload,
-							disabled: batchLoading,
-						},
-						{
-							key: "export-pdf",
-							label: (
-								<div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-									<IconFileTypePdf size={16} stroke={1.5} />
-									<span>{t("topicFiles.exportPdf")}</span>
-								</div>
-							),
-							onClick: () => handleExportPdfOrPpt("pdf"),
-							disabled: batchLoading,
-						},
-						{
-							key: "export-ppt",
-							label: (
-								<div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-									<IconFileTypePpt size={16} stroke={1.5} />
-									<span>{t("topicFiles.exportPpt")}</span>
-								</div>
-							),
-							onClick: () => handleExportPdfOrPpt("ppt"),
-							disabled: batchLoading,
-						},
-					],
-				},
-			]
+					{
+						key: "download",
+						label: (
+							<div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+								<IconDownload size={16} stroke={1.5} />
+								<span>{t("topicFiles.downloadTitle")}</span>
+							</div>
+						),
+						disabled: batchLoading,
+						children: [
+							{
+								key: "download-selected",
+								label: (
+									<div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+										<IconDownload size={16} stroke={1.5} />
+										<span>
+											{t("topicFiles.downloadSelected", {
+												count: selectedItems.size,
+											})}
+										</span>
+									</div>
+								),
+								onClick: handleBatchDownload,
+								disabled: batchLoading,
+							},
+							{
+								key: "export-pdf",
+								label: (
+									<div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+										<IconFileTypePdf size={16} stroke={1.5} />
+										<span>{t("topicFiles.exportPdf")}</span>
+									</div>
+								),
+								onClick: () => handleExportPdfOrPpt("pdf"),
+								disabled: batchLoading,
+							},
+							{
+								key: "export-ppt",
+								label: (
+									<div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+										<IconFileTypePpt size={16} stroke={1.5} />
+										<span>{t("topicFiles.exportPpt")}</span>
+									</div>
+								),
+								onClick: () => handleExportPdfOrPpt("ppt"),
+								disabled: batchLoading,
+							},
+						],
+					},
+				]
 			: // 不在项目内，暂时只显示一个一级菜单的批量下载（兼容金融模式）
-			[
-				{
-					key: "download-selected",
-					label: (
-						<div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-							<IconDownload size={16} stroke={1.5} />
-							<span>
-								{t("topicFiles.downloadSelected", {
-									count: selectedItems.size,
-								})}
-							</span>
-						</div>
-					),
-					onClick: handleBatchDownload,
-					disabled: batchLoading,
-				},
-				{
-					key: "export-pdf",
-					label: (
-						<div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-							<IconFileTypePdf size={16} stroke={1.5} />
-							<span>{t("topicFiles.exportPdf")}</span>
-						</div>
-					),
-					onClick: () => handleExportPdfOrPpt("pdf"),
-					disabled: batchLoading,
-				},
-				{
-					key: "export-ppt",
-					label: (
-						<div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-							<IconFileTypePpt size={16} stroke={1.5} />
-							<span>{t("topicFiles.exportPpt")}</span>
-						</div>
-					),
-					onClick: () => handleExportPdfOrPpt("ppt"),
-					disabled: batchLoading,
-				},
-			]),
+				[
+					{
+						key: "download-selected",
+						label: (
+							<div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+								<IconDownload size={16} stroke={1.5} />
+								<span>
+									{t("topicFiles.downloadSelected", {
+										count: selectedItems.size,
+									})}
+								</span>
+							</div>
+						),
+						onClick: handleBatchDownload,
+						disabled: batchLoading,
+					},
+					{
+						key: "export-pdf",
+						label: (
+							<div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+								<IconFileTypePdf size={16} stroke={1.5} />
+								<span>{t("topicFiles.exportPdf")}</span>
+							</div>
+						),
+						onClick: () => handleExportPdfOrPpt("pdf"),
+						disabled: batchLoading,
+					},
+					{
+						key: "export-ppt",
+						label: (
+							<div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+								<IconFileTypePpt size={16} stroke={1.5} />
+								<span>{t("topicFiles.exportPpt")}</span>
+							</div>
+						),
+						onClick: () => handleExportPdfOrPpt("ppt"),
+						disabled: batchLoading,
+					},
+				]),
 		// 批量移动（仅在允许编辑时显示）
-		...(isInProject && allowEdit
+		...(isInProject && allowEdit && !hideMoveTo
 			? [
-				{
-					key: "move",
-					label: (
-						<div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-							<IconFolderSymlink size={16} stroke={1.5} />
-							<span>{t("topicFiles.contextMenu.batchMove")}</span>
-						</div>
-					),
-					onClick: handleBatchMove,
-					disabled: batchLoading || isMoving,
-				},
-			]
+					{
+						key: "move",
+						label: (
+							<div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+								<IconFolderSymlink size={16} stroke={1.5} />
+								<span>{t("topicFiles.contextMenu.batchMove")}</span>
+							</div>
+						),
+						onClick: handleBatchMove,
+						disabled: batchLoading || isMoving,
+					},
+				]
 			: []),
 		// 批量复制（仅在允许编辑时显示）
-		...(isInProject && allowEdit
+		...(isInProject && allowEdit && !hideCopyTo
 			? [
-				{
-					key: "copy",
-					label: (
-						<div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-							<IconCopy size={16} stroke={1.5} />
-							<span>{t("topicFiles.contextMenu.batchCopy")}</span>
-						</div>
-					),
-					onClick: handleBatchCopy,
-					disabled: batchLoading || isMoving,
-				},
-			]
+					{
+						key: "copy",
+						label: (
+							<div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+								<IconCopy size={16} stroke={1.5} />
+								<span>{t("topicFiles.contextMenu.batchCopy")}</span>
+							</div>
+						),
+						onClick: handleBatchCopy,
+						disabled: batchLoading || isMoving,
+					},
+				]
 			: []),
 		// 分隔线
 		...(isInProject && allowEdit
 			? [
-				{
-					type: "divider" as const,
-					key: "divider",
-				},
-			]
+					{
+						type: "divider" as const,
+						key: "divider",
+					},
+				]
 			: []),
 		// 批量删除（仅在允许编辑时显示）
 		...(isInProject && allowEdit
 			? [
-				{
-					key: "delete",
-					label: (
-						<div
-							style={{
-								display: "flex",
-								alignItems: "center",
-								gap: 8,
-								color: "#FF4D3A",
-							}}
-						>
-							<IconTrash size={16} stroke={1.5} />
-							<span>{t("topicFiles.contextMenu.delete")}</span>
-						</div>
-					),
-					onClick: isMobile
-						? handleMobileBatchDelete
-						: handlePCBatchDeleteWithConfirm,
-					disabled: batchLoading || isMoving,
-				},
-			]
+					{
+						key: "delete",
+						label: (
+							<div
+								style={{
+									display: "flex",
+									alignItems: "center",
+									gap: 8,
+									color: "#FF4D3A",
+								}}
+							>
+								<IconTrash size={16} stroke={1.5} />
+								<span>{t("topicFiles.contextMenu.delete")}</span>
+							</div>
+						),
+						onClick: isMobile
+							? handleMobileBatchDelete
+							: handlePCBatchDeleteWithConfirm,
+						disabled: batchLoading || isMoving,
+					},
+				]
 			: []),
-	]
+	]) as MenuProps["items"]
 
 	return {
 		// 状态

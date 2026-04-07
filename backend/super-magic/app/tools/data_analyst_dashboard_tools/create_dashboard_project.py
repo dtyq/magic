@@ -16,7 +16,7 @@ from agentlang.event.event import EventType
 from agentlang.logger import get_logger
 from agentlang.utils.file import safe_delete, is_text_file, format_file_size
 from app.tools.core import BaseToolParams, tool
-from app.tools.workspace_guard_tool import WorkspaceGuardTool
+from app.tools.workspace_tool import WorkspaceTool
 from app.tools.abstract_file_tool import AbstractFileTool
 from app.core.entity.message.server_message import DisplayType, FileContent, ToolDetail, FileTreeContent, FileTreeNode, FileTreeNodeType, TerminalContent
 from app.utils.async_file_utils import async_copy2
@@ -74,7 +74,7 @@ Original data source config list, auto-written to magic.project.js sources array
 
 
 @tool()
-class CreateDashboardProject(AbstractFileTool[CreateDashboardProjectParams], WorkspaceGuardTool[CreateDashboardProjectParams]):
+class CreateDashboardProject(AbstractFileTool[CreateDashboardProjectParams], WorkspaceTool[CreateDashboardProjectParams]):
     """<!--zh
     创建数据分析看板项目工具
 
@@ -107,25 +107,22 @@ class CreateDashboardProject(AbstractFileTool[CreateDashboardProjectParams], Wor
             if not template_source.exists():
                 error_msg = "Template source directory does not exist"
                 logger.error(error_msg)
-                return ToolResult(error=error_msg)
+                return ToolResult.error(error_msg)
 
             if not template_source.is_dir():
                 error_msg = "Template source path is not a directory"
                 logger.error(error_msg)
-                return ToolResult(error=error_msg)
+                return ToolResult.error(error_msg)
 
             # 获取安全的目标路径
-            target_path, error = self.get_safe_path(params.name)
-            if error:
-                return ToolResult(error=error)
-
+            target_path = self.resolve_path(params.name)
             logger.info(f"目标路径: {target_path}")
 
             # 检查目标目录是否已存在
             if target_path.exists():
                 error_msg = f"Directory already exists: {params.name}"
                 logger.error(error_msg)
-                return ToolResult(error=error_msg)
+                return ToolResult.error(error_msg)
 
             # 创建目标目录
             await asyncio.to_thread(os.makedirs, target_path, exist_ok=False)
@@ -183,7 +180,7 @@ class CreateDashboardProject(AbstractFileTool[CreateDashboardProjectParams], Wor
             # 回滚：删除已创建的文件和文件夹
             await self._rollback_created_files(created_files)
 
-            return ToolResult(error="Failed to create dashboard project")
+            return ToolResult.error("Failed to create dashboard project")
 
     async def _update_project_config(self, target_path: Path, project_name: str, sources: List[DataSourceConfig]):
         """

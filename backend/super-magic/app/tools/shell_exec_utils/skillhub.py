@@ -1,20 +1,23 @@
 """skillhub 虚拟命令处理器
 
-skillhub CLI 本身不支持的命令（remove、install-github）由此模块拦截并内部实现。
+skillhub CLI 本身不支持的命令（remove、install-github、install-platform-*）由此模块拦截并内部实现。
 """
 import shlex
+from pathlib import Path
 from typing import Optional
 
 from agentlang.logger import get_logger
-from app.core.entity.tool.tool_result import TerminalToolResult
+from app.core.entity.tool.tool_result_types import TerminalToolResult
 
 logger = get_logger(__name__)
 
 
-async def refresh_meta() -> None:
-    """skillhub 命令执行成功后刷新 installed_skills.json"""
-    from app.core.skill_manager import refresh_installed_skills_meta
-    await refresh_installed_skills_meta()
+def _parse_dir(parts: list) -> Optional[Path]:
+    """从命令参数中解析 --dir 值，返回 Path 或 None"""
+    for i, part in enumerate(parts):
+        if part == "--dir" and i + 1 < len(parts):
+            return Path(parts[i + 1])
+    return None
 
 
 async def handle_skillhub(command: str) -> Optional[TerminalToolResult]:
@@ -40,6 +43,12 @@ async def handle_skillhub(command: str) -> Optional[TerminalToolResult]:
     if subcommand == "install-github":
         return await _handle_install_github(command, parts)
 
+    if subcommand == "install-platform-me":
+        return await _handle_install_platform_me(command, parts)
+
+    if subcommand == "install-platform-market":
+        return await _handle_install_platform_market(command, parts)
+
     return None
 
 
@@ -57,7 +66,27 @@ async def _handle_install_github(command: str, parts: list) -> TerminalToolResul
     from app.core.skill_manager import skillhub_install_github
 
     if len(parts) < 3:
-        return TerminalToolResult(content="usage: skillhub install-github <github-url>", command=command, exit_code=1)
+        return TerminalToolResult(content="usage: skillhub install-github <github-url> [--dir <path>]", command=command, exit_code=1)
 
-    success, message = await skillhub_install_github(parts[2])
+    success, message = await skillhub_install_github(parts[2], target_dir=_parse_dir(parts))
+    return TerminalToolResult(content=message, command=command, exit_code=0 if success else 1)
+
+
+async def _handle_install_platform_me(command: str, parts: list) -> TerminalToolResult:
+    from app.core.skill_manager import skillhub_install_platform_me
+
+    if len(parts) < 3:
+        return TerminalToolResult(content="usage: skillhub install-platform-me <skill-code> [--dir <path>]", command=command, exit_code=1)
+
+    success, message = await skillhub_install_platform_me(parts[2], target_dir=_parse_dir(parts))
+    return TerminalToolResult(content=message, command=command, exit_code=0 if success else 1)
+
+
+async def _handle_install_platform_market(command: str, parts: list) -> TerminalToolResult:
+    from app.core.skill_manager import skillhub_install_platform_market
+
+    if len(parts) < 3:
+        return TerminalToolResult(content="usage: skillhub install-platform-market <skill-code> [--dir <path>]", command=command, exit_code=1)
+
+    success, message = await skillhub_install_platform_market(parts[2], target_dir=_parse_dir(parts))
     return TerminalToolResult(content=message, command=command, exit_code=0 if success else 1)

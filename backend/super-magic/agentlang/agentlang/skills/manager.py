@@ -6,10 +6,38 @@ import logging
 import asyncio
 import aiofiles
 
-from agentlang.utils.annotation_remover import remove_human_annotations
+from agentlang.utils.annotation_remover import remove_developer_annotations
 from .models import SkillMetadata
 from .loader import SkillLoader
 from .exceptions import SkillNotFoundError, SkillResourceError
+
+_SKILL_MD_FILENAME = "SKILL.md"
+_MAX_NEST_DEPTH = 3
+
+
+def _find_skill_md_sync(root: Path, max_depth: int = _MAX_NEST_DEPTH) -> Optional[Path]:
+    """BFS to find the first SKILL.md under *root*, bounded by *max_depth*.
+
+    Platform skill packages may have extra nesting layers, e.g.
+      himalaya/himalaya/SKILL.md   or
+      todo-mgmt/SKILL-hash/todo-mgmt/SKILL.md
+    """
+    queue: list[tuple[Path, int]] = [(root, 0)]
+    while queue:
+        current, depth = queue.pop(0)
+        if depth > max_depth:
+            continue
+        candidate = current / _SKILL_MD_FILENAME
+        if candidate.is_file():
+            return candidate
+        if depth < max_depth:
+            try:
+                for child in current.iterdir():
+                    if child.is_dir() and not child.name.startswith("."):
+                        queue.append((child, depth + 1))
+            except PermissionError:
+                pass
+    return None
 
 
 class SkillManager:
@@ -47,6 +75,17 @@ class SkillManager:
                 for d in skills_dirs
             ]
 
+    async def _resolve_skill_file(self, skill_dir: Path) -> Optional[Path]:
+        """Resolve the SKILL.md path for a skill directory.
+
+        Checks ``skill_dir/SKILL.md`` first; if absent, searches nested
+        subdirectories (platform packages may add extra nesting layers).
+        """
+        direct = skill_dir / _SKILL_MD_FILENAME
+        if await asyncio.to_thread(direct.exists):
+            return direct
+        found = await asyncio.to_thread(_find_skill_md_sync, skill_dir)
+        return found
 
     async def _scan_all_skills(self) -> List[SkillMetadata]:
         """实时扫描所有 skills 目录，返回所有 SkillMetadata 列表"""
@@ -63,8 +102,8 @@ class SkillManager:
             for skill_dir in entries:
                 if not await asyncio.to_thread(skill_dir.is_dir):
                     continue
-                skill_file = skill_dir / "SKILL.md"
-                if not await asyncio.to_thread(skill_file.exists):
+                skill_file = await self._resolve_skill_file(skill_dir)
+                if skill_file is None:
                     continue
                 try:
                     skill = await self.loader.load_from_file(skill_file)
@@ -81,29 +120,33 @@ class SkillManager:
         """保留接口兼容性，实际不做任何事（已无缓存）"""
         pass
 
-    async def get_skill(self, name: str) -> Optional[SkillMetadata]:
+    async def get_skill(self, name: str, search_path: Optional[Path] = None) -> Optional[SkillMetadata]:
         """获取指定名称的 Skill（实时扫描磁盘，大小写不敏感）
 
         查找策略：
-        1. 精确匹配目录名
-        2. 大小写不敏感匹配目录名，读取 SKILL.md 后返回
+        1. 若指定 search_path，仅在该目录下做一次 iterdir() 查找，跳过 skills_dirs 遍历
+        2. 否则依次扫描 skills_dirs 中的每个目录
+        3. 若 SKILL.md 不在第一层，递归向下查找（兼容平台 skill 包嵌套结构）
 
         Args:
             name: Skill 名称或 slug（大小写不敏感）
+            search_path: 可选，指定在哪个目录下查找，传入时不再遍历 skills_dirs
 
         Returns:
             SkillMetadata 实例，如果不存在返回 None
         """
         name_lower = name.lower()
+        dirs_to_search = [search_path] if search_path is not None else self.skills_dirs
 
-        for skills_dir in self.skills_dirs:
-            if not skills_dir.exists():
+        for skills_dir in dirs_to_search:
+            if not await asyncio.to_thread(skills_dir.exists):
                 continue
-            for entry in skills_dir.iterdir():
-                if not entry.is_dir() or entry.name.lower() != name_lower:
+            entries = await asyncio.to_thread(lambda: list(skills_dir.iterdir()))
+            for entry in entries:
+                if not await asyncio.to_thread(entry.is_dir) or entry.name.lower() != name_lower:
                     continue
-                skill_file = entry / "SKILL.md"
-                if not skill_file.exists():
+                skill_file = await self._resolve_skill_file(entry)
+                if skill_file is None:
                     continue
                 try:
                     return await self.loader.load_from_file(skill_file)
@@ -221,7 +264,7 @@ class SkillManager:
         async with aiofiles.open(ref_path, mode='r', encoding='utf-8') as f:
             content = await f.read()
 
-        return remove_human_annotations(content)
+        return remove_developer_annotations(content)
 
     async def get_resource_path(self, skill_name: str, resource_path: str) -> Path:
         """获取资源文件路径（异步）

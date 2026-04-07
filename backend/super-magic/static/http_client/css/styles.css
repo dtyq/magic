@@ -37,17 +37,67 @@ body {
     line-height: 1.6;
     color: var(--wechat-text-dark);
     background-color: var(--wechat-background);
-    padding: 15px;
+    padding: 0;
+    margin: 0;
+    height: 100vh;
+    overflow: hidden;
 }
 
-.container {
-    max-width: 800px;
-    margin: 0 auto;
+.app-container {
+    display: flex;
+    width: 100vw;
+    height: 100vh;
     background-color: var(--wechat-panel-bg);
-    border-radius: 0;
-    box-shadow: 0 1px 4px rgba(0, 0, 0, 0.05);
-    padding: 15px;
 }
+
+.sidebar {
+    width: 320px;
+    min-width: 200px;
+    max-width: 600px;
+    flex-shrink: 0;
+    background-color: #f7f7f7;
+    border-right: 1px solid var(--wechat-border);
+    padding: 20px 15px;
+    display: flex;
+    flex-direction: column;
+    overflow-y: auto;
+}
+
+/* 侧边栏拖拽条 */
+.resizer {
+    width: 5px;
+    cursor: col-resize;
+    background-color: transparent;
+    transition: background-color 0.2s;
+    z-index: 10;
+}
+
+.resizer:hover, .resizer.resizing {
+    background-color: var(--wechat-green);
+}
+
+/* 输入框拖拽条 */
+.resizer-horizontal {
+    height: 5px;
+    cursor: row-resize;
+    background-color: transparent;
+    transition: background-color 0.2s;
+    z-index: 10;
+    margin-top: -5px; /* 覆盖在边框上 */
+}
+
+.resizer-horizontal:hover, .resizer-horizontal.resizing {
+    background-color: var(--wechat-green);
+}
+
+.main-content {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    background-color: var(--wechat-background);
+}
+
 
 h1 {
     text-align: center;
@@ -60,28 +110,29 @@ h1 {
 /* 连接配置面板 */
 .connection-panel {
     background-color: var(--wechat-panel-bg);
-    padding: 12px;
-    border-radius: 3px;
-    margin-bottom: 15px;
+    padding: 15px;
+    border-radius: 6px;
+    margin-bottom: 20px;
     display: flex;
-    flex-wrap: wrap;
-    gap: 8px;
-    align-items: center;
+    flex-direction: column;
+    gap: 12px;
     border: 1px solid var(--wechat-border);
+    box-shadow: 0 1px 3px rgba(0,0,0,0.02);
 }
 
 .form-group {
-    flex: 1;
-    min-width: 200px;
+    width: 100%;
     display: flex;
-    align-items: center;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 5px;
 }
 
 label {
-    margin-right: 10px;
+    margin-right: 0;
     margin-bottom: 0;
-    font-weight: normal;
-    font-size: 14px;
+    font-weight: 500;
+    font-size: 13px;
     color: var(--wechat-text-dark);
     white-space: nowrap;
 }
@@ -90,7 +141,7 @@ input[type="text"] {
     width: 100%;
     padding: 8px 10px;
     border: 1px solid var(--wechat-border);
-    border-radius: 3px;
+    border-radius: 4px;
     font-size: 14px;
     transition: border-color 0.2s;
 }
@@ -102,10 +153,10 @@ input[type="text"]:focus {
 
 /* Agent模式选择器样式 */
 .agent-mode-select {
-    width: 100%;
+    flex: 1;
     padding: 8px 10px;
     border: 1px solid var(--wechat-border);
-    border-radius: 3px;
+    border-radius: 4px;
     font-size: 14px;
     background-color: white;
     color: var(--wechat-text-dark);
@@ -203,34 +254,29 @@ input[type="text"]:focus {
 }
 
 /* 连接面板样式 */
-.connection-panel {
-    background: #f8f9fa;
-    border: 1px solid #dee2e6;
-    border-radius: 8px;
-    padding: 20px;
-    margin-bottom: 20px;
-}
-
 .connection-buttons {
     display: flex;
     gap: 10px;
     margin-top: 10px;
+    flex-direction: column;
 }
 
 .connection-buttons .btn {
-    flex: 1;
-    min-width: 120px;
-    white-space: nowrap;
-    padding: 8px 12px;
+    width: 100%;
+    padding: 10px 12px;
 }
 
 /* 配置内容面板 */
 .config-panel {
     background-color: var(--wechat-panel-bg);
-    padding: 12px;
-    border-radius: 3px;
-    margin-bottom: 15px;
+    padding: 15px;
+    border-radius: 6px;
+    margin-bottom: 20px;
     border: 1px solid var(--wechat-border);
+    box-shadow: 0 1px 3px rgba(0,0,0,0.02);
+    display: flex;
+    flex-direction: column;
+    flex: 1;
 }
 
 .tabs {
@@ -245,7 +291,7 @@ input[type="text"]:focus {
     border: none;
     border-bottom: 2px solid transparent;
     cursor: pointer;
-    font-weight: normal;
+    font-weight: 500;
     font-size: 14px;
     transition: all 0.2s;
     color: var(--wechat-text-gray);
@@ -257,23 +303,29 @@ input[type="text"]:focus {
 }
 
 .tab-content {
-    margin-bottom: 15px;
+    margin-bottom: 0;
+    flex: 1;
+    display: flex;
+    flex-direction: column;
 }
 
 .tab-pane {
     display: none;
+    flex: 1;
+    flex-direction: column;
 }
 
 .tab-pane.active {
-    display: block;
+    display: flex;
 }
 
 .config-textarea {
     width: 100%;
-    height: 180px;
+    flex: 1;
+    min-height: 180px;
     padding: 10px;
     border: 1px solid var(--wechat-border);
-    border-radius: 3px;
+    border-radius: 4px;
     resize: vertical;
     font-family: monospace;
     font-size: 13px;
@@ -299,29 +351,31 @@ input[type="checkbox"] {
 .chat-container {
     display: flex;
     flex-direction: column;
-    height: 60vh;
-    border: 1px solid var(--wechat-border);
-    border-radius: 3px;
+    height: 100%;
+    border: none;
+    border-radius: 0;
     overflow: hidden;
 }
 
 .messages-container {
     flex: 1;
     overflow-y: auto;
-    padding: 15px;
+    padding: 12px 15px;
     background-color: var(--wechat-background);
 }
 
 .message-list {
     display: flex;
     flex-direction: column;
-    gap: 10px;
+    gap: 8px;
 }
 
 .message {
-    padding: 10px;
-    max-width: 80%;
+    padding: 8px 12px;
+    max-width: 85%;
     word-break: break-word;
+    font-size: 14px;
+    line-height: 1.5;
 }
 
 .message.client {
@@ -339,6 +393,7 @@ input[type="checkbox"] {
     border-radius: 0 8px 8px 8px;
     /* 微信气泡特有的形状 */
     border: 1px solid var(--wechat-border);
+    box-shadow: 0 1px 2px rgba(0,0,0,0.02);
 }
 
 .message.system {
@@ -348,14 +403,16 @@ input[type="checkbox"] {
     font-style: normal;
     font-size: 12px;
     border: none;
-    padding: 5px 10px;
-    border-radius: 10px;
+    padding: 4px 8px;
+    border-radius: 4px;
+    margin: 4px 0;
 }
 
 .message-header {
     font-size: 11px;
-    margin-bottom: 3px;
+    margin-bottom: 4px;
     color: rgba(255, 255, 255, 0.8);
+    opacity: 0.8;
 }
 
 .message.server .message-header {
@@ -364,60 +421,465 @@ input[type="checkbox"] {
 
 .message-content {
     white-space: pre-wrap;
+    font-family: monospace;
+    font-size: 13px;
+}
+
+/* AI 回复消息气泡 */
+.message.ai {
+    align-self: flex-start;
+    background-color: white;
+    color: var(--wechat-text-dark);
+    border-radius: 0 8px 8px 8px;
+    border: 1px solid var(--wechat-border);
+    box-shadow: 0 1px 4px rgba(0,0,0,0.06);
+    padding: 8px 12px;
+    max-width: 85%;
+    word-break: break-word;
+    font-size: 14px;
+    line-height: 1.6;
+}
+
+.message.ai .ai-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 6px;
+}
+
+.message.ai .message-header {
+    color: var(--wechat-text-gray);
+    font-size: 11px;
+    margin-bottom: 0;
+}
+
+/* 原文 / MD 切换按钮 */
+.ai-toggle-btn {
+    font-size: 11px;
+    padding: 1px 7px;
+    border: 1px solid var(--wechat-border);
+    border-radius: 3px;
+    background: transparent;
+    color: var(--wechat-text-gray);
+    cursor: pointer;
+    line-height: 1.6;
+    flex-shrink: 0;
+}
+.ai-toggle-btn:hover {
+    background: rgba(0,0,0,0.04);
+}
+
+/* 原文视图 */
+.ai-raw-view {
+    white-space: pre-wrap;
+    font-family: monospace;
+    font-size: 12px;
+    color: var(--wechat-text-gray);
+    line-height: 1.6;
+}
+
+/* Markdown 渲染视图 */
+.ai-markdown {
+    font-size: 14px;
+    line-height: 1.7;
+    color: var(--wechat-text-dark);
+}
+.ai-markdown p { margin: 0 0 8px; }
+.ai-markdown p:last-child { margin-bottom: 0; }
+.ai-markdown h1, .ai-markdown h2, .ai-markdown h3,
+.ai-markdown h4, .ai-markdown h5, .ai-markdown h6 {
+    margin: 12px 0 6px;
+    font-weight: 600;
+    line-height: 1.4;
+}
+.ai-markdown h1 { font-size: 1.3em; }
+.ai-markdown h2 { font-size: 1.15em; }
+.ai-markdown h3 { font-size: 1.05em; }
+.ai-markdown ul, .ai-markdown ol {
+    padding-left: 1.5em;
+    margin: 6px 0;
+}
+.ai-markdown li { margin: 2px 0; }
+.ai-markdown code {
+    background: rgba(0,0,0,0.05);
+    padding: 1px 5px;
+    border-radius: 3px;
+    font-family: monospace;
+    font-size: 12px;
+}
+.ai-markdown pre {
+    background: #f6f8fa;
+    border: 1px solid var(--wechat-border);
+    border-radius: 5px;
+    padding: 10px 12px;
+    overflow-x: auto;
+    margin: 8px 0;
+}
+.ai-markdown pre code {
+    background: none;
+    padding: 0;
+    font-size: 12px;
+}
+.ai-markdown blockquote {
+    border-left: 3px solid var(--wechat-border);
+    margin: 6px 0;
+    padding: 2px 12px;
+    color: var(--wechat-text-gray);
+}
+.ai-markdown table {
+    border-collapse: collapse;
+    width: 100%;
+    margin: 8px 0;
+    font-size: 13px;
+}
+.ai-markdown th, .ai-markdown td {
+    border: 1px solid var(--wechat-border);
+    padding: 5px 10px;
+    text-align: left;
+}
+.ai-markdown th { background: #f5f5f5; font-weight: 600; }
+.ai-markdown a { color: #4c8bf5; text-decoration: none; }
+.ai-markdown a:hover { text-decoration: underline; }
+.ai-markdown hr { border: none; border-top: 1px solid var(--wechat-border); margin: 10px 0; }
+.ai-markdown img { max-width: 100%; border-radius: 4px; }
+
+/* AI 回复中的 iframe 渲染区域 */
+.ai-iframe-wrapper {
+    margin-top: 8px;
+    border: 1px solid var(--wechat-border);
+    border-radius: 6px;
+    overflow: hidden;
+    background: #fff;
+}
+
+.ai-iframe {
+    display: block;
+    width: 100%;
+    height: 300px;
+    border: none;
+    background: #fff;
+}
+
+/* 思考过程折叠块 */
+.thinking-block {
+    align-self: flex-start;
+    max-width: 85%;
+    margin: 2px 0;
+}
+
+.thinking-summary {
+    display: inline-block;
+    padding: 3px 10px;
+    font-size: 12px;
+    color: #9b59b6;
+    cursor: pointer;
+    border-radius: 4px;
+    user-select: none;
+    background-color: rgba(155, 89, 182, 0.06);
+    border: 1px solid rgba(155, 89, 182, 0.2);
+}
+
+.thinking-summary:hover {
+    background-color: rgba(155, 89, 182, 0.12);
+}
+
+.thinking-detail {
+    margin-top: 4px;
+    padding: 8px 12px;
+    background-color: rgba(155, 89, 182, 0.04);
+    border: 1px solid rgba(155, 89, 182, 0.15);
+    border-radius: 4px;
+    font-size: 12px;
+    color: #7d6b8a;
+    white-space: pre-wrap;
+    line-height: 1.5;
+    max-height: 200px;
+    overflow-y: auto;
+}
+
+/* 工具调用折叠块 */
+.tool-call-block {
+    align-self: flex-start;
+    max-width: 85%;
+    margin: 2px 0;
+}
+
+.tool-call-header {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 3px 10px;
+    font-size: 12px;
+    border-radius: 4px;
+    user-select: none;
+}
+
+.tool-call-block.tool-call-running .tool-call-header {
+    color: #d07a1a;
+    background-color: rgba(230, 126, 34, 0.06);
+    border: 1px solid rgba(230, 126, 34, 0.25);
+}
+
+.tool-call-block.tool-call-finished .tool-call-header {
+    color: #2471a3;
+    background-color: rgba(41, 128, 185, 0.06);
+    border: 1px solid rgba(41, 128, 185, 0.22);
+}
+
+.tool-call-header:hover {
+    filter: brightness(0.95);
+}
+
+.tool-call-status-dot {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    flex-shrink: 0;
+}
+
+.tool-call-running .tool-call-status-dot {
+    background-color: #e67e22;
+}
+
+.tool-call-finished .tool-call-status-dot {
+    background-color: #27ae60;
+}
+
+.tool-call-action {
+    font-weight: 500;
+}
+
+.tool-call-remark {
+    opacity: 0.75;
+}
+
+.tool-call-time {
+    opacity: 0.45;
+    font-size: 10px;
+    margin-left: 2px;
+}
+
+.tool-call-arrow {
+    font-size: 9px;
+    opacity: 0.55;
+    flex-shrink: 0;
+    margin-left: 2px;
+}
+
+.tool-call-detail {
+    margin-top: 4px;
+    padding: 8px 12px;
+    background-color: rgba(41, 128, 185, 0.04);
+    border: 1px solid rgba(41, 128, 185, 0.15);
+    border-radius: 4px;
+    font-family: monospace;
+    font-size: 11px;
+    white-space: pre-wrap;
+    word-break: break-all;
+    color: #5d7d98;
+    max-height: 300px;
+    overflow-y: auto;
+    line-height: 1.5;
+}
+
+/* 事件日志折叠条目 */
+.event-log {
+    align-self: stretch;
+    margin: 2px 0;
+}
+
+.event-log-summary {
+    display: inline-block;
+    padding: 2px 8px;
+    font-size: 11px;
+    color: #aaa;
+    cursor: pointer;
+    border-radius: 4px;
+    user-select: none;
+}
+
+.event-log-summary:hover {
+    background-color: rgba(0,0,0,0.04);
+    color: #888;
+}
+
+.event-log-detail {
+    margin-top: 4px;
+    padding: 8px 12px;
+    background-color: #f9f9f9;
+    border: 1px solid var(--wechat-border);
+    border-radius: 4px;
+    font-family: monospace;
+    font-size: 11px;
+    white-space: pre-wrap;
+    word-break: break-all;
+    color: var(--wechat-text-gray);
+    max-height: 300px;
+    overflow-y: auto;
 }
 
 /* 消息输入区域 */
 .message-input-panel {
     display: flex;
     flex-direction: column;
-    padding: 12px;
+    padding: 12px 16px 10px;
     background-color: #f9f9f9;
     border-top: 1px solid var(--wechat-border);
     position: relative;
+    box-shadow: 0 -2px 8px rgba(0,0,0,0.03);
+    /* 固定默认高度，JS 拖拽后会覆盖 */
+    height: 240px;
+    min-height: 150px;
+    max-height: 70vh;
+    flex-shrink: 0;
+}
+
+.input-and-actions {
+    display: flex;
+    gap: 12px;
+    flex: 1;
+    min-height: 0;
+    margin-bottom: 8px;
+}
+
+.input-area-wrapper {
+    flex: 1;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+}
+
+.primary-actions {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 6px;
+    flex-shrink: 0;
+    padding-bottom: 4px;
+}
+
+.send-btn {
+    width: 72px;
+    height: 40px;
+    padding: 0;
+    font-size: 14px;
+    font-weight: 500;
+    border-radius: 6px;
+}
+
+.send-hint {
+    font-size: 11px;
+    color: var(--wechat-text-gray);
+    text-align: center;
+    line-height: 1.4;
 }
 
 textarea {
     width: 100%;
-    height: 80px;
-    padding: 10px;
+    flex: 1;
+    min-height: 0;
+    padding: 10px 12px;
     border: 1px solid var(--wechat-border);
-    border-radius: 3px;
+    border-radius: 6px;
     resize: none;
-    margin-bottom: 10px;
     font-size: 14px;
-    transition: border-color 0.2s;
+    transition: border-color 0.2s, box-shadow 0.2s;
 }
 
 textarea:focus {
     border-color: var(--wechat-green);
+    box-shadow: 0 0 0 2px rgba(7, 193, 96, 0.1);
     outline: none;
 }
 
-.button-group {
+.input-controls-row {
+    display: flex;
+    gap: 10px;
+    margin-bottom: 10px;
+    align-items: center;
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    overflow-y: visible;
+    /* 隐藏横向滚动条，但仍可滚动（开发工具场景） */
+    scrollbar-width: none;
+}
+
+.input-controls-row::-webkit-scrollbar {
+    display: none;
+}
+
+.input-controls-row .advanced-mode-toggle {
+    margin-bottom: 0;
+    padding-bottom: 0;
+    border-bottom: none;
+    flex-shrink: 0;
+}
+
+.input-controls-row .mode-switch {
+    margin-bottom: 0;
+    flex-shrink: 0;
+}
+
+.input-controls-row .model-config {
+    flex-shrink: 0;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.input-controls-row .model-config label {
+    margin-right: 0;
+    display: none;
+}
+
+.input-controls-row .model-config input {
+    margin-bottom: 0;
+    width: 150px;
+}
+
+.secondary-actions {
     display: flex;
     gap: 8px;
+    flex-wrap: wrap;
+    justify-content: flex-start;
+    padding-top: 4px;
+}
+
+.secondary-actions .btn {
+    padding: 4px 10px;
+    font-size: 12px;
+    border-radius: 4px;
+}
+
+.button-group {
+    display: none;
 }
 
 /* 响应式设计 */
 @media (max-width: 768px) {
-    .connection-panel {
+    .app-container {
         flex-direction: column;
     }
 
-    .form-group {
+    .sidebar {
         width: 100%;
+        max-height: 40vh;
+        border-right: none;
+        border-bottom: 1px solid var(--wechat-border);
+    }
+
+    .main-content {
+        flex: 1;
     }
 
     .button-group {
         flex-direction: column;
     }
 
-    .container {
-        padding: 10px;
-    }
-
-    body {
-        padding: 10px;
+    .input-controls-row {
+        flex-direction: column;
+        align-items: stretch;
     }
 }
 
@@ -833,4 +1295,487 @@ input[type="file"] {
     color: var(--wechat-text-gray);
     font-size: 12px;
     margin-left: 0;
+}
+
+/* 高级模式开关栏 */
+.advanced-mode-toggle {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 10px;
+    padding-bottom: 10px;
+    border-bottom: 1px solid var(--wechat-border);
+}
+
+.toggle-switch-label {
+    font-size: 13px;
+    font-weight: 500;
+    color: var(--wechat-text-dark);
+    margin: 0;
+    white-space: nowrap;
+}
+
+/* iOS 风格 toggle 开关 */
+.toggle-switch {
+    position: relative;
+    display: inline-block;
+    width: 40px;
+    height: 22px;
+    flex-shrink: 0;
+}
+
+.toggle-switch input {
+    opacity: 0;
+    width: 0;
+    height: 0;
+}
+
+.toggle-switch-slider {
+    position: absolute;
+    cursor: pointer;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background-color: #ccc;
+    transition: 0.3s;
+    border-radius: 22px;
+}
+
+.toggle-switch-slider:before {
+    position: absolute;
+    content: "";
+    height: 16px;
+    width: 16px;
+    left: 3px;
+    bottom: 3px;
+    background-color: white;
+    transition: 0.3s;
+    border-radius: 50%;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
+}
+
+.toggle-switch input:checked + .toggle-switch-slider {
+    background-color: var(--wechat-green);
+}
+
+.toggle-switch input:checked + .toggle-switch-slider:before {
+    transform: translateX(18px);
+}
+
+.advanced-mode-hint {
+    font-size: 12px;
+    color: var(--wechat-text-gray);
+}
+
+/* 高级模式 JSON 输入框 */
+.raw-json-textarea {
+    width: 100%;
+    height: 160px;
+    padding: 10px;
+    border: 1px solid var(--wechat-border);
+    border-radius: 3px;
+    resize: vertical;
+    font-family: monospace;
+    font-size: 12px;
+    margin-bottom: 6px;
+    color: var(--wechat-text-dark);
+    line-height: 1.5;
+}
+
+.raw-json-textarea:focus {
+    border-color: var(--wechat-green);
+    outline: none;
+}
+
+.advanced-mode-tip {
+    font-size: 12px;
+    color: var(--wechat-text-gray);
+    margin-bottom: 8px;
+    line-height: 1.4;
+}
+
+/* ── 侧边栏整体布局调整 ── */
+.sidebar {
+    display: flex;
+    flex-direction: column;
+    overflow: hidden; /* 不再整体滚动，由子区域自行滚动 */
+}
+
+.connection-panel {
+    flex-shrink: 0;
+    margin-bottom: 8px;
+}
+
+/* 连接按钮改为两列并排 */
+.connection-buttons {
+    flex-direction: row;
+    margin-top: 8px;
+    gap: 6px;
+}
+
+.connection-buttons .btn {
+    flex: 1;
+    padding: 7px 6px;
+    font-size: 12px;
+}
+
+/* ── 紧凑初始化配置折叠面板 ── */
+.config-panel-compact {
+    flex-shrink: 0;
+    background-color: var(--wechat-panel-bg);
+    border: 1px solid var(--wechat-border);
+    border-radius: 6px;
+    margin-bottom: 8px;
+    overflow: hidden;
+}
+
+.config-panel-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 8px 12px;
+    cursor: pointer;
+    user-select: none;
+    background-color: #fafafa;
+}
+
+.config-panel-header:hover {
+    background-color: #f0f0f0;
+}
+
+.config-panel-title {
+    font-size: 13px;
+    font-weight: 500;
+    color: var(--wechat-text-dark);
+}
+
+.config-panel-arrow {
+    font-size: 10px;
+    color: var(--wechat-text-gray);
+    transition: transform 0.2s;
+}
+
+.config-panel-arrow.open {
+    transform: rotate(90deg);
+}
+
+.config-panel-body {
+    padding: 10px 12px 12px;
+    border-top: 1px solid var(--wechat-border);
+}
+
+.config-panel-body .config-textarea {
+    min-height: 120px;
+    font-size: 12px;
+}
+
+/* ── 文件树面板 ── */
+.filetree-panel {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    background-color: var(--wechat-panel-bg);
+    border: 1px solid var(--wechat-border);
+    border-radius: 6px;
+    overflow: hidden;
+    min-height: 0;
+}
+
+.filetree-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 8px 12px;
+    background-color: #fafafa;
+    border-bottom: 1px solid var(--wechat-border);
+    flex-shrink: 0;
+}
+
+.filetree-title {
+    font-size: 13px;
+    font-weight: 500;
+    color: var(--wechat-text-dark);
+}
+
+.filetree-actions {
+    display: flex;
+    gap: 4px;
+}
+
+.icon-btn {
+    background: none;
+    border: 1px solid var(--wechat-border);
+    border-radius: 4px;
+    cursor: pointer;
+    padding: 2px 6px;
+    font-size: 13px;
+    line-height: 1.6;
+    color: var(--wechat-text-gray);
+    transition: background-color 0.15s;
+}
+
+.icon-btn:hover {
+    background-color: #f0f0f0;
+    color: var(--wechat-text-dark);
+}
+
+.mount-dir-row {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    padding: 4px 8px;
+    background-color: #f5f5f5;
+    border-bottom: 1px solid var(--wechat-border);
+    flex-shrink: 0;
+}
+
+.mount-dir-label {
+    font-size: 11px;
+    color: var(--wechat-text-gray);
+    white-space: nowrap;
+    flex-shrink: 0;
+}
+
+.mount-dir-input {
+    flex: 1;
+    min-width: 0;
+    font-size: 11px;
+    border: 1px solid var(--wechat-border);
+    border-radius: 3px;
+    padding: 2px 5px;
+    background: #fff;
+    color: var(--wechat-text-dark);
+    outline: none;
+}
+
+.mount-dir-input:focus {
+    border-color: var(--wechat-green);
+}
+
+.filetree-container {
+    flex: 1;
+    overflow-y: auto;
+    padding: 6px 0;
+}
+
+.filetree-empty {
+    padding: 16px 12px;
+    font-size: 12px;
+    color: var(--wechat-text-gray);
+    text-align: center;
+    line-height: 1.8;
+}
+
+/* 文件树节点 */
+.ft-node {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    padding: 2px 8px;
+    cursor: pointer;
+    font-size: 12px;
+    line-height: 1.8;
+    color: var(--wechat-text-dark);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    border-radius: 3px;
+    margin: 0 4px;
+}
+
+.ft-node:hover {
+    background-color: #f0f0f0;
+}
+
+.ft-node.ft-dir {
+    font-weight: 500;
+}
+
+.ft-node.ft-selected {
+    background-color: rgba(7, 193, 96, 0.1);
+    color: var(--wechat-green);
+}
+
+.ft-icon {
+    flex-shrink: 0;
+    font-style: normal;
+    font-size: 12px;
+}
+
+.ft-name {
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.ft-children {
+    /* 子节点通过 padding-left 动态设置缩进 */
+}
+
+/* ── 文件预览弹窗 ── */
+.file-preview-overlay {
+    position: fixed;
+    inset: 0;
+    background-color: rgba(0, 0, 0, 0.45);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 9000;
+}
+
+.file-preview-dialog {
+    background: #fff;
+    border-radius: 8px;
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2);
+    width: 78vw;
+    max-width: 1040px;
+    max-height: 80vh;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+}
+
+.file-preview-main {
+    display: flex;
+    flex: 1;
+    min-height: 0;
+    flex-direction: row;
+    align-items: stretch;
+}
+
+.file-preview-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 12px 16px;
+    border-bottom: 1px solid var(--wechat-border);
+    background-color: #fafafa;
+    flex-shrink: 0;
+}
+
+.file-preview-name {
+    font-size: 13px;
+    font-weight: 500;
+    color: var(--wechat-text-dark);
+    font-family: monospace;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.file-preview-close {
+    background: none;
+    border: none;
+    cursor: pointer;
+    font-size: 16px;
+    color: var(--wechat-text-gray);
+    padding: 0 4px;
+    line-height: 1;
+    flex-shrink: 0;
+}
+
+.file-preview-close:hover {
+    color: var(--wechat-danger);
+}
+
+.file-preview-body {
+    flex: 1;
+    min-width: 0;
+    overflow: auto;
+    padding: 14px 16px;
+    background-color: #fafafa;
+    min-height: 120px;
+}
+
+.file-preview-meta {
+    width: 220px;
+    flex-shrink: 0;
+    overflow: auto;
+    padding: 12px 14px;
+    border-left: 1px solid var(--wechat-border);
+    background-color: #fff;
+    font-size: 12px;
+    line-height: 1.45;
+}
+
+.file-preview-meta-row {
+    margin-bottom: 10px;
+}
+
+.file-preview-meta-row:last-child {
+    margin-bottom: 0;
+}
+
+.file-preview-meta-label {
+    color: var(--wechat-text-gray);
+    font-size: 11px;
+    margin-bottom: 2px;
+}
+
+.file-preview-meta-value {
+    color: var(--wechat-text-dark);
+    word-break: break-all;
+    font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+    font-size: 11px;
+}
+
+@media (max-width: 640px) {
+    .file-preview-main {
+        flex-direction: column-reverse;
+    }
+
+    .file-preview-meta {
+        width: 100%;
+        border-left: none;
+        border-top: 1px solid var(--wechat-border);
+        max-height: 36vh;
+    }
+}
+
+.file-preview-body .file-preview-content {
+    margin: 0;
+    font-family: monospace;
+    font-size: 12px;
+    line-height: 1.6;
+    color: var(--wechat-text-dark);
+    white-space: pre-wrap;
+    word-break: break-all;
+}
+
+.file-preview-image {
+    display: block;
+    max-width: 100%;
+    height: auto;
+    max-height: min(70vh, 800px);
+    margin: 0 auto;
+    object-fit: contain;
+}
+
+.file-preview-video {
+    display: block;
+    max-width: 100%;
+    max-height: min(70vh, 800px);
+    margin: 0 auto;
+    background: #000;
+}
+
+.file-preview-audio {
+    display: block;
+    width: 100%;
+    margin: 12px 0;
+}
+
+.file-preview-pdf {
+    width: 100%;
+    min-height: min(75vh, 900px);
+    height: min(75vh, 900px);
+    border: 0;
+    background: #e8e8e8;
+}
+
+.file-preview-message {
+    font-family: system-ui, -apple-system, sans-serif;
+    white-space: normal;
+    word-break: normal;
+    color: var(--wechat-text-gray);
 }

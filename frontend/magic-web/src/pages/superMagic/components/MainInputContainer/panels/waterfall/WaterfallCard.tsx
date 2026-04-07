@@ -1,5 +1,6 @@
+import { useState } from "react"
 import { cn } from "@/lib/utils"
-import { Loader2, Zap } from "lucide-react"
+import { ImageOff, Zap } from "lucide-react"
 import { useTranslation } from "react-i18next"
 import { useLocaleText } from "../hooks/useLocaleText"
 import type { OptionItem } from "../types"
@@ -18,16 +19,20 @@ interface WaterfallCardProps {
 function WaterfallCard({ template, isSelected, onClick }: WaterfallCardProps) {
 	const { t } = useTranslation("super")
 	const lt = useLocaleText()
-	const hasImage = !!template.thumbnail_url
+	const [hasImageError, setHasImageError] = useState(false)
 
 	// Calculate aspect ratio from template dimensions to prevent layout shift
 	const aspectRatio =
 		template.aspect_ratio ||
 		(template.width && template.height ? template.width / template.height : undefined)
 
+	const resolvedValue = lt(template.value)
 	const resolvedLabel = lt(template.label)
 	const resolvedDescription = lt(template.description)
 	const resolvedSubText = lt(template.sub_text)
+	const cardTitle = resolvedLabel || resolvedValue
+	const cardDescription = resolvedDescription || resolvedSubText
+	const hasImage = !!template.thumbnail_url && !hasImageError
 	const hasHoverContent = !!(resolvedLabel || resolvedDescription || resolvedSubText)
 
 	return (
@@ -50,9 +55,10 @@ function WaterfallCard({ template, isSelected, onClick }: WaterfallCardProps) {
 					>
 						<img
 							src={template.thumbnail_url}
-							alt={resolvedLabel ?? template.value}
+							alt={cardTitle || resolvedValue}
 							className="pointer-events-none size-full object-cover"
 							loading="lazy"
+							onError={() => setHasImageError(true)}
 						/>
 
 						{/* Hover overlay: gradient + content, visible on group hover */}
@@ -87,16 +93,28 @@ function WaterfallCard({ template, isSelected, onClick }: WaterfallCardProps) {
 					</div>
 				) : (
 					<div
-						className="flex w-full flex-col items-center justify-center gap-2 rounded-sm bg-sidebar"
+						className="flex w-full flex-col items-center justify-center gap-3 rounded-sm bg-sidebar px-4 py-6 text-center"
 						style={{
 							aspectRatio: aspectRatio ? String(aspectRatio) : undefined,
 							minHeight: aspectRatio ? undefined : "201px",
 						}}
 					>
-						<Loader2 className="size-9 animate-spin text-muted-foreground" />
-						<p className="text-sm font-medium leading-5 text-foreground">
-							{t("waterfallCard.loadingImage")}
-						</p>
+						<ImageOff className="size-9 text-muted-foreground" />
+						{cardTitle && (
+							<p className="line-clamp-2 text-sm font-medium leading-5 text-foreground">
+								{cardTitle}
+							</p>
+						)}
+						{cardDescription && (
+							<p className="line-clamp-3 text-xs font-normal leading-4 text-muted-foreground">
+								{cardDescription}
+							</p>
+						)}
+						{!cardTitle && !cardDescription && (
+							<p className="text-sm font-medium leading-5 text-muted-foreground">
+								{t("waterfallCard.imageUnavailable")}
+							</p>
+						)}
 					</div>
 				)}
 			</div>

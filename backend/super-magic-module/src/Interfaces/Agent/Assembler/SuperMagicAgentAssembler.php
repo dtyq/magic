@@ -19,6 +19,7 @@ use Dtyq\SuperMagic\Domain\Agent\Entity\AgentMarketEntity;
 use Dtyq\SuperMagic\Domain\Agent\Entity\AgentPlaybookEntity;
 use Dtyq\SuperMagic\Domain\Agent\Entity\AgentVersionEntity;
 use Dtyq\SuperMagic\Domain\Agent\Entity\SuperMagicAgentEntity;
+use Dtyq\SuperMagic\Domain\Agent\Entity\UserAgentEntity;
 use Dtyq\SuperMagic\Domain\Agent\Entity\ValueObject\AgentIconType;
 use Dtyq\SuperMagic\Domain\Agent\Entity\ValueObject\AgentSourceType;
 use Dtyq\SuperMagic\Domain\Agent\Entity\ValueObject\PublisherType;
@@ -338,7 +339,8 @@ class SuperMagicAgentAssembler
         int $page,
         int $pageSize,
         int $total,
-        array $publisherUserMap = []
+        array $publisherUserMap = [],
+        array $creatorUserMap = []
     ): QueryAgentsResponseDTO {
         $list = [];
         foreach ($agents as $agent) {
@@ -348,7 +350,8 @@ class SuperMagicAgentAssembler
                 $storeAgentsMap,
                 $latestVersionsMap,
                 $userAgentsMap,
-                $publisherUserMap
+                $publisherUserMap,
+                self::buildSimpleCreatorInfo($agent->getCreator(), $creatorUserMap)
             );
         }
 
@@ -439,6 +442,7 @@ class SuperMagicAgentAssembler
      * @param array<string, AgentMarketEntity> $storeAgentsMap
      * @param array<string, AgentVersionEntity> $latestVersionsMap
      * @param array<string, MagicUserEntity> $publisherUserMap
+     * @param array<string, UserAgentEntity> $userAgentsMap
      */
     private static function createAgentListItemDTO(
         SuperMagicAgentEntity $agent,
@@ -446,7 +450,8 @@ class SuperMagicAgentAssembler
         array $storeAgentsMap,
         array $latestVersionsMap,
         array $userAgentsMap = [],
-        array $publisherUserMap = []
+        array $publisherUserMap = [],
+        ?array $creatorInfo = null
     ): AgentListItemDTO {
         $playbooks = $playbooksMap[$agent->getCode()] ?? [];
         $features = [];
@@ -458,30 +463,21 @@ class SuperMagicAgentAssembler
             ];
         }
 
-        $versionLookupCode = $agent->getCode();
-        if ($agent->getSourceType()->isMarket()) {
-            $versionLookupCode = $storeAgentsMap[$agent->getCode()]?->getAgentCode() ?? $agent->getCode();
-        }
-        $latestVersionCode = isset($latestVersionsMap[$versionLookupCode]) ? $latestVersionsMap[$versionLookupCode]->getVersion() : null;
-
-        // 对市场来源的本地 Agent，仍需额外告知其原始市场记录是否已经下架。
-        $isStoreOffline = null;
-        if ($agent->getSourceType()->isMarket()) {
-            $storeAgent = $storeAgentsMap[$agent->getCode()] ?? null;
-            if ($storeAgent === null) {
-                $isStoreOffline = true;
-            } else {
-                $isStoreOffline = ! $storeAgent->getPublishStatus()->isPublished();
-            }
-        }
-
+        $versionEntity = $latestVersionsMap[$agent->getCode()] ?? null;
         $userAgent = $userAgentsMap[$agent->getCode()] ?? null;
-        $isAdded = $userAgent !== null;
-        $allowDelete = $userAgent === null
-            ? $agent->getSourceType()->isMarket()
-            : ($isAdded && $userAgent?->getSourceType()->isMarket() === true);
+        $agentMarketEntity = $storeAgentsMap[$agent->getCode()] ?? null;
 
-        $publisher = self::buildAgentPublisher($agent->getCreator(), $publisherUserMap);
+        $latestVersionCode = $versionEntity?->getVersion();
+        $isAdded = $userAgent !== null;
+
+        $allowDelete = false;
+        if ($userAgent && $userAgent->getSourceType()->isMarket()) {
+            $allowDelete = $isAdded;
+        }
+
+        if ($agentMarketEntity) {
+            $publisher = self::buildAgentPublisher($agentMarketEntity->getPublisherType(), $agent->getCreator(), $publisherUserMap);
+        }
 
         return new AgentListItemDTO(
             id: $agent->getId(),
@@ -494,37 +490,54 @@ class SuperMagicAgentAssembler
             playbooks: $features,
             sourceType: $agent->getSourceType()->value,
             enabled: $agent->getEnabled() ?? false,
-            isStoreOffline: $isStoreOffline,
+            isStoreOffline: false,
             latestVersionCode: $latestVersionCode,
             allowDelete: $allowDelete,
             pinnedAt: $agent->getPinnedAt(),
             latestPublishedAt: $agent->getLatestPublishedAt(),
             updatedAt: $agent->getUpdatedAt(),
             createdAt: $agent->getCreatedAt(),
-            publisherType: $publisher['type'],
-            publisher: $publisher['info'],
+            publisherType: $publisher['type'] ?? null,
+            publisher: $publisher['info'] ?? null,
+            creatorInfo: $creatorInfo,
         );
+    }
+
+    /**
+     * @param array<string, MagicUserEntity> $creatorUserMap
+     */
+    private static function buildSimpleCreatorInfo(string $creatorId, array $creatorUserMap): ?array
+    {
+        $creator = $creatorUserMap[$creatorId] ?? null;
+        if ($creator === null) {
+            return null;
+        }
+
+        return [
+            'id' => (string) $creator->getId(),
+            'name' => $creator->getNickname(),
+        ];
     }
 
     /**
      * @param array<string, MagicUserEntity> $publisherUserMap
      * @return array{type: string, info: array{name: string, avatar: string}}
      */
-    private static function buildAgentPublisher(string $creatorId, array $publisherUserMap): array
+    private static function buildAgentPublisher(PublisherType $publisherType, string $creatorId, array $publisherUserMap): array
     {
-        $userEntity = $publisherUserMap[$creatorId] ?? null;
-        if ($userEntity !== null) {
+        if ($publisherType->isUser()) {
+            $userEntity = $publisherUserMap[$creatorId] ?? null;
             return [
-                'type' => PublisherType::USER->value,
+                'type' => $publisherType->value,
                 'info' => [
-                    'name' => $userEntity->getNickname() ?: $creatorId,
-                    'avatar' => $userEntity->getAvatarUrl() ?? '',
+                    'name' => $userEntity?->getNickname() ?: $publisherType->value,
+                    'avatar' => '',
                 ],
             ];
         }
 
         return [
-            'type' => PublisherType::USER->value,
+            'type' => $publisherType->value,
             'info' => [
                 'name' => '',
                 'avatar' => '',

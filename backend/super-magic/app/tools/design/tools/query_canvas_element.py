@@ -20,6 +20,7 @@ from app.tools.design.manager.canvas_manager import CanvasManager
 from app.tools.design.tools.base_design_tool import BaseDesignTool
 from app.tools.design.utils.magic_project_design_parser import (
     ImageElement,
+    VideoElement,
     TextElement,
     RectangleElement,
     EllipseElement,
@@ -27,6 +28,8 @@ from app.tools.design.utils.magic_project_design_parser import (
     StarElement,
     FrameElement,
     GroupElement,
+    MagicProjectConfig,
+    flatten_all_elements,
 )
 
 logger = get_logger(__name__)
@@ -201,7 +204,7 @@ class QueryCanvasElement(BaseDesignTool[QueryCanvasElementParams]):
 
             # Initialize CanvasManager
             manager = CanvasManager(str(project_path))
-            await manager.load()
+            current_config = await manager.read_current_canvas()
 
             # Get element by ID or src
             element = None
@@ -209,13 +212,13 @@ class QueryCanvasElement(BaseDesignTool[QueryCanvasElementParams]):
 
             if params.element_id:
                 # 优先使用 element_id 查询
-                element = await manager.get_element_by_id(params.element_id)
+                element = await manager.get_element_by_id(params.element_id, config=current_config)
                 query_info = f"element_id: {params.element_id}"
                 if element is None:
                     return self._error_element_not_found(params.element_id)
             elif params.src:
                 # 使用 src 查询
-                element = await self._find_element_by_src(manager, params.src)
+                element = await self._find_element_by_src(current_config, params.src)
                 query_info = f"src: {params.src}"
                 if element is None:
                     return ToolResult.error(
@@ -234,33 +237,47 @@ class QueryCanvasElement(BaseDesignTool[QueryCanvasElementParams]):
                 # 检查是否是新生成的（通过 analyzedAt 判断）
                 vu = element.visualUnderstanding
                 if (isinstance(vu, dict) and vu.get('analyzedAt')) or (hasattr(vu, 'analyzedAt') and vu.analyzedAt):
-                    logger.info(f"保存新生成的视觉理解信息到元素 {params.element_id}")
+                    target_element_id = element.id
+                    logger.info(f"保存新生成的视觉理解信息到元素 {target_element_id}")
                     updates = {'visualUnderstanding': element.visualUnderstanding}
-                    await manager.update_element(params.element_id, updates)
-
                     # 获取配置文件路径
                     config_file = self._get_magic_project_js_path(project_path)
 
-                    # 触发文件更新前事件（保存旧内容用于checkpoint回滚）
-                    await self._dispatch_file_event(tool_context, str(config_file), EventType.BEFORE_FILE_UPDATED)
-
-                    # 安全地保存更改
-                    save_error = await self._safe_save_canvas(manager, "query element with visual understanding")
-                    if save_error:
+                    try:
+                        await manager.run_write_transaction(
+                            lambda config: manager.update_element(
+                                target_element_id,
+                                updates,
+                                config=config,
+                            ),
+                            verify_content=lambda verified_config, _: any(
+                                candidate.id == target_element_id
+                                and getattr(candidate, "visualUnderstanding", None)
+                                for candidate in flatten_all_elements(verified_config)
+                            ),
+                            before_write=lambda: self._dispatch_file_event(
+                                tool_context,
+                                str(config_file),
+                                EventType.BEFORE_FILE_UPDATED,
+                            ),
+                            after_write=lambda _: self._dispatch_file_event(
+                                tool_context,
+                                str(config_file),
+                                EventType.FILE_UPDATED,
+                            ),
+                        )
+                    except Exception as save_error:  # noqa: BLE001
                         # 视觉理解保存失败不影响查询结果，仅记录警告
-                        logger.warning(f"保存视觉理解结果失败: {save_error.content}")
-                    else:
-                        # 触发文件更新后事件（通知其他系统）
-                        await self._dispatch_file_event(tool_context, str(config_file), EventType.FILE_UPDATED)
+                        logger.warning(f"保存视觉理解结果失败: {save_error}")
 
             # Add surrounding elements analysis if requested
             if params.include_surrounding:
-                surrounding = await self._analyze_surrounding_elements(element, manager)
+                surrounding = await self._analyze_surrounding_elements(element, current_config)
                 element_data["surrounding_elements"] = surrounding
 
             # Add layer context if requested
             if params.include_layer_context:
-                layer_context = await self._analyze_layer_context(element, manager)
+                layer_context = await self._analyze_layer_context(element, current_config)
                 element_data["layer_context"] = layer_context
 
             # Generate result content
@@ -282,27 +299,26 @@ class QueryCanvasElement(BaseDesignTool[QueryCanvasElementParams]):
                 extra_info={"error_type": "design.error_unexpected"}
             )
 
-    async def _find_element_by_src(self, manager: CanvasManager, src: str) -> Optional[Any]:
+    async def _find_element_by_src(self, config: MagicProjectConfig, src: str) -> Optional[Any]:
         """通过 src 查找图片元素
 
         Args:
-            manager: Canvas manager
+            config: 当前画布配置
             src: 图片的 src 路径（可能带或不带开头的 /）
 
         Returns:
             找到的元素对象，如果没找到返回 None
         """
-        config = manager.config
         if not config.canvas or not config.canvas.elements:
             return None
 
         # 标准化查询路径：去除开头的 /
         normalized_src = src.lstrip('/')
 
-        # 遍历所有元素，查找匹配的图片元素
+        # 遍历所有元素，查找匹配的媒体元素。
+        # 设计生视频会把 src 写到 video 元素里，因此这里同时支持 image/video。
         for element in config.canvas.elements:
-            # 只查找图片类型的元素
-            if isinstance(element, ImageElement):
+            if isinstance(element, (ImageElement, VideoElement)):
                 if hasattr(element, 'src') and element.src:
                     # 标准化元素的 src：去除开头的 /
                     element_src_normalized = element.src.lstrip('/')
@@ -312,7 +328,7 @@ class QueryCanvasElement(BaseDesignTool[QueryCanvasElementParams]):
                         logger.info(f"通过 src 找到元素: {element.name} (id: {element.id}), src: {element.src}")
                         return element
 
-        logger.warning(f"未找到 src 为 '{src}' 的图片元素")
+        logger.warning(f"未找到 src 为 '{src}' 的媒体元素")
         return None
 
     async def _build_element_detail(
@@ -355,6 +371,8 @@ class QueryCanvasElement(BaseDesignTool[QueryCanvasElementParams]):
         # Add type-specific properties
         if isinstance(element, ImageElement):
             detail["image_properties"] = await self._get_image_properties(element, project_path)
+        elif isinstance(element, VideoElement):
+            detail["video_properties"] = await self._get_video_properties(element)
         elif isinstance(element, TextElement):
             detail["text_properties"] = self._get_text_properties(element)
         elif isinstance(element, (RectangleElement, EllipseElement, TriangleElement, StarElement)):
@@ -374,15 +392,18 @@ class QueryCanvasElement(BaseDesignTool[QueryCanvasElementParams]):
         Returns:
             Image properties dictionary
         """
+        # 去掉 src 开头的 / 前缀，图像生成服务返回的 file_dir 带 /，
+        # 前端拼接后写入 magic.project.js，这里统一规范化为相对路径供模型使用
+        src = element.src.lstrip("/") if element.src else element.src
         properties: Dict[str, Any] = {
-            "src": element.src
+            "src": src
         }
 
         # Check file existence and get file info
         if element.src:
             # element.src 是相对于工作区根目录的路径，需要使用 workspace_dir
             import asyncio
-            from agentlang.paths import PathManager
+            from agentlang.path_manager import PathManager
             workspace_dir = PathManager.get_workspace_dir()
 
             # 标准化路径：去除开头的 /，兼容两种格式（/path 和 path）
@@ -437,6 +458,36 @@ class QueryCanvasElement(BaseDesignTool[QueryCanvasElementParams]):
                     "has_cache": True,
                     "summary": getattr(vu, 'summary', None),
                     "detailed": getattr(vu, 'detailed', None)
+                }
+
+        return properties
+
+    async def _get_video_properties(self, element: VideoElement) -> Dict[str, Any]:
+        """Get video element specific properties."""
+        # 图像生成服务返回的 file_dir 带 / 前缀，前端拼接写入 magic.project.js，
+        # 这里统一规范化为相对路径，确保模型看到的路径格式一致
+        properties: Dict[str, Any] = {
+            "src": element.src.lstrip("/") if element.src else element.src,
+            "poster": element.poster.lstrip("/") if element.poster else element.poster,
+            "status": element.status,
+            "error_message": element.errorMessage,
+        }
+
+        if hasattr(element, 'generateVideoRequest') and element.generateVideoRequest:
+            gen_req = element.generateVideoRequest
+            if isinstance(gen_req, dict):
+                properties["generation_info"] = {
+                    "is_generated": True,
+                    "model": gen_req.get('model_id'),
+                    "prompt": gen_req.get('prompt'),
+                    "operation_id": gen_req.get('operation_id'),
+                }
+            else:
+                properties["generation_info"] = {
+                    "is_generated": True,
+                    "model": getattr(gen_req, 'model_id', None),
+                    "prompt": getattr(gen_req, 'prompt', None),
+                    "operation_id": getattr(gen_req, 'operation_id', None),
                 }
 
         return properties
@@ -581,19 +632,17 @@ class QueryCanvasElement(BaseDesignTool[QueryCanvasElementParams]):
     async def _analyze_surrounding_elements(
         self,
         element: Any,
-        manager: CanvasManager
+        config: MagicProjectConfig
     ) -> List[Dict[str, Any]]:
         """Analyze surrounding elements
 
         Args:
             element: Target element
-            manager: Canvas manager
+            config: 当前画布配置
 
         Returns:
             List of surrounding elements with distance info
         """
-        # Get all elements
-        config = manager.config
         if not config.canvas or not config.canvas.elements:
             return []
 
@@ -634,18 +683,17 @@ class QueryCanvasElement(BaseDesignTool[QueryCanvasElementParams]):
     async def _analyze_layer_context(
         self,
         element: Any,
-        manager: CanvasManager
+        config: MagicProjectConfig
     ) -> Dict[str, Any]:
         """Analyze layer context
 
         Args:
             element: Target element
-            manager: Canvas manager
+            config: 当前画布配置
 
         Returns:
             Layer context information
         """
-        config = manager.config
         if not config.canvas or not config.canvas.elements:
             return {"below": [], "above": []}
 

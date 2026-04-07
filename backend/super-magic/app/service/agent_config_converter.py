@@ -1,8 +1,10 @@
 # app/service/agent_config_converter.py
-import os
-import tempfile
-from typing import Dict, List, Optional, Tuple
+import re
+from typing import Any, Dict, List, Optional, Tuple
 from pathlib import Path
+
+import yaml
+
 from app.utils.async_file_utils import async_exists, async_read_text, async_write_text
 from app.infrastructure.sdk.magic_service.factory import get_magic_service_sdk
 from app.infrastructure.sdk.magic_service.parameter.get_agent_details_parameter import GetAgentDetailsParameter
@@ -16,7 +18,7 @@ logger = get_logger(__name__)
 class AgentConfigConverter:
     def __init__(self):
         # 使用主 agents/ 目录存储生成的 .agent 文件，这样 AgentLoader 可以直接找到
-        from app.paths import PathManager
+        from app.path_manager import PathManager
         self.agents_dir = Path(PathManager.get_project_root()) / "agents"
 
     async def convert_api_to_agent_file(self, agent_id: str) -> Tuple[str, AgentDetailsResult]:
@@ -51,67 +53,72 @@ class AgentConfigConverter:
             raise
 
     async def _build_agent_file_content(self, agent_details: AgentDetailsResult) -> str:
-        """基于 user.agent.template 构建 .agent 文件内容"""
-        # 读取模板文件
-        template_path = self.agents_dir / "user.agent.template"
-
+        """基于 user.template.agent 构建 .agent 文件内容"""
+        template_path = self.agents_dir / "user.template.agent"
         if not await async_exists(template_path):
             raise FileNotFoundError(f"模板文件不存在: {template_path}")
 
         template_content = await async_read_text(template_path)
+        agent_content = self._apply_prompt(template_content, agent_details.get_prompt_string())
 
-        # 获取 API 返回的提示词
-        prompt_string = agent_details.get_prompt_string()
-        if prompt_string:
-            # 有提示词，替换占位符
-            agent_content = template_content.replace("USER_CUSTOM_PROMPT", prompt_string)
-        else:
-            # 无提示词，移除整个 user_custom_instructions 块（含前置的 <!--zh ... --> 注释块）
-            import re
-            agent_content = re.sub(
-                r'<!--zh\s*\n<user_custom_instructions>.*?</user_custom_instructions>\s*\n-->\s*\n'
-                r'<user_custom_instructions>.*?</user_custom_instructions>\s*\n?',
-                '',
-                template_content,
-                flags=re.DOTALL,
-            )
-
-        # 添加工具到现有工具列表（不覆盖模板中的固定工具）
         if agent_details.has_tools():
-            remote_tools = []
-            for tool in agent_details.get_tools():
-                # 根据工具类型决定使用 code 还是 name
-                # type=1: 本地工具，使用 code（如 "list_dir"），因为 ToolFactory 用 code 注册和查找
-                # type=2,3: 远程工具，使用 name（如果有）或 code，与 RemoteTool.get_effective_name() 逻辑一致
-                if tool.type == 1:
-                    # 本地工具使用 code
-                    tool_identifier = tool.code
-                else:
-                    # 远程工具使用 name（如果没有 name 则使用 code）
-                    tool_identifier = tool.name if tool.name else tool.code
-                remote_tools.append(tool_identifier)
-
+            remote_tools = [self._get_tool_identifier(t) for t in agent_details.get_tools()]
             if remote_tools:
-                # 找到模板中的工具配置行并添加远程工具
-                lines = agent_content.split('\n')
-                for i, line in enumerate(lines):
-                    if line.strip().startswith('<!-- tools:'):
-                        # 解析现有工具列表
-                        existing_tools_part = line.strip()[12:-4]  # 移除 '<!-- tools: ' 和 ' -->'
-                        existing_tools = [tool.strip() for tool in existing_tools_part.split(',') if tool.strip()]
-
-                        # 合并工具列表：现有工具 + 远程工具，去重但保持顺序
-                        all_tools = existing_tools.copy()
-                        for remote_tool in remote_tools:
-                            if remote_tool not in all_tools:
-                                all_tools.append(remote_tool)
-
-                        # 重新生成工具配置行
-                        tools_line = "<!-- tools: " + ", ".join(all_tools) + " -->"
-                        lines[i] = tools_line
-                        break
-
-                agent_content = '\n'.join(lines)
+                frontmatter, body = self._split_frontmatter(agent_content)
+                existing_tools = self._parse_tools_list(frontmatter.get("tools"))
+                frontmatter["tools"] = self._merge_tools(existing_tools, remote_tools)
+                agent_content = self._render_agent_content(frontmatter, body)
 
         logger.info(f"基于模板 {template_path} 生成 Agent 配置")
         return agent_content
+
+    def _apply_prompt(self, template: str, prompt: Optional[str]) -> str:
+        """将 API 提示词填入模板，无提示词时删除整个 user_custom_instructions 块。"""
+        if prompt:
+            return template.replace("USER_CUSTOM_PROMPT", prompt)
+        return re.sub(
+            r'<!--zh\s*\n<user_custom_instructions>.*?</user_custom_instructions>\s*\n-->\s*\n'
+            r'<user_custom_instructions>.*?</user_custom_instructions>\s*\n?',
+            '',
+            template,
+            flags=re.DOTALL,
+        )
+
+    def _get_tool_identifier(self, tool: Tool) -> str:
+        """返回工具的有效标识符。
+        本地工具（type=1）按 ToolFactory 的注册方式使用 code；
+        远程工具优先使用 name，与 RemoteTool.get_effective_name() 保持一致。
+        """
+        if tool.type == 1:
+            return tool.code
+        return tool.name or tool.code
+
+    def _split_frontmatter(self, content: str) -> Tuple[Dict[str, Any], str]:
+        """拆分 YAML frontmatter 与正文。"""
+        match = re.match(r"^---\n(.*?)\n---\n?", content, re.DOTALL)
+        if not match:
+            raise ValueError("模板缺少 YAML frontmatter")
+        frontmatter = yaml.safe_load(match.group(1)) or {}
+        if not isinstance(frontmatter, dict):
+            raise ValueError("模板 frontmatter 格式不合法")
+        return frontmatter, content[match.end():]
+
+    def _parse_tools_list(self, raw: Any) -> List[str]:
+        """将 frontmatter 中的 tools 字段解析为字符串列表。"""
+        if raw is None:
+            return []
+        if isinstance(raw, list):
+            return [str(t).strip() for t in raw if str(t).strip()]
+        if isinstance(raw, str):
+            return [raw.strip()] if raw.strip() else []
+        raise ValueError(f"tools 字段格式不合法: {type(raw)}")
+
+    def _merge_tools(self, existing: List[str], additions: List[str]) -> List[str]:
+        """将 additions 追加到 existing 末尾，保持顺序去重（含 additions 内部去重）。"""
+        seen = set(existing)
+        return existing + [t for t in dict.fromkeys(additions) if t not in seen]
+
+    def _render_agent_content(self, frontmatter: Dict[str, Any], body: str) -> str:
+        """重新拼装 frontmatter 与正文为 .agent 文件内容。"""
+        yaml_text = yaml.safe_dump(frontmatter, allow_unicode=True, sort_keys=False).strip()
+        return f"---\n{yaml_text}\n---\n\n{body.lstrip()}"
