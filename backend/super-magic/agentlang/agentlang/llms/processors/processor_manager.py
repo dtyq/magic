@@ -25,8 +25,8 @@ from .regular_call_processor import RegularCallProcessor
 logger = get_logger(__name__)
 
 # 默认快速重试策略常量（可被 config.yaml 覆盖）
-_DEFAULT_FIRST_CHUNK_SCHEDULE: List[int] = [15, 20, 30]
-_DEFAULT_CHUNK_TIMEOUT: int = 6
+_DEFAULT_FIRST_CHUNK_SCHEDULE: List[int] = [45, 60, 90]
+_DEFAULT_CHUNK_TIMEOUT: int = 30
 _DEFAULT_ENABLE_NON_STREAM_FALLBACK: bool = False
 _DEFAULT_NON_STREAM_TIMEOUT: int = 330
 
