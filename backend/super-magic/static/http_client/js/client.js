@@ -1602,8 +1602,232 @@ const mountDirInput = document.getElementById('mountDirInput');
 const applyMountDirBtn = document.getElementById('applyMountDirBtn');
 const filePreviewOverlay = document.getElementById('filePreviewOverlay');
 const filePreviewName = document.getElementById('filePreviewName');
-const filePreviewContent = document.getElementById('filePreviewContent');
+const filePreviewBody = document.getElementById('filePreviewBody');
+const filePreviewMeta = document.getElementById('filePreviewMeta');
 const filePreviewClose = document.getElementById('filePreviewClose');
+
+/** 媒体/PDF 预览用的 blob URL，关闭或切换预览时需 revoke */
+let filePreviewObjectUrl = null;
+
+function revokeFilePreviewObjectUrl() {
+    if (filePreviewObjectUrl) {
+        URL.revokeObjectURL(filePreviewObjectUrl);
+        filePreviewObjectUrl = null;
+    }
+}
+
+function hideFilePreview() {
+    revokeFilePreviewObjectUrl();
+    if (filePreviewMeta) filePreviewMeta.innerHTML = '';
+    if (filePreviewOverlay) filePreviewOverlay.style.display = 'none';
+}
+
+function getWorkspaceFileBaseName(filePath) {
+    const i = filePath.lastIndexOf('/');
+    return i >= 0 ? filePath.slice(i + 1) : filePath;
+}
+
+function getWorkspaceFileExt(filePath) {
+    const base = getWorkspaceFileBaseName(filePath);
+    const dot = base.lastIndexOf('.');
+    if (dot <= 0) return '';
+    return base.slice(dot + 1).toLowerCase();
+}
+
+/** 无合适浏览器内预览方式的扩展名（压缩包、办公二进制、可执行文件等） */
+const WORKSPACE_PREVIEW_UNSUPPORTED_EXT = new Set([
+    'zip', 'rar', '7z', 'gz', 'tgz', 'xz', 'bz2', 'tar', 'lz4', 'zst', 'cab',
+    'doc', 'docx', 'xls', 'xlsx', 'ppt', 'pptx', 'odt', 'ods', 'odp',
+    'exe', 'dll', 'so', 'dylib', 'bin', 'dmg', 'iso', 'img', 'msi', 'apk', 'ipa',
+    'otf', 'ttf', 'eot', 'woff', 'woff2',
+    'sqlite', 'db',
+    'psd', 'ai',
+    'heic', 'heif',
+    'class', 'jar', 'war', 'ear',
+    'pyc', 'pyo', 'o', 'obj', 'lib', 'a',
+    'wasm', 'wat',
+    'epub', 'mobi',
+]);
+
+const WORKSPACE_PREVIEW_IMAGE_EXT = new Set([
+    'png', 'jpg', 'jpeg', 'gif', 'webp', 'bmp', 'svg', 'ico', 'avif', 'jxl',
+]);
+
+const WORKSPACE_PREVIEW_VIDEO_EXT = new Set([
+    'mp4', 'webm', 'ogv', 'mov', 'm4v', 'mkv', 'avi',
+]);
+
+const WORKSPACE_PREVIEW_AUDIO_EXT = new Set([
+    'mp3', 'wav', 'ogg', 'oga', 'opus', 'm4a', 'aac', 'flac', 'weba',
+]);
+
+/** 按扩展名视为可文本预览（UTF-8 读取；过大仍截断） */
+const WORKSPACE_PREVIEW_TEXT_EXT = new Set([
+    'md', 'mdx', 'txt', 'log', 'json', 'jsonc', 'js', 'mjs', 'cjs', 'jsx', 'ts', 'tsx',
+    'mts', 'cts', 'vue', 'svelte', 'astro',
+    'py', 'pyi', 'pyw', 'rb', 'php', 'phtml', 'java', 'kt', 'kts', 'go', 'rs',
+    'c', 'h', 'cpp', 'hpp', 'cc', 'cxx', 'cs', 'fs', 'fsx', 'swift', 'scala', 'sc',
+    'html', 'htm', 'xhtml', 'xml',
+    'css', 'scss', 'sass', 'less', 'styl',
+    'yaml', 'yml', 'toml', 'ini', 'cfg', 'conf', 'env', 'properties',
+    'sh', 'bash', 'zsh', 'fish', 'ps1', 'bat', 'cmd', 'nu',
+    'sql', 'graphql', 'gql',
+    'csv', 'tsv', 'tab',
+    'rtf', 'tex', 'bib',
+    'gradle', 'plist', 'vm', 'ejs', 'hbs', 'pug', 'jade', 'mustache',
+    'dockerignore', 'gitattributes', 'editorconfig',
+    'lock', 'mod', 'sum', 'nix',
+    'dart', 'lua', 'ex', 'exs', 'erl', 'hrl', 'clj', 'cljs', 'edn', 'nim', 'zig', 'v',
+    'r', 'jl', 'pl', 'pm', 'pas', 'pp', 'lpr', 'cr', 'sv', 'svh', 'vhd', 'vhdl',
+]);
+
+function isWorkspaceTextBasename(filePath) {
+    const base = getWorkspaceFileBaseName(filePath);
+    const lower = base.toLowerCase();
+    if (lower === 'dockerfile' || lower === 'makefile' || lower === 'jenkinsfile' ||
+        lower === 'vagrantfile' || lower === 'gemfile' || lower === 'rakefile' ||
+        lower === 'procfile' || lower === 'cargo.toml' || lower === 'cargo.lock') {
+        return true;
+    }
+    if (lower === '.gitignore' || lower === '.dockerignore' || lower === '.editorconfig' ||
+        lower === '.npmrc' || lower === '.yarnrc' || lower === '.prettierrc' ||
+        lower === '.babelrc' || lower === '.eslintrc') {
+        return true;
+    }
+    if (lower.startsWith('.env')) return true;
+    if (/^readme(\.|$)/i.test(base) || /^license(\.|$)/i.test(base) ||
+        /^changelog(\.|$)/i.test(base) || /^contributing(\.|$)/i.test(base)) {
+        return true;
+    }
+    return false;
+}
+
+/**
+ * @returns {'image'|'video'|'audio'|'pdf'|'text'|'unsupported'}
+ */
+function getWorkspacePreviewKind(filePath, file) {
+    const mime = (file && file.type) || '';
+    const ext = getWorkspaceFileExt(filePath);
+
+    if (isWorkspaceTextBasename(filePath)) return 'text';
+
+    if (WORKSPACE_PREVIEW_UNSUPPORTED_EXT.has(ext)) return 'unsupported';
+
+    // 扩展名先于含糊 MIME（例如 SVG 常被标为 application/xml）
+    if (WORKSPACE_PREVIEW_IMAGE_EXT.has(ext)) return 'image';
+    if (WORKSPACE_PREVIEW_VIDEO_EXT.has(ext)) return 'video';
+    if (WORKSPACE_PREVIEW_AUDIO_EXT.has(ext)) return 'audio';
+    if (ext === 'pdf') return 'pdf';
+
+    if (mime.startsWith('image/')) return 'image';
+    if (mime.startsWith('video/')) return 'video';
+    if (mime.startsWith('audio/')) return 'audio';
+    if (mime === 'application/pdf') return 'pdf';
+
+    if (mime.startsWith('text/')) return 'text';
+    if (mime === 'application/json' || mime === 'application/xml' ||
+        mime === 'application/javascript' || mime === 'application/x-javascript' ||
+        mime === 'application/sql' || mime === 'application/x-sh' ||
+        mime === 'application/xhtml+xml' || mime === 'application/rtf' ||
+        mime === 'application/x-yaml' || mime === 'application/toml') {
+        return 'text';
+    }
+
+    if (WORKSPACE_PREVIEW_TEXT_EXT.has(ext)) return 'text';
+
+    if (mime === 'application/octet-stream' || mime === '') {
+        return 'unsupported';
+    }
+
+    return 'unsupported';
+}
+
+function appendPreviewMessage(bodyEl, message) {
+    const pre = document.createElement('pre');
+    pre.className = 'file-preview-content file-preview-message';
+    pre.textContent = message;
+    bodyEl.appendChild(pre);
+}
+
+const PREVIEW_KIND_LABEL = {
+    image: '图片',
+    video: '视频',
+    audio: '音频',
+    pdf: 'PDF',
+    text: '文本',
+    unsupported: '不可预览',
+};
+
+function formatFileSizeBytes(bytes) {
+    if (bytes === 0) return '0 B';
+    const k = 1024;
+    const sizes = ['B', 'KB', 'MB', 'GB'];
+    const i = Math.min(Math.floor(Math.log(bytes) / Math.log(k)), sizes.length - 1);
+    const n = bytes / Math.pow(k, i);
+    const digits = i === 0 ? 0 : n >= 100 ? 0 : n >= 10 ? 1 : 2;
+    return `${n.toFixed(digits)} ${sizes[i]}`;
+}
+
+function formatFileModifiedTime(ms) {
+    if (ms == null || !Number.isFinite(ms)) return '—';
+    try {
+        return new Date(ms).toLocaleString();
+    } catch {
+        return '—';
+    }
+}
+
+/** 将秒转为 mm:ss 或 h:mm:ss */
+function formatMediaDurationSeconds(sec) {
+    if (sec == null || !Number.isFinite(sec) || sec < 0) return '—';
+    const h = Math.floor(sec / 3600);
+    const m = Math.floor((sec % 3600) / 60);
+    const s = Math.floor(sec % 60);
+    if (h > 0) {
+        return `${h}:${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
+    }
+    return `${m}:${String(s).padStart(2, '0')}`;
+}
+
+function buildBasePreviewMetaRows(file, filePath, kind) {
+    const mime = file.type && file.type.length ? file.type : '（未知）';
+    const ext = getWorkspaceFileExt(filePath);
+    return [
+        { label: '文件名', value: getWorkspaceFileBaseName(filePath) },
+        { label: '路径', value: filePath },
+        { label: '扩展名', value: ext ? `.${ext}` : '（无）' },
+        { label: '预览类型', value: PREVIEW_KIND_LABEL[kind] || String(kind) },
+        { label: '大小', value: formatFileSizeBytes(file.size) },
+        { label: 'MIME', value: mime },
+        { label: '修改时间', value: formatFileModifiedTime(file.lastModified) },
+    ];
+}
+
+function renderFilePreviewMetaRows(metaEl, rows) {
+    if (!metaEl) return;
+    metaEl.innerHTML = '';
+    for (const row of rows) {
+        if (!row) continue;
+        const wrap = document.createElement('div');
+        wrap.className = 'file-preview-meta-row';
+        const lab = document.createElement('div');
+        lab.className = 'file-preview-meta-label';
+        lab.textContent = row.label;
+        const val = document.createElement('div');
+        val.className = 'file-preview-meta-value';
+        val.textContent = row.value;
+        wrap.appendChild(lab);
+        wrap.appendChild(val);
+        metaEl.appendChild(wrap);
+    }
+}
+
+function setFilePreviewMeta(file, filePath, kind, extraRows) {
+    if (!filePreviewMeta) return;
+    const base = buildBasePreviewMetaRows(file, filePath, kind);
+    const rows = extraRows && extraRows.length ? base.concat(extraRows) : base;
+    renderFilePreviewMetaRows(filePreviewMeta, rows);
+}
 
 let workspaceDirHandle = null;
 let filetreeRefreshTimer = null;
@@ -1773,12 +1997,12 @@ if (refreshTreeBtn) {
 // 关闭预览
 if (filePreviewClose) {
     filePreviewClose.addEventListener('click', () => {
-        filePreviewOverlay.style.display = 'none';
+        hideFilePreview();
     });
 }
 if (filePreviewOverlay) {
     filePreviewOverlay.addEventListener('click', (e) => {
-        if (e.target === filePreviewOverlay) filePreviewOverlay.style.display = 'none';
+        if (e.target === filePreviewOverlay) hideFilePreview();
     });
 }
 
@@ -1875,20 +2099,120 @@ async function buildTreeNodes(dirHandle, container, pathPrefix, depth) {
     }
 }
 
-// 预览文件内容
+// 预览文件内容：图片/音视频/PDF 用 blob URL，文本读入 pre，其余提示不可预览
 async function previewFile(fileHandle, filePath) {
+    if (!filePreviewBody || !filePreviewName || !filePreviewOverlay) return;
     try {
         const file = await fileHandle.getFile();
-        const MAX_SIZE = 512 * 1024; // 512KB
-        let text;
-        if (file.size > MAX_SIZE) {
-            const slice = file.slice(0, MAX_SIZE);
-            text = await slice.text() + '\n\n... (文件过大，仅显示前 512KB) ...';
-        } else {
-            text = await file.text();
-        }
+        revokeFilePreviewObjectUrl();
+        filePreviewBody.innerHTML = '';
+        if (filePreviewMeta) filePreviewMeta.innerHTML = '';
         filePreviewName.textContent = filePath;
-        filePreviewContent.textContent = text;
+
+        const kind = getWorkspacePreviewKind(filePath, file);
+
+        if (kind === 'unsupported') {
+            setFilePreviewMeta(file, filePath, kind, []);
+            appendPreviewMessage(filePreviewBody, '此文件类型无法在浏览器内预览，请使用本地应用打开。');
+        } else if (kind === 'image') {
+            setFilePreviewMeta(file, filePath, kind, []);
+            filePreviewObjectUrl = URL.createObjectURL(file);
+            const img = document.createElement('img');
+            img.className = 'file-preview-image';
+            img.alt = filePath;
+            img.addEventListener('load', () => {
+                setFilePreviewMeta(file, filePath, kind, [
+                    { label: '尺寸', value: `${img.naturalWidth} × ${img.naturalHeight} px` },
+                ]);
+            });
+            img.addEventListener('error', () => {
+                revokeFilePreviewObjectUrl();
+                filePreviewBody.innerHTML = '';
+                appendPreviewMessage(
+                    filePreviewBody,
+                    '无法将此文件作为图片显示（可能格式不受当前浏览器支持）。请使用本地应用打开。',
+                );
+            });
+            img.src = filePreviewObjectUrl;
+            filePreviewBody.appendChild(img);
+        } else if (kind === 'video') {
+            setFilePreviewMeta(file, filePath, kind, []);
+            filePreviewObjectUrl = URL.createObjectURL(file);
+            const video = document.createElement('video');
+            video.className = 'file-preview-video';
+            video.controls = true;
+            video.playsInline = true;
+            video.preload = 'metadata';
+            video.addEventListener('loadedmetadata', () => {
+                setFilePreviewMeta(file, filePath, kind, [
+                    { label: '分辨率', value: `${video.videoWidth} × ${video.videoHeight} px` },
+                    { label: '时长', value: formatMediaDurationSeconds(video.duration) },
+                ]);
+            });
+            video.addEventListener('error', () => {
+                revokeFilePreviewObjectUrl();
+                filePreviewBody.innerHTML = '';
+                appendPreviewMessage(
+                    filePreviewBody,
+                    '无法播放此视频（可能编码或容器格式不受当前浏览器支持）。请使用本地应用打开。',
+                );
+            });
+            video.src = filePreviewObjectUrl;
+            filePreviewBody.appendChild(video);
+        } else if (kind === 'audio') {
+            setFilePreviewMeta(file, filePath, kind, []);
+            filePreviewObjectUrl = URL.createObjectURL(file);
+            const audio = document.createElement('audio');
+            audio.className = 'file-preview-audio';
+            audio.controls = true;
+            audio.preload = 'metadata';
+            audio.addEventListener('loadedmetadata', () => {
+                setFilePreviewMeta(file, filePath, kind, [
+                    { label: '时长', value: formatMediaDurationSeconds(audio.duration) },
+                ]);
+            });
+            audio.addEventListener('error', () => {
+                revokeFilePreviewObjectUrl();
+                filePreviewBody.innerHTML = '';
+                appendPreviewMessage(
+                    filePreviewBody,
+                    '无法播放此音频（可能格式不受当前浏览器支持）。请使用本地应用打开。',
+                );
+            });
+            audio.src = filePreviewObjectUrl;
+            filePreviewBody.appendChild(audio);
+        } else if (kind === 'pdf') {
+            setFilePreviewMeta(file, filePath, kind, []);
+            filePreviewObjectUrl = URL.createObjectURL(file);
+            const iframe = document.createElement('iframe');
+            iframe.className = 'file-preview-pdf';
+            iframe.title = filePath;
+            iframe.src = filePreviewObjectUrl;
+            filePreviewBody.appendChild(iframe);
+        } else if (kind === 'text') {
+            const MAX_SIZE = 512 * 1024; // 512KB
+            let text;
+            if (file.size > MAX_SIZE) {
+                const slice = file.slice(0, MAX_SIZE);
+                text = await slice.text() + '\n\n... (文件过大，仅显示前 512KB) ...';
+            } else {
+                text = await file.text();
+            }
+            const lineCount = text.split(/\r\n|\r|\n/).length;
+            const textExtras = [
+                { label: '行数', value: String(lineCount) },
+                { label: '字符数', value: String(text.length) },
+            ];
+            if (file.size > MAX_SIZE) {
+                textExtras.push({ label: '说明', value: '正文仅预览前 512KB；行数/字符数为截断后统计' });
+            }
+            setFilePreviewMeta(file, filePath, kind, textExtras);
+            const pre = document.createElement('pre');
+            pre.className = 'file-preview-content';
+            pre.textContent = text;
+            filePreviewBody.appendChild(pre);
+        }
+
         filePreviewOverlay.style.display = 'flex';
     } catch (e) {
         console.error('读取文件失败', e);

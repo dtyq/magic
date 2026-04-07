@@ -1627,12 +1627,20 @@ input[type="file"] {
     background: #fff;
     border-radius: 8px;
     box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2);
-    width: 70vw;
-    max-width: 900px;
+    width: 78vw;
+    max-width: 1040px;
     max-height: 80vh;
     display: flex;
     flex-direction: column;
     overflow: hidden;
+}
+
+.file-preview-main {
+    display: flex;
+    flex: 1;
+    min-height: 0;
+    flex-direction: row;
+    align-items: stretch;
 }
 
 .file-preview-header {
@@ -1670,16 +1678,104 @@ input[type="file"] {
     color: var(--wechat-danger);
 }
 
-.file-preview-content {
+.file-preview-body {
     flex: 1;
+    min-width: 0;
     overflow: auto;
     padding: 14px 16px;
+    background-color: #fafafa;
+    min-height: 120px;
+}
+
+.file-preview-meta {
+    width: 220px;
+    flex-shrink: 0;
+    overflow: auto;
+    padding: 12px 14px;
+    border-left: 1px solid var(--wechat-border);
+    background-color: #fff;
+    font-size: 12px;
+    line-height: 1.45;
+}
+
+.file-preview-meta-row {
+    margin-bottom: 10px;
+}
+
+.file-preview-meta-row:last-child {
+    margin-bottom: 0;
+}
+
+.file-preview-meta-label {
+    color: var(--wechat-text-gray);
+    font-size: 11px;
+    margin-bottom: 2px;
+}
+
+.file-preview-meta-value {
+    color: var(--wechat-text-dark);
+    word-break: break-all;
+    font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+    font-size: 11px;
+}
+
+@media (max-width: 640px) {
+    .file-preview-main {
+        flex-direction: column-reverse;
+    }
+
+    .file-preview-meta {
+        width: 100%;
+        border-left: none;
+        border-top: 1px solid var(--wechat-border);
+        max-height: 36vh;
+    }
+}
+
+.file-preview-body .file-preview-content {
+    margin: 0;
     font-family: monospace;
     font-size: 12px;
     line-height: 1.6;
     color: var(--wechat-text-dark);
     white-space: pre-wrap;
     word-break: break-all;
-    margin: 0;
-    background-color: #fafafa;
+}
+
+.file-preview-image {
+    display: block;
+    max-width: 100%;
+    height: auto;
+    max-height: min(70vh, 800px);
+    margin: 0 auto;
+    object-fit: contain;
+}
+
+.file-preview-video {
+    display: block;
+    max-width: 100%;
+    max-height: min(70vh, 800px);
+    margin: 0 auto;
+    background: #000;
+}
+
+.file-preview-audio {
+    display: block;
+    width: 100%;
+    margin: 12px 0;
+}
+
+.file-preview-pdf {
+    width: 100%;
+    min-height: min(75vh, 900px);
+    height: min(75vh, 900px);
+    border: 0;
+    background: #e8e8e8;
+}
+
+.file-preview-message {
+    font-family: system-ui, -apple-system, sans-serif;
+    white-space: normal;
+    word-break: normal;
+    color: var(--wechat-text-gray);
 }
