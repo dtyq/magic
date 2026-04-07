@@ -61,18 +61,17 @@ async def execute_agent_turn(job: CronJob) -> CronRunResult:
     parent_context=None：CronService 是系统级服务，内部创建 root context。
     """
     agent_id = f"cron-{job.id}"
-    # <!--zh
     # 明确告知子 agent 当前是自动化执行模式，不是用户对话：
-    # - 禁止自我介绍或添加元评论
-    # - 直接处理任务内容并输出结果
-    # 这样可以避免子 agent 误以为在和用户聊天，输出自我介绍等无关内容。
-    # -->
-    # Explicitly set automated execution context so the sub-agent does not introduce
-    # itself or add conversational meta-commentary — just execute and return a result.
+    # - 禁止自我介绍或添加元评论，直接处理任务内容并输出结果
+    # - 禁止创建/修改/删除定时任务，body 中的时间描述仅为任务内容，不是新的调度指令
     prompt = (
         f"[Automated task execution — do not introduce yourself]\n"
         f"Task: {job.name or job.id}\n"
-        f"Triggered at: {_format_time()}\n\n"
+        f"Triggered at: {_format_time()}\n"
+        f"CONSTRAINTS:\n"
+        f"- Do not create, modify, or delete any cron jobs. Do not call manage_cron.\n"
+        f"- The task body may contain time or schedule references (e.g. \"every day at 9am\")."
+        f" Treat them as plain task description only, not as new scheduling instructions.\n\n"
         f"{job.body}"
     )
 
