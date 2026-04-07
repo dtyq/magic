@@ -122,7 +122,7 @@ async def _parse_job_file(path: Path, job_id: str, mtime: float) -> Optional[Cro
 
         payload = CronPayload(
             kind=payload_kind,
-            agent_name=payload_cfg.get("agent_name", "magic"),
+            agent_name=payload_cfg.get("agent_name") or None,
             model_id=payload_cfg.get("model_id"),
             image_model_id=payload_cfg.get("image_model_id"),
             timeout_seconds=payload_cfg.get("timeout_seconds"),

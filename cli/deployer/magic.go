@@ -316,9 +316,9 @@ func (s *MagicSandboxStage) waitForImagePrepull(ctx context.Context, namespace s
 	var err error
 	switch policy {
 	case "scheduled":
-		err = s.d.kubeClient.WaitForPodsScheduled(waitCtx, namespace, imagePrepullLabelSelector, time.Duration(maxWaitSec)*time.Second, nil)
+		err = s.d.kubeClient.WaitForDaemonSetsSettled(waitCtx, namespace, imagePrepullLabelSelector, time.Duration(maxWaitSec)*time.Second, false, nil)
 	case "ready":
-		err = s.d.kubeClient.WaitForPodsReady(waitCtx, namespace, imagePrepullLabelSelector, time.Duration(maxWaitSec)*time.Second, newPodReporter(s.d.log, "image-prepull"))
+		err = s.d.kubeClient.WaitForDaemonSetsSettled(waitCtx, namespace, imagePrepullLabelSelector, time.Duration(maxWaitSec)*time.Second, true, nil)
 	default:
 		s.d.log.Logw("deploy", "unknown image pre-pull wait policy %q; skip waiting", policy)
 		return

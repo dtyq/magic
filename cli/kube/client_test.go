@@ -7,6 +7,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	storagev1 "k8s.io/api/storage/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -171,6 +172,83 @@ func TestWaitForPodsReady_ReporterIsCalled(t *testing.T) {
 	assert.Greater(t, called, 0, "reporter should have been called at least once")
 	assert.Len(t, lastPods, 1)
 	assert.Equal(t, "p1", lastPods[0].Name)
+}
+
+// ── WaitForDaemonSetsSettled ──────────────────────────────────────────────────
+
+func settledDaemonSet(name string, labels map[string]string, desired int32, ready bool) appsv1.DaemonSet {
+	numberReady := int32(0)
+	if ready {
+		numberReady = desired
+	}
+	return appsv1.DaemonSet{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      name,
+			Namespace: "default",
+			Labels:    labels,
+			Generation: 3,
+		},
+		Status: appsv1.DaemonSetStatus{
+			DesiredNumberScheduled: desired,
+			CurrentNumberScheduled: desired,
+			UpdatedNumberScheduled: desired,
+			NumberReady:            numberReady,
+			ObservedGeneration:     3,
+		},
+	}
+}
+
+func TestWaitForDaemonSetsSettled_ReadyPolicySatisfied(t *testing.T) {
+	ds := settledDaemonSet("image-prepull", map[string]string{"app": "prepull"}, 1, true)
+	cs := fake.NewSimpleClientset(&ds)
+	c := clientFromFake(cs)
+	err := c.WaitForDaemonSetsSettled(context.Background(), "default", "app=prepull", 10*time.Second, true, nil)
+	assert.NoError(t, err)
+}
+
+func TestWaitForDaemonSetsSettled_ScheduledPolicySatisfiedWhenNotReady(t *testing.T) {
+	ds := settledDaemonSet("image-prepull", map[string]string{"app": "prepull"}, 1, false)
+	cs := fake.NewSimpleClientset(&ds)
+	c := clientFromFake(cs)
+	err := c.WaitForDaemonSetsSettled(context.Background(), "default", "app=prepull", 10*time.Second, false, nil)
+	assert.NoError(t, err)
+}
+
+func TestWaitForDaemonSetsSettled_ReadyPolicyRequiresNumberReady(t *testing.T) {
+	ds := settledDaemonSet("image-prepull", map[string]string{"app": "prepull"}, 1, false)
+	cs := fake.NewSimpleClientset(&ds)
+	c := clientFromFake(cs)
+	err := c.WaitForDaemonSetsSettled(context.Background(), "default", "app=prepull", 1*time.Millisecond, true, nil)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "timeout")
+}
+
+func TestWaitForDaemonSetsSettled_RequiresObservedGenerationCaughtUp(t *testing.T) {
+	ds := settledDaemonSet("image-prepull", map[string]string{"app": "prepull"}, 1, true)
+	ds.Status.ObservedGeneration = ds.Generation - 1
+	cs := fake.NewSimpleClientset(&ds)
+	c := clientFromFake(cs)
+	err := c.WaitForDaemonSetsSettled(context.Background(), "default", "app=prepull", 1*time.Millisecond, true, nil)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "timeout")
+}
+
+func TestWaitForDaemonSetsSettled_ReporterIsCalled(t *testing.T) {
+	ds := settledDaemonSet("image-prepull", map[string]string{"app": "prepull"}, 1, true)
+	cs := fake.NewSimpleClientset(&ds)
+	c := clientFromFake(cs)
+
+	called := 0
+	var lastDS []appsv1.DaemonSet
+	reporter := func(daemonSets []appsv1.DaemonSet) {
+		called++
+		lastDS = daemonSets
+	}
+	err := c.WaitForDaemonSetsSettled(context.Background(), "default", "app=prepull", 10*time.Second, true, reporter)
+	require.NoError(t, err)
+	assert.Greater(t, called, 0, "reporter should have been called at least once")
+	assert.Len(t, lastDS, 1)
+	assert.Equal(t, "image-prepull", lastDS[0].Name)
 }
 
 // ── isImagePullFailureReason ──────────────────────────────────────────────────

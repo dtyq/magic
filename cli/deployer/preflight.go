@@ -3,6 +3,7 @@ package deployer
 import (
 	"context"
 	"fmt"
+	"os"
 
 	"github.com/dtyq/magicrew-cli/util"
 )
@@ -23,6 +24,10 @@ func (s *PreflightStage) Exec(ctx context.Context) error {
 	dockerCheck := util.Command{Args: []string{"docker", "info"}}
 	if err := dockerCheck.Run(ctx); err != nil {
 		return fmt.Errorf("Docker is not running. Please start Docker and try again")
+	}
+
+	if err := s.ensureDataDirReady(); err != nil {
+		s.d.log.Logw("deploy", "%v", err)
 	}
 
 	s.checkDiskSpace()
@@ -46,6 +51,27 @@ func (s *PreflightStage) Exec(ctx context.Context) error {
 	}
 
 	return s.d.resolveChartRefs()
+}
+
+func (s *PreflightStage) ensureDataDirReady() error {
+	dataDir := s.d.opts.DataDir
+
+	fi, err := os.Stat(dataDir)
+	if err != nil {
+		if os.IsNotExist(err) {
+			if mkErr := os.MkdirAll(dataDir, 0o755); mkErr != nil {
+				return fmt.Errorf("failed to create data dir %s: %w", dataDir, mkErr)
+			}
+			s.d.log.Logi("deploy", "data dir not found, created: %s", dataDir)
+		} else {
+			return fmt.Errorf("failed to stat data dir %s: %w", dataDir, err)
+		}
+	} else if !fi.IsDir() {
+		if mkErr := os.MkdirAll(dataDir, 0o755); mkErr != nil {
+			return fmt.Errorf("failed to create data dir %s: %w", dataDir, mkErr)
+		}
+	}
+	return nil
 }
 
 func (s *PreflightStage) checkDiskSpace() {
