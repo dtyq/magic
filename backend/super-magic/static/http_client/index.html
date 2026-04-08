@@ -23,6 +23,8 @@
                 <div class="connection-buttons">
                     <button id="subscribeBtn" class="btn secondary">建立消息订阅</button>
                     <button id="sendInitBtn" class="btn secondary">发送初始化消息</button>
+                    <button id="refreshModelsBtn" class="btn secondary">刷新模型列表</button>
+                    <button id="clearModelsBtn" class="btn secondary">清理模型列表</button>
                 </div>
             </div>
 
@@ -142,6 +144,16 @@
                         <div class="model-config" id="modelIdGroup">
                             <input type="text" id="modelIdInput" class="model-id-input"
                                 placeholder="Model ID (留空默认)">
+                            <select id="modelIdSelect" class="agent-mode-select" style="display:none">
+                                <option value="">选择文本模型（留空默认）</option>
+                            </select>
+                        </div>
+
+                        <!-- 图片模型配置（加载模型列表后显示，IM 模式下隐藏） -->
+                        <div class="model-config" id="imageModelGroup" style="display:none">
+                            <select id="imageModelSelect" class="agent-mode-select">
+                                <option value="">不指定图片模型</option>
+                            </select>
                         </div>
 
                         <!-- 语言选择（IM 模式下隐藏） -->

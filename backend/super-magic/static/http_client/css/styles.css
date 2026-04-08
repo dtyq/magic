@@ -1421,12 +1421,13 @@ input[type="file"] {
 /* 连接按钮改为两列并排 */
 .connection-buttons {
     flex-direction: row;
+    flex-wrap: wrap;
     margin-top: 8px;
     gap: 6px;
 }
 
 .connection-buttons .btn {
-    flex: 1;
+    flex: 1 1 calc(50% - 3px);
     padding: 7px 6px;
     font-size: 12px;
 }

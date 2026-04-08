@@ -137,6 +137,8 @@ const agentModeSelect = document.getElementById('agentModeSelect');
 const agentCodeInput = document.getElementById('agentCodeInput');
 const agentCodeGroup = document.getElementById('agentCodeGroup');
 const modelIdInput = document.getElementById('modelIdInput');
+const modelIdSelect = document.getElementById('modelIdSelect');
+const imageModelSelect = document.getElementById('imageModelSelect');
 const advancedModeToggle = document.getElementById('advancedModeToggle');
 const rawJsonInput = document.getElementById('rawJsonInput');
 const languageSelect = document.getElementById('languageSelect');
@@ -428,8 +430,23 @@ document.addEventListener('DOMContentLoaded', () => {
         subscribeBtn.addEventListener('click', toggleWebSocketConnection);
     }
 
+    // 刷新模型列表按钮事件
+    const refreshModelsBtn = document.getElementById('refreshModelsBtn');
+    if (refreshModelsBtn) {
+        refreshModelsBtn.addEventListener('click', refreshModelList);
+    }
+
+    // 清理模型列表按钮事件
+    const clearModelsBtn = document.getElementById('clearModelsBtn');
+    if (clearModelsBtn) {
+        clearModelsBtn.addEventListener('click', clearModelList);
+    }
+
     // 启用消息按钮（不再需要先测试连接）
     toggleMessageControls(true);
+
+    // 从 localStorage 恢复上次加载的模型列表
+    restoreModelSelects();
 
     // 设置默认配置
     setupDefaultConfigs();
@@ -437,6 +454,151 @@ document.addEventListener('DOMContentLoaded', () => {
     // 初始隐藏文件名显示
     currentFileNameDisplay.style.display = 'none';
 });
+
+// 清理模型列表：清除 localStorage 缓存并恢复文本输入框
+function clearModelList() {
+    localStorage.removeItem('availableModels');
+    localStorage.removeItem('availableImageModels');
+    localStorage.removeItem('selectedModelId');
+    localStorage.removeItem('selectedImageModelId');
+
+    if (modelIdSelect) {
+        modelIdSelect.innerHTML = '<option value="">选择文本模型（留空默认）</option>';
+        modelIdSelect.style.display = 'none';
+    }
+    if (modelIdInput) {
+        modelIdInput.style.display = '';
+        modelIdInput.value = '';
+    }
+    if (imageModelSelect) {
+        imageModelSelect.innerHTML = '<option value="">不指定图片模型</option>';
+    }
+    const imageModelGroup = document.getElementById('imageModelGroup');
+    if (imageModelGroup) imageModelGroup.style.display = 'none';
+
+    showSystemMessage('模型列表已清理');
+}
+
+// 刷新模型列表：调用后端接口，将结果缓存到 localStorage 并填充下拉框
+async function refreshModelList() {
+    const btn = document.getElementById('refreshModelsBtn');
+    if (btn) {
+        btn.disabled = true;
+        btn.textContent = '正在刷新...';
+    }
+    try {
+        const serverUrl = serverUrlInput.value.trim() || 'http://127.0.0.1:8002';
+        const resp = await fetch(`${serverUrl}/api/v1/models`);
+        const json = await resp.json();
+        if (!resp.ok || json.code !== 1000) {
+            showSystemMessage(`刷新模型列表失败: ${json.message || resp.status}`);
+            return;
+        }
+        const allModels = json.data && json.data.models ? json.data.models : [];
+        const textModels = allModels.filter(m => m.object === 'model');
+        const imageModels = allModels.filter(m => m.object === 'image');
+
+        localStorage.setItem('availableModels', JSON.stringify(textModels));
+        localStorage.setItem('availableImageModels', JSON.stringify(imageModels));
+
+        populateModelSelects(textModels, imageModels);
+        showSystemMessage(`模型列表已刷新：${textModels.length} 个文本模型，${imageModels.length} 个图片模型`);
+    } catch (e) {
+        showSystemMessage(`刷新模型列表异常: ${e.message}`);
+    } finally {
+        if (btn) {
+            btn.disabled = false;
+            btn.textContent = '刷新模型列表';
+        }
+    }
+}
+
+// 从 localStorage 恢复模型下拉框（页面刷新后保持状态）
+function restoreModelSelects() {
+    const textModels = JSON.parse(localStorage.getItem('availableModels') || '[]');
+    const imageModels = JSON.parse(localStorage.getItem('availableImageModels') || '[]');
+    if (textModels.length > 0 || imageModels.length > 0) {
+        populateModelSelects(textModels, imageModels);
+    }
+}
+
+// 填充文本模型和图片模型下拉框
+function populateModelSelects(textModels, imageModels) {
+    // 文本模型：仅展示同时满足 chat、multi_modal、function_call 均为 true 的模型
+    // 动态模型（id !== resolved_model_id）排在后面
+    const filteredTextModels = textModels
+        .filter(m => {
+            const opts = m.info && m.info.options;
+            return opts && opts.chat === true && opts.function_call === true;
+        })
+        .sort((a, b) => {
+            const aResolved = (a.info && a.info.attributes && a.info.attributes.resolved_model_id) || a.id;
+            const bResolved = (b.info && b.info.attributes && b.info.attributes.resolved_model_id) || b.id;
+            const aIsDynamic = a.id !== aResolved ? 1 : 0;
+            const bIsDynamic = b.id !== bResolved ? 1 : 0;
+            return aIsDynamic - bIsDynamic;
+        });
+
+    if (modelIdSelect) {
+        const prevValue = modelIdSelect.value;
+        modelIdSelect.innerHTML = '<option value="">选择文本模型（留空默认）</option>';
+        filteredTextModels.forEach(m => {
+            const attrs = m.info && m.info.attributes;
+            const label = attrs && attrs.label ? attrs.label.trim() : m.id;
+            const resolvedId = attrs && attrs.resolved_model_id ? attrs.resolved_model_id : m.id;
+            const opt = document.createElement('option');
+            opt.value = m.id;
+            opt.textContent = `${label} (${resolvedId})`;
+            modelIdSelect.appendChild(opt);
+        });
+        // 恢复上次选择
+        const savedTextModel = localStorage.getItem('selectedModelId');
+        if (savedTextModel) modelIdSelect.value = savedTextModel;
+        else if (prevValue) modelIdSelect.value = prevValue;
+
+        // 切换显示：有模型时用 select，否则保留文本框
+        if (filteredTextModels.length > 0) {
+            modelIdSelect.style.display = '';
+            modelIdInput.style.display = 'none';
+        } else {
+            modelIdSelect.style.display = 'none';
+            modelIdInput.style.display = '';
+        }
+
+        // 记住选择变更
+        modelIdSelect.onchange = () => {
+            localStorage.setItem('selectedModelId', modelIdSelect.value);
+        };
+    }
+
+    // 图片模型
+    if (imageModelSelect) {
+        const prevImageValue = imageModelSelect.value;
+        imageModelSelect.innerHTML = '<option value="">不指定图片模型</option>';
+        imageModels.forEach(m => {
+            const label = (m.info && m.info.attributes && m.info.attributes.label) ? m.info.attributes.label : m.id;
+            const opt = document.createElement('option');
+            opt.value = m.id;
+            opt.textContent = `${label} (${m.id})`;
+            imageModelSelect.appendChild(opt);
+        });
+        // 恢复上次选择
+        const savedImageModel = localStorage.getItem('selectedImageModelId');
+        if (savedImageModel) imageModelSelect.value = savedImageModel;
+        else if (prevImageValue) imageModelSelect.value = prevImageValue;
+
+        // 记住选择变更
+        imageModelSelect.onchange = () => {
+            localStorage.setItem('selectedImageModelId', imageModelSelect.value);
+        };
+    }
+
+    // 图片模型组：非 IM 模式下显示
+    const imageModelGroup = document.getElementById('imageModelGroup');
+    if (imageModelGroup && !isImMode) {
+        imageModelGroup.style.display = imageModels.length > 0 ? '' : 'none';
+    }
+}
 
 // 设置默认配置
 function setupDefaultConfigs() {
@@ -700,6 +862,7 @@ function toggleImMode() {
     const agentModeGroup = document.getElementById('agentModeGroup');
     const modelIdGroup = document.getElementById('modelIdGroup');
     const languageGroup = document.getElementById('languageGroup');
+    const imageModelGroup = document.getElementById('imageModelGroup');
 
     if (isImMode) {
         // 显示 IM 专属控件，隐藏普通模式控件
@@ -709,6 +872,7 @@ function toggleImMode() {
         if (agentCodeGroup) agentCodeGroup.style.display = 'none';
         modelIdGroup.style.display = 'none';
         languageGroup.style.display = 'none';
+        if (imageModelGroup) imageModelGroup.style.display = 'none';
         // IM 模式与高级模式互斥
         if (isAdvancedMode) {
             advancedModeToggle.checked = false;
@@ -722,6 +886,10 @@ function toggleImMode() {
         languageGroup.style.display = '';
         // agentCodeGroup 的显示由 agent mode 决定，重新同步一次
         changeAgentMode();
+        // 若模型列表已加载则恢复图片模型选择器
+        if (imageModelGroup && localStorage.getItem('availableImageModels')) {
+            imageModelGroup.style.display = '';
+        }
     }
 }
 
@@ -762,17 +930,57 @@ function createChatMessage(prompt, contextType = ContextType.NORMAL, remark = nu
         }
     };
 
-    // Add model_id field if provided
-    const modelId = modelIdInput.value.trim();
+    // 优先从模型下拉框读取，否则从文本输入框读取
+    const modelIdFromSelect = modelIdSelect && modelIdSelect.style.display !== 'none';
+    const modelId = modelIdFromSelect
+        ? modelIdSelect.value.trim()
+        : modelIdInput.value.trim();
     if (modelId) {
         message.model_id = modelId;
+    }
+
+    // 从下拉框选中模型时注入 dynamic_config.models
+    if (modelIdFromSelect && modelId) {
+        const textModels = JSON.parse(localStorage.getItem('availableModels') || '[]');
+        const modelInfo = textModels.find(m => m.id === modelId);
+        const opts = modelInfo && modelInfo.info && modelInfo.info.options;
+        const temperature = opts
+            ? (opts.fixed_temperature != null ? opts.fixed_temperature : (opts.default_temperature != null ? opts.default_temperature : 1.0))
+            : 1.0;
+        const supportsToolUse = opts ? opts.function_call === true : true;
+        message.dynamic_config = Object.assign({}, message.dynamic_config, {
+            models: {
+                [modelId]: {
+                    api_key: '${MAGIC_API_KEY}',
+                    api_base_url: '${MAGIC_API_BASE_URL}',
+                    name: modelId,
+                    type: 'llm',
+                    provider: 'openai',
+                    supports_tool_use: supportsToolUse,
+                    temperature,
+                },
+            },
+        });
+    }
+
+    // 若选中了图片模型，注入 dynamic_config.image_model
+    const selectedImageModelId = imageModelSelect ? imageModelSelect.value.trim() : '';
+    if (selectedImageModelId) {
+        const imageModels = JSON.parse(localStorage.getItem('availableImageModels') || '[]');
+        const imageModelInfo = imageModels.find(m => m.id === selectedImageModelId);
+        const sizes = imageModelInfo && imageModelInfo.info && imageModelInfo.info.image_size_config
+            ? (imageModelInfo.info.image_size_config.sizes || [])
+            : [];
+        message.dynamic_config = Object.assign({}, message.dynamic_config, {
+            image_model: { model_id: selectedImageModelId, sizes },
+        });
     }
 
     // magiclaw 模式下从输入框读取 agent_code 注入 dynamic_config
     if (currentAgentMode === 'magiclaw' && agentCodeInput) {
         const agentCode = agentCodeInput.value.trim();
         if (agentCode) {
-            message.dynamic_config = { agent_code: agentCode };
+            message.dynamic_config = Object.assign({}, message.dynamic_config, { agent_code: agentCode });
         }
     }
 
