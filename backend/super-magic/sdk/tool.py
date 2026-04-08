@@ -80,10 +80,19 @@ class ToolSDK:
         if not tool_call_id:
             tool_call_id = f"call_{uuid.uuid4().hex[:24]}"
 
-        # 构建请求数据
         # agent_context_id 由 run_sdk_snippet 注入到子进程环境变量，
-        # SDK Runtime 服务端用它精确路由到发起调用的 Agent context。
+        # SDK 服务端用它精确路由到发起调用的 Agent context。
+        # 如果缺失，说明当前代码不是从 run_sdk_snippet 启动的——常见于误用 run_python_snippet。
         agent_context_id = os.getenv("SUPER_MAGIC_AGENT_CONTEXT_ID", "")
+        if not agent_context_id:
+            error_msg = (
+                "SUPER_MAGIC_AGENT_CONTEXT_ID is not set. "
+                "sdk.tool can only be used inside run_sdk_snippet, not run_python_snippet. "
+                "Please use run_sdk_snippet to call SDK tools."
+            )
+            print(f"[SDK Error] {error_msg}", file=sys.stderr)
+            return Result.error(error_msg, tool_call_id=tool_call_id)
+
         request_data = {
             "tool_name": tool_name,
             "tool_params": tool_params,
@@ -92,7 +101,7 @@ class ToolSDK:
         }
 
         # 发起 HTTP 请求
-        url = f"{self.api_base_url}/api/sdk-runtime/call_tool"
+        url = f"{self.api_base_url}/api/sdk/tool/call"
         request_timeout = self._resolve_request_timeout(tool_name, timeout, self.api_timeout)
 
         try:

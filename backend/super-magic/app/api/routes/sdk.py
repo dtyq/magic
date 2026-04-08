@@ -1,7 +1,7 @@
 """
-SDK Runtime Routes
+SDK Routes
 
-提供 run_sdk_snippet 执行环境通过 HTTP 调用工具与 MCP 的运行时接口。
+提供 run_sdk_snippet 执行环境通过 HTTP 调用工具与 MCP 的接口。
 """
 import json
 import traceback
@@ -22,7 +22,7 @@ from app.tools.core.tool_call_executor import tool_call_executor
 from agentlang.chat_history.chat_history_models import ToolCall, FunctionCall
 from app.mcp.manager import get_global_mcp_manager
 
-router = APIRouter(prefix="/sdk-runtime", tags=["SDK Runtime"])
+router = APIRouter(prefix="/sdk", tags=["SDK"])
 
 logger = get_logger(__name__)
 
@@ -30,8 +30,8 @@ logger = get_logger(__name__)
 agent_dispatcher = AgentDispatcher.get_instance()
 
 
-class CallToolRequest(BaseModel):
-    """工具调用请求模型"""
+class SdkToolCallRequest(BaseModel):
+    """SDK 工具调用请求"""
 
     tool_name: str = Field(..., description="工具名称")
     tool_params: Dict[str, Any] = Field(..., description="工具参数字典")
@@ -42,12 +42,12 @@ class CallToolRequest(BaseModel):
     )
 
 
-@router.post("/call_tool", response_model=BaseResponse)
-async def call_tool(request: CallToolRequest):
+@router.post("/tool/call", response_model=BaseResponse)
+async def sdk_tool_call(request: SdkToolCallRequest):
     """
-    调用工具接口
+    SDK 工具调用接口
 
-    用于 SDK Runtime 通过 HTTP 请求调用工具。
+    供 run_sdk_snippet 子进程通过 HTTP 调用宿主工具。
     """
     try:
         # 从注册表精确查找调用方的 AgentContext
@@ -70,7 +70,7 @@ async def call_tool(request: CallToolRequest):
 
         agent_label = agent_context.get_agent_session_label()
         logger.info(
-            f"SDK Runtime 通过 HTTP 调用工具: {request.tool_name}, params: {request.tool_params}, "
+            f"SDK tool call: {request.tool_name}, params: {request.tool_params}, "
             f"tool_call_id: {tool_call_id}, agent: {agent_label}, agent_context_id: {request.agent_context_id}"
         )
 
@@ -127,8 +127,8 @@ async def call_tool(request: CallToolRequest):
         )
 
 
-class McpCallRequest(BaseModel):
-    """MCP 工具调用请求模型"""
+class SdkMcpCallRequest(BaseModel):
+    """SDK MCP 工具调用请求"""
 
     server_name: str = Field(..., description="MCP 服务器名称")
     tool_name: str = Field(..., description="工具名称（原始名称）")
@@ -140,12 +140,12 @@ class McpCallRequest(BaseModel):
     )
 
 
-@router.post("/mcp_call", response_model=BaseResponse)
-async def mcp_call(request: McpCallRequest):
+@router.post("/mcp/call", response_model=BaseResponse)
+async def sdk_mcp_call(request: SdkMcpCallRequest):
     """
-    调用 MCP 工具接口
+    SDK MCP 工具调用接口
 
-    用于 SDK Runtime 通过 HTTP 请求调用 MCP 工具。
+    供 run_sdk_snippet 子进程通过 HTTP 调用 MCP 工具。
     """
     try:
         # 从注册表精确查找调用方的 AgentContext
@@ -181,7 +181,7 @@ async def mcp_call(request: McpCallRequest):
 
         agent_label = agent_context.get_agent_session_label()
         logger.info(
-            f"MCP SDK 通过 HTTP 调用工具: {full_tool_name} (服务器: {request.server_name}, 原始名称: {request.tool_name}), "
+            f"SDK MCP call: {full_tool_name} (server: {request.server_name}, original: {request.tool_name}), "
             f"params: {request.tool_params}, tool_call_id: {tool_call_id}, agent: {agent_label}, agent_context_id: {request.agent_context_id}"
         )
 
@@ -233,8 +233,8 @@ async def mcp_call(request: McpCallRequest):
         )
 
 
-@router.get("/mcp_servers", response_model=BaseResponse)
-async def get_mcp_servers():
+@router.get("/mcp/servers", response_model=BaseResponse)
+async def sdk_mcp_servers():
     """
     获取 MCP 服务器列表
     """
@@ -279,8 +279,8 @@ async def get_mcp_servers():
         )
 
 
-@router.get("/mcp_tools", response_model=BaseResponse)
-async def get_mcp_tools(server_name: Optional[str] = None):
+@router.get("/mcp/tools", response_model=BaseResponse)
+async def sdk_mcp_tools(server_name: Optional[str] = None):
     """
     获取 MCP 工具列表
 
@@ -341,8 +341,8 @@ class McpAddServerRequest(BaseModel):
     label_name: Optional[str] = Field(None, description="服务器显示名称")
 
 
-@router.post("/mcp_add_server", response_model=BaseResponse)
-async def mcp_add_server(request: McpAddServerRequest):
+@router.post("/mcp/add-server", response_model=BaseResponse)
+async def sdk_mcp_add_server(request: McpAddServerRequest):
     """
     动态添加 MCP 服务器
 
@@ -427,8 +427,8 @@ async def mcp_add_server(request: McpAddServerRequest):
         )
 
 
-@router.get("/mcp_tool_schema", response_model=BaseResponse)
-async def get_mcp_tool_schema(server_name: str, tool_name: str):
+@router.get("/mcp/tool-schema", response_model=BaseResponse)
+async def sdk_mcp_tool_schema(server_name: str, tool_name: str):
     """
     获取 MCP 工具 Schema（支持单个或多个工具）
 

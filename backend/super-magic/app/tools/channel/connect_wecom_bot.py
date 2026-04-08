@@ -1,7 +1,7 @@
 """
 ConnectWecomBot — 建立企微 AI Bot WS 连接的 Tool。
 
-不挂载到 LLM tool list，仅供 SDK snippet 通过 /api/sdk-runtime/call_tool 调用。
+不挂载到 LLM tool list，仅供 SDK snippet 通过 /api/sdk/tool/call 调用。
 """
 from typing import Any, Dict
 

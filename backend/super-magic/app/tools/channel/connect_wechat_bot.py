@@ -1,7 +1,7 @@
 """
 ConnectWechatBot — 发起微信官方 ClawBot 扫码登录的 Tool。
 
-不挂载到 LLM tool list，仅供 SDK snippet 通过 /api/sdk-runtime/call_tool 调用。
+不挂载到 LLM tool list，仅供 SDK snippet 通过 /api/sdk/tool/call 调用。
 """
 from typing import Any, Dict
 
