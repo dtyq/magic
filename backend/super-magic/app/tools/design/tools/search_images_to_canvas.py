@@ -288,19 +288,20 @@ class SearchImagesToCanvas(BaseDesignTool[SearchImagesToCanvasParams]):
             project_images_dir = project_path / "images"
             await asyncio.to_thread(project_images_dir.mkdir, parents=True, exist_ok=True)
 
-            # 计算相对于 workspace 的路径
+            # 计算下载工具所需的 workspace 相对路径（仅用于 download_from_url 的 file_path 参数）
             try:
                 relative_images_dir = str(project_images_dir.relative_to(workspace_path))
             except ValueError:
                 relative_images_dir = f"{project_path.name}/images"
 
-            logger.debug(f"图片下载目录: {project_images_dir}, 相对路径: {relative_images_dir}")
+            logger.debug(f"图片下载目录: {project_images_dir}, workspace 相对路径: {relative_images_dir}")
 
             # 并发下载图片
             image_infos = await self._download_images_to_project(
                 image_urls,
                 relative_images_dir,
                 workspace_path,
+                project_path,
                 tool_context
             )
 
@@ -462,19 +463,21 @@ class SearchImagesToCanvas(BaseDesignTool[SearchImagesToCanvasParams]):
         image_urls: List[Dict[str, Any]],
         relative_images_dir: str,
         workspace_path: Path,
+        project_path: Path,
         tool_context: ToolContext
     ) -> List[Dict[str, Any]]:
         """并发下载图片到项目 images 目录
 
         Args:
             image_urls: 图片 URL 信息列表
-            relative_images_dir: 相对于 workspace 的图片目录路径
+            relative_images_dir: 相对于 workspace 的图片目录路径（仅用于 download_from_url 的 file_path 参数）
             workspace_path: workspace 根路径
+            project_path: 项目目录的绝对路径（用于计算项目相对 src 路径）
 
         Returns:
             [
                 {
-                    "relative_path": "project-name/images/xxx.jpg",
+                    "relative_path": "images/xxx.jpg",
                     "width": 1920,
                     "height": 1080,
                     "name": "产品图",
@@ -520,6 +523,7 @@ class SearchImagesToCanvas(BaseDesignTool[SearchImagesToCanvasParams]):
                 image_info,
                 file_path,
                 workspace_path,
+                project_path,
                 tool_context,
                 semaphore
             )
@@ -547,6 +551,7 @@ class SearchImagesToCanvas(BaseDesignTool[SearchImagesToCanvasParams]):
         image_info: Dict[str, Any],
         file_path: str,
         workspace_path: Path,
+        project_path: Path,
         tool_context: ToolContext,
         semaphore: asyncio.Semaphore
     ) -> Optional[Dict[str, Any]]:
@@ -554,8 +559,9 @@ class SearchImagesToCanvas(BaseDesignTool[SearchImagesToCanvasParams]):
 
         Args:
             image_info: 图片 URL 信息
-            file_path: 相对于 workspace 的文件路径
+            file_path: 相对于 workspace 的文件路径（供 download_from_url 使用）
             workspace_path: workspace 根路径
+            project_path: 项目目录的绝对路径（用于计算项目相对 src 路径）
             tool_context: 工具上下文
             semaphore: 并发控制信号量
 
@@ -563,25 +569,27 @@ class SearchImagesToCanvas(BaseDesignTool[SearchImagesToCanvasParams]):
             成功时返回包含 relative_path 的图片信息，失败返回 None
         """
         async with semaphore:
-            return await self._download_single_image(image_info, file_path, workspace_path, tool_context)
+            return await self._download_single_image(image_info, file_path, workspace_path, project_path, tool_context)
 
     async def _download_single_image(
         self,
         image_info: Dict[str, Any],
         file_path: str,
         workspace_path: Path,
+        project_path: Path,
         tool_context: ToolContext
     ) -> Optional[Dict[str, Any]]:
         """下载单张图片
 
         Args:
             image_info: 图片 URL 信息
-            file_path: 相对于 workspace 的文件路径
+            file_path: 相对于 workspace 的文件路径（供 download_from_url 使用）
             workspace_path: workspace 根路径
+            project_path: 项目目录的绝对路径（用于计算项目相对 src 路径）
             tool_context: 工具上下文
 
         Returns:
-            成功时返回包含 relative_path 的图片信息，失败返回 None
+            成功时返回包含 relative_path（项目相对路径）的图片信息，失败返回 None
         """
         try:
             download_params = DownloadFromUrlParams(
@@ -609,12 +617,15 @@ class SearchImagesToCanvas(BaseDesignTool[SearchImagesToCanvasParams]):
                             logger.warning(f"删除无效文件失败: {downloaded_path} - {e}")
                         return None
 
-                    # 转换为相对于 workspace 的路径
+                    # 转换为项目相对路径（如 "images/xxx.jpg"）
                     try:
-                        relative_path = str(downloaded_file_path.relative_to(workspace_path))
+                        relative_path = str(downloaded_file_path.relative_to(project_path))
                     except ValueError:
-                        # 如果无法计算相对路径，使用原始 file_path
-                        relative_path = file_path
+                        # 兜底：降级到 workspace 相对路径，解析器读取时会自动规范化
+                        try:
+                            relative_path = str(downloaded_file_path.relative_to(workspace_path))
+                        except ValueError:
+                            relative_path = file_path
 
                     return {
                         "relative_path": relative_path,
@@ -654,27 +665,6 @@ class SearchImagesToCanvas(BaseDesignTool[SearchImagesToCanvasParams]):
         # 默认返回 .jpg
         return '.jpg'
 
-    # noinspection PyMethodMayBeStatic
-    def _make_relative_to_workspace(self, absolute_path: str, workspace_path: Path) -> str:
-        """转换为相对于 workspace 的路径（复用工具一的逻辑）
-
-        Args:
-            absolute_path: 绝对路径
-            workspace_path: workspace 根路径
-
-        Returns:
-            相对于 workspace 的路径
-        """
-        path_obj = Path(absolute_path)
-
-        try:
-            # 尝试计算相对于 workspace 的路径
-            relative = path_obj.relative_to(workspace_path)
-            return str(relative)
-        except ValueError:
-            # 如果不在 workspace 下，返回文件名
-            logger.warning(f"图片路径 {absolute_path} 不在 workspace {workspace_path} 下，仅使用文件名")
-            return path_obj.name
 
     def _generate_element_names(
         self,

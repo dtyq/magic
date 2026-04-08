@@ -4,7 +4,6 @@
 """
 
 from app.i18n import i18n
-import asyncio
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
@@ -20,10 +19,9 @@ from app.tools.core import BaseToolParams, tool
 from app.tools.design.tools.base_design_tool import BaseDesignTool
 from app.utils.async_file_utils import (
     async_read_text,
-    async_write_text,
+    async_write_text_with_retry,
     async_mkdir,
     async_exists,
-    async_stat
 )
 
 logger = get_logger(__name__)
@@ -143,48 +141,12 @@ class CreateDesignProject(BaseDesignTool[CreateDesignProjectParams]):
                 before_event_type = EventType.BEFORE_FILE_UPDATED if config_file_exists else EventType.BEFORE_FILE_CREATED
                 await self._dispatch_file_event(tool_context, str(project_js_path), before_event_type)
 
-                # 写入文件
-                await async_write_text(project_js_path, project_js_content)
-
-                # 等待并验证文件写入（带重试机制，适应 TOS 同步延迟）
-                max_retries = 5
-                retry_delay = 0.2
-
-                for attempt in range(max_retries):
-                    await asyncio.sleep(retry_delay)
-
-                    # 验证文件是否成功创建
-                    if not await async_exists(project_js_path):
-                        if attempt < max_retries - 1:
-                            logger.warning(f"File does not exist after write, retrying... (attempt {attempt + 1}/{max_retries})")
-                            continue
-                        raise IOError(f"File does not exist after write: {project_js_path}")
-
-                    # 验证文件内容不为空
-                    file_stat = await async_stat(project_js_path)
-                    if file_stat.st_size == 0:
-                        if attempt < max_retries - 1:
-                            logger.warning(f"File is empty after write, retrying... (attempt {attempt + 1}/{max_retries})")
-                            continue
-                        raise IOError(f"File is empty after write: {project_js_path}")
-
-                    # 验证文件内容是否正确
-                    written_content = await async_read_text(project_js_path)
-                    if not written_content or len(written_content.strip()) == 0:
-                        if attempt < max_retries - 1:
-                            logger.warning(f"File content is empty after write, retrying... (attempt {attempt + 1}/{max_retries})")
-                            continue
-                        raise IOError(f"File content is empty after write: {project_js_path}")
-
-                    if "magicProjectConfig" not in written_content:
-                        if attempt < max_retries - 1:
-                            logger.warning(f"File content is invalid after write, retrying... (attempt {attempt + 1}/{max_retries})")
-                            continue
-                        raise IOError(f"File content is invalid after write: {project_js_path}")
-
-                    # 验证通过
-                    logger.info(f"Verified file write success: {project_js_path} (size: {file_stat.st_size} bytes, attempt: {attempt + 1})")
-                    break
+                # 写入文件并验证（带重试，适应 TOS 同步延迟）
+                await async_write_text_with_retry(
+                    project_js_path,
+                    project_js_content,
+                    content_validator=lambda c: "magicProjectConfig" in c,
+                )
 
                 # 触发文件事件（创建或更新）后事件
                 after_event_type = EventType.FILE_UPDATED if config_file_exists else EventType.FILE_CREATED

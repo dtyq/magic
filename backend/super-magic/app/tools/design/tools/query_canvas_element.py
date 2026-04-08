@@ -228,47 +228,8 @@ class QueryCanvasElement(BaseDesignTool[QueryCanvasElementParams]):
 
             logger.info(f"查询元素: {query_info}, 找到: {element.name} (id: {element.id})")
 
-            # Build element detail data (可能会执行视觉理解)
+            # Build element detail data
             element_data = await self._build_element_detail(element, project_path, manager)
-
-            # 如果执行了视觉理解，需要保存更改
-            # 检查元素是否为图片类型且有新的视觉理解信息
-            if isinstance(element, ImageElement) and hasattr(element, 'visualUnderstanding') and element.visualUnderstanding:
-                # 检查是否是新生成的（通过 analyzedAt 判断）
-                vu = element.visualUnderstanding
-                if (isinstance(vu, dict) and vu.get('analyzedAt')) or (hasattr(vu, 'analyzedAt') and vu.analyzedAt):
-                    target_element_id = element.id
-                    logger.info(f"保存新生成的视觉理解信息到元素 {target_element_id}")
-                    updates = {'visualUnderstanding': element.visualUnderstanding}
-                    # 获取配置文件路径
-                    config_file = self._get_magic_project_js_path(project_path)
-
-                    try:
-                        await manager.run_write_transaction(
-                            lambda config: manager.update_element(
-                                target_element_id,
-                                updates,
-                                config=config,
-                            ),
-                            verify_content=lambda verified_config, _: any(
-                                candidate.id == target_element_id
-                                and getattr(candidate, "visualUnderstanding", None)
-                                for candidate in flatten_all_elements(verified_config)
-                            ),
-                            before_write=lambda: self._dispatch_file_event(
-                                tool_context,
-                                str(config_file),
-                                EventType.BEFORE_FILE_UPDATED,
-                            ),
-                            after_write=lambda _: self._dispatch_file_event(
-                                tool_context,
-                                str(config_file),
-                                EventType.FILE_UPDATED,
-                            ),
-                        )
-                    except Exception as save_error:  # noqa: BLE001
-                        # 视觉理解保存失败不影响查询结果，仅记录警告
-                        logger.warning(f"保存视觉理解结果失败: {save_error}")
 
             # Add surrounding elements analysis if requested
             if params.include_surrounding:
@@ -300,11 +261,13 @@ class QueryCanvasElement(BaseDesignTool[QueryCanvasElementParams]):
             )
 
     async def _find_element_by_src(self, config: MagicProjectConfig, src: str) -> Optional[Any]:
-        """通过 src 查找图片元素
+        """通过 src 查找图片/视频元素
+
+        支持新格式（项目相对路径 images/xxx.jpg）和旧格式（workspace 相对路径 project-name/images/xxx.jpg）的输入。
 
         Args:
             config: 当前画布配置
-            src: 图片的 src 路径（可能带或不带开头的 /）
+            src: 图片的 src 路径（可能带或不带开头的 /，支持新旧两种格式）
 
         Returns:
             找到的元素对象，如果没找到返回 None
@@ -315,12 +278,17 @@ class QueryCanvasElement(BaseDesignTool[QueryCanvasElementParams]):
         # 标准化查询路径：去除开头的 /
         normalized_src = src.lstrip('/')
 
+        # 兼容旧格式输入：若输入是 workspace 相对路径（以项目名开头），去掉项目名前缀
+        project_name = config.name
+        if project_name and normalized_src.startswith(project_name + "/"):
+            normalized_src = normalized_src[len(project_name) + 1:]
+
         # 遍历所有元素，查找匹配的媒体元素。
         # 设计生视频会把 src 写到 video 元素里，因此这里同时支持 image/video。
         for element in config.canvas.elements:
             if isinstance(element, (ImageElement, VideoElement)):
                 if hasattr(element, 'src') and element.src:
-                    # 标准化元素的 src：去除开头的 /
+                    # 标准化元素的 src：去除开头的 /（存储的已是项目相对路径）
                     element_src_normalized = element.src.lstrip('/')
 
                     # 比较标准化后的路径
@@ -401,14 +369,11 @@ class QueryCanvasElement(BaseDesignTool[QueryCanvasElementParams]):
 
         # Check file existence and get file info
         if element.src:
-            # element.src 是相对于工作区根目录的路径，需要使用 workspace_dir
             import asyncio
-            from agentlang.path_manager import PathManager
-            workspace_dir = PathManager.get_workspace_dir()
 
-            # 标准化路径：去除开头的 /，兼容两种格式（/path 和 path）
+            # element.src 是相对于项目目录的路径，使用 project_path 拼接为绝对路径
             normalized_src = element.src.lstrip('/')
-            file_path = workspace_dir / normalized_src
+            file_path = project_path / normalized_src
 
             if await asyncio.to_thread(file_path.exists):
                 file_size = await asyncio.to_thread(lambda: file_path.stat().st_size)
@@ -437,27 +402,6 @@ class QueryCanvasElement(BaseDesignTool[QueryCanvasElementParams]):
                     "is_generated": True,
                     "model": getattr(gen_req, 'model_id', None),
                     "prompt": getattr(gen_req, 'prompt', None),
-                }
-
-        # 如果没有视觉理解信息，自动执行视觉理解
-        if not (hasattr(element, 'visualUnderstanding') and element.visualUnderstanding):
-            logger.info(f"图片元素 {element.id} 没有视觉理解缓存，开始执行视觉理解")
-            await self._perform_visual_understanding(element, project_path)
-
-        # Add visual understanding if available
-        if hasattr(element, 'visualUnderstanding') and element.visualUnderstanding:
-            vu = element.visualUnderstanding
-            if isinstance(vu, dict):
-                properties["visual_understanding"] = {
-                    "has_cache": True,
-                    "summary": vu.get('summary'),
-                    "detailed": vu.get('detailed')
-                }
-            else:
-                properties["visual_understanding"] = {
-                    "has_cache": True,
-                    "summary": getattr(vu, 'summary', None),
-                    "detailed": getattr(vu, 'detailed', None)
                 }
 
         return properties

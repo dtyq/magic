@@ -366,52 +366,6 @@ class BaseDesignTool(AbstractFileTool[T], WorkspaceTool[T], Generic[T]):
         except Exception as e:
             return False, f"校验图片文件时发生异常: {image_path} - {e}"
 
-    async def _perform_visual_understanding(
-        self,
-        element: ImageElement,
-        project_path: Path
-    ) -> None:
-        """对图片元素执行视觉理解并更新元素属性
-
-        此方法为图片元素自动执行视觉理解分析，并将结果保存到元素的 visualUnderstanding 属性。
-        使用缓存机制避免重复分析，支持自动重试。
-
-        Args:
-            element: 图片元素对象（会被修改，添加 visualUnderstanding 属性）
-            project_path: 项目路径（用于解析相对路径）
-
-        Note:
-            - 如果元素没有 src 属性，会跳过分析
-            - 分析失败不会抛出异常，只记录警告日志
-            - 使用缓存机制，相同图片不会重复分析
-        """
-        if not hasattr(element, 'src') or not element.src:
-            logger.info("图片元素没有 src，跳过视觉理解")
-            return
-
-        try:
-            logger.info(f"开始对图片元素执行视觉理解: {element.src}")
-
-            # 延迟导入避免循环依赖
-            from app.tools.design.utils.canvas_image_visual_understanding import analyze_image_for_canvas
-
-            # 调用视觉理解工具
-            visual_understanding = await analyze_image_for_canvas(
-                image_path=element.src,
-                include_detailed_analysis=True,
-                use_cache=True,
-                max_retries=1
-            )
-
-            # 将视觉理解结果保存到元素属性
-            element.visualUnderstanding = visual_understanding
-
-            logger.info(f"视觉理解完成: {element.src}, 摘要: {visual_understanding.summary[:50]}...")
-
-        except Exception as e:
-            # 视觉理解失败不应阻止元素操作，只记录警告
-            logger.warning(f"图片元素视觉理解失败 {element.src}: {e}")
-
     @staticmethod
     def _sanitize_filename(name: str, max_length: int = 200) -> str:
         """清理文件名中的特殊字符

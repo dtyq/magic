@@ -539,6 +539,44 @@ def _dict_to_element(data: Dict[str, Any]) -> Optional[CanvasElement]:
         return None
 
 
+# 项目内媒体文件的规范存储目录名，用于识别旧格式 workspace 相对路径
+_CANONICAL_MEDIA_DIRS = {"images", "videos"}
+
+
+def _normalize_media_src(src: str) -> str:
+    """
+    将旧格式的 workspace 相对路径规范化为项目相对路径。
+
+    旧格式：project-name/images/xxx.jpg（相对于 workspace 根目录）
+    新格式：images/xxx.jpg（相对于项目目录，即 magic.project.js 所在目录）
+
+    识别方式：路径形如 X/images/... 或 X/videos/...（第二段是已知媒体目录），
+    无论 X 是什么（兼容项目改名），都视为旧格式并剥掉第一段。
+
+    Args:
+        src: 原始 src 字符串
+
+    Returns:
+        规范化后的 src（项目相对路径）
+    """
+    if not src:
+        return src
+
+    # 去除开头的斜杠，统一处理
+    normalized = src.lstrip("/")
+    parts = normalized.split("/")
+
+    # 模式匹配：路径第二段是已知媒体目录（images/videos）
+    # 形如 "any-prefix/images/xxx.jpg" → "images/xxx.jpg"
+    # 无论第一段是什么，均视为旧的 workspace 相对路径并剥掉前缀，兼容项目改名的情况
+    if len(parts) >= 3 and parts[1] in _CANONICAL_MEDIA_DIRS:
+        new_src = "/".join(parts[1:])
+        logger.info(f"Normalized src from old workspace-relative format '{src}' to '{new_src}'")
+        return new_src
+
+    return src
+
+
 def _parse_config_dict(data: Dict[str, Any]) -> MagicProjectConfig:
     """
     将字典解析为 MagicProjectConfig
@@ -562,6 +600,11 @@ def _parse_config_dict(data: Dict[str, Any]) -> MagicProjectConfig:
         skipped_count = 0
 
         for idx, elem in enumerate(elements_data):
+            # 规范化 image/video 元素的 src 路径：旧格式（workspace 相对）→ 新格式（项目相对）
+            if elem.get("type") in ("image", "video") and elem.get("src"):
+                elem = dict(elem)  # 避免修改原始数据
+                elem["src"] = _normalize_media_src(elem["src"])
+
             parsed_elem = _dict_to_element(elem)
             if parsed_elem is not None:
                 parsed_elements.append(parsed_elem)

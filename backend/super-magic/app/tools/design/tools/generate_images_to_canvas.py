@@ -8,6 +8,7 @@ from app.i18n import i18n
 import asyncio
 import random
 import re
+import time
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
@@ -421,7 +422,8 @@ Expand brief user descriptions into full prompts covering subject, style, compos
                     image_name=f"{clean_name}_{timestamp}",
                     output_path=relative_output_path,
                     image_paths=params.reference_images,
-                    workspace_path=workspace_path
+                    workspace_path=workspace_path,
+                    project_path=project_path,
                 )
             else:
                 # 多 prompts 模式：并发调用 generate_image
@@ -436,7 +438,8 @@ Expand brief user descriptions into full prompts covering subject, style, compos
                     timestamp=timestamp,
                     output_path=relative_output_path,
                     image_paths=params.reference_images,
-                    workspace_path=workspace_path
+                    workspace_path=workspace_path,
+                    project_path=project_path,
                 )
                 succeeded_count = sum(1 for r in generation_results if r.is_success)
                 logger.info(f"多 prompts 模式完成，成功: {succeeded_count}/{prompts_count}")
@@ -673,7 +676,8 @@ Expand brief user descriptions into full prompts covering subject, style, compos
         image_name: str,
         output_path: str,
         image_paths: List[str],
-        workspace_path: Path
+        workspace_path: Path,
+        project_path: Optional[Path] = None,
     ) -> List[ImageGenerationResult]:
         """单 prompt 模式生成图片（失败自动重试一次）
 
@@ -688,6 +692,7 @@ Expand brief user descriptions into full prompts covering subject, style, compos
             output_path: 输出路径
             image_paths: 参考图片路径
             workspace_path: workspace 根路径
+            project_path: 项目目录的绝对路径，用于生成项目相对 src 路径
 
         Returns:
             图片生成结果列表，按索引顺序排列
@@ -724,13 +729,17 @@ Expand brief user descriptions into full prompts covering subject, style, compos
                     override=False
                 )
 
+                _t0 = time.monotonic()
                 generation_result = await self._generate_tool.execute_purely(tool_context, generate_params, skip_limit_check=True)
+                _duration_ms = int((time.monotonic() - _t0) * 1000)
 
                 if generation_result.ok:
                     extracted = await self._extract_generated_images(
                         generation_result,
                         workspace_path,
-                        generate_params
+                        generate_params,
+                        project_path=project_path,
+                        duration_ms=_duration_ms,
                     )
 
                     # 检查是否有成功的图片
@@ -827,7 +836,8 @@ Expand brief user descriptions into full prompts covering subject, style, compos
         timestamp: str,
         output_path: str,
         image_paths: List[str],
-        workspace_path: Path
+        workspace_path: Path,
+        project_path: Optional[Path] = None,
     ) -> List[ImageGenerationResult]:
         """多 prompts 模式并发生成图片（失败自动重试一次）
 
@@ -893,13 +903,17 @@ Expand brief user descriptions into full prompts covering subject, style, compos
                         override=False
                     )
 
+                    _t0 = time.monotonic()
                     generation_result = await self._generate_tool.execute_purely(tool_context, generate_params, skip_limit_check=True)
+                    _duration_ms = int((time.monotonic() - _t0) * 1000)
 
                     if generation_result.ok:
                         extracted = await self._extract_generated_images(
                             generation_result,
                             workspace_path,
-                            generate_params
+                            generate_params,
+                            project_path=project_path,
+                            duration_ms=_duration_ms,
                         )
 
                         # 检查是否成功生成图片（image_count=1，所以只有一张图片）
@@ -1028,14 +1042,17 @@ Expand brief user descriptions into full prompts covering subject, style, compos
         self,
         generation_result: ToolResult,
         workspace_path: Path,
-        generate_params: GenerateImageParams
+        generate_params: GenerateImageParams,
+        project_path: Optional[Path] = None,
+        duration_ms: Optional[int] = None,
     ) -> ExtractedImagesResult:
         """从 generate_image 结果提取图片信息并组装 generateImageRequest
 
         Args:
             generation_result: generate_image 的返回结果
-            workspace_path: workspace 根路径（用于计算相对路径）
+            workspace_path: workspace 根路径（用于校验文件位置）
             generate_params: 调用 generate_image 时使用的参数
+            project_path: 项目目录的绝对路径，用于生成项目相对 src 路径
 
         Returns:
             ExtractedImagesResult: 包含成功的图片列表和失败的错误信息列表
@@ -1058,8 +1075,15 @@ Expand brief user descriptions into full prompts covering subject, style, compos
                 errors.append(f"图片校验失败: {Path(img_path).name} - {error_msg}")
                 continue  # 跳过该图片，继续处理下一张
 
-            # 2. 转换为相对于 workspace 的路径
-            relative_path = self._make_relative_to_workspace(img_path, workspace_path)
+            # 2. 转换为相对于项目目录的路径（项目相对路径）
+            if project_path is not None:
+                relative_path = self._make_relative_to_project(img_path, project_path)
+            else:
+                # 兜底：回退到 workspace 相对路径（解析器读取时会规范化）
+                try:
+                    relative_path = str(Path(img_path).relative_to(workspace_path))
+                except ValueError:
+                    relative_path = Path(img_path).name
 
             # 3. 从实际图片文件中读取真实尺寸
             dimensions = self._read_image_dimensions(img_path)
@@ -1089,6 +1113,8 @@ Expand brief user descriptions into full prompts covering subject, style, compos
                 "image_id": image_id,
                 "mode": generate_params.mode,
             }
+            if duration_ms is not None:
+                generate_request["duration_ms"] = duration_ms
 
             # 如果是图生图模式，添加参考图片信息
             if generate_params.mode == "edit" and generate_params.image_paths:
@@ -1133,25 +1159,23 @@ Expand brief user descriptions into full prompts covering subject, style, compos
             return ImageDimensions(width=None, height=None)
 
     # noinspection PyMethodMayBeStatic
-    def _make_relative_to_workspace(self, absolute_path: str, workspace_path: Path) -> str:
-        """转换为相对于 workspace 的路径
+    def _make_relative_to_project(self, absolute_path: str, project_path: Path) -> str:
+        """转换为相对于项目目录的路径（项目相对路径）
 
         Args:
             absolute_path: 绝对路径（如 generate_image 返回的路径）
-            workspace_path: workspace 根路径
+            project_path: 项目目录的绝对路径（magic.project.js 所在目录）
 
         Returns:
-            相对于 workspace 的路径（如 "project-name/images/xxx.jpg"）
+            相对于项目目录的路径（如 "images/xxx.jpg"）
         """
         path_obj = Path(absolute_path)
 
         try:
-            # 尝试计算相对于 workspace 的路径
-            relative = path_obj.relative_to(workspace_path)
+            relative = path_obj.relative_to(project_path)
             return str(relative)
         except ValueError:
-            # 如果不在 workspace 下，返回文件名
-            logger.warning(f"图片路径 {absolute_path} 不在 workspace {workspace_path} 下，仅使用文件名")
+            logger.warning(f"图片路径 {absolute_path} 不在项目目录 {project_path} 下，仅使用文件名")
             return path_obj.name
 
     # noinspection PyMethodMayBeStatic
