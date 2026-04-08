@@ -1326,10 +1326,10 @@ function renderMarkdown(text) {
     return div;
 }
 
-// 将内容按 ```html 块拆分，返回渲染好的 DOM 片段数组
+// 将内容按 ```html / ```qrcode 块拆分，返回渲染好的 DOM 片段数组
 function buildRenderedView(content) {
     const fragment = document.createDocumentFragment();
-    const codeBlockRegex = /```(?:html|HTML)\n([\s\S]*?)```/g;
+    const codeBlockRegex = /```(html|HTML|qrcode)\n([\s\S]*?)```/g;
     let lastIndex = 0;
     let match;
 
@@ -1337,21 +1337,38 @@ function buildRenderedView(content) {
         const before = content.slice(lastIndex, match.index);
         if (before.trim()) fragment.appendChild(renderMarkdown(before));
 
-        // ```html 块 → iframe
-        const wrapper = document.createElement('div');
-        wrapper.className = 'ai-iframe-wrapper';
-        const iframe = document.createElement('iframe');
-        iframe.className = 'ai-iframe';
-        iframe.setAttribute('sandbox', 'allow-scripts allow-same-origin');
-        iframe.srcdoc = match[1];
-        iframe.onload = () => {
-            try {
-                const h = iframe.contentDocument.body.scrollHeight;
-                if (h > 0) iframe.style.height = Math.min(h + 20, 600) + 'px';
-            } catch (e) {}
-        };
-        wrapper.appendChild(iframe);
-        fragment.appendChild(wrapper);
+        const lang = match[1].toLowerCase();
+        const blockContent = match[2];
+
+        if (lang === 'html') {
+            const wrapper = document.createElement('div');
+            wrapper.className = 'ai-iframe-wrapper';
+            const iframe = document.createElement('iframe');
+            iframe.className = 'ai-iframe';
+            iframe.setAttribute('sandbox', 'allow-scripts allow-same-origin');
+            iframe.srcdoc = blockContent;
+            iframe.onload = () => {
+                try {
+                    const h = iframe.contentDocument.body.scrollHeight;
+                    if (h > 0) iframe.style.height = Math.min(h + 20, 600) + 'px';
+                } catch (e) {}
+            };
+            wrapper.appendChild(iframe);
+            fragment.appendChild(wrapper);
+        } else if (lang === 'qrcode') {
+            const url = blockContent.trim();
+            const wrapper = document.createElement('div');
+            wrapper.className = 'ai-qrcode-wrapper';
+            const qrTarget = document.createElement('div');
+            wrapper.appendChild(qrTarget);
+            fragment.appendChild(wrapper);
+            if (typeof QRCode !== 'undefined') {
+                new QRCode(qrTarget, { text: url, width: 256, height: 256, colorDark: '#111', colorLight: '#fff' });
+            } else {
+                qrTarget.textContent = url;
+            }
+        }
+
         lastIndex = match.index + match[0].length;
     }
 
