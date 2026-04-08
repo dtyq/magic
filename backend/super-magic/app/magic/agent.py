@@ -540,23 +540,9 @@ The following <dynamic_context> block contains system-provided context informati
             logger.debug("Placeholder not found in dynamic_context_prompt, skipping async init")
             return
 
-        # 根据环境变量决定使用哪种方式获取目录树
-        workspace_dir_files_list = ""
-
-        if Environment.is_dev():
-            # 开发环境：使用本地文件系统扫描
-            logger.info("开发环境：使用本地文件系统扫描获取目录树")
-            workspace_dir_files_list = await self._get_file_tree_from_local_filesystem()
-        else:
-            # 非开发环境：优先使用 Magic Service 获取目录树（更快），失败时降级到本地扫描
-            logger.info("生产环境：尝试使用 Magic Service 获取目录树")
-
-            workspace_dir_files_list = await self._get_file_tree_from_magic_service()
-
-            # 如果 Magic Service 获取失败，降级到本地文件系统扫描
-            if not workspace_dir_files_list:
-                logger.warning("Magic Service 获取目录树失败，降级使用本地文件系统扫描")
-                workspace_dir_files_list = await self._get_file_tree_from_local_filesystem()
+        # Always use local filesystem scan to get directory tree
+        logger.info("使用本地文件系统扫描获取目录树")
+        workspace_dir_files_list = await self._get_file_tree_from_local_filesystem()
 
         # Handle empty directory case
         if not workspace_dir_files_list or "目录为空，没有文件" in workspace_dir_files_list:
