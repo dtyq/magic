@@ -621,7 +621,7 @@ class SkillAppService extends AbstractSkillAppService
             $authorization->getId()
         );
 
-        if (empty($this->getAccessibleSkillCodes($dataIsolation, [$code])) && ! BuiltinSkill::tryFrom($code)) {
+        if (! $this->hasSkillCodeAccess($dataIsolation, $code)) {
             ExceptionBuilder::throw(SkillErrorCode::SKILL_ACCESS_DENIED, 'skill.skill_access_denied');
         }
 
@@ -2028,6 +2028,18 @@ class SkillAppService extends AbstractSkillAppService
             ResourceVisibilityResourceType::SKILL,
             $resourceCode
         );
+    }
+
+    /**
+     * 判断用户是否具有技能代码访问权限。
+     */
+    private function hasSkillCodeAccess(SkillDataIsolation $dataIsolation, string $skillCode): bool
+    {
+        if (BuiltinSkill::tryFrom($skillCode) !== null) {
+            return true;
+        }
+
+        return in_array($skillCode, $this->getAccessibleSkillCodes($dataIsolation, [$skillCode]), true);
     }
 
     /**
