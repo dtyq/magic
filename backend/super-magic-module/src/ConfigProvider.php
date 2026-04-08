@@ -107,6 +107,7 @@ use Dtyq\SuperMagic\Domain\SuperAgent\Repository\Persistence\WorkspaceVersionRep
 use Dtyq\SuperMagic\Domain\SuperAgent\Service\MessageScheduleDomainService;
 use Dtyq\SuperMagic\Domain\SuperAgent\Service\ProjectOperationLogDomainService;
 use Dtyq\SuperMagic\Domain\SuperAgent\Service\TaskFileVersionDomainService;
+use Dtyq\SuperMagic\ErrorCode\MagicFSErrorCode;
 use Dtyq\SuperMagic\ErrorCode\ShareErrorCode;
 use Dtyq\SuperMagic\ErrorCode\SkillErrorCode;
 use Dtyq\SuperMagic\ErrorCode\SuperAgentErrorCode;
@@ -255,6 +256,7 @@ class ConfigProvider
             'error_message' => [
                 'error_code_mapper' => [
                     SuperAgentErrorCode::class => [51000, 51299],
+                    MagicFSErrorCode::class => [51300, 51399],
                     ShareErrorCode::class => [51300, 51400],
                     SkillErrorCode::class => [51239, 51338],
                 ],

@@ -12,6 +12,7 @@ use App\Infrastructure\Util\Locker\LockerInterface;
 use Dtyq\SuperMagic\Domain\MagicFS\Service\MagicFSFileDomainService;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ProjectEntity;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\TaskFileEntity;
+use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\TaskFileSource;
 use Dtyq\SuperMagic\Domain\SuperAgent\Event\FileBatchCopyEvent;
 use Dtyq\SuperMagic\Domain\SuperAgent\Event\FileUploadedEvent;
 use Dtyq\SuperMagic\Domain\SuperAgent\Service\ProjectDomainService;
@@ -351,7 +352,9 @@ class FileBatchCopySubscriber extends ConsumerMessage
             (string) $parentId,
             true,
             null,
-            $oldFileEntity->getSort()
+            $oldFileEntity->getSort(),
+            null,
+            TaskFileSource::COPY
         );
         $createdDirectory->setMetadata($oldFileEntity->getMetadata());
         $createdDirectory->setDisplayConfig($oldFileEntity->getDisplayConfig());

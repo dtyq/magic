@@ -111,8 +111,12 @@ class TaskFileItemDTO extends AbstractDTO
 
     /**
      * 从实体创建DTO.
+     *
+     * @param TaskFileEntity $entity 文件实体
+     * @param string $workDir 工作目录（用于计算相对路径的 fallback）
+     * @param null|string $relativeFilePath 预计算的相对文件路径（优先使用）
      */
-    public static function fromEntity(TaskFileEntity $entity, string $workDir = ''): self
+    public static function fromEntity(TaskFileEntity $entity, string $workDir = '', ?string $relativeFilePath = null): self
     {
         $dto = new self();
         $dto->fileId = (string) $entity->getFileId();
@@ -149,8 +153,10 @@ class TaskFileItemDTO extends AbstractDTO
         } else {
             $dto->displayConfig = null;
         }
-        // relative_file_path
-        if (! empty($workDir)) {
+        // relative_file_path: 优先使用预计算的路径，其次从 file_key 推导
+        if ($relativeFilePath !== null) {
+            $dto->relativeFilePath = $relativeFilePath;
+        } elseif (! empty($workDir)) {
             $dto->relativeFilePath = WorkDirectoryUtil::getRelativeFilePath(
                 $entity->getFileKey(),
                 $workDir

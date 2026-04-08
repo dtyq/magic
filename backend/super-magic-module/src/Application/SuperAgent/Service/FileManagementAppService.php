@@ -27,7 +27,9 @@ use Dtyq\SuperMagic\Domain\Share\Entity\ResourceShareEntity;
 use Dtyq\SuperMagic\Domain\Share\Service\ResourceShareDomainService;
 use Dtyq\SuperMagic\Domain\SuperAgent\Constant\ProjectFileConstant;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\TaskFileEntity;
+use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\FileType;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\StorageType;
+use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\TaskFileSource;
 use Dtyq\SuperMagic\Domain\SuperAgent\Event\AttachmentsProcessedEvent;
 use Dtyq\SuperMagic\Domain\SuperAgent\Event\DirectoryDeletedEvent;
 use Dtyq\SuperMagic\Domain\SuperAgent\Event\FileBatchCopyEvent;
@@ -48,6 +50,7 @@ use Dtyq\SuperMagic\ErrorCode\SuperAgentErrorCode;
 use Dtyq\SuperMagic\Infrastructure\Utils\AccessTokenUtil;
 use Dtyq\SuperMagic\Infrastructure\Utils\FileBatchOperationStatusManager;
 use Dtyq\SuperMagic\Infrastructure\Utils\FileTreeUtil;
+use Dtyq\SuperMagic\Infrastructure\Utils\RelativeFilePathUtil;
 use Dtyq\SuperMagic\Infrastructure\Utils\WorkDirectoryUtil;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\BatchCopyFileRequestDTO;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\BatchDeleteFilesRequestDTO;
@@ -499,16 +502,24 @@ class FileManagementAppService extends AbstractAppService
                 );
                 if ($existingFileEntity !== null) {
                     Db::commit();
-                    return TaskFileItemDTO::fromEntity($existingFileEntity, $projectEntity->getWorkDir())->toArray();
+                    $relativeFilePath = $this->buildRelativeFilePathForEntity($existingFileEntity, $projectId);
+                    return TaskFileItemDTO::fromEntity($existingFileEntity, $projectEntity->getWorkDir(), $relativeFilePath)->toArray();
                 }
             }
+
+            // 根据是否为目录确定文件类型
+            $fileType = $requestDTO->getIsDirectory() ? FileType::DIRECTORY : FileType::USER_UPLOAD;
 
             try {
                 // 调用 MagicFS 领域服务创建文件（会自动发布事件）
                 $taskFileEntity = $this->magicFSFileDomainService->createFile(
                     $requestDTO->getFileName(),
                     (string) $parentId,
-                    $requestDTO->getIsDirectory()
+                    $requestDTO->getIsDirectory(),
+                    null,
+                    null,
+                    $fileType,
+                    TaskFileSource::PROJECT_DIRECTORY
                 );
             } catch (BusinessException $e) {
                 if ($ignoreDuplicate && $e->getCode() === MagicFSErrorCode::FILE_ALREADY_EXISTS->value) {
@@ -520,7 +531,8 @@ class FileManagementAppService extends AbstractAppService
                     );
                     if ($existingFileEntity !== null) {
                         Db::commit();
-                        return TaskFileItemDTO::fromEntity($existingFileEntity, $projectEntity->getWorkDir())->toArray();
+                        $relativeFilePath = $this->buildRelativeFilePathForEntity($existingFileEntity, $projectId);
+                        return TaskFileItemDTO::fromEntity($existingFileEntity, $projectEntity->getWorkDir(), $relativeFilePath)->toArray();
                     }
                 }
                 throw $e;
@@ -535,8 +547,11 @@ class FileManagementAppService extends AbstractAppService
                 $userAuthorization->getOrganizationCode()
             ));
 
+            // 构建基于 parent_id 链的相对文件路径
+            $relativeFilePath = $this->buildRelativeFilePathForEntity($taskFileEntity, $projectId);
+
             // 返回创建结果
-            return TaskFileItemDTO::fromEntity($taskFileEntity, $projectEntity->getWorkDir())->toArray();
+            return TaskFileItemDTO::fromEntity($taskFileEntity, $projectEntity->getWorkDir(), $relativeFilePath)->toArray();
         } catch (BusinessException $e) {
             // 捕获业务异常（ExceptionBuilder::throw 抛出的异常）
             Db::rollBack();
@@ -2057,6 +2072,25 @@ class FileManagementAppService extends AbstractAppService
             ]);
             ExceptionBuilder::throw(SuperAgentErrorCode::FILE_NOT_FOUND, trans('file.get_tree_failed'));
         }
+    }
+
+    /**
+     * 构建单个文件实体的相对路径.
+     * 通过 parent_id 链向上遍历，拼接完整的目录层级路径.
+     *
+     * @param TaskFileEntity $entity 文件实体
+     * @param int $projectId 项目ID（用于过滤查询范围）
+     * @return string 相对文件路径，如 /目录A/目录B/文件名.txt
+     */
+    private function buildRelativeFilePathForEntity(TaskFileEntity $entity, int $projectId): string
+    {
+        $filesWithParents = $this->taskFileDomainService->getFilesWithParentsByIds(
+            [$entity->getFileId()],
+            $projectId
+        );
+        $fileMap = RelativeFilePathUtil::indexByFileId($filesWithParents);
+
+        return RelativeFilePathUtil::buildPathByParentChain($entity, $fileMap);
     }
 
     /**

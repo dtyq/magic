@@ -23,14 +23,12 @@ use Dtyq\AsyncEvent\AsyncEventUtil;
 use Dtyq\CloudFile\Kernel\Struct\UploadFile;
 use Dtyq\SuperMagic\Application\SuperAgent\Config\BatchProcessConfig;
 use Dtyq\SuperMagic\Domain\MagicFS\Service\MagicFSFileDomainService;
-use Dtyq\SuperMagic\Domain\SuperAgent\Constant\ProjectFileConstant;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\TaskEntity;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\TaskFileEntity;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\FileType;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\StorageType;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\TaskFileSource;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\WorkspaceVersionEntity;
-use Dtyq\SuperMagic\Domain\SuperAgent\Event\AttachmentsProcessedEvent;
 use Dtyq\SuperMagic\Domain\SuperAgent\Event\FileContentSavedEvent;
 use Dtyq\SuperMagic\Domain\SuperAgent\Service\ProjectDomainService;
 use Dtyq\SuperMagic\Domain\SuperAgent\Service\TaskDomainService;
@@ -52,8 +50,6 @@ use Hyperf\DbConnection\Db;
 use Hyperf\Logger\LoggerFactory;
 use Psr\Log\LoggerInterface;
 use Throwable;
-
-use function event_dispatch;
 
 /**
  * File Process Application Service
@@ -1153,15 +1149,5 @@ class FileProcessAppService extends AbstractAppService
             $authorization->getId(),
             $authorization->getOrganizationCode()
         ));
-
-        if (ProjectFileConstant::isSetMetadataFile($taskFileEntity->getFileName())) {
-            event_dispatch(new AttachmentsProcessedEvent($taskFileEntity->getParentId(), $taskFileEntity->getProjectId(), $taskFileEntity->getTaskId()));
-            $this->logger->info(sprintf(
-                'Dispatched AttachmentsProcessedEvent for saveProjectFile processed attachments, parentId: %d, projectId: %d, taskId: %d',
-                $taskFileEntity->getParentId(),
-                $taskFileEntity->getProjectId(),
-                $taskFileEntity->getTaskId()
-            ));
-        }
     }
 }

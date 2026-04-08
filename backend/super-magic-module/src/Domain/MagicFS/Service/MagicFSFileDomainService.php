@@ -182,9 +182,11 @@ class MagicFSFileDomainService
      * @param bool $isDirectory 是否为目录
      * @param null|string $superMagicTaskId 超级麦吉任务ID（可选）
      * @param null|int $sortValue 排序值（可选，不传则不设置排序）
+     * @param null|FileType $fileType 文件类型（可选，不传则根据 isDirectory 自动推断）
+     * @param null|TaskFileSource $source 文件来源（可选，不传则默认 AGENT）
      * @return TaskFileEntity 创建的文件实体
      */
-    public function createFile(string $name, string $parentId, bool $isDirectory, ?string $superMagicTaskId = null, ?int $sortValue = null): TaskFileEntity
+    public function createFile(string $name, string $parentId, bool $isDirectory, ?string $superMagicTaskId = null, ?int $sortValue = null, ?FileType $fileType = null, ?TaskFileSource $source = null): TaskFileEntity
     {
         // 1. 获取 project_id、user_id 和 organization_code（从父文件或认证信息）
         $parentInfo = $this->getParentFileInfo($parentId);
@@ -262,7 +264,7 @@ class MagicFSFileDomainService
         $entity->setIsDirectory($isDirectory);
         $entity->setParentId($parentIdInt);
         $entity->setStorageType(StorageType::WORKSPACE);
-        $entity->setSource(TaskFileSource::AGENT);
+        $entity->setSource($source ?? TaskFileSource::AGENT);
         $entity->setLatestVersion(1);
         $entity->setMetadataVersion(1);
 
@@ -280,8 +282,10 @@ class MagicFSFileDomainService
             }
         }
 
-        // 9. 设置文件类型（根据是否为目录）
-        if ($isDirectory) {
+        // 9. 设置文件类型（如果调用方指定了 fileType 则使用，否则根据 isDirectory 自动推断）
+        if ($fileType !== null) {
+            $entity->setFileType($fileType->value);
+        } elseif ($isDirectory) {
             $entity->setFileType(FileType::DIRECTORY->value);
         } else {
             $entity->setFileType(FileType::SYSTEM_AUTO_UPLOAD->value);

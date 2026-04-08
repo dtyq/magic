@@ -14,6 +14,7 @@ use Dtyq\SuperMagic\Domain\MagicFS\Service\MagicFSFileDomainService;
 use Dtyq\SuperMagic\Domain\SuperAgent\Constant\ProjectFileConstant;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ProjectEntity;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\TaskFileEntity;
+use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\TaskFileSource;
 use Dtyq\SuperMagic\Domain\SuperAgent\Event\AttachmentsProcessedEvent;
 use Dtyq\SuperMagic\Domain\SuperAgent\Event\DirectoryDeletedEvent;
 use Dtyq\SuperMagic\Domain\SuperAgent\Event\FileBatchMoveEvent;
@@ -627,7 +628,9 @@ class FileBatchMoveSubscriber extends ConsumerMessage
             (string) $targetParentId,
             true,
             null,
-            $oldFileEntity->getSort()
+            $oldFileEntity->getSort(),
+            null,
+            TaskFileSource::MOVE
         );
 
         $createdDirectory->setMetadata($oldFileEntity->getMetadata());
