@@ -9,6 +9,8 @@ SDK 代码片段执行工具（Code Mode 执行器）
 """
 
 
+import asyncio
+
 import aiofiles
 from pathlib import Path
 from pydantic import Field
@@ -19,7 +21,7 @@ from agentlang.logger import get_logger
 from app.path_manager import PathManager
 from app.tools.core import BaseToolParams, tool
 from app.tools.abstract_file_tool import AbstractFileTool
-from app.tools.snippet_timeout_registry import SnippetTimeoutRegistry
+from app.tools.snippet_timeout_registry import SdkSnippetTimeoutRegistry
 from app.utils.process_executor import ProcessExecutor
 
 logger = get_logger(__name__)
@@ -125,7 +127,7 @@ class RunSdkSnippet(AbstractFileTool[RunSdkSnippetParams]):
                 return ToolResult.error(f"写入 SDK 代码片段失败: {e}")
 
             command = f"python {script_filename}"
-            effective_timeout = SnippetTimeoutRegistry.get_effective_timeout(
+            effective_timeout = SdkSnippetTimeoutRegistry.get_effective_timeout(
                 params.python_code, params.timeout
             )
             if effective_timeout != params.timeout:
@@ -145,19 +147,42 @@ class RunSdkSnippet(AbstractFileTool[RunSdkSnippetParams]):
                 )
             extra_env["SUPER_MAGIC_AGENT_CONTEXT_ID"] = agent_ctx.context_id
 
-            # 主写法固定使用 from sdk.tool import tool，环境兼容由运行时兜底。
-            terminal_result = await ProcessExecutor.execute_command(
-                command=command,
-                cwd=runtime_dir,
-                timeout=effective_timeout,
-                enable_python_rewrite=True,
-                extra_env=extra_env,
-            )
+            # 每次 Code Mode 执行生成唯一标识，用于精确取消本轮发起的服务端请求
+            sdk_execution_id = uuid.uuid4().hex
+            extra_env["SUPER_MAGIC_SDK_EXECUTION_ID"] = sdk_execution_id
+
+            # 注册 cleanup：主 run 中断时先取消本轮服务端 in-flight 请求，
+            # 再由 ProcessExecutor 中断子进程
+            from app.service.sdk_call_registry import SdkCallRegistry
+            registry = SdkCallRegistry.get_instance()
+            cleanup_key = f"sdk_execution_{sdk_execution_id}"
+
+            async def _cancel_inflight() -> None:
+                registry.cancel_by_execution(agent_ctx.context_id, sdk_execution_id)
+
+            agent_ctx.register_run_cleanup(cleanup_key, _cancel_inflight)
+
+            try:
+                terminal_result = await ProcessExecutor.execute_command(
+                    command=command,
+                    cwd=runtime_dir,
+                    timeout=effective_timeout,
+                    enable_python_rewrite=True,
+                    extra_env=extra_env,
+                    interruption_event=agent_ctx.get_interruption_event(),
+                )
+            finally:
+                # 正常完成后清理残留的 in-flight 记录（容错）
+                registry.cancel_by_execution(agent_ctx.context_id, sdk_execution_id)
 
             if terminal_result.ok:
                 return ToolResult(content=terminal_result.content)
             else:
                 return ToolResult.error(terminal_result.content)
+
+        except asyncio.CancelledError:
+            # 中断信号，直接向上传播，不要降级为普通错误
+            raise
 
         except Exception as e:
             logger.exception(f"执行 SDK 代码片段时出错: {e}")

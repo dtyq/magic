@@ -14,17 +14,6 @@ from typing import Dict, Any, Optional
 
 from .result import Result
 
-# 视频相关工具会在服务端阻塞轮询较长时间，并持续推送进度事件。
-# SDK 代码片段通过 HTTP 调工具时如果仍沿用默认 60 秒超时，会先在 SDK 层断开，
-# 造成“外层 skill 已超时、内层视频任务仍在继续”的错位。
-# 因此这里按工具名自动切到长超时，避免把这类实现细节交给模型显式传参。
-VIDEO_TOOL_NAMES = {
-    "generate_video",
-    "generate_videos_to_canvas",
-    "query_video_generation",
-}
-VIDEO_TOOL_HTTP_TIMEOUT_SECONDS = 3600.0
-
 
 class ToolSDK:
     """Tool SDK，提供工具调用接口
@@ -37,36 +26,28 @@ class ToolSDK:
     """
 
     def __init__(self):
-        """初始化 SDK"""
-        # 获取服务器地址和端口
         api_port = os.getenv("SUPER_MAGIC_API_PORT", "8002")
         self.api_base_url = f"http://127.0.0.1:{api_port}"
-        self.api_timeout = 60.0
-
-    @staticmethod
-    def _resolve_request_timeout(tool_name: str, timeout: Optional[float], default_timeout: float) -> float:
-        if timeout is not None:
-            return timeout
-        if tool_name in VIDEO_TOOL_NAMES:
-            return VIDEO_TOOL_HTTP_TIMEOUT_SECONDS
-        return default_timeout
+        # HTTP 层不设超时：SDK 运行在 run_sdk_snippet 的子进程中，
+        # 子进程生命周期由 ProcessExecutor + SdkSnippetTimeoutRegistry 统一管控，
+        # 子进程被 kill 时内部 HTTP 连接自然关闭，无需 SDK 层提前断开。
 
     def call(
         self,
         tool_name: str,
         tool_params: Dict[str, Any],
         tool_call_id: Optional[str] = None,
-        timeout: Optional[float] = None,
     ) -> Result:
         """调用工具（同步）
 
-        通过 HTTP 请求调用工具，避免子进程和 agent_context 传递的复杂性
+        通过 HTTP 请求调用工具，避免子进程和 agent_context 传递的复杂性。
+        不设置 HTTP 超时——子进程的存活时间由 ProcessExecutor + SdkSnippetTimeoutRegistry
+        统一控制，子进程被 kill 时内部 HTTP 连接自然关闭。
 
         Args:
             tool_name: 工具名称
             tool_params: 工具参数字典
             tool_call_id: 可选的工具调用 ID，如果不提供则自动生成
-            timeout: 可选的 HTTP 请求超时秒数；未传时使用默认值
 
         Returns:
             Result: 工具执行结果
@@ -76,7 +57,6 @@ class ToolSDK:
         """
         import uuid
 
-        # 生成 tool_call_id
         if not tool_call_id:
             tool_call_id = f"call_{uuid.uuid4().hex[:24]}"
 
@@ -93,22 +73,21 @@ class ToolSDK:
             print(f"[SDK Error] {error_msg}", file=sys.stderr)
             return Result.error(error_msg, tool_call_id=tool_call_id)
 
+        sdk_execution_id = os.getenv("SUPER_MAGIC_SDK_EXECUTION_ID", "")
+
         request_data = {
             "tool_name": tool_name,
             "tool_params": tool_params,
             "tool_call_id": tool_call_id,
             "agent_context_id": agent_context_id,
+            "sdk_execution_id": sdk_execution_id,
         }
 
-        # 发起 HTTP 请求
         url = f"{self.api_base_url}/api/sdk/tool/call"
-        request_timeout = self._resolve_request_timeout(tool_name, timeout, self.api_timeout)
 
         try:
-            # 将请求数据转换为 JSON
             data = json.dumps(request_data).encode('utf-8')
 
-            # 创建请求
             req = urllib.request.Request(
                 url,
                 data=data,
@@ -116,9 +95,8 @@ class ToolSDK:
                 method='POST'
             )
 
-            # 发送请求
-            with urllib.request.urlopen(req, timeout=request_timeout) as response:
-                # 解析响应
+            # 不设置 timeout：子进程超时由外层 ProcessExecutor 统一管控
+            with urllib.request.urlopen(req) as response:
                 result_data = json.loads(response.read().decode('utf-8'))
 
                 if result_data.get("code") == 1000:  # SUCCESS
