@@ -42,6 +42,24 @@ class UserFriendlyException(Exception, ABC):
         pass
 
 
+class StreamChunkTimeoutError(Exception):
+    """流式响应 chunk 间隔超时。
+
+    与 asyncio.TimeoutError 区分开，避免被外层 asyncio.wait_for 兜底超时误捕。
+    携带实际耗时和已处理 chunk 数，确保日志和错误信息始终真实。
+    """
+
+    def __init__(self, *, chunk_count: int, chunk_timeout_seconds: float, total_elapsed_seconds: float):
+        self.chunk_count = chunk_count
+        self.chunk_timeout_seconds = chunk_timeout_seconds
+        self.total_elapsed_seconds = total_elapsed_seconds
+        super().__init__(
+            f"Chunk timeout: no data received for {chunk_timeout_seconds:.0f}s "
+            f"after processing {chunk_count} chunks "
+            f"(total elapsed: {total_elapsed_seconds:.1f}s)"
+        )
+
+
 class LLMFastRetryExhaustedException(Exception):
     """内层 LLM 快速重试已耗尽：流式多次尝试 + 非流式 fallback 全部失败。
 

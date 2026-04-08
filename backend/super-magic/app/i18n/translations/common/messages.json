@@ -40,8 +40,24 @@
         "en_US": "Failed to dispatch the request internally. Please contact the administrator."
     },
     "messages.message_processing_failed": {
-        "zh_CN": "消息处理失败，请稍后再试。",
-        "en_US": "Failed to process the message. Please try again later."
+        "zh_CN": "任务执行异常，请稍后再试。",
+        "en_US": "Task execution failed. Please try again later."
+    },
+    "messages.llm_provider_timeout": {
+        "zh_CN": "模型供应商响应超时，请重试。",
+        "en_US": "The model provider response timed out. Please try again."
+    },
+    "messages.llm_provider_connection_failed": {
+        "zh_CN": "模型供应商连接失败，请稍后重试。",
+        "en_US": "Failed to connect to the model provider. Please try again later."
+    },
+    "messages.llm_provider_rate_limited": {
+        "zh_CN": "模型供应商请求频率受限，请稍后重试。",
+        "en_US": "The model provider is rate-limiting requests. Please try again later."
+    },
+    "messages.llm_provider_error": {
+        "zh_CN": "模型供应商服务异常，请重试。",
+        "en_US": "The model provider encountered an error. Please try again."
     },
     "agent_profile.desc_with_role": {
         "zh_CN": "你叫{name}，是一名{role}。{description}",

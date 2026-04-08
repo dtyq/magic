@@ -55,7 +55,7 @@ llm:
   # 首包窗口覆盖"请求发出到首个 chunk"的总时间（含等响应头），下标对应 retry_count
   stream_first_chunk_timeout_schedule_seconds: [45, 60, 90]
   # 收到首包后，后续每个 chunk 的等待上限
-  stream_chunk_timeout_seconds: 30
+  stream_chunk_timeout_seconds: 60
   # 是否启用非流式 fallback；默认关闭，只保留代码路径便于后续按需重新打开
   enable_non_stream_fallback: false
   # 非流式 fallback 单独超时（当前默认关闭，仅在显式开启时生效）

@@ -19,6 +19,7 @@ from openai.types.chat.chat_completion_message_tool_call import ChatCompletionMe
 from openai.types.completion_usage import CompletionUsage
 
 from agentlang.config.config import config
+from agentlang.exceptions import StreamChunkTimeoutError
 from agentlang.interface.context import AgentContextInterface
 from agentlang.logger import get_logger
 from agentlang.event.reply_event_manager import ReplyEventManager
@@ -634,10 +635,13 @@ class StreamResponseHandler:
                                     )
                                 break
                             except asyncio.TimeoutError:
-                                # Chunk超时 - 这是异常情况，需要抛出让外部重试
-                                error_msg = f"Chunk timeout after processing {state.received_chunk_count} chunks. This indicates an incomplete response from the LLM service."
-                                StreamingLogger.log_chunk_timeout(request_id, state)
-                                raise asyncio.TimeoutError(error_msg)
+                                total_elapsed = time.time() - base_time
+                                StreamingLogger.log_chunk_timeout(request_id, state, effective_chunk_timeout, total_elapsed)
+                                raise StreamChunkTimeoutError(
+                                    chunk_count=state.received_chunk_count,
+                                    chunk_timeout_seconds=effective_chunk_timeout,
+                                    total_elapsed_seconds=total_elapsed,
+                                )
                             except Exception as e:
                                 # 处理chunk时的其他异常也应该抛出，让外部感知
                                 StreamingLogger.log_chunk_exception(request_id, state, e)
@@ -651,9 +655,14 @@ class StreamResponseHandler:
             # 执行流处理并应用超时控制
             await asyncio.wait_for(process_stream(), timeout=stream_timeout)
 
+        except StreamChunkTimeoutError:
+            raise
         except asyncio.TimeoutError:
             StreamingLogger.log_stream_timeout(request_id, state, stream_timeout, correlation_id)
-            raise asyncio.TimeoutError(f"Stream processing timeout after {stream_timeout} seconds. Processed {state.received_chunk_count} chunks.")
+            raise asyncio.TimeoutError(
+                f"Stream total timeout (safeguard): exceeded {stream_timeout}s limit. "
+                f"Processed {state.received_chunk_count} chunks."
+            )
 
         except Exception as stream_error:
             StreamingLogger.log_stream_error(request_id, state, stream_error, correlation_id)
