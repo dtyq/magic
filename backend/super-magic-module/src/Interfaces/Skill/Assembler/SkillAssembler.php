@@ -16,6 +16,7 @@ use Dtyq\SuperMagic\Domain\Skill\Entity\SkillEntity;
 use Dtyq\SuperMagic\Domain\Skill\Entity\SkillMarketEntity;
 use Dtyq\SuperMagic\Domain\Skill\Entity\SkillVersionEntity;
 use Dtyq\SuperMagic\Domain\Skill\Entity\ValueObject\PublisherType;
+use Dtyq\SuperMagic\Domain\Skill\Entity\ValueObject\SkillSourceType;
 use Dtyq\SuperMagic\Interfaces\Skill\DTO\Response\LatestPublishedSkillVersionItemDTO;
 use Dtyq\SuperMagic\Interfaces\Skill\DTO\Response\LatestPublishedSkillVersionsResponseDTO;
 use Dtyq\SuperMagic\Interfaces\Skill\DTO\Response\PublishSkillResponseDTO;
@@ -266,7 +267,7 @@ class SkillAssembler
 
             $listItems[] = self::createListItemDTOFromVersion(
                 $entity,
-                $sourceType,
+                self::resolveListSourceType($entity, $marketEntity, $sourceType),
                 $creatorUserMap[$entity->getCreatorId()] ?? null,
                 $latestVersionMap[$entity->getCode()] ?? $entity->getVersion(),
                 $publisherType,
@@ -388,7 +389,7 @@ class SkillAssembler
         array $skillMarketEntities,
         array $userSkills,
         array $publisherUserMap,
-        array $creatorSkillCodes,
+        string $currentUserId,
         int $page,
         int $pageSize,
         int $total,
@@ -398,13 +399,14 @@ class SkillAssembler
         foreach ($skillMarketEntities as $skillMarketEntity) {
             $skillCode = $skillMarketEntity->getSkillCode();
             $userSkill = $userSkills[$skillCode] ?? null;
+            $isBuiltinMarketSkill = $skillMarketEntity->getPublisherType()->isOfficialBuiltin();
 
             // 判断 is_added
-            $isAdded = $userSkill !== null;
+            $isAdded = $isBuiltinMarketSkill || $userSkill !== null;
 
             // 判断 need_upgrade（仅当 is_added = true 且 source_type = 'STORE' 时有效）
             $needUpgrade = false;
-            if ($isAdded && $userSkill && $userSkill->getSourceType()->isMarket()) {
+            if (! $isBuiltinMarketSkill && $isAdded && $userSkill && $userSkill->getSourceType()->isMarket()) {
                 // 比较用户的 version_id 和商店的 skill_version_id
                 $needUpgrade = $userSkill->getVersionId() !== $skillMarketEntity->getSkillVersionId();
             }
@@ -416,10 +418,9 @@ class SkillAssembler
                 $publisherUserMap[$skillMarketEntity->getPublisherId()] ?? null
             );
 
-            $isCreator = $creatorSkillCodes[$skillCode] ?? false;
-            $isAdded = $isCreator ?: $isAdded;
-
             $version = $skillVersionMap[$skillMarketEntity->getSkillVersionId()] ?? null;
+            $isCreator = $version !== null && (string) $version->getCreatorId() === $currentUserId;
+            $isAdded = $isCreator ?: $isAdded;
             $fileKey = (string) ($version?->getFileKey() ?? '');
             $fileUrl = $version?->getFileUrl();
             $packageName = (string) ($version?->getPackageName() ?? '');
@@ -551,9 +552,27 @@ class SkillAssembler
         }
 
         return [
-            'name' => $publisherType->value,
+            'name' => $publisherType->getDescription(),
             'avatar' => '',
         ];
+    }
+
+    private static function resolveListSourceType(
+        SkillVersionEntity $entity,
+        ?SkillMarketEntity $marketEntity,
+        ?string $defaultSourceType
+    ): string {
+        if ($defaultSourceType === null) {
+            return $entity->getSourceType()->value;
+        }
+
+        if ($defaultSourceType === SkillSourceType::MARKET->value
+            && $marketEntity instanceof SkillMarketEntity
+            && $marketEntity->getPublisherType()->isOfficialBuiltin()) {
+            return SkillSourceType::SYSTEM->value;
+        }
+
+        return $defaultSourceType;
     }
 
     /**

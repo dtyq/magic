@@ -40,7 +40,6 @@ use Dtyq\SuperMagic\Domain\Agent\Entity\AgentVersionEntity;
 use Dtyq\SuperMagic\Domain\Agent\Entity\SuperMagicAgentEntity;
 use Dtyq\SuperMagic\Domain\Agent\Entity\UserAgentEntity;
 use Dtyq\SuperMagic\Domain\Agent\Entity\ValueObject\AgentSourceType;
-use Dtyq\SuperMagic\Domain\Agent\Entity\ValueObject\BuiltinSkill;
 use Dtyq\SuperMagic\Domain\Agent\Entity\ValueObject\PublisherType;
 use Dtyq\SuperMagic\Domain\Agent\Entity\ValueObject\PublishTargetType;
 use Dtyq\SuperMagic\Domain\Agent\Entity\ValueObject\PublishType;
@@ -57,6 +56,7 @@ use Dtyq\SuperMagic\Domain\Agent\Service\SuperMagicAgentVersionDomainService;
 use Dtyq\SuperMagic\Domain\Agent\Service\UserAgentDomainService;
 use Dtyq\SuperMagic\Domain\Skill\Entity\SkillEntity;
 use Dtyq\SuperMagic\Domain\Skill\Entity\SkillVersionEntity;
+use Dtyq\SuperMagic\Domain\Skill\Entity\ValueObject\BuiltinSkill;
 use Dtyq\SuperMagic\Domain\Skill\Entity\ValueObject\SkillDataIsolation;
 use Dtyq\SuperMagic\Domain\Skill\Entity\ValueObject\SkillMentionSource;
 use Dtyq\SuperMagic\Domain\Skill\Service\SkillDomainService;
@@ -1852,13 +1852,7 @@ class SuperMagicAgentAppService extends AbstractSuperMagicAppService
      */
     private function resolveAccessibleSkillsWithCurrentVersion(SuperMagicAgentDataIsolation $dataIsolation, array $skillCodes): array
     {
-        $permissionDataIsolation = $this->createPermissionDataIsolation($dataIsolation);
-        $accessibleSkillCodes = $this->resourceVisibilityDomainService->getUserAccessibleResourceCodes(
-            $permissionDataIsolation,
-            $dataIsolation->getCurrentUserId(),
-            ResourceVisibilityResourceType::SKILL,
-            $skillCodes
-        );
+        $accessibleSkillCodes = $this->resolveAccessibleSkillCodes($dataIsolation, $skillCodes);
 
         $accessibleSkillCodeMap = array_flip($accessibleSkillCodes);
         foreach ($skillCodes as $skillCode) {
@@ -1878,6 +1872,28 @@ class SuperMagicAgentAppService extends AbstractSuperMagicAppService
         }
 
         return $skillVersions;
+    }
+
+    /**
+     * 系统 Skill 不写入资源可见性表，所以这里需要手动补回内置技能编码。
+     *
+     * @param array<string> $skillCodes
+     * @return array<string>
+     */
+    private function resolveAccessibleSkillCodes(SuperMagicAgentDataIsolation $dataIsolation, array $skillCodes): array
+    {
+        $permissionDataIsolation = $this->createPermissionDataIsolation($dataIsolation);
+        $accessibleSkillCodes = $this->resourceVisibilityDomainService->getUserAccessibleResourceCodes(
+            $permissionDataIsolation,
+            $dataIsolation->getCurrentUserId(),
+            ResourceVisibilityResourceType::SKILL,
+            $skillCodes
+        );
+
+        return array_values(array_unique(array_merge(
+            $accessibleSkillCodes,
+            array_values(array_intersect(BuiltinSkill::values(), $skillCodes))
+        )));
     }
 
     /**

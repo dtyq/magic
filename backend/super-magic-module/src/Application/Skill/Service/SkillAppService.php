@@ -42,6 +42,7 @@ use Dtyq\SuperMagic\Domain\Skill\Entity\SkillEntity;
 use Dtyq\SuperMagic\Domain\Skill\Entity\SkillMarketEntity;
 use Dtyq\SuperMagic\Domain\Skill\Entity\SkillVersionEntity;
 use Dtyq\SuperMagic\Domain\Skill\Entity\UserSkillEntity;
+use Dtyq\SuperMagic\Domain\Skill\Entity\ValueObject\BuiltinSkill;
 use Dtyq\SuperMagic\Domain\Skill\Entity\ValueObject\PublisherType;
 use Dtyq\SuperMagic\Domain\Skill\Entity\ValueObject\PublishStatus;
 use Dtyq\SuperMagic\Domain\Skill\Entity\ValueObject\PublishTargetType;
@@ -482,10 +483,7 @@ class SkillAppService extends AbstractSkillAppService
 
         $this->fillLanguageCode($dataIsolation, $query);
 
-        $marketInstalledCodes = $this->skillDomainService->findCurrentUserSkillCodesBySourceType(
-            $dataIsolation,
-            SkillSourceType::MARKET
-        );
+        $marketInstalledCodes = $this->getMarketInstalledSkillCodes($dataIsolation);
 
         if ($marketInstalledCodes === []) {
             return [
@@ -896,12 +894,7 @@ class SkillAppService extends AbstractSkillAppService
         $languageCode = $dataIsolation->getLanguage() ?: LanguageEnum::EN_US->value;
         $requestedCodes = array_values(array_unique(array_filter($filterCodes)));
 
-        $permissionDataIsolation = $this->createPermissionDataIsolation($dataIsolation);
-        $accessibleSkillCodes = $this->resourceVisibilityDomainService->getUserAccessibleResourceCodes(
-            $permissionDataIsolation,
-            $dataIsolation->getCurrentUserId(),
-            ResourceVisibilityResourceType::SKILL
-        );
+        $accessibleSkillCodes = $this->getAccessibleSkillCodes($dataIsolation);
 
         if ($requestedCodes) {
             $accessibleSkillCodes = array_values(array_intersect($requestedCodes, $accessibleSkillCodes));
@@ -2024,16 +2017,49 @@ class SkillAppService extends AbstractSkillAppService
     }
 
     /**
+     * 获取用户可访问的技能代码。
      * @return array<string>
      */
     private function getAccessibleSkillCodes(SkillDataIsolation $dataIsolation, ?array $resourceCode = null): array
     {
-        return $this->resourceVisibilityDomainService->getUserAccessibleResourceCodes(
+        $accessibleSkillCodes = $this->resourceVisibilityDomainService->getUserAccessibleResourceCodes(
             $this->createPermissionDataIsolation($dataIsolation),
             $dataIsolation->getCurrentUserId(),
             ResourceVisibilityResourceType::SKILL,
             $resourceCode
         );
+
+        return $this->mergeBuiltinSkillCodes($accessibleSkillCodes, $resourceCode);
+    }
+
+    /**
+     * 获取市场已安装的技能代码。
+     * @return array<string>
+     */
+    private function getMarketInstalledSkillCodes(SkillDataIsolation $dataIsolation): array
+    {
+        $marketInstalledCodes = $this->skillDomainService->findCurrentUserSkillCodesBySourceType(
+            $dataIsolation,
+            SkillSourceType::MARKET
+        );
+
+        return $this->mergeBuiltinSkillCodes($marketInstalledCodes);
+    }
+
+    /**
+     * 合并系统技能代码。
+     * @param array<string> $skillCodes
+     * @param null|array<string> $resourceCode
+     * @return array<string>
+     */
+    private function mergeBuiltinSkillCodes(array $skillCodes, ?array $resourceCode = null): array
+    {
+        $builtinSkillCodes = BuiltinSkill::values();
+        if ($resourceCode !== null) {
+            $builtinSkillCodes = array_values(array_intersect($builtinSkillCodes, $resourceCode));
+        }
+
+        return array_values(array_unique(array_merge($skillCodes, $builtinSkillCodes)));
     }
 
     /**
