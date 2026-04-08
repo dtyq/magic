@@ -172,18 +172,16 @@ def preprocess_tool_call_arguments(tool_call) -> bool:
     处理流程：
     1. 修复 JSON 结构问题（语法错误、格式错误等）
     2. 修复字符串化的 JSON 值（基于 schema 智能修复类型错误）
-    3. 标准化 JSON 格式并回写
 
-    直接修改 tool_call 对象的 arguments 字段
+    仅在真正修复过内容时才回写，JSON 格式差异（如空格）不算修复。
 
     Args:
         tool_call: 工具调用对象（ToolCall 类型，避免循环导入）
 
     Returns:
-        bool: 是否进行了任何处理
+        bool: 是否进行了实质性修复
     """
     arguments_str = tool_call.function.arguments
-    original_arguments = arguments_str
     tool_name = tool_call.function.name
 
     # Quick check: empty object, no processing needed
@@ -202,23 +200,18 @@ def preprocess_tool_call_arguments(tool_call) -> bool:
         tool_call.function.arguments = "{}"
         return True
 
-    # 第一步：确保JSON格式正确
+    # 第一步：确保 JSON 格式正确
+    json_was_repaired = False
     try:
-        # 尝试标准JSON解析
         tool_arguments_dict = json.loads(arguments_str)
         if not isinstance(tool_arguments_dict, dict):
-            # 解析成功但不是字典，需要修复
             logger.info(f"工具 '{tool_name}' 参数预处理：解析结果不是字典，需要修复")
             raise ValueError("Not a dictionary")
     except (json.JSONDecodeError, ValueError):
-        # JSON格式有问题，需要修复
         logger.info(f"工具 '{tool_name}' 参数预处理：JSON格式需要修复")
         logger.info(f"[json_repair] 修复前的原始内容: {arguments_str}")
         try:
-            # 使用json_repair修复JSON结构
             tool_arguments_dict = json_repair.repair_json(arguments_str, return_objects=True)
-
-            # 打印修复后的结果
             repaired_json_str = json.dumps(tool_arguments_dict, ensure_ascii=False, indent=2)
             logger.info(f"[json_repair] 修复后的结果: {repaired_json_str}")
 
@@ -227,13 +220,13 @@ def preprocess_tool_call_arguments(tool_call) -> bool:
                 tool_call.function.arguments = "{}"
                 return True
 
-            logger.debug(f"工具 '{tool_name}' 参数预处理：JSON结构修复完成")
+            json_was_repaired = True
         except Exception as e:
             logger.warning(f"工具 '{tool_name}' 参数预处理：JSON修复失败 {e}，设为空对象")
             tool_call.function.arguments = "{}"
             return True
 
-    # 第1.5步：修复字符串化的 JSON 值（基于 schema 智能修复）
+    # 第二步：修复字符串化的 JSON 值（基于 schema 智能修复）
     tool_arguments_dict, fixed_stringified_count = fix_stringified_json_with_schema(
         tool_arguments_dict,
         tool_name
@@ -241,17 +234,12 @@ def preprocess_tool_call_arguments(tool_call) -> bool:
     if fixed_stringified_count > 0:
         logger.info(f"工具 '{tool_name}' 参数预处理：修复了 {fixed_stringified_count} 个字符串化字段")
 
-    # 第二步：标准化并回写
-    normalized_json_str = json.dumps(tool_arguments_dict, ensure_ascii=False, separators=(',', ':'))
-    tool_call.function.arguments = normalized_json_str
-
-    # 记录处理结果（任何一种处理都算处理过）
-    if fixed_stringified_count > 0 or normalized_json_str != original_arguments:
-        if normalized_json_str != original_arguments and fixed_stringified_count == 0:
-            logger.debug(f"工具 '{tool_name}' 参数预处理：JSON标准化完成")
+    # 只在真正修复过内容时才重新序列化回写，纯格式差异不算修复
+    if json_was_repaired or fixed_stringified_count > 0:
+        tool_call.function.arguments = json.dumps(tool_arguments_dict, ensure_ascii=False)
         return True
-    else:
-        return False
+
+    return False
 
 
 def preprocess_tool_calls_batch(tool_calls: List) -> int:
