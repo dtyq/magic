@@ -96,13 +96,13 @@ deploy:
   charts:
     infra:
       name: infra
-      version: "0.0.1"
+      version: "0.0.2"
     magic:
       name: magic
-      version: "0.0.1"
+      version: "0.0.3"
     magic-sandbox:
       name: magic-sandbox
-      version: "0.0.2"
+      version: "0.0.4"
   infraUseProxy: false
   proxy:
     enabled: true
