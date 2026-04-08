@@ -7,7 +7,6 @@ declare(strict_types=1);
 
 namespace App\Application\Bootstrap\Service;
 
-use App\Application\Agent\Official\OfficialAgentsInitializer;
 use App\Application\Bootstrap\Service\Initializer\AccountInitializer;
 use App\Application\Bootstrap\Service\Initializer\OrganizationInitializer;
 use App\Application\Bootstrap\Service\Initializer\PermissionInitializer;
@@ -39,6 +38,7 @@ use App\Interfaces\Authorization\Web\MagicUserAuthorization;
 use App\Interfaces\Bootstrap\DTO\Request\BootstrapExecuteRequestDTO;
 use App\Interfaces\Provider\DTO\ConnectivityTestByConfigRequest;
 use App\Interfaces\Provider\DTO\SaveProviderModelDTO;
+use Dtyq\SuperMagic\Application\Agent\Service\OfficialAgentsInitializer;
 use Dtyq\SuperMagic\Application\Skill\Initializer\BuiltinSkillInitializer;
 use Hyperf\DbConnection\Db;
 use Psr\EventDispatcher\EventDispatcherInterface;
@@ -124,7 +124,7 @@ class BootstrapInitializationAppService
                 $llmResult = $this->initLLM($requestDTO, $organizationCode);
 
                 // 创建官方员工（参考 super-magic:create-official-agents 命令）
-                $agentsResult = $this->createOfficialAgents((string) $accountResult['admin_user_id'], $requestDTO->getSelectOfficialAgentsCodes());
+                $agentsResult = $this->initOfficialAgents((string) $accountResult['admin_user_id'], $requestDTO->getSelectOfficialAgentsCodes());
 
                 // 初始化系统 Skill
                 $builtinSkillResult = $this->initBuiltinSkill();
@@ -198,7 +198,7 @@ class BootstrapInitializationAppService
      * @param array<string> $agentCodes 要同步的员工 code，为空则同步全部
      * @return array{success: bool, message: string, success_count: int, skip_count: int, fail_count: int, results: array}
      */
-    protected function createOfficialAgents(string $userId, array $agentCodes = []): array
+    protected function initOfficialAgents(string $userId, array $agentCodes = []): array
     {
         $result = OfficialAgentsInitializer::init($userId, $agentCodes);
         if (($result['success'] ?? false) !== true) {
