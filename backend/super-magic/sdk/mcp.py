@@ -36,11 +36,11 @@ class McpSDK:
     """
 
     def __init__(self):
-        """初始化 SDK"""
-        # 获取服务器地址和端口
         api_port = os.getenv("SUPER_MAGIC_API_PORT", "8002")
         self.api_base_url = f"http://127.0.0.1:{api_port}"
-        self.api_timeout = 60.0
+        # HTTP 层不设超时：SDK 运行在 run_sdk_snippet 的子进程中，
+        # 子进程生命周期由 ProcessExecutor + SnippetTimeoutRegistry 统一管控，
+        # 子进程被 kill 时内部 HTTP 连接自然关闭，无需 SDK 层提前断开。
 
     def call(
         self,
@@ -104,7 +104,7 @@ class McpSDK:
             )
 
             # 发送请求
-            with urllib.request.urlopen(req, timeout=self.api_timeout) as response:
+            with urllib.request.urlopen(req, timeout=None) as response:
                 # 解析响应
                 result_data = json.loads(response.read().decode('utf-8'))
 
@@ -154,7 +154,7 @@ class McpSDK:
             req = urllib.request.Request(url, method='GET')
 
             # 发送请求
-            with urllib.request.urlopen(req, timeout=self.api_timeout) as response:
+            with urllib.request.urlopen(req, timeout=None) as response:
                 result_data = json.loads(response.read().decode('utf-8'))
 
                 if result_data.get("code") == 1000:
@@ -186,7 +186,7 @@ class McpSDK:
             req = urllib.request.Request(url, method='GET')
 
             # 发送请求
-            with urllib.request.urlopen(req, timeout=self.api_timeout) as response:
+            with urllib.request.urlopen(req, timeout=None) as response:
                 result_data = json.loads(response.read().decode('utf-8'))
 
                 if result_data.get("code") == 1000:
@@ -253,7 +253,7 @@ class McpSDK:
                 method="POST",
             )
 
-            with urllib.request.urlopen(req, timeout=self.api_timeout) as response:
+            with urllib.request.urlopen(req, timeout=None) as response:
                 result_data = json.loads(response.read().decode("utf-8"))
 
                 if result_data.get("code") == 1000:
@@ -298,7 +298,7 @@ class McpSDK:
             req = urllib.request.Request(url, method='GET')
 
             # 发送请求
-            with urllib.request.urlopen(req, timeout=self.api_timeout) as response:
+            with urllib.request.urlopen(req, timeout=None) as response:
                 result_data = json.loads(response.read().decode('utf-8'))
 
                 if result_data.get("code") == 1000:
