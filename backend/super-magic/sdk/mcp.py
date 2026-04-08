@@ -81,12 +81,15 @@ class McpSDK:
                 print(f"[SDK Error] {error_msg}", file=sys.stderr)
                 return Result.error(error_msg, tool_call_id=tool_call_id)
 
+            sdk_execution_id = os.getenv("SUPER_MAGIC_SDK_EXECUTION_ID", "")
+
             request_data = {
                 "server_name": server_name,
                 "tool_name": tool_name,
                 "tool_params": tool_params,
                 "tool_call_id": tool_call_id,
                 "agent_context_id": agent_context_id,
+                "sdk_execution_id": sdk_execution_id,
             }
 
             # 发起 HTTP 请求

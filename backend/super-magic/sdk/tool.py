@@ -73,11 +73,14 @@ class ToolSDK:
             print(f"[SDK Error] {error_msg}", file=sys.stderr)
             return Result.error(error_msg, tool_call_id=tool_call_id)
 
+        sdk_execution_id = os.getenv("SUPER_MAGIC_SDK_EXECUTION_ID", "")
+
         request_data = {
             "tool_name": tool_name,
             "tool_params": tool_params,
             "tool_call_id": tool_call_id,
             "agent_context_id": agent_context_id,
+            "sdk_execution_id": sdk_execution_id,
         }
 
         url = f"{self.api_base_url}/api/sdk/tool/call"
