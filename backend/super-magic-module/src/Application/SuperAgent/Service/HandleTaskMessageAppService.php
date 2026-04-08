@@ -100,6 +100,9 @@ class HandleTaskMessageAppService extends AbstractAppService
             // ai_abilities) can register dynamic configs keyed by this ID before sendChatMessage reads them.
             $taskId = (string) IdGenerator::getSnowId();
 
+            // Validate that the requested LLM model is available for this organization
+            $this->validateModelId($dataIsolation, $userMessageDTO->getModelId());
+
             // Check message before task starts
             $this->beforeHandleChatMessage($dataIsolation, $userMessageDTO->getInstruction(), $topicEntity, $userMessageDTO->getLanguage(), $userMessageDTO->getModelId(), $taskId, $userMessageDTO->getPrompt(), $userMessageDTO->getMentions());
 
@@ -508,17 +511,30 @@ class HandleTaskMessageAppService extends AbstractAppService
 
     /**
      * Build SuperAgentExtra with image model.
-     * Uses the provided imageModelId, or falls back to the first available model for the organisation.
+     * Uses the provided imageModelId (after validating it is in the org's available list),
+     * or falls back to the first available model for the organisation.
      */
     private function buildExtraWithImageModel(DataIsolation $dataIsolation, string $imageModelId): SuperAgentExtra
     {
+        $gatewayIsolation = ModelGatewayDataIsolation::createByOrganizationCodeWithoutSubscription(
+            $dataIsolation->getCurrentOrganizationCode()
+        );
+        $imageModels = $this->modelGatewayMapper->getImageModels($gatewayIsolation);
+
         if (empty($imageModelId)) {
-            $gatewayIsolation = ModelGatewayDataIsolation::createByOrganizationCodeWithoutSubscription(
-                $dataIsolation->getCurrentOrganizationCode()
-            );
-            $imageModels = $this->modelGatewayMapper->getImageModels($gatewayIsolation);
             if (! empty($imageModels)) {
                 $imageModelId = reset($imageModels)->getKey();
+            }
+        } else {
+            $found = false;
+            foreach ($imageModels as $model) {
+                if ($model->getKey() === $imageModelId) {
+                    $found = true;
+                    break;
+                }
+            }
+            if (! $found) {
+                ExceptionBuilder::throw(SuperAgentErrorCode::VALIDATE_FAILED, 'model.image_model_not_available');
             }
         }
 
@@ -527,5 +543,29 @@ class HandleTaskMessageAppService extends AbstractAppService
             $extra->setImageModel(['model_id' => $imageModelId]);
         }
         return $extra;
+    }
+
+    /**
+     * Validate that the requested LLM model_id is available for the current organization.
+     * Throws BusinessException if the model is not in the organization's available list.
+     */
+    private function validateModelId(DataIsolation $dataIsolation, string $modelId): void
+    {
+        if (empty($modelId)) {
+            return;
+        }
+
+        $gatewayIsolation = ModelGatewayDataIsolation::create(
+            $dataIsolation->getCurrentOrganizationCode(),
+            $dataIsolation->getCurrentUserId()
+        );
+        $availableModels = $this->modelGatewayMapper->getChatModels($gatewayIsolation);
+        foreach ($availableModels as $model) {
+            if ($model->getKey() === $modelId) {
+                return;
+            }
+        }
+
+        ExceptionBuilder::throw(SuperAgentErrorCode::VALIDATE_FAILED, 'model.model_not_available');
     }
 }
