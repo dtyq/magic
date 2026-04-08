@@ -148,7 +148,7 @@ class SkillDetailResponseDTO implements JsonSerializable
         return [
             'id' => (string) $this->id,
             'code' => $this->code,
-            'version_id' => $this->versionId,
+            'version_id' => (string) $this->versionId,
             'version_code' => $this->versionCode,
             'source_type' => $this->sourceType,
             'is_enabled' => $this->isEnabled,
@@ -173,5 +173,10 @@ class SkillDetailResponseDTO implements JsonSerializable
             'is_featured' => $this->isFeatured,
             'skill_file_url' => $this->skillFileUrl,
         ];
+    }
+
+    public function getCreatorInfo(): ?OperatorDTO
+    {
+        return $this->creatorInfo;
     }
 }
