@@ -56,8 +56,8 @@
         "en_US": "The model provider is rate-limiting requests. Please try again later."
     },
     "messages.llm_provider_error": {
-        "zh_CN": "模型供应商服务异常，请重试。",
-        "en_US": "The model provider encountered an error. Please try again."
+        "zh_CN": "模型供应商服务异常，请稍后重试。",
+        "en_US": "The model provider encountered an error. Please try again later."
     },
     "agent_profile.desc_with_role": {
         "zh_CN": "你叫{name}，是一名{role}。{description}",
