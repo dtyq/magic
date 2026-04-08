@@ -441,8 +441,12 @@ class SkillAppService extends AbstractSkillAppService
         $this->fillLanguageCode($dataIsolation, $query);
 
         $accessibleSkillCodes = $this->getAccessibleSkillCodes($dataIsolation);
+
+        // 过滤掉用户安装的
         $currentUserSkillCodes = $this->skillDomainService->findCurrentUserSkillCodes($dataIsolation);
         $sharedSkillCodes = array_values(array_diff($accessibleSkillCodes, $currentUserSkillCodes));
+        // 过滤掉系统内置的
+        $sharedSkillCodes = array_values(array_diff($sharedSkillCodes, BuiltinSkill::values()));
 
         if (! $sharedSkillCodes) {
             return [
@@ -2020,14 +2024,15 @@ class SkillAppService extends AbstractSkillAppService
      * 获取用户可访问的技能代码。
      * @return array<string>
      */
-    private function getAccessibleSkillCodes(SkillDataIsolation $dataIsolation, ?array $resourceCode = null): array
+    private function getAccessibleSkillCodes(SkillDataIsolation $dataIsolation): array
     {
-        return $this->resourceVisibilityDomainService->getUserAccessibleResourceCodes(
+        $skillCodes = $this->resourceVisibilityDomainService->getUserAccessibleResourceCodes(
             $this->createPermissionDataIsolation($dataIsolation),
             $dataIsolation->getCurrentUserId(),
             ResourceVisibilityResourceType::SKILL,
-            $resourceCode
         );
+
+        return $this->mergeBuiltinSkillCodes($skillCodes);
     }
 
     /**
@@ -2039,7 +2044,7 @@ class SkillAppService extends AbstractSkillAppService
             return true;
         }
 
-        return in_array($skillCode, $this->getAccessibleSkillCodes($dataIsolation, [$skillCode]), true);
+        return in_array($skillCode, $this->getAccessibleSkillCodes($dataIsolation), true);
     }
 
     /**
