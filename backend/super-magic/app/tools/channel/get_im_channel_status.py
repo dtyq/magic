@@ -1,14 +1,14 @@
 """
 GetIMChannelStatus — 查询 IM 渠道配置与连接状态。
 
-不挂载到 LLM tool list，仅供 SDK snippet 通过 /api/sdk-runtime/call_tool 调用。
+不挂载到 LLM tool list，仅供 SDK snippet 通过 /api/sdk/tool/call 调用。
 """
 from typing import Any, Dict, Optional
 
 from agentlang.context.tool_context import ToolContext
 from agentlang.tools.tool_result import ToolResult
 from app.channel.base.registry import build_default_channel_registry
-from app.channel.config import load_config
+from app.channel.config import DisabledReason, load_config
 from app.core.entity.message.server_message import DisplayType, TerminalContent, ToolDetail
 from app.i18n import i18n
 from app.tools.core import BaseTool, BaseToolParams, tool
@@ -58,7 +58,13 @@ class GetIMChannelStatus(BaseTool[BaseToolParams]):
             if connected:
                 status_val = f"🟢 {i18n.translate('channel.status.connected', category='tool.messages')}"
             elif configured:
-                status_val = f"🔴 {i18n.translate('channel.status.disconnected', category='tool.messages')}"
+                disabled_reason = getattr(credential, "disabled_reason", "")
+                if disabled_reason == DisabledReason.SESSION_EXPIRED:
+                    status_val = f"🟠 {i18n.translate('channel.status.session_expired', category='tool.messages')}"
+                elif disabled_reason == DisabledReason.USER_DISABLED:
+                    status_val = f"⚪ {i18n.translate('channel.status.user_disabled', category='tool.messages')}"
+                else:
+                    status_val = f"🔴 {i18n.translate('channel.status.disconnected', category='tool.messages')}"
             else:
                 status_val = f"⚫ {i18n.translate('channel.status.not_configured', category='tool.messages')}"
 

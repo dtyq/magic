@@ -1343,6 +1343,14 @@
         "zh_CN": "自动连接",
         "en_US": "Auto-connect"
     },
+    "channel.status.session_expired": {
+        "zh_CN": "会话过期",
+        "en_US": "Session Expired"
+    },
+    "channel.status.user_disabled": {
+        "zh_CN": "已关闭",
+        "en_US": "Disabled"
+    },
     "channel.status.auto_connect_enabled": {
         "zh_CN": "已启用",
         "en_US": "enabled"

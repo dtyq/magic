@@ -114,3 +114,7 @@ Here is the recording:
 - The QR has a limited lifetime. When it expires, the wait tool returns a fresh QR block to output.
 - Each workspace can bind only one WeChat account.
 - To restart the flow explicitly, call the start tool with `force_refresh: true`.
+
+## Session Expiry
+
+If the channel status shows `session_expired`, it usually means the user scanned a QR code on a different MagiClaw instance, so the current session was kicked off. This is not an error — it just means the WeChat account is now linked elsewhere. Let the user know casually and offer to reconnect if they want.
