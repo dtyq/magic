@@ -33,6 +33,7 @@ use Dtyq\SuperMagic\Infrastructure\ExternalAPI\Sandbox\Volcengine\SandboxService
 use Dtyq\SuperMagic\Infrastructure\ExternalAPI\Sandbox\WebSocket\WebSocketSession;
 use Dtyq\SuperMagic\Infrastructure\ExternalAPI\SandboxOS\Agent\Request\ScriptTaskRequest;
 use Dtyq\SuperMagic\Infrastructure\ExternalAPI\SandboxOS\Agent\SandboxAgentInterface;
+use Dtyq\SuperMagic\Infrastructure\Utils\WorkFileUtil;
 use RuntimeException;
 
 class TaskDomainService
@@ -404,7 +405,7 @@ class TaskDomainService
             $taskFileEntity->setFileExtension($fileData['file_extension'] ?? '');
             $taskFileEntity->setFileSize($fileData['file_size'] ?? 0);
             // Check and set whether it's a hidden file
-            $taskFileEntity->setIsHidden($this->isHiddenFile($fileKey));
+            $taskFileEntity->setIsHidden(WorkFileUtil::isHiddenFile($fileKey));
             if ($parentId !== null) {
                 $taskFileEntity->setParentId($parentId);
             }
@@ -438,7 +439,7 @@ class TaskDomainService
         $taskFileEntity->setFileExtension($fileData['file_extension'] ?? '');
         $taskFileEntity->setFileSize($fileData['file_size'] ?? 0);
         // Check and set whether it's a hidden file
-        $taskFileEntity->setIsHidden($this->isHiddenFile($fileKey));
+        $taskFileEntity->setIsHidden(WorkFileUtil::isHiddenFile($fileKey));
         // Set storage type, default to workspace
         $taskFileEntity->setStorageType($storageType);
         $taskFileEntity->setSource($source);
@@ -655,29 +656,5 @@ class TaskDomainService
     {
         $scriptTaskRequest = ScriptTaskRequest::create($scriptTaskEntity->getTaskId(), $scriptTaskEntity->getArguments(), $scriptTaskEntity->getScriptName());
         $this->sandboxAgent->executeScriptTask($scriptTaskEntity->getSandboxId(), $scriptTaskRequest);
-    }
-
-    /**
-     * Check if file is hidden file.
-     *
-     * @param string $fileKey File path
-     * @return bool Whether it's a hidden file: true-yes, false-no
-     */
-    private function isHiddenFile(string $fileKey): bool
-    {
-        // Remove leading slash, uniform processing
-        $fileKey = ltrim($fileKey, '/');
-
-        // Split path into parts
-        $pathParts = explode('/', $fileKey);
-
-        // Check if each path part starts with .
-        foreach ($pathParts as $part) {
-            if (! empty($part) && str_starts_with($part, '.')) {
-                return true; // It's a hidden file
-            }
-        }
-
-        return false; // It's not a hidden file
     }
 }

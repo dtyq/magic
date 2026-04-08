@@ -670,7 +670,7 @@ class TaskFileDomainService
             $taskFileEntity->setStorageType(StorageType::WORKSPACE);
             $taskFileEntity->setUserId($dataIsolation->getCurrentUserId());
             $taskFileEntity->setOrganizationCode($dataIsolation->getCurrentOrganizationCode());
-            $taskFileEntity->setIsHidden(false);
+            $taskFileEntity->setIsHidden(WorkFileUtil::isHiddenFile($fileKey));
             $taskFileEntity->setSort($sortValue);
 
             // Extract file extension for files
@@ -771,7 +771,7 @@ class TaskFileDomainService
         $taskFileEntity->setStorageType(StorageType::WORKSPACE);
         $taskFileEntity->setUserId($dataIsolation->getCurrentUserId());
         $taskFileEntity->setOrganizationCode($dataIsolation->getCurrentOrganizationCode());
-        $taskFileEntity->setIsHidden(false);
+        $taskFileEntity->setIsHidden(WorkFileUtil::isHiddenFile($fileKey));
         $taskFileEntity->setSort(0);
 
         if (! empty($fileName)) {
@@ -1367,7 +1367,7 @@ class TaskFileDomainService
             $newFileEntity->setCreatedAt(date('Y-m-d H:i:s'));
             $newFileEntity->setUpdatedAt(date('Y-m-d H:i:s'));
             $newFileEntity->setStorageType($fileEntity->getStorageType());
-            $newFileEntity->setIsHidden($fileEntity->getIsHidden());
+            $newFileEntity->setIsHidden(WorkFileUtil::isHiddenFile($targetPath));
             $newFileEntity->setIsDirectory($fileEntity->getIsDirectory());
             $newFileEntity->setParentId($targetParentId);
             $newFileEntity->setMetadata($fileEntity->getMetadata());
@@ -1512,7 +1512,7 @@ class TaskFileDomainService
             $targetFileEntity->setFileKey($targetPath);
             $targetFileEntity->setCreatedAt(date('Y-m-d H:i:s'));
             $targetFileEntity->setStorageType($fileEntity->getStorageType());
-            $targetFileEntity->setIsHidden($fileEntity->getIsHidden());
+            $targetFileEntity->setIsHidden(WorkFileUtil::isHiddenFile($targetPath));
             $targetFileEntity->setIsDirectory($fileEntity->getIsDirectory());
             $targetFileEntity->setParentId($targetParentId);
             $targetFileEntity->setSort($fileEntity->getSort() + 1);
@@ -2359,7 +2359,7 @@ class TaskFileDomainService
         $dirEntity->setParentId($parentId);
         $dirEntity->setSource(TaskFileSource::COPY);
         $dirEntity->setStorageType($oldFileEntity->getStorageType());
-        $dirEntity->setIsHidden($oldFileEntity->getIsHidden());
+        $dirEntity->setIsHidden(WorkFileUtil::isHiddenFile($newFileKey));
         $dirEntity->setSort($oldFileEntity->getSort());
         $dirEntity->setMetadata($oldFileEntity->getMetadata());  // Preserve metadata when creating folder
         $dirEntity->setFileId(IdGenerator::getSnowId());
@@ -2653,7 +2653,7 @@ class TaskFileDomainService
         } else {
             $dirEntity->setStorageType(StorageType::WORKSPACE);
         }
-        $dirEntity->setIsHidden(false);
+        $dirEntity->setIsHidden(WorkFileUtil::isHiddenFile($fileKey));
         $dirEntity->setSort(0);
 
         $now = date('Y-m-d H:i:s');
@@ -3386,7 +3386,7 @@ class TaskFileDomainService
         $newTaskFile->setFileExtension($sourceFile->getFileExtension());
         $newTaskFile->setFileKey($newFileKey);
         $newTaskFile->setFileSize($sourceFile->getFileSize());
-        $newTaskFile->setIsHidden($sourceFile->getIsHidden());
+        $newTaskFile->setIsHidden(WorkFileUtil::isHiddenFile($newFileKey));
         $newTaskFile->setIsDirectory($sourceFile->getIsDirectory());
 
         // Use provided parentId or fall back to source file's parentId
