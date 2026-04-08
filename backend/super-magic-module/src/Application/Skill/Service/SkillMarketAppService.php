@@ -101,7 +101,7 @@ class SkillMarketAppService extends AbstractSkillAppService
      * @param RequestContext $requestContext 请求上下文
      * @param SkillQuery $query 查询对象
      * @param Page $page 分页对象
-     * @return array{list: SkillMarketEntity[], total: int, userSkills: array<string, SkillEntity>, publisherUserMap: array<string, MagicUserEntity>, creatorSkillCodes: array<string, bool>, skillVersionMap: array<int, SkillVersionEntity>} 市场技能列表结果
+     * @return array{list: SkillMarketEntity[], total: int, userSkills: array<string, SkillEntity>, publisherUserMap: array<string, MagicUserEntity>, skillVersionMap: array<string, SkillVersionEntity>} 市场技能列表结果
      */
     public function queries(RequestContext $requestContext, SkillQuery $query, Page $page): array
     {

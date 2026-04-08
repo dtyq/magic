@@ -2202,25 +2202,6 @@ class SuperMagicAgentAppService extends AbstractSuperMagicAppService
         return $versionEntity;
     }
 
-    private function saveUserAgentOwnership(
-        SuperMagicAgentDataIsolation $dataIsolation,
-        string $agentCode,
-        AgentSourceType $sourceType,
-        ?int $sourceId = null,
-        ?int $agentVersionId = null
-    ): void {
-        $entity = new UserAgentEntity([
-            'organization_code' => $dataIsolation->getCurrentOrganizationCode(),
-            'user_id' => $dataIsolation->getCurrentUserId(),
-            'agent_code' => $agentCode,
-            'agent_version_id' => $agentVersionId,
-            'source_type' => $sourceType->value,
-            'source_id' => $sourceId,
-        ]);
-
-        $this->userAgentDomainService->saveUserAgentOwnership($dataIsolation, $entity);
-    }
-
     /**
      * 市场安装场景下，给当前用户补一条用户级可见范围。
      *

@@ -379,7 +379,7 @@ class SkillAssembler
      *
      * @param array<string, SkillEntity> $userSkills 用户已添加的技能映射（key 为 skillCode）
      * @param array<string, MagicUserEntity> $publisherUserMap 发布者用户信息映射（key 为 publisherId）
-     * @param array<int, SkillVersionEntity> $skillVersionMap key 为 skill_version_id（已解析 file_url）
+     * @param array<string, SkillVersionEntity> $skillVersionMap key 为 skill_version_id（已解析 file_url）
      * @param int $page 当前页码
      * @param int $pageSize 每页数量
      * @param int $total 总记录数
