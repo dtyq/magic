@@ -647,10 +647,9 @@ class Agent(BaseAgent):
         injected_context = (
             "<system_injected_context>\n"
             f'<notification source="agent_run_exception" time="{escaped_time}">\n'
-            f"The previous run terminated with an exception at {escaped_time}.\n"
-            "This error has already been shown to the user in the UI.\n"
+            "The previous run terminated with an exception.\n"
             f"Error summary: {escaped_summary}\n"
-            "Use this event as immediate prior context if the user asks why the task stopped, failed, or got stuck.\n"
+            "This error has already been shown to the user in the UI.\n"
             "</notification>\n"
             "</system_injected_context>"
         )
