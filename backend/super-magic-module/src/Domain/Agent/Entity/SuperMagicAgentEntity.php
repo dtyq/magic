@@ -646,6 +646,21 @@ class SuperMagicAgentEntity extends AbstractEntity
         return $this->description;
     }
 
+    public function hydrateI18nForPublish(): void
+    {
+        $resolvedName = $this->resolvePublishTextFallback($this->name, $this->nameI18n);
+        if ($resolvedName !== '') {
+            $this->name = $resolvedName;
+            $this->nameI18n = $this->fillPublishI18nValues($this->nameI18n, $resolvedName);
+        }
+
+        $resolvedDescription = $this->resolvePublishTextFallback($this->description, $this->descriptionI18n);
+        if ($resolvedDescription !== '') {
+            $this->description = $resolvedDescription;
+            $this->descriptionI18n = $this->fillPublishI18nValues($this->descriptionI18n, $resolvedDescription);
+        }
+    }
+
     public function getSourceType(): AgentSourceType
     {
         return $this->sourceType;
@@ -752,5 +767,46 @@ class SuperMagicAgentEntity extends AbstractEntity
     public function setLatestPublishedAt(?string $latestPublishedAt): void
     {
         $this->latestPublishedAt = $latestPublishedAt;
+    }
+
+    /**
+     * 发布前优先使用主字段文本，主字段为空时再从多语言内容里取首个非空值作为兜底。
+     */
+    private function resolvePublishTextFallback(string $text, ?array $i18n): string
+    {
+        $text = trim($text);
+        if ($text !== '') {
+            return $text;
+        }
+
+        $i18n = is_array($i18n) ? $i18n : [];
+        foreach (LanguageEnum::getAllLanguageCodes() as $languageCode) {
+            $value = trim((string) ($i18n[$languageCode] ?? ''));
+            if ($value !== '') {
+                return $value;
+            }
+        }
+
+        return '';
+    }
+
+    /**
+     * 使用兜底文案补齐空缺的多语言字段，避免发布后的 i18n 结构存在空值。
+     */
+    private function fillPublishI18nValues(?array $i18n, string $fallback): array
+    {
+        $i18n = is_array($i18n) ? $i18n : [];
+        $fallback = trim($fallback);
+        if ($fallback === '') {
+            return $i18n;
+        }
+
+        foreach (LanguageEnum::getAllLanguageCodes() as $languageCode) {
+            if (trim((string) ($i18n[$languageCode] ?? '')) === '') {
+                $i18n[$languageCode] = $fallback;
+            }
+        }
+
+        return $i18n;
     }
 }

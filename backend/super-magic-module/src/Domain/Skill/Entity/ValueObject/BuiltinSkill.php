@@ -19,13 +19,7 @@ enum BuiltinSkill: string
     case DataQa = 'data-qa';
     case DeepResearch = 'deep-research';
     case DesigningCanvasImages = 'designing-canvas-images';
-    case EnvManager = 'env-manager';
-    case FindSkill = 'find-skill';
     case SkillCreator = 'skill-creator';
-    case StandardizingStQuotation = 'standardizing-st-quotation';
-    case UsingCron = 'using-cron';
-    case UsingLlm = 'using-llm';
-    case UsingMcp = 'using-mcp';
 
     public function getSkillName(): string
     {
@@ -34,11 +28,13 @@ enum BuiltinSkill: string
 
     public function getNameI18n(): array
     {
-        $name = $this->getSkillName();
+        $zhName = $this->getLocalizedValue('zh_CN', 'names');
+        $enName = $this->getLocalizedValue('en_US', 'names');
 
         return [
-            'zh_CN' => $name,
-            'en_US' => $name,
+            'zh_CN' => $zhName,
+            'en_US' => $enName,
+            'default' => $enName,
         ];
     }
 
@@ -49,11 +45,13 @@ enum BuiltinSkill: string
 
     public function getDescriptionI18n(): array
     {
-        $description = $this->getSkillDescription();
+        $zhDescription = $this->getLocalizedValue('zh_CN', 'descriptions');
+        $enDescription = $this->getLocalizedValue('en_US', 'descriptions');
 
         return [
-            'zh_CN' => $description,
-            'en_US' => $description,
+            'zh_CN' => $zhDescription,
+            'en_US' => $enDescription,
+            'default' => $enDescription,
         ];
     }
 
@@ -72,6 +70,7 @@ enum BuiltinSkill: string
         return [
             'zh_CN' => '官方内置',
             'en_US' => 'Official Built-in',
+            'default' => 'Official Built-in',
         ];
     }
 
@@ -89,5 +88,10 @@ enum BuiltinSkill: string
     public static function values(): array
     {
         return array_column(self::cases(), 'value');
+    }
+
+    private function getLocalizedValue(string $locale, string $group): string
+    {
+        return trans("builtin_skills.{$group}.{$this->value}", [], $locale);
     }
 }

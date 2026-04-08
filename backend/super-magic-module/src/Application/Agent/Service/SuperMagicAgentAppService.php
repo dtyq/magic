@@ -842,7 +842,7 @@ class SuperMagicAgentAppService extends AbstractSuperMagicAppService
         $this->checkPermission($dataIsolation, $code);
 
         $agentEntity = $this->superMagicAgentDomainService->getByCodeWithException($dataIsolation, $code);
-        $this->hydrateAgentI18nForPublish($agentEntity);
+        $agentEntity->hydrateI18nForPublish();
 
         $versionEntity = new AgentVersionEntity();
         $versionEntity->setCode($code);
@@ -951,6 +951,8 @@ class SuperMagicAgentAppService extends AbstractSuperMagicAppService
     }
 
     /**
+     * 我的技能列表，包含系统技能 + 当前数字员工技能 + 我的技能列表。
+     *
      * @return array<int, array{id: string, code: string, name: string, description: string, logo: ?string, mention_source: string}>
      */
     public function getMentionSkills(Authenticatable $authorization, string $employeeCode = ''): array
@@ -960,14 +962,25 @@ class SuperMagicAgentAppService extends AbstractSuperMagicAppService
 
         $result = [];
         $seenCodes = [];
+        // 按优先级从高到低合并，命中重复 code 时保留先出现的技能：
+        // 系统内置 > 员工可见 > 我的技能
+        $mentionSkillGroupsByPriority = [
+            $this->buildSystemMentionSkills(),
+            $this->buildEmployeeMentionSkills($dataIsolation, $employeeCode, $language),
+            $this->buildMineMentionSkills($dataIsolation, $language),
+        ];
 
-        $this->appendMentionSkills($result, $seenCodes, $this->buildSystemMentionSkills());
-        $this->appendMentionSkills(
-            $result,
-            $seenCodes,
-            $this->buildEmployeeMentionSkills($dataIsolation, $employeeCode, $language)
-        );
-        $this->appendMentionSkills($result, $seenCodes, $this->buildMineMentionSkills($dataIsolation, $language));
+        foreach ($mentionSkillGroupsByPriority as $mentionSkillGroup) {
+            foreach ($mentionSkillGroup as $item) {
+                $code = $item['code'];
+                if ($code === '' || isset($seenCodes[$code])) {
+                    continue;
+                }
+
+                $seenCodes[$code] = true;
+                $result[] = $item;
+            }
+        }
 
         return $result;
     }
@@ -1852,7 +1865,7 @@ class SuperMagicAgentAppService extends AbstractSuperMagicAppService
      */
     private function resolveAccessibleSkillsWithCurrentVersion(SuperMagicAgentDataIsolation $dataIsolation, array $skillCodes): array
     {
-        $accessibleSkillCodes = $this->resolveAccessibleSkillCodes($dataIsolation, $skillCodes);
+        $accessibleSkillCodes = $this->getAccessibleSkillCodesWithBuiltinFallback($dataIsolation, $skillCodes);
 
         $accessibleSkillCodeMap = array_flip($accessibleSkillCodes);
         foreach ($skillCodes as $skillCode) {
@@ -1875,12 +1888,12 @@ class SuperMagicAgentAppService extends AbstractSuperMagicAppService
     }
 
     /**
-     * 系统 Skill 不写入资源可见性表，所以这里需要手动补回内置技能编码。
+     * 获取用户可访问的技能代码.
      *
      * @param array<string> $skillCodes
      * @return array<string>
      */
-    private function resolveAccessibleSkillCodes(SuperMagicAgentDataIsolation $dataIsolation, array $skillCodes): array
+    private function getAccessibleSkillCodesWithBuiltinFallback(SuperMagicAgentDataIsolation $dataIsolation, array $skillCodes): array
     {
         $permissionDataIsolation = $this->createPermissionDataIsolation($dataIsolation);
         $accessibleSkillCodes = $this->resourceVisibilityDomainService->getUserAccessibleResourceCodes(
@@ -1897,24 +1910,8 @@ class SuperMagicAgentAppService extends AbstractSuperMagicAppService
     }
 
     /**
-     * @param array<int, array{id: string, code: string, name: string, description: string, logo: ?string, mention_source: string}> $result
-     * @param array<string, bool> $seenCodes
-     * @param array<int, array{id: string, code: string, name: string, description: string, logo: ?string, mention_source: string}> $items
-     */
-    private function appendMentionSkills(array &$result, array &$seenCodes, array $items): void
-    {
-        foreach ($items as $item) {
-            $code = $item['code'];
-            if ($code === '' || isset($seenCodes[$code])) {
-                continue;
-            }
-
-            $seenCodes[$code] = true;
-            $result[] = $item;
-        }
-    }
-
-    /**
+     * 构建系统内置技能列表.
+     *
      * @return array<int, array{id: string, code: string, name: string, description: string, logo: ?string, mention_source: string}>
      */
     private function buildSystemMentionSkills(): array
@@ -1936,6 +1933,8 @@ class SuperMagicAgentAppService extends AbstractSuperMagicAppService
     }
 
     /**
+     * 构建员工可见技能列表.
+     *
      * @return array<int, array{id: string, code: string, name: string, description: string, logo: ?string, mention_source: string}>
      */
     private function buildEmployeeMentionSkills(
@@ -2001,6 +2000,8 @@ class SuperMagicAgentAppService extends AbstractSuperMagicAppService
     }
 
     /**
+     * 构建我的技能列表.
+     *
      * @return array<int, array{id: string, code: string, name: string, description: string, logo: ?string, mention_source: string}>
      */
     private function buildMineMentionSkills(SuperMagicAgentDataIsolation $dataIsolation, string $language): array
@@ -2036,6 +2037,9 @@ class SuperMagicAgentAppService extends AbstractSuperMagicAppService
         return $items;
     }
 
+    /**
+     * 构建技能版本名称.
+     */
     private function resolveSkillVersionName(SkillVersionEntity $skillVersion, string $language): string
     {
         $nameI18n = $skillVersion->getNameI18n();
@@ -2056,6 +2060,9 @@ class SuperMagicAgentAppService extends AbstractSuperMagicAppService
         return '';
     }
 
+    /**
+     * 构建技能版本描述.
+     */
     private function resolveSkillVersionDescription(SkillVersionEntity $skillVersion, string $language): string
     {
         $descriptionI18n = $skillVersion->getDescriptionI18n() ?? [];
@@ -2076,6 +2083,9 @@ class SuperMagicAgentAppService extends AbstractSuperMagicAppService
         return '';
     }
 
+    /**
+     * 构建智能体详情.
+     */
     private function buildAgentDetailFromVersion(AgentVersionEntity $versionEntity): SuperMagicAgentEntity
     {
         $agent = new SuperMagicAgentEntity();
@@ -2104,6 +2114,8 @@ class SuperMagicAgentAppService extends AbstractSuperMagicAppService
     }
 
     /**
+     * 构建外部可见智能体列表.
+     *
      * @param array<string, AgentVersionEntity> $currentVersionsMap
      * @return array<SuperMagicAgentEntity>
      */
@@ -2146,6 +2158,8 @@ class SuperMagicAgentAppService extends AbstractSuperMagicAppService
     }
 
     /**
+     * 获取官方内置智能体列表.
+     *
      * @return array<SuperMagicAgentEntity>
      */
     private function getBuiltinAgent(SuperMagicAgentDataIsolation $superMagicAgentDataIsolation): array
@@ -2292,6 +2306,9 @@ class SuperMagicAgentAppService extends AbstractSuperMagicAppService
         );
     }
 
+    /**
+     * 发布准备智能体版本.
+     */
     private function publishPreparedAgentVersion(
         Authenticatable $authorization,
         SuperMagicAgentDataIsolation $dataIsolation,
@@ -2331,56 +2348,6 @@ class SuperMagicAgentAppService extends AbstractSuperMagicAppService
         }
 
         return $versionEntity;
-    }
-
-    private function hydrateAgentI18nForPublish(SuperMagicAgentEntity $agentEntity): void
-    {
-        $resolvedName = $this->resolvePublishTextFallback($agentEntity->getName(), $agentEntity->getNameI18n());
-        if ($resolvedName !== '') {
-            $agentEntity->setName($resolvedName);
-            $agentEntity->setNameI18n($this->fillPublishI18nValues($agentEntity->getNameI18n(), $resolvedName));
-        }
-
-        $resolvedDescription = $this->resolvePublishTextFallback($agentEntity->getDescription(), $agentEntity->getDescriptionI18n());
-        if ($resolvedDescription !== '') {
-            $agentEntity->setDescription($resolvedDescription);
-            $agentEntity->setDescriptionI18n($this->fillPublishI18nValues($agentEntity->getDescriptionI18n(), $resolvedDescription));
-        }
-    }
-
-    private function resolvePublishTextFallback(string $text, ?array $i18n): string
-    {
-        $text = trim($text);
-        if ($text !== '') {
-            return $text;
-        }
-
-        $i18n = is_array($i18n) ? $i18n : [];
-        foreach (LanguageEnum::getAllLanguageCodes() as $languageCode) {
-            $value = trim((string) ($i18n[$languageCode] ?? ''));
-            if ($value !== '') {
-                return $value;
-            }
-        }
-
-        return '';
-    }
-
-    private function fillPublishI18nValues(?array $i18n, string $fallback): array
-    {
-        $i18n = is_array($i18n) ? $i18n : [];
-        $fallback = trim($fallback);
-        if ($fallback === '') {
-            return $i18n;
-        }
-
-        foreach (LanguageEnum::getAllLanguageCodes() as $languageCode) {
-            if (trim((string) ($i18n[$languageCode] ?? '')) === '') {
-                $i18n[$languageCode] = $fallback;
-            }
-        }
-
-        return $i18n;
     }
 
     private function saveUserAgentOwnership(
