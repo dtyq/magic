@@ -393,8 +393,6 @@ class SkillAppService extends AbstractSkillAppService
         // 创建数据隔离对象
         $dataIsolation = $this->createSkillDataIsolation($userAuthorization);
 
-        $this->fillLanguageCode($dataIsolation, $query);
-
         $accessibleSkillCodes = $this->getAccessibleSkillCodes($dataIsolation);
 
         $dataIsolation->disabled();
@@ -412,8 +410,6 @@ class SkillAppService extends AbstractSkillAppService
     {
         $userAuthorization = $requestContext->getUserAuthorization();
         $dataIsolation = $this->createSkillDataIsolation($userAuthorization);
-
-        $this->fillLanguageCode($dataIsolation, $query);
 
         $result = $this->skillDomainService->queries($dataIsolation, $query, $page);
         $this->updateSkillLogoUrl($dataIsolation, $result['list']);
@@ -438,8 +434,6 @@ class SkillAppService extends AbstractSkillAppService
         $userAuthorization = $requestContext->getUserAuthorization();
         $dataIsolation = $this->createSkillDataIsolation($userAuthorization);
 
-        $this->fillLanguageCode($dataIsolation, $query);
-
         $accessibleSkillCodes = $this->getAccessibleSkillCodes($dataIsolation);
 
         // 过滤掉用户安装的
@@ -459,7 +453,6 @@ class SkillAppService extends AbstractSkillAppService
             $dataIsolation,
             $sharedSkillCodes,
             $query->getKeyword(),
-            $query->getLanguageCode() ?: LanguageEnum::EN_US->value,
             $page
         );
 
@@ -485,8 +478,6 @@ class SkillAppService extends AbstractSkillAppService
         $userAuthorization = $requestContext->getUserAuthorization();
         $dataIsolation = $this->createSkillDataIsolation($userAuthorization);
 
-        $this->fillLanguageCode($dataIsolation, $query);
-
         $marketInstalledCodes = $this->getMarketInstalledSkillCodes($dataIsolation);
 
         if ($marketInstalledCodes === []) {
@@ -501,7 +492,6 @@ class SkillAppService extends AbstractSkillAppService
             $dataIsolation,
             $marketInstalledCodes,
             $query->getKeyword(),
-            $query->getLanguageCode() ?: LanguageEnum::EN_US->value,
             $page
         );
 
@@ -895,7 +885,6 @@ class SkillAppService extends AbstractSkillAppService
         $dataIsolation = $this->createSkillDataIsolation($userAuthorization);
         $filterCodes = $requestDTO->getCodes() ?? [];
 
-        $languageCode = $dataIsolation->getLanguage() ?: LanguageEnum::EN_US->value;
         $requestedCodes = array_values(array_unique(array_filter($filterCodes)));
 
         $accessibleSkillCodes = $this->getAccessibleSkillCodes($dataIsolation);
@@ -919,7 +908,6 @@ class SkillAppService extends AbstractSkillAppService
             $dataIsolation,
             $accessibleSkillCodes,
             $requestDTO->getKeyword(),
-            $languageCode,
             $page
         );
 
@@ -2009,15 +1997,6 @@ class SkillAppService extends AbstractSkillAppService
             PrincipalType::USER,
             $userIds
         );
-    }
-
-    private function fillLanguageCode(SkillDataIsolation $dataIsolation, SkillQuery $query): void
-    {
-        if ($query->getLanguageCode()) {
-            return;
-        }
-
-        $query->setLanguageCode($dataIsolation->getLanguage() ?: LanguageEnum::EN_US->value);
     }
 
     /**
