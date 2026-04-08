@@ -39,7 +39,7 @@ class McpSDK:
         api_port = os.getenv("SUPER_MAGIC_API_PORT", "8002")
         self.api_base_url = f"http://127.0.0.1:{api_port}"
         # HTTP 层不设超时：SDK 运行在 run_sdk_snippet 的子进程中，
-        # 子进程生命周期由 ProcessExecutor + SnippetTimeoutRegistry 统一管控，
+        # 子进程生命周期由 ProcessExecutor + SdkSnippetTimeoutRegistry 统一管控，
         # 子进程被 kill 时内部 HTTP 连接自然关闭，无需 SDK 层提前断开。
 
     def call(

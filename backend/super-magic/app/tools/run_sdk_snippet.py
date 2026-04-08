@@ -19,7 +19,7 @@ from agentlang.logger import get_logger
 from app.path_manager import PathManager
 from app.tools.core import BaseToolParams, tool
 from app.tools.abstract_file_tool import AbstractFileTool
-from app.tools.snippet_timeout_registry import SnippetTimeoutRegistry
+from app.tools.snippet_timeout_registry import SdkSnippetTimeoutRegistry
 from app.utils.process_executor import ProcessExecutor
 
 logger = get_logger(__name__)
@@ -125,7 +125,7 @@ class RunSdkSnippet(AbstractFileTool[RunSdkSnippetParams]):
                 return ToolResult.error(f"写入 SDK 代码片段失败: {e}")
 
             command = f"python {script_filename}"
-            effective_timeout = SnippetTimeoutRegistry.get_effective_timeout(
+            effective_timeout = SdkSnippetTimeoutRegistry.get_effective_timeout(
                 params.python_code, params.timeout
             )
             if effective_timeout != params.timeout:

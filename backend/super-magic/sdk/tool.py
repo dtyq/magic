@@ -29,7 +29,7 @@ class ToolSDK:
         api_port = os.getenv("SUPER_MAGIC_API_PORT", "8002")
         self.api_base_url = f"http://127.0.0.1:{api_port}"
         # HTTP 层不设超时：SDK 运行在 run_sdk_snippet 的子进程中，
-        # 子进程生命周期由 ProcessExecutor + SnippetTimeoutRegistry 统一管控，
+        # 子进程生命周期由 ProcessExecutor + SdkSnippetTimeoutRegistry 统一管控，
         # 子进程被 kill 时内部 HTTP 连接自然关闭，无需 SDK 层提前断开。
 
     def call(
@@ -41,7 +41,7 @@ class ToolSDK:
         """调用工具（同步）
 
         通过 HTTP 请求调用工具，避免子进程和 agent_context 传递的复杂性。
-        不设置 HTTP 超时——子进程的存活时间由 ProcessExecutor + SnippetTimeoutRegistry
+        不设置 HTTP 超时——子进程的存活时间由 ProcessExecutor + SdkSnippetTimeoutRegistry
         统一控制，子进程被 kill 时内部 HTTP 连接自然关闭。
 
         Args:
