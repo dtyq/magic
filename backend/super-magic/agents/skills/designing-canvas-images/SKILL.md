@@ -55,7 +55,7 @@ Design projects are uniquely identified by `project_path`. All canvas tools requ
 - Creating separate elements on canvas to fake image editing
 
 **Correct approach:**
-- Image content changes → `generate_images_to_canvas` (creates new element; keep original)
+- Image content changes → `generate_canvas_images` (creates new element; keep original)
 - Video generation and follow-up → load `designing-canvas-videos` skill
 - Original elements and media files must remain unchanged
 
@@ -75,16 +75,22 @@ Design projects are uniquely identified by `project_path`. All canvas tools requ
 
 Returns: `{ project_path, project_name }`
 
-### generate_images_to_canvas
+### generate_canvas_images
 
 | Parameter | Required | Description |
 |---|---|---|
 | `project_path` | Yes | Project path |
-| `name` | Yes | Canvas element label; multiple images get suffixes `_1`, `_2`, … |
-| `prompts` | Yes | Generation prompts, up to 6 entries |
-| `size` | Yes | Image dimensions `"WxH"`, e.g. `"2048x2048"`, `"1440x2560"` |
-| `reference_images` | Yes | Reference image paths. Pass `[]` for text-only generation |
-| `image_count` | No | Variations in single-prompt mode, 1–4 (default 1) |
+| `tasks` | Yes | List of image generation tasks; each task produces one image |
+
+**Task object:**
+
+| Field | Required | Description |
+|---|---|---|
+| `prompt` | Yes | Generation prompt for this image |
+| `name` | Yes | Canvas element label |
+| `size` | Conditional | Image dimensions `"WxH"`, e.g. `"2048x2048"`. Required when `reference_images` is empty; omit to auto-read from the largest reference image |
+| `reference_images` | No | Reference image paths (workspace-relative). Images inside the project use project-relative paths, e.g. `images/cat.jpg`; images outside the project use workspace-relative paths, e.g. `other-project/images/ref.png`. Omit or pass `[]` for text-only generation |
+| `element_id` | No | Existing element ID to overwrite (for retrying a failed placeholder) |
 
 Returns: `{ created_elements: [{ id, name, type, x, y, width, height }], succeeded_count, failed_count }`
 
@@ -106,19 +112,19 @@ Returns: `{ elements: [{ id, name, type, size, position }], canvas_info.total_el
 - Do not modify original image files — all content changes must create new elements
 - Do not delete elements
 - Do not alter image content through element properties
-- Use `generate_images_to_canvas` for any content change; keep original elements intact
+- Use `generate_canvas_images` for any content change; keep original elements intact
 - "Add X to image" = image-to-image generation, not placing a separate element on canvas
 
 **Workflow:**
 - Default to reusing the existing canvas project; only create a new one when the user explicitly asks
 - Query the canvas with `query_canvas_overview` before operating on existing content
 - Never assume file paths — always use paths obtained from query results
-- For image-to-image: use `visual_understanding` to analyze the reference image first — it returns both content description and dimensions. Use the dimensions for `size` and the description to inform your prompt.
+- For image-to-image: use `visual_understanding` to analyze the reference image first — it returns both content description and dimensions. Use the description to inform your prompt; `size` can be omitted when reference images are provided (auto-resolved from the largest one), or set explicitly if the user wants a different output size.
 - When the user references a canvas image, always call `visual_understanding` to understand its content before generating. This ensures your prompt accurately describes what to preserve and what to change.
 
 **Generation timeout handling:**
-- `run_sdk_snippet` automatically enforces a minimum 10-minute timeout for `generate_images_to_canvas` calls. You do not need to pass `timeout` unless the task is expected to take longer than 10 minutes.
-- If the call returns a timeout error, do NOT retry immediately. First call `query_canvas_overview` to check whether an element with the expected name already exists. Only re-generate if it is absent. Retrying blindly creates duplicate elements because generation is not idempotent.
+- `run_sdk_snippet` automatically enforces a minimum 10-minute timeout for `generate_canvas_images` calls. You do not need to pass `timeout` unless the task is expected to take longer than 10 minutes.
+- If a task fails, the result content includes the `element_id` of the failed placeholder. Pass that `element_id` back in the retried task to overwrite the placeholder in-place instead of creating a duplicate element.
 
 ---
 
@@ -231,9 +237,11 @@ When the user asks for an image, you are translating intent into a visual specif
 
 **Step 3 — Construct the prompt as a coherent scene description.** Write it as if briefing someone who will create this image. The prompt should read as clear prose or structured direction — not as a comma-separated keyword dump.
 
-### Prompt language
+### Prompt and name language
 
 Write the prompt in the same language the user is using. If the user speaks Chinese, the prompt should be in Chinese. Modern image models handle multilingual prompts natively — there is no quality advantage in translating to English.
+
+The `name` field follows the same rule: use the user's language for the canvas element label.
 
 ### Handling user-provided prompts
 
@@ -249,132 +257,119 @@ Respect their work. Use their prompt as the primary body. Only append supplement
 
 ## AI Image Generation
 
+Each call accepts a `tasks` list. Every task produces one image independently — tasks run concurrently and each updates the canvas as soon as it finishes.
+
 ### Text-to-image (no references)
 
-Use when generating from description alone. Each prompt in `prompts` produces one independent image.
+`size` is required when no `reference_images` are provided.
 
-**Multiple themes** — up to 6 prompts, each a distinct image:
+**Multiple independent images:**
 
 ```python
 from sdk.tool import tool
 
-result = tool.call('generate_images_to_canvas', {
+result = tool.call('generate_canvas_images', {
     "project_path": "landmarks",
-    "name": "beijing-landmarks",
-    "prompts": [
-        "The Great Wall winding across mountain ridges toward the horizon, "
-        "late afternoon sun casting long shadows along the stone walkway, "
-        "aerial perspective from a drone at 200m altitude, "
-        "warm golden light with cool blue shadows in the valleys",
-
-        "The Hall of Supreme Harmony in the Forbidden City, "
-        "low-angle shot from the courtyard emphasizing the layered rooflines, "
-        "overcast sky with dramatic cloud formations breaking above the ridge, "
-        "symmetrical composition with the central staircase as the leading line",
-
-        "The Temple of Heaven's Hall of Prayer, "
-        "shot from ground level looking up at the triple-tiered circular roof, "
-        "early morning with clear sky, the deep blue and gold roof tiles "
-        "catching the first direct sunlight against the pale sky"
-    ],
-    "size": "2560x1440",
-    "reference_images": []
-})
-```
-
-**Variations** — up to 4 versions of one theme:
-
-```python
-result = tool.call('generate_images_to_canvas', {
-    "project_path": "product",
-    "name": "moisturizer-options",
-    "prompts": [
-        "A frosted glass moisturizer jar on a slab of raw white marble, "
-        "single soft light source from the upper left creating a gentle gradient shadow, "
-        "clean negative space around the product, "
-        "shallow depth of field with the brand label tack-sharp, "
-        "neutral warm color grade, e-commerce product photography"
-    ],
-    "image_count": 4,
-    "size": "2048x2048",
-    "reference_images": []
+    "tasks": [
+        {
+            "name": "great-wall",
+            "prompt": "The Great Wall winding across mountain ridges toward the horizon, late afternoon sun casting long shadows along the stone walkway, aerial perspective from a drone at 200m altitude, warm golden light with cool blue shadows in the valleys",
+            "size": "2560x1440",
+            "reference_images": []
+        },
+        {
+            "name": "forbidden-city",
+            "prompt": "The Hall of Supreme Harmony in the Forbidden City, low-angle shot from the courtyard emphasizing the layered rooflines, overcast sky with dramatic cloud formations breaking above the ridge, symmetrical composition with the central staircase as the leading line",
+            "size": "2560x1440",
+            "reference_images": []
+        },
+        {
+            "name": "temple-of-heaven",
+            "prompt": "The Temple of Heaven's Hall of Prayer, shot from ground level looking up at the triple-tiered circular roof, early morning with clear sky, the deep blue and gold roof tiles catching the first direct sunlight against the pale sky",
+            "size": "2560x1440",
+            "reference_images": []
+        }
+    ]
 })
 ```
 
 ### Image-to-image (with references)
 
-Always query the reference image's dimensions first, then generate at the same size.
-
 The prompt must declare what each reference contributes. The model receives images in array order; cite them as "the first image", "the second image", etc. (or the equivalent in the prompt's language).
+
+When `reference_images` is non-empty and `size` is omitted, the tool auto-reads dimensions from the largest reference image. Set `size` explicitly only if you need a different output size.
+
+**Path format:** all paths are workspace-relative. Images inside the current project can be referenced using their project-relative path (e.g. `images/cat.jpg`); images from other locations use their full workspace-relative path (e.g. `uploads/ref.png` or `another-project/images/style.jpg`). Use paths returned by `query_canvas_element` or `query_canvas_overview` directly — do not guess paths.
 
 **Single reference — targeted edit:**
 
-Before generating, call `visual_understanding` on the reference image. It returns the image's dimensions and a content description — use both to build the prompt and set the correct `size`.
+Before generating, call `visual_understanding` on the reference image to get its content description. `size` can be omitted — the tool resolves it from the reference automatically.
 
 ```python
 from sdk.tool import tool
 
-# visual_understanding has already been called on "my-design/images/cat.jpg"
-# and returned dimensions 1920x1080 and a description of the cat
+# visual_understanding has already been called on "images/cat.jpg"
+# and returned a description of the cat
 
-tool.call('generate_images_to_canvas', {
+tool.call('generate_canvas_images', {
     "project_path": "my-design",
-    "name": "cat-red-ear",
-    "reference_images": ["my-design/images/cat.jpg"],
-    "prompts": [
-        "Based on the reference image, change only the ear in the upper-right area to bright red. "
-        "Preserve the cat's face, body, pose, background, and every other detail exactly as they appear. "
-        "The red ear should look natural — same fur texture, same lighting direction, just the color changed."
-    ],
-    "size": "1920x1080"
+    "tasks": [{
+        "name": "cat-red-ear",
+        "prompt": "Based on the reference image, change only the ear in the upper-right area to bright red. Preserve the cat's face, body, pose, background, and every other detail exactly as they appear. The red ear should look natural — same fur texture, same lighting direction, just the color changed.",
+        "reference_images": ["images/cat.jpg"]
+    }]
 })
 ```
 
 **Multiple references — element swap:**
 
 ```python
-tool.call('generate_images_to_canvas', {
+tool.call('generate_canvas_images', {
     "project_path": "my-design",
-    "name": "banner-hero-swap",
-    "prompts": [
-        "The first image is the composition anchor: keep its background, layout, text overlays, "
-        "and all secondary characters exactly unchanged. "
-        "The second image provides the replacement character. "
-        "Remove the original central figure and place the character from the second image "
-        "in the same position and at the same scale. "
-        "Match the lighting direction and color temperature of the first image onto the new character "
-        "so they integrate naturally into the scene."
-    ],
-    "size": "2048x869",
-    "reference_images": [
-        "my-design/images/original-banner.png",
-        "my-design/images/new-character.png",
-    ]
+    "tasks": [{
+        "name": "banner-hero-swap",
+        "prompt": "The first image is the composition anchor: keep its background, layout, text overlays, and all secondary characters exactly unchanged. The second image provides the replacement character. Remove the original central figure and place the character from the second image in the same position and at the same scale. Match the lighting direction and color temperature of the first image onto the new character so they integrate naturally into the scene.",
+        "size": "2048x869",
+        "reference_images": [
+            "images/original-banner.png",
+            "images/new-character.png"
+        ]
+    }]
 })
 ```
 
 **Style transfer:**
 
 ```python
-tool.call('generate_images_to_canvas', {
+tool.call('generate_canvas_images', {
     "project_path": "my-design",
-    "name": "product-lifestyle",
-    "reference_images": [product_src, style_ref_src],
-    "prompts": [
-        "The first image shows the product. Preserve its shape, color, material finish, "
-        "and all surface details — these are non-negotiable. "
-        "The second image defines the target visual style: adopt its lighting setup, "
-        "color grading, and background treatment. "
-        "Place the product in a new lifestyle setting that matches the second image's aesthetic, "
-        "while keeping the product itself pixel-accurate to the first image."
-    ],
-    "size": f"{w}x{h}"
+    "tasks": [{
+        "name": "product-lifestyle",
+        "prompt": "The first image shows the product. Preserve its shape, color, material finish, and all surface details — these are non-negotiable. The second image defines the target visual style: adopt its lighting setup, color grading, and background treatment. Place the product in a new lifestyle setting that matches the second image's aesthetic, while keeping the product itself pixel-accurate to the first image.",
+        "reference_images": [product_src, style_ref_src]
+    }]
 })
 ```
 
-### Batching (> 4 images)
+### Retrying failed tasks
 
-A single call supports at most 6 prompts or 4 variations. For more images, split into multiple calls with distinct `name` values.
+When a task fails, the result content includes the `element_id` of the failed placeholder. Pass it back in `element_id` to overwrite the placeholder in-place:
+
+```python
+tool.call('generate_canvas_images', {
+    "project_path": "my-design",
+    "tasks": [{
+        "name": "cat-red-ear",
+        "prompt": "...",
+        "reference_images": ["images/cat.jpg"],
+        "element_id": "elem_xxxxxxxxxxxx"   # from the failed task's result
+    }]
+})
+```
+
+### Batching (> 6 images)
+
+A single call supports up to 6 tasks. For more images, split into multiple calls.
 
 ---
 
@@ -384,7 +379,7 @@ Users annotate canvas images with `[@design_marker:name]` to request modificatio
 
 ```
 [@design_marker:red-ear]
-- Image location: my-design/images/dog.jpg
+- Image location: images/dog.jpg
 - Marked area: Small area at top-right of image
 - Coordinates: Top-left (64.0%, 7.0%)
 ```
@@ -393,7 +388,7 @@ Processing steps:
 1. **Parse** — extract image path, marked area, and user intent from the marker
 2. **Understand** — call `visual_understanding` on the image to get its dimensions and content description
 3. **Build prompt** — `[location] + [what to change] + [preserve everything else]`
-4. **Generate** — `generate_images_to_canvas` with `reference_images` pointing to the original image
+4. **Generate** — `generate_canvas_images` with a single task whose `reference_images` points to the original image; `size` auto-resolved from the reference
 
 > If the message contains `[@design_marker:xxx]`, read [reference/design-marker.md](reference/design-marker.md) for the full workflow before proceeding.
 
@@ -416,10 +411,10 @@ Need a new canvas project?
 └─ No → continue
 
 Generate AI images?
-├─ Yes → generate_images_to_canvas
-│   ├─ Has reference image? → visual_understanding first, then reference_images=[path]
-│   ├─ Different themes? → multiple prompts (max 6)
-│   └─ Same theme, multiple versions? → single prompt + image_count (max 4)
+├─ Yes → generate_canvas_images
+│   ├─ Has reference image? → visual_understanding first, then reference_images=[path] (size auto-resolved)
+│   ├─ Different images? → multiple tasks in one call (max 6)
+│   └─ Retry failed task? → pass element_id from the failed result
 └─ No → continue
 
 Generate video?

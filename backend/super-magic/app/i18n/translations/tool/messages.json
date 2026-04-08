@@ -779,6 +779,18 @@
         "zh_CN": "AI 图片生成异常，请重试",
         "en_US": "AI image generation exception, please retry"
     },
+    "generate_canvas_images.exception": {
+        "zh_CN": "AI 图片生成异常，请重试",
+        "en_US": "AI image generation exception, please retry"
+    },
+    "generate_canvas_images.success": {
+        "zh_CN": "成功生成 {{succeeded_count}} 张图片并添加到画布",
+        "en_US": "Successfully generated {{succeeded_count}} image(s) and added to canvas"
+    },
+    "generate_canvas_images.success_partial": {
+        "zh_CN": "AI 图片部分生成成功（成功 {{succeeded_count}}/{{total_count}}）",
+        "en_US": "AI images partially generated ({{succeeded_count}}/{{total_count}} succeeded)"
+    },
     "search_images_to_canvas.exception": {
         "zh_CN": "图片搜索异常，请重试",
         "en_US": "Image search exception, please retry"
