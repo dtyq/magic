@@ -11,7 +11,7 @@ import re
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional
 
 from pydantic import Field, field_validator
 
@@ -19,7 +19,7 @@ from agentlang.config.dynamic_config import dynamic_config
 from agentlang.context.tool_context import ToolContext
 from agentlang.logger import get_logger
 from agentlang.tools.tool_result import ToolResult
-from app.core.entity.message.server_message import ToolDetail, DisplayType, FileContent
+from app.core.entity.message.server_message import ToolDetail, DisplayType
 from app.tools.core import BaseToolParams, tool
 from app.tools.design.tools.base_design_tool import BaseDesignTool
 from app.tools.design.tools.batch_create_canvas_elements import (
@@ -33,7 +33,7 @@ from app.tools.snippet_timeout_registry import SnippetTimeoutRegistry
 logger = get_logger(__name__)
 
 # 图片生成耗时较长，注册最小超时供 run_sdk_snippet 自动提升
-SnippetTimeoutRegistry.register("generate_images_to_canvas", min_timeout=180)
+SnippetTimeoutRegistry.register("generate_images_to_canvas", min_timeout=600)
 
 
 @dataclass

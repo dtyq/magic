@@ -1,5 +1,6 @@
 """IM 渠道凭证持久化（存储于 .workspace/.magic/config/im-channels.json）。"""
 from dataclasses import dataclass, asdict, field
+from enum import StrEnum
 from pathlib import Path
 from typing import Optional
 
@@ -11,6 +12,12 @@ logger = get_logger(__name__)
 
 _CONFIG_FILENAME = "im-channels.json"
 DEFAULT_WECHAT_CDN_BASE_URL = "https://novac2c.cdn.weixin.qq.com/c2c"
+
+
+class DisabledReason(StrEnum):
+    """enabled=False 时记录禁用原因，空字符串表示未知/旧数据兼容。"""
+    SESSION_EXPIRED = "session_expired"
+    USER_DISABLED = "user_disabled"
 
 
 @dataclass
@@ -29,6 +36,7 @@ class WeComCredential:
     bot_id: str
     secret: str
     enabled: bool = True
+    disabled_reason: str = ""
     # 绑定的沙盒 ID，防止多沙盒同时抢占同一 WS 连接
     sandbox_id: str = ""
     display: IMChannelDisplay = field(default_factory=IMChannelDisplay)
@@ -43,6 +51,7 @@ class DingTalkCredential:
     client_id: str
     client_secret: str
     enabled: bool = True
+    disabled_reason: str = ""
     sandbox_id: str = ""
     display: IMChannelDisplay = field(default_factory=IMChannelDisplay)
 
@@ -56,6 +65,7 @@ class LarkCredential:
     app_id: str
     app_secret: str
     enabled: bool = True
+    disabled_reason: str = ""
     sandbox_id: str = ""
     display: IMChannelDisplay = field(default_factory=IMChannelDisplay)
 
@@ -73,6 +83,7 @@ class WechatCredential:
     cdn_base_url: str = DEFAULT_WECHAT_CDN_BASE_URL
     ilink_user_id: str = ""
     enabled: bool = True
+    disabled_reason: str = ""
     sandbox_id: str = ""
     display: IMChannelDisplay = field(default_factory=IMChannelDisplay)
 

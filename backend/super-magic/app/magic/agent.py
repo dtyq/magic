@@ -146,6 +146,14 @@ class ExceptionHandlingResult:
     final_response: Optional[str] = None
 
 
+class LLMCallRequestException(Exception):
+    """Wrap an exception raised by the actual provider-facing `_call_llm()` call."""
+
+    def __init__(self, original_exception: Exception):
+        super().__init__(str(original_exception))
+        self.original_exception = original_exception
+
+
 @dataclass
 class SessionPrepResult:
     """Session preparation result after handling pending tool calls and user query"""
@@ -187,7 +195,6 @@ class Agent(BaseAgent):
         self.agent_name = agent_name
         self._closed = False
         self._context_registered = False
-        self._llm_request_in_progress = False
 
         # 设置Agent上下文
         self.agent_context = self._setup_agent_context(agent_context)
@@ -653,6 +660,13 @@ class Agent(BaseAgent):
             source="agent_run_exception",
         )
 
+    async def _append_agent_run_exception_context_safely(self, exception: Exception) -> None:
+        """写异常隐藏上下文时兜底日志，避免终态处理再被二次打断。"""
+        try:
+            await self._append_agent_run_exception_context(exception)
+        except Exception as append_err:
+            logger.error(f"添加异常终止上下文到历史记录时失败: {append_err}")
+
     def _iter_exception_chain(self, exception: Exception) -> List[Exception]:
         """按因果链遍历异常，避免同一对象重复处理。"""
         exceptions: List[Exception] = []
@@ -929,9 +943,22 @@ class Agent(BaseAgent):
                     if loop_state.llm_call_retry_count > 0:
                         logger.info(f"开始调用LLM（第{loop_state.llm_call_retry_count}次重试）")
 
-                    llm_context = await self._prepare_and_call_llm(
-                        llm_call_retry_count=loop_state.llm_call_retry_count
-                    )
+                    try:
+                        llm_context = await self._prepare_and_call_llm(
+                            llm_call_retry_count=loop_state.llm_call_retry_count
+                        )
+                    except LLMCallRequestException as e:
+                        # 仅把真实 provider 调用失败归入 llm retry，前后置准备/解析异常仍按普通异常处理。
+                        exception_result = await self._handle_agent_loop_exception(
+                            e.original_exception,
+                            loop_state,
+                            is_llm_retry_path=True,
+                        )
+                        if exception_result.final_response:
+                            loop_state.final_response = exception_result.final_response
+                        if not exception_result.should_continue:
+                            break
+                        continue
                     loop_state.last_llm_message = llm_context.message  # 保存用于循环结束时的最终响应
 
                     # ✨ 新增：在保存到聊天记录前先预处理工具参数
@@ -1005,7 +1032,11 @@ class Agent(BaseAgent):
 
             except Exception as e:
                 # 处理其他异常情况
-                exception_result = await self._handle_agent_loop_exception(e, loop_state)
+                exception_result = await self._handle_agent_loop_exception(
+                    e,
+                    loop_state,
+                    is_llm_retry_path=False,
+                )
                 if exception_result.final_response:
                     loop_state.final_response = exception_result.final_response
                 if not exception_result.should_continue:
@@ -1345,11 +1376,10 @@ class Agent(BaseAgent):
 
         # 记录调用开始时间并调用LLM
         llm_start_time = time.time()
-        self._llm_request_in_progress = True
         try:
             chat_response = await self._call_llm(messages_for_llm, llm_call_retry_count)
-        finally:
-            self._llm_request_in_progress = False
+        except Exception as e:
+            raise LLMCallRequestException(e) from e
         llm_duration_ms = (time.time() - llm_start_time) * 1000
 
         # 获取token使用数据
@@ -1843,13 +1873,19 @@ Since your subsequent output will be merged with pre-interruption content and di
         except Exception as e:
             logger.error(f"Failed to backup chat history before compact: {e}", exc_info=True)
 
-    async def _handle_agent_loop_exception(self, exception: Exception, loop_state: AgentLoopState) -> ExceptionHandlingResult:
+    async def _handle_agent_loop_exception(
+        self,
+        exception: Exception,
+        loop_state: AgentLoopState,
+        is_llm_retry_path: bool = False,
+    ) -> ExceptionHandlingResult:
         """
         处理Agent循环中的异常
 
         Args:
             exception: 捕获的异常
             loop_state: 循环状态，会被直接修改
+            is_llm_retry_path: 当前异常是否来自实际的 LLM 请求
 
         Returns:
             ExceptionHandlingResult: 异常处理结果
@@ -1864,6 +1900,7 @@ Since your subsequent output will be merged with pre-interruption content and di
         for exc in self._iter_exception_chain(exception):
             if isinstance(exc, LLMFastRetryExhaustedException):
                 logger.warning(f"LLM 快速重试已耗尽，停止外层泛化重试: {exc}")
+                await self._append_agent_run_exception_context_safely(exc)
                 loop_state.last_llm_message = None
                 self._apply_final_task_state(build_final_task_state(
                     FinalTaskStateCode.MESSAGE_PROCESSING_FAILED,
@@ -1874,6 +1911,7 @@ Since your subsequent output will be merged with pre-interruption content and di
         final_task_state = self._build_final_task_state_from_exception(exception)
         if final_task_state is not None:
             logger.warning(f"检测到终态异常 {final_task_state.code.value}，停止当前任务的自动重试")
+            await self._append_agent_run_exception_context_safely(exception)
             # 本轮调用没有成功拿到新的最终文本，避免 finalize 误回落到旧的 LLM 内容。
             loop_state.last_llm_message = None
             self._apply_final_task_state(final_task_state)
@@ -1886,31 +1924,60 @@ Since your subsequent output will be merged with pre-interruption content and di
 
         # 更新计数器
         loop_state.agent_loop_retry_count += 1
-        is_llm_retry_path = self._llm_request_in_progress
         if is_llm_retry_path:
             loop_state.llm_call_retry_count += 1
 
         # 计算重试策略
         max_retries = 10
+        max_total_retry_wait_time = 900.0
+        enable_agent_loop_retry = False
+        total_retry_wait_time = 0.0
+        stop_reason = ""
         if is_llm_retry_path:
             # LLM 自身已有快重试预算，外层不再叠加指数退避等待。
             wait_time = 0.0
             can_continue = loop_state.agent_loop_retry_count < max_retries
+            if not can_continue:
+                stop_reason = (
+                    "llm retry path exhausted agent loop retry budget "
+                    f"(agent_loop_retry_count={loop_state.agent_loop_retry_count}, "
+                    f"llm_call_retry_count={loop_state.llm_call_retry_count}, "
+                    f"max_retries={max_retries}, total_retry_wait_time={total_retry_wait_time:.1f}s)"
+                )
         else:
             enable_agent_loop_retry = config.get("agent.enable_agent_loop_retry", False)
             if enable_agent_loop_retry:
                 # 仅在显式开启时，才对非 LLM 的基础设施异常保留通用退避。
                 wait_time, total_retry_wait_time = self._apply_exponential_backoff(loop_state.agent_loop_retry_count)
-                can_continue = loop_state.agent_loop_retry_count < max_retries and total_retry_wait_time < 900
+                retry_count_exhausted = loop_state.agent_loop_retry_count >= max_retries
+                retry_wait_limit_exceeded = total_retry_wait_time >= max_total_retry_wait_time
+                can_continue = not retry_count_exhausted and not retry_wait_limit_exceeded
+                if not can_continue:
+                    if retry_count_exhausted:
+                        stop_reason = (
+                            "non-llm retry path exhausted agent loop retry budget "
+                            f"(agent_loop_retry_count={loop_state.agent_loop_retry_count}, "
+                            f"max_retries={max_retries}, total_retry_wait_time={total_retry_wait_time:.1f}s)"
+                        )
+                    else:
+                        stop_reason = (
+                            "non-llm retry path exceeded agent loop total wait limit "
+                            f"(agent_loop_retry_count={loop_state.agent_loop_retry_count}, "
+                            f"total_retry_wait_time={total_retry_wait_time:.1f}s, "
+                            f"max_total_retry_wait_time={max_total_retry_wait_time:.1f}s)"
+                        )
             else:
                 wait_time = 0.0
                 can_continue = False
+                stop_reason = (
+                    "agent loop retry disabled for non-llm exception "
+                    f"(agent_loop_retry_count={loop_state.agent_loop_retry_count}, "
+                    f"enable_agent_loop_retry={enable_agent_loop_retry}, "
+                    f"total_retry_wait_time={total_retry_wait_time:.1f}s)"
+                )
 
         if not can_continue:
-            try:
-                await self._append_agent_run_exception_context(exception)
-            except Exception as append_err:
-                logger.error(f"添加异常终止上下文到历史记录时失败: {append_err}")
+            await self._append_agent_run_exception_context_safely(exception)
 
         # 如果可以继续，执行等待
         if can_continue:
@@ -1929,7 +1996,11 @@ Since your subsequent output will be merged with pre-interruption content and di
                 await asyncio.sleep(wait_time)  # 异步等待，不阻塞事件循环，允许中断请求被处理
             return ExceptionHandlingResult(should_continue=True, final_response=None)
         else:
-            logger.warning(f"已达到最大重试次数({max_retries})或最大等待时间(15分钟)，退出循环")
+            logger.warning(
+                "停止 agent loop: "
+                f"{stop_reason} "
+                f"(exception_type={exception.__class__.__name__}, exception={exception})"
+            )
             self._apply_final_task_state(build_final_task_state(
                 FinalTaskStateCode.MESSAGE_PROCESSING_FAILED,
                 vendor_message=str(exception),

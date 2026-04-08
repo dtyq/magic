@@ -5,7 +5,7 @@ SDK 代码片段执行工具（Code Mode 执行器）
 中间结果在执行环境内部流转，不进入模型上下文。
 与 run_python_snippet 的区别：
 1. should_trigger_events() 返回 False，不触发工具调用事件
-2. 自动注入 agent_context 到子进程环境变量，供 SDK 带入 HTTP 请求
+2. 自动注入 agent_context 到子进程环境变量，供 SDK 请求精确路由
 """
 
 
@@ -34,8 +34,8 @@ Python code to execute; use sdk.tool / sdk.mcp to call tools or MCP primitives""
     )
     timeout: int = Field(
         120,
-        description="""<!--zh: 代码执行超时时间（秒），默认120秒。图片生成建议传180，视频生成自动提升至3600-->
-Code execution timeout (seconds), default 120. Recommend 180 for image generation; video generation auto-elevates to 3600."""
+        description="""<!--zh: 代码执行超时时间（秒），默认120秒，按预期执行时长调整-->
+Code execution timeout in seconds, default 120. Adjust based on expected operation duration."""
     )
 
 
@@ -134,7 +134,7 @@ class RunSdkSnippet(AbstractFileTool[RunSdkSnippetParams]):
                     f"requested={params.timeout}s, effective={effective_timeout}s"
                 )
 
-            # 将调用方 AgentContext 的 context_id 注入子进程，供 SDK 带入 HTTP 请求，
+            # 将调用方 AgentContext 的 context_id 注入子进程，供 SDK 请求带回服务端，
             # 使服务端能精确路由到正确的 Agent 上下文。
             extra_env = self._build_snippet_extra_env(project_root)
             agent_ctx = tool_context.get_extension("agent_context")

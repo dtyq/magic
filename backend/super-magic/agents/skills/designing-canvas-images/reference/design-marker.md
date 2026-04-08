@@ -2,146 +2,85 @@
 
 ## What is a Design Marker
 
-Users mark areas on images that need modification or content addition.
+Users mark areas on canvas images that need modification. The marker encodes the target image, the marked region, and the user's intent.
 
 **Format:** `[@design_marker:marker_name]`
 
-**Example information:**
+**Example:**
 ```
 [@design_marker:红色耳朵]
-- Image location: project/images/dog.jpg
+- Image location: my-design/images/dog.jpg
 - Marked area: Small area at top right of image
 - Coordinates: Top left (64.0%, 7.0%)
 ```
 
 ## Core Principles
 
-1. **Use image-to-image method** - Use original image as reference to generate new image
-2. **Original image remains unchanged** - Generate new elements, do not modify or delete original elements
-3. **Do not create independent elements** - "Add XX" does not mean creating an independent XX element on canvas
+1. **Image-to-image only** — use the original image as a reference to generate a new image
+2. **Original stays untouched** — generate a new element; never modify or delete the original
+3. **No independent overlays** — "add X to image" means image-to-image generation, not placing a separate element on the canvas
 
 ## Processing Steps
 
-### 1. Parse Marker Information
+### 1. Parse the marker
 
-Extract from marker:
-- **Marker name** - What modification the user wants
-- **Image location** - Path of original image
-- **Marked area** - Which part of the image
-- **Coordinates** - Specific percentage position
+Extract from the marker information:
+- **Marker name** — what the user wants changed (this is the intent)
+- **Image path** — the file to use as reference
+- **Marked area / coordinates** — which part of the image the change applies to
 
-### 2. Query Original Image Size
+### 2. Understand the reference image
 
-```python
-from sdk.tool import tool
+Call `visual_understanding` on the image path. This returns:
+- The image's dimensions (use these for the `size` parameter)
+- A content description (use this to write a precise prompt — you need to know what the image contains to describe what should change and what should stay)
 
-result = tool.call('query_canvas_element', {
-  "project_path": "my-project",
-  "src": "my-project/images/dog.jpg"
-})
+### 3. Build the prompt
 
-# Use result.data to get structured data
-if result.ok and result.data:
-    width = result.data['size']['width']
-    height = result.data['size']['height']
-    src = result.data['image_properties']['src']
-```
+Apply the Prompt Engineering principles from the main skill. The marker gives you three things to work with:
 
-### 3. Construct Prompt
+- **Where** — the marked region (use the marker coordinates directly in the prompt for precision)
+- **What to change** — the marker name + any additional user instructions
+- **What to preserve** — everything else in the image
 
-**Format:** `[location] + [modification] + [keep original]`
+Write the prompt as a coherent instruction that explicitly states all three. Do not use generic templates — the prompt should be specific to this image and this change, informed by what `visual_understanding` told you about the image content.
 
-```
-"Change the ear at the top right of the image to red, keeping all other parts completely unchanged"
-```
-
-### 4. Call Image-to-Image
+### 4. Generate
 
 ```python
 from sdk.tool import tool
 
-# Assume width and height are obtained from query_canvas_element
-result = tool.call('generate_images_to_canvas', {
-  "project_path": "my-project",
-  "name": "修改结果",
-  "reference_images": ["my-project/images/dog.jpg"],
-  "prompts": ["将右上角的耳朵改为红色，保持其他部分不变"],
-  "size": f"{width}x{height}"  # Use original image size
+# visual_understanding was already called and returned:
+# - dimensions: 1920x1080
+# - content: "A golden retriever sitting on grass, looking at camera,
+#   with pointed ears, warm afternoon sunlight from the left"
+
+tool.call('generate_images_to_canvas', {
+    "project_path": "my-design",
+    "name": "dog-red-ear",
+    "reference_images": ["my-design/images/dog.jpg"],
+    "prompts": [
+        "A golden retriever sitting on grass, looking at camera, warm afternoon sunlight from the left. "
+        "Change only the ear in the upper-right area to bright red — same fur texture, same lighting, "
+        "just the color changed to a vivid red. "
+        "Preserve the dog's face, body, pose, the grass, and the entire background exactly as they appear."
+    ],
+    "size": "1920x1080"
 })
 ```
 
-## Complete Example
+Notice how the prompt incorporates the visual understanding result to describe the full scene, then specifies the change precisely, then locks everything else.
 
-**Marker information:**
-```
-[@design_marker:红色耳朵]
-- Image location: my-design/images/dog.jpg
-- Marked area: Top right of image
-```
+## Using Marker Coordinates
 
-**User requirement:** "Change the ear to red"
+Pass marker coordinates directly into the prompt — they are precise percentage positions that image models can interpret. Combine them with the object name from visual understanding for maximum clarity.
 
-**Processing flow:**
-```python
-# 1. Query original image element to get size
-from sdk.tool import tool
+Example: marker says `Top-left (64.0%, 7.0%)` and visual understanding confirms an ear is there → prompt says "the ear at approximately (64%, 7%) in the image".
 
-result = tool.call('query_canvas_element', {
-  "project_path": "my-design",
-  "src": "my-design/images/dog.jpg"
-})
+## Key Points
 
-# 2. Use result.data to get original image info
-if result.ok and result.data:
-    width = result.data['size']['width']
-    height = result.data['size']['height']
-    src = result.data['image_properties']['src']
-
-    # 3. Use image-to-image to generate new image
-    result2 = tool.call('generate_images_to_canvas', {
-      "project_path": "my-design",
-      "name": "修改结果",
-      "reference_images": [src],
-      "prompts": ["将图片右上方的耳朵改为红色，保持其他部分不变"],
-      "size": f"{width}x{height}"
-    })
-```
-
-## Prompt Writing Templates
-
-### Color Modification
-```
-"Change [object] at [location] to [color], keeping other parts unchanged"
-```
-
-### Add Element
-```
-"Add [element] at [location], keeping original composition unchanged"
-```
-
-### Remove Element
-```
-"Remove [element] at [location], keeping background natural"
-```
-
-### Style Adjustment
-```
-"Adjust [element] at [location] to [style], keeping overall harmony"
-```
-
-## Location Description Conversion
-
-| Marked Area Description | Prompt Location Description |
-|---|---|
-| Top right of image | Top right corner |
-| Left middle of image | Left center |
-| Bottom center of image | Bottom middle |
-| Center area of image | Center position |
-
-## Notes
-
-1. **Always use image-to-image** - Provide `reference_images` parameter
-2. **Specify location** - State specific location in prompt
-3. **Emphasize keeping original** - Avoid changing other parts
-4. **Maintain original size** - Pass width and height
-5. **Generate new image** - Do not modify original image element
+1. Always provide `reference_images` with the original image path
+2. Always use the original image's dimensions for `size`
+3. The prompt must describe the full scene (from visual understanding), not just the change
+4. Explicitly state what is preserved — do not assume the model will keep unchanged areas intact by default
+5. Generate a new canvas element — the original image element must remain unchanged

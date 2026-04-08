@@ -29,6 +29,7 @@ HASH_DETECTION_THRESHOLD = 5 * 1024 * 1024   # 5 MB
 NETWORK_FS_MTIME_BUFFER = 1.0                  # seconds
 VALIDATION_ERROR_NOT_READ = "File must be read before editing. Please read the file first."
 VALIDATION_ERROR_CHANGED = "File changed since last read. Please read the file again."
+FILE_CONTENT_SNAPSHOT_MAX_BYTES = 64 * 1024   # 64 KB — 整文件快照上限
 
 # context usage 注入灵敏度规则：
 # - 当前占用 < 70%：变化不到 5 个百分点时，不再重复注入
@@ -48,6 +49,23 @@ def _iso_now() -> str:
 
 def _abs(path: Union[str, Path]) -> str:
     return str(Path(path).resolve())
+
+
+async def _read_file_content_for_snapshot(abs_path: str) -> tuple[str, str, Optional[str]]:
+    """读取整文件内容，按体积决定是否保存快照。
+
+    返回 (file_content, snapshot_mode, snapshot_reason)。
+    """
+    from app.utils.async_file_utils import async_read_text, async_stat
+    try:
+        stat = await async_stat(abs_path)
+        if stat.st_size > FILE_CONTENT_SNAPSHOT_MAX_BYTES:
+            return "", "metadata_only", "file_too_large"
+        content = await async_read_text(abs_path)
+        return content, "full", None
+    except Exception as e:
+        logger.debug(f"[AgentHorizon] 读取文件快照失败 {abs_path}: {e}")
+        return "", "metadata_only", "read_failed"
 
 
 def _workspace_entries_to_path_set(entries: list) -> Set[str]:
@@ -165,6 +183,9 @@ class AgentHorizon:
             # 容器重启 / Agent 实例重建时，只恢复“这个上下文窗口是否已经发过首包”。
             # baseline 已经在 state.* 里；current 由本轮运行时重新采集，不应从旧进程内存恢复。
             self._is_first_injection = not loaded.initial_context_injected
+            # 恢复 LLM 模型 baseline，避免重启后误判为"模型变更"
+            self._last_llm_model_id = loaded.llm_model_id
+            self._last_llm_model_name = loaded.llm_model_name
         self._loaded = True
 
     async def _save(self) -> None:
@@ -186,31 +207,27 @@ class AgentHorizon:
             mtime_ms = stat.mtime * 1000
 
             if size <= HASH_DETECTION_THRESHOLD:
-                full_hash = await calculate_file_hash(abs_path)
+                file_hash = await calculate_file_hash(abs_path)
             else:
-                full_hash = f"__mtime__{stat.mtime}"  # 大文件用 mtime 作伪 hash
+                file_hash = f"__mtime__{stat.mtime}"
 
             ts = max(time.time() * 1000, mtime_ms) + NETWORK_FS_MTIME_BUFFER * 1000
 
             rec = self._state.file_records.get(abs_path)
             if rec is not None:
-                # 更新已有记录（保留 read_content 不变）
-                rec.full_file_hash = full_hash
+                rec.file_hash = file_hash
                 rec.file_mtime_ms = ts
                 rec.file_size_bytes = size
             else:
-                # 写操作记录（无内容快照）
                 self._state.file_records[abs_path] = FileReadRecord(
                     path=abs_path,
-                    read_at=_iso_now(),
-                    read_ranges=[],
-                    read_content="",
-                    read_content_hash="",
-                    full_file_hash=full_hash,
+                    file_hash=file_hash,
                     file_mtime_ms=ts,
                     file_size_bytes=size,
-                    truncated=False,
+                    file_content="",
                     tool_name="write",
+                    truncated=False,
+                    read_at=_iso_now(),
                 )
 
             if metadata:
@@ -238,11 +255,10 @@ class AgentHorizon:
             mtime_ms = stat.mtime * 1000
 
             if size <= HASH_DETECTION_THRESHOLD:
-                # 小文件：hash 精确校验
-                if not rec.full_file_hash:
+                if not rec.file_hash:
                     return False, VALIDATION_ERROR_CHANGED
                 current_hash = await calculate_file_hash(abs_path)
-                if current_hash != rec.full_file_hash:
+                if current_hash != rec.file_hash:
                     return False, VALIDATION_ERROR_CHANGED
                 return True, ""
             else:
@@ -307,44 +323,50 @@ class AgentHorizon:
     async def record_file_read(
         self,
         path: Union[str, Path],
-        read_content: str,          # 原始文本（无行号），LLM 看到的部分
-        read_content_hash: str,     # BLAKE2b of read_content（由调用方计算，避免重复 IO）
-        full_file_hash: str,        # BLAKE2b of 完整文件
+        file_hash: str,
         mtime_ms: float,
         size: int,
-        ranges: list[tuple[int, int]],
         truncated: bool,
         tool_name: str,
+        ranges: Optional[list[tuple[int, int]]] = None,
         metadata: Optional[dict] = None,
     ) -> None:
-        """read_file / read_files 工具在成功读取后调用，存储内容快照。
+        """read_file 工具成功读取后调用。
 
-        同时通知 magiclaw 启动跟踪：若该文件是本轮必读绝对路径，标记为已真实读取。
+        Horizon 自主决定是否读取整文件并保存快照：
+        - 小文件（<= FILE_CONTENT_SNAPSHOT_MAX_BYTES）：读整文件存快照
+        - 大文件或读取失败：file_content 置空，变化时退化为 summary
         """
         await self._ensure_loaded()
         abs_path = _abs(path)
         record_saved = False
         try:
             ts = max(time.time() * 1000, mtime_ms) + NETWORK_FS_MTIME_BUFFER * 1000
+
+            file_content, snapshot_mode, snapshot_reason = await _read_file_content_for_snapshot(abs_path)
+
+            record_metadata = dict(metadata or {})
+            record_metadata["snapshot_mode"] = snapshot_mode
+            if snapshot_reason:
+                record_metadata["snapshot_reason"] = snapshot_reason
+
             self._state.file_records[abs_path] = FileReadRecord(
                 path=abs_path,
-                read_at=_iso_now(),
-                read_ranges=ranges,
-                read_content=read_content,
-                read_content_hash=read_content_hash,
-                full_file_hash=full_file_hash,
+                file_hash=file_hash,
                 file_mtime_ms=ts,
                 file_size_bytes=size,
-                truncated=truncated,
+                file_content=file_content,
                 tool_name=tool_name,
-                metadata=metadata or {},
+                truncated=truncated,
+                metadata=record_metadata,
+                read_at=_iso_now(),
+                read_ranges=list(ranges) if ranges else [],
             )
             await self._save()
             record_saved = True
         except Exception as e:
             logger.warning(f"[AgentHorizon] record_file_read 失败 {abs_path}: {e}")
 
-        # 仅在启动阶段且快照已成功落账时才追踪，避免把失败读取误记成已读
         if record_saved and not self._magiclaw_startup_done:
             self.mark_magiclaw_file_read(abs_path)
 
@@ -723,7 +745,7 @@ class AgentHorizon:
                 if size <= HASH_DETECTION_THRESHOLD:
                     h = await calculate_file_hash(abs_path)
                 else:
-                    h = f"__mtime__{stat.mtime}"  # 大文件用 mtime 作伪 hash
+                    h = f"__mtime__{stat.mtime}"
                 return abs_path, h, size, mtime_ms
             except Exception:
                 return abs_path, "", 0, 0.0
@@ -734,7 +756,7 @@ class AgentHorizon:
             current_mtimes[abs_path] = mtime_ms
 
         # 文件变化检测
-        file_blocks = detect_file_changes(self._state, current_hashes)
+        file_blocks = await detect_file_changes(self._state, current_hashes, current_mtimes)
 
         # 通知块
         notif_blocks = [
@@ -889,6 +911,10 @@ class AgentHorizon:
         if self._state.memory != current_memory:
             self._state.memory = current_memory
             persistence_changed = True
+        if self._state.llm_model_id != self._last_llm_model_id or self._state.llm_model_name != self._last_llm_model_name:
+            self._state.llm_model_id = self._last_llm_model_id
+            self._state.llm_model_name = self._last_llm_model_name
+            persistence_changed = True
         if self._state.user_preferred_language != current_language:
             self._state.user_preferred_language = current_language
             persistence_changed = True
@@ -919,12 +945,11 @@ class AgentHorizon:
 
         parts.append("</system_injected_context>")
 
-        # 更新文件状态（不更新 read_content）
         state_changed = bool(file_blocks) or bool(self._state.pending_notifications) or persistence_changed
         for abs_path, (cur_hash, cur_size) in current_hashes.items():
             rec = self._state.file_records.get(abs_path)
-            if rec and cur_hash and rec.full_file_hash != cur_hash:
-                rec.full_file_hash = cur_hash
+            if rec and cur_hash and rec.file_hash != cur_hash:
+                rec.file_hash = cur_hash
                 rec.file_size_bytes = cur_size
                 rec.file_mtime_ms = current_mtimes.get(abs_path, rec.file_mtime_ms)
 

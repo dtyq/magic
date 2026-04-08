@@ -1,7 +1,7 @@
 """
 WaitWechatLogin — 等待微信官方 ClawBot 扫码结果的 Tool。
 
-不挂载到 LLM tool list，仅供 Skill snippet 通过 /api/skills/call_tool 调用。
+不挂载到 LLM tool list，仅供 SDK snippet 通过 /api/sdk/tool/call 调用。
 """
 from typing import Any, Dict
 
@@ -35,9 +35,9 @@ Maximum seconds to wait for the QR confirmation. Defaults to 300.""",
 @tool()
 class WaitWechatLogin(BaseTool[WaitWechatLoginParams]):
     """<!--zh
-    等待微信扫码登录结果。仅供 Skill snippet 调用，不挂载到 LLM。
+    等待微信扫码登录结果。仅供 SDK snippet 调用，不挂载到 LLM。
     -->
-    Wait for the WeChat QR login result. Intended for skill snippets only and not exposed as a normal LLM tool.
+    Wait for the WeChat QR login result. Intended for SDK snippets only and not exposed as a normal LLM tool.
     """
 
     async def execute(self, tool_context: ToolContext, params: WaitWechatLoginParams) -> ToolResult:
@@ -46,7 +46,7 @@ class WaitWechatLogin(BaseTool[WaitWechatLoginParams]):
                 timeout_seconds=params.timeout_seconds
             )
             if outcome.requires_qr_render:
-                return ToolResult(content=_build_qr_refresh_message(outcome.qrcode_js_string_literal()))
+                return ToolResult(content=_build_qr_refresh_message(outcome.qrcode_content))
             if outcome.success:
                 await self._activate_channel(outcome, tool_context.sandbox_id)
             return ToolResult(content=outcome.message)
@@ -105,17 +105,19 @@ class WaitWechatLogin(BaseTool[WaitWechatLoginParams]):
         await channel.connect(config.wechat)
 
 
-def _build_qr_refresh_message(qrcode_js_string_literal: str) -> str:
-    return "\n".join(
-        [
-            "The previous WeChat QR code expired and a fresh one is ready.",
-            "You must do two things now:",
-            "1. Use the WeChat QR HTML template from the current skill again and replace "
-            "`{{QRCODE_JS_STRING_LITERAL}}` with the exact literal below.",
-            "2. Reply to the user with exactly one ```html fenced code block and no prose outside the block, "
-            "then immediately call `wait_wechat_login` again.",
-            "",
-            "Exact JavaScript string literal:",
-            qrcode_js_string_literal,
-        ]
-    )
+def _build_qr_refresh_message(qrcode_url: str) -> str:
+    return "\n".join([
+        "The previous QR code expired. Reply with the updated content below (no extra prose), "
+        "adapting the heading and description to user preferred language. "
+        "Then immediately call `wait_wechat_login` again.",
+        "",
+        "---",
+        "",
+        "### 连接 🦞 MagiClaw 到微信",
+        "",
+        "请使用微信扫一扫链接 MagiClaw",
+        "",
+        "```qrcode",
+        qrcode_url,
+        "```",
+    ])

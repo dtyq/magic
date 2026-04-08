@@ -13,7 +13,9 @@ from typing import Optional
 import aiofiles
 
 from agentlang.logger import get_logger
+from app.core.horizon.migration import CURRENT_VERSION, apply_migrations
 from app.core.horizon.models import HorizonState, FileReadRecord, PendingNotification, ImageModelState, VideoModelState
+from app.utils.async_file_utils import async_exists
 
 logger = get_logger(__name__)
 
@@ -21,32 +23,30 @@ logger = get_logger(__name__)
 def _record_to_dict(r: FileReadRecord) -> dict:
     return {
         "path": r.path,
-        "read_at": r.read_at,
-        "read_ranges": r.read_ranges,
-        "read_content": r.read_content,
-        "read_content_hash": r.read_content_hash,
-        "full_file_hash": r.full_file_hash,
+        "file_hash": r.file_hash,
         "file_mtime_ms": r.file_mtime_ms,
         "file_size_bytes": r.file_size_bytes,
-        "truncated": r.truncated,
+        "file_content": r.file_content,
         "tool_name": r.tool_name,
+        "truncated": r.truncated,
         "metadata": r.metadata,
+        "read_at": r.read_at,
+        "read_ranges": r.read_ranges,
     }
 
 
 def _record_from_dict(d: dict) -> FileReadRecord:
     return FileReadRecord(
         path=d["path"],
-        read_at=d["read_at"],
-        read_ranges=[tuple(r) for r in d.get("read_ranges", [])],
-        read_content=d.get("read_content", ""),
-        read_content_hash=d.get("read_content_hash", ""),
-        full_file_hash=d.get("full_file_hash", ""),
+        file_hash=d.get("file_hash", ""),
         file_mtime_ms=float(d.get("file_mtime_ms", 0.0)),
         file_size_bytes=int(d.get("file_size_bytes", 0)),
-        truncated=bool(d.get("truncated", False)),
+        file_content=d.get("file_content", ""),
         tool_name=d.get("tool_name", ""),
+        truncated=bool(d.get("truncated", False)),
         metadata=d.get("metadata", {}),
+        read_at=d.get("read_at", ""),
+        read_ranges=[tuple(r) for r in d.get("read_ranges", [])],
     )
 
 
@@ -70,12 +70,13 @@ class HorizonStore:
         self._path.parent.mkdir(parents=True, exist_ok=True)
 
     async def load(self) -> Optional[HorizonState]:
-        if not self._path.exists():
+        if not await async_exists(self._path):
             return None
         try:
             async with aiofiles.open(self._path, "r", encoding="utf-8") as f:
                 raw = await f.read()
             data = json.loads(raw)
+            data = apply_migrations(data)
             state = HorizonState(agent_id=data.get("agent_id", ""))
             state.loaded_skills = data.get("loaded_skills", [])
             state.pending_notifications = [
@@ -95,6 +96,8 @@ class HorizonStore:
                 model_id=vid.get("model_id", ""),
                 config=vid.get("config", {}),
             )
+            state.llm_model_id = data.get("llm_model_id", "")
+            state.llm_model_name = data.get("llm_model_name", "")
             state.user_preferred_language = data.get("user_preferred_language", "")
             state.workspace_files = data.get("workspace_files", "")
             state.workspace_entries = data.get("workspace_entries", [])
@@ -110,12 +113,15 @@ class HorizonStore:
 
     async def save(self, state: HorizonState) -> None:
         data = {
+            "version": CURRENT_VERSION,
             "agent_id": state.agent_id,
             "loaded_skills": state.loaded_skills,
             "pending_notifications": [_notif_to_dict(n) for n in state.pending_notifications],
             "file_records": {k: _record_to_dict(v) for k, v in state.file_records.items()},
             "image_model": {"model_id": state.image_model.model_id, "sizes": state.image_model.sizes},
             "video_model": {"model_id": state.video_model.model_id, "config": state.video_model.config},
+            "llm_model_id": state.llm_model_id,
+            "llm_model_name": state.llm_model_name,
             "user_preferred_language": state.user_preferred_language,
             "workspace_files": state.workspace_files,
             "workspace_entries": state.workspace_entries,

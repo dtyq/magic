@@ -560,6 +560,17 @@ input[type="checkbox"] {
     background: #fff;
 }
 
+/* AI 回复中的 QR 码 */
+.ai-qrcode-wrapper {
+    margin-top: 8px;
+    display: flex;
+    justify-content: center;
+    padding: 16px;
+    background: #fff;
+    border: 1px solid var(--wechat-border);
+    border-radius: 6px;
+}
+
 /* 思考过程折叠块 */
 .thinking-block {
     align-self: flex-start;

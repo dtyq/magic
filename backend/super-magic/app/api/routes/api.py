@@ -13,7 +13,7 @@ from app.api.routes.file import router as file_router
 from app.api.routes.file_convert import router as file_convert_router
 from app.api.routes.checkpoint import router as checkpoint_router
 from app.api.routes.asr import router as asr_router
-from app.api.routes.skills import router as skills_router
+from app.api.routes.sdk import router as sdk_router
 
 
 # 创建主路由器，设置统一前缀
@@ -40,8 +40,8 @@ api_router.include_router(checkpoint_router, tags=["Checkpoint管理"])
 # 注册ASR音频合并路由
 api_router.include_router(asr_router, tags=["语音识别"])
 
-# 注册Skill工具调用路由
-api_router.include_router(skills_router, tags=["Skill工具调用"])
+# 注册 SDK 路由
+api_router.include_router(sdk_router, tags=["SDK"])
 
 @api_router.get("/health", tags=["系统"])
 async def health_check():

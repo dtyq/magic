@@ -69,10 +69,18 @@ class McpSDK:
             if not tool_call_id:
                 tool_call_id = f"call_{uuid.uuid4().hex[:24]}"
 
-            # 构建请求数据
             # agent_context_id 由 run_sdk_snippet 注入到子进程环境变量，
-            # 服务端用它精确路由到发起调用的 Agent context。
+            # SDK 服务端用它精确路由到发起调用的 Agent context。
             agent_context_id = os.getenv("SUPER_MAGIC_AGENT_CONTEXT_ID", "")
+            if not agent_context_id:
+                error_msg = (
+                    "SUPER_MAGIC_AGENT_CONTEXT_ID is not set. "
+                    "sdk.mcp can only be used inside run_sdk_snippet, not run_python_snippet. "
+                    "Please use run_sdk_snippet to call SDK tools."
+                )
+                print(f"[SDK Error] {error_msg}", file=sys.stderr)
+                return Result.error(error_msg, tool_call_id=tool_call_id)
+
             request_data = {
                 "server_name": server_name,
                 "tool_name": tool_name,
@@ -82,7 +90,7 @@ class McpSDK:
             }
 
             # 发起 HTTP 请求
-            url = f"{self.api_base_url}/api/skills/mcp_call"
+            url = f"{self.api_base_url}/api/sdk/mcp/call"
 
             # 将请求数据转换为 JSON
             data = json.dumps(request_data).encode('utf-8')
@@ -140,7 +148,7 @@ class McpSDK:
             List[Dict]: 服务器列表
         """
         try:
-            url = f"{self.api_base_url}/api/skills/mcp_servers"
+            url = f"{self.api_base_url}/api/sdk/mcp/servers"
 
             # 创建请求
             req = urllib.request.Request(url, method='GET')
@@ -170,7 +178,7 @@ class McpSDK:
             List[Dict]: 工具列表
         """
         try:
-            url = f"{self.api_base_url}/api/skills/mcp_tools"
+            url = f"{self.api_base_url}/api/sdk/mcp/tools"
             if server_name:
                 url += f"?server_name={urllib.parse.quote(server_name)}"
 
@@ -235,7 +243,7 @@ class McpSDK:
             if label_name is not None:
                 request_data["label_name"] = label_name
 
-            url_str = f"{self.api_base_url}/api/skills/mcp_add_server"
+            url_str = f"{self.api_base_url}/api/sdk/mcp/add-server"
             data = json.dumps(request_data).encode("utf-8")
 
             req = urllib.request.Request(
@@ -283,7 +291,7 @@ class McpSDK:
             # 处理输入，支持单个工具名或工具名列表
             tool_names = tool_name if isinstance(tool_name, str) else ','.join(tool_name)
 
-            url = f"{self.api_base_url}/api/skills/mcp_tool_schema"
+            url = f"{self.api_base_url}/api/sdk/mcp/tool-schema"
             url += f"?server_name={urllib.parse.quote(server_name)}&tool_name={urllib.parse.quote(tool_names)}"
 
             # 创建请求

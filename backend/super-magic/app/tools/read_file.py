@@ -986,19 +986,13 @@ Documents like PDF, PowerPoint will be auto-converted to Markdown (e.g., `report
             if fuzzy_warning:
                 content_with_meta = f"{content_with_meta}\n\n---\n\n{fuzzy_warning}"
 
-            # 记录文件读取快照（用于后续 diff 检测）
+            # Horizon 自主决定是否保存整文件快照，调用方只传元信息
             if tool_context:
                 try:
                     from app.utils.file_utils import calculate_file_hash, get_fresh_file_stat
-                    import hashlib as _hashlib
 
                     _stat = await get_fresh_file_stat(str(file_path))
-                    _full_hash = await calculate_file_hash(str(file_path))
-
-                    _raw_no_lineno = extra_info.get("raw_content_without_line_numbers") or ""
-                    _rc_hash = _hashlib.blake2b(
-                        _raw_no_lineno.encode("utf-8", errors="replace"), digest_size=16
-                    ).hexdigest()
+                    _file_hash = await calculate_file_hash(str(file_path))
 
                     _offset = params.offset if params.offset else 0
                     _limit = params.limit if params.limit and params.limit > 0 else -1
@@ -1006,14 +1000,12 @@ Documents like PDF, PowerPoint will be auto-converted to Markdown (e.g., `report
 
                     await self.get_horizon(tool_context).record_file_read(
                         path=file_path,
-                        read_content=_raw_no_lineno,
-                        read_content_hash=_rc_hash,
-                        full_file_hash=_full_hash,
+                        file_hash=_file_hash,
                         mtime_ms=_stat.mtime * 1000,
                         size=_stat.size,
-                        ranges=[(_offset, _end)],
                         truncated=extra_info.get("was_truncated", False),
                         tool_name="read_file",
+                        ranges=[(_offset, _end)],
                     )
                 except Exception as _horizon_err:
                     logger.warning(f"[read_file] record_file_read 失败: {_horizon_err}")
