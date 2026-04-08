@@ -621,7 +621,7 @@ class SkillAppService extends AbstractSkillAppService
             $authorization->getId()
         );
 
-        if (empty($this->getAccessibleSkillCodes($dataIsolation, [$code]))) {
+        if (empty($this->getAccessibleSkillCodes($dataIsolation, [$code])) && ! BuiltinSkill::tryFrom($code)) {
             ExceptionBuilder::throw(SkillErrorCode::SKILL_ACCESS_DENIED, 'skill.skill_access_denied');
         }
 
@@ -2022,14 +2022,12 @@ class SkillAppService extends AbstractSkillAppService
      */
     private function getAccessibleSkillCodes(SkillDataIsolation $dataIsolation, ?array $resourceCode = null): array
     {
-        $accessibleSkillCodes = $this->resourceVisibilityDomainService->getUserAccessibleResourceCodes(
+        return $this->resourceVisibilityDomainService->getUserAccessibleResourceCodes(
             $this->createPermissionDataIsolation($dataIsolation),
             $dataIsolation->getCurrentUserId(),
             ResourceVisibilityResourceType::SKILL,
             $resourceCode
         );
-
-        return $this->mergeBuiltinSkillCodes($accessibleSkillCodes, $resourceCode);
     }
 
     /**

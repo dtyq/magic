@@ -50,8 +50,8 @@ class SkillAssembler
         $description = $entity->getI18nDescription($language);
 
         $creatorInfo = [
-            'id' => (string) $creator->getId(),
-            'name' => $creator->getNickname(),
+            'id' => (string) ($creator?->getId() ?? ''),
+            'name' => $creator?->getNickname() ?: '',
         ];
 
         return new SkillListItemDTO(
@@ -91,8 +91,8 @@ class SkillAssembler
         $description = $descriptionI18n[$language] ?? '';
 
         $creatorInfo = [
-            'id' => (string) $creator->getId(),
-            'name' => $creator->getNickname(),
+            'id' => (string) ($creator?->getId() ?: ''),
+            'name' => ($creator?->getNickname() ?: ''),
         ];
 
         return new SkillListItemDTO(
