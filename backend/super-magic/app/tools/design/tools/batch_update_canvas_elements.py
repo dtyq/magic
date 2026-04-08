@@ -4,7 +4,6 @@
 """
 
 from app.i18n import i18n
-import asyncio
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 from pydantic import Field, field_validator
@@ -275,39 +274,6 @@ class BatchUpdateCanvasElements(BaseDesignTool[BatchUpdateCanvasElementsParams])
                 ),
             )
 
-            visual_updates = await self._perform_visual_understanding_for_updated_images(
-                manager=manager,
-                project_path=project_path,
-                results=results,
-                updates=params.updates
-            )
-            if visual_updates:
-                await manager.run_write_transaction(
-                    lambda config: self._apply_visual_understanding_updates(
-                        manager,
-                        config,
-                        visual_updates,
-                    ),
-                    verify_content=lambda verified_config, _: all(
-                        any(
-                            candidate.id == element_id
-                            and getattr(candidate, "visualUnderstanding", None)
-                            for candidate in flatten_all_elements(verified_config)
-                        )
-                        for element_id in visual_updates
-                    ),
-                    before_write=lambda: self._dispatch_file_event(
-                        tool_context,
-                        str(config_file),
-                        EventType.BEFORE_FILE_UPDATED,
-                    ),
-                    after_write=lambda _: self._dispatch_file_event(
-                        tool_context,
-                        str(config_file),
-                        EventType.FILE_UPDATED,
-                    ),
-                )
-
             # 7. 格式化输出结果
             return await self._format_batch_result(results, project_path, params, manager)
 
@@ -405,96 +371,6 @@ class BatchUpdateCanvasElements(BaseDesignTool[BatchUpdateCanvasElementsParams])
                 })
 
         return results
-
-    async def _apply_visual_understanding_updates(
-        self,
-        manager: CanvasManager,
-        config,
-        visual_updates: Dict[str, Any],
-    ) -> None:
-        """把视觉理解结果落到最新文件。"""
-        for element_id, visual_understanding in visual_updates.items():
-            await manager.update_element(
-                element_id,
-                {"visualUnderstanding": visual_understanding},
-                config=config,
-            )
-
-    async def _perform_visual_understanding_for_updated_images(
-        self,
-        manager: CanvasManager,
-        project_path: Path,
-        results: List[Dict[str, Any]],
-        updates: List[ElementUpdate]
-    ) -> Dict[str, Any]:
-        """对更新了 src 的图片元素自动执行视觉理解
-
-        Args:
-            manager: 画布管理器
-            project_path: 项目路径
-            results: 更新结果列表
-            updates: 更新参数列表
-        """
-        current_config = await manager.read_current_canvas()
-
-        # 1. 收集所有更新了 src 的图片元素
-        elements_to_analyze = []
-
-        for result, update in zip(results, updates):
-            # 只处理成功更新的元素
-            if not result.get("success"):
-                continue
-
-            # 检查是否更新了 src
-            src_updated = False
-            if update.properties and "src" in update.properties:
-                src_updated = True
-
-            if not src_updated:
-                continue
-
-            # 获取元素
-            element = await manager.get_element_by_id(update.element_id, config=current_config)
-            if element is None:
-                logger.warning(f"无法找到元素 {update.element_id}，跳过视觉理解")
-                continue
-
-            # 只处理图片元素
-            if element.type != "image":
-                continue
-
-            elements_to_analyze.append((update.element_id, element))
-
-        if not elements_to_analyze:
-            logger.info("没有需要执行视觉理解的图片元素")
-            return {}
-
-        logger.info(f"开始对 {len(elements_to_analyze)} 个更新了 src 的图片元素执行视觉理解（并发）")
-
-        # 2. 创建并发任务
-        async def analyze_single(element_id: str, element) -> tuple[str, bool, Optional[str]]:
-            """分析单个元素的异步函数"""
-            try:
-                await self._perform_visual_understanding(element, project_path)
-                logger.info(f"元素 {element_id} 视觉理解完成")
-                return element_id, True, None
-            except Exception as e:
-                logger.warning(f"元素 {element_id} 视觉理解失败: {e}")
-                return element_id, False, str(e)
-
-        # 3. 并发执行所有视觉理解任务
-        tasks = [analyze_single(element_id, element) for element_id, element in elements_to_analyze]
-        results = await asyncio.gather(*tasks, return_exceptions=False)
-
-        # 4. 统计结果
-        succeeded = sum(1 for _, success, _ in results if success)
-        failed = len(results) - succeeded
-        logger.info(f"视觉理解完成，共 {len(elements_to_analyze)} 个元素（成功: {succeeded}, 失败: {failed}）")
-        return {
-            element_id: element.visualUnderstanding
-            for element_id, element in elements_to_analyze
-            if getattr(element, "visualUnderstanding", None)
-        }
 
     async def _format_batch_result(
         self, results: List[Dict[str, Any]], project_path: Path, params: BatchUpdateCanvasElementsParams, manager: CanvasManager

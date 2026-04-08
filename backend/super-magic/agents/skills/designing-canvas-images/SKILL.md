@@ -40,7 +40,7 @@ Design projects are uniquely identified by `project_path`. All canvas tools requ
 
 | Type | Key properties | Smart features |
 |------|----------------|----------------|
-| `image` | `src`, `generateImageRequest`, `visualUnderstanding` | Auto-reads dimensions from file; auto-calculates position when x/y omitted |
+| `image` | `src`, `generateImageRequest` | Auto-reads dimensions from file; auto-calculates position when x/y omitted |
 | `video` | `src`, `poster`, `status`, `generateVideoRequest` | Placeholder creation; async status backfill |
 
 ---

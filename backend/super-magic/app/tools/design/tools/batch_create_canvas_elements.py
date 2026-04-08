@@ -367,22 +367,7 @@ class BatchCreateCanvasElements(BaseDesignTool[BatchCreateCanvasElementsParams])
             results = transaction_result["results"]
             created_ids = transaction_result["created_ids"]
 
-            # 5. 对图片元素执行视觉理解（批量，并发限制为 10）
-            image_element_ids = [
-                r["element_id"] for r in results
-                if r["success"] and r["type"] == "image"
-            ]
-
-            if image_element_ids:
-                await self._perform_batch_visual_understanding(
-                    image_element_ids,
-                    manager,
-                    project_path,
-                    tool_context,  # 传入 tool_context
-                    concurrency=10
-                )
-
-            # 6. 生成输出
+            # 5. 生成输出
             return await self._format_batch_result(results, params, project_path, manager)
 
         except Exception as e:
@@ -889,20 +874,6 @@ class BatchCreateCanvasElements(BaseDesignTool[BatchCreateCanvasElementsParams])
 
         return element_id, element
 
-    async def _apply_visual_understanding_updates(
-        self,
-        manager: CanvasManager,
-        config: MagicProjectConfig,
-        visual_updates: Dict[str, Any],
-    ) -> None:
-        """把视觉理解结果落到最新文件。"""
-        for element_id, visual_understanding in visual_updates.items():
-            await manager.update_element(
-                element_id,
-                {"visualUnderstanding": visual_understanding},
-                config=config,
-            )
-
     async def _auto_fill_image_dimensions(
         self,
         tool_context: ToolContext,
@@ -1093,100 +1064,6 @@ class BatchCreateCanvasElements(BaseDesignTool[BatchCreateCanvasElementsParams])
 
         else:
             raise ValueError(f"Unsupported element type: {spec.element_type}")
-
-    async def _perform_batch_visual_understanding(
-        self,
-        image_element_ids: List[str],
-        manager: CanvasManager,
-        project_path: Path,
-        tool_context: ToolContext,
-        concurrency: int = 10
-    ) -> None:
-        """批量执行图片视觉理解（并发）
-
-        Args:
-            image_element_ids: 图片元素 ID 列表
-            manager: 画布管理器
-            project_path: 项目路径
-            tool_context: 工具上下文
-            concurrency: 并发数
-
-        Note:
-            此方法会在单个事务中处理所有图片的视觉理解，避免多次文件读写。
-            视觉理解失败不会影响元素创建，只记录警告。
-        """
-        if not image_element_ids:
-            return
-
-        logger.info(f"开始批量视觉理解，共 {len(image_element_ids)} 个图片元素，并发数: {concurrency}")
-
-        current_config = await manager.read_current_canvas()
-        image_elements = []
-        for element_id in image_element_ids:
-            element = await manager.get_element_by_id(element_id, config=current_config)
-            if element and hasattr(element, 'src') and element.src:
-                image_elements.append((element_id, element))
-
-        if not image_elements:
-            logger.info("没有需要执行视觉理解的图片元素")
-            return
-
-        semaphore = asyncio.Semaphore(concurrency)
-
-        async def process_single_image(element_id: str, element: ImageElement):
-            async with semaphore:
-                try:
-                    await self._perform_visual_understanding(element, project_path)
-                    logger.info(f"图片 {element_id} 视觉理解完成")
-                except Exception as e:
-                    logger.warning(f"图片 {element_id} 视觉理解失败: {e}")
-
-        await asyncio.gather(
-            *[process_single_image(element_id, element) for element_id, element in image_elements],
-            return_exceptions=True,
-        )
-
-        visual_updates = {
-            element_id: element.visualUnderstanding
-            for element_id, element in image_elements
-            if getattr(element, "visualUnderstanding", None)
-        }
-        if not visual_updates:
-            logger.info("批量视觉理解完成，但没有需要写回的新视觉理解结果")
-            return
-
-        config_file = self._get_magic_project_js_path(project_path)
-        try:
-            await manager.run_write_transaction(
-                lambda config: self._apply_visual_understanding_updates(
-                    manager,
-                    config,
-                    visual_updates,
-                ),
-                verify_content=lambda verified_config, _: all(
-                    any(
-                        candidate.id == element_id
-                        and getattr(candidate, "visualUnderstanding", None)
-                        for candidate in flatten_all_elements(verified_config)
-                    )
-                    for element_id in visual_updates
-                ),
-                before_write=lambda: self._dispatch_file_event(
-                    tool_context,
-                    str(config_file),
-                    EventType.BEFORE_FILE_UPDATED,
-                ),
-                after_write=lambda _: self._dispatch_file_event(
-                    tool_context,
-                    str(config_file),
-                    EventType.FILE_UPDATED,
-                ),
-            )
-        except Exception as error:  # noqa: BLE001
-            logger.error(f"保存视觉理解结果失败: {error}")
-            return
-
-        logger.info(f"批量视觉理解完成")
 
     async def _format_batch_result(
         self,
