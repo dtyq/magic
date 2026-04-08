@@ -124,7 +124,8 @@ class WechatChannel(BaseChannel):
             return lines
 
         if credential is not None:
-            lines.append("  Status: configured but disconnected")
+            reason_suffix = f" ({credential.disabled_reason})" if credential.disabled_reason else ""
+            lines.append(f"  Status: configured but disconnected{reason_suffix}")
             lines.append(f"  Bot ID: {credential.ilink_bot_id}")
             if credential.ilink_user_id:
                 lines.append(f"  User ID: {credential.ilink_user_id}")
@@ -195,18 +196,19 @@ class WechatChannel(BaseChannel):
         self._credential = None
         logger.info("[WechatChannel] 已断开")
 
-    async def _disable_in_config(self) -> None:
-        """Session 过期后关闭持久化配置的 enabled，防止 AFTER_INIT 反复重连。
+    async def _disable_in_config(self, reason: str = "") -> None:
+        """关闭持久化配置的 enabled 并记录原因，防止 AFTER_INIT 反复重连。
 
-        用户重新扫码会写入新凭据并重新 enabled=True，此处关闭不影响后续重连。
+        用户重新扫码会写入新凭据并重新 enabled=True + 清空 disabled_reason。
         """
         try:
             from app.channel.config import load_config, save_config
             config = await load_config()
             if config.wechat and config.wechat.enabled:
                 config.wechat.enabled = False
+                config.wechat.disabled_reason = reason
                 await save_config(config)
-                logger.info("[WechatChannel] 已将 wechat.enabled 设为 False（session 过期）")
+                logger.info(f"[WechatChannel] 已将 wechat.enabled 设为 False（reason={reason or 'unknown'}）")
         except Exception as e:
             logger.warning(f"[WechatChannel] 关闭 wechat.enabled 失败: {e}")
 
@@ -214,11 +216,15 @@ class WechatChannel(BaseChannel):
         await asyncio.sleep(max(delay_ms, 0) / 1000)
 
     def _handle_session_expired(self) -> None:
-        """session 过期：自动断连 + 关闭配置 + 通知 LLM，用户扫码重连后自动恢复。"""
+        """session 过期：自动断连 + 关闭配置 + 通知 LLM，用户扫码重连后自动恢复。
+
+        常见原因：用户在另一个 MagiClaw 实例上扫码绑定了同一微信号，导致当前 session 被踢下线。
+        """
+        from app.channel.config import DisabledReason
+
         logger.warning(f"[WechatChannel] session 已过期(errcode={api.SESSION_EXPIRED_ERRCODE})，自动断连")
-        # poll loop 内部不能直接 await，用 create_task 异步执行
         asyncio.create_task(self.disconnect())
-        asyncio.create_task(self._disable_in_config())
+        asyncio.create_task(self._disable_in_config(reason=DisabledReason.SESSION_EXPIRED))
         try:
             from app.service.agent_dispatcher import AgentDispatcher
             ctx = AgentDispatcher.get_instance().agent_context
@@ -227,6 +233,8 @@ class WechatChannel(BaseChannel):
                     source="wechat",
                     content=(
                         "WeChat session has expired and the channel has been disconnected. "
+                        "This usually means the user scanned a QR code on another MagiClaw instance, "
+                        "so the current session was kicked off. "
                         "Casually let the user know when appropriate — they can reconnect by scanning a new QR code, "
                         "or leave it disconnected. Don't treat this as a blocking issue. "
                         "If you are unsure how to initiate a WeChat reconnection, "
