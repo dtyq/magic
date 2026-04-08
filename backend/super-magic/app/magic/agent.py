@@ -39,7 +39,7 @@ from agentlang.logger import get_logger
 from agentlang.tools.tool_result import ToolResult
 from agentlang.utils.token_estimator import num_tokens_from_string
 from agentlang.utils.datetime_formatter import get_current_datetime_str
-from agentlang.exceptions import UserFriendlyException, ResourceLimitExceededException, LLMFastRetryExhaustedException
+from agentlang.exceptions import UserFriendlyException, ResourceLimitExceededException, LLMFastRetryExhaustedException, StreamChunkTimeoutError
 from agentlang.utils.tool_param_utils import preprocess_tool_calls_batch
 from openai.types.chat import ChatCompletion, ChatCompletionMessage, ChatCompletionMessageToolCall
 
@@ -714,6 +714,43 @@ class Agent(BaseAgent):
                 )
 
         return None
+
+    def _classify_llm_exception_for_user(self, exception: Exception) -> str | None:
+        """根据 LLM 异常类型返回用户友好的 i18n key，返回 None 则使用默认文案。"""
+        from openai import APITimeoutError, APIConnectionError, APIStatusError
+
+        # LLMFastRetryExhaustedException 是包装异常，取出真实 stream_error 递归分类
+        if isinstance(exception, LLMFastRetryExhaustedException):
+            root = exception.stream_error or exception
+            if root is not exception:
+                return self._classify_llm_exception_for_user(root)
+            return "messages.llm_provider_error"
+
+        if isinstance(exception, (StreamChunkTimeoutError, asyncio.TimeoutError, APITimeoutError)):
+            return "messages.llm_provider_timeout"
+
+        if isinstance(exception, APIConnectionError):
+            return "messages.llm_provider_connection_failed"
+
+        if isinstance(exception, APIStatusError) and exception.status_code == 429:
+            return "messages.llm_provider_rate_limited"
+
+        if isinstance(exception, APIStatusError):
+            return "messages.llm_provider_error"
+
+        if isinstance(exception, (ConnectionError, OSError)):
+            return "messages.llm_provider_connection_failed"
+
+        return None
+
+    def _build_user_friendly_custom_message(self, exception: Exception, is_llm_path: bool) -> str | None:
+        """为终态构建用户友好的 custom_message。非 LLM 路径或无法分类时返回 None。"""
+        if not is_llm_path:
+            return None
+        i18n_key = self._classify_llm_exception_for_user(exception)
+        if not i18n_key:
+            return None
+        return i18n.translate(i18n_key, category="common.messages")
 
     async def run_main_agent(self, query: str):
         """运行主 agent"""
@@ -1905,6 +1942,7 @@ Since your subsequent output will be merged with pre-interruption content and di
                 self._apply_final_task_state(build_final_task_state(
                     FinalTaskStateCode.MESSAGE_PROCESSING_FAILED,
                     vendor_message=str(exc),
+                    custom_message=self._build_user_friendly_custom_message(exc, is_llm_path=True),
                 ))
                 return ExceptionHandlingResult(should_continue=False, final_response=None)
 
@@ -2004,6 +2042,7 @@ Since your subsequent output will be merged with pre-interruption content and di
             self._apply_final_task_state(build_final_task_state(
                 FinalTaskStateCode.MESSAGE_PROCESSING_FAILED,
                 vendor_message=str(exception),
+                custom_message=self._build_user_friendly_custom_message(exception, is_llm_path=is_llm_retry_path),
             ))
             loop_state.last_llm_message = None
             return ExceptionHandlingResult(should_continue=False, final_response=None)
