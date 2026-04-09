@@ -2,6 +2,16 @@
 
 Use `generate_canvas_videos` to handle both placeholder creation and job creation.
 
+## Confirm Before Generating
+
+- If the user is only asking about capability ("can you?", "is it possible?"), confirm and ask for content details first; do not start generating
+- If the user says "I want to generate a video" without describing the content, ask for details before calling any tool
+- Only call generation tools when the user has expressed clear content intent and willingness to proceed
+
+## Timeout
+
+Video tool calls automatically use long timeouts. Do not reason about or pass timeout values manually.
+
 ## Required Parameters
 - `project_path`: design project path
 - `tasks`: task list, each task needs `name`, `prompt`, `width`, `height`; max 4 per call

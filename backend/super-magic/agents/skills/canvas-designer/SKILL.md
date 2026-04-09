@@ -1,11 +1,11 @@
 ---
 name: canvas-designer
-description: Core canvas design skill covering project management, multimedia principles, AI image generation, canvas video generation, web image search, and design marker processing. Load for any canvas design task including video generation on canvas. CRITICAL - When user message contains [@design_canvas_project:...] or [@design_marker:...] mentions, or when the user wants to generate video/animation/clip on a canvas project, you MUST load this skill first before any operations.
+description: Core canvas design skill covering project management, multimedia principles, AI image generation, web image search, and design marker processing. Load for any canvas design task. CRITICAL - When user message contains [@design_canvas_project:...] or [@design_marker:...] mentions, or when the user wants to generate video/animation/clip on a canvas project, you MUST load this skill first before any operations.
 ---
 
 # Canvas Design Skill
 
-Covers all canvas design fundamentals: project management, multimedia principles, AI image generation, canvas video generation, web image search, and design marker processing.
+Covers all canvas design fundamentals: project management, multimedia principles, AI image generation, web image search, and design marker processing. Video generation on canvas is supported via dedicated reference docs.
 
 ---
 
@@ -24,8 +24,6 @@ print(result)
 ```
 
 **Result object:** fields are `result.ok` (bool), `result.content` (str), `result.data` (dict). Access structured data via `result.data`, not `result['key']` — the Result object is not subscriptable.
-
-Video-related tool calls in this skill automatically use long timeouts. Do not reason about timeout values for video tools.
 
 ---
 
@@ -62,7 +60,7 @@ Design projects are uniquely identified by `project_path`. All canvas tools requ
 
 **Tool priority:**
 - Static output (poster, illustration, cover, still image) → image tools
-- Dynamic output (video, animation, shot, clip) → video tools (see Video Generation section)
+- Dynamic output (video, animation, shot, clip) → video tools (see [Video Generation](#video-generation) below)
 
 ---
 
@@ -390,89 +388,21 @@ Processing steps:
 
 ## Video Generation
 
-This skill handles canvas video generation directly. For detailed cases, read the matching reference:
+> For full video generation workflow, read the matching reference before proceeding:
+>
+> - **Generation** → [reference/video/generation.md](reference/video/generation.md)
+> - **Follow-up / status sync** → [reference/video/follow-up.md](reference/video/follow-up.md)
+> - **Parameter selection / error handling** → [reference/video/parameters-and-errors.md](reference/video/parameters-and-errors.md)
 
-- **Initial generation** → [reference/video/initial-generation.md](reference/video/initial-generation.md)
-- **Follow-up / status sync** → [reference/video/follow-up.md](reference/video/follow-up.md)
-- **Parameter selection / error handling** → [reference/video/parameters-and-errors.md](reference/video/parameters-and-errors.md)
-
-### Use video tools when
-
+**Use video tools when:**
 - User wants dynamic output on canvas: video, animation, shot, clip, short film, motion poster
-- User already started a canvas video task and asks "is it done / continue / refresh / check again / progress / status"
+- User is following up on an existing canvas video task ("is it done / continue / refresh / check progress")
 - User provides reference images or start/end frames and wants a video element on canvas
 
-### Do not use video tools for
-
+**Do not use video tools for:**
 - Static output such as poster, cover, screenshot, or illustration → use image workflow above
 - General non-canvas video generation → use the video tools directly
 - Only adjusting element position, size, or layer → use canvas element editing tools
-
-### Quick Start
-
-**Initial generation:**
-
-```python
-from sdk.tool import tool
-
-result = tool.call('generate_canvas_videos', {
-    "project_path": "my-design",
-    "tasks": [{
-        "name": "promo_video",
-        "prompt": "A product slowly rotating under soft light, cinematic camera push-in, commercial ad quality",
-        "width": 1280,
-        "height": 720
-    }]
-})
-print(result)
-```
-
-**Follow up an existing video task** (only after the creation tool has timed out and user explicitly asks):
-
-```python
-from sdk.tool import tool
-
-result = tool.call('query_video_generation', {
-    "operation_id": "op_xxx"
-})
-```
-
-### Core Workflow
-
-**Path A: Initial Generation**
-- Use `generate_canvas_videos`
-- Required: `project_path`, `tasks` (each task needs `name`, `prompt`, `width`, `height`)
-- Focus on the generation goal, whether there is reference input, and whether the user explicitly requested size/resolution or duration
-- If the user did not explicitly ask for extra controls, prefer the minimum parameter set
-- If result is `queued` / `running` / `processing`, the task is on the correct path
-
-**Path B: Follow-Up**
-- The creation tool itself blocks and polls first, while continuously sending progress updates to the user
-- Only use `query_video_generation` after the creation tool has already timed out and the user explicitly asks to check progress
-- `operation_id` is the primary follow-up input; reuse `request_id`, `project_path`, and `element_id` when already known
-- In canvas scenarios, prefer passing both `project_path` and `element_id` so the tool can backfill element state
-- Never start a new generation job just because the current one is still processing
-
-### Critical Rules
-
-**Confirm before acting:**
-- If the user is only asking about capability ("can you?", "is it possible?"), confirm the capability and ask for content details first; do not start generating
-- Even if the user says "I want to generate a video" without a specific content description, ask for details before calling any tool
-- Only call generation tools when the user has expressed clear content intent and willingness to proceed
-
-**Execution rules:**
-- When the user wants dynamic output, do not fall back to `generate_canvas_images`
-- Only switch to image workflow when the user explicitly asks for a still result
-- The video creation tool blocks and polls first, sending progress updates before returning
-- Do not proactively call the query capability just because a task is still in progress
-- Only follow up when the creation tool has already timed out and the user explicitly asks
-- On follow-up, prefer reusing existing `operation_id`, `request_id`, and `element_id`
-- If the tool returns `pending_operations`, treat them as the source of truth for the next follow-up
-- Before calling video tools, refer to the runtime video-model capability message already injected in the conversation
-- Prioritize: generation goal, canvas placement, size/resolution intent, duration intent, reference inputs
-- Keep non-priority parameters empty when the user did not explicitly ask for them
-- When uncertain about a parameter, prefer omitting it rather than guessing
-- For `generate_canvas_videos`, `width`/`height` are canvas element dimensions; focus on canvas placement and the video goal instead of over-tuning parameters
 
 ---
 
@@ -491,8 +421,8 @@ Generate AI images?
 └─ No → continue
 
 Generate video?
-├─ Yes → generate_canvas_videos (see Video Generation section)
-│   └─ Follow up? → query_video_generation (only after timeout + user asks)
+├─ Yes → read reference/video/generation.md first, then generate_canvas_videos
+│   └─ Follow up? → read reference/video/follow-up.md, then query_video_generation
 └─ No → continue
 
 Search web images?

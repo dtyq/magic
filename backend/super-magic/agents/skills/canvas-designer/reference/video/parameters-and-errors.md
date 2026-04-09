@@ -8,7 +8,7 @@
   - user-requested size/resolution intent
   - user-requested duration intent
   - reference inputs such as reference images or start/end frames
-- Step 3: leave non-priority parameters empty by default
+- Step 3: leave non-priority parameters empty by default; when uncertain about a parameter, prefer omitting it rather than guessing
 - `width` / `height` are canvas layout dimensions and may differ from real generation resolution
 - Let the default handling take care of the rest when the user did not explicitly ask for more controls
 
