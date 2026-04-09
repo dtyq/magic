@@ -9,6 +9,7 @@ import (
 	"github.com/dtyq/magicrew-cli/chart"
 	"github.com/dtyq/magicrew-cli/kube"
 	"github.com/dtyq/magicrew-cli/util"
+	corev1 "k8s.io/api/core/v1"
 )
 
 const (
@@ -84,32 +85,118 @@ func (d *Deployer) Run(ctx context.Context) error {
 	return runStages(ctx, d)
 }
 
-// installChart is a shared helper used by multiple stages to build dependencies,
-// ensure the namespace, install/upgrade, and wait for pods.
-func installChart(ctx context.Context, d *Deployer, name, namespace string, chartRef chart.ChartReference, merged map[string]interface{}) error {
-	return installChartWithWaitSelector(ctx, d, name, namespace, chartRef, merged, "")
+// installChart builds chart dependencies when needed, ensures the namespace,
+// installs/upgrades the release, and waits for pods.
+func (d *Deployer) installChart(ctx context.Context, name, namespace string, merged map[string]interface{}) error {
+	return d.installChartWithWaitSelector(ctx, name, namespace, merged, "")
 }
 
-func installChartWithWaitSelector(ctx context.Context, d *Deployer, name, namespace string, chartRef chart.ChartReference, merged map[string]interface{}, waitLabelSelector string) error {
+func (d *Deployer) installChartWithWaitSelector(ctx context.Context, name, namespace string, merged map[string]interface{}, waitLabelSelector string) error {
+	chartRef, err := d.chartRef(name)
+	if err != nil {
+		return err
+	}
+
 	if chartRef.Kind == chart.RefKindLocal {
 		d.log.Logi("deploy", "Building %s chart dependencies...", name)
 		if err := chart.DependencyBuild(chartRef); err != nil {
 			return fmt.Errorf("dependency build %s: %w", name, err)
 		}
 	}
+
 	if err := d.kubeClient.EnsureNamespace(ctx, namespace); err != nil {
 		return fmt.Errorf("ensure namespace %s: %w", namespace, err)
 	}
+
 	if err := ensureReleaseReadyForInstall(ctx, d, name, namespace); err != nil {
 		return err
 	}
+
 	values := chart.ExtractChartValues(merged, name)
-	if err := chart.UpgradeInstall(ctx, name, namespace, d.kubeClient.RESTConfig(), chartRef, values); err != nil {
-		return fmt.Errorf("helm install %s: %w", name, err)
+
+	runHelm := func(runCtx context.Context) error {
+		return chart.UpgradeInstall(runCtx, name, namespace, d.kubeClient.RESTConfig(), chartRef, values)
 	}
-	if err := d.kubeClient.WaitForPodsReady(ctx, namespace, waitLabelSelector, podReadyTimeout, newPodReporter(d.log, name)); err != nil {
-		return fmt.Errorf("wait for %s pods: %w", name, err)
+
+	watchPods := func(runCtx context.Context, helmDone <-chan struct{}) error {
+		return watchPodsAfterHelm(runCtx, helmDone, d.kubeClient, d.log, name, namespace, waitLabelSelector)
 	}
+
+	return runInstallAndWait(ctx, runHelm, watchPods)
+}
+
+func watchPodsAfterHelm(
+	ctx context.Context,
+	helmDone <-chan struct{},
+	kubeClient *kube.Client,
+	log util.LoggerGroup,
+	chartName string,
+	namespace string,
+	labelSelector string,
+) error {
+	reporter := newPodReporter(log, chartName)
+	helmConfirmed := false
+	confirmIfHelmDone := func() bool {
+		select {
+		case <-helmDone:
+			if !helmConfirmed {
+				reporter.Confirm()
+				helmConfirmed = true
+			}
+			return true
+		default:
+			return false
+		}
+	}
+
+	if err := kubeClient.WatchPods(ctx, namespace, labelSelector, podReadyTimeout, func(pods []corev1.Pod) (bool, error) {
+		helmFinished := confirmIfHelmDone()
+		reporter.Report(pods)
+		if !helmFinished && confirmIfHelmDone() {
+			helmFinished = true
+			// Re-render once so the transition tick also shows full details.
+			reporter.Report(pods)
+		}
+		// Keep reporting pod changes until Helm finishes creating the full release set.
+		if !helmFinished {
+			return false, nil
+		}
+		return len(pods) > 0 && kube.PodsReadyOrCompleted(pods), nil
+	}); err != nil {
+		return fmt.Errorf("wait for %s pods: %w", chartName, err)
+	}
+	return nil
+}
+
+func runInstallAndWait(
+	ctx context.Context,
+	runHelm func(context.Context) error,
+	watchPods func(context.Context, <-chan struct{}) error,
+) error {
+	runCtx, cancel := context.WithCancel(ctx)
+	defer cancel()
+
+	helmDone := make(chan struct{})
+	errCh := make(chan error, 2)
+
+	go func() {
+		err := runHelm(runCtx)
+		if err == nil {
+			close(helmDone)
+		}
+		errCh <- err
+	}()
+
+	go func() {
+		errCh <- watchPods(runCtx, helmDone)
+	}()
+
+	for range 2 {
+		if err := <-errCh; err != nil {
+			return err
+		}
+	}
+
 	return nil
 }
 

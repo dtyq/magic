@@ -8,6 +8,7 @@ import (
 	"github.com/dtyq/magicrew-cli/cluster"
 	"github.com/dtyq/magicrew-cli/kube"
 	"github.com/dtyq/magicrew-cli/registry"
+	corev1 "k8s.io/api/core/v1"
 )
 
 // BootstrapClusterStage creates (or reuses) a kind cluster and initialises the kube client.
@@ -63,7 +64,15 @@ func (s *BootstrapClusterStage) Exec(ctx context.Context) error {
 		return fmt.Errorf("create kube client: %w", err)
 	}
 
-	if err := s.d.kubeClient.WaitForPodsReady(ctx, "kube-system", "tier=control-plane", podReadyTimeout, newPodReporter(s.d.log, "control-plane")); err != nil {
+	reporter := newPodReporter(s.d.log, "control-plane")
+	if err := s.d.kubeClient.WatchPods(ctx, "kube-system", "tier=control-plane", podReadyTimeout, func(pods []corev1.Pod) (bool, error) {
+		ready := len(pods) > 0 && kube.PodsReadyOrCompleted(pods)
+		if ready {
+			reporter.Confirm()
+		}
+		reporter.Report(pods)
+		return ready, nil
+	}); err != nil {
 		return fmt.Errorf("wait for kube-system control-plane: %w", err)
 	}
 

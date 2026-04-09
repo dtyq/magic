@@ -21,8 +21,8 @@ const (
 	defaultRedisPort    = 6379
 	defaultRabbitMQHost = "infra-rabbitmq.infra.svc.cluster.local"
 	defaultRabbitMQPort = 5672
-	defaultMinIOHost = "infra-minio.infra.svc.cluster.local"
-	defaultMinIOPort = 9000
+	defaultMinIOHost    = "infra-minio.infra.svc.cluster.local"
+	defaultMinIOPort    = 9000
 )
 
 // InfraStage installs the infra Helm chart (MySQL, Redis, RabbitMQ, MinIO).
@@ -82,7 +82,7 @@ func (s *InfraStage) Exec(ctx context.Context) error {
 	if s.d.opts.infraUseProxy {
 		merged = withRegistryEndpoint(merged, registry.ContainerEndpoint(s.d.opts.registry))
 	}
-	return installChart(ctx, s.d, releaseNameInfra, s.namespace, s.ref, merged)
+	return s.d.installChart(ctx, releaseNameInfra, s.namespace, merged)
 }
 
 // ── Connection config types ───────────────────────────────────────────────────

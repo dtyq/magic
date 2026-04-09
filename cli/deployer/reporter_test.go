@@ -2,6 +2,7 @@ package deployer
 
 import (
 	"bytes"
+	"fmt"
 	"strings"
 	"testing"
 
@@ -95,6 +96,29 @@ func podWithReadyCondition(status corev1.ConditionStatus) corev1.Pod {
 				{Type: corev1.PodReady, Status: status},
 			},
 		},
+	}
+}
+
+func namedReadyPod(name string) corev1.Pod {
+	p := podWithReadyCondition(corev1.ConditionTrue)
+	p.Name = name
+	return p
+}
+
+func namedNotReadyPod(name string) corev1.Pod {
+	p := podWithReadyCondition(corev1.ConditionFalse)
+	p.Name = name
+	return p
+}
+
+func sixPodsObserving() []corev1.Pod {
+	return []corev1.Pod{
+		namedReadyPod("infra-a"),
+		namedReadyPod("infra-b"),
+		namedReadyPod("infra-c"),
+		namedReadyPod("infra-d"),
+		namedReadyPod("infra-e"),
+		namedNotReadyPod("infra-f"),
 	}
 }
 
@@ -198,7 +222,7 @@ func TestNewPodReporter_EmptyPodsOutputsNoPods(t *testing.T) {
 	spy, lg := spyLoggerGroup()
 	withWaitOutputForTest(t, &bytes.Buffer{}, false)
 	reporter := newPodReporter(lg, "myapp")
-	reporter([]corev1.Pod{})
+	reporter.Report([]corev1.Pod{})
 	assert.True(t, spy.contains("[waiting] myapp pods (0/0 ready)"), "expected compact waiting output, got: %v", spy.lines)
 }
 
@@ -210,7 +234,7 @@ func TestNewPodReporter_MixedReadyHeaderCount(t *testing.T) {
 		podWithReadyCondition(corev1.ConditionTrue),
 		podWithReadyCondition(corev1.ConditionFalse),
 	}
-	reporter(pods)
+	reporter.Report(pods)
 	assert.True(t, spy.contains("[waiting] myapp pods (1/2 ready)"), "expected compact waiting output, got: %v", spy.lines)
 }
 
@@ -218,16 +242,108 @@ func TestNewPodReporter_WaitingReasonAppears(t *testing.T) {
 	spy, lg := spyLoggerGroup()
 	withWaitOutputForTest(t, &bytes.Buffer{}, false)
 	reporter := newPodReporter(lg, "myapp")
-	reporter([]corev1.Pod{podNamedWithWaiting("pod-a", "CrashLoopBackOff")})
+	reporter.Report([]corev1.Pod{podNamedWithWaiting("pod-a", "CrashLoopBackOff")})
 	assert.True(t, spy.contains("CrashLoopBackOff"), "expected 'CrashLoopBackOff' in output, got: %v", spy.lines)
 }
 
-func TestNewPodReporter_SucceededPodCountedAsReady(t *testing.T) {
+func TestNewPodReporter_ObservingAllReadyDoesNotLogReadyBeforeConfirm(t *testing.T) {
 	spy, lg := spyLoggerGroup()
 	withWaitOutputForTest(t, &bytes.Buffer{}, false)
 	reporter := newPodReporter(lg, "myapp")
-	reporter([]corev1.Pod{succeededPod(), podWithReadyCondition(corev1.ConditionTrue)})
-	assert.True(t, spy.contains("[ready] myapp pods (2/2 ready)"), "expected ready summary output, got: %v", spy.lines)
+	reporter.Report([]corev1.Pod{succeededPod(), podWithReadyCondition(corev1.ConditionTrue)})
+	assert.False(t, spy.contains("[ready] myapp pods (2/2 ready)"), "ready footer should stay hidden before confirm, got: %v", spy.lines)
+}
+
+func TestNewPodReporter_ReadyLoggedOnce(t *testing.T) {
+	spy, lg := spyLoggerGroup()
+	withWaitOutputForTest(t, &bytes.Buffer{}, false)
+	reporter := newPodReporter(lg, "myapp")
+	pods := []corev1.Pod{succeededPod(), podWithReadyCondition(corev1.ConditionTrue)}
+
+	reporter.Confirm()
+	reporter.Report(pods)
+	reporter.Report(pods)
+	reporter.Report(pods)
+
+	count := 0
+	for _, line := range spy.lines {
+		if strings.Contains(line, "[ready] myapp pods (2/2 ready)") {
+			count++
+		}
+	}
+	assert.Equal(t, 1, count, "expected ready logged once, got: %v", spy.lines)
+}
+
+func TestNewPodReporter_ConfirmingAllReadyLogsReady(t *testing.T) {
+	spy, lg := spyLoggerGroup()
+	withWaitOutputForTest(t, &bytes.Buffer{}, false)
+	reporter := newPodReporter(lg, "myapp")
+
+	reporter.Confirm()
+	reporter.Report([]corev1.Pod{succeededPod(), podWithReadyCondition(corev1.ConditionTrue)})
+
+	assert.True(t, spy.contains("[ready] myapp pods (2/2 ready)"), "expected ready summary after confirm, got: %v", spy.lines)
+}
+
+func TestNewPodReporter_NonTTYDetailLineUsesWiderNameGap(t *testing.T) {
+	spy, lg := spyLoggerGroup()
+	withWaitOutputForTest(t, &bytes.Buffer{}, false)
+	reporter := newPodReporter(lg, "infra")
+	pod := namedReadyPod("infra-ingress-nginx-controller")
+
+	reporter.Confirm()
+	reporter.Report([]corev1.Pod{pod})
+
+	expected := fmt.Sprintf("  %-48s  %-18s Ready=%s",
+		pod.Name,
+		podStatusSummary(pod),
+		podReadyStatus(pod),
+	)
+	assert.Contains(t, spy.lines, expected, "expected wider spacing between pod name and status, got: %v", spy.lines)
+}
+
+func TestNewPodReporter_TTYSecondReportAfterReadyKeepsTrailingNewline(t *testing.T) {
+	t.Setenv("NO_COLOR", "")
+	t.Setenv("TERM", "xterm")
+	t.Setenv("MAGICREW_CLI_NO_ANSI", "")
+	t.Setenv("MAGICREW_CLI_FORCE_ANSI", "")
+
+	spy, lg := spyLoggerGroup()
+	var out bytes.Buffer
+	withWaitOutputForTest(t, &out, true)
+	reporter := newPodReporter(lg, "infra")
+	pods := []corev1.Pod{namedReadyPod("infra-a"), namedReadyPod("infra-b")}
+
+	reporter.Confirm()
+	reporter.Report(pods)
+	reporter.Report(pods)
+	_, _ = out.WriteString("[next]\n")
+
+	assert.Contains(t, out.String(), "\n[next]\n", "next terminal output should start on a new line")
+	assert.NotContains(t, out.String(), "Ready=True[next]")
+	assert.Empty(t, spy.lines, "tty ready completion should not emit an extra ready log line")
+}
+
+func TestNewPodReporter_TTYConfirmingAllReadyDoesNotLogReadyFooter(t *testing.T) {
+	t.Setenv("NO_COLOR", "")
+	t.Setenv("TERM", "xterm")
+	t.Setenv("MAGICREW_CLI_NO_ANSI", "")
+	t.Setenv("MAGICREW_CLI_FORCE_ANSI", "")
+
+	spy, lg := spyLoggerGroup()
+	var out bytes.Buffer
+	withWaitOutputForTest(t, &out, true)
+	reporter := newPodReporter(lg, "magic")
+	pods := []corev1.Pod{
+		namedReadyPod("magic-a"),
+		namedReadyPod("magic-b"),
+	}
+
+	reporter.Confirm()
+	reporter.Report(pods)
+
+	assert.Contains(t, out.String(), "[waiting] magic pods (2/2 ready)")
+	assert.Empty(t, spy.lines, "tty confirm completion should reuse spinner frame without extra ready footer")
 }
 
 func TestNewPodReporter_NonTTYNoDuplicateSummary(t *testing.T) {
@@ -235,8 +351,8 @@ func TestNewPodReporter_NonTTYNoDuplicateSummary(t *testing.T) {
 	withWaitOutputForTest(t, &bytes.Buffer{}, false)
 	reporter := newPodReporter(lg, "myapp")
 	pods := []corev1.Pod{podWithReadyCondition(corev1.ConditionFalse)}
-	reporter(pods)
-	reporter(pods)
+	reporter.Report(pods)
+	reporter.Report(pods)
 
 	count := 0
 	for _, line := range spy.lines {
@@ -256,7 +372,10 @@ func TestNewPodReporter_TTYSpinnerAndFailureReason(t *testing.T) {
 	var out bytes.Buffer
 	withWaitOutputForTest(t, &out, true)
 	reporter := newPodReporter(lg, "myapp")
-	reporter([]corev1.Pod{podNamedWithWaiting("pod-a", "ImagePullBackOff")})
+	pods := []corev1.Pod{podNamedWithWaiting("pod-a", "ImagePullBackOff")}
+	for range 4 {
+		reporter.Report(pods)
+	}
 
 	s := out.String()
 	assert.Contains(t, s, "\r")
@@ -279,7 +398,10 @@ func TestNewPodReporter_TTYDoesNotShowCompletedAsFailure(t *testing.T) {
 
 	p := podWithInitTerminatedReason("Completed", 0)
 	p.Name = "infra-minio"
-	reporter([]corev1.Pod{p})
+	podList := []corev1.Pod{p}
+	for range 4 {
+		reporter.Report(podList)
+	}
 
 	s := out.String()
 	assert.Contains(t, s, "[waiting] infra pods")
@@ -296,7 +418,7 @@ func TestNewPodReporter_AnsiNO_ColorDisablesSpinnerDespiteTTY(t *testing.T) {
 	var out bytes.Buffer
 	withWaitOutputForTest(t, &out, true)
 	reporter := newPodReporter(lg, "myapp")
-	reporter([]corev1.Pod{podNamedWithWaiting("pod-a", "ImagePullBackOff")})
+	reporter.Report([]corev1.Pod{podNamedWithWaiting("pod-a", "ImagePullBackOff")})
 
 	assert.NotContains(t, out.String(), "\x1b[", "NO_COLOR should disable ANSI escapes")
 	assert.True(t, spy.contains("[waiting]"), "expected log fallback when ANSI disabled")
@@ -308,7 +430,7 @@ func TestNewPodReporter_AnsiTERM_DumbDisablesSpinnerDespiteTTY(t *testing.T) {
 	var out bytes.Buffer
 	withWaitOutputForTest(t, &out, true)
 	reporter := newPodReporter(lg, "myapp")
-	reporter([]corev1.Pod{podNamedWithWaiting("pod-a", "ImagePullBackOff")})
+	reporter.Report([]corev1.Pod{podNamedWithWaiting("pod-a", "ImagePullBackOff")})
 
 	assert.NotContains(t, out.String(), "\x1b[")
 	assert.True(t, spy.contains("[waiting]"))
@@ -320,7 +442,7 @@ func TestNewPodReporter_AnsiMagicrewForceEnablesSpinnerWithoutTTY(t *testing.T) 
 	var out bytes.Buffer
 	withWaitOutputForTest(t, &out, false)
 	reporter := newPodReporter(lg, "myapp")
-	reporter([]corev1.Pod{podNamedWithWaiting("pod-a", "ImagePullBackOff")})
+	reporter.Report([]corev1.Pod{podNamedWithWaiting("pod-a", "ImagePullBackOff")})
 
 	s := out.String()
 	assert.Contains(t, s, "\x1b[2K")
@@ -334,7 +456,7 @@ func TestNewPodReporter_AnsiMagicrewNoAnsiDisablesSpinnerDespiteTTY(t *testing.T
 	var out bytes.Buffer
 	withWaitOutputForTest(t, &out, true)
 	reporter := newPodReporter(lg, "myapp")
-	reporter([]corev1.Pod{podNamedWithWaiting("pod-a", "ImagePullBackOff")})
+	reporter.Report([]corev1.Pod{podNamedWithWaiting("pod-a", "ImagePullBackOff")})
 
 	assert.NotContains(t, out.String(), "\x1b[")
 	assert.True(t, spy.contains("[waiting]"))
@@ -347,7 +469,7 @@ func TestNewPodReporter_AnsiMagicrewNoAnsiWinsOverForce(t *testing.T) {
 	var out bytes.Buffer
 	withWaitOutputForTest(t, &out, true)
 	reporter := newPodReporter(lg, "myapp")
-	reporter([]corev1.Pod{podNamedWithWaiting("pod-a", "ImagePullBackOff")})
+	reporter.Report([]corev1.Pod{podNamedWithWaiting("pod-a", "ImagePullBackOff")})
 
 	assert.NotContains(t, out.String(), "\x1b[")
 	assert.True(t, spy.contains("[waiting]"))
@@ -360,8 +482,104 @@ func TestNewPodReporter_AnsiForceOverridesNO_COLOR(t *testing.T) {
 	var out bytes.Buffer
 	withWaitOutputForTest(t, &out, true)
 	reporter := newPodReporter(lg, "myapp")
-	reporter([]corev1.Pod{podNamedWithWaiting("pod-a", "ImagePullBackOff")})
+	pods := []corev1.Pod{podNamedWithWaiting("pod-a", "ImagePullBackOff")}
+	for range 4 {
+		reporter.Report(pods)
+	}
 
 	assert.Contains(t, out.String(), "\x1b[2K")
+	assert.Empty(t, spy.lines)
+}
+
+func TestNewPodReporter_NonTTY_ObservingShowsSummaryUntilCountStable(t *testing.T) {
+	spy, lg := spyLoggerGroup()
+	withWaitOutputForTest(t, &bytes.Buffer{}, false)
+	reporter := newPodReporter(lg, "infra")
+
+	// Single unready pod keeps the reporter in observing (no [ready] side effect).
+	onePod := []corev1.Pod{namedNotReadyPod("infra-a")}
+	sixPods := sixPodsObserving()
+
+	reporter.Report(onePod)
+	reporter.Report(sixPods)
+	reporter.Report(sixPods)
+
+	assert.True(t, spy.contains("[waiting] infra pods (5/6 ready)"), "expected waiting summary")
+	assert.False(t, spy.contains("infra-f"), "details should stay hidden before count stabilizes")
+}
+
+func TestNewPodReporter_NonTTY_ConfirmingShowsDetailsBeforeCountStable(t *testing.T) {
+	spy, lg := spyLoggerGroup()
+	withWaitOutputForTest(t, &bytes.Buffer{}, false)
+	reporter := newPodReporter(lg, "infra")
+	pods := sixPodsObserving()
+
+	reporter.Report(pods)
+	reporter.Report(pods)
+	assert.False(t, spy.contains("infra-f"), "precondition: details hidden before stable rounds")
+
+	reporter.Confirm()
+	reporter.Report(pods)
+	assert.True(t, spy.contains("infra-f"), "Confirm should expand details without waiting for count stability")
+}
+
+func TestNewPodReporter_NonTTY_ObservingShowsDetailsAfterStableCount(t *testing.T) {
+	spy, lg := spyLoggerGroup()
+	withWaitOutputForTest(t, &bytes.Buffer{}, false)
+	reporter := newPodReporter(lg, "infra")
+
+	sixPods := sixPodsObserving()
+
+	reporter.Report(sixPods)
+	reporter.Report(sixPods)
+	reporter.Report(sixPods)
+	reporter.Report(sixPods)
+
+	assert.True(t, spy.contains("infra-f"), "details should appear after stable count threshold")
+}
+
+func TestNewPodReporter_TTY_ObservingShowsSummaryUntilCountStable(t *testing.T) {
+	t.Setenv("NO_COLOR", "")
+	t.Setenv("TERM", "xterm")
+	t.Setenv("MAGICREW_CLI_NO_ANSI", "")
+	t.Setenv("MAGICREW_CLI_FORCE_ANSI", "")
+
+	spy, lg := spyLoggerGroup()
+	var out bytes.Buffer
+	withWaitOutputForTest(t, &out, true)
+	reporter := newPodReporter(lg, "infra")
+
+	onePod := []corev1.Pod{namedNotReadyPod("infra-a")}
+	sixPods := sixPodsObserving()
+
+	reporter.Report(onePod)
+	reporter.Report(sixPods)
+	reporter.Report(sixPods)
+
+	rendered := out.String()
+	assert.Contains(t, rendered, "[waiting] infra pods")
+	assert.NotContains(t, rendered, "infra-f")
+	assert.Empty(t, spy.lines)
+}
+
+func TestNewPodReporter_TTY_ConfirmingShowsDetailsBeforeCountStable(t *testing.T) {
+	t.Setenv("NO_COLOR", "")
+	t.Setenv("TERM", "xterm")
+	t.Setenv("MAGICREW_CLI_NO_ANSI", "")
+	t.Setenv("MAGICREW_CLI_FORCE_ANSI", "")
+
+	spy, lg := spyLoggerGroup()
+	var out bytes.Buffer
+	withWaitOutputForTest(t, &out, true)
+	reporter := newPodReporter(lg, "infra")
+	pods := sixPodsObserving()
+
+	reporter.Report(pods)
+	reporter.Report(pods)
+	assert.NotContains(t, out.String(), "infra-f", "precondition: details hidden before stable rounds")
+
+	reporter.Confirm()
+	reporter.Report(pods)
+	assert.Contains(t, out.String(), "infra-f", "Confirm should expand tty details without waiting for count stability")
 	assert.Empty(t, spy.lines)
 }

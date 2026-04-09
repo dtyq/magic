@@ -134,6 +134,9 @@ func (c *Client) GetService(ctx context.Context, namespace, name string) (*corev
 const standardStorageClassManagedAnnotation = "magicrew-cli/default-storageclass"
 const podWaitPollInterval = 1 * time.Second
 
+// PodWatchFunc runs after each pod list during WatchPods. Return done=true to stop successfully.
+type PodWatchFunc func([]corev1.Pod) (done bool, err error)
+
 // RecreateStandardStorageClass ensures the default "standard" StorageClass is the magicrew-cli
 // version (rancher.io/local-path + pathPattern). If it already has our managed annotation, skip.
 // Otherwise deletes the existing one if present and creates ours with the annotation.
@@ -240,14 +243,15 @@ func (c *Client) WaitForDaemonSetsSettled(ctx context.Context, namespace, labelS
 	}
 }
 
-// WaitForPodsReady polls until all pods matching labelSelector in the given
-// namespace are Ready, or until the context deadline is exceeded.
-// If reporter is non-nil, it is called after each poll with the current pod list.
-func (c *Client) WaitForPodsReady(ctx context.Context, namespace, labelSelector string, timeout time.Duration, reporter func([]corev1.Pod)) error {
+// WatchPods lists pods on a fixed interval until watchFn returns done or an error, timeout elapses, or ctx is cancelled.
+func (c *Client) WatchPods(ctx context.Context, namespace, labelSelector string, timeout time.Duration, watchFn PodWatchFunc) error {
+	if watchFn == nil {
+		return fmt.Errorf("watchFn is required")
+	}
 	deadline := time.Now().Add(timeout)
 	for {
 		if time.Now().After(deadline) {
-			return fmt.Errorf("timeout waiting for pods ready in %s (selector: %s)", namespace, labelSelector)
+			return fmt.Errorf("timeout waiting for pods in %s (selector: %s)", namespace, labelSelector)
 		}
 
 		pods, err := c.cs.CoreV1().Pods(namespace).List(ctx, metav1.ListOptions{
@@ -257,11 +261,11 @@ func (c *Client) WaitForPodsReady(ctx context.Context, namespace, labelSelector 
 			return fmt.Errorf("list pods: %w", err)
 		}
 
-		if reporter != nil {
-			reporter(pods.Items)
+		done, err := watchFn(pods.Items)
+		if err != nil {
+			return err
 		}
-
-		if len(pods.Items) > 0 && allReady(pods.Items) {
+		if done {
 			return nil
 		}
 
@@ -273,13 +277,39 @@ func (c *Client) WaitForPodsReady(ctx context.Context, namespace, labelSelector 
 	}
 }
 
-func allReady(pods []corev1.Pod) bool {
+// WaitForPodsReady polls until there is at least one pod matching labelSelector and all are ready or completed (e.g. Succeeded job pods).
+func (c *Client) WaitForPodsReady(ctx context.Context, namespace, labelSelector string, timeout time.Duration) error {
+	return c.WatchPods(ctx, namespace, labelSelector, timeout, func(pods []corev1.Pod) (bool, error) {
+		return len(pods) > 0 && PodsReadyOrCompleted(pods), nil
+	})
+}
+
+// PodsReadyOrCompleted reports whether every pod in the slice is ready or safely completed (Succeeded).
+func PodsReadyOrCompleted(pods []corev1.Pod) bool {
 	for _, pod := range pods {
-		if !isPodReadyOrCompleted(pod) {
+		if !PodReadyOrCompleted(pod) {
 			return false
 		}
 	}
 	return true
+}
+
+// PodReadyOrCompleted is true for Running pods with Ready=True or for Succeeded phase (e.g. job pods).
+func PodReadyOrCompleted(pod corev1.Pod) bool {
+	// Job pods usually end in Succeeded and will never report Ready=True.
+	// Treat them as completed so deploy stage waiting can continue.
+	if pod.Status.Phase == corev1.PodSucceeded {
+		return true
+	}
+	if pod.Status.Phase != corev1.PodRunning {
+		return false
+	}
+	for _, cond := range pod.Status.Conditions {
+		if cond.Type == corev1.PodReady {
+			return cond.Status == corev1.ConditionTrue
+		}
+	}
+	return false
 }
 
 func allScheduled(pods []corev1.Pod) bool {
@@ -318,23 +348,6 @@ func isDaemonSetSettled(ds appsv1.DaemonSet, requireReady bool) bool {
 		return false
 	}
 	return true
-}
-
-func isPodReadyOrCompleted(pod corev1.Pod) bool {
-	// Job pods usually end in Succeeded and will never report Ready=True.
-	// Treat them as completed so deploy stage waiting can continue.
-	if pod.Status.Phase == corev1.PodSucceeded {
-		return true
-	}
-	if pod.Status.Phase != corev1.PodRunning {
-		return false
-	}
-	for _, cond := range pod.Status.Conditions {
-		if cond.Type == corev1.PodReady {
-			return cond.Status == corev1.ConditionTrue
-		}
-	}
-	return false
 }
 
 func isPodScheduled(pod corev1.Pod) bool {
