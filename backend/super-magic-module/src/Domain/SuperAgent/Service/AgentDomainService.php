@@ -950,17 +950,22 @@ class AgentDomainService
             return $result['sandbox_id'];
         }
 
-        // Owner failed — propagate the same error to follower
+        // Owner failed — log internal error details, return generic message to caller
         if ($this->singleFlight->isFailed($result)) {
-            throw new ServerException($result['error'] ?: '沙箱初始化失败');
+            $this->logger->error('[Sandbox][SingleFlight] Owner initialization failed', [
+                'topic_id' => $topicId,
+                'error' => $result['error'] ?? 'unknown',
+            ]);
+            throw new ServerException(trans('agent.sandbox_init_failed'));
         }
 
-        // Owner disappeared (crashed) or timed out — no result, no running
-        // This request becomes the new owner via recursive call
-        $this->logger->warning('[Sandbox][SingleFlight] Owner disappeared, retrying as new owner', [
+        // Owner disappeared (crashed) or timed out — no result, no running.
+        // Clean up stale state so subsequent requests can attempt fresh initialization.
+        $this->singleFlight->clearResult($topicId);
+        $this->logger->warning('[Sandbox][SingleFlight] Owner disappeared, cleaned up stale state', [
             'topic_id' => $topicId,
         ]);
-        throw new ServerException('沙箱初始化超时，请重试');
+        throw new ServerException(trans('agent.sandbox_init_timeout'));
     }
 
     /**

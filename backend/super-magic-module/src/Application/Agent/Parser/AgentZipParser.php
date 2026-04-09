@@ -117,7 +117,7 @@ class AgentZipParser
             return [];
         }
 
-        return $parsed['data'];
+        return isset($parsed['data']) && is_array($parsed['data']) ? $parsed['data'] : [];
     }
 
     /**

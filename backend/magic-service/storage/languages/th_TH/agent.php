@@ -101,6 +101,8 @@ return [
     'no_version' => 'ยังไม่มีเวอร์ชัน',
     'sandbox_upgrade_failed' => 'การอัพเกรดอิมเมจ sandbox ล้มเหลว',
     'sandbox_not_found' => 'ไม่พบ sandbox',
+    'sandbox_init_failed' => 'การเริ่มต้น sandbox ล้มเหลว โปรดลองใหม่อีกครั้ง',
+    'sandbox_init_timeout' => 'หมดเวลาการเริ่มต้น sandbox โปรดลองใหม่อีกครั้ง',
     'create_group_user_not_exist' => 'ผู้ใช้สร้างกลุ่มไม่มีอยู่',
     'create_group_user_account_not_exist' => 'บัญชีผู้ใช้สร้างกลุ่มไม่มีอยู่',
     'get_third_platform_user_id_failed' => 'ไม่สามารถรับ ID ผู้ใช้แพลตฟอร์มของบุคคลที่สาม',

@@ -188,8 +188,7 @@ class SkillImportedEventSubscriber implements ListenerInterface
                 TaskFileSource::SKILL
             );
 
-            $this->taskFileDomainService->clearProjectFile($projectId, $projectOrgCode, $rootDirId);
-
+            // Create .magic directory first, then clear only .magic contents (not the entire workspace)
             $magicDirId = $this->taskFileDomainService->createDirectory(
                 $projectId,
                 $rootDirId,
@@ -201,6 +200,8 @@ class SkillImportedEventSubscriber implements ListenerInterface
                 $projectOrgCode,
                 TaskFileSource::SKILL
             );
+
+            $this->taskFileDomainService->clearProjectFile($projectId, $projectOrgCode, $magicDirId);
 
             $skillsDirId = $this->taskFileDomainService->createDirectory(
                 $projectId,

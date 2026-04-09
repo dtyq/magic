@@ -191,6 +191,7 @@ class TaskFileDomainService
      * 递归查询目录下所有文件（使用 parent_id 索引，高性能）.
      * 利用 idx_project_parent_sort 索引进行广度优先遍历.
      * 使用批量查询避免 N+1 问题.
+     * 每一层通过分页循环确保不遗漏超过单次 limit 的子项.
      *
      * @param int $projectId 项目ID
      * @param int $parentId 父目录ID
@@ -201,29 +202,33 @@ class TaskFileDomainService
     {
         $allFiles = [];
         $currentLevelParentIds = [$parentId];
+        $batchLimit = 1000;
 
         // 广度优先遍历，逐层查询
         for ($depth = 0; $depth < $maxDepth && ! empty($currentLevelParentIds); ++$depth) {
-            // 批量查询当前层所有父目录的子项（一次 SQL 查询，避免 N+1 问题）
-            $children = $this->taskFileRepository->getChildrenByParentIdsAndProject(
-                $projectId,
-                $currentLevelParentIds,
-                1000
-            );
-
-            if (empty($children)) {
-                break;
-            }
-
             $nextLevelParentIds = [];
-            foreach ($children as $child) {
-                $allFiles[] = $child;
+            $offset = 0;
 
-                // 如果是目录，加入下一层的查询队列
-                if ($child->getIsDirectory()) {
-                    $nextLevelParentIds[] = $child->getFileId();
+            // 分页循环，确保获取当前层所有子项
+            do {
+                $children = $this->taskFileRepository->getChildrenByParentIdsAndProject(
+                    $projectId,
+                    $currentLevelParentIds,
+                    $batchLimit,
+                    $offset
+                );
+
+                foreach ($children as $child) {
+                    $allFiles[] = $child;
+
+                    // 如果是目录，加入下一层的查询队列
+                    if ($child->getIsDirectory()) {
+                        $nextLevelParentIds[] = $child->getFileId();
+                    }
                 }
-            }
+
+                $offset += $batchLimit;
+            } while (count($children) >= $batchLimit);
 
             $currentLevelParentIds = $nextLevelParentIds;
         }
