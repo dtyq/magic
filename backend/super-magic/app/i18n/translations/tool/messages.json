@@ -779,7 +779,7 @@
         "zh_CN": "AI 图片部分生成成功（成功 {{succeeded_count}}/{{total_count}}）",
         "en_US": "AI images partially generated ({{succeeded_count}}/{{total_count}} succeeded)"
     },
-    "search_images_to_canvas.exception": {
+    "search_canvas_images.exception": {
         "zh_CN": "图片搜索异常，请重试",
         "en_US": "Image search exception, please retry"
     },
@@ -795,11 +795,11 @@
         "zh_CN": "成功更新 {{count}} 个画布元素",
         "en_US": "Successfully updated {{count}} canvas elements"
     },
-    "search_images_to_canvas.success_multiple": {
+    "search_canvas_images.success_multiple": {
         "zh_CN": "成功搜索 {{succeeded_count}} 张图片并添加到画布",
         "en_US": "Successfully searched {{succeeded_count}} images and added to canvas"
     },
-    "search_images_to_canvas.success_single": {
+    "search_canvas_images.success_single": {
         "zh_CN": "成功搜索图片并添加到画布",
         "en_US": "Successfully searched images and added to canvas"
     },

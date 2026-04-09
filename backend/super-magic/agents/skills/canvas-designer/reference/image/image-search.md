@@ -1,8 +1,8 @@
 # Web Image Search Guide
 
-## Tool: search_images_to_canvas
+## Tool: search_canvas_images
 
-Search images from the web and automatically download and add them to canvas.
+Search images from the internet and automatically download and add them to the canvas.
 
 ## Required Parameters
 
@@ -10,137 +10,91 @@ Search images from the web and automatically download and add them to canvas.
 |---|---|---|
 | `project_path` | string | Canvas project path |
 | `topic_id` | string | Topic ID for deduplication within the same topic |
-| `requirements_xml` | string | XML-formatted search requirements |
+| `tasks` | list | Search task list |
 
-## Optional Parameters
-
-| Parameter | Type | Description |
-|---|---|---|
-| `name_prefix` | string | Name prefix, defaults to requirement.name |
-
-## requirements_xml Format
-
-```xml
-<requirements>
-  <requirement>
-    <name>requirement name</name>
-    <query>search keywords</query>
-    <requirement_explanation>detailed description</requirement_explanation>
-    <expected_aspect_ratio>16:9</expected_aspect_ratio>
-    <count>10</count>
-  </requirement>
-</requirements>
-```
-
-### Field Description
+## Task Object Fields
 
 | Field | Required | Description |
 |---|---|---|
-| `name` | Yes | Requirement name for identification and naming |
+| `name` | Yes | Element name. Use the user's language; reflects the specific content being searched. When multiple images are returned, _1 _2 suffixes are added automatically |
 | `query` | Yes | Search keywords |
-| `requirement_explanation` | Yes | Detailed requirement explanation |
-| `expected_aspect_ratio` | No | Expected aspect ratio, e.g., `16:9`, `1:1`, `9:16` |
+| `requirement_explanation` | No | Requirement explanation to help the search engine understand intended use |
+| `expected_aspect_ratio` | No | Expected aspect ratio, e.g. `16:9`, `1:1`, `9:16` |
 | `count` | No | Number of images, default 10, maximum 20 |
 
-## Complete Example
+## Example
 
 ```python
 from sdk.tool import tool
 
-result = tool.call('search_images_to_canvas', {
+result = tool.call('search_canvas_images', {
     "project_path": "design-inspiration",
     "topic_id": "home-design",
-    "requirements_xml": """<requirements>
-    <requirement>
-      <name>极简家居</name>
-      <query>极简主义家居设计 室内装修</query>
-      <requirement_explanation>需要现代简约风格的家居室内图片</requirement_explanation>
-      <expected_aspect_ratio>16:9</expected_aspect_ratio>
-      <count>10</count>
-    </requirement>
-  </requirements>"""
+    "tasks": [
+        {
+            "name": "极简家居",
+            "query": "极简主义家居设计 室内装修",
+            "requirement_explanation": "需要现代简约风格的家居室内图片",
+            "expected_aspect_ratio": "16:9",
+            "count": 10
+        }
+    ]
 })
 ```
 
-## Deduplication Mechanism
+## Deduplication
 
-Use `topic_id` to avoid duplicate images within the same topic:
+Use the same `topic_id` for related searches to avoid duplicate images across multiple calls:
 
 ```python
 from sdk.tool import tool
 
 # First search
-result1 = tool.call('search_images_to_canvas', {
+tool.call('search_canvas_images', {
     "project_path": "my-project",
     "topic_id": "cats",
-    "requirements_xml": """<requirements>
-    <requirement>
-      <name>猫咪</name>
-      <query>猫咪 宠物摄影</query>
-      <requirement_explanation>可爱的猫咪图片</requirement_explanation>
-      <count>10</count>
-    </requirement>
-  </requirements>"""
+    "tasks": [{"name": "猫咪", "query": "猫咪 宠物摄影", "count": 10}]
 })
 
-# Second search (automatically filters existing images via same topic_id)
-result2 = tool.call('search_images_to_canvas', {
+# Second search — same topic_id automatically filters already-seen images
+tool.call('search_canvas_images', {
     "project_path": "my-project",
     "topic_id": "cats",
-    "requirements_xml": """<requirements>
-    <requirement>
-      <name>可爱猫</name>
-      <query>可爱的猫 萌宠</query>
-      <requirement_explanation>超萌的猫咪图片</requirement_explanation>
-      <count>10</count>
-    </requirement>
-  </requirements>"""
+    "tasks": [{"name": "可爱猫", "query": "可爱的猫 萌宠", "count": 10}]
 })
 ```
 
-## Multiple Requirements Search
-
-Include multiple requirements in one request:
+## Multiple Tasks in One Call
 
 ```python
 from sdk.tool import tool
 
-result = tool.call('search_images_to_canvas', {
+result = tool.call('search_canvas_images', {
     "project_path": "pet-album",
     "topic_id": "pets",
-    "requirements_xml": """<requirements>
-    <requirement>
-      <name>狗狗</name>
-      <query>可爱的狗 宠物摄影</query>
-      <requirement_explanation>各种可爱的狗狗图片</requirement_explanation>
-      <expected_aspect_ratio>1:1</expected_aspect_ratio>
-      <count>5</count>
-    </requirement>
-    <requirement>
-      <name>猫咪</name>
-      <query>猫咪 宠物摄影</query>
-      <requirement_explanation>各种可爱的猫咪图片</requirement_explanation>
-      <expected_aspect_ratio>1:1</expected_aspect_ratio>
-      <count>5</count>
-    </requirement>
-  </requirements>"""
+    "tasks": [
+        {
+            "name": "狗狗",
+            "query": "可爱的狗 宠物摄影",
+            "expected_aspect_ratio": "1:1",
+            "count": 5
+        },
+        {
+            "name": "猫咪",
+            "query": "猫咪 宠物摄影",
+            "expected_aspect_ratio": "1:1",
+            "count": 5
+        }
+    ]
 })
 ```
-
-## Usage Recommendations
-
-1. **Clear keywords** - Use specific and accurate search terms
-2. **Reasonable quantity** - Maximum 20 images per requirement
-3. **Use deduplication** - Use same `topic_id` for related themes
-4. **Batch searches** - Split large quantities into multiple searches
-5. **Combine with AI generation** - Use AI generation when suitable images cannot be found
 
 ## Comparison with AI Generation
 
 | Feature | Web Search | AI Generation |
 |---|---|---|
 | Speed | Faster | Slower |
-| Single batch count | Maximum 20 | Maximum 6 |
+| Single batch count | Maximum 20 per task | Maximum 6 tasks |
 | Content source | Existing image library | Newly generated |
 | Flexibility | Limited by search results | Can customize any content |
 | Use case | Need real photos | Need creative content |

@@ -9,7 +9,7 @@ from app.tools.design.tools.batch_create_canvas_elements import BatchCreateCanva
 from app.tools.design.tools.batch_update_canvas_elements import BatchUpdateCanvasElements
 from app.tools.design.tools.generate_canvas_images import GenerateCanvasImages
 from app.tools.design.tools.generate_canvas_videos import GenerateCanvasVideos
-from app.tools.design.tools.search_images_to_canvas import SearchImagesToCanvas
+from app.tools.design.tools.search_canvas_images import SearchCanvasImages
 
 __all__ = [
     "BaseDesignTool",
@@ -18,5 +18,5 @@ __all__ = [
     "BatchUpdateCanvasElements",
     "GenerateCanvasImages",
     "GenerateCanvasVideos",
-    "SearchImagesToCanvas",
+    "SearchCanvasImages",
 ]

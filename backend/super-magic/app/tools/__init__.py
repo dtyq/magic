@@ -97,7 +97,7 @@ from app.tools.design.tools import (
     BatchUpdateCanvasElements,
     GenerateCanvasImages,
     GenerateCanvasVideos,
-    SearchImagesToCanvas,
+    SearchCanvasImages,
 )
 
 # Skill 管理工具
@@ -217,6 +217,6 @@ __all__ = [
     "BatchUpdateCanvasElements",
     "GenerateCanvasImages",
     "GenerateCanvasVideos",
-    "SearchImagesToCanvas",
+    "SearchCanvasImages",
 ]
 

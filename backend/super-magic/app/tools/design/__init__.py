@@ -14,7 +14,7 @@ from app.tools.design.tools import (
     BatchUpdateCanvasElements,
     GenerateCanvasImages,
     GenerateCanvasVideos,
-    SearchImagesToCanvas,
+    SearchCanvasImages,
 )
 
 __all__ = [
@@ -27,5 +27,5 @@ __all__ = [
     "BatchUpdateCanvasElements",
     "GenerateCanvasImages",
     "GenerateCanvasVideos",
-    "SearchImagesToCanvas",
+    "SearchCanvasImages",
 ]

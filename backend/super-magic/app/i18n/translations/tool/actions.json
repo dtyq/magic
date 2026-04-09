@@ -239,9 +239,9 @@
         "zh_CN": "批量更新元素",
         "en_US": "Batch update elements"
     },
-    "search_images_to_canvas": {
-        "zh_CN": "创建画布元素",
-        "en_US": "Create canvas element"
+    "search_canvas_images": {
+        "zh_CN": "搜索图片",
+        "en_US": "Search images"
     },
     "generate_canvas_images": {
         "zh_CN": "生成图片",

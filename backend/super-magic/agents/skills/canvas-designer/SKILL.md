@@ -52,14 +52,17 @@ Design projects are uniquely identified by `project_path`. All canvas tools requ
 - Deleting canvas elements
 - Using file tools (`write_file`, `edit_file`, shell) on `magic.project.js` — use canvas tools only
 - Creating separate elements on canvas to fake image editing
+- Using general `web_search` to find images for canvas — this fetches webpage snippets, not downloadable images; use `search_canvas_images` instead
 
 **Correct approach:**
 - Image content changes → `generate_canvas_images` (creates new element; keep original)
+- Web image search for canvas → read [reference/image/image-search.md](reference/image/image-search.md) first, then `search_canvas_images`
 - Video generation → `generate_canvas_videos` (see Video Generation section below)
 - Original elements and media files must remain unchanged
 
 **Tool priority:**
 - Static output (poster, illustration, cover, still image) → image tools
+- Web/internet images to place on canvas → `search_canvas_images` (read reference first)
 - Dynamic output (video, animation, shot, clip) → video tools (see [Video Generation](#video-generation) below)
 
 ---
@@ -426,7 +429,7 @@ Generate video?
 └─ No → continue
 
 Search web images?
-├─ Yes → See reference/image/image-search.md
+├─ Yes → read reference/image/image-search.md first, then search_canvas_images
 └─ No → continue
 ```
 
@@ -434,4 +437,4 @@ Search web images?
 
 ## Web Image Search
 
-> For web image search capabilities, see [reference/image/image-search.md](reference/image/image-search.md).
+> If the user wants to search and download web images onto the canvas, read [reference/image/image-search.md](reference/image/image-search.md) for the full workflow before proceeding.
