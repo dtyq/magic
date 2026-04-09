@@ -13,7 +13,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 from agentlang.config.dynamic_config import dynamic_config
 from agentlang.context.tool_context import ToolContext
@@ -204,6 +204,8 @@ Optional. When provided, the tool reuses an existing canvas element (e.g. a fail
 class GenerateCanvasImagesParams(BaseToolParams):
     """generate_canvas_images 工具参数"""
 
+    model_config = ConfigDict(extra="forbid")
+
     project_path: str = Field(
         ...,
         description="""<!--zh: 设计项目的相对路径（包含 magic.project.js 的文件夹）。-->
@@ -215,6 +217,16 @@ Relative path to the design project (folder containing magic.project.js)."""
         description="""<!--zh: 图片生成任务列表，每个 task 生成一张图，最多 6 个。每个 task 独立指定 prompt / name / reference_images，size 有参考图时可省略。-->
 Image generation task list. Each task produces one image. Maximum 6 tasks. Each task independently specifies prompt, name, reference_images, and optionally size (auto-resolved from the largest reference image when omitted)."""
     )
+
+    @classmethod
+    def get_custom_error_message(cls, field_name: str, error_type: str) -> str | None:
+        if error_type == "extra_forbidden" and field_name == "element_id":
+            return (
+                "参数 'element_id' 不能放在顶层。"
+                "它属于 tasks 列表中每个 task 对象的字段，用于复用已有的失败占位符。"
+                "正确写法：tasks=[{..., 'element_id': 'element-xxx'}]"
+            )
+        return None
 
     @field_validator("tasks")
     @classmethod
