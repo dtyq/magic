@@ -278,8 +278,6 @@ tools:
 | Tool | Description |
 |------|-------------|
 | `create_design_project` | Create a design project |
-| `query_canvas_overview` | Query canvas overview |
-| `query_canvas_element` | Query a specific canvas element |
 | `generate_canvas_images` | Generate images directly to canvas |
 | `search_images_to_canvas` | Search and add images to canvas |
 

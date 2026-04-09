@@ -231,14 +231,6 @@
         "zh_CN": "创建设计项目",
         "en_US": "Create design project"
     },
-    "query_canvas_overview": {
-        "zh_CN": "查询画布概览",
-        "en_US": "Query canvas overview"
-    },
-    "query_canvas_element": {
-        "zh_CN": "查询元素详情",
-        "en_US": "Query canvas element"
-    },
     "batch_create_canvas_elements": {
         "zh_CN": "批量创建元素",
         "en_US": "Batch create elements"

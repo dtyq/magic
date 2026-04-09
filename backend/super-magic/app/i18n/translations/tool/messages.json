@@ -767,14 +767,6 @@
         "zh_CN": "创建异常，请重试",
         "en_US": "Creation exception, please retry"
     },
-    "query_canvas_overview.success": {
-        "zh_CN": "画布概览查询完成",
-        "en_US": "Canvas overview query completed"
-    },
-    "query_canvas_overview.exception": {
-        "zh_CN": "查询画布概览异常，请重试",
-        "en_US": "Query canvas overview failed, please try again"
-    },
     "generate_canvas_images.exception": {
         "zh_CN": "AI 图片生成异常，请重试",
         "en_US": "AI image generation exception, please retry"
@@ -794,14 +786,6 @@
     "generate_videos_to_canvas.exception": {
         "zh_CN": "AI 视频生成异常，请重试",
         "en_US": "AI video generation exception, please retry"
-    },
-    "query_canvas_element.success": {
-        "zh_CN": "元素 {{element_id}} 详情查询完成",
-        "en_US": "Element {{element_id}} query completed"
-    },
-    "query_canvas_element.exception": {
-        "zh_CN": "查询元素详情异常，请重试",
-        "en_US": "Query element failed, please try again"
     },
     "batch_create_canvas_elements.success": {
         "zh_CN": "成功创建 {{count}} 个画布元素",

@@ -94,16 +94,6 @@ Returns: `{ project_path, project_name }`
 
 Returns: `{ created_elements: [{ id, name, type, x, y, width, height }], succeeded_count, failed_count }`
 
-### query_canvas_overview
-
-| Parameter | Required | Description |
-|---|---|---|
-| `project_path` | Yes | Project path |
-| `sort_by` | No | `"layer"` \| `"position"` \| `"type"` |
-| `visible_only` | No | Show only visible elements |
-
-Returns: `{ elements: [{ id, name, type, size, position }], canvas_info.total_elements, project_name }`
-
 ---
 
 ## Canvas Rules
@@ -117,7 +107,6 @@ Returns: `{ elements: [{ id, name, type, size, position }], canvas_info.total_el
 
 **Workflow:**
 - Default to reusing the existing canvas project; only create a new one when the user explicitly asks
-- Query the canvas with `query_canvas_overview` before operating on existing content
 - Never assume file paths — always use paths obtained from query results
 - For image-to-image: use `visual_understanding` to analyze the reference image first — it returns both content description and dimensions. Use the description to inform your prompt; `size` can be omitted when reference images are provided (auto-resolved from the largest one), or set explicitly if the user wants a different output size.
 - When the user references a canvas image, always call `visual_understanding` to understand its content before generating. This ensures your prompt accurately describes what to preserve and what to change.
@@ -299,7 +288,7 @@ The prompt must declare what each reference contributes. The model receives imag
 
 When `reference_images` is non-empty and `size` is omitted, the tool auto-reads dimensions from the largest reference image. Set `size` explicitly only if you need a different output size.
 
-**Path format:** all paths are workspace-relative. Images inside the current project can be referenced using their project-relative path (e.g. `images/cat.jpg`); images from other locations use their full workspace-relative path (e.g. `uploads/ref.png` or `another-project/images/style.jpg`). Use paths returned by `query_canvas_element` or `query_canvas_overview` directly — do not guess paths.
+**Path format:** all paths are workspace-relative. Images inside the current project can be referenced using their project-relative path (e.g. `images/cat.jpg`); images from other locations use their full workspace-relative path (e.g. `uploads/ref.png` or `another-project/images/style.jpg`). Do not guess paths — use the path you already know or obtained from previous tool results.
 
 **Single reference — targeted edit:**
 
@@ -424,9 +413,6 @@ Generate video?
 Search web images?
 ├─ Yes → See reference/image-search.md
 └─ No → continue
-
-Query canvas info?
-└─ Overview → query_canvas_overview
 ```
 
 ---
