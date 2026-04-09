@@ -13,7 +13,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
-from pydantic import BaseModel, ConfigDict, Field, field_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 from agentlang.config.dynamic_config import dynamic_config
 from agentlang.context.tool_context import ToolContext
@@ -169,6 +169,13 @@ Reference image paths. Pass [] for text-only generation. Reference images serve 
         description="""<!--zh: 可选。传入时复用画布上已有的元素（如上次生成失败的占位符），工具直接在该元素上重新生成并更新，不新建占位符。不传时新建占位符。-->
 Optional. When provided, the tool reuses an existing canvas element (e.g. a failed placeholder from a previous attempt) and regenerates in place without creating a new placeholder. Omit to create a new element."""
     )
+
+    @model_validator(mode="before")
+    @classmethod
+    def fill_reference_images_default(cls, values: Any) -> Any:
+        if isinstance(values, dict) and "reference_images" not in values:
+            values["reference_images"] = []
+        return values
 
     @field_validator("prompt")
     @classmethod
@@ -384,6 +391,24 @@ Expand brief user descriptions into full prompts covering subject, style, compos
             "output_path": output_path,
             "workspace_path": workspace_path,
         }
+
+    def _build_created_element_dict(
+        self,
+        placeholder: ElementDetail,
+        task_result: TaskExecutionResult,
+    ) -> Dict[str, Any]:
+        d: Dict[str, Any] = {
+            "id": placeholder.id,
+            "type": placeholder.type,
+            "name": placeholder.name,
+            "width": placeholder.width,
+            "height": placeholder.height,
+        }
+        if task_result.is_success:
+            update = task_result.placeholder_update
+            if isinstance(update, ImagePlaceholderUpdate) and update.src:
+                d["src"] = update.src
+        return d
 
     def _build_result_content(
         self,

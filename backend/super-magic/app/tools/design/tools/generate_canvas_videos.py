@@ -318,6 +318,27 @@ class GenerateCanvasVideos(BaseGenerateCanvasElements[GenerateCanvasVideosParams
     # 覆盖钩子
     # ------------------------------------------------------------------
 
+    def _build_created_element_dict(
+        self,
+        placeholder: ElementDetail,
+        task_result: TaskExecutionResult,
+    ) -> Dict[str, Any]:
+        d: Dict[str, Any] = {
+            "id": placeholder.id,
+            "type": placeholder.type,
+            "name": placeholder.name,
+            "width": placeholder.width,
+            "height": placeholder.height,
+        }
+        if task_result.is_success:
+            update = task_result.placeholder_update
+            if isinstance(update, VideoPlaceholderUpdate):
+                if update.src:
+                    d["src"] = update.src
+                if update.poster:
+                    d["poster"] = update.poster
+        return d
+
     async def _prepare_task_kwargs(
         self,
         tool_context: ToolContext,

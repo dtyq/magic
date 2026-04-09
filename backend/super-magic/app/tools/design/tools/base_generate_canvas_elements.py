@@ -318,7 +318,10 @@ class BaseGenerateCanvasElements(BaseDesignTool[TParams], Generic[TParams]):
 
         logger.info(f"流程完成: 成功={succeeded_count}, 失败={failed_count}")
 
-        placeholders_as_dicts = [dataclasses.asdict(p) for p in all_placeholders]
+        placeholders_as_dicts = [
+            self._build_created_element_dict(all_placeholders[i], task_results[i])
+            for i in range(len(all_placeholders))
+        ]
         extra_data = self._collect_extra_info(tasks, all_placeholders, task_results)
 
         if succeeded_count == 0 and all_placeholders:
@@ -550,6 +553,22 @@ class BaseGenerateCanvasElements(BaseDesignTool[TParams], Generic[TParams]):
         if info.element_type == "video":
             return VideoElement(**common, type="video", status="processing")
         return ImageElement(**common, type="image", status="processing")
+
+    # ------------------------------------------------------------------
+    # Phase 3 辅助
+    # ------------------------------------------------------------------
+
+    def _build_created_element_dict(
+        self,
+        placeholder: ElementDetail,
+        task_result: TaskExecutionResult,
+    ) -> Dict[str, Any]:
+        """Build the dict for one entry in result.data['created_elements'].
+
+        Subclasses can override to customize fields (e.g. add src, remove x/y).
+        Default serializes the placeholder dataclass as-is.
+        """
+        return dataclasses.asdict(placeholder)
 
     # ------------------------------------------------------------------
     # Phase 2 辅助
