@@ -41,7 +41,7 @@ my-skill/
 ```yaml
 skills:
   preload:
-    - name: designing-canvas-images
+    - name: canvas-designer
       files:
         - SKILL.md
         - reference/image-search.md   # reference 文件也可以 preload
@@ -65,7 +65,7 @@ skills:
   excluded_skills:    # 从 system_skills 中排除
     - some-skill
   preload:            # 预加载（可来自任意来源）
-    - name: designing-canvas-images
+    - name: canvas-designer
       files:
         - SKILL.md
 ```

@@ -92,15 +92,11 @@ import app.tools.design.manager  # pyright: ignore[reportUnusedImport]
 import app.tools.design.utils  # pyright: ignore[reportUnusedImport]
 import app.tools.design  # pyright: ignore[reportUnusedImport]
 from app.tools.design.tools import (
-    CreateDesignProject,
-    DeleteCanvasElement,
-    QueryCanvasOverview,
-    QueryCanvasElement,
-    BatchCreateCanvasElements,
-    BatchUpdateCanvasElements,
-    GenerateImagesToCanvas,
-    GenerateVideosToCanvas,
-    SearchImagesToCanvas,
+    CreateCanvas,
+    GenerateCanvasImages,
+    GenerateCanvasVideos,
+    SearchCanvasImages,
+    SearchImagePrompts,
 )
 
 # Skill 管理工具
@@ -215,14 +211,10 @@ __all__ = [
     "UploadSkill",
 
     # 设计模式工具
-    "CreateDesignProject",
-    "DeleteCanvasElement",
-    "QueryCanvasOverview",
-    "QueryCanvasElement",
-    "BatchCreateCanvasElements",
-    "BatchUpdateCanvasElements",
-    "GenerateImagesToCanvas",
-    "GenerateVideosToCanvas",
-    "SearchImagesToCanvas",
+    "CreateCanvas",
+    "GenerateCanvasImages",
+    "GenerateCanvasVideos",
+    "SearchCanvasImages",
+    "SearchImagePrompts",
 ]
 

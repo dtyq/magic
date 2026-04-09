@@ -23,6 +23,8 @@
                 <div class="connection-buttons">
                     <button id="subscribeBtn" class="btn secondary">建立消息订阅</button>
                     <button id="sendInitBtn" class="btn secondary">发送初始化消息</button>
+                    <button id="refreshModelsBtn" class="btn secondary">刷新模型列表</button>
+                    <button id="clearModelsBtn" class="btn secondary">清理模型列表</button>
                 </div>
             </div>
 
@@ -60,6 +62,7 @@
                 <div id="filetreeContainer" class="filetree-container">
                     <div class="filetree-empty">点击 📂 选择项目根目录</div>
                 </div>
+                <p class="filetree-hint">在输入框中输入 <code>@</code> 可调起工作区路径联想；或在文件树上右键插入引用（最终格式为 <code>[@directory_path:…]</code> / <code>[@file_path:…]</code>）。新建文件后若列表未更新，可点刷新。</p>
             </div>
         </div>
 
@@ -142,6 +145,16 @@
                         <div class="model-config" id="modelIdGroup">
                             <input type="text" id="modelIdInput" class="model-id-input"
                                 placeholder="Model ID (留空默认)">
+                            <select id="modelIdSelect" class="agent-mode-select" style="display:none">
+                                <option value="">选择文本模型（留空默认）</option>
+                            </select>
+                        </div>
+
+                        <!-- 图片模型配置（加载模型列表后显示，IM 模式下隐藏） -->
+                        <div class="model-config" id="imageModelGroup" style="display:none">
+                            <select id="imageModelSelect" class="agent-mode-select">
+                                <option value="">不指定图片模型</option>
+                            </select>
                         </div>
 
                         <!-- 语言选择（IM 模式下隐藏） -->
@@ -156,7 +169,7 @@
                     <div class="input-and-actions">
                         <!-- 普通模式字段 -->
                         <div id="normalModeFields" class="input-area-wrapper">
-                            <textarea id="messageInput" placeholder="请输入消息..."></textarea>
+                            <textarea id="messageInput" placeholder="请输入消息…（@ 可调起工作区路径）"></textarea>
                         </div>
 
                         <!-- 高级模式字段（默认隐藏） -->

@@ -49,7 +49,7 @@ async def test_run_sdk_snippet_keeps_default_timeout_for_non_video_tools(tmp_pat
         result = await tool.execute(
             tool_context=_FakeToolContext(),
             params=RunSdkSnippetParams(
-                python_code="from sdk.tool import tool\nresult = tool.call('create_design_project', {'project_path': 'demo'})",
+                python_code="from sdk.tool import tool\nresult = tool.call('create_canvas', {'project_path': 'demo'})",
                 timeout=60,
             ),
         )

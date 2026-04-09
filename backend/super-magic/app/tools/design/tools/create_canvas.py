@@ -1,10 +1,9 @@
-"""创建设计项目工具
+"""创建画布工具
 
 此工具用于创建完整的设计项目结构和画布配置。
 """
 
 from app.i18n import i18n
-import asyncio
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
@@ -20,16 +19,15 @@ from app.tools.core import BaseToolParams, tool
 from app.tools.design.tools.base_design_tool import BaseDesignTool
 from app.utils.async_file_utils import (
     async_read_text,
-    async_write_text,
+    async_write_text_with_retry,
     async_mkdir,
     async_exists,
-    async_stat
 )
 
 logger = get_logger(__name__)
 
 
-class CreateDesignProjectParams(BaseToolParams):
+class CreateCanvasParams(BaseToolParams):
     project_path: str = Field(
         ...,
         description="""<!--zh: 要创建的设计项目的相对路径，项目名称将从路径中自动提取（如 'xx/yy' 提取 'yy'），项目名称应反映设计主题，避免使用文件系统不支持的字符，示例：'产品海报设计'、'ブランドデザイン'、'brand-design-2024'-->
@@ -38,9 +36,9 @@ Relative path for design project to create. Project name will be automatically e
 
 
 @tool()
-class CreateDesignProject(BaseDesignTool[CreateDesignProjectParams]):
+class CreateCanvas(BaseDesignTool[CreateCanvasParams]):
     """<!--zh
-    创建设计项目工具
+    创建画布工具
 
     此工具用于在工作区自动创建设计项目的完整结构：
     - 自动创建项目文件夹
@@ -59,7 +57,7 @@ class CreateDesignProject(BaseDesignTool[CreateDesignProjectParams]):
     └── magic.project.js  # 画布项目标识文件（工具自动管理）
     ```
     -->
-    Create design project tool
+    Create canvas tool
 
     This tool auto-creates complete design project structure in workspace:
     - Auto-create project folder
@@ -79,8 +77,8 @@ class CreateDesignProject(BaseDesignTool[CreateDesignProjectParams]):
     ```
     """
 
-    async def execute(self, tool_context: ToolContext, params: CreateDesignProjectParams) -> ToolResult:
-        """执行设计项目创建操作
+    async def execute(self, tool_context: ToolContext, params: CreateCanvasParams) -> ToolResult:
+        """执行画布创建操作
 
         Args:
             tool_context: 工具上下文
@@ -143,48 +141,12 @@ class CreateDesignProject(BaseDesignTool[CreateDesignProjectParams]):
                 before_event_type = EventType.BEFORE_FILE_UPDATED if config_file_exists else EventType.BEFORE_FILE_CREATED
                 await self._dispatch_file_event(tool_context, str(project_js_path), before_event_type)
 
-                # 写入文件
-                await async_write_text(project_js_path, project_js_content)
-
-                # 等待并验证文件写入（带重试机制，适应 TOS 同步延迟）
-                max_retries = 5
-                retry_delay = 0.2
-
-                for attempt in range(max_retries):
-                    await asyncio.sleep(retry_delay)
-
-                    # 验证文件是否成功创建
-                    if not await async_exists(project_js_path):
-                        if attempt < max_retries - 1:
-                            logger.warning(f"File does not exist after write, retrying... (attempt {attempt + 1}/{max_retries})")
-                            continue
-                        raise IOError(f"File does not exist after write: {project_js_path}")
-
-                    # 验证文件内容不为空
-                    file_stat = await async_stat(project_js_path)
-                    if file_stat.st_size == 0:
-                        if attempt < max_retries - 1:
-                            logger.warning(f"File is empty after write, retrying... (attempt {attempt + 1}/{max_retries})")
-                            continue
-                        raise IOError(f"File is empty after write: {project_js_path}")
-
-                    # 验证文件内容是否正确
-                    written_content = await async_read_text(project_js_path)
-                    if not written_content or len(written_content.strip()) == 0:
-                        if attempt < max_retries - 1:
-                            logger.warning(f"File content is empty after write, retrying... (attempt {attempt + 1}/{max_retries})")
-                            continue
-                        raise IOError(f"File content is empty after write: {project_js_path}")
-
-                    if "magicProjectConfig" not in written_content:
-                        if attempt < max_retries - 1:
-                            logger.warning(f"File content is invalid after write, retrying... (attempt {attempt + 1}/{max_retries})")
-                            continue
-                        raise IOError(f"File content is invalid after write: {project_js_path}")
-
-                    # 验证通过
-                    logger.info(f"Verified file write success: {project_js_path} (size: {file_stat.st_size} bytes, attempt: {attempt + 1})")
-                    break
+                # 写入文件并验证（带重试，适应 TOS 同步延迟）
+                await async_write_text_with_retry(
+                    project_js_path,
+                    project_js_content,
+                    content_validator=lambda c: "magicProjectConfig" in c,
+                )
 
                 # 触发文件事件（创建或更新）后事件
                 after_event_type = EventType.FILE_UPDATED if config_file_exists else EventType.FILE_CREATED
@@ -217,14 +179,14 @@ class CreateDesignProject(BaseDesignTool[CreateDesignProjectParams]):
             )
 
         except Exception as e:
-            logger.exception(f"Failed to create design project: {e!s}")
+            logger.exception(f"Failed to create canvas: {e!s}")
             return ToolResult.error(
-                f"Failed to create design project: {e!s}",
+                f"Failed to create canvas: {e!s}",
                 extra_info={"error_type": "design.error_unexpected"}
             )
 
     # noinspection PyMethodMayBeStatic
-    def _generate_result_content(self, project_path: Path, params: CreateDesignProjectParams, project_name: str) -> str:
+    def _generate_result_content(self, project_path: Path, params: CreateCanvasParams, project_name: str) -> str:
         """生成结构化的结果内容
 
         Args:
@@ -246,12 +208,12 @@ Project: {project_name} (canvas project)"""
     def _get_remark_content(self, result: ToolResult, arguments: Dict[str, Any] = None) -> str:
         """获取备注内容"""
         if not arguments or "project_path" not in arguments:
-            return i18n.translate("create_design_project.exception", category="tool.messages")
+            return i18n.translate("create_canvas.exception", category="tool.messages")
 
         project_path = arguments["project_path"]
         project_name = Path(project_path).name
 
-        return i18n.translate("create_design_project.success", category="tool.messages", project_name=project_name)
+        return i18n.translate("create_canvas.success", category="tool.messages", project_name=project_name)
 
     async def get_after_tool_call_friendly_action_and_remark(
         self, tool_name: str, tool_context: ToolContext, result: ToolResult,
@@ -269,13 +231,12 @@ Project: {project_name} (canvas project)"""
         Returns:
             Dict: 包含 action 和 remark 的字典
         """
-        # create_design_project 不涉及文件修改检测，但仍使用统一处理以保持一致性
         return self._handle_design_tool_error(
             result,
-            default_action_code="create_design_project",
-            default_success_message_code="create_design_project.success"
+            default_action_code="create_canvas",
+            default_success_message_code="create_canvas.success"
         ) if not result.ok else {
-            "action": i18n.translate("create_design_project", category="tool.actions"),
+            "action": i18n.translate("create_canvas", category="tool.actions"),
             "remark": self._get_remark_content(result, arguments)
         }
 

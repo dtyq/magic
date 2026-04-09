@@ -226,15 +226,14 @@ class ProcessExecutor:
             Tuple[str, bool]: (格式化的内容, 是否成功)
         """
         if exit_code == 0:
-            # 成功情况 - 提供更详细的人性化信息
             if stdout_str:
-                content = f"Execution successful, output:\n{stdout_str}"
+                content = stdout_str
                 if stderr_str:
                     content += f"\n\nWarnings/errors:\n{stderr_str}"
             elif stderr_str:
-                content = f"Execution successful, but with warnings:\n{stderr_str}"
+                content = stderr_str
             else:
-                content = f"Execution successful, no output"
+                content = "No output"
             return content, True
         else:
             # 失败情况 - 提供清晰的错误信息
@@ -295,6 +294,7 @@ class ProcessExecutor:
         timeout: int = 60,
         enable_python_rewrite: bool = False,
         extra_env: Optional[Dict[str, str]] = None,
+        interruption_event: Optional[asyncio.Event] = None,
     ) -> TerminalToolResult:
         """
         执行命令并返回结果
@@ -305,9 +305,13 @@ class ProcessExecutor:
             timeout: 超时时间（秒），默认60秒
             enable_python_rewrite: 是否启用 Python 命令改写（仅在特定场景如 skills 执行时启用），默认为 False
             extra_env: 仅对当前子进程附加的环境变量，优先级高于默认环境
+            interruption_event: 中断事件，被 set 时终止子进程并抛出 asyncio.CancelledError
 
         Returns:
             TerminalToolResult: 执行结果
+
+        Raises:
+            asyncio.CancelledError: 当 interruption_event 触发时抛出，表示 run 已中断
         """
         try:
             # 在 PyInstaller 环境下且明确启用时改写 python 命令
@@ -324,6 +328,10 @@ class ProcessExecutor:
             bash_path = '/bin/bash' if os.path.exists('/bin/bash') else '/bin/sh'
             shell_command = f'{bash_path} -c {shlex.quote(command)}'
 
+            # 启动前检查：如果中断信号已经到达，直接抛出，避免多余的子进程创建
+            if interruption_event and interruption_event.is_set():
+                raise asyncio.CancelledError()
+
             # 创建子进程
             process = await asyncio.create_subprocess_shell(
                 shell_command,
@@ -334,10 +342,16 @@ class ProcessExecutor:
             )
 
             try:
-                # 等待进程完成，带超时
-                stdout, stderr = await asyncio.wait_for(
-                    process.communicate(), timeout=timeout
-                )
+                if interruption_event is not None:
+                    # 并行等待进程完成与中断信号，先到先处理
+                    stdout, stderr = await ProcessExecutor._communicate_with_interruption(
+                        process, timeout, interruption_event
+                    )
+                else:
+                    stdout, stderr = await asyncio.wait_for(
+                        process.communicate(), timeout=timeout
+                    )
+
                 stdout_str = stdout.decode().strip() if stdout else ""
                 stderr_str = stderr.decode().strip() if stderr else ""
                 exit_code = process.returncode
@@ -367,6 +381,11 @@ class ProcessExecutor:
 
                 return result
 
+            except asyncio.CancelledError:
+                # 中断信号触发，终止子进程后向上传播
+                await ProcessExecutor._terminate_process_gracefully(process)
+                raise
+
             except asyncio.TimeoutError:
                 # 超时，渐进式终止进程
                 await ProcessExecutor._terminate_process_gracefully(process)
@@ -377,6 +396,9 @@ class ProcessExecutor:
                     exit_code=-1,
                 )
 
+        except asyncio.CancelledError:
+            raise
+
         except Exception as e:
             logger.exception(f"执行命令时出错: {e}")
             return TerminalToolResult.error(
@@ -384,3 +406,48 @@ class ProcessExecutor:
                 command=command,
                 exit_code=-2,
             )
+
+    @staticmethod
+    async def _communicate_with_interruption(
+        process: asyncio.subprocess.Process,
+        timeout: int,
+        interruption_event: asyncio.Event,
+    ) -> Tuple[bytes, bytes]:
+        """并行等待 process.communicate() 与 interruption_event。
+
+        中断信号先到则终止进程并抛 CancelledError；
+        超时先到则由外层 TimeoutError 处理。
+
+        Raises:
+            asyncio.CancelledError: 中断信号触发
+            asyncio.TimeoutError: 超时
+        """
+        comm_task = asyncio.ensure_future(process.communicate())
+        interrupt_task = asyncio.ensure_future(interruption_event.wait())
+
+        try:
+            done, pending = await asyncio.wait(
+                [comm_task, interrupt_task],
+                timeout=timeout,
+                return_when=asyncio.FIRST_COMPLETED,
+            )
+        except BaseException:
+            comm_task.cancel()
+            interrupt_task.cancel()
+            raise
+
+        # 超时：两个 task 都还在 pending
+        if not done:
+            comm_task.cancel()
+            interrupt_task.cancel()
+            raise asyncio.TimeoutError()
+
+        if interrupt_task in done:
+            # 中断信号先到：取消 communicate，终止进程，抛 CancelledError
+            comm_task.cancel()
+            await ProcessExecutor._terminate_process_gracefully(process)
+            raise asyncio.CancelledError()
+
+        # 进程正常结束
+        interrupt_task.cancel()
+        return comm_task.result()

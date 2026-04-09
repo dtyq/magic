@@ -10,20 +10,10 @@ class AgentHandler(BaseMentionHandler):
         return "agent"
 
     async def get_tip(self, mention: Dict[str, Any]) -> str:
-        """Agent类型的mention返回提示文本"""
-        return "可按需求使用上述 Agent"
+        return "Use the referenced agent as needed"
 
     async def handle(self, mention: Dict[str, Any], index: int) -> List[str]:
-        """处理Agent引用（异步）
-
-        Args:
-            mention: mention数据
-            index: mention序号
-
-        Returns:
-            List[str]: 格式化的上下文行列表
-        """
-        agent_name = mention.get('name') or mention.get('agent_name', '未知Agent')
+        agent_name = mention.get("name") or mention.get("agent_name", "unknown-agent")
 
         logger.info(f"用户prompt添加Agent引用: {agent_name}")
 
