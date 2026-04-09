@@ -1630,33 +1630,43 @@ class QueryVideoGeneration(AbstractFileTool[QueryVideoGenerationParams], Workspa
             if not properties:
                 return result
 
-            from app.tools.design.tools.batch_update_canvas_elements import (
-                BatchUpdateCanvasElements,
-                BatchUpdateCanvasElementsParams,
-                ElementUpdate,
-            )
+            from app.tools.design.manager.canvas_manager import CanvasManager
 
-            update_tool = BatchUpdateCanvasElements(base_dir=self.base_dir)
-            update_result = await update_tool.execute(
-                tool_context,
-                BatchUpdateCanvasElementsParams(
-                    project_path=project_path,
-                    updates=[ElementUpdate(element_id=element_id, properties=properties)],
+            resolved_path = self.resolve_path(project_path)
+            config_file = str(resolved_path / "magic.project.js")
+            manager = CanvasManager(str(resolved_path))
+
+            success = await manager.run_write_transaction(
+                lambda config: manager.update_element(element_id, properties, config),
+                before_write=lambda: self._dispatch_file_event(
+                    tool_context, config_file, EventType.BEFORE_FILE_UPDATED
+                ),
+                after_write=lambda _: self._dispatch_file_event(
+                    tool_context, config_file, EventType.FILE_UPDATED
                 ),
             )
 
             result.extra_info["canvas_sync"] = {
                 "project_path": project_path,
                 "element_id": element_id,
-                "updated": update_result.ok,
+                "updated": bool(success),
             }
-            if update_result.ok:
-                result.extra_info["elements"] = update_result.extra_info.get("elements", [])
+            if success:
+                element = await manager.get_element_by_id(element_id)
+                if element:
+                    result.extra_info["elements"] = [{
+                        "id": getattr(element, "id", ""),
+                        "type": getattr(element, "type", ""),
+                        "name": getattr(element, "name", ""),
+                        "x": getattr(element, "x", 0),
+                        "y": getattr(element, "y", 0),
+                        "width": getattr(element, "width", 0),
+                        "height": getattr(element, "height", 0),
+                    }]
             else:
-                result.extra_info["canvas_sync"]["error"] = update_result.content
                 logger.warning(
                     f"查询视频任务后回填画布元素失败: project_path={project_path}, "
-                    f"element_id={element_id}, error={update_result.content}"
+                    f"element_id={element_id}"
                 )
             return result
         except Exception as e:
