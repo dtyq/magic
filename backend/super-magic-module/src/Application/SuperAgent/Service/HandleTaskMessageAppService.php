@@ -8,6 +8,7 @@ declare(strict_types=1);
 namespace Dtyq\SuperMagic\Application\SuperAgent\Service;
 
 use App\Application\LongTermMemory\Enum\AppCodeEnum;
+use App\Application\Kernel\EnvManager;
 use App\Application\ModelGateway\Mapper\ModelGatewayMapper;
 use App\Domain\Chat\DTO\Message\Common\MessageExtra\SuperAgent\SuperAgentExtra;
 use App\Domain\Contact\Entity\MagicUserEntity;
@@ -559,6 +560,7 @@ class HandleTaskMessageAppService extends AbstractAppService
             $dataIsolation->getCurrentOrganizationCode(),
             $dataIsolation->getCurrentUserId()
         );
+        EnvManager::initDataIsolationEnv($gatewayIsolation);
         $availableModels = $this->modelGatewayMapper->getChatModels($gatewayIsolation);
         foreach ($availableModels as $model) {
             if ($model->getKey() === $modelId) {
