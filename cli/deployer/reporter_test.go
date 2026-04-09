@@ -399,7 +399,7 @@ func TestNewPodReporter_TTYDoesNotShowCompletedAsFailure(t *testing.T) {
 	p := podWithInitTerminatedReason("Completed", 0)
 	p.Name = "infra-minio"
 	podList := []corev1.Pod{p}
-	for range 4 {
+	for range installWatchStableRounds + 1 {
 		reporter.Report(podList)
 	}
 
@@ -530,10 +530,9 @@ func TestNewPodReporter_NonTTY_ObservingShowsDetailsAfterStableCount(t *testing.
 
 	sixPods := sixPodsObserving()
 
-	reporter.Report(sixPods)
-	reporter.Report(sixPods)
-	reporter.Report(sixPods)
-	reporter.Report(sixPods)
+	for i := 0; i < installWatchStableRounds+1; i++ {
+		reporter.Report(sixPods)
+	}
 
 	assert.True(t, spy.contains("infra-f"), "details should appear after stable count threshold")
 }
