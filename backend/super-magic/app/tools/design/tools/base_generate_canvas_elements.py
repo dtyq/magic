@@ -101,6 +101,7 @@ class TaskExecutionResult:
         placeholder_update: 要写回占位符的更新内容
         updated_elements: 占位符更新后的元素快照列表，用于汇总到最终 ToolResult
         error_message: 失败时的错误描述
+        metadata: 子类专用扩展数据，基类不解析，由子类在 _build_result_content / _collect_extra_info 中读取
     """
 
     index: int
@@ -108,6 +109,7 @@ class TaskExecutionResult:
     placeholder_update: PlaceholderUpdate
     updated_elements: List[ElementDetail] = field(default_factory=list)
     error_message: Optional[str] = None
+    metadata: Dict[str, Any] = field(default_factory=dict)
 
     @property
     def is_success(self) -> bool:
@@ -194,6 +196,19 @@ class BaseGenerateCanvasElements(BaseDesignTool[TParams], Generic[TParams]):
         """在并发执行前准备额外 kwargs，透传给每个 _execute_task_item 调用。
 
         默认返回空字典，子类可覆盖以传入模型 ID、时间戳、输出目录等参数。
+        """
+        return {}
+
+    def _collect_extra_info(
+        self,
+        tasks: List[Any],
+        placeholders: List[ElementDetail],
+        task_results: List[TaskExecutionResult],
+    ) -> Dict[str, Any]:
+        """生成子类专属的额外信息，会被合并到最终 ToolResult.extra_info 中。
+
+        默认返回空字典；子类可覆盖以传出 pending_operations 等特定状态数据。
+        返回的 key 若与基类已有 key 重名，子类值优先（基类先写，子类覆盖）。
         """
         return {}
 
@@ -305,6 +320,7 @@ class BaseGenerateCanvasElements(BaseDesignTool[TParams], Generic[TParams]):
         logger.info(f"流程完成: 成功={succeeded_count}, 失败={failed_count}")
 
         placeholders_as_dicts = [dataclasses.asdict(p) for p in all_placeholders]
+        extra_data = self._collect_extra_info(tasks, all_placeholders, task_results)
 
         if succeeded_count == 0 and all_placeholders:
             failed_desc = "; ".join(
@@ -321,6 +337,7 @@ class BaseGenerateCanvasElements(BaseDesignTool[TParams], Generic[TParams]):
                     "succeeded_count": 0,
                     "failed_count": failed_count,
                     "created_elements": placeholders_as_dicts,
+                    **extra_data,
                 },
             )
 
@@ -342,6 +359,7 @@ class BaseGenerateCanvasElements(BaseDesignTool[TParams], Generic[TParams]):
                 "failed_count": failed_count,
                 "created_elements": placeholders_as_dicts,
                 "elements": elements_detail,
+                **extra_data,
             },
         )
 

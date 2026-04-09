@@ -279,6 +279,7 @@ tools:
 |------|-------------|
 | `create_canvas` | Create a canvas project |
 | `generate_canvas_images` | Generate images directly to canvas |
+| `generate_canvas_videos` | Generate videos directly to canvas |
 | `search_images_to_canvas` | Search and add images to canvas |
 
 <!--zh

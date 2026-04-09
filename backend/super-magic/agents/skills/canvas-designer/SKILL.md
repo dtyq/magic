@@ -1,5 +1,5 @@
 ---
-name: designing-canvas-images
+name: canvas-designer
 description: Core canvas design skill covering project management, multimedia principles, AI image generation, web image search, and design marker processing. Load for any canvas design task. CRITICAL - When user message contains [@design_canvas_project:...] or [@design_marker:...] mentions, you MUST load this skill first before any operations.
 ---
 
@@ -86,7 +86,7 @@ Returns: `{ project_path, project_name }`
 | Field | Required | Description |
 |---|---|---|
 | `prompt` | Yes | Generation prompt for this image |
-| `name` | Yes | Canvas element label. Must reflect the specific content of this image — name the actual subjects, not the category or a numbered slot. [Correct] name the specific subjects depicted. [Wrong] generic category + style number |
+| `name` | Yes | Canvas element label. Must be in the user's language and reflect the specific content of this image — name the actual subjects, not the category or a numbered slot. [Correct] name the specific subjects depicted, in the user's language. [Wrong] English slug when the user is Chinese, or a generic category + style number |
 | `size` | Conditional | Image dimensions `"WxH"`, e.g. `"2048x2048"`. Required when `reference_images` is empty; omit to auto-read from the largest reference image |
 | `reference_images` | No | Reference image paths (workspace-relative). Images inside the project use project-relative paths, e.g. `images/cat.jpg`; images outside the project use workspace-relative paths, e.g. `other-project/images/ref.png`. Omit or pass `[]` for text-only generation |
 | `element_id` | No | Existing element ID to overwrite (for retrying a failed placeholder) |
@@ -227,11 +227,13 @@ When the user asks for an image, you are translating intent into a visual specif
 
 ### Prompt, name, and project path language
 
+**All three fields — `prompt`, `name`, and `project_path` — must be written in the same language the user is using. No exceptions.**
+
 Write the prompt in the same language the user is using. If the user speaks Chinese, the prompt should be in Chinese. Modern image models handle multilingual prompts natively — there is no quality advantage in translating to English.
 
-The `name` field follows the same rule: use the user's language for the canvas element label. Beyond language, the name must describe the **specific content** of that image — who or what is actually in it — not a generic category, a task slot number, or a theme-level label. When generating multiple images in one call, each task has a distinct subject or variation; the name should capture what makes that task unique, not just its position in the batch.
+The `name` field follows the same rule: use the user's language for the canvas element label. If the user is Chinese, the name must be in Chinese — do not default to English slugs regardless of what the examples show. Beyond language, the name must describe the **specific content** of that image — who or what is actually in it — not a generic category, a task slot number, or a theme-level label. When generating multiple images in one call, each task has a distinct subject or variation; the name should capture what makes that task unique, not just its position in the batch.
 
-The `project_path` in `create_canvas` follows the same rule: name the project folder in the user's language. For example, if the user speaks Chinese, use a Chinese folder name such as `"产品海报设计"`; if English, use something like `"product-poster-design"`.
+The `project_path` in `create_canvas` follows the same rule: name the project folder in the user's language. For example, if the user speaks Chinese, use a Chinese folder name such as `"产品海报设计"`; if English, use something like `"product-poster-design"`. Do not use English folder names for Chinese users.
 
 ### Handling user-provided prompts
 

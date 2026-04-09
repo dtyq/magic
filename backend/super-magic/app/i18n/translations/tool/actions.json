@@ -247,7 +247,7 @@
         "zh_CN": "生成图片",
         "en_US": "Generate images"
     },
-    "generate_videos_to_canvas": {
+    "generate_canvas_videos": {
         "zh_CN": "生成视频",
         "en_US": "Generate videos"
     },

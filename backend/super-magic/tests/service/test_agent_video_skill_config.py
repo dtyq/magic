@@ -19,7 +19,7 @@ def _load_agent(agent_name: str):
         (
             "design",
             "designing-canvas-videos",
-            {"generate_videos_to_canvas", "query_video_generation"},
+            {"generate_videos_to_canvas", "generate_canvas_videos", "query_video_generation"},
         ),
         (
             "magic",

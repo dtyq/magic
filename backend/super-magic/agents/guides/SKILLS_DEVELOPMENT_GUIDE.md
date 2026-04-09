@@ -974,7 +974,7 @@ description: 将 Acme Corp 品牌指南应用到演示文稿和文档中
 
 ### 复杂 Skill 示例
 
-参考本目录下的 `designing-canvas-images/SKILL.md`，它展示了：
+参考本目录下的 `canvas-designer/SKILL.md`，它展示了：
 - 多个核心能力的组织
 - "如何使用本文档"导航章节
 - 快速开始和核心工具参数表格
@@ -986,7 +986,7 @@ description: 将 Acme Corp 品牌指南应用到演示文稿和文档中
 
 **目录结构示例：**
 ```
-designing-canvas-images/
+canvas-designer/
 ├── SKILL.md                          # 主文件（约 570 行）
 └── reference/                         # 详细文档目录
     ├── image-generation.md            # AI 图片生成详细指南

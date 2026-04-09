@@ -53,13 +53,16 @@ run_sdk_snippet(
     python_code="""
 from sdk.tool import tool
 
-result = tool.call('generate_videos_to_canvas', {
+result = tool.call('generate_canvas_videos', {
     "project_path": "my-design",
-    "name": "promo_video",
-    "prompts": ["产品在柔和灯光下缓慢旋转，电影感镜头"],
-    "width": 1280,
-    "height": 720
+    "tasks": [{
+        "name": "promo_video",
+        "prompt": "产品在柔和灯光下缓慢旋转，电影感镜头",
+        "width": 1280,
+        "height": 720
+    }]
 })
+print(result)
 """
 )
 ```
@@ -109,13 +112,16 @@ result = tool.call('generate_videos_to_canvas', {
 ```python
 from sdk.tool import tool
 
-result = tool.call('generate_videos_to_canvas', {
+result = tool.call('generate_canvas_videos', {
     "project_path": "my-design",
-    "name": "promo_video",
-    "prompts": ["产品在纯白背景中缓慢推进，镜头稳定，商业广告质感"],
-    "width": 1280,
-    "height": 720
+    "tasks": [{
+        "name": "promo_video",
+        "prompt": "产品在纯白背景中缓慢推进，镜头稳定，商业广告质感",
+        "width": 1280,
+        "height": 720
+    }]
 })
+print(result)
 ```
 
 <!--zh
@@ -142,14 +148,17 @@ result = tool.call('query_video_generation', {
 ```python
 from sdk.tool import tool
 
-result = tool.call('generate_videos_to_canvas', {
+result = tool.call('generate_canvas_videos', {
     "project_path": "my-design",
-    "name": "promo_video",
-    "prompts": ["产品在纯白背景中缓慢推进，镜头稳定，商业广告质感"],
-    "width": 1280,
-    "height": 720,
-    "size": "1920x1080"
+    "tasks": [{
+        "name": "promo_video",
+        "prompt": "产品在纯白背景中缓慢推进，镜头稳定，商业广告质感",
+        "width": 1280,
+        "height": 720,
+        "size": "1920x1080"
+    }]
 })
+print(result)
 ```
 
 ---
@@ -161,15 +170,15 @@ result = tool.call('generate_videos_to_canvas', {
 
 <!--zh
 ### 路径 A：首次生成
-- 使用 `generate_videos_to_canvas`
-- 必填：`project_path`、`name`、`prompts`、`width`、`height`
+- 使用 `generate_canvas_videos`
+- 必填：`project_path`、`tasks`（每个 task 包含 `name`、`prompt`、`width`、`height`）
 - 先关注生成目标本身、是否有参考输入，以及用户是否明确要求尺寸/分辨率或时长
 - 用户没明确要求额外控制项时，优先使用最小参数集
 - 如果返回 `queued` / `running` / `processing`，说明链路正确，任务已创建成功
 -->
 ### Path A: Initial Generation
-- Use `generate_videos_to_canvas`
-- Required: `project_path`, `name`, `prompts`, `width`, `height`
+- Use `generate_canvas_videos`
+- Required: `project_path`, `tasks` (each task needs `name`, `prompt`, `width`, `height`)
 - First focus on the goal itself: what to generate, whether there is a reference input, and whether the user explicitly requested size/resolution or duration
 - If the user did not explicitly ask for extra controls, prefer the minimum parameter set
 - If result is `queued` / `running` / `processing`, the task is on the correct path
@@ -209,7 +218,7 @@ result = tool.call('generate_videos_to_canvas', {
 - 重点先填这几类信息：生成目标、画布落点、尺寸/分辨率需求、时长需求、参考输入
 - 非重点参数如果用户没明确要求，就尽量不填，不要把所有可选参数一次性传满
 - 参数不确定时，宁可少传，不要乱传
-- 对 `generate_videos_to_canvas` 来说，`width`/`height` 是画布元素尺寸；模型应优先关注画布落点和视频目标，不要陷入调参
+- 对 `generate_canvas_videos` 来说，task 中的 `width`/`height` 是画布元素尺寸；模型应优先关注画布落点和视频目标，不要陷入调参
 -->
 - When the user wants dynamic output, do not fall back to `generate_canvas_images`
 - Only switch back to image workflow when the user explicitly asks for a still result
@@ -222,4 +231,4 @@ result = tool.call('generate_videos_to_canvas', {
 - Prioritize only these categories of information first: the generation goal, canvas placement, size/resolution intent, duration intent, and reference inputs
 - If the user did not explicitly ask for extra controls, keep non-priority parameters empty instead of filling every optional field
 - When uncertain about a parameter, prefer omitting it rather than guessing
-- For `generate_videos_to_canvas`, `width`/`height` are canvas element dimensions; focus first on canvas placement and the video goal instead of over-tuning parameters
+- For `generate_canvas_videos`, `width`/`height` in each task are canvas element dimensions; focus first on canvas placement and the video goal instead of over-tuning parameters

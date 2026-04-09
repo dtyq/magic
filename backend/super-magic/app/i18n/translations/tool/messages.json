@@ -783,7 +783,7 @@
         "zh_CN": "图片搜索异常，请重试",
         "en_US": "Image search exception, please retry"
     },
-    "generate_videos_to_canvas.exception": {
+    "generate_canvas_videos.exception": {
         "zh_CN": "AI 视频生成异常，请重试",
         "en_US": "AI video generation exception, please retry"
     },
@@ -803,7 +803,7 @@
         "zh_CN": "成功搜索图片并添加到画布",
         "en_US": "Successfully searched images and added to canvas"
     },
-    "generate_videos_to_canvas.summary": {
+    "generate_canvas_videos.summary": {
         "zh_CN": "视频结果：完成 {{completed}} 个，处理中 {{processing}} 个，失败 {{failed}} 个",
         "en_US": "Video result: {{completed}} completed, {{processing}} processing, {{failed}} failed"
     },
