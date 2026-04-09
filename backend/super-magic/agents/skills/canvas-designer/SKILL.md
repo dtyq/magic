@@ -428,6 +428,65 @@ tool.call('generate_canvas_images', {
 
 A single call supports up to 6 tasks. For more images, split into multiple calls.
 
+### Multi-view consistency (anchor-then-expand)
+
+When the user wants multiple views of the same subject — fashion multi-view sheets, character design sheets, product 360° views — do not generate all views in a single call. Tasks within one call run concurrently and share no output; each task independently interprets the original reference, causing the results to diverge from each other.
+
+The correct pattern is two sequential calls:
+
+**Call 1 — Establish the anchor image**
+
+Generate a single clean front-facing view from the original reference. This fixes the model's interpretation of the design before any other views are produced. The anchor image is more reliable than the original reference for subsequent calls because it is already in the target presentation style and has no occlusion, angle distortion, or lighting inconsistency.
+
+```python
+result = tool.call('generate_canvas_images', {
+    "project_path": "my-design",
+    "tasks": [{
+        "name": "front-view",
+        "prompt": """Subject: The garment from the reference image. Preserve the exact stripe pattern, tiered ruffle hem structure, wrist bow details, fabric texture, and cream/ivory colour palette — these are non-negotiable.
+Presentation: Full-length front-facing view, white seamless background, even diffused studio lighting, clean fashion lookbook style.
+Constraints: No background props. The garment design, proportions, and surface details must not be simplified or altered in any way.""",
+        "reference_images": ["uploads/original-reference.jpg"]
+    }]
+})
+
+anchor_path = result.data["created_elements"][0]["src"]  # path to the anchor image
+```
+
+**Call 2 — Expand from the anchor**
+
+Pass the anchor image as `reference_images[0]` for every remaining view. All tasks in this call can run concurrently because they all share the same anchor. Do not chain views off each other (side view referencing back view referencing front view) — drift accumulates with each step.
+
+```python
+tool.call('generate_canvas_images', {
+    "project_path": "my-design",
+    "tasks": [
+        {
+            "name": "side-view",
+            "prompt": """Subject: The first image defines the garment. Preserve its exact stripe pattern, tiered ruffle hem, wrist bows, fabric texture, and cream/ivory colour palette — non-negotiable.
+View: Show the same garment from the side (90° angle). Adjust camera angle only.
+Presentation: Same white seamless background and even diffused studio lighting as the first image. Full-length shot.
+Constraints: Garment design and proportions must match the first image exactly.""",
+            "reference_images": [anchor_path]
+        },
+        {
+            "name": "back-view",
+            "prompt": """Subject: The first image defines the garment. Preserve its exact stripe pattern, tiered ruffle hem, wrist bows, fabric texture, and cream/ivory colour palette — non-negotiable.
+View: Show the same garment from the back (180° angle). Adjust camera angle only.
+Presentation: Same white seamless background and even diffused studio lighting as the first image. Full-length shot.
+Constraints: Garment design and proportions must match the first image exactly.""",
+            "reference_images": [anchor_path]
+        }
+    ]
+})
+```
+
+**Key rules:**
+- Always anchor from the front view — it exposes the most design information with no occlusion
+- All non-anchor views must reference the anchor image, not each other
+- The anchor image path comes from `result.data["created_elements"][0]["src"]` — do not guess or hardcode it
+- This pattern applies to any multi-view task: fashion, characters, products, architecture
+
 ---
 
 ## Design Marker Processing
