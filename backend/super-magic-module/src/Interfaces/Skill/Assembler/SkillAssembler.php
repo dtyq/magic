@@ -418,7 +418,7 @@ class SkillAssembler
                 $publisherUserMap[$skillMarketEntity->getPublisherId()] ?? null
             );
 
-            $version = $skillVersionMap[$skillMarketEntity->getSkillVersionId()] ?? null;
+            $version = $skillVersionMap[$skillMarketEntity->getSkillCode()] ?? null;
             $isCreator = $version !== null && (string) $version->getCreatorId() === $currentUserId;
             $isAdded = $isCreator ?: $isAdded;
             $fileKey = (string) ($version?->getFileKey() ?? '');
