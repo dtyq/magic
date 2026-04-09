@@ -98,6 +98,7 @@ from app.tools.design.tools import (
     GenerateCanvasImages,
     GenerateCanvasVideos,
     SearchCanvasImages,
+    SearchImagePrompts,
 )
 
 # Skill 管理工具
@@ -218,5 +219,6 @@ __all__ = [
     "GenerateCanvasImages",
     "GenerateCanvasVideos",
     "SearchCanvasImages",
+    "SearchImagePrompts",
 ]
 

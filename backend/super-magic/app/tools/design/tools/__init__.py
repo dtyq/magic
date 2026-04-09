@@ -10,6 +10,7 @@ from app.tools.design.tools.batch_update_canvas_elements import BatchUpdateCanva
 from app.tools.design.tools.generate_canvas_images import GenerateCanvasImages
 from app.tools.design.tools.generate_canvas_videos import GenerateCanvasVideos
 from app.tools.design.tools.search_canvas_images import SearchCanvasImages
+from app.tools.design.tools.search_image_prompts import SearchImagePrompts
 
 __all__ = [
     "BaseDesignTool",
@@ -19,4 +20,5 @@ __all__ = [
     "GenerateCanvasImages",
     "GenerateCanvasVideos",
     "SearchCanvasImages",
+    "SearchImagePrompts",
 ]

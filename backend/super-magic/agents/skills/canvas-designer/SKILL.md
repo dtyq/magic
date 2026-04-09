@@ -552,6 +552,10 @@ Generate video?
 Search web images?
 ├─ Yes → read reference/image/image-search.md first, then search_canvas_images
 └─ No → continue
+
+User prompt too short or vague to generate well?
+├─ Yes → search_image_prompts → present 3–5 adapted options for user to choose
+└─ No → proceed with generation
 ```
 
 ---
@@ -559,3 +563,50 @@ Search web images?
 ## Web Image Search
 
 > If the user wants to search and download web images onto the canvas, read [reference/image/image-search.md](reference/image/image-search.md) for the full workflow before proceeding.
+
+---
+
+## Prompt Library Search
+
+The `search_image_prompts` tool provides access to 1300+ curated AI image generation prompts from the nanobanana library, ranked by real-world engagement (likes + views).
+
+**When to use — trigger condition:**
+
+The user's input is too short or vague to produce a good image without guessing (e.g. "画一个产品图", "something cinematic", "帮我做个封面"). In this situation, do not silently guess and generate. Instead:
+
+1. Call `search_image_prompts` with a query that reflects the user's intent and scene type
+2. Read the results and derive 3–5 distinct prompt options, each adapted to the user's subject
+3. Present the options to the user in the user's language, and ask them to pick one or say what to adjust
+4. Generate only after the user confirms a direction
+
+**When not to use:**
+- User provides a specific, detailed prompt — use it directly without searching
+- The request is clear enough to construct a complete prompt from first principles (e.g. user described subject, style, and scene in sufficient detail)
+
+**Parameters:**
+- `query`: keyword search across prompt text, author, and categories
+- `category`: filter by category — `Photography`, `Product & Brand`, `Girl`, `Food & Drink`, `Illustration & 3D`, `App`, `JSON`, `Other`
+- `sort_by`: `rank` (default), `likes`, `views`, `date`
+- `limit`: number of results, default 5, max 20
+- `random`: set to `true` for open-ended inspiration browsing
+
+```python
+from sdk.tool import tool
+
+result = tool.call('search_image_prompts', {
+    "query": "product storyboard",
+    "category": "Product & Brand",
+    "limit": 5,
+})
+print(result.content)
+# result.data["results"]: [{ rank, id, prompt, categories, likes, views, image, images, author_name, source_url }, ...]
+```
+
+**Deriving options from results:**
+
+Library prompts are structural references, not templates to copy verbatim. For each option you present to the user:
+- Take the structural pattern and technical vocabulary from a high-ranking result
+- Substitute the user's actual subject, scene, and any constraints they mentioned
+- Give each option a short label so the user can easily refer to it (e.g. "Option A — studio grid storyboard", "Option B — lifestyle editorial")
+
+After the user picks, use their choice as the foundation and apply prompt engineering principles (content/style separation, sensory stacking, etc.) before calling `generate_canvas_images`.

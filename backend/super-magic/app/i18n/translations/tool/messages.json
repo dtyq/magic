@@ -783,6 +783,14 @@
         "zh_CN": "图片搜索异常，请重试",
         "en_US": "Image search exception, please retry"
     },
+    "search_image_prompts.exception": {
+        "zh_CN": "提示词搜索异常，请重试",
+        "en_US": "Prompt search exception, please retry"
+    },
+    "search_image_prompts.success": {
+        "zh_CN": "已搜索到 {{count}} 条提示词灵感",
+        "en_US": "Found {{count}} prompt inspirations"
+    },
     "generate_canvas_videos.exception": {
         "zh_CN": "AI 视频生成异常，请重试",
         "en_US": "AI video generation exception, please retry"

@@ -243,6 +243,10 @@
         "zh_CN": "搜索图片",
         "en_US": "Search images"
     },
+    "search_image_prompts": {
+        "zh_CN": "搜索提示词灵感",
+        "en_US": "Search prompt inspirations"
+    },
     "generate_canvas_images": {
         "zh_CN": "生成图片",
         "en_US": "Generate images"
