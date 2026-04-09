@@ -2386,6 +2386,40 @@ async function resolveCanvasFileBlobUrl(projectDirHandle, relPath) {
 }
 
 /**
+ * 从视频 blob URL 中抓取第一帧，返回 data URL（失败时返回 null）。
+ */
+function captureVideoFrame(videoBlobUrl) {
+    return new Promise((resolve) => {
+        const v = document.createElement('video');
+        v.muted = true;
+        v.preload = 'metadata';
+        let settled = false;
+        const done = (result) => {
+            if (settled) return;
+            settled = true;
+            v.src = '';
+            resolve(result);
+        };
+        const timer = setTimeout(() => done(null), 10000);
+        v.addEventListener('error', () => { clearTimeout(timer); done(null); });
+        v.addEventListener('loadeddata', () => { v.currentTime = 0.01; });
+        v.addEventListener('seeked', () => {
+            clearTimeout(timer);
+            try {
+                const c = document.createElement('canvas');
+                c.width = v.videoWidth || 640;
+                c.height = v.videoHeight || 360;
+                c.getContext('2d').drawImage(v, 0, 0, c.width, c.height);
+                done(c.toDataURL('image/jpeg', 0.82));
+            } catch {
+                done(null);
+            }
+        });
+        v.src = videoBlobUrl;
+    });
+}
+
+/**
  * 弹出画布媒体 modal：图片展示原图，视频展示播放器。
  * @param {'image'|'video'} type
  * @param {string|null} blobUrl  - 视频/图片的 blob URL
@@ -2595,13 +2629,18 @@ async function renderCanvasView(config, projectDirHandle, containerEl) {
             elDiv.classList.add('canvas-el-state', 'canvas-el-failed');
             elDiv.appendChild(makeLabel(el.name || ''));
         } else if (el.type === 'video') {
-            // 视频：封面优先，回退到暗色卡片；点击弹窗播放
+            // 视频：封面优先，无封面则从视频抓第一帧；点击弹窗播放
             const posterBlobUrl = el.poster ? await resolveCanvasFileBlobUrl(projectDirHandle, el.poster) : null;
             const videoBlobUrl = el.src ? await resolveCanvasFileBlobUrl(projectDirHandle, el.src) : null;
-            elDiv.appendChild(renderVideoCard(posterBlobUrl, el.name || ''));
+            // 没有 poster 时从视频文件抓帧作为封面
+            let thumbnailUrl = posterBlobUrl;
+            if (!thumbnailUrl && videoBlobUrl) {
+                thumbnailUrl = await captureVideoFrame(videoBlobUrl);
+            }
+            elDiv.appendChild(renderVideoCard(thumbnailUrl, el.name || ''));
             if (videoBlobUrl || posterBlobUrl) {
                 elDiv.style.cursor = 'pointer';
-                elDiv.addEventListener('click', () => openCanvasMediaModal('video', videoBlobUrl, posterBlobUrl, el.name || ''));
+                elDiv.addEventListener('click', () => openCanvasMediaModal('video', videoBlobUrl, thumbnailUrl, el.name || ''));
             }
         } else if (el.src) {
             const blobUrl = await resolveCanvasFileBlobUrl(projectDirHandle, el.src);
