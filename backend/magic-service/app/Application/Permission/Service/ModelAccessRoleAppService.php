@@ -39,7 +39,7 @@ class ModelAccessRoleAppService extends AbstractPermissionAppService
         return [
             'permission_control_status' => $meta['permission_control_status']->value,
             'default_role' => $defaultRole ? [
-                'id' => $defaultRole->getId(),
+                'id' => (string) $defaultRole->getId(),
                 'name' => $defaultRole->getName(),
                 'model_count' => count($defaultRole->getModelIds()),
             ] : null,
@@ -54,7 +54,7 @@ class ModelAccessRoleAppService extends AbstractPermissionAppService
         return [
             'permission_control_status' => $meta['permission_control_status']->value,
             'default_role' => $defaultRole ? [
-                'id' => $defaultRole->getId(),
+                'id' => (string) $defaultRole->getId(),
                 'name' => $defaultRole->getName(),
                 'model_count' => count($defaultRole->getModelIds()),
             ] : null,
@@ -89,11 +89,11 @@ class ModelAccessRoleAppService extends AbstractPermissionAppService
         foreach ($result['list'] as $role) {
             $parent = $role->getParentRoleId() ? ($roleMap[$role->getParentRoleId()] ?? $this->domainService->show($dataIsolation, $role->getParentRoleId())) : null;
             $list[] = [
-                'id' => $role->getId(),
+                'id' => (string) $role->getId(),
                 'name' => $role->getName(),
                 'description' => $role->getDescription(),
                 'is_default' => $role->isDefault(),
-                'parent_role_id' => $role->getParentRoleId(),
+                'parent_role_id' => $role->getParentRoleId() === null ? null : (string) $role->getParentRoleId(),
                 'parent_role_name' => $parent?->getName(),
                 'model_count' => count($role->getModelIds()),
                 'user_count' => count($role->getUserIds()),
@@ -130,11 +130,11 @@ class ModelAccessRoleAppService extends AbstractPermissionAppService
         }
 
         return [
-            'id' => $role->getId(),
+            'id' => (string) $role->getId(),
             'name' => $role->getName(),
             'description' => $role->getDescription(),
             'is_default' => $role->isDefault(),
-            'parent_role_id' => $role->getParentRoleId(),
+            'parent_role_id' => $role->getParentRoleId() === null ? null : (string) $role->getParentRoleId(),
             'parent_role_name' => $parentName,
             'inherited_path' => $this->buildInheritedPath($dataIsolation, $role),
             'model_ids' => $role->getModelIds(),
@@ -202,7 +202,7 @@ class ModelAccessRoleAppService extends AbstractPermissionAppService
             'permission_control_status' => $summary['permission_control_status']->value,
             'user_id' => $userId,
             'roles' => array_map(static fn (ModelAccessRoleEntity $role) => [
-                'id' => $role->getId(),
+                'id' => (string) $role->getId(),
                 'name' => $role->getName(),
                 'is_default' => $role->isDefault(),
             ], $summary['roles']),
@@ -213,11 +213,11 @@ class ModelAccessRoleAppService extends AbstractPermissionAppService
     private function simpleRoleResponse(ModelAccessRoleEntity $role): array
     {
         return [
-            'id' => $role->getId(),
+            'id' => (string) $role->getId(),
             'name' => $role->getName(),
             'description' => $role->getDescription(),
             'is_default' => $role->isDefault(),
-            'parent_role_id' => $role->getParentRoleId(),
+            'parent_role_id' => $role->getParentRoleId() === null ? null : (string) $role->getParentRoleId(),
             'model_count' => count($role->getModelIds()),
             'user_count' => count($role->getUserIds()),
         ];
@@ -229,7 +229,7 @@ class ModelAccessRoleAppService extends AbstractPermissionAppService
         $current = $role;
         while ($current) {
             array_unshift($path, [
-                'id' => $current->getId(),
+                'id' => (string) $current->getId(),
                 'name' => $current->getName(),
             ]);
             $parentRoleId = $current->getParentRoleId();
