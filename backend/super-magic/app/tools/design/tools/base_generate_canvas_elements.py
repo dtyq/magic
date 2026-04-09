@@ -411,18 +411,40 @@ class BaseGenerateCanvasElements(BaseDesignTool[TParams], Generic[TParams]):
                     config.canvas and config.canvas.elements
                 ) else []
 
-                # 计算起始坐标
+                # 计算起始坐标及初始列偏移
+                col_start = 0
+                init_row_height = 0.0
                 if not all_elements:
                     start_x, start_y = 0.0, 0.0
                 elif len(infos) >= 2:
-                    # 多个占位符：整体换到新行，避免插入到现有行中间
-                    max_bottom = max(
-                        (e.absolute_y or 0.0) + (e.height or 0.0)
+                    # 找最后一行，判断是否还有空位可以继续排
+                    max_y = max(
+                        e.absolute_y or 0.0
                         for e in all_elements
-                        if e.absolute_y is not None and e.height is not None
+                        if e.absolute_y is not None
                     )
-                    start_x = 0.0
-                    start_y = max_bottom + DEFAULT_ELEMENT_SPACING
+                    last_row_els = [
+                        e for e in all_elements
+                        if e.absolute_y is not None
+                        and abs((e.absolute_y or 0.0) - max_y) < 1.0
+                    ]
+                    col_in_last_row = len(last_row_els)
+                    if col_in_last_row < self._max_elements_per_row:
+                        # 最后一行有剩余空间，从该行右侧继续
+                        rightmost = max(last_row_els, key=lambda e: (e.absolute_x or 0.0))
+                        start_x = (rightmost.absolute_x or 0.0) + (rightmost.width or 0.0) + DEFAULT_ELEMENT_SPACING
+                        start_y = max_y
+                        col_start = col_in_last_row
+                        init_row_height = max(e.height or 0.0 for e in last_row_els)
+                    else:
+                        # 最后一行已满，换到新行
+                        max_bottom = max(
+                            (e.absolute_y or 0.0) + (e.height or 0.0)
+                            for e in all_elements
+                            if e.absolute_y is not None and e.height is not None
+                        )
+                        start_x = 0.0
+                        start_y = max_bottom + DEFAULT_ELEMENT_SPACING
                 else:
                     # 单个占位符：智能寻找不重叠位置
                     start_x, start_y = calculate_next_element_position(
@@ -436,12 +458,12 @@ class BaseGenerateCanvasElements(BaseDesignTool[TParams], Generic[TParams]):
                 created: List[ElementDetail] = []
                 x = start_x
                 row_y = start_y
-                row_height = 0.0
-                col = 0
+                row_height = init_row_height
+                col = col_start
                 for info in infos:
                     if col >= self._max_elements_per_row:
                         row_y += row_height + DEFAULT_ELEMENT_SPACING
-                        x = start_x
+                        x = 0.0  # 新行始终从 x=0 开始
                         row_height = 0.0
                         col = 0
                     element_id = manager.generate_element_id()
