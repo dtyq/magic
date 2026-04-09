@@ -35,15 +35,6 @@ Design projects are uniquely identified by `project_path`. All canvas tools requ
 
 ---
 
-## Element Types
-
-| Type | Key properties |
-|------|----------------|
-| `image` | `src`, `generateImageRequest` |
-| `video` | `src`, `poster`, `status`, `generateVideoRequest` |
-
----
-
 ## Multimedia Principles
 
 **Prohibited:**
@@ -168,6 +159,19 @@ Adjectives like "beautiful", "stunning", "dramatic" give the model nothing to wo
 
 The test: could another person reconstruct the visual from your prompt alone?
 
+Common substitutions for frequently vague terms:
+
+| Vague term | Specific replacement |
+|---|---|
+| cinematic / film-like | 35mm anamorphic lens, film grain (Cinestill 800T), letterbox 2.39:1 crop, motivated practical lighting |
+| vintage / retro | Kodak Portra 400 color science, faded highlights, lifted blacks, slight vignette, halation around highlights |
+| professional photography | 85mm f/1.4, studio softbox at 45°, clean seamless backdrop, controlled catch-light |
+| dramatic lighting | single hard key light at 90° to subject, deep shadow on opposite side, chiaroscuro contrast |
+| moody / atmospheric | underexposed by 1 stop, cool blue shadow fill, haze or mist in background, low contrast colour grade |
+| luxury / high-end | medium-format rendering, muted earth tones, razor-sharp product focus, generous negative space |
+| minimal / clean | flat even lighting, white or off-white background, single subject, no decorative props |
+| editorial | overhead 90° flat lay or eye-level straight-on, even diffused lighting, graphic colour block background |
+
 ### Separating content from style
 
 This is the most important principle for image-to-image and product work. Conflating them is the most common cause of unwanted changes.
@@ -177,9 +181,16 @@ This is the most important principle for image-to-image and product work. Confla
 
 When the user says "redesign this in a dark moody style", they almost certainly mean: keep the product/subject unchanged, change the presentation. Make this separation explicit in the prompt.
 
-### Positive framing
+### Positive framing and negative constraints
 
 Describe what should be present. Negative instructions ("no cars", "don't change the background") are less reliable than their positive equivalents ("empty street", "keep the background exactly as it appears in the first image"). When something must be preserved, say explicitly what it is and that it stays unchanged.
+
+However, some prohibitions have no positive equivalent — when a specific unwanted intrusion must be blocked rather than replaced, a negative constraint is the right tool:
+- Blocking elements the model commonly adds uninvited: "no text or watermarks", "no people in the background"
+- Preventing product distortion: "the product shape, proportions, and design must not be altered in any way"
+- Excluding incompatible aesthetics: "no neon colours", "no artificial studio glow", "no decorative noise"
+
+The rule: use positive framing when describing what to preserve or include; use negative constraints to block specific known failure modes that cannot be addressed by describing what should be there instead. Do not use both interchangeably — choose based on what the instruction actually is.
 
 ### Technical language as a precision tool
 
@@ -188,6 +199,25 @@ Photography and cinematography vocabulary gives the model precise, unambiguous a
 Camera bodies encode color science (Fujifilm → warm, organic tones; GoPro → wide, immersive distortion). Lens specs control perspective and depth (85mm → compressed, flattering; wide-angle → environmental, expansive). Lighting setups encode mood (softbox → clean commercial; chiaroscuro → cinematic tension; golden hour → warmth, nostalgia). Color grade sets emotional register.
 
 Only include these when they are relevant to what the image needs to communicate.
+
+### Sensory stacking
+
+Pure visual description is often not enough — especially for food, beverages, textured materials, and any scene where tactile or atmospheric qualities are part of the subject's appeal.
+
+Image models have learned associations between visual cues and non-visual sensations from their training data. Describing a sensation activates the associated visual language. "Steam wisps slowly rising" produces a different image than "hot food"; "surface tension trembling" produces a different image than "liquid in a bowl"; "caramelised crust with visible cracks" produces a different image than "crispy".
+
+When the visual alone cannot convey what makes the subject compelling, layer in non-visual sensory dimensions:
+
+- Texture / tactile: "velvety matte finish", "coarse-grain leather with visible stitching", "crisp crackling crust that shatters at the slightest pressure"
+- Motion / dynamic: "steam wisps slowly rising and dispersing", "surface tension barely holding the liquid in place", "fabric lifting at the edge in a gentle draft"
+- Temperature / atmosphere: "warm condensation forming on the outside of a cold glass", "heat haze shimmering just above the surface"
+- Aroma as visual suggestion: "caramelised edges that imply burnt sugar", "herbs scattered in a way that suggests fragrance"
+
+Apply selectively — not every image benefits from this technique. Use it when:
+- Food or beverage: texture and temperature almost always strengthen the result
+- Material or textured products: surface finish and tactile quality are part of the subject
+- Atmospheric or mood scenes: motion and environmental cues anchor the feeling
+- Abstract concepts: multi-sensory language gives the model something concrete to visualise
 
 ### Using reference images
 
@@ -218,6 +248,21 @@ Generate a new lifestyle context around it — environment, props, and backgroun
 
 The failure mode is listing references without declaring roles: the model interpolates between all input images and the result satisfies none of your requirements precisely.
 
+### Scene type quick reference
+
+Different scene types call for different prompt strategies. Use this as a starting point — adapt based on the specific task.
+
+| Scene type | Recommended technical language | Common negative constraints |
+|---|---|---|
+| Product / commercial | Medium-format rendering, studio softbox, seamless backdrop, macro surface detail | Product must not be distorted or redesigned; no text or watermarks |
+| Portrait | 85mm f/1.4, shallow DOF, catch-light in eyes, skin-tone accuracy | Preserve facial features exactly; do not alter identity |
+| Food / beverage | 45° overhead or 30° side angle, diffused side light, textured surface, steam or condensation details | No utensil clutter; no text |
+| Cinematic / film | Anamorphic lens, film grain, letterbox crop, practical motivated lighting | — |
+| Japanese / minimal | High-key exposure, wabi-sabi negative space, diffused natural light, desaturated warm tones | No neon colours; no artificial studio glow |
+| Design / poster | Grid-based layout, flat graphic style, limited colour palette | Clear visual hierarchy; no decorative noise |
+| Lifestyle / environmental | Wide-angle environmental framing, natural available light, subject in context | No artificial product distortion |
+| Concept / atmospheric | Volumetric light, environmental haze, scale cues for depth, sensory stacking | — |
+
 ### From user intent to prompt
 
 When the user asks for an image, you are translating intent into a visual specification. This is a reasoning task, not a template-fill.
@@ -227,6 +272,23 @@ When the user asks for an image, you are translating intent into a visual specif
 **Step 2 — Fill in visual decisions the user left open.** The user said "a cat on a rooftop at sunset" — they did not specify camera angle, lens, depth of field, color palette, or the cat's pose. These are decisions you need to make. Choose what serves the image's purpose; do not leave them for the model to default on.
 
 **Step 3 — Construct the prompt as a coherent scene description.** Write it as if briefing someone who will create this image. The prompt should read as clear prose or structured direction — not as a comma-separated keyword dump.
+
+**Choosing a format:**
+
+- Simple scene with a single subject and no strict preservation requirements → write as connected prose. Flow reads naturally and the model treats it as a unified brief.
+- Complex scene with multiple elements, strict preservation constraints, or several reference images → use structured groups with short labels. Grouping makes each dimension explicit and reduces the risk of the model conflating requirements across sections.
+
+Structured group example for a complex task:
+
+```
+Subject: [exact description of what must be preserved]
+Lighting: [lighting setup, direction, quality]
+Background / environment: [what to change or keep]
+Style: [colour grade, aesthetic reference]
+Constraints: [what must not appear or change]
+```
+
+Use labels that match the actual dimensions of the task — not every prompt needs all five groups. Only add a group if it carries real information.
 
 ### Prompt, name, and project path language
 
