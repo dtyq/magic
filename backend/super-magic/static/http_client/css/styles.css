@@ -1791,3 +1791,109 @@ input[type="file"] {
     word-break: normal;
     color: var(--wechat-text-gray);
 }
+
+/* ── 画布右侧面板：对话框加宽 ── */
+.file-preview-dialog.has-canvas-panel {
+    width: 92vw;
+    max-width: 1500px;
+}
+
+/* ── 画布右侧面板主体 ── */
+.canvas-right-panel {
+    width: 480px;
+    min-width: 320px;
+    flex-shrink: 0;
+    border-left: 1px solid var(--wechat-border);
+    display: flex;
+    flex-direction: column;
+    background: #fff;
+}
+
+.canvas-panel-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 7px 12px;
+    border-bottom: 1px solid var(--wechat-border);
+    background: #f5f5f5;
+    flex-shrink: 0;
+    gap: 8px;
+}
+
+.canvas-panel-title {
+    font-size: 12px;
+    font-weight: 500;
+    color: var(--wechat-text-dark);
+    font-family: monospace;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.canvas-panel-count {
+    font-size: 11px;
+    color: var(--wechat-text-gray);
+    flex-shrink: 0;
+}
+
+.canvas-right-viewport {
+    flex: 1;
+    min-height: 0;
+    overflow: auto;
+    background: #c8c8c8;
+    position: relative;
+}
+
+/* ── 画布内容布局 ── */
+.canvas-preview-scale-wrap {
+    position: relative;
+}
+
+.canvas-preview-space {
+    position: relative;
+    background: #fff;
+    box-shadow: 0 2px 16px rgba(0, 0, 0, 0.18);
+}
+
+/* ── 画布元素 ── */
+.canvas-preview-element {
+    position: absolute;
+    overflow: hidden;
+    background: #f0f0f0;
+    border: 1px solid rgba(0, 0, 0, 0.06);
+}
+
+.canvas-el-state {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.canvas-el-processing {
+    background: #f0f8ff;
+    border-color: #b0d4f0;
+}
+
+.canvas-el-failed {
+    background: #fff5f5;
+    border-color: #f5b8b8;
+}
+
+.canvas-el-missing {
+    background: #fffbe6;
+    border-color: #e8d870;
+}
+
+.canvas-el-empty {
+    background: #f5f5f5;
+    border-color: #ddd;
+}
+
+.canvas-el-label {
+    font-size: 12px;
+    color: #999;
+    padding: 4px 8px;
+    text-align: center;
+    word-break: break-word;
+    line-height: 1.4;
+}
