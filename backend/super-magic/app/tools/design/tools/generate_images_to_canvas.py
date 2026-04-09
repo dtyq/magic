@@ -597,13 +597,27 @@ Expand brief user descriptions into full prompts covering subject, style, compos
                     update_result = await self._batch_update_tool.execute(tool_context, batch_update_params)
 
                     if not update_result.ok:
-                        logger.warning(f"更新占位符失败，但占位符已创建: {update_result.content}")
-                        # 即使更新失败，也不影响整体流程，因为占位符已经创建
+                        logger.warning(f"更新占位符失败: {update_result.content}")
                     else:
                         elements_detail = update_result.extra_info.get("elements", elements_detail)
+
+                    # 补偿机制：占位符可能在 Phase 2 等待期间被外部删除（如前端覆盖写入）。
+                    # 对于图片已生成成功但占位符 update 失败的元素，重新 create 回画布。
+                    compensated = await self._compensate_lost_placeholders(
+                        tool_context=tool_context,
+                        project_path=params.project_path,
+                        generation_results=generation_results,
+                        created_placeholders=created_placeholders,
+                        recalculated_info=recalculated_info,
+                        update_result=update_result,
+                    )
+                    if compensated:
+                        # 合并而非覆盖：update 成功的 + 补偿创建的
+                        compensated_elements = compensated.extra_info.get("elements", [])
+                        elements_detail = elements_detail + compensated_elements
+
                 except Exception as update_error:
                     logger.error(f"批量更新阶段异常: {update_error}", exc_info=True)
-                    # 更新失败不影响整体结果，占位符仍然存在
 
             logger.info(f"完成！成功: {succeeded_count}, 失败: {failed_count}")
 
@@ -661,6 +675,83 @@ Expand brief user descriptions into full prompts covering subject, style, compos
                 f"生成图片到画布失败: {e!s}",
                 extra_info={"error_type": "design.error_unexpected"}
             )
+
+    async def _compensate_lost_placeholders(
+        self,
+        tool_context: ToolContext,
+        project_path: str,
+        generation_results: list,
+        created_placeholders: list,
+        recalculated_info: list,
+        update_result: ToolResult,
+    ) -> Optional[ToolResult]:
+        """占位符丢失补偿：Phase 2 期间占位符可能被外部写入覆盖（如前端保存旧版画布）。
+        对于图片已生成成功但占位符 update 失败的元素，重新 create 回画布。
+        返回补偿 create 的 ToolResult，如果无需补偿则返回 None。"""
+        errors = update_result.extra_info.get("errors", []) if update_result.extra_info else []
+        if not errors:
+            return None
+
+        failed_element_ids = {item["element_id"] for item in errors}
+
+        # 筛选：图片生成成功 + 对应占位符 update 失败
+        specs_to_recreate = []
+        for result in generation_results:
+            if not result.is_success:
+                continue
+            placeholder = created_placeholders[result.index]
+            if placeholder["id"] not in failed_element_ids:
+                continue
+
+            image_info = result.image_info
+            recalc = next(
+                (info for info in recalculated_info if info["index"] == result.index),
+                None,
+            )
+
+            spec = ElementCreationSpec(
+                element_type="image",
+                name=placeholder.get("name", f"compensated-{result.index}"),
+                width=recalc["width"] if recalc else image_info.width,
+                height=recalc["height"] if recalc else image_info.height,
+                x=recalc["x"] if recalc else None,
+                y=recalc["y"] if recalc else None,
+                properties={
+                    "src": image_info.relative_path,
+                    "status": "completed",
+                    "generateImageRequest": image_info.generate_request,
+                },
+            )
+            specs_to_recreate.append(spec)
+
+        if not specs_to_recreate:
+            return None
+
+        logger.info(
+            f"占位符补偿：{len(specs_to_recreate)} 个占位符在 Phase 2 期间丢失，"
+            f"重新创建元素（图片文件已存在，无需重新生成）"
+        )
+
+        try:
+            from app.tools.design.tools.batch_create_canvas_elements import (
+                BatchCreateCanvasElementsParams,
+            )
+            compensate_params = BatchCreateCanvasElementsParams(
+                project_path=project_path,
+                elements=specs_to_recreate,
+            )
+            compensate_result = await self._batch_create_tool.execute(
+                tool_context, compensate_params
+            )
+            if compensate_result.ok:
+                logger.info(f"占位符补偿成功：{len(specs_to_recreate)} 个元素已重新创建")
+                return compensate_result
+            else:
+                logger.error(f"占位符补偿失败: {compensate_result.content}")
+                return None
+        except Exception as e:
+            logger.error(f"占位符补偿异常: {e}", exc_info=True)
+            return None
 
     async def _generate_images_single_prompt(
         self,
