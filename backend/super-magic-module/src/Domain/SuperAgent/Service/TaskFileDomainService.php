@@ -191,6 +191,7 @@ class TaskFileDomainService
      * 递归查询目录下所有文件（使用 parent_id 索引，高性能）.
      * 利用 idx_project_parent_sort 索引进行广度优先遍历.
      * 使用批量查询避免 N+1 问题.
+     * 每一层通过分页循环确保不遗漏超过单次 limit 的子项.
      *
      * @param int $projectId 项目ID
      * @param int $parentId 父目录ID
@@ -201,29 +202,33 @@ class TaskFileDomainService
     {
         $allFiles = [];
         $currentLevelParentIds = [$parentId];
+        $batchLimit = 1000;
 
         // 广度优先遍历，逐层查询
         for ($depth = 0; $depth < $maxDepth && ! empty($currentLevelParentIds); ++$depth) {
-            // 批量查询当前层所有父目录的子项（一次 SQL 查询，避免 N+1 问题）
-            $children = $this->taskFileRepository->getChildrenByParentIdsAndProject(
-                $projectId,
-                $currentLevelParentIds,
-                1000
-            );
-
-            if (empty($children)) {
-                break;
-            }
-
             $nextLevelParentIds = [];
-            foreach ($children as $child) {
-                $allFiles[] = $child;
+            $offset = 0;
 
-                // 如果是目录，加入下一层的查询队列
-                if ($child->getIsDirectory()) {
-                    $nextLevelParentIds[] = $child->getFileId();
+            // 分页循环，确保获取当前层所有子项
+            do {
+                $children = $this->taskFileRepository->getChildrenByParentIdsAndProject(
+                    $projectId,
+                    $currentLevelParentIds,
+                    $batchLimit,
+                    $offset
+                );
+
+                foreach ($children as $child) {
+                    $allFiles[] = $child;
+
+                    // 如果是目录，加入下一层的查询队列
+                    if ($child->getIsDirectory()) {
+                        $nextLevelParentIds[] = $child->getFileId();
+                    }
                 }
-            }
+
+                $offset += $batchLimit;
+            } while (count($children) >= $batchLimit);
 
             $currentLevelParentIds = $nextLevelParentIds;
         }
@@ -670,7 +675,7 @@ class TaskFileDomainService
             $taskFileEntity->setStorageType(StorageType::WORKSPACE);
             $taskFileEntity->setUserId($dataIsolation->getCurrentUserId());
             $taskFileEntity->setOrganizationCode($dataIsolation->getCurrentOrganizationCode());
-            $taskFileEntity->setIsHidden(false);
+            $taskFileEntity->setIsHidden(WorkFileUtil::isHiddenFile($fileKey));
             $taskFileEntity->setSort($sortValue);
 
             // Extract file extension for files
@@ -771,7 +776,7 @@ class TaskFileDomainService
         $taskFileEntity->setStorageType(StorageType::WORKSPACE);
         $taskFileEntity->setUserId($dataIsolation->getCurrentUserId());
         $taskFileEntity->setOrganizationCode($dataIsolation->getCurrentOrganizationCode());
-        $taskFileEntity->setIsHidden(false);
+        $taskFileEntity->setIsHidden(WorkFileUtil::isHiddenFile($fileKey));
         $taskFileEntity->setSort(0);
 
         if (! empty($fileName)) {
@@ -1367,7 +1372,7 @@ class TaskFileDomainService
             $newFileEntity->setCreatedAt(date('Y-m-d H:i:s'));
             $newFileEntity->setUpdatedAt(date('Y-m-d H:i:s'));
             $newFileEntity->setStorageType($fileEntity->getStorageType());
-            $newFileEntity->setIsHidden($fileEntity->getIsHidden());
+            $newFileEntity->setIsHidden(WorkFileUtil::isHiddenFile($targetPath));
             $newFileEntity->setIsDirectory($fileEntity->getIsDirectory());
             $newFileEntity->setParentId($targetParentId);
             $newFileEntity->setMetadata($fileEntity->getMetadata());
@@ -1512,7 +1517,7 @@ class TaskFileDomainService
             $targetFileEntity->setFileKey($targetPath);
             $targetFileEntity->setCreatedAt(date('Y-m-d H:i:s'));
             $targetFileEntity->setStorageType($fileEntity->getStorageType());
-            $targetFileEntity->setIsHidden($fileEntity->getIsHidden());
+            $targetFileEntity->setIsHidden(WorkFileUtil::isHiddenFile($targetPath));
             $targetFileEntity->setIsDirectory($fileEntity->getIsDirectory());
             $targetFileEntity->setParentId($targetParentId);
             $targetFileEntity->setSort($fileEntity->getSort() + 1);
@@ -2359,7 +2364,7 @@ class TaskFileDomainService
         $dirEntity->setParentId($parentId);
         $dirEntity->setSource(TaskFileSource::COPY);
         $dirEntity->setStorageType($oldFileEntity->getStorageType());
-        $dirEntity->setIsHidden($oldFileEntity->getIsHidden());
+        $dirEntity->setIsHidden(WorkFileUtil::isHiddenFile($newFileKey));
         $dirEntity->setSort($oldFileEntity->getSort());
         $dirEntity->setMetadata($oldFileEntity->getMetadata());  // Preserve metadata when creating folder
         $dirEntity->setFileId(IdGenerator::getSnowId());
@@ -2653,7 +2658,7 @@ class TaskFileDomainService
         } else {
             $dirEntity->setStorageType(StorageType::WORKSPACE);
         }
-        $dirEntity->setIsHidden(false);
+        $dirEntity->setIsHidden(WorkFileUtil::isHiddenFile($fileKey));
         $dirEntity->setSort(0);
 
         $now = date('Y-m-d H:i:s');
@@ -2747,6 +2752,123 @@ class TaskFileDomainService
         $entity->setFileSize(strlen($content));
         $entity->setUpdatedAt(date('Y-m-d H:i:s'));
         return $this->taskFileRepository->updateById($entity);
+    }
+
+    /**
+     * Clear all descendants under the given directory while keeping the parent node itself.
+     *
+     * @return array{
+     *     project_id:int,
+     *     parent_id:int,
+     *     deleted_total:int,
+     *     deleted_files:int,
+     *     deleted_directories:int,
+     *     deleted_objects:int
+     * }
+     */
+    public function clearProjectFile(int $projectId, string $organizationCode, int $parentId): array
+    {
+        $projectEntity = $this->projectRepository->findById($projectId);
+        if ($projectEntity === null) {
+            ExceptionBuilder::throw(SuperAgentErrorCode::PROJECT_NOT_FOUND, trans('project.project_not_found'));
+        }
+
+        $workDir = $projectEntity->getWorkDir();
+        if ($workDir === '') {
+            ExceptionBuilder::throw(SuperAgentErrorCode::WORK_DIR_NOT_FOUND, trans('project.work_dir.not_found'));
+        }
+
+        if ($projectEntity->getUserOrganizationCode() !== $organizationCode) {
+            ExceptionBuilder::throw(SuperAgentErrorCode::FILE_PERMISSION_DENIED, trans('file.permission_denied'));
+        }
+
+        $parentEntity = $this->taskFileRepository->getById($parentId);
+        if ($parentEntity === null || $parentEntity->getProjectId() !== $projectId) {
+            ExceptionBuilder::throw(SuperAgentErrorCode::FILE_NOT_FOUND, trans('file.file_not_found'));
+        }
+        if (! $parentEntity->getIsDirectory()) {
+            ExceptionBuilder::throw(SuperAgentErrorCode::FILE_OPERATION_NOT_ALLOWED, trans('file.cannot_replace_directory'));
+        }
+
+        $descendants = $this->findFilesRecursivelyByParentId($projectId, $parentId, 100);
+        if ($descendants === []) {
+            return [
+                'project_id' => $projectId,
+                'parent_id' => $parentId,
+                'deleted_total' => 0,
+                'deleted_files' => 0,
+                'deleted_directories' => 0,
+                'deleted_objects' => 0,
+            ];
+        }
+
+        $fullPrefix = $this->getFullPrefix($organizationCode);
+        $fullWorkdir = WorkDirectoryUtil::getFullWorkdir($fullPrefix, $workDir);
+        $parentPrefix = rtrim($parentEntity->getFileKey(), '/') . '/';
+        $fileIds = [];
+        $fileKeys = [];
+        $deletedFiles = 0;
+        $deletedDirectories = 0;
+
+        foreach ($descendants as $entity) {
+            $fileKey = $entity->getFileKey();
+
+            if (
+                $entity->getProjectId() !== $projectId
+                || ! WorkDirectoryUtil::checkEffectiveFileKey($fullWorkdir, $fileKey)
+                || ! str_starts_with($fileKey, $parentPrefix)
+            ) {
+                ExceptionBuilder::throw(SuperAgentErrorCode::FILE_ILLEGAL_KEY, trans('file.illegal_file_key'));
+            }
+
+            $fileIds[] = $entity->getFileId();
+            $fileKeys[] = $fileKey;
+
+            if ($entity->getIsDirectory()) {
+                ++$deletedDirectories;
+            } else {
+                ++$deletedFiles;
+            }
+        }
+
+        $deleteResult = $this->cloudFileRepository->deleteObjectsByCredential(
+            WorkDirectoryUtil::getPrefix($workDir),
+            $organizationCode,
+            $fileKeys,
+            StorageBucketType::SandBox
+        );
+
+        if (! empty($deleteResult['errors'])) {
+            $this->logger->error('Failed to clear project files from storage', [
+                'project_id' => $projectId,
+                'parent_id' => $parentId,
+                'errors' => $deleteResult['errors'],
+            ]);
+            ExceptionBuilder::throw(SuperAgentErrorCode::FILE_DELETE_FAILED, trans('file.batch_delete_failed'));
+        }
+
+        Db::beginTransaction();
+        try {
+            $this->taskFileRepository->deleteByIds($fileIds);
+            Db::commit();
+        } catch (Throwable $e) {
+            Db::rollBack();
+            $this->logger->error('Failed to clear project files from database', [
+                'project_id' => $projectId,
+                'parent_id' => $parentId,
+                'error' => $e->getMessage(),
+            ]);
+            ExceptionBuilder::throw(SuperAgentErrorCode::FILE_DELETE_FAILED, trans('file.batch_delete_failed'));
+        }
+
+        return [
+            'project_id' => $projectId,
+            'parent_id' => $parentId,
+            'deleted_total' => count($descendants),
+            'deleted_files' => $deletedFiles,
+            'deleted_directories' => $deletedDirectories,
+            'deleted_objects' => count($deleteResult['deleted'] ?? []),
+        ];
     }
 
     /**
@@ -3269,7 +3391,7 @@ class TaskFileDomainService
         $newTaskFile->setFileExtension($sourceFile->getFileExtension());
         $newTaskFile->setFileKey($newFileKey);
         $newTaskFile->setFileSize($sourceFile->getFileSize());
-        $newTaskFile->setIsHidden($sourceFile->getIsHidden());
+        $newTaskFile->setIsHidden(WorkFileUtil::isHiddenFile($newFileKey));
         $newTaskFile->setIsDirectory($sourceFile->getIsDirectory());
 
         // Use provided parentId or fall back to source file's parentId
