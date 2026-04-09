@@ -63,6 +63,10 @@ func runDeploy(cmd *cobra.Command, args []string) error {
 	cfg.Deploy.ChartRepo.PlainHTTP = plainHTTP
 
 	webBaseURL := resolveValue(deployWebURL, envNameCLIWebBaseURL, "")
+	if err := deployer.ValidateWebBaseURL(webBaseURL); err != nil {
+		return err
+	}
+
 	autoRecoverRelease, err := resolveAutoRecoverRelease(
 		deployAutoRecoverRelease,
 		cmd.Flags().Changed("auto-recover-release"),
