@@ -55,17 +55,19 @@ from sdk.tool import tool
 # - content: "A golden retriever sitting on grass, looking at camera,
 #   with pointed ears, warm afternoon sunlight from the left"
 
-tool.call('generate_images_to_canvas', {
+tool.call('generate_canvas_images', {
     "project_path": "my-design",
-    "name": "dog-red-ear",
-    "reference_images": ["my-design/images/dog.jpg"],
-    "prompts": [
-        "A golden retriever sitting on grass, looking at camera, warm afternoon sunlight from the left. "
-        "Change only the ear in the upper-right area to bright red — same fur texture, same lighting, "
-        "just the color changed to a vivid red. "
-        "Preserve the dog's face, body, pose, the grass, and the entire background exactly as they appear."
-    ],
-    "size": "1920x1080"
+    "tasks": [{
+        "name": "dog-red-ear",
+        "reference_images": ["my-design/images/dog.jpg"],
+        "prompt": (
+            "A golden retriever sitting on grass, looking at camera, warm afternoon sunlight from the left. "
+            "Change only the ear in the upper-right area to bright red — same fur texture, same lighting, "
+            "just the color changed to a vivid red. "
+            "Preserve the dog's face, body, pose, the grass, and the entire background exactly as they appear."
+        ),
+        "size": "1920x1080"
+    }]
 })
 ```
 

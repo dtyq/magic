@@ -198,7 +198,7 @@ result = tool.call('generate_videos_to_canvas', {
 ## Critical Rules
 
 <!--zh
-- 用户要的是动态结果时，不要退回 `generate_images_to_canvas`
+- 用户要的是动态结果时，不要退回 `generate_canvas_images`
 - 只有用户明确改要静态海报、封面、截图时，才切回图片工作流
 - 视频创建工具会先阻塞轮询，并在工具返回前持续给用户发进度消息
 - 默认不要因为任务还在处理中就主动调用查询能力
@@ -211,7 +211,7 @@ result = tool.call('generate_videos_to_canvas', {
 - 参数不确定时，宁可少传，不要乱传
 - 对 `generate_videos_to_canvas` 来说，`width`/`height` 是画布元素尺寸；模型应优先关注画布落点和视频目标，不要陷入调参
 -->
-- When the user wants dynamic output, do not fall back to `generate_images_to_canvas`
+- When the user wants dynamic output, do not fall back to `generate_canvas_images`
 - Only switch back to image workflow when the user explicitly asks for a still result
 - The video creation tool blocks and polls first, while continuously sending progress updates before returning
 - Do not proactively call the query capability just because a task is still in progress

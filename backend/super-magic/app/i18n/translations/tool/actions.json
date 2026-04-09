@@ -239,10 +239,6 @@
         "zh_CN": "查询元素详情",
         "en_US": "Query canvas element"
     },
-    "delete_canvas_element": {
-        "zh_CN": "删除画布元素",
-        "en_US": "Delete canvas element"
-    },
     "batch_create_canvas_elements": {
         "zh_CN": "批量创建元素",
         "en_US": "Batch create elements"
@@ -254,10 +250,6 @@
     "search_images_to_canvas": {
         "zh_CN": "创建画布元素",
         "en_US": "Create canvas element"
-    },
-    "generate_images_to_canvas": {
-        "zh_CN": "生成图片",
-        "en_US": "Generate images"
     },
     "generate_canvas_images": {
         "zh_CN": "生成图片",

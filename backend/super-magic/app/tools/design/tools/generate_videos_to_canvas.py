@@ -127,7 +127,7 @@ class GenerateVideosToCanvas(BaseDesignTool[GenerateVideosToCanvasParams]):
     3. 回填 src/poster/status/generateVideoRequest
 
     真正的视频生成、轮询、下载和文件通知全部下沉到通用工具，
-    这样设计链路才能与当前 generate_images_to_canvas -> generate_image 的分层方式保持一致。
+    这样设计链路才能与当前 generate_canvas_images -> generate_image 的分层方式保持一致。
     """
 
     def __init__(self, **data):
@@ -469,7 +469,7 @@ class GenerateVideosToCanvas(BaseDesignTool[GenerateVideosToCanvasParams]):
                 [
                     "",
                     "These video tasks were polled until timeout and are still in progress.",
-                    "If the user explicitly asks to check progress later, use query_video_generation. Do not switch to generate_images_to_canvas unless the user explicitly asks for a static image result.",
+                    "If the user explicitly asks to check progress later, use query_video_generation. Do not switch to generate_canvas_images unless the user explicitly asks for a static image result.",
                     "Pending Operations:",
                 ]
             )

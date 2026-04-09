@@ -8,7 +8,7 @@ from app.i18n import i18n
 import asyncio
 import random
 import time
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
@@ -21,12 +21,13 @@ from agentlang.logger import get_logger
 from agentlang.tools.tool_result import ToolResult
 from app.core.entity.message.server_message import ToolDetail, DisplayType
 from app.tools.core import BaseToolParams, tool
-from app.tools.design.tools.base_design_tool import BaseDesignTool
-from app.tools.design.tools.batch_create_canvas_elements import (
-    BatchCreateCanvasElements,
-    ElementCreationSpec,
+from app.tools.design.tools.base_generate_canvas_elements import (
+    BaseGenerateCanvasElements,
+    ElementDetail,
+    PlaceholderUpdate,
+    TaskExecutionResult,
+    TaskPlaceholderInfo,
 )
-from app.tools.design.constants import DEFAULT_ELEMENT_SPACING
 from app.tools.generate_image import GenerateImage, GenerateImageParams
 from app.tools.snippet_timeout_registry import SdkSnippetTimeoutRegistry
 from app.utils.async_file_utils import async_exists
@@ -34,6 +35,22 @@ from app.utils.async_file_utils import async_exists
 logger = get_logger(__name__)
 
 SdkSnippetTimeoutRegistry.register("generate_canvas_images", min_timeout=600)
+
+
+@dataclass
+class ImagePlaceholderUpdate(PlaceholderUpdate):
+    """图片元素的占位符更新内容
+
+    Attributes:
+        src: 生成成功后的图片相对路径
+        width: 实际图片宽度
+        height: 实际图片高度
+        generateImageRequest: 生成时使用的参数记录
+    """
+    src: Optional[str] = None
+    width: Optional[float] = None
+    height: Optional[float] = None
+    generateImageRequest: Optional[Dict[str, Any]] = None
 
 
 @dataclass
@@ -45,13 +62,11 @@ class ImageGenerationResult:
         success: 是否生成成功
         image_info: 成功时的图片信息
         error_message: 失败时的错误信息
-        updated_elements: 占位符更新后返回的元素列表，用于汇总到最终 ToolResult
     """
     index: int
     success: bool
     image_info: Optional["GeneratedImageInfo"] = None
     error_message: Optional[str] = None
-    updated_elements: List[Dict] = field(default_factory=list)
 
     @property
     def is_success(self) -> bool:
@@ -212,7 +227,7 @@ Image generation task list. Each task produces one image. Maximum 6 tasks. Each 
 
 
 @tool()
-class GenerateCanvasImages(BaseDesignTool[GenerateCanvasImagesParams]):
+class GenerateCanvasImages(BaseGenerateCanvasElements[GenerateCanvasImagesParams]):
     """<!--zh: 按任务列表生成 AI 图片并自动添加到画布。每个 task 独立指定提示词、尺寸和参考图，有几个 task 就生成几张图，并发执行。-->
     Generate AI images and automatically add them to the canvas, one image per task. Each task independently specifies its prompt, size, and reference images; all tasks run concurrently.
     """
@@ -258,205 +273,17 @@ Expand brief user descriptions into full prompts covering subject, style, compos
     def __init__(self, **data):
         super().__init__(**data)
         self._generate_tool = GenerateImage()
-        self._batch_create_tool = BatchCreateCanvasElements()
-        from app.tools.design.tools.batch_update_canvas_elements import BatchUpdateCanvasElements
-        self._batch_update_tool = BatchUpdateCanvasElements()
 
     async def execute(
         self, tool_context: ToolContext, params: GenerateCanvasImagesParams
     ) -> ToolResult:
-        """执行生成图片并创建元素（3 阶段流程）
-
-        阶段1: 创建占位符（status="processing"）
-        阶段2: 并发生成图片（每个 task 生成一张）
-        阶段3: 更新占位符为完整元素（status="completed" 或 "failed"）
-        """
         try:
             workspace_root = Path(tool_context.base_dir).resolve()
             project_prefix = params.project_path.strip("/")
-
             normalize_error = await self._normalize_tasks(params.tasks, workspace_root, project_prefix)
             if normalize_error:
                 return normalize_error
-
-            actual_count = len(params.tasks)
-
-            # 1. 确保项目已准备好
-            project_path, error_result = await self._ensure_project_ready(
-                params.project_path,
-                require_magic_project_js=True
-            )
-            if error_result:
-                return error_result
-
-            workspace_path = workspace_root
-            logger.info(
-                f"开始生成图片并添加到画布（3阶段流程）: task_count={actual_count}, "
-                f"project={params.project_path}"
-            )
-
-            # ========== 阶段1: 准备占位符 ==========
-            # 有 element_id 的 task：复用已有元素，更新为 processing
-            # 没有 element_id 的 task：新建占位符
-            logger.info("阶段1: 准备占位符元素")
-
-            from app.tools.design.tools.batch_create_canvas_elements import BatchCreateCanvasElementsParams
-            from app.tools.design.tools.batch_update_canvas_elements import (
-                BatchUpdateCanvasElementsParams,
-                ElementUpdate,
-            )
-
-            new_task_indices = [idx for idx, task in enumerate(params.tasks) if not task.element_id]
-            existing_task_indices = [idx for idx, task in enumerate(params.tasks) if task.element_id]
-
-            # task_idx → placeholder dict
-            task_placeholders: Dict[int, Dict] = {}
-
-            # 复用已有占位符：重置为 processing
-            if existing_task_indices:
-                reuse_updates = [
-                    ElementUpdate(
-                        element_id=params.tasks[idx].element_id,
-                        properties={"status": "processing"},
-                    )
-                    for idx in existing_task_indices
-                ]
-                reuse_result = await self._batch_update_tool.execute(
-                    tool_context,
-                    BatchUpdateCanvasElementsParams(
-                        project_path=params.project_path,
-                        updates=reuse_updates,
-                    ),
-                )
-                if not reuse_result.ok:
-                    logger.warning(f"重置已有占位符状态失败: {reuse_result.content}")
-                for idx in existing_task_indices:
-                    task = params.tasks[idx]
-                    task_placeholders[idx] = {"id": task.element_id, "name": task.name}
-
-            # 新建占位符
-            if new_task_indices:
-                element_specs = [
-                    ElementCreationSpec(
-                        element_type="image",
-                        name=params.tasks[idx].name,
-                        width=float(self._parse_size_to_dimensions(params.tasks[idx].size)[0]),
-                        height=float(self._parse_size_to_dimensions(params.tasks[idx].size)[1]),
-                        properties={"status": "processing"},
-                    )
-                    for idx in new_task_indices
-                ]
-                batch_create_params = BatchCreateCanvasElementsParams(
-                    project_path=params.project_path,
-                    elements=element_specs,
-                    layout_mode="horizontal",
-                    grid_columns=None,
-                    spacing=DEFAULT_ELEMENT_SPACING,
-                )
-                placeholder_result = await self._batch_create_tool.execute(tool_context, batch_create_params)
-                if not placeholder_result.ok:
-                    logger.error("创建占位符失败")
-                    return placeholder_result
-
-                created = placeholder_result.extra_info.get("created_elements", [])
-                if len(created) != len(new_task_indices):
-                    return ToolResult.error(
-                        "未能创建占位符元素",
-                        extra_info={"error_type": "design.error_unexpected"}
-                    )
-                for i, idx in enumerate(new_task_indices):
-                    task_placeholders[idx] = created[i]
-
-            if not task_placeholders:
-                return ToolResult.error(
-                    "未能准备任何占位符元素",
-                    extra_info={"error_type": "design.error_unexpected"}
-                )
-
-            # 按 task 顺序展开为列表，方便后续使用
-            all_placeholders = [task_placeholders[idx] for idx in range(len(params.tasks))]
-
-            logger.info(
-                f"占位符准备完成：新建 {len(new_task_indices)} 个，复用 {len(existing_task_indices)} 个"
-            )
-
-            # ========== 阶段2: 并发生成并即时更新 ==========
-            # 每个 task 生成完立即更新自己的占位符，无需等待其他任务
-            logger.info("阶段2: 并发生成并即时更新")
-
-            model = self._get_model_from_config(tool_context)
-            timestamp = datetime.now().strftime("%Y%m%d%H%M%S")
-
-            await asyncio.to_thread((project_path / "images").mkdir, parents=True, exist_ok=True)
-            relative_output_path = f"{params.project_path}/images"
-
-            generation_results = list(await asyncio.gather(*[
-                self._generate_and_update_task(
-                    idx=idx,
-                    task=task,
-                    placeholder=all_placeholders[idx],
-                    tool_context=tool_context,
-                    project_path_str=params.project_path,
-                    model=model,
-                    timestamp=timestamp,
-                    output_path=relative_output_path,
-                    workspace_path=workspace_path,
-                    project_path=project_path,
-                )
-                for idx, task in enumerate(params.tasks)
-            ]))
-
-            succeeded_count = sum(1 for r in generation_results if r.is_success)
-            failed_count = sum(1 for r in generation_results if r.is_failed)
-            elements_detail = [elem for r in generation_results for elem in r.updated_elements]
-            logger.info(f"完成！成功: {succeeded_count}, 失败: {failed_count}")
-
-            # 全部失败
-            if succeeded_count == 0 and len(all_placeholders) > 0:
-                failed_elements_desc = "; ".join(
-                    f"{p.get('name', p['id'])} (element_id: \"{p['id']}\")"
-                    for p in all_placeholders
-                )
-                error_content = (
-                    f"Image generation failed: all {len(all_placeholders)} image(s) failed to generate. "
-                    f"To retry in place, pass element_id for each failed element: {failed_elements_desc}"
-                )
-                return ToolResult.error(
-                    error_content,
-                    extra_info={
-                        "error_type": "design.error_unexpected",
-                        "project_path": params.project_path,
-                        "total_count": len(all_placeholders),
-                        "succeeded_count": 0,
-                        "failed_count": failed_count,
-                        "created_elements": all_placeholders,
-                    }
-                )
-
-            result_content = self._build_result_content(
-                project_path=params.project_path,
-                tasks=params.tasks,
-                task_placeholders=all_placeholders,
-                generation_results=generation_results,
-            )
-
-            return ToolResult(
-                content=result_content,
-                data={
-                    "created_elements": all_placeholders,
-                    "succeeded_count": succeeded_count,
-                    "failed_count": failed_count,
-                },
-                extra_info={
-                    "project_path": params.project_path,
-                    "total_count": len(all_placeholders),
-                    "succeeded_count": succeeded_count,
-                    "failed_count": failed_count,
-                    "created_elements": all_placeholders,
-                    "elements": elements_detail,
-                }
-            )
-
+            return await self._run_generate_flow(tool_context, params.project_path, params.tasks)
         except Exception as e:
             logger.exception(f"generate_canvas_images 失败: {e!s}")
             return ToolResult.error(
@@ -464,20 +291,32 @@ Expand brief user descriptions into full prompts covering subject, style, compos
                 extra_info={"error_type": "design.error_unexpected"}
             )
 
-    async def _generate_and_update_task(
+    # ------------------------------------------------------------------
+    # 实现抽象接口
+    # ------------------------------------------------------------------
+
+    def _get_task_placeholder_info(self, task: ImageTaskSpec, idx: int) -> TaskPlaceholderInfo:
+        w, h = self._parse_size_to_dimensions(task.size)
+        return TaskPlaceholderInfo(
+            name=task.name,
+            width=float(w),
+            height=float(h),
+            element_type="image",
+        )
+
+    async def _execute_task_item(
         self,
         idx: int,
         task: ImageTaskSpec,
-        placeholder: Dict,
+        placeholder: ElementDetail,
         tool_context: ToolContext,
-        project_path_str: str,
-        model: str,
-        timestamp: str,
-        output_path: str,
-        workspace_path: Path,
-        project_path: Optional[Path],
-    ) -> ImageGenerationResult:
-        """生成单张图片，完成后立即更新对应占位符，不等待其他任务"""
+        project_path: Path,
+        model: str = "",
+        timestamp: str = "",
+        output_path: str = "",
+        workspace_path: Optional[Path] = None,
+        **kwargs: Any,
+    ) -> TaskExecutionResult:
         # 错开并发请求，避免高并发（首个任务不延迟）
         if idx > 0:
             await asyncio.sleep(min(idx * 0.1 + random.uniform(0, 1.0), 3.0))
@@ -488,14 +327,95 @@ Expand brief user descriptions into full prompts covering subject, style, compos
             model=model,
             timestamp=timestamp,
             output_path=output_path,
-            workspace_path=workspace_path,
+            workspace_path=workspace_path or Path(tool_context.base_dir).resolve(),
             project_path=project_path,
             tool_context=tool_context,
         )
 
-        updated_elements = await self._update_placeholder(result, placeholder, tool_context, project_path_str)
-        result.updated_elements = updated_elements
+        if result.success:
+            image_info = result.image_info
+            update: PlaceholderUpdate = ImagePlaceholderUpdate(
+                status="completed",
+                src=image_info.relative_path,
+                width=image_info.width,
+                height=image_info.height,
+                generateImageRequest=image_info.generate_request,
+            )
+        else:
+            update = ImagePlaceholderUpdate(status="failed")
+
+        return TaskExecutionResult(
+            index=idx,
+            success=result.success,
+            placeholder_update=update,
+            error_message=result.error_message,
+        )
+
+    # ------------------------------------------------------------------
+    # 覆盖钩子
+    # ------------------------------------------------------------------
+
+    async def _prepare_task_kwargs(
+        self,
+        tool_context: ToolContext,
+        project_path: Path,
+    ) -> Dict[str, Any]:
+        model = self._get_model_from_config(tool_context)
+        timestamp = datetime.now().strftime("%Y%m%d%H%M%S")
+        await asyncio.to_thread((project_path / "images").mkdir, parents=True, exist_ok=True)
+        workspace_path = Path(tool_context.base_dir).resolve()
+        relative_project_path = project_path.relative_to(workspace_path)
+        output_path = str(relative_project_path / "images")
+        return {
+            "model": model,
+            "timestamp": timestamp,
+            "output_path": output_path,
+            "workspace_path": workspace_path,
+        }
+
+    def _build_result_content(
+        self,
+        project_path: Path,
+        tasks: List[Any],
+        placeholders: List[ElementDetail],
+        task_results: List[TaskExecutionResult],
+    ) -> str:
+        total = len(tasks)
+        succeeded_count = sum(1 for r in task_results if r.is_success)
+        failed_count = total - succeeded_count
+
+        warning_line = (
+            f"\n- Warning: {failed_count}/{total} images failed to generate"
+            if failed_count > 0 else ""
+        )
+
+        result = (
+            f"Generated and Added to Canvas:\n"
+            f"- Success: {succeeded_count} images generated\n"
+            f"- Failed: {failed_count} images{warning_line}\n"
+            f"- Project: {project_path}"
+        )
+
+        success_results = [r for r in task_results if r.is_success]
+        if success_results:
+            result += "\n\nSucceeded Elements:"
+            for r in success_results:
+                p = placeholders[r.index]
+                pos = f" at ({p.x:.0f}, {p.y:.0f})" if p.x is not None and p.y is not None else ""
+                result += f"\n- {p.name} (id: {p.id}){pos}"
+
+        failed_results = [r for r in task_results if r.is_failed]
+        if failed_results:
+            result += "\n\nFailed Elements (pass element_id to retry in place):"
+            for r in failed_results:
+                p = placeholders[r.index]
+                result += f'\n- {p.name} (element_id: "{p.id}")'
+
         return result
+
+    # ------------------------------------------------------------------
+    # 图片生成私有实现
+    # ------------------------------------------------------------------
 
     async def _generate_single_with_retry(
         self,
@@ -505,7 +425,7 @@ Expand brief user descriptions into full prompts covering subject, style, compos
         timestamp: str,
         output_path: str,
         workspace_path: Path,
-        project_path: Optional[Path],
+        project_path: Path,
         tool_context: ToolContext,
     ) -> ImageGenerationResult:
         """生成单张图片，失败自动重试一次"""
@@ -534,10 +454,12 @@ Expand brief user descriptions into full prompts covering subject, style, compos
                     override=False,
                 )
 
+                _start_dt = datetime.now()
                 _t0 = time.monotonic()
                 gen_result = await self._generate_tool.execute_purely(
                     tool_context, generate_params, skip_limit_check=True
                 )
+                _end_dt = datetime.now()
                 _duration_ms = int((time.monotonic() - _t0) * 1000)
 
                 if gen_result.ok:
@@ -547,6 +469,8 @@ Expand brief user descriptions into full prompts covering subject, style, compos
                         generate_params,
                         project_path=project_path,
                         duration_ms=_duration_ms,
+                        start_time=_start_dt.isoformat(timespec="milliseconds"),
+                        end_time=_end_dt.isoformat(timespec="milliseconds"),
                     )
 
                     if extracted.has_success:
@@ -580,46 +504,60 @@ Expand brief user descriptions into full prompts covering subject, style, compos
 
         return ImageGenerationResult(index=idx, success=False, error_message="未知错误")
 
-    async def _update_placeholder(
+    async def _extract_generated_images(
         self,
-        result: ImageGenerationResult,
-        placeholder: Dict,
-        tool_context: ToolContext,
-        project_path_str: str,
-    ) -> List[Dict]:
-        """将生成结果立即写入对应占位符，返回更新后的元素列表"""
-        from app.tools.design.tools.batch_update_canvas_elements import (
-            BatchUpdateCanvasElementsParams,
-            ElementUpdate,
-        )
+        generation_result: ToolResult,
+        workspace_path: Path,
+        generate_params: GenerateImageParams,
+        project_path: Path,
+        duration_ms: Optional[int] = None,
+        start_time: Optional[str] = None,
+        end_time: Optional[str] = None,
+    ) -> ExtractedImagesResult:
+        """从 generate_image 结果中提取图片信息，校验文件完整性并组装元数据"""
+        images = []
+        errors = []
 
-        if result.is_success:
-            image_info = result.image_info
-            update_properties: Dict[str, Any] = {
-                "src": image_info.relative_path,
-                "status": "completed",
-                "generateImageRequest": image_info.generate_request,
+        extra_info = generation_result.extra_info or {}
+        image_list = extra_info.get("saved_images", [])
+
+        for img_path in image_list:
+            is_valid, error_msg = await self._validate_image_file(img_path)
+            if not is_valid:
+                logger.warning(f"图片文件校验失败: {error_msg}")
+                errors.append(f"图片校验失败: {Path(img_path).name} - {error_msg}")
+                continue
+
+            relative_path = self._make_relative_to_project(img_path, project_path)
+            dimensions = self._read_image_dimensions(img_path)
+            image_id = Path(img_path).stem
+
+            size_value = dimensions.size_string if dimensions.is_valid else generate_params.size
+
+            generate_request: Dict[str, Any] = {
+                "model_id": generate_params.model,
+                "prompt": generate_params.prompt,
+                "size": size_value,
+                "image_id": image_id,
+                "mode": generate_params.mode,
             }
-            if image_info.width is not None:
-                update_properties["width"] = image_info.width
-            if image_info.height is not None:
-                update_properties["height"] = image_info.height
-        else:
-            update_properties = {"status": "failed"}
+            if start_time is not None:
+                generate_request["start_time"] = start_time
+            if end_time is not None:
+                generate_request["end_time"] = end_time
+            if duration_ms is not None:
+                generate_request["duration_ms"] = duration_ms
+            if generate_params.mode == "edit" and generate_params.image_paths:
+                generate_request["reference_images"] = generate_params.image_paths
 
-        try:
-            batch_update_params = BatchUpdateCanvasElementsParams(
-                project_path=project_path_str,
-                updates=[ElementUpdate(element_id=placeholder["id"], properties=update_properties)],
-            )
-            update_result = await self._batch_update_tool.execute(tool_context, batch_update_params)
-            if not update_result.ok:
-                logger.warning(f"更新占位符失败 (id={placeholder['id']}): {update_result.content}")
-                return []
-            return update_result.extra_info.get("elements", [])
-        except Exception as e:
-            logger.error(f"更新占位符异常 (id={placeholder['id']}): {e}", exc_info=True)
-            return []
+            images.append(GeneratedImageInfo(
+                relative_path=relative_path,
+                width=dimensions.width,
+                height=dimensions.height,
+                generate_request=generate_request,
+            ))
+
+        return ExtractedImagesResult(images=images, errors=errors)
 
     def _get_model_from_config(self, tool_context: Optional[ToolContext] = None) -> str:
         """获取图片生成模型，优先从 agent context 读取，均未配置时使用默认模型"""
@@ -661,80 +599,6 @@ Expand brief user descriptions into full prompts covering subject, style, compos
             except ValueError:
                 pass
         raise ValueError(f"无法解析尺寸参数 '{size}'，应为 'WxH' 格式")
-
-    async def _extract_generated_images(
-        self,
-        generation_result: ToolResult,
-        workspace_path: Path,
-        generate_params: GenerateImageParams,
-        project_path: Optional[Path] = None,
-        duration_ms: Optional[int] = None,
-    ) -> ExtractedImagesResult:
-        """从 generate_image 结果中提取图片信息，校验文件完整性并组装元数据"""
-        images = []
-        errors = []
-
-        extra_info = generation_result.extra_info or {}
-        image_list = extra_info.get("saved_images", [])
-
-        for img_path in image_list:
-            is_valid, error_msg = await self._validate_image_file(img_path)
-            if not is_valid:
-                logger.warning(f"图片文件校验失败: {error_msg}")
-                errors.append(f"图片校验失败: {Path(img_path).name} - {error_msg}")
-                continue
-
-            if project_path is not None:
-                relative_path = self._make_relative_to_project(img_path, project_path)
-            else:
-                try:
-                    relative_path = str(Path(img_path).relative_to(workspace_path))
-                except ValueError:
-                    relative_path = Path(img_path).name
-
-            dimensions = self._read_image_dimensions(img_path)
-            image_id = Path(img_path).stem
-
-            size_value = dimensions.size_string if dimensions.is_valid else generate_params.size
-
-            generate_request: Dict[str, Any] = {
-                "model_id": generate_params.model,
-                "prompt": generate_params.prompt,
-                "size": size_value,
-                "image_id": image_id,
-                "mode": generate_params.mode,
-            }
-            if duration_ms is not None:
-                generate_request["duration_ms"] = duration_ms
-            if generate_params.mode == "edit" and generate_params.image_paths:
-                generate_request["reference_images"] = generate_params.image_paths
-
-            images.append(GeneratedImageInfo(
-                relative_path=relative_path,
-                width=dimensions.width,
-                height=dimensions.height,
-                generate_request=generate_request,
-            ))
-
-        return ExtractedImagesResult(images=images, errors=errors)
-
-    # noinspection PyMethodMayBeStatic
-    def _read_image_dimensions(self, image_path: str) -> ImageDimensions:
-        """从图片文件读取实际尺寸，读取失败时返回 width=None, height=None"""
-        try:
-            from PIL import Image
-
-            path_obj = Path(image_path)
-            if not path_obj.exists():
-                return ImageDimensions(width=None, height=None)
-
-            with Image.open(path_obj) as img:
-                w, h = img.size
-                return ImageDimensions(width=float(w), height=float(h))
-
-        except Exception as e:
-            logger.warning(f"读取图片尺寸失败 {image_path}: {e}")
-            return ImageDimensions(width=None, height=None)
 
     async def _normalize_tasks(
         self, tasks: List[ImageTaskSpec], workspace_root: Path, project_prefix: str
@@ -786,7 +650,6 @@ Expand brief user descriptions into full prompts covering subject, style, compos
         best_size: Optional[str] = None
 
         for ref_path in reference_images:
-            # 支持绝对路径和相对路径（相对于 workspace 根）
             path_obj = Path(ref_path)
             if not path_obj.is_absolute():
                 path_obj = workspace_root / ref_path
@@ -813,52 +676,22 @@ Expand brief user descriptions into full prompts covering subject, style, compos
             return path_obj.name
 
     # noinspection PyMethodMayBeStatic
-    def _build_result_content(
-        self,
-        project_path: str,
-        tasks: List[ImageTaskSpec],
-        task_placeholders: List[Dict],
-        generation_results: List[ImageGenerationResult],
-    ) -> str:
-        """生成给模型读的结果描述，失败元素带 element_id 提示以便重试"""
-        total = len(tasks)
-        succeeded_count = sum(1 for r in generation_results if r.is_success)
-        failed_count = total - succeeded_count
+    def _read_image_dimensions(self, image_path: str) -> ImageDimensions:
+        """从图片文件读取实际尺寸，读取失败时返回 width=None, height=None"""
+        try:
+            from PIL import Image
 
-        warning_line = (
-            f"\n- Warning: {failed_count}/{total} images failed to generate"
-            if failed_count > 0 else ""
-        )
+            path_obj = Path(image_path)
+            if not path_obj.exists():
+                return ImageDimensions(width=None, height=None)
 
-        result = (
-            f"Generated and Added to Canvas:\n"
-            f"- Success: {succeeded_count} images generated\n"
-            f"- Failed: {failed_count} images{warning_line}\n"
-            f"- Project: {project_path}"
-        )
+            with Image.open(path_obj) as img:
+                w, h = img.size
+                return ImageDimensions(width=float(w), height=float(h))
 
-        success_results = [r for r in generation_results if r.is_success]
-        if success_results:
-            result += "\n\nSucceeded Elements:"
-            for r in success_results:
-                placeholder = task_placeholders[r.index]
-                name = placeholder.get("name", "")
-                elem_id = placeholder["id"]
-                x = placeholder.get("x")
-                y = placeholder.get("y")
-                pos = f" at ({x:.0f}, {y:.0f})" if x is not None and y is not None else ""
-                result += f"\n- {name} (id: {elem_id}){pos}"
-
-        failed_results = [r for r in generation_results if r.is_failed]
-        if failed_results:
-            result += "\n\nFailed Elements (pass element_id to retry in place):"
-            for r in failed_results:
-                placeholder = task_placeholders[r.index]
-                name = placeholder.get("name", "")
-                elem_id = placeholder["id"]
-                result += f'\n- {name} (element_id: "{elem_id}")'
-
-        return result
+        except Exception as e:
+            logger.warning(f"读取图片尺寸失败 {image_path}: {e}")
+            return ImageDimensions(width=None, height=None)
 
     def _get_remark_content(self, result: ToolResult, arguments: Dict[str, Any] = None) -> str:
         """生成展示给用户的备注"""
