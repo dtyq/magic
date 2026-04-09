@@ -795,10 +795,6 @@
         "zh_CN": "AI 视频生成异常，请重试",
         "en_US": "AI video generation exception, please retry"
     },
-    "batch_create_canvas_elements.success": {
-        "zh_CN": "成功创建 {{count}} 个画布元素",
-        "en_US": "Successfully created {{count}} canvas elements"
-    },
     "batch_update_canvas_elements.success": {
         "zh_CN": "成功更新 {{count}} 个画布元素",
         "en_US": "Successfully updated {{count}} canvas elements"

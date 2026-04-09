@@ -231,10 +231,6 @@
         "zh_CN": "创建画布",
         "en_US": "Create canvas"
     },
-    "batch_create_canvas_elements": {
-        "zh_CN": "批量创建元素",
-        "en_US": "Batch create elements"
-    },
     "batch_update_canvas_elements": {
         "zh_CN": "批量更新元素",
         "en_US": "Batch update elements"
