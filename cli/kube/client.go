@@ -2,6 +2,7 @@ package kube
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"time"
 
@@ -180,16 +181,19 @@ func (c *Client) RecreateStandardStorageClass(ctx context.Context) error {
 // namespace are scheduled, or until the timeout is exceeded.
 // This is useful for non-blocking warm-up checks where Ready may take a long time.
 func (c *Client) WaitForPodsScheduled(ctx context.Context, namespace, labelSelector string, timeout time.Duration, reporter func([]corev1.Pod)) error {
-	deadline := time.Now().Add(timeout)
-	for {
-		if time.Now().After(deadline) {
-			return fmt.Errorf("timeout waiting for pods scheduled in %s (selector: %s)", namespace, labelSelector)
-		}
+	waitCtx, cancel := context.WithTimeout(ctx, timeout)
+	defer cancel()
+	ticker := time.NewTicker(podWaitPollInterval)
+	defer ticker.Stop()
 
-		pods, err := c.cs.CoreV1().Pods(namespace).List(ctx, metav1.ListOptions{
+	for {
+		pods, err := c.cs.CoreV1().Pods(namespace).List(waitCtx, metav1.ListOptions{
 			LabelSelector: labelSelector,
 		})
 		if err != nil {
+			if waitErr := waitLoopError(waitCtx, err, "timeout waiting for pods scheduled in %s (selector: %s)", namespace, labelSelector); waitErr != nil {
+				return waitErr
+			}
 			return fmt.Errorf("list pods: %w", err)
 		}
 
@@ -202,9 +206,9 @@ func (c *Client) WaitForPodsScheduled(ctx context.Context, namespace, labelSelec
 		}
 
 		select {
-		case <-ctx.Done():
-			return ctx.Err()
-		case <-time.After(podWaitPollInterval):
+		case <-waitCtx.Done():
+			return waitLoopError(waitCtx, waitCtx.Err(), "timeout waiting for pods scheduled in %s (selector: %s)", namespace, labelSelector)
+		case <-ticker.C:
 		}
 	}
 }
@@ -214,16 +218,19 @@ func (c *Client) WaitForPodsScheduled(ctx context.Context, namespace, labelSelec
 // - requireReady=true: updated/current/ready all reach desired.
 // - requireReady=false: updated/current reach desired (ready may lag).
 func (c *Client) WaitForDaemonSetsSettled(ctx context.Context, namespace, labelSelector string, timeout time.Duration, requireReady bool, reporter func([]appsv1.DaemonSet)) error {
-	deadline := time.Now().Add(timeout)
-	for {
-		if time.Now().After(deadline) {
-			return fmt.Errorf("timeout waiting for daemonsets settled in %s (selector: %s)", namespace, labelSelector)
-		}
+	waitCtx, cancel := context.WithTimeout(ctx, timeout)
+	defer cancel()
+	ticker := time.NewTicker(podWaitPollInterval)
+	defer ticker.Stop()
 
-		daemonSets, err := c.cs.AppsV1().DaemonSets(namespace).List(ctx, metav1.ListOptions{
+	for {
+		daemonSets, err := c.cs.AppsV1().DaemonSets(namespace).List(waitCtx, metav1.ListOptions{
 			LabelSelector: labelSelector,
 		})
 		if err != nil {
+			if waitErr := waitLoopError(waitCtx, err, "timeout waiting for daemonsets settled in %s (selector: %s)", namespace, labelSelector); waitErr != nil {
+				return waitErr
+			}
 			return fmt.Errorf("list daemonsets: %w", err)
 		}
 
@@ -236,9 +243,9 @@ func (c *Client) WaitForDaemonSetsSettled(ctx context.Context, namespace, labelS
 		}
 
 		select {
-		case <-ctx.Done():
-			return ctx.Err()
-		case <-time.After(podWaitPollInterval):
+		case <-waitCtx.Done():
+			return waitLoopError(waitCtx, waitCtx.Err(), "timeout waiting for daemonsets settled in %s (selector: %s)", namespace, labelSelector)
+		case <-ticker.C:
 		}
 	}
 }
@@ -248,16 +255,19 @@ func (c *Client) WatchPods(ctx context.Context, namespace, labelSelector string,
 	if watchFn == nil {
 		return fmt.Errorf("watchFn is required")
 	}
-	deadline := time.Now().Add(timeout)
-	for {
-		if time.Now().After(deadline) {
-			return fmt.Errorf("timeout waiting for pods in %s (selector: %s)", namespace, labelSelector)
-		}
+	waitCtx, cancel := context.WithTimeout(ctx, timeout)
+	defer cancel()
+	ticker := time.NewTicker(podWaitPollInterval)
+	defer ticker.Stop()
 
-		pods, err := c.cs.CoreV1().Pods(namespace).List(ctx, metav1.ListOptions{
+	for {
+		pods, err := c.cs.CoreV1().Pods(namespace).List(waitCtx, metav1.ListOptions{
 			LabelSelector: labelSelector,
 		})
 		if err != nil {
+			if waitErr := waitLoopError(waitCtx, err, "timeout waiting for pods in %s (selector: %s)", namespace, labelSelector); waitErr != nil {
+				return waitErr
+			}
 			return fmt.Errorf("list pods: %w", err)
 		}
 
@@ -270,11 +280,27 @@ func (c *Client) WatchPods(ctx context.Context, namespace, labelSelector string,
 		}
 
 		select {
-		case <-ctx.Done():
-			return ctx.Err()
-		case <-time.After(podWaitPollInterval):
+		case <-waitCtx.Done():
+			return waitLoopError(waitCtx, waitCtx.Err(), "timeout waiting for pods in %s (selector: %s)", namespace, labelSelector)
+		case <-ticker.C:
 		}
 	}
+}
+
+func waitLoopError(ctx context.Context, err error, timeoutFormat string, args ...interface{}) error {
+	if err == nil {
+		return nil
+	}
+	if errors.Is(err, context.Canceled) {
+		if errors.Is(ctx.Err(), context.DeadlineExceeded) {
+			return fmt.Errorf(timeoutFormat, args...)
+		}
+		return context.Canceled
+	}
+	if errors.Is(err, context.DeadlineExceeded) {
+		return fmt.Errorf(timeoutFormat, args...)
+	}
+	return nil
 }
 
 // WaitForPodsReady polls until there is at least one pod matching labelSelector and all are ready or completed (e.g. Succeeded job pods).

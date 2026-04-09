@@ -206,6 +206,20 @@ func TestWatchPods_PropagatesCallbackError(t *testing.T) {
 	require.ErrorIs(t, err, want)
 }
 
+// ── WaitForPodsScheduled ─────────────────────────────────────────────────────
+
+func TestWaitForPodsScheduled_TimeoutWhenPodsRemainUnscheduled(t *testing.T) {
+	pod := pendingPod("p1")
+	pod.Labels = map[string]string{"app": "test"}
+	cs := fake.NewSimpleClientset(&pod)
+	c := clientFromFake(cs)
+
+	err := c.WaitForPodsScheduled(context.Background(), "default", "app=test", 1*time.Millisecond, nil)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "timeout waiting for pods scheduled")
+	assert.Contains(t, err.Error(), "selector: app=test")
+}
+
 // ── WaitForDaemonSetsSettled ──────────────────────────────────────────────────
 
 func settledDaemonSet(name string, labels map[string]string, desired int32, ready bool) appsv1.DaemonSet {
@@ -215,9 +229,9 @@ func settledDaemonSet(name string, labels map[string]string, desired int32, read
 	}
 	return appsv1.DaemonSet{
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      name,
-			Namespace: "default",
-			Labels:    labels,
+			Name:       name,
+			Namespace:  "default",
+			Labels:     labels,
 			Generation: 3,
 		},
 		Status: appsv1.DaemonSetStatus{
@@ -263,6 +277,16 @@ func TestWaitForDaemonSetsSettled_RequiresObservedGenerationCaughtUp(t *testing.
 	err := c.WaitForDaemonSetsSettled(context.Background(), "default", "app=prepull", 1*time.Millisecond, true, nil)
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "timeout")
+}
+
+func TestWaitForDaemonSetsSettled_TimeoutWhenNoDaemonSetsMatch(t *testing.T) {
+	cs := fake.NewSimpleClientset()
+	c := clientFromFake(cs)
+
+	err := c.WaitForDaemonSetsSettled(context.Background(), "default", "app=prepull", 1*time.Millisecond, true, nil)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "timeout waiting for daemonsets settled")
+	assert.Contains(t, err.Error(), "selector: app=prepull")
 }
 
 func TestWaitForDaemonSetsSettled_ReporterIsCalled(t *testing.T) {

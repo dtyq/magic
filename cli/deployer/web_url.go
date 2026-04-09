@@ -21,6 +21,12 @@ func ValidateWebBaseURL(raw string) error {
 		)
 	}
 
+	switch strings.ToLower(u.Scheme) {
+	case "http", "https":
+	default:
+		return fmt.Errorf(`invalid web URL %q: scheme must be http or https`, raw)
+	}
+
 	host := u.Hostname()
 	if isListenAddress(host) {
 		return fmt.Errorf(

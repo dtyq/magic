@@ -63,3 +63,10 @@ func TestValidateWebBaseURL_RejectsMalformedURLs(t *testing.T) {
 		})
 	}
 }
+
+func TestValidateWebBaseURL_RejectsUnsupportedScheme(t *testing.T) {
+	err := ValidateWebBaseURL("ftp://magic.example.com")
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), `invalid web URL "ftp://magic.example.com"`)
+	assert.Contains(t, err.Error(), "scheme must be http or https")
+}
