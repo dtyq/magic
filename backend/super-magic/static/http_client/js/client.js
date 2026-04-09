@@ -302,13 +302,31 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // Enter 发送，Shift+Enter 换行
     // isComposing 用于屏蔽输入法合成过程中的 Enter（避免确认候选字时误触发发送）
-    const messageInput = document.getElementById('messageInput');
-    if (messageInput) {
-        messageInput.addEventListener('keydown', function(e) {
-            if (e.key === 'Enter' && !e.shiftKey && !e.isComposing) {
+    const messageInputEl = document.getElementById('messageInput');
+    if (messageInputEl) {
+        messageInputEl.addEventListener('keydown', function(e) {
+            if (e.isComposing) return;
+            if (handleMentionPickerKeydown(e)) return;
+            if (e.key === 'Enter' && !e.shiftKey) {
                 e.preventDefault();
                 sendMessage(ContextType.NORMAL);
             }
+        });
+        messageInputEl.addEventListener('input', () => {
+            syncMentionPickerFromInput();
+        });
+        messageInputEl.addEventListener('click', () => {
+            syncMentionPickerFromInput();
+        });
+        messageInputEl.addEventListener('keyup', () => {
+            syncMentionPickerFromInput();
+        });
+        messageInputEl.addEventListener('blur', () => {
+            setTimeout(() => {
+                const ae = document.activeElement;
+                if (ae && mentionPickerEl && mentionPickerEl.contains(ae)) return;
+                closeMentionPicker();
+            }, 180);
         });
     }
 
@@ -906,7 +924,7 @@ function generateImMessageId(channel, userId) {
 // 构造最小 IM 渠道消息
 function createImChatMessage(prompt) {
     const userId = (imUserIdInput ? imUserIdInput.value.trim() : '') || `${currentImChannel}_user`;
-    return {
+    const msg = {
         message_id: generateImMessageId(currentImChannel, userId),
         type: MessageType.CHAT,
         prompt: prompt,
@@ -914,6 +932,12 @@ function createImChatMessage(prompt) {
             agent_user_id: userId,
         },
     };
+    const mentions = parsePromptMentions(prompt);
+    if (mentions.length > 0) {
+        msg.mentions = mentions;
+        msg.mcp_config = { mcpServers: [] };
+    }
+    return msg;
 }
 
 function createChatMessage(prompt, contextType = ContextType.NORMAL, remark = null) {
@@ -989,6 +1013,12 @@ function createChatMessage(prompt, contextType = ContextType.NORMAL, remark = nu
         message.remark = remark;
     }
 
+    const mentions = parsePromptMentions(prompt);
+    if (mentions.length > 0) {
+        message.mentions = mentions;
+        message.mcp_config = { mcpServers: [] };
+    }
+
     return message;
 }
 
@@ -1000,6 +1030,7 @@ function generateTimestampId() {
 
 // 切换消息控件状态
 function toggleMessageControls(enabled) {
+    if (!enabled) closeMentionPicker();
     sendBtn.disabled = !enabled;
     followUpBtn.disabled = !enabled;
     continueBtn.disabled = !enabled;
@@ -1087,6 +1118,7 @@ function toggleAdvancedMode() {
     const advancedFields = document.getElementById('advancedModeFields');
 
     if (isAdvancedMode) {
+        closeMentionPicker();
         // 高级模式与 IM 模式互斥
         if (isImMode) {
             imModeToggle.checked = false;
@@ -1818,6 +1850,378 @@ function updateSubscribeButtonState(state, additionalInfo = '') {
     }
 }
 
+// ── 消息 @ 引用（对齐 ProjectFileMention / DirectoryMention 与后端 mention 处理器）────────
+
+/** 与产品端一致：mention 与后续正文之间使用 NBSP */
+const MENTION_PROMPT_SEPARATOR = '\u00A0';
+
+function normalizeMentionPathSlashes(p) {
+    return String(p || '').trim().replace(/\\/g, '/');
+}
+
+/** 目录路径：正斜杠、尾部 / */
+function normalizeMentionDirectoryPath(raw) {
+    let p = normalizeMentionPathSlashes(raw).replace(/^\.+\//, '');
+    if (!p) return '';
+    p = p.replace(/\/+/g, '/');
+    if (!p.endsWith('/')) p += '/';
+    return p;
+}
+
+/** 文件路径：正斜杠、无多余前导 */
+function normalizeMentionFilePath(raw) {
+    let p = normalizeMentionPathSlashes(raw).replace(/^\.+\//, '');
+    return p.replace(/\/+/g, '/');
+}
+
+/**
+ * 从 prompt 解析 [@directory_path:…] / [@file_path:…]，生成 mentions 数组（按出现顺序，按路径去重）。
+ * project_file 在本地客户端无服务端 file_id，file_id 置空串，file_key 为 null。
+ */
+function parsePromptMentions(prompt) {
+    if (!prompt || typeof prompt !== 'string') return [];
+    const found = [];
+    const dirRe = /\[@directory_path:([^\]]+)\]/g;
+    const fileRe = /\[@file_path:([^\]]+)\]/g;
+    let m;
+    while ((m = dirRe.exec(prompt)) !== null) {
+        const directory_path = normalizeMentionDirectoryPath(m[1]);
+        if (directory_path) {
+            found.push({ index: m.index, mention: { type: 'project_directory', directory_path } });
+        }
+    }
+    while ((m = fileRe.exec(prompt)) !== null) {
+        const file_path = normalizeMentionFilePath(m[1]);
+        if (file_path) {
+            const file_name = getWorkspaceFileBaseName(file_path);
+            found.push({
+                index: m.index,
+                mention: {
+                    type: 'project_file',
+                    file_id: '',
+                    file_key: null,
+                    file_path,
+                    file_name,
+                },
+            });
+        }
+    }
+    found.sort((a, b) => a.index - b.index);
+    const seen = new Set();
+    const mentions = [];
+    for (const { mention } of found) {
+        const key = mention.type === 'project_directory'
+            ? `d:${mention.directory_path}`
+            : `f:${mention.file_path}`;
+        if (seen.has(key)) continue;
+        seen.add(key);
+        mentions.push(mention);
+    }
+    return mentions;
+}
+
+let activeFiletreeContextMenu = null;
+
+function closeFiletreeContextMenu() {
+    if (activeFiletreeContextMenu) {
+        activeFiletreeContextMenu.remove();
+        activeFiletreeContextMenu = null;
+    }
+}
+
+function openFiletreeContextMenu(clientX, clientY, items) {
+    closeFiletreeContextMenu();
+    const menu = document.createElement('div');
+    menu.className = 'ft-context-menu';
+    menu.setAttribute('role', 'menu');
+    for (const item of items) {
+        const row = document.createElement('div');
+        row.className = 'ft-context-menu-item';
+        row.textContent = item.label;
+        row.setAttribute('role', 'menuitem');
+        row.addEventListener('click', (e) => {
+            e.stopPropagation();
+            closeFiletreeContextMenu();
+            item.onSelect();
+        });
+        menu.appendChild(row);
+    }
+    document.body.appendChild(menu);
+    activeFiletreeContextMenu = menu;
+    const rect = menu.getBoundingClientRect();
+    let x = clientX;
+    let y = clientY;
+    if (x + rect.width > window.innerWidth - 8) x = Math.max(8, window.innerWidth - rect.width - 8);
+    if (y + rect.height > window.innerHeight - 8) y = Math.max(8, window.innerHeight - rect.height - 8);
+    menu.style.left = `${x}px`;
+    menu.style.top = `${y}px`;
+    setTimeout(() => {
+        document.addEventListener('click', closeFiletreeContextMenu, { once: true });
+        document.addEventListener('contextmenu', closeFiletreeContextMenu, { once: true });
+    }, 0);
+}
+
+function insertMentionAtCursor(snippet) {
+    const ta = messageInput;
+    if (!ta || ta.disabled) return;
+    const start = ta.selectionStart ?? ta.value.length;
+    const end = ta.selectionEnd ?? ta.value.length;
+    const before = ta.value.slice(0, start);
+    const after = ta.value.slice(end);
+    ta.value = before + snippet + after;
+    const pos = start + snippet.length;
+    ta.selectionStart = ta.selectionEnd = pos;
+    ta.focus();
+}
+
+/** 工作区路径索引，供输入框 @ 联想（全量递归，与文件树展开状态无关） */
+let workspaceMentionIndex = [];
+
+const MENTION_PICKER_MAX = 50;
+
+/** 输入框内 @ 触发的联想状态 */
+const mentionPickerState = {
+    open: false,
+    start: 0,
+    query: '',
+    activeIndex: 0,
+    filtered: [],
+};
+
+async function collectWorkspaceMentionPaths(dirHandle, pathPrefix, out) {
+    const entries = [];
+    for await (const entry of dirHandle.values()) {
+        entries.push(entry);
+    }
+    entries.sort((a, b) => {
+        if (a.kind !== b.kind) return a.kind === 'directory' ? -1 : 1;
+        return a.name.localeCompare(b.name);
+    });
+    for (const entry of entries) {
+        const fullPath = pathPrefix ? `${pathPrefix}/${entry.name}` : entry.name;
+        if (entry.kind === 'directory') {
+            out.push({ kind: 'directory', path: fullPath });
+            await collectWorkspaceMentionPaths(entry, fullPath, out);
+        } else {
+            out.push({ kind: 'file', path: fullPath });
+        }
+    }
+}
+
+async function refreshWorkspaceMentionIndex() {
+    workspaceMentionIndex = [];
+    if (!workspaceDirHandle) return;
+    const out = [];
+    try {
+        await collectWorkspaceMentionPaths(workspaceDirHandle, '', out);
+        workspaceMentionIndex = out;
+    } catch (e) {
+        console.warn('构建 @ 路径索引失败', e);
+    }
+}
+
+/**
+ * 判断光标是否处于「@ + 过滤片段」编辑态（排除正在键入 [@file_path:…] 等括号形式）
+ */
+function findActiveMentionQuery(value, cursor) {
+    if (cursor < 0 || !value) return null;
+    const before = value.slice(0, cursor);
+    const at = before.lastIndexOf('@');
+    if (at < 0) return null;
+    if (at > 0) {
+        const ch = value[at - 1];
+        if (ch !== ' ' && ch !== '\t' && ch !== '\n' && ch !== '\r' && ch !== MENTION_PROMPT_SEPARATOR) {
+            return null;
+        }
+    }
+    const query = value.slice(at + 1, cursor);
+    if (/[\[\]\n\r]/.test(query)) return null;
+    return { start: at, query };
+}
+
+function filterMentionIndex(query) {
+    const q = (query || '').trim().toLowerCase();
+    const list = workspaceMentionIndex;
+    if (!q) {
+        return list.slice(0, MENTION_PICKER_MAX);
+    }
+    const scored = [];
+    for (const item of list) {
+        const pathLower = item.path.toLowerCase();
+        const base = getWorkspaceFileBaseName(item.path).toLowerCase();
+        if (pathLower.includes(q) || base.includes(q)) {
+            const pri = pathLower.startsWith(q) ? 0 : base.startsWith(q) ? 1 : 2;
+            const kindPri = item.kind === 'directory' ? 0 : 1;
+            scored.push({ item, pri, kindPri, path: pathLower });
+        }
+    }
+    scored.sort((a, b) => {
+        if (a.pri !== b.pri) return a.pri - b.pri;
+        if (a.kindPri !== b.kindPri) return a.kindPri - b.kindPri;
+        return a.path.localeCompare(b.path);
+    });
+    return scored.slice(0, MENTION_PICKER_MAX).map(s => s.item);
+}
+
+let mentionPickerEl = null;
+
+function ensureMentionPickerEl() {
+    if (mentionPickerEl) return mentionPickerEl;
+    const wrap = document.getElementById('normalModeFields');
+    if (!wrap) return null;
+    mentionPickerEl = document.createElement('div');
+    mentionPickerEl.id = 'mentionPicker';
+    mentionPickerEl.className = 'mention-picker';
+    mentionPickerEl.setAttribute('role', 'listbox');
+    mentionPickerEl.style.display = 'none';
+    wrap.appendChild(mentionPickerEl);
+    return mentionPickerEl;
+}
+
+function closeMentionPicker() {
+    mentionPickerState.open = false;
+    mentionPickerState.filtered = [];
+    if (mentionPickerEl) {
+        mentionPickerEl.classList.remove('visible');
+        mentionPickerEl.style.display = 'none';
+        mentionPickerEl.innerHTML = '';
+    }
+}
+
+function renderMentionPickerRows(items) {
+    const el = ensureMentionPickerEl();
+    if (!el) return;
+    el.innerHTML = '';
+    if (!workspaceDirHandle) {
+        const hint = document.createElement('div');
+        hint.className = 'mention-picker-hint';
+        hint.textContent = '请先在工作区选择项目根目录，再使用 @';
+        el.appendChild(hint);
+        return;
+    }
+    if (workspaceMentionIndex.length === 0) {
+        const hint = document.createElement('div');
+        hint.className = 'mention-picker-hint';
+        hint.textContent = '路径索引为空，请点击右栏「刷新」或稍候再试';
+        el.appendChild(hint);
+        return;
+    }
+    if (!items.length) {
+        const empty = document.createElement('div');
+        empty.className = 'mention-picker-empty';
+        empty.textContent = '没有匹配的工作区路径';
+        el.appendChild(empty);
+        return;
+    }
+    items.forEach((item, idx) => {
+        const row = document.createElement('div');
+        row.className = 'mention-picker-item' + (idx === mentionPickerState.activeIndex ? ' active' : '');
+        row.setAttribute('role', 'option');
+        const kind = document.createElement('span');
+        kind.className = 'mention-picker-kind';
+        kind.textContent = item.kind === 'directory' ? '目录' : '文件';
+        const path = document.createElement('span');
+        path.className = 'mention-picker-path';
+        path.textContent = item.kind === 'directory'
+            ? normalizeMentionDirectoryPath(item.path)
+            : normalizeMentionFilePath(item.path);
+        row.appendChild(kind);
+        row.appendChild(path);
+        row.addEventListener('mousedown', (e) => {
+            e.preventDefault();
+            applyMentionPickerChoice(item);
+        });
+        el.appendChild(row);
+    });
+}
+
+function applyMentionPickerChoice(item) {
+    const ta = messageInput;
+    if (!ta || !mentionPickerState.open) return;
+    const end = ta.selectionStart ?? ta.value.length;
+    const start = mentionPickerState.start;
+    const snippet = item.kind === 'directory'
+        ? `[@directory_path:${normalizeMentionDirectoryPath(item.path)}]${MENTION_PROMPT_SEPARATOR}`
+        : `[@file_path:${normalizeMentionFilePath(item.path)}]${MENTION_PROMPT_SEPARATOR}`;
+    const before = ta.value.slice(0, start);
+    const after = ta.value.slice(end);
+    ta.value = before + snippet + after;
+    const pos = start + snippet.length;
+    ta.selectionStart = ta.selectionEnd = pos;
+    ta.focus();
+    closeMentionPicker();
+}
+
+function syncMentionPickerFromInput() {
+    if (isAdvancedMode || !messageInput || messageInput.disabled) {
+        closeMentionPicker();
+        return;
+    }
+    const ta = messageInput;
+    const cursor = ta.selectionStart ?? 0;
+    const hit = findActiveMentionQuery(ta.value, cursor);
+    if (!hit) {
+        closeMentionPicker();
+        return;
+    }
+    const prevStart = mentionPickerState.start;
+    const prevQuery = mentionPickerState.query;
+    mentionPickerState.open = true;
+    mentionPickerState.start = hit.start;
+    mentionPickerState.query = hit.query;
+    mentionPickerState.filtered = filterMentionIndex(hit.query);
+    if (prevStart !== hit.start || prevQuery !== hit.query) {
+        mentionPickerState.activeIndex = 0;
+    }
+    if (mentionPickerState.activeIndex >= mentionPickerState.filtered.length) {
+        mentionPickerState.activeIndex = 0;
+    }
+    const el = ensureMentionPickerEl();
+    if (!el) return;
+    renderMentionPickerRows(mentionPickerState.filtered);
+    el.style.display = 'block';
+    el.classList.add('visible');
+}
+
+function handleMentionPickerKeydown(e) {
+    if (!mentionPickerState.open) return false;
+    const items = mentionPickerState.filtered;
+    if (e.key === 'Escape') {
+        e.preventDefault();
+        closeMentionPicker();
+        return true;
+    }
+    if (e.key === 'ArrowDown') {
+        e.preventDefault();
+        if (items.length) {
+            mentionPickerState.activeIndex = (mentionPickerState.activeIndex + 1) % items.length;
+            renderMentionPickerRows(items);
+        }
+        return true;
+    }
+    if (e.key === 'ArrowUp') {
+        e.preventDefault();
+        if (items.length) {
+            mentionPickerState.activeIndex = (mentionPickerState.activeIndex - 1 + items.length) % items.length;
+            renderMentionPickerRows(items);
+        }
+        return true;
+    }
+    if (e.key === 'Enter' && !e.shiftKey) {
+        if (items.length && items[mentionPickerState.activeIndex]) {
+            e.preventDefault();
+            applyMentionPickerChoice(items[mentionPickerState.activeIndex]);
+            return true;
+        }
+    }
+    if (e.key === 'Tab' && !e.shiftKey && items.length && items[mentionPickerState.activeIndex]) {
+        e.preventDefault();
+        applyMentionPickerChoice(items[mentionPickerState.activeIndex]);
+        return true;
+    }
+    return false;
+}
+
 // ── 工作区文件树 ──────────────────────────────────────────────────────────────
 
 const filetreeContainer = document.getElementById('filetreeContainer');
@@ -2151,6 +2555,7 @@ async function activateFiletree(handle) {
     await saveHandle(handle); // 存原始根目录 handle，下次恢复时再次尝试进入挂载目录
     updateSelectBtn('active');
     await renderFileTree();
+    await refreshWorkspaceMentionIndex();
     startFiletreeAutoRefresh();
 }
 
@@ -2231,7 +2636,10 @@ if (mountDirInput) {
 // 手动刷新
 if (refreshTreeBtn) {
     refreshTreeBtn.addEventListener('click', async () => {
-        if (workspaceDirHandle) await renderFileTree();
+        if (workspaceDirHandle) {
+            await renderFileTree();
+            await refreshWorkspaceMentionIndex();
+        }
     });
 }
 
@@ -2331,10 +2739,32 @@ async function buildTreeNodes(dirHandle, container, pathPrefix, depth) {
                     icon.textContent = '▾';
                 }
             });
+            node.addEventListener('contextmenu', (e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                const dirPath = normalizeMentionDirectoryPath(fullPath);
+                openFiletreeContextMenu(e.clientX, e.clientY, [{
+                    label: '引用此目录（插入 @）',
+                    onSelect: () => {
+                        insertMentionAtCursor(`[@directory_path:${dirPath}]${MENTION_PROMPT_SEPARATOR}`);
+                    },
+                }]);
+            });
         } else {
             node.addEventListener('click', async (e) => {
                 e.stopPropagation();
                 await previewFile(entry, fullPath);
+            });
+            node.addEventListener('contextmenu', (e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                const fp = normalizeMentionFilePath(fullPath);
+                openFiletreeContextMenu(e.clientX, e.clientY, [{
+                    label: '引用此文件（插入 @）',
+                    onSelect: () => {
+                        insertMentionAtCursor(`[@file_path:${fp}]${MENTION_PROMPT_SEPARATOR}`);
+                    },
+                }]);
             });
         }
     }
