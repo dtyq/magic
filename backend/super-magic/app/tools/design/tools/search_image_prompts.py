@@ -32,7 +32,8 @@ async def _load_prompts() -> List[Dict[str, Any]]:
         return _prompts_cache
 
     # 在首次调用时解析路径，确保 PathManager 已完成初始化
-    data_path = PathManager.get_project_root() / "app" / "tools" / "design" / "data" / "prompts.json"
+    # 使用 magic_design 目录，该目录在加密部署环境中可正常访问
+    data_path = PathManager.get_project_root() / "app" / "tools" / "magic_design" / "prompts.json"
     try:
         data = await async_read_json(data_path)
         _prompts_cache = data if isinstance(data, list) else []
