@@ -14,10 +14,13 @@ use App\Domain\Permission\Entity\ModelAccessRoleEntity;
 use App\Domain\Permission\Entity\ValueObject\PermissionControlStatus;
 use App\Domain\Permission\Entity\ValueObject\PermissionDataIsolation;
 use App\ErrorCode\PermissionErrorCode;
+use App\ErrorCode\ServiceProviderErrorCode;
 use App\Infrastructure\Core\Exception\ExceptionBuilder;
 use App\Infrastructure\Util\Permission\Annotation\CheckPermission;
+use App\Interfaces\Provider\DTO\QueryModelsRequest;
 use Dtyq\ApiResponse\Annotation\ApiResponse;
 use Hyperf\Di\Annotation\Inject;
+use Hyperf\HttpServer\Contract\RequestInterface;
 
 #[ApiResponse(version: 'low_code')]
 class ModelAccessRoleApi extends AbstractPermissionApi
@@ -42,6 +45,22 @@ class ModelAccessRoleApi extends AbstractPermissionApi
         return $this->modelAccessRoleAppService->updateMeta(
             $this->createDataIsolation(),
             $status
+        );
+    }
+
+    #[CheckPermission(MagicResourceEnum::SAFE_SUB_ADMIN, MagicOperationEnum::QUERY)]
+    public function availableModels(RequestInterface $request): array
+    {
+        $queryRequest = new QueryModelsRequest($request->all());
+
+        if ($queryRequest->getCategory() === null && $request->input('category') !== null) {
+            ExceptionBuilder::throw(ServiceProviderErrorCode::InvalidModelType);
+        }
+
+        return $this->modelAccessRoleAppService->availableModels(
+            $this->getAuthorization(),
+            $queryRequest->getCategory(),
+            $queryRequest->getModelTypes()
         );
     }
 

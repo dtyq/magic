@@ -103,6 +103,7 @@ Router::addGroup('/api/v1/admin', static function () {
     Router::addGroup('/model-access-roles', static function () {
         Router::get('/meta', [ModelAccessRoleApi::class, 'meta']);
         Router::post('/meta', [ModelAccessRoleApi::class, 'updateMeta']);
+        Router::get('/available-models', [ModelAccessRoleApi::class, 'availableModels']);
         Router::post('/queries', [ModelAccessRoleApi::class, 'queries']);
         Router::get('/users/{userId}/summary', [ModelAccessRoleApi::class, 'userSummary']);
         Router::post('/default', [ModelAccessRoleApi::class, 'createDefault']);

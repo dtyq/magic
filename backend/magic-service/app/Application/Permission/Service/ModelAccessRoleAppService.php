@@ -8,14 +8,18 @@ declare(strict_types=1);
 namespace App\Application\Permission\Service;
 
 use App\Application\Chat\Service\MagicUserInfoAppService;
+use App\Application\Provider\Service\AdminProviderAppService;
 use App\Domain\Contact\Entity\ValueObject\DataIsolation as ContactDataIsolation;
 use App\Domain\Permission\Entity\ModelAccessRoleEntity;
 use App\Domain\Permission\Entity\ValueObject\PermissionControlStatus;
 use App\Domain\Permission\Entity\ValueObject\PermissionDataIsolation;
 use App\Domain\Permission\Service\ModelAccessRoleDomainService;
+use App\Domain\Provider\Entity\ValueObject\Category;
+use App\Domain\Provider\Entity\ValueObject\ModelType;
 use App\Domain\Provider\Entity\ValueObject\ProviderDataIsolation;
 use App\Domain\Provider\Service\ProviderModelDomainService;
 use App\Infrastructure\Core\ValueObject\Page;
+use App\Interfaces\Authorization\Web\MagicUserAuthorization;
 
 class ModelAccessRoleAppService extends AbstractPermissionAppService
 {
@@ -23,6 +27,7 @@ class ModelAccessRoleAppService extends AbstractPermissionAppService
         private readonly ModelAccessRoleDomainService $domainService,
         private readonly MagicUserInfoAppService $magicUserInfoAppService,
         private readonly ProviderModelDomainService $providerModelDomainService,
+        private readonly AdminProviderAppService $adminProviderAppService,
     ) {
     }
 
@@ -54,6 +59,21 @@ class ModelAccessRoleAppService extends AbstractPermissionAppService
                 'model_count' => count($defaultRole->getModelIds()),
             ] : null,
         ];
+    }
+
+    /**
+     * @param ModelType[] $modelTypes
+     */
+    public function availableModels(
+        MagicUserAuthorization $authorization,
+        ?Category $category = null,
+        array $modelTypes = []
+    ): array {
+        return $this->adminProviderAppService->getAvailableModelsForOrganization(
+            $authorization,
+            $category,
+            $modelTypes
+        );
     }
 
     public function queries(PermissionDataIsolation $dataIsolation, Page $page, ?array $filters = null): array
