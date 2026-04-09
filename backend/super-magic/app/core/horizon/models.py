@@ -81,5 +81,3 @@ class HorizonState:
     initial_context_injected: bool = False
     # 上次注入时间的日期部分（YYYY-MM-DD），同一天增量注入时省略周几/周数/时区
     last_injected_date: str = ""
-    # 上次注入时间的日期部分（YYYY-MM-DD），同一天增量注入时省略周几/周数/时区
-    last_injected_date: str = ""
