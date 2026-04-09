@@ -246,14 +246,12 @@ class SkillDomainService
         SkillDataIsolation $dataIsolation,
         array $codes,
         ?string $keyword,
-        string $languageCode,
         Page $page
     ): array {
         return $this->skillVersionRepository->queriesCurrentPublishedByCodes(
             $dataIsolation,
             $codes,
             $keyword,
-            $languageCode,
             $page
         );
     }

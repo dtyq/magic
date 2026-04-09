@@ -15,8 +15,6 @@ class SkillQuery extends AbstractQuery
 
     protected ?string $sourceType = null;
 
-    protected ?string $languageCode = null;
-
     protected ?string $publisherType = null;
 
     /**
@@ -44,16 +42,6 @@ class SkillQuery extends AbstractQuery
     public function setSourceType(?string $sourceType): void
     {
         $this->sourceType = $sourceType;
-    }
-
-    public function getLanguageCode(): ?string
-    {
-        return $this->languageCode;
-    }
-
-    public function setLanguageCode(?string $languageCode): void
-    {
-        $this->languageCode = $languageCode;
     }
 
     public function getPublisherType(): ?string

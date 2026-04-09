@@ -198,7 +198,7 @@ class OfficialAgentsInitializer
         $entity->setUpdatedAt($now);
         $entity->setEnabled(true);
         $entity->setType(SuperMagicAgentType::Custom);
-        $entity->setSourceType(AgentSourceType::LOCAL_CREATE);
+        $entity->setSourceType(AgentSourceType::SYSTEM);
         $entity->setPrompt([
             'version' => '1.0.0',
             'structure' => [
