@@ -207,6 +207,7 @@ class BuiltinSkillInitializer
         $skillMarketEntity->setPublisherId(self::SYSTEM_CREATOR_ID);
         $skillMarketEntity->setPublisherType(PublisherType::OFFICIAL_BUILTIN);
         $skillMarketEntity->setPublishStatus(PublishStatus::PUBLISHED);
+        $skillMarketEntity->setIsFeatured(true);
 
         $this->skillMarketDomainService->saveStoreSkill($skillMarketEntity);
     }
