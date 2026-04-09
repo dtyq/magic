@@ -815,7 +815,6 @@ class FileManagementAppService extends AbstractAppService
      * @param RequestContext $requestContext Request context
      * @param int $fileId File ID to move
      * @param int $targetParentId Target parent directory ID
-     * @param null|int $preFileId Previous file ID for positioning
      * @param null|int $targetProjectId Target project ID (null means same project)
      * @param array $keepBothFileIds Array of source file IDs that should not overwrite when conflict occurs
      * @return array Move result
@@ -824,7 +823,6 @@ class FileManagementAppService extends AbstractAppService
         RequestContext $requestContext,
         int $fileId,
         int $targetParentId,
-        ?int $preFileId = null,
         ?int $targetProjectId = null,
         array $keepBothFileIds = []
     ): array {
@@ -913,7 +911,7 @@ class FileManagementAppService extends AbstractAppService
                     $fileIds,
                     $targetProject->getId(),
                     $sourceProject->getId(),
-                    $preFileId,
+                    null,
                     $targetParentId,
                     $keepBothFileIds
                 );
@@ -923,7 +921,6 @@ class FileManagementAppService extends AbstractAppService
                     'source_project_id' => $sourceProjectLogId,
                     'target_project_id' => $targetProjectLogId,
                     'target_parent_id' => $targetParentId,
-                    'pre_file_id' => $preFileId,
                     'keep_both_file_ids' => $keepBothFileIds,
                 ]);
 
@@ -952,7 +949,10 @@ class FileManagementAppService extends AbstractAppService
             // 7. Re-get file entity with updated data
             $newFileEntity = $this->taskFileDomainService->getById($fileId);
 
-            $result = TaskFileItemDTO::fromEntity($newFileEntity)->toArray();
+            // Build relative file path based on parent_id chain
+            $relativeFilePath = $this->buildRelativeFilePathForEntity($newFileEntity, $targetProject->getId());
+
+            $result = TaskFileItemDTO::fromEntity($newFileEntity, $targetProject->getWorkDir(), $relativeFilePath)->toArray();
             return FileBatchOperationResponseDTO::createSyncSuccess($result)->toArray();
         } catch (BusinessException $e) {
             $this->logger->warning('Business logic error in move file', [
