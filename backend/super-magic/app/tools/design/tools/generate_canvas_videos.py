@@ -220,6 +220,7 @@ class GenerateCanvasVideos(BaseGenerateCanvasElements[GenerateCanvasVideosParams
         tool_context: ToolContext,
         project_path: Path,
         resolved_output_path: str = "",
+        _relative_project_path: str = "",
         **kwargs: Any,
     ) -> TaskExecutionResult:
         logger.info(
@@ -266,10 +267,14 @@ class GenerateCanvasVideos(BaseGenerateCanvasElements[GenerateCanvasVideosParams
         if generate_result.ok and status == "succeeded":
             actual_width = self._normalize_canvas_dimension(metadata.get("actual_width"))
             actual_height = self._normalize_canvas_dimension(metadata.get("actual_height"))
+            # generate_video 返回的路径是工作区相对路径，前端需要项目相对路径
+            rel_proj = _relative_project_path or str(project_path.name)
+            video_src = self._to_project_relative(extra_info.get("saved_video_relative_path"), rel_proj)
+            poster_src = self._to_project_relative(extra_info.get("saved_poster_relative_path"), rel_proj)
             update = VideoPlaceholderUpdate(
                 status="completed",
-                src=extra_info.get("saved_video_relative_path"),
-                poster=extra_info.get("saved_poster_relative_path"),
+                src=video_src,
+                poster=poster_src,
                 generateVideoRequest=metadata,
                 width=actual_width,
                 height=actual_height,
@@ -322,7 +327,23 @@ class GenerateCanvasVideos(BaseGenerateCanvasElements[GenerateCanvasVideosParams
         relative_project_path = project_path.relative_to(workspace_path)
         resolved_output_path = str(relative_project_path / "videos")
         await async_mkdir(project_path / "videos", parents=True, exist_ok=True)
-        return {"resolved_output_path": resolved_output_path}
+        return {
+            "resolved_output_path": resolved_output_path,
+            "_relative_project_path": str(relative_project_path),
+        }
+
+    def _to_project_relative(self, workspace_rel_path: Optional[str], relative_project_path: str) -> Optional[str]:
+        """将工作区相对路径转为项目相对路径。
+
+        generate_video 返回的路径是工作区相对的（如 project/videos/a.mp4），
+        前端 resolveCanvasFileBlobUrl 以项目目录为根解析，需要去掉项目前缀（如 videos/a.mp4）。
+        """
+        if not workspace_rel_path:
+            return workspace_rel_path
+        try:
+            return str(Path(workspace_rel_path).relative_to(relative_project_path))
+        except ValueError:
+            return workspace_rel_path
 
     def _build_result_content(
         self,

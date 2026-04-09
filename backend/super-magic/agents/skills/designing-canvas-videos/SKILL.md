@@ -207,6 +207,26 @@ print(result)
 ## Critical Rules
 
 <!--zh
+### 确认后再执行
+- 如果用户只是在询问能力（"你可以吗"/"能做到吗"/"支持吗"），不要直接开始生成；应先确认能力并询问具体内容
+- 即使用户说"我想要生成视频"，但没有提供具体内容描述（主题、场景、风格），也必须先询问细节，再开始生成
+- 只有用户明确给出内容意图（想生成什么）并有意愿继续时，才调用生成工具
+- [正确] 用户："我想要生成视频，可以吗？" → 回答：能，请告诉我想生成什么内容
+- [错误] 用户："我想要生成视频，可以吗？" → 直接调用工具开始生成
+-->
+### Confirm Before Acting
+- If the user is only asking about capability ("can you?", "is it possible?", "do you support?"), confirm the capability and ask for content details first; do not start generating
+- Even if the user says "I want to generate a video" without a specific content description (subject, scene, style), ask for details before calling any tool
+- Only call generation tools when the user has expressed clear content intent and shown willingness to proceed
+- [correct] User: "I want to generate a video, can you?" → Reply: Yes, what content would you like to generate?
+- [incorrect] User: "I want to generate a video, can you?" → Immediately call the tool and start generating
+
+<!--zh
+### 执行规则
+-->
+### Execution Rules
+
+<!--zh
 - 用户要的是动态结果时，不要退回 `generate_canvas_images`
 - 只有用户明确改要静态海报、封面、截图时，才切回图片工作流
 - 视频创建工具会先阻塞轮询，并在工具返回前持续给用户发进度消息

@@ -22,7 +22,6 @@ from app.tools.core import BaseToolParams
 from app.tools.design.constants import DEFAULT_ELEMENT_SPACING
 from app.tools.design.manager.canvas_manager import CanvasManager
 from app.tools.design.tools.base_design_tool import BaseDesignTool
-from app.tools.design.utils.canvas_layout_utils import calculate_next_element_position
 from app.tools.design.utils.magic_project_design_parser import (
     ImageElement,
     VideoElement,
@@ -429,12 +428,12 @@ class BaseGenerateCanvasElements(BaseDesignTool[TParams], Generic[TParams]):
                     config.canvas and config.canvas.elements
                 ) else []
 
-                # 计算起始坐标及初始列偏移
+                # 计算起始坐标及初始列偏移：无论新增几个占位符，都走同一套行填充逻辑
                 col_start = 0
                 init_row_height = 0.0
                 if not all_elements:
                     start_x, start_y = 0.0, 0.0
-                elif len(infos) >= 2:
+                else:
                     # 找最后一行，判断是否还有空位可以继续排
                     max_y = max(
                         e.absolute_y or 0.0
@@ -463,11 +462,6 @@ class BaseGenerateCanvasElements(BaseDesignTool[TParams], Generic[TParams]):
                         )
                         start_x = 0.0
                         start_y = max_bottom + DEFAULT_ELEMENT_SPACING
-                else:
-                    # 单个占位符：智能寻找不重叠位置
-                    start_x, start_y = calculate_next_element_position(
-                        config, infos[0].width, infos[0].height
-                    )
 
                 # 计算 z_index（与现有最大值 +1）
                 z_indices = [e.zIndex for e in all_elements if e.zIndex is not None]

@@ -1854,6 +1854,8 @@ function hideFilePreview() {
     revokeCanvasBlobUrls();
     const canvasPanel = document.getElementById('canvasRightPanel');
     if (canvasPanel) canvasPanel.remove();
+    const canvasModal = document.getElementById('canvasMediaModal');
+    if (canvasModal) canvasModal.remove();
     const dialog = filePreviewOverlay?.querySelector('.file-preview-dialog');
     if (dialog) dialog.classList.remove('has-canvas-panel');
     if (filePreviewMeta) filePreviewMeta.innerHTML = '';
@@ -2384,6 +2386,95 @@ async function resolveCanvasFileBlobUrl(projectDirHandle, relPath) {
 }
 
 /**
+ * 弹出画布媒体 modal：图片展示原图，视频展示播放器。
+ * @param {'image'|'video'} type
+ * @param {string|null} blobUrl  - 视频/图片的 blob URL
+ * @param {string|null} posterBlobUrl - 视频封面的 blob URL（可选）
+ * @param {string} name - 元素名称（用于 aria-label）
+ */
+function openCanvasMediaModal(type, blobUrl, posterBlobUrl, name) {
+    // 移除已有 modal
+    const existing = document.getElementById('canvasMediaModal');
+    if (existing) existing.remove();
+
+    const overlay = document.createElement('div');
+    overlay.id = 'canvasMediaModal';
+    overlay.className = 'canvas-media-modal-overlay';
+    overlay.setAttribute('role', 'dialog');
+    overlay.setAttribute('aria-modal', 'true');
+    overlay.setAttribute('aria-label', name);
+
+    const box = document.createElement('div');
+    box.className = 'canvas-media-modal-box';
+
+    // 关闭按钮
+    const closeBtn = document.createElement('button');
+    closeBtn.className = 'canvas-media-modal-close';
+    closeBtn.setAttribute('aria-label', '关闭');
+    closeBtn.innerHTML = '&#x2715;';
+    closeBtn.addEventListener('click', () => overlay.remove());
+
+    // 媒体内容
+    const mediaWrap = document.createElement('div');
+    mediaWrap.className = 'canvas-media-modal-media';
+
+    if (type === 'video' && blobUrl) {
+        const v = document.createElement('video');
+        v.src = blobUrl;
+        if (posterBlobUrl) v.poster = posterBlobUrl;
+        v.controls = true;
+        v.autoplay = true;
+        v.style.cssText = 'max-width:100%;max-height:100%;display:block;background:#000;';
+        mediaWrap.appendChild(v);
+    } else if (type === 'video' && posterBlobUrl) {
+        // 无视频源，仅展示封面大图
+        const img = document.createElement('img');
+        img.src = posterBlobUrl;
+        img.alt = name;
+        img.style.cssText = 'max-width:100%;max-height:100%;display:block;object-fit:contain;';
+        mediaWrap.appendChild(img);
+    } else if (type === 'image' && blobUrl) {
+        const img = document.createElement('img');
+        img.src = blobUrl;
+        img.alt = name;
+        img.style.cssText = 'max-width:100%;max-height:100%;display:block;object-fit:contain;';
+        mediaWrap.appendChild(img);
+    }
+
+    if (name) {
+        const caption = document.createElement('div');
+        caption.className = 'canvas-media-modal-caption';
+        caption.textContent = name;
+        box.appendChild(caption);
+    }
+
+    box.appendChild(closeBtn);
+    box.appendChild(mediaWrap);
+    overlay.appendChild(box);
+    document.body.appendChild(overlay);
+
+    // 点击背景关闭
+    overlay.addEventListener('click', (e) => {
+        if (e.target === overlay) overlay.remove();
+    });
+
+    // ESC 关闭
+    const onKey = (e) => {
+        if (e.key === 'Escape') { overlay.remove(); document.removeEventListener('keydown', onKey); }
+    };
+    document.addEventListener('keydown', onKey);
+
+    // modal 移除时停止视频播放
+    new MutationObserver(() => {
+        if (!document.getElementById('canvasMediaModal')) {
+            const v = overlay.querySelector('video');
+            if (v) { v.pause(); v.src = ''; }
+            document.removeEventListener('keydown', onKey);
+        }
+    }).observe(document.body, { childList: true });
+}
+
+/**
  * 在 containerEl 内渲染画布内容。
  * containerEl 本身需具备 overflow:auto + 固定高度（来自 CSS），函数不修改其样式。
  */
@@ -2451,31 +2542,80 @@ async function renderCanvasView(config, projectDirHandle, containerEl) {
             return span;
         };
 
+        // 视频类型专用：暗色卡片（封面图优先，无封面则显示图标+名称）
+        const renderVideoCard = (posterBlobUrl, name) => {
+            const card = document.createElement('div');
+            card.className = 'canvas-el-video-card';
+
+            if (posterBlobUrl) {
+                const img = document.createElement('img');
+                img.src = posterBlobUrl;
+                img.alt = name || '';
+                img.style.cssText = 'width:100%;height:100%;object-fit:cover;display:block;position:absolute;inset:0;';
+                card.appendChild(img);
+            }
+
+            const overlay = document.createElement('div');
+            overlay.className = 'canvas-el-video-overlay';
+            const playIcon = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+            playIcon.setAttribute('viewBox', '0 0 24 24');
+            playIcon.className = 'canvas-el-video-play-icon';
+            const circle = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+            circle.setAttribute('cx', '12'); circle.setAttribute('cy', '12'); circle.setAttribute('r', '12');
+            circle.setAttribute('fill', 'rgba(0,0,0,0.5)');
+            const poly = document.createElementNS('http://www.w3.org/2000/svg', 'polygon');
+            poly.setAttribute('points', '9.5,7 18,12 9.5,17');
+            poly.setAttribute('fill', 'white');
+            playIcon.appendChild(circle);
+            playIcon.appendChild(poly);
+            overlay.appendChild(playIcon);
+
+            if (!posterBlobUrl && name) {
+                const nameEl = document.createElement('span');
+                nameEl.className = 'canvas-el-video-name';
+                nameEl.textContent = name;
+                overlay.appendChild(nameEl);
+            }
+            card.appendChild(overlay);
+            return card;
+        };
+
         if (el.status === 'processing') {
-            elDiv.classList.add('canvas-el-state', 'canvas-el-processing');
-            elDiv.appendChild(makeLabel(`⏳ ${el.name || ''}`));
+            if (el.type === 'video') {
+                elDiv.classList.add('canvas-el-state', 'canvas-el-video-processing');
+                const icon = document.createElement('span');
+                icon.className = 'canvas-el-video-loading-icon';
+                elDiv.appendChild(icon);
+                elDiv.appendChild(makeLabel(el.name || ''));
+            } else {
+                elDiv.classList.add('canvas-el-state', 'canvas-el-processing');
+                elDiv.appendChild(makeLabel(el.name || ''));
+            }
         } else if (el.status === 'failed') {
             elDiv.classList.add('canvas-el-state', 'canvas-el-failed');
-            elDiv.appendChild(makeLabel(`✗ ${el.name || ''}`));
+            elDiv.appendChild(makeLabel(el.name || ''));
+        } else if (el.type === 'video') {
+            // 视频：封面优先，回退到暗色卡片；点击弹窗播放
+            const posterBlobUrl = el.poster ? await resolveCanvasFileBlobUrl(projectDirHandle, el.poster) : null;
+            const videoBlobUrl = el.src ? await resolveCanvasFileBlobUrl(projectDirHandle, el.src) : null;
+            elDiv.appendChild(renderVideoCard(posterBlobUrl, el.name || ''));
+            if (videoBlobUrl || posterBlobUrl) {
+                elDiv.style.cursor = 'pointer';
+                elDiv.addEventListener('click', () => openCanvasMediaModal('video', videoBlobUrl, posterBlobUrl, el.name || ''));
+            }
         } else if (el.src) {
             const blobUrl = await resolveCanvasFileBlobUrl(projectDirHandle, el.src);
             if (blobUrl) {
-                if (el.type === 'video') {
-                    const v = document.createElement('video');
-                    v.src = blobUrl;
-                    v.controls = true;
-                    v.style.cssText = 'width:100%;height:100%;object-fit:contain;background:#000;display:block;';
-                    elDiv.appendChild(v);
-                } else {
-                    const img = document.createElement('img');
-                    img.src = blobUrl;
-                    img.alt = el.name || '';
-                    img.style.cssText = 'width:100%;height:100%;object-fit:contain;display:block;';
-                    elDiv.appendChild(img);
-                }
+                const img = document.createElement('img');
+                img.src = blobUrl;
+                img.alt = el.name || '';
+                img.style.cssText = 'width:100%;height:100%;object-fit:contain;display:block;';
+                elDiv.appendChild(img);
+                elDiv.style.cursor = 'pointer';
+                elDiv.addEventListener('click', () => openCanvasMediaModal('image', blobUrl, null, el.name || ''));
             } else {
                 elDiv.classList.add('canvas-el-state', 'canvas-el-missing');
-                elDiv.appendChild(makeLabel(`? ${el.name || ''}`));
+                elDiv.appendChild(makeLabel(el.name || ''));
             }
         } else {
             elDiv.classList.add('canvas-el-state', 'canvas-el-empty');
