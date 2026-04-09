@@ -12,6 +12,7 @@ use App\Interfaces\Audit\Facade\AdminOperationLogApi;
 use App\Interfaces\Contact\Facade\Admin\PlatformUserApi;
 use App\Interfaces\Kernel\Facade\PlatformSettingsApi;
 use App\Interfaces\OrganizationEnvironment\Facade\Admin\OrganizationApi;
+use App\Interfaces\Permission\Facade\ModelAccessRoleApi;
 use App\Interfaces\Permission\Facade\OrganizationAdminApi;
 use App\Interfaces\Permission\Facade\PermissionApi;
 use App\Interfaces\Permission\Facade\RoleApi;
@@ -97,6 +98,18 @@ Router::addGroup('/api/v1/admin', static function () {
         Router::put('/sub-admins/{id}', [RoleApi::class, 'updateSubAdmin']);
         Router::delete('/sub-admins/{id}', [RoleApi::class, 'deleteSubAdmin']);
         Router::get('/sub-admins/{id}', [RoleApi::class, 'getSubAdminById']);
+    }, ['middleware' => [RequestContextMiddleware::class]]);
+
+    Router::addGroup('/model-access-roles', static function () {
+        Router::get('/meta', [ModelAccessRoleApi::class, 'meta']);
+        Router::post('/meta', [ModelAccessRoleApi::class, 'updateMeta']);
+        Router::post('/queries', [ModelAccessRoleApi::class, 'queries']);
+        Router::get('/users/{userId}/summary', [ModelAccessRoleApi::class, 'userSummary']);
+        Router::post('/default', [ModelAccessRoleApi::class, 'createDefault']);
+        Router::post('', [ModelAccessRoleApi::class, 'create']);
+        Router::get('/{roleId:\d+}', [ModelAccessRoleApi::class, 'show']);
+        Router::put('/{roleId:\d+}', [ModelAccessRoleApi::class, 'update']);
+        Router::delete('/{roleId:\d+}', [ModelAccessRoleApi::class, 'destroy']);
     }, ['middleware' => [RequestContextMiddleware::class]]);
 
     // 操作日志相关

@@ -18,6 +18,9 @@ enum AdminGlobalSettingsType: int
     // 第三方发布管控
     case THIRD_PARTY_PUBLISH = 3;
 
+    // 模型权限控制
+    case MODEL_ACCESS_PERMISSION_CONTROL = 4;
+
     // 获取助理全局设置类型
     public static function getAssistantGlobalSettingsType(): array
     {
