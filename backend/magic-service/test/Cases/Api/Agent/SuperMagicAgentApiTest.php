@@ -285,6 +285,7 @@ class SuperMagicAgentApiTest extends AbstractApiTest
         );
         $this->assertEquals(1000, $storeResponse['code'], $storeResponse['message'] ?? '');
         $this->assertIsArray($storeResponse['data']);
+        $this->assertArrayHasKey('members', $storeResponse['data']);
 
         $agent = SuperMagicAgentModel::query()
             ->where('organization_code', $headers['organization-code'])
@@ -300,7 +301,8 @@ class SuperMagicAgentApiTest extends AbstractApiTest
         );
         $this->assertEquals(1000, $listResponse['code'], $listResponse['message'] ?? '');
         $this->assertIsArray($listResponse['data']);
-        $targetMember = $findMemberByUserId($listResponse['data'], $targetUserId);
+        $this->assertArrayHasKey('members', $listResponse['data']);
+        $targetMember = $findMemberByUserId($listResponse['data']['members'], $targetUserId);
         $this->assertNotNull($targetMember, '应能查询到刚添加的 Agent 协作者');
         $this->assertSame('editor', $targetMember['role']);
 
@@ -342,7 +344,8 @@ class SuperMagicAgentApiTest extends AbstractApiTest
             $headers
         );
         $this->assertEquals(1000, $updatedListResponse['code'], $updatedListResponse['message'] ?? '');
-        $updatedMember = $findMemberByUserId($updatedListResponse['data'], $targetUserId);
+        $this->assertArrayHasKey('members', $updatedListResponse['data']);
+        $updatedMember = $findMemberByUserId($updatedListResponse['data']['members'], $targetUserId);
         $this->assertNotNull($updatedMember, '改权后应仍能查询到协作者');
         $this->assertSame('viewer', $updatedMember['role']);
 
@@ -375,7 +378,8 @@ class SuperMagicAgentApiTest extends AbstractApiTest
             $headers
         );
         $this->assertEquals(1000, $deletedListResponse['code'], $deletedListResponse['message'] ?? '');
-        $this->assertNull($findMemberByUserId($deletedListResponse['data'], $targetUserId), '删除后不应再返回该协作者');
+        $this->assertArrayHasKey('members', $deletedListResponse['data']);
+        $this->assertNull($findMemberByUserId($deletedListResponse['data']['members'], $targetUserId), '删除后不应再返回该协作者');
 
         $operationPermission = MagicOperationPermissionModel::query()
             ->where('organization_code', $headers['organization-code'])

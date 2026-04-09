@@ -25,6 +25,7 @@ use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\MemberType;
 use Dtyq\SuperMagic\Domain\SuperAgent\Service\ProjectMemberDomainService;
 use Dtyq\SuperMagic\ErrorCode\SuperAgentErrorCode;
 use Dtyq\SuperMagic\ErrorCode\SuperMagicErrorCode;
+use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Response\CollaboratorListResponseDTO;
 use Hyperf\DbConnection\Annotation\Transactional;
 use Qbhy\HyperfAuth\Authenticatable;
 
@@ -52,14 +53,12 @@ class ResourceCollaborationAppService extends AbstractKernelAppService
      * 查询资源协作者列表。
      *
      * 列表主读协作权限表，并补齐用户、部门等展示信息。
-     *
-     * @return array{users: array<int, array>, departments: array<int, array>}
      */
     public function getCollaborators(
         CollaborativeResourceAdapterInterface $adapter,
         Authenticatable $authorization,
         string $code
-    ): array {
+    ): CollaboratorListResponseDTO {
         // 先确认资源真实存在，再做协作者列表查询。
         $adapter->getResource($authorization, $code);
 
@@ -73,7 +72,6 @@ class ResourceCollaborationAppService extends AbstractKernelAppService
      * 新增资源协作者，并同步权限表与项目成员表。
      *
      * @param array<int, array{target_type: string, target_id: string, role: string}> $members
-     * @return array{users: array<int, array>, departments: array<int, array>}
      */
     #[Transactional]
     public function addCollaborators(
@@ -81,7 +79,7 @@ class ResourceCollaborationAppService extends AbstractKernelAppService
         Authenticatable $authorization,
         string $code,
         array $members
-    ): array {
+    ): CollaboratorListResponseDTO {
         // 协作者入口采用“单入口双写”：主写协作权限表，同时同步项目成员表。
         $resource = $adapter->getResource($authorization, $code);
         $permissionDataIsolation = $this->createPermissionDataIsolation($authorization);
@@ -206,14 +204,14 @@ class ResourceCollaborationAppService extends AbstractKernelAppService
             $entity->setOrganizationCode($permissionDataIsolation->getCurrentOrganizationCode());
             $entity->setResourceType($adapter->getOperationResourceType());
             $entity->setResourceId($code);
-            $entity->setTargetType($this->convertMemberTypeToOperationTargetType(MemberType::fromString($targetType)->value));
+            $entity->setTargetType(TargetType::fromAlias($targetType));
             $entity->setTargetId($targetId);
             $entity->setCreator($permissionDataIsolation->getCurrentUserId());
             $entity->setModifier($permissionDataIsolation->getCurrentUserId());
 
             if ($requireRole) {
                 $role = (string) ($member['role'] ?? '');
-                $entity->setOperation($this->convertMemberRoleToOperation(MemberRole::validatePermissionLevel($role)->value));
+                $entity->setOperation(Operation::fromAlias($role));
             }
 
             // 这里按目标去重，避免同一批请求里同一成员重复提交导致双写不一致。
@@ -244,15 +242,15 @@ class ResourceCollaborationAppService extends AbstractKernelAppService
         $userIds = [];
         $departmentIds = [];
         foreach ($operationPermissions as $operationPermission) {
-            $memberType = $this->convertOperationTargetTypeToMemberType($operationPermission->getTargetType());
-            if ($memberType === MemberType::USER) {
+            $targetType = $operationPermission->getTargetType();
+            if ($targetType->isUser()) {
                 $userIds[] = $operationPermission->getTargetId();
             }
-            if ($memberType === MemberType::DEPARTMENT) {
+            if ($targetType->isDepartment()) {
                 $departmentIds[] = $operationPermission->getTargetId();
             }
 
-            $this->assertCollaboratorTargetOperable($memberType, $operationPermission->getTargetId(), $ownerId, $currentUserId);
+            $this->assertCollaboratorTargetOperable($targetType, $operationPermission->getTargetId(), $ownerId, $currentUserId);
 
             if (! $checkRole) {
                 continue;
@@ -287,12 +285,12 @@ class ResourceCollaborationAppService extends AbstractKernelAppService
      * 协作者管理场景下，禁止对创建人做改权或移除，也禁止操作者处理自己。
      */
     private function assertCollaboratorTargetOperable(
-        ?MemberType $memberType,
+        TargetType $targetType,
         string $targetId,
         string $ownerId,
         string $currentUserId
     ): void {
-        if ($memberType !== MemberType::USER) {
+        if (! $targetType->isUser()) {
             return;
         }
 
@@ -339,9 +337,9 @@ class ResourceCollaborationAppService extends AbstractKernelAppService
         $newMembers = [];
         $roleUpdates = [];
         foreach ($operationPermissions as $operationPermission) {
-            $memberType = $this->convertOperationTargetTypeToMemberType($operationPermission->getTargetType());
+            $memberType = $this->createMemberTypeFromTargetType($operationPermission->getTargetType());
             $memberRole = $this->convertOperationToMemberRole($operationPermission->getOperation());
-            if ($memberType === null || $memberRole === null) {
+            if ($memberRole === null) {
                 ExceptionBuilder::throw(SuperAgentErrorCode::MEMBER_VALIDATION_FAILED, 'project.member_validation_failed');
             }
 
@@ -352,7 +350,7 @@ class ResourceCollaborationAppService extends AbstractKernelAppService
                 $memberEntity->setProjectId($projectId);
                 $memberEntity->setTargetTypeFromString($memberType->value);
                 $memberEntity->setTargetId($operationPermission->getTargetId());
-                $memberEntity->setRoleFromString($memberRole);
+                $memberEntity->setRole($memberRole);
                 $memberEntity->setInvitedBy($permissionDataIsolation->getCurrentUserId());
                 $memberEntity->setOrganizationCode($permissionDataIsolation->getCurrentOrganizationCode());
                 $memberEntity->setJoinMethod(MemberJoinMethod::INTERNAL);
@@ -383,11 +381,7 @@ class ResourceCollaborationAppService extends AbstractKernelAppService
     {
         $targets = [];
         foreach ($operationPermissions as $operationPermission) {
-            $memberType = $this->convertOperationTargetTypeToMemberType($operationPermission->getTargetType());
-            if ($memberType === null) {
-                ExceptionBuilder::throw(SuperAgentErrorCode::INVALID_MEMBER_TYPE, 'project.invalid_member_type');
-            }
-
+            $memberType = $this->createMemberTypeFromTargetType($operationPermission->getTargetType());
             $targets[$memberType->value . '_' . $operationPermission->getTargetId()] = [
                 'target_type' => $memberType->value,
                 'target_id' => $operationPermission->getTargetId(),
@@ -439,69 +433,31 @@ class ResourceCollaborationAppService extends AbstractKernelAppService
     }
 
     /**
-     * 将项目成员类型转换为权限域目标类型。
+     * 将权限域目标类型转换为协作者成员类型。
      */
-    private function convertMemberTypeToOperationTargetType(string $memberType): TargetType
+    private function createMemberTypeFromTargetType(TargetType $targetType): ?MemberType
     {
-        return match ($memberType) {
-            MemberType::USER->value => TargetType::UserId,
-            MemberType::DEPARTMENT->value => TargetType::DepartmentId,
-            default => ExceptionBuilder::throw(SuperAgentErrorCode::INVALID_MEMBER_TYPE, 'project.invalid_member_type'),
-        };
-    }
-
-    /**
-     * 将权限域目标类型转换为项目成员类型。
-     */
-    private function convertOperationTargetTypeToMemberType(TargetType $targetType): ?MemberType
-    {
-        return match ($targetType) {
-            TargetType::UserId => MemberType::USER,
-            TargetType::DepartmentId => MemberType::DEPARTMENT,
-            default => null,
-        };
-    }
-
-    /**
-     * 将协作者角色转换为权限域操作类型。
-     */
-    private function convertMemberRoleToOperation(string $role): Operation
-    {
-        return match ($role) {
-            MemberRole::OWNER->value => Operation::Owner,
-            MemberRole::MANAGE->value => Operation::Admin,
-            MemberRole::EDITOR->value => Operation::Edit,
-            MemberRole::VIEWER->value => Operation::Read,
-            default => ExceptionBuilder::throw(SuperAgentErrorCode::INVALID_MEMBER_ROLE, 'project.invalid_member_role'),
-        };
+        return MemberType::fromString($targetType->toAlias());
     }
 
     /**
      * 将权限域操作类型转换回协作者角色。
      */
-    private function convertOperationToMemberRole(Operation $operation): ?string
+    private function convertOperationToMemberRole(Operation $operation): ?MemberRole
     {
-        return match ($operation) {
-            Operation::Owner => MemberRole::OWNER->value,
-            Operation::Admin => MemberRole::MANAGE->value,
-            Operation::Edit => MemberRole::EDITOR->value,
-            Operation::Read => MemberRole::VIEWER->value,
-            default => null,
-        };
+        return MemberRole::fromString($operation->toAlias());
     }
 
     /**
      * 组装协作者列表返回结构，并补齐用户、部门展示字段。
-     *
-     * @return array{users: array<int, array>, departments: array<int, array>}
      */
     private function buildCollaboratorPayload(
         PermissionDataIsolation $permissionDataIsolation,
         string $code,
         CollaborativeResourceAdapterInterface $adapter
-    ): array {
+    ): CollaboratorListResponseDTO {
         // 协作者列表主读协作权限表，不再依赖项目成员表回显。
-        $collaborators = $this->operationPermissionDomainService->listByResource(
+        $operationPermissions = $this->operationPermissionDomainService->listByResource(
             $permissionDataIsolation,
             $adapter->getOperationResourceType(),
             $code
@@ -509,25 +465,13 @@ class ResourceCollaborationAppService extends AbstractKernelAppService
 
         $userIds = [];
         $departmentIds = [];
-        $items = [];
-        foreach ($collaborators as $collaborator) {
-            $memberType = $this->convertOperationTargetTypeToMemberType($collaborator->getTargetType());
-            $role = $this->convertOperationToMemberRole($collaborator->getOperation());
-            if ($memberType === null || $role === null) {
-                continue;
+        foreach ($operationPermissions as $operationPermission) {
+            $targetType = $operationPermission->getTargetType();
+            if ($targetType->isUser()) {
+                $userIds[] = $operationPermission->getTargetId();
             }
-
-            $items[] = [
-                'target_type' => $memberType->value,
-                'target_id' => $collaborator->getTargetId(),
-                'role' => $role,
-            ];
-
-            if ($memberType === MemberType::USER) {
-                $userIds[] = $collaborator->getTargetId();
-            }
-            if ($memberType === MemberType::DEPARTMENT) {
-                $departmentIds[] = $collaborator->getTargetId();
+            if ($targetType->isDepartment()) {
+                $departmentIds[] = $operationPermission->getTargetId();
             }
         }
 
@@ -541,61 +485,33 @@ class ResourceCollaborationAppService extends AbstractKernelAppService
 
         $users = [];
         $departments = [];
-        foreach ($items as $item) {
-            if ($item['target_type'] === MemberType::USER->value) {
-                $user = $userMap[$item['target_id']] ?? null;
+        foreach ($operationPermissions as $operationPermission) {
+            if ($operationPermission->getTargetType()->isUser()) {
+                $user = $userMap[$operationPermission->getTargetId()] ?? null;
                 if ($user === null) {
                     continue;
                 }
                 $users[] = [
-                    'id' => $item['target_id'],
-                    'user_id' => $item['target_id'],
-                    'nickname' => $user->getNickname(),
-                    'i18n_name' => $user->getI18nName(),
-                    'organization_code' => $user->getOrganizationCode(),
+                    'id' => $operationPermission->getTargetId(),
+                    'user_id' => $operationPermission->getTargetId(),
+                    'name' => $user->getNickname(),
                     'avatar_url' => $user->getAvatarUrl(),
-                    'role' => $item['role'],
-                    'join_method' => MemberJoinMethod::INTERNAL->value,
+                    'role' => $operationPermission->getOperation()->toAlias(),
                 ];
                 continue;
             }
 
-            $department = $departmentMap[$item['target_id']] ?? null;
+            $department = $departmentMap[$operationPermission->getTargetId()] ?? null;
             if ($department === null) {
                 continue;
             }
             $departments[] = [
-                'id' => $item['target_id'],
-                'department_id' => $item['target_id'],
+                'id' => $operationPermission->getTargetId(),
+                'department_id' => $operationPermission->getTargetId(),
                 'name' => $department->getName() ?? '',
-                'i18n_name' => $department->getI18nName() ?? '',
-                'organization_code' => $department->getOrganizationCode(),
-                'role' => $item['role'],
-                'join_method' => MemberJoinMethod::INTERNAL->value,
+                'role' => $operationPermission->getOperation()->toAlias(),
             ];
         }
-
-        usort($users, fn (array $left, array $right) => $this->compareRolePriority($left['role'], $right['role']));
-        usort($departments, fn (array $left, array $right) => $this->compareRolePriority($left['role'], $right['role']));
-
-        return [
-            'users' => $users,
-            'departments' => $departments,
-        ];
-    }
-
-    /**
-     * 定义协作者角色排序优先级，保证列表输出稳定。
-     */
-    private function compareRolePriority(string $leftRole, string $rightRole): int
-    {
-        $priority = [
-            MemberRole::OWNER->value => 1,
-            MemberRole::MANAGE->value => 2,
-            MemberRole::EDITOR->value => 3,
-            MemberRole::VIEWER->value => 4,
-        ];
-
-        return ($priority[$leftRole] ?? 99) <=> ($priority[$rightRole] ?? 99);
+        return CollaboratorListResponseDTO::fromMemberData($users, $departments);
     }
 }

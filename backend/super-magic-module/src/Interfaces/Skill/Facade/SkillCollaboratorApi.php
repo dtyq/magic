@@ -13,7 +13,6 @@ use Dtyq\SuperMagic\Application\Skill\Collaboration\SkillResourceAdapter;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\BatchUpdateMembersRequestDTO;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\CreateMembersRequestDTO;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\UpdateProjectMembersRequestDTO;
-use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Response\ProjectMembersResponseDTO;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\Facade\AbstractApi;
 use Hyperf\Di\Annotation\Inject;
 use Hyperf\HttpServer\Contract\RequestInterface;
@@ -45,13 +44,11 @@ class SkillCollaboratorApi extends AbstractApi
      */
     public function index(string $code): array
     {
-        $result = $this->resourceCollaborationAppService->getCollaborators(
+        return $this->resourceCollaborationAppService->getCollaborators(
             $this->skillResourceAdapter,
             $this->getAuthorization(),
             $code
-        );
-
-        return ProjectMembersResponseDTO::fromMemberData($result['users'], $result['departments'])->toArray();
+        )->toArray();
     }
 
     /**
@@ -60,14 +57,12 @@ class SkillCollaboratorApi extends AbstractApi
     public function store(string $code): array
     {
         $requestDTO = CreateMembersRequestDTO::fromRequest($this->request);
-        $result = $this->resourceCollaborationAppService->addCollaborators(
+        return $this->resourceCollaborationAppService->addCollaborators(
             $this->skillResourceAdapter,
             $this->getAuthorization(),
             $code,
             $requestDTO->getMembers()
-        );
-
-        return ProjectMembersResponseDTO::fromMemberData($result['users'], $result['departments'])->toArray();
+        )->toArray();
     }
 
     /**

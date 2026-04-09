@@ -5,10 +5,10 @@ declare(strict_types=1);
  * Copyright (c) The Magic , Distributed under the software license
  */
 use App\Interfaces\Middleware\Auth\SandboxUserAuthMiddleware;
-use Dtyq\SuperMagic\Interfaces\Agent\Facade\SuperMagicAgentCollaboratorApi;
 use Dtyq\SuperMagic\Interfaces\Agent\Facade\MagicClawApi;
 use Dtyq\SuperMagic\Interfaces\Agent\Facade\Old\SuperMagicAgentOldApi;
 use Dtyq\SuperMagic\Interfaces\Agent\Facade\SuperMagicAgentApi;
+use Dtyq\SuperMagic\Interfaces\Agent\Facade\SuperMagicAgentCollaboratorApi;
 use Dtyq\SuperMagic\Interfaces\Agent\Facade\SuperMagicAgentMarketApi;
 use Dtyq\SuperMagic\Interfaces\Agent\Facade\SuperMagicAgentPlaybookApi;
 use Hyperf\HttpServer\Router\Router;
