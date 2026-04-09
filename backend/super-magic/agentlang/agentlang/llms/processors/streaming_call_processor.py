@@ -14,7 +14,7 @@ from typing import AsyncIterator
 from openai import AsyncOpenAI, APIError, APITimeoutError, APIConnectionError
 from openai.types.chat import ChatCompletionChunk, ChatCompletion
 
-from agentlang.exceptions import StreamChunkTimeoutError
+from agentlang.exceptions import StreamChunkTimeoutError, StreamInterruptedError
 from agentlang.interface.context import AgentContextInterface
 from .processor_config import ProcessorConfig
 from .streaming_context import StreamProcessContext, StreamResponseHandler
@@ -162,6 +162,9 @@ class StreamingCallProcessor:
                 raise
             except StreamChunkTimeoutError:
                 logger.error(f"[{request_id}] 流式 chunk 超时 (correlation_id={correlation_id})")
+                raise
+            except StreamInterruptedError:
+                logger.error(f"[{request_id}] 流式连接被外部中断 (correlation_id={correlation_id})")
                 raise
             except asyncio.TimeoutError:
                 logger.error(f"[{request_id}] 流式总超时兜底触发 (correlation_id={correlation_id})")

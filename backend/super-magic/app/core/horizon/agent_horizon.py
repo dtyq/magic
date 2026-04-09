@@ -304,6 +304,7 @@ class AgentHorizon:
         self._video_model_changed = False
         self._is_first_injection = True
         self._state.initial_context_injected = False
+        self._state.last_injected_date = ""
         self._state.context_usage_baseline_used = 0
         self._state.context_usage_baseline_total = 0
         self._state.context_usage_baseline_used_pct = 0
@@ -768,6 +769,11 @@ class AgentHorizon:
         from agentlang.utils.datetime_formatter import get_current_datetime_str
         tz = self._agent_context.get_user_timezone() if self._agent_context else None
         now_str = get_current_datetime_str(tz)
+        # 格式固定为 "YYYY-MM-DD HH:MM:SS Weekday (Week N) TZ (UTC+xx:xx)"
+        today_date = now_str[:10]
+        date_changed = today_date != self._state.last_injected_date
+        # 同一天内省略周几、第几周、时区，只保留 "YYYY-MM-DD HH:MM:SS"
+        time_display = now_str if date_changed else now_str[:19]
 
         current_workspace_files = self._get_workspace_files_current()
         current_workspace_entries = self._get_workspace_entries_current()
@@ -783,7 +789,6 @@ class AgentHorizon:
         if self._is_first_injection:
             # 当前上下文窗口的首包注入：只应发生在真正的新窗口里，而不是容器重启恢复后
             init_parts = [
-                # 时间：附带使用说明，确保 LLM 正确解析"今年/近期/现在"等模糊表达
                 f"<current_time>{now_str}</current_time>"
                 "\n<!-- When handling time expressions like 'this year', 'recently', 'now', use the above as your authoritative current time. -->"
             ]
@@ -836,8 +841,8 @@ class AgentHorizon:
             self._video_model_changed = False
 
         else:
-            # 常规增量注入
-            parts.append(f"<current_time>{now_str}</current_time>")
+            # 常规增量注入：同一天只输出时间，跨天输出完整日期时间
+            parts.append(f"<current_time>{time_display}</current_time>")
 
             # 上下文窗口使用量：只有达到绝对百分点阈值时才再次告诉模型。
             if self._context_total > 0:
@@ -899,6 +904,9 @@ class AgentHorizon:
 
         # 注入完成后，把 current staging 提交成新的持久化 baseline。
         persistence_changed = False
+        if self._state.last_injected_date != today_date:
+            self._state.last_injected_date = today_date
+            persistence_changed = True
         if self._state.initial_context_injected is not True:
             self._state.initial_context_injected = True
             persistence_changed = True
