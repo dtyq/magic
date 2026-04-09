@@ -277,7 +277,7 @@ tools:
 
 | Tool | Description |
 |------|-------------|
-| `create_design_project` | Create a design project |
+| `create_canvas` | Create a canvas project |
 | `generate_canvas_images` | Generate images directly to canvas |
 | `search_images_to_canvas` | Search and add images to canvas |
 

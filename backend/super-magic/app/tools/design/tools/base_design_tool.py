@@ -88,7 +88,7 @@ class BaseDesignTool(AbstractFileTool[T], WorkspaceTool[T], Generic[T]):
 
         Args:
             project_path: 项目文件夹路径
-            suggest_create_command: 是否建议使用 create_design_project 命令
+            suggest_create_command: 是否建议使用 create_canvas 命令
 
         Returns:
             文件不存在时返回错误消息，存在时返回 None
@@ -105,7 +105,7 @@ class BaseDesignTool(AbstractFileTool[T], WorkspaceTool[T], Generic[T]):
             error_msg = f"{self.MAGIC_PROJECT_JS} does not exist in {display_path}."
 
             if suggest_create_command:
-                error_msg += f" Please create the project first using create_design_project tool."
+                error_msg += f" Please create the project first using create_canvas tool."
 
             return error_msg
 

@@ -17,10 +17,13 @@ All Python code in this skill runs via `run_sdk_snippet`:
 run_sdk_snippet(
     python_code="""
 from sdk.tool import tool
-result = tool.call('create_design_project', {"project_path": "my-design"})
+result = tool.call('create_canvas', {"project_path": "my-design"})
+print(result)
 """
 )
 ```
+
+**Result object:** fields are `result.ok` (bool), `result.content` (str), `result.data` (dict). Access structured data via `result.data`, not `result['key']` — the Result object is not subscriptable.
 
 ---
 
@@ -63,11 +66,11 @@ Design projects are uniquely identified by `project_path`. All canvas tools requ
 
 ## Core Tools
 
-### create_design_project
+### create_canvas
 
 | Parameter | Required | Description |
 |---|---|---|
-| `project_path` | Yes | Project relative path, e.g. `"my-design"` |
+| `project_path` | Yes | Project relative path. Name the folder in the user's language — e.g. `"产品海报设计"` for Chinese users, `"product-poster-design"` for English users |
 
 Returns: `{ project_path, project_name }`
 
@@ -83,7 +86,7 @@ Returns: `{ project_path, project_name }`
 | Field | Required | Description |
 |---|---|---|
 | `prompt` | Yes | Generation prompt for this image |
-| `name` | Yes | Canvas element label |
+| `name` | Yes | Canvas element label. Must reflect the specific content of this image — name the actual subjects, not the category or a numbered slot. [Correct] name the specific subjects depicted. [Wrong] generic category + style number |
 | `size` | Conditional | Image dimensions `"WxH"`, e.g. `"2048x2048"`. Required when `reference_images` is empty; omit to auto-read from the largest reference image |
 | `reference_images` | No | Reference image paths (workspace-relative). Images inside the project use project-relative paths, e.g. `images/cat.jpg`; images outside the project use workspace-relative paths, e.g. `other-project/images/ref.png`. Omit or pass `[]` for text-only generation |
 | `element_id` | No | Existing element ID to overwrite (for retrying a failed placeholder) |
@@ -222,11 +225,13 @@ When the user asks for an image, you are translating intent into a visual specif
 
 **Step 3 — Construct the prompt as a coherent scene description.** Write it as if briefing someone who will create this image. The prompt should read as clear prose or structured direction — not as a comma-separated keyword dump.
 
-### Prompt and name language
+### Prompt, name, and project path language
 
 Write the prompt in the same language the user is using. If the user speaks Chinese, the prompt should be in Chinese. Modern image models handle multilingual prompts natively — there is no quality advantage in translating to English.
 
-The `name` field follows the same rule: use the user's language for the canvas element label.
+The `name` field follows the same rule: use the user's language for the canvas element label. Beyond language, the name must describe the **specific content** of that image — who or what is actually in it — not a generic category, a task slot number, or a theme-level label. When generating multiple images in one call, each task has a distinct subject or variation; the name should capture what makes that task unique, not just its position in the batch.
+
+The `project_path` in `create_canvas` follows the same rule: name the project folder in the user's language. For example, if the user speaks Chinese, use a Chinese folder name such as `"产品海报设计"`; if English, use something like `"product-poster-design"`.
 
 ### Handling user-provided prompts
 
@@ -392,7 +397,7 @@ Load `designing-canvas-videos` skill for all video tasks:
 
 ```
 Need a new canvas project?
-├─ Yes → create_design_project
+├─ Yes → create_canvas
 └─ No → continue
 
 Generate AI images?

@@ -1,4 +1,4 @@
-"""创建设计项目工具
+"""创建画布工具
 
 此工具用于创建完整的设计项目结构和画布配置。
 """
@@ -27,7 +27,7 @@ from app.utils.async_file_utils import (
 logger = get_logger(__name__)
 
 
-class CreateDesignProjectParams(BaseToolParams):
+class CreateCanvasParams(BaseToolParams):
     project_path: str = Field(
         ...,
         description="""<!--zh: 要创建的设计项目的相对路径，项目名称将从路径中自动提取（如 'xx/yy' 提取 'yy'），项目名称应反映设计主题，避免使用文件系统不支持的字符，示例：'产品海报设计'、'ブランドデザイン'、'brand-design-2024'-->
@@ -36,9 +36,9 @@ Relative path for design project to create. Project name will be automatically e
 
 
 @tool()
-class CreateDesignProject(BaseDesignTool[CreateDesignProjectParams]):
+class CreateCanvas(BaseDesignTool[CreateCanvasParams]):
     """<!--zh
-    创建设计项目工具
+    创建画布工具
 
     此工具用于在工作区自动创建设计项目的完整结构：
     - 自动创建项目文件夹
@@ -57,7 +57,7 @@ class CreateDesignProject(BaseDesignTool[CreateDesignProjectParams]):
     └── magic.project.js  # 画布项目标识文件（工具自动管理）
     ```
     -->
-    Create design project tool
+    Create canvas tool
 
     This tool auto-creates complete design project structure in workspace:
     - Auto-create project folder
@@ -77,8 +77,8 @@ class CreateDesignProject(BaseDesignTool[CreateDesignProjectParams]):
     ```
     """
 
-    async def execute(self, tool_context: ToolContext, params: CreateDesignProjectParams) -> ToolResult:
-        """执行设计项目创建操作
+    async def execute(self, tool_context: ToolContext, params: CreateCanvasParams) -> ToolResult:
+        """执行画布创建操作
 
         Args:
             tool_context: 工具上下文
@@ -179,14 +179,14 @@ class CreateDesignProject(BaseDesignTool[CreateDesignProjectParams]):
             )
 
         except Exception as e:
-            logger.exception(f"Failed to create design project: {e!s}")
+            logger.exception(f"Failed to create canvas: {e!s}")
             return ToolResult.error(
-                f"Failed to create design project: {e!s}",
+                f"Failed to create canvas: {e!s}",
                 extra_info={"error_type": "design.error_unexpected"}
             )
 
     # noinspection PyMethodMayBeStatic
-    def _generate_result_content(self, project_path: Path, params: CreateDesignProjectParams, project_name: str) -> str:
+    def _generate_result_content(self, project_path: Path, params: CreateCanvasParams, project_name: str) -> str:
         """生成结构化的结果内容
 
         Args:
@@ -208,12 +208,12 @@ Project: {project_name} (canvas project)"""
     def _get_remark_content(self, result: ToolResult, arguments: Dict[str, Any] = None) -> str:
         """获取备注内容"""
         if not arguments or "project_path" not in arguments:
-            return i18n.translate("create_design_project.exception", category="tool.messages")
+            return i18n.translate("create_canvas.exception", category="tool.messages")
 
         project_path = arguments["project_path"]
         project_name = Path(project_path).name
 
-        return i18n.translate("create_design_project.success", category="tool.messages", project_name=project_name)
+        return i18n.translate("create_canvas.success", category="tool.messages", project_name=project_name)
 
     async def get_after_tool_call_friendly_action_and_remark(
         self, tool_name: str, tool_context: ToolContext, result: ToolResult,
@@ -231,13 +231,12 @@ Project: {project_name} (canvas project)"""
         Returns:
             Dict: 包含 action 和 remark 的字典
         """
-        # create_design_project 不涉及文件修改检测，但仍使用统一处理以保持一致性
         return self._handle_design_tool_error(
             result,
-            default_action_code="create_design_project",
-            default_success_message_code="create_design_project.success"
+            default_action_code="create_canvas",
+            default_success_message_code="create_canvas.success"
         ) if not result.ok else {
-            "action": i18n.translate("create_design_project", category="tool.actions"),
+            "action": i18n.translate("create_canvas", category="tool.actions"),
             "remark": self._get_remark_content(result, arguments)
         }
 

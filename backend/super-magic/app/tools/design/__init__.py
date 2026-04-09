@@ -9,7 +9,7 @@ from app.tools.design.manager import (
 )
 from app.tools.design.tools import (
     BaseDesignTool,
-    CreateDesignProject,
+    CreateCanvas,
     BatchCreateCanvasElements,
     BatchUpdateCanvasElements,
     GenerateCanvasImages,
@@ -22,7 +22,7 @@ __all__ = [
     "ElementQuery",
     "CanvasStatistics",
     "BaseDesignTool",
-    "CreateDesignProject",
+    "CreateCanvas",
     "BatchCreateCanvasElements",
     "BatchUpdateCanvasElements",
     "GenerateCanvasImages",

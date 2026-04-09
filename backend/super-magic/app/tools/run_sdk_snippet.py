@@ -57,7 +57,7 @@ class RunSdkSnippet(AbstractFileTool[RunSdkSnippetParams]):
     使用示例：
     ```python
     {
-        "python_code": "from sdk.tool import tool\\n\\nresult = tool.call('create_design_project', {\\n    \\\"project_path\\\": \\\"my-design\\\"\\n})\\nprint(result)"
+        "python_code": "from sdk.tool import tool\\n\\nresult = tool.call('create_canvas', {\\n    \\\"project_path\\\": \\\"my-design\\\"\\n})\\nprint(result)"
     }
     ```
     -->
@@ -75,7 +75,7 @@ class RunSdkSnippet(AbstractFileTool[RunSdkSnippetParams]):
     Usage example:
     ```python
     {
-        "python_code": "from sdk.tool import tool\\n\\nresult = tool.call('create_design_project', {\\n    \\\"project_path\\\": \\\"my-design\\\"\\n})\\nprint(result)"
+        "python_code": "from sdk.tool import tool\\n\\nresult = tool.call('create_canvas', {\\n    \\\"project_path\\\": \\\"my-design\\\"\\n})\\nprint(result)"
     }
     ```
     """

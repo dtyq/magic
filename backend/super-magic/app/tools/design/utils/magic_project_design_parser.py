@@ -756,7 +756,7 @@ async def read_magic_project_js(project_path: str) -> MagicProjectConfig:
     if not await async_exists(file_path):
         raise FileNotFoundError(
             f"magic.project.js not found at: {file_path}\n"
-            f"Please create the project first using create_design_project tool."
+            f"Please create the project first using create_canvas tool."
         )
 
     file_handle = None

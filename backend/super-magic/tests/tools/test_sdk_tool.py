@@ -56,13 +56,13 @@ def test_tool_sdk_keeps_non_video_default_timeout_when_not_provided():
                     "ok": True,
                     "content": "ok",
                     "tool_call_id": "call_123",
-                    "name": "create_design_project",
+                    "name": "create_canvas",
                 },
             }
         )
 
     with patch("sdk.tool.urllib.request.urlopen", side_effect=_fake_urlopen):
-        result = sdk.call("create_design_project", {"project_path": "demo"})
+        result = sdk.call("create_canvas", {"project_path": "demo"})
 
     assert result.ok is True
     assert recorded["timeout"] == 60.0

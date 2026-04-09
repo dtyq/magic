@@ -759,11 +759,11 @@
         "zh_CN": "下载地图失败: {{error}}",
         "en_US": "Map download failed: {{error}}"
     },
-    "create_design_project.success": {
+    "create_canvas.success": {
         "zh_CN": "项目 {{project_name}} 创建成功",
         "en_US": "Project {{project_name}} created successfully"
     },
-    "create_design_project.exception": {
+    "create_canvas.exception": {
         "zh_CN": "创建异常，请重试",
         "en_US": "Creation exception, please retry"
     },
