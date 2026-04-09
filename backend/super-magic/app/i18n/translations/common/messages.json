@@ -44,7 +44,7 @@
         "en_US": "Task execution failed. Please try again later."
     },
     "messages.llm_provider_timeout": {
-        "zh_CN": "模型供应商响应超时，请重试。",
+        "zh_CN": "模型供应商响应超时，请稍后重试。",
         "en_US": "The model provider response timed out. Please try again."
     },
     "messages.llm_provider_connection_failed": {

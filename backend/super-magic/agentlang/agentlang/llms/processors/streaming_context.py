@@ -19,7 +19,7 @@ from openai.types.chat.chat_completion_message_tool_call import ChatCompletionMe
 from openai.types.completion_usage import CompletionUsage
 
 from agentlang.config.config import config
-from agentlang.exceptions import StreamChunkTimeoutError
+from agentlang.exceptions import StreamChunkTimeoutError, StreamInterruptedError
 from agentlang.interface.context import AgentContextInterface
 from agentlang.logger import get_logger
 from agentlang.event.reply_event_manager import ReplyEventManager
@@ -624,9 +624,10 @@ class StreamResponseHandler:
                                         request_id, state, correlation_id, usage is not None, root_cause_info, last_chunk
                                     )
 
-                                    # 抛出运行时异常，触发上层重试机制
-                                    raise RuntimeError(
-                                        f"流式响应异常中断（已处理{state.received_chunk_count}个chunks）：连接关闭但未收到finish_reason，数据可能不完整"
+                                    total_elapsed = time.time() - base_time
+                                    raise StreamInterruptedError(
+                                        chunk_count=state.received_chunk_count,
+                                        total_elapsed_seconds=total_elapsed,
                                     ) from e
                                 else:
                                     # 正常情况：有finish_reason，虽然可能缺少usage

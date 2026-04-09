@@ -60,6 +60,27 @@ class StreamChunkTimeoutError(Exception):
         )
 
 
+class StreamInterruptedError(Exception):
+    """流式响应被外部中断：已收到部分数据但连接异常关闭，未收到 finish_reason。
+
+    典型场景：网关/代理超时切断长连接、上游服务端主动断开。
+    与 StreamChunkTimeoutError（客户端等待下一个 chunk 超时）互斥：
+    - StreamChunkTimeoutError：chunk 间隔超时，客户端主动放弃
+    - StreamInterruptedError：连接被对端关闭，数据可能不完整
+    """
+
+    def __init__(self, *, chunk_count: int, total_elapsed_seconds: float, message: str = ""):
+        self.chunk_count = chunk_count
+        self.total_elapsed_seconds = total_elapsed_seconds
+        if not message:
+            message = (
+                f"Stream interrupted after {chunk_count} chunks "
+                f"(total elapsed: {total_elapsed_seconds:.1f}s): "
+                f"connection closed without finish_reason"
+            )
+        super().__init__(message)
+
+
 class LLMFastRetryExhaustedException(Exception):
     """内层 LLM 快速重试已耗尽：流式多次尝试 + 非流式 fallback 全部失败。
 

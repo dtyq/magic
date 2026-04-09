@@ -39,7 +39,7 @@ from agentlang.logger import get_logger
 from agentlang.tools.tool_result import ToolResult
 from agentlang.utils.token_estimator import num_tokens_from_string
 from agentlang.utils.datetime_formatter import get_current_datetime_str
-from agentlang.exceptions import UserFriendlyException, ResourceLimitExceededException, LLMFastRetryExhaustedException, StreamChunkTimeoutError
+from agentlang.exceptions import UserFriendlyException, ResourceLimitExceededException, LLMFastRetryExhaustedException, StreamChunkTimeoutError, StreamInterruptedError
 from agentlang.utils.tool_param_utils import preprocess_tool_calls_batch
 from openai.types.chat import ChatCompletion, ChatCompletionMessage, ChatCompletionMessageToolCall
 
@@ -725,7 +725,7 @@ class Agent(BaseAgent):
                 return self._classify_llm_exception_for_user(root)
             return "messages.llm_provider_error"
 
-        if isinstance(exception, (StreamChunkTimeoutError, asyncio.TimeoutError, APITimeoutError)):
+        if isinstance(exception, (StreamChunkTimeoutError, StreamInterruptedError, asyncio.TimeoutError, APITimeoutError)):
             return "messages.llm_provider_timeout"
 
         if isinstance(exception, APIConnectionError):
