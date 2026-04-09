@@ -9,15 +9,11 @@ from app.tools.design.manager import (
 )
 from app.tools.design.tools import (
     BaseDesignTool,
-    CreateDesignProject,
-    DeleteCanvasElement,
-    QueryCanvasOverview,
-    QueryCanvasElement,
-    BatchCreateCanvasElements,
-    BatchUpdateCanvasElements,
-    GenerateImagesToCanvas,
-    GenerateVideosToCanvas,
-    SearchImagesToCanvas,
+    CreateCanvas,
+    GenerateCanvasImages,
+    GenerateCanvasVideos,
+    SearchCanvasImages,
+    SearchImagePrompts,
 )
 
 __all__ = [
@@ -25,13 +21,9 @@ __all__ = [
     "ElementQuery",
     "CanvasStatistics",
     "BaseDesignTool",
-    "CreateDesignProject",
-    "DeleteCanvasElement",
-    "QueryCanvasOverview",
-    "QueryCanvasElement",
-    "BatchCreateCanvasElements",
-    "BatchUpdateCanvasElements",
-    "GenerateImagesToCanvas",
-    "GenerateVideosToCanvas",
-    "SearchImagesToCanvas",
+    "CreateCanvas",
+    "GenerateCanvasImages",
+    "GenerateCanvasVideos",
+    "SearchCanvasImages",
+    "SearchImagePrompts",
 ]

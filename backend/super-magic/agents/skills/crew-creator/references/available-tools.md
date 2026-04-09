@@ -277,11 +277,9 @@ tools:
 
 | Tool | Description |
 |------|-------------|
-| `create_design_project` | Create a design project |
-| `delete_canvas_element` | Delete a canvas element |
-| `query_canvas_overview` | Query canvas overview |
-| `query_canvas_element` | Query a specific canvas element |
-| `generate_images_to_canvas` | Generate images directly to canvas |
+| `create_canvas` | Create a canvas project |
+| `generate_canvas_images` | Generate images directly to canvas |
+| `generate_canvas_videos` | Generate videos directly to canvas |
 | `search_images_to_canvas` | Search and add images to canvas |
 
 <!--zh

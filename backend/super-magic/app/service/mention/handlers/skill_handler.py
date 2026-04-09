@@ -41,43 +41,27 @@ def _has_source(mention_source: str, target: str) -> bool:
 class SkillHandler(BaseMentionHandler):
     """处理 skill 类型的 mention"""
 
-    # mention_source 各值对应的中文标签
-    _SOURCE_LABELS = {
-        "system": "系统",
-        "agent": "员工",
-        "mine": "我的",
-    }
-
     def get_type(self) -> str:
         return "skill"
 
     async def get_tip(self, mention: Dict[str, Any]) -> str:
         code = _get_code(mention)
         raw_source = mention.get("mention_source", "")
-        source_key = _parse_mention_source(raw_source)
 
         if _has_source(raw_source, _SOURCE_MINE) and code:
             return (
-                "引用了「我的技能库」的技能，需先调用 skill_list 确认安装状态（installed 字段），"
-                "未安装的技能请加载并参考 find-skill 技能学习如何安装，"
-                "安装完成后再用 read_skills 加载；"
-                "技能的 package_name 字段才是工具调用时使用的名称，如 read_skills(skill_names=[package_name])"
+                "The referenced skill comes from your personal skill library. "
+                "Call skill_list first to check installation status (installed field). "
+                "For uninstalled skills, load and follow the find-skill skill to install them. "
+                "After installation, use read_skills to load. "
+                "Use the skill's package_name field as the name when calling, e.g. read_skills(skill_names=[package_name])."
             )
         return (
-            "引用的技能需先通过 read_skills 加载后再使用；"
-            "技能的 package_name 字段才是工具调用时使用的名称，如 read_skills(skill_names=[package_name])"
+            "Load the referenced skill via read_skills before use. "
+            "Use the skill's package_name field as the name when calling, e.g. read_skills(skill_names=[package_name])."
         )
 
     async def handle(self, mention: Dict[str, Any], index: int) -> List[str]:
-        """处理 skill 引用，格式化上下文行
-
-        Args:
-            mention: mention 数据
-            index: mention 序号
-
-        Returns:
-            List[str]: 格式化的上下文行列表
-        """
         name = mention.get("name")
         if not name:
             return []

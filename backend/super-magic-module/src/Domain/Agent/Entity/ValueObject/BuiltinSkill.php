@@ -18,7 +18,7 @@ enum BuiltinSkill: string
     case CrewCreator = 'crew-creator';
     case DataQa = 'data-qa';
     case DeepResearch = 'deep-research';
-    case DesigningCanvasImages = 'designing-canvas-images';
+    case CanvasDesigner = 'canvas-designer';
     case EnvManager = 'env-manager';
     case FindSkill = 'find-skill';
     case SkillCreator = 'skill-creator';

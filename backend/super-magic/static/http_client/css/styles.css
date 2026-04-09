@@ -754,10 +754,73 @@ input[type="checkbox"] {
 }
 
 .input-area-wrapper {
+    position: relative;
     flex: 1;
     min-height: 0;
     display: flex;
     flex-direction: column;
+}
+
+/* 输入框内 @ 联想：文件 / 目录 */
+.mention-picker {
+    display: none;
+    position: absolute;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    transform: translateY(-100%);
+    margin-bottom: 4px;
+    max-height: 220px;
+    overflow-y: auto;
+    background: var(--wechat-panel-bg);
+    border: 1px solid var(--wechat-border);
+    border-radius: 8px;
+    box-shadow: 0 -4px 18px rgba(0, 0, 0, 0.1);
+    z-index: 50;
+    font-size: 13px;
+}
+
+.mention-picker.visible {
+    display: block;
+}
+
+.mention-picker-item {
+    padding: 8px 10px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    border-bottom: 1px solid #f0f0f0;
+}
+
+.mention-picker-item:last-child {
+    border-bottom: none;
+}
+
+.mention-picker-item:hover,
+.mention-picker-item.active {
+    background: #f5f5f5;
+}
+
+.mention-picker-kind {
+    flex-shrink: 0;
+    font-size: 11px;
+    color: var(--wechat-text-gray);
+    width: 36px;
+}
+
+.mention-picker-path {
+    flex: 1;
+    min-width: 0;
+    word-break: break-all;
+    color: var(--wechat-text-dark);
+}
+
+.mention-picker-empty,
+.mention-picker-hint {
+    padding: 10px;
+    color: var(--wechat-text-gray);
+    font-size: 12px;
 }
 
 .primary-actions {
@@ -1571,6 +1634,37 @@ input[type="file"] {
     padding: 6px 0;
 }
 
+/* 文件树右键：插入 @ 引用 */
+.ft-context-menu {
+    position: fixed;
+    z-index: 10000;
+    background: var(--wechat-panel-bg);
+    border: 1px solid var(--wechat-border);
+    border-radius: 6px;
+    box-shadow: 0 4px 14px rgba(0, 0, 0, 0.12);
+    min-width: 168px;
+    padding: 4px 0;
+    font-size: 13px;
+}
+
+.ft-context-menu-item {
+    padding: 8px 14px;
+    cursor: pointer;
+    color: var(--wechat-text-dark);
+    white-space: nowrap;
+}
+
+.ft-context-menu-item:hover {
+    background: #f0f0f0;
+}
+
+.filetree-hint {
+    font-size: 11px;
+    color: var(--wechat-text-gray);
+    margin-top: 6px;
+    line-height: 1.4;
+}
+
 .filetree-empty {
     padding: 16px 12px;
     font-size: 12px;
@@ -1790,4 +1884,268 @@ input[type="file"] {
     white-space: normal;
     word-break: normal;
     color: var(--wechat-text-gray);
+}
+
+/* ── 画布右侧面板：对话框加宽 ── */
+.file-preview-dialog.has-canvas-panel {
+    width: 92vw;
+    max-width: 1500px;
+}
+
+/* ── 画布右侧面板主体 ── */
+.canvas-right-panel {
+    width: 480px;
+    min-width: 320px;
+    flex-shrink: 0;
+    border-left: 1px solid var(--wechat-border);
+    display: flex;
+    flex-direction: column;
+    background: #fff;
+}
+
+.canvas-panel-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 7px 12px;
+    border-bottom: 1px solid var(--wechat-border);
+    background: #f5f5f5;
+    flex-shrink: 0;
+    gap: 8px;
+}
+
+.canvas-panel-title {
+    font-size: 12px;
+    font-weight: 500;
+    color: var(--wechat-text-dark);
+    font-family: monospace;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.canvas-panel-count {
+    font-size: 11px;
+    color: var(--wechat-text-gray);
+    flex-shrink: 0;
+}
+
+.canvas-right-viewport {
+    flex: 1;
+    min-height: 0;
+    overflow: auto;
+    background: #c8c8c8;
+    position: relative;
+}
+
+/* ── 画布内容布局 ── */
+.canvas-preview-scale-wrap {
+    position: relative;
+}
+
+.canvas-preview-space {
+    position: relative;
+    background: #fff;
+    box-shadow: 0 2px 16px rgba(0, 0, 0, 0.18);
+}
+
+/* ── 画布元素 ── */
+.canvas-preview-element {
+    position: absolute;
+    overflow: hidden;
+    background: #f0f0f0;
+    border: 1px solid rgba(0, 0, 0, 0.06);
+}
+
+.canvas-el-state {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.canvas-el-processing {
+    background: #f0f8ff;
+    border-color: #b0d4f0;
+}
+
+.canvas-el-failed {
+    background: #fff5f5;
+    border-color: #f5b8b8;
+}
+
+.canvas-el-missing {
+    background: #fffbe6;
+    border-color: #e8d870;
+}
+
+.canvas-el-empty {
+    background: #f5f5f5;
+    border-color: #ddd;
+}
+
+.canvas-el-label {
+    font-size: 12px;
+    color: #999;
+    padding: 4px 8px;
+    text-align: center;
+    word-break: break-word;
+    line-height: 1.4;
+}
+
+/* ── 视频卡片 ── */
+.canvas-el-video-card {
+    position: relative;
+    width: 100%;
+    height: 100%;
+    background: #1a1a1f;
+    overflow: hidden;
+}
+
+.canvas-el-video-overlay {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    background: linear-gradient(to bottom, rgba(0,0,0,0.1) 0%, rgba(0,0,0,0.35) 100%);
+}
+
+.canvas-el-video-play-icon {
+    width: 48px;
+    height: 48px;
+    opacity: 0.85;
+    filter: drop-shadow(0 2px 6px rgba(0,0,0,0.5));
+    transition: opacity 0.15s, transform 0.15s;
+}
+
+.canvas-el-video-card:hover .canvas-el-video-play-icon {
+    opacity: 1;
+    transform: scale(1.1);
+}
+
+.canvas-el-video-name {
+    font-size: 12px;
+    color: rgba(255,255,255,0.75);
+    text-align: center;
+    padding: 0 8px;
+    word-break: break-word;
+    line-height: 1.4;
+    max-width: 100%;
+    text-shadow: 0 1px 3px rgba(0,0,0,0.6);
+}
+
+/* ── 视频 processing 状态 ── */
+.canvas-el-video-processing {
+    background: #16181e;
+    border-color: #3a3d4a;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.canvas-el-video-processing .canvas-el-label {
+    color: rgba(255,255,255,0.5);
+}
+
+.canvas-el-video-loading-icon {
+    display: block;
+    width: 32px;
+    height: 32px;
+    border: 3px solid rgba(255,255,255,0.12);
+    border-top-color: rgba(255,255,255,0.55);
+    border-radius: 50%;
+    animation: canvas-video-spin 0.9s linear infinite;
+}
+
+@keyframes canvas-video-spin {
+    to { transform: rotate(360deg); }
+}
+
+/* ── 画布媒体 Modal ── */
+.canvas-media-modal-overlay {
+    position: fixed;
+    inset: 0;
+    z-index: 9999;
+    background: rgba(0, 0, 0, 0.82);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    animation: canvas-modal-fade-in 0.18s ease;
+}
+
+@keyframes canvas-modal-fade-in {
+    from { opacity: 0; }
+    to   { opacity: 1; }
+}
+
+.canvas-media-modal-box {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    max-width: 92vw;
+    max-height: 92vh;
+    background: #111;
+    border-radius: 10px;
+    overflow: hidden;
+    box-shadow: 0 8px 48px rgba(0, 0, 0, 0.7);
+    animation: canvas-modal-slide-in 0.18s ease;
+}
+
+@keyframes canvas-modal-slide-in {
+    from { transform: scale(0.94); opacity: 0; }
+    to   { transform: scale(1);    opacity: 1; }
+}
+
+.canvas-media-modal-caption {
+    padding: 10px 48px 10px 16px;
+    font-size: 13px;
+    color: rgba(255,255,255,0.65);
+    background: #1a1a1f;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    flex-shrink: 0;
+}
+
+.canvas-media-modal-close {
+    position: absolute;
+    top: 6px;
+    right: 8px;
+    width: 32px;
+    height: 32px;
+    border: none;
+    background: rgba(255,255,255,0.1);
+    color: rgba(255,255,255,0.8);
+    border-radius: 50%;
+    cursor: pointer;
+    font-size: 14px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: background 0.15s;
+    z-index: 1;
+}
+
+.canvas-media-modal-close:hover {
+    background: rgba(255,255,255,0.22);
+    color: #fff;
+}
+
+.canvas-media-modal-media {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    max-width: 92vw;
+    max-height: calc(92vh - 40px);
+    overflow: hidden;
+    background: #000;
+}
+
+.canvas-media-modal-media img,
+.canvas-media-modal-media video {
+    display: block;
+    max-width: 92vw;
+    max-height: calc(92vh - 40px);
+    object-fit: contain;
 }

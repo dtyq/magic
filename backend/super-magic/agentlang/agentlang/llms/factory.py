@@ -131,7 +131,8 @@ class LLMFactory:
         agent_context: Optional[AgentContextInterface] = None,
         processor_config: Optional[ProcessorConfig] = None,
         enable_llm_response_events: bool = False,
-        llm_call_retry_count: int = 0
+        llm_call_retry_count: int = 0,
+        extra_body: Optional[Dict[str, Any]] = None,
     ) -> ChatCompletion:
         """使用工具支持调用 LLM。
 
@@ -221,6 +222,10 @@ class LLMFactory:
         # 添加额外参数
         for key, value in llm_config.extra_params.items():
             request_params[key] = value
+
+        # 添加调用方传入的 extra_body（如禁用思考模式）
+        if extra_body is not None:
+            request_params["extra_body"] = extra_body
 
         # 动态设置最新的 metadata 到请求头（每次调用都获取最新值）
         extra_headers = MetadataUtil.get_llm_request_headers()

@@ -226,15 +226,14 @@ class ProcessExecutor:
             Tuple[str, bool]: (格式化的内容, 是否成功)
         """
         if exit_code == 0:
-            # 成功情况 - 提供更详细的人性化信息
             if stdout_str:
-                content = f"Execution successful, output:\n{stdout_str}"
+                content = stdout_str
                 if stderr_str:
                     content += f"\n\nWarnings/errors:\n{stderr_str}"
             elif stderr_str:
-                content = f"Execution successful, but with warnings:\n{stderr_str}"
+                content = stderr_str
             else:
-                content = f"Execution successful, no output"
+                content = "No output"
             return content, True
         else:
             # 失败情况 - 提供清晰的错误信息

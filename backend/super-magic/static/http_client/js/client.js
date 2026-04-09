@@ -302,13 +302,31 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // Enter 发送，Shift+Enter 换行
     // isComposing 用于屏蔽输入法合成过程中的 Enter（避免确认候选字时误触发发送）
-    const messageInput = document.getElementById('messageInput');
-    if (messageInput) {
-        messageInput.addEventListener('keydown', function(e) {
-            if (e.key === 'Enter' && !e.shiftKey && !e.isComposing) {
+    const messageInputEl = document.getElementById('messageInput');
+    if (messageInputEl) {
+        messageInputEl.addEventListener('keydown', function(e) {
+            if (e.isComposing) return;
+            if (handleMentionPickerKeydown(e)) return;
+            if (e.key === 'Enter' && !e.shiftKey) {
                 e.preventDefault();
                 sendMessage(ContextType.NORMAL);
             }
+        });
+        messageInputEl.addEventListener('input', () => {
+            syncMentionPickerFromInput();
+        });
+        messageInputEl.addEventListener('click', () => {
+            syncMentionPickerFromInput();
+        });
+        messageInputEl.addEventListener('keyup', () => {
+            syncMentionPickerFromInput();
+        });
+        messageInputEl.addEventListener('blur', () => {
+            setTimeout(() => {
+                const ae = document.activeElement;
+                if (ae && mentionPickerEl && mentionPickerEl.contains(ae)) return;
+                closeMentionPicker();
+            }, 180);
         });
     }
 
@@ -906,7 +924,7 @@ function generateImMessageId(channel, userId) {
 // 构造最小 IM 渠道消息
 function createImChatMessage(prompt) {
     const userId = (imUserIdInput ? imUserIdInput.value.trim() : '') || `${currentImChannel}_user`;
-    return {
+    const msg = {
         message_id: generateImMessageId(currentImChannel, userId),
         type: MessageType.CHAT,
         prompt: prompt,
@@ -914,6 +932,12 @@ function createImChatMessage(prompt) {
             agent_user_id: userId,
         },
     };
+    const mentions = parsePromptMentions(prompt);
+    if (mentions.length > 0) {
+        msg.mentions = mentions;
+        msg.mcp_config = { mcpServers: [] };
+    }
+    return msg;
 }
 
 function createChatMessage(prompt, contextType = ContextType.NORMAL, remark = null) {
@@ -989,6 +1013,12 @@ function createChatMessage(prompt, contextType = ContextType.NORMAL, remark = nu
         message.remark = remark;
     }
 
+    const mentions = parsePromptMentions(prompt);
+    if (mentions.length > 0) {
+        message.mentions = mentions;
+        message.mcp_config = { mcpServers: [] };
+    }
+
     return message;
 }
 
@@ -1000,6 +1030,7 @@ function generateTimestampId() {
 
 // 切换消息控件状态
 function toggleMessageControls(enabled) {
+    if (!enabled) closeMentionPicker();
     sendBtn.disabled = !enabled;
     followUpBtn.disabled = !enabled;
     continueBtn.disabled = !enabled;
@@ -1087,6 +1118,7 @@ function toggleAdvancedMode() {
     const advancedFields = document.getElementById('advancedModeFields');
 
     if (isAdvancedMode) {
+        closeMentionPicker();
         // 高级模式与 IM 模式互斥
         if (isImMode) {
             imModeToggle.checked = false;
@@ -1818,6 +1850,378 @@ function updateSubscribeButtonState(state, additionalInfo = '') {
     }
 }
 
+// ── 消息 @ 引用（对齐 ProjectFileMention / DirectoryMention 与后端 mention 处理器）────────
+
+/** 与产品端一致：mention 与后续正文之间使用 NBSP */
+const MENTION_PROMPT_SEPARATOR = '\u00A0';
+
+function normalizeMentionPathSlashes(p) {
+    return String(p || '').trim().replace(/\\/g, '/');
+}
+
+/** 目录路径：正斜杠、尾部 / */
+function normalizeMentionDirectoryPath(raw) {
+    let p = normalizeMentionPathSlashes(raw).replace(/^\.+\//, '');
+    if (!p) return '';
+    p = p.replace(/\/+/g, '/');
+    if (!p.endsWith('/')) p += '/';
+    return p;
+}
+
+/** 文件路径：正斜杠、无多余前导 */
+function normalizeMentionFilePath(raw) {
+    let p = normalizeMentionPathSlashes(raw).replace(/^\.+\//, '');
+    return p.replace(/\/+/g, '/');
+}
+
+/**
+ * 从 prompt 解析 [@directory_path:…] / [@file_path:…]，生成 mentions 数组（按出现顺序，按路径去重）。
+ * project_file 在本地客户端无服务端 file_id，file_id 置空串，file_key 为 null。
+ */
+function parsePromptMentions(prompt) {
+    if (!prompt || typeof prompt !== 'string') return [];
+    const found = [];
+    const dirRe = /\[@directory_path:([^\]]+)\]/g;
+    const fileRe = /\[@file_path:([^\]]+)\]/g;
+    let m;
+    while ((m = dirRe.exec(prompt)) !== null) {
+        const directory_path = normalizeMentionDirectoryPath(m[1]);
+        if (directory_path) {
+            found.push({ index: m.index, mention: { type: 'project_directory', directory_path } });
+        }
+    }
+    while ((m = fileRe.exec(prompt)) !== null) {
+        const file_path = normalizeMentionFilePath(m[1]);
+        if (file_path) {
+            const file_name = getWorkspaceFileBaseName(file_path);
+            found.push({
+                index: m.index,
+                mention: {
+                    type: 'project_file',
+                    file_id: '',
+                    file_key: null,
+                    file_path,
+                    file_name,
+                },
+            });
+        }
+    }
+    found.sort((a, b) => a.index - b.index);
+    const seen = new Set();
+    const mentions = [];
+    for (const { mention } of found) {
+        const key = mention.type === 'project_directory'
+            ? `d:${mention.directory_path}`
+            : `f:${mention.file_path}`;
+        if (seen.has(key)) continue;
+        seen.add(key);
+        mentions.push(mention);
+    }
+    return mentions;
+}
+
+let activeFiletreeContextMenu = null;
+
+function closeFiletreeContextMenu() {
+    if (activeFiletreeContextMenu) {
+        activeFiletreeContextMenu.remove();
+        activeFiletreeContextMenu = null;
+    }
+}
+
+function openFiletreeContextMenu(clientX, clientY, items) {
+    closeFiletreeContextMenu();
+    const menu = document.createElement('div');
+    menu.className = 'ft-context-menu';
+    menu.setAttribute('role', 'menu');
+    for (const item of items) {
+        const row = document.createElement('div');
+        row.className = 'ft-context-menu-item';
+        row.textContent = item.label;
+        row.setAttribute('role', 'menuitem');
+        row.addEventListener('click', (e) => {
+            e.stopPropagation();
+            closeFiletreeContextMenu();
+            item.onSelect();
+        });
+        menu.appendChild(row);
+    }
+    document.body.appendChild(menu);
+    activeFiletreeContextMenu = menu;
+    const rect = menu.getBoundingClientRect();
+    let x = clientX;
+    let y = clientY;
+    if (x + rect.width > window.innerWidth - 8) x = Math.max(8, window.innerWidth - rect.width - 8);
+    if (y + rect.height > window.innerHeight - 8) y = Math.max(8, window.innerHeight - rect.height - 8);
+    menu.style.left = `${x}px`;
+    menu.style.top = `${y}px`;
+    setTimeout(() => {
+        document.addEventListener('click', closeFiletreeContextMenu, { once: true });
+        document.addEventListener('contextmenu', closeFiletreeContextMenu, { once: true });
+    }, 0);
+}
+
+function insertMentionAtCursor(snippet) {
+    const ta = messageInput;
+    if (!ta || ta.disabled) return;
+    const start = ta.selectionStart ?? ta.value.length;
+    const end = ta.selectionEnd ?? ta.value.length;
+    const before = ta.value.slice(0, start);
+    const after = ta.value.slice(end);
+    ta.value = before + snippet + after;
+    const pos = start + snippet.length;
+    ta.selectionStart = ta.selectionEnd = pos;
+    ta.focus();
+}
+
+/** 工作区路径索引，供输入框 @ 联想（全量递归，与文件树展开状态无关） */
+let workspaceMentionIndex = [];
+
+const MENTION_PICKER_MAX = 50;
+
+/** 输入框内 @ 触发的联想状态 */
+const mentionPickerState = {
+    open: false,
+    start: 0,
+    query: '',
+    activeIndex: 0,
+    filtered: [],
+};
+
+async function collectWorkspaceMentionPaths(dirHandle, pathPrefix, out) {
+    const entries = [];
+    for await (const entry of dirHandle.values()) {
+        entries.push(entry);
+    }
+    entries.sort((a, b) => {
+        if (a.kind !== b.kind) return a.kind === 'directory' ? -1 : 1;
+        return a.name.localeCompare(b.name);
+    });
+    for (const entry of entries) {
+        const fullPath = pathPrefix ? `${pathPrefix}/${entry.name}` : entry.name;
+        if (entry.kind === 'directory') {
+            out.push({ kind: 'directory', path: fullPath });
+            await collectWorkspaceMentionPaths(entry, fullPath, out);
+        } else {
+            out.push({ kind: 'file', path: fullPath });
+        }
+    }
+}
+
+async function refreshWorkspaceMentionIndex() {
+    workspaceMentionIndex = [];
+    if (!workspaceDirHandle) return;
+    const out = [];
+    try {
+        await collectWorkspaceMentionPaths(workspaceDirHandle, '', out);
+        workspaceMentionIndex = out;
+    } catch (e) {
+        console.warn('构建 @ 路径索引失败', e);
+    }
+}
+
+/**
+ * 判断光标是否处于「@ + 过滤片段」编辑态（排除正在键入 [@file_path:…] 等括号形式）
+ */
+function findActiveMentionQuery(value, cursor) {
+    if (cursor < 0 || !value) return null;
+    const before = value.slice(0, cursor);
+    const at = before.lastIndexOf('@');
+    if (at < 0) return null;
+    if (at > 0) {
+        const ch = value[at - 1];
+        if (ch !== ' ' && ch !== '\t' && ch !== '\n' && ch !== '\r' && ch !== MENTION_PROMPT_SEPARATOR) {
+            return null;
+        }
+    }
+    const query = value.slice(at + 1, cursor);
+    if (/[\[\]\n\r]/.test(query)) return null;
+    return { start: at, query };
+}
+
+function filterMentionIndex(query) {
+    const q = (query || '').trim().toLowerCase();
+    const list = workspaceMentionIndex;
+    if (!q) {
+        return list.slice(0, MENTION_PICKER_MAX);
+    }
+    const scored = [];
+    for (const item of list) {
+        const pathLower = item.path.toLowerCase();
+        const base = getWorkspaceFileBaseName(item.path).toLowerCase();
+        if (pathLower.includes(q) || base.includes(q)) {
+            const pri = pathLower.startsWith(q) ? 0 : base.startsWith(q) ? 1 : 2;
+            const kindPri = item.kind === 'directory' ? 0 : 1;
+            scored.push({ item, pri, kindPri, path: pathLower });
+        }
+    }
+    scored.sort((a, b) => {
+        if (a.pri !== b.pri) return a.pri - b.pri;
+        if (a.kindPri !== b.kindPri) return a.kindPri - b.kindPri;
+        return a.path.localeCompare(b.path);
+    });
+    return scored.slice(0, MENTION_PICKER_MAX).map(s => s.item);
+}
+
+let mentionPickerEl = null;
+
+function ensureMentionPickerEl() {
+    if (mentionPickerEl) return mentionPickerEl;
+    const wrap = document.getElementById('normalModeFields');
+    if (!wrap) return null;
+    mentionPickerEl = document.createElement('div');
+    mentionPickerEl.id = 'mentionPicker';
+    mentionPickerEl.className = 'mention-picker';
+    mentionPickerEl.setAttribute('role', 'listbox');
+    mentionPickerEl.style.display = 'none';
+    wrap.appendChild(mentionPickerEl);
+    return mentionPickerEl;
+}
+
+function closeMentionPicker() {
+    mentionPickerState.open = false;
+    mentionPickerState.filtered = [];
+    if (mentionPickerEl) {
+        mentionPickerEl.classList.remove('visible');
+        mentionPickerEl.style.display = 'none';
+        mentionPickerEl.innerHTML = '';
+    }
+}
+
+function renderMentionPickerRows(items) {
+    const el = ensureMentionPickerEl();
+    if (!el) return;
+    el.innerHTML = '';
+    if (!workspaceDirHandle) {
+        const hint = document.createElement('div');
+        hint.className = 'mention-picker-hint';
+        hint.textContent = '请先在工作区选择项目根目录，再使用 @';
+        el.appendChild(hint);
+        return;
+    }
+    if (workspaceMentionIndex.length === 0) {
+        const hint = document.createElement('div');
+        hint.className = 'mention-picker-hint';
+        hint.textContent = '路径索引为空，请点击右栏「刷新」或稍候再试';
+        el.appendChild(hint);
+        return;
+    }
+    if (!items.length) {
+        const empty = document.createElement('div');
+        empty.className = 'mention-picker-empty';
+        empty.textContent = '没有匹配的工作区路径';
+        el.appendChild(empty);
+        return;
+    }
+    items.forEach((item, idx) => {
+        const row = document.createElement('div');
+        row.className = 'mention-picker-item' + (idx === mentionPickerState.activeIndex ? ' active' : '');
+        row.setAttribute('role', 'option');
+        const kind = document.createElement('span');
+        kind.className = 'mention-picker-kind';
+        kind.textContent = item.kind === 'directory' ? '目录' : '文件';
+        const path = document.createElement('span');
+        path.className = 'mention-picker-path';
+        path.textContent = item.kind === 'directory'
+            ? normalizeMentionDirectoryPath(item.path)
+            : normalizeMentionFilePath(item.path);
+        row.appendChild(kind);
+        row.appendChild(path);
+        row.addEventListener('mousedown', (e) => {
+            e.preventDefault();
+            applyMentionPickerChoice(item);
+        });
+        el.appendChild(row);
+    });
+}
+
+function applyMentionPickerChoice(item) {
+    const ta = messageInput;
+    if (!ta || !mentionPickerState.open) return;
+    const end = ta.selectionStart ?? ta.value.length;
+    const start = mentionPickerState.start;
+    const snippet = item.kind === 'directory'
+        ? `[@directory_path:${normalizeMentionDirectoryPath(item.path)}]${MENTION_PROMPT_SEPARATOR}`
+        : `[@file_path:${normalizeMentionFilePath(item.path)}]${MENTION_PROMPT_SEPARATOR}`;
+    const before = ta.value.slice(0, start);
+    const after = ta.value.slice(end);
+    ta.value = before + snippet + after;
+    const pos = start + snippet.length;
+    ta.selectionStart = ta.selectionEnd = pos;
+    ta.focus();
+    closeMentionPicker();
+}
+
+function syncMentionPickerFromInput() {
+    if (isAdvancedMode || !messageInput || messageInput.disabled) {
+        closeMentionPicker();
+        return;
+    }
+    const ta = messageInput;
+    const cursor = ta.selectionStart ?? 0;
+    const hit = findActiveMentionQuery(ta.value, cursor);
+    if (!hit) {
+        closeMentionPicker();
+        return;
+    }
+    const prevStart = mentionPickerState.start;
+    const prevQuery = mentionPickerState.query;
+    mentionPickerState.open = true;
+    mentionPickerState.start = hit.start;
+    mentionPickerState.query = hit.query;
+    mentionPickerState.filtered = filterMentionIndex(hit.query);
+    if (prevStart !== hit.start || prevQuery !== hit.query) {
+        mentionPickerState.activeIndex = 0;
+    }
+    if (mentionPickerState.activeIndex >= mentionPickerState.filtered.length) {
+        mentionPickerState.activeIndex = 0;
+    }
+    const el = ensureMentionPickerEl();
+    if (!el) return;
+    renderMentionPickerRows(mentionPickerState.filtered);
+    el.style.display = 'block';
+    el.classList.add('visible');
+}
+
+function handleMentionPickerKeydown(e) {
+    if (!mentionPickerState.open) return false;
+    const items = mentionPickerState.filtered;
+    if (e.key === 'Escape') {
+        e.preventDefault();
+        closeMentionPicker();
+        return true;
+    }
+    if (e.key === 'ArrowDown') {
+        e.preventDefault();
+        if (items.length) {
+            mentionPickerState.activeIndex = (mentionPickerState.activeIndex + 1) % items.length;
+            renderMentionPickerRows(items);
+        }
+        return true;
+    }
+    if (e.key === 'ArrowUp') {
+        e.preventDefault();
+        if (items.length) {
+            mentionPickerState.activeIndex = (mentionPickerState.activeIndex - 1 + items.length) % items.length;
+            renderMentionPickerRows(items);
+        }
+        return true;
+    }
+    if (e.key === 'Enter' && !e.shiftKey) {
+        if (items.length && items[mentionPickerState.activeIndex]) {
+            e.preventDefault();
+            applyMentionPickerChoice(items[mentionPickerState.activeIndex]);
+            return true;
+        }
+    }
+    if (e.key === 'Tab' && !e.shiftKey && items.length && items[mentionPickerState.activeIndex]) {
+        e.preventDefault();
+        applyMentionPickerChoice(items[mentionPickerState.activeIndex]);
+        return true;
+    }
+    return false;
+}
+
 // ── 工作区文件树 ──────────────────────────────────────────────────────────────
 
 const filetreeContainer = document.getElementById('filetreeContainer');
@@ -1834,6 +2238,9 @@ const filePreviewClose = document.getElementById('filePreviewClose');
 /** 媒体/PDF 预览用的 blob URL，关闭或切换预览时需 revoke */
 let filePreviewObjectUrl = null;
 
+/** 画布预览加载的图片/视频 blob URL 列表，关闭或切换视图时统一 revoke */
+let canvasBlobUrls = [];
+
 function revokeFilePreviewObjectUrl() {
     if (filePreviewObjectUrl) {
         URL.revokeObjectURL(filePreviewObjectUrl);
@@ -1841,8 +2248,20 @@ function revokeFilePreviewObjectUrl() {
     }
 }
 
+function revokeCanvasBlobUrls() {
+    for (const url of canvasBlobUrls) URL.revokeObjectURL(url);
+    canvasBlobUrls = [];
+}
+
 function hideFilePreview() {
     revokeFilePreviewObjectUrl();
+    revokeCanvasBlobUrls();
+    const canvasPanel = document.getElementById('canvasRightPanel');
+    if (canvasPanel) canvasPanel.remove();
+    const canvasModal = document.getElementById('canvasMediaModal');
+    if (canvasModal) canvasModal.remove();
+    const dialog = filePreviewOverlay?.querySelector('.file-preview-dialog');
+    if (dialog) dialog.classList.remove('has-canvas-panel');
     if (filePreviewMeta) filePreviewMeta.innerHTML = '';
     if (filePreviewOverlay) filePreviewOverlay.style.display = 'none';
 }
@@ -1980,6 +2399,7 @@ const PREVIEW_KIND_LABEL = {
     audio: '音频',
     pdf: 'PDF',
     text: '文本',
+    canvas: '画布',
     unsupported: '不可预览',
 };
 
@@ -2135,6 +2555,7 @@ async function activateFiletree(handle) {
     await saveHandle(handle); // 存原始根目录 handle，下次恢复时再次尝试进入挂载目录
     updateSelectBtn('active');
     await renderFileTree();
+    await refreshWorkspaceMentionIndex();
     startFiletreeAutoRefresh();
 }
 
@@ -2215,7 +2636,10 @@ if (mountDirInput) {
 // 手动刷新
 if (refreshTreeBtn) {
     refreshTreeBtn.addEventListener('click', async () => {
-        if (workspaceDirHandle) await renderFileTree();
+        if (workspaceDirHandle) {
+            await renderFileTree();
+            await refreshWorkspaceMentionIndex();
+        }
     });
 }
 
@@ -2315,13 +2739,401 @@ async function buildTreeNodes(dirHandle, container, pathPrefix, depth) {
                     icon.textContent = '▾';
                 }
             });
+            node.addEventListener('contextmenu', (e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                const dirPath = normalizeMentionDirectoryPath(fullPath);
+                openFiletreeContextMenu(e.clientX, e.clientY, [{
+                    label: '引用此目录（插入 @）',
+                    onSelect: () => {
+                        insertMentionAtCursor(`[@directory_path:${dirPath}]${MENTION_PROMPT_SEPARATOR}`);
+                    },
+                }]);
+            });
         } else {
             node.addEventListener('click', async (e) => {
                 e.stopPropagation();
                 await previewFile(entry, fullPath);
             });
+            node.addEventListener('contextmenu', (e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                const fp = normalizeMentionFilePath(fullPath);
+                openFiletreeContextMenu(e.clientX, e.clientY, [{
+                    label: '引用此文件（插入 @）',
+                    onSelect: () => {
+                        insertMentionAtCursor(`[@file_path:${fp}]${MENTION_PROMPT_SEPARATOR}`);
+                    },
+                }]);
+            });
         }
     }
+}
+
+// ── 画布文件（magic.project.js）预览 ──
+
+function isMagicProjectJs(filePath) {
+    return getWorkspaceFileBaseName(filePath) === 'magic.project.js';
+}
+
+function parseMagicProjectConfig(text) {
+    try {
+        const m = text.match(/window\.magicProjectConfig\s*=\s*(\{[\s\S]*\})/);
+        if (!m) return null;
+        return JSON.parse(m[1]);
+    } catch {
+        return null;
+    }
+}
+
+async function getProjectDirHandle(filePath) {
+    const parts = filePath.split('/').filter(Boolean);
+    parts.pop(); // 去掉文件名，只保留目录部分
+    let dir = workspaceDirHandle;
+    for (const part of parts) {
+        try { dir = await dir.getDirectoryHandle(part); }
+        catch { return null; }
+    }
+    return dir;
+}
+
+async function resolveCanvasFileBlobUrl(projectDirHandle, relPath) {
+    const parts = relPath.split('/').filter(Boolean);
+    let dir = projectDirHandle;
+    for (const p of parts.slice(0, -1)) {
+        try { dir = await dir.getDirectoryHandle(p); }
+        catch { return null; }
+    }
+    try {
+        const fh = await dir.getFileHandle(parts[parts.length - 1]);
+        const file = await fh.getFile();
+        const url = URL.createObjectURL(file);
+        canvasBlobUrls.push(url);
+        return url;
+    } catch {
+        return null;
+    }
+}
+
+/**
+ * 从视频 blob URL 中抓取第一帧，返回 data URL（失败时返回 null）。
+ */
+function captureVideoFrame(videoBlobUrl) {
+    return new Promise((resolve) => {
+        const v = document.createElement('video');
+        v.muted = true;
+        v.preload = 'metadata';
+        let settled = false;
+        const done = (result) => {
+            if (settled) return;
+            settled = true;
+            v.src = '';
+            resolve(result);
+        };
+        const timer = setTimeout(() => done(null), 10000);
+        v.addEventListener('error', () => { clearTimeout(timer); done(null); });
+        v.addEventListener('loadeddata', () => { v.currentTime = 0.01; });
+        v.addEventListener('seeked', () => {
+            clearTimeout(timer);
+            try {
+                const c = document.createElement('canvas');
+                c.width = v.videoWidth || 640;
+                c.height = v.videoHeight || 360;
+                c.getContext('2d').drawImage(v, 0, 0, c.width, c.height);
+                done(c.toDataURL('image/jpeg', 0.82));
+            } catch {
+                done(null);
+            }
+        });
+        v.src = videoBlobUrl;
+    });
+}
+
+/**
+ * 弹出画布媒体 modal：图片展示原图，视频展示播放器。
+ * @param {'image'|'video'} type
+ * @param {string|null} blobUrl  - 视频/图片的 blob URL
+ * @param {string|null} posterBlobUrl - 视频封面的 blob URL（可选）
+ * @param {string} name - 元素名称（用于 aria-label）
+ */
+function openCanvasMediaModal(type, blobUrl, posterBlobUrl, name) {
+    // 移除已有 modal
+    const existing = document.getElementById('canvasMediaModal');
+    if (existing) existing.remove();
+
+    const overlay = document.createElement('div');
+    overlay.id = 'canvasMediaModal';
+    overlay.className = 'canvas-media-modal-overlay';
+    overlay.setAttribute('role', 'dialog');
+    overlay.setAttribute('aria-modal', 'true');
+    overlay.setAttribute('aria-label', name);
+
+    const box = document.createElement('div');
+    box.className = 'canvas-media-modal-box';
+
+    // 关闭按钮
+    const closeBtn = document.createElement('button');
+    closeBtn.className = 'canvas-media-modal-close';
+    closeBtn.setAttribute('aria-label', '关闭');
+    closeBtn.innerHTML = '&#x2715;';
+    closeBtn.addEventListener('click', () => overlay.remove());
+
+    // 媒体内容
+    const mediaWrap = document.createElement('div');
+    mediaWrap.className = 'canvas-media-modal-media';
+
+    if (type === 'video' && blobUrl) {
+        const v = document.createElement('video');
+        v.src = blobUrl;
+        if (posterBlobUrl) v.poster = posterBlobUrl;
+        v.controls = true;
+        v.autoplay = true;
+        v.style.cssText = 'max-width:100%;max-height:100%;display:block;background:#000;';
+        mediaWrap.appendChild(v);
+    } else if (type === 'video' && posterBlobUrl) {
+        // 无视频源，仅展示封面大图
+        const img = document.createElement('img');
+        img.src = posterBlobUrl;
+        img.alt = name;
+        img.style.cssText = 'max-width:100%;max-height:100%;display:block;object-fit:contain;';
+        mediaWrap.appendChild(img);
+    } else if (type === 'image' && blobUrl) {
+        const img = document.createElement('img');
+        img.src = blobUrl;
+        img.alt = name;
+        img.style.cssText = 'max-width:100%;max-height:100%;display:block;object-fit:contain;';
+        mediaWrap.appendChild(img);
+    }
+
+    if (name) {
+        const caption = document.createElement('div');
+        caption.className = 'canvas-media-modal-caption';
+        caption.textContent = name;
+        box.appendChild(caption);
+    }
+
+    box.appendChild(closeBtn);
+    box.appendChild(mediaWrap);
+    overlay.appendChild(box);
+    document.body.appendChild(overlay);
+
+    // 点击背景关闭
+    overlay.addEventListener('click', (e) => {
+        if (e.target === overlay) overlay.remove();
+    });
+
+    // ESC 关闭
+    const onKey = (e) => {
+        if (e.key === 'Escape') { overlay.remove(); document.removeEventListener('keydown', onKey); }
+    };
+    document.addEventListener('keydown', onKey);
+
+    // modal 移除时停止视频播放
+    new MutationObserver(() => {
+        if (!document.getElementById('canvasMediaModal')) {
+            const v = overlay.querySelector('video');
+            if (v) { v.pause(); v.src = ''; }
+            document.removeEventListener('keydown', onKey);
+        }
+    }).observe(document.body, { childList: true });
+}
+
+/**
+ * 在 containerEl 内渲染画布内容。
+ * containerEl 本身需具备 overflow:auto + 固定高度（来自 CSS），函数不修改其样式。
+ */
+async function renderCanvasView(config, projectDirHandle, containerEl) {
+    const elements = config?.canvas?.elements ?? [];
+    if (!elements.length) {
+        appendPreviewMessage(containerEl, '画布中没有元素。');
+        return;
+    }
+
+    // 计算所有元素的边界框
+    let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+    for (const el of elements) {
+        const x = el.x ?? 0, y = el.y ?? 0, w = el.width ?? 0, h = el.height ?? 0;
+        if (x < minX) minX = x;
+        if (y < minY) minY = y;
+        if (x + w > maxX) maxX = x + w;
+        if (y + h > maxY) maxY = y + h;
+    }
+    const canvasW = maxX - minX || 1;
+    const canvasH = maxY - minY || 1;
+
+    // scaleWrap：根据 scale 后尺寸撑开 containerEl 的滚动区域
+    const scaleWrap = document.createElement('div');
+    scaleWrap.className = 'canvas-preview-scale-wrap';
+    containerEl.appendChild(scaleWrap);
+
+    // space：按画布原始坐标定位元素，通过 CSS transform 缩放
+    const space = document.createElement('div');
+    space.className = 'canvas-preview-space';
+    space.style.width = `${canvasW}px`;
+    space.style.height = `${canvasH}px`;
+    scaleWrap.appendChild(space);
+
+    // 等两帧渲染完成后用 containerEl 的实际尺寸计算 scale
+    await new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)));
+    const pad = 24;
+    const availW = containerEl.clientWidth - pad;
+    const availH = containerEl.clientHeight - pad;
+    const scale = Math.min(1, Math.min(availW / canvasW, availH / canvasH));
+
+    scaleWrap.style.width  = `${Math.ceil(canvasW * scale) + pad}px`;
+    scaleWrap.style.height = `${Math.ceil(canvasH * scale) + pad}px`;
+    space.style.position      = 'absolute';
+    space.style.left          = `${pad / 2}px`;
+    space.style.top           = `${pad / 2}px`;
+    space.style.transformOrigin = 'top left';
+    space.style.transform     = `scale(${scale})`;
+
+    // 按 zIndex 从低到高渲染元素
+    const sorted = [...elements].sort((a, b) => (a.zIndex ?? 0) - (b.zIndex ?? 0));
+    await Promise.all(sorted.map(async (el) => {
+        const elDiv = document.createElement('div');
+        elDiv.className = 'canvas-preview-element';
+        elDiv.style.left = `${(el.x ?? 0) - minX}px`;
+        elDiv.style.top = `${(el.y ?? 0) - minY}px`;
+        elDiv.style.width = `${el.width ?? 100}px`;
+        elDiv.style.height = `${el.height ?? 100}px`;
+        elDiv.title = el.name || el.id || '';
+
+        const makeLabel = (text) => {
+            const span = document.createElement('span');
+            span.className = 'canvas-el-label';
+            span.textContent = text;
+            return span;
+        };
+
+        // 视频类型专用：暗色卡片（封面图优先，无封面则显示图标+名称）
+        const renderVideoCard = (posterBlobUrl, name) => {
+            const card = document.createElement('div');
+            card.className = 'canvas-el-video-card';
+
+            if (posterBlobUrl) {
+                const img = document.createElement('img');
+                img.src = posterBlobUrl;
+                img.alt = name || '';
+                img.style.cssText = 'width:100%;height:100%;object-fit:cover;display:block;position:absolute;inset:0;';
+                card.appendChild(img);
+            }
+
+            const overlay = document.createElement('div');
+            overlay.className = 'canvas-el-video-overlay';
+            const playIcon = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+            playIcon.setAttribute('viewBox', '0 0 24 24');
+            playIcon.className = 'canvas-el-video-play-icon';
+            const circle = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+            circle.setAttribute('cx', '12'); circle.setAttribute('cy', '12'); circle.setAttribute('r', '12');
+            circle.setAttribute('fill', 'rgba(0,0,0,0.5)');
+            const poly = document.createElementNS('http://www.w3.org/2000/svg', 'polygon');
+            poly.setAttribute('points', '9.5,7 18,12 9.5,17');
+            poly.setAttribute('fill', 'white');
+            playIcon.appendChild(circle);
+            playIcon.appendChild(poly);
+            overlay.appendChild(playIcon);
+
+            if (!posterBlobUrl && name) {
+                const nameEl = document.createElement('span');
+                nameEl.className = 'canvas-el-video-name';
+                nameEl.textContent = name;
+                overlay.appendChild(nameEl);
+            }
+            card.appendChild(overlay);
+            return card;
+        };
+
+        if (el.status === 'processing') {
+            if (el.type === 'video') {
+                elDiv.classList.add('canvas-el-state', 'canvas-el-video-processing');
+                const icon = document.createElement('span');
+                icon.className = 'canvas-el-video-loading-icon';
+                elDiv.appendChild(icon);
+                elDiv.appendChild(makeLabel(el.name || ''));
+            } else {
+                elDiv.classList.add('canvas-el-state', 'canvas-el-processing');
+                elDiv.appendChild(makeLabel(el.name || ''));
+            }
+        } else if (el.status === 'failed') {
+            elDiv.classList.add('canvas-el-state', 'canvas-el-failed');
+            elDiv.appendChild(makeLabel(el.name || ''));
+        } else if (el.type === 'video') {
+            // 视频：封面优先，无封面则从视频抓第一帧；点击弹窗播放
+            const posterBlobUrl = el.poster ? await resolveCanvasFileBlobUrl(projectDirHandle, el.poster) : null;
+            const videoBlobUrl = el.src ? await resolveCanvasFileBlobUrl(projectDirHandle, el.src) : null;
+            // 没有 poster 时从视频文件抓帧作为封面
+            let thumbnailUrl = posterBlobUrl;
+            if (!thumbnailUrl && videoBlobUrl) {
+                thumbnailUrl = await captureVideoFrame(videoBlobUrl);
+            }
+            elDiv.appendChild(renderVideoCard(thumbnailUrl, el.name || ''));
+            if (videoBlobUrl || posterBlobUrl) {
+                elDiv.style.cursor = 'pointer';
+                elDiv.addEventListener('click', () => openCanvasMediaModal('video', videoBlobUrl, thumbnailUrl, el.name || ''));
+            }
+        } else if (el.src) {
+            const blobUrl = await resolveCanvasFileBlobUrl(projectDirHandle, el.src);
+            if (blobUrl) {
+                const img = document.createElement('img');
+                img.src = blobUrl;
+                img.alt = el.name || '';
+                img.style.cssText = 'width:100%;height:100%;object-fit:contain;display:block;';
+                elDiv.appendChild(img);
+                elDiv.style.cursor = 'pointer';
+                elDiv.addEventListener('click', () => openCanvasMediaModal('image', blobUrl, null, el.name || ''));
+            } else {
+                elDiv.classList.add('canvas-el-state', 'canvas-el-missing');
+                elDiv.appendChild(makeLabel(el.name || ''));
+            }
+        } else {
+            elDiv.classList.add('canvas-el-state', 'canvas-el-empty');
+            elDiv.appendChild(makeLabel(el.name || el.id || ''));
+        }
+
+        space.appendChild(elDiv);
+    }));
+}
+
+async function addCanvasRightPanel(config, filePath) {
+    const dialog = filePreviewOverlay.querySelector('.file-preview-dialog');
+    if (dialog) dialog.classList.add('has-canvas-panel');
+
+    const oldPanel = document.getElementById('canvasRightPanel');
+    if (oldPanel) oldPanel.remove();
+
+    const main = filePreviewOverlay.querySelector('.file-preview-main');
+    const panel = document.createElement('div');
+    panel.id = 'canvasRightPanel';
+    panel.className = 'canvas-right-panel';
+
+    // 面板顶部信息栏
+    const panelHeader = document.createElement('div');
+    panelHeader.className = 'canvas-panel-header';
+    const titleEl = document.createElement('span');
+    titleEl.className = 'canvas-panel-title';
+    titleEl.textContent = config.name || filePath;
+    const countEl = document.createElement('span');
+    countEl.className = 'canvas-panel-count';
+    countEl.textContent = `${config.canvas?.elements?.length ?? 0} 个元素`;
+    panelHeader.appendChild(titleEl);
+    panelHeader.appendChild(countEl);
+    panel.appendChild(panelHeader);
+
+    // 画布视口（overflow: auto 由 CSS 控制）
+    const viewport = document.createElement('div');
+    viewport.className = 'canvas-right-viewport';
+    panel.appendChild(viewport);
+
+    main.appendChild(panel);
+
+    // 获取项目目录并渲染画布
+    const projectDirHandle = await getProjectDirHandle(filePath);
+    if (!projectDirHandle) {
+        appendPreviewMessage(viewport, '无法访问项目目录，请检查文件系统权限。');
+        return;
+    }
+    await renderCanvasView(config, projectDirHandle, viewport);
 }
 
 // 预览文件内容：图片/音视频/PDF 用 blob URL，文本读入 pre，其余提示不可预览
@@ -2330,6 +3142,12 @@ async function previewFile(fileHandle, filePath) {
     try {
         const file = await fileHandle.getFile();
         revokeFilePreviewObjectUrl();
+        revokeCanvasBlobUrls();
+        // 清理上次可能残留的右侧画布面板
+        const oldPanel = document.getElementById('canvasRightPanel');
+        if (oldPanel) oldPanel.remove();
+        const dialog = filePreviewOverlay?.querySelector('.file-preview-dialog');
+        if (dialog) dialog.classList.remove('has-canvas-panel');
         filePreviewBody.innerHTML = '';
         if (filePreviewMeta) filePreviewMeta.innerHTML = '';
         filePreviewName.textContent = filePath;
@@ -2436,6 +3254,14 @@ async function previewFile(fileHandle, filePath) {
             pre.className = 'file-preview-content';
             pre.textContent = text;
             filePreviewBody.appendChild(pre);
+
+            // magic.project.js：解析画布配置后在右侧自动展开画布面板
+            if (isMagicProjectJs(filePath)) {
+                const config = parseMagicProjectConfig(text);
+                if (config?.canvas) {
+                    addCanvasRightPanel(config, filePath);
+                }
+            }
         }
 
         filePreviewOverlay.style.display = 'flex';
