@@ -1,11 +1,11 @@
 ---
 name: canvas-designer
-description: Core canvas design skill covering project management, multimedia principles, AI image generation, web image search, and design marker processing. Load for any canvas design task. CRITICAL - When user message contains [@design_canvas_project:...] or [@design_marker:...] mentions, you MUST load this skill first before any operations.
+description: Core canvas design skill covering project management, multimedia principles, AI image generation, canvas video generation, web image search, and design marker processing. Load for any canvas design task including video generation on canvas. CRITICAL - When user message contains [@design_canvas_project:...] or [@design_marker:...] mentions, or when the user wants to generate video/animation/clip on a canvas project, you MUST load this skill first before any operations.
 ---
 
 # Canvas Design Skill
 
-Covers all canvas design fundamentals: project management, multimedia principles, AI image generation, web image search, and design marker processing.
+Covers all canvas design fundamentals: project management, multimedia principles, AI image generation, canvas video generation, web image search, and design marker processing.
 
 ---
 
@@ -24,6 +24,8 @@ print(result)
 ```
 
 **Result object:** fields are `result.ok` (bool), `result.content` (str), `result.data` (dict). Access structured data via `result.data`, not `result['key']` — the Result object is not subscriptable.
+
+Video-related tool calls in this skill automatically use long timeouts. Do not reason about timeout values for video tools.
 
 ---
 
@@ -55,12 +57,12 @@ Design projects are uniquely identified by `project_path`. All canvas tools requ
 
 **Correct approach:**
 - Image content changes → `generate_canvas_images` (creates new element; keep original)
-- Video generation and follow-up → load `designing-canvas-videos` skill
+- Video generation → `generate_canvas_videos` (see Video Generation section below)
 - Original elements and media files must remain unchanged
 
 **Tool priority:**
 - Static output (poster, illustration, cover, still image) → image tools
-- Dynamic output (video, animation, shot, clip) → `designing-canvas-videos` skill
+- Dynamic output (video, animation, shot, clip) → video tools (see Video Generation section)
 
 ---
 
@@ -70,7 +72,7 @@ Design projects are uniquely identified by `project_path`. All canvas tools requ
 
 | Parameter | Required | Description |
 |---|---|---|
-| `project_path` | Yes | Project relative path. Name the folder in the user's language — e.g. `"产品海报设计"` for Chinese users, `"product-poster-design"` for English users |
+| `project_path` | Yes | Project relative path. Name the folder in the user's language — e.g. use a Chinese folder name for Chinese users, an English name for English users |
 
 Returns: `{ project_path, project_name }`
 
@@ -233,7 +235,7 @@ Write the prompt in the same language the user is using. If the user speaks Chin
 
 The `name` field follows the same rule: use the user's language for the canvas element label. If the user is Chinese, the name must be in Chinese — do not default to English slugs regardless of what the examples show. Beyond language, the name must describe the **specific content** of that image — who or what is actually in it — not a generic category, a task slot number, or a theme-level label. When generating multiple images in one call, each task has a distinct subject or variation; the name should capture what makes that task unique, not just its position in the batch.
 
-The `project_path` in `create_canvas` follows the same rule: name the project folder in the user's language. For example, if the user speaks Chinese, use a Chinese folder name such as `"产品海报设计"`; if English, use something like `"product-poster-design"`. Do not use English folder names for Chinese users.
+The `project_path` in `create_canvas` follows the same rule: name the project folder in the user's language. For example, if the user speaks Chinese, use a Chinese folder name; if English, use an English name. Do not use English folder names for Chinese users.
 
 ### Handling user-provided prompts
 
@@ -382,16 +384,95 @@ Processing steps:
 3. **Build prompt** — `[location] + [what to change] + [preserve everything else]`
 4. **Generate** — `generate_canvas_images` with a single task whose `reference_images` points to the original image; `size` auto-resolved from the reference
 
-> If the message contains `[@design_marker:xxx]`, read [reference/design-marker.md](reference/design-marker.md) for the full workflow before proceeding.
+> If the message contains `[@design_marker:xxx]`, read [reference/image/design-marker.md](reference/image/design-marker.md) for the full workflow before proceeding.
 
 ---
 
 ## Video Generation
 
-Load `designing-canvas-videos` skill for all video tasks:
-- Initial generation and follow-up both go through that skill
-- If a video task returns `queued/running/processing`, it's in the correct pipeline — not an error
-- Do not proactively poll; only follow up when the user explicitly asks
+This skill handles canvas video generation directly. For detailed cases, read the matching reference:
+
+- **Initial generation** → [reference/video/initial-generation.md](reference/video/initial-generation.md)
+- **Follow-up / status sync** → [reference/video/follow-up.md](reference/video/follow-up.md)
+- **Parameter selection / error handling** → [reference/video/parameters-and-errors.md](reference/video/parameters-and-errors.md)
+
+### Use video tools when
+
+- User wants dynamic output on canvas: video, animation, shot, clip, short film, motion poster
+- User already started a canvas video task and asks "is it done / continue / refresh / check again / progress / status"
+- User provides reference images or start/end frames and wants a video element on canvas
+
+### Do not use video tools for
+
+- Static output such as poster, cover, screenshot, or illustration → use image workflow above
+- General non-canvas video generation → use the video tools directly
+- Only adjusting element position, size, or layer → use canvas element editing tools
+
+### Quick Start
+
+**Initial generation:**
+
+```python
+from sdk.tool import tool
+
+result = tool.call('generate_canvas_videos', {
+    "project_path": "my-design",
+    "tasks": [{
+        "name": "promo_video",
+        "prompt": "A product slowly rotating under soft light, cinematic camera push-in, commercial ad quality",
+        "width": 1280,
+        "height": 720
+    }]
+})
+print(result)
+```
+
+**Follow up an existing video task** (only after the creation tool has timed out and user explicitly asks):
+
+```python
+from sdk.tool import tool
+
+result = tool.call('query_video_generation', {
+    "operation_id": "op_xxx"
+})
+```
+
+### Core Workflow
+
+**Path A: Initial Generation**
+- Use `generate_canvas_videos`
+- Required: `project_path`, `tasks` (each task needs `name`, `prompt`, `width`, `height`)
+- Focus on the generation goal, whether there is reference input, and whether the user explicitly requested size/resolution or duration
+- If the user did not explicitly ask for extra controls, prefer the minimum parameter set
+- If result is `queued` / `running` / `processing`, the task is on the correct path
+
+**Path B: Follow-Up**
+- The creation tool itself blocks and polls first, while continuously sending progress updates to the user
+- Only use `query_video_generation` after the creation tool has already timed out and the user explicitly asks to check progress
+- `operation_id` is the primary follow-up input; reuse `request_id`, `project_path`, and `element_id` when already known
+- In canvas scenarios, prefer passing both `project_path` and `element_id` so the tool can backfill element state
+- Never start a new generation job just because the current one is still processing
+
+### Critical Rules
+
+**Confirm before acting:**
+- If the user is only asking about capability ("can you?", "is it possible?"), confirm the capability and ask for content details first; do not start generating
+- Even if the user says "I want to generate a video" without a specific content description, ask for details before calling any tool
+- Only call generation tools when the user has expressed clear content intent and willingness to proceed
+
+**Execution rules:**
+- When the user wants dynamic output, do not fall back to `generate_canvas_images`
+- Only switch to image workflow when the user explicitly asks for a still result
+- The video creation tool blocks and polls first, sending progress updates before returning
+- Do not proactively call the query capability just because a task is still in progress
+- Only follow up when the creation tool has already timed out and the user explicitly asks
+- On follow-up, prefer reusing existing `operation_id`, `request_id`, and `element_id`
+- If the tool returns `pending_operations`, treat them as the source of truth for the next follow-up
+- Before calling video tools, refer to the runtime video-model capability message already injected in the conversation
+- Prioritize: generation goal, canvas placement, size/resolution intent, duration intent, reference inputs
+- Keep non-priority parameters empty when the user did not explicitly ask for them
+- When uncertain about a parameter, prefer omitting it rather than guessing
+- For `generate_canvas_videos`, `width`/`height` are canvas element dimensions; focus on canvas placement and the video goal instead of over-tuning parameters
 
 ---
 
@@ -410,11 +491,12 @@ Generate AI images?
 └─ No → continue
 
 Generate video?
-├─ Yes → load designing-canvas-videos skill
+├─ Yes → generate_canvas_videos (see Video Generation section)
+│   └─ Follow up? → query_video_generation (only after timeout + user asks)
 └─ No → continue
 
 Search web images?
-├─ Yes → See reference/image-search.md
+├─ Yes → See reference/image/image-search.md
 └─ No → continue
 ```
 
@@ -422,4 +504,4 @@ Search web images?
 
 ## Web Image Search
 
-> For web image search capabilities, see [reference/image-search.md](reference/image-search.md).
+> For web image search capabilities, see [reference/image/image-search.md](reference/image/image-search.md).

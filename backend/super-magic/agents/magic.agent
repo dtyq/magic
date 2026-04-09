@@ -28,7 +28,6 @@ skills:
     - name: env-manager
     - name: skill-creator
     - name: canvas-designer
-    - name: generating-videos
     - name: creating-slides
     - name: deep-research
     - name: using-llm

@@ -18,7 +18,6 @@ skills:
   preload:
     - name: canvas-designer
   system_skills:
-    - name: designing-canvas-videos
     - name: skill-vetter
     - name: find-skill
     - name: using-mcp
