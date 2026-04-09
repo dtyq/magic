@@ -1,11 +1,11 @@
 ---
 name: designing-canvas-images
-description: Core canvas design skill covering project management, coordinate system, element operations, multimedia principles, AI image generation, web image search, and design marker processing. Load for any canvas design task. CRITICAL - When user message contains [@design_canvas_project:...] or [@design_marker:...] mentions, you MUST load this skill first before any operations.
+description: Core canvas design skill covering project management, multimedia principles, AI image generation, web image search, and design marker processing. Load for any canvas design task. CRITICAL - When user message contains [@design_canvas_project:...] or [@design_marker:...] mentions, you MUST load this skill first before any operations.
 ---
 
 # Canvas Design Skill
 
-Covers all canvas design fundamentals: project management, element types, multimedia principles, AI image generation, web image search, and design marker processing.
+Covers all canvas design fundamentals: project management, multimedia principles, AI image generation, web image search, and design marker processing.
 
 ---
 
@@ -32,16 +32,12 @@ Design projects are uniquely identified by `project_path`. All canvas tools requ
 
 ---
 
-## Canvas System
+## Element Types
 
-**Coordinate:** Origin `(0, 0)` at top-left. X increases rightward, Y downward. `(x, y)` = element top-left corner. Canvas is infinite.
-
-**Element types:**
-
-| Type | Key properties | Smart features |
-|------|----------------|----------------|
-| `image` | `src`, `generateImageRequest` | Auto-reads dimensions from file; auto-calculates position when x/y omitted |
-| `video` | `src`, `poster`, `status`, `generateVideoRequest` | Placeholder creation; async status backfill |
+| Type | Key properties |
+|------|----------------|
+| `image` | `src`, `generateImageRequest` |
+| `video` | `src`, `poster`, `status`, `generateVideoRequest` |
 
 ---
 
@@ -92,7 +88,7 @@ Returns: `{ project_path, project_name }`
 | `reference_images` | No | Reference image paths (workspace-relative). Images inside the project use project-relative paths, e.g. `images/cat.jpg`; images outside the project use workspace-relative paths, e.g. `other-project/images/ref.png`. Omit or pass `[]` for text-only generation |
 | `element_id` | No | Existing element ID to overwrite (for retrying a failed placeholder) |
 
-Returns: `{ created_elements: [{ id, name, type, x, y, width, height }], succeeded_count, failed_count }`
+Returns: `{ created_elements: [{ id, name, type }], succeeded_count, failed_count }`
 
 ---
 

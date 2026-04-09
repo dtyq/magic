@@ -401,8 +401,7 @@ Expand brief user descriptions into full prompts covering subject, style, compos
             result += "\n\nSucceeded Elements:"
             for r in success_results:
                 p = placeholders[r.index]
-                pos = f" at ({p.x:.0f}, {p.y:.0f})" if p.x is not None and p.y is not None else ""
-                result += f"\n- {p.name} (id: {p.id}){pos}"
+                result += f"\n- {p.name} (id: {p.id})"
 
         failed_results = [r for r in task_results if r.is_failed]
         if failed_results:
