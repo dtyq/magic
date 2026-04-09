@@ -759,75 +759,51 @@
         "zh_CN": "下载地图失败: {{error}}",
         "en_US": "Map download failed: {{error}}"
     },
-    "create_design_project.success": {
+    "create_canvas.success": {
         "zh_CN": "项目 {{project_name}} 创建成功",
         "en_US": "Project {{project_name}} created successfully"
     },
-    "create_design_project.exception": {
+    "create_canvas.exception": {
         "zh_CN": "创建异常，请重试",
         "en_US": "Creation exception, please retry"
     },
-    "query_canvas_overview.success": {
-        "zh_CN": "画布概览查询完成",
-        "en_US": "Canvas overview query completed"
-    },
-    "query_canvas_overview.exception": {
-        "zh_CN": "查询画布概览异常，请重试",
-        "en_US": "Query canvas overview failed, please try again"
-    },
-    "generate_images_to_canvas.exception": {
+    "generate_canvas_images.exception": {
         "zh_CN": "AI 图片生成异常，请重试",
         "en_US": "AI image generation exception, please retry"
     },
-    "search_images_to_canvas.exception": {
+    "generate_canvas_images.success": {
+        "zh_CN": "成功生成 {{succeeded_count}} 张图片并添加到画布",
+        "en_US": "Successfully generated {{succeeded_count}} image(s) and added to canvas"
+    },
+    "generate_canvas_images.success_partial": {
+        "zh_CN": "AI 图片部分生成成功（成功 {{succeeded_count}}/{{total_count}}）",
+        "en_US": "AI images partially generated ({{succeeded_count}}/{{total_count}} succeeded)"
+    },
+    "search_canvas_images.exception": {
         "zh_CN": "图片搜索异常，请重试",
         "en_US": "Image search exception, please retry"
     },
-    "generate_videos_to_canvas.exception": {
+    "search_image_prompts.exception": {
+        "zh_CN": "提示词搜索异常，请重试",
+        "en_US": "Prompt search exception, please retry"
+    },
+    "search_image_prompts.success": {
+        "zh_CN": "已搜索到 {{count}} 条提示词灵感",
+        "en_US": "Found {{count}} prompt inspirations"
+    },
+    "generate_canvas_videos.exception": {
         "zh_CN": "AI 视频生成异常，请重试",
         "en_US": "AI video generation exception, please retry"
     },
-    "query_canvas_element.success": {
-        "zh_CN": "元素 {{element_id}} 详情查询完成",
-        "en_US": "Element {{element_id}} query completed"
-    },
-    "query_canvas_element.exception": {
-        "zh_CN": "查询元素详情异常，请重试",
-        "en_US": "Query element failed, please try again"
-    },
-    "delete_canvas_element.success": {
-        "zh_CN": "元素删除成功",
-        "en_US": "Element(s) deleted successfully"
-    },
-    "delete_canvas_element.exception": {
-        "zh_CN": "删除元素异常，请重试",
-        "en_US": "Element deletion exception, please retry"
-    },
-    "batch_create_canvas_elements.success": {
-        "zh_CN": "成功创建 {{count}} 个画布元素",
-        "en_US": "Successfully created {{count}} canvas elements"
-    },
-    "batch_update_canvas_elements.success": {
-        "zh_CN": "成功更新 {{count}} 个画布元素",
-        "en_US": "Successfully updated {{count}} canvas elements"
-    },
-    "search_images_to_canvas.success_multiple": {
+    "search_canvas_images.success_multiple": {
         "zh_CN": "成功搜索 {{succeeded_count}} 张图片并添加到画布",
         "en_US": "Successfully searched {{succeeded_count}} images and added to canvas"
     },
-    "search_images_to_canvas.success_single": {
+    "search_canvas_images.success_single": {
         "zh_CN": "成功搜索图片并添加到画布",
         "en_US": "Successfully searched images and added to canvas"
     },
-    "generate_images_to_canvas.success_multiple": {
-        "zh_CN": "成功生成 {{image_count}} 张图片 '{{name}}' 并添加到画布",
-        "en_US": "Successfully generated {{image_count}} images '{{name}}' and added to canvas"
-    },
-    "generate_images_to_canvas.success_single": {
-        "zh_CN": "成功生成图片 '{{name}}' 并添加到画布",
-        "en_US": "Successfully generated image '{{name}}' and added to canvas"
-    },
-    "generate_videos_to_canvas.summary": {
+    "generate_canvas_videos.summary": {
         "zh_CN": "视频结果：完成 {{completed}} 个，处理中 {{processing}} 个，失败 {{failed}} 个",
         "en_US": "Video result: {{completed}} completed, {{processing}} processing, {{failed}} failed"
     },

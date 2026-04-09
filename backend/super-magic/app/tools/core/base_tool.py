@@ -462,10 +462,7 @@ class BaseTool(Generic[T], ABC):
             if not params_class:
                 error_msg = f"工具 {self.get_effective_name()} 没有定义参数模型类型"
                 logger.error(error_msg)
-                result = ToolResult(
-                    error=error_msg,
-                    name=str(self.get_effective_name())
-                )
+                result = ToolResult.error(error_msg, name=str(self.get_effective_name()))
                 execution_time = time.time() - start_time
                 self._end_tool_span(span, result, execution_time)
                 return result
@@ -489,10 +486,7 @@ class BaseTool(Generic[T], ABC):
                         custom_error = params_class.get_custom_error_message(field_name, error_type)
                         if custom_error:
                             logger.info(f"使用自定义错误消息: field={field_name}, type={error_type}")
-                            result = ToolResult(
-                                error=custom_error,
-                                name=str(self.get_effective_name())
-                            )
+                            result = ToolResult.error(custom_error, name=str(self.get_effective_name()))
                             execution_time = time.time() - start_time
                             self._end_tool_span(span, result, execution_time, e)
                             return result
@@ -500,10 +494,7 @@ class BaseTool(Generic[T], ABC):
                 # 如果没有自定义错误消息，使用友好的错误处理逻辑
                 # 判断错误类型并生成相应的友好错误消息
                 pretty_error_msg = self._generate_friendly_validation_error(error_details, str(self.get_effective_name()))
-                result = ToolResult(
-                    error=pretty_error_msg,
-                    name=str(self.get_effective_name())
-                )
+                result = ToolResult.error(pretty_error_msg, name=str(self.get_effective_name()))
                 execution_time = time.time() - start_time
                 self._end_tool_span(span, result, execution_time, e)
                 return result
@@ -511,10 +502,7 @@ class BaseTool(Generic[T], ABC):
                 # 其他类型的异常
                 logger.error(f"参数验证失败: {e!s}")
                 pretty_error = f"工具 '{self.get_effective_name()}' 的参数验证失败，请检查输入参数的格式是否正确"
-                result = ToolResult(
-                    error=pretty_error,
-                    name=str(self.get_effective_name())
-                )
+                result = ToolResult.error(pretty_error, name=str(self.get_effective_name()))
                 execution_time = time.time() - start_time
                 self._end_tool_span(span, result, execution_time, e)
                 return result
@@ -527,10 +515,7 @@ class BaseTool(Generic[T], ABC):
                 logger.error(f"工具 {self.get_effective_name()} 执行出错: {e}", exc_info=True)
                 execution_error = e
                 # 捕获执行错误并返回错误结果
-                result = ToolResult(
-                    error=f"工具执行失败: {e!s}",
-                    name=str(self.get_effective_name())
-                )
+                result = ToolResult.error(f"工具执行失败: {e!s}", name=str(self.get_effective_name()))
 
             # 设置执行时间和名称
             execution_time = time.time() - start_time
@@ -545,10 +530,7 @@ class BaseTool(Generic[T], ABC):
         except Exception as e:
             # Catch any unexpected errors
             execution_time = time.time() - start_time
-            result = ToolResult(
-                error=f"工具调用异常: {e!s}",
-                name=str(self.get_effective_name())
-            )
+            result = ToolResult.error(f"工具调用异常: {e!s}", name=str(self.get_effective_name()))
             result.execution_time = execution_time
             self._end_tool_span(span, result, execution_time, e)
             return result

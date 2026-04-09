@@ -27,8 +27,7 @@ skills:
     - name: using-mcp
     - name: env-manager
     - name: skill-creator
-    - name: designing-canvas-images
-    - name: generating-videos
+    - name: canvas-designer
     - name: creating-slides
     - name: deep-research
     - name: using-llm

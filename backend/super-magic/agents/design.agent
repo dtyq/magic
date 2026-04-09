@@ -16,9 +16,8 @@ tools:
   - shell_exec
 skills:
   preload:
-    - name: designing-canvas-images
+    - name: canvas-designer
   system_skills:
-    - name: designing-canvas-videos
     - name: skill-vetter
     - name: find-skill
     - name: using-mcp

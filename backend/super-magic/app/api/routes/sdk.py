@@ -3,6 +3,7 @@ SDK Routes
 
 提供 run_sdk_snippet 执行环境通过 HTTP 调用工具与 MCP 的接口。
 """
+import asyncio
 import json
 import traceback
 import uuid
@@ -18,6 +19,7 @@ from app.api.http_dto.response import (
     create_error_response,
 )
 from app.service.agent_dispatcher import AgentDispatcher
+from app.service.sdk_call_registry import SdkCallRegistry, SdkCallEntry
 from app.tools.core.tool_call_executor import tool_call_executor
 from agentlang.chat_history.chat_history_models import ToolCall, FunctionCall
 from app.mcp.manager import get_global_mcp_manager
@@ -40,6 +42,10 @@ class SdkToolCallRequest(BaseModel):
         ...,
         description="调用方 AgentContext 的唯一标识符，由 run_sdk_snippet 注入子进程环境变量",
     )
+    sdk_execution_id: str = Field(
+        "",
+        description="本次 Code Mode 执行的唯一标识，用于精确取消本轮发起的服务端请求",
+    )
 
 
 @router.post("/tool/call", response_model=BaseResponse)
@@ -49,32 +55,41 @@ async def sdk_tool_call(request: SdkToolCallRequest):
 
     供 run_sdk_snippet 子进程通过 HTTP 调用宿主工具。
     """
-    try:
-        # 从注册表精确查找调用方的 AgentContext
-        from app.core.context.agent_context_registry import AgentContextRegistry
+    from app.core.context.agent_context_registry import AgentContextRegistry
 
-        agent_context = AgentContextRegistry.get_instance().get(request.agent_context_id)
-        if agent_context is None:
-            error_msg = (
-                f"agent_context_id '{request.agent_context_id}' was not found in the registry. "
-                "Unable to route this request to the correct AgentContext."
-            )
-            logger.error(error_msg)
-            return create_error_response(
-                message=error_msg,
-                data={"ok": False, "content": error_msg},
-            )
-
-        # 生成 tool_call_id
-        tool_call_id = request.tool_call_id or f"call_{uuid.uuid4().hex[:24]}"
-
-        agent_label = agent_context.get_agent_session_label()
-        logger.info(
-            f"SDK tool call: {request.tool_name}, params: {request.tool_params}, "
-            f"tool_call_id: {tool_call_id}, agent: {agent_label}, agent_context_id: {request.agent_context_id}"
+    agent_context = AgentContextRegistry.get_instance().get(request.agent_context_id)
+    if agent_context is None:
+        error_msg = (
+            f"agent_context_id '{request.agent_context_id}' was not found in the registry. "
+            "Unable to route this request to the correct AgentContext."
+        )
+        logger.error(error_msg)
+        return create_error_response(
+            message=error_msg,
+            data={"ok": False, "content": error_msg},
         )
 
-        # 创建 ToolCall 对象
+    tool_call_id = request.tool_call_id or f"call_{uuid.uuid4().hex[:24]}"
+
+    agent_label = agent_context.get_agent_session_label()
+    logger.info(
+        f"SDK tool call: {request.tool_name}, params: {request.tool_params}, "
+        f"tool_call_id: {tool_call_id}, agent: {agent_label}, agent_context_id: {request.agent_context_id}"
+    )
+
+    # 将当前请求 task 注册到 registry，中断时可精确取消
+    registry = SdkCallRegistry.get_instance()
+    current_task = asyncio.current_task()
+    if current_task and request.sdk_execution_id:
+        registry.register(SdkCallEntry(
+            agent_context_id=request.agent_context_id,
+            sdk_execution_id=request.sdk_execution_id,
+            tool_call_id=tool_call_id,
+            call_type="tool",
+            task=current_task,
+        ))
+
+    try:
         tool_call = ToolCall(
             id=tool_call_id,
             type="function",
@@ -84,13 +99,11 @@ async def sdk_tool_call(request: SdkToolCallRequest):
             ),
         )
 
-        # 使用 tool_call_executor 执行工具
         results = await tool_call_executor.execute(
             tool_calls=[tool_call],
             agent_context=agent_context,
         )
 
-        # 返回第一个结果
         if results:
             result = results[0]
             logger.debug(f"工具调用完成: {request.tool_name}, ok: {result.ok}")
@@ -116,8 +129,17 @@ async def sdk_tool_call(request: SdkToolCallRequest):
             data={"ok": False, "content": error_msg},
         )
 
+    except asyncio.CancelledError:
+        # 被中断取消，返回明确的取消响应
+        logger.info(f"SDK tool call cancelled: {request.tool_name}, tool_call_id: {tool_call_id}")
+        return create_error_response(
+            message="Tool call cancelled by interruption",
+            data={"ok": False, "content": "Tool call cancelled by interruption"},
+        )
+
     except HTTPException:
         raise
+
     except Exception as e:
         logger.error(f"调用工具时发生异常: {e}", exc_info=True)
         logger.error(traceback.format_exc())
@@ -125,6 +147,10 @@ async def sdk_tool_call(request: SdkToolCallRequest):
             message=f"Tool call failed: {str(e)}",
             data={"ok": False, "content": str(e)},
         )
+
+    finally:
+        if request.sdk_execution_id:
+            registry.unregister(request.agent_context_id, request.sdk_execution_id, tool_call_id)
 
 
 class SdkMcpCallRequest(BaseModel):
@@ -138,6 +164,10 @@ class SdkMcpCallRequest(BaseModel):
         ...,
         description="调用方 AgentContext 的唯一标识符，由 run_sdk_snippet 注入子进程环境变量",
     )
+    sdk_execution_id: str = Field(
+        "",
+        description="本次 Code Mode 执行的唯一标识，用于精确取消本轮发起的服务端请求",
+    )
 
 
 @router.post("/mcp/call", response_model=BaseResponse)
@@ -147,44 +177,55 @@ async def sdk_mcp_call(request: SdkMcpCallRequest):
 
     供 run_sdk_snippet 子进程通过 HTTP 调用 MCP 工具。
     """
-    try:
-        # 从注册表精确查找调用方的 AgentContext
-        from app.core.context.agent_context_registry import AgentContextRegistry
+    from app.core.context.agent_context_registry import AgentContextRegistry
 
-        agent_context = AgentContextRegistry.get_instance().get(request.agent_context_id)
-        if agent_context is None:
-            error_msg = (
-                f"agent_context_id '{request.agent_context_id}' was not found in the registry. "
-                "Unable to route this request to the correct AgentContext."
-            )
-            logger.error(error_msg)
-            return create_error_response(
-                message=error_msg,
-                data={"ok": False, "content": error_msg},
-            )
-
-        manager = get_global_mcp_manager()
-        if not manager:
-            return create_error_response(
-                message="MCP manager is not initialized.",
-                data={"ok": False, "content": "MCP manager is not initialized."},
-            )
-
-        full_tool_name = manager.get_full_tool_name(request.server_name, request.tool_name)
-        if not full_tool_name:
-            return create_error_response(
-                message=f"Tool not found: {request.server_name}.{request.tool_name}",
-                data={"ok": False, "content": f"Tool not found: {request.server_name}.{request.tool_name}"},
-            )
-
-        tool_call_id = request.tool_call_id or f"call_{uuid.uuid4().hex[:24]}"
-
-        agent_label = agent_context.get_agent_session_label()
-        logger.info(
-            f"SDK MCP call: {full_tool_name} (server: {request.server_name}, original: {request.tool_name}), "
-            f"params: {request.tool_params}, tool_call_id: {tool_call_id}, agent: {agent_label}, agent_context_id: {request.agent_context_id}"
+    agent_context = AgentContextRegistry.get_instance().get(request.agent_context_id)
+    if agent_context is None:
+        error_msg = (
+            f"agent_context_id '{request.agent_context_id}' was not found in the registry. "
+            "Unable to route this request to the correct AgentContext."
+        )
+        logger.error(error_msg)
+        return create_error_response(
+            message=error_msg,
+            data={"ok": False, "content": error_msg},
         )
 
+    manager = get_global_mcp_manager()
+    if not manager:
+        return create_error_response(
+            message="MCP manager is not initialized.",
+            data={"ok": False, "content": "MCP manager is not initialized."},
+        )
+
+    full_tool_name = manager.get_full_tool_name(request.server_name, request.tool_name)
+    if not full_tool_name:
+        return create_error_response(
+            message=f"Tool not found: {request.server_name}.{request.tool_name}",
+            data={"ok": False, "content": f"Tool not found: {request.server_name}.{request.tool_name}"},
+        )
+
+    tool_call_id = request.tool_call_id or f"call_{uuid.uuid4().hex[:24]}"
+
+    agent_label = agent_context.get_agent_session_label()
+    logger.info(
+        f"SDK MCP call: {full_tool_name} (server: {request.server_name}, original: {request.tool_name}), "
+        f"params: {request.tool_params}, tool_call_id: {tool_call_id}, agent: {agent_label}, agent_context_id: {request.agent_context_id}"
+    )
+
+    # 将当前请求 task 注册到 registry
+    registry = SdkCallRegistry.get_instance()
+    current_task = asyncio.current_task()
+    if current_task and request.sdk_execution_id:
+        registry.register(SdkCallEntry(
+            agent_context_id=request.agent_context_id,
+            sdk_execution_id=request.sdk_execution_id,
+            tool_call_id=tool_call_id,
+            call_type="mcp",
+            task=current_task,
+        ))
+
+    try:
         tool_call = ToolCall(
             id=tool_call_id,
             type="function",
@@ -222,8 +263,16 @@ async def sdk_mcp_call(request: SdkMcpCallRequest):
             data={"ok": False, "content": "Tool execution returned no result."},
         )
 
+    except asyncio.CancelledError:
+        logger.info(f"SDK MCP call cancelled: {full_tool_name}, tool_call_id: {tool_call_id}")
+        return create_error_response(
+            message="MCP tool call cancelled by interruption",
+            data={"ok": False, "content": "MCP tool call cancelled by interruption"},
+        )
+
     except HTTPException:
         raise
+
     except Exception as e:
         logger.error(f"调用 MCP 工具时发生异常: {e}", exc_info=True)
         logger.error(traceback.format_exc())
@@ -231,6 +280,10 @@ async def sdk_mcp_call(request: SdkMcpCallRequest):
             message=f"MCP tool call failed: {str(e)}",
             data={"ok": False, "content": str(e)},
         )
+
+    finally:
+        if request.sdk_execution_id:
+            registry.unregister(request.agent_context_id, request.sdk_execution_id, tool_call_id)
 
 
 @router.get("/mcp/servers", response_model=BaseResponse)
@@ -481,4 +534,48 @@ async def sdk_mcp_tool_schema(server_name: str, tool_name: str):
         return create_error_response(
             message=f"获取工具 Schema 失败: {str(e)}",
             data={"schema": {}},
+        )
+
+
+# ── execution cancel ──────────────────────────────────────────────
+
+
+class SdkExecutionCancelRequest(BaseModel):
+    """取消指定 Code Mode 执行的请求"""
+
+    agent_context_id: str = Field(..., description="调用方 AgentContext 标识")
+    sdk_execution_id: str = Field(
+        "",
+        description="要取消的 sdk_execution_id，为空则取消该 context 下所有请求",
+    )
+
+
+@router.post("/execution/cancel", response_model=BaseResponse)
+async def sdk_execution_cancel(request: SdkExecutionCancelRequest):
+    """
+    取消指定 Code Mode 执行下的所有 in-flight SDK 请求。
+
+    内部主链路通过 RunCleanupRegistry 直接调用 registry 取消，无需走 HTTP；
+    此接口供外部调试链路或 SDK 外部调用方显式取消。
+    """
+    try:
+        registry = SdkCallRegistry.get_instance()
+        if request.sdk_execution_id:
+            cancelled = registry.cancel_by_execution(
+                request.agent_context_id,
+                request.sdk_execution_id,
+            )
+        else:
+            cancelled = registry.cancel_by_context(request.agent_context_id)
+
+        return create_success_response(
+            message=f"Cancelled {cancelled} in-flight SDK request(s)",
+            data={"cancelled_count": cancelled},
+        )
+
+    except Exception as e:
+        logger.error(f"取消 SDK 执行时发生异常: {e}", exc_info=True)
+        return create_error_response(
+            message=f"Cancel failed: {str(e)}",
+            data={"cancelled_count": 0},
         )

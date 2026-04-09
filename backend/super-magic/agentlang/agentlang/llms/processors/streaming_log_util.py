@@ -202,9 +202,12 @@ class StreamingLogger:
         return error_msg
 
     @staticmethod
-    def log_chunk_timeout(request_id: str, state: StreamingState) -> None:
+    def log_chunk_timeout(request_id: str, state: StreamingState, chunk_timeout: float, total_elapsed: float) -> None:
         """记录 chunk 超时"""
-        logger.error(f"[{request_id}] 等待chunk超时 (已处理{state.received_chunk_count}个chunks) - 抛出异常")
+        logger.error(
+            f"[{request_id}] chunk 超时: {chunk_timeout:.0f}s 内未收到数据 "
+            f"(已处理 {state.received_chunk_count} 个 chunks, 总耗时 {total_elapsed:.1f}s)"
+        )
 
     @staticmethod
     def log_chunk_exception(request_id: str, state: StreamingState, error: Exception) -> None:
