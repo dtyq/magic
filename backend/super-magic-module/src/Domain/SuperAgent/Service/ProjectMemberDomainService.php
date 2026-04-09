@@ -471,6 +471,20 @@ class ProjectMemberDomainService
     }
 
     /**
+     * 根据目标列表查询项目成员实体。
+     *
+     * 供共享协作内核在增量同步前做存在性判断。
+     *
+     * @param array<int, array{target_type: string, target_id: string}> $targets
+     * @return ProjectMemberEntity[]
+     */
+    public function getMembersByTargets(int $projectId, array $targets): array
+    {
+        // 共享协作内核只关心少量目标的增量同步，因此这里提供精准查询入口。
+        return $this->projectMemberRepository->getMembersByTargets($projectId, $targets);
+    }
+
+    /**
      * 批量更新成员权限（新格式：target_type + target_id）.
      *
      * @param int $projectId 项目ID
@@ -502,6 +516,19 @@ class ProjectMemberDomainService
     public function deleteMembersByIds(int $projectId, array $memberIds): int
     {
         return $this->projectMemberRepository->deleteMembersByIds($projectId, $memberIds);
+    }
+
+    /**
+     * 根据目标列表删除项目成员。
+     *
+     * 供共享协作内核在移除协作者时做精准删除。
+     *
+     * @param array<int, array{target_type: string, target_id: string}> $targets
+     */
+    public function deleteMembersByTargets(int $projectId, array $targets): int
+    {
+        // 删除协作者时保留所有者之外的增量删除语义，不走全量重建。
+        return $this->projectMemberRepository->deleteMembersByTargets($projectId, $targets);
     }
 
     /**

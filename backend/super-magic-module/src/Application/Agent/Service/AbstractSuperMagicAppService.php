@@ -23,11 +23,11 @@ use App\Domain\Permission\Service\OperationPermissionDomainService;
 use App\Domain\Permission\Service\ResourceVisibilityDomainService;
 use App\Domain\Provider\Service\AiAbilityDomainService;
 use App\Infrastructure\Core\DataIsolation\BaseDataIsolation;
-use App\Infrastructure\Core\Exception\ExceptionBuilder;
 use App\Infrastructure\Core\ValueObject\Page;
 use App\Infrastructure\Util\File\EasyFileTools;
 use DateTime;
 use Dtyq\CloudFile\Kernel\Struct\FileLink;
+use Dtyq\SuperMagic\Application\Collaboration\Policy\ResourceAccessPolicyService;
 use Dtyq\SuperMagic\Domain\Agent\Entity\AgentVersionEntity;
 use Dtyq\SuperMagic\Domain\Agent\Entity\SuperMagicAgentEntity;
 use Dtyq\SuperMagic\Domain\Agent\Entity\ValueObject\SuperMagicAgentDataIsolation;
@@ -35,7 +35,7 @@ use Dtyq\SuperMagic\Domain\Agent\Entity\ValueObject\SuperMagicAgentType;
 use Dtyq\SuperMagic\Domain\Agent\Service\SuperMagicAgentDomainService;
 use Dtyq\SuperMagic\Domain\Skill\Entity\SkillEntity;
 use Dtyq\SuperMagic\Domain\Skill\Entity\SkillVersionEntity;
-use Dtyq\SuperMagic\ErrorCode\SuperMagicErrorCode;
+use Hyperf\Di\Annotation\Inject;
 use Hyperf\Logger\LoggerFactory;
 use Psr\Log\LoggerInterface;
 use Qbhy\HyperfAuth\Authenticatable;
@@ -43,6 +43,9 @@ use Qbhy\HyperfAuth\Authenticatable;
 abstract class AbstractSuperMagicAppService extends AbstractKernelAppService
 {
     protected readonly LoggerInterface $logger;
+
+    #[Inject]
+    protected ResourceAccessPolicyService $resourceAccessPolicyService;
 
     public function __construct(
         protected OperationPermissionDomainService $operationPermissionDomainService,
@@ -87,16 +90,16 @@ abstract class AbstractSuperMagicAppService extends AbstractKernelAppService
         return $this->createContactDataIsolationByBase($superMagicDataIsolation);
     }
 
-    protected function checkPermission(SuperMagicAgentDataIsolation $dataIsolation, string $code): void
+    /**
+     * 校验当前用户是否对 Agent 具备编辑权限。
+     */
+    protected function assertAgentEditable(SuperMagicAgentDataIsolation $dataIsolation, string $code): void
     {
-        if (! $this->operationPermissionDomainService->isResourceOwner(
+        $this->resourceAccessPolicyService->assertEditable(
             $dataIsolation,
             OperationPermissionResourceType::CustomAgent,
-            $code,
-            $dataIsolation->getCurrentUserId()
-        )) {
-            ExceptionBuilder::throw(SuperMagicErrorCode::NotFound, 'common.not_found', ['label' => $code]);
-        }
+            $code
+        );
     }
 
     /**
@@ -105,9 +108,11 @@ abstract class AbstractSuperMagicAppService extends AbstractKernelAppService
      */
     protected function getAccessibleAgentCodes(SuperMagicAgentDataIsolation $dataIsolation, string $userId): array
     {
-        $permissionDataIsolation = $this->createPermissionDataIsolation($dataIsolation);
-        // 调用资源可见性领域服务获取可访问的智能体编码
-        $accessibleCodes = $this->resourceVisibilityDomainService->getUserAccessibleResourceCodes($permissionDataIsolation, $userId, ResourceVisibilityResourceType::SUPER_MAGIC_AGENT);
+        $accessibleCodes = $this->resourceAccessPolicyService->getReadableResourceCodes(
+            $dataIsolation,
+            OperationPermissionResourceType::CustomAgent,
+            ResourceVisibilityResourceType::SUPER_MAGIC_AGENT
+        );
 
         // 查询用户自己创建的智能体编码（用户创建的必然可见）
         $creatorCodes = $this->superMagicAgentDomainService->getCodesByCreator($dataIsolation, $userId);

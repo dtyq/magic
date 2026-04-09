@@ -42,9 +42,9 @@ class OperatorAssembler
         $operatorDTO->setId($user->getUserId());
         $operatorDTO->setUid($user->getUserId());
         $operatorDTO->setName($user->getNickname());
-        $operatorDTO->setAvatar($user->getAvatarUrl());
-        $operatorDTO->setTime($time);
-        $operatorDTO->setTimestamp($timeStamp);
+        //        $operatorDTO->setAvatar($user->getAvatarUrl());
+        //        $operatorDTO->setTime($time);
+        //        $operatorDTO->setTimestamp($timeStamp);
         return $operatorDTO;
     }
 }

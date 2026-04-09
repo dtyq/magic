@@ -37,6 +37,7 @@ use App\Interfaces\Authorization\Web\MagicUserAuthorization;
 use App\Interfaces\Kernel\Assembler\OperatorAssembler;
 use Dtyq\AsyncEvent\AsyncEventUtil;
 use Dtyq\CloudFile\Kernel\Struct\UploadFile;
+use Dtyq\SuperMagic\Application\Collaboration\Policy\ResourceAccessPolicyService;
 use Dtyq\SuperMagic\Application\SuperAgent\Service\ProjectAppService;
 use Dtyq\SuperMagic\Domain\Skill\Entity\SkillEntity;
 use Dtyq\SuperMagic\Domain\Skill\Entity\SkillMarketEntity;
@@ -60,7 +61,6 @@ use Dtyq\SuperMagic\Domain\SuperAgent\Service\ProjectDomainService;
 use Dtyq\SuperMagic\Domain\SuperAgent\Service\TaskFileDomainService;
 use Dtyq\SuperMagic\ErrorCode\SkillErrorCode;
 use Dtyq\SuperMagic\ErrorCode\SuperAgentErrorCode;
-use Dtyq\SuperMagic\ErrorCode\SuperMagicErrorCode;
 use Dtyq\SuperMagic\Infrastructure\Utils\SkillProjectConfigUtil;
 use Dtyq\SuperMagic\Interfaces\Skill\DTO\Request\AddSkillFromStoreRequestDTO;
 use Dtyq\SuperMagic\Interfaces\Skill\DTO\Request\GetLatestPublishedSkillVersionsRequestDTO;
@@ -140,6 +140,7 @@ class SkillAppService extends AbstractSkillAppService
         protected OperationPermissionDomainService $operationPermissionDomainService,
         protected ProjectDomainService $projectDomainService,
         protected TaskFileDomainService $taskFileDomainService,
+        protected ResourceAccessPolicyService $resourceAccessPolicyService,
         LoggerFactory $loggerFactory
     ) {
         parent::__construct($fileDomainService);
@@ -546,6 +547,12 @@ class SkillAppService extends AbstractSkillAppService
                 return;
             }
 
+            // 非市场安装场景走主判定模型，只有具备删除权限的协作者才能删除。
+            $this->resourceAccessPolicyService->assertDeletable(
+                $dataIsolation,
+                OperationPermissionResourceType::Skill,
+                $code
+            );
             $this->clearSkillVisibility($dataIsolation, $code);
             $this->clearSkillOwnerPermission($dataIsolation, $code);
             $this->skillDomainService->deleteSkill($dataIsolation, $code);
@@ -571,7 +578,7 @@ class SkillAppService extends AbstractSkillAppService
             $authorization->getId()
         );
 
-        $this->checkPermission($dataIsolation, $code);
+        $this->assertSkillEditable($dataIsolation, $code);
 
         // 查询技能记录（校验权限）
         $skillEntity = $this->skillDomainService->findUserSkillByCode($dataIsolation, $code);
@@ -615,9 +622,8 @@ class SkillAppService extends AbstractSkillAppService
             $authorization->getId()
         );
 
-        if (! $this->hasSkillCodeAccess($dataIsolation, $code)) {
-            ExceptionBuilder::throw(SkillErrorCode::SKILL_ACCESS_DENIED, 'skill.skill_access_denied');
-        }
+        // 详情查看统一走共享可读判定；系统内置 Skill 会在断言方法中直接放行。
+        $this->assertSkillReadable($dataIsolation, $code);
 
         // 查询技能记录（校验权限）
         $dataIsolation->disabled();
@@ -689,7 +695,7 @@ class SkillAppService extends AbstractSkillAppService
             $authorization->getId()
         );
 
-        $this->checkPermission($dataIsolation, $code);
+        $this->assertSkillEditable($dataIsolation, $code);
 
         $skillEntity = $this->skillDomainService->findUserSkillByCode($dataIsolation, $code);
         $projectEntity = $this->projectAppService->getProjectNotUserId($projectId);
@@ -724,7 +730,7 @@ class SkillAppService extends AbstractSkillAppService
         // 创建数据隔离对象
         $dataIsolation = $this->createSkillDataIsolation($authorization);
 
-        $this->checkPermission($dataIsolation, $code);
+        $this->assertSkillEditable($dataIsolation, $code);
 
         $skillEntity = $this->skillDomainService->findUserSkillByCode($dataIsolation, $code);
 
@@ -788,7 +794,7 @@ class SkillAppService extends AbstractSkillAppService
         $authorization = $requestContext->getUserAuthorization();
         $dataIsolation = $this->createSkillDataIsolation($authorization);
 
-        $this->checkPermission($dataIsolation, $code);
+        $this->assertSkillEditable($dataIsolation, $code);
 
         $skillEntity = $this->skillDomainService->findUserSkillByCode($dataIsolation, $code);
 
@@ -830,7 +836,7 @@ class SkillAppService extends AbstractSkillAppService
         // 创建数据隔离对象
         $dataIsolation = $this->createSkillDataIsolation($authorization);
 
-        $this->checkPermission($dataIsolation, $code);
+        $this->assertSkillEditable($dataIsolation, $code);
 
         // 调用领域服务处理业务逻辑
         $this->skillDomainService->offlineSkill($dataIsolation, $code);
@@ -1028,16 +1034,17 @@ class SkillAppService extends AbstractSkillAppService
         }
     }
 
-    protected function checkPermission(SkillDataIsolation $dataIsolation, string $code): void
+    /**
+     * 校验当前用户是否对 Skill 具备编辑权限。
+     */
+    protected function assertSkillEditable(SkillDataIsolation $dataIsolation, string $code): void
     {
-        if (! $this->operationPermissionDomainService->isResourceOwner(
+        // Skill 写操作统一收口到共享策略层，避免继续固化 owner-only 语义。
+        $this->resourceAccessPolicyService->assertEditable(
             $dataIsolation,
             OperationPermissionResourceType::Skill,
-            $code,
-            $dataIsolation->getCurrentUserId()
-        )) {
-            ExceptionBuilder::throw(SuperMagicErrorCode::NotFound, 'common.not_found', ['label' => $code]);
-        }
+            $code
+        );
     }
 
     /**
@@ -2005,25 +2012,32 @@ class SkillAppService extends AbstractSkillAppService
      */
     private function getAccessibleSkillCodes(SkillDataIsolation $dataIsolation): array
     {
-        $skillCodes = $this->resourceVisibilityDomainService->getUserAccessibleResourceCodes(
-            $this->createPermissionDataIsolation($dataIsolation),
-            $dataIsolation->getCurrentUserId(),
-            ResourceVisibilityResourceType::SKILL,
+        // Skill 列表与详情读取统一走 V ∪ O，再在最外层补上系统内置 Skill。
+        $skillCodes = $this->resourceAccessPolicyService->getReadableResourceCodes(
+            $dataIsolation,
+            OperationPermissionResourceType::Skill,
+            ResourceVisibilityResourceType::SKILL
         );
 
         return $this->mergeBuiltinSkillCodes($skillCodes);
     }
 
     /**
-     * 判断用户是否具有技能代码访问权限。
+     * 校验当前用户是否对 Skill 具备读取权限。
      */
-    private function hasSkillCodeAccess(SkillDataIsolation $dataIsolation, string $skillCode): bool
+    private function assertSkillReadable(SkillDataIsolation $dataIsolation, string $skillCode): void
     {
         if (BuiltinSkill::tryFrom($skillCode) !== null) {
-            return true;
+            return;
         }
 
-        return in_array($skillCode, $this->getAccessibleSkillCodes($dataIsolation), true);
+        $this->resourceAccessPolicyService->assertReadable(
+            $dataIsolation,
+            OperationPermissionResourceType::Skill,
+            ResourceVisibilityResourceType::SKILL,
+            $skillCode,
+            BuiltinSkill::values()
+        );
     }
 
     /**

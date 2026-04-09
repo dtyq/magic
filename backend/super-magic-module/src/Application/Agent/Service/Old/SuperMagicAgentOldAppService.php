@@ -18,7 +18,6 @@ use App\Domain\Mode\Service\ModeDomainService;
 use App\Domain\Permission\Entity\ValueObject\ResourceVisibility\ResourceType as ResourceVisibilityResourceType;
 use App\Domain\Permission\Entity\ValueObject\ResourceVisibility\VisibilityConfig;
 use App\Domain\Permission\Entity\ValueObject\ResourceVisibility\VisibilityType;
-use App\Domain\Permission\Service\OperationPermissionDomainService;
 use App\Domain\Permission\Service\ResourceVisibilityDomainService;
 use App\Infrastructure\Core\Exception\ExceptionBuilder;
 use App\Infrastructure\Core\ValueObject\Page;
@@ -45,15 +44,12 @@ class SuperMagicAgentOldAppService extends AbstractSuperMagicAppService
     #[Inject]
     protected ResourceVisibilityDomainService $resourceVisibilityDomainService;
 
-    #[Inject]
-    protected OperationPermissionDomainService $operationPermissionDomainService;
-
     public function show(Authenticatable $authorization, string $code, bool $withToolSchema = false, bool $checkPermission = true): SuperMagicAgentEntity
     {
         $dataIsolation = $this->createSuperMagicDataIsolation($authorization);
         $flowDataIsolation = $this->createFlowDataIsolation($authorization);
 
-        $checkPermission && $this->checkPermission($dataIsolation, $code);
+        $checkPermission && $this->assertAgentEditable($dataIsolation, $code);
 
         $agent = $this->superMagicAgentDomainService->getByCodeWithException($dataIsolation, $code);
 
@@ -138,7 +134,7 @@ class SuperMagicAgentOldAppService extends AbstractSuperMagicAppService
         $dataIsolation = $this->createSuperMagicDataIsolation($authorization);
 
         if (! $entity->shouldCreate() && $entity->getCode()) {
-            $this->checkPermission($dataIsolation, $entity->getCode());
+            $this->assertAgentEditable($dataIsolation, $entity->getCode());
         }
 
         $validationConfig = $entity->getVisibilityConfig() ? new VisibilityConfig($entity->getVisibilityConfig()) : null;

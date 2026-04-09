@@ -116,7 +116,7 @@ class SuperMagicAgentAppService extends AbstractSuperMagicAppService
         $isCreate = $entity->shouldCreate();
 
         if (! $entity->shouldCreate() && $entity->getCode()) {
-            $this->checkPermission($dataIsolation, $entity->getCode());
+            $this->assertAgentEditable($dataIsolation, $entity->getCode());
         }
 
         $iconArr = $entity->getIcon();
@@ -129,6 +129,7 @@ class SuperMagicAgentAppService extends AbstractSuperMagicAppService
 
         if ($isCreate) {
             $this->saveAgentVisibility($dataIsolation, $entity->getCode(), VisibilityType::SPECIFIC, [$entity->getCreator()]);
+            $this->grantAgentOwnerPermission($dataIsolation, $entity->getCode(), $entity->getCreator());
         }
 
         return $entity;
@@ -152,7 +153,7 @@ class SuperMagicAgentAppService extends AbstractSuperMagicAppService
         $flowDataIsolation = $this->createFlowDataIsolation($authorization);
 
         // 审批/查看场景按资源可见性判断，支持“可见但非创建者”的访问。
-        $this->ensureAgentAccessible($authorization, $code);
+        $this->assertAgentReadable($authorization, $code);
 
         // 忽略组织
         $dataIsolation->disabled();
@@ -233,7 +234,7 @@ class SuperMagicAgentAppService extends AbstractSuperMagicAppService
         $flowDataIsolation = $this->createFlowDataIsolation($authorization);
 
         // 审批/查看场景按资源可见性判断，支持“可见但非创建者”的访问。
-        $this->ensureAgentAccessible($authorization, $code);
+        $this->assertAgentReadable($authorization, $code);
 
         $dataIsolation->disabled();
         $versionEntity = $this->superMagicAgentVersionDomainService->getCurrentOrLatestByCode($dataIsolation, $code);
@@ -685,7 +686,7 @@ class SuperMagicAgentAppService extends AbstractSuperMagicAppService
         $dataIsolation = $this->createSuperMagicDataIsolation($authorization);
 
         // Verify the caller owns the agent
-        $this->checkPermission($dataIsolation, $code);
+        $this->assertAgentEditable($dataIsolation, $code);
 
         // 1. 查询 Agent 记录（校验归属组织和当前用户）
         $agent = $this->superMagicAgentDomainService->getByCodeWithException($dataIsolation, $code);
@@ -732,7 +733,7 @@ class SuperMagicAgentAppService extends AbstractSuperMagicAppService
         $dataIsolation = $this->createSuperMagicDataIsolation($authorization);
 
         // Verify the caller owns the agent
-        $this->checkPermission($dataIsolation, $code);
+        $this->assertAgentEditable($dataIsolation, $code);
 
         // 1. 查询 Agent 记录（校验归属组织和当前用户）
         $agent = $this->superMagicAgentDomainService->getByCodeWithException($dataIsolation, $code);
@@ -786,7 +787,7 @@ class SuperMagicAgentAppService extends AbstractSuperMagicAppService
         $dataIsolation = $this->createSuperMagicDataIsolation($authorization);
 
         // Verify the caller owns the agent
-        $this->checkPermission($dataIsolation, $agentCode);
+        $this->assertAgentEditable($dataIsolation, $agentCode);
 
         // 校验权限
         $this->superMagicAgentDomainService->getByCodeWithException($dataIsolation, $agentCode);
@@ -816,7 +817,7 @@ class SuperMagicAgentAppService extends AbstractSuperMagicAppService
         $dataIsolation = $this->createSuperMagicDataIsolation($authorization);
 
         // Verify the caller owns the agent
-        $this->checkPermission($dataIsolation, $code);
+        $this->assertAgentEditable($dataIsolation, $code);
 
         // 1. 查询员工基础信息（校验权限和来源类型）
         $agentEntity = $this->superMagicAgentDomainService->getByCodeWithException($dataIsolation, $code);
@@ -838,7 +839,7 @@ class SuperMagicAgentAppService extends AbstractSuperMagicAppService
     {
         $dataIsolation = $this->createSuperMagicDataIsolation($authorization);
 
-        $this->checkPermission($dataIsolation, $code);
+        $this->assertAgentEditable($dataIsolation, $code);
 
         $agentEntity = $this->superMagicAgentDomainService->getByCodeWithException($dataIsolation, $code);
         $agentEntity->hydrateI18nForPublish();
@@ -863,7 +864,7 @@ class SuperMagicAgentAppService extends AbstractSuperMagicAppService
     {
         $dataIsolation = $this->createSuperMagicDataIsolation($authorization);
 
-        $this->checkPermission($dataIsolation, $code);
+        $this->assertAgentEditable($dataIsolation, $code);
 
         $agentEntity = $this->superMagicAgentDomainService->getByCodeWithException($dataIsolation, $code);
 
@@ -906,7 +907,7 @@ class SuperMagicAgentAppService extends AbstractSuperMagicAppService
         $dataIsolation = $this->createSuperMagicDataIsolation($authorization);
 
         // Verify the caller owns the agent
-        $this->checkPermission($dataIsolation, $code);
+        $this->assertAgentEditable($dataIsolation, $code);
 
         $this->superMagicAgentDomainService->getByCodeWithException($dataIsolation, $code);
 
@@ -944,7 +945,7 @@ class SuperMagicAgentAppService extends AbstractSuperMagicAppService
         $dataIsolation = $this->createSuperMagicDataIsolation($authorization);
 
         // 检查权限
-        $this->checkPermission($dataIsolation, $code);
+        $this->assertAgentEditable($dataIsolation, $code);
 
         $this->superMagicAgentDomainService->updateUpdatedAtByCode($dataIsolation, $code);
     }
@@ -1009,7 +1010,7 @@ class SuperMagicAgentAppService extends AbstractSuperMagicAppService
         $dataIsolation = $this->createSuperMagicDataIsolation($authorization);
 
         // 检查权限
-        $this->checkPermission($dataIsolation, $code);
+        $this->assertAgentEditable($dataIsolation, $code);
 
         $project = $this->projectDomainService->getProjectNotUserId($projectId);
         $agent = $this->superMagicAgentDomainService->getByCodeWithException($dataIsolation, $code);
@@ -1137,7 +1138,7 @@ class SuperMagicAgentAppService extends AbstractSuperMagicAppService
         $dataIsolation = $this->createSuperMagicDataIsolation($authorization);
 
         // Verify the caller owns the agent
-        $this->checkPermission($dataIsolation, $code);
+        $this->assertAgentEditable($dataIsolation, $code);
 
         // Get agent entity to retrieve the bound project ID
         $agent = $this->superMagicAgentDomainService->getByCodeWithException($dataIsolation, $code);
@@ -2307,24 +2308,37 @@ class SuperMagicAgentAppService extends AbstractSuperMagicAppService
         return $publishType->getAllowedPublishTargetTypeValues();
     }
 
-    private function ensureAgentAccessible(Authenticatable $dataIsolation, string $code): void
+    /**
+     * 校验当前用户是否对 Agent 具备读取权限。
+     */
+    private function assertAgentReadable(Authenticatable $authorization, string $code): void
     {
-        $accessibleCodes = $this->resourceVisibilityDomainService->getUserAccessibleResourceCodes(
-            $this->createPermissionDataIsolation($dataIsolation),
-            $dataIsolation->getId(),
+        $this->resourceAccessPolicyService->assertReadable(
+            $authorization,
+            ResourceType::CustomAgent,
             ResourceVisibilityResourceType::SUPER_MAGIC_AGENT,
-            [$code]
+            $code,
+            $this->getOfficialAgentCodes($authorization)
         );
+    }
 
-        if (in_array($code, $accessibleCodes, true)) {
-            return;
-        }
-        $officialCodes = $this->getOfficialAgentCodes($dataIsolation);
-        if (in_array($code, $officialCodes)) {
-            return;
-        }
-
-        ExceptionBuilder::throw(SuperMagicErrorCode::NotFound, 'common.not_found', ['label' => $code]);
+    /**
+     * 为 Agent 初始化所有者权限。
+     *
+     * 主要用于 create / import 等入口，补齐历史上可能缺失的所有者记录。
+     */
+    private function grantAgentOwnerPermission(
+        SuperMagicAgentDataIsolation $dataIsolation,
+        string $code,
+        string $userId
+    ): void {
+        $permissionDataIsolation = $this->createPermissionDataIsolation($dataIsolation);
+        $this->operationPermissionDomainService->accessOwner(
+            $permissionDataIsolation,
+            ResourceType::CustomAgent,
+            $code,
+            $userId
+        );
     }
 
     /**

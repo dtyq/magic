@@ -8,6 +8,7 @@ declare(strict_types=1);
 namespace Dtyq\SuperMagic\Application\Agent\Service;
 
 use App\Domain\Contact\Entity\ValueObject\DataIsolation;
+use App\Domain\Permission\Entity\ValueObject\OperationPermission\ResourceType;
 use App\Domain\Permission\Entity\ValueObject\ResourceVisibility\ResourceType as ResourceVisibilityResourceType;
 use App\Domain\Permission\Entity\ValueObject\ResourceVisibility\VisibilityConfig;
 use App\Domain\Permission\Entity\ValueObject\ResourceVisibility\VisibilityType;
@@ -115,6 +116,12 @@ class ImportAgentAppService extends AbstractSuperMagicAppService
             $savedEntity->setModifier($userId);
             $savedEntity->setUpdatedAt(new DateTime());
             $this->superMagicAgentDomainService->saveDirectly($dataIsolation, $savedEntity);
+            $this->operationPermissionDomainService->accessOwner(
+                $this->createPermissionDataIsolation($dataIsolation),
+                ResourceType::CustomAgent,
+                $agentCode,
+                $savedEntity->getCreator()
+            );
 
             // 5. Upload all extracted files to the project file tree
             $projectEntity = $this->projectDomainService->getProjectNotUserId((int) $projectId);
