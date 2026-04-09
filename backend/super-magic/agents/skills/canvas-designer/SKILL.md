@@ -553,7 +553,7 @@ Search web images?
 ├─ Yes → read reference/image/image-search.md first, then search_canvas_images
 └─ No → continue
 
-User prompt too short or vague to generate well?
+User explicitly asks for prompt inspiration or says they have no idea what to generate?
 ├─ Yes → search_image_prompts → present 3–5 adapted options for user to choose
 └─ No → proceed with generation
 ```
@@ -572,7 +572,7 @@ The `search_image_prompts` tool provides access to 1300+ curated AI image genera
 
 **When to use — trigger condition:**
 
-The user's input is too short or vague to produce a good image without guessing (e.g. "画一个产品图", "something cinematic", "帮我做个封面"). In this situation, do not silently guess and generate. Instead:
+Only when the user explicitly asks for inspiration or says they have no idea — e.g. "帮我找些灵感", "我没有提示词思路", "给我一些参考", "I need some ideas". Do not trigger proactively when the user provides a subject but no style details. In this situation:
 
 1. Call `search_image_prompts` with a query that reflects the user's intent and scene type
 2. Read the results and derive 3–5 distinct prompt options, each adapted to the user's subject
