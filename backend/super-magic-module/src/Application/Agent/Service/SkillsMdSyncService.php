@@ -148,14 +148,22 @@ class SkillsMdSyncService
             $existing = $this->extractSkillsList($parsed['data']);
             $remaining = array_values(array_diff($existing, $skillNames));
             sort($remaining);
-            $parsed['data'][self::SKILLS_KEY] = $remaining;
+            if (empty($remaining)) {
+                unset($parsed['data'][self::SKILLS_KEY]);
+            } else {
+                $parsed['data'][self::SKILLS_KEY] = $remaining;
+            }
         }
 
         if (! empty($systemSkillNames)) {
             $existingSystem = $this->extractSystemSkillsList($parsed['data']);
             $remainingSystem = array_values(array_diff($existingSystem, $systemSkillNames));
             sort($remainingSystem);
-            $parsed['data'][self::SYSTEM_SKILLS_KEY] = $remainingSystem;
+            if (empty($remainingSystem)) {
+                unset($parsed['data'][self::SYSTEM_SKILLS_KEY]);
+            } else {
+                $parsed['data'][self::SYSTEM_SKILLS_KEY] = $remainingSystem;
+            }
         }
 
         return FrontmatterParser::dump($parsed['data'], $parsed['body']);
