@@ -39,7 +39,7 @@ from agentlang.logger import get_logger
 from agentlang.tools.tool_result import ToolResult
 from agentlang.utils.token_estimator import num_tokens_from_string
 from agentlang.utils.datetime_formatter import get_current_datetime_str
-from agentlang.exceptions import UserFriendlyException, ResourceLimitExceededException, LLMFastRetryExhaustedException, StreamChunkTimeoutError, StreamInterruptedError
+from agentlang.exceptions import UserFriendlyException, ResourceLimitExceededException, LLMFastRetryExhaustedException, StreamChunkTimeoutError, StreamInterruptedError, iter_exception_chain
 from agentlang.utils.tool_param_utils import preprocess_tool_calls_batch
 from openai.types.chat import ChatCompletion, ChatCompletionMessage, ChatCompletionMessageToolCall
 
@@ -670,17 +670,8 @@ class Agent(BaseAgent):
             logger.error(f"添加异常终止上下文到历史记录时失败: {append_err}")
 
     def _iter_exception_chain(self, exception: Exception) -> List[Exception]:
-        """按因果链遍历异常，避免同一对象重复处理。"""
-        exceptions: List[Exception] = []
-        current: Optional[BaseException] = exception
-        seen_ids: set[int] = set()
-
-        while isinstance(current, Exception) and id(current) not in seen_ids:
-            exceptions.append(current)
-            seen_ids.add(id(current))
-            current = current.__cause__ or current.__context__
-
-        return exceptions
+        """委托给统一的 iter_exception_chain，遍历完整异常图（含侧链）。"""
+        return iter_exception_chain(exception)
 
     def _build_final_task_state_from_exception(self, exception: Exception) -> Optional[FinalTaskState]:
         """把已知终态异常直接归一成 FinalTaskState。"""

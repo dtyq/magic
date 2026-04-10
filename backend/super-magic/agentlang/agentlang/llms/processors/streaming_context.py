@@ -19,7 +19,7 @@ from openai.types.chat.chat_completion_message_tool_call import ChatCompletionMe
 from openai.types.completion_usage import CompletionUsage
 
 from agentlang.config.config import config
-from agentlang.exceptions import StreamChunkTimeoutError, StreamInterruptedError
+from agentlang.exceptions import StreamChunkTimeoutError, StreamInterruptedError, STREAMING_PASSTHROUGH_EXCEPTIONS
 from agentlang.interface.context import AgentContextInterface
 from agentlang.logger import get_logger
 from agentlang.event.reply_event_manager import ReplyEventManager
@@ -643,50 +643,72 @@ class StreamResponseHandler:
                                     chunk_timeout_seconds=effective_chunk_timeout,
                                     total_elapsed_seconds=total_elapsed,
                                 )
+                            # --- 异常穿透规则 ---
+                            # STREAMING_PASSTHROUGH_EXCEPTIONS 中的异常不应被包装，
+                            # 必须原样抛出以便上层正确识别和处理。
+                            # 新增自定义异常时，若需穿透通用 except，加入该元组即可。
+                            except STREAMING_PASSTHROUGH_EXCEPTIONS:
+                                raise
                             except Exception as e:
-                                # 处理chunk时的其他异常也应该抛出，让外部感知
                                 StreamingLogger.log_chunk_exception(request_id, state, e)
                                 raise RuntimeError(f"Error processing chunk {state.received_chunk_count}: {e}") from e
 
                     except Exception as e:
-                        # 并行任务处理异常应该抛出
                         StreamingLogger.log_parallel_task_exception(request_id, e)
                         raise
 
-            # 执行流处理并应用超时控制
             await asyncio.wait_for(process_stream(), timeout=stream_timeout)
 
-        except StreamChunkTimeoutError:
+        # ===== 异常处理分层（Layer 1：诊断与分类） =====
+        #
+        # 本层是异常的"产生和首次分类"层，职责：
+        # 1. 结构性异常（STREAMING_PASSTHROUGH_EXCEPTIONS）：直接穿透，不记日志（已在产生处记录）
+        # 2. safeguard 超时（asyncio.TimeoutError）：重新包装并保留 from 链
+        # 3. 其他异常：按类型 isinstance 分类为 ConnectionError / TimeoutError，字符串匹配仅做兜底
+        #
+        # 所有二次包装必须使用 `from stream_error` 保留原始异常链。
+        except STREAMING_PASSTHROUGH_EXCEPTIONS:
             raise
-        except asyncio.TimeoutError:
+        except asyncio.TimeoutError as timeout_err:
             StreamingLogger.log_stream_timeout(request_id, state, stream_timeout, correlation_id)
             raise asyncio.TimeoutError(
                 f"Stream total timeout (safeguard): exceeded {stream_timeout}s limit. "
                 f"Processed {state.received_chunk_count} chunks."
-            )
+            ) from timeout_err
 
         except Exception as stream_error:
             StreamingLogger.log_stream_error(request_id, state, stream_error, correlation_id)
 
-            # 更精细的错误分类
+            # 类型分类：优先 isinstance 判断原始异常类型，字符串匹配仅做兜底
+            import httpx
+            root = stream_error.__cause__ or stream_error
+
+            if isinstance(root, (httpx.NetworkError, httpx.ProtocolError, ConnectionError)):
+                raise ConnectionError(
+                    f"Network connection error during stream processing: {stream_error}"
+                ) from stream_error
+
+            if isinstance(root, httpx.TimeoutException):
+                raise asyncio.TimeoutError(
+                    f"Timeout during stream processing: {stream_error}"
+                ) from stream_error
+
+            # 字符串兜底：覆盖 SDK 异常被 RuntimeError 包装后丢失类型的情况
             error_message = str(stream_error).lower()
+            if any(kw in error_message for kw in ("connection", "network", "unreachable", "refused")):
+                raise ConnectionError(
+                    f"Network connection error during stream processing: {stream_error}"
+                ) from stream_error
+            if any(kw in error_message for kw in ("timeout", "timed out", "deadline")):
+                raise asyncio.TimeoutError(
+                    f"Timeout during stream processing: {stream_error}"
+                ) from stream_error
 
-            # 连接相关错误
-            if any(keyword in error_message for keyword in ["connection", "network", "unreachable", "refused"]):
-                raise ConnectionError(f"Network connection error during stream processing: {stream_error}")
-
-            # 超时相关错误
-            if any(keyword in error_message for keyword in ["timeout", "timed out", "deadline"]):
-                raise asyncio.TimeoutError(f"Timeout during stream processing: {stream_error}")
-
-            # 检查是否是因为没有收到任何数据而出错
             if not state.has_received_chunks():
-                # 可能是服务端直接返回了错误响应，尝试重新抛出更具体的错误
-                if "timeout" in error_message:
-                    raise asyncio.TimeoutError(f"No stream data received - possible server timeout: {stream_error}")
-                raise RuntimeError(f"No stream data received - server may have returned an error: {stream_error}")
+                raise RuntimeError(
+                    f"No stream data received - server may have returned an error: {stream_error}"
+                ) from stream_error
 
-            # 其他未分类错误
             raise
 
         # 检查是否收到了有效的响应数据

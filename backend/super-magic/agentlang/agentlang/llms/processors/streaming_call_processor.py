@@ -14,7 +14,7 @@ from typing import AsyncIterator
 from openai import AsyncOpenAI, APIError, APITimeoutError, APIConnectionError
 from openai.types.chat import ChatCompletionChunk, ChatCompletion
 
-from agentlang.exceptions import StreamChunkTimeoutError, StreamInterruptedError
+from agentlang.exceptions import StreamChunkTimeoutError, StreamInterruptedError, STREAMING_PASSTHROUGH_EXCEPTIONS
 from agentlang.interface.context import AgentContextInterface
 from .processor_config import ProcessorConfig
 from .streaming_context import StreamProcessContext, StreamResponseHandler
@@ -158,16 +158,19 @@ class StreamingCallProcessor:
 
                 return response
 
+            # ===== 异常处理分层（Layer 2：纯透传） =====
+            #
+            # 本层只做透传，不记录重复日志（日志由 Layer 1 产生处和 Layer 3 决策处负责）。
+            # 仅对"未分类的意外异常"记录 ERROR 并包装为 RuntimeError。
+            #
+            # 新增需要透传的异常时：
+            # - 结构性异常：加入 STREAMING_PASSTHROUGH_EXCEPTIONS 元组（exceptions.py）
+            # - API / 网络类异常：加到下面对应的 except 分支
             except (APIError, APITimeoutError, APIConnectionError):
                 raise
-            except StreamChunkTimeoutError:
-                logger.error(f"[{request_id}] 流式 chunk 超时 (correlation_id={correlation_id})")
+            except STREAMING_PASSTHROUGH_EXCEPTIONS:
                 raise
-            except StreamInterruptedError:
-                logger.error(f"[{request_id}] 流式连接被外部中断 (correlation_id={correlation_id})")
-                raise
-            except asyncio.TimeoutError:
-                logger.error(f"[{request_id}] 流式总超时兜底触发 (correlation_id={correlation_id})")
+            except (asyncio.TimeoutError, ConnectionError):
                 raise
             except Exception as e:
                 logger.error(f"[{request_id}] 流式调用发生意外错误: {e} (correlation_id={correlation_id})")

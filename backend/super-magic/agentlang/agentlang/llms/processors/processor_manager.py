@@ -17,7 +17,7 @@ from agentlang.config.config import config
 from agentlang.interface.context import AgentContextInterface
 from agentlang.logger import get_logger
 from agentlang.llms.error_classifier import LLMErrorClassifier
-from agentlang.exceptions import LLMFastRetryExhaustedException, StreamInterruptedError
+from agentlang.exceptions import LLMFastRetryExhaustedException, StreamInterruptedError, find_in_exception_chain
 from .streaming_call_processor import StreamingCallProcessor
 from .processor_config import ProcessorConfig
 from .regular_call_processor import RegularCallProcessor
@@ -128,6 +128,16 @@ class ProcessorManager:
                 )
                 return response
 
+            # ===== 异常处理分层（Layer 3：决策与降级） =====
+            #
+            # 本层是异常的"决策"层，职责：
+            # 1. 上下文超长 → 直接抛出，不做任何重试
+            # 2. 结构性流中断 → 跳过后续流式重试，直接走非流式 fallback
+            # 3. 普通流式失败 → 由重试策略决定是否继续流式重试或进入 fallback
+            # 4. 非流式 fallback 也失败 → 包装为 LLMFastRetryExhaustedException 终止外层重试
+            #
+            # find_in_exception_chain 会遍历完整异常图（含 __cause__/__context__ 和侧链），
+            # 即使 StreamInterruptedError 被中间层包装在 RuntimeError 中也能找到。
             except Exception as stream_error:
                 error_snapshot = LLMErrorClassifier.extract_snapshot(stream_error)
                 if LLMErrorClassifier.is_context_window_exceeded(error_snapshot):
@@ -135,14 +145,11 @@ class ProcessorManager:
                         f"[{request_id}] 流式调用命中上下文超长错误，跳过非流式降级重试: {error_snapshot.primary_message}"
                     )
                     raise
-
-                # 结构性中断检测：流已正常工作一段时间后被外部切断（如 120s 网关超时），
-                # 再试流式必然还会撞同一个超时，跳过剩余流式重试直接走非流式 fallback
                 enable_non_stream_fallback: bool = config.get(
                     "llm.enable_non_stream_fallback", _DEFAULT_ENABLE_NON_STREAM_FALLBACK
                 )
-                if isinstance(stream_error, StreamInterruptedError):
-                    si = stream_error
+                si = find_in_exception_chain(stream_error, StreamInterruptedError)
+                if si is not None:
                     if si.chunk_count > 10 or si.total_elapsed_seconds > 30:
                         logger.warning(
                             f"[{request_id}] 结构性流中断 "
