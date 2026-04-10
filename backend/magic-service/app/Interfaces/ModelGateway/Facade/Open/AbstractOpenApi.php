@@ -7,7 +7,10 @@ declare(strict_types=1);
 
 namespace App\Interfaces\ModelGateway\Facade\Open;
 
+use App\Domain\ModelGateway\Entity\Dto\AbstractRequestDTO;
 use App\Infrastructure\Util\Context\RequestCoContext;
+use App\Infrastructure\Util\RequestUtil;
+use App\Interfaces\Authorization\Web\MagicUserAuthorization;
 use Hyperf\HttpServer\Contract\RequestInterface;
 
 abstract class AbstractOpenApi
@@ -126,5 +129,77 @@ abstract class AbstractOpenApi
         }
 
         return $ips;
+    }
+
+    /**
+     * 从协程上下文中提取业务参数，供 model-gateway DTO 统一复用。
+     *
+     * @return array<string, string>
+     */
+    protected function getBusinessParamsFromContext(): array
+    {
+        $businessParams = [];
+
+        $magicUserAuthorization = RequestCoContext::getUserAuthorization();
+        if (! $magicUserAuthorization instanceof MagicUserAuthorization) {
+            return $businessParams;
+        }
+
+        $userId = $magicUserAuthorization->getId();
+        $organizationCode = $magicUserAuthorization->getOrganizationCode();
+
+        if ($userId !== '') {
+            $businessParams['user_id'] = $userId;
+        }
+
+        if ($organizationCode !== '') {
+            $businessParams['organization_id'] = $organizationCode;
+            $businessParams['organization_code'] = $organizationCode;
+        }
+
+        return $businessParams;
+    }
+
+    /**
+     * 为请求 DTO 注入请求头配置、业务参数和 access token，避免各个 Facade 重复拼装。
+     */
+    protected function enrichRequestDTO(AbstractRequestDTO $abstractRequestDTO, array $headers): void
+    {
+        $headerConfigs = RequestUtil::normalizeHeaders($headers);
+        $abstractRequestDTO->setHeaderConfigs($headerConfigs);
+
+        $this->addBusinessParamsFromHeaders($abstractRequestDTO, $headerConfigs);
+
+        $contextParams = $this->getBusinessParamsFromContext();
+        foreach ($contextParams as $key => $value) {
+            $abstractRequestDTO->addBusinessParam($key, $value);
+        }
+
+        if (empty($abstractRequestDTO->getAccessToken()) && RequestCoContext::hasApiKey()) {
+            $abstractRequestDTO->setAccessToken(RequestCoContext::getApiKey());
+        }
+    }
+
+    /**
+     * @param array<string, string> $headerConfigs
+     */
+    protected function addBusinessParamsFromHeaders(AbstractRequestDTO $abstractRequestDTO, array $headerConfigs): void
+    {
+        $mapping = [
+            'business_id' => 'business_id',
+            'magic-topic-id' => 'magic_topic_id',
+            'magic-chat-topic-id' => 'magic_chat_topic_id',
+            'magic-task-id' => 'magic_task_id',
+            'magic-language' => 'language',
+            'magic-organization-code' => 'organization_id',
+            'magic-user-id' => 'user_id',
+        ];
+
+        foreach ($mapping as $headerKey => $paramKey) {
+            $value = $headerConfigs[$headerKey] ?? '';
+            if ($value !== '') {
+                $abstractRequestDTO->addBusinessParam($paramKey, $value);
+            }
+        }
     }
 }

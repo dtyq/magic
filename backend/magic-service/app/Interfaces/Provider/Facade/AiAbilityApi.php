@@ -69,4 +69,19 @@ class AiAbilityApi extends AbstractApi
 
         return [];
     }
+
+    /**
+     * 使用当前提交的临时配置执行 AI 能力连通性测试。
+     */
+    #[CheckPermission([MagicResourceEnum::ADMIN_AI_ABILITY], MagicOperationEnum::EDIT)]
+    public function testConnection(string $code): array
+    {
+        /** @var MagicUserAuthorization $authorization */
+        $authorization = $this->getAuthorization();
+
+        $requestData = $this->request->all();
+        $config = is_array($requestData['config'] ?? null) ? $requestData['config'] : [];
+
+        return $this->aiAbilityAppService->testConnection($authorization, $code, $config);
+    }
 }

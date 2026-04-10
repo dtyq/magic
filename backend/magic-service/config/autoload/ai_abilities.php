@@ -361,8 +361,25 @@ return [
             'sort_order' => 16,
             'status' => env('AI_ABILITY_IMAGE_REMOVE_BACKGROUND_STATUS', true),
             'config' => [
-                'model_id' => env('AI_ABILITY_IMAGE_REMOVE_BACKGROUND_MODEL_ID', null),
-                'prompt' => env('AI_ABILITY_IMAGE_REMOVE_BACKGROUND_PROMPT', ''),
+                'providers' => [
+                    [
+                        'name' => 'Official',
+                        'enable' => env('AI_ABILITY_IMAGE_REMOVE_BACKGROUND_OFFICIAL_ENABLE', true),
+                        'provider' => 'official',
+                        'url' => env('AI_ABILITY_IMAGE_REMOVE_BACKGROUND_OFFICIAL_URL', ''),
+                        'api_key' => env('AI_ABILITY_IMAGE_REMOVE_BACKGROUND_OFFICIAL_API_KEY', ''),
+                        'timeout' => env('AI_ABILITY_IMAGE_REMOVE_BACKGROUND_OFFICIAL_TIMEOUT', 300),
+                    ],
+                    [
+                        'name' => 'Builtin Model Service',
+                        'enable' => env('AI_ABILITY_IMAGE_REMOVE_BACKGROUND_BUILTIN_ENABLE', false),
+                        'provider' => 'builtin_model_service',
+                        'url' => env('AI_ABILITY_IMAGE_REMOVE_BACKGROUND_BUILTIN_URL', ''),
+                        'model_name' => env('AI_ABILITY_IMAGE_REMOVE_BACKGROUND_BUILTIN_MODEL_NAME', ''),
+                        'api_key' => env('AI_ABILITY_IMAGE_REMOVE_BACKGROUND_BUILTIN_API_KEY', ''),
+                        'timeout' => env('AI_ABILITY_IMAGE_REMOVE_BACKGROUND_BUILTIN_TIMEOUT', 300),
+                    ],
+                ],
             ],
         ],
 

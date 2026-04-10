@@ -77,6 +77,11 @@ return [
     'too_many_reference_images_limit' => 'Too many reference images, maximum allowed is :limit',
     'too_many_images_limit_1' => 'Image convert high definition only supports 1 image',
     'unsupported_output_format' => 'The current model does not support output format :format, supported formats are: :supported',
+    'remove_background_image_required' => 'Image url is required for background removal',
+    'remove_background_invalid_image_url' => 'Invalid image url for background removal',
+    'remove_background_provider_not_configured' => 'Background removal provider is not configured or enabled',
+    'remove_background_only_image_allowed' => 'Only image files are allowed',
+    'remove_background_image_too_large' => 'Image size cannot exceed 20MB',
     # watermark
     'image_watermark' => 'website/static/img/watermark_en.png',
 ];

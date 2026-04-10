@@ -6,6 +6,7 @@ declare(strict_types=1);
  */
 use App\Infrastructure\Util\Middleware\RequestContextMiddleware;
 use App\Interfaces\Middleware\Auth\ApiKeyMiddleware;
+use App\Interfaces\ModelGateway\Facade\Open\ImageProxyApi;
 use App\Interfaces\ModelGateway\Facade\Open\OpenAIProxyApi;
 use App\Interfaces\Provider\Facade\ServiceProviderApi;
 use Hyperf\HttpServer\Router\Router;
@@ -25,6 +26,7 @@ Router::addGroup('/v2', function () {
     Router::post('/images/generations', [OpenAIProxyApi::class, 'textGenerateImageV2']);
     Router::post('/images/edits', [OpenAIProxyApi::class, 'imageEditV2']);
     Router::post('/images/convert-high', [OpenAIProxyApi::class, 'imageConvertHigh']);
+    Router::post('/images/remove-background', [ImageProxyApi::class, 'imageRemoveBackground']);
     // Unified search endpoint - supports multiple search engines (bing, google, tavily, duckduckgo, jina)
     Router::get('/search', [OpenAIProxyApi::class, 'unifiedSearch']);
     // Image search endpoint - supports multiple providers (bing, google via serpapi)

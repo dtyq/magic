@@ -78,6 +78,11 @@ return [
     'too_many_reference_images_limit_3' => '参考图片数量超过限制，最多允许 3 张',
     'too_many_reference_images_limit' => '参考图片数量超过限制，最多允许 :limit 张',
     'too_many_images_limit_1' => '转高清功能仅支持 1 张图片',
+    'remove_background_image_required' => '去背景图片地址不能为空',
+    'remove_background_invalid_image_url' => '去背景图片地址格式无效',
+    'remove_background_provider_not_configured' => '去背景服务商未配置或未启用',
+    'remove_background_only_image_allowed' => '仅允许上传图片文件',
+    'remove_background_image_too_large' => '图片大小不能超过 20MB',
     # 水印相关
     'image_watermark' => 'website/static/img/watermark_zh.png',
 ];

@@ -105,6 +105,7 @@ enum AiAbilityCode: string
         return match ($this) {
             self::WebSearch => ['api_key'],
             self::ImageSearch => ['api_key'],
+            self::ImageRemoveBackground => ['api_key'],
             self::Ocr => ['access_key', 'secret_key'],
             self::AudioFileRecognition => ['app_key', 'access_key', 'cluster'],
             default => [],
