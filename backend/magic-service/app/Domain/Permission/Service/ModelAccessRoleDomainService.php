@@ -135,8 +135,6 @@ readonly class ModelAccessRoleDomainService
             if ($this->repository->hasOtherRoles($organizationCode, $roleId)) {
                 ExceptionBuilder::throw(PermissionErrorCode::ValidateFailed, 'default role must be last to delete');
             }
-        } elseif (! empty($role->getUserIds())) {
-            ExceptionBuilder::throw(PermissionErrorCode::ValidateFailed, 'role still has assigned users');
         }
 
         Db::transaction(function () use ($organizationCode, $roleId, $deleteDefaultRole) {

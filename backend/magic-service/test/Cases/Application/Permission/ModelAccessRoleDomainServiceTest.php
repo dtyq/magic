@@ -278,6 +278,52 @@ class ModelAccessRoleDomainServiceTest extends HttpTestCase
         $service->destroy(PermissionDataIsolation::create('ORG_DELETE', 'operator'), 1);
     }
 
+    public function testDestroyNonDefaultRoleWithAssignedUsersSucceeds(): void
+    {
+        $repository = Mockery::mock(ModelAccessRoleRepository::class);
+        $adminGlobalSettingsRepository = Mockery::mock(AdminGlobalSettingsRepositoryInterface::class);
+        $userDomainService = Mockery::mock(MagicUserDomainService::class);
+        $providerModelDomainService = di(ProviderModelDomainService::class);
+
+        $role = $this->makeRole(id: 2, name: '高级角色', isDefault: false, parentRoleId: 1);
+
+        $repository->shouldReceive('getById')
+            ->once()
+            ->with('ORG_DELETE_CHILD', 2)
+            ->andReturn($role);
+        $repository->shouldReceive('getRoleUserMap')
+            ->once()
+            ->with('ORG_DELETE_CHILD', [2])
+            ->andReturn([2 => ['u_001', 'u_002']]);
+        $repository->shouldReceive('getRoleModelMap')
+            ->once()
+            ->with('ORG_DELETE_CHILD', [2])
+            ->andReturn([2 => ['gpt-4.1']]);
+        $repository->shouldReceive('countChildren')
+            ->once()
+            ->with('ORG_DELETE_CHILD', 2)
+            ->andReturn(0);
+        $repository->shouldReceive('replaceUsers')
+            ->once()
+            ->with('ORG_DELETE_CHILD', 2, [], '');
+        $repository->shouldReceive('replaceModels')
+            ->once()
+            ->with('ORG_DELETE_CHILD', 2, [], '');
+        $repository->shouldReceive('delete')
+            ->once()
+            ->with('ORG_DELETE_CHILD', 2);
+        $adminGlobalSettingsRepository->shouldReceive('getSettingsByTypeAndOrganization')
+            ->once()
+            ->with(AdminGlobalSettingsType::MODEL_ACCESS_PERMISSION_CONTROL, 'ORG_DELETE_CHILD')
+            ->andReturn(null);
+
+        $service = new ModelAccessRoleDomainService($repository, $adminGlobalSettingsRepository, $userDomainService, $providerModelDomainService);
+
+        $result = $service->destroy(PermissionDataIsolation::create('ORG_DELETE_CHILD', 'operator'), 2);
+
+        $this->assertSame(PermissionControlStatus::ENABLED, $result);
+    }
+
     public function testUserSummaryMergesDefaultAndInheritedRoleModels(): void
     {
         $repository = Mockery::mock(ModelAccessRoleRepository::class);
