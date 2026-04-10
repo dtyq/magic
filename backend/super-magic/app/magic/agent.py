@@ -85,6 +85,8 @@ class AgentLoopState:
     output_recovery_count: int = 0
     # max_tokens 递增：起手用较小值，撞限后扩容到配置上限静默重试一次
     max_tokens_escalated: bool = False
+    # reactive compact：context_window_exceeded 时自动压缩一次后重试
+    reactive_compact_attempted: bool = False
 
 
 @dataclass
@@ -940,8 +942,6 @@ class Agent(BaseAgent):
             self._restore_pre_compact_model(reason="LLM 未调用压缩工具，新一轮调用前还原")
 
             try:
-                tool_args_truncated = False
-
                 # 如果预检测到pending工具调用，直接使用它
                 if session_prep_result.pending_assistant_message:
                     logger.info("使用预检测的pending工具调用，直接恢复执行")
@@ -1021,28 +1021,30 @@ class Agent(BaseAgent):
                             )
                             continue
 
+                        # 已扩容还撞限：保留 tool_call 结构原样写入历史，合成 error tool_result，
+                        # 不执行工具（执行了也只是报缺参数，浪费一轮）
                         if llm_context.has_tool_calls:
-                            for tc in llm_context.tool_calls:
-                                if tc.function:
-                                    tc.function.arguments = "{}"
-                            if llm_context.message and llm_context.message.tool_calls:
-                                for tc in llm_context.message.tool_calls:
-                                    if hasattr(tc, 'function') and tc.function:
-                                        tc.function.arguments = "{}"
                             logger.warning(
                                 "finish_reason=length（已扩容）且有 tool_calls，"
-                                "保留工具名、清空截断参数"
+                                "合成 error tool_result 占位，跳过工具执行"
                             )
                         await self._add_tool_calls_to_history(llm_context)
-                        injected = await self._try_inject_output_recovery_message(
+                        if llm_context.has_tool_calls:
+                            await self._synthesize_error_tool_results(
+                                llm_context.tool_calls,
+                                "Tool call was truncated due to output token limit. "
+                                "Do NOT retry this call. Break the work into smaller pieces.",
+                            )
+                        await self._try_inject_output_recovery_message(
                             loop_state,
                             "Output token limit hit. Resume directly — no apology, no recap. "
                             "Pick up mid-thought if that is where the cut happened. "
                             "Break remaining work into smaller pieces.",
                             source="max_output_tokens_recovery",
                         )
-                        if injected:
-                            continue
+                        # 无论注入是否成功（次数已满），历史里已有合成 error tool_result，
+                        # 必须 continue 跳过后续工具执行和正常响应路径
+                        continue
 
                     # 预处理工具参数：修复畸形 JSON、检测截断
                     if llm_context.has_tool_calls:
@@ -1060,11 +1062,27 @@ class Agent(BaseAgent):
                                     f"静默扩容 max_tokens 后重试"
                                 )
                                 continue
-                            tool_args_truncated = True
+                            # 已扩容还截断：合成 error tool_result，不执行工具
                             logger.warning(
                                 f"检测到工具参数截断（已扩容）: "
-                                f"{', '.join(preprocess_result.truncated_tool_names)}"
+                                f"{', '.join(preprocess_result.truncated_tool_names)}，"
+                                f"合成 error tool_result，跳过工具执行"
                             )
+                            await self._add_tool_calls_to_history(llm_context)
+                            await self._synthesize_error_tool_results(
+                                llm_context.tool_calls,
+                                "Tool call arguments were truncated due to output token limit. "
+                                "Do NOT retry this call. Break the work into smaller pieces.",
+                            )
+                            await self._try_inject_output_recovery_message(
+                                loop_state,
+                                "One or more tool calls above failed because their arguments were "
+                                "truncated — the content was too long. "
+                                "Do NOT retry with the same approach. "
+                                "Break the work into smaller pieces.",
+                                source="tool_args_truncation_recovery",
+                            )
+                            continue
 
                     # 添加工具调用响应到历史（现在包含修复后的参数）
                     await self._add_tool_calls_to_history(llm_context)
@@ -1125,10 +1143,10 @@ class Agent(BaseAgent):
                 except Exception as _horizon_err:
                     logger.warning(f"[AgentHorizon] tool result 后注入失败: {_horizon_err}")
 
-                # 工具参数截断/超长恢复：preprocess 检测到 JSON 截断（tool_args_truncated）或
-                # 执行后检测到参数超长导致校验失败（has_long_args_failure），
-                # 追加恢复提示让模型在下一轮主动拆分输出
-                if tool_args_truncated or tool_result.has_long_args_failure:
+                # 工具执行后检测到参数超长导致校验失败（has_long_args_failure）：
+                # 参数 JSON 语法正确但缺少必填字段，preprocess 阶段不会检测到，
+                # 执行报错后在此注入恢复消息
+                if tool_result.has_long_args_failure:
                     await self._try_inject_output_recovery_message(
                         loop_state,
                         "One or more tool calls above failed because their arguments were "
@@ -1393,6 +1411,14 @@ class Agent(BaseAgent):
 
         # Check if compact is needed
         if token_count > token_threshold or message_count > message_threshold:
+            # 若末尾消息已是压缩请求（reactive compact 刚注入），跳过重复注入
+            if self.chat_history.messages:
+                last_msg = self.chat_history.messages[-1]
+                last_content = getattr(last_msg, "content", "") or ""
+                if "compact_chat_history" in last_content:
+                    logger.info("已存在待处理的 compact 请求，跳过重复注入")
+                    return False
+
             logger.info(f"Triggering compact: tokens={token_count}/{token_threshold}, messages={message_count}/{message_threshold}")
 
             # Build compact request message
@@ -1410,6 +1436,29 @@ class Agent(BaseAgent):
             return True
 
         return False
+
+    async def _try_compact_chat_history_force(self) -> bool:
+        """强制触发上下文压缩（不检查阈值），用于 reactive compact 场景。
+
+        与 `_try_compact_chat_history` 的区别：跳过 token/message 阈值检查，
+        直接注入压缩请求，让下一轮 LLM 调用执行压缩。
+
+        Returns:
+            bool: True 表示压缩请求已注入成功，False 表示消息太少无法压缩
+        """
+        message_count = len(self.chat_history.messages)
+        if message_count < 4:
+            logger.warning(f"消息数过少 ({message_count})，无法执行 reactive compact")
+            return False
+
+        logger.info(f"强制触发 reactive compact: messages={message_count}")
+        compact_request = self._build_compact_request()
+        compact_message = UserMessage(
+            content=compact_request,
+            show_in_ui=False,
+        )
+        await self.chat_history.add_message(compact_message)
+        return True
 
     def _activate_compact_model(self) -> None:
         """切换到 compact 专属模型（如果配置了的话），并保存压缩前的模型状态
@@ -1691,6 +1740,28 @@ class Agent(BaseAgent):
                 except Exception as e:
                     logger.error(f"减少流式计数阻止器失败: {e}")
                     # 不重新抛出异常，避免影响主流程
+
+    async def _synthesize_error_tool_results(
+        self,
+        tool_calls: List[ToolCall],
+        error_message: str,
+    ) -> None:
+        """为截断的 tool_calls 合成 error tool_result 占位，不执行工具。
+        让模型知道调用失败并调整策略（而不是收到"参数没传"的困惑报错）。
+        """
+        for tc in tool_calls:
+            tool_call_id = tc.id if tc.id else f"synthetic_{id(tc)}"
+            tool_name = tc.function.name if tc.function else "unknown"
+            try:
+                await self.chat_history.append_tool_message(
+                    content=error_message,
+                    tool_call_id=tool_call_id,
+                )
+                logger.info(
+                    f"合成 error tool_result: tool={tool_name}, tool_call_id={tool_call_id}"
+                )
+            except Exception as e:
+                logger.warning(f"合成 error tool_result 失败: tool={tool_name}, error={e}")
 
     async def _handle_no_tool_calls(self, llm_context: LLMResponseContext, loop_state: AgentLoopState) -> None:
         """
@@ -2119,6 +2190,31 @@ Since your subsequent output will be merged with pre-interruption content and di
                     custom_message=self._build_user_friendly_custom_message(exc, is_llm_path=True),
                 ))
                 return ExceptionHandlingResult(should_continue=False, final_response=None)
+
+        # Reactive compact：context_window_exceeded 时先压缩上下文再重试，
+        # 只尝试一次（reactive_compact_attempted 防止无限循环）
+        if not loop_state.reactive_compact_attempted:
+            for exc in self._iter_exception_chain(exception):
+                snapshot = None
+                if (
+                    hasattr(exc, "response")
+                    or hasattr(exc, "body")
+                    or hasattr(exc, "message")
+                ):
+                    snapshot = LLMErrorClassifier.extract_snapshot(exc)
+                if snapshot and LLMErrorClassifier.is_context_window_exceeded(snapshot):
+                    loop_state.reactive_compact_attempted = True
+                    logger.warning(
+                        f"context_window_exceeded，尝试 reactive compact: "
+                        f"{snapshot.primary_message}"
+                    )
+                    compacted = await self._try_compact_chat_history_force()
+                    if compacted:
+                        logger.info("reactive compact 成功，重试 LLM 调用")
+                        return ExceptionHandlingResult(should_continue=True, final_response=None)
+                    else:
+                        logger.warning("reactive compact 无法执行（消息太少），继续走终态逻辑")
+                    break
 
         final_task_state = self._build_final_task_state_from_exception(exception)
         if final_task_state is not None:

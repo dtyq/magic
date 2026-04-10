@@ -30,7 +30,7 @@ from app.utils.file_parse.utils.libreoffice_util import LibreOfficeUtil
 
 logger = get_logger(__name__) # noqa: F811
 
-# 单文件读取 token 上限（与 Claude Code 取值对齐）
+# 单文件读取 token 上限
 DEFAULT_MAX_TOKENS = 25000
 # 动态上限：占剩余上下文窗口的比例，上下文充足时达到 DEFAULT_MAX_TOKENS
 MAX_TOKENS_RATIO = 0.40

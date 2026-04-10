@@ -999,7 +999,7 @@ class ChatHistory:
 
         修复策略：
         0. 将夹在 assistant(tool_calls) 和 tool(result) 之间的 user 消息移到 tool result 之后
-        1. 去除没有对应tool_result的带tool_calls的assistant消息
+        1. 为缺少 tool_result 的 tool_call 补合成占位（保留 assistant 消息结构）
         2. 将孤立的tool消息转换为assistant消息（保持语义合理性）
         3. 去除连续重复的相同内容消息，只保留一条
         4. 记录修复操作以供调试
@@ -1016,58 +1016,70 @@ class ChatHistory:
         # 步骤0：将夹在 tool_calls 和 tool_result 之间的 user 消息移到 tool result 之后
         llm_messages = self._reorder_interleaved_user_messages(llm_messages)
 
-        # 第一步：标记需要移除的消息索引
-        messages_to_remove = set()
+        # 第一步：为缺少 tool_result 的 tool_call 补合成占位（对齐 CC 的 ensureToolResultPairing）
+        # 不移除 assistant 消息，保留结构，让模型知道调用过哪些工具
         fixes_applied = 0
+        synthetic_inserts: dict[int, list[dict]] = {}  # insert_after_index → [synthetic tool messages]
 
-        # 检查带tool_calls的assistant消息，如果没有对应的tool_result就标记移除
         for i, message in enumerate(llm_messages):
             if message.get("role") == "assistant" and message.get("tool_calls"):
-                tool_calls = message.get("tool_calls", [])
-                all_tools_have_results = True
-
-                for tool_call in tool_calls:
-                    tool_call_id = tool_call.get("id")
-                    if not tool_call_id:
-                        continue
-
-                    # 向后查找对应的tool消息
-                    found_tool_result = False
-                    for j in range(i + 1, len(llm_messages)):
-                        next_msg = llm_messages[j]
-                        if next_msg.get("role") == "tool" and next_msg.get("tool_call_id") == tool_call_id:
-                            found_tool_result = True
-                            break
-                        elif next_msg.get("role") == "assistant":
-                            # 如果遇到下一个assistant消息，停止查找
-                            break
-
-                    if not found_tool_result:
-                        all_tools_have_results = False
+                tool_calls_in_msg = message.get("tool_calls", [])
+                # 找到下一个 assistant 消息的位置作为搜索边界
+                next_assistant_idx = len(llm_messages)
+                for j in range(i + 1, len(llm_messages)):
+                    if llm_messages[j].get("role") == "assistant":
+                        next_assistant_idx = j
                         break
 
-                # 如果有工具调用但没有完整的结果，标记移除这个assistant消息
-                if not all_tools_have_results:
-                    messages_to_remove.add(i)
+                # 收集此 assistant 消息已有的 tool_result id
+                found_ids = {
+                    llm_messages[j].get("tool_call_id")
+                    for j in range(i + 1, next_assistant_idx)
+                    if llm_messages[j].get("role") == "tool"
+                }
+
+                for tool_call in tool_calls_in_msg:
+                    tool_call_id = tool_call.get("id")
+                    if not tool_call_id or tool_call_id in found_ids:
+                        continue
+                    # 缺少对应 tool_result，补合成占位
+                    tool_name = tool_call.get("function", {}).get("name", "unknown")
+                    synthetic = {
+                        "role": "tool",
+                        "tool_call_id": tool_call_id,
+                        "content": "[Tool result missing — call was likely truncated by output token limit]",
+                    }
+                    insert_after = next_assistant_idx - 1  # 插在搜索边界之前（即现有 tool results 之后）
+                    if insert_after < i:
+                        insert_after = i  # 至少在 assistant 消息之后
+                    if insert_after not in synthetic_inserts:
+                        synthetic_inserts[insert_after] = []
+                    synthetic_inserts[insert_after].append(synthetic)
                     fixes_applied += 1
-                    tool_names = [tc.get("function", {}).get("name", "unknown") for tc in tool_calls]
-                    logger.warning(f"修复历史消息序列错误：移除没有完整tool_result的assistant消息 (工具: {tool_names})")
+                    logger.warning(
+                        f"修复历史消息序列错误：为缺失的 tool_result 补合成占位 "
+                        f"(工具: {tool_name}, tool_call_id: {tool_call_id})"
+                    )
+
+        # 将合成 tool_result 插入消息列表
+        # insert_after 始终 <= len-1（取的是 next_assistant_idx-1 或 i），无 len(llm_messages) key
+        if synthetic_inserts:
+            patched: List[Dict[str, Any]] = []
+            for i, msg in enumerate(llm_messages):
+                patched.append(msg)
+                if i in synthetic_inserts:
+                    patched.extend(synthetic_inserts[i])
+            llm_messages = patched
 
         # 第二步：过滤消息并处理孤立的tool消息
         filtered_messages = []
         for i, message in enumerate(llm_messages):
-            if i in messages_to_remove:
-                continue
-
             if message.get("role") == "tool":
                 tool_call_id = message.get("tool_call_id")
 
-                # 查找对应的assistant消息（向前搜索，排除已标记移除的消息）
+                # 查找对应的assistant消息（向前搜索）
                 found_corresponding_assistant = False
                 for j in range(i-1, -1, -1):
-                    if j in messages_to_remove:
-                        continue
-
                     prev_msg = llm_messages[j]
                     if prev_msg.get("role") == "assistant":
                         tool_calls = prev_msg.get("tool_calls", [])
@@ -1076,10 +1088,10 @@ class ChatHistory:
                             if tc.get("id") == tool_call_id:
                                 found_corresponding_assistant = True
                                 break
-                        if found_corresponding_assistant:
-                            break
+                        # 无论是否匹配，遇到 assistant 消息就停止向前搜索：
+                        # tool_result 只能属于紧邻的那个 assistant，不能跨轮匹配
+                        break
                     elif prev_msg.get("role") == "user":
-                        # 如果遇到user消息，说明中间没有对应的assistant消息
                         break
 
                 if not found_corresponding_assistant:
