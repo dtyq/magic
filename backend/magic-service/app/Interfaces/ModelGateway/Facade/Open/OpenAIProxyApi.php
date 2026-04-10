@@ -249,7 +249,6 @@ class OpenAIProxyApi extends AbstractOpenApi
             $safeSearch,
             $freshness,
             $businessParams,
-            $this->getClientIps()
         );
     }
 

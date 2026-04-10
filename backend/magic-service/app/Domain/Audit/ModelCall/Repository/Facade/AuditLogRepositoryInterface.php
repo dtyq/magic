@@ -18,11 +18,14 @@ interface AuditLogRepositoryInterface
     public function create(AuditLogEntity $entity): void;
 
     /**
-     * 回填流式请求的 usage.
-     *
-     * @param array<string, mixed> $usage
+     * 按 event_id 插入或更新审计行（审计字段不含 points，不覆盖计费已写入积分）.
      */
-    public function backfillStreamUsageByRequestId(string $requestId, string $productCode, array $usage): void;
+    public function createOrUpdateAuditByEventId(AuditLogEntity $entity): void;
+
+    /**
+     * 计费侧按 event_id 回写积分（先 UPDATE，无行则占位 INSERT，冲突则再 UPDATE）.
+     */
+    public function recordPointsByEventId(string $eventId, int $points): void;
 
     /**
      * 查询审计日志列表.

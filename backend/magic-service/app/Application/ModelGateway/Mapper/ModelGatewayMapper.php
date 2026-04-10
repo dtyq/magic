@@ -583,6 +583,8 @@ class ModelGatewayMapper extends ModelMapper
             modelType: $providerModelEntity->getModelType()->value,
             description: $providerModelEntity->getLocalizedDescription($providerDataIsolation->getLanguage()),
             resolvedModelId: $key,
+            modelVersion: $providerModelEntity->getModelVersion(),
+            providerName: $providerName,
         );
 
         if ($providerModelEntity->getModelType()->isVLM()) {

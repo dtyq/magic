@@ -45,6 +45,8 @@ class VideoGeneratedEvent extends AbstractEvent
 
     protected ?string $originalModelId = null;
 
+    protected array $businessParams = [];
+
     public function getOrganizationCode(): string
     {
         return $this->organizationCode;
@@ -203,5 +205,15 @@ class VideoGeneratedEvent extends AbstractEvent
     public function setOriginalModelId(?string $originalModelId): void
     {
         $this->originalModelId = $originalModelId;
+    }
+
+    public function getBusinessParams(): array
+    {
+        return $this->businessParams;
+    }
+
+    public function setBusinessParams(array $businessParams): void
+    {
+        $this->businessParams = $businessParams;
     }
 }

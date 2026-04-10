@@ -19,8 +19,6 @@ class AuditLogEntity extends AbstractEntity
 
     protected string $organizationCode = '';
 
-    protected string $ip = '';
-
     protected string $type = '';
 
     protected string $productCode = '';
@@ -29,9 +27,21 @@ class AuditLogEntity extends AbstractEntity
 
     protected string $ak = '';
 
+    /** API Key 名称快照，来自 magic_api_access_tokens.name */
+    protected string $accessTokenName = '';
+
+    /** 模型部署名快照，即发给上游的真实 model id，来自 service_provider_models.model_version */
+    protected string $modelVersion = '';
+
+    /** 服务商名称快照，来自 service_provider_configs.alias 或 service_provider.name */
+    protected string $providerName = '';
+
     protected int $operationTime = 0;
 
     protected int $allLatency = 0;
+
+    /** 首次响应延时（TTFT），仅流式有值，单位毫秒 */
+    protected int $firstResponseLatency = 0;
 
     protected array $usage = [];
 
@@ -42,6 +52,12 @@ class AuditLogEntity extends AbstractEntity
     protected ?string $magicTopicId = null;
 
     protected ?string $requestId = null;
+
+    /** 单次调用事件 ID（雪花字符串），与 MQ / 计费侧关联 */
+    protected ?string $eventId = null;
+
+    /** 计费回写积分；仅列表/详情展示用，审计落库路径不得写入 */
+    protected ?int $points = null;
 
     protected ?DateTime $createdAt = null;
 
@@ -75,16 +91,6 @@ class AuditLogEntity extends AbstractEntity
     public function setOrganizationCode(string $organizationCode): void
     {
         $this->organizationCode = $organizationCode;
-    }
-
-    public function getIp(): string
-    {
-        return $this->ip;
-    }
-
-    public function setIp(string $ip): void
-    {
-        $this->ip = $ip;
     }
 
     public function getType(): string
@@ -127,6 +133,36 @@ class AuditLogEntity extends AbstractEntity
         $this->ak = $ak;
     }
 
+    public function getAccessTokenName(): string
+    {
+        return $this->accessTokenName;
+    }
+
+    public function setAccessTokenName(string $accessTokenName): void
+    {
+        $this->accessTokenName = $accessTokenName;
+    }
+
+    public function getModelVersion(): string
+    {
+        return $this->modelVersion;
+    }
+
+    public function setModelVersion(string $modelVersion): void
+    {
+        $this->modelVersion = $modelVersion;
+    }
+
+    public function getProviderName(): string
+    {
+        return $this->providerName;
+    }
+
+    public function setProviderName(string $providerName): void
+    {
+        $this->providerName = $providerName;
+    }
+
     public function getOperationTime(): int
     {
         return $this->operationTime;
@@ -145,6 +181,16 @@ class AuditLogEntity extends AbstractEntity
     public function setAllLatency(int $allLatency): void
     {
         $this->allLatency = $allLatency;
+    }
+
+    public function getFirstResponseLatency(): int
+    {
+        return $this->firstResponseLatency;
+    }
+
+    public function setFirstResponseLatency(int $firstResponseLatency): void
+    {
+        $this->firstResponseLatency = $firstResponseLatency;
     }
 
     public function getUsage(): array
@@ -195,6 +241,27 @@ class AuditLogEntity extends AbstractEntity
     public function setRequestId(?string $requestId): void
     {
         $this->requestId = $requestId;
+    }
+
+    public function getEventId(): ?string
+    {
+        return $this->eventId;
+    }
+
+    public function setEventId(?string $eventId): void
+    {
+        $trimmed = $eventId !== null ? trim($eventId) : '';
+        $this->eventId = $trimmed === '' ? null : $trimmed;
+    }
+
+    public function getPoints(): ?int
+    {
+        return $this->points;
+    }
+
+    public function setPoints(?int $points): void
+    {
+        $this->points = $points;
     }
 
     public function getCreatedAt(): ?DateTime

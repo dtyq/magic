@@ -10,7 +10,6 @@ namespace App\Application\ModelGateway\Service;
 use App\Application\Kernel\AbstractKernelAppService;
 use App\Application\Kernel\EnvManager;
 use App\Application\ModelGateway\Component\Points\PointComponentInterface;
-use App\Application\ModelGateway\Event\ModelInvocationCompletedEvent;
 use App\Application\ModelGateway\Mapper\ModelGatewayMapper;
 use App\Application\ModelGateway\Request\ModelGatewayRequestCoContext;
 use App\Domain\Contact\Service\MagicUserDomainService;
@@ -30,7 +29,6 @@ use App\Domain\Provider\Service\ProviderModelDomainService;
 use App\ErrorCode\MagicApiErrorCode;
 use App\Infrastructure\Core\Exception\ExceptionBuilder;
 use App\Infrastructure\ImageGenerate\ImageWatermarkProcessor;
-use Dtyq\AsyncEvent\AsyncEventUtil;
 use Hyperf\HttpServer\Contract\RequestInterface;
 use Hyperf\Logger\LoggerFactory;
 use Psr\Log\LoggerInterface;
@@ -120,11 +118,6 @@ abstract class AbstractLLMAppService extends AbstractKernelAppService
         }
 
         return $dataIsolation;
-    }
-
-    protected function dispatchModelInvocationCompleted(ModelInvocationCompletedEvent $event): void
-    {
-        AsyncEventUtil::dispatch($event);
     }
 
     private function getApplicationOrganizationCode(array $businessParams = []): string

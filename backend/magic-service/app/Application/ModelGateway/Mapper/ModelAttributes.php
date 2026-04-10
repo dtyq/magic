@@ -25,6 +25,8 @@ readonly class ModelAttributes
         private int $modelType = 1,
         private string $description = '',
         private string $resolvedModelId = '',
+        private string $modelVersion = '',
+        private string $providerName = '',
     ) {
     }
 
@@ -86,6 +88,16 @@ readonly class ModelAttributes
     public function getResolvedModelId(): string
     {
         return $this->resolvedModelId;
+    }
+
+    public function getModelVersion(): string
+    {
+        return $this->modelVersion;
+    }
+
+    public function getProviderName(): string
+    {
+        return $this->providerName;
     }
 
     public function toArray(): array

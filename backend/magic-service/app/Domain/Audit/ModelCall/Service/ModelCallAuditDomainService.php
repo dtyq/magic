@@ -23,15 +23,18 @@ readonly class ModelCallAuditDomainService
 
     public function record(AuditLogEntity $entity): void
     {
+        $eventId = trim((string) ($entity->getEventId() ?? ''));
+        if ($eventId !== '') {
+            $this->auditLogRepository->createOrUpdateAuditByEventId($entity);
+
+            return;
+        }
         $this->auditLogRepository->create($entity);
     }
 
-    /**
-     * @param array<string, mixed> $usage
-     */
-    public function backfillStreamUsageByRequestId(string $requestId, string $productCode, array $usage): void
+    public function recordPointsByEventId(string $eventId, int $points): void
     {
-        $this->auditLogRepository->backfillStreamUsageByRequestId($requestId, $productCode, $usage);
+        $this->auditLogRepository->recordPointsByEventId($eventId, $points);
     }
 
     /**

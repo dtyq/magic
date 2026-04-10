@@ -8,12 +8,10 @@ declare(strict_types=1);
 namespace App\Application\ModelGateway\Service;
 
 use App\Application\ModelGateway\Event\ImageSearchUsageEvent;
-use App\Application\ModelGateway\Event\ModelInvocationCompletedEvent;
 use App\Application\ModelGateway\Event\ModelUsageEvent;
 use App\Application\ModelGateway\Event\WebSearchUsageEvent;
 use App\Application\ModelGateway\Mapper\ModelEntry;
 use App\Application\ModelGateway\Mapper\OdinModel;
-use App\Application\ModelGateway\Support\InvocationDetailInfo;
 use App\Domain\Chat\DTO\ImageConvertHigh\Request\MagicChatImageConvertHighReqDTO;
 use App\Domain\Chat\Entity\ValueObject\AIImage\AIImageGenerateParamsVO;
 use App\Domain\ImageGenerate\ValueObject\ImageGenerateSourceEnum;
@@ -34,6 +32,7 @@ use App\Domain\ModelGateway\Entity\MsgLogEntity;
 use App\Domain\ModelGateway\Entity\ValueObject\LLMDataIsolation;
 use App\Domain\ModelGateway\Entity\ValueObject\ModelGatewayDataIsolation;
 use App\Domain\ModelGateway\Event\ImageGeneratedEvent;
+use App\Domain\ModelGateway\Event\ImageGenerateFailedEvent;
 use App\Domain\Provider\Entity\ValueObject\AiAbilityCode;
 use App\Domain\Provider\Entity\ValueObject\ProviderDataIsolation;
 use App\Domain\Provider\Entity\ValueObject\Status;
@@ -68,7 +67,7 @@ use App\Infrastructure\ExternalAPI\WebScrape\WebScrapeFactory;
 use App\Infrastructure\ImageGenerate\ImageWatermarkProcessor;
 use App\Infrastructure\ImageGenerate\WatermarkPolicyInterface;
 use App\Infrastructure\Util\Context\CoContext;
-use App\Infrastructure\Util\Http\RequestHelper;
+use App\Infrastructure\Util\IdGenerator\IdGenerator;
 use App\Infrastructure\Util\SSRF\Exception\SSRFException;
 use App\Infrastructure\Util\SSRF\SSRFUtil;
 use App\Infrastructure\Util\StringMaskUtil;
@@ -116,9 +115,14 @@ class LLMAppService extends AbstractLLMAppService
     private const int CONVERSATION_ENDPOINT_TTL = 3600; // 1 hour
 
     /**
-     * Bing Search V1 产品标识（网关侧统计/透传）.
+     * 搜索成功的审计 outcome 标识；Bridge 对 outcome 先 strtolower 再与 'success' 比对，故此处用大写存储.
      */
-    private const string AUDIT_PRODUCT_BING_SEARCH_V1 = 'bing_search_v1';
+    private const string AUDIT_SEARCH_OUTCOME_SUCCESS = 'SUCCESS';
+
+    /**
+     * 搜索失败的审计 outcome 标识；Bridge 中除 success 外均映射为失败，此处统一用大写 FAIL.
+     */
+    private const string AUDIT_SEARCH_OUTCOME_FAIL = 'FAIL';
 
     /**
      * @return array<ModelConfigEntity>
@@ -318,7 +322,34 @@ class LLMAppService extends AbstractLLMAppService
         $imageGenerateRequest->setImplicitWatermark($implicitWatermark);
         $imageGenerateRequest->setModel($providerConfigItem->getModelVersion());
         $startTime = microtime(true);
-        $imageGenerateResponse = $imageGenerateService->generateImage($imageGenerateRequest);
+        try {
+            $imageGenerateResponse = $imageGenerateService->generateImage($imageGenerateRequest);
+        } catch (Exception $exception) {
+            $latencyMs = (int) ((microtime(true) - $startTime) * 1000);
+
+            $imageGenerateFailedEvent = new ImageGenerateFailedEvent();
+            $imageGenerateFailedEvent->setOrganizationCode($authorization->getOrganizationCode());
+            $imageGenerateFailedEvent->setUserId($authorization->getId());
+            $imageGenerateFailedEvent->setModel($modelId !== '' ? $modelId : $modelVersion);
+            $imageGenerateFailedEvent->setProviderModelId($providerConfigItem->getProviderModelId());
+            $imageGenerateFailedEvent->setBusinessParams([
+                'chain' => 'imageGenerate',
+                'model_version' => $providerConfigItem->getModelVersion(),
+                'provider_name' => trim($providerConfigEntity->getAlias()),
+                'original_model_id' => $modelId,
+                'outcome' => 'FAIL',
+                'response_duration' => $latencyMs,
+                'operation_time' => (int) round($startTime * 1000),
+                'user_name' => $authorization->getNickname(),
+                'source_id' => (string) ($data['source_id'] ?? ''),
+                'request_id' => (string) ($data['request_id'] ?? ''),
+                'event_id' => (string) IdGenerator::getSnowId(),
+            ]);
+
+            AsyncEventUtil::dispatch($imageGenerateFailedEvent);
+
+            throw $exception;
+        }
 
         if ($imageGenerateResponse->getImageGenerateType() === ImageGenerateType::BASE_64) {
             $images = $this->processBase64Images($imageGenerateResponse->getData(), $authorization);
@@ -329,7 +360,6 @@ class LLMAppService extends AbstractLLMAppService
         $this->logger->info('images', $images);
         $this->recordImageGenerateMessageLog($modelVersion, $authorization->getId(), $authorization->getOrganizationCode());
 
-        $productCodeForAudit = $modelId !== '' ? $modelId : (string) ($data['model'] ?? $modelVersion);
         $latencyMs = (int) ((microtime(true) - $startTime) * 1000);
         $auditCount = (int) ($data['generate_num'] ?? 4);
         if (in_array($modelVersion, ImageGenerateModelType::getMidjourneyModes(), true)) {
@@ -337,43 +367,23 @@ class LLMAppService extends AbstractLLMAppService
         }
 
         $imageGenerateAuditBusinessParams = [
-            'source_id' => (string) ($data['source_id'] ?? ''),
             'chain' => 'imageGenerate',
+            'model_id' => $modelId,
+            'model_version' => $providerConfigItem->getModelVersion(),
+            'provider_model_id' => $providerConfigItem->getProviderModelId(),
+            'image_count' => $auditCount,
+            'response_duration' => $latencyMs,
+            'operation_time' => (int) round($startTime * 1000),
+            'organization_id' => $authorization->getOrganizationCode(),
+            'user_id' => $authorization->getId(),
+            'user_name' => $authorization->getNickname(),
+            'source_id' => (string) ($data['source_id'] ?? ''),
+            'original_model_id' => $modelId,
+            'provider_name' => trim($providerConfigEntity->getAlias()),
+            'outcome' => 'SUCCESS',
+            'request_id' => (string) ($data['request_id'] ?? ''),
+            'event_id' => (string) IdGenerator::getSnowId(),
         ];
-        if ((string) ($data['request_id'] ?? '') !== '') {
-            $imageGenerateAuditBusinessParams['request_id'] = (string) $data['request_id'];
-        }
-        if ((string) ($imageGenerateAuditBusinessParams['request_id'] ?? '') === '') {
-            $requestId = CoContext::getRequestId() ?: (string) CoContext::getOrSetRequestId();
-            if ($requestId !== '') {
-                $imageGenerateAuditBusinessParams['request_id'] = $requestId;
-            }
-        }
-
-        $this->dispatchModelInvocationCompleted(new ModelInvocationCompletedEvent(
-            userInfo: [
-                'organization_code' => $authorization->getOrganizationCode(),
-                'user_id' => $authorization->getId(),
-                'user_name' => trim($authorization->getRealName() ?: $authorization->getNickname()),
-            ],
-            ip: RequestHelper::getClientIpFromContainer() ?? '',
-            invocationCategory: 'IMAGE',
-            productCode: $productCodeForAudit,
-            accessToken: '',
-            startTime: $startTime,
-            latencyMs: $latencyMs,
-            outcome: 'success',
-            usage: ['count' => $auditCount],
-            detailInfo: InvocationDetailInfo::forModel(
-                '',
-                (string) ($data['source_id'] ?? ''),
-                $providerConfigItem->getProviderModelId(),
-                null,
-                ['chain' => 'imageGenerate']
-            ),
-            businessParams: $imageGenerateAuditBusinessParams,
-            sourceMarker: 'imageGenerate'
-        ));
 
         // 发布图片生成事件
         $imageGeneratedEvent = new ImageGeneratedEvent();
@@ -393,6 +403,7 @@ class LLMAppService extends AbstractLLMAppService
         $imageGeneratedEvent->setSourceType($sourceType);
         $imageGeneratedEvent->setSourceId($data['source_id'] ?? '');
         $imageGeneratedEvent->setProviderModelId($providerConfigItem->getProviderModelId());
+        $imageGeneratedEvent->setBusinessParams($imageGenerateAuditBusinessParams);
 
         AsyncEventUtil::dispatch($imageGeneratedEvent);
 
@@ -417,50 +428,54 @@ class LLMAppService extends AbstractLLMAppService
 
         // 同步等待并返回图片URL
         $startTime = microtime(true);
-        $imageUrl = $imageGenerateService->imageConvertHigh(new MiracleVisionModelRequest($url));
+        try {
+            $imageUrl = $imageGenerateService->imageConvertHigh(new MiracleVisionModelRequest($url));
+        } catch (Exception $exception) {
+            $latencyMs = (int) ((microtime(true) - $startTime) * 1000);
+
+            $imageGenerateFailedEvent = new ImageGenerateFailedEvent();
+            $imageGenerateFailedEvent->setOrganizationCode($userAuthorization->getOrganizationCode());
+            $imageGenerateFailedEvent->setUserId($userAuthorization->getId());
+            $imageGenerateFailedEvent->setModel(ImageGenerateModelType::MiracleVisionHightModelId->value);
+            $imageGenerateFailedEvent->setProviderModelId($providerConfigItem->getProviderModelId());
+            $imageGenerateFailedEvent->setBusinessParams([
+                'chain' => 'imageConvertHigh',
+                'model_version' => $providerConfigItem->getModelVersion(),
+                'provider_name' => trim($miracleVisionServiceProviderConfig->getAlias()),
+                'original_model_id' => ImageGenerateModelType::MiracleVisionHightModelId->value,
+                'outcome' => 'FAIL',
+                'response_duration' => $latencyMs,
+                'operation_time' => (int) round($startTime * 1000),
+                'user_name' => $userAuthorization->getNickname(),
+                'source_id' => $reqDTO->getSourceId(),
+                'request_id' => (string) ($reqDTO->getRequestId() ?? ''),
+                'event_id' => (string) IdGenerator::getSnowId(),
+            ]);
+
+            AsyncEventUtil::dispatch($imageGenerateFailedEvent);
+
+            throw $exception;
+        }
         $latencyMs = (int) ((microtime(true) - $startTime) * 1000);
 
         $imageConvertHighAuditBusinessParams = [
-            'source_id' => $reqDTO->getSourceId(),
             'chain' => 'imageConvertHigh',
+            'model_id' => ImageGenerateModelType::MiracleVisionHightModelId->value,
+            'model_version' => $providerConfigItem->getModelVersion(),
+            'provider_model_id' => $providerConfigItem->getProviderModelId(),
+            'image_count' => 1,
+            'response_duration' => $latencyMs,
+            'operation_time' => (int) round($startTime * 1000),
+            'organization_id' => $userAuthorization->getOrganizationCode(),
+            'user_id' => $userAuthorization->getId(),
+            'user_name' => $userAuthorization->getNickname(),
+            'source_id' => $reqDTO->getSourceId(),
+            'provider_name' => trim($miracleVisionServiceProviderConfig->getAlias()),
+            'outcome' => 'SUCCESS',
+            'request_id' => (string) ($reqDTO->getRequestId() ?? ''),
+            'event_id' => (string) IdGenerator::getSnowId(),
         ];
-        $reqRequestId = (string) ($reqDTO->getRequestId() ?? '');
-        if ($reqRequestId !== '') {
-            $imageConvertHighAuditBusinessParams['request_id'] = $reqRequestId;
-        }
-        if ((string) ($imageConvertHighAuditBusinessParams['request_id'] ?? '') === '') {
-            $requestId = CoContext::getRequestId() ?: (string) CoContext::getOrSetRequestId();
-            if ($requestId !== '') {
-                $imageConvertHighAuditBusinessParams['request_id'] = $requestId;
-            }
-        }
 
-        $this->dispatchModelInvocationCompleted(new ModelInvocationCompletedEvent(
-            userInfo: [
-                'organization_code' => $userAuthorization->getOrganizationCode(),
-                'user_id' => $userAuthorization->getId(),
-                'user_name' => trim($userAuthorization->getRealName() ?: $userAuthorization->getNickname()),
-            ],
-            ip: RequestHelper::getClientIpFromContainer() ?? '',
-            invocationCategory: 'IMAGE',
-            productCode: $providerConfigItem->getModelVersion(),
-            accessToken: '',
-            startTime: $startTime,
-            latencyMs: $latencyMs,
-            outcome: 'success',
-            usage: ['count' => 1],
-            detailInfo: InvocationDetailInfo::forModel(
-                '',
-                $reqDTO->getSourceId(),
-                $providerConfigItem->getProviderModelId(),
-                null,
-                ['chain' => 'imageConvertHigh']
-            ),
-            businessParams: $imageConvertHighAuditBusinessParams,
-            sourceMarker: 'imageConvertHigh'
-        ));
-
-        // 审计同步落库后再派发计费事件，异步 worker 消费时便于先存在审计行再回填积分等
         $imageGeneratedEvent = new ImageGeneratedEvent();
         $imageGeneratedEvent->setOrganizationCode($userAuthorization->getOrganizationCode());
         $imageGeneratedEvent->setUserId($userAuthorization->getId());
@@ -471,6 +486,7 @@ class LLMAppService extends AbstractLLMAppService
         $imageGeneratedEvent->setSourceType($reqDTO->getSourceType());
         $imageGeneratedEvent->setSourceId($reqDTO->getSourceId());
         $imageGeneratedEvent->setProviderModelId($providerConfigItem->getProviderModelId());
+        $imageGeneratedEvent->setBusinessParams($imageConvertHighAuditBusinessParams);
 
         AsyncEventUtil::dispatch($imageGeneratedEvent);
 
@@ -501,7 +517,6 @@ class LLMAppService extends AbstractLLMAppService
         string $safeSearch = '',
         string $freshness = '',
         array $businessParams = [],
-        array $ips = []
     ): array {
         // 1. Validate access token
         $accessTokenEntity = $this->accessTokenDomainService->getByAccessToken($accessToken);
@@ -520,13 +535,6 @@ class LLMAppService extends AbstractLLMAppService
 
         if ($offset < 0 || $offset > 1000) {
             ExceptionBuilder::throw(MagicApiErrorCode::ValidateFailed, 'Offset must be between 0 and 1000');
-        }
-
-        if ((string) ($businessParams['request_id'] ?? '') === '') {
-            $requestId = CoContext::getRequestId() ?: (string) CoContext::getOrSetRequestId();
-            if ($requestId !== '') {
-                $businessParams['request_id'] = $requestId;
-            }
         }
 
         // 3. Create data isolation object (for logging and permission control)
@@ -580,30 +588,6 @@ class LLMAppService extends AbstractLLMAppService
             ]);
 
             // 派发模型调用完成（成功）
-            $this->dispatchModelInvocationCompleted(new ModelInvocationCompletedEvent(
-                userInfo: [
-                    'organization_code' => $modelGatewayDataIsolation->getCurrentOrganizationCode(),
-                    'user_id' => $modelGatewayDataIsolation->getCurrentUserId(),
-                    'user_name' => $modelGatewayDataIsolation->getUserName(),
-                ],
-                ip: implode(',', $ips),
-                invocationCategory: 'SEARCH',
-                productCode: self::AUDIT_PRODUCT_BING_SEARCH_V1,
-                accessToken: $accessToken,
-                startTime: $startTime,
-                latencyMs: $responseTime,
-                outcome: 'success',
-                usage: ['count' => 1],
-                detailInfo: InvocationDetailInfo::forTool(
-                    $modelGatewayDataIsolation->getAppId(),
-                    $modelGatewayDataIsolation->getSourceId(),
-                    self::AUDIT_PRODUCT_BING_SEARCH_V1,
-                    $query
-                ),
-                businessParams: $businessParams,
-                sourceMarker: 'bingSearch'
-            ));
-
             // 9. Return native Bing API format
             return $result;
         } catch (Throwable $e) {
@@ -622,30 +606,6 @@ class LLMAppService extends AbstractLLMAppService
             $failLatency = (int) ((microtime(true) - $failStart) * 1000);
 
             // 派发模型调用完成（失败）
-            $this->dispatchModelInvocationCompleted(new ModelInvocationCompletedEvent(
-                userInfo: [
-                    'organization_code' => $modelGatewayDataIsolation->getCurrentOrganizationCode(),
-                    'user_id' => $modelGatewayDataIsolation->getCurrentUserId(),
-                    'user_name' => $modelGatewayDataIsolation->getUserName(),
-                ],
-                ip: implode(',', $ips),
-                invocationCategory: 'SEARCH',
-                productCode: self::AUDIT_PRODUCT_BING_SEARCH_V1,
-                accessToken: $accessToken,
-                startTime: $failStart,
-                latencyMs: $failLatency,
-                outcome: 'failure',
-                usage: [],
-                detailInfo: InvocationDetailInfo::forTool(
-                    $modelGatewayDataIsolation->getAppId(),
-                    $modelGatewayDataIsolation->getSourceId(),
-                    self::AUDIT_PRODUCT_BING_SEARCH_V1,
-                    $query
-                ),
-                businessParams: $businessParams,
-                sourceMarker: 'bingSearch'
-            ));
-
             ExceptionBuilder::throw(
                 MagicApiErrorCode::MODEL_RESPONSE_FAIL,
                 'Bing search failed: ' . $e->getMessage(),
@@ -661,13 +621,6 @@ class LLMAppService extends AbstractLLMAppService
      */
     public function webScrape(WebScrapeRequestDTO $webScrapeRequestDTO): array
     {
-        if ((string) ($webScrapeRequestDTO->getBusinessParam('request_id') ?? '') === '') {
-            $requestId = CoContext::getRequestId() ?: (string) CoContext::getOrSetRequestId();
-            if ($requestId !== '') {
-                $webScrapeRequestDTO->addBusinessParam('request_id', $requestId);
-            }
-        }
-
         // Create data isolation object
         $modelGatewayDataIsolation = $this->createModelGatewayDataIsolationByAccessToken($webScrapeRequestDTO->getAccessToken(), $webScrapeRequestDTO->getBusinessParams());
 
@@ -727,30 +680,6 @@ class LLMAppService extends AbstractLLMAppService
             ]);
 
             // 派发模型调用完成（成功）
-            $this->dispatchModelInvocationCompleted(new ModelInvocationCompletedEvent(
-                userInfo: [
-                    'organization_code' => $modelGatewayDataIsolation->getCurrentOrganizationCode(),
-                    'user_id' => $modelGatewayDataIsolation->getCurrentUserId(),
-                    'user_name' => $modelGatewayDataIsolation->getUserName(),
-                ],
-                ip: implode(',', $webScrapeRequestDTO->getIps()),
-                invocationCategory: 'WEB_SCRAPE',
-                productCode: $response->getProvider(),
-                accessToken: $webScrapeRequestDTO->getAccessToken(),
-                startTime: $startTime,
-                latencyMs: $responseTime,
-                outcome: 'success',
-                usage: ['count' => 1],
-                detailInfo: InvocationDetailInfo::forTool(
-                    $modelGatewayDataIsolation->getAppId(),
-                    $modelGatewayDataIsolation->getSourceId(),
-                    $response->getProvider(),
-                    $webScrapeRequestDTO->getUrl()
-                ),
-                businessParams: $webScrapeRequestDTO->getBusinessParams(),
-                sourceMarker: 'webScrape'
-            ));
-
             // Return unified format
             $result = $response->toArray();
             $result['usage'] = [
@@ -775,30 +704,6 @@ class LLMAppService extends AbstractLLMAppService
             $failLatency = (int) ((microtime(true) - $failStart) * 1000);
 
             // 派发模型调用完成（失败）
-            $this->dispatchModelInvocationCompleted(new ModelInvocationCompletedEvent(
-                userInfo: [
-                    'organization_code' => $modelGatewayDataIsolation->getCurrentOrganizationCode(),
-                    'user_id' => $modelGatewayDataIsolation->getCurrentUserId(),
-                    'user_name' => $modelGatewayDataIsolation->getUserName(),
-                ],
-                ip: implode(',', $webScrapeRequestDTO->getIps()),
-                invocationCategory: 'WEB_SCRAPE',
-                productCode: '',
-                accessToken: $webScrapeRequestDTO->getAccessToken(),
-                startTime: $failStart,
-                latencyMs: $failLatency,
-                outcome: 'failure',
-                usage: [],
-                detailInfo: InvocationDetailInfo::forTool(
-                    $modelGatewayDataIsolation->getAppId(),
-                    $modelGatewayDataIsolation->getSourceId(),
-                    '',
-                    $webScrapeRequestDTO->getUrl()
-                ),
-                businessParams: $webScrapeRequestDTO->getBusinessParams(),
-                sourceMarker: 'webScrape'
-            ));
-
             ExceptionBuilder::throw(
                 MagicApiErrorCode::MODEL_RESPONSE_FAIL,
                 'Web scrape failed: ' . $e->getMessage(),
@@ -817,12 +722,6 @@ class LLMAppService extends AbstractLLMAppService
     {
         // Validate search parameters
         $searchRequestDTO->validate();
-        if ((string) ($searchRequestDTO->getBusinessParam('request_id') ?? '') === '') {
-            $requestId = CoContext::getRequestId() ?: (string) CoContext::getOrSetRequestId();
-            if ($requestId !== '') {
-                $searchRequestDTO->addBusinessParam('request_id', $requestId);
-            }
-        }
         $businessParams = $searchRequestDTO->getBusinessParams();
 
         // Create data isolation object (for logging and permission control)
@@ -863,6 +762,7 @@ class LLMAppService extends AbstractLLMAppService
 
         $startTime = microtime(true);
         $adapter = null;
+        $invocationSuccessAudited = false;
         try {
             // 8. Create adapter using factory
             $factory = make(SearchEngineAdapterFactory::class);
@@ -901,40 +801,33 @@ class LLMAppService extends AbstractLLMAppService
             ]);
 
             // 派发模型调用完成（成功）
-            $this->dispatchModelInvocationCompleted(new ModelInvocationCompletedEvent(
-                userInfo: [
-                    'organization_code' => $modelGatewayDataIsolation->getCurrentOrganizationCode(),
-                    'user_id' => $modelGatewayDataIsolation->getCurrentUserId(),
-                    'user_name' => $modelGatewayDataIsolation->getUserName(),
-                ],
-                ip: implode(',', $searchRequestDTO->getIps()),
-                invocationCategory: 'SEARCH',
-                productCode: $adapter->getEngineName(),
-                accessToken: $searchRequestDTO->getAccessToken(),
-                startTime: $startTime,
-                latencyMs: $responseTime,
-                outcome: 'success',
-                usage: ['count' => 1],
-                detailInfo: InvocationDetailInfo::forTool(
-                    $modelGatewayDataIsolation->getAppId(),
-                    $modelGatewayDataIsolation->getSourceId(),
-                    $adapter->getEngineName(),
-                    $searchRequestDTO->getQuery()
-                ),
-                businessParams: $searchRequestDTO->getBusinessParams(),
-                sourceMarker: 'unifiedSearch'
-            ));
-
             $businessParams['response_duration'] = $responseTime;
             $businessParams['source_id'] = $modelGatewayDataIsolation->getSourceId();
             $businessParams['access_token_id'] = $modelGatewayDataIsolation->getAccessToken()->getId();
             $businessParams['access_token_name'] = $modelGatewayDataIsolation->getAccessToken()->getName();
+
+            // 审计补齐：在 dispatch 前写入 Bridge dispatchSearchAudit 所需字段
+            $businessParams['operation_time'] = (int) round($startTime * 1000);
+            $searchAccessTokenRaw = $searchRequestDTO->getAccessToken();
+            $businessParams['access_token_raw'] = $searchAccessTokenRaw;
+            $businessParams['ak'] = StringMaskUtil::mask($searchAccessTokenRaw);
+            $businessParams['engine'] = $adapter->getEngineName();
+            $businessParams['query'] = $searchRequestDTO->getQuery();
+            $businessParams['outcome'] = self::AUDIT_SEARCH_OUTCOME_SUCCESS;
+            $businessParams['app_id'] = $modelGatewayDataIsolation->getAppId();
+            $businessParams['user_name'] = $modelGatewayDataIsolation->getUserName();
+            $businessParams['access_token_type'] = $modelGatewayDataIsolation->getAccessToken()->getType()->value;
+            $businessParams['organization_id'] = $modelGatewayDataIsolation->getCurrentOrganizationCode();
+            $businessParams['user_id'] = $modelGatewayDataIsolation->getCurrentUserId();
+            $businessParams['event_id'] = (string) IdGenerator::getSnowId();
+
             $webSearchUsageEvent = new WebSearchUsageEvent(
                 $adapter->getEngineName(),
                 $modelGatewayDataIsolation->getCurrentOrganizationCode(),
                 $modelGatewayDataIsolation->getCurrentUserId(),
                 $businessParams
             );
+            $invocationSuccessAudited = true;
             AsyncEventUtil::dispatch($webSearchUsageEvent);
 
             // Log success
@@ -952,6 +845,14 @@ class LLMAppService extends AbstractLLMAppService
             // Return unified response (Bing-compatible format)
             return $unifiedResponse;
         } catch (BusinessException $e) {
+            $this->dispatchUnifiedSearchFailureAudit(
+                $searchRequestDTO,
+                $modelGatewayDataIsolation,
+                $businessParams,
+                $startTime,
+                $adapter?->getEngineName() ?? '',
+                $invocationSuccessAudited
+            );
             // Re-throw business exceptions
             throw $e;
         } catch (Throwable $e) {
@@ -966,34 +867,16 @@ class LLMAppService extends AbstractLLMAppService
                 'line' => $e->getLine(),
             ]);
 
-            $failLatency = (int) ((microtime(true) - $startTime) * 1000);
-            $failProductCode = $adapter?->getEngineName() ?? '';
+            $this->dispatchUnifiedSearchFailureAudit(
+                $searchRequestDTO,
+                $modelGatewayDataIsolation,
+                $businessParams,
+                $startTime,
+                $adapter?->getEngineName() ?? '',
+                $invocationSuccessAudited
+            );
 
             // 派发模型调用完成（失败）
-            $this->dispatchModelInvocationCompleted(new ModelInvocationCompletedEvent(
-                userInfo: [
-                    'organization_code' => $modelGatewayDataIsolation->getCurrentOrganizationCode(),
-                    'user_id' => $modelGatewayDataIsolation->getCurrentUserId(),
-                    'user_name' => $modelGatewayDataIsolation->getUserName(),
-                ],
-                ip: implode(',', $searchRequestDTO->getIps()),
-                invocationCategory: 'SEARCH',
-                productCode: $failProductCode,
-                accessToken: $searchRequestDTO->getAccessToken(),
-                startTime: $startTime,
-                latencyMs: $failLatency,
-                outcome: 'failure',
-                usage: [],
-                detailInfo: InvocationDetailInfo::forTool(
-                    $modelGatewayDataIsolation->getAppId(),
-                    $modelGatewayDataIsolation->getSourceId(),
-                    $failProductCode,
-                    $searchRequestDTO->getQuery()
-                ),
-                businessParams: $searchRequestDTO->getBusinessParams(),
-                sourceMarker: 'unifiedSearch'
-            ));
-
             ExceptionBuilder::throw(
                 MagicApiErrorCode::MODEL_RESPONSE_FAIL,
                 'Unified search failed: ' . $e->getMessage(),
@@ -1012,12 +895,7 @@ class LLMAppService extends AbstractLLMAppService
     {
         // Validate search parameters
         $imageSearchRequestDTO->validate();
-        if ((string) ($imageSearchRequestDTO->getBusinessParam('request_id') ?? '') === '') {
-            $requestId = CoContext::getRequestId() ?: (string) CoContext::getOrSetRequestId();
-            if ($requestId !== '') {
-                $imageSearchRequestDTO->addBusinessParam('request_id', $requestId);
-            }
-        }
+
         $businessParams = $imageSearchRequestDTO->getBusinessParams();
 
         // Create data isolation object (for logging and permission control)
@@ -1057,6 +935,7 @@ class LLMAppService extends AbstractLLMAppService
 
         $startTime = microtime(true);
         $adapter = null;
+        $invocationSuccessAudited = false;
         try {
             // Create adapter using factory
             $factory = make(ImageSearchEngineAdapterFactory::class);
@@ -1090,41 +969,31 @@ class LLMAppService extends AbstractLLMAppService
             ]);
 
             // 派发模型调用完成（成功）
-            $this->dispatchModelInvocationCompleted(new ModelInvocationCompletedEvent(
-                userInfo: [
-                    'organization_code' => $modelGatewayDataIsolation->getCurrentOrganizationCode(),
-                    'user_id' => $modelGatewayDataIsolation->getCurrentUserId(),
-                    'user_name' => $modelGatewayDataIsolation->getUserName(),
-                ],
-                ip: implode(',', $imageSearchRequestDTO->getIps()),
-                invocationCategory: 'SEARCH',
-                productCode: $adapter->getEngineName(),
-                accessToken: $imageSearchRequestDTO->getAccessToken(),
-                startTime: $startTime,
-                latencyMs: $responseTime,
-                outcome: 'success',
-                usage: ['count' => 1],
-                detailInfo: InvocationDetailInfo::forTool(
-                    $modelGatewayDataIsolation->getAppId(),
-                    $modelGatewayDataIsolation->getSourceId(),
-                    $adapter->getEngineName(),
-                    $imageSearchRequestDTO->getQuery()
-                ),
-                businessParams: $imageSearchRequestDTO->getBusinessParams(),
-                sourceMarker: 'imageSearch'
-            ));
-
             $businessParams['response_duration'] = $responseTime;
             $businessParams['call_time'] = date('Y-m-d H:i:s');
             $businessParams['source_id'] = $modelGatewayDataIsolation->getSourceId();
             $businessParams['access_token_id'] = $modelGatewayDataIsolation->getAccessToken()->getId();
             $businessParams['access_token_name'] = $modelGatewayDataIsolation->getAccessToken()->getName();
+            $businessParams['operation_time'] = (int) round($startTime * 1000);
+            $imageSearchAccessTokenRaw = $imageSearchRequestDTO->getAccessToken();
+            $businessParams['access_token_raw'] = $imageSearchAccessTokenRaw;
+            $businessParams['ak'] = StringMaskUtil::mask($imageSearchAccessTokenRaw);
+            $businessParams['engine'] = $adapter->getEngineName();
+            $businessParams['query'] = $imageSearchRequestDTO->getQuery();
+            $businessParams['outcome'] = self::AUDIT_SEARCH_OUTCOME_SUCCESS;
+            $businessParams['app_id'] = $modelGatewayDataIsolation->getAppId();
+            $businessParams['user_name'] = $modelGatewayDataIsolation->getUserName();
+            $businessParams['access_token_type'] = $modelGatewayDataIsolation->getAccessToken()->getType()->value;
+            $businessParams['organization_id'] = $modelGatewayDataIsolation->getCurrentOrganizationCode();
+            $businessParams['user_id'] = $modelGatewayDataIsolation->getCurrentUserId();
+            $businessParams['event_id'] = (string) IdGenerator::getSnowId();
             $imageSearchUsageEvent = new ImageSearchUsageEvent(
                 $adapter->getEngineName(),
                 $modelGatewayDataIsolation->getCurrentOrganizationCode(),
                 $modelGatewayDataIsolation->getCurrentUserId(),
                 $businessParams
             );
+            $invocationSuccessAudited = true;
             AsyncEventUtil::dispatch($imageSearchUsageEvent);
 
             // Log success
@@ -1142,6 +1011,14 @@ class LLMAppService extends AbstractLLMAppService
             // Return unified response
             return $unifiedResponse;
         } catch (BusinessException $e) {
+            $this->dispatchImageSearchFailureAudit(
+                $imageSearchRequestDTO,
+                $modelGatewayDataIsolation,
+                $businessParams,
+                $startTime,
+                $adapter?->getEngineName() ?? '',
+                $invocationSuccessAudited
+            );
             // Re-throw business exceptions
             throw $e;
         } catch (Throwable $e) {
@@ -1155,35 +1032,16 @@ class LLMAppService extends AbstractLLMAppService
                 'file' => $e->getFile(),
                 'line' => $e->getLine(),
             ]);
-
-            $failLatency = (int) ((microtime(true) - $startTime) * 1000);
-            $failProductCode = $adapter?->getEngineName() ?? '';
+            $this->dispatchImageSearchFailureAudit(
+                $imageSearchRequestDTO,
+                $modelGatewayDataIsolation,
+                $businessParams,
+                $startTime,
+                $adapter?->getEngineName() ?? '',
+                $invocationSuccessAudited
+            );
 
             // 派发模型调用完成（失败）
-            $this->dispatchModelInvocationCompleted(new ModelInvocationCompletedEvent(
-                userInfo: [
-                    'organization_code' => $modelGatewayDataIsolation->getCurrentOrganizationCode(),
-                    'user_id' => $modelGatewayDataIsolation->getCurrentUserId(),
-                    'user_name' => $modelGatewayDataIsolation->getUserName(),
-                ],
-                ip: implode(',', $imageSearchRequestDTO->getIps()),
-                invocationCategory: 'SEARCH',
-                productCode: $failProductCode,
-                accessToken: $imageSearchRequestDTO->getAccessToken(),
-                startTime: $startTime,
-                latencyMs: $failLatency,
-                outcome: 'failure',
-                usage: [],
-                detailInfo: InvocationDetailInfo::forTool(
-                    $modelGatewayDataIsolation->getAppId(),
-                    $modelGatewayDataIsolation->getSourceId(),
-                    $failProductCode,
-                    $imageSearchRequestDTO->getQuery()
-                ),
-                businessParams: $imageSearchRequestDTO->getBusinessParams(),
-                sourceMarker: 'imageSearch'
-            ));
-
             ExceptionBuilder::throw(
                 MagicApiErrorCode::MODEL_RESPONSE_FAIL,
                 'Image search failed: ' . $e->getMessage(),
@@ -1205,7 +1063,8 @@ class LLMAppService extends AbstractLLMAppService
         $modelId = $textGenerateImageDTO->getModel();
 
         $modelGatewayDataIsolation = $this->createModelGatewayDataIsolationByAccessToken($textGenerateImageDTO->getAccessToken(), $textGenerateImageDTO->getBusinessParams());
-        $imageModel = $this->modelGatewayMapper->getOrganizationImageModel($modelGatewayDataIsolation, $modelId)?->getImageModel();
+        $imageModelEntry = $this->modelGatewayMapper->getOrganizationImageModel($modelGatewayDataIsolation, $modelId);
+        $imageModel = $imageModelEntry?->getImageModel();
 
         if (empty($imageModel)) {
             ExceptionBuilder::throw(ServiceProviderErrorCode::ModelNotFound);
@@ -1249,13 +1108,6 @@ class LLMAppService extends AbstractLLMAppService
         $callTime = date('Y-m-d H:i:s');
         $startTime = microtime(true);
 
-        if ((string) ($textGenerateImageDTO->getBusinessParam('request_id') ?? '') === '') {
-            $requestId = CoContext::getRequestId() ?: (string) CoContext::getOrSetRequestId();
-            if ($requestId !== '') {
-                $textGenerateImageDTO->addBusinessParam('request_id', $requestId);
-            }
-        }
-
         $imageGenerateService = ImageGenerateFactory::create($imageGenerateType, $imageModel->getConfig());
         try {
             $imageGenerateRequest->setModel($imageModel->getModelVersion());
@@ -1275,31 +1127,6 @@ class LLMAppService extends AbstractLLMAppService
                 }
 
                 // 派发模型调用完成（成功）
-                $this->dispatchModelInvocationCompleted(new ModelInvocationCompletedEvent(
-                    userInfo: [
-                        'organization_code' => $modelGatewayDataIsolation->getCurrentOrganizationCode(),
-                        'user_id' => $modelGatewayDataIsolation->getCurrentUserId(),
-                        'user_name' => $modelGatewayDataIsolation->getUserName(),
-                    ],
-                    ip: implode(',', $textGenerateImageDTO->getIps()),
-                    invocationCategory: 'IMAGE',
-                    productCode: $modelId,
-                    accessToken: $textGenerateImageDTO->getAccessToken(),
-                    startTime: $startTime,
-                    latencyMs: $latencyMs,
-                    outcome: 'success',
-                    usage: ['count' => $auditCount],
-                    detailInfo: InvocationDetailInfo::forModel(
-                        $modelGatewayDataIsolation->getAppId(),
-                        $modelGatewayDataIsolation->getSourceId(),
-                        $imageModel->getProviderModelId(),
-                        null,
-                        ['chain' => 'textGenerateImage']
-                    ),
-                    businessParams: $textGenerateImageDTO->getBusinessParams(),
-                    sourceMarker: 'textGenerateImage'
-                ));
-
                 $this->dispatchImageGeneratedEvent(
                     $creator,
                     $organizationCode,
@@ -1308,7 +1135,15 @@ class LLMAppService extends AbstractLLMAppService
                     $imageModel->getProviderModelId(),
                     $callTime,
                     $startTime,
-                    $accessTokenEntity
+                    $accessTokenEntity,
+                    [
+                        'model_version' => $imageModel->getModelVersion(),
+                        'provider_name' => $imageModelEntry?->getAttributes()->getProviderName(),
+                        'app_id' => $modelGatewayDataIsolation->getAppId(),
+                        'user_name' => $modelGatewayDataIsolation->getUserName(),
+                        'access_token_type' => $accessTokenEntity->getType()->value,
+                        'chain' => 'textGenerateImage',
+                    ]
                 );
 
                 return $generateImageRaw;
@@ -1319,33 +1154,34 @@ class LLMAppService extends AbstractLLMAppService
         }
 
         $latencyMs = (int) ((microtime(true) - $startTime) * 1000);
+        $textGenerateImageAccessTokenRaw = $textGenerateImageDTO->getAccessToken();
+
+        $imageGenerateFailedEvent = new ImageGenerateFailedEvent();
+        $imageGenerateFailedEvent->setOrganizationCode($organizationCode);
+        $imageGenerateFailedEvent->setUserId($creator);
+        $imageGenerateFailedEvent->setModel($modelId);
+        $imageGenerateFailedEvent->setProviderModelId($imageModel->getProviderModelId());
+        $imageGenerateFailedEvent->setBusinessParams([
+            'chain' => 'textGenerateImage',
+            'model_version' => $imageModel->getModelVersion(),
+            'provider_name' => $imageModelEntry?->getAttributes()->getProviderName(),
+            'original_model_id' => $modelId,
+            'outcome' => 'FAIL',
+            'response_duration' => $latencyMs,
+            'operation_time' => (int) round($startTime * 1000),
+            'user_name' => $modelGatewayDataIsolation->getUserName(),
+            'app_id' => $modelGatewayDataIsolation->getAppId(),
+            'source_id' => $textGenerateImageDTO->getSourceId(),
+            'request_id' => trim((string) ($textGenerateImageDTO->getBusinessParam('request_id') ?? '')),
+            'access_token_raw' => $textGenerateImageAccessTokenRaw,
+            'ak' => StringMaskUtil::mask($textGenerateImageAccessTokenRaw),
+            'access_token_type' => $accessTokenEntity->getType()->value,
+            'event_id' => (string) IdGenerator::getSnowId(),
+        ]);
+
+        AsyncEventUtil::dispatch($imageGenerateFailedEvent);
 
         // 派发模型调用完成（失败）
-        $this->dispatchModelInvocationCompleted(new ModelInvocationCompletedEvent(
-            userInfo: [
-                'organization_code' => $modelGatewayDataIsolation->getCurrentOrganizationCode(),
-                'user_id' => $modelGatewayDataIsolation->getCurrentUserId(),
-                'user_name' => $modelGatewayDataIsolation->getUserName(),
-            ],
-            ip: implode(',', $textGenerateImageDTO->getIps()),
-            invocationCategory: 'IMAGE',
-            productCode: $modelId,
-            accessToken: $textGenerateImageDTO->getAccessToken(),
-            startTime: $startTime,
-            latencyMs: $latencyMs,
-            outcome: 'failure',
-            usage: [],
-            detailInfo: InvocationDetailInfo::forModel(
-                $modelGatewayDataIsolation->getAppId(),
-                $modelGatewayDataIsolation->getSourceId(),
-                $imageModel->getProviderModelId(),
-                null,
-                ['chain' => 'textGenerateImage']
-            ),
-            businessParams: $textGenerateImageDTO->getBusinessParams(),
-            sourceMarker: 'textGenerateImage'
-        ));
-
         ExceptionBuilder::throw(ImageGenerateErrorCode::GENERAL_ERROR, $errorMessage);
     }
 
@@ -1356,13 +1192,6 @@ class LLMAppService extends AbstractLLMAppService
     {
         $accessTokenEntity = $this->validateAccessToken($imageEditDTO);
 
-        if ((string) ($imageEditDTO->getBusinessParam('request_id') ?? '') === '') {
-            $requestId = CoContext::getRequestId() ?: (string) CoContext::getOrSetRequestId();
-            if ($requestId !== '') {
-                $imageEditDTO->addBusinessParam('request_id', $requestId);
-            }
-        }
-
         $dataIsolation = LLMDataIsolation::create()->disabled();
 
         $contextData = $this->parseBusinessContext($dataIsolation, $accessTokenEntity, $imageEditDTO);
@@ -1372,7 +1201,8 @@ class LLMAppService extends AbstractLLMAppService
         $modelId = $imageEditDTO->getModel();
 
         $modelGatewayDataIsolation = $this->createModelGatewayDataIsolationByAccessToken($imageEditDTO->getAccessToken(), $imageEditDTO->getBusinessParams());
-        $imageModel = $this->modelGatewayMapper->getOrganizationImageModel($modelGatewayDataIsolation, $modelId)?->getImageModel();
+        $imageModelEntry = $this->modelGatewayMapper->getOrganizationImageModel($modelGatewayDataIsolation, $modelId);
+        $imageModel = $imageModelEntry?->getImageModel();
 
         if (empty($imageModel)) {
             ExceptionBuilder::throw(ServiceProviderErrorCode::ModelNotFound);
@@ -1420,31 +1250,6 @@ class LLMAppService extends AbstractLLMAppService
                 $latencyMs = (int) ((microtime(true) - $startTime) * 1000);
 
                 // 派发模型调用完成（成功）
-                $this->dispatchModelInvocationCompleted(new ModelInvocationCompletedEvent(
-                    userInfo: [
-                        'organization_code' => $modelGatewayDataIsolation->getCurrentOrganizationCode(),
-                        'user_id' => $modelGatewayDataIsolation->getCurrentUserId(),
-                        'user_name' => $modelGatewayDataIsolation->getUserName(),
-                    ],
-                    ip: implode(',', $imageEditDTO->getIps()),
-                    invocationCategory: 'IMAGE',
-                    productCode: $modelId,
-                    accessToken: $imageEditDTO->getAccessToken(),
-                    startTime: $startTime,
-                    latencyMs: $latencyMs,
-                    outcome: 'success',
-                    usage: ['count' => 1],
-                    detailInfo: InvocationDetailInfo::forModel(
-                        $modelGatewayDataIsolation->getAppId(),
-                        $modelGatewayDataIsolation->getSourceId(),
-                        $imageModel->getProviderModelId(),
-                        null,
-                        ['chain' => 'imageEdit']
-                    ),
-                    businessParams: $imageEditDTO->getBusinessParams(),
-                    sourceMarker: 'imageEdit'
-                ));
-
                 // 统一触发事件（图生图默认 1 张）
                 $this->dispatchImageGeneratedEvent(
                     $creator,
@@ -1454,7 +1259,15 @@ class LLMAppService extends AbstractLLMAppService
                     $imageModel->getProviderModelId(),
                     $callTime,
                     $startTime,
-                    $accessTokenEntity
+                    $accessTokenEntity,
+                    [
+                        'model_version' => $imageModel->getModelVersion(),
+                        'provider_name' => $imageModelEntry?->getAttributes()->getProviderName(),
+                        'app_id' => $modelGatewayDataIsolation->getAppId(),
+                        'user_name' => $modelGatewayDataIsolation->getUserName(),
+                        'access_token_type' => $accessTokenEntity->getType()->value,
+                        'chain' => 'imageEdit',
+                    ]
                 );
 
                 return $generateImageRaw;
@@ -1464,33 +1277,34 @@ class LLMAppService extends AbstractLLMAppService
         }
 
         $latencyMs = (int) ((microtime(true) - $startTime) * 1000);
+        $imageEditAccessTokenRaw = $imageEditDTO->getAccessToken();
+
+        $imageGenerateFailedEvent = new ImageGenerateFailedEvent();
+        $imageGenerateFailedEvent->setOrganizationCode($organizationCode);
+        $imageGenerateFailedEvent->setUserId($creator);
+        $imageGenerateFailedEvent->setModel($modelId);
+        $imageGenerateFailedEvent->setProviderModelId($imageModel->getProviderModelId());
+        $imageGenerateFailedEvent->setBusinessParams([
+            'chain' => 'imageEdit',
+            'model_version' => $imageModel->getModelVersion(),
+            'provider_name' => $imageModelEntry?->getAttributes()->getProviderName(),
+            'original_model_id' => $modelId,
+            'outcome' => 'FAIL',
+            'response_duration' => $latencyMs,
+            'operation_time' => (int) round($startTime * 1000),
+            'user_name' => $modelGatewayDataIsolation->getUserName(),
+            'app_id' => $modelGatewayDataIsolation->getAppId(),
+            'source_id' => $imageEditDTO->getSourceId(),
+            'request_id' => trim((string) ($imageEditDTO->getBusinessParam('request_id') ?? '')),
+            'access_token_raw' => $imageEditAccessTokenRaw,
+            'ak' => StringMaskUtil::mask($imageEditAccessTokenRaw),
+            'access_token_type' => $accessTokenEntity->getType()->value,
+            'event_id' => (string) IdGenerator::getSnowId(),
+        ]);
+
+        AsyncEventUtil::dispatch($imageGenerateFailedEvent);
 
         // 派发模型调用完成（失败）
-        $this->dispatchModelInvocationCompleted(new ModelInvocationCompletedEvent(
-            userInfo: [
-                'organization_code' => $modelGatewayDataIsolation->getCurrentOrganizationCode(),
-                'user_id' => $modelGatewayDataIsolation->getCurrentUserId(),
-                'user_name' => $modelGatewayDataIsolation->getUserName(),
-            ],
-            ip: implode(',', $imageEditDTO->getIps()),
-            invocationCategory: 'IMAGE',
-            productCode: $modelId,
-            accessToken: $imageEditDTO->getAccessToken(),
-            startTime: $startTime,
-            latencyMs: $latencyMs,
-            outcome: 'failure',
-            usage: [],
-            detailInfo: InvocationDetailInfo::forModel(
-                $modelGatewayDataIsolation->getAppId(),
-                $modelGatewayDataIsolation->getSourceId(),
-                $imageModel->getProviderModelId(),
-                null,
-                ['chain' => 'imageEdit']
-            ),
-            businessParams: $imageEditDTO->getBusinessParams(),
-            sourceMarker: 'imageEdit'
-        ));
-
         ExceptionBuilder::throw(ImageGenerateErrorCode::NOT_FOUND_ERROR_CODE);
     }
 
@@ -1576,6 +1390,7 @@ class LLMAppService extends AbstractLLMAppService
         $modelGatewayDataIsolation = null;
         $modelAttributes = null;
         $originalModelId = $proxyModelRequest->getModel();
+        $invocationSuccessAudited = false;
         try {
             // Validate access token and model permissions
             $modelGatewayDataIsolation = $this->createModelGatewayDataIsolationByAccessToken($proxyModelRequest->getAccessToken(), $proxyModelRequest->getBusinessParams());
@@ -1673,16 +1488,34 @@ class LLMAppService extends AbstractLLMAppService
             $proxyModelRequest->addBusinessParam('call_time', date('Y-m-d H:i:s'));
             $proxyModelRequest->addBusinessParam('original_model_id', $originalModelId);
 
-            if ((string) ($proxyModelRequest->getBusinessParam('request_id') ?? '') === '') {
-                $requestId = CoContext::getRequestId() ?: (string) CoContext::getOrSetRequestId();
-                if ($requestId !== '') {
-                    $proxyModelRequest->addBusinessParam('request_id', $requestId);
-                }
+            // 审计所需字段：调用发起时间（Unix 毫秒时间戳）
+            $proxyModelRequest->addBusinessParam('operation_time', (int) round($startTime * 1000));
+
+            // 审计所需字段：原始 access token（仅用于 Bridge 查库解析 name，不直接落库明文）
+            $accessTokenRaw = $proxyModelRequest->getAccessToken();
+            $proxyModelRequest->addBusinessParam('access_token_raw', $accessTokenRaw);
+            $proxyModelRequest->addBusinessParam('ak', StringMaskUtil::mask($accessTokenRaw));
+
+            // 审计所需字段：请求类型（chat/embedding/image/video），让 Bridge 正确区分 AuditType
+            $proxyModelRequest->addBusinessParam('model_type', $proxyModelRequest->getType());
+
+            // 真实上游部署名（model_version）
+            if ($modelAttributes !== null) {
+                $proxyModelRequest->addBusinessParam('model_version', $modelAttributes->getModelVersion());
             }
+
+            // 服务商名称快照：ModelGatewayMapper 构造 ModelAttributes 时已按自定义/内置/Magic 规则算好，直接取
+            if ($modelAttributes !== null) {
+                $proxyModelRequest->addBusinessParam('provider_name', $modelAttributes->getProviderName());
+            }
+
+            // 审计与计费关联：在 Odin 成功/失败事件之前生成，保证同一调用共用一个 event_id
+            $proxyModelRequest->addBusinessParam('event_id', (string) IdGenerator::getSnowId());
 
             // Call LLM model to get response
             /** @var ResponseInterface $response */
             $response = $modelCallFunction($modelGatewayDataIsolation, $model, $proxyModelRequest);
+            $invocationSuccessAudited = true;
 
             // Calculate response time (milliseconds)
             $responseTime = (int) ((microtime(true) - $startTime) * 1000);
@@ -1712,34 +1545,7 @@ class LLMAppService extends AbstractLLMAppService
                 );
             }
 
-            $detailExtras = ['original_model_id' => $originalModelId];
-
             // 派发模型调用完成（成功）；流式首包后同步落库事实，最终 usage 仍由 AuditLogSubscriber 在 AfterChatCompletionsStreamEvent 回填
-            $this->dispatchModelInvocationCompleted(new ModelInvocationCompletedEvent(
-                userInfo: [
-                    'organization_code' => $modelGatewayDataIsolation->getCurrentOrganizationCode(),
-                    'user_id' => $modelGatewayDataIsolation->getCurrentUserId(),
-                    'user_name' => $modelGatewayDataIsolation->getUserName(),
-                ],
-                ip: implode(',', $proxyModelRequest->getIps()),
-                invocationCategory: $this->resolveInvocationCategory($proxyModelRequest->getType()),
-                productCode: $proxyModelRequest->getModel(),
-                accessToken: $proxyModelRequest->getAccessToken(),
-                startTime: $startTime,
-                latencyMs: $responseTime,
-                outcome: 'success',
-                usage: $response->getUsage()?->toArray() ?? [],
-                detailInfo: InvocationDetailInfo::forModel(
-                    $modelGatewayDataIsolation->getAppId(),
-                    $modelGatewayDataIsolation->getSourceId(),
-                    $modelAttributes?->getProviderModelId() ?? '',
-                    $proxyModelRequest instanceof CompletionDTO ? $proxyModelRequest->isStream() : null,
-                    $detailExtras
-                ),
-                businessParams: $proxyModelRequest->getBusinessParams(),
-                sourceMarker: 'processRequest'
-            ));
-
             return $response;
         } catch (Throwable $throwable) {
             $this->handleRequestException($endpointDTO, $startTime ?? microtime(true), $proxyModelRequest, $throwable, 500);
@@ -1748,54 +1554,37 @@ class LLMAppService extends AbstractLLMAppService
             $failLatency = (int) ((microtime(true) - $failStart) * 1000);
 
             // 派发模型调用完成（失败）
-            $this->dispatchModelInvocationCompleted(new ModelInvocationCompletedEvent(
-                userInfo: [
-                    'organization_code' => $modelGatewayDataIsolation?->getCurrentOrganizationCode() ?? '',
-                    'user_id' => $modelGatewayDataIsolation?->getCurrentUserId() ?? '',
-                    'user_name' => $modelGatewayDataIsolation?->getUserName() ?? '',
-                ],
-                ip: implode(',', $proxyModelRequest->getIps()),
-                invocationCategory: $this->resolveInvocationCategory($proxyModelRequest->getType()),
-                productCode: $proxyModelRequest->getModel(),
-                accessToken: $proxyModelRequest->getAccessToken(),
-                startTime: $failStart,
-                latencyMs: $failLatency,
-                outcome: 'failure',
-                usage: [],
-                detailInfo: InvocationDetailInfo::forModel(
-                    $modelGatewayDataIsolation?->getAppId() ?? '',
-                    $modelGatewayDataIsolation?->getSourceId() ?? '',
-                    $modelAttributes?->getProviderModelId() ?? '',
-                    $proxyModelRequest instanceof CompletionDTO ? $proxyModelRequest->isStream() : null,
-                    [
-                        'original_model_id' => $originalModelId,
-                        'error_code' => $throwable->getCode(),
-                    ]
-                ),
-                businessParams: $proxyModelRequest->getBusinessParams(),
-                sourceMarker: 'processRequest'
-            ));
-
             $message = '';
             if ($throwable instanceof OdinException || $throwable instanceof InvalidArgumentException || $throwable instanceof BusinessException) {
                 $message = $throwable->getMessage();
             }
-            $businessParams = $proxyModelRequest->getBusinessParams();
-            $businessParams['is_success'] = false;
-            $businessParams['error_code'] = $throwable->getCode();
-            $chatUsageEvent = new ModelUsageEvent(
-                modelType: $proxyModelRequest->getType(),
-                modelId: $proxyModelRequest->getModel(),
-                modelVersion: $proxyModelRequest->getModel(),
-                usage: new Usage(0, 0, 0),
-                organizationCode: $modelGatewayDataIsolation?->getCurrentOrganizationCode() ?? '',
-                userId: $modelGatewayDataIsolation?->getCurrentUserId() ?? '',
-                appId: $modelGatewayDataIsolation?->getAppId() ?? '',
-                serviceProviderModelId: $modelAttributes?->getProviderModelId() ?? '',
-                businessParams: $businessParams,
-            );
+            if (! $invocationSuccessAudited) {
+                $businessParams = $proxyModelRequest->getBusinessParams();
+                $businessParams['is_success'] = false;
+                $businessParams['response_duration'] = $failLatency;
+                $businessParams['model_type'] = $proxyModelRequest->getType();
+                $businessParams['operation_time'] = (int) round($failStart * 1000);
+                $catchAccessTokenRaw = $proxyModelRequest->getAccessToken();
+                $businessParams['access_token_raw'] = $catchAccessTokenRaw;
+                $businessParams['ak'] = StringMaskUtil::mask($catchAccessTokenRaw);
+                if ($modelAttributes !== null) {
+                    $businessParams['model_version'] = $modelAttributes->getModelVersion();
+                    $businessParams['provider_name'] = $modelAttributes->getProviderName();
+                }
+                $chatUsageEvent = new ModelUsageEvent(
+                    modelType: $proxyModelRequest->getType(),
+                    modelId: $proxyModelRequest->getModel(),
+                    modelVersion: $proxyModelRequest->getModel(),
+                    usage: new Usage(0, 0, 0),
+                    organizationCode: $modelGatewayDataIsolation?->getCurrentOrganizationCode() ?? '',
+                    userId: $modelGatewayDataIsolation?->getCurrentUserId() ?? '',
+                    appId: $modelGatewayDataIsolation?->getAppId() ?? '',
+                    serviceProviderModelId: $modelAttributes?->getProviderModelId() ?? '',
+                    businessParams: $businessParams,
+                );
 
-            AsyncEventUtil::dispatch($chatUsageEvent);
+                AsyncEventUtil::dispatch($chatUsageEvent);
+            }
             ExceptionBuilder::throw(MagicApiErrorCode::MODEL_RESPONSE_FAIL, $message, throwable: $throwable);
         }
     }
@@ -2029,7 +1818,8 @@ class LLMAppService extends AbstractLLMAppService
                 $imageModel->getProviderModelId(),
                 $callTime,
                 $startTime,
-                $modelGatewayDataIsolation->getAccessToken()
+                $modelGatewayDataIsolation->getAccessToken(),
+                ['chain' => 'textGenerateImageV2']
             );
         } catch (Exception $e) {
             $errorMessage = $e->getMessage();
@@ -2572,7 +2362,8 @@ class LLMAppService extends AbstractLLMAppService
         string $providerModelId,
         string $callTime,
         float $startTime,
-        ?AccessTokenEntity $accessTokenEntity = null
+        ?AccessTokenEntity $accessTokenEntity = null,
+        array $auditBusinessParams = []
     ): void {
         // 计算响应时间（毫秒）
         $responseTime = (int) ((microtime(true) - $startTime) * 1000);
@@ -2595,6 +2386,31 @@ class LLMAppService extends AbstractLLMAppService
             $responseTime,
             $accessTokenEntity
         );
+        $requestAccessTokenRaw = $requestDTO->getAccessToken();
+        $businessParams = array_merge(
+            $requestDTO->getBusinessParams(),
+            [
+                'model_id' => $requestDTO->getModel(),
+                'provider_model_id' => $providerModelId,
+                'image_count' => $imageCount,
+                'response_duration' => $responseTime,
+                'operation_time' => (int) round($startTime * 1000),
+                'original_model_id' => $requestDTO->getOriginalModelId(),
+                'organization_id' => $organizationCode,
+                'user_id' => $creator,
+                'source_id' => $requestDTO->getSourceId(),
+                'request_id' => trim((string) ($requestDTO->getBusinessParam('request_id') ?? '')),
+                'outcome' => 'SUCCESS',
+                'access_token_raw' => $requestAccessTokenRaw,
+                'ak' => StringMaskUtil::mask($requestAccessTokenRaw),
+                'access_token_id' => $accessTokenEntity?->getId(),
+                'access_token_name' => $accessTokenEntity?->getName(),
+                'access_token_type' => $accessTokenEntity?->getType()->value,
+                'event_id' => (string) IdGenerator::getSnowId(),
+            ],
+            $auditBusinessParams,
+        );
+        $event->setBusinessParams($businessParams);
         AsyncEventUtil::dispatch($event);
     }
 
@@ -2662,6 +2478,88 @@ class LLMAppService extends AbstractLLMAppService
     {
         // 调用 Resolver 解析
         return di(ProxyConfigResolverInterface::class)->resolve($config);
+    }
+
+    private function dispatchUnifiedSearchFailureAudit(
+        SearchRequestDTO $searchRequestDTO,
+        ModelGatewayDataIsolation $modelGatewayDataIsolation,
+        array $businessParams,
+        float $startTime,
+        string $engineName,
+        bool $invocationSuccessAudited,
+    ): void {
+        if ($invocationSuccessAudited) {
+            return;
+        }
+        $businessParams['outcome'] = self::AUDIT_SEARCH_OUTCOME_FAIL;
+        $businessParams['response_duration'] = (int) ((microtime(true) - $startTime) * 1000);
+        $businessParams['operation_time'] = (int) round($startTime * 1000);
+
+        $searchAccessTokenRaw = $searchRequestDTO->getAccessToken();
+        $businessParams['access_token_raw'] = $searchAccessTokenRaw;
+        $businessParams['ak'] = StringMaskUtil::mask($searchAccessTokenRaw);
+        $businessParams['query'] = $searchRequestDTO->getQuery();
+        if ($engineName !== '') {
+            $businessParams['engine'] = $engineName;
+        }
+
+        $businessParams['source_id'] = $modelGatewayDataIsolation->getSourceId();
+        $businessParams['access_token_id'] = $modelGatewayDataIsolation->getAccessToken()->getId();
+        $businessParams['access_token_name'] = $modelGatewayDataIsolation->getAccessToken()->getName();
+        $businessParams['access_token_type'] = $modelGatewayDataIsolation->getAccessToken()->getType()->value;
+        $businessParams['app_id'] = $modelGatewayDataIsolation->getAppId();
+        $businessParams['user_name'] = $modelGatewayDataIsolation->getUserName();
+        $businessParams['organization_id'] = $modelGatewayDataIsolation->getCurrentOrganizationCode();
+        $businessParams['user_id'] = $modelGatewayDataIsolation->getCurrentUserId();
+        $businessParams['event_id'] = (string) IdGenerator::getSnowId();
+
+        AsyncEventUtil::dispatch(new WebSearchUsageEvent(
+            $businessParams['engine'] ?? '',
+            $modelGatewayDataIsolation->getCurrentOrganizationCode(),
+            $modelGatewayDataIsolation->getCurrentUserId(),
+            $businessParams
+        ));
+    }
+
+    private function dispatchImageSearchFailureAudit(
+        ImageSearchRequestDTO $imageSearchRequestDTO,
+        ModelGatewayDataIsolation $modelGatewayDataIsolation,
+        array $businessParams,
+        float $startTime,
+        string $engineName,
+        bool $invocationSuccessAudited,
+    ): void {
+        if ($invocationSuccessAudited) {
+            return;
+        }
+        $businessParams['outcome'] = self::AUDIT_SEARCH_OUTCOME_FAIL;
+        $businessParams['response_duration'] = (int) ((microtime(true) - $startTime) * 1000);
+        $businessParams['operation_time'] = (int) round($startTime * 1000);
+
+        $imageSearchAccessTokenRaw = $imageSearchRequestDTO->getAccessToken();
+        $businessParams['access_token_raw'] = $imageSearchAccessTokenRaw;
+        $businessParams['ak'] = StringMaskUtil::mask($imageSearchAccessTokenRaw);
+        $businessParams['query'] = $imageSearchRequestDTO->getQuery();
+        if ($engineName !== '') {
+            $businessParams['engine'] = $engineName;
+        }
+
+        $businessParams['source_id'] = $modelGatewayDataIsolation->getSourceId();
+        $businessParams['access_token_id'] = $modelGatewayDataIsolation->getAccessToken()->getId();
+        $businessParams['access_token_name'] = $modelGatewayDataIsolation->getAccessToken()->getName();
+        $businessParams['access_token_type'] = $modelGatewayDataIsolation->getAccessToken()->getType()->value;
+        $businessParams['app_id'] = $modelGatewayDataIsolation->getAppId();
+        $businessParams['user_name'] = $modelGatewayDataIsolation->getUserName();
+        $businessParams['organization_id'] = $modelGatewayDataIsolation->getCurrentOrganizationCode();
+        $businessParams['user_id'] = $modelGatewayDataIsolation->getCurrentUserId();
+        $businessParams['event_id'] = (string) IdGenerator::getSnowId();
+
+        AsyncEventUtil::dispatch(new ImageSearchUsageEvent(
+            $businessParams['engine'] ?? '',
+            $modelGatewayDataIsolation->getCurrentOrganizationCode(),
+            $modelGatewayDataIsolation->getCurrentUserId(),
+            $businessParams
+        ));
     }
 
     /**

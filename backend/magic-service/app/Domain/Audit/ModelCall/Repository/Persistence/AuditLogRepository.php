@@ -8,43 +8,81 @@ declare(strict_types=1);
 namespace App\Domain\Audit\ModelCall\Repository\Persistence;
 
 use App\Domain\Audit\ModelCall\Entity\AuditLogEntity;
-use App\Domain\Audit\ModelCall\Entity\ValueObject\AuditType;
 use App\Domain\Audit\ModelCall\Repository\Facade\AuditLogRepositoryInterface;
 use App\Domain\Audit\ModelCall\Repository\Persistence\Model\AuditLogModel;
 use App\Domain\ModelGateway\Repository\Persistence\AbstractRepository;
+use App\Infrastructure\Core\AbstractEntity;
 use App\Infrastructure\Core\ValueObject\Page;
+use Hyperf\Database\Exception\QueryException;
 
 class AuditLogRepository extends AbstractRepository implements AuditLogRepositoryInterface
 {
     public function create(AuditLogEntity $entity): void
     {
         $model = new AuditLogModel();
-        $model->fill($this->getAttributes($entity));
+        $model->fill($this->getAttributesForAuditPersist($entity));
         $model->save();
     }
 
-    public function backfillStreamUsageByRequestId(string $requestId, string $productCode, array $usage): void
+    public function createOrUpdateAuditByEventId(AuditLogEntity $entity): void
     {
-        if ($requestId === '') {
+        $eventId = trim((string) ($entity->getEventId() ?? ''));
+        if ($eventId === '') {
+            $this->create($entity);
+
             return;
         }
 
-        /** @var null|AuditLogModel $model */
-        $model = AuditLogModel::query()
-            ->where('type', AuditType::TEXT->value)
-            ->where('status', 'SUCCESS')
-            ->where('product_code', $productCode)
-            ->where('detail_info->stream', true)
-            ->where('request_id', $requestId)
-            ->orderByDesc('id')
-            ->first();
+        $auditData = $this->getAttributesForAuditPersist($entity);
+        unset($auditData['id'], $auditData['points']);
 
-        if (! $model) {
+        $existing = AuditLogModel::query()->where('event_id', $eventId)->first();
+        if ($existing !== null) {
+            unset($auditData['created_at']);
+            $existing->fill($auditData);
+            $existing->save();
+
             return;
         }
 
-        $model->usage = $usage;
-        $model->save();
+        try {
+            $model = new AuditLogModel();
+            $model->fill($auditData);
+            $model->save();
+        } catch (QueryException $e) {
+            if ((int) ($e->errorInfo[1] ?? 0) !== 1062) {
+                throw $e;
+            }
+            $forUpdate = $auditData;
+            unset($forUpdate['created_at']);
+            AuditLogModel::query()->where('event_id', $eventId)->update($forUpdate);
+        }
+    }
+
+    public function recordPointsByEventId(string $eventId, int $points): void
+    {
+        $eventId = trim($eventId);
+        if ($eventId === '') {
+            return;
+        }
+
+        $affected = AuditLogModel::query()->where('event_id', $eventId)->update(['points' => $points]);
+        if ($affected > 0) {
+            return;
+        }
+
+        try {
+            $model = new AuditLogModel();
+            $model->event_id = $eventId;
+            $model->points = $points;
+            $model->usage = [];
+            $model->save();
+        } catch (QueryException $e) {
+            if ((int) ($e->errorInfo[1] ?? 0) !== 1062) {
+                throw $e;
+            }
+            AuditLogModel::query()->where('event_id', $eventId)->update(['points' => $points]);
+        }
     }
 
     public function queries(
@@ -73,6 +111,12 @@ class AuditLogRepository extends AbstractRepository implements AuditLogRepositor
         if (! empty($filters['product_code'])) {
             $builder->where('product_code', (string) $filters['product_code']);
         }
+        if (! empty($filters['model_version'])) {
+            $builder->where('model_version', (string) $filters['model_version']);
+        }
+        if (! empty($filters['provider_name'])) {
+            $builder->where('provider_name', (string) $filters['provider_name']);
+        }
         if (! empty($filters['user_id'])) {
             $builder->where('user_id', (string) $filters['user_id']);
         }
@@ -84,6 +128,9 @@ class AuditLogRepository extends AbstractRepository implements AuditLogRepositor
         }
         if (! empty($filters['request_id'])) {
             $builder->where('request_id', (string) $filters['request_id']);
+        }
+        if (! empty($filters['event_id'])) {
+            $builder->where('event_id', (string) $filters['event_id']);
         }
         if (! empty($filters['start_operation_time'])) {
             $builder->where('operation_time', '>=', (int) $filters['start_operation_time']);
@@ -101,6 +148,23 @@ class AuditLogRepository extends AbstractRepository implements AuditLogRepositor
             'total' => (int) $result['total'],
             'list' => $this->formatList($list),
         ];
+    }
+
+    /**
+     * 组装写库属性：排除 points；无值不写 event_id（兼容历史 INSERT）.
+     *
+     * @return array<string, mixed>
+     */
+    protected function getAttributesForAuditPersist(AbstractEntity $entity): array
+    {
+        $attributes = $this->getAttributes($entity);
+        unset($attributes['points']);
+        $eventId = $attributes['event_id'] ?? null;
+        if ($eventId === null || $eventId === '') {
+            unset($attributes['event_id']);
+        }
+
+        return $attributes;
     }
 
     /**
@@ -135,11 +199,17 @@ class AuditLogRepository extends AbstractRepository implements AuditLogRepositor
             $item['organization_code'] = (string) ($item['organization_code'] ?? '');
             $item['operation_time'] = (int) ($item['operation_time'] ?? 0);
             $item['all_latency'] = (int) ($item['all_latency'] ?? 0);
+            $item['first_response_latency'] = (int) ($item['first_response_latency'] ?? 0);
             $item['usage'] = is_array($item['usage'] ?? null) ? $item['usage'] : [];
             $item['detail_info'] = is_array($item['detail_info'] ?? null) ? $item['detail_info'] : null;
             $item['access_scope'] = (string) ($item['access_scope'] ?? '');
             $item['magic_topic_id'] = (string) ($item['magic_topic_id'] ?? '');
             $item['request_id'] = (string) ($item['request_id'] ?? '');
+            $item['event_id'] = (string) ($item['event_id'] ?? '');
+            $item['points'] = array_key_exists('points', $item) && $item['points'] !== null ? (int) $item['points'] : null;
+            $item['access_token_name'] = (string) ($item['access_token_name'] ?? '');
+            $item['model_version'] = (string) ($item['model_version'] ?? '');
+            $item['provider_name'] = (string) ($item['provider_name'] ?? '');
         }
 
         return $list;

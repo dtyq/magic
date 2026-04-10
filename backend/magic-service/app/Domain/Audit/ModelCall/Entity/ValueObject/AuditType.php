@@ -9,10 +9,11 @@ namespace App\Domain\Audit\ModelCall\Entity\ValueObject;
 
 enum AuditType: string
 {
-    case TEXT = 'TEXT';           // 文本生成
-    case EMBEDDING = 'EMBEDDING'; // 向量化
-    case IMAGE = 'IMAGE';         // 图片生成
-    case SEARCH = 'SEARCH';       // 搜索
+    case TEXT = 'TEXT';             // 文本生成
+    case EMBEDDING = 'EMBEDDING';   // 向量化
+    case IMAGE = 'IMAGE';           // 图片生成
+    case VIDEO = 'VIDEO';           // 视频生成
+    case SEARCH = 'SEARCH';         // 搜索
     case WEB_SCRAPE = 'WEB_SCRAPE'; // 网页抓取
 
     public function label(): string
@@ -21,6 +22,7 @@ enum AuditType: string
             self::TEXT => '文本生成',
             self::EMBEDDING => '向量化',
             self::IMAGE => '图片生成',
+            self::VIDEO => '视频生成',
             self::SEARCH => '搜索',
             self::WEB_SCRAPE => '网页抓取',
         };
@@ -31,7 +33,7 @@ enum AuditType: string
      */
     public function isModel(): bool
     {
-        return in_array($this, [self::TEXT, self::EMBEDDING, self::IMAGE], true);
+        return in_array($this, [self::TEXT, self::EMBEDDING, self::IMAGE, self::VIDEO], true);
     }
 
     /**

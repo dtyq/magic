@@ -7,16 +7,11 @@ declare(strict_types=1);
 
 namespace App\Application\Audit\ModelCall\Service;
 
-use App\Application\Audit\ModelCall\Event\AuditLogEvent;
-use App\Domain\Audit\ModelCall\Entity\ValueObject\AuditStatus;
-use App\Domain\Audit\ModelCall\Entity\ValueObject\AuditType;
-use App\Domain\Audit\ModelCall\Entity\ValueObject\ModelAuditAccessScope;
 use App\Domain\Audit\ModelCall\Service\ModelCallAuditDomainService;
 use App\Domain\Contact\Service\MagicUserDomainService;
 use App\Infrastructure\Core\ValueObject\Page;
 use App\Infrastructure\Util\StringMaskUtil;
 use App\Interfaces\Chat\DTO\UserDetailDTO;
-use Dtyq\AsyncEvent\AsyncEventUtil;
 use Hyperf\Logger\LoggerFactory;
 use Psr\Log\LoggerInterface;
 use Throwable;
@@ -31,64 +26,6 @@ class AuditService
         private readonly MagicUserDomainService $magicUserDomainService,
     ) {
         $this->logger = $loggerFactory->get(static::class);
-    }
-
-    /**
-     * 发布审计事件 - 统一入口方法.
-     *
-     * @param array $userInfo 用户信息 ['organization_code' => '', 'user_id' => '', 'user_name' => '']（落库仅 user_id、organization_code）
-     * @param string $ip 客户端 IP
-     * @param AuditType $type 审计类型枚举
-     * @param string $productCode 产品/模型标识
-     * @param string $accessToken 原始 accessToken（内部自动脱敏）
-     * @param float $startTime 请求开始时间（microtime(true) 格式）
-     * @param int $latencyMs 耗时毫秒
-     * @param AuditStatus $status 状态枚举
-     * @param array $usage 用量信息
-     * @param null|array $detailInfo 详情信息
-     * @param array $businessParams 业务参数（透传给订阅者）；其中 request_id、magic_topic_id 等会写入审计表列
-     */
-    public function dispatchAuditEvent(
-        array $userInfo,
-        string $ip,
-        AuditType $type,
-        string $productCode,
-        string $accessToken,
-        float $startTime,
-        int $latencyMs,
-        AuditStatus $status,
-        array $usage = [],
-        ?array $detailInfo = null,
-        array $businessParams = [],
-        ModelAuditAccessScope $accessScope = ModelAuditAccessScope::Magic,
-    ): void {
-        try {
-            $ip = $this->normalizeClientIpForAudit($ip);
-            $event = new AuditLogEvent(
-                ip: $ip,
-                type: $type->value,
-                productCode: $productCode,
-                status: $status->value,
-                ak: StringMaskUtil::mask($accessToken),
-                operationTime: (int) ($startTime * 1000),
-                allLatency: $latencyMs,
-                userInfo: $userInfo,
-                usage: $usage,
-                detailInfo: $detailInfo,
-                businessParams: $businessParams,
-                accessScope: $accessScope,
-            );
-
-            AsyncEventUtil::dispatch($event);
-        } catch (Throwable $throwable) {
-            $this->logger->error('Model audit dispatchAuditEvent failed', [
-                'type' => $type->value,
-                'product_code' => $productCode,
-                'status' => $status->value,
-                'operation_time' => (int) ($startTime * 1000),
-                'error' => $throwable->getMessage(),
-            ]);
-        }
     }
 
     /**
@@ -122,22 +59,11 @@ class AuditService
     }
 
     /**
-     * 审计落库 IP：逗号分隔链（X-Forwarded-For / 多来源拼接）只保留第一个非空段，避免重复段落库.
+     * 计费侧按 event_id 回写积分（供计费组件包直接注入调用，不对外暴露 HTTP 接口）.
      */
-    private function normalizeClientIpForAudit(string $ip): string
+    public function recordPointsByEventId(string $eventId, int $points): void
     {
-        $ip = trim($ip);
-        if ($ip === '') {
-            return '';
-        }
-        foreach (explode(',', $ip) as $segment) {
-            $segment = trim($segment);
-            if ($segment !== '') {
-                return $segment;
-            }
-        }
-
-        return '';
+        $this->modelCallAuditDomainService->recordPointsByEventId($eventId, $points);
     }
 
     /**

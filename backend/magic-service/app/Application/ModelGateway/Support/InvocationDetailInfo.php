@@ -19,14 +19,12 @@ final class InvocationDetailInfo
         string $appId,
         string $sourceId,
         string $providerModelId,
-        ?bool $stream,
         array $extras = []
     ): array {
         $detail = [
             'app_id' => $appId,
             'source_id' => $sourceId,
             'provider_model_id' => $providerModelId,
-            'stream' => $stream,
         ];
         if ($extras !== []) {
             $detail['extras'] = $extras;

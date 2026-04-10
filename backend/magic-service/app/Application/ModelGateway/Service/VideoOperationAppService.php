@@ -17,8 +17,10 @@ use App\Domain\ModelGateway\Entity\Dto\CreateVideoDTO;
 use App\Domain\ModelGateway\Entity\Dto\VideoOperationResponseDTO;
 use App\Domain\ModelGateway\Entity\ValueObject\ModelGatewayDataIsolation;
 use App\Domain\ModelGateway\Entity\ValueObject\VideoMediaMetadata;
+use App\Domain\ModelGateway\Entity\ValueObject\VideoOperationStatus;
 use App\Domain\ModelGateway\Entity\VideoQueueOperationEntity;
 use App\Domain\ModelGateway\Event\VideoGeneratedEvent;
+use App\Domain\ModelGateway\Event\VideoGenerateFailedEvent;
 use App\Domain\ModelGateway\Service\QueueOperationExecutionDomainService;
 use App\Domain\ModelGateway\Service\VideoBillingDetailsResolver;
 use App\Domain\ModelGateway\Service\VideoGenerationConfigDomainService;
@@ -28,7 +30,9 @@ use App\Infrastructure\Core\Exception\ExceptionBuilder;
 use App\Infrastructure\Core\Traits\HasLogger;
 use App\Infrastructure\Core\ValueObject\StorageBucketType;
 use App\Infrastructure\ExternalAPI\VideoGenerateAPI\ProviderVideoException;
+use App\Infrastructure\Util\IdGenerator\IdGenerator;
 use App\Infrastructure\Util\SSRF\SSRFUtil;
+use App\Infrastructure\Util\StringMaskUtil;
 use DateTime;
 use Dtyq\AsyncEvent\AsyncEventUtil;
 use Dtyq\CloudFile\Kernel\Struct\UploadFile;
@@ -102,10 +106,18 @@ readonly class VideoOperationAppService
             $requestDTO,
             $videoGenerationConfig,
         );
+        $auditProviderName = (string) ($videoModelEntry?->getAttributes()->getProviderName() ?? '');
+        $operation->setAuditProviderName($auditProviderName);
         $config = $this->queueOperationExecutionDomainService->getConfig($operation);
         try {
             $providerTaskId = $this->queueOperationExecutionDomainService->submit($operation, $config);
         } catch (ProviderVideoException $throwable) {
+            $this->dispatchVideoGenerateFailedEvent(
+                $dataIsolation,
+                $operation,
+                $accessToken,
+                $requestDTO->getBusinessParams(),
+            );
             ExceptionBuilder::throw(MagicApiErrorCode::ValidateFailed, $throwable->getMessage(), throwable: $throwable);
         }
         $this->videoQueueDomainService->markProviderRunning($operation, $providerTaskId);
@@ -137,11 +149,14 @@ readonly class VideoOperationAppService
                 $probeResult = $this->extractProbeResult($result);
                 $syncResult = $this->videoQueueDomainService->syncWithExecutionResult($operation, $providerTaskId, $result);
                 if ($syncResult->isFirstSucceeded()) {
-                    $this->dispatchVideoGeneratedEvent($dataIsolation, $operation, $probeResult);
+                    $this->dispatchVideoGeneratedEvent($dataIsolation, $operation, $probeResult, $accessToken, $businessParams);
+                } elseif ($syncResult->isStatusChanged() && $syncResult->getStatus() === VideoOperationStatus::FAILED) {
+                    $this->dispatchVideoGenerateFailedEvent($dataIsolation, $operation, $accessToken, $businessParams);
                 }
                 $this->videoQueueDomainService->saveOperation($operation);
             } catch (ProviderVideoException $throwable) {
                 $this->videoQueueDomainService->finishExecutionFailure($operation, $throwable->getMessage());
+                $this->dispatchVideoGenerateFailedEvent($dataIsolation, $operation, $accessToken, $businessParams);
                 $this->videoQueueDomainService->saveOperation($operation);
             }
         }
@@ -162,11 +177,19 @@ readonly class VideoOperationAppService
     private function dispatchVideoGeneratedEvent(
         ModelGatewayDataIsolation $dataIsolation,
         VideoQueueOperationEntity $operation,
-        ?array $probeResult = null
+        ?array $probeResult = null,
+        string $accessTokenRaw = '',
+        array $requestBusinessParams = []
     ): void {
         $event = new VideoGeneratedEvent();
         $accessTokenEntity = $this->resolveAccessTokenEntity($dataIsolation);
         $billingDetails = $this->resolveBillingDetails($operation, $probeResult);
+        $businessParams = $this->buildVideoAuditBusinessParams(
+            $dataIsolation,
+            $operation,
+            $accessTokenRaw,
+            $requestBusinessParams,
+        );
 
         $event->setOrganizationCode($operation->getOrganizationCode());
         $event->setUserId($operation->getUserId());
@@ -184,6 +207,7 @@ readonly class VideoOperationAppService
         $event->setSourceId($operation->getSourceId());
         $event->setSourceType($this->resolveSourceType($accessTokenEntity, $operation));
         $event->setCreatedAt(new DateTime());
+        $event->setBusinessParams($businessParams);
 
         AsyncEventUtil::dispatch($event);
         $this->logger->info('VideoGeneratedEventDispatched', [
@@ -203,6 +227,94 @@ readonly class VideoOperationAppService
             'source_id' => $event->getSourceId(),
             'source_type' => $event->getSourceType()->value,
         ]);
+    }
+
+    private function dispatchVideoGenerateFailedEvent(
+        ModelGatewayDataIsolation $dataIsolation,
+        VideoQueueOperationEntity $operation,
+        string $accessTokenRaw = '',
+        array $requestBusinessParams = []
+    ): void {
+        $event = new VideoGenerateFailedEvent();
+        $businessParams = $this->buildVideoAuditBusinessParams(
+            $dataIsolation,
+            $operation,
+            $accessTokenRaw,
+            $requestBusinessParams,
+            'FAIL',
+        );
+
+        $event->setOrganizationCode($operation->getOrganizationCode());
+        $event->setUserId($operation->getUserId());
+        $event->setModel($operation->getModel());
+        $event->setProviderModelId($operation->getProviderModelId());
+        $event->setBusinessParams($businessParams);
+
+        AsyncEventUtil::dispatch($event);
+        $this->logger->info('VideoGenerateFailedEventDispatched', [
+            'operation_id' => $operation->getId(),
+            'organization_code' => $event->getOrganizationCode(),
+            'user_id' => $event->getUserId(),
+            'model' => $event->getModel(),
+            'provider_model_id' => $event->getProviderModelId(),
+        ]);
+    }
+
+    private function buildVideoAuditBusinessParams(
+        ModelGatewayDataIsolation $dataIsolation,
+        VideoQueueOperationEntity $operation,
+        string $accessTokenRaw = '',
+        array $requestBusinessParams = [],
+        string $outcome = 'SUCCESS'
+    ): array {
+        $accessTokenEntity = $this->resolveAccessTokenEntity($dataIsolation);
+        $sourceId = (string) ($operation->getSourceId() ?: $dataIsolation->getSourceId());
+        $requestId = trim((string) ($requestBusinessParams['request_id'] ?? ''));
+        $magicTopicId = trim((string) ($requestBusinessParams['magic_topic_id'] ?? ''));
+        $accessTokenName = (string) $accessTokenEntity?->getName();
+        $accessTokenType = $accessTokenEntity === null ? '' : $accessTokenEntity->getType()->value;
+        $providerName = $operation->getAuditProviderName();
+
+        return [
+            'event_id' => (string) IdGenerator::getSnowId(),
+            'model_id' => $operation->getModel(),
+            'model_version' => $operation->getModelVersion(),
+            'provider_model_id' => $operation->getProviderModelId(),
+            'provider_name' => $providerName,
+            'original_model_id' => $operation->getModel(),
+            'outcome' => $outcome,
+            'operation_time' => $this->toTimestampMs($operation->getCreatedAt()),
+            'response_duration' => $this->calculateLatencyMs($operation),
+            'organization_id' => $operation->getOrganizationCode(),
+            'user_id' => $operation->getUserId(),
+            'user_name' => $dataIsolation->getUserName(),
+            'app_id' => $dataIsolation->getAppId(),
+            'source_id' => $sourceId,
+            'request_id' => $requestId,
+            'magic_topic_id' => $magicTopicId,
+            'access_token_raw' => $accessTokenRaw,
+            'ak' => StringMaskUtil::mask($accessTokenRaw),
+            'access_token_name' => $accessTokenName,
+            'access_token_type' => $accessTokenType,
+        ];
+    }
+
+    private function toTimestampMs(?string $time): int
+    {
+        return max(0, ((int) strtotime((string) $time)) * 1000);
+    }
+
+    private function calculateLatencyMs(VideoQueueOperationEntity $operation): int
+    {
+        $finishedAtMs = $this->toTimestampMs($operation->getFinishedAt());
+        if ($finishedAtMs === 0) {
+            $finishedAtMs = (int) round(microtime(true) * 1000);
+        }
+
+        return max(
+            0,
+            $finishedAtMs - $this->toTimestampMs($operation->getCreatedAt())
+        );
     }
 
     private function resolveResponseOutput(VideoQueueOperationEntity $operation, array $output): array

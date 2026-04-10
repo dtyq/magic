@@ -19,7 +19,6 @@ class AuditLogFactory
     public static function createNew(
         string $userId,
         string $organizationCode,
-        string $ip,
         string $type,
         string $productCode,
         string $status,
@@ -31,24 +30,33 @@ class AuditLogFactory
         ModelAuditAccessScope $accessScope = ModelAuditAccessScope::Magic,
         ?string $magicTopicId = null,
         ?string $requestId = null,
+        string $accessTokenName = '',
+        string $modelVersion = '',
+        string $providerName = '',
+        int $firstResponseLatency = 0,
+        ?string $eventId = null,
     ): AuditLogEntity {
         $now = new DateTime();
 
         $entity = new AuditLogEntity();
         $entity->setUserId($userId);
         $entity->setOrganizationCode($organizationCode);
-        $entity->setIp($ip);
         $entity->setType($type);
         $entity->setProductCode($productCode);
         $entity->setStatus($status);
         $entity->setAk($ak);
+        $entity->setAccessTokenName($accessTokenName);
+        $entity->setModelVersion($modelVersion);
+        $entity->setProviderName($providerName);
         $entity->setOperationTime($operationTime);
         $entity->setAllLatency($allLatency);
+        $entity->setFirstResponseLatency($firstResponseLatency);
         $entity->setUsage($usage);
         $entity->setDetailInfo($detailInfo);
         $entity->setAccessScope($accessScope);
         $entity->setMagicTopicId($magicTopicId);
         $entity->setRequestId($requestId);
+        $entity->setEventId($eventId);
         $entity->setCreatedAt($now);
         $entity->setUpdatedAt($now);
 
