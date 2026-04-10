@@ -19,6 +19,7 @@ use App\Domain\Token\Repository\Facade\MagicTokenRepositoryInterface;
 use App\Infrastructure\Core\ValueObject\StorageBucketType;
 use App\Infrastructure\ExternalAPI\ImageGenerateAPI\SizeManager;
 use App\Infrastructure\Util\IdGenerator\IdGenerator;
+use App\Infrastructure\Util\Locker\LockerInterface;
 use Carbon\Carbon;
 use Dtyq\SuperMagic\Domain\Agent\Entity\ValueObject\SuperMagicAgentDataIsolation;
 use Dtyq\SuperMagic\Domain\Agent\Repository\Facade\MagicClawRepositoryInterface;
@@ -56,7 +57,6 @@ use Dtyq\SuperMagic\Infrastructure\ExternalAPI\SandboxOS\Gateway\Result\BatchSta
 use Dtyq\SuperMagic\Infrastructure\ExternalAPI\SandboxOS\Gateway\Result\GatewayResult;
 use Dtyq\SuperMagic\Infrastructure\ExternalAPI\SandboxOS\Gateway\Result\SandboxStatusResult;
 use Dtyq\SuperMagic\Infrastructure\ExternalAPI\SandboxOS\Gateway\SandboxGatewayInterface;
-use Dtyq\SuperMagic\Infrastructure\Utils\SandboxInitSingleFlight;
 use Dtyq\SuperMagic\Infrastructure\Utils\WorkDirectoryUtil;
 use Hyperf\Codec\Json;
 use Hyperf\Logger\LoggerFactory;
@@ -84,8 +84,8 @@ class AgentDomainService
         private readonly MagicClawRepositoryInterface $magicClawRepository,
         private readonly SuperMagicAgentRepositoryInterface $superMagicAgentRepository,
         private readonly MagicTokenRepositoryInterface $magicTokenRepository,
+        private readonly LockerInterface $locker,
         private readonly TopicDomainService $topicDomainService,
-        private readonly SandboxInitSingleFlight $singleFlight,
     ) {
         $this->logger = $loggerFactory->get('sandbox');
     }
@@ -201,14 +201,14 @@ class AgentDomainService
 
     /**
      * Ensure sandbox is initialized and workspace is ready.
-     * Uses SingleFlight pattern: only one request executes initialization per topic,
-     * concurrent requests wait for and reuse the result.
+     * Uses distributed lock to prevent concurrent sandbox creation.
+     * Supports interrupt checking at each step for early termination.
      *
      * @param DataIsolation $dataIsolation Data isolation context
      * @param AgentContext $agentContext Agent context with initialization data
      * @param null|callable $interruptChecker Optional callable that returns true to interrupt initialization
      * @return string Sandbox ID (always valid, even if interrupted after sandbox creation)
-     * @throws ServerException If initialization fails or times out
+     * @throws ServerException If metadata is incomplete or lock acquisition fails
      */
     public function ensureSandboxInitialized(
         DataIsolation $dataIsolation,
@@ -216,63 +216,131 @@ class AgentDomainService
         ?callable $interruptChecker = null
     ): string {
         $topicEntity = $agentContext->getTopicEntity();
-        $topicId = $topicEntity->getId();
-        $sandboxId = $agentContext->getSandboxId() ?? (string) $topicId;
 
-        $this->logger->info('[Sandbox][SingleFlight] Ensuring sandbox is initialized', [
-            'topic_id' => $topicId,
+        $sandboxId = $agentContext->getSandboxId() ?? (string) $topicEntity->getId();
+
+        $this->logger->info('[Sandbox][Domain] Ensuring sandbox is initialized', [
+            'topic_id' => $topicEntity->getId(),
             'sandbox_id' => $sandboxId,
+            'is_custom_sandbox_id' => $agentContext->getSandboxId(),
             'has_interrupt_checker' => $interruptChecker !== null,
         ]);
 
-        // Phase 1: Check cached result
-        $cached = $this->singleFlight->getResult($topicId);
-        if ($this->singleFlight->isReady($cached)) {
-            if ($this->isWorkspaceStillReady($cached['sandbox_id'])) {
-                $this->logger->info('[Sandbox][SingleFlight] Reusing cached ready result', [
-                    'topic_id' => $topicId,
-                    'sandbox_id' => $cached['sandbox_id'],
-                ]);
-                return $cached['sandbox_id'];
-            }
-            // Workspace no longer ready, clear stale cache
-            $this->singleFlight->clearResult($topicId);
-        } elseif ($this->singleFlight->isFailed($cached)) {
-            // Previous failure expired or is stale, clear and retry
-            $this->singleFlight->clearResult($topicId);
-        }
-
-        // Phase 2: Check if another request is already running
-        if ($this->singleFlight->isRunning($topicId)) {
-            return $this->handleFollowerWait($topicId, $sandboxId, $interruptChecker);
-        }
-
-        // Phase 3: Try to become owner
-        $requestId = $this->singleFlight->tryClaim($topicId);
-        if ($requestId === null) {
-            // Another request just claimed, wait as follower
-            return $this->handleFollowerWait($topicId, $sandboxId, $interruptChecker);
-        }
-
-        // Phase 4: I am owner, execute initialization
-        $this->singleFlight->markRunning($topicId, $requestId);
+        $lockKey = sprintf('super_agent:sandbox:init:%s', $topicEntity->getId());
+        $lockOwner = uniqid('sandbox_init_', true);
+        $lockAcquired = false;
 
         try {
-            $sandboxId = $this->doSandboxInitialize($dataIsolation, $agentContext, $sandboxId, $topicId, $interruptChecker);
-            $this->singleFlight->saveReadyResult($topicId, $sandboxId);
+            $this->logger->info('[Sandbox][Domain] Attempting to acquire lock for sandbox initialization', [
+                'topic_id' => $topicEntity->getId(),
+                'lock_key' => $lockKey,
+                'lock_owner' => $lockOwner,
+                'timeout_seconds' => 60,
+            ]);
 
-            $this->logger->info('[Sandbox][SingleFlight] Owner completed initialization successfully', [
-                'topic_id' => $topicId,
+            $lockAcquired = $this->locker->spinLock($lockKey, $lockOwner, 60);
+
+            if (! $lockAcquired) {
+                $this->logger->error('[Sandbox][Domain] Failed to acquire lock for sandbox initialization', [
+                    'topic_id' => $topicEntity->getId(),
+                    'lock_key' => $lockKey,
+                ]);
+                throw new ServerException('Failed to acquire lock for sandbox initialization, please try again');
+            }
+
+            $this->logger->info('[Sandbox][Domain] Lock acquired successfully for sandbox initialization', [
+                'topic_id' => $topicEntity->getId(),
+                'lock_key' => $lockKey,
+                'lock_owner' => $lockOwner,
+            ]);
+
+            // Step 1: Check workspace status (quick-returns if sandbox already ready)
+            try {
+                $response = $this->getWorkspaceStatus($sandboxId);
+                $status = $response->getDataValue('status');
+
+                if (WorkspaceStatus::isReady($status)) {
+                    $this->logger->info('[Sandbox][Domain] Workspace already ready', [
+                        'sandbox_id' => $sandboxId,
+                        'workspace_status' => $status,
+                    ]);
+                    return $sandboxId;
+                }
+
+                $this->logger->info('[Sandbox][Domain] Workspace not ready, will reinitialize', [
+                    'sandbox_id' => $sandboxId,
+                    'workspace_status' => $status,
+                ]);
+            } catch (SandboxOperationException $e) {
+                $isNotFound = $e->getCode() === ResponseCode::NOT_FOUND;
+                $logLevel = $isNotFound ? 'info' : 'warning';
+                $this->logger->{$logLevel}('[Sandbox][Domain] Failed to check workspace status, will create sandbox', [
+                    'sandbox_id' => $sandboxId,
+                    'error' => $e->getMessage(),
+                    'is_not_found' => $isNotFound,
+                ]);
+            }
+
+            // Step 2: Create sandbox container
+            $sandboxId = $this->createSandbox(
+                dataIsolation: $dataIsolation,
+                projectId: (string) $agentContext->getProjectEntity()->getId(),
+                sandboxID: $agentContext->getSandboxId(),
+                workDir: $agentContext?->getInitContext()->getWorkDir() ?? ''
+            );
+
+            if ($interruptChecker !== null && $interruptChecker()) {
+                $this->logger->info('[Sandbox][Domain] Interrupted after sandbox creation', [
+                    'sandbox_id' => $sandboxId,
+                    'topic_id' => $topicEntity->getId(),
+                ]);
+                return $sandboxId;
+            }
+
+            // Step 3: Initialize agent
+            $result = $this->agent->initAgent($sandboxId, $agentContext->getInitContext()->toArray());
+            if (! $result->isSuccess()) {
+                $this->logger->error('[Sandbox][Domain] Failed to initialize agent', [
+                    'sandbox_id' => $sandboxId,
+                    'error' => $result->getMessage(),
+                    'code' => $result->getCode(),
+                ]);
+                throw new SandboxOperationException('Initialize agent', $result->getMessage(), $result->getCode());
+            }
+
+            if ($interruptChecker !== null && $interruptChecker()) {
+                $this->logger->info('[Sandbox][Domain] Interrupted after agent initialization', [
+                    'sandbox_id' => $sandboxId,
+                    'topic_id' => $topicEntity->getId(),
+                ]);
+                return $sandboxId;
+            }
+
+            // Step 4: Wait for workspace ready (with interrupt support)
+            $isReady = $this->waitForWorkspaceReady($sandboxId, interruptChecker: $interruptChecker);
+            if (! $isReady) {
+                $this->logger->info('[Sandbox][Domain] Interrupted during workspace ready wait', [
+                    'sandbox_id' => $sandboxId,
+                    'topic_id' => $topicEntity->getId(),
+                ]);
+                return $sandboxId;
+            }
+
+            $this->logger->info('[Sandbox][Domain] Sandbox initialized successfully', [
                 'sandbox_id' => $sandboxId,
+                'topic_id' => $topicEntity->getId(),
             ]);
 
             return $sandboxId;
-        } catch (Throwable $e) {
-            $this->singleFlight->saveFailedResult($topicId, $sandboxId, $e->getMessage());
-            throw $e;
         } finally {
-            $this->singleFlight->clearRunning($topicId);
-            $this->singleFlight->releaseClaim($topicId, $requestId);
+            if ($lockAcquired) {
+                $released = $this->locker->release($lockKey, $lockOwner);
+                $this->logger->info('[Sandbox][Domain] Lock released for sandbox initialization', [
+                    'topic_id' => $topicEntity->getId(),
+                    'lock_owner' => $lockOwner,
+                    'released' => $released,
+                ]);
+            }
         }
     }
 
@@ -619,7 +687,6 @@ class AgentDomainService
      * @param null|callable $interruptChecker Interrupt checker closure, return true to interrupt
      * @param int $maxWaitSeconds Maximum wait time in seconds (default 5 minutes)
      * @param int $checkIntervalSeconds Check interval in seconds (default 2 seconds)
-     * @param null|int $topicIdForSingleFlight When provided, refreshes SingleFlight running TTL each loop
      * @return bool True if workspace is ready, false if interrupted
      * @throws WorkspaceReadyTimeoutException When timeout occurs
      * @throws SandboxOperationException When initialization fails or error occurs
@@ -628,8 +695,7 @@ class AgentDomainService
         string $sandboxId,
         int $maxWaitSeconds = 300,
         int $checkIntervalSeconds = 2,
-        ?callable $interruptChecker = null,
-        ?int $topicIdForSingleFlight = null
+        ?callable $interruptChecker = null
     ): bool {
         $this->logger->debug('[Sandbox][App] Waiting for workspace to be ready', [
             'sandbox_id' => $sandboxId,
@@ -641,11 +707,6 @@ class AgentDomainService
         $startTime = time();
 
         while (true) {
-            // Refresh SingleFlight running TTL to prevent stale detection during long polling
-            if ($topicIdForSingleFlight !== null) {
-                $this->singleFlight->refreshRunning($topicIdForSingleFlight);
-            }
-
             // 1. First check if interrupted (closure check)
             if ($interruptChecker !== null && $interruptChecker()) {
                 $this->logger->info('[Sandbox][App] Workspace ready wait interrupted by checker', [
@@ -926,143 +987,6 @@ class AgentDomainService
                 'error' => $e->getMessage(),
             ]);
             throw new SandboxOperationException('Rollback checkpoint check', 'Checkpoint rollback check failed: ' . $e->getMessage(), 3008);
-        }
-    }
-
-    /**
-     * Handle follower waiting logic: wait for owner's result, then act on it.
-     */
-    private function handleFollowerWait(int $topicId, string $fallbackSandboxId, ?callable $interruptChecker): string
-    {
-        $this->logger->info('[Sandbox][SingleFlight] Entering follower wait', [
-            'topic_id' => $topicId,
-        ]);
-
-        $result = $this->singleFlight->waitForResult($topicId, $interruptChecker);
-
-        // Interrupted
-        if ($result === null && $interruptChecker !== null && $interruptChecker()) {
-            return $fallbackSandboxId;
-        }
-
-        // Owner succeeded
-        if ($this->singleFlight->isReady($result)) {
-            return $result['sandbox_id'];
-        }
-
-        // Owner failed — log internal error details, return generic message to caller
-        if ($this->singleFlight->isFailed($result)) {
-            $this->logger->error('[Sandbox][SingleFlight] Owner initialization failed', [
-                'topic_id' => $topicId,
-                'error' => $result['error'] ?? 'unknown',
-            ]);
-            throw new ServerException(trans('agent.sandbox_init_failed'));
-        }
-
-        // Owner disappeared (crashed) or timed out — no result, no running.
-        // Clean up stale state so subsequent requests can attempt fresh initialization.
-        $this->singleFlight->clearResult($topicId);
-        $this->logger->warning('[Sandbox][SingleFlight] Owner disappeared, cleaned up stale state', [
-            'topic_id' => $topicId,
-        ]);
-        throw new ServerException(trans('agent.sandbox_init_timeout'));
-    }
-
-    /**
-     * Execute the actual sandbox initialization steps (called by owner only, outside of lock).
-     */
-    private function doSandboxInitialize(
-        DataIsolation $dataIsolation,
-        AgentContext $agentContext,
-        string $sandboxId,
-        int $topicId,
-        ?callable $interruptChecker
-    ): string {
-        // Step 1: Check workspace status (quick-return if already ready)
-        $this->singleFlight->refreshRunning($topicId);
-        try {
-            $response = $this->getWorkspaceStatus($sandboxId);
-            $status = $response->getDataValue('status');
-
-            if (WorkspaceStatus::isReady($status)) {
-                $this->logger->info('[Sandbox][SingleFlight] Workspace already ready', [
-                    'sandbox_id' => $sandboxId,
-                ]);
-                return $sandboxId;
-            }
-
-            $this->logger->info('[Sandbox][SingleFlight] Workspace not ready, will reinitialize', [
-                'sandbox_id' => $sandboxId,
-                'workspace_status' => $status,
-            ]);
-        } catch (SandboxOperationException $e) {
-            $isNotFound = $e->getCode() === ResponseCode::NOT_FOUND;
-            $logLevel = $isNotFound ? 'info' : 'warning';
-            $this->logger->{$logLevel}('[Sandbox][SingleFlight] Workspace status check failed, will create sandbox', [
-                'sandbox_id' => $sandboxId,
-                'error' => $e->getMessage(),
-                'is_not_found' => $isNotFound,
-            ]);
-        }
-
-        // Step 2: Create sandbox container
-        $this->singleFlight->refreshRunning($topicId);
-        $sandboxId = $this->createSandbox(
-            dataIsolation: $dataIsolation,
-            projectId: (string) $agentContext->getProjectEntity()->getId(),
-            sandboxID: $agentContext->getSandboxId(),
-            workDir: $agentContext?->getInitContext()->getWorkDir() ?? ''
-        );
-
-        if ($interruptChecker !== null && $interruptChecker()) {
-            $this->logger->info('[Sandbox][SingleFlight] Interrupted after sandbox creation', [
-                'sandbox_id' => $sandboxId,
-            ]);
-            return $sandboxId;
-        }
-
-        // Step 3: Initialize agent
-        $this->singleFlight->refreshRunning($topicId);
-        $result = $this->agent->initAgent($sandboxId, $agentContext->getInitContext()->toArray());
-        if (! $result->isSuccess()) {
-            $this->logger->error('[Sandbox][SingleFlight] Failed to initialize agent', [
-                'sandbox_id' => $sandboxId,
-                'error' => $result->getMessage(),
-                'code' => $result->getCode(),
-            ]);
-            throw new SandboxOperationException('Initialize agent', $result->getMessage(), $result->getCode());
-        }
-
-        if ($interruptChecker !== null && $interruptChecker()) {
-            $this->logger->info('[Sandbox][SingleFlight] Interrupted after agent initialization', [
-                'sandbox_id' => $sandboxId,
-            ]);
-            return $sandboxId;
-        }
-
-        // Step 4: Wait for workspace ready (with TTL refresh and interrupt support)
-        $this->singleFlight->refreshRunning($topicId);
-        $isReady = $this->waitForWorkspaceReady($sandboxId, interruptChecker: $interruptChecker, topicIdForSingleFlight: $topicId);
-        if (! $isReady) {
-            $this->logger->info('[Sandbox][SingleFlight] Interrupted during workspace ready wait', [
-                'sandbox_id' => $sandboxId,
-            ]);
-            return $sandboxId;
-        }
-
-        return $sandboxId;
-    }
-
-    /**
-     * Check if a workspace is still in ready state.
-     */
-    private function isWorkspaceStillReady(string $sandboxId): bool
-    {
-        try {
-            $response = $this->getWorkspaceStatus($sandboxId);
-            return WorkspaceStatus::isReady($response->getDataValue('status'));
-        } catch (Throwable) {
-            return false;
         }
     }
 
