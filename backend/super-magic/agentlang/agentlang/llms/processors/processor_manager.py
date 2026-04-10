@@ -143,7 +143,7 @@ class ProcessorManager:
                 )
                 if isinstance(stream_error, StreamInterruptedError):
                     si = stream_error
-                    if si.chunk_count > 100 or si.total_elapsed_seconds > 60:
+                    if si.chunk_count > 10 or si.total_elapsed_seconds > 30:
                         logger.warning(
                             f"[{request_id}] 结构性流中断 "
                             f"(chunks={si.chunk_count}, elapsed={si.total_elapsed_seconds:.1f}s)，"

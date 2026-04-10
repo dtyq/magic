@@ -2096,7 +2096,7 @@ Since your subsequent output will be merged with pre-interruption content and di
             if is_llm_retry_path:
                 for exc in self._iter_exception_chain(exception):
                     if isinstance(exc, StreamInterruptedError) and (
-                        exc.chunk_count > 100 or exc.total_elapsed_seconds > 60
+                        exc.chunk_count > 10 or exc.total_elapsed_seconds > 30
                     ):
                         await self._try_inject_output_recovery_message(
                             loop_state,
