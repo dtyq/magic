@@ -62,7 +62,6 @@ class ModelConfigItem extends AbstractDTO
 
     protected ?string $secondCost = null;
 
-
     protected ?BillingTiers $billingTiers = null;
 
     public function __construct(?array $data = null)
