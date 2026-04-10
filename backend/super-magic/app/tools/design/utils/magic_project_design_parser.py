@@ -550,8 +550,8 @@ def _normalize_media_src(src: str) -> str:
     旧格式：project-name/images/xxx.jpg（相对于 workspace 根目录）
     新格式：images/xxx.jpg（相对于项目目录，即 magic.project.js 所在目录）
 
-    识别方式：路径形如 X/images/... 或 X/videos/...（第二段是已知媒体目录），
-    无论 X 是什么（兼容项目改名），都视为旧格式并剥掉第一段。
+    识别方式：从第二段开始扫描，找到第一个已知媒体目录（images/videos），
+    将其及后续部分作为项目相对路径，兼容 project_path 为多层路径的情况。
 
     Args:
         src: 原始 src 字符串
@@ -566,13 +566,13 @@ def _normalize_media_src(src: str) -> str:
     normalized = src.lstrip("/")
     parts = normalized.split("/")
 
-    # 模式匹配：路径第二段是已知媒体目录（images/videos）
-    # 形如 "any-prefix/images/xxx.jpg" → "images/xxx.jpg"
-    # 无论第一段是什么，均视为旧的 workspace 相对路径并剥掉前缀，兼容项目改名的情况
-    if len(parts) >= 3 and parts[1] in _CANONICAL_MEDIA_DIRS:
-        new_src = "/".join(parts[1:])
-        logger.info(f"Normalized src from old workspace-relative format '{src}' to '{new_src}'")
-        return new_src
+    # 从第二段开始扫描（index=0 跳过，避免将已是项目相对路径的 images/xxx.jpg 误处理）
+    # 支持多层 project_path，如 xx/yy/images/a.jpg → images/a.jpg
+    for i in range(1, len(parts)):
+        if parts[i] in _CANONICAL_MEDIA_DIRS:
+            new_src = "/".join(parts[i:])
+            logger.info(f"Normalized src from old workspace-relative format '{src}' to '{new_src}'")
+            return new_src
 
     return src
 

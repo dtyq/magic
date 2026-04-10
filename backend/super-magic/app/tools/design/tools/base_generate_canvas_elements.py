@@ -609,8 +609,44 @@ class BaseGenerateCanvasElements(BaseDesignTool[TParams], Generic[TParams]):
         async def do_update(config: Any) -> List[ElementDetail]:
             success = await manager.update_element(element_id, update_dict, config=config)
             if not success:
-                logger.warning(f"更新占位符失败 (id={element_id}): 元素未找到")
-                return []
+                # 元素不存在，可能在生成任务执行期间被外部改写 magic.project.js 覆盖
+                # 若有完整的位置与尺寸信息（Phase 1 新建的占位符），则按原位置重建并直接写入最终状态
+                can_recreate = (
+                    placeholder.x is not None
+                    and placeholder.y is not None
+                    and placeholder.width
+                    and placeholder.height
+                )
+                if not can_recreate:
+                    logger.warning(
+                        f"更新占位符失败 (id={element_id}): 元素未找到，缺少位置信息无法重新创建"
+                    )
+                    return []
+
+                logger.warning(
+                    f"占位符 (id={element_id}) 在任务执行期间消失，按原位置重新创建并应用最终状态"
+                )
+                all_elements = (
+                    flatten_all_elements(config)
+                    if config.canvas and config.canvas.elements
+                    else []
+                )
+                z_indices = [e.zIndex for e in all_elements if e.zIndex is not None]
+                z_index = (max(z_indices) + 1) if z_indices else 1
+                info = TaskPlaceholderInfo(
+                    name=placeholder.name,
+                    width=placeholder.width,
+                    height=placeholder.height,
+                    element_type=placeholder.type or "image",
+                )
+                recreated = self._make_placeholder_element(
+                    element_id, info, placeholder.x, placeholder.y, z_index
+                )
+                for key, value in update_dict.items():
+                    if hasattr(recreated, key):
+                        setattr(recreated, key, value)
+                await manager.add_element(recreated, config=config)
+
             element = await manager.get_element_by_id(element_id, config=config)
             if element is None:
                 return []
