@@ -556,37 +556,36 @@ class BaseTool(Generic[T], ABC):
         if not input_str:
             return None
 
-        # 检测模式和对应的类型映射
         patterns = {
             "list": {
                 "prefixes": ("[", "'[", '"['),
                 "type_names": ("list_type", "array"),
                 "correct_example": '["item1", "item2"]',
-                "description": "数组"
+                "description": "array"
             },
             "dict": {
                 "prefixes": ("{", "'{", '"{'),
                 "type_names": ("dict_type", "object", "model"),
                 "correct_example": '{"key": "value"}',
-                "description": "对象"
+                "description": "object"
             },
             "int": {
                 "check": lambda s: s.isdigit() or (s.startswith("-") and s[1:].isdigit()),
                 "type_names": ("int_type", "integer"),
                 "correct_example": '123',
-                "description": "整数"
+                "description": "integer"
             },
             "float": {
                 "check": lambda s: s.replace(".", "", 1).replace("-", "", 1).isdigit(),
                 "type_names": ("float_type", "number"),
                 "correct_example": '123.45',
-                "description": "浮点数"
+                "description": "float"
             },
             "bool": {
                 "check": lambda s: s.lower() in ("true", "false"),
                 "type_names": ("bool_type", "boolean"),
-                "correct_example": 'true 或 false',
-                "description": "布尔值"
+                "correct_example": 'true or false',
+                "description": "boolean"
             }
         }
 
@@ -616,10 +615,10 @@ class BaseTool(Generic[T], ABC):
                 display_value = input_str if len(input_str) <= 50 else input_str[:50] + "..."
 
                 return (
-                    f"\n[检测到错误] 你似乎把 {desc} 序列化成了字符串"
-                    f"\n[错误] 当前传入: \"{display_value}\" (这是字符串类型)"
-                    f"\n[正确] 应直接传入 {desc} 类型: {example}"
-                    f"\n[说明] 不要把 JSON {desc} 转为字符串，应直接使用 JSON 格式"
+                    f"\nYou passed a string that looks like a serialized {desc}."
+                    f"\n  Got: \"{display_value}\""
+                    f"\n  Expected: raw JSON {desc}, e.g. {example}"
+                    f"\n  Do NOT stringify JSON values — pass them directly."
                 )
 
         return None
@@ -634,28 +633,26 @@ class BaseTool(Generic[T], ABC):
         Returns:
             类型提示文本
         """
-        # 类型提示映射
         type_hints = {
-            "list": '应传入数组，如 ["value1", "value2"]',
-            "array": '应传入数组，如 ["value1", "value2"]',
-            "dict": '应传入对象，如 {"key": "value"}',
-            "object": '应传入对象，如 {"key": "value"}',
-            "int": '应传入整数，如 123',
-            "integer": '应传入整数，如 123',
-            "float": '应传入数字，如 123.45',
-            "number": '应传入数字，如 123 或 123.45',
-            "bool": '应传入布尔值，如 true 或 false',
-            "boolean": '应传入布尔值，如 true 或 false',
-            "string": '应传入字符串，如 "text"',
-            "str": '应传入字符串，如 "text"',
+            "list": 'Expected array, e.g. ["value1", "value2"]',
+            "array": 'Expected array, e.g. ["value1", "value2"]',
+            "dict": 'Expected object, e.g. {"key": "value"}',
+            "object": 'Expected object, e.g. {"key": "value"}',
+            "int": 'Expected integer, e.g. 123',
+            "integer": 'Expected integer, e.g. 123',
+            "float": 'Expected number, e.g. 123.45',
+            "number": 'Expected number, e.g. 123 or 123.45',
+            "bool": 'Expected boolean, e.g. true or false',
+            "boolean": 'Expected boolean, e.g. true or false',
+            "string": 'Expected string, e.g. "text"',
+            "str": 'Expected string, e.g. "text"',
         }
 
-        # 尝试从 err_type 或 expected_type 中提取类型关键字
         for key, hint in type_hints.items():
             if key in err_type.lower() or key in expected_type.lower():
-                return f"\n[提示] {hint}"
+                return f"\n{hint}"
 
-        return f"\n[提示] 期望类型为 {expected_type}，请检查参数格式"
+        return f"\nExpected type: {expected_type}"
 
     def _find_similar_param_names(self, wrong_param: str, valid_params: List[str], threshold: float = 0.6) -> List[Tuple[str, float]]:
         """查找相似的参数名（模糊匹配）
@@ -709,11 +706,10 @@ class BaseTool(Generic[T], ABC):
         except Exception as e:
             logger.debug(f"获取有效参数名列表失败: {e}")
 
-        # 分类收集各类验证错误，用于生成结构化的友好提示
-        missing_fields = []  # 缺少必填参数
-        type_errors = []  # 参数类型错误
-        unknown_param_errors = []  # 未知参数（会触发相似度匹配提示）
-        other_errors = []  # 其他验证错误
+        missing_fields = []
+        type_errors = []
+        unknown_param_errors = []
+        other_errors = []
 
         for err in error_details:
             err_type = err.get("type", "")
@@ -722,71 +718,53 @@ class BaseTool(Generic[T], ABC):
             if err_type == "missing":
                 missing_fields.append(field_path)
             elif err_type == "extra_forbidden":
-                # Pydantic 检测到未定义的额外参数（AI 传入了工具不认识的参数名）
-                # 效果示例：AI 传 'explantion' → 提示"你是否想用 'explanation'（85%）"
                 wrong_param = field_path
-
-                # 在有效参数中查找相似度 >= 60% 的参数名
                 similar_params = self._find_similar_param_names(wrong_param, valid_params)
 
-                error_msg = f"参数 '{wrong_param}' 不存在"
-
+                error_msg = f"Unknown parameter '{wrong_param}'"
                 if similar_params:
-                    # 找到相似参数：输出候选列表并标注相似度，帮助 AI 快速纠正
-                    error_msg += "\n[检测到相似参数] 你是否想使用以下参数？"
+                    error_msg += "\nDid you mean:"
                     for param_name, similarity in similar_params:
-                        similarity_percent = int(similarity * 100)
-                        error_msg += f"\n  - '{param_name}' (相似度: {similarity_percent}%)"
-                    error_msg += "\n[说明] 工具定义可能已更新，请检查参数名是否正确"
+                        error_msg += f"\n  - '{param_name}' ({int(similarity * 100)}% match)"
                 else:
-                    # 未找到相似参数：可能是完全错误的参数名或严重拼写错误
-                    error_msg += "\n[提示] 该参数不在工具的参数定义中，请检查拼写或查看工具文档"
+                    error_msg += "\nThis parameter is not defined. Check spelling or tool documentation."
 
                 unknown_param_errors.append(error_msg)
-            elif "type" in err_type:  # 类型错误，如 list_type, dict_type, int_type 等
-                # 获取预期类型
-                expected_type = "有效值"
+            elif "type" in err_type:
+                expected_type = "valid value"
                 if "expected_type" in err.get("ctx", {}):
                     expected_type = err["ctx"]["expected_type"]
                 elif "expected" in err.get("ctx", {}):
                     expected_type = err["ctx"]["expected"]
 
-                # 获取实际值的类型和值
-                received_type = "无效类型"
+                received_type = "invalid type"
                 input_value = err.get("input", "")
                 if "input_type" in err.get("ctx", {}):
                     received_type = err["ctx"]["input_type"]
                 elif "received" in err.get("ctx", {}):
                     received_type = str(type(err["ctx"]["received"]).__name__)
 
-                # 基础错误消息
-                error_msg = f"参数 '{field_path}' 类型错误: 期望 {expected_type}，实际接收 {received_type}"
+                error_msg = f"Parameter '{field_path}': expected {expected_type}, got {received_type}"
 
-                # 检测 JSON 序列化错误（通用逻辑）
                 serialization_hint = self._detect_json_serialization_error(input_value, received_type, err_type)
                 if serialization_hint:
                     error_msg += serialization_hint
                 else:
-                    # 如果没有检测到序列化错误，提供通用的类型提示
                     type_hint = self._generate_type_hint(err_type, expected_type)
                     error_msg += type_hint
 
                 type_errors.append(error_msg)
             else:
-                # 其他类型的错误
-                msg = err.get("msg", "未知错误")
-                other_errors.append(f"参数 '{field_path}': {msg}")
+                msg = err.get("msg", "unknown error")
+                other_errors.append(f"Parameter '{field_path}': {msg}")
 
-        # 按优先级组装错误消息：未知参数 > 缺失参数 > 类型错误 > 其他错误
-        # 未知参数优先：因为包含相似度提示，能最快帮 AI 定位问题
         pretty_msg_parts = []
 
         if missing_fields:
-            fields_str = "、".join(missing_fields)
-            pretty_msg_parts.append(f"缺少必填参数: {fields_str}")
+            fields_str = ", ".join(missing_fields)
+            pretty_msg_parts.append(f"Missing required parameter(s): {fields_str}")
 
         if unknown_param_errors:
-            # 使用双换行分隔多个未知参数错误，保持可读性
             pretty_msg_parts.append("\n\n".join(unknown_param_errors))
 
         if type_errors:
@@ -796,11 +774,13 @@ class BaseTool(Generic[T], ABC):
             pretty_msg_parts.append("\n".join(other_errors))
 
         if not pretty_msg_parts:
-            # 如果没有解析出具体错误，提供一个通用的错误消息
-            return f"工具 '{tool_name}' 参数验证失败，请检查参数格式"
+            return f"Tool '{tool_name}' parameter validation failed."
 
-        result = "工具调用失败\n\n" + "\n\n".join(pretty_msg_parts)
-        result += "\n\n[建议] 确保参数是语法正确的 JSON 格式，如果内容过长可能导致截断，请分批处理"
+        result = "Tool call failed\n\n" + "\n\n".join(pretty_msg_parts)
+        result += (
+            "\n\nIf arguments were too long and got truncated, "
+            "break the work into smaller pieces."
+        )
 
         return result
 

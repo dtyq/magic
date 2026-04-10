@@ -140,6 +140,8 @@ class ToolExecutionResult:
     """Tool execution result with exit detection"""
     should_exit: bool = False
     final_response: Optional[str] = None
+    # 检测到某个工具因超长参数导致校验失败（参数有效但缺字段，通常是模型输出过长导致）
+    has_long_args_failure: bool = False
 
 
 @dataclass
@@ -1084,13 +1086,14 @@ class Agent(BaseAgent):
                 except Exception as _horizon_err:
                     logger.warning(f"[AgentHorizon] tool result 后注入失败: {_horizon_err}")
 
-                # 工具参数截断恢复：工具已报出具体错误（如 "Missing required parameter 'content'"），
-                # 再追加恢复提示让模型在下一轮主动拆分输出，避免反复用同样方式重试
-                if tool_args_truncated:
+                # 工具参数截断/超长恢复：preprocess 检测到 JSON 截断（tool_args_truncated）或
+                # 执行后检测到参数超长导致校验失败（has_long_args_failure），
+                # 追加恢复提示让模型在下一轮主动拆分输出
+                if tool_args_truncated or tool_result.has_long_args_failure:
                     await self._try_inject_output_recovery_message(
                         loop_state,
                         "One or more tool calls above failed because their arguments were "
-                        "truncated — the content was too long and got cut off. "
+                        "truncated or incomplete — the content was too long. "
                         "Do NOT retry with the same approach. "
                         "Break the work into smaller pieces.",
                         source="tool_args_truncation_recovery",
@@ -1692,10 +1695,43 @@ class Agent(BaseAgent):
         # 处理工具调用结果
         should_exit, final_response = await self._process_tool_call_results(tool_call_results)
 
+        # 检测"工具校验失败 + 参数超长"模式：模型输出过长时可能生成有效 JSON 但缺少必填字段，
+        # 这种情况 preprocess 阶段不会标记 tool_args_truncated，需要在执行后补充检测
+        has_long_args_failure = self._detect_long_args_failure(
+            llm_context.tool_calls, tool_call_results
+        )
+
         return ToolExecutionResult(
             should_exit=should_exit,
-            final_response=final_response
+            final_response=final_response,
+            has_long_args_failure=has_long_args_failure,
         )
+
+    # 工具参数长度阈值：超过此值的失败工具调用被视为"超长参数导致的校验失败"
+    _LONG_ARGS_THRESHOLD = 2000
+
+    def _detect_long_args_failure(
+        self,
+        tool_calls: List[ToolCall],
+        tool_call_results: List[ToolResult],
+    ) -> bool:
+        """检测是否有工具因超长参数导致校验失败。
+
+        场景：模型输出过长时生成的 JSON 语法正确但缺少必填字段，preprocess 阶段
+        无法识别（参数非空 {}），但工具执行时 Pydantic 校验会报 missing field。
+        """
+        for tc, result in zip(tool_calls, tool_call_results):
+            if not result or result.ok:
+                continue
+            args_str = tc.function.arguments if tc.function else ""
+            if len(args_str) > self._LONG_ARGS_THRESHOLD:
+                logger.warning(
+                    f"检测到工具 '{tc.function.name}' 校验失败且参数超长 "
+                    f"({len(args_str)} chars > {self._LONG_ARGS_THRESHOLD})，"
+                    f"可能是模型输出过长导致参数不完整"
+                )
+                return True
+        return False
 
     async def _process_tool_call_results(self, tool_call_results: List[ToolResult]) -> tuple[bool, Optional[str]]:
         """
