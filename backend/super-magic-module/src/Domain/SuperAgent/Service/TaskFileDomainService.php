@@ -2754,35 +2754,6 @@ class TaskFileDomainService
         return false;
     }
 
-    private function findDirectChildByName(
-        int $projectId,
-        int $parentId,
-        string $fileName,
-        bool $isDirectory
-    ): ?TaskFileEntity {
-        $limit = 200;
-        $offset = 0;
-
-        do {
-            $children = $this->taskFileRepository->getChildrenByParentIdsAndProject(
-                $projectId,
-                [$parentId],
-                $limit,
-                $offset
-            );
-
-            foreach ($children as $child) {
-                if ($child->getFileName() === $fileName && $child->getIsDirectory() === $isDirectory) {
-                    return $child;
-                }
-            }
-
-            $offset += count($children);
-        } while (count($children) === $limit);
-
-        return null;
-    }
-
     /**
      * Overwrite an existing project file's content in cloud storage and update its size in the DB.
      * Returns null if the file does not exist in the task file index or does not belong to the given project.
@@ -2928,6 +2899,35 @@ class TaskFileDomainService
             'deleted_directories' => $deletedDirectories,
             'deleted_objects' => count($deleteResult['deleted'] ?? []),
         ];
+    }
+
+    private function findDirectChildByName(
+        int $projectId,
+        int $parentId,
+        string $fileName,
+        bool $isDirectory
+    ): ?TaskFileEntity {
+        $limit = 200;
+        $offset = 0;
+
+        do {
+            $children = $this->taskFileRepository->getChildrenByParentIdsAndProject(
+                $projectId,
+                [$parentId],
+                $limit,
+                $offset
+            );
+
+            foreach ($children as $child) {
+                if ($child->getFileName() === $fileName && $child->getIsDirectory() === $isDirectory) {
+                    return $child;
+                }
+            }
+
+            $offset += count($children);
+        } while (count($children) === $limit);
+
+        return null;
     }
 
     /**
