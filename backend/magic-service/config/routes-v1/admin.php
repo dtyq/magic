@@ -100,6 +100,7 @@ Router::addGroup('/api/v1/admin', static function () {
         Router::get('/sub-admins/{id}', [RoleApi::class, 'getSubAdminById']);
     }, ['middleware' => [RequestContextMiddleware::class]]);
 
+    // 模型权限相关
     Router::addGroup('/model-access-roles', static function () {
         Router::get('/meta', [ModelAccessRoleApi::class, 'meta']);
         Router::post('/meta', [ModelAccessRoleApi::class, 'updateMeta']);

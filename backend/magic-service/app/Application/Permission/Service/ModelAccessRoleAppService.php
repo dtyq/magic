@@ -95,6 +95,7 @@ class ModelAccessRoleAppService extends AbstractPermissionAppService
                 'is_default' => $role->isDefault(),
                 'parent_role_id' => $role->getParentRoleId() === null ? null : (string) $role->getParentRoleId(),
                 'parent_role_name' => $parent?->getName(),
+                'model_ids' => $role->getModelIds(),
                 'model_count' => count($role->getModelIds()),
                 'user_count' => count($role->getUserIds()),
                 'created_at' => $role->getCreatedAt()?->format('Y-m-d H:i:s'),
