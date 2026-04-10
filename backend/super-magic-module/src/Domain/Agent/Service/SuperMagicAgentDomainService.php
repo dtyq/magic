@@ -658,7 +658,8 @@ readonly class SuperMagicAgentDomainService
         string $code,
         int $projectId,
         string $fullWorkdir,
-        ?string $sourcePath = null
+        ?string $sourcePath = null,
+        string $authorization = ''
     ): array {
         // Build sandbox ID (same strategy as file converter)
         $sandboxId = WorkDirectoryUtil::generateUniqueCodeFromSnowflakeId($projectId . '_custom_agent');
@@ -672,7 +673,7 @@ readonly class SuperMagicAgentDomainService
 
         // Ensure sandbox is running
         $this->sandboxGateway->setUserContext($dataIsolation->getCurrentUserId(), $dataIsolation->getCurrentOrganizationCode());
-        $this->sandboxGateway->ensureSandboxAvailable($sandboxId, (string) $projectId, $fullWorkdir, $rootFileId);
+        $this->sandboxGateway->ensureSandboxAvailable($sandboxId, (string) $projectId, $fullWorkdir, $rootFileId, $authorization);
 
         // Build upload_config: STS credentials for private bucket, matches sandbox API contract
         $uploadConfig = $this->cloudFileRepository->getStsTemporaryCredential(

@@ -28,6 +28,7 @@ class ChatMessageRequest
         private string $modelId = '',
         private array $dynamicConfig = [],
         private array $metadata = [],
+        private string $type = 'chat',
     ) {
     }
 
@@ -72,6 +73,23 @@ class ChatMessageRequest
     public function setMcpConfig(array $mcpConfig): void
     {
         $this->mcpConfig = $mcpConfig;
+    }
+
+    /**
+     * 获取消息类型.
+     */
+    public function getType(): string
+    {
+        return $this->type;
+    }
+
+    /**
+     * 设置消息类型.
+     */
+    public function setType(string $type): self
+    {
+        $this->type = $type;
+        return $this;
     }
 
     /**
@@ -272,7 +290,7 @@ class ChatMessageRequest
             'message_id' => ! empty($this->messageId) ? $this->messageId : (string) IdGenerator::getSnowId(),
             'user_id' => $this->userId,
             'task_id' => $this->taskId,
-            'type' => 'chat',
+            'type' => $this->type,
             'prompt' => $this->prompt,
             'task_mode' => $this->taskMode,
             'agent_mode' => $this->agentMode,

@@ -364,15 +364,19 @@ class AgentDomainService
      */
     public function createSandbox(DataIsolation $dataIsolation, string $projectId, string $sandboxID, string $workDir, string $rootFileId = ''): string
     {
+        // 获取用户 authorization token，用于沙箱创建时的身份验证
+        $authorization = $this->getAuthorizationByUserId($dataIsolation->getCurrentUserId());
+
         $this->logger->debug('[Sandbox][App] Creating sandbox', [
             'project_id' => $projectId,
             'sandbox_id' => $sandboxID,
             'project_oss_path' => $workDir,
             'root_file_id' => $rootFileId,
+            'authorization_provided' => $authorization !== '',
         ]);
 
         $this->gateway->setUserContext($dataIsolation->getCurrentUserId(), $dataIsolation->getCurrentOrganizationCode());
-        $result = $this->gateway->createSandbox($projectId, $sandboxID, $workDir, $rootFileId);
+        $result = $this->gateway->createSandbox($projectId, $sandboxID, $workDir, $rootFileId, $authorization);
 
         // 添加详细的调试日志，检查 result 对象
         $this->logger->debug('[Sandbox][App] Gateway result analysis', [

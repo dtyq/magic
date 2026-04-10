@@ -60,6 +60,7 @@ use Dtyq\SuperMagic\Domain\Skill\Entity\SkillVersionEntity;
 use Dtyq\SuperMagic\Domain\Skill\Entity\ValueObject\SkillDataIsolation;
 use Dtyq\SuperMagic\Domain\Skill\Entity\ValueObject\SkillMentionSource;
 use Dtyq\SuperMagic\Domain\Skill\Service\SkillDomainService;
+use Dtyq\SuperMagic\Domain\SuperAgent\Service\AgentDomainService;
 use Dtyq\SuperMagic\Domain\SuperAgent\Service\ProjectDomainService;
 use Dtyq\SuperMagic\Domain\SuperAgent\Service\TaskFileDomainService;
 use Dtyq\SuperMagic\ErrorCode\SuperAgentErrorCode;
@@ -109,6 +110,9 @@ class SuperMagicAgentAppService extends AbstractSuperMagicAppService
 
     #[Inject]
     protected MagicUserDomainService $magicUserDomainService;
+
+    #[Inject]
+    protected AgentDomainService $agentDomainService;
 
     #[Transactional]
     public function save(Authenticatable $authorization, SuperMagicAgentEntity $entity, bool $checkPrompt = true): SuperMagicAgentEntity
@@ -1225,11 +1229,14 @@ class SuperMagicAgentAppService extends AbstractSuperMagicAppService
         $fullPrefix = $this->taskFileDomainService->getFullPrefix($project->getUserOrganizationCode());
         $fullWorkdir = WorkDirectoryUtil::getFullWorkdir($fullPrefix, $project->getWorkDir());
 
+        $authToken = $this->agentDomainService->getAuthorizationByUserId($dataIsolation->getCurrentUserId());
+
         return $this->superMagicAgentDomainService->exportAgentFromSandbox(
             $dataIsolation,
             $code,
             $projectId,
-            $fullWorkdir
+            $fullWorkdir,
+            authorization: $authToken
         );
     }
 
@@ -1656,12 +1663,15 @@ class SuperMagicAgentAppService extends AbstractSuperMagicAppService
         $fullPrefix = $this->taskFileDomainService->getFullPrefix($project->getUserOrganizationCode());
         $fullWorkdir = WorkDirectoryUtil::getFullWorkdir($fullPrefix, $project->getWorkDir());
 
+        $authToken = $this->agentDomainService->getAuthorizationByUserId($dataIsolation->getCurrentUserId());
+
         return $this->superMagicAgentDomainService->exportAgentFromSandbox(
             $dataIsolation,
             $code,
             $projectId,
             $fullWorkdir,
-            $sourcePath
+            $sourcePath,
+            $authToken
         );
     }
 
