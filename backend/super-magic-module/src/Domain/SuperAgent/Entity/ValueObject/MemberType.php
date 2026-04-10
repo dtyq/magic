@@ -7,9 +7,6 @@ declare(strict_types=1);
 
 namespace Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject;
 
-use App\Infrastructure\Core\Exception\ExceptionBuilder;
-use Dtyq\SuperMagic\ErrorCode\SuperAgentErrorCode;
-
 /**
  * 成员类型值对象
  *
@@ -23,12 +20,12 @@ enum MemberType: string
     /**
      * 从字符串创建实例.
      */
-    public static function fromString(string $type): self
+    public static function fromString(string $type): ?self
     {
         return match ($type) {
             'User' => self::USER,
             'Department' => self::DEPARTMENT,
-            default => ExceptionBuilder::throw(SuperAgentErrorCode::INVALID_MEMBER_TYPE)
+            default => null
         };
     }
 

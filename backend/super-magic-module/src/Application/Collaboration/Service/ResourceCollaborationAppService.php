@@ -340,7 +340,7 @@ class ResourceCollaborationAppService extends AbstractKernelAppService
             $memberType = $this->createMemberTypeFromTargetType($operationPermission->getTargetType());
             $memberRole = $this->convertOperationToMemberRole($operationPermission->getOperation());
             if ($memberRole === null) {
-                ExceptionBuilder::throw(SuperAgentErrorCode::MEMBER_VALIDATION_FAILED, 'project.member_validation_failed');
+                continue;
             }
 
             $key = $memberType->value . '_' . $operationPermission->getTargetId();

@@ -27,14 +27,14 @@ enum MemberRole: string
     /**
      * 从字符串创建实例.
      */
-    public static function fromString(string $role): self
+    public static function fromString(string $role): ?self
     {
         return match ($role) {
             'owner' => self::OWNER,
             'manage' => self::MANAGE,
             'editor' => self::EDITOR,
             'viewer' => self::VIEWER,
-            default => ExceptionBuilder::throw(SuperAgentErrorCode::INVALID_MEMBER_ROLE, trans('project.invalid_member_role'))
+            default => null
         };
     }
 
