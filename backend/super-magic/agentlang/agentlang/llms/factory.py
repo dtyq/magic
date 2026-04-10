@@ -133,6 +133,7 @@ class LLMFactory:
         enable_llm_response_events: bool = False,
         llm_call_retry_count: int = 0,
         extra_body: Optional[Dict[str, Any]] = None,
+        max_output_tokens_override: Optional[int] = None,
     ) -> ChatCompletion:
         """使用工具支持调用 LLM。
 
@@ -183,15 +184,23 @@ class LLMFactory:
         current_tokens = await get_current_tokens(agent_context, request_id)
 
         # 构建请求参数
+        # max_tokens 策略：起手用 min(DEFAULT_INITIAL_MAX_TOKENS, 配置上限)，
+        # 撞 finish_reason=length 后由 agent 传入 max_output_tokens_override 扩容
+        _DEFAULT_INITIAL_MAX_TOKENS = 8192
+        if max_output_tokens_override is not None:
+            effective_max_tokens = max_output_tokens_override
+        else:
+            effective_max_tokens = min(_DEFAULT_INITIAL_MAX_TOKENS, llm_config.max_output_tokens)
+
         request_params = {
             "model": llm_config.name,
             "messages": messages,
             "temperature": llm_config.temperature,
-            "max_tokens": llm_config.max_output_tokens,
+            "max_tokens": effective_max_tokens,
             "top_p": llm_config.top_p,
         }
 
-        # 部分模型测试应用 max_tokens 参数
+        # 部分模型硬编码 max_tokens 覆盖
         if llm_config.name == "deepseek-reasoner" or llm_config.name == "deepseek-chat":
             request_params["max_tokens"] = 16384
 

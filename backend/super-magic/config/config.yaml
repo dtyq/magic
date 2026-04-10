@@ -133,7 +133,7 @@ models:
     type: "llm"
     supports_tool_use: true
     provider: "openai"
-    max_output_tokens: 8192
+    max_output_tokens: 64000
     max_context_tokens: 200000
     temperature: 0.7
     pricing:
@@ -150,7 +150,7 @@ models:
     type: "llm"
     supports_tool_use: true
     provider: "openai"
-    max_output_tokens: 8192
+    max_output_tokens: 64000
     max_context_tokens: 200000
     temperature: 0.7
     pricing:

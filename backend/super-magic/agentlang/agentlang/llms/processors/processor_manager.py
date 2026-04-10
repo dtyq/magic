@@ -17,7 +17,12 @@ from agentlang.config.config import config
 from agentlang.interface.context import AgentContextInterface
 from agentlang.logger import get_logger
 from agentlang.llms.error_classifier import LLMErrorClassifier
-from agentlang.exceptions import LLMFastRetryExhaustedException, StreamInterruptedError, find_in_exception_chain
+from agentlang.exceptions import (
+    LLMFastRetryExhaustedException,
+    StreamChunkTimeoutError,
+    StreamInterruptedError,
+    find_in_exception_chain,
+)
 from .streaming_call_processor import StreamingCallProcessor
 from .processor_config import ProcessorConfig
 from .regular_call_processor import RegularCallProcessor
@@ -132,12 +137,9 @@ class ProcessorManager:
             #
             # 本层是异常的"决策"层，职责：
             # 1. 上下文超长 → 直接抛出，不做任何重试
-            # 2. 结构性流中断 → 跳过后续流式重试，直接走非流式 fallback
-            # 3. 普通流式失败 → 由重试策略决定是否继续流式重试或进入 fallback
+            # 2. 收到过 chunk 后失败 → 直接走非流式 fallback（中途断连，流式重试大概率同样失败）
+            # 3. 首包未到就失败 → 按重试策略继续流式重试（可能是临时网络问题）
             # 4. 非流式 fallback 也失败 → 包装为 LLMFastRetryExhaustedException 终止外层重试
-            #
-            # find_in_exception_chain 会遍历完整异常图（含 __cause__/__context__ 和侧链），
-            # 即使 StreamInterruptedError 被中间层包装在 RuntimeError 中也能找到。
             except Exception as stream_error:
                 error_snapshot = LLMErrorClassifier.extract_snapshot(stream_error)
                 if LLMErrorClassifier.is_context_window_exceeded(error_snapshot):
@@ -148,23 +150,30 @@ class ProcessorManager:
                 enable_non_stream_fallback: bool = config.get(
                     "llm.enable_non_stream_fallback", _DEFAULT_ENABLE_NON_STREAM_FALLBACK
                 )
+                # 结构性流中断检测：只要收到过 chunk 就说明连接建立过、中途断了，
+                # 流式重试大概率遇到同样问题，直接走非流式 fallback。
+                # 首包未到（chunk_count=0）才按原方式流式重试（可能是临时网络问题）。
+                received_chunks = 0
                 si = find_in_exception_chain(stream_error, StreamInterruptedError)
+                sct = find_in_exception_chain(stream_error, StreamChunkTimeoutError)
                 if si is not None:
-                    if si.chunk_count > 10 or si.total_elapsed_seconds > 30:
-                        logger.warning(
-                            f"[{request_id}] 结构性流中断 "
-                            f"(chunks={si.chunk_count}, elapsed={si.total_elapsed_seconds:.1f}s)，"
-                            f"跳过后续流式重试"
-                        )
-                        if enable_non_stream_fallback:
-                            # 强制走非流式 fallback，跳过下面的 allow_non_stream_fallback 判断
-                            processor_config.allow_non_stream_fallback = True
-                        else:
-                            raise LLMFastRetryExhaustedException(
-                                f"Structural stream interruption after {si.chunk_count} chunks / "
-                                f"{si.total_elapsed_seconds:.1f}s, non-stream fallback disabled",
-                                stream_error=stream_error,
-                            ) from stream_error
+                    received_chunks = si.chunk_count
+                elif sct is not None:
+                    received_chunks = sct.chunk_count
+
+                if received_chunks > 0:
+                    logger.warning(
+                        f"[{request_id}] 流式中途失败（已收到 {received_chunks} chunks），"
+                        f"跳过流式重试，直接降级非流式"
+                    )
+                    if enable_non_stream_fallback:
+                        processor_config.allow_non_stream_fallback = True
+                    else:
+                        raise LLMFastRetryExhaustedException(
+                            f"Stream failed after receiving {received_chunks} chunks, "
+                            f"non-stream fallback disabled",
+                            stream_error=stream_error,
+                        ) from stream_error
 
                 if not processor_config.allow_non_stream_fallback:
                     # 默认只做流式快重试；只有流式预算耗尽后的最后一轮，且显式开启开关时，

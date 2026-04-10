@@ -83,6 +83,8 @@ class AgentLoopState:
     should_continue: bool = True
     # 输出过长恢复消息的累计注入次数（共享上限 3 次，覆盖 finish_reason=length 和流中断两种场景）
     output_recovery_count: int = 0
+    # max_tokens 递增：起手用较小值，撞限后扩容到配置上限静默重试一次
+    max_tokens_escalated: bool = False
 
 
 @dataclass
@@ -916,7 +918,11 @@ class Agent(BaseAgent):
         Args:
             assistant_message: 包含pending工具调用的assistant消息
         """
-        message_content = "当前工具调用被用户打断，请结合用户的新请求判断是否要继续执行上一个工具调用，如果需要，则以相同的调用参数继续执行；若用户是想要中断当前的任务去执行新的任务，则忽略之前的工具调用，并根据用户的新请求给出新的响应"
+        message_content = (
+            "The previous tool call was interrupted by a new user message. "
+            "Decide whether to resume the interrupted tool call with the same arguments, "
+            "or abandon it and respond to the new request instead."
+        )
 
         # 为所有pending的工具调用添加中断消息
         await self._add_interruption_messages(assistant_message.tool_calls, message_content)
@@ -983,7 +989,12 @@ class Agent(BaseAgent):
 
                     try:
                         llm_context = await self._prepare_and_call_llm(
-                            llm_call_retry_count=loop_state.llm_call_retry_count
+                            llm_call_retry_count=loop_state.llm_call_retry_count,
+                            max_output_tokens_override=(
+                                self.model_config.max_output_tokens
+                                if loop_state.max_tokens_escalated and hasattr(self, 'model_config') and self.model_config
+                                else None
+                            ),
                         )
                     except LLMCallRequestException as e:
                         # 仅把真实 provider 调用失败归入 llm retry，前后置准备/解析异常仍按普通异常处理。
@@ -999,9 +1010,29 @@ class Agent(BaseAgent):
                         continue
                     loop_state.last_llm_message = llm_context.message  # 保存用于循环结束时的最终响应
 
-                    # finish_reason=length 恢复：输出撞到 max_tokens 上限，
-                    # 保留截断的 assistant 消息并注入恢复提示让模型从断点继续
+                    # finish_reason=length 恢复：输出撞到 max_tokens 上限。
+                    # 第一次撞限：静默扩容 max_tokens 到配置上限，用相同请求重试（不注入恢复消息）。
+                    # 已扩容还撞限：清空截断的 tool_calls 参数，注入恢复消息让模型拆小输出。
                     if llm_context.finish_reason == "length":
+                        if not loop_state.max_tokens_escalated:
+                            loop_state.max_tokens_escalated = True
+                            logger.warning(
+                                "finish_reason=length，静默扩容 max_tokens 到配置上限后重试"
+                            )
+                            continue
+
+                        if llm_context.has_tool_calls:
+                            for tc in llm_context.tool_calls:
+                                if tc.function:
+                                    tc.function.arguments = "{}"
+                            if llm_context.message and llm_context.message.tool_calls:
+                                for tc in llm_context.message.tool_calls:
+                                    if hasattr(tc, 'function') and tc.function:
+                                        tc.function.arguments = "{}"
+                            logger.warning(
+                                "finish_reason=length（已扩容）且有 tool_calls，"
+                                "保留工具名、清空截断参数"
+                            )
                         await self._add_tool_calls_to_history(llm_context)
                         injected = await self._try_inject_output_recovery_message(
                             loop_state,
@@ -1248,8 +1279,11 @@ class Agent(BaseAgent):
         """
         logger.info("检测到用户有新的请求，将中断之前的工具调用，并让 LLM 处理新请求")
 
-        # 添加中断消息
-        message_content = "当前工具调用被用户打断，请结合用户的新请求判断是否要继续执行上一个工具调用，如果需要，则以相同的调用参数继续执行；若用户是想要中断当前的任务去执行新的任务，则忽略之前的工具调用，并根据用户的新请求给出新的响应"
+        message_content = (
+            "The previous tool call was interrupted by a new user message. "
+            "Decide whether to resume the interrupted tool call with the same arguments, "
+            "or abandon it and respond to the new request instead."
+        )
 
         # 为所有工具调用添加中断消息
         await self._add_interruption_messages(second_last_message.tool_calls, message_content)
@@ -1269,7 +1303,7 @@ class Agent(BaseAgent):
         # 不需要为每个工具调用单独添加消息，避免消息重复
         if tool_calls:
             interrupt_assistant_msg = AssistantMessage(
-                content=f"工具调用被用户中断：{message_content}"
+                content=f"Tool call interrupted: {message_content}"
             )
             try:
                 await self.chat_history.insert_message_before_last(interrupt_assistant_msg)
@@ -1424,12 +1458,17 @@ class Agent(BaseAgent):
         return f"The conversation is too long and must be compacted now. You must call the `compact_chat_history` tool immediately.\n\n{self._compact_skill_content}"
 
 
-    async def _prepare_and_call_llm(self, llm_call_retry_count: int = 0) -> LLMResponseContext:
+    async def _prepare_and_call_llm(
+        self,
+        llm_call_retry_count: int = 0,
+        max_output_tokens_override: Optional[int] = None,
+    ) -> LLMResponseContext:
         """
         准备与LLM的对话，处理消息，调用LLM并解析响应
 
         Args:
             llm_call_retry_count: LLM call 重试次数，0表示第一次调用，>0表示重试调用
+            max_output_tokens_override: 覆盖默认的 max_output_tokens（用于 finish_reason=length 后扩容）
 
         Returns:
             LLMResponseContext: 包含LLM响应的所有相关数据
@@ -1450,7 +1489,7 @@ class Agent(BaseAgent):
         # 记录调用开始时间并调用LLM
         llm_start_time = time.time()
         try:
-            chat_response = await self._call_llm(messages_for_llm, llm_call_retry_count)
+            chat_response = await self._call_llm(messages_for_llm, llm_call_retry_count, max_output_tokens_override)
         except Exception as e:
             raise LLMCallRequestException(e) from e
         llm_duration_ms = (time.time() - llm_start_time) * 1000
@@ -2036,9 +2075,33 @@ Since your subsequent output will be merged with pre-interruption content and di
         # 处理中断的工具调用
         await self._handle_interrupted_tool_calls(exception)
 
-        # LLM 内层快速重试已耗尽：直接结束本轮，不再外层退避重试
+        # LLM 内层快速重试已耗尽（流式 + 非流式 fallback 均失败）
         for exc in self._iter_exception_chain(exception):
             if isinstance(exc, LLMFastRetryExhaustedException):
+                # 检查原始流式错误是否收到过 chunk：有 chunk 说明模型输出太长导致失败，
+                # 注入提示词让模型拆小输出后重来，而不是直接终止任务
+                has_chunks = False
+                if exc.stream_error:
+                    for se in self._iter_exception_chain(exc.stream_error):
+                        if isinstance(se, (StreamInterruptedError, StreamChunkTimeoutError)) and se.chunk_count > 0:
+                            has_chunks = True
+                            break
+                if has_chunks:
+                    logger.warning(
+                        f"LLM 快速重试已耗尽但原始流式曾收到 chunk，"
+                        f"注入恢复消息后继续 agent loop: {exc}"
+                    )
+                    await self._try_inject_output_recovery_message(
+                        loop_state,
+                        "Your previous response was interrupted because it was too long. "
+                        "Break remaining work into smaller pieces and generate shorter responses.",
+                        source="stream_exhausted_recovery",
+                    )
+                    # 不 return，继续走后面的重试计数逻辑；
+                    # 如果后面 stream_interruption_recovery 也命中，
+                    # output_recovery_count 计数器会自动去重
+                    break
+
                 logger.warning(f"LLM 快速重试已耗尽，停止外层泛化重试: {exc}")
                 await self._append_agent_run_exception_context_safely(exc)
                 loop_state.last_llm_message = None
@@ -2122,13 +2185,11 @@ Since your subsequent output will be merged with pre-interruption content and di
 
         # 如果可以继续，执行等待
         if can_continue:
-            # 结构性流中断（流已正常输出很久后被切断）重试前注入提示，
+            # 流中途失败（收到过 chunk 后断连/超时）重试前注入提示，
             # 让模型在下一轮主动拆小输出，避免反复撞同一个网络超时
             if is_llm_retry_path:
                 for exc in self._iter_exception_chain(exception):
-                    if isinstance(exc, StreamInterruptedError) and (
-                        exc.chunk_count > 10 or exc.total_elapsed_seconds > 30
-                    ):
+                    if isinstance(exc, (StreamInterruptedError, StreamChunkTimeoutError)) and exc.chunk_count > 0:
                         await self._try_inject_output_recovery_message(
                             loop_state,
                             "Your previous response was interrupted because it was too long. "
@@ -2281,12 +2342,18 @@ Since your subsequent output will be merged with pre-interruption content and di
         # 目前未实现流式处理，返回空值
         return None
 
-    async def _call_llm(self, messages: List[Dict[str, Any]], llm_call_retry_count: int = 0) -> ChatCompletion:
+    async def _call_llm(
+        self,
+        messages: List[Dict[str, Any]],
+        llm_call_retry_count: int = 0,
+        max_output_tokens_override: Optional[int] = None,
+    ) -> ChatCompletion:
         """调用 LLM
 
         Args:
             messages: 聊天消息历史
             llm_call_retry_count: LLM call 重试次数，0表示第一次调用，>0表示重试调用
+            max_output_tokens_override: 覆盖默认的 max_output_tokens（用于 finish_reason=length 后扩容）
         """
 
         # 构建工具列表：基础工具 + 授权的 MCP 工具
@@ -2356,16 +2423,16 @@ Since your subsequent output will be merged with pre-interruption content and di
         processor_config.model_name = effective_model_name
 
         try:
-            # 使用 LLMFactory.call_with_tool_support 方法统一处理工具调用
             llm_response: ChatCompletion = await LLMFactory.call_with_tool_support(
                 effective_model_id,
-                messages, # 传递字典列表
+                messages,
                 tools=tools_list if tools_list else None,
                 stop=self.agent_context.stop_sequences if hasattr(self.agent_context, 'stop_sequences') else None,
                 agent_context=self.agent_context,
                 processor_config=processor_config,
-                enable_llm_response_events=True,  # 开启LLM响应事件触发
-                llm_call_retry_count=llm_call_retry_count  # 传递 LLM call 重试次数
+                enable_llm_response_events=True,
+                llm_call_retry_count=llm_call_retry_count,
+                max_output_tokens_override=max_output_tokens_override,
             )
         except ResourceLimitExceededException:
             raise

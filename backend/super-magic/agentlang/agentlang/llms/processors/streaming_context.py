@@ -671,9 +671,17 @@ class StreamResponseHandler:
             raise
         except asyncio.TimeoutError as timeout_err:
             StreamingLogger.log_stream_timeout(request_id, state, stream_timeout, correlation_id)
+            # 已收到 chunk 时转为 StreamChunkTimeoutError，让 Layer 3 能检测到
+            # chunk_count 并触发非流式降级；否则保持 asyncio.TimeoutError 走首包重试
+            if state.received_chunk_count > 0:
+                raise StreamChunkTimeoutError(
+                    chunk_count=state.received_chunk_count,
+                    chunk_timeout_seconds=stream_timeout,
+                    total_elapsed_seconds=stream_timeout,
+                ) from timeout_err
             raise asyncio.TimeoutError(
                 f"Stream total timeout (safeguard): exceeded {stream_timeout}s limit. "
-                f"Processed {state.received_chunk_count} chunks."
+                f"No chunks received."
             ) from timeout_err
 
         except Exception as stream_error:
