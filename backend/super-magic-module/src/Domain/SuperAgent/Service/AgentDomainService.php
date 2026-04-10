@@ -686,7 +686,7 @@ class AgentDomainService
      * @param string $sandboxId Sandbox ID
      * @param null|callable $interruptChecker Interrupt checker closure, return true to interrupt
      * @param int $maxWaitSeconds Maximum wait time in seconds (default 5 minutes)
-     * @param int $checkIntervalSeconds Check interval in seconds (default 2 seconds)
+     * @param int $checkIntervalMs Check interval in milliseconds (default 100 ms)
      * @return bool True if workspace is ready, false if interrupted
      * @throws WorkspaceReadyTimeoutException When timeout occurs
      * @throws SandboxOperationException When initialization fails or error occurs
@@ -694,13 +694,13 @@ class AgentDomainService
     public function waitForWorkspaceReady(
         string $sandboxId,
         int $maxWaitSeconds = 300,
-        int $checkIntervalSeconds = 2,
+        int $checkIntervalMs = 100,
         ?callable $interruptChecker = null
     ): bool {
         $this->logger->debug('[Sandbox][App] Waiting for workspace to be ready', [
             'sandbox_id' => $sandboxId,
             'max_wait_seconds' => $maxWaitSeconds,
-            'check_interval_seconds' => $checkIntervalSeconds,
+            'check_interval_ms' => $checkIntervalMs,
             'has_interrupt_checker' => $interruptChecker !== null,
         ]);
 
@@ -777,7 +777,9 @@ class AgentDomainService
             }
 
             // 4. Wait before retry
-            sleep($checkIntervalSeconds);
+            if ($checkIntervalMs > 0) {
+                usleep($checkIntervalMs * 1000);
+            }
         }
     }
 
