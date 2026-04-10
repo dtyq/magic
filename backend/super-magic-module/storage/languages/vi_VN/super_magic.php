@@ -74,7 +74,7 @@ return [
         'publisher_type_invalid' => 'Invalid publisher type',
         'publish_target_value_required' => 'publish_target_value is required for current publish target type',
         'publish' => [
-            'identity_md_not_found' => 'Thiếu tệp IDENTITY.md. Vui lòng khởi tạo nhân viên trước, sau đó nhấn xuất bản',
+            'identity_md_not_found' => 'Xuất bản thất bại: không tìm thấy tệp bắt buộc :path dưới thư mục gốc của dự án. Vui lòng thêm tệp này rồi thử lại.',
         ],
     ],
     'task' => [

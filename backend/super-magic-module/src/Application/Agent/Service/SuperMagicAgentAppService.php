@@ -77,6 +77,8 @@ use Throwable;
 
 class SuperMagicAgentAppService extends AbstractSuperMagicAppService
 {
+    private const REQUIRED_IDENTITY_PATH = '.magic/IDENTITY.md';
+
     #[Inject]
     protected SkillDomainService $skillDomainService;
 
@@ -1792,12 +1794,13 @@ class SuperMagicAgentAppService extends AbstractSuperMagicAppService
     /**
      * Validate that IDENTITY.md exists in the agent project before publishing.
      */
-    private function validateIdentityMdExists(int $projectId, ?string $sourcePath): void
+    private function validateIdentityMdExists(int $projectId): void
     {
-        if (! $this->taskFileDomainService->existsFileByName($projectId, 'IDENTITY.md')) {
+        if (! $this->taskFileDomainService->existsStrictAgentIdentityFile($projectId)) {
             ExceptionBuilder::throw(
                 SuperAgentErrorCode::PUBLISH_IDENTITY_MD_NOT_FOUND,
-                'super_magic.agent.publish.identity_md_not_found'
+                'super_magic.agent.publish.identity_md_not_found',
+                ['path' => self::REQUIRED_IDENTITY_PATH]
             );
         }
     }
@@ -2297,7 +2300,7 @@ class SuperMagicAgentAppService extends AbstractSuperMagicAppService
             }
 
             $sourcePath = $this->resolvePublishExportSourcePath($agentEntity->getProjectId());
-            $this->validateIdentityMdExists($agentEntity->getProjectId(), $sourcePath);
+            $this->validateIdentityMdExists($agentEntity->getProjectId());
             $fileMetadata = $this->exportFileFromProject($authorization, $code, $agentEntity->getProjectId(), $sourcePath);
             $agentEntity->setFileKey($fileMetadata['file_key']);
         } else {

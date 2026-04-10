@@ -188,6 +188,36 @@ class TaskFileDomainService
     }
 
     /**
+     * Check whether the agent identity file exists strictly at ".magic/IDENTITY.md".
+     * The file location is validated purely from the directory tree:
+     * root -> .magic -> IDENTITY.md.
+     */
+    public function existsStrictAgentIdentityFile(int $projectId): bool
+    {
+        $rootDir = $this->getRootFile($projectId);
+        if ($rootDir === null) {
+            return false;
+        }
+
+        $magicDir = $this->findDirectChildByName(
+            $projectId,
+            $rootDir->getFileId(),
+            '.magic',
+            true
+        );
+        if ($magicDir === null) {
+            return false;
+        }
+
+        return $this->findDirectChildByName(
+            $projectId,
+            $magicDir->getFileId(),
+            'IDENTITY.md',
+            false
+        ) !== null;
+    }
+
+    /**
      * 递归查询目录下所有文件（使用 parent_id 索引，高性能）.
      * 利用 idx_project_parent_sort 索引进行广度优先遍历.
      * 使用批量查询避免 N+1 问题.
@@ -2722,6 +2752,35 @@ class TaskFileDomainService
         }
 
         return false;
+    }
+
+    private function findDirectChildByName(
+        int $projectId,
+        int $parentId,
+        string $fileName,
+        bool $isDirectory
+    ): ?TaskFileEntity {
+        $limit = 200;
+        $offset = 0;
+
+        do {
+            $children = $this->taskFileRepository->getChildrenByParentIdsAndProject(
+                $projectId,
+                [$parentId],
+                $limit,
+                $offset
+            );
+
+            foreach ($children as $child) {
+                if ($child->getFileName() === $fileName && $child->getIsDirectory() === $isDirectory) {
+                    return $child;
+                }
+            }
+
+            $offset += count($children);
+        } while (count($children) === $limit);
+
+        return null;
     }
 
     /**
