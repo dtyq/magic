@@ -1044,17 +1044,25 @@ class Agent(BaseAgent):
                         if injected:
                             continue
 
-                    # 在保存到聊天记录前先预处理工具参数
+                    # 预处理工具参数：修复畸形 JSON、检测截断
                     if llm_context.has_tool_calls:
                         preprocess_result = preprocess_tool_calls_batch(llm_context.tool_calls)
                         if preprocess_result.processed_count > 0:
                             logger.debug(f"工具调用参数预处理完成，处理了 {preprocess_result.processed_count} 个工具调用")
-                        # 标记截断，让工具先正常执行（报出具体参数缺失错误），
-                        # 工具结果返回后再注入恢复消息
+                        # 参数截断说明 max_tokens 不够（部分模型截断时仍返回 finish_reason=tool_calls
+                        # 而非 length，所以 finish_reason=length 分支漏检）。
+                        # 未扩容时先静默扩容重试；已扩容则标记截断，让工具执行后注入恢复消息。
                         if preprocess_result.has_truncation:
+                            if not loop_state.max_tokens_escalated:
+                                loop_state.max_tokens_escalated = True
+                                logger.warning(
+                                    f"工具参数被截断 ({', '.join(preprocess_result.truncated_tool_names)})，"
+                                    f"静默扩容 max_tokens 后重试"
+                                )
+                                continue
                             tool_args_truncated = True
                             logger.warning(
-                                f"检测到工具参数截断: "
+                                f"检测到工具参数截断（已扩容）: "
                                 f"{', '.join(preprocess_result.truncated_tool_names)}"
                             )
 

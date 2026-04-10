@@ -501,7 +501,7 @@ class BaseTool(Generic[T], ABC):
             except Exception as e:
                 # 其他类型的异常
                 logger.error(f"参数验证失败: {e!s}")
-                pretty_error = f"工具 '{self.get_effective_name()}' 的参数验证失败，请检查输入参数的格式是否正确"
+                pretty_error = f"Parameter validation failed for tool '{self.get_effective_name()}'. Check the input parameter format."
                 result = ToolResult.error(pretty_error, name=str(self.get_effective_name()))
                 execution_time = time.time() - start_time
                 self._end_tool_span(span, result, execution_time, e)

@@ -262,23 +262,8 @@ class LLMFactory:
                 llm_call_retry_count=llm_call_retry_count
             )
 
-            # 统一修复工具调用参数的JSON格式
-            if response and response.choices and len(response.choices) > 0:
-                message = response.choices[0].message
-                if message and message.tool_calls:
-                    from agentlang.utils.tool_param_utils import preprocess_tool_calls_batch
-                    # 保存修复前的原始参数，用于修复后对比日志
-                    original_arguments = [tc.function.arguments for tc in message.tool_calls]
-                    preprocess_result = preprocess_tool_calls_batch(message.tool_calls)
-                    if preprocess_result.processed_count > 0:
-                        logger.info(f"[{request_id}] LLM响应修复了 {preprocess_result.processed_count} 个工具调用的参数格式")
-                        for i, tc in enumerate(message.tool_calls):
-                            logger.info(f"[{request_id}] [修复前] Tool Call #{i}: id={tc.id}, name={tc.function.name}, arguments: {original_arguments[i]}")
-                            logger.info(f"[{request_id}] [修复后] Tool Call #{i} arguments: {tc.function.arguments}")
-                    if preprocess_result.has_truncation:
-                        logger.warning(
-                            f"[{request_id}] 检测到工具参数截断: {preprocess_result.truncated_tool_names}"
-                        )
+            # 工具参数的 JSON 修复和截断检测统一在 agent.py 做，
+            # 避免 factory 层提前修复导致 agent 层丢失截断信息
 
             # 统一记录 token 使用情况
             cls.token_tracker.record_llm_usage(
