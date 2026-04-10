@@ -120,6 +120,9 @@ func newPodReporter(log util.LoggerGroup, label string) *installPodReporter {
 		showDetails := confirming || stableRounds >= installWatchStableRounds
 
 		if reporterAnsiEnabled() {
+			if completed {
+				return
+			}
 			frame := frames[frameIdx%len(frames)]
 			frameIdx++
 			lines := []string{fmt.Sprintf("%c [waiting] %s pods (%d/%d ready)", frame, label, ready, total)}
@@ -136,13 +139,6 @@ func newPodReporter(log util.LoggerGroup, label string) *installPodReporter {
 				}
 			}
 			lastRenderLines = renderSpinnerLines(waitOutput, lines, lastRenderLines)
-
-			if completed {
-				// Keep later terminal output on a fresh line when callers re-render
-				// after the ready footer has already finalized the spinner block.
-				_, _ = fmt.Fprint(waitOutput, "\n")
-				return
-			}
 
 			if readyFooter {
 				_, _ = fmt.Fprint(waitOutput, "\n")

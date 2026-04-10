@@ -316,7 +316,9 @@ func TestNewPodReporter_TTYSecondReportAfterReadyKeepsTrailingNewline(t *testing
 
 	reporter.Confirm()
 	reporter.Report(pods)
+	completedRender := out.String()
 	reporter.Report(pods)
+	assert.Equal(t, completedRender, out.String(), "completed tty report should not emit extra output")
 	_, _ = out.WriteString("[next]\n")
 
 	assert.Contains(t, out.String(), "\n[next]\n", "next terminal output should start on a new line")
