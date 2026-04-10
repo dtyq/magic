@@ -128,9 +128,9 @@ On failure: re-read and verify anchor existence/uniqueness -> increase anchor le
 
             if not file_path.exists():
                 tool_context.set_metadata("error_type", "edit_file.error_file_not_exist")
-                return ToolResult(
-                    error=f"File does not exist: {file_path}\n"
-                          "Use write_file to create new files."
+                return ToolResult.error(
+                    f"File does not exist: {file_path}\n"
+                    "Use write_file to create new files."
                 )
 
             is_valid, error_message = await self.get_horizon(tool_context).validate_file_not_modified(file_path)
@@ -150,15 +150,13 @@ On failure: re-read and verify anchor existence/uniqueness -> increase anchor le
                 ai_warnings.extend(resolution.warnings)
             except ValueError as match_error:
                 tool_context.set_metadata("error_type", "edit_file.error_match_failed")
-                return ToolResult(
-                    error=(
-                        f"Range match failed: {match_error}\n\n"
-                        "SOLUTIONS:\n"
-                        "1. Re-read current file content around range anchors to check if it has been modified, then retry with latest text\n"
-                        "2. Ensure anchors are copied character-by-character (whitespace, punctuation, indentation, newlines)\n"
-                        "3. If multiple attempts fail and edit_file is available (for short/precise edits), try edit_file\n"
-                        "4. As a last resort, use shell commands or a Python script for precise edits"
-                    )
+                return ToolResult.error(
+                    f"Range match failed: {match_error}\n\n"
+                    "SOLUTIONS:\n"
+                    "1. Re-read current file content around range anchors to check if it has been modified, then retry with latest text\n"
+                    "2. Ensure anchors are copied character-by-character (whitespace, punctuation, indentation, newlines)\n"
+                    "3. If multiple attempts fail and edit_file is available (for short/precise edits), try edit_file\n"
+                    "4. As a last resort, use shell commands or a Python script for precise edits"
                 )
 
             new_content = (
@@ -234,12 +232,12 @@ On failure: re-read and verify anchor existence/uniqueness -> increase anchor le
         except Exception as e:
             logger.exception(f"Failed to edit file range: {e}")
             tool_context.set_metadata("error_type", "edit_file.error_unexpected")
-            return ToolResult(
-                error="The edit_file_range tool encountered an unexpected error. "
-                      "First re-read current file content around range anchors to check if it has been modified, then retry with latest text. "
-                      "Then check exact character alignment in anchors (whitespace/punctuation/newlines). "
-                      "If multiple attempts fail and the edit_file tool is available (for short/precise edits), try it. "
-                      "As a last resort, use shell commands or write a Python script."
+            return ToolResult.error(
+                "The edit_file_range tool encountered an unexpected error. "
+                "First re-read current file content around range anchors to check if it has been modified, then retry with latest text. "
+                "Then check exact character alignment in anchors (whitespace/punctuation/newlines). "
+                "If multiple attempts fail and the edit_file tool is available (for short/precise edits), try it. "
+                "As a last resort, use shell commands or write a Python script."
             )
 
     async def _read_file(self, file_path: Path) -> str:
