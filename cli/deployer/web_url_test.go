@@ -70,3 +70,12 @@ func TestValidateWebBaseURL_RejectsUnsupportedScheme(t *testing.T) {
 	assert.Contains(t, err.Error(), `invalid web URL "ftp://magic.example.com"`)
 	assert.Contains(t, err.Error(), "scheme must be http or https")
 }
+
+func TestValidateWebBaseURL_RejectsUserInfo(t *testing.T) {
+	raw := "https://user:pass@magic.example.com"
+
+	err := ValidateWebBaseURL(raw)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), `invalid web URL "`+raw+`"`)
+	assert.Contains(t, err.Error(), "must not contain userinfo")
+}

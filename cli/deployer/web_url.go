@@ -27,6 +27,10 @@ func ValidateWebBaseURL(raw string) error {
 		return fmt.Errorf(`invalid web URL %q: scheme must be http or https`, raw)
 	}
 
+	if u.User != nil {
+		return fmt.Errorf(`invalid web URL %q: must not contain userinfo`, raw)
+	}
+
 	host := u.Hostname()
 	if isListenAddress(host) {
 		return fmt.Errorf(
