@@ -7,8 +7,6 @@ declare(strict_types=1);
 
 namespace App\Application\ModelGateway\Service;
 
-use App\Application\ModelGateway\DTO\ImageRemoveBackgroundResultDTO;
-use App\Application\ModelGateway\DTO\ImageRemoveBackgroundTestResultDTO;
 use App\Domain\ModelGateway\Entity\Dto\ImageRemoveBackgroundRequestDTO;
 use App\Domain\ModelGateway\Entity\ValueObject\ModelGatewayDataIsolation;
 use App\Domain\Provider\Entity\ValueObject\AiAbilityCode;
@@ -49,8 +47,9 @@ class ImageRemoveBackgroundAppService extends ImageLLMAppService
      * 连通性测试入口，允许使用未保存的临时配置校验 provider 可用性。
      *
      * @param array<string, mixed> $config
+     * @return array{success: bool, latency_ms: int, message: string}
      */
-    public function testConnection(MagicUserAuthorization $authorization, array $config): ImageRemoveBackgroundTestResultDTO
+    public function testConnection(MagicUserAuthorization $authorization, array $config): array
     {
         $startedAt = microtime(true);
         /** @var TemporaryFileManager $temporaryFileManager */
@@ -91,22 +90,22 @@ class ImageRemoveBackgroundAppService extends ImageLLMAppService
                 'latency_ms' => $latencyMs,
             ]);
 
-            return new ImageRemoveBackgroundTestResultDTO([
+            return [
                 'success' => true,
                 'latency_ms' => $latencyMs,
                 'message' => __('response.success'),
-            ]);
+            ];
         } catch (ImageRemoveBackgroundDriverException $exception) {
             $this->logger->warning('ImageRemoveBackgroundTestConnectionProviderFail', [
                 'error' => $exception->getMessage(),
                 'provider' => $exception->getProvider(),
                 'provider_error_code' => $exception->getProviderErrorCode(),
             ]);
-            return new ImageRemoveBackgroundTestResultDTO([
+            return [
                 'success' => false,
                 'latency_ms' => (int) round((microtime(true) - $startedAt) * 1000),
                 'message' => $exception->getMessage(),
-            ]);
+            ];
         } catch (Throwable $throwable) {
             $this->logger->error('ImageRemoveBackgroundTestConnectionException', [
                 'error' => $throwable->getMessage(),
@@ -116,11 +115,11 @@ class ImageRemoveBackgroundAppService extends ImageLLMAppService
                 $message = __($message);
             }
 
-            return new ImageRemoveBackgroundTestResultDTO([
+            return [
                 'success' => false,
                 'latency_ms' => (int) round((microtime(true) - $startedAt) * 1000),
                 'message' => $message,
-            ]);
+            ];
         } finally {
             if ($uploadedTestFileKey !== '') {
                 $this->fileDomainService->deleteFile($authorization->getOrganizationCode(), $uploadedTestFileKey, StorageBucketType::Public);
@@ -171,13 +170,12 @@ class ImageRemoveBackgroundAppService extends ImageLLMAppService
             }
 
             $temporaryFileManager->add($driverResponse->getResultFilePath());
-            $result = $this->uploadResultFile(
+            $response = $this->uploadResultFile(
                 $dataIsolation,
                 $driverResponse->getResultFilePath(),
                 $driverResponse->getMimeType(),
                 $providerCode
             );
-            $response = $result->toOpenAIFormatResponse();
             $responseData = $response->toArray();
 
             $this->logger->info('ImageRemoveBackgroundSuccess', [
@@ -292,7 +290,7 @@ class ImageRemoveBackgroundAppService extends ImageLLMAppService
         string $resultFilePath,
         string $mimeType,
         string $providerCode = ''
-    ): ImageRemoveBackgroundResultDTO {
+    ): OpenAIFormatResponse {
         $uploadFile = new UploadFile(
             $resultFilePath,
             'open/remove-background',
@@ -313,9 +311,15 @@ class ImageRemoveBackgroundAppService extends ImageLLMAppService
             ExceptionBuilder::throw(MagicApiErrorCode::MODEL_RESPONSE_FAIL, __('image_generate.file_upload_failed', ['error' => 'result_url_missing']));
         }
 
-        return new ImageRemoveBackgroundResultDTO([
-            'url' => $fileLink->getUrl(),
-            'mime_type' => $mimeType,
+        return new OpenAIFormatResponse([
+            'created' => time(),
+            'data' => [
+                [
+                    'url' => $fileLink->getUrl(),
+                    'mime_type' => $mimeType,
+                ],
+            ],
+            'usage' => null,
             'provider' => $providerCode,
         ]);
     }
