@@ -17,8 +17,6 @@ use App\Domain\Permission\Entity\ModelAccessRoleEntity;
 use App\Domain\Permission\Entity\ValueObject\PermissionControlStatus;
 use App\Domain\Permission\Entity\ValueObject\PermissionDataIsolation;
 use App\Domain\Permission\Repository\Persistence\ModelAccessRoleRepository;
-use App\Domain\Provider\Entity\ValueObject\ProviderDataIsolation;
-use App\Domain\Provider\Service\ProviderModelDomainService;
 use App\ErrorCode\PermissionErrorCode;
 use App\Infrastructure\Core\Exception\ExceptionBuilder;
 use App\Infrastructure\Core\ValueObject\Page;
@@ -30,7 +28,6 @@ readonly class ModelAccessRoleDomainService
         private ModelAccessRoleRepository $repository,
         private AdminGlobalSettingsRepositoryInterface $adminGlobalSettingsRepository,
         private MagicUserDomainService $magicUserDomainService,
-        private ProviderModelDomainService $providerModelDomainService,
     ) {
     }
 
@@ -326,17 +323,8 @@ readonly class ModelAccessRoleDomainService
 
     private function validateModels(string $organizationCode, array $modelIds): void
     {
-        if (empty($modelIds)) {
-            return;
-        }
-
-        $modelMap = $this->providerModelDomainService->getModelsByModelIds(
-            ProviderDataIsolation::create($organizationCode),
-            $modelIds
-        );
-        if (count($modelMap) !== count(array_unique($modelIds))) {
-            ExceptionBuilder::throw(PermissionErrorCode::ValidateFailed, 'some model_ids not found');
-        }
+        // Model access roles store model_id strings directly.
+        // Do not validate against provider model records here.
     }
 
     /**

@@ -124,6 +124,16 @@ class ModelAccessRoleAppService extends AbstractPermissionAppService
             ProviderDataIsolation::create($dataIsolation->getCurrentOrganizationCode()),
             $role->getModelIds()
         );
+        $fallbackModelNames = [];
+        foreach ($role->getModelIds() as $modelId) {
+            if (isset($modelMap[$modelId][0])) {
+                continue;
+            }
+            $model = $this->providerModelDomainService->getModelByModelId($modelId);
+            if ($model !== null) {
+                $fallbackModelNames[$modelId] = $model->getName();
+            }
+        }
 
         $parentName = null;
         if ($role->getParentRoleId()) {
@@ -140,11 +150,11 @@ class ModelAccessRoleAppService extends AbstractPermissionAppService
             'inherited_path' => $this->buildInheritedPath($dataIsolation, $role),
             'model_ids' => $role->getModelIds(),
             'user_ids' => $role->getUserIds(),
-            'model_items' => array_map(static function (string $modelId) use ($modelMap) {
+            'model_items' => array_map(static function (string $modelId) use ($modelMap, $fallbackModelNames) {
                 $first = $modelMap[$modelId][0] ?? null;
                 return [
                     'model_id' => $modelId,
-                    'model_name' => $first?->getName() ?? $modelId,
+                    'model_name' => $first?->getName() ?? ($fallbackModelNames[$modelId] ?? $modelId),
                 ];
             }, $role->getModelIds()),
             'user_items' => array_map(static function (string $userId) use ($userInfo) {
