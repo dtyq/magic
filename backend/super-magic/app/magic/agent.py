@@ -81,6 +81,8 @@ class AgentLoopState:
     final_response: Optional[str] = None
     last_llm_message: Optional[ChatCompletionMessage] = None
     should_continue: bool = True
+    # 输出过长恢复消息的累计注入次数（共享上限 3 次，覆盖 finish_reason=length 和流中断两种场景）
+    output_recovery_count: int = 0
 
 
 @dataclass
@@ -92,6 +94,7 @@ class LLMResponseContext:
     duration_ms: float = 0.0
     request_id: Optional[str] = None
     is_streaming: bool = False  # 标识是否来自流式调用
+    finish_reason: Optional[str] = None  # LLM 返回的完成原因（stop/length/tool_calls 等）
 
     def __post_init__(self):
         if self.tool_calls is None:
@@ -934,6 +937,8 @@ class Agent(BaseAgent):
             self._restore_pre_compact_model(reason="LLM 未调用压缩工具，新一轮调用前还原")
 
             try:
+                tool_args_truncated = False
+
                 # 如果预检测到pending工具调用，直接使用它
                 if session_prep_result.pending_assistant_message:
                     logger.info("使用预检测的pending工具调用，直接恢复执行")
@@ -997,11 +1002,33 @@ class Agent(BaseAgent):
                         continue
                     loop_state.last_llm_message = llm_context.message  # 保存用于循环结束时的最终响应
 
-                    # ✨ 新增：在保存到聊天记录前先预处理工具参数
+                    # finish_reason=length 恢复：输出撞到 max_tokens 上限，
+                    # 保留截断的 assistant 消息并注入恢复提示让模型从断点继续
+                    if llm_context.finish_reason == "length":
+                        await self._add_tool_calls_to_history(llm_context)
+                        injected = await self._try_inject_output_recovery_message(
+                            loop_state,
+                            "Output token limit hit. Resume directly — no apology, no recap. "
+                            "Pick up mid-thought if that is where the cut happened. "
+                            "Break remaining work into smaller pieces.",
+                            source="max_output_tokens_recovery",
+                        )
+                        if injected:
+                            continue
+
+                    # 在保存到聊天记录前先预处理工具参数
                     if llm_context.has_tool_calls:
-                        processed_count = preprocess_tool_calls_batch(llm_context.tool_calls)
-                        if processed_count > 0:
-                            logger.debug(f"工具调用参数预处理完成，处理了 {processed_count} 个工具调用")
+                        preprocess_result = preprocess_tool_calls_batch(llm_context.tool_calls)
+                        if preprocess_result.processed_count > 0:
+                            logger.debug(f"工具调用参数预处理完成，处理了 {preprocess_result.processed_count} 个工具调用")
+                        # 标记截断，让工具先正常执行（报出具体参数缺失错误），
+                        # 工具结果返回后再注入恢复消息
+                        if preprocess_result.has_truncation:
+                            tool_args_truncated = True
+                            logger.warning(
+                                f"检测到工具参数截断: "
+                                f"{', '.join(preprocess_result.truncated_tool_names)}"
+                            )
 
                     # 添加工具调用响应到历史（现在包含修复后的参数）
                     await self._add_tool_calls_to_history(llm_context)
@@ -1061,6 +1088,18 @@ class Agent(BaseAgent):
                     logger.debug("[AgentHorizon] 已注入 tool result 后 system_injected_context")
                 except Exception as _horizon_err:
                     logger.warning(f"[AgentHorizon] tool result 后注入失败: {_horizon_err}")
+
+                # 工具参数截断恢复：工具已报出具体错误（如 "Missing required parameter 'content'"），
+                # 再追加恢复提示让模型在下一轮主动拆分输出，避免反复用同样方式重试
+                if tool_args_truncated:
+                    await self._try_inject_output_recovery_message(
+                        loop_state,
+                        "One or more tool calls above failed because their arguments were "
+                        "truncated — the content was too long and got cut off. "
+                        "Do NOT retry with the same approach. "
+                        "Break the work into smaller pieces.",
+                        source="tool_args_truncation_recovery",
+                    )
 
                 if tool_result.should_exit:
                     loop_state.final_response = tool_result.final_response
@@ -1488,7 +1527,8 @@ class Agent(BaseAgent):
             token_usage=token_usage,
             duration_ms=llm_duration_ms,
             request_id=current_request_id,
-            is_streaming=actual_entered_stream_phase  # 根据实际是否进入流式阶段来设置
+            is_streaming=actual_entered_stream_phase,  # 根据实际是否进入流式阶段来设置
+            finish_reason=chat_response.choices[0].finish_reason if chat_response.choices else None,
         )
 
     def _resolve_effective_model_info(self) -> tuple[str, str]:
@@ -1909,6 +1949,39 @@ Since your subsequent output will be merged with pre-interruption content and di
         except Exception as e:
             logger.error(f"Failed to backup chat history before compact: {e}", exc_info=True)
 
+    # 输出过长恢复消息的共享上限
+    _MAX_OUTPUT_RECOVERY_LIMIT = 3
+
+    async def _try_inject_output_recovery_message(
+        self,
+        loop_state: AgentLoopState,
+        message: str,
+        source: str,
+    ) -> bool:
+        """尝试注入"输出过长"恢复消息到聊天历史。
+        共享计数器，超过上限时不再注入。覆盖 finish_reason=length 和流中断两种场景。
+
+        Returns:
+            是否成功注入
+        """
+        if loop_state.output_recovery_count >= self._MAX_OUTPUT_RECOVERY_LIMIT:
+            logger.info(
+                f"[{source}] 输出恢复消息已达上限 {self._MAX_OUTPUT_RECOVERY_LIMIT} 次，跳过注入"
+            )
+            return False
+        loop_state.output_recovery_count += 1
+        try:
+            await self.chat_history.append_user_message(
+                message, show_in_ui=False, source=source,
+            )
+            logger.warning(
+                f"[{source}] 注入恢复消息 (#{loop_state.output_recovery_count}/{self._MAX_OUTPUT_RECOVERY_LIMIT})"
+            )
+            return True
+        except Exception as e:
+            logger.warning(f"[{source}] 注入恢复消息失败: {e}")
+            return False
+
     async def _handle_agent_loop_exception(
         self,
         exception: Exception,
@@ -2018,6 +2091,21 @@ Since your subsequent output will be merged with pre-interruption content and di
 
         # 如果可以继续，执行等待
         if can_continue:
+            # 结构性流中断（流已正常输出很久后被切断）重试前注入提示，
+            # 让模型在下一轮主动拆小输出，避免反复撞同一个网络超时
+            if is_llm_retry_path:
+                for exc in self._iter_exception_chain(exception):
+                    if isinstance(exc, StreamInterruptedError) and (
+                        exc.chunk_count > 100 or exc.total_elapsed_seconds > 60
+                    ):
+                        await self._try_inject_output_recovery_message(
+                            loop_state,
+                            "Your previous response was interrupted because it was too long. "
+                            "Break remaining work into smaller pieces and generate shorter responses.",
+                            source="stream_interruption_recovery",
+                        )
+                        break
+
             if is_llm_retry_path:
                 logger.warning(
                     f"LLM 调用失败，跳过外层指数退避，直接进入下一次循环 "

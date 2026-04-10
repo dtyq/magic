@@ -5,6 +5,7 @@
 
 import json
 import json_repair
+from dataclasses import dataclass, field
 from typing import Dict, Any, List
 from agentlang.logger import get_logger
 
@@ -242,7 +243,19 @@ def preprocess_tool_call_arguments(tool_call) -> bool:
     return False
 
 
-def preprocess_tool_calls_batch(tool_calls: List) -> int:
+@dataclass
+class PreprocessResult:
+    """工具参数预处理结果"""
+    processed_count: int = 0
+    # JSON 无法修复而被置为空 {} 的工具名列表，通常意味着模型输出被截断
+    truncated_tool_names: List[str] = field(default_factory=list)
+
+    @property
+    def has_truncation(self) -> bool:
+        return len(self.truncated_tool_names) > 0
+
+
+def preprocess_tool_calls_batch(tool_calls: List) -> PreprocessResult:
     """
     批量预处理工具调用参数
 
@@ -250,15 +263,22 @@ def preprocess_tool_calls_batch(tool_calls: List) -> int:
         tool_calls: 工具调用列表
 
     Returns:
-        int: 处理的工具调用数量
+        PreprocessResult: 包含处理计数和截断检测信息
     """
-    processed_count = 0
+    result = PreprocessResult()
 
     for tool_call in tool_calls:
         try:
+            # 记录预处理前的参数，用于检测是否被置为空
+            original_args = tool_call.function.arguments
+            had_content = original_args and original_args.strip() and original_args != "{}"
+
             if preprocess_tool_call_arguments(tool_call):
-                processed_count += 1
+                result.processed_count += 1
+                # 有实际内容但被修复为空 {} → 高度疑似输出截断
+                if had_content and tool_call.function.arguments == "{}":
+                    result.truncated_tool_names.append(tool_call.function.name)
         except Exception as e:
             logger.error(f"预处理工具调用时出错: {e}")
 
-    return processed_count
+    return result

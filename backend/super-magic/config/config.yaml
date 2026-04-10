@@ -56,10 +56,10 @@ llm:
   stream_first_chunk_timeout_schedule_seconds: [90, 120, 150]
   # 收到首包后，后续每个 chunk 的等待上限
   stream_chunk_timeout_seconds: 60
-  # 是否启用非流式 fallback；默认关闭，只保留代码路径便于后续按需重新打开
-  enable_non_stream_fallback: false
-  # 非流式 fallback 单独超时（当前默认关闭，仅在显式开启时生效）
-  non_stream_fallback_timeout_seconds: 330
+  # 非流式 fallback：流式快重试全部失败后，最后一轮用非流式兜底
+  enable_non_stream_fallback: true
+  # 非流式 fallback 单独超时
+  non_stream_fallback_timeout_seconds: 300
 
 # 当前活动的 Agent 模式 (可通过 ACTIVE_AGENT_MODE 环境变量覆盖)
 # 可选值: apex(至强模式), efficient(高性价比模式), flash(极速模式)

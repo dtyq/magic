@@ -260,12 +260,16 @@ class LLMFactory:
                     from agentlang.utils.tool_param_utils import preprocess_tool_calls_batch
                     # 保存修复前的原始参数，用于修复后对比日志
                     original_arguments = [tc.function.arguments for tc in message.tool_calls]
-                    processed_count = preprocess_tool_calls_batch(message.tool_calls)
-                    if processed_count > 0:
-                        logger.info(f"[{request_id}] LLM响应修复了 {processed_count} 个工具调用的参数格式")
+                    preprocess_result = preprocess_tool_calls_batch(message.tool_calls)
+                    if preprocess_result.processed_count > 0:
+                        logger.info(f"[{request_id}] LLM响应修复了 {preprocess_result.processed_count} 个工具调用的参数格式")
                         for i, tc in enumerate(message.tool_calls):
                             logger.info(f"[{request_id}] [修复前] Tool Call #{i}: id={tc.id}, name={tc.function.name}, arguments: {original_arguments[i]}")
                             logger.info(f"[{request_id}] [修复后] Tool Call #{i} arguments: {tc.function.arguments}")
+                    if preprocess_result.has_truncation:
+                        logger.warning(
+                            f"[{request_id}] 检测到工具参数截断: {preprocess_result.truncated_tool_names}"
+                        )
 
             # 统一记录 token 使用情况
             cls.token_tracker.record_llm_usage(

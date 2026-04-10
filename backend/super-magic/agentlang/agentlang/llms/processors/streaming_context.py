@@ -698,6 +698,18 @@ class StreamResponseHandler:
             StreamingLogger.log_no_data_received(request_id, correlation_id)
             raise RuntimeError(f"No stream data received from server. This may indicate a server-side error or timeout.")
 
+        # 不完整流检测：收到了 chunk 但流正常结束却没有 finish_reason，视为连接被静默关闭
+        if finish_reason is None and state.has_received_chunks() and not state.interrupted_by_signal:
+            total_elapsed = time.time() - base_time
+            logger.warning(
+                f"[{request_id}] 流正常结束但未收到 finish_reason "
+                f"(chunks={state.received_chunk_count}, elapsed={total_elapsed:.1f}s)"
+            )
+            raise StreamInterruptedError(
+                chunk_count=state.received_chunk_count,
+                total_elapsed_seconds=total_elapsed,
+            )
+
         # 记录流式处理统计
         stream_end_time = time.time()
         total_stream_time = stream_end_time - stream_start_time

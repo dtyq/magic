@@ -17,7 +17,7 @@ from agentlang.config.config import config
 from agentlang.interface.context import AgentContextInterface
 from agentlang.logger import get_logger
 from agentlang.llms.error_classifier import LLMErrorClassifier
-from agentlang.exceptions import LLMFastRetryExhaustedException
+from agentlang.exceptions import LLMFastRetryExhaustedException, StreamInterruptedError
 from .streaming_call_processor import StreamingCallProcessor
 from .processor_config import ProcessorConfig
 from .regular_call_processor import RegularCallProcessor
@@ -27,8 +27,8 @@ logger = get_logger(__name__)
 # 默认快速重试策略常量（可被 config.yaml 覆盖）
 _DEFAULT_FIRST_CHUNK_SCHEDULE: List[int] = [90, 120, 150]
 _DEFAULT_CHUNK_TIMEOUT: int = 60
-_DEFAULT_ENABLE_NON_STREAM_FALLBACK: bool = False
-_DEFAULT_NON_STREAM_TIMEOUT: int = 330
+_DEFAULT_ENABLE_NON_STREAM_FALLBACK: bool = True
+_DEFAULT_NON_STREAM_TIMEOUT: int = 300
 
 
 def _resolve_retry_policy(llm_call_retry_count: int, processor_config: ProcessorConfig) -> None:
@@ -136,6 +136,29 @@ class ProcessorManager:
                     )
                     raise
 
+                # 结构性中断检测：流已正常工作一段时间后被外部切断（如 120s 网关超时），
+                # 再试流式必然还会撞同一个超时，跳过剩余流式重试直接走非流式 fallback
+                enable_non_stream_fallback: bool = config.get(
+                    "llm.enable_non_stream_fallback", _DEFAULT_ENABLE_NON_STREAM_FALLBACK
+                )
+                if isinstance(stream_error, StreamInterruptedError):
+                    si = stream_error
+                    if si.chunk_count > 100 or si.total_elapsed_seconds > 60:
+                        logger.warning(
+                            f"[{request_id}] 结构性流中断 "
+                            f"(chunks={si.chunk_count}, elapsed={si.total_elapsed_seconds:.1f}s)，"
+                            f"跳过后续流式重试"
+                        )
+                        if enable_non_stream_fallback:
+                            # 强制走非流式 fallback，跳过下面的 allow_non_stream_fallback 判断
+                            processor_config.allow_non_stream_fallback = True
+                        else:
+                            raise LLMFastRetryExhaustedException(
+                                f"Structural stream interruption after {si.chunk_count} chunks / "
+                                f"{si.total_elapsed_seconds:.1f}s, non-stream fallback disabled",
+                                stream_error=stream_error,
+                            ) from stream_error
+
                 if not processor_config.allow_non_stream_fallback:
                     # 默认只做流式快重试；只有流式预算耗尽后的最后一轮，且显式开启开关时，
                     # 才允许进入保留的非流式 fallback 路径。
@@ -152,7 +175,7 @@ class ProcessorManager:
                         ) from stream_error
                     raise
 
-                # 显式开启开关后，才允许进入保留的非流式 fallback 路径
+                # 允许非流式 fallback（正常最后一轮或结构性中断强制触发）
                 logger.warning(
                     f"[{request_id}] 流式调用失败（llm_call_retry_count={llm_call_retry_count}），"
                     f"触发非流式 fallback: {stream_error}"
