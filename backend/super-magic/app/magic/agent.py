@@ -418,9 +418,6 @@ The following <dynamic_context> block contains system-provided context informati
             "workspace_dir": self.agent_context._workspace_dir,
             "workspace_skills_dir": str(get_workspace_skills_dir().relative_to(PathManager.get_workspace_dir())),
             "project_root": str(PathManager.get_project_root()),
-            # 此处直接使用 _workspace_dir 而非 os.getcwd()：
-            # os.chdir(workspace_dir) 在 run() 中执行，晚于当前 _initialize_agent 阶段，
-            # 若用 os.getcwd() 会拿到进程启动时的目录（项目根），而非工作区目录
             "cwd": self.agent_context._workspace_dir,
             "recommended_max_output_tokens": recommended_max_output_tokens,
             "python_version": sys.version,
@@ -688,18 +685,6 @@ The following <dynamic_context> block contains system-provided context informati
 
         # 执行安全检查 (disable temporarily)
         # query = await self._apply_safety_check(query)
-
-        # 切换到工作空间目录
-        try:
-            # 使用os.chdir()替代os.chroot()，避免需要root权限
-            workspace_dir = self.agent_context._workspace_dir
-            if os.path.exists(workspace_dir):
-                os.chdir(workspace_dir)
-                logger.info(f"已切换工作目录到: {workspace_dir}")
-            else:
-                logger.warning(f"工作空间目录不存在: {workspace_dir}")
-        except Exception as e:
-            logger.error(f"切换工作目录时出错: {e!s}")
 
         # 构造 chat_history
         # ChatHistory 初始化时已加载历史
