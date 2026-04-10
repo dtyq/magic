@@ -28,13 +28,13 @@ class ModelAccessRoleApi extends AbstractPermissionApi
     #[Inject]
     protected ModelAccessRoleAppService $modelAccessRoleAppService;
 
-    #[CheckPermission(MagicResourceEnum::SAFE_SUB_ADMIN, MagicOperationEnum::QUERY)]
+    #[CheckPermission(MagicResourceEnum::ADMIN_AI_MODEL_ACCESS_ROLE, MagicOperationEnum::QUERY)]
     public function meta(): array
     {
         return $this->modelAccessRoleAppService->meta($this->createDataIsolation());
     }
 
-    #[CheckPermission(MagicResourceEnum::SAFE_SUB_ADMIN, MagicOperationEnum::EDIT)]
+    #[CheckPermission(MagicResourceEnum::ADMIN_AI_MODEL_ACCESS_ROLE, MagicOperationEnum::EDIT)]
     public function updateMeta(): array
     {
         $status = PermissionControlStatus::tryFrom((string) $this->request->input('permission_control_status', ''));
@@ -48,7 +48,7 @@ class ModelAccessRoleApi extends AbstractPermissionApi
         );
     }
 
-    #[CheckPermission(MagicResourceEnum::SAFE_SUB_ADMIN, MagicOperationEnum::QUERY)]
+    #[CheckPermission(MagicResourceEnum::ADMIN_AI_MODEL_ACCESS_ROLE, MagicOperationEnum::QUERY)]
     public function availableModels(RequestInterface $request): array
     {
         $queryRequest = new QueryModelsRequest($request->all());
@@ -64,7 +64,7 @@ class ModelAccessRoleApi extends AbstractPermissionApi
         );
     }
 
-    #[CheckPermission(MagicResourceEnum::SAFE_SUB_ADMIN, MagicOperationEnum::QUERY)]
+    #[CheckPermission(MagicResourceEnum::ADMIN_AI_MODEL_ACCESS_ROLE, MagicOperationEnum::QUERY)]
     public function queries(): array
     {
         return $this->modelAccessRoleAppService->queries(
@@ -77,7 +77,7 @@ class ModelAccessRoleApi extends AbstractPermissionApi
         );
     }
 
-    #[CheckPermission(MagicResourceEnum::SAFE_SUB_ADMIN, MagicOperationEnum::QUERY)]
+    #[CheckPermission(MagicResourceEnum::ADMIN_AI_MODEL_ACCESS_ROLE, MagicOperationEnum::QUERY)]
     public function show(): array
     {
         return $this->modelAccessRoleAppService->detail(
@@ -86,7 +86,7 @@ class ModelAccessRoleApi extends AbstractPermissionApi
         );
     }
 
-    #[CheckPermission(MagicResourceEnum::SAFE_SUB_ADMIN, MagicOperationEnum::EDIT)]
+    #[CheckPermission(MagicResourceEnum::ADMIN_AI_MODEL_ACCESS_ROLE, MagicOperationEnum::EDIT)]
     public function createDefault(): array
     {
         return $this->modelAccessRoleAppService->createDefaultRole(
@@ -95,7 +95,7 @@ class ModelAccessRoleApi extends AbstractPermissionApi
         );
     }
 
-    #[CheckPermission(MagicResourceEnum::SAFE_SUB_ADMIN, MagicOperationEnum::EDIT)]
+    #[CheckPermission(MagicResourceEnum::ADMIN_AI_MODEL_ACCESS_ROLE, MagicOperationEnum::EDIT)]
     public function create(): array
     {
         return $this->modelAccessRoleAppService->createRole(
@@ -104,7 +104,7 @@ class ModelAccessRoleApi extends AbstractPermissionApi
         );
     }
 
-    #[CheckPermission(MagicResourceEnum::SAFE_SUB_ADMIN, MagicOperationEnum::EDIT)]
+    #[CheckPermission(MagicResourceEnum::ADMIN_AI_MODEL_ACCESS_ROLE, MagicOperationEnum::EDIT)]
     public function update(): array
     {
         return $this->modelAccessRoleAppService->updateRole(
@@ -114,7 +114,7 @@ class ModelAccessRoleApi extends AbstractPermissionApi
         );
     }
 
-    #[CheckPermission(MagicResourceEnum::SAFE_SUB_ADMIN, MagicOperationEnum::EDIT)]
+    #[CheckPermission(MagicResourceEnum::ADMIN_AI_MODEL_ACCESS_ROLE, MagicOperationEnum::EDIT)]
     public function destroy(): array
     {
         return $this->modelAccessRoleAppService->destroy(
@@ -123,7 +123,7 @@ class ModelAccessRoleApi extends AbstractPermissionApi
         );
     }
 
-    #[CheckPermission(MagicResourceEnum::SAFE_SUB_ADMIN, MagicOperationEnum::QUERY)]
+    #[CheckPermission(MagicResourceEnum::ADMIN_AI_MODEL_ACCESS_ROLE, MagicOperationEnum::QUERY)]
     public function userSummary(): array
     {
         return $this->modelAccessRoleAppService->userSummary(
