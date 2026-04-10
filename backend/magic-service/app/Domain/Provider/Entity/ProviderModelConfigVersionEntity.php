@@ -7,6 +7,7 @@ declare(strict_types=1);
 
 namespace App\Domain\Provider\Entity;
 
+use App\Domain\Provider\DTO\Item\TokenPricing\BillingTiers;
 use App\Infrastructure\Core\AbstractEntity;
 
 class ProviderModelConfigVersionEntity extends AbstractEntity
@@ -59,11 +60,27 @@ class ProviderModelConfigVersionEntity extends AbstractEntity
 
     protected ?float $timeCost = null;
 
+    protected ?BillingTiers $billingTiers = null;
+
     protected int $version = 1;
 
     protected bool $isCurrentVersion = true;
 
     protected ?string $createdAt = null;
+
+    public function __construct(?array $data = null)
+    {
+        if (empty($data)) {
+            return;
+        }
+
+        $billingTiers = $data['billing_tiers'] ?? null;
+        unset($data['billing_tiers']);
+
+        parent::__construct($data);
+
+        $this->setBillingTiers($billingTiers);
+    }
 
     public function getId(): ?int
     {
@@ -413,5 +430,41 @@ class ProviderModelConfigVersionEntity extends AbstractEntity
         } else {
             $this->timeCost = (float) $timeCost;
         }
+    }
+
+    public function getBillingTiers(): ?BillingTiers
+    {
+        return $this->billingTiers;
+    }
+
+    public function setBillingTiers(null|array|BillingTiers|string $billingTiers): void
+    {
+        if ($billingTiers === null || $billingTiers === '') {
+            $this->billingTiers = null;
+            return;
+        }
+
+        if ($billingTiers instanceof BillingTiers) {
+            $this->billingTiers = $billingTiers;
+            return;
+        }
+
+        if (is_string($billingTiers)) {
+            if (! json_validate($billingTiers)) {
+                $this->billingTiers = null;
+                return;
+            }
+
+            $decoded = json_decode($billingTiers, true);
+            if (! is_array($decoded)) {
+                $this->billingTiers = null;
+                return;
+            }
+
+            $this->billingTiers = new BillingTiers($decoded);
+            return;
+        }
+
+        $this->billingTiers = new BillingTiers($billingTiers);
     }
 }

@@ -192,6 +192,7 @@ class SyncProviderModelConfigVersionCommand extends HyperfCommand
 
         // 特殊字段处理
         $configData['vector_size'] = $config['vector_size'] ?? 2048;
+        $configData['billing_tiers'] = $config['billing_tiers'] ?? null;
 
         return array_merge($baseData, $configData);
     }

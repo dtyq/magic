@@ -133,6 +133,8 @@ class ProviderModelAppService extends AbstractProviderAppService
 
         $itemDTO->setModelName($selectedModel->getName());
         $itemDTO->setBillingType($billingType->value);
+        $itemDTO->setBillingCurrency($billingCurrency);
+        $itemDTO->setBillingTiers($this->buildBillingTiersFromConfig($config, $billingType));
         $itemDTO->setInputPoints($this->convertPricingToPoints($config->getInputPricing(), $billingCurrency));
         $itemDTO->setOutputPoints($this->convertPricingToPoints($config->getOutputPricing(), $billingCurrency));
         $itemDTO->setTimePoints($this->convertPricingToPoints($config->getTimePricing(), $billingCurrency));
@@ -173,6 +175,8 @@ class ProviderModelAppService extends AbstractProviderAppService
 
         $itemDTO->setModelName($selectedModel->getName());
         $itemDTO->setBillingType($billingType);
+        $itemDTO->setBillingCurrency($billingCurrency);
+        $itemDTO->setBillingTiers($this->buildBillingTiersFromConfigVersion($configVersion, $billingType));
         $itemDTO->setInputPoints($this->convertPricingToPoints($this->formatFloatPricing($configVersion->getInputPricing()), $billingCurrency));
         $itemDTO->setOutputPoints($this->convertPricingToPoints($this->formatFloatPricing($configVersion->getOutputPricing()), $billingCurrency));
         $itemDTO->setTimePoints($this->convertPricingToPoints($this->formatFloatPricing($configVersion->getTimePricing()), $billingCurrency));
@@ -235,5 +239,23 @@ class ProviderModelAppService extends AbstractProviderAppService
         }
 
         return rtrim(rtrim(number_format($pricing, 4, '.', ''), '0'), '.') ?: '0';
+    }
+
+    private function buildBillingTiersFromConfig(ModelConfigItem $config, BillingType $billingType): ?array
+    {
+        if (! $billingType->isTokens()) {
+            return null;
+        }
+
+        return $config->getBillingTiers()?->toArray();
+    }
+
+    private function buildBillingTiersFromConfigVersion(ProviderModelConfigVersionEntity $configVersion, string $billingType): ?array
+    {
+        if ($billingType !== BillingType::Tokens->value) {
+            return null;
+        }
+
+        return $configVersion->getBillingTiers()?->toArray();
     }
 }
