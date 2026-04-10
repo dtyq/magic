@@ -44,20 +44,20 @@
         "en_US": "Task execution failed. Please try again later."
     },
     "messages.llm_provider_timeout": {
-        "zh_CN": "模型供应商响应超时，请稍后重试。",
-        "en_US": "The model provider response timed out. Please try again."
+        "zh_CN": "AI 模型服务当前负载较高，响应已超时，请稍后重试。",
+        "en_US": "The AI model service is under high load and timed out. Please try again later."
     },
     "messages.llm_provider_connection_failed": {
-        "zh_CN": "模型供应商连接失败，请稍后重试。",
-        "en_US": "Failed to connect to the model provider. Please try again later."
+        "zh_CN": "AI 模型服务当前负载较高，连接暂时中断，请稍后重试。",
+        "en_US": "The AI model service is under high load and the connection was interrupted. Please try again later."
     },
     "messages.llm_provider_rate_limited": {
-        "zh_CN": "模型供应商请求频率受限，请稍后重试。",
-        "en_US": "The model provider is rate-limiting requests. Please try again later."
+        "zh_CN": "当前使用人数过多，AI 模型服务负载较高，请稍后重试。",
+        "en_US": "The AI model service is at capacity due to high user demand. Please try again later."
     },
     "messages.llm_provider_error": {
-        "zh_CN": "模型供应商服务异常，请稍后重试。",
-        "en_US": "The model provider encountered an error. Please try again later."
+        "zh_CN": "AI 模型服务当前负载较高，处理请求时出现异常，请稍后重试。",
+        "en_US": "The AI model service encountered an error while processing your request. Please try again later."
     },
     "agent_profile.desc_with_role": {
         "zh_CN": "你叫{name}，是一名{role}。{description}",
