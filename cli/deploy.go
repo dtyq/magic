@@ -14,6 +14,7 @@ import (
 )
 
 const envNameCLIWebBaseURL = "MAGICREW_CLI_WEB_BASE_URL"
+const envNameCLILegacyWebBaseURL = "MAGIC_WEB_BASE_URL"
 const envNameCLIAutoRecoverRelease = "MAGICREW_CLI_AUTO_RECOVER_RELEASE"
 const envNameCLIConfigDir = "MAGICREW_CLI_CONFIG_DIR"
 const envNameCLIDataDir = "MAGICREW_CLI_DATA_DIR"
@@ -62,7 +63,15 @@ func runDeploy(cmd *cobra.Command, args []string) error {
 	cfg.Deploy.ChartRepo.URL = chartRepoURL
 	cfg.Deploy.ChartRepo.PlainHTTP = plainHTTP
 
-	webBaseURL := resolveValue(deployWebURL, envNameCLIWebBaseURL, "")
+	webBaseURL, usedDeprecatedWebBaseURL := resolveDeployWebBaseURL(deployWebURL)
+	if usedDeprecatedWebBaseURL {
+		lg.Logw(
+			"deploy",
+			"%s is deprecated, please use %s instead",
+			envNameCLILegacyWebBaseURL,
+			envNameCLIWebBaseURL,
+		)
+	}
 	if err := deployer.ValidateWebBaseURL(webBaseURL); err != nil {
 		return err
 	}
@@ -126,6 +135,19 @@ func buildChartSpecsFromConfig() map[string]deployer.ChartSpec {
 		out[key] = deployer.ChartSpec{Name: spec.Name, Version: spec.Version}
 	}
 	return out
+}
+
+func resolveDeployWebBaseURL(cliValue string) (string, bool) {
+	if v := strings.TrimSpace(cliValue); v != "" {
+		return v, false
+	}
+	if v := strings.TrimSpace(os.Getenv(envNameCLIWebBaseURL)); v != "" {
+		return v, false
+	}
+	if v := strings.TrimSpace(os.Getenv(envNameCLILegacyWebBaseURL)); v != "" {
+		return v, true
+	}
+	return "", false
 }
 
 func resolveAutoRecoverRelease(flagValue bool, flagChanged bool, envValue string) (bool, error) {
