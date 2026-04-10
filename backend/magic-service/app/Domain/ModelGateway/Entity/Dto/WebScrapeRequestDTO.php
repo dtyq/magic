@@ -34,6 +34,11 @@ class WebScrapeRequestDTO extends AbstractRequestDTO
      */
     private array $options = [];
 
+    /**
+     * Preferred provider. Falls back to the enabled default when empty.
+     */
+    private string $provider = '';
+
     public function __construct(array $data = [])
     {
         parent::__construct($data);
@@ -48,6 +53,7 @@ class WebScrapeRequestDTO extends AbstractRequestDTO
 
         $this->mode = (string) ($data['mode'] ?? 'quality');
         $this->options = $data['options'] ?? [];
+        $this->provider = (string) ($data['provider'] ?? '');
     }
 
     public static function createDTO(array $data): self
@@ -63,6 +69,7 @@ class WebScrapeRequestDTO extends AbstractRequestDTO
 
         $webScrapeRequestDTO->setMode((string) ($data['mode'] ?? 'quality'));
         $webScrapeRequestDTO->setOptions($data['options'] ?? []);
+        $webScrapeRequestDTO->setProvider((string) ($data['provider'] ?? ''));
 
         return $webScrapeRequestDTO;
     }
@@ -113,6 +120,17 @@ class WebScrapeRequestDTO extends AbstractRequestDTO
     public function setOptions(array $options): self
     {
         $this->options = $options;
+        return $this;
+    }
+
+    public function getProvider(): string
+    {
+        return $this->provider;
+    }
+
+    public function setProvider(string $provider): self
+    {
+        $this->provider = trim($provider);
         return $this;
     }
 

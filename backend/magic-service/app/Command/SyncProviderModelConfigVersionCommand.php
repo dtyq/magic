@@ -178,9 +178,9 @@ class SyncProviderModelConfigVersionCommand extends HyperfCommand
         // 配置字段映射
         $configFields = [
             'creativity', 'max_tokens', 'temperature', 'max_output_tokens',
-            'billing_type', 'billing_currency', 'time_pricing',
+            'billing_type', 'billing_currency', 'time_pricing', 'second_pricing',
             'input_pricing', 'output_pricing', 'cache_write_pricing', 'cache_hit_pricing',
-            'input_cost', 'output_cost', 'cache_write_cost', 'cache_hit_cost', 'time_cost',
+            'input_cost', 'output_cost', 'cache_write_cost', 'cache_hit_cost', 'time_cost', 'second_cost',
             'support_function', 'support_embedding', 'support_deep_think', 'support_multi_modal',
             'official_recommended',
         ];

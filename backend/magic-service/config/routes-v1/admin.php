@@ -62,6 +62,7 @@ Router::addGroup('/api/v1/admin', static function () {
         Router::get('', [AiAbilityApi::class, 'queries']);
         Router::get('/{code}', [AiAbilityApi::class, 'detail']);
         Router::put('/{code}', [AiAbilityApi::class, 'update']);
+        Router::post('/connectivity-test', [AiAbilityApi::class, 'connectivityTest']);
     }, ['middleware' => [RequestContextMiddleware::class]]);
 
     Router::addGroup('/globals', static function () {

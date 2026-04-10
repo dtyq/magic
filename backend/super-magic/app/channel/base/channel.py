@@ -59,7 +59,15 @@ class BaseChannel(ABC):
             lines.append("  Status: not configured")
             return lines
 
-        lines.append(f"  Status: {'connected' if self.is_connected else 'disconnected'}")
+        if self.is_connected:
+            lines.append("  Status: connected")
+        else:
+            reason_suffix = (
+                f" ({credential.disabled_reason})"
+                if getattr(credential, "disabled_reason", "")
+                else ""
+            )
+            lines.append(f"  Status: disconnected{reason_suffix}")
         summary = self.summarize_config(config)
         if summary:
             lines.append(f"  {summary}")

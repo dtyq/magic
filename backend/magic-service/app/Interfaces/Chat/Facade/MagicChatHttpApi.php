@@ -8,6 +8,7 @@ declare(strict_types=1);
 namespace App\Interfaces\Chat\Facade;
 
 use App\Application\Agent\Service\MagicAgentAppService;
+use App\Application\Chat\Service\FollowUpSuggestionAppService;
 use App\Application\Chat\Service\MagicChatGroupAppService;
 use App\Application\Chat\Service\MagicChatMessageAppService;
 use App\Application\Chat\Service\MagicControlMessageAppService;
@@ -31,7 +32,10 @@ use App\Infrastructure\Core\Exception\BusinessException;
 use App\Infrastructure\Core\Exception\ExceptionBuilder;
 use App\Infrastructure\Util\IdGenerator\IdGenerator;
 use App\Interfaces\Chat\Assembler\ConversationAssembler;
+use App\Interfaces\Chat\Assembler\MagicGeneratedSuggestionAssembler;
 use App\Interfaces\Chat\Assembler\PageListAssembler;
+use App\Interfaces\Chat\DTO\Request\FollowUpSuggestionsQueryRequestDTO;
+use App\Interfaces\Chat\FormRequest\FollowUpSuggestionsFormRequest;
 use Carbon\Carbon;
 use Dtyq\ApiResponse\Annotation\ApiResponse;
 use Hyperf\Codec\Json;
@@ -51,6 +55,7 @@ class MagicChatHttpApi extends AbstractApi
         private readonly ValidatorFactoryInterface $validatorFactory,
         private readonly MagicChatMessageAppService $magicChatMessageAppService,
         private readonly MagicConversationAppService $magicConversationAppService,
+        private readonly FollowUpSuggestionAppService $followUpSuggestionAppService,
         private readonly MagicChatGroupAppService $chatGroupAppService,
         protected readonly MagicAgentAppService $magicAgentAppService,
         protected readonly MagicControlMessageAppService $magicControlMessageAppService,
@@ -431,6 +436,18 @@ class MagicChatHttpApi extends AbstractApi
             $fileDTOs[] = $fileQueryDTO;
         }
         return $this->magicChatMessageAppService->getFileDownUrl($fileDTOs, $authorization);
+    }
+
+    /**
+     * 查询追问建议状态与结果.
+     */
+    public function followUpSuggestions(FollowUpSuggestionsFormRequest $request): array
+    {
+        $dto = FollowUpSuggestionsQueryRequestDTO::fromArray($request->validated());
+        $criteria = MagicGeneratedSuggestionAssembler::createQueryCriteria($dto);
+        $result = $this->followUpSuggestionAppService->queryFollowUpSuggestions($criteria);
+
+        return $result->toArray();
     }
 
     /**

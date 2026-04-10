@@ -48,6 +48,8 @@ class ModelConfigItem extends AbstractDTO
 
     protected ?string $timePricing = null;
 
+    protected ?string $secondPricing = null;
+
     protected ?string $inputCost = null;
 
     protected ?string $outputCost = null;
@@ -57,6 +59,8 @@ class ModelConfigItem extends AbstractDTO
     protected ?string $cacheWriteCost = null;
 
     protected ?string $timeCost = null;
+
+    protected ?string $secondCost = null;
 
 
     protected ?BillingTiers $billingTiers = null;
@@ -282,6 +286,16 @@ class ModelConfigItem extends AbstractDTO
         $this->timePricing = $timePricing;
     }
 
+    public function getSecondPricing(): ?string
+    {
+        return $this->secondPricing;
+    }
+
+    public function setSecondPricing(null|float|string $secondPricing): void
+    {
+        $this->secondPricing = $this->validateAndSetPricing($secondPricing);
+    }
+
     public function getInputCost(): ?string
     {
         return $this->inputCost;
@@ -330,6 +344,16 @@ class ModelConfigItem extends AbstractDTO
     public function setTimeCost(null|float|string $timeCost): void
     {
         $this->timeCost = $this->validateAndSetPricing($timeCost);
+    }
+
+    public function getSecondCost(): ?string
+    {
+        return $this->secondCost;
+    }
+
+    public function setSecondCost(null|float|string $secondCost): void
+    {
+        $this->secondCost = $this->validateAndSetPricing($secondCost);
     }
 
     public function getBillingTiers(): ?BillingTiers

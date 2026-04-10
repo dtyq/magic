@@ -9,7 +9,6 @@ WechatChannel — 单例，管理微信官方 ClawBot HTTP 长轮询生命周期
 from __future__ import annotations
 
 import asyncio
-import time
 import uuid
 from typing import List, Optional
 
@@ -17,7 +16,6 @@ import aiohttp
 
 from agentlang.logger import get_logger
 from app.channel.base.channel import BaseChannel
-from app.channel.base.keepalive import ChannelKeepalive
 from app.channel.config import IMChannelsConfig, WechatCredential
 from app.channel.wechat import api
 from app.channel.wechat.state import (
@@ -31,7 +29,9 @@ from app.channel.wechat.state import (
 from app.channel.wechat.stream import WechatStream
 from app.channel.wechat.typing import WechatTypingConfigManager, WechatTypingController
 from app.channel.base.third_party_message import dispatch_third_party_message
+from app.core.keepalive_registry import KeepaliveRegistry
 from app.core.entity.message.client_message import ChatClientMessage, Metadata
+from app.utils.time_utils import now_ms
 
 logger = get_logger(__name__)
 
@@ -54,19 +54,13 @@ class WechatChannel(BaseChannel):
         self._poll_task: Optional[asyncio.Task] = None
         self._get_updates_buf: str = ""
         self._typing_config_manager: Optional[WechatTypingConfigManager] = None
+        self._last_message_at_ms: int = 0
         # 缓存最近活跃用户和按用户保存的 context_token，供回复与主动发送复用
         self._last_active_user_id: Optional[str] = None
         self._context_tokens_by_user: dict[str, WechatUserContext] = {}
         # 防止 connect_wechat_bot 的 _on_success 回调与 wait_wechat_login._activate_channel
         # 并发调用 connect() 导致双重启动（两条路径都会在扫码成功后触发激活）
         self._connect_lock: asyncio.Lock = asyncio.Lock()
-        # TODO: 统一保活设施（大一统方案）
-        # 当前各渠道各自持有独立的 ChannelKeepalive，相互隔离。
-        # 后续应引入统一的保活注册中心（KeepaliveRegistry），各渠道/组件向其注册自己的存活条件，
-        # 只要任意一个条件满足就续期沙盒活跃时间（例如微信失活但钉钉在线时仍应保活）。
-        # 此外，需细化 alive 判定条件：当前仅判断轮询任务是否在跑，
-        # 未来应加入"最近 N 天内有实际消息"等业务维度，长期无消息时主动放弃保活，让沙盒正常退出。
-        self._keepalive = ChannelKeepalive("Wechat", is_active=lambda: self.is_connected)
 
     @classmethod
     def get_instance(cls) -> "WechatChannel":
@@ -130,7 +124,8 @@ class WechatChannel(BaseChannel):
             return lines
 
         if credential is not None:
-            lines.append("  Status: configured but disconnected")
+            reason_suffix = f" ({credential.disabled_reason})" if credential.disabled_reason else ""
+            lines.append(f"  Status: configured but disconnected{reason_suffix}")
             lines.append(f"  Bot ID: {credential.ilink_bot_id}")
             if credential.ilink_user_id:
                 lines.append(f"  User ID: {credential.ilink_user_id}")
@@ -171,10 +166,12 @@ class WechatChannel(BaseChannel):
             )
             state = await load_runtime_state()
             self._get_updates_buf = state.get_updates_buf
+            self._last_message_at_ms = state.last_message_at_ms
             self._last_active_user_id = state.last_active_user_id or None
             self._context_tokens_by_user = dict(state.context_tokens_by_user)
             self._poll_task = asyncio.create_task(self._poll_loop())
-            self._keepalive.start()
+            keepalive_registry = KeepaliveRegistry.get_instance()
+            keepalive_registry.restore_message_time(self.key, self._last_message_at_ms)
             logger.info(
                 f"[WechatChannel] 启动轮询, ilink_bot_id={credential.ilink_bot_id}, "
                 f"get_updates_buf_len={len(self._get_updates_buf)}"
@@ -182,7 +179,7 @@ class WechatChannel(BaseChannel):
 
     async def disconnect(self) -> None:
         """停止长轮询并释放 HTTP 会话。"""
-        self._keepalive.stop()
+        KeepaliveRegistry.get_instance().reset_source(self.key)
         if self._poll_task and not self._poll_task.done():
             self._poll_task.cancel()
             try:
@@ -199,14 +196,35 @@ class WechatChannel(BaseChannel):
         self._credential = None
         logger.info("[WechatChannel] 已断开")
 
+    async def _disable_in_config(self, reason: str = "") -> None:
+        """关闭持久化配置的 enabled 并记录原因，防止 AFTER_INIT 反复重连。
+
+        用户重新扫码会写入新凭据并重新 enabled=True + 清空 disabled_reason。
+        """
+        try:
+            from app.channel.config import load_config, save_config
+            config = await load_config()
+            if config.wechat and config.wechat.enabled:
+                config.wechat.enabled = False
+                config.wechat.disabled_reason = reason
+                await save_config(config)
+                logger.info(f"[WechatChannel] 已将 wechat.enabled 设为 False（reason={reason or 'unknown'}）")
+        except Exception as e:
+            logger.warning(f"[WechatChannel] 关闭 wechat.enabled 失败: {e}")
+
     async def _sleep_ms(self, delay_ms: int) -> None:
         await asyncio.sleep(max(delay_ms, 0) / 1000)
 
     def _handle_session_expired(self) -> None:
-        """session 过期：自动断连 + 通知 LLM，用户扫码重连后自动恢复。"""
+        """session 过期：自动断连 + 关闭配置 + 通知 LLM，用户扫码重连后自动恢复。
+
+        常见原因：用户在另一个 MagiClaw 实例上扫码绑定了同一微信号，导致当前 session 被踢下线。
+        """
+        from app.channel.config import DisabledReason
+
         logger.warning(f"[WechatChannel] session 已过期(errcode={api.SESSION_EXPIRED_ERRCODE})，自动断连")
-        # 在 poll loop 内部不能直接 await disconnect()，用 create_task 让它在 poll loop 退出后执行
         asyncio.create_task(self.disconnect())
+        asyncio.create_task(self._disable_in_config(reason=DisabledReason.SESSION_EXPIRED))
         try:
             from app.service.agent_dispatcher import AgentDispatcher
             ctx = AgentDispatcher.get_instance().agent_context
@@ -215,6 +233,8 @@ class WechatChannel(BaseChannel):
                     source="wechat",
                     content=(
                         "WeChat session has expired and the channel has been disconnected. "
+                        "This usually means the user scanned a QR code on another MagiClaw instance, "
+                        "so the current session was kicked off. "
                         "Casually let the user know when appropriate — they can reconnect by scanning a new QR code, "
                         "or leave it disconnected. Don't treat this as a blocking issue. "
                         "If you are unsure how to initiate a WeChat reconnection, "
@@ -276,6 +296,9 @@ class WechatChannel(BaseChannel):
                 continue
 
             consecutive_failures = 0
+            # 微信长轮询没有单独的“connected”回调。
+            # 这里以首次成功拿到 getUpdates 响应作为“连接已真正可用”的信号，比 task 创建成功更接近真实连通。
+            KeepaliveRegistry.get_instance().notify_connected_once(self.key)
             if data.get("get_updates_buf"):
                 self._get_updates_buf = data["get_updates_buf"]
                 try:
@@ -303,6 +326,9 @@ class WechatChannel(BaseChannel):
         if not content:
             return
 
+        current_message_at_ms = now_ms()
+        self._last_message_at_ms = current_message_at_ms
+        KeepaliveRegistry.get_instance().notify_message(self.key, current_message_at_ms)
         context_token: str = msg.get("context_token", "")
         user_id: str = msg.get("from_user_id", "wechat_user")
 
@@ -430,6 +456,7 @@ class WechatChannel(BaseChannel):
     def _build_runtime_state(self) -> WechatRuntimeState:
         return WechatRuntimeState(
             get_updates_buf=self._get_updates_buf,
+            last_message_at_ms=self._last_message_at_ms,
             last_active_user_id=self._last_active_user_id or "",
             context_tokens_by_user=dict(self._context_tokens_by_user),
         )

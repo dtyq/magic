@@ -34,6 +34,11 @@ logger = get_logger(__name__)
 # ChatHistory 类
 # ==============================================================================
 
+# Horizon 注入消息的安全上限；超过此值说明历史中存在异常膨胀的 diff bomb，
+# 需要在 load 时自动修复以避免后续每轮都把垃圾内容发给 LLM
+_HORIZON_MSG_CONTENT_MAX_CHARS = 32 * 1024  # 32 KB
+
+
 class ChatHistory:
     """
     管理 Agent 的聊天记录，提供加载、保存、添加和查询消息的功能。
@@ -435,6 +440,7 @@ class ChatHistory:
                         logger.error(f"加载历史时处理消息出错: {msg_dict}，错误: {e}", exc_info=True)
 
                 self.messages = loaded_messages
+                self._sanitize_oversized_messages()
                 logger.info(f"成功从 {self._history_file_path} 加载 {len(self.messages)} 条聊天记录。")
             else:
                 logger.warning(f"聊天记录文件格式无效 (不是列表): {self._history_file_path}")
@@ -600,6 +606,32 @@ class ChatHistory:
             message._is_validated = True
 
         return message
+
+    def _sanitize_oversized_messages(self) -> None:
+        """Load 时自动修复历史中异常膨胀的 horizon 注入消息。
+
+        之前的 diff bug 可能导致 5MB+ 的内容被持久化到 source="horizon" 的 UserMessage 中，
+        后续每轮 LLM 调用都会带上这些垃圾内容，直接撑爆上下文。
+        修复后下次 save() 会自动落盘。
+        """
+        for msg in self.messages:
+            if not isinstance(msg, UserMessage):
+                continue
+            if getattr(msg, "source", None) != "horizon":
+                continue
+            content_len = len(msg.content)
+            if content_len <= _HORIZON_MSG_CONTENT_MAX_CHARS:
+                continue
+            msg.content = (
+                "<system_injected_context>\n"
+                "[auto-repaired: oversized historical context removed "
+                f"({content_len:,} chars, limit {_HORIZON_MSG_CONTENT_MAX_CHARS:,})]\n"
+                "</system_injected_context>"
+            )
+            logger.warning(
+                f"[ChatHistory] 修复异常膨胀的 horizon 消息: "
+                f"{content_len:,} chars → sanitized"
+            )
 
     def _should_skip_message(self, message: ChatMessage) -> bool:
         """

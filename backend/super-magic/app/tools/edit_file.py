@@ -126,7 +126,9 @@ When editing the same file multiple times:
         """
         try:
             # Get safe file path with fuzzy matching
-            file_path, fuzzy_warning = self.resolve_path_fuzzy(params.file_path)
+            resolved = self.resolve_path_fuzzy(params.file_path)
+            file_path = resolved.path
+            fuzzy_warning = resolved.warning
             # Check and strip line numbers from old_string
             old_string_cleaned, had_line_numbers, line_warning = LineNumberHandler.detect_and_strip(params.old_string)
             if had_line_numbers:
@@ -185,17 +187,17 @@ When editing the same file multiple times:
 
             if occurrences == 0:
                 # Try to auto-fix punctuation mismatch
-                corrected_string, fix_warning = PunctuationMatcher.try_auto_fix_punctuation(
+                fix_result = PunctuationMatcher.try_auto_fix_punctuation(
                     params.old_string,
                     original_content
                 )
 
-                if corrected_string and fix_warning:
+                if fix_result:
                     # Auto-fix succeeded! Use the corrected string
                     logger.info(
-                        f"Auto-fixed punctuation in old_string: '{params.old_string[:50]}...' -> '{corrected_string[:50]}...'")
-                    params.old_string = corrected_string
-                    punctuation_fix_warning = fix_warning
+                        f"Auto-fixed punctuation in old_string: '{params.old_string[:50]}...' -> '{fix_result.actual[:50]}...'")
+                    params.old_string = fix_result.actual
+                    punctuation_fix_warning = fix_result.warning
                     # Recount with corrected string
                     occurrences = original_content.count(params.old_string)
 

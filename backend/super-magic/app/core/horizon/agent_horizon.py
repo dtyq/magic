@@ -18,7 +18,7 @@ if TYPE_CHECKING:
 
 from agentlang.logger import get_logger
 from app.core.horizon.diff_builder import detect_file_changes
-from app.core.horizon.models import FileReadRecord, HorizonState, ImageModelState, PendingNotification, VideoModelState
+from app.core.horizon.models import ContextUsage, FileReadRecord, HorizonState, ImageModelState, PendingNotification, VideoModelState
 from app.core.horizon.store import HorizonStore
 from app.utils.file_utils import calculate_file_hash, get_fresh_file_stat
 
@@ -29,6 +29,19 @@ HASH_DETECTION_THRESHOLD = 5 * 1024 * 1024   # 5 MB
 NETWORK_FS_MTIME_BUFFER = 1.0                  # seconds
 VALIDATION_ERROR_NOT_READ = "File must be read before editing. Please read the file first."
 VALIDATION_ERROR_CHANGED = "File changed since last read. Please read the file again."
+FILE_CONTENT_SNAPSHOT_MAX_BYTES = 64 * 1024   # 64 KB — 整文件快照上限
+
+# context usage 注入灵敏度规则：
+# - 当前占用 < 70%：变化不到 5 个百分点时，不再重复注入
+# - 当前占用 >= 70% 且 < 80%：变化达到 3 个百分点就注入
+# - 当前占用 >= 80%：变化达到 1 个百分点就注入
+# 这里的“变化”指绝对百分点差值，不是相对变化率。
+# 例如：40% -> 44% 的变化量是 4，81% -> 82% 的变化量是 1。
+CONTEXT_USAGE_MEDIUM_USAGE_START_PCT = 70
+CONTEXT_USAGE_HIGH_USAGE_START_PCT = 80
+CONTEXT_USAGE_LOW_USAGE_DIFF_THRESHOLD_PCT = 5
+CONTEXT_USAGE_MEDIUM_USAGE_DIFF_THRESHOLD_PCT = 3
+CONTEXT_USAGE_HIGH_USAGE_DIFF_THRESHOLD_PCT = 1
 
 def _iso_now() -> str:
     return datetime.now(timezone.utc).isoformat()
@@ -36,6 +49,23 @@ def _iso_now() -> str:
 
 def _abs(path: Union[str, Path]) -> str:
     return str(Path(path).resolve())
+
+
+async def _read_file_content_for_snapshot(abs_path: str) -> tuple[str, str, Optional[str]]:
+    """读取整文件内容，按体积决定是否保存快照。
+
+    返回 (file_content, snapshot_mode, snapshot_reason)。
+    """
+    from app.utils.async_file_utils import async_read_text, async_stat
+    try:
+        stat = await async_stat(abs_path)
+        if stat.st_size > FILE_CONTENT_SNAPSHOT_MAX_BYTES:
+            return "", "metadata_only", "file_too_large"
+        content = await async_read_text(abs_path)
+        return content, "full", None
+    except Exception as e:
+        logger.debug(f"[AgentHorizon] 读取文件快照失败 {abs_path}: {e}")
+        return "", "metadata_only", "read_failed"
 
 
 def _workspace_entries_to_path_set(entries: list) -> Set[str]:
@@ -122,12 +152,14 @@ class AgentHorizon:
         self._context_used: int = 0    # 上一次 LLM 调用的 input_tokens
         self._context_total: int = 0   # 模型最大上下文窗口
 
-        # 首次注入标志：True 时输出完整 <initial_context>，compact/new 后重置
+        # 当前上下文窗口是否尚未完成首包注入；只有为 True 时才输出完整 <initial_context>
         self._is_first_injection: bool = True
-        # 上次注入时的快照，用于 diff 检测（None 表示尚未注入过）
-        self._workspace_entries_prev: Optional[list] = None  # 结构化条目列表
-        self._memory_prev: Optional[str] = None
-        self._language_prev: Optional[str] = None
+        # 运行时 staging：表示这次消息处理前刚拿到的 current 状态，不落持久化。
+        # 持久化 state.* 则始终表达模型上次已经看到的 baseline。
+        self._workspace_files_current: Optional[str] = None
+        self._workspace_entries_current: Optional[list] = None
+        self._memory_current: Optional[str] = None
+        self._language_current: Optional[str] = None
 
         # magiclaw 文件驱动启动状态（纯内存，per-context-window，不持久化）
         self._is_magiclaw: bool = False              # 会话是否为 magiclaw 模式
@@ -148,6 +180,12 @@ class AgentHorizon:
         loaded = await self._store.load()
         if loaded is not None:
             self._state = loaded
+            # 容器重启 / Agent 实例重建时，只恢复“这个上下文窗口是否已经发过首包”。
+            # baseline 已经在 state.* 里；current 由本轮运行时重新采集，不应从旧进程内存恢复。
+            self._is_first_injection = not loaded.initial_context_injected
+            # 恢复 LLM 模型 baseline，避免重启后误判为"模型变更"
+            self._last_llm_model_id = loaded.llm_model_id
+            self._last_llm_model_name = loaded.llm_model_name
         self._loaded = True
 
     async def _save(self) -> None:
@@ -169,31 +207,27 @@ class AgentHorizon:
             mtime_ms = stat.mtime * 1000
 
             if size <= HASH_DETECTION_THRESHOLD:
-                full_hash = await calculate_file_hash(abs_path)
+                file_hash = await calculate_file_hash(abs_path)
             else:
-                full_hash = f"__mtime__{stat.mtime}"  # 大文件用 mtime 作伪 hash
+                file_hash = f"__mtime__{stat.mtime}"
 
             ts = max(time.time() * 1000, mtime_ms) + NETWORK_FS_MTIME_BUFFER * 1000
 
             rec = self._state.file_records.get(abs_path)
             if rec is not None:
-                # 更新已有记录（保留 read_content 不变）
-                rec.full_file_hash = full_hash
+                rec.file_hash = file_hash
                 rec.file_mtime_ms = ts
                 rec.file_size_bytes = size
             else:
-                # 写操作记录（无内容快照）
                 self._state.file_records[abs_path] = FileReadRecord(
                     path=abs_path,
-                    read_at=_iso_now(),
-                    read_ranges=[],
-                    read_content="",
-                    read_content_hash="",
-                    full_file_hash=full_hash,
+                    file_hash=file_hash,
                     file_mtime_ms=ts,
                     file_size_bytes=size,
-                    truncated=False,
+                    file_content="",
                     tool_name="write",
+                    truncated=False,
+                    read_at=_iso_now(),
                 )
 
             if metadata:
@@ -221,11 +255,10 @@ class AgentHorizon:
             mtime_ms = stat.mtime * 1000
 
             if size <= HASH_DETECTION_THRESHOLD:
-                # 小文件：hash 精确校验
-                if not rec.full_file_hash:
+                if not rec.file_hash:
                     return False, VALIDATION_ERROR_CHANGED
                 current_hash = await calculate_file_hash(abs_path)
-                if current_hash != rec.full_file_hash:
+                if current_hash != rec.file_hash:
                     return False, VALIDATION_ERROR_CHANGED
                 return True, ""
             else:
@@ -264,19 +297,24 @@ class AgentHorizon:
         self._state.file_records.clear()
         self._state.image_model = ImageModelState()
         self._state.video_model = VideoModelState()
-        await self._save()
         self._context_used = 0
         self._context_total = 0
         self._llm_model_changed = False
         self._image_model_changed = False
         self._video_model_changed = False
         self._is_first_injection = True
+        self._state.initial_context_injected = False
+        self._state.last_injected_date = ""
+        self._state.context_usage_baseline_used = 0
+        self._state.context_usage_baseline_total = 0
+        self._state.context_usage_baseline_used_pct = 0
 
-        # magiclaw：重算固定文件 / BOOTSTRAP 状态，重新进入必读文件流程
+        # magiclaw：重算固定文件集合和 BOOTSTRAP 状态，清空已读记录，强制重新进入必读流程
+        # file_records 已被清空，所以无法从中恢复已读状态，这里必须走完整重置
         if self._is_magiclaw and self._magiclaw_dir is not None:
-            await self.init_magiclaw_startup(self._magiclaw_dir)
-            logger.info("[AgentHorizon] magiclaw 启动状态已重置，重新进入必读文件流程")
+            await self.reset_magiclaw_startup(self._magiclaw_dir)
 
+        await self._save()
         logger.info("[AgentHorizon] 已重置上下文相关状态（文件记录、图片/视频模型、首次注入标志）")
 
     # ─────────────────────────────────────────────────────────────────────────
@@ -286,44 +324,50 @@ class AgentHorizon:
     async def record_file_read(
         self,
         path: Union[str, Path],
-        read_content: str,          # 原始文本（无行号），LLM 看到的部分
-        read_content_hash: str,     # BLAKE2b of read_content（由调用方计算，避免重复 IO）
-        full_file_hash: str,        # BLAKE2b of 完整文件
+        file_hash: str,
         mtime_ms: float,
         size: int,
-        ranges: list[tuple[int, int]],
         truncated: bool,
         tool_name: str,
+        ranges: Optional[list[tuple[int, int]]] = None,
         metadata: Optional[dict] = None,
     ) -> None:
-        """read_file / read_files 工具在成功读取后调用，存储内容快照。
+        """read_file 工具成功读取后调用。
 
-        同时通知 magiclaw 启动跟踪：若该文件是本轮必读绝对路径，标记为已真实读取。
+        Horizon 自主决定是否读取整文件并保存快照：
+        - 小文件（<= FILE_CONTENT_SNAPSHOT_MAX_BYTES）：读整文件存快照
+        - 大文件或读取失败：file_content 置空，变化时退化为 summary
         """
         await self._ensure_loaded()
         abs_path = _abs(path)
         record_saved = False
         try:
             ts = max(time.time() * 1000, mtime_ms) + NETWORK_FS_MTIME_BUFFER * 1000
+
+            file_content, snapshot_mode, snapshot_reason = await _read_file_content_for_snapshot(abs_path)
+
+            record_metadata = dict(metadata or {})
+            record_metadata["snapshot_mode"] = snapshot_mode
+            if snapshot_reason:
+                record_metadata["snapshot_reason"] = snapshot_reason
+
             self._state.file_records[abs_path] = FileReadRecord(
                 path=abs_path,
-                read_at=_iso_now(),
-                read_ranges=ranges,
-                read_content=read_content,
-                read_content_hash=read_content_hash,
-                full_file_hash=full_file_hash,
+                file_hash=file_hash,
                 file_mtime_ms=ts,
                 file_size_bytes=size,
-                truncated=truncated,
+                file_content=file_content,
                 tool_name=tool_name,
-                metadata=metadata or {},
+                truncated=truncated,
+                metadata=record_metadata,
+                read_at=_iso_now(),
+                read_ranges=list(ranges) if ranges else [],
             )
             await self._save()
             record_saved = True
         except Exception as e:
             logger.warning(f"[AgentHorizon] record_file_read 失败 {abs_path}: {e}")
 
-        # 仅在启动阶段且快照已成功落账时才追踪，避免把失败读取误记成已读
         if record_saved and not self._magiclaw_startup_done:
             self.mark_magiclaw_file_read(abs_path)
 
@@ -331,16 +375,16 @@ class AgentHorizon:
     # magiclaw 文件驱动启动
     # ─────────────────────────────────────────────────────────────────────────
 
-    async def init_magiclaw_startup(self, magic_dir: Path) -> None:
-        """magiclaw 会话初始化时调用，确定本轮必读文件集合。
+    async def _scan_magiclaw_required_paths(
+        self, magic_dir: Path
+    ) -> tuple[frozenset[str], tuple[str, ...], bool]:
+        """扫描 .magic/ 目录，返回 (required_abs_paths, missing_fixed_names, bootstrap_exists)。
 
-        magic_dir 是工作区 .magic/ 目录（workspace 内），用于检测 BOOTSTRAP.md 是否存在。
-        此方法同时兼做重置逻辑：首次运行、/new、/compact 都会重新计算固定文件、
-        BOOTSTRAP 存在性和软提醒文案，确保状态不会使用过期快照。
+        只做文件系统扫描，不修改任何实例状态，可被 reset/restore 两条路径复用。
         """
         from app.utils.async_file_utils import async_exists
 
-        fixed_paths = {
+        fixed_files = {
             "IDENTITY.md": magic_dir / "IDENTITY.md",
             "SOUL.md": magic_dir / "SOUL.md",
             "AGENTS.md": magic_dir / "AGENTS.md",
@@ -348,31 +392,70 @@ class AgentHorizon:
             "MEMORY.md": magic_dir / "MEMORY.md",
         }
         required_paths: set[str] = set()
-        missing_fixed_files: list[str] = []
-        for filename, file_path in fixed_paths.items():
+        missing_fixed: list[str] = []
+        for filename, file_path in fixed_files.items():
             if await async_exists(file_path):
                 required_paths.add(_abs(file_path))
             else:
-                missing_fixed_files.append(filename)
+                missing_fixed.append(filename)
 
         bootstrap_path = magic_dir / "BOOTSTRAP.md"
         bootstrap_exists = await async_exists(bootstrap_path)
         if bootstrap_exists:
             required_paths.add(_abs(bootstrap_path))
 
+        return frozenset(required_paths), tuple(sorted(missing_fixed)), bootstrap_exists
+
+    async def reset_magiclaw_startup(self, magic_dir: Path) -> None:
+        """magiclaw 上下文显式重置时调用（/new 或 /compact 触发）。
+
+        清空已读状态，强制重新扫描必读文件集合，要求模型重新读取所有必读文件。
+        """
+        required_paths, missing_fixed, bootstrap_exists = await self._scan_magiclaw_required_paths(magic_dir)
+
         self._is_magiclaw = True
         self._magiclaw_dir = magic_dir
-        self._magiclaw_required_paths = frozenset(required_paths)
-        self._magiclaw_read_paths = set()
-        self._magiclaw_missing_fixed_files = tuple(sorted(missing_fixed_files))
+        self._magiclaw_required_paths = required_paths
+        self._magiclaw_read_paths = set()  # 硬重置：/new|/compact 后必须重读所有文件
+        self._magiclaw_missing_fixed_files = missing_fixed
         self._magiclaw_bootstrap_exists = bootstrap_exists
         self._magiclaw_startup_done = not bool(required_paths)
         logger.info(
-            "[magiclaw] 启动状态初始化: "
+            "[magiclaw] startup reset（/new 或 /compact）: "
             f"required={sorted(Path(p).name for p in required_paths)}, "
-            f"missing_fixed={sorted(missing_fixed_files)}, "
-            f"bootstrap_exists={bootstrap_exists}"
+            f"missing_fixed={list(missing_fixed)}, bootstrap_exists={bootstrap_exists}"
         )
+
+    async def restore_magiclaw_startup(self, magic_dir: Path) -> None:
+        """Agent 实例重建或容器重启后调用，从持久化 file_records 恢复已读状态。
+
+        从 .horizon.json 中的 file_records 反推哪些必读文件已经真实读取过，
+        只对真正未读过的文件继续提醒，避免容器重启后把已完成的 startup 重置掉。
+        """
+        await self._ensure_loaded()
+
+        required_paths, missing_fixed, bootstrap_exists = await self._scan_magiclaw_required_paths(magic_dir)
+
+        # 从持久化 file_records 恢复已读必读文件集合
+        persisted_paths = set(self._state.file_records.keys())
+        restored_read_paths = required_paths & persisted_paths
+
+        self._is_magiclaw = True
+        self._magiclaw_dir = magic_dir
+        self._magiclaw_required_paths = required_paths
+        self._magiclaw_read_paths = restored_read_paths
+        self._magiclaw_missing_fixed_files = missing_fixed
+        self._magiclaw_bootstrap_exists = bootstrap_exists
+        self._magiclaw_startup_done = required_paths <= restored_read_paths
+
+        if self._magiclaw_startup_done:
+            logger.info("[magiclaw] startup restore：所有必读文件已从 file_records 恢复，跳过 startup 提醒")
+        else:
+            remaining = sorted(Path(p).name for p in (required_paths - restored_read_paths))
+            logger.info(
+                "[magiclaw] startup restore：部分必读文件尚未读取，继续提醒: "
+                f"remaining={remaining}, bootstrap_exists={bootstrap_exists}"
+            )
 
     def mark_magiclaw_file_read(self, abs_path: str) -> None:
         """read_file 工具成功读取后调用，记录必读文件完成情况。
@@ -454,10 +537,54 @@ class AgentHorizon:
             self._last_llm_model_description = description
             self._llm_model_changed = True
 
+    def get_context_usage(self) -> ContextUsage:
+        """返回当前上下文窗口使用情况，供工具决策使用。total=0 表示尚未获得模型数据。"""
+        return ContextUsage(used=self._context_used, total=self._context_total)
+
     def update_context_usage(self, input_tokens: int, context_window_total: int) -> None:
         """LLM 调用返回后调用，更新上下文窗口使用量。"""
         self._context_used = input_tokens
         self._context_total = context_window_total
+
+    def _calculate_context_used_pct(self, used: int, total: int) -> int:
+        return int(used / total * 100)
+
+    def _get_context_usage_diff_threshold_pct(self, current_used_pct: int) -> int:
+        """按当前占用区间返回最小注入阈值。
+
+        规则保持和常量区注释一致：
+        - <70% => 5
+        - 70%~79% => 3
+        - >=80% => 1
+        """
+        if current_used_pct >= CONTEXT_USAGE_HIGH_USAGE_START_PCT:
+            return CONTEXT_USAGE_HIGH_USAGE_DIFF_THRESHOLD_PCT
+        if current_used_pct >= CONTEXT_USAGE_MEDIUM_USAGE_START_PCT:
+            return CONTEXT_USAGE_MEDIUM_USAGE_DIFF_THRESHOLD_PCT
+        return CONTEXT_USAGE_LOW_USAGE_DIFF_THRESHOLD_PCT
+
+    def _should_inject_context_usage(self, current_used_pct: int) -> bool:
+        """按绝对百分点差值判断是否需要再次注入 context usage。
+
+        baseline 不存在时先注入一次，后续再按阈值做节流。
+        """
+        if self._state.context_usage_baseline_total <= 0:
+            return True
+        used_pct_diff = abs(current_used_pct - self._state.context_usage_baseline_used_pct)
+        return used_pct_diff >= self._get_context_usage_diff_threshold_pct(current_used_pct)
+
+    def _update_context_usage_baseline(self, used: int, total: int, used_pct: int) -> bool:
+        """只有真正把 usage 发给模型后，才推进 last injected baseline。"""
+        if (
+            self._state.context_usage_baseline_used == used
+            and self._state.context_usage_baseline_total == total
+            and self._state.context_usage_baseline_used_pct == used_pct
+        ):
+            return False
+        self._state.context_usage_baseline_used = used
+        self._state.context_usage_baseline_total = total
+        self._state.context_usage_baseline_used_pct = used_pct
+        return True
 
     async def update_video_model(self, model_id: str, config: dict) -> None:
         """用户消息处理时调用，检测视频模型配置是否变化；变化则标记需注入并持久化。"""
@@ -549,29 +676,39 @@ class AgentHorizon:
     # 字符串值 setter（用于 diff 追踪）
     # ─────────────────────────────────────────────────────────────────────────
 
+    def _get_workspace_files_current(self) -> str:
+        return self._workspace_files_current if self._workspace_files_current is not None else self._state.workspace_files
+
+    def _get_workspace_entries_current(self) -> list:
+        entries = self._workspace_entries_current if self._workspace_entries_current is not None else self._state.workspace_entries
+        return list(entries)
+
+    def _get_memory_current(self) -> str:
+        return self._memory_current if self._memory_current is not None else self._state.memory
+
+    def _get_language_current(self) -> str:
+        return self._language_current if self._language_current is not None else self._state.user_preferred_language
+
     async def set_workspace_snapshot(self, snapshot: "WorkspaceSnapshot") -> None:
-        """更新工作区快照：展示字符串（注入 LLM）+ 结构化路径条目（供 diff 比对）。"""
+        """更新运行时 current 工作区快照，不直接覆盖持久化 baseline。"""
         await self._ensure_loaded()
+        current_paths = _workspace_entries_to_path_set(self._get_workspace_entries_current())
         new_paths = _workspace_entries_to_path_set(snapshot.entries)
-        old_paths = _workspace_entries_to_path_set(self._state.workspace_entries)
-        if snapshot.display != self._state.workspace_files or new_paths != old_paths:
-            self._state.workspace_files = snapshot.display
-            self._state.workspace_entries = snapshot.entries
-            await self._save()
+        if snapshot.display != self._get_workspace_files_current() or new_paths != current_paths:
+            self._workspace_files_current = snapshot.display
+            self._workspace_entries_current = list(snapshot.entries)
 
     async def set_memory(self, memory: str) -> None:
-        """初始化时从 InitClientMessage 提取 memory 后调用。"""
+        """更新运行时 current memory，不直接覆盖持久化 baseline。"""
         await self._ensure_loaded()
-        if memory != self._state.memory:
-            self._state.memory = memory
-            await self._save()
+        if memory != self._get_memory_current():
+            self._memory_current = memory
 
     async def set_user_preferred_language(self, language: str) -> None:
-        """用户语言确定或变更时调用。"""
+        """更新运行时 current 语言，不直接覆盖持久化 baseline。"""
         await self._ensure_loaded()
-        if language != self._state.user_preferred_language:
-            self._state.user_preferred_language = language
-            await self._save()
+        if language != self._get_language_current():
+            self._language_current = language
 
     # ─────────────────────────────────────────────────────────────────────────
     # 核心：构建注入给 LLM 的动态上下文
@@ -586,7 +723,7 @@ class AgentHorizon:
 
         后续注入按需包含：
           <current_time>     — 始终输出
-          <context_usage>    — context_total > 0 时
+          <context_usage>    — context_total > 0 且达到分段阈值时
           <model_info>       — LLM 模型或图片模型发生变化时
           <workspace_files_changed> — workspace_files 变化时
           <memory_changed>   — memory 变化时
@@ -609,7 +746,7 @@ class AgentHorizon:
                 if size <= HASH_DETECTION_THRESHOLD:
                     h = await calculate_file_hash(abs_path)
                 else:
-                    h = f"__mtime__{stat.mtime}"  # 大文件用 mtime 作伪 hash
+                    h = f"__mtime__{stat.mtime}"
                 return abs_path, h, size, mtime_ms
             except Exception:
                 return abs_path, "", 0, 0.0
@@ -620,7 +757,7 @@ class AgentHorizon:
             current_mtimes[abs_path] = mtime_ms
 
         # 文件变化检测
-        file_blocks = detect_file_changes(self._state, current_hashes)
+        file_blocks = await detect_file_changes(self._state, current_hashes, current_mtimes)
 
         # 通知块
         notif_blocks = [
@@ -632,13 +769,26 @@ class AgentHorizon:
         from agentlang.utils.datetime_formatter import get_current_datetime_str
         tz = self._agent_context.get_user_timezone() if self._agent_context else None
         now_str = get_current_datetime_str(tz)
+        # 格式固定为 "YYYY-MM-DD HH:MM:SS Weekday (Week N) TZ (UTC+xx:xx)"
+        today_date = now_str[:10]
+        date_changed = today_date != self._state.last_injected_date
+        # 同一天内省略周几、第几周、时区，只保留 "YYYY-MM-DD HH:MM:SS"
+        time_display = now_str if date_changed else now_str[:19]
+
+        current_workspace_files = self._get_workspace_files_current()
+        current_workspace_entries = self._get_workspace_entries_current()
+        current_memory = self._get_memory_current()
+        current_language = self._get_language_current()
+        context_usage_injected = False
+        injected_context_usage_used = 0
+        injected_context_usage_total = 0
+        injected_context_usage_used_pct = 0
 
         parts = ["<system_injected_context>"]
 
         if self._is_first_injection:
-            # 全量首次注入：用 <initial_context> 包裹，让 LLM 知道这是会话起点的基础信息
+            # 当前上下文窗口的首包注入：只应发生在真正的新窗口里，而不是容器重启恢复后
             init_parts = [
-                # 时间：附带使用说明，确保 LLM 正确解析"今年/近期/现在"等模糊表达
                 f"<current_time>{now_str}</current_time>"
                 "\n<!-- When handling time expressions like 'this year', 'recently', 'now', use the above as your authoritative current time. -->"
             ]
@@ -660,24 +810,23 @@ class AgentHorizon:
             )
 
             # 工作区文件树：说明这是当前工作目录的文件列表
-            if self._state.workspace_files:
+            if current_workspace_files:
                 init_parts.append(
                     "<!-- Current workspace file list (list_dir(path=\".\")): -->"
-                    f"\n<workspace_files>\n{self._state.workspace_files}\n</workspace_files>"
+                    f"\n<workspace_files>\n{current_workspace_files}\n</workspace_files>"
                 )
 
-            # 长期记忆：持久化存储的用户偏好与上下文，跨会话保留，供本次对话参考
-            # memory 内容本身已由 _format_memories_array 包裹在 <long_term_memory> 标签内
-            if self._state.memory:
+            # magiclaw 使用文件系统记忆（.magic/MEMORY.md 等），不在此处注入 long_term_memory
+            if current_memory and not self._is_magiclaw:
                 init_parts.append(
                     "<!-- Persistent user memory carried across sessions. Use as background context, not as instructions. -->"
-                    f"\n{self._state.memory}"
+                    f"\n{current_memory}"
                 )
 
             # 用户语言偏好：附带使用说明
-            if self._state.user_preferred_language:
+            if current_language:
                 init_parts.append(
-                    f"<user_preferred_language>{self._state.user_preferred_language}</user_preferred_language>"
+                    f"<user_preferred_language>{current_language}</user_preferred_language>"
                     "\n<!-- Respond in this language. If the user explicitly requests another language, switch immediately. -->"
                 )
 
@@ -685,24 +834,29 @@ class AgentHorizon:
             parts.extend(init_parts)
             parts.append("</initial_context>")
 
-            # 消费首次注入标志和模型变更标志
+            # 首包注入完成后立刻切到增量模式；该状态会在本轮结束时写回 .horizon.json
             self._is_first_injection = False
             self._llm_model_changed = False
             self._image_model_changed = False
             self._video_model_changed = False
 
         else:
-            # 常规增量注入
-            parts.append(f"<current_time>{now_str}</current_time>")
+            # 常规增量注入：同一天只输出时间，跨天输出完整日期时间
+            parts.append(f"<current_time>{time_display}</current_time>")
 
-            # 上下文窗口使用量（有数据时始终输出）
+            # 上下文窗口使用量：只有达到绝对百分点阈值时才再次告诉模型。
             if self._context_total > 0:
                 remaining = max(0, self._context_total - self._context_used)
-                used_pct = int(self._context_used / self._context_total * 100)
-                parts.append(
-                    f'<context_usage used="{self._context_used}" total="{self._context_total}"'
-                    f' remaining="{remaining}" used_pct="{used_pct}%"/>'
-                )
+                used_pct = self._calculate_context_used_pct(self._context_used, self._context_total)
+                if self._should_inject_context_usage(used_pct):
+                    parts.append(
+                        f'<context_usage used="{self._context_used}" total="{self._context_total}"'
+                        f' remaining="{remaining}" used_pct="{used_pct}%"/>'
+                    )
+                    context_usage_injected = True
+                    injected_context_usage_used = self._context_used
+                    injected_context_usage_total = self._context_total
+                    injected_context_usage_used_pct = used_pct
 
             # 模型信息（仅变化时输出）
             model_info_parts: list[str] = []
@@ -730,29 +884,57 @@ class AgentHorizon:
                 parts.extend(model_info_parts)
                 parts.append("</model_info>")
 
-            # 字符串 Diff：与上次注入时的 prev 快照对比（_state 中存的是最新值）
-            if self._workspace_entries_prev is not None:
-                cur_paths = _workspace_entries_to_path_set(self._state.workspace_entries)
-                prev_paths = _workspace_entries_to_path_set(self._workspace_entries_prev)
-                if cur_paths != prev_paths:
-                    diff = _workspace_files_diff(self._workspace_entries_prev, self._state.workspace_entries)
-                    if diff:
-                        parts.append(f"<workspace_files_changed>\n{diff}\n</workspace_files_changed>")
+            # 增量注入：用“模型已知 baseline”与“本轮 current staging”直接计算 diff
+            cur_paths = _workspace_entries_to_path_set(current_workspace_entries)
+            baseline_paths = _workspace_entries_to_path_set(self._state.workspace_entries)
+            if cur_paths != baseline_paths:
+                diff = _workspace_files_diff(self._state.workspace_entries, current_workspace_entries)
+                if diff:
+                    parts.append(f"<workspace_files_changed>\n{diff}\n</workspace_files_changed>")
 
-            if self._memory_prev is not None and self._memory_prev != self._state.memory:
-                diff = _string_diff(self._memory_prev, self._state.memory)
+            if not self._is_magiclaw and self._state.memory != current_memory:
+                diff = _string_diff(self._state.memory, current_memory)
                 if diff:
                     parts.append(f"<long_term_memory_changed>\n{diff}\n</long_term_memory_changed>")
 
-            if self._language_prev is not None and self._language_prev != self._state.user_preferred_language:
+            if self._state.user_preferred_language != current_language:
                 parts.append(
-                    f'<user_preferred_language_changed>{self._state.user_preferred_language}</user_preferred_language_changed>'
+                    f'<user_preferred_language_changed>{current_language}</user_preferred_language_changed>'
                 )
 
-        # 更新 prev 快照（首次注入和增量注入后都需要更新，作为下次的对比基准）
-        self._workspace_entries_prev = list(self._state.workspace_entries)
-        self._memory_prev = self._state.memory
-        self._language_prev = self._state.user_preferred_language
+        # 注入完成后，把 current staging 提交成新的持久化 baseline。
+        persistence_changed = False
+        if self._state.last_injected_date != today_date:
+            self._state.last_injected_date = today_date
+            persistence_changed = True
+        if self._state.initial_context_injected is not True:
+            self._state.initial_context_injected = True
+            persistence_changed = True
+        if self._state.workspace_files != current_workspace_files:
+            self._state.workspace_files = current_workspace_files
+            persistence_changed = True
+        if self._state.workspace_entries != current_workspace_entries:
+            self._state.workspace_entries = list(current_workspace_entries)
+            persistence_changed = True
+        if self._state.memory != current_memory:
+            self._state.memory = current_memory
+            persistence_changed = True
+        if self._state.llm_model_id != self._last_llm_model_id or self._state.llm_model_name != self._last_llm_model_name:
+            self._state.llm_model_id = self._last_llm_model_id
+            self._state.llm_model_name = self._last_llm_model_name
+            persistence_changed = True
+        if self._state.user_preferred_language != current_language:
+            self._state.user_preferred_language = current_language
+            persistence_changed = True
+        if context_usage_injected:
+            persistence_changed = (
+                self._update_context_usage_baseline(
+                    injected_context_usage_used,
+                    injected_context_usage_total,
+                    injected_context_usage_used_pct,
+                )
+                or persistence_changed
+            )
 
         if file_blocks:
             parts.append("<file_changes>")
@@ -771,12 +953,11 @@ class AgentHorizon:
 
         parts.append("</system_injected_context>")
 
-        # 更新文件状态（不更新 read_content）
-        state_changed = bool(file_blocks) or bool(self._state.pending_notifications)
+        state_changed = bool(file_blocks) or bool(self._state.pending_notifications) or persistence_changed
         for abs_path, (cur_hash, cur_size) in current_hashes.items():
             rec = self._state.file_records.get(abs_path)
-            if rec and cur_hash and rec.full_file_hash != cur_hash:
-                rec.full_file_hash = cur_hash
+            if rec and cur_hash and rec.file_hash != cur_hash:
+                rec.file_hash = cur_hash
                 rec.file_size_bytes = cur_size
                 rec.file_mtime_ms = current_mtimes.get(abs_path, rec.file_mtime_ms)
 

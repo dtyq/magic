@@ -12,7 +12,7 @@ from agentlang.agent.define import SkillsConfig
 from agentlang.logger import get_logger
 from agentlang.agent.syntax import SyntaxProcessor
 from app.utils.async_file_utils import async_exists, async_read_text, async_try_read_text
-from app.core.skill_utils.manager import GlobalSkillManager, get_global_skill_manager
+from app.core.skill_utils.manager import GlobalSkillManager, get_global_skill_manager, find_skill
 from app.core.skill_utils.skill_directory_scan import discover_skills_in_directory, discover_skills_in_workspace
 from app.core.skill_utils.skill_sources import get_agents_dir, get_system_skills_dir, get_skills_instructions_prompt_file, get_workspace_skills_dir, get_crew_skills_dir
 logger = get_logger(__name__)
@@ -161,6 +161,19 @@ async def _do_generate(
         else:
             logger.warning(f"永久挂载 skill 未找到，跳过: {_ALWAYS_MOUNT_SKILL}")
 
+    # ── 3d. 补齐 preload 中未被任何来源加载的 skill ──────────────────────
+    # preload 不需要在 system_skills 里重复声明，此处自动兜底加载
+    for skill_name in preload_map:
+        if skill_name in loaded_names:
+            continue
+        skill = await find_skill(skill_name)
+        if skill:
+            skills_metadata.append(skill)
+            loaded_names.add(skill.name)
+            logger.info(f"preload 自动补加载 skill: {skill_name}")
+        else:
+            logger.warning(f"preload skill 未找到，内容将无法展开: {skill_name}")
+
     if not skills_metadata:
         logger.warning("未能加载任何 skills")
         return None
@@ -258,8 +271,7 @@ async def _build_preloaded_skills_xml(
 ) -> str:
     """构建 <preloaded_skills> XML 块，内容不受 MAX_CHARS 限制。
 
-    对 preload_map 中每个 skill，读取指定 md 文件并内联进 XML。
-    SKILL.md 直接使用已加载的 meta.content，其他文件从 skill_dir 读取。
+    每个 skill 对应一个 <skill> 块，其下每个预加载文件对应一个 <file> 子块。
     文件不存在时记录 warning 并跳过，不抛异常。
     """
     if not preload_map:
@@ -274,6 +286,7 @@ async def _build_preloaded_skills_xml(
             logger.warning(f"preload_map 中的 skill 未找到元数据，跳过: {skill_name}")
             continue
 
+        file_blocks: List[str] = []
         for filename in files:
             is_skill_md = filename.upper() == "SKILL.MD"
             if is_skill_md:
@@ -298,34 +311,38 @@ async def _build_preloaded_skills_xml(
                     logger.warning(f"preload 文件不存在，跳过: {file_path}")
                     continue
 
-            # 与 read_skills 工具保持一致的输出格式
-            file_attr = "" if is_skill_md else f' file="{filename}"'
-            parts = [f'<skill_content name="{skill_name}"{file_attr}>']
-            if file_path:
-                parts.append(f"<location>{file_path}</location>")
-            if meta.skill_dir:
-                parts.append(f"<skill_dir>{meta.skill_dir}</skill_dir>")
-            if file_path or meta.skill_dir:
-                parts.append("")
-            parts.append(file_content)
-            parts.append("</skill_content>")
-            skill_parts.append("\n".join(parts))
+            file_blocks.append(f'<file location="{file_path}">\n{file_content}\n</file>')
+
+        if not file_blocks:
+            continue
+
+        parts = [f'<skill name="{skill_name}">']
+        if meta.skill_dir:
+            parts.append(f"<skill_dir>{meta.skill_dir}</skill_dir>")
+        parts.append("")
+        parts.extend(file_blocks)
+        parts.append(f"</skill>")
+        skill_parts.append("\n".join(parts))
 
     if not skill_parts:
         return ""
 
     header = (
         "<!--zh\n"
-        "preloaded_skills 说明：此块内包含已预加载的 skill 文件内容。\n"
-        "每个 skill_content 块的 file 属性标明了加载的是哪个文件：\n"
-        "- 无 file 属性（或 file=\"SKILL.md\"）：已加载完整 skill 文档，无需再调用 read_skills\n"
-        "- 有 file 属性（如 file=\"QUICK-REF.md\"）：仅加载了指定文件，如需完整文档仍需调用 read_skills\n"
-        "直接使用此块内的内容；优先级高于 available_skills 中的同名条目。\n"
+        "preloaded_skills 说明：此块内包含已预加载的 skill 文件内容，这些内容已在系统提示词中，直接使用，无需再调用任何工具。\n"
+        "每个 <skill> 块对应一个 skill，<skill_dir> 标明其根目录，<file location=\"...\"> 子块标明已加载的文件及其完整路径。\n"
+        "- 某 <skill> 下存在 location 以 /SKILL.md 结尾的 <file>：该 skill 主文档内容已预加载在上方，直接读取即可，无需再调 read_skills（调了也只是重复加载已有内容）\n"
+        "  如需该 skill 的其他 reference 文件，查看 SKILL.md 中给出的相对路径，拼接 skill_dir 得到绝对路径，再调 read_files\n"
+        "- 某 <skill> 下无 /SKILL.md 结尾的 <file>：仅预加载了 reference 文件，主文档不在当前上下文\n"
+        "  需要主文档时，调 read_skills({\"skill_names\": [\"<skill name 属性值>\"]}) 加载\n"
         "-->\n"
-        "The `<preloaded_skills>` block contains pre-loaded files from skills.\n"
-        "Each `<skill_content>` block's `file` attribute indicates which file was loaded:\n"
-        "- No `file` attribute (i.e., SKILL.md): full skill documentation is loaded — do NOT call `read_skills` for it.\n"
-        "- Has `file` attribute (e.g., `file=\"QUICK-REF.md\"`): only that specific file is loaded — call `read_skills` if the full documentation is still needed.\n"
-        "Use the content directly. These take priority over any same-named entries in `<available_skills>`."
+        "IMPORTANT: The `<preloaded_skills>` block contains skill files already injected into this system prompt — use them directly.\n"
+        "Each `<skill>` block groups all preloaded files for one skill. `<skill_dir>` is the skill's root directory.\n"
+        "Each `<file location=\"...\">` sub-block holds the content of one preloaded file at that absolute path.\n"
+        "- A `<skill>` that has a `<file>` whose `location` ends with `/SKILL.md`: the full documentation is already in this system prompt above.\n"
+        "  No need to call `read_skills` for it — the content is already here (calling it would just reload what is already present).\n"
+        "  To load additional reference files, find the relative path in SKILL.md, prepend `<skill_dir>`, and call `read_files`.\n"
+        "- A `<skill>` with no `/SKILL.md` `<file>`: only reference files were preloaded; the main documentation is NOT in context yet.\n"
+        "  Call `read_skills({\"skill_names\": [\"<name>\"]})` (using the `name` attribute of the `<skill>` tag) to load the full documentation."
     )
     return "<preloaded_skills>\n" + header + "\n\n" + "\n\n".join(skill_parts) + "\n\n</preloaded_skills>"

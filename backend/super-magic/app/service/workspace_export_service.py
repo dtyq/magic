@@ -1,6 +1,10 @@
-"""Workspace export service.
+"""发布链路：把用户创建的数字员工（Crew）/ Skill 打包上传到对象存储。
 
-Handles metadata extraction from workspace files, ZIP packaging, and upload to object storage.
+流程：读工作区 frontmatter → 打 zip → 上传 → 返回 file_key + metadata。
+metadata 供上游写入数据库，由前端用于展示和检索。
+
+这条链路不参与运行时 .agent 编译，也不读 crew.template.agent / claw.template.agent。
+完整链路说明见 agents/AGENT_RUNTIME_AND_PUBLISH_GUIDE.md。
 """
 
 import os
@@ -152,7 +156,7 @@ def extract_agent_metadata(workspace_dir: Path) -> Dict[str, Any]:
         desc_en = _get_field(identity, "description_en", "description-en")
         metadata["description_i18n"] = _build_i18n(default=desc, zh_cn=desc_cn, en_us=desc_en)
 
-    # TOOLS.md — tools list
+    # TOOLS.md — tools list（只读 frontmatter，不走运行时工具合成规则）
     tools_fm = _read_frontmatter(workspace_dir / "TOOLS.md")
     if tools_fm is not None:
         tools: Any = tools_fm.get("tools", [])

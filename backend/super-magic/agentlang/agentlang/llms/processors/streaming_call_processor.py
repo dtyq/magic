@@ -14,6 +14,7 @@ from typing import AsyncIterator
 from openai import AsyncOpenAI, APIError, APITimeoutError, APIConnectionError
 from openai.types.chat import ChatCompletionChunk, ChatCompletion
 
+from agentlang.exceptions import StreamChunkTimeoutError, StreamInterruptedError
 from agentlang.interface.context import AgentContextInterface
 from .processor_config import ProcessorConfig
 from .streaming_context import StreamProcessContext, StreamResponseHandler
@@ -77,7 +78,7 @@ class StreamingCallProcessor:
         request_id: Optional[str] = None,
         correlation_id: Optional[str] = None,
         enable_llm_response_events: bool = True,
-        retry_count: int = 0
+        llm_call_retry_count: int = 0
     ) -> ChatCompletion:
         """使用流式调用LLM的方法
 
@@ -91,7 +92,7 @@ class StreamingCallProcessor:
             request_id: 请求ID
             correlation_id: 关联ID
             enable_llm_response_events: 是否启用LLM响应事件
-            retry_count: 重试次数
+            llm_call_retry_count: LLM call 重试次数
 
         Returns:
             ChatCompletion响应
@@ -106,7 +107,7 @@ class StreamingCallProcessor:
         streaming_driver = None
 
         # 使用上下文管理器确保流式模式下计数的严格一一对应
-        async with StreamCancelBlockerContext(agent_context, request_id, retry_count):
+        async with StreamCancelBlockerContext(agent_context, request_id, llm_call_retry_count):
             try:
                 # 初始化流式推送驱动
                 streaming_driver = await StreamingCallProcessor.initialize_streaming_driver(
@@ -115,10 +116,20 @@ class StreamingCallProcessor:
 
                 # 记录HTTP请求发送时间
                 http_request_start_time = time.time()
-                logger.info(f"[{request_id}] 发送HTTP流式请求... (correlation_id={correlation_id})")
+                first_chunk_timeout = processor_config.stream_first_chunk_timeout_seconds
+                logger.info(
+                    f"[{request_id}] 发送HTTP流式请求... "
+                    f"首包窗口={first_chunk_timeout}s (correlation_id={correlation_id})"
+                )
 
-                # 发送流式请求并处理响应
-                stream: AsyncIterator[ChatCompletionChunk] = await client.chat.completions.create(**request_params)
+                # 首包预算覆盖"请求发出 -> 响应头 -> 首个 chunk"整段总时间
+                if first_chunk_timeout:
+                    stream: AsyncIterator[ChatCompletionChunk] = await asyncio.wait_for(
+                        client.chat.completions.create(**request_params),
+                        timeout=first_chunk_timeout,
+                    )
+                else:
+                    stream: AsyncIterator[ChatCompletionChunk] = await client.chat.completions.create(**request_params)
 
                 # HTTP响应头返回时间
                 http_response_time = time.time()
@@ -134,7 +145,7 @@ class StreamingCallProcessor:
                     agent_context=agent_context,
                     http_request_start_time=http_request_start_time,
                     enable_llm_response_events=enable_llm_response_events,
-                    retry_count=retry_count
+                    retry_count=llm_call_retry_count
                 )
 
                 # 处理流式响应（包含开始消息、流式chunk处理、完成消息推送）
@@ -148,11 +159,15 @@ class StreamingCallProcessor:
                 return response
 
             except (APIError, APITimeoutError, APIConnectionError):
-                # 重新抛出API相关的错误
+                raise
+            except StreamChunkTimeoutError:
+                logger.error(f"[{request_id}] 流式 chunk 超时 (correlation_id={correlation_id})")
+                raise
+            except StreamInterruptedError:
+                logger.error(f"[{request_id}] 流式连接被外部中断 (correlation_id={correlation_id})")
                 raise
             except asyncio.TimeoutError:
-                # 直接重新抛出 asyncio.TimeoutError，让上层处理
-                logger.error(f"[{request_id}] 流式调用超时 (correlation_id={correlation_id})")
+                logger.error(f"[{request_id}] 流式总超时兜底触发 (correlation_id={correlation_id})")
                 raise
             except Exception as e:
                 logger.error(f"[{request_id}] 流式调用发生意外错误: {e} (correlation_id={correlation_id})")

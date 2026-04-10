@@ -23,9 +23,8 @@ use App\Infrastructure\Util\OfficialOrganizationUtil;
 use App\Infrastructure\Util\Permission\Annotation\CheckPermission;
 use App\Interfaces\Authorization\Web\MagicUserAuthorization;
 use App\Interfaces\Provider\DTO\ConnectivityTestByConfigRequest;
-use App\Interfaces\Provider\DTO\CreateProviderConfigRequest;
+use App\Interfaces\Provider\DTO\SaveProviderConfigRequest;
 use App\Interfaces\Provider\DTO\SaveProviderModelDTO;
-use App\Interfaces\Provider\DTO\UpdateProviderConfigRequest;
 use Dtyq\ApiResponse\Annotation\ApiResponse;
 use Exception;
 use Hyperf\Di\Annotation\Inject;
@@ -85,8 +84,8 @@ class ServiceProviderApi extends AbstractApi
     {
         /** @var MagicUserAuthorization $authenticatable */
         $authenticatable = $this->getAuthorization();
-        $updateProviderConfigRequest = new UpdateProviderConfigRequest($request->all());
-        return $this->adminProviderAppService->updateProvider($authenticatable, $updateProviderConfigRequest);
+        $updateProviderConfigRequest = new SaveProviderConfigRequest($request->all());
+        return $this->adminProviderAppService->saveProviderConfig($authenticatable, $updateProviderConfigRequest);
     }
 
     // 修改模型状态
@@ -168,8 +167,8 @@ class ServiceProviderApi extends AbstractApi
     {
         /** @var MagicUserAuthorization $authenticatable */
         $authenticatable = $this->getAuthorization();
-        $createProviderConfigRequest = new CreateProviderConfigRequest($request->all());
-        return $this->adminProviderAppService->createProvider($authenticatable, $createProviderConfigRequest);
+        $createProviderConfigRequest = new SaveProviderConfigRequest($request->all());
+        return $this->adminProviderAppService->saveProviderConfig($authenticatable, $createProviderConfigRequest);
     }
 
     // 删除服务商

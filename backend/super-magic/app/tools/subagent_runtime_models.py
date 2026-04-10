@@ -58,6 +58,8 @@ class SubagentQueryResult:
     agent_name: Optional[str] = None
     result: Optional[str] = None
     error: Optional[str] = None
+    # 仅在 status=running（超时但仍在执行）时填充，内容为子 Agent 最近一条 assistant 消息，供父 Agent 了解进度
+    last_activity: Optional[str] = None
 
 
 @dataclass

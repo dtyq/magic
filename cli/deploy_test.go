@@ -117,6 +117,44 @@ func TestResolveAutoRecoverRelease(t *testing.T) {
 	})
 }
 
+func TestResolveDeployWebBaseURL(t *testing.T) {
+	t.Run("cli flag has highest priority", func(t *testing.T) {
+		t.Setenv(envNameCLIWebBaseURL, "https://env.example.com")
+		t.Setenv(envNameCLILegacyWebBaseURL, "https://legacy.example.com")
+
+		got, usedDeprecatedEnv := resolveDeployWebBaseURL("https://cli.example.com")
+		assert.Equal(t, "https://cli.example.com", got)
+		assert.False(t, usedDeprecatedEnv)
+	})
+
+	t.Run("new env is used when cli flag is empty", func(t *testing.T) {
+		t.Setenv(envNameCLIWebBaseURL, "https://env.example.com")
+		t.Setenv(envNameCLILegacyWebBaseURL, "https://legacy.example.com")
+
+		got, usedDeprecatedEnv := resolveDeployWebBaseURL("")
+		assert.Equal(t, "https://env.example.com", got)
+		assert.False(t, usedDeprecatedEnv)
+	})
+
+	t.Run("legacy env falls back when cli and new env are empty", func(t *testing.T) {
+		t.Setenv(envNameCLIWebBaseURL, " \t ")
+		t.Setenv(envNameCLILegacyWebBaseURL, "https://legacy.example.com")
+
+		got, usedDeprecatedEnv := resolveDeployWebBaseURL("")
+		assert.Equal(t, "https://legacy.example.com", got)
+		assert.True(t, usedDeprecatedEnv)
+	})
+
+	t.Run("empty inputs return empty value without deprecated marker", func(t *testing.T) {
+		t.Setenv(envNameCLIWebBaseURL, "")
+		t.Setenv(envNameCLILegacyWebBaseURL, "")
+
+		got, usedDeprecatedEnv := resolveDeployWebBaseURL("   ")
+		assert.Equal(t, "", got)
+		assert.False(t, usedDeprecatedEnv)
+	})
+}
+
 func requireNoError(t *testing.T, err error) {
 	t.Helper()
 	if err != nil {

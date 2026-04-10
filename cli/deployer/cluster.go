@@ -8,6 +8,7 @@ import (
 	"github.com/dtyq/magicrew-cli/cluster"
 	"github.com/dtyq/magicrew-cli/kube"
 	"github.com/dtyq/magicrew-cli/registry"
+	corev1 "k8s.io/api/core/v1"
 )
 
 // BootstrapClusterStage creates (or reuses) a kind cluster and initialises the kube client.
@@ -21,8 +22,8 @@ func newBootstrapClusterStage(d *Deployer) *BootstrapClusterStage {
 }
 
 func (s *BootstrapClusterStage) Exec(ctx context.Context) error {
-	registryCfg := s.d.opts.Registry
-	restoreContainerProxy, err := applyContainerProxyTemporarily(s.d.opts.Proxy.Container.URL, []string{
+	registryCfg := s.d.opts.registry
+	restoreContainerProxy, err := applyContainerProxyTemporarily(s.d.opts.proxy.Container.URL, []string{
 		registryCfg.Name,
 		registry.ContainerEndpoint(registryCfg),
 	})
@@ -32,20 +33,20 @@ func (s *BootstrapClusterStage) Exec(ctx context.Context) error {
 	defer restoreContainerProxy()
 
 	// Mutate opts.Kind in place so later stages and introspection see effective paths/registry host.
-	if err := s.d.resolveKindMountDirs(&s.d.opts.Kind); err != nil {
+	if err := s.d.resolveKindMountDirs(&s.d.opts.kind); err != nil {
 		return err
 	}
-	if s.d.opts.Kind.RegistryHost == "" {
-		s.d.opts.Kind.RegistryHost = registry.ContainerEndpoint(registryCfg)
+	if s.d.opts.kind.RegistryHost == "" {
+		s.d.opts.kind.RegistryHost = registry.ContainerEndpoint(registryCfg)
 	}
 
-	renderedPath, cleanup, err := cluster.RenderConfig(s.d.opts.Kind)
+	renderedPath, cleanup, err := cluster.RenderConfig(s.d.opts.kind)
 	if err != nil {
 		return fmt.Errorf("render kind config: %w", err)
 	}
 	defer cleanup()
 
-	if err := cluster.Create(s.d.opts.Kind.Name, renderedPath); err != nil {
+	if err := cluster.Create(s.d.opts.kind.Name, renderedPath); err != nil {
 		return fmt.Errorf("create kind cluster: %w", err)
 	}
 
@@ -53,7 +54,7 @@ func (s *BootstrapClusterStage) Exec(ctx context.Context) error {
 		return fmt.Errorf("connect registry to kind network: %w", err)
 	}
 
-	kubeconfig, err := cluster.GetKubeconfig(s.d.opts.Kind.Name)
+	kubeconfig, err := cluster.GetKubeconfig(s.d.opts.kind.Name)
 	if err != nil {
 		return fmt.Errorf("get kubeconfig: %w", err)
 	}
@@ -63,7 +64,15 @@ func (s *BootstrapClusterStage) Exec(ctx context.Context) error {
 		return fmt.Errorf("create kube client: %w", err)
 	}
 
-	if err := s.d.kubeClient.WaitForPodsReady(ctx, "kube-system", "tier=control-plane", podReadyTimeout, newPodReporter(s.d.log, "control-plane")); err != nil {
+	reporter := newPodReporter(s.d.log, "control-plane")
+	if err := s.d.kubeClient.WatchPods(ctx, "kube-system", "tier=control-plane", podReadyTimeout, func(pods []corev1.Pod) (bool, error) {
+		ready := len(pods) > 0 && kube.PodsReadyOrCompleted(pods)
+		if ready {
+			reporter.Confirm()
+		}
+		reporter.Report(pods)
+		return ready, nil
+	}); err != nil {
 		return fmt.Errorf("wait for kube-system control-plane: %w", err)
 	}
 

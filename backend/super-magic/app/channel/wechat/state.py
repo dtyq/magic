@@ -26,6 +26,7 @@ MAX_CONTEXT_TOKEN_USERS = 20
 @dataclass
 class WechatRuntimeState:
     get_updates_buf: str = ""
+    last_message_at_ms: int = 0
     # 最近活跃用户，供当前 cron 主动推送兜底
     last_active_user_id: str = ""
     # 按用户缓存最近可用的 context_token，字典顺序即最近使用顺序
@@ -54,6 +55,7 @@ async def load_runtime_state() -> WechatRuntimeState:
         return WechatRuntimeState()
 
     get_updates_buf = str(data.get("get_updates_buf") or "")
+    last_message_at_ms = int(data.get("last_message_at_ms") or 0)
     last_active_user_id = str(data.get("last_active_user_id") or "")
     raw_context_tokens = data.get("context_tokens_by_user") or {}
     context_tokens_by_user: dict[str, WechatUserContext] = {}
@@ -76,6 +78,7 @@ async def load_runtime_state() -> WechatRuntimeState:
 
     state = WechatRuntimeState(
         get_updates_buf=get_updates_buf,
+        last_message_at_ms=last_message_at_ms,
         last_active_user_id=last_active_user_id,
         context_tokens_by_user=context_tokens_by_user,
     )

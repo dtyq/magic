@@ -42,16 +42,16 @@ Provides complete HTML slide creation capabilities, including project creation, 
 ## Code Execution Method (Critical)
 
 <!--zh
-本技能中所有 Python 代码示例，在 Agent 环境中**必须通过 `run_skills_snippet` 工具执行**。
+本技能中所有 Python 代码示例，在 Agent 环境中**必须通过 `run_sdk_snippet` 工具执行**。
 
 **正确示例**：
 -->
-All Python code examples in this skill **must be executed via the `run_skills_snippet` tool** in Agent environment.
+All Python code examples in this skill **must be executed via the `run_sdk_snippet` tool** in Agent environment.
 
 **Correct example**:
 ```python
-# Correct! Must use run_skills_snippet to execute
-run_skills_snippet(
+# Correct! Must use run_sdk_snippet to execute
+run_sdk_snippet(
     python_code="""
 from sdk.tool import tool
 result = tool.call('create_slide_project', {
@@ -63,9 +63,9 @@ result = tool.call('create_slide_project', {
 ```
 
 <!--zh
-本文档中所有 `from sdk.tool import tool` 开头的代码块，均遵循此规则，通过 `run_skills_snippet` 的 `python_code` 参数传入执行。
+本文档中所有 `from sdk.tool import tool` 开头的代码块，均遵循此规则，通过 `run_sdk_snippet` 的 `python_code` 参数传入执行。
 -->
-All code blocks in this document starting with `from sdk.tool import tool` follow this rule: pass them via the `python_code` parameter of `run_skills_snippet` for execution.
+All code blocks in this document starting with `from sdk.tool import tool` follow this rule: pass them via the `python_code` parameter of `run_sdk_snippet` for execution.
 
 ---
 
@@ -472,9 +472,9 @@ Reference the following template to create slide pages. Each page is an independ
 ## Quick Start
 
 <!--zh
-> **提醒**：以下所有代码示例均需通过 `run_skills_snippet(python_code="...")` 执行，请参考文档顶部的"代码执行方式"章节。
+> **提醒**：以下所有代码示例均需通过 `run_sdk_snippet(python_code="...")` 执行，请参考文档顶部的"代码执行方式"章节。
 -->
-> **Reminder**: All code examples below must be executed via `run_skills_snippet(python_code="...")`. Refer to the "Code Execution Method" section at the top of this document.
+> **Reminder**: All code examples below must be executed via `run_sdk_snippet(python_code="...")`. Refer to the "Code Execution Method" section at the top of this document.
 
 <!--zh
 ### 创建幻灯片项目

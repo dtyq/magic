@@ -31,6 +31,8 @@ interface MagicMessageRepositoryInterface
 
     public function getMagicMessageIdByAppMessageId(string $appMessageId, string $messageType = ''): string;
 
+    public function getMessageByAppMessageId(string $appMessageId, string $messageType = ''): ?MagicMessageEntity;
+
     /**
      * Get messages by magic message IDs.
      * @param array $magicMessageIds Magic message ID数组

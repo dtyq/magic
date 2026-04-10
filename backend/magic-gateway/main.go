@@ -1407,10 +1407,22 @@ func proxyHandler(w http.ResponseWriter, r *http.Request) {
 			logger.Printf("已添加目标服务API密钥")
 		}
 
-		// 发送请求（超时时间：2分钟，防止资源耗尽攻击）
+		// 发送请求
 		// 禁止自动跟随重定向，防止重定向到恶意URL绕过白名单
+		// 注意：不设置 http.Client.Timeout，因为它控制的是整个请求的总时长（包括读取响应体），
+		// 对于 SSE 流式响应会导致长时间运行的流在 Timeout 到期后被强制断开。
+		// 改用 Transport.ResponseHeaderTimeout 控制等待响应头的超时，流式传输阶段不受限制。
 		client := &http.Client{
-			Timeout: 2 * time.Minute,
+			Transport: &http.Transport{
+				ResponseHeaderTimeout: 2 * time.Minute, // 等待响应头的超时时间
+				// 连接层面的超时控制
+				DialContext: (&net.Dialer{
+					Timeout:   30 * time.Second, // 建立连接超时
+					KeepAlive: 30 * time.Second, // TCP keep-alive 间隔
+				}).DialContext,
+				IdleConnTimeout:     90 * time.Second, // 空闲连接超时
+				TLSHandshakeTimeout: 10 * time.Second, // TLS 握手超时
+			},
 			CheckRedirect: func(req *http.Request, via []*http.Request) error {
 				// 验证重定向目标URL是否在白名单中
 				redirectURL := req.URL.String()
@@ -1460,29 +1472,61 @@ func proxyHandler(w http.ResponseWriter, r *http.Request) {
 
 			// 确保连接保持活跃，设置必要的流式响应头
 			if flusher, ok := w.(http.Flusher); ok {
-				// 实时转发流式数据
-				buffer := make([]byte, 4096)
-				for {
-					n, err := resp.Body.Read(buffer)
-					if n > 0 {
-						// 写入数据到客户端
-						w.Write(buffer[:n])
-						// 立即刷新缓冲区，确保数据实时传输
-						flusher.Flush()
+				// 流式空闲超时：如果连续 5 分钟没有收到任何数据，认为连接已死，主动断开
+				chunkIdleTimeout := 5 * time.Minute
 
-						if debugMode {
-							logger.Printf("转发SSE数据块: %d 字节", n)
+				type readResult struct {
+					data []byte
+					err  error
+				}
+				resultCh := make(chan readResult, 1)
+
+				// 在独立 goroutine 中持续读取，每次读到数据就发送到 channel
+				go func() {
+					buf := make([]byte, 4096)
+					for {
+						n, err := resp.Body.Read(buf)
+						if n > 0 {
+							// 复制数据，避免 buffer 被下次读取覆盖
+							data := make([]byte, n)
+							copy(data, buf[:n])
+							resultCh <- readResult{data: data, err: nil}
+						}
+						if err != nil {
+							resultCh <- readResult{data: nil, err: err}
+							return
 						}
 					}
-					if err != nil {
-						if err == io.EOF {
-							logger.Printf("SSE流结束")
-						} else {
-							logger.Printf("读取SSE流错误: %v", err)
+				}()
+
+				for {
+					idleTimer := time.NewTimer(chunkIdleTimeout)
+					select {
+					case result := <-resultCh:
+						idleTimer.Stop()
+						if len(result.data) > 0 {
+							w.Write(result.data)
+							flusher.Flush()
+
+							if debugMode {
+								logger.Printf("转发SSE数据块: %d 字节", len(result.data))
+							}
 						}
-						break
+						if result.err != nil {
+							if result.err == io.EOF {
+								logger.Printf("SSE流结束")
+							} else {
+								logger.Printf("读取SSE流错误: %v", result.err)
+							}
+							goto sseEnd
+						}
+					case <-idleTimer.C:
+						logger.Printf("SSE流空闲超时（%v未收到数据），断开连接", chunkIdleTimeout)
+						resp.Body.Close()
+						goto sseEnd
 					}
 				}
+			sseEnd:
 			} else {
 				logger.Printf("警告: ResponseWriter不支持Flush，降级为普通响应处理")
 				// 降级处理：读取完整响应体

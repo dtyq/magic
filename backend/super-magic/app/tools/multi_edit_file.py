@@ -115,7 +115,9 @@ IMPORTANT: Copy text exactly as it appears in the file, including punctuation st
         """
         try:
             # Get safe file path with fuzzy matching
-            file_path, fuzzy_warning = self.resolve_path_fuzzy(params.file_path)
+            resolved = self.resolve_path_fuzzy(params.file_path)
+            file_path = resolved.path
+            fuzzy_warning = resolved.warning
             # Check if file exists
             if not file_path.exists():
                 tool_context.set_metadata("error_type", "edit_file.error_file_not_exist")
@@ -388,17 +390,17 @@ IMPORTANT: Copy text exactly as it appears in the file, including punctuation st
 
             if occurrences == 0:
                 # Try to auto-fix punctuation mismatch
-                corrected_string, fix_warning = PunctuationMatcher.try_auto_fix_punctuation(
+                fix_result = PunctuationMatcher.try_auto_fix_punctuation(
                     edit.old_string,
                     working_content
                 )
 
-                if corrected_string and fix_warning:
+                if fix_result:
                     # Auto-fix succeeded, update edit.old_string and store warning
-                    logger.info(f"Auto-fixed punctuation in edit {i+1} old_string during validation: '{edit.old_string[:50]}...' -> '{corrected_string[:50]}...'")
-                    edit.old_string = corrected_string
+                    logger.info(f"Auto-fixed punctuation in edit {i+1} old_string during validation: '{edit.old_string[:50]}...' -> '{fix_result.actual[:50]}...'")
+                    edit.old_string = fix_result.actual
                     # Store the warning for later use in execute phase
-                    setattr(edit, '_punctuation_fix_warning', fix_warning)
+                    setattr(edit, '_punctuation_fix_warning', fix_result.warning)
                     # Recount with corrected string
                     occurrences = working_content.count(edit.old_string)
 

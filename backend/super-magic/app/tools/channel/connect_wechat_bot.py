@@ -1,7 +1,7 @@
 """
 ConnectWechatBot — 发起微信官方 ClawBot 扫码登录的 Tool。
 
-不挂载到 LLM tool list，仅供 Skill snippet 通过 /api/skills/call_tool 调用。
+不挂载到 LLM tool list，仅供 SDK snippet 通过 /api/sdk/tool/call 调用。
 """
 from typing import Any, Dict
 
@@ -29,9 +29,9 @@ Force-cancel the current login session and generate a new QR flow when set to tr
 @tool()
 class ConnectWechatBot(BaseTool[ConnectWechatBotParams]):
     """<!--zh
-    发起微信官方 ClawBot 扫码登录。仅供 Skill snippet 调用，不挂载到 LLM。
+    发起微信官方 ClawBot 扫码登录。仅供 SDK snippet 调用，不挂载到 LLM。
     -->
-    Start the WeChat ClawBot QR login flow. Intended for skill snippets only and not exposed as a normal LLM tool.
+    Start the WeChat ClawBot QR login flow. Intended for SDK snippets only and not exposed as a normal LLM tool.
     """
 
     async def execute(self, tool_context: ToolContext, params: ConnectWechatBotParams) -> ToolResult:
@@ -88,7 +88,7 @@ class ConnectWechatBot(BaseTool[ConnectWechatBotParams]):
             status_text: str | None = None
             if session.status == LoginStatus.SCANNED:
                 status_text = "scanned, waiting for confirmation in WeChat"
-            return ToolResult(content=_build_qr_render_message(session.qrcode_js_string_literal(), status_text))
+            return ToolResult(content=_build_qr_render_message(session.qrcode_content, status_text))
         except Exception as e:
             logger.error(f"[ConnectWechatBot] start session failed: {e}")
             return ToolResult.error(f"Failed to start the WeChat login flow: {e}")
@@ -120,15 +120,24 @@ class ConnectWechatBot(BaseTool[ConnectWechatBotParams]):
         }
 
 
-def _build_qr_render_message(qrcode_js_string_literal: str, status_text: str | None = None) -> str:
+def _build_qr_render_message(qrcode_url: str, status_text: str | None = None) -> str:
     lines = [
-        "You must do two things now:",
-        "1. Use the WeChat QR HTML template from the current skill and replace "
-        "`{{QRCODE_JS_STRING_LITERAL}}` with the exact literal below.",
-        "2. Reply to the user with exactly one ```html fenced code block and no prose outside the block, "
-        "then immediately call `wait_wechat_login`.",
+        "Reply to the user with the following content (no extra prose), "
+        "adapting the heading and description to user preferred language. "
+        "Then immediately call `wait_wechat_login`.",
     ]
     if status_text:
         lines.extend(("", f"Current status: {status_text}"))
-    lines.extend(("", "Exact JavaScript string literal:", qrcode_js_string_literal))
+    lines.extend([
+        "",
+        "---",
+        "",
+        "### 连接 🦞 MagiClaw 到微信",
+        "",
+        "请使用微信扫一扫链接 MagiClaw",
+        "",
+        "```qrcode",
+        qrcode_url,
+        "```",
+    ])
     return "\n".join(lines)

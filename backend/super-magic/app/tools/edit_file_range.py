@@ -115,7 +115,9 @@ On failure: re-read and verify anchor existence/uniqueness -> increase anchor le
             ToolResult: Operation result with diff
         """
         try:
-            file_path, fuzzy_warning = self.resolve_path_fuzzy(params.file_path)
+            resolved = self.resolve_path_fuzzy(params.file_path)
+            file_path = resolved.path
+            fuzzy_warning = resolved.warning
             ai_warnings = []
             if fuzzy_warning:
                 ai_warnings.append(fuzzy_warning)
@@ -139,11 +141,13 @@ On failure: re-read and verify anchor existence/uniqueness -> increase anchor le
             original_content = await self._read_file(file_path)
 
             try:
-                matched_range = resolve_replace_range(
+                resolution = resolve_replace_range(
                     original_content,
                     params.replace_start,
                     params.replace_end
                 )
+                matched_range = resolution.matched_range
+                ai_warnings.extend(resolution.warnings)
             except ValueError as match_error:
                 tool_context.set_metadata("error_type", "edit_file.error_match_failed")
                 return ToolResult(

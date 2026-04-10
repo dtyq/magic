@@ -1,9 +1,9 @@
 from app.i18n import i18n
 import asyncio
+import html
 import json
 import os
 import random
-import re  # 添加 re 模块引入
 import string
 import subprocess
 import sys
@@ -18,7 +18,7 @@ from typing import Any, Dict, List, Optional
 from agentlang.agent.base import BaseAgent
 from agentlang.agent.loader import AgentLoader
 from agentlang.agent.state import AgentState
-from agentlang.chat_history import AssistantMessage, CompactionConfig, FunctionCall, ToolCall
+from agentlang.chat_history import AssistantMessage, CompactionConfig, ToolCall
 from agentlang.chat_history.chat_history import ChatHistory
 from agentlang.chat_history.chat_history_models import UserMessage
 from agentlang.context.tool_context import ToolContext
@@ -28,17 +28,18 @@ from agentlang.event.data import (
     ErrorEventData,
 )
 from agentlang.event.event import EventType
+from agentlang.config.config import config
 from agentlang.llms.error_classifier import LLMErrorClassifier
 from agentlang.llms.factory import LLMFactory
 from agentlang.llms.processors.processor_config import ProcessorConfig
-from agentlang.config.model_config import model_config_utils
 from app.streaming.message_builder import LLMStreamingMessageBuilder
 from app.streaming.config_generator import StreamingConfigGenerator
 from agentlang.llms.token_usage.models import TokenUsage
 from agentlang.logger import get_logger
 from agentlang.tools.tool_result import ToolResult
 from agentlang.utils.token_estimator import num_tokens_from_string
-from agentlang.exceptions import UserFriendlyException, ResourceLimitExceededException
+from agentlang.utils.datetime_formatter import get_current_datetime_str
+from agentlang.exceptions import UserFriendlyException, ResourceLimitExceededException, LLMFastRetryExhaustedException, StreamChunkTimeoutError, StreamInterruptedError
 from agentlang.utils.tool_param_utils import preprocess_tool_calls_batch
 from openai.types.chat import ChatCompletion, ChatCompletionMessage, ChatCompletionMessageToolCall
 
@@ -57,7 +58,6 @@ from app.magic.user_command_handler import Commands
 from app.path_manager import PathManager
 from app.service.todo_service import TodoService
 from app.tools.core.app_tool_validator import app_tool_validator
-from app.tools.core.tool_executor import tool_executor
 from app.tools.core.tool_factory import tool_factory
 from app.tools.list_dir import ListDir
 from app.infrastructure.magic_service.client import MagicServiceClient
@@ -76,8 +76,8 @@ logger = get_logger(__name__)
 class AgentLoopState:
     """Agent loop state management with simple direct property access"""
     no_tool_call_count: int = 0
-    run_exception_count: int = 0  # Agent循环级别的异常计数（跨所有LLM请求）
-    llm_retry_count: int = 0  # 当前LLM请求的重试次数（成功后归零）
+    agent_loop_retry_count: int = 0  # Agent loop 级别的重试计数（跨所有LLM请求）
+    llm_call_retry_count: int = 0  # 当前 LLM call 的重试次数（成功后归零）
     final_response: Optional[str] = None
     last_llm_message: Optional[ChatCompletionMessage] = None
     should_continue: bool = True
@@ -101,6 +101,14 @@ class LLMResponseContext:
     def has_tool_calls(self) -> bool:
         """Check if response contains tool calls"""
         return bool(self.tool_calls)
+
+
+@dataclass
+class HorizonLlmModelInfo:
+    """注入给 horizon 的展示态模型信息。"""
+    model_id: str
+    model_name: str
+    description: str = ""
 
 
 class SessionRestoreAction(Enum):
@@ -136,6 +144,14 @@ class ExceptionHandlingResult:
     """Exception handling result with continuation decision"""
     should_continue: bool = True
     final_response: Optional[str] = None
+
+
+class LLMCallRequestException(Exception):
+    """Wrap an exception raised by the actual provider-facing `_call_llm()` call."""
+
+    def __init__(self, original_exception: Exception):
+        super().__init__(str(original_exception))
+        self.original_exception = original_exception
 
 
 @dataclass
@@ -177,6 +193,8 @@ class Agent(BaseAgent):
 
     def __init__(self, agent_name: str, agent_context: AgentContext = None, agent_id: str = None):
         self.agent_name = agent_name
+        self._closed = False
+        self._context_registered = False
 
         # 设置Agent上下文
         self.agent_context = self._setup_agent_context(agent_context)
@@ -212,6 +230,8 @@ class Agent(BaseAgent):
             # 如果未提供 agent_id，则生成一个新的
             self.id = self._generate_agent_id()
 
+        self.agent_context.set_agent_id(self.id)
+
 
         # 初始化压缩配置（Agent 用于判断何时触发压缩）
         self.compaction_config = CompactionConfig(
@@ -232,6 +252,27 @@ class Agent(BaseAgent):
         self.agent_context.chat_history = self.chat_history
         logger.debug("已将 chat_history 设置到 agent_context 中，以便工具访问")
         logger.debug("Agent MCP 支持已初始化")
+
+        from app.core.context.agent_context_registry import AgentContextRegistry
+        AgentContextRegistry.get_instance().register(self.agent_context)
+        self._context_registered = True
+        logger.info(f"Agent context 已注册: {self.agent_context.get_agent_session_label()}")
+
+    def close(self) -> None:
+        """关闭 Agent 并释放当前已注册的运行时资源。"""
+        if self._closed:
+            return
+        self._closed = True
+
+        if self._context_registered:
+            from app.core.context.agent_context_registry import AgentContextRegistry
+            AgentContextRegistry.get_instance().unregister(self.agent_context)
+            self._context_registered = False
+            logger.info(f"Agent context 已注销: {self.agent_context.get_agent_session_label()}")
+
+    def dispose(self) -> None:
+        """兼容性别名，语义等同于 close()。"""
+        self.close()
 
     # compact-chat-history skill 永久挂载，无需在 .agent 文件中声明
     _ALWAYS_MOUNT_SKILL = "compact-chat-history"
@@ -480,8 +521,12 @@ class Agent(BaseAgent):
         await horizon.set_workspace_snapshot(snapshot)
 
         # ── 用户长期记忆（来自 InitClientMessage）────────────────────────────
+        # magiclaw 使用文件系统作为记忆机制（.magic/MEMORY.md 等），不注入外部 long_term_memory
         init_client_message = self.agent_context.get_init_client_message()
-        memory_content = self._extract_memory_content(init_client_message)
+        if self.agent_context.is_magiclaw():
+            memory_content = ""
+        else:
+            memory_content = self._extract_memory_content(init_client_message)
         await horizon.set_memory(memory_content)
 
         # ── 用户偏好语言 ─────────────────────────────────────────────────────
@@ -491,10 +536,11 @@ class Agent(BaseAgent):
             language = i18n.get_language_display_name()
         await horizon.set_user_preferred_language(language)
 
-        # magiclaw 文件驱动启动初始化（非 magiclaw 会话直接跳过）
+        # magiclaw 实例恢复：从持久化 file_records 反推已读状态，不清空已读集合
+        # 只有 /new、/compact 才走硬重置（on_context_reset → reset_magiclaw_startup）
         if self.agent_context.is_magiclaw():
             from app.path_manager import PathManager
-            await self.agent_context.horizon.init_magiclaw_startup(PathManager.get_magic_dir())
+            await self.agent_context.horizon.restore_magiclaw_startup(PathManager.get_magic_dir())
 
         logger.info("async_complete_dynamic_init 完成：workspace files、memory、language 已同步到 horizon")
 
@@ -591,6 +637,35 @@ class Agent(BaseAgent):
         else:
             self.set_agent_state(AgentState.ERROR)
 
+    async def _append_agent_run_exception_context(self, exception: Exception) -> None:
+        """在异常终止当下写入隐藏上下文，供后续用户追问时给模型补齐背景。"""
+        tz = self.agent_context.get_user_timezone() if self.agent_context else None
+        now_str = get_current_datetime_str(tz)
+        error_summary = str(exception).strip() or exception.__class__.__name__
+        escaped_time = html.escape(now_str, quote=True)
+        escaped_summary = html.escape(error_summary, quote=False)
+        injected_context = (
+            "<system_injected_context>\n"
+            f'<notification source="agent_run_exception" time="{escaped_time}">\n'
+            "The previous run terminated with an exception.\n"
+            f"Error summary: {escaped_summary}\n"
+            "This error has already been shown to the user in the UI.\n"
+            "</notification>\n"
+            "</system_injected_context>"
+        )
+        await self.chat_history.append_user_message(
+            injected_context,
+            show_in_ui=False,
+            source="agent_run_exception",
+        )
+
+    async def _append_agent_run_exception_context_safely(self, exception: Exception) -> None:
+        """写异常隐藏上下文时兜底日志，避免终态处理再被二次打断。"""
+        try:
+            await self._append_agent_run_exception_context(exception)
+        except Exception as append_err:
+            logger.error(f"添加异常终止上下文到历史记录时失败: {append_err}")
+
     def _iter_exception_chain(self, exception: Exception) -> List[Exception]:
         """按因果链遍历异常，避免同一对象重复处理。"""
         exceptions: List[Exception] = []
@@ -639,6 +714,43 @@ class Agent(BaseAgent):
 
         return None
 
+    def _classify_llm_exception_for_user(self, exception: Exception) -> str | None:
+        """根据 LLM 异常类型返回用户友好的 i18n key，返回 None 则使用默认文案。"""
+        from openai import APITimeoutError, APIConnectionError, APIStatusError
+
+        # LLMFastRetryExhaustedException 是包装异常，取出真实 stream_error 递归分类
+        if isinstance(exception, LLMFastRetryExhaustedException):
+            root = exception.stream_error or exception
+            if root is not exception:
+                return self._classify_llm_exception_for_user(root)
+            return "messages.llm_provider_error"
+
+        if isinstance(exception, (StreamChunkTimeoutError, StreamInterruptedError, asyncio.TimeoutError, APITimeoutError)):
+            return "messages.llm_provider_timeout"
+
+        if isinstance(exception, APIConnectionError):
+            return "messages.llm_provider_connection_failed"
+
+        if isinstance(exception, APIStatusError) and exception.status_code == 429:
+            return "messages.llm_provider_rate_limited"
+
+        if isinstance(exception, APIStatusError):
+            return "messages.llm_provider_error"
+
+        if isinstance(exception, (ConnectionError, OSError)):
+            return "messages.llm_provider_connection_failed"
+
+        return None
+
+    def _build_user_friendly_custom_message(self, exception: Exception, is_llm_path: bool) -> str | None:
+        """为终态构建用户友好的 custom_message。非 LLM 路径或无法分类时返回 None。"""
+        if not is_llm_path:
+            return None
+        i18n_key = self._classify_llm_exception_for_user(exception)
+        if not i18n_key:
+            return None
+        return i18n.translate(i18n_key, category="common.messages")
+
     async def run_main_agent(self, query: str):
         """运行主 agent"""
         try:
@@ -682,6 +794,7 @@ class Agent(BaseAgent):
 
         # 注入点1：用户消息入库后、第一次 LLM 调用前，注入 system_injected_context
         try:
+            self._sync_horizon_llm_model_info()
             ctx_update = await self.agent_context.horizon.build_context_update()
             await self.chat_history.append_user_message(ctx_update, show_in_ui=False, source="horizon")
             logger.debug("[AgentHorizon] 已注入 user query 后 system_injected_context")
@@ -863,10 +976,25 @@ class Agent(BaseAgent):
                     break
                 else:
                     # 调用LLM获取响应
-                    if loop_state.llm_retry_count > 0:
-                        logger.info(f"开始调用LLM（第{loop_state.llm_retry_count}次重试）")
+                    if loop_state.llm_call_retry_count > 0:
+                        logger.info(f"开始调用LLM（第{loop_state.llm_call_retry_count}次重试）")
 
-                    llm_context = await self._prepare_and_call_llm(retry_count=loop_state.llm_retry_count)
+                    try:
+                        llm_context = await self._prepare_and_call_llm(
+                            llm_call_retry_count=loop_state.llm_call_retry_count
+                        )
+                    except LLMCallRequestException as e:
+                        # 仅把真实 provider 调用失败归入 llm retry，前后置准备/解析异常仍按普通异常处理。
+                        exception_result = await self._handle_agent_loop_exception(
+                            e.original_exception,
+                            loop_state,
+                            is_llm_retry_path=True,
+                        )
+                        if exception_result.final_response:
+                            loop_state.final_response = exception_result.final_response
+                        if not exception_result.should_continue:
+                            break
+                        continue
                     loop_state.last_llm_message = llm_context.message  # 保存用于循环结束时的最终响应
 
                     # ✨ 新增：在保存到聊天记录前先预处理工具参数
@@ -883,12 +1011,16 @@ class Agent(BaseAgent):
                     # If the state is ERROR, it means a previous call failed but this retry succeeded.
                     # Must be placed here (before break/continue branches) so it is never skipped.
                     if self.is_agent_error():
-                        retry_info = f"（重试 {loop_state.llm_retry_count} 次，异常 {loop_state.run_exception_count} 次）" if loop_state.run_exception_count > 0 else ""
+                        retry_info = (
+                            f"（LLM call 重试 {loop_state.llm_call_retry_count} 次，"
+                            f"agent loop 重试 {loop_state.agent_loop_retry_count} 次）"
+                            if loop_state.agent_loop_retry_count > 0 else ""
+                        )
                         logger.info(f"从 ERROR 状态恢复为 RUNNING{retry_info}")
                         self.set_agent_state(AgentState.RUNNING)
                         # Reset counters after successful recovery
-                        loop_state.llm_retry_count = 0
-                        loop_state.run_exception_count = 0
+                        loop_state.llm_call_retry_count = 0
+                        loop_state.agent_loop_retry_count = 0
 
                     # 处理无工具调用的情况
                     if not llm_context.has_tool_calls and llm_context.message.role == "assistant":
@@ -907,11 +1039,15 @@ class Agent(BaseAgent):
                 # The LLM-call branch now handles recovery earlier (above), but for the
                 # session-restore path we still need this guard before executing tool calls.
                 if self.is_agent_error():
-                    retry_info = f"（重试 {loop_state.llm_retry_count} 次，异常 {loop_state.run_exception_count} 次）" if loop_state.run_exception_count > 0 else ""
+                    retry_info = (
+                        f"（LLM call 重试 {loop_state.llm_call_retry_count} 次，"
+                        f"agent loop 重试 {loop_state.agent_loop_retry_count} 次）"
+                        if loop_state.agent_loop_retry_count > 0 else ""
+                    )
                     logger.info(f"从 ERROR 状态恢复为 RUNNING（会话恢复路径）{retry_info}")
                     self.set_agent_state(AgentState.RUNNING)
-                    loop_state.llm_retry_count = 0
-                    loop_state.run_exception_count = 0
+                    loop_state.llm_call_retry_count = 0
+                    loop_state.agent_loop_retry_count = 0
 
                 # 执行工具调用并处理结果
                 tool_result = await self._execute_and_process_tool_calls(llm_context)
@@ -919,6 +1055,7 @@ class Agent(BaseAgent):
                 # 注入点 2：tool result 返回后，注入 system_injected_context
                 # 无论是否 should_exit 都注入，因为 hidden message 会留在 chat history 供后续 LLM call 读取
                 try:
+                    self._sync_horizon_llm_model_info()
                     ctx_update = await self.agent_context.horizon.build_context_update()
                     await self.chat_history.append_user_message(ctx_update, show_in_ui=False, source="horizon")
                     logger.debug("[AgentHorizon] 已注入 tool result 后 system_injected_context")
@@ -931,7 +1068,11 @@ class Agent(BaseAgent):
 
             except Exception as e:
                 # 处理其他异常情况
-                exception_result = await self._handle_agent_loop_exception(e, loop_state)
+                exception_result = await self._handle_agent_loop_exception(
+                    e,
+                    loop_state,
+                    is_llm_retry_path=False,
+                )
                 if exception_result.final_response:
                     loop_state.final_response = exception_result.final_response
                 if not exception_result.should_continue:
@@ -1246,12 +1387,12 @@ class Agent(BaseAgent):
         return f"The conversation is too long and must be compacted now. You must call the `compact_chat_history` tool immediately.\n\n{self._compact_skill_content}"
 
 
-    async def _prepare_and_call_llm(self, retry_count: int = 0) -> LLMResponseContext:
+    async def _prepare_and_call_llm(self, llm_call_retry_count: int = 0) -> LLMResponseContext:
         """
         准备与LLM的对话，处理消息，调用LLM并解析响应
 
         Args:
-            retry_count: 重试次数，0表示第一次调用，>0表示重试调用
+            llm_call_retry_count: LLM call 重试次数，0表示第一次调用，>0表示重试调用
 
         Returns:
             LLMResponseContext: 包含LLM响应的所有相关数据
@@ -1271,7 +1412,10 @@ class Agent(BaseAgent):
 
         # 记录调用开始时间并调用LLM
         llm_start_time = time.time()
-        chat_response = await self._call_llm(messages_for_llm, retry_count)
+        try:
+            chat_response = await self._call_llm(messages_for_llm, llm_call_retry_count)
+        except Exception as e:
+            raise LLMCallRequestException(e) from e
         llm_duration_ms = (time.time() - llm_start_time) * 1000
 
         # 获取token使用数据
@@ -1282,23 +1426,20 @@ class Agent(BaseAgent):
 
         # 更新 horizon：实际生效的 LLM 模型 + 当前上下文窗口使用量
         try:
+            horizon_model_info = self._build_horizon_llm_model_info(
+                effective_model_id=effective_model_id,
+                effective_model_name=effective_model_name,
+            )
             context_window_total = (
                 self.model_config.max_context_tokens
                 if hasattr(self, "model_config") and self.model_config
                 else 0
             )
-            # 特殊聚合模型（auto/max）附加描述，让 LLM 知道背后的选择逻辑
-            _SPECIAL_MODEL_DESCRIPTIONS = {
-                "auto": "automatically selects the most efficient AI model for the current task",
-                "max": "automatically selects the most capable AI model for the current scenario",
-            }
-            try:
-                _cfg = LLMFactory.get_model_config(effective_model_id)
-                _display_id = (_cfg.resolved_model_id or effective_model_id) if _cfg else effective_model_id
-            except Exception:
-                _display_id = effective_model_id
-            _desc = _SPECIAL_MODEL_DESCRIPTIONS.get(_display_id.lower(), "")
-            self.agent_context.horizon.update_llm_model(_display_id, effective_model_name, _desc)
+            self.agent_context.horizon.update_llm_model(
+                horizon_model_info.model_id,
+                horizon_model_info.model_name,
+                horizon_model_info.description,
+            )
             self.agent_context.horizon.update_context_usage(token_usage.input_tokens, context_window_total)
         except Exception as _horizon_err:
             logger.warning(f"[AgentHorizon] 更新模型/上下文用量失败: {_horizon_err}")
@@ -1388,6 +1529,48 @@ class Agent(BaseAgent):
             logger.debug(f"继续使用Agent默认模型: {self.llm_id} ({self.llm_name})")
 
         return self.llm_id, self.llm_name
+
+    def _build_horizon_llm_model_info(
+        self,
+        *,
+        effective_model_id: Optional[str] = None,
+        effective_model_name: Optional[str] = None,
+    ) -> HorizonLlmModelInfo:
+        """把当前生效模型标准化为注入给 horizon 的展示态信息。"""
+        if not effective_model_id or not effective_model_name:
+            effective_model_id, effective_model_name = self._resolve_effective_model_info()
+
+        # 对 LLM 展示时优先使用 resolved_model_id，避免暴露不友好的选择态占位值。
+        display_model_id = effective_model_id
+        display_model_name = effective_model_name
+        try:
+            model_config = LLMFactory.get_model_config(effective_model_id)
+            if model_config:
+                display_model_id = model_config.resolved_model_id or effective_model_id
+                display_model_name = model_config.name or effective_model_name
+        except Exception:
+            pass
+
+        # 聚合模型要额外保留选择语义，否则只看到落地模型，看不出背后调度策略。
+        special_model_descriptions = {
+            "auto": "automatically selects the most efficient AI model for the current task",
+            "max": "automatically selects the most capable AI model for the current scenario",
+        }
+        description = special_model_descriptions.get(effective_model_id.lower(), "")
+        return HorizonLlmModelInfo(
+            model_id=display_model_id,
+            model_name=display_model_name,
+            description=description,
+        )
+
+    def _sync_horizon_llm_model_info(self) -> None:
+        """在注入 system_injected_context 前预同步模型信息，确保首包可见。"""
+        horizon_model_info = self._build_horizon_llm_model_info()
+        self.agent_context.horizon.update_llm_model(
+            horizon_model_info.model_id,
+            horizon_model_info.model_name,
+            horizon_model_info.description,
+        )
 
 
     async def _add_tool_calls_to_history(self, llm_context: LLMResponseContext) -> None:
@@ -1726,13 +1909,19 @@ Since your subsequent output will be merged with pre-interruption content and di
         except Exception as e:
             logger.error(f"Failed to backup chat history before compact: {e}", exc_info=True)
 
-    async def _handle_agent_loop_exception(self, exception: Exception, loop_state: AgentLoopState) -> ExceptionHandlingResult:
+    async def _handle_agent_loop_exception(
+        self,
+        exception: Exception,
+        loop_state: AgentLoopState,
+        is_llm_retry_path: bool = False,
+    ) -> ExceptionHandlingResult:
         """
         处理Agent循环中的异常
 
         Args:
             exception: 捕获的异常
             loop_state: 循环状态，会被直接修改
+            is_llm_retry_path: 当前异常是否来自实际的 LLM 请求
 
         Returns:
             ExceptionHandlingResult: 异常处理结果
@@ -1743,9 +1932,23 @@ Since your subsequent output will be merged with pre-interruption content and di
         # 处理中断的工具调用
         await self._handle_interrupted_tool_calls(exception)
 
+        # LLM 内层快速重试已耗尽：直接结束本轮，不再外层退避重试
+        for exc in self._iter_exception_chain(exception):
+            if isinstance(exc, LLMFastRetryExhaustedException):
+                logger.warning(f"LLM 快速重试已耗尽，停止外层泛化重试: {exc}")
+                await self._append_agent_run_exception_context_safely(exc)
+                loop_state.last_llm_message = None
+                self._apply_final_task_state(build_final_task_state(
+                    FinalTaskStateCode.MESSAGE_PROCESSING_FAILED,
+                    vendor_message=str(exc),
+                    custom_message=self._build_user_friendly_custom_message(exc, is_llm_path=True),
+                ))
+                return ExceptionHandlingResult(should_continue=False, final_response=None)
+
         final_task_state = self._build_final_task_state_from_exception(exception)
         if final_task_state is not None:
             logger.warning(f"检测到终态异常 {final_task_state.code.value}，停止当前任务的自动重试")
+            await self._append_agent_run_exception_context_safely(exception)
             # 本轮调用没有成功拿到新的最终文本，避免 finalize 误回落到旧的 LLM 内容。
             loop_state.last_llm_message = None
             self._apply_final_task_state(final_task_state)
@@ -1757,56 +1960,91 @@ Since your subsequent output will be merged with pre-interruption content and di
         self.set_agent_state(AgentState.ERROR)
 
         # 更新计数器
-        loop_state.llm_retry_count += 1
-        loop_state.run_exception_count += 1
+        loop_state.agent_loop_retry_count += 1
+        if is_llm_retry_path:
+            loop_state.llm_call_retry_count += 1
 
         # 计算重试策略
         max_retries = 10
-
-        # 使用指数退避策略
-        wait_time, total_retry_wait_time = self._apply_exponential_backoff(loop_state.run_exception_count)
-
-        # 判断是否可以继续重试
-        can_continue = loop_state.run_exception_count < max_retries and total_retry_wait_time < 900
-
-        # 准备错误内容
-        error_content = None
-        if can_continue:
-            if loop_state.run_exception_count == 1:
-                error_content = (
-                    "Task execution failed. Common causes:\n"
-                    "1. Your output was too large. You must split it into small chunks and send only a small portion at a time.\n"
-                    "2. Your tool call arguments were invalid. Check for syntax errors, type mismatches, or missing required fields, then try again."
+        max_total_retry_wait_time = 900.0
+        enable_agent_loop_retry = False
+        total_retry_wait_time = 0.0
+        stop_reason = ""
+        if is_llm_retry_path:
+            # LLM 自身已有快重试预算，外层不再叠加指数退避等待。
+            wait_time = 0.0
+            can_continue = loop_state.agent_loop_retry_count < max_retries
+            if not can_continue:
+                stop_reason = (
+                    "llm retry path exhausted agent loop retry budget "
+                    f"(agent_loop_retry_count={loop_state.agent_loop_retry_count}, "
+                    f"llm_call_retry_count={loop_state.llm_call_retry_count}, "
+                    f"max_retries={max_retries}, total_retry_wait_time={total_retry_wait_time:.1f}s)"
                 )
-                logger.info(f"将等待{wait_time:.1f}秒后进行第{loop_state.run_exception_count}次重试（总计已等待{total_retry_wait_time:.1f}秒）")
-            elif loop_state.run_exception_count == 2:
-                error_content = "You must keep the output small and complete the task in short chunks."
-            elif loop_state.run_exception_count == 3:
-                error_content = "Do not output too much at once. Keep every response short and complete the task in small chunks."
-            else:
-                # skip, do not append error content anymore
-                pass
         else:
-            error_content = (
-                "The execution environment is in an unrecoverable state, so the task should not continue. "
-                "Review your progress, summarize what you completed and what errors you encountered, then end the task."
-            )
+            enable_agent_loop_retry = config.get("agent.enable_agent_loop_retry", False)
+            if enable_agent_loop_retry:
+                # 仅在显式开启时，才对非 LLM 的基础设施异常保留通用退避。
+                wait_time, total_retry_wait_time = self._apply_exponential_backoff(loop_state.agent_loop_retry_count)
+                retry_count_exhausted = loop_state.agent_loop_retry_count >= max_retries
+                retry_wait_limit_exceeded = total_retry_wait_time >= max_total_retry_wait_time
+                can_continue = not retry_count_exhausted and not retry_wait_limit_exceeded
+                if not can_continue:
+                    if retry_count_exhausted:
+                        stop_reason = (
+                            "non-llm retry path exhausted agent loop retry budget "
+                            f"(agent_loop_retry_count={loop_state.agent_loop_retry_count}, "
+                            f"max_retries={max_retries}, total_retry_wait_time={total_retry_wait_time:.1f}s)"
+                        )
+                    else:
+                        stop_reason = (
+                            "non-llm retry path exceeded agent loop total wait limit "
+                            f"(agent_loop_retry_count={loop_state.agent_loop_retry_count}, "
+                            f"total_retry_wait_time={total_retry_wait_time:.1f}s, "
+                            f"max_total_retry_wait_time={max_total_retry_wait_time:.1f}s)"
+                        )
+            else:
+                wait_time = 0.0
+                can_continue = False
+                stop_reason = (
+                    "agent loop retry disabled for non-llm exception "
+                    f"(agent_loop_retry_count={loop_state.agent_loop_retry_count}, "
+                    f"enable_agent_loop_retry={enable_agent_loop_retry}, "
+                    f"total_retry_wait_time={total_retry_wait_time:.1f}s)"
+                )
 
-        # 添加错误消息到历史
-        if error_content:
-            try:
-                await self.chat_history.append_user_message(error_content, show_in_ui=False)
-            except Exception as append_err:
-                logger.error(f"添加最终错误消息到历史记录时失败: {append_err}")
+        if not can_continue:
+            await self._append_agent_run_exception_context_safely(exception)
 
         # 如果可以继续，执行等待
         if can_continue:
-            logger.warning(f"虽然遇到了错误，但还没有达到最大尝试次数，当前重试次数为{loop_state.run_exception_count}，等待{wait_time:.1f}秒后继续下一次循环")
-            await asyncio.sleep(wait_time)  # 异步等待，不阻塞事件循环，允许中断请求被处理
+            if is_llm_retry_path:
+                logger.warning(
+                    f"LLM 调用失败，跳过外层指数退避，直接进入下一次循环 "
+                    f"(agent_loop_retry_count={loop_state.agent_loop_retry_count}, "
+                    f"llm_call_retry_count={loop_state.llm_call_retry_count})"
+                )
+            else:
+                logger.warning(
+                    f"虽然遇到了错误，但还没有达到最大尝试次数，"
+                    f"当前 agent loop 重试次数为{loop_state.agent_loop_retry_count}，"
+                    f"等待{wait_time:.1f}秒后继续下一次循环"
+                )
+                await asyncio.sleep(wait_time)  # 异步等待，不阻塞事件循环，允许中断请求被处理
             return ExceptionHandlingResult(should_continue=True, final_response=None)
         else:
-            logger.warning(f"已达到最大重试次数({max_retries})或最大等待时间(15分钟)，退出循环")
-            return ExceptionHandlingResult(should_continue=False, final_response=error_content)
+            logger.warning(
+                "停止 agent loop: "
+                f"{stop_reason} "
+                f"(exception_type={exception.__class__.__name__}, exception={exception})"
+            )
+            self._apply_final_task_state(build_final_task_state(
+                FinalTaskStateCode.MESSAGE_PROCESSING_FAILED,
+                vendor_message=str(exception),
+                custom_message=self._build_user_friendly_custom_message(exception, is_llm_path=is_llm_retry_path),
+            ))
+            loop_state.last_llm_message = None
+            return ExceptionHandlingResult(should_continue=False, final_response=None)
 
     async def _handle_interrupted_tool_calls(self, exception: Exception) -> None:
         """
@@ -1832,12 +2070,12 @@ Since your subsequent output will be merged with pre-interruption content and di
                 except Exception as insert_err:
                     logger.error(f"插入工具调用 {tool_call.id} 的错误消息时失败: {insert_err!s}")
 
-    def _apply_exponential_backoff(self, retry_count: int) -> tuple[float, float]:
+    def _apply_exponential_backoff(self, agent_loop_retry_count: int) -> tuple[float, float]:
         """
         应用指数退避策略计算重试等待时间
 
         Args:
-            retry_count: 重试次数
+            agent_loop_retry_count: agent loop 重试次数
 
         Returns:
             Tuple: (本次等待时间, 总计等待时间)
@@ -1847,7 +2085,7 @@ Since your subsequent output will be merged with pre-interruption content and di
         max_wait_time = 300
 
         # 计算当前等待时间
-        wait_time = min(base_wait_time * (2 ** (retry_count - 1)), max_wait_time)
+        wait_time = min(base_wait_time * (2 ** (agent_loop_retry_count - 1)), max_wait_time)
 
         # 计算总等待时间
         if not hasattr(self, '_total_retry_wait_time'):
@@ -1924,12 +2162,12 @@ Since your subsequent output will be merged with pre-interruption content and di
         # 目前未实现流式处理，返回空值
         return None
 
-    async def _call_llm(self, messages: List[Dict[str, Any]], retry_count: int = 0) -> ChatCompletion:
+    async def _call_llm(self, messages: List[Dict[str, Any]], llm_call_retry_count: int = 0) -> ChatCompletion:
         """调用 LLM
 
         Args:
             messages: 聊天消息历史
-            retry_count: 重试次数，0表示第一次调用，>0表示重试调用
+            llm_call_retry_count: LLM call 重试次数，0表示第一次调用，>0表示重试调用
         """
 
         # 构建工具列表：基础工具 + 授权的 MCP 工具
@@ -2008,7 +2246,7 @@ Since your subsequent output will be merged with pre-interruption content and di
                 agent_context=self.agent_context,
                 processor_config=processor_config,
                 enable_llm_response_events=True,  # 开启LLM响应事件触发
-                retry_count=retry_count  # 传递重试次数
+                llm_call_retry_count=llm_call_retry_count  # 传递 LLM call 重试次数
             )
         except ResourceLimitExceededException:
             raise

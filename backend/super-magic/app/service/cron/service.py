@@ -209,6 +209,14 @@ class CronService:
                     logger.warning(f"cron job [{job.id}] payload kind '{job.payload.kind}' not implemented, skipping")
                     result = CronRunResult(status="error", error=f"payload kind '{job.payload.kind}' not implemented")
 
+            if result.status == "ok":
+                # 保活语义绑定到“任务本身已经成功跑完”，而不是后面的归档/落盘是否成功。
+                try:
+                    from app.core.keepalive_registry import KeepaliveRegistry
+                    KeepaliveRegistry.get_instance().keepalive_once(f"cron:{job.id}")
+                except Exception as e:
+                    logger.warning(f"cron job [{job.id}] keepalive_once failed: {e}")
+
             # at 类型一次性任务执行成功后归档并删除原始文件
             if result.status == "ok" and job.schedule.kind == ScheduleKind.AT:
                 from datetime import datetime, timezone as dt_timezone

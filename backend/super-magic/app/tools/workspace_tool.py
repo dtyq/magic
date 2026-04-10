@@ -1,3 +1,4 @@
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Optional, TypeVar
 
@@ -12,6 +13,18 @@ from app.utils.file_path_fuzzy_matcher import FilePathFuzzyMatcher
 logger = get_logger(__name__)
 
 T = TypeVar('T', bound=BaseToolParams)
+
+
+@dataclass
+class PathResolution:
+    """路径解析结果。
+
+    path: 解析后的文件路径（可能已通过模糊匹配纠偏）
+    warning: 发生了纠偏时的 AI 侧英文提示；无纠偏时为 None
+    """
+
+    path: Path
+    warning: Optional[str]
 
 
 class WorkspaceTool(BaseTool[T]):
@@ -35,23 +48,21 @@ class WorkspaceTool(BaseTool[T]):
         p = Path(filepath)
         return p if p.is_absolute() else self.base_dir / p
 
-    def resolve_path_fuzzy(self, file_path_str: str) -> tuple[Path, Optional[str]]:
-        """
-        解析路径，若文件不存在则尝试模糊匹配（处理中英文标点差异）。
+    def resolve_path_fuzzy(self, file_path_str: str) -> PathResolution:
+        """解析路径，若文件不存在则尝试模糊匹配（处理中英文标点差异）。
 
         Returns:
-            (path, warning) — warning 非 None 时表示使用了模糊匹配，应告知模型。
+            PathResolution.warning 非 None 时表示使用了模糊匹配，应告知模型。
         """
         file_path = self.resolve_path(file_path_str)
 
-        fuzzy_warning = None
         if not file_path.exists():
             fuzzy_result = FilePathFuzzyMatcher.try_find_fuzzy_match(file_path, self.base_dir)
             if fuzzy_result:
-                file_path, fuzzy_warning = fuzzy_result
-                logger.info(f"通过模糊匹配找到文件: {file_path.name}")
+                logger.info(f"通过模糊匹配找到文件: {fuzzy_result.path.name}")
+                return PathResolution(path=fuzzy_result.path, warning=fuzzy_result.warning)
 
-        return file_path, fuzzy_warning
+        return PathResolution(path=file_path, warning=None)
 
     async def execute(self, tool_context: ToolContext, params: T) -> ToolResult:
         raise NotImplementedError("子类必须实现 execute 方法")

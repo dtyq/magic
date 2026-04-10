@@ -50,6 +50,30 @@ class WebScrapeFactory
     }
 
     /**
+     * 根据单个 provider 配置创建爬取实例.
+     *
+     * @throws InvalidArgumentException 当配置无效或不支持的平台时抛出
+     */
+    public static function createByProviderConfig(array $providerConfig): WebScrapeInterface
+    {
+        $providerName = $providerConfig['provider'] ?? '';
+        if (empty($providerName)) {
+            throw new InvalidArgumentException('Provider is required');
+        }
+
+        $provider = WebScrapeProvider::fromString((string) $providerName);
+        if ($provider === null) {
+            throw new InvalidArgumentException("Unsupported platform: {$providerName}");
+        }
+
+        if (! self::validateProviderConfig($provider, $providerConfig)) {
+            throw new InvalidArgumentException("Invalid provider configuration: {$providerName}");
+        }
+
+        return self::createInstance($provider, $providerConfig);
+    }
+
+    /**
      * 验证配置格式.
      *
      * @param array $config 配置数组

@@ -1,19 +1,19 @@
 """
-Claw Agent compiler.
+Claw Agent 编译器。
 
-Reads claw definition files from a given directory (typically the workspace
-.magic/ directory, or agents/claws/<claw_code>/ as fallback):
-  IDENTITY.md  — role definition + agent metadata (required, frontmatter only)
-  TOOLS.md     — tools YAML list (optional)
+claw.template.agent 是 Claw Agent 的基底模板，最终运行的 .agent 由它和
+.workspace/.magic/ 里的用户定义文件共同编译而成。
 
-Outputs agents/<claw_code>.agent with real tools in YAML frontmatter.
-IDENTITY.md, SOUL.md, AGENTS.md are NOT inlined into the system prompt;
-instead the runtime injects a <magiclaw_startup> block requiring the agent
-to read them from the workspace. Developer annotations (<!--zh -->) are
-stripped by agentlang's SyntaxProcessor at load time.
+和 Crew 不同的地方：IDENTITY.md / SOUL.md / AGENTS.md 不内嵌进系统提示，
+而是运行时注入 <magiclaw_startup> 块，要求 Agent 自己去读这些文件。
+
+工具合成规则：模板默认工具 + TOOLS.md.tools（追加）- TOOLS.md.exclude_builtin_tools（排除）
+
+这是运行时链路，和发布链路（/workspace/export）无关。
+完整链路说明见 agents/AGENT_RUNTIME_AND_PUBLISH_GUIDE.md。
 """
 from pathlib import Path
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Tuple
 
 import yaml
 
@@ -28,6 +28,78 @@ from app.utils.async_file_utils import (
 )
 
 logger = get_logger(__name__)
+
+
+def _normalize_tool_names(raw_tools: Any) -> List[str]:
+    """Normalize a tool list into a deduplicated, ordered list of non-empty names."""
+    if not isinstance(raw_tools, list):
+        return []
+
+    seen: set[str] = set()
+    normalized: List[str] = []
+    for item in raw_tools:
+        tool_name = str(item).strip()
+        if not tool_name or tool_name in seen:
+            continue
+        seen.add(tool_name)
+        normalized.append(tool_name)
+    return normalized
+
+
+def resolve_claw_tools(
+    builtin_tools: Any,
+    extra_tools: Any,
+    excluded_builtin_tools: Any,
+) -> List[str]:
+    """Resolve the final claw tool list from builtin, excluded, and extra tools."""
+    builtin = _normalize_tool_names(builtin_tools)
+    extra = _normalize_tool_names(extra_tools)
+    excluded = set(_normalize_tool_names(excluded_builtin_tools))
+
+    seen: set[str] = set()
+    merged: List[str] = []
+
+    for tool_name in builtin:
+        if tool_name in excluded or tool_name in seen:
+            continue
+        seen.add(tool_name)
+        merged.append(tool_name)
+
+    for tool_name in extra:
+        if tool_name in seen:
+            continue
+        seen.add(tool_name)
+        merged.append(tool_name)
+
+    return merged
+
+
+def parse_claw_tool_config(meta: Any, claw_code: str = "") -> Tuple[List[str], List[str]]:
+    """Parse claw TOOLS.md frontmatter into extra and excluded builtin tools."""
+    if not isinstance(meta, dict):
+        if claw_code:
+            logger.warning(f"Claw '{claw_code}': TOOLS.md frontmatter is invalid, using builtin tools only")
+        return [], []
+
+    extra_tools_raw = meta.get("tools", [])
+    if "tools" in meta and not isinstance(extra_tools_raw, list):
+        if claw_code:
+            logger.warning(f"Claw '{claw_code}': TOOLS.md field 'tools' is not a list, ignoring it")
+        extra_tools_raw = []
+
+    has_excluded_builtin_tools = "exclude_builtin_tools" in meta
+    excluded_tools_raw = meta.get("exclude_builtin_tools", [])
+    if has_excluded_builtin_tools and not isinstance(excluded_tools_raw, list):
+        if claw_code:
+            logger.warning(
+                f"Claw '{claw_code}': TOOLS.md field 'exclude_builtin_tools' is not a list, ignoring it"
+            )
+        excluded_tools_raw = []
+
+    extra_tools = _normalize_tool_names(extra_tools_raw)
+    excluded_tools = _normalize_tool_names(excluded_tools_raw)
+
+    return extra_tools, excluded_tools
 
 
 class ClawAgentCompiler:
@@ -54,36 +126,30 @@ class ClawAgentCompiler:
             raise FileNotFoundError(f"Claw template not found: {template_path}")
         template = await async_read_markdown(template_path)
 
-        tools_list = self._read_tools(tools.meta if tools else {}, claw_code)
+        extra_tools, excluded_builtin_tools = self._read_tool_config(tools.meta if tools else {}, claw_code)
 
-        compiled = self._build_agent_file(template, tools_list)
+        compiled = self._build_agent_file(template, extra_tools, excluded_builtin_tools)
         output_path = PathManager.get_compiled_agent_file(claw_code)
         await async_write_text(output_path, compiled)
         logger.info(f"Compiled claw agent: {output_path}")
 
         return identity.meta
 
-    def _read_tools(self, meta: Dict[str, Any], claw_code: str) -> List[str]:
-        tools = meta.get("tools")
-        if not tools or not isinstance(tools, list):
-            logger.warning(f"Claw '{claw_code}': TOOLS.md has no 'tools:' list, using empty tool set")
-            return []
-        return [str(t).strip() for t in tools if str(t).strip()]
+    def _read_tool_config(self, meta: Dict[str, Any], claw_code: str) -> Tuple[List[str], List[str]]:
+        return parse_claw_tool_config(meta, claw_code)
 
-    def _build_agent_file(self, template: MarkdownFile, tools_list: List[str]) -> str:
-        """Inject real tools into YAML frontmatter.
-
-        Template-level tools (base tools shared by all claw agents) are merged with
-        claw-specific tools from TOOLS.md. Template tools come first; duplicates are removed.
-        """
+    def _build_agent_file(
+        self,
+        template: MarkdownFile,
+        extra_tools: List[str],
+        excluded_builtin_tools: List[str],
+    ) -> str:
+        """把最终工具列表写入 YAML frontmatter，生成可运行的 .agent 文件。"""
         header = dict(template.meta)
-        base_tools: List[str] = header.get("tools") or []
-        seen: set = set()
-        merged: List[str] = []
-        for t in base_tools + tools_list:
-            if t not in seen:
-                seen.add(t)
-                merged.append(t)
-        header["tools"] = merged
+        header["tools"] = resolve_claw_tools(
+            builtin_tools=header.get("tools") or [],
+            extra_tools=extra_tools,
+            excluded_builtin_tools=excluded_builtin_tools,
+        )
         yaml_str = yaml.dump(header, default_flow_style=False, allow_unicode=True, sort_keys=False)
         return f"---\n{yaml_str}---\n{template.body}"

@@ -42,7 +42,7 @@ class CronSchedule:
 @dataclass
 class CronPayload:
     kind: PayloadKind = PayloadKind.AGENT_TURN
-    agent_name: str = "magic"
+    agent_name: Optional[str] = None
     model_id: Optional[str] = None
     image_model_id: Optional[str] = None
     timeout_seconds: Optional[int] = None

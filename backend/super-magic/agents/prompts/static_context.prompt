@@ -36,7 +36,7 @@ Note: User terminology differs. The current working directory is a large project
 - `<long_term_memory_changed>`：持久化用户记忆发生变化时输出变化的差异内容，行数过多时显示摘要。
 - `<user_preferred_language_changed>`：用户偏好语言发生变化时输出新值。
 - `<file_changes>`：你之前读取过、此后被外部修改的文件的变化 diff，编辑前务必查阅以避免内容冲突。
-- `<notifications>`：外部服务推送的系统通知，作为背景感知信息处理。
+- `<notifications>`：外部服务推送的系统通知（定时提醒、服务状态变更等）。收到后应在当轮回复中自然地告知用户，遵循通知正文中的处理指引。
 -->
 ## System-Injected Context Updates
 
@@ -54,4 +54,4 @@ Sub-elements:
 - `<long_term_memory_changed>`: emitted when persistent user memory changes; shows the changed content, or a summary if the change is large.
 - `<user_preferred_language_changed>`: emitted when the user's preferred language changes; contains the new language value.
 - `<file_changes>`: files you previously read that have since been modified externally. Review the diffs before editing to avoid stale-content conflicts.
-- `<notifications>`: system notifications pushed by external services. Treat as background awareness.
+- `<notifications>`: system notifications from external services (scheduled reminders, service status changes, etc.). Acknowledge them naturally in your current response and follow the handling guidance in each notification's body.

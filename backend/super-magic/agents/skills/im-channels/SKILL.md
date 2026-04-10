@@ -66,7 +66,7 @@ Load the matching reference file for credentials and exact steps:
 
 ### Step 3 — Collect credentials and connect
 
-Follow the instructions in the reference file. Run the `run_skills_snippet` code to establish the connection.
+Follow the instructions in the reference file. Run the `run_sdk_snippet` code to establish the connection.
 
 ### Step 4 — Report the result
 
@@ -88,5 +88,4 @@ print(result.content)
 - After a connection is established, it keeps running in the background. Credentials are saved to `.magic/config/im-channels.json` and bound to the current sandbox. Restarting the same sandbox process should auto-reconnect without asking for setup again.
 - To disable auto-reconnect for a channel, edit `.magic/config/im-channels.json` and set that channel's `enabled` field to `false`.
 - All channels share the same Agent as the web session, so conversation history stays connected across surfaces.
-- For WeChat, do not generate your own QR layout. Always use the mobile-width HTML template from the WeChat reference and paste the exact `{{QRCODE_JS_STRING_LITERAL}}` value returned by the tool.
-- For WeChat, output the QR as exactly one `html` fenced code block. Do not add extra prose before or after the block.
+- For WeChat, do not generate your own QR layout. The tool returns the exact markdown content to output — reply with it verbatim.

@@ -14,13 +14,26 @@ from app.core.entity.message.server_message import (DisplayType, FileContent,
                                                     ToolDetail)
 from app.tools.abstract_file_tool import AbstractFileTool
 from app.tools.core import BaseToolParams, tool
-from app.tools.read_file import ReadFile, ReadFileParams, TruncationInfo
+from app.tools.read_file import ReadFile, ReadFileParams, TruncationInfo, _compute_max_tokens, _get_context_remaining
 from app.tools.workspace_tool import WorkspaceTool
 
 logger = get_logger(__name__)
 
-# 设置最大Token限制
-MAX_TOTAL_TOKENS = 50000
+# 批量读取的 token 总量上限（高于单文件，允许一次性读多个文件）
+DEFAULT_BATCH_MAX_TOKENS = 60000
+# 动态上限：占剩余上下文窗口的比例（与单文件工具共用同一比例）
+BATCH_MAX_TOKENS_RATIO = 0.40
+# 保底：上下文极度紧张时仍保留最小可用量
+BATCH_MIN_MAX_TOKENS = 5000
+
+
+def _compute_batch_max_tokens(tool_context) -> int:
+    """根据剩余上下文窗口动态计算批量读取的总 token 上限。"""
+    remaining = _get_context_remaining(tool_context)
+    if remaining <= 0:
+        return DEFAULT_BATCH_MAX_TOKENS
+    dynamic = int(remaining * BATCH_MAX_TOKENS_RATIO)
+    return max(BATCH_MIN_MAX_TOKENS, min(DEFAULT_BATCH_MAX_TOKENS, dynamic))
 
 
 class FileReadOperation(BaseModel):
@@ -205,9 +218,9 @@ class ReadFiles(AbstractFileTool[ReadFilesParams], WorkspaceTool[ReadFilesParams
         # 检查是否需要截断内容以符合token限制
         total_content_tokens = sum(result.tokens for result in results if result.is_success)
 
-        # 为摘要预留token
-        header_tokens = 500  # 为头部预留的token
-        available_tokens = MAX_TOTAL_TOKENS - header_tokens
+        # 根据剩余上下文动态计算批量上限，预留 500 token 给摘要头部
+        batch_max = _compute_batch_max_tokens(tool_context)
+        available_tokens = max(0, batch_max - 500)
 
         # 如果内容token数超出限制，进行截断
         if total_content_tokens > available_tokens:
@@ -241,7 +254,17 @@ class ReadFiles(AbstractFileTool[ReadFilesParams], WorkspaceTool[ReadFilesParams
             content=formatted_result,
             system=summary,
             extra_info={
-                "files_without_line_numbers": files_without_line_numbers
+                "files_without_line_numbers": files_without_line_numbers,
+                "file_results": [
+                    {
+                        "file_path": item.file_path,
+                        "is_success": item.is_success,
+                        "error_type": item.error_type,
+                    }
+                    for item in results
+                ],
+                "success_count": success_count,
+                "failure_count": read_failure_count,
             }
         )
 
@@ -280,7 +303,7 @@ class ReadFiles(AbstractFileTool[ReadFilesParams], WorkspaceTool[ReadFilesParams
                 if allocated_tokens < 300:
                     # 剩余token太少，无法保留有意义的内容，直接标记为截断
                     result.was_truncated = True
-                    result.content = "[文件内容因token限制无法显示，请单独读取]"
+                    result.content = "[File content cannot be shown: token budget exhausted. Read this file separately.]"
                     result.tokens = 0
                 else:
                     # 截断到剩余token数
@@ -351,16 +374,15 @@ class ReadFiles(AbstractFileTool[ReadFilesParams], WorkspaceTool[ReadFilesParams
         # 添加摘要信息
         formatted_parts.append(f"# 读取文件结果\n\n{summary}\n")
 
-        # 简化的顶部提示（如果有截断）
         if has_truncation:
-            # 顶部只给出简要提示，详细指导放在最后
-            formatted_parts.append("> ⚠️ 部分文件内容已截断，详细的继续读取指导见文末\n")
+            formatted_parts.append("> [Some file content was truncated. See end of output for how to continue reading.]\n")
 
         # 添加分隔线
         formatted_parts.append("-" * 80 + "\n")
 
         # 添加每个文件的内容
         truncated_files = []  # 收集所有被截断的文件，用于最后生成详细指导
+        has_skill_reference_path_not_found = False  # 仅当像 skill reference 路径时才输出 Skill Hint
 
         for idx, result in enumerate(results):
             # 添加文件分隔符（除了第一个文件）
@@ -375,46 +397,47 @@ class ReadFiles(AbstractFileTool[ReadFilesParams], WorkspaceTool[ReadFilesParams
                 if result.was_truncated:
                     truncated_files.append(result)
             else:
-                # 对失败的文件添加具体的错误信息
+                # 对失败的文件只输出错误信息，不在每个文件下重复 Skill Hint
                 if result.error_message:
-                    error_text = result.error_message
-                    # 文件不存在且路径为相对路径时，提示模型使用绝对路径
-                    # 用 error_type code 判断，不依赖特定语言的错误文本
+                    formatted_parts.append(f"## 文件: {result.file_path}\n\n**读取失败**: {result.error_message}\n")
+                    # 标记：只有相对路径且路径段里包含 reference 时，才认为像 skill reference 路径
                     if (
                         result.error_type == "read_file.error_file_not_exist"
                         and not result.file_path.startswith("/")
+                        and "reference" in Path(result.file_path).parts
                     ):
-                        error_text += (
-                            "\n\n[Hint] The file path is relative and was not found. "
-                            "If you are reading a skill-related file, you MUST construct an absolute path: "
-                            "take the absolute path from the skill's `<location>` tag, strip the filename "
-                            "to get the skill directory, then append the relative path from the skill content. "
-                            "Example: read_files(operations=[{'file_path': '/absolute/path/to/skill-dir/reference/doc.md'}])"
-                        )
-                    formatted_parts.append(f"## 文件: {result.file_path}\n\n**读取失败**: {error_text}\n")
+                        has_skill_reference_path_not_found = True
                 else:
                     error_detail = i18n.translate("read_file.error_detail", category="tool.messages")
                     formatted_parts.append(f"## 文件: {result.file_path}\n\n{error_detail}\n")
 
-        # 在最后统一添加所有被截断文件的详细指导
-        # 这部分不参与前面的token限制计算，确保大模型一定能看到
+        # Skill 相对路径 Hint：整批只输出一次，位于所有文件内容之后
+        if has_skill_reference_path_not_found:
+            formatted_parts.append(
+                "\n\n[Hint] One or more file paths are relative and were not found. "
+                "If you are reading skill-related files, you MUST construct absolute paths. "
+                "Prefer the `<skill_dir>` tag for the absolute skill directory; "
+                "if unavailable, strip the filename from the `<location>` tag to get the skill directory, "
+                "then append the relative path from the skill content.\n"
+                "Example: `read_files(operations=[{'file_path': '/absolute/path/to/skill-dir/reference/doc.md'}])`"
+            )
+
+        # Truncation guidance appended after all file content — not counted against the token budget,
+        # so the model always sees the instructions even when budget is tight.
         if truncated_files:
             formatted_parts.append("\n\n" + "=" * 80 + "\n")
-            formatted_parts.append("# ⚠️ 截断文件的继续读取指导\n")
-            formatted_parts.append("\n以下文件内容已被截断，如需完整阅读，请参考下方指导：\n")
+            formatted_parts.append("# [Truncated files — how to continue reading]\n")
+            formatted_parts.append("\nThe following files were truncated. Use the parameters below to read the rest:\n")
 
             for result in truncated_files:
-                # 根据截断信息的来源生成相应的指导
                 if result.truncation_info:
                     if isinstance(result.truncation_info, TruncationInfo):
-                        # 来自read_file的完整截断信息（TruncationInfo对象）
                         guidance = _build_truncation_guidance_from_truncation_info(
                             result.file_path,
                             result.truncation_info
                         )
                         formatted_parts.append(guidance)
                     elif isinstance(result.truncation_info, dict):
-                        # 来自read_files的简化截断信息（字典）
                         last_line = result.truncation_info.get("last_line")
                         is_complete = result.truncation_info.get("is_last_line_complete", True)
                         if last_line:
@@ -425,25 +448,86 @@ class ReadFiles(AbstractFileTool[ReadFilesParams], WorkspaceTool[ReadFilesParams
                             )
                             formatted_parts.append(guidance)
                         else:
-                            # 缺少行号信息
-                            formatted_parts.append(f"\n## 📄 文件: `{result.file_path}`\n")
-                            formatted_parts.append("该文件内容已截断，建议使用读文件工具单独读取完整内容\n")
+                            formatted_parts.append(f"\n## File: `{result.file_path}`\n")
+                            formatted_parts.append("Content truncated. Read this file separately to get the full content.\n")
                     else:
-                        # 未知类型
-                        formatted_parts.append(f"\n## 📄 文件: `{result.file_path}`\n")
-                        formatted_parts.append("该文件内容已截断，建议使用读文件工具单独读取完整内容\n")
+                        formatted_parts.append(f"\n## File: `{result.file_path}`\n")
+                        formatted_parts.append("Content truncated. Read this file separately to get the full content.\n")
                 else:
-                    # 无截断信息
-                    formatted_parts.append(f"\n## 📄 文件: `{result.file_path}`\n")
-                    formatted_parts.append("该文件内容已截断，建议使用读文件工具单独读取完整内容\n")
+                    formatted_parts.append(f"\n## File: `{result.file_path}`\n")
+                    formatted_parts.append("Content truncated. Read this file separately to get the full content.\n")
 
-            # 添加通用建议
             formatted_parts.append("\n" + "-" * 80 + "\n")
-            formatted_parts.append("\n💡 **其他建议**：\n")
-            formatted_parts.append("• 如果只需查找特定内容，建议使用 grep_search 工具精准搜索\n")
-            formatted_parts.append("• grep_search 可以快速定位关键词、函数名、类名等，避免读取大量无关内容\n")
+            formatted_parts.append("\nTip: use grep_search to locate specific content (keywords, function names, class names) instead of reading large files in full.\n")
 
         return "\n".join(formatted_parts)
+
+    def _get_failure_reason_label(self, error_type: Optional[str]) -> str:
+        if error_type == "read_file.error_file_not_exist":
+            key = "read_file.detail_reason_not_exist"
+        elif error_type == "read_file.error_is_directory":
+            key = "read_file.detail_reason_is_directory"
+        elif error_type == "read_file.error_conversion_failed":
+            key = "read_file.detail_reason_conversion_failed"
+        elif error_type == "read_file.error_unexpected":
+            key = "read_file.detail_reason_unexpected"
+        else:
+            key = "read_file.detail_reason_unknown"
+        return i18n.translate(key, category="tool.messages")
+
+    def _build_failure_detail_markdown(
+        self,
+        file_results: list[dict[str, Any]],
+        success_count: int,
+        failure_count: int,
+    ) -> Optional[str]:
+        """构造给前端展示的人类可读失败摘要（不含给 AI 的诊断信息）。"""
+        file_count = len(file_results)
+        if file_count == 0:
+            return None
+
+        title = i18n.translate("read_file.detail_failed_title", category="tool.messages")
+        summary = i18n.translate(
+            "read_file.detail_failed_summary",
+            category="tool.messages",
+            total=file_count,
+            success=success_count,
+            failed=failure_count,
+        )
+        list_header = i18n.translate("read_file.detail_failed_list_header", category="tool.messages")
+
+        lines = [f"## {title}", "", summary, "", list_header]
+        for item in file_results:
+            if item.get("is_success"):
+                continue
+            reason = self._get_failure_reason_label(item.get("error_type"))
+            lines.append(f"- `{os.path.basename(item.get('file_path', ''))}` — {reason}")
+
+        return "\n".join(lines)
+
+    def _build_failure_tool_detail(
+        self,
+        file_results: list[dict[str, Any]],
+        success_count: int,
+        failure_count: int,
+    ) -> Optional[ToolDetail]:
+        """构造失败时给前端展示的人类可读摘要（不含给 AI 的诊断信息）。"""
+        markdown = self._build_failure_detail_markdown(
+            file_results=file_results,
+            success_count=success_count,
+            failure_count=failure_count,
+        )
+        if markdown is None:
+            return None
+
+        title = i18n.translate("read_file.detail_failed_title", category="tool.messages")
+        return ToolDetail(
+            type=DisplayType.MD,
+            data=FileContent(
+                file_name=title,
+                content=markdown,
+            )
+        )
 
     def _escape_code_blocks_for_display(self, content: str) -> str:
         """
@@ -470,9 +554,6 @@ class ReadFiles(AbstractFileTool[ReadFilesParams], WorkspaceTool[ReadFilesParams
         Returns:
             Optional[ToolDetail]: 工具详情对象，可能为None
         """
-        if not result.ok:
-            return None
-
         if not arguments or "operations" not in arguments:
             logger.warning("没有提供operations参数")
             return None
@@ -480,6 +561,15 @@ class ReadFiles(AbstractFileTool[ReadFilesParams], WorkspaceTool[ReadFilesParams
         operations = arguments["operations"]
         file_count = len(operations)
         file_paths = [op["file_path"] if isinstance(op, dict) else op.file_path for op in operations]
+        files_data = (result.extra_info or {}).get("files_without_line_numbers") or []
+        file_results = (result.extra_info or {}).get("file_results") or []
+        success_count = int((result.extra_info or {}).get("success_count", len(files_data)))
+        failure_count = int((result.extra_info or {}).get("failure_count", 0))
+
+        # 失败时：展示给人看的简洁失败摘要（走 i18n，不含给 AI 的诊断信息）
+        # read_files 在“全部子项失败”时也可能保持 result.ok=True，因此不能只看 result.ok
+        if (not result.ok) or (failure_count > 0 and success_count == 0):
+            return self._build_failure_tool_detail(file_results=file_results, success_count=success_count, failure_count=failure_count)
 
         # 单个文件：像 read_file.py 一样处理
         if file_count == 1:
@@ -514,7 +604,6 @@ class ReadFiles(AbstractFileTool[ReadFilesParams], WorkspaceTool[ReadFilesParams
                                    count=file_count)
 
         # 构建多文件显示内容
-        files_data = (result.extra_info or {}).get("files_without_line_numbers")
         if files_data:
             display_parts = []
             for idx, file_data in enumerate(files_data):
@@ -537,9 +626,16 @@ class ReadFiles(AbstractFileTool[ReadFilesParams], WorkspaceTool[ReadFilesParams
                     display_parts.append(f"```\n{escaped_content}\n```")
 
             content_for_display = "".join(display_parts)
+            if failure_count > 0:
+                failure_markdown = self._build_failure_detail_markdown(
+                    file_results=file_results,
+                    success_count=success_count,
+                    failure_count=failure_count,
+                )
+                if failure_markdown:
+                    content_for_display = failure_markdown + "\n\n---\n\n" + content_for_display
         else:
-            # 回退到原始内容
-            content_for_display = result.content
+            content_for_display = ""
 
         return ToolDetail(
             type=DisplayType.MD,
@@ -731,22 +827,21 @@ def _build_simple_truncation_guidance(file_path: str, last_line: int, is_complet
         str: 格式化的截断指导信息
     """
     lines = []
-    lines.append(f"\n### 📄 文件 `{file_path}` 的继续读取指导\n")
+    lines.append(f"\n### File: `{file_path}`\n")
 
     if is_complete:
         next_offset = last_line
-        lines.append(f"当前已读取到第 {last_line} 行（完整）")
-        lines.append(f"如需继续读取，请使用 offset: {next_offset}（从第 {next_offset + 1} 行开始）\n")
+        lines.append(f"Read up to line {last_line} (complete).")
+        lines.append(f"To continue, use offset: {next_offset} (starts at line {next_offset + 1})\n")
     else:
         next_offset = last_line - 1
-        lines.append(f"当前已读取到第 {last_line} 行（内容不完整，末尾已标记 ...）")
-        lines.append(f"如需继续读取，请使用 offset: {next_offset}（从第 {next_offset + 1} 行重新开始，读取完整内容）\n")
+        lines.append(f"Read up to line {last_line} (incomplete, marked with ... at end).")
+        lines.append(f"To continue, use offset: {next_offset} (re-reads line {next_offset + 1} to get complete content)\n")
 
-    lines.append("继续读取参数：")
     lines.append("```")
     lines.append(f'file_path: "{file_path}"')
     lines.append(f"offset: {next_offset}")
-    lines.append("limit: -1  # 读取到文件末尾")
+    lines.append("limit: -1")
     lines.append("```")
 
     return "\n".join(lines)

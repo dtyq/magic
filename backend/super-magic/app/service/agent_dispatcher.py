@@ -323,7 +323,7 @@ class AgentDispatcher(Base):
         await self.agent_service.run_agent(agent=agent)
 
     async def _prepare_crew_agent(self, agent_code: str) -> None:
-        """Download crew files (if needed), compile into .agent, set AgentProfile."""
+        """Crew 运行时准备：按需下载定义文件、编译 .agent、设置当前会话的 AgentProfile。"""
         from app.path_manager import PathManager
         from app.service.crew_downloader import CrewDownloader
         from app.service.crew_agent_compiler import CrewAgentCompiler
@@ -358,11 +358,9 @@ class AgentDispatcher(Base):
             logger.info(f"Set crew agent profile: name={name}, role={role}")
 
     async def _prepare_claw_agent(self, claw_code: str) -> None:
-        """Compile claw definition files into .agent and set AgentProfile.
+        """Claw 运行时准备：把模板同步到 .workspace/.magic、编译 .agent、设置 AgentProfile。
 
-        Source files live in the workspace .magic/ directory. On first run the
-        template is copied from agents/claws/<claw_code>/ with SKIP strategy so
-        that existing workspace files are never overwritten.
+        每次启动都重新编译（不缓存），保证 .agent 始终和最新模板一致。
         """
         from datetime import date
         from app.path_manager import PathManager

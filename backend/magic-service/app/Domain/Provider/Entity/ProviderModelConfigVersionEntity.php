@@ -60,6 +60,10 @@ class ProviderModelConfigVersionEntity extends AbstractEntity
 
     protected ?float $timeCost = null;
 
+    protected ?float $secondPricing = null;
+
+    protected ?float $secondCost = null;
+
     protected ?BillingTiers $billingTiers = null;
 
     protected int $version = 1;
@@ -429,6 +433,34 @@ class ProviderModelConfigVersionEntity extends AbstractEntity
             $this->timeCost = null;
         } else {
             $this->timeCost = (float) $timeCost;
+        }
+    }
+
+    public function getSecondPricing(): ?float
+    {
+        return $this->secondPricing;
+    }
+
+    public function setSecondPricing(null|float|int|string $secondPricing): void
+    {
+        if ($secondPricing === null || $secondPricing === '') {
+            $this->secondPricing = null;
+        } else {
+            $this->secondPricing = (float) $secondPricing;
+        }
+    }
+
+    public function getSecondCost(): ?float
+    {
+        return $this->secondCost;
+    }
+
+    public function setSecondCost(null|float|int|string $secondCost): void
+    {
+        if ($secondCost === null || $secondCost === '') {
+            $this->secondCost = null;
+        } else {
+            $this->secondCost = (float) $secondCost;
         }
     }
 

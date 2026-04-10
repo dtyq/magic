@@ -191,9 +191,9 @@ class BaseDataIsolation implements DataIsolationInterface
         return $this->thirdPlatformUserId ?? '';
     }
 
-    public function setThirdPlatformUserId(string $thirdPlatformUserId): static
+    public function setThirdPlatformUserId(?string $thirdPlatformUserId): static
     {
-        $this->thirdPlatformUserId = $thirdPlatformUserId;
+        $this->thirdPlatformUserId = $thirdPlatformUserId ?? '';
         return $this;
     }
 
@@ -202,9 +202,9 @@ class BaseDataIsolation implements DataIsolationInterface
         return $this->thirdPlatformOrganizationCode ?? '';
     }
 
-    public function setThirdPlatformOrganizationCode(string $thirdPlatformOrganizationCode): static
+    public function setThirdPlatformOrganizationCode(?string $thirdPlatformOrganizationCode): static
     {
-        $this->thirdPlatformOrganizationCode = $thirdPlatformOrganizationCode;
+        $this->thirdPlatformOrganizationCode = $thirdPlatformOrganizationCode ?? '';
         return $this;
     }
 

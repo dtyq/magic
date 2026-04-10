@@ -92,23 +92,16 @@ import app.tools.design.manager  # pyright: ignore[reportUnusedImport]
 import app.tools.design.utils  # pyright: ignore[reportUnusedImport]
 import app.tools.design  # pyright: ignore[reportUnusedImport]
 from app.tools.design.tools import (
-    CreateDesignProject,
-    CreateCanvasElement,
-    UpdateCanvasElement,
-    DeleteCanvasElement,
-    ReorderCanvasElements,
-    QueryCanvasOverview,
-    QueryCanvasElement,
-    BatchCreateCanvasElements,
-    BatchUpdateCanvasElements,
-    GenerateImagesToCanvas,
-    GenerateVideosToCanvas,
-    SearchImagesToCanvas,
+    CreateCanvas,
+    GenerateCanvasImages,
+    GenerateCanvasVideos,
+    SearchCanvasImages,
+    SearchImagePrompts,
 )
 
 # Skill 管理工具
 from app.tools.read_skills import ReadSkills
-from app.tools.run_skills_snippet import RunSkillsSnippet
+from app.tools.run_sdk_snippet import RunSdkSnippet
 from app.tools.skill_list import SkillList
 
 # Import design package modules to ensure they are available in encrypted environment
@@ -165,7 +158,7 @@ __all__ = [
     "Purify",
     "RunPythonSnippet",
     "ReadSkills",
-    "RunSkillsSnippet",
+    "RunSdkSnippet",
     "SkillList",
     "ReadFile",
     "ReadFiles",
@@ -218,17 +211,10 @@ __all__ = [
     "UploadSkill",
 
     # 设计模式工具
-    "CreateDesignProject",
-    "CreateCanvasElement",
-    "UpdateCanvasElement",
-    "DeleteCanvasElement",
-    "ReorderCanvasElements",
-    "QueryCanvasOverview",
-    "QueryCanvasElement",
-    "BatchCreateCanvasElements",
-    "BatchUpdateCanvasElements",
-    "GenerateImagesToCanvas",
-    "GenerateVideosToCanvas",
-    "SearchImagesToCanvas",
+    "CreateCanvas",
+    "GenerateCanvasImages",
+    "GenerateCanvasVideos",
+    "SearchCanvasImages",
+    "SearchImagePrompts",
 ]
 

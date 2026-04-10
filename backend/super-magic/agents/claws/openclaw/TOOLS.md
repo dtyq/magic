@@ -1,38 +1,6 @@
 ---
-tools:
-  # 搜索与网络
-  - web_search
-  - read_webpages_as_markdown
-  - image_search
-  - download_from_urls
-
-  # 理解与生成
-  - visual_understanding
-  - convert_to_markdown
-  - generate_image
-
-  # 文件读取
-  - list_dir
-  - file_search
-  - read_files
-  - grep_search
-
-  # 文件编写
-  - write_file
-  - edit_file
-  - edit_file_range
-  - multi_edit_file
-  - multi_edit_file_range
-  - delete_files
-
-  # 执行
-  - shell_exec
-  - run_python_snippet
-
-  # 协作与会话
-  - call_subagent
-  - wait_for_subagents
-  - compact_chat_history
+tools: []
+exclude_builtin_tools: []
 ---
 
 # TOOLS.md - 工具 & Skill 备注
@@ -56,6 +24,13 @@ tools:
 ## 示例
 
 ```markdown
+---
+tools:
+  - my_private_camera_tool
+exclude_builtin_tools:
+  - shell_exec
+---
+
 ### 摄像头
 
 - living-room → 客厅，180° 广角

@@ -14,6 +14,7 @@ import (
 )
 
 const envNameCLIWebBaseURL = "MAGICREW_CLI_WEB_BASE_URL"
+const envNameCLILegacyWebBaseURL = "MAGIC_WEB_BASE_URL"
 const envNameCLIAutoRecoverRelease = "MAGICREW_CLI_AUTO_RECOVER_RELEASE"
 const envNameCLIConfigDir = "MAGICREW_CLI_CONFIG_DIR"
 const envNameCLIDataDir = "MAGICREW_CLI_DATA_DIR"
@@ -59,7 +60,22 @@ func runDeploy(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("either --charts-dir or chart repository URL must be provided")
 	}
 
-	webBaseURL := resolveValue(deployWebURL, envNameCLIWebBaseURL, "")
+	cfg.Deploy.ChartRepo.URL = chartRepoURL
+	cfg.Deploy.ChartRepo.PlainHTTP = plainHTTP
+
+	webBaseURL, usedDeprecatedWebBaseURL := resolveDeployWebBaseURL(deployWebURL)
+	if usedDeprecatedWebBaseURL {
+		lg.Logw(
+			"deploy",
+			"%s is deprecated, please use %s instead",
+			envNameCLILegacyWebBaseURL,
+			envNameCLIWebBaseURL,
+		)
+	}
+	if err := deployer.ValidateWebBaseURL(webBaseURL); err != nil {
+		return err
+	}
+
 	autoRecoverRelease, err := resolveAutoRecoverRelease(
 		deployAutoRecoverRelease,
 		cmd.Flags().Changed("auto-recover-release"),
@@ -72,26 +88,22 @@ func runDeploy(cmd *cobra.Command, args []string) error {
 	valuesFile := resolveDeployValuesFile(deployValuesFile, cfg.Deploy.Values, configDir)
 
 	chartSpecs := buildChartSpecsFromConfig()
-	return deployer.New(deployer.Options{
-		ChartsDir:          chartsDir,
-		ChartRepo:          chartRepoURL,
-		PlainHTTP:          plainHTTP,
-		ChartRepoUser:      cfg.Deploy.ChartRepo.Username,
-		ChartRepoPass:      cfg.Deploy.ChartRepo.Password,
-		PassCredsAll:       cfg.Deploy.ChartRepo.PassCredentialsAll,
-		ChartSpecs:         chartSpecs,
-		ValuesFile:         valuesFile,
-		WebBaseURL:         webBaseURL,
-		Registry:           withRegistryConfigDir(cfg.Deploy.Registry, configDir),
-		Kind:               cfg.Deploy.Kind,
-		InfraUseProxy:      cfg.Deploy.InfraUseProxy,
-		ConfigFile:         cfgFile,
-		Proxy:              cfg.Deploy.Proxy,
-		AutoRecoverRelease: autoRecoverRelease,
-		ConfigDir:          configDir,
-		DataDir:            dataDir,
-		Log:                lg,
-	}).Run(context.Background())
+	return deployer.New(
+		deployer.WithChartRepo(cfg.Deploy.ChartRepo),
+		deployer.WithChartsDir(chartsDir),
+		deployer.WithChartSpecs(chartSpecs),
+		deployer.WithValuesFile(valuesFile),
+		deployer.WithWebBaseURL(webBaseURL),
+		deployer.WithRegistry(withRegistryConfigDir(cfg.Deploy.Registry, configDir)),
+		deployer.WithKind(cfg.Deploy.Kind),
+		deployer.WithInfraUseProxy(cfg.Deploy.InfraUseProxy),
+		deployer.WithConfigFile(cfgFile),
+		deployer.WithProxy(cfg.Deploy.Proxy),
+		deployer.WithAutoRecoverRelease(autoRecoverRelease),
+		deployer.WithConfigDir(configDir),
+		deployer.WithDataDir(dataDir),
+		deployer.WithLog(lg),
+	).Run(context.Background())
 }
 
 // resolveDeployValuesFile chooses the values file path for deploy, in order:
@@ -123,6 +135,19 @@ func buildChartSpecsFromConfig() map[string]deployer.ChartSpec {
 		out[key] = deployer.ChartSpec{Name: spec.Name, Version: spec.Version}
 	}
 	return out
+}
+
+func resolveDeployWebBaseURL(cliValue string) (string, bool) {
+	if v := strings.TrimSpace(cliValue); v != "" {
+		return v, false
+	}
+	if v := strings.TrimSpace(os.Getenv(envNameCLIWebBaseURL)); v != "" {
+		return v, false
+	}
+	if v := strings.TrimSpace(os.Getenv(envNameCLILegacyWebBaseURL)); v != "" {
+		return v, true
+	}
+	return "", false
 }
 
 func resolveAutoRecoverRelease(flagValue bool, flagChanged bool, envValue string) (bool, error) {

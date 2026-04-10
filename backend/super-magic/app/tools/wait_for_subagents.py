@@ -7,6 +7,7 @@ from pydantic import Field
 from agentlang.context.tool_context import ToolContext
 from agentlang.tools.tool_result import ToolResult
 from app.i18n import i18n
+from app.path_manager import PathManager
 from app.tools.core import BaseToolParams, tool
 from app.tools.core.base_tool import BaseTool
 from app.tools.subagent_runtime_models import (
@@ -19,6 +20,10 @@ from app.tools.subagent_runtime_models import (
 from app.tools.subagent_runtime_store import SubagentRuntimeStore
 from app.tools.subagent_session_manager import SubagentSessionHandle, subagent_session_manager
 from app.core.entity.message.server_message import DisplayType, TerminalContent, ToolDetail
+from app.utils.async_file_utils import async_exists, async_read_json
+
+# 超时时返回给父 Agent 的进度快照最大字符数
+_LAST_ACTIVITY_MAX_CHARS = 500
 
 
 class WaitForSubagentsParams(BaseToolParams):
@@ -80,12 +85,17 @@ class WaitForSubagents(BaseTool[WaitForSubagentsParams]):
                 if state.status in _IN_FLIGHT_STATUSES and not handle.is_running():
                     _mark_missing_inflight_as_interrupted(state)
                     await SubagentRuntimeStore.save_state(state)
+            # 超时但仍在运行时，附上最近一条 assistant 消息作为进度快照
+            last_activity = None
+            if state.status in _IN_FLIGHT_STATUSES:
+                last_activity = await _get_last_assistant_message(state.agent_name, agent_id)
             results.append(SubagentQueryResult(
                 agent_id=agent_id,
                 agent_name=state.agent_name,
                 status=state.status,
                 result=state.last_result,
                 error=state.last_error,
+                last_activity=last_activity,
             ))
 
         return ToolResult(
@@ -258,22 +268,49 @@ def _resolve_terminal_exit_code(items: list[dict[str, Any]]) -> int:
     return 0
 
 
+async def _get_last_assistant_message(agent_name: str, agent_id: str) -> Optional[str]:
+    """从子 Agent 的聊天历史文件中读取最后一条有内容的 assistant 消息，用于超时时的进度快照。"""
+    chat_file = PathManager.get_subagents_chat_history_dir() / f"{agent_name}<{agent_id}>.json"
+    try:
+        if not await async_exists(chat_file):
+            return None
+        data = await async_read_json(chat_file)
+        if not isinstance(data, list):
+            return None
+        for msg in reversed(data):
+            if not isinstance(msg, dict) or msg.get("role") != "assistant":
+                continue
+            content = msg.get("content")
+            if content and isinstance(content, str) and content.strip():
+                content = content.strip()
+                if len(content) > _LAST_ACTIVITY_MAX_CHARS:
+                    content = content[:_LAST_ACTIVITY_MAX_CHARS] + "..."
+                return content
+    except Exception:
+        pass
+    return None
+
+
 def _build_results_text(results: list[SubagentQueryResult]) -> str:
     if not results:
         return "No sub-agent results found."
 
-    lines: list[str] = []
-    for result in results:
-        label = f"`{result.agent_id}`"
-        if result.agent_name:
-            label = f"`{result.agent_name}` / {label}"
+    total = len(results)
+    sections: list[str] = []
 
-        line = f"{label}: `{result.status}`"
+    for i, result in enumerate(results, 1):
+        label = f"{result.agent_name}/{result.agent_id}" if result.agent_name else result.agent_id
+        parts = [f"[{i}/{total}] {label}: {result.status}"]
+
         if result.error:
-            line += f", error={result.error}"
-        lines.append(line)
+            parts.append(f"Error: {result.error}")
 
         if result.result:
-            lines.append(f"Result for `{result.agent_id}`:\n{result.result}")
+            parts.append(f"Result:\n```\n{result.result.strip()}\n```")
 
-    return "\n".join(lines)
+        if result.last_activity:
+            parts.append(f"Last message:\n```\n{result.last_activity.strip()}\n```")
+
+        sections.append("\n".join(parts))
+
+    return "\n\n".join(sections)

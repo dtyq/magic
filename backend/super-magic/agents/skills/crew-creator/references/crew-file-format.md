@@ -232,7 +232,9 @@ tools:
 <!--zh
 ### 编译规则
 
-- YAML `tools` 列表 → 覆盖编译后 `.agent` 文件 frontmatter 中的 `tools` 字段
+- `crew.template.agent` 中的 `tools` → 内置工具基线
+- YAML `tools` 列表 → 追加额外工具
+- YAML `exclude_builtin_tools` 列表 → 从内置工具基线中排除指定工具
 - 不提供 TOOLS.md → 使用 `crew.template.agent` 中的默认工具集
 
 ### 注意事项
@@ -242,7 +244,9 @@ tools:
 -->
 ### Compilation Rules
 
-- YAML `tools` list → overwrites the `tools` field in the compiled `.agent` file frontmatter
+- `tools` from `crew.template.agent` → builtin tool baseline
+- YAML `tools` list → appends extra tools
+- YAML `exclude_builtin_tools` list → removes specific tools from the builtin baseline
 - No TOOLS.md provided → uses default tool set from `crew.template.agent`
 
 ### Notes

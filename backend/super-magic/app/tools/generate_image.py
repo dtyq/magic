@@ -1006,7 +1006,7 @@ Call generate_image tool directly when user has following scenarios:
             params: 图片生成参数
             skip_limit_check: 是否跳过对话级别的限制检查（默认 False）
                 当设置为 True 时，将跳过 MAX_IMAGES_PER_CONVERSATION 和 MAX_EDITS_PER_CONVERSATION 的检查
-                适用于内部工具调用场景（如 generate_images_to_canvas）
+                适用于内部工具调用场景（如 generate_canvas_images）
 
         Returns:
             ImageToolResult: 图片生成结果

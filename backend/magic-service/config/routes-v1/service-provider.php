@@ -13,6 +13,7 @@ Router::addGroup('/api/v1', static function () {
     Router::addGroup('/service-providers', static function () {
         // 获取可用的模型列表（不校验管理员权限）
         Router::post('/available-models', [ServiceProviderOpenApi::class, 'getAvailableModels']);
+        Router::get('/templates/queries', [ServiceProviderOpenApi::class, 'queriesServiceProviderTemplates']);
     });
 
     Router::addGroup('/service-provider/models', static function () {

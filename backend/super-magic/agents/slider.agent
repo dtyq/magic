@@ -23,7 +23,6 @@ skills:
     - name: skill-vetter
     - name: find-skill
     - name: using-mcp
-    - name: generating-videos
   workspace_skills: "*"
 ---
 
