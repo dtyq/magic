@@ -9,6 +9,7 @@ from typing import Dict, Any, Optional
 
 from agentlang.logger import get_logger
 
+from app.core.entity.message.client_message import User
 from app.path_manager import PathManager
 
 logger = get_logger(__name__)
@@ -244,6 +245,24 @@ class InitClientMessageUtil:
             return True
         except InitializationError:
             return False
+
+    @classmethod
+    def get_user(cls) -> Optional[User]:
+        """
+        从 metadata 获取 user 对象
+
+        Returns:
+            Optional[User]: User 对象，字段缺失或为空时对应属性为 None，获取失败返回 None
+        """
+        try:
+            metadata = cls.get_metadata()
+            user_data = metadata.get("user")
+            if not user_data or not isinstance(user_data, dict):
+                return None
+            return User(**user_data)
+        except Exception as e:
+            logger.debug(f"获取 user 失败: {e}")
+            return None
 
     @classmethod
     def get_user_authorization(cls) -> Optional[str]:
