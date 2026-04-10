@@ -7,8 +7,8 @@ declare(strict_types=1);
 
 namespace App\Infrastructure\ExternalAPI\ImageRemoveBackground;
 
-use App\Infrastructure\ExternalAPI\ImageRemoveBackground\Driver\BuiltinModelServiceImageRemoveBackgroundDriver;
 use App\Infrastructure\ExternalAPI\ImageRemoveBackground\Driver\OfficialImageRemoveBackgroundDriver;
+use App\Infrastructure\ExternalAPI\ImageRemoveBackground\Driver\OfficialProxyImageRemoveBackgroundDriver;
 use App\Infrastructure\Util\File\ImageFileInspector;
 use Hyperf\Logger\LoggerFactory;
 use RuntimeException;
@@ -18,9 +18,9 @@ use RuntimeException;
  */
 class ImageRemoveBackgroundDriverFactory
 {
-    public const PROVIDER_OFFICIAL = 'official';
+    public const PROVIDER_OFFICIAL_PROXY = 'official_proxy';
 
-    public const PROVIDER_BUILTIN_MODEL_SERVICE = 'builtin_model_service';
+    public const PROVIDER_OFFICIAL_MODEL_SERVICE = 'official_model_service';
 
     public function __construct(
         private readonly ImageFileInspector $imageFileInspector,
@@ -34,8 +34,8 @@ class ImageRemoveBackgroundDriverFactory
     public function create(string $providerCode, array $providerConfig): ImageRemoveBackgroundDriverInterface
     {
         return match ($providerCode) {
-            self::PROVIDER_OFFICIAL => new OfficialImageRemoveBackgroundDriver($providerConfig, $this->imageFileInspector, $this->loggerFactory),
-            self::PROVIDER_BUILTIN_MODEL_SERVICE => new BuiltinModelServiceImageRemoveBackgroundDriver($providerConfig, $this->imageFileInspector, $this->loggerFactory),
+            self::PROVIDER_OFFICIAL_PROXY => new OfficialProxyImageRemoveBackgroundDriver($providerConfig, $this->imageFileInspector, $this->loggerFactory),
+            self::PROVIDER_OFFICIAL_MODEL_SERVICE => new OfficialImageRemoveBackgroundDriver($providerConfig, $this->imageFileInspector, $this->loggerFactory),
             default => throw new RuntimeException("Unsupported image remove background provider: {$providerCode}"),
         };
     }

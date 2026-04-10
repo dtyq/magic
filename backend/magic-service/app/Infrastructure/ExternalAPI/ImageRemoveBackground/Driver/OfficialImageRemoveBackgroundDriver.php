@@ -24,11 +24,33 @@ use RuntimeException;
 use Throwable;
 
 /**
- * 官方服务商驱动。
- * 该驱动将安全 URL 直接传给官方服务，再把官方返回的结果图下载到本地临时文件。
+ * 官方模型服务驱动。
+ * 接收本地文件，通过 multipart 表单上传到官方模型服务。
  */
 class OfficialImageRemoveBackgroundDriver implements ImageRemoveBackgroundDriverInterface
 {
+    private const ACCEPT_MIME_MAP = [
+        'jpg' => 'image/jpeg',
+        'jpeg' => 'image/jpeg',
+        'png' => 'image/png',
+        'bmp' => 'image/bmp',
+        'gif' => 'image/gif',
+        'webp' => 'image/webp',
+        'tiff' => 'image/tiff',
+        'jp2' => 'image/jp2',
+        'jxl' => 'image/jxl',
+        'heif' => 'image/heif',
+        'image/jpeg' => 'image/jpeg',
+        'image/png' => 'image/png',
+        'image/bmp' => 'image/bmp',
+        'image/gif' => 'image/gif',
+        'image/webp' => 'image/webp',
+        'image/tiff' => 'image/tiff',
+        'image/jp2' => 'image/jp2',
+        'image/jxl' => 'image/jxl',
+        'image/heif' => 'image/heif',
+    ];
+
     private LoggerInterface $logger;
 
     /**
@@ -44,102 +66,123 @@ class OfficialImageRemoveBackgroundDriver implements ImageRemoveBackgroundDriver
 
     public function getProviderCode(): string
     {
-        return ImageRemoveBackgroundDriverFactory::PROVIDER_OFFICIAL;
+        return ImageRemoveBackgroundDriverFactory::PROVIDER_OFFICIAL_MODEL_SERVICE;
     }
 
     public function supportsDirectUrl(): bool
     {
-        return true;
+        return false;
     }
 
     /**
-     * 调用官方去背景接口，并把返回的结果 URL 落为本地文件供后续统一上传。
+     * 模型服务返回图片二进制流，直接使用 sink 落盘，避免大图进入内存。
      */
     public function removeBackground(ImageRemoveBackgroundDriverRequest $request): ImageRemoveBackgroundDriverResponse
     {
-        if ($request->getSourceType() !== ImageRemoveBackgroundDriverRequest::SOURCE_TYPE_URL) {
+        if ($request->getSourceType() !== ImageRemoveBackgroundDriverRequest::SOURCE_TYPE_FILE) {
             throw new InvalidArgumentException('image_generate.invalid_image_url');
         }
 
         $requestUrl = trim((string) ($this->providerConfig['url'] ?? ''));
         $apiKey = trim((string) ($this->providerConfig['api_key'] ?? ''));
-        if ($requestUrl === '' || $apiKey === '') {
+        $modelName = trim((string) ($this->providerConfig['model_name'] ?? ''));
+        if ($requestUrl === '' || $apiKey === '' || $modelName === '') {
             throw new InvalidArgumentException('image_generate.remove_background_provider_not_configured');
         }
 
-        $client = $this->createClient($this->getTimeout());
-
-        $payload = [
-            'image_url' => $request->getSourceValue(),
-        ];
-        $outputFormat = $request->getOutputFormat();
-        if (is_string($outputFormat) && $outputFormat !== '') {
-            $payload['output_format'] = $outputFormat;
+        $filePath = $request->getSourceValue();
+        if (! is_file($filePath)) {
+            throw new InvalidArgumentException('image_generate.file_not_found');
         }
 
-        $this->logger->info('ImageRemoveBackgroundOfficialRequest', [
-            'provider' => $this->getProviderCode(),
-            'endpoint' => $requestUrl,
-            'image_url_host' => $this->extractHost($request->getSourceValue()),
-            'output_format' => $outputFormat,
-            'timeout' => $this->getTimeout(),
-        ]);
+        try {
+            $tempFile = TemporaryFileManager::createRemoveBackgroundTempFile('official_remove_bg_');
+        } catch (RuntimeException) {
+            throw new InvalidArgumentException('image_generate.create_temp_file_failed');
+        }
 
         try {
-            $response = $client->post($requestUrl, [
-                RequestOptions::HEADERS => [
-                    'Authorization' => 'Bearer ' . $apiKey,
-                    'Content-Type' => 'application/json',
-                    'Accept' => 'application/json',
-                ],
-                RequestOptions::JSON => $payload,
+            $client = $this->createClient($this->getTimeout());
+
+            $acceptFormat = $request->getOutputFormat();
+            if (! is_string($acceptFormat) || $acceptFormat === '') {
+                $acceptFormat = 'png';
+            }
+            $acceptHeader = $this->buildAcceptHeader($acceptFormat);
+            $sourceMimeType = $request->getSourceMimeType() ?: 'application/octet-stream';
+            $uploadFileName = $this->buildUploadFileName($filePath, $sourceMimeType);
+            $fileResource = fopen($filePath, 'rb');
+            if ($fileResource === false) {
+                throw new InvalidArgumentException('image_generate.read_temp_file_failed');
+            }
+
+            $this->logger->info('ImageRemoveBackgroundOfficialModelRequest', [
+                'provider' => $this->getProviderCode(),
+                'endpoint' => $requestUrl,
+                'model_name' => $modelName,
+                'accept_header' => $acceptHeader,
+                'timeout' => $this->getTimeout(),
+                'source_file_name' => basename($filePath),
+                'source_file_size' => filesize($filePath) ?: 0,
+                'source_mime_type' => $sourceMimeType,
+                'upload_file_name' => $uploadFileName,
             ]);
 
-            $responseData = json_decode((string) $response->getBody(), true);
-            $this->logger->info('ImageRemoveBackgroundOfficialResponse', [
+            try {
+                $response = $client->post($requestUrl, [
+                    RequestOptions::HEADERS => [
+                        'Authorization' => $apiKey,
+                        'accept' => $acceptHeader,
+                    ],
+                    RequestOptions::MULTIPART => [
+                        [
+                            'name' => 'modelName',
+                            'contents' => $modelName,
+                        ],
+                        [
+                            'name' => 'imageData',
+                            'contents' => $fileResource,
+                            'filename' => $uploadFileName,
+                            'headers' => [
+                                'Content-Type' => $sourceMimeType,
+                            ],
+                        ],
+                    ],
+                    RequestOptions::SINK => $tempFile,
+                ]);
+            } finally {
+                if (is_resource($fileResource)) {
+                    fclose($fileResource);
+                }
+            }
+
+            if ($response->getStatusCode() < 200 || $response->getStatusCode() >= 300) {
+                $providerError = $response->getHeaderLine('x-error') ?: 'Official model service request failed';
+                $this->logger->warning('ImageRemoveBackgroundOfficialModelProviderError', [
+                    'provider' => $this->getProviderCode(),
+                    'status_code' => $response->getStatusCode(),
+                    'provider_error_message' => $providerError,
+                ]);
+                throw new ImageRemoveBackgroundDriverException($providerError, $response->getStatusCode(), $this->getProviderCode());
+            }
+
+            $mimeType = $this->imageFileInspector->assertImageFile($tempFile);
+            $this->logger->info('ImageRemoveBackgroundOfficialModelSuccess', [
                 'provider' => $this->getProviderCode(),
                 'status_code' => $response->getStatusCode(),
-                'has_provider_error' => ! empty($responseData['provider_error_message']),
+                'mime_type' => $mimeType,
+                'file_size' => filesize($tempFile) ?: 0,
             ]);
-
-            if (! is_array($responseData)) {
-                $this->logger->error('ImageRemoveBackgroundOfficialInvalidResponse', [
-                    'provider' => $this->getProviderCode(),
-                    'status_code' => $response->getStatusCode(),
-                ]);
-                throw new ImageRemoveBackgroundDriverException('Official provider response format invalid', $response->getStatusCode(), $this->getProviderCode());
-            }
-
-            if (! empty($responseData['provider_error_message'])) {
-                $this->logger->warning('ImageRemoveBackgroundOfficialProviderError', [
-                    'provider' => $this->getProviderCode(),
-                    'status_code' => $response->getStatusCode(),
-                    'provider_error_code' => $responseData['provider_error_code'] ?? null,
-                    'provider_error_message' => $responseData['provider_error_message'],
-                ]);
-                throw new ImageRemoveBackgroundDriverException(
-                    (string) $responseData['provider_error_message'],
-                    isset($responseData['provider_error_code']) ? (int) $responseData['provider_error_code'] : $response->getStatusCode(),
-                    $this->getProviderCode()
-                );
-            }
-
-            $resultUrl = (string) ($responseData['data'][0]['url'] ?? '');
-            if ($resultUrl === '') {
-                $this->logger->error('ImageRemoveBackgroundOfficialMissingResultUrl', [
-                    'provider' => $this->getProviderCode(),
-                    'status_code' => $response->getStatusCode(),
-                ]);
-                throw new ImageRemoveBackgroundDriverException('Official provider missing result url', $response->getStatusCode(), $this->getProviderCode());
-            }
-
-            return $this->downloadResultImage($resultUrl, $this->getTimeout());
+            return new ImageRemoveBackgroundDriverResponse($tempFile, $mimeType);
         } catch (Throwable $throwable) {
-            $this->logger->error('ImageRemoveBackgroundOfficialException', [
+            $this->logger->error('ImageRemoveBackgroundOfficialModelException', [
                 'provider' => $this->getProviderCode(),
                 'endpoint' => $requestUrl,
                 'error' => $throwable->getMessage(),
             ]);
+            if (is_file($tempFile)) {
+                @unlink($tempFile);
+            }
             throw $throwable;
         }
     }
@@ -150,53 +193,6 @@ class OfficialImageRemoveBackgroundDriver implements ImageRemoveBackgroundDriver
         $resultFilePath = $response->getResultFilePath();
         if (is_file($resultFilePath)) {
             @unlink($resultFilePath);
-        }
-    }
-
-    /**
-     * 将官方服务返回的结果 URL 落为本地临时文件，以便后续统一上传到当前环境 OSS。
-     */
-    private function downloadResultImage(string $resultUrl, int $timeout): ImageRemoveBackgroundDriverResponse
-    {
-        try {
-            $tempFile = TemporaryFileManager::createRemoveBackgroundTempFile('official_remove_bg_');
-        } catch (RuntimeException) {
-            throw new InvalidArgumentException('image_generate.create_temp_file_failed');
-        }
-
-        try {
-            $this->logger->info('ImageRemoveBackgroundOfficialDownloadStart', [
-                'provider' => $this->getProviderCode(),
-                'result_url_host' => $this->extractHost($resultUrl),
-                'timeout' => $timeout,
-            ]);
-            $client = $this->createClient($timeout);
-            $response = $client->get($resultUrl, [
-                RequestOptions::SINK => $tempFile,
-            ]);
-
-            if ($response->getStatusCode() < 200 || $response->getStatusCode() >= 300) {
-                $this->logger->warning('ImageRemoveBackgroundOfficialDownloadFailed', [
-                    'provider' => $this->getProviderCode(),
-                    'status_code' => $response->getStatusCode(),
-                    'result_url_host' => $this->extractHost($resultUrl),
-                ]);
-                throw new ImageRemoveBackgroundDriverException('Failed to download official result image', $response->getStatusCode(), $this->getProviderCode());
-            }
-
-            $mimeType = $this->imageFileInspector->assertImageFile($tempFile);
-            $this->logger->info('ImageRemoveBackgroundOfficialDownloadSuccess', [
-                'provider' => $this->getProviderCode(),
-                'status_code' => $response->getStatusCode(),
-                'mime_type' => $mimeType,
-                'file_size' => filesize($tempFile) ?: 0,
-            ]);
-            return new ImageRemoveBackgroundDriverResponse($tempFile, $mimeType);
-        } catch (Throwable $throwable) {
-            if (is_file($tempFile)) {
-                @unlink($tempFile);
-            }
-            throw $throwable;
         }
     }
 
@@ -216,8 +212,32 @@ class OfficialImageRemoveBackgroundDriver implements ImageRemoveBackgroundDriver
         ]);
     }
 
-    private function extractHost(string $url): string
+    /**
+     * 为 multipart 上传补齐稳定文件名，避免临时文件缺少后缀影响第三方识别图片类型。
+     */
+    private function buildUploadFileName(string $filePath, string $mimeType): string
     {
-        return (string) (parse_url($url, PHP_URL_HOST) ?: '');
+        $extension = strtolower((string) pathinfo($filePath, PATHINFO_EXTENSION));
+        if ($extension === '') {
+            $extension = match ($mimeType) {
+                'image/jpeg' => 'jpg',
+                'image/png' => 'png',
+                'image/webp' => 'webp',
+                'image/gif' => 'gif',
+                'image/bmp' => 'bmp',
+                default => 'png',
+            };
+        }
+
+        return sprintf('remove_background_input.%s', $extension);
+    }
+
+    /**
+     * 与第三方 curl 约定保持一致，accept 头使用受支持的 MIME 形式。
+     */
+    private function buildAcceptHeader(string $acceptFormat): string
+    {
+        $normalizedFormat = strtolower(trim($acceptFormat));
+        return self::ACCEPT_MIME_MAP[$normalizedFormat] ?? 'image/png';
     }
 }
