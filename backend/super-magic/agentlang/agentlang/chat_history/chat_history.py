@@ -930,11 +930,75 @@ class ChatHistory:
         fixed_messages = self._fix_message_sequence_errors(llm_messages)
         return fixed_messages
 
+    def _reorder_interleaved_user_messages(self, llm_messages: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+        """将被插入到 assistant(tool_calls) 和 tool(result) 之间的 user 消息移到 tool result 之后。
+
+        场景：工具执行期间用户发了新消息，horizon 注入了 user 消息，导致序列变为：
+            assistant(tool_calls) → user(horizon) → tool(result)  ← 非法，LLM API 报错
+        修复后：
+            assistant(tool_calls) → tool(result) → user(horizon)  ← 合法
+        """
+        if not llm_messages:
+            return llm_messages
+
+        result: List[Dict[str, Any]] = []
+        i = 0
+        fixes_applied = 0
+
+        while i < len(llm_messages):
+            msg = llm_messages[i]
+
+            if msg.get("role") == "assistant" and msg.get("tool_calls"):
+                pending_ids = {tc.get("id") for tc in msg.get("tool_calls", []) if tc.get("id")}
+
+                if pending_ids:
+                    # 向前扫描：收集被夹在中间的 user 消息和对应的 tool result
+                    deferred_user: List[Dict[str, Any]] = []
+                    tool_results: List[Dict[str, Any]] = []
+                    remaining_ids = set(pending_ids)
+                    j = i + 1
+
+                    while j < len(llm_messages) and remaining_ids:
+                        next_msg = llm_messages[j]
+                        role = next_msg.get("role")
+                        if role == "tool" and next_msg.get("tool_call_id") in remaining_ids:
+                            tool_results.append(next_msg)
+                            remaining_ids.discard(next_msg.get("tool_call_id"))
+                            j += 1
+                        elif role == "user":
+                            # while 条件保证 remaining_ids 非空，此时 user 消息属于夹缝情况
+                            deferred_user.append(next_msg)
+                            j += 1
+                        else:
+                            # 遇到 assistant 或其他角色，停止扫描
+                            break
+
+                    if deferred_user and tool_results:
+                        # 有夹缝 user 且存在对应 tool result，执行重排
+                        result.append(msg)
+                        result.extend(tool_results)
+                        result.extend(deferred_user)
+                        fixes_applied += len(deferred_user)
+                        logger.warning(
+                            f"修复消息序列：将 {len(deferred_user)} 条 user 消息从 tool_calls/tool_result 之间移到之后"
+                        )
+                        i = j
+                        continue
+
+            result.append(msg)
+            i += 1
+
+        if fixes_applied > 0:
+            logger.info(f"消息重排完成：共移动 {fixes_applied} 条夹缝 user 消息")
+
+        return result
+
     def _fix_message_sequence_errors(self, llm_messages: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
         """
         修复历史消息中的序列错误，确保tool_use和tool_result正确匹配
 
         修复策略：
+        0. 将夹在 assistant(tool_calls) 和 tool(result) 之间的 user 消息移到 tool result 之后
         1. 去除没有对应tool_result的带tool_calls的assistant消息
         2. 将孤立的tool消息转换为assistant消息（保持语义合理性）
         3. 去除连续重复的相同内容消息，只保留一条
@@ -948,6 +1012,9 @@ class ChatHistory:
         """
         if not llm_messages:
             return llm_messages
+
+        # 步骤0：将夹在 tool_calls 和 tool_result 之间的 user 消息移到 tool result 之后
+        llm_messages = self._reorder_interleaved_user_messages(llm_messages)
 
         # 第一步：标记需要移除的消息索引
         messages_to_remove = set()

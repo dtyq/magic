@@ -787,11 +787,15 @@ class Agent(BaseAgent):
         session_prep_result = await self._prepare_run_session(query)
 
         # 注入点1：用户消息入库后、第一次 LLM 调用前，注入 system_injected_context
+        # 若历史末尾存在未完成的 tool call 序列，跳过注入避免破坏序列完整性
         try:
-            self._sync_horizon_llm_model_info()
-            ctx_update = await self.agent_context.horizon.build_context_update()
-            await self.chat_history.append_user_message(ctx_update, show_in_ui=False, source="horizon")
-            logger.debug("[AgentHorizon] 已注入 user query 后 system_injected_context")
+            if self.chat_history._is_tool_call_sequence_complete():
+                self._sync_horizon_llm_model_info()
+                ctx_update = await self.agent_context.horizon.build_context_update()
+                await self.chat_history.append_user_message(ctx_update, show_in_ui=False, source="horizon")
+                logger.debug("[AgentHorizon] 已注入 user query 后 system_injected_context")
+            else:
+                logger.warning("[AgentHorizon] 注入点1 跳过：历史末尾存在未完成的 tool call 序列，避免消息序列错误")
         except Exception as _horizon_err:
             logger.warning(f"[AgentHorizon] 注入点1 注入失败: {_horizon_err}")
 
