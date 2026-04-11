@@ -37,6 +37,8 @@ logger = get_logger(__name__)
 DEFAULT_TIMEOUT = int(config.get("llm.api_timeout", 300))
 # 禁用 openai SDK 内部重试，项目自身已有重试机制，SDK 的静默重试会导致调用方长时间阻塞无感知
 MAX_RETRIES = 0
+# 初始 max_tokens：撞 finish_reason=length 前的起手值，提限后由 agent 传 max_output_tokens_override 覆盖
+DEFAULT_INITIAL_MAX_TOKENS = 16384
 
 class LLMClientConfig(BaseModel):
     """Configuration for LLM clients."""
@@ -186,11 +188,10 @@ class LLMFactory:
         # 构建请求参数
         # max_tokens 策略：起手用 min(DEFAULT_INITIAL_MAX_TOKENS, 配置上限)，
         # 撞 finish_reason=length 后由 agent 传入 max_output_tokens_override 扩容
-        _DEFAULT_INITIAL_MAX_TOKENS = 8192
         if max_output_tokens_override is not None:
             effective_max_tokens = max_output_tokens_override
         else:
-            effective_max_tokens = min(_DEFAULT_INITIAL_MAX_TOKENS, llm_config.max_output_tokens)
+            effective_max_tokens = min(DEFAULT_INITIAL_MAX_TOKENS, llm_config.max_output_tokens)
 
         request_params = {
             "model": llm_config.name,

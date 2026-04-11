@@ -161,6 +161,10 @@ class AgentHorizon:
         self._memory_current: Optional[str] = None
         self._language_current: Optional[str] = None
 
+        # 初始输出 token 预算（由 agent 在首次 LLM 调用前设置，提限时不更新）
+        # 用于在 initial_context 里给模型写入单次输出的字符量参考，让模型主动控制输出长度
+        self._output_token_budget: Optional[int] = None
+
         # magiclaw 文件驱动启动状态（纯内存，per-context-window，不持久化）
         self._is_magiclaw: bool = False              # 会话是否为 magiclaw 模式
         self._magiclaw_dir: Optional[Path] = None    # .magic 目录，用于重置时重算文件集合
@@ -529,6 +533,53 @@ class AgentHorizon:
     # 运行时状态更新
     # ─────────────────────────────────────────────────────────────────────────
 
+    def set_output_token_budget(self, tokens: int) -> None:
+        """设置初始输出 token 预算，只在未设置时生效（提限时不调用，保持原始引导值）。
+
+        max_tokens 提升（finish_reason=length 后的扩容）只是为了让已经超限的内容能顺利输出，
+        而不是授权模型输出更多内容。如果把扩容后的值也注入给模型，模型会认为上限变高了，
+        从而产生更长的输出，反复触发截断——这与提升成功率的初衷相反。
+
+        因此：
+        - 这里只允许设置一次（_output_token_budget is None 时才写入）
+        - initial_context 里注入的字符量引导始终基于初始值，不随提限更新
+        - 扩容后的 max_tokens 不通过 initial_context 或任何 change 事件告知模型
+        """
+        if self._output_token_budget is None:
+            self._output_token_budget = tokens
+
+    @staticmethod
+    def _build_output_size_hint(max_tokens: int) -> str:
+        """根据 max_tokens 换算各语言单次安全字符量，生成写入 initial_context 的提示行。
+
+        只在首次注入（initial_context）时调用，后续不随 max_tokens 变化更新。
+        即使 agent 因 finish_reason=length 扩容了 max_tokens，模型也不会收到新的引导值，
+        原因见 set_output_token_budget 注释。
+
+        换算系数（含 25% 安全裕量，code 额外考虑中文注释混入场景）：
+        - 英文：4 chars/token × 0.75
+        - 中/日/韩：1.5 chars/token × 0.75
+        - 代码（含中文注释）：2.5 chars/token × 0.75
+        """
+        def _k(chars: float) -> str:
+            return f"~{int(chars / 1000)}k"
+
+        en   = max_tokens * 4.0 * 0.75
+        cjk  = max_tokens * 1.5 * 0.75
+        code = max_tokens * 2.5 * 0.75
+        return (
+            f'<output_size_limit max_tokens="{max_tokens}">'
+            f"Every single response — whether writing/editing a file, filling tool arguments, "
+            f"or producing plain text — is hard-capped at: "
+            f"English {_k(en)} chars, Chinese/Japanese/Korean {_k(cjk)} chars, "
+            f"code with inline comments {_k(code)} chars. "
+            f"Exceeding the limit causes the output to be cut off mid-way with no warning. "
+            f"Any content over {_k(cjk)}–{_k(en)} chars (lower end for Chinese-heavy, upper for English-only) "
+            f"must be broken up: write a skeleton with placeholder anchors first, "
+            f"then fill each section in a separate, focused action."
+            f"</output_size_limit>"
+        )
+
     def update_llm_model(self, model_id: str, model_name: str, description: str = "") -> None:
         """LLM 调用返回后调用，记录实际生效的模型信息；仅在模型变化时标记需要注入。"""
         if model_id != self._last_llm_model_id or model_name != self._last_llm_model_name:
@@ -792,6 +843,10 @@ class AgentHorizon:
                 f"<current_time>{now_str}</current_time>"
                 "\n<!-- When handling time expressions like 'this year', 'recently', 'now', use the above as your authoritative current time. -->"
             ]
+
+            # 单次输出字符量引导：基于初始 max_tokens 换算，提限时不更新，维持原始约束
+            if self._output_token_budget is not None:
+                init_parts.append(self._build_output_size_hint(self._output_token_budget))
 
             # LLM 模型（首次注入时无论是否"变化"都输出）
             if self._last_llm_model_id:

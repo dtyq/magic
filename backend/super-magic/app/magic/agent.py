@@ -30,7 +30,7 @@ from agentlang.event.data import (
 from agentlang.event.event import EventType
 from agentlang.config.config import config
 from agentlang.llms.error_classifier import LLMErrorClassifier
-from agentlang.llms.factory import LLMFactory
+from agentlang.llms.factory import LLMFactory, DEFAULT_INITIAL_MAX_TOKENS
 from agentlang.llms.processors.processor_config import ProcessorConfig
 from app.streaming.message_builder import LLMStreamingMessageBuilder
 from app.streaming.config_generator import StreamingConfigGenerator
@@ -932,6 +932,13 @@ class Agent(BaseAgent):
     async def _handle_agent_loop(self, session_prep_result: SessionPrepResult) -> None:
         """处理 agent 循环 - 使用Context对象简化参数传递和状态管理"""
         loop_state = AgentLoopState()
+
+        # 初始输出预算：按模型配置上限和默认起手值取 min，只设置一次（提限时不覆盖）
+        if hasattr(self, "model_config") and self.model_config:
+            initial_budget = min(DEFAULT_INITIAL_MAX_TOKENS, self.model_config.max_output_tokens)
+        else:
+            initial_budget = DEFAULT_INITIAL_MAX_TOKENS
+        self.agent_context.horizon.set_output_token_budget(initial_budget)
 
         while loop_state.should_continue:
             # 更新活动时间，用于活动追踪
