@@ -31,9 +31,9 @@ logger = get_logger(__name__)
 
 # 默认快速重试策略常量（可被 config.yaml 覆盖）
 _DEFAULT_FIRST_CHUNK_SCHEDULE: List[int] = [90, 120, 150]
-_DEFAULT_CHUNK_TIMEOUT: int = 60
+_DEFAULT_CHUNK_TIMEOUT: int = 90
 _DEFAULT_ENABLE_NON_STREAM_FALLBACK: bool = True
-_DEFAULT_NON_STREAM_TIMEOUT: int = 300
+_DEFAULT_NON_STREAM_TIMEOUT: int = 600
 
 
 def _resolve_retry_policy(llm_call_retry_count: int, processor_config: ProcessorConfig) -> None:
