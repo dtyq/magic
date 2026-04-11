@@ -1018,7 +1018,9 @@ class Agent(BaseAgent):
                     loop_state.last_llm_message = llm_context.message  # 保存用于循环结束时的最终响应
 
                     # finish_reason=length 恢复：输出撞到 max_tokens 上限。
-                    # 第一次撞限：静默扩容 max_tokens 到配置上限，用相同请求重试（不注入恢复消息）。
+                    # 第一次撞限：静默扩容 max_tokens 到配置上限，用相同请求重试。
+                    #   若 inject_split_hint_on_first_token_limit=true（默认），同时注入分段提示词：
+                    #   提额不能保证成功，提前告知模型拆小输出可显著提升重试成功率。
                     # 已扩容还撞限：清空截断的 tool_calls 参数，注入恢复消息让模型拆小输出。
                     if llm_context.finish_reason == "length":
                         if not loop_state.max_tokens_escalated:
@@ -1026,6 +1028,14 @@ class Agent(BaseAgent):
                             logger.warning(
                                 "finish_reason=length，静默扩容 max_tokens 到配置上限后重试"
                             )
+                            if config.get("llm.inject_split_hint_on_first_token_limit", True):
+                                await self._try_inject_output_recovery_message(
+                                    loop_state,
+                                    "Output was cut off mid-response due to the token limit. "
+                                    "On your next attempt: break the response into smaller steps — "
+                                    "generate only one focused piece at a time.",
+                                    source="max_output_tokens_recovery",
+                                )
                             continue
 
                         # 已扩容还撞限：保留 tool_call 结构原样写入历史，合成 error tool_result，
@@ -1068,6 +1078,14 @@ class Agent(BaseAgent):
                                     f"工具参数被截断 ({', '.join(preprocess_result.truncated_tool_names)})，"
                                     f"静默扩容 max_tokens 后重试"
                                 )
+                                if config.get("llm.inject_split_hint_on_first_token_limit", True):
+                                    await self._try_inject_output_recovery_message(
+                                        loop_state,
+                                        "A tool call was cut off because its arguments were too long. "
+                                        "On your next attempt: break the work into smaller steps — "
+                                        "avoid generating large file contents or long arguments in a single call.",
+                                        source="tool_args_truncation_recovery",
+                                    )
                                 continue
                             # 已扩容还截断：合成 error tool_result，不执行工具
                             logger.warning(

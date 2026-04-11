@@ -60,6 +60,9 @@ llm:
   enable_non_stream_fallback: true
   # 非流式 fallback 单独超时
   non_stream_fallback_timeout_seconds: 600
+  # 首次撞 max_tokens 上限时，提额的同时注入"分段完成、少量多次"提示词。
+  # 提额并不能保证成功，提前注入提示词可显著提升重试后的成功率。默认开启。
+  inject_split_hint_on_first_token_limit: true
 
 # 当前活动的 Agent 模式 (可通过 ACTIVE_AGENT_MODE 环境变量覆盖)
 # 可选值: apex(至强模式), efficient(高性价比模式), flash(极速模式)
