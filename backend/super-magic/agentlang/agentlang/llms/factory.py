@@ -36,8 +36,6 @@ logger = get_logger(__name__)
 DEFAULT_TIMEOUT = int(config.get("llm.api_timeout", 300))
 # 禁用 openai SDK 内部重试，项目自身已有重试机制，SDK 的静默重试会导致调用方长时间阻塞无感知
 MAX_RETRIES = 0
-# 初始 max_tokens：撞 finish_reason=length 前的起手值，提限后由 agent 传 max_output_tokens_override 覆盖
-DEFAULT_INITIAL_MAX_TOKENS = 8192
 
 class LLMClientConfig(BaseModel):
     """Configuration for LLM clients."""
@@ -132,9 +130,7 @@ class LLMFactory:
         agent_context: Optional[AgentContextInterface] = None,
         processor_config: Optional[ProcessorConfig] = None,
         enable_llm_response_events: bool = False,
-        llm_call_retry_count: int = 0,
         extra_body: Optional[Dict[str, Any]] = None,
-        max_output_tokens_override: Optional[int] = None,
     ) -> ChatCompletion:
         """使用工具支持调用 LLM。
 
@@ -149,7 +145,6 @@ class LLMFactory:
             agent_context: Agent 上下文接口，可选。
             processor_config: 处理器配置，包含流式模式、推流配置等，可选。
             enable_llm_response_events: 是否开启LLM响应事件触发，默认为 False。
-            llm_call_retry_count: LLM call 重试次数，0表示第一次调用，>0表示重试调用，默认为 0。
 
         Returns:
             LLM 响应。
@@ -185,18 +180,11 @@ class LLMFactory:
         current_tokens = await get_current_tokens(agent_context, request_id)
 
         # 构建请求参数
-        # max_tokens 策略：起手用 min(DEFAULT_INITIAL_MAX_TOKENS, 配置上限)，
-        # 撞 finish_reason=length 后由 agent 传入 max_output_tokens_override 扩容
-        if max_output_tokens_override is not None:
-            effective_max_tokens = max_output_tokens_override
-        else:
-            effective_max_tokens = min(DEFAULT_INITIAL_MAX_TOKENS, llm_config.max_output_tokens)
-
         request_params = {
             "model": llm_config.name,
             "messages": messages,
             "temperature": llm_config.temperature,
-            "max_tokens": effective_max_tokens,
+            "max_tokens": llm_config.max_output_tokens,
             "top_p": llm_config.top_p,
         }
 
@@ -243,8 +231,7 @@ class LLMFactory:
             logger.debug(f"[{request_id}] 动态设置请求头: {list(extra_headers.keys())}")
 
         # 发送请求并获取响应
-        retry_info = f" (LLM call 重试第 {llm_call_retry_count} 次)" if llm_call_retry_count > 0 else ""
-        logger.info(f"[{request_id}] 发送聊天完成请求到 {display_model_id}:{llm_config.name}, 流式模式: {use_stream_mode}{retry_info}")
+        logger.info(f"[{request_id}] 发送聊天完成请求到 {display_model_id}:{llm_config.name}, 流式模式: {use_stream_mode}")
 
         # 执行 LLM 调用（统一管理流式/非流式及降级重试）
         response = None
@@ -259,7 +246,6 @@ class LLMFactory:
                 agent_context=agent_context,
                 request_id=request_id,
                 enable_llm_response_events=enable_llm_response_events,
-                llm_call_retry_count=llm_call_retry_count
             )
 
             # 工具参数的 JSON 修复和截断检测统一在 agent.py 做，
@@ -290,8 +276,7 @@ class LLMFactory:
             elapsed_time = (end_time - start_time) * 1000  # 转换为毫秒
 
             # 简洁的错误日志
-            retry_info = f" (LLM call 重试第 {llm_call_retry_count} 次)" if llm_call_retry_count > 0 else ""
-            logger.critical(f"[{request_id}] 调用 LLM {display_model_id}:{llm_config.name} 时出错: {str(e)}，耗时: {elapsed_time:.2f}ms{retry_info}")
+            logger.critical(f"[{request_id}] 调用 LLM {display_model_id}:{llm_config.name} 时出错: {str(e)}，耗时: {elapsed_time:.2f}ms")
 
             raise
         finally:

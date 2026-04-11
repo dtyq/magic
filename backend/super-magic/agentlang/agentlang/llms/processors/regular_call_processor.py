@@ -23,10 +23,6 @@ from agentlang.logger import get_logger
 
 logger = get_logger(__name__)
 
-# 非流式 fallback 的 max_tokens 上限，防止超长输出卡满整个超时窗口
-MAX_NON_STREAMING_TOKENS = 64000
-
-
 class RegularCallProcessor:
     """Handles regular (non-streaming) LLM calls."""
 
@@ -61,16 +57,6 @@ class RegularCallProcessor:
             del request_params["stream"]
         if "stream_options" in request_params:
             del request_params["stream_options"]
-
-        # 非流式 fallback（有独立超时）时裁剪 max_tokens，防止超长输出卡满超时窗口
-        # 仅限 fallback 场景（timeout_seconds 不为 None），直接非流式调用不裁剪
-        if timeout_seconds is not None and "max_tokens" in request_params:
-            original_max_tokens = request_params["max_tokens"]
-            if original_max_tokens > MAX_NON_STREAMING_TOKENS:
-                request_params["max_tokens"] = MAX_NON_STREAMING_TOKENS
-                logger.info(
-                    f"[{request_id}] 非流式 fallback: max_tokens {original_max_tokens} → {MAX_NON_STREAMING_TOKENS}"
-                )
 
         # 添加请求ID到请求头
         if request_id:

@@ -26,20 +26,15 @@ logger = get_logger(__name__)
 class StreamCancelBlockerContext:
     """流式取消阻止器上下文管理器，确保计数增加和减少严格一一对应"""
 
-    def __init__(self, agent_context: Optional[AgentContextInterface], operation_id: str, retry_count: int = 0):
+    def __init__(self, agent_context: Optional[AgentContextInterface], operation_id: str):
         self.agent_context = agent_context
         self.operation_id = operation_id
-        self.retry_count = retry_count
         self.blocker_active = False
 
     async def __aenter__(self):
         if self.agent_context:
-            # 只有首次调用（非重试）时才增加计数
-            if self.retry_count == 0:
-                self.agent_context.increment_cancel_blocker()
-                self.blocker_active = True
-            else:
-                self.blocker_active = False
+            self.agent_context.increment_cancel_blocker()
+            self.blocker_active = True
         return self
 
     async def __aexit__(self, exc_type, exc_val, exc_tb):
@@ -78,7 +73,6 @@ class StreamingCallProcessor:
         request_id: Optional[str] = None,
         correlation_id: Optional[str] = None,
         enable_llm_response_events: bool = True,
-        llm_call_retry_count: int = 0
     ) -> ChatCompletion:
         """使用流式调用LLM的方法
 
@@ -92,7 +86,6 @@ class StreamingCallProcessor:
             request_id: 请求ID
             correlation_id: 关联ID
             enable_llm_response_events: 是否启用LLM响应事件
-            llm_call_retry_count: LLM call 重试次数
 
         Returns:
             ChatCompletion响应
@@ -107,7 +100,7 @@ class StreamingCallProcessor:
         streaming_driver = None
 
         # 使用上下文管理器确保流式模式下计数的严格一一对应
-        async with StreamCancelBlockerContext(agent_context, request_id, llm_call_retry_count):
+        async with StreamCancelBlockerContext(agent_context, request_id):
             try:
                 # 初始化流式推送驱动
                 streaming_driver = await StreamingCallProcessor.initialize_streaming_driver(
@@ -145,7 +138,6 @@ class StreamingCallProcessor:
                     agent_context=agent_context,
                     http_request_start_time=http_request_start_time,
                     enable_llm_response_events=enable_llm_response_events,
-                    retry_count=llm_call_retry_count
                 )
 
                 # 处理流式响应（包含开始消息、流式chunk处理、完成消息推送）

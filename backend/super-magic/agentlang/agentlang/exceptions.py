@@ -83,24 +83,6 @@ class StreamInterruptedError(Exception):
         super().__init__(message)
 
 
-class LLMFastRetryExhaustedException(Exception):
-    """内层 LLM 快速重试已耗尽：流式多次尝试 + 非流式 fallback 全部失败。
-
-    agent.py 收到此异常后应直接结束本轮，不再继续外层泛化退避重试。
-    """
-
-    def __init__(
-        self,
-        message: str,
-        *,
-        stream_error: Optional[Exception] = None,
-        fallback_error: Optional[Exception] = None,
-    ):
-        super().__init__(message)
-        self.stream_error = stream_error
-        self.fallback_error = fallback_error
-
-
 class ResourceLimitExceededException(UserFriendlyException):
     """资源限制超出异常，用于处理各种资源超限情况
 
@@ -333,15 +315,13 @@ class APIErrorResponse:
 STREAMING_PASSTHROUGH_EXCEPTIONS: tuple[Type[BaseException], ...] = (
     StreamChunkTimeoutError,
     StreamInterruptedError,
-    LLMFastRetryExhaustedException,
 )
 
 
 def iter_exception_chain(exception: BaseException) -> List[Exception]:
     """遍历完整异常图，返回链中所有 Exception 节点。
 
-    同时展开 __cause__ 和 __context__ 两条边，以及 LLMFastRetryExhaustedException
-    的 stream_error / fallback_error 侧链。遇到 BaseException 子节点时继续展开
+    同时展开 __cause__ 和 __context__ 两条边。遇到 BaseException 子节点时继续展开
     其子链但不加入结果列表（结果只含 Exception 子类）。
     """
     result: List[Exception] = []
@@ -363,12 +343,7 @@ def iter_exception_chain(exception: BaseException) -> List[Exception]:
         if current.__context__ is not None and current.__context__ is not current.__cause__:
             queue.append(current.__context__)
 
-        # LLMFastRetryExhaustedException 的侧链属性
-        if isinstance(current, LLMFastRetryExhaustedException):
-            if current.stream_error is not None:
-                queue.append(current.stream_error)
-            if current.fallback_error is not None:
-                queue.append(current.fallback_error)
+
 
     return result
 

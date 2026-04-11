@@ -61,7 +61,6 @@ class StreamProcessContext:
 
     # Event control
     enable_llm_response_events: bool = True
-    retry_count: int = 0
 
     @property
     def should_trigger_events(self) -> bool:

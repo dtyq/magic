@@ -51,18 +51,13 @@ llm:
   api_max_retries: ${LLM_API_MAX_RETRIES:-3}
   # 自定义API请求头配置 - 所有请求头都从环境变量读取
   custom_api_headers: ${LLM_CUSTOM_API_HEADERS:-None}
-  # 流式快速重试策略
-  # 首包窗口覆盖"请求发出到首个 chunk"的总时间（含等响应头），下标对应 retry_count
-  stream_first_chunk_timeout_schedule_seconds: [180, 300, 600]
-  # 收到首包后，后续每个 chunk 的等待上限
-  stream_chunk_timeout_seconds: 120
-  # 非流式 fallback：流式快重试全部失败后，最后一轮用非流式兜底
-  enable_non_stream_fallback: true
-  # 非流式 fallback 单独超时
-  non_stream_fallback_timeout_seconds: 600
-  # 首次撞 max_tokens 上限时，提额的同时注入"分段完成、少量多次"提示词。
-  # 提额并不能保证成功，提前注入提示词可显著提升重试后的成功率。默认开启。
-  inject_split_hint_on_first_token_limit: true
+  # 两阶梯重试策略
+  # 第一阶梯：流式快速失败检测
+  stream_first_chunk_timeout_seconds: 60   # 首包超时
+  stream_chunk_timeout_seconds: 60         # chunk 间隔超时
+  # 第二阶梯：非流式退避重试
+  non_stream_timeout_seconds: 600          # 非流式请求超时
+  backoff_max_retries: 5                   # 最大退避重试次数
 
 # 当前活动的 Agent 模式 (可通过 ACTIVE_AGENT_MODE 环境变量覆盖)
 # 可选值: apex(至强模式), efficient(高性价比模式), flash(极速模式)
