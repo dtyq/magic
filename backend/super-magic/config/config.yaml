@@ -53,9 +53,9 @@ llm:
   custom_api_headers: ${LLM_CUSTOM_API_HEADERS:-None}
   # 流式快速重试策略
   # 首包窗口覆盖"请求发出到首个 chunk"的总时间（含等响应头），下标对应 retry_count
-  stream_first_chunk_timeout_schedule_seconds: [90, 120, 150]
+  stream_first_chunk_timeout_schedule_seconds: [180, 300, 600]
   # 收到首包后，后续每个 chunk 的等待上限
-  stream_chunk_timeout_seconds: 90
+  stream_chunk_timeout_seconds: 120
   # 非流式 fallback：流式快重试全部失败后，最后一轮用非流式兜底
   enable_non_stream_fallback: true
   # 非流式 fallback 单独超时

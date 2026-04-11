@@ -556,25 +556,31 @@ class AgentHorizon:
         即使 agent 因 finish_reason=length 扩容了 max_tokens，模型也不会收到新的引导值，
         原因见 set_output_token_budget 注释。
 
-        换算系数（含 25% 安全裕量，code 额外考虑中文注释混入场景）：
-        - 英文：4 chars/token × 0.75
-        - 中/日/韩：1.5 chars/token × 0.75
-        - 代码（含中文注释）：2.5 chars/token × 0.75
+        换算系数（含 50% 安全裕量，code 额外考虑中文注释混入场景）：
+        - 拉丁字母系（英/德/法/西/葡/意）：4 chars/token × 0.5
+        - 非拉丁密集脚本（俄/阿拉伯/印地语）：2 chars/token × 0.5
+        - 中文：1.5 chars/token × 0.5
+        - 日/韩：1.5 chars/token × 0.5
+        - 代码（含中文注释）：2.5 chars/token × 0.5
         """
         def _k(chars: float) -> str:
             return f"~{int(chars / 1000)}k"
 
-        en   = max_tokens * 4.0 * 0.75
-        cjk  = max_tokens * 1.5 * 0.75
-        code = max_tokens * 2.5 * 0.75
+        latin = max_tokens * 4.0 * 0.5   # English, German, French, Spanish, Portuguese, Italian
+        dense = max_tokens * 2.0 * 0.5   # Russian, Arabic, Hindi
+        zh    = max_tokens * 1.5 * 0.5   # Chinese
+        jk    = max_tokens * 1.5 * 0.5   # Japanese, Korean
+        code  = max_tokens * 2.5 * 0.5
         return (
             f'<output_size_limit max_tokens="{max_tokens}">'
             f"Every single response — whether writing/editing a file, filling tool arguments, "
             f"or producing plain text — is hard-capped at: "
-            f"English {_k(en)} chars, Chinese/Japanese/Korean {_k(cjk)} chars, "
+            f"English/German/French/Spanish/Portuguese/Italian {_k(latin)} chars, "
+            f"Russian/Arabic/Hindi {_k(dense)} chars, "
+            f"Chinese {_k(zh)} chars, Japanese/Korean {_k(jk)} chars, "
             f"code with inline comments {_k(code)} chars. "
             f"Exceeding the limit causes the output to be cut off mid-way with no warning. "
-            f"Any content over {_k(cjk)}–{_k(en)} chars (lower end for Chinese-heavy, upper for English-only) "
+            f"Any content over {_k(zh)}–{_k(latin)} chars (lower end for Chinese, upper for Latin-script) "
             f"must be broken up: write a skeleton with placeholder anchors first, "
             f"then fill each section in a separate, focused action."
             f"</output_size_limit>"

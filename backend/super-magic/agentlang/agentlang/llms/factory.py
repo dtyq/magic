@@ -28,7 +28,6 @@ from agentlang.llms.processors import ProcessorConfig, ProcessorManager
 from agentlang.llms.error_classifier import LLMErrorClassifier
 from agentlang.logger import get_logger
 from agentlang.utils.metadata import MetadataUtil
-from agentlang.utils.security import sanitize_api_key
 from agentlang.llms.utils.token_adjuster import get_current_tokens, adjust_max_tokens
 from agentlang.llms.utils.debug_logger import save_llm_debug_log, LLMDebugInfo
 
@@ -38,7 +37,7 @@ DEFAULT_TIMEOUT = int(config.get("llm.api_timeout", 300))
 # 禁用 openai SDK 内部重试，项目自身已有重试机制，SDK 的静默重试会导致调用方长时间阻塞无感知
 MAX_RETRIES = 0
 # 初始 max_tokens：撞 finish_reason=length 前的起手值，提限后由 agent 传 max_output_tokens_override 覆盖
-DEFAULT_INITIAL_MAX_TOKENS = 16384
+DEFAULT_INITIAL_MAX_TOKENS = 8192
 
 class LLMClientConfig(BaseModel):
     """Configuration for LLM clients."""
