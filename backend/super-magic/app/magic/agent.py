@@ -792,6 +792,11 @@ class Agent(BaseAgent):
 
         session_prep_result = await self._prepare_run_session(query)
 
+        # 在首次 build_context_update 前设置输出预算，确保 output_size_limit 能写入 initial_context
+        # set_output_token_budget 只在首次设置时生效，_handle_agent_loop 里的调用会成为幂等 no-op
+        budget = min(DEFAULT_INITIAL_MAX_TOKENS, self.model_config.max_output_tokens)
+        self.agent_context.horizon.set_output_token_budget(budget)
+
         # 注入点1：用户消息入库后、第一次 LLM 调用前，注入 system_injected_context
         # 若历史末尾存在未完成的 tool call 序列，跳过注入避免破坏序列完整性
         try:
