@@ -37,16 +37,16 @@ func (s *PreflightStage) Exec(ctx context.Context) error {
 		s.d.log.Logw("deploy", "%s", err)
 	}
 
-	s.d.opts.Proxy = inheritEnvProxy(s.d.opts.Proxy)
-	s.d.opts.Proxy.Container.URL = resolveContainerProxy(ctx, s.d.log, s.d.opts.Proxy)
+	s.d.opts.proxy = inheritEnvProxy(s.d.opts.proxy)
+	s.d.opts.proxy.Container.URL = resolveContainerProxy(ctx, s.d.log, s.d.opts.proxy)
 
-	if s.d.opts.Proxy.Policy.UseHostProxy && s.d.opts.Proxy.Host.URL != "" {
-		if err := applyHostProxyForProcess(s.d.opts.Proxy.Host.URL, s.d.opts.Proxy.Host.NoProxy); err != nil {
+	if s.d.opts.proxy.Policy.UseHostProxy && s.d.opts.proxy.Host.URL != "" {
+		if err := applyHostProxyForProcess(s.d.opts.proxy.Host.URL, s.d.opts.proxy.Host.NoProxy); err != nil {
 			s.d.log.Logw("deploy", "apply host proxy: %v", err)
 		}
 	}
 
-	if err := patchConfigProxySection(s.d.opts.ConfigFile, s.d.opts.Proxy); err != nil {
+	if err := patchConfigProxySection(s.d.opts.configFile, s.d.opts.proxy); err != nil {
 		s.d.log.Logw("deploy", "persist proxy config: %v", err)
 	}
 
@@ -54,7 +54,7 @@ func (s *PreflightStage) Exec(ctx context.Context) error {
 }
 
 func (s *PreflightStage) ensureDataDirReady() error {
-	dataDir := s.d.opts.DataDir
+	dataDir := s.d.opts.dataDir
 
 	fi, err := os.Stat(dataDir)
 	if err != nil {
@@ -75,7 +75,7 @@ func (s *PreflightStage) ensureDataDirReady() error {
 }
 
 func (s *PreflightStage) checkDiskSpace() {
-	availableBytes, err := util.GetDiskAvailableBytes(s.d.opts.DataDir)
+	availableBytes, err := util.GetDiskAvailableBytes(s.d.opts.dataDir)
 	if err != nil {
 		s.d.log.Logw("deploy", "failed to check free disk space: %v", err)
 		return

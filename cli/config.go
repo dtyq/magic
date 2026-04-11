@@ -30,17 +30,8 @@ type DeployChartConfig struct {
 	Version string `yaml:"version"`
 }
 
-// ChartRepoConfig holds chart repository URL and whether to use plain HTTP (for OCI).
-type ChartRepoConfig struct {
-	URL                string `yaml:"url"`
-	PlainHTTP          bool   `yaml:"plainHTTP"`
-	Username           string `yaml:"username"`
-	Password           string `yaml:"password"`
-	PassCredentialsAll bool   `yaml:"passCredentialsAll"`
-}
-
 type DeployConfig struct {
-	ChartRepo     ChartRepoConfig              `yaml:"chartRepo"`
+	ChartRepo     deployer.ChartRepoConfig     `yaml:"chartRepo"`
 	Values        string                       `yaml:"values"`
 	Registry      registry.Config              `yaml:"registry"`
 	Kind          cluster.KindClusterConfig    `yaml:"kind"`
@@ -105,13 +96,13 @@ deploy:
   charts:
     infra:
       name: infra
-      version: "0.0.1"
+      version: "0.0.2"
     magic:
       name: magic
-      version: "0.0.1"
+      version: "0.0.3"
     magic-sandbox:
       name: magic-sandbox
-      version: "0.0.2"
+      version: "0.0.4"
   infraUseProxy: false
   proxy:
     enabled: true
@@ -211,7 +202,7 @@ func init() {
 			},
 		},
 		Deploy: DeployConfig{
-			ChartRepo: ChartRepoConfig{},
+			ChartRepo: deployer.ChartRepoConfig{},
 			Values:    "",
 			Registry:  registry.NormalizeConfig(registry.Config{}),
 			Kind:      cluster.NormalizeKindCluster(cluster.KindClusterConfig{}),

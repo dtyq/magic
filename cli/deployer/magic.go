@@ -151,7 +151,7 @@ func (s *MagicStage) Prep(ctx context.Context) error {
 		return err
 	}
 	internalEndpoint := minioConn.url
-	externalEndpoint := fmt.Sprintf("http://localhost:%d", s.d.opts.Kind.MinIOHostPort)
+	externalEndpoint := fmt.Sprintf("http://localhost:%d", s.d.opts.kind.MinIOHostPort)
 
 	s.fileDriver = fileDriverConfig{
 		Driver: "minio",
@@ -203,13 +203,9 @@ func (s *MagicStage) Exec(ctx context.Context) error {
 	}
 	merged := deepMerge(cloneMap(s.d.merged), overlay)
 	// magic images live in our image registry; always route through the local proxy.
-	merged = withRegistryEndpoint(merged, registry.ContainerEndpoint(s.d.opts.Registry))
+	merged = withRegistryEndpoint(merged, registry.ContainerEndpoint(s.d.opts.registry))
 	namespace := chartNamespace(merged, releaseNameMagic, defaultMagicNamespace)
-	ref, err := s.d.chartRef(releaseNameMagic)
-	if err != nil {
-		return err
-	}
-	return installChart(ctx, s.d, releaseNameMagic, namespace, ref, merged)
+	return s.d.installChart(ctx, releaseNameMagic, namespace, merged)
 }
 
 // MagicSandboxStage installs the magic-sandbox Helm chart.
@@ -269,18 +265,14 @@ func (s *MagicSandboxStage) Exec(ctx context.Context) error {
 	}
 	merged := deepMerge(cloneMap(s.d.merged), overlay)
 	// magic-sandbox images live in our image registry; always route through the local proxy.
-	merged = withRegistryEndpoint(merged, registry.ContainerEndpoint(s.d.opts.Registry))
+	merged = withRegistryEndpoint(merged, registry.ContainerEndpoint(s.d.opts.registry))
 	namespace := chartNamespace(merged, releaseNameMagicSandbox, defaultMagicSandboxNamespace)
 	// Remove any stale image-prepull pods (e.g. ImagePullBackOff from a previous
 	// deploy) before (re)installing so Helm starts with a clean slate.
 	s.cleanupStaleImagePrepull(ctx, namespace)
-	ref, err := s.d.chartRef(releaseNameMagicSandbox)
-	if err != nil {
-		return err
-	}
 	// Exclude image-prepull pods from the default chart-level ready wait.
 	// Their readiness is governed by waitForImagePrepull with configurable policy.
-	if err := installChartWithWaitSelector(ctx, s.d, releaseNameMagicSandbox, namespace, ref, merged, nonImagePrepullLabelSelector); err != nil {
+	if err := s.d.installChartWithWaitSelector(ctx, releaseNameMagicSandbox, namespace, merged, nonImagePrepullLabelSelector); err != nil {
 		return err
 	}
 	s.waitForImagePrepull(ctx, namespace, merged)

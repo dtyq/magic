@@ -30,6 +30,8 @@ class User(BaseModel):
     real_name: Optional[str] = None
     work_number: Optional[str] = None
     position: Optional[str] = None
+    email: Optional[str] = None
+    phone: Optional[str] = None
     departments: Optional[List[Department]] = Field(default_factory=list)
 
 

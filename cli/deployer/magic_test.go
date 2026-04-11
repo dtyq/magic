@@ -24,6 +24,7 @@ func TestSelectServicePort(t *testing.T) {
 
 func TestMagicStagePrep_UsesMagicCredentialForSandboxBucket(t *testing.T) {
 	d := &Deployer{
+		opts: &options{},
 		merged: map[string]interface{}{
 			"infra": map[string]interface{}{
 				"minio": map[string]interface{}{
@@ -60,6 +61,7 @@ func TestMagicStagePrep_UsesMagicCredentialForSandboxBucket(t *testing.T) {
 
 func TestMagicSandboxStagePrep_S3MapUsesAccessKeyFields(t *testing.T) {
 	d := &Deployer{
+		opts: &options{},
 		merged: map[string]interface{}{
 			"infra": map[string]interface{}{
 				"minio": map[string]interface{}{
@@ -94,6 +96,7 @@ func TestMagicSandboxStagePrep_S3MapUsesAccessKeyFields(t *testing.T) {
 
 func TestMagicStagePrep_UsesRegistryBucketsWhenMergedMissingBuckets(t *testing.T) {
 	d := &Deployer{
+		opts:   &options{},
 		merged: map[string]interface{}{
 			"infra": map[string]interface{}{},
 		},
@@ -119,7 +122,7 @@ func TestMagicStagePrep_UsesRegistryBucketsWhenMergedMissingBuckets(t *testing.T
 
 func TestNewMagicStage_RegistersMinIOPolicyDefinitions(t *testing.T) {
 	reg := newInfraRegistry(t.TempDir())
-	d := &Deployer{}
+	d := &Deployer{opts: &options{}}
 	_ = newMagicStage(d, reg)
 
 	magicSpec := reg.resources["magic"][KindMinIO].(MinIOSpec)
@@ -147,7 +150,7 @@ func TestNewMagicStage_RegistersMinIOPolicyDefinitions(t *testing.T) {
 
 func TestNewMagicSandboxStage_RegistersMinIOSandboxAccessPolicy(t *testing.T) {
 	reg := newInfraRegistry(t.TempDir())
-	d := &Deployer{}
+	d := &Deployer{opts: &options{}}
 	_ = newMagicSandboxStage(d, reg)
 	spec := reg.resources["magic-sandbox"][KindMinIO].(MinIOSpec)
 	require.Equal(t, []string{"magic-sandbox-access-policy"}, spec.Policies)
@@ -170,7 +173,7 @@ func TestNewMagicSandboxStage_RegistersMinIOSandboxAccessPolicy(t *testing.T) {
 
 func TestNewMagicStages_DeployConstructorOrder_SandboxSpecFromSandboxStage(t *testing.T) {
 	reg := newInfraRegistry(t.TempDir())
-	d := &Deployer{}
+	d := &Deployer{opts: &options{}}
 	_ = newMagicStage(d, reg)
 	_ = newMagicSandboxStage(d, reg)
 	spec := reg.resources["magic-sandbox"][KindMinIO].(MinIOSpec)
