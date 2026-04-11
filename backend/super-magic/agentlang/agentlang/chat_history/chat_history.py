@@ -3,6 +3,7 @@
 此模块定义了用于管理聊天记录的类。
 """
 
+import asyncio
 import json
 import os
 from dataclasses import asdict
@@ -516,7 +517,7 @@ class ChatHistory:
             # Ensure target directory exists
             target_dir = os.path.dirname(target_file_path)
             if target_dir:
-                os.makedirs(target_dir, exist_ok=True)
+                await asyncio.to_thread(os.makedirs, target_dir, exist_ok=True)
 
             # 使用 indent 美化 JSON 输出
             history_json = json.dumps(history_to_save, indent=4, ensure_ascii=False)
@@ -799,18 +800,21 @@ class ChatHistory:
             processed_tool_calls = []
             for tc_data in tool_calls_data:
                 tool_call_obj = None
-                function_name = None
 
                 if isinstance(tc_data, ToolCall):
-                    # 已经是 ToolCall 对象，检查并标准化 arguments
+                    # 标准化 arguments：确保是字符串，且 \u 转义还原为真实 Unicode
                     if not isinstance(tc_data.function.arguments, str):
                         try:
                             tc_data.function.arguments = json.dumps(tc_data.function.arguments, ensure_ascii=False)
                         except Exception as e:
                             logger.warning(f"标准化 AssistantMessage ToolCall arguments 失败: {tc_data.function.arguments}, 错误: {e}. 跳过此 ToolCall。")
                             continue
+                    else:
+                        try:
+                            tc_data.function.arguments = json.dumps(json.loads(tc_data.function.arguments), ensure_ascii=False)
+                        except Exception:
+                            pass
                     tool_call_obj = tc_data
-                    function_name = tc_data.function.name
 
                 elif isinstance(tc_data, dict):
                     # 从字典创建 ToolCall 对象
@@ -821,9 +825,12 @@ class ChatHistory:
 
                         arguments_raw = function_data.get("arguments")
                         arguments_str = None
-                        # 确保 arguments 是 JSON 字符串
+                        # 确保 arguments 是字符串，且 \u 转义还原为真实 Unicode
                         if isinstance(arguments_raw, str):
-                            arguments_str = arguments_raw
+                            try:
+                                arguments_str = json.dumps(json.loads(arguments_raw), ensure_ascii=False)
+                            except Exception:
+                                arguments_str = arguments_raw
                         else:
                              arguments_str = json.dumps(arguments_raw or {}, ensure_ascii=False) # 如果是None或非字符串，则序列化
 
@@ -837,7 +844,6 @@ class ChatHistory:
 
                         function_call = FunctionCall(name=func_name, arguments=arguments_str)
                         tool_call_obj = ToolCall(id=tool_id, type=tool_type, function=function_call)
-                        function_name = func_name
 
                     except Exception as e:
                         logger.error(f"从字典创建 ToolCall 失败: {tc_data}, 错误: {e}", exc_info=True)
