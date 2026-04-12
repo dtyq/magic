@@ -104,7 +104,11 @@ class ResourceAccessPolicyService extends AbstractKernelAppService
      * 合并成统一的可读资源集合。
      *
      * @param array<string> $resourceCodes
-     * @return array{operation_codes: int, visibility_codes: int, all_codes: int}
+     * @return array{
+     *     operation_codes: array<string>,
+     *     visibility_codes: array<string>,
+     *     all_codes: array<string>
+     * }
      */
     public function getReadableResourceCodes(
         Authenticatable|BaseDataIsolation $authorization,
@@ -122,13 +126,14 @@ class ResourceAccessPolicyService extends AbstractKernelAppService
             $visibilityResourceType,
             $resourceCodes
         );
-
+        /** @var array<string> $visibilityCodes */
         $operationMap = $this->operationPermissionDomainService->getResourceOperationByUserIds(
             $permissionDataIsolation,
             $operationResourceType,
             [$currentUserId],
             $resourceCodes
         );
+        /** @var array<string> $operationCodes */
         $operationCodes = array_keys($operationMap[$currentUserId] ?? []);
 
         return [

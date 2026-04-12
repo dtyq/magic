@@ -12,7 +12,6 @@ use App\Domain\Contact\Entity\MagicUserEntity;
 use App\Domain\Contact\Entity\ValueObject\DataIsolation as ContactDataIsolation;
 use App\Domain\Contact\Service\MagicDepartmentDomainService;
 use App\Domain\Contact\Service\MagicUserDomainService;
-use App\Domain\File\Service\FileDomainService;
 use App\Domain\Permission\Entity\ValueObject\OperationPermission\ResourceType as OperationPermissionResourceType;
 use App\Domain\Permission\Entity\ValueObject\ResourceVisibility\PrincipalType;
 use App\Domain\Permission\Entity\ValueObject\ResourceVisibility\ResourceType as ResourceVisibilityResourceType;
@@ -37,7 +36,6 @@ use App\Interfaces\Authorization\Web\MagicUserAuthorization;
 use App\Interfaces\Kernel\Assembler\OperatorAssembler;
 use Dtyq\AsyncEvent\AsyncEventUtil;
 use Dtyq\CloudFile\Kernel\Struct\UploadFile;
-use Dtyq\SuperMagic\Application\Collaboration\Policy\ResourceAccessPolicyService;
 use Dtyq\SuperMagic\Application\SuperAgent\Service\ProjectAppService;
 use Dtyq\SuperMagic\Domain\Skill\Entity\SkillEntity;
 use Dtyq\SuperMagic\Domain\Skill\Entity\SkillMarketEntity;
@@ -53,7 +51,6 @@ use Dtyq\SuperMagic\Domain\Skill\Entity\ValueObject\ReviewStatus;
 use Dtyq\SuperMagic\Domain\Skill\Entity\ValueObject\SkillDataIsolation;
 use Dtyq\SuperMagic\Domain\Skill\Entity\ValueObject\SkillSourceType;
 use Dtyq\SuperMagic\Domain\Skill\Event\SkillImportedEvent;
-use Dtyq\SuperMagic\Domain\Skill\Service\SkillDomainService;
 use Dtyq\SuperMagic\Domain\Skill\Service\SkillMarketDomainService;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ProjectEntity;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\TaskFileEntity;
@@ -128,8 +125,6 @@ class SkillAppService extends AbstractSkillAppService
     protected LoggerInterface $logger;
 
     public function __construct(
-        FileDomainService $fileDomainService,
-        SkillDomainService $skillDomainService,
         protected SkillMarketDomainService $skillMarketDomainService,
         protected MagicUserDomainService $magicUserDomainService,
         protected MagicDepartmentDomainService $magicDepartmentDomainService,
@@ -140,10 +135,8 @@ class SkillAppService extends AbstractSkillAppService
         protected OperationPermissionDomainService $operationPermissionDomainService,
         protected ProjectDomainService $projectDomainService,
         protected TaskFileDomainService $taskFileDomainService,
-        ResourceAccessPolicyService $resourceAccessPolicyService,
         LoggerFactory $loggerFactory
     ) {
-        parent::__construct($fileDomainService, $skillDomainService, $resourceAccessPolicyService);
         $this->logger = $loggerFactory->get(get_class($this));
     }
 

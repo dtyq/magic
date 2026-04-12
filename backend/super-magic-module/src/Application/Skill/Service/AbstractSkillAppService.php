@@ -24,18 +24,21 @@ use Dtyq\SuperMagic\Domain\Skill\Entity\ValueObject\BuiltinSkill;
 use Dtyq\SuperMagic\Domain\Skill\Entity\ValueObject\SkillDataIsolation;
 use Dtyq\SuperMagic\Domain\Skill\Entity\ValueObject\SkillSourceType;
 use Dtyq\SuperMagic\Domain\Skill\Service\SkillDomainService;
+use Hyperf\Di\Annotation\Inject;
 
 /**
  * Skill 应用服务抽象基类.
  */
 abstract class AbstractSkillAppService extends AbstractKernelAppService
 {
-    public function __construct(
-        protected FileDomainService $fileDomainService,
-        protected SkillDomainService $skillDomainService,
-        protected ResourceAccessPolicyService $resourceAccessPolicyService
-    ) {
-    }
+    #[Inject]
+    protected FileDomainService $fileDomainService;
+
+    #[Inject]
+    protected SkillDomainService $skillDomainService;
+
+    #[Inject]
+    protected ResourceAccessPolicyService $resourceAccessPolicyService;
 
     /**
      * 创建 Skill 数据隔离对象.
@@ -75,6 +78,7 @@ abstract class AbstractSkillAppService extends AbstractKernelAppService
      */
     protected function getTeamSharedReadableSkillCodes(SkillDataIsolation $dataIsolation): array
     {
+        /** @var array{operation_codes: array<string>, visibility_codes: array<string>, all_codes: array<string>} $accessibleSkillResult */
         $accessibleSkillResult = $this->resourceAccessPolicyService->getReadableResourceCodes(
             $dataIsolation,
             OperationPermissionResourceType::Skill,
