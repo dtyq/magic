@@ -10,6 +10,7 @@ namespace Dtyq\SuperMagic\Application\Skill\Service;
 use App\Application\Kernel\AbstractKernelAppService;
 use App\Domain\Contact\Entity\MagicUserEntity;
 use App\Domain\File\Service\FileDomainService;
+use App\Domain\Permission\Entity\ValueObject\OperationPermission\Operation;
 use App\Domain\Permission\Entity\ValueObject\OperationPermission\ResourceType as OperationPermissionResourceType;
 use App\Domain\Permission\Entity\ValueObject\ResourceVisibility\ResourceType as ResourceVisibilityResourceType;
 use App\Infrastructure\Core\DataIsolation\BaseDataIsolation;
@@ -74,11 +75,11 @@ abstract class AbstractSkillAppService extends AbstractKernelAppService
     /**
      * 获取团队共享可用的技能代码。
      *
-     * @return array{codes: array<string>, operation_codes: array<string>}
+     * @return array{codes: array<string>, operations: array<string, Operation>}
      */
     protected function getTeamSharedReadableSkillCodes(SkillDataIsolation $dataIsolation): array
     {
-        /** @var array{operation_codes: array<string>, visibility_codes: array<string>, all_codes: array<string>} $accessibleSkillResult */
+        /** @var array{operations: array<string, Operation>, operation_codes: array<string>, visibility_codes: array<string>, all_codes: array<string>} $accessibleSkillResult */
         $accessibleSkillResult = $this->resourceAccessPolicyService->getReadableResourceCodes(
             $dataIsolation,
             OperationPermissionResourceType::Skill,

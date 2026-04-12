@@ -17,6 +17,7 @@ use App\Domain\Flow\Entity\ValueObject\FlowDataIsolation;
 use App\Domain\Mode\Entity\ModeEntity;
 use App\Domain\Mode\Entity\ValueQuery\ModeQuery;
 use App\Domain\Mode\Service\ModeDomainService;
+use App\Domain\Permission\Entity\ValueObject\OperationPermission\Operation;
 use App\Domain\Permission\Entity\ValueObject\OperationPermission\ResourceType as OperationPermissionResourceType;
 use App\Domain\Permission\Entity\ValueObject\ResourceVisibility\ResourceType as ResourceVisibilityResourceType;
 use App\Domain\Permission\Service\OperationPermissionDomainService;
@@ -139,10 +140,11 @@ abstract class AbstractSuperMagicAppService extends AbstractKernelAppService
      *
      * 仅返回当前用户可见，且排除本人创建和市场安装后的编码列表。
      *
-     * @return array{codes: array<string>, operations: array}
+     * @return array{codes: array<string>, operations: array<string, Operation>}
      */
     protected function getTeamSharedReadableAgentCodes(SuperMagicAgentDataIsolation $dataIsolation): array
     {
+        /** @var array{operations: array<string, Operation>, operation_codes: array<string>, visibility_codes: array<string>, all_codes: array<string>} $accessibleAgentResult */
         $accessibleAgentResult = $this->resourceAccessPolicyService->getReadableResourceCodes(
             $dataIsolation,
             OperationPermissionResourceType::CustomAgent,

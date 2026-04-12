@@ -97,6 +97,7 @@ class ResourceAccessPolicyService extends AbstractKernelAppService
      *
      * @param array<string> $resourceCodes
      * @return array{
+     *     operations: array<string, Operation>,
      *     operation_codes: array<string>,
      *     visibility_codes: array<string>,
      *     all_codes: array<string>
