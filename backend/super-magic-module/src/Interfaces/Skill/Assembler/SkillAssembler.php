@@ -341,18 +341,18 @@ class SkillAssembler
      */
     public static function createQuerySkillVersionsResponseDTO(
         array $versions,
-        array $user_map,
+        array $userMap,
         int $page,
-        int $page_size,
+        int $pageSize,
         int $total,
-        array $member_department_map = [],
+        array $memberDepartmentMap = [],
     ): QuerySkillVersionsResponseDTO {
         $list = [];
         foreach ($versions as $version) {
             $enrichedPublishTargetValue = self::buildEnrichedPublishTargetValue(
                 $version,
-                $user_map,
-                $member_department_map
+                $userMap,
+                $memberDepartmentMap
             );
 
             $list[] = new SkillVersionListItemDTO(
@@ -361,7 +361,7 @@ class SkillAssembler
                 publishStatus: $version->getPublishStatus()->value,
                 reviewStatus: $version->getReviewStatus()->value ?? '',
                 publishTargetType: $version->getPublishTargetType()->value,
-                publisher: OperatorAssembler::createOperatorDTOByUserEntity($user_map[$version->getPublisherUserId() ?? ''] ?? null, $version->getPublishedAt() ?? $version->getCreatedAt()),
+                publisher: OperatorAssembler::createOperatorDTOByUserEntity($userMap[$version->getPublisherUserId() ?? ''] ?? null, $version->getPublishedAt() ?? $version->getCreatedAt()),
                 publishedAt: $version->getPublishedAt(),
                 isCurrentVersion: $version->isCurrentVersion(),
                 versionDescriptionI18n: $version->getVersionDescriptionI18n(),
@@ -369,7 +369,7 @@ class SkillAssembler
             );
         }
 
-        return new QuerySkillVersionsResponseDTO($list, $page, $page_size, $total);
+        return new QuerySkillVersionsResponseDTO($list, $page, $pageSize, $total);
     }
 
     /**

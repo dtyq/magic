@@ -342,11 +342,11 @@ class SkillApi extends AbstractApi
 
         return SkillAssembler::createQuerySkillVersionsResponseDTO(
             versions: $result['list'],
-            user_map: $result['userMap'],
+            userMap: $result['user_map'] ?? [],
             page: $result['page'],
-            page_size: $result['page_size'],
+            pageSize: $result['page_size'],
             total: $result['total'],
-            member_department_map: $result['memberDepartmentMap'],
+            memberDepartmentMap: $result['member_department_map'] ?? [],
         )->toArray();
     }
 

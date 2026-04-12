@@ -801,7 +801,14 @@ class SkillAppService extends AbstractSkillAppService
     /**
      * Query published version records.
      *
-     * @return array{list: SkillVersionEntity[], page: int, page_size: int, total: int, userMap: array<string, MagicUserEntity>, memberDepartmentMap: array<string, MagicDepartmentEntity>}
+     * @return array{
+     *     list: SkillVersionEntity[],
+     *     page: int,
+     *     page_size: int,
+     *     total: int,
+     *     user_map: array<string, MagicUserEntity>,
+     *     member_department_map: array<string, MagicDepartmentEntity>
+     * }
      */
     public function queryVersions(RequestContext $requestContext, string $code, QuerySkillVersionsRequestDTO $requestDTO): array
     {
@@ -834,8 +841,8 @@ class SkillAppService extends AbstractSkillAppService
             'page' => $page->getPage(),
             'page_size' => $page->getPageNum(),
             'total' => $result['total'],
-            'userMap' => $userMap,
-            'memberDepartmentMap' => $memberDepartmentMap,
+            'user_map' => $userMap,
+            'member_department_map' => $memberDepartmentMap,
         ];
     }
 
