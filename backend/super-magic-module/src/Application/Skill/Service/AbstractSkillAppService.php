@@ -10,14 +10,20 @@ namespace Dtyq\SuperMagic\Application\Skill\Service;
 use App\Application\Kernel\AbstractKernelAppService;
 use App\Domain\Contact\Entity\MagicUserEntity;
 use App\Domain\File\Service\FileDomainService;
+use App\Domain\Permission\Entity\ValueObject\OperationPermission\ResourceType as OperationPermissionResourceType;
+use App\Domain\Permission\Entity\ValueObject\ResourceVisibility\ResourceType as ResourceVisibilityResourceType;
 use App\Infrastructure\Core\DataIsolation\BaseDataIsolation;
 use App\Infrastructure\Util\File\EasyFileTools;
 use App\Interfaces\Authorization\Web\MagicUserAuthorization;
 use Dtyq\CloudFile\Kernel\Struct\FileLink;
+use Dtyq\SuperMagic\Application\Collaboration\Policy\ResourceAccessPolicyService;
 use Dtyq\SuperMagic\Domain\Skill\Entity\SkillEntity;
 use Dtyq\SuperMagic\Domain\Skill\Entity\SkillMarketEntity;
 use Dtyq\SuperMagic\Domain\Skill\Entity\SkillVersionEntity;
+use Dtyq\SuperMagic\Domain\Skill\Entity\ValueObject\BuiltinSkill;
 use Dtyq\SuperMagic\Domain\Skill\Entity\ValueObject\SkillDataIsolation;
+use Dtyq\SuperMagic\Domain\Skill\Entity\ValueObject\SkillSourceType;
+use Dtyq\SuperMagic\Domain\Skill\Service\SkillDomainService;
 
 /**
  * Skill 应用服务抽象基类.
@@ -25,7 +31,9 @@ use Dtyq\SuperMagic\Domain\Skill\Entity\ValueObject\SkillDataIsolation;
 abstract class AbstractSkillAppService extends AbstractKernelAppService
 {
     public function __construct(
-        protected FileDomainService $fileDomainService
+        protected FileDomainService $fileDomainService,
+        protected SkillDomainService $skillDomainService,
+        protected ResourceAccessPolicyService $resourceAccessPolicyService
     ) {
     }
 
@@ -41,6 +49,84 @@ abstract class AbstractSkillAppService extends AbstractKernelAppService
         }
         $this->handleByAuthorization($authorization, $dataIsolation);
         return $dataIsolation;
+    }
+
+    /**
+     * 获取用户可访问的技能代码。
+     *
+     * @return array<string>
+     */
+    protected function getAccessibleSkillCodes(SkillDataIsolation $dataIsolation): array
+    {
+        /** @var array<string> $skillCodes */
+        $skillCodes = $this->resourceAccessPolicyService->getReadableResourceCodes(
+            $dataIsolation,
+            OperationPermissionResourceType::Skill,
+            ResourceVisibilityResourceType::SKILL
+        )['all_codes'] ?? [];
+
+        return $this->mergeBuiltinSkillCodes($skillCodes);
+    }
+
+    /**
+     * 获取团队共享可用的技能代码。
+     *
+     * @return array{codes: array<string>, operation_codes: array<string>}
+     */
+    protected function getTeamSharedReadableSkillCodes(SkillDataIsolation $dataIsolation): array
+    {
+        $accessibleSkillResult = $this->resourceAccessPolicyService->getReadableResourceCodes(
+            $dataIsolation,
+            OperationPermissionResourceType::Skill,
+            ResourceVisibilityResourceType::SKILL
+        );
+        /** @var array<string> $accessibleSkillCodes */
+        $accessibleSkillCodes = $this->mergeBuiltinSkillCodes($accessibleSkillResult['all_codes'] ?? []);
+        /** @var array<string> $operationSkillCodes */
+        $operationSkillCodes = $accessibleSkillResult['operation_codes'] ?? [];
+        /** @var array<string> $currentUserSkillCodes */
+        $currentUserSkillCodes = $this->skillDomainService->findCurrentUserSkillCodes($dataIsolation);
+
+        $sharedSkillCodes = array_values(array_diff($accessibleSkillCodes, $currentUserSkillCodes));
+        $sharedSkillCodes = array_values(array_diff($sharedSkillCodes, BuiltinSkill::values()));
+
+        return [
+            'codes' => $sharedSkillCodes,
+            'operation_codes' => array_values(array_intersect($sharedSkillCodes, $operationSkillCodes)),
+        ];
+    }
+
+    /**
+     * 获取市场已安装的技能代码。
+     *
+     * @return array<string>
+     */
+    protected function getMarketInstalledSkillCodes(SkillDataIsolation $dataIsolation): array
+    {
+        /** @var array<string> $marketInstalledCodes */
+        $marketInstalledCodes = $this->skillDomainService->findCurrentUserSkillCodesBySourceType(
+            $dataIsolation,
+            SkillSourceType::MARKET
+        );
+
+        return $this->mergeBuiltinSkillCodes($marketInstalledCodes);
+    }
+
+    /**
+     * 合并系统技能代码。
+     *
+     * @param array<string> $skillCodes
+     * @param null|array<string> $resourceCode
+     * @return array<string>
+     */
+    protected function mergeBuiltinSkillCodes(array $skillCodes, ?array $resourceCode = null): array
+    {
+        $builtinSkillCodes = BuiltinSkill::values();
+        if ($resourceCode !== null) {
+            $builtinSkillCodes = array_values(array_intersect($builtinSkillCodes, $resourceCode));
+        }
+
+        return array_values(array_unique(array_merge($skillCodes, $builtinSkillCodes)));
     }
 
     /**

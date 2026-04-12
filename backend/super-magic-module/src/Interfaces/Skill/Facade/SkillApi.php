@@ -195,12 +195,11 @@ class SkillApi extends AbstractApi
 
         $result = $this->userSkillAppService->queriesTeamShared($requestContext, $query, $page);
 
-        return SkillAssembler::createListResponseDTOFromVersions(
+        return SkillAssembler::createListResponseDTO(
             $result['list'],
             $page->getPage(),
             $page->getPageNum(),
             $result['total'],
-            null,
             $result['creatorUserMap'] ?? [],
             $result['latestVersionMap'] ?? []
         );

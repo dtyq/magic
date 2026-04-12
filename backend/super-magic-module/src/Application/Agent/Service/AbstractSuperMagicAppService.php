@@ -30,9 +30,11 @@ use Dtyq\CloudFile\Kernel\Struct\FileLink;
 use Dtyq\SuperMagic\Application\Collaboration\Policy\ResourceAccessPolicyService;
 use Dtyq\SuperMagic\Domain\Agent\Entity\AgentVersionEntity;
 use Dtyq\SuperMagic\Domain\Agent\Entity\SuperMagicAgentEntity;
+use Dtyq\SuperMagic\Domain\Agent\Entity\ValueObject\AgentSourceType;
 use Dtyq\SuperMagic\Domain\Agent\Entity\ValueObject\SuperMagicAgentDataIsolation;
 use Dtyq\SuperMagic\Domain\Agent\Entity\ValueObject\SuperMagicAgentType;
 use Dtyq\SuperMagic\Domain\Agent\Service\SuperMagicAgentDomainService;
+use Dtyq\SuperMagic\Domain\Agent\Service\UserAgentDomainService;
 use Dtyq\SuperMagic\Domain\Skill\Entity\SkillEntity;
 use Dtyq\SuperMagic\Domain\Skill\Entity\SkillVersionEntity;
 use Hyperf\Di\Annotation\Inject;
@@ -46,6 +48,9 @@ abstract class AbstractSuperMagicAppService extends AbstractKernelAppService
 
     #[Inject]
     protected ResourceAccessPolicyService $resourceAccessPolicyService;
+
+    #[Inject]
+    protected UserAgentDomainService $userAgentDomainService;
 
     public function __construct(
         protected OperationPermissionDomainService $operationPermissionDomainService,
@@ -108,17 +113,18 @@ abstract class AbstractSuperMagicAppService extends AbstractKernelAppService
      */
     protected function getAccessibleAgentCodes(SuperMagicAgentDataIsolation $dataIsolation, string $userId): array
     {
+        /** @var array<string> $accessibleCodes */
         $accessibleCodes = $this->resourceAccessPolicyService->getReadableResourceCodes(
             $dataIsolation,
             OperationPermissionResourceType::CustomAgent,
             ResourceVisibilityResourceType::SUPER_MAGIC_AGENT
-        );
-
+        )['all_codes'] ?? [];
         // 查询用户自己创建的智能体编码（用户创建的必然可见）
+        /** @var array<string> $creatorCodes */
         $creatorCodes = $this->superMagicAgentDomainService->getCodesByCreator($dataIsolation, $userId);
 
         // 从 $accessibleCodes 从剔除 $creatorCodes
-        $accessibleCodes = array_diff($accessibleCodes, $creatorCodes);
+        $accessibleCodes = array_values(array_diff($accessibleCodes, $creatorCodes));
 
         // 合并并去重
         return [
@@ -126,6 +132,54 @@ abstract class AbstractSuperMagicAppService extends AbstractKernelAppService
             'creator' => $creatorCodes,
             'codes' => array_values(array_unique(array_merge($creatorCodes, $accessibleCodes))),
         ];
+    }
+
+    /**
+     * 获取团队共享可用的 Agent 编码列表。
+     *
+     * 仅返回当前用户可见，且排除本人创建和市场安装后的编码列表。
+     *
+     * @return array{codes: array<string>, operation_codes: array<string>}
+     */
+    protected function getTeamSharedReadableAgentCodes(SuperMagicAgentDataIsolation $dataIsolation): array
+    {
+        $accessibleAgentResult = $this->resourceAccessPolicyService->getReadableResourceCodes(
+            $dataIsolation,
+            OperationPermissionResourceType::CustomAgent,
+            ResourceVisibilityResourceType::SUPER_MAGIC_AGENT
+        );
+
+        /** @var array<string> $accessibleCodes */
+        $accessibleCodes = $accessibleAgentResult['all_codes'] ?? [];
+        /** @var array<string> $operationCodes */
+        $operationCodes = $accessibleAgentResult['operation_codes'] ?? [];
+        /** @var array<string> $creatorCodes */
+        $creatorCodes = $this->superMagicAgentDomainService->getCodesByCreator(
+            $dataIsolation,
+            $dataIsolation->getCurrentUserId()
+        );
+        $marketInstalledCodes = $this->getMarketInstalledAgentCodes($dataIsolation);
+
+        $excludedCodes = array_values(array_unique(array_merge($creatorCodes, $marketInstalledCodes)));
+
+        return [
+            'codes' => array_values(array_diff($accessibleCodes, $excludedCodes)),
+            'operation_codes' => $operationCodes,
+        ];
+    }
+
+    /**
+     * 获取通过市场安装的 Agent 编码列表。
+     *
+     * @return array<string>
+     */
+    protected function getMarketInstalledAgentCodes(SuperMagicAgentDataIsolation $dataIsolation): array
+    {
+        /* @var array<string> $marketInstalledCodes */
+        return $this->userAgentDomainService->findAgentCodesBySourceTypes(
+            $dataIsolation,
+            [AgentSourceType::MARKET->value]
+        );
     }
 
     protected function createBuiltinAgentEntityByMode(SuperMagicAgentDataIsolation $superMagicAgentDataIsolation, ModeEntity $modeEntity): SuperMagicAgentEntity

@@ -57,7 +57,7 @@ class ResourceAccessPolicyService extends AbstractKernelAppService
         }
 
         $readableCodes = $this->getReadableResourceCodes($authorization, $operationResourceType, $visibilityResourceType, [$code]);
-        if (in_array($code, $readableCodes, true)) {
+        if (in_array($code, $readableCodes['all_codes'], true)) {
             return;
         }
 
@@ -104,7 +104,7 @@ class ResourceAccessPolicyService extends AbstractKernelAppService
      * 合并成统一的可读资源集合。
      *
      * @param array<string> $resourceCodes
-     * @return array<string>
+     * @return array{operation_codes: int, visibility_codes: int, all_codes: int}
      */
     public function getReadableResourceCodes(
         Authenticatable|BaseDataIsolation $authorization,
@@ -131,7 +131,11 @@ class ResourceAccessPolicyService extends AbstractKernelAppService
         );
         $operationCodes = array_keys($operationMap[$currentUserId] ?? []);
 
-        return array_values(array_unique(array_merge($visibilityCodes, $operationCodes)));
+        return [
+            'operation_codes' => $operationCodes,
+            'visibility_codes' => $visibilityCodes,
+            'all_codes' => array_values(array_unique(array_merge($visibilityCodes, $operationCodes))),
+        ];
     }
 
     /**
