@@ -190,7 +190,8 @@ class SuperMagicAgentAssembler
         ?bool $isStoreOffline,
         bool $withFileUrl = false,
         ?string $publishType = null,
-        array $allowedPublishTargetTypes = []
+        array $allowedPublishTargetTypes = [],
+        ?Operation $operation = null
     ): GetAgentDetailResponseDTO {
         $language = CoContext::getLanguage();
 
@@ -276,7 +277,8 @@ class SuperMagicAgentAssembler
             publishType: $publishType,
             allowedPublishTargetTypes: $allowedPublishTargetTypes,
             createdAt: $agent->getCreatedAt(),
-            updatedAt: $agent->getUpdatedAt()
+            updatedAt: $agent->getUpdatedAt(),
+            userRole: $operation?->toAlias()
         );
     }
 

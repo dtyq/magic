@@ -12,6 +12,7 @@ use App\Domain\Contact\Entity\MagicUserEntity;
 use App\Domain\Contact\Entity\ValueObject\DataIsolation as ContactDataIsolation;
 use App\Domain\Contact\Service\MagicDepartmentDomainService;
 use App\Domain\Contact\Service\MagicUserDomainService;
+use App\Domain\Permission\Entity\ValueObject\OperationPermission\Operation;
 use App\Domain\Permission\Entity\ValueObject\OperationPermission\ResourceType as OperationPermissionResourceType;
 use App\Domain\Permission\Entity\ValueObject\ResourceVisibility\PrincipalType;
 use App\Domain\Permission\Entity\ValueObject\ResourceVisibility\ResourceType as ResourceVisibilityResourceType;
@@ -676,7 +677,7 @@ class SkillAppService extends AbstractSkillAppService
         );
 
         // 详情查看统一走共享可读判定；系统内置 Skill 会在断言方法中直接放行。
-        $this->assertSkillReadable($dataIsolation, $code);
+        $operation = $this->assertSkillReadable($dataIsolation, $code);
 
         // 查询技能记录（校验权限）
         $dataIsolation->disabled();
@@ -729,7 +730,8 @@ class SkillAppService extends AbstractSkillAppService
                 $creatorCreatedAt
             ),
             isset($marketEntityMap[$code]) ? $marketEntityMap[$code]->isFeatured() : false,
-            $skillFileUrl
+            $skillFileUrl,
+            $operation?->toAlias()
         );
     }
 
@@ -2069,19 +2071,22 @@ class SkillAppService extends AbstractSkillAppService
     /**
      * 校验当前用户是否对 Skill 具备读取权限。
      */
-    private function assertSkillReadable(SkillDataIsolation $dataIsolation, string $skillCode): void
+    private function assertSkillReadable(SkillDataIsolation $dataIsolation, string $skillCode): ?Operation
     {
-        if (BuiltinSkill::tryFrom($skillCode) !== null) {
-            return;
+        try {
+            return $this->resourceAccessPolicyService->assertReadable(
+                $dataIsolation,
+                OperationPermissionResourceType::Skill,
+                ResourceVisibilityResourceType::SKILL,
+                $skillCode,
+            );
+        } catch (Throwable $throwable) {
+            // 内置资源等少数场景不走 op/visibility 判定，这里允许调用方透传白名单跳过。
+            if (BuiltinSkill::tryFrom($skillCode) !== null) {
+                return null;
+            }
+            throw $throwable;
         }
-
-        $this->resourceAccessPolicyService->assertReadable(
-            $dataIsolation,
-            OperationPermissionResourceType::Skill,
-            ResourceVisibilityResourceType::SKILL,
-            $skillCode,
-            BuiltinSkill::values()
-        );
     }
 
     /**

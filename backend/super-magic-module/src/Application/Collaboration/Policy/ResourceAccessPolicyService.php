@@ -41,24 +41,16 @@ class ResourceAccessPolicyService extends AbstractKernelAppService
      * 读取权限采用 V ∪ O：
      * - V：资源可见性配置
      * - O：operation_permissions 显式授权
-     *
-     * @param array<string> $skipReadableCodes
      */
     public function assertReadable(
         Authenticatable|BaseDataIsolation $authorization,
         OperationResourceType $operationResourceType,
         ResourceVisibilityResourceType $visibilityResourceType,
         string $code,
-        array $skipReadableCodes = []
-    ): void {
-        // 内置资源等少数场景不走 op/visibility 判定，这里允许调用方透传白名单跳过。
-        if (in_array($code, $skipReadableCodes, true)) {
-            return;
-        }
-
+    ): ?Operation {
         $readableCodes = $this->getReadableResourceCodes($authorization, $operationResourceType, $visibilityResourceType, [$code]);
         if (in_array($code, $readableCodes['all_codes'], true)) {
-            return;
+            return $readableCodes['operations'][$code] ?? Operation::Read;
         }
 
         ExceptionBuilder::throw(SuperMagicErrorCode::NotFound, 'common.not_found', ['label' => $code]);
@@ -138,7 +130,7 @@ class ResourceAccessPolicyService extends AbstractKernelAppService
         $operationCodes = array_keys($operationMap[$currentUserId] ?? []);
 
         return [
-            'operations' => $operationMap[$currentUserId],
+            'operations' => $operationMap[$currentUserId] ?? [],
             'operation_codes' => $operationCodes,
             'visibility_codes' => $visibilityCodes,
             'all_codes' => array_values(array_unique(array_merge($visibilityCodes, $operationCodes))),

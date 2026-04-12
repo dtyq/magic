@@ -177,7 +177,8 @@ class SuperMagicAgentApi extends AbstractApi
             isStoreOffline: $result['is_store_offline'],
             withFileUrl: false,
             publishType: $result['publish_type'],
-            allowedPublishTargetTypes: $result['allowed_publish_target_types']
+            allowedPublishTargetTypes: $result['allowed_publish_target_types'],
+            operation: $result['operation'] ?? null
         );
 
         // 返回数组格式

@@ -17,6 +17,7 @@ use App\Domain\Contact\Service\MagicDepartmentDomainService;
 use App\Domain\Contact\Service\MagicUserDomainService;
 use App\Domain\Mode\Entity\ModeEntity;
 use App\Domain\Mode\Entity\ValueQuery\ModeQuery;
+use App\Domain\Permission\Entity\ValueObject\OperationPermission\Operation;
 use App\Domain\Permission\Entity\ValueObject\OperationPermission\ResourceType;
 use App\Domain\Permission\Entity\ValueObject\ResourceVisibility\PrincipalType;
 use App\Domain\Permission\Entity\ValueObject\ResourceVisibility\ResourceType as ResourceVisibilityResourceType;
@@ -144,7 +145,8 @@ class SuperMagicAgentAppService extends AbstractSuperMagicAppService
      *     skills: array<int, SkillEntity|SkillVersionEntity>,
      *     is_store_offline: null|bool,
      *     publish_type: null|string,
-     *     allowed_publish_target_types: array<int, string>
+     *     allowed_publish_target_types: array<int, string>,
+     *     operation: null|Operation
      * }
      */
     public function show(Authenticatable $authorization, string $code, bool $withToolSchema, bool $withFileUrl = false, bool $checkPermission = true): array
@@ -153,7 +155,7 @@ class SuperMagicAgentAppService extends AbstractSuperMagicAppService
         $flowDataIsolation = $this->createFlowDataIsolation($authorization);
 
         // 审批/查看场景按资源可见性判断，支持“可见但非创建者”的访问。
-        $this->assertAgentReadable($authorization, $code);
+        $operation = $this->assertAgentReadable($authorization, $code);
 
         // 忽略组织
         $dataIsolation->disabled();
@@ -216,6 +218,7 @@ class SuperMagicAgentAppService extends AbstractSuperMagicAppService
                 $dataIsolation,
                 PublishType::fromPublishTargetType($latestVersionEntity?->getPublishTargetType())
             ),
+            'operation' => $operation,
         ];
     }
 
@@ -2363,15 +2366,22 @@ class SuperMagicAgentAppService extends AbstractSuperMagicAppService
     /**
      * 校验当前用户是否对 Agent 具备读取权限。
      */
-    private function assertAgentReadable(Authenticatable $authorization, string $code): void
+    private function assertAgentReadable(Authenticatable $authorization, string $code): ?Operation
     {
-        $this->resourceAccessPolicyService->assertReadable(
-            $authorization,
-            ResourceType::CustomAgent,
-            ResourceVisibilityResourceType::SUPER_MAGIC_AGENT,
-            $code,
-            $this->getOfficialAgentCodes($authorization)
-        );
+        try {
+            return $this->resourceAccessPolicyService->assertReadable(
+                $authorization,
+                ResourceType::CustomAgent,
+                ResourceVisibilityResourceType::SUPER_MAGIC_AGENT,
+                $code,
+            );
+        } catch (Throwable $throwable) {
+            // 内置资源等少数场景不走 op/visibility 判定，这里允许调用方透传白名单跳过。
+            if (in_array($code, $this->getOfficialAgentCodes($authorization), true)) {
+                return null;
+            }
+            throw $throwable;
+        }
     }
 
     /**

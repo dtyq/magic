@@ -88,6 +88,8 @@ class GetAgentDetailResponseDTO extends AbstractDTO
 
     private array $allowedPublishTargetTypes = [];
 
+    private ?string $userRole = null;
+
     public function __construct(
         string $id,
         string $code,
@@ -115,7 +117,8 @@ class GetAgentDetailResponseDTO extends AbstractDTO
         ?string $publishType,
         array $allowedPublishTargetTypes,
         string $createdAt,
-        string $updatedAt
+        string $updatedAt,
+        ?string $userRole = null
     ) {
         $this->id = $id;
         $this->code = $code;
@@ -144,6 +147,7 @@ class GetAgentDetailResponseDTO extends AbstractDTO
         $this->allowedPublishTargetTypes = $allowedPublishTargetTypes;
         $this->createdAt = $createdAt;
         $this->updatedAt = $updatedAt;
+        $this->userRole = $userRole;
     }
 
     public function getProjectId(): ?int
@@ -191,6 +195,7 @@ class GetAgentDetailResponseDTO extends AbstractDTO
             'latest_published_at' => $this->latestPublishedAt,
             'publish_type' => $this->publishType,
             'allowed_publish_target_types' => $this->allowedPublishTargetTypes,
+            'user_role' => $this->userRole,
         ];
 
         if ($withFileUrl) {

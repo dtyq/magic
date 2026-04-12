@@ -67,6 +67,8 @@ class SkillDetailResponseDTO implements JsonSerializable
 
     private string $skillFileUrl;
 
+    private ?string $userRole = null;
+
     public function __construct(
         int $id,
         string $code,
@@ -93,7 +95,8 @@ class SkillDetailResponseDTO implements JsonSerializable
         string $updatedAt,
         ?OperatorDTO $creatorInfo = null,
         bool $isFeatured = false,
-        string $skillFileUrl = ''
+        string $skillFileUrl = '',
+        ?string $userRole = null
     ) {
         $this->id = $id;
         $this->code = $code;
@@ -121,6 +124,7 @@ class SkillDetailResponseDTO implements JsonSerializable
         $this->creatorInfo = $creatorInfo;
         $this->isFeatured = $isFeatured;
         $this->skillFileUrl = $skillFileUrl;
+        $this->userRole = $userRole;
     }
 
     public function getProjectId(): ?int
@@ -172,6 +176,7 @@ class SkillDetailResponseDTO implements JsonSerializable
             'creator_info' => $this->creatorInfo,
             'is_featured' => $this->isFeatured,
             'skill_file_url' => $this->skillFileUrl,
+            'user_role' => $this->userRole,
         ];
     }
 
