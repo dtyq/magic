@@ -433,7 +433,7 @@ class SkillAppService extends AbstractSkillAppService
         $dataIsolation = $this->createSkillDataIsolation($userAuthorization);
         $teamSharedSkillResult = $this->getTeamSharedReadableSkillCodes($dataIsolation);
         $sharedSkillCodes = $teamSharedSkillResult['codes'];
-        $operationSkillCodes = $teamSharedSkillResult['operation_codes'];
+        $skillOperations = $teamSharedSkillResult['operations'];
 
         if (! $sharedSkillCodes) {
             return [
@@ -449,12 +449,10 @@ class SkillAppService extends AbstractSkillAppService
             $page
         );
 
-        if ($result['list'] === []) {
+        if (empty($result['list'])) {
             return [
                 'list' => [],
                 'total' => $result['total'],
-                'creatorUserMap' => [],
-                'latestVersionMap' => [],
             ];
         }
 
@@ -465,14 +463,15 @@ class SkillAppService extends AbstractSkillAppService
         )));
         $publishedVersionMap = $this->skillDomainService->findCurrentPublishedVersionsByCodes($dataIsolation, $sharedSkillCodes);
 
+        // 如果是发布内部市场共享的agent，则使用version
         foreach ($sharedSkillEntities as $index => $sharedSkillEntity) {
             $skillCode = $sharedSkillEntity->getCode();
-            if (in_array($skillCode, $operationSkillCodes, true)) {
+            if (isset($skillOperations[$skillCode])) {
+                unset($publishedVersionMap[$index]);
                 continue;
             }
             $publishedVersionEntity = $publishedVersionMap[$skillCode] ?? null;
             if (! $publishedVersionEntity) {
-                unset($sharedSkillEntities[$index]);
                 continue;
             }
             $sharedSkillEntities[$index] = $this->buildExternalVisibleSkillFromVersion($publishedVersionEntity);
@@ -486,6 +485,7 @@ class SkillAppService extends AbstractSkillAppService
             'total' => $result['total'],
             'creatorUserMap' => $creatorUserMap,
             'latestVersionMap' => $publishedVersionMap,
+            'skillOperations' => $skillOperations,
         ];
     }
 

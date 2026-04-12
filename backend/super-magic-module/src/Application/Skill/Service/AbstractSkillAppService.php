@@ -86,8 +86,6 @@ abstract class AbstractSkillAppService extends AbstractKernelAppService
         );
         /** @var array<string> $accessibleSkillCodes */
         $accessibleSkillCodes = $this->mergeBuiltinSkillCodes($accessibleSkillResult['all_codes'] ?? []);
-        /** @var array<string> $operationSkillCodes */
-        $operationSkillCodes = $accessibleSkillResult['operation_codes'] ?? [];
         /** @var array<string> $currentUserSkillCodes */
         $currentUserSkillCodes = $this->skillDomainService->findCurrentUserSkillCodes($dataIsolation);
 
@@ -96,7 +94,7 @@ abstract class AbstractSkillAppService extends AbstractKernelAppService
 
         return [
             'codes' => $sharedSkillCodes,
-            'operation_codes' => array_values(array_intersect($sharedSkillCodes, $operationSkillCodes)),
+            'operations' => $accessibleSkillResult['operations'],
         ];
     }
 

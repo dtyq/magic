@@ -139,7 +139,7 @@ abstract class AbstractSuperMagicAppService extends AbstractKernelAppService
      *
      * 仅返回当前用户可见，且排除本人创建和市场安装后的编码列表。
      *
-     * @return array{codes: array<string>, operation_codes: array<string>}
+     * @return array{codes: array<string>, operations: array}
      */
     protected function getTeamSharedReadableAgentCodes(SuperMagicAgentDataIsolation $dataIsolation): array
     {
@@ -148,11 +148,8 @@ abstract class AbstractSuperMagicAppService extends AbstractKernelAppService
             OperationPermissionResourceType::CustomAgent,
             ResourceVisibilityResourceType::SUPER_MAGIC_AGENT
         );
-
         /** @var array<string> $accessibleCodes */
         $accessibleCodes = $accessibleAgentResult['all_codes'] ?? [];
-        /** @var array<string> $operationCodes */
-        $operationCodes = $accessibleAgentResult['operation_codes'] ?? [];
         /** @var array<string> $creatorCodes */
         $creatorCodes = $this->superMagicAgentDomainService->getCodesByCreator(
             $dataIsolation,
@@ -164,7 +161,7 @@ abstract class AbstractSuperMagicAppService extends AbstractKernelAppService
 
         return [
             'codes' => array_values(array_diff($accessibleCodes, $excludedCodes)),
-            'operation_codes' => $operationCodes,
+            'operations' => $accessibleAgentResult['operations'],
         ];
     }
 

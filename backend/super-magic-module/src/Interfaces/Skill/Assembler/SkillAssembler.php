@@ -9,6 +9,7 @@ namespace Dtyq\SuperMagic\Interfaces\Skill\Assembler;
 
 use App\Domain\Contact\Entity\MagicDepartmentEntity;
 use App\Domain\Contact\Entity\MagicUserEntity;
+use App\Domain\Permission\Entity\ValueObject\OperationPermission\Operation;
 use App\Infrastructure\ExternalAPI\Sms\Enum\LanguageEnum;
 use App\Infrastructure\Util\Context\CoContext;
 use App\Interfaces\Kernel\Assembler\OperatorAssembler;
@@ -40,7 +41,8 @@ class SkillAssembler
     public static function createListItemDTO(
         SkillEntity $entity,
         ?MagicUserEntity $creator = null,
-        string $latestVersion = ''
+        ?string $latestVersion = null,
+        ?Operation $operation = null
     ): SkillListItemDTO {
         $language = CoContext::getLanguage();
         $nameI18n = $entity->getNameI18n() ?? [];
@@ -71,7 +73,8 @@ class SkillAssembler
             latestPublishedAt: $entity->getLatestPublishedAt(),
             latestVersion: $latestVersion,
             packageName: $entity->getPackageName(),
-            creatorInfo: $creatorInfo
+            creatorInfo: $creatorInfo,
+            userRole: $operation?->toAlias(),
         );
     }
 
@@ -217,14 +220,16 @@ class SkillAssembler
         int $pageSize,
         int $total,
         array $creatorUserMap = [],
-        array $latestVersionMap = []
+        array $latestVersionMap = [],
+        array $skillOperations = [],
     ): SkillListResponseDTO {
         $listItems = [];
         foreach ($skillEntities as $entity) {
             $listItems[] = self::createListItemDTO(
                 $entity,
                 $creatorUserMap[$entity->getCreatorId()] ?? null,
-                $latestVersionMap[$entity->getCode()] ?? ''
+                $latestVersionMap[$entity->getCode()] ?? null,
+                $skillOperations[$entity->getCode()] ?? null,
             );
         }
 

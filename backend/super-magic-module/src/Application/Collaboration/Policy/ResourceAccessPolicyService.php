@@ -133,10 +133,12 @@ class ResourceAccessPolicyService extends AbstractKernelAppService
             [$currentUserId],
             $resourceCodes
         );
+
         /** @var array<string> $operationCodes */
         $operationCodes = array_keys($operationMap[$currentUserId] ?? []);
 
         return [
+            'operations' => $operationMap[$currentUserId],
             'operation_codes' => $operationCodes,
             'visibility_codes' => $visibilityCodes,
             'all_codes' => array_values(array_unique(array_merge($visibilityCodes, $operationCodes))),

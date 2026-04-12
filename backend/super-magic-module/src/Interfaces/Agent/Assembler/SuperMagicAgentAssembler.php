@@ -9,6 +9,7 @@ namespace Dtyq\SuperMagic\Interfaces\Agent\Assembler;
 
 use App\Domain\Contact\Entity\MagicDepartmentEntity;
 use App\Domain\Contact\Entity\MagicUserEntity;
+use App\Domain\Permission\Entity\ValueObject\OperationPermission\Operation;
 use App\Infrastructure\Core\ValueObject\Page;
 use App\Infrastructure\ExternalAPI\Sms\Enum\LanguageEnum;
 use App\Infrastructure\Util\Context\CoContext;
@@ -339,19 +340,21 @@ class SuperMagicAgentAssembler
         int $page,
         int $pageSize,
         int $total,
+        array $agentOperations = [],
         array $publisherUserMap = [],
         array $creatorUserMap = []
     ): QueryAgentsResponseDTO {
         $list = [];
         foreach ($agents as $agent) {
             $list[] = self::createAgentListItemDTO(
-                $agent,
-                $playbooksMap,
-                $storeAgentsMap,
-                $latestVersionsMap,
-                $userAgentsMap,
-                $publisherUserMap,
-                self::buildSimpleCreatorInfo($agent->getCreator(), $creatorUserMap)
+                agent: $agent,
+                playbooksMap: $playbooksMap,
+                storeAgentsMap: $storeAgentsMap,
+                latestVersionsMap: $latestVersionsMap,
+                userAgentsMap: $userAgentsMap,
+                agentOperations: $agentOperations,
+                publisherUserMap: $publisherUserMap,
+                creatorInfo: self::buildSimpleCreatorInfo($agent->getCreator(), $creatorUserMap)
             );
         }
 
@@ -443,6 +446,7 @@ class SuperMagicAgentAssembler
      * @param array<string, AgentVersionEntity> $latestVersionsMap
      * @param array<string, MagicUserEntity> $publisherUserMap
      * @param array<string, UserAgentEntity> $userAgentsMap
+     * @param array<string, Operation> $agentOperations
      */
     private static function createAgentListItemDTO(
         SuperMagicAgentEntity $agent,
@@ -450,6 +454,7 @@ class SuperMagicAgentAssembler
         array $storeAgentsMap,
         array $latestVersionsMap,
         array $userAgentsMap = [],
+        array $agentOperations = [],
         array $publisherUserMap = [],
         ?array $creatorInfo = null
     ): AgentListItemDTO {
@@ -500,6 +505,7 @@ class SuperMagicAgentAssembler
             publisherType: $publisher['type'] ?? null,
             publisher: $publisher['info'] ?? null,
             creatorInfo: $creatorInfo,
+            userRole: ($agentOperations[$agent->getCode()] ?? null)?->toAlias(),
         );
     }
 

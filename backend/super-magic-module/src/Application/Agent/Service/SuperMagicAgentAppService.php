@@ -389,6 +389,7 @@ class SuperMagicAgentAppService extends AbstractSuperMagicAppService
      *     agents: array<int, SuperMagicAgentEntity>,
      *     playbooks_map: array<string, array<int, AgentPlaybookEntity>>,
      *     agent_market_map: array<string, AgentMarketEntity>,
+     *     agent_operations: array<string, Operation>,
      *     latest_versions_map: array<string, AgentVersionEntity>,
      *     publisher_user_map: array<string, MagicUserEntity>,
      *     total: int
@@ -402,13 +403,14 @@ class SuperMagicAgentAppService extends AbstractSuperMagicAppService
         // 获取团队共享可用的 Agent 编码列表
         $teamSharedAgentResult = $this->getTeamSharedReadableAgentCodes($dataIsolation);
         $queryCodes = $teamSharedAgentResult['codes'];
-        $accessibleOperationCodes = $teamSharedAgentResult['operation_codes'];
+        $agentOperations = $teamSharedAgentResult['operations'];
 
         if ($queryCodes === []) {
             return [
                 'agents' => [],
                 'playbooks_map' => [],
                 'agent_market_map' => [],
+                'agent_operations' => [],
                 'latest_versions_map' => [],
                 'publisher_user_map' => [],
                 'total' => 0,
@@ -424,6 +426,7 @@ class SuperMagicAgentAppService extends AbstractSuperMagicAppService
                 'agents' => [],
                 'playbooks_map' => [],
                 'agent_market_map' => [],
+                'agent_operations' => [],
                 'latest_versions_map' => [],
                 'publisher_user_map' => [],
                 'total' => $agentQueriesResult['total'],
@@ -438,12 +441,12 @@ class SuperMagicAgentAppService extends AbstractSuperMagicAppService
         // 如果是发布内部市场共享的agent，则使用version
         foreach ($agents as $index => $agentEntity) {
             $agentCode = $agentEntity->getCode();
-            if (in_array($agentCode, $accessibleOperationCodes, true)) {
+            if (isset($agentOperations[$agentCode])) {
+                unset($agentVersionEntities[$agentCode]);
                 continue;
             }
             $agentVersionEntity = $agentVersionEntities[$agentCode] ?? null;
             if (! $agentVersionEntity) {
-                unset($agentVersionEntities[$agentCode]);
                 continue;
             }
             $agents[$index] = $this->buildExternalVisibleAgentsFromVersions($dataIsolation, [$agentCode => $agentVersionEntity])[0];
@@ -459,6 +462,7 @@ class SuperMagicAgentAppService extends AbstractSuperMagicAppService
             'agents' => $agents,
             'playbooks_map' => $playbooksMap,
             'agent_market_map' => $agentMarketMap,
+            'agent_operations' => $agentOperations,
             'latest_versions_map' => $agentVersionEntities,
             'publisher_user_map' => $publisherUserMap,
             'total' => $agentQueriesResult['total'],
