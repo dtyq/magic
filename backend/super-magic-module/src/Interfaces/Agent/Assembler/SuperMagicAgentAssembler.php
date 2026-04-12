@@ -311,12 +311,13 @@ class SuperMagicAgentAssembler
     ): QueryAgentsResponseDTO {
         $list = [];
         foreach ($agents as $agent) {
+            $agentCode = $agent->getCode();
             $list[] = self::createAgentListItemDTO(
-                $agent,
-                $playbooksMap,
-                $storeAgentsMap,
-                $latestVersionsMap,
-                $userAgentsMap
+                agent: $agent,
+                playbooks: $playbooksMap[$agentCode] ?? [],
+                storeAgent: $storeAgentsMap[$agentCode] ?? null,
+                latestVersionEntity: $latestVersionsMap[$agentCode] ?? null,
+                userAgent: $userAgentsMap[$agentCode] ?? null,
             );
         }
 
@@ -346,14 +347,17 @@ class SuperMagicAgentAssembler
     ): QueryAgentsResponseDTO {
         $list = [];
         foreach ($agents as $agent) {
+            $agentCode = $agent->getCode();
             $list[] = self::createAgentListItemDTO(
                 agent: $agent,
-                playbooksMap: $playbooksMap,
-                storeAgentsMap: $storeAgentsMap,
-                latestVersionsMap: $latestVersionsMap,
-                userAgentsMap: $userAgentsMap,
-                agentOperations: $agentOperations,
-                publisherUserMap: $publisherUserMap,
+                playbooks: $playbooksMap[$agentCode] ?? [],
+                storeAgent: $storeAgentsMap[$agentCode] ?? null,
+                latestVersionEntity: $latestVersionsMap[$agentCode] ?? null,
+                userAgent: $userAgentsMap[$agentCode] ?? null,
+                userOperation: $agentOperations[$agentCode] ?? null,
+                publisher: isset($storeAgentsMap[$agentCode])
+                    ? self::buildAgentPublisher($storeAgentsMap[$agentCode]->getPublisherType(), $agent->getCreator(), $publisherUserMap)
+                    : null,
                 creatorInfo: self::buildSimpleCreatorInfo($agent->getCreator(), $creatorUserMap)
             );
         }
@@ -441,24 +445,19 @@ class SuperMagicAgentAssembler
     }
 
     /**
-     * @param array<string, array<int, AgentPlaybookEntity>> $playbooksMap
-     * @param array<string, AgentMarketEntity> $storeAgentsMap
-     * @param array<string, AgentVersionEntity> $latestVersionsMap
-     * @param array<string, MagicUserEntity> $publisherUserMap
-     * @param array<string, UserAgentEntity> $userAgentsMap
-     * @param array<string, Operation> $agentOperations
+     * @param array<int, AgentPlaybookEntity> $playbooks
+     * @param null|array{type: string, info: array{name: string, avatar: string}} $publisher
      */
     private static function createAgentListItemDTO(
         SuperMagicAgentEntity $agent,
-        array $playbooksMap,
-        array $storeAgentsMap,
-        array $latestVersionsMap,
-        array $userAgentsMap = [],
-        array $agentOperations = [],
-        array $publisherUserMap = [],
+        array $playbooks = [],
+        ?AgentMarketEntity $storeAgent = null,
+        ?AgentVersionEntity $latestVersionEntity = null,
+        ?UserAgentEntity $userAgent = null,
+        ?Operation $userOperation = null,
+        ?array $publisher = null,
         ?array $creatorInfo = null
     ): AgentListItemDTO {
-        $playbooks = $playbooksMap[$agent->getCode()] ?? [];
         $features = [];
         foreach ($playbooks as $playbook) {
             $features[] = [
@@ -468,20 +467,12 @@ class SuperMagicAgentAssembler
             ];
         }
 
-        $versionEntity = $latestVersionsMap[$agent->getCode()] ?? null;
-        $userAgent = $userAgentsMap[$agent->getCode()] ?? null;
-        $agentMarketEntity = $storeAgentsMap[$agent->getCode()] ?? null;
-
-        $latestVersionCode = $versionEntity?->getVersion();
+        $latestVersionCode = $latestVersionEntity?->getVersion();
         $isAdded = $userAgent !== null;
 
         $allowDelete = false;
         if ($userAgent && $userAgent->getSourceType()->isMarket()) {
             $allowDelete = $isAdded;
-        }
-
-        if ($agentMarketEntity) {
-            $publisher = self::buildAgentPublisher($agentMarketEntity->getPublisherType(), $agent->getCreator(), $publisherUserMap);
         }
 
         return new AgentListItemDTO(
@@ -505,7 +496,7 @@ class SuperMagicAgentAssembler
             publisherType: $publisher['type'] ?? null,
             publisher: $publisher['info'] ?? null,
             creatorInfo: $creatorInfo,
-            userRole: ($agentOperations[$agent->getCode()] ?? null)?->toAlias(),
+            userRole: $userOperation?->toAlias(),
         );
     }
 

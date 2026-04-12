@@ -150,12 +150,12 @@ class SkillApi extends AbstractApi
         $result = $this->userSkillAppService->queries($requestContext, $query, $page);
 
         return SkillAssembler::createListResponseDTO(
-            $result['list'],
-            $page->getPage(),
-            $page->getPageNum(),
-            $result['total'],
-            $result['creatorUserMap'] ?? [],
-            $result['latestVersionMap'] ?? []
+            skillEntities: $result['list'],
+            page: $page->getPage(),
+            pageSize: $page->getPageNum(),
+            total: $result['total'],
+            creatorUserMap: $result['creator_user_map'] ?? [],
+            latestVersionMap: $result['latest_version_map'] ?? []
         );
     }
 
@@ -173,12 +173,12 @@ class SkillApi extends AbstractApi
         $result = $this->userSkillAppService->queriesCreated($requestContext, $query, $page);
 
         return SkillAssembler::createListResponseDTO(
-            $result['list'],
-            $page->getPage(),
-            $page->getPageNum(),
-            $result['total'],
-            $result['creatorUserMap'] ?? [],
-            $result['latestVersionMap'] ?? []
+            skillEntities: $result['list'],
+            page: $page->getPage(),
+            pageSize: $page->getPageNum(),
+            total: $result['total'],
+            creatorUserMap: $result['creator_user_map'] ?? [],
+            latestVersionMap: $result['latest_version_map'] ?? []
         );
     }
 
@@ -196,13 +196,13 @@ class SkillApi extends AbstractApi
         $result = $this->userSkillAppService->queriesTeamShared($requestContext, $query, $page);
 
         return SkillAssembler::createListResponseDTO(
-            $result['list'],
-            $page->getPage(),
-            $page->getPageNum(),
-            $result['total'],
-            $result['creatorUserMap'] ?? [],
-            $result['latestVersionMap'] ?? [],
-            $result['skillOperations'] ?? []
+            skillEntities: $result['list'],
+            page: $page->getPage(),
+            pageSize: $page->getPageNum(),
+            total: $result['total'],
+            creatorUserMap: $result['creator_user_map'] ?? [],
+            latestVersionMap: $result['latest_version_map'] ?? [],
+            skillOperations: $result['skill_operations'] ?? []
         );
     }
 
@@ -220,15 +220,15 @@ class SkillApi extends AbstractApi
         $result = $this->userSkillAppService->queriesMarketInstalled($requestContext, $query, $page);
 
         return SkillAssembler::createListResponseDTOFromVersions(
-            $result['list'],
-            $page->getPage(),
-            $page->getPageNum(),
-            $result['total'],
-            SkillSourceType::MARKET->value,
-            $result['creatorUserMap'] ?? [],
-            $result['latestVersionMap'] ?? [],
-            $result['marketEntityMap'] ?? [],
-            $result['publisherUserMap'] ?? []
+            skillVersionEntities: $result['list'],
+            page: $page->getPage(),
+            pageSize: $page->getPageNum(),
+            total: $result['total'],
+            sourceType: SkillSourceType::MARKET->value,
+            creatorUserMap: $result['creator_user_map'] ?? [],
+            latestVersionMap: $result['latest_version_map'] ?? [],
+            marketEntityMap: $result['market_entity_map'] ?? [],
+            publisherUserMap: $result['publisher_user_map'] ?? []
         );
     }
 
@@ -341,12 +341,12 @@ class SkillApi extends AbstractApi
         $result = $this->userSkillAppService->queryVersions($requestContext, $code, $requestDTO);
 
         return SkillAssembler::createQuerySkillVersionsResponseDTO(
-            $result['list'],
-            $result['userMap'],
-            $result['page'],
-            $result['page_size'],
-            $result['total'],
-            $result['memberDepartmentMap'],
+            versions: $result['list'],
+            user_map: $result['userMap'],
+            page: $result['page'],
+            page_size: $result['page_size'],
+            total: $result['total'],
+            member_department_map: $result['memberDepartmentMap'],
         )->toArray();
     }
 

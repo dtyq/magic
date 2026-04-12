@@ -378,7 +378,12 @@ class SkillAppService extends AbstractSkillAppService
      * @param RequestContext $requestContext 请求上下文
      * @param SkillQuery $query 查询对象
      * @param Page $page 分页对象
-     * @return array{list: SkillEntity[], total: int} 技能列表结果
+     * @return array{
+     *     list: SkillEntity[],
+     *     total: int,
+     *     creator_user_map: array<string, mixed>,
+     *     latest_version_map: array<string, mixed>
+     * } 技能列表结果
      */
     public function queries(RequestContext $requestContext, SkillQuery $query, Page $page): array
     {
@@ -398,7 +403,12 @@ class SkillAppService extends AbstractSkillAppService
     /**
      * 查询我创建的技能列表.
      *
-     * @return array{list: SkillEntity[], total: int}
+     * @return array{
+     *     list: SkillEntity[],
+     *     total: int,
+     *     creator_user_map: array<string, mixed>,
+     *     latest_version_map: array<string, mixed>
+     * }
      */
     public function queriesCreated(RequestContext $requestContext, SkillQuery $query, Page $page): array
     {
@@ -417,15 +427,21 @@ class SkillAppService extends AbstractSkillAppService
         return [
             'list' => $result['list'],
             'total' => $result['total'],
-            'creatorUserMap' => $creatorUserMap,
-            'latestVersionMap' => $publishedVersionMap,
+            'creator_user_map' => $creatorUserMap,
+            'latest_version_map' => $publishedVersionMap,
         ];
     }
 
     /**
      * 查询团队共享的技能列表.
      *
-     * @return array{list: SkillEntity[], total: int}
+     * @return array{
+     *     list: SkillEntity[],
+     *     total: int,
+     *     creator_user_map: array<string, mixed>,
+     *     latest_version_map: array<string, mixed>,
+     *     skill_operations: array<string, mixed>
+     * }
      */
     public function queriesTeamShared(RequestContext $requestContext, SkillQuery $query, Page $page): array
     {
@@ -439,6 +455,9 @@ class SkillAppService extends AbstractSkillAppService
             return [
                 'list' => [],
                 'total' => 0,
+                'creator_user_map' => [],
+                'latest_version_map' => [],
+                'skill_operations' => [],
             ];
         }
 
@@ -453,6 +472,9 @@ class SkillAppService extends AbstractSkillAppService
             return [
                 'list' => [],
                 'total' => $result['total'],
+                'creator_user_map' => [],
+                'latest_version_map' => [],
+                'skill_operations' => [],
             ];
         }
 
@@ -483,16 +505,23 @@ class SkillAppService extends AbstractSkillAppService
         return [
             'list' => $sharedSkillEntities,
             'total' => $result['total'],
-            'creatorUserMap' => $creatorUserMap,
-            'latestVersionMap' => $publishedVersionMap,
-            'skillOperations' => $skillOperations,
+            'creator_user_map' => $creatorUserMap,
+            'latest_version_map' => $publishedVersionMap,
+            'skill_operations' => $skillOperations,
         ];
     }
 
     /**
      * 查询从市场安装的技能列表.
      *
-     * @return array{list: SkillVersionEntity[], total: int}
+     * @return array{
+     *     list: SkillVersionEntity[],
+     *     total: int,
+     *     creator_user_map: array<string, mixed>,
+     *     latest_version_map: array<string, mixed>,
+     *     market_entity_map: array<string, mixed>,
+     *     publisher_user_map: array<string, mixed>
+     * }
      */
     public function queriesMarketInstalled(RequestContext $requestContext, SkillQuery $query, Page $page): array
     {
@@ -505,6 +534,10 @@ class SkillAppService extends AbstractSkillAppService
             return [
                 'list' => [],
                 'total' => 0,
+                'creator_user_map' => [],
+                'latest_version_map' => [],
+                'market_entity_map' => [],
+                'publisher_user_map' => [],
             ];
         }
 
@@ -536,10 +569,10 @@ class SkillAppService extends AbstractSkillAppService
         return [
             'list' => $result['list'],
             'total' => $result['total'],
-            'creatorUserMap' => $creatorUserMap,
-            'latestVersionMap' => $latestVersionMap,
-            'marketEntityMap' => $marketEntityMap,
-            'publisherUserMap' => $publisherUserMap,
+            'creator_user_map' => $creatorUserMap,
+            'latest_version_map' => $latestVersionMap,
+            'market_entity_map' => $marketEntityMap,
+            'publisher_user_map' => $publisherUserMap,
         ];
     }
 
@@ -2046,7 +2079,12 @@ class SkillAppService extends AbstractSkillAppService
 
     /**
      * @param array{list: SkillEntity[], total: int} $result
-     * @return array{list: SkillEntity[], total: int}
+     * @return array{
+     *     list: SkillEntity[],
+     *     total: int,
+     *     creator_user_map: array<string, mixed>,
+     *     latest_version_map: array<string, mixed>
+     * }
      */
     private function buildSkillListResult(SkillDataIsolation $dataIsolation, array $result): array
     {
@@ -2066,8 +2104,8 @@ class SkillAppService extends AbstractSkillAppService
         return [
             'list' => $skillEntities,
             'total' => $result['total'],
-            'creatorUserMap' => $creatorUserMap,
-            'latestVersionMap' => $publishedVersionMap,
+            'creator_user_map' => $creatorUserMap,
+            'latest_version_map' => $publishedVersionMap,
         ];
     }
 

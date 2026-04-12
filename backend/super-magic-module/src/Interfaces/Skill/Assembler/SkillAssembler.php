@@ -208,9 +208,7 @@ class SkillAssembler
     /**
      * 创建技能列表响应 DTO.
      *
-     * @param SkillEntity[] $skillEntities 技能实体数组
      * @param int $page 当前页码
-     * @param int $pageSize 每页数量
      * @param int $total 总记录数
      * @return SkillListResponseDTO 技能列表响应 DTO
      */
@@ -241,9 +239,6 @@ class SkillAssembler
         );
     }
 
-    /**
-     * @param SkillVersionEntity[] $skillVersionEntities
-     */
     public static function createListResponseDTOFromVersions(
         array $skillVersionEntities,
         int $page,
@@ -342,24 +337,22 @@ class SkillAssembler
     }
 
     /**
-     * @param array<string, MagicUserEntity> $userMap key 为 userId，同时用于发布者和 MEMBER 类型成员名称展示
-     * @param array<string, MagicDepartmentEntity> $memberDepartmentMap key 为 departmentId，用于 MEMBER 类型的部门名称展示
      * @param SkillVersionEntity[] $versions
      */
     public static function createQuerySkillVersionsResponseDTO(
         array $versions,
-        array $userMap,
+        array $user_map,
         int $page,
-        int $pageSize,
+        int $page_size,
         int $total,
-        array $memberDepartmentMap = [],
+        array $member_department_map = [],
     ): QuerySkillVersionsResponseDTO {
         $list = [];
         foreach ($versions as $version) {
             $enrichedPublishTargetValue = self::buildEnrichedPublishTargetValue(
                 $version,
-                $userMap,
-                $memberDepartmentMap
+                $user_map,
+                $member_department_map
             );
 
             $list[] = new SkillVersionListItemDTO(
@@ -368,7 +361,7 @@ class SkillAssembler
                 publishStatus: $version->getPublishStatus()->value,
                 reviewStatus: $version->getReviewStatus()->value ?? '',
                 publishTargetType: $version->getPublishTargetType()->value,
-                publisher: OperatorAssembler::createOperatorDTOByUserEntity($userMap[$version->getPublisherUserId() ?? ''] ?? null, $version->getPublishedAt() ?? $version->getCreatedAt()),
+                publisher: OperatorAssembler::createOperatorDTOByUserEntity($user_map[$version->getPublisherUserId() ?? ''] ?? null, $version->getPublishedAt() ?? $version->getCreatedAt()),
                 publishedAt: $version->getPublishedAt(),
                 isCurrentVersion: $version->isCurrentVersion(),
                 versionDescriptionI18n: $version->getVersionDescriptionI18n(),
@@ -376,7 +369,7 @@ class SkillAssembler
             );
         }
 
-        return new QuerySkillVersionsResponseDTO($list, $page, $pageSize, $total);
+        return new QuerySkillVersionsResponseDTO($list, $page, $page_size, $total);
     }
 
     /**
