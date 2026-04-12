@@ -15,6 +15,7 @@ from pydantic import BaseModel, Field, ValidationError, field_validator
 from app.api.http_dto.response import BaseResponse, create_error_response, create_success_response
 from app.core.entity.aigc_metadata import AigcMetadataParams
 from app.service.convert_task_manager import TaskStatus, task_manager
+from app.service.file_convert.pack_convert_service import PackConvertService
 from app.service.file_convert.pdf_convert_service import PdfConvertService
 from app.service.file_convert.pptx_convert_service import PptxConvertService
 
@@ -47,7 +48,8 @@ class FileConvertRequest(BaseModel):
     output_format: Optional[str] = Field(
         default="auto", description="输出格式：auto(自动), zip(压缩包), single(单文件)"
     )
-    convert_type: Optional[str] = Field(default="pdf", description="转换类型：pdf, ppt, pptx")
+    convert_type: Optional[str] = Field(default="pdf", description="转换类型：pdf, ppt, pptx, pack")
+    output_name: Optional[str] = Field(default=None, description="输出文件名（pack 类型可选，支持不带 .zip）")
     task_key: Optional[str] = Field(
         default=None, description="任务标识符，用于跟踪转换状态和查询结果。如果不提供，系统会自动生成"
     )
@@ -82,13 +84,33 @@ class FileConvertRequest(BaseModel):
 
         raise ValueError("file_keys必须是字符串数组或对象数组")
 
+    @field_validator("output_name")
+    @classmethod
+    def validate_output_name(cls, v):
+        """校验 output_name 仅为文件名，不允许目录路径"""
+        if v is None:
+            return v
+
+        normalized = v.strip()
+        if not normalized:
+            raise ValueError("output_name不能为空")
+
+        if "/" in normalized or "\\" in normalized:
+            raise ValueError("output_name不能包含路径分隔符")
+
+        if normalized in {".", ".."}:
+            raise ValueError("output_name非法")
+
+        return normalized
+
     class Config:
         json_schema_extra = {
             "example": {
-                "file_keys": ["DT001/.../project_.../ai-funding-report/index.html"],
+                "file_keys": ["ai-report/index.html"],
                 "options": {},
                 "output_format": "zip",
-                "convert_type": "pptx",
+                "convert_type": "pack",
+                "output_name": "ai-report.zip",
                 "is_debug": False,
                 "task_key": "task_20240101_123456",
                 "sts_temporary_credential": {
@@ -131,6 +153,10 @@ async def convert_files(request_data: dict) -> BaseResponse:
       - 会将所有输入文件（HTML/Markdown）渲染为图片，并合并到一个PPTX文件中的不同幻灯片。
       - 如果检测到PPT入口文件，会自动处理slides数组中的所有HTML文件。
       - 结果将以ZIP包形式返回。
+    - **convert_type**: 'pack'
+      - 支持通过file_keys模式传入文件key列表。
+      - 将指定文件直接打包为ZIP，并保留相对workspace的目录结构。
+      - 可选参数 `output_name` 指定输出压缩包文件名（支持不带 `.zip`）。
 
     Args:
         request_data: 文件转换请求数据（字典格式）
@@ -383,6 +409,18 @@ async def _perform_conversion_async(request: FileConvertRequest, convert_type: s
 
             result = await pptx_service.convert_file_keys_to_pptx(
                 file_keys=file_keys_dict, task_key=task_key, sts_credential=sts_credential_dict, aigc_params=aigc_params
+            )
+        elif convert_type == "pack":
+            pack_service = PackConvertService()
+
+            # **【新增】重置 agent idle 时间 - 任务启动时**
+            pack_service.update_agent_activity("PACK打包任务启动")
+
+            result = await pack_service.convert_file_keys_to_zip(
+                file_keys=file_keys_dict,
+                task_key=task_key,
+                sts_credential=sts_credential_dict,
+                output_name=request.output_name,
             )
         else:
             error_msg = f"不支持的转换类型: {request.convert_type}"

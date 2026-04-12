@@ -119,8 +119,15 @@ class FileBatchAppService extends AbstractAppService
 
         $targetName = sprintf('%s_%s.zip', $projectEntity->getProjectName(), date('YmdHi'));
         $organizationCode = $projectEntity->getUserOrganizationCode();
+        $sandboxId = $this->generateBatchPackSandboxId($projectEntity->getId());
 
-        $this->statusManager->initializeTask($batchKey, $userId, count($leafFiles), $organizationCode);
+        $this->statusManager->initializeTask($batchKey, $userId, count($leafFiles), $organizationCode, [
+            'sandbox_id' => $sandboxId,
+            'project_id' => (string) $projectEntity->getId(),
+            'task_key' => $batchKey,
+            'zip_bucket_type' => StorageBucketType::Private->value,
+            'target_name' => $targetName,
+        ]);
 
         $this->prepareAndSubmitSandboxPackTask(
             $batchKey,
@@ -128,7 +135,8 @@ class FileBatchAppService extends AbstractAppService
             $organizationCode,
             $projectEntity,
             $packManifest,
-            $targetName
+            $targetName,
+            $sandboxId
         );
 
         return new CreateBatchDownloadResponseDTO(
@@ -240,8 +248,15 @@ class FileBatchAppService extends AbstractAppService
 
         $targetName = sprintf('%s_%s.zip', $projectEntity->getProjectName(), date('YmdHi'));
         $organizationCode = $projectEntity->getUserOrganizationCode();
+        $sandboxId = $this->generateBatchPackSandboxId($projectEntity->getId());
 
-        $this->statusManager->initializeTask($batchKey, $userId, count($leafFiles), $organizationCode);
+        $this->statusManager->initializeTask($batchKey, $userId, count($leafFiles), $organizationCode, [
+            'sandbox_id' => $sandboxId,
+            'project_id' => (string) $projectEntity->getId(),
+            'task_key' => $batchKey,
+            'zip_bucket_type' => StorageBucketType::Private->value,
+            'target_name' => $targetName,
+        ]);
 
         $this->prepareAndSubmitSandboxPackTask(
             $batchKey,
@@ -249,7 +264,8 @@ class FileBatchAppService extends AbstractAppService
             $organizationCode,
             $projectEntity,
             $packManifest,
-            $targetName
+            $targetName,
+            $sandboxId
         );
 
         return new CreateBatchDownloadResponseDTO(
@@ -294,66 +310,24 @@ class FileBatchAppService extends AbstractAppService
             );
         }
 
-        // Use organization code from Redis instead of current user authorization.
-        $organizationCode = $taskStatus['organization_code'] ?? $userAuthorization->getOrganizationCode();
         $status = $taskStatus['status'] ?? 'processing';
 
-        if ($status === 'processing') {
-            $this->syncTaskStatusFromSandbox($batchKey, $taskStatus, (string) $organizationCode);
-            $taskStatus = $this->statusManager->getTaskStatus($batchKey) ?? $taskStatus;
-            $status = $taskStatus['status'] ?? 'processing';
+        if ($status === 'ready' || $status === 'failed') {
+            return $this->buildBatchDownloadResponse($taskStatus, $userAuthorization->getOrganizationCode());
         }
 
-        $progress = $taskStatus['progress'] ?? [];
-        $result = $taskStatus['result'] ?? [];
-        $error = $taskStatus['error'] ?? '';
+        $organizationCode = (string) ($taskStatus['organization_code'] ?? $userAuthorization->getOrganizationCode());
+        $this->syncTaskStatusFromSandbox($batchKey, $taskStatus, $organizationCode);
+        $taskStatus = $this->statusManager->getTaskStatus($batchKey) ?? $taskStatus;
 
         $this->logger->info('Check batch download status', [
             'batch_key' => $batchKey,
-            'status' => $status,
+            'status' => $taskStatus['status'] ?? 'processing',
             'organization_code' => $organizationCode,
             'user_id' => $userId,
         ]);
 
-        switch ($status) {
-            case 'ready':
-                $downloadUrl = (string) ($result['download_url'] ?? '');
-                if ($downloadUrl === '') {
-                    $fileKey = (string) ($result['zip_file_key'] ?? '');
-                    if ($fileKey !== '') {
-                        $bucketType = StorageBucketType::tryFrom((string) ($result['zip_bucket_type'] ?? StorageBucketType::Private->value))
-                            ?? StorageBucketType::Private;
-                        $downloadUrl = $this->generateDownloadUrl($fileKey, (string) $organizationCode, $bucketType);
-                    }
-                }
-
-                return new CheckBatchDownloadResponseDTO(
-                    'ready',
-                    $downloadUrl,
-                    100,
-                    'Files are ready'
-                );
-
-            case 'failed':
-                return new CheckBatchDownloadResponseDTO(
-                    'failed',
-                    null,
-                    null,
-                    $error ?: 'Task failed'
-                );
-
-            case 'processing':
-            default:
-                $progressValue = (int) ($progress['percentage'] ?? 0);
-                $progressMessage = (string) ($progress['message'] ?? 'Processing...');
-
-                return new CheckBatchDownloadResponseDTO(
-                    'processing',
-                    null,
-                    $progressValue,
-                    $progressMessage
-                );
-        }
+        return $this->buildBatchDownloadResponse($taskStatus, $organizationCode);
     }
 
     /**
@@ -447,7 +421,8 @@ class FileBatchAppService extends AbstractAppService
         string $organizationCode,
         ProjectEntity $projectEntity,
         array $packManifest,
-        string $targetName
+        string $targetName,
+        string $sandboxId
     ): void {
         if (! $this->statusManager->acquireLock($batchKey)) {
             return;
@@ -463,7 +438,6 @@ class FileBatchAppService extends AbstractAppService
 
             $fullBaseWorkDir = WorkDirectoryUtil::getFullWorkdir($fullPrefix, $packManifest['base_path']);
 
-            $sandboxId = $this->generateBatchPackSandboxId($projectEntity->getId());
             $rootFileId = '';
             try {
                 $rootFileId = (string) $this->taskFileDomainService->getProjectRootFileId($projectEntity->getId());
@@ -514,21 +488,6 @@ class FileBatchAppService extends AbstractAppService
                 );
             }
 
-            $metadataSaved = $this->statusManager->setTaskMetadata($batchKey, [
-                'sandbox_id' => $sandboxId,
-                'project_id' => (string) $projectEntity->getId(),
-                'task_key' => $batchKey,
-                'target_name' => $targetName,
-                'zip_bucket_type' => StorageBucketType::Private->value,
-            ]);
-
-            if (! $metadataSaved) {
-                ExceptionBuilder::throw(
-                    SuperAgentErrorCode::BATCH_PUBLISH_FAILED,
-                    'sandbox_pack_metadata_save_failed'
-                );
-            }
-
             $this->logger->info('Batch pack task submitted to sandbox', [
                 'batch_key' => $batchKey,
                 'sandbox_id' => $sandboxId,
@@ -551,23 +510,27 @@ class FileBatchAppService extends AbstractAppService
     {
         $sandboxId = (string) ($taskStatus['sandbox_id'] ?? '');
         $projectId = (string) ($taskStatus['project_id'] ?? '');
+        $taskKey = (string) ($taskStatus['task_key'] ?? '');
 
-        if ($sandboxId === '' || $projectId === '') {
-            $this->logger->warning('Skip sandbox status sync due to missing metadata', [
+        if ($sandboxId === '' || $projectId === '' || $taskKey === '') {
+            $this->statusManager->setTaskFailed($batchKey, 'Batch task context is incomplete');
+            $this->logger->warning('Batch task context is incomplete for sandbox sync', [
                 'batch_key' => $batchKey,
                 'sandbox_id' => $sandboxId,
                 'project_id' => $projectId,
+                'task_key' => $taskKey,
             ]);
             return;
         }
 
         try {
-            $response = $this->batchDownloadPackDomainService->queryPackTask($sandboxId, $projectId, $batchKey);
+            $response = $this->batchDownloadPackDomainService->queryPackTask($sandboxId, $projectId, $taskKey);
         } catch (Throwable $e) {
             $this->logger->error('Query sandbox pack status failed', [
                 'batch_key' => $batchKey,
                 'sandbox_id' => $sandboxId,
                 'project_id' => $projectId,
+                'task_key' => $taskKey,
                 'error' => $e->getMessage(),
             ]);
             return;
@@ -578,6 +541,7 @@ class FileBatchAppService extends AbstractAppService
                 'batch_key' => $batchKey,
                 'sandbox_id' => $sandboxId,
                 'project_id' => $projectId,
+                'task_key' => $taskKey,
                 'code' => $response->getCode(),
                 'message' => $response->getMessage(),
             ]);
@@ -647,6 +611,53 @@ class FileBatchAppService extends AbstractAppService
                 $batchKey,
                 $bucketType
             );
+        }
+    }
+
+    private function buildBatchDownloadResponse(
+        array $taskStatus,
+        string $organizationCode
+    ): CheckBatchDownloadResponseDTO {
+        $status = (string) ($taskStatus['status'] ?? 'processing');
+        $progress = $taskStatus['progress'] ?? [];
+        $result = $taskStatus['result'] ?? [];
+        $error = (string) ($taskStatus['error'] ?? '');
+
+        switch ($status) {
+            case 'ready':
+                $downloadUrl = (string) ($result['download_url'] ?? '');
+                if ($downloadUrl === '') {
+                    $fileKey = (string) ($result['zip_file_key'] ?? '');
+                    if ($fileKey !== '') {
+                        $bucketType = StorageBucketType::tryFrom((string) ($result['zip_bucket_type'] ?? StorageBucketType::Private->value))
+                            ?? StorageBucketType::Private;
+                        $downloadUrl = $this->generateDownloadUrl($fileKey, $organizationCode, $bucketType);
+                    }
+                }
+
+                return new CheckBatchDownloadResponseDTO(
+                    'ready',
+                    $downloadUrl,
+                    100,
+                    'Files are ready'
+                );
+
+            case 'failed':
+                return new CheckBatchDownloadResponseDTO(
+                    'failed',
+                    null,
+                    null,
+                    $error !== '' ? $error : 'Task failed'
+                );
+
+            case 'processing':
+            default:
+                return new CheckBatchDownloadResponseDTO(
+                    'processing',
+                    null,
+                    (int) ($progress['percentage'] ?? 0),
+                    (string) ($progress['message'] ?? 'Processing...')
+                );
         }
     }
 

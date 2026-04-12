@@ -41,8 +41,13 @@ class FileBatchStatusManager
      * @param string $organizationCode Organization code
      * @return bool True if successful, false otherwise
      */
-    public function initializeTask(string $batchKey, string $userId, int $totalFiles, string $organizationCode = ''): bool
-    {
+    public function initializeTask(
+        string $batchKey,
+        string $userId,
+        int $totalFiles,
+        string $organizationCode = '',
+        array $context = []
+    ): bool {
         try {
             $taskKey = FileBatchConstant::getTaskKey($batchKey);
 
@@ -58,6 +63,11 @@ class FileBatchStatusManager
                 ],
                 'result' => null,
                 'error' => null,
+                'sandbox_id' => (string) ($context['sandbox_id'] ?? ''),
+                'project_id' => (string) ($context['project_id'] ?? ''),
+                'task_key' => (string) ($context['task_key'] ?? $batchKey),
+                'zip_bucket_type' => (string) ($context['zip_bucket_type'] ?? ''),
+                'target_name' => (string) ($context['target_name'] ?? ''),
                 'created_at' => time(),
                 'updated_at' => time(),
             ];
@@ -270,70 +280,6 @@ class FileBatchStatusManager
                 'redis_error' => $e->getMessage(),
             ]);
             return false;
-        }
-    }
-
-    /**
-     * Store arbitrary metadata associated with a batch task.
-     *
-     * @param string $batchKey Batch key
-     * @param array $metadata Metadata to store
-     * @return bool True if successful, false otherwise
-     */
-    public function setTaskMetadata(string $batchKey, array $metadata): bool
-    {
-        try {
-            $metaKey = FileBatchConstant::getTaskKey($batchKey) . ':meta';
-            $success = $this->redis->setex(
-                $metaKey,
-                FileBatchConstant::TTL_TASK_STATUS,
-                json_encode($metadata, JSON_UNESCAPED_UNICODE)
-            );
-
-            if ($success) {
-                $this->logger->debug('Task metadata stored', [
-                    'batch_key' => $batchKey,
-                ]);
-            }
-
-            return (bool) $success;
-        } catch (Throwable $e) {
-            $this->logger->error('Failed to store task metadata', [
-                'batch_key' => $batchKey,
-                'error' => $e->getMessage(),
-            ]);
-            return false;
-        }
-    }
-
-    /**
-     * Retrieve metadata associated with a batch task.
-     *
-     * @param string $batchKey Batch key
-     * @return null|array Metadata array or null if not found
-     */
-    public function getTaskMetadata(string $batchKey): ?array
-    {
-        try {
-            $metaKey = FileBatchConstant::getTaskKey($batchKey) . ':meta';
-            $data = $this->redis->get($metaKey);
-
-            if (! $data) {
-                return null;
-            }
-
-            $decoded = json_decode($data, true);
-            if (json_last_error() !== JSON_ERROR_NONE) {
-                return null;
-            }
-
-            return $decoded;
-        } catch (Throwable $e) {
-            $this->logger->error('Failed to get task metadata', [
-                'batch_key' => $batchKey,
-                'error' => $e->getMessage(),
-            ]);
-            return null;
         }
     }
 
