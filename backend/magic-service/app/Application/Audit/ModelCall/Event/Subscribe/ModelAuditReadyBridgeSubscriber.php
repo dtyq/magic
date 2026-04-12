@@ -21,6 +21,7 @@ use App\Domain\ModelGateway\Event\ImageGenerateFailedEvent;
 use App\Domain\ModelGateway\Event\VideoGeneratedEvent;
 use App\Domain\ModelGateway\Event\VideoGenerateFailedEvent;
 use App\Domain\ModelGateway\Service\AccessTokenDomainService;
+use App\Infrastructure\Util\IdGenerator\IdGenerator;
 use App\Infrastructure\Util\StringMaskUtil;
 use Dtyq\AsyncEvent\AsyncEventUtil;
 use Dtyq\AsyncEvent\Kernel\Annotation\AsyncListener;
@@ -30,6 +31,7 @@ use Hyperf\Odin\Api\Response\Usage;
 use Hyperf\Odin\Event\AfterChatCompletionsEvent;
 use Hyperf\Odin\Event\AfterChatCompletionsStreamEvent;
 use Hyperf\Odin\Event\AfterEmbeddingsEvent;
+use Psr\Log\LoggerInterface;
 
 /**
  * 统一审计管道 Bridge：监听所有业务事件和 Odin 后置事件，
@@ -42,6 +44,7 @@ class ModelAuditReadyBridgeSubscriber implements ListenerInterface
 {
     public function __construct(
         private readonly AccessTokenDomainService $accessTokenDomainService,
+        private readonly LoggerInterface $logger,
     ) {
     }
 
@@ -526,7 +529,27 @@ class ModelAuditReadyBridgeSubscriber implements ListenerInterface
      */
     private function resolveModelAuditEventId(array $businessParams): string
     {
-        return trim((string) ($businessParams['event_id'] ?? ''));
+        $eventId = trim((string) ($businessParams['event_id'] ?? ''));
+        if ($eventId !== '') {
+            return $eventId;
+        }
+
+        $eventId = (string) IdGenerator::getSnowId();
+
+        $this->logger->warning('ModelAuditEventIdMissingFallback', [
+            'generated_event_id' => $eventId,
+            'request_id' => trim((string) ($businessParams['request_id'] ?? '')),
+            'audit_source_marker' => (string) ($businessParams['audit_source_marker'] ?? ''),
+            'model_id' => (string) ($businessParams['model_id'] ?? ''),
+            'service_provider_model_id' => (string) ($businessParams['service_provider_model_id'] ?? ''),
+            'provider_model_id' => (string) ($businessParams['provider_model_id'] ?? ''),
+            'app_id' => (string) ($businessParams['app_id'] ?? ''),
+            'source_id' => (string) ($businessParams['source_id'] ?? ''),
+            'organization_id' => (string) ($businessParams['organization_id'] ?? ''),
+            'user_id' => (string) ($businessParams['user_id'] ?? ''),
+        ]);
+
+        return $eventId;
     }
 
     /**
