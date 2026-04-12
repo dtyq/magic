@@ -52,9 +52,11 @@ llm:
   # 自定义API请求头配置 - 所有请求头都从环境变量读取
   custom_api_headers: ${LLM_CUSTOM_API_HEADERS:-None}
   # 两阶梯重试策略
-  # 第一阶梯：流式快速失败检测
-  stream_first_chunk_timeout_seconds: 60   # 首包超时
-  stream_chunk_timeout_seconds: 60         # chunk 间隔超时
+  # 第一阶梯：流式
+  # > 设 600s 等同于禁用 per-chunk 超时检测，由总超时兜底
+  # > 原因：Claude/AWS 渠道流式卡顿后仍可恢复，缩短此值会误杀正常请求 2026-04-12
+  stream_first_chunk_timeout_seconds: 600  # 首包超时
+  stream_chunk_timeout_seconds: 600        # chunk 间隔超时
   # 第二阶梯：非流式退避重试
   non_stream_timeout_seconds: 600          # 非流式请求超时
   backoff_max_retries: 5                   # 最大退避重试次数
