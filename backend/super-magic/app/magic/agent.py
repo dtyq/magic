@@ -1503,6 +1503,19 @@ class Agent(BaseAgent):
     # 供应商限流/过载的状态码
     _PROVIDER_RATE_LIMIT_STATUS_CODES = {429, 529}
 
+    # 确定性错误状态码：这些错误与请求内容或配置相关，换非流式/等待/重试都不会改变结果，
+    # 唯一的出路是修复配置或聊天记录，继续重试只是浪费预算和用户时间。
+    #
+    # 各状态码含义：
+    #   400 = 请求格式/消息序列错误（如 assistant 后面少了 tool_result）
+    #         ⚠️ 特例：上下文超长也是 400，但已被 _find_context_window_error 在此之前拦截并
+    #         走 compact 路径，所以走到这里的 400 必然是不可恢复的消息序列/格式问题。
+    #   401 = 未授权（API Key 无效）
+    #   403 = 禁止访问（权限不足）
+    #   404 = 模型不存在（模型 ID 配置错误，或该账号无访问权限）
+    #   405 = 方法不允许
+    _NON_RETRYABLE_STATUS_CODES = {400, 401, 403, 404, 405}
+
     # 兼容各家不同的 finish_reason 值（"输出被截断"）
     _OUTPUT_TRUNCATED_FINISH_REASONS = {"length", "max_tokens"}
 
@@ -1586,6 +1599,16 @@ class Agent(BaseAgent):
             except Exception as e:
                 if self._find_context_window_error(e):
                     raise  # 上下文超长走 compact 路径
+                # 确定性错误：不降级非流式，也不重试。
+                # 这类错误换成非流式请求同样会失败（模型不存在、API Key 无效、消息序列损坏等），
+                # 必须先检查此条件再走降级分支，否则会白白浪费一轮非流式请求。
+                # 注意：上下文超长（同样是 400）已在前面被 _find_context_window_error 拦截并 raise，
+                # 走到这里的 400 一定是消息序列/格式问题，无法通过重试自愈。
+                if isinstance(e, APIStatusError) and e.status_code in self._NON_RETRYABLE_STATUS_CODES:
+                    logger.warning(
+                        f"流式请求遇到确定性错误 HTTP {e.status_code}，不降级不重试，直接抛出: {e}"
+                    )
+                    raise
                 if isinstance(e, APIStatusError) and e.status_code in self._PROVIDER_RATE_LIMIT_STATUS_CODES:
                     # 供应商限流/过载，等待后降级到非流式。
                     # 不计入 backoff_retry_count — 流式阶段的 429 等待仅用于降级过渡，
@@ -1627,6 +1650,12 @@ class Agent(BaseAgent):
                             # compact 后 messages 已变，重置退避计数
                             loop_state.retry_state.backoff_retry_count = 0
                             continue
+                    raise
+
+                # 确定性错误：重试必然失败，直接抛出由上层走终态逻辑。
+                # 400 消息序列损坏时，每次重试还会额外注入 recovery user 消息，
+                # 反而让序列更乱，形成死亡螺旋，必须在退避重试逻辑之前先拦截。
+                if isinstance(e, APIStatusError) and e.status_code in self._NON_RETRYABLE_STATUS_CODES:
                     raise
 
                 # 供应商 429/529：等待后重试，不注入恢复提示词，纳入重试计数
