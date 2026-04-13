@@ -319,7 +319,7 @@ class AskUserService:
         }
         try:
             pending_file = PathManager.get_ask_user_pending_file(pending.agent_name, pending.agent_id)
-            await async_write_json(pending_file, data)
+            await async_write_json(pending_file, data, ensure_ascii=False)
             logger.info(
                 f"Persisted ask_user pending: question_id={pending.question_id}, "
                 f"file={pending_file.name}"
