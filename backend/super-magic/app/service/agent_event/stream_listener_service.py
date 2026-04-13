@@ -250,6 +250,13 @@ class StreamListenerService:
         agent_context = event.data.tool_context.get_extension_typed("agent_context", AgentContext)
         task_message = agent_context.get_message_factory().create_after_agent_reply_message(event)
 
+        # v2 工厂在有 tool_calls 时返回 None（暂存到 pending_reply_state 等 before_tool_call 消费）
+        if task_message is None:
+            status_str = "成功" if event.data.success else "失败"
+            logger.info(f"完成大模型响应: {event.data.model_name}, 状态: {status_str}, "
+                       f"耗时: {event.data.execution_time:.2f}ms, correlation_id: {event.data.correlation_id}")
+            return
+
         await StreamListenerService._send_task_message(event.data.tool_context, task_message, event)
 
         status_str = "成功" if event.data.success else "失败"

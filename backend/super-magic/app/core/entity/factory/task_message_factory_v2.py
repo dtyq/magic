@@ -64,10 +64,16 @@ class TaskMessageFactoryV2(TaskMessageFactoryProtocol):
 
     @classmethod
     def _get_topic_id(cls, agent_context: AgentContext) -> str:
-        """从 agent_context 获取 topic_id"""
+        """从 agent_context 获取 topic_id，兼容生产路径（metadata.topic_id）和本地调试路径（无 topic_id）"""
         chat_msg = agent_context.get_chat_client_message()
-        if chat_msg:
-            return chat_msg.topic_id or ""
+        if chat_msg is None:
+            return ""
+        # 生产路径：topic_id 挂在 metadata 下
+        metadata = getattr(chat_msg, "metadata", None)
+        if metadata is not None:
+            topic_id = getattr(metadata, "topic_id", None)
+            if topic_id:
+                return topic_id
         return ""
 
     @classmethod

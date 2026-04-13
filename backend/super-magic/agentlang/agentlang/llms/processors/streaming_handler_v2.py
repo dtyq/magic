@@ -573,6 +573,8 @@ class StreamResponseHandlerV2(StreamResponseHandlerBase):
                 use_stream_mode=True,
                 success=True,
                 content_type="content",
+                # V2 不触发 BEFORE_AGENT_REPLY，手动设置 correlation_id 以跳过
+                correlation_id=request_id,
             )
 
             event = Event(EventType.AFTER_AGENT_REPLY, event_data)
