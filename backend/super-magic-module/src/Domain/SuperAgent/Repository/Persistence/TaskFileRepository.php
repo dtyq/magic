@@ -1464,4 +1464,22 @@ class TaskFileRepository implements TaskFileRepositoryInterface
 
         return new TaskFileEntity($model->toArray());
     }
+
+    /**
+     * Batch update is_hidden field for given file IDs.
+     */
+    public function batchUpdateIsHidden(array $fileIds, bool $isHidden): int
+    {
+        if (empty($fileIds)) {
+            return 0;
+        }
+
+        return $this->model::query()
+            ->whereIn('file_id', $fileIds)
+            ->whereNull('deleted_at')
+            ->update([
+                'is_hidden' => $isHidden,
+                'updated_at' => date('Y-m-d H:i:s'),
+            ]);
+    }
 }

@@ -441,4 +441,13 @@ interface TaskFileRepositoryInterface
      * @return null|TaskFileEntity Root directory entity or null if not found
      */
     public function findRootDirectoryByProjectId(int $projectId): ?TaskFileEntity;
+
+    /**
+     * Batch update is_hidden field for given file IDs.
+     *
+     * @param int[] $fileIds File IDs to update
+     * @param bool $isHidden New hidden status
+     * @return int Number of affected rows
+     */
+    public function batchUpdateIsHidden(array $fileIds, bool $isHidden): int;
 }

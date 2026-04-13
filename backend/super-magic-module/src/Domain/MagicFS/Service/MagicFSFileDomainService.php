@@ -296,6 +296,9 @@ class MagicFSFileDomainService
         $metadataJson = json_encode(['mode' => $mode]);
         $entity->setMetadata($metadataJson);
 
+        // 10.1. 设置 is_hidden（根据文件名和父目录判断）
+        $entity->setIsHidden($this->determineIsHidden($name, $parentIdInt, $projectId));
+
         // 11. 设置时间戳
         $now = date('Y-m-d H:i:s');
         $entity->setCreatedAt($now);
@@ -342,6 +345,35 @@ class MagicFSFileDomainService
 
         // Event dispatching is handled by the application layer after this method returns.
         return $entity;
+    }
+
+    /**
+     * Determine if a file should be hidden based on its relative path from project root.
+     * Builds relative path by querying parent chain in one query, then checks each segment
+     * against known hidden directory names.
+     */
+    public function determineIsHidden(string $fileName, ?int $parentId, int $projectId = 0): bool
+    {
+        // Quick check: if file name itself is a hidden directory
+        if (WorkFileUtil::isHiddenFileName($fileName)) {
+            return true;
+        }
+
+        if ($parentId === null || $parentId <= 0) {
+            return false;
+        }
+
+        // Get all ancestor entities in one query
+        $ancestorEntities = $this->taskFileRepository->getFilesWithParentsByIds([$parentId], $projectId);
+
+        // Check if any ancestor's name matches hidden directory
+        foreach ($ancestorEntities as $ancestor) {
+            if (WorkFileUtil::isHiddenFileName($ancestor->getFileName())) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     /**
@@ -471,7 +503,7 @@ class MagicFSFileDomainService
                 $fileEntity->setStorageType($dto->getStorageTypeOverride());
             }
 
-            $fileEntity->setIsHidden(WorkFileUtil::isHiddenFile($fileKey));
+            $fileEntity->setIsHidden($this->determineIsHidden($fileName, $parentId, $dto->getProjectId()));
             $fileEntity->setIsDirectory($taskFileEntity->getIsDirectory());
             $fileEntity->setSort(! empty($taskFileEntity->getSort()) ? $taskFileEntity->getSort() : 0);
             $fileEntity->setParentId($parentId);
@@ -680,6 +712,21 @@ class MagicFSFileDomainService
         // 5. 更新 updated_at
         $file->setUpdatedAt(date('Y-m-d H:i:s'));
 
+        // 5.1. Recalculate is_hidden when file_name or parent_id changed
+        $nameChanged = isset($updateData['file_name']);
+        $hiddenChanged = false;
+        if ($nameChanged || $parentChanged) {
+            $newIsHidden = $this->determineIsHidden(
+                $file->getFileName(),
+                $file->getParentId(),
+                $file->getProjectId()
+            );
+            if ($newIsHidden !== $file->getIsHidden()) {
+                $file->setIsHidden($newIsHidden);
+                $hiddenChanged = true;
+            }
+        }
+
         // 6. 执行更新
         $updatedFile = $this->taskFileRepository->updateById($file);
 
@@ -705,6 +752,22 @@ class MagicFSFileDomainService
         } else {
             // 普通更新：更新当前节点到根的版本链
             $this->incrementVersionChain($fileId);
+        }
+
+        // 8. If is_hidden changed and the node is a directory, batch update all descendants
+        if ($hiddenChanged && $file->getIsDirectory()) {
+            $descendantIds = $this->fileTreeIndexRepository->getDescendantIds(
+                (int) $fileId,
+                $file->getOrganizationCode(),
+                null,
+                false
+            );
+            if (! empty($descendantIds)) {
+                $this->taskFileRepository->batchUpdateIsHidden(
+                    array_map('intval', $descendantIds),
+                    $file->getIsHidden()
+                );
+            }
         }
 
         return $updatedFile;
@@ -1195,6 +1258,7 @@ class MagicFSFileDomainService
         $newFileEntity->setFileSize($sourceFile->getFileSize());
         $newFileEntity->setIsDirectory(false);
         $newFileEntity->setParentId($targetParentIdInt);
+        $newFileEntity->setIsHidden($this->determineIsHidden($targetFileName, $targetParentIdInt, $targetProjectId));
         $newFileEntity->setStorageType($sourceFile->getStorageType());
         $newFileEntity->setSource(TaskFileSource::COPY);
         $newFileEntity->setLatestVersion(1);
