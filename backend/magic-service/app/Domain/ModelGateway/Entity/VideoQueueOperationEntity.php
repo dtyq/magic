@@ -229,6 +229,11 @@ class VideoQueueOperationEntity
         return $this->videoId;
     }
 
+    public function setVideoId(?string $videoId): void
+    {
+        $this->videoId = $videoId;
+    }
+
     public function getFileDir(): ?string
     {
         return $this->fileDir;

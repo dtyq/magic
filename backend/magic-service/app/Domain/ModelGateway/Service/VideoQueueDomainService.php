@@ -157,6 +157,7 @@ readonly class VideoQueueDomainService
             topicId: $requestDTO->getTopicId(),
             taskId: $requestDTO->getTaskId(),
             sourceId: $requestDTO->getSourceId(),
+            videoId: $requestDTO->getVideoId(),
             rawRequest: $normalizedRequest,
             providerPayload: [],
             output: [],
@@ -337,8 +338,8 @@ readonly class VideoQueueDomainService
         }
 
         $videoInput = $this->normalizeMediaInput($requestData['inputs']['video'] ?? null, 'inputs.video');
-        $maskInput = $this->normalizeMediaInput($requestData['inputs']['mask'] ?? null, 'inputs.mask');
-        $audioInputs = $this->normalizeAudioInputs($requestData['inputs']['audio'] ?? []);
+        $this->normalizeMediaInput($requestData['inputs']['mask'] ?? null, 'inputs.mask');
+        $this->assertAudioInputsValid($requestData['inputs']['audio'] ?? []);
 
         $generation = array_filter([
             'size' => $this->normalizeGenerationSize($requestData['generation']['size'] ?? null),
@@ -350,16 +351,16 @@ readonly class VideoQueueDomainService
             'resolution' => $this->normalizeResolution($requestData['generation']['resolution'] ?? null),
             'fps' => $this->normalizePositiveInt($requestData['generation']['fps'] ?? null),
             'seed' => $this->normalizeNullableInt($requestData['generation']['seed'] ?? null),
-            'watermark' => $this->normalizeOptionalBool($requestData['generation']['watermark'] ?? null, 'generation.watermark'),
+            'watermark' => $this->normalizeOptionalBool($requestData['generation']['watermark'] ?? null),
             'negative_prompt' => $this->normalizeOptionalString($requestData['generation']['negative_prompt'] ?? null),
-            'generate_audio' => $this->normalizeOptionalBool($requestData['generation']['generate_audio'] ?? null, 'generation.generate_audio'),
+            'generate_audio' => $this->normalizeOptionalBool($requestData['generation']['generate_audio'] ?? null),
             'person_generation' => $this->normalizeOptionalString($requestData['generation']['person_generation'] ?? null),
-            'enhance_prompt' => $this->normalizeOptionalBool($requestData['generation']['enhance_prompt'] ?? null, 'generation.enhance_prompt'),
+            'enhance_prompt' => $this->normalizeOptionalBool($requestData['generation']['enhance_prompt'] ?? null),
             'compression_quality' => $this->normalizeOptionalString($requestData['generation']['compression_quality'] ?? null),
             'resize_mode' => $this->normalizeOptionalString($requestData['generation']['resize_mode'] ?? null),
             'sample_count' => $this->normalizeNullableInt($requestData['generation']['sample_count'] ?? null),
-            'camera_fixed' => $this->normalizeOptionalBool($requestData['generation']['camera_fixed'] ?? null, 'generation.camera_fixed'),
-            'return_last_frame' => $this->normalizeOptionalBool($requestData['generation']['return_last_frame'] ?? null, 'generation.return_last_frame'),
+            'camera_fixed' => $this->normalizeOptionalBool($requestData['generation']['camera_fixed'] ?? null),
+            'return_last_frame' => $this->normalizeOptionalBool($requestData['generation']['return_last_frame'] ?? null),
         ], static fn (mixed $value): bool => $value !== null && $value !== '');
         $generation = $this->normalizeProviderSpecificGeneration(
             $generation,
@@ -382,7 +383,7 @@ readonly class VideoQueueDomainService
         $task = $this->normalizeTask($requestData['task'] ?? null);
         $extensions = [];
         $this->assertTaskRequirements($task, $videoInput);
-        $this->assertCapability($task, $maskInput, $audioInputs, $extensions);
+        $this->assertCapability($task);
         $maskInput = [];
         $audioInputs = [];
 
@@ -497,16 +498,16 @@ readonly class VideoQueueDomainService
         $generation = $this->normalizeSupportedResolution($generation, $configGeneration);
         $generation = $this->normalizeSupportedDuration($generation, $configGeneration);
 
-        if (! (bool) ($configGeneration['supports_watermark'] ?? false)) {
+        if (! ($configGeneration['supports_watermark'] ?? false)) {
             unset($generation['watermark']);
         }
-        if (! (bool) ($configGeneration['supports_negative_prompt'] ?? false)) {
+        if (! ($configGeneration['supports_negative_prompt'] ?? false)) {
             unset($generation['negative_prompt']);
         }
-        if (! (bool) ($configGeneration['supports_generate_audio'] ?? false)) {
+        if (! ($configGeneration['supports_generate_audio'] ?? false)) {
             unset($generation['generate_audio']);
         }
-        if (! (bool) ($configGeneration['supports_enhance_prompt'] ?? false)) {
+        if (! ($configGeneration['supports_enhance_prompt'] ?? false)) {
             unset($generation['enhance_prompt']);
         }
 
@@ -554,29 +555,10 @@ readonly class VideoQueueDomainService
         return self::KELING_DIMENSIONS_TO_RESOLUTION[$dimensions] ?? null;
     }
 
-    /**
-     * @param list<array{role: string, uri: string}> $audioInputs
-     */
-    private function assertCapability(
-        string $task,
-        array $maskInput,
-        array $audioInputs,
-        array $extensions
-    ): void {
+    private function assertCapability(string $task): void
+    {
         if ($task !== self::TASK_GENERATE) {
             ExceptionBuilder::throw(MagicApiErrorCode::ValidateFailed, 'unsupported_option: task');
-        }
-
-        if ($maskInput !== []) {
-            return;
-        }
-
-        if ($audioInputs !== []) {
-            return;
-        }
-
-        if ($extensions === []) {
-            return;
         }
     }
 
@@ -695,11 +677,7 @@ readonly class VideoQueueDomainService
     private function normalizeAspectRatio(mixed $value): ?string
     {
         $normalized = $this->normalizeAspectRatioAlias($value);
-        if ($normalized === null) {
-            return null;
-        }
-
-        return $normalized;
+        return $normalized ?? null;
     }
 
     private function normalizeReferenceImageType(mixed $value): string
@@ -725,20 +703,16 @@ readonly class VideoQueueDomainService
         return ['uri' => $uri];
     }
 
-    /**
-     * @return list<array{role: string, uri: string}>
-     */
-    private function normalizeAudioInputs(mixed $value): array
+    private function assertAudioInputsValid(mixed $value): void
     {
         if ($value === null) {
-            return [];
+            return;
         }
 
         if (! is_array($value)) {
             ExceptionBuilder::throw(MagicApiErrorCode::ValidateFailed, 'inputs.audio is invalid');
         }
 
-        $result = [];
         foreach ($value as $index => $item) {
             if (! is_array($item)) {
                 ExceptionBuilder::throw(MagicApiErrorCode::ValidateFailed, sprintf('inputs.audio.%d is invalid', $index));
@@ -752,14 +726,7 @@ readonly class VideoQueueDomainService
             if ($uri === '') {
                 ExceptionBuilder::throw(MagicApiErrorCode::ValidateFailed, sprintf('inputs.audio.%d.uri is required', $index));
             }
-
-            $result[] = [
-                'role' => $role,
-                'uri' => $uri,
-            ];
         }
-
-        return $result;
     }
 
     private function normalizeOptionalString(mixed $value): ?string
@@ -783,7 +750,7 @@ readonly class VideoQueueDomainService
         return strtolower($normalized);
     }
 
-    private function normalizeOptionalBool(mixed $value, string $field): ?bool
+    private function normalizeOptionalBool(mixed $value): ?bool
     {
         if ($value === null) {
             return null;

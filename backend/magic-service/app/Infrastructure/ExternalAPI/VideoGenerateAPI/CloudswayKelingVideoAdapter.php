@@ -185,9 +185,9 @@ readonly class CloudswayKelingVideoAdapter extends AbstractCloudswayVideoAdapter
     public function submit(VideoQueueOperationEntity $operation, QueueExecutorConfig $config): string
     {
         $path = $this->buildTaskPath($operation, false, null);
-        $response = $this->cloudswayVideoClient->post(
-            $config->getBaseUrl(),
-            $config->getApiKey(),
+        $response = $this->postWithOperationContext(
+            $operation,
+            $config,
             $path,
             $operation->getProviderPayload(),
         );
@@ -207,10 +207,11 @@ readonly class CloudswayKelingVideoAdapter extends AbstractCloudswayVideoAdapter
 
     public function query(VideoQueueOperationEntity $operation, QueueExecutorConfig $config, string $providerTaskId): array
     {
-        $detail = $this->cloudswayVideoClient->get(
-            $config->getBaseUrl(),
-            $config->getApiKey(),
+        $detail = $this->getWithOperationContext(
+            $operation,
+            $config,
             $this->buildTaskPath($operation, true, $providerTaskId),
+            $providerTaskId,
         );
 
         $data = is_array($detail['data'] ?? null) ? $detail['data'] : [];
