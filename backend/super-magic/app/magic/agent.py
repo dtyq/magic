@@ -785,6 +785,9 @@ class Agent(BaseAgent):
         self.agent_context.set_final_task_state(None)
         self.agent_context.set_final_response(None)
 
+        # 异步加载聊天记录（幂等：首次加载从磁盘读取并修复序列，后续调用跳过）
+        await self.chat_history.load()
+
         session_prep_result = await self._prepare_run_session(query)
 
         # 在首次 build_context_update 前设置输出预算，确保 output_size_limit 能写入 initial_context
@@ -839,7 +842,7 @@ class Agent(BaseAgent):
                 logger.error(f"切换工作目录时出错: {e!s}")
 
             # 构造 chat_history
-            # ChatHistory 初始化时已加载历史
+            # ChatHistory 在 run() 入口已 await load()
             # 检查是否需要添加 System Prompt (仅在历史为空时)
             if not self.chat_history.messages:
                 logger.info("聊天记录为空，添加主 System Prompt")
@@ -2729,22 +2732,6 @@ Since your subsequent output will be merged with pre-interruption content and di
             bool: 是否具有该 skill
         """
         return skill_name in self.loaded_skills
-
-    def has_existing_chat_history(self) -> bool:
-        """
-        Check if the agent already has existing chat history
-        This uses the same logic as in run() method to check if chat history is empty
-
-        Returns:
-            bool: True if chat history exists and is not empty, False otherwise
-        """
-        try:
-            # The chat_history is already initialized in __init__, so we can directly check it
-            # This is the same logic used in run() method
-            return bool(self.chat_history.messages)
-        except Exception as e:
-            logger.warning(f"Failed to check existing chat history for agent {self.agent_name}:{self.id}: {e}")
-            return False
 
     async def _add_mcp_tools_to_list(self, tools_list: List[Dict[str, Any]]) -> None:
         """添加授权的 MCP 工具到工具列表

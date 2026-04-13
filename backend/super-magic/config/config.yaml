@@ -96,7 +96,7 @@ agent_modes:
 
 agent:
   # Allow LLM to call multiple tools in a single response
-  enable_multi_tool_calls: ${AGENT_ENABLE_MULTI_TOOL_CALLS:-false}
+  enable_multi_tool_calls: ${AGENT_ENABLE_MULTI_TOOL_CALLS:-true}
   # Execute multiple tool calls in parallel vs sequential (only applies when multi_tool_calls is enabled)
   enable_parallel_tool_calls: ${AGENT_ENABLE_PARALLEL_TOOL_CALLS:-false}
   # Timeout for parallel tool execution in seconds (None = no timeout)
