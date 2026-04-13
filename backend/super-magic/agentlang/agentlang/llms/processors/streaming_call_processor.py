@@ -20,6 +20,7 @@ from .processor_config import ProcessorConfig
 from .streaming_context import StreamProcessContext
 from .streaming_handler import StreamResponseHandler
 from agentlang.logger import get_logger
+from agentlang.streaming.interface import StreamingInterface
 from agentlang.streaming.manager import create_driver
 
 logger = get_logger(__name__)
@@ -188,7 +189,7 @@ class StreamingCallProcessor:
         processor_config: ProcessorConfig,
         agent_context: Optional[AgentContextInterface],
         request_id: str
-    ):
+    ) -> Optional[StreamingInterface]:
         """初始化流式推送驱动"""
         if not processor_config.is_push_enabled() or not agent_context:
             return None

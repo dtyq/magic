@@ -8,12 +8,13 @@ import asyncio
 import os
 import json
 import uuid
-from typing import TYPE_CHECKING, Any, Dict, List, Optional
+from typing import TYPE_CHECKING, Any, Dict, List, Optional, Type
 
 from app.core.context.pending_reply_state import PendingReplyState
 
 if TYPE_CHECKING:
     from app.core.horizon.agent_horizon import AgentHorizon
+    from app.core.entity.factory.task_message_factory_protocol import TaskMessageFactoryProtocol
 from datetime import datetime, timedelta
 
 from agentlang.context.base_agent_context import BaseAgentContext
@@ -1210,7 +1211,7 @@ class AgentContext(BaseAgentContext):
         """获取当前会话的消息版本号，默认 'v1'。"""
         return self.shared_context.get_field("message_version") or "v1"
 
-    def get_message_factory(self):
+    def get_message_factory(self) -> "Type[TaskMessageFactoryProtocol]":
         """根据 message_version 从注册表获取对应的消息工厂类。"""
         from app.core.entity.factory.factory_registry import get_factory_by_version
         return get_factory_by_version(self.get_message_version())

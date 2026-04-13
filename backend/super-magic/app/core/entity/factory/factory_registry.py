@@ -4,14 +4,17 @@
 根据版本号返回对应的消息工厂类。
 """
 
-from typing import Dict, Type
+from typing import TYPE_CHECKING, Dict, Type
 
 from agentlang.logger import get_logger
+
+if TYPE_CHECKING:
+    from app.core.entity.factory.task_message_factory_protocol import TaskMessageFactoryProtocol
 
 logger = get_logger(__name__)
 
 # 延迟导入，避免循环引用
-_registry: Dict[str, Type] = {}
+_registry: Dict[str, Type["TaskMessageFactoryProtocol"]] = {}
 _initialized = False
 
 
@@ -27,7 +30,7 @@ def _ensure_initialized():
     _initialized = True
 
 
-def get_factory_by_version(version: str) -> Type:
+def get_factory_by_version(version: str) -> "Type[TaskMessageFactoryProtocol]":
     """
     根据版本号获取对应的消息工厂类。
 

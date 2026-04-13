@@ -259,6 +259,8 @@ async def main():
                         help='挂载指定目录中的内容到.workspace目录')
     parser.add_argument('--mode', type=str, choices=['normal', 'super'], default='super',
                         help='运行模式：normal 使用 magic.agent，super 使用 super-magic.agent，默认为 super')
+    parser.add_argument('--message-version', type=str, choices=['v1', 'v2'], default='v1',
+                        help='消息版本：v1 使用标准消息格式，v2 使用 super_magic_message 格式，默认为 v1')
     parser.add_argument('query', nargs='?', type=str, default=None,
                         help='要发送给 agent 的查询文本。如果提供，则执行单次查询并退出')
 
@@ -329,6 +331,11 @@ async def main():
 
         dispatcher = AgentDispatcher.get_instance()
         await dispatcher.setup()
+
+        # 将 CLI 指定的消息版本写入 agent_context（生产路径由 set_chat_client_message 负责）
+        if args.message_version != 'v1':
+            dispatcher.agent_context.shared_context.update_field("message_version", args.message_version)
+            logger.info(f"CLI: 消息版本设置为 {args.message_version}")
 
         # 设置自定义 Agent Profile（如果提供）
         if args.agent_display_name or args.agent_display_description:

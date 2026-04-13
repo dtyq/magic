@@ -5,7 +5,6 @@ from dataclasses import asdict
 import asyncio
 
 from app.core.context.agent_context import AgentContext
-from agentlang.config.non_human_config import NonHumanConfigManager
 from agentlang.context.tool_context import ToolContext
 from app.core.entity.event.event import (
     AfterClientChatEventData,
@@ -29,7 +28,6 @@ from agentlang.event.data import (
     AfterMainAgentRunEventData,
     PendingToolCallEventData,
 )
-from app.core.entity.factory.task_message_factory import TaskMessageFactory
 from app.core.entity.message.server_message import ServerMessage, TaskStatus, TaskStep
 from agentlang.event.event import Event, EventType
 from app.core.stream.http_subscription_stream import HTTPSubscriptionStream
@@ -110,7 +108,7 @@ class StreamListenerService:
             return
 
         # 使用工厂创建任务消息
-        task_message = TaskMessageFactory.create_before_init_message(event)
+        task_message = agent_context.get_message_factory().create_before_init_message(event)
 
         await StreamListenerService._send_task_message(event.data.tool_context, task_message, event)
 
@@ -129,7 +127,7 @@ class StreamListenerService:
             return
 
         # 使用工厂创建任务消息
-        task_message = TaskMessageFactory.create_after_init_message(event)
+        task_message = agent_context.get_message_factory().create_after_init_message(event)
 
         await StreamListenerService._send_task_message(event.data.tool_context, task_message, event)
 
@@ -142,7 +140,7 @@ class StreamListenerService:
             event: 客户端聊天后事件对象，包含AfterClientChatEventData数据
         """
 
-        task_message = TaskMessageFactory.create_after_client_chat_message(event)
+        task_message = event.data.agent_context.get_message_factory().create_after_client_chat_message(event)
         tool_context = ToolContext(metadata=event.data.agent_context.get_metadata())
         tool_context.register_extension("agent_context", event.data.agent_context)
         await StreamListenerService._send_task_message(tool_context, task_message, event)
@@ -156,7 +154,8 @@ class StreamListenerService:
             event: LLM请求前事件对象，包含BeforeLlmRequestEventData数据
         """
         # 使用工厂创建任务消息
-        task_message = TaskMessageFactory.create_before_llm_request_message(event)
+        agent_context = event.data.tool_context.get_extension_typed("agent_context", AgentContext)
+        task_message = agent_context.get_message_factory().create_before_llm_request_message(event)
 
         await StreamListenerService._send_task_message(event.data.tool_context, task_message, event)
         logger.info(f"开始请求LLM: {event.data.model_name}")
@@ -170,7 +169,8 @@ class StreamListenerService:
             event: LLM响应后事件对象，包含AfterLlmResponseEventData数据
         """
         # 使用工厂创建任务消息
-        task_message = TaskMessageFactory.create_after_llm_response_message(event)
+        agent_context = event.data.tool_context.get_extension_typed("agent_context", AgentContext)
+        task_message = agent_context.get_message_factory().create_after_llm_response_message(event)
 
         if event.data.llm_response_message.content == "Continue":
             if task_message.token_usage_details and task_message.token_usage_details.usages:
@@ -191,7 +191,7 @@ class StreamListenerService:
             event: Before agent think event object containing BeforeAgentThinkEventData
         """
         # Create task message using factory
-        task_message = TaskMessageFactory.create_before_agent_think_message(event)
+        task_message = event.data.agent_context.get_message_factory().create_before_agent_think_message(event)
 
         # Create tool_context for sending message
         tool_context = ToolContext(metadata=event.data.agent_context.get_metadata())
@@ -210,7 +210,7 @@ class StreamListenerService:
             event: After agent think event object containing AfterAgentThinkEventData
         """
         # Create task message using factory
-        task_message = TaskMessageFactory.create_after_agent_think_message(event)
+        task_message = event.data.agent_context.get_message_factory().create_after_agent_think_message(event)
 
         # Create tool_context for sending message
         tool_context = ToolContext(metadata=event.data.agent_context.get_metadata())
@@ -232,7 +232,8 @@ class StreamListenerService:
             event: 智能体回复开始前事件对象，包含BeforeAgentReplyEventData数据
         """
         # 使用工厂创建任务消息
-        task_message = TaskMessageFactory.create_before_agent_reply_message(event)
+        agent_context = event.data.tool_context.get_extension_typed("agent_context", AgentContext)
+        task_message = agent_context.get_message_factory().create_before_agent_reply_message(event)
 
         await StreamListenerService._send_task_message(event.data.tool_context, task_message, event)
         logger.info(f"开始大模型响应: {event.data.model_name}, correlation_id: {event.data.correlation_id}")
@@ -246,7 +247,8 @@ class StreamListenerService:
             event: 智能体回复完成后事件对象，包含AfterAgentReplyEventData数据
         """
         # 使用专门的工厂方法创建任务消息
-        task_message = TaskMessageFactory.create_after_agent_reply_message(event)
+        agent_context = event.data.tool_context.get_extension_typed("agent_context", AgentContext)
+        task_message = agent_context.get_message_factory().create_after_agent_reply_message(event)
 
         await StreamListenerService._send_task_message(event.data.tool_context, task_message, event)
 
@@ -269,16 +271,19 @@ class StreamListenerService:
             if not tool_instance.should_trigger_events():
                 return
 
+        agent_context = event.data.tool_context.get_extension_typed("agent_context", AgentContext)
+        factory = agent_context.get_message_factory()
+
         # 检查是否为MCP初始化事件
         if isinstance(event.data, BeforeMcpInitEventData):
             # 使用MCP专用的消息创建方法
             # 需要重新包装事件以满足类型系统要求，因为泛型的不变性
             from agentlang.event.event import Event
             mcp_event = Event(event.event_type, event.data)
-            task_message = TaskMessageFactory.create_before_mcp_init_message(mcp_event)
+            task_message = factory.create_before_mcp_init_message(mcp_event)
         else:
             # 使用工厂创建任务消息
-            task_message = await TaskMessageFactory.create_before_tool_call_message(event)
+            task_message = await factory.create_before_tool_call_message(event)
 
         await StreamListenerService._send_task_message(event.data.tool_context, task_message, event)
 
@@ -287,7 +292,8 @@ class StreamListenerService:
         """
         处理工具调用解释等待事件
         """
-        task_message = await TaskMessageFactory.create_pending_tool_call_message(event)
+        agent_context = event.data.tool_context.get_extension_typed("agent_context", AgentContext)
+        task_message = await agent_context.get_message_factory().create_pending_tool_call_message(event)
         await StreamListenerService._send_task_message(event.data.tool_context, task_message, event)
 
 
@@ -305,15 +311,18 @@ class StreamListenerService:
             if not tool_instance.should_trigger_events():
                 return
 
+        agent_context = event.data.tool_context.get_extension_typed("agent_context", AgentContext)
+        factory = agent_context.get_message_factory()
+
         # 检查是否为MCP初始化事件
         if isinstance(event.data, AfterMcpInitEventData):
             # 使用MCP专用的消息创建方法
             # 需要重新包装事件以满足类型系统要求，因为泛型的不变性
             from agentlang.event.event import Event
             mcp_event = Event(event.event_type, event.data)
-            task_message = TaskMessageFactory.create_after_mcp_init_message(mcp_event)
+            task_message = factory.create_after_mcp_init_message(mcp_event)
         else:
-            task_message = await TaskMessageFactory.create_after_tool_call_message(event)
+            task_message = await factory.create_after_tool_call_message(event)
 
         await StreamListenerService._send_task_message(event.data.tool_context, task_message, event)
 
@@ -326,7 +335,7 @@ class StreamListenerService:
             event: agent终止事件对象，包含AgentSuspendedEventData数据
         """
 
-        task_message = TaskMessageFactory.create_agent_suspended_message(
+        task_message = event.data.agent_context.get_message_factory().create_agent_suspended_message(
             event.data.agent_context,
             event.data.final_task_state,
         )
@@ -344,7 +353,7 @@ class StreamListenerService:
         Args:
             event: 主agent完成事件对象，包含AfterMainAgentRunEventData数据
         """
-        task_message = await TaskMessageFactory.create_after_main_agent_run_message(event)
+        task_message = await event.data.agent_context.get_message_factory().create_after_main_agent_run_message(event)
         tool_context = ToolContext(metadata=event.data.agent_context.get_metadata())
         tool_context.register_extension("agent_context", event.data.agent_context)
         tool_context.register_extension("event_context", EventContext())
@@ -359,7 +368,7 @@ class StreamListenerService:
         Args:
             event: 错误事件对象，包含ErrorEventData数据
         """
-        task_message = TaskMessageFactory.create_error_message(
+        task_message = event.data.agent_context.get_message_factory().create_error_message(
             event.data.agent_context,
             event.data.final_task_state,
         )
