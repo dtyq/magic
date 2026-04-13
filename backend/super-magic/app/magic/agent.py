@@ -816,11 +816,11 @@ class Agent(BaseAgent):
             prepare_blocker_acquired = True
 
             # 构造 chat_history
-        # ChatHistory 初始化时已加载历史
-        # 检查是否需要添加 System Prompt (仅在历史为空时)
-        if not self.chat_history.messages:
-            logger.info("聊天记录为空，添加主 System Prompt")
-            await self.chat_history.append_system_message(self.system_prompt)
+            # ChatHistory 初始化时已加载历史
+            # 检查是否需要添加 System Prompt (仅在历史为空时)
+            if not self.chat_history.messages:
+                logger.info("聊天记录为空，添加主 System Prompt")
+                await self.chat_history.append_system_message(self.system_prompt)
 
                 if self.agent_context.get_subagent_depth() > 0:
                     parent_agent_name = self.agent_context.get_subagent_parent_agent_name() or "the parent agent"
