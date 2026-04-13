@@ -183,7 +183,7 @@ class SkillVersionDomainService
 
     public function findLatestSkillVersionByCode(SkillDataIsolation $dataIsolation, string $code): ?SkillVersionEntity
     {
-        return $this->skillVersionRepository->findLatestByCreatedAtDesc($dataIsolation, $code);
+        return $this->skillVersionRepository->findLatestByCode($dataIsolation, $code);
     }
 
     public function findLatestPublishedSkillVersionByCode(SkillDataIsolation $dataIsolation, string $code): ?SkillVersionEntity

@@ -194,6 +194,14 @@ class SkillDomainService
     }
 
     /**
+     * 兼容旧调用方：版本能力已迁移到 SkillVersionDomainService，暂保留代理入口。
+     */
+    public function findSkillVersionById(SkillDataIsolation $dataIsolation, int $id): ?SkillVersionEntity
+    {
+        return di(SkillVersionDomainService::class)->findSkillVersionById($dataIsolation, $id);
+    }
+
+    /**
      * Batch query skill versions without organization filter.
      *
      * @return array<int, SkillVersionEntity>
@@ -201,6 +209,14 @@ class SkillDomainService
     public function findSkillVersionsByIdsWithoutOrganizationFilter(array $ids): array
     {
         return $this->skillVersionRepository->findByIdsWithoutOrganizationFilter($ids);
+    }
+
+    /**
+     * 兼容旧调用方：版本能力已迁移到 SkillVersionDomainService，暂保留代理入口。
+     */
+    public function saveSkillVersion(SkillDataIsolation $dataIsolation, SkillVersionEntity $entity): SkillVersionEntity
+    {
+        return di(SkillVersionDomainService::class)->saveSkillVersion($dataIsolation, $entity);
     }
 
     /**
