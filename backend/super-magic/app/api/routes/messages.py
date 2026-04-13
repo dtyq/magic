@@ -319,6 +319,12 @@ class MessageProcessor:
                 from app.i18n import i18n
                 i18n.set_language(chat_language)
 
+            # 在延迟 init 事件触发前先写入 message_version，确保 init 事件使用正确的工厂
+            if message.dynamic_config:
+                version = message.dynamic_config.get("message_version")
+                if version:
+                    agent_context.set_message_version(version)
+
             await self._dispatch_delayed_init_event_if_needed(agent_context, preferred_language=chat_language)
 
             # Extract agent_code from dynamic_config and inject into AgentContext (agent-manager scenario)

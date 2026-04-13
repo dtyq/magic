@@ -1211,6 +1211,15 @@ class AgentContext(BaseAgentContext):
         """获取当前会话的消息版本号，默认 'v1'。"""
         return self.shared_context.get_field("message_version") or "v1"
 
+    def set_message_version(self, version: str) -> None:
+        """显式设置消息结构版本，在 chat 消息到达后、init 事件触发前提前写入。
+
+        Args:
+            version: 消息版本字符串，如 "v1"、"v2"
+        """
+        if version:
+            self.shared_context.update_field("message_version", version)
+
     def get_message_factory(self) -> "Type[TaskMessageFactoryProtocol]":
         """根据 message_version 从注册表获取对应的消息工厂类。"""
         from app.core.entity.factory.factory_registry import get_factory_by_version

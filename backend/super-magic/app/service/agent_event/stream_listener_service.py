@@ -441,6 +441,9 @@ class StreamListenerService:
             tool_context: 工具上下文，包含agent_context和event_context
             task_message: 要发送的任务消息
         """
+        if task_message is None:
+            return
+
         if not tool_context.get_extension_typed("agent_context", AgentContext).streams:
             logger.error("agent_context.streams 为空")
             return

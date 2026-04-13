@@ -62,6 +62,17 @@ class TaskMessageFactoryV2(TaskMessageFactoryProtocol):
     # 公共构建方法
     # ──────────────────────────────────────────────
 
+    @staticmethod
+    def _make_tool_call_id(correlation_id: Optional[str]) -> str:
+        """基于 correlation_id 生成形如 call_xxxx 的工具调用 ID。
+
+        before/after 配对事件共享同一个 correlation_id，因此生成的 ID 天然一致可匹配。
+        若 correlation_id 为空则回退到随机 UUID。
+        """
+        import uuid
+        source = correlation_id if correlation_id else uuid.uuid4().hex
+        return f"call_{source.replace('-', '')[:24]}"
+
     @classmethod
     def _get_topic_id(cls, agent_context: AgentContext) -> str:
         """从 agent_context 获取 topic_id，兼容生产路径（metadata.topic_id）和本地调试路径（无 topic_id）"""
@@ -498,8 +509,8 @@ class TaskMessageFactoryV2(TaskMessageFactoryProtocol):
             agent_context,
             role="assistant",
             correlation_id=event.data.correlation_id,
-            content=content or None,
-            reasoning_content=reasoning_content or None,
+            content=content,
+            reasoning_content=reasoning_content,
             status="running",
         )
         return cls._build_and_send(
@@ -528,11 +539,15 @@ class TaskMessageFactoryV2(TaskMessageFactoryProtocol):
             if consumed:
                 p_content, p_reasoning, p_tool_calls, p_message_id = consumed
 
+                # pending_state.correlation_id 是 LLM 请求 ID，与流式 chunk 的 correlation_id 一致
+                llm_correlation_id = pending_state.correlation_id
+
                 # 设置批量计数
                 batch_size = len(p_tool_calls)
                 if batch_size > 1:
                     pending_state.batch_remaining = batch_size - 1
-                    pending_state.batch_main_correlation_id = pending_state.correlation_id
+                    # 批次主 correlation_id 统一使用 LLM 请求 ID，与流式保持一致
+                    pending_state.batch_main_correlation_id = llm_correlation_id
                     # 收集后续 tool_call_id
                     pending_state.batch_subsequent_ids = {tc["id"] for tc in p_tool_calls[1:]}
 
@@ -552,7 +567,8 @@ class TaskMessageFactoryV2(TaskMessageFactoryProtocol):
                 inner = cls._build_inner_message(
                     agent_context,
                     role="assistant",
-                    correlation_id=pending_state.correlation_id,
+                    # correlation_id 使用 LLM 请求 ID，与流式 chunk 对齐，after_tool_call 也使用相同值
+                    correlation_id=llm_correlation_id,
                     content=p_content or None,
                     reasoning_content=p_reasoning or None,
                     tool_calls=p_tool_calls,
@@ -570,7 +586,8 @@ class TaskMessageFactoryV2(TaskMessageFactoryProtocol):
                     agent_context, inner,
                     status=TaskStatus.RUNNING,
                     event_type=EventType.BEFORE_TOOL_CALL,
-                    correlation_id=pending_state.correlation_id,
+                    # 外层 correlation_id 使用 LLM 请求 ID，与流式 chunk 及 after_tool_call 对齐
+                    correlation_id=llm_correlation_id,
                     message_id=p_message_id,
                 )
 
@@ -678,13 +695,12 @@ class TaskMessageFactoryV2(TaskMessageFactoryProtocol):
         else:
             tool_status = ToolStatus.FINISHED
 
-        # 批量工具场景：覆盖 correlation_id
+        # 使用 LLM 请求 ID 作为 correlation_id，与流式 chunk 及 before_tool_call 对齐
+        # pending_state.correlation_id 在 after_agent_reply 暂存时设置为 LLM 请求 ID
         correlation_id = event.data.correlation_id
         pending_state = agent_context.get_pending_reply_state()
-        if pending_state:
-            correlation_id = pending_state.resolve_effective_correlation_id(
-                event.data.tool_call.id, correlation_id
-            )
+        if pending_state and pending_state.correlation_id:
+            correlation_id = pending_state.correlation_id
 
         inner = cls._build_inner_message(
             agent_context,
@@ -751,13 +767,24 @@ class TaskMessageFactoryV2(TaskMessageFactoryProtocol):
             except Exception as e:
                 logger.error(f"获取 token 总量失败: {e}", exc_info=True)
 
+        tool_call_id = cls._make_tool_call_id(event.data.correlation_id)
+        tool_status = ToolStatus.FINISHED if status != TaskStatus.ERROR else ToolStatus.ERROR
+        tool_obj = cls._build_tool_object(
+            tool_id=tool_call_id,
+            name="finish_task",
+            action=content,
+            status=tool_status,
+            attachments=attachments if attachments else None,
+        )
+
         inner = cls._build_inner_message(
             agent_context,
             role="tool",
             correlation_id=event.data.correlation_id,
-            content=content,
+            tool_call_id=tool_call_id,
+            content="",
             status=status.value,
-            attachments=[att.model_dump(exclude_none=True) for att in attachments] if attachments else None,
+            tool=tool_obj,
         )
         return cls._build_and_send(
             agent_context, inner,
@@ -794,23 +821,12 @@ class TaskMessageFactoryV2(TaskMessageFactoryProtocol):
         )
 
     # ──────────────────────────────────────────────
-    # 客户端聊天确认（保持原有 CHAT 类型）
+    # 客户端聊天确认（v2 不发送）
     # ──────────────────────────────────────────────
 
     @classmethod
-    def create_after_client_chat_message(cls, event: Event[AfterClientChatEventData]) -> ServerMessage:
-        return ServerMessage.create(
-            metadata=event.data.agent_context.get_metadata(),
-            payload=ServerMessagePayload.create(
-                task_id=event.data.agent_context.get_task_id(),
-                sandbox_id=event.data.agent_context.get_sandbox_id(),
-                message_type=MessageType.CHAT,
-                status=TaskStatus.RUNNING,
-                content="ok",
-                event=EventType.AFTER_CLIENT_CHAT,
-                seq_id=event.data.agent_context.get_next_seq_id(),
-            ),
-        )
+    def create_after_client_chat_message(cls, event: Event[AfterClientChatEventData]) -> Optional[ServerMessage]:
+        return None
 
     # ──────────────────────────────────────────────
     # V2 不发送的事件（返回 None）
