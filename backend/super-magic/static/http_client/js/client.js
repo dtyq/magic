@@ -1552,8 +1552,11 @@ function handleWebSocketMessage(event) {
         if (payload && payload.type === 'super_magic_message' && payload.raw_content) {
             const smsg = payload.raw_content.super_magic_message;
             if (smsg) {
-                // 工具调用事件：tool 字段在 smsg.tool 里，优先渲染工具调用块
+                // 工具调用事件：before_tool_call 时先渲染思考块（如有），再渲染工具块
                 if (smsg.tool && (eventType === 'before_tool_call' || eventType === 'after_tool_call')) {
+                    if (eventType === 'before_tool_call' && smsg.reasoning_content) {
+                        showThinkingMessage(smsg.reasoning_content, payload.send_timestamp);
+                    }
                     showToolCallMessage(smsg.tool, eventType, payload.send_timestamp);
                 } else if (smsg.role === 'assistant') {
                     if (smsg.reasoning_content) {
