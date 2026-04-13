@@ -8,6 +8,7 @@ tools:
   - read_files
   - grep_search
   - shell_exec
+  - ask_user
 skills:
   system_skills:
     - name: skill-vetter

@@ -48,7 +48,10 @@ class ToolCallEventManager:
             # 获取工具实例
             tool_instance = tool_factory.get_tool_instance(tool_name)
 
-            # 创建事件数据
+            # 允许工具在事件触发前向 tool_context.arguments 注入额外参数
+            await tool_instance.set_extra_arguments(tool_context)
+
+            # 创建事件数据（arguments 已包含 set_extra_arguments 写入的字段）
             event_data = BeforeToolCallEventData(
                 tool_call=tool_call,
                 tool_context=tool_context,

@@ -954,6 +954,14 @@ class BaseTool(Generic[T], ABC):
         """
         return ""
 
+    async def set_extra_arguments(self, tool_context: ToolContext) -> None:
+        """Inject extra keys into tool_context.arguments before BEFORE_TOOL_CALL fires.
+
+        Override in subclasses to add tool-specific metadata (e.g. pre-generated IDs,
+        expiry timestamps) directly into the arguments dict so that both the event and
+        execute() share the exact same values via tool_context.arguments.
+        """
+
     async def get_before_tool_call_friendly_action_and_remark(self, tool_name: str, tool_context: ToolContext, arguments: Dict[str, Any] = None) -> Dict:
         """
         获取工具调用前的友好动作和备注

@@ -29,6 +29,7 @@ tools:
   - update_dashboard_cards
   - delete_dashboard_cards
   - query_dashboard_cards
+  - ask_user
 skills:
   system_skills:
     - name: skill-vetter

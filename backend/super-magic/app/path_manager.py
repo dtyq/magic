@@ -252,6 +252,12 @@ class PathManager(BasePathManager):
         return cls._task_metadata_file
 
     @classmethod
+    def get_ask_user_pending_file(cls) -> Path:
+        """获取 ask_user 待处理问题持久化文件路径（.chat_history/ask_user_pending.json）"""
+        cls._ensure_app_initialization()
+        return cls.get_chat_history_dir() / "ask_user_pending.json"
+
+    @classmethod
     def get_task_message_file(cls, task_id: str) -> Path:
         """获取指定任务的消息文件路径（project_root/.client_message/{task_id}.json）"""
         cls._ensure_app_initialization()

@@ -318,6 +318,10 @@ class StreamListenerService:
             if not tool_instance.should_trigger_events():
                 return
 
+        # ask_user manages its own AFTER message (sent after user reply or timeout)
+        if getattr(event.data.result, "system", None) == "ASK_USER":
+            return
+
         agent_context = event.data.tool_context.get_extension_typed("agent_context", AgentContext)
         factory = agent_context.get_message_factory()
 

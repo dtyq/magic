@@ -16,6 +16,7 @@ tools:
   - multi_edit_file
   - multi_edit_file_range
   - delete_files
+  - ask_user
 skills:
   system_skills:
     - name: crew-creator

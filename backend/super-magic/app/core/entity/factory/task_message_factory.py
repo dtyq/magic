@@ -16,6 +16,7 @@ from app.core.entity.event.event import (
     BeforeMcpInitEventData,
     AfterMcpInitEventData,
 )
+from agentlang.agent.state import AgentState
 from agentlang.event.data import (
     BeforeInitEventData,
     AfterInitEventData,
@@ -269,6 +270,9 @@ class TaskMessageFactory(TaskMessageFactoryProtocol):
         elif event.data.agent_state == TaskStatus.SUSPENDED.value:
             status = TaskStatus.SUSPENDED
             content = i18n.translate("messages.agent_suspended", category="common.messages")
+        elif event.data.agent_state == AgentState.WAITING_FOR_USER.value:
+            status = TaskStatus.WAITING_FOR_USER
+            content = ""
         else:
             status = TaskStatus.ERROR
             content = i18n.translate("messages.task.failed", category="common.messages")
@@ -568,7 +572,6 @@ class TaskMessageFactory(TaskMessageFactoryProtocol):
         tool_name = event.data.tool_name
         tool_instance = event.data.tool_instance
 
-        # BEFORE_TOOL_CALL 只通知工具调用信息，不需要内容
         content = ""
 
         # 获取工具调用前的友好动作和备注信息
@@ -604,12 +607,16 @@ class TaskMessageFactory(TaskMessageFactoryProtocol):
         # Get parent_correlation_id: prioritize event data, fallback to agent_context
         parent_correlation_id = event.data.parent_correlation_id or agent_context.get_thinking_correlation_id()
 
+        message_status = TaskStatus.RUNNING
+        if tool_name == "ask_user":
+            message_status = TaskStatus.WAITING_FOR_USER
+
         # 创建ServerMessage
         payload = ServerMessagePayload.create(
             task_id=task_id,
             sandbox_id=agent_context.get_sandbox_id(),
             message_type=MessageType.TOOL_CALL,
-            status=TaskStatus.RUNNING,
+            status=message_status,
             content=content,
             tool=tool,  # 添加工具信息
             event=EventType.BEFORE_TOOL_CALL,  # 使用枚举类型

@@ -20,6 +20,7 @@ class TaskStatus(str, Enum):
     FINISHED = "finished"
     ERROR = "error"
     SUSPENDED = "suspended"
+    WAITING_FOR_USER = "waiting_for_user"  # ask_user 等待态对前端暴露的通用任务状态
 
 class ToolStatus(str, Enum):
     """工具调用状态枚举"""
@@ -46,6 +47,7 @@ class DisplayType(str, Enum):
     FILE_TREE = "file_tree"  # 添加文件树枚举值
     TODO = "todo"  # 添加TODO枚举值
     DESIGN = 'design'
+    ASK_USER = "ask_user"  # ask_user 问答结果展示
 
 
 class TodoOperationType(str, Enum):
@@ -217,13 +219,49 @@ class DesignElementContent(BaseModel):
     elements: List[Dict[str, Any]]  # 元素详情列表
 
 
+class AskUserQuestionContent(BaseModel):
+    """ask_user 问题卡片内容模型
+
+    用于在 BEFORE_TOOL_CALL 消息中向前端推送待回答的问题列表。
+
+    Attributes:
+        question_id: 本次问答的唯一 ID，前端用于关联后续 AFTER_TOOL_CALL 消息
+        questions:   子问题列表（含 sub_id、question、interaction_type 等）
+        expires_at:  问题过期时间戳（Unix 秒），前端用于显示倒计时
+        status:      固定为 "pending"
+    """
+
+    question_id: str
+    questions: List[Dict[str, Any]]
+    expires_at: int
+    status: str
+
+
+class AskUserResultContent(BaseModel):
+    """ask_user 问答结果内容模型
+
+    用于在 AFTER_TOOL_CALL 消息中展示用户对 ask_user 问题的最终答案。
+
+    Attributes:
+        status:    处理结果状态：answered=已回答，skipped=已跳过，timeout=已超时，cancelled=被新消息打断
+        questions: 原始问题列表（含 sub_id、question、interaction_type 等）；
+                   timeout 消息由 Python 直接发送时提供，PHP 发送时可省略
+        answers:   用户答案字典，key 为 sub_id，value 为对应答案；skipped/timeout 时为 {}
+    """
+
+    status: str
+    questions: Optional[List[Dict[str, Any]]] = None
+    answers: Dict[str, Any]
+
+
 class ToolDetail(BaseModel):
     """工具详情模型"""
 
     type: DisplayType  # 展示类型
     data: Union[
         FileContent, FileTreeContent, TerminalContent, BrowserContent, SearchContent,
-        ScriptExecutionContent, DeepWriteContent, TodoContent, DesignCanvasContent, DesignElementContent, Dict[str, Any]
+        ScriptExecutionContent, DeepWriteContent, TodoContent, DesignCanvasContent, DesignElementContent,
+        AskUserQuestionContent, AskUserResultContent, Dict[str, Any]
     ]  # 展示内容，根据type动态展示
 
     model_config = ConfigDict(use_enum_values=True)

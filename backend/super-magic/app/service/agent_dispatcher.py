@@ -241,6 +241,15 @@ class AgentDispatcher(Base):
         # 改为按需加载agent，不再预先创建
         self.is_workspace_initialized = True
 
+        # 沙箱初始化完成后，恢复服务重启前未完成的 ask_user 超时定时器
+        try:
+            from app.tools.ask_user import AskUserTool
+            logger.info(f"恢复ask_user 超时定时器ing")
+            asyncio.create_task(AskUserTool.restore_pending_timers(self.agent_context))
+            logger.info(f"恢复ask_user 超时定时器成功")
+        except Exception as e:
+            logger.warning(f"恢复 ask_user 超时定时器失败（不影响正常流程）: {e}")
+
         # 标记 init 事件已发送（非预启动场景）
         # 只有在 skip_init_messages 不为 True 时才标记已发送
         # 因为如果 skip_init_messages=True，init 事件实际上没有发送

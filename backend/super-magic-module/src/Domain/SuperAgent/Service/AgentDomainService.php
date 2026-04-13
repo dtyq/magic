@@ -42,6 +42,7 @@ use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\TaskContext;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\UserInfoValueObject;
 use Dtyq\SuperMagic\Domain\SuperAgent\Exception\WorkspaceReadyTimeoutException;
 use Dtyq\SuperMagic\Infrastructure\ExternalAPI\SandboxOS\Agent\Constant\WorkspaceStatus;
+use Dtyq\SuperMagic\Infrastructure\ExternalAPI\SandboxOS\Agent\Request\AskUserResponseMessageRequest;
 use Dtyq\SuperMagic\Infrastructure\ExternalAPI\SandboxOS\Agent\Request\ChatMessageRequest;
 use Dtyq\SuperMagic\Infrastructure\ExternalAPI\SandboxOS\Agent\Request\CheckpointRollbackCheckRequest;
 use Dtyq\SuperMagic\Infrastructure\ExternalAPI\SandboxOS\Agent\Request\CheckpointRollbackCommitRequest;
@@ -591,6 +592,58 @@ class AgentDomainService
             ]);
             throw new SandboxOperationException('Send chat message', $result->getMessage(), $result->getCode());
         }
+    }
+
+    /**
+     * 发送 ask_user 答复给沙盒（Human-in-the-Loop 回调）.
+     *
+     * @param DataIsolation $dataIsolation 数据隔离上下文
+     * @param string $sandboxId 沙箱ID
+     * @param string $taskId 任务ID
+     * @param string $questionId 问题ID
+     * @param string $responseStatus 答复状态（'answered' | 'skipped'）
+     * @param string $answer 用户答复内容
+     */
+    public function sendAskUserFeedback(
+        DataIsolation $dataIsolation,
+        string $sandboxId,
+        string $taskId,
+        string $questionId,
+        string $responseStatus,
+        string $answer
+    ): void {
+        $this->logger->debug('[Sandbox][Domain] Sending ask_user feedback to sandbox', [
+            'sandbox_id' => $sandboxId,
+            'task_id' => $taskId,
+            'question_id' => $questionId,
+            'response_status' => $responseStatus,
+        ]);
+
+        $request = AskUserResponseMessageRequest::createResponse(
+            userId: $dataIsolation->getCurrentUserId(),
+            taskId: $taskId,
+            questionId: $questionId,
+            responseStatus: $responseStatus,
+            answer: $answer,
+        );
+
+        $result = $this->agent->sendChatMessage($sandboxId, $request);
+
+        if (! $result->isSuccess()) {
+            $this->logger->error('[Sandbox][Domain] Failed to send ask_user feedback', [
+                'sandbox_id' => $sandboxId,
+                'task_id' => $taskId,
+                'question_id' => $questionId,
+                'error' => $result->getMessage(),
+            ]);
+            throw new SandboxOperationException('Send ask_user feedback', $result->getMessage(), $result->getCode());
+        }
+
+        $this->logger->debug('[Sandbox][Domain] Ask_user feedback sent successfully', [
+            'sandbox_id' => $sandboxId,
+            'task_id' => $taskId,
+            'question_id' => $questionId,
+        ]);
     }
 
     /**

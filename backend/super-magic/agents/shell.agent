@@ -7,6 +7,7 @@ tools:
   - read_files
   - grep_search
   - write_file
+  - ask_user
 skills:
   system_skills:
     - name: skill-vetter

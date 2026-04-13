@@ -291,6 +291,7 @@ class InitClientMessageUtil:
         Args:
             init_message: InitClientMessage 对象
         """
+        cls._config_path.parent.mkdir(parents=True, exist_ok=True)
         with open(cls._config_path, "w", encoding="utf-8") as f:
             json.dump(init_message.model_dump(), f, indent=2, ensure_ascii=False)
         logger.info(f"已保存 init_client_message 到文件: {cls._config_path}")

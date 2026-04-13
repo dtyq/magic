@@ -16,6 +16,7 @@ from app.api.http_dto.response import (
     ResponseCode
 )
 from app.service.agent_dispatcher import AgentDispatcher
+from app.service.ask_user_service import AskUserService
 from app.core.context.agent_context import AgentContext
 from agentlang.config.non_human_config import NonHumanConfigManager
 from app.core.entity.event.event import AfterClientChatEventData
@@ -45,9 +46,9 @@ class MessageProcessor:
     # TTL for processed message deduplication (seconds)
     # Messages within this window will be deduplicated
     _MESSAGE_DEDUP_TTL: float = 600.0
-
     def __init__(self):
         self.agent_dispatcher = AgentDispatcher.get_instance()
+        self.ask_user_service = AskUserService()
 
         # 进程内中断互斥锁，用于进行中防抖
         self._interrupt_lock: asyncio.Lock = asyncio.Lock()
@@ -305,6 +306,11 @@ class MessageProcessor:
             # 处理非人类限流配置（容错模式：失败不影响聊天流程）
             await self._handle_non_human_options(message.dynamic_config, agent_context)
 
+            # 普通新消息命中 ask_user 等待态时，先按 cancelled 收口旧工具调用，
+            # 再让这条消息作为新的用户输入进入后续主链路。
+            if message.context_type in [ContextType.NORMAL, ContextType.FOLLOW_UP] and agent_context.has_ask_user_pending():
+                await self.ask_user_service.cancel_pending_ask_user_for_new_message(agent_context)
+
             # 保存聊天消息
             if message.context_type in [ContextType.NORMAL, ContextType.FOLLOW_UP]:
                 self._save_chat_message(message)
@@ -462,6 +468,50 @@ class MessageProcessor:
             logger.error(traceback.format_exc())
             return create_error_response("继续指令处理失败")
 
+    async def handle_ask_user_response(self, message_data: dict) -> BaseResponse:
+        """处理 Human-in-the-Loop：magic-service 转发来的用户对 ask_user 的回答"""
+        try:
+            payload: dict = message_data.get("dynamic_config") or {}
+            question_id: str = payload.get("question_id", "")
+            response_status: str = payload.get("response_status", "answered")
+            answer: str = payload.get("answer", "")
+
+            if not question_id:
+                return create_error_response("ask_user_response 缺少 question_id 字段")
+
+            logger.info(
+                f"收到 ask_user_response: question_id={question_id}, "
+                f"response_status={response_status}, answer={answer!r}"
+            )
+
+            from app.tools.ask_user import AskUserTool
+            pending = AskUserTool._pending_questions.pop(question_id, None)
+            if not pending:
+                logger.warning(
+                    f"handle_ask_user_response: question_id={question_id} 不在 _pending_questions 中，"
+                    "可能已超时或重复提交"
+                )
+                return create_error_response("问题不存在或已超时")
+
+            # 取消后台超时定时器
+            pending.timeout_task.cancel()
+
+            # 异步完成后续工作（追加历史 + 启动 Agent），立即返回 HTTP 响应
+            asyncio.create_task(
+                self.ask_user_service.resume_after_ask_user(
+                    self,
+                    pending=pending,
+                    response_status=response_status,
+                    answer=answer,
+                )
+            )
+            return create_success_response("ask_user_response 已接收")
+
+        except Exception as e:
+            logger.error(f"处理 ask_user_response 失败: {e}")
+            logger.error(traceback.format_exc())
+            return create_error_response("ask_user_response 处理失败")
+
     def _resolve_agent_type(self, agent_mode) -> str:
         """将 agent_mode（枚举或字符串）解析为 agent_type 字符串
 
@@ -603,8 +653,17 @@ async def process_message(
             # 处理继续指令
             return await message_processor.handle_continue()
 
+        elif message_type == MessageType.ASK_USER_RESPONSE.value:
+            # 处理 Human-in-the-Loop：用户对 ask_user 工具的回答
+            return await message_processor.handle_ask_user_response(message_data)
+
         else:
-            valid_types = [MessageType.CHAT.value, MessageType.INIT.value, MessageType.CONTINUE.value]
+            valid_types = [
+                MessageType.CHAT.value,
+                MessageType.INIT.value,
+                MessageType.CONTINUE.value,
+                MessageType.ASK_USER_RESPONSE.value,
+            ]
             return create_error_response(
                 f"不支持的消息类型: {message_type}，支持的类型: {valid_types}"
             )
