@@ -82,7 +82,7 @@ class SkillAssembler
         SkillVersionEntity $entity,
         ?string $sourceType = null,
         ?MagicUserEntity $creator = null,
-        ?string $latestVersion = null,
+        ?SkillVersionEntity $latestVersionEntity = null,
         ?string $publisherType = null,
         ?array $publisher = null
     ): SkillListItemDTO {
@@ -113,7 +113,7 @@ class SkillAssembler
             updatedAt: $entity->getUpdatedAt() ?? '',
             createdAt: $entity->getCreatedAt() ?? '',
             latestPublishedAt: $entity->getPublishedAt(),
-            latestVersion: $latestVersion ?? $entity->getVersion(),
+            latestVersion: $latestVersionEntity?->getVersion() ?? $entity->getVersion(),
             packageName: $entity->getPackageName(),
             creatorInfo: $creatorInfo,
             publisherType: $publisherType,

@@ -25,6 +25,7 @@ use Dtyq\SuperMagic\Domain\Skill\Entity\ValueObject\BuiltinSkill;
 use Dtyq\SuperMagic\Domain\Skill\Entity\ValueObject\SkillDataIsolation;
 use Dtyq\SuperMagic\Domain\Skill\Entity\ValueObject\SkillSourceType;
 use Dtyq\SuperMagic\Domain\Skill\Service\SkillDomainService;
+use Dtyq\SuperMagic\Domain\Skill\Service\SkillVersionDomainService;
 use Hyperf\Di\Annotation\Inject;
 
 /**
@@ -37,6 +38,9 @@ abstract class AbstractSkillAppService extends AbstractKernelAppService
 
     #[Inject]
     protected SkillDomainService $skillDomainService;
+
+    #[Inject]
+    protected SkillVersionDomainService $skillVersionDomainService;
 
     #[Inject]
     protected ResourceAccessPolicyService $resourceAccessPolicyService;

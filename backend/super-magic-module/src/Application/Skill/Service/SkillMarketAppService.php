@@ -55,7 +55,7 @@ class SkillMarketAppService extends AbstractSkillAppService
             ExceptionBuilder::throw(SkillErrorCode::STORE_SKILL_NOT_FOUND, 'skill.store_skill_not_found');
         }
 
-        $skillVersion = $this->skillDomainService->findSkillVersionByIdWithoutOrganizationFilter(
+        $skillVersion = $this->skillVersionDomainService->findSkillVersionByIdWithoutOrganizationFilter(
             $skillMarket->getSkillVersionId()
         );
         if ($skillVersion === null) {
@@ -131,7 +131,7 @@ class SkillMarketAppService extends AbstractSkillAppService
         // 查询用户已添加的技能（用于判断 is_added）
         $skillCodes = array_map(fn ($entity) => $entity->getSkillCode(), $skillMarketEntities);
         $userSkillsMap = $this->skillDomainService->findByVersionCodes($dataIsolation, $skillCodes);
-        $skillVersionMap = $this->skillDomainService->findSkillCurrentOrLatestByCodes($dataIsolation, $skillCodes);
+        $skillVersionMap = $this->skillVersionDomainService->findSkillCurrentOrLatestByCodes($dataIsolation, $skillCodes);
 
         $this->updateSkillVersionAssetUrls($dataIsolation, array_values($skillVersionMap));
 

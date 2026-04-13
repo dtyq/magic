@@ -131,7 +131,7 @@ class ImportAgentAppService extends AbstractSuperMagicAppService
             $versionEntity = new AgentVersionEntity();
             $versionEntity->setVersion($this->resolveNextVersion($dataIsolation, $agentCode));
             $versionEntity->setPublishTargetType(PublishTargetType::ORGANIZATION);
-            $this->superMagicAgentDomainService->publishAgent($dataIsolation, $savedEntity, $versionEntity);
+            $this->superMagicAgentVersionDomainService->publishAgent($dataIsolation, $savedEntity, $versionEntity);
 
             // 7. Sync resource visibility: ORGANIZATION publish means the agent is visible to all org members.
             //    The application-layer publishAgent (SuperMagicAgentAppService) normally calls syncPublishedAgentScope

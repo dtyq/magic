@@ -423,7 +423,7 @@ class SkillAppService extends AbstractSkillAppService
         $skillCodes = array_map(function (SkillEntity $skillEntity) {
             return $skillEntity->getCode();
         }, $result['list']);
-        $publishedVersionMap = $this->skillDomainService->findCurrentPublishedVersionsByCodes($dataIsolation, $skillCodes);
+        $publishedVersionMap = $this->skillVersionDomainService->findCurrentPublishedVersionsByCodes($dataIsolation, $skillCodes);
 
         return [
             'list' => $result['list'],
@@ -484,13 +484,13 @@ class SkillAppService extends AbstractSkillAppService
             static fn (SkillEntity $skillEntity) => $skillEntity->getCode(),
             $sharedSkillEntities
         )));
-        $publishedVersionMap = $this->skillDomainService->findCurrentPublishedVersionsByCodes($dataIsolation, $sharedSkillCodes);
+        $publishedVersionMap = $this->skillVersionDomainService->findCurrentPublishedVersionsByCodes($dataIsolation, $sharedSkillCodes);
 
         // 如果是发布内部市场共享的agent，则使用version
         foreach ($sharedSkillEntities as $index => $sharedSkillEntity) {
             $skillCode = $sharedSkillEntity->getCode();
             if (isset($skillOperations[$skillCode])) {
-                unset($publishedVersionMap[$index]);
+                unset($publishedVersionMap[$skillCode]);
                 continue;
             }
             $publishedVersionEntity = $publishedVersionMap[$skillCode] ?? null;
@@ -543,7 +543,7 @@ class SkillAppService extends AbstractSkillAppService
         }
 
         $dataIsolation->disabled();
-        $result = $this->skillDomainService->queryCurrentPublishedVersionsByCodes(
+        $result = $this->skillVersionDomainService->queryCurrentPublishedVersionsByCodes(
             $dataIsolation,
             $marketInstalledCodes,
             $query->getKeyword(),
@@ -552,7 +552,7 @@ class SkillAppService extends AbstractSkillAppService
 
         $this->updateSkillVersionAssetUrls($dataIsolation, $result['list']);
         $creatorUserMap = $this->buildCreatorUserMapFromSkillVersions($dataIsolation, $result['list']);
-        $latestVersionMap = $this->buildLatestVersionMapFromSkillVersions($result['list']);
+        $latestVersionMap = $this->buildLatestVersionEntityMapFromSkillVersions($result['list']);
 
         $marketCodes = [];
         foreach ($result['list'] as $skillVersionEntity) {
@@ -685,7 +685,7 @@ class SkillAppService extends AbstractSkillAppService
         $dataIsolation->disabled();
         $skillEntity = $this->skillDomainService->findSkillByCode($dataIsolation, $code);
 
-        $latestVersionEntity = $this->skillDomainService->findLatestSkillVersionByCode($dataIsolation, $code);
+        $latestVersionEntity = $this->skillVersionDomainService->findLatestSkillVersionByCode($dataIsolation, $code);
         // Use the latest published version as the source of truth for creator metadata.
         // This keeps creator_info stable for shared and market-installed skills.
         $creatorUserMap = $latestVersionEntity !== null
@@ -829,7 +829,7 @@ class SkillAppService extends AbstractSkillAppService
         $publishTargetType = $requestDTO->getPublishTargetType() ? PublishTargetType::from($requestDTO->getPublishTargetType()) : null;
         $reviewStatus = $requestDTO->getStatus() ? ReviewStatus::from($requestDTO->getStatus()) : null;
 
-        $result = $this->skillDomainService->queryVersionsByCode(
+        $result = $this->skillVersionDomainService->queryVersionsByCode(
             $dataIsolation,
             $code,
             $publishTargetType,
@@ -871,12 +871,12 @@ class SkillAppService extends AbstractSkillAppService
         $dataIsolation->disabled();
         $skillEntity = $this->skillDomainService->findSkillByCode($dataIsolation, $code);
 
-        $versionRecordCount = $this->skillDomainService->countSkillVersionsByCode($dataIsolation, $code);
+        $versionRecordCount = $this->skillVersionDomainService->countSkillVersionsByCode($dataIsolation, $code);
         $descriptionI18n = $skillEntity->getDescriptionI18n();
         $version = sprintf('%d.0.0', $versionRecordCount + 1);
         $versionDescriptionI18n = is_array($descriptionI18n) ? $descriptionI18n : [];
 
-        $latestVersion = $this->skillDomainService->findLatestSkillVersionByCode($dataIsolation, $code);
+        $latestVersion = $this->skillVersionDomainService->findLatestSkillVersionByCode($dataIsolation, $code);
         if ($latestVersion !== null) {
             $publishTargetType = $latestVersion->getPublishTargetType()->value;
             $publishTargetValue = $latestVersion->getPublishTargetType()->requiresTargetValue()
@@ -916,7 +916,7 @@ class SkillAppService extends AbstractSkillAppService
         $dataIsolation->disabled();
 
         // 调用领域服务处理业务逻辑
-        $this->skillDomainService->offlineSkill($dataIsolation, $code);
+        $this->skillVersionDomainService->offlineSkill($dataIsolation, $code);
     }
 
     /**
@@ -999,7 +999,7 @@ class SkillAppService extends AbstractSkillAppService
 
         $page = new Page($requestDTO->getPage(), $requestDTO->getPageSize());
         $dataIsolation->disabled();
-        $result = $this->skillDomainService->queryCurrentPublishedVersionsByCodes(
+        $result = $this->skillVersionDomainService->queryCurrentPublishedVersionsByCodes(
             $dataIsolation,
             $accessibleSkillCodes,
             $requestDTO->getKeyword(),
@@ -1856,7 +1856,7 @@ class SkillAppService extends AbstractSkillAppService
         $publishRequestDTO = new PublishSkillRequestDTO();
         $publishRequestDTO->setVersion(sprintf(
             '%d.0.0',
-            $this->skillDomainService->countSkillVersionsByCode($dataIsolation, $skillEntity->getCode()) + 1
+            $this->skillVersionDomainService->countSkillVersionsByCode($dataIsolation, $skillEntity->getCode()) + 1
         ));
         $publishRequestDTO->setVersionDescriptionI18n($skillEntity->getDescriptionI18n() ?? []);
         $publishRequestDTO->setPublishTargetType(PublishTargetType::PRIVATE->value);
@@ -1906,7 +1906,7 @@ class SkillAppService extends AbstractSkillAppService
             ExceptionBuilder::throw(SkillErrorCode::FILE_NOT_FOUND, 'skill.file_not_found');
         }
 
-        $versionEntity = $this->skillDomainService->publishSkill($dataIsolation, $skillEntity, $versionEntity);
+        $versionEntity = $this->skillVersionDomainService->publishSkill($dataIsolation, $skillEntity, $versionEntity);
         $this->syncPublishedSkillScope($dataIsolation, $skillEntity, $versionEntity);
 
         return $versionEntity;
@@ -2127,7 +2127,7 @@ class SkillAppService extends AbstractSkillAppService
      */
     private function buildSkillListResult(SkillDataIsolation $dataIsolation, array $result): array
     {
-        $skillEntities = $this->skillDomainService->replaceVisibleSkillDisplayFields(
+        $skillEntities = $this->skillVersionDomainService->replaceVisibleSkillDisplayFields(
             $dataIsolation,
             $result['list']
         );
@@ -2138,7 +2138,7 @@ class SkillAppService extends AbstractSkillAppService
         $skillCodes = array_map(function (SkillEntity $skillEntity) {
             return $skillEntity->getCode();
         }, $result['list']);
-        $publishedVersionMap = $this->skillDomainService->findCurrentPublishedVersionsByCodes($dataIsolation, $skillCodes);
+        $publishedVersionMap = $this->skillVersionDomainService->findCurrentPublishedVersionsByCodes($dataIsolation, $skillCodes);
 
         return [
             'list' => $skillEntities,
@@ -2199,13 +2199,13 @@ class SkillAppService extends AbstractSkillAppService
 
     /**
      * @param SkillVersionEntity[] $skillVersionEntities
-     * @return array<string, string>
+     * @return array<string, SkillVersionEntity>
      */
-    private function buildLatestVersionMapFromSkillVersions(array $skillVersionEntities): array
+    private function buildLatestVersionEntityMapFromSkillVersions(array $skillVersionEntities): array
     {
         $latestVersionMap = [];
         foreach ($skillVersionEntities as $skillVersionEntity) {
-            $latestVersionMap[$skillVersionEntity->getCode()] = $skillVersionEntity->getVersion();
+            $latestVersionMap[$skillVersionEntity->getCode()] = $skillVersionEntity;
         }
 
         return $latestVersionMap;

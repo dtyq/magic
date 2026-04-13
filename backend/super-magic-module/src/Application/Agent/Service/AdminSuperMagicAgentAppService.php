@@ -141,7 +141,7 @@ class AdminSuperMagicAgentAppService extends AbstractSuperMagicAppService
         $modifier = $dataIsolation->getCurrentUserId();
 
         // 调用 DomainService 审核版本
-        $this->superMagicAgentDomainService->reviewAgentVersion(
+        $this->superMagicAgentVersionDomainService->reviewAgentVersion(
             $dataIsolation,
             $id,
             $requestDTO->getAction(),

@@ -23,6 +23,7 @@ use Dtyq\SuperMagic\Domain\Agent\Entity\ValueObject\PublishTargetType;
 use Dtyq\SuperMagic\Domain\Agent\Entity\ValueObject\SuperMagicAgentDataIsolation;
 use Dtyq\SuperMagic\Domain\Agent\Entity\ValueObject\SuperMagicAgentType;
 use Dtyq\SuperMagic\Domain\Agent\Service\SuperMagicAgentDomainService;
+use Dtyq\SuperMagic\Domain\Agent\Service\SuperMagicAgentVersionDomainService;
 use Dtyq\SuperMagic\Domain\Agent\Service\UserAgentDomainService;
 use Hyperf\DbConnection\Db;
 use Throwable;
@@ -31,6 +32,7 @@ class OfficialAgentsInitializer
 {
     public function __construct(
         private readonly SuperMagicAgentDomainService $superMagicAgentDomainService,
+        private readonly SuperMagicAgentVersionDomainService $superMagicAgentVersionDomainService,
         private readonly ResourceVisibilityDomainService $resourceVisibilityDomainService,
         private readonly UserAgentDomainService $userAgentDomainService,
     ) {
@@ -110,7 +112,7 @@ class OfficialAgentsInitializer
 
                 $this->saveOfficialAgentVisibility($dataIsolation, $entity->getCode());
                 $publishedVersion = $this->publishOfficialAgent($dataIsolation, $entity);
-                $this->superMagicAgentDomainService->reviewAgentVersion(
+                $this->superMagicAgentVersionDomainService->reviewAgentVersion(
                     $dataIsolation->disabled(),
                     (int) $publishedVersion->getId(),
                     'APPROVED',
@@ -241,7 +243,7 @@ class OfficialAgentsInitializer
         $agentEntity->setFileKey('');
 
         return Db::transaction(function () use ($dataIsolation, $agentEntity, $versionEntity) {
-            return $this->superMagicAgentDomainService->publishAgent($dataIsolation, $agentEntity, $versionEntity);
+            return $this->superMagicAgentVersionDomainService->publishAgent($dataIsolation, $agentEntity, $versionEntity);
         });
     }
 

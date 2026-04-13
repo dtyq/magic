@@ -20,6 +20,7 @@ use Dtyq\SuperMagic\Domain\Skill\Entity\ValueObject\SkillDataIsolation;
 use Dtyq\SuperMagic\Domain\Skill\Entity\ValueObject\SkillSourceType;
 use Dtyq\SuperMagic\Domain\Skill\Service\SkillDomainService;
 use Dtyq\SuperMagic\Domain\Skill\Service\SkillMarketDomainService;
+use Dtyq\SuperMagic\Domain\Skill\Service\SkillVersionDomainService;
 use Hyperf\DbConnection\Db;
 use Throwable;
 
@@ -34,6 +35,7 @@ class BuiltinSkillInitializer
 
     public function __construct(
         private readonly SkillDomainService $skillDomainService,
+        private readonly SkillVersionDomainService $skillVersionDomainService,
         private readonly SkillMarketDomainService $skillMarketDomainService,
     ) {
     }
@@ -129,7 +131,7 @@ class BuiltinSkillInitializer
         BuiltinSkill $builtinSkill,
     ): SkillVersionEntity {
         // 系统 Skill 始终只维护一条“当前版本”记录，重复执行时直接同步这条记录。
-        $skillVersionEntity = $this->skillDomainService->findLatestSkillVersionByCode($dataIsolation, $builtinSkill->value) ?? new SkillVersionEntity();
+        $skillVersionEntity = $this->skillVersionDomainService->findLatestSkillVersionByCode($dataIsolation, $builtinSkill->value) ?? new SkillVersionEntity();
         $publishedAt = $skillVersionEntity->getPublishedAt() ?: date('Y-m-d H:i:s');
         $version = $skillVersionEntity->getId() !== null ? $skillVersionEntity->getVersion() : self::DEFAULT_VERSION;
         if ($version === '') {
@@ -137,7 +139,7 @@ class BuiltinSkillInitializer
         }
 
         // 先清空旧的 current 标记，再把本次同步结果设为当前版本。
-        $this->skillDomainService->clearCurrentVersionByCode($dataIsolation, $builtinSkill->value);
+        $this->skillVersionDomainService->clearCurrentVersionByCode($dataIsolation, $builtinSkill->value);
 
         $skillVersionEntity->setCode($builtinSkill->value);
         $skillVersionEntity->setOrganizationCode($organizationCode);
@@ -163,7 +165,7 @@ class BuiltinSkillInitializer
         $skillVersionEntity->setSourceId(null);
         $skillVersionEntity->setSourceMeta(null);
 
-        return $this->skillDomainService->saveSkillVersion($dataIsolation, $skillVersionEntity);
+        return $this->skillVersionDomainService->saveSkillVersion($dataIsolation, $skillVersionEntity);
     }
 
     private function syncSkillPointers(

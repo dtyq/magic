@@ -60,6 +60,7 @@ use Dtyq\SuperMagic\Domain\Skill\Entity\ValueObject\BuiltinSkill;
 use Dtyq\SuperMagic\Domain\Skill\Entity\ValueObject\SkillDataIsolation;
 use Dtyq\SuperMagic\Domain\Skill\Entity\ValueObject\SkillMentionSource;
 use Dtyq\SuperMagic\Domain\Skill\Service\SkillDomainService;
+use Dtyq\SuperMagic\Domain\Skill\Service\SkillVersionDomainService;
 use Dtyq\SuperMagic\Domain\SuperAgent\Service\ProjectDomainService;
 use Dtyq\SuperMagic\Domain\SuperAgent\Service\TaskFileDomainService;
 use Dtyq\SuperMagic\ErrorCode\SuperAgentErrorCode;
@@ -79,6 +80,9 @@ class SuperMagicAgentAppService extends AbstractSuperMagicAppService
 {
     #[Inject]
     protected SkillDomainService $skillDomainService;
+
+    #[Inject]
+    protected SkillVersionDomainService $skillVersionDomainService;
 
     #[Inject]
     protected ResourceVisibilityDomainService $resourceVisibilityDomainService;
@@ -188,7 +192,7 @@ class SuperMagicAgentAppService extends AbstractSuperMagicAppService
         $skillDataIsolation = new SkillDataIsolation();
         $skillDataIsolation->extends($dataIsolation);
         $skillDataIsolation->disabled();
-        $skillsMap = $this->skillDomainService->findSkillCurrentOrLatestByCodes($skillDataIsolation, $skillCodes);
+        $skillsMap = $this->skillVersionDomainService->findSkillCurrentOrLatestByCodes($skillDataIsolation, $skillCodes);
 
         // 4. 更新 Agent、Playbook 和 Skill 的 URL（将路径转换为完整URL）
         $this->updateAgentEntityIcon($agent);
@@ -279,7 +283,7 @@ class SuperMagicAgentAppService extends AbstractSuperMagicAppService
         $skillDataIsolation = new SkillDataIsolation();
         $skillDataIsolation->extends($dataIsolation);
         $skillDataIsolation->disabled();
-        $skillsMap = $this->skillDomainService->findSkillCurrentOrLatestByCodes($skillDataIsolation, $skillCodes);
+        $skillsMap = $this->skillVersionDomainService->findSkillCurrentOrLatestByCodes($skillDataIsolation, $skillCodes);
 
         $this->updateAgentEntityIcon($agent);
         $this->updateSkillLogoUrls($dataIsolation, $skillsMap);
@@ -1788,7 +1792,7 @@ class SuperMagicAgentAppService extends AbstractSuperMagicAppService
         $skillDataIsolation = new SkillDataIsolation();
         $skillDataIsolation->extends($dataIsolation);
         $skillDataIsolation->disabled();
-        $skillVersions = $this->skillDomainService->findSkillCurrentOrLatestByCodes($skillDataIsolation, $skillCodes);
+        $skillVersions = $this->skillVersionDomainService->findSkillCurrentOrLatestByCodes($skillDataIsolation, $skillCodes);
         foreach ($skillCodes as $skillCode) {
             if (! isset($skillVersions[$skillCode])) {
                 ExceptionBuilder::throw(SuperMagicErrorCode::NotFound, 'super_magic.agent.skill_version_not_found');
@@ -1883,7 +1887,7 @@ class SuperMagicAgentAppService extends AbstractSuperMagicAppService
             return [];
         }
 
-        $skillVersionMap = $this->skillDomainService->findSkillVersionsByIdsWithoutOrganizationFilter(
+        $skillVersionMap = $this->skillVersionDomainService->findSkillVersionsByIdsWithoutOrganizationFilter(
             array_values(array_unique($skillVersionIds))
         );
         $this->updateSkillLogoUrls($dataIsolation, array_values($skillVersionMap));
@@ -1927,7 +1931,7 @@ class SuperMagicAgentAppService extends AbstractSuperMagicAppService
             return [];
         }
 
-        $skillVersions = $this->skillDomainService->findCurrentSkillVersionsByCodesWithoutOrganizationFilter(
+        $skillVersions = $this->skillVersionDomainService->findCurrentSkillVersionsByCodesWithoutOrganizationFilter(
             $accessibleSkillCodes
         );
         $this->updateSkillLogoUrls($dataIsolation, array_values($skillVersions));
@@ -2250,7 +2254,7 @@ class SuperMagicAgentAppService extends AbstractSuperMagicAppService
 
         Db::beginTransaction();
         try {
-            $versionEntity = $this->superMagicAgentDomainService->publishAgent($dataIsolation, $agentEntity, $versionEntity);
+            $versionEntity = $this->superMagicAgentVersionDomainService->publishAgent($dataIsolation, $agentEntity, $versionEntity);
             $this->syncPublishedAgentScope($dataIsolation, $agentEntity, $versionEntity);
             Db::commit();
         } catch (Throwable $throwable) {
