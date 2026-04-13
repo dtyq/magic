@@ -561,7 +561,7 @@ class HandleTaskMessageAppService extends AbstractAppService
             $dataIsolation->getCurrentUserId()
         );
         EnvManager::initDataIsolationEnv($gatewayIsolation);
-        $availableModels = $this->modelGatewayMapper->getChatModels($gatewayIsolation);
+        $availableModels = $this->modelGatewayMapper->getChatModels($gatewayIsolation, true);
         foreach ($availableModels as $model) {
             if ($model->getKey() === $modelId) {
                 return;
