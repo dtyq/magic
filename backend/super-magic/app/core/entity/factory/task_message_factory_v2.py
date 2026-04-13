@@ -36,6 +36,7 @@ from app.core.entity.event.event import (
 )
 from app.core.entity.event.event_context import EventContext
 from app.core.entity.final_task_state import FinalTaskState, render_final_task_state_message
+from app.core.entity.project_archive import ProjectArchiveInfo
 from app.core.entity.message.message import MessageType
 from app.core.entity.message.server_message import (
     DisplayType,
@@ -127,7 +128,7 @@ class TaskMessageFactoryV2(TaskMessageFactoryProtocol):
         message_id: Optional[str] = None,
         token_used: Optional[int] = None,
         attachments: Optional[List[Attachment]] = None,
-        project_archive=None,
+        project_archive: Optional[ProjectArchiveInfo] = None,
         token_usage_details: Optional[TokenUsageCollection] = None,
         content: str = "",
         content_type: Optional[str] = None,
@@ -261,7 +262,7 @@ class TaskMessageFactoryV2(TaskMessageFactoryProtocol):
     # ──────────────────────────────────────────────
 
     @classmethod
-    def create_before_init_message(cls, event: Event[BeforeInitEventData]) -> ServerMessage:
+    def create_before_init_message(cls, event: Event[BeforeInitEventData]) -> Optional[ServerMessage]:
         agent_context = event.data.tool_context.get_extension_typed("agent_context", AgentContext)
         content = i18n.translate("task_vm_init.start", category="tool.messages")
 
@@ -290,7 +291,7 @@ class TaskMessageFactoryV2(TaskMessageFactoryProtocol):
         )
 
     @classmethod
-    def create_after_init_message(cls, event: Event[AfterInitEventData]) -> ServerMessage:
+    def create_after_init_message(cls, event: Event[AfterInitEventData]) -> Optional[ServerMessage]:
         agent_context = event.data.tool_context.get_extension_typed("agent_context", AgentContext)
 
         if event.data.success:
@@ -328,7 +329,7 @@ class TaskMessageFactoryV2(TaskMessageFactoryProtocol):
     # ──────────────────────────────────────────────
 
     @classmethod
-    def create_before_mcp_init_message(cls, event: Event[BeforeMcpInitEventData]) -> ServerMessage:
+    def create_before_mcp_init_message(cls, event: Event[BeforeMcpInitEventData]) -> Optional[ServerMessage]:
         agent_context = event.data.agent_context
 
         extension_names = [config.name for config in event.data.server_configs]
@@ -372,7 +373,7 @@ class TaskMessageFactoryV2(TaskMessageFactoryProtocol):
         )
 
     @classmethod
-    def create_after_mcp_init_message(cls, event: Event[AfterMcpInitEventData]) -> ServerMessage:
+    def create_after_mcp_init_message(cls, event: Event[AfterMcpInitEventData]) -> Optional[ServerMessage]:
         agent_context = event.data.agent_context
 
         # 构建成功/失败服务器列表
@@ -658,7 +659,7 @@ class TaskMessageFactoryV2(TaskMessageFactoryProtocol):
         )
 
     @classmethod
-    async def create_pending_tool_call_message(cls, event: Event[PendingToolCallEventData]) -> ServerMessage:
+    async def create_pending_tool_call_message(cls, event: Event[PendingToolCallEventData]) -> Optional[ServerMessage]:
         agent_context = event.data.tool_context.get_extension_typed("agent_context", AgentContext)
         arguments = getattr(event.data, "arguments", {})
 
@@ -695,7 +696,7 @@ class TaskMessageFactoryV2(TaskMessageFactoryProtocol):
         )
 
     @classmethod
-    async def create_after_tool_call_message(cls, event: Event[AfterToolCallEventData]) -> ServerMessage:
+    async def create_after_tool_call_message(cls, event: Event[AfterToolCallEventData]) -> Optional[ServerMessage]:
         agent_context = event.data.tool_context.get_extension_typed("agent_context", AgentContext)
         tool_instance = event.data.tool_instance
         result = event.data.result

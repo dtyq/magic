@@ -1,5 +1,5 @@
 import traceback
-from typing import List
+from typing import List, Optional
 import json
 from dataclasses import asdict
 import asyncio
@@ -433,7 +433,7 @@ class StreamListenerService:
         return steps
 
     @staticmethod
-    async def _send_task_message(tool_context: ToolContext, task_message: ServerMessage, event: Event) -> None:
+    async def _send_task_message(tool_context: ToolContext, task_message: Optional[ServerMessage], event: Event) -> None:
         """
         通过WebSocket向客户端发送任务消息
 
