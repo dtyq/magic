@@ -3,6 +3,7 @@ let messageHistory = []; // 存储用户发送过的消息历史
 let currentTaskMode = "plan"; // 当前任务模式，默认为 plan（保留兼容性）
 let currentAgentMode = "magic"; // 当前Agent模式，默认为 magic
 let currentLanguage = "zh_CN"; // 当前语言，默认中文
+let currentMessageVersion = "v2"; // 消息版本，默认 v2
 let currentFileName = ""; // 存储当前上传的文件名
 let isAdvancedMode = false; // 高级模式开关，开启后直接发送原始 JSON
 let isImMode = false; // IM 渠道模拟模式
@@ -142,6 +143,7 @@ const imageModelSelect = document.getElementById('imageModelSelect');
 const advancedModeToggle = document.getElementById('advancedModeToggle');
 const rawJsonInput = document.getElementById('rawJsonInput');
 const languageSelect = document.getElementById('languageSelect');
+const messageVersionSelect = document.getElementById('messageVersionSelect');
 const imModeToggle = document.getElementById('imModeToggle');
 const imChannelSelect = document.getElementById('imChannelSelect');
 const imUserIdInput = document.getElementById('imUserIdInput');
@@ -409,6 +411,16 @@ document.addEventListener('DOMContentLoaded', () => {
             languageSelect.value = savedLanguage;
         }
         languageSelect.addEventListener('change', changeLanguage);
+    }
+
+    // 消息版本切换事件
+    if (messageVersionSelect) {
+        const savedVersion = localStorage.getItem('selectedMessageVersion');
+        if (savedVersion) {
+            currentMessageVersion = savedVersion;
+            messageVersionSelect.value = savedVersion;
+        }
+        messageVersionSelect.addEventListener('change', changeMessageVersion);
     }
 
     // 保留任务模式切换事件（兼容性）
@@ -1008,6 +1020,11 @@ function createChatMessage(prompt, contextType = ContextType.NORMAL, remark = nu
         }
     }
 
+    // 注入消息版本到 dynamic_config
+    message.dynamic_config = Object.assign({}, message.dynamic_config, {
+        message_version: currentMessageVersion,
+    });
+
     // Add remark field if provided
     if (remark !== null) {
         message.remark = remark;
@@ -1140,6 +1157,13 @@ function changeLanguage() {
     localStorage.setItem('selectedLanguage', currentLanguage);
     const displayName = languageSelect.options[languageSelect.selectedIndex].text;
     showSystemMessage(`语言已切换为: ${displayName}`);
+}
+
+// 切换消息版本
+function changeMessageVersion() {
+    currentMessageVersion = messageVersionSelect.value;
+    localStorage.setItem('selectedMessageVersion', currentMessageVersion);
+    showSystemMessage(`消息版本已切换为: ${currentMessageVersion}`);
 }
 
 // 切换Agent模式
@@ -1524,7 +1548,32 @@ function handleWebSocketMessage(event) {
         const contentType = payload && payload.content_type;
         const content = payload && payload.content;
 
-        if (eventType === 'after_agent_reply' && content) {
+        // v2 消息格式：type=super_magic_message，内容在 raw_content.super_magic_message 里
+        if (payload && payload.type === 'super_magic_message' && payload.raw_content) {
+            const smsg = payload.raw_content.super_magic_message;
+            if (smsg) {
+                // 工具调用事件：tool 字段在 smsg.tool 里，优先渲染工具调用块
+                if (smsg.tool && (eventType === 'before_tool_call' || eventType === 'after_tool_call')) {
+                    showToolCallMessage(smsg.tool, eventType, payload.send_timestamp);
+                } else if (smsg.role === 'assistant') {
+                    if (smsg.reasoning_content) {
+                        showThinkingMessage(smsg.reasoning_content, payload.send_timestamp);
+                    }
+                    if (smsg.content) {
+                        showAIMessage(smsg.content, payload.send_timestamp);
+                    }
+                    if (!smsg.content && !smsg.reasoning_content) {
+                        showEventLog(data);
+                    }
+                } else {
+                    // role=tool 等其他角色（after_main_agent_run 等），折叠为事件日志
+                    showEventLog(data);
+                }
+            } else {
+                showEventLog(data);
+            }
+        } else if (eventType === 'after_agent_reply' && content) {
+            // v1 消息格式
             if (contentType === 'content') {
                 // AI 正式回复 → 白色气泡
                 showAIMessage(content, payload.send_timestamp);
