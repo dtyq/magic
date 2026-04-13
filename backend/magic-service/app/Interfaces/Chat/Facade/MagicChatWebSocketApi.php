@@ -279,10 +279,18 @@ class MagicChatWebSocketApi extends BaseNamespace
                 'data.refer_message_id' => 'string',
                 'data.message' => 'required|array',
                 'data.message.type' => 'required|string',
-                'data.message.app_message_id' => 'required|string',
+                'data.message.app_message_id' => 'string',
             ];
-            $this->relationAppMsgIdAndRequestId($params['data']['message']['app_message_id'] ?? '');
             $this->checkParams($appendRules, $params);
+            // 从消息体内提取 correlation_id，用于区分不同 LLM 响应批次
+            $messageType = $params['data']['message']['type'] ?? '';
+            $correlationId = $params['data']['message'][$messageType]['correlation_id'] ?? null;
+            $resolvedAppMsgId = $this->resolveAppMessageId(
+                $params['data']['message']['app_message_id'] ?? null,
+                $correlationId
+            );
+            $params['data']['message']['app_message_id'] = $resolvedAppMsgId;
+            $this->relationAppMsgIdAndRequestId($resolvedAppMsgId);
             $this->setLocale($params['context']['language'] ?? '');
             # 使用 magicChatContract 校验参数
             $chatRequest = new ChatRequest($params);
@@ -338,6 +346,41 @@ class MagicChatWebSocketApi extends BaseNamespace
         // 直接用 appMsgId 作为 requestId会导致很多无效 log，难以追踪。
         $requestId = empty($appMsgId) ? (string) IdGenerator::getSnowId() : $appMsgId;
         CoContext::setRequestId($requestId);
+    }
+
+    /**
+     * 解析 app_message_id：
+     * - 若客户端已传入则直接使用；
+     * - 有 correlation_id 时，以其为缓存键，同一批次的 chunk 复用同一个雪花 ID（有效期 10 分钟）；
+     * - 无 correlation_id 时直接生成雪花 ID，不做缓存。
+     */
+    private function resolveAppMessageId(?string $appMessageId, ?string $correlationId): string
+    {
+        if (! empty($appMessageId)) {
+            return $appMessageId;
+        }
+
+        if (empty($correlationId)) {
+            return (string) IdGenerator::getSnowId();
+        }
+
+        $cacheKey = $this->buildAppMsgIdCacheKey($correlationId);
+        $cached = $this->redis->get($cacheKey);
+        if (! empty($cached)) {
+            return (string) $cached;
+        }
+
+        $snowflakeId = (string) IdGenerator::getSnowId();
+        $this->redis->setex($cacheKey, 600, $snowflakeId);
+        return $snowflakeId;
+    }
+
+    /**
+     * 构建 correlation_id -> app_message_id 缓存键.
+     */
+    private function buildAppMsgIdCacheKey(string $correlationId): string
+    {
+        return sprintf('magic-im:app_msg_id:%s', $correlationId);
     }
 
     /**

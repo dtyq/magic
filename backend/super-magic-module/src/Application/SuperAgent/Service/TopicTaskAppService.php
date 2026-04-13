@@ -286,6 +286,7 @@ class TopicTaskAppService extends AbstractAppService
                     parentCorrelationId: $messageDTO->getPayload()->getParentCorrelationId() ?? null,
                     contentType: $messageDTO->getPayload()->getContentType() ?? null,
                     usage: ! empty($usage) ? $usage : null,
+                    rawContent: $messageEntity->getRawContent(),
                 );
             }
 
@@ -836,6 +837,7 @@ class TopicTaskAppService extends AbstractAppService
         $taskMessageEntity->setCorrelationId($payload->getCorrelationId());
         $taskMessageEntity->setParentCorrelationId($payload->getParentCorrelationId());
         $taskMessageEntity->setContentType($payload->getContentType());
+        $taskMessageEntity->setRawContent($payload->getRawContent());
 
         // Validate message type
         if (! MessageType::isValid($messageType)) {

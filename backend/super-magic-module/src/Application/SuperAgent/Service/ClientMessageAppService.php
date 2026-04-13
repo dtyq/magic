@@ -8,6 +8,8 @@ declare(strict_types=1);
 namespace Dtyq\SuperMagic\Application\SuperAgent\Service;
 
 use App\Application\Chat\Service\MagicChatMessageAppService;
+use App\Domain\Chat\DTO\Message\ChatMessage\SuperMagicMessage;
+use App\Domain\Chat\DTO\Message\MessageInterface;
 use App\Domain\Chat\Entity\Items\SeqExtra;
 use App\Domain\Chat\Entity\MagicSeqEntity;
 use App\Domain\Chat\Entity\ValueObject\ConversationType;
@@ -46,7 +48,7 @@ class ClientMessageAppService extends AbstractAppService
         string $chatConversationId
     ): void {
         try {
-            $this->doSendMessage($message, $chatTopicId, $chatConversationId);
+            $this->doSendMessage($message, $chatTopicId, $chatConversationId, $message->getMessageId());
 
             $this->logger->info(sprintf(
                 'SuperAgent message sent to client, Task ID: %s, Message type: %s',
@@ -84,26 +86,36 @@ class ClientMessageAppService extends AbstractAppService
         ?string $parentCorrelationId = null,
         ?string $contentType = null,
         ?array $usage = null,
+        null|array|string $rawContent = null,
     ): string {
         try {
-            $message = $this->createSuperAgentMessage(
-                $messageId,
-                $topicId,
-                $taskId,
-                $content,
-                $messageType,
-                $status,
-                $event,
-                $steps,
-                $tool,
-                $attachments,
-                $correlationId,
-                $parentCorrelationId,
-                $contentType,
-                $usage
-            );
+            if ($messageType === ChatMessageType::SuperMagicMessage->value) {
+                // 新格式：直接用 SuperMagicMessage 发送
+                $message = $this->buildSuperMagicMessage($rawContent, $attachments, $usage);
+                $seqType = ChatMessageType::SuperMagicMessage;
+                $appMessageId = (string) $messageId;
+            } else {
+                $message = $this->createSuperAgentMessage(
+                    $messageId,
+                    $topicId,
+                    $taskId,
+                    $content,
+                    $messageType,
+                    $status,
+                    $event,
+                    $steps,
+                    $tool,
+                    $attachments,
+                    $correlationId,
+                    $parentCorrelationId,
+                    $contentType,
+                    $usage
+                );
+                $appMessageId = $message->getMessageId();
+                $seqType = ChatMessageType::SuperAgentCard;
+            }
 
-            $seqId = $this->doSendMessage($message, $chatTopicId, $chatConversationId);
+            $seqId = $this->doSendMessage($message, $chatTopicId, $chatConversationId, $appMessageId, $seqType);
 
             $this->logger->info(sprintf(
                 'Normal message sent to client, Task ID: %s, Message type: %s',
@@ -259,46 +271,77 @@ class ClientMessageAppService extends AbstractAppService
      * @return string seq_id
      */
     private function doSendMessage(
-        SuperAgentMessage $message,
+        MessageInterface $message,
         string $chatTopicId,
-        string $chatConversationId
+        string $chatConversationId,
+        string $appMessageId = '',
+        ChatMessageType $seqType = ChatMessageType::SuperAgentCard,
     ): string {
         // Create sequence entity
         $seqDTO = new MagicSeqEntity();
         $seqDTO->setObjectType(ConversationType::Ai);
         $seqDTO->setContent($message);
-        $seqDTO->setSeqType(ChatMessageType::SuperAgentCard);
+        $seqDTO->setSeqType($seqType);
 
         $extra = new SeqExtra();
         $extra->setTopicId($chatTopicId);
         $seqDTO->setExtra($extra);
         $seqDTO->setConversationId($chatConversationId);
 
-        $this->logger->info($this->buildSendLog($message));
+        $this->logger->info($this->buildSendLog($message, $appMessageId));
 
         // Check for duplicate messages to avoid re-sending
-        $appMessageId = $message->getMessageId();
-        if ($this->chatMessageAppService->isMessageAlreadySent($appMessageId, ChatMessageType::SuperAgentCard->value)) {
+        if ($this->chatMessageAppService->isMessageAlreadySent($appMessageId, $seqType->value)) {
             $this->logger->info(sprintf(
-                'Duplicate message detected, skipping send - App Message ID: %s, Task ID: %s',
-                $appMessageId,
-                $message->getTaskId()
+                'Duplicate message detected, skipping send - App Message ID: %s',
+                $appMessageId
             ));
             return ''; // Skip sending if message already exists
         }
 
         // Send message
         try {
-            $data = $this->chatMessageAppService->aiSendMessage($seqDTO, $message->getMessageId());
+            $data = $this->chatMessageAppService->aiSendMessage($seqDTO, $appMessageId);
             return $data['seq']['seq_id'] ?? '';
         } catch (Throwable $e) {
             $this->logger->error(sprintf(
-                'Failed to send message to client: %s, Task ID: %s',
+                'Failed to send message to client: %s, App Message ID: %s',
                 $e->getMessage(),
-                $message->getTaskId()
+                $appMessageId
             ));
             return '';
         }
+    }
+
+    /**
+     * 解析 super_magic_message 格式的 rawContent，构造 SuperMagicMessage.
+     *
+     * rawContent 结构：
+     * {
+     *   "type": "super_magic_message",
+     *   "super_magic_message": {
+     *     "role": "assistant"|"tool",
+     *     "content": "...",
+     *     "reasoning_content": "...",
+     *     "tool_calls": [...],
+     *     "tool_call_id": "call_xxx",
+     *     "tool": { "id": "...", "name": "...", "action": "...", "status": "...", "remark": "", "detail": null, "attachments": [] }
+     *   }
+     * }
+     */
+    private function buildSuperMagicMessage(null|array|string $rawContent, ?array $attachments = null, ?array $usage = null): SuperMagicMessage
+    {
+        if (is_string($rawContent)) {
+            $data = json_decode($rawContent, true) ?? [];
+        } else {
+            $data = $rawContent ?? [];
+        }
+
+        // 内层字段 key 为 snake_case，AbstractObject::initProperty 会自动转成 camelCase 赋值
+        $innerData = $data['super_magic_message'] ?? [];
+        $innerData['attachments'] = $attachments;
+        $innerData['usage'] = $usage;
+        return new SuperMagicMessage($innerData);
     }
 
     /**
@@ -372,24 +415,31 @@ class ClientMessageAppService extends AbstractAppService
         return $message;
     }
 
-    private function buildSendLog(SuperAgentMessage $message): string
+    private function buildSendLog(MessageInterface $message, string $appMessageId): string
     {
-        $parts = [
-            'topic_id=' . $message->getTopicId(),
-            'message_id=' . $message->getMessageId(),
-            'task_id=' . $message->getTaskId(),
-            'type=' . $message->getType(),
-            'status=' . $message->getStatus(),
-        ];
+        if ($message instanceof SuperAgentMessage) {
+            $parts = [
+                'topic_id=' . $message->getTopicId(),
+                'message_id=' . $message->getMessageId(),
+                'task_id=' . $message->getTaskId(),
+                'type=' . $message->getType(),
+                'status=' . $message->getStatus(),
+            ];
 
-        $event = $message->getEvent();
-        if ($event !== '') {
-            $parts[] = 'event=' . $event;
-        }
+            $event = $message->getEvent();
+            if ($event !== '') {
+                $parts[] = 'event=' . $event;
+            }
 
-        $correlationId = $message->getCorrelationId();
-        if ($correlationId !== null && $correlationId !== '') {
-            $parts[] = 'correlation_id=' . $correlationId;
+            $correlationId = $message->getCorrelationId();
+            if ($correlationId !== null && $correlationId !== '') {
+                $parts[] = 'correlation_id=' . $correlationId;
+            }
+        } else {
+            $parts = [
+                'message_id=' . $appMessageId,
+                'message_class=' . get_class($message),
+            ];
         }
 
         return '[Send to Client] Sending message to client: ' . implode(', ', $parts);

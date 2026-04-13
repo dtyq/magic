@@ -298,8 +298,12 @@ class TaskMessageEntity extends AbstractEntity
         return $this->rawContent ?? '';
     }
 
-    public function setRawContent(?string $rawContent): self
+    public function setRawContent(null|array|string $rawContent): self
     {
+        if (is_array($rawContent)) {
+            $rawContent = json_encode($rawContent, JSON_UNESCAPED_UNICODE);
+        }
+
         $this->rawContent = $rawContent;
         return $this;
     }

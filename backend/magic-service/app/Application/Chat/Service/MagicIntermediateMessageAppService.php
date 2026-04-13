@@ -9,6 +9,7 @@ namespace App\Application\Chat\Service;
 
 use App\Domain\Chat\DTO\MagicMessageDTO;
 use App\Domain\Chat\DTO\Message\ChatMessage\RawMessage;
+use App\Domain\Chat\DTO\Message\ChatMessage\SuperMagicChunk;
 use App\Domain\Chat\DTO\Request\ChatRequest;
 use App\Domain\Chat\Entity\Items\SeqExtra;
 use App\Domain\Chat\Entity\MagicConversationEntity;
@@ -65,6 +66,10 @@ class MagicIntermediateMessageAppService extends AbstractAppService
             $this->handleRawMessage($messageDTO, $conversationEntity, $chatRequest);
             return null;
         }
+        if ($messageContent instanceof SuperMagicChunk) {
+            $this->handleSuperMagicChunk($messageDTO, $conversationEntity, $chatRequest);
+            return null;
+        }
 
         match ($messageDTO->getMessageType()) {
             IntermediateMessageType::SuperMagicInstruction => $this->magicIntermediateDomainService->handleSuperMagicInstructionMessage(
@@ -89,6 +94,24 @@ class MagicIntermediateMessageAppService extends AbstractAppService
         }
     }
 
+    private function handleSuperMagicChunk(MagicMessageDTO $messageDTO, MagicConversationEntity $conversationEntity, ChatRequest $chatRequest): void
+    {
+        $receiveUserEntity = $this->magicChatDomainService->getUserInfo($conversationEntity->getReceiveId());
+
+        $messageEntity = new MagicMessageEntity();
+        $messageEntity->setMessageType(ChatMessageType::SuperMagicChunk);
+        $messageEntity->setContent($messageDTO->getContent());
+        $seqEntity = new MagicSeqEntity();
+        $seqEntity->setSeqType(ChatMessageType::SuperMagicChunk);
+        $seqEntity->setContent($messageDTO->getContent());
+        $seqEntity->setConversationId($chatRequest->getData()->getConversationId());
+        $seqEntity->setExtra(new SeqExtra(['topic_id' => $messageDTO->getTopicId()]));
+        $seqEntity->setAppMessageId($messageDTO->getAppMessageId());
+        $clientSeqStruct = SeqAssembler::getClientSeqStruct($seqEntity, $messageEntity);
+        $pushData = $this->filterPushData($clientSeqStruct->toArray());
+        SocketIOUtil::sendIntermediate(SocketEventType::Intermediate, $receiveUserEntity->getMagicId(), $pushData);
+    }
+
     private function handleRawMessage(MagicMessageDTO $messageDTO, MagicConversationEntity $conversationEntity, ChatRequest $chatRequest): void
     {
         $receiveUserEntity = $this->magicChatDomainService->getUserInfo($conversationEntity->getReceiveId());
@@ -103,7 +126,23 @@ class MagicIntermediateMessageAppService extends AbstractAppService
         $seqEntity->setExtra(new SeqExtra(['topic_id' => $messageDTO->getTopicId()]));
         $seqEntity->setAppMessageId($messageDTO->getAppMessageId());
         $clientSeqStruct = SeqAssembler::getClientSeqStruct($seqEntity, $messageEntity);
-        $pushData = $clientSeqStruct->toArray();
+        $pushData = $this->filterPushData($clientSeqStruct->toArray());
         SocketIOUtil::sendIntermediate(SocketEventType::Intermediate, $receiveUserEntity->getMagicId(), $pushData);
+    }
+
+    /**
+     * 递归过滤数组中 value 为 null 或空字符串的键，减少 socket 推送数据量.
+     */
+    private function filterPushData(array $data): array
+    {
+        $result = [];
+        foreach ($data as $key => $value) {
+            if (is_array($value)) {
+                $result[$key] = $this->filterPushData($value);
+            } elseif ($value !== null && $value !== '') {
+                $result[$key] = $value;
+            }
+        }
+        return $result;
     }
 }
