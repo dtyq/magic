@@ -68,7 +68,7 @@ class TemporaryFileManager
         self::ensureDirectoryExists($directory);
 
         $tempFile = tempnam($directory, $prefix);
-        if (! is_string($tempFile) || $tempFile === '') {
+        if ($tempFile === false) {
             throw new RuntimeException('Failed to create temporary file');
         }
 
