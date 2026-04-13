@@ -83,8 +83,7 @@ class OfficialImageRemoveBackgroundDriver implements ImageRemoveBackgroundDriver
             throw new InvalidArgumentException('image_generate.invalid_image_url');
         }
 
-        $requestUrl = trim((string) ($this->providerConfig['url'] ?? ''));
-        $apiKey = trim((string) ($this->providerConfig['api_key'] ?? ''));
+        ['request_url' => $requestUrl, 'api_key' => $apiKey] = $this->getRequestConfig();
         $modelName = trim((string) ($this->providerConfig['model_name'] ?? ''));
         if ($requestUrl === '' || $apiKey === '' || $modelName === '') {
             throw new InvalidArgumentException('image_generate.remove_background_provider_not_configured');
@@ -199,6 +198,17 @@ class OfficialImageRemoveBackgroundDriver implements ImageRemoveBackgroundDriver
     private function getTimeout(): int
     {
         return (int) ($this->providerConfig['timeout'] ?? 300);
+    }
+
+    /**
+     * @return array{request_url: string, api_key: string}
+     */
+    private function getRequestConfig(): array
+    {
+        return [
+            'request_url' => trim((string) ($this->providerConfig['request_url'] ?? $this->providerConfig['url'] ?? '')),
+            'api_key' => trim((string) ($this->providerConfig['api_key'] ?? '')),
+        ];
     }
 
     /**

@@ -7,11 +7,9 @@ declare(strict_types=1);
 
 namespace App\Interfaces\ModelGateway\Facade\Open;
 
-use App\Application\ModelGateway\Service\ImageLLMAppService;
 use App\Application\ModelGateway\Service\LLMAppService;
 use App\Domain\ModelGateway\Entity\Dto\CompletionDTO;
 use App\Domain\ModelGateway\Entity\Dto\EmbeddingsDTO;
-use App\Domain\ModelGateway\Entity\Dto\ImageConvertHighDTO;
 use App\Domain\ModelGateway\Entity\Dto\ImageEditDTO;
 use App\Domain\ModelGateway\Entity\Dto\ImageSearchRequestDTO;
 use App\Domain\ModelGateway\Entity\Dto\SearchRequestDTO;
@@ -29,9 +27,6 @@ class OpenAIProxyApi extends AbstractOpenApi
 {
     #[Inject]
     protected LLMAppService $llmAppService;
-
-    #[Inject]
-    protected ImageLLMAppService $imageLLMAppService;
 
     public function chatCompletions(RequestInterface $request)
     {
@@ -140,34 +135,6 @@ class OpenAIProxyApi extends AbstractOpenApi
             return $response->toArray();
         }
         return null;
-    }
-
-    /**
-     * Image convert high definition endpoint.
-     *
-     * POST /v2/images/convert-high
-     *
-     * Request Body (JSON):
-     * - images: Array of source image URLs to convert (required, at least one image)
-     *
-     * Headers:
-     * - Authorization: Bearer {access_token}
-     *
-     * @return array Response with converted image URL
-     */
-    public function imageConvertHigh(RequestInterface $request): array
-    {
-        $requestData = $request->all();
-
-        $imageConvertHighDTO = new ImageConvertHighDTO($requestData);
-        $imageConvertHighDTO->setAccessToken($this->getAccessToken());
-        $imageConvertHighDTO->setIps($this->getClientIps());
-
-        $imageConvertHighDTO->valid();
-        $this->enrichRequestDTO($imageConvertHighDTO, $request->getHeaders());
-
-        $response = $this->imageLLMAppService->imageConvertHighV2($imageConvertHighDTO);
-        return $response->toArray();
     }
 
     /**

@@ -7,10 +7,12 @@ declare(strict_types=1);
 
 namespace App\Interfaces\ModelGateway\Facade\Open;
 
+use App\Application\ModelGateway\Service\ImageLLMAppService;
 use App\Application\ModelGateway\Service\ImageRemoveBackgroundAppService;
+use App\Domain\ModelGateway\Entity\Dto\ImageConvertHighDTO;
 use App\Domain\ModelGateway\Entity\Dto\ImageRemoveBackgroundRequestDTO;
-use App\Infrastructure\ExternalAPI\ImageGenerateAPI\Response\OpenAIFormatResponse;
 use Hyperf\Di\Annotation\Inject;
+use Hyperf\HttpServer\Contract\RequestInterface;
 
 /**
  * 图片操作代理接口，承载去背景、扩图、橡皮擦等图片能力的统一入口。
@@ -20,8 +22,29 @@ class ImageProxyApi extends AbstractOpenApi
     #[Inject]
     protected ImageRemoveBackgroundAppService $imageRemoveBackgroundAppService;
 
+    #[Inject]
+    protected ImageLLMAppService $imageLLMAppService;
+
     /**
-     * 去背景接口，返回与现有图片生成接口一致的 OpenAI 风格响应结构。
+     * 高清化接口.
+     */
+    public function imageConvertHigh(RequestInterface $request): array
+    {
+        $requestData = $request->all();
+
+        $dto = new ImageConvertHighDTO($requestData);
+        $dto->setAccessToken($this->getAccessToken());
+        $dto->setIps($this->getClientIps());
+        $dto->valid();
+
+        $this->enrichRequestDTO($dto, $request->getHeaders());
+
+        $response = $this->imageLLMAppService->imageConvertHighV2($dto);
+        return $response->toArray();
+    }
+
+    /**
+     * 去背景接口.
      */
     public function imageRemoveBackground(): array
     {
@@ -33,10 +56,7 @@ class ImageProxyApi extends AbstractOpenApi
         $this->enrichRequestDTO($dto, $this->request->getHeaders());
 
         $response = $this->imageRemoveBackgroundAppService->removeBackground($dto);
-        if ($response instanceof OpenAIFormatResponse) {
-            return $response->toArray();
-        }
 
-        return [];
+        return $response->toArray();
     }
 }

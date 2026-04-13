@@ -23,14 +23,19 @@ Router::addGroup('/v1', function () {
 }, ['middleware' => [ApiKeyMiddleware::class]]);
 
 Router::addGroup('/v2', function () {
+    // Image generation endpoint - creates images from text prompts
     Router::post('/images/generations', [OpenAIProxyApi::class, 'textGenerateImageV2']);
+    // Image edit endpoint - edits images with prompts and optional masks
     Router::post('/images/edits', [OpenAIProxyApi::class, 'imageEditV2']);
-    Router::post('/images/convert-high', [OpenAIProxyApi::class, 'imageConvertHigh']);
+    // Image convert-high endpoint - upscales or enhances input images
+    Router::post('/images/convert-high', [ImageProxyApi::class, 'imageConvertHigh']);
+    // Image remove-background endpoint - removes backgrounds from input images
     Router::post('/images/remove-background', [ImageProxyApi::class, 'imageRemoveBackground']);
     // Unified search endpoint - supports multiple search engines (bing, google, tavily, duckduckgo, jina)
     Router::get('/search', [OpenAIProxyApi::class, 'unifiedSearch']);
     // Image search endpoint - supports multiple providers (bing, google via serpapi)
     Router::get('/image-search', [OpenAIProxyApi::class, 'imageSearch']);
+    // Web scrape endpoint - fetches and extracts content from target web pages
     Router::post('/web-scrape', [OpenAIProxyApi::class, 'webScrape']);
 }, ['middleware' => [ApiKeyMiddleware::class]]);
 
