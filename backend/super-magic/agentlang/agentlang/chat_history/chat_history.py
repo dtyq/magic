@@ -1044,6 +1044,16 @@ class ChatHistory:
                     if llm_messages[j].get("role") == "tool"
                 }
 
+                # 找到 assistant 之后连续 tool 消息的末尾位置，
+                # 合成占位必须紧跟 assistant + 已有 tool results，不能隔着 user 消息，
+                # 否则 step2 的向后搜索遇到 user 会提前终止，导致合成 tool 被误判为孤立消息
+                contiguous_tool_end = i  # 默认紧跟 assistant
+                for k in range(i + 1, next_assistant_idx):
+                    if llm_messages[k].get("role") == "tool":
+                        contiguous_tool_end = k
+                    else:
+                        break
+
                 for tool_call in tool_calls_in_msg:
                     tool_call_id = tool_call.get("id")
                     if not tool_call_id or tool_call_id in found_ids:
@@ -1055,9 +1065,7 @@ class ChatHistory:
                         "tool_call_id": tool_call_id,
                         "content": "[Tool result missing — call was likely truncated by output token limit]",
                     }
-                    insert_after = next_assistant_idx - 1  # 插在搜索边界之前（即现有 tool results 之后）
-                    if insert_after < i:
-                        insert_after = i  # 至少在 assistant 消息之后
+                    insert_after = contiguous_tool_end
                     if insert_after not in synthetic_inserts:
                         synthetic_inserts[insert_after] = []
                     synthetic_inserts[insert_after].append(synthetic)
@@ -1068,7 +1076,7 @@ class ChatHistory:
                     )
 
         # 将合成 tool_result 插入消息列表
-        # insert_after 始终 <= len-1（取的是 next_assistant_idx-1 或 i），无 len(llm_messages) key
+        # insert_after 始终 <= len-1（取的是 contiguous_tool_end，即 i 或区间内某个 tool 位置），无 len(llm_messages) key
         if synthetic_inserts:
             patched: List[Dict[str, Any]] = []
             for i, msg in enumerate(llm_messages):
