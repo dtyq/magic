@@ -10,6 +10,8 @@ import json
 import uuid
 from typing import TYPE_CHECKING, Any, Dict, List, Optional
 
+from app.core.context.pending_reply_state import PendingReplyState
+
 if TYPE_CHECKING:
     from app.core.horizon.agent_horizon import AgentHorizon
 from datetime import datetime, timedelta
@@ -254,6 +256,8 @@ class AgentContext(BaseAgentContext):
         from app.core.stream import Stream
         import asyncio
 
+        from app.core.context.pending_reply_state import PendingReplyState
+
         # 初始化并注册共享字段
         self.shared_context.register_fields({
             "streams": ({}, Dict[str, Stream]),
@@ -285,6 +289,10 @@ class AgentContext(BaseAgentContext):
             "streaming_sinks": ([], List),
             # Agent Master 管理
             "agent_code": (None, Optional[str]),  # 当前自定义 Agent 的 agent_code
+            # 消息版本协商（v1 / v2），由 set_chat_client_message 提取 dynamic_config.message_version 写入
+            "message_version": ("v1", str),
+            # v2 批量 tool_calls 暂存状态
+            "pending_reply_state": (None, Optional[PendingReplyState]),
         })
 
         # 标记初始化完成
@@ -526,12 +534,17 @@ class AgentContext(BaseAgentContext):
         return None
 
     def set_chat_client_message(self, chat_client_message: ChatClientMessage) -> None:
-        """设置聊天客户端消息
+        """设置聊天客户端消息，并从 dynamic_config 中提取 message_version。
 
         Args:
             chat_client_message: 聊天客户端消息
         """
         self.shared_context.update_field("chat_client_message", chat_client_message)
+
+        dynamic_config = getattr(chat_client_message, "dynamic_config", None) or {}
+        version = dynamic_config.get("message_version", "v1") if isinstance(dynamic_config, dict) else "v1"
+        self.shared_context.update_field("message_version", version)
+        logger.debug(f"消息版本已设置为: {version}")
 
     def get_chat_client_message(self) -> Optional[ChatClientMessage]:
         """获取聊天客户端消息
@@ -1190,3 +1203,25 @@ class AgentContext(BaseAgentContext):
     def get_streaming_sinks(self) -> list:
         """返回当前所有额外流式推送目标列表。"""
         return self.shared_context.get_field("streaming_sinks") or []
+
+    # ====== 消息版本协商 ======
+
+    def get_message_version(self) -> str:
+        """获取当前会话的消息版本号，默认 'v1'。"""
+        return self.shared_context.get_field("message_version") or "v1"
+
+    def get_message_factory(self):
+        """根据 message_version 从注册表获取对应的消息工厂类。"""
+        from app.core.entity.factory.factory_registry import get_factory_by_version
+        return get_factory_by_version(self.get_message_version())
+
+    # ====== v2 批量 tool_calls 暂存状态 ======
+
+    def get_pending_reply_state(self) -> Optional["PendingReplyState"]:
+        """获取 v2 批量 tool_calls 暂存状态，不存在时返回 None。"""
+        from app.core.context.pending_reply_state import PendingReplyState
+        return self.shared_context.get_field("pending_reply_state")
+
+    def set_pending_reply_state(self, state: Optional["PendingReplyState"]) -> None:
+        """设置 v2 批量 tool_calls 暂存状态，传 None 可清除。"""
+        self.shared_context.update_field("pending_reply_state", state)

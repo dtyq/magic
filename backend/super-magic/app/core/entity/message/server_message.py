@@ -262,6 +262,7 @@ class ServerMessagePayload(BaseModel):
     parent_correlation_id: Optional[str] = None  # 父级关联ID，用于 Agent 循环周期分组（指向 THINK 容器的 correlation_id）
     content_type: Optional[str] = None  # 内容类型："reasoning"（思考内容）| "content"（回复内容），仅 agent_reply 消息使用
     token_used: Optional[int] = None    # 会话消耗的 token 总量，仅 AFTER_MAIN_AGENT_RUN 消息携带
+    raw_content: Optional[Dict[str, Any]] = None  # V2 结构化消息内容（super_magic_message / super_magic_chunk）
 
     model_config = ConfigDict(use_enum_values=True)  # 使用枚举值而不是枚举对象
 
@@ -294,6 +295,8 @@ class ServerMessagePayload(BaseModel):
         parent_correlation_id: Optional[str] = None,  # 父级关联ID，用于 Agent 循环周期分组
         content_type: Optional[str] = None,  # 内容类型："reasoning" | "content"，仅 agent_reply 消息使用
         token_used: Optional[int] = None,  # 会话消耗的 token 总量，仅 AFTER_MAIN_AGENT_RUN 消息携带
+        raw_content: Optional[Dict[str, Any]] = None,  # V2 结构化消息内容
+        message_id: Optional[str] = None,  # 预生成的消息ID（不传则自动雪花生成）
     ) -> "ServerMessagePayload":
         """
         创建任务消息的工厂方法
@@ -318,11 +321,13 @@ class ServerMessagePayload(BaseModel):
         Returns:
             ServerMessagePayload: 创建的任务消息载荷对象
         """
-        # 使用雪花算法生成ID
-        snowflake = Snowflake.create_default()
+        # 使用雪花算法生成ID（如果没有预生成的 message_id）
+        if message_id is None:
+            snowflake = Snowflake.create_default()
+            message_id = str(snowflake.get_id())
 
         return ServerMessagePayload(
-            message_id=str(snowflake.get_id()),
+            message_id=message_id,
             type=message_type,
             task_id=task_id,
             seq_id=seq_id,  # 传递序列号
@@ -340,6 +345,7 @@ class ServerMessagePayload(BaseModel):
             parent_correlation_id=parent_correlation_id,  # 传递父级关联ID
             content_type=content_type,  # 传递内容类型
             token_used=token_used,  # 传递 token 总量
+            raw_content=raw_content,  # 传递 V2 结构化消息内容
         )
 
 class ServerMessage(BaseModel):

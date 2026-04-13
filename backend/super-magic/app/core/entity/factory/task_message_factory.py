@@ -44,6 +44,7 @@ from agentlang.event.event import Event, EventType
 from agentlang.llms.token_usage.models import TokenUsageCollection
 from agentlang.logger import get_logger
 from app.core.entity.event.event_context import EventContext
+from app.core.entity.factory.task_message_factory_protocol import TaskMessageFactoryProtocol
 from app.utils.attachment_sorter import AttachmentSorter
 from typing import Optional, List, Dict
 import random
@@ -52,10 +53,10 @@ from datetime import datetime
 
 logger = get_logger(__name__)
 
-class TaskMessageFactory:
-    """任务消息工厂类，用于创建不同类型的TaskMessage对象"""
-
-
+class TaskMessageFactory(TaskMessageFactoryProtocol):
+    """
+    V1 任务消息工厂类，用于创建不同类型的TaskMessage对象。
+    """
 
     @classmethod
     def create_error_message(
