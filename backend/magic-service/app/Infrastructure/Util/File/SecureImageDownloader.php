@@ -7,7 +7,7 @@ declare(strict_types=1);
 
 namespace App\Infrastructure\Util\File;
 
-use App\Infrastructure\Util\File\DTO\SecureDownloadedImageDTO;
+use App\Infrastructure\ExternalAPI\Image\ImageAsset;
 use App\Infrastructure\Util\Http\GuzzleClientFactory;
 use App\Infrastructure\Util\SSRF\SSRFUtil;
 use GuzzleHttp\RequestOptions;
@@ -17,9 +17,9 @@ use RuntimeException;
 use Throwable;
 
 /**
- * 安全下载远程图片。该工具负责对输入资源做统一的 SSRF、大小和文件类型约束。
+ * 安全下载远程图片。该下载器负责对输入资源做统一的 SSRF、大小和文件类型约束。
  */
-class SecureImageDownloadTool
+class SecureImageDownloader
 {
     private const MAX_IMAGE_SIZE = 20 * 1024 * 1024;
 
@@ -33,11 +33,11 @@ class SecureImageDownloadTool
      *
      * @param array<string> $blackList
      */
-    public function download(string $imageUrl, array $blackList = []): SecureDownloadedImageDTO
+    public function download(string $imageUrl, array $blackList = []): ImageAsset
     {
         $safeUrl = SSRFUtil::getSafeUrl($imageUrl, blackList: $blackList, replaceIp: false);
         try {
-            $tempFile = TemporaryFileManager::createRemoveBackgroundTempFile('remove_bg_');
+            $tempFile = TemporaryFileManager::createTempFile('image_download_');
         } catch (RuntimeException) {
             throw new InvalidArgumentException('image_generate.create_temp_file_failed');
         }
@@ -59,7 +59,7 @@ class SecureImageDownloadTool
 
             $mimeType = $this->imageFileInspector->assertImageFile($tempFile);
 
-            return new SecureDownloadedImageDTO($tempFile, $mimeType, $size);
+            return ImageAsset::fromLocalFile($tempFile, $mimeType, size: $size);
         } catch (Throwable $throwable) {
             if (is_file($tempFile)) {
                 @unlink($tempFile);

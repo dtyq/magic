@@ -8,19 +8,16 @@ declare(strict_types=1);
 namespace App\Infrastructure\ExternalAPI\ImageRemoveBackground\Driver;
 
 use App\Infrastructure\ExternalAPI\ImageRemoveBackground\DTO\ImageRemoveBackgroundDriverRequest;
-use App\Infrastructure\ExternalAPI\ImageRemoveBackground\DTO\ImageRemoveBackgroundDriverResponse;
 use App\Infrastructure\ExternalAPI\ImageRemoveBackground\Exception\ImageRemoveBackgroundDriverException;
 use App\Infrastructure\ExternalAPI\ImageRemoveBackground\ImageRemoveBackgroundDriverFactory;
 use App\Infrastructure\ExternalAPI\ImageRemoveBackground\ImageRemoveBackgroundDriverInterface;
-use App\Infrastructure\Util\File\ImageFileInspector;
-use App\Infrastructure\Util\File\TemporaryFileManager;
+use App\Infrastructure\ExternalAPI\ImageRemoveBackground\ImageRemoveBackgroundResult;
 use App\Infrastructure\Util\Http\GuzzleClientFactory;
 use GuzzleHttp\Client;
 use GuzzleHttp\RequestOptions;
 use Hyperf\Logger\LoggerFactory;
 use InvalidArgumentException;
 use Psr\Log\LoggerInterface;
-use RuntimeException;
 use Throwable;
 
 /**
@@ -36,7 +33,6 @@ class OfficialProxyImageRemoveBackgroundDriver implements ImageRemoveBackgroundD
      */
     public function __construct(
         private readonly array $providerConfig,
-        private readonly ImageFileInspector $imageFileInspector,
         LoggerFactory $loggerFactory,
     ) {
         $this->logger = $loggerFactory->get(static::class);
@@ -53,9 +49,9 @@ class OfficialProxyImageRemoveBackgroundDriver implements ImageRemoveBackgroundD
     }
 
     /**
-     * 调用官方去背景接口，并把返回的结果 URL 落为本地文件供后续统一上传。
+     * 调用官方去背景接口，返回可匿名下载的结果 URL。
      */
-    public function removeBackground(ImageRemoveBackgroundDriverRequest $request): ImageRemoveBackgroundDriverResponse
+    public function removeBackground(ImageRemoveBackgroundDriverRequest $request): ImageRemoveBackgroundResult
     {
         if ($request->getSourceType() !== ImageRemoveBackgroundDriverRequest::SOURCE_TYPE_URL) {
             throw new InvalidArgumentException('image_generate.invalid_image_url');
@@ -133,7 +129,16 @@ class OfficialProxyImageRemoveBackgroundDriver implements ImageRemoveBackgroundD
                 throw new ImageRemoveBackgroundDriverException('Official proxy provider missing result url', $response->getStatusCode(), $this->getProviderCode());
             }
 
-            return $this->downloadResultImage($resultUrl, $this->getTimeout());
+            $mimeType = (string) ($responseData['data'][0]['mime_type'] ?? '');
+            if ($mimeType === '') {
+                $mimeType = $this->resolveMimeType($outputFormat);
+            }
+
+            return ImageRemoveBackgroundResult::fromRemoteUrl(
+                $resultUrl,
+                $mimeType,
+                $this->getProviderCode(),
+            );
         } catch (Throwable $throwable) {
             $this->logger->error('ImageRemoveBackgroundOfficialProxyException', [
                 'provider' => $this->getProviderCode(),
@@ -146,58 +151,7 @@ class OfficialProxyImageRemoveBackgroundDriver implements ImageRemoveBackgroundD
 
     public function testConnection(ImageRemoveBackgroundDriverRequest $request): void
     {
-        $response = $this->removeBackground($request);
-        $resultFilePath = $response->getResultFilePath();
-        if (is_file($resultFilePath)) {
-            @unlink($resultFilePath);
-        }
-    }
-
-    /**
-     * 将上游返回的结果 URL 落为本地临时文件，以便后续统一上传到当前环境 OSS。
-     */
-    private function downloadResultImage(string $resultUrl, int $timeout): ImageRemoveBackgroundDriverResponse
-    {
-        try {
-            $tempFile = TemporaryFileManager::createRemoveBackgroundTempFile('official_proxy_remove_bg_');
-        } catch (RuntimeException) {
-            throw new InvalidArgumentException('image_generate.create_temp_file_failed');
-        }
-
-        try {
-            $this->logger->info('ImageRemoveBackgroundOfficialProxyDownloadStart', [
-                'provider' => $this->getProviderCode(),
-                'result_url_host' => $this->extractHost($resultUrl),
-                'timeout' => $timeout,
-            ]);
-            $client = $this->createClient($timeout);
-            $response = $client->get($resultUrl, [
-                RequestOptions::SINK => $tempFile,
-            ]);
-
-            if ($response->getStatusCode() < 200 || $response->getStatusCode() >= 300) {
-                $this->logger->warning('ImageRemoveBackgroundOfficialProxyDownloadFailed', [
-                    'provider' => $this->getProviderCode(),
-                    'status_code' => $response->getStatusCode(),
-                    'result_url_host' => $this->extractHost($resultUrl),
-                ]);
-                throw new ImageRemoveBackgroundDriverException('Failed to download official proxy result image', $response->getStatusCode(), $this->getProviderCode());
-            }
-
-            $mimeType = $this->imageFileInspector->assertImageFile($tempFile);
-            $this->logger->info('ImageRemoveBackgroundOfficialProxyDownloadSuccess', [
-                'provider' => $this->getProviderCode(),
-                'status_code' => $response->getStatusCode(),
-                'mime_type' => $mimeType,
-                'file_size' => filesize($tempFile) ?: 0,
-            ]);
-            return new ImageRemoveBackgroundDriverResponse($tempFile, $mimeType);
-        } catch (Throwable $throwable) {
-            if (is_file($tempFile)) {
-                @unlink($tempFile);
-            }
-            throw $throwable;
-        }
+        $this->removeBackground($request);
     }
 
     private function getTimeout(): int
@@ -219,5 +173,16 @@ class OfficialProxyImageRemoveBackgroundDriver implements ImageRemoveBackgroundD
     private function extractHost(string $url): string
     {
         return (string) (parse_url($url, PHP_URL_HOST) ?: '');
+    }
+
+    private function resolveMimeType(string $outputFormat): string
+    {
+        return match (strtolower(trim($outputFormat))) {
+            'jpeg', 'jpg' => 'image/jpeg',
+            'webp' => 'image/webp',
+            'gif' => 'image/gif',
+            'bmp' => 'image/bmp',
+            default => 'image/png',
+        };
     }
 }

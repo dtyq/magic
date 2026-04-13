@@ -34,7 +34,7 @@ class ImageRemoveBackgroundDriverFactory
     public function create(string $providerCode, array $providerConfig): ImageRemoveBackgroundDriverInterface
     {
         return match ($providerCode) {
-            self::PROVIDER_OFFICIAL_PROXY => new OfficialProxyImageRemoveBackgroundDriver($providerConfig, $this->imageFileInspector, $this->loggerFactory),
+            self::PROVIDER_OFFICIAL_PROXY => new OfficialProxyImageRemoveBackgroundDriver($providerConfig, $this->loggerFactory),
             self::PROVIDER_OFFICIAL_MODEL_SERVICE => new OfficialImageRemoveBackgroundDriver($providerConfig, $this->imageFileInspector, $this->loggerFactory),
             default => throw new RuntimeException("Unsupported image remove background provider: {$providerCode}"),
         };

@@ -17,7 +17,7 @@ use Throwable;
  */
 class TemporaryFileManager
 {
-    private const REMOVE_BACKGROUND_TEMP_DIRECTORY = BASE_PATH . '/runtime/images/remove-background';
+    private const DEFAULT_TEMP_DIRECTORY = BASE_PATH . '/runtime/tmp';
 
     private LoggerInterface $logger;
 
@@ -60,16 +60,16 @@ class TemporaryFileManager
         $this->files = [];
     }
 
-    /**
-     * 为去背景链路创建统一的临时文件，所有中间文件都落在 runtime/images/remove-background 目录下。
-     */
-    public static function createRemoveBackgroundTempFile(string $prefix): string
-    {
-        self::ensureDirectoryExists(self::REMOVE_BACKGROUND_TEMP_DIRECTORY);
+    public static function createTempFile(
+        string $prefix = 'tmp_',
+        ?string $directory = null,
+    ): string {
+        $directory = $directory ?: self::DEFAULT_TEMP_DIRECTORY;
+        self::ensureDirectoryExists($directory);
 
-        $tempFile = tempnam(self::REMOVE_BACKGROUND_TEMP_DIRECTORY, $prefix);
+        $tempFile = tempnam($directory, $prefix);
         if (! is_string($tempFile) || $tempFile === '') {
-            throw new RuntimeException('Failed to create remove background temporary file');
+            throw new RuntimeException('Failed to create temporary file');
         }
 
         return $tempFile;

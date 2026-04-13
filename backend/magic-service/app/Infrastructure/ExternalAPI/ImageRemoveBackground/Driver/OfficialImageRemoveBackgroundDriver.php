@@ -8,10 +8,10 @@ declare(strict_types=1);
 namespace App\Infrastructure\ExternalAPI\ImageRemoveBackground\Driver;
 
 use App\Infrastructure\ExternalAPI\ImageRemoveBackground\DTO\ImageRemoveBackgroundDriverRequest;
-use App\Infrastructure\ExternalAPI\ImageRemoveBackground\DTO\ImageRemoveBackgroundDriverResponse;
 use App\Infrastructure\ExternalAPI\ImageRemoveBackground\Exception\ImageRemoveBackgroundDriverException;
 use App\Infrastructure\ExternalAPI\ImageRemoveBackground\ImageRemoveBackgroundDriverFactory;
 use App\Infrastructure\ExternalAPI\ImageRemoveBackground\ImageRemoveBackgroundDriverInterface;
+use App\Infrastructure\ExternalAPI\ImageRemoveBackground\ImageRemoveBackgroundResult;
 use App\Infrastructure\Util\File\ImageFileInspector;
 use App\Infrastructure\Util\File\TemporaryFileManager;
 use App\Infrastructure\Util\Http\GuzzleClientFactory;
@@ -77,7 +77,7 @@ class OfficialImageRemoveBackgroundDriver implements ImageRemoveBackgroundDriver
     /**
      * 模型服务返回图片二进制流，直接使用 sink 落盘，避免大图进入内存。
      */
-    public function removeBackground(ImageRemoveBackgroundDriverRequest $request): ImageRemoveBackgroundDriverResponse
+    public function removeBackground(ImageRemoveBackgroundDriverRequest $request): ImageRemoveBackgroundResult
     {
         if ($request->getSourceType() !== ImageRemoveBackgroundDriverRequest::SOURCE_TYPE_FILE) {
             throw new InvalidArgumentException('image_generate.invalid_image_url');
@@ -95,7 +95,7 @@ class OfficialImageRemoveBackgroundDriver implements ImageRemoveBackgroundDriver
         }
 
         try {
-            $tempFile = TemporaryFileManager::createRemoveBackgroundTempFile('official_remove_bg_');
+            $tempFile = TemporaryFileManager::createTempFile('official_remove_bg_');
         } catch (RuntimeException) {
             throw new InvalidArgumentException('image_generate.create_temp_file_failed');
         }
@@ -172,7 +172,11 @@ class OfficialImageRemoveBackgroundDriver implements ImageRemoveBackgroundDriver
                 'mime_type' => $mimeType,
                 'file_size' => filesize($tempFile) ?: 0,
             ]);
-            return new ImageRemoveBackgroundDriverResponse($tempFile, $mimeType);
+            return ImageRemoveBackgroundResult::fromLocalFile(
+                $tempFile,
+                $mimeType,
+                $this->getProviderCode(),
+            );
         } catch (Throwable $throwable) {
             $this->logger->error('ImageRemoveBackgroundOfficialModelException', [
                 'provider' => $this->getProviderCode(),
@@ -189,7 +193,7 @@ class OfficialImageRemoveBackgroundDriver implements ImageRemoveBackgroundDriver
     public function testConnection(ImageRemoveBackgroundDriverRequest $request): void
     {
         $response = $this->removeBackground($request);
-        $resultFilePath = $response->getResultFilePath();
+        $resultFilePath = $response->getValue();
         if (is_file($resultFilePath)) {
             @unlink($resultFilePath);
         }

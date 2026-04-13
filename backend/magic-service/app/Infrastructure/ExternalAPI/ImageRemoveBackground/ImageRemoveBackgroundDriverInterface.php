@@ -8,7 +8,6 @@ declare(strict_types=1);
 namespace App\Infrastructure\ExternalAPI\ImageRemoveBackground;
 
 use App\Infrastructure\ExternalAPI\ImageRemoveBackground\DTO\ImageRemoveBackgroundDriverRequest;
-use App\Infrastructure\ExternalAPI\ImageRemoveBackground\DTO\ImageRemoveBackgroundDriverResponse;
 
 /**
  * 统一定义去背景第三方驱动能力边界，屏蔽各服务商的协议差异。
@@ -19,7 +18,7 @@ interface ImageRemoveBackgroundDriverInterface
 
     public function supportsDirectUrl(): bool;
 
-    public function removeBackground(ImageRemoveBackgroundDriverRequest $request): ImageRemoveBackgroundDriverResponse;
+    public function removeBackground(ImageRemoveBackgroundDriverRequest $request): ImageRemoveBackgroundResult;
 
     public function testConnection(ImageRemoveBackgroundDriverRequest $request): void;
 }

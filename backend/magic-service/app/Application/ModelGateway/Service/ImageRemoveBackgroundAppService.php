@@ -7,9 +7,20 @@ declare(strict_types=1);
 
 namespace App\Application\ModelGateway\Service;
 
+use App\Application\ModelGateway\Processor\ImageAssetMaterializer;
+use App\Application\ModelGateway\Processor\ImageProcessorPipeline;
+use App\Application\ModelGateway\Processor\UploadProcessor;
+use App\Application\ModelGateway\Processor\WatermarkProcessor;
+use App\Application\ModelGateway\Struct\ImagePostProcessOptions;
+use App\Application\ModelGateway\Struct\ImageProcessContext;
+use App\Domain\ImageGenerate\ValueObject\ImageGenerateSourceEnum;
+use App\Domain\ImageGenerate\ValueObject\ImplicitWatermark;
+use App\Domain\ImageGenerate\ValueObject\WatermarkConfig;
 use App\Domain\ModelGateway\Entity\Dto\ImageRemoveBackgroundRequestDTO;
 use App\Domain\ModelGateway\Entity\ValueObject\ModelGatewayDataIsolation;
+use App\Domain\ModelGateway\Event\ImageRemoveBackgroundCompletedEvent;
 use App\Domain\Provider\Entity\ValueObject\AiAbilityCode;
+use App\Domain\Provider\Service\AiAbilityDomainService;
 use App\ErrorCode\MagicApiErrorCode;
 use App\Infrastructure\Core\Exception\ExceptionBuilder;
 use App\Infrastructure\Core\ValueObject\StorageBucketType;
@@ -18,14 +29,16 @@ use App\Infrastructure\ExternalAPI\ImageRemoveBackground\DTO\ImageRemoveBackgrou
 use App\Infrastructure\ExternalAPI\ImageRemoveBackground\Exception\ImageRemoveBackgroundDriverException;
 use App\Infrastructure\ExternalAPI\ImageRemoveBackground\ImageRemoveBackgroundDriverFactory;
 use App\Infrastructure\ExternalAPI\ImageRemoveBackground\ImageRemoveBackgroundDriverInterface;
-use App\Infrastructure\Util\File\SecureImageDownloadTool;
+use App\Infrastructure\ImageGenerate\WatermarkPolicyInterface;
+use App\Infrastructure\Util\File\SecureImageDownloader;
 use App\Infrastructure\Util\File\TemporaryFileManager;
 use App\Infrastructure\Util\SSRF\SSRFUtil;
 use App\Interfaces\Authorization\Web\MagicUserAuthorization;
+use DateTime;
 use Dtyq\CloudFile\Kernel\Struct\UploadFile;
-use Dtyq\CloudFile\Kernel\Utils\MimeTypes;
 use Hyperf\Di\Annotation\Inject;
 use InvalidArgumentException;
+use Psr\EventDispatcher\EventDispatcherInterface;
 use RuntimeException;
 use Throwable;
 
@@ -35,13 +48,25 @@ use function Hyperf\Translation\__;
 /**
  * 去背景应用服务，负责统一编排配置读取、输入资源处理、第三方调用和结果上传。
  */
-class ImageRemoveBackgroundAppService extends ImageLLMAppService
+class ImageRemoveBackgroundAppService extends AbstractLLMAppService
 {
+    #[Inject]
+    protected ImageAssetMaterializer $imageAssetMaterializer;
+
+    #[Inject]
+    protected ImageProcessorPipeline $imageProcessorPipeline;
+
     #[Inject]
     protected ImageRemoveBackgroundDriverFactory $driverFactory;
 
     #[Inject]
-    protected SecureImageDownloadTool $secureImageDownloadTool;
+    protected SecureImageDownloader $secureImageDownloader;
+
+    #[Inject]
+    protected EventDispatcherInterface $eventDispatcher;
+
+    #[Inject]
+    protected AiAbilityDomainService $aiAbilityDomainService;
 
     /**
      * 连通性测试入口，允许使用未保存的临时配置校验 provider 可用性。
@@ -62,6 +87,7 @@ class ImageRemoveBackgroundAppService extends ImageLLMAppService
                 'provider' => (string) ($providerConfig['provider'] ?? ''),
                 'organization_code' => $authorization->getOrganizationCode(),
             ]);
+
             $driver = $this->driverFactory->create((string) $providerConfig['provider'], $providerConfig);
             $localTestImagePath = $this->createLocalTestImage();
             $temporaryFileManager->add($localTestImagePath);
@@ -140,6 +166,8 @@ class ImageRemoveBackgroundAppService extends ImageLLMAppService
 
         $providerConfig = $this->resolveEnabledProviderConfig();
         $providerCode = (string) ($providerConfig['provider'] ?? '');
+        $callTime = date('Y-m-d H:i:s');
+        $startTime = microtime(true);
 
         $this->logger->info('ImageRemoveBackgroundStart', [
             'provider' => $providerCode,
@@ -158,34 +186,45 @@ class ImageRemoveBackgroundAppService extends ImageLLMAppService
         try {
             $driverRequest = $this->buildDriverRequest($driver, $dto, $temporaryFileManager);
 
-            try {
-                $driverResponse = $driver->removeBackground($driverRequest);
-            } catch (ImageRemoveBackgroundDriverException $exception) {
-                $this->logger->warning('ImageRemoveBackgroundProviderFail', [
-                    'provider' => $exception->getProvider() ?: $providerCode,
-                    'provider_error_code' => $exception->getProviderErrorCode(),
-                    'provider_error_message' => $exception->getMessage(),
-                ]);
-                return $this->buildProviderErrorResponse($exception);
-            }
+            $providerResult = $driver->removeBackground($driverRequest);
 
-            $temporaryFileManager->add($driverResponse->getResultFilePath());
-            $response = $this->uploadResultFile(
-                $dataIsolation,
-                $driverResponse->getResultFilePath(),
-                $driverResponse->getMimeType(),
-                $providerCode
+            $processingContext = $this->imageAssetMaterializer->materialize(
+                $providerResult,
+                $temporaryFileManager,
             );
+
+            $this->hydrateProcessingContext($dataIsolation, $processingContext, $dto);
+
+            $processedContext = $this->imageProcessorPipeline->process(
+                $processingContext,
+                [
+                    WatermarkProcessor::class,
+                    UploadProcessor::class,
+                ],
+            );
+            $response = $this->buildSuccessResponse($processedContext);
             $responseData = $response->toArray();
+            $responseTime = (int) round((microtime(true) - $startTime) * 1000);
+
+            if ($response->isSuccess()) {
+                $this->dispatchCompletedEvent($dataIsolation, $dto, $callTime, $responseTime);
+            }
 
             $this->logger->info('ImageRemoveBackgroundSuccess', [
                 'provider' => $providerCode,
-                'mime_type' => $driverResponse->getMimeType(),
-                'result_file_size' => is_file($driverResponse->getResultFilePath()) ? (filesize($driverResponse->getResultFilePath()) ?: 0) : 0,
+                'mime_type' => (string) ($responseData['data'][0]['mime_type'] ?? ''),
                 'result_url_host' => (string) (parse_url((string) ($responseData['data'][0]['url'] ?? ''), PHP_URL_HOST) ?: ''),
+                'response_time' => $responseTime,
             ]);
 
             return $response;
+        } catch (ImageRemoveBackgroundDriverException $exception) {
+            $this->logger->warning('ImageRemoveBackgroundProviderFail', [
+                'provider' => $exception->getProvider() ?: $providerCode,
+                'provider_error_code' => $exception->getProviderErrorCode(),
+                'provider_error_message' => $exception->getMessage(),
+            ]);
+            return $this->buildProviderErrorResponse($exception);
         } catch (InvalidArgumentException $exception) {
             $this->logger->warning('ImageRemoveBackgroundInvalidInput', [
                 'provider' => $providerCode,
@@ -201,6 +240,124 @@ class ImageRemoveBackgroundAppService extends ImageLLMAppService
         } finally {
             $temporaryFileManager->cleanup();
         }
+    }
+
+    private function hydrateProcessingContext(
+        ModelGatewayDataIsolation $dataIsolation,
+        ImageProcessContext $context,
+        ImageRemoveBackgroundRequestDTO $dto,
+    ): void {
+        $context->setOrganizationCode($dataIsolation->getCurrentOrganizationCode());
+        $context->setStorageSubDir('open/remove-background');
+        $context->setUploadFileNamePrefix('remove_background');
+        $context->setPostProcessOptions(
+            $this->buildPostProcessOptions($dataIsolation, $dto)
+        );
+    }
+
+    private function buildPostProcessOptions(
+        ModelGatewayDataIsolation $dataIsolation,
+        ImageRemoveBackgroundRequestDTO $dto,
+    ): ImagePostProcessOptions {
+        $options = new ImagePostProcessOptions();
+        $options->setOutputFormat($dto->getOutputFormat() ?? '');
+        $watermarkConfig = $this->watermarkConfig->getWatermarkConfig(
+            $dataIsolation->getCurrentOrganizationCode()
+        );
+        $options->setWatermarkConfig(
+            $this->resolveWatermarkConfig($dataIsolation, $watermarkConfig)
+        );
+
+        $implicitWatermark = new ImplicitWatermark();
+        $implicitWatermark->setOrganizationCode($dataIsolation->getCurrentOrganizationCode())
+            ->setUserId($dataIsolation->getCurrentUserId())
+            ->setAccessTokenId((string) $dataIsolation->getAccessToken()->getId());
+
+        if (! empty($dto->getTopicId())) {
+            $implicitWatermark->setTopicId((string) $dto->getTopicId());
+        }
+
+        $options->setImplicitWatermark($implicitWatermark);
+
+        return $options;
+    }
+
+    private function resolveWatermarkConfig(
+        ModelGatewayDataIsolation $dataIsolation,
+        ?WatermarkConfig $watermarkConfig,
+    ): ?WatermarkConfig {
+        return di(WatermarkPolicyInterface::class)->apply(
+            $dataIsolation->getAccessToken(),
+            $watermarkConfig,
+        );
+    }
+
+    private function buildSuccessResponse(ImageProcessContext $context): OpenAIFormatResponse
+    {
+        return new OpenAIFormatResponse([
+            'created' => time(),
+            'data' => [
+                [
+                    'url' => $context->getUploadedUrl(),
+                    'mime_type' => $context->getUploadedMimeType() !== ''
+                        ? $context->getUploadedMimeType()
+                        : $context->getMimeType(),
+                ],
+            ],
+            'usage' => null,
+            'provider' => $context->getProvider(),
+        ]);
+    }
+
+    private function buildProviderErrorResponse(ImageRemoveBackgroundDriverException $exception): OpenAIFormatResponse
+    {
+        return new OpenAIFormatResponse([
+            'created' => time(),
+            'data' => [],
+            'usage' => null,
+            'provider_error_message' => $exception->getMessage(),
+            'provider_error_code' => $exception->getProviderErrorCode(),
+            'provider' => $exception->getProvider(),
+        ]);
+    }
+
+    private function dispatchCompletedEvent(
+        ModelGatewayDataIsolation $dataIsolation,
+        ImageRemoveBackgroundRequestDTO $dto,
+        string $callTime,
+        int $responseTime,
+    ): void {
+        $event = new ImageRemoveBackgroundCompletedEvent();
+        $event->setOrganizationCode($dataIsolation->getCurrentOrganizationCode());
+        $event->setUserId($dataIsolation->getCurrentUserId());
+        $event->setImageCount(1);
+        $event->setOriginalModelId($dto->getOriginalModelId());
+        $event->setSourceType($this->resolveSourceType($dataIsolation, $dto));
+        $event->setCallTime($callTime);
+        $event->setResponseTime($responseTime);
+        $event->setTopicId($dto->getTopicId());
+        $event->setTaskId($dto->getTaskId());
+        $event->setAccessTokenId($dataIsolation->getAccessToken()->getId());
+        $event->setAccessTokenName($dataIsolation->getAccessToken()->getName());
+        $event->setSourceId($dataIsolation->getSourceId());
+        $event->setCreatedAt(new DateTime());
+
+        $this->eventDispatcher->dispatch($event);
+    }
+
+    private function resolveSourceType(
+        ModelGatewayDataIsolation $dataIsolation,
+        ImageRemoveBackgroundRequestDTO $dto,
+    ): ImageGenerateSourceEnum {
+        if ($dataIsolation->getAccessToken()->getType()->isUser()) {
+            return ImageGenerateSourceEnum::API_PLATFORM;
+        }
+
+        if (! empty($dto->getTopicId())) {
+            return ImageGenerateSourceEnum::SUPER_MAGIC;
+        }
+
+        return ImageGenerateSourceEnum::API;
     }
 
     /**
@@ -225,12 +382,12 @@ class ImageRemoveBackgroundAppService extends ImageLLMAppService
             );
         }
 
-        $downloadedImage = $this->secureImageDownloadTool->download($dto->getImageUrl());
-        $temporaryFileManager->add($downloadedImage->getTempFilePath());
+        $downloadedImage = $this->secureImageDownloader->download($dto->getImageUrl());
+        $temporaryFileManager->add($downloadedImage->getValue());
 
         return new ImageRemoveBackgroundDriverRequest(
             ImageRemoveBackgroundDriverRequest::SOURCE_TYPE_FILE,
-            $downloadedImage->getTempFilePath(),
+            $downloadedImage->getValue(),
             $downloadedImage->getMimeType(),
             $outputFormat,
         );
@@ -268,85 +425,12 @@ class ImageRemoveBackgroundAppService extends ImageLLMAppService
     }
 
     /**
-     * 第三方 provider 失败不进入平台异常响应，而是复用现有图片能力的 provider_error_* 结构。
-     */
-    private function buildProviderErrorResponse(ImageRemoveBackgroundDriverException $exception): OpenAIFormatResponse
-    {
-        return new OpenAIFormatResponse([
-            'created' => time(),
-            'data' => [],
-            'usage' => null,
-            'provider_error_message' => $exception->getMessage(),
-            'provider_error_code' => $exception->getProviderErrorCode(),
-            'provider' => $exception->getProvider(),
-        ]);
-    }
-
-    /**
-     * 将第三方结果图上传到当前环境 OSS，确保所有 provider 最终都返回当前环境的文件地址。
-     */
-    private function uploadResultFile(
-        ModelGatewayDataIsolation $dataIsolation,
-        string $resultFilePath,
-        string $mimeType,
-        string $providerCode = ''
-    ): OpenAIFormatResponse {
-        $uploadFile = new UploadFile(
-            $resultFilePath,
-            'open/remove-background',
-            $this->buildUploadFileName($mimeType, $resultFilePath)
-        );
-        $organizationCode = $dataIsolation->getCurrentOrganizationCode();
-
-        $this->fileDomainService->uploadByCredential(
-            $organizationCode,
-            $uploadFile,
-            StorageBucketType::Public,
-            true,
-            $mimeType
-        );
-
-        $fileLink = $this->fileDomainService->getLink($organizationCode, $uploadFile->getKey(), StorageBucketType::Public);
-        if ($fileLink === null || $fileLink->getUrl() === '') {
-            ExceptionBuilder::throw(MagicApiErrorCode::MODEL_RESPONSE_FAIL, __('image_generate.file_upload_failed', ['error' => 'result_url_missing']));
-        }
-
-        return new OpenAIFormatResponse([
-            'created' => time(),
-            'data' => [
-                [
-                    'url' => $fileLink->getUrl(),
-                    'mime_type' => $mimeType,
-                ],
-            ],
-            'usage' => null,
-            'provider' => $providerCode,
-        ]);
-    }
-
-    /**
-     * 为上传结果图生成稳定的带后缀文件名，避免临时文件无扩展名导致 OSS URL 缺少后缀。
-     */
-    private function buildUploadFileName(string $mimeType, string $resultFilePath): string
-    {
-        $extension = MimeTypes::getExtension($mimeType);
-        if ($extension === '') {
-            $extension = pathinfo($resultFilePath, PATHINFO_EXTENSION);
-        }
-        if ($extension === '') {
-            $extension = 'png';
-        }
-
-        return sprintf('remove_background_%s.%s', uniqid(), $extension);
-    }
-
-    /**
      * 生成一张极小的 PNG 测试图，用于能力管理侧连通性测试。
      */
     private function createLocalTestImage(): string
     {
         try {
-            $tempFile = TemporaryFileManager::createRemoveBackgroundTempFile('remove_bg_test_');
+            $tempFile = TemporaryFileManager::createTempFile('remove_bg_test_');
         } catch (RuntimeException) {
             throw new InvalidArgumentException('image_generate.create_temp_file_failed');
         }
