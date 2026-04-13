@@ -59,6 +59,10 @@
         "zh_CN": "AI 模型服务当前负载较高，处理请求时出现异常，请稍后重试。",
         "en_US": "The AI model service encountered an error while processing your request. Please try again later."
     },
+    "messages.llm_provider_config_error": {
+        "zh_CN": "AI 模型配置异常，无法处理请求，请联系管理员。",
+        "en_US": "AI model configuration error. The request cannot be processed. Please contact the administrator."
+    },
     "agent_profile.desc_with_role": {
         "zh_CN": "你叫{name}，是一名{role}。{description}",
         "en_US": "Your name is {name}, you are a {role}. {description}"

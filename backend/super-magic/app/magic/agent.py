@@ -729,6 +729,10 @@ class Agent(BaseAgent):
         if isinstance(exception, APIStatusError) and exception.status_code in self._PROVIDER_RATE_LIMIT_STATUS_CODES:
             return "messages.llm_provider_rate_limited"
 
+        if isinstance(exception, APIStatusError) and exception.status_code in self._NON_RETRYABLE_STATUS_CODES:
+            # 400/401/403/404/405：配置错误、权限问题或消息序列损坏，重试无意义，需要人工介入
+            return "messages.llm_provider_config_error"
+
         if isinstance(exception, APIStatusError):
             return "messages.llm_provider_error"
 
