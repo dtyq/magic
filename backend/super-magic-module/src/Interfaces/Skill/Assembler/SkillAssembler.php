@@ -41,7 +41,7 @@ class SkillAssembler
     public static function createListItemDTO(
         SkillEntity $entity,
         ?MagicUserEntity $creator = null,
-        ?string $latestVersion = null,
+        ?SkillVersionEntity $latestVersionEntity = null,
         ?Operation $operation = null
     ): SkillListItemDTO {
         $language = CoContext::getLanguage();
@@ -71,7 +71,7 @@ class SkillAssembler
             updatedAt: $entity->getUpdatedAt() ?? '',
             createdAt: $entity->getCreatedAt() ?? '',
             latestPublishedAt: $entity->getLatestPublishedAt(),
-            latestVersion: $latestVersion,
+            latestVersion: $latestVersionEntity?->getVersion() ?? $entity->getVersionCode(),
             packageName: $entity->getPackageName(),
             creatorInfo: $creatorInfo,
             userRole: $operation?->toAlias(),
@@ -269,7 +269,7 @@ class SkillAssembler
                 $entity,
                 self::resolveListSourceType($entity, $marketEntity, $sourceType),
                 $creatorUserMap[$entity->getCreatorId()] ?? null,
-                $latestVersionMap[$entity->getCode()] ?? $entity->getVersion(),
+                $latestVersionMap[$entity->getCode()] ?? null,
                 $publisherType,
                 $publisher
             );
