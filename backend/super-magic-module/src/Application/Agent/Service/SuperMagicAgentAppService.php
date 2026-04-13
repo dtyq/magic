@@ -1803,28 +1803,6 @@ class SuperMagicAgentAppService extends AbstractSuperMagicAppService
     }
 
     /**
-     * 获取用户可访问的技能代码.
-     *
-     * @param array<string> $skillCodes
-     * @return array<string>
-     */
-    private function getAccessibleSkillCodesWithBuiltinFallback(SuperMagicAgentDataIsolation $dataIsolation, array $skillCodes): array
-    {
-        $permissionDataIsolation = $this->createPermissionDataIsolation($dataIsolation);
-        $accessibleSkillCodes = $this->resourceVisibilityDomainService->getUserAccessibleResourceCodes(
-            $permissionDataIsolation,
-            $dataIsolation->getCurrentUserId(),
-            ResourceVisibilityResourceType::SKILL,
-            $skillCodes
-        );
-
-        return array_values(array_unique(array_merge(
-            $accessibleSkillCodes,
-            array_values(array_intersect(BuiltinSkill::values(), $skillCodes))
-        )));
-    }
-
-    /**
      * 构建系统内置技能列表.
      *
      * @return array<int, array{id: string, code: string, name: string, description: string, logo: ?string, mention_source: string}>

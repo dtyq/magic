@@ -38,6 +38,7 @@ use Dtyq\SuperMagic\Domain\Agent\Service\SuperMagicAgentDomainService;
 use Dtyq\SuperMagic\Domain\Agent\Service\UserAgentDomainService;
 use Dtyq\SuperMagic\Domain\Skill\Entity\SkillEntity;
 use Dtyq\SuperMagic\Domain\Skill\Entity\SkillVersionEntity;
+use Dtyq\SuperMagic\Domain\Skill\Entity\ValueObject\BuiltinSkill;
 use Hyperf\Di\Annotation\Inject;
 use Hyperf\Logger\LoggerFactory;
 use Psr\Log\LoggerInterface;
@@ -219,6 +220,30 @@ abstract class AbstractSuperMagicAppService extends AbstractKernelAppService
             $dataIsolation,
             [AgentSourceType::MARKET->value]
         );
+    }
+
+    /**
+     * 获取用户可访问的技能代码，并兼容系统内置技能白名单。
+     *
+     * @param array<string> $skillCodes
+     * @return array<string>
+     */
+    protected function getAccessibleSkillCodesWithBuiltinFallback(
+        SuperMagicAgentDataIsolation $dataIsolation,
+        array $skillCodes
+    ): array {
+        /** @var array<string> $accessibleSkillCodes */
+        $accessibleSkillCodes = $this->resourceAccessPolicyService->getReadableResourceCodes(
+            $dataIsolation,
+            OperationPermissionResourceType::Skill,
+            ResourceVisibilityResourceType::SKILL,
+            $skillCodes
+        )['all_codes'] ?? [];
+
+        return array_values(array_unique(array_merge(
+            $accessibleSkillCodes,
+            array_values(array_intersect(BuiltinSkill::values(), $skillCodes))
+        )));
     }
 
     protected function createBuiltinAgentEntityByMode(SuperMagicAgentDataIsolation $superMagicAgentDataIsolation, ModeEntity $modeEntity): SuperMagicAgentEntity
