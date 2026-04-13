@@ -1139,10 +1139,8 @@ Call generate_image tool directly when user has following scenarios:
                 extra_info.update({"original_images": params.image_paths if params.image_paths else []})
 
             return ImageToolResult(
-                success=True,
-                message=i18n.translate(message_codes["success"], category="tool.messages", count=len(saved_paths)),
+                ok=True,
                 content=content_with_files,
-                image_paths=saved_paths,
                 images=saved_paths,
                 extra_info=extra_info,
             )
@@ -1157,10 +1155,8 @@ Call generate_image tool directly when user has following scenarios:
                 error_code = "generate_image.error"
 
             return ImageToolResult(
-                success=False,
-                message=i18n.translate(error_code, category="tool.messages", error=str(e)),
+                ok=False,
                 content=i18n.translate(error_code, category="tool.messages", error=str(e)),
-                image_paths=[],
                 images=[],
                 extra_info={
                     "error": str(e),
