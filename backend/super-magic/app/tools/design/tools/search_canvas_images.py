@@ -162,7 +162,7 @@ class SearchCanvasImages(BaseGenerateCanvasElements[SearchCanvasImagesParams]):
             if error_result:
                 return error_result
 
-            workspace_path = Path(tool_context.base_dir).resolve()
+            workspace_path = Path(self.base_dir).resolve()
             logger.info(
                 f"开始搜索图片并添加到画布: topic_id={params.topic_id}, "
                 f"tasks={len(params.tasks)}, project={params.project_path}"

@@ -297,7 +297,7 @@ Expand brief user descriptions into full prompts covering subject, style, compos
         self, tool_context: ToolContext, params: GenerateCanvasImagesParams
     ) -> ToolResult:
         try:
-            workspace_root = Path(tool_context.base_dir).resolve()
+            workspace_root = Path(self.base_dir).resolve()
             project_prefix = params.project_path.strip("/")
             normalize_error = await self._normalize_tasks(params.tasks, workspace_root, project_prefix)
             if normalize_error:
@@ -346,7 +346,7 @@ Expand brief user descriptions into full prompts covering subject, style, compos
             model=model,
             timestamp=timestamp,
             output_path=output_path,
-            workspace_path=workspace_path or Path(tool_context.base_dir).resolve(),
+            workspace_path=workspace_path or Path(self.base_dir).resolve(),
             project_path=project_path,
             tool_context=tool_context,
         )
@@ -382,7 +382,7 @@ Expand brief user descriptions into full prompts covering subject, style, compos
         model = self._get_model_from_config(tool_context)
         timestamp = datetime.now().strftime("%Y%m%d%H%M%S")
         await asyncio.to_thread((project_path / "images").mkdir, parents=True, exist_ok=True)
-        workspace_path = Path(tool_context.base_dir).resolve()
+        workspace_path = Path(self.base_dir).resolve()
         relative_project_path = project_path.relative_to(workspace_path)
         output_path = str(relative_project_path / "images")
         return {
