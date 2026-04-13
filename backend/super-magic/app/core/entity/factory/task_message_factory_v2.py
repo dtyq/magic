@@ -467,7 +467,7 @@ class TaskMessageFactoryV2(TaskMessageFactoryProtocol):
                     for tc in llm_msg.tool_calls
                 ]
 
-        # 获取预生成的 message_id（由 streaming_context_v2 写入）
+        # 获取预生成的 message_id（由 streaming_handler_v2 写入）
         pending_state = agent_context.get_pending_reply_state()
         message_id = pending_state.message_id if pending_state else None
 

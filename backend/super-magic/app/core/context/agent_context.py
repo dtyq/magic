@@ -1225,3 +1225,24 @@ class AgentContext(BaseAgentContext):
     def set_pending_reply_state(self, state: Optional["PendingReplyState"]) -> None:
         """设置 v2 批量 tool_calls 暂存状态，传 None 可清除。"""
         self.shared_context.update_field("pending_reply_state", state)
+
+    def refresh_streaming_message_id(self) -> str:
+        """为下一次 v2 流式回复预生成 Snowflake message_id，写入 pending_reply_state。
+
+        - 若 pending_reply_state 已存在，仅刷新 message_id，保留其余字段
+        - 若不存在，创建新的 PendingReplyState 并设置 message_id
+        - 返回生成的 message_id，供调用方按需使用
+
+        Returns:
+            str: 预生成的 message_id
+        """
+        from agentlang.utils.snowflake import Snowflake
+        from app.core.context.pending_reply_state import PendingReplyState
+
+        message_id = str(Snowflake.create_default().get_id())
+        existing = self.get_pending_reply_state()
+        if existing is not None:
+            existing.message_id = message_id
+        else:
+            self.set_pending_reply_state(PendingReplyState(message_id=message_id))
+        return message_id

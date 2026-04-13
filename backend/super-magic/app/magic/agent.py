@@ -2578,7 +2578,10 @@ Since your subsequent output will be merged with pre-interruption content and di
         # 子 Agent (is_main_agent=False) 静默运行，不向前端推送 LLM token 流。
         # 多个子 Agent 并行时共享同一 SocketIO topic_id，推流会导致前端收到交织输出。
         if use_stream and self.agent_context.is_main_agent:
-            message_builder = LLMStreamingMessageBuilder()
+            message_version = self.agent_context.get_message_version()
+            from app.streaming.builder_registry import get_builder_by_version
+            message_builder = get_builder_by_version(message_version)
+            await message_builder.prepare_for_streaming(self.agent_context)
             socketio_driver_config = StreamingConfigGenerator.create_for_agent()
             processor_config = ProcessorConfig.create_with_socketio_push(
                 message_builder=message_builder,

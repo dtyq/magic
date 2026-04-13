@@ -340,3 +340,14 @@ class AgentContextInterface(ABC):
     def reset_thinking_state(self) -> None:
         """重置思考状态（AFTER_AGENT_THINK 后调用）"""
         pass
+
+    # ====== 消息版本协商 ======
+
+    @abstractmethod
+    def get_message_version(self) -> str:
+        """获取当前会话的消息版本号。
+
+        Returns:
+            str: 消息版本号，如 "v1" / "v2"，默认返回 "v1"
+        """
+        pass
