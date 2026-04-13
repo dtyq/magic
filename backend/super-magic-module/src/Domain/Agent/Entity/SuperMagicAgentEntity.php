@@ -646,6 +646,24 @@ class SuperMagicAgentEntity extends AbstractEntity
         return $this->description;
     }
 
+    /**
+     * Get localized role string.
+     * roleI18n format: {"zh_CN": ["角色1", "角色2"], "en_US": ["Role1", "Role2"]}.
+     * Falls back to default language, then to getPromptString().
+     */
+    public function getI18nRole(string $language): string
+    {
+        if (! empty($this->roleI18n[$language])) {
+            return $this->formatRoleArray($this->roleI18n[$language]);
+        }
+
+        if (! empty($this->roleI18n[LanguageEnum::DEFAULT->value])) {
+            return $this->formatRoleArray($this->roleI18n[LanguageEnum::DEFAULT->value]);
+        }
+
+        return $this->getPromptString();
+    }
+
     public function getSourceType(): AgentSourceType
     {
         return $this->sourceType;
@@ -752,5 +770,14 @@ class SuperMagicAgentEntity extends AbstractEntity
     public function setLatestPublishedAt(?string $latestPublishedAt): void
     {
         $this->latestPublishedAt = $latestPublishedAt;
+    }
+
+    private function formatRoleArray(mixed $roles): string
+    {
+        if (is_array($roles)) {
+            return implode(', ', array_filter($roles, static fn ($item) => is_string($item) && $item !== ''));
+        }
+
+        return is_string($roles) ? $roles : '';
     }
 }

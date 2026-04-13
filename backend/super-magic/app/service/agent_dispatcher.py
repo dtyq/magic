@@ -197,17 +197,35 @@ class AgentDispatcher(Base):
                 logger.info("使用默认语言: zh_CN")
 
         # 设置 Agent Profile（如果提供）
-        if init_message.agent and init_message.agent.name.strip():
+        # 优先从 agent.profile 读取，兜底从旧的 agent.name / agent.description 读取
+        if init_message.agent:
             from app.core.entity.agent_profile import AgentProfile
 
-            agent_profile = AgentProfile(
-                name=init_message.agent.name.strip(),
-                description=init_message.agent.description.strip(),
+            profile = init_message.agent.profile
+            # 新结构：从 profile 中读取 name/description/role
+            agent_name = (
+                (profile.name.strip() if profile and profile.name and profile.name.strip() else None)
+                or (init_message.agent.name.strip() if init_message.agent.name and init_message.agent.name.strip() else None)
             )
-            self.agent_context.set_agent_profile(agent_profile)
-            logger.info(f"设置自定义 Agent: name={agent_profile.name}, description={agent_profile.description[:50]}...")
-        elif init_message.agent:
-            logger.info("INIT 未提供有效 agent name，保持默认 AgentProfile")
+            agent_desc = (
+                (profile.description.strip() if profile and profile.description and profile.description.strip() else None)
+                or (init_message.agent.description.strip() if init_message.agent.description and init_message.agent.description.strip() else None)
+            )
+            agent_role = (
+                profile.role.strip() if profile and profile.role and profile.role.strip() else None
+            )
+
+            if agent_name:
+                kwargs = {"name": agent_name}
+                if agent_desc:
+                    kwargs["description"] = agent_desc
+                if agent_role:
+                    kwargs["role"] = agent_role
+                agent_profile = AgentProfile(**kwargs)
+                self.agent_context.set_agent_profile(agent_profile)
+                logger.info(f"设置自定义 Agent: name={agent_profile.name}, description={agent_profile.description[:50]}...")
+            else:
+                logger.info("INIT 未提供有效 agent name，保持默认 AgentProfile")
 
         # ========== 资源初始化阶段 - 仅首次执行 ==========
         if self.is_workspace_initialized:
