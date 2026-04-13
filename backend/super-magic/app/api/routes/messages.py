@@ -100,6 +100,61 @@ class MessageProcessor:
             timestamp, _ = self._processing_messages[message_id]
             self._processing_messages[message_id] = (timestamp, False)
 
+    def _save_agent_config(self, message: ChatClientMessage):
+        """将 chat 消息中的 agent 配置持久化到独立文件
+
+        agent 配置的唯一来源从 init 迁移到 chat 消息。
+        持久化到 agent_config.json，供后续 dispatch 和工具读取。
+        """
+        if not message.agent:
+            return
+
+        try:
+            agent_config_file = PathManager.get_agent_config_file()
+            agent_config_file.parent.mkdir(exist_ok=True)
+            agent_dict = message.agent.dict()
+            with open(agent_config_file, 'w', encoding='utf-8') as f:
+                json.dump(agent_dict, f, ensure_ascii=False, indent=2)
+            logger.info(f"已保存 agent 配置到: {agent_config_file}")
+        except Exception as e:
+            logger.error(f"保存 agent 配置失败: {e}")
+
+    def _apply_agent_profile_from_chat(self, message: ChatClientMessage, agent_context: AgentContext):
+        """从 chat 消息的 agent 字段提取并设置 AgentProfile
+
+        优先从 agent.profile 读取，兜底从 agent.name / agent.description（旧结构）读取。
+        """
+        if not message.agent:
+            return
+
+        try:
+            from app.core.entity.agent_profile import AgentProfile
+
+            profile = message.agent.profile
+            agent_name = (
+                (profile.name.strip() if profile and profile.name and profile.name.strip() else None)
+                or (message.agent.name.strip() if message.agent.name and message.agent.name.strip() else None)
+            )
+            agent_desc = (
+                (profile.description.strip() if profile and profile.description and profile.description.strip() else None)
+                or (message.agent.description.strip() if message.agent.description and message.agent.description.strip() else None)
+            )
+            agent_role = (
+                profile.role.strip() if profile and profile.role and profile.role.strip() else None
+            )
+
+            if agent_name:
+                kwargs = {"name": agent_name}
+                if agent_desc:
+                    kwargs["description"] = agent_desc
+                if agent_role:
+                    kwargs["role"] = agent_role
+                agent_profile = AgentProfile(**kwargs)
+                agent_context.set_agent_profile(agent_profile)
+                logger.info(f"从 chat 消息设置 Agent Profile: name={agent_profile.name}")
+        except Exception as e:
+            logger.error(f"从 chat 消息设置 Agent Profile 失败: {e}")
+
     def _save_chat_message(self, message: ChatClientMessage):
         """保存聊天消息到文件"""
         try:
@@ -320,6 +375,11 @@ class MessageProcessor:
                 i18n.set_language(chat_language)
 
             await self._dispatch_delayed_init_event_if_needed(agent_context, preferred_language=chat_language)
+
+            # 从 chat 消息的 agent 字段设置 AgentProfile 并持久化
+            # agent 配置的唯一来源已从 init 迁移到 chat 消息
+            self._apply_agent_profile_from_chat(message, agent_context)
+            self._save_agent_config(message)
 
             # Extract agent_code from dynamic_config and inject into AgentContext (agent-manager scenario)
             try:

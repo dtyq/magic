@@ -156,6 +156,10 @@ class ChatClientMessage(ClientMessage):
     dynamic_config: Optional[Dict[str, Any]] = Field(
         default=None, description="动态配置（JSON格式），将转换为YAML格式写入config/dynamic_config.yaml"
     )
+    agent: Optional["InitAgentConfig"] = Field(
+        default=None,
+        description="Agent config from server. Carries type and profile (name/description/role). Null for default agent."
+    )
 
     @validator("mcp_config", pre=True)
     def validate_mcp_config(cls, v):

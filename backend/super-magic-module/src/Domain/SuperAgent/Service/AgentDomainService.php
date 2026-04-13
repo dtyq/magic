@@ -172,11 +172,6 @@ class AgentDomainService
         } else {
             $agentInitContext->setFetchHistory(false);
         }
-        // 设置 agent profile
-        $language = $dataIsolation->getLanguage() ?? 'zh_CN';
-        $agentMode = $topicEntity->getTopicMode();
-        $agentCode = $topicEntity->getAgentCode();
-        $agentInitContext->setAgent($this->buildAgentProfile($dataIsolation, $agentMode, $agentCode, $language));
 
         return new AgentContext(
             sandboxId: $sandboxId,
@@ -525,6 +520,10 @@ class AgentDomainService
             $taskDynamicConfig['agent_code'] = $agentCode;
         }
 
+        // Build agent profile for chat message (ensures Python side always gets agent info, even for reused sandbox)
+        $language = $dataIsolation->getLanguage() ?? 'zh_CN';
+        $agentProfile = $this->buildAgentProfile($dataIsolation, $agentMode, $taskContext->getAgentCode(), $language);
+
         $this->logger->debug('[Sandbox][App] Sending chat message to agent', [
             'sandbox_id' => $taskContext->getSandboxId(),
             'task_id' => $taskContext->getTask()->getId(),
@@ -535,6 +534,7 @@ class AgentDomainService
             'mcp_config' => $taskContext->getMcpConfig(),
             'model_id' => $taskContext->getModelId(),
             'dynamic_config' => $taskDynamicConfig,
+            'agent' => $agentProfile,
         ]);
         $mentionsJsonStruct = $this->buildMentionsJsonStruct($taskContext->getTask()->getMentions());
 
@@ -568,6 +568,7 @@ class AgentDomainService
             modelId: $taskContext->getModelId(),
             dynamicConfig: $taskDynamicConfig,
             metadata: $messageMetadata->toArray(),
+            agent: ! empty($agentProfile) ? $agentProfile : null,
         );
 
         $result = $this->agent->sendChatMessage($taskContext->getSandboxId(), $chatMessage);

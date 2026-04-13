@@ -28,6 +28,7 @@ class ChatMessageRequest
         private string $modelId = '',
         private array $dynamicConfig = [],
         private array $metadata = [],
+        private ?array $agent = null,
     ) {
     }
 
@@ -47,6 +48,7 @@ class ChatMessageRequest
         string $modelId = '',
         array $dynamicConfig = [],
         array $metadata = [],
+        ?array $agent = null,
     ): self {
         return new self(
             $messageId,
@@ -60,7 +62,8 @@ class ChatMessageRequest
             $mcpConfig,
             $modelId,
             $dynamicConfig,
-            $metadata
+            $metadata,
+            $agent
         );
     }
 
@@ -266,6 +269,17 @@ class ChatMessageRequest
      * 转换为API请求数组
      * 根据沙箱通信文档的聊天消息请求格式.
      */
+    public function getAgent(): ?array
+    {
+        return $this->agent;
+    }
+
+    public function setAgent(?array $agent): self
+    {
+        $this->agent = $agent;
+        return $this;
+    }
+
     public function toArray(): array
     {
         return [
@@ -282,6 +296,7 @@ class ChatMessageRequest
             'model_id' => $this->modelId,
             'dynamic_config' => $this->dynamicConfig,
             'metadata' => $this->metadata,
+            'agent' => $this->agent,
         ];
     }
 }
