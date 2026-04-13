@@ -100,7 +100,7 @@ python bin/super-magic.py skill list --all
 python bin/super-magic.py skill read creating-slides
 
 # 批量读取多个 skills
-python bin/super-magic.py skill read creating-slides,designing-canvas-images
+python bin/super-magic.py skill read creating-slides,canvas-designer
 
 # JSON 格式输出
 python bin/super-magic.py skill read using-mcp --format json
@@ -110,10 +110,10 @@ python bin/super-magic.py skill read using-mcp --format json
 
 ```bash
 # 读取单个 reference 文档
-python bin/super-magic.py skill references designing-canvas-images image-generation.md
+python bin/super-magic.py skill references canvas-designer image-generation.md
 
 # 批量读取多个 reference 文档
-python bin/super-magic.py skill references designing-canvas-images image-generation.md,image-search.md
+python bin/super-magic.py skill references canvas-designer image-generation.md,image-search.md
 ```
 
 ## 输出格式

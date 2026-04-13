@@ -64,6 +64,8 @@ class ProviderModelAssembler extends AbstractProviderAssembler
             'cache_hit_cost' => $config?->getCacheHitCost(),
             'cache_write_cost' => $config?->getCacheWriteCost(),
             'time_cost' => $config?->getTimeCost(),
+            'second_pricing' => $config?->getSecondPricing(),
+            'second_cost' => $config?->getSecondCost(),
         ];
 
         return self::createEntityFromArray(ProviderModelConfigVersionEntity::class, $data);

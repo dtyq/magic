@@ -9,6 +9,12 @@ namespace Dtyq\SuperMagic\Infrastructure\Utils;
 
 class WorkFileUtil
 {
+    /**
+     * Hidden directory names that should be marked as hidden.
+     * Only files/folders inside these directories (or the directories themselves) are hidden.
+     */
+    private const HIDDEN_DIRECTORIES = ['.tmp', '.visual', '.asr_states', '.asr_recordings'];
+
     public static function isHiddenFile(string $fileKey): bool
     {
         // Remove leading slash, uniform processing
@@ -17,14 +23,14 @@ class WorkFileUtil
         // Split path into parts
         $pathParts = explode('/', $fileKey);
 
-        // Check if each path part starts with .
+        // Check if any path part matches a known hidden directory
         foreach ($pathParts as $part) {
-            if (! empty($part) && str_starts_with($part, '.')) {
-                return true; // It's a hidden file
+            if (! empty($part) && in_array($part, self::HIDDEN_DIRECTORIES, true)) {
+                return true;
             }
         }
 
-        return false; // It's not a hidden file
+        return false;
     }
 
     /**

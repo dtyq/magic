@@ -67,6 +67,7 @@ use App\Domain\Chat\Repository\Facade\MagicChatSeqRepositoryInterface;
 use App\Domain\Chat\Repository\Facade\MagicChatTopicRepositoryInterface;
 use App\Domain\Chat\Repository\Facade\MagicContactIdMappingRepositoryInterface;
 use App\Domain\Chat\Repository\Facade\MagicFriendRepositoryInterface;
+use App\Domain\Chat\Repository\Facade\MagicGeneratedSuggestionRepositoryInterface;
 use App\Domain\Chat\Repository\Facade\MagicMessageRepositoryInterface;
 use App\Domain\Chat\Repository\Persistence\MagicChatConversationRepository;
 use App\Domain\Chat\Repository\Persistence\MagicChatFileRepository;
@@ -74,6 +75,7 @@ use App\Domain\Chat\Repository\Persistence\MagicChatSeqRepository;
 use App\Domain\Chat\Repository\Persistence\MagicChatTopicRepository;
 use App\Domain\Chat\Repository\Persistence\MagicContactIdMappingRepository;
 use App\Domain\Chat\Repository\Persistence\MagicFriendRepository;
+use App\Domain\Chat\Repository\Persistence\MagicGeneratedSuggestionRepository;
 use App\Domain\Chat\Repository\Persistence\MagicMessageRepository;
 use App\Domain\Chat\Repository\Persistence\MagicMessageVersionsRepository;
 use App\Domain\Chat\Service\MessageContentProvider;
@@ -313,6 +315,7 @@ $dependencies = [
     MessageAttachmentHandlerInterface::class => BaseMessageAttachmentHandler::class,
 
     // magic-chat
+    MagicGeneratedSuggestionRepositoryInterface::class => MagicGeneratedSuggestionRepository::class,
     MagicChatConversationRepositoryInterface::class => MagicChatConversationRepository::class,
     MagicMessageRepositoryInterface::class => MagicMessageRepository::class,
     MagicChatSeqRepositoryInterface::class => MagicChatSeqRepository::class,

@@ -243,6 +243,11 @@ return [
             'embedding' => false,
             'multi_modal' => false,
             'vector_size' => 0,
+            'thinking_budget_levels' => [
+                'low' => 4096,
+                'medium' => 16384,
+                'high' => 32768,
+            ],
         ],
         'general_api_options' => [
             'timeout' => [

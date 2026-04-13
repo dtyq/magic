@@ -29,4 +29,7 @@ enum SearchEngineType: string
 
     // jina
     case Jina = 'jina';
+
+    // baidu
+    case Baidu = 'baidu';
 }

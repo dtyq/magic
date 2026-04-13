@@ -48,6 +48,11 @@ class SkillAssembler
         $name = $entity->getI18nName($language);
         $description = $entity->getI18nDescription($language);
 
+        $creatorInfo = [
+            'id' => (string) $creator->getId(),
+            'name' => $creator->getNickname(),
+        ];
+
         return new SkillListItemDTO(
             id: $entity->getCode(),
             code: $entity->getCode(),
@@ -65,7 +70,7 @@ class SkillAssembler
             latestPublishedAt: $entity->getLatestPublishedAt(),
             latestVersion: $latestVersion,
             packageName: $entity->getPackageName(),
-            creatorInfo: OperatorAssembler::createOperatorDTOByUserEntity($creator, $entity->getCreatedAt())
+            creatorInfo: $creatorInfo
         );
     }
 
@@ -84,6 +89,11 @@ class SkillAssembler
         $name = $nameI18n[$language] ?? '';
         $description = $descriptionI18n[$language] ?? '';
 
+        $creatorInfo = [
+            'id' => (string) $creator->getId(),
+            'name' => $creator->getNickname(),
+        ];
+
         return new SkillListItemDTO(
             id: $entity->getCode(),
             code: $entity->getCode(),
@@ -101,7 +111,7 @@ class SkillAssembler
             latestPublishedAt: $entity->getPublishedAt(),
             latestVersion: $latestVersion ?? $entity->getVersion(),
             packageName: $entity->getPackageName(),
-            creatorInfo: OperatorAssembler::createOperatorDTOByUserEntity($creator, $entity->getCreatedAt()),
+            creatorInfo: $creatorInfo,
             publisherType: $publisherType,
             publisher: $publisher
         );

@@ -16,7 +16,6 @@ tools:
   - multi_edit_file
   - multi_edit_file_range
   - delete_files
-  - compact_chat_history
 skills:
   system_skills:
     - name: crew-creator
@@ -79,10 +78,6 @@ Your workflow:
 - Find available skills → load `find-skill` skill
 - Add/remove existing skills to employee → edit SKILLS.md directly
 </role>
-
-<dynamic_context>
-{{ @include(path="./prompts/dynamic_context_base.prompt") }}
-</dynamic_context>
 
 <static_context>
 {{ @include(path="./prompts/static_context.prompt") }}

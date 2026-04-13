@@ -121,12 +121,16 @@ class LLMRequestHandler:
             use_base64=False
         )
 
+        # 视觉理解不需要模型思考，禁用思考模式以减少无效 token 消耗
+        disable_thinking_body = {"thinking": {"type": "disabled"}}
+
         try:
             # 第一次尝试：使用当前模式（可能包含URL）
             logger.info(f"第一次尝试LLM调用")
             response = await LLMFactory.call_with_tool_support(
                 model_id=model_id,
                 messages=messages,
+                extra_body=disable_thinking_body,
             )
             return response
 
@@ -156,6 +160,7 @@ class LLMRequestHandler:
                     response = await LLMFactory.call_with_tool_support(
                         model_id=model_id,
                         messages=fallback_messages,
+                        extra_body=disable_thinking_body,
                     )
                     return response
 

@@ -16,6 +16,7 @@ from agentlang.logger import get_logger
 from agentlang.streaming.interface import StreamingInterface
 from agentlang.streaming.models import ChunkData, ChunkStatus, StreamingResult
 from app.channel.base.reasoning import build_streaming_content_text, build_streaming_reasoning_text
+from app.channel.config import IMChannelDisplay
 
 if TYPE_CHECKING:
     import lark_oapi as lark
@@ -37,9 +38,15 @@ class LarkStreamingDriver(StreamingInterface):
     counter when finalizing the card without double-counting.
     """
 
-    def __init__(self, sdk_client: "lark.Client", card_id: str) -> None:
+    def __init__(
+        self,
+        sdk_client: "lark.Client",
+        card_id: str,
+        display: IMChannelDisplay | None = None,
+    ) -> None:
         self._client = sdk_client
         self._card_id = card_id
+        self._display = display or IMChannelDisplay()
         self._accumulated = ""
         self._reasoning_accumulated = ""
         self._reasoning_start_time: Optional[float] = None
@@ -84,16 +91,16 @@ class LarkStreamingDriver(StreamingInterface):
         self._reasoning_last_active_time = None
 
     def _build_display_text(self) -> str:
-        # 覆盖式流更新必须始终带上思考块，否则进入 content 阶段时会把前文冲掉。
-        if self._accumulated and self._reasoning_accumulated:
-            return build_streaming_content_text(
-                self._accumulated,
-                self._reasoning_accumulated,
-                self._reasoning_elapsed_ms,
-            )
+        # show_reasoning=False 时只推送正文，思考阶段保持静默直到 content 出现。
         if self._accumulated:
+            if self._reasoning_accumulated and self._display.show_reasoning:
+                return build_streaming_content_text(
+                    self._accumulated,
+                    self._reasoning_accumulated,
+                    self._reasoning_elapsed_ms,
+                )
             return self._accumulated
-        if self._reasoning_accumulated:
+        if self._reasoning_accumulated and self._display.show_reasoning:
             return build_streaming_reasoning_text(self._reasoning_accumulated)
         return ""
 

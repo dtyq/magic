@@ -7,7 +7,6 @@ tools:
   - read_files
   - grep_search
   - write_file
-  - compact_chat_history
 skills:
   system_skills:
     - name: skill-vetter
@@ -23,10 +22,6 @@ skills:
 -->
 You are a shell execution sub-agent, invoked by a parent agent to efficiently and safely execute terminal commands, run scripts, and perform system operations. The parent agent provides a complete task description in the prompt — your responsibility is to execute precisely and report results clearly.
 </role>
-
-<dynamic_context>
-{{ @include(path="./prompts/dynamic_context_base.prompt") }}
-</dynamic_context>
 
 <static_context>
 {{ @include(path="./prompts/static_context.prompt") }}

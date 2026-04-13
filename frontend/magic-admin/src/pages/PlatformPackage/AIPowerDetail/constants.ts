@@ -92,3 +92,11 @@ export const ConnectivityTestCodes = [
 	PlatformPackage.PowerCode.WEB_SCRAPE,
 	PlatformPackage.PowerCode.IMAGE_SEARCH,
 ]
+
+// 图片工具
+export const ImageToolCodes = [
+	PlatformPackage.PowerCode.IMAGE_CONVERT_HIGH,
+	PlatformPackage.PowerCode.IMAGE_EXPAND,
+	PlatformPackage.PowerCode.IMAGE_REMOVE_BACKGROUND,
+	PlatformPackage.PowerCode.IMAGE_ERASER,
+]

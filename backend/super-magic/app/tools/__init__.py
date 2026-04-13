@@ -7,6 +7,7 @@
 from app.tools.dummy_tool import DummyTool # DummyTool 必须在第一个位置导入，否则其他工具会因为循环依赖导致收集不到
 from app.tools.web_search import WebSearch
 from app.tools.call_subagent import CallSubagent
+from app.tools.wait_for_subagents import WaitForSubagents
 from app.tools.compact_chat_history import CompactChatHistory
 from app.tools.core import BaseTool, BaseToolParams, tool, tool_factory
 from app.tools.create_slide import CreateSlide
@@ -91,23 +92,16 @@ import app.tools.design.manager  # pyright: ignore[reportUnusedImport]
 import app.tools.design.utils  # pyright: ignore[reportUnusedImport]
 import app.tools.design  # pyright: ignore[reportUnusedImport]
 from app.tools.design.tools import (
-    CreateDesignProject,
-    CreateCanvasElement,
-    UpdateCanvasElement,
-    DeleteCanvasElement,
-    ReorderCanvasElements,
-    QueryCanvasOverview,
-    QueryCanvasElement,
-    BatchCreateCanvasElements,
-    BatchUpdateCanvasElements,
-    GenerateImagesToCanvas,
-    GenerateVideosToCanvas,
-    SearchImagesToCanvas,
+    CreateCanvas,
+    GenerateCanvasImages,
+    GenerateCanvasVideos,
+    SearchCanvasImages,
+    SearchImagePrompts,
 )
 
 # Skill 管理工具
 from app.tools.read_skills import ReadSkills
-from app.tools.run_skills_snippet import RunSkillsSnippet
+from app.tools.run_sdk_snippet import RunSdkSnippet
 from app.tools.skill_list import SkillList
 
 # Import design package modules to ensure they are available in encrypted environment
@@ -130,6 +124,7 @@ __all__ = [
     "AppendToFile",
     "WebSearch",
     "CallAgent",
+    "WaitForSubagents",
     "ConnectDingTalkBot",
     "ConnectLarkBot",
     "ConnectWecomBot",
@@ -163,7 +158,7 @@ __all__ = [
     "Purify",
     "RunPythonSnippet",
     "ReadSkills",
-    "RunSkillsSnippet",
+    "RunSdkSnippet",
     "SkillList",
     "ReadFile",
     "ReadFiles",
@@ -216,17 +211,10 @@ __all__ = [
     "UploadSkill",
 
     # 设计模式工具
-    "CreateDesignProject",
-    "CreateCanvasElement",
-    "UpdateCanvasElement",
-    "DeleteCanvasElement",
-    "ReorderCanvasElements",
-    "QueryCanvasOverview",
-    "QueryCanvasElement",
-    "BatchCreateCanvasElements",
-    "BatchUpdateCanvasElements",
-    "GenerateImagesToCanvas",
-    "GenerateVideosToCanvas",
-    "SearchImagesToCanvas",
+    "CreateCanvas",
+    "GenerateCanvasImages",
+    "GenerateCanvasVideos",
+    "SearchCanvasImages",
+    "SearchImagePrompts",
 ]
 

@@ -10,17 +10,19 @@ AES key 编码两种情况（来自 pic-decrypt.ts parseAesKey）：
 from __future__ import annotations
 
 import base64
+import mimetypes
 import secrets
 import time
 from pathlib import Path
 from typing import Any
-from urllib.parse import urlencode
+from urllib.parse import quote
 
 import aiohttp
 from cryptography.hazmat.primitives import padding
 from cryptography.hazmat.primitives.ciphers import Cipher, algorithms, modes
 
 from agentlang.logger import get_logger
+from app.channel.wechat.models import WechatMediaContext, WechatMediaType
 from app.path_manager import PathManager
 from app.utils.async_file_utils import async_mkdir, async_write_bytes
 
@@ -29,10 +31,17 @@ logger = get_logger(__name__)
 CDN_BASE_URL = "https://novac2c.cdn.weixin.qq.com/c2c"
 
 # 媒体类型常量，与官方 types.ts MessageItemType 对齐
+_ITEM_TYPE_TEXT = 1
 _ITEM_TYPE_IMAGE = 2
 _ITEM_TYPE_VOICE = 3
 _ITEM_TYPE_FILE = 4
 _ITEM_TYPE_VIDEO = 5
+_ENCODE_URI_COMPONENT_SAFE_CHARS = "-_.!~*'()"
+
+
+def _encode_uri_component(value: str) -> str:
+    """按 encodeURIComponent 规则编码查询参数值。"""
+    return quote(value, safe=_ENCODE_URI_COMPONENT_SAFE_CHARS)
 
 
 def _parse_aes_key(aes_key_b64: str) -> bytes:
@@ -68,7 +77,8 @@ def _decrypt_aes_ecb(ciphertext: bytes, key: bytes) -> bytes:
 
 
 def _build_cdn_url(encrypt_query_param: str, cdn_base_url: str = CDN_BASE_URL) -> str:
-    return f"{cdn_base_url}/download?{urlencode({'encrypted_query_param': encrypt_query_param})}"
+    encoded_param = _encode_uri_component(encrypt_query_param)
+    return f"{cdn_base_url}/download?encrypted_query_param={encoded_param}"
 
 
 async def _fetch_bytes(session: aiohttp.ClientSession, url: str, label: str) -> bytes:
@@ -118,7 +128,7 @@ async def _save_media(data: bytes, user_id: str, filename: str) -> Path:
 
 
 def _relative_path(abs_path: Path) -> str:
-    """返回相对于 workspace 根目录的路径字符串，供 LLM 引用。"""
+    """返回相对于 workspace 根目录的路径字符串，供模型引用。"""
     workspace_dir = PathManager.get_workspace_dir()
     try:
         return str(abs_path.relative_to(workspace_dir))
@@ -126,45 +136,85 @@ def _relative_path(abs_path: Path) -> str:
         return str(abs_path)
 
 
+def _build_media_context(
+    *,
+    abs_path: Path,
+    media_type: WechatMediaType,
+    mime_type: str,
+    from_quote: bool,
+) -> WechatMediaContext:
+    return WechatMediaContext(
+        relative_path=_relative_path(abs_path),
+        absolute_path=str(abs_path),
+        media_type=media_type,
+        mime_type=mime_type,
+        from_quote=from_quote,
+    )
+
+
 async def download_message_media(
     session: aiohttp.ClientSession,
     item_list: list[dict[str, Any]],
     user_id: str,
     cdn_base_url: str = CDN_BASE_URL,
-) -> str | None:
+) -> WechatMediaContext | None:
     """
     从消息 item_list 中找到第一个可下载的媒体，下载解密后保存到工作区。
     优先级：IMAGE > VIDEO > FILE > VOICE（无转文字）。
 
-    返回相对路径字符串（供 LLM 读取），无媒体或下载失败时返回 None。
+    当前消息没有媒体时，会回退检查引用消息里的媒体。
     """
     if not item_list:
         return None
 
-    # 按优先级找第一个可处理的媒体 item
     candidate = _find_media_item(item_list)
+    from_quote = False
+    if candidate is None:
+        candidate = _extract_ref_media_item(item_list)
+        from_quote = candidate is not None
     if candidate is None:
         return None
 
     item_type = candidate.get("type")
     try:
         if item_type == _ITEM_TYPE_IMAGE:
-            return await _handle_image(session, candidate, user_id, cdn_base_url)
+            return await _handle_image(session, candidate, user_id, cdn_base_url, from_quote)
         if item_type == _ITEM_TYPE_VIDEO:
-            return await _handle_video(session, candidate, user_id, cdn_base_url)
+            return await _handle_video(session, candidate, user_id, cdn_base_url, from_quote)
         if item_type == _ITEM_TYPE_FILE:
-            return await _handle_file(session, candidate, user_id, cdn_base_url)
+            return await _handle_file(session, candidate, user_id, cdn_base_url, from_quote)
         if item_type == _ITEM_TYPE_VOICE:
-            return await _handle_voice(session, candidate, user_id, cdn_base_url)
+            return await _handle_voice(session, candidate, user_id, cdn_base_url, from_quote)
     except Exception as e:
         logger.error(f"[wechat media] download failed type={item_type} user={user_id}: {e}")
 
     return None
 
 
+def _extract_ref_media_item(item_list: list[dict[str, Any]]) -> dict[str, Any] | None:
+    for item in item_list:
+        if item.get("type") != _ITEM_TYPE_TEXT:
+            continue
+        ref_msg = item.get("ref_msg") or {}
+        ref_item = ref_msg.get("message_item")
+        if isinstance(ref_item, dict) and _is_media_item(ref_item):
+            return ref_item
+    return None
+
+
+def _is_media_item(item: dict[str, Any]) -> bool:
+    return item.get("type") in {
+        _ITEM_TYPE_IMAGE,
+        _ITEM_TYPE_VOICE,
+        _ITEM_TYPE_FILE,
+        _ITEM_TYPE_VIDEO,
+    }
+
+
 def _find_media_item(item_list: list[dict[str, Any]]) -> dict[str, Any] | None:
     """按 IMAGE > VIDEO > FILE > VOICE(无转文字) 优先级找首个可下载媒体 item。"""
-    def has_cdn(item: dict, sub_key: str) -> bool:
+
+    def has_cdn(item: dict[str, Any], sub_key: str) -> bool:
         sub = item.get(sub_key) or {}
         media = sub.get("media") or {}
         return bool(media.get("encrypt_query_param"))
@@ -179,7 +229,6 @@ def _find_media_item(item_list: list[dict[str, Any]]) -> dict[str, Any] | None:
         if item.get("type") == _ITEM_TYPE_FILE and has_cdn(item, "file_item"):
             return item
     for item in item_list:
-        # 有转文字的语音已在 body 里提取为文字，不需要下载音频
         if item.get("type") == _ITEM_TYPE_VOICE:
             voice = item.get("voice_item") or {}
             if not voice.get("text") and has_cdn(item, "voice_item"):
@@ -187,19 +236,24 @@ def _find_media_item(item_list: list[dict[str, Any]]) -> dict[str, Any] | None:
     return None
 
 
+def _guess_mime_type(filename: str, fallback: str) -> str:
+    guessed, _ = mimetypes.guess_type(filename)
+    return guessed or fallback
+
+
 async def _handle_image(
     session: aiohttp.ClientSession,
     item: dict[str, Any],
     user_id: str,
     cdn_base_url: str,
-) -> str | None:
+    from_quote: bool,
+) -> WechatMediaContext | None:
     img = item.get("image_item") or {}
     media = img.get("media") or {}
     eqp = media.get("encrypt_query_param")
     if not eqp:
         return None
 
-    # aeskey（hex string）优先；fallback 用 media.aes_key（base64）
     raw_aeskey: str | None = img.get("aeskey")
     if raw_aeskey:
         aes_key_b64 = base64.b64encode(bytes.fromhex(raw_aeskey)).decode()
@@ -207,15 +261,18 @@ async def _handle_image(
         aes_key_b64 = media.get("aes_key")
 
     if not aes_key_b64:
-        # 部分图片无加密，直接下载明文
-        url = _build_cdn_url(eqp, cdn_base_url)
-        data = await _fetch_bytes(session, url, "image-plain")
+        data = await _fetch_bytes(session, _build_cdn_url(eqp, cdn_base_url), "image-plain")
     else:
         data = await _download_and_decrypt(session, eqp, aes_key_b64, "image", cdn_base_url)
 
     filename = _make_filename("image", "jpg")
     abs_path = await _save_media(data, user_id, filename)
-    return _relative_path(abs_path)
+    return _build_media_context(
+        abs_path=abs_path,
+        media_type=WechatMediaType.IMAGE,
+        mime_type=_guess_mime_type(filename, "image/jpeg"),
+        from_quote=from_quote,
+    )
 
 
 async def _handle_voice(
@@ -223,7 +280,8 @@ async def _handle_voice(
     item: dict[str, Any],
     user_id: str,
     cdn_base_url: str,
-) -> str | None:
+    from_quote: bool,
+) -> WechatMediaContext | None:
     voice = item.get("voice_item") or {}
     media = voice.get("media") or {}
     eqp = media.get("encrypt_query_param")
@@ -231,10 +289,16 @@ async def _handle_voice(
     if not eqp or not aes_key_b64:
         return None
 
+    # 当前项目暂不额外引入 SILK -> WAV 转码依赖，先稳定保存原始 SILK。
     data = await _download_and_decrypt(session, eqp, aes_key_b64, "voice", cdn_base_url)
     filename = _make_filename("voice", "silk")
     abs_path = await _save_media(data, user_id, filename)
-    return _relative_path(abs_path)
+    return _build_media_context(
+        abs_path=abs_path,
+        media_type=WechatMediaType.VOICE,
+        mime_type="audio/silk",
+        from_quote=from_quote,
+    )
 
 
 async def _handle_file(
@@ -242,7 +306,8 @@ async def _handle_file(
     item: dict[str, Any],
     user_id: str,
     cdn_base_url: str,
-) -> str | None:
+    from_quote: bool,
+) -> WechatMediaContext | None:
     file_item = item.get("file_item") or {}
     media = file_item.get("media") or {}
     eqp = media.get("encrypt_query_param")
@@ -252,19 +317,26 @@ async def _handle_file(
 
     data = await _download_and_decrypt(session, eqp, aes_key_b64, "file", cdn_base_url)
 
-    # 有原始文件名则保留，否则生成占位名
-    original_name: str = (file_item.get("file_name") or "").strip()
+    original_name = (file_item.get("file_name") or "").strip()
     if original_name:
-        # 防止重名：在扩展名前插入时间戳+随机
-        p = Path(original_name)
+        original_path = Path(original_name)
         ts = time.strftime("%Y%m%d_%H%M%S")
         rand = secrets.token_hex(3)
-        filename = f"{p.stem}_{ts}_{rand}{p.suffix}" if p.suffix else f"{p.stem}_{ts}_{rand}"
+        filename = (
+            f"{original_path.stem}_{ts}_{rand}{original_path.suffix}"
+            if original_path.suffix
+            else f"{original_path.stem}_{ts}_{rand}"
+        )
     else:
         filename = _make_filename("file", "bin")
 
     abs_path = await _save_media(data, user_id, filename)
-    return _relative_path(abs_path)
+    return _build_media_context(
+        abs_path=abs_path,
+        media_type=WechatMediaType.FILE,
+        mime_type=_guess_mime_type(filename, "application/octet-stream"),
+        from_quote=from_quote,
+    )
 
 
 async def _handle_video(
@@ -272,7 +344,8 @@ async def _handle_video(
     item: dict[str, Any],
     user_id: str,
     cdn_base_url: str,
-) -> str | None:
+    from_quote: bool,
+) -> WechatMediaContext | None:
     video = item.get("video_item") or {}
     media = video.get("media") or {}
     eqp = media.get("encrypt_query_param")
@@ -283,4 +356,9 @@ async def _handle_video(
     data = await _download_and_decrypt(session, eqp, aes_key_b64, "video", cdn_base_url)
     filename = _make_filename("video", "mp4")
     abs_path = await _save_media(data, user_id, filename)
-    return _relative_path(abs_path)
+    return _build_media_context(
+        abs_path=abs_path,
+        media_type=WechatMediaType.VIDEO,
+        mime_type=_guess_mime_type(filename, "video/mp4"),
+        from_quote=from_quote,
+    )

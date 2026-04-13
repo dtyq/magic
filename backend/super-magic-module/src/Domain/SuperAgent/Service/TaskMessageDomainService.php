@@ -9,7 +9,6 @@ namespace Dtyq\SuperMagic\Domain\SuperAgent\Service;
 
 use App\Infrastructure\Core\Traits\HasLogger;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\TaskMessageEntity;
-use Dtyq\SuperMagic\Domain\SuperAgent\Repository\Facade\TaskFileRepositoryInterface;
 use Dtyq\SuperMagic\Domain\SuperAgent\Repository\Facade\TaskMessageRepositoryInterface;
 use Dtyq\SuperMagic\Domain\SuperAgent\Repository\Model\TaskMessageModel;
 use InvalidArgumentException;
@@ -20,8 +19,15 @@ class TaskMessageDomainService
 
     public function __construct(
         protected TaskMessageRepositoryInterface $messageRepository,
-        protected TaskFileRepositoryInterface $taskFileRepository,
     ) {
+    }
+
+    /**
+     * follow-up：按 topic 拉取最近 $roundLimit 轮原始消息候选集.
+     */
+    public function findFollowUpContextMessages(int $topicId, int $roundLimit = 3): array
+    {
+        return $this->messageRepository->findFollowUpContextMessages($topicId, $roundLimit);
     }
 
     public function getNextSeqId(int $topicId, int $taskId): int

@@ -49,7 +49,7 @@ class AdminProviderAppServiceTest extends TestCase
 
         $this->assertNotNull($matchedProvider);
         $this->assertSame(Category::VGM, $matchedProvider->getCategory());
-        $this->assertSame('Wuyin', $matchedProvider->getProviderCode()?->value);
+        $this->assertSame('Cloudsway', $matchedProvider->getProviderCode()?->value);
         $this->assertSame((string) self::TEST_PROVIDER_CONFIG_ID, (string) $matchedProvider->getId());
     }
 }

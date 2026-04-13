@@ -26,6 +26,10 @@ func (s *PreflightStage) Exec(ctx context.Context) error {
 		return fmt.Errorf("Docker is not running. Please start Docker and try again")
 	}
 
+	if err := s.ensureDataDirReady(); err != nil {
+		s.d.log.Logw("deploy", "%v", err)
+	}
+
 	s.checkDiskSpace()
 
 	s.d.log.Logi("deploy", "checking docker daemon network...")
@@ -33,31 +37,45 @@ func (s *PreflightStage) Exec(ctx context.Context) error {
 		s.d.log.Logw("deploy", "%s", err)
 	}
 
-	s.d.opts.Proxy = inheritEnvProxy(s.d.opts.Proxy)
-	s.d.opts.Proxy.Container.URL = resolveContainerProxy(ctx, s.d.log, s.d.opts.Proxy)
+	s.d.opts.proxy = inheritEnvProxy(s.d.opts.proxy)
+	s.d.opts.proxy.Container.URL = resolveContainerProxy(ctx, s.d.log, s.d.opts.proxy)
 
-	if s.d.opts.Proxy.Policy.UseHostProxy && s.d.opts.Proxy.Host.URL != "" {
-		if err := applyHostProxyForProcess(s.d.opts.Proxy.Host.URL, s.d.opts.Proxy.Host.NoProxy); err != nil {
+	if s.d.opts.proxy.Policy.UseHostProxy && s.d.opts.proxy.Host.URL != "" {
+		if err := applyHostProxyForProcess(s.d.opts.proxy.Host.URL, s.d.opts.proxy.Host.NoProxy); err != nil {
 			s.d.log.Logw("deploy", "apply host proxy: %v", err)
 		}
 	}
 
-	if err := patchConfigProxySection(s.d.opts.ConfigFile, s.d.opts.Proxy); err != nil {
+	if err := patchConfigProxySection(s.d.opts.configFile, s.d.opts.proxy); err != nil {
 		s.d.log.Logw("deploy", "persist proxy config: %v", err)
 	}
 
 	return s.d.resolveChartRefs()
 }
 
-func (s *PreflightStage) checkDiskSpace() {
-	// since we use user home dir to install this, so we check the disk space of the home dir
-	// see resolveRegistryDataDir NormalizeKindCluster LocalPathProvisionerHostDir ClusterNodeDataHostDir
-	homeDir, err := os.UserHomeDir()
+func (s *PreflightStage) ensureDataDirReady() error {
+	dataDir := s.d.opts.dataDir
+
+	fi, err := os.Stat(dataDir)
 	if err != nil {
-		s.d.log.Logw("deploy", "failed to get home dir: %v", err)
-		return
+		if os.IsNotExist(err) {
+			if mkErr := os.MkdirAll(dataDir, 0o755); mkErr != nil {
+				return fmt.Errorf("failed to create data dir %s: %w", dataDir, mkErr)
+			}
+			s.d.log.Logi("deploy", "data dir not found, created: %s", dataDir)
+		} else {
+			return fmt.Errorf("failed to stat data dir %s: %w", dataDir, err)
+		}
+	} else if !fi.IsDir() {
+		if mkErr := os.MkdirAll(dataDir, 0o755); mkErr != nil {
+			return fmt.Errorf("failed to create data dir %s: %w", dataDir, mkErr)
+		}
 	}
-	availableBytes, err := util.GetDiskAvailableBytes(homeDir)
+	return nil
+}
+
+func (s *PreflightStage) checkDiskSpace() {
+	availableBytes, err := util.GetDiskAvailableBytes(s.d.opts.dataDir)
 	if err != nil {
 		s.d.log.Logw("deploy", "failed to check free disk space: %v", err)
 		return

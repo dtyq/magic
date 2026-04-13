@@ -130,6 +130,28 @@ class MagicMessageRepository implements MagicMessageRepositoryInterface
         return $result ? $result->magic_message_id : '';
     }
 
+    public function getMessageByAppMessageId(string $appMessageId, string $messageType = ''): ?MagicMessageEntity
+    {
+        if (empty($appMessageId)) {
+            return null;
+        }
+
+        $query = $this->magicMessage::query()
+            ->where('app_message_id', $appMessageId)
+            ->whereNull('deleted_at');
+
+        if (! empty($messageType)) {
+            $query->where('message_type', $messageType);
+        }
+
+        $message = $query->first();
+        if ($message === null) {
+            return null;
+        }
+
+        return MessageAssembler::getMessageEntity($message->toArray());
+    }
+
     /**
      * Get messages by magic message IDs.
      * @param array $magicMessageIds Magic message ID数组

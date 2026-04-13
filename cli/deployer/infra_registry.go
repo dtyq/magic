@@ -12,7 +12,6 @@ import (
 	"strings"
 	"text/template"
 
-	"github.com/dtyq/magicrew-cli/util"
 	"github.com/sethvargo/go-password/password"
 	"go.yaml.in/yaml/v3"
 )
@@ -248,10 +247,12 @@ type InfraRegistry struct {
 	persistPathFunc func() (string, error)
 }
 
-func newInfraRegistry() *InfraRegistry {
+func newInfraRegistry(configDir string) *InfraRegistry {
 	return &InfraRegistry{
-		resources:       map[string]map[InfraKind]InfraSpec{},
-		persistPathFunc: defaultInfraCredentialsPath,
+		resources: map[string]map[InfraKind]InfraSpec{},
+		persistPathFunc: func() (string, error) {
+			return filepath.Join(configDir, infraCredentialsFileName), nil
+		},
 	}
 }
 
@@ -763,21 +764,6 @@ func (r *InfraRegistry) savePersisted(path string) error {
 		return fmt.Errorf("write infra credentials %s: %w", path, err)
 	}
 	return nil
-}
-
-func defaultInfraCredentialsPath() (string, error) {
-	type result struct {
-		path string
-		err  error
-	}
-	r := util.NoSudo(func() result {
-		homeDir, err := os.UserHomeDir()
-		if err != nil {
-			return result{err: fmt.Errorf("get user home dir: %w", err)}
-		}
-		return result{path: filepath.Join(homeDir, ".config", "magicrew", infraCredentialsFileName)}
-	})
-	return r.path, r.err
 }
 
 // generateInfraPassword generates a 24-character cryptographically secure

@@ -53,13 +53,13 @@ Assess where the user is and jump in from there.
 
 SKILL.md 中的工具分两类，格式不同：
 
-1. **`references/super-magic-tools.md` 中列出的工具**：这些工具在 skill 执行时通过 Python 代码片段（`run_skills_snippet`）运行，必须写 Python 代码形式：
+1. **`references/super-magic-tools.md` 中列出的工具**：这些工具在 skill 执行时通过 Python 代码片段（`run_sdk_snippet`）运行，必须写 Python 代码形式：
 -->
 ## Tool Call Format in SKILL.md
 
 Tools in SKILL.md fall into two categories with different formats:
 
-1. **Tools listed in `references/super-magic-tools.md`**: These run inside Python code snippets (via `run_skills_snippet`) and must be shown as Python code:
+1. **Tools listed in `references/super-magic-tools.md`**: These run inside Python code snippets (via `run_sdk_snippet`) and must be shown as Python code:
 
 ```python
 from sdk.tool import tool

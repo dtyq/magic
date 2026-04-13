@@ -119,27 +119,6 @@ class BaseAgent(ABC):
         """
         pass
 
-    @abstractmethod
-    def _prepare_prompt_dynamic_variables(self) -> Dict[str, str]:
-        """
-        准备动态变量（会随时间变化的变量）。
-
-        Returns:
-            Dict[str, str]: 包含动态变量名和对应值的字典
-        """
-        pass
-
-    def _prepare_prompt_variables(self) -> Dict[str, str]:
-        """
-        准备用于替换prompt中变量的字典（合并静态和动态变量）。
-
-        Returns:
-            Dict[str, str]: 包含所有变量名和对应值的字典
-        """
-        static_vars = self._prepare_prompt_static_variables()
-        dynamic_vars = self._prepare_prompt_dynamic_variables()
-        # 合并两个字典
-        return {**static_vars, **dynamic_vars}
 
     @abstractmethod
     async def run(self, query: str):
@@ -275,19 +254,6 @@ class BaseAgent(ABC):
             # 这里只是为了兼容旧代码，不做实际注册操作
             logger.debug(f"工具 {tool_name} 已通过装饰器注册，无需手动注册")
 
-    @abstractmethod
-    async def _check_query_safety(self, query: str) -> tuple[bool, str, str]:
-        """
-        检测用户输入是否包含恶意内容。
-
-        Args:
-            query: 用户输入的查询内容
-
-        Returns:
-            tuple[bool, str, str]: (是否安全, 具体原因, 不安全类型)
-        """
-        pass
-
     def print_token_usage(self) -> None:
         """
         打印token使用报告。
@@ -327,7 +293,7 @@ class BaseAgent(ABC):
         logger.info(f"加载 agent 配置: {agent_name}")
 
         # 准备变量
-        variables = self._prepare_prompt_variables()
+        variables = self._prepare_prompt_static_variables()
 
         # 加载 agent 配置，传递变量
         agent_define = self._agent_loader.load_agent(agent_name, variables)

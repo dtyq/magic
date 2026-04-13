@@ -24,10 +24,6 @@ class EventType(str, Enum):
     AGENT_SUSPENDED = "agent_suspended"    # agent终止事件
     MAIN_AGENT_FINISHED = "main_agent_finished"  # 主 agent 运行完成事件
 
-    # 安全检查事件
-    BEFORE_SAFETY_CHECK = "before_safety_check"  # 安全检查前事件
-    AFTER_SAFETY_CHECK = "after_safety_check"    # 安全检查后事件
-
     # 用户交互事件
     AFTER_CLIENT_CHAT = "after_client_chat"      # 客户端聊天后事件
 

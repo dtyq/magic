@@ -231,6 +231,80 @@ class SuperMagicAgentApi extends AbstractApi
     }
 
     /**
+     * 查询我创建的员工列表.
+     */
+    public function queriesCreated(): array
+    {
+        $authorization = $this->getAuthorization();
+        $requestDTO = QueryAgentsRequestDTO::fromRequest($this->request);
+
+        $result = $this->superMagicAgentAppService->queriesCreated($authorization, $requestDTO);
+        $responseDTO = SuperMagicAgentAssembler::createMyAgentsResponseDTO(
+            $result['agents'],
+            $result['playbooks_map'],
+            $result['agent_market_map'],
+            $result['latest_versions_map'],
+            $result['user_agents_map'] ?? [],
+            $requestDTO->getPage(),
+            $requestDTO->getPageSize(),
+            $result['total']
+        );
+
+        return $responseDTO->toArray();
+    }
+
+    /**
+     * 查询团队共享的员工列表.
+     */
+    public function queriesTeamShared(): array
+    {
+        $authorization = $this->getAuthorization();
+        $requestDTO = QueryAgentsRequestDTO::fromRequest($this->request);
+
+        $result = $this->superMagicAgentAppService->queriesTeamShared($authorization, $requestDTO);
+        $responseDTO = SuperMagicAgentAssembler::createExternalAgentsResponseDTO(
+            $result['agents'],
+            $result['playbooks_map'],
+            $result['agent_market_map'],
+            $result['latest_versions_map'],
+            $result['user_agents_map'] ?? [],
+            $authorization->getId(),
+            $requestDTO->getPage(),
+            $requestDTO->getPageSize(),
+            $result['total'],
+            $result['publisher_user_map'] ?? [],
+            $result['publisher_user_map'] ?? []
+        );
+
+        return $responseDTO->toArray();
+    }
+
+    /**
+     * 查询从市场安装的员工列表.
+     */
+    public function queriesMarketInstalled(): array
+    {
+        $authorization = $this->getAuthorization();
+        $requestDTO = QueryAgentsRequestDTO::fromRequest($this->request);
+
+        $result = $this->superMagicAgentAppService->queriesMarketInstalled($authorization, $requestDTO);
+        $responseDTO = SuperMagicAgentAssembler::createExternalAgentsResponseDTO(
+            $result['agents'],
+            $result['playbooks_map'],
+            $result['agent_market_map'],
+            $result['latest_versions_map'],
+            $result['user_agents_map'] ?? [],
+            $authorization->getId(),
+            $requestDTO->getPage(),
+            $requestDTO->getPageSize(),
+            $result['total'],
+            $result['publisher_user_map'] ?? []
+        );
+
+        return $responseDTO->toArray();
+    }
+
+    /**
      * 查询员工排序列表，并按 frequent/all 返回轻量数据.
      */
     public function sortListQueries(): array

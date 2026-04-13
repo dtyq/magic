@@ -31,7 +31,7 @@ class QueueAMQPListenerAsyncDriver implements ListenerAsyncDriverInterface
         $this->logger = $container->get(LoggerInterface::class);
     }
 
-    public function publish(AsyncEventModel $asyncEventModel, object $event, callable $listener): void
+    public function publish(AsyncEventModel $asyncEventModel, object $event, callable $listener, bool $immediate = false): void
     {
         // Read context data based on config
         $contextData = ContextDataUtil::readContextData();

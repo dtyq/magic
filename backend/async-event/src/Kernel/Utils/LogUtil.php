@@ -13,25 +13,25 @@ use Throwable;
 
 class LogUtil
 {
-    public static function dump(int $recordId, string $listenerName, string $eventName, ?Throwable $exception = null): void
+    public static function dump(int $recordId, string $listenerName, string $eventName, ?Throwable $exception = null, array $context = []): void
     {
         $container = ApplicationContext::getContainer();
         $logger = $container->get(LoggerInterface::class);
         if ($exception) {
-            $logger->error('ListenerFail', [
+            $logger->error('ListenerFail', array_merge([
                 'record_id' => $recordId,
                 'event_name' => $eventName,
                 'listener_name' => $listenerName,
                 'exception' => $exception->getMessage(),
                 'trace' => $exception->getTraceAsString(),
-            ]);
+            ], $context));
         } else {
             $logLevel = $recordId === 0 ? 'debug' : 'info';
-            $logger->{$logLevel}('ListenerSuccess', [
+            $logger->{$logLevel}('ListenerSuccess', array_merge([
                 'record_id' => $recordId,
                 'event_name' => $eventName,
                 'listener_name' => $listenerName,
-            ]);
+            ], $context));
         }
     }
 }

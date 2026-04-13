@@ -11,6 +11,7 @@ from typing import TYPE_CHECKING, Optional
 
 from agentlang.logger import get_logger
 from app.channel.base.reasoning import build_final_message
+from app.channel.config import IMChannelDisplay
 from app.core.stream import Stream
 
 if TYPE_CHECKING:
@@ -20,12 +21,20 @@ logger = get_logger(__name__)
 
 
 class WeComStream(Stream):
-    def __init__(self, ws_client, frame: dict, stream_id: str, driver: "WeComStreamingDriver") -> None:
+    def __init__(
+        self,
+        ws_client,
+        frame: dict,
+        stream_id: str,
+        driver: "WeComStreamingDriver",
+        display: IMChannelDisplay | None = None,
+    ) -> None:
         super().__init__()
         self._ws_client = ws_client
         self._frame = frame
         self._stream_id = stream_id
         self._driver = driver
+        self._display = display or IMChannelDisplay()
         self._finished = False
         self._last_content = ""
 
@@ -46,11 +55,14 @@ class WeComStream(Stream):
             # agent run 彻底结束，关闭企微消息气泡
             elif event == "after_main_agent_run":
                 self._finished = True
-                final_text = build_final_message(
-                    self._last_content,
-                    self._driver.reasoning_accumulated,
-                    self._driver.reasoning_elapsed_ms,
-                )
+                if self._display.show_reasoning:
+                    final_text = build_final_message(
+                        self._last_content,
+                        self._driver.reasoning_accumulated,
+                        self._driver.reasoning_elapsed_ms,
+                    )
+                else:
+                    final_text = self._last_content
                 await self._ws_client.reply_stream(self._frame, self._stream_id, final_text, True)
 
         except Exception as e:

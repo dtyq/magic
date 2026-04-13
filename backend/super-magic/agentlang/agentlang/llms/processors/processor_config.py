@@ -40,6 +40,16 @@ class ProcessorConfig:
     model_name: Optional[str] = None
     """模型名称"""
 
+    # 由业务层设定的超时参数
+    stream_first_chunk_timeout_seconds: Optional[int] = None
+    """首包超时（覆盖"请求发出到首个 chunk"的总时间）"""
+
+    stream_chunk_timeout_seconds: Optional[int] = None
+    """后续每个 chunk 的等待上限"""
+
+    non_stream_timeout_seconds: Optional[int] = None
+    """非流式请求超时"""
+
     @classmethod
     def create_default(cls) -> 'ProcessorConfig':
         """创建默认配置（不启用流式）"""

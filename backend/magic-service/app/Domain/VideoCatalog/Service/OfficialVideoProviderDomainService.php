@@ -168,19 +168,9 @@ class OfficialVideoProviderDomainService
         $category = $providerSeed['category'];
         $providerCode = $providerSeed['provider_code'];
 
-        $query = ProviderModel::query()->where('category', $category);
-
-        if ($providerCode === ProviderCode::Wuyin->value) {
-            $query->whereIn('provider_code', [
-                $providerCode,
-                ProviderCode::Official->value,
-            ])->orderByRaw(sprintf(
-                "case when provider_code = '%s' then 0 else 1 end",
-                $providerCode
-            ));
-        } else {
-            $query->where('provider_code', $providerCode);
-        }
+        $query = ProviderModel::query()
+            ->where('category', $category)
+            ->where('provider_code', $providerCode);
 
         $provider = $query
             ->orderByDesc('sort_order')

@@ -66,7 +66,8 @@ class KnowledgeBaseAppService extends AbstractKnowledgeAppService
                 $modelId = EmbeddingGenerator::defaultModel();
                 if (! $modelGatewayMapper->exists($dataIsolation, $modelId)) {
                     // 获取第一个
-                    $firstEmbeddingModel = $modelGatewayMapper->getEmbeddingModels($dataIsolation)[0] ?? null;
+                    $embeddingModels = $modelGatewayMapper->getEmbeddingModels($dataIsolation);
+                    $firstEmbeddingModel = ! empty($embeddingModels) ? reset($embeddingModels) : null;
                     $modelId = $firstEmbeddingModel?->getKey();
                 }
                 // 更新嵌入配置model_id

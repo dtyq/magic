@@ -69,6 +69,9 @@ class StreamingState:
     invalid_chunk_count: int = 0           # 无效 chunk 计数
     last_content_time: float = 0.0         # 上次收到有效内容的时间
 
+    # 中断检测
+    interrupted_by_signal: bool = False    # 是否因中断信号（而非服务端错误）退出流式循环
+
     # 延迟监控统计
     max_chunk_interval: float = 0.0        # chunk 之间的最大间隔时间
     slow_chunk_count: int = 0              # 慢 chunk 数量 (> SLOW_CHUNK_THRESHOLD)

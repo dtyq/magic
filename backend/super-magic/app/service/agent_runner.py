@@ -99,6 +99,7 @@ async def _run_subagent_task(
             state.interrupt_reason = agent.agent_context.get_interruption_reason()
             async with handle.state_lock:
                 await SubagentRuntimeStore.save_state(state)
+        agent.close()
         if current_task is not None:
             await subagent_session_manager.clear_run(agent.agent_name, agent.id, current_task)
 
@@ -116,6 +117,7 @@ async def run_isolated_agent(
     prompt: str,
     parent_context: Optional["AgentContext"] = None,
     model_id: Optional[str] = None,
+    image_model_id: Optional[str] = None,
 ) -> Optional[str]:
     """
     运行一个隔离 sub-agent，等待完成并返回结果。
@@ -137,16 +139,28 @@ async def run_isolated_agent(
     new_context.set_chat_history_dir(str(PathManager.get_subagents_chat_history_dir()))
     if model_id:
         new_context.set_dynamic_model_id(model_id)
+    elif parent_context is not None and parent_context.has_dynamic_model_id():
+        # 未指定模型时，继承父 Agent 的动态模型 ID
+        new_context.set_dynamic_model_id(parent_context.get_dynamic_model_id())
+    if image_model_id:
+        new_context.set_dynamic_image_model_id(image_model_id)
 
-    agent = Agent(agent_name, agent_id=agent_id, agent_context=new_context)
-    handle = await subagent_session_manager.get_handle(agent_name, agent_id)
+    agent: Optional["Agent"] = None
+    task: Optional[asyncio.Task] = None
+    try:
+        agent = Agent(agent_name, agent_id=agent_id, agent_context=new_context)
+        handle = await subagent_session_manager.get_handle(agent_name, agent_id)
 
-    async with handle.lock:
-        task = asyncio.create_task(
-            _run_subagent_task(agent=agent, prompt=prompt, handle=handle)
-        )
-        handle.task = task
-        handle.agent_context = new_context
-        state = await task
+        async with handle.lock:
+            task = asyncio.create_task(
+                _run_subagent_task(agent=agent, prompt=prompt, handle=handle)
+            )
+            handle.task = task
+            handle.agent_context = new_context
+            state = await task
+    except Exception:
+        if agent is not None and task is None:
+            agent.close()
+        raise
 
     return state.last_result

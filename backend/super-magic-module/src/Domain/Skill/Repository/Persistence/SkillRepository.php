@@ -389,6 +389,17 @@ class SkillRepository extends AbstractRepository implements SkillRepositoryInter
         return $result;
     }
 
+    public function updateUpdatedAtByProjectId(SkillDataIsolation $dataIsolation, int $projectId): bool
+    {
+        $builder = $this->createBuilder($dataIsolation, $this->skillModel::query());
+        $updated = $builder->where('project_id', $projectId)
+            ->update([
+                'updated_at' => date('Y-m-d H:i:s'),
+            ]);
+
+        return $updated > 0;
+    }
+
     /**
      * 根据 ID 列表批量查询技能详情.
      *

@@ -15,6 +15,13 @@ import openrouterIcon from "@/assets/services/Openrouter.png"
 import miraclevisionIcon from "@/assets/services/Miraclevision2.png"
 import defaultIcon from "@/assets/services/Default.png"
 import ttapiIcon from "@/assets/services/TTapi.png"
+import tencentCloudIcon from "@/assets/services/TencentCloud.png"
+import baiduCloudIcon from "@/assets/services/BaiduCloud.png"
+import moonshotIcon from "@/assets/services/KimiPlatform.png"
+import miniMaxIcon from "@/assets/services/MiniMaxPlatform.png"
+import scnetIcon from "@/assets/services/Scnet.png"
+import siliconFlowIcon from "@/assets/services/SiliconFlow.png"
+import bigModelIcon from "@/assets/services/BigModel.png"
 
 interface ServiceIconProps extends MagicAvatarProps {
 	/** 服务商代码 */
@@ -39,8 +46,14 @@ const serviceIconMap: Partial<Record<string, string>> = {
 	[AiModel.ServiceProvider.Gemini]: googleIcon,
 	[AiModel.ServiceProvider.OpenRouter]: openrouterIcon,
 	[AiModel.ServiceProvider.MiracleVision]: miraclevisionIcon,
-	[AiModel.ServiceProvider.Tencent]: defaultIcon,
+	[AiModel.ServiceProvider.Tencent]: tencentCloudIcon,
 	[AiModel.ServiceProvider.TTAPI]: ttapiIcon,
+	[AiModel.ServiceProvider.Baidu]: baiduCloudIcon,
+	[AiModel.ServiceProvider.SCNet]: scnetIcon,
+	[AiModel.ServiceProvider.SiliconFlow]: siliconFlowIcon,
+	[AiModel.ServiceProvider.Moonshot]: moonshotIcon,
+	[AiModel.ServiceProvider.MiniMax]: miniMaxIcon,
+	[AiModel.ServiceProvider.BigModel]: bigModelIcon,
 }
 
 const ServiceIcon = memo(({ code, type, size = 18, ...props }: ServiceIconProps) => {

@@ -12,13 +12,11 @@ use InvalidArgumentException;
 
 enum VideoGenerateProviderType: string
 {
-    case Wuyin = 'Wuyin';
     case Cloudsway = 'Cloudsway';
 
     public static function fromProviderCode(ProviderCode $providerCode, ?string $modelVersion = null): self
     {
         return match ($providerCode) {
-            ProviderCode::Wuyin => self::Wuyin,
             ProviderCode::Cloudsway => self::Cloudsway,
             default => throw new InvalidArgumentException(sprintf(
                 'unsupported video provider code %s for model %s',

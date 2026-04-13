@@ -589,7 +589,10 @@ class HandleAgentMessageAppService extends AbstractAppService
                 ->setTool($messageData['tool'])
                 ->setAttachments($messageData['attachments'])
                 ->setEvent($messageData['event'])
-                ->setShowInUi($messageData['showInUi']);
+                ->setShowInUi($messageData['showInUi'])
+                ->setCorrelationId($messageData['correlationId'] ?? null)
+                ->setParentCorrelationId($messageData['parentCorrelationId'] ?? null)
+                ->setContentType($messageData['contentType'] ?? null);
 
             $this->taskMessageDomainService->updateExistingMessage($existingMessage);
 
@@ -618,7 +621,10 @@ class HandleAgentMessageAppService extends AbstractAppService
             attachments: $messageData['attachments'],
             mentions: null,
             showInUi: $messageData['showInUi'],
-            messageId: $messageData['messageId']
+            messageId: $messageData['messageId'],
+            correlationId: $messageData['correlationId'] ?? null,
+            parentCorrelationId: $messageData['parentCorrelationId'] ?? null,
+            contentType: $messageData['contentType'] ?? null
         );
 
         $taskMessageEntity = TaskMessageEntity::taskMessageDTOToTaskMessageEntity($taskMessageDTO);

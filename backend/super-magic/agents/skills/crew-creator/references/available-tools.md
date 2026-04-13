@@ -203,7 +203,7 @@ tools:
 |------|-------------|
 | `call_agent` | Delegate a task to another specialized agent |
 | `call_subagent` | Call a sub-agent for a specific task |
-| `get_sub_agent_results` | Retrieve results from a sub-agent |
+| `wait_for_subagents` | Wait for one or more background sub-agents to finish |
 
 <!--zh
 ### 演示与幻灯片类
@@ -256,7 +256,7 @@ tools:
 | `deep_write` | Deep writing with multi-pass refinement |
 | `skill_list` | List all available skills |
 | `read_skills` | Read a skill's SKILL.md content |
-| `run_skills_snippet` | Run a code snippet in the context of a skill |
+| `run_sdk_snippet` | Execute a Python code snippet with sdk.tool / sdk.mcp access; intermediate results stay in the execution environment and do not flow through model context |
 
 <!--zh
 ### IM 渠道类
@@ -277,17 +277,10 @@ tools:
 
 | Tool | Description |
 |------|-------------|
-| `create_design_project` | Create a design project |
-| `create_canvas_element` | Create a canvas element |
-| `update_canvas_element` | Update a canvas element |
-| `delete_canvas_element` | Delete a canvas element |
-| `query_canvas_overview` | Query canvas overview |
-| `query_canvas_element` | Query a specific canvas element |
-| `batch_create_canvas_elements` | Batch create canvas elements |
-| `batch_update_canvas_elements` | Batch update canvas elements |
-| `generate_images_to_canvas` | Generate images directly to canvas |
+| `create_canvas` | Create a canvas project |
+| `generate_canvas_images` | Generate images directly to canvas |
+| `generate_canvas_videos` | Generate videos directly to canvas |
 | `search_images_to_canvas` | Search and add images to canvas |
-| `reorder_canvas_elements` | Reorder canvas elements |
 
 <!--zh
 ### 数据看板类

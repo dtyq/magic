@@ -109,9 +109,10 @@ class AbstractFileTool(BaseTool[T], Generic[T]):
         finally:
             # 可选更新时间戳
             if update_timestamp:
-                from app.utils.file_timestamp_manager import get_global_timestamp_manager
-                timestamp_manager = get_global_timestamp_manager()
-                await timestamp_manager.update_timestamp(Path(path_str))
+                try:
+                    await self.get_horizon(tool_context).update_timestamp(Path(path_str))
+                except Exception as _e:
+                    logger.warning(f"[AbstractFileTool] update_timestamp 失败: {_e}")
 
             # 触发 AFTER 事件
             after_event = EventType.FILE_UPDATED if file_exists else EventType.FILE_CREATED

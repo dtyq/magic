@@ -4,32 +4,11 @@ import { Flex, Form, Upload, message } from "antd"
 import { IconUpload } from "@tabler/icons-react"
 import { useTranslation } from "react-i18next"
 import { MagicButton, MagicSelect } from "components"
-import type { Rule } from "antd/es/form"
 import { AiManage } from "@/types/aiManage"
 import { AiModel } from "@/const/aiModel"
 import { useStyles } from "./styles"
 import FormField from "./FormField"
-
-interface FieldConfig {
-	/* 字段名称 */
-	name: string | string[]
-	/* 标签文本 */
-	label: string
-	/* 描述文本 */
-	description?: string
-	/* 占位符 */
-	placeholder?: string
-	/* 是否必填 */
-	required?: boolean
-	/* 输入类型 */
-	inputType?: "text" | "password" | "textarea"
-	/* 验证规则 */
-	rules?: Rule[]
-	/* 提交前规范化（如 trim），可避免尾随空格导致校验报错 */
-	normalize?: (value: unknown) => unknown
-	/* 显示条件 */
-	shouldShow?: boolean
-}
+import type { FieldConfig } from "./FormField"
 
 interface ConfigFormProps {
 	/* 服务商名称 */
@@ -63,9 +42,15 @@ const providersByCategory = {
 			AiModel.ServiceProvider.DeepSeek,
 			AiModel.ServiceProvider.OpenAI,
 			AiModel.ServiceProvider.Official,
-			AiModel.ServiceProvider.Gemini,
 			AiModel.ServiceProvider.DashScope,
 			AiModel.ServiceProvider.OpenRouter,
+			AiModel.ServiceProvider.Baidu,
+			AiModel.ServiceProvider.SCNet,
+			AiModel.ServiceProvider.SiliconFlow,
+			AiModel.ServiceProvider.Moonshot,
+			AiModel.ServiceProvider.MiniMax,
+			AiModel.ServiceProvider.BigModel,
+			AiModel.ServiceProvider.Tencent,
 		],
 		apiAgent: [
 			AiModel.ServiceProvider.MicrosoftAzure,
@@ -76,6 +61,13 @@ const providersByCategory = {
 			AiModel.ServiceProvider.DashScope,
 			AiModel.ServiceProvider.OpenRouter,
 			AiModel.ServiceProvider.Official,
+			AiModel.ServiceProvider.Baidu,
+			AiModel.ServiceProvider.SCNet,
+			AiModel.ServiceProvider.SiliconFlow,
+			AiModel.ServiceProvider.Moonshot,
+			AiModel.ServiceProvider.MiniMax,
+			AiModel.ServiceProvider.BigModel,
+			AiModel.ServiceProvider.Tencent,
 		],
 		apiVersion: [AiModel.ServiceProvider.MicrosoftAzure],
 		accessKey: [AiModel.ServiceProvider.AWSBedrock],
@@ -87,7 +79,6 @@ const providersByCategory = {
 			AiModel.ServiceProvider.MicrosoftAzure,
 			AiModel.ServiceProvider.TTAPI,
 			AiModel.ServiceProvider.Qwen,
-			AiModel.ServiceProvider.GoogleImage,
 			AiModel.ServiceProvider.VolcengineArk,
 			AiModel.ServiceProvider.Official,
 			AiModel.ServiceProvider.QwenGlobal,
@@ -170,11 +161,11 @@ const ConfigForm = memo(({ category, code, name, descPosition = "left" }: Config
 	const options = useMemo(() => {
 		return [
 			{
-				label: "API Key",
+				label: "Google AI Studio",
 				value: AiManage.AuthType.API_KEY,
 			},
 			{
-				label: "Service Account",
+				label: "Google Cloud Vertex AI",
 				value: AiManage.AuthType.SERVICE_ACCOUNT,
 			},
 		]
@@ -299,6 +290,7 @@ const ConfigForm = memo(({ category, code, name, descPosition = "left" }: Config
 
 		/* API 地址 */
 		if (useApiAgent.includes(code)) {
+			const defaultApiUrl = AiModel.ServiceProviderUrl[code]
 			configs.push({
 				name: ["config", "url"],
 				label: t("apiAgent"),
@@ -306,10 +298,8 @@ const ConfigForm = memo(({ category, code, name, descPosition = "left" }: Config
 					code === AiModel.ServiceProvider.MicrosoftAzure
 						? t("azureApiAgentPlaceholder")
 						: t("apiAgentPlaceholder"),
-				placeholder:
-					AiModel.ServiceProviderUrl[
-						code as unknown as keyof typeof AiModel.ServiceProviderUrl
-					],
+				placeholder: defaultApiUrl,
+				initialValue: defaultApiUrl?.trim() ? defaultApiUrl : undefined,
 				required: !isGoogle,
 				rules: [
 					{
@@ -375,7 +365,7 @@ const ConfigForm = memo(({ category, code, name, descPosition = "left" }: Config
 
 	return (
 		<>
-			{/* Service Account: 导入 JSON 快速填充 */}
+			{/* Google Cloud Vertex AI: 导入 JSON 快速填充 */}
 			{isGoogle && authType === AiManage.AuthType.SERVICE_ACCOUNT && (
 				<Flex
 					justify="space-between"
@@ -383,7 +373,7 @@ const ConfigForm = memo(({ category, code, name, descPosition = "left" }: Config
 					align={isLeftDesc ? "center" : "flex-start"}
 				>
 					<Flex gap={4} vertical className={styles.label}>
-						<div className={styles.labelText}>Service Account JSON</div>
+						<div className={styles.labelText}>Google Cloud Vertex AI JSON</div>
 						{isLeftDesc && (
 							<div className={styles.labelDesc}>{t("form.importJsonDesc")}</div>
 						)}

@@ -16,7 +16,7 @@ import os
 from dataclasses import dataclass, field
 from enum import StrEnum
 from pathlib import Path
-from typing import Union, Any, Dict, Optional
+from typing import Callable, Union, Any, Dict, Optional
 
 import yaml
 
@@ -384,6 +384,130 @@ async def async_write_text(file_path: Union[str, Path], content: str, encoding: 
         raise
 
 
+async def async_write_text_with_retry(
+    file_path: Union[str, Path],
+    content: str,
+    encoding: str = 'utf-8',
+    max_retries: int = 5,
+    retry_delay: float = 0.2,
+    content_validator: Optional[Callable[[str], bool]] = None,
+) -> None:
+    """
+    写入文本文件并验证写入结果，适用于存在同步延迟的存储后端（如 TOS）。
+
+    写入完成后进入轮询验证循环：依次检查文件存在、大小非零、内容非空，
+    若提供了 content_validator 则额外执行自定义校验。任一检查失败时重试；
+    超过 max_retries 次后抛出 IOError。
+
+    Args:
+        file_path: 文件路径
+        content: 文本内容
+        encoding: 编码格式，默认 utf-8
+        max_retries: 最大验证重试次数，默认 5
+        retry_delay: 每次验证前等待秒数，默认 0.2
+        content_validator: 可选，接收已写入的文本并返回 bool；
+            返回 False 视为内容无效，触发重试
+    """
+    path_obj = Path(file_path)
+    await async_write_text(path_obj, content, encoding=encoding)
+
+    for attempt in range(max_retries):
+        await asyncio.sleep(retry_delay)
+
+        if not await async_exists(path_obj):
+            if attempt < max_retries - 1:
+                logger.warning(f"File does not exist after write, retrying... (attempt {attempt + 1}/{max_retries}): {path_obj}")
+                continue
+            raise IOError(f"File does not exist after write: {path_obj}")
+
+        file_stat = await async_stat(path_obj)
+        if file_stat.st_size == 0:
+            if attempt < max_retries - 1:
+                logger.warning(f"File is empty after write, retrying... (attempt {attempt + 1}/{max_retries}): {path_obj}")
+                continue
+            raise IOError(f"File is empty after write: {path_obj}")
+
+        written_content = await async_read_text(path_obj, encoding=encoding)
+        if not written_content or not written_content.strip():
+            if attempt < max_retries - 1:
+                logger.warning(f"File content is empty after write, retrying... (attempt {attempt + 1}/{max_retries}): {path_obj}")
+                continue
+            raise IOError(f"File content is empty after write: {path_obj}")
+
+        if content_validator is not None and not content_validator(written_content):
+            if attempt < max_retries - 1:
+                logger.warning(f"File content failed validation after write, retrying... (attempt {attempt + 1}/{max_retries}): {path_obj}")
+                continue
+            raise IOError(f"File content failed validation after write: {path_obj}")
+
+        logger.info(f"Verified file write success: {path_obj} (size: {file_stat.st_size} bytes, attempt: {attempt + 1})")
+        return
+
+    raise IOError(f"File write verification failed after {max_retries} retries: {path_obj}")
+
+
+async def async_write_text_with_retry(
+    file_path: Union[str, Path],
+    content: str,
+    encoding: str = 'utf-8',
+    max_retries: int = 5,
+    retry_delay: float = 0.2,
+    content_validator: Optional[Callable[[str], bool]] = None,
+) -> None:
+    """
+    写入文本文件并轮询验证写入结果，适用于 TOS 等存在同步延迟的存储层。
+
+    Args:
+        file_path: 文件路径
+        content: 文本内容
+        encoding: 编码格式，默认 utf-8
+        max_retries: 验证最大重试次数，默认 5
+        retry_delay: 每次重试前等待秒数，默认 0.2
+        content_validator: 可选的内容校验函数，接收已写入内容字符串，返回 True 表示合法；
+                           不传则只校验文件存在且内容非空
+
+    Raises:
+        IOError: 超出重试次数后文件仍不存在、为空或未通过自定义校验
+        PermissionError: 权限不足
+    """
+    path_obj = Path(file_path)
+    await async_write_text(path_obj, content, encoding=encoding)
+
+    for attempt in range(max_retries):
+        await asyncio.sleep(retry_delay)
+
+        if not await async_exists(path_obj):
+            if attempt < max_retries - 1:
+                logger.warning(f"File does not exist after write, retrying... (attempt {attempt + 1}/{max_retries}): {path_obj}")
+                continue
+            raise IOError(f"File does not exist after write: {path_obj}")
+
+        file_stat = await async_stat(path_obj)
+        if file_stat.st_size == 0:
+            if attempt < max_retries - 1:
+                logger.warning(f"File is empty after write, retrying... (attempt {attempt + 1}/{max_retries}): {path_obj}")
+                continue
+            raise IOError(f"File is empty after write: {path_obj}")
+
+        written_content = await async_read_text(path_obj, encoding=encoding)
+        if not written_content or not written_content.strip():
+            if attempt < max_retries - 1:
+                logger.warning(f"File content is empty after write, retrying... (attempt {attempt + 1}/{max_retries}): {path_obj}")
+                continue
+            raise IOError(f"File content is empty after write: {path_obj}")
+
+        if content_validator is not None and not content_validator(written_content):
+            if attempt < max_retries - 1:
+                logger.warning(f"File content failed validation, retrying... (attempt {attempt + 1}/{max_retries}): {path_obj}")
+                continue
+            raise IOError(f"File content failed validation after write: {path_obj}")
+
+        logger.info(f"Verified file write success: {path_obj} (size: {file_stat.st_size} bytes, attempt: {attempt + 1})")
+        return
+
+    raise IOError(f"Failed to verify file write after {max_retries} retries: {path_obj}")
+
+
 async def async_write_bytes(
     file_path: Union[str, Path],
     content: bytes | bytearray | memoryview,
@@ -460,6 +584,65 @@ async def async_read_text(file_path: Union[str, Path], encoding: str = 'utf-8') 
     except Exception as e:
         logger.error(f"异步读取文本文件失败 {path_obj}: {e}")
         raise
+
+
+def _count_text_lines_sync(file_path: Path, encoding: str) -> int:
+    """同步统计文本文件行数，供 asyncio.to_thread 调用。"""
+    with file_path.open('r', encoding=encoding) as f:
+        return sum(1 for _ in f)
+
+
+async def async_count_text_lines(file_path: Union[str, Path], encoding: str = 'utf-8') -> int:
+    """
+    异步统计文本文件行数
+
+    通过线程池执行流式逐行统计，避免阻塞事件循环，也避免整文件读入内存。
+
+    Args:
+        file_path: 文件路径
+        encoding: 编码格式，默认utf-8
+
+    Returns:
+        int: 文件总行数
+
+    Raises:
+        FileNotFoundError: 文件不存在
+        IOError: IO操作失败
+        UnicodeDecodeError: 文本解码失败
+    """
+    path_obj = Path(file_path)
+
+    try:
+        return await asyncio.to_thread(_count_text_lines_sync, path_obj, encoding)
+    except Exception as e:
+        logger.error(f"异步统计文本文件行数失败 {path_obj}: {e}")
+        raise
+
+
+async def async_try_count_text_lines(file_path: Union[str, Path], encoding: str = 'utf-8') -> Optional[int]:
+    """
+    安全统计文本文件行数（不抛异常）
+
+    与 async_count_text_lines 的区别：
+    - async_count_text_lines: 文件不存在或统计失败时抛出异常
+    - async_try_count_text_lines: 返回 None，适合附加信息统计场景
+
+    Args:
+        file_path: 文件路径
+        encoding: 编码格式，默认utf-8
+
+    Returns:
+        Optional[int]: 文件总行数，失败或不存在返回 None
+    """
+    path_obj = Path(file_path)
+
+    try:
+        return await async_count_text_lines(path_obj, encoding=encoding)
+    except FileNotFoundError:
+        return None
+    except Exception as e:
+        logger.error(f"统计文件 {path_obj} 行数失败: {e}")
+        return None
 
 
 async def async_read_bytes(file_path: Union[str, Path], size: Optional[int] = None, offset: int = 0) -> bytes:

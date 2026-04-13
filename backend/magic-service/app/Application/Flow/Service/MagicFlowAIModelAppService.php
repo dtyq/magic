@@ -26,19 +26,26 @@ class MagicFlowAIModelAppService extends AbstractFlowAppService
         $iconPaths = [];
         $list = [];
         $models = $mapper->getChatModels($dataIsolation);
-        foreach ($models as $odinModel) {
+        foreach ($models as $modelEntry) {
+            $innerOdinModel = $modelEntry->getOdinModel();
+            if (! $innerOdinModel) {
+                continue;
+            }
             /** @var AbstractModel $model */
-            $model = $odinModel->getModel();
+            $model = $innerOdinModel->getModel();
+            if (! $model instanceof AbstractModel) {
+                continue;
+            }
             if ($model->getModelOptions()->isEmbedding()) {
                 continue;
             }
 
             $modelEntity = new MagicFlowAIModelEntity();
-            $modelEntity->setName($odinModel->getAttributes()->getName());
+            $modelEntity->setName($modelEntry->getAttributes()->getName());
             $modelEntity->setModelName($model->getModelName());
-            $modelEntity->setLabel($odinModel->getAttributes()->getLabel() ?: $odinModel->getAttributes()->getName());
-            $modelEntity->setIcon($odinModel->getAttributes()->getIcon());
-            $modelEntity->setTags($odinModel->getAttributes()->getTags());
+            $modelEntity->setLabel($modelEntry->getAttributes()->getLabel() ?: $modelEntry->getAttributes()->getName());
+            $modelEntity->setIcon($modelEntry->getAttributes()->getIcon());
+            $modelEntity->setTags($modelEntry->getAttributes()->getTags());
             $modelEntity->setDefaultConfigs(['temperature' => 0.5]);
             $modelEntity->setSupportMultiModal($model->getModelOptions()->isMultiModal());
             $list[] = $modelEntity;

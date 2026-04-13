@@ -158,6 +158,18 @@ class SuperMagicAgentRepository extends SuperMagicAbstractRepository implements 
         return $updated > 0;
     }
 
+    public function updateUpdatedAtByProjectId(SuperMagicAgentDataIsolation $dataIsolation, int $projectId, string $modifier): bool
+    {
+        $builder = $this->createBuilder($dataIsolation, SuperMagicAgentModel::query());
+        $updated = $builder->where('project_id', $projectId)
+            ->update([
+                'updated_at' => date('Y-m-d H:i:s'),
+                'modifier' => $modifier,
+            ]);
+
+        return $updated > 0;
+    }
+
     public function findByName(string $name, string $organizationCode): ?SuperMagicAgentEntity
     {
         /** @var null|SuperMagicAgentModel $model */

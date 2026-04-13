@@ -31,9 +31,9 @@ interface DataIsolationInterface
 
     public function setEnabled(bool $enabled): static;
 
-    public function setThirdPlatformUserId(string $thirdPlatformUserId): static;
+    public function setThirdPlatformUserId(?string $thirdPlatformUserId): static;
 
-    public function setThirdPlatformOrganizationCode(string $thirdPlatformOrganizationCode): static;
+    public function setThirdPlatformOrganizationCode(?string $thirdPlatformOrganizationCode): static;
 
     public function setCurrentOrganizationCode(string $currentOrganizationCode): static;
 

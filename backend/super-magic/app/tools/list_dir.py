@@ -75,11 +75,12 @@ class ListDir(WorkspaceTool[ListDirParams]):
              logger.warning(f"Requested level {level} is less than 1, setting to 1.")
              level = 1
 
-        # 获取结构化数据（只扫描一次）
-        file_tree_content = self._scan_directory_tree(
-            relative_workspace_path=params.relative_workspace_path,
-            level=level,
-            filter_binary=params.filter_binary,
+        # 获取结构化数据（只扫描一次）- 使用 asyncio.to_thread 避免阻塞事件循环
+        file_tree_content = await asyncio.to_thread(
+            self._scan_directory_tree,
+            params.relative_workspace_path,
+            level,
+            params.filter_binary,
         )
 
         # 转换为字符串结果（避免重复扫描）
@@ -112,6 +113,15 @@ class ListDir(WorkspaceTool[ListDirParams]):
 
         # 转换为字符串结果
         return self._get_string_result(relative_workspace_path, file_tree_content)
+
+    async def get_file_tree_async(self, relative_workspace_path: str, level: int, filter_binary: bool) -> FileTreeContent:
+        """异步获取结构化文件树（FileTreeContent），供调用方同时用于展示和路径提取。"""
+        return await asyncio.to_thread(
+            self._scan_directory_tree,
+            relative_workspace_path,
+            level,
+            filter_binary,
+        )
 
     async def get_file_tree_string_async(self, relative_workspace_path: str, level: int, filter_binary: bool) -> str:
         """异步获取文件树的字符串表示
@@ -264,10 +274,15 @@ class ListDir(WorkspaceTool[ListDirParams]):
             # 使用完后清理缓存
             del tool_context._list_dir_cache[id(self)]
 
-        # 如果缓存中没有数据，重新扫描（fallback）
+        # 如果缓存中没有数据，重新扫描（fallback）- 使用 asyncio.to_thread 避免阻塞事件循环
         if not file_tree_content:
             logger.warning("No cached tree data found, re-scanning directory")
-            file_tree_content = self._scan_directory_tree(path, level, filter_binary)
+            file_tree_content = await asyncio.to_thread(
+                self._scan_directory_tree,
+                path,
+                level,
+                filter_binary,
+            )
 
         # 返回工具详情
         return ToolDetail(

@@ -42,14 +42,14 @@ class VideoCatalogQueryDomainServiceTest extends TestCase
         $service = new VideoCatalogQueryDomainService();
         $providers = $service->getProviders();
 
-        $wuyinProvider = array_find(
+        $cloudswayProvider = array_find(
             $providers,
-            static fn (VideoCatalogProviderDefinition $provider): bool => $provider->getProviderCode() === 'Wuyin'
+            static fn (VideoCatalogProviderDefinition $provider): bool => $provider->getProviderCode() === 'Cloudsway'
         );
-        $this->assertNotNull($wuyinProvider);
-        $this->assertNotEmpty($wuyinProvider->getConfigId());
-        $this->assertSame('Video Gateway', $wuyinProvider->getName());
-        $this->assertSame('vgm', $wuyinProvider->getCategory());
+        $this->assertNotNull($cloudswayProvider);
+        $this->assertNotEmpty($cloudswayProvider->getConfigId());
+        $this->assertSame('Video Gateway', $cloudswayProvider->getName());
+        $this->assertSame('vgm', $cloudswayProvider->getCategory());
     }
 
     public function testGetProviderTemplateReturnsMatchingProviderDefinition(): void
@@ -61,7 +61,7 @@ class VideoCatalogQueryDomainServiceTest extends TestCase
         $this->assertNotNull($providerTemplate);
         $this->assertSame((string) self::TEST_PROVIDER_CONFIG_ID, $providerTemplate->getConfigId());
         $this->assertSame(self::TEST_PROVIDER_ID, $providerTemplate->getServiceProviderId());
-        $this->assertSame('Wuyin', $providerTemplate->getProviderCode());
+        $this->assertSame('Cloudsway', $providerTemplate->getProviderCode());
     }
 
     public function testQueryModelsDeduplicatesSameModelAcrossMultipleEndpoints(): void
@@ -87,7 +87,7 @@ class VideoCatalogQueryDomainServiceTest extends TestCase
                     ),
                 ],
                 config: [
-                    'alias' => 'Wuyin Backup',
+                    'alias' => 'Cloudsway Backup',
                     'sort' => 900,
                 ],
             ),

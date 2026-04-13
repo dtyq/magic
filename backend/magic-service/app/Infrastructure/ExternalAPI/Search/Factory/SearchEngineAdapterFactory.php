@@ -25,7 +25,7 @@ class SearchEngineAdapterFactory
     /**
      * Create search engine adapter.
      *
-     * @param null|string $engine Engine name (bing|google|tavily|duckduckgo|jina|cloudsway|magic).
+     * @param null|string $engine Engine name (bing|baidu|google|tavily|duckduckgo|jina|cloudsway|magic).
      *                            If null, uses default from config.
      * @param array $providerConfig Configuration array from AI abilities config field
      * @throws RuntimeException If engine is not supported or class not found

@@ -43,6 +43,7 @@ class CronNotificationRecord:
     job_name: str
     status: str            # "ok" | "error"
     finished_at: str       # ISO 8601，UTC
+    job_body: str          # 原始任务正文，即用户设定的任务内容
     summary: str           # result 或 error 的前 200 字符
     result_file: str       # 完整结果文件的绝对路径
 
@@ -58,6 +59,7 @@ class CronNotificationRecord:
                 job_name=str(data["job_name"]),
                 status=str(data["status"]),
                 finished_at=str(data["finished_at"]),
+                job_body=str(data.get("job_body", "")),
                 summary=str(data.get("summary", "")),
                 result_file=str(data.get("result_file", "")),
             )
@@ -77,6 +79,7 @@ def _build_record(job: CronJob, result: CronRunResult, result_file: Path) -> Cro
         job_name=job.name or job.id,
         status=result.status,
         finished_at=finished_at,
+        job_body=job.body or "",
         summary=summary,
         result_file=str(result_file),
     )
@@ -175,12 +178,15 @@ async def try_notify_main_agent() -> None:
         block_lines = [
             t("cron.notify.task_header", index=i),
             t("cron.notify.field_name", value=r.job_name),
-            t("cron.notify.field_status", value=status_label),
-            t("cron.notify.field_finished_at", value=r.finished_at),
         ]
+        if r.job_body:
+            block_lines.append(t("cron.notify.field_job_body", value=r.job_body))
+        block_lines.append(t("cron.notify.field_status", value=status_label))
+        block_lines.append(t("cron.notify.field_finished_at", value=r.finished_at))
         if r.result_file:
             block_lines.append(t("cron.notify.field_result_file", value=r.result_file))
-        if r.summary:
+        # 仅当执行结果与任务正文有实质差异时才附上摘要（研究、汇报类任务）
+        if r.summary and r.summary.strip() != r.job_body.strip():
             block_lines.append(t("cron.notify.field_summary", value=r.summary))
         task_blocks.append("\n".join(block_lines))
 

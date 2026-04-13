@@ -73,12 +73,6 @@ readonly class CloudswayVideoAdapterRouter implements VideoGenerationProviderAda
 
     private function findAdapter(string $modelVersion, string $modelId): ?VideoGenerationProviderAdapterInterface
     {
-        foreach ($this->adapters as $adapter) {
-            if ($adapter->supportsModel($modelVersion, $modelId)) {
-                return $adapter;
-            }
-        }
-
-        return null;
+        return array_find($this->adapters, static fn ($adapter) => $adapter->supportsModel($modelVersion, $modelId));
     }
 }

@@ -134,6 +134,7 @@
 		"useProxyServerPlaceholder": "Please select the available proxy server",
 		"userInputUrl": "User Input URL",
 		"userInputUrlPlaceholder": "Please enter the user input URL",
+		"useDefaultApiUrl": "Quick Fill",
 		"vectorSize": "Vector Dimension",
 		"vectorSizeDesc": "Set the length of the vector, which determines the complexity and capacity of the model's representation of object features",
 		"vectorSizePlaceholder": "Please enter the vector dimension, e.g., 1536, etc.",

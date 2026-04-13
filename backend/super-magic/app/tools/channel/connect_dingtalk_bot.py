@@ -1,7 +1,7 @@
 """
 ConnectDingTalkBot — 建立钉钉 Stream 连接的 Tool。
 
-不挂载到 LLM tool list，仅供 Skill snippet 通过 /api/skills/call_tool 调用。
+不挂载到 LLM tool list，仅供 SDK snippet 通过 /api/sdk/tool/call 调用。
 """
 from typing import Any, Dict
 
@@ -34,9 +34,9 @@ The DingTalk app Client Secret (AppSecret).""",
 @tool()
 class ConnectDingTalkBot(BaseTool[ConnectDingTalkBotParams]):
     """<!--zh
-    建立钉钉 Stream 模式 AI Bot 长连接。仅供 Skill snippet 调用，不挂载到 LLM。
+    建立钉钉 Stream 模式 AI Bot 长连接。仅供 SDK snippet 调用，不挂载到 LLM。
     -->
-    Start the DingTalk stream-mode AI bot connection. Intended for skill snippets only and not exposed as a normal LLM tool.
+    Start the DingTalk stream-mode AI bot connection. Intended for SDK snippets only and not exposed as a normal LLM tool.
     """
 
     async def execute(self, tool_context: ToolContext, params: ConnectDingTalkBotParams) -> ToolResult:

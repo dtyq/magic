@@ -63,6 +63,13 @@ return [
                         'provider' => 'cloudsway',
                         'request_url' => '',
                     ],
+                    [
+                        'name' => 'Baidu',
+                        'enable' => false,
+                        'api_key' => '',
+                        'provider' => 'baidu',
+                        'request_url' => '',
+                    ],
                 ],
             ],
         ],

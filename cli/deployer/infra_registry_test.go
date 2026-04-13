@@ -17,7 +17,7 @@ import (
 func newTestRegistry(t *testing.T) *InfraRegistry {
 	t.Helper()
 	tmpFile := filepath.Join(t.TempDir(), infraCredentialsFileName)
-	reg := newInfraRegistry()
+	reg := newInfraRegistry(t.TempDir())
 	reg.persistPathFunc = func() (string, error) { return tmpFile, nil }
 	return reg
 }
@@ -435,7 +435,7 @@ func TestInfraRegistry_ResolveCredentials_MinIOPolicies_SkipInvalidPersistedPoli
   buckets: []
 `)
 	require.NoError(t, os.WriteFile(tmpFile, stale, 0o600))
-	reg := newInfraRegistry()
+	reg := newInfraRegistry(t.TempDir())
 	reg.persistPathFunc = func() (string, error) { return tmpFile, nil }
 	reg.Register(InfraResource{App: "magic", Spec: MinIOSpec{
 		Username: "magic",
@@ -488,7 +488,7 @@ func TestInfraRegistry_ResolveCredentials_MinIOPolicies_SkipMultipleInvalidPersi
   buckets: []
 `)
 	require.NoError(t, os.WriteFile(tmpFile, stale, 0o600))
-	reg := newInfraRegistry()
+	reg := newInfraRegistry(t.TempDir())
 	reg.persistPathFunc = func() (string, error) { return tmpFile, nil }
 	reg.Register(InfraResource{App: "magic", Spec: MinIOSpec{
 		Username: "magic",
@@ -523,7 +523,7 @@ func TestInfraRegistry_ResolveCredentials_MinIOPolicies_PersistedPoliciesMergedW
   buckets: []
 `)
 	require.NoError(t, os.WriteFile(tmpFile, stale, 0o600))
-	reg := newInfraRegistry()
+	reg := newInfraRegistry(t.TempDir())
 	reg.persistPathFunc = func() (string, error) { return tmpFile, nil }
 	reg.Register(InfraResource{App: "magic", Spec: MinIOSpec{
 		Username: "magic",
@@ -557,7 +557,7 @@ func TestInfraRegistry_ResolveCredentials_MinIOPolicies_SpecsOverridePersistedDe
 `)
 	require.NoError(t, os.WriteFile(tmpFile, persisted, 0o600))
 
-	reg := newInfraRegistry()
+	reg := newInfraRegistry(t.TempDir())
 	reg.persistPathFunc = func() (string, error) { return tmpFile, nil }
 	reg.Register(InfraResource{App: "magic", Spec: MinIOSpec{
 		Username: "magic",
@@ -589,7 +589,7 @@ func TestInfraRegistry_ResolveCredentials_MinIOPolicies_ReferenceSkippedPersiste
   buckets: []
 `)
 	require.NoError(t, os.WriteFile(tmpFile, stale, 0o600))
-	reg := newInfraRegistry()
+	reg := newInfraRegistry(t.TempDir())
 	reg.persistPathFunc = func() (string, error) { return tmpFile, nil }
 	reg.Register(InfraResource{App: "magic", Spec: MinIOSpec{
 		Username: "magic",
@@ -622,7 +622,7 @@ func TestInfraRegistry_ResolveCredentials_MinIOPolicies_ReferenceValidPersistedS
   buckets: []
 `)
 	require.NoError(t, os.WriteFile(tmpFile, stale, 0o600))
-	reg := newInfraRegistry()
+	reg := newInfraRegistry(t.TempDir())
 	reg.persistPathFunc = func() (string, error) { return tmpFile, nil }
 	reg.Register(InfraResource{App: "magic", Spec: MinIOSpec{
 		Username: "magic",
@@ -637,7 +637,7 @@ func TestInfraRegistry_ResolveCredentials_PersistsAndReuses(t *testing.T) {
 	tmpFile := filepath.Join(t.TempDir(), infraCredentialsFileName)
 
 	newReg := func() *InfraRegistry {
-		reg := newInfraRegistry()
+		reg := newInfraRegistry(t.TempDir())
 		reg.persistPathFunc = func() (string, error) { return tmpFile, nil }
 		reg.Register(
 			InfraResource{App: "magic", Spec: MySQLSpec{Database: "magic", Username: "magic"}},
@@ -672,7 +672,7 @@ func TestInfraRegistry_ResolveCredentials_DeduplicatesUsers(t *testing.T) {
 
 func TestInfraRegistry_ResolveCredentials_CredentialFileHas0600Perms(t *testing.T) {
 	tmpFile := filepath.Join(t.TempDir(), infraCredentialsFileName)
-	reg := newInfraRegistry()
+	reg := newInfraRegistry(t.TempDir())
 	reg.persistPathFunc = func() (string, error) { return tmpFile, nil }
 	require.NoError(t, reg.ResolveCredentials())
 
@@ -982,6 +982,7 @@ func TestInfraRegistry_RenderOverlay_ProducesValidYAML(t *testing.T) {
 func TestMagicStage_Prep_ReadsFromRegistry(t *testing.T) {
 	reg := newTestRegistry(t)
 	d := &Deployer{
+		opts: &options{},
 		merged: map[string]interface{}{
 			"infra": map[string]interface{}{
 				"minio": map[string]interface{}{
@@ -1035,6 +1036,7 @@ func TestMagicStage_Prep_ReadsFromRegistry(t *testing.T) {
 func TestMagicSandboxStage_Prep_ReadsMinIOFromRegistry(t *testing.T) {
 	reg := newTestRegistry(t)
 	d := &Deployer{
+		opts: &options{},
 		merged: map[string]interface{}{
 			"infra": map[string]interface{}{
 				"minio": map[string]interface{}{
@@ -1066,7 +1068,7 @@ func TestMagicSandboxStage_Prep_ReadsMinIOFromRegistry(t *testing.T) {
 // ── resolveInfraServiceEndpoint fallback (previously in magic_test.go) ───────
 
 func TestResolveInfraServiceEndpoint_FallbackWhenNoKubeClient(t *testing.T) {
-	d := &Deployer{}
+	d := &Deployer{opts: &options{}}
 	ep := resolveInfraServiceEndpoint(context.Background(), d, infraMySQLServiceName, []string{"mysql"}, defaultMySQLHost, defaultMySQLPort)
 	assert.Equal(t, defaultMySQLHost, ep.host)
 	assert.Equal(t, int32(defaultMySQLPort), ep.port)

@@ -30,6 +30,8 @@ class User(BaseModel):
     real_name: Optional[str] = None
     work_number: Optional[str] = None
     position: Optional[str] = None
+    email: Optional[str] = None
+    phone: Optional[str] = None
     departments: Optional[List[Department]] = Field(default_factory=list)
 
 
@@ -56,6 +58,7 @@ class Metadata(BaseModel):
     trace_id: Optional[str] = Field(default=None, description="Trace ID for distributed tracing")
     user: Optional[User] = None
     language: Optional[str] = Field(default="zh_CN", description="用户语言偏好，支持 zh_CN(中文) 和 en_US(英文)")
+    channel_name: Optional[str] = Field(default=None, description="消息来源渠道名称")
     authorization: Optional[str] = Field(default=None, description="认证授权令牌")
     skip_init_messages: Optional[bool] = Field(
         default=None,
@@ -101,7 +104,6 @@ class AgentMode(str, Enum):
     SUMMARY_VIDEO = "summary-video"  # 视频分析模式，使用video.agent
     DESIGN = "design"         # 画布设计模式，使用design.agent
     TEST = "test"  # 工具模式，使用tool.agent
-    SKILL = "skill"  # Skill模式，使用skill.agent
     CREW_CREATOR = "crew-creator"  # Crew管理模式，使用crew-creator.agent
     SKILL_CREATOR = "skill-creator"  # Skill 创作模式，使用skill-creator.agent
     MAGICLAW = "magiclaw"  # Magic Claw 模式，从 agents/claws/<claw_code>/ 编译运行
@@ -118,7 +120,6 @@ class AgentMode(str, Enum):
             AgentMode.SUMMARY_VIDEO: "video",  # 模式名称保持summary-video，但使用video.agent文件
             AgentMode.DESIGN: "design",  # 画布设计模式
             AgentMode.TEST: "test",
-            AgentMode.SKILL: "skill",
             AgentMode.CREW_CREATOR: "crew-creator",
             AgentMode.SKILL_CREATOR: "skill-creator",
             AgentMode.MAGICLAW: "magiclaw",
@@ -143,6 +144,10 @@ class ChatClientMessage(ClientMessage):
     remark: Optional[str] = None  # 备注信息，用于中断消息等场景
     mcp_config: Optional[Dict[str, Any]] = None  # MCP 服务器配置，格式与 config/mcp.json 保持一致
     metadata: Optional[Metadata] = None  # 元数据信息，使用强类型
+    channel_context: Optional[Dict[str, Any]] = Field(
+        default=None,
+        description="Channel-specific payload, owned and interpreted by the originating channel plugin.",
+    )
 
     # 🔥 新增：动态模型选择和配置字段
     model_id: Optional[str] = Field(

@@ -275,18 +275,21 @@ Analysis result output language. Default to user preferred language (Chinese use
 
 这些文件会被读取并作为附加上下文传递给分析模型，帮助模型更好地理解对话内容。
 
+必须是可直接读取的文本文件，如 .txt、.md、.html、.json、.csv 等。
+PDF、Word、Excel 等二进制格式无法直接读取，请先转换为文本格式再传入。
+
 必传文件：
 - 录音转写文字稿（自动从 magic.project.js 读取，不需要在此列表中）
 
 可选文件示例：
 - 用户笔记：通常在音频项目文件夹内，如 "产品评审会议_20250109_140000/产品评审会议-笔记.md"
 - 项目文档：可能在工作空间的其他位置，如 "项目文档/项目背景.md"、"技术方案/架构设计.md"
-- 其他相关文件：任何你认为有助于分析的文件
+- 其他相关文件：任何你认为有助于分析的文本文件
 
 使用示例：
 [
     "项目文档/项目背景.md",
-    "技术方案/架构设计.md"
+    "技术方案/架构设计.txt"
 ]
 
 注意：
@@ -300,18 +303,21 @@ Additional context file list (paths relative to workspace root).
 
 These files will be read and passed as additional context to analysis model, helping model better understand dialogue content.
 
+Only plain text files are supported: .txt, .md, .html, .json, .csv, etc.
+Binary formats like PDF, Word, or Excel cannot be read directly — convert them to a text format first before passing in.
+
 Required files:
 - Audio transcript (automatically read from magic.project.js, no need in this list)
 
 Optional file examples:
 - User notes: Usually in audio project folder, e.g., "Product_Review_Meeting_20250109_140000/Product_Review_Meeting-Notes.md"
-- Project docs: May be elsewhere in workspace, e.g., "project-docs/project-background.md", "tech-specs/architecture.md"
-- Other related files: Any files you think helpful for analysis
+- Project docs: May be elsewhere in workspace, e.g., "project-docs/project-background.md", "tech-specs/architecture.txt"
+- Other related files: Any plain text files you think helpful for analysis
 
 Usage example:
 [
     "project-docs/project-background.md",
-    "tech-specs/architecture.md"
+    "tech-specs/architecture.txt"
 ]
 
 Notes:
@@ -973,6 +979,9 @@ if (typeof window.magicProjectConfigure === 'function') {{
             if not relative_path or not relative_path.strip():
                 continue
 
+            # TODO: 考虑改为调用 ReadFiles 工具来读取文件，可部分解决 PDF/Word 等格式转换问题。
+            # 难点：ReadFiles 与 Agent 强绑定，会根据模型剩余上下文窗口动态决定读取量，
+            # 直接复用逻辑复杂；此处作为上下文注入场景，截断策略也需要单独设计。
             # 使用 resolve_path 解析路径（相对→workspace，绝对→直接使用）
             file_path = self.resolve_path(relative_path)
             content = await async_try_read_text(file_path)

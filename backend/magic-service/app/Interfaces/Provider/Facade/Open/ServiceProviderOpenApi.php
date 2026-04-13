@@ -77,6 +77,23 @@ class ServiceProviderOpenApi extends AbstractApi
     }
 
     /**
+     * 按分类查询服务商模板列表.
+     */
+    public function queriesServiceProviderTemplates(RequestInterface $request): array
+    {
+        /** @var MagicUserAuthorization $authenticatable */
+        $authenticatable = $this->getAuthorization();
+        $categoryValue = $request->input('category', null);
+        $category = $categoryValue ? Category::from($categoryValue) : null;
+
+        return $this->adminProviderAppService->queriesServiceProviderTemplates(
+            $category,
+            $authenticatable->getOrganizationCode(),
+            true,
+        );
+    }
+
+    /**
      * 根据名称匹配模型（不校验管理员权限）.
      * @param RequestInterface $request 请求对象
      * @return null|array 返回匹配到的模型记录，如果没有匹配到则返回 null

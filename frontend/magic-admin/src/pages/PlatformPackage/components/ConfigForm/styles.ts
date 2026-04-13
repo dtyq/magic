@@ -45,5 +45,11 @@ export const useStyles = createStyles(({ css, token }, { isLeftDesc }: { isLeftD
 			font-size: 14px;
 			color: ${token.colorSuccess};
 		`,
+		fillDefaultUrlBtn: css`
+			height: auto;
+			padding: 0 6px;
+			font-size: 12px;
+			border-left: none;
+		`,
 	}
 })

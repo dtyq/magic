@@ -9,6 +9,8 @@ namespace App\Application\Provider\Service;
 
 use App\Domain\File\Service\FileDomainService;
 use App\Domain\Provider\Entity\ProviderModelEntity;
+use App\Domain\Provider\Entity\ValueObject\ModelType;
+use App\Infrastructure\ExternalAPI\ImageGenerateAPI\SizeManager;
 use App\Interfaces\Agent\Assembler\FileAssembler;
 
 /**
@@ -75,5 +77,25 @@ abstract class AbstractProviderAppService
                 }
             }
         }
+    }
+
+    /**
+     * 获取图像模型尺寸配置.
+     */
+    protected function getImageSizeConfig(ProviderModelEntity $model): ?array
+    {
+        if (! in_array($model->getModelType(), [ModelType::TEXT_TO_IMAGE, ModelType::IMAGE_TO_IMAGE, ModelType::IMAGE_ENHANCE], true)) {
+            return null;
+        }
+
+        $imageModelConfig = SizeManager::matchConfig($model->getModelVersion(), $model->getModelId());
+        if ($imageModelConfig === null) {
+            return null;
+        }
+
+        return [
+            'sizes' => $imageModelConfig['sizes'] ?? [],
+            'max_reference_images' => $imageModelConfig['max_reference_images'] ?? 0,
+        ];
     }
 }

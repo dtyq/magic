@@ -619,11 +619,17 @@ func applyEnvTemporarily(entries map[string]string) (func(), error) {
 		exists bool
 	}
 	originals := make(map[string]envValue, len(keys))
+	// Snapshot every key before any Setenv. On Windows env names are
+	// case-insensitive; interleaving LookupEnv with Setenv makes later keys see
+	// already-updated values and breaks restore (see deployer Windows tests).
 	for _, key := range keys {
 		v, existed := os.LookupEnv(key)
 		originals[key] = envValue{value: v, exists: existed}
+	}
+	for _, key := range keys {
 		if err := os.Setenv(key, entries[key]); err != nil {
-			for rollbackKey, rollback := range originals {
+			for _, rollbackKey := range keys {
+				rollback := originals[rollbackKey]
 				if rollback.exists {
 					_ = os.Setenv(rollbackKey, rollback.value)
 				} else {

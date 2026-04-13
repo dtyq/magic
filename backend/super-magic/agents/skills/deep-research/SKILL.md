@@ -1,11 +1,11 @@
 ---
 name: deep-research
 description: |
-  For research tasks that need multi-source retrieval, cross-validation, and synthesized conclusions. Keyword signals: research, deep research, deep dive, analysis, investigate, report, survey, industry analysis, competitive analysis, market analysis. Trigger when: (1) the topic requires current, verifiable data from multiple sources — news, market analysis, competitive landscape, industry research; (2) the user is unsatisfied with the depth of an existing answer. Skip when a single search or model recall suffices.
+  Read this skill when the user asks for a research report, deep research, industry report, analysis report, whitepaper, or any substantive document deliverable; or when the topic requires multi-source retrieval and cross-validation (competitive analysis, market analysis, industry research, deep dive, landscape survey); or when the user is unsatisfied with the depth of an existing answer. Keyword signals: research, deep research, deep dive, analysis, investigate, report, survey, industry analysis, competitive analysis, market analysis. Trigger when: (1) the user wants to produce a formal report or research document as the deliverable; (2) the topic requires current, verifiable data from multiple sources — news, market analysis, competitive landscape, industry research; (3) the user is unsatisfied with the depth of an existing answer. Skip when a single search or model recall suffices and no document output is needed.
 
 name-cn: 深度调研技能
 description-cn: |
-  需要多来源检索、交叉验证和综合分析的调研任务。关键词信号：调研、深度调研、深度分析、研究、报告、调查、竞品分析、市场分析、盘点、深挖、行业分析。触发条件：(1) 话题需要来自多个来源的当前可验证数据，如时事、市场分析、竞品格局、行业研究；(2) 用户对已有回答的深度不满意。单次搜索或模型已知知识能解决时不触发。
+  当用户要求产出研报、深度研报、行业研报、调研报告、深度报告、解读报告、深度分析、深度解读、白皮书等正式文档，或话题涉及竞品分析、市场分析、行业研究、深挖、盘点等需要多来源检索与交叉验证的内容，或对现有回答的深度不满意时，需要阅读这个 Skill。关键词信号：研报、深度研报、行业研报、调研报告、深度报告、深度分析、解读报告、深度解读、深度调研、竞品分析、市场分析、盘点、深挖、行业分析、白皮书。触发条件：(1) 用户的目标是产出一份有分量的研报/报告文档；(2) 话题需要来自多个来源的当前可验证数据，如时事、市场分析、竞品格局、行业研究；(3) 用户对已有回答的深度不满意。不需要产出文档、且单次搜索或模型已知知识能解决时不触发。
 ---
 
 <!--zh

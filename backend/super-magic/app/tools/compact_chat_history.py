@@ -12,10 +12,6 @@ logger = get_logger(__name__)
 
 
 class CompactChatHistoryParams(BaseToolParams):
-    analysis: str = Field(
-        ...,
-        description="The thinking process and analysis of the conversation"
-    )
     summary: str = Field(
         ...,
         description="The summary of the conversation"
@@ -30,14 +26,13 @@ Compress the current chat history when the conversation becomes too long, DO NOT
     async def execute(self, tool_context: ToolContext, params: CompactChatHistoryParams) -> ToolResult:
         """Execute chat history compaction"""
         # Log compaction action
-        logger.info(f"Executing chat history compaction. Analysis length: {len(params.analysis)} chars, Summary length: {len(params.summary)} chars")
+        logger.info(f"Executing chat history compaction. Summary length: {len(params.summary)} chars")
 
         # Return with special system marker for Agent to process
         return ToolResult(
             content="Compact chat history done, this conversation is finished and should not be continued anymore.",
             system="COMPACT_HISTORY",  # Special system marker for compaction
             extra_info={
-                "analysis": params.analysis,
                 "summary": params.summary
             },
         )

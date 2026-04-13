@@ -1,15 +1,22 @@
 """
-WechatStream — 侦听 agent 事件，在 after_main_agent_run 时通过官方 sendMessage 结构发送最终回复。
+WechatStream — 侦听 agent 事件，在 after_main_agent_run 时发送最终回复。
 
-当前仅发送最终文本，不实现 token 级流式推送。
+支持：
+- 纯文本回复
+- 标签驱动的媒体发送：<img>、<video>、<audio>、<file>、<voice>
+- `<split delay="N" />` 标记拆成多段延时发送
 """
+import asyncio
 import json
 from typing import Optional
 
 import aiohttp
 
 from agentlang.logger import get_logger
+from app.channel.base.message_splitter import split_reply
 from app.channel.wechat import api
+from app.channel.wechat.reply_media_parser import MediaItem, parse_reply_media
+from app.channel.wechat.send_media import send_media_item
 from app.channel.wechat.typing import WechatTypingController
 from app.core.stream import Stream
 
@@ -24,6 +31,7 @@ class WechatStream(Stream):
         to_user_id: str,
         context_token: str,
         base_url: str,
+        cdn_base_url: str,
         stream_id: str,
         typing_controller: WechatTypingController | None = None,
     ) -> None:
@@ -33,6 +41,7 @@ class WechatStream(Stream):
         self._to_user_id = to_user_id
         self._context_token = context_token
         self._base_url = base_url
+        self._cdn_base_url = cdn_base_url
         self._stream_id = stream_id
         self._typing_controller = typing_controller
         self._finished = False
@@ -56,17 +65,29 @@ class WechatStream(Stream):
                 self._finished = True
                 try:
                     if self._last_content:
-                        await api.send_message(
-                            self._http_session,
-                            base_url=self._base_url,
-                            token=self._bot_token,
-                            to_user_id=self._to_user_id,
-                            context_token=self._context_token,
-                            text=api.markdown_to_plain_text(self._last_content),
-                        )
-                        logger.info(f"[WechatStream] 已发送回复, stream_id={self._stream_id}")
+                        segments = split_reply(self._last_content)
+                        for i, (seg_text, delay) in enumerate(segments):
+                            if i > 0 and delay > 0:
+                                await asyncio.sleep(delay)
+                            parsed_reply = parse_reply_media(seg_text)
+                            visible_text = api.markdown_to_plain_text(parsed_reply.text)
+                            if parsed_reply.media_items:
+                                await self._send_media_reply(
+                                    caption_text=visible_text,
+                                    media_items=parsed_reply.media_items,
+                                )
+                            elif visible_text:
+                                await api.send_message(
+                                    self._http_session,
+                                    base_url=self._base_url,
+                                    token=self._bot_token,
+                                    to_user_id=self._to_user_id,
+                                    context_token=self._context_token,
+                                    text=visible_text,
+                                )
+                        logger.info(f"[WechatStream] 已发送回复({len(segments)}段), stream_id={self._stream_id}")
                 except Exception as e:
-                    logger.error(f"[WechatStream] send_message 失败: {e}")
+                    logger.error(f"[WechatStream] 发送回复失败: {e}")
                 finally:
                     await self._stop_typing()
 
@@ -83,3 +104,23 @@ class WechatStream(Stream):
         controller = self._typing_controller
         self._typing_controller = None
         await controller.stop()
+
+    async def _send_media_reply(self, *, caption_text: str, media_items: list[MediaItem]) -> None:
+        """逐条发送媒体项；第一条带 caption，后续不带。"""
+        pending_caption = caption_text
+        for index, item in enumerate(media_items, 1):
+            logger.info(
+                f"[WechatStream] 发送媒体 {index}/{len(media_items)}, "
+                f"stream_id={self._stream_id} kind={item.kind} src={item.src}"
+            )
+            await send_media_item(
+                self._http_session,
+                base_url=self._base_url,
+                token=self._bot_token,
+                to_user_id=self._to_user_id,
+                context_token=self._context_token,
+                media_item=item,
+                cdn_base_url=self._cdn_base_url,
+                caption_text=pending_caption,
+            )
+            pending_caption = ""

@@ -1089,6 +1089,7 @@ class TopicDomainService
         $topicEntity->setChatConversationId($chatConversationId);
         $topicEntity->setTopicName($newTopicName);
         $topicEntity->setTopicMode($sourceTopicEntity->getTopicMode());
+        $topicEntity->setAgentCode($sourceTopicEntity->getAgentCode());
         $topicEntity->setSandboxId('');
         $topicEntity->setSourceId((string) $sourceTopicEntity->getId()); // Initially empty
         $topicEntity->setSource(CreationSource::COPY->value);

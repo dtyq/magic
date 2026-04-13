@@ -20,16 +20,13 @@ use App\Domain\Provider\Entity\ValueObject\ProviderCode;
 readonly class VideoGenerateFactory implements VideoGenerationProviderAdapterFactoryInterface
 {
     public function __construct(
-        private WuyinVideoAdapterRouter $wuyinVideoAdapterRouter,
         private CloudswayVideoAdapterRouter $cloudswayVideoAdapterRouter,
     ) {
     }
 
     public function create(VideoGenerateProviderType $providerType): VideoGenerationProviderAdapterInterface
     {
-        // 目前只接入了 Wuyin 视频 provider，后续新增 provider 时在这里继续扩展。
         return match ($providerType) {
-            VideoGenerateProviderType::Wuyin => $this->wuyinVideoAdapterRouter,
             VideoGenerateProviderType::Cloudsway => $this->cloudswayVideoAdapterRouter,
         };
     }

@@ -8,12 +8,11 @@ Attachment Processing:
 """
 
 from app.i18n import i18n
+from app.core.entity.final_task_state import FinalTaskState, render_final_task_state_message
 from app.core.context.agent_context import AgentContext
 from app.core.entity.attachment import Attachment, AttachmentTag
 from app.core.entity.event.event import (
     AfterClientChatEventData,
-    BeforeSafetyCheckEventData,
-    AfterSafetyCheckEventData,
     BeforeMcpInitEventData,
     AfterMcpInitEventData,
 )
@@ -59,11 +58,20 @@ class TaskMessageFactory:
 
 
     @classmethod
-    def create_error_message(cls, agent_context: AgentContext, error_message: str) -> ServerMessage:
+    def create_error_message(
+        cls,
+        agent_context: AgentContext,
+        final_task_state: FinalTaskState,
+    ) -> ServerMessage:
         """
         创建错误消息
         """
         seq_id = agent_context.get_next_seq_id()  # 获取序列号
+        content = render_final_task_state_message(final_task_state) or i18n.translate(
+            "messages.task.failed",
+            category="common.messages",
+        )
+        status = final_task_state.task_status
 
         return ServerMessage(
             metadata=agent_context.get_metadata(),
@@ -71,8 +79,8 @@ class TaskMessageFactory:
                 task_id="",
                 sandbox_id=agent_context.get_sandbox_id(),
                 message_type=MessageType.CHAT,
-                status=TaskStatus.ERROR,
-                content=error_message,
+                status=status,
+                content=content,
                 seq_id=seq_id,  # 传递序列号
                 event=EventType.ERROR
             )
@@ -182,16 +190,23 @@ class TaskMessageFactory:
         )
         # 创建挂起消息
     @classmethod
-    def create_agent_suspended_message(cls, agent_context: AgentContext, remark: Optional[str] = None) -> ServerMessage:
+    def create_agent_suspended_message(
+        cls,
+        agent_context: AgentContext,
+        final_task_state: FinalTaskState,
+    ) -> ServerMessage:
         """
         创建挂起消息
 
         Args:
             agent_context: Agent上下文
-            remark: 自定义终止消息，如果为None则使用空字符串, 不显示给用户
+            final_task_state: 最终任务终态
         """
-        # Use remark if provided, otherwise use default message
-        content = remark if remark else ""
+        content = render_final_task_state_message(final_task_state) or i18n.translate(
+            "messages.agent_suspended",
+            category="common.messages",
+        )
+        status = final_task_state.task_status
 
         seq_id = agent_context.get_next_seq_id()  # 获取序列号
 
@@ -201,7 +216,7 @@ class TaskMessageFactory:
                 task_id=agent_context.get_task_id(),
                 sandbox_id=agent_context.get_sandbox_id(),
                 message_type=MessageType.CHAT,
-                status=TaskStatus.SUSPENDED,
+                status=status,
                 content=content,
                 event=EventType.AGENT_SUSPENDED,
                 seq_id=seq_id,  # 传递序列号
@@ -239,12 +254,20 @@ class TaskMessageFactory:
 
         # 根据 agent_state 决定最终消息状态
         logger.info(f"TaskMessageFactory: 接收到 agent_state = {event.data.agent_state}")
-        if event.data.agent_state == TaskStatus.FINISHED.value:
+        final_task_state = agent_context.get_final_task_state()
+        if final_task_state:
+            status = final_task_state.task_status
+            content = render_final_task_state_message(final_task_state) or (
+                i18n.translate("messages.agent_suspended", category="common.messages")
+                if status == TaskStatus.SUSPENDED
+                else i18n.translate("messages.task.failed", category="common.messages")
+            )
+        elif event.data.agent_state == TaskStatus.FINISHED.value:
             status = TaskStatus.FINISHED
             content = i18n.translate("task.completed", category="tool.messages")
         elif event.data.agent_state == TaskStatus.SUSPENDED.value:
             status = TaskStatus.SUSPENDED
-            content = agent_context.get_final_response()
+            content = i18n.translate("messages.agent_suspended", category="common.messages")
         else:
             status = TaskStatus.ERROR
             content = i18n.translate("messages.task.failed", category="common.messages")
@@ -733,72 +756,6 @@ class TaskMessageFactory:
                 seq_id=seq_id,  # 传递序列号
                 correlation_id=event.data.correlation_id,  # 传入关联ID
                 parent_correlation_id=parent_correlation_id,  # 传递父级关联ID
-            )
-        )
-
-    @classmethod
-    def create_before_safety_check_message(cls, event: Event[BeforeSafetyCheckEventData]) -> ServerMessage:
-        """
-        创建安全检查前的任务消息
-
-        Args:
-            event: 安全检查前事件
-
-        Returns:
-            ServerMessage: 安全检查前的任务消息
-        """
-        content = "正在进行安全检查"
-
-        agent_context = event.data.agent_context
-        seq_id = agent_context.get_next_seq_id()  # 获取序列号
-
-        return ServerMessage.create(
-            metadata=agent_context.get_metadata(),
-            payload=ServerMessagePayload.create(
-                task_id=agent_context.get_task_id(),
-                sandbox_id=agent_context.get_sandbox_id(),
-                message_type=MessageType.THINKING,
-                status=TaskStatus.RUNNING,
-                content=content,
-                event=event.event_type,
-                show_in_ui=False,
-                seq_id=seq_id,  # 传递序列号
-                correlation_id=event.data.correlation_id  # 传入关联ID
-            )
-        )
-
-    @classmethod
-    def create_after_safety_check_message(cls, event: Event[AfterSafetyCheckEventData]) -> ServerMessage:
-        """
-        创建安全检查后的任务消息
-
-        Args:
-            event: 安全检查后事件
-
-        Returns:
-            ServerMessage: 安全检查后的任务消息
-        """
-        if event.data.is_safe:
-            content = "安全检查通过"
-            status = TaskStatus.RUNNING
-        else:
-            content = "安全检查未通过"
-            status = TaskStatus.RUNNING
-
-        agent_context = event.data.agent_context
-        seq_id = agent_context.get_next_seq_id()  # 获取序列号
-
-        return ServerMessage.create(
-            metadata=agent_context.get_metadata(),
-            payload=ServerMessagePayload.create(
-                task_id=agent_context.get_task_id(),
-                sandbox_id=agent_context.get_sandbox_id(),
-                message_type=MessageType.THINKING,
-                status=status,
-                content=content,
-                event=event.event_type,
-                seq_id=seq_id,  # 传递序列号
-                correlation_id=event.data.correlation_id  # 传入关联ID
             )
         )
 

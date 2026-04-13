@@ -11,14 +11,14 @@ import (
 )
 
 func TestResolveKindMountDirs_UsesDefaultsUnderHome(t *testing.T) {
-	home := t.TempDir()
-	t.Setenv("HOME", home)
+	dataDir := t.TempDir()
 
+	d := &Deployer{opts: &options{dataDir: dataDir}}
 	k := cluster.NormalizeKindCluster(cluster.KindClusterConfig{})
-	require.NoError(t, resolveKindMountDirs(&k))
+	require.NoError(t, d.resolveKindMountDirs(&k))
 
-	wantLocal := filepath.Join(home, ".magicrew", "docker", "local-path-provisioner")
-	wantData := filepath.Join(home, ".magicrew", "docker", "data")
+	wantLocal := filepath.Join(dataDir, "docker", "local-path-provisioner")
+	wantData := filepath.Join(dataDir, "docker", "data")
 	assert.Equal(t, wantLocal, k.LocalPathProvisionerHostDir)
 	assert.Equal(t, wantData, k.ClusterNodeDataHostDir)
 	_, err := os.Stat(k.LocalPathProvisionerHostDir)
@@ -31,11 +31,12 @@ func TestResolveKindMountDirs_UsesConfiguredPaths(t *testing.T) {
 	customLP := filepath.Join(t.TempDir(), "lp")
 	customData := filepath.Join(t.TempDir(), "data")
 
+	d := &Deployer{opts: &options{dataDir: t.TempDir()}}
 	k := cluster.NormalizeKindCluster(cluster.KindClusterConfig{
 		LocalPathProvisionerHostDir: customLP,
 		ClusterNodeDataHostDir:      customData,
 	})
-	require.NoError(t, resolveKindMountDirs(&k))
+	require.NoError(t, d.resolveKindMountDirs(&k))
 	assert.Equal(t, customLP, k.LocalPathProvisionerHostDir)
 	assert.Equal(t, customData, k.ClusterNodeDataHostDir)
 	_, err := os.Stat(customLP)

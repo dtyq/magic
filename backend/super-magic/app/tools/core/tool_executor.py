@@ -121,11 +121,7 @@ class ToolExecutor:
             # 尝试提取友好的错误消息
             error_msg = self._get_friendly_validation_error(tool_name, ve)
 
-            # 返回错误结果
-            result = ToolResult(
-                error=error_msg,
-                name=tool_name
-            )
+            result = ToolResult.error(error_msg, name=tool_name)
 
             # 设置工具调用ID
             if hasattr(tool_context, 'tool_call_id'):
@@ -142,11 +138,7 @@ class ToolExecutor:
             # 根据错误类型生成友好的错误消息
             error_msg = self._get_friendly_error_message(tool_name, error_type, str(e))
 
-            # 返回错误结果
-            result = ToolResult(
-                error=error_msg,
-                name=tool_name
-            )
+            result = ToolResult.error(error_msg, name=tool_name)
 
             # 设置工具调用ID
             if hasattr(tool_context, 'tool_call_id'):

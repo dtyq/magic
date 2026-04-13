@@ -32,8 +32,8 @@ from app.utils.async_file_utils import (
 
 logger = get_logger(__name__)
 
-# runs 最多展示的结果条数
-_RUNS_LIMIT = 20
+# runs 最多展示的结果条数（与磁盘保留数量一致）
+_RUNS_LIMIT = 5
 
 
 class ManageCronParams(BaseToolParams):
@@ -42,7 +42,7 @@ class ManageCronParams(BaseToolParams):
         description="""<!--zh: 操作类型及各自必填参数：
 - status: 无需额外参数
 - list: 可选 include_disabled
-- add: 必填 name / schedule / message，可选 payload_kind / model_id / timeout_seconds / enabled / notify_main_agent
+- add: 必填 name / schedule / message，可选 timeout_seconds / enabled / notify_user
 - update: 必填 job_id，其余字段按需传，省略则保持原值
 - remove: 必填 job_id
 - run: 必填 job_id（立即触发，忽略调度时间）
@@ -51,7 +51,7 @@ class ManageCronParams(BaseToolParams):
 Action to perform. Per-action required fields:
 - status: no extra params
 - list: optional include_disabled
-- add: name + schedule + message required; payload_kind/model_id/timeout_seconds/enabled/notify_main_agent optional
+- add: name + schedule + message required; timeout_seconds/enabled/notify_user optional
 - update: job_id required; any other field optional (omitted fields keep current value)
 - remove: job_id required
 - run: job_id required (triggers immediately, ignores schedule)
@@ -77,31 +77,40 @@ e.g. "remind me to review PR at 2026-03-27 14:00" → remind-me-to-review-pr-at-
 - cron 表达式（最小粒度分钟）：{"kind":"cron","expr":"0 9 * * 1-5","tz":"Asia/Shanghai"}
 - 固定间隔（every_ms 为毫秒，3600000=1h，86400000=1d）：{"kind":"every","every_ms":3600000}
 - 一次性指定时间：{"kind":"at","at":"2024-12-31T18:00:00+08:00"}
+cron 和 every 类型可加 end_at（ISO 8601）；达到该时间后任务自动禁用：
+  {"kind":"cron","expr":"0 9 * * 1-5","tz":"Asia/Shanghai","end_at":"2026-12-31T23:59:59+08:00"}
 -->
 Schedule config. Required for add; optional for update (omit to keep unchanged).
   {"kind":"cron",  "expr":"<5-field>", "tz":"<IANA>"}       cron expr, minute-level minimum
   {"kind":"every", "every_ms":<ms>}                          fixed interval (3600000=1h, 86400000=1d)
-  {"kind":"at",    "at":"<ISO-8601>"}                        one-shot at specific time"""
-    )
-    payload_kind: Optional[str] = Field(
-        None,
-        description="""<!--zh: 执行类型，默认 agent_turn（当前唯一可用值）-->
-Payload kind. Only "agent_turn" is currently supported (default)."""
+  {"kind":"at",    "at":"<ISO-8601>"}                        one-shot at specific time
+For cron/every, optional end_at (ISO-8601) stops the job after that time:
+  {"kind":"every", "every_ms":3600000, "end_at":"2026-12-31T23:59:59+08:00"}"""
     )
     message: Optional[str] = Field(
         None,
-        description="""<!--zh: 任务正文（Markdown），agent_turn 时是发给 agent 的完整 prompt。add 时必填。-->
-Task body (Markdown). For agent_turn this is the full prompt sent to the agent. Required for add."""
+        description="""<!--zh:
+任务正文（Markdown），agent_turn 时是发给子 agent 的完整 prompt，也是触发后通知用户的核心内容，add 时必填。
+
+写法指导（按任务类型分）：
+- 提醒类（吃药、喝水、休息等）：写成完整的通知短文。保持当前人设和语气，带关怀或实用提示。
+  不要只写一句话，可以包含：要做什么、为什么重要、一两句贴心叮嘱。
+  示例：用户说"2分钟后提醒我喝水" → body 写"该喝水了！久坐容易忘记补水，趁现在起来喝一杯。保持水分有助于保持注意力和精力。"
+- 调研/汇报类：写成完整的任务指令，说清楚要做什么、怎么做、输出什么格式。
+- 维护/后台类：写成具体的执行步骤。
+-->
+Task body (Markdown). For agent_turn, this is both the full prompt sent to the sub-agent and the core content shown to the user as the notification. Required for add.
+
+Writing guidelines by task type:
+- Reminder tasks (medication, water, break, etc.): write a complete notification message in your current persona and tone, with care or practical tips. Do not use a single generic sentence; include what to do, why it matters, and a warm nudge.
+  Example: user says "remind me to drink water in 2 minutes" → body: "Time to hydrate! It's easy to forget when you're focused — step away and drink a glass now. Staying hydrated keeps your mind sharp and energy up."
+- Research/report tasks: write a complete instruction covering what to do, how to do it, and the expected output format.
+- Maintenance/background tasks: write specific execution steps."""
     )
     enabled: Optional[bool] = Field(
         None,
         description="""<!--zh: 是否启用任务。add 时默认 true；update 时可用于启用/禁用任务。-->
 Whether the job is enabled. Defaults to true for add. Use in update to enable/disable."""
-    )
-    model_id: Optional[str] = Field(
-        None,
-        description="""<!--zh: 可选，覆盖 agent 的默认模型-->
-Optional LLM model override for this job."""
     )
     timeout_seconds: Optional[int] = Field(
         None,
@@ -113,10 +122,14 @@ Optional per-run timeout in seconds. Omit or null for no timeout."""
         description="""<!--zh: list 时是否包含已禁用的任务，默认只列出启用的-->
 For list: include disabled jobs. Defaults to false (only enabled jobs shown)."""
     )
-    notify_main_agent: Optional[bool] = Field(
+    notify_user: Optional[bool] = Field(
         None,
-        description="""<!--zh: 任务完成后是否通知主 agent。默认 true（即默认通知）。仅对不需要告知用户结果的后台周期性任务显式设为 false。-->
-Whether to notify the main agent when this job completes. Defaults to true. Set to false only for silent background jobs whose results do not need to be reported to the user."""
+        description="""<!--zh: 任务完成后是否将结果推送给用户。add 时默认 true。
+判断原则：用户的目的是被告知结果（提醒、检查并汇报等）→ true；
+纯后台静默维护、不需要每次打扰用户 → false。-->
+Whether to deliver the task result to the user after completion. Defaults to true for add.
+Rule: if the user's intent is to be informed (reminders, check-and-report tasks) → true;
+if it's a silent background maintenance task where the user should not be interrupted each run → false."""
     )
 
     @field_validator("schedule", mode="before")
@@ -166,10 +179,9 @@ class ManageCron(BaseTool[ManageCronParams]):
 
 重要约束：
 - 最小调度粒度为 1 分钟，every_ms < 60000 会被调度器忽略。
-- payload_kind 目前只支持 "agent_turn"。
 - job_id 在创建时由 name 派生，不能通过 update 修改。
 - 修改调度/内容/启用状态用 update；重命名任务用 remove + add。
-- notify_main_agent 默认 true（默认通知）；仅对不需要告知用户结果的后台任务显式设为 false。
+- notify_user 默认 true；用户目的是被告知结果（提醒、汇报等）→ true；纯后台静默维护 → false。
 -->
 Manage scheduled cron jobs. Each job is stored as a Markdown file under .workspace/.magic/cron/.
 
@@ -195,13 +207,14 @@ SCHEDULE TYPES:
   {"kind":"cron",  "expr":"0 9 * * 1-5", "tz":"Asia/Shanghai"}   cron expression
   {"kind":"every", "every_ms":3600000}                            interval (ms)
   {"kind":"at",    "at":"2024-12-31T09:00:00+08:00"}             one-shot
+For cron/every, add end_at (ISO-8601) to auto-disable after that time:
+  {"kind":"every", "every_ms":3600000, "end_at":"2026-12-31T23:59:59+08:00"}
 
 CRITICAL CONSTRAINTS:
 - Minimum scheduling unit is 1 minute (every_ms < 60000 is ignored by scheduler).
-- payload_kind only supports "agent_turn" currently.
 - job_id is derived from name at creation time and cannot be changed via update.
 - Use update to change schedule/message/enabled; use remove+add to rename a job.
-- notify_main_agent defaults to true; set notify_main_agent=false only for silent background jobs whose results should not be reported to the user."""
+- notify_user defaults to true; set false only for silent background maintenance jobs where the user should not be interrupted each run."""
 
     async def execute(self, tool_context: ToolContext, params: ManageCronParams) -> ToolResult:
         try:
@@ -287,10 +300,13 @@ CRITICAL CONSTRAINTS:
 
         agent_ctx = tool_context.get_extension("agent_context")
 
-        model_id = params.model_id
-        if model_id is None:
-            if agent_ctx and hasattr(agent_ctx, "get_real_model_id"):
-                model_id = agent_ctx.get_real_model_id() or None
+        model_id = None
+        if agent_ctx and hasattr(agent_ctx, "get_real_model_id"):
+            model_id = agent_ctx.get_real_model_id() or None
+
+        image_model_id = None
+        if agent_ctx and hasattr(agent_ctx, "get_dynamic_image_model_id"):
+            image_model_id = agent_ctx.get_dynamic_image_model_id() or None
 
         user_timezone = None
         if agent_ctx and hasattr(agent_ctx, "get_user_timezone"):
@@ -304,15 +320,16 @@ CRITICAL CONSTRAINTS:
 
         content = build_job_md(
             schedule=params.schedule,
-            payload_kind=params.payload_kind or "agent_turn",
+            payload_kind="agent_turn",  # 当前唯一可用值
             agent_name=agent_name,
             model_id=model_id,
+            image_model_id=image_model_id,
             timeout_seconds=params.timeout_seconds,
             enabled=True if params.enabled is None else params.enabled,
             name=params.name,
             body=params.message,
             timezone=user_timezone,
-            notify_main_agent=True if params.notify_main_agent is None else params.notify_main_agent,
+            notify_user=True if params.notify_user is None else params.notify_user,
         )
         await async_write_text(path, content)
         return ToolResult(content=f"Created cron job '{job_id}' at {path}")
@@ -328,13 +345,14 @@ CRITICAL CONSTRAINTS:
         updated = patch_job_md(
             existing=existing,
             schedule=params.schedule,
-            payload_kind=params.payload_kind,
+            payload_kind=None,
             agent_name=None,  # agent_name 不允许通过 update 修改，创建时已绑定当前 agent
-            model_id=params.model_id,
+            model_id=None,
+            image_model_id=None,
             timeout_seconds=params.timeout_seconds,
             enabled=params.enabled,
             body=params.message,
-            notify_main_agent=params.notify_main_agent,
+            notify_user=params.notify_user,
         )
         await async_write_text(path, updated)
         return ToolResult(content=f"Updated cron job '{params.job_id}'")
@@ -368,14 +386,13 @@ CRITICAL CONSTRAINTS:
     async def _runs(self, params: ManageCronParams) -> ToolResult:
         if not params.job_id:
             return ToolResult.error("job_id is required for action=runs")
-        result_dir = PathManager.get_cron_result_dir()
-        if not await async_exists(result_dir):
-            return ToolResult(content="No results yet.")
+        job_result_dir = PathManager.get_cron_result_dir() / params.job_id
+        if not await async_exists(job_result_dir):
+            return ToolResult(content=f"No results yet for job '{params.job_id}'.")
 
-        entries = await async_scandir(result_dir)
-        prefix = f"{params.job_id}-"
+        entries = await async_scandir(job_result_dir)
         names = sorted(
-            [e.name for e in entries if e.name.startswith(prefix) and e.name.endswith(".md")],
+            [e.name for e in entries if e.name.endswith(".md")],
             reverse=True,
         )[:_RUNS_LIMIT]
 
@@ -385,10 +402,10 @@ CRITICAL CONSTRAINTS:
         records: List[Dict[str, Any]] = []
         lines: List[str] = []
         for name in names:
-            path = result_dir / name
+            path = job_result_dir / name
             md = await async_try_read_markdown(path)
             meta = (md.meta or {}) if md else {}
-            run_at = meta.get("run_at", "-")
+            run_at = meta.get("started_at", "-")
             status = meta.get("status", "-")
             duration_ms = meta.get("duration_ms", "-")
             lines.append(f"- {name}: status={status} duration={duration_ms}ms run_at={run_at}")

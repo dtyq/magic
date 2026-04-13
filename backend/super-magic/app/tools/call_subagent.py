@@ -22,6 +22,7 @@ from app.tools.subagent_runtime_models import (
 )
 from app.tools.subagent_runtime_store import SubagentRuntimeStore
 from app.tools.subagent_session_manager import subagent_session_manager
+from app.core.entity.message.server_message import DisplayType, TerminalContent, ToolDetail
 
 logger = get_logger(__name__)
 
@@ -54,13 +55,13 @@ class CallSubagentParams(BaseToolParams):
     )
     model_id: Optional[str] = Field(
         None,
-        description="Override the LLM model. Defaults to the model defined in the .agent config."
+        description="Override the model for this sub-agent. Defaults to inheriting the caller's model."
     )
     background: bool = Field(
         False,
         description=(
             "If true, dispatch sub-agent as background asyncio task and return immediately. "
-            "Use get_sub_agent_results(agent_ids=[agent_id]) to poll result later. "
+            "Use wait_for_subagents(agent_ids=[agent_id]) to wait for the result. "
             "Use this for ALL parallel workloads — call multiple agents with background=True "
             "sequentially, they run concurrently regardless of whether the model supports "
             "parallel tool call output. Also used for in-process scheduler tasks."
@@ -73,6 +74,9 @@ class CallSubagent(BaseTool[CallSubagentParams]):
     """Call another agent to complete a task. Each sub-agent runs with an isolated context and its own chat history."""
 
     async def execute(self, tool_context: ToolContext, params: CallSubagentParams) -> ToolResult:
+        new_agent_context: Optional["AgentContext"] = None
+        agent: Optional["Agent"] = None
+        task: Optional[asyncio.Task] = None
         try:
             from app.core.context.agent_context import AgentContext
             from app.magic.agent import Agent
@@ -131,6 +135,9 @@ class CallSubagent(BaseTool[CallSubagentParams]):
 
                 if params.model_id:
                     new_agent_context.set_dynamic_model_id(params.model_id)
+                elif parent and parent.has_dynamic_model_id():
+                    # 未指定模型时，继承调用方 Agent 的动态模型 ID
+                    new_agent_context.set_dynamic_model_id(parent.get_dynamic_model_id())
 
                 agent = Agent(
                     params.agent_name,
@@ -163,7 +170,7 @@ class CallSubagent(BaseTool[CallSubagentParams]):
                 return _success_result(_build_payload(
                     state=state,
                     mode=SubagentExecutionMode.BACKGROUND,
-                    resume_hint="Sub-agent is running in background. Use get_sub_agent_results(agent_ids) when you need the result.",
+                    resume_hint="Sub-agent is running in background. Use wait_for_subagents(agent_ids) to block until it finishes.",
                 ))
 
             result_state = await task
@@ -174,6 +181,8 @@ class CallSubagent(BaseTool[CallSubagentParams]):
             ))
 
         except Exception as e:
+            if agent is not None and task is None:
+                agent.close()
             logger.exception(f"调用智能体失败: {e!s}")
             return ToolResult.error(
                 _build_call_subagent_error_text(
@@ -186,6 +195,117 @@ class CallSubagent(BaseTool[CallSubagentParams]):
                     "error": str(e),
                 },
             )
+
+    async def get_before_tool_call_friendly_action_and_remark(
+        self, tool_name: str, tool_context: ToolContext, arguments: Dict[str, Any] = None
+    ) -> Dict:
+        args = arguments or {}
+        agent_name = args.get("agent_name", "")
+        agent_id = args.get("agent_id", "")
+        action = (
+            i18n.translate("call_subagent.assign", category="tool.messages", agent_name=agent_name)
+            if agent_name
+            else i18n.translate("call_subagent", category="tool.actions")
+        )
+        status_text = i18n.translate("call_subagent.status.accepted", category="tool.messages")
+        return {"action": action, "remark": _build_status_remark(agent_id, status_text)}
+
+    async def get_before_tool_detail(
+        self, tool_context: ToolContext, arguments: Dict[str, Any] = None
+    ) -> Optional[ToolDetail]:
+        args = arguments or {}
+        agent_name = args.get("agent_name", "")
+        agent_id = args.get("agent_id", "")
+        prompt = args.get("prompt", "")
+        background = args.get("background", False)
+        model_id = args.get("model_id")
+
+        if not prompt:
+            return None
+
+        t = lambda key: i18n.translate(f"call_subagent.detail.{key}", category="tool.messages")
+        lines = []
+        if agent_name:
+            lines.append(f"{t('sub_agent')}: {agent_name}")
+        if agent_id:
+            lines.append(f"{t('session_id')}: {agent_id}")
+        mode_text = t("mode_background") if background else t("mode_sync")
+        lines.append(f"{t('mode')}: {mode_text}")
+        if model_id:
+            lines.append(f"{t('model')}: {model_id}")
+        lines.append(f"\n{t('task')}:\n{prompt}")
+
+        command = f"call_subagent {agent_name}/{agent_id}" if agent_name and agent_id else f"call_subagent {agent_name or agent_id}"
+        return ToolDetail(
+            type=DisplayType.TERMINAL,
+            data=TerminalContent(
+                command=command,
+                output="\n".join(lines),
+                exit_code=0,
+            ),
+        )
+
+    async def get_tool_detail(
+        self, tool_context: ToolContext, result: ToolResult, arguments: Dict[str, Any] = None
+    ) -> Optional[ToolDetail]:
+        args = arguments or {}
+        agent_name = args.get("agent_name", "")
+        agent_id = args.get("agent_id", "")
+
+        if result.ok:
+            data = result.data if isinstance(result.data, dict) else {}
+            status = data.get("status", "")
+            agent_result = data.get("result") or ""
+            error = data.get("error") or ""
+            resume_hint = data.get("resume_hint") or ""
+        else:
+            # Python 级异常（如配置错误、网络异常），错误信息在 extra_info
+            extra = result.extra_info or {}
+            status = "error"
+            agent_result = ""
+            error = extra.get("error") or result.content or ""
+            resume_hint = ""
+
+        return _build_subagent_tool_detail(agent_name, agent_id, status, agent_result, error, resume_hint)
+
+    def get_prompt_hint(self) -> str:
+        return """\
+<!--zh
+调用多个子智能体并行处理任务时，必须在每个子智能体的 prompt 中明确写清楚它的输出目标，
+子智能体之间没有共享上下文，无法相互感知，也无法从对话历史中推断目标对象。
+目标对象不写清楚，子智能体会自行猜测，通常的结果是它创建了一个不该创建的新对象。
+
+根据任务性质，有三种典型场景需要区别对待：
+
+1. 共享容器（画布、PPT 等）：由独立元素组成，多个子智能体可以并行往同一个容器里添加各自负责的内容。
+   必须把同一个容器标识（如 project_path、文件路径）传给所有子智能体，并说明每个子智能体负责哪一部分。
+   不得让子智能体自行创建或选择容器。
+
+2. 单一文件（报告、文档等）：整个文件是一个整体，不支持并发写入。
+   要么交给一个子智能体完整完成，要么让各子智能体分别生成各自负责的草稿段落，
+   最后指定一个子智能体将所有段落合并进同一个文件。
+
+3. 各自独立输出（不同主题的调研报告、不同内容的画布等）：每个子智能体生成自己的独立产物，互不干扰。
+   为每个子智能体单独指定其输出目标，不需要协调或合并。
+-->
+When dispatching multiple sub-agents in parallel, always specify each agent's output target explicitly in its prompt. Sub-agents share no context — they cannot sense each other or infer targets from conversation history. If the output target is missing, the sub-agent will guess, and will usually create a new object it shouldn't.
+
+Three patterns to follow based on task type:
+
+1. Shared container (canvas, presentation slides, etc.): composed of independent elements; agents can work in parallel. Pass the same container identifier (e.g. project path) to every agent, and tell each one which part it owns. Do not let agents create or choose their own container.
+
+2. Single file (report, document, etc.): the whole file is one unit; concurrent writes conflict. Either assign the full task to one agent, or have each agent draft its assigned section independently, then designate one agent to merge everything into the final file.
+
+3. Fully independent outputs (separate reports per topic, separate canvases per theme, etc.): each agent produces its own distinct deliverable. Specify each agent's output target separately. No coordination needed.
+
+<!--zh
+子智能体可能在结果里包含产物文件路径。向用户汇报时，将这些路径转为 [@file_path:路径] 格式，
+前端会渲染为可点击蓝色链接。
+示例：调研报告已完成：[@file_path:reports/market-research.md]
+-->
+Sub-agents may include output file paths in their results. When reporting to the user, present those paths as [@file_path:path] — the frontend renders them as clickable blue links.
+Example: Research report is ready: [@file_path:reports/market-research.md]
+"""
 
     async def get_before_tool_call_friendly_content(
         self, tool_context: ToolContext, arguments: Dict[str, Any] = None
@@ -200,43 +320,32 @@ class CallSubagent(BaseTool[CallSubagentParams]):
         execution_time: float,
         arguments: Dict[str, Any] = None,
     ) -> Dict:
-        agent_name = (arguments or {}).get("agent_name", "")
-        action = i18n.translate(
-            "call_subagent.assign",
-            category="tool.messages",
-            agent_name=agent_name,
-        ) if agent_name else i18n.translate("call_subagent", category="tool.actions")
+        args = arguments or {}
+        agent_name = args.get("agent_name", "")
+        agent_id = args.get("agent_id", "")
+        action = (
+            i18n.translate("call_subagent.assign", category="tool.messages", agent_name=agent_name)
+            if agent_name
+            else i18n.translate("call_subagent", category="tool.actions")
+        )
+
         if not result.ok:
-            return {
-                "action": action,
-                "remark": i18n.translate(
-                    "call_subagent.failed",
-                    category="tool.messages",
-                    agent_name=agent_name,
-                    error=result.content,
-                ) if agent_name else i18n.translate("call_subagent.error", category="tool.messages", error=result.content),
-            }
-        payload = result.data
-        status = payload.get("status", "") if isinstance(payload, dict) else ""
-        if agent_name:
-            if status in {SubagentStatus.PENDING, SubagentStatus.RUNNING}:
-                remark = i18n.translate("call_subagent.running", category="tool.messages", agent_name=agent_name)
-            elif status == SubagentStatus.DONE:
-                remark = i18n.translate("call_subagent.done", category="tool.messages", agent_name=agent_name)
-            elif status == SubagentStatus.ERROR:
-                remark = i18n.translate(
-                    "call_subagent.failed",
-                    category="tool.messages",
-                    agent_name=agent_name,
-                    error=payload.get("error", i18n.translate("unknown.message", category="tool.messages")),
-                )
-            elif status == SubagentStatus.INTERRUPTED:
-                remark = i18n.translate("call_subagent.interrupted", category="tool.messages", agent_name=agent_name)
-            else:
-                remark = i18n.translate("call_subagent.start", category="tool.messages", agent_name=agent_name)
-        else:
-            remark = i18n.translate("call_subagent.unknown_agent", category="tool.messages")
-        return {"action": action, "remark": remark}
+            status_text = i18n.translate("call_subagent.status.failed", category="tool.messages")
+            return {"action": action, "remark": _build_status_remark(agent_id, status_text)}
+
+        payload = result.data if isinstance(result.data, dict) else {}
+        status = payload.get("status", "")
+
+        _status_key_map = {
+            SubagentStatus.PENDING: "call_subagent.status.running",
+            SubagentStatus.RUNNING: "call_subagent.status.running",
+            SubagentStatus.DONE: "call_subagent.status.done",
+            SubagentStatus.ERROR: "call_subagent.status.failed",
+            SubagentStatus.INTERRUPTED: "call_subagent.status.interrupted",
+        }
+        status_key = _status_key_map.get(status, "call_subagent.status.accepted")
+        status_text = i18n.translate(status_key, category="tool.messages")
+        return {"action": action, "remark": _build_status_remark(agent_id, status_text)}
 
 
 def _mode_from_background(background: bool) -> SubagentExecutionMode:
@@ -409,6 +518,7 @@ async def _run_subagent(
             state.interrupt_reason = agent.agent_context.get_interruption_reason()
             async with handle.state_lock:
                 await SubagentRuntimeStore.save_state(state)
+        agent.close()
         if current_task is not None:
             await subagent_session_manager.clear_run(agent.agent_name, agent.id, current_task)
 
@@ -452,10 +562,19 @@ def _mark_cancelled(
     state.interrupt_reason = reason
     state.active_tool_call_id = None
     state.last_tool_call_id = tool_call_id or state.last_tool_call_id
+
+    # reason == "cancelled" 表示 Task 被直接 cancel（用户点击终止），子 Agent context
+    # 未设置 interruption_reason，不应提示主 Agent 自动重试
+    is_user_cancel = not reason or reason == "cancelled"
+    resume_hint = (
+        "This sub-agent was stopped by user request. Do not call call_subagent again automatically — wait for the user's next instruction."
+        if is_user_cancel
+        else "Send a new prompt with the same agent_id to continue the conversation."
+    )
     state.cached_tool_result = _build_payload(
         state=state,
         mode=mode,
-        resume_hint="Send a new prompt with the same agent_id to continue the conversation.",
+        resume_hint=resume_hint,
     )
 
 
@@ -474,4 +593,60 @@ def _mark_failed(
         state=state,
         mode=mode,
         resume_hint="Inspect the error and call call_subagent again with the same agent_id if needed.",
+    )
+
+
+def _build_status_remark(agent_id: str, status_text: str) -> str:
+    """拼接 remark：agent_id · 状态文案。"""
+    if agent_id:
+        return f"{agent_id} · {status_text}"
+    return status_text
+
+
+_STATUS_EMOJI: Dict[str, str] = {
+    "done": "✅",
+    "error": "❌",
+    "interrupted": "⚠️",
+    "running": "⏳",
+    "pending": "⏳",
+    "idle": "💤",
+}
+
+
+def _build_subagent_tool_detail(
+    agent_name: str,
+    agent_id: str,
+    status: str,
+    agent_result: str,
+    error: str,
+    resume_hint: str,
+) -> Optional[ToolDetail]:
+    """构建子智能体终端风格详情卡片，供 before/after detail 复用。"""
+    t = lambda key: i18n.translate(f"call_subagent.detail.{key}", category="tool.messages")
+    status_emoji = _STATUS_EMOJI.get(status, "🔄")
+    lines = []
+    if agent_name:
+        lines.append(f"{t('sub_agent')}: {agent_name}")
+    if agent_id:
+        lines.append(f"{t('session_id')}: {agent_id}")
+    if status:
+        lines.append(f"{t('status')}: {status_emoji} {status}")
+    if agent_result:
+        lines.append(f"\n{t('result')}:\n{agent_result}")
+    if error:
+        lines.append(f"\n{t('error')}: {error}")
+    if resume_hint:
+        lines.append(f"\n{t('next_step')}: {resume_hint}")
+    content = "\n".join(lines)
+    if not content.strip():
+        return None
+    exit_code = 1 if status == "error" else 0
+    command = f"call_subagent {agent_name}/{agent_id}" if agent_name and agent_id else f"call_subagent {agent_name or agent_id}"
+    return ToolDetail(
+        type=DisplayType.TERMINAL,
+        data=TerminalContent(
+            command=command,
+            output=content,
+            exit_code=exit_code,
+        ),
     )

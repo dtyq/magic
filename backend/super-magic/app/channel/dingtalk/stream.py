@@ -16,6 +16,7 @@ from dingtalk_stream.card_replier import AICardStatus
 
 from agentlang.logger import get_logger
 from app.channel.base.reasoning import build_final_message_plain
+from app.channel.config import IMChannelDisplay
 from app.core.stream import Stream
 
 if TYPE_CHECKING:
@@ -30,11 +31,13 @@ class DingTalkStream(Stream):
         card: AIMarkdownCardInstance,
         card_instance_id: str,
         driver: "DingTalkStreamingDriver",
+        display: IMChannelDisplay | None = None,
     ) -> None:
         super().__init__()
         self._card = card
         self._card_instance_id = card_instance_id
         self._driver = driver
+        self._display = display or IMChannelDisplay()
         self._finished = False
         self._last_content = ""
 
@@ -54,11 +57,14 @@ class DingTalkStream(Stream):
 
             elif event == "after_main_agent_run":
                 self._finished = True
-                final = build_final_message_plain(
-                    self._last_content,
-                    self._driver.reasoning_accumulated,
-                    self._driver.reasoning_elapsed_ms,
-                )
+                if self._display.show_reasoning:
+                    final = build_final_message_plain(
+                        self._last_content,
+                        self._driver.reasoning_accumulated,
+                        self._driver.reasoning_elapsed_ms,
+                    )
+                else:
+                    final = self._last_content
                 await self._finish_card(final)
 
         except Exception as e:

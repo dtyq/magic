@@ -135,6 +135,7 @@
 		"useProxyServerPlaceholder": "请选择可用的代理服务器",
 		"userInputUrl": "用户输入地址",
 		"userInputUrlPlaceholder": "请输入用户输入地址",
+		"useDefaultApiUrl": "快速填入",
 		"vectorSize": "向量维度",
 		"vectorSizeDesc": "设置向量的长度，其决定了模型表示对象特征的复杂度和容量",
 		"vectorSizePlaceholder": "请输入向量维度，可参考模型自身支持的数值",

@@ -12,6 +12,7 @@ import json
 from typing import Optional, TYPE_CHECKING
 
 from agentlang.logger import get_logger
+from app.channel.config import IMChannelDisplay
 from app.core.stream import Stream
 
 if TYPE_CHECKING:
@@ -57,11 +58,13 @@ class LarkStream(Stream):
         sdk_client: "lark.Client",
         card_id: str,
         driver: "LarkStreamingDriver",
+        display: IMChannelDisplay | None = None,
     ) -> None:
         super().__init__()
         self._client = sdk_client
         self._card_id = card_id
         self._driver = driver  # 共享 sequence 计数器，确保序列号连续
+        self._display = display or IMChannelDisplay()
         self._finished = False
         self._last_content = ""
         self._last_reasoning = ""
@@ -86,12 +89,15 @@ class LarkStream(Stream):
 
             elif event == "after_main_agent_run":
                 self._finished = True
-                reasoning = self._driver.reasoning_accumulated or self._last_reasoning
-                await self._finish_card(
-                    self._last_content,
-                    reasoning,
-                    self._driver.reasoning_elapsed_ms,
-                )
+                if self._display.show_reasoning:
+                    reasoning = self._driver.reasoning_accumulated or self._last_reasoning
+                    await self._finish_card(
+                        self._last_content,
+                        reasoning,
+                        self._driver.reasoning_elapsed_ms,
+                    )
+                else:
+                    await self._finish_card(self._last_content)
 
         except Exception as e:
             logger.error(f"[LarkStream] write 失败: {e}")

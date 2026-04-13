@@ -125,7 +125,7 @@ class BootstrapApiTest extends TestCase
     {
         $providers = [
             [
-                'provider_code' => 'Wuyin',
+                'provider_code' => 'Cloudsway',
                 'endpoint_key' => 'default',
                 'provider' => ['name' => 'Video Gateway'],
                 'config' => ['base_url' => 'https://example.com'],

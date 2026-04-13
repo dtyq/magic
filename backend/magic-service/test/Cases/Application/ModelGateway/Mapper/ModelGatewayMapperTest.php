@@ -78,7 +78,7 @@ class ModelGatewayMapperTest extends TestCase
         $this->assertNotNull($model);
         $this->assertSame($this->officialFastVideoModelVersion(), $model->getModelVersion());
         $this->assertSame((string) $providerModel->id, $model->getProviderModelId());
-        $this->assertSame(ProviderCode::Wuyin, $model->getProviderCode());
+        $this->assertSame(ProviderCode::Cloudsway, $model->getProviderCode());
     }
 
     public function testGetOrganizationVideoModelCanResolveSeededProProviderModel(): void
@@ -98,7 +98,7 @@ class ModelGatewayMapperTest extends TestCase
         $this->assertNotNull($model);
         $this->assertSame($this->officialProVideoModelVersion(), $model->getModelVersion());
         $this->assertSame((string) $providerModel->id, $model->getProviderModelId());
-        $this->assertSame(ProviderCode::Wuyin, $model->getProviderCode());
+        $this->assertSame(ProviderCode::Cloudsway, $model->getProviderCode());
     }
 
     public function testGetOrganizationVideoModelReturnsNullForModelVersion(): void
@@ -149,7 +149,7 @@ class ModelGatewayMapperTest extends TestCase
             'id' => self::ORPHAN_CONFIG_ID,
             'service_provider_id' => 990100000000009999,
             'organization_code' => $this->officialVideoFixtureOrganizationCode(),
-            'provider_code' => ProviderCode::Wuyin->value,
+            'provider_code' => ProviderCode::Cloudsway->value,
             'config' => ProviderConfigAssembler::encodeConfig([
                 'base_url' => 'https://orphan.example.com',
                 'api_key' => 'orphan-key',
