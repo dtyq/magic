@@ -24,7 +24,6 @@ use App\Domain\ModelGateway\Service\AccessTokenDomainService;
 use App\Infrastructure\Util\IdGenerator\IdGenerator;
 use App\Infrastructure\Util\StringMaskUtil;
 use Dtyq\AsyncEvent\AsyncEventUtil;
-use Dtyq\AsyncEvent\Kernel\Annotation\AsyncListener;
 use Hyperf\Event\Annotation\Listener;
 use Hyperf\Event\Contract\ListenerInterface;
 use Hyperf\Odin\Api\Response\Usage;
@@ -36,9 +35,8 @@ use Psr\Log\LoggerInterface;
 /**
  * 统一审计管道 Bridge：监听所有业务事件和 Odin 后置事件，
  * 组装完整审计快照后 dispatch ModelAuditReadyEvent，
- * 由 ModelAuditPersistSubscriber 异步一次性 INSERT。
+ * 由 ModelAuditPersistSubscriber 在同一次 dispatch 内同步一次性 INSERT。
  */
-#[AsyncListener]
 #[Listener]
 class ModelAuditReadyBridgeSubscriber implements ListenerInterface
 {

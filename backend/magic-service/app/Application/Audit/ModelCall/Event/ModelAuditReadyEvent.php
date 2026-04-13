@@ -11,7 +11,7 @@ use App\Domain\Audit\ModelCall\Entity\ValueObject\ModelAuditAccessScope;
 
 /**
  * 审计域内部统一事件：所有触发源经 Bridge 组装后统一 dispatch 此事件，
- * 由 ModelAuditPersistSubscriber 异步消费并一次性 INSERT。
+ * 由 ModelAuditPersistSubscriber 同步消费并一次性 INSERT。
  */
 final class ModelAuditReadyEvent
 {

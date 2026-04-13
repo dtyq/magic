@@ -11,17 +11,15 @@ use App\Application\Audit\ModelCall\Event\ModelAuditReadyEvent;
 use App\Domain\Audit\ModelCall\Entity\AuditLogEntity;
 use App\Domain\Audit\ModelCall\Factory\AuditLogFactory;
 use App\Domain\Audit\ModelCall\Service\ModelCallAuditDomainService;
-use Dtyq\AsyncEvent\Kernel\Annotation\AsyncListener;
 use Hyperf\Event\Annotation\Listener;
 use Hyperf\Event\Contract\ListenerInterface;
 use Psr\Log\LoggerInterface;
 use Throwable;
 
 /**
- * 审计异步持久化订阅者：监听 ModelAuditReadyEvent，一次性 INSERT 完整审计行。
- * 带 #[AsyncListener] 保证落库真正在异步队列中执行，不阻塞主流程。
+ * 审计同步持久化订阅者：监听 ModelAuditReadyEvent，在 EventDispatcher 派发链路内一次性 INSERT。
+ * 仅使用 #[Listener]（非 #[AsyncListener]），与 Bridge 的 dispatch 同调用栈完成落库。
  */
-#[AsyncListener]
 #[Listener]
 class ModelAuditPersistSubscriber implements ListenerInterface
 {
