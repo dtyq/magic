@@ -2782,33 +2782,6 @@ class TaskFileDomainService
         return $this->taskFileRepository->updateById($entity);
     }
 
-    private function getMagicFSFileDomainService(): MagicFSFileDomainService
-    {
-        return di(MagicFSFileDomainService::class);
-    }
-
-    /**
-     * 为绑定到项目的文件补齐闭包表索引。
-     *
-     * 说明：
-     * - 根目录需要先存在 self 索引，子节点才能建立 ancestor->descendant 关系
-     * - createNodeIndexes 已做幂等补全，重复调用不会报唯一键冲突
-     *
-     * @param array<int> $fileIds
-     */
-    private function initializeBoundFileTreeIndexes(array $fileIds, int $parentId, string $organizationCode): void
-    {
-        if (empty($fileIds)) {
-            return;
-        }
-
-        $this->fileTreeIndexRepository->createNodeIndexes($parentId, null, $organizationCode);
-
-        foreach ($fileIds as $fileId) {
-            $this->fileTreeIndexRepository->createNodeIndexes((int) $fileId, $parentId, $organizationCode);
-        }
-    }
-
     /**
      * Clear all descendants under the given directory while keeping the parent node itself.
      *
@@ -2924,6 +2897,33 @@ class TaskFileDomainService
             'deleted_directories' => $deletedDirectories,
             'deleted_objects' => count($deleteResult['deleted'] ?? []),
         ];
+    }
+
+    private function getMagicFSFileDomainService(): MagicFSFileDomainService
+    {
+        return di(MagicFSFileDomainService::class);
+    }
+
+    /**
+     * 为绑定到项目的文件补齐闭包表索引。
+     *
+     * 说明：
+     * - 根目录需要先存在 self 索引，子节点才能建立 ancestor->descendant 关系
+     * - createNodeIndexes 已做幂等补全，重复调用不会报唯一键冲突
+     *
+     * @param array<int> $fileIds
+     */
+    private function initializeBoundFileTreeIndexes(array $fileIds, int $parentId, string $organizationCode): void
+    {
+        if (empty($fileIds)) {
+            return;
+        }
+
+        $this->fileTreeIndexRepository->createNodeIndexes($parentId, null, $organizationCode);
+
+        foreach ($fileIds as $fileId) {
+            $this->fileTreeIndexRepository->createNodeIndexes((int) $fileId, $parentId, $organizationCode);
+        }
     }
 
     private function findDirectChildByName(

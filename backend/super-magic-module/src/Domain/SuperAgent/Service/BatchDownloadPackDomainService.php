@@ -48,13 +48,11 @@ class BatchDownloadPackDomainService
             $fullProjectWorkDir
         );
 
-        $relativeBasePath = $this->buildRelativeBasePath(
-            $authorizedContext['selected_visible_entities'],
-            $authorizedContext['selected_relative_path_map']
-        );
-        $basePath = $relativeBasePath === ''
-            ? rtrim($projectWorkDir, '/')
-            : rtrim($projectWorkDir, '/') . '/' . $relativeBasePath;
+        // file_keys must always be relative to the project root directory,
+        // because the sandbox resolves paths from the project root (project_oss_path).
+        // Do NOT strip any relativeBasePath prefix from file_keys.
+        $relativeBasePath = '';
+        $basePath = rtrim($projectWorkDir, '/');
 
         $leafFiles = $this->collectLeafFilesForPack(
             $authorizedContext['authorized_entities'],
@@ -186,28 +184,6 @@ class BatchDownloadPackDomainService
         $fileMap = RelativeFilePathUtil::indexByFileId($filesWithParents);
 
         return RelativeFilePathUtil::buildPathMapByParentChain($entities, $fileMap);
-    }
-
-    /**
-     * @param TaskFileEntity[] $selectedEntities
-     * @param array<int,string> $selectedRelativePathMap
-     */
-    private function buildRelativeBasePath(array $selectedEntities, array $selectedRelativePathMap): string
-    {
-        $paths = [];
-
-        foreach ($selectedEntities as $entity) {
-            $relativePath = $this->normalizeRelativePath($selectedRelativePathMap[$entity->getFileId()] ?? '');
-            if ($relativePath === '') {
-                continue;
-            }
-
-            // Keep legacy behavior: both file and directory use parent directory as LCA unit.
-            $parentDir = dirname($relativePath);
-            $paths[] = $parentDir === '.' ? '' : $parentDir;
-        }
-
-        return $this->findLca($paths);
     }
 
     /**
@@ -555,40 +531,6 @@ class BatchDownloadPackDomainService
         $normalizedPath = str_replace('\\', '/', trim($path));
         $normalizedPath = preg_replace('#/+#', '/', $normalizedPath) ?? '';
         return trim($normalizedPath, '/');
-    }
-
-    /**
-     * @param string[] $paths
-     */
-    private function findLca(array $paths): string
-    {
-        $paths = array_values(array_filter($paths, static fn (string $path): bool => $path !== ''));
-        if (empty($paths)) {
-            return '';
-        }
-
-        if (count($paths) === 1) {
-            return trim($paths[0], '/');
-        }
-
-        $segmentsGroup = array_map(
-            static fn (string $path): array => array_values(array_filter(explode('/', trim($path, '/')))),
-            $paths
-        );
-
-        $first = $segmentsGroup[0];
-        $common = [];
-        for ($i = 0; $i < count($first); ++$i) {
-            $segment = $first[$i];
-            foreach ($segmentsGroup as $segments) {
-                if (! isset($segments[$i]) || $segments[$i] !== $segment) {
-                    return implode('/', $common);
-                }
-            }
-            $common[] = $segment;
-        }
-
-        return implode('/', $common);
     }
 
     /**
