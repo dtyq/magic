@@ -33,29 +33,22 @@ class AuditLogRepository extends AbstractRepository implements AuditLogRepositor
             return;
         }
 
-        $auditData = $this->getAttributesForAuditPersist($entity);
-        unset($auditData['id'], $auditData['points']);
-
-        $existing = AuditLogModel::query()->where('event_id', $eventId)->first();
-        if ($existing !== null) {
-            unset($auditData['created_at']);
-            $existing->fill($auditData);
-            $existing->save();
-
-            return;
-        }
+        $values = $this->getAttributesForAuditPersist($entity);
+        unset($values['id'], $values['points']);
 
         try {
-            $model = new AuditLogModel();
-            $model->fill($auditData);
-            $model->save();
+            AuditLogModel::query()->updateOrCreate(
+                ['event_id' => $eventId],
+                $values
+            );
         } catch (QueryException $e) {
             if ((int) ($e->errorInfo[1] ?? 0) !== 1062) {
                 throw $e;
             }
-            $forUpdate = $auditData;
-            unset($forUpdate['created_at']);
-            AuditLogModel::query()->where('event_id', $eventId)->update($forUpdate);
+            AuditLogModel::query()->updateOrCreate(
+                ['event_id' => $eventId],
+                $values
+            );
         }
     }
 
@@ -66,17 +59,11 @@ class AuditLogRepository extends AbstractRepository implements AuditLogRepositor
             return;
         }
 
-        $affected = AuditLogModel::query()->where('event_id', $eventId)->update(['points' => $points]);
-        if ($affected > 0) {
-            return;
-        }
-
         try {
-            $model = new AuditLogModel();
-            $model->event_id = $eventId;
-            $model->points = $points;
-            $model->usage = [];
-            $model->save();
+            AuditLogModel::query()->updateOrCreate(
+                ['event_id' => $eventId],
+                ['points' => $points]
+            );
         } catch (QueryException $e) {
             if ((int) ($e->errorInfo[1] ?? 0) !== 1062) {
                 throw $e;

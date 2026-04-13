@@ -43,6 +43,13 @@ class AuditLogModel extends Model
 
     protected ?string $table = 'magic_model_audit_logs';
 
+    /**
+     * 新建行默认值：recordPointsByEventId 使用 updateOrCreate 仅写 points 时，避免 usage JSON 非空约束失败，且更新已有行时不会用 fill 覆盖未出现在数组中的列.
+     */
+    protected array $attributes = [
+        'usage' => [],
+    ];
+
     protected array $fillable = [
         'id',
         'user_id',
