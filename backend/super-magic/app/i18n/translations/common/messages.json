@@ -44,24 +44,24 @@
         "en_US": "Task execution failed. Please try again later."
     },
     "messages.llm_provider_timeout": {
-        "zh_CN": "AI 模型服务当前负载较高，响应已超时，请稍后重试。",
-        "en_US": "The AI model service is under high load and timed out. Please try again later."
+        "zh_CN": "AI 模型服务当前负载较高，响应已超时，请稍后重试，或尝试切换其他模型后重试。",
+        "en_US": "The AI model service is under high load and timed out. Please try again later, or try switching to a different model."
     },
     "messages.llm_provider_connection_failed": {
-        "zh_CN": "AI 模型服务当前负载较高，连接暂时中断，请稍后重试。",
-        "en_US": "The AI model service is under high load and the connection was interrupted. Please try again later."
+        "zh_CN": "AI 模型服务当前负载较高，连接暂时中断，请稍后重试，或尝试切换其他模型后重试。",
+        "en_US": "The AI model service is under high load and the connection was interrupted. Please try again later, or try switching to a different model."
     },
     "messages.llm_provider_rate_limited": {
-        "zh_CN": "当前使用人数过多，AI 模型服务负载较高，请稍后重试。",
-        "en_US": "The AI model service is at capacity due to high user demand. Please try again later."
+        "zh_CN": "当前使用人数过多，AI 模型服务负载较高，请稍后重试，或尝试切换其他模型后重试。",
+        "en_US": "The AI model service is at capacity due to high user demand. Please try again later, or try switching to a different model."
     },
     "messages.llm_provider_error": {
-        "zh_CN": "AI 模型服务当前负载较高，处理请求时出现异常，请稍后重试。",
-        "en_US": "The AI model service encountered an error while processing your request. Please try again later."
+        "zh_CN": "AI 模型服务当前负载较高，处理请求时出现异常，请稍后重试，或尝试切换其他模型后重试。",
+        "en_US": "The AI model service encountered an error while processing your request. Please try again later, or try switching to a different model."
     },
     "messages.llm_provider_config_error": {
-        "zh_CN": "AI 模型配置异常，无法处理请求，请联系管理员。",
-        "en_US": "AI model configuration error. The request cannot be processed. Please contact the administrator."
+        "zh_CN": "AI 模型配置异常，无法处理请求，请联系系统管理员或切换其他模型后重试。",
+        "en_US": "AI model configuration error. The request cannot be processed. Please contact the system administrator, or try switching to a different model."
     },
     "agent_profile.desc_with_role": {
         "zh_CN": "你叫{name}，是一名{role}。{description}",
