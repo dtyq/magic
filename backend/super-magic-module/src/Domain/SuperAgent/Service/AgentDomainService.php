@@ -1059,14 +1059,14 @@ class AgentDomainService
      */
     private function buildAgentProfile(DataIsolation $dataIsolation, string $agentMode, string $agentCode, string $language): array
     {
-        if (empty($agentCode)) {
+        if (empty($agentMode)) {
             return [];
         }
 
         return match ($agentMode) {
             ProjectMode::MAGICLAW->value => $this->buildMagicClawProfile($dataIsolation, $agentCode),
             ProjectMode::CUSTOM_AGENT->value => $this->buildCustomAgentProfile($dataIsolation, $agentCode, $language),
-            default => $this->buildOfficialAgentProfile($agentCode, $language),
+            default => $this->buildOfficialAgentProfile($agentMode, $language),
         };
     }
 
