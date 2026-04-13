@@ -784,6 +784,9 @@ class SkillDomainService
     /**
      * 查询版本列表.
      *
+     * 调用方应在应用层完成权限断言（assertSkillReadable / assertSkillEditable）后再调用此方法，
+     * 此处仅做业务规则校验（市场来源不可查版本），不重复校验 creator_id。
+     *
      * @return array{list: SkillVersionEntity[], total: int}
      */
     public function queryVersionsByCode(
@@ -793,7 +796,8 @@ class SkillDomainService
         ?ReviewStatus $reviewStatus = null,
         Page $page = new Page()
     ): array {
-        $skillEntity = $this->findUserSkillByCode($dataIsolation, $code);
+        // 使用 findSkillByCode 替代 findUserSkillByCode，移除 creator_id 的 owner-only 限制
+        $skillEntity = $this->findSkillByCode($dataIsolation, $code);
         if ($skillEntity->getSourceType()->isMarket()) {
             ExceptionBuilder::throw(SkillErrorCode::STORE_SKILL_CANNOT_PUBLISH, 'skill.store_skill_cannot_publish');
         }
@@ -857,13 +861,17 @@ class SkillDomainService
     /**
      * 下架技能版本（下架所有已发布的版本，并更新商店表）.
      *
-     * @param SkillDataIsolation $dataIsolation 数据隔离对象
+     * 调用方应在应用层完成 assertSkillEditable 权限断言后再调用此方法，并在调用前将 dataIsolation 设为 disabled。
+     * 此处仅做业务规则校验，不重复校验 creator_id。
+     *
+     * @param SkillDataIsolation $dataIsolation 数据隔离对象（调用前应已 disabled）
      * @param string $code Skill code
      */
     public function offlineSkill(SkillDataIsolation $dataIsolation, string $code): void
     {
-        // 1. 查询技能基础信息（校验权限）
-        $skillEntity = $this->findUserSkillByCode($dataIsolation, $code);
+        // 使用 findSkillByCode 替代 findUserSkillByCode，移除 creator_id 的 owner-only 限制；
+        // 权限校验已在 SkillAppService::offlineSkill 中完成。
+        $skillEntity = $this->findSkillByCode($dataIsolation, $code);
         if ($skillEntity->getSourceType()->isMarket()) {
             ExceptionBuilder::throw(SkillErrorCode::STORE_SKILL_CANNOT_PUBLISH, 'skill.store_skill_cannot_publish');
         }

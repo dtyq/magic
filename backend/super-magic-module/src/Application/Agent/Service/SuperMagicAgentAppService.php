@@ -154,10 +154,10 @@ class SuperMagicAgentAppService extends AbstractSuperMagicAppService
         $dataIsolation = $this->createSuperMagicDataIsolation($authorization);
         $flowDataIsolation = $this->createFlowDataIsolation($authorization);
 
-        // 审批/查看场景按资源可见性判断，支持“可见但非创建者”的访问。
-        $operation = $this->assertAgentReadable($authorization, $code);
+        // 详情查看统一走共享可读判定；内置 Agent（官方 Mode）由重写方法内部白名单放行。
+        $operation = $this->assertAgentReadable($dataIsolation, $code);
 
-        // 忽略组织
+        // 权限断言通过后关闭组织过滤，支持协作者读取非本人创建的 Agent
         $dataIsolation->disabled();
 
         // 1. 查询 Agent 详情（包含技能列表和 Playbook 列表）
@@ -236,8 +236,8 @@ class SuperMagicAgentAppService extends AbstractSuperMagicAppService
         $dataIsolation = $this->createSuperMagicDataIsolation($authorization);
         $flowDataIsolation = $this->createFlowDataIsolation($authorization);
 
-        // 审批/查看场景按资源可见性判断，支持“可见但非创建者”的访问。
-        $this->assertAgentReadable($authorization, $code);
+        // 详情查看统一走共享可读判定；内置 Agent（官方 Mode）由重写方法内部白名单放行。
+        $this->assertAgentReadable($dataIsolation, $code);
 
         $dataIsolation->disabled();
         $versionEntity = $this->superMagicAgentVersionDomainService->getCurrentOrLatestByCode($dataIsolation, $code);
@@ -963,8 +963,9 @@ class SuperMagicAgentAppService extends AbstractSuperMagicAppService
     {
         $dataIsolation = $this->createSuperMagicDataIsolation($authorization);
 
-        // Verify the caller owns the agent
-        $this->assertAgentEditable($dataIsolation, $code);
+        // 版本查看属于只读操作，具有 read / editor / admin / owner 权限的协作者均可访问；
+        // 内置 Agent（官方 Mode）等白名单场景由 assertAgentReadable 内部自行兜底放行。
+        $this->assertAgentReadable($dataIsolation, $code);
 
         $this->superMagicAgentDomainService->getByCodeWithException($dataIsolation, $code);
 
@@ -1223,26 +1224,25 @@ class SuperMagicAgentAppService extends AbstractSuperMagicAppService
     }
 
     /**
-     * Delete an agent by code.
+     * 删除 Agent。
      *
-     * For market-installed agents, this removes user ownership first.
-     * For non-market agents, owner permission is required.
+     * 分两种场景处理：
+     * - 市场安装的 Agent：当前用户卸载自己安装的副本，仅移除 user_agent 归属及个人可见性记录。
+     * - 自建/协作 Agent：通过协作权限模型判定，具备删除权限的协作者（owner/admin）方可删除。
      */
     public function delete(Authenticatable $authorization, string $code): bool
     {
         $dataIsolation = $this->createSuperMagicDataIsolation($authorization);
 
-        // Market-installed agents are removed from user ownership first.
+        // 查询当前用户对该 Agent 的 user_agent 归属记录（仅用于判断是否为市场安装场景）
         $userAgentOwnership = $this->userAgentDomainService->findUserAgentOwnershipByCode($dataIsolation, $code);
-        if ($userAgentOwnership === null) {
-            ExceptionBuilder::throw(SuperMagicErrorCode::NotFound, 'common.not_found', ['label' => $code]);
-        }
 
-        if ($userAgentOwnership->getSourceType()->isMarket()) {
+        if ($userAgentOwnership !== null && $userAgentOwnership->getSourceType()->isMarket()) {
+            // 市场安装场景：卸载当前用户的私人副本，不影响其他协作者对该 Agent 的访问
             Db::beginTransaction();
             try {
                 $this->userAgentDomainService->deleteUserAgentOwnership($dataIsolation, $code);
-                // Always clean up user-level visibility after market uninstallation.
+                // 卸载后同步清理该用户的个人可见性记录
                 $this->removeAgentVisibilityUsers($dataIsolation, $code, [$dataIsolation->getCurrentUserId()]);
                 Db::commit();
             } catch (Throwable $throwable) {
@@ -1252,7 +1252,10 @@ class SuperMagicAgentAppService extends AbstractSuperMagicAppService
             return true;
         }
 
-        // 如果是官方组织，检查该Agent的code是否在Mode的identifier中配置
+        // 自建/协作 Agent：通过协作权限模型判定删除权限（owner 和被授予管理权限的协作者可删除）
+        $this->assertAgentDeletable($dataIsolation, $code);
+
+        // 官方组织内置 Agent 不允许删除（与官方 Mode 绑定的 Agent）
         if (OfficialOrganizationUtil::isOfficialOrganization($dataIsolation->getCurrentOrganizationCode())) {
             $modeDataIsolation = $this->createModeDataIsolation($dataIsolation);
             $modeDataIsolation->setOnlyOfficialOrganization(true);
@@ -2361,27 +2364,6 @@ class SuperMagicAgentAppService extends AbstractSuperMagicAppService
         }
 
         return $publishType->getAllowedPublishTargetTypeValues();
-    }
-
-    /**
-     * 校验当前用户是否对 Agent 具备读取权限。
-     */
-    private function assertAgentReadable(Authenticatable $authorization, string $code): ?Operation
-    {
-        try {
-            return $this->resourceAccessPolicyService->assertReadable(
-                $authorization,
-                ResourceType::CustomAgent,
-                ResourceVisibilityResourceType::SUPER_MAGIC_AGENT,
-                $code,
-            );
-        } catch (Throwable $throwable) {
-            // 内置资源等少数场景不走 op/visibility 判定，这里允许调用方透传白名单跳过。
-            if (in_array($code, $this->getOfficialAgentCodes($authorization), true)) {
-                return null;
-            }
-            throw $throwable;
-        }
     }
 
     /**

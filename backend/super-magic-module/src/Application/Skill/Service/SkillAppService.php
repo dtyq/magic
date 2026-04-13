@@ -632,10 +632,12 @@ class SkillAppService extends AbstractSkillAppService
             $authorization->getId()
         );
 
+        // 写操作统一通过协作权限模型判定，editor / admin / owner 均可编辑
         $this->assertSkillEditable($dataIsolation, $code);
 
-        // 查询技能记录（校验权限）
-        $skillEntity = $this->skillDomainService->findUserSkillByCode($dataIsolation, $code);
+        // 权限断言通过后关闭组织过滤，支持协作者读取非本人创建的 Skill
+        $dataIsolation->disabled();
+        $skillEntity = $this->skillDomainService->findSkillByCode($dataIsolation, $code);
 
         // 仅允许更新非商店来源的技能
         if ($skillEntity->getSourceType()->isMarket()) {
@@ -785,9 +787,12 @@ class SkillAppService extends AbstractSkillAppService
         // 创建数据隔离对象
         $dataIsolation = $this->createSkillDataIsolation($authorization);
 
+        // 发布属于写操作，必须具备 editor 以上权限
         $this->assertSkillEditable($dataIsolation, $code);
 
-        $skillEntity = $this->skillDomainService->findUserSkillByCode($dataIsolation, $code);
+        // 权限断言通过后关闭组织过滤，协作者可读取非本人创建的 Skill 主体
+        $dataIsolation->disabled();
+        $skillEntity = $this->skillDomainService->findSkillByCode($dataIsolation, $code);
 
         Db::beginTransaction();
         try {
@@ -817,6 +822,9 @@ class SkillAppService extends AbstractSkillAppService
         $authorization = $requestContext->getUserAuthorization();
         $dataIsolation = $this->createSkillDataIsolation($authorization);
         $page = new Page($requestDTO->getPage(), $requestDTO->getPageSize());
+
+        // 版本查看属于只读操作，具有 read / editor / admin / owner 权限的协作者均可访问
+        $this->assertSkillReadable($dataIsolation, $code);
 
         $publishTargetType = $requestDTO->getPublishTargetType() ? PublishTargetType::from($requestDTO->getPublishTargetType()) : null;
         $reviewStatus = $requestDTO->getStatus() ? ReviewStatus::from($requestDTO->getStatus()) : null;
@@ -856,9 +864,12 @@ class SkillAppService extends AbstractSkillAppService
         $authorization = $requestContext->getUserAuthorization();
         $dataIsolation = $this->createSkillDataIsolation($authorization);
 
+        // 预填信息与发布接口共享权限语义，均要求 editor 以上权限
         $this->assertSkillEditable($dataIsolation, $code);
 
-        $skillEntity = $this->skillDomainService->findUserSkillByCode($dataIsolation, $code);
+        // 权限断言通过后关闭组织过滤，协作者可读取非本人创建的 Skill 主体
+        $dataIsolation->disabled();
+        $skillEntity = $this->skillDomainService->findSkillByCode($dataIsolation, $code);
 
         $versionRecordCount = $this->skillDomainService->countSkillVersionsByCode($dataIsolation, $code);
         $descriptionI18n = $skillEntity->getDescriptionI18n();
@@ -898,19 +909,24 @@ class SkillAppService extends AbstractSkillAppService
         // 创建数据隔离对象
         $dataIsolation = $this->createSkillDataIsolation($authorization);
 
+        // 下架属于写操作，必须具备 editor 以上权限
         $this->assertSkillEditable($dataIsolation, $code);
+
+        // 权限断言通过后关闭组织过滤，供领域服务在协作场景下读取 Skill 主体
+        $dataIsolation->disabled();
 
         // 调用领域服务处理业务逻辑
         $this->skillDomainService->offlineSkill($dataIsolation, $code);
     }
 
     /**
-     * Batch get skill file keys and download URLs by skill IDs.
-     * Only returns skills owned by the current user (permission enforced by repository).
+     * 根据 Skill ID 列表批量获取文件 key 及下载地址。
      *
-     * @param RequestContext $requestContext Request context
-     * @param GetSkillFileUrlsRequestDTO $requestDTO Request DTO
-     * @return SkillFileUrlItemDTO[] List of skill file URL items
+     * 支持团队协作模型：返回当前用户具备读取权限的技能（自建、协作共享、市场安装均包含）。
+     *
+     * @param RequestContext $requestContext 请求上下文
+     * @param GetSkillFileUrlsRequestDTO $requestDTO 请求 DTO
+     * @return SkillFileUrlItemDTO[] Skill 文件 URL 列表
      */
     public function getSkillFileUrlsByIds(RequestContext $requestContext, GetSkillFileUrlsRequestDTO $requestDTO): array
     {
@@ -919,15 +935,26 @@ class SkillAppService extends AbstractSkillAppService
 
         $skillIds = $requestDTO->getSkillIdsAsInt();
 
-        // Only returns skills owned by current user (filters by organization_code + creator_id)
+        // 获取当前用户可访问的 Skill code 集合（自建 + 协作共享 + 市场安装 + 内置）
+        $accessibleCodes = $this->getAccessibleSkillCodes($dataIsolation);
+        $accessibleCodeIndex = array_flip($accessibleCodes);
+
+        // 关闭组织过滤，直接按 ID 批量读取；权限过滤在应用层完成
+        $dataIsolation->disabled();
         $skillEntities = $this->skillDomainService->findUserSkillsByIds($dataIsolation, $skillIds);
 
-        if (empty($skillEntities)) {
+        // 仅保留当前用户具备访问权限的技能，避免越权获取他人文件地址
+        $accessibleEntities = array_filter(
+            $skillEntities,
+            fn (SkillEntity $entity) => isset($accessibleCodeIndex[$entity->getCode()])
+        );
+
+        if (empty($accessibleEntities)) {
             return [];
         }
 
-        // Convert file_keys to signed download URLs
-        $this->updateSkillFileUrl($dataIsolation, $skillEntities);
+        // 将 file_key 转换为带签名的下载地址
+        $this->updateSkillFileUrl($dataIsolation, $accessibleEntities);
 
         return array_values(array_map(
             fn (SkillEntity $entity) => new SkillFileUrlItemDTO(
@@ -936,7 +963,7 @@ class SkillAppService extends AbstractSkillAppService
                 fileUrl: $entity->getFileUrl(),
                 sourceType: $entity->getSourceType()->value
             ),
-            $skillEntities
+            $accessibleEntities
         ));
     }
 

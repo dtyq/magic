@@ -42,6 +42,7 @@ use Hyperf\Di\Annotation\Inject;
 use Hyperf\Logger\LoggerFactory;
 use Psr\Log\LoggerInterface;
 use Qbhy\HyperfAuth\Authenticatable;
+use Throwable;
 
 abstract class AbstractSuperMagicAppService extends AbstractKernelAppService
 {
@@ -97,11 +98,50 @@ abstract class AbstractSuperMagicAppService extends AbstractKernelAppService
     }
 
     /**
+     * 校验当前用户是否对 Agent 具备读取权限，返回当前用户的最高操作权限。
+     *
+     * 读权限采用「可见性 ∪ 操作权限」并集判定，适用于详情、版本列表、Playbook 列表等只读场景。
+     * 内置 Agent（与官方 Mode 绑定的 Agent）不在协作权限体系内，对所有用户直接放行。
+     *
+     * @return ?Operation 用户对该 Agent 拥有的最高操作权限；内置 Agent 场景返回 null
+     */
+    protected function assertAgentReadable(SuperMagicAgentDataIsolation $dataIsolation, string $code): ?Operation
+    {
+        try {
+            return $this->resourceAccessPolicyService->assertReadable(
+                $dataIsolation,
+                OperationPermissionResourceType::CustomAgent,
+                ResourceVisibilityResourceType::SUPER_MAGIC_AGENT,
+                $code,
+            );
+        } catch (Throwable $throwable) {
+            if (in_array($code, $this->getOfficialAgentCodes($dataIsolation), true)) {
+                return null;
+            }
+            throw $throwable;
+        }
+    }
+
+    /**
      * 校验当前用户是否对 Agent 具备编辑权限。
      */
     protected function assertAgentEditable(SuperMagicAgentDataIsolation $dataIsolation, string $code): void
     {
         $this->resourceAccessPolicyService->assertEditable(
+            $dataIsolation,
+            OperationPermissionResourceType::CustomAgent,
+            $code
+        );
+    }
+
+    /**
+     * 校验当前用户是否对 Agent 具备删除权限。
+     *
+     * 仅 owner 及被授予管理权限的协作者可删除，与「可编辑」语义不同。
+     */
+    protected function assertAgentDeletable(SuperMagicAgentDataIsolation $dataIsolation, string $code): void
+    {
+        $this->resourceAccessPolicyService->assertDeletable(
             $dataIsolation,
             OperationPermissionResourceType::CustomAgent,
             $code
@@ -500,7 +540,12 @@ abstract class AbstractSuperMagicAppService extends AbstractKernelAppService
         $agentEntity->setFileUrl($fileLink instanceof FileLink ? $fileLink->getUrl() : null);
     }
 
-    protected function getOfficialAgentCodes(Authenticatable $authorization): array
+    /**
+     * 获取所有内置 Agent（官方 Mode）的 code 列表。
+     *
+     * 接受 Authenticatable 或 BaseDataIsolation，兼容从用户授权对象和数据隔离对象两种调用场景。
+     */
+    protected function getOfficialAgentCodes(Authenticatable|BaseDataIsolation $authorization): array
     {
         $modeDataIsolation = $this->createModeDataIsolation($authorization);
         $modeDataIsolation->disabled();
