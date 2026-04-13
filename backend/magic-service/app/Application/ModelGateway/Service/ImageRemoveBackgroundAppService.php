@@ -46,7 +46,8 @@ use function Hyperf\Support\make;
 use function Hyperf\Translation\__;
 
 /**
- * 去背景应用服务，负责统一编排配置读取、输入资源处理、第三方调用和结果上传。
+ * 去背景应用服务。
+ * 这里负责串起配置解析、输入下载、第三方调用、图片后处理和最终响应组装。
  */
 class ImageRemoveBackgroundAppService extends AbstractLLMAppService
 {
@@ -159,6 +160,7 @@ class ImageRemoveBackgroundAppService extends AbstractLLMAppService
      *
      * - 平台输入问题直接抛出异常
      * - 第三方 provider 失败则返回 OpenAI 风格错误结构
+     * - provider 成功后统一进入“物化 -> 水印 -> 上传”处理链
      */
     public function removeBackground(ImageRemoveBackgroundRequestDTO $dto): OpenAIFormatResponse
     {
@@ -247,6 +249,7 @@ class ImageRemoveBackgroundAppService extends AbstractLLMAppService
         ImageProcessContext $context,
         ImageRemoveBackgroundRequestDTO $dto,
     ): void {
+        // 去背景当前仍复用通用图片处理链，因此在这里补齐上传路径和后处理配置。
         $context->setOrganizationCode($dataIsolation->getCurrentOrganizationCode());
         $context->setStorageSubDir('open/remove-background');
         $context->setUploadFileNamePrefix('remove_background');
@@ -259,6 +262,7 @@ class ImageRemoveBackgroundAppService extends AbstractLLMAppService
         ModelGatewayDataIsolation $dataIsolation,
         ImageRemoveBackgroundRequestDTO $dto,
     ): ImagePostProcessOptions {
+        // 去背景不需要完整的 ImageGenerateRequest，这里只构造后处理真正关心的字段。
         $options = new ImagePostProcessOptions();
         $options->setOutputFormat($dto->getOutputFormat() ?? '');
         $watermarkConfig = $this->watermarkConfig->getWatermarkConfig(
@@ -294,6 +298,7 @@ class ImageRemoveBackgroundAppService extends AbstractLLMAppService
 
     private function buildSuccessResponse(ImageProcessContext $context): OpenAIFormatResponse
     {
+        // 去背景接口对外仍保持现有 OpenAI 风格响应结构，便于上层无感迁移。
         return new OpenAIFormatResponse([
             'created' => time(),
             'data' => [

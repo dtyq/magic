@@ -17,6 +17,9 @@ use Dtyq\CloudFile\Kernel\Utils\MimeTypes;
 
 use function Hyperf\Translation\__;
 
+/**
+ * 将当前上下文中的本地结果图上传到 OSS，并把最终访问地址回填到上下文。
+ */
 final class UploadProcessor implements ImageProcessorInterface
 {
     public function __construct(
@@ -24,6 +27,9 @@ final class UploadProcessor implements ImageProcessorInterface
     ) {
     }
 
+    /**
+     * 上传结果图并记录最终对外可见的 URL/mime 信息。
+     */
     public function process(ImageProcessContext $context): void
     {
         $mimeType = $this->detectMimeType($context);
@@ -63,6 +69,7 @@ final class UploadProcessor implements ImageProcessorInterface
         ImageProcessContext $context,
         string $mimeType,
     ): string {
+        // 尽量保留正确扩展名，避免最终 OSS 地址没有可识别的后缀。
         $extension = MimeTypes::getExtension($mimeType);
         if ($extension === '') {
             $extension = pathinfo($context->getLocalFilePath(), PATHINFO_EXTENSION);
@@ -76,6 +83,7 @@ final class UploadProcessor implements ImageProcessorInterface
 
     private function detectMimeType(ImageProcessContext $context): string
     {
+        // 上传前优先重新探测一次，确保经过水印处理后的文件类型与上下文一致。
         if (is_file($context->getLocalFilePath())) {
             $imageInfo = @getimagesize($context->getLocalFilePath());
             if (is_array($imageInfo) && ! empty($imageInfo['mime'])) {

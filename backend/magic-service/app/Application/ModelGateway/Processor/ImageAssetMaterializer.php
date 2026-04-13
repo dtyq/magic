@@ -13,6 +13,10 @@ use App\Infrastructure\ExternalAPI\ImageRemoveBackground\ImageRemoveBackgroundRe
 use App\Infrastructure\Util\File\SecureImageDownloader;
 use App\Infrastructure\Util\File\TemporaryFileManager;
 
+/**
+ * 把去背景 driver 的专属结果统一转成平台内部可继续处理的图片资产。
+ * 该类是“外部协议”进入“通用图片处理管线”的桥接点。
+ */
 final class ImageAssetMaterializer
 {
     public function __construct(
@@ -20,6 +24,10 @@ final class ImageAssetMaterializer
     ) {
     }
 
+    /**
+     * 将 driver 返回的本地文件或远程 URL 物化为可进入处理管线的上下文。
+     * 远程 URL 会在这里被安全下载并登记到临时文件管理器中。
+     */
     public function materialize(
         ImageRemoveBackgroundResult $result,
         TemporaryFileManager $temporaryFileManager,

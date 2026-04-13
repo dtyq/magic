@@ -7,6 +7,10 @@ declare(strict_types=1);
 
 namespace App\Infrastructure\ExternalAPI\Image;
 
+/**
+ * 平台内部统一使用的图片资产描述。
+ * 该对象只表达“当前拿到的图片是什么”，不关心具体业务能力来源。
+ */
 final class ImageAsset
 {
     public const TYPE_LOCAL_FILE = 'local_file';

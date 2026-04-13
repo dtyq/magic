@@ -7,6 +7,9 @@ declare(strict_types=1);
 
 namespace App\Infrastructure\ExternalAPI\ImageRemoveBackground;
 
+/**
+ * 去背景 driver 的专属返回结果。
+ */
 final class ImageRemoveBackgroundResult
 {
     public const TYPE_LOCAL_FILE = 'local_file';

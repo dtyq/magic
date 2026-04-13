@@ -10,6 +10,10 @@ namespace App\Application\ModelGateway\Struct;
 use App\Domain\ImageGenerate\ValueObject\ImplicitWatermark;
 use App\Domain\ImageGenerate\ValueObject\WatermarkConfig;
 
+/**
+ * 描述图片在进入通用处理管线后需要执行的后处理选项。
+ * 这里只放“如何处理”，不放图片来源或运行时状态。
+ */
 final class ImagePostProcessOptions
 {
     public function __construct(

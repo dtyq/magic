@@ -9,6 +9,10 @@ namespace App\Application\ModelGateway\Struct;
 
 use App\Infrastructure\ExternalAPI\Image\ImageAsset;
 
+/**
+ * 图片处理管线中的运行时上下文。
+ * 它同时保存当前图片资产、处理配置以及处理后的中间/最终结果。
+ */
 final class ImageProcessContext
 {
     private string $organizationCode = '';
@@ -27,6 +31,7 @@ final class ImageProcessContext
         private ImageAsset $asset,
         private string $localFilePath = '',
     ) {
+        // 本地文件资产默认直接复用其路径，避免后续处理器重复判断。
         if ($this->localFilePath === '' && $this->asset->isLocalFile()) {
             $this->localFilePath = $this->asset->getValue();
         }
