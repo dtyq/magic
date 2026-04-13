@@ -134,13 +134,13 @@ readonly class CloudswayVeoVideoAdapter extends AbstractCloudswayVideoAdapter
 
         $primaryImage = $this->extractFrameUri($frames, 'start');
         if ($primaryImage !== null) {
-            $instance['image'] = $this->buildMediaFromUri($primaryImage);
+            $instance['image'] = $this->buildVeoMediaFromUri($primaryImage);
             $acceptedParams[] = 'inputs.frames.start';
         }
 
         $lastFrame = $this->extractFrameUri($frames, 'end');
         if ($lastFrame !== null) {
-            $instance['lastFrame'] = $this->buildMediaFromUri($lastFrame);
+            $instance['lastFrame'] = $this->buildVeoMediaFromUri($lastFrame);
             $acceptedParams[] = 'inputs.frames.end';
         }
 
@@ -170,7 +170,7 @@ readonly class CloudswayVeoVideoAdapter extends AbstractCloudswayVideoAdapter
                 }
 
                 $veoReferenceImages[] = [
-                    'image' => $this->buildMediaFromUri($uri),
+                    'image' => $this->buildVeoMediaFromUri($uri),
                     'referenceType' => $referenceType,
                 ];
             }
@@ -304,9 +304,9 @@ readonly class CloudswayVeoVideoAdapter extends AbstractCloudswayVideoAdapter
 
     public function submit(VideoQueueOperationEntity $operation, QueueExecutorConfig $config): string
     {
-        $response = $this->cloudswayVideoClient->post(
-            $config->getBaseUrl(),
-            $config->getApiKey(),
+        $response = $this->postWithOperationContext(
+            $operation,
+            $config,
             $this->buildEndpointPath($operation, 'veo/videos/generate'),
             $operation->getProviderPayload(),
         );
@@ -326,11 +326,12 @@ readonly class CloudswayVeoVideoAdapter extends AbstractCloudswayVideoAdapter
 
     public function query(VideoQueueOperationEntity $operation, QueueExecutorConfig $config, string $providerTaskId): array
     {
-        $detail = $this->cloudswayVideoClient->post(
-            $config->getBaseUrl(),
-            $config->getApiKey(),
+        $detail = $this->postWithOperationContext(
+            $operation,
+            $config,
             $this->buildEndpointPath($operation, 'veo/videos/task'),
             ['operationName' => $providerTaskId],
+            $providerTaskId,
         );
 
         $payload = is_array($detail['data'] ?? null) ? $detail['data'] : $detail;

@@ -160,9 +160,9 @@ readonly class CloudswaySeedanceVideoAdapter extends AbstractCloudswayVideoAdapt
 
     public function submit(VideoQueueOperationEntity $operation, QueueExecutorConfig $config): string
     {
-        $response = $this->cloudswayVideoClient->post(
-            $config->getBaseUrl(),
-            $config->getApiKey(),
+        $response = $this->postWithOperationContext(
+            $operation,
+            $config,
             $this->buildEndpointPath($operation, 'seedance/contents/generations/tasks'),
             $operation->getProviderPayload(),
         );
@@ -183,10 +183,11 @@ readonly class CloudswaySeedanceVideoAdapter extends AbstractCloudswayVideoAdapt
 
     public function query(VideoQueueOperationEntity $operation, QueueExecutorConfig $config, string $providerTaskId): array
     {
-        $detail = $this->cloudswayVideoClient->get(
-            $config->getBaseUrl(),
-            $config->getApiKey(),
+        $detail = $this->getWithOperationContext(
+            $operation,
+            $config,
             $this->buildEndpointPath($operation, 'seedance/contents/generations/tasks/' . rawurlencode($providerTaskId)),
+            $providerTaskId,
         );
 
         $status = strtolower(trim((string) ($detail['status'] ?? $detail['data']['status'] ?? 'processing')));

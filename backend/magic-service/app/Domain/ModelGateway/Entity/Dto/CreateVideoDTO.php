@@ -154,6 +154,23 @@ class CreateVideoDTO extends AbstractRequestDTO
         return 'video';
     }
 
+    public function getVideoId(): ?string
+    {
+        foreach (['video_id', 'generation_id'] as $key) {
+            $businessParam = $this->getBusinessParam($key);
+            if (is_string($businessParam) && trim($businessParam) !== '') {
+                return trim($businessParam);
+            }
+
+            $rawValue = $this->rawData[$key] ?? null;
+            if (is_string($rawValue) && trim($rawValue) !== '') {
+                return trim($rawValue);
+            }
+        }
+
+        return null;
+    }
+
     private function assertTopLevelArrayField(string $field): void
     {
         if (! array_key_exists($field, $this->rawData) || $this->rawData[$field] === null) {
