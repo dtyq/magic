@@ -50,6 +50,7 @@ def _build_super_magic_chunk(
     first_created: int,
     correlation_id: str,
     chunk_index: int,
+    label_resolver: Optional[Any] = None,
 ) -> Dict[str, Any]:
     """将 OpenAI ChatCompletionChunk 转换为 super_magic_chunk 格式。
 
@@ -61,6 +62,7 @@ def _build_super_magic_chunk(
         first_created: 首个有效 chunk 的 created（复用）
         correlation_id: 本次流的关联 ID
         chunk_index: chunk 序号（0-based）
+        label_resolver: 可选的工具名 -> 标签文案查询函数，有值时注入到 function.label
 
     Returns:
         super_magic_chunk 格式的字典
@@ -93,6 +95,11 @@ def _build_super_magic_chunk(
                     func_dict: Dict[str, Any] = {}
                     if tc.function.name is not None:
                         func_dict["name"] = tc.function.name
+                        # 工具名首次出现时注入 label，后续 delta 只含 arguments，无需重复注入
+                        if label_resolver:
+                            label = label_resolver(tc.function.name)
+                            if label:
+                                func_dict["label"] = label
                     if tc.function.arguments is not None:
                         func_dict["arguments"] = tc.function.arguments
                     if func_dict:
@@ -244,6 +251,9 @@ class StreamResponseHandlerV2(StreamResponseHandlerBase):
         finish_reason: Optional[str] = None
         usage: Optional[CompletionUsage] = None
 
+        # 从 agent_context 获取工具标签查询函数（agentlang 层通过接口调用，不直接依赖 app.i18n）
+        label_resolver = getattr(agent_context, "get_tool_label", None) if agent_context else None
+
         stream_timeout = DEFAULT_TIMEOUT + 60
         first_chunk_timeout = processor_config.stream_first_chunk_timeout_seconds
         first_chunk_deadline = (
@@ -371,6 +381,7 @@ class StreamResponseHandlerV2(StreamResponseHandlerBase):
                                         first_created=effective_first_created,
                                         correlation_id=correlation_id,
                                         chunk_index=chunk_push_index,
+                                        label_resolver=label_resolver,
                                     )
                                     await _push_raw_chunk(
                                         streaming_driver=streaming_driver,

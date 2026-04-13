@@ -1225,6 +1225,13 @@ class AgentContext(BaseAgentContext):
         from app.core.entity.factory.factory_registry import get_factory_by_version
         return get_factory_by_version(self.get_message_version())
 
+    def get_tool_label(self, tool_name: str) -> str:
+        """根据工具名称查 i18n 标签，查无结果时返回空字符串。"""
+        from app.i18n import i18n
+        label = i18n.translate(tool_name, category="tool.actions")
+        # i18n.translate 查无结果时回退返回 tool_name 本身，此时视为无标签
+        return label if label != tool_name else ""
+
     # ====== v2 批量 tool_calls 暂存状态 ======
 
     def get_pending_reply_state(self) -> Optional["PendingReplyState"]:

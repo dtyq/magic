@@ -75,16 +75,17 @@ class TaskMessageFactoryV2(TaskMessageFactoryProtocol):
 
     @classmethod
     def _get_topic_id(cls, agent_context: AgentContext) -> str:
-        """从 agent_context 获取 topic_id，兼容生产路径（metadata.topic_id）和本地调试路径（无 topic_id）"""
-        chat_msg = agent_context.get_chat_client_message()
-        if chat_msg is None:
-            return ""
-        # 生产路径：topic_id 挂在 metadata 下
-        metadata = getattr(chat_msg, "metadata", None)
-        if metadata is not None:
-            topic_id = getattr(metadata, "topic_id", None)
+        """从 agent_context 获取 topic_id。
+        优先从 get_metadata() 字典读取（文件持久化，init 事件也可用），
+        兼容本地调试路径（无 topic_id 时返回空字符串）。
+        """
+        try:
+            metadata = agent_context.get_metadata()
+            topic_id = metadata.get("topic_id")
             if topic_id:
-                return topic_id
+                return str(topic_id)
+        except Exception:
+            pass
         return ""
 
     @classmethod
@@ -128,6 +129,8 @@ class TaskMessageFactoryV2(TaskMessageFactoryProtocol):
         attachments: Optional[List[Attachment]] = None,
         project_archive=None,
         token_usage_details: Optional[TokenUsageCollection] = None,
+        content: str = "",
+        content_type: Optional[str] = None,
     ) -> ServerMessage:
         """
         统一构建 raw_content + payload + ServerMessage。
@@ -142,7 +145,7 @@ class TaskMessageFactoryV2(TaskMessageFactoryProtocol):
             sandbox_id=agent_context.get_sandbox_id(),
             message_type=MessageType.SUPER_MAGIC_MESSAGE,
             status=status,
-            content="",
+            content=content,
             seq_id=agent_context.get_next_seq_id(),
             event=event_type,
             correlation_id=correlation_id,
@@ -152,6 +155,7 @@ class TaskMessageFactoryV2(TaskMessageFactoryProtocol):
             token_used=token_used,
             attachments=attachments,
             project_archive=project_archive,
+            content_type=content_type,
         )
 
         return ServerMessage.create(
@@ -161,15 +165,22 @@ class TaskMessageFactoryV2(TaskMessageFactoryProtocol):
         )
 
     @classmethod
-    def _build_tool_call_item(cls, tool_call_id: str, function_name: str, arguments: str = "{}") -> Dict[str, Any]:
+    def _build_tool_call_item(
+        cls,
+        tool_call_id: str,
+        function_name: str,
+        arguments: str = "{}",
+        label: Optional[str] = None,
+    ) -> Dict[str, Any]:
         """构建单个 tool_call 结构"""
+        func: Dict[str, Any] = {"name": function_name}
+        if label:
+            func["label"] = label
+        func["arguments"] = arguments
         return {
             "id": tool_call_id,
             "type": "function",
-            "function": {
-                "name": function_name,
-                "arguments": arguments,
-            },
+            "function": func,
         }
 
     @classmethod
@@ -254,12 +265,15 @@ class TaskMessageFactoryV2(TaskMessageFactoryProtocol):
         agent_context = event.data.tool_context.get_extension_typed("agent_context", AgentContext)
         content = i18n.translate("task_vm_init.start", category="tool.messages")
 
-        tool_call_id = agent_context.get_task_id() or "init"
+        tool_call_id = cls._make_tool_call_id(event.data.correlation_id)
         inner = cls._build_inner_message(
             agent_context,
             role="assistant",
             correlation_id=event.data.correlation_id,
-            tool_calls=[cls._build_tool_call_item(tool_call_id, "init_virtual_machine")],
+            tool_calls=[cls._build_tool_call_item(
+                tool_call_id, "init_virtual_machine",
+                label=agent_context.get_tool_label("init_virtual_machine"),
+            )],
             tool=cls._build_tool_object(
                 tool_id=tool_call_id,
                 name="init_virtual_machine",
@@ -288,7 +302,7 @@ class TaskMessageFactoryV2(TaskMessageFactoryProtocol):
             tool_status = ToolStatus.ERROR
             content = i18n.translate("task_vm_init.failed", category="tool.messages")
 
-        tool_call_id = agent_context.get_task_id() or "init"
+        tool_call_id = cls._make_tool_call_id(event.data.correlation_id)
         inner = cls._build_inner_message(
             agent_context,
             role="tool",
@@ -319,7 +333,6 @@ class TaskMessageFactoryV2(TaskMessageFactoryProtocol):
 
         extension_names = [config.name for config in event.data.server_configs]
         extensions_text = ", ".join(extension_names)
-        content = f"MCP 初始化中，正在安装{extensions_text}"
 
         config_details = cls._build_mcp_config_details(event.data.server_configs)
         detail = ToolDetail(
@@ -337,11 +350,14 @@ class TaskMessageFactoryV2(TaskMessageFactoryProtocol):
             agent_context,
             role="assistant",
             correlation_id=event.data.correlation_id,
-            tool_calls=[cls._build_tool_call_item(tool_call_id, "mcp_init")],
+            tool_calls=[cls._build_tool_call_item(
+                tool_call_id, "mcp_init",
+                label=agent_context.get_tool_label("mcp_init"),
+            )],
             tool=cls._build_tool_object(
                 tool_id=tool_call_id,
                 name="mcp_init",
-                action="MCP 初始化开始",
+                action=agent_context.get_tool_label("mcp_init"),
                 status=ToolStatus.RUNNING,
                 remark=extensions_text,
                 detail=detail,
@@ -443,7 +459,7 @@ class TaskMessageFactoryV2(TaskMessageFactoryProtocol):
             tool=cls._build_tool_object(
                 tool_id=tool_call_id,
                 name="mcp_init",
-                action="初始化 MCP",
+                action=agent_context.get_tool_label("mcp_init"),
                 status=tool_status,
                 remark=extensions_text,
                 detail=detail,
@@ -480,6 +496,7 @@ class TaskMessageFactoryV2(TaskMessageFactoryProtocol):
                         tc.id,
                         tc.function.name,
                         tc.function.arguments,
+                        label=agent_context.get_tool_label(tc.function.name),
                     )
                     for tc in llm_msg.tool_calls
                 ]
@@ -519,6 +536,7 @@ class TaskMessageFactoryV2(TaskMessageFactoryProtocol):
             event_type=EventType.AFTER_AGENT_REPLY,
             correlation_id=event.data.correlation_id,
             message_id=message_id,
+            content_type="content",
             token_usage_details=token_usage_report,
         )
 
@@ -563,6 +581,11 @@ class TaskMessageFactoryV2(TaskMessageFactoryProtocol):
                     )
                 except Exception as e:
                     logger.warning(f"获取工具调用前详细信息失败: {e}")
+
+                # 用 friendly action 更新第一个 tool_call 的 label（比 after_agent_reply 阶段的 i18n 静态值更精确）
+                action_label = friendly.get("action", "")
+                if action_label and p_tool_calls:
+                    p_tool_calls[0]["function"]["label"] = action_label
 
                 inner = cls._build_inner_message(
                     agent_context,
@@ -612,7 +635,11 @@ class TaskMessageFactoryV2(TaskMessageFactoryProtocol):
             agent_context,
             role="assistant",
             correlation_id=event.data.correlation_id,
-            tool_calls=[cls._build_tool_call_item(event.data.tool_call.id, event.data.tool_name)],
+            tool_calls=[cls._build_tool_call_item(
+                event.data.tool_call.id,
+                event.data.tool_name,
+                label=friendly.get("action", ""),
+            )],
             tool=cls._build_tool_object(
                 tool_id=event.data.tool_call.id,
                 name=friendly.get("tool_name", event.data.tool_name),
@@ -794,6 +821,7 @@ class TaskMessageFactoryV2(TaskMessageFactoryProtocol):
             token_used=token_used,
             attachments=attachments,
             project_archive=project_archive,
+            content=content,
         )
 
     @classmethod
