@@ -18,6 +18,7 @@ type options struct {
 	chartSpecs         map[string]ChartSpec
 	valuesFile         string
 	webBaseURL         string
+	minioURL           string
 	registry           registry.Config
 	kind               cluster.KindClusterConfig
 	proxy              ProxyConfig
@@ -99,6 +100,10 @@ func WithValuesFile(path string) Option {
 
 func WithWebBaseURL(url string) Option {
 	return func(o *options) { o.webBaseURL = url }
+}
+
+func WithMinIOURL(url string) Option {
+	return func(o *options) { o.minioURL = url }
 }
 
 func WithRegistry(cfg registry.Config) Option {
