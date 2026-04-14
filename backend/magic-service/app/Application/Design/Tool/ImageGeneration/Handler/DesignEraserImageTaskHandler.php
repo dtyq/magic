@@ -15,7 +15,15 @@ use App\Domain\Design\Entity\ImageGenerationEntity;
  */
 final class DesignEraserImageTaskHandler extends DesignTextImageGenerationTaskHandler
 {
-    /** 配置中 prompt 为空时使用：两图说明与擦除约束 */
+    /**
+     * 给你两张图。
+     * 第一张是原始照片。
+     * 第二张是黑白 mask，白色区域表示要擦除的区域。
+     * 你的任务：从原始照片中移除白 mask 区域内的内容，
+     * 并用从周围像素推断出的逼真、无缝的背景填充该区域。
+     * 结果应看起来自然，仿佛被擦除的物体从未出现过。
+     * 不得改动白 mask 区域以外的图像任何部分。
+     */
     private const string DEFAULT_PROMPT = 'You are given two images. '
         . 'The first image is the original photo. '
         . 'The second image is a black-and-white mask where the white region indicates the area to be erased. '

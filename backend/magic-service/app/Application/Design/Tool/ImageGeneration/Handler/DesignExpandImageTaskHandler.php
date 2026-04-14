@@ -15,12 +15,23 @@ use App\Domain\Design\Entity\ImageGenerationEntity;
  */
 final class DesignExpandImageTaskHandler extends DesignTextImageGenerationTaskHandler
 {
-    /** 配置中 prompt 为空时使用：与原图 → 扩展画布 → mask → 成图 的产品逻辑一致（白=生成区，黑=原图 footprint 须保留） */
-    private const string DEFAULT_PROMPT = 'You are given three images for one outpainting task. '
-        . 'The first image is the original photo (content and style reference). '
-        . 'The second image is the expanded canvas: the original photo is embedded at the same relative position as in the first image; the rest of the canvas is a solid placeholder (black or white) marking where new pixels must be synthesized. '
-        . 'The third image is a binary mask aligned in size and layout with the second image: white pixels mark outpainting regions to generate; black pixels mark the original-photo footprint that must stay identical to the corresponding region on the expanded canvas (and consistent with the first image there). '
-        . 'Your task: output one image with the same outer dimensions as the second image. Inpaint only where the mask is white: extend the scene realistically so style, lighting, perspective, and context match the original. Leave every black-mask pixel unchanged (preserve the original footprint on the canvas).';
+    /**
+     * 中文版提示词（仅供理解参考，实际使用英文版）：
+     * 你会收到三张图片。
+     * 第一张是原始照片。
+     * 第二张是扩展后的画布，原始图像保持在原始位置，周围扩展区域用白色填充。
+     * 第三张是黑白蒙版，白色区域标记需要生成内容的扩展部分。
+     * 你的任务：以原始照片为参考，用真实自然的内容填充扩展画布中的白色蒙版区域，使其与原图无缝衔接。
+     * 生成的内容应在风格、光线、透视和场景上与原图保持一致。
+     * 不得对白色蒙版区域以外的任何部分进行修改。
+     */
+    private const string DEFAULT_PROMPT = 'You are given three images. '
+        . 'The first image is the original photo. '
+        . 'The second image is an expanded canvas where the original image is placed at its original position and the surrounding extended areas are filled with white. '
+        . 'The third image is a black-and-white mask where the white region marks the extended areas to be generated. '
+        . 'Your task: use the original photo as reference, and fill the white masked areas in the expanded canvas with realistic, natural content that seamlessly extends the original image. '
+        . 'The generated content should be coherent with the style, lighting, perspective, and context of the original image. '
+        . 'Do not alter any part of the image outside the white masked region.';
 
     public function resolveRuleBasedOutputBaseName(ImageGenerationEntity $entity): ?string
     {
