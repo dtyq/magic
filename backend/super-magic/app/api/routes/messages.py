@@ -319,11 +319,16 @@ class MessageProcessor:
                 from app.i18n import i18n
                 i18n.set_language(chat_language)
 
-            # 在延迟 init 事件触发前先写入 message_version，确保 init 事件使用正确的工厂
-            if message.dynamic_config:
-                version = message.dynamic_config.get("message_version")
-                if version:
-                    agent_context.set_message_version(version)
+            # 在延迟 init 事件触发前先写入 message_version，确保 init 事件使用正确的工厂。
+            # 若本次请求未携带 message_version，则从 session.json 读取上次保存的值作为回落。
+            version = message.dynamic_config.get("message_version") if message.dynamic_config else None
+            if not version:
+                try:
+                    version = await agent_context.load_last_message_version()
+                except Exception as e:
+                    logger.debug(f"读取上次保存的 message_version 失败: {e}")
+            if version:
+                agent_context.set_message_version(version)
 
             await self._dispatch_delayed_init_event_if_needed(agent_context, preferred_language=chat_language)
 

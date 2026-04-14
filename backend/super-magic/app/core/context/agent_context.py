@@ -1220,6 +1220,30 @@ class AgentContext(BaseAgentContext):
         if version:
             self.shared_context.update_field("message_version", version)
 
+    async def load_last_message_version(self) -> Optional[str]:
+        """从 session.json 读取上次保存的 message_version。
+
+        在 chat 消息未携带 message_version 时作为回落来源。
+        读取 current 块（存储最近一次完成请求的配置）。
+
+        Returns:
+            Optional[str]: 上次保存的 message_version，文件不存在或无记录时返回 None
+        """
+        from pathlib import Path
+        from app.utils.async_file_utils import async_read_json
+        try:
+            chat_history_dir = self.get_chat_history_dir()
+            agent_name = self.agent_name
+            agent_id = self._agent_id or "main"
+            session_file = Path(chat_history_dir) / f"{agent_name}<{agent_id}>.session.json"
+            doc = await async_read_json(session_file)
+            current = doc.get("current", {})
+            if isinstance(current, dict):
+                return current.get("message_version") or None
+        except Exception:
+            pass
+        return None
+
     def get_message_factory(self) -> "Type[TaskMessageFactoryProtocol]":
         """根据 message_version 从注册表获取对应的消息工厂类。"""
         from app.core.entity.factory.factory_registry import get_factory_by_version

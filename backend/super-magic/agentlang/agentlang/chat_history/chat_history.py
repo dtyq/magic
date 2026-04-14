@@ -240,6 +240,7 @@ class ChatHistory:
             "video_model_id": None,
             "video_generation_config": None,
             "mcp_servers": None,
+            "message_version": None,
         }
 
     def _load_session_document(self) -> Dict[str, Any]:
@@ -300,6 +301,21 @@ class ChatHistory:
             "mcp_servers": None,
         }
 
+    def get_last_message_version(self) -> Optional[str]:
+        """
+        获取上次保存的 message_version（读取 current 块）。
+
+        Returns:
+            Optional[str]: 上次保存的 message_version，不存在时返回 None
+        """
+        try:
+            current_config = self._load_session_document().get("current", {})
+            if isinstance(current_config, dict):
+                return current_config.get("message_version") or None
+        except Exception as e:
+            logger.debug(f"读取 message_version 失败: {e}")
+        return None
+
     def save_session_config(
         self,
         model_id: Optional[str],
@@ -307,7 +323,8 @@ class ChatHistory:
         image_model_sizes: Optional[List[Dict[str, Any]]] = None,
         video_model_id: Optional[str] = None,
         video_generation_config: Optional[Dict[str, Any]] = None,
-        mcp_servers: Optional[Dict[str, List[str]]] = None
+        mcp_servers: Optional[Dict[str, List[str]]] = None,
+        message_version: Optional[str] = None,
     ) -> None:
         """
         保存当前会话配置。
@@ -324,6 +341,7 @@ class ChatHistory:
             video_model_id: 当前使用的视频生成模型 ID
             video_generation_config: 当前视频生成模型 featured 配置
             mcp_servers: 当前可用的 MCP 服务器及其工具列表
+            message_version: 当前消息版本号，如 "v1"、"v2"
         """
         try:
             current_config = {
@@ -332,7 +350,8 @@ class ChatHistory:
                 "image_model_sizes": image_model_sizes,
                 "video_model_id": video_model_id,
                 "video_generation_config": video_generation_config,
-                "mcp_servers": mcp_servers
+                "mcp_servers": mcp_servers,
+                "message_version": message_version,
             }
             existing_config = self._load_session_document()
             last_config = existing_config.get("current", {})
@@ -341,7 +360,8 @@ class ChatHistory:
             self._save_session_document(existing_config)
             logger.debug(
                 f"会话配置已保存: current model_id={model_id}, image_model_id={image_model_id}, "
-                f"video_model_id={video_model_id}, mcp_servers={len(mcp_servers) if mcp_servers else 0} servers"
+                f"video_model_id={video_model_id}, mcp_servers={len(mcp_servers) if mcp_servers else 0} servers, "
+                f"message_version={message_version}"
             )
         except Exception as e:
             logger.warning(f"保存会话配置失败: {e}")
