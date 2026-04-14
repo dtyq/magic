@@ -93,7 +93,7 @@ class BillingTierItem extends AbstractTokenPricingValueObject
                 $this->throwInvalidPricing();
             }
 
-            if ($followValue < $min) {
+            if ($followValue <= $min) {
                 continue;
             }
 
@@ -167,11 +167,11 @@ class BillingTierItem extends AbstractTokenPricingValueObject
                 $this->throwInvalidPricing();
             }
 
-            if ($previousMax !== null && $min !== $previousMax + 1) {
+            if ($previousMax !== null && $min !== $previousMax) {
                 $this->throwInvalidPricing();
             }
 
-            if ($max !== null && $max < $min) {
+            if ($max !== null && $max <= $min) {
                 $this->throwInvalidPricing();
             }
 
