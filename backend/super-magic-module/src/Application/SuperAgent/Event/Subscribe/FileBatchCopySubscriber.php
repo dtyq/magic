@@ -409,11 +409,7 @@ class FileBatchCopySubscriber extends ConsumerMessage
         int $targetParentId,
         string $targetOrganizationCode
     ): void {
-        $this->magicFSFileDomainService->syncTreeAfterExternalCopy(
-            $copiedFileEntity->getFileId(),
-            $targetParentId,
-            $targetOrganizationCode
-        );
+        $this->taskFileDomainService->syncVersionAfterExternalCopy($targetParentId);
     }
 
     /**

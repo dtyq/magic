@@ -66,7 +66,6 @@ use Dtyq\SuperMagic\Domain\Skill\Repository\Persistence\UserSkillRepository;
 use Dtyq\SuperMagic\Domain\SuperAgent\Repository\Facade\AudioMarkerRepositoryInterface;
 use Dtyq\SuperMagic\Domain\SuperAgent\Repository\Facade\AudioProjectRepositoryInterface;
 use Dtyq\SuperMagic\Domain\SuperAgent\Repository\Facade\BatchDownloadPackRepositoryInterface;
-use Dtyq\SuperMagic\Domain\SuperAgent\Repository\Facade\FileTreeIndexRepositoryInterface;
 use Dtyq\SuperMagic\Domain\SuperAgent\Repository\Facade\MessageQueueRepositoryInterface;
 use Dtyq\SuperMagic\Domain\SuperAgent\Repository\Facade\MessageScheduleLogRepositoryInterface;
 use Dtyq\SuperMagic\Domain\SuperAgent\Repository\Facade\MessageScheduleRepositoryInterface;
@@ -86,7 +85,6 @@ use Dtyq\SuperMagic\Domain\SuperAgent\Repository\Facade\WorkspaceRepositoryInter
 use Dtyq\SuperMagic\Domain\SuperAgent\Repository\Facade\WorkspaceVersionRepositoryInterface;
 use Dtyq\SuperMagic\Domain\SuperAgent\Repository\Persistence\AudioMarkerRepository;
 use Dtyq\SuperMagic\Domain\SuperAgent\Repository\Persistence\AudioProjectRepository;
-use Dtyq\SuperMagic\Domain\SuperAgent\Repository\Persistence\FileTreeIndexRepository;
 use Dtyq\SuperMagic\Domain\SuperAgent\Repository\Persistence\MessageQueueRepository;
 use Dtyq\SuperMagic\Domain\SuperAgent\Repository\Persistence\MessageScheduleLogRepository;
 use Dtyq\SuperMagic\Domain\SuperAgent\Repository\Persistence\MessageScheduleRepository;
@@ -174,7 +172,6 @@ class ConfigProvider
                 WorkspaceRepositoryInterface::class => WorkspaceRepository::class,
                 TaskMessageRepositoryInterface::class => TaskMessageRepository::class,
                 ProjectRepositoryInterface::class => ProjectRepository::class,
-                FileTreeIndexRepositoryInterface::class => FileTreeIndexRepository::class,
                 ProjectOperationLogRepositoryInterface::class => ProjectOperationLogRepository::class,
                 ProjectOperationLogDomainService::class => ProjectOperationLogDomainService::class,
                 SandboxInterface::class => SandboxService::class,

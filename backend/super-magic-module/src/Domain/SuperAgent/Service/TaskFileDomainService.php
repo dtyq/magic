@@ -29,7 +29,6 @@ use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\SandboxFileNotification
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\StorageType;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\TaskFileSource;
 use Dtyq\SuperMagic\Domain\SuperAgent\Event\AttachmentsProcessedEvent;
-use Dtyq\SuperMagic\Domain\SuperAgent\Repository\Facade\FileTreeIndexRepositoryInterface;
 use Dtyq\SuperMagic\Domain\SuperAgent\Repository\Facade\ProjectForkRepositoryInterface;
 use Dtyq\SuperMagic\Domain\SuperAgent\Repository\Facade\ProjectRepositoryInterface;
 use Dtyq\SuperMagic\Domain\SuperAgent\Repository\Facade\TaskFileRepositoryInterface;
@@ -81,7 +80,6 @@ class TaskFileDomainService
         protected CloudFileRepositoryInterface $cloudFileRepository,
         protected ProjectRepositoryInterface $projectRepository,
         protected ProjectForkRepositoryInterface $projectForkRepository,
-        protected FileTreeIndexRepositoryInterface $fileTreeIndexRepository,
         protected SandboxGatewayInterface $sandboxGateway,
         protected LockerInterface $locker,
         protected TaskFileVersionRepositoryInterface $taskFileVersionRepository,
@@ -545,12 +543,6 @@ class TaskFileDomainService
             $unboundFileIds,
             $projectEntity->getId(),
             $parentId
-        );
-
-        $this->initializeBoundFileTreeIndexes(
-            $unboundFileIds,
-            $parentId,
-            $dataIsolation->getCurrentOrganizationCode()
         );
 
         return true;
@@ -1224,10 +1216,6 @@ class TaskFileDomainService
                     ExceptionBuilder::throw(SuperAgentErrorCode::FILE_EXIST, trans('file.file_exist'));
                 }
 
-                $this->fileTreeIndexRepository->deleteNodeIndexes(
-                    $existingTargetFile->getFileId(),
-                    $existingTargetFile->getOrganizationCode()
-                );
                 $this->taskFileRepository->deleteById($existingTargetFile->getFileId());
 
                 $this->logger->info('Deleted existing target file before move', [
@@ -1361,10 +1349,6 @@ class TaskFileDomainService
                     ExceptionBuilder::throw(SuperAgentErrorCode::FILE_EXIST, trans('file.file_exist'));
                 }
 
-                $this->fileTreeIndexRepository->deleteNodeIndexes(
-                    $existingTargetFile->getFileId(),
-                    $existingTargetFile->getOrganizationCode()
-                );
                 $this->taskFileRepository->deleteById($existingTargetFile->getFileId());
 
                 $this->logger->info('Deleted existing target file before copy', [
@@ -1819,11 +1803,6 @@ class TaskFileDomainService
         $rootDir = $this->findDirectoryByParentIdAndName(null, '/', $projectId);
 
         if ($rootDir !== null) {
-            $this->fileTreeIndexRepository->createNodeIndexes(
-                $rootDir->getFileId(),
-                null,
-                $rootDir->getOrganizationCode() ?: $organizationCode
-            );
             return $rootDir->getFileId();
         }
         $fullPrefix = $this->getFullPrefix($projectOrganizationCode);
@@ -1858,13 +1837,36 @@ class TaskFileDomainService
 
         $rootDirEntity = $this->insertOrUpdate($rootDirEntity);
 
-        $this->fileTreeIndexRepository->createNodeIndexes(
-            $rootDirEntity->getFileId(),
-            null,
-            $rootDirEntity->getOrganizationCode()
-        );
-
         return $rootDirEntity->getFileId();
+    }
+
+    /**
+     * 外部移动操作后同步父目录链的元数据版本号.
+     *
+     * @param ?int $oldParentId 原父目录ID
+     * @param int $newParentId 新父目录ID
+     */
+    public function syncVersionAfterExternalMove(?int $oldParentId, int $newParentId): void
+    {
+        if ($oldParentId === $newParentId) {
+            return;
+        }
+
+        $magicFS = $this->getMagicFSFileDomainService();
+        if ($oldParentId !== null) {
+            $magicFS->incrementVersionChain((string) $oldParentId);
+        }
+        $magicFS->incrementVersionChain((string) $newParentId);
+    }
+
+    /**
+     * 外部复制操作后同步目标父目录链的元数据版本号.
+     *
+     * @param int $targetParentId 目标父目录ID
+     */
+    public function syncVersionAfterExternalCopy(int $targetParentId): void
+    {
+        $this->getMagicFSFileDomainService()->incrementVersionChain((string) $targetParentId);
     }
 
     /**
@@ -2926,28 +2928,6 @@ class TaskFileDomainService
     private function getMagicFSFileDomainService(): MagicFSFileDomainService
     {
         return di(MagicFSFileDomainService::class);
-    }
-
-    /**
-     * 为绑定到项目的文件补齐闭包表索引。
-     *
-     * 说明：
-     * - 根目录需要先存在 self 索引，子节点才能建立 ancestor->descendant 关系
-     * - createNodeIndexes 已做幂等补全，重复调用不会报唯一键冲突
-     *
-     * @param array<int> $fileIds
-     */
-    private function initializeBoundFileTreeIndexes(array $fileIds, int $parentId, string $organizationCode): void
-    {
-        if (empty($fileIds)) {
-            return;
-        }
-
-        $this->fileTreeIndexRepository->createNodeIndexes($parentId, null, $organizationCode);
-
-        foreach ($fileIds as $fileId) {
-            $this->fileTreeIndexRepository->createNodeIndexes((int) $fileId, $parentId, $organizationCode);
-        }
     }
 
     private function findDirectChildByName(

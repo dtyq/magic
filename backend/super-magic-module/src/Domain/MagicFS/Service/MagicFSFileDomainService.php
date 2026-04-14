@@ -17,7 +17,6 @@ use Dtyq\SuperMagic\Domain\SuperAgent\Entity\TaskFileEntity;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\FileType;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\StorageType;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\TaskFileSource;
-use Dtyq\SuperMagic\Domain\SuperAgent\Repository\Facade\FileTreeIndexRepositoryInterface;
 use Dtyq\SuperMagic\Domain\SuperAgent\Repository\Facade\ProjectRepositoryInterface;
 use Dtyq\SuperMagic\Domain\SuperAgent\Repository\Facade\TaskFileRepositoryInterface;
 use Dtyq\SuperMagic\Domain\SuperAgent\Repository\Facade\TaskRepositoryInterface;
@@ -39,7 +38,6 @@ class MagicFSFileDomainService
         protected TaskRepositoryInterface $taskRepository,
         protected CloudFileRepositoryInterface $cloudFileRepository,
         protected ProjectRepositoryInterface $projectRepository,
-        protected FileTreeIndexRepositoryInterface $fileTreeIndexRepository,
         protected LockerInterface $locker,
         LoggerFactory $loggerFactory,
     ) {
@@ -92,11 +90,6 @@ class MagicFSFileDomainService
         $rootDir = $this->taskFileRepository->findRootDirectoryByProjectId($projectId);
 
         if ($rootDir !== null) {
-            $this->fileTreeIndexRepository->createNodeIndexes(
-                $rootDir->getFileId(),
-                null,
-                $rootDir->getOrganizationCode() ?: $organizationCode
-            );
             return $rootDir->getFileId();
         }
 
@@ -139,14 +132,6 @@ class MagicFSFileDomainService
 
         // 4. 保存到数据库
         $rootDirEntity = $this->taskFileRepository->insert($rootDirEntity);
-
-        // 5. 根目录需要维护 self 索引，供子节点建立祖先链
-
-        $this->fileTreeIndexRepository->createNodeIndexes(
-            $rootDirEntity->getFileId(),
-            null,
-            $rootDirEntity->getOrganizationCode()
-        );
 
         return $rootDirEntity->getFileId();
     }
@@ -331,13 +316,6 @@ class MagicFSFileDomainService
         // 12. 保存到数据库
         $entity = $this->taskFileRepository->insert($entity);
 
-        // 12.1. 创建闭包表索引
-        $this->fileTreeIndexRepository->createNodeIndexes(
-            $entity->getFileId(),
-            $parentIdInt,
-            $organizationCode
-        );
-
         // 13. 更新父节点链的版本号（创建新节点影响父目录）
         if ($parentId !== '' && $parentId !== '0') {
             $this->incrementVersionChain($parentId);
@@ -516,31 +494,15 @@ class MagicFSFileDomainService
                 : $this->taskFileRepository->updateById($fileEntity);
 
             if ($isNewFile) {
-                $this->fileTreeIndexRepository->createNodeIndexes(
-                    $savedEntity->getFileId(),
-                    $parentId,
-                    $savedEntity->getOrganizationCode()
-                );
                 $this->incrementVersionChain((string) $parentId);
             } else {
                 $parentChanged = $oldParentId !== $parentId;
                 if ($parentChanged) {
-                    $this->fileTreeIndexRepository->moveNode(
-                        $savedEntity->getFileId(),
-                        $oldParentId,
-                        $parentId,
-                        $savedEntity->getOrganizationCode()
-                    );
                     if ($oldParentId !== null) {
                         $this->incrementVersionChain((string) $oldParentId);
                     }
                     $this->incrementVersionChain((string) $parentId);
                 } else {
-                    $this->fileTreeIndexRepository->createNodeIndexes(
-                        $savedEntity->getFileId(),
-                        $parentId,
-                        $savedEntity->getOrganizationCode()
-                    );
                     $this->incrementVersionChain((string) $savedEntity->getFileId());
                 }
             }
@@ -730,16 +692,6 @@ class MagicFSFileDomainService
         // 6. 执行更新
         $updatedFile = $this->taskFileRepository->updateById($file);
 
-        // 6.1. 如果 parent_id 发生变化，更新闭包表
-        if ($parentChanged) {
-            $this->fileTreeIndexRepository->moveNode(
-                (int) $fileId,
-                $oldParentId,
-                $newParentIdInt,
-                $file->getOrganizationCode()
-            );
-        }
-
         // 7. 版本更新逻辑
         if ($parentChanged) {
             // 移动文件：更新原父目录和新父目录的版本链
@@ -756,15 +708,13 @@ class MagicFSFileDomainService
 
         // 8. If is_hidden changed and the node is a directory, batch update all descendants
         if ($hiddenChanged && $file->getIsDirectory()) {
-            $descendantIds = $this->fileTreeIndexRepository->getDescendantIds(
+            $descendantIds = $this->taskFileRepository->getAllDescendantIds(
                 (int) $fileId,
-                $file->getOrganizationCode(),
-                null,
-                false
+                $file->getProjectId()
             );
             if (! empty($descendantIds)) {
                 $this->taskFileRepository->batchUpdateIsHidden(
-                    array_map('intval', $descendantIds),
+                    $descendantIds,
                     $file->getIsHidden()
                 );
             }
@@ -795,21 +745,18 @@ class MagicFSFileDomainService
         // 2. 构建删除集合（目录默认递归删除所有未软删除子孙）
         $deleteIds = [$rootFileId];
         if ($isDirectory && $recursive) {
-            $descendantIds = $this->fileTreeIndexRepository->getDescendantIds(
+            $descendantIds = $this->taskFileRepository->getAllDescendantIds(
                 $rootFileId,
-                $organizationCode,
-                null,
-                false
+                $file->getProjectId()
             );
             if (! empty($descendantIds)) {
-                $deleteIds = array_values(array_unique(array_merge($deleteIds, array_map('intval', $descendantIds))));
+                $deleteIds = array_values(array_unique(array_merge($deleteIds, $descendantIds)));
             }
         }
 
         $deletedCount = count($deleteIds);
 
-        // 3. 批量软删除（不物理删除记录，不清理 file_tree_indexes）
-        // 闭包表的清理由回收站清理任务统一处理
+        // 3. 批量软删除
         $this->taskFileRepository->deleteByIds($deleteIds, false);
 
         // 4. 更新父节点链的版本号（删除节点影响父目录）
@@ -818,11 +765,6 @@ class MagicFSFileDomainService
         }
 
         // Event dispatching is handled by the application layer after this method returns.
-
-        // 6. 关于资源清理
-        // - file_tree_indexes: 不在此处清理，会在清理回收站时统一处理
-        // - S3 对象: 由后台任务处理
-        // TODO: 可能需要触发 S3 删除事件或任务
 
         return $deletedCount;
     }
@@ -869,19 +811,15 @@ class MagicFSFileDomainService
         // 3. 批量软删除文件（1次SQL）
         $this->taskFileRepository->deleteByIds($fileIdInts, false);
 
-        // 4. 批量更新父节点链的版本号（优化：使用 Repository 批量查询祖先节点）
+        // 4. 批量更新父节点链的版本号（通过 parent_id 遍历父链）
         if (! empty($parentIds)) {
-            // 4.1 获取 organization_code（假设所有文件在同一组织下）
-            $organizationCode = $files[0]->getOrganizationCode();
-
-            // 4.2 批量获取所有父节点的祖先节点ID（包括父节点本身，已自动去重）
             $parentIdArray = array_keys($parentIds);
-            $allAncestorIds = $this->fileTreeIndexRepository->getAllAncestorIdsFlattened(
-                $parentIdArray,
-                $organizationCode
+            $ancestorEntities = $this->taskFileRepository->getFilesWithParentsByIds($parentIdArray);
+            $allAncestorIds = array_map(
+                fn ($entity) => $entity->getFileId(),
+                $ancestorEntities
             );
 
-            // 4.3 一次性批量更新所有节点的版本号
             if (! empty($allAncestorIds)) {
                 $this->taskFileRepository->incrementMetadataVersionByIds($allAncestorIds);
             }
@@ -912,71 +850,18 @@ class MagicFSFileDomainService
      */
     public function incrementVersionChain(string $fileId): void
     {
-        // 1. 获取文件信息
-        $file = $this->taskFileRepository->getById((int) $fileId);
-        if ($file === null) {
+        // 通过 parent_id 链遍历所有祖先节点（包括自己）
+        $ancestorEntities = $this->taskFileRepository->getFilesWithParentsByIds([(int) $fileId]);
+        if (empty($ancestorEntities)) {
             return;
         }
 
-        // 2. 使用闭包表查询所有祖先节点ID（包括自己）
-        $ancestorIds = $this->fileTreeIndexRepository->getAncestorIds(
-            (int) $fileId,
-            $file->getOrganizationCode()
+        $ancestorIds = array_map(
+            fn ($entity) => $entity->getFileId(),
+            $ancestorEntities
         );
 
-        // 包含节点自己
-        $ancestorIds[] = (int) $fileId;
-
-        // 3. 批量更新所有祖先节点的版本号
         $this->taskFileRepository->incrementMetadataVersionByIds($ancestorIds);
-    }
-
-    /**
-     * Sync tree index and metadata version after move is executed outside MagicFS domain.
-     *
-     * Used by application/subscriber orchestrations that delegate DB/S3 move logic to other domains.
-     */
-    public function syncTreeAfterExternalMove(
-        int $fileId,
-        ?int $oldParentId,
-        int $newParentId,
-        string $sourceOrganizationCode,
-        string $targetOrganizationCode
-    ): void {
-        $crossOrganization = $sourceOrganizationCode !== $targetOrganizationCode;
-        $parentChanged = $oldParentId !== $newParentId;
-
-        if (! $crossOrganization && ! $parentChanged) {
-            return;
-        }
-
-        if ($crossOrganization) {
-            $this->fileTreeIndexRepository->deleteNodeIndexes($fileId, $sourceOrganizationCode);
-            $this->fileTreeIndexRepository->createNodeIndexes($fileId, $newParentId, $targetOrganizationCode);
-        } else {
-            $this->fileTreeIndexRepository->moveNode($fileId, $oldParentId, $newParentId, $sourceOrganizationCode);
-        }
-
-        if ($oldParentId !== null) {
-            $this->incrementVersionChain((string) $oldParentId);
-        }
-        if ($newParentId !== $oldParentId) {
-            $this->incrementVersionChain((string) $newParentId);
-        }
-    }
-
-    /**
-     * Sync tree index and metadata version after copy is executed outside MagicFS domain.
-     *
-     * Used by application/subscriber orchestrations that delegate DB/S3 copy logic to other domains.
-     */
-    public function syncTreeAfterExternalCopy(
-        int $fileId,
-        int $targetParentId,
-        string $targetOrganizationCode
-    ): void {
-        $this->fileTreeIndexRepository->createNodeIndexes($fileId, $targetParentId, $targetOrganizationCode);
-        $this->incrementVersionChain((string) $targetParentId);
     }
 
     /**
@@ -1288,14 +1173,7 @@ class MagicFSFileDomainService
         // 12. 保存到数据库
         $newFileEntity = $this->taskFileRepository->insert($newFileEntity);
 
-        // 13. 创建闭包表索引
-        $this->fileTreeIndexRepository->createNodeIndexes(
-            $newFileEntity->getFileId(),
-            $targetParentIdInt,
-            $organizationCode
-        );
-
-        // 14. 更新目标父节点链的版本号（新增文件影响父目录）
+        // 13. 更新目标父节点链的版本号（新增文件影响父目录）
         if ($targetParentIdInt !== null) {
             $this->incrementVersionChain((string) $targetParentIdInt);
         }
@@ -1563,7 +1441,7 @@ class MagicFSFileDomainService
     }
 
     /**
-     * 使用闭包表查询获取所有子文件.
+     * 获取所有子文件（通过 parent_id BFS 遍历）.
      *
      * @param int $projectId 项目ID
      * @param string $parentId 父文件ID
@@ -1579,26 +1457,17 @@ class MagicFSFileDomainService
         int $currentDepth = 0,
         ?string $storageType = null
     ): array {
-        // 1. 获取根文件的 organization_code
-        $rootFile = $this->taskFileRepository->getById((int) $parentId);
-        if ($rootFile === null) {
-            return [];
-        }
-        $organizationCode = $rootFile->getOrganizationCode();
-
-        // 2. 使用闭包表查询所有子孙节点ID
-        $descendantIds = $this->fileTreeIndexRepository->getDescendantIds(
+        $maxDepthParam = $maxDepth !== -1 ? $maxDepth : 100;
+        $descendantIds = $this->taskFileRepository->getAllDescendantIds(
             (int) $parentId,
-            $organizationCode,
-            $maxDepth !== -1 ? $maxDepth : null  // 传入深度限制
+            $projectId,
+            $maxDepthParam
         );
 
-        // 3. 如果没有子孙节点，直接返回空数组
         if (empty($descendantIds)) {
             return [];
         }
 
-        // 4. 批量查询所有子孙节点的文件信息（支持 storageType 过滤，在 DB 层完成）
         return $this->taskFileRepository->getFilesByIds(
             $descendantIds,
             $projectId,

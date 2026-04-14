@@ -414,6 +414,17 @@ interface TaskFileRepositoryInterface
     public function getAllChildrenFileIdsByDirectoryIds(array $directoryIds, int $projectId, int $maxDepth = 10): array;
 
     /**
+     * 获取目录下所有后代节点的ID（包含文件和目录）.
+     * 使用广度优先遍历 parent_id 链，逐层查询。
+     *
+     * @param int $parentId 父目录ID
+     * @param int $projectId 项目ID（0 表示不限制项目）
+     * @param int $maxDepth 最大递归深度
+     * @return array<int> 所有后代节点的 file_id 数组
+     */
+    public function getAllDescendantIds(int $parentId, int $projectId = 0, int $maxDepth = 100): array;
+
+    /**
      * Transfer ownership of all files in a project.
      *
      * Updates the user_id field for all files belonging to a project.

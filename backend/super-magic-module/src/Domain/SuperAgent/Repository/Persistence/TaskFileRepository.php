@@ -1409,6 +1409,40 @@ class TaskFileRepository implements TaskFileRepositoryInterface
         return array_unique($allChildFileIds);
     }
 
+    public function getAllDescendantIds(int $parentId, int $projectId = 0, int $maxDepth = 100): array
+    {
+        $allIds = [];
+        $currentLevelParentIds = [$parentId];
+
+        for ($depth = 0; $depth < $maxDepth && ! empty($currentLevelParentIds); ++$depth) {
+            $query = $this->model::query()
+                ->whereIn('parent_id', $currentLevelParentIds)
+                ->whereNull('deleted_at');
+
+            if ($projectId > 0) {
+                $query->where('project_id', $projectId);
+            }
+
+            $children = $query->get(['file_id', 'is_directory']);
+
+            if ($children->isEmpty()) {
+                break;
+            }
+
+            $nextLevelParentIds = [];
+            foreach ($children as $child) {
+                $allIds[] = (int) $child->file_id;
+                if ($child->is_directory) {
+                    $nextLevelParentIds[] = (int) $child->file_id;
+                }
+            }
+
+            $currentLevelParentIds = $nextLevelParentIds;
+        }
+
+        return $allIds;
+    }
+
     /**
      * Transfer ownership of all files in a project.
      */

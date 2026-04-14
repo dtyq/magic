@@ -659,13 +659,7 @@ class FileBatchMoveSubscriber extends ConsumerMessage
             return;
         }
 
-        $this->magicFSFileDomainService->syncTreeAfterExternalMove(
-            $sourceFileEntity->getFileId(),
-            $oldParentId,
-            $targetParentId,
-            $sourceOrganizationCode,
-            $targetOrganizationCode
-        );
+        $this->taskFileDomainService->syncVersionAfterExternalMove($oldParentId, $targetParentId);
     }
 
     private function getFileEntityForCache(int $fileId): ?TaskFileEntity
