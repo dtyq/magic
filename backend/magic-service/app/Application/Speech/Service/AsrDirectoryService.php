@@ -16,7 +16,6 @@ use App\ErrorCode\AsrErrorCode;
 use App\Infrastructure\Core\Exception\ExceptionBuilder;
 use App\Infrastructure\Core\Traits\HasLogger;
 use Dtyq\SuperMagic\Application\SuperAgent\Service\AbstractAppService;
-use Dtyq\SuperMagic\Domain\MagicFS\Service\MagicFSFileDomainService;
 use Dtyq\SuperMagic\Domain\SuperAgent\Service\TaskFileDomainService;
 use Hyperf\Contract\TranslatorInterface;
 use Throwable;
@@ -31,7 +30,6 @@ class AsrDirectoryService extends AbstractAppService
 
     public function __construct(
         private readonly TaskFileDomainService $taskFileDomainService,
-        private readonly MagicFSFileDomainService $magicFSFileDomainService,
         private readonly TranslatorInterface $translator,
     ) {
     }
@@ -377,11 +375,6 @@ class AsrDirectoryService extends AbstractAppService
             // 5. 插入或忽略
             $result = $this->taskFileDomainService->insertOrIgnore($taskFileEntity);
             if ($result !== null) {
-                $this->magicFSFileDomainService->syncTreeAfterExternalCopy(
-                    $result->getFileId(),
-                    $rootDirectoryId,
-                    $organizationCode
-                );
                 return new AsrRecordingDirectoryDTO(
                     $relativePath,
                     $result->getFileId(),
