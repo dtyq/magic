@@ -8,7 +8,8 @@ from agentlang.context.tool_context import ToolContext
 from app.core.entity.message.server_message import ToolDetail, DisplayType, FileContent
 from agentlang.tools.tool_result import ToolResult
 from agentlang.logger import get_logger
-from app.tools.core import BaseTool, BaseToolParams, tool
+from app.tools.core import BaseToolParams, tool
+from app.tools.workspace_tool import WorkspaceTool
 from app.core.ai_abilities import get_visual_understanding_model_id
 
 # Import utilities from visual_understanding_utils
@@ -42,7 +43,7 @@ Question or analysis requirements about images, needs to be thorough and accurat
 
 
 @tool()
-class VisualUnderstanding(BaseTool[VisualUnderstandingParams]):
+class VisualUnderstanding(WorkspaceTool[VisualUnderstandingParams]):
     """<!--zh
     视觉理解工具：调用AI视觉专家来查看、读取、分析或解释图片内容。
     视觉专家无法得知你所知晓的上下文，因此需要提供必要且充足的背景与需求信息。
@@ -131,6 +132,11 @@ class VisualUnderstanding(BaseTool[VisualUnderstandingParams]):
         Returns:
             ToolResult: 包含视觉理解结果的工具结果
         """
+        import re
+        params.images = [
+            str(self.resolve_path(img)) if not re.match(r'^https?://', img) else img
+            for img in params.images
+        ]
         return await self.execute_purely(params)
 
     async def execute_purely(
