@@ -108,9 +108,12 @@ class ModelAuditReadyBridgeSubscriber implements ListenerInterface
             (string) ($businessParams['app_id'] ?? $event->getAppId()),
             (string) ($businessParams['source_id'] ?? ''),
             (string) ($businessParams['service_provider_model_id'] ?? $event->getServiceProviderModelId()),
-            [
-                'original_model_id' => (string) ($businessParams['original_model_id'] ?? $event->getModelId()),
-            ],
+            InvocationDetailInfo::withFailureReason(
+                [
+                    'original_model_id' => (string) ($businessParams['original_model_id'] ?? $event->getModelId()),
+                ],
+                (string) ($businessParams['failure_reason'] ?? ''),
+            ),
         );
 
         AsyncEventUtil::dispatch(new ModelAuditReadyEvent(
@@ -156,17 +159,21 @@ class ModelAuditReadyBridgeSubscriber implements ListenerInterface
             'request_id' => trim((string) ($bp['request_id'] ?? '')),
         ]);
 
+        $outcome = (string) ($bp['outcome'] ?? 'success');
+        $extras = [
+            'chain' => $chain,
+            'original_model_id' => (string) ($bp['original_model_id'] ?? ''),
+        ];
+        if ($this->mapOutcomeToAuditStatus($outcome) === AuditStatus::FAIL) {
+            $extras = InvocationDetailInfo::withFailureReason($extras, (string) ($bp['failure_reason'] ?? ''));
+        }
         $detailInfo = InvocationDetailInfo::forModel(
             (string) ($bp['app_id'] ?? ''),
             (string) ($bp['source_id'] ?? ''),
             (string) ($bp['provider_model_id'] ?? ''),
-            [
-                'chain' => $chain,
-                'original_model_id' => (string) ($bp['original_model_id'] ?? ''),
-            ],
+            $extras,
         );
 
-        $outcome = (string) ($bp['outcome'] ?? 'success');
         $usage = strtolower($outcome) === 'success' ? ['count' => (int) ($bp['image_count'] ?? 0)] : [];
 
         AsyncEventUtil::dispatch(new ModelAuditReadyEvent(
@@ -208,10 +215,13 @@ class ModelAuditReadyBridgeSubscriber implements ListenerInterface
             (string) ($bp['app_id'] ?? ''),
             (string) ($bp['source_id'] ?? ''),
             $event->getProviderModelId(),
-            [
-                'chain' => $chain,
-                'original_model_id' => (string) ($bp['original_model_id'] ?? ''),
-            ],
+            InvocationDetailInfo::withFailureReason(
+                [
+                    'chain' => $chain,
+                    'original_model_id' => (string) ($bp['original_model_id'] ?? ''),
+                ],
+                (string) ($bp['failure_reason'] ?? ''),
+            ),
         );
 
         AsyncEventUtil::dispatch(new ModelAuditReadyEvent(
@@ -289,7 +299,10 @@ class ModelAuditReadyBridgeSubscriber implements ListenerInterface
             (string) ($bp['app_id'] ?? ''),
             (string) ($bp['source_id'] ?? ''),
             $event->getProviderModelId(),
-            ['original_model_id' => $originalModelId],
+            InvocationDetailInfo::withFailureReason(
+                ['original_model_id' => $originalModelId],
+                (string) ($bp['failure_reason'] ?? ''),
+            ),
         );
 
         AsyncEventUtil::dispatch(new ModelAuditReadyEvent(
@@ -327,14 +340,19 @@ class ModelAuditReadyBridgeSubscriber implements ListenerInterface
             'request_id' => trim((string) ($businessParams['request_id'] ?? '')),
         ]);
 
+        $outcome = (string) ($businessParams['outcome'] ?? '');
+        $extras = [];
+        if ($this->mapOutcomeToAuditStatus($outcome) === AuditStatus::FAIL) {
+            $extras = InvocationDetailInfo::withFailureReason([], (string) ($businessParams['failure_reason'] ?? ''));
+        }
         $detailInfo = InvocationDetailInfo::forTool(
             (string) ($businessParams['app_id'] ?? ''),
             (string) ($businessParams['source_id'] ?? ''),
             $engineName,
             (string) ($businessParams['query'] ?? ''),
+            $extras,
         );
 
-        $outcome = (string) ($businessParams['outcome'] ?? '');
         $usage = strtolower($outcome) === 'success' ? ['count' => 1] : [];
 
         AsyncEventUtil::dispatch(new ModelAuditReadyEvent(

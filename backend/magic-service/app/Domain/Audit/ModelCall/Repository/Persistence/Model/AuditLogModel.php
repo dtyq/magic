@@ -27,7 +27,7 @@ use Hyperf\Snowflake\Concern\Snowflake;
  * @property int $operation_time 操作时间戳(毫秒)
  * @property int $all_latency 总延时(毫秒)
  * @property int $first_response_latency 首次响应延时TTFT(毫秒)，仅流式有值
- * @property array $usage 花费信息
+ * @property null|array $usage 花费信息（占位插入仅写 points 时可为 null）
  * @property null|array $detail_info 详情信息
  * @property null|string $access_scope 访问范围 api_platform / magic
  * @property null|string $magic_topic_id Magic 话题 ID
@@ -42,13 +42,6 @@ class AuditLogModel extends Model
     use Snowflake;
 
     protected ?string $table = 'magic_model_audit_logs';
-
-    /**
-     * 新建行默认值：recordPointsByEventId 使用 updateOrCreate 仅写 points 时，避免 usage JSON 非空约束失败，且更新已有行时不会用 fill 覆盖未出现在数组中的列.
-     */
-    protected array $attributes = [
-        'usage' => '[]',
-    ];
 
     protected array $fillable = [
         'id',

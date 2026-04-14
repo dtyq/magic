@@ -275,7 +275,7 @@ readonly class VideoOperationAppService
         $accessTokenType = $accessTokenEntity === null ? '' : $accessTokenEntity->getType()->value;
         $providerName = $operation->getAuditProviderName();
 
-        return [
+        $params = [
             'event_id' => (string) IdGenerator::getSnowId(),
             'model_id' => $operation->getModel(),
             'model_version' => $operation->getModelVersion(),
@@ -297,6 +297,13 @@ readonly class VideoOperationAppService
             'access_token_name' => $accessTokenName,
             'access_token_type' => $accessTokenType,
         ];
+        if ($outcome === 'FAIL') {
+            $msg = (string) $operation->getErrorMessage();
+            $code = (string) $operation->getErrorCode();
+            $params['failure_reason'] = $code !== '' ? "{$code}: {$msg}" : $msg;
+        }
+
+        return $params;
     }
 
     private function toTimestampMs(?string $time): int

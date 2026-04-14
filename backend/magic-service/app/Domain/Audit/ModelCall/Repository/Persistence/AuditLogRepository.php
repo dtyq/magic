@@ -8,6 +8,7 @@ declare(strict_types=1);
 namespace App\Domain\Audit\ModelCall\Repository\Persistence;
 
 use App\Domain\Audit\ModelCall\Entity\AuditLogEntity;
+use App\Domain\Audit\ModelCall\Entity\ValueObject\AuditType;
 use App\Domain\Audit\ModelCall\Repository\Facade\AuditLogRepositoryInterface;
 use App\Domain\Audit\ModelCall\Repository\Persistence\Model\AuditLogModel;
 use App\Domain\ModelGateway\Repository\Persistence\AbstractRepository;
@@ -91,6 +92,9 @@ class AuditLogRepository extends AbstractRepository implements AuditLogRepositor
 
         if (! empty($filters['type'])) {
             $builder->where('type', (string) $filters['type']);
+        } else {
+            // 列表默认不向量化噪音：未显式筛选 type 时排除 EMBEDDING；传 type=EMBEDDING 时仅上面分支精确查询
+            $builder->where('type', '!=', AuditType::EMBEDDING->value);
         }
         if (! empty($filters['status'])) {
             $builder->where('status', (string) $filters['status']);

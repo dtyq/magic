@@ -344,6 +344,7 @@ class LLMAppService extends AbstractLLMAppService
                 'source_id' => (string) ($data['source_id'] ?? ''),
                 'request_id' => (string) ($data['request_id'] ?? ''),
                 'event_id' => (string) IdGenerator::getSnowId(),
+                'failure_reason' => $exception->getMessage(),
             ]);
 
             AsyncEventUtil::dispatch($imageGenerateFailedEvent);
@@ -450,6 +451,7 @@ class LLMAppService extends AbstractLLMAppService
                 'source_id' => $reqDTO->getSourceId(),
                 'request_id' => (string) ($reqDTO->getRequestId() ?? ''),
                 'event_id' => (string) IdGenerator::getSnowId(),
+                'failure_reason' => $exception->getMessage(),
             ]);
 
             AsyncEventUtil::dispatch($imageGenerateFailedEvent);
@@ -851,7 +853,8 @@ class LLMAppService extends AbstractLLMAppService
                 $businessParams,
                 $startTime,
                 $adapter?->getEngineName() ?? '',
-                $invocationSuccessAudited
+                $invocationSuccessAudited,
+                $e->getMessage(),
             );
             // Re-throw business exceptions
             throw $e;
@@ -873,7 +876,8 @@ class LLMAppService extends AbstractLLMAppService
                 $businessParams,
                 $startTime,
                 $adapter?->getEngineName() ?? '',
-                $invocationSuccessAudited
+                $invocationSuccessAudited,
+                $e->getMessage(),
             );
 
             // 派发模型调用完成（失败）
@@ -1017,7 +1021,8 @@ class LLMAppService extends AbstractLLMAppService
                 $businessParams,
                 $startTime,
                 $adapter?->getEngineName() ?? '',
-                $invocationSuccessAudited
+                $invocationSuccessAudited,
+                $e->getMessage(),
             );
             // Re-throw business exceptions
             throw $e;
@@ -1038,7 +1043,8 @@ class LLMAppService extends AbstractLLMAppService
                 $businessParams,
                 $startTime,
                 $adapter?->getEngineName() ?? '',
-                $invocationSuccessAudited
+                $invocationSuccessAudited,
+                $e->getMessage(),
             );
 
             // 派发模型调用完成（失败）
@@ -1177,6 +1183,7 @@ class LLMAppService extends AbstractLLMAppService
             'ak' => StringMaskUtil::mask($textGenerateImageAccessTokenRaw),
             'access_token_type' => $accessTokenEntity->getType()->value,
             'event_id' => (string) IdGenerator::getSnowId(),
+            'failure_reason' => $errorMessage,
         ]);
 
         AsyncEventUtil::dispatch($imageGenerateFailedEvent);
@@ -1243,6 +1250,7 @@ class LLMAppService extends AbstractLLMAppService
         $callTime = date('Y-m-d H:i:s');
         $startTime = microtime(true);
         $imageGenerateService = ImageGenerateFactory::create($imageGenerateType, $imageModel->getConfig());
+        $imageEditFailureMessage = '';
         try {
             $imageGenerateRequest->setModel($imageModel->getModelVersion());
             $generateImageRaw = $imageGenerateService->generateImageRawWithWatermark($imageGenerateRequest);
@@ -1273,6 +1281,7 @@ class LLMAppService extends AbstractLLMAppService
                 return $generateImageRaw;
             }
         } catch (Exception $e) {
+            $imageEditFailureMessage = $e->getMessage();
             $this->logger->warning('text generate image error:' . $e->getMessage());
         }
 
@@ -1300,6 +1309,7 @@ class LLMAppService extends AbstractLLMAppService
             'ak' => StringMaskUtil::mask($imageEditAccessTokenRaw),
             'access_token_type' => $accessTokenEntity->getType()->value,
             'event_id' => (string) IdGenerator::getSnowId(),
+            'failure_reason' => $imageEditFailureMessage,
         ]);
 
         AsyncEventUtil::dispatch($imageGenerateFailedEvent);
@@ -1571,6 +1581,7 @@ class LLMAppService extends AbstractLLMAppService
                     $businessParams['model_version'] = $modelAttributes->getModelVersion();
                     $businessParams['provider_name'] = $modelAttributes->getProviderName();
                 }
+                $businessParams['failure_reason'] = $throwable->getMessage();
                 $chatUsageEvent = new ModelUsageEvent(
                     modelType: $proxyModelRequest->getType(),
                     modelId: $proxyModelRequest->getModel(),
@@ -2487,6 +2498,7 @@ class LLMAppService extends AbstractLLMAppService
         float $startTime,
         string $engineName,
         bool $invocationSuccessAudited,
+        string $failureReason,
     ): void {
         if ($invocationSuccessAudited) {
             return;
@@ -2512,6 +2524,7 @@ class LLMAppService extends AbstractLLMAppService
         $businessParams['organization_id'] = $modelGatewayDataIsolation->getCurrentOrganizationCode();
         $businessParams['user_id'] = $modelGatewayDataIsolation->getCurrentUserId();
         $businessParams['event_id'] = (string) IdGenerator::getSnowId();
+        $businessParams['failure_reason'] = $failureReason;
 
         AsyncEventUtil::dispatch(new WebSearchUsageEvent(
             $businessParams['engine'] ?? '',
@@ -2528,6 +2541,7 @@ class LLMAppService extends AbstractLLMAppService
         float $startTime,
         string $engineName,
         bool $invocationSuccessAudited,
+        string $failureReason,
     ): void {
         if ($invocationSuccessAudited) {
             return;
@@ -2553,6 +2567,7 @@ class LLMAppService extends AbstractLLMAppService
         $businessParams['organization_id'] = $modelGatewayDataIsolation->getCurrentOrganizationCode();
         $businessParams['user_id'] = $modelGatewayDataIsolation->getCurrentUserId();
         $businessParams['event_id'] = (string) IdGenerator::getSnowId();
+        $businessParams['failure_reason'] = $failureReason;
 
         AsyncEventUtil::dispatch(new ImageSearchUsageEvent(
             $businessParams['engine'] ?? '',

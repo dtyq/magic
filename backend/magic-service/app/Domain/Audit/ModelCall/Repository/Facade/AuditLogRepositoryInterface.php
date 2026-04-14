@@ -29,6 +29,7 @@ interface AuditLogRepositoryInterface
 
     /**
      * 查询审计日志列表.
+     * filters['type'] 未传或为空时，默认排除 type=EMBEDDING；传入 type（含 EMBEDDING）则按该值精确筛选.
      * @param array<string, mixed> $filters
      * @param string $currentOrganizationCode 当前登录组织编码
      * @param bool $isOfficialOrganization 是否官方组织
