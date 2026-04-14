@@ -120,15 +120,7 @@ class ImageGenerationAppService extends DesignAppService
     {
         $entity->setType(ImageGenerationType::ERASER);
 
-        $defaultPrompt = 'You are given two images. '
-            . 'The first image is the original photo. '
-            . 'The second image is a black-and-white mask where the white region indicates the area to be erased. '
-            . 'Your task: remove the content inside the white masked area from the original photo, '
-            . 'and fill that area with a realistic, seamless background inferred from the surrounding pixels. '
-            . 'The result should look natural, as if the erased object was never there. '
-            . 'Do not alter any part of the image outside the white masked region.';
-
-        [$modelId, $prompt] = $this->resolveAbilityModelAndPrompt(AiAbilityCode::ImageEraser, $defaultPrompt);
+        [$modelId, $prompt] = $this->resolveAbilityModelAndPrompt(AiAbilityCode::ImageEraser);
         $entity->setModelId($modelId);
         $entity->setPrompt($prompt);
 
@@ -142,15 +134,7 @@ class ImageGenerationAppService extends DesignAppService
     {
         $entity->setType(ImageGenerationType::EXPAND);
 
-        $defaultPrompt = 'You are given three images. '
-            . 'The first image is the original photo. '
-            . 'The second image is an expanded canvas where the original image is placed at its original position and the surrounding extended areas are filled with black. '
-            . 'The third image is a black-and-white mask where the white region marks the extended areas to be generated. '
-            . 'Your task: use the original photo as reference, and fill the white masked areas in the expanded canvas with realistic, natural content that seamlessly extends the original image. '
-            . 'The generated content should be coherent with the style, lighting, perspective, and context of the original image. '
-            . 'Do not alter any part of the image outside the white masked region.';
-
-        [$modelId, $prompt] = $this->resolveAbilityModelAndPrompt(AiAbilityCode::ImageExpand, $defaultPrompt);
+        [$modelId, $prompt] = $this->resolveAbilityModelAndPrompt(AiAbilityCode::ImageExpand);
         $entity->setModelId($modelId);
         $entity->setPrompt($prompt);
 
@@ -216,12 +200,11 @@ class ImageGenerationAppService extends DesignAppService
     }
 
     /**
-     * 从 AI 能力配置中解析 model_id 和 prompt.
-     * 若能力未启用或 model_id 未配置则抛出异常；prompt 为空时退回到默认值.
+     * 从 AI 能力配置中解析 model_id 和 prompt（仅配置值，trim 后可能为空，由 Handler 决定是否使用内置默认提示词）.
      *
      * @return array{0: string, 1: string} [modelId, prompt]
      */
-    private function resolveAbilityModelAndPrompt(AiAbilityCode $code, string $defaultPrompt): array
+    private function resolveAbilityModelAndPrompt(AiAbilityCode $code): array
     {
         $entity = $this->aiAbilityDomainService->getByCode(ProviderDataIsolation::create('')->disabled(), $code);
 
@@ -236,7 +219,7 @@ class ImageGenerationAppService extends DesignAppService
             ExceptionBuilder::throw(DesignErrorCode::InvalidArgument, 'design.image_generation.feature_unavailable');
         }
 
-        $prompt = ! empty($config['prompt']) ? (string) $config['prompt'] : $defaultPrompt;
+        $prompt = trim((string) ($config['prompt'] ?? ''));
 
         return [$modelId, $prompt];
     }

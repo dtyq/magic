@@ -47,8 +47,6 @@ class DesignImageGenerationSubscriber implements ListenerInterface
 
     private ProjectDomainService $projectDomainService;
 
-    private DesignImageGenerationTaskHandlerFactory $taskHandlerFactory;
-
     private DesignGeneratedImageFileNameTool $generatedImageFileNameTool;
 
     public function __construct(ContainerInterface $container)
@@ -57,7 +55,6 @@ class DesignImageGenerationSubscriber implements ListenerInterface
         $this->taskFileDomainService = $container->get(TaskFileDomainService::class);
         $this->fileDomainService = $container->get(FileDomainService::class);
         $this->projectDomainService = $container->get(ProjectDomainService::class);
-        $this->taskHandlerFactory = $container->get(DesignImageGenerationTaskHandlerFactory::class);
         $this->generatedImageFileNameTool = $container->get(DesignGeneratedImageFileNameTool::class);
     }
 

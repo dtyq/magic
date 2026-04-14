@@ -8,7 +8,8 @@ declare(strict_types=1);
 namespace App\Application\Design\Tool\ImageGeneration;
 
 use App\Application\Design\Tool\ImageGeneration\Contract\DesignImageGenerationTaskHandlerInterface;
-use App\Application\Design\Tool\ImageGeneration\Handler\DesignEraserExpandImageTaskHandler;
+use App\Application\Design\Tool\ImageGeneration\Handler\DesignEraserImageTaskHandler;
+use App\Application\Design\Tool\ImageGeneration\Handler\DesignExpandImageTaskHandler;
 use App\Application\Design\Tool\ImageGeneration\Handler\DesignImageToImageTaskHandler;
 use App\Application\Design\Tool\ImageGeneration\Handler\DesignRemoveBackgroundImageTaskHandler;
 use App\Application\Design\Tool\ImageGeneration\Handler\DesignTextImageGenerationTaskHandler;
@@ -22,7 +23,8 @@ readonly class DesignImageGenerationTaskHandlerFactory
         return match ($type) {
             ImageGenerationType::UPSCALE => di(DesignUpscaleImageTaskHandler::class),
             ImageGenerationType::REMOVE_BACKGROUND => di(DesignRemoveBackgroundImageTaskHandler::class),
-            ImageGenerationType::ERASER, ImageGenerationType::EXPAND => di(DesignEraserExpandImageTaskHandler::class),
+            ImageGenerationType::ERASER => di(DesignEraserImageTaskHandler::class),
+            ImageGenerationType::EXPAND => di(DesignExpandImageTaskHandler::class),
             ImageGenerationType::TEXT_TO_IMAGE => di(DesignTextImageGenerationTaskHandler::class),
             ImageGenerationType::IMAGE_TO_IMAGE => di(DesignImageToImageTaskHandler::class),
             default => null,

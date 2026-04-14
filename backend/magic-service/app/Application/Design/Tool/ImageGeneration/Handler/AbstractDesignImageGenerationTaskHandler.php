@@ -140,9 +140,10 @@ abstract class AbstractDesignImageGenerationTaskHandler implements DesignImageGe
 
         foreach ($entity->getReferenceImages() ?? [] as $idx => $referenceImage) {
             if (str_contains($referenceImage, 'design-mark/')) {
+                $privateFileKey = ltrim($referenceImage, '/');
                 $url = $this->fileDomainService->getLink(
                     $dataIsolation->getCurrentOrganizationCode(),
-                    $referenceImage,
+                    $privateFileKey,
                     StorageBucketType::Private
                 )?->getUrl();
             } else {

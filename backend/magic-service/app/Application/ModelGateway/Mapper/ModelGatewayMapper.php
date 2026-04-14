@@ -518,6 +518,7 @@ class ModelGatewayMapper extends ModelMapper
                 $resolvedImpl->getModelVersion(),
                 $resolvedImpl->getProviderModelId(),
                 $resolvedImpl->getProviderCode(),
+                $resolvedModelId,
             ),
         };
 
@@ -589,12 +590,12 @@ class ModelGatewayMapper extends ModelMapper
             return new ModelEntry(
                 attributes: $attributes,
                 model: new ImageModel(
-                $providerConfigItem->toArray(),
-                $providerModelEntity->getModelVersion(),
-                (string) $providerModelEntity->getId(),
-                $providerEntity->getProviderCode(),
-                $providerModelEntity->getModelId()
-            ),
+                    $providerConfigItem->toArray(),
+                    $providerModelEntity->getModelVersion(),
+                    (string) $providerModelEntity->getId(),
+                    $providerEntity->getProviderCode(),
+                    $providerModelEntity->getModelId()
+                ),
             );
         }
 
