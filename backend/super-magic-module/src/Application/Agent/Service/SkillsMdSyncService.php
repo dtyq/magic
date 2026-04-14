@@ -16,7 +16,6 @@ use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ProjectEntity;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\TaskFileSource;
 use Dtyq\SuperMagic\Domain\SuperAgent\Service\TaskFileDomainService;
 use Dtyq\SuperMagic\Infrastructure\Utils\FrontmatterParser;
-use Dtyq\SuperMagic\Infrastructure\Utils\WorkDirectoryUtil;
 use Hyperf\Logger\LoggerFactory;
 use Psr\Log\LoggerInterface;
 use Throwable;
@@ -38,8 +37,6 @@ class SkillsMdSyncService
     public const OPERATION_SYNC = 'sync';
 
     private const TEMP_DIR_BASE = BASE_PATH . '/runtime/skills_md_sync/';
-
-    private const SKILLS_MD_PATH = '.magic/SKILLS.md';
 
     private const SKILLS_KEY = 'skills';
 
@@ -150,18 +147,26 @@ class SkillsMdSyncService
         array $skillNames,
         string $operation
     ): void {
-        $workDir = $projectEntity->getWorkDir();
-        if (empty($workDir)) {
+        // Locate .magic directory via tree navigation.
+        $magicDir = $this->taskFileDomainService->findDirectoryByPath($projectId, '.magic');
+        if ($magicDir === null) {
+            if ($operation === self::OPERATION_ADD && ! empty($skillNames)) {
+                $this->createSkillsMd($projectId, $projectEntity, $organizationCode, $skillNames);
+            } else {
+                $this->logger->info('[SkillsMdSyncService] .magic directory not found, skipping', [
+                    'project_id' => $projectId,
+                    'operation' => $operation,
+                ]);
+            }
             return;
         }
 
-        $fullPrefix = $this->taskFileDomainService->getFullPrefix($projectOrgCode);
-        $fileKey = ltrim(
-            WorkDirectoryUtil::getFullFileKey($fullPrefix, $workDir, self::SKILLS_MD_PATH),
-            '/'
+        // Locate SKILLS.md via tree navigation: find file named SKILLS.md under .magic.
+        $entity = $this->taskFileDomainService->getByProjectParentAndName(
+            $projectId,
+            $magicDir->getFileId(),
+            'SKILLS.md'
         );
-
-        $entity = $this->taskFileDomainService->getByProjectIdAndFileKey($projectId, $fileKey);
 
         if ($entity === null) {
             if ($operation === self::OPERATION_ADD && ! empty($skillNames)) {
@@ -171,17 +176,19 @@ class SkillsMdSyncService
 
             $this->logger->info('[SkillsMdSyncService] SKILLS.md not found, skipping', [
                 'project_id' => $projectId,
-                'file_key' => $fileKey,
                 'operation' => $operation,
             ]);
             return;
         }
 
-        $currentContent = $this->downloadFileContent($projectOrgCode, $fileKey);
+        // Use the entity's actual file_key (from object storage) for content operations.
+        $verifiedFileKey = $entity->getFileKey();
+
+        $currentContent = $this->downloadFileContent($projectOrgCode, $verifiedFileKey);
         if ($currentContent === null) {
             $this->logger->warning('[SkillsMdSyncService] Failed to download SKILLS.md content', [
                 'project_id' => $projectId,
-                'file_key' => $fileKey,
+                'file_key' => $verifiedFileKey,
             ]);
             return;
         }
@@ -200,7 +207,7 @@ class SkillsMdSyncService
             return;
         }
 
-        $this->taskFileDomainService->overwriteProjectFileContent($projectEntity, $fileKey, $newContent);
+        $this->taskFileDomainService->overwriteProjectFileContent($projectEntity, $verifiedFileKey, $newContent);
 
         $this->logger->info('[SkillsMdSyncService] SKILLS.md synced', [
             'project_id' => $projectId,

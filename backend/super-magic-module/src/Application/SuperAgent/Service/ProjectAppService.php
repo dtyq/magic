@@ -2164,8 +2164,6 @@ class ProjectAppService extends AbstractAppService
                 projectId: $projectEntity->getId(),
                 parentId: $rootDirId,
                 dirName: '.magic',
-                relativePath: '.magic',
-                workDir: $projectEntity->getWorkDir(),
                 userId: $dataIsolation->getCurrentUserId(),
                 organizationCode: $dataIsolation->getCurrentOrganizationCode(),
                 projectOrganizationCode: $projectEntity->getUserOrganizationCode(),

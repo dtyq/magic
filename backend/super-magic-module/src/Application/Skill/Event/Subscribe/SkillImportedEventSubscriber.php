@@ -193,8 +193,6 @@ class SkillImportedEventSubscriber implements ListenerInterface
                 $projectId,
                 $rootDirId,
                 '.magic',
-                '.magic',
-                $workDir,
                 $userId,
                 $organizationCode,
                 $projectOrgCode,
@@ -207,8 +205,6 @@ class SkillImportedEventSubscriber implements ListenerInterface
                 $projectId,
                 $magicDirId,
                 'skills',
-                '.magic/skills',
-                $workDir,
                 $userId,
                 $organizationCode,
                 $projectOrgCode,
@@ -219,8 +215,6 @@ class SkillImportedEventSubscriber implements ListenerInterface
                 $projectId,
                 $skillsDirId,
                 $packageName,
-                '.magic/skills/' . $packageName,
-                $workDir,
                 $userId,
                 $organizationCode,
                 $projectOrgCode,
@@ -236,8 +230,6 @@ class SkillImportedEventSubscriber implements ListenerInterface
                 $actualContentDir,
                 $packageDirId,
                 $projectId,
-                '.magic/skills/' . $packageName,
-                $workDir,
                 $userId,
                 $organizationCode,
                 $projectOrgCode,
@@ -286,8 +278,6 @@ class SkillImportedEventSubscriber implements ListenerInterface
         string $localDir,
         int $parentDirId,
         int $projectId,
-        string $relativePath,
-        string $workDir,
         string $userId,
         string $organizationCode,
         string $projectOrgCode,
@@ -297,15 +287,12 @@ class SkillImportedEventSubscriber implements ListenerInterface
 
         foreach ($items as $item) {
             $localPath = $localDir . '/' . $item;
-            $itemRelativePath = $relativePath . '/' . $item;
 
             if (is_dir($localPath)) {
                 $subDirId = $this->taskFileDomainService->createDirectory(
                     $projectId,
                     $parentDirId,
                     $item,
-                    $itemRelativePath,
-                    $workDir,
                     $userId,
                     $organizationCode,
                     $projectOrgCode,
@@ -318,8 +305,6 @@ class SkillImportedEventSubscriber implements ListenerInterface
                     $localPath,
                     $subDirId,
                     $projectId,
-                    $itemRelativePath,
-                    $workDir,
                     $userId,
                     $organizationCode,
                     $projectOrgCode,

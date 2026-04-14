@@ -275,8 +275,6 @@ class ImportAgentAppService extends AbstractSuperMagicAppService
             $projectId,
             $rootDirId,
             '.magic',
-            '.magic',
-            $workDir,
             $userId,
             $projectOrgCode,
             $projectOrgCode,
@@ -291,8 +289,6 @@ class ImportAgentAppService extends AbstractSuperMagicAppService
             $agentDir,
             $magicDirId,
             $projectId,
-            '.magic',
-            $workDir,
             $userId,
             $projectOrgCode,
             $projectOrgCode
@@ -308,8 +304,6 @@ class ImportAgentAppService extends AbstractSuperMagicAppService
         string $localDir,
         int $parentDirId,
         int $projectId,
-        string $relativePath,
-        string $workDir,
         string $userId,
         string $orgCode,
         string $projectOrgCode
@@ -318,15 +312,12 @@ class ImportAgentAppService extends AbstractSuperMagicAppService
 
         foreach ($items as $item) {
             $localPath = $localDir . '/' . $item;
-            $itemRelativePath = $relativePath . '/' . $item;
 
             if (is_dir($localPath)) {
                 $subDirId = $this->taskFileDomainService->createDirectory(
                     $projectId,
                     $parentDirId,
                     $item,
-                    $itemRelativePath,
-                    $workDir,
                     $userId,
                     $orgCode,
                     $projectOrgCode,
@@ -339,8 +330,6 @@ class ImportAgentAppService extends AbstractSuperMagicAppService
                     $localPath,
                     $subDirId,
                     $projectId,
-                    $itemRelativePath,
-                    $workDir,
                     $userId,
                     $orgCode,
                     $projectOrgCode

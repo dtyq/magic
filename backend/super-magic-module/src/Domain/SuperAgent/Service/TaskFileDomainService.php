@@ -2667,20 +2667,26 @@ class TaskFileDomainService
     /**
      * Create a new directory entity.
      * Returns existing directory id when the same parent/name already exists.
+     * The file_key is derived from the parent entity's stored file_key to avoid path-string dependency.
      *
      * @param int $projectId Project ID
      * @param int $parentId Parent directory ID
      * @param string $dirName Directory name
-     * @param string $relativePath Relative path from project root
-     * @param string $workDir Project work directory
      * @return int Created directory file_id
      */
-    public function createDirectory(int $projectId, int $parentId, string $dirName, string $relativePath, string $workDir, string $userId, string $organizationCode, string $projectOrganizationCode, TaskFileSource $source = TaskFileSource::PROJECT_DIRECTORY): int
+    public function createDirectory(int $projectId, int $parentId, string $dirName, string $userId, string $organizationCode, string $projectOrganizationCode, TaskFileSource $source = TaskFileSource::PROJECT_DIRECTORY): int
     {
         $existingDir = $this->findDirectoryByParentIdAndName($parentId, $dirName, $projectId);
         if ($existingDir !== null) {
             return $existingDir->getFileId();
         }
+
+        // Derive file_key from parent entity's stored file_key to avoid path-string dependency.
+        $parentEntity = $this->taskFileRepository->getById($parentId);
+        if ($parentEntity === null) {
+            ExceptionBuilder::throw(SuperAgentErrorCode::FILE_NOT_FOUND, trans('file.file_not_found'));
+        }
+        $fileKey = rtrim($parentEntity->getFileKey(), '/') . '/' . $dirName . '/';
 
         $dirEntity = new TaskFileEntity();
         $dirEntity->setFileId(IdGenerator::getSnowId());
@@ -2688,11 +2694,6 @@ class TaskFileDomainService
         $dirEntity->setUserId($userId);
         $dirEntity->setOrganizationCode($organizationCode);
         $dirEntity->setFileName($dirName);
-
-        // Build complete file_key: workDir + relativePath + trailing slash
-        $fullPrefix = $this->getFullPrefix($projectOrganizationCode);
-        $fileKey = WorkDirectoryUtil::getFullFileKey($fullPrefix, $workDir, $relativePath);
-        $fileKey = ltrim($fileKey, '/') . '/';
         $dirEntity->setFileKey($fileKey);
         $dirEntity->setFileSize(0);
         $dirEntity->setFileType(FileType::DIRECTORY->value);
@@ -3220,24 +3221,12 @@ class TaskFileDomainService
      */
     private function ensureDirectoryPathExists(int $projectId, string $dirPath, string $workDir, string $userId, string $organizationCode, string $projectOrganizationCode, TaskFileSource $source = TaskFileSource::PROJECT_DIRECTORY): int
     {
-        // Split path into parts and process each level
         $pathParts = array_filter(explode('/', trim($dirPath, '/')));
         $currentParentId = $this->findOrCreateProjectRootDirectory($projectId, $workDir, $userId, $organizationCode, $projectOrganizationCode, $source);
-        $currentPath = '';
 
         foreach ($pathParts as $dirName) {
-            $currentPath = empty($currentPath) ? $dirName : "{$currentPath}/{$dirName}";
-
-            // Look for existing directory
-            $existingDir = $this->findDirectoryByParentIdAndName($currentParentId, $dirName, $projectId);
-
-            if ($existingDir !== null) {
-                $currentParentId = $existingDir->getFileId();
-            } else {
-                // Create new directory
-                $newDirId = $this->createDirectory($projectId, $currentParentId, $dirName, $currentPath, $workDir, $userId, $organizationCode, $projectOrganizationCode, $source);
-                $currentParentId = $newDirId;
-            }
+            // createDirectory is idempotent: returns existing dir ID if already present
+            $currentParentId = $this->createDirectory($projectId, $currentParentId, $dirName, $userId, $organizationCode, $projectOrganizationCode, $source);
         }
 
         return $currentParentId;
