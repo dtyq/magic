@@ -122,18 +122,40 @@ class Environment:
         return Environment.DEFAULT_IDLE_MONITOR_INTERVAL
     
     @staticmethod
+    def is_local() -> bool:
+        """是否为本地开发环境（APP_ENV=local）
+        
+        本地环境用于开发者在本机运行，浏览器等外部依赖走本地模式。
+        区别于 dev/test 等部署环境，这些环境虽然也是非生产环境，
+        但运行在容器中，外部依赖通过 sidecar 服务提供。
+        
+        Returns:
+            bool: 是否为本地开发环境
+        """
+        env_value = Environment.get_env("APP_ENV", "").lower()
+        if env_value == "local":
+            return True
+        
+        try:
+            from agentlang.config.config import config
+            config_value = config.get("sandbox.app_env", "prod").lower()
+            return config_value == "local"
+        except (ImportError, AttributeError):
+            return False
+
+    @staticmethod
     def is_dev() -> bool:
-        """是否为开发环境
+        """是否为开发环境（APP_ENV=dev/development）
+        
+        注意：不包含 local，local 是本地开发环境，通过 is_local() 判断。
         
         Returns:
             bool: 是否为开发环境
         """
-        # 优先从环境变量获取，如果不存在则从配置文件获取
         env_value = Environment.get_env("APP_ENV", "").lower()
         if env_value in ("dev", "development"):
             return True
         
-        # 从配置文件获取
         try:
             from agentlang.config.config import config
             config_value = config.get("sandbox.app_env", "prod").lower()

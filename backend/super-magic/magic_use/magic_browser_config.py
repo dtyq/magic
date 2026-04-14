@@ -444,8 +444,8 @@ class MagicBrowserConfig:
         # ========== 根据环境自动选择浏览器模式 ==========
         from agentlang.environment import Environment
 
-        # 根据环境自动选择模式：dev 环境用本地模式，其他环境用服务端模式
-        is_dev_env = Environment.is_dev()
+        # 只有 local 环境使用本地浏览器，dev/test/prod 等部署环境均使用服务端模式
+        is_local_env = Environment.is_local()
 
         # 如果配置文件明确指定了 use_server_mode，则使用配置值
         # 否则根据环境自动选择
@@ -453,9 +453,10 @@ class MagicBrowserConfig:
             browser_config.use_server_mode = config.get("browser.use_server_mode")
             logger.info(f"使用配置文件指定的浏览器模式: {'服务端模式' if browser_config.use_server_mode else '本地模式'}")
         else:
-            # dev 环境使用本地模式，非 dev 环境使用服务端模式
-            browser_config.use_server_mode = not is_dev_env
-            logger.info(f"根据环境自动选择浏览器模式: {'本地模式' if is_dev_env else '服务端模式'} (环境: {'dev' if is_dev_env else 'production'})")
+            browser_config.use_server_mode = not is_local_env
+            mode_label = '本地模式' if is_local_env else '服务端模式'
+            env_label = Environment.get_env("APP_ENV", "unknown")
+            logger.info(f"根据环境自动选择浏览器模式: {mode_label} (APP_ENV={env_label})")
 
         # 读取服务端模式相关配置
         if config.get("browser.browser_server_url") is not None:
