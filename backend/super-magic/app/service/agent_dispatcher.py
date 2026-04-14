@@ -659,6 +659,7 @@ class AgentDispatcher(Base):
                 current_video_model_id,
                 current_video_generation_config,
                 current_mcp_servers,
+                message_version=agent_context.get_message_version() if agent_context else None,
             )
         except Exception as e:
             logger.debug(f"保存会话配置时出错: {e}")

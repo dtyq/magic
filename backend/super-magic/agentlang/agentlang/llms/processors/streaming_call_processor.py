@@ -17,8 +17,10 @@ from openai.types.chat import ChatCompletionChunk, ChatCompletion
 from agentlang.exceptions import StreamChunkTimeoutError, StreamInterruptedError, STREAMING_PASSTHROUGH_EXCEPTIONS
 from agentlang.interface.context import AgentContextInterface
 from .processor_config import ProcessorConfig
-from .streaming_context import StreamProcessContext, StreamResponseHandler
+from .streaming_context import StreamProcessContext
+from .streaming_handler import StreamResponseHandler
 from agentlang.logger import get_logger
+from agentlang.streaming.interface import StreamingInterface
 from agentlang.streaming.manager import create_driver
 
 logger = get_logger(__name__)
@@ -140,8 +142,12 @@ class StreamingCallProcessor:
                     enable_llm_response_events=enable_llm_response_events,
                 )
 
-                # 处理流式响应（包含开始消息、流式chunk处理、完成消息推送）
-                result = await StreamResponseHandler.process_stream_chunks(
+                # 根据 message_version 从注册表获取对应的流式处理器
+                _message_version = agent_context.get_message_version() if agent_context else "v1"
+
+                from agentlang.llms.processors.streaming_handler_registry import get_handler_by_version
+                _handler = get_handler_by_version(_message_version)
+                result = await _handler.process_stream_chunks(
                     stream, streaming_driver, stream_context
                 )
 
@@ -183,7 +189,7 @@ class StreamingCallProcessor:
         processor_config: ProcessorConfig,
         agent_context: Optional[AgentContextInterface],
         request_id: str
-    ):
+    ) -> Optional[StreamingInterface]:
         """初始化流式推送驱动"""
         if not processor_config.is_push_enabled() or not agent_context:
             return None

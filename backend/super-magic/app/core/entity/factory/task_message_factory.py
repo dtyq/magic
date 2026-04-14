@@ -44,6 +44,7 @@ from agentlang.event.event import Event, EventType
 from agentlang.llms.token_usage.models import TokenUsageCollection
 from agentlang.logger import get_logger
 from app.core.entity.event.event_context import EventContext
+from app.core.entity.factory.task_message_factory_protocol import TaskMessageFactoryProtocol
 from app.utils.attachment_sorter import AttachmentSorter
 from typing import Optional, List, Dict
 import random
@@ -52,10 +53,10 @@ from datetime import datetime
 
 logger = get_logger(__name__)
 
-class TaskMessageFactory:
-    """任务消息工厂类，用于创建不同类型的TaskMessage对象"""
-
-
+class TaskMessageFactory(TaskMessageFactoryProtocol):
+    """
+    V1 任务消息工厂类，用于创建不同类型的TaskMessage对象。
+    """
 
     @classmethod
     def create_error_message(
@@ -87,7 +88,7 @@ class TaskMessageFactory:
         )
 
     @classmethod
-    def create_before_init_message(cls, event: Event[BeforeInitEventData]) -> ServerMessage:
+    def create_before_init_message(cls, event: Event[BeforeInitEventData]) -> Optional[ServerMessage]:
         """
         创建初始化前的任务消息
 
@@ -127,7 +128,7 @@ class TaskMessageFactory:
         )
 
     @classmethod
-    def create_after_init_message(cls, event: Event[AfterInitEventData]) -> ServerMessage:
+    def create_after_init_message(cls, event: Event[AfterInitEventData]) -> Optional[ServerMessage]:
         """
         创建初始化后的任务消息
 
@@ -170,7 +171,7 @@ class TaskMessageFactory:
         )
 
     @classmethod
-    def create_after_client_chat_message(cls, event: Event[AfterClientChatEventData]) -> ServerMessage:
+    def create_after_client_chat_message(cls, event: Event[AfterClientChatEventData]) -> Optional[ServerMessage]:
         """
         创建客户端聊天后的任务消息
         """
@@ -301,7 +302,7 @@ class TaskMessageFactory:
         )
 
     @classmethod
-    def create_before_llm_request_message(cls, event: Event[BeforeLlmRequestEventData]) -> ServerMessage:
+    def create_before_llm_request_message(cls, event: Event[BeforeLlmRequestEventData]) -> Optional[ServerMessage]:
         """
         创建LLM请求前的任务消息
 
@@ -334,7 +335,7 @@ class TaskMessageFactory:
         )
 
     @classmethod
-    def create_after_llm_response_message(cls, event: Event[AfterLlmResponseEventData]) -> ServerMessage:
+    def create_after_llm_response_message(cls, event: Event[AfterLlmResponseEventData]) -> Optional[ServerMessage]:
         """
         创建LLM响应后的任务消息
 
@@ -378,7 +379,7 @@ class TaskMessageFactory:
         )
 
     @classmethod
-    def create_before_agent_think_message(cls, event: Event[BeforeAgentThinkEventData]) -> ServerMessage:
+    def create_before_agent_think_message(cls, event: Event[BeforeAgentThinkEventData]) -> Optional[ServerMessage]:
         """
         Create message for BEFORE_AGENT_THINK event (thinking container start)
 
@@ -415,7 +416,7 @@ class TaskMessageFactory:
         )
 
     @classmethod
-    def create_after_agent_think_message(cls, event: Event[AfterAgentThinkEventData]) -> ServerMessage:
+    def create_after_agent_think_message(cls, event: Event[AfterAgentThinkEventData]) -> Optional[ServerMessage]:
         """
         Create message for AFTER_AGENT_THINK event (thinking container end)
 
@@ -455,7 +456,7 @@ class TaskMessageFactory:
         )
 
     @classmethod
-    def create_before_agent_reply_message(cls, event: Event[BeforeAgentReplyEventData]) -> ServerMessage:
+    def create_before_agent_reply_message(cls, event: Event[BeforeAgentReplyEventData]) -> Optional[ServerMessage]:
         """
         创建智能体回复开始前的任务消息（空内容文本卡片）
 
@@ -498,7 +499,7 @@ class TaskMessageFactory:
         )
 
     @classmethod
-    def create_after_agent_reply_message(cls, event: Event[AfterAgentReplyEventData]) -> ServerMessage:
+    def create_after_agent_reply_message(cls, event: Event[AfterAgentReplyEventData]) -> Optional[ServerMessage]:
         """
         创建智能体回复完成后的任务消息（AFTER_AGENT_REPLY 事件）
 
@@ -554,7 +555,7 @@ class TaskMessageFactory:
         )
 
     @classmethod
-    async def create_before_tool_call_message(cls, event: Event[BeforeToolCallEventData]) -> ServerMessage:
+    async def create_before_tool_call_message(cls, event: Event[BeforeToolCallEventData]) -> Optional[ServerMessage]:
         """
         创建工具调用前的任务消息
 
@@ -624,7 +625,7 @@ class TaskMessageFactory:
         )
 
     @classmethod
-    async def create_pending_tool_call_message(cls, event: Event[PendingToolCallEventData]) -> ServerMessage:
+    async def create_pending_tool_call_message(cls, event: Event[PendingToolCallEventData]) -> Optional[ServerMessage]:
         """
         创建工具调用解释等待任务消息
         """
@@ -672,7 +673,7 @@ class TaskMessageFactory:
         )
 
     @classmethod
-    async def create_after_tool_call_message(cls, event: Event[AfterToolCallEventData]) -> ServerMessage:
+    async def create_after_tool_call_message(cls, event: Event[AfterToolCallEventData]) -> Optional[ServerMessage]:
         """
         创建工具调用后的任务消息
 
@@ -760,7 +761,7 @@ class TaskMessageFactory:
         )
 
     @classmethod
-    def create_before_mcp_init_message(cls, event: Event[BeforeMcpInitEventData]) -> ServerMessage:
+    def create_before_mcp_init_message(cls, event: Event[BeforeMcpInitEventData]) -> Optional[ServerMessage]:
         """
         创建 MCP 初始化前的任务消息
 
@@ -844,7 +845,7 @@ class TaskMessageFactory:
         )
 
     @classmethod
-    def create_after_mcp_init_message(cls, event: Event[AfterMcpInitEventData]) -> ServerMessage:
+    def create_after_mcp_init_message(cls, event: Event[AfterMcpInitEventData]) -> Optional[ServerMessage]:
         """
         创建 MCP 初始化后的任务消息
 

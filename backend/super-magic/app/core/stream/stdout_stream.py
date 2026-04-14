@@ -15,7 +15,7 @@ from agentlang.logger import get_logger
 logger = get_logger(__name__)
 
 # Environment variable name for debug log file path
-STDOUT_STREAM_DEBUG_FILE_ENV = "STDOUT_STREAM_DEBUG_FILE"
+STDOUT_MESSAGE_DEBUG_FILE_ENV = "STDOUT_MESSAGE_DEBUG_FILE"
 
 
 class StdoutStream(Stream):
@@ -24,7 +24,7 @@ class StdoutStream(Stream):
     This class provides a way to write string data to standard output.
     Reading is not supported and will raise an error.
 
-    If the environment variable STDOUT_STREAM_DEBUG_FILE is set to a file path,
+    If the environment variable STDOUT_MESSAGE_DEBUG_FILE is set to a file path,
     the output will also be written to that file for local debugging purposes.
     """
 
@@ -40,7 +40,7 @@ class StdoutStream(Stream):
 
         The file path is treated as a relative path based on the current working directory.
         """
-        debug_file_path = os.environ.get(STDOUT_STREAM_DEBUG_FILE_ENV)
+        debug_file_path = os.environ.get(STDOUT_MESSAGE_DEBUG_FILE_ENV)
         if debug_file_path:
             try:
                 # Convert relative path to absolute path based on current working directory

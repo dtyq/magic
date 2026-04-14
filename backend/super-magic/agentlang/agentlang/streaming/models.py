@@ -17,8 +17,9 @@ class ChunkMetadata:
     correlation_id: Optional[str] = None
     model_id: Optional[str] = None
     parent_correlation_id: Optional[str] = None  # Agent 循环周期分组标识
-    content_type: str = "content"  # 内容类型："reasoning" | "content"
+    content_type: str = "content"  # 内容类型："reasoning" | "content" | "raw_chunk"
     extra_data: Optional[Dict[str, Any]] = None
+    message_id: Optional[str] = None  # v2 预生成的 Snowflake ID，用于关联流式 chunk 和非流式消息
 
 
 @dataclass

@@ -9,9 +9,11 @@
 """
 
 from .message_builder import LLMStreamingMessageBuilder, AuthInfo
+from .message_builder_v2 import LLMStreamingMessageBuilderV2
 
 __all__ = [
     # Message Builders
     "LLMStreamingMessageBuilder",
-    "AuthInfo"
+    "LLMStreamingMessageBuilderV2",
+    "AuthInfo",
 ]

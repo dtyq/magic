@@ -18,6 +18,8 @@ use App\Domain\Chat\DTO\Message\ChatMessage\MarkdownMessage;
 use App\Domain\Chat\DTO\Message\ChatMessage\RawMessage;
 use App\Domain\Chat\DTO\Message\ChatMessage\RichTextMessage;
 use App\Domain\Chat\DTO\Message\ChatMessage\SuperAgentMessageInterface;
+use App\Domain\Chat\DTO\Message\ChatMessage\SuperMagicChunk;
+use App\Domain\Chat\DTO\Message\ChatMessage\SuperMagicMessage;
 use App\Domain\Chat\DTO\Message\ChatMessage\TextFormMessage;
 use App\Domain\Chat\DTO\Message\ChatMessage\TextMessage;
 use App\Domain\Chat\DTO\Message\ChatMessage\UnknowChatMessage;
@@ -218,6 +220,8 @@ class MessageAssembler
             ChatMessageType::SuperAgentCard => make(SuperAgentMessageInterface::class, ['messageStruct' => $messageStructArray]),
             ChatMessageType::TextForm => new TextFormMessage($messageStructArray),
             ChatMessageType::Raw => new RawMessage($messageStructArray),
+            ChatMessageType::SuperMagicMessage => new SuperMagicMessage($messageStructArray),
+            ChatMessageType::SuperMagicChunk => new SuperMagicChunk($messageStructArray),
             default => new UnknowChatMessage()
         };
     }
