@@ -159,12 +159,14 @@ class ModelAuditReadyBridgeSubscriber implements ListenerInterface
             'request_id' => trim((string) ($bp['request_id'] ?? '')),
         ]);
 
-        $outcome = (string) ($bp['outcome'] ?? 'success');
+        $status = (($bp['status'] ?? '') === AuditStatus::SUCCESS->value)
+            ? AuditStatus::SUCCESS
+            : AuditStatus::FAIL;
         $extras = [
             'chain' => $chain,
             'original_model_id' => (string) ($bp['original_model_id'] ?? ''),
         ];
-        if ($this->mapOutcomeToAuditStatus($outcome) === AuditStatus::FAIL) {
+        if ($status->isFail()) {
             $extras = InvocationDetailInfo::withFailureReason($extras, (string) ($bp['failure_reason'] ?? ''));
         }
         $detailInfo = InvocationDetailInfo::forModel(
@@ -174,12 +176,12 @@ class ModelAuditReadyBridgeSubscriber implements ListenerInterface
             $extras,
         );
 
-        $usage = strtolower($outcome) === 'success' ? ['count' => (int) ($bp['image_count'] ?? 0)] : [];
+        $usage = $status->isSuccess() ? ['count' => (int) ($bp['image_count'] ?? 0)] : [];
 
         AsyncEventUtil::dispatch(new ModelAuditReadyEvent(
             type: AuditType::IMAGE->value,
             productCode: (string) ($bp['model_id'] ?? ''),
-            status: $this->mapOutcomeToAuditStatus($outcome)->value,
+            status: $status->value,
             ak: (string) ($bp['ak'] ?? StringMaskUtil::mask($accessTokenRaw)),
             operationTime: (int) ($bp['operation_time'] ?? 0),
             allLatency: (int) ($bp['response_duration'] ?? 0),
@@ -340,9 +342,11 @@ class ModelAuditReadyBridgeSubscriber implements ListenerInterface
             'request_id' => trim((string) ($businessParams['request_id'] ?? '')),
         ]);
 
-        $outcome = (string) ($businessParams['outcome'] ?? '');
+        $status = (($businessParams['status'] ?? '') === AuditStatus::SUCCESS->value)
+            ? AuditStatus::SUCCESS
+            : AuditStatus::FAIL;
         $extras = [];
-        if ($this->mapOutcomeToAuditStatus($outcome) === AuditStatus::FAIL) {
+        if ($status->isFail()) {
             $extras = InvocationDetailInfo::withFailureReason([], (string) ($businessParams['failure_reason'] ?? ''));
         }
         $detailInfo = InvocationDetailInfo::forTool(
@@ -353,12 +357,12 @@ class ModelAuditReadyBridgeSubscriber implements ListenerInterface
             $extras,
         );
 
-        $usage = strtolower($outcome) === 'success' ? ['count' => 1] : [];
+        $usage = $status->isSuccess() ? ['count' => 1] : [];
 
         AsyncEventUtil::dispatch(new ModelAuditReadyEvent(
             type: AuditType::SEARCH->value,
             productCode: $engineName,
-            status: $this->mapOutcomeToAuditStatus($outcome)->value,
+            status: $status->value,
             ak: (string) ($businessParams['ak'] ?? StringMaskUtil::mask($accessTokenRaw)),
             operationTime: (int) ($businessParams['operation_time'] ?? 0),
             allLatency: (int) ($businessParams['response_duration'] ?? 0),
@@ -603,13 +607,5 @@ class ModelAuditReadyBridgeSubscriber implements ListenerInterface
         }
 
         return ModelAuditAccessScope::fromAccessTokenType($tokenEntity->getType());
-    }
-
-    private function mapOutcomeToAuditStatus(string $outcome): AuditStatus
-    {
-        return match (strtolower($outcome)) {
-            'success' => AuditStatus::SUCCESS,
-            default => AuditStatus::FAIL,
-        };
     }
 }

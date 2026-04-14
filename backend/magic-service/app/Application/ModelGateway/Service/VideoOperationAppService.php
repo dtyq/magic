@@ -58,6 +58,10 @@ readonly class VideoOperationAppService
 
     private const int STREAM_BUFFER_BYTES = 8192;
 
+    private const string AUDIT_STATUS_SUCCESS = 'SUCCESS';
+
+    private const string AUDIT_STATUS_FAIL = 'FAIL';
+
     public function __construct(
         private LLMAppService $llmAppService,
         private VideoQueueDomainService $videoQueueDomainService,
@@ -241,7 +245,7 @@ readonly class VideoOperationAppService
             $operation,
             $accessTokenRaw,
             $requestBusinessParams,
-            'FAIL',
+            self::AUDIT_STATUS_FAIL,
         );
 
         $event->setOrganizationCode($operation->getOrganizationCode());
@@ -265,7 +269,7 @@ readonly class VideoOperationAppService
         VideoQueueOperationEntity $operation,
         string $accessTokenRaw = '',
         array $requestBusinessParams = [],
-        string $outcome = 'SUCCESS'
+        string $status = self::AUDIT_STATUS_SUCCESS
     ): array {
         $accessTokenEntity = $this->resolveAccessTokenEntity($dataIsolation);
         $sourceId = (string) ($operation->getSourceId() ?: $dataIsolation->getSourceId());
@@ -282,7 +286,7 @@ readonly class VideoOperationAppService
             'provider_model_id' => $operation->getProviderModelId(),
             'provider_name' => $providerName,
             'original_model_id' => $operation->getModel(),
-            'outcome' => $outcome,
+            'status' => $status,
             'operation_time' => $this->toTimestampMs($operation->getCreatedAt()),
             'response_duration' => $this->calculateLatencyMs($operation),
             'organization_id' => $operation->getOrganizationCode(),
@@ -297,7 +301,7 @@ readonly class VideoOperationAppService
             'access_token_name' => $accessTokenName,
             'access_token_type' => $accessTokenType,
         ];
-        if ($outcome === 'FAIL') {
+        if ($status === self::AUDIT_STATUS_FAIL) {
             $msg = (string) $operation->getErrorMessage();
             $code = (string) $operation->getErrorCode();
             $params['failure_reason'] = $code !== '' ? "{$code}: {$msg}" : $msg;

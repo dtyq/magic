@@ -114,15 +114,9 @@ class LLMAppService extends AbstractLLMAppService
      */
     private const int CONVERSATION_ENDPOINT_TTL = 3600; // 1 hour
 
-    /**
-     * 搜索成功的审计 outcome 标识；Bridge 对 outcome 先 strtolower 再与 'success' 比对，故此处用大写存储.
-     */
-    private const string AUDIT_SEARCH_OUTCOME_SUCCESS = 'SUCCESS';
+    private const string AUDIT_STATUS_SUCCESS = 'SUCCESS';
 
-    /**
-     * 搜索失败的审计 outcome 标识；Bridge 中除 success 外均映射为失败，此处统一用大写 FAIL.
-     */
-    private const string AUDIT_SEARCH_OUTCOME_FAIL = 'FAIL';
+    private const string AUDIT_STATUS_FAIL = 'FAIL';
 
     /**
      * @return array<ModelConfigEntity>
@@ -337,7 +331,7 @@ class LLMAppService extends AbstractLLMAppService
                 'model_version' => $providerConfigItem->getModelVersion(),
                 'provider_name' => trim($providerConfigEntity->getAlias()),
                 'original_model_id' => $modelId,
-                'outcome' => 'FAIL',
+                'status' => self::AUDIT_STATUS_FAIL,
                 'response_duration' => $latencyMs,
                 'operation_time' => (int) round($startTime * 1000),
                 'user_name' => $authorization->getNickname(),
@@ -381,7 +375,7 @@ class LLMAppService extends AbstractLLMAppService
             'source_id' => (string) ($data['source_id'] ?? ''),
             'original_model_id' => $modelId,
             'provider_name' => trim($providerConfigEntity->getAlias()),
-            'outcome' => 'SUCCESS',
+            'status' => self::AUDIT_STATUS_SUCCESS,
             'request_id' => (string) ($data['request_id'] ?? ''),
             'event_id' => (string) IdGenerator::getSnowId(),
         ];
@@ -444,7 +438,7 @@ class LLMAppService extends AbstractLLMAppService
                 'model_version' => $providerConfigItem->getModelVersion(),
                 'provider_name' => trim($miracleVisionServiceProviderConfig->getAlias()),
                 'original_model_id' => ImageGenerateModelType::MiracleVisionHightModelId->value,
-                'outcome' => 'FAIL',
+                'status' => self::AUDIT_STATUS_FAIL,
                 'response_duration' => $latencyMs,
                 'operation_time' => (int) round($startTime * 1000),
                 'user_name' => $userAuthorization->getNickname(),
@@ -473,7 +467,7 @@ class LLMAppService extends AbstractLLMAppService
             'user_name' => $userAuthorization->getNickname(),
             'source_id' => $reqDTO->getSourceId(),
             'provider_name' => trim($miracleVisionServiceProviderConfig->getAlias()),
-            'outcome' => 'SUCCESS',
+            'status' => self::AUDIT_STATUS_SUCCESS,
             'request_id' => (string) ($reqDTO->getRequestId() ?? ''),
             'event_id' => (string) IdGenerator::getSnowId(),
         ];
@@ -815,7 +809,7 @@ class LLMAppService extends AbstractLLMAppService
             $businessParams['ak'] = StringMaskUtil::mask($searchAccessTokenRaw);
             $businessParams['engine'] = $adapter->getEngineName();
             $businessParams['query'] = $searchRequestDTO->getQuery();
-            $businessParams['outcome'] = self::AUDIT_SEARCH_OUTCOME_SUCCESS;
+            $businessParams['status'] = self::AUDIT_STATUS_SUCCESS;
             $businessParams['app_id'] = $modelGatewayDataIsolation->getAppId();
             $businessParams['user_name'] = $modelGatewayDataIsolation->getUserName();
             $businessParams['access_token_type'] = $modelGatewayDataIsolation->getAccessToken()->getType()->value;
@@ -984,7 +978,7 @@ class LLMAppService extends AbstractLLMAppService
             $businessParams['ak'] = StringMaskUtil::mask($imageSearchAccessTokenRaw);
             $businessParams['engine'] = $adapter->getEngineName();
             $businessParams['query'] = $imageSearchRequestDTO->getQuery();
-            $businessParams['outcome'] = self::AUDIT_SEARCH_OUTCOME_SUCCESS;
+            $businessParams['status'] = self::AUDIT_STATUS_SUCCESS;
             $businessParams['app_id'] = $modelGatewayDataIsolation->getAppId();
             $businessParams['user_name'] = $modelGatewayDataIsolation->getUserName();
             $businessParams['access_token_type'] = $modelGatewayDataIsolation->getAccessToken()->getType()->value;
@@ -1172,7 +1166,7 @@ class LLMAppService extends AbstractLLMAppService
             'model_version' => $imageModel->getModelVersion(),
             'provider_name' => $imageModelEntry?->getAttributes()->getProviderName(),
             'original_model_id' => $modelId,
-            'outcome' => 'FAIL',
+            'status' => self::AUDIT_STATUS_FAIL,
             'response_duration' => $latencyMs,
             'operation_time' => (int) round($startTime * 1000),
             'user_name' => $modelGatewayDataIsolation->getUserName(),
@@ -1298,7 +1292,7 @@ class LLMAppService extends AbstractLLMAppService
             'model_version' => $imageModel->getModelVersion(),
             'provider_name' => $imageModelEntry?->getAttributes()->getProviderName(),
             'original_model_id' => $modelId,
-            'outcome' => 'FAIL',
+            'status' => self::AUDIT_STATUS_FAIL,
             'response_duration' => $latencyMs,
             'operation_time' => (int) round($startTime * 1000),
             'user_name' => $modelGatewayDataIsolation->getUserName(),
@@ -2411,7 +2405,7 @@ class LLMAppService extends AbstractLLMAppService
                 'user_id' => $creator,
                 'source_id' => $requestDTO->getSourceId(),
                 'request_id' => trim((string) ($requestDTO->getBusinessParam('request_id') ?? '')),
-                'outcome' => 'SUCCESS',
+                'status' => self::AUDIT_STATUS_SUCCESS,
                 'access_token_raw' => $requestAccessTokenRaw,
                 'ak' => StringMaskUtil::mask($requestAccessTokenRaw),
                 'access_token_id' => $accessTokenEntity?->getId(),
@@ -2503,7 +2497,7 @@ class LLMAppService extends AbstractLLMAppService
         if ($invocationSuccessAudited) {
             return;
         }
-        $businessParams['outcome'] = self::AUDIT_SEARCH_OUTCOME_FAIL;
+        $businessParams['status'] = self::AUDIT_STATUS_FAIL;
         $businessParams['response_duration'] = (int) ((microtime(true) - $startTime) * 1000);
         $businessParams['operation_time'] = (int) round($startTime * 1000);
 
@@ -2546,7 +2540,7 @@ class LLMAppService extends AbstractLLMAppService
         if ($invocationSuccessAudited) {
             return;
         }
-        $businessParams['outcome'] = self::AUDIT_SEARCH_OUTCOME_FAIL;
+        $businessParams['status'] = self::AUDIT_STATUS_FAIL;
         $businessParams['response_duration'] = (int) ((microtime(true) - $startTime) * 1000);
         $businessParams['operation_time'] = (int) round($startTime * 1000);
 
