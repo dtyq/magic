@@ -69,9 +69,9 @@ class ImplicitWatermark
         return $this->topicId;
     }
 
-    public function setTopicId(string $topicId): self
+    public function setTopicId(?string $topicId): self
     {
-        $this->topicId = $topicId;
+        $this->topicId = $topicId ?: '';
         return $this;
     }
 
