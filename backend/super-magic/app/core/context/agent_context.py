@@ -537,15 +537,19 @@ class AgentContext(BaseAgentContext):
     def set_chat_client_message(self, chat_client_message: ChatClientMessage) -> None:
         """设置聊天客户端消息，并从 dynamic_config 中提取 message_version。
 
+        仅当 dynamic_config 中明确提供了 message_version 时才更新，
+        否则保持 shared_context 中已有的值（如从 session.json 回落设置的值）。
+
         Args:
             chat_client_message: 聊天客户端消息
         """
         self.shared_context.update_field("chat_client_message", chat_client_message)
 
         dynamic_config = getattr(chat_client_message, "dynamic_config", None) or {}
-        version = dynamic_config.get("message_version", "v1") if isinstance(dynamic_config, dict) else "v1"
-        self.shared_context.update_field("message_version", version)
-        logger.debug(f"消息版本已设置为: {version}")
+        version = dynamic_config.get("message_version") if isinstance(dynamic_config, dict) else None
+        if version:
+            self.shared_context.update_field("message_version", version)
+            logger.debug(f"消息版本已设置为: {version}")
 
     def get_chat_client_message(self) -> Optional[ChatClientMessage]:
         """获取聊天客户端消息
