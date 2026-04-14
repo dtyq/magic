@@ -17,6 +17,7 @@ use App\Domain\Permission\Entity\ValueObject\PermissionControlStatus;
 use App\Domain\Permission\Entity\ValueObject\PermissionDataIsolation;
 use App\Domain\Permission\Repository\Persistence\ModelAccessRoleRepository;
 use App\Domain\Permission\Service\ModelAccessRoleDomainService;
+use App\Domain\Provider\Entity\ProviderModelEntity;
 use App\Domain\Provider\Service\ProviderModelDomainService;
 use App\Infrastructure\Core\Exception\BusinessException;
 use App\Infrastructure\Core\ValueObject\Page;
@@ -65,7 +66,7 @@ class ModelAccessRoleDomainServiceTest extends HttpTestCase
             ->once()
             ->with('ORG_META_DISABLED')
             ->andReturn($defaultRole);
-        $repository->shouldReceive('getModelIdsByRoleId')
+        $repository->shouldReceive('getDeniedModelIdsByRoleId')
             ->once()
             ->with('ORG_META_DISABLED', 1)
             ->andReturn(['gpt-4.1']);
@@ -82,7 +83,7 @@ class ModelAccessRoleDomainServiceTest extends HttpTestCase
         $this->assertSame($defaultRole, $result['default_role']);
     }
 
-    public function testQueriesHydratesUserIdsAndModelIds(): void
+    public function testQueriesHydratesUserIdsAndDeniedModelIds(): void
     {
         $repository = Mockery::mock(ModelAccessRoleRepository::class);
         $adminGlobalSettingsRepository = Mockery::mock(AdminGlobalSettingsRepositoryInterface::class);
@@ -98,7 +99,7 @@ class ModelAccessRoleDomainServiceTest extends HttpTestCase
             ->once()
             ->with('ORG_QUERY', [11])
             ->andReturn([11 => ['u_001', 'u_002']]);
-        $repository->shouldReceive('getRoleModelMap')
+        $repository->shouldReceive('getRoleDeniedModelMap')
             ->once()
             ->with('ORG_QUERY', [11])
             ->andReturn([11 => ['gpt-4.1', 'claude-sonnet-4']]);
@@ -110,10 +111,10 @@ class ModelAccessRoleDomainServiceTest extends HttpTestCase
         $this->assertSame(1, $result['total']);
         $this->assertCount(1, $result['list']);
         $this->assertSame(['u_001', 'u_002'], $result['list'][0]->getUserIds());
-        $this->assertSame(['gpt-4.1', 'claude-sonnet-4'], $result['list'][0]->getModelIds());
+        $this->assertSame(['gpt-4.1', 'claude-sonnet-4'], $result['list'][0]->getDeniedModelIds());
     }
 
-    public function testCreateDefaultRoleRequiresAtLeastOneModel(): void
+    public function testCreateDefaultRoleAllowsEmptyDeniedModelList(): void
     {
         $repository = Mockery::mock(ModelAccessRoleRepository::class);
         $adminGlobalSettingsRepository = Mockery::mock(AdminGlobalSettingsRepositoryInterface::class);
@@ -128,14 +129,43 @@ class ModelAccessRoleDomainServiceTest extends HttpTestCase
             ->once()
             ->with('ORG_DEFAULT')
             ->andReturn(null);
+        $repository->shouldReceive('save')
+            ->once()
+            ->andReturnUsing(static function (ModelAccessRoleEntity $entity): ModelAccessRoleEntity {
+                $entity->setId(1);
+                return $entity;
+            });
+        $repository->shouldReceive('replaceDeniedModels')
+            ->once()
+            ->with('ORG_DEFAULT', 1, [], 'operator');
+        $repository->shouldReceive('replaceUsers')
+            ->once()
+            ->with('ORG_DEFAULT', 1, [], 'operator');
+        $repository->shouldReceive('getById')
+            ->once()
+            ->with('ORG_DEFAULT', 1)
+            ->andReturn($this->makeRole(id: 1, name: '默认角色', isDefault: true));
+        $repository->shouldReceive('getRoleUserMap')
+            ->once()
+            ->with('ORG_DEFAULT', [1])
+            ->andReturn([]);
+        $repository->shouldReceive('getRoleDeniedModelMap')
+            ->once()
+            ->with('ORG_DEFAULT', [1])
+            ->andReturn([]);
+        $adminGlobalSettingsRepository->shouldReceive('updateSettings')
+            ->once()
+            ->andReturnUsing(static fn (AdminGlobalSettingsEntity $entity) => $entity);
 
         $service = new ModelAccessRoleDomainService($repository, $adminGlobalSettingsRepository, $userDomainService, $providerModelDomainService);
 
         $entity = $this->makeRole(name: '默认角色', isDefault: true);
-        $entity->setModelIds([]);
+        $entity->setDeniedModelIds([]);
 
-        $this->expectException(BusinessException::class);
-        $service->createDefaultRole(PermissionDataIsolation::create('ORG_DEFAULT', 'operator'), $entity);
+        $result = $service->createDefaultRole(PermissionDataIsolation::create('ORG_DEFAULT', 'operator'), $entity);
+
+        $this->assertSame(1, $result->getId());
+        $this->assertSame([], $result->getDeniedModelIds());
     }
 
     public function testCreateRoleRequiresDefaultRole(): void
@@ -160,6 +190,58 @@ class ModelAccessRoleDomainServiceTest extends HttpTestCase
 
         $this->expectException(BusinessException::class);
         $service->createRole(PermissionDataIsolation::create('ORG_NODEFAULT', 'operator'), $entity);
+    }
+
+    public function testCreateRoleAllowsNoParentRole(): void
+    {
+        $repository = Mockery::mock(ModelAccessRoleRepository::class);
+        $adminGlobalSettingsRepository = Mockery::mock(AdminGlobalSettingsRepositoryInterface::class);
+        $userDomainService = Mockery::mock(MagicUserDomainService::class);
+        $providerModelDomainService = di(ProviderModelDomainService::class);
+
+        $defaultRole = $this->makeRole(id: 1, name: '默认角色', isDefault: true);
+
+        $repository->shouldReceive('getByName')
+            ->once()
+            ->with('ORG_NOPARENT', '高级角色')
+            ->andReturn(null);
+        $repository->shouldReceive('getDefaultRole')
+            ->once()
+            ->with('ORG_NOPARENT')
+            ->andReturn($defaultRole);
+        $repository->shouldReceive('save')
+            ->once()
+            ->andReturnUsing(static function (ModelAccessRoleEntity $entity): ModelAccessRoleEntity {
+                $entity->setId(2);
+                return $entity;
+            });
+        $repository->shouldReceive('replaceDeniedModels')
+            ->once()
+            ->with('ORG_NOPARENT', 2, [], 'operator');
+        $repository->shouldReceive('replaceUsers')
+            ->once()
+            ->with('ORG_NOPARENT', 2, [], 'operator');
+        $repository->shouldReceive('getById')
+            ->once()
+            ->with('ORG_NOPARENT', 2)
+            ->andReturn($this->makeRole(id: 2, name: '高级角色', isDefault: false, parentRoleId: null));
+        $repository->shouldReceive('getRoleUserMap')
+            ->once()
+            ->with('ORG_NOPARENT', [2])
+            ->andReturn([]);
+        $repository->shouldReceive('getRoleDeniedModelMap')
+            ->once()
+            ->with('ORG_NOPARENT', [2])
+            ->andReturn([]);
+
+        $service = new ModelAccessRoleDomainService($repository, $adminGlobalSettingsRepository, $userDomainService, $providerModelDomainService);
+
+        $entity = $this->makeRole(name: '高级角色', isDefault: false, parentRoleId: null);
+
+        $result = $service->createRole(PermissionDataIsolation::create('ORG_NOPARENT', 'operator'), $entity);
+
+        $this->assertSame(2, $result->getId());
+        $this->assertNull($result->getParentRoleId());
     }
 
     public function testCreateRoleRejectsParentChainThatDoesNotTraceToDefault(): void
@@ -210,7 +292,7 @@ class ModelAccessRoleDomainServiceTest extends HttpTestCase
             ->once()
             ->with('ORG_DELETE_LAST', [1])
             ->andReturn([]);
-        $repository->shouldReceive('getRoleModelMap')
+        $repository->shouldReceive('getRoleDeniedModelMap')
             ->once()
             ->with('ORG_DELETE_LAST', [1])
             ->andReturn([1 => ['gpt-4.1']]);
@@ -225,7 +307,7 @@ class ModelAccessRoleDomainServiceTest extends HttpTestCase
         $repository->shouldReceive('replaceUsers')
             ->once()
             ->with('ORG_DELETE_LAST', 1, [], '');
-        $repository->shouldReceive('replaceModels')
+        $repository->shouldReceive('replaceDeniedModels')
             ->once()
             ->with('ORG_DELETE_LAST', 1, [], '');
         $repository->shouldReceive('delete')
@@ -259,7 +341,7 @@ class ModelAccessRoleDomainServiceTest extends HttpTestCase
             ->once()
             ->with('ORG_DELETE', [1])
             ->andReturn([]);
-        $repository->shouldReceive('getRoleModelMap')
+        $repository->shouldReceive('getRoleDeniedModelMap')
             ->once()
             ->with('ORG_DELETE', [1])
             ->andReturn([1 => ['gpt-4.1']]);
@@ -295,7 +377,7 @@ class ModelAccessRoleDomainServiceTest extends HttpTestCase
             ->once()
             ->with('ORG_DELETE_CHILD', [2])
             ->andReturn([2 => ['u_001', 'u_002']]);
-        $repository->shouldReceive('getRoleModelMap')
+        $repository->shouldReceive('getRoleDeniedModelMap')
             ->once()
             ->with('ORG_DELETE_CHILD', [2])
             ->andReturn([2 => ['gpt-4.1']]);
@@ -306,7 +388,7 @@ class ModelAccessRoleDomainServiceTest extends HttpTestCase
         $repository->shouldReceive('replaceUsers')
             ->once()
             ->with('ORG_DELETE_CHILD', 2, [], '');
-        $repository->shouldReceive('replaceModels')
+        $repository->shouldReceive('replaceDeniedModels')
             ->once()
             ->with('ORG_DELETE_CHILD', 2, [], '');
         $repository->shouldReceive('delete')
@@ -324,12 +406,12 @@ class ModelAccessRoleDomainServiceTest extends HttpTestCase
         $this->assertSame(PermissionControlStatus::ENABLED, $result);
     }
 
-    public function testUserSummaryMergesDefaultAndInheritedRoleModels(): void
+    public function testUserSummaryBuildsAccessibleModelsFromAvailableMinusDeniedUnion(): void
     {
         $repository = Mockery::mock(ModelAccessRoleRepository::class);
         $adminGlobalSettingsRepository = Mockery::mock(AdminGlobalSettingsRepositoryInterface::class);
         $userDomainService = Mockery::mock(MagicUserDomainService::class);
-        $providerModelDomainService = di(ProviderModelDomainService::class);
+        $providerModelDomainService = Mockery::mock(ProviderModelDomainService::class);
 
         $defaultRole = $this->makeRole(id: 1, name: '默认角色', isDefault: true);
         $parentRole = $this->makeRole(id: 2, name: '高级角色父', isDefault: false, parentRoleId: 1);
@@ -347,14 +429,14 @@ class ModelAccessRoleDomainServiceTest extends HttpTestCase
             ->once()
             ->with('ORG_SUMMARY', [1, 3])
             ->andReturn([3 => ['u_001']]);
-        $repository->shouldReceive('getRoleModelMap')
+        $repository->shouldReceive('getRoleDeniedModelMap')
             ->once()
             ->with('ORG_SUMMARY', [1, 3])
             ->andReturn([
                 1 => ['gpt-4.1'],
                 3 => ['claude-opus-4'],
             ]);
-        $repository->shouldReceive('getModelIdsByRoleId')
+        $repository->shouldReceive('getDeniedModelIdsByRoleId')
             ->once()
             ->with('ORG_SUMMARY', 1)
             ->andReturn(['gpt-4.1']);
@@ -366,11 +448,11 @@ class ModelAccessRoleDomainServiceTest extends HttpTestCase
             ->once()
             ->with('ORG_SUMMARY', 1)
             ->andReturn($defaultRole);
-        $repository->shouldReceive('getModelIdsByRoleId')
+        $repository->shouldReceive('getDeniedModelIdsByRoleId')
             ->once()
             ->with('ORG_SUMMARY', 3)
             ->andReturn(['claude-opus-4']);
-        $repository->shouldReceive('getModelIdsByRoleId')
+        $repository->shouldReceive('getDeniedModelIdsByRoleId')
             ->once()
             ->with('ORG_SUMMARY', 2)
             ->andReturn(['gemini-2.5-pro']);
@@ -378,6 +460,14 @@ class ModelAccessRoleDomainServiceTest extends HttpTestCase
             ->once()
             ->with(AdminGlobalSettingsType::MODEL_ACCESS_PERMISSION_CONTROL, 'ORG_SUMMARY')
             ->andReturn(null);
+        $providerModelDomainService->shouldReceive('getEnableModels')
+            ->once()
+            ->andReturn([
+                new ProviderModelEntity(['model_id' => 'gpt-4.1']),
+                new ProviderModelEntity(['model_id' => 'claude-opus-4']),
+                new ProviderModelEntity(['model_id' => 'gemini-2.5-pro']),
+                new ProviderModelEntity(['model_id' => 'gpt-4o-mini']),
+            ]);
 
         $service = new ModelAccessRoleDomainService($repository, $adminGlobalSettingsRepository, $userDomainService, $providerModelDomainService);
 
@@ -385,10 +475,8 @@ class ModelAccessRoleDomainServiceTest extends HttpTestCase
 
         $this->assertSame(PermissionControlStatus::ENABLED, $summary['permission_control_status']);
         $this->assertCount(2, $summary['roles']);
-        $this->assertSame(
-            ['gpt-4.1', 'claude-opus-4', 'gemini-2.5-pro'],
-            $summary['accessible_model_ids']
-        );
+        $this->assertSame(['gpt-4.1', 'claude-opus-4', 'gemini-2.5-pro'], $summary['denied_model_ids']);
+        $this->assertSame(['gpt-4o-mini'], $summary['accessible_model_ids']);
     }
 
     public function testUpdatePermissionControlStatusPersistsDisabled(): void
@@ -404,7 +492,7 @@ class ModelAccessRoleDomainServiceTest extends HttpTestCase
             ->once()
             ->with('ORG_SWITCH')
             ->andReturn($defaultRole);
-        $repository->shouldReceive('getModelIdsByRoleId')
+        $repository->shouldReceive('getDeniedModelIdsByRoleId')
             ->once()
             ->with('ORG_SWITCH', 1)
             ->andReturn(['gpt-4.1']);

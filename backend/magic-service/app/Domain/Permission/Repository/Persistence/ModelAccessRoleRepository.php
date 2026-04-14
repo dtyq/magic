@@ -8,6 +8,7 @@ declare(strict_types=1);
 namespace App\Domain\Permission\Repository\Persistence;
 
 use App\Domain\Permission\Entity\ModelAccessRoleEntity;
+use App\Domain\Permission\Entity\ValueObject\ModelAccessRuleEffect;
 use App\Domain\Permission\Repository\Persistence\Model\ModelAccessRoleModel;
 use App\Domain\Permission\Repository\Persistence\Model\ModelAccessRoleModelBindingModel;
 use App\Domain\Permission\Repository\Persistence\Model\ModelAccessRoleUserModel;
@@ -160,11 +161,12 @@ class ModelAccessRoleRepository
         ModelAccessRoleUserModel::insert($rows);
     }
 
-    public function replaceModels(string $organizationCode, int $roleId, array $modelIds, string $operator): void
+    public function replaceDeniedModels(string $organizationCode, int $roleId, array $modelIds, string $operator): void
     {
         ModelAccessRoleModelBindingModel::query()
             ->where('organization_code', $organizationCode)
             ->where('role_id', $roleId)
+            ->where('effect', ModelAccessRuleEffect::DENY->value)
             ->delete();
 
         if (empty($modelIds)) {
@@ -178,6 +180,7 @@ class ModelAccessRoleRepository
                 'organization_code' => $organizationCode,
                 'role_id' => $roleId,
                 'model_id' => $modelId,
+                'effect' => ModelAccessRuleEffect::DENY->value,
                 'created_uid' => $operator,
                 'created_at' => $now,
                 'updated_at' => $now,
@@ -195,11 +198,12 @@ class ModelAccessRoleRepository
             ->toArray();
     }
 
-    public function getModelIdsByRoleId(string $organizationCode, int $roleId): array
+    public function getDeniedModelIdsByRoleId(string $organizationCode, int $roleId): array
     {
         return ModelAccessRoleModelBindingModel::query()
             ->where('organization_code', $organizationCode)
             ->where('role_id', $roleId)
+            ->where('effect', ModelAccessRuleEffect::DENY->value)
             ->pluck('model_id')
             ->toArray();
     }
@@ -226,7 +230,7 @@ class ModelAccessRoleRepository
     /**
      * @return array<int,int>
      */
-    public function getModelCountMap(string $organizationCode, array $roleIds): array
+    public function getDeniedModelCountMap(string $organizationCode, array $roleIds): array
     {
         if (empty($roleIds)) {
             return [];
@@ -236,6 +240,7 @@ class ModelAccessRoleRepository
             ->selectRaw('role_id, count(*) as aggregate')
             ->where('organization_code', $organizationCode)
             ->whereIn('role_id', $roleIds)
+            ->where('effect', ModelAccessRuleEffect::DENY->value)
             ->groupBy('role_id')
             ->pluck('aggregate', 'role_id')
             ->map(static fn ($count) => (int) $count)
@@ -266,7 +271,7 @@ class ModelAccessRoleRepository
     /**
      * @return array<int, array<string>>
      */
-    public function getRoleModelMap(string $organizationCode, array $roleIds): array
+    public function getRoleDeniedModelMap(string $organizationCode, array $roleIds): array
     {
         if (empty($roleIds)) {
             return [];
@@ -275,6 +280,7 @@ class ModelAccessRoleRepository
         $rows = ModelAccessRoleModelBindingModel::query()
             ->where('organization_code', $organizationCode)
             ->whereIn('role_id', $roleIds)
+            ->where('effect', ModelAccessRuleEffect::DENY->value)
             ->get(['role_id', 'model_id']);
 
         $result = [];

@@ -7,6 +7,7 @@ declare(strict_types=1);
 
 namespace App\Domain\Permission\Repository\Persistence\Model;
 
+use App\Domain\Permission\Entity\ValueObject\ModelAccessRuleEffect;
 use App\Infrastructure\Core\AbstractModel;
 use Carbon\Carbon;
 use Hyperf\Database\Model\SoftDeletes;
@@ -17,6 +18,7 @@ use Hyperf\Snowflake\Concern\Snowflake;
  * @property string $organization_code
  * @property int $role_id
  * @property string $model_id
+ * @property string $effect
  * @property null|string $created_uid
  * @property Carbon $created_at
  * @property Carbon $updated_at
@@ -34,6 +36,7 @@ class ModelAccessRoleModelBindingModel extends AbstractModel
         'organization_code',
         'role_id',
         'model_id',
+        'effect',
         'created_uid',
         'created_at',
         'updated_at',
@@ -45,9 +48,14 @@ class ModelAccessRoleModelBindingModel extends AbstractModel
         'organization_code' => 'string',
         'role_id' => 'int',
         'model_id' => 'string',
+        'effect' => 'string',
         'created_uid' => 'string',
         'created_at' => 'datetime',
         'updated_at' => 'datetime',
         'deleted_at' => 'datetime',
+    ];
+
+    protected array $attributes = [
+        'effect' => ModelAccessRuleEffect::DENY->value,
     ];
 }

@@ -41,7 +41,8 @@ class ModelAccessRoleAppService extends AbstractPermissionAppService
             'default_role' => $defaultRole ? [
                 'id' => (string) $defaultRole->getId(),
                 'name' => $defaultRole->getName(),
-                'model_count' => count($defaultRole->getModelIds()),
+                'denied_model_count' => count($defaultRole->getDeniedModelIds()),
+                'model_rule_effect' => 'deny',
             ] : null,
         ];
     }
@@ -56,7 +57,8 @@ class ModelAccessRoleAppService extends AbstractPermissionAppService
             'default_role' => $defaultRole ? [
                 'id' => (string) $defaultRole->getId(),
                 'name' => $defaultRole->getName(),
-                'model_count' => count($defaultRole->getModelIds()),
+                'denied_model_count' => count($defaultRole->getDeniedModelIds()),
+                'model_rule_effect' => 'deny',
             ] : null,
         ];
     }
@@ -95,8 +97,9 @@ class ModelAccessRoleAppService extends AbstractPermissionAppService
                 'is_default' => $role->isDefault(),
                 'parent_role_id' => $role->getParentRoleId() === null ? null : (string) $role->getParentRoleId(),
                 'parent_role_name' => $parent?->getName(),
-                'model_ids' => $role->getModelIds(),
-                'model_count' => count($role->getModelIds()),
+                'model_rule_effect' => 'deny',
+                'denied_model_ids' => $role->getDeniedModelIds(),
+                'denied_model_count' => count($role->getDeniedModelIds()),
                 'user_count' => count($role->getUserIds()),
                 'created_at' => $role->getCreatedAt()?->format('Y-m-d H:i:s'),
                 'updated_at' => $role->getUpdatedAt()?->format('Y-m-d H:i:s'),
@@ -122,10 +125,10 @@ class ModelAccessRoleAppService extends AbstractPermissionAppService
 
         $modelMap = $this->providerModelDomainService->getModelsByModelIds(
             ProviderDataIsolation::create($dataIsolation->getCurrentOrganizationCode()),
-            $role->getModelIds()
+            $role->getDeniedModelIds()
         );
         $fallbackModelNames = [];
-        foreach ($role->getModelIds() as $modelId) {
+        foreach ($role->getDeniedModelIds() as $modelId) {
             if (isset($modelMap[$modelId][0])) {
                 continue;
             }
@@ -148,15 +151,16 @@ class ModelAccessRoleAppService extends AbstractPermissionAppService
             'parent_role_id' => $role->getParentRoleId() === null ? null : (string) $role->getParentRoleId(),
             'parent_role_name' => $parentName,
             'inherited_path' => $this->buildInheritedPath($dataIsolation, $role),
-            'model_ids' => $role->getModelIds(),
+            'model_rule_effect' => 'deny',
+            'denied_model_ids' => $role->getDeniedModelIds(),
             'user_ids' => $role->getUserIds(),
-            'model_items' => array_map(static function (string $modelId) use ($modelMap, $fallbackModelNames) {
+            'denied_model_items' => array_map(static function (string $modelId) use ($modelMap, $fallbackModelNames) {
                 $first = $modelMap[$modelId][0] ?? null;
                 return [
                     'model_id' => $modelId,
                     'model_name' => $first?->getName() ?? ($fallbackModelNames[$modelId] ?? $modelId),
                 ];
-            }, $role->getModelIds()),
+            }, $role->getDeniedModelIds()),
             'user_items' => array_map(static function (string $userId) use ($userInfo) {
                 $item = $userInfo[$userId] ?? ['nickname' => '', 'real_name' => ''];
                 return [
@@ -166,7 +170,7 @@ class ModelAccessRoleAppService extends AbstractPermissionAppService
                     'avatar_url' => $item['avatar_url'] ?? '',
                 ];
             }, $role->getUserIds()),
-            'model_count' => count($role->getModelIds()),
+            'denied_model_count' => count($role->getDeniedModelIds()),
             'user_count' => count($role->getUserIds()),
             'created_at' => $role->getCreatedAt()?->format('Y-m-d H:i:s'),
             'updated_at' => $role->getUpdatedAt()?->format('Y-m-d H:i:s'),
@@ -217,6 +221,7 @@ class ModelAccessRoleAppService extends AbstractPermissionAppService
                 'name' => $role->getName(),
                 'is_default' => $role->isDefault(),
             ], $summary['roles']),
+            'denied_model_ids' => $summary['denied_model_ids'],
             'accessible_model_ids' => $summary['accessible_model_ids'],
         ];
     }
@@ -229,7 +234,8 @@ class ModelAccessRoleAppService extends AbstractPermissionAppService
             'description' => $role->getDescription(),
             'is_default' => $role->isDefault(),
             'parent_role_id' => $role->getParentRoleId() === null ? null : (string) $role->getParentRoleId(),
-            'model_count' => count($role->getModelIds()),
+            'model_rule_effect' => 'deny',
+            'denied_model_count' => count($role->getDeniedModelIds()),
             'user_count' => count($role->getUserIds()),
         ];
     }

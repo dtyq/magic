@@ -137,7 +137,8 @@ class ModelAccessRoleApi extends AbstractPermissionApi
         $authorization = $this->getAuthorization();
         return PermissionDataIsolation::create(
             $authorization->getOrganizationCode(),
-            $authorization->getId()
+            $authorization->getId(),
+            $authorization->getMagicId()
         );
     }
 
@@ -148,7 +149,7 @@ class ModelAccessRoleApi extends AbstractPermissionApi
         $entity->setDescription($this->request->input('description'));
         $entity->setIsDefault($isDefault);
         $entity->setParentRoleId($isDefault ? null : $this->parseNullableInt($this->request->input('parent_role_id')));
-        $entity->setModelIds($this->parseStringArray($this->request->input('model_ids', [])));
+        $entity->setDeniedModelIds($this->parseStringArray($this->request->input('denied_model_ids', [])));
         $entity->setUserIds($isDefault ? [] : $this->parseStringArray($this->request->input('user_ids', [])));
         return $entity;
     }

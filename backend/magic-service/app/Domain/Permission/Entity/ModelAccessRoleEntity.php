@@ -34,7 +34,7 @@ class ModelAccessRoleEntity extends AbstractEntity
 
     protected ?DateTime $updatedAt = null;
 
-    protected array $modelIds = [];
+    protected array $deniedModelIds = [];
 
     protected array $userIds = [];
 
@@ -76,11 +76,11 @@ class ModelAccessRoleEntity extends AbstractEntity
             if (! empty($this->userIds)) {
                 ExceptionBuilder::throw(PermissionErrorCode::ValidateFailed, 'default role cannot bind users');
             }
-        } elseif ($this->parentRoleId === null || $this->parentRoleId <= 0) {
-            ExceptionBuilder::throw(PermissionErrorCode::ValidateFailed, 'parent_role_id is required');
+        } elseif ($this->parentRoleId !== null && $this->parentRoleId <= 0) {
+            ExceptionBuilder::throw(PermissionErrorCode::ValidateFailed, 'parent_role_id is invalid');
         }
 
-        $this->modelIds = array_values(array_unique(array_filter(array_map('strval', $this->modelIds), static fn ($id) => $id !== '')));
+        $this->deniedModelIds = array_values(array_unique(array_filter(array_map('strval', $this->deniedModelIds), static fn ($id) => $id !== '')));
         $this->userIds = array_values(array_unique(array_filter(array_map('strval', $this->userIds), static fn ($id) => $id !== '')));
     }
 
@@ -184,14 +184,14 @@ class ModelAccessRoleEntity extends AbstractEntity
         $this->updatedAt = $updatedAt;
     }
 
-    public function getModelIds(): array
+    public function getDeniedModelIds(): array
     {
-        return $this->modelIds;
+        return $this->deniedModelIds;
     }
 
-    public function setModelIds(array $modelIds): void
+    public function setDeniedModelIds(array $deniedModelIds): void
     {
-        $this->modelIds = $modelIds;
+        $this->deniedModelIds = $deniedModelIds;
     }
 
     public function getUserIds(): array

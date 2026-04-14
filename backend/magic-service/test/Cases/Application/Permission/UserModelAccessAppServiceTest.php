@@ -32,14 +32,16 @@ class UserModelAccessAppServiceTest extends TestCase
         $service = $this->createService(
             defaultRole: $this->createDefaultRole(1),
             roleModelMap: [1 => ['model-a', 'model-b', 'model-a']],
+            availableModelIds: ['model-a', 'model-b', 'model-c'],
         );
 
         $context = $service->resolveAccessContext($this->createAuthorization());
 
         $this->assertSame('enabled', $context['permission_control_status']);
         $this->assertTrue($context['is_restricted']);
-        $this->assertSame(['model-a', 'model-b'], $context['accessible_model_ids']);
-        $this->assertSame(['model-a' => true, 'model-b' => true], $context['accessible_model_id_map']);
+        $this->assertSame(['model-a', 'model-b'], $context['denied_model_ids']);
+        $this->assertSame(['model-c'], $context['accessible_model_ids']);
+        $this->assertSame(['model-c' => true], $context['accessible_model_id_map']);
     }
 
     public function testResolveAccessContextMarksDisabledStatusAsUnrestricted(): void
@@ -47,6 +49,7 @@ class UserModelAccessAppServiceTest extends TestCase
         $service = $this->createService(
             defaultRole: $this->createDefaultRole(1),
             roleModelMap: [1 => ['model-a']],
+            availableModelIds: ['model-a', 'model-b'],
             settingsEntity: (new AdminGlobalSettingsEntity())->setStatus(AdminGlobalSettingsStatus::DISABLED),
         );
 
@@ -54,19 +57,21 @@ class UserModelAccessAppServiceTest extends TestCase
 
         $this->assertSame('disabled', $context['permission_control_status']);
         $this->assertFalse($context['is_restricted']);
-        $this->assertSame(['model-a'], $context['accessible_model_ids']);
+        $this->assertSame(['model-a'], $context['denied_model_ids']);
+        $this->assertSame(['model-a', 'model-b'], $context['accessible_model_ids']);
         $this->assertSame([], $context['accessible_model_id_map']);
     }
 
     public function testResolveAccessContextMarksUninitializedStatusAsUnrestricted(): void
     {
-        $service = $this->createService(defaultRole: null, roleModelMap: []);
+        $service = $this->createService(defaultRole: null, roleModelMap: [], availableModelIds: ['model-a']);
 
         $context = $service->resolveAccessContext($this->createAuthorization());
 
         $this->assertSame('uninitialized', $context['permission_control_status']);
         $this->assertFalse($context['is_restricted']);
-        $this->assertSame([], $context['accessible_model_ids']);
+        $this->assertSame([], $context['denied_model_ids']);
+        $this->assertSame(['model-a'], $context['accessible_model_ids']);
         $this->assertSame([], $context['accessible_model_id_map']);
     }
 
@@ -75,6 +80,7 @@ class UserModelAccessAppServiceTest extends TestCase
         $service = $this->createService(
             defaultRole: $this->createDefaultRole(1),
             roleModelMap: [1 => ['model-a']],
+            availableModelIds: ['model-a', 'model-b'],
         );
 
         $filtered = $service->filterModelEntries(
@@ -86,23 +92,25 @@ class UserModelAccessAppServiceTest extends TestCase
             static fn (array $item): string => $item['model_id']
         );
 
-        $this->assertSame([['model_id' => 'model-a']], $filtered);
+        $this->assertSame([['model_id' => 'model-b']], $filtered);
     }
 
     /**
      * @param array<int, list<string>> $roleModelMap
+     * @param list<string> $availableModelIds
      */
     private function createService(
         ?ModelAccessRoleEntity $defaultRole,
         array $roleModelMap,
+        array $availableModelIds,
         ?AdminGlobalSettingsEntity $settingsEntity = null
     ): UserModelAccessAppService {
         $repository = $this->createMock(ModelAccessRoleRepository::class);
         $repository->method('getDefaultRole')->willReturn($defaultRole);
         $repository->method('getUserAssignedRoles')->willReturn([]);
         $repository->method('getRoleUserMap')->willReturn([]);
-        $repository->method('getRoleModelMap')->willReturn($roleModelMap);
-        $repository->method('getModelIdsByRoleId')->willReturnCallback(
+        $repository->method('getRoleDeniedModelMap')->willReturn($roleModelMap);
+        $repository->method('getDeniedModelIdsByRoleId')->willReturnCallback(
             static fn (string $organizationCode, int $roleId): array => $roleModelMap[$roleId] ?? []
         );
 
@@ -111,15 +119,38 @@ class UserModelAccessAppServiceTest extends TestCase
             ->method('getSettingsByTypeAndOrganization')
             ->willReturn($settingsEntity);
 
+        $providerModelRepository = $this->createMock(ProviderModelRepositoryInterface::class);
+        $providerModelRepository
+            ->method('getEnableModelsByConfigIds')
+            ->willReturn(array_map(
+                static fn (string $modelId): object => new class($modelId) {
+                    public function __construct(private readonly string $modelId)
+                    {
+                    }
+
+                    public function getModelId(): string
+                    {
+                        return $this->modelId;
+                    }
+                },
+                $availableModelIds
+            ));
+        $providerConfigRepository = $this->createMock(ProviderConfigRepositoryInterface::class);
+        $providerConfigRepository
+            ->method('getEnabledConfigIds')
+            ->willReturn([1]);
+
+        $providerModelDomainService = new ProviderModelDomainService(
+            $providerModelRepository,
+            $providerConfigRepository,
+            $this->createMock(ProviderModelConfigVersionRepositoryInterface::class),
+        );
+
         $domainService = new ModelAccessRoleDomainService(
             $repository,
             $adminGlobalSettingsRepository,
             $this->createMock(MagicUserDomainService::class),
-            new ProviderModelDomainService(
-                $this->createMock(ProviderModelRepositoryInterface::class),
-                $this->createMock(ProviderConfigRepositoryInterface::class),
-                $this->createMock(ProviderModelConfigVersionRepositoryInterface::class),
-            )
+            $providerModelDomainService
         );
 
         return new UserModelAccessAppService($domainService);

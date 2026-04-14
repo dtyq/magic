@@ -7,16 +7,20 @@ declare(strict_types=1);
 
 namespace App\Domain\Permission\Service;
 
+use App\Application\Kernel\EnvManager;
 use App\Domain\Admin\Entity\AdminGlobalSettingsEntity;
 use App\Domain\Admin\Entity\ValueObject\AdminGlobalSettingsStatus;
 use App\Domain\Admin\Entity\ValueObject\AdminGlobalSettingsType;
 use App\Domain\Admin\Repository\Facade\AdminGlobalSettingsRepositoryInterface;
 use App\Domain\Contact\Entity\ValueObject\DataIsolation as ContactDataIsolation;
 use App\Domain\Contact\Service\MagicUserDomainService;
+use App\Domain\ModelGateway\Entity\ValueObject\ModelGatewayDataIsolation;
 use App\Domain\Permission\Entity\ModelAccessRoleEntity;
 use App\Domain\Permission\Entity\ValueObject\PermissionControlStatus;
 use App\Domain\Permission\Entity\ValueObject\PermissionDataIsolation;
 use App\Domain\Permission\Repository\Persistence\ModelAccessRoleRepository;
+use App\Domain\Provider\Entity\ValueObject\ProviderDataIsolation;
+use App\Domain\Provider\Service\ProviderModelDomainService;
 use App\ErrorCode\PermissionErrorCode;
 use App\Infrastructure\Core\Exception\ExceptionBuilder;
 use App\Infrastructure\Core\ValueObject\Page;
@@ -28,6 +32,7 @@ readonly class ModelAccessRoleDomainService
         private ModelAccessRoleRepository $repository,
         private AdminGlobalSettingsRepositoryInterface $adminGlobalSettingsRepository,
         private MagicUserDomainService $magicUserDomainService,
+        private ProviderModelDomainService $providerModelDomainService,
     ) {
     }
 
@@ -42,7 +47,7 @@ readonly class ModelAccessRoleDomainService
             ];
         }
 
-        $defaultRole->setModelIds($this->repository->getModelIdsByRoleId($organizationCode, $defaultRole->getId()));
+        $defaultRole->setDeniedModelIds($this->repository->getDeniedModelIdsByRoleId($organizationCode, $defaultRole->getId()));
 
         return [
             'permission_control_status' => $this->resolvePermissionControlStatus($organizationCode),
@@ -62,7 +67,7 @@ readonly class ModelAccessRoleDomainService
             ExceptionBuilder::throw(PermissionErrorCode::ValidateFailed, 'default role required');
         }
 
-        $defaultRole->setModelIds($this->repository->getModelIdsByRoleId($organizationCode, $defaultRole->getId()));
+        $defaultRole->setDeniedModelIds($this->repository->getDeniedModelIdsByRoleId($organizationCode, $defaultRole->getId()));
         $this->savePermissionControlSetting($organizationCode, $status);
 
         return [
@@ -136,7 +141,7 @@ readonly class ModelAccessRoleDomainService
 
         Db::transaction(function () use ($organizationCode, $roleId, $deleteDefaultRole) {
             $this->repository->replaceUsers($organizationCode, $roleId, [], '');
-            $this->repository->replaceModels($organizationCode, $roleId, [], '');
+            $this->repository->replaceDeniedModels($organizationCode, $roleId, [], '');
             $this->repository->delete($organizationCode, $roleId);
             if ($deleteDefaultRole) {
                 $this->adminGlobalSettingsRepository->deleteSettingsByTypeAndOrganization(
@@ -170,20 +175,32 @@ readonly class ModelAccessRoleDomainService
         $roles = array_values($uniqueRoles);
         $this->hydrateRelations($organizationCode, $roles);
 
-        $accessibleModelIds = [];
-        if ($defaultRole) {
+        $status = $defaultRole ? $this->resolvePermissionControlStatus($organizationCode) : PermissionControlStatus::UNINITIALIZED;
+        $availableModelIds = $this->resolveOrganizationAvailableModelIds($dataIsolation);
+        $deniedModelIds = [];
+
+        if ($defaultRole && $status === PermissionControlStatus::ENABLED) {
             $visited = [];
             foreach ($roles as $role) {
                 foreach ($this->collectInheritedRoleIds($organizationCode, $role, $visited) as $roleId) {
-                    $roleModelIds = $this->repository->getModelIdsByRoleId($organizationCode, $roleId);
-                    $accessibleModelIds = array_merge($accessibleModelIds, $roleModelIds);
+                    $roleModelIds = $this->repository->getDeniedModelIdsByRoleId($organizationCode, $roleId);
+                    $deniedModelIds = array_merge($deniedModelIds, $roleModelIds);
                 }
             }
         }
 
+        $deniedModelIds = array_values(array_unique($deniedModelIds));
+        $accessibleModelIds = $status === PermissionControlStatus::ENABLED
+            ? array_values(array_filter(
+                $availableModelIds,
+                static fn (string $modelId): bool => ! in_array($modelId, $deniedModelIds, true)
+            ))
+            : $availableModelIds;
+
         return [
-            'permission_control_status' => $defaultRole ? $this->resolvePermissionControlStatus($organizationCode) : PermissionControlStatus::UNINITIALIZED,
+            'permission_control_status' => $status,
             'roles' => $roles,
+            'denied_model_ids' => $deniedModelIds,
             'accessible_model_ids' => array_values(array_unique($accessibleModelIds)),
         ];
     }
@@ -194,7 +211,7 @@ readonly class ModelAccessRoleDomainService
         $entity->setOrganizationCode($organizationCode);
 
         $this->validateUsers($organizationCode, $dataIsolation->getCurrentUserId(), $entity->getUserIds());
-        $this->validateModels($organizationCode, $entity->getModelIds());
+        $this->validateModels($dataIsolation, $entity->getDeniedModelIds());
         $this->validateRoleForSave($organizationCode, $entity);
 
         return Db::transaction(function () use ($dataIsolation, $entity, $organizationCode) {
@@ -205,7 +222,7 @@ readonly class ModelAccessRoleDomainService
             }
 
             $saved = $this->repository->save($entity);
-            $this->repository->replaceModels($organizationCode, $saved->getId(), $saved->getModelIds(), $dataIsolation->getCurrentUserId());
+            $this->repository->replaceDeniedModels($organizationCode, $saved->getId(), $saved->getDeniedModelIds(), $dataIsolation->getCurrentUserId());
             $this->repository->replaceUsers($organizationCode, $saved->getId(), $saved->getUserIds(), $dataIsolation->getCurrentUserId());
             if ($saved->isDefault()) {
                 $this->savePermissionControlSetting($organizationCode, PermissionControlStatus::ENABLED);
@@ -263,9 +280,6 @@ readonly class ModelAccessRoleDomainService
             if ($defaultRole && $defaultRole->getId() !== $entity->getId()) {
                 ExceptionBuilder::throw(PermissionErrorCode::ValidateFailed, 'default role already exists');
             }
-            if (empty($entity->getModelIds())) {
-                ExceptionBuilder::throw(PermissionErrorCode::ValidateFailed, 'default role must keep at least one model');
-            }
             return;
         }
 
@@ -274,7 +288,7 @@ readonly class ModelAccessRoleDomainService
         }
 
         if ($entity->getParentRoleId() === null) {
-            ExceptionBuilder::throw(PermissionErrorCode::ValidateFailed, 'parent role is required');
+            return;
         }
 
         $this->validateParentChain($organizationCode, $entity, $defaultRole->getId());
@@ -321,10 +335,18 @@ readonly class ModelAccessRoleDomainService
         }
     }
 
-    private function validateModels(string $organizationCode, array $modelIds): void
+    private function validateModels(PermissionDataIsolation $dataIsolation, array $modelIds): void
     {
-        // Model access roles store model_id strings directly.
-        // Do not validate against provider model records here.
+        if (empty($modelIds)) {
+            return;
+        }
+
+        $availableModelIdMap = array_fill_keys($this->resolveOrganizationAvailableModelIds($dataIsolation), true);
+        foreach ($modelIds as $modelId) {
+            if (! isset($availableModelIdMap[$modelId])) {
+                ExceptionBuilder::throw(PermissionErrorCode::ValidateFailed, 'some models are not available in organization');
+            }
+        }
     }
 
     /**
@@ -338,11 +360,11 @@ readonly class ModelAccessRoleDomainService
 
         $roleIds = array_values(array_filter(array_map(static fn (ModelAccessRoleEntity $role) => $role->getId(), $roles)));
         $userMap = $this->repository->getRoleUserMap($organizationCode, $roleIds);
-        $modelMap = $this->repository->getRoleModelMap($organizationCode, $roleIds);
+        $modelMap = $this->repository->getRoleDeniedModelMap($organizationCode, $roleIds);
 
         foreach ($roles as $role) {
             $role->setUserIds($userMap[$role->getId()] ?? []);
-            $role->setModelIds($modelMap[$role->getId()] ?? []);
+            $role->setDeniedModelIds($modelMap[$role->getId()] ?? []);
         }
     }
 
@@ -363,5 +385,54 @@ readonly class ModelAccessRoleDomainService
             $current = $parentRoleId ? $this->repository->getById($organizationCode, $parentRoleId) : null;
         }
         return $result;
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function resolveOrganizationAvailableModelIds(PermissionDataIsolation $dataIsolation): array
+    {
+        $providerDataIsolation = ProviderDataIsolation::create(
+            $dataIsolation->getCurrentOrganizationCode(),
+            $dataIsolation->getCurrentUserId(),
+            $dataIsolation->getMagicId()
+        );
+
+        $models = $this->providerModelDomainService->getEnableModels($providerDataIsolation);
+        if (empty($models)) {
+            return [];
+        }
+
+        if ($dataIsolation->getMagicId() === '') {
+            $result = [];
+            foreach ($models as $model) {
+                $result[$model->getModelId()] = $model->getModelId();
+            }
+            return array_values($result);
+        }
+
+        $modelGatewayDataIsolation = new ModelGatewayDataIsolation(
+            $dataIsolation->getCurrentOrganizationCode(),
+            $dataIsolation->getCurrentUserId(),
+            $dataIsolation->getMagicId()
+        );
+        EnvManager::initDataIsolationEnv($modelGatewayDataIsolation, force: true);
+        $subscriptionAvailableModelIds = $modelGatewayDataIsolation->getSubscriptionManager()->getAvailableModelIds(null);
+        $subscriptionAvailableModelIdMap = is_array($subscriptionAvailableModelIds)
+            ? array_fill_keys($subscriptionAvailableModelIds, true)
+            : null;
+
+        $result = [];
+        foreach ($models as $model) {
+            $modelId = $model->getModelId();
+            if ($subscriptionAvailableModelIdMap !== null && ! isset($subscriptionAvailableModelIdMap[$modelId])) {
+                continue;
+            }
+            if (! isset($result[$modelId])) {
+                $result[$modelId] = $modelId;
+            }
+        }
+
+        return array_values($result);
     }
 }

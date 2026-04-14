@@ -23,6 +23,7 @@ class UserModelAccessAppService
      * @return array{
      *     permission_control_status:string,
      *     is_restricted:bool,
+     *     denied_model_ids:list<string>,
      *     accessible_model_ids:list<string>,
      *     accessible_model_id_map:array<string, true>
      * }
@@ -30,17 +31,19 @@ class UserModelAccessAppService
     public function resolveAccessContext(MagicUserAuthorization $authorization): array
     {
         $summary = $this->domainService->getUserSummary(
-            PermissionDataIsolation::create($authorization->getOrganizationCode(), $authorization->getId()),
+            PermissionDataIsolation::create($authorization->getOrganizationCode(), $authorization->getId(), $authorization->getMagicId()),
             $authorization->getId()
         );
 
         $status = $summary['permission_control_status'];
+        $deniedModelIds = array_values(array_unique($summary['denied_model_ids']));
         $accessibleModelIds = array_values(array_unique($summary['accessible_model_ids']));
         $isRestricted = $status === PermissionControlStatus::ENABLED;
 
         return [
             'permission_control_status' => $status->value,
             'is_restricted' => $isRestricted,
+            'denied_model_ids' => $deniedModelIds,
             'accessible_model_ids' => $accessibleModelIds,
             'accessible_model_id_map' => $isRestricted ? array_fill_keys($accessibleModelIds, true) : [],
         ];

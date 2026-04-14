@@ -39,7 +39,7 @@ class ModelAccessRoleAppServiceTest extends HttpTestCase
 
         $parentRole = $this->makeRole(id: 1, name: '默认角色', isDefault: true);
         $role = $this->makeRole(id: 2, name: '高级角色-A', isDefault: false, parentRoleId: 1);
-        $role->setModelIds(['gpt-4.1']);
+        $role->setDeniedModelIds(['gpt-4.1']);
         $role->setUserIds(['u_001', 'u_002']);
 
         $repository->shouldReceive('getById')
@@ -50,10 +50,10 @@ class ModelAccessRoleAppServiceTest extends HttpTestCase
             ->once()
             ->with('ORG_APP', [2])
             ->andReturn([2 => ['u_001', 'u_002']]);
-        $repository->shouldReceive('getRoleModelMap')
+        $repository->shouldReceive('getRoleDeniedModelMap')
             ->once()
             ->with('ORG_APP', [2])
-            ->andReturn([2 => []]);
+            ->andReturn([2 => ['gpt-4.1']]);
         $repository->shouldReceive('getById')
             ->twice()
             ->with('ORG_APP', 1)
@@ -62,7 +62,7 @@ class ModelAccessRoleAppServiceTest extends HttpTestCase
             ->twice()
             ->with('ORG_APP', [1])
             ->andReturn([]);
-        $repository->shouldReceive('getRoleModelMap')
+        $repository->shouldReceive('getRoleDeniedModelMap')
             ->twice()
             ->with('ORG_APP', [1])
             ->andReturn([]);
@@ -88,12 +88,12 @@ class ModelAccessRoleAppServiceTest extends HttpTestCase
         $this->assertSame('2', $detail['id']);
         $this->assertSame('高级角色-A', $detail['name']);
         $this->assertSame('1', $detail['parent_role_id']);
-        $this->assertSame(['gpt-4.1'], $detail['model_ids']);
+        $this->assertSame(['gpt-4.1'], $detail['denied_model_ids']);
         $this->assertSame(['u_001', 'u_002'], $detail['user_ids']);
         $this->assertSame([[
             'model_id' => 'gpt-4.1',
             'model_name' => 'GPT-4.1',
-        ]], $detail['model_items']);
+        ]], $detail['denied_model_items']);
         $this->assertCount(2, $detail['user_items']);
         $this->assertSame('张三', $detail['user_items'][0]['nickname']);
         $this->assertCount(2, $detail['inherited_path']);
@@ -113,7 +113,7 @@ class ModelAccessRoleAppServiceTest extends HttpTestCase
             ->once()
             ->with('ORG_APP')
             ->andReturn($defaultRole);
-        $repository->shouldReceive('getModelIdsByRoleId')
+        $repository->shouldReceive('getDeniedModelIdsByRoleId')
             ->once()
             ->with('ORG_APP', 1)
             ->andReturn(['gpt-4.1', 'claude-sonnet-4']);
@@ -128,7 +128,7 @@ class ModelAccessRoleAppServiceTest extends HttpTestCase
         $meta = $service->meta(PermissionDataIsolation::create('ORG_APP', 'operator'));
 
         $this->assertSame(PermissionControlStatus::ENABLED->value, $meta['permission_control_status']);
-        $this->assertSame(2, $meta['default_role']['model_count']);
+        $this->assertSame(2, $meta['default_role']['denied_model_count']);
     }
 
     public function testQueriesReturnsModelIds(): void
@@ -140,24 +140,24 @@ class ModelAccessRoleAppServiceTest extends HttpTestCase
         $adminProviderAppService = Mockery::mock(AdminProviderAppService::class);
 
         $role = $this->makeRole(id: 2, name: '高级角色-A', isDefault: false, parentRoleId: 1);
-        $role->setModelIds(['gpt-4.1', 'claude-opus-4']);
+        $role->setDeniedModelIds(['gpt-4.1', 'claude-opus-4']);
         $role->setUserIds(['u_001']);
 
         $parentRole = $this->makeRole(id: 1, name: '默认角色', isDefault: true);
 
         $repository->shouldReceive('queries')->once()->andReturn(['total' => 1, 'list' => [$role]]);
         $repository->shouldReceive('getRoleUserMap')->once()->with('ORG_APP', [2])->andReturn([2 => ['u_001']]);
-        $repository->shouldReceive('getRoleModelMap')->once()->with('ORG_APP', [2])->andReturn([2 => ['gpt-4.1', 'claude-opus-4']]);
+        $repository->shouldReceive('getRoleDeniedModelMap')->once()->with('ORG_APP', [2])->andReturn([2 => ['gpt-4.1', 'claude-opus-4']]);
         $repository->shouldReceive('getById')->once()->with('ORG_APP', 1)->andReturn($parentRole);
         $repository->shouldReceive('getRoleUserMap')->once()->with('ORG_APP', [1])->andReturn([]);
-        $repository->shouldReceive('getRoleModelMap')->once()->with('ORG_APP', [1])->andReturn([]);
+        $repository->shouldReceive('getRoleDeniedModelMap')->once()->with('ORG_APP', [1])->andReturn([]);
 
         $domainService = new ModelAccessRoleDomainService($repository, $adminGlobalSettingsRepository, Mockery::mock(MagicUserDomainService::class), $providerModelDomainService);
         $service = new ModelAccessRoleAppService($domainService, $userInfoAppService, $providerModelDomainService, $adminProviderAppService);
 
         $result = $service->queries(PermissionDataIsolation::create('ORG_APP', 'operator'), new Page(1, 20));
 
-        $this->assertSame(['gpt-4.1', 'claude-opus-4'], $result['list'][0]['model_ids']);
+        $this->assertSame(['gpt-4.1', 'claude-opus-4'], $result['list'][0]['denied_model_ids']);
     }
 
     private function makeRole(
