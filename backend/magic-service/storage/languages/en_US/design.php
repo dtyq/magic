@@ -16,6 +16,7 @@ return [
         'missing_image_data_error_with_reference' => 'Image generation failed. The prompt may be unclear or the reference image may be invalid. Please check if the prompt description is accurate and the reference image is valid, then try again.',
         'project_not_exists' => 'Project does not exist: :project_id',
         'feature_unavailable' => 'This feature is currently unavailable',
+        'image_to_image_reference_required' => 'Image-to-image requires at least one reference image',
     ],
     'image_mark_identify' => [
         'project_not_exists' => 'Project does not exist: :project_id',

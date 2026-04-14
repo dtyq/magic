@@ -16,6 +16,7 @@ return [
         'missing_image_data_error_with_reference' => '图片生成失败，可能是提示词不够清晰或参考图像有问题，请检查提示词描述是否准确，参考图像是否有效，调整后重试。',
         'project_not_exists' => '项目不存在: :project_id',
         'feature_unavailable' => '当前功能不可用',
+        'image_to_image_reference_required' => '图生图必须提供至少一张参考图',
     ],
     'image_mark_identify' => [
         'project_not_exists' => '项目不存在: :project_id',

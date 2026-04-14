@@ -158,19 +158,17 @@ class ImageGenerationAppService extends DesignAppService
     }
 
     /**
-     * 去背景（将传入图片作为参考图，注入固定去背景提示词进行图生图）.
+     * 去背景.
      */
     public function generateRemoveBackground(Authenticatable $authenticatable, ImageGenerationEntity $entity): ImageGenerationEntity
     {
         $entity->setType(ImageGenerationType::REMOVE_BACKGROUND);
+        $this->assertRemoveBackgroundAbilityAvailable();
 
-        $defaultPrompt = 'Remove the background from this image. Make the background completely transparent. Keep the main subject perfectly intact with clean, sharp edges.';
+        $entity->setPrompt('');
+        // 任务完成后由专用链路产出结果，此处仅占位
+        $entity->setModelId('design_image_remove_background');
 
-        [$modelId, $prompt] = $this->resolveAbilityModelAndPrompt(AiAbilityCode::ImageRemoveBackground, $defaultPrompt);
-        $entity->setModelId($modelId);
-        $entity->setPrompt($prompt);
-
-        // 复用生图逻辑，使用同一个表来完成
         return $this->generateImage($authenticatable, $entity);
     }
 
@@ -241,5 +239,30 @@ class ImageGenerationAppService extends DesignAppService
         $prompt = ! empty($config['prompt']) ? (string) $config['prompt'] : $defaultPrompt;
 
         return [$modelId, $prompt];
+    }
+
+    /**
+     * 校验去背景能力已启用且存在至少一个启用的 provider（与专用网关 /images/remove-background 一致）.
+     */
+    private function assertRemoveBackgroundAbilityAvailable(): void
+    {
+        $entity = $this->aiAbilityDomainService->getByCode(ProviderDataIsolation::create('')->disabled(), AiAbilityCode::ImageRemoveBackground);
+
+        if ($entity === null || ! $entity->isEnabled()) {
+            ExceptionBuilder::throw(DesignErrorCode::InvalidArgument, 'design.image_generation.feature_unavailable');
+        }
+
+        $providers = $entity->getConfig()['providers'] ?? [];
+        if (! is_array($providers)) {
+            ExceptionBuilder::throw(DesignErrorCode::InvalidArgument, 'design.image_generation.feature_unavailable');
+        }
+
+        foreach ($providers as $provider) {
+            if (is_array($provider) && ($provider['enable'] ?? false) === true) {
+                return;
+            }
+        }
+
+        ExceptionBuilder::throw(DesignErrorCode::InvalidArgument, 'design.image_generation.feature_unavailable');
     }
 }
