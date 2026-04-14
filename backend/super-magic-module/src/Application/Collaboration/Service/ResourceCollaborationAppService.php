@@ -302,8 +302,10 @@ class ResourceCollaborationAppService extends AbstractKernelAppService
     /**
      * 校验当前操作者是否允许授予目标角色。
      *
-     * 目前规则是：只有创建人可以授予管理员/查看者等更高或更多样的权限；
-     * 非创建人的可管理用户只能授予编辑权限。
+     * 当前规则是：
+     * - 创建人可以授予任意协作角色（owner 不在接口入参范围内）
+     * - 管理员可以授予管理员、编辑权限
+     * - 其他角色不会进入该分支，前置 manage 校验已拦截
      */
     private function assertCollaboratorRoleAssignable(Operation $currentOperation, Operation $targetOperation): void
     {
@@ -311,9 +313,11 @@ class ResourceCollaborationAppService extends AbstractKernelAppService
             return;
         }
 
-        if ($targetOperation !== Operation::Edit) {
-            ExceptionBuilder::throw(SuperAgentErrorCode::PROJECT_ACCESS_DENIED, 'project.project_access_denied');
+        if (in_array($targetOperation, [Operation::Admin, Operation::Edit], true)) {
+            return;
         }
+
+        ExceptionBuilder::throw(SuperAgentErrorCode::PROJECT_ACCESS_DENIED, 'project.project_access_denied');
     }
 
     /**
