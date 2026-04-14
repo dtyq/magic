@@ -114,14 +114,14 @@ class TimeConfigDTO extends AbstractRequestDTO
                 }
                 break;
             case 'weekly_repeat':
-                if ($this->day === '' || $this->day === null) {
+                if ($this->day === '') {
                     $errors[] = __('validation.schedule_time.weekly_repeat.day_required');
                 }
                 if (empty($this->time)) {
                     $errors[] = __('validation.schedule_time.weekly_repeat.time_required');
                 }
                 // Validate day is between 0-6
-                if (($this->day !== '' && $this->day !== null) && (! is_numeric($this->day) || $this->day < 0 || $this->day > 6)) {
+                if ($this->day !== '' && (! is_numeric($this->day) || $this->day < 0 || $this->day > 6)) {
                     $errors[] = __('validation.schedule_time.weekly_repeat.day_range');
                 }
                 break;
