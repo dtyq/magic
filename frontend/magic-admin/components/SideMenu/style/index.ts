@@ -24,6 +24,8 @@ export const useStyles = createStyles(
 				}
 			`,
 			menu: css`
+				overflow-y: auto;
+				scrollbar-width: none;
 				--${prefixCls}-menu-item-selected-bg: ${token.magicColorUsages.primaryLight.default} !important;
 
 				--${prefixCls}-menu-sub-menu-item-bg: transparent !important;

@@ -3,6 +3,7 @@
 此模块定义了用于管理聊天记录的类。
 """
 
+import asyncio
 import json
 import os
 from dataclasses import asdict
@@ -34,6 +35,11 @@ logger = get_logger(__name__)
 # ChatHistory 类
 # ==============================================================================
 
+# Horizon 注入消息的安全上限；超过此值说明历史中存在异常膨胀的 diff bomb，
+# 需要在 load 时自动修复以避免后续每轮都把垃圾内容发给 LLM
+_HORIZON_MSG_CONTENT_MAX_CHARS = 32 * 1024  # 32 KB
+
+
 class ChatHistory:
     """
     管理 Agent 的聊天记录，提供加载、保存、添加和查询消息的功能。
@@ -64,13 +70,14 @@ class ChatHistory:
         self.agent_id = agent_id
         self.chat_history_dir = chat_history_dir
         self.messages: List[ChatMessage] = []
+        self._loaded = False  # load() 幂等标记
 
         # 事件分发器（必需）
         self.event_dispatcher = event_dispatcher
 
         os.makedirs(self.chat_history_dir, exist_ok=True) # 确保目录存在
         self._history_file_path = self._build_chat_history_filename()
-        self.load() # 初始化时尝试加载历史记录
+        # load() 改为 async，不在 __init__ 中调用，由外部显式 await chat_history.load()
 
     def _calculate_message_tokens(self, msg: ChatMessage) -> int:
         """
@@ -231,6 +238,8 @@ class ChatHistory:
             "model_id": None,
             "image_model_id": None,
             "image_model_sizes": None,
+            "video_model_id": None,
+            "video_generation_config": None,
             "mcp_servers": None,
         }
 
@@ -269,7 +278,7 @@ class ChatHistory:
         获取上次保存的会话配置（last）。
 
         Returns:
-            Dict[str, Any]: 包含 model_id、image_model_id、image_model_sizes 和 mcp_servers 的字典
+            Dict[str, Any]: 包含 model_id、image/video model 配置和 mcp_servers 的字典
         """
         try:
             last_config = self._load_session_document().get("last", {})
@@ -277,13 +286,30 @@ class ChatHistory:
                 "model_id": last_config.get("model_id"),
                 "image_model_id": last_config.get("image_model_id"),
                 "image_model_sizes": last_config.get("image_model_sizes"),
+                "video_model_id": last_config.get("video_model_id"),
+                "video_generation_config": last_config.get("video_generation_config"),
                 "mcp_servers": last_config.get("mcp_servers")
             }
         except Exception as e:
             logger.debug(f"读取会话配置失败: {e}")
-        return {"model_id": None, "image_model_id": None, "image_model_sizes": None, "mcp_servers": None}
+        return {
+            "model_id": None,
+            "image_model_id": None,
+            "image_model_sizes": None,
+            "video_model_id": None,
+            "video_generation_config": None,
+            "mcp_servers": None,
+        }
 
-    def save_session_config(self, model_id: Optional[str], image_model_id: Optional[str], image_model_sizes: Optional[List[Dict[str, Any]]] = None, mcp_servers: Optional[Dict[str, List[str]]] = None) -> None:
+    def save_session_config(
+        self,
+        model_id: Optional[str],
+        image_model_id: Optional[str],
+        image_model_sizes: Optional[List[Dict[str, Any]]] = None,
+        video_model_id: Optional[str] = None,
+        video_generation_config: Optional[Dict[str, Any]] = None,
+        mcp_servers: Optional[Dict[str, List[str]]] = None
+    ) -> None:
         """
         保存当前会话配置。
 
@@ -296,6 +322,8 @@ class ChatHistory:
             model_id: 当前使用的 LLM 模型 ID
             image_model_id: 当前使用的图片生成模型 ID
             image_model_sizes: 当前图片生成模型可用的尺寸列表
+            video_model_id: 当前使用的视频生成模型 ID
+            video_generation_config: 当前视频生成模型 featured 配置
             mcp_servers: 当前可用的 MCP 服务器及其工具列表
         """
         try:
@@ -303,6 +331,8 @@ class ChatHistory:
                 "model_id": model_id,
                 "image_model_id": image_model_id,
                 "image_model_sizes": image_model_sizes,
+                "video_model_id": video_model_id,
+                "video_generation_config": video_generation_config,
                 "mcp_servers": mcp_servers
             }
             existing_config = self._load_session_document()
@@ -310,7 +340,10 @@ class ChatHistory:
             existing_config["last"] = last_config if isinstance(last_config, dict) and last_config else self._default_session_config_block()
             existing_config["current"] = current_config
             self._save_session_document(existing_config)
-            logger.debug(f"会话配置已保存: current model_id={model_id}, image_model_id={image_model_id}, mcp_servers={len(mcp_servers) if mcp_servers else 0} servers")
+            logger.debug(
+                f"会话配置已保存: current model_id={model_id}, image_model_id={image_model_id}, "
+                f"video_model_id={video_model_id}, mcp_servers={len(mcp_servers) if mcp_servers else 0} servers"
+            )
         except Exception as e:
             logger.warning(f"保存会话配置失败: {e}")
 
@@ -318,20 +351,27 @@ class ChatHistory:
         """检查历史记录文件是否存在"""
         return os.path.exists(self._history_file_path)
 
-    def load(self) -> None:
+    async def load(self) -> None:
         """
-        从 JSON 文件加载聊天记录。
+        从 JSON 文件异步加载聊天记录。
         会查找 'duration' 字符串字段并尝试解析为 duration_ms (float)。
         会查找 'show_in_ui' 字段，如果不存在则默认为 True。
+        加载后执行全量序列修复并立即落盘（如有修复）。
+        幂等：重复调用不会重新从磁盘加载。
         """
+        if self._loaded:
+            return
+
         if not self.exists():
             logger.info(f"聊天记录文件不存在: {self._history_file_path}，将初始化为空历史。")
             self.messages = []
+            self._loaded = True
             return
 
         try:
-            with open(self._history_file_path, "r", encoding='utf-8') as f:
-                history_data = json.load(f)
+            async with aiofiles.open(self._history_file_path, "r", encoding='utf-8') as f:
+                raw = await f.read()
+            history_data = json.loads(raw)
 
             loaded_messages = []
             if isinstance(history_data, list):
@@ -409,6 +449,11 @@ class ChatHistory:
                         logger.error(f"加载历史时处理消息出错: {msg_dict}，错误: {e}", exc_info=True)
 
                 self.messages = loaded_messages
+                self._sanitize_oversized_messages()
+                fixes = self._sanitize_message_sequences()
+                if fixes > 0:
+                    await self.save()
+                    logger.info(f"[ChatHistory] 序列修复已落盘")
                 logger.info(f"成功从 {self._history_file_path} 加载 {len(self.messages)} 条聊天记录。")
             else:
                 logger.warning(f"聊天记录文件格式无效 (不是列表): {self._history_file_path}")
@@ -420,6 +465,8 @@ class ChatHistory:
         except Exception as e:
             logger.error(f"加载聊天记录时发生未知错误: {self._history_file_path}，错误: {e}", exc_info=True)
             self.messages = [] # 其他错误也清空
+        finally:
+            self._loaded = True
 
     async def save(self, custom_file_path: Optional[str] = None) -> None:
         """
@@ -484,7 +531,7 @@ class ChatHistory:
             # Ensure target directory exists
             target_dir = os.path.dirname(target_file_path)
             if target_dir:
-                os.makedirs(target_dir, exist_ok=True)
+                await asyncio.to_thread(os.makedirs, target_dir, exist_ok=True)
 
             # 使用 indent 美化 JSON 输出
             history_json = json.dumps(history_to_save, indent=4, ensure_ascii=False)
@@ -574,6 +621,248 @@ class ChatHistory:
             message._is_validated = True
 
         return message
+
+    def _sanitize_oversized_messages(self) -> None:
+        """Load 时自动修复历史中异常膨胀的 horizon 注入消息。
+
+        之前的 diff bug 可能导致 5MB+ 的内容被持久化到 source="horizon" 的 UserMessage 中，
+        后续每轮 LLM 调用都会带上这些垃圾内容，直接撑爆上下文。
+        修复后下次 save() 会自动落盘。
+        """
+        for msg in self.messages:
+            if not isinstance(msg, UserMessage):
+                continue
+            if getattr(msg, "source", None) != "horizon":
+                continue
+            content_len = len(msg.content)
+            if content_len <= _HORIZON_MSG_CONTENT_MAX_CHARS:
+                continue
+            msg.content = (
+                "<system_injected_context>\n"
+                "[auto-repaired: oversized historical context removed "
+                f"({content_len:,} chars, limit {_HORIZON_MSG_CONTENT_MAX_CHARS:,})]\n"
+                "</system_injected_context>"
+            )
+            logger.warning(
+                f"[ChatHistory] 修复异常膨胀的 horizon 消息: "
+                f"{content_len:,} chars → sanitized"
+            )
+
+    def _sanitize_message_sequences(self) -> int:
+        """Load 时对 self.messages 执行全量序列修复并持久化。
+
+        覆盖 4 类修复，与 _fix_message_sequence_errors（运行时 dict 副本兜底）对齐：
+        1. 将夹在 assistant(tool_calls) 和 tool(result) 之间的 user 消息移到 tool result 之后
+        2. 为缺失的 tool_result 补合成占位 ToolMessage
+        3. 将孤立的 tool 消息（找不到对应 assistant）转换为 assistant 消息
+        4. 去除连续重复的相同内容消息
+
+        Returns:
+            int: 修复操作总数
+        """
+        total_fixes = 0
+
+        # --- 步骤 1: 重排夹缝 user 消息 ---
+        total_fixes += self._sanitize_reorder_interleaved_user_messages()
+
+        # --- 步骤 2: 补缺失的 tool result ---
+        total_fixes += self._sanitize_incomplete_tool_sequences()
+
+        # --- 步骤 3: 孤立 tool 消息转 assistant ---
+        total_fixes += self._sanitize_orphaned_tool_messages()
+
+        # --- 步骤 4: 去连续重复消息 ---
+        total_fixes += self._sanitize_consecutive_duplicates()
+
+        if total_fixes > 0:
+            logger.warning(
+                f"[ChatHistory] load 序列修复完成：共 {total_fixes} 项，"
+                f"总消息数 {len(self.messages)}"
+            )
+
+        return total_fixes
+
+    def _sanitize_reorder_interleaved_user_messages(self) -> int:
+        """将夹在 assistant(tool_calls) 和 tool(result) 之间的 user 消息移到 tool result 之后。"""
+        fixes = 0
+        i = 0
+        result: List[ChatMessage] = []
+
+        while i < len(self.messages):
+            msg = self.messages[i]
+
+            if isinstance(msg, AssistantMessage) and msg.tool_calls:
+                pending_ids = {tc.id for tc in msg.tool_calls if tc.id}
+
+                if pending_ids:
+                    deferred_user: List[ChatMessage] = []
+                    tool_results: List[ChatMessage] = []
+                    remaining_ids = set(pending_ids)
+                    j = i + 1
+
+                    while j < len(self.messages) and remaining_ids:
+                        next_msg = self.messages[j]
+                        if isinstance(next_msg, ToolMessage) and next_msg.tool_call_id in remaining_ids:
+                            tool_results.append(next_msg)
+                            remaining_ids.discard(next_msg.tool_call_id)
+                            j += 1
+                        elif isinstance(next_msg, UserMessage):
+                            deferred_user.append(next_msg)
+                            j += 1
+                        else:
+                            break
+
+                    if deferred_user and tool_results:
+                        result.append(msg)
+                        result.extend(tool_results)
+                        result.extend(deferred_user)
+                        fixes += len(deferred_user)
+                        tool_names = [tc.function.name for tc in msg.tool_calls if tc.function] or ["unknown"]
+                        logger.warning(
+                            f"[ChatHistory] 修复[夹缝user]：msg[{i}] assistant({','.join(tool_names)}) "
+                            f"与 tool_result 之间有 {len(deferred_user)} 条 user 消息，已移到 tool_result 之后"
+                        )
+                        i = j
+                        continue
+
+            result.append(msg)
+            i += 1
+
+        if fixes > 0:
+            self.messages = result
+        return fixes
+
+    def _sanitize_incomplete_tool_sequences(self) -> int:
+        """为缺失的 tool_result 补合成占位 ToolMessage。"""
+        fixes = 0
+        i = 0
+        while i < len(self.messages):
+            msg = self.messages[i]
+            if not isinstance(msg, AssistantMessage) or not msg.tool_calls:
+                i += 1
+                continue
+
+            # 收集此 assistant 之后、下一个 assistant 之前的所有 tool_call_id
+            expected_ids = {tc.id for tc in msg.tool_calls if tc.id}
+            found_ids = set()
+            j = i + 1
+            while j < len(self.messages):
+                next_msg = self.messages[j]
+                if isinstance(next_msg, AssistantMessage):
+                    break
+                if isinstance(next_msg, ToolMessage) and next_msg.tool_call_id in expected_ids:
+                    found_ids.add(next_msg.tool_call_id)
+                j += 1
+
+            missing_ids = expected_ids - found_ids
+            if missing_ids:
+                # 找到 assistant 之后连续 tool 消息的末尾位置
+                insert_pos = i + 1
+                while insert_pos < len(self.messages) and isinstance(self.messages[insert_pos], ToolMessage):
+                    insert_pos += 1
+
+                for tc in msg.tool_calls:
+                    if tc.id not in missing_ids:
+                        continue
+                    tool_name = tc.function.name if tc.function else "unknown"
+                    synthetic = ToolMessage(
+                        content="[Tool result missing — call was likely interrupted or truncated]",
+                        tool_call_id=tc.id,
+                        show_in_ui=False,
+                    )
+                    self.messages.insert(insert_pos, synthetic)
+                    insert_pos += 1
+                    fixes += 1
+                    logger.warning(
+                        f"[ChatHistory] 修复[缺失tool_result]：msg[{i}] assistant 的 {tool_name}"
+                        f"(tool_call_id={tc.id}) 无对应 tool_result，已补合成占位"
+                    )
+
+            i += 1
+        return fixes
+
+    def _sanitize_orphaned_tool_messages(self) -> int:
+        """将孤立的 tool 消息（找不到对应 assistant(tool_calls)）转为 assistant 消息。"""
+        fixes = 0
+        i = 0
+        while i < len(self.messages):
+            msg = self.messages[i]
+            if not isinstance(msg, ToolMessage):
+                i += 1
+                continue
+
+            # 向前搜索对应的 assistant
+            found = False
+            for j in range(i - 1, -1, -1):
+                prev = self.messages[j]
+                if isinstance(prev, AssistantMessage):
+                    if prev.tool_calls:
+                        for tc in prev.tool_calls:
+                            if tc.id == msg.tool_call_id:
+                                found = True
+                                break
+                    # 遇到 assistant 就停，tool_result 只能属于紧邻的 assistant
+                    break
+                elif isinstance(prev, UserMessage):
+                    break
+
+            if not found:
+                tool_content = msg.content or ""
+                content_preview = tool_content[:80] + "..." if len(tool_content) > 80 else tool_content
+                replacement = AssistantMessage(
+                    content=f"⚠️ 工具执行结果：{tool_content}" if tool_content else "⚠️ 工具执行完成",
+                    show_in_ui=msg.show_in_ui,
+                )
+                self.messages[i] = replacement
+                fixes += 1
+                logger.warning(
+                    f"[ChatHistory] 修复[孤立tool]：msg[{i}] tool_call_id={msg.tool_call_id} "
+                    f"无对应 assistant，已转为 assistant 消息 (content={content_preview!r})"
+                )
+            i += 1
+        return fixes
+
+    def _sanitize_consecutive_duplicates(self) -> int:
+        """去除连续重复的相同内容消息（role + content 都相同）。"""
+        if len(self.messages) < 2:
+            return 0
+
+        fixes = 0
+        result: List[ChatMessage] = [self.messages[0]]
+
+        for i in range(1, len(self.messages)):
+            curr = self.messages[i]
+            prev = self.messages[i - 1]
+
+            is_dup = False
+            if type(curr) is type(prev) and curr.content == prev.content:
+                if isinstance(curr, AssistantMessage):
+                    # assistant 消息还需比较 tool_calls
+                    prev_tc = prev.tool_calls or []
+                    curr_tc = curr.tool_calls or []
+                    if len(prev_tc) == len(curr_tc):
+                        prev_ids = sorted(tc.id for tc in prev_tc)
+                        curr_ids = sorted(tc.id for tc in curr_tc)
+                        if prev_ids == curr_ids:
+                            is_dup = True
+                    elif not prev_tc and not curr_tc:
+                        is_dup = True
+                else:
+                    is_dup = True
+
+            if is_dup:
+                fixes += 1
+                content_hint = (curr.content or "")[:60]
+                logger.warning(
+                    f"[ChatHistory] 修复[连续重复]：msg[{i}] 与 msg[{i-1}] 重复 "
+                    f"(role={curr.role}, content={content_hint!r})"
+                )
+            else:
+                result.append(curr)
+
+        if fixes > 0:
+            self.messages = result
+        return fixes
 
     def _should_skip_message(self, message: ChatMessage) -> bool:
         """
@@ -709,9 +998,9 @@ class ChatHistory:
         message = SystemMessage(content=content, show_in_ui=show_in_ui)
         await self.add_message(message)
 
-    async def append_user_message(self, content: str, show_in_ui: bool = True) -> None:
-        """添加一条用户消息"""
-        message = UserMessage(content=content, show_in_ui=show_in_ui)
+    async def append_user_message(self, content: str, show_in_ui: bool = True, source: Optional[str] = None) -> None:
+        """添加一条用户消息。source 用于标记消息来源（None=用户，"horizon"=系统注入等）。"""
+        message = UserMessage(content=content, show_in_ui=show_in_ui, source=source)
         await self.add_message(message)
 
     async def append_assistant_message(self,
@@ -741,18 +1030,21 @@ class ChatHistory:
             processed_tool_calls = []
             for tc_data in tool_calls_data:
                 tool_call_obj = None
-                function_name = None
 
                 if isinstance(tc_data, ToolCall):
-                    # 已经是 ToolCall 对象，检查并标准化 arguments
+                    # 标准化 arguments：确保是字符串，且 \u 转义还原为真实 Unicode
                     if not isinstance(tc_data.function.arguments, str):
                         try:
                             tc_data.function.arguments = json.dumps(tc_data.function.arguments, ensure_ascii=False)
                         except Exception as e:
                             logger.warning(f"标准化 AssistantMessage ToolCall arguments 失败: {tc_data.function.arguments}, 错误: {e}. 跳过此 ToolCall。")
                             continue
+                    else:
+                        try:
+                            tc_data.function.arguments = json.dumps(json.loads(tc_data.function.arguments), ensure_ascii=False)
+                        except Exception:
+                            pass
                     tool_call_obj = tc_data
-                    function_name = tc_data.function.name
 
                 elif isinstance(tc_data, dict):
                     # 从字典创建 ToolCall 对象
@@ -763,9 +1055,12 @@ class ChatHistory:
 
                         arguments_raw = function_data.get("arguments")
                         arguments_str = None
-                        # 确保 arguments 是 JSON 字符串
+                        # 确保 arguments 是字符串，且 \u 转义还原为真实 Unicode
                         if isinstance(arguments_raw, str):
-                            arguments_str = arguments_raw
+                            try:
+                                arguments_str = json.dumps(json.loads(arguments_raw), ensure_ascii=False)
+                            except Exception:
+                                arguments_str = arguments_raw
                         else:
                              arguments_str = json.dumps(arguments_raw or {}, ensure_ascii=False) # 如果是None或非字符串，则序列化
 
@@ -779,7 +1074,6 @@ class ChatHistory:
 
                         function_call = FunctionCall(name=func_name, arguments=arguments_str)
                         tool_call_obj = ToolCall(id=tool_id, type=tool_type, function=function_call)
-                        function_name = func_name
 
                     except Exception as e:
                         logger.error(f"从字典创建 ToolCall 失败: {tc_data}, 错误: {e}", exc_info=True)
@@ -872,12 +1166,76 @@ class ChatHistory:
         fixed_messages = self._fix_message_sequence_errors(llm_messages)
         return fixed_messages
 
+    def _reorder_interleaved_user_messages(self, llm_messages: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+        """将被插入到 assistant(tool_calls) 和 tool(result) 之间的 user 消息移到 tool result 之后。
+
+        场景：工具执行期间用户发了新消息，horizon 注入了 user 消息，导致序列变为：
+            assistant(tool_calls) → user(horizon) → tool(result)  ← 非法，LLM API 报错
+        修复后：
+            assistant(tool_calls) → tool(result) → user(horizon)  ← 合法
+        """
+        if not llm_messages:
+            return llm_messages
+
+        result: List[Dict[str, Any]] = []
+        i = 0
+        fixes_applied = 0
+
+        while i < len(llm_messages):
+            msg = llm_messages[i]
+
+            if msg.get("role") == "assistant" and msg.get("tool_calls"):
+                pending_ids = {tc.get("id") for tc in msg.get("tool_calls", []) if tc.get("id")}
+
+                if pending_ids:
+                    # 向前扫描：收集被夹在中间的 user 消息和对应的 tool result
+                    deferred_user: List[Dict[str, Any]] = []
+                    tool_results: List[Dict[str, Any]] = []
+                    remaining_ids = set(pending_ids)
+                    j = i + 1
+
+                    while j < len(llm_messages) and remaining_ids:
+                        next_msg = llm_messages[j]
+                        role = next_msg.get("role")
+                        if role == "tool" and next_msg.get("tool_call_id") in remaining_ids:
+                            tool_results.append(next_msg)
+                            remaining_ids.discard(next_msg.get("tool_call_id"))
+                            j += 1
+                        elif role == "user":
+                            # while 条件保证 remaining_ids 非空，此时 user 消息属于夹缝情况
+                            deferred_user.append(next_msg)
+                            j += 1
+                        else:
+                            # 遇到 assistant 或其他角色，停止扫描
+                            break
+
+                    if deferred_user and tool_results:
+                        # 有夹缝 user 且存在对应 tool result，执行重排
+                        result.append(msg)
+                        result.extend(tool_results)
+                        result.extend(deferred_user)
+                        fixes_applied += len(deferred_user)
+                        logger.warning(
+                            f"修复消息序列：将 {len(deferred_user)} 条 user 消息从 tool_calls/tool_result 之间移到之后"
+                        )
+                        i = j
+                        continue
+
+            result.append(msg)
+            i += 1
+
+        if fixes_applied > 0:
+            logger.info(f"消息重排完成：共移动 {fixes_applied} 条夹缝 user 消息")
+
+        return result
+
     def _fix_message_sequence_errors(self, llm_messages: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
         """
         修复历史消息中的序列错误，确保tool_use和tool_result正确匹配
 
         修复策略：
-        1. 去除没有对应tool_result的带tool_calls的assistant消息
+        0. 将夹在 assistant(tool_calls) 和 tool(result) 之间的 user 消息移到 tool result 之后
+        1. 为缺少 tool_result 的 tool_call 补合成占位（保留 assistant 消息结构）
         2. 将孤立的tool消息转换为assistant消息（保持语义合理性）
         3. 去除连续重复的相同内容消息，只保留一条
         4. 记录修复操作以供调试
@@ -891,58 +1249,81 @@ class ChatHistory:
         if not llm_messages:
             return llm_messages
 
-        # 第一步：标记需要移除的消息索引
-        messages_to_remove = set()
-        fixes_applied = 0
+        # 步骤0：将夹在 tool_calls 和 tool_result 之间的 user 消息移到 tool result 之后
+        llm_messages = self._reorder_interleaved_user_messages(llm_messages)
 
-        # 检查带tool_calls的assistant消息，如果没有对应的tool_result就标记移除
+        # 第一步：为缺少 tool_result 的 tool_call 补合成占位（对齐 CC 的 ensureToolResultPairing）
+        # 不移除 assistant 消息，保留结构，让模型知道调用过哪些工具
+        fixes_applied = 0
+        synthetic_inserts: dict[int, list[dict]] = {}  # insert_after_index → [synthetic tool messages]
+
         for i, message in enumerate(llm_messages):
             if message.get("role") == "assistant" and message.get("tool_calls"):
-                tool_calls = message.get("tool_calls", [])
-                all_tools_have_results = True
-
-                for tool_call in tool_calls:
-                    tool_call_id = tool_call.get("id")
-                    if not tool_call_id:
-                        continue
-
-                    # 向后查找对应的tool消息
-                    found_tool_result = False
-                    for j in range(i + 1, len(llm_messages)):
-                        next_msg = llm_messages[j]
-                        if next_msg.get("role") == "tool" and next_msg.get("tool_call_id") == tool_call_id:
-                            found_tool_result = True
-                            break
-                        elif next_msg.get("role") == "assistant":
-                            # 如果遇到下一个assistant消息，停止查找
-                            break
-
-                    if not found_tool_result:
-                        all_tools_have_results = False
+                tool_calls_in_msg = message.get("tool_calls", [])
+                # 找到下一个 assistant 消息的位置作为搜索边界
+                next_assistant_idx = len(llm_messages)
+                for j in range(i + 1, len(llm_messages)):
+                    if llm_messages[j].get("role") == "assistant":
+                        next_assistant_idx = j
                         break
 
-                # 如果有工具调用但没有完整的结果，标记移除这个assistant消息
-                if not all_tools_have_results:
-                    messages_to_remove.add(i)
+                # 收集此 assistant 消息已有的 tool_result id
+                found_ids = {
+                    llm_messages[j].get("tool_call_id")
+                    for j in range(i + 1, next_assistant_idx)
+                    if llm_messages[j].get("role") == "tool"
+                }
+
+                # 找到 assistant 之后连续 tool 消息的末尾位置，
+                # 合成占位必须紧跟 assistant + 已有 tool results，不能隔着 user 消息，
+                # 否则 step2 的向后搜索遇到 user 会提前终止，导致合成 tool 被误判为孤立消息
+                contiguous_tool_end = i  # 默认紧跟 assistant
+                for k in range(i + 1, next_assistant_idx):
+                    if llm_messages[k].get("role") == "tool":
+                        contiguous_tool_end = k
+                    else:
+                        break
+
+                for tool_call in tool_calls_in_msg:
+                    tool_call_id = tool_call.get("id")
+                    if not tool_call_id or tool_call_id in found_ids:
+                        continue
+                    # 缺少对应 tool_result，补合成占位
+                    tool_name = tool_call.get("function", {}).get("name", "unknown")
+                    synthetic = {
+                        "role": "tool",
+                        "tool_call_id": tool_call_id,
+                        "content": "[Tool result missing — call was likely truncated by output token limit]",
+                    }
+                    insert_after = contiguous_tool_end
+                    if insert_after not in synthetic_inserts:
+                        synthetic_inserts[insert_after] = []
+                    synthetic_inserts[insert_after].append(synthetic)
                     fixes_applied += 1
-                    tool_names = [tc.get("function", {}).get("name", "unknown") for tc in tool_calls]
-                    logger.warning(f"修复历史消息序列错误：移除没有完整tool_result的assistant消息 (工具: {tool_names})")
+                    logger.warning(
+                        f"修复历史消息序列错误：为缺失的 tool_result 补合成占位 "
+                        f"(工具: {tool_name}, tool_call_id: {tool_call_id})"
+                    )
+
+        # 将合成 tool_result 插入消息列表
+        # insert_after 始终 <= len-1（取的是 contiguous_tool_end，即 i 或区间内某个 tool 位置），无 len(llm_messages) key
+        if synthetic_inserts:
+            patched: List[Dict[str, Any]] = []
+            for i, msg in enumerate(llm_messages):
+                patched.append(msg)
+                if i in synthetic_inserts:
+                    patched.extend(synthetic_inserts[i])
+            llm_messages = patched
 
         # 第二步：过滤消息并处理孤立的tool消息
         filtered_messages = []
         for i, message in enumerate(llm_messages):
-            if i in messages_to_remove:
-                continue
-
             if message.get("role") == "tool":
                 tool_call_id = message.get("tool_call_id")
 
-                # 查找对应的assistant消息（向前搜索，排除已标记移除的消息）
+                # 查找对应的assistant消息（向前搜索）
                 found_corresponding_assistant = False
                 for j in range(i-1, -1, -1):
-                    if j in messages_to_remove:
-                        continue
-
                     prev_msg = llm_messages[j]
                     if prev_msg.get("role") == "assistant":
                         tool_calls = prev_msg.get("tool_calls", [])
@@ -951,10 +1332,10 @@ class ChatHistory:
                             if tc.get("id") == tool_call_id:
                                 found_corresponding_assistant = True
                                 break
-                        if found_corresponding_assistant:
-                            break
+                        # 无论是否匹配，遇到 assistant 消息就停止向前搜索：
+                        # tool_result 只能属于紧邻的那个 assistant，不能跨轮匹配
+                        break
                     elif prev_msg.get("role") == "user":
-                        # 如果遇到user消息，说明中间没有对应的assistant消息
                         break
 
                 if not found_corresponding_assistant:

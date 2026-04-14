@@ -30,7 +30,7 @@ List of file paths to delete""",
 @tool()
 class DeleteFiles(AbstractFileTool[DeleteFilesParams], WorkspaceTool[DeleteFilesParams]):
     """<!--zh
-    删除多个文件工具，用于批量删除指定的文件或目录。
+    删除多个文件工具，用于批量删除指定的文件或目录。尽可能使用此工具而非执行命令行删除文件，由此工具删除的文件可回滚恢复
 
     注意：
     - 删除前请确认所有文件路径正确
@@ -39,7 +39,7 @@ class DeleteFiles(AbstractFileTool[DeleteFilesParams], WorkspaceTool[DeleteFiles
     - 请不要在未经用户确认的情况下删除任何文件或目录
     - 支持同时删除多个文件，提高操作效率
     -->
-    Tool for deleting multiple files, for batch deletion of specified files or directories.
+    Tool for deleting multiple files, for batch deletion of specified files or directories. Use this tool instead of executing shell commands to delete files, because this tool can rollback the deletion.
 
     Notes:
     - Confirm all file paths are correct before deleting

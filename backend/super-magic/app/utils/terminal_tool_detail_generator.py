@@ -54,7 +54,7 @@ class TerminalToolDetailGenerator:
             elif stderr:
                 output = stderr
             else:
-                output = "✅ Execution successful, no output"
+                output = "No output"
         else:
             # 失败情况：优先显示stderr，如果没有stderr显示stdout
             if stderr:
@@ -64,7 +64,7 @@ class TerminalToolDetailGenerator:
             elif stdout:
                 output = stdout
             else:
-                output = "❌ Execution failed, no output"
+                output = "Execution failed, no output"
 
         # 如果有 Python 代码，伪装成命令行执行的形式
         if python_code:

@@ -72,9 +72,10 @@ class OpenAIProxyApi extends AbstractOpenApi
         $accessToken = $this->getAccessToken();
         $withInfo = (bool) $this->request->input('with_info', false);
         $type = $this->request->input('type', '');
+        $withDynamicModels = (bool) $this->request->input('with_dynamic_models', false);
         $businessParams = $this->getBusinessParamsFromContext();
 
-        $list = $this->llmAppService->models($accessToken, $withInfo, $type, $businessParams);
+        $list = $this->llmAppService->models($accessToken, $withInfo, $type, $businessParams, withDynamicModels: $withDynamicModels);
         return LLMAssembler::createModels($list, $withInfo);
     }
 
@@ -225,13 +226,16 @@ class OpenAIProxyApi extends AbstractOpenApi
      *
      * Query Parameters:
      * - query or q: Search keywords (required)
-     * - engine: Search engine (optional, bing|google|tavily|duckduckgo|jina, default: from config)
      * - count: Number of results (optional, default: 10, max: 50)
      * - offset: Pagination offset (optional, default: 0, max: 1000)
      * - mkt: Market code (optional, default: zh-CN)
      * - set_lang or setLang: UI language (optional)
      * - safe_search or safeSearch: Safe search level (optional, Strict/Moderate/Off)
      * - freshness: Time filter (optional, Day/Week/Month)
+     *
+     * Search Provider:
+     * - Actual provider is selected by the platform web_search ability configuration
+     * - Supported providers include bing, baidu, google, tavily, duckduckgo, jina, cloudsway, magic
      *
      * Headers:
      * - Authorization: Bearer {access_token}

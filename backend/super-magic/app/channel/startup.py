@@ -10,10 +10,7 @@ logger = get_logger(__name__)
 
 async def auto_connect_channels_for_current_sandbox() -> None:
     """启动时按当前沙盒绑定关系触发 IM 渠道自动连接。"""
-    try:
-        current_sandbox_id = InitClientMessageUtil.get_metadata().get("sandbox_id", "")
-    except Exception:
-        current_sandbox_id = ""
+    current_sandbox_id = InitClientMessageUtil.get_sandbox_id()
 
     config = await load_config()
     for channel in build_default_channel_registry().get_all():

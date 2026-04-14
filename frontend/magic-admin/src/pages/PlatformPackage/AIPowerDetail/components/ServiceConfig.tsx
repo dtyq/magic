@@ -3,21 +3,35 @@ import { useTranslation } from "react-i18next"
 import { Flex, Form, Input } from "antd"
 import type { DefaultOptionType } from "antd/es/select"
 import { useParams } from "react-router-dom"
+import { lazy, useMemo } from "react"
 import { useIsMobile } from "@/hooks/useIsMobile"
 import type { FieldConfig } from "./serviceConfigFields"
 import { getServiceFields } from "./serviceConfigFields"
 import { useStyles } from "../styles"
+import { ConnectivityTestCodes } from "../constants"
+import { PlatformPackage } from "@/types/platformPackage"
+import {
+	TestConnectionType,
+	type TestConnectionResultLike,
+} from "@/pages/PlatformPackage/components/ModalList/components/TestConnection"
+
+const TestConnection = lazy(
+	() => import("@/pages/PlatformPackage/components/ModalList/components/TestConnection"),
+)
 
 interface ServiceConfigProps {
 	providerOptions: DefaultOptionType[]
 	currentProvider: string // 当前选择的服务商
 	onProviderChange?: (provider: string) => void
+	onConnectivityTest?: () => Promise<TestConnectionResultLike>
+	connectivityTestLoading?: boolean
 }
 
 const ServiceConfig = ({
 	providerOptions,
 	currentProvider,
 	onProviderChange,
+	onConnectivityTest,
 }: ServiceConfigProps) => {
 	const { t } = useTranslation("admin/ai/power")
 	const { t: tCommon } = useTranslation("admin/common")
@@ -33,6 +47,11 @@ const ServiceConfig = ({
 
 	// 获取配置字段
 	const configFields = getServiceFields(code, currentProvider)
+
+	const supportConnectivityTest = useMemo(() => {
+		if (!code) return false
+		return ConnectivityTestCodes.includes(code as PlatformPackage.PowerCode)
+	}, [code])
 
 	// 渲染表单字段
 	const renderField = (field: FieldConfig) => {
@@ -126,7 +145,18 @@ const ServiceConfig = ({
 
 			{/* API 配置 */}
 			<Flex vertical gap={14}>
-				<SubHeader title={t("APIConfig")} />
+				<SubHeader
+					title={t("APIConfig")}
+					extra={
+						supportConnectivityTest &&
+						onConnectivityTest && (
+							<TestConnection
+								type={TestConnectionType.Power}
+								connectOk={onConnectivityTest}
+							/>
+						)
+					}
+				/>
 				{configFields.filter((field) => field.name !== "provider").map(renderField)}
 			</Flex>
 		</>

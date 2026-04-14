@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"os"
-	"path/filepath"
 	"time"
 
 	"github.com/dtyq/magicrew-cli/registry"
@@ -22,9 +21,9 @@ func newBootstrapRegistryStage(d *Deployer) *BootstrapRegistryStage {
 }
 
 func (s *BootstrapRegistryStage) Exec(ctx context.Context) error {
-	cfg := s.d.opts.Registry
+	cfg := s.d.opts.registry
 
-	dataDir, err := resolveRegistryDataDir(cfg.DataDir)
+	dataDir, err := s.d.resolveRegistryDataDir(cfg.DataDir)
 	if err != nil {
 		return err
 	}
@@ -40,21 +39,13 @@ func (s *BootstrapRegistryStage) Exec(ctx context.Context) error {
 	return nil
 }
 
-func resolveRegistryDataDir(configured string) (string, error) {
+func (d *Deployer) resolveRegistryDataDir(configured string) (string, error) {
 	if configured != "" {
-		return configured, nil
+		return util.NormalizePath(configured), nil
 	}
-	var dir string
-	err := util.NoSudo(func() error {
-		homeDir, e := os.UserHomeDir()
-		if e != nil {
-			return fmt.Errorf("get home dir: %w", e)
-		}
-		dir = filepath.Join(homeDir, ".magicrew", "docker", "registry-data")
-		if e := os.MkdirAll(dir, 0o755); e != nil {
-			return fmt.Errorf("create registry data dir %s: %w", dir, e)
-		}
-		return nil
-	})
-	return dir, err
+	dir := d.dataPath("docker", "registry-data")
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		return "", fmt.Errorf("create registry data dir %s: %w", dir, err)
+	}
+	return dir, nil
 }

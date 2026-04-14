@@ -13,7 +13,6 @@ use App\Infrastructure\Core\Exception\ExceptionBuilder;
 use App\Infrastructure\Util\Context\RequestContext;
 use Dtyq\ApiResponse\Annotation\ApiResponse;
 use Dtyq\SuperMagic\Application\SuperAgent\Service\AgentAppService;
-use Dtyq\SuperMagic\Application\SuperAgent\Service\ProjectAppService;
 use Dtyq\SuperMagic\Application\SuperAgent\Service\TopicAppService;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\Facade\AbstractApi;
 use Hyperf\HttpServer\Contract\RequestInterface;
@@ -24,7 +23,6 @@ class SandboxApi extends AbstractApi
     public function __construct(
         protected RequestInterface $request,
         private readonly TopicAppService $topicAppService,
-        private readonly ProjectAppService $projectAppService,
         private readonly AgentAppService $agentAppService,
     ) {
         parent::__construct($request);
@@ -55,7 +53,8 @@ class SandboxApi extends AbstractApi
      */
     public function upgradeSandbox(RequestContext $requestContext): array
     {
-        $requestContext->setUserAuthorization($this->getAuthorization());
+        $authorization = $this->getAuthorization();
+        $requestContext->setUserAuthorization($authorization);
         $sandboxId = $this->request->input('sandbox_id', '');
 
         if (empty($sandboxId)) {
@@ -63,24 +62,15 @@ class SandboxApi extends AbstractApi
         }
 
         // sandbox_id 即 topic_id，直接复用 getTopic（含权限校验）
-        $topic = $this->topicAppService->getTopic($requestContext, (int) $sandboxId);
+        $this->topicAppService->getTopic($requestContext, (int) $sandboxId);
 
-        $project = $this->projectAppService->getProjectNotUserId((int) $topic->getProjectId());
-        $workDir = $project->getWorkDir() ?? '';
-
-        $authorization = $this->getAuthorization();
         $dataIsolation = new DataIsolation();
         $dataIsolation->setCurrentUserId($authorization->getId());
         $dataIsolation->setCurrentOrganizationCode($authorization->getOrganizationCode());
         $dataIsolation->setThirdPartyOrganizationCode($authorization->getOrganizationCode());
 
-        $result = $this->agentAppService->upgradeSandbox(
-            $dataIsolation,
-            $sandboxId,
-            (string) $topic->getProjectId(),
-            $workDir
-        );
+        $newSandboxId = $this->agentAppService->upgradeSandbox($dataIsolation, (int) $sandboxId);
 
-        return $result->toArray();
+        return ['sandbox_id' => $newSandboxId];
     }
 }

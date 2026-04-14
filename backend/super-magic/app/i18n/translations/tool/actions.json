@@ -139,6 +139,22 @@
         "zh_CN": "生成图像",
         "en_US": "Generate image"
     },
+    "generate_video": {
+        "zh_CN": "生成视频",
+        "en_US": "Generate video"
+    },
+    "video_generation_progress": {
+        "zh_CN": "视频生成进度通知",
+        "en_US": "Video generation progress"
+    },
+    "query_video_generation": {
+        "zh_CN": "查询视频任务",
+        "en_US": "Query video task"
+    },
+    "task_progress": {
+        "zh_CN": "查询任务进度",
+        "en_US": "Query task progress"
+    },
     "edit_image": {
         "zh_CN": "编辑图像",
         "en_US": "Edit image"
@@ -211,49 +227,25 @@
         "zh_CN": "手动下载地图",
         "en_US": "Download maps manually"
     },
-    "create_design_project": {
-        "zh_CN": "创建设计项目",
-        "en_US": "Create design project"
+    "create_canvas": {
+        "zh_CN": "创建画布",
+        "en_US": "Create canvas"
     },
-    "query_canvas_overview": {
-        "zh_CN": "查询画布概览",
-        "en_US": "Query canvas overview"
+    "search_canvas_images": {
+        "zh_CN": "搜索图片",
+        "en_US": "Search images"
     },
-    "create_canvas_element": {
-        "zh_CN": "创建画布元素",
-        "en_US": "Create canvas element"
+    "search_image_prompts": {
+        "zh_CN": "搜索提示词灵感",
+        "en_US": "Search prompt inspirations"
     },
-    "update_canvas_element": {
-        "zh_CN": "更新画布元素",
-        "en_US": "Update canvas element"
-    },
-    "reorder_canvas_elements": {
-        "zh_CN": "调整图层顺序",
-        "en_US": "Reorder canvas elements"
-    },
-    "query_canvas_element": {
-        "zh_CN": "查询元素详情",
-        "en_US": "Query canvas element"
-    },
-    "delete_canvas_element": {
-        "zh_CN": "删除画布元素",
-        "en_US": "Delete canvas element"
-    },
-    "batch_create_canvas_elements": {
-        "zh_CN": "批量创建元素",
-        "en_US": "Batch create elements"
-    },
-    "batch_update_canvas_elements": {
-        "zh_CN": "批量更新元素",
-        "en_US": "Batch update elements"
-    },
-    "search_images_to_canvas": {
-        "zh_CN": "创建画布元素",
-        "en_US": "Create canvas element"
-    },
-    "generate_images_to_canvas": {
+    "generate_canvas_images": {
         "zh_CN": "生成图片",
         "en_US": "Generate images"
+    },
+    "generate_canvas_videos": {
+        "zh_CN": "生成视频",
+        "en_US": "Generate videos"
     },
     "thinking": {
         "zh_CN": "深度思考",
@@ -268,20 +260,20 @@
         "en_US": "Deep write"
     },
     "call_subagent": {
-        "zh_CN": "分配子智能体任务",
+        "zh_CN": "调用子智能体",
         "en_US": "Call sub-agent"
     },
-    "get_sub_agent_results": {
-        "zh_CN": "查看子智能体任务进展",
-        "en_US": "Query sub-agent results"
+    "wait_for_subagents": {
+        "zh_CN": "等待子智能体完成",
+        "en_US": "Wait for sub-agents"
     },
     "compact_chat_history": {
         "zh_CN": "整理对话内容",
         "en_US": "Compact chat history"
     },
     "read_skills": {
-        "zh_CN": "学习技能",
-        "en_US": "Learn Skill"
+        "zh_CN": "装备技能",
+        "en_US": "Equip Skill"
     },
     "todo_create": {
         "zh_CN": "创建任务列表",

@@ -12,7 +12,6 @@ use App\Domain\AppMenu\Entity\AppMenuEntity;
 use App\Domain\AppMenu\Service\AppMenuDomainService;
 use App\Infrastructure\Core\ValueObject\Page;
 use App\Interfaces\Authorization\Web\MagicUserAuthorization;
-use Dtyq\CloudFile\Kernel\Struct\FileLink;
 use RuntimeException;
 
 class AppMenuAppService extends AbstractKernelAppService
@@ -24,22 +23,11 @@ class AppMenuAppService extends AbstractKernelAppService
 
     /**
      * @param array{name?: string, display_scope?: int} $filters
-     * @return array{total: int, list: array<AppMenuEntity>, icons: array<string, FileLink>}
+     * @return array{total: int, list: array<AppMenuEntity>}
      */
     public function queries(MagicUserAuthorization $authorization, array $filters, Page $page): array
     {
-        $data = $this->appMenuDomainService->queries($filters, $page);
-
-        $iconPaths = [];
-        foreach ($data['list'] ?? [] as $item) {
-            if ($item->isImageIcon() && $item->getIconUrl() !== '') {
-                $iconPaths[] = $item->getIconUrl();
-            }
-        }
-
-        $data['icons'] = $this->getIcons($authorization->getOrganizationCode(), $iconPaths);
-
-        return $data;
+        return $this->appMenuDomainService->queries($filters, $page);
     }
 
     public function show(MagicUserAuthorization $authorization, int $id): AppMenuEntity

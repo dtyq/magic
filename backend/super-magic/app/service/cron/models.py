@@ -35,15 +35,18 @@ class CronSchedule:
     at: Optional[str] = None
     # kind=every
     every_ms: Optional[int] = None
+    # kind=cron / kind=every：达到此时间后自动禁用任务（ISO 8601，含时区偏移）
+    end_at: Optional[str] = None
 
 
 @dataclass
 class CronPayload:
     kind: PayloadKind = PayloadKind.AGENT_TURN
-    agent_name: str = "magic"
+    agent_name: Optional[str] = None
     model_id: Optional[str] = None
+    image_model_id: Optional[str] = None
     timeout_seconds: Optional[int] = None
-    notify_main_agent: bool = True
+    notify_user: bool = True
 
 
 @dataclass

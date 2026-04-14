@@ -45,7 +45,7 @@ enum WebScrapeProvider: string
     public function getRequiredFields(): array
     {
         return match ($this) {
-            self::Cloudsway => ['name', 'enable', 'base_url', 'api_key'],
+            self::Cloudsway => ['name', 'enable', 'request_url', 'api_key'],
             self::Magic => ['name', 'enable', 'request_url', 'api_key'],
         };
     }
@@ -72,7 +72,7 @@ enum WebScrapeProvider: string
             self::Cloudsway => [
                 'name' => 'cloudsway',
                 'enable' => true,
-                'base_url' => 'https://searchapi.cloudsway.net/search/HcAMcybqJTnDtGiJ/read',
+                'request_url' => 'https://searchapi.cloudsway.net/search/HcAMcybqJTnDtGiJ/read',
                 'api_key' => 'your_api_key_here',
                 'timeout' => 30,
             ],

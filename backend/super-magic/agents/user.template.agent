@@ -7,7 +7,6 @@ tools:
   - convert_to_markdown
   - image_search
   - download_from_urls
-  - download_from_markdown
   - generate_image
   - list_dir
   - file_search
@@ -21,10 +20,6 @@ tools:
   - multi_edit_file
   - multi_edit_file_range
   - delete_files
-  - create_memory
-  - update_memory
-  - delete_memory
-  - compact_chat_history
 skills:
   system_skills:
     - name: find-skill
@@ -37,10 +32,6 @@ skills:
 <role>
 {{ @variable("agent_profile") }}
 </role>
-
-<dynamic_context>
-{{ @include(path="./prompts/dynamic_context_base.prompt") }}
-</dynamic_context>
 
 <static_context>
 {{ @include(path="./prompts/static_context.prompt") }}

@@ -11,6 +11,7 @@ use App\Infrastructure\Core\Exception\ExceptionBuilder;
 use App\Infrastructure\Util\ZipUtil;
 use Dtyq\SuperMagic\Application\Agent\DTO\ParsedAgentData;
 use Dtyq\SuperMagic\ErrorCode\SuperAgentErrorCode;
+use Dtyq\SuperMagic\Infrastructure\Utils\FrontmatterParser;
 use Throwable;
 
 /**
@@ -103,58 +104,20 @@ class AgentZipParser
 
     /**
      * Parse YAML frontmatter between the first pair of --- delimiters.
-     *
-     * Handles:
-     * - Simple scalar values:  key: value
-     * - Boolean values:        key: true / false
-     * - Sequence values:       key:\n  - item1\n  - item2
+     * Uses the shared frontmatter parser so standard YAML features such as
+     * folded/literal block scalars (>- / |) are preserved.
      *
      * @return array<string, mixed>
      */
     private function parseFrontmatter(string $content): array
     {
-        if (! preg_match('/^---\s*\n(.*?)\n---/s', $content, $matches)) {
+        try {
+            $parsed = FrontmatterParser::parse($content);
+        } catch (Throwable) {
             return [];
         }
 
-        $yaml = trim($matches[1]);
-        $result = [];
-        $currentKey = null;
-        $inList = false;
-
-        foreach (explode("\n", $yaml) as $line) {
-            if (trim($line) === '') {
-                continue;
-            }
-
-            // Sequence item
-            if (preg_match('/^\s+-\s+(.+)$/', $line, $m)) {
-                if ($currentKey !== null && $inList) {
-                    $result[$currentKey][] = trim($m[1]);
-                }
-                continue;
-            }
-
-            // Key: value pair
-            if (preg_match('/^([a-zA-Z_][a-zA-Z0-9_]*):\s*(.*)$/', $line, $m)) {
-                $currentKey = $m[1];
-                $value = trim($m[2]);
-
-                if ($value !== '') {
-                    $result[$currentKey] = match ($value) {
-                        'true' => true,
-                        'false' => false,
-                        default => $value,
-                    };
-                    $inList = false;
-                } else {
-                    $result[$currentKey] = [];
-                    $inList = true;
-                }
-            }
-        }
-
-        return $result;
+        return isset($parsed['data']) && is_array($parsed['data']) ? $parsed['data'] : [];
     }
 
     /**

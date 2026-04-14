@@ -8,11 +8,11 @@ import zipfile
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
-from app.core.context.agent_context import AgentContext
 from agentlang.context.tool_context import ToolContext
 from agentlang.event.data import AfterInitEventData, BeforeInitEventData
 from agentlang.environment import Environment
 from agentlang.event.event import EventType
+from app.core.context.agent_context import AgentContext
 from app.core.stream.base import Stream
 from app.infrastructure.storage.base import BaseFileProcessor
 from app.infrastructure.storage.factory import StorageFactory
@@ -26,8 +26,10 @@ from app.utils.init_client_message_util import InitClientMessageUtil
 from app.utils.path_utils import get_workspace_dir
 from app.utils.path_utils import get_storage_dir
 from app.service.asr.asr_context_diff_service import AsrContextDiffService
+from app.service.channel_context_service import ChannelContextService
 from app.service.image_model_sizes_service import ImageModelSizesService
 from app.service.mcp_servers_service import MCPServersService
+from app.service.video_model_config_service import VideoModelConfigService
 from app.infrastructure.observability import install_tool_monitoring_listener
 from app.core.base_service import Base
 from app.service.mention import MentionContextBuilder
@@ -679,13 +681,6 @@ class AgentService(Base):
         chat_client_message = agent_context.get_chat_client_message()
         query = chat_client_message.prompt
 
-        # magiclaw（claw agent）每条用户消息前注入当前时间戳，确保 LLM 能准确计算相对时间。
-        # dynamic_context_prompt 的时间仅在会话初始化时写入一次，长会话中会逐渐失准。
-        if str(chat_client_message.agent_mode) == "magiclaw":
-            from agentlang.utils.datetime_formatter import get_current_datetime_str
-            current_time_str = get_current_datetime_str(agent_context.get_user_timezone())
-            query = f"[Current time: {current_time_str}]\n\n{query}"
-
         # 🔥 ASR 录音纪要聊天模式：注入上下文 Diff
         try:
             asr_task_key = None
@@ -712,15 +707,28 @@ class AgentService(Base):
         # 处理输入框内联引用（[@file_path:格式）
         query = agent._process_user_input_with_mentions(query, [])
 
+        # 追加渠道专属上下文片段（如微信消息携带的媒体文件路径），不支持的渠道返回空串不影响
+        query = ChannelContextService.append_channel_context(query, chat_client_message)
+
         if chat_client_message and hasattr(chat_client_message, "attachments") and chat_client_message.attachments:
             query = await self._process_attachments(agent_context, query, chat_client_message.attachments)
 
-        # 处理图片模型尺寸信息：在 query 中追加当前可用 size（仅当 image_model_id 或 sizes 变化时）
-        query = ImageModelSizesService.append_image_sizes_to_query(
-            query,
+        # 将图片/视频模型信息同步到 horizon（配置变化时 horizon 会在下次 system_injected_context 中注入，
+        # 首次和上下文压缩后也会通过 initial_context 全量注入）
+        await ImageModelSizesService.sync_to_horizon(
             chat_client_message.dynamic_config,
-            agent
+            agent.agent_context.horizon,
         )
+        await VideoModelConfigService.sync_to_horizon(
+            chat_client_message.dynamic_config,
+            agent.agent_context.horizon,
+        )
+
+        # 每次用户消息前刷新工作区文件树，让 horizon 检测用户上传/删除文件等变化
+        try:
+            await agent.refresh_workspace_files()
+        except Exception as _e:
+            logger.warning(f"[AgentService] 刷新工作区文件树失败: {_e}")
 
         # 处理 MCP 服务器信息：为加载了 using-mcp skill 的 agent 追加可用服务器信息
         query = await MCPServersService.append_mcp_servers_to_query(query, agent)

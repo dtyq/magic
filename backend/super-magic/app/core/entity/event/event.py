@@ -53,21 +53,6 @@ class AfterClientChatEventData(BaseEventData):
     client_message: ChatClientMessage
 
 
-class BeforeSafetyCheckEventData(BaseEventData):
-    """安全检查前事件的数据结构"""
-
-    agent_context: AgentContext
-    query: str  # 需要检查的查询内容
-
-
-class AfterSafetyCheckEventData(BaseEventData):
-    """安全检查后事件的数据结构"""
-
-    agent_context: AgentContext
-    query: str  # 已检查的查询内容
-    is_safe: bool  # 是否安全
-
-
 class BeforeMcpInitEventData(BeforeToolCallEventData):
     """MCP 初始化前事件的数据结构"""
 

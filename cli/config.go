@@ -3,6 +3,7 @@ package cli
 import (
 	"os"
 	"path/filepath"
+	"strings"
 
 	"go.yaml.in/yaml/v3"
 
@@ -29,17 +30,8 @@ type DeployChartConfig struct {
 	Version string `yaml:"version"`
 }
 
-// ChartRepoConfig holds chart repository URL and whether to use plain HTTP (for OCI).
-type ChartRepoConfig struct {
-	URL                string `yaml:"url"`
-	PlainHTTP          bool   `yaml:"plainHTTP"`
-	Username           string `yaml:"username"`
-	Password           string `yaml:"password"`
-	PassCredentialsAll bool   `yaml:"passCredentialsAll"`
-}
-
 type DeployConfig struct {
-	ChartRepo     ChartRepoConfig              `yaml:"chartRepo"`
+	ChartRepo     deployer.ChartRepoConfig     `yaml:"chartRepo"`
 	Values        string                       `yaml:"values"`
 	Registry      registry.Config              `yaml:"registry"`
 	Kind          cluster.KindClusterConfig    `yaml:"kind"`
@@ -104,13 +96,13 @@ deploy:
   charts:
     infra:
       name: infra
-      version: "0.0.1"
+      version: "0.0.2"
     magic:
       name: magic
-      version: "0.0.1"
+      version: "0.0.3"
     magic-sandbox:
       name: magic-sandbox
-      version: "0.0.2"
+      version: "0.0.4"
   infraUseProxy: false
   proxy:
     enabled: true
@@ -125,26 +117,37 @@ deploy:
 `
 
 func initConfig() {
+	fallbackConfigDir := filepath.Join(util.ConfigDir(), "magicrew")
+	fallbackDataDir := filepath.Join(util.HomeDir(), ".magicrew")
+	configDir = normalizeResolvedDir(configDir, envNameCLIConfigDir, fallbackConfigDir)
+	dataDir = normalizeResolvedDir(dataDir, envNameCLIDataDir, fallbackDataDir)
+
 	util.NoSudo(func() error {
+		if err := os.MkdirAll(configDir, 0o700); err != nil {
+			lg.Logw("init", "failed to create config dir %s: %v", configDir, err)
+		}
+
 		// determine config file path
 		if cfgFile == "" {
-			xdgConfigHome := os.Getenv("XDG_CONFIG_HOME")
-			if xdgConfigHome == "" {
-				xdgConfigHome = "~/.config"
-			}
-			cfgFile = filepath.Join(xdgConfigHome, "magicrew", "config.yml")
+			cfgFile = filepath.Join(configDir, "config.yml")
+		} else if p := util.NormalizePath(cfgFile); p != "" {
+			cfgFile = p
+		} else {
+			cfgFile = filepath.Join(configDir, "config.yml")
 		}
-		cfgFile = util.ExpandTilde(cfgFile)
 		lg.Logd("init", "config file path: %s", cfgFile)
 
 		// check if config file exists
 		if _, err := os.Stat(cfgFile); os.IsNotExist(err) {
 			lg.Logd("init", "config file not found, creating default config file")
-			// best effort to create config file directory and file
-			// create config file directory
-			os.MkdirAll(filepath.Dir(cfgFile), 0755)
-			// create config file
-			os.WriteFile(cfgFile, []byte(defaultConfig), 0644)
+			if err := os.MkdirAll(filepath.Dir(cfgFile), 0o700); err != nil {
+				lg.Logw("init", "failed to create config parent dir %s: %v", filepath.Dir(cfgFile), err)
+			}
+			if err := os.WriteFile(cfgFile, []byte(defaultConfig), 0o600); err != nil {
+				lg.Logw("init", "failed to create default config file %s: %v", cfgFile, err)
+			}
+		} else if err != nil {
+			lg.Logw("init", "failed to stat config file %s: %v", cfgFile, err)
 		}
 		return nil
 	})
@@ -199,7 +202,7 @@ func init() {
 			},
 		},
 		Deploy: DeployConfig{
-			ChartRepo: ChartRepoConfig{},
+			ChartRepo: deployer.ChartRepoConfig{},
 			Values:    "",
 			Registry:  registry.NormalizeConfig(registry.Config{}),
 			Kind:      cluster.NormalizeKindCluster(cluster.KindClusterConfig{}),
@@ -221,4 +224,32 @@ func init() {
 		// impossible to happen
 		panic(err)
 	}
+}
+
+// resolveValue returns the effective value from flag, env, or fallback.
+// Priority: flag > env > fallback.
+func resolveValue(flagValue, envKey, fallback string) string {
+	if v := strings.TrimSpace(flagValue); v != "" {
+		return v
+	}
+	if v := strings.TrimSpace(os.Getenv(envKey)); v != "" {
+		return v
+	}
+	return fallback
+}
+
+// normalizeResolvedDir applies util.NormalizePath after resolveValue. Empty normalization
+// falls back to the default path so callers never end up with "" or unintended ".".
+func normalizeResolvedDir(flagValue, envKey, fallback string) string {
+	raw := resolveValue(flagValue, envKey, fallback)
+	if n := util.NormalizePath(raw); n != "" {
+		return n
+	}
+	if n := util.NormalizePath(fallback); n != "" {
+		return n
+	}
+	if t := strings.TrimSpace(fallback); t != "" {
+		return filepath.Clean(t)
+	}
+	return ""
 }

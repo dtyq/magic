@@ -41,7 +41,8 @@
         "hyperf/websocket-server": "~3.1.0",
         "overtrue/chinese-calendar": "^1.0",
         "dtyq/api-response": "~0.1",
-        "96qbhy/hyperf-auth": "^3.1"
+        "96qbhy/hyperf-auth": "^3.1",
+        "symfony/yaml": "^6.4 || ^7.0"
     },
     "require-dev": {
         "roave/security-advisories": "dev-latest",

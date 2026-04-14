@@ -112,50 +112,45 @@ class ReadSkills(BaseTool[ReadSkillsParams]):
             # 构建最终输出
             output_parts = []
 
-            # 判断是否只有一个 skill
             total_count = len(params.skill_names)
             is_single_skill = total_count == 1 and success_count == 1
 
-            # 只有在多个 skills 时才添加摘要信息
+            # 多个 Skill 时添加摘要
             if not is_single_skill:
-                summary_parts = [f"批量读取 {total_count} 个 skills"]
+                summary_parts = [f"Batch loading {total_count} Skills"]
                 if success_count > 0:
-                    summary_parts.append(f"成功: {success_count}")
+                    summary_parts.append(f"succeeded: {success_count}")
                 if failure_count > 0:
-                    summary_parts.append(f"失败: {failure_count}")
+                    summary_parts.append(f"failed: {failure_count}")
                 output_parts.append(" | ".join(summary_parts))
-                output_parts.append("")  # 空行
+                output_parts.append("")
 
-            # 如果有失败的 skills，先列出失败信息
+            # 先列出失败信息
             if failed_skills:
-                output_parts.append("失败的 skills:")
+                output_parts.append("Failed Skills:")
                 for result in results:
                     if not result["success"]:
                         output_parts.append(f"  - {result['skill_name']}: {result['error']}")
-                output_parts.append("")  # 空行
+                output_parts.append("")
 
-            # 添加成功的 skills 内容
+            # 添加成功的 Skill 内容
             first_success = True
             for result in results:
                 if result["success"]:
-                    # 如果不是第一个成功的 skill 且不是单个 skill，添加分隔符
                     if not first_success and not is_single_skill:
                         output_parts.append("")
                         output_parts.append("=" * 80)
                         output_parts.append("")
                     first_success = False
-
                     output_parts.append(result["content"])
 
             content = "\n".join(output_parts)
 
-            # 如果全部失败，返回错误
-            if success_count == 0:
-                result = ToolResult(ok=False, content=content)
-                result.use_custom_remark = True
-                return result
-
-            return ToolResult(ok=True, content=content)
+            return ToolResult(
+                ok=True,
+                content=content,
+                extra_info={"success_count": success_count, "failure_count": failure_count},
+            )
 
         except Exception as e:
             logger.error(f"批量读取 skills 时出错: {e}")
@@ -169,21 +164,41 @@ class ReadSkills(BaseTool[ReadSkillsParams]):
             return result
 
     def _get_remark_content(self, result: ToolResult, arguments: Dict[str, Any] = None) -> str:
-        """获取备注内容"""
-        if not arguments or "skill_names" not in arguments:
-            return i18n.translate("read_skills.success", category="tool.messages")
+        """根据 extra_info 里的计数和 arguments 里的名称生成 remark"""
+        extra = result.extra_info or {}
+        success_count = extra.get("success_count", 0)
+        failure_count = extra.get("failure_count", 0)
+        skill_names: List[str] = (arguments or {}).get("skill_names", [])
 
-        skill_names = arguments["skill_names"]
-        skill_count = len(skill_names)
-
-        if skill_count == 1:
-            skill_name = skill_names[0]
-            return i18n.translate("read_skills.success_single", category="tool.messages", skill_name=skill_name)
+        if failure_count == 0:
+            # 全部成功
+            if success_count == 1:
+                return i18n.translate(
+                    "read_skills.success_single",
+                    category="tool.messages",
+                    skill_name=skill_names[0] if skill_names else "",
+                )
+            if success_count > 1:
+                return i18n.translate("read_skills.success_multiple", category="tool.messages", count=success_count)
+        elif success_count == 0:
+            # 全部失败
+            if failure_count == 1:
+                return i18n.translate(
+                    "read_skills.fail_single",
+                    category="tool.messages",
+                    skill_name=skill_names[0] if skill_names else "",
+                )
+            return i18n.translate("read_skills.fail_multiple", category="tool.messages", count=failure_count)
         else:
-            main_skill = skill_names[0]
+            # 部分成功
             return i18n.translate(
-                "read_skills.success_multiple", category="tool.messages", skill_name=main_skill, count=skill_count
+                "read_skills.partial",
+                category="tool.messages",
+                success_count=success_count,
+                failure_count=failure_count,
             )
+
+        return i18n.translate("read_skills.success", category="tool.messages")
 
     async def get_after_tool_call_friendly_action_and_remark(
         self,
@@ -194,19 +209,10 @@ class ReadSkills(BaseTool[ReadSkillsParams]):
         arguments: Dict[str, Any] = None,
     ) -> Dict:
         """获取工具调用后的友好动作和备注"""
+        action = i18n.translate(tool_name, category="tool.actions")
         if not result.ok:
-            # 获取 skill 名称用于错误消息
-            skill_names = arguments.get("skill_names", []) if arguments else []
-            skill_name = skill_names[0] if skill_names else ""
-
-            if skill_name:
-                remark = i18n.translate("read_skills.error_with_name", category="tool.messages", skill_name=skill_name)
-            else:
-                remark = i18n.translate("read_skills.error", category="tool.messages")
-
-            return {"action": i18n.translate(tool_name, category="tool.actions"), "remark": remark}
-
-        return {
-            "action": i18n.translate(tool_name, category="tool.actions"),
-            "remark": self._get_remark_content(result, arguments),
-        }
+            # 只有 skill_names 为空时才走这里
+            remark = i18n.translate("read_skills.error", category="tool.messages")
+        else:
+            remark = self._get_remark_content(result, arguments)
+        return {"action": action, "remark": remark}

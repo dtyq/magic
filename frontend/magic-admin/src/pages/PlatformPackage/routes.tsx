@@ -17,6 +17,7 @@ const ModelPage = lazy(() => import("./Model/index.page"))
 const ModelDetailPage = lazy(() => import("./ModelDetail/index.page"))
 const AIDrawingPage = lazy(() => import("./AIDrawing/index.page"))
 const AIDrawingDetailPage = lazy(() => import("./AIDrawingDetail/index.page"))
+const ModelAuditLogPage = lazy(() => import("./ModelAuditLog/index.page"))
 const PlatformInfoPage = lazy(() => import("./PlatformInfo/index.page"))
 const AIPowerPage = lazy(() => import("./AIPower/index.page"))
 const AIPowerDetailPage = lazy(() => import("./AIPowerDetail/index.page"))
@@ -119,6 +120,18 @@ export default {
 							permissions.includes(
 								PERMISSION_KEY_MAP.PLATFORM_INTELLIGENT_DRAWING_EDIT,
 							)
+						)
+					},
+				},
+				{
+					name: RouteName.AdminPlatformModelAuditLog,
+					path: RoutePath.PlatformModelAuditLog,
+					element: <ModelAuditLogPage />,
+					title: "nav.platformSubMenu.modelAuditLog",
+					validate: (permissions: string[], isSuperAdmin?: boolean) => {
+						return (
+							isSuperAdmin ||
+							permissions.includes(PERMISSION_KEY_MAP.SAFE_MODEL_AUDIT_LOG_QUERY)
 						)
 					},
 				},

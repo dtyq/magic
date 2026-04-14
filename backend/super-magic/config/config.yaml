@@ -51,6 +51,15 @@ llm:
   api_max_retries: ${LLM_API_MAX_RETRIES:-3}
   # 自定义API请求头配置 - 所有请求头都从环境变量读取
   custom_api_headers: ${LLM_CUSTOM_API_HEADERS:-None}
+  # 两阶梯重试策略
+  # 第一阶梯：流式
+  # > 设 600s 等同于禁用 per-chunk 超时检测，由总超时兜底
+  # > 原因：Claude/AWS 渠道流式卡顿后仍可恢复，缩短此值会误杀正常请求 2026-04-12
+  stream_first_chunk_timeout_seconds: 600  # 首包超时
+  stream_chunk_timeout_seconds: 600        # chunk 间隔超时
+  # 第二阶梯：非流式退避重试
+  non_stream_timeout_seconds: 600          # 非流式请求超时
+  backoff_max_retries: 5                   # 最大退避重试次数
 
 # 当前活动的 Agent 模式 (可通过 ACTIVE_AGENT_MODE 环境变量覆盖)
 # 可选值: apex(至强模式), efficient(高性价比模式), flash(极速模式)
@@ -87,13 +96,13 @@ agent_modes:
 
 agent:
   # Allow LLM to call multiple tools in a single response
-  enable_multi_tool_calls: ${AGENT_ENABLE_MULTI_TOOL_CALLS:-false}
+  enable_multi_tool_calls: ${AGENT_ENABLE_MULTI_TOOL_CALLS:-true}
   # Execute multiple tool calls in parallel vs sequential (only applies when multi_tool_calls is enabled)
   enable_parallel_tool_calls: ${AGENT_ENABLE_PARALLEL_TOOL_CALLS:-false}
   # Timeout for parallel tool execution in seconds (None = no timeout)
   parallel_tool_calls_timeout: ${AGENT_PARALLEL_TOOL_CALLS_TIMEOUT:-None}
-  # Model used for safety checking and content filtering
-  safety_checker_model_id: ${AGENT_SAFETY_MODEL_ID:-gpt-4.1}
+  # Whether the agent loop should auto-retry after non-terminal exceptions
+  enable_agent_loop_retry: ${AGENT_ENABLE_AGENT_LOOP_RETRY:-false}
 
 # 图片生成服务配置
 image_generator:
@@ -124,7 +133,7 @@ models:
     type: "llm"
     supports_tool_use: true
     provider: "openai"
-    max_output_tokens: 8192
+    max_output_tokens: 64000
     max_context_tokens: 200000
     temperature: 0.7
     pricing:
@@ -141,7 +150,7 @@ models:
     type: "llm"
     supports_tool_use: true
     provider: "openai"
-    max_output_tokens: 8192
+    max_output_tokens: 64000
     max_context_tokens: 200000
     temperature: 0.7
     pricing:
@@ -543,6 +552,21 @@ models:
       output_price: 0.0006
       currency: "CNY"
 
+  qwen3.5-plus:
+    api_key: "${QWEN_API_KEY}"
+    api_base_url: "${QWEN_API_BASE_URL:-https://dashscope.aliyuncs.com/compatible-mode/v1}"
+    name: "${QWEN3_5_PLUS_MODEL:-qwen3.5-plus}"
+    type: "llm"
+    supports_tool_use: true
+    provider: "openai"
+    max_output_tokens: 65536
+    max_context_tokens: 1000000
+    temperature: 0.7
+    pricing:
+      input_price: 0.002
+      output_price: 0.008
+      currency: "CNY"
+
   qwen-flash:
     api_key: "${MAGIC_API_KEY}"
     api_base_url: "${MAGIC_API_BASE_URL}"
@@ -556,6 +580,23 @@ models:
     pricing:
       input_price: 0.0003
       output_price: 0.0006
+      currency: "CNY"
+
+  kimi-k2.5:
+    api_key: "${KIMI_API_KEY}"
+    api_base_url: "${KIMI_API_BASE_URL:-https://api.moonshot.cn/v1}"
+    name: "${KIMI_K2_5_MODEL:-kimi-k2.5}"
+    type: "llm"
+    supports_tool_use: true
+    provider: "openai"
+    max_output_tokens: 16384
+    max_context_tokens: 131072
+    temperature: 0.7
+    pricing:
+      input_price: 0.004
+      output_price: 0.021
+      cache_write_price: 0.004
+      cache_hit_price: 0.0007
       currency: "CNY"
 
   gemini-2.0-flash:

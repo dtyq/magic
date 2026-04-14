@@ -25,6 +25,7 @@ type Config struct {
 	Proxy           ProxyConfig `yaml:"proxy"`
 	CAFile          string      `yaml:"caFile"`
 	ExtraHosts      []string    `yaml:"extraHosts"`
+	ConfigDir       string      `yaml:"-"`
 }
 
 // ProxyConfig mirrors cli.RegistryProxyConfig.
@@ -120,7 +121,7 @@ func EnsureRunning(ctx context.Context, cfg Config) error {
 	}
 	if exists {
 		// If an old container still mounts a temp config path, recreate it so
-		// the mount source switches to ~/.config/magicrew.
+		// the mount source switches to the persistent path under the app config dir.
 		if cfg.Proxy.Enabled && cfg.Proxy.URL != "" {
 			recreate, err := needsRecreateForConfigMount(ctx, cfg)
 			if err != nil {
@@ -313,8 +314,7 @@ proxy:
 }
 
 func registryConfigHostPath(cfg Config) string {
-	configDir := util.ExpandTilde("~/.config/magicrew")
-	return filepath.Join(configDir, fmt.Sprintf("registry-%s-config.yml", cfg.Name))
+	return filepath.Join(cfg.ConfigDir, fmt.Sprintf("registry-%s-config.yml", cfg.Name))
 }
 
 // run executes a docker command, discarding stdout/stderr.

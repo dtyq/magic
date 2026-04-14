@@ -53,13 +53,13 @@ Assess where the user is and jump in from there.
 
 SKILL.md 中的工具分两类，格式不同：
 
-1. **`references/super-magic-tools.md` 中列出的工具**：这些工具在 skill 执行时通过 Python 代码片段（`run_skills_snippet`）运行，必须写 Python 代码形式：
+1. **`references/super-magic-tools.md` 中列出的工具**：这些工具在 skill 执行时通过 Python 代码片段（`run_sdk_snippet`）运行，必须写 Python 代码形式：
 -->
 ## Tool Call Format in SKILL.md
 
 Tools in SKILL.md fall into two categories with different formats:
 
-1. **Tools listed in `references/super-magic-tools.md`**: These run inside Python code snippets (via `run_skills_snippet`) and must be shown as Python code:
+1. **Tools listed in `references/super-magic-tools.md`**: These run inside Python code snippets (via `run_sdk_snippet`) and must be shown as Python code:
 
 ```python
 from sdk.tool import tool
@@ -276,7 +276,7 @@ SKILL.md **must** start with YAML frontmatter — the packaging validator reject
 ```markdown
 ---
 name: skill_name
-description: "English description: when to trigger and what it does. Be slightly assertive."
+description: "One sentence on what this skill does. Use when [specific trigger conditions — what the user is trying to accomplish]. Also use when user says [example phrases like 'do X', 'help me with Y', 'turn this into Z']."
 description-cn: "中文描述（可选）"
 ---
 
@@ -288,7 +288,11 @@ description-cn: "中文描述（可选）"
 <!--zh
 frontmatter 字段说明：
 - **name**（必填）: 只含小写字母、数字、下划线；不能为空；必须以字母开头；不能以下划线结尾；不能有连续下划线（`__`）；长度 2–64 字符；必须与目录名完全一致
-- **description**（必填）: 英文，语义触发依赖此字段，描述要稍微"主动"一些，最多 1024 字符，不含 `<` `>`
+- **description**（必填）: 英文，语义触发依赖此字段，最多 1024 字符，不含 `<` `>`。
+  必须同时包含两部分：
+  1. **功能说明**：这个 skill 能做什么（一句话概括）
+  2. **触发时机**：什么情况下应该加载它（"Use when..."），以及用户会说哪些话（"Also use when user says..."）
+  触发时机越具体，AI 识别准确率越高。不要只写功能，没有触发条件的 description 会导致 skill 要么永远不被加载，要么频繁误触发。
 - **description-cn**（可选）: 中文描述
 - 其他常见可选字段: `license`, `allowed-tools`, `metadata`, `compatibility`；亦可按需增加任意 YAML 键（如 `description-cn`）
 
@@ -296,7 +300,11 @@ frontmatter 字段说明：
 -->
 Frontmatter fields:
 - **name** (required): lowercase letters/digits/underscores only; must not be empty; must start with a letter; no trailing underscore; no consecutive underscores (`__`); length 2–64 chars; must exactly match the directory name
-- **description** (required): English, max 1024 chars, no angle brackets `<` `>`
+- **description** (required): English, max 1024 chars, no angle brackets `<` `>`.
+  Must contain two parts:
+  1. **Capability summary**: what this skill does (one sentence)
+  2. **Trigger conditions**: when the AI should load it ("Use when...") and example user phrases ("Also use when user says...")
+  The more specific the trigger conditions, the more accurately the AI will recognize when to load this skill. A description with no trigger guidance causes the skill to either never load or trigger on the wrong requests.
 - **description-cn** (optional): Chinese description
 - Other common optional keys: `license`, `allowed-tools`, `metadata`, `compatibility`; you may add any extra YAML keys as needed (e.g. `description-cn`)
 

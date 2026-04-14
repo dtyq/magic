@@ -26,7 +26,10 @@ class AsyncEventDispatcher implements EventDispatcherInterface
 
     private AsyncEventService $asyncEventService;
 
-    private ListenerAsyncDriverInterface $listenerAsyncDriver;
+    private ListenerAsyncDriverFactory $listenerAsyncDriverFactory;
+
+    /** @var ListenerAsyncDriverInterface[] 按 driver 标识缓存已创建的驱动实例 */
+    private array $driverCache = [];
 
     public function __construct(
         ListenerProviderInterface $listeners,
@@ -35,7 +38,7 @@ class AsyncEventDispatcher implements EventDispatcherInterface
     ) {
         $this->listeners = $listeners;
         $this->asyncEventService = $asyncEventService;
-        $this->listenerAsyncDriver = $listenerAsyncDriverFactory->create();
+        $this->listenerAsyncDriverFactory = $listenerAsyncDriverFactory;
 
         $this->asyncListeners = AnnotationCollector::getClassesByAnnotation(AsyncListener::class);
     }
@@ -45,15 +48,24 @@ class AsyncEventDispatcher implements EventDispatcherInterface
         $eventName = get_class($event);
 
         $syncListeners = [];
-        $asyncListeners = [];
+        $asyncNoWaitListeners = [];
+        $asyncWaitListeners = [];
         foreach ($this->listeners->getListenersForEvent($event) as $listener) {
             $listenerName = $this->getListenerName($listener);
             if (isset($this->asyncListeners[$listenerName]) || $listener instanceof AsyncListenerInterface) {
-                $asyncListeners[$listenerName] = $listener;
+                $annotation = $this->asyncListeners[$listenerName] ?? null;
+                if ($annotation instanceof AsyncListener && ! $annotation->waitForSync) {
+                    $asyncNoWaitListeners[$listenerName] = $listener;
+                } else {
+                    $asyncWaitListeners[$listenerName] = $listener;
+                }
             } else {
                 $syncListeners[$listenerName] = $listener;
             }
         }
+
+        // 不等待同步监听的异步事件优先投递，使用 immediate 模式立即开启新协程并发执行
+        $this->publishAsyncListeners($eventName, $asyncNoWaitListeners, $event, true);
 
         // 记录同步异常，保证异步事件可以触发执行
         $lastException = null;
@@ -75,24 +87,61 @@ class AsyncEventDispatcher implements EventDispatcherInterface
             }
         }
 
-        // 投递异步事件
-        foreach ($asyncListeners as $listenerName => $listener) {
-            try {
-                // 保证先落库后投递
-                $eventRecord = $this->asyncEventService->buildAsyncEventData($eventName, $listenerName, $event);
-                $eventModel = $this->asyncEventService->create($eventRecord);
-                $this->listenerAsyncDriver->publish($eventModel, $event, $listener);
-            } catch (Throwable $throwable) {
-                // 保证其他异步事件可以继续投递
-                LogUtil::dump(1, $listenerName, $eventName, $throwable);
-            }
-        }
+        // 等待同步监听完成后再投递的异步事件
+        $this->publishAsyncListeners($eventName, $asyncWaitListeners, $event);
 
         if ($lastException) {
             throw $lastException;
         }
 
         return $event;
+    }
+
+    /**
+     * 根据 listener 注解上的 driver 字段解析对应驱动，driver 为空时使用全局配置。
+     * 同一进程内按 driver key 缓存实例。
+     */
+    private function resolveDriver(string $listenerName): ListenerAsyncDriverInterface
+    {
+        $driverKey = $this->resolveDriverKey($listenerName);
+
+        if (! isset($this->driverCache[$driverKey])) {
+            $this->driverCache[$driverKey] = $this->listenerAsyncDriverFactory->create($driverKey ?: null);
+        }
+
+        return $this->driverCache[$driverKey];
+    }
+
+    /**
+     * 返回 listener 实际使用的 driver 标识。
+     * 注解指定了 driver 则校验合法性，非法时回退到全局配置并打印警告。
+     */
+    private function resolveDriverKey(string $listenerName): string
+    {
+        /** @var AsyncListener|null $annotation */
+        $annotation = $this->asyncListeners[$listenerName] ?? null;
+        if ($annotation instanceof AsyncListener && $annotation->driver !== ''
+            && in_array($annotation->driver, ListenerAsyncDriverFactory::VALID_DRIVERS, true)
+        ) {
+            return $annotation->driver;
+        }
+        return config('async_event.listener_exec_driver', 'coroutine');
+    }
+
+    /**
+     * 批量投递异步事件，保证先落库后投递，单条异常不影响其他条目继续投递。
+     */
+    private function publishAsyncListeners(string $eventName, array $listeners, object $event, bool $immediate = false): void
+    {
+        foreach ($listeners as $listenerName => $listener) {
+            try {
+                $eventRecord = $this->asyncEventService->buildAsyncEventData($eventName, $listenerName, $event);
+                $eventModel = $this->asyncEventService->create($eventRecord);
+                $this->resolveDriver($listenerName)->publish($eventModel, $event, $listener, $immediate);
+            } catch (Throwable $throwable) {
+                LogUtil::dump(1, $listenerName, $eventName, $throwable, ['driver' => $this->resolveDriverKey($listenerName)]);
+            }
+        }
     }
 
     private function getListenerName($listener): string

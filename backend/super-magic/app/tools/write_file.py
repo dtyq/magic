@@ -15,6 +15,7 @@ from app.tools.abstract_file_tool import AbstractFileTool
 from app.tools.core import BaseToolParams, tool
 from app.tools.workspace_tool import WorkspaceTool
 from agentlang.utils.syntax_checker import SyntaxChecker
+from app.utils.async_file_utils import async_exists
 
 logger = get_logger(__name__)
 
@@ -33,26 +34,9 @@ File path to write: relative paths resolve to .workspace (e.g., `report.md`); us
 
     @classmethod
     def get_custom_error_message(cls, field_name: str, error_type: str) -> Optional[str]:
-        """<!--zh: 获取自定义参数错误信息-->
-Get custom parameter error message"""
+        """Get custom parameter error message"""
         if field_name == "content":
-            error_message = """<!--zh
-缺少必要参数'content'。内容过长超出 token 限制导致参数丢失。
-
-SOLUTION - 分步骤策略：
-1. 使用 write_file 创建文件基础框架
-2. 使用 edit_file 逐步添加内容块
-
-SIZE LIMITS:
-- Small (<100行): 直接 write_file
-- Medium (100-500行): 框架 + 2-3次 edit_file
-- Large (>500行): 框架 + 多次 edit_file
-
-EXAMPLES:
-HTML: 先写 <html><head></head><body></body></html> 框架
-Python: 先写 imports 和函数/类定义框架
--->
-Missing required parameter 'content'. Content too long exceeds token limit causing parameter loss.
+            error_message = """Missing required parameter 'content'. Content too long exceeds token limit causing parameter loss.
 
 SOLUTION - Step-by-step strategy:
 1. Use write_file to create file skeleton
@@ -142,18 +126,16 @@ class WriteFile(AbstractFileTool[WriteFileParams], WorkspaceTool[WriteFileParams
                 syntax_result.errors
             )
 
-            # 生成格式化的输出
-            action_verb = "文件覆盖" if file_exists else "文件创建"
+            action_verb = "File overwritten" if file_exists else "File created"
             output = (
                 f"{action_verb}: {params.file_path} | "
-                f"{write_result.total_lines}行 | "
-                f"大小:{write_result.file_size}字节"
+                f"{write_result.total_lines} lines | "
+                f"Size: {write_result.file_size} bytes"
             )
 
-            # 如果有语法错误，添加到结果中
             if not syntax_result.is_valid:
                 errors_str = "\n".join(syntax_result.errors)
-                output += f"\n\n警告：文件存在语法问题：\n{errors_str}"
+                output += f"\n\nWarning: File has syntax issues:\n{errors_str}"
                 logger.warning(f"文件 {file_path} 存在语法问题: {syntax_result.errors}")
 
             # 返回操作结果，将文件是否已存在的信息保存到 extra_info 中
@@ -176,7 +158,7 @@ class WriteFile(AbstractFileTool[WriteFileParams], WorkspaceTool[WriteFileParams
         """创建文件所需的目录结构"""
         directory = file_path.parent
 
-        if not directory.exists():
+        if not await async_exists(directory):
             await asyncio.to_thread(os.makedirs, directory, exist_ok=True)
             logger.info(f"创建目录: {directory}")
 

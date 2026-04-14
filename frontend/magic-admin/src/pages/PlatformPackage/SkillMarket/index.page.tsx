@@ -5,7 +5,7 @@ import type { SearchItem } from "components"
 import { SearchItemType, StatusTag, TableWithFilters } from "components"
 import { useMemoizedFn, useMount, useRequest } from "ahooks"
 import { useTranslation } from "react-i18next"
-import { Flex, InputNumber, Tooltip, message, type TableProps } from "antd"
+import { Flex, InputNumber, Switch, Tooltip, message, type TableProps } from "antd"
 import { usePagination } from "@/hooks/usePagination"
 import { useApis } from "@/apis"
 import type { PlatformPackage } from "@/types/platformPackage"
@@ -35,10 +35,13 @@ function SkillMarketPage() {
 		{},
 	)
 	const [sortSavingIds, setSortSavingIds] = useState<Set<string>>(new Set())
+	const [featuredSavingIds, setFeaturedSavingIds] = useState<Set<string>>(new Set())
+	const [hiddenSavingIds, setHiddenSavingIds] = useState<Set<string>>(new Set())
 	const [params, setParams] = useState<ParamsType>({
 		page: 1,
 		page_size: 20,
 		order_by: "desc",
+		publish_status: "PUBLISHED",
 	})
 
 	const { run, loading } = useRequest(
@@ -51,9 +54,9 @@ function SkillMarketPage() {
 			},
 		},
 	)
-	const { runAsync: updateSkillMarketSortOrder } = useRequest(
-		(id: string, sort_order: number) =>
-			PlatformPackageApi.updateSkillMarketSortOrder(id, { sort_order }),
+	const { runAsync: updateSkillMarketInfo } = useRequest(
+		(id: string, data: PlatformPackage.UpdateSkillMarketInfoParams) =>
+			PlatformPackageApi.updateSkillMarketInfo(id, data),
 		{
 			manual: true,
 		},
@@ -155,38 +158,29 @@ function SkillMarketPage() {
 	})
 
 	const debouncedAutoSaveSortOrder = useRef(
-		debounce(
-			async (
-				recordId: string,
-				sortOrder: number,
-				currentParams: ParamsType,
-				previousSortOrder?: number,
-			) => {
-				setSortSavingIds((prev) => new Set([...prev, recordId]))
-				try {
-					await updateSkillMarketSortOrder(recordId, sortOrder)
-					setData((prev) =>
-						prev.map((item) =>
-							item.id === recordId ? { ...item, sort_order: sortOrder } : item,
-						),
-					)
-					run(currentParams)
-				} catch {
-					setSortOrderDraftMap((prev) => ({
-						...prev,
-						[recordId]: previousSortOrder,
-					}))
-					message.error(tCommon("message.updateFailed"))
-				} finally {
-					setSortSavingIds((prev) => {
-						const next = new Set(prev)
-						next.delete(recordId)
-						return next
-					})
-				}
-			},
-			1000,
-		),
+		debounce(async (recordId: string, sortOrder: number, previousSortOrder?: number) => {
+			setSortSavingIds((prev) => new Set([...prev, recordId]))
+			try {
+				await updateSkillMarketInfo(recordId, { sort_order: sortOrder })
+				setData((prev) =>
+					prev.map((item) =>
+						item.id === recordId ? { ...item, sort_order: sortOrder } : item,
+					),
+				)
+			} catch {
+				setSortOrderDraftMap((prev) => ({
+					...prev,
+					[recordId]: previousSortOrder,
+				}))
+				message.error(tCommon("message.updateFailed"))
+			} finally {
+				setSortSavingIds((prev) => {
+					const next = new Set(prev)
+					next.delete(recordId)
+					return next
+				})
+			}
+		}, 1000),
 	).current
 
 	useEffect(
@@ -196,6 +190,46 @@ function SkillMarketPage() {
 		[debouncedAutoSaveSortOrder],
 	)
 
+	const handleChangeFeatured = useMemoizedFn(async (record: DataType, nextFeatured: boolean) => {
+		setFeaturedSavingIds((prev) => new Set([...prev, record.id]))
+		try {
+			await updateSkillMarketInfo(record.id, { is_featured: nextFeatured })
+			setData((prev) =>
+				prev.map((item) =>
+					item.id === record.id ? { ...item, is_featured: nextFeatured } : item,
+				),
+			)
+		} catch {
+			message.error(tCommon("message.updateFailed"))
+		} finally {
+			setFeaturedSavingIds((prev) => {
+				const next = new Set(prev)
+				next.delete(record.id)
+				return next
+			})
+		}
+	})
+
+	const handleChangeHidden = useMemoizedFn(async (record: DataType, nextHidden: boolean) => {
+		setHiddenSavingIds((prev) => new Set([...prev, record.id]))
+		try {
+			await updateSkillMarketInfo(record.id, { is_hidden: nextHidden })
+			setData((prev) =>
+				prev.map((item) =>
+					item.id === record.id ? { ...item, is_hidden: nextHidden } : item,
+				),
+			)
+		} catch {
+			message.error(tCommon("message.updateFailed"))
+		} finally {
+			setHiddenSavingIds((prev) => {
+				const next = new Set(prev)
+				next.delete(record.id)
+				return next
+			})
+		}
+	})
+
 	const columns: TableProps<DataType>["columns"] = useMemo(
 		() => [
 			{
@@ -204,6 +238,13 @@ function SkillMarketPage() {
 				key: "skill_code",
 				width: 180,
 				render: (value: string) => value || "-",
+			},
+			{
+				title: t("packageName"),
+				dataIndex: "package_name",
+				key: "package_name",
+				width: 220,
+				render: (value?: string) => value || "-",
 			},
 			{
 				title: t("skillName"),
@@ -248,6 +289,48 @@ function SkillMarketPage() {
 				render: (value: string) => renderStatus(value, publishStatusMap),
 			},
 			{
+				title: t("isFeatured"),
+				dataIndex: "is_featured",
+				key: "is_featured",
+				width: 130,
+				render: (value: boolean | undefined, record) => {
+					const saving = featuredSavingIds.has(record.id)
+					return (
+						<Switch
+							size="small"
+							checked={Boolean(value)}
+							loading={saving}
+							disabled={saving}
+							onChange={(nextFeatured) => {
+								if (nextFeatured === Boolean(value)) return
+								handleChangeFeatured(record, nextFeatured)
+							}}
+						/>
+					)
+				},
+			},
+			{
+				title: t("isHidden"),
+				dataIndex: "is_hidden",
+				key: "is_hidden",
+				width: 130,
+				render: (value: boolean | undefined, record) => {
+					const saving = hiddenSavingIds.has(record.id)
+					return (
+						<Switch
+							size="small"
+							checked={Boolean(value)}
+							loading={saving}
+							disabled={saving}
+							onChange={(nextHidden) => {
+								if (nextHidden === Boolean(value)) return
+								handleChangeHidden(record, nextHidden)
+							}}
+						/>
+					)
+				},
+			},
+			{
 				title: t("installCount"),
 				dataIndex: "install_count",
 				key: "install_count",
@@ -270,7 +353,7 @@ function SkillMarketPage() {
 							updateSortOrderDraft(record.id, value)
 							if (typeof value !== "number" || Number.isNaN(value)) return
 							if (value === (record.sort_order ?? 0)) return
-							debouncedAutoSaveSortOrder(record.id, value, params, record.sort_order)
+							debouncedAutoSaveSortOrder(record.id, value, record.sort_order)
 						}}
 					/>
 				),
@@ -308,12 +391,24 @@ function SkillMarketPage() {
 			getSortOrderInputValue,
 			updateSortOrderDraft,
 			sortSavingIds,
+			featuredSavingIds,
+			hiddenSavingIds,
+			handleChangeFeatured,
+			handleChangeHidden,
 			debouncedAutoSaveSortOrder,
 		],
 	)
 
 	const searchItems: SearchItem[] = useMemo(
 		() => [
+			{
+				type: SearchItemType.TEXT,
+				field: "package_name",
+				addonBefore: t("packageName"),
+				allowClear: true,
+				onChange: (e) =>
+					debouncedSearch({ package_name: e.target.value.trim() || undefined }),
+			},
 			{
 				type: SearchItemType.TEXT,
 				field: "name_i18n",
@@ -349,7 +444,7 @@ function SkillMarketPage() {
 					{ label: t("published"), value: "PUBLISHED" },
 					{ label: t("offline"), value: "OFFLINE" },
 				],
-				defaultValue: "all",
+				defaultValue: "PUBLISHED",
 				onChange: (value) => {
 					updateParams({ publish_status: value === "all" ? undefined : value })
 				},

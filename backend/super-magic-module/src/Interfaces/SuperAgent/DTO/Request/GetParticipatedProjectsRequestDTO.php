@@ -19,6 +19,11 @@ class GetParticipatedProjectsRequestDTO extends GetProjectListRequestDTO
     public int $showCollaboration = 1;
 
     /**
+     * Whether to show hidden projects. Default 0 means hidden projects are filtered out.
+     */
+    public int $showHidden = 0;
+
+    /**
      * Get show collaboration flag.
      */
     public function getShowCollaboration(): bool
@@ -35,6 +40,22 @@ class GetParticipatedProjectsRequestDTO extends GetProjectListRequestDTO
     }
 
     /**
+     * Get show hidden flag.
+     */
+    public function getShowHidden(): bool
+    {
+        return (bool) $this->showHidden;
+    }
+
+    /**
+     * Set show hidden flag.
+     */
+    public function setShowHidden(int|string $showHidden): void
+    {
+        $this->showHidden = (int) $showHidden;
+    }
+
+    /**
      * Get validation rules.
      */
     protected static function getHyperfValidationRules(): array
@@ -43,6 +64,7 @@ class GetParticipatedProjectsRequestDTO extends GetProjectListRequestDTO
 
         return array_merge($parentRules, [
             'show_collaboration' => 'nullable|integer|in:0,1',
+            'show_hidden' => 'nullable|integer|in:0,1',
         ]);
     }
 
@@ -56,6 +78,8 @@ class GetParticipatedProjectsRequestDTO extends GetProjectListRequestDTO
         return array_merge($parentMessages, [
             'show_collaboration.integer' => 'Show collaboration must be an integer',
             'show_collaboration.in' => 'Show collaboration must be 0 or 1',
+            'show_hidden.integer' => 'Show hidden must be an integer',
+            'show_hidden.in' => 'Show hidden must be 0 or 1',
         ]);
     }
 }

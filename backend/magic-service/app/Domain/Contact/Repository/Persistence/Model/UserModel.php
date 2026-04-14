@@ -40,6 +40,7 @@ class UserModel extends Model
         'option',
         'profession',
         'channel',
+        'timezone',
     ];
 
     /**

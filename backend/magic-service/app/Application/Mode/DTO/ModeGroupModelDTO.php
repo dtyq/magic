@@ -9,6 +9,7 @@ namespace App\Application\Mode\DTO;
 
 use App\Application\Mode\DTO\ValueObject\ImageSizeConfig;
 use App\Application\Mode\DTO\ValueObject\ModelStatus;
+use App\Domain\ModelGateway\Entity\ValueObject\VideoGenerationConfig;
 use App\Infrastructure\Core\AbstractDTO;
 
 class ModeGroupModelDTO extends AbstractDTO
@@ -34,6 +35,8 @@ class ModeGroupModelDTO extends AbstractDTO
     protected array $tags = [];
 
     protected ?ImageSizeConfig $imageSizeConfig = null;
+
+    protected ?VideoGenerationConfig $videoGenerationConfig = null;
 
     public function getId(): string
     {
@@ -115,11 +118,6 @@ class ModeGroupModelDTO extends AbstractDTO
         $this->modelDescription = $modelDescription;
     }
 
-    public function getModelStatus(): ModelStatus
-    {
-        return $this->modelStatus;
-    }
-
     public function setModelStatus(ModelStatus|string $modelStatus): void
     {
         if ($modelStatus instanceof ModelStatus) {
@@ -139,16 +137,6 @@ class ModeGroupModelDTO extends AbstractDTO
         $this->tags = $tags;
     }
 
-    public function getImageSizeConfig(): ?ImageSizeConfig
-    {
-        return $this->imageSizeConfig;
-    }
-
-    public function setImageSizeConfig(?ImageSizeConfig $imageSizeConfig): void
-    {
-        $this->imageSizeConfig = $imageSizeConfig;
-    }
-
     /**
      * 设置图像尺寸配置（兼容数组格式）.
      */
@@ -160,5 +148,15 @@ class ModeGroupModelDTO extends AbstractDTO
         }
 
         $this->imageSizeConfig = new ImageSizeConfig($config);
+    }
+
+    public function getVideoGenerationConfig(): ?VideoGenerationConfig
+    {
+        return $this->videoGenerationConfig;
+    }
+
+    public function setVideoGenerationConfig(?VideoGenerationConfig $videoGenerationConfig): void
+    {
+        $this->videoGenerationConfig = $videoGenerationConfig;
     }
 }

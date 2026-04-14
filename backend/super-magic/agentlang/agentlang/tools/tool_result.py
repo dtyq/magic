@@ -56,6 +56,7 @@ class ToolResult(BaseModel):
 
     class Config:
         arbitrary_types_allowed = True
+        extra = "forbid"
 
     def __bool__(self) -> bool:
         return any(getattr(self, field) for field in self.model_fields)

@@ -19,6 +19,7 @@ from openai.types.chat.chat_completion_message_tool_call import ChatCompletionMe
 from openai.types.completion_usage import CompletionUsage
 
 from agentlang.config.config import config
+from agentlang.exceptions import StreamChunkTimeoutError, StreamInterruptedError, STREAMING_PASSTHROUGH_EXCEPTIONS
 from agentlang.interface.context import AgentContextInterface
 from agentlang.logger import get_logger
 from agentlang.event.reply_event_manager import ReplyEventManager
@@ -32,7 +33,8 @@ from .chunk_processor import ChunkProcessor
 logger = get_logger(__name__)
 
 DEFAULT_TIMEOUT = int(config.get("llm.api_timeout", 1800))
-CHUNK_TIMEOUT = int(config.get("llm.chunk_timeout", 120))
+# 后续 chunk 超时的全局兜底值（正常路径由 ProcessorConfig.stream_chunk_timeout_seconds 覆盖）
+CHUNK_TIMEOUT = int(config.get("llm.chunk_timeout", 10))
 
 
 @dataclass
@@ -59,12 +61,11 @@ class StreamProcessContext:
 
     # Event control
     enable_llm_response_events: bool = True
-    retry_count: int = 0
 
     @property
     def should_trigger_events(self) -> bool:
-        """Check if events should be triggered (first call and events enabled)"""
-        return self.enable_llm_response_events and self.retry_count == 0
+        """Check if reply events should be triggered for the current stream."""
+        return self.enable_llm_response_events
 
     def get_non_human_options(self):
         """Get non-human options from agent context"""
@@ -253,8 +254,17 @@ class StreamResponseHandler:
         finish_reason: Optional[str] = None
         usage: Optional[CompletionUsage] = None
 
-        # 添加流处理超时控制，设置为DEFAULT_TIMEOUT + 60秒的缓冲
+        # 流处理整体超时兜底（保留宽松上限，防止极端情况下进程永久挂起）
         stream_timeout = DEFAULT_TIMEOUT + 60
+
+        # 首包 deadline：http_request_start_time + 首包窗口；响应头返回后，首个 chunk 只使用剩余预算
+        first_chunk_timeout = processor_config.stream_first_chunk_timeout_seconds
+        first_chunk_deadline = (
+            (http_request_start_time or stream_start_time) + first_chunk_timeout
+            if first_chunk_timeout else None
+        )
+        chunk_timeout = processor_config.stream_chunk_timeout_seconds or CHUNK_TIMEOUT
+
         last_chunk = None  # 保存最后一个 chunk 用于日志输出（仅用于日志）
 
         try:
@@ -267,9 +277,16 @@ class StreamResponseHandler:
                 # 并行任务机制：同时等待chunk和中断事件
                 stream_iter = aiter(stream)
                 while True:
+                    # 首个 chunk 使用首包剩余预算，后续 chunk 使用固定超时
+                    if state.received_chunk_count == 0 and first_chunk_deadline is not None:
+                        remaining = max(first_chunk_deadline - time.time(), 0.001)
+                        effective_chunk_timeout = remaining
+                    else:
+                        effective_chunk_timeout = chunk_timeout
+
                     # 创建chunk等待任务
                     chunk_task = asyncio.create_task(
-                        asyncio.wait_for(anext(stream_iter), timeout=CHUNK_TIMEOUT),
+                        asyncio.wait_for(anext(stream_iter), timeout=effective_chunk_timeout),
                         name=f"chunk_wait_{state.received_chunk_count}"
                     )
 
@@ -304,8 +321,9 @@ class StreamResponseHandler:
 
                         # 检查是哪个任务完成了
                         if interrupt_task and interrupt_task in done:
-                            # 中断任务完成 = 收到中断信号
+                            # 中断任务完成 = 收到中断信号，标记后退出
                             StreamingLogger.log_stream_interrupted(request_id, state, correlation_id)
+                            state.interrupted_by_signal = True
                             break
 
                         if chunk_task in done:
@@ -605,9 +623,10 @@ class StreamResponseHandler:
                                         request_id, state, correlation_id, usage is not None, root_cause_info, last_chunk
                                     )
 
-                                    # 抛出运行时异常，触发上层重试机制
-                                    raise RuntimeError(
-                                        f"流式响应异常中断（已处理{state.received_chunk_count}个chunks）：连接关闭但未收到finish_reason，数据可能不完整"
+                                    total_elapsed = time.time() - base_time
+                                    raise StreamInterruptedError(
+                                        chunk_count=state.received_chunk_count,
+                                        total_elapsed_seconds=total_elapsed,
                                     ) from e
                                 else:
                                     # 正常情况：有finish_reason，虽然可能缺少usage
@@ -616,55 +635,109 @@ class StreamResponseHandler:
                                     )
                                 break
                             except asyncio.TimeoutError:
-                                # Chunk超时 - 这是异常情况，需要抛出让外部重试
-                                error_msg = f"Chunk timeout after processing {state.received_chunk_count} chunks. This indicates an incomplete response from the LLM service."
-                                StreamingLogger.log_chunk_timeout(request_id, state)
-                                raise asyncio.TimeoutError(error_msg)
+                                total_elapsed = time.time() - base_time
+                                StreamingLogger.log_chunk_timeout(request_id, state, effective_chunk_timeout, total_elapsed)
+                                raise StreamChunkTimeoutError(
+                                    chunk_count=state.received_chunk_count,
+                                    chunk_timeout_seconds=effective_chunk_timeout,
+                                    total_elapsed_seconds=total_elapsed,
+                                )
+                            # --- 异常穿透规则 ---
+                            # STREAMING_PASSTHROUGH_EXCEPTIONS 中的异常不应被包装，
+                            # 必须原样抛出以便上层正确识别和处理。
+                            # 新增自定义异常时，若需穿透通用 except，加入该元组即可。
+                            except STREAMING_PASSTHROUGH_EXCEPTIONS:
+                                raise
                             except Exception as e:
-                                # 处理chunk时的其他异常也应该抛出，让外部感知
                                 StreamingLogger.log_chunk_exception(request_id, state, e)
                                 raise RuntimeError(f"Error processing chunk {state.received_chunk_count}: {e}") from e
 
                     except Exception as e:
-                        # 并行任务处理异常应该抛出
                         StreamingLogger.log_parallel_task_exception(request_id, e)
                         raise
 
-            # 执行流处理并应用超时控制
             await asyncio.wait_for(process_stream(), timeout=stream_timeout)
 
-        except asyncio.TimeoutError:
+        # ===== 异常处理分层（Layer 1：诊断与分类） =====
+        #
+        # 本层是异常的"产生和首次分类"层，职责：
+        # 1. 结构性异常（STREAMING_PASSTHROUGH_EXCEPTIONS）：直接穿透，不记日志（已在产生处记录）
+        # 2. safeguard 超时（asyncio.TimeoutError）：重新包装并保留 from 链
+        # 3. 其他异常：按类型 isinstance 分类为 ConnectionError / TimeoutError，字符串匹配仅做兜底
+        #
+        # 所有二次包装必须使用 `from stream_error` 保留原始异常链。
+        except STREAMING_PASSTHROUGH_EXCEPTIONS:
+            raise
+        except asyncio.TimeoutError as timeout_err:
             StreamingLogger.log_stream_timeout(request_id, state, stream_timeout, correlation_id)
-            raise asyncio.TimeoutError(f"Stream processing timeout after {stream_timeout} seconds. Processed {state.received_chunk_count} chunks.")
+            # 已收到 chunk 时转为 StreamChunkTimeoutError，让 Layer 3 能检测到
+            # chunk_count 并触发非流式降级；否则保持 asyncio.TimeoutError 走首包重试
+            if state.received_chunk_count > 0:
+                raise StreamChunkTimeoutError(
+                    chunk_count=state.received_chunk_count,
+                    chunk_timeout_seconds=stream_timeout,
+                    total_elapsed_seconds=stream_timeout,
+                ) from timeout_err
+            raise asyncio.TimeoutError(
+                f"Stream total timeout (safeguard): exceeded {stream_timeout}s limit. "
+                f"No chunks received."
+            ) from timeout_err
 
         except Exception as stream_error:
             StreamingLogger.log_stream_error(request_id, state, stream_error, correlation_id)
 
-            # 更精细的错误分类
+            # 类型分类：优先 isinstance 判断原始异常类型，字符串匹配仅做兜底
+            import httpx
+            root = stream_error.__cause__ or stream_error
+
+            if isinstance(root, (httpx.NetworkError, httpx.ProtocolError, ConnectionError)):
+                raise ConnectionError(
+                    f"Network connection error during stream processing: {stream_error}"
+                ) from stream_error
+
+            if isinstance(root, httpx.TimeoutException):
+                raise asyncio.TimeoutError(
+                    f"Timeout during stream processing: {stream_error}"
+                ) from stream_error
+
+            # 字符串兜底：覆盖 SDK 异常被 RuntimeError 包装后丢失类型的情况
             error_message = str(stream_error).lower()
+            if any(kw in error_message for kw in ("connection", "network", "unreachable", "refused")):
+                raise ConnectionError(
+                    f"Network connection error during stream processing: {stream_error}"
+                ) from stream_error
+            if any(kw in error_message for kw in ("timeout", "timed out", "deadline")):
+                raise asyncio.TimeoutError(
+                    f"Timeout during stream processing: {stream_error}"
+                ) from stream_error
 
-            # 连接相关错误
-            if any(keyword in error_message for keyword in ["connection", "network", "unreachable", "refused"]):
-                raise ConnectionError(f"Network connection error during stream processing: {stream_error}")
-
-            # 超时相关错误
-            if any(keyword in error_message for keyword in ["timeout", "timed out", "deadline"]):
-                raise asyncio.TimeoutError(f"Timeout during stream processing: {stream_error}")
-
-            # 检查是否是因为没有收到任何数据而出错
             if not state.has_received_chunks():
-                # 可能是服务端直接返回了错误响应，尝试重新抛出更具体的错误
-                if "timeout" in error_message:
-                    raise asyncio.TimeoutError(f"No stream data received - possible server timeout: {stream_error}")
-                raise RuntimeError(f"No stream data received - server may have returned an error: {stream_error}")
+                raise RuntimeError(
+                    f"No stream data received - server may have returned an error: {stream_error}"
+                ) from stream_error
 
-            # 其他未分类错误
             raise
 
         # 检查是否收到了有效的响应数据
         if not state.has_received_chunks():
+            if state.interrupted_by_signal:
+                # 中断信号导致退出（非服务端错误），抛 CancelledError 让上层感知中断
+                # 不能抛 RuntimeError，否则 processor_manager 会降级为非流式重试，导致中断失效
+                raise asyncio.CancelledError("LLM streaming stopped by interruption signal")
             StreamingLogger.log_no_data_received(request_id, correlation_id)
             raise RuntimeError(f"No stream data received from server. This may indicate a server-side error or timeout.")
+
+        # 不完整流检测：收到了 chunk 但流正常结束却没有 finish_reason，视为连接被静默关闭
+        if finish_reason is None and state.has_received_chunks() and not state.interrupted_by_signal:
+            total_elapsed = time.time() - base_time
+            logger.warning(
+                f"[{request_id}] 流正常结束但未收到 finish_reason "
+                f"(chunks={state.received_chunk_count}, elapsed={total_elapsed:.1f}s)"
+            )
+            raise StreamInterruptedError(
+                chunk_count=state.received_chunk_count,
+                total_elapsed_seconds=total_elapsed,
+            )
 
         # 记录流式处理统计
         stream_end_time = time.time()

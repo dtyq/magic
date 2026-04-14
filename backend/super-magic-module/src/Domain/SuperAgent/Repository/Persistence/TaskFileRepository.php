@@ -722,7 +722,7 @@ class TaskFileRepository implements TaskFileRepositoryInterface
      * @param int $limit 限制数量
      * @return TaskFileEntity[] 文件实体列表
      */
-    public function getChildrenByParentIdsAndProject(int $projectId, array $parentIds, int $limit = 1000): array
+    public function getChildrenByParentIdsAndProject(int $projectId, array $parentIds, int $limit = 1000, int $offset = 0): array
     {
         if (empty($parentIds)) {
             return [];
@@ -732,6 +732,7 @@ class TaskFileRepository implements TaskFileRepositoryInterface
             ->where('project_id', $projectId)
             ->whereIn('parent_id', $parentIds)
             ->whereNull('deleted_at')
+            ->offset($offset)
             ->limit($limit)
             ->get();
 

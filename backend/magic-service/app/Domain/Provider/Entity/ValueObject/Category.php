@@ -11,14 +11,16 @@ enum Category: string
 {
     case LLM = 'llm';
     case VLM = 'vlm';
-    case VIDEO = 'video';
+
+    /** Video Generation Model. */
+    case VGM = 'vgm';
 
     public function label(): string
     {
         return match ($this) {
             self::LLM => '文本模型',
             self::VLM => '图片生成',
-            self::VIDEO => '视频生成',
+            self::VGM => '视频模型',
         };
     }
 }

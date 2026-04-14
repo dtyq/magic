@@ -51,13 +51,15 @@ class SubagentPayload:
 
 @dataclass
 class SubagentQueryResult:
-    """`get_sub_agent_results` 的单项查询结果。"""
+    """`wait_for_subagents` 的单项查询结果。"""
 
     agent_id: str
     status: SubagentQueryStatus
     agent_name: Optional[str] = None
     result: Optional[str] = None
     error: Optional[str] = None
+    # 仅在 status=running（超时但仍在执行）时填充，内容为子 Agent 最近一条 assistant 消息，供父 Agent 了解进度
+    last_activity: Optional[str] = None
 
 
 @dataclass

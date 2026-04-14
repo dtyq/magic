@@ -174,7 +174,7 @@ class HandleUserMessageAppService extends AbstractAppService
             && CreationSource::fromValue($topicEntity->getSource()) !== CreationSource::COPY;
 
         // Send message to agent
-        return new TaskContext(
+        $taskContext = new TaskContext(
             task: $taskEntity,
             dataIsolation: $dataIsolation,
             chatConversationId: $userMessageDTO->getChatConversationId(),
@@ -188,6 +188,7 @@ class HandleUserMessageAppService extends AbstractAppService
             extra: $userMessageDTO->getExtra(),
             agentCode: $topicEntity->getAgentCode(),
         );
+        return $this->appendVideoModelDynamicConfig($taskContext, $userMessageDTO->getExtra());
     }
 
     /*
@@ -302,6 +303,7 @@ class HandleUserMessageAppService extends AbstractAppService
                 extra: $userMessageDTO->getExtra(),
                 agentCode: $resolvedAgentCode,
             );
+            $taskContext = $this->appendVideoModelDynamicConfig($taskContext, $userMessageDTO->getExtra());
             // Add MCP config to task context
             $mcpDataIsolation = MCPDataIsolation::create(
                 $dataIsolation->getCurrentOrganizationCode(),

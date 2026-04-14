@@ -14,7 +14,6 @@ WechatLoginManager 是唯一状态所有者：
 from __future__ import annotations
 
 import asyncio
-import json
 import time
 import uuid
 from dataclasses import dataclass, field
@@ -28,10 +27,9 @@ from app.channel.wechat import api
 
 logger = get_logger(__name__)
 
-# session 在此窗口内视为"新鲜"可复用，与 wait_wechat_login 默认超时保持一致
-LOGIN_SESSION_TTL_MS = 60_000
-# poll loop 安全兜底，正常情况下 cancel_session 早于此时间触发
-POLL_LOOP_SAFETY_TIMEOUT_MS = 60_000
+# 对齐官方插件 ACTIVE_LOGIN_TTL_MS = 5 * 60_000
+LOGIN_SESSION_TTL_MS = 5 * 60_000
+POLL_LOOP_SAFETY_TIMEOUT_MS = 300_000
 MAX_QR_REFRESH_COUNT = 3
 LOGIN_SUCCESS_MESSAGE = (
     "Tell the user that WeChat is connected successfully and ask them to send 'hi' in the "
@@ -89,10 +87,6 @@ class WechatLoginOutcome:
     def requires_qr_render(self) -> bool:
         return self.kind == LoginOutcomeKind.QR_RENDER
 
-    def qrcode_js_string_literal(self) -> str:
-        """返回可直接塞进 Skill 模板的 JS 字符串字面量。"""
-        return json.dumps(self.qrcode_content, ensure_ascii=False)
-
 
 @dataclass
 class WechatLoginSession:
@@ -114,9 +108,6 @@ class WechatLoginSession:
 
     def is_fresh(self) -> bool:
         return int(time.time() * 1000) - self.started_at_ms < LOGIN_SESSION_TTL_MS
-
-    def qrcode_js_string_literal(self) -> str:
-        return json.dumps(self.qrcode_content, ensure_ascii=False)
 
 
 class WechatLoginManager:
@@ -154,22 +145,44 @@ class WechatLoginManager:
     ) -> WechatLoginSession:
         """发起或复用当前登录 session。
 
-        若已有活跃且新鲜的 session（且非强制刷新），直接返回该 session。
-        否则取消旧 session，发起新的扫码流程。
+        - SCANNED 状态（已扫码待确认）：直接复用，避免打断扫码流程
+        - WAITING 状态：总是重新拉取 QR 码并原地更新 session，保持 poll loop 继续
+        - 无 session 或 force_refresh：取消旧 session，创建新 session
         """
-        # Phase 1: 持锁检查并提取旧 poll task
+        # Phase 1: 持锁检查
         async with self._lock:
             existing = self._active_session
-            if existing and existing.is_active():
-                if not force_refresh and existing.is_fresh():
+            if existing and existing.is_active() and not force_refresh:
+                if existing.status == LoginStatus.SCANNED:
+                    # 用户已扫码正在确认，不打断
                     return existing
-                # 标记为 None，出锁后取消旧 poll task
+                if existing.is_fresh():
+                    # WAITING 状态：原地刷新 QR，出锁后执行 API 调用
+                    session_to_refresh = existing
+                else:
+                    session_to_refresh = None
+                    self._active_session = None
+                    old_poll_task = existing._poll_task
+            elif existing and existing.is_active():
+                session_to_refresh = None
                 self._active_session = None
                 old_poll_task = existing._poll_task
             else:
+                session_to_refresh = None
                 old_poll_task = None
 
-        # Phase 2: 出锁后取消旧 poll task（需要 await）
+        # Phase 2: 原地刷新 QR（poll loop 保持运行，下次 poll 会用新 qrcode）
+        if session_to_refresh is not None:
+            async with aiohttp.ClientSession() as http:
+                qr_data = await api.get_bot_qrcode(http)
+                session_to_refresh.qrcode = qr_data["qrcode"]
+                session_to_refresh.qrcode_content = qr_data["qrcode_img_content"]
+                session_to_refresh.started_at_ms = int(time.time() * 1000)
+                session_to_refresh.status = LoginStatus.WAITING
+            logger.info(f"[WechatLogin] QR refreshed in-place: {session_to_refresh.session_id}")
+            return session_to_refresh
+
+        # Phase 3: 出锁后取消旧 poll task（需要 await）
         if old_poll_task and not old_poll_task.done():
             old_poll_task.cancel()
             try:
@@ -177,7 +190,7 @@ class WechatLoginManager:
             except asyncio.CancelledError:
                 pass
 
-        # Phase 3: 创建新 session，拉取二维码
+        # Phase 4: 创建新 session，拉取二维码
         session = WechatLoginSession()
         async with aiohttp.ClientSession() as http:
             qr_data = await api.get_bot_qrcode(http)
@@ -222,9 +235,10 @@ class WechatLoginManager:
                 session_id=session.session_id,
                 kind=LoginOutcomeKind.TIMEOUT,
                 message=(
-                    f"Tell the user that no QR confirmation or refresh was received within "
-                    f"{timeout_seconds} seconds, the login request has been cancelled, and they "
-                    "should send another message if they need a fresh QR flow."
+                    f"The WeChat QR login timed out after {timeout_seconds} seconds — the user did not scan. "
+                    "Tell the user that the QR code has expired and the session is cancelled. "
+                    "Do NOT call wait_wechat_login again. Stop here and wait for the user to explicitly "
+                    "send a new message requesting another QR code."
                 ),
             )
             async with self._lock:

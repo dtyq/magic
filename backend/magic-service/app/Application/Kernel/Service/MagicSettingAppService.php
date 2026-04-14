@@ -16,7 +16,6 @@ use App\Domain\Contact\Entity\MagicUserSettingEntity;
 use App\Domain\Contact\Service\MagicUserSettingDomainService;
 use App\Infrastructure\Core\DataIsolation\ValueObject\OrganizationType;
 use App\Infrastructure\Util\Redis\GlobalConfigCacheUtil;
-use App\Interfaces\Kernel\Assembler\FileAssembler;
 use Hyperf\Redis\Redis;
 
 class MagicSettingAppService extends AbstractKernelAppService
@@ -135,22 +134,12 @@ class MagicSettingAppService extends AbstractKernelAppService
         }
 
         $applications = $this->appMenuDomainService->getAllEnabled($displayScopes);
-        $iconPaths = [];
-        foreach ($applications as $application) {
-            if ($application->isImageIcon() && $application->getIconUrl() !== '') {
-                $iconPaths[] = $application->getIconUrl();
-            }
-        }
-        $icons = $this->getIconsWithSmartOrganization($iconPaths);
 
         $result = [];
         foreach ($applications as $application) {
             $iconUrl = '';
             if ($application->isImageIcon()) {
-                $iconUrl = FileAssembler::getUrl($icons[$application->getIconUrl()] ?? null);
-                if ($iconUrl === '') {
-                    $iconUrl = $application->getIconUrl();
-                }
+                $iconUrl = $application->getIconUrl();
             }
 
             $result[] = [

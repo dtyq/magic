@@ -20,7 +20,6 @@ from app.tools.abstract_file_tool import AbstractFileTool
 from app.tools.core import BaseToolParams, tool
 from app.tools.workspace_tool import WorkspaceTool
 from agentlang.utils.syntax_checker import SyntaxChecker
-from app.utils.file_timestamp_manager import get_global_timestamp_manager
 from app.utils.diff_generator import DiffGenerator
 from app.utils.replace_range_resolver import resolve_replace_range
 
@@ -116,7 +115,9 @@ On failure: re-read and verify anchor existence/uniqueness -> increase anchor le
             ToolResult: Operation result with diff
         """
         try:
-            file_path, fuzzy_warning = self.resolve_path_fuzzy(params.file_path)
+            resolved = self.resolve_path_fuzzy(params.file_path)
+            file_path = resolved.path
+            fuzzy_warning = resolved.warning
             ai_warnings = []
             if fuzzy_warning:
                 ai_warnings.append(fuzzy_warning)
@@ -127,13 +128,12 @@ On failure: re-read and verify anchor existence/uniqueness -> increase anchor le
 
             if not file_path.exists():
                 tool_context.set_metadata("error_type", "edit_file.error_file_not_exist")
-                return ToolResult(
-                    error=f"File does not exist: {file_path}\n"
-                          "Use write_file to create new files."
+                return ToolResult.error(
+                    f"File does not exist: {file_path}\n"
+                    "Use write_file to create new files."
                 )
 
-            timestamp_manager = get_global_timestamp_manager()
-            is_valid, error_message = await timestamp_manager.validate_file_not_modified(file_path)
+            is_valid, error_message = await self.get_horizon(tool_context).validate_file_not_modified(file_path)
             if not is_valid:
                 tool_context.set_metadata("error_type", "edit_file.error_file_modified")
                 return ToolResult.error(error_message)
@@ -141,22 +141,22 @@ On failure: re-read and verify anchor existence/uniqueness -> increase anchor le
             original_content = await self._read_file(file_path)
 
             try:
-                matched_range = resolve_replace_range(
+                resolution = resolve_replace_range(
                     original_content,
                     params.replace_start,
                     params.replace_end
                 )
+                matched_range = resolution.matched_range
+                ai_warnings.extend(resolution.warnings)
             except ValueError as match_error:
                 tool_context.set_metadata("error_type", "edit_file.error_match_failed")
-                return ToolResult(
-                    error=(
-                        f"Range match failed: {match_error}\n\n"
-                        "SOLUTIONS:\n"
-                        "1. Re-read current file content around range anchors to check if it has been modified, then retry with latest text\n"
-                        "2. Ensure anchors are copied character-by-character (whitespace, punctuation, indentation, newlines)\n"
-                        "3. If multiple attempts fail and edit_file is available (for short/precise edits), try edit_file\n"
-                        "4. As a last resort, use shell commands or a Python script for precise edits"
-                    )
+                return ToolResult.error(
+                    f"Range match failed: {match_error}\n\n"
+                    "SOLUTIONS:\n"
+                    "1. Re-read current file content around range anchors to check if it has been modified, then retry with latest text\n"
+                    "2. Ensure anchors are copied character-by-character (whitespace, punctuation, indentation, newlines)\n"
+                    "3. If multiple attempts fail and edit_file is available (for short/precise edits), try edit_file\n"
+                    "4. As a last resort, use shell commands or a Python script for precise edits"
                 )
 
             new_content = (
@@ -232,12 +232,12 @@ On failure: re-read and verify anchor existence/uniqueness -> increase anchor le
         except Exception as e:
             logger.exception(f"Failed to edit file range: {e}")
             tool_context.set_metadata("error_type", "edit_file.error_unexpected")
-            return ToolResult(
-                error="The edit_file_range tool encountered an unexpected error. "
-                      "First re-read current file content around range anchors to check if it has been modified, then retry with latest text. "
-                      "Then check exact character alignment in anchors (whitespace/punctuation/newlines). "
-                      "If multiple attempts fail and the edit_file tool is available (for short/precise edits), try it. "
-                      "As a last resort, use shell commands or write a Python script."
+            return ToolResult.error(
+                "The edit_file_range tool encountered an unexpected error. "
+                "First re-read current file content around range anchors to check if it has been modified, then retry with latest text. "
+                "Then check exact character alignment in anchors (whitespace/punctuation/newlines). "
+                "If multiple attempts fail and the edit_file tool is available (for short/precise edits), try it. "
+                "As a last resort, use shell commands or write a Python script."
             )
 
     async def _read_file(self, file_path: Path) -> str:

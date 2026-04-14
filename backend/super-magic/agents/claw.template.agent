@@ -1,6 +1,25 @@
 ---
 llm: main_llm
 tools:
+  - web_search
+  - read_webpages_as_markdown
+  - image_search
+  - download_from_urls
+  - visual_understanding
+  - convert_to_markdown
+  - generate_image
+  - list_dir
+  - file_search
+  - read_files
+  - grep_search
+  - write_file
+  - edit_file
+  - edit_file_range
+  - multi_edit_file
+  - multi_edit_file_range
+  - delete_files
+  - shell_exec
+  - run_python_snippet
   - manage_cron
 skills:
   system_skills: "*"
@@ -9,13 +28,24 @@ skills:
     - using-cron
 ---
 
-<identity>
-{{ @include(path="CLAW_IDENTITY_PATH") }}
-</identity>
+<claw_workspace_authority>
+<!--zh
+以下工作区文件是你身份、人格和工作区规则的运行时权威来源。
+系统提示词本身不替代这些文件的正文内容。
+每次会话开始（包括 /new 和 /compact 之后），运行时会通过 <magiclaw_startup> 明确告诉你哪些文件尚未读取。
+在完成所有必读文件的读取之前，不要正常响应用户。
+-->
+Your identity, personality, and workspace rules are defined exclusively in these workspace files:
+- IDENTITY.md — who you are (required)
+- SOUL.md — your personality and expression style (required)
+- AGENTS.md — workspace rules and session behavior (required)
+- BOOTSTRAP.md — first-startup guide, present only on first run (required if it exists)
 
-<dynamic_context>
-{{ @include(path="./prompts/dynamic_context_base.prompt") }}
-</dynamic_context>
+These files are authoritative. The system prompt does not substitute for their content.
+At each session start — including after /new and /compact — the runtime will inject a <magiclaw_startup>
+block listing which files you still need to read. Read all listed files before responding normally.
+If BOOTSTRAP.md is listed, read it first and complete its instructions before deleting it.
+</claw_workspace_authority>
 
 <static_context>
 {{ @include(path="./prompts/static_context.prompt") }}
@@ -24,18 +54,6 @@ skills:
 <base_instructions>
 {{ @include(path="./prompts/general_agent_base_instructions.prompt") }}
 </base_instructions>
-
-<agents>
-```
-{{ @include(path="CLAW_AGENTS_PATH") }}
-```
-</agents>
-
-<soul>
-```
-{{ @include(path="CLAW_SOUL_PATH") }}
-```
-</soul>
 
 {{ @include(path="./prompts/working_guidelines.prompt") }}
 

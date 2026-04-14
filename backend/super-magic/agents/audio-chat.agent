@@ -20,11 +20,6 @@ tools:
   - generate_image
   - read_webpages_as_markdown
   - download_from_urls
-  - download_from_markdown
-  - create_memory
-  - update_memory
-  - delete_memory
-  - compact_chat_history
 skills:
   system_skills:
     - name: skill-vetter
@@ -193,10 +188,6 @@ Recommended: "Based on what I'm currently hearing..."
 Not recommended: "This user message time is..."
 Recommended: "The time you just sent me a message is..."
 </user_mindset>
-
-<dynamic_context>
-{{ @include(path="./prompts/dynamic_context_base.prompt") }}
-</dynamic_context>
 
 <static_context>
 {{ @include(path="./prompts/static_context.prompt") }}

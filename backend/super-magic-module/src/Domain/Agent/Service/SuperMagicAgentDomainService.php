@@ -241,6 +241,20 @@ readonly class SuperMagicAgentDomainService
     }
 
     /**
+     * 根据 project_id 更新 Agent 的 updated_at 时间.
+     *
+     * @param SuperMagicAgentDataIsolation $dataIsolation 数据隔离对象
+     * @param int $projectId 项目ID
+     * @return bool 是否更新成功
+     */
+    #[Transactional]
+    public function updateUpdatedAtByProjectId(SuperMagicAgentDataIsolation $dataIsolation, int $projectId): bool
+    {
+        $modifier = $dataIsolation->getCurrentUserId();
+        return $this->superMagicAgentRepository->updateUpdatedAtByProjectId($dataIsolation, $projectId, $modifier);
+    }
+
+    /**
      * 获取指定创建者的智能体编码列表.
      * @return array<string>
      */
@@ -648,10 +662,16 @@ readonly class SuperMagicAgentDomainService
      * @param string $code Agent code, e.g. "SMA-xxx"
      * @param int $projectId Associated project ID
      * @param string $fullWorkdir Full working directory path on object storage
+     * @param null|string $sourcePath Optional relative source path under workspace root
      * @return array{file_key: string, metadata: array} Export result containing file_key and metadata
      */
-    public function exportAgentFromSandbox(SuperMagicAgentDataIsolation $dataIsolation, string $code, int $projectId, string $fullWorkdir): array
-    {
+    public function exportAgentFromSandbox(
+        SuperMagicAgentDataIsolation $dataIsolation,
+        string $code,
+        int $projectId,
+        string $fullWorkdir,
+        ?string $sourcePath = null
+    ): array {
         // Build sandbox ID (same strategy as file converter)
         $sandboxId = WorkDirectoryUtil::generateUniqueCodeFromSnowflakeId($projectId . '_custom_agent');
 
@@ -663,11 +683,12 @@ readonly class SuperMagicAgentDomainService
         $uploadConfig = $this->cloudFileRepository->getStsTemporaryCredential(
             $dataIsolation->getCurrentOrganizationCode(),
             StorageBucketType::Private,
-            '/agent_export'
+            '/agent_export',
+            options: ['internal_endpoint' => true]
         );
 
         // Call sandbox workspace export API via proxy request
-        $request = new ExportWorkspaceRequest(ProjectMode::CUSTOM_AGENT->value, $code, $uploadConfig);
+        $request = new ExportWorkspaceRequest(ProjectMode::CUSTOM_AGENT->value, $code, $uploadConfig, $sourcePath);
         $response = $this->workspaceExporter->export($sandboxId, $request);
 
         if (! $response->isSuccess()) {

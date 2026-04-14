@@ -62,6 +62,21 @@ class TopicDomainService
         return $this->topicRepository->getTopicById($id);
     }
 
+    /**
+     * Batch get topics by ids.
+     *
+     * @param int[] $ids
+     * @return TopicEntity[]
+     */
+    public function getTopicsByIds(array $ids): array
+    {
+        if (empty($ids)) {
+            return [];
+        }
+
+        return $this->topicRepository->getTopicsByIds($ids);
+    }
+
     public function getTopicWithDeleted(int $id): ?TopicEntity
     {
         return $this->topicRepository->getTopicWithDeleted($id);
@@ -1074,6 +1089,7 @@ class TopicDomainService
         $topicEntity->setChatConversationId($chatConversationId);
         $topicEntity->setTopicName($newTopicName);
         $topicEntity->setTopicMode($sourceTopicEntity->getTopicMode());
+        $topicEntity->setAgentCode($sourceTopicEntity->getAgentCode());
         $topicEntity->setSandboxId('');
         $topicEntity->setSourceId((string) $sourceTopicEntity->getId()); // Initially empty
         $topicEntity->setSource(CreationSource::COPY->value);

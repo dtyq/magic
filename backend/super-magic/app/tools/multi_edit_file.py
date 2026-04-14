@@ -20,7 +20,6 @@ from app.core.entity.message.server_message import DisplayType, FileContent, Too
 from app.tools.abstract_file_tool import AbstractFileTool
 from app.tools.core import BaseToolParams, tool
 from app.tools.workspace_tool import WorkspaceTool
-from app.utils.file_timestamp_manager import get_global_timestamp_manager
 from app.utils.line_number_handler import LineNumberHandler
 from app.utils.diff_generator import DiffGenerator
 from app.utils.punctuation_matcher import PunctuationMatcher
@@ -116,7 +115,9 @@ IMPORTANT: Copy text exactly as it appears in the file, including punctuation st
         """
         try:
             # Get safe file path with fuzzy matching
-            file_path, fuzzy_warning = self.resolve_path_fuzzy(params.file_path)
+            resolved = self.resolve_path_fuzzy(params.file_path)
+            file_path = resolved.path
+            fuzzy_warning = resolved.warning
             # Check if file exists
             if not file_path.exists():
                 tool_context.set_metadata("error_type", "edit_file.error_file_not_exist")
@@ -126,8 +127,7 @@ IMPORTANT: Copy text exactly as it appears in the file, including punctuation st
                 )
 
             # Verify file hasn't been modified externally
-            timestamp_manager = get_global_timestamp_manager()
-            is_valid, error_message = await timestamp_manager.validate_file_not_modified(file_path)
+            is_valid, error_message = await self.get_horizon(tool_context).validate_file_not_modified(file_path)
             if not is_valid:
                 tool_context.set_metadata("error_type", "edit_file.error_file_modified")
                 return ToolResult.error(error_message)
@@ -390,17 +390,17 @@ IMPORTANT: Copy text exactly as it appears in the file, including punctuation st
 
             if occurrences == 0:
                 # Try to auto-fix punctuation mismatch
-                corrected_string, fix_warning = PunctuationMatcher.try_auto_fix_punctuation(
+                fix_result = PunctuationMatcher.try_auto_fix_punctuation(
                     edit.old_string,
                     working_content
                 )
 
-                if corrected_string and fix_warning:
+                if fix_result:
                     # Auto-fix succeeded, update edit.old_string and store warning
-                    logger.info(f"Auto-fixed punctuation in edit {i+1} old_string during validation: '{edit.old_string[:50]}...' -> '{corrected_string[:50]}...'")
-                    edit.old_string = corrected_string
+                    logger.info(f"Auto-fixed punctuation in edit {i+1} old_string during validation: '{edit.old_string[:50]}...' -> '{fix_result.actual[:50]}...'")
+                    edit.old_string = fix_result.actual
                     # Store the warning for later use in execute phase
-                    setattr(edit, '_punctuation_fix_warning', fix_warning)
+                    setattr(edit, '_punctuation_fix_warning', fix_result.warning)
                     # Recount with corrected string
                     occurrences = working_content.count(edit.old_string)
 

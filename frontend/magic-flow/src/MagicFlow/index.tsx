@@ -1,5 +1,4 @@
 import ErrorContent from "@/common/BaseUI/ErrorComponent/ErrorComponent"
-import "antd/dist/reset.css"
 import clsx from "clsx"
 import _ from "lodash"
 import React, { useImperativeHandle, useMemo } from "react"

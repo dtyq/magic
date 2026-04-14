@@ -34,6 +34,14 @@ TYPING_STATUS_TYPING = 1
 TYPING_STATUS_CANCEL = 2
 SESSION_EXPIRED_ERRCODE = -14
 SESSION_PAUSE_DURATION_MS = 60 * 60 * 1000
+UPLOAD_MEDIA_TYPE_IMAGE = 1
+UPLOAD_MEDIA_TYPE_VIDEO = 2
+UPLOAD_MEDIA_TYPE_FILE = 3
+UPLOAD_MEDIA_TYPE_VOICE = 4
+
+# VoiceItem.encode_type 枚举值（来自官方协议 proto）
+VOICE_ENCODE_TYPE_SILK = 6
+VOICE_ENCODE_TYPE_MP3 = 7
 
 
 class WechatAPIError(RuntimeError):
@@ -178,6 +186,58 @@ async def get_updates(
         return {"ret": 0, "msgs": [], "get_updates_buf": get_updates_buf}
 
 
+async def get_upload_url(
+    session: aiohttp.ClientSession,
+    *,
+    base_url: str,
+    token: str,
+    filekey: str,
+    media_type: int,
+    to_user_id: str,
+    rawsize: int,
+    rawfilemd5: str,
+    filesize: int,
+    aeskey: str,
+    thumb_rawsize: int | None = None,
+    thumb_rawfilemd5: str | None = None,
+    thumb_filesize: int | None = None,
+    no_need_thumb: bool = True,
+    timeout_ms: int = DEFAULT_API_TIMEOUT_MS,
+) -> dict[str, Any]:
+    body = json.dumps(
+        {
+            "filekey": filekey,
+            "media_type": media_type,
+            "to_user_id": to_user_id,
+            "rawsize": rawsize,
+            "rawfilemd5": rawfilemd5,
+            "filesize": filesize,
+            "thumb_rawsize": thumb_rawsize,
+            "thumb_rawfilemd5": thumb_rawfilemd5,
+            "thumb_filesize": thumb_filesize,
+            "no_need_thumb": no_need_thumb,
+            "aeskey": aeskey,
+            "base_info": build_base_info(),
+        },
+        ensure_ascii=False,
+    )
+    raw = await _api_fetch(
+        session,
+        base_url=base_url,
+        endpoint="ilink/bot/getuploadurl",
+        body=body,
+        token=token,
+        timeout_ms=timeout_ms,
+        label="getUploadUrl",
+    )
+    resp_data: dict[str, Any] = json.loads(raw) if raw else {}
+    if is_api_error_response(resp_data):
+        raise WechatAPIError(
+            f"getUploadUrl: server error ret={resp_data.get('ret')} errmsg={resp_data.get('errmsg')!r}"
+        )
+    return resp_data
+
+
 def build_send_text_message_body(
     *,
     to_user_id: str,
@@ -196,6 +256,113 @@ def build_send_text_message_body(
             "item_list": item_list,
             "context_token": context_token or None,
         }
+    }
+
+
+def build_send_items_message_body(
+    *,
+    to_user_id: str,
+    item_list: list[dict[str, Any]],
+    context_token: str,
+) -> dict[str, Any]:
+    return {
+        "msg": {
+            "from_user_id": "",
+            "to_user_id": to_user_id,
+            "client_id": generate_client_id(),
+            "message_type": 2,
+            "message_state": 2,
+            "item_list": item_list or None,
+            "context_token": context_token or None,
+        }
+    }
+
+
+def build_image_message_item(
+    *,
+    encrypt_query_param: str,
+    aes_key_base64: str,
+    mid_size: int,
+) -> dict[str, Any]:
+    return {
+        "type": 2,
+        "image_item": {
+            "media": {
+                "encrypt_query_param": encrypt_query_param,
+                "aes_key": aes_key_base64,
+                "encrypt_type": 1,
+            },
+            "mid_size": mid_size,
+        },
+    }
+
+
+def build_video_message_item(
+    *,
+    encrypt_query_param: str,
+    aes_key_base64: str,
+    video_size: int,
+) -> dict[str, Any]:
+    return {
+        "type": 5,
+        "video_item": {
+            "media": {
+                "encrypt_query_param": encrypt_query_param,
+                "aes_key": aes_key_base64,
+                "encrypt_type": 1,
+            },
+            "video_size": video_size,
+        },
+    }
+
+
+def build_file_message_item(
+    *,
+    encrypt_query_param: str,
+    aes_key_base64: str,
+    file_name: str,
+    file_size: int,
+) -> dict[str, Any]:
+    return {
+        "type": 4,
+        "file_item": {
+            "media": {
+                "encrypt_query_param": encrypt_query_param,
+                "aes_key": aes_key_base64,
+                "encrypt_type": 1,
+            },
+            "file_name": file_name,
+            "len": str(file_size),
+        },
+    }
+
+
+def build_voice_message_item(
+    *,
+    encrypt_query_param: str,
+    aes_key_base64: str,
+    voice_size: int,
+    encode_type: int = VOICE_ENCODE_TYPE_SILK,
+    sample_rate: int = 16000,
+    playtime: int = 0,
+) -> dict[str, Any]:
+    """
+    构造 voice_item 消息体（type=3）。
+    encode_type: 见 VOICE_ENCODE_TYPE_* 常量。
+    playtime: 语音时长，单位毫秒；未知时填 0。
+    """
+    return {
+        "type": 3,
+        "voice_item": {
+            "media": {
+                "encrypt_query_param": encrypt_query_param,
+                "aes_key": aes_key_base64,
+                "encrypt_type": 1,
+            },
+            "encode_type": encode_type,
+            "sample_rate": sample_rate,
+            "playtime": playtime,
+        },
     }
 
 
@@ -224,7 +391,7 @@ async def send_message(
         },
         ensure_ascii=False,
     )
-    await _api_fetch(
+    raw = await _api_fetch(
         session,
         base_url=base_url,
         endpoint="ilink/bot/sendmessage",
@@ -233,6 +400,49 @@ async def send_message(
         timeout_ms=timeout_ms,
         label="sendMessage",
     )
+    if raw:
+        resp_data = json.loads(raw) if raw else {}
+        if is_api_error_response(resp_data):
+            raise WechatAPIError(f"sendMessage: server error ret={resp_data.get('ret')} errmsg={resp_data.get('errmsg')!r}")
+
+
+async def send_message_items(
+    session: aiohttp.ClientSession,
+    *,
+    base_url: str,
+    token: str,
+    to_user_id: str,
+    context_token: str,
+    item_list: list[dict[str, Any]],
+    timeout_ms: int = DEFAULT_API_TIMEOUT_MS,
+) -> None:
+    if not context_token:
+        raise WechatAPIError("send_message_items: context_token is required")
+
+    body = json.dumps(
+        {
+            **build_send_items_message_body(
+                to_user_id=to_user_id,
+                item_list=item_list,
+                context_token=context_token,
+            ),
+            "base_info": build_base_info(),
+        },
+        ensure_ascii=False,
+    )
+    raw = await _api_fetch(
+        session,
+        base_url=base_url,
+        endpoint="ilink/bot/sendmessage",
+        body=body,
+        token=token,
+        timeout_ms=timeout_ms,
+        label="sendMessage(items)",
+    )
+    if raw:
+        resp_data = json.loads(raw) if raw else {}
+        if is_api_error_response(resp_data):
+            raise WechatAPIError(f"sendMessage(items): server error ret={resp_data.get('ret')} errmsg={resp_data.get('errmsg')!r}")
 
 
 async def get_config(
@@ -312,10 +522,10 @@ def describe_non_text_item(item: dict[str, Any]) -> str:
         voice_text = str(((item.get("voice_item") or {}).get("text") or ""))
         return voice_text or "[voice message]"
     if item_type == 4:
-        return "[video]"
-    if item_type == 5:
         file_name = str(((item.get("file_item") or {}).get("file_name") or "")).strip()
         return f"[file: {file_name}]" if file_name else "[file]"
+    if item_type == 5:
+        return "[video]"
     return ""
 
 

@@ -41,3 +41,26 @@ Format `[@file_path:filename]` or `[文件: filename]` within message text
 - References are usually relevant, but assess against specific requirements before processing
 - Read/invoke only as actually needed, avoid unnecessary operations
 - Avoid redundant processing of the same reference
+
+<!--zh
+### 主动汇报交付物
+
+当你直接回复用户且已生成用户可用的产物文件（报告、图片、表格等），在回复里使用：
+[@file_path:路径]
+
+前端会渲染为可点击的蓝色文件链接。只列用户真正关心的产物文件，跳过临时或中间文件。
+
+示例：
+  完整报告：[@file_path:reports/market-research.md]
+  数据文件：[@file_path:data/result.csv]
+-->
+### Reporting Deliverables to the User
+
+When replying directly to the user and you have generated output files they can use (reports, images, spreadsheets, etc.), reference them using:
+[@file_path:path]
+
+The frontend renders this as a clickable blue file link. Only list files the user actually cares about — skip temporary or intermediate files.
+
+Example:
+  Full report: [@file_path:reports/market-research.md]
+  Data file: [@file_path:data/result.csv]

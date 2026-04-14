@@ -209,6 +209,14 @@ class CronService:
                     logger.warning(f"cron job [{job.id}] payload kind '{job.payload.kind}' not implemented, skipping")
                     result = CronRunResult(status="error", error=f"payload kind '{job.payload.kind}' not implemented")
 
+            if result.status == "ok":
+                # 保活语义绑定到“任务本身已经成功跑完”，而不是后面的归档/落盘是否成功。
+                try:
+                    from app.core.keepalive_registry import KeepaliveRegistry
+                    KeepaliveRegistry.get_instance().keepalive_once(f"cron:{job.id}")
+                except Exception as e:
+                    logger.warning(f"cron job [{job.id}] keepalive_once failed: {e}")
+
             # at 类型一次性任务执行成功后归档并删除原始文件
             if result.status == "ok" and job.schedule.kind == ScheduleKind.AT:
                 from datetime import datetime, timezone as dt_timezone
@@ -333,6 +341,20 @@ def _update_next_due(self_obj: "CronService", state: "CronState") -> None:
     self_obj._next_due_ms = min(candidates) if candidates else None
 
 
+def _get_end_at_ms(job: CronJob) -> Optional[int]:
+    """将 schedule.end_at（ISO 8601）转换为毫秒时间戳，解析失败返回 None。"""
+    end_at = job.schedule.end_at
+    if not end_at:
+        return None
+    try:
+        from datetime import datetime
+        dt = datetime.fromisoformat(end_at.replace("Z", "+00:00"))
+        return int(dt.timestamp() * 1000)
+    except Exception as e:
+        logger.warning(f"cron: invalid end_at '{end_at}' for [{job.id}]: {e}")
+        return None
+
+
 def _recalculate_next_run(job: CronJob, js: CronJobState, current_ms: int) -> None:
     """重算 next_run_at_ms。at 类型过期则禁用，every 类型确保锚点存在。"""
     try:
@@ -343,10 +365,15 @@ def _recalculate_next_run(job: CronJob, js: CronJobState, current_ms: int) -> No
                 js.next_run_at_ms = None
             else:
                 js.next_run_at_ms = next_ms
-        elif job.schedule.kind == ScheduleKind.EVERY:
-            js.next_run_at_ms = compute_next_run_ms(job, js, current_ms)
         else:
-            js.next_run_at_ms = compute_next_run_ms(job, js, current_ms)
+            next_ms = compute_next_run_ms(job, js, current_ms)
+            end_at_ms = _get_end_at_ms(job)
+            if end_at_ms is not None and (current_ms >= end_at_ms or (next_ms is not None and next_ms >= end_at_ms)):
+                logger.info(f"cron: [{job.id}] reached end_at, disabling")
+                job.enabled = False
+                js.next_run_at_ms = None
+            else:
+                js.next_run_at_ms = next_ms
     except Exception as e:
         logger.warning(f"cron: failed to compute next run for [{job.id}]: {e}")
         js.consecutive_errors = (js.consecutive_errors or 0) + 1
@@ -410,7 +437,12 @@ def _update_job_state_after_run(
             job.enabled = False
             js.next_run_at_ms = None
         else:
-            if js.consecutive_errors and js.consecutive_errors > 0 and backoff_idx >= 0:
+            end_at_ms = _get_end_at_ms(job)
+            if end_at_ms is not None and next_ms >= end_at_ms:
+                logger.info(f"cron: [{job.id}] next run would exceed end_at, disabling")
+                job.enabled = False
+                js.next_run_at_ms = None
+            elif js.consecutive_errors and js.consecutive_errors > 0 and backoff_idx >= 0:
                 delay = _BACKOFF_MS[backoff_idx]
                 js.next_run_at_ms = max(next_ms, current_ms + delay)
             else:

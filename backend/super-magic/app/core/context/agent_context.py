@@ -7,8 +7,11 @@
 import asyncio
 import os
 import json
-import time
-from typing import Any, Dict, List, Optional
+import uuid
+from typing import TYPE_CHECKING, Any, Dict, List, Optional
+
+if TYPE_CHECKING:
+    from app.core.horizon.agent_horizon import AgentHorizon
 from datetime import datetime, timedelta
 
 from agentlang.context.base_agent_context import BaseAgentContext
@@ -24,6 +27,7 @@ from app.core.stream import Stream
 from agentlang.logger import get_logger
 from app.path_manager import PathManager
 from app.core.context.run_interruption import RunCancelState, RunCleanupRegistry, RunCancellationHandle
+from app.core.entity.final_task_state import FinalTaskState
 from loguru import logger
 from app.infrastructure.storage.types import PlatformType
 from agentlang.llms.token_usage.report import TokenUsageReport
@@ -111,8 +115,19 @@ class AgentContext(BaseAgentContext):
 
         # 初始化中断事件通知
         self._interruption_event = asyncio.Event()
+        self._cancelable_event = asyncio.Event()
+        if self.shared_context.get_field("cancel_blocker_count") == 0:
+            self._cancelable_event.set()
         self._subagent_depth = 0
         self._subagent_parent_agent_name: Optional[str] = None
+
+        # 运行时身份 / 上下文标识
+        # context_id 用于 Skill Code Mode 路由；
+        self._context_id: str = uuid.uuid4().hex
+        # agent_id 用于运行时 session 标识；
+        self._agent_id: Optional[str] = None
+        # horizon_agent_id 用于 Horizon 持久化文件名。
+        self._horizon_agent_id: Optional[str] = None
 
         # 设置工作空间目录
         try:
@@ -142,6 +157,14 @@ class AgentContext(BaseAgentContext):
         self._run_cleanup_registry: RunCleanupRegistry = RunCleanupRegistry()
         self._run_cancellation_handle: RunCancellationHandle = RunCancellationHandle()
 
+        # AgentHorizon 懒初始化，per-agent 上下文工程基础设施
+        self._horizon: Optional["AgentHorizon"] = None
+
+    @property
+    def context_id(self) -> str:
+        """当前 AgentContext 实例的唯一标识符（UUID hex），供全局注册表路由使用。"""
+        return self._context_id
+
     def set_subagent_depth(self, depth: int) -> None:
         """设置子 Agent 深度。"""
         self._subagent_depth = max(depth, 0)
@@ -157,6 +180,62 @@ class AgentContext(BaseAgentContext):
     def get_subagent_parent_agent_name(self) -> Optional[str]:
         """获取父 Agent 名称；主 Agent 返回 None。"""
         return self._subagent_parent_agent_name
+
+    def set_agent_id(self, agent_id: str) -> None:
+        """设置运行时 agent_id，并同步更新依赖该 ID 的上下文设施。"""
+        self._agent_id = agent_id
+        self.set_horizon_agent_id(agent_id)
+
+    def get_agent_id(self) -> Optional[str]:
+        """获取运行时 agent_id。"""
+        return self._agent_id
+
+    def get_agent_session_label(self) -> str:
+        """获取用于日志和文件名的人类可读标识，如 `magic<main>`。"""
+        agent_id = self._agent_id or "unknown"
+        return f"{self.agent_name}<{agent_id}>"
+
+    @property
+    def horizon(self) -> "AgentHorizon":
+        """per-agent 上下文工程基础设施（懒初始化）。"""
+        if self._horizon is None:
+            from app.core.horizon import AgentHorizon
+            from app.core.horizon.store import HorizonStore
+
+            # 用 agent_name（文件名如 "magic"），而非 get_agent_name()（返回 profile 显示名）
+            agent_name = self.agent_name
+            chat_history_dir = self.get_chat_history_dir()
+            # agent_id 此时可能未设置，用 "main" 兜底；agent.py 初始化完成后可通过 reset 更新
+            agent_id = getattr(self, "_horizon_agent_id", None) or "main"
+
+            store = HorizonStore(
+                chat_history_dir=chat_history_dir,
+                agent_name=agent_name,
+                agent_id=agent_id,
+            )
+            self._horizon = AgentHorizon(store=store, agent_id=agent_id, agent_context=self)
+        return self._horizon
+
+    def set_horizon_agent_id(self, agent_id: str) -> None:
+        """在 agent.py 完成 ID 分配后调用，确保持久化文件名正确。
+
+        若 horizon 还未初始化则直接设置待用 ID；
+        若已初始化则重建（agent_id 改变时需要换文件）。
+        """
+        if self._horizon is None:
+            self._horizon_agent_id = agent_id
+        else:
+            from app.core.horizon import AgentHorizon
+            from app.core.horizon.store import HorizonStore
+            agent_name = self.agent_name
+            chat_history_dir = self.get_chat_history_dir()
+            store = HorizonStore(
+                chat_history_dir=chat_history_dir,
+                agent_name=agent_name,
+                agent_id=agent_id,
+            )
+            self._horizon = AgentHorizon(store=store, agent_id=agent_id, agent_context=self)
+        self._horizon_agent_id = agent_id
 
     def _init_shared_fields(self):
         """初始化共享字段并注册到 shared_context"""
@@ -187,6 +266,7 @@ class AgentContext(BaseAgentContext):
             "organization_code": (None, Optional[str]),
             "final_token_usage_report": (None, Optional[TokenUsageReport]),
             "final_response": (None, Optional[str]),
+            "final_task_state": (None, Optional[FinalTaskState]),
             "finish_task_files": (None, Optional[List[str]]),
             # LLM 请求ID
             "current_llm_request_id": (None, Optional[str]),
@@ -262,6 +342,11 @@ class AgentContext(BaseAgentContext):
             Optional[str]: agent_code
         """
         return self.shared_context.get_field("agent_code")
+
+    def is_magiclaw(self) -> bool:
+        """当前会话是否为 magiclaw 模式（龙虾 claw agent）。"""
+        msg = self.get_chat_client_message()
+        return msg is not None and str(getattr(msg, "agent_mode", "")) == "magiclaw"
 
     def set_sandbox_id(self, sandbox_id: str) -> None:
         """设置沙盒ID
@@ -803,6 +888,14 @@ class AgentContext(BaseAgentContext):
         """
         return self.shared_context.get_field("final_response")
 
+    def set_final_task_state(self, final_task_state: Optional[FinalTaskState]) -> None:
+        """设置最终任务终态"""
+        self.shared_context.update_field("final_task_state", final_task_state)
+
+    def get_final_task_state(self) -> Optional[FinalTaskState]:
+        """获取最终任务终态"""
+        return self.shared_context.get_field("final_task_state")
+
     # ====== 序列号管理相关方法 ======
 
     def get_next_seq_id(self) -> int:
@@ -930,6 +1023,8 @@ class AgentContext(BaseAgentContext):
         current_count = self.shared_context.get_field("cancel_blocker_count")
         new_count = current_count + 1
         self.shared_context.update_field("cancel_blocker_count", new_count)
+        if current_count == 0:
+            self._cancelable_event.clear()
         logger.info(f"增加cancel阻止计数: {current_count} -> {new_count}")
 
     def decrement_cancel_blocker(self) -> None:
@@ -937,6 +1032,8 @@ class AgentContext(BaseAgentContext):
         current_count = self.shared_context.get_field("cancel_blocker_count")
         new_count = max(0, current_count - 1)  # 确保计数不会小于0
         self.shared_context.update_field("cancel_blocker_count", new_count)
+        if new_count == 0:
+            self._cancelable_event.set()
         logger.info(f"减少cancel阻止计数: {current_count} -> {new_count}")
 
         # 如果计数异常小于0，记录警告
@@ -959,6 +1056,24 @@ class AgentContext(BaseAgentContext):
         """
         return self.shared_context.get_field("cancel_blocker_count")
 
+    async def wait_until_cancelable(
+        self,
+        timeout_s: float = _CANCEL_BLOCKER_WAIT_TIMEOUT_S,
+    ) -> bool:
+        """等待直到当前 run 可被 cancel，超时返回 False。"""
+        if self.is_cancelable():
+            return True
+
+        try:
+            await asyncio.wait_for(self._cancelable_event.wait(), timeout=timeout_s)
+            return True
+        except asyncio.TimeoutError:
+            logger.warning(
+                f"[AgentContext] cancel_blocker timeout after {timeout_s}s "
+                f"(count={self.get_cancel_blocker_count()}), proceeding"
+            )
+            return False
+
     # ====== Run-level interruption 框架 ======
 
     def register_run_cleanup(self, key: str, handler) -> None:
@@ -977,9 +1092,16 @@ class AgentContext(BaseAgentContext):
         4. 执行 worker cancel
         5. 标记完成
         """
-        if self._run_cancel_state.cleanup_started:
+        if self._run_cancel_state.cleanup_started and not self._run_cancel_state.cleanup_finished:
+            # 正在执行中，忽略重复请求
             logger.debug(f"[AgentContext] stop_run already in progress, skip (reason={reason})")
             return
+
+        if self._run_cancel_state.cleanup_started and self._run_cancel_state.cleanup_finished:
+            # 上次 stop_run 已完成，但 agent 仍在运行（首次中断未完全生效），允许重新发起
+            logger.info(f"[AgentContext] previous stop_run completed but agent still running, re-stopping (reason={reason})")
+            self._run_cancel_state = RunCancelState()
+            self._run_cleanup_registry = RunCleanupRegistry()
 
         self._run_cancel_state.requested = True
         self._run_cancel_state.reason = reason
@@ -990,15 +1112,7 @@ class AgentContext(BaseAgentContext):
         logger.info(f"[AgentContext] stop_run started: {reason}")
 
         # 等待 cancel blocker 归零（超时后强制继续）
-        start = time.time()
-        while not self.is_cancelable():
-            if time.time() - start > _CANCEL_BLOCKER_WAIT_TIMEOUT_S:
-                logger.warning(
-                    f"[AgentContext] cancel_blocker timeout after {_CANCEL_BLOCKER_WAIT_TIMEOUT_S}s "
-                    f"(count={self.get_cancel_blocker_count()}), proceeding"
-                )
-                break
-            await asyncio.sleep(0.05)
+        await self.wait_until_cancelable()
 
         # 先 cleanup 再 cancel worker，确保业务子系统内部异步延续点先被切断
         await self._run_cleanup_registry.run_all()

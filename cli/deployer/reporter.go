@@ -12,6 +12,15 @@ import (
 	"github.com/dtyq/magicrew-cli/util"
 )
 
+// installWatchStableRounds is how many consecutive polls must report the same
+// pod count before per-pod lines are shown during install watch (reduces table flicker).
+const installWatchStableRounds = 5
+
+const (
+	podDetailNameWidth   = 48
+	podDetailStatusWidth = 18
+)
+
 var waitOutput io.Writer = os.Stderr
 
 var isWaitTTY = func() bool {
@@ -22,16 +31,74 @@ var isWaitTTY = func() bool {
 	return isatty.IsTerminal(f.Fd())
 }
 
-// newPodReporter returns a reporter func suitable for passing to WaitForPodsReady.
-// It shows a single-line spinner in TTY; non-TTY falls back to concise changed-only logs.
-func newPodReporter(log util.LoggerGroup, label string) func([]corev1.Pod) {
+// reporterAnsiEnabled decides whether to use cursor-movement ANSI sequences (spinner UI).
+// Priority: MAGICREW_CLI_NO_ANSI=1 disables; MAGICREW_CLI_FORCE_ANSI=1 enables; else NO_COLOR,
+// TERM=dumb, or non-TTY disable; otherwise enable.
+func reporterAnsiEnabled() bool {
+	if envMagicrewFlag("MAGICREW_CLI_NO_ANSI") {
+		return false
+	}
+	if envMagicrewFlag("MAGICREW_CLI_FORCE_ANSI") {
+		return true
+	}
+	if os.Getenv("NO_COLOR") != "" {
+		return false
+	}
+	if strings.EqualFold(strings.TrimSpace(os.Getenv("TERM")), "dumb") {
+		return false
+	}
+	return isWaitTTY()
+}
+
+func envMagicrewFlag(name string) bool {
+	return strings.TrimSpace(os.Getenv(name)) == "1"
+}
+
+func formatPodDetailLine(p corev1.Pod) string {
+	return fmt.Sprintf("  %-*s  %-*s Ready=%s",
+		podDetailNameWidth,
+		p.Name,
+		podDetailStatusWidth,
+		podStatusSummary(p),
+		podReadyStatus(p),
+	)
+}
+
+// installPodReporter renders install-time pod wait output. Before Confirm, per-pod
+// lines appear only after the pod count is stable for installWatchStableRounds polls.
+// Call Confirm once when Helm has finished applying so full details show immediately.
+type installPodReporter struct {
+	reportFn  func([]corev1.Pod)
+	confirmFn func()
+}
+
+// Report renders one poll snapshot (TTY spinner or non-TTY logs).
+func (r *installPodReporter) Report(pods []corev1.Pod) {
+	if r != nil && r.reportFn != nil {
+		r.reportFn(pods)
+	}
+}
+
+// Confirm switches to the post-Helm phase where per-pod details are always shown.
+func (r *installPodReporter) Confirm() {
+	if r != nil && r.confirmFn != nil {
+		r.confirmFn()
+	}
+}
+
+// newPodReporter builds a reporter for chart install waits. Use Confirm when Helm completes.
+func newPodReporter(log util.LoggerGroup, label string) *installPodReporter {
 	frames := []rune{'|', '/', '-', '\\'}
 	frameIdx := 0
 	lastRenderLines := 0
 	lastSummary := ""
 	completed := false
+	lastPodCount := -1
+	stableRounds := 0
+	lastNonTTYDetailKey := ""
+	confirming := false
 
-	return func(pods []corev1.Pod) {
+	report := func(pods []corev1.Pod) {
 		ready := 0
 		for _, p := range pods {
 			if isPodReady(p) {
@@ -41,30 +108,40 @@ func newPodReporter(log util.LoggerGroup, label string) func([]corev1.Pod) {
 		total := len(pods)
 		reason := firstFailureReason(pods)
 		allReady := total > 0 && ready == total
+		readyFooter := confirming && allReady && !completed
 
-		if isWaitTTY() {
+		if total == lastPodCount {
+			stableRounds++
+		} else {
+			lastPodCount = total
+			stableRounds = 0
+			lastNonTTYDetailKey = ""
+		}
+		showDetails := confirming || stableRounds >= installWatchStableRounds
+
+		if reporterAnsiEnabled() {
+			if completed {
+				return
+			}
 			frame := frames[frameIdx%len(frames)]
 			frameIdx++
 			lines := []string{fmt.Sprintf("%c [waiting] %s pods (%d/%d ready)", frame, label, ready, total)}
 			if reason != "" {
 				lines[0] += fmt.Sprintf(" 失败原因: %s", reason)
 			}
-			if len(pods) == 0 {
-				lines = append(lines, "  (no pods yet)")
-			} else {
-				for _, p := range pods {
-					lines = append(lines, fmt.Sprintf("  %-44s %-18s Ready=%s",
-						p.Name,
-						podStatusSummary(p),
-						podReadyStatus(p),
-					))
+			if showDetails {
+				if len(pods) == 0 {
+					lines = append(lines, "  (no pods yet)")
+				} else {
+					for _, p := range pods {
+						lines = append(lines, formatPodDetailLine(p))
+					}
 				}
 			}
 			lastRenderLines = renderSpinnerLines(waitOutput, lines, lastRenderLines)
 
-			if allReady && !completed {
+			if readyFooter {
 				_, _ = fmt.Fprint(waitOutput, "\n")
-				log.Logd("wait", "[ready] %s pods (%d/%d ready)", label, ready, total)
 				completed = true
 			}
 			return
@@ -78,11 +155,41 @@ func newPodReporter(log util.LoggerGroup, label string) func([]corev1.Pod) {
 			log.Logd("wait", "%s", summary)
 			lastSummary = summary
 		}
-		if allReady && !completed {
+		if showDetails {
+			var detailKey strings.Builder
+			detailKey.WriteString(summary)
+			detailKey.WriteByte('|')
+			for _, p := range pods {
+				detailKey.WriteString(p.Name)
+				detailKey.WriteByte(':')
+				detailKey.WriteString(podStatusSummary(p))
+				detailKey.WriteByte(':')
+				detailKey.WriteString(podReadyStatus(p))
+				detailKey.WriteByte(';')
+			}
+			if key := detailKey.String(); key != lastNonTTYDetailKey {
+				lastNonTTYDetailKey = key
+				if len(pods) == 0 {
+					log.Logd("wait", "  (no pods yet)")
+				} else {
+					for _, p := range pods {
+						log.Logd("wait", "%s", formatPodDetailLine(p))
+					}
+				}
+			}
+		}
+		if readyFooter {
 			log.Logd("wait", "[ready] %s pods (%d/%d ready)", label, ready, total)
 			completed = true
 		}
 	}
+
+	confirm := func() {
+		confirming = true
+		lastNonTTYDetailKey = ""
+	}
+
+	return &installPodReporter{reportFn: report, confirmFn: confirm}
 }
 
 func renderSpinnerLines(w io.Writer, lines []string, prevLines int) int {

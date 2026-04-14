@@ -3,6 +3,66 @@
         "zh_CN": "系统繁忙，请稍后再试",
         "en_US": "The system is busy, please try again later"
     },
+    "messages.context_window_exceeded": {
+        "zh_CN": "当前对话上下文已过长，请点击输入框右侧的上下文占比圆环，在弹出的面板中选择“压缩上下文”后再继续。",
+        "en_US": "The conversation context is too long. Click the context usage ring on the right side of the input box, choose \"Compact Context\" from the panel, and then continue."
+    },
+    "messages.agent_suspended": {
+        "zh_CN": "当前任务已暂停，请稍后再试。",
+        "en_US": "The current task has been suspended. Please try again later."
+    },
+    "messages.insufficient_points": {
+        "zh_CN": "当前可用积分不足，请稍后再试。",
+        "en_US": "There are not enough available points right now. Please try again later."
+    },
+    "messages.consumption_rounds_limit_exceeded": {
+        "zh_CN": "当前任务的单次轮数已达到上限，请稍后再试。",
+        "en_US": "This task has reached the per-run round limit. Please try again later."
+    },
+    "messages.task_concurrency_limit_exceeded": {
+        "zh_CN": "当前并发任务数已达到上限，请稍后再试。",
+        "en_US": "The concurrent task limit has been reached. Please try again later."
+    },
+    "messages.user_interrupted": {
+        "zh_CN": "任务已中断。",
+        "en_US": "The task has been interrupted."
+    },
+    "messages.session_restore_failed": {
+        "zh_CN": "恢复会话状态失败，请重新发送消息。",
+        "en_US": "Failed to restore the session state. Please send the message again."
+    },
+    "messages.agent_not_initialized": {
+        "zh_CN": "智能体尚未初始化，请先初始化工作区后再试。",
+        "en_US": "The agent has not been initialized yet. Please initialize the workspace first."
+    },
+    "messages.internal_dispatch_failed": {
+        "zh_CN": "当前请求处理失败，请联系管理员。",
+        "en_US": "Failed to dispatch the request internally. Please contact the administrator."
+    },
+    "messages.message_processing_failed": {
+        "zh_CN": "任务执行异常，请稍后再试。",
+        "en_US": "Task execution failed. Please try again later."
+    },
+    "messages.llm_provider_timeout": {
+        "zh_CN": "AI 模型服务当前负载较高，响应已超时，请稍后重试，或尝试切换其他模型后重试。",
+        "en_US": "The AI model service is under high load and timed out. Please try again later, or try switching to a different model."
+    },
+    "messages.llm_provider_connection_failed": {
+        "zh_CN": "AI 模型服务当前负载较高，连接暂时中断，请稍后重试，或尝试切换其他模型后重试。",
+        "en_US": "The AI model service is under high load and the connection was interrupted. Please try again later, or try switching to a different model."
+    },
+    "messages.llm_provider_rate_limited": {
+        "zh_CN": "当前使用人数过多，AI 模型服务负载较高，请稍后重试，或尝试切换其他模型后重试。",
+        "en_US": "The AI model service is at capacity due to high user demand. Please try again later, or try switching to a different model."
+    },
+    "messages.llm_provider_error": {
+        "zh_CN": "AI 模型服务当前负载较高，处理请求时出现异常，请稍后重试，或尝试切换其他模型后重试。",
+        "en_US": "The AI model service encountered an error while processing your request. Please try again later, or try switching to a different model."
+    },
+    "messages.llm_provider_config_error": {
+        "zh_CN": "AI 模型配置异常，无法处理请求，请联系系统管理员或切换其他模型后重试。",
+        "en_US": "AI model configuration error. The request cannot be processed. Please contact the system administrator, or try switching to a different model."
+    },
     "agent_profile.desc_with_role": {
         "zh_CN": "你叫{name}，是一名{role}。{description}",
         "en_US": "Your name is {name}, you are a {role}. {description}"
@@ -12,8 +72,8 @@
         "en_US": "Your name is {name}. {description}"
     },
     "cron.notify.intro": {
-        "zh_CN": "以下定时提醒刚刚触发。请保持你当前的人设和说话风格，直接通知用户。根据任务内容组织语言，可以带点关怀或实用提示，让回复自然、有温度。不要讨论调度机制、执行细节，或 AI 能做什么不能做什么。",
-        "en_US": "The following scheduled reminder(s) have just fired. Stay in your current persona and speaking style, and notify the user directly. Shape your reply around the task content; feel free to add a touch of care or a helpful nudge. Do NOT discuss scheduling mechanics, execution details, or what AI can or cannot do."
+        "zh_CN": "以下定时任务刚刚完成。请保持你当前的人设和说话风格，直接通知用户。根据任务内容（job_body 字段）组织语言，可以带点关怀或实用提示，让回复自然、有温度。不要讨论调度机制、执行细节，或 AI 能做什么不能做什么。",
+        "en_US": "The following scheduled task(s) have just completed. Stay in your current persona and speaking style, and notify the user directly. Shape your reply around the task content (the job_body field); feel free to add a touch of care or a helpful nudge. Do NOT discuss scheduling mechanics, execution details, or what AI can or cannot do."
     },
     "cron.notify.task_header": {
         "zh_CN": "[任务 {index}]",
@@ -30,6 +90,10 @@
     "cron.notify.field_finished_at": {
         "zh_CN": "完成时间：{value}",
         "en_US": "Finished at: {value}"
+    },
+    "cron.notify.field_job_body": {
+        "zh_CN": "任务内容：\n{value}",
+        "en_US": "Task content:\n{value}"
     },
     "cron.notify.field_result_file": {
         "zh_CN": "完整结果文件：{value}",

@@ -4,10 +4,12 @@ Init Client Message Utility Module
 Provides utilities for reading and accessing initialization configuration data.
 """
 import json
+import os
 from typing import Dict, Any, Optional
 
 from agentlang.logger import get_logger
 
+from app.core.entity.message.client_message import User
 from app.path_manager import PathManager
 
 logger = get_logger(__name__)
@@ -245,6 +247,24 @@ class InitClientMessageUtil:
             return False
 
     @classmethod
+    def get_user(cls) -> Optional[User]:
+        """
+        从 metadata 获取 user 对象
+
+        Returns:
+            Optional[User]: User 对象，字段缺失或为空时对应属性为 None，获取失败返回 None
+        """
+        try:
+            metadata = cls.get_metadata()
+            user_data = metadata.get("user")
+            if not user_data or not isinstance(user_data, dict):
+                return None
+            return User(**user_data)
+        except Exception as e:
+            logger.debug(f"获取 user 失败: {e}")
+            return None
+
+    @classmethod
     def get_user_authorization(cls) -> Optional[str]:
         """
         从 metadata 获取 user authorization
@@ -307,6 +327,46 @@ class InitClientMessageUtil:
         """
         config_data = cls.get_full_config()
         return config_data.get("upload_config")
+
+    @classmethod
+    def get_agent_type(cls) -> Optional[str]:
+        """
+        从 init_client_message 获取 agent.type。
+
+        Returns:
+            Optional[str]: agent.type 值，未配置时返回 None
+        """
+        try:
+            config_data = cls.get_full_config()
+            agent_config = config_data.get("agent")
+            if not isinstance(agent_config, dict):
+                return None
+            agent_type = agent_config.get("type")
+            if isinstance(agent_type, str) and agent_type.strip():
+                return agent_type.strip()
+        except Exception as e:
+            logger.debug(f"获取 agent.type 失败: {e}")
+        return None
+
+    @classmethod
+    def get_sandbox_id(cls) -> str:
+        """
+        Get sandbox_id from metadata, falling back to SANDBOX_ID env var.
+
+        Returns:
+            str: sandbox_id value, or empty string if not found anywhere
+        """
+        try:
+            sandbox_id = cls.get_metadata().get("sandbox_id", "")
+            if sandbox_id:
+                return sandbox_id
+        except Exception as e:
+            logger.info(f"Failed to get sandbox_id from metadata: {e}")
+
+        env_sandbox_id = os.environ.get("SANDBOX_ID", "")
+        if env_sandbox_id:
+            logger.info(f"Using sandbox_id from environment variable: {env_sandbox_id}")
+        return env_sandbox_id
 
     @classmethod
     def get_platform_type(cls) -> Optional[str]:

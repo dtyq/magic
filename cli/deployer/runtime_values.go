@@ -24,7 +24,7 @@ func newPrepareValuesStage(d *Deployer) *PrepareValuesStage {
 
 func (s *PrepareValuesStage) Exec(_ context.Context) error {
 	defaultsByChart := map[string]map[string]interface{}{}
-	for release := range s.d.chartSpecs {
+	for release := range s.d.opts.chartSpecs {
 		ref, err := s.d.chartRef(release)
 		if err != nil {
 			return err
@@ -40,8 +40,8 @@ func (s *PrepareValuesStage) Exec(_ context.Context) error {
 	if err != nil {
 		return fmt.Errorf("merge values: %w", err)
 	}
-	injectMagicGatewayAllowedTargetIP(merged, s.d.opts.Kind.ServiceSubnet)
-	injectWebBaseURL(merged, s.d.opts.WebBaseURL)
+	injectMagicGatewayAllowedTargetIP(merged, s.d.opts.kind.ServiceSubnet)
+	injectWebBaseURL(merged, s.d.opts.webBaseURL)
 	s.d.merged = merged
 	return nil
 }

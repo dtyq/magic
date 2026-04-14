@@ -35,7 +35,7 @@ class AgentLoader:
 
         # 配置了 skills 时自动注入 skill 相关工具（无需在 tools 中显式声明）
         if metadata.skills_config and not metadata.skills_config.is_empty():
-            for skill_tool in ("read_skills", "run_skills_snippet", "skill_list"):
+            for skill_tool in ("read_skills", "run_sdk_snippet", "skill_list"):
                 if skill_tool not in metadata.tools_config:
                     metadata.tools_config[skill_tool] = {}
                     logger.debug(f"因配置了 skills，自动注入工具: {skill_tool}")

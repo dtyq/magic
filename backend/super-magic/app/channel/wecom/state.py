@@ -23,6 +23,7 @@ _STATE_FILENAME = "wecom-runtime-state.json"
 class WeComRuntimeState:
     # 最后一次收到用户消息的完整 frame dict，跨重启保留供 cron 主动推送复用
     last_frame: dict[str, Any] = field(default_factory=dict)
+    last_message_at_ms: int = 0
 
 
 def _state_file() -> Path:
@@ -42,11 +43,19 @@ async def load_runtime_state() -> WeComRuntimeState:
 
     return WeComRuntimeState(
         last_frame=data.get("last_frame") or {},
+        last_message_at_ms=int(data.get("last_message_at_ms") or 0),
     )
 
 
 async def save_runtime_state(state: WeComRuntimeState) -> None:
-    await async_write_json(_state_file(), {"last_frame": state.last_frame}, ensure_ascii=False)
+    await async_write_json(
+        _state_file(),
+        {
+            "last_frame": state.last_frame,
+            "last_message_at_ms": state.last_message_at_ms,
+        },
+        ensure_ascii=False,
+    )
 
 
 async def clear_runtime_state() -> None:

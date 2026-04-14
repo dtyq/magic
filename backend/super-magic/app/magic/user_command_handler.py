@@ -124,11 +124,10 @@ async def handle_new_session(agent: 'Agent') -> str:
     if is_magiclaw:
         return (
             "A new session was started via /new. The previous conversation history has been cleared. "
-            "Run your Session Startup sequence now before responding: read your workspace files "
-            "(SOUL.md, USER.md, today's and yesterday's memory files, and MEMORY.md "
-            "for a primary session). "
-            "Then greet the user in your configured persona. "
-            "Keep it to 1-3 sentences and ask what they want to do. "
+            "The runtime has reset your required-file tracking — a <magiclaw_startup> block "
+            "will follow this message listing which workspace files you still need to read. "
+            "Read all listed files now, then greet the user in your configured persona. "
+            "Keep the greeting to 1-3 sentences and ask what they want to do. "
             "Do not mention internal steps, files, or tools."
         )
     return (

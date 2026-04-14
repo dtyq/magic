@@ -56,9 +56,10 @@ class BaseAgentContext(BaseContext, AgentContextInterface):
 
         self.shared_context.register_fields({
             "event_dispatcher": (EventDispatcher(), EventDispatcherInterface),
-            "dynamic_model_id": (None, Optional[str]),  # 动态模型ID管理
-            "non_human_options": (None, Optional[Any]),  # 非人类限流配置
-            "user_timezone": (None, Optional[str]),  # 用户时区（IANA 名称），None 时回落系统时区
+            "dynamic_model_id": (None, Optional[str]),       # 动态 LLM 模型 ID
+            "dynamic_image_model_id": (None, Optional[str]), # 动态图片生成模型 ID
+            "non_human_options": (None, Optional[Any]),      # 非人类限流配置
+            "user_timezone": (None, Optional[str]),          # 用户时区（IANA 名称），None 时回落系统时区
         })
 
     def get_workspace_dir(self) -> str:
@@ -286,6 +287,34 @@ class BaseAgentContext(BaseContext, AgentContextInterface):
         """清除动态模型ID设置"""
         self.shared_context.update_field("dynamic_model_id", None)
         logger.debug("已清除动态模型ID设置")
+
+    def set_dynamic_image_model_id(self, model_id: str) -> None:
+        """设置动态图片模型ID（生图工具优先使用此值，覆盖 dynamic_config.yaml 的配置）"""
+        self.shared_context.update_field("dynamic_image_model_id", model_id)
+        logger.info(f"已设置动态图片模型ID: {model_id}")
+
+    def get_dynamic_image_model_id(self) -> Optional[str]:
+        """获取图片生成模型ID。
+
+        优先返回通过 set_dynamic_image_model_id 设置的值；
+        未设置时回落到 dynamic_config.yaml 的 image_model.model_id；
+        均未配置时返回 None。
+        """
+        model_id = self.shared_context.get_field("dynamic_image_model_id")
+        if model_id and isinstance(model_id, str) and model_id.strip():
+            return model_id.strip()
+        try:
+            from agentlang.config.dynamic_config import dynamic_config
+            config_data = dynamic_config.read_dynamic_config()
+            if config_data:
+                image_model_config = config_data.get("image_model", {})
+                if isinstance(image_model_config, dict):
+                    cfg_id = image_model_config.get("model_id")
+                    if cfg_id and isinstance(cfg_id, str) and cfg_id.strip():
+                        return cfg_id.strip()
+        except Exception:
+            pass
+        return None
 
     # 非人类限流配置管理接口（使用shared_context）
     def set_non_human_options(self, options: Any) -> None:

@@ -29,6 +29,11 @@ class ImageSearchRequestDTO extends AbstractRequestDTO
      */
     private int $offset = 0;
 
+    /**
+     * Preferred provider. Falls back to the enabled default when empty.
+     */
+    private string $provider = '';
+
     public function __construct(array $data = [])
     {
         parent::__construct($data);
@@ -37,6 +42,7 @@ class ImageSearchRequestDTO extends AbstractRequestDTO
         $this->query = (string) ($data['q'] ?? $data['query'] ?? '');
         $this->count = (int) ($data['count'] ?? 10);
         $this->offset = (int) ($data['offset'] ?? 0);
+        $this->provider = (string) ($data['provider'] ?? '');
     }
 
     public static function createDTO(array $data): self
@@ -45,6 +51,7 @@ class ImageSearchRequestDTO extends AbstractRequestDTO
         $imageSearchRequestDTO->setQuery((string) ($data['q'] ?? $data['query'] ?? ''));
         $imageSearchRequestDTO->setCount((int) ($data['count'] ?? 10));
         $imageSearchRequestDTO->setOffset((int) ($data['offset'] ?? 0));
+        $imageSearchRequestDTO->setProvider((string) ($data['provider'] ?? ''));
         return $imageSearchRequestDTO;
     }
 
@@ -83,6 +90,17 @@ class ImageSearchRequestDTO extends AbstractRequestDTO
     public function setOffset(int $offset): self
     {
         $this->offset = $offset;
+        return $this;
+    }
+
+    public function getProvider(): string
+    {
+        return $this->provider;
+    }
+
+    public function setProvider(string $provider): self
+    {
+        $this->provider = trim($provider);
         return $this;
     }
 

@@ -13,10 +13,12 @@ from dingtalk_stream.card_instance import AIMarkdownCardInstance
 from agentlang.logger import get_logger
 from app.channel.base.channel import BaseChannel
 from app.core.entity.message.client_message import ChatClientMessage, Metadata
-from app.channel.base.keepalive import ChannelKeepalive
+from app.channel.base.third_party_message import dispatch_third_party_message
 from app.channel.dingtalk.stream import DingTalkStream
 from app.channel.dingtalk.streaming_driver import DingTalkStreamingDriver
-from app.channel.config import IMChannelsConfig
+from app.channel.config import IMChannelsConfig, IMChannelDisplay
+from app.core.keepalive_registry import KeepaliveRegistry
+from app.utils.time_utils import now_ms
 
 logger = get_logger(__name__)
 
@@ -24,13 +26,16 @@ logger = get_logger(__name__)
 class DingTalkChannel(BaseChannel):
     key = "dingtalk"
     label = "钉钉"
+    source_name = "DingTalk"
 
     _instance: Optional["DingTalkChannel"] = None
 
     def __init__(self) -> None:
         self._client: Optional[DingTalkStreamClient] = None
         self._connect_task: Optional[asyncio.Task] = None
-        self._keepalive = ChannelKeepalive("DingTalk", is_active=lambda: self.is_connected)
+        self._connect_ready_task: Optional[asyncio.Task] = None
+        self._last_message_at_ms: int = 0
+        self._display = IMChannelDisplay()
         # 缓存最后一次收到的用户消息，供 cron 主动推送复用会话上下文
         self._last_incoming_message: Optional[ChatbotMessage] = None
 
@@ -76,7 +81,9 @@ class DingTalkChannel(BaseChannel):
                 logger.info(f"[DingTalkChannel] 恢复运行态: sender={sender}")
             except Exception as e:
                 logger.warning(f"[DingTalkChannel] 恢复运行态失败，跳过: {e}")
+        self._last_message_at_ms = state.last_message_at_ms
 
+        self._display = credential.display
         await self.connect(credential.client_id, credential.client_secret)
         return True
 
@@ -93,8 +100,25 @@ class DingTalkChannel(BaseChannel):
             _DingTalkBotHandler(self),
         )
         self._connect_task = asyncio.create_task(self._run_client())
-        self._keepalive.start()
+        keepalive_registry = KeepaliveRegistry.get_instance()
+        keepalive_registry.restore_message_time(self.key, self._last_message_at_ms)
+        if self._connect_ready_task and not self._connect_ready_task.done():
+            self._connect_ready_task.cancel()
+        self._connect_ready_task = asyncio.create_task(self._wait_until_connected())
         logger.info(f"[DingTalkChannel] 连接中，client_id={client_id}")
+
+    async def _wait_until_connected(self) -> None:
+        """等待 websocket 真正进入 OPEN，再发出一次连接成功续期。"""
+        try:
+            while True:
+                if self.is_connected:
+                    KeepaliveRegistry.get_instance().notify_connected_once(self.key)
+                    return
+                if self._connect_task is None or self._connect_task.done():
+                    return
+                await asyncio.sleep(1)
+        except asyncio.CancelledError:
+            return
 
     async def _run_client(self) -> None:
         """持续运行 client，网络断线后 5 秒自动重连。"""
@@ -184,7 +208,10 @@ class DingTalkChannel(BaseChannel):
         return None
 
     async def disconnect(self) -> None:
-        self._keepalive.stop()
+        KeepaliveRegistry.get_instance().reset_source(self.key)
+        if self._connect_ready_task and not self._connect_ready_task.done():
+            self._connect_ready_task.cancel()
+        self._connect_ready_task = None
         if self._connect_task and not self._connect_task.done():
             self._connect_task.cancel()
         self._connect_task = None
@@ -205,6 +232,9 @@ class DingTalkChannel(BaseChannel):
         if not content:
             return
 
+        current_message_at_ms = now_ms()
+        self._last_message_at_ms = current_message_at_ms
+        KeepaliveRegistry.get_instance().notify_message(self.key, current_message_at_ms)
         # senderStaffId 是企业内部用户 ID，senderId 是钉钉平台 ID（与 TS 逻辑一致）
         user_id = incoming_message.sender_staff_id or incoming_message.sender_id or "dingtalk_user"
         ctx = dispatcher.agent_context
@@ -223,7 +253,12 @@ class DingTalkChannel(BaseChannel):
         if raw_data is not None:
             try:
                 from app.channel.dingtalk.state import DingTalkRuntimeState, save_runtime_state
-                await save_runtime_state(DingTalkRuntimeState(last_message_data=raw_data))
+                await save_runtime_state(
+                    DingTalkRuntimeState(
+                        last_message_data=raw_data,
+                        last_message_at_ms=current_message_at_ms,
+                    )
+                )
             except Exception as e:
                 logger.warning(f"[DingTalkChannel] 保存运行态失败: {e}")
 
@@ -244,24 +279,32 @@ class DingTalkChannel(BaseChannel):
             card_instance_id = None
 
         # DingTalkStreamingDriver：token 级，负责流式推送 finished=False（含推理阶段 blockquote）
-        dingtalk_driver = DingTalkStreamingDriver(card, card_instance_id) if card_instance_id else None
+        dingtalk_driver = DingTalkStreamingDriver(card, card_instance_id, self._display) if card_instance_id else None
         # DingTalkStream：事件级，负责捕获内容 + 发送 finished=True；需引用 driver 以读取推理数据
-        dingtalk_stream = DingTalkStream(card, card_instance_id, dingtalk_driver) if card_instance_id else None
+        dingtalk_stream = DingTalkStream(card, card_instance_id, dingtalk_driver, self._display) if card_instance_id else None
 
         if dingtalk_stream:
             ctx.add_stream(dingtalk_stream)
         if dingtalk_driver:
             ctx.add_streaming_sink(dingtalk_driver)
 
-        message_id = f"dingtalk_{uuid.uuid4().hex[:16]}"
+        local_id = f"dingtalk_{uuid.uuid4().hex[:16]}"
+        platform_msg_id = incoming_message.message_id or ""
 
         chat_msg = ChatClientMessage(
-            message_id=message_id,
+            message_id=local_id,
             prompt=content,
-            metadata=Metadata(agent_user_id=user_id),
+            metadata=Metadata(agent_user_id=user_id, channel_name=self.key),
         )
         logger.info(f"[DingTalkChannel] 分发消息: user_id={user_id}, len={len(content)}")
-        await dispatcher.submit_message(chat_msg)
+        await dispatch_third_party_message(
+            dispatcher=dispatcher,
+            channel=self.key,
+            source_message_id=platform_msg_id or local_id,
+            source_conversation_id=incoming_message.conversation_id or "",
+            source_sender_id=user_id,
+            chat_message=chat_msg,
+        )
 
         async def _cleanup() -> None:
             if dingtalk_stream:
@@ -294,8 +337,8 @@ class DingTalkChannel(BaseChannel):
             logger.error(f"[DingTalkChannel] proactive card create exception: {e}")
             return False
 
-        driver = DingTalkStreamingDriver(card, card_instance_id)
-        stream = DingTalkStream(card, card_instance_id, driver)
+        driver = DingTalkStreamingDriver(card, card_instance_id, self._display)
+        stream = DingTalkStream(card, card_instance_id, driver, self._display)
         ctx.add_stream(stream)
         ctx.add_streaming_sink(driver)
 

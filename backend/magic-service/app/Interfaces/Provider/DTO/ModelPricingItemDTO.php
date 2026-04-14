@@ -26,6 +26,8 @@ class ModelPricingItemDTO extends AbstractDTO
 
     protected ?int $timePoints = null;
 
+    protected ?int $secondPoints = null;
+
     public function getModelId(): string
     {
         return $this->modelId;
@@ -84,5 +86,15 @@ class ModelPricingItemDTO extends AbstractDTO
     public function setTimePoints(?int $timePoints): void
     {
         $this->timePoints = $timePoints;
+    }
+
+    public function getSecondPoints(): ?int
+    {
+        return $this->secondPoints;
+    }
+
+    public function setSecondPoints(?int $secondPoints): void
+    {
+        $this->secondPoints = $secondPoints;
     }
 }

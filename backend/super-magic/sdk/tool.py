@@ -1,7 +1,7 @@
 """
 SDK Tool 接口
 
-提供简化的工具调用接口，让 AI 在 Skill 代码中可以轻松调用工具
+提供简化的工具调用接口，让 AI 在 SDK 代码片段中可以轻松调用工具
 
 通过 HTTP 请求调用工具，避免子进程和 agent_context 传递的复杂性
 """
@@ -21,26 +21,28 @@ class ToolSDK:
     示例:
         from sdk.tool import tool
 
-        # 同步调用（推荐，用于 skill 代码片段）
+        # 同步调用（推荐，用于 SDK 代码片段）
         result = tool.call('tool_name', {'param': 'value'})
     """
 
     def __init__(self):
-        """初始化 SDK"""
-        # 获取服务器地址和端口
         api_port = os.getenv("SUPER_MAGIC_API_PORT", "8002")
         self.api_base_url = f"http://127.0.0.1:{api_port}"
-        self.api_timeout = 60.0
+        # HTTP 层不设超时：SDK 运行在 run_sdk_snippet 的子进程中，
+        # 子进程生命周期由 ProcessExecutor + SdkSnippetTimeoutRegistry 统一管控，
+        # 子进程被 kill 时内部 HTTP 连接自然关闭，无需 SDK 层提前断开。
 
     def call(
         self,
         tool_name: str,
         tool_params: Dict[str, Any],
-        tool_call_id: Optional[str] = None
+        tool_call_id: Optional[str] = None,
     ) -> Result:
         """调用工具（同步）
 
-        通过 HTTP 请求调用工具，避免子进程和 agent_context 传递的复杂性
+        通过 HTTP 请求调用工具，避免子进程和 agent_context 传递的复杂性。
+        不设置 HTTP 超时——子进程的存活时间由 ProcessExecutor + SdkSnippetTimeoutRegistry
+        统一控制，子进程被 kill 时内部 HTTP 连接自然关闭。
 
         Args:
             tool_name: 工具名称
@@ -55,25 +57,37 @@ class ToolSDK:
         """
         import uuid
 
-        # 生成 tool_call_id
         if not tool_call_id:
             tool_call_id = f"call_{uuid.uuid4().hex[:24]}"
 
-        # 构建请求数据
+        # agent_context_id 由 run_sdk_snippet 注入到子进程环境变量，
+        # SDK 服务端用它精确路由到发起调用的 Agent context。
+        # 如果缺失，说明当前代码不是从 run_sdk_snippet 启动的——常见于误用 run_python_snippet。
+        agent_context_id = os.getenv("SUPER_MAGIC_AGENT_CONTEXT_ID", "")
+        if not agent_context_id:
+            error_msg = (
+                "SUPER_MAGIC_AGENT_CONTEXT_ID is not set. "
+                "sdk.tool can only be used inside run_sdk_snippet, not run_python_snippet. "
+                "Please use run_sdk_snippet to call SDK tools."
+            )
+            print(f"[SDK Error] {error_msg}", file=sys.stderr)
+            return Result.error(error_msg, tool_call_id=tool_call_id)
+
+        sdk_execution_id = os.getenv("SUPER_MAGIC_SDK_EXECUTION_ID", "")
+
         request_data = {
             "tool_name": tool_name,
             "tool_params": tool_params,
             "tool_call_id": tool_call_id,
+            "agent_context_id": agent_context_id,
+            "sdk_execution_id": sdk_execution_id,
         }
 
-        # 发起 HTTP 请求
-        url = f"{self.api_base_url}/api/skills/call_tool"
+        url = f"{self.api_base_url}/api/sdk/tool/call"
 
         try:
-            # 将请求数据转换为 JSON
             data = json.dumps(request_data).encode('utf-8')
 
-            # 创建请求
             req = urllib.request.Request(
                 url,
                 data=data,
@@ -81,9 +95,8 @@ class ToolSDK:
                 method='POST'
             )
 
-            # 发送请求
-            with urllib.request.urlopen(req, timeout=self.api_timeout) as response:
-                # 解析响应
+            # 不设置 timeout：子进程超时由外层 ProcessExecutor 统一管控
+            with urllib.request.urlopen(req) as response:
                 result_data = json.loads(response.read().decode('utf-8'))
 
                 if result_data.get("code") == 1000:  # SUCCESS

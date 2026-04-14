@@ -29,11 +29,9 @@ If the user explicitly confirms they want to proceed without review, skip the ve
 read_skills(skill_names=["skill-vetter"])
 ```
 
-{{ @variable("mcp_notice") }}
-
 <!--zh
 ## 调用工具
-此 SDK 调用方式仅用于通过 run_skills_snippet 执行的 Python 代码片段内部，不是 agent 直接工具调用。先读文档了解工具名称和参数，再在代码片段中调用：
+此 SDK 调用方式仅用于通过 run_sdk_snippet 执行的 Python 代码片段内部，不是 agent 直接工具调用。先读文档了解工具名称和参数，再在代码片段中调用：
 ```python
 from sdk.tool import tool
 result = tool.call('tool_name', {"param1": "value1"})
@@ -41,7 +39,7 @@ result = tool.call('tool_name', {"param1": "value1"})
 工具的参数 schema 和使用说明在 skill 文档（SKILL.md）中。
 -->
 ## Call tools
-**This SDK pattern is only for use inside Python code executed via `run_skills_snippet` — it is NOT a direct agent tool invocation.**
+**This SDK pattern is only for use inside Python code executed via `run_sdk_snippet` — it is NOT a direct agent tool invocation.**
 Read docs to know tool names and parameters first, then call inside the snippet:
 ```python
 from sdk.tool import tool
@@ -83,3 +81,5 @@ When executing any skill script, you **MUST** set cwd to the skill directory's *
 <available_skills>
 {{ @variable("skills_content") }}
 </available_skills>
+
+{{ @variable("preloaded_skills_content") }}

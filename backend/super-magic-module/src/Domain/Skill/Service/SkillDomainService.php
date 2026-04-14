@@ -38,6 +38,7 @@ use Dtyq\SuperMagic\Infrastructure\ExternalAPI\SandboxOS\Workspace\Request\Impor
 use Dtyq\SuperMagic\Infrastructure\ExternalAPI\SandboxOS\Workspace\WorkspaceExporterInterface;
 use Dtyq\SuperMagic\Infrastructure\ExternalAPI\SandboxOS\Workspace\WorkspaceImporterInterface;
 use Dtyq\SuperMagic\Infrastructure\Utils\WorkDirectoryUtil;
+use Hyperf\DbConnection\Annotation\Transactional;
 use Hyperf\DbConnection\Db;
 use Throwable;
 use ValueError;
@@ -121,6 +122,15 @@ class SkillDomainService
     }
 
     /**
+     * 根据 project_id 更新 Skill 的 updated_at 时间.
+     */
+    #[Transactional]
+    public function updateUpdatedAtByProjectId(SkillDataIsolation $dataIsolation, int $projectId): bool
+    {
+        return $this->skillRepository->updateUpdatedAtByProjectId($dataIsolation, $projectId);
+    }
+
+    /**
      * 根据 ID 查找 Skill 版本.
      *
      * @param SkillDataIsolation $dataIsolation 数据隔离对象
@@ -187,7 +197,8 @@ class SkillDomainService
         $uploadConfig = $this->cloudFileRepository->getStsTemporaryCredential(
             $dataIsolation->getCurrentOrganizationCode(),
             StorageBucketType::Private,
-            '/skill_export'
+            '/skill_export',
+            options: ['internal_endpoint' => true]
         );
 
         // Call sandbox workspace export API via proxy request

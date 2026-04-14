@@ -202,4 +202,33 @@ abstract class AbstractOpenApi
             }
         }
     }
+
+    /**
+     * 从请求头和协程上下文组合业务参数，适用于非 DTO 接口.
+     *
+     * @return array<string, string>
+     */
+    protected function getBusinessParams(): array
+    {
+        $businessParams = $this->getBusinessParamsFromContext();
+        $headers = RequestUtil::normalizeHeaders($this->request->getHeaders());
+
+        $mapping = [
+            'magic-organization-code' => 'organization_id',
+            'magic-organization-id' => 'organization_id',
+            'magic-user-id' => 'user_id',
+        ];
+        foreach ($mapping as $headerKey => $paramKey) {
+            $value = $headers[$headerKey] ?? '';
+            if ($value !== '') {
+                $businessParams[$paramKey] = $value;
+            }
+        }
+
+        if (isset($businessParams['organization_id']) && ! isset($businessParams['organization_code'])) {
+            $businessParams['organization_code'] = $businessParams['organization_id'];
+        }
+
+        return $businessParams;
+    }
 }

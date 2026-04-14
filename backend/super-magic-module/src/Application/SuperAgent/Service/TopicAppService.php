@@ -28,9 +28,11 @@ use Dtyq\SuperMagic\Domain\RecycleBin\Service\RecycleBinDomainService;
 use Dtyq\SuperMagic\Domain\Share\Constant\ResourceType;
 use Dtyq\SuperMagic\Domain\Share\Service\ResourceShareDomainService;
 use Dtyq\SuperMagic\Domain\SuperAgent\Constant\TopicDuplicateConstant;
+use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ProjectEntity;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\TopicEntity;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\CreationSource;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\DeleteDataType;
+use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\HiddenType;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\TaskStatus;
 use Dtyq\SuperMagic\Domain\SuperAgent\Event\StopRunningTaskEvent;
 use Dtyq\SuperMagic\Domain\SuperAgent\Event\TopicCreatedEvent;
@@ -143,6 +145,24 @@ class TopicAppService extends AbstractAppService
         $dataIsolation = $this->createDataIsolation($userAuthorization);
 
         $projectEntity = $this->getAccessibleProjectWithEditor((int) $requestDTO->getProjectId(), $userAuthorization->getId(), $userAuthorization->getOrganizationCode());
+
+        // 用户创建普通话题时，优先复用该项目下已预热的隐藏话题
+        if (! $requestDTO->isHidden()) {
+            $preWarmedTopic = $this->topicDomainService->findHiddenTopicByProjectUserAndType(
+                (int) $requestDTO->getProjectId(),
+                $userAuthorization->getId(),
+                HiddenType::PRE_WARM->value
+            );
+
+            if ($preWarmedTopic !== null) {
+                $this->logger->info(sprintf(
+                    '发现项目预热隐藏话题，将复用, projectId=%s, topicId=%d',
+                    $requestDTO->getProjectId(),
+                    $preWarmedTopic->getId()
+                ));
+                return $this->reuseHiddenTopic($dataIsolation, $userAuthorization, $preWarmedTopic, $requestDTO, $projectEntity);
+            }
+        }
 
         // 创建新话题，使用事务确保原子性
         Db::beginTransaction();
@@ -1203,5 +1223,60 @@ class TopicAppService extends AbstractAppService
                 'error' => $e->getMessage(),
             ]);
         }
+    }
+
+    /**
+     * 复用预热隐藏话题（取消隐藏并应用用户提供的名称）.
+     * 参考 ProjectAppService::reuseHiddenProject 的实现模式.
+     */
+    private function reuseHiddenTopic(
+        DataIsolation $dataIsolation,
+        MagicUserAuthorization $userAuthorization,
+        TopicEntity $hiddenTopic,
+        SaveTopicRequestDTO $requestDTO,
+        ProjectEntity $projectEntity
+    ): TopicItemDTO {
+        $this->logger->info(sprintf('开始复用预热隐藏话题, topicId=%d', $hiddenTopic->getId()));
+
+        Db::beginTransaction();
+        try {
+            // 取消隐藏，并设置用户提供的名称
+            $hiddenTopic->setTopicName($requestDTO->getTopicName());
+            $hiddenTopic->setIsHidden(false);
+            $hiddenTopic->setHiddenType(null);
+            $hiddenTopic->setUpdatedUid($dataIsolation->getCurrentUserId());
+            $hiddenTopic->setUpdatedAt(date('Y-m-d H:i:s'));
+
+            $this->topicDomainService->saveTopicEntity($hiddenTopic);
+
+            // 如果传入了 project_mode，更新项目的模式
+            if (! empty($requestDTO->getProjectMode())) {
+                $projectEntity->setProjectMode($requestDTO->getProjectMode());
+                $projectEntity->setUpdatedAt(date('Y-m-d H:i:s'));
+                $this->projectDomainService->saveProjectEntity($projectEntity);
+            }
+
+            Db::commit();
+        } catch (Throwable $e) {
+            Db::rollBack();
+            $this->logger->error(sprintf(
+                '复用预热隐藏话题失败, topicId=%d: %s',
+                $hiddenTopic->getId(),
+                $e->getMessage()
+            ));
+            throw $e;
+        }
+
+        $this->logger->info(sprintf(
+            '预热隐藏话题复用成功, topicId=%d, topicName=%s, sandboxId=%s',
+            $hiddenTopic->getId(),
+            $hiddenTopic->getTopicName(),
+            $hiddenTopic->getSandboxId()
+        ));
+
+        // 发布话题已创建事件（与正常创建流程保持一致）
+        $this->eventDispatcher->dispatch(new TopicCreatedEvent($hiddenTopic, $userAuthorization));
+
+        return TopicItemDTO::fromEntity($hiddenTopic);
     }
 }

@@ -33,6 +33,7 @@ use App\Domain\Chat\Entity\ValueObject\MessagePriority;
 use App\Domain\Chat\Entity\ValueObject\MessageType\ChatMessageType;
 use App\Domain\Chat\Entity\ValueObject\SocketEventType;
 use App\Domain\Chat\Event\Seq\SeqCreatedEvent;
+use App\Domain\Chat\Repository\Persistence\Model\MagicMessageModel;
 use App\Domain\Contact\Entity\MagicUserEntity;
 use App\Domain\Contact\Entity\ValueObject\DataIsolation;
 use App\Domain\Contact\Entity\ValueObject\UserType;
@@ -1007,6 +1008,31 @@ class MagicChatDomainService extends AbstractDomainService
             // Return false to allow sending when check fails
             return false;
         }
+    }
+
+    /**
+     * 去取数据库记录中content字段里面的具体消息.
+     */
+    public static function extractDisplayContentFromMagicMessageForFollowUp(MagicMessageModel $message): string
+    {
+        $raw = $message->content;
+        if ($raw === null || $raw === '') {
+            return '';
+        }
+
+        if (is_array($raw)) {
+            return trim((string) ($raw['content'] ?? ''));
+        }
+
+        try {
+            $decoded = Json::decode((string) $raw);
+            if (is_array($decoded)) {
+                return trim((string) ($decoded['content'] ?? ''));
+            }
+        } catch (Throwable) {
+        }
+
+        return '';
     }
 
     /**

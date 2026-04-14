@@ -6,20 +6,14 @@ cron 调度计算
 from __future__ import annotations
 
 import math
-import time
 from datetime import datetime, timezone
 from typing import Optional
 
 from agentlang.logger import get_logger
 from app.service.cron.models import CronJob, CronJobState, CronSchedule, ScheduleKind
+from app.utils.time_utils import now_ms
 
 logger = get_logger(__name__)
-
-
-def now_ms() -> int:
-    """当前 UTC 时间戳（毫秒）。"""
-    return int(time.time() * 1000)
-
 
 def compute_next_run_ms(
     job: CronJob,

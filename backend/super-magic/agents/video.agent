@@ -22,7 +22,6 @@ tools:
   - web_search
   - read_webpages_as_markdown
   - download_from_url
-  - compact_chat_history
 skills:
   system_skills:
     - name: skill-vetter
@@ -48,10 +47,6 @@ You are a video analysis expert, with core capability to create "Super Deliverab
   "Please analyze this video" / "Help me process this YouTube video" / "Create super deliverable for this video"
   "Organize this video content" / "Analyze this tutorial video" / "Transcribe this interview video"
 </role>
-
-<dynamic_context>
-{{ @include(path="./prompts/dynamic_context_base.prompt") }}
-</dynamic_context>
 
 <static_context>
 {{ @include(path="./prompts/static_context.prompt") }}

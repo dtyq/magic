@@ -8,6 +8,7 @@ import importlib.metadata
 import inspect
 
 from app.core.context.agent_context import AgentContext
+from app.core.entity.final_task_state import FinalTaskStateCode, build_final_task_state
 from agentlang.event.data import ErrorEventData
 from agentlang.event.event import EventType
 from app.core.stream.http_subscription_stream import HTTPSubscriptionStream
@@ -21,10 +22,11 @@ from app.service.agent_event.rag_listener_service import RagListenerService
 from app.service.agent_event.resource_cleanup_listener_service import ResourceCleanupListenerService
 from app.service.agent_event.stream_listener_service import StreamListenerService
 from app.service.agent_event.checkpoint_listener_service import CheckpointListenerService
+from app.service.agent_event.third_party_message_listener_service import ThirdPartyMessageListenerService
 from app.infrastructure.observability import install_tool_monitoring_listener
 from app.service.mcp_service import MCPService
 from app.path_manager import PathManager
-from app.channel.startup import auto_connect_channels_for_current_sandbox
+from app.service.agent_event.channel_startup_listener_service import ChannelStartupListenerService
 from app.core.entity.message.client_message import InitClientMessage, ChatClientMessage, AgentMode
 from agentlang.logger import get_logger
 from app.core.base_service import Base
@@ -92,6 +94,8 @@ class AgentDispatcher(Base):
         # FileListenerService.register_standard_listeners(self.agent_context)
         CheckpointListenerService.register_standard_listeners(self.agent_context)
         ResourceCleanupListenerService.register_standard_listeners(self.agent_context)
+        ChannelStartupListenerService.register_standard_listeners(self.agent_context)
+        ThirdPartyMessageListenerService.register_standard_listeners(self.agent_context)
 
         # 注册工具监控监听器（非侵入式）
         install_tool_monitoring_listener(self.agent_context)
@@ -121,10 +125,6 @@ class AgentDispatcher(Base):
             except Exception as e:
                 logger.error(f"注册监听器 {entry_point.name} 时出错: {e!s}")
                 # 继续处理其他监听器，不中断流程
-
-        # TODO： 更优雅的方式管理所有需要自启的设施
-        # 自动重连上次保存的 IM 渠道（connect 内部已非阻塞，此处 await 仅等待参数传递）
-        await auto_connect_channels_for_current_sandbox()
 
         logger.info("AgentDispatcher 初始化完成")
         return self
@@ -274,9 +274,6 @@ class AgentDispatcher(Base):
             if normalized_mode == "custom_agent":
                 if agent_code and agent_code.strip():
                     agent_type = agent_code.strip()
-                    if agent_type in self.agents:
-                        logger.info(f"清理已缓存的 crew Agent: {agent_type}")
-                        del self.agents[agent_type]
                     logger.info(f"使用编译后的 crew agent: {agent_type}.agent")
                 else:
                     logger.warning("custom_agent 未提供 agent_code，回退到默认模式")
@@ -286,8 +283,6 @@ class AgentDispatcher(Base):
             elif normalized_mode == "magiclaw":
                 if agent_code and agent_code.strip():
                     agent_type = agent_code.strip()
-                    if agent_type in self.agents:
-                        del self.agents[agent_type]
                     logger.info(f"magiclaw 模式，使用编译后的 claw agent: {agent_type}.agent")
                 else:
                     logger.warning("magiclaw 未提供 agent_code，回退到默认模式")
@@ -305,13 +300,15 @@ class AgentDispatcher(Base):
             # 使用 AgentMode 的 get_agent_type 方法
             agent_type = agent_mode.get_agent_type()
 
-        # 按需创建agent
+        # 主 Agent 进程内常驻：命中缓存时直接复用，不重新创建。
+        # 产品上永远只有一个主 Agent，且选定后不会切换；切换约束由前端保证，后端暂不额外校验。
+        if agent_type in self.agents:
+            logger.info(f"复用已缓存的主 Agent: {agent_type}")
+            return self.agents[agent_type]
+
+        logger.info(f"首次创建主 Agent: {agent_type}")
         self.agents[agent_type] = await self.agent_service.create_agent(agent_type, self.agent_context)
-
-        # 获取选中的agent实例
-        selected_agent = self.agents[agent_type]
-
-        return selected_agent
+        return self.agents[agent_type]
 
     async def run_agent(self, agent: Agent):
         """
@@ -326,26 +323,26 @@ class AgentDispatcher(Base):
         await self.agent_service.run_agent(agent=agent)
 
     async def _prepare_crew_agent(self, agent_code: str) -> None:
-        """Download crew files (if needed), compile into .agent, set AgentProfile."""
+        """Crew 运行时准备：按需下载定义文件、编译 .agent、设置当前会话的 AgentProfile。"""
         from app.path_manager import PathManager
         from app.service.crew_downloader import CrewDownloader
         from app.service.crew_agent_compiler import CrewAgentCompiler
         from app.core.entity.agent_profile import AgentProfile
-        from app.utils.async_file_utils import async_read_markdown
+        from app.utils.async_file_utils import async_read_markdown, async_exists
 
         crew_dir = PathManager.get_crew_agent_dir(agent_code)
         output_agent_file = PathManager.get_compiled_agent_file(agent_code)
         identity_file = PathManager.get_crew_identity_file(agent_code)
         compiler = CrewAgentCompiler()
 
-        if output_agent_file.exists():
+        if await async_exists(output_agent_file):
             logger.info(f"Crew .agent already exists, skip download/compile: {output_agent_file}")
-            if not identity_file.exists():
+            if not await async_exists(identity_file):
                 logger.warning(f"IDENTITY.md not found for existing crew agent, skip profile setup: {identity_file}")
                 return
             identity_meta = (await async_read_markdown(identity_file)).meta
         else:
-            if not identity_file.exists():
+            if not await async_exists(identity_file):
                 logger.info(f"Crew files not found locally, downloading: {agent_code}")
                 downloader = CrewDownloader()
                 await downloader.download_and_extract(agent_code, crew_dir)
@@ -361,28 +358,25 @@ class AgentDispatcher(Base):
             logger.info(f"Set crew agent profile: name={name}, role={role}")
 
     async def _prepare_claw_agent(self, claw_code: str) -> None:
-        """Compile claw definition files into .agent (if needed) and set AgentProfile.
+        """Claw 运行时准备：把模板同步到 .workspace/.magic、编译 .agent、设置 AgentProfile。
 
-        Source files live in the workspace .magic/ directory. On first run the
-        template is copied from agents/claws/<claw_code>/ with SKIP strategy so
-        that existing workspace files are never overwritten.
+        每次启动都重新编译（不缓存），保证 .agent 始终和最新模板一致。
         """
         from datetime import date
         from app.path_manager import PathManager
         from app.service.claw_agent_compiler import ClawAgentCompiler
         from app.core.entity.agent_profile import AgentProfile
-        from app.utils.async_file_utils import async_copytree, async_read_markdown, async_exists, async_rename, async_unlink, CopyConflict
+        from app.utils.async_file_utils import async_copytree, async_exists, async_rename, async_unlink, CopyConflict
 
         magic_dir = PathManager.get_magic_dir()
         output_agent_file = PathManager.get_compiled_agent_file(claw_code)
         claw_src = PathManager.get_claw_agent_dir(claw_code)
 
-        if output_agent_file.exists():
+        if await async_exists(output_agent_file):
             # 已初始化：补全可能缺失的模板文件，但跳过 BOOTSTRAP.md
             # （BOOTSTRAP 仅用于首次初始化，agent 处理完后会自行删除，不应重新写入）
             await async_copytree(claw_src, magic_dir, on_conflict=CopyConflict.SKIP, exclude={"BOOTSTRAP.md", "memory"})
-            logger.info(f"Claw .agent already exists, skip compile: {output_agent_file}")
-            identity_meta = (await async_read_markdown(magic_dir / "IDENTITY.md")).meta
+            logger.info(f"Claw .agent already exists, refresh compile: {output_agent_file}")
         else:
             # 首次初始化：从模板复制全部文件（已有文件不会被覆盖）
             await async_copytree(claw_src, magic_dir, on_conflict=CopyConflict.SKIP)
@@ -399,8 +393,10 @@ class AgentDispatcher(Base):
                     await async_unlink(placeholder)
                     logger.info(f"Removed memory placeholder (today's file already exists: {today_file.name})")
 
-            compiler = ClawAgentCompiler()
-            identity_meta = await compiler.compile(claw_code, magic_dir)
+        # .agent 是从模板和 .magic 源文件派生出的可再生缓存。
+        # magiclaw 会话是长寿命的，必须在每次 prepare 时刷新编译结果，避免继续使用旧模板。
+        compiler = ClawAgentCompiler()
+        identity_meta = await compiler.compile(claw_code, magic_dir)
 
         name        = identity_meta.get("name", "")
         role        = identity_meta.get("role", "")
@@ -524,12 +520,16 @@ class AgentDispatcher(Base):
                 from agentlang.event.data import ErrorEventData
                 from agentlang.event.event import EventType
                 if self.agent_context:
+                    final_task_state = build_final_task_state(
+                        FinalTaskStateCode.INTERNAL_DISPATCH_FAILED,
+                        vendor_message=str(e),
+                    )
+                    self.agent_context.set_final_task_state(final_task_state)
                     await self.agent_context.dispatch_event(
                         EventType.ERROR,
                         ErrorEventData(
                             agent_context=self.agent_context,
-                            error_message="Failed to process the request. Please contact the administrator.",
-                            exception=e,
+                            final_task_state=final_task_state,
                         ),
                     )
             except Exception:
@@ -550,10 +550,13 @@ class AgentDispatcher(Base):
             initialized = await self.load_init_client_message()
             if not initialized:
                 logger.error("智能体未初始化，请先调用工作区初始化")
+                final_task_state = build_final_task_state(FinalTaskStateCode.AGENT_NOT_INITIALIZED)
+                self.agent_context.set_final_task_state(final_task_state)
                 await self.agent_context.dispatch_event(
                     EventType.ERROR,
                     ErrorEventData(
-                        agent_context=self.agent_context, error_message="智能体未初始化，请先调用工作区初始化"
+                        agent_context=self.agent_context,
+                        final_task_state=final_task_state,
                     ),
                 )
                 return
@@ -623,6 +626,8 @@ class AgentDispatcher(Base):
             current_model_id = message.model_id or agent.llm_id
             current_image_model_id = None
             current_image_model_sizes = None
+            current_video_model_id = None
+            current_video_generation_config = None
             current_mcp_servers = None
 
             if message.dynamic_config:
@@ -630,6 +635,11 @@ class AgentDispatcher(Base):
                 if image_model_config and isinstance(image_model_config, dict):
                     current_image_model_id = image_model_config.get("model_id")
                     current_image_model_sizes = image_model_config.get("sizes")
+
+                video_model_config = message.dynamic_config.get("video_model")
+                if video_model_config and isinstance(video_model_config, dict):
+                    current_video_model_id = video_model_config.get("model_id")
+                    current_video_generation_config = video_model_config.get("video_generation_config")
 
             # 获取当前 MCP 服务器信息（仅在加载了 using-mcp skill 时）
             agent_context = agent.agent_context
@@ -642,6 +652,13 @@ class AgentDispatcher(Base):
                         tools = manager.get_server_tools(server_name)
                         current_mcp_servers[server_name] = tools
 
-            agent.chat_history.save_session_config(current_model_id, current_image_model_id, current_image_model_sizes, current_mcp_servers)
+            agent.chat_history.save_session_config(
+                current_model_id,
+                current_image_model_id,
+                current_image_model_sizes,
+                current_video_model_id,
+                current_video_generation_config,
+                current_mcp_servers,
+            )
         except Exception as e:
             logger.debug(f"保存会话配置时出错: {e}")

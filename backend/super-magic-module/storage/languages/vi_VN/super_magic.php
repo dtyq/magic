@@ -73,8 +73,14 @@ return [
         'publisher_type_must_be_string' => 'Publisher type must be a string',
         'publisher_type_invalid' => 'Invalid publisher type',
         'publish_target_value_required' => 'publish_target_value is required for current publish target type',
+        'publish' => [
+            'identity_md_not_found' => 'Xuất bản thất bại: không tìm thấy tệp bắt buộc :path dưới thư mục gốc của dự án. Vui lòng thêm tệp này rồi thử lại.',
+        ],
     ],
     'task' => [
         'prompt_length_exceeded' => 'Văn bản nhập vào quá dài. Vui lòng tải lên dưới dạng tệp và tham chiếu trong hộp thoại.',
+    ],
+    'magic_claw' => [
+        'create_system_error' => 'Đã xảy ra lỗi hệ thống. Vui lòng thử lại sau.',
     ],
 ];

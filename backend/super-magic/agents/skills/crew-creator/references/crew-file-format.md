@@ -215,10 +215,6 @@ tools:
   - edit_file
   - edit_file_range
   - delete_files
-  - create_memory
-  - update_memory
-  - delete_memory
-  - compact_chat_history
 ---
 
 <!--zh
@@ -236,7 +232,9 @@ tools:
 <!--zh
 ### 编译规则
 
-- YAML `tools` 列表 → 覆盖编译后 `.agent` 文件 frontmatter 中的 `tools` 字段
+- `crew.template.agent` 中的 `tools` → 内置工具基线
+- YAML `tools` 列表 → 追加额外工具
+- YAML `exclude_builtin_tools` 列表 → 从内置工具基线中排除指定工具
 - 不提供 TOOLS.md → 使用 `crew.template.agent` 中的默认工具集
 
 ### 注意事项
@@ -246,7 +244,9 @@ tools:
 -->
 ### Compilation Rules
 
-- YAML `tools` list → overwrites the `tools` field in the compiled `.agent` file frontmatter
+- `tools` from `crew.template.agent` → builtin tool baseline
+- YAML `tools` list → appends extra tools
+- YAML `exclude_builtin_tools` list → removes specific tools from the builtin baseline
 - No TOOLS.md provided → uses default tool set from `crew.template.agent`
 
 ### Notes
@@ -278,15 +278,37 @@ skills:
 ```
 
 <!--zh
+也可以附加 `preload` 字段，指定哪些 skill 的文件要预加载进系统提示词：
+-->
+You can also add a `preload` field to specify which skill files should be pre-loaded into the system prompt:
+
+```markdown
+---
+skills:
+  - find-skill
+  - using-mcp
+  - env-manager
+preload:
+  - find-skill              # shorthand: loads SKILL.md by default
+  - name: env-manager
+    files:
+      - SKILL.md
+      - QUICK-REF.md        # load additional reference files
+---
+```
+
+<!--zh
 ### 编译规则
 
 - YAML `skills` 列表 → 覆盖编译后 `.agent` 文件 frontmatter 中的 `skills.system_skills` 字段
-- 不提供 SKILLS.md → 使用 `crew.template.agent` 中的默认技能集
+- YAML `preload` 列表 → 注入到编译后 `.agent` 文件 frontmatter 中的 `skills.preload` 字段
+- 不提供 SKILLS.md → 使用 `crew.template.agent` 中的默认技能集，无预加载
 -->
 ### Compilation Rules
 
 - YAML `skills` list → overwrites the `skills.system_skills` field in the compiled `.agent` file frontmatter
-- No SKILLS.md provided → uses default skill set from `crew.template.agent`
+- YAML `preload` list → injected into the `skills.preload` field in the compiled `.agent` file frontmatter
+- No SKILLS.md provided → uses default skill set from `crew.template.agent`, no preloads
 
 ---
 

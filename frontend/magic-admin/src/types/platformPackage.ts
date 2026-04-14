@@ -539,6 +539,7 @@ export namespace PlatformPackage {
 
 	/** Skill 管理 - 查询参数 */
 	export interface GetSkillVersionListParams extends Required<PageParams> {
+		package_name?: string
 		review_status?: string
 		publish_status?: string
 		publish_target_type?: string
@@ -585,6 +586,7 @@ export namespace PlatformPackage {
 
 	/** Skill 市场 - 查询参数 */
 	export interface GetSkillMarketListParams extends Required<PageParams> {
+		package_name?: string
 		publish_status?: string
 		organization_code?: string
 		name_i18n?: string
@@ -598,6 +600,9 @@ export namespace PlatformPackage {
 	/** Skill 市场 - 列表项 */
 	export interface SkillMarketItem {
 		id: string
+		package_name?: string
+		is_featured?: boolean
+		is_hidden?: boolean
 		organization_code: string
 		organization?: {
 			code?: string
@@ -622,9 +627,11 @@ export namespace PlatformPackage {
 		updated_at: string
 	}
 
-	/** Skill 市场 - 更新排序参数 */
-	export interface UpdateSkillMarketSortOrderParams {
-		sort_order: number
+	/** Skill 市场 - 更新信息参数 */
+	export interface UpdateSkillMarketInfoParams {
+		is_featured?: boolean
+		is_hidden?: boolean
+		sort_order?: number
 	}
 
 	/** 员工市场 - 查询参数 */
@@ -642,6 +649,8 @@ export namespace PlatformPackage {
 	/** 员工市场 - 列表项 */
 	export interface AgentMarketItem {
 		id: string
+		is_featured?: boolean
+		is_hidden?: boolean
 		organization_code: string
 		organization?: {
 			code?: string
@@ -668,9 +677,11 @@ export namespace PlatformPackage {
 		updated_at: string
 	}
 
-	/** 员工市场 - 更新排序参数 */
-	export interface UpdateAgentMarketSortOrderParams {
-		sort_order: number
+	/** 员工市场 - 更新信息参数 */
+	export interface UpdateAgentMarketInfoParams {
+		is_featured?: boolean
+		is_hidden?: boolean
+		sort_order?: number
 	}
 
 	/** 员工审核列表 - 查询参数 */
@@ -922,10 +933,26 @@ export namespace PlatformPackage {
 		AI_OPTIMIZATION = "ai_optimization",
 		/** 网页爬取  */
 		WEB_SCRAPE = "web_scrape",
-		/* 图片转换高清 */
+		/** 图片转换高清 */
 		IMAGE_CONVERT_HIGH = "image_convert_high",
+		/** 扩图 */
+		IMAGE_EXPAND = "image_expand",
+		/** 去背景 */
+		IMAGE_REMOVE_BACKGROUND = "image_remove_background",
+		/** 橡皮擦 */
+		IMAGE_ERASER = "image_eraser",
 	}
 
+	/** 能力管理联通性测试 */
+	export interface TestAiPowerConnection {
+		ai_ability: string
+		duration_ms: number
+		message: string
+		provider: string
+		success: boolean
+	}
+
+	/** AI能力 */
 	export interface AiPower {
 		code: PowerCode
 		description: string
@@ -934,6 +961,7 @@ export namespace PlatformPackage {
 		status: number
 	}
 
+	/** AI能力详情 */
 	export interface AiPowerDetail extends AiPower {
 		icon: string
 		config: AiPowerConfig

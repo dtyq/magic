@@ -10,6 +10,7 @@ from agentlang.streaming.interface import StreamingInterface
 from agentlang.streaming.models import ChunkData, ChunkStatus, StreamingResult
 
 from app.channel.base.reasoning import build_streaming_content_text_plain, build_streaming_reasoning_text_plain
+from app.channel.config import IMChannelDisplay
 
 logger = get_logger(__name__)
 
@@ -29,9 +30,15 @@ class DingTalkStreamingDriver(StreamingInterface):
     by DingTalkStream on after_main_agent_run.
     """
 
-    def __init__(self, card: AIMarkdownCardInstance, card_instance_id: str) -> None:
+    def __init__(
+        self,
+        card: AIMarkdownCardInstance,
+        card_instance_id: str,
+        display: IMChannelDisplay | None = None,
+    ) -> None:
         self._card = card
         self._card_instance_id = card_instance_id
+        self._display = display or IMChannelDisplay()
         self._accumulated = ""
         self._reasoning_accumulated = ""
         self._reasoning_start_time: Optional[float] = None
@@ -78,16 +85,16 @@ class DingTalkStreamingDriver(StreamingInterface):
         self._reasoning_last_active_time = None
 
     def _build_display_text(self) -> str:
-        # 覆盖式流更新必须始终带上思考块，否则进入 content 阶段时会把前文冲掉。
-        if self._accumulated and self._reasoning_accumulated:
-            return build_streaming_content_text_plain(
-                self._accumulated,
-                self._reasoning_accumulated,
-                self._reasoning_elapsed_ms,
-            )
+        # show_reasoning=False 时只推送正文，思考阶段保持静默直到 content 出现。
         if self._accumulated:
+            if self._reasoning_accumulated and self._display.show_reasoning:
+                return build_streaming_content_text_plain(
+                    self._accumulated,
+                    self._reasoning_accumulated,
+                    self._reasoning_elapsed_ms,
+                )
             return self._accumulated
-        if self._reasoning_accumulated:
+        if self._reasoning_accumulated and self._display.show_reasoning:
             return build_streaming_reasoning_text_plain(self._reasoning_accumulated)
         return ""
 
