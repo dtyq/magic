@@ -1421,11 +1421,15 @@ class SkillAppService extends AbstractSkillAppService
         }
 
         try {
-            $skillDirKeyPrefix = rtrim($skillDirEntity->getFileKey(), '/') . '/';
+            // Build fileId => entity map for parent chain traversal (works with both path-based and ID-based file_keys)
+            $fileIdMap = [$skillDirEntity->getFileId() => $skillDirEntity];
+            foreach ($allFiles as $file) {
+                $fileIdMap[$file->getFileId()] = $file;
+            }
 
             foreach ($allFiles as $file) {
                 if ($file->getIsDirectory()) {
-                    $relativePath = $this->computeRelativePath($file->getFileKey(), $skillDirKeyPrefix);
+                    $relativePath = $this->buildRelativePathFromSkillDir($file, $skillDirEntity->getFileId(), $fileIdMap);
                     $localDir = $tempContentDir . '/' . $relativePath;
                     if (! is_dir($localDir)) {
                         mkdir($localDir, 0755, true);
@@ -1433,7 +1437,7 @@ class SkillAppService extends AbstractSkillAppService
                     continue;
                 }
 
-                $relativePath = $this->computeRelativePath($file->getFileKey(), $skillDirKeyPrefix);
+                $relativePath = $this->buildRelativePathFromSkillDir($file, $skillDirEntity->getFileId(), $fileIdMap);
                 $localFilePath = $tempContentDir . '/' . $relativePath;
 
                 $localFileDir = dirname($localFilePath);
@@ -1478,8 +1482,8 @@ class SkillAppService extends AbstractSkillAppService
             ExceptionBuilder::throw(SkillErrorCode::SKILL_CONFIG_NOT_FOUND, 'skill.skill_config_not_found');
         }
 
-        $configFileKey = rtrim($skillsDirEntity->getFileKey(), '/') . '/' . SkillProjectConfigUtil::CONFIG_FILE_NAME;
-        $configFileEntity = $this->taskFileDomainService->getByProjectIdAndFileKey($projectId, $configFileKey);
+        // Find skill_config.yaml by parent_id + fileName to avoid dependence on file_key path semantics
+        $configFileEntity = $this->findSkillConfigFileByParentId($projectId, $skillsDirEntity->getFileId());
         if ($configFileEntity === null) {
             ExceptionBuilder::throw(SkillErrorCode::SKILL_CONFIG_NOT_FOUND, 'skill.skill_config_not_found');
         }
@@ -1523,14 +1527,49 @@ class SkillAppService extends AbstractSkillAppService
     }
 
     /**
-     * Compute relative path by stripping the directory key prefix from the file key.
+     * Build relative path from the skill directory root using parent_id chain + fileName.
+     * Works correctly regardless of whether file_key is path-based or ID-based.
+     *
+     * @param array<int, TaskFileEntity> $fileIdMap
      */
-    private function computeRelativePath(string $fileKey, string $dirKeyPrefix): string
+    private function buildRelativePathFromSkillDir(TaskFileEntity $file, int $skillDirFileId, array $fileIdMap): string
     {
-        if (str_starts_with($fileKey, $dirKeyPrefix)) {
-            return rtrim(substr($fileKey, strlen($dirKeyPrefix)), '/');
+        $segments = [];
+        $current = $file;
+        $visited = [];
+
+        while ($current !== null && $current->getFileId() !== $skillDirFileId) {
+            $id = $current->getFileId();
+            if (isset($visited[$id])) {
+                break;
+            }
+            $visited[$id] = true;
+
+            $name = $current->getFileName();
+            if ($name !== '' && $name !== '/') {
+                $segments[] = $name;
+            }
+
+            $parentId = $current->getParentId();
+            $current = $parentId !== null ? ($fileIdMap[$parentId] ?? null) : null;
         }
-        return basename(rtrim($fileKey, '/'));
+
+        return implode('/', array_reverse($segments));
+    }
+
+    /**
+     * Find skill_config.yaml by parent directory file_id + fileName.
+     * Uses parent_id chain instead of file_key string to support both path-based and ID-based file_keys.
+     */
+    private function findSkillConfigFileByParentId(int $projectId, int $skillsDirFileId): ?TaskFileEntity
+    {
+        $children = $this->taskFileDomainService->findFilesRecursivelyByParentId($projectId, $skillsDirFileId, 1);
+        foreach ($children as $child) {
+            if (! $child->getIsDirectory() && $child->getFileName() === SkillProjectConfigUtil::CONFIG_FILE_NAME) {
+                return $child;
+            }
+        }
+        return null;
     }
 
     /**

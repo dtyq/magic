@@ -1417,6 +1417,8 @@ class FileManagementAppService extends AbstractAppService
     {
         $userAuthorization = $requestContext->getUserAuthorization();
         $dataIsolation = $this->createDataIsolation($userAuthorization);
+        $sourceProject = null;
+        $targetProject = null;
 
         try {
             // 1. Get source project and verify permission
@@ -1519,8 +1521,8 @@ class FileManagementAppService extends AbstractAppService
         } catch (BusinessException $e) {
             $this->logger->warning('Business logic error in batch move file', [
                 'file_ids' => $requestDTO->getFileIds(),
-                'source_project_id' => isset($sourceProject) ? $sourceProject->getId() : null,
-                'target_project_id' => isset($targetProject) ? $targetProject->getId() : null,
+                'source_project_id' => $sourceProject?->getId(),
+                'target_project_id' => $targetProject?->getId(),
                 'target_parent_id' => $requestDTO->getTargetParentId(),
                 'error' => $e->getMessage(),
                 'code' => $e->getCode(),
@@ -1529,8 +1531,8 @@ class FileManagementAppService extends AbstractAppService
         } catch (Throwable $e) {
             $this->logger->error('System error in batch move file', [
                 'file_ids' => $requestDTO->getFileIds(),
-                'source_project_id' => isset($sourceProject) ? $sourceProject->getId() : null,
-                'target_project_id' => isset($targetProject) ? $targetProject->getId() : null,
+                'source_project_id' => $sourceProject?->getId(),
+                'target_project_id' => $targetProject?->getId(),
                 'target_parent_id' => $requestDTO->getTargetParentId(),
                 'error' => $e->getMessage(),
             ]);
@@ -1549,6 +1551,8 @@ class FileManagementAppService extends AbstractAppService
     {
         $userAuthorization = $requestContext->getUserAuthorization();
         $dataIsolation = $this->createDataIsolation($userAuthorization);
+        $sourceProject = null;
+        $targetProject = null;
 
         try {
             // 1. Get source project and verify permission
@@ -1674,8 +1678,8 @@ class FileManagementAppService extends AbstractAppService
         } catch (BusinessException $e) {
             $this->logger->warning('Business logic error in batch copy file', [
                 'file_ids' => $requestDTO->getFileIds(),
-                'source_project_id' => isset($sourceProject) ? $sourceProject->getId() : null,
-                'target_project_id' => isset($targetProject) ? $targetProject->getId() : null,
+                'source_project_id' => $sourceProject?->getId(),
+                'target_project_id' => $targetProject?->getId(),
                 'target_parent_id' => $requestDTO->getTargetParentId(),
                 'error' => $e->getMessage(),
                 'code' => $e->getCode(),
@@ -1684,8 +1688,8 @@ class FileManagementAppService extends AbstractAppService
         } catch (Throwable $e) {
             $this->logger->error('System error in batch copy file', [
                 'file_ids' => $requestDTO->getFileIds(),
-                'source_project_id' => isset($sourceProject) ? $sourceProject->getId() : null,
-                'target_project_id' => isset($targetProject) ? $targetProject->getId() : null,
+                'source_project_id' => $sourceProject?->getId(),
+                'target_project_id' => $targetProject?->getId(),
                 'target_parent_id' => $requestDTO->getTargetParentId(),
                 'error' => $e->getMessage(),
             ]);

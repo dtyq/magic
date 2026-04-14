@@ -361,7 +361,7 @@ class SkillImportedEventSubscriber implements ListenerInterface
             SkillProjectConfigUtil::buildConfig($skillEntity)
         );
 
-        $existingConfigFile = $this->findSkillConfigFile($projectEntity->getId(), $projectOrgCode, $projectEntity->getWorkDir());
+        $existingConfigFile = $this->findSkillConfigFile($projectEntity->getId());
         if ($existingConfigFile === null) {
             $createdFiles[] = $this->taskFileDomainService->createProjectFileWithContent(
                 $dataIsolation,
@@ -400,12 +400,25 @@ class SkillImportedEventSubscriber implements ListenerInterface
         );
     }
 
-    private function findSkillConfigFile(int $projectId, string $projectOrgCode, string $workDir): ?TaskFileEntity
+    /**
+     * Find skill_config.yaml by parent directory traversal (parent_id + fileName).
+     * Works correctly regardless of whether file_key is path-based or ID-based.
+     */
+    private function findSkillConfigFile(int $projectId): ?TaskFileEntity
     {
-        $fullPrefix = $this->taskFileDomainService->getFullPrefix($projectOrgCode);
-        $configFileKey = WorkDirectoryUtil::getFullFileKey($fullPrefix, $workDir, SkillProjectConfigUtil::CONFIG_PATH);
+        $skillsDirEntity = $this->taskFileDomainService->findDirectoryByPath($projectId, SkillProjectConfigUtil::SKILLS_ROOT_PATH);
+        if ($skillsDirEntity === null) {
+            return null;
+        }
 
-        return $this->taskFileDomainService->getByProjectIdAndFileKey($projectId, $configFileKey);
+        $children = $this->taskFileDomainService->findFilesRecursivelyByParentId($projectId, $skillsDirEntity->getFileId(), 1);
+        foreach ($children as $child) {
+            if (! $child->getIsDirectory() && $child->getFileName() === SkillProjectConfigUtil::CONFIG_FILE_NAME) {
+                return $child;
+            }
+        }
+
+        return null;
     }
 
     private function createSkillProject(
