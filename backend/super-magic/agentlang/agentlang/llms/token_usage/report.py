@@ -352,7 +352,11 @@ class TokenUsageReport:
 
         # 添加每个模型的使用情况
         for model in report.models:
-            formatted += f"模型: {model.model_name}\n"
+            if model.resolved_model_id and model.resolved_model_id != model.model_name:
+                model_label = f"{model.resolved_model_id}|{model.model_name}"
+            else:
+                model_label = model.model_name
+            formatted += f"模型: {model_label}\n"
             formatted += f"  输入tokens: {model.usage.input_tokens:,}\n"
             formatted += f"  输出tokens: {model.usage.output_tokens:,}\n"
 
