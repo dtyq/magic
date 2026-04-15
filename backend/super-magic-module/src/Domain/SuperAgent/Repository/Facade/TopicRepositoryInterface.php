@@ -69,6 +69,16 @@ interface TopicRepositoryInterface
     public function updateTopicByCondition(array $condition, array $data): bool;
 
     /**
+     * 更新话题置顶状态.
+     */
+    public function updatePinStatus(int $topicId, string $updatedUid, bool $isPinned): bool;
+
+    /**
+     * 更新话题归档状态.
+     */
+    public function updateArchiveStatus(int $topicId, string $updatedUid, bool $isArchived): bool;
+
+    /**
      * 删除话题.
      */
     public function deleteTopic(int $id): bool;
@@ -120,6 +130,20 @@ interface TopicRepositoryInterface
     public function getTopicsByProjectId(int $projectId, string $userId): array;
 
     /**
+     * 获取侧栏话题列表（999 截断后分页）.
+     *
+     * @return array{list: TopicEntity[], total: int}
+     */
+    public function getSidebarTopicsByProjectId(
+        int $projectId,
+        string $userId,
+        string $keyword = '',
+        int $page = 1,
+        int $pageSize = 20,
+        int $maxTotal = 999
+    ): array;
+
+    /**
      * Update topic status by sandbox IDs.
      *
      * @param array $sandboxIds Sandbox IDs to filter
@@ -136,6 +160,10 @@ interface TopicRepositoryInterface
     public function getRunningWorkspaceIds(array $workspaceIds, ?string $userId = null): array;
 
     public function getRunningProjectIds(array $projectIds, ?string $userId = null): array;
+
+    public function getRunningWorkspaceIdsByUser(string $userId): array;
+
+    public function getRunningProjectIdsByUser(string $userId): array;
 
     // ======================= 消息回滚相关方法 =======================
 

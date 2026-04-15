@@ -446,6 +446,31 @@ class TaskMessageRepository implements TaskMessageRepositoryInterface
             ->update(['im_seq_id' => $imSeqId]);
     }
 
+    public function getLatestMessageSnapshotsByTopicIds(array $topicIds): array
+    {
+        if (empty($topicIds)) {
+            return [];
+        }
+
+        $results = $this->model::query()
+            ->selectRaw('topic_id, MAX(id) as last_message_id, MAX(created_at) as last_message_at')
+            ->whereIn('topic_id', $topicIds)
+            ->whereNull('deleted_at')
+            ->where('show_in_ui', true)
+            ->groupBy('topic_id')
+            ->get();
+
+        $snapshots = [];
+        foreach ($results as $result) {
+            $snapshots[(int) $result->topic_id] = [
+                'last_message_id' => (int) $result->last_message_id,
+                'last_message_at' => $result->last_message_at ? (string) $result->last_message_at : null,
+            ];
+        }
+
+        return $snapshots;
+    }
+
     private function findFollowUpBoundaryQuestion(int $topicId, int $roundLimit): ?TaskMessageEntity
     {
         $offset = max(0, $roundLimit - 1);

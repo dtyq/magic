@@ -79,6 +79,7 @@ use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\ForkProjectRequestDTO;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\GetProjectAttachmentsRequestDTO;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\GetProjectAttachmentsV2RequestDTO;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\GetProjectListRequestDTO;
+use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\GetSidebarTopicsRequestDTO;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\MoveProjectRequestDTO;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\UpdateProjectRequestDTO;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Response\BatchDeleteProjectsResponseDTO;
@@ -87,6 +88,7 @@ use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Response\ForkProjectResponseDTO;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Response\ForkStatusResponseDTO;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Response\ProjectItemDTO;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Response\ProjectListResponseDTO;
+use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Response\SidebarTopicListResponseDTO;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Response\TaskFileItemDTO;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Response\TopicItemDTO;
 use Hyperf\Amqp\Producer;
@@ -625,6 +627,28 @@ class ProjectAppService extends AbstractAppService
             'total' => $result['total'],
             'list' => $topicDTOs,
         ];
+    }
+
+    public function getProjectSidebarTopics(RequestContext $requestContext, GetSidebarTopicsRequestDTO $requestDTO): array
+    {
+        $userAuthorization = $requestContext->getUserAuthorization();
+        $dataIsolation = $this->createDataIsolation($userAuthorization);
+
+        $this->getAccessibleProject(
+            $requestDTO->getProjectId(),
+            $userAuthorization->getId(),
+            $userAuthorization->getOrganizationCode()
+        );
+
+        $result = $this->topicDomainService->getProjectSidebarTopics(
+            $requestDTO->getProjectId(),
+            $dataIsolation->getCurrentUserId(),
+            $requestDTO->getQ(),
+            $requestDTO->getPage(),
+            $requestDTO->getPageSize()
+        );
+
+        return SidebarTopicListResponseDTO::fromResult($result)->toArray();
     }
 
     public function checkFileListUpdate(RequestContext $requestContext, int $projectId, DataIsolation $dataIsolation): array

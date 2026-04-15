@@ -176,4 +176,11 @@ interface TaskMessageRepositoryInterface
      * @param null|int $imSeqId IM序列ID，为空时不更新
      */
     public function updateMessageSeqId(int $id, ?int $imSeqId): void;
+
+    /**
+     * 批量获取话题最新消息快照.
+     *
+     * @return array<int, array{last_message_id: int, last_message_at: null|string}>
+     */
+    public function getLatestMessageSnapshotsByTopicIds(array $topicIds): array;
 }

@@ -20,6 +20,7 @@ use Dtyq\ApiResponse\Annotation\ApiResponse;
 use Dtyq\SuperMagic\Application\SuperAgent\Service\AgentAppService;
 use Dtyq\SuperMagic\Application\SuperAgent\Service\TopicAppService;
 use Dtyq\SuperMagic\Application\SuperAgent\Service\WorkspaceAppService;
+use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\BatchTopicStatusRequestDTO;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\CheckpointRollbackCheckRequestDTO;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\CheckpointRollbackRequestDTO;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\CheckpointRollbackStartRequestDTO;
@@ -29,6 +30,7 @@ use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\DuplicateTopicRequestDTO;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\GetTopicAttachmentsRequestDTO;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\GetTopicMessagesByTopicIdRequestDTO;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\SaveTopicRequestDTO;
+use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\UpdateTopicReadProgressRequestDTO;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Response\CheckpointRollbackCheckResponseDTO;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Response\CheckpointRollbackResponseDTO;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Response\DuplicateTopicStatusResponseDTO;
@@ -439,6 +441,58 @@ class TopicApi extends AbstractApi
         $result = $this->topicAppService->terminateTask($requestContext, (int) $id);
 
         return $result->toArray();
+    }
+
+    public function updateReadProgress(RequestContext $requestContext, string $id): array
+    {
+        $requestContext->setUserAuthorization($this->getAuthorization());
+
+        $requestDTO = UpdateTopicReadProgressRequestDTO::fromRequest($this->request);
+        $requestDTO->setTopicId((int) $id);
+
+        return $this->topicAppService->updateReadProgress($requestContext, $requestDTO);
+    }
+
+    public function pinTopic(RequestContext $requestContext, string $id): array
+    {
+        $requestContext->setUserAuthorization($this->getAuthorization());
+
+        return $this->topicAppService->pinTopic($requestContext, (int) $id);
+    }
+
+    public function unpinTopic(RequestContext $requestContext, string $id): array
+    {
+        $requestContext->setUserAuthorization($this->getAuthorization());
+
+        return $this->topicAppService->unpinTopic($requestContext, (int) $id);
+    }
+
+    public function archiveTopic(RequestContext $requestContext, string $id): array
+    {
+        $requestContext->setUserAuthorization($this->getAuthorization());
+
+        return $this->topicAppService->archiveTopic($requestContext, (int) $id);
+    }
+
+    public function unarchiveTopic(RequestContext $requestContext, string $id): array
+    {
+        $requestContext->setUserAuthorization($this->getAuthorization());
+
+        return $this->topicAppService->unarchiveTopic($requestContext, (int) $id);
+    }
+
+    public function getStatus(RequestContext $requestContext): array
+    {
+        $requestContext->setUserAuthorization($this->getAuthorization());
+
+        $requestDTO = BatchTopicStatusRequestDTO::fromRequest($this->request);
+        return $this->topicAppService->getTopicStatuses($requestContext, $requestDTO);
+    }
+
+    public function getResourceStatus(RequestContext $requestContext): array
+    {
+        $requestContext->setUserAuthorization($this->getAuthorization());
+        return $this->topicAppService->getResourceStatus($requestContext);
     }
 
     private function buildDataIsolation(): DataIsolation
