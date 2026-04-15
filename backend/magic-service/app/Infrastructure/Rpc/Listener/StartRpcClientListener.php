@@ -138,7 +138,7 @@ class StartRpcClientListener implements ListenerInterface
             return;
         }
 
-        if ($this->waitForSocketReady($socketPath, $waitTimeoutSeconds, $waitIntervalMs)) {
+        if ($this->waitForSocketReady($socketPath, $waitTimeoutSeconds, $waitIntervalMs, $process)) {
             $this->logger->info('Go engine socket is ready', [
                 'socket_path' => $this->getRelativePath($socketPath),
                 'wait_timeout_seconds' => $waitTimeoutSeconds,
@@ -169,7 +169,13 @@ class StartRpcClientListener implements ListenerInterface
         return true;
     }
 
-    private function waitForSocketReady(string $socketPath, int $timeoutSeconds, int $intervalMs): bool
+    /**
+     * 等待 socket 就绪，同时监测启动进程是否已提前退出。
+     * 若进程已退出（如 binary 不存在），立即中止等待而不是阻塞到超时。
+     *
+     * @param resource|null $process proc_open 返回的进程资源
+     */
+    private function waitForSocketReady(string $socketPath, int $timeoutSeconds, int $intervalMs, mixed $process = null): bool
     {
         if ($timeoutSeconds <= 0) {
             return $this->canConnectSocket($socketPath);
@@ -179,6 +185,17 @@ class StartRpcClientListener implements ListenerInterface
         while (microtime(true) < $deadline) {
             if ($this->canConnectSocket($socketPath)) {
                 return true;
+            }
+            // 进程已退出说明启动失败（如 binary 不存在），无需继续等待
+            if ($process !== null && is_resource($process)) {
+                $status = proc_get_status($process);
+                if (! $status['running']) {
+                    $this->logger->info('Go engine process exited early, stopping wait', [
+                        'socket_path' => $this->getRelativePath($socketPath),
+                        'exit_code' => $status['exitcode'] ?? -1,
+                    ]);
+                    return false;
+                }
             }
             usleep($intervalMs * 1000);
         }
