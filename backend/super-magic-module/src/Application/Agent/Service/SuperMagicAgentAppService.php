@@ -78,6 +78,7 @@ use Throwable;
 class SuperMagicAgentAppService extends AbstractSuperMagicAppService
 {
     private const string REQUIRED_IDENTITY_PATH = '.magic/IDENTITY.md';
+
     private const string KNOWLEDGE_SEARCH_TOOL_CODE = 'search_knowledge';
 
     #[Inject]
