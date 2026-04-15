@@ -387,7 +387,7 @@ class ImageRemoveBackgroundAppService extends AbstractLLMAppService
             );
         }
 
-        $downloadedImage = $this->secureImageDownloader->download($dto->getImageUrl());
+        $downloadedImage = $this->secureImageDownloader->download($dto->getImageUrl(), checkHeaderMimeType: false);
         $temporaryFileManager->add($downloadedImage->getValue());
 
         return new ImageRemoveBackgroundDriverRequest(

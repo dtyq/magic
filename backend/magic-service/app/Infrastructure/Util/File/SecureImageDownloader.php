@@ -33,7 +33,12 @@ class SecureImageDownloader
      *
      * @param array<string> $blackList
      */
-    public function download(string $imageUrl, array $blackList = []): ImageAsset
+    /**
+     * @param bool $checkHeaderMimeType 是否通过响应头 Content-Type 做 MIME 预检。
+     *             对于 TOS 等对象存储的文件，上传时可能未设置正确的 Content-Type（如 application/octet-stream），
+     *             此时应传 false，由下载后的魔法字节检测（assertImageFile）来保障格式合法性。
+     */
+    public function download(string $imageUrl, array $blackList = [], bool $checkHeaderMimeType = true): ImageAsset
     {
         $safeUrl = SSRFUtil::getSafeUrl($imageUrl, blackList: $blackList, replaceIp: false);
         try {
@@ -45,7 +50,9 @@ class SecureImageDownloader
         try {
             $headers = $this->fetchHeaders($safeUrl);
             $this->assertHeaderContentLength($headers);
-            $this->assertHeaderMimeType($headers);
+            if ($checkHeaderMimeType) {
+                $this->assertHeaderMimeType($headers);
+            }
 
             $this->downloadToLocalFile($safeUrl, $tempFile);
 
