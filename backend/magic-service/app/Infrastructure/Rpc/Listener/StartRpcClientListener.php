@@ -173,7 +173,7 @@ class StartRpcClientListener implements ListenerInterface
      * 等待 socket 就绪，同时监测启动进程是否已提前退出。
      * 若进程已退出（如 binary 不存在），立即中止等待而不是阻塞到超时。
      *
-     * @param resource|null $process proc_open 返回的进程资源
+     * @param null|resource $process proc_open 返回的进程资源
      */
     private function waitForSocketReady(string $socketPath, int $timeoutSeconds, int $intervalMs, mixed $process = null): bool
     {
