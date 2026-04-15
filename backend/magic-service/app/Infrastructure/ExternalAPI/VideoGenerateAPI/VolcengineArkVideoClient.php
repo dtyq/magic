@@ -70,6 +70,7 @@ readonly class VolcengineArkVideoClient
     ): array {
         $normalizedBaseUrl = rtrim($baseUrl, '/');
         $normalizedPath = '/' . ltrim($path, '/');
+        $startedAt = microtime(true);
 
         $this->logger->info('volcengine ark video request', [
             'method' => $method,
@@ -93,8 +94,27 @@ readonly class VolcengineArkVideoClient
             };
             $data = Json::decode((string) $response->getBody());
         } catch (RequestException $exception) {
+            $this->logger->error('volcengine ark video error', [
+                'method' => $method,
+                'base_url' => $normalizedBaseUrl,
+                'path' => $normalizedPath,
+                'context' => $logContext,
+                'http_status' => $exception->getResponse()?->getStatusCode(),
+                'elapsed_ms' => $this->calculateElapsedMilliseconds($startedAt),
+                'error' => $this->formatRequestExceptionMessage($exception, $method),
+            ]);
             throw new ProviderVideoException($this->formatRequestExceptionMessage($exception, $method), $exception);
         } catch (Throwable $throwable) {
+            $this->logger->error('volcengine ark video error', [
+                'method' => $method,
+                'base_url' => $normalizedBaseUrl,
+                'path' => $normalizedPath,
+                'context' => $logContext,
+                'http_status' => null,
+                'provider_request_id' => null,
+                'elapsed_ms' => $this->calculateElapsedMilliseconds($startedAt),
+                'error' => sprintf('volcengine ark video %s failed: %s', $method, $throwable->getMessage()),
+            ]);
             throw new ProviderVideoException(sprintf('volcengine ark video %s failed: %s', $method, $throwable->getMessage()), $throwable);
         }
 
@@ -107,10 +127,17 @@ readonly class VolcengineArkVideoClient
             'base_url' => $normalizedBaseUrl,
             'path' => $normalizedPath,
             'context' => $logContext,
+            'http_status' => $response->getStatusCode(),
+            'elapsed_ms' => $this->calculateElapsedMilliseconds($startedAt),
             'response' => $data,
         ]);
 
         return $data;
+    }
+
+    private function calculateElapsedMilliseconds(float $startedAt): int
+    {
+        return max(0, (int) round((microtime(true) - $startedAt) * 1000));
     }
 
     private function formatRequestExceptionMessage(RequestException $exception, string $action): string

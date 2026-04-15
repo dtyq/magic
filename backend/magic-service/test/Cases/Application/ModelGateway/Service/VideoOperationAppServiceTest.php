@@ -145,6 +145,8 @@ class VideoOperationAppServiceTest extends TestCase
             $this->createVideoBillingDetailsResolver(),
             $this->createFallbackProbe(),
         );
+        $logger = new RecordingLogger();
+        $service->logger = $logger;
 
         $response = $service->enqueue('token-1', $requestDTO);
 
@@ -154,6 +156,7 @@ class VideoOperationAppServiceTest extends TestCase
         $this->assertArrayNotHasKey('provider', $response->toArray());
         $this->assertSame('provider-task-1', $operationRepository->operations[$response->getId()]->getProviderTaskId());
         $this->assertSame(VideoOperationStatus::PROVIDER_RUNNING, $operationRepository->operations[$response->getId()]->getStatus());
+        $this->assertTrue($logger->hasRecord('info', 'video operation submitted'));
     }
 
     public function testEnqueueAndGetOperationDispatchesCloudswayVeoGeneratedEventWithDefaultBillingDetails(): void
@@ -758,6 +761,8 @@ class VideoOperationAppServiceTest extends TestCase
             $this->createVideoBillingDetailsResolver(),
             $this->createFallbackProbe(),
         );
+        $logger = new RecordingLogger();
+        $service->logger = $logger;
 
         $response = $service->getOperation('token-2', 'op-2', ['organization_id' => 'org-test']);
 
@@ -790,6 +795,8 @@ class VideoOperationAppServiceTest extends TestCase
         $secondResponse = $service->getOperation('token-2', 'op-2', ['organization_id' => 'org-test']);
         $this->assertSame('succeeded', $secondResponse->getStatus());
         $this->assertCount(1, $this->eventDispatcher->events);
+        $this->assertTrue($logger->hasRecord('info', 'video provider query summary'));
+        $this->assertTrue($logger->hasRecord('info', 'video operation status changed'));
     }
 
     public function testGetOperationNormalizesKelingModeToBillingResolution(): void
