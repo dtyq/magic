@@ -79,10 +79,23 @@ abstract class AbstractDesignImageGenerationTaskHandler implements DesignImageGe
     }
 
     /**
+     * 将单张参考图的处理选项转换为链接参数.
+     * 目前支持 crop，后续可在此处扩展更多选项类型.
+     *
+     * @param array<string, mixed> $imageOptions 单张图片的选项，如 ['crop' => [...]]
+     * @return array<string, mixed>
+     */
+    protected function buildLinkOptionsFromImageOptions(array $imageOptions): array
+    {
+        $crop = $imageOptions['crop'] ?? null;
+        return $this->buildImageLinkOptionsFromCrop(is_array($crop) ? $crop : null);
+    }
+
+    /**
      * @param null|array<string, mixed> $cropData
      * @return array<string, mixed>
      */
-    protected function buildImageLinkOptionsFromCrop(?array $cropData): array
+    private function buildImageLinkOptionsFromCrop(?array $cropData): array
     {
         if ($cropData === null || $cropData === []) {
             return [];
@@ -112,10 +125,8 @@ abstract class AbstractDesignImageGenerationTaskHandler implements DesignImageGe
         $urls = [];
         $referenceImageOptions = $entity->getReferenceImageOptions() ?? [];
 
-        foreach ($entity->getReferenceImages() ?? [] as $idx => $referenceImage) {
-            $crop = $referenceImageOptions[$idx]['crop'] ?? null;
-            $cropData = is_array($crop) ? $crop : null;
-            $linkOptions = $this->buildImageLinkOptionsFromCrop($cropData);
+        foreach ($entity->getReferenceImages() ?? [] as $referenceImage) {
+            $linkOptions = $this->buildLinkOptionsFromImageOptions($referenceImageOptions[$referenceImage] ?? []);
             $url = $this->getWorkspaceSandboxImageUrl($dataIsolation, $workspacePrefix, $referenceImage, $linkOptions);
             if ($url !== null && $url !== '') {
                 $urls[] = $url;
@@ -138,8 +149,9 @@ abstract class AbstractDesignImageGenerationTaskHandler implements DesignImageGe
         $urls = [];
         $referenceImageOptions = $entity->getReferenceImageOptions() ?? [];
 
-        foreach ($entity->getReferenceImages() ?? [] as $idx => $referenceImage) {
+        foreach ($entity->getReferenceImages() ?? [] as $referenceImage) {
             if (str_contains($referenceImage, 'design-mark/')) {
+                // 临时标记图走私有桶，不携带 options
                 $privateFileKey = ltrim($referenceImage, '/');
                 $url = $this->fileDomainService->getLink(
                     $dataIsolation->getCurrentOrganizationCode(),
@@ -147,9 +159,7 @@ abstract class AbstractDesignImageGenerationTaskHandler implements DesignImageGe
                     StorageBucketType::Private
                 )?->getUrl();
             } else {
-                $crop = $referenceImageOptions[$idx]['crop'] ?? null;
-                $cropData = is_array($crop) ? $crop : null;
-                $linkOptions = $this->buildImageLinkOptionsFromCrop($cropData);
+                $linkOptions = $this->buildLinkOptionsFromImageOptions($referenceImageOptions[$referenceImage] ?? []);
                 $url = $this->getWorkspaceSandboxImageUrl($dataIsolation, $workspacePrefix, $referenceImage, $linkOptions);
             }
             if ($url !== null && $url !== '') {

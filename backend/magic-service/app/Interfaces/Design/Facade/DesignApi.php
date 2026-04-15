@@ -53,12 +53,6 @@ class DesignApi extends AbstractApi
             $DO->setType(ImageGenerationType::IMAGE_TO_IMAGE);
         }
 
-        // 若前端传入了原图裁剪参数，记录到第 0 张参考图的处理选项中
-        $crop = $this->request->input('crop');
-        if (! empty($crop) && is_array($crop)) {
-            $DO->setReferenceImageOptions([0 => ['crop' => $crop]]);
-        }
-
         $entity = $this->imageGenerationAppService->generateImage($authenticatable, $DO);
 
         return ImageGenerationAssembler::toDTO($entity);
@@ -78,10 +72,10 @@ class DesignApi extends AbstractApi
         // 转高清需要设置源图片路径作为参考图
         $DO->setReferenceImages([$filePath]);
 
-        // 若前端传入了原图裁剪参数，记录到第 0 张参考图的处理选项中
+        // 若前端传入了裁剪参数，以原图路径为 key 记录处理选项
         $crop = $this->request->input('crop');
         if (! empty($crop) && is_array($crop)) {
-            $DO->setReferenceImageOptions([0 => ['crop' => $crop]]);
+            $DO->setReferenceImageOptions([$filePath => ['crop' => $crop]]);
         }
 
         $resultEntity = $this->imageGenerationAppService->generateHighImage($authenticatable, $DO);
@@ -168,10 +162,10 @@ class DesignApi extends AbstractApi
         // 原图作为第一张参考图，标记图作为第二张参考图
         $DO->setReferenceImages([$filePath, $markPath]);
 
-        // 若前端传入了原图裁剪参数，记录到第 0 张参考图的处理选项中
+        // 若前端传入了裁剪参数，以原图路径为 key 记录处理选项（标记图为临时文件，无需 options）
         $crop = $this->request->input('crop');
         if (! empty($crop) && is_array($crop)) {
-            $DO->setReferenceImageOptions([0 => ['crop' => $crop]]);
+            $DO->setReferenceImageOptions([$filePath => ['crop' => $crop]]);
         }
 
         $resultEntity = $this->imageGenerationAppService->generateEraser($authenticatable, $DO);
@@ -195,10 +189,10 @@ class DesignApi extends AbstractApi
         // 原图、扩展画布图、mask 图依次作为三张参考图
         $DO->setReferenceImages([$filePath, $canvasPath, $maskPath]);
 
-        // 若前端传入了原图裁剪参数，记录到第 0 张参考图的处理选项中
+        // 若前端传入了裁剪参数，以原图路径为 key 记录处理选项（画布图与 mask 图为临时文件，无需 options）
         $crop = $this->request->input('crop');
         if (! empty($crop) && is_array($crop)) {
-            $DO->setReferenceImageOptions([0 => ['crop' => $crop]]);
+            $DO->setReferenceImageOptions([$filePath => ['crop' => $crop]]);
         }
 
         $resultEntity = $this->imageGenerationAppService->generateExpandImage($authenticatable, $DO);
@@ -220,10 +214,10 @@ class DesignApi extends AbstractApi
         // 将源图片路径设置为参考图
         $DO->setReferenceImages([$filePath]);
 
-        // 若前端传入了裁剪参数，记录到第 0 张参考图的处理选项中
+        // 若前端传入了裁剪参数，以原图路径为 key 记录处理选项
         $crop = $this->request->input('crop');
         if (! empty($crop) && is_array($crop)) {
-            $DO->setReferenceImageOptions([0 => ['crop' => $crop]]);
+            $DO->setReferenceImageOptions([$filePath => ['crop' => $crop]]);
         }
 
         $resultEntity = $this->imageGenerationAppService->generateRemoveBackground($authenticatable, $DO);

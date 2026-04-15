@@ -36,6 +36,12 @@ class ImageGenerationDTO extends AbstractDTO
 
     protected ?array $referenceImages = null;
 
+    /**
+     * 参考图选项，key 为图片路径，value 为该图对应的处理选项，例如 crop 参数.
+     * 仅在图生图（generate-image）场景由前端直传；其余接口由后端从顶层 crop 字段组装.
+     */
+    protected ?array $referenceImageOptions = null;
+
     protected ?int $type = null;
 
     protected ?string $status = null;
@@ -149,6 +155,16 @@ class ImageGenerationDTO extends AbstractDTO
     public function setReferenceImages(?array $referenceImages): void
     {
         $this->referenceImages = $referenceImages;
+    }
+
+    public function getReferenceImageOptions(): ?array
+    {
+        return $this->referenceImageOptions;
+    }
+
+    public function setReferenceImageOptions(?array $referenceImageOptions): void
+    {
+        $this->referenceImageOptions = $referenceImageOptions;
     }
 
     public function getType(): ?int

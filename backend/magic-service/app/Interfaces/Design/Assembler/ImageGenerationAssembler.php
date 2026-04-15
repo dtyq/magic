@@ -29,6 +29,7 @@ class ImageGenerationAssembler
         $dto->getFileDir() && $entity->setFileDir($dto->getFileDir());
         $dto->getFileName() && $entity->setFileName($dto->getFileName());
         $dto->getReferenceImages() && $entity->setReferenceImages($dto->getReferenceImages());
+        $dto->getReferenceImageOptions() && $entity->setReferenceImageOptions($dto->getReferenceImageOptions());
         $dto->getType() !== null && $entity->setType(ImageGenerationType::from($dto->getType()));
         return $entity;
     }

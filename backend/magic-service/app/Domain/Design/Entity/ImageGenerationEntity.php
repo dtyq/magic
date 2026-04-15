@@ -45,9 +45,9 @@ class ImageGenerationEntity extends AbstractEntity
     protected ?array $referenceImages = null;
 
     /**
-     * 每张参考图的图片处理选项，key 为参考图索引（从 0 开始）.
-     * 目前用于去背景场景传入 crop 参数，例如：[0 => ['crop' => ['width' => 596, 'height' => 1024, 'x' => 194, 'y' => 0]]].
-     * 该字段不持久化到数据库，仅在事件流转期间使用.
+     * 每张参考图的图片处理选项，key 为参考图路径，value 为该图对应的处理选项.
+     * 例如：['/some/img1.png' => ['crop' => ['width' => 596, 'height' => 1024, 'x' => 194, 'y' => 0]]].
+     * design-mark 临时图片不参与选项存储.
      */
     protected ?array $referenceImageOptions = null;
 
