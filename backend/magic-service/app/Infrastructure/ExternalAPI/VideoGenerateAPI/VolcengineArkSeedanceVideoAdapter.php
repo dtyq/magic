@@ -25,21 +25,21 @@ readonly class VolcengineArkSeedanceVideoAdapter implements VideoGenerationProvi
      *
      * @var list<string>
      */
-    private const array SUPPORTED_ASPECT_RATIOS = ['16:9', '4:3', '1:1', '3:4', '9:16', '21:9', 'adaptive'];
+    private const array SUPPORTED_ASPECT_RATIOS = ['16:9', '4:3', '1:1', '3:4', '9:16', '21:9'];
 
     /**
      * 当前按方舟 Seedance 文档支持范围声明，后续如果官方扩容需要同步这里。
      *
      * @var list<int>
      */
-    private const array SUPPORTED_DURATIONS = [2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12];
+    private const array SUPPORTED_DURATIONS = [4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15];
 
     /**
      * 当前按方舟 Seedance 文档支持范围声明，后续如果官方扩容需要同步这里。
      *
      * @var list<string>
      */
-    private const array SUPPORTED_RESOLUTIONS = ['480p', '720p', '1080p'];
+    private const array SUPPORTED_RESOLUTIONS = ['480p', '720p'];
 
     public function __construct(
         private VolcengineArkVideoClient $client,

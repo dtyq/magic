@@ -266,6 +266,7 @@ readonly class VideoQueueDomainService
         $response->setOutput($operation->getOutput());
         $response->setError($this->buildOperationError($operation));
         $response->setProviderResult($operation->getProviderResult());
+        $response->setProviderTaskId($operation->getProviderTaskId());
 
         return $response;
     }

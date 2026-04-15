@@ -159,6 +159,58 @@ class VideoOperationAppServiceTest extends TestCase
         $this->assertTrue($logger->hasRecord('info', 'video operation submitted'));
     }
 
+    public function testGetOperationRejectsProviderTaskIdFallbackWhenInternalOperationIsMissing(): void
+    {
+        $dataIsolation = $this->createDataIsolation();
+        $operationRepository = new InMemoryVideoQueueOperationRepository();
+        $videoQueueDomainService = new VideoQueueDomainService($operationRepository);
+        $executionDomainService = new QueueOperationExecutionDomainService(
+            new FixedQueueExecutorConfigRepository(new QueueExecutorConfig('https://ark.cn-beijing.volces.com/api/v3', 'secret', 3, 20)),
+            new RecordingQueueOperationExecutor(
+                submitResult: 'provider-task-unused',
+                queryResult: [
+                    'status' => 'running',
+                    'output' => [],
+                ],
+            ),
+        );
+
+        $llmAppService = $this->createMock(LLMAppService::class);
+        $llmAppService->expects($this->once())
+            ->method('createModelGatewayDataIsolationByAccessToken')
+            ->with('token-query-missing', [
+                'provider_task_id' => 'provider-task-123',
+                'model_id' => 'doubao-seedance-2-0-260128',
+                'video_id' => 'video-1',
+            ])
+            ->willReturn($dataIsolation);
+
+        $modelGatewayMapper = $this->createMock(ModelGatewayMapper::class);
+        $modelGatewayMapper->method('getOrganizationVideoModel')
+            ->willReturn($this->createVideoModelEntry(new VideoModel([], 'VolcengineArk', 'provider-model-ark', ProviderCode::VolcengineArk)));
+
+        $service = new VideoOperationAppService(
+            $llmAppService,
+            $videoQueueDomainService,
+            $executionDomainService,
+            $this->createMock(PointComponentInterface::class),
+            $modelGatewayMapper,
+            $this->createVideoGenerationConfigDomainService(),
+            new FileDomainService(new InMemoryCloudFileRepository()),
+            $this->createVideoBillingDetailsResolver(),
+            $this->createFallbackProbe(),
+        );
+
+        $this->expectException(BusinessException::class);
+        $this->expectExceptionMessage('video task not found');
+
+        $service->getOperation('token-query-missing', 'missing-operation-id', [
+            'provider_task_id' => 'provider-task-123',
+            'model_id' => 'doubao-seedance-2-0-260128',
+            'video_id' => 'video-1',
+        ]);
+    }
+
     public function testEnqueueAndGetOperationDispatchesCloudswayVeoGeneratedEventWithDefaultBillingDetails(): void
     {
         $dataIsolation = $this->createDataIsolation();
@@ -1117,6 +1169,72 @@ class VideoOperationAppServiceTest extends TestCase
         $this->assertSame('failed', $response->getStatus());
         $this->assertSame('provider says operationName is invalid', $response->getError()?->getMessage());
         $this->assertSame(VideoOperationStatus::FAILED, $operationRepository->operations[$operation->getId()]->getStatus());
+    }
+
+    public function testGetOperationFallsBackToProviderTaskIdWhenStoredOperationIsMissing(): void
+    {
+        $dataIsolation = $this->createDataIsolation();
+        $operationRepository = new InMemoryVideoQueueOperationRepository();
+        $executor = new RecordingQueueOperationExecutor(
+            submitResult: 'unused',
+            queryResult: [
+                'status' => 'running',
+                'output' => [],
+            ],
+        );
+
+        $llmAppService = $this->createMock(LLMAppService::class);
+        $llmAppService->expects($this->once())
+            ->method('createModelGatewayDataIsolationByAccessToken')
+            ->with('token-provider-fallback', [
+                'organization_code' => 'org-test',
+                'user_id' => 'user-test',
+                'model_id' => 'doubao-seedance-2-0-fast-260128',
+                'video_id' => 'video-task-123',
+                'provider_task_id' => 'cgt-provider-task-123',
+            ])
+            ->willReturn($dataIsolation);
+
+        $modelGatewayMapper = $this->createMock(ModelGatewayMapper::class);
+        $modelGatewayMapper->expects($this->once())
+            ->method('getOrganizationVideoModel')
+            ->with($dataIsolation, 'doubao-seedance-2-0-fast-260128')
+            ->willReturn($this->createVideoModelEntry(
+                new VideoModel([], 'doubao-seedance-2-0-fast-260128', 'provider-model-ark', ProviderCode::VolcengineArk)
+            ));
+
+        $service = new VideoOperationAppService(
+            $llmAppService,
+            new VideoQueueDomainService($operationRepository),
+            new QueueOperationExecutionDomainService(
+                new FixedQueueExecutorConfigRepository(new QueueExecutorConfig('https://ark.cn-beijing.volces.com/api/v3', 'secret', 3, 20)),
+                $executor,
+            ),
+            $this->createMock(PointComponentInterface::class),
+            $modelGatewayMapper,
+            $this->createVideoGenerationConfigDomainService(),
+            new FileDomainService(new InMemoryCloudFileRepository()),
+            $this->createVideoBillingDetailsResolver(),
+            $this->createFallbackProbe(),
+        );
+
+        $response = $service->getOperation('token-provider-fallback', 'video-task-123', [
+            'organization_code' => 'org-test',
+            'user_id' => 'user-test',
+            'model_id' => 'doubao-seedance-2-0-fast-260128',
+            'video_id' => 'video-task-123',
+            'provider_task_id' => 'cgt-provider-task-123',
+        ]);
+
+        $this->assertSame('video-task-123', $response->getId());
+        $this->assertSame('running', $response->getStatus());
+        $this->assertSame('cgt-provider-task-123', $response->getProviderTaskId());
+        $this->assertSame(['cgt-provider-task-123'], $executor->queriedProviderTaskIds);
+        $this->assertCount(1, $executor->queriedOperations);
+        $this->assertSame('video-task-123', $executor->queriedOperations[0]->getId());
+        $this->assertSame('video-task-123', $executor->queriedOperations[0]->getVideoId());
+        $this->assertSame('doubao-seedance-2-0-fast-260128', $executor->queriedOperations[0]->getModel());
+        $this->assertArrayHasKey('video-task-123', $operationRepository->operations);
     }
 
     private function createVideoModelEntry(VideoModel $videoModel): ModelEntry

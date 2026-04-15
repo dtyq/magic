@@ -34,6 +34,19 @@ class VolcengineArkSeedanceVideoAdapterTest extends TestCase
         $this->assertFalse($adapter->supportsModel('', ''));
     }
 
+    public function testResolveGenerationConfigMatchesSeedanceTwoOfficialRanges(): void
+    {
+        $adapter = new VolcengineArkSeedanceVideoAdapter(new VolcengineArkVideoClient($this->createMock(ClientFactory::class)));
+
+        $config = $adapter->resolveGenerationConfig('doubao-seedance-2-0-260128', 'doubao-seedance-2-0-260128');
+
+        $this->assertNotNull($config);
+        $generation = $config->toArray()['generation'];
+        $this->assertSame(['16:9', '4:3', '1:1', '3:4', '9:16', '21:9'], $generation['aspect_ratios']);
+        $this->assertSame([4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15], $generation['durations']);
+        $this->assertSame(['480p', '720p'], $generation['resolutions']);
+    }
+
     public function testBuildProviderPayloadMapsGenerateEditAndAudioVideoInputsWithoutServiceTierForProModel(): void
     {
         $adapter = new VolcengineArkSeedanceVideoAdapter(new VolcengineArkVideoClient($this->createMock(ClientFactory::class)));
@@ -86,7 +99,7 @@ class VolcengineArkSeedanceVideoAdapterTest extends TestCase
 
         $this->assertSame('doubao-seedance-2-0-260128', $payload['model']);
         $this->assertSame('edit', $payload['task']);
-        $this->assertSame('replace the sky with sunset clouds --rs 1080p --rt 16:9 --dur 5 --seed 7 --wm true --cf true', $payload['content'][0]['text']);
+        $this->assertSame('replace the sky with sunset clouds --rs 720p --rt 16:9 --dur 5 --seed 7 --wm true --cf true', $payload['content'][0]['text']);
         $this->assertSame('https://example.com/source.mp4', $payload['content'][1]['video_url']['url']);
         $this->assertSame('https://example.com/voice.wav', $payload['content'][2]['audio_url']['url']);
         $this->assertSame('https://example.com/mask.png', $payload['content'][3]['mask_url']['url']);
@@ -128,6 +141,40 @@ class VolcengineArkSeedanceVideoAdapterTest extends TestCase
         $payload = $adapter->buildProviderPayload($operation);
 
         $this->assertArrayNotHasKey('service_tier', $payload);
+    }
+
+    public function testBuildProviderPayloadIgnoresAdaptiveRatioAndTooShortDuration(): void
+    {
+        $adapter = new VolcengineArkSeedanceVideoAdapter(new VolcengineArkVideoClient($this->createMock(ClientFactory::class)));
+        $operation = new VideoQueueOperationEntity(
+            id: 'op-ark-invalid-ranges',
+            endpoint: 'video:doubao-seedance-2-0-fast-260128',
+            model: 'doubao-seedance-2-0-fast-260128',
+            modelVersion: 'doubao-seedance-2-0-fast-260128',
+            providerModelId: 'provider-model-ark-seedance-fast',
+            providerCode: 'VolcengineArk',
+            providerName: 'volcengineark',
+            organizationCode: 'org-1',
+            userId: 'user-1',
+            status: VideoOperationStatus::QUEUED,
+            seq: 1,
+            rawRequest: [
+                'model_id' => 'doubao-seedance-2-0-fast-260128',
+                'task' => 'generate',
+                'prompt' => 'make a fast video',
+                'generation' => [
+                    'aspect_ratio' => 'adaptive',
+                    'duration_seconds' => 2,
+                    'resolution' => '720p',
+                ],
+            ],
+            createdAt: date(DATE_ATOM),
+            heartbeatAt: date(DATE_ATOM),
+        );
+
+        $payload = $adapter->buildProviderPayload($operation);
+
+        $this->assertSame('make a fast video --rs 720p --dur 5', $payload['content'][0]['text']);
     }
 
     public function testBuildProviderPayloadMapsStartAndEndFramesWithoutDroppingThem(): void

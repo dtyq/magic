@@ -169,7 +169,7 @@ class VideoProviderOperationExecutorTest extends TestCase
                         'model' => 'doubao-seedance-2-0-260128',
                         'task' => 'edit',
                         'content' => [
-                            ['type' => 'text', 'text' => 'replace the sky --rs 1080p --rt 16:9 --dur 5 --wm true'],
+                            ['type' => 'text', 'text' => 'replace the sky --rs 720p --rt 16:9 --dur 5 --wm true'],
                             ['type' => 'video_url', 'video_url' => ['url' => 'https://example.com/source.mp4']],
                             ['type' => 'audio_url', 'audio_url' => ['url' => 'https://example.com/voice.wav', 'role' => 'reference']],
                             ['type' => 'mask_url', 'mask_url' => ['url' => 'https://example.com/mask.png']],
