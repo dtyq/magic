@@ -32,16 +32,6 @@ from app.utils.async_file_utils import (
 
 logger = get_logger(__name__)
 
-KNOWLEDGE_SEARCH_TOOL = "search_knowledge"
-
-DEFAULT_TOOLS: List[str] = [
-    "web_search", KNOWLEDGE_SEARCH_TOOL, "read_webpages_as_markdown", "visual_understanding", "convert_to_markdown",
-    "image_search", "download_from_urls", "download_from_markdown", "generate_image",
-    "list_dir", "file_search", "read_files", "grep_search", "run_python_snippet", "shell_exec",
-    "write_file", "edit_file", "edit_file_range", "multi_edit_file", "multi_edit_file_range",
-    "delete_files", "create_memory", "update_memory", "delete_memory",
-    "compact_chat_history",
-]
 
 def _normalize_item_names(raw_items: Any) -> List[str]:
     """Normalize a list field into a deduplicated, ordered list of names."""
@@ -186,6 +176,7 @@ def _merge_preload(base: Any, additions: Any) -> list:
 
     return result
 
+
 class CrewAgentCompiler:
     """Compiles crew definition files into a .agent file."""
 
@@ -221,9 +212,8 @@ class CrewAgentCompiler:
         skills_meta = skills.meta if skills else {}
 
         header = dict(template.meta)
-        builtin_tools = DEFAULT_TOOLS + list(header.get("tools") or [])
         header["tools"] = resolve_crew_tools(
-            builtin_tools=builtin_tools,
+            builtin_tools=header.get("tools") or [],
             extra_tools=extra_tools,
             excluded_builtin_tools=excluded_builtin_tools,
         )
