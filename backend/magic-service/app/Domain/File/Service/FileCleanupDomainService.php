@@ -9,6 +9,8 @@ namespace App\Domain\File\Service;
 
 use App\Domain\File\Entity\FileCleanupRecordEntity;
 use App\Domain\File\Repository\FileCleanupRecordRepository;
+use App\Domain\File\Repository\Persistence\CloudFileRepository;
+use App\Domain\File\Repository\Persistence\Facade\CloudFileRepositoryInterface;
 use App\Infrastructure\Core\ValueObject\StorageBucketType;
 use Hyperf\Logger\LoggerFactory;
 use Psr\Log\LoggerInterface;
@@ -20,7 +22,7 @@ readonly class FileCleanupDomainService
 
     public function __construct(
         private FileCleanupRecordRepository $repository,
-        private FileDomainService $fileDomainService,
+        private CloudFileRepositoryInterface $cloudFileRepository,
         LoggerFactory $loggerFactory
     ) {
         $this->logger = $loggerFactory->get('FileCleanup');
@@ -164,11 +166,7 @@ readonly class FileCleanupDomainService
         try {
             // Step 1: Delete object storage file
             $bucketType = StorageBucketType::tryFrom($record->getBucketType()) ?? StorageBucketType::Private;
-            $deleteSuccess = $this->fileDomainService->deleteFile(
-                $record->getOrganizationCode(),
-                $record->getFileKey(),
-                $bucketType
-            );
+            $deleteSuccess = $this->deleteStorageObject($record, $bucketType);
 
             if ($deleteSuccess) {
                 // Step 2: Delete successful, immediately delete database record
@@ -392,5 +390,25 @@ readonly class FileCleanupDomainService
     public function getCleanupStats(?string $sourceType = null): array
     {
         return $this->repository->getCleanupStats($sourceType);
+    }
+
+    private function deleteStorageObject(FileCleanupRecordEntity $record, StorageBucketType $bucketType): bool
+    {
+        $organizationCode = $record->getOrganizationCode();
+        $fileKey = $record->getFileKey();
+        // Files stored under the shared MAGIC organization (e.g. legacy image-generate uploads)
+        // must be routed using MAGIC as the org code so the file service resolves the correct bucket.
+        $fileKeyPrefix = explode('/', $record->getFileKey(), 2)[0];
+        if ($fileKeyPrefix === CloudFileRepository::DEFAULT_ICON_ORGANIZATION_CODE) {
+            $organizationCode = CloudFileRepository::DEFAULT_ICON_ORGANIZATION_CODE;
+        }
+        $prefix = $this->cloudFileRepository->getFullPrefix($organizationCode);
+        $this->cloudFileRepository->deleteObjectByCredential(
+            $prefix,
+            $organizationCode,
+            $fileKey,
+            $bucketType
+        );
+        return true;
     }
 }
