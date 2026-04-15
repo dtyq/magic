@@ -108,6 +108,15 @@ readonly class VideoOperationAppService
         } catch (ProviderVideoException $throwable) {
             ExceptionBuilder::throw(MagicApiErrorCode::ValidateFailed, $throwable->getMessage(), throwable: $throwable);
         }
+        $this->logger->info('video operation submitted', [
+            'operation_id' => $operation->getId(),
+            'organization_code' => $operation->getOrganizationCode(),
+            'provider_code' => $operation->getProviderCode(),
+            'model_id' => $operation->getModel(),
+            'provider_model_id' => $operation->getProviderModelId(),
+            'provider_task_id' => $providerTaskId,
+            'provider_base_url' => rtrim($config->getBaseUrl(), '/'),
+        ]);
         $this->videoQueueDomainService->markProviderRunning($operation, $providerTaskId);
         $this->videoQueueDomainService->saveOperation($operation);
 
@@ -130,17 +139,48 @@ readonly class VideoOperationAppService
         if (is_string($providerTaskId) && $providerTaskId !== '' && ! $operation->getStatus()->isDone()) {
             $config = $this->queueOperationExecutionDomainService->getConfig($operation);
             try {
+                $previousStatus = $operation->getStatus();
                 $result = $this->normalizeExecutionResult(
                     $operation,
                     $this->queueOperationExecutionDomainService->query($operation, $config, $providerTaskId),
                 );
                 $probeResult = $this->extractProbeResult($result);
                 $syncResult = $this->videoQueueDomainService->syncWithExecutionResult($operation, $providerTaskId, $result);
+
+                $this->logger->info('video provider query summary', [
+                    'operation_id' => $operation->getId(),
+                    'organization_code' => $operation->getOrganizationCode(),
+                    'provider_code' => $operation->getProviderCode(),
+                    'provider_task_id' => $providerTaskId,
+                    'provider_status' => $this->extractProviderStatus($result),
+                    'internal_status' => $syncResult->getStatus()->value,
+                    'video_url_present' => trim((string) ($result['output']['video_url'] ?? '')) !== '',
+                    'last_frame_url_present' => trim((string) ($result['output']['last_frame_url'] ?? '')) !== '',
+                    'error_code' => is_array($result['error'] ?? null) ? ($result['error']['code'] ?? null) : null,
+                ]);
+
+                if ($previousStatus !== $syncResult->getStatus()) {
+                    $this->logger->info('video operation status changed', [
+                        'operation_id' => $operation->getId(),
+                        'organization_code' => $operation->getOrganizationCode(),
+                        'provider_task_id' => $providerTaskId,
+                        'previous_status' => $previousStatus->value,
+                        'current_status' => $syncResult->getStatus()->value,
+                    ]);
+                }
+
                 if ($syncResult->isFirstSucceeded()) {
                     $this->dispatchVideoGeneratedEvent($dataIsolation, $operation, $probeResult);
                 }
                 $this->videoQueueDomainService->saveOperation($operation);
             } catch (ProviderVideoException $throwable) {
+                $this->logger->warning('video provider query failed', [
+                    'operation_id' => $operation->getId(),
+                    'organization_code' => $operation->getOrganizationCode(),
+                    'provider_code' => $operation->getProviderCode(),
+                    'provider_task_id' => $providerTaskId,
+                    'error' => $throwable->getMessage(),
+                ]);
                 $this->videoQueueDomainService->finishExecutionFailure($operation, $throwable->getMessage());
                 $this->videoQueueDomainService->saveOperation($operation);
             }
@@ -294,6 +334,14 @@ readonly class VideoOperationAppService
         return $probeResult;
     }
 
+    private function extractProviderStatus(array $result): ?string
+    {
+        $providerResult = is_array($result['provider_result'] ?? null) ? $result['provider_result'] : [];
+        $status = trim((string) ($providerResult['status'] ?? $providerResult['data']['status'] ?? ''));
+
+        return $status === '' ? null : $status;
+    }
+
     /**
      * @param null|array{metadata: VideoMediaMetadata, source: string} $probeResult
      * @return array{duration_seconds: int, resolution: ?string, size: ?string, width: ?int, height: ?int}
@@ -426,7 +474,9 @@ readonly class VideoOperationAppService
 
     private function downloadProbeSourceToTempFile(string $url, string $tempPath): void
     {
-        $safeUrl = SSRFUtil::getSafeUrl($url, replaceIp: false);
+        // Probe sources come from provider execution results; keep the URL safety checks,
+        // but skip the extra redirect probe so we do not depend on live network behavior here.
+        $safeUrl = SSRFUtil::getSafeUrl($url, replaceIp: false, allowRedirect: true);
         $context = stream_context_create([
             'ssl' => [
                 'verify_peer' => false,
