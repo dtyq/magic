@@ -255,5 +255,4 @@ class DesignVideoAppService extends DesignAppService
             && $throwable->getCode() === '23000'
             && str_contains($throwable->getMessage(), 'Duplicate entry');
     }
-
 }

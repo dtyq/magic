@@ -74,6 +74,14 @@ class DesignVideoPollConsumer extends ConsumerMessage
 
         $operationId = $entity->getOperationId();
         if ($operationId === '') {
+            $this->logger->error('design video poll mark failed', [
+                'reason' => 'operation_id_missing',
+                'video_id' => $entity->getGenerationId(),
+                'project_id' => $entity->getProjectId(),
+                'organization_code' => $entity->getOrganizationCode(),
+                'operation_id' => $operationId,
+                'error' => trans('design.video_generation.operation_id_missing'),
+            ]);
             $this->domainService->markAsFailed($dataIsolation, $entity, trans('design.video_generation.operation_id_missing'));
             return Result::ACK;
         }
@@ -84,6 +92,16 @@ class DesignVideoPollConsumer extends ConsumerMessage
 
         $deadlineAt = $entity->getPollDeadlineAt();
         if ($deadlineAt !== null && strtotime($deadlineAt) !== false && time() > strtotime($deadlineAt)) {
+            $this->logger->error('design video poll mark failed', [
+                'reason' => 'timeout',
+                'video_id' => $entity->getGenerationId(),
+                'project_id' => $entity->getProjectId(),
+                'organization_code' => $entity->getOrganizationCode(),
+                'operation_id' => $operationId,
+                'submitted_at' => $entity->getProviderPayload()['submitted_at'] ?? null,
+                'deadline_at' => $deadlineAt,
+                'error' => trans('design.video_generation.timeout'),
+            ]);
             $this->domainService->markAsFailed($dataIsolation, $entity, trans('design.video_generation.timeout'));
             return Result::ACK;
         }
@@ -111,6 +129,16 @@ class DesignVideoPollConsumer extends ConsumerMessage
 
         if (in_array($status, ['failed', 'canceled'], true)) {
             $error = is_array($result['error'] ?? null) ? $result['error'] : [];
+            $this->logger->error('design video poll mark failed', [
+                'reason' => 'provider_failed_status',
+                'video_id' => $entity->getGenerationId(),
+                'project_id' => $entity->getProjectId(),
+                'organization_code' => $entity->getOrganizationCode(),
+                'operation_id' => $operationId,
+                'status' => $status,
+                'provider_result' => is_array($result['provider_result'] ?? null) ? $result['provider_result'] : [],
+                'error' => $error,
+            ]);
             $this->domainService->markAsFailed(
                 $dataIsolation,
                 $entity,
@@ -120,6 +148,16 @@ class DesignVideoPollConsumer extends ConsumerMessage
         }
 
         if ($status !== 'succeeded') {
+            $this->logger->error('design video poll mark failed', [
+                'reason' => 'invalid_status',
+                'video_id' => $entity->getGenerationId(),
+                'project_id' => $entity->getProjectId(),
+                'organization_code' => $entity->getOrganizationCode(),
+                'operation_id' => $operationId,
+                'status' => $status,
+                'provider_result' => is_array($result['provider_result'] ?? null) ? $result['provider_result'] : [],
+                'error' => trans('design.video_generation.invalid_status'),
+            ]);
             $this->domainService->markAsFailed($dataIsolation, $entity, trans('design.video_generation.invalid_status'));
             return Result::ACK;
         }
@@ -128,6 +166,14 @@ class DesignVideoPollConsumer extends ConsumerMessage
             $this->archiveFiles($dataIsolation, $entity, $result);
         } catch (Throwable $throwable) {
             $this->logger->error('design video poll archive failed', [
+                'video_id' => $entity->getGenerationId(),
+                'project_id' => $entity->getProjectId(),
+                'organization_code' => $entity->getOrganizationCode(),
+                'operation_id' => $operationId,
+                'error' => $throwable->getMessage(),
+            ]);
+            $this->logger->error('design video poll mark failed', [
+                'reason' => 'archive_failed',
                 'video_id' => $entity->getGenerationId(),
                 'project_id' => $entity->getProjectId(),
                 'organization_code' => $entity->getOrganizationCode(),
@@ -251,6 +297,17 @@ class DesignVideoPollConsumer extends ConsumerMessage
                 'operation_id' => $entity->getOperationId(),
                 'provider_task_id' => $entity->getProviderPayload()['provider_task_id'] ?? '',
                 'error' => $republishThrowable->getMessage(),
+            ]);
+            $this->logger->error('design video poll mark failed', [
+                'reason' => 'query_failed_requeue_failed',
+                'video_id' => $entity->getGenerationId(),
+                'project_id' => $entity->getProjectId(),
+                'organization_code' => $entity->getOrganizationCode(),
+                'operation_id' => $entity->getOperationId(),
+                'provider_task_id' => $entity->getProviderPayload()['provider_task_id'] ?? '',
+                'error' => $publicErrorMessage,
+                'query_error' => $throwable->getMessage(),
+                'requeue_error' => $republishThrowable->getMessage(),
             ]);
             $this->domainService->markAsFailed($dataIsolation, $entity, $publicErrorMessage);
         }
