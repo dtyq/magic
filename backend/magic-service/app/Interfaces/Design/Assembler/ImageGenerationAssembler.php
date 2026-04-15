@@ -47,6 +47,7 @@ class ImageGenerationAssembler
         $dto->setFileDir($entity->getFileDir());
         $dto->setFileName($entity->getFileName());
         $dto->setReferenceImages($entity->getReferenceImages());
+        $dto->setReferenceImageOptions($entity->getReferenceImageOptions());
         $dto->setType($entity->getType()->value);
         $dto->setStatus($entity->getStatus()->value);
         $dto->setErrorMessage($entity->getErrorMessage());
