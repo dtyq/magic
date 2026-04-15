@@ -29,9 +29,12 @@ class UserModelAccessAppServiceTest extends TestCase
 {
     public function testResolveAccessContextMarksEnabledStatusAsRestricted(): void
     {
+        $assignedRole = $this->createAssignedRole(2);
+
         $service = $this->createService(
             defaultRole: $this->createDefaultRole(1),
-            roleModelMap: [1 => ['model-a', 'model-b', 'model-a']],
+            assignedRoles: [$assignedRole],
+            roleModelMap: [2 => ['model-a', 'model-b', 'model-a']],
             availableModelIds: ['model-a', 'model-b', 'model-c'],
         );
 
@@ -48,6 +51,7 @@ class UserModelAccessAppServiceTest extends TestCase
     {
         $service = $this->createService(
             defaultRole: $this->createDefaultRole(1),
+            assignedRoles: [],
             roleModelMap: [1 => ['model-a']],
             availableModelIds: ['model-a', 'model-b'],
             settingsEntity: (new AdminGlobalSettingsEntity())->setStatus(AdminGlobalSettingsStatus::DISABLED),
@@ -57,14 +61,14 @@ class UserModelAccessAppServiceTest extends TestCase
 
         $this->assertSame('disabled', $context['permission_control_status']);
         $this->assertFalse($context['is_restricted']);
-        $this->assertSame(['model-a'], $context['denied_model_ids']);
+        $this->assertSame([], $context['denied_model_ids']);
         $this->assertSame(['model-a', 'model-b'], $context['accessible_model_ids']);
         $this->assertSame([], $context['accessible_model_id_map']);
     }
 
     public function testResolveAccessContextMarksUninitializedStatusAsUnrestricted(): void
     {
-        $service = $this->createService(defaultRole: null, roleModelMap: [], availableModelIds: ['model-a']);
+        $service = $this->createService(defaultRole: null, assignedRoles: [], roleModelMap: [], availableModelIds: ['model-a']);
 
         $context = $service->resolveAccessContext($this->createAuthorization());
 
@@ -77,9 +81,12 @@ class UserModelAccessAppServiceTest extends TestCase
 
     public function testFilterModelEntriesOnlyKeepsAccessibleModelsWhenRestricted(): void
     {
+        $assignedRole = $this->createAssignedRole(2);
+
         $service = $this->createService(
             defaultRole: $this->createDefaultRole(1),
-            roleModelMap: [1 => ['model-a']],
+            assignedRoles: [$assignedRole],
+            roleModelMap: [2 => ['model-a']],
             availableModelIds: ['model-a', 'model-b'],
         );
 
@@ -97,17 +104,19 @@ class UserModelAccessAppServiceTest extends TestCase
 
     /**
      * @param array<int, list<string>> $roleModelMap
+     * @param list<ModelAccessRoleEntity> $assignedRoles
      * @param list<string> $availableModelIds
      */
     private function createService(
         ?ModelAccessRoleEntity $defaultRole,
+        array $assignedRoles,
         array $roleModelMap,
         array $availableModelIds,
         ?AdminGlobalSettingsEntity $settingsEntity = null
     ): UserModelAccessAppService {
         $repository = $this->createMock(ModelAccessRoleRepository::class);
         $repository->method('getDefaultRole')->willReturn($defaultRole);
-        $repository->method('getUserAssignedRoles')->willReturn([]);
+        $repository->method('getUserAssignedRoles')->willReturn($assignedRoles);
         $repository->method('getRoleUserMap')->willReturn([]);
         $repository->method('getRoleDeniedModelMap')->willReturn($roleModelMap);
         $repository->method('getDeniedModelIdsByRoleId')->willReturnCallback(
@@ -170,6 +179,16 @@ class UserModelAccessAppServiceTest extends TestCase
         $role->setName('default');
         $role->setOrganizationCode('org-1');
         $role->setIsDefault(true);
+        return $role;
+    }
+
+    private function createAssignedRole(int $id): ModelAccessRoleEntity
+    {
+        $role = new ModelAccessRoleEntity();
+        $role->setId($id);
+        $role->setName('assigned');
+        $role->setOrganizationCode('org-1');
+        $role->setIsDefault(false);
         return $role;
     }
 }

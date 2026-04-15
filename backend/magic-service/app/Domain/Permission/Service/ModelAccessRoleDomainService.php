@@ -162,11 +162,7 @@ readonly class ModelAccessRoleDomainService
     {
         $organizationCode = $dataIsolation->getCurrentOrganizationCode();
         $defaultRole = $this->repository->getDefaultRole($organizationCode);
-        $roles = [];
-        if ($defaultRole) {
-            $roles[] = $defaultRole;
-        }
-        $roles = array_merge($roles, $this->repository->getUserAssignedRoles($organizationCode, $userId));
+        $roles = $this->repository->getUserAssignedRoles($organizationCode, $userId);
 
         $uniqueRoles = [];
         foreach ($roles as $role) {
@@ -180,12 +176,9 @@ readonly class ModelAccessRoleDomainService
         $deniedModelIds = [];
 
         if ($defaultRole && $status === PermissionControlStatus::ENABLED) {
-            $visited = [];
             foreach ($roles as $role) {
-                foreach ($this->collectInheritedRoleIds($organizationCode, $role, $visited) as $roleId) {
-                    $roleModelIds = $this->repository->getDeniedModelIdsByRoleId($organizationCode, $roleId);
-                    $deniedModelIds = array_merge($deniedModelIds, $roleModelIds);
-                }
+                $roleModelIds = $this->repository->getDeniedModelIdsByRoleId($organizationCode, $role->getId());
+                $deniedModelIds = array_merge($deniedModelIds, $roleModelIds);
             }
         }
 
@@ -366,25 +359,6 @@ readonly class ModelAccessRoleDomainService
             $role->setUserIds($userMap[$role->getId()] ?? []);
             $role->setDeniedModelIds($modelMap[$role->getId()] ?? []);
         }
-    }
-
-    /**
-     * @return int[]
-     */
-    private function collectInheritedRoleIds(string $organizationCode, ModelAccessRoleEntity $role, array &$visited): array
-    {
-        $result = [];
-        $current = $role;
-        while ($current) {
-            if (isset($visited[$current->getId()])) {
-                break;
-            }
-            $visited[$current->getId()] = true;
-            $result[] = $current->getId();
-            $parentRoleId = $current->getParentRoleId();
-            $current = $parentRoleId ? $this->repository->getById($organizationCode, $parentRoleId) : null;
-        }
-        return $result;
     }
 
     /**

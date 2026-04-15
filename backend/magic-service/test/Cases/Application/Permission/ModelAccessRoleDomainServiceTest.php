@@ -406,7 +406,7 @@ class ModelAccessRoleDomainServiceTest extends HttpTestCase
         $this->assertSame(PermissionControlStatus::ENABLED, $result);
     }
 
-    public function testUserSummaryBuildsAccessibleModelsFromAvailableMinusDeniedUnion(): void
+    public function testUserSummaryBuildsAccessibleModelsFromDirectAssignedRoleDeniedModels(): void
     {
         $repository = Mockery::mock(ModelAccessRoleRepository::class);
         $adminGlobalSettingsRepository = Mockery::mock(AdminGlobalSettingsRepositoryInterface::class);
@@ -414,7 +414,6 @@ class ModelAccessRoleDomainServiceTest extends HttpTestCase
         $providerModelDomainService = Mockery::mock(ProviderModelDomainService::class);
 
         $defaultRole = $this->makeRole(id: 1, name: '默认角色', isDefault: true);
-        $parentRole = $this->makeRole(id: 2, name: '高级角色父', isDefault: false, parentRoleId: 1);
         $childRole = $this->makeRole(id: 3, name: '高级角色子', isDefault: false, parentRoleId: 2);
 
         $repository->shouldReceive('getDefaultRole')
@@ -427,35 +426,16 @@ class ModelAccessRoleDomainServiceTest extends HttpTestCase
             ->andReturn([$childRole]);
         $repository->shouldReceive('getRoleUserMap')
             ->once()
-            ->with('ORG_SUMMARY', [1, 3])
+            ->with('ORG_SUMMARY', [3])
             ->andReturn([3 => ['u_001']]);
         $repository->shouldReceive('getRoleDeniedModelMap')
             ->once()
-            ->with('ORG_SUMMARY', [1, 3])
-            ->andReturn([
-                1 => ['gpt-4.1'],
-                3 => ['claude-opus-4'],
-            ]);
-        $repository->shouldReceive('getDeniedModelIdsByRoleId')
-            ->once()
-            ->with('ORG_SUMMARY', 1)
-            ->andReturn(['gpt-4.1']);
-        $repository->shouldReceive('getById')
-            ->once()
-            ->with('ORG_SUMMARY', 2)
-            ->andReturn($parentRole);
-        $repository->shouldReceive('getById')
-            ->once()
-            ->with('ORG_SUMMARY', 1)
-            ->andReturn($defaultRole);
+            ->with('ORG_SUMMARY', [3])
+            ->andReturn([3 => ['claude-opus-4']]);
         $repository->shouldReceive('getDeniedModelIdsByRoleId')
             ->once()
             ->with('ORG_SUMMARY', 3)
             ->andReturn(['claude-opus-4']);
-        $repository->shouldReceive('getDeniedModelIdsByRoleId')
-            ->once()
-            ->with('ORG_SUMMARY', 2)
-            ->andReturn(['gemini-2.5-pro']);
         $adminGlobalSettingsRepository->shouldReceive('getSettingsByTypeAndOrganization')
             ->once()
             ->with(AdminGlobalSettingsType::MODEL_ACCESS_PERMISSION_CONTROL, 'ORG_SUMMARY')
@@ -474,9 +454,47 @@ class ModelAccessRoleDomainServiceTest extends HttpTestCase
         $summary = $service->getUserSummary(PermissionDataIsolation::create('ORG_SUMMARY', 'operator'), 'u_001');
 
         $this->assertSame(PermissionControlStatus::ENABLED, $summary['permission_control_status']);
-        $this->assertCount(2, $summary['roles']);
-        $this->assertSame(['gpt-4.1', 'claude-opus-4', 'gemini-2.5-pro'], $summary['denied_model_ids']);
-        $this->assertSame(['gpt-4o-mini'], $summary['accessible_model_ids']);
+        $this->assertCount(1, $summary['roles']);
+        $this->assertSame(['claude-opus-4'], $summary['denied_model_ids']);
+        $this->assertSame(['gpt-4.1', 'gemini-2.5-pro', 'gpt-4o-mini'], $summary['accessible_model_ids']);
+    }
+
+    public function testUserSummaryKeepsAllModelsWhenUserHasNoAssignedRoles(): void
+    {
+        $repository = Mockery::mock(ModelAccessRoleRepository::class);
+        $adminGlobalSettingsRepository = Mockery::mock(AdminGlobalSettingsRepositoryInterface::class);
+        $userDomainService = Mockery::mock(MagicUserDomainService::class);
+        $providerModelDomainService = Mockery::mock(ProviderModelDomainService::class);
+
+        $defaultRole = $this->makeRole(id: 1, name: '默认角色', isDefault: true);
+
+        $repository->shouldReceive('getDefaultRole')
+            ->once()
+            ->with('ORG_SUMMARY_EMPTY')
+            ->andReturn($defaultRole);
+        $repository->shouldReceive('getUserAssignedRoles')
+            ->once()
+            ->with('ORG_SUMMARY_EMPTY', 'u_001')
+            ->andReturn([]);
+        $adminGlobalSettingsRepository->shouldReceive('getSettingsByTypeAndOrganization')
+            ->once()
+            ->with(AdminGlobalSettingsType::MODEL_ACCESS_PERMISSION_CONTROL, 'ORG_SUMMARY_EMPTY')
+            ->andReturn(null);
+        $providerModelDomainService->shouldReceive('getEnableModels')
+            ->once()
+            ->andReturn([
+                new ProviderModelEntity(['model_id' => 'gpt-4.1']),
+                new ProviderModelEntity(['model_id' => 'claude-opus-4']),
+            ]);
+
+        $service = new ModelAccessRoleDomainService($repository, $adminGlobalSettingsRepository, $userDomainService, $providerModelDomainService);
+
+        $summary = $service->getUserSummary(PermissionDataIsolation::create('ORG_SUMMARY_EMPTY', 'operator'), 'u_001');
+
+        $this->assertSame(PermissionControlStatus::ENABLED, $summary['permission_control_status']);
+        $this->assertSame([], $summary['roles']);
+        $this->assertSame([], $summary['denied_model_ids']);
+        $this->assertSame(['gpt-4.1', 'claude-opus-4'], $summary['accessible_model_ids']);
     }
 
     public function testUpdatePermissionControlStatusPersistsDisabled(): void
