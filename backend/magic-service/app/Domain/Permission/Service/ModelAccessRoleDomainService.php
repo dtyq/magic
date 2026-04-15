@@ -162,7 +162,11 @@ readonly class ModelAccessRoleDomainService
     {
         $organizationCode = $dataIsolation->getCurrentOrganizationCode();
         $defaultRole = $this->repository->getDefaultRole($organizationCode);
-        $roles = $this->repository->getUserAssignedRoles($organizationCode, $userId);
+        $roles = [];
+        if ($defaultRole) {
+            $roles[] = $defaultRole;
+        }
+        $roles = array_merge($roles, $this->repository->getUserAssignedRoles($organizationCode, $userId));
 
         $uniqueRoles = [];
         foreach ($roles as $role) {
@@ -174,21 +178,30 @@ readonly class ModelAccessRoleDomainService
         $status = $defaultRole ? $this->resolvePermissionControlStatus($organizationCode) : PermissionControlStatus::UNINITIALIZED;
         $availableModelIds = $this->resolveOrganizationAvailableModelIds($dataIsolation);
         $deniedModelIds = [];
+        $accessibleModelIds = $availableModelIds;
 
         if ($defaultRole && $status === PermissionControlStatus::ENABLED) {
+            $accessibleModelIdMap = [];
             foreach ($roles as $role) {
                 $roleModelIds = $this->repository->getDeniedModelIdsByRoleId($organizationCode, $role->getId());
-                $deniedModelIds = array_merge($deniedModelIds, $roleModelIds);
-            }
-        }
+                $roleDeniedModelIdMap = array_fill_keys(array_values(array_unique($roleModelIds)), true);
 
-        $deniedModelIds = array_values(array_unique($deniedModelIds));
-        $accessibleModelIds = $status === PermissionControlStatus::ENABLED
-            ? array_values(array_filter(
+                foreach ($availableModelIds as $modelId) {
+                    if (! isset($roleDeniedModelIdMap[$modelId])) {
+                        $accessibleModelIdMap[$modelId] = $modelId;
+                    }
+                }
+            }
+
+            $accessibleModelIds = array_values(array_filter(
                 $availableModelIds,
-                static fn (string $modelId): bool => ! in_array($modelId, $deniedModelIds, true)
-            ))
-            : $availableModelIds;
+                static fn (string $modelId): bool => isset($accessibleModelIdMap[$modelId])
+            ));
+            $deniedModelIds = array_values(array_filter(
+                $availableModelIds,
+                static fn (string $modelId): bool => ! isset($accessibleModelIdMap[$modelId])
+            ));
+        }
 
         return [
             'permission_control_status' => $status,

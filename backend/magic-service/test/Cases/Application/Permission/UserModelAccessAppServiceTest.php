@@ -34,7 +34,10 @@ class UserModelAccessAppServiceTest extends TestCase
         $service = $this->createService(
             defaultRole: $this->createDefaultRole(1),
             assignedRoles: [$assignedRole],
-            roleModelMap: [2 => ['model-a', 'model-b', 'model-a']],
+            roleModelMap: [
+                1 => ['model-a', 'model-b', 'model-a'],
+                2 => ['model-b'],
+            ],
             availableModelIds: ['model-a', 'model-b', 'model-c'],
         );
 
@@ -42,9 +45,9 @@ class UserModelAccessAppServiceTest extends TestCase
 
         $this->assertSame('enabled', $context['permission_control_status']);
         $this->assertTrue($context['is_restricted']);
-        $this->assertSame(['model-a', 'model-b'], $context['denied_model_ids']);
-        $this->assertSame(['model-c'], $context['accessible_model_ids']);
-        $this->assertSame(['model-c' => true], $context['accessible_model_id_map']);
+        $this->assertSame(['model-b'], $context['denied_model_ids']);
+        $this->assertSame(['model-a', 'model-c'], $context['accessible_model_ids']);
+        $this->assertSame(['model-a' => true, 'model-c' => true], $context['accessible_model_id_map']);
     }
 
     public function testResolveAccessContextMarksDisabledStatusAsUnrestricted(): void
@@ -81,12 +84,10 @@ class UserModelAccessAppServiceTest extends TestCase
 
     public function testFilterModelEntriesOnlyKeepsAccessibleModelsWhenRestricted(): void
     {
-        $assignedRole = $this->createAssignedRole(2);
-
         $service = $this->createService(
             defaultRole: $this->createDefaultRole(1),
-            assignedRoles: [$assignedRole],
-            roleModelMap: [2 => ['model-a']],
+            assignedRoles: [],
+            roleModelMap: [1 => ['model-a']],
             availableModelIds: ['model-a', 'model-b'],
         );
 
@@ -100,6 +101,35 @@ class UserModelAccessAppServiceTest extends TestCase
         );
 
         $this->assertSame([['model_id' => 'model-b']], $filtered);
+    }
+
+    public function testFilterModelEntriesUsesMostPermissiveRoleScope(): void
+    {
+        $assignedRole = $this->createAssignedRole(2);
+
+        $service = $this->createService(
+            defaultRole: $this->createDefaultRole(1),
+            assignedRoles: [$assignedRole],
+            roleModelMap: [
+                1 => ['model-a'],
+                2 => [],
+            ],
+            availableModelIds: ['model-a', 'model-b'],
+        );
+
+        $filtered = $service->filterModelEntries(
+            $this->createAuthorization(),
+            [
+                ['model_id' => 'model-a'],
+                ['model_id' => 'model-b'],
+            ],
+            static fn (array $item): string => $item['model_id']
+        );
+
+        $this->assertSame([
+            ['model_id' => 'model-a'],
+            ['model_id' => 'model-b'],
+        ], $filtered);
     }
 
     /**

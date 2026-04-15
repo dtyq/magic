@@ -406,7 +406,7 @@ class ModelAccessRoleDomainServiceTest extends HttpTestCase
         $this->assertSame(PermissionControlStatus::ENABLED, $result);
     }
 
-    public function testUserSummaryBuildsAccessibleModelsFromDirectAssignedRoleDeniedModels(): void
+    public function testUserSummaryUsesMostPermissiveAccessibleScopeAcrossDefaultAndAssignedRoles(): void
     {
         $repository = Mockery::mock(ModelAccessRoleRepository::class);
         $adminGlobalSettingsRepository = Mockery::mock(AdminGlobalSettingsRepositoryInterface::class);
@@ -426,12 +426,19 @@ class ModelAccessRoleDomainServiceTest extends HttpTestCase
             ->andReturn([$childRole]);
         $repository->shouldReceive('getRoleUserMap')
             ->once()
-            ->with('ORG_SUMMARY', [3])
+            ->with('ORG_SUMMARY', [1, 3])
             ->andReturn([3 => ['u_001']]);
         $repository->shouldReceive('getRoleDeniedModelMap')
             ->once()
-            ->with('ORG_SUMMARY', [3])
-            ->andReturn([3 => ['claude-opus-4']]);
+            ->with('ORG_SUMMARY', [1, 3])
+            ->andReturn([
+                1 => ['gpt-4.1', 'claude-opus-4'],
+                3 => ['claude-opus-4'],
+            ]);
+        $repository->shouldReceive('getDeniedModelIdsByRoleId')
+            ->once()
+            ->with('ORG_SUMMARY', 1)
+            ->andReturn(['gpt-4.1', 'claude-opus-4']);
         $repository->shouldReceive('getDeniedModelIdsByRoleId')
             ->once()
             ->with('ORG_SUMMARY', 3)
@@ -454,12 +461,12 @@ class ModelAccessRoleDomainServiceTest extends HttpTestCase
         $summary = $service->getUserSummary(PermissionDataIsolation::create('ORG_SUMMARY', 'operator'), 'u_001');
 
         $this->assertSame(PermissionControlStatus::ENABLED, $summary['permission_control_status']);
-        $this->assertCount(1, $summary['roles']);
+        $this->assertCount(2, $summary['roles']);
         $this->assertSame(['claude-opus-4'], $summary['denied_model_ids']);
         $this->assertSame(['gpt-4.1', 'gemini-2.5-pro', 'gpt-4o-mini'], $summary['accessible_model_ids']);
     }
 
-    public function testUserSummaryKeepsAllModelsWhenUserHasNoAssignedRoles(): void
+    public function testUserSummaryAppliesDefaultRoleWhenUserHasNoAssignedRoles(): void
     {
         $repository = Mockery::mock(ModelAccessRoleRepository::class);
         $adminGlobalSettingsRepository = Mockery::mock(AdminGlobalSettingsRepositoryInterface::class);
@@ -476,6 +483,18 @@ class ModelAccessRoleDomainServiceTest extends HttpTestCase
             ->once()
             ->with('ORG_SUMMARY_EMPTY', 'u_001')
             ->andReturn([]);
+        $repository->shouldReceive('getRoleUserMap')
+            ->once()
+            ->with('ORG_SUMMARY_EMPTY', [1])
+            ->andReturn([]);
+        $repository->shouldReceive('getRoleDeniedModelMap')
+            ->once()
+            ->with('ORG_SUMMARY_EMPTY', [1])
+            ->andReturn([1 => ['gpt-4.1']]);
+        $repository->shouldReceive('getDeniedModelIdsByRoleId')
+            ->once()
+            ->with('ORG_SUMMARY_EMPTY', 1)
+            ->andReturn(['gpt-4.1']);
         $adminGlobalSettingsRepository->shouldReceive('getSettingsByTypeAndOrganization')
             ->once()
             ->with(AdminGlobalSettingsType::MODEL_ACCESS_PERMISSION_CONTROL, 'ORG_SUMMARY_EMPTY')
@@ -492,9 +511,9 @@ class ModelAccessRoleDomainServiceTest extends HttpTestCase
         $summary = $service->getUserSummary(PermissionDataIsolation::create('ORG_SUMMARY_EMPTY', 'operator'), 'u_001');
 
         $this->assertSame(PermissionControlStatus::ENABLED, $summary['permission_control_status']);
-        $this->assertSame([], $summary['roles']);
-        $this->assertSame([], $summary['denied_model_ids']);
-        $this->assertSame(['gpt-4.1', 'claude-opus-4'], $summary['accessible_model_ids']);
+        $this->assertCount(1, $summary['roles']);
+        $this->assertSame(['gpt-4.1'], $summary['denied_model_ids']);
+        $this->assertSame(['claude-opus-4'], $summary['accessible_model_ids']);
     }
 
     public function testUpdatePermissionControlStatusPersistsDisabled(): void
