@@ -26,6 +26,7 @@ from app.service.agent_event.third_party_message_listener_service import ThirdPa
 from app.infrastructure.observability import install_tool_monitoring_listener
 from app.service.mcp_service import MCPService
 from app.path_manager import PathManager
+from app.service.agent_event.ask_user_listener_service import AskUserListenerService
 from app.service.agent_event.channel_startup_listener_service import ChannelStartupListenerService
 from app.core.entity.message.client_message import InitClientMessage, ChatClientMessage, AgentMode
 from agentlang.logger import get_logger
@@ -95,6 +96,7 @@ class AgentDispatcher(Base):
         CheckpointListenerService.register_standard_listeners(self.agent_context)
         ResourceCleanupListenerService.register_standard_listeners(self.agent_context)
         ChannelStartupListenerService.register_standard_listeners(self.agent_context)
+        AskUserListenerService.register_standard_listeners(self.agent_context)
         ThirdPartyMessageListenerService.register_standard_listeners(self.agent_context)
 
         # 注册工具监控监听器（非侵入式）
@@ -163,7 +165,7 @@ class AgentDispatcher(Base):
         # ========== 配置更新阶段 - 每次都执行 ==========
         # 保存初始化消息到文件
         from app.utils.init_client_message_util import InitClientMessageUtil
-        InitClientMessageUtil.save_init_client_message(init_message)
+        await InitClientMessageUtil.save_init_client_message(init_message)
 
         # 从 init_message.metadata 提取并设置关键字段
         if init_message.metadata:
@@ -240,15 +242,6 @@ class AgentDispatcher(Base):
 
         # 改为按需加载agent，不再预先创建
         self.is_workspace_initialized = True
-
-        # 沙箱初始化完成后，恢复服务重启前未完成的 ask_user 超时定时器
-        try:
-            from app.tools.ask_user import AskUserTool
-            logger.info(f"恢复ask_user 超时定时器ing")
-            asyncio.create_task(AskUserTool.restore_pending_timers(self.agent_context))
-            logger.info(f"恢复ask_user 超时定时器成功")
-        except Exception as e:
-            logger.warning(f"恢复 ask_user 超时定时器失败（不影响正常流程）: {e}")
 
         # 标记 init 事件已发送（非预启动场景）
         # 只有在 skip_init_messages 不为 True 时才标记已发送

@@ -16,7 +16,6 @@ from app.api.http_dto.response import (
     ResponseCode
 )
 from app.service.agent_dispatcher import AgentDispatcher
-from app.service.ask_user_service import AskUserService
 from app.core.context.agent_context import AgentContext
 from agentlang.config.non_human_config import NonHumanConfigManager
 from app.core.entity.event.event import AfterClientChatEventData
@@ -48,7 +47,6 @@ class MessageProcessor:
     _MESSAGE_DEDUP_TTL: float = 600.0
     def __init__(self):
         self.agent_dispatcher = AgentDispatcher.get_instance()
-        self.ask_user_service = AskUserService()
 
         # 进程内中断互斥锁，用于进行中防抖
         self._interrupt_lock: asyncio.Lock = asyncio.Lock()
@@ -309,7 +307,8 @@ class MessageProcessor:
             # 普通新消息命中 ask_user 等待态时，先按 cancelled 收口旧工具调用，
             # 再让这条消息作为新的用户输入进入后续主链路。
             if message.context_type in [ContextType.NORMAL, ContextType.FOLLOW_UP] and agent_context.has_ask_user_pending():
-                await self.ask_user_service.cancel_pending_ask_user_for_new_message(agent_context)
+                from app.service.ask_user_service import AskUserService
+                await AskUserService.get_instance().cancel_pending_ask_user_for_new_message(agent_context)
 
             # 保存聊天消息
             if message.context_type in [ContextType.NORMAL, ContextType.FOLLOW_UP]:
@@ -484,12 +483,13 @@ class MessageProcessor:
                 f"response_status={response_status}, answer={answer!r}"
             )
 
-            from app.tools.ask_user import AskUserTool
-            pending = AskUserTool._pending_questions.pop(question_id, None)
+            from app.service.ask_user_service import AskUserService
+            ask_user_service = AskUserService.get_instance()
+            pending = ask_user_service.pop_pending(question_id)
             if not pending:
                 logger.warning(
-                    f"handle_ask_user_response: question_id={question_id} 不在 _pending_questions 中，"
-                    "可能已超时或重复提交"
+                    f"handle_ask_user_response: question_id={question_id} not in pending, "
+                    "may have timed out or been submitted twice"
                 )
                 return create_error_response("问题不存在或已超时")
 
@@ -498,12 +498,12 @@ class MessageProcessor:
 
             # 异步完成后续工作（追加历史 + 启动 Agent），立即返回 HTTP 响应
             asyncio.create_task(
-                self.ask_user_service.resume_after_ask_user(
-                    self,
+                ask_user_service.resume_after_ask_user(
                     pending=pending,
                     response_status=response_status,
                     answer=answer,
-                )
+                ),
+                name=f"ask_user_resume_{question_id}",
             )
             return create_success_response("ask_user_response 已接收")
 
