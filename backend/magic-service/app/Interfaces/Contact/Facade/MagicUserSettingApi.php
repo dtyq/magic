@@ -67,9 +67,10 @@ class MagicUserSettingApi extends AbstractApi
         $authorization = $this->getAuthorization();
         $model = $this->request->input('model', []);
         $imageModel = $this->request->input('image_model', []);
+        $videoModel = $this->request->input('video_model', []);
         $extra = $this->request->input('extra', []);
 
-        $userSetting = $this->magicUserSettingAppService->saveProjectTopicModelConfig($authorization, $topicId, $model, $imageModel, $extra);
+        $userSetting = $this->magicUserSettingAppService->saveProjectTopicModelConfig($authorization, $topicId, $model, $imageModel, $videoModel, $extra);
         return $userSetting->getValue();
     }
 

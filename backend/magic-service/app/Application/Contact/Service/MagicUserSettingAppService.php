@@ -32,7 +32,7 @@ class MagicUserSettingAppService extends AbstractContactAppService
     ) {
     }
 
-    public function saveProjectTopicModelConfig(Authenticatable $authorization, string $topicId, array $model, array $imageModel = [], array $extra = []): MagicUserSettingEntity
+    public function saveProjectTopicModelConfig(Authenticatable $authorization, string $topicId, array $model, array $imageModel = [], array $videoModel = [], array $extra = []): MagicUserSettingEntity
     {
         /* @phpstan-ignore-next-line */
         $dataIsolation = $this->createDataIsolation($authorization);
@@ -41,6 +41,7 @@ class MagicUserSettingAppService extends AbstractContactAppService
         $entity->setValue([
             'model' => $model,
             'image_model' => $imageModel,
+            'video_model' => $videoModel,
             'extra' => $extra,
         ]);
         return $this->magicUserSettingDomainService->save($dataIsolation, $entity);
