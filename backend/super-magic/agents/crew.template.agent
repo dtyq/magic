@@ -2,6 +2,7 @@
 llm: main_llm
 tools:
   - web_search
+  - search_knowledge
   - read_webpages_as_markdown
   - visual_understanding
   - convert_to_markdown

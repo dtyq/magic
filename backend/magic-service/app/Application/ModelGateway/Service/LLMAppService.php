@@ -31,6 +31,7 @@ use App\Domain\ModelGateway\Entity\ModelConfigEntity;
 use App\Domain\ModelGateway\Entity\MsgLogEntity;
 use App\Domain\ModelGateway\Entity\ValueObject\LLMDataIsolation;
 use App\Domain\ModelGateway\Entity\ValueObject\ModelGatewayDataIsolation;
+use App\Domain\ModelGateway\Entity\ValueObject\ModelListType;
 use App\Domain\ModelGateway\Event\ImageGeneratedEvent;
 use App\Domain\Provider\Entity\ValueObject\AiAbilityCode;
 use App\Domain\Provider\Entity\ValueObject\ProviderDataIsolation;
@@ -115,15 +116,20 @@ class LLMAppService extends AbstractLLMAppService
     /**
      * @return array<ModelConfigEntity>
      */
-    public function models(string $accessToken, bool $withInfo = false, string $type = '', array $businessParams = [], bool $withDynamicModels = false): array
-    {
+    public function models(
+        string $accessToken,
+        bool $withInfo = false,
+        ModelListType $type = ModelListType::ALL,
+        array $businessParams = [],
+        bool $withDynamicModels = false
+    ): array {
         $dataIsolation = $this->createModelGatewayDataIsolationByAccessToken($accessToken, $businessParams);
 
         $models = match ($type) {
-            'chat' => $this->modelGatewayMapper->getChatModels($dataIsolation, $withDynamicModels),
-            'embedding' => $this->modelGatewayMapper->getEmbeddingModels($dataIsolation, $withDynamicModels),
-            'image' => $this->modelGatewayMapper->getImageModels($dataIsolation, $withDynamicModels),
-            'video' => $this->modelGatewayMapper->getVideoModels($dataIsolation, $withDynamicModels),
+            ModelListType::CHAT => $this->modelGatewayMapper->getChatModels($dataIsolation, $withDynamicModels),
+            ModelListType::EMBEDDING => $this->modelGatewayMapper->getEmbeddingModels($dataIsolation, $withDynamicModels),
+            ModelListType::IMAGE => $this->modelGatewayMapper->getImageModels($dataIsolation, $withDynamicModels),
+            ModelListType::VIDEO => $this->modelGatewayMapper->getVideoModels($dataIsolation, $withDynamicModels),
             default => $this->modelGatewayMapper->getAllModels($dataIsolation, $withDynamicModels),
         };
 
@@ -1424,6 +1430,7 @@ class LLMAppService extends AbstractLLMAppService
         $imageGenerateParamsVO->setSequentialImageGeneration($proxyModelRequest->getSequentialImageGeneration());
         $imageGenerateParamsVO->setSequentialImageGenerationOptions($proxyModelRequest->getSequentialImageGenerationOptions());
         $imageGenerateParamsVO->setReferenceImages($proxyModelRequest->getImages());
+        $imageGenerateParamsVO->setOutputFormat($proxyModelRequest->getOutputFormat());
 
         // 直接透传原始 size 参数，让各服务商根据自己的需求处理
         $imageGenerateParamsVO->setSize($proxyModelRequest->getSize(''));
@@ -1432,7 +1439,8 @@ class LLMAppService extends AbstractLLMAppService
         $data['organization_code'] = $organizationCode;
 
         // 图片水印处理
-        $imageGenerateRequest = ImageGenerateFactory::createRequestType($imageGenerateType, $modelVersion, $proxyModelRequest->getModel(), $data);
+        $modelId = $imageModel->getModelId() ?: $proxyModelRequest->getModel();
+        $imageGenerateRequest = ImageGenerateFactory::createRequestType($imageGenerateType, $modelVersion, $modelId, $data);
         $resolvedWatermark = di(WatermarkPolicyInterface::class)
             ->apply($modelGatewayDataIsolation->getAccessToken(), $proxyModelRequest->getWatermark());
         $imageGenerateRequest->setWatermarkConfig($resolvedWatermark);

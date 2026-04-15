@@ -350,5 +350,13 @@
     "get_im_channel_status": {
         "zh_CN": "查询 IM 渠道状态",
         "en_US": "Query IM channel status"
+    },
+    "init_virtual_machine": {
+        "zh_CN": "虚拟机正在初始化",
+        "en_US": "Initializing virtual machine"
+    },
+    "mcp_init": {
+        "zh_CN": "MCP 初始化",
+        "en_US": "MCP initialization"
     }
 }

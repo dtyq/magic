@@ -10,6 +10,9 @@ namespace App\Domain\Provider\Entity\ValueObject;
 use App\Domain\Provider\DTO\Item\AbstractProviderConfigItem;
 use App\Domain\Provider\DTO\Item\GoogleProviderConfigItem;
 use App\Domain\Provider\DTO\Item\ProviderConfigItem;
+use App\ErrorCode\ServiceProviderErrorCode;
+use App\Infrastructure\Core\Exception\ExceptionBuilder;
+use Hyperf\Odin\Model\AnthropicModel;
 use Hyperf\Odin\Model\AwsBedrockModel;
 use Hyperf\Odin\Model\AzureOpenAIModel;
 use Hyperf\Odin\Model\DashScopeModel;
@@ -17,11 +20,13 @@ use Hyperf\Odin\Model\DeepSeekModel;
 use Hyperf\Odin\Model\DoubaoModel;
 use Hyperf\Odin\Model\GeminiModel;
 use Hyperf\Odin\Model\OpenAIModel;
+use Hyperf\Odin\Model\VolcengineMultiModalEmbeddingModel;
 
 enum ProviderCode: string
 {
     case None = 'None';
     case Official = 'Official'; // 官方
+    case Wuyin = 'Wuyin';
     case Cloudsway = 'Cloudsway';
     case Volcengine = 'Volcengine'; // 火山
     case OpenAI = 'OpenAI';
@@ -44,17 +49,26 @@ enum ProviderCode: string
     case DashScope = 'DashScope';
     case OpenRouter = 'OpenRouter';
     case SuChuang = 'SuChuang';
+    case Anthropic = 'Anthropic';
 
     public function getImplementation(): string
     {
+        return $this->getImplementationForModel();
+    }
+
+    public function getImplementationForModel(bool $embedding = false, bool $multiModal = false): string
+    {
         return match ($this) {
-            self::MicrosoftAzure => AzureOpenAIModel::class,
-            self::Volcengine => DoubaoModel::class,
-            self::AWSBedrock => AwsBedrockModel::class,
-            self::Gemini => GeminiModel::class,
-            self::DeepSeek => DeepSeekModel::class,
-            self::DashScope => DashScopeModel::class,
-            default => OpenAIModel::class,
+            self::Volcengine => self::requireImplementationClass(
+                ($embedding && $multiModal) ? VolcengineMultiModalEmbeddingModel::class : DoubaoModel::class
+            ),
+            self::MicrosoftAzure => self::requireImplementationClass(AzureOpenAIModel::class),
+            self::AWSBedrock => self::requireImplementationClass(AwsBedrockModel::class),
+            self::Gemini => self::requireImplementationClass(GeminiModel::class),
+            self::DeepSeek => self::requireImplementationClass(DeepSeekModel::class),
+            self::DashScope => self::requireImplementationClass(DashScopeModel::class),
+            self::Anthropic => self::requireImplementationClass(AnthropicModel::class),
+            default => self::requireImplementationClass(OpenAIModel::class),
         };
     }
 
@@ -76,6 +90,12 @@ enum ProviderCode: string
                         'secret_key' => $config->getSk(),
                         'region' => $config->getRegion(),
                         'auto_cache' => config('llm.aws_bedrock_auto_cache', true),
+                    ],
+                    self::Anthropic => [
+                        'api_key' => $config->getApiKey(),
+                        'base_url' => $config->getUrl(),
+                        'anthropic_version' => $config->getApiVersion(),
+                        'auto_cache' => config('llm.anthropic_auto_cache', true),
                     ],
                     default => [
                         'api_key' => $config->getApiKey(),
@@ -238,8 +258,21 @@ enum ProviderCode: string
             self::BigModel => 13,
             self::MiniMax => 14,
             self::SiliconFlow => 15,
+            self::Anthropic => 16,
             default => 999, // 其他服务商排在最后
         };
+    }
+
+    private static function requireImplementationClass(string $implementationClass): string
+    {
+        if (! class_exists($implementationClass)) {
+            ExceptionBuilder::throw(
+                ServiceProviderErrorCode::SystemError,
+                'service_provider.provider_not_implemented'
+            );
+        }
+
+        return $implementationClass;
     }
 
     /**

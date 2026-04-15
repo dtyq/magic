@@ -84,9 +84,9 @@ def install_llm_cost_tracking() -> None:
     if not original:
         return
 
-    def patched(self: Any, response_usage: Any, model_id: str, user_id: Optional[str] = None, model_name: Optional[str] = None):
+    def patched(self: Any, response_usage: Any, model_id: str, user_id: Optional[str] = None, model_name: Optional[str] = None, resolved_model_id: Optional[str] = None):
         # Call original logic first
-        result = original(self, response_usage, model_id, user_id=user_id, model_name=model_name)
+        result = original(self, response_usage, model_id, user_id=user_id, model_name=model_name, resolved_model_id=resolved_model_id)
 
         try:
             # Get the last recorded TokenUsage (includes cache details & model info)

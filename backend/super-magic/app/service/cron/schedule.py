@@ -50,17 +50,14 @@ def _next_for_at(s: CronSchedule, now: int) -> Optional[int]:
 def _next_for_every(s: CronSchedule, state: CronJobState, now: int) -> int:
     """
     固定间隔任务：基于 Unix 纪元对齐计算。
-    - 首次发现（从未执行过）：使用当前纪元边界（floor），该边界已过期，
-      会立即被判定为 due 并执行，不需要额外等待一个完整周期。
-    - 后续执行：使用下一个纪元边界（floor + 1），保证整点对齐。
+    - 首次发现（从未执行过）：使用下一个纪元边界（floor + 1），
+      创建后不会立即执行，等到下一个周期才开始。
+    - 后续执行：同样使用下一个纪元边界（floor + 1），保证整点对齐。
     例如 every_ms=60000（1分钟），始终在每分钟的 :00 秒执行。
     """
     if not s.every_ms or s.every_ms <= 0:
         raise ValueError("schedule.every_ms must be a positive integer for kind=every")
-    if state.last_run_at_ms is None:
-        # 首次：当前纪元边界（已过期），立即触发
-        return (now // s.every_ms) * s.every_ms
-    # 后续：下一个纪元边界
+    # 无论首次还是后续，都使用下一个纪元边界
     return (now // s.every_ms + 1) * s.every_ms
 
 

@@ -36,6 +36,19 @@ abstract class AbstractDocumentFileDTO extends AbstractDTO implements DocumentFi
 
     public static function fromArray(array $data): DocumentFileDTOInterface
     {
+        if (isset($data['third_id']) && ! isset($data['third_file_id'])) {
+            $data['third_file_id'] = (string) $data['third_id'];
+        }
+        if (isset($data['source_type']) && ! isset($data['platform_type'])) {
+            $data['platform_type'] = (string) $data['source_type'];
+        }
+        if (isset($data['file_link']) && is_array($data['file_link']) && ! isset($data['url'])) {
+            $data['url'] = (string) ($data['file_link']['url'] ?? '');
+        }
+        if (($data['key'] ?? '') === '' && isset($data['url'])) {
+            $data['key'] = (string) $data['url'];
+        }
+
         $documentFileType = isset($data['type']) ? DocumentFileType::tryFrom($data['type']) : DocumentFileType::EXTERNAL;
         return match ($documentFileType) {
             DocumentFileType::EXTERNAL => new ExternalDocumentFileDTO($data),

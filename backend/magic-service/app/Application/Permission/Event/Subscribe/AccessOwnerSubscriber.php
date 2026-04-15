@@ -14,8 +14,6 @@ use App\Domain\Flow\Entity\MagicFlowToolSetEntity;
 use App\Domain\Flow\Entity\ValueObject\Type;
 use App\Domain\Flow\Event\MagicFLowSavedEvent;
 use App\Domain\Flow\Event\MagicFLowToolSetSavedEvent;
-use App\Domain\KnowledgeBase\Entity\KnowledgeBaseEntity;
-use App\Domain\KnowledgeBase\Event\KnowledgeBaseSavedEvent;
 use App\Domain\MCP\Entity\MCPServerEntity;
 use App\Domain\MCP\Event\MCPServerSavedEvent;
 use App\Domain\Permission\Entity\ValueObject\OperationPermission\ResourceType;
@@ -43,7 +41,6 @@ readonly class AccessOwnerSubscriber implements ListenerInterface
             MagicAgentSavedEvent::class,
             MagicFLowSavedEvent::class,
             MagicFLowToolSetSavedEvent::class,
-            KnowledgeBaseSavedEvent::class,
             MCPServerSavedEvent::class,
             SuperMagicAgentSavedEvent::class,
         ];
@@ -59,9 +56,6 @@ readonly class AccessOwnerSubscriber implements ListenerInterface
         }
         if ($event instanceof MagicFLowToolSetSavedEvent) {
             $this->handleToolSet($event->toolSetEntity, $event->create);
-        }
-        if ($event instanceof KnowledgeBaseSavedEvent) {
-            $this->handleKnowledge($event->magicFlowKnowledgeEntity, $event->create);
         }
         if ($event instanceof MCPServerSavedEvent) {
             $this->handleMCPServer($event->MCPServerEntity, $event->create);
@@ -106,19 +100,6 @@ readonly class AccessOwnerSubscriber implements ListenerInterface
                 ResourceType::ToolSet,
                 $toolSetEntity->getCode(),
                 $toolSetEntity->getCreator()
-            );
-        }
-    }
-
-    private function handleKnowledge(KnowledgeBaseEntity $knowledgeEntity, bool $create): void
-    {
-        $permissionDataIsolation = PermissionDataIsolation::create($knowledgeEntity->getOrganizationCode(), $knowledgeEntity->getCreator());
-        if ($create) {
-            $this->operationPermissionDomainService->accessOwner(
-                $permissionDataIsolation,
-                ResourceType::Knowledge,
-                $knowledgeEntity->getCode(),
-                $knowledgeEntity->getCreator()
             );
         }
     }

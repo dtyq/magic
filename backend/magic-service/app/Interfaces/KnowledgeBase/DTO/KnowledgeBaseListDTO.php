@@ -8,7 +8,6 @@ declare(strict_types=1);
 namespace App\Interfaces\KnowledgeBase\DTO;
 
 use App\Domain\KnowledgeBase\Entity\KnowledgeBaseEntity;
-use App\Domain\KnowledgeBase\Entity\ValueObject\FragmentConfig;
 use App\Domain\KnowledgeBase\Entity\ValueObject\RetrieveConfig;
 use App\Interfaces\Flow\DTO\AbstractFlowDTO;
 use App\Interfaces\Kernel\Assembler\OperatorAssembler;
@@ -41,6 +40,12 @@ class KnowledgeBaseListDTO extends AbstractFlowDTO
 
     public int $userOperation = 0;
 
+    public int $fragmentCount = 0;
+
+    public int $expectedCount = 0;
+
+    public int $completedCount = 0;
+
     /**
      * 业务维护的期望总数.
      */
@@ -57,11 +62,13 @@ class KnowledgeBaseListDTO extends AbstractFlowDTO
 
     public ?RetrieveConfig $retrieveConfig = null;
 
-    public ?FragmentConfig $fragmentConfig = null;
+    public ?array $fragmentConfig = null;
 
     public ?array $embeddingConfig = [];
 
     public int $sourceType;
+
+    public array $agentCodes = [];
 
     public function getSourceType(): int
     {
@@ -72,6 +79,27 @@ class KnowledgeBaseListDTO extends AbstractFlowDTO
     {
         $this->sourceType = $sourceType;
         return $this;
+    }
+
+    public function getAgentCodes(): array
+    {
+        return $this->agentCodes;
+    }
+
+    public function setAgentCodes(?array $agentCodes): static
+    {
+        $this->agentCodes = array_values(array_map('strval', $agentCodes ?? []));
+        return $this;
+    }
+
+    public function getAgentIds(): array
+    {
+        return $this->getAgentCodes();
+    }
+
+    public function setAgentIds(?array $agentCodes): static
+    {
+        return $this->setAgentCodes($agentCodes);
     }
 
     public function getRetrieveConfig(): ?RetrieveConfig
@@ -86,14 +114,13 @@ class KnowledgeBaseListDTO extends AbstractFlowDTO
         return $this;
     }
 
-    public function getFragmentConfig(): ?FragmentConfig
+    public function getFragmentConfig(): ?array
     {
         return $this->fragmentConfig;
     }
 
-    public function setFragmentConfig(null|array|FragmentConfig $fragmentConfig): static
+    public function setFragmentConfig(?array $fragmentConfig): static
     {
-        is_array($fragmentConfig) && $fragmentConfig = FragmentConfig::fromArray($fragmentConfig);
         $this->fragmentConfig = $fragmentConfig;
         return $this;
     }
@@ -112,6 +139,39 @@ class KnowledgeBaseListDTO extends AbstractFlowDTO
     public function getExpectedNum(): int
     {
         return $this->expectedNum;
+    }
+
+    public function getFragmentCount(): int
+    {
+        return $this->fragmentCount;
+    }
+
+    public function setFragmentCount(?int $fragmentCount): static
+    {
+        $this->fragmentCount = $fragmentCount ?? 0;
+        return $this;
+    }
+
+    public function getExpectedCount(): int
+    {
+        return $this->expectedCount;
+    }
+
+    public function setExpectedCount(?int $expectedCount): static
+    {
+        $this->expectedCount = $expectedCount ?? 0;
+        return $this;
+    }
+
+    public function getCompletedCount(): int
+    {
+        return $this->completedCount;
+    }
+
+    public function setCompletedCount(?int $completedCount): static
+    {
+        $this->completedCount = $completedCount ?? 0;
+        return $this;
     }
 
     public function setExpectedNum(?int $expectedNum): void
@@ -295,12 +355,15 @@ class KnowledgeBaseListDTO extends AbstractFlowDTO
         $listDTO->setCreatorInfo(OperatorAssembler::createOperatorDTOByUserEntity($users[$entity->getCreator()] ?? null, $entity->getCreatedAt()));
         $listDTO->setModifierInfo(OperatorAssembler::createOperatorDTOByUserEntity($users[$entity->getModifier()] ?? null, $entity->getUpdatedAt()));
         $listDTO->setUserOperation($entity->getUserOperation());
+        $listDTO->setFragmentCount($entity->getFragmentCount());
+        $listDTO->setExpectedCount($entity->getExpectedCount());
+        $listDTO->setCompletedCount($entity->getCompletedCount());
         $listDTO->setExpectedNum($entity->getExpectedNum());
         $listDTO->setCompletedNum($entity->getCompletedNum());
         $listDTO->setWordCount($entity->getWordCount());
         $listDTO->setRetrieveConfig($entity->getRetrieveConfig());
         $listDTO->setEmbeddingConfig($entity->getEmbeddingConfig());
-        $listDTO->setFragmentConfig($entity->getFragmentConfig());
+        $listDTO->setFragmentConfig($entity->getFragmentConfig()?->toArray());
         $listDTO->setDocumentCount($knowledgeBaseDocumentCountMap[$entity->getCode()] ?? 0);
         return $listDTO;
     }

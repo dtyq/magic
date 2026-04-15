@@ -35,6 +35,7 @@ from agentlang.llms.processors.processor_config import ProcessorConfig
 from app.streaming.message_builder import LLMStreamingMessageBuilder
 from app.streaming.config_generator import StreamingConfigGenerator
 from agentlang.llms.token_usage.models import TokenUsage
+from agentlang.llms.token_usage.report import TokenUsageReport
 from agentlang.logger import get_logger
 from agentlang.tools.tool_result import ToolResult
 from agentlang.utils.token_estimator import num_tokens_from_string
@@ -153,6 +154,7 @@ class ToolExecutionResult:
     """Tool execution result with exit detection"""
     should_exit: bool = False
     final_response: Optional[str] = None
+    inject_horizon_after_tools: bool = True
     # 检测到某个工具因超长参数导致校验失败（参数有效但缺字段，通常是模型输出过长导致）
     has_long_args_failure: bool = False
 
@@ -265,6 +267,9 @@ class Agent(BaseAgent):
             self.agent_context.chat_history_dir,
             self.agent_context.get_event_dispatcher(),  # 传递事件分发器
         )
+
+        # 将 token usage 报告文件名前缀与聊天历史文件保持一致
+        TokenUsageReport.get_instance().set_file_prefix(f"{self.agent_name}<{self.id}>")
 
         # 将 chat_history 设置到 agent_context 中，确保工具可以访问
         self.agent_context.chat_history = self.chat_history
@@ -885,6 +890,7 @@ class Agent(BaseAgent):
         # 检测用户命令（/compact、/new 等），命令处理后 query 替换为命令执行结果
         original_command = Commands.get(query)
         is_continue_request = original_command and original_command.name == "continue"
+        is_resume_request = original_command and original_command.name == "resume"
 
         if original_command:
             query = await Commands.process(query, self)
@@ -916,6 +922,12 @@ class Agent(BaseAgent):
                 await self.chat_history.append_user_message(query)
                 return SessionPrepResult(user_message_added=True)
         else:
+            # /resume 是系统内部信号（由 ask_user 等工具的 resume 流程发出）：
+            # ToolResult 已写入历史，LLM 直接响应即可，不追加任何用户消息。
+            if is_resume_request:
+                logger.info("检测到 /resume 信号，跳过追加用户消息，直接让 LLM 响应工具结果")
+                return SessionPrepResult(user_message_added=False)
+
             # 没有pending工具调用，正常添加用户消息
             await self.chat_history.append_user_message(query)
             return SessionPrepResult(user_message_added=True)
@@ -1127,10 +1139,11 @@ class Agent(BaseAgent):
                 # 注入点 2：tool result 返回后，注入 system_injected_context
                 # 无论是否 should_exit 都注入，因为 hidden message 会留在 chat history 供后续 LLM call 读取
                 try:
-                    self._sync_horizon_llm_model_info()
-                    ctx_update = await self.agent_context.horizon.build_context_update()
-                    await self.chat_history.append_user_message(ctx_update, show_in_ui=False, source="horizon")
-                    logger.debug("[AgentHorizon] 已注入 tool result 后 system_injected_context")
+                    if tool_result.inject_horizon_after_tools:
+                        self._sync_horizon_llm_model_info()
+                        ctx_update = await self.agent_context.horizon.build_context_update()
+                        await self.chat_history.append_user_message(ctx_update, show_in_ui=False, source="horizon")
+                        logger.debug("[AgentHorizon] 已注入 tool result 后 system_injected_context")
                 except Exception as _horizon_err:
                     logger.warning(f"[AgentHorizon] tool result 后注入失败: {_horizon_err}")
 
@@ -1988,7 +2001,9 @@ class Agent(BaseAgent):
         tool_call_results = await self._execute_tool_calls(llm_context.tool_calls, llm_context.message)
 
         # 处理工具调用结果
-        should_exit, final_response = await self._process_tool_call_results(tool_call_results)
+        should_exit, final_response, inject_horizon_after_tools = await self._process_tool_call_results(
+            tool_call_results
+        )
 
         # 检测"工具校验失败 + 参数超长"模式：模型输出过长时可能生成有效 JSON 但缺少必填字段，
         # 这种情况 preprocess 阶段不会标记 tool_args_truncated，需要在执行后补充检测
@@ -1999,6 +2014,7 @@ class Agent(BaseAgent):
         return ToolExecutionResult(
             should_exit=should_exit,
             final_response=final_response,
+            inject_horizon_after_tools=inject_horizon_after_tools,
             has_long_args_failure=has_long_args_failure,
         )
 
@@ -2028,7 +2044,9 @@ class Agent(BaseAgent):
                 return True
         return False
 
-    async def _process_tool_call_results(self, tool_call_results: List[ToolResult]) -> tuple[bool, Optional[str]]:
+    async def _process_tool_call_results(
+        self, tool_call_results: List[ToolResult]
+    ) -> tuple[bool, Optional[str], bool]:
         """
         处理工具调用结果
 
@@ -2036,10 +2054,11 @@ class Agent(BaseAgent):
             tool_call_results: 工具调用结果列表
 
         Returns:
-            Tuple: (是否应该退出循环, 最终响应)
+            Tuple: (是否应该退出循环, 最终响应, 是否执行主循环注入点 2 horizon)
         """
         should_exit = False
         final_response = None
+        inject_horizon_after_tools = True
 
         for result in tool_call_results:
             if not result:  # 跳过空结果
@@ -2054,6 +2073,17 @@ class Agent(BaseAgent):
                     except (ValueError, TypeError):
                         logger.warning(f"无法将工具执行时间 {result.execution_time} 转换为毫秒。")
 
+                # ASK_USER：不写入占位 ToolResult，直接退出循环等待用户回复。
+                # 用户回复（或超时）后，由 AskUserService.resume_after_ask_user
+                # 将真实答复作为 ToolResult 追加到历史，上下文此时才完整，再启动 Agent。
+                if result.system == "ASK_USER":
+                    inject_horizon_after_tools = False
+                    logger.info("检测到 ASK_USER 工具调用，退出主循环等待用户回复（不写入占位 ToolResult）")
+                    final_response = result.content
+                    self.set_agent_state(AgentState.WAITING_FOR_USER)
+                    should_exit = True
+                    break
+
                 # 追加工具调用结果到聊天历史
                 await self.chat_history.append_tool_message(
                     content=result.content,
@@ -2062,14 +2092,8 @@ class Agent(BaseAgent):
                     duration_ms=tool_duration_ms,
                 )
 
-                # 检查特殊工具调用
-                if result.system == "ASK_USER":
-                    logger.info("检测到 ASK_USER 工具调用，等待用户回复")
-                    final_response = result.content  # 将用户的问题作为最终响应
-                    self.set_agent_state(AgentState.FINISHED)  # 设置状态为 FINISHED
-                    should_exit = True  # 设置标志为 True，触发主循环退出
-                    break  # 退出循环
-                elif result.system == "COMPACT_HISTORY":
+                # 检查其他特殊工具调用
+                if result.system == "COMPACT_HISTORY":
                     logger.info("检测到 COMPACT_HISTORY 工具调用，执行聊天历史压缩")
                     # Get summary from extra_info
                     if result.extra_info and 'summary' in result.extra_info:
@@ -2087,7 +2111,7 @@ class Agent(BaseAgent):
         if should_exit:
             logger.info("特殊工具调用已处理，跳出主循环")
 
-        return should_exit, final_response
+        return should_exit, final_response, inject_horizon_after_tools
 
     async def _check_incomplete_todos(self) -> tuple[bool, Optional[str]]:
         """
@@ -2614,7 +2638,10 @@ Since your subsequent output will be merged with pre-interruption content and di
         # 子 Agent (is_main_agent=False) 静默运行，不向前端推送 LLM token 流。
         # 多个子 Agent 并行时共享同一 SocketIO topic_id，推流会导致前端收到交织输出。
         if use_stream and self.agent_context.is_main_agent:
-            message_builder = LLMStreamingMessageBuilder()
+            message_version = self.agent_context.get_message_version()
+            from app.streaming.builder_registry import get_builder_by_version
+            message_builder = get_builder_by_version(message_version)
+            await message_builder.prepare_for_streaming(self.agent_context)
             socketio_driver_config = StreamingConfigGenerator.create_for_agent()
             processor_config = ProcessorConfig.create_with_socketio_push(
                 message_builder=message_builder,

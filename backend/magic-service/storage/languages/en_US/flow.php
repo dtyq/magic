@@ -66,6 +66,7 @@ return [
     ],
     'knowledge_base' => [
         're_vectorized_not_support' => 'Re-vectorization is not supported',
+        'fragment_write_disabled' => 'Knowledge base fragments cannot be created, updated, deleted, or synced individually. Please re-vectorize the entire document.',
     ],
     'max_record' => [
         'positive_integer' => 'Maximum record number must be a positive integer between :min and :max',

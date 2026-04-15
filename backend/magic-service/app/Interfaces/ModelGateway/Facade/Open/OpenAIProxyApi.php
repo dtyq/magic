@@ -7,16 +7,15 @@ declare(strict_types=1);
 
 namespace App\Interfaces\ModelGateway\Facade\Open;
 
-use App\Application\ModelGateway\Service\ImageLLMAppService;
 use App\Application\ModelGateway\Service\LLMAppService;
 use App\Domain\ModelGateway\Entity\Dto\CompletionDTO;
 use App\Domain\ModelGateway\Entity\Dto\EmbeddingsDTO;
-use App\Domain\ModelGateway\Entity\Dto\ImageConvertHighDTO;
 use App\Domain\ModelGateway\Entity\Dto\ImageEditDTO;
 use App\Domain\ModelGateway\Entity\Dto\ImageSearchRequestDTO;
 use App\Domain\ModelGateway\Entity\Dto\SearchRequestDTO;
 use App\Domain\ModelGateway\Entity\Dto\TextGenerateImageDTO;
 use App\Domain\ModelGateway\Entity\Dto\WebScrapeRequestDTO;
+use App\Domain\ModelGateway\Entity\ValueObject\ModelListType;
 use App\Infrastructure\ExternalAPI\ImageGenerateAPI\Response\OpenAIFormatResponse;
 use App\Interfaces\ModelGateway\Assembler\LLMAssembler;
 use Hyperf\Di\Annotation\Inject;
@@ -29,9 +28,6 @@ class OpenAIProxyApi extends AbstractOpenApi
 {
     #[Inject]
     protected LLMAppService $llmAppService;
-
-    #[Inject]
-    protected ImageLLMAppService $imageLLMAppService;
 
     public function chatCompletions(RequestInterface $request)
     {
@@ -76,8 +72,8 @@ class OpenAIProxyApi extends AbstractOpenApi
     {
         $accessToken = $this->getAccessToken();
         $withInfo = (bool) $this->request->input('with_info', false);
-        $type = $this->request->input('type', '');
         $withDynamicModels = (bool) $this->request->input('with_dynamic_models', false);
+        $type = ModelListType::fromRequest($this->request->input('type', ''));
         $businessParams = $this->getBusinessParamsFromContext();
 
         $list = $this->llmAppService->models($accessToken, $withInfo, $type, $businessParams, withDynamicModels: $withDynamicModels);
@@ -141,34 +137,6 @@ class OpenAIProxyApi extends AbstractOpenApi
             return $response->toArray();
         }
         return null;
-    }
-
-    /**
-     * Image convert high definition endpoint.
-     *
-     * POST /v2/images/convert-high
-     *
-     * Request Body (JSON):
-     * - images: Array of source image URLs to convert (required, at least one image)
-     *
-     * Headers:
-     * - Authorization: Bearer {access_token}
-     *
-     * @return array Response with converted image URL
-     */
-    public function imageConvertHigh(RequestInterface $request): array
-    {
-        $requestData = $request->all();
-
-        $imageConvertHighDTO = new ImageConvertHighDTO($requestData);
-        $imageConvertHighDTO->setAccessToken($this->getAccessToken());
-        $imageConvertHighDTO->setIps($this->getClientIps());
-
-        $imageConvertHighDTO->valid();
-        $this->enrichRequestDTO($imageConvertHighDTO, $request->getHeaders());
-
-        $response = $this->imageLLMAppService->imageConvertHighV2($imageConvertHighDTO);
-        return $response->toArray();
     }
 
     /**

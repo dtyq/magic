@@ -59,7 +59,5 @@ interface KnowledgeBaseFragmentRepositoryInterface
      */
     public function getFinalSyncStatusByDocumentCodes(KnowledgeBaseDataIsolation $dataIsolation, array $documentCodes): array;
 
-    public function getFragmentsByEmptyDocumentCode(KnowledgeBaseDataIsolation $dataIsolation, int $lastId, int $pageSize): array;
-
     public function upsertById(KnowledgeBaseDataIsolation $dataIsolation, array $fragmentEntities): void;
 }

@@ -22,6 +22,7 @@ tools:
   - web_search
   - read_webpages_as_markdown
   - download_from_url
+  - ask_user
 skills:
   system_skills:
     - name: skill-vetter

@@ -66,6 +66,7 @@ return [
     ],
     'knowledge_base' => [
         're_vectorized_not_support' => 'Không hỗ trợ tái vector hóa',
+        'fragment_write_disabled' => 'Phân đoạn kho kiến thức không hỗ trợ tạo, cập nhật, xóa hoặc đồng bộ riêng lẻ. Vui lòng tái vector hóa toàn bộ tài liệu.',
     ],
     'max_record' => [
         'positive_integer' => 'Số lượng bản ghi tối đa phải là số nguyên dương từ :min đến :max',

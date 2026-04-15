@@ -7,10 +7,11 @@ declare(strict_types=1);
 
 namespace App\Interfaces\KnowledgeBase\Facade;
 
+use App\Application\ModelGateway\DTO\Common\BusinessParamsDTO;
 use App\Domain\Provider\DTO\ProviderConfigModelsDTO;
 use App\Domain\Provider\DTO\ProviderModelDetailDTO;
+use App\Domain\Provider\Entity\ValueObject\Category;
 use App\Domain\Provider\Entity\ValueObject\ProviderType;
-use App\Interfaces\KnowledgeBase\Assembler\KnowledgeBaseProviderAssembler;
 use Dtyq\ApiResponse\Annotation\ApiResponse;
 
 #[ApiResponse(version: 'low_code')]
@@ -24,9 +25,9 @@ class KnowledgeBaseProviderApi extends AbstractKnowledgeBaseApi
     {
         $dto = new ProviderConfigModelsDTO();
         $dto->setId('official_rerank');
-        $dto->setName('官方重排序服务商');
+        $dto->setName('official_rerank');
         $dto->setProviderType(ProviderType::Official->value);
-        $dto->setDescription('官方提供的重排序服务');
+        $dto->setDescription('official_rerank');
         $dto->setIcon('');
         $dto->setCategory('rerank');
         $dto->setStatus(1); // 1 表示启用
@@ -38,12 +39,12 @@ class KnowledgeBaseProviderApi extends AbstractKnowledgeBaseApi
         // 基础重排序模型
         $baseModel = new ProviderModelDetailDTO();
         $baseModel->setId('official_rerank_model');
-        $baseModel->setName('官方重排模型');
+        $baseModel->setName('official_rerank');
         $baseModel->setModelVersion('v1.0');
-        $baseModel->setDescription('基础重排序模型，适用于一般场景');
+        $baseModel->setDescription('');
         $baseModel->setIcon('');
         $baseModel->setModelType(1);
-        $baseModel->setCategory('rerank');
+        $baseModel->setCategory(Category::RERANK);
         $baseModel->setStatus(1);
         $baseModel->setSort(1);
         $baseModel->setCreatedAt(date('Y-m-d H:i:s'));
@@ -61,11 +62,10 @@ class KnowledgeBaseProviderApi extends AbstractKnowledgeBaseApi
     public function getEmbeddingProviderList(): array
     {
         $userAuthorization = $this->getAuthorization();
-        /* @phpstan-ignore-next-line */
-        $models = $this->llmAppService->models(accessToken: MAGIC_ACCESS_TOKEN, withInfo: true, type: 'embedding', businessParams: [
-            'organization_code' => $userAuthorization->getOrganizationCode(),
-            'user_id' => $userAuthorization->getId(),
-        ]);
-        return KnowledgeBaseProviderAssembler::odinModelToProviderDTO($models);
+        $businessParams = new BusinessParamsDTO(
+            organizationCode: $userAuthorization->getOrganizationCode(),
+            userId: $userAuthorization->getId(),
+        );
+        return $this->embeddingProviderPort->listProviders($businessParams);
     }
 }

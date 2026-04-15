@@ -284,15 +284,16 @@ class InitClientMessageUtil:
             return None
 
     @classmethod
-    def save_init_client_message(cls, init_message) -> None:
+    async def save_init_client_message(cls, init_message) -> None:
         """
         保存 InitClientMessage 到文件
 
         Args:
             init_message: InitClientMessage 对象
         """
-        with open(cls._config_path, "w", encoding="utf-8") as f:
-            json.dump(init_message.model_dump(), f, indent=2, ensure_ascii=False)
+        from app.utils.async_file_utils import async_mkdir, async_write_json
+        await async_mkdir(cls._config_path.parent, parents=True, exist_ok=True)
+        await async_write_json(cls._config_path, init_message.model_dump(), indent=2, ensure_ascii=False)
         logger.info(f"已保存 init_client_message 到文件: {cls._config_path}")
 
     @classmethod

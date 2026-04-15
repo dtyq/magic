@@ -110,10 +110,28 @@ class WriteFile(AbstractFileTool[WriteFileParams], WorkspaceTool[WriteFileParams
             # 创建目录（如果需要）
             await self._create_directories(file_path)
 
-            # 使用版本控制上下文管理器自动处理事件和时间戳
-            async with self._file_versioning_context(tool_context, file_path) as file_exists:
+            # 使用版本控制上下文管理器处理事件，时间戳由 record_file_read 负责
+            async with self._file_versioning_context(tool_context, file_path, update_timestamp=False) as file_exists:
                 # 写入文件内容
                 await self._write_file(file_path, params.content)
+
+            # 记录写入后的文件状态（含内容快照），使 Horizon 能追踪后续外部修改并生成 diff
+            try:
+                from app.utils.file_utils import calculate_file_hash, get_fresh_file_stat
+
+                _stat = await get_fresh_file_stat(str(file_path))
+                _file_hash = await calculate_file_hash(str(file_path))
+
+                await self.get_horizon(tool_context).record_file_read(
+                    path=file_path,
+                    file_hash=_file_hash,
+                    mtime_ms=_stat.mtime * 1000,
+                    size=_stat.size,
+                    truncated=False,
+                    tool_name="write_file",
+                )
+            except Exception as _horizon_err:
+                logger.warning(f"[write_file] record_file_read 失败: {_horizon_err}")
 
             # 执行语法检查
             syntax_result = await SyntaxChecker.check_syntax(str(file_path), params.content)

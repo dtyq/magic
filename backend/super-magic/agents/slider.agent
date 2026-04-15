@@ -18,6 +18,7 @@ tools:
   - image_search
   - download_from_urls
   - generate_image
+  - ask_user
 skills:
   system_skills:
     - name: skill-vetter

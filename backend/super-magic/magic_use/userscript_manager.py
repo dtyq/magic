@@ -56,7 +56,7 @@ class UserscriptManager:
             async with cls._lock:
                 # 双重检查锁定，防止多个协程同时创建实例
                 if cls._instance is None:
-                    # 假设 MAGIC_MONKEY_DIR 是在 app.paths 中定义的 Path 对象
+                    # 假设 MAGIC_MONKEY_DIR 是在 app.path_manager 中定义的 Path 对象
                     instance = cls(MAGIC_MONKEY_DIR)
                     # 在实例创建后立即开始加载脚本
                     # 注意：这里不在构造函数或 get_instance 中直接 await load_scripts

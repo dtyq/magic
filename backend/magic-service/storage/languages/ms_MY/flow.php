@@ -66,6 +66,7 @@ return [
     ],
     'knowledge_base' => [
         're_vectorized_not_support' => 'Tidak menyokong pembenaman semula',
+        'fragment_write_disabled' => 'Fragmen pangkalan pengetahuan tidak menyokong cipta, kemas kini, padam atau penyegerakan secara berasingan. Sila vektorkan semula keseluruhan dokumen.',
     ],
     'max_record' => [
         'positive_integer' => 'Bilangan rekod maksimum mesti integer positif antara :min dan :max',

@@ -767,6 +767,28 @@ async def async_try_read_text(file_path: Union[str, Path], encoding: str = 'utf-
         return None
 
 
+async def async_try_read_json(file_path: Union[str, Path]) -> Optional[Dict[str, Any]]:
+    """安全读取 JSON 文件（不抛异常）。
+
+    文件不存在时静默返回 None；JSON 解析失败或其他 IO 错误才打 ERROR 日志。
+    适合读取"可能不存在"的可选配置/状态文件。
+
+    Returns:
+        Optional[Dict[str, Any]]: 解析后的 JSON 数据，文件不存在时返回 None
+    """
+    path_obj = Path(file_path)
+    try:
+        async with aiofiles.open(path_obj, 'r', encoding='utf-8') as f:
+            content = await f.read()
+        return await asyncio.to_thread(json.loads, content)
+    except FileNotFoundError:
+        logger.debug(f"JSON 文件不存在（忽略）: {path_obj}")
+        return None
+    except Exception as e:
+        logger.error(f"读取 JSON 文件失败 {path_obj}: {e}")
+        return None
+
+
 async def async_scandir(path: Union[str, Path]) -> list[os.DirEntry]:
     """
     异步扫描目录，返回 DirEntry 对象列表

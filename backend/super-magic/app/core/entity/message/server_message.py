@@ -20,6 +20,7 @@ class TaskStatus(str, Enum):
     FINISHED = "finished"
     ERROR = "error"
     SUSPENDED = "suspended"
+    WAITING_FOR_USER = "waiting_for_user"  # ask_user 等待态对前端暴露的通用任务状态
 
 class ToolStatus(str, Enum):
     """工具调用状态枚举"""
@@ -46,6 +47,7 @@ class DisplayType(str, Enum):
     FILE_TREE = "file_tree"  # 添加文件树枚举值
     TODO = "todo"  # 添加TODO枚举值
     DESIGN = 'design'
+    ASK_USER = "ask_user"  # ask_user 问答结果展示
 
 
 class TodoOperationType(str, Enum):
@@ -217,13 +219,51 @@ class DesignElementContent(BaseModel):
     elements: List[Dict[str, Any]]  # 元素详情列表
 
 
+class AskUserQuestionContent(BaseModel):
+    """ask_user 问题卡片内容模型
+
+    用于在 BEFORE_TOOL_CALL 消息中向前端推送待回答的问题列表。
+
+    Attributes:
+        question_id: 本次问答的唯一 ID，前端用于关联后续 AFTER_TOOL_CALL 消息
+        questions:   子问题列表（含 sub_id、question、interaction_type 等）
+        expires_at:  问题过期时间戳（Unix 秒），前端用于显示倒计时
+        status:      固定为 "pending"
+    """
+
+    question_id: str
+    questions: List[Dict[str, Any]]
+    expires_at: int
+    status: str
+
+
+class AskUserResultContent(BaseModel):
+    """ask_user 问答结果内容模型
+
+    用于在 AFTER_TOOL_CALL 消息中展示用户对 ask_user 问题的最终答案。
+
+    Attributes:
+        question_id: 本次问答的唯一 ID，前端用于匹配 BEFORE_TOOL_CALL 时创建的卡片并就地更新
+        status:    处理结果状态：answered=已回答，skipped=已跳过，timeout=已超时，cancelled=被新消息打断
+        questions: 原始问题列表（含 sub_id、question、interaction_type 等）；
+                   timeout 消息由 Python 直接发送时提供，PHP 发送时可省略
+        answers:   用户答案字典，key 为 sub_id，value 为对应答案；skipped/timeout 时为 {}
+    """
+
+    question_id: Optional[str] = None
+    status: str
+    questions: Optional[List[Dict[str, Any]]] = None
+    answers: Dict[str, Any]
+
+
 class ToolDetail(BaseModel):
     """工具详情模型"""
 
     type: DisplayType  # 展示类型
     data: Union[
         FileContent, FileTreeContent, TerminalContent, BrowserContent, SearchContent,
-        ScriptExecutionContent, DeepWriteContent, TodoContent, DesignCanvasContent, DesignElementContent, Dict[str, Any]
+        ScriptExecutionContent, DeepWriteContent, TodoContent, DesignCanvasContent, DesignElementContent,
+        AskUserQuestionContent, AskUserResultContent, Dict[str, Any]
     ]  # 展示内容，根据type动态展示
 
     model_config = ConfigDict(use_enum_values=True)
@@ -262,6 +302,7 @@ class ServerMessagePayload(BaseModel):
     parent_correlation_id: Optional[str] = None  # 父级关联ID，用于 Agent 循环周期分组（指向 THINK 容器的 correlation_id）
     content_type: Optional[str] = None  # 内容类型："reasoning"（思考内容）| "content"（回复内容），仅 agent_reply 消息使用
     token_used: Optional[int] = None    # 会话消耗的 token 总量，仅 AFTER_MAIN_AGENT_RUN 消息携带
+    raw_content: Optional[Dict[str, Any]] = None  # V2 结构化消息内容（super_magic_message / super_magic_chunk）
 
     model_config = ConfigDict(use_enum_values=True)  # 使用枚举值而不是枚举对象
 
@@ -294,6 +335,8 @@ class ServerMessagePayload(BaseModel):
         parent_correlation_id: Optional[str] = None,  # 父级关联ID，用于 Agent 循环周期分组
         content_type: Optional[str] = None,  # 内容类型："reasoning" | "content"，仅 agent_reply 消息使用
         token_used: Optional[int] = None,  # 会话消耗的 token 总量，仅 AFTER_MAIN_AGENT_RUN 消息携带
+        raw_content: Optional[Dict[str, Any]] = None,  # V2 结构化消息内容
+        message_id: Optional[str] = None,  # 预生成的消息ID（不传则自动雪花生成）
     ) -> "ServerMessagePayload":
         """
         创建任务消息的工厂方法
@@ -318,11 +361,13 @@ class ServerMessagePayload(BaseModel):
         Returns:
             ServerMessagePayload: 创建的任务消息载荷对象
         """
-        # 使用雪花算法生成ID
-        snowflake = Snowflake.create_default()
+        # 使用雪花算法生成ID（如果没有预生成的 message_id）
+        if message_id is None:
+            snowflake = Snowflake.create_default()
+            message_id = str(snowflake.get_id())
 
         return ServerMessagePayload(
-            message_id=str(snowflake.get_id()),
+            message_id=message_id,
             type=message_type,
             task_id=task_id,
             seq_id=seq_id,  # 传递序列号
@@ -340,6 +385,7 @@ class ServerMessagePayload(BaseModel):
             parent_correlation_id=parent_correlation_id,  # 传递父级关联ID
             content_type=content_type,  # 传递内容类型
             token_used=token_used,  # 传递 token 总量
+            raw_content=raw_content,  # 传递 V2 结构化消息内容
         )
 
 class ServerMessage(BaseModel):

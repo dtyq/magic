@@ -11,11 +11,13 @@ use App\Infrastructure\Core\AbstractValueObject;
 
 class SegmentRule extends AbstractValueObject
 {
-    protected string $separator;
+    protected string $separator = "\n\n";
 
-    protected int $chunkSize;
+    protected int $chunkSize = 500;
 
-    protected ?int $chunkOverlap = null;
+    protected ?int $chunkOverlap = 50;
+
+    protected string $chunkOverlapUnit = 'absolute';
 
     public function getSeparator(): string
     {
@@ -50,14 +52,27 @@ class SegmentRule extends AbstractValueObject
         return $this;
     }
 
+    public function getChunkOverlapUnit(): string
+    {
+        return $this->chunkOverlapUnit;
+    }
+
+    public function setChunkOverlapUnit(?string $chunkOverlapUnit): self
+    {
+        $normalized = strtolower(trim((string) $chunkOverlapUnit));
+        $this->chunkOverlapUnit = $normalized !== '' ? $normalized : 'absolute';
+        return $this;
+    }
+
     public static function fromArray(array $data): self
     {
         $rule = new self();
-        $rule->setSeparator($data['separator']);
-        $rule->setChunkSize($data['chunk_size']);
+        $rule->setSeparator((string) ($data['separator'] ?? "\n\n"));
+        $rule->setChunkSize((int) ($data['chunk_size'] ?? 500));
         if (isset($data['chunk_overlap'])) {
-            $rule->setChunkOverlap($data['chunk_overlap']);
+            $rule->setChunkOverlap((int) $data['chunk_overlap']);
         }
+        $rule->setChunkOverlapUnit($data['chunk_overlap_unit'] ?? 'absolute');
         return $rule;
     }
 }

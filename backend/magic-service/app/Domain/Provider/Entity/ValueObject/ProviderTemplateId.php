@@ -61,6 +61,7 @@ enum ProviderTemplateId: string
     case BigModelLlm = '26';
     case MiniMaxLlm = '27';
     case SiliconFlowLlm = '28';
+    case AnthropicLlm = '29';
 
     /**
      * 根据ProviderCode和Category获取对应的模板ID.
@@ -97,6 +98,7 @@ enum ProviderTemplateId: string
             [ProviderCode::BigModel, Category::LLM] => self::BigModelLlm,
             [ProviderCode::MiniMax, Category::LLM] => self::MiniMaxLlm,
             [ProviderCode::SiliconFlow, Category::LLM] => self::SiliconFlowLlm,
+            [ProviderCode::Anthropic, Category::LLM] => self::AnthropicLlm,
             default => null,
         };
     }
@@ -138,6 +140,7 @@ enum ProviderTemplateId: string
             self::BigModelLlm => ['providerCode' => ProviderCode::BigModel, 'category' => Category::LLM],
             self::MiniMaxLlm => ['providerCode' => ProviderCode::MiniMax, 'category' => Category::LLM],
             self::SiliconFlowLlm => ['providerCode' => ProviderCode::SiliconFlow, 'category' => Category::LLM],
+            self::AnthropicLlm => ['providerCode' => ProviderCode::Anthropic, 'category' => Category::LLM],
         };
     }
 
@@ -167,6 +170,7 @@ enum ProviderTemplateId: string
             ProviderCode::Google => 'Google',
             ProviderCode::VolcengineArk => '火山引擎-方舟',
             ProviderCode::Gemini => 'Google Gemini',
+            ProviderCode::Anthropic => 'Anthropic',
             default => '未知服务商',
         };
 

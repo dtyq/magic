@@ -56,13 +56,6 @@ interface KnowledgeBaseDocumentRepositoryInterface
     public function queries(KnowledgeBaseDataIsolation $dataIsolation, KnowledgeBaseDocumentQuery $query, Page $page): array;
 
     /**
-     * 通过第三方文件id查询知识库文档列表.
-     *
-     * @return array<KnowledgeBaseDocumentEntity>
-     */
-    public function getByThirdFileId(KnowledgeBaseDataIsolation $dataIsolation, string $thirdPlatformType, string $thirdFileId, ?string $knowledgeBaseCode = null, ?int $lastId = null, int $pageSize = 500): array;
-
-    /**
      * 查看单个知识库文档详情.
      */
     public function show(KnowledgeBaseDataIsolation $dataIsolation, string $knowledgeBaseCode, string $documentCode, bool $selectForUpdate = false): ?KnowledgeBaseDocumentEntity;

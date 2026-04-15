@@ -54,8 +54,8 @@ class TaskConfigAssembler
         // Create and return TaskConfigDomainService
         return new TaskConfigDomainService(
             type: $taskType,
-            day: $timeConfigDTO->getDay() ?: null,
-            time: $timeConfigDTO->getTime() ?: null,
+            day: $timeConfigDTO->getDay() !== '' ? $timeConfigDTO->getDay() : null,
+            time: $timeConfigDTO->getTime() !== '' ? $timeConfigDTO->getTime() : null,
             unit: $unit,
             interval: $value['interval'] ?? null,
             values: $value['values'] ?? null,

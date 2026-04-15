@@ -8,8 +8,7 @@ declare(strict_types=1);
 namespace App\Application\Flow\ExecuteManager\NodeRunner\Knowledge;
 
 use App\Application\Flow\ExecuteManager\ExecutionData\ExecutionData;
-use App\Application\KnowledgeBase\VectorDatabase\Similarity\KnowledgeSimilarityFilter;
-use App\Application\KnowledgeBase\VectorDatabase\Similarity\KnowledgeSimilarityManager;
+use App\Application\KnowledgeBase\Service\KnowledgeBaseFragmentAppService;
 use App\Domain\Flow\Entity\ValueObject\NodeParamsConfig\Knowledge\KnowledgeSimilarityNodeParamsConfig;
 use App\Domain\Flow\Entity\ValueObject\NodeType;
 use App\Domain\KnowledgeBase\Entity\ValueObject\KnowledgeBaseDataIsolation;
@@ -45,25 +44,28 @@ class KnowledgeSimilarityNodeRunner extends AbstractKnowledgeNodeRunner
 
         $metadataFilter = $paramsConfig->getMetadataFilter()?->getForm()->getKeyValue($executionData->getExpressionFieldData()) ?? [];
 
-        $knowledgeSimilarity = new KnowledgeSimilarityFilter();
-        $knowledgeSimilarity->setKnowledgeCodes($knowledgeCodes);
-        $knowledgeSimilarity->setQuery($query);
-        $knowledgeSimilarity->setLimit($paramsConfig->getLimit());
-        $knowledgeSimilarity->setScore($paramsConfig->getScore());
-        $knowledgeSimilarity->setMetadataFilter($metadataFilter);
-
         $dataIsolation = $executionData->getDataIsolation();
         $knowledgeBaseDataIsolation = KnowledgeBaseDataIsolation::createByBaseDataIsolation($dataIsolation);
-        $fragments = di(KnowledgeSimilarityManager::class)->similarity($knowledgeBaseDataIsolation, $knowledgeSimilarity);
+        $response = di(KnowledgeBaseFragmentAppService::class)->runtimeSimilarityByDataIsolation(
+            $knowledgeBaseDataIsolation,
+            $knowledgeCodes,
+            $query,
+            '',
+            (int) $paramsConfig->getLimit(),
+            (float) $paramsConfig->getScore(),
+            $metadataFilter,
+        );
+        $fragments = is_array($response['list'] ?? null) ? $response['list'] : $response;
 
         $similarityContents = [];
         $fragmentList = [];
         foreach ($fragments as $fragment) {
-            $similarityContents[] = $fragment->getContent();
+            $content = (string) ($fragment['content'] ?? '');
+            $similarityContents[] = $content;
             $fragmentList[] = [
-                'content' => $fragment->getContent(),
-                'business_id' => $fragment->getBusinessId(),
-                'metadata' => $fragment->getMetadata(),
+                'content' => $content,
+                'business_id' => (string) ($fragment['business_id'] ?? ''),
+                'metadata' => is_array($fragment['metadata'] ?? null) ? $fragment['metadata'] : [],
             ];
         }
 

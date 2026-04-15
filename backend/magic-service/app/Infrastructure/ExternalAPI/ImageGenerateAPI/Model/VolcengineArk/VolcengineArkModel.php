@@ -197,6 +197,12 @@ class VolcengineArkModel extends AbstractImageGenerate
             $payload['sequential_image_generation_options'] = $sequentialOptions;
         }
 
+        // 如果指定了输出图片格式，则添加 output_format 参数
+        $outputFormat = $imageGenerateRequest->getOutputFormat();
+        if (! empty($outputFormat)) {
+            $payload['output_format'] = $outputFormat;
+        }
+
         // 如果有参考图像，则添加image字段（支持多张图片）
         if (! empty($referImages)) {
             if (count($referImages) === 1) {
@@ -236,6 +242,12 @@ class VolcengineArkModel extends AbstractImageGenerate
         $sequentialOptions = $imageGenerateRequest->getSequentialImageGenerationOptions();
         if (! empty($sequentialOptions)) {
             $payload['sequential_image_generation_options'] = $sequentialOptions;
+        }
+
+        // 如果指定了输出图片格式，则添加 output_format 参数
+        $outputFormat = $imageGenerateRequest->getOutputFormat();
+        if (! empty($outputFormat)) {
+            $payload['output_format'] = $outputFormat;
         }
 
         // 如果有参考图像，则添加image字段（支持多张图片）

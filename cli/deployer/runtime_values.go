@@ -107,12 +107,21 @@ func buildDeployValues(
 	return result, nil
 }
 
-// withRegistryEndpoint returns a deep copy of merged with global.imageRegistry overridden
-// to endpoint. Used by stages that must route image pulls through the local registry proxy.
+// withRegistryEndpoint returns a deep copy of merged with the registry endpoint
+// propagated through the global keys consumed by the infra release and its
+// ingress-nginx dependency.
 func withRegistryEndpoint(merged map[string]interface{}, endpoint string) map[string]interface{} {
 	result := cloneMap(merged)
 	global := mapValue(result["global"])
+
+	// The infra chart reads this flat key directly for its own images.
 	global["imageRegistry"] = endpoint
+
+	// ingress-nginx expects the nested global.image.registry convention.
+	image := mapValue(global["image"])
+	image["registry"] = endpoint
+	global["image"] = image
+
 	result["global"] = global
 	return result
 }

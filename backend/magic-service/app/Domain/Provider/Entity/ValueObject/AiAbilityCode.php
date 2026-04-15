@@ -31,6 +31,9 @@ enum AiAbilityCode: string
     case AnalysisAudio = 'super_magic_analysis_audio';     // 音频分析 (超级麦吉)
     case WebScrape = 'web_scrape';                         // 网页爬取
     case ImageConvertHigh = 'image_convert_high';          // 图片转高清
+    case ImageRemoveBackground = 'image_remove_background'; // 去背景
+    case ImageEraser = 'image_eraser';                     // 橡皮擦
+    case ImageExpand = 'image_expand';                     // 扩图
 
     /**
      * 获取能力名称.
@@ -55,6 +58,9 @@ enum AiAbilityCode: string
             self::AnalysisAudio => '超级麦吉 - 音频分析',
             self::WebScrape => '网页爬取',
             self::ImageConvertHigh => '图片转高清',
+            self::ImageRemoveBackground => '去背景',
+            self::ImageEraser => '橡皮擦',
+            self::ImageExpand => '扩图',
             default => 'Unknown',
         };
     }
@@ -82,6 +88,9 @@ enum AiAbilityCode: string
             self::AnalysisAudio => '本能力覆盖超级麦吉所有音频项目分析的应用场景，对音频内容进行深度分析，包括场景识别、主题提炼、摘要生成等。',
             self::WebScrape => '本能力覆盖平台所有网页内容爬取的应用场景，精准抓取并解析网页内容，支持多种格式输出。',
             self::ImageConvertHigh => '本能力覆盖平台所有图片转高清的应用场景，通过AI技术将低分辨率图片转换为高清图片，提升图片质量和清晰度。',
+            self::ImageRemoveBackground => '本能力覆盖平台所有图片去背景的应用场景，通过AI技术自动识别主体并去除图片背景，保留主体完整边缘。',
+            self::ImageEraser => '本能力覆盖平台所有图片橡皮擦的应用场景，通过AI技术根据标记区域擦除图片内容，并以自然背景无缝填充。',
+            self::ImageExpand => '本能力覆盖平台所有图片扩图的应用场景，通过AI技术将图片向外延伸，以符合原图风格、光照和透视的内容填充扩展区域。',
             default => 'Unknown',
         };
     }
@@ -96,6 +105,7 @@ enum AiAbilityCode: string
         return match ($this) {
             self::WebSearch => ['api_key'],
             self::ImageSearch => ['api_key'],
+            self::ImageRemoveBackground => ['api_key'],
             self::Ocr => ['access_key', 'secret_key'],
             self::AudioFileRecognition => ['app_key', 'access_key', 'cluster'],
             default => [],

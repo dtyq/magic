@@ -33,6 +33,7 @@ class MessagePayload
      * @param null|string $parentCorrelationId 父级关联ID
      * @param null|string $contentType 内容类型
      * @param null|int $tokenUsed token 使用总量
+     * @param null|array $rawContent 原始内容（JSON对象），用于存储到 raw_content 字段
      */
     public function __construct(
         private string $messageId = '',
@@ -52,7 +53,8 @@ class MessagePayload
         private ?string $correlationId = null,
         private ?string $parentCorrelationId = null,
         private ?string $contentType = null,
-        private ?int $tokenUsed = null
+        private ?int $tokenUsed = null,
+        private ?array $rawContent = null,
     ) {
     }
 
@@ -82,6 +84,7 @@ class MessagePayload
             $data['parent_correlation_id'] ?? null,
             $data['content_type'] ?? null,
             array_key_exists('token_used', $data) && $data['token_used'] !== null ? (int) $data['token_used'] : null,
+            $data['raw_content'] ?? null,
         );
     }
 
@@ -111,7 +114,16 @@ class MessagePayload
             'parent_correlation_id' => $this->parentCorrelationId,
             'content_type' => $this->contentType,
             'token_used' => $this->tokenUsed,
+            'raw_content' => $this->rawContent,
         ];
+    }
+
+    /**
+     * 获取原始内容（JSON对象，用于存储到 raw_content 字段时需 json_encode）.
+     */
+    public function getRawContent(): ?array
+    {
+        return $this->rawContent;
     }
 
     // Getters
