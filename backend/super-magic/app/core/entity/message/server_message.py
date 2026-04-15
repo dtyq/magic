@@ -243,12 +243,14 @@ class AskUserResultContent(BaseModel):
     用于在 AFTER_TOOL_CALL 消息中展示用户对 ask_user 问题的最终答案。
 
     Attributes:
+        question_id: 本次问答的唯一 ID，前端用于匹配 BEFORE_TOOL_CALL 时创建的卡片并就地更新
         status:    处理结果状态：answered=已回答，skipped=已跳过，timeout=已超时，cancelled=被新消息打断
         questions: 原始问题列表（含 sub_id、question、interaction_type 等）；
                    timeout 消息由 Python 直接发送时提供，PHP 发送时可省略
         answers:   用户答案字典，key 为 sub_id，value 为对应答案；skipped/timeout 时为 {}
     """
 
+    question_id: Optional[str] = None
     status: str
     questions: Optional[List[Dict[str, Any]]] = None
     answers: Dict[str, Any]

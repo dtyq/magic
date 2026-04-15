@@ -14,7 +14,6 @@ from openai.types.chat import ChatCompletionMessage, ChatCompletionMessageToolCa
 
 from app.core.context.agent_context import AgentContext
 from app.core.entity.event.event_context import EventContext
-from app.tools.core.tool_factory import tool_factory
 
 logger = get_logger(__name__)
 
@@ -45,7 +44,7 @@ class ToolCallEventManager:
             return
 
         try:
-            # 获取工具实例
+            from app.tools.core.tool_factory import tool_factory
             tool_instance = tool_factory.get_tool_instance(tool_name)
 
             # 允许工具在事件触发前向 tool_context.arguments 注入额外参数
@@ -96,7 +95,7 @@ class ToolCallEventManager:
             return
 
         try:
-            # 获取工具实例
+            from app.tools.core.tool_factory import tool_factory
             tool_instance = tool_factory.get_tool_instance(tool_name)
 
             # 创建事件数据

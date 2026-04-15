@@ -1753,6 +1753,361 @@ function showThinkingMessage(content, timestamp, _noLog = false) {
     messageList.appendChild(wrapper);
 }
 
+// ─── ask_user 交互卡片 ───────────────────────────────────────────────────────
+
+// question_id → wrapper 元素，用于 after_tool_call 时更新已有卡片，避免重复渲染
+const askUserCardRegistry = new Map();
+
+/**
+ * 将 wrapper 里的 ask_user 卡片更新为最终状态（answered/skipped/timeout/cancelled）。
+ * 由 after_tool_call 事件调用。
+ */
+function finalizeAskUserCard(wrapper, data) {
+    wrapper.className = 'tool-call-block tool-call-finished';
+    const card = wrapper.querySelector('.ask-user-card');
+    if (!card) return;
+
+    // 停止倒计时（清 interval 通过 dataset 存储的 id）
+    if (card._countdownTimer) {
+        clearInterval(card._countdownTimer);
+    }
+
+    // 禁用所有输入和按钮
+    card.querySelectorAll('input, button').forEach(el => { el.disabled = true; });
+
+    // 移除旧结果标签（如果提交后已存在）
+    card.querySelectorAll('.ask-user-result').forEach(el => el.remove());
+
+    const status = data.status || 'cancelled';
+    const statusLabel = { answered: '✅ 已回答', skipped: '⏭ 已跳过', timeout: '⏰ 已超时', cancelled: '🚫 已取消' };
+
+    // 如果有答案内容，展示一下
+    if (status === 'answered' && data.answers) {
+        const answersEl = document.createElement('div');
+        answersEl.className = 'ask-user-result';
+        const parts = Object.entries(data.answers).map(([k, v]) => {
+            const q = (data.questions || []).find(q => q.sub_id === k);
+            const label = q ? q.question : k;
+            const val = Array.isArray(v) ? v.join('、') : v;
+            return `${label}：${val}`;
+        });
+        answersEl.textContent = '✅ ' + parts.join('；');
+        card.appendChild(answersEl);
+    } else {
+        const resultEl = document.createElement('div');
+        resultEl.className = 'ask-user-result' + (status !== 'answered' ? ' skipped' : '');
+        resultEl.textContent = statusLabel[status] || `状态: ${status}`;
+        card.appendChild(resultEl);
+    }
+
+    card.classList.remove('ask-user-card');
+    card.classList.add('ask-user-card', status === 'answered' ? 'answered' : 'expired');
+
+    // 移除操作按钮区（可能已禁用，彻底隐藏更干净）
+    card.querySelectorAll('.ask-user-actions').forEach(el => el.remove());
+    card.querySelectorAll('.ask-user-countdown').forEach(el => { el.textContent = statusLabel[status] || status; el.className = 'ask-user-countdown'; });
+
+    askUserCardRegistry.delete(data.question_id);
+}
+
+/**
+ * 渲染 ask_user 交互卡片并挂到 container 上。
+ * data: { question_id, questions[], expires_at, status }
+ */
+function renderAskUserCard(data, container) {
+    const { question_id, questions = [], expires_at, status } = data;
+    const alreadyDone = status && status !== 'pending';
+
+    const card = document.createElement('div');
+    card.className = 'ask-user-card' + (alreadyDone ? ' answered' : '');
+
+    // 通用禁用函数（仅操作 DOM，不依赖闭包变量顺序）
+    function disableCard() {
+        if (card._countdownTimer) clearInterval(card._countdownTimer);
+        card.querySelectorAll('input, button').forEach(el => { el.disabled = true; });
+    }
+
+    // 倒计时
+    if (!alreadyDone && expires_at) {
+        const countdownEl = document.createElement('div');
+        countdownEl.className = 'ask-user-countdown';
+        card.appendChild(countdownEl);
+
+        function updateCountdown() {
+            const remaining = Math.max(0, Math.floor(expires_at - Date.now() / 1000));
+            if (remaining <= 0) {
+                clearInterval(card._countdownTimer);
+                countdownEl.textContent = '⏰ 已超时';
+                card.classList.add('expired');
+                disableCard();
+                return;
+            }
+            const m = Math.floor(remaining / 60);
+            const s = remaining % 60;
+            countdownEl.textContent = `⏳ 剩余 ${m}:${String(s).padStart(2, '0')}`;
+            countdownEl.className = 'ask-user-countdown' + (remaining <= 30 ? ' urgent' : '');
+        }
+        updateCountdown();
+        card._countdownTimer = setInterval(updateCountdown, 1000);
+    }
+
+    // 每道问题的输入控件
+    const questionBlocks = [];
+    questions.forEach((q, idx) => {
+        const block = document.createElement('div');
+        block.className = 'ask-user-question-block';
+
+        const qText = document.createElement('div');
+        qText.className = 'ask-user-question-text';
+        qText.textContent = (questions.length > 1 ? `${idx + 1}. ` : '') + q.question;
+        block.appendChild(qText);
+
+        let getValue = () => '';
+
+        if (q.interaction_type === 'confirm') {
+            const btnWrap = document.createElement('div');
+            btnWrap.className = 'ask-user-confirm-buttons';
+            let selected = q.default_value || null;
+
+            const options = q.options && q.options.length ? q.options : ['是', '否'];
+            options.forEach(opt => {
+                const btn = document.createElement('button');
+                btn.className = 'ask-user-confirm-btn' + (selected === opt ? ' selected' : '');
+                btn.textContent = opt;
+                btn.addEventListener('click', () => {
+                    selected = opt;
+                    btnWrap.querySelectorAll('.ask-user-confirm-btn').forEach(b => {
+                        b.classList.toggle('selected', b.textContent === opt);
+                    });
+                });
+                btnWrap.appendChild(btn);
+            });
+            block.appendChild(btnWrap);
+            getValue = () => selected;
+
+        } else if (q.interaction_type === 'select') {
+            const optWrap = document.createElement('div');
+            optWrap.className = 'ask-user-options';
+            const opts = q.options || [];
+
+            // 后端会在有 options 时自动追加 "Other"，检测到后做特殊渲染
+            const hasOther = opts.length > 0 && opts[opts.length - 1].toLowerCase() === 'other';
+            const renderOpts = hasOther ? opts.slice(0, -1) : opts;
+
+            const otherInput = document.createElement('input');
+            otherInput.type = 'text';
+            otherInput.className = 'ask-user-input';
+            otherInput.placeholder = '请输入自定义内容…';
+            otherInput.style.display = 'none';
+            otherInput.style.marginTop = '4px';
+
+            renderOpts.forEach(opt => {
+                const label = document.createElement('label');
+                label.className = 'ask-user-option';
+                const radio = document.createElement('input');
+                radio.type = 'radio';
+                radio.name = `ask_user_${question_id}_${q.sub_id}`;
+                radio.value = opt;
+                if (opt === q.default_value) radio.checked = true;
+                radio.addEventListener('change', () => { otherInput.style.display = 'none'; });
+                label.appendChild(radio);
+                label.appendChild(document.createTextNode(opt));
+                optWrap.appendChild(label);
+            });
+
+            if (hasOther) {
+                const otherLabel = document.createElement('label');
+                otherLabel.className = 'ask-user-option';
+                const otherRadio = document.createElement('input');
+                otherRadio.type = 'radio';
+                otherRadio.name = `ask_user_${question_id}_${q.sub_id}`;
+                otherRadio.value = '__other__';
+                otherRadio.addEventListener('change', () => {
+                    otherInput.style.display = 'block';
+                    otherInput.focus();
+                });
+                otherLabel.appendChild(otherRadio);
+                otherLabel.appendChild(document.createTextNode('其他…'));
+                optWrap.appendChild(otherLabel);
+                block.appendChild(optWrap);
+                block.appendChild(otherInput);
+            } else {
+                block.appendChild(optWrap);
+            }
+
+            getValue = () => {
+                const checked = optWrap.querySelector('input[type=radio]:checked');
+                if (!checked) return '';
+                return checked.value === '__other__' ? (otherInput.value || 'Other') : checked.value;
+            };
+
+        } else if (q.interaction_type === 'multi_select') {
+            const optWrap = document.createElement('div');
+            optWrap.className = 'ask-user-options';
+            const opts = q.options || [];
+            const defaults = Array.isArray(q.default_value) ? q.default_value : [];
+
+            const hasOther = opts.length > 0 && opts[opts.length - 1].toLowerCase() === 'other';
+            const renderOpts = hasOther ? opts.slice(0, -1) : opts;
+
+            const otherInput = document.createElement('input');
+            otherInput.type = 'text';
+            otherInput.className = 'ask-user-input';
+            otherInput.placeholder = '请输入自定义内容…';
+            otherInput.style.display = 'none';
+            otherInput.style.marginTop = '4px';
+
+            renderOpts.forEach(opt => {
+                const label = document.createElement('label');
+                label.className = 'ask-user-option';
+                const cb = document.createElement('input');
+                cb.type = 'checkbox';
+                cb.value = opt;
+                cb.checked = defaults.includes(opt);
+                label.appendChild(cb);
+                label.appendChild(document.createTextNode(opt));
+                optWrap.appendChild(label);
+            });
+
+            if (hasOther) {
+                const otherLabel = document.createElement('label');
+                otherLabel.className = 'ask-user-option';
+                const otherCb = document.createElement('input');
+                otherCb.type = 'checkbox';
+                otherCb.value = '__other__';
+                otherCb.addEventListener('change', () => {
+                    otherInput.style.display = otherCb.checked ? 'block' : 'none';
+                    if (otherCb.checked) otherInput.focus();
+                });
+                otherLabel.appendChild(otherCb);
+                otherLabel.appendChild(document.createTextNode('其他…'));
+                optWrap.appendChild(otherLabel);
+                block.appendChild(optWrap);
+                block.appendChild(otherInput);
+            } else {
+                block.appendChild(optWrap);
+            }
+
+            getValue = () => {
+                const vals = Array.from(optWrap.querySelectorAll('input[type=checkbox]:checked'))
+                    .map(c => c.value === '__other__' ? (otherInput.value || 'Other') : c.value)
+                    .filter(v => v !== '');
+                return vals;
+            };
+
+        } else {
+            // input (default)
+            const input = document.createElement('input');
+            input.type = 'text';
+            input.className = 'ask-user-input';
+            input.placeholder = q.placeholder || '';
+            input.value = q.default_value || '';
+            block.appendChild(input);
+            getValue = () => input.value;
+        }
+
+        card.appendChild(block);
+        questionBlocks.push({ q, getValue });
+    });
+
+    // 如果已有结果（after_tool_call 时 re-render），只展示结果
+    if (alreadyDone) {
+        const resultEl = document.createElement('div');
+        resultEl.className = 'ask-user-result' + (status !== 'answered' ? ' skipped' : '');
+        const statusLabel = { answered: '✅ 已回答', skipped: '⏭ 已跳过', timeout: '⏰ 已超时', cancelled: '🚫 已取消' };
+        if (status === 'answered' && data.answers) {
+            const parts = Object.entries(data.answers).map(([k, v]) => {
+                const q = (questions).find(q => q.sub_id === k);
+                const label = q ? q.question : k;
+                const val = Array.isArray(v) ? v.join('、') : v;
+                return `${label}：${val}`;
+            });
+            resultEl.textContent = '✅ ' + parts.join('；');
+        } else {
+            resultEl.textContent = statusLabel[status] || `状态: ${status}`;
+        }
+        card.appendChild(resultEl);
+        container.appendChild(card);
+        return;
+    }
+
+    // 操作按钮
+    const actions = document.createElement('div');
+    actions.className = 'ask-user-actions';
+
+    const submitBtn = document.createElement('button');
+    submitBtn.className = 'ask-user-submit-btn';
+    submitBtn.textContent = '提交';
+
+    const skipBtn = document.createElement('button');
+    skipBtn.className = 'ask-user-skip-btn';
+    skipBtn.textContent = '跳过';
+
+    actions.appendChild(submitBtn);
+    actions.appendChild(skipBtn);
+    card.appendChild(actions);
+
+    async function doSubmit(response_status) {
+        disableCard();
+        const answers = {};
+        if (response_status === 'answered') {
+            questionBlocks.forEach(({ q, getValue }) => {
+                answers[q.sub_id] = getValue();
+            });
+        }
+
+        const serverUrl = serverUrlInput.value.trim();
+        try {
+            const resp = await fetch(`${serverUrl}/api/v1/messages/chat`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    message_id: generateTimestampId(),
+                    type: 'ask_user_response',
+                    dynamic_config: {
+                        question_id,
+                        response_status,
+                        answer: JSON.stringify(answers)
+                    }
+                })
+            });
+            const json = await resp.json();
+
+            const resultEl = document.createElement('div');
+            resultEl.className = 'ask-user-result' + (response_status === 'skipped' ? ' skipped' : '');
+            resultEl.textContent = response_status === 'answered' ? '✅ 已提交' : '⏭ 已跳过';
+            card.appendChild(resultEl);
+            card.classList.add('answered');
+
+            showEventLog({ label: `ask_user 响应: ${json.message || response_status}`, ...json });
+        } catch (e) {
+            showSystemMessage(`ask_user 提交失败: ${e.message}`);
+            // 重新启用按钮允许重试
+            submitBtn.disabled = false;
+            skipBtn.disabled = false;
+        }
+    }
+
+    submitBtn.addEventListener('click', () => doSubmit('answered'));
+    skipBtn.addEventListener('click', () => doSubmit('skipped'));
+
+    // 单问题 confirm 卡片：点选项直接提交，隐藏底部操作栏
+    const isSingleConfirm = questions.length === 1 && questions[0].interaction_type === 'confirm';
+    if (isSingleConfirm) {
+        actions.style.display = 'none';
+        card.querySelectorAll('.ask-user-confirm-btn').forEach(btn => {
+            btn.addEventListener('click', () => doSubmit('answered'));
+        });
+    }
+
+    container.appendChild(card);
+
+    // 注册卡片，供 after_tool_call 事件更新状态用
+    if (question_id) {
+        askUserCardRegistry.set(question_id, container);
+    }
+}
+
 // 显示工具调用消息块（before_tool_call / after_tool_call）
 function showToolCallMessage(tool, eventType, timestamp, _noLog = false) {
     if (!_noLog) pushLog({ type: 'tool_call', tool, eventType, timestamp });
@@ -1797,24 +2152,36 @@ function showToolCallMessage(tool, eventType, timestamp, _noLog = false) {
     wrapper.appendChild(header);
 
     if (detail) {
-        const arrow = document.createElement('span');
-        arrow.className = 'tool-call-arrow';
-        arrow.textContent = '▶';
-        header.appendChild(arrow);
+        // ask_user：渲染交互卡片
+        if (detail.type === 'ask_user' && detail.data) {
+            const qid = detail.data.question_id;
+            if (eventType === 'after_tool_call' && qid && askUserCardRegistry.has(qid)) {
+                // 已有卡片：就地更新状态，不新增 wrapper
+                finalizeAskUserCard(askUserCardRegistry.get(qid), detail.data);
+                return;
+            }
+            renderAskUserCard(detail.data, wrapper);
+        } else {
+            // 其余工具：折叠 JSON 详情
+            const arrow = document.createElement('span');
+            arrow.className = 'tool-call-arrow';
+            arrow.textContent = '▶';
+            header.appendChild(arrow);
 
-        const detailEl = document.createElement('pre');
-        detailEl.className = 'tool-call-detail';
-        detailEl.style.display = 'none';
-        detailEl.textContent = JSON.stringify(detail, null, 2);
+            const detailEl = document.createElement('pre');
+            detailEl.className = 'tool-call-detail';
+            detailEl.style.display = 'none';
+            detailEl.textContent = JSON.stringify(detail, null, 2);
 
-        header.style.cursor = 'pointer';
-        header.addEventListener('click', () => {
-            const isHidden = detailEl.style.display === 'none';
-            detailEl.style.display = isHidden ? 'block' : 'none';
-            arrow.textContent = isHidden ? '▼' : '▶';
-        });
+            header.style.cursor = 'pointer';
+            header.addEventListener('click', () => {
+                const isHidden = detailEl.style.display === 'none';
+                detailEl.style.display = isHidden ? 'block' : 'none';
+                arrow.textContent = isHidden ? '▼' : '▶';
+            });
 
-        wrapper.appendChild(detailEl);
+            wrapper.appendChild(detailEl);
+        }
     }
 
     messageList.appendChild(wrapper);

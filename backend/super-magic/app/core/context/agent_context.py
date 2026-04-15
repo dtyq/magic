@@ -1257,18 +1257,17 @@ class AgentContext(BaseAgentContext):
             Optional[str]: 上次保存的 message_version，文件不存在或无记录时返回 None
         """
         from pathlib import Path
-        from app.utils.async_file_utils import async_read_json
-        try:
-            chat_history_dir = self.get_chat_history_dir()
-            agent_name = self.agent_name
-            agent_id = self._agent_id or "main"
-            session_file = Path(chat_history_dir) / f"{agent_name}<{agent_id}>.session.json"
-            doc = await async_read_json(session_file)
-            current = doc.get("current", {})
-            if isinstance(current, dict):
-                return current.get("message_version") or None
-        except Exception:
-            pass
+        from app.utils.async_file_utils import async_try_read_json
+        chat_history_dir = self.get_chat_history_dir()
+        agent_name = self.agent_name
+        agent_id = self._agent_id or "main"
+        session_file = Path(chat_history_dir) / f"{agent_name}<{agent_id}>.session.json"
+        doc = await async_try_read_json(session_file)
+        if doc is None:
+            return None
+        current = doc.get("current", {})
+        if isinstance(current, dict):
+            return current.get("message_version") or None
         return None
 
     def get_message_factory(self) -> "Type[TaskMessageFactoryProtocol]":
