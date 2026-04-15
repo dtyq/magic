@@ -10,6 +10,7 @@ from typing import BinaryIO, Dict, Optional
 import aiohttp
 from loguru import logger
 from tos import TosClientV2, HttpMethodType
+from tos.exceptions import TosServerError
 from tos.models2 import CompletePart
 
 from .base import AbstractStorage, BaseFileProcessor, with_refreshed_credentials
@@ -450,8 +451,13 @@ class VolcEngineUploader(AbstractStorage, BaseFileProcessor):
                 loop = asyncio.get_event_loop()
                 await loop.run_in_executor(None, lambda: tos_client.head_object(bucket=tc.bucket, key=key))
                 return True
+            except TosServerError as e:
+                if e.status_code == 404:
+                    logger.warning(f"Object not found (404) for key '{key}'")
+                else:
+                    logger.error(f"Error during head_object for key '{key}': {type(e).__name__} - {e}")
+                return False
             except Exception as e:
-                # 对象不存在，或者发生了其他错误
                 logger.error(f"Error during head_object for key '{key}': {type(e).__name__} - {e}")
                 return False
 
