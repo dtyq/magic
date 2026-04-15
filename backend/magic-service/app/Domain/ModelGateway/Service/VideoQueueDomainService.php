@@ -563,6 +563,7 @@ readonly class VideoQueueDomainService
             self::TASK_EXTEND => 'video_extension',
             self::TASK_EDIT => 'video_edit',
             self::TASK_UPSCALE => 'video_upscale',
+            default => throw new RuntimeException('unknown task'),
         };
 
         if (! in_array($requiredCapability, $supportedInputs, true)) {
