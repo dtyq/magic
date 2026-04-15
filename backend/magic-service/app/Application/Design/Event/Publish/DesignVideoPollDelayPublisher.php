@@ -11,7 +11,7 @@ use App\Application\Design\Event\Message\DesignVideoPollMessage;
 use Hyperf\Amqp\Annotation\Producer;
 use Hyperf\Amqp\Message\ProducerMessage;
 
-#[Producer(exchange: 'design.video.poll.delay', routingKey: 'design.video.poll')]
+#[Producer(exchange: 'design.videos.poll.delay', routingKey: 'design.videos.poll')]
 class DesignVideoPollDelayPublisher extends ProducerMessage
 {
     public function __construct(DesignVideoPollMessage $message)

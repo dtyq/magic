@@ -15,26 +15,26 @@ use PhpAmqpLib\Message\AMQPMessage;
 use PhpAmqpLib\Wire\AMQPTable;
 
 #[Consumer(
-    exchange: 'design.video.poll.delay',
-    routingKey: 'design.video.poll',
-    queue: 'design.video.poll.delay.10s',
+    exchange: 'design.videos.poll.delay',
+    routingKey: 'design.videos.poll',
+    queue: 'design.videos.poll.delay.10s',
     nums: 0
 )]
 class DesignVideoPollDelayDeclarer extends ConsumerMessage
 {
-    protected string $exchange = 'design.video.poll.delay';
+    protected string $exchange = 'design.videos.poll.delay';
 
-    protected ?string $queue = 'design.video.poll.delay.10s';
+    protected ?string $queue = 'design.videos.poll.delay.10s';
 
-    protected array|string $routingKey = 'design.video.poll';
+    protected array|string $routingKey = 'design.videos.poll';
 
     public function getQueueBuilder(): QueueBuilder
     {
         return parent::getQueueBuilder()->setArguments(new AMQPTable([
             'x-ha-policy' => ['S', 'all'],
             'x-message-ttl' => (int) config('design_generation.video_poll.delay_ms', 10000),
-            'x-dead-letter-exchange' => 'design.video.poll',
-            'x-dead-letter-routing-key' => 'design.video.poll',
+            'x-dead-letter-exchange' => 'design.videos.poll',
+            'x-dead-letter-routing-key' => 'design.videos.poll',
         ]));
     }
 

@@ -39,9 +39,9 @@ use Throwable;
 use function Hyperf\Translation\trans;
 
 #[Consumer(
-    exchange: 'design.video.poll',
-    routingKey: 'design.video.poll',
-    queue: 'design.video.poll',
+    exchange: 'design.videos.poll',
+    routingKey: 'design.videos.poll',
+    queue: 'design.videos.poll',
     nums: 1
 )]
 class DesignVideoPollConsumer extends ConsumerMessage
