@@ -27,6 +27,7 @@ use Dtyq\SuperMagic\Domain\SuperAgent\Entity\TopicEntity;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\CreationSource;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\Query\TopicQuery;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\TaskStatus;
+use Dtyq\SuperMagic\Domain\SuperAgent\Repository\Facade\ProjectRepositoryInterface;
 use Dtyq\SuperMagic\Domain\SuperAgent\Repository\Facade\TaskMessageRepositoryInterface;
 use Dtyq\SuperMagic\Domain\SuperAgent\Repository\Facade\TaskRepositoryInterface;
 use Dtyq\SuperMagic\Domain\SuperAgent\Repository\Facade\TopicRepositoryInterface;
@@ -52,6 +53,7 @@ class TopicDomainService
         protected MagicChatTopicRepositoryInterface $magicChatTopicRepository,
         protected TaskMessageRepositoryInterface $taskMessageRepository,
         protected CloudFileRepositoryInterface $cloudFileRepository,
+        protected ProjectRepositoryInterface $projectRepository,
         LoggerFactory $loggerFactory,
     ) {
         $this->logger = $loggerFactory->get('topic');
@@ -443,9 +445,22 @@ class TopicDomainService
 
     public function getResourceStatus(string $userId): array
     {
+        $projectIds = $this->topicRepository->getRunningProjectIdsByUser($userId);
+        if (empty($projectIds)) {
+            return [
+                'project_ids' => [],
+                'workspace_ids' => [],
+            ];
+        }
+
+        $workspaceIdsByProject = $this->projectRepository->getWorkspaceIdsByProjectIds($projectIds);
+
         return [
-            'project_ids' => $this->topicRepository->getRunningProjectIdsByUser($userId),
-            'workspace_ids' => $this->topicRepository->getRunningWorkspaceIdsByUser($userId),
+            'project_ids' => $projectIds,
+            'workspace_ids' => array_values(array_unique(array_filter(
+                array_values($workspaceIdsByProject),
+                static fn (mixed $workspaceId): bool => $workspaceId !== null && $workspaceId !== ''
+            ))),
         ];
     }
 
