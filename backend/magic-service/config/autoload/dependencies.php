@@ -94,6 +94,8 @@ use App\Domain\Contact\Repository\Persistence\MagicUserRepository;
 use App\Domain\Contact\Repository\Persistence\MagicUserSettingRepository;
 use App\Domain\Contact\Service\Facade\MagicUserDomainExtendInterface;
 use App\Domain\Contact\Service\MagicUserDomainExtendService;
+use App\Domain\Design\Repository\Facade\ImageGenerationRepositoryInterface;
+use App\Domain\Design\Repository\Persistence\ImageGenerationRepository;
 use App\Domain\File\Repository\Persistence\CloudFileRepository;
 use App\Domain\File\Repository\Persistence\Facade\CloudFileRepositoryInterface;
 use App\Domain\Flow\Repository\Facade\MagicFlowAIModelRepositoryInterface;
@@ -474,6 +476,9 @@ $dependencies = [
     ThirdPlatformDocumentFileStrategyInterface::class => ThirdPlatformDocumentFileStrategyDriver::class,
     ExternalDocumentFileInterface::class => ExternalDocumentFile::class,
     ThirdPlatformDocumentFileInterface::class => ThirdPlatformDocumentFile::class,
+
+    // design
+    ImageGenerationRepositoryInterface::class => ImageGenerationRepository::class,
 
     // admin
     AdminGlobalSettingsRepositoryInterface::class => AdminGlobalSettingsRepository::class,

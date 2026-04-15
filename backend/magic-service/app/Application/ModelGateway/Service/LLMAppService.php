@@ -1424,6 +1424,7 @@ class LLMAppService extends AbstractLLMAppService
         $imageGenerateParamsVO->setSequentialImageGeneration($proxyModelRequest->getSequentialImageGeneration());
         $imageGenerateParamsVO->setSequentialImageGenerationOptions($proxyModelRequest->getSequentialImageGenerationOptions());
         $imageGenerateParamsVO->setReferenceImages($proxyModelRequest->getImages());
+        $imageGenerateParamsVO->setOutputFormat($proxyModelRequest->getOutputFormat());
 
         // 直接透传原始 size 参数，让各服务商根据自己的需求处理
         $imageGenerateParamsVO->setSize($proxyModelRequest->getSize(''));
@@ -1432,7 +1433,8 @@ class LLMAppService extends AbstractLLMAppService
         $data['organization_code'] = $organizationCode;
 
         // 图片水印处理
-        $imageGenerateRequest = ImageGenerateFactory::createRequestType($imageGenerateType, $modelVersion, $proxyModelRequest->getModel(), $data);
+        $modelId = $imageModel->getModelId() ?: $proxyModelRequest->getModel();
+        $imageGenerateRequest = ImageGenerateFactory::createRequestType($imageGenerateType, $modelVersion, $modelId, $data);
         $resolvedWatermark = di(WatermarkPolicyInterface::class)
             ->apply($modelGatewayDataIsolation->getAccessToken(), $proxyModelRequest->getWatermark());
         $imageGenerateRequest->setWatermarkConfig($resolvedWatermark);

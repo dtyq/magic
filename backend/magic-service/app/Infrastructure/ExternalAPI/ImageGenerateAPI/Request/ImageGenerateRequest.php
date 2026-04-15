@@ -52,6 +52,9 @@ class ImageGenerateRequest
     // 组织编码（用于PGP签名）
     protected ?string $organizationCode = null;
 
+    // 输出图片格式（统一使用小写格式，如 png、jpeg、webp 等；空字符串表示使用服务商默认格式）
+    protected string $outputFormat = '';
+
     public function __construct(
         string $width = '',
         string $height = '',
@@ -204,5 +207,15 @@ class ImageGenerateRequest
     public function setRatio(string $ratio): void
     {
         $this->ratio = $ratio;
+    }
+
+    public function getOutputFormat(): string
+    {
+        return $this->outputFormat;
+    }
+
+    public function setOutputFormat(string $outputFormat): void
+    {
+        $this->outputFormat = $outputFormat;
     }
 }

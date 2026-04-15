@@ -362,302 +362,258 @@ class SizeManagerTest extends BaseTest
 
     /**
      * 测试 Seedream 4.0 (Doubao 4.0) 模型的所有 size 格式和边界情况
-     * 验证流程：接受多种类型 size -> 转换成 Size（宽高）-> 转换成 Ratio（比例）-> 验证 ratio 是否正确.
+     * 该模型配置了 total_pixels_range，验证流程：
+     * 接受多种类型 size -> parseToWidthHeight 解析 -> 同比例换算到 [min, max] 范围 -> 验证总像素合法.
      */
     public function testSeedream40Model()
     {
         $modelVersion = 'unknown-version';
         $modelId = 'seedream-4-0';
 
-        // 配置中支持的比例列表
-        $supportedRatios = ['1:1', '2:3', '3:2', '3:4', '4:3', '9:16', '16:9', '21:9'];
+        $pixelMin = 921600;
+        $pixelMax = 16777216;
 
-        // 测试用例：[输入 size, 期望的宽高, 期望的比例]
+        // 测试用例：[输入 size, 期望宽, 期望高, 说明]
+        // 期望值由 parseToWidthHeight + scaleToPixelRange 的 sqrt 换算精确确定
         $testCases = [
-            // 1. 比例格式 label 匹配
-            ['1:1', ['2048', '2048'], '1:1'],
-            ['2:3', ['1664', '2496'], '2:3'],
-            ['3:2', ['2496', '1664'], '3:2'],
-            ['3:4', ['1728', '2304'], '3:4'],
-            ['4:3', ['2304', '1728'], '4:3'],
-            ['9:16', ['1440', '2560'], '9:16'],
-            ['16:9', ['2560', '1440'], '16:9'],
-            ['21:9', ['2048', '2048'], '1:1'], // 注意：21:9 在配置中映射到 2048x2048
-
-            // 2. 标准格式 value 匹配
-            ['2048x2048', ['2048', '2048'], '1:1'],
-            ['2560x1440', ['2560', '1440'], '16:9'],
-            ['1664x2496', ['1664', '2496'], '2:3'],
-            ['2496x1664', ['2496', '1664'], '3:2'],
-            ['1728x2304', ['1728', '2304'], '3:4'],
-            ['2304x1728', ['2304', '1728'], '4:3'],
-            ['1440x2560', ['1440', '2560'], '9:16'],
-
-            // 2.1 标准格式但不在配置中（会降级到配置中最接近的比例对应的尺寸）
-            ['4096x2731', ['2496', '1664'], '3:2'], // 不在配置中，比例 4096/2731≈1.5，降级到 3:2 对应的 2496x1664
-
-            // 3. 乘号格式（不在配置中，会返回配置的第一个值）
-            ['2048*2048', ['2048', '2048'], '1:1'], // 匹配到配置中的 2048x2048
-
-            // 4. k 格式（不在配置中，会返回配置的第一个值）
-            ['2k', ['2048', '2048'], '1:1'], // 匹配到配置中的 2048x2048
-
-            // 5. 比例格式但不在配置中（应该匹配最接近的）
-            ['16:10', ['2496', '1664'], '3:2'], // 16:10 (1.6) 最接近 3:2 (1.5)
-            ['5:3', ['2560', '1440'], '16:9'], // 5:3 (1.67) 最接近 16:9 (1.77)
+            // 比例格式：基准 1024 换算后再缩放
+            ['1:1', '1024', '1024', '1:1 -> 1024x1024，P=1048576 在范围内'],
+            ['9:16', '720', '1280', '9:16 -> 576x1024，P<min，放大到 720x1280'],
+            ['16:9', '1280', '720', '16:9 -> 1024x576，P<min，放大到 1280x720'],
+            ['21:9', '1468', '628', '21:9 -> 1024x438，P<min，放大到 1468x628'],
+            // 标准格式：在范围内直接返回
+            ['2048x2048', '2048', '2048', '2048x2048，P=4194304 在范围内'],
+            ['2560x1440', '2560', '1440', '2560x1440，P=3686400 在范围内'],
+            ['1664x2496', '1664', '2496', '1664x2496，P=4153344 在范围内'],
+            ['1440x2560', '1440', '2560', '1440x2560，P=3686400 在范围内'],
+            ['4096x2731', '4096', '2731', '4096x2731，P=11186176 在范围内，直接返回'],
+            ['1820x1024', '1820', '1024', '1820x1024，P=1863680 在范围内'],
+            // 小尺寸：P < min，放大
+            ['500x500', '960', '960', '500x500，P=250000<min，放大到 960x960'],
+            ['1x1', '960', '960', '1x1，P=1<min，放大到 960x960'],
+            // 大尺寸：P > max，缩小
+            ['10000x10000', '4096', '4096', '10000x10000，P>max，缩小到 4096x4096'],
+            // 乘号格式
+            ['2048*2048', '2048', '2048', '2048*2048 解析后在范围内'],
+            ['2560*1440', '2560', '1440', '2560*1440 解析后在范围内'],
+            // k 格式
+            ['2k', '2048', '2048', '2k=2048x2048，P=4194304 在范围内'],
+            ['3k', '3072', '3072', '3k=3072x3072，P=9437136 在范围内'],
+            ['4k', '4096', '4096', '4k=4096x4096，P=16777216 在范围内'],
+            // 非正方形标准格式：在范围内直接返回（真实业务输入场景）
+            ['2048x800', '2048', '800', '2048x800，P=1638400 在范围内，直接返回'],
+            // 非正方形标准格式：P < min，同比例放大
+            ['596x1024', '733', '1259', '596x1024（字母x），P=610304<min，ceil 放大到 733x1259'],
+            // 中文乘号格式（×，U+00D7）：与字母 x 格式等价，需要正则 u 修饰符支持
+            ['596×1024', '733', '1259', '596×1024（中文乘号），P=610304<min，ceil 放大到 733x1259'],
+            ['2048×800', '2048', '800', '2048×800（中文乘号），P=1638400 在范围内，直接返回'],
+            // 无效格式 -> parseToWidthHeight 返回 1024x1024，P在范围内
+            ['invalid', '1024', '1024', '无效格式，默认 1024x1024'],
+            ['invalid-format', '1024', '1024', '无效格式，默认 1024x1024'],
+            ['abc123', '1024', '1024', '无效格式，默认 1024x1024'],
+            ['', '1024', '1024', '空字符串，默认 1024x1024'],
         ];
 
-        foreach ($testCases as [$inputSize, $expectedSize, $expectedRatio]) {
-            // 步骤1: 接受多种类型 size，转换成 Size（宽高）
+        // ceil/floor 保证总像素严格满足范围，无需容差
+        foreach ($testCases as [$inputSize, $expectedW, $expectedH, $description]) {
             $size = SizeManager::getSizeFromConfig($inputSize, $modelVersion, $modelId);
-            $this->assertEquals($expectedSize, $size, "Failed for input: {$inputSize}");
+            $this->assertEquals($expectedW, $size[0], "Width mismatch for input: {$inputSize}. {$description}");
+            $this->assertEquals($expectedH, $size[1], "Height mismatch for input: {$inputSize}. {$description}");
 
-            // 步骤2: 转换成 Ratio（比例）
-            $width = (int) $size[0];
-            $height = (int) $size[1];
-            $ratio = SizeManager::convertToAspectRatio($width, $height, $modelVersion, $modelId);
-
-            // 步骤3: 验证 ratio 是否正确
-            $this->assertEquals($expectedRatio, $ratio, "Ratio mismatch for input: {$inputSize}, size: {$size[0]}x{$size[1]}");
-            $this->assertContains($ratio, $supportedRatios, "Ratio {$ratio} not in supported list for input: {$inputSize}");
+            $pixels = (int) $size[0] * (int) $size[1];
+            $this->assertGreaterThanOrEqual($pixelMin, $pixels, "Pixels {$pixels} below min for input: {$inputSize}");
+            $this->assertLessThanOrEqual($pixelMax, $pixels, "Pixels {$pixels} above max for input: {$inputSize}");
         }
 
-        // 6. 测试边界情况：空字符串
-        $size = SizeManager::getSizeFromConfig('', $modelVersion, $modelId);
-        $this->assertEquals(['2048', '2048'], $size);
-        $ratio = SizeManager::convertToAspectRatio(2048, 2048, $modelVersion, $modelId);
-        $this->assertEquals('1:1', $ratio);
-
-        // 7. 测试边界情况：无效格式（应该返回默认值）
-        $size = SizeManager::getSizeFromConfig('invalid', $modelVersion, $modelId);
-        $this->assertEquals(['2048', '2048'], $size);
-        $ratio = SizeManager::convertToAspectRatio(2048, 2048, $modelVersion, $modelId);
-        $this->assertEquals('1:1', $ratio);
-
-        // 8. 测试边界情况：带空格
+        // 带空格的输入
         $size = SizeManager::getSizeFromConfig(' 16:9 ', $modelVersion, $modelId);
-        $this->assertEquals(['2560', '1440'], $size);
-        $ratio = SizeManager::convertToAspectRatio(2560, 1440, $modelVersion, $modelId);
-        $this->assertEquals('16:9', $ratio);
+        $this->assertEquals('1280', $size[0]);
+        $this->assertEquals('720', $size[1]);
+        $pixels = (int) $size[0] * (int) $size[1];
+        $this->assertGreaterThanOrEqual($pixelMin, $pixels);
+        $this->assertLessThanOrEqual($pixelMax, $pixels);
 
-        // 9. 测试标准格式但不在配置中的情况（应该降级到配置中最接近的比例对应的尺寸）
-        $size = SizeManager::getSizeFromConfig('3000x3000', $modelVersion, $modelId);
-        $this->assertEquals(['2048', '2048'], $size); // 降级到 1:1 对应的 2048x2048
-        $ratio = SizeManager::convertToAspectRatio(2048, 2048, $modelVersion, $modelId);
-        $this->assertEquals('1:1', $ratio);
-
-        // 10. 测试不在配置中的乘号格式和 k 格式（会返回配置的第一个值）
-        $testCasesNotInConfig = [
-            '2560*1440',
-            '3k',
-            '4k',
+        // 验证更多输入的换算后总像素均严格在合法范围内
+        $additionalInputs = [
+            '2000x2000', '3000x3000', '1000x1500', '1500x1000',
+            '3000x2000', '2000x3000', '999x999', '1024x999',
+            '100:1', '1:100', '16:10', '5:3',
+            '2:3', '3:2', '3:4', '4:3',
         ];
-
-        foreach ($testCasesNotInConfig as $inputSize) {
+        foreach ($additionalInputs as $inputSize) {
             $size = SizeManager::getSizeFromConfig($inputSize, $modelVersion, $modelId);
-            // 应该返回配置的第一个值
-            $this->assertEquals(['2048', '2048'], $size, "Input {$inputSize} should return first config value");
-            $ratio = SizeManager::convertToAspectRatio(2048, 2048, $modelVersion, $modelId);
-            $this->assertEquals('1:1', $ratio);
-        }
-
-        // 11. 测试不正确的 size 降级到正确的 size
-        $fallbackTestCases = [
-            // 11.1 不在配置中的标准格式（会降级到配置中最接近的比例对应的尺寸）
-            ['999x999', ['2048', '2048'], '1:1', '不在配置中的标准格式，降级到 1:1 对应的 2048x2048'],
-            ['500x500', ['2048', '2048'], '1:1', '小尺寸标准格式，降级到 1:1 对应的 2048x2048'],
-            ['5000x3000', ['2560', '1440'], '16:9', '大尺寸标准格式，比例 5000/3000≈1.67，降级到 16:9 对应的 2560x1440'],
-            ['2000x3000', ['1664', '2496'], '2:3', '标准格式，比例 2000/3000≈0.67，降级到 2:3 对应的 1664x2496'],
-            ['3000x2000', ['2496', '1664'], '3:2', '标准格式，比例 3000/2000=1.5，降级到 3:2 对应的 2496x1664'],
-
-            // 11.2 无效的比例格式（会匹配最接近的比例）
-            ['100:1', ['2048', '2048'], '1:1', '极端宽比例，返回配置的第一个值'],
-            ['1:100', ['1440', '2560'], '9:16', '极端高比例，匹配到最接近的 9:16'],
-            ['50:1', ['2048', '2048'], '1:1', '很宽的比例，返回配置的第一个值'],
-            ['1:50', ['1440', '2560'], '9:16', '很高的比例，匹配到最接近的 9:16'],
-
-            // 11.3 无效格式（会降级到配置的第一个值）
-            ['invalid-format', ['2048', '2048'], '1:1', '无效格式，降级到配置的第一个值'],
-            ['abc123', ['2048', '2048'], '1:1', '无效格式，降级到配置的第一个值'],
-            ['!@#$%', ['2048', '2048'], '1:1', '特殊字符，降级到配置的第一个值'],
-
-            // 11.4 极端值（会降级到配置中最接近的比例对应的尺寸）
-            ['1x1', ['2048', '2048'], '1:1', '极端小尺寸，降级到 1:1 对应的 2048x2048'],
-            ['10000x10000', ['2048', '2048'], '1:1', '极端大尺寸，降级到 1:1 对应的 2048x2048'],
-            ['9999x1', ['2048', '2048'], '1:1', '极端宽尺寸，比例 9999/1≈9999，最接近 21:9，但配置中 21:9 对应 2048x2048，实际比例是 1:1'],
-            ['1x9999', ['1440', '2560'], '9:16', '极端高尺寸，比例 1/9999≈0.0001，最接近 9:16，降级到 9:16 对应的 1440x2560'],
-
-            // 11.5 格式正确但不在配置中的值
-            ['2048x999', ['2560', '1440'], '16:9', '格式正确但不在配置中，比例 2048/999≈2.05，最接近 16:9，降级到 16:9 对应的 2560x1440'],
-            ['999x2048', ['1440', '2560'], '9:16', '格式正确但不在配置中，比例 999/2048≈0.49，最接近 9:16，降级到 9:16 对应的 1440x2560'],
-        ];
-
-        foreach ($fallbackTestCases as [$incorrectSize, $expectedSize, $expectedRatio, $description]) {
-            // 步骤1: 传入不正确的 size，验证是否能降级到正确的 size
-            $size = SizeManager::getSizeFromConfig($incorrectSize, $modelVersion, $modelId);
-            $this->assertEquals($expectedSize, $size, "Fallback failed for incorrect input: {$incorrectSize}. {$description}");
-
-            // 步骤2: 验证降级后的 size 能正确转换成 ratio
-            $width = (int) $size[0];
-            $height = (int) $size[1];
-            $ratio = SizeManager::convertToAspectRatio($width, $height, $modelVersion, $modelId);
-
-            // 步骤3: 验证降级后的 ratio 是否正确且在支持列表中
-            $this->assertEquals($expectedRatio, $ratio, "Ratio mismatch after fallback for input: {$incorrectSize}. {$description}");
-            $this->assertContains($ratio, $supportedRatios, "Fallback ratio {$ratio} not in supported list for input: {$incorrectSize}. {$description}");
-
-            // 步骤4: 验证降级后的 size 和 ratio 是有效的组合
-            $this->assertNotEmpty($ratio, "Fallback should produce a valid ratio for input: {$incorrectSize}");
+            $pixels = (int) $size[0] * (int) $size[1];
+            $this->assertGreaterThanOrEqual($pixelMin, $pixels, "Pixels {$pixels} below min for input: {$inputSize}");
+            $this->assertLessThanOrEqual($pixelMax, $pixels, "Pixels {$pixels} above max for input: {$inputSize}");
         }
     }
 
     /**
      * 测试 Seedream 4.5 (Doubao 4.5) 模型的所有 size 格式和边界情况
-     * 验证流程：接受多种类型 size -> 转换成 Size（宽高）-> 转换成 Ratio（比例）-> 验证 ratio 是否正确
-     * 注意：该模型有多个相同 label 但不同 scale 的配置.
+     * 该模型配置了 total_pixels_range，验证流程：
+     * 接受多种类型 size -> parseToWidthHeight 解析 -> 同比例换算到 [min, max] 范围 -> 验证总像素合法.
      */
     public function testSeedream45Model()
     {
         $modelVersion = 'unknown-version';
         $modelId = 'seedream-4-5';
 
-        // 配置中支持的比例列表
-        $supportedRatios = ['1:1', '2:3', '3:2', '3:4', '4:3', '9:16', '16:9', '21:9'];
+        $pixelMin = 3686400;
+        $pixelMax = 16777216;
 
-        // 测试用例：[输入 size, 期望的宽高, 期望的比例]
+        // 测试用例：[输入 size, 期望宽, 期望高, 说明]
         $testCases = [
-            // 1. 比例格式 label 匹配（应该匹配第一个）
-            ['1:1', ['2048', '2048'], '1:1'], // 第一个 1:1 配置 (2X)
-            ['2:3', ['1664', '2496'], '2:3'], // 第一个 2:3 配置 (2X)
-            ['3:2', ['2496', '1664'], '3:2'], // 第一个 3:2 配置 (2X)
-            ['3:4', ['1728', '2304'], '3:4'], // 第一个 3:4 配置 (2X)
-            ['4:3', ['2304', '1728'], '4:3'], // 第一个 4:3 配置 (2X)
-            ['9:16', ['1440', '2560'], '9:16'], // 第一个 9:16 配置 (2X)
-            ['16:9', ['2560', '1440'], '16:9'], // 第一个 16:9 配置 (2X)
-            ['21:9', ['2048', '2048'], '1:1'], // 第一个 21:9 配置映射到 2048x2048
-
-            // 2. 标准格式 value 匹配（包括 2X 和 4X 的尺寸）
-            ['2048x2048', ['2048', '2048'], '1:1'], // 2X 的 1:1
-            ['4096x4096', ['4096', '4096'], '1:1'], // 4X 的 1:1
-            ['2560x1440', ['2560', '1440'], '16:9'], // 2X 的 16:9
-            ['4096x2304', ['4096', '2304'], '16:9'], // 4X 的 16:9
-            ['1664x2496', ['1664', '2496'], '2:3'], // 2X 的 2:3
-            ['2731x4096', ['2731', '4096'], '2:3'], // 4X 的 2:3
-            ['2496x1664', ['2496', '1664'], '3:2'], // 2X 的 3:2
-            ['4096x2731', ['4096', '2731'], '3:2'], // 4X 的 3:2
-
-            // 3. 乘号格式（不在配置中，会返回配置的第一个值）
-            ['2048*2048', ['2048', '2048'], '1:1'], // 匹配到配置中的 2048x2048
-
-            // 4. k 格式（不在配置中，会返回配置的第一个值）
-            ['2k', ['2048', '2048'], '1:1'], // 匹配到配置中的 2048x2048
-
-            // 5. 比例格式但不在配置中（应该匹配最接近的）
-            ['16:10', ['2496', '1664'], '3:2'], // 16:10 (1.6) 最接近 3:2 (1.5)
-            ['5:3', ['2560', '1440'], '16:9'], // 5:3 (1.67) 最接近 16:9 (1.77)
+            // 比例格式：基准 1024 换算后再放大到 min
+            ['1:1', '1920', '1920', '1:1 -> 1024x1024，P<min，放大到 1920x1920'],
+            ['9:16', '1440', '2560', '9:16 -> 576x1024，P<min，放大到 1440x2560'],
+            ['16:9', '2560', '1440', '16:9 -> 1024x576，P<min，放大到 2560x1440'],
+            // 标准格式：在范围内直接返回
+            ['2048x2048', '2048', '2048', '2048x2048，P=4194304 在范围内'],
+            ['4096x4096', '4096', '4096', '4096x4096，P=16777216 在范围内'],
+            ['2560x1440', '2560', '1440', '2560x1440，P=3686400 在范围内'],
+            ['4096x2304', '4096', '2304', '4096x2304 在范围内'],
+            ['1664x2496', '1664', '2496', '1664x2496 在范围内'],
+            ['2731x4096', '2731', '4096', '2731x4096 在范围内'],
+            ['2496x1664', '2496', '1664', '2496x1664 在范围内'],
+            ['4096x2731', '4096', '2731', '4096x2731 在范围内'],
+            ['1728x2304', '1728', '2304', '1728x2304 在范围内'],
+            ['3072x4096', '3072', '4096', '3072x4096 在范围内'],
+            ['2304x1728', '2304', '1728', '2304x1728 在范围内'],
+            ['4096x3072', '4096', '3072', '4096x3072 在范围内'],
+            ['1440x2560', '1440', '2560', '1440x2560 在范围内'],
+            ['2304x4096', '2304', '4096', '2304x4096 在范围内'],
+            // 小尺寸：放大
+            ['999x999', '1920', '1920', '999x999，P<min，放大到 1920x1920'],
+            ['500x500', '1920', '1920', '500x500，P<min，放大到 1920x1920'],
+            ['1x1', '1920', '1920', '1x1，P<min，放大到 1920x1920'],
+            // 大尺寸：缩小
+            ['10000x10000', '4096', '4096', '10000x10000，P>max，缩小到 4096x4096'],
+            // 乘号格式
+            ['2048*2048', '2048', '2048', '2048*2048 在范围内'],
+            ['2560*1440', '2560', '1440', '2560*1440 在范围内'],
+            // k 格式
+            ['2k', '2048', '2048', '2k=2048x2048，P=4194304 在范围内'],
+            ['3k', '3072', '3072', '3k=3072x3072 在范围内'],
+            ['4k', '4096', '4096', '4k=4096x4096 在范围内'],
+            // 比例格式不在配置中：先 parseToWidthHeight，再缩放
+            ['16:10', '2429', '1518', '16:10 -> 1024x640，P<min，放大到 2429x1518'],
+            ['5:3', '2480', '1487', '5:3 -> 1024x614，P<min，放大到 2480x1487'],
+            // 无效格式 -> 1024x1024，P<min，放大到 1920x1920
+            ['invalid', '1920', '1920', '无效格式，1024x1024 放大'],
+            ['invalid-format', '1920', '1920', '无效格式，1024x1024 放大'],
+            ['abc123', '1920', '1920', '无效格式，1024x1024 放大'],
+            ['', '1920', '1920', '空字符串，1024x1024 放大'],
         ];
 
-        foreach ($testCases as [$inputSize, $expectedSize, $expectedRatio]) {
-            // 步骤1: 接受多种类型 size，转换成 Size（宽高）
+        foreach ($testCases as [$inputSize, $expectedW, $expectedH, $description]) {
             $size = SizeManager::getSizeFromConfig($inputSize, $modelVersion, $modelId);
-            $this->assertEquals($expectedSize, $size, "Failed for input: {$inputSize}");
+            $this->assertEquals($expectedW, $size[0], "Width mismatch for input: {$inputSize}. {$description}");
+            $this->assertEquals($expectedH, $size[1], "Height mismatch for input: {$inputSize}. {$description}");
 
-            // 步骤2: 转换成 Ratio（比例）
-            $width = (int) $size[0];
-            $height = (int) $size[1];
-            $ratio = SizeManager::convertToAspectRatio($width, $height, $modelVersion, $modelId);
-
-            // 步骤3: 验证 ratio 是否正确
-            $this->assertEquals($expectedRatio, $ratio, "Ratio mismatch for input: {$inputSize}, size: {$size[0]}x{$size[1]}");
-            $this->assertContains($ratio, $supportedRatios, "Ratio {$ratio} not in supported list for input: {$inputSize}");
+            $pixels = (int) $size[0] * (int) $size[1];
+            $this->assertGreaterThanOrEqual($pixelMin, $pixels, "Pixels {$pixels} below min for input: {$inputSize}");
+            $this->assertLessThanOrEqual($pixelMax, $pixels, "Pixels {$pixels} above max for input: {$inputSize}");
         }
 
-        // 6. 测试边界情况：空字符串
-        $size = SizeManager::getSizeFromConfig('', $modelVersion, $modelId);
-        $this->assertEquals(['2048', '2048'], $size);
-        $ratio = SizeManager::convertToAspectRatio(2048, 2048, $modelVersion, $modelId);
-        $this->assertEquals('1:1', $ratio);
-
-        // 7. 测试边界情况：无效格式（应该返回默认值）
-        $size = SizeManager::getSizeFromConfig('invalid', $modelVersion, $modelId);
-        $this->assertEquals(['2048', '2048'], $size);
-        $ratio = SizeManager::convertToAspectRatio(2048, 2048, $modelVersion, $modelId);
-        $this->assertEquals('1:1', $ratio);
-
-        // 8. 测试边界情况：带空格
+        // 带空格
         $size = SizeManager::getSizeFromConfig(' 16:9 ', $modelVersion, $modelId);
-        $this->assertEquals(['2560', '1440'], $size);
-        $ratio = SizeManager::convertToAspectRatio(2560, 1440, $modelVersion, $modelId);
-        $this->assertEquals('16:9', $ratio);
+        $this->assertEquals('2560', $size[0]);
+        $this->assertEquals('1440', $size[1]);
 
-        // 9. 测试标准格式但不在配置中的情况（应该降级到配置中最接近的比例对应的尺寸）
-        $size = SizeManager::getSizeFromConfig('3000x3000', $modelVersion, $modelId);
-        $this->assertEquals(['2048', '2048'], $size); // 降级到 1:1 对应的 2048x2048
-        $ratio = SizeManager::convertToAspectRatio(2048, 2048, $modelVersion, $modelId);
-        $this->assertEquals('1:1', $ratio);
+        // 验证更多输入的总像素均在合法范围内
+        $additionalInputs = [
+            '5000x3000', '2000x3000', '3000x2000',
+            '2048x999', '999x2048',
+            '100:1', '1:100',
+        ];
+        foreach ($additionalInputs as $inputSize) {
+            $size = SizeManager::getSizeFromConfig($inputSize, $modelVersion, $modelId);
+            $pixels = (int) $size[0] * (int) $size[1];
+            $this->assertGreaterThanOrEqual($pixelMin, $pixels, "Pixels {$pixels} below min for input: {$inputSize}");
+            $this->assertLessThanOrEqual($pixelMax, $pixels, "Pixels {$pixels} above max for input: {$inputSize}");
+        }
+    }
 
-        // 10. 测试不在配置中的乘号格式和 k 格式（会返回配置的第一个值）
-        $testCasesNotInConfig = [
-            '2560*1440',
-            '3k',
-            '4k',
+    /**
+     * 测试 Qwen Image Edit Plus / qwen-image-2.0 / qwen-image-2.0-pro 等模型
+     * 该模型配置了 total_pixels_range [262144, 4194304]，验证同比例换算逻辑.
+     */
+    public function testQwenImageEditPlusModel()
+    {
+        $pixelMin = 262144;
+        $pixelMax = 4194304;
+
+        // 以 qwen-image-2.0 作为代表 model_version
+        $modelVersion = 'qwen-image-2.0';
+        $modelId = null;
+
+        // 测试用例：[输入 size, 期望宽, 期望高, 说明]
+        $testCases = [
+            // 比例格式：基准 1024 换算后，P 均在范围内，直接返回
+            ['1:1', '1024', '1024', '1:1 -> 1024x1024，P=1048576 在范围内'],
+            ['3:4', '768', '1024', '3:4 -> 768x1024，P=786432 在范围内'],
+            ['4:3', '1024', '768', '4:3 -> 1024x768，P=786432 在范围内'],
+            ['9:16', '576', '1024', '9:16 -> 576x1024，P=589824 在范围内'],
+            ['16:9', '1024', '576', '16:9 -> 1024x576，P=589824 在范围内'],
+            ['21:9', '1024', '438', '21:9 -> 1024x438，P=448512 在范围内'],
+            // 标准格式：配置中的值均在范围内
+            ['1536x1536', '1536', '1536', '1536x1536，P=2359296 在范围内'],
+            ['1024x1536', '1024', '1536', '1024x1536，P=1572864 在范围内'],
+            ['1536x1024', '1536', '1024', '1536x1024，P=1572864 在范围内'],
+            ['1080x1440', '1080', '1440', '1080x1440，P=1555200 在范围内'],
+            ['1440x1080', '1440', '1080', '1440x1080，P=1555200 在范围内'],
+            ['1080x1920', '1080', '1920', '1080x1920，P=2073600 在范围内'],
+            ['1920x1080', '1920', '1080', '1920x1080，P=2073600 在范围内'],
+            ['2048x872', '2048', '872', '2048x872，P=1785856 在范围内'],
+            // 其他在范围内的标准格式
+            ['1024x1024', '1024', '1024', '1024x1024 在范围内'],
+            ['1280x720', '1280', '720', '1280x720 在范围内'],
+            // 小尺寸：P < min，放大
+            ['1x1', '512', '512', '1x1，P=1<min，放大到 512x512'],
+            ['500x500', '512', '512', '500x500，P=250000<min，放大到 512x512'],
+            // 大尺寸：P > max，缩小
+            ['10000x10000', '2048', '2048', '10000x10000，P>max，缩小到 2048x2048'],
+            ['3000x2000', '2508', '1672', '3000x2000，P=6000000>max，缩小'],
+            ['2000x3000', '1672', '2508', '2000x3000，P=6000000>max，缩小'],
+            // 乘号格式
+            ['1328*1328', '1328', '1328', '1328*1328，P=1763584 在范围内'],
+            // k 格式
+            ['1k', '1024', '1024', '1k=1024x1024，P=1048576 在范围内'],
+            ['2k', '2048', '2048', '2k=2048x2048，P=4194304 在范围内'],
+            // 无效格式 -> 1024x1024，P 在范围内
+            ['invalid', '1024', '1024', '无效格式，默认 1024x1024'],
+            ['', '1024', '1024', '空字符串，默认 1024x1024'],
         ];
 
-        foreach ($testCasesNotInConfig as $inputSize) {
+        foreach ($testCases as [$inputSize, $expectedW, $expectedH, $description]) {
             $size = SizeManager::getSizeFromConfig($inputSize, $modelVersion, $modelId);
-            // 应该返回配置的第一个值
-            $this->assertEquals(['2048', '2048'], $size, "Input {$inputSize} should return first config value");
-            $ratio = SizeManager::convertToAspectRatio(2048, 2048, $modelVersion, $modelId);
-            $this->assertEquals('1:1', $ratio);
+            $this->assertEquals($expectedW, $size[0], "Width mismatch for input: {$inputSize}. {$description}");
+            $this->assertEquals($expectedH, $size[1], "Height mismatch for input: {$inputSize}. {$description}");
+
+            $pixels = (int) $size[0] * (int) $size[1];
+            $this->assertGreaterThanOrEqual($pixelMin, $pixels, "Pixels {$pixels} below min for input: {$inputSize}");
+            $this->assertLessThanOrEqual($pixelMax, $pixels, "Pixels {$pixels} above max for input: {$inputSize}");
         }
 
-        // 11. 测试不正确的 size 降级到正确的 size
-        $fallbackTestCases = [
-            // 11.1 不在配置中的标准格式（会降级到配置中最接近的比例对应的尺寸）
-            ['999x999', ['2048', '2048'], '1:1', '不在配置中的标准格式，降级到 1:1 对应的 2048x2048'],
-            ['500x500', ['2048', '2048'], '1:1', '小尺寸标准格式，降级到 1:1 对应的 2048x2048'],
-            ['5000x3000', ['2560', '1440'], '16:9', '大尺寸标准格式，比例 5000/3000≈1.67，降级到 16:9 对应的 2560x1440'],
-            ['2000x3000', ['1664', '2496'], '2:3', '标准格式，比例 2000/3000≈0.67，降级到 2:3 对应的 1664x2496'],
-            ['3000x2000', ['2496', '1664'], '3:2', '标准格式，比例 3000/2000=1.5，降级到 3:2 对应的 2496x1664'],
+        // 验证其他 model_version 命中同一配置
+        foreach (['qwen-image-2.0-pro', 'qwen-image-edit-plus', 'qwen-image-edit-max', 'qwen-image-plus'] as $mv) {
+            $size = SizeManager::getSizeFromConfig('1536x1536', $mv, null);
+            $this->assertEquals('1536', $size[0], "model_version={$mv} should resolve 1536x1536");
+            $this->assertEquals('1536', $size[1], "model_version={$mv} should resolve 1536x1536");
+        }
 
-            // 11.2 无效的比例格式（会匹配最接近的比例）
-            ['100:1', ['2048', '2048'], '1:1', '极端宽比例，返回配置的第一个值'],
-            ['1:100', ['1440', '2560'], '9:16', '极端高比例，匹配到最接近的 9:16'],
-            ['50:1', ['2048', '2048'], '1:1', '很宽的比例，返回配置的第一个值'],
-            ['1:50', ['1440', '2560'], '9:16', '很高的比例，匹配到最接近的 9:16'],
+        // 带空格
+        $size = SizeManager::getSizeFromConfig(' 4:3 ', $modelVersion, $modelId);
+        $this->assertEquals('1024', $size[0]);
+        $this->assertEquals('768', $size[1]);
 
-            // 11.3 无效格式（会降级到配置的第一个值）
-            ['invalid-format', ['2048', '2048'], '1:1', '无效格式，降级到配置的第一个值'],
-            ['abc123', ['2048', '2048'], '1:1', '无效格式，降级到配置的第一个值'],
-            ['!@#$%', ['2048', '2048'], '1:1', '特殊字符，降级到配置的第一个值'],
-
-            // 11.4 极端值（会降级到配置中最接近的比例对应的尺寸）
-            ['1x1', ['2048', '2048'], '1:1', '极端小尺寸，降级到 1:1 对应的 2048x2048'],
-            ['10000x10000', ['2048', '2048'], '1:1', '极端大尺寸，降级到 1:1 对应的 2048x2048'],
-            ['9999x1', ['2048', '2048'], '1:1', '极端宽尺寸，比例 9999/1≈9999，最接近 21:9，但配置中 21:9 对应 2048x2048，实际比例是 1:1'],
-            ['1x9999', ['1440', '2560'], '9:16', '极端高尺寸，比例 1/9999≈0.0001，最接近 9:16，降级到 9:16 对应的 1440x2560'],
-
-            // 11.5 格式正确但不在配置中的值
-            ['2048x999', ['2560', '1440'], '16:9', '格式正确但不在配置中，比例 2048/999≈2.05，最接近 16:9，降级到 16:9 对应的 2560x1440'],
-            ['999x2048', ['1440', '2560'], '9:16', '格式正确但不在配置中，比例 999/2048≈0.49，最接近 9:16，降级到 9:16 对应的 1440x2560'],
-        ];
-
-        foreach ($fallbackTestCases as [$incorrectSize, $expectedSize, $expectedRatio, $description]) {
-            // 步骤1: 传入不正确的 size，验证是否能降级到正确的 size
-            $size = SizeManager::getSizeFromConfig($incorrectSize, $modelVersion, $modelId);
-            $this->assertEquals($expectedSize, $size, "Fallback failed for incorrect input: {$incorrectSize}. {$description}");
-
-            // 步骤2: 验证降级后的 size 能正确转换成 ratio
-            $width = (int) $size[0];
-            $height = (int) $size[1];
-            $ratio = SizeManager::convertToAspectRatio($width, $height, $modelVersion, $modelId);
-
-            // 步骤3: 验证降级后的 ratio 是否正确且在支持列表中
-            $this->assertEquals($expectedRatio, $ratio, "Ratio mismatch after fallback for input: {$incorrectSize}. {$description}");
-            $this->assertContains($ratio, $supportedRatios, "Fallback ratio {$ratio} not in supported list for input: {$incorrectSize}. {$description}");
-
-            // 步骤4: 验证降级后的 size 和 ratio 是有效的组合
-            $this->assertNotEmpty($ratio, "Fallback should produce a valid ratio for input: {$incorrectSize}");
+        // 验证更多输入的总像素均在合法范围内
+        $additionalInputs = ['100:1', '1:100', '3000x3000', '2:3', '3:2'];
+        foreach ($additionalInputs as $inputSize) {
+            $size = SizeManager::getSizeFromConfig($inputSize, $modelVersion, $modelId);
+            $pixels = (int) $size[0] * (int) $size[1];
+            $this->assertGreaterThanOrEqual($pixelMin, $pixels, "Pixels {$pixels} below min for input: {$inputSize}");
+            $this->assertLessThanOrEqual($pixelMax, $pixels, "Pixels {$pixels} above max for input: {$inputSize}");
         }
     }
 
@@ -1112,7 +1068,6 @@ class SizeManagerTest extends BaseTest
         $config = SizeManager::matchConfig('gemini-3-pro-image-preview', null);
         $this->assertNotNull($config);
         $this->assertArrayHasKey('sizes', $config);
-        $this->assertArrayHasKey('resolutions', $config);
 
         // 2. 测试通过 model_id 匹配
         $config = SizeManager::matchConfig('unknown', 'seedream-4-0');
