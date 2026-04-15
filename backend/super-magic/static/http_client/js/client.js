@@ -576,9 +576,10 @@ function populateModelSelects(textModels, imageModels) {
             const attrs = m.info && m.info.attributes;
             const label = attrs && attrs.label ? attrs.label.trim() : m.id;
             const resolvedId = attrs && attrs.resolved_model_id ? attrs.resolved_model_id : m.id;
+            const idDisplay = resolvedId !== m.id ? `${resolvedId}|${m.id}` : m.id;
             const opt = document.createElement('option');
             opt.value = m.id;
-            opt.textContent = `${label} (${resolvedId})`;
+            opt.textContent = `${label} (${idDisplay})`;
             modelIdSelect.appendChild(opt);
         });
         // 恢复上次选择
@@ -606,10 +607,13 @@ function populateModelSelects(textModels, imageModels) {
         const prevImageValue = imageModelSelect.value;
         imageModelSelect.innerHTML = '<option value="">不指定图片模型</option>';
         imageModels.forEach(m => {
-            const label = (m.info && m.info.attributes && m.info.attributes.label) ? m.info.attributes.label : m.id;
+            const attrs = m.info && m.info.attributes;
+            const label = attrs && attrs.label ? attrs.label : m.id;
+            const resolvedId = attrs && attrs.resolved_model_id ? attrs.resolved_model_id : m.id;
+            const idDisplay = resolvedId !== m.id ? `${resolvedId}|${m.id}` : m.id;
             const opt = document.createElement('option');
             opt.value = m.id;
-            opt.textContent = `${label} (${m.id})`;
+            opt.textContent = `${label} (${idDisplay})`;
             imageModelSelect.appendChild(opt);
         });
         // 恢复上次选择
