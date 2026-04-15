@@ -175,7 +175,8 @@ class MagicFSFileAppService
         $fileEntity = $this->magicFSFileDomainService->updateFile(
             $fileId,
             $updates,
-            $metadata->getSuperMagicTaskId()  // 传递任务ID
+            $metadata->getSuperMagicTaskId(),  // 传递任务ID
+            true // open-api magicfs needs local filesystem rename overwrite semantics
         );
 
         // Dispatch file content saved event so downstream subscribers are notified of the metadata update

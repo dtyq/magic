@@ -525,10 +525,15 @@ class MagicFSFileDomainService
      * @param string $fileId 文件ID
      * @param array $updates 更新数据
      * @param null|string $superMagicTaskId 超级麦吉任务ID（可选）
+     * @param bool $overwrite 是否按本地文件系统语义覆盖目标同名文件（仅文件，目录冲突仍报错）
      * @return TaskFileEntity 更新后的文件实体
      */
-    public function updateFile(string $fileId, array $updates, ?string $superMagicTaskId = null): TaskFileEntity
-    {
+    public function updateFile(
+        string $fileId,
+        array $updates,
+        ?string $superMagicTaskId = null,
+        bool $overwrite = false
+    ): TaskFileEntity {
         // 1. 获取文件实体 (getFileById throws exception if file not found)
         $file = $this->getFileById($fileId);
 
@@ -539,6 +544,37 @@ class MagicFSFileDomainService
 
         // 2. 构建更新数组
         $updateData = [];
+
+        $targetName = isset($updates['name']) ? trim((string) $updates['name']) : $file->getFileName();
+        $targetParentIdInt = isset($updates['parent_id'])
+            ? (($updates['parent_id'] === '' || $updates['parent_id'] === '0') ? null : (int) $updates['parent_id'])
+            : $file->getParentId();
+
+        // open-api magicfs is used by sandbox filesystem calls and should follow local
+        // rename/move overwrite semantics for files.
+        if (
+            $overwrite
+            && $targetName !== ''
+            && ($targetName !== $file->getFileName() || $targetParentIdInt !== $file->getParentId())
+        ) {
+            $existingTarget = $this->taskFileRepository->getByProjectParentAndName(
+                $file->getProjectId(),
+                $targetParentIdInt,
+                $targetName
+            );
+
+            if ($existingTarget !== null && $existingTarget->getFileId() !== $file->getFileId()) {
+                if ($existingTarget->getIsDirectory()) {
+                    ExceptionBuilder::throw(
+                        MagicFSErrorCode::FILE_ALREADY_EXISTS,
+                        'magicfs.file_already_exists',
+                        ['name' => $targetName]
+                    );
+                }
+
+                $this->deleteFile((string) $existingTarget->getFileId());
+            }
+        }
 
         // 处理重命名
         if (isset($updates['name'])) {
@@ -978,7 +1014,8 @@ class MagicFSFileDomainService
         return $this->updateFile(
             $fileId,
             ['parent_id' => $targetParentId],
-            $superMagicTaskId
+            $superMagicTaskId,
+            $overwrite
         );
 
         // Event dispatching (FileMovedEvent with oldParentId) is handled by the application layer.
