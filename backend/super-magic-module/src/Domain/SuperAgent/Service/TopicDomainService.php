@@ -457,10 +457,13 @@ class TopicDomainService
 
         return [
             'project_ids' => $projectIds,
-            'workspace_ids' => array_values(array_unique(array_filter(
-                array_values($workspaceIdsByProject),
-                static fn (mixed $workspaceId): bool => $workspaceId !== null && $workspaceId !== ''
-            ))),
+            'workspace_ids' => array_values(array_map(
+                static fn (mixed $workspaceId): string => (string) $workspaceId,
+                array_unique(array_filter(
+                    array_values($workspaceIdsByProject),
+                    static fn (mixed $workspaceId): bool => $workspaceId !== null && $workspaceId !== ''
+                ))
+            )),
         ];
     }
 
