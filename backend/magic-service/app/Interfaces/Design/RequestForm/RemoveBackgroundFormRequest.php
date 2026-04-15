@@ -26,11 +26,7 @@ class RemoveBackgroundFormRequest extends FormRequest
             'file_dir' => 'required|string|max:512',
             'file_path' => 'required|string|max:512',
             'size' => 'nullable|string|max:50',
-            'crop' => 'nullable|array',
-            'crop.width' => 'required_with:crop|numeric|min:1|max:30000',
-            'crop.height' => 'required_with:crop|numeric|min:1|max:30000',
-            'crop.x' => 'required_with:crop|numeric|min:0',
-            'crop.y' => 'required_with:crop|numeric|min:0',
+            'reference_image_options' => 'nullable|array',
         ];
     }
 

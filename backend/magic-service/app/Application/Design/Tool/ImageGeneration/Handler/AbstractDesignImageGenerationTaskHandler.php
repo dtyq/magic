@@ -92,27 +92,6 @@ abstract class AbstractDesignImageGenerationTaskHandler implements DesignImageGe
     }
 
     /**
-     * @param null|array<string, mixed> $cropData
-     * @return array<string, mixed>
-     */
-    private function buildImageLinkOptionsFromCrop(?array $cropData): array
-    {
-        if ($cropData === null || $cropData === []) {
-            return [];
-        }
-
-        $imageProcessOptions = new ImageProcessOptions();
-        $imageProcessOptions->crop([
-            'width' => (int) round((float) ($cropData['width'] ?? 0)),
-            'height' => (int) round((float) ($cropData['height'] ?? 0)),
-            'x' => (int) round((float) ($cropData['x'] ?? 0)),
-            'y' => (int) round((float) ($cropData['y'] ?? 0)),
-        ]);
-
-        return ['image' => $imageProcessOptions];
-    }
-
-    /**
      * 文生图 / 图生图：参考图均在 SandBox 工作区路径下，支持按索引 crop。
      *
      * @return list<string>
@@ -191,5 +170,26 @@ abstract class AbstractDesignImageGenerationTaskHandler implements DesignImageGe
         $originalFileName = preg_replace('/_\d{14}$/', '', $originalFileName) ?? '';
 
         return $originalFileName . $joiner . date('YmdHis');
+    }
+
+    /**
+     * @param null|array<string, mixed> $cropData
+     * @return array<string, mixed>
+     */
+    private function buildImageLinkOptionsFromCrop(?array $cropData): array
+    {
+        if ($cropData === null || $cropData === []) {
+            return [];
+        }
+
+        $imageProcessOptions = new ImageProcessOptions();
+        $imageProcessOptions->crop([
+            'width' => (int) round((float) ($cropData['width'] ?? 0)),
+            'height' => (int) round((float) ($cropData['height'] ?? 0)),
+            'x' => (int) round((float) ($cropData['x'] ?? 0)),
+            'y' => (int) round((float) ($cropData['y'] ?? 0)),
+        ]);
+
+        return ['image' => $imageProcessOptions];
     }
 }

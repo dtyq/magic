@@ -25,11 +25,7 @@ class ConvertHighImageFormRequest extends FormRequest
             'image_id' => 'required|string|max:80',
             'file_dir' => 'required|string|max:512',
             'file_path' => 'required|string|max:512',
-            'crop' => 'nullable|array',
-            'crop.width' => 'required_with:crop|numeric|min:1|max:30000',
-            'crop.height' => 'required_with:crop|numeric|min:1|max:30000',
-            'crop.x' => 'required_with:crop|numeric|min:0',
-            'crop.y' => 'required_with:crop|numeric|min:0',
+            'reference_image_options' => 'nullable|array',
         ];
     }
 
