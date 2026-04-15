@@ -2718,6 +2718,20 @@ class TaskFileDomainService
     }
 
     /**
+     * Find a direct child directory by parent ID and directory name.
+     * Uses parent_id + file_name tree navigation without any path string dependency.
+     *
+     * @param int $projectId Project ID
+     * @param int $parentId Parent directory file_id
+     * @param string $dirName Directory name to look for
+     * @return null|TaskFileEntity Found directory entity or null
+     */
+    public function findChildDirectoryByName(int $projectId, int $parentId, string $dirName): ?TaskFileEntity
+    {
+        return $this->findDirectChildByName($projectId, $parentId, $dirName, true);
+    }
+
+    /**
      * Navigate directory tree by path segments starting from project root.
      * e.g. ".magic/skills/my-skill" will traverse root -> .magic -> skills -> my-skill.
      *

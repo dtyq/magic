@@ -125,9 +125,18 @@ class AgentSkillsRemovedEventSubscriber implements ListenerInterface
         $projectOrgCode = $projectEntity->getUserOrganizationCode();
         $userId = $dataIsolation->getCurrentUserId();
 
-        // Locate skills directory via tree navigation; fall back to legacy 'skills' path for old data.
-        $skillsDirEntity = $this->taskFileDomainService->findDirectoryByPath($projectId, '.magic/skills')
-            ?? $this->taskFileDomainService->findDirectoryByPath($projectId, 'skills');
+        // Locate the skills directory via tree navigation (parent_id + file_name).
+        // Standard structure: root -> .magic -> skills.
+        // Legacy fallback: root -> skills (old data written before the .magic layout).
+        $magicDirEntity = $this->taskFileDomainService->findDirectoryByPath($projectId, '.magic');
+        $skillsDirEntity = $magicDirEntity !== null
+            ? $this->taskFileDomainService->findChildDirectoryByName($projectId, $magicDirEntity->getFileId(), 'skills')
+            : null;
+
+        if ($skillsDirEntity === null) {
+            // Legacy fallback: try skills directly under root.
+            $skillsDirEntity = $this->taskFileDomainService->findDirectoryByPath($projectId, 'skills');
+        }
 
         $skillDataIsolation = SkillDataIsolation::create($organizationCode, $userId);
         $skillDataIsolation->disabled();
@@ -159,12 +168,12 @@ class AgentSkillsRemovedEventSubscriber implements ListenerInterface
                     continue;
                 }
 
-                // Find the package directory node directly under the skills directory.
-                $packageDirEntity = $this->taskFileDomainService->findDirectoryByPath(
+                // Find the package directory as a direct child of the skills directory.
+                // Uses parent_id + file_name lookup; no path string construction needed.
+                $packageDirEntity = $this->taskFileDomainService->findChildDirectoryByName(
                     $projectId,
-                    $skillsDirEntity->getFileName() === 'skills'
-                        ? 'skills/' . $packageName
-                        : '.magic/skills/' . $packageName
+                    $skillsDirEntity->getFileId(),
+                    $packageName
                 );
 
                 if ($packageDirEntity === null) {
