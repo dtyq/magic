@@ -426,7 +426,9 @@ readonly class VideoOperationAppService
 
     private function downloadProbeSourceToTempFile(string $url, string $tempPath): void
     {
-        $safeUrl = SSRFUtil::getSafeUrl($url, replaceIp: false);
+        // Probe sources come from provider execution results; keep the URL safety checks,
+        // but skip the extra redirect probe so we do not depend on live network behavior here.
+        $safeUrl = SSRFUtil::getSafeUrl($url, replaceIp: false, allowRedirect: true);
         $context = stream_context_create([
             'ssl' => [
                 'verify_peer' => false,

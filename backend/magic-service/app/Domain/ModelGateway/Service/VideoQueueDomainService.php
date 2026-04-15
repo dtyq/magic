@@ -309,6 +309,9 @@ readonly class VideoQueueDomainService
         ProviderCode $providerCode,
         VideoGenerationConfig $videoGenerationConfig
     ): array {
+        $config = $videoGenerationConfig->toArray();
+        $supportedInputs = is_array($config['supported_inputs'] ?? null) ? $config['supported_inputs'] : [];
+
         // 先把输入清洗成稳定结构。
         $frames = [];
         foreach ($requestData['inputs']['frames'] ?? [] as $frame) {
@@ -338,8 +341,8 @@ readonly class VideoQueueDomainService
         }
 
         $videoInput = $this->normalizeMediaInput($requestData['inputs']['video'] ?? null, 'inputs.video');
-        $this->normalizeMediaInput($requestData['inputs']['mask'] ?? null, 'inputs.mask');
-        $this->assertAudioInputsValid($requestData['inputs']['audio'] ?? []);
+        $maskInput = $this->normalizeMediaInput($requestData['inputs']['mask'] ?? null, 'inputs.mask');
+        $audioInputs = $this->normalizeAudioInputs($requestData['inputs']['audio'] ?? null);
 
         $generation = array_filter([
             'size' => $this->normalizeGenerationSize($requestData['generation']['size'] ?? null),
@@ -381,11 +384,9 @@ readonly class VideoQueueDomainService
         ], static fn (mixed $value): bool => $value !== null && $value !== '');
 
         $task = $this->normalizeTask($requestData['task'] ?? null);
-        $extensions = [];
         $this->assertTaskRequirements($task, $videoInput);
-        $this->assertCapability($task);
-        $maskInput = [];
-        $audioInputs = [];
+        $this->assertCapability($task, $supportedInputs);
+        $extensions = is_array($requestData['extensions'] ?? null) ? $requestData['extensions'] : [];
 
         return [
             'model_id' => (string) ($requestData['model_id'] ?? ''),
@@ -555,9 +556,16 @@ readonly class VideoQueueDomainService
         return self::KELING_DIMENSIONS_TO_RESOLUTION[$dimensions] ?? null;
     }
 
-    private function assertCapability(string $task): void
+    private function assertCapability(string $task, array $supportedInputs): void
     {
-        if ($task !== self::TASK_GENERATE) {
+        $requiredCapability = match ($task) {
+            self::TASK_GENERATE => 'text_prompt',
+            self::TASK_EXTEND => 'video_extension',
+            self::TASK_EDIT => 'video_edit',
+            self::TASK_UPSCALE => 'video_upscale',
+        };
+
+        if (! in_array($requiredCapability, $supportedInputs, true)) {
             ExceptionBuilder::throw(MagicApiErrorCode::ValidateFailed, 'unsupported_option: task');
         }
     }
@@ -727,6 +735,23 @@ readonly class VideoQueueDomainService
                 ExceptionBuilder::throw(MagicApiErrorCode::ValidateFailed, sprintf('inputs.audio.%d.uri is required', $index));
             }
         }
+    }
+
+    private function normalizeAudioInputs(mixed $value): array
+    {
+        $this->assertAudioInputsValid($value);
+
+        if (! is_array($value)) {
+            return [];
+        }
+
+        return array_values(array_map(
+            static fn (array $item): array => [
+                'role' => trim((string) ($item['role'] ?? '')),
+                'uri' => trim((string) ($item['uri'] ?? '')),
+            ],
+            $value,
+        ));
     }
 
     private function normalizeOptionalString(mixed $value): ?string

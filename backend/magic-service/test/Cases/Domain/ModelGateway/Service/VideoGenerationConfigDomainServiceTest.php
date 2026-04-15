@@ -17,6 +17,8 @@ use App\Infrastructure\ExternalAPI\VideoGenerateAPI\CloudswayVeoVideoAdapter;
 use App\Infrastructure\ExternalAPI\VideoGenerateAPI\CloudswayVideoAdapterRouter;
 use App\Infrastructure\ExternalAPI\VideoGenerateAPI\CloudswayVideoClient;
 use App\Infrastructure\ExternalAPI\VideoGenerateAPI\VideoGenerateFactory;
+use App\Infrastructure\ExternalAPI\VideoGenerateAPI\VolcengineArkSeedanceVideoAdapter;
+use App\Infrastructure\ExternalAPI\VideoGenerateAPI\VolcengineArkVideoClient;
 use Hyperf\Guzzle\ClientFactory;
 use PHPUnit\Framework\TestCase;
 
@@ -48,6 +50,28 @@ class VideoGenerationConfigDomainServiceTest extends TestCase
         $veoConfig = $service->resolve('veo3.1_fast', 'veo-3.1-fast-generate-preview', ProviderCode::OpenAI);
 
         $this->assertNull($veoConfig);
+    }
+
+    public function testResolveReturnsVolcengineArkSeedanceConfig(): void
+    {
+        $service = $this->createService();
+
+        $config = $service->resolve(
+            'doubao-seedance-2-0-260128',
+            'doubao-seedance-2-0-260128',
+            ProviderCode::VolcengineArk,
+        );
+
+        $this->assertInstanceOf(VideoGenerationConfig::class, $config);
+        $this->assertContains('video_edit', $config->toArray()['supported_inputs']);
+        $this->assertContains('video_extension', $config->toArray()['supported_inputs']);
+        $this->assertContains('video_upscale', $config->toArray()['supported_inputs']);
+        $this->assertSame(['16:9', '4:3', '1:1', '3:4', '9:16', '21:9', 'adaptive'], $config->toArray()['generation']['aspect_ratios']);
+        $this->assertSame([2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12], $config->toArray()['generation']['durations']);
+        $this->assertSame(['480p', '720p', '1080p'], $config->toArray()['generation']['resolutions']);
+        $this->assertSame([-1, 4294967295], $config->toArray()['generation']['seed_range']);
+        $this->assertTrue($config->toArray()['generation']['supports_watermark']);
+        $this->assertTrue($config->toArray()['generation']['supports_generate_audio']);
     }
 
     public function testIntersectShrinksBooleanListRangeAndConstraintFields(): void
@@ -170,6 +194,7 @@ class VideoGenerationConfigDomainServiceTest extends TestCase
                     new CloudswaySeedanceVideoAdapter(new CloudswayVideoClient($this->createMock(ClientFactory::class))),
                     new CloudswayKelingVideoAdapter(new CloudswayVideoClient($this->createMock(ClientFactory::class))),
                 ),
+                new VolcengineArkSeedanceVideoAdapter(new VolcengineArkVideoClient($this->createMock(ClientFactory::class))),
             )
         );
     }

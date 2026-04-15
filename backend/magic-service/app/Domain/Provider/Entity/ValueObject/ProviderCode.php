@@ -146,6 +146,10 @@ enum ProviderCode: string
                 self::Qwen, self::VolcengineArk, self::TTAPI, self::MiracleVision, self::Volcengine => true,
                 default => false,
             },
+            Category::VGM => match ($this) {
+                self::VolcengineArk => true,
+                default => false,
+            },
             default => false,
         };
     }
@@ -157,7 +161,8 @@ enum ProviderCode: string
     {
         return match ($this) {
             self::DashScope => 'https://dashscope.aliyuncs.com/compatible-mode/v1',
-            self::Volcengine => 'https://ark.cn-beijing.volces.com/api/v3',
+            self::Volcengine,
+            self::VolcengineArk => 'https://ark.cn-beijing.volces.com/api/v3',
             self::DeepSeek => 'https://api.deepseek.com',
             self::Tencent => 'https://api.hunyuan.cloud.tencent.com/v1',
             self::Baidu => 'https://qianfan.baidubce.com/v2',

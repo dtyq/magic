@@ -49,11 +49,16 @@ use App\Infrastructure\ExternalAPI\VideoGenerateAPI\CloudswayVideoClient;
 use App\Infrastructure\ExternalAPI\VideoGenerateAPI\ProviderVideoException;
 use App\Infrastructure\ExternalAPI\VideoGenerateAPI\VideoGenerateFactory;
 use App\Infrastructure\ExternalAPI\VideoGenerateAPI\VideoModel;
+use App\Infrastructure\ExternalAPI\VideoGenerateAPI\VideoProviderOperationExecutor;
+use App\Infrastructure\ExternalAPI\VideoGenerateAPI\VolcengineArkSeedanceVideoAdapter;
+use App\Infrastructure\ExternalAPI\VideoGenerateAPI\VolcengineArkVideoClient;
 use DateTime;
 use Dtyq\CloudFile\Kernel\Struct\ChunkUploadFile;
 use Dtyq\CloudFile\Kernel\Struct\FileLink;
 use Dtyq\CloudFile\Kernel\Struct\FilePreSignedUrl;
 use Dtyq\CloudFile\Kernel\Struct\UploadFile;
+use GuzzleHttp\Client;
+use GuzzleHttp\Psr7\Response;
 use Hyperf\Codec\Packer\PhpSerializerPacker;
 use Hyperf\Context\ApplicationContext;
 use Hyperf\Contract\ConfigInterface;
@@ -347,6 +352,134 @@ class VideoOperationAppServiceTest extends TestCase
 
         $service->getOperation('token-keling-default', $enqueueResponse->getId());
 
+        $this->assertCount(1, $this->eventDispatcher->events);
+        $event = $this->eventDispatcher->events[0];
+        $this->assertInstanceOf(VideoGeneratedEvent::class, $event);
+        $this->assertSame(5, $event->getDurationSeconds());
+        $this->assertSame('720p', $event->getResolution());
+        $this->assertSame('1280x720', $event->getSize());
+    }
+
+    public function testEnqueueAndGetOperationDispatchesVolcengineArkSeedanceGeneratedEventWithDefaults(): void
+    {
+        $dataIsolation = $this->createDataIsolation();
+        $requestDTO = new CreateVideoDTO([
+            'model_id' => 'doubao-seedance-2-0-260128',
+            'task' => 'generate',
+            'prompt' => 'make a cinematic drone shot',
+            'generation' => [
+                'generate_audio' => true,
+            ],
+        ]);
+
+        $operationRepository = new InMemoryVideoQueueOperationRepository();
+        $videoQueueDomainService = new VideoQueueDomainService($operationRepository);
+        $httpClient = $this->createMock(Client::class);
+        $httpClient->expects($this->once())
+            ->method('post')
+            ->with(
+                'https://ark.cn-beijing.volces.com/api/v3/contents/generations/tasks',
+                [
+                    'headers' => [
+                        'Authorization' => 'Bearer secret',
+                        'Content-Type' => 'application/json',
+                    ],
+                    'json' => [
+                        'model' => 'doubao-seedance-2-0-260128',
+                        'task' => 'generate',
+                        'content' => [
+                            ['type' => 'text', 'text' => 'make a cinematic drone shot --rs 720p --dur 5'],
+                        ],
+                        'generate_audio' => true,
+                    ],
+                ],
+            )
+            ->willReturn(new Response(200, [], json_encode([
+                'id' => 'provider-task-ark-1',
+            ], JSON_THROW_ON_ERROR)));
+        $httpClient->expects($this->once())
+            ->method('get')
+            ->with(
+                'https://ark.cn-beijing.volces.com/api/v3/contents/generations/tasks/provider-task-ark-1',
+                [
+                    'headers' => [
+                        'Authorization' => 'Bearer secret',
+                        'Content-Type' => 'application/json',
+                    ],
+                ],
+            )
+            ->willReturn(new Response(200, [], json_encode([
+                'status' => 'succeeded',
+                'content' => [
+                    'video_url' => 'https://example.com/ark-seedance.mp4',
+                ],
+            ], JSON_THROW_ON_ERROR)));
+
+        $clientFactory = $this->createMock(ClientFactory::class);
+        $clientFactory->expects($this->exactly(2))
+            ->method('create')
+            ->willReturn($httpClient);
+        $executionDomainService = new QueueOperationExecutionDomainService(
+            new FixedQueueExecutorConfigRepository(new QueueExecutorConfig('https://ark.cn-beijing.volces.com/api/v3', 'secret', 3, 20)),
+            new VideoProviderOperationExecutor(
+                new VideoGenerateFactory(
+                    new CloudswayVideoAdapterRouter(
+                        new CloudswayVeoVideoAdapter(new CloudswayVideoClient($this->createMock(ClientFactory::class))),
+                        new CloudswaySeedanceVideoAdapter(new CloudswayVideoClient($this->createMock(ClientFactory::class))),
+                        new CloudswayKelingVideoAdapter(new CloudswayVideoClient($this->createMock(ClientFactory::class))),
+                    ),
+                    new VolcengineArkSeedanceVideoAdapter(new VolcengineArkVideoClient($clientFactory)),
+                ),
+            ),
+        );
+
+        $llmAppService = $this->createMock(LLMAppService::class);
+        $llmAppService->expects($this->exactly(2))
+            ->method('createModelGatewayDataIsolationByAccessToken')
+            ->with('token-ark', [])
+            ->willReturn($dataIsolation);
+
+        $pointComponent = $this->createMock(PointComponentInterface::class);
+        $pointComponent->expects($this->once())
+            ->method('checkPointsSufficient')
+            ->with($requestDTO, $dataIsolation);
+
+        $modelGatewayMapper = $this->createMock(ModelGatewayMapper::class);
+        $modelGatewayMapper->expects($this->once())
+            ->method('getOrganizationVideoModel')
+            ->with($dataIsolation, 'doubao-seedance-2-0-260128')
+            ->willReturn($this->createVideoModelEntry(
+                new VideoModel([], 'doubao-seedance-2-0-260128', 'provider-model-ark', ProviderCode::VolcengineArk)
+            ));
+
+        $service = new VideoOperationAppService(
+            $llmAppService,
+            $videoQueueDomainService,
+            $executionDomainService,
+            $pointComponent,
+            $modelGatewayMapper,
+            $this->createVideoGenerationConfigDomainService(),
+            new FileDomainService(new InMemoryCloudFileRepository()),
+            $this->createVideoBillingDetailsResolver(),
+            $this->createFallbackProbe(),
+        );
+
+        $enqueueResponse = $service->enqueue('token-ark', $requestDTO);
+        $storedOperation = $operationRepository->operations[$enqueueResponse->getId()];
+
+        $this->assertSame(5, $storedOperation->getRawRequest()['generation']['duration_seconds']);
+        $this->assertSame('720p', $storedOperation->getRawRequest()['generation']['resolution']);
+        $this->assertTrue($storedOperation->getRawRequest()['generation']['generate_audio']);
+        $this->assertSame(ProviderCode::VolcengineArk->value, $storedOperation->getProviderCode());
+        $this->assertSame('doubao-seedance-2-0-260128', $storedOperation->getModelVersion());
+        $this->assertSame('doubao-seedance-2-0-260128', $storedOperation->getProviderPayload()['model']);
+        $this->assertTrue($storedOperation->getProviderPayload()['generate_audio']);
+        $this->assertSame('make a cinematic drone shot --rs 720p --dur 5', $storedOperation->getProviderPayload()['content'][0]['text']);
+
+        $detailResponse = $service->getOperation('token-ark', $enqueueResponse->getId());
+
+        $this->assertSame('succeeded', $detailResponse->getStatus());
+        $this->assertSame('https://example.com/ark-seedance.mp4', $detailResponse->getOutput()['video_url']);
         $this->assertCount(1, $this->eventDispatcher->events);
         $event = $this->eventDispatcher->events[0];
         $this->assertInstanceOf(VideoGeneratedEvent::class, $event);
@@ -1049,6 +1182,7 @@ class VideoOperationAppServiceTest extends TestCase
                     new CloudswaySeedanceVideoAdapter(new CloudswayVideoClient($this->createMock(ClientFactory::class))),
                     new CloudswayKelingVideoAdapter(new CloudswayVideoClient($this->createMock(ClientFactory::class))),
                 ),
+                new VolcengineArkSeedanceVideoAdapter(new VolcengineArkVideoClient($this->createMock(ClientFactory::class))),
             )
         );
     }
@@ -1107,6 +1241,15 @@ final class RecordingQueueOperationExecutor implements QueueOperationExecutorInt
 {
     public int $queryCalls = 0;
 
+    /** @var list<VideoQueueOperationEntity> */
+    public array $submittedOperations = [];
+
+    /** @var list<VideoQueueOperationEntity> */
+    public array $queriedOperations = [];
+
+    /** @var list<string> */
+    public array $queriedProviderTaskIds = [];
+
     public function __construct(
         private readonly string $submitResult,
         private readonly array $queryResult = [],
@@ -1121,6 +1264,8 @@ final class RecordingQueueOperationExecutor implements QueueOperationExecutorInt
             throw $this->submitThrowable;
         }
 
+        $this->submittedOperations[] = clone $operation;
+
         return $this->submitResult;
     }
 
@@ -1131,6 +1276,8 @@ final class RecordingQueueOperationExecutor implements QueueOperationExecutorInt
         }
 
         ++$this->queryCalls;
+        $this->queriedOperations[] = clone $operation;
+        $this->queriedProviderTaskIds[] = $providerTaskId;
         return $this->queryResult;
     }
 }
@@ -1160,7 +1307,7 @@ final class InMemoryCloudFileRepository implements CloudFileRepositoryInterface
         return $links;
     }
 
-    public function uploadByCredential(string $organizationCode, UploadFile $uploadFile, StorageBucketType $storage = StorageBucketType::Private, bool $autoDir = true, ?string $contentType = null): void
+    public function uploadByCredential(string $organizationCode, UploadFile $uploadFile, StorageBucketType $storage = StorageBucketType::Private, bool $autoDir = true, ?string $contentType = null, array $options = []): void
     {
         $prefix = $autoDir
             ? $organizationCode . '/open/' . md5($storage->value) . '/'
