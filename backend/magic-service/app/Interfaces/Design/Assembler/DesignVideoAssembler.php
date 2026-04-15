@@ -10,10 +10,10 @@ namespace App\Interfaces\Design\Assembler;
 use App\Domain\Design\Entity\DesignGenerationTaskEntity;
 use App\Domain\Design\Entity\Dto\DesignVideoCreateDTO;
 use App\Domain\Design\Entity\ValueObject\DesignGenerationType;
+use App\Domain\Design\Factory\DesignGenerationTaskFactory;
 use App\Domain\ModelGateway\Entity\ValueObject\VideoGenerationType;
 use App\ErrorCode\DesignErrorCode;
 use App\Infrastructure\Core\Exception\ExceptionBuilder;
-use App\Domain\Design\Factory\DesignGenerationTaskFactory;
 use App\Interfaces\Design\DTO\VideoGenerationDTO;
 
 final class DesignVideoAssembler
