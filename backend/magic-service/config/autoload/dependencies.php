@@ -95,8 +95,14 @@ use App\Domain\Contact\Repository\Persistence\MagicUserRepository;
 use App\Domain\Contact\Repository\Persistence\MagicUserSettingRepository;
 use App\Domain\Contact\Service\Facade\MagicUserDomainExtendInterface;
 use App\Domain\Contact\Service\MagicUserDomainExtendService;
+use App\Domain\Design\Contract\VideoGatewayPayloadBuilderInterface;
+use App\Domain\Design\Repository\Facade\DesignGenerationTaskRepositoryInterface;
 use App\Domain\Design\Repository\Facade\ImageGenerationRepositoryInterface;
+use App\Domain\Design\Repository\Persistence\DesignGenerationTaskRepository;
 use App\Domain\Design\Repository\Persistence\ImageGenerationRepository;
+use App\Infrastructure\Design\Contract\VideoGatewayClientInterface;
+use App\Infrastructure\Design\ModelGatewayVideoGatewayClient;
+use App\Infrastructure\Design\VideoGatewayPayloadBuilder;
 use App\Domain\File\Repository\Persistence\CloudFileRepository;
 use App\Domain\File\Repository\Persistence\Facade\CloudFileRepositoryInterface;
 use App\Domain\Flow\Repository\Facade\MagicFlowAIModelRepositoryInterface;
@@ -496,6 +502,9 @@ $dependencies = [
 
     // design
     ImageGenerationRepositoryInterface::class => ImageGenerationRepository::class,
+    DesignGenerationTaskRepositoryInterface::class => DesignGenerationTaskRepository::class,
+    VideoGatewayClientInterface::class => ModelGatewayVideoGatewayClient::class,
+    VideoGatewayPayloadBuilderInterface::class => VideoGatewayPayloadBuilder::class,
 
     // admin
     AdminGlobalSettingsRepositoryInterface::class => AdminGlobalSettingsRepository::class,

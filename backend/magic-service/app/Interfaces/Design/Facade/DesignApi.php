@@ -7,19 +7,24 @@ declare(strict_types=1);
 
 namespace App\Interfaces\Design\Facade;
 
+use App\Application\Design\Service\DesignVideoAppService;
 use App\Application\Design\Service\ImageConvertHighConfigAppService;
 use App\Application\Design\Service\ImageGenerationAppService;
 use App\Application\Design\Service\ImageMarkIdentifyAppService;
+use App\Domain\Design\Entity\Dto\DesignVideoCreateDTO;
 use App\Domain\Design\Entity\ValueObject\ImageGenerationType;
 use App\Domain\Design\Entity\ValueObject\ImageMarkIdentifyType;
+use App\Interfaces\Design\Assembler\DesignVideoAssembler;
 use App\Interfaces\Design\Assembler\ImageGenerationAssembler;
 use App\Interfaces\Design\DTO\ImageGenerationDTO;
 use App\Interfaces\Design\RequestForm\ConvertHighImageFormRequest;
 use App\Interfaces\Design\RequestForm\EraserFormRequest;
 use App\Interfaces\Design\RequestForm\ExpandImageFormRequest;
 use App\Interfaces\Design\RequestForm\GenerateImageFormRequest;
+use App\Interfaces\Design\RequestForm\GenerateVideoFormRequest;
 use App\Interfaces\Design\RequestForm\IdentifyImageMarkFormRequest;
 use App\Interfaces\Design\RequestForm\QueryImageGenerationResultFormRequest;
+use App\Interfaces\Design\RequestForm\QueryVideoGenerationResultFormRequest;
 use App\Interfaces\Design\RequestForm\RemoveBackgroundFormRequest;
 use Dtyq\ApiResponse\Annotation\ApiResponse;
 use Hyperf\Di\Annotation\Inject;
@@ -35,6 +40,9 @@ class DesignApi extends AbstractApi
 
     #[Inject]
     protected ImageConvertHighConfigAppService $imageConvertHighConfigAppService;
+
+    #[Inject]
+    protected DesignVideoAppService $designVideoAppService;
 
     /**
      * 生成图片.
@@ -231,5 +239,36 @@ class DesignApi extends AbstractApi
     public function imageConvertHighConfig(): array
     {
         return $this->imageConvertHighConfigAppService->getImageConvertHighConfig()->toArray();
+    }
+
+    /**
+     * 生成视频.
+     */
+    public function generateVideo(GenerateVideoFormRequest $request): array
+    {
+        $request->validateResolved();
+        $authenticatable = $this->getAuthorization();
+        $dto = new DesignVideoCreateDTO($request->validated());
+        $entity = DesignVideoAssembler::toDO($dto);
+
+        $entity = $this->designVideoAppService->create($authenticatable, $entity);
+
+        return DesignVideoAssembler::toDTO($entity)->toArray();
+    }
+
+    /**
+     * 查询视频生成结果.
+     */
+    public function queryVideoGenerationResult(QueryVideoGenerationResultFormRequest $request): array
+    {
+        $request->validateResolved();
+        $authenticatable = $this->getAuthorization();
+        $validated = $request->validated();
+        $projectId = (int) $validated['project_id'];
+        $videoId = (string) $validated['video_id'];
+
+        $entity = $this->designVideoAppService->query($authenticatable, $projectId, $videoId);
+
+        return DesignVideoAssembler::toDTO($entity)->toArray();
     }
 }

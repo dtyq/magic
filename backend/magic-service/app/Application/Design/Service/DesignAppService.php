@@ -11,10 +11,12 @@ use App\Application\Kernel\AbstractKernelAppService;
 use App\Domain\Contact\Entity\ValueObject\DataIsolation as ContactDataIsolation;
 use App\Domain\Contact\Service\MagicDepartmentUserDomainService;
 use App\Domain\Design\Entity\DesignDataIsolation;
+use App\ErrorCode\DesignErrorCode;
 use App\Infrastructure\Core\DataIsolation\BaseDataIsolation;
 use App\Infrastructure\Core\Exception\ExceptionBuilder;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ProjectEntity;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\MemberRole;
+use Dtyq\SuperMagic\Domain\SuperAgent\Service\ProjectDomainService;
 use Dtyq\SuperMagic\Domain\SuperAgent\Service\ProjectMemberDomainService;
 use Dtyq\SuperMagic\ErrorCode\SuperAgentErrorCode;
 use Qbhy\HyperfAuth\Authenticatable;
@@ -58,5 +60,19 @@ abstract class DesignAppService extends AbstractKernelAppService
             }
         }
         ExceptionBuilder::throw(SuperAgentErrorCode::PROJECT_ACCESS_DENIED);
+    }
+
+    protected function assertProjectAccess(DesignDataIsolation $dataIsolation, int $projectId, MemberRole $role): ProjectEntity
+    {
+        $project = di(ProjectDomainService::class)->getProjectNotUserId($projectId);
+        if ($project === null) {
+            ExceptionBuilder::throw(
+                DesignErrorCode::InvalidArgument,
+                'design.video_generation.project_not_exists',
+                ['project_id' => $projectId]
+            );
+        }
+        $this->validateRoleHigherOrEqual($dataIsolation, $project, $role);
+        return $project;
     }
 }
