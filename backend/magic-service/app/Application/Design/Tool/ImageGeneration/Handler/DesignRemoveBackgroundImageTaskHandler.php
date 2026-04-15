@@ -45,7 +45,7 @@ final class DesignRemoveBackgroundImageTaskHandler extends AbstractDesignImageGe
 
         $dto = new ImageRemoveBackgroundRequestDTO([
             'images' => [$imageUrl],
-            'output_format' => 'png',
+            'output_format' => 'webp',
         ]);
         $this->applyMagicAccessToken($dto);
         $dto->setBusinessParams($this->designImageGenerationBusinessParams($dataIsolation));
