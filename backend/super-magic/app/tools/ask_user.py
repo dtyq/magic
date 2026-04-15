@@ -4,8 +4,6 @@ import time
 import uuid
 from typing import Optional
 
-from app.service.ask_user_service import INTERNAL_TIMEOUT
-
 from pydantic import Field
 
 from app.core.context.agent_context import AgentContext
@@ -95,6 +93,7 @@ class AskUserTool(BaseTool[AskUserParams]):
         parsed = parse_questions_xml(raw_xml)
         tool_context.arguments["parsed_questions"] = parsed
         tool_context.arguments["question_id"] = tool_context.tool_call_id
+        from app.service.ask_user_service import INTERNAL_TIMEOUT
         tool_context.arguments["expires_at"] = int(time.time()) + INTERNAL_TIMEOUT
         tool_context.arguments["status"] = "pending"
 
@@ -135,6 +134,7 @@ class AskUserTool(BaseTool[AskUserParams]):
         agent_context: AgentContext = tool_context.get_extension_typed("agent_context", AgentContext)
 
         question_id: str = tool_context.arguments.get("question_id") or str(uuid.uuid4())
+        from app.service.ask_user_service import INTERNAL_TIMEOUT
         expires_at: int = tool_context.arguments.get("expires_at") or (int(time.time()) + INTERNAL_TIMEOUT)
         tool_call_id: str = tool_context.tool_call_id
         parsed_questions: list = tool_context.arguments.get("parsed_questions", [])
