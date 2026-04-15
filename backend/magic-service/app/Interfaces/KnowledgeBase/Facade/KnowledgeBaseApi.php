@@ -7,18 +7,14 @@ declare(strict_types=1);
 
 namespace App\Interfaces\KnowledgeBase\Facade;
 
-use App\Domain\KnowledgeBase\Entity\KnowledgeBaseEntity;
 use App\Domain\KnowledgeBase\Entity\ValueObject\KnowledgeType;
-use App\Domain\KnowledgeBase\Entity\ValueObject\Query\KnowledgeBaseQuery;
 use App\ErrorCode\AuthenticationErrorCode;
+use App\ErrorCode\UserErrorCode;
 use App\Infrastructure\Core\Exception\ExceptionBuilder;
 use App\Infrastructure\Core\ValueObject\StorageBucketType;
+use App\Infrastructure\Util\OfficialOrganizationUtil;
 use App\Interfaces\Authorization\Web\MagicUserAuthorization;
-use App\Interfaces\Kernel\DTO\PageDTO;
-use App\Interfaces\KnowledgeBase\Assembler\KnowledgeBaseAssembler;
-use App\Interfaces\KnowledgeBase\Assembler\KnowledgeBaseDocumentAssembler;
-use App\Interfaces\KnowledgeBase\DTO\Request\CreateKnowledgeBaseRequestDTO;
-use App\Interfaces\KnowledgeBase\DTO\Request\UpdateKnowledgeBaseRequestDTO;
+use App\Interfaces\KnowledgeBase\DTO\Request\SourceBindingNodesRequestDTO;
 use Dtyq\ApiResponse\Annotation\ApiResponse;
 use Hyperf\HttpServer\Contract\RequestInterface;
 
@@ -28,54 +24,90 @@ class KnowledgeBaseApi extends AbstractKnowledgeBaseApi
     public function create()
     {
         $authorization = $this->getAuthorization();
-        $dto = CreateKnowledgeBaseRequestDTO::fromRequest($this->request);
-        $entity = (new KnowledgeBaseEntity($dto->toArray()))->setType(KnowledgeType::UserKnowledgeBase->value);
-        $documentFiles = array_map(fn ($dto) => KnowledgeBaseDocumentAssembler::documentFileDTOToVO($dto), $dto->getDocumentFiles());
-        $entity = $this->knowledgeBaseAppService->save($authorization, $entity, $documentFiles);
-        return KnowledgeBaseAssembler::entityToDTO($entity);
+        $payload = $this->request->all();
+        $payload['type'] = KnowledgeType::UserKnowledgeBase->value;
+        $payload['agent_codes'] = $this->getAgentCodesFromBody();
+
+        return $this->knowledgeBaseAppService->saveRaw($authorization, $payload);
     }
 
     public function update(string $code)
     {
         $authorization = $this->getAuthorization();
-        $dto = UpdateKnowledgeBaseRequestDTO::fromRequest($this->request);
-        $dto->setCode($code);
+        $payload = $this->request->all();
+        $payload['type'] = KnowledgeType::UserKnowledgeBase->value;
 
-        $entity = (new KnowledgeBaseEntity($dto->toArray()))->setType(KnowledgeType::UserKnowledgeBase->value);
-        $entity = $this->knowledgeBaseAppService->save($authorization, $entity);
-        return KnowledgeBaseAssembler::entityToDTO($entity);
+        return $this->knowledgeBaseAppService->saveRaw($authorization, $payload, $code);
     }
 
     public function queries()
     {
         /** @var MagicUserAuthorization $authorization */
         $authorization = $this->getAuthorization();
-        $query = new KnowledgeBaseQuery($this->request->all());
-        $query->setOrder(['updated_at' => 'desc']);
-        $queryKnowledgeTypes = $this->knowledgeBaseStrategy->getQueryKnowledgeTypes();
-        $query->setTypes($queryKnowledgeTypes);
         $page = $this->createPage();
+        $query = $this->request->all();
+        $query['agent_codes'] = $this->getAgentCodesFromBody();
 
-        $result = $this->knowledgeBaseAppService->queries($authorization, $query, $page);
-        $codes = array_column($result['list'], 'code');
-        // 补充文档数量
-        $knowledgeBaseDocumentCountMap = $this->knowledgeBaseDocumentAppService->getDocumentCountByKnowledgeBaseCodes($authorization, $codes);
-        $list = KnowledgeBaseAssembler::entitiesToListDTO($result['list'], $result['users'], $knowledgeBaseDocumentCountMap);
-        return new PageDTO($page->getPage(), $result['total'], $list);
+        return $this->knowledgeBaseAppService->queriesRaw($authorization, $query, $page);
+    }
+
+    public function sourceBindingNodes(): array
+    {
+        $authorization = $this->getAuthorization();
+        $dto = SourceBindingNodesRequestDTO::fromRequest($this->request);
+
+        return $this->knowledgeBaseAppService->nodes($authorization, [
+            'source_type' => $dto->getSourceType(),
+            'provider' => $dto->getProvider(),
+            'parent_type' => $dto->getParentType(),
+            'parent_ref' => $dto->getParentRef(),
+            'page' => $dto->getPage(),
+            'page_size' => $dto->getPageSize(),
+        ]);
     }
 
     public function show(string $code)
     {
         $userAuthorization = $this->getAuthorization();
-        $magicFlowKnowledgeEntity = $this->knowledgeBaseAppService->show($userAuthorization, $code);
-        // 补充文档数量
-        $knowledgeBaseDocumentCountMap = $this->knowledgeBaseDocumentAppService->getDocumentCountByKnowledgeBaseCodes($userAuthorization, [$code]);
-        return KnowledgeBaseAssembler::entityToDTO($magicFlowKnowledgeEntity)->setDocumentCount($knowledgeBaseDocumentCountMap[$code] ?? 0);
+        return $this->knowledgeBaseAppService->showRaw($userAuthorization, $code);
     }
 
     public function destroy(string $code)
     {
         $this->knowledgeBaseAppService->destroy($this->getAuthorization(), $code);
+    }
+
+    public function rebuild(): array
+    {
+        /** @var MagicUserAuthorization $authorization */
+        $authorization = $this->getAuthorization();
+        if (! OfficialOrganizationUtil::isOfficialOrganization($authorization->getOrganizationCode())) {
+            ExceptionBuilder::throw(UserErrorCode::ORGANIZATION_NOT_AUTHORIZE);
+        }
+
+        return $this->knowledgeBaseAppService->rebuild($authorization, $this->request->all());
+    }
+
+    public function repairThirdFileMappings(): array
+    {
+        /** @var MagicUserAuthorization $authorization */
+        $authorization = $this->getAuthorization();
+        if (! OfficialOrganizationUtil::isOfficialOrganization($authorization->getOrganizationCode())) {
+            ExceptionBuilder::throw(UserErrorCode::ORGANIZATION_NOT_AUTHORIZE);
+        }
+
+        return $this->knowledgeBaseAppService->repairSourceBindings($authorization, $this->request->all());
+    }
+
+    public function rebuildCleanup(): array
+    {
+        /** @var MagicUserAuthorization $authorization */
+        $authorization = $this->getAuthorization();
+        if (! OfficialOrganizationUtil::isOfficialOrganization($authorization->getOrganizationCode())) {
+            ExceptionBuilder::throw(UserErrorCode::ORGANIZATION_NOT_AUTHORIZE);
+        }
+
+        return $this->knowledgeBaseAppService->rebuildCleanup($authorization, $this->request->all());
     }
 
     /**

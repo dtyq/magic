@@ -55,7 +55,7 @@ class MagicFlowAIModelAppService extends AbstractFlowAppService
         $withIcons && $icons = $this->getIconsWithSmartOrganization($iconPaths);
 
         // 按照 label 进行排序
-        usort($list, function ($a, $b) {
+        usort($list, static function ($a, $b) {
             return strcmp($a->getLabel(), $b->getLabel());
         });
 

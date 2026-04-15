@@ -77,7 +77,8 @@ use Throwable;
 
 class SuperMagicAgentAppService extends AbstractSuperMagicAppService
 {
-    private const REQUIRED_IDENTITY_PATH = '.magic/IDENTITY.md';
+    private const string REQUIRED_IDENTITY_PATH = '.magic/IDENTITY.md';
+    private const string KNOWLEDGE_SEARCH_TOOL_CODE = 'search_knowledge';
 
     #[Inject]
     protected SkillDomainService $skillDomainService;
@@ -166,20 +167,7 @@ class SuperMagicAgentAppService extends AbstractSuperMagicAppService
 
         // 2. 加载tool
         if ($withToolSchema) {
-            $remoteToolCodes = [];
-            foreach ($agent->getTools() as $tool) {
-                if ($tool->getType()->isRemote()) {
-                    $remoteToolCodes[] = $tool->getCode();
-                }
-            }
-            // 获取工具定义
-            $remoteTools = ToolsExecutor::getToolFlows($flowDataIsolation, $remoteToolCodes, true);
-            foreach ($agent->getTools() as $tool) {
-                $remoteTool = $remoteTools[$tool->getCode()] ?? null;
-                if ($remoteTool) {
-                    $tool->setSchema($remoteTool->getInput()->getForm()?->getForm()->toJsonSchema());
-                }
-            }
+            $this->hydrateToolSchemas($agent, $flowDataIsolation);
         }
 
         // 3. 批量查询技能详情
@@ -253,19 +241,7 @@ class SuperMagicAgentAppService extends AbstractSuperMagicAppService
         $agent = $this->buildAgentDetailFromVersion($versionEntity);
 
         if ($withToolSchema) {
-            $remoteToolCodes = [];
-            foreach ($agent->getTools() as $tool) {
-                if ($tool->getType()->isRemote()) {
-                    $remoteToolCodes[] = $tool->getCode();
-                }
-            }
-            $remoteTools = ToolsExecutor::getToolFlows($flowDataIsolation, $remoteToolCodes, true);
-            foreach ($agent->getTools() as $tool) {
-                $remoteTool = $remoteTools[$tool->getCode()] ?? null;
-                if ($remoteTool) {
-                    $tool->setSchema($remoteTool->getInput()->getForm()?->getForm()->toJsonSchema());
-                }
-            }
+            $this->hydrateToolSchemas($agent, $flowDataIsolation);
         }
 
         $versionSkills = $this->superMagicAgentSkillDomainService->getByAgentVersionId($dataIsolation, (int) $versionEntity->getId());
@@ -1376,6 +1352,54 @@ class SuperMagicAgentAppService extends AbstractSuperMagicAppService
             Db::rollBack();
             throw $throwable;
         }
+    }
+
+    private function hydrateToolSchemas(SuperMagicAgentEntity $agent, mixed $flowDataIsolation): void
+    {
+        $agent->setTools($agent->getTools());
+
+        $remoteToolCodes = [];
+        foreach ($agent->getTools() as $tool) {
+            if (! $tool->getType()->isRemote()) {
+                continue;
+            }
+            if ($this->isKnowledgeSearchTool($tool->getCode())) {
+                continue;
+            }
+            $remoteToolCodes[] = $tool->getCode();
+        }
+
+        $remoteTools = ToolsExecutor::getToolFlows($flowDataIsolation, $remoteToolCodes, true);
+        foreach ($agent->getTools() as $tool) {
+            if ($this->isKnowledgeSearchTool($tool->getCode())) {
+                $tool->setSchema($this->buildKnowledgeSearchToolSchema());
+                continue;
+            }
+            $remoteTool = $remoteTools[$tool->getCode()] ?? null;
+            if ($remoteTool) {
+                $tool->setSchema($remoteTool->getInput()->getForm()?->getForm()->toJsonSchema());
+            }
+        }
+    }
+
+    private function isKnowledgeSearchTool(string $toolCode): bool
+    {
+        return $toolCode === self::KNOWLEDGE_SEARCH_TOOL_CODE;
+    }
+
+    private function buildKnowledgeSearchToolSchema(): array
+    {
+        return [
+            'type' => 'object',
+            'properties' => [
+                'query' => [
+                    'type' => 'string',
+                    'description' => '用于检索相关知识上下文的查询语句。',
+                ],
+            ],
+            'required' => ['query'],
+            'additionalProperties' => false,
+        ];
     }
 
     /**
@@ -2494,11 +2518,11 @@ class SuperMagicAgentAppService extends AbstractSuperMagicAppService
         return $publishType->getAllowedPublishTargetTypeValues();
     }
 
-    private function ensureAgentAccessible(Authenticatable $dataIsolation, string $code): void
+    private function ensureAgentAccessible(Authenticatable $authorization, string $code): void
     {
         $accessibleCodes = $this->resourceVisibilityDomainService->getUserAccessibleResourceCodes(
-            $this->createPermissionDataIsolation($dataIsolation),
-            $dataIsolation->getId(),
+            $this->createPermissionDataIsolation($authorization),
+            $authorization->getId(),
             ResourceVisibilityResourceType::SUPER_MAGIC_AGENT,
             [$code]
         );
@@ -2506,7 +2530,8 @@ class SuperMagicAgentAppService extends AbstractSuperMagicAppService
         if (in_array($code, $accessibleCodes, true)) {
             return;
         }
-        $officialCodes = $this->getOfficialAgentCodes($dataIsolation);
+
+        $officialCodes = $this->getOfficialAgentCodes($authorization);
         if (in_array($code, $officialCodes)) {
             return;
         }

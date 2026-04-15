@@ -35,12 +35,12 @@ class RetrieveConfig extends AbstractValueObject
      *
      * @see RetrievalMethod
      */
-    protected string $searchMethod = RetrievalMethod::SEMANTIC_SEARCH;
+    protected string $searchMethod = RetrievalMethod::HYBRID_SEARCH;
 
     /**
      * 返回的最大结果数量.
      */
-    protected int $topK = 3;
+    protected int $topK = 10;
 
     /**
      * 分数阈值

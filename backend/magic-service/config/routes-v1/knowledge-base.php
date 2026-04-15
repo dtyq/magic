@@ -9,14 +9,20 @@ use App\Interfaces\KnowledgeBase\Facade\KnowledgeBaseApi;
 use App\Interfaces\KnowledgeBase\Facade\KnowledgeBaseDocumentApi;
 use App\Interfaces\KnowledgeBase\Facade\KnowledgeBaseFragmentApi;
 use App\Interfaces\KnowledgeBase\Facade\KnowledgeBaseProviderApi;
+use App\Interfaces\KnowledgeBase\Facade\SandboxKnowledgeBaseFragmentApi;
+use App\Interfaces\Middleware\Auth\SandboxUserAuthMiddleware;
 use Hyperf\HttpServer\Router\Router;
 
 Router::addGroup('/api/v1/knowledge-bases', static function () {
     // 知识库
     Router::addGroup('', function () {
+        Router::get('/source-bindings/nodes', [KnowledgeBaseApi::class, 'sourceBindingNodes']);
         Router::post('', [KnowledgeBaseApi::class, 'create']);
         Router::put('/{code}', [KnowledgeBaseApi::class, 'update']);
         Router::post('/queries', [KnowledgeBaseApi::class, 'queries']);
+        Router::post('/rebuild', [KnowledgeBaseApi::class, 'rebuild']);
+        Router::post('/repair-third-file-mappings', [KnowledgeBaseApi::class, 'repairThirdFileMappings']);
+        Router::post('/rebuild-cleanup', [KnowledgeBaseApi::class, 'rebuildCleanup']);
         Router::get('/{code}', [KnowledgeBaseApi::class, 'show']);
         Router::delete('/{code}', [KnowledgeBaseApi::class, 'destroy']);
     });
@@ -27,6 +33,7 @@ Router::addGroup('/api/v1/knowledge-bases', static function () {
         Router::put('/{code}', [KnowledgeBaseDocumentApi::class, 'update']);
         Router::post('/queries', [KnowledgeBaseDocumentApi::class, 'queries']);
         Router::get('/{code}', [KnowledgeBaseDocumentApi::class, 'show']);
+        Router::get('/{code}/original-file-link', [KnowledgeBaseDocumentApi::class, 'originalFileLink']);
         Router::delete('/{code}', [KnowledgeBaseDocumentApi::class, 'destroy']);
         Router::post('/{code}/re-vectorized', [KnowledgeBaseDocumentApi::class, 'reVectorized']);
     });
@@ -54,3 +61,7 @@ Router::addGroup('/api/v1/knowledge-bases', static function () {
         Router::get('/link', [KnowledgeBaseApi::class, 'getFileLink']);
     });
 }, ['middleware' => [RequestContextMiddleware::class]]);
+
+Router::addGroup('/api/v1/open-api/sandbox/knowledge', static function () {
+    Router::get('/agents/{agentCode}/similarity', [SandboxKnowledgeBaseFragmentApi::class, 'similarityByAgent']);
+}, ['middleware' => [SandboxUserAuthMiddleware::class]]);

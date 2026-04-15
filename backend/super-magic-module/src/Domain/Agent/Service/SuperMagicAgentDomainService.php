@@ -71,6 +71,15 @@ readonly class SuperMagicAgentDomainService
     }
 
     /**
+     * @param array<string> $codes
+     * @return array<string, SuperMagicAgentEntity>
+     */
+    public function findByCodes(SuperMagicAgentDataIsolation $dataIsolation, array $codes): array
+    {
+        return $this->superMagicAgentRepository->findByCodes($dataIsolation, $codes);
+    }
+
+    /**
      * @return array{total: int, list: array<SuperMagicAgentEntity>}
      */
     public function queries(SuperMagicAgentDataIsolation $dataIsolation, SuperMagicAgentQuery $query, Page $page): array

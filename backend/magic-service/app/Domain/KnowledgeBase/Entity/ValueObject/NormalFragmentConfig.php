@@ -13,9 +13,9 @@ use App\Infrastructure\Util\Text\TextPreprocess\ValueObject\TextPreprocessRule;
 class NormalFragmentConfig extends AbstractValueObject
 {
     /** @var TextPreprocessRule[] */
-    protected array $textPreprocessRule;
+    protected array $textPreprocessRule = [];
 
-    protected SegmentRule $segmentRule;
+    protected ?SegmentRule $segmentRule = null;
 
     /**
      * @return TextPreprocessRule[]
@@ -36,7 +36,7 @@ class NormalFragmentConfig extends AbstractValueObject
 
     public function getSegmentRule(): SegmentRule
     {
-        return $this->segmentRule;
+        return $this->segmentRule ??= new SegmentRule();
     }
 
     public function setSegmentRule(SegmentRule $segmentRule): self
@@ -48,8 +48,18 @@ class NormalFragmentConfig extends AbstractValueObject
     public static function fromArray(array $data): self
     {
         $config = new self();
-        $config->setTextPreprocessRule(TextPreprocessRule::fromArray($data['text_preprocess_rule']));
-        $config->setSegmentRule(SegmentRule::fromArray($data['segment_rule']));
+        $textPreprocessRule = $data['text_preprocess_rule'] ?? [];
+        if (! is_array($textPreprocessRule)) {
+            $textPreprocessRule = [];
+        }
+
+        $segmentRule = $data['segment_rule'] ?? [];
+        if (! is_array($segmentRule)) {
+            $segmentRule = [];
+        }
+
+        $config->setTextPreprocessRule(TextPreprocessRule::fromArray($textPreprocessRule));
+        $config->setSegmentRule(SegmentRule::fromArray($segmentRule));
         return $config;
     }
 }

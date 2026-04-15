@@ -620,7 +620,7 @@ class TaskMessageFactory(TaskMessageFactoryProtocol):
             content=content,
             tool=tool,  # 添加工具信息
             event=EventType.BEFORE_TOOL_CALL,  # 使用枚举类型
-            show_in_ui=True,
+            show_in_ui=tool_instance.is_visible_in_ui(),
             seq_id=seq_id,  # 传递序列号
             correlation_id=event.data.correlation_id,  # 传入关联ID
             parent_correlation_id=parent_correlation_id,  # 传递父级关联ID
@@ -760,7 +760,7 @@ class TaskMessageFactory(TaskMessageFactoryProtocol):
                 content=content,
                 tool=tool,
                 event=event.event_type,
-                show_in_ui=True,
+                show_in_ui=tool_instance.is_visible_in_ui(),
                 seq_id=seq_id,  # 传递序列号
                 correlation_id=event.data.correlation_id,  # 传入关联ID
                 parent_correlation_id=parent_correlation_id,  # 传递父级关联ID

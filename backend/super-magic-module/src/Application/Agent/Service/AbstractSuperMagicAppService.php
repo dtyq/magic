@@ -442,7 +442,7 @@ abstract class AbstractSuperMagicAppService extends AbstractKernelAppService
         $agentEntity->setFileUrl($fileLink instanceof FileLink ? $fileLink->getUrl() : null);
     }
 
-    protected function getOfficialAgentCodes(Authenticatable $authorization): array
+    protected function getOfficialAgentCodes(Authenticatable|BaseDataIsolation $authorization): array
     {
         $modeDataIsolation = $this->createModeDataIsolation($authorization);
         $modeDataIsolation->disabled();

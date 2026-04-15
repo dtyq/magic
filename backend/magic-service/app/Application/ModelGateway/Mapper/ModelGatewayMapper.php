@@ -548,11 +548,12 @@ class ModelGatewayMapper extends ModelMapper
         } elseif ($providerModelEntity->getModelType()->isEmbedding()) {
             $embedding = true;
             $vectorSize = $providerModelEntity->getConfig()?->getVectorSize();
+            $multiModal = $providerModelEntity->getConfig()?->isSupportMultiModal() ?? false;
         }
 
         $key = $providerModelEntity->getModelId();
 
-        $implementation = $providerEntity->getProviderCode()->getImplementation();
+        $implementation = $providerEntity->getProviderCode()->getImplementationForModel($embedding, $multiModal);
         $providerConfigItem = $providerConfigEntity->getConfig();
         $implementationConfig = $providerEntity->getProviderCode()->getImplementationConfig($providerConfigItem, $providerModelEntity->getModelVersion());
 

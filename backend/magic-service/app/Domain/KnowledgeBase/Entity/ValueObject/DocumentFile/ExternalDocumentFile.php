@@ -12,7 +12,7 @@ use Dtyq\CloudFile\Kernel\Struct\FileLink;
 
 class ExternalDocumentFile extends AbstractDocumentFile implements ExternalDocumentFileInterface
 {
-    public string $key;
+    public string $key = '';
 
     public ?FileLink $fileLink = null;
 

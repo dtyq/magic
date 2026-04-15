@@ -349,31 +349,36 @@ class SuperMagicAgentEntity extends AbstractEntity
     public function getTools(): array
     {
         $result = [];
+        $originalTools = [];
+        foreach ($this->tools as $tool) {
+            if ($tool->getType()->isBuiltIn() && ! BuiltinTool::isValidTool($tool->getCode())) {
+                continue;
+            }
+            $originalTools[$tool->getCode()] = $tool;
+        }
 
         // 获取必填工具列表，按照 getRequiredTools 的顺序
-        $requiredTools = BuiltinTool::getRequiredTools();
+        $requiredTools = BuiltinTool::getDefaultToolsForAgentType($this->type);
 
         // 1. 先添加必填工具（按照 getRequiredTools 的顺序）
         foreach ($requiredTools as $requiredTool) {
-            $tool = new SuperMagicAgentTool();
-            $tool->setCode($requiredTool->value);
-            $tool->setName($requiredTool->getToolName());
-            $tool->setDescription($requiredTool->getToolDescription());
-            $tool->setIcon($requiredTool->getToolIcon());
-            $tool->setType(SuperMagicAgentToolType::BuiltIn);
-            $tool->setSchema(null);
+            $tool = $originalTools[$requiredTool->value] ?? null;
+            if ($tool === null) {
+                $tool = new SuperMagicAgentTool();
+                $tool->setCode($requiredTool->value);
+                $tool->setName($requiredTool->getToolName());
+                $tool->setDescription($requiredTool->getToolDescription());
+                $tool->setIcon($requiredTool->getToolIcon());
+                $tool->setType(SuperMagicAgentToolType::BuiltIn);
+                $tool->setSchema(null);
+            }
 
             $result[$tool->getCode()] = $tool;
+            unset($originalTools[$tool->getCode()]);
         }
 
         // 2. 再添加原始工具列表中的其他工具（跳过已存在的必填工具）
-        foreach ($this->tools as $tool) {
-            if ($tool->getType()->isBuiltIn()) {
-                // 但是不在目前已有的内置列表中，则跳过
-                if (! BuiltinTool::isValidTool($tool->getCode())) {
-                    continue;
-                }
-            }
+        foreach ($originalTools as $tool) {
             if (! isset($result[$tool->getCode()])) {
                 $result[$tool->getCode()] = $tool;
             }

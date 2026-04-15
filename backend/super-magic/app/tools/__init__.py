@@ -104,6 +104,7 @@ from app.tools.design.tools import (
 from app.tools.read_skills import ReadSkills
 from app.tools.run_sdk_snippet import RunSdkSnippet
 from app.tools.skill_list import SkillList
+from app.tools.search_knowledge import SearchKnowledge
 
 # Import design package modules to ensure they are available in encrypted environment
 import app.tools.design.manager
@@ -162,6 +163,7 @@ __all__ = [
     "ReadSkills",
     "RunSdkSnippet",
     "SkillList",
+    "SearchKnowledge",
     "ReadFile",
     "ReadFiles",
     "ReadWebpagesAsMarkdown",
@@ -219,4 +221,3 @@ __all__ = [
     "SearchCanvasImages",
     "SearchImagePrompts",
 ]
-

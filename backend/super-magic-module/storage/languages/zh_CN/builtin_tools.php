@@ -18,6 +18,7 @@ return [
 
         // 搜索提取
         'web_search' => '网络搜索',
+        'search_knowledge' => '知识检索',
         'image_search' => '图片搜索',
         'read_webpages_as_markdown' => '网页转Markdown',
         'use_browser' => '浏览器操作',
@@ -62,6 +63,7 @@ return [
 
         // 搜索提取
         'web_search' => '互联网搜索工具，支持XML格式配置多个搜索需求并行处理，支持分页搜索和时间范围筛选，搜索结果包含标题、URL、摘要和来源网站',
+        'search_knowledge' => '在知识库中检索可能与当前问题相关的知识与上下文，帮助为回答提供依据',
         'image_search' => '图片搜索工具，根据关键词搜索并智能筛选高质量图片，支持视觉理解分析和长宽比筛选，自动去重确保图片质量',
         'read_webpages_as_markdown' => '批量网页读取工具，将多个网页内容聚合转换为单个Markdown文档，支持完整内容获取和摘要模式',
         'use_browser' => '浏览器自动化工具，提供原子化的浏览器操作能力，支持页面导航、元素交互、表单填写等模块化操作',

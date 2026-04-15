@@ -14,6 +14,7 @@ use App\Domain\KnowledgeBase\Entity\ValueObject\FragmentConfig;
 use App\Domain\KnowledgeBase\Entity\ValueObject\FragmentMode;
 use App\Domain\KnowledgeBase\Entity\ValueObject\KnowledgeBaseDataIsolation;
 use App\Domain\KnowledgeBase\Entity\ValueObject\KnowledgeSyncStatus;
+use App\Domain\KnowledgeBase\Entity\ValueObject\NormalFragmentConfig;
 use App\Domain\KnowledgeBase\Entity\ValueObject\Query\KnowledgeBaseFragmentQuery;
 use App\Domain\KnowledgeBase\Event\KnowledgeBaseFragmentRemovedEvent;
 use App\Domain\KnowledgeBase\Event\KnowledgeBaseFragmentSavedEvent;
@@ -189,8 +190,9 @@ readonly class KnowledgeBaseFragmentDomainService
     public function processFragmentsByContent(KnowledgeBaseDataIsolation $dataIsolation, string $content, FragmentConfig $fragmentConfig): array
     {
         $selectedFragmentConfig = match ($fragmentConfig->getMode()) {
-            FragmentMode::NORMAL => $fragmentConfig->getNormal(),
-            FragmentMode::PARENT_CHILD => $fragmentConfig->getParentChild(),
+            FragmentMode::CUSTOM,
+            FragmentMode::AUTO,
+            FragmentMode::HIERARCHY => $fragmentConfig->getNormal() ?? new NormalFragmentConfig(),
             default => ExceptionBuilder::throw(FlowErrorCode::KnowledgeValidateFailed),
         };
         $preprocessRule = $selectedFragmentConfig->getTextPreprocessRule();
@@ -231,14 +233,6 @@ readonly class KnowledgeBaseFragmentDomainService
         return array_values(array_filter($fragments, function ($fragment) {
             return trim($fragment) !== '';
         }));
-    }
-
-    /**
-     * @return array<KnowledgeBaseFragmentEntity>
-     */
-    public function getFragmentsWithEmptyDocumentCode(KnowledgeBaseDataIsolation $dataIsolation, ?int $lastId = null, int $pageSize = 500): array
-    {
-        return $this->knowledgeBaseFragmentRepository->getFragmentsByEmptyDocumentCode($dataIsolation, $lastId, $pageSize);
     }
 
     #[Transactional]

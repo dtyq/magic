@@ -257,6 +257,24 @@ models:
       cache_write_price: 0.0005
       currency: "USD"
 
+  gpt-5.2:
+    api_key: "${MAGIC_API_KEY}"
+    api_base_url: "${MAGIC_API_BASE_URL}"
+    name: "${GPT_5_2_MODEL:-gpt-5.2}"
+    type: "llm"
+    supports_tool_use: true
+    provider: "openai"
+    max_output_tokens: 64000
+    max_context_tokens: 128000
+    temperature: 1.0
+    top_p: 1.0
+    pricing:
+      input_price: 0.003
+      output_price: 0.015
+      cache_write_price: 0.00375
+      cache_hit_price: 0.0003
+      currency: "USD"
+
   gpt-4.1-mini:
     api_key: "${OPENAI_API_KEY}"
     api_base_url: "${OPENAI_API_BASE_URL:-https://api.openai.com/v1}"

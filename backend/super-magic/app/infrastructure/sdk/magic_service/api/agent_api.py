@@ -4,24 +4,27 @@ Agent API
 API implementation for agent-related operations in Magic Service.
 """
 
-from typing import Optional
+from urllib.parse import quote
+
 from ..kernel.magic_service_api import MagicServiceAbstractApi
-from ..parameter.get_agent_details_parameter import GetAgentDetailsParameter
-from ..parameter.get_agent_openapi_parameter import GetAgentOpenApiParameter
-from ..parameter.update_agent_parameter import UpdateAgentParameter
-from ..parameter.get_skill_file_urls_parameter import GetSkillFileUrlsParameter
-from ..parameter.import_skill_from_agent_parameter import ImportSkillFromAgentParameter
 from ..parameter.add_agent_skills_parameter import AddAgentSkillsParameter
 from ..parameter.delete_agent_skills_parameter import DeleteAgentSkillsParameter
-from ..parameter.tool_execute_parameter import ToolExecuteParameter
+from ..parameter.get_agent_details_parameter import GetAgentDetailsParameter
+from ..parameter.get_agent_openapi_parameter import GetAgentOpenApiParameter
+from ..parameter.get_skill_file_urls_parameter import GetSkillFileUrlsParameter
+from ..parameter.import_skill_from_agent_parameter import ImportSkillFromAgentParameter
 from ..parameter.ingest_third_party_message_parameter import IngestThirdPartyMessageParameter
+from ..parameter.search_knowledge_parameter import SearchKnowledgeParameter
+from ..parameter.tool_execute_parameter import ToolExecuteParameter
+from ..parameter.update_agent_parameter import UpdateAgentParameter
 from ..result.agent_details_result import AgentDetailsResult
 from ..result.agent_openapi_result import AgentOpenApiResult
-from ..result.update_agent_result import UpdateAgentResult
-from ..result.skill_file_urls_result import SkillFileUrlsResult
 from ..result.import_skill_result import ImportSkillResult
 from ..result.ingest_third_party_message_result import IngestThirdPartyMessageResult
+from ..result.search_knowledge_result import SearchKnowledgeResult
+from ..result.skill_file_urls_result import SkillFileUrlsResult
 from ..result.tool_execute_result import ToolExecuteResult
+from ..result.update_agent_result import UpdateAgentResult
 
 
 class AgentApi(MagicServiceAbstractApi):
@@ -106,6 +109,24 @@ class AgentApi(MagicServiceAbstractApi):
 
         # Return structured result
         return ToolExecuteResult(data)
+
+    async def search_knowledge_async(
+        self,
+        parameter: SearchKnowledgeParameter,
+    ) -> SearchKnowledgeResult:
+        """
+        Search for knowledge and related context that may help answer the current question.
+
+        Args:
+            parameter: SearchKnowledgeParameter instance
+
+        Returns:
+            SearchKnowledgeResult containing knowledge hits and context text
+        """
+        agent_code = quote(parameter.get_agent_code(), safe="")
+        endpoint_path = f"/api/v1/open-api/sandbox/knowledge/agents/{agent_code}/similarity"
+        data = await self.request_by_parameter_async(parameter, "GET", endpoint_path)
+        return SearchKnowledgeResult(data)
 
     def ingest_third_party_message(
         self,

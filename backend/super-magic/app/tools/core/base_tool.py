@@ -244,6 +244,10 @@ class BaseTool(Generic[T], ABC):
         """
         return True
 
+    def is_visible_in_ui(self) -> bool:
+        """声明工具调用消息是否默认展示给用户。"""
+        return True
+
     def _create_tool_span(self, tool_context: ToolContext, kwargs: Dict[str, Any]) -> Optional[Any]:
         """
         Create OpenTelemetry span for tool execution tracking

@@ -18,6 +18,7 @@ return [
 
         // Search & Extraction
         'web_search' => 'Web Search',
+        'search_knowledge' => 'Knowledge Search',
         'image_search' => 'Image Search',
         'read_webpages_as_markdown' => 'Webpage to Markdown',
         'use_browser' => 'Browser Operation',
@@ -62,6 +63,7 @@ return [
 
         // Search & Extraction
         'web_search' => 'Internet search tool, supports XML format configuration for parallel processing of multiple search requests, supports paginated search and time range filtering, search results include title, URL, summary and source website',
+        'search_knowledge' => 'Searches the knowledge base for knowledge and related context that may help answer the current question',
         'image_search' => 'Image search tool, searches and intelligently filters high-quality images based on keywords, supports visual understanding analysis and aspect ratio filtering, automatic deduplication ensures image quality',
         'read_webpages_as_markdown' => 'Batch webpage reading tool, aggregates multiple webpage contents and converts them into a single Markdown document, supports full content retrieval and summary mode',
         'use_browser' => 'Browser automation tool, provides atomic browser operation capabilities, supports page navigation, element interaction, form filling and other modular operations',
