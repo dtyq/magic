@@ -717,6 +717,7 @@ class ModelUsage:
     usage: TokenUsage
     cost: float = 0.0
     currency: str = "CNY"
+    resolved_model_id: Optional[str] = None
 
 
 @dataclass

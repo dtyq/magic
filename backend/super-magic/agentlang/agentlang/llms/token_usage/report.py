@@ -100,14 +100,26 @@ class TokenUsageReport:
         # 确保报告目录存在
         os.makedirs(self.report_dir, exist_ok=True)
 
+        # 文件名前缀，可通过 set_file_prefix() 更新为 agent_name<agent_id> 格式
+        self._file_prefix: Optional[str] = None
+
+    def set_file_prefix(self, prefix: str) -> None:
+        """设置报告文件名前缀，使其与聊天历史文件命名保持一致。
+
+        Args:
+            prefix: 文件名前缀，通常为 {agent_name}<{agent_id}>
+        """
+        self._file_prefix = prefix
+        logger.debug(f"Token usage 报告文件前缀已更新为: {prefix}")
+
     def get_report_file_path(self) -> str:
         """获取报告文件的路径
 
         Returns:
             str: 报告文件的完整路径
         """
-        # 使用沙箱ID创建唯一的文件名
-        file_name = f"{self.sandbox_id}_token_usage.json"
+        prefix = self._file_prefix if self._file_prefix else self.sandbox_id
+        file_name = f"{prefix}.token_usage.json"
         return os.path.join(self.report_dir, file_name)
 
     def _serialize_report(self, report: CostReport) -> Dict[str, Any]:
@@ -127,6 +139,8 @@ class TokenUsageReport:
                 "input_tokens": model.usage.input_tokens,
                 "output_tokens": model.usage.output_tokens,
             }
+            if model.resolved_model_id:
+                model_data["resolved_model_id"] = model.resolved_model_id
 
             # 添加缓存相关数据（按顺序）
             if model.usage.input_tokens_details:
@@ -191,7 +205,8 @@ class TokenUsageReport:
                 model_name=model_name,
                 usage=usage,
                 cost=model_data.get("cost", 0.0),
-                currency=model_data.get("currency", report.currency_code)
+                currency=model_data.get("currency", report.currency_code),
+                resolved_model_id=model_data.get("resolved_model_id") or None
             )
 
             report.models.append(model_usage)
@@ -243,7 +258,7 @@ class TokenUsageReport:
             logger.error(f"保存token使用报告到文件失败: {e!s}")
             return False
 
-    def update_and_save_usage(self, model_id: str, token_usage: TokenUsage) -> None:
+    def update_and_save_usage(self, model_id: str, token_usage: TokenUsage, resolved_model_id: Optional[str] = None) -> None:
         """更新并保存当前token使用情况到JSON文件
 
         Args:
@@ -310,7 +325,8 @@ class TokenUsageReport:
                 model_name=model_id,
                 usage=token_usage,
                 cost=cost,
-                currency=report.currency_code
+                currency=report.currency_code,
+                resolved_model_id=resolved_model_id or None
             )
             report.models.append(model_usage)
 

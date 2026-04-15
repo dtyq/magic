@@ -35,6 +35,7 @@ from agentlang.llms.processors.processor_config import ProcessorConfig
 from app.streaming.message_builder import LLMStreamingMessageBuilder
 from app.streaming.config_generator import StreamingConfigGenerator
 from agentlang.llms.token_usage.models import TokenUsage
+from agentlang.llms.token_usage.report import TokenUsageReport
 from agentlang.logger import get_logger
 from agentlang.tools.tool_result import ToolResult
 from agentlang.utils.token_estimator import num_tokens_from_string
@@ -266,6 +267,9 @@ class Agent(BaseAgent):
             self.agent_context.chat_history_dir,
             self.agent_context.get_event_dispatcher(),  # 传递事件分发器
         )
+
+        # 将 token usage 报告文件名前缀与聊天历史文件保持一致
+        TokenUsageReport.get_instance().set_file_prefix(f"{self.agent_name}<{self.id}>")
 
         # 将 chat_history 设置到 agent_context 中，确保工具可以访问
         self.agent_context.chat_history = self.chat_history
