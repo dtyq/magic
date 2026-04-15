@@ -45,8 +45,8 @@ class ImageGenerationEntity extends AbstractEntity
     protected ?array $referenceImages = null;
 
     /**
-     * 每张参考图的图片处理选项，key 为参考图路径，value 为该图对应的处理选项.
-     * 例如：['/some/img1.png' => ['crop' => ['width' => 596, 'height' => 1024, 'x' => 194, 'y' => 0]]].
+     * 每张参考图的图片处理选项，数组格式，每项包含 path 和可选的 crop 等处理参数.
+     * 例如：[['path' => '/some/img1.png', 'crop' => ['x' => 194, 'y' => 0, 'width' => 596, 'height' => 1024]]].
      * design-mark 临时图片不参与选项存储.
      */
     protected ?array $referenceImageOptions = null;

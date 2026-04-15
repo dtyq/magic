@@ -37,8 +37,8 @@ class ImageGenerationDTO extends AbstractDTO
     protected ?array $referenceImages = null;
 
     /**
-     * 参考图选项，key 为图片路径，value 为该图对应的处理选项，例如 crop 参数.
-     * 仅在图生图（generate-image）场景由前端直传；其余接口由后端从顶层 crop 字段组装.
+     * 参考图选项，数组格式，每项包含 path 和可选的 crop 等处理参数.
+     * 例如：[['path' => '/img.png', 'crop' => ['x' => 0, 'y' => 0, 'width' => 100, 'height' => 100]]].
      */
     protected ?array $referenceImageOptions = null;
 

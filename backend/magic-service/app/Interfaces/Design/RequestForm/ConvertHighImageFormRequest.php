@@ -26,6 +26,9 @@ class ConvertHighImageFormRequest extends FormRequest
             'file_dir' => 'required|string|max:512',
             'file_path' => 'required|string|max:512',
             'reference_image_options' => 'nullable|array',
+            'reference_image_options.*' => 'array',
+            'reference_image_options.*.path' => 'nullable|string|max:512',
+            'reference_image_options.*.crop' => 'nullable|array',
         ];
     }
 

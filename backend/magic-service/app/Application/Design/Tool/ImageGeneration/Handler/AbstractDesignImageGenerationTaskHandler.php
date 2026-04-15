@@ -92,6 +92,25 @@ abstract class AbstractDesignImageGenerationTaskHandler implements DesignImageGe
     }
 
     /**
+     * 从数组格式的 referenceImageOptions 中按路径查找对应选项.
+     * 外部格式: [['path' => '/img.png', 'crop' => [...]], ...].
+     *
+     * @param list<array<string, mixed>> $referenceImageOptions
+     * @return array<string, mixed>
+     */
+    protected function findImageOptions(array $referenceImageOptions, string $path): array
+    {
+        foreach ($referenceImageOptions as $item) {
+            if (is_array($item) && ($item['path'] ?? '') === $path) {
+                $options = $item;
+                unset($options['path']);
+                return $options;
+            }
+        }
+        return [];
+    }
+
+    /**
      * 文生图 / 图生图：参考图均在 SandBox 工作区路径下，支持按索引 crop。
      *
      * @return list<string>
@@ -105,7 +124,7 @@ abstract class AbstractDesignImageGenerationTaskHandler implements DesignImageGe
         $referenceImageOptions = $entity->getReferenceImageOptions() ?? [];
 
         foreach ($entity->getReferenceImages() ?? [] as $referenceImage) {
-            $linkOptions = $this->buildLinkOptionsFromImageOptions($referenceImageOptions[$referenceImage] ?? []);
+            $linkOptions = $this->buildLinkOptionsFromImageOptions($this->findImageOptions($referenceImageOptions, $referenceImage));
             $url = $this->getWorkspaceSandboxImageUrl($dataIsolation, $workspacePrefix, $referenceImage, $linkOptions);
             if ($url !== null && $url !== '') {
                 $urls[] = $url;
@@ -138,7 +157,7 @@ abstract class AbstractDesignImageGenerationTaskHandler implements DesignImageGe
                     StorageBucketType::Private
                 )?->getUrl();
             } else {
-                $linkOptions = $this->buildLinkOptionsFromImageOptions($referenceImageOptions[$referenceImage] ?? []);
+                $linkOptions = $this->buildLinkOptionsFromImageOptions($this->findImageOptions($referenceImageOptions, $referenceImage));
                 $url = $this->getWorkspaceSandboxImageUrl($dataIsolation, $workspacePrefix, $referenceImage, $linkOptions);
             }
             if ($url !== null && $url !== '') {

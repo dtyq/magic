@@ -29,6 +29,9 @@ class ExpandImageFormRequest extends FormRequest
             'mask_path' => 'required|string|max:512',
             'size' => 'nullable|string|max:50',
             'reference_image_options' => 'nullable|array',
+            'reference_image_options.*' => 'array',
+            'reference_image_options.*.path' => 'nullable|string|max:512',
+            'reference_image_options.*.crop' => 'nullable|array',
         ];
     }
 

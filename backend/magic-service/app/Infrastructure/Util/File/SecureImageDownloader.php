@@ -35,8 +35,8 @@ class SecureImageDownloader
      */
     /**
      * @param bool $checkHeaderMimeType 是否通过响应头 Content-Type 做 MIME 预检。
-     *             对于 TOS 等对象存储的文件，上传时可能未设置正确的 Content-Type（如 application/octet-stream），
-     *             此时应传 false，由下载后的魔法字节检测（assertImageFile）来保障格式合法性。
+     *                                  对于 TOS 等对象存储的文件，上传时可能未设置正确的 Content-Type（如 application/octet-stream），
+     *                                  此时应传 false，由下载后的魔法字节检测（assertImageFile）来保障格式合法性。
      */
     public function download(string $imageUrl, array $blackList = [], bool $checkHeaderMimeType = true): ImageAsset
     {

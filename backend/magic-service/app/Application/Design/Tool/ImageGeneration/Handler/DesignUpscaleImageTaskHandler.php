@@ -36,7 +36,7 @@ final class DesignUpscaleImageTaskHandler extends AbstractDesignImageGenerationT
             return null;
         }
 
-        $linkOptions = $this->buildLinkOptionsFromImageOptions($entity->getReferenceImageOptions()[$referenceImage] ?? []);
+        $linkOptions = $this->buildLinkOptionsFromImageOptions($this->findImageOptions($entity->getReferenceImageOptions() ?? [], $referenceImage));
         $imageUrl = $this->getWorkspaceSandboxImageUrl($dataIsolation, $workspacePrefix, $referenceImage, $linkOptions);
         if ($imageUrl === null || $imageUrl === '') {
             return null;

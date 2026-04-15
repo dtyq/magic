@@ -32,6 +32,9 @@ class GenerateImageFormRequest extends FormRequest
             'reference_images' => 'nullable|array|max:20',
             'reference_images.*' => 'required|string',
             'reference_image_options' => 'nullable|array',
+            'reference_image_options.*' => 'array',
+            'reference_image_options.*.path' => 'nullable|string|max:512',
+            'reference_image_options.*.crop' => 'nullable|array',
         ];
     }
 
