@@ -34,16 +34,15 @@ class MessageUtil
         switch ($magicFlowMessage->getType()) {
             case MagicFlowMessageType::Text:
             case MagicFlowMessageType::Markdown:
-                if (! $magicFlowMessage->getContent()?->getValue()) {
+                $contentValue = $magicFlowMessage->getContent()?->getValue();
+                if ($contentValue === null) {
                     return null;
                 }
-                $content = clone $magicFlowMessage->getContent()?->getValue();
+                $content = clone $contentValue;
                 $content->getExpressionValue()?->setIsStringTemplate(true);
                 $contentString = $content->getResult($executionData->getExpressionFieldData());
-                if (is_numeric($contentString) || is_null($contentString) || is_bool($contentString)) {
-                    $contentString = (string) $contentString;
-                }
-                if (! is_string($contentString)) {
+                $contentString = self::normalizeTextContent($contentString);
+                if ($contentString === null) {
                     ExceptionBuilder::throw(FlowErrorCode::ExecuteFailed, 'flow.node.message.content_error');
                 }
                 $contentString = trim($contentString);
@@ -121,10 +120,11 @@ class MessageUtil
                 $message->setAttachments($chatAttachments);
                 return $message;
             case MagicFlowMessageType::AIMessage:
-                if (! $magicFlowMessage->getContent()?->getForm()) {
+                $contentForm = $magicFlowMessage->getContent()?->getForm();
+                if ($contentForm === null) {
                     return null;
                 }
-                $content = clone $magicFlowMessage->getContent()?->getForm();
+                $content = clone $contentForm;
                 $contentString = $content->getKeyValue($executionData->getExpressionFieldData());
                 // todo 实际上没实现，以下是伪代码
                 return new AggregateAISearchCardMessageV2([
@@ -135,6 +135,29 @@ class MessageUtil
             default:
                 return null;
         }
+    }
+
+    private static function normalizeTextContent(mixed $content): ?string
+    {
+        if (is_string($content)) {
+            return $content;
+        }
+        if (is_numeric($content) || is_null($content) || is_bool($content)) {
+            return (string) $content;
+        }
+        if (! is_array($content) || ! array_is_list($content)) {
+            return null;
+        }
+
+        $lines = [];
+        foreach ($content as $item) {
+            $line = self::normalizeTextContent($item);
+            if ($line === null) {
+                return null;
+            }
+            $lines[] = $line;
+        }
+        return implode("\n", $lines);
     }
 
     /**

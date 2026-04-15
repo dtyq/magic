@@ -1,0 +1,16 @@
+version: "2"
+sql:
+  - engine: "mysql"
+    schema:
+      - "internal/infrastructure/persistence/mysql/schema/*.sql"
+    queries:
+      - "internal/infrastructure/persistence/mysql/queries/*.sql"
+    gen:
+      go:
+        package: mysqlsqlc
+        out: "internal/infrastructure/persistence/mysql/sqlc"
+        sql_package: "database/sql"
+        json_tags_case_style: "snake"
+        emit_interface: false
+        emit_json_tags: true
+        emit_empty_slices: true

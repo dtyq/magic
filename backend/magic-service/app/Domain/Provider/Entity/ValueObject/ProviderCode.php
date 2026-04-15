@@ -12,11 +12,21 @@ use App\Domain\Provider\DTO\Item\GoogleProviderConfigItem;
 use App\Domain\Provider\DTO\Item\ProviderConfigItem;
 use App\ErrorCode\ServiceProviderErrorCode;
 use App\Infrastructure\Core\Exception\ExceptionBuilder;
+use Hyperf\Odin\Model\AnthropicModel;
+use Hyperf\Odin\Model\AwsBedrockModel;
+use Hyperf\Odin\Model\AzureOpenAIModel;
+use Hyperf\Odin\Model\DashScopeModel;
+use Hyperf\Odin\Model\DeepSeekModel;
+use Hyperf\Odin\Model\DoubaoModel;
+use Hyperf\Odin\Model\GeminiModel;
+use Hyperf\Odin\Model\OpenAIModel;
+use Hyperf\Odin\Model\VolcengineMultiModalEmbeddingModel;
 
 enum ProviderCode: string
 {
     case None = 'None';
     case Official = 'Official'; // 官方
+    case Wuyin = 'Wuyin';
     case Cloudsway = 'Cloudsway';
     case Volcengine = 'Volcengine'; // 火山
     case OpenAI = 'OpenAI';
@@ -43,15 +53,22 @@ enum ProviderCode: string
 
     public function getImplementation(): string
     {
+        return $this->getImplementationForModel();
+    }
+
+    public function getImplementationForModel(bool $embedding = false, bool $multiModal = false): string
+    {
         return match ($this) {
-            self::MicrosoftAzure => self::requireImplementationClass('Hyperf\Odin\Model\AzureOpenAIModel'),
-            self::Volcengine => self::requireImplementationClass('Hyperf\Odin\Model\DoubaoModel'),
-            self::AWSBedrock => self::requireImplementationClass('Hyperf\Odin\Model\AwsBedrockModel'),
-            self::Gemini => self::requireImplementationClass('Hyperf\Odin\Model\GeminiModel'),
-            self::DeepSeek => self::requireImplementationClass('Hyperf\Odin\Model\DeepSeekModel'),
-            self::DashScope => self::requireImplementationClass('Hyperf\Odin\Model\DashScopeModel'),
-            self::Anthropic => self::requireImplementationClass('Hyperf\Odin\Model\AnthropicModel'),
-            default => self::requireImplementationClass('Hyperf\Odin\Model\OpenAIModel'),
+            self::Volcengine => self::requireImplementationClass(
+                ($embedding && $multiModal) ? VolcengineMultiModalEmbeddingModel::class : DoubaoModel::class
+            ),
+            self::MicrosoftAzure => self::requireImplementationClass(AzureOpenAIModel::class),
+            self::AWSBedrock => self::requireImplementationClass(AwsBedrockModel::class),
+            self::Gemini => self::requireImplementationClass(GeminiModel::class),
+            self::DeepSeek => self::requireImplementationClass(DeepSeekModel::class),
+            self::DashScope => self::requireImplementationClass(DashScopeModel::class),
+            self::Anthropic => self::requireImplementationClass(AnthropicModel::class),
+            default => self::requireImplementationClass(OpenAIModel::class),
         };
     }
 

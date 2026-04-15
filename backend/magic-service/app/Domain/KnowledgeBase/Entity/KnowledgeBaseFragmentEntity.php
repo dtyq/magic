@@ -15,6 +15,7 @@ use DateTime;
 use Hyperf\Codec\Json;
 use Hyperf\Snowflake\IdGeneratorInterface;
 use Hyperf\Stringable\Str;
+use Throwable;
 
 use function mb_strlen;
 
@@ -34,7 +35,7 @@ class KnowledgeBaseFragmentEntity extends AbstractKnowledgeBaseEntity
     /**
      * 片段内容.
      */
-    protected string $content;
+    protected string $content = '';
 
     protected array $metadata = [];
 
@@ -47,17 +48,17 @@ class KnowledgeBaseFragmentEntity extends AbstractKnowledgeBaseEntity
 
     protected string $vector = '';
 
-    protected KnowledgeSyncStatus $syncStatus;
+    protected KnowledgeSyncStatus $syncStatus = KnowledgeSyncStatus::NotSynced;
 
     protected int $syncTimes = 0;
 
     protected string $syncStatusMessage = '';
 
-    protected string $creator;
+    protected string $creator = '';
 
     protected DateTime $createdAt;
 
-    protected string $modifier;
+    protected string $modifier = '';
 
     protected DateTime $updatedAt;
 
@@ -76,6 +77,9 @@ class KnowledgeBaseFragmentEntity extends AbstractKnowledgeBaseEntity
     {
         if (empty($this->knowledgeCode)) {
             ExceptionBuilder::throw(FlowErrorCode::KnowledgeValidateFailed, 'flow.knowledge_code.empty');
+        }
+        if (trim($this->documentCode) === '') {
+            ExceptionBuilder::throw(FlowErrorCode::KnowledgeValidateFailed, '文档编码不能为空');
         }
         if (! isset($this->content) || trim($this->content) === '') {
             ExceptionBuilder::throw(FlowErrorCode::KnowledgeValidateFailed, 'flow.content.empty');
@@ -100,6 +104,9 @@ class KnowledgeBaseFragmentEntity extends AbstractKnowledgeBaseEntity
 
     public function prepareForModification(KnowledgeBaseFragmentEntity $magicFlowKnowledgeFragmentEntity): self
     {
+        if (trim($this->documentCode) === '') {
+            ExceptionBuilder::throw(FlowErrorCode::KnowledgeValidateFailed, '文档编码不能为空');
+        }
         if (empty($this->content)) {
             ExceptionBuilder::throw(FlowErrorCode::KnowledgeValidateFailed, 'flow.content.empty');
         }
@@ -268,7 +275,7 @@ class KnowledgeBaseFragmentEntity extends AbstractKnowledgeBaseEntity
 
     public function setSyncStatus(int|KnowledgeSyncStatus $syncStatus): self
     {
-        is_int($syncStatus) && $syncStatus = KnowledgeSyncStatus::from($syncStatus);
+        is_int($syncStatus) && $syncStatus = KnowledgeSyncStatus::tryFrom($syncStatus) ?? KnowledgeSyncStatus::NotSynced;
         $this->syncStatus = $syncStatus;
         return $this;
     }
@@ -300,20 +307,45 @@ class KnowledgeBaseFragmentEntity extends AbstractKnowledgeBaseEntity
         return $this->creator;
     }
 
-    public function setCreator(string $creator): self
+    public function setCreator(null|int|string $creator): self
     {
-        $this->creator = $creator;
+        $this->creator = (string) ($creator ?? '');
         return $this;
+    }
+
+    public function getCreatedUid(): string
+    {
+        return $this->creator;
+    }
+
+    /**
+     * 兼容 RPC / DB 风格字段名 created_uid.
+     */
+    public function setCreatedUid(null|int|string $createdUid): self
+    {
+        return $this->setCreator($createdUid);
     }
 
     public function getCreatedAt(): DateTime
     {
+        if (! isset($this->createdAt)) {
+            $this->createdAt = new DateTime();
+        }
         return $this->createdAt;
     }
 
-    public function setCreatedAt(DateTime|string $createdAt): self
+    public function setCreatedAt(null|DateTime|string $createdAt): self
     {
-        is_string($createdAt) && $createdAt = DateTime::createFromFormat('Y-m-d H:i:s', $createdAt);
+        if ($createdAt === null || $createdAt === '') {
+            $createdAt = new DateTime();
+        }
+        if (is_string($createdAt)) {
+            try {
+                $createdAt = new DateTime($createdAt);
+            } catch (Throwable) {
+                $createdAt = new DateTime();
+            }
+        }
         $this->createdAt = $createdAt;
         return $this;
     }
@@ -323,20 +355,45 @@ class KnowledgeBaseFragmentEntity extends AbstractKnowledgeBaseEntity
         return $this->modifier;
     }
 
-    public function setModifier(string $modifier): self
+    public function setModifier(null|int|string $modifier): self
     {
-        $this->modifier = $modifier;
+        $this->modifier = (string) ($modifier ?? '');
         return $this;
+    }
+
+    public function getUpdatedUid(): string
+    {
+        return $this->modifier;
+    }
+
+    /**
+     * 兼容 RPC / DB 风格字段名 updated_uid.
+     */
+    public function setUpdatedUid(null|int|string $updatedUid): self
+    {
+        return $this->setModifier($updatedUid);
     }
 
     public function getUpdatedAt(): DateTime
     {
+        if (! isset($this->updatedAt)) {
+            $this->updatedAt = new DateTime();
+        }
         return $this->updatedAt;
     }
 
-    public function setUpdatedAt(DateTime|string $updatedAt): self
+    public function setUpdatedAt(null|DateTime|string $updatedAt): self
     {
-        is_string($updatedAt) && $updatedAt = DateTime::createFromFormat('Y-m-d H:i:s', $updatedAt);
+        if ($updatedAt === null || $updatedAt === '') {
+            $updatedAt = new DateTime();
+        }
+        if (is_string($updatedAt)) {
+            try {
+                $updatedAt = new DateTime($updatedAt);
+            } catch (Throwable) {
+                $updatedAt = new DateTime();
+            }
+        }
         $this->updatedAt = $updatedAt;
         return $this;
     }

@@ -1,5 +1,34 @@
-
+ARG GOLANG_VERSION=1.26
 ARG BASE_IMAGE=ghcr.io/dtyq/php-dockerfile:8.4-alpine-3.23-swow-ci-jsonpath-parle-xlswriter
+FROM --platform=$BUILDPLATFORM golang:${GOLANG_VERSION}-alpine AS go-builder
+
+ARG TARGETARCH
+ARG APK_MIRROR=mirrors.aliyun.com
+ARG GOPROXY=https://goproxy.cn,direct
+
+ENV GOPROXY=${GOPROXY}
+
+WORKDIR /src/go-engine
+
+RUN --mount=type=cache,id=alpine-apk-go-${GOLANG_VERSION}-${TARGETARCH},target=/var/cache/apk \
+    sed -i.bak "s/dl-cdn.alpinelinux.org/${APK_MIRROR}/g" /etc/apk/repositories && \
+    apk update && \
+    apk add \
+        build-base \
+        git \
+    && \
+    mv /etc/apk/repositories.bak /etc/apk/repositories
+
+COPY go-engine/go.mod go-engine/go.sum ./
+RUN --mount=type=cache,id=go-mod-${GOLANG_VERSION}-${TARGETARCH},target=/go/pkg/mod \
+    --mount=type=cache,id=go-build-${GOLANG_VERSION}-${TARGETARCH},target=/root/.cache/go-build \
+    go mod download
+
+COPY go-engine/ ./
+RUN --mount=type=cache,id=go-mod-${GOLANG_VERSION}-${TARGETARCH},target=/go/pkg/mod \
+    --mount=type=cache,id=go-build-${GOLANG_VERSION}-${TARGETARCH},target=/root/.cache/go-build \
+    CGO_ENABLED=0 GOOS=linux GOARCH=${TARGETARCH:-amd64} go build -o /tmp/magic-go-engine .
+
 FROM ${BASE_IMAGE}
 
 ARG TARGETARCH
@@ -35,6 +64,7 @@ RUN --mount=type=cache,id=alpine-apk-3.23-${TARGETARCH},target=/var/cache/apk \
     mv /etc/apk/repositories.bak /etc/apk/repositories
 
 COPY . /opt/www
+COPY --from=go-builder /tmp/magic-go-engine /opt/www/bin/magic-go-engine
 
 WORKDIR /opt/www
 

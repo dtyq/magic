@@ -17,6 +17,9 @@ use Hyperf\Snowflake\Concern\Snowflake;
  * @property int $id 主键ID
  * @property string $organization_code 组织编码
  * @property string $knowledge_base_code 知识库编码
+ * @property int $source_binding_id 来源绑定ID
+ * @property int $source_item_id 来源项ID
+ * @property bool $auto_added 是否自动加入
  * @property string $name 文档名称
  * @property string $code 文档编码
  * @property int $version 版本号
@@ -24,8 +27,6 @@ use Hyperf\Snowflake\Concern\Snowflake;
  * @property int $doc_type 文档类型
  * @property array $doc_metadata 文档元数据
  * @property DocumentFileInterface $document_file 文档文件信息
- * @property string $third_platform_type 第三方平台类型
- * @property string $third_file_id 第三方文件ID
  * @property int $sync_status 同步状态
  * @property int $sync_times 同步次数
  * @property string $sync_status_message 同步状态消息
@@ -68,6 +69,9 @@ class KnowledgeBaseDocumentModel extends Model
     protected array $fillable = [
         'organization_code',
         'knowledge_base_code',
+        'source_binding_id',
+        'source_item_id',
+        'auto_added',
         'name',
         'description',
         'code',
@@ -76,8 +80,6 @@ class KnowledgeBaseDocumentModel extends Model
         'doc_type',
         'doc_metadata',
         'document_file',
-        'third_platform_type',
-        'third_file_id',
         'sync_status',
         'sync_times',
         'sync_status_message',
@@ -97,8 +99,11 @@ class KnowledgeBaseDocumentModel extends Model
      */
     protected array $casts = [
         'id' => 'integer',
+        'source_binding_id' => 'integer',
+        'source_item_id' => 'integer',
         'version' => 'integer',
         'enabled' => 'boolean',
+        'auto_added' => 'boolean',
         'doc_type' => 'integer',
         'doc_metadata' => 'json',
         'document_file' => 'json',

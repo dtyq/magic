@@ -1,6 +1,7 @@
 ---
 tools:
   - web_search
+  - search_knowledge
   - read_webpages_as_markdown
   - run_python_snippet
   - write_file

@@ -1,0 +1,373 @@
+# 除非用户明确要求，否则禁止 AI 修改本配置文件
+version: "2" # 配置文件版本：使用 golangci-lint v2 的新语法
+
+linters:
+  default: standard # 默认启用官方标准规则集，控制噪声，保持通用最佳实践
+  enable:
+    - errcheck # 确保错误被处理，避免关键错误被忽略
+    - errorlint # 统一错误包装/解包与比较方式，符合 Go1.13 错误语义
+    - govet # Go 官方 vet 分析
+    - ineffassign # 检测无效赋值（赋值后未使用）
+    - staticcheck # 高价值静态分析（正确性/性能/简化）
+    - unused # 未使用的常量、变量、函数、类型等（包级别分析，无法检测跨包的不可达导出符号）
+    # 注意：deadcode 已从 golangci-lint 移除，推荐使用 golang.org/x/tools/cmd/deadcode 工具
+    # - unused：包级别分析，检测包内未使用的标识符（常量/变量/函数/类型），快速但有局限
+    # - deadcode 工具：全局分析，检测跨包的不可达代码（如 internal 包中未被任何地方调用的导出函数）
+    # 两者互补：unused 用于日常快速检查，deadcode 用于深度清理（已集成到 Makefile 的 lint 命令）
+    - goconst # 重复字面量建议提取为常量
+    - gocritic # 额外的代码问题提示（覆盖 Bug/性能/风格，噪声较低）
+    - bodyclose # HTTP 响应体是否正确关闭，避免资源泄漏
+    - prealloc # 切片可预分配提示
+    - rowserrcheck # database/sql Rows.Err 是否被检查
+    - sqlclosecheck # SQL 相关资源是否正确关闭
+    - noctx # 检查缺少 context 的调用
+    - contextcheck # 检查不当或未传递的 context
+    - unconvert # 去掉不必要的类型转换
+    - misspell # 英文拼写问题
+    - revive # 现代化的风格/可读性规则（可逐步治理）
+    - importas # 统一 import 别名，避免混用
+    - tagliatelle # 结构体 tag 风格规范
+    - nilerr # 避免返回 nil error 等误导场景
+    - nilnil # 避免返回 (nil, nil) 之类可疑组合
+    - nolintlint # 约束 //nolint 的使用，避免滥用
+    - gosec # 常见安全问题扫描（按需逐步消音）
+    - cyclop # 检查圈复杂度，控制代码复杂性
+    - mnd # 检查魔法数字(magic number)，提醒提取常量
+    - nestif # 检查嵌套 if 深度，鼓励早返回
+    - testpackage # 要求测试文件使用单独的 package，保证测试隔离性
+    - gochecknoglobals # 禁止使用全局变量，维护代码的纯函数性
+    - dupl # 检查重复代码，促进代码复用和重构
+    - funlen # 检查函数长度，限制函数行数
+    # - gocyclo # 移除，避免与 cyclop 重复
+    - nakedret # 检查裸返回（return 不带返回值）
+    - ireturn # 禁止函数返回 interface 类型，强制返回具体类型
+    # 新增推荐检查器
+    - sloglint # slog 日志键值对检查（项目已使用 slog）
+    - predeclared # 避免遮蔽内置标识符
+    - exhaustive # 枚举 switch 完整性检查
+    - err113 # 强制静态错误定义（哨兵错误）
+    - durationcheck # 时间乘法检查
+    - errname # 错误命名规范
+    - forcetypeassert # 强制安全类型断言
+    - intrange # Go 1.22+ 整数 range 语法
+    - containedctx # 检查 struct 持有 context（反模式）
+    - unparam # 检测未使用的函数参数
+    # 错误包装检查
+    - wrapcheck # 确保错误正确包装，DDD 中错误上下文很重要
+    # 测试相关检查器
+    - testifylint # testify 断言规范检查
+    - tparallel # 并行测试检查，提升 CI 效率
+    # 依赖管理
+    - gomodguard # 控制不希望引入的依赖
+    - forbidigo # 禁止使用 fmt.Print*，强制 slog，防止脏代码残留
+    - gochecknoinits # 避免 init() 副作用，强制显式初始化
+    - promlinter # 检查 Prometheus 指标定义正确性
+    - interfacebloat # 防止接口方法过多，鼓励小接口
+    - whitespace # 强制清晰的代码空行结构
+    - asasalint # 检查 any/可变参数传递的常见错误
+    - unqueryvet # 检查 SELECT * 等 SQL 反模式，减少无谓扫描和性能风险
+    - bidichk # 检查危险的双向 Unicode 控制字符，降低混淆攻击风险
+    - fatcontext # 检查循环/闭包中不当派生 context 的问题
+    - modernize # 利用 Go 1.26 特性给出更现代化的简化建议
+    - errchkjson # 检查 JSON 编解码相关的错误处理问题
+    - thelper # 检查测试辅助函数是否正确标记 t.Helper()
+    - gocheckcompilerdirectives # 检查 //go: 编译器指令是否合法
+
+  disable:
+
+    # 风格/收益较低/非当前关注点的检查器
+
+    - asciicheck # 允许非 ASCII 标识符/字符串，团队不强制
+    - canonicalheader # 规范 http.Header 风格，非当前关注点
+    - decorder # 声明顺序/数量风格，暂不强制
+    - dogsled # 对多重赋值容忍度较高
+    - dupword # 注释/字符串重复词，噪声较高
+    - exhaustruct # 结构体字段全初始化，噪声较大
+    - ginkgolinter # 未使用 ginkgo 测试框架
+
+    - gochecksumtype # sum type 场景较少
+    - gocognit # 已由 cyclop/gocyclo 控制复杂度
+    - godot # 注释句点风格偏好，噪声较大
+    - godox # 允许 TODO/FIXME 作为工作线索
+    # gofmt/gofumpt/goimports 是 formatter，见下方 formatters 配置
+    - goheader # 无统一文件头模板要求
+    - gomoddirectives # 暂不强制 go.mod 指令的规范
+    - goprintffuncname # printf 风格函数命名非强制
+    - gosmopolitan # i18n/l10n 非当前关注点
+    - grouper # 表达式分组风格，收益有限
+    - iface # 接口误用建议噪声较大
+    - inamedparam # 接口参数未命名约束过严
+
+    - lll # 行宽不强制限制
+    - loggercheck # 日志库多样，暂不强制键值对规范
+    - maintidx # 可维护性指数主观性强
+    - makezero # make 长度为 0 的风格偏好
+    - mirror # 小众规则，收益有限
+    - musttag # 强制 tag 的约束不统一
+    - nilnesserr # 对错误判空的派生规则，噪声较大
+    - nlreturn # return 前空行风格偏好
+    - nonamedreturns # 具名返回值不一刀切限制
+    - nosprintfhostport # 小众误用检查
+    - paralleltest # 测试不强制并行
+    - perfsprint # 字符串格式化微优化
+
+    - protogetter # 依赖 protobuf 生成风格，暂不启用
+    - reassign # 包级变量允许重赋值
+    - recvcheck # 方法接收者约束非当前重点
+    - spancheck # 链路追踪相关，非当前重点
+    - tagalign # 结构体 tag 对齐噪声较大，交给 formatter
+    - testableexamples # 示例可测试性非必须
+    - usestdlibvars # 建议使用标准库变量/常量，收益有限
+    - usetesting # testing 包替换建议
+    - varnamelen # 变量名长度偶发噪声
+    - wastedassign # 多由 staticcheck/ineffassign 覆盖
+
+    - wsl # 空行风格偏好
+    - zerologlint # 仅在统一使用 zerolog 时开启
+    
+    # 已弃用（deprecated）检查器说明：这些已被 golangci-lint 停用（deactivated），不再属于“支持的 linters”。
+    # 如需参考：deadcode, execinquery, exhaustivestruct, exportloopref, golint, gomnd, ifshort,
+    # interfacer, maligned, nosnakecase, scopelint, structcheck, tenv, varcheck。
+  settings:
+    funlen:
+      lines: 80
+      statements: 50
+
+    revive:
+      severity: warning
+      rules:
+        - name: atomic
+        - name: error-return
+        - name: error-strings
+        - name: errorf
+        - name: exported
+        - name: if-return
+        - name: increment-decrement
+        - name: indent-error-flow
+        - name: package-comments
+        - name: range
+        - name: receiver-naming
+        - name: redefines-builtin-id
+        - name: superfluous-else
+        - name: time-equal
+        - name: var-declaration
+        - name: var-naming
+          arguments:
+            - ["ID", "URL", "HTTP", "HTTPS", "API", "JSON", "XML", "YAML", "SQL", "DTO", "VO", "DO", "PO", "DAO", "UUID", "URI", "DB", "OS", "VM"]
+        - name: unexported-return
+        - name: waitgroup-by-value
+        - name: struct-tag
+        - name: argument-limit
+          severity: warning
+          arguments: [6]
+        - name: function-result-limit
+          severity: warning
+          arguments: [4]
+        - name: cognitive-complexity
+          severity: warning
+          arguments: [25]
+        - name: blank-imports
+        - name: context-as-argument
+        - name: context-keys-type
+        - name: dot-imports
+        - name: empty-block
+        - name: error-naming
+        - name: unused-parameter
+          disabled: true
+        - name: unused-receiver
+          disabled: true
+        - name: add-constant
+          disabled: true
+        - name: line-length-limit
+          disabled: true
+        - name: max-public-structs
+          disabled: true
+        - name: file-header
+          disabled: true
+
+    cyclop:
+      max-complexity: 20
+
+    nakedret:
+      max-func-lines: 0
+
+    ireturn:
+      allow:
+        - anon
+        - error
+        - empty
+        - stdlib
+        - Client$
+        - SessionWith.*
+        - (er|or)$
+        - Repository$
+
+    importas:
+      alias:
+        - pkg: context
+          alias: ctx
+        - pkg: net/http
+          alias: http
+        - pkg: encoding/json
+          alias: json
+        - pkg: database/sql
+          alias: sql
+        - pkg: github.com/stretchr/testify/require
+          alias: require
+        - pkg: github.com/stretchr/testify/assert
+          alias: assert
+
+    sloglint:
+      key-naming-case: snake
+      no-mixed-args: true
+      no-raw-keys: true
+
+    exhaustive:
+      default-signifies-exhaustive: true
+      ignore-enum-members: ""
+      ignore-enum-types: ""
+      package-scope-only: false
+
+    unparam:
+      check-exported: false
+
+    unused:
+      # unused linter 仅做包级别分析，无法检测跨包的不可达导出符号
+      # 例如：internal/domain 包中定义的 NewXXX 函数，如果没有被任何其他包调用，unused 不会报错
+      # 这种情况需要使用 golang.org/x/tools/cmd/deadcode 工具进行全局分析（已集成到 make lint）
+      
+      # Mark all struct fields that have been written to as used.
+      field-writes-are-uses: true
+      # Treat IncDec statement (e.g. `i++` or `i--`) as both read and write operation instead of just write.
+      post-statements-are-reads: false
+      # Mark all exported fields as used.
+      # 设置为 false 以检查未使用的导出字段（仅限包内检测）
+      exported-fields-are-used: false
+      # Mark all function parameters as used.
+      parameters-are-used: true
+      # Mark all local variables as used.
+      local-variables-are-used: true
+      # Mark all identifiers inside generated files as used.
+      generated-is-used: true
+
+    gosec:
+      severity: medium
+      confidence: medium
+      excludes:
+        - G304 # file path provided as a variable (tool/analyzer scenarios are safe here)
+
+    gocritic:
+      # 注意：hugeParam 和 rangeValCopy 在新版本中已默认禁用，无需配置
+      # disabled-checks:
+      #   - xxxxx  # 如需禁用其他检查项可在此添加
+
+    dupl:
+      threshold: 150
+
+    mnd:
+      ignored-numbers:
+        - '0,1,2,3,5,10,60,100,200,400,500,1000'
+      ignored-functions:
+        - time.Sleep
+        - strings.SplitN
+
+    gomodguard:
+      blocked:
+        modules:
+          - github.com/pkg/errors:
+              recommendations:
+                - errors
+                - fmt
+              reason: "使用标准库 errors 包，避免引入第三方依赖"
+
+    forbidigo:
+      # 禁止 panic 与 fmt.Print* 系列函数，运行时错误统一走 error/slog
+      forbid:
+        - pattern: '^panic$'
+          msg: 'return error instead of panic'
+        - pattern: '^fmt\.Print$'
+          msg: 'use slog logger instead of fmt.Print'
+        - pattern: '^fmt\.Println$'
+          msg: 'use slog logger instead of fmt.Println'
+        - pattern: '^fmt\.Printf$'
+          msg: 'use slog logger instead of fmt.Printf'
+
+    testifylint:
+      enable-all: false
+      disable:
+        - float-compare
+        - go-require
+
+    # tagliatelle 规则将后续逐步收敛后再开启 YAML 校验
+    tagliatelle:
+      case:
+        rules:
+          json: snake
+          bson: snake
+          form: snake
+          uri: snake
+          query: snake
+          header: kebab
+
+# Formatters 配置说明：
+# - 开发时使用 `make fmt` 快速格式化（独立的 gofumpt 和 gci 工具）
+# - CI/Lint 时使用 golangci-lint 检查格式是否符合规范
+# - golangci-lint 默认只检查不修复，需要修复时使用 `golangci-lint run --fix`
+formatters:
+  enable:
+    - gofumpt  # 增强版 gofmt，更严格的格式化规则
+    - gci      # 导入语句分组和排序
+  settings:
+    gofumpt:
+      # 模块路径，用于判断本地包
+      module-path: magic
+      # 启用额外规则（如：移除空行、简化复合字面量等）
+      extra-rules: true
+    
+    gci:
+      # 导入分组定义（按顺序排列）
+      sections:
+        - standard       # 标准库（如 fmt, context 等）
+        - default        # 第三方库（如 github.com/xxx）
+        - prefix(magic)  # 本项目的包
+      # 自定义导入分组顺序（如果为 false，则使用默认顺序）
+      custom-order: true
+      # 禁止行内注释（import 语句后的注释）
+      no-inline-comments: false  # 允许 import 后的注释，用于说明特殊依赖
+      # 禁止前缀注释（import 语句上方的注释）
+      no-prefix-comments: false  # 允许 import 组的说明注释
+
+
+issues:
+  max-issues-per-linter: 0 # 单个 linter 问题上限（0 表示不限制）
+  max-same-issues: 0 # 同文本问题上限（0 表示不限制）
+  uniq-by-line: true # 以行号去重，更贴近实际修改
+  new: false # 检查所有问题，不只是增量
+  # new-from-merge-base: main # 与主分支的共同祖先作为基线
+  whole-files: true # 对变更文件按整文件判断增量问题
+  fix: false # 不自动修复，避免 CI 写文件；本地可使用 --fix
+
+output:
+  # 使用标准输出，不写文件。IDE/CI 默认即可解析
+  path-mode: "abs" # 输出绝对路径，便于 IDE 跳转
+  # 启用排序功能以使用 sort-order
+  sort-order:
+    - linter
+    - severity
+    - file # 文件路径、行、列
+  show-stats: true # 展示各 linter 的统计信息
+
+run:
+  timeout: 5m # 总超时时间
+  relative-path-mode: gomod # 相对路径以 go.mod 目录为基准
+  issues-exit-code: 1 # 有问题时的退出码（CI 常用 1）
+  tests: true # 分析测试文件，确保测试代码质量
+  modules-download-mode: readonly # 不改动 go.mod/go.sum
+  allow-parallel-runners: true # 允许并行运行实例
+  go: '1.26' # 与 go.mod 保持一致
+  concurrency: 0 # 自动根据 CPU/容器配额选择并发度
+  build-tags: [] # 如需自定义 build tags 可在此添加
+
+severity:
+  # v2 需要显式声明 default 才能使用 rules；也可仅设置 default
+  default: error # 统一默认级别为 error（可按需改 linter 层级）

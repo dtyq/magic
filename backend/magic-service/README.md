@@ -119,8 +119,18 @@ composer test
 项目提供了 Dockerfile，可以使用以下命令构建镜像：
 
 ```bash
+make dev
+
+# 或只构建 Docker 目标二进制
+make go-build
+# 或者构建 arm64 产物
+TARGETARCH=arm64 make go-build
 docker build -t magic-service .
 ```
+
+说明：
+- `make dev` 会基于 `magic-service/go-engine` 源码在本地默认以 `darwin/arm64` 构建并运行 `magic-service/bin/magic-go-engine`，Go 配置文件固定为 `magic-service/magic-go-engine-config.yaml`。
+- `make go-build` 会基于 `magic-service/go-engine` 源码生成 Docker 目标二进制 `magic-service/bin/magic-go-engine`，默认目标平台是 `linux/amd64`，可通过 `TARGETARCH=arm64` 覆盖。
 
 ## 贡献指南
 
@@ -133,4 +143,3 @@ docker build -t magic-service .
 ## 许可证
 
 该项目采用 MIT 许可证 - 详情请查看 LICENSE 文件
-

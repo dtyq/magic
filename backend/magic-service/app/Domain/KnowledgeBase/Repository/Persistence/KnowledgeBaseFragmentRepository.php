@@ -104,11 +104,8 @@ class KnowledgeBaseFragmentRepository extends KnowledgeBaseAbstractRepository im
         if ($query->getKnowledgeCode()) {
             $builder->where('knowledge_code', $query->getKnowledgeCode());
         }
-        if ($query->getDocumentCode() || $query->isDefaultDocumentCode()) {
-            $documentCodes = [$query->getDocumentCode()];
-            // 兼容旧知识库片段，因为旧的知识库没有文档概念，如果是默认文档，就把旧知识库片段一起查出来
-            $query->isDefaultDocumentCode() && $documentCodes[] = '';
-            $builder->whereIn('document_code', $documentCodes);
+        if ($query->getDocumentCode()) {
+            $builder->where('document_code', $query->getDocumentCode());
         }
         if (! is_null($query->getSyncStatus())) {
             $builder->where('sync_status', $query->getSyncStatus());
@@ -260,20 +257,6 @@ class KnowledgeBaseFragmentRepository extends KnowledgeBaseAbstractRepository im
         }
 
         return $statusMap;
-    }
-
-    public function getFragmentsByEmptyDocumentCode(KnowledgeBaseDataIsolation $dataIsolation, ?int $lastId = null, int $pageSize = 500): array
-    {
-        $builder = $this->createBuilder($dataIsolation, KnowledgeBaseFragmentsModel::query());
-        $res = $builder->where('document_code', '')
-            ->when($lastId, function ($builder) use ($lastId) {
-                return $builder->where('id', '<', $lastId);
-            })
-            ->limit($pageSize)
-            ->orderBy('id', 'desc')
-            ->get()
-            ->toArray();
-        return array_map(fn (array $item) => (new KnowledgeBaseFragmentEntity($item))->setCreator($item['created_uid']), $res);
     }
 
     public function upsertById(KnowledgeBaseDataIsolation $dataIsolation, array $fragmentEntities): void

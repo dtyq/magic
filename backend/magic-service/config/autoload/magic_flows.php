@@ -5,11 +5,13 @@ declare(strict_types=1);
  * Copyright (c) The Magic , Distributed under the software license
  */
 return [
-    'default_embedding_model' => 'dmeta-embedding',
+    // 知识库默认嵌入模型
+    'default_embedding_model' => env('KNOWLEDGE_BASE_DEFAULT_EMBEDDING_MODEL', 'text-embedding-3-small'),
+
     'vector' => [
         'odin_qdrant' => [
-            'base_uri' => \Hyperf\Support\env('ODIN_QDRANT_BASE_URI', 'http://127.0.0.1:6333'),
-            'api_key' => \Hyperf\Support\env('ODIN_QDRANT_API_KEY', ''),
+            'base_uri' => env('ODIN_QDRANT_BASE_URI', 'http://127.0.0.1:6333'),
+            'api_key' => env('ODIN_QDRANT_API_KEY', ''),
         ],
     ],
 

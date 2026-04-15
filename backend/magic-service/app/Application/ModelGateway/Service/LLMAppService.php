@@ -31,6 +31,7 @@ use App\Domain\ModelGateway\Entity\ModelConfigEntity;
 use App\Domain\ModelGateway\Entity\MsgLogEntity;
 use App\Domain\ModelGateway\Entity\ValueObject\LLMDataIsolation;
 use App\Domain\ModelGateway\Entity\ValueObject\ModelGatewayDataIsolation;
+use App\Domain\ModelGateway\Entity\ValueObject\ModelListType;
 use App\Domain\ModelGateway\Event\ImageGeneratedEvent;
 use App\Domain\Provider\Entity\ValueObject\AiAbilityCode;
 use App\Domain\Provider\Entity\ValueObject\ProviderDataIsolation;
@@ -115,15 +116,20 @@ class LLMAppService extends AbstractLLMAppService
     /**
      * @return array<ModelConfigEntity>
      */
-    public function models(string $accessToken, bool $withInfo = false, string $type = '', array $businessParams = [], bool $withDynamicModels = false): array
-    {
+    public function models(
+        string $accessToken,
+        bool $withInfo = false,
+        ModelListType $type = ModelListType::ALL,
+        array $businessParams = [],
+        bool $withDynamicModels = false
+    ): array {
         $dataIsolation = $this->createModelGatewayDataIsolationByAccessToken($accessToken, $businessParams);
 
         $models = match ($type) {
-            'chat' => $this->modelGatewayMapper->getChatModels($dataIsolation, $withDynamicModels),
-            'embedding' => $this->modelGatewayMapper->getEmbeddingModels($dataIsolation, $withDynamicModels),
-            'image' => $this->modelGatewayMapper->getImageModels($dataIsolation, $withDynamicModels),
-            'video' => $this->modelGatewayMapper->getVideoModels($dataIsolation, $withDynamicModels),
+            ModelListType::CHAT => $this->modelGatewayMapper->getChatModels($dataIsolation, $withDynamicModels),
+            ModelListType::EMBEDDING => $this->modelGatewayMapper->getEmbeddingModels($dataIsolation, $withDynamicModels),
+            ModelListType::IMAGE => $this->modelGatewayMapper->getImageModels($dataIsolation, $withDynamicModels),
+            ModelListType::VIDEO => $this->modelGatewayMapper->getVideoModels($dataIsolation, $withDynamicModels),
             default => $this->modelGatewayMapper->getAllModels($dataIsolation, $withDynamicModels),
         };
 

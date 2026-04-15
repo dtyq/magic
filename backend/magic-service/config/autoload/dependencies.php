@@ -15,6 +15,7 @@ use App\Application\Flow\ExecuteManager\NodeRunner\ReplyMessage\Struct\BaseMessa
 use App\Application\Flow\ExecuteManager\NodeRunner\ReplyMessage\Struct\MessageAttachmentHandlerInterface;
 use App\Application\Kernel\Contract\MagicPermissionInterface;
 use App\Application\Kernel\MagicPermission;
+use App\Application\KnowledgeBase\Port\EmbeddingProviderPort;
 use App\Application\KnowledgeBase\Service\Strategy\DocumentFile\Driver\ExternalFileDocumentFileStrategyDriver;
 use App\Application\KnowledgeBase\Service\Strategy\DocumentFile\Driver\Interfaces\ExternalFileDocumentFileStrategyInterface;
 use App\Application\KnowledgeBase\Service\Strategy\DocumentFile\Driver\Interfaces\ThirdPlatformDocumentFileStrategyInterface;
@@ -133,6 +134,9 @@ use App\Domain\KnowledgeBase\Entity\ValueObject\DocumentFile\ExternalDocumentFil
 use App\Domain\KnowledgeBase\Entity\ValueObject\DocumentFile\Interfaces\ExternalDocumentFileInterface;
 use App\Domain\KnowledgeBase\Entity\ValueObject\DocumentFile\Interfaces\ThirdPlatformDocumentFileInterface;
 use App\Domain\KnowledgeBase\Entity\ValueObject\DocumentFile\ThirdPlatformDocumentFile;
+use App\Domain\KnowledgeBase\Port\DocumentGateway;
+use App\Domain\KnowledgeBase\Port\FragmentGateway;
+use App\Domain\KnowledgeBase\Port\KnowledgeBaseGateway;
 use App\Domain\KnowledgeBase\Repository\Facade\KnowledgeBaseDocumentRepositoryInterface;
 use App\Domain\KnowledgeBase\Repository\Facade\KnowledgeBaseFragmentRepositoryInterface;
 use App\Domain\KnowledgeBase\Repository\Facade\KnowledgeBaseRepositoryInterface;
@@ -265,6 +269,12 @@ use App\Infrastructure\ModelGateway\Queue\RedisQueueCoreRepository;
 use App\Infrastructure\ModelGateway\Queue\RedisVideoQueueOperationRepository;
 use App\Infrastructure\ModelGateway\QueueExecutorConfigRepository;
 use App\Infrastructure\Repository\LongTermMemory\MySQLLongTermMemoryRepository;
+use App\Infrastructure\Rpc\JsonRpc\Client\Knowledge\DocumentRpcClient;
+use App\Infrastructure\Rpc\JsonRpc\Client\Knowledge\FragmentRpcClient;
+use App\Infrastructure\Rpc\JsonRpc\Client\Knowledge\KnowledgeBaseRpcClient;
+use App\Infrastructure\Rpc\JsonRpc\Client\ModelGateway\EmbeddingRpcClient;
+use App\Infrastructure\Rpc\Protocol\Contract\DataFormatterInterface;
+use App\Infrastructure\Rpc\Protocol\JsonDataFormatter;
 use App\Infrastructure\Util\Auth\Permission\Permission;
 use App\Infrastructure\Util\Auth\Permission\PermissionInterface;
 use App\Infrastructure\Util\Client\SimpleClientFactory;
@@ -358,6 +368,10 @@ $dependencies = [
 
     // knowledge-base
     KnowledgeBaseRepositoryInterface::class => KnowledgeBaseBaseRepository::class,
+    KnowledgeBaseGateway::class => KnowledgeBaseRpcClient::class,
+    DocumentGateway::class => DocumentRpcClient::class,
+    FragmentGateway::class => FragmentRpcClient::class,
+    EmbeddingProviderPort::class => EmbeddingRpcClient::class,
     KnowledgeBaseDocumentRepositoryInterface::class => KnowledgeBaseDocumentRepository::class,
     KnowledgeBaseFragmentRepositoryInterface::class => KnowledgeBaseFragmentRepository::class,
 
@@ -454,6 +468,9 @@ $dependencies = [
 
     // 登录校验
     SessionInterface::class => SessionAppService::class,
+
+    // ipc
+    DataFormatterInterface::class => JsonDataFormatter::class,
 
     // token 扩展字段
     MagicTokenExtraInterface::class => MagicTokenExtra::class,

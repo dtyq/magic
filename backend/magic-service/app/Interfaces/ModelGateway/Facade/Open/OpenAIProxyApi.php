@@ -15,6 +15,7 @@ use App\Domain\ModelGateway\Entity\Dto\ImageSearchRequestDTO;
 use App\Domain\ModelGateway\Entity\Dto\SearchRequestDTO;
 use App\Domain\ModelGateway\Entity\Dto\TextGenerateImageDTO;
 use App\Domain\ModelGateway\Entity\Dto\WebScrapeRequestDTO;
+use App\Domain\ModelGateway\Entity\ValueObject\ModelListType;
 use App\Infrastructure\ExternalAPI\ImageGenerateAPI\Response\OpenAIFormatResponse;
 use App\Interfaces\ModelGateway\Assembler\LLMAssembler;
 use Hyperf\Di\Annotation\Inject;
@@ -71,8 +72,8 @@ class OpenAIProxyApi extends AbstractOpenApi
     {
         $accessToken = $this->getAccessToken();
         $withInfo = (bool) $this->request->input('with_info', false);
-        $type = $this->request->input('type', '');
         $withDynamicModels = (bool) $this->request->input('with_dynamic_models', false);
+        $type = ModelListType::fromRequest($this->request->input('type', ''));
         $businessParams = $this->getBusinessParamsFromContext();
 
         $list = $this->llmAppService->models($accessToken, $withInfo, $type, $businessParams, withDynamicModels: $withDynamicModels);

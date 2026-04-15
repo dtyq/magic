@@ -3,3 +3,5 @@
 /debug
 .env
 bin/splitsh-lite
+/backend/magic-service/go-engine/bin/
+/backend/magic-service/bin/magic-go-engine

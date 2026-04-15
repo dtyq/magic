@@ -1,0 +1,11 @@
+domain:
+  structureSegmentsWhitelist:
+    - service
+    - repository
+  sharedKernelSubdomainsWhitelist:
+    - shared
+
+application:
+  commonSubappsWhitelist:
+    - helper
+    - shared
