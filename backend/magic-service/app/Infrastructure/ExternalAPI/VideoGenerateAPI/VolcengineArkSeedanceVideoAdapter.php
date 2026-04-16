@@ -41,6 +41,27 @@ readonly class VolcengineArkSeedanceVideoAdapter implements VideoGenerationProvi
      */
     private const array SUPPORTED_RESOLUTIONS = ['480p', '720p'];
 
+    /**
+     * 当前接入的 Seedance 1.5 Pro / 2.0 / 2.0 Fast 尺寸表。
+     * 这里用于 featured 能力下发给前端，不参与 provider 请求参数组装。
+     *
+     * @var list<array{label: string, value: string, width: int, height: int, resolution: string}>
+     */
+    private const array SUPPORTED_SIZES = [
+        ['label' => '16:9', 'value' => '864x496', 'width' => 864, 'height' => 496, 'resolution' => '480p'],
+        ['label' => '4:3', 'value' => '752x560', 'width' => 752, 'height' => 560, 'resolution' => '480p'],
+        ['label' => '1:1', 'value' => '640x640', 'width' => 640, 'height' => 640, 'resolution' => '480p'],
+        ['label' => '3:4', 'value' => '560x752', 'width' => 560, 'height' => 752, 'resolution' => '480p'],
+        ['label' => '9:16', 'value' => '496x864', 'width' => 496, 'height' => 864, 'resolution' => '480p'],
+        ['label' => '21:9', 'value' => '992x432', 'width' => 992, 'height' => 432, 'resolution' => '480p'],
+        ['label' => '16:9', 'value' => '1280x720', 'width' => 1280, 'height' => 720, 'resolution' => '720p'],
+        ['label' => '4:3', 'value' => '1112x834', 'width' => 1112, 'height' => 834, 'resolution' => '720p'],
+        ['label' => '1:1', 'value' => '960x960', 'width' => 960, 'height' => 960, 'resolution' => '720p'],
+        ['label' => '3:4', 'value' => '834x1112', 'width' => 834, 'height' => 1112, 'resolution' => '720p'],
+        ['label' => '9:16', 'value' => '720x1280', 'width' => 720, 'height' => 1280, 'resolution' => '720p'],
+        ['label' => '21:9', 'value' => '1470x630', 'width' => 1470, 'height' => 630, 'resolution' => '720p'],
+    ];
+
     public function __construct(
         private VolcengineArkVideoClient $client,
     ) {
@@ -82,6 +103,7 @@ readonly class VolcengineArkSeedanceVideoAdapter implements VideoGenerationProvi
                 'durations' => self::SUPPORTED_DURATIONS,
                 'default_duration_seconds' => self::DEFAULT_DURATION_SECONDS,
                 'resolutions' => self::SUPPORTED_RESOLUTIONS,
+                'sizes' => self::SUPPORTED_SIZES,
                 'default_resolution' => self::DEFAULT_RESOLUTION,
                 'supports_seed' => true,
                 'seed_range' => [-1, 4294967295],

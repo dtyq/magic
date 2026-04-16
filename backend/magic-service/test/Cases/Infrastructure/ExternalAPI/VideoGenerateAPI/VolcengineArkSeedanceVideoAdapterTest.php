@@ -45,6 +45,21 @@ class VolcengineArkSeedanceVideoAdapterTest extends TestCase
         $this->assertSame(['16:9', '4:3', '1:1', '3:4', '9:16', '21:9'], $generation['aspect_ratios']);
         $this->assertSame([4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15], $generation['durations']);
         $this->assertSame(['480p', '720p'], $generation['resolutions']);
+        $this->assertCount(12, $generation['sizes']);
+        $this->assertSame([
+            'label' => '16:9',
+            'value' => '864x496',
+            'width' => 864,
+            'height' => 496,
+            'resolution' => '480p',
+        ], $generation['sizes'][0]);
+        $this->assertSame([
+            'label' => '9:16',
+            'value' => '720x1280',
+            'width' => 720,
+            'height' => 1280,
+            'resolution' => '720p',
+        ], $generation['sizes'][10]);
     }
 
     public function testBuildProviderPayloadMapsGenerateEditAndReferenceInputsWithoutServiceTierForProModel(): void
