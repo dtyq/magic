@@ -192,6 +192,46 @@ class VideoGatewayPayloadBuilderTest extends TestCase
         );
     }
 
+    public function testBuildFormatsPromptForImageReferenceModeWithDuplicateFileNames(): void
+    {
+        $builder = $this->createBuilder(
+            [
+                '/org/project_1001/workspace/1212/images/生成动物世界图_20260118220318 (2).jpg' => 'https://cdn.example.com/image-1.jpg',
+            ],
+        );
+
+        $entity = new DesignGenerationTaskEntity();
+        $entity->setOrganizationCode('org');
+        $entity->setProjectId(1001);
+        $entity->setRequestPayload([
+            'prompt' => '@生成动物世界图_20260118220318 (2).jpg 和 @生成动物世界图_20260118220318 (2).jpg 一起动起来',
+            'input_mode' => 'image_reference',
+            'supports_image_input_url' => true,
+            'inputs' => [
+                'reference_images' => [
+                    ['uri' => '/1212/images/生成动物世界图_20260118220318 (2).jpg'],
+                    ['uri' => '/1212/images/生成动物世界图_20260118220318 (2).jpg'],
+                ],
+            ],
+        ]);
+        $entity->setInputPayload([
+            'reference_images' => [
+                ['uri' => '/1212/images/生成动物世界图_20260118220318 (2).jpg'],
+                ['uri' => '/1212/images/生成动物世界图_20260118220318 (2).jpg'],
+            ],
+        ]);
+
+        $payload = $builder->build($entity);
+
+        $this->assertSame(
+            '素材索引（右侧是用户上传的原始文件名，仅用于标识素材）：' . "\n"
+            . '- 图片1：生成动物世界图_20260118220318 (2).jpg' . "\n\n"
+            . '任务描述（请按素材编号理解下面的引用）：' . "\n"
+            . '@图片1 和 @图片1 一起动起来',
+            $payload['prompt']
+        );
+    }
+
     public function testBuildDoesNotRewritePromptMentionsOutsideReferenceModes(): void
     {
         $builder = $this->createBuilder();
@@ -212,6 +252,60 @@ class VideoGatewayPayloadBuilderTest extends TestCase
         $payload = $builder->build($entity);
 
         $this->assertSame('@生成动物世界图_20260118220318 (2).jpg', $payload['prompt']);
+    }
+
+    public function testBuildKeepsIndependentIndexesWhenDifferentMediaShareSameBaseName(): void
+    {
+        $builder = $this->createBuilder(
+            [
+                '/org/project_1001/workspace/1212/images/素材A.png' => 'https://cdn.example.com/image-a.png',
+                '/org/project_1001/workspace/1212/videos/素材A.mp4' => 'https://cdn.example.com/video-a.mp4',
+                '/org/project_1001/workspace/1212/audios/素材A.mp3' => 'https://cdn.example.com/audio-a.mp3',
+            ],
+        );
+
+        $entity = new DesignGenerationTaskEntity();
+        $entity->setOrganizationCode('org');
+        $entity->setProjectId(1001);
+        $entity->setRequestPayload([
+            'prompt' => '@素材A.mp3 配合 @素材A.mp4 和 @素材A.png',
+            'input_mode' => 'omni_reference',
+            'supports_image_input_url' => true,
+            'inputs' => [
+                'reference_images' => [
+                    ['uri' => '/1212/images/素材A.png'],
+                ],
+                'reference_videos' => [
+                    ['uri' => '/1212/videos/素材A.mp4'],
+                ],
+                'reference_audios' => [
+                    ['uri' => '/1212/audios/素材A.mp3'],
+                ],
+            ],
+        ]);
+        $entity->setInputPayload([
+            'reference_images' => [
+                ['uri' => '/1212/images/素材A.png'],
+            ],
+            'reference_videos' => [
+                ['uri' => '/1212/videos/素材A.mp4'],
+            ],
+            'reference_audios' => [
+                ['uri' => '/1212/audios/素材A.mp3'],
+            ],
+        ]);
+
+        $payload = $builder->build($entity);
+
+        $this->assertSame(
+            '素材索引（右侧是用户上传的原始文件名，仅用于标识素材）：' . "\n"
+            . '- 图片1：素材A.png' . "\n"
+            . '- 视频1：素材A.mp4' . "\n"
+            . '- 音频1：素材A.mp3' . "\n\n"
+            . '任务描述（请按素材编号理解下面的引用）：' . "\n"
+            . '@音频1 配合 @视频1 和 @图片1',
+            $payload['prompt']
+        );
     }
 
     /**

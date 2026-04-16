@@ -17,4 +17,26 @@ return [
             'multiple' => 'Image reference mode: upload 1 to :max_count reference images and a text prompt so AI can blend style, subject, and scene details into a video that closely matches the source images. Example: reference the style of @image 1 and the scene of @image 2 to generate a smooth dynamic video.',
         ],
     ],
+    'errors' => [
+        'generic' => 'Video generation failed. Please check your input and try again later.',
+        'volcengine' => [
+            'InputVideoSensitiveContentDetected' => [
+                'PrivacyInformation' => 'The input video or image may contain a real person or face. Please replace it with non-person content and try again.',
+            ],
+            'ContentSecurity' => [
+                'CopyrightRisk' => 'The content may involve copyright risk. Please remove copyrighted audio or brand, celebrity, or IP references and try again.',
+                'SensitiveContent' => 'The input may contain sensitive content. Please simplify the prompt and remove inappropriate or restricted content before trying again.',
+                'TrademarkRisk' => 'The asset may contain a logo or trademark. Please crop, blur, or replace the marked asset and try again.',
+                'ViolentContent' => 'The input may contain violent or inappropriate content. Please replace it with compliant material and try again.',
+            ],
+            'InvalidParameter' => [
+                'InvalidVideoDuration' => 'The requested video duration is not supported. Please switch to a supported duration and try again.',
+                'InvalidResolution' => 'The requested resolution is not supported. Please use 480p or 720p and try again.',
+                'EmptyInput' => 'No valid image, video, or audio input was found. Please confirm the asset upload succeeded and try again.',
+            ],
+            'InvalidFileFormat' => 'The asset format is not supported. Please use JPG/PNG images, MP4 videos, or MP3/WAV audio files.',
+            'FileSizeTooLarge' => 'The asset file is too large. Please compress the file and try again.',
+            'AudioDurationTooLong' => 'The audio is longer than the target video duration. Please trim the audio and try again.',
+        ],
+    ],
 ];
