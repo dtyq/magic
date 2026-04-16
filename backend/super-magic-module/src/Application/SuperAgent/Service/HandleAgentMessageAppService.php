@@ -12,7 +12,6 @@ use App\Infrastructure\Core\Exception\EventException;
 use App\Infrastructure\Util\Locker\LockerInterface;
 use Dtyq\AsyncEvent\AsyncEventUtil;
 use Dtyq\SuperMagic\Application\SuperAgent\DTO\TaskMessageDTO;
-use Dtyq\SuperMagic\Domain\MagicFS\Service\MagicFSFileDomainService;
 use Dtyq\SuperMagic\Domain\MagicFS\Service\UpsertProjectFileNodeDTO;
 use Dtyq\SuperMagic\Domain\SuperAgent\Constant\AgentEventEnum;
 use Dtyq\SuperMagic\Domain\SuperAgent\Constant\ProjectFileConstant;
@@ -68,7 +67,6 @@ class HandleAgentMessageAppService extends AbstractAppService
         private readonly TopicDomainService $topicDomainService,
         private readonly TaskDomainService $taskDomainService,
         private readonly TaskFileDomainService $taskFileDomainService,
-        private readonly MagicFSFileDomainService $magicFSFileDomainService,
         private readonly TaskMessageDomainService $taskMessageDomainService,
         private readonly FileProcessAppService $fileProcessAppService,
         private readonly ClientMessageAppService $clientMessageAppService,
@@ -775,7 +773,7 @@ class HandleAgentMessageAppService extends AbstractAppService
                     ? StorageType::SNAPSHOT->value
                     : StorageType::WORKSPACE->value;
                 $taskFileEntity = $this->convertAttachmentToTaskFileEntity($attachment, $task, $dataIsolation, $type);
-                $savedEntity = $this->magicFSFileDomainService->upsertProjectFileNode(
+                $savedEntity = $this->taskFileDomainService->upsertProjectFileNode(
                     new UpsertProjectFileNodeDTO(
                         projectId: $projectEntity->getId(),
                         projectWorkDir: $projectEntity->getWorkDir(),

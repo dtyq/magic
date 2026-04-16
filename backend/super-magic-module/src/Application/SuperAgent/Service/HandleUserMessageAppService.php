@@ -23,7 +23,6 @@ use App\Infrastructure\Util\IdGenerator\IdGenerator;
 use Dtyq\AsyncEvent\AsyncEventUtil;
 use Dtyq\SuperMagic\Application\SuperAgent\DTO\TaskMessageDTO;
 use Dtyq\SuperMagic\Application\SuperAgent\DTO\UserMessageDTO;
-use Dtyq\SuperMagic\Domain\MagicFS\Service\MagicFSFileDomainService;
 use Dtyq\SuperMagic\Domain\MagicFS\Service\UpsertProjectFileNodeDTO;
 use Dtyq\SuperMagic\Domain\SuperAgent\Constant\ProjectFileConstant;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ProjectEntity;
@@ -42,6 +41,7 @@ use Dtyq\SuperMagic\Domain\SuperAgent\Event\AttachmentsProcessedEvent;
 use Dtyq\SuperMagic\Domain\SuperAgent\Event\RunTaskBeforeEvent;
 use Dtyq\SuperMagic\Domain\SuperAgent\Service\AgentDomainService;
 use Dtyq\SuperMagic\Domain\SuperAgent\Service\TaskDomainService;
+use Dtyq\SuperMagic\Domain\SuperAgent\Service\TaskFileDomainService;
 use Dtyq\SuperMagic\Domain\SuperAgent\Service\TopicDomainService;
 use Dtyq\SuperMagic\ErrorCode\SuperAgentErrorCode;
 use Dtyq\SuperMagic\Infrastructure\ExternalAPI\SandboxOS\Gateway\Constant\SandboxStatus;
@@ -76,7 +76,7 @@ class HandleUserMessageAppService extends AbstractAppService
         private readonly ClientMessageAppService $clientMessageAppService,
         private readonly AgentDomainService $agentDomainService,
         private readonly LongTermMemoryDomainService $longTermMemoryDomainService,
-        private readonly MagicFSFileDomainService $magicFSFileDomainService,
+        private readonly TaskFileDomainService $taskFileDomainService,
         private readonly Redis $redis,
         LoggerFactory $loggerFactory
     ) {
@@ -611,7 +611,7 @@ class HandleUserMessageAppService extends AbstractAppService
                 try {
                     $taskFileEntity = $this->convertAttachmentToTaskFileEntity($attachment, $taskEntity, $dataIsolation);
                     if ($taskFileEntity) {
-                        $upsertedEntity = $this->magicFSFileDomainService->upsertProjectFileNode(
+                        $upsertedEntity = $this->taskFileDomainService->upsertProjectFileNode(
                             new UpsertProjectFileNodeDTO(
                                 projectId: $projectEntity->getId(),
                                 projectWorkDir: $projectEntity->getWorkDir(),

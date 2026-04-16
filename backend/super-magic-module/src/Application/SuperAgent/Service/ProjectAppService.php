@@ -2088,7 +2088,7 @@ class ProjectAppService extends AbstractAppService
         $organizationCode = $dataIsolation->getCurrentOrganizationCode();
         $projectOrganizationCode = $projectEntity->getUserOrganizationCode() ?: $organizationCode;
 
-        $rootId = $this->magicFSFileDomainService->findOrCreateRootDirectory(
+        $rootId = $this->taskFileDomainService->findOrCreateProjectRootDirectory(
             (int) $requestDTO->getProjectId(),
             $workDir,
             (string) $userId,

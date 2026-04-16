@@ -247,7 +247,7 @@ class FileBatchMoveSubscriber extends ConsumerMessage
                 if ($deleteSourceDirAfterChildren) {
                     // Fetch entity before deletion so we can build the DirectoryDeletedEvent
                     $sourceDirEntity = $this->getFileEntityForCache($fileId);
-                    $this->magicFSFileDomainService->deleteFile((string) $fileId, false);
+                    $this->magicFSFileDomainService->deleteFile((string) $fileId);
                     if ($sourceDirEntity !== null) {
                         $dirUserAuth = new MagicUserAuthorization();
                         $dirUserAuth->setId($sourceDirEntity->getUserId());

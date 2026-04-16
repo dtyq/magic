@@ -287,7 +287,7 @@ class FileManagementAppService extends AbstractAppService
             $taskFileEntity->setSort($sortValue);
 
             // 调用领域服务保存文件
-            $savedEntity = $this->magicFSFileDomainService->upsertProjectFileNode(
+            $savedEntity = $this->taskFileDomainService->upsertProjectFileNode(
                 new UpsertProjectFileNodeDTO(
                     projectId: $projectEntity->getId(),
                     projectWorkDir: $projectEntity->getWorkDir(),
@@ -393,7 +393,7 @@ class FileManagementAppService extends AbstractAppService
                     $taskFileEntity = $saveFileRequestDTO->toEntity();
 
                     // 保存文件（不设置排序值）
-                    $savedEntity = $this->magicFSFileDomainService->upsertProjectFileNode(
+                    $savedEntity = $this->taskFileDomainService->upsertProjectFileNode(
                         new UpsertProjectFileNodeDTO(
                             projectId: $projectEntity->getId(),
                             projectWorkDir: $projectEntity->getWorkDir(),
@@ -484,7 +484,7 @@ class FileManagementAppService extends AbstractAppService
 
             // 如果 parent_id 为空，则设置为根目录
             if (empty($parentId)) {
-                $parentId = $this->magicFSFileDomainService->findOrCreateRootDirectory(
+                $parentId = $this->taskFileDomainService->findOrCreateProjectRootDirectory(
                     projectId: $projectId,
                     workDir: $projectEntity->getWorkDir(),
                     userId: $dataIsolation->getCurrentUserId(),
@@ -494,7 +494,7 @@ class FileManagementAppService extends AbstractAppService
             }
 
             if ($ignoreDuplicate) {
-                $existingFileEntity = $this->magicFSFileDomainService->getFileByName(
+                $existingFileEntity = $this->taskFileDomainService->getByProjectParentAndName(
                     projectId: $projectId,
                     parentId: $parentId,
                     fileName: $requestDTO->getFileName(),
@@ -523,7 +523,7 @@ class FileManagementAppService extends AbstractAppService
                 );
             } catch (BusinessException $e) {
                 if ($ignoreDuplicate && $e->getCode() === MagicFSErrorCode::FILE_ALREADY_EXISTS->value) {
-                    $existingFileEntity = $this->magicFSFileDomainService->getFileByName(
+                    $existingFileEntity = $this->taskFileDomainService->getByProjectParentAndName(
                         projectId: $projectId,
                         parentId: $parentId,
                         fileName: $requestDTO->getFileName(),
@@ -592,8 +592,8 @@ class FileManagementAppService extends AbstractAppService
                 $dataIsolation->getCurrentOrganizationCode()
             );
 
-            // 3. 调用 MagicFS 删除（目录默认递归删除子孙文件）
-            $deletedCount = $this->magicFSFileDomainService->deleteFile((string) $fileId);
+            // 3. 调用 MagicFS 删除
+            $this->magicFSFileDomainService->deleteFile((string) $fileId);
 
             // Dispatch appropriate event based on entity type
             if ($fileEntity->getIsDirectory()) {
@@ -609,7 +609,7 @@ class FileManagementAppService extends AbstractAppService
                 ));
             }
 
-            return ['file_id' => $fileId, 'count' => $deletedCount];
+            return ['file_id' => $fileId];
         } catch (BusinessException $e) {
             // 捕获业务异常（ExceptionBuilder::throw 抛出的异常）
             $this->logger->warning(sprintf(
@@ -648,8 +648,8 @@ class FileManagementAppService extends AbstractAppService
                 $dataIsolation->getCurrentOrganizationCode()
             );
 
-            // 3. 调用 MagicFS 删除目录（默认递归删除子孙文件）
-            $deletedCount = $this->magicFSFileDomainService->deleteFile((string) $fileId);
+            // 3. 调用 MagicFS 删除目录
+            $this->magicFSFileDomainService->deleteFile((string) $fileId);
 
             // Dispatch directory deleted event
             $dirUserAuth = new MagicUserAuthorization();
@@ -660,7 +660,6 @@ class FileManagementAppService extends AbstractAppService
             return [
                 'file_id' => $fileId,
                 'project_id' => $fileEntity->getProjectId(),
-                'count' => $deletedCount,
             ];
         } catch (BusinessException $e) {
             // 捕获业务异常（ExceptionBuilder::throw 抛出的异常）
@@ -772,11 +771,10 @@ class FileManagementAppService extends AbstractAppService
                 $dataIsolation->getCurrentOrganizationCode()
             );
 
-            // 3. 调用 MagicFS 重命名
-            $newFileEntity = $this->magicFSFileDomainService->renameFile(
+            // 3. 调用 TaskFileDomainService 重命名（浏览器语义：同名冲突则拒绝）
+            $newFileEntity = $this->taskFileDomainService->renameFileWithCheck(
                 (string) $fileId,
-                $targetName,
-                null  // Super-Agent 场景不需要 task_id
+                $targetName
             );
 
             // Dispatch file renamed event
@@ -855,7 +853,7 @@ class FileManagementAppService extends AbstractAppService
 
             // 4. Handle target parent directory
             if (empty($targetParentId)) {
-                $targetParentId = $this->magicFSFileDomainService->findOrCreateRootDirectory(
+                $targetParentId = $this->taskFileDomainService->findOrCreateProjectRootDirectory(
                     projectId: $targetProject->getId(),
                     workDir: $targetProject->getWorkDir(),
                     userId: $dataIsolation->getCurrentUserId(),
@@ -933,10 +931,9 @@ class FileManagementAppService extends AbstractAppService
 
             // 6. Sync move: same project and same organization without keep-both
             $oldParentId = $fileEntity->getParentId();
-            $updatedFileEntity = $this->magicFSFileDomainService->moveFile(
+            $updatedFileEntity = $this->taskFileDomainService->moveFileWithCheck(
                 (string) $fileEntity->getFileId(),
                 (string) $targetParentId,
-                null,
                 true
             );
 
@@ -1025,7 +1022,7 @@ class FileManagementAppService extends AbstractAppService
 
             // 4. Handle target parent directory
             if (empty($targetParentId)) {
-                $targetParentId = $this->magicFSFileDomainService->findOrCreateRootDirectory(
+                $targetParentId = $this->taskFileDomainService->findOrCreateProjectRootDirectory(
                     projectId: $targetProject->getId(),
                     workDir: $targetProject->getWorkDir(),
                     userId: $dataIsolation->getCurrentUserId(),
@@ -1106,10 +1103,9 @@ class FileManagementAppService extends AbstractAppService
 
             // 6. Single file sync copy in same project/organization.
             $shouldKeepBoth = in_array((string) $fileEntity->getFileId(), $keepBothFileIds, true);
-            $newFileEntity = $this->magicFSFileDomainService->copyFile(
+            $newFileEntity = $this->taskFileDomainService->copyFileToParent(
                 (string) $fileEntity->getFileId(),
                 (string) $targetParentId,
-                null,
                 null,
                 ! $shouldKeepBoth
             );
@@ -1483,7 +1479,7 @@ class FileManagementAppService extends AbstractAppService
             // Create and publish batch move event
             $preFileId = ! empty($requestDTO->getPreFileId()) ? (int) $requestDTO->getPreFileId() : null;
             if (empty($requestDTO->getTargetParentId())) {
-                $targetParentId = $this->magicFSFileDomainService->findOrCreateRootDirectory(
+                $targetParentId = $this->taskFileDomainService->findOrCreateProjectRootDirectory(
                     projectId: $targetProject->getId(),
                     workDir: $targetProject->getWorkDir(),
                     userId: $dataIsolation->getCurrentUserId(),
@@ -1634,7 +1630,7 @@ class FileManagementAppService extends AbstractAppService
             // Create and publish batch copy event
             $preFileId = ! empty($requestDTO->getPreFileId()) ? (int) $requestDTO->getPreFileId() : null;
             if (empty($requestDTO->getTargetParentId())) {
-                $targetParentId = $this->magicFSFileDomainService->findOrCreateRootDirectory(
+                $targetParentId = $this->taskFileDomainService->findOrCreateProjectRootDirectory(
                     projectId: $targetProject->getId(),
                     workDir: $targetProject->getWorkDir(),
                     userId: $dataIsolation->getCurrentUserId(),
@@ -1826,7 +1822,7 @@ class FileManagementAppService extends AbstractAppService
                 }
 
                 // 7. Call MagicFS atomic operation (core operation delegated to MagicFS)
-                $updatedFile = $this->magicFSFileDomainService->replaceFile(
+                $updatedFile = $this->taskFileDomainService->replaceFile(
                     (string) $fileId,
                     $requestDTO->getFileKey(),
                     $newFileName
