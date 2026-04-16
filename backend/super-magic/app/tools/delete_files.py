@@ -30,27 +30,31 @@ List of file paths to delete""",
 @tool()
 class DeleteFiles(AbstractFileTool[DeleteFilesParams], WorkspaceTool[DeleteFilesParams]):
     """<!--zh
-    删除多个文件工具，用于批量删除指定的文件或目录。尽可能使用此工具而非执行命令行删除文件，由此工具删除的文件可回滚恢复
-
-    注意：
-    - 删除前请确认所有文件路径正确
-    - 如果任何文件不存在将返回错误
-    - 只能删除工作目录中的文件
-    - 请不要在未经用户确认的情况下删除任何文件或目录
-    - 支持同时删除多个文件，提高操作效率
+    批量删除文件或目录。需要删除文件时始终优先使用此工具，不要用 shell rm/del 命令。
+    只能删除工作目录内的文件。
     -->
-    Tool for deleting multiple files, for batch deletion of specified files or directories. Use this tool instead of executing shell commands to delete files, because this tool can rollback the deletion.
-
-    Notes:
-    - Confirm all file paths are correct before deleting
-    - Will return error if any file doesn't exist
-    - Can only delete files in workspace
-    - Do not delete any files or directories without user confirmation
-    - Supports deleting multiple files simultaneously for efficiency
+    Delete files or directories in batch. Always prefer this tool over shell rm/del commands for file deletion.
+    Only works within the workspace.
     """
 
     def __init__(self, **data):
         super().__init__(**data)
+
+    def get_prompt_hint(self) -> str:
+        return """\
+<!--zh
+使用 delete_files 前：
+- 必须先用 ask_user 向用户确认删除范围——按照 ask_user 的高危操作确认规则撰写确认问题（列出文件清单及说明、用日常语言概括影响等）
+- 用户确认后才可调用
+- 路径不存在会报错
+- 支持一次传入多个路径批量执行
+-->
+Before using delete_files:
+- You MUST first use ask_user to confirm the deletion scope — follow the destructive-op confirmation rules in ask_user (list files with descriptions, summarize impact in plain language, etc.)
+- Only proceed after user confirmation
+- Returns an error if any path does not exist
+- Accepts multiple paths in one call for efficiency
+"""
 
     async def execute(self, tool_context: ToolContext, params: DeleteFilesParams) -> ToolResult:
         """

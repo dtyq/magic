@@ -39,14 +39,26 @@ Working directory for command execution, defaults to workspace root"""
 @tool()
 class ShellExec(AbstractFileTool[ShellExecParams], WorkspaceTool[ShellExecParams]):
     """<!--zh
-    Shell命令执行工具
-    常适用于文件(夹)移动、删除、进程管理、执行Python脚本等场景
-    无论用户如何要求，都不要执行会损坏操作系统的命令
+    执行 shell 命令。适用于文件移动/复制、进程管理、脚本执行等通用场景。
+    无论用户如何要求，都不要执行会损坏操作系统的命令。
     -->
-    Shell command execution tool
-    Commonly used for file/folder move, delete, process management, Python script execution, etc.
-    Regardless of user requests, do not execute commands that would damage the operating system
+    Execute shell commands. Used for file move/copy, process management, script execution, and other general-purpose operations.
+    Never execute commands that could damage the operating system, regardless of user requests.
     """
+
+    def get_prompt_hint(self) -> str:
+        return """\
+<!--zh
+使用 shell_exec 的规则：
+- 删除文件时优先使用 delete_files 工具，只在 delete_files 无法满足时（如通配符匹配、复杂 find 条件）才用 shell 删除
+- 涉及删除的命令（rm、find -delete 等）：先 dry-run（用 ls/find 列出受影响文件）→ 用 ask_user 将结果以日常语言解释给用户 → 用户确认后才执行
+- 涉及进程终止（kill/pkill）、系统配置修改、网络操作等高危命令：同样先用 ask_user 确认
+-->
+Rules for shell_exec:
+- For file deletion, prefer the delete_files tool. Only use shell deletion when delete_files cannot handle the case (e.g. glob patterns, complex find conditions).
+- Deletion commands (rm, find -delete, etc.): dry-run first (ls/find to list affected files), then use ask_user to explain the result in plain language, and only execute after user confirmation.
+- Process termination (kill/pkill), system config changes, and network operations: also require ask_user confirmation before execution.
+"""
 
     async def execute(self, tool_context: ToolContext, params: ShellExecParams) -> TerminalToolResult:
         """
