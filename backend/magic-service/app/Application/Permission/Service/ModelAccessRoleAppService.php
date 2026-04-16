@@ -10,7 +10,9 @@ namespace App\Application\Permission\Service;
 use App\Application\Chat\Service\MagicUserInfoAppService;
 use App\Application\Provider\Service\AdminProviderAppService;
 use App\Domain\Contact\Entity\ValueObject\DataIsolation as ContactDataIsolation;
+use App\Domain\Contact\Service\MagicDepartmentDomainService;
 use App\Domain\Permission\Entity\ModelAccessRoleEntity;
+use App\Domain\Permission\Entity\ValueObject\ModelAccessRoleBindingScopeType;
 use App\Domain\Permission\Entity\ValueObject\PermissionControlStatus;
 use App\Domain\Permission\Entity\ValueObject\PermissionDataIsolation;
 use App\Domain\Permission\Service\ModelAccessRoleDomainService;
@@ -26,6 +28,7 @@ class ModelAccessRoleAppService extends AbstractPermissionAppService
     public function __construct(
         private readonly ModelAccessRoleDomainService $domainService,
         private readonly MagicUserInfoAppService $magicUserInfoAppService,
+        private readonly MagicDepartmentDomainService $magicDepartmentDomainService,
         private readonly ProviderModelDomainService $providerModelDomainService,
         private readonly AdminProviderAppService $adminProviderAppService,
     ) {
@@ -100,7 +103,9 @@ class ModelAccessRoleAppService extends AbstractPermissionAppService
                 'model_rule_effect' => 'deny',
                 'denied_model_ids' => $role->getDeniedModelIds(),
                 'denied_model_count' => count($role->getDeniedModelIds()),
-                'user_count' => count($role->getUserIds()),
+                'binding_scope' => $this->buildBindingScopeSummary($role),
+                'user_count' => $this->domainService->countAssignedUsers($dataIsolation, $role),
+                'department_count' => count($role->getDepartmentIds()),
                 'created_at' => $role->getCreatedAt()?->format('Y-m-d H:i:s'),
                 'updated_at' => $role->getUpdatedAt()?->format('Y-m-d H:i:s'),
             ];
@@ -122,6 +127,9 @@ class ModelAccessRoleAppService extends AbstractPermissionAppService
             $role->getUserIds(),
             ContactDataIsolation::create($dataIsolation->getCurrentOrganizationCode(), $dataIsolation->getCurrentUserId())
         );
+        $contactIsolation = ContactDataIsolation::create($dataIsolation->getCurrentOrganizationCode(), $dataIsolation->getCurrentUserId());
+        $departments = $this->magicDepartmentDomainService->getDepartmentByIds($contactIsolation, $role->getDepartmentIds(), true);
+        $departmentFullPaths = $this->magicDepartmentDomainService->getDepartmentFullPathByIds($contactIsolation, $role->getDepartmentIds());
 
         $modelMap = $this->providerModelDomainService->getModelsByModelIds(
             ProviderDataIsolation::create($dataIsolation->getCurrentOrganizationCode()),
@@ -153,7 +161,7 @@ class ModelAccessRoleAppService extends AbstractPermissionAppService
             'inherited_path' => $this->buildInheritedPath($dataIsolation, $role),
             'model_rule_effect' => 'deny',
             'denied_model_ids' => $role->getDeniedModelIds(),
-            'user_ids' => $role->getUserIds(),
+            'binding_scope' => $this->buildBindingScopeDetail($role, $userInfo, $departments, $departmentFullPaths),
             'denied_model_items' => array_map(static function (string $modelId) use ($modelMap, $fallbackModelNames) {
                 $first = $modelMap[$modelId][0] ?? null;
                 return [
@@ -161,17 +169,9 @@ class ModelAccessRoleAppService extends AbstractPermissionAppService
                     'model_name' => $first?->getName() ?? ($fallbackModelNames[$modelId] ?? $modelId),
                 ];
             }, $role->getDeniedModelIds()),
-            'user_items' => array_map(static function (string $userId) use ($userInfo) {
-                $item = $userInfo[$userId] ?? ['nickname' => '', 'real_name' => ''];
-                return [
-                    'user_id' => $userId,
-                    'nickname' => $item['nickname'] ?? '',
-                    'real_name' => $item['real_name'] ?? '',
-                    'avatar_url' => $item['avatar_url'] ?? '',
-                ];
-            }, $role->getUserIds()),
             'denied_model_count' => count($role->getDeniedModelIds()),
-            'user_count' => count($role->getUserIds()),
+            'user_count' => $this->domainService->countAssignedUsers($dataIsolation, $role),
+            'department_count' => count($role->getDepartmentIds()),
             'created_at' => $role->getCreatedAt()?->format('Y-m-d H:i:s'),
             'updated_at' => $role->getUpdatedAt()?->format('Y-m-d H:i:s'),
         ];
@@ -181,7 +181,7 @@ class ModelAccessRoleAppService extends AbstractPermissionAppService
     {
         $role = $this->domainService->createDefaultRole($dataIsolation, $entity);
         return [
-            ...$this->simpleRoleResponse($role),
+            ...$this->simpleRoleResponse($dataIsolation, $role),
             'permission_control_status' => PermissionControlStatus::ENABLED->value,
         ];
     }
@@ -189,14 +189,14 @@ class ModelAccessRoleAppService extends AbstractPermissionAppService
     public function createRole(PermissionDataIsolation $dataIsolation, ModelAccessRoleEntity $entity): array
     {
         $role = $this->domainService->createRole($dataIsolation, $entity);
-        return $this->simpleRoleResponse($role);
+        return $this->simpleRoleResponse($dataIsolation, $role);
     }
 
     public function updateRole(PermissionDataIsolation $dataIsolation, int $roleId, ModelAccessRoleEntity $entity): array
     {
         $role = $this->domainService->updateRole($dataIsolation, $roleId, $entity);
         return [
-            ...$this->simpleRoleResponse($role),
+            ...$this->simpleRoleResponse($dataIsolation, $role),
             'updated_at' => $role->getUpdatedAt()?->format('Y-m-d H:i:s'),
         ];
     }
@@ -226,7 +226,7 @@ class ModelAccessRoleAppService extends AbstractPermissionAppService
         ];
     }
 
-    private function simpleRoleResponse(ModelAccessRoleEntity $role): array
+    private function simpleRoleResponse(PermissionDataIsolation $dataIsolation, ModelAccessRoleEntity $role): array
     {
         return [
             'id' => (string) $role->getId(),
@@ -236,7 +236,63 @@ class ModelAccessRoleAppService extends AbstractPermissionAppService
             'parent_role_id' => $role->getParentRoleId() === null ? null : (string) $role->getParentRoleId(),
             'model_rule_effect' => 'deny',
             'denied_model_count' => count($role->getDeniedModelIds()),
-            'user_count' => count($role->getUserIds()),
+            'binding_scope' => $this->buildBindingScopeSummary($role),
+            'user_count' => $this->domainService->countAssignedUsers($dataIsolation, $role),
+            'department_count' => count($role->getDepartmentIds()),
+        ];
+    }
+
+    private function buildBindingScopeSummary(ModelAccessRoleEntity $role): ?array
+    {
+        if ($role->isDefault()) {
+            return null;
+        }
+
+        return [
+            'type' => $role->isAllUsers()
+                ? ModelAccessRoleBindingScopeType::OrganizationAll->value
+                : ModelAccessRoleBindingScopeType::Specific->value,
+        ];
+    }
+
+    private function buildBindingScopeDetail(
+        ModelAccessRoleEntity $role,
+        array $userInfo,
+        array $departments,
+        array $departmentFullPaths
+    ): ?array {
+        if ($role->isDefault()) {
+            return null;
+        }
+
+        if ($role->isAllUsers()) {
+            return [
+                'type' => ModelAccessRoleBindingScopeType::OrganizationAll->value,
+            ];
+        }
+
+        return [
+            'type' => ModelAccessRoleBindingScopeType::Specific->value,
+            'user_ids' => $role->getUserIds(),
+            'department_ids' => $role->getDepartmentIds(),
+            'user_items' => array_map(static function (string $userId) use ($userInfo) {
+                $item = $userInfo[$userId] ?? ['nickname' => '', 'real_name' => ''];
+                return [
+                    'user_id' => $userId,
+                    'nickname' => $item['nickname'] ?? '',
+                    'real_name' => $item['real_name'] ?? '',
+                    'avatar_url' => $item['avatar_url'] ?? '',
+                ];
+            }, $role->getUserIds()),
+            'department_items' => array_map(static function (string $departmentId) use ($departments, $departmentFullPaths) {
+                $department = $departments[$departmentId] ?? null;
+                $path = $departmentFullPaths[$departmentId] ?? [];
+                return [
+                    'department_id' => $departmentId,
+                    'name' => $department?->getName() ?? '',
+                    'full_path_name' => implode('/', array_map(static fn ($item) => $item->getName(), $path)),
+                ];
+            }, $role->getDepartmentIds()),
         ];
     }
 

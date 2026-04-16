@@ -7,8 +7,12 @@ declare(strict_types=1);
 
 namespace App\Domain\Permission\Repository\Persistence;
 
+use App\Domain\Contact\Entity\ValueObject\AccountStatus;
+use App\Domain\Contact\Repository\Persistence\Model\DepartmentUserModel;
+use App\Domain\Contact\Repository\Persistence\Model\UserModel;
 use App\Domain\Permission\Entity\ModelAccessRoleEntity;
 use App\Domain\Permission\Entity\ValueObject\ModelAccessRuleEffect;
+use App\Domain\Permission\Entity\ValueObject\ResourceVisibility\PrincipalType;
 use App\Domain\Permission\Repository\Persistence\Model\ModelAccessRoleModel;
 use App\Domain\Permission\Repository\Persistence\Model\ModelAccessRoleModelBindingModel;
 use App\Domain\Permission\Repository\Persistence\Model\ModelAccessRoleUserModel;
@@ -134,14 +138,20 @@ class ModelAccessRoleRepository
             ->delete();
     }
 
-    public function replaceUsers(string $organizationCode, int $roleId, array $userIds, string $assignedBy): void
-    {
+    public function replaceBindings(
+        string $organizationCode,
+        int $roleId,
+        array $userIds,
+        array $departmentIds,
+        bool $allUsers,
+        string $assignedBy
+    ): void {
         ModelAccessRoleUserModel::query()
             ->where('organization_code', $organizationCode)
             ->where('role_id', $roleId)
             ->delete();
 
-        if (empty($userIds)) {
+        if (empty($userIds) && empty($departmentIds) && ! $allUsers) {
             return;
         }
 
@@ -151,6 +161,8 @@ class ModelAccessRoleRepository
             $rows[] = [
                 'organization_code' => $organizationCode,
                 'role_id' => $roleId,
+                'principal_type' => PrincipalType::USER->value,
+                'principal_id' => $userId,
                 'user_id' => $userId,
                 'assigned_by' => $assignedBy,
                 'assigned_at' => $now,
@@ -158,6 +170,35 @@ class ModelAccessRoleRepository
                 'updated_at' => $now,
             ];
         }
+
+        foreach ($departmentIds as $departmentId) {
+            $rows[] = [
+                'organization_code' => $organizationCode,
+                'role_id' => $roleId,
+                'principal_type' => PrincipalType::DEPARTMENT->value,
+                'principal_id' => $departmentId,
+                'user_id' => '',
+                'assigned_by' => $assignedBy,
+                'assigned_at' => $now,
+                'created_at' => $now,
+                'updated_at' => $now,
+            ];
+        }
+
+        if ($allUsers) {
+            $rows[] = [
+                'organization_code' => $organizationCode,
+                'role_id' => $roleId,
+                'principal_type' => PrincipalType::ORGANIZATION->value,
+                'principal_id' => $organizationCode,
+                'user_id' => '',
+                'assigned_by' => $assignedBy,
+                'assigned_at' => $now,
+                'created_at' => $now,
+                'updated_at' => $now,
+            ];
+        }
+
         ModelAccessRoleUserModel::insert($rows);
     }
 
@@ -194,6 +235,7 @@ class ModelAccessRoleRepository
         return ModelAccessRoleUserModel::query()
             ->where('organization_code', $organizationCode)
             ->where('role_id', $roleId)
+            ->where('principal_type', PrincipalType::USER->value)
             ->pluck('user_id')
             ->toArray();
     }
@@ -221,6 +263,7 @@ class ModelAccessRoleRepository
             ->selectRaw('role_id, count(*) as aggregate')
             ->where('organization_code', $organizationCode)
             ->whereIn('role_id', $roleIds)
+            ->where('principal_type', PrincipalType::USER->value)
             ->groupBy('role_id')
             ->pluck('aggregate', 'role_id')
             ->map(static fn ($count) => (int) $count)
@@ -248,9 +291,9 @@ class ModelAccessRoleRepository
     }
 
     /**
-     * @return array<int, array<string>>
+     * @return array<int, array{user_ids:array<string>,department_ids:array<string>,all_users:bool}>
      */
-    public function getRoleUserMap(string $organizationCode, array $roleIds): array
+    public function getRoleBindingMap(string $organizationCode, array $roleIds): array
     {
         if (empty($roleIds)) {
             return [];
@@ -259,12 +302,38 @@ class ModelAccessRoleRepository
         $rows = ModelAccessRoleUserModel::query()
             ->where('organization_code', $organizationCode)
             ->whereIn('role_id', $roleIds)
-            ->get(['role_id', 'user_id']);
+            ->get(['role_id', 'principal_type', 'principal_id', 'user_id']);
 
         $result = [];
         foreach ($rows as $row) {
-            $result[(int) $row->role_id][] = (string) $row->user_id;
+            $roleId = (int) $row->role_id;
+            $result[$roleId] ??= [
+                'user_ids' => [],
+                'department_ids' => [],
+                'all_users' => false,
+            ];
+
+            $principalType = PrincipalType::tryFrom((int) $row->principal_type);
+            if ($principalType === PrincipalType::USER) {
+                $result[$roleId]['user_ids'][] = (string) $row->principal_id;
+                continue;
+            }
+
+            if ($principalType === PrincipalType::DEPARTMENT) {
+                $result[$roleId]['department_ids'][] = (string) $row->principal_id;
+                continue;
+            }
+
+            if ($principalType === PrincipalType::ORGANIZATION) {
+                $result[$roleId]['all_users'] = true;
+            }
         }
+
+        foreach ($result as $roleId => $bindings) {
+            $result[$roleId]['user_ids'] = array_values(array_unique($bindings['user_ids']));
+            $result[$roleId]['department_ids'] = array_values(array_unique($bindings['department_ids']));
+        }
+
         return $result;
     }
 
@@ -293,16 +362,71 @@ class ModelAccessRoleRepository
     /**
      * @return ModelAccessRoleEntity[]
      */
-    public function getUserAssignedRoles(string $organizationCode, string $userId): array
+    public function getUserAssignedRoles(string $organizationCode, string $userId, array $departmentIds = []): array
     {
         $roleIds = ModelAccessRoleUserModel::query()
             ->where('organization_code', $organizationCode)
-            ->where('user_id', $userId)
+            ->where(static function ($query) use ($organizationCode, $userId, $departmentIds) {
+                $query->where(static function ($subQuery) use ($userId) {
+                    $subQuery->where('principal_type', PrincipalType::USER->value)
+                        ->where('principal_id', $userId);
+                })->orWhere(static function ($subQuery) use ($organizationCode) {
+                    $subQuery->where('principal_type', PrincipalType::ORGANIZATION->value)
+                        ->where('principal_id', $organizationCode);
+                });
+
+                if (! empty($departmentIds)) {
+                    $query->orWhere(static function ($subQuery) use ($departmentIds) {
+                        $subQuery->where('principal_type', PrincipalType::DEPARTMENT->value)
+                            ->whereIn('principal_id', $departmentIds);
+                    });
+                }
+            })
             ->pluck('role_id')
             ->map(static fn ($id) => (int) $id)
             ->toArray();
 
         return array_values($this->getByIds($organizationCode, $roleIds));
+    }
+
+    public function countOrganizationUsers(string $organizationCode): int
+    {
+        return UserModel::query()
+            ->where('organization_code', $organizationCode)
+            ->where('status', AccountStatus::Normal->value)
+            ->distinct()
+            ->count('user_id');
+    }
+
+    /**
+     * @return array<string>
+     */
+    public function getDistinctUserIdsByDepartmentIds(string $organizationCode, array $departmentIds): array
+    {
+        if (empty($departmentIds)) {
+            return [];
+        }
+
+        $departmentUserIds = DepartmentUserModel::query()
+            ->where('organization_code', $organizationCode)
+            ->whereIn('department_id', $departmentIds)
+            ->distinct()
+            ->pluck('user_id')
+            ->map(static fn ($userId) => (string) $userId)
+            ->toArray();
+
+        if (empty($departmentUserIds)) {
+            return [];
+        }
+
+        return UserModel::query()
+            ->where('organization_code', $organizationCode)
+            ->where('status', AccountStatus::Normal->value)
+            ->whereIn('user_id', $departmentUserIds)
+            ->distinct()
+            ->pluck('user_id')
+            ->map(static fn ($userId) => (string) $userId)
+            ->toArray();
     }
 
     public function countChildren(string $organizationCode, int $roleId): int

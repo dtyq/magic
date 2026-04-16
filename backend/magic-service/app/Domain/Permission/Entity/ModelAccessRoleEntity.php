@@ -38,6 +38,10 @@ class ModelAccessRoleEntity extends AbstractEntity
 
     protected array $userIds = [];
 
+    protected array $departmentIds = [];
+
+    protected bool $allUsers = false;
+
     public function shouldCreate(): bool
     {
         return empty($this->id);
@@ -73,8 +77,8 @@ class ModelAccessRoleEntity extends AbstractEntity
         }
         if ($this->isDefault) {
             $this->parentRoleId = null;
-            if (! empty($this->userIds)) {
-                ExceptionBuilder::throw(PermissionErrorCode::ValidateFailed, 'default role cannot bind users');
+            if (! empty($this->userIds) || ! empty($this->departmentIds) || $this->allUsers) {
+                ExceptionBuilder::throw(PermissionErrorCode::ValidateFailed, 'default role cannot bind principals');
             }
         } elseif ($this->parentRoleId !== null && $this->parentRoleId <= 0) {
             ExceptionBuilder::throw(PermissionErrorCode::ValidateFailed, 'parent_role_id is invalid');
@@ -82,6 +86,12 @@ class ModelAccessRoleEntity extends AbstractEntity
 
         $this->deniedModelIds = array_values(array_unique(array_filter(array_map('strval', $this->deniedModelIds), static fn ($id) => $id !== '')));
         $this->userIds = array_values(array_unique(array_filter(array_map('strval', $this->userIds), static fn ($id) => $id !== '')));
+        $this->departmentIds = array_values(array_unique(array_filter(array_map('strval', $this->departmentIds), static fn ($id) => $id !== '')));
+
+        if ($this->allUsers) {
+            $this->userIds = [];
+            $this->departmentIds = [];
+        }
     }
 
     public function getId(): ?int
@@ -202,5 +212,25 @@ class ModelAccessRoleEntity extends AbstractEntity
     public function setUserIds(array $userIds): void
     {
         $this->userIds = $userIds;
+    }
+
+    public function getDepartmentIds(): array
+    {
+        return $this->departmentIds;
+    }
+
+    public function setDepartmentIds(array $departmentIds): void
+    {
+        $this->departmentIds = $departmentIds;
+    }
+
+    public function isAllUsers(): bool
+    {
+        return $this->allUsers;
+    }
+
+    public function setAllUsers(bool $allUsers): void
+    {
+        $this->allUsers = $allUsers;
     }
 }

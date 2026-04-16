@@ -16,6 +16,8 @@ use Hyperf\Snowflake\Concern\Snowflake;
  * @property int $id
  * @property string $organization_code
  * @property int $role_id
+ * @property int $principal_type
+ * @property string $principal_id
  * @property string $user_id
  * @property null|string $assigned_by
  * @property null|Carbon $assigned_at
@@ -34,6 +36,8 @@ class ModelAccessRoleUserModel extends AbstractModel
         'id',
         'organization_code',
         'role_id',
+        'principal_type',
+        'principal_id',
         'user_id',
         'assigned_by',
         'assigned_at',
@@ -46,6 +50,8 @@ class ModelAccessRoleUserModel extends AbstractModel
         'id' => 'int',
         'organization_code' => 'string',
         'role_id' => 'int',
+        'principal_type' => 'int',
+        'principal_id' => 'string',
         'user_id' => 'string',
         'assigned_by' => 'string',
         'assigned_at' => 'datetime',

@@ -13,6 +13,8 @@ use App\Domain\Admin\Entity\ValueObject\AdminGlobalSettingsStatus;
 use App\Domain\Admin\Entity\ValueObject\AdminGlobalSettingsType;
 use App\Domain\Admin\Repository\Facade\AdminGlobalSettingsRepositoryInterface;
 use App\Domain\Contact\Entity\ValueObject\DataIsolation as ContactDataIsolation;
+use App\Domain\Contact\Service\MagicDepartmentDomainService;
+use App\Domain\Contact\Service\MagicDepartmentUserDomainService;
 use App\Domain\Contact\Service\MagicUserDomainService;
 use App\Domain\ModelGateway\Entity\ValueObject\ModelGatewayDataIsolation;
 use App\Domain\Permission\Entity\ModelAccessRoleEntity;
@@ -31,6 +33,8 @@ readonly class ModelAccessRoleDomainService
     public function __construct(
         private ModelAccessRoleRepository $repository,
         private AdminGlobalSettingsRepositoryInterface $adminGlobalSettingsRepository,
+        private MagicDepartmentDomainService $magicDepartmentDomainService,
+        private MagicDepartmentUserDomainService $magicDepartmentUserDomainService,
         private MagicUserDomainService $magicUserDomainService,
         private ProviderModelDomainService $providerModelDomainService,
     ) {
@@ -140,7 +144,7 @@ readonly class ModelAccessRoleDomainService
         }
 
         Db::transaction(function () use ($organizationCode, $roleId, $deleteDefaultRole) {
-            $this->repository->replaceUsers($organizationCode, $roleId, [], '');
+            $this->repository->replaceBindings($organizationCode, $roleId, [], [], false, '');
             $this->repository->replaceDeniedModels($organizationCode, $roleId, [], '');
             $this->repository->delete($organizationCode, $roleId);
             if ($deleteDefaultRole) {
@@ -166,7 +170,9 @@ readonly class ModelAccessRoleDomainService
         if ($defaultRole) {
             $roles[] = $defaultRole;
         }
-        $roles = array_merge($roles, $this->repository->getUserAssignedRoles($organizationCode, $userId));
+        $contactIsolation = ContactDataIsolation::create($organizationCode, $dataIsolation->getCurrentUserId());
+        $userDepartmentIds = $this->magicDepartmentUserDomainService->getDepartmentIdsByUserId($contactIsolation, $userId, true);
+        $roles = array_merge($roles, $this->repository->getUserAssignedRoles($organizationCode, $userId, $userDepartmentIds));
 
         $uniqueRoles = [];
         foreach ($roles as $role) {
@@ -211,12 +217,32 @@ readonly class ModelAccessRoleDomainService
         ];
     }
 
+    public function countAssignedUsers(PermissionDataIsolation $dataIsolation, ModelAccessRoleEntity $role): int
+    {
+        $organizationCode = $dataIsolation->getCurrentOrganizationCode();
+        if ($role->isAllUsers()) {
+            return $this->repository->countOrganizationUsers($organizationCode);
+        }
+
+        $userIdMap = array_fill_keys($role->getUserIds(), true);
+        if (! empty($role->getDepartmentIds())) {
+            $contactIsolation = ContactDataIsolation::create($organizationCode, $dataIsolation->getCurrentUserId());
+            $departmentIds = $this->magicDepartmentDomainService->getAllChildrenByDepartmentIds($role->getDepartmentIds(), $contactIsolation);
+            foreach ($this->repository->getDistinctUserIdsByDepartmentIds($organizationCode, $departmentIds) as $userId) {
+                $userIdMap[$userId] = true;
+            }
+        }
+
+        return count($userIdMap);
+    }
+
     private function save(PermissionDataIsolation $dataIsolation, ModelAccessRoleEntity $entity): ModelAccessRoleEntity
     {
         $organizationCode = $dataIsolation->getCurrentOrganizationCode();
         $entity->setOrganizationCode($organizationCode);
 
         $this->validateUsers($organizationCode, $dataIsolation->getCurrentUserId(), $entity->getUserIds());
+        $this->validateDepartments($organizationCode, $dataIsolation->getCurrentUserId(), $entity->getDepartmentIds());
         $this->validateModels($dataIsolation, $entity->getDeniedModelIds());
         $this->validateRoleForSave($organizationCode, $entity);
 
@@ -229,7 +255,14 @@ readonly class ModelAccessRoleDomainService
 
             $saved = $this->repository->save($entity);
             $this->repository->replaceDeniedModels($organizationCode, $saved->getId(), $saved->getDeniedModelIds(), $dataIsolation->getCurrentUserId());
-            $this->repository->replaceUsers($organizationCode, $saved->getId(), $saved->getUserIds(), $dataIsolation->getCurrentUserId());
+            $this->repository->replaceBindings(
+                $organizationCode,
+                $saved->getId(),
+                $saved->getUserIds(),
+                $saved->getDepartmentIds(),
+                $saved->isAllUsers(),
+                $dataIsolation->getCurrentUserId()
+            );
             if ($saved->isDefault()) {
                 $this->savePermissionControlSetting($organizationCode, PermissionControlStatus::ENABLED);
             }
@@ -341,6 +374,22 @@ readonly class ModelAccessRoleDomainService
         }
     }
 
+    private function validateDepartments(string $organizationCode, string $operatorUserId, array $departmentIds): void
+    {
+        if (empty($departmentIds)) {
+            return;
+        }
+
+        $departments = $this->magicDepartmentDomainService->getDepartmentByIds(
+            ContactDataIsolation::create($organizationCode, $operatorUserId),
+            $departmentIds,
+            true
+        );
+        if (count($departments) !== count(array_unique($departmentIds))) {
+            ExceptionBuilder::throw(PermissionErrorCode::ValidateFailed, 'some departments not found in organization');
+        }
+    }
+
     private function validateModels(PermissionDataIsolation $dataIsolation, array $modelIds): void
     {
         if (empty($modelIds)) {
@@ -365,11 +414,18 @@ readonly class ModelAccessRoleDomainService
         }
 
         $roleIds = array_values(array_filter(array_map(static fn (ModelAccessRoleEntity $role) => $role->getId(), $roles)));
-        $userMap = $this->repository->getRoleUserMap($organizationCode, $roleIds);
+        $bindingMap = $this->repository->getRoleBindingMap($organizationCode, $roleIds);
         $modelMap = $this->repository->getRoleDeniedModelMap($organizationCode, $roleIds);
 
         foreach ($roles as $role) {
-            $role->setUserIds($userMap[$role->getId()] ?? []);
+            $bindings = $bindingMap[$role->getId()] ?? [
+                'user_ids' => [],
+                'department_ids' => [],
+                'all_users' => false,
+            ];
+            $role->setUserIds($bindings['user_ids']);
+            $role->setDepartmentIds($bindings['department_ids']);
+            $role->setAllUsers($bindings['all_users']);
             $role->setDeniedModelIds($modelMap[$role->getId()] ?? []);
         }
     }

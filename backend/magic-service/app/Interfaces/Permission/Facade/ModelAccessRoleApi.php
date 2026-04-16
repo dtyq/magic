@@ -11,6 +11,7 @@ use App\Application\Kernel\Enum\MagicOperationEnum;
 use App\Application\Kernel\Enum\MagicResourceEnum;
 use App\Application\Permission\Service\ModelAccessRoleAppService;
 use App\Domain\Permission\Entity\ModelAccessRoleEntity;
+use App\Domain\Permission\Entity\ValueObject\ModelAccessRoleBindingScopeType;
 use App\Domain\Permission\Entity\ValueObject\PermissionControlStatus;
 use App\Domain\Permission\Entity\ValueObject\PermissionDataIsolation;
 use App\ErrorCode\PermissionErrorCode;
@@ -150,7 +151,40 @@ class ModelAccessRoleApi extends AbstractPermissionApi
         $entity->setIsDefault($isDefault);
         $entity->setParentRoleId($isDefault ? null : $this->parseNullableInt($this->request->input('parent_role_id')));
         $entity->setDeniedModelIds($this->parseStringArray($this->request->input('denied_model_ids', [])));
-        $entity->setUserIds($isDefault ? [] : $this->parseStringArray($this->request->input('user_ids', [])));
+        if ($isDefault) {
+            $entity->setUserIds([]);
+            $entity->setDepartmentIds([]);
+            $entity->setAllUsers(false);
+            return $entity;
+        }
+
+        $bindingScope = $this->request->input('binding_scope', []);
+        if (! is_array($bindingScope)) {
+            ExceptionBuilder::throw(PermissionErrorCode::ValidateFailed, 'invalid binding_scope');
+        }
+
+        $scopeType = ModelAccessRoleBindingScopeType::tryFrom((string) ($bindingScope['type'] ?? ModelAccessRoleBindingScopeType::Specific->value));
+        if ($scopeType === null) {
+            ExceptionBuilder::throw(PermissionErrorCode::ValidateFailed, 'invalid binding_scope type');
+        }
+
+        $userIds = $this->parseStringArray($bindingScope['user_ids'] ?? []);
+        $departmentIds = $this->parseStringArray($bindingScope['department_ids'] ?? []);
+
+        if ($scopeType === ModelAccessRoleBindingScopeType::OrganizationAll) {
+            if (! empty($userIds) || ! empty($departmentIds)) {
+                ExceptionBuilder::throw(PermissionErrorCode::ValidateFailed, 'organization_all binding_scope cannot include user_ids or department_ids');
+            }
+
+            $entity->setUserIds([]);
+            $entity->setDepartmentIds([]);
+            $entity->setAllUsers(true);
+            return $entity;
+        }
+
+        $entity->setUserIds($userIds);
+        $entity->setDepartmentIds($departmentIds);
+        $entity->setAllUsers(false);
         return $entity;
     }
 
