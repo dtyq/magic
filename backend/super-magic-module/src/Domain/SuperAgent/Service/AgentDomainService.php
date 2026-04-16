@@ -222,7 +222,7 @@ class AgentDomainService
                 'timeout_seconds' => 60,
             ]);
 
-            $lockAcquired = $this->locker->spinLock($lockKey, $lockOwner, 60);
+            $lockAcquired = $this->locker->spinLock($lockKey, $lockOwner, 120, 360);
 
             if (! $lockAcquired) {
                 $this->logger->error('[Sandbox][Domain] Failed to acquire lock for sandbox initialization', [
