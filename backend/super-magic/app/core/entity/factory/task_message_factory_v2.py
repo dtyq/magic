@@ -843,16 +843,26 @@ class TaskMessageFactoryV2(TaskMessageFactoryProtocol):
         )
         status = final_task_state.task_status
 
+        # 无 correlation_id 可用，用 task_id 作种子保证稳定
+        tool_call_id = cls._make_tool_call_id(agent_context.get_task_id())
         inner = cls._build_inner_message(
             agent_context,
             role="tool",
-            content=content,
+            tool_call_id=tool_call_id,
+            content="",
             status=status.value,
+            tool=cls._build_tool_object(
+                tool_id=tool_call_id,
+                name="suspend_task",
+                action=content,
+                status=ToolStatus.FINISHED,
+            ),
         )
         return cls._build_and_send(
             agent_context, inner,
             status=status,
             event_type=EventType.AGENT_SUSPENDED,
+            content=content,
         )
 
     # ──────────────────────────────────────────────
