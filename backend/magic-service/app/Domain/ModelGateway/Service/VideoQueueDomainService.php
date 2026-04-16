@@ -425,7 +425,7 @@ readonly class VideoQueueDomainService
                 'reference_videos' => $referenceVideoInputs,
                 'reference_audios' => $referenceAudioInputs,
                 'mask' => $maskInput,
-            ], static fn (mixed $value): bool => $value !== [] && $value !== ''),
+            ], static fn (mixed $value): bool => $value !== []),
             'generation' => $generation,
             'callbacks' => $callbacks,
             'execution' => $execution,

@@ -204,9 +204,4 @@ class VideoGeneratedEvent extends AbstractEvent
     {
         $this->originalModelId = $originalModelId;
     }
-
-    public function getBusinessParams()
-    {
-        return [];
-    }
 }
