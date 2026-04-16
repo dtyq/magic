@@ -557,13 +557,13 @@ async def notify_file_change(request: FileNotificationRequest) -> BaseResponse:
     """
     try:
         # 1. 打印请求参数，方便后续调试
-        logger.info(f"收到文件变更通知: {request.model_dump_json()}")
-        logger.info(f"文件路径: {request.file_path}, 操作: {request.operation}, 大小: {request.file_size} bytes, 是否目录: {request.is_directory}")
+        logger.debug(f"收到文件变更通知: {request.model_dump_json()}")
+        logger.info(f"文件变更通知: path={request.file_path}, op={request.operation}, size={request.file_size}")
 
         # 2. 调用 InitClientMessageUtil 获取 metadata
         try:
             metadata = InitClientMessageUtil.get_metadata()
-            logger.info(f"成功获取系统初始化 metadata，包含 {len(metadata)} 个字段")
+            logger.debug(f"成功获取系统初始化 metadata，包含 {len(metadata)} 个字段")
         except InitializationError as e:
             logger.error(f"系统未初始化: {e}")
             return create_error_response(
@@ -573,12 +573,9 @@ async def notify_file_change(request: FileNotificationRequest) -> BaseResponse:
         # 3. 初始化 magic-service 客户端并调用远程接口
         try:
             config = MagicServiceConfigLoader.load_with_fallback()
-            logger.info(f"Magic Service 配置加载成功: {config.api_base_url}")
+            logger.debug(f"Magic Service 配置加载成功: {config.api_base_url}")
 
             async with MagicServiceClient(config) as client:
-                logger.info(
-                    f"即将调用 Magic Service API: {MagicServiceClient.send_file_notification.__qualname__}"
-                )
                 result = await client.send_file_notification(
                     metadata=metadata,
                     notification_data=request.model_dump()
