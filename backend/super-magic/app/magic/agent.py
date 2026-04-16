@@ -1090,7 +1090,14 @@ class Agent(BaseAgent):
                             continue
 
                     # 添加工具调用响应到历史（现在包含修复后的参数）
-                    await self._add_tool_calls_to_history(llm_context)
+                    # 中断时 stop_run 会在 cancel_blocker 归零后调用 task.cancel()，
+                    # 下一个 await 即会抛出 CancelledError，导致历史无法落盘。
+                    # 用 asyncio.shield 保护写入：即使 task 被 cancel，shielded task
+                    # 仍会在事件循环内完成文件写入，CancelledError 自然向上传播。
+                    if self.agent_context.is_interruption_requested():
+                        await asyncio.shield(self._add_tool_calls_to_history(llm_context))
+                    else:
+                        await self._add_tool_calls_to_history(llm_context)
 
                     # State recovery checkpoint: runs immediately after a successful LLM call,
                     # regardless of whether the response contains tool calls or not.
@@ -1763,6 +1770,11 @@ class Agent(BaseAgent):
             token_usage = LLMFactory.token_tracker.extract_chat_history_usage_data(chat_response)
             token_usage.model_id = effective_model_id
             token_usage.model_name = effective_model_name
+            try:
+                model_config = LLMFactory.get_model_config(effective_model_id)
+                token_usage.resolved_model_id = model_config.resolved_model_id or None
+            except Exception:
+                pass
 
             # 更新 horizon：实际生效的 LM 模型 + 当前上下文窗口使用量
             try:

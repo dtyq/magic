@@ -523,9 +523,14 @@ class StreamResponseHandlerV2(StreamResponseHandlerBase):
                 interrupted=state.interrupted_by_signal,
             )
 
+        # 中断时在 completion_text 末尾追加说明，仅用于 chat_history 上下文，不影响前端展示
+        completion_text = state.content_text
+        if state.interrupted_by_signal and has_partial_content:
+            completion_text += "\n\n<system_injected_context>\n[Response was interrupted by the user and may be incomplete]\n</system_injected_context>"
+
         return StreamProcessResult(
             collected_chunks=collected_chunks,
-            completion_text=state.content_text,
+            completion_text=completion_text,
             reasoning_content=state.reasoning_text,
             tool_calls=state.tool_calls,
             finish_reason=finish_reason,
