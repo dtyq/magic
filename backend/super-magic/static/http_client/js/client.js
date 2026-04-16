@@ -416,7 +416,7 @@ document.addEventListener('DOMContentLoaded', () => {
     // 消息版本切换事件
     if (messageVersionSelect) {
         const savedVersion = localStorage.getItem('selectedMessageVersion');
-        if (savedVersion) {
+        if (savedVersion !== null) {
             currentMessageVersion = savedVersion;
             messageVersionSelect.value = savedVersion;
         }
@@ -1024,10 +1024,12 @@ function createChatMessage(prompt, contextType = ContextType.NORMAL, remark = nu
         }
     }
 
-    // 注入消息版本到 dynamic_config
-    message.dynamic_config = Object.assign({}, message.dynamic_config, {
-        message_version: currentMessageVersion,
-    });
+    // 注入消息版本到 dynamic_config（为空时不传该字段）
+    if (currentMessageVersion) {
+        message.dynamic_config = Object.assign({}, message.dynamic_config, {
+            message_version: currentMessageVersion,
+        });
+    }
 
     // Add remark field if provided
     if (remark !== null) {
@@ -1167,7 +1169,8 @@ function changeLanguage() {
 function changeMessageVersion() {
     currentMessageVersion = messageVersionSelect.value;
     localStorage.setItem('selectedMessageVersion', currentMessageVersion);
-    showSystemMessage(`消息版本已切换为: ${currentMessageVersion}`);
+    const versionLabel = currentMessageVersion || '不传版本';
+    showSystemMessage(`消息版本已切换为: ${versionLabel}`);
 }
 
 // 切换Agent模式
