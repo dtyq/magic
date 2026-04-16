@@ -41,9 +41,7 @@ from app.core.entity.message.server_message import DisplayType, FileContent, Too
 from app.core.entity.tool.tool_result_types import ImageToolResult
 from app.i18n import i18n
 from app.service.media_generation_service import (
-    AI_IMAGE_GENERATION_SOURCE,
     generate_presigned_url_for_file,
-    notify_generated_media_file,
 )
 from app.tools.abstract_file_tool import AbstractFileTool
 from app.tools.core import BaseToolParams, tool
@@ -916,12 +914,6 @@ Call generate_image tool directly when user has following scenarios:
                     await f.write(image_data)
                     await f.flush()
 
-                # 发送文件通知
-                try:
-                    await self._send_file_notification(str(save_path), file_existed_before, file_size)
-                except Exception as e:
-                    logger.warning(f"发送文件通知失败: {e}")
-
                 return str(save_path), file_existed_before
 
             except Exception as e:
@@ -975,19 +967,6 @@ Call generate_image tool directly when user has following scenarios:
         """分发文件创建/更新事件"""
         # 使用父类的通用方法，传递 source=5 (AI generated)
         await super()._dispatch_file_event(tool_context, file_path, event_type, is_screenshot=False, source=5)
-
-    async def _send_file_notification(self, file_path: str, file_existed: bool, file_size: Optional[int] = None) -> None:
-        """图片下载后发送文件变更通知"""
-        await notify_generated_media_file(
-            file_path=file_path,
-            base_dir=self.base_dir,
-            file_existed=file_existed,
-            file_size=file_size,
-            source=AI_IMAGE_GENERATION_SOURCE,
-        )
-
-    async def send_file_notification(self, file_path: str, file_existed: bool, file_size: Optional[int] = None) -> None:
-        await self._send_file_notification(file_path, file_existed, file_size)
 
     async def execute(self, tool_context: ToolContext, params: GenerateImageParams) -> ImageToolResult:
         """执行图片生成或编辑（工具系统入口）"""
