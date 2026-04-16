@@ -50,6 +50,9 @@ class AsrDirectoryService extends AbstractAppService
         string $userId,
         string $taskKey
     ): AsrRecordingDirectoryDTO {
+        // Ensure .asr_recordings parent directory exists and get its ID
+        $recordingsDir = $this->createRecordingsDirectory($organizationCode, $projectId, $userId);
+
         $relativePath = AsrPaths::getHiddenDirPath($taskKey);
 
         return $this->createDirectoryInternal(
@@ -62,7 +65,8 @@ class AsrDirectoryService extends AbstractAppService
             errorContext: ['project_id' => $projectId, 'task_key' => $taskKey],
             logMessage: '创建隐藏录音目录失败',
             failedProjectError: AsrErrorCode::CreateHiddenDirectoryFailedProject,
-            failedError: AsrErrorCode::CreateHiddenDirectoryFailedError
+            failedError: AsrErrorCode::CreateHiddenDirectoryFailedError,
+            parentDirectoryId: $recordingsDir->directoryId
         );
     }
 
@@ -335,11 +339,15 @@ class AsrDirectoryService extends AbstractAppService
         array $errorContext,
         string $logMessage,
         AsrErrorCode $failedProjectError,
-        AsrErrorCode $failedError
+        AsrErrorCode $failedError,
+        ?int $parentDirectoryId = null
     ): AsrRecordingDirectoryDTO {
         try {
             // 1. 确保项目工作区根目录存在
             $rootDirectoryId = $this->ensureWorkspaceRootDirectoryExists($organizationCode, $projectId, $userId);
+
+            // Use explicit parent if provided, otherwise default to workspace root
+            $effectiveParentId = $parentDirectoryId ?? $rootDirectoryId;
 
             // 2. 获取项目信息
             $projectEntity = $this->getAccessibleProject((int) $projectId, $userId, $organizationCode);
@@ -367,7 +375,7 @@ class AsrDirectoryService extends AbstractAppService
                 $relativePath,
                 $fullPrefix,
                 $workDir,
-                $rootDirectoryId,
+                $effectiveParentId,
                 $role,
                 taskKey: $taskKey
             );

@@ -13,7 +13,7 @@ class WorkFileUtil
      * Hidden directory names that should be marked as hidden.
      * Only files/folders inside these directories (or the directories themselves) are hidden.
      */
-    private const HIDDEN_DIRECTORIES = ['.tmp', '.visual', '.asr_states', '.asr_recordings', '.webview-reports', '.browser_screenshots'];
+    private const HIDDEN_DIRECTORIES = ['.tmp', '.visual', '.asr_states', '.asr_recordings', '.webview-reports', '.browser_screenshots', '.webview-reports'];
 
     /**
      * @deprecated Use determineIsHidden() in domain service instead.
