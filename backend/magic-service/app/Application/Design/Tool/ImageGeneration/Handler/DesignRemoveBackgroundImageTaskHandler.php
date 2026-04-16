@@ -48,6 +48,7 @@ final class DesignRemoveBackgroundImageTaskHandler extends AbstractDesignImageGe
         ]);
         $this->applyMagicAccessToken($dto);
         $dto->setBusinessParams($this->designImageGenerationBusinessParams($dataIsolation));
+        $dto->setEnableVisibleWatermark(false);
         $dto->valid();
 
         return $this->narrowToOpenAiFormatImageResponse($this->imageRemoveBackgroundAppService->removeBackground($dto));

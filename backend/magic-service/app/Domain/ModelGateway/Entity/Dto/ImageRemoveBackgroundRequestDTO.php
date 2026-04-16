@@ -18,6 +18,11 @@ class ImageRemoveBackgroundRequestDTO extends AbstractRequestDTO
 
     protected ?string $outputFormat = null;
 
+    /**
+     * 显式水印默认开启，仅允许服务内部按场景关闭，不从外部 API 请求体读取。
+     */
+    protected bool $enableVisibleWatermark = true;
+
     public function __construct(array $requestData = [])
     {
         parent::__construct($requestData);
@@ -62,6 +67,16 @@ class ImageRemoveBackgroundRequestDTO extends AbstractRequestDTO
     public function setOutputFormat(?string $outputFormat): void
     {
         $this->outputFormat = $outputFormat ? strtolower(trim($outputFormat)) : null;
+    }
+
+    public function isEnableVisibleWatermark(): bool
+    {
+        return $this->enableVisibleWatermark;
+    }
+
+    public function setEnableVisibleWatermark(bool $enableVisibleWatermark): void
+    {
+        $this->enableVisibleWatermark = $enableVisibleWatermark;
     }
 
     public function getType(): string
