@@ -101,7 +101,7 @@ readonly class ModelAccessRoleDomainService
         $this->show($dataIsolation, $roleId);
 
         Db::transaction(function () use ($organizationCode, $roleId) {
-            $this->repository->replaceBindings($organizationCode, $roleId, [], [], false, '');
+            $this->repository->replaceBindings($organizationCode, $roleId, [], [], [], [], false, '');
             $this->repository->replaceDeniedModels($organizationCode, $roleId, [], '');
             $this->repository->delete($organizationCode, $roleId);
         });
@@ -158,19 +158,24 @@ readonly class ModelAccessRoleDomainService
     public function countAssignedUsers(PermissionDataIsolation $dataIsolation, ModelAccessRoleEntity $role): int
     {
         $organizationCode = $dataIsolation->getCurrentOrganizationCode();
+        $contactIsolation = ContactDataIsolation::create($organizationCode, $dataIsolation->getCurrentUserId());
+        $excludedUserIds = $this->resolveExcludedUserIds($role, $contactIsolation);
         if ($role->isAllUsers()) {
-            return $this->repository->countOrganizationUsers($organizationCode);
+            $organizationUserCount = $this->repository->countOrganizationUsers($organizationCode);
+            return max(0, $organizationUserCount - count($excludedUserIds));
         }
 
         $userIdMap = array_fill_keys($role->getUserIds(), true);
         if (! empty($role->getDepartmentIds())) {
-            $contactIsolation = ContactDataIsolation::create($organizationCode, $dataIsolation->getCurrentUserId());
             $departmentIds = $this->magicDepartmentDomainService->getAllChildrenByDepartmentIds($role->getDepartmentIds(), $contactIsolation);
             foreach ($this->repository->getDistinctUserIdsByDepartmentIds($organizationCode, $departmentIds) as $userId) {
                 $userIdMap[$userId] = true;
             }
         }
 
+        foreach ($excludedUserIds as $userId) {
+            unset($userIdMap[$userId]);
+        }
         return count($userIdMap);
     }
 
@@ -181,6 +186,8 @@ readonly class ModelAccessRoleDomainService
 
         $this->validateUsers($organizationCode, $dataIsolation->getCurrentUserId(), $entity->getUserIds());
         $this->validateDepartments($organizationCode, $dataIsolation->getCurrentUserId(), $entity->getDepartmentIds());
+        $this->validateUsers($organizationCode, $dataIsolation->getCurrentUserId(), $entity->getExcludedUserIds());
+        $this->validateDepartments($organizationCode, $dataIsolation->getCurrentUserId(), $entity->getExcludedDepartmentIds());
         $this->validateModels($dataIsolation, $entity->getDeniedModelIds());
         $this->validateRoleForSave($organizationCode, $entity);
 
@@ -198,6 +205,8 @@ readonly class ModelAccessRoleDomainService
                 $saved->getId(),
                 $saved->getUserIds(),
                 $saved->getDepartmentIds(),
+                $saved->getExcludedUserIds(),
+                $saved->getExcludedDepartmentIds(),
                 $saved->isAllUsers(),
                 $dataIsolation->getCurrentUserId()
             );
@@ -306,13 +315,38 @@ readonly class ModelAccessRoleDomainService
             $bindings = $bindingMap[$role->getId()] ?? [
                 'user_ids' => [],
                 'department_ids' => [],
+                'excluded_user_ids' => [],
+                'excluded_department_ids' => [],
                 'all_users' => false,
             ];
             $role->setUserIds($bindings['user_ids']);
             $role->setDepartmentIds($bindings['department_ids']);
+            $role->setExcludedUserIds($bindings['excluded_user_ids']);
+            $role->setExcludedDepartmentIds($bindings['excluded_department_ids']);
             $role->setAllUsers($bindings['all_users']);
             $role->setDeniedModelIds($modelMap[$role->getId()] ?? []);
         }
+    }
+
+    /**
+     * @return array<string, true>
+     */
+    private function resolveExcludedUserIds(ModelAccessRoleEntity $role, ContactDataIsolation $contactIsolation): array
+    {
+        $excludedUserIdMap = array_fill_keys($role->getExcludedUserIds(), true);
+        if (empty($role->getExcludedDepartmentIds())) {
+            return $excludedUserIdMap;
+        }
+
+        $departmentIds = $this->magicDepartmentDomainService->getAllChildrenByDepartmentIds(
+            $role->getExcludedDepartmentIds(),
+            $contactIsolation
+        );
+        foreach ($this->repository->getDistinctUserIdsByDepartmentIds($contactIsolation->getCurrentOrganizationCode(), $departmentIds) as $userId) {
+            $excludedUserIdMap[$userId] = true;
+        }
+
+        return $excludedUserIdMap;
     }
 
     /**

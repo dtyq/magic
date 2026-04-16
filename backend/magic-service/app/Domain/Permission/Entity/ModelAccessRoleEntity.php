@@ -7,6 +7,7 @@ declare(strict_types=1);
 
 namespace App\Domain\Permission\Entity;
 
+use App\Domain\Permission\Entity\ValueObject\ModelAccessRoleBindingScopeType;
 use App\ErrorCode\PermissionErrorCode;
 use App\Infrastructure\Core\AbstractEntity;
 use App\Infrastructure\Core\Exception\ExceptionBuilder;
@@ -37,6 +38,12 @@ class ModelAccessRoleEntity extends AbstractEntity
     protected array $departmentIds = [];
 
     protected bool $allUsers = false;
+
+    protected string $exclusionScopeType = ModelAccessRoleBindingScopeType::Specific->value;
+
+    protected array $excludedUserIds = [];
+
+    protected array $excludedDepartmentIds = [];
 
     public function shouldCreate(): bool
     {
@@ -78,10 +85,16 @@ class ModelAccessRoleEntity extends AbstractEntity
         $this->deniedModelIds = array_values(array_unique(array_filter(array_map('strval', $this->deniedModelIds), static fn ($id) => $id !== '')));
         $this->userIds = array_values(array_unique(array_filter(array_map('strval', $this->userIds), static fn ($id) => $id !== '')));
         $this->departmentIds = array_values(array_unique(array_filter(array_map('strval', $this->departmentIds), static fn ($id) => $id !== '')));
+        $this->excludedUserIds = array_values(array_unique(array_filter(array_map('strval', $this->excludedUserIds), static fn ($id) => $id !== '')));
+        $this->excludedDepartmentIds = array_values(array_unique(array_filter(array_map('strval', $this->excludedDepartmentIds), static fn ($id) => $id !== '')));
 
         if ($this->allUsers) {
             $this->userIds = [];
             $this->departmentIds = [];
+        }
+
+        if ($this->exclusionScopeType !== ModelAccessRoleBindingScopeType::Specific->value) {
+            ExceptionBuilder::throw(PermissionErrorCode::ValidateFailed, 'exclusion_scope type must be specific');
         }
     }
 
@@ -203,5 +216,35 @@ class ModelAccessRoleEntity extends AbstractEntity
     public function setAllUsers(bool $allUsers): void
     {
         $this->allUsers = $allUsers;
+    }
+
+    public function getExclusionScopeType(): string
+    {
+        return $this->exclusionScopeType;
+    }
+
+    public function setExclusionScopeType(string $exclusionScopeType): void
+    {
+        $this->exclusionScopeType = $exclusionScopeType;
+    }
+
+    public function getExcludedUserIds(): array
+    {
+        return $this->excludedUserIds;
+    }
+
+    public function setExcludedUserIds(array $excludedUserIds): void
+    {
+        $this->excludedUserIds = $excludedUserIds;
+    }
+
+    public function getExcludedDepartmentIds(): array
+    {
+        return $this->excludedDepartmentIds;
+    }
+
+    public function setExcludedDepartmentIds(array $excludedDepartmentIds): void
+    {
+        $this->excludedDepartmentIds = $excludedDepartmentIds;
     }
 }

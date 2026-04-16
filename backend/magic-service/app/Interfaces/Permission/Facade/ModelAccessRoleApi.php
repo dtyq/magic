@@ -152,6 +152,22 @@ class ModelAccessRoleApi extends AbstractPermissionApi
 
         $userIds = $this->parseStringArray($bindingScope['user_ids'] ?? []);
         $departmentIds = $this->parseStringArray($bindingScope['department_ids'] ?? []);
+        $exclusionScope = $this->request->input('exclusion_scope', []);
+        if ($exclusionScope !== null && ! is_array($exclusionScope)) {
+            ExceptionBuilder::throw(PermissionErrorCode::ValidateFailed, 'invalid exclusion_scope');
+        }
+
+        $exclusionScope = is_array($exclusionScope) ? $exclusionScope : [];
+        if ($exclusionScope !== []) {
+            $exclusionType = ModelAccessRoleBindingScopeType::tryFrom((string) ($exclusionScope['type'] ?? ''));
+            if ($exclusionType !== ModelAccessRoleBindingScopeType::Specific) {
+                ExceptionBuilder::throw(PermissionErrorCode::ValidateFailed, 'invalid exclusion_scope type');
+            }
+        }
+
+        $entity->setExclusionScopeType(ModelAccessRoleBindingScopeType::Specific->value);
+        $entity->setExcludedUserIds($this->parseStringArray($exclusionScope['user_ids'] ?? []));
+        $entity->setExcludedDepartmentIds($this->parseStringArray($exclusionScope['department_ids'] ?? []));
 
         if ($scopeType === ModelAccessRoleBindingScopeType::OrganizationAll) {
             if (! empty($userIds) || ! empty($departmentIds)) {

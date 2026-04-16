@@ -65,7 +65,7 @@ class ModelAccessRoleDomainServiceTest extends HttpTestCase
             ->with('ORG_CREATE', 9, [], 'operator');
         $repository->expects($this->once())
             ->method('replaceBindings')
-            ->with('ORG_CREATE', 9, [], [], true, 'operator');
+            ->with('ORG_CREATE', 9, [], [], [], [], true, 'operator');
         $repository->expects($this->once())
             ->method('getById')
             ->with('ORG_CREATE', 9)
@@ -77,6 +77,8 @@ class ModelAccessRoleDomainServiceTest extends HttpTestCase
                 9 => [
                     'user_ids' => [],
                     'department_ids' => [],
+                    'excluded_user_ids' => [],
+                    'excluded_department_ids' => [],
                     'all_users' => true,
                 ],
             ]);
@@ -92,6 +94,42 @@ class ModelAccessRoleDomainServiceTest extends HttpTestCase
 
         $this->assertSame(9, $result->getId());
         $this->assertTrue($result->isAllUsers());
+    }
+
+    public function testCountAssignedUsersSubtractsExcludedUsersAndDepartments(): void
+    {
+        $repository = $this->createMock(ModelAccessRoleRepository::class);
+        $departmentDomainService = $this->createMock(MagicDepartmentDomainService::class);
+
+        $role = $this->makeRole(id: 10, name: '研发限制');
+        $role->setUserIds(['u_001']);
+        $role->setDepartmentIds(['dep_include']);
+        $role->setExcludedUserIds(['u_002']);
+        $role->setExcludedDepartmentIds(['dep_exclude']);
+
+        $departmentDomainService->expects($this->exactly(2))
+            ->method('getAllChildrenByDepartmentIds')
+            ->willReturnCallback(static fn (array $departmentIds): array => match ($departmentIds) {
+                ['dep_include'] => ['dep_include', 'dep_include_child'],
+                ['dep_exclude'] => ['dep_exclude', 'dep_exclude_child'],
+                default => [],
+            });
+        $repository->expects($this->exactly(2))
+            ->method('getDistinctUserIdsByDepartmentIds')
+            ->willReturnCallback(static fn (string $organizationCode, array $departmentIds): array => match ($departmentIds) {
+                ['dep_include', 'dep_include_child'] => ['u_002', 'u_003', 'u_004'],
+                ['dep_exclude', 'dep_exclude_child'] => ['u_003', 'u_005'],
+                default => [],
+            });
+
+        $service = $this->createService(
+            repository: $repository,
+            departmentDomainService: $departmentDomainService,
+        );
+
+        $count = $service->countAssignedUsers(PermissionDataIsolation::create('ORG_TEST', 'operator'), $role);
+
+        $this->assertSame(2, $count);
     }
 
     public function testGetUserSummaryUsesDenyUnionAcrossMatchedRoles(): void

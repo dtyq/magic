@@ -11,6 +11,7 @@ use App\Domain\Contact\Entity\ValueObject\AccountStatus;
 use App\Domain\Contact\Repository\Persistence\Model\DepartmentUserModel;
 use App\Domain\Contact\Repository\Persistence\Model\UserModel;
 use App\Domain\Permission\Entity\ModelAccessRoleEntity;
+use App\Domain\Permission\Entity\ValueObject\ModelAccessRoleBindingMode;
 use App\Domain\Permission\Entity\ValueObject\ModelAccessRuleEffect;
 use App\Domain\Permission\Entity\ValueObject\ResourceVisibility\PrincipalType;
 use App\Domain\Permission\Repository\Persistence\Model\ModelAccessRoleModel;
@@ -128,6 +129,8 @@ class ModelAccessRoleRepository
         int $roleId,
         array $userIds,
         array $departmentIds,
+        array $excludedUserIds,
+        array $excludedDepartmentIds,
         bool $allUsers,
         string $assignedBy
     ): void {
@@ -136,7 +139,7 @@ class ModelAccessRoleRepository
             ->where('role_id', $roleId)
             ->delete();
 
-        if (empty($userIds) && empty($departmentIds) && ! $allUsers) {
+        if (empty($userIds) && empty($departmentIds) && empty($excludedUserIds) && empty($excludedDepartmentIds) && ! $allUsers) {
             return;
         }
 
@@ -146,6 +149,7 @@ class ModelAccessRoleRepository
             $rows[] = [
                 'organization_code' => $organizationCode,
                 'role_id' => $roleId,
+                'binding_mode' => ModelAccessRoleBindingMode::INCLUDE->value,
                 'principal_type' => PrincipalType::USER->value,
                 'principal_id' => $userId,
                 'user_id' => $userId,
@@ -160,6 +164,7 @@ class ModelAccessRoleRepository
             $rows[] = [
                 'organization_code' => $organizationCode,
                 'role_id' => $roleId,
+                'binding_mode' => ModelAccessRoleBindingMode::INCLUDE->value,
                 'principal_type' => PrincipalType::DEPARTMENT->value,
                 'principal_id' => $departmentId,
                 'user_id' => '',
@@ -174,8 +179,39 @@ class ModelAccessRoleRepository
             $rows[] = [
                 'organization_code' => $organizationCode,
                 'role_id' => $roleId,
+                'binding_mode' => ModelAccessRoleBindingMode::INCLUDE->value,
                 'principal_type' => PrincipalType::ORGANIZATION->value,
                 'principal_id' => $organizationCode,
+                'user_id' => '',
+                'assigned_by' => $assignedBy,
+                'assigned_at' => $now,
+                'created_at' => $now,
+                'updated_at' => $now,
+            ];
+        }
+
+        foreach ($excludedUserIds as $userId) {
+            $rows[] = [
+                'organization_code' => $organizationCode,
+                'role_id' => $roleId,
+                'binding_mode' => ModelAccessRoleBindingMode::EXCLUDE->value,
+                'principal_type' => PrincipalType::USER->value,
+                'principal_id' => $userId,
+                'user_id' => $userId,
+                'assigned_by' => $assignedBy,
+                'assigned_at' => $now,
+                'created_at' => $now,
+                'updated_at' => $now,
+            ];
+        }
+
+        foreach ($excludedDepartmentIds as $departmentId) {
+            $rows[] = [
+                'organization_code' => $organizationCode,
+                'role_id' => $roleId,
+                'binding_mode' => ModelAccessRoleBindingMode::EXCLUDE->value,
+                'principal_type' => PrincipalType::DEPARTMENT->value,
+                'principal_id' => $departmentId,
                 'user_id' => '',
                 'assigned_by' => $assignedBy,
                 'assigned_at' => $now,
@@ -220,6 +256,9 @@ class ModelAccessRoleRepository
         return ModelAccessRoleUserModel::query()
             ->where('organization_code', $organizationCode)
             ->where('role_id', $roleId)
+            ->where(static fn ($query) => $query
+                ->where('binding_mode', ModelAccessRoleBindingMode::INCLUDE->value)
+                ->orWhereNull('binding_mode'))
             ->where('principal_type', PrincipalType::USER->value)
             ->pluck('user_id')
             ->toArray();
@@ -248,6 +287,9 @@ class ModelAccessRoleRepository
             ->selectRaw('role_id, count(*) as aggregate')
             ->where('organization_code', $organizationCode)
             ->whereIn('role_id', $roleIds)
+            ->where(static fn ($query) => $query
+                ->where('binding_mode', ModelAccessRoleBindingMode::INCLUDE->value)
+                ->orWhereNull('binding_mode'))
             ->where('principal_type', PrincipalType::USER->value)
             ->groupBy('role_id')
             ->pluck('aggregate', 'role_id')
@@ -276,7 +318,13 @@ class ModelAccessRoleRepository
     }
 
     /**
-     * @return array<int, array{user_ids:array<string>,department_ids:array<string>,all_users:bool}>
+     * @return array<int, array{
+     *     user_ids:array<string>,
+     *     department_ids:array<string>,
+     *     excluded_user_ids:array<string>,
+     *     excluded_department_ids:array<string>,
+     *     all_users:bool
+     * }>
      */
     public function getRoleBindingMap(string $organizationCode, array $roleIds): array
     {
@@ -287,7 +335,7 @@ class ModelAccessRoleRepository
         $rows = ModelAccessRoleUserModel::query()
             ->where('organization_code', $organizationCode)
             ->whereIn('role_id', $roleIds)
-            ->get(['role_id', 'principal_type', 'principal_id', 'user_id']);
+            ->get(['role_id', 'binding_mode', 'principal_type', 'principal_id', 'user_id']);
 
         $result = [];
         foreach ($rows as $row) {
@@ -295,21 +343,27 @@ class ModelAccessRoleRepository
             $result[$roleId] ??= [
                 'user_ids' => [],
                 'department_ids' => [],
+                'excluded_user_ids' => [],
+                'excluded_department_ids' => [],
                 'all_users' => false,
             ];
 
             $principalType = PrincipalType::tryFrom((int) $row->principal_type);
+            $bindingMode = ModelAccessRoleBindingMode::tryFrom((int) ($row->binding_mode ?? ModelAccessRoleBindingMode::INCLUDE->value))
+                ?? ModelAccessRoleBindingMode::INCLUDE;
             if ($principalType === PrincipalType::USER) {
-                $result[$roleId]['user_ids'][] = (string) $row->principal_id;
+                $targetKey = $bindingMode === ModelAccessRoleBindingMode::EXCLUDE ? 'excluded_user_ids' : 'user_ids';
+                $result[$roleId][$targetKey][] = (string) $row->principal_id;
                 continue;
             }
 
             if ($principalType === PrincipalType::DEPARTMENT) {
-                $result[$roleId]['department_ids'][] = (string) $row->principal_id;
+                $targetKey = $bindingMode === ModelAccessRoleBindingMode::EXCLUDE ? 'excluded_department_ids' : 'department_ids';
+                $result[$roleId][$targetKey][] = (string) $row->principal_id;
                 continue;
             }
 
-            if ($principalType === PrincipalType::ORGANIZATION) {
+            if ($principalType === PrincipalType::ORGANIZATION && $bindingMode === ModelAccessRoleBindingMode::INCLUDE) {
                 $result[$roleId]['all_users'] = true;
             }
         }
@@ -317,6 +371,8 @@ class ModelAccessRoleRepository
         foreach ($result as $roleId => $bindings) {
             $result[$roleId]['user_ids'] = array_values(array_unique($bindings['user_ids']));
             $result[$roleId]['department_ids'] = array_values(array_unique($bindings['department_ids']));
+            $result[$roleId]['excluded_user_ids'] = array_values(array_unique($bindings['excluded_user_ids']));
+            $result[$roleId]['excluded_department_ids'] = array_values(array_unique($bindings['excluded_department_ids']));
         }
 
         return $result;
@@ -349,8 +405,11 @@ class ModelAccessRoleRepository
      */
     public function getUserAssignedRoles(string $organizationCode, string $userId, array $departmentIds = []): array
     {
-        $roleIds = ModelAccessRoleUserModel::query()
+        $includeRoleIds = ModelAccessRoleUserModel::query()
             ->where('organization_code', $organizationCode)
+            ->where(static fn ($query) => $query
+                ->where('binding_mode', ModelAccessRoleBindingMode::INCLUDE->value)
+                ->orWhereNull('binding_mode'))
             ->where(static function ($query) use ($organizationCode, $userId, $departmentIds) {
                 $query->where(static function ($subQuery) use ($userId) {
                     $subQuery->where('principal_type', PrincipalType::USER->value)
@@ -371,6 +430,31 @@ class ModelAccessRoleRepository
             ->map(static fn ($id) => (int) $id)
             ->toArray();
 
+        if (empty($includeRoleIds)) {
+            return [];
+        }
+
+        $excludeRoleIds = ModelAccessRoleUserModel::query()
+            ->where('organization_code', $organizationCode)
+            ->where('binding_mode', ModelAccessRoleBindingMode::EXCLUDE->value)
+            ->where(static function ($query) use ($userId, $departmentIds) {
+                $query->where(static function ($subQuery) use ($userId) {
+                    $subQuery->where('principal_type', PrincipalType::USER->value)
+                        ->where('principal_id', $userId);
+                });
+
+                if (! empty($departmentIds)) {
+                    $query->orWhere(static function ($subQuery) use ($departmentIds) {
+                        $subQuery->where('principal_type', PrincipalType::DEPARTMENT->value)
+                            ->whereIn('principal_id', $departmentIds);
+                    });
+                }
+            })
+            ->pluck('role_id')
+            ->map(static fn ($id) => (int) $id)
+            ->toArray();
+
+        $roleIds = array_values(array_diff(array_unique($includeRoleIds), array_unique($excludeRoleIds)));
         return array_values($this->getByIds($organizationCode, $roleIds));
     }
 

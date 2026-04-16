@@ -81,6 +81,8 @@ class ModelAccessRoleAppService extends AbstractPermissionAppService
                 'denied_model_ids' => $role->getDeniedModelIds(),
                 'denied_model_count' => count($role->getDeniedModelIds()),
                 'binding_scope' => $this->buildBindingScopeSummary($role),
+                'exclusion_user_count' => count($role->getExcludedUserIds()),
+                'exclusion_department_count' => count($role->getExcludedDepartmentIds()),
                 'user_count' => $this->domainService->countAssignedUsers($dataIsolation, $role),
                 'department_count' => count($role->getDepartmentIds()),
                 'created_at' => $role->getCreatedAt()?->format('Y-m-d H:i:s'),
@@ -99,14 +101,16 @@ class ModelAccessRoleAppService extends AbstractPermissionAppService
     public function detail(PermissionDataIsolation $dataIsolation, int $roleId): array
     {
         $role = $this->domainService->show($dataIsolation, $roleId);
+        $allUserIds = array_values(array_unique(array_merge($role->getUserIds(), $role->getExcludedUserIds())));
+        $allDepartmentIds = array_values(array_unique(array_merge($role->getDepartmentIds(), $role->getExcludedDepartmentIds())));
 
         $userInfo = $this->magicUserInfoAppService->getBatchUserInfo(
-            $role->getUserIds(),
+            $allUserIds,
             ContactDataIsolation::create($dataIsolation->getCurrentOrganizationCode(), $dataIsolation->getCurrentUserId())
         );
         $contactIsolation = ContactDataIsolation::create($dataIsolation->getCurrentOrganizationCode(), $dataIsolation->getCurrentUserId());
-        $departments = $this->magicDepartmentDomainService->getDepartmentByIds($contactIsolation, $role->getDepartmentIds(), true);
-        $departmentFullPaths = $this->magicDepartmentDomainService->getDepartmentFullPathByIds($contactIsolation, $role->getDepartmentIds());
+        $departments = $this->magicDepartmentDomainService->getDepartmentByIds($contactIsolation, $allDepartmentIds, true);
+        $departmentFullPaths = $this->magicDepartmentDomainService->getDepartmentFullPathByIds($contactIsolation, $allDepartmentIds);
 
         $modelMap = $this->providerModelDomainService->getModelsByModelIds(
             ProviderDataIsolation::create($dataIsolation->getCurrentOrganizationCode()),
@@ -130,6 +134,7 @@ class ModelAccessRoleAppService extends AbstractPermissionAppService
             'model_rule_effect' => 'deny',
             'denied_model_ids' => $role->getDeniedModelIds(),
             'binding_scope' => $this->buildBindingScopeDetail($role, $userInfo, $departments, $departmentFullPaths),
+            'exclusion_scope' => $this->buildExclusionScopeDetail($role, $userInfo, $departments, $departmentFullPaths),
             'denied_model_items' => array_map(static function (string $modelId) use ($modelMap, $fallbackModelNames) {
                 $first = $modelMap[$modelId][0] ?? null;
                 return [
@@ -138,6 +143,8 @@ class ModelAccessRoleAppService extends AbstractPermissionAppService
                 ];
             }, $role->getDeniedModelIds()),
             'denied_model_count' => count($role->getDeniedModelIds()),
+            'exclusion_user_count' => count($role->getExcludedUserIds()),
+            'exclusion_department_count' => count($role->getExcludedDepartmentIds()),
             'user_count' => $this->domainService->countAssignedUsers($dataIsolation, $role),
             'department_count' => count($role->getDepartmentIds()),
             'created_at' => $role->getCreatedAt()?->format('Y-m-d H:i:s'),
@@ -193,6 +200,8 @@ class ModelAccessRoleAppService extends AbstractPermissionAppService
             'model_rule_effect' => 'deny',
             'denied_model_count' => count($role->getDeniedModelIds()),
             'binding_scope' => $this->buildBindingScopeSummary($role),
+            'exclusion_user_count' => count($role->getExcludedUserIds()),
+            'exclusion_department_count' => count($role->getExcludedDepartmentIds()),
             'user_count' => $this->domainService->countAssignedUsers($dataIsolation, $role),
             'department_count' => count($role->getDepartmentIds()),
         ];
@@ -241,6 +250,37 @@ class ModelAccessRoleAppService extends AbstractPermissionAppService
                     'full_path_name' => implode('/', array_map(static fn ($item) => $item->getName(), $path)),
                 ];
             }, $role->getDepartmentIds()),
+        ];
+    }
+
+    private function buildExclusionScopeDetail(
+        ModelAccessRoleEntity $role,
+        array $userInfo,
+        array $departments,
+        array $departmentFullPaths
+    ): array {
+        return [
+            'type' => ModelAccessRoleBindingScopeType::Specific->value,
+            'user_ids' => $role->getExcludedUserIds(),
+            'department_ids' => $role->getExcludedDepartmentIds(),
+            'user_items' => array_map(static function (string $userId) use ($userInfo) {
+                $item = $userInfo[$userId] ?? ['nickname' => '', 'real_name' => ''];
+                return [
+                    'user_id' => $userId,
+                    'nickname' => $item['nickname'] ?? '',
+                    'real_name' => $item['real_name'] ?? '',
+                    'avatar_url' => $item['avatar_url'] ?? '',
+                ];
+            }, $role->getExcludedUserIds()),
+            'department_items' => array_map(static function (string $departmentId) use ($departments, $departmentFullPaths) {
+                $department = $departments[$departmentId] ?? null;
+                $path = $departmentFullPaths[$departmentId] ?? [];
+                return [
+                    'department_id' => $departmentId,
+                    'name' => $department?->getName() ?? '',
+                    'full_path_name' => implode('/', array_map(static fn ($item) => $item->getName(), $path)),
+                ];
+            }, $role->getExcludedDepartmentIds()),
         ];
     }
 }

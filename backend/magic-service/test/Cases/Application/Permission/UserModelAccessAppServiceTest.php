@@ -82,6 +82,23 @@ class UserModelAccessAppServiceTest extends TestCase
         $this->assertSame([['model_id' => 'model-b']], $filtered);
     }
 
+    public function testResolveAccessContextUsesDomainSummaryAfterRoleExclusionsApplied(): void
+    {
+        $domainService = $this->createMock(ModelAccessRoleDomainService::class);
+        $domainService->method('getUserSummary')->willReturn([
+            'permission_control_status' => PermissionControlStatus::ENABLED,
+            'roles' => [],
+            'denied_model_ids' => ['model-b'],
+            'accessible_model_ids' => ['model-a'],
+        ]);
+
+        $service = new UserModelAccessAppService($domainService);
+        $context = $service->resolveAccessContext($this->createAuthorization());
+
+        $this->assertSame(['model-b'], $context['denied_model_ids']);
+        $this->assertSame(['model-a' => true], $context['accessible_model_id_map']);
+    }
+
     private function createAuthorization(): MagicUserAuthorization
     {
         return (new MagicUserAuthorization())
