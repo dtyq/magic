@@ -7,7 +7,6 @@ declare(strict_types=1);
 
 namespace App\Application\Audit\ModelCall\Event\Subscribe;
 
-use App\Application\Audit\ModelCall\Event\ModelAuditReadyEvent;
 use App\Application\ModelGateway\Event\ImageSearchUsageEvent;
 use App\Application\ModelGateway\Event\ModelUsageEvent;
 use App\Application\ModelGateway\Event\WebSearchUsageEvent;
@@ -15,15 +14,15 @@ use App\Application\ModelGateway\Support\InvocationDetailInfo;
 use App\Domain\Audit\ModelCall\Entity\ValueObject\AuditStatus;
 use App\Domain\Audit\ModelCall\Entity\ValueObject\AuditType;
 use App\Domain\Audit\ModelCall\Entity\ValueObject\ModelAuditAccessScope;
+use App\Domain\Audit\ModelCall\Factory\AuditLogFactory;
+use App\Domain\Audit\ModelCall\Service\ModelCallAuditDomainService;
 use App\Domain\ModelGateway\Entity\ValueObject\AccessTokenType;
 use App\Domain\ModelGateway\Event\ImageGeneratedEvent;
 use App\Domain\ModelGateway\Event\ImageGenerateFailedEvent;
 use App\Domain\ModelGateway\Event\VideoGeneratedEvent;
 use App\Domain\ModelGateway\Event\VideoGenerateFailedEvent;
-use App\Domain\ModelGateway\Service\AccessTokenDomainService;
 use App\Infrastructure\Util\IdGenerator\IdGenerator;
-use App\Infrastructure\Util\StringMaskUtil;
-use Dtyq\AsyncEvent\AsyncEventUtil;
+use Dtyq\AsyncEvent\Kernel\Annotation\AsyncListener;
 use Hyperf\Event\Annotation\Listener;
 use Hyperf\Event\Contract\ListenerInterface;
 use Hyperf\Odin\Api\Response\Usage;
@@ -31,17 +30,18 @@ use Hyperf\Odin\Event\AfterChatCompletionsEvent;
 use Hyperf\Odin\Event\AfterChatCompletionsStreamEvent;
 use Hyperf\Odin\Event\AfterEmbeddingsEvent;
 use Psr\Log\LoggerInterface;
+use Throwable;
 
 /**
- * 统一审计管道 Bridge：监听所有业务事件和 Odin 后置事件，
- * 组装完整审计快照后 dispatch ModelAuditReadyEvent，
- * 由 ModelAuditPersistSubscriber 在同一次 dispatch 内同步一次性 INSERT。
+ * 统一模型调用审计监听器：监听所有业务事件和 Odin 后置事件，
+ * 组装审计快照并直接持久化。经 dtyq/async-event 异步执行，不阻塞主链路。
  */
+#[AsyncListener]
 #[Listener]
 class ModelAuditReadyBridgeSubscriber implements ListenerInterface
 {
     public function __construct(
-        private readonly AccessTokenDomainService $accessTokenDomainService,
+        private readonly ModelCallAuditDomainService $modelCallAuditDomainService,
         private readonly LoggerInterface $logger,
     ) {
     }
@@ -56,7 +56,6 @@ class ModelAuditReadyBridgeSubscriber implements ListenerInterface
             ImageGeneratedEvent::class,
             VideoGenerateFailedEvent::class,
             VideoGeneratedEvent::class,
-            // Odin 后置事件：TEXT/EMBEDDING 成功时 usage 已 ready，一次性落完整行
             AfterChatCompletionsEvent::class,
             AfterChatCompletionsStreamEvent::class,
             AfterEmbeddingsEvent::class,
@@ -88,16 +87,13 @@ class ModelAuditReadyBridgeSubscriber implements ListenerInterface
             return;
         }
 
-        $accessTokenRaw = (string) ($businessParams['access_token_raw'] ?? '');
         $auditType = match ((string) ($businessParams['model_type'] ?? '')) {
             'embedding' => AuditType::EMBEDDING,
             'image' => AuditType::IMAGE,
             default => AuditType::TEXT,
         };
-        $accessScope = $this->resolveAccessScopeForAudit($businessParams, $accessTokenRaw);
-        $accessTokenName = $this->resolveAccessTokenName($accessTokenRaw);
+        $accessScope = $this->resolveAccessScopeForAudit($businessParams);
         $businessParams = array_merge($businessParams, [
-            'access_token_name' => $accessTokenName,
             'model_version' => (string) ($businessParams['model_version'] ?? $event->modelVersion),
             'provider_name' => (string) ($businessParams['provider_name'] ?? ''),
             'audit_source_marker' => 'processRequest',
@@ -116,11 +112,11 @@ class ModelAuditReadyBridgeSubscriber implements ListenerInterface
             ),
         );
 
-        AsyncEventUtil::dispatch(new ModelAuditReadyEvent(
+        $this->persistAudit(
             type: $auditType->value,
             productCode: (string) ($businessParams['model_id'] ?? $event->getModelId()),
             status: AuditStatus::FAIL->value,
-            ak: (string) ($businessParams['ak'] ?? StringMaskUtil::mask($accessTokenRaw)),
+            ak: (string) ($businessParams['ak'] ?? ''),
             operationTime: (int) ($businessParams['operation_time'] ?? 0),
             allLatency: (int) ($businessParams['response_duration'] ?? 0),
             userInfo: [
@@ -133,7 +129,7 @@ class ModelAuditReadyBridgeSubscriber implements ListenerInterface
             businessParams: $businessParams,
             accessScope: $accessScope,
             eventId: $this->resolveModelAuditEventId($businessParams),
-        ));
+        );
     }
 
     private function processWebSearchUsage(WebSearchUsageEvent $event): void
@@ -149,12 +145,9 @@ class ModelAuditReadyBridgeSubscriber implements ListenerInterface
     private function processImageGenerated(ImageGeneratedEvent $event): void
     {
         $bp = $event->getBusinessParams();
-        $accessTokenRaw = (string) ($bp['access_token_raw'] ?? '');
-        $accessScope = $this->resolveAccessScopeForAudit($bp, $accessTokenRaw);
-        $accessTokenName = $this->resolveAccessTokenName($accessTokenRaw);
+        $accessScope = $this->resolveAccessScopeForAudit($bp);
         $chain = (string) ($bp['chain'] ?? '');
         $businessParams = array_merge($bp, [
-            'access_token_name' => $accessTokenName,
             'audit_source_marker' => $chain,
             'request_id' => trim((string) ($bp['request_id'] ?? '')),
         ]);
@@ -178,11 +171,11 @@ class ModelAuditReadyBridgeSubscriber implements ListenerInterface
 
         $usage = $status->isSuccess() ? ['count' => (int) ($bp['image_count'] ?? 0)] : [];
 
-        AsyncEventUtil::dispatch(new ModelAuditReadyEvent(
+        $this->persistAudit(
             type: AuditType::IMAGE->value,
             productCode: (string) ($bp['model_id'] ?? ''),
             status: $status->value,
-            ak: (string) ($bp['ak'] ?? StringMaskUtil::mask($accessTokenRaw)),
+            ak: (string) ($bp['ak'] ?? ''),
             operationTime: (int) ($bp['operation_time'] ?? 0),
             allLatency: (int) ($bp['response_duration'] ?? 0),
             userInfo: [
@@ -195,18 +188,15 @@ class ModelAuditReadyBridgeSubscriber implements ListenerInterface
             businessParams: $businessParams,
             accessScope: $accessScope,
             eventId: $this->resolveModelAuditEventId($businessParams),
-        ));
+        );
     }
 
     private function processImageGenerateFailed(ImageGenerateFailedEvent $event): void
     {
         $bp = $event->getBusinessParams();
-        $accessTokenRaw = (string) ($bp['access_token_raw'] ?? '');
-        $accessScope = $this->resolveAccessScopeForAudit($bp, $accessTokenRaw);
-        $accessTokenName = $this->resolveAccessTokenName($accessTokenRaw);
+        $accessScope = $this->resolveAccessScopeForAudit($bp);
         $chain = (string) ($bp['chain'] ?? '');
         $businessParams = array_merge($bp, [
-            'access_token_name' => $accessTokenName,
             'model_version' => (string) ($bp['model_version'] ?? ''),
             'provider_name' => (string) ($bp['provider_name'] ?? ''),
             'audit_source_marker' => $chain,
@@ -226,11 +216,11 @@ class ModelAuditReadyBridgeSubscriber implements ListenerInterface
             ),
         );
 
-        AsyncEventUtil::dispatch(new ModelAuditReadyEvent(
+        $this->persistAudit(
             type: AuditType::IMAGE->value,
             productCode: $event->getModel(),
             status: AuditStatus::FAIL->value,
-            ak: (string) ($bp['ak'] ?? StringMaskUtil::mask($accessTokenRaw)),
+            ak: (string) ($bp['ak'] ?? ''),
             operationTime: (int) ($bp['operation_time'] ?? 0),
             allLatency: (int) ($bp['response_duration'] ?? 0),
             userInfo: [
@@ -243,17 +233,15 @@ class ModelAuditReadyBridgeSubscriber implements ListenerInterface
             businessParams: $businessParams,
             accessScope: $accessScope,
             eventId: $this->resolveModelAuditEventId($businessParams),
-        ));
+        );
     }
 
     private function processVideoGenerated(VideoGeneratedEvent $event): void
     {
         $bp = $event->getBusinessParams();
-        $accessTokenRaw = (string) ($bp['access_token_raw'] ?? '');
-        $accessScope = $this->resolveAccessScopeForAudit($bp, $accessTokenRaw);
+        $accessScope = $this->resolveAccessScopeForAudit($bp);
         $originalModelId = (string) ($bp['original_model_id'] ?? ($event->getOriginalModelId() ?? $event->getModel()));
         $businessParams = $bp;
-        $businessParams['access_token_name'] = (string) ($bp['access_token_name'] ?? '');
         $businessParams['audit_source_marker'] = 'videoGenerate';
         $businessParams['request_id'] = trim((string) ($bp['request_id'] ?? ''));
 
@@ -264,11 +252,11 @@ class ModelAuditReadyBridgeSubscriber implements ListenerInterface
             ['original_model_id' => $originalModelId],
         );
 
-        AsyncEventUtil::dispatch(new ModelAuditReadyEvent(
+        $this->persistAudit(
             type: AuditType::VIDEO->value,
             productCode: (string) ($bp['model_id'] ?? $event->getModel()),
             status: AuditStatus::SUCCESS->value,
-            ak: (string) ($bp['ak'] ?? StringMaskUtil::mask($accessTokenRaw)),
+            ak: (string) ($bp['ak'] ?? ''),
             operationTime: (int) ($bp['operation_time'] ?? 0),
             allLatency: (int) ($bp['response_duration'] ?? 0),
             userInfo: [
@@ -281,17 +269,15 @@ class ModelAuditReadyBridgeSubscriber implements ListenerInterface
             businessParams: $businessParams,
             accessScope: $accessScope,
             eventId: $this->resolveModelAuditEventId($businessParams),
-        ));
+        );
     }
 
     private function processVideoGenerateFailed(VideoGenerateFailedEvent $event): void
     {
         $bp = $event->getBusinessParams();
-        $accessTokenRaw = (string) ($bp['access_token_raw'] ?? '');
-        $accessScope = $this->resolveAccessScopeForAudit($bp, $accessTokenRaw);
+        $accessScope = $this->resolveAccessScopeForAudit($bp);
         $originalModelId = (string) ($bp['original_model_id'] ?? $event->getModel());
         $businessParams = $bp;
-        $businessParams['access_token_name'] = (string) ($bp['access_token_name'] ?? '');
         $businessParams['model_version'] = (string) ($bp['model_version'] ?? '');
         $businessParams['provider_name'] = (string) ($bp['provider_name'] ?? '');
         $businessParams['audit_source_marker'] = 'videoGenerate';
@@ -307,11 +293,11 @@ class ModelAuditReadyBridgeSubscriber implements ListenerInterface
             ),
         );
 
-        AsyncEventUtil::dispatch(new ModelAuditReadyEvent(
+        $this->persistAudit(
             type: AuditType::VIDEO->value,
             productCode: (string) ($bp['model_id'] ?? $event->getModel()),
             status: AuditStatus::FAIL->value,
-            ak: (string) ($bp['ak'] ?? StringMaskUtil::mask($accessTokenRaw)),
+            ak: (string) ($bp['ak'] ?? ''),
             operationTime: (int) ($bp['operation_time'] ?? 0),
             allLatency: (int) ($bp['response_duration'] ?? 0),
             userInfo: [
@@ -324,18 +310,15 @@ class ModelAuditReadyBridgeSubscriber implements ListenerInterface
             businessParams: $businessParams,
             accessScope: $accessScope,
             eventId: $this->resolveModelAuditEventId($businessParams),
-        ));
+        );
     }
 
     private function dispatchSearchAudit(array $businessParams): void
     {
-        $accessTokenRaw = (string) ($businessParams['access_token_raw'] ?? '');
-        $accessScope = $this->resolveAccessScopeForAudit($businessParams, $accessTokenRaw);
-        $accessTokenName = $this->resolveAccessTokenName($accessTokenRaw);
+        $accessScope = $this->resolveAccessScopeForAudit($businessParams);
         $chain = (string) ($businessParams['chain'] ?? '');
         $engineName = (string) ($businessParams['engine'] ?? '');
         $businessParams = array_merge($businessParams, [
-            'access_token_name' => $accessTokenName,
             'model_version' => '',
             'provider_name' => '',
             'audit_source_marker' => $chain,
@@ -359,11 +342,11 @@ class ModelAuditReadyBridgeSubscriber implements ListenerInterface
 
         $usage = $status->isSuccess() ? ['count' => 1] : [];
 
-        AsyncEventUtil::dispatch(new ModelAuditReadyEvent(
+        $this->persistAudit(
             type: AuditType::SEARCH->value,
             productCode: $engineName,
             status: $status->value,
-            ak: (string) ($businessParams['ak'] ?? StringMaskUtil::mask($accessTokenRaw)),
+            ak: (string) ($businessParams['ak'] ?? ''),
             operationTime: (int) ($businessParams['operation_time'] ?? 0),
             allLatency: (int) ($businessParams['response_duration'] ?? 0),
             userInfo: [
@@ -376,7 +359,7 @@ class ModelAuditReadyBridgeSubscriber implements ListenerInterface
             businessParams: $businessParams,
             accessScope: $accessScope,
             eventId: $this->resolveModelAuditEventId($businessParams),
-        ));
+        );
     }
 
     private function processAfterChatCompletions(AfterChatCompletionsEvent $event): void
@@ -394,14 +377,10 @@ class ModelAuditReadyBridgeSubscriber implements ListenerInterface
 
         $operationTime = (int) ($bp['operation_time'] ?? 0);
         $ak = (string) ($bp['ak'] ?? '');
-        // access_token_raw 由 LLMAppService::processRequest 提前写入 businessParams，仅用于查库，不落库
-        $accessTokenRaw = (string) ($bp['access_token_raw'] ?? '');
 
-        $accessScope = $this->resolveAccessScopeForAudit($bp, $accessTokenRaw);
-        $accessTokenName = $this->resolveAccessTokenName($accessTokenRaw);
+        $accessScope = $this->resolveAccessScopeForAudit($bp);
 
         $businessParams = array_merge($bp, [
-            'access_token_name' => $accessTokenName,
             'audit_source_marker' => 'processRequest',
             'request_id' => trim((string) ($bp['request_id'] ?? '')),
         ]);
@@ -413,7 +392,7 @@ class ModelAuditReadyBridgeSubscriber implements ListenerInterface
             ['original_model_id' => (string) ($bp['original_model_id'] ?? '')],
         );
 
-        AsyncEventUtil::dispatch(new ModelAuditReadyEvent(
+        $this->persistAudit(
             type: AuditType::TEXT->value,
             productCode: (string) ($bp['model_id'] ?? $req->getModel()),
             status: AuditStatus::SUCCESS->value,
@@ -430,7 +409,7 @@ class ModelAuditReadyBridgeSubscriber implements ListenerInterface
             businessParams: $businessParams,
             accessScope: $accessScope,
             eventId: $this->resolveModelAuditEventId($businessParams),
-        ));
+        );
     }
 
     private function processAfterChatCompletionsStream(AfterChatCompletionsStreamEvent $event): void
@@ -447,13 +426,10 @@ class ModelAuditReadyBridgeSubscriber implements ListenerInterface
 
         $operationTime = (int) ($bp['operation_time'] ?? 0);
         $ak = (string) ($bp['ak'] ?? '');
-        $accessTokenRaw = (string) ($bp['access_token_raw'] ?? '');
 
-        $accessScope = $this->resolveAccessScopeForAudit($bp, $accessTokenRaw);
-        $accessTokenName = $this->resolveAccessTokenName($accessTokenRaw);
+        $accessScope = $this->resolveAccessScopeForAudit($bp);
 
         $businessParams = array_merge($bp, [
-            'access_token_name' => $accessTokenName,
             'audit_source_marker' => 'processRequest',
             'request_id' => trim((string) ($bp['request_id'] ?? '')),
         ]);
@@ -466,13 +442,12 @@ class ModelAuditReadyBridgeSubscriber implements ListenerInterface
         );
 
         $firstResponseLatency = (int) $event->getFirstResponseDuration();
-        AsyncEventUtil::dispatch(new ModelAuditReadyEvent(
+        $this->persistAudit(
             type: AuditType::TEXT->value,
             productCode: (string) ($bp['model_id'] ?? $req->getModel()),
             status: AuditStatus::SUCCESS->value,
             ak: $ak,
             operationTime: $operationTime,
-            // 流式总延时 = TTFT（等待第一个chunk）+ 流消费耗时（getDuration 从消费开始计）
             allLatency: $firstResponseLatency + (int) $event->getDuration(),
             userInfo: [
                 'organization_code' => (string) ($bp['organization_id'] ?? ''),
@@ -485,7 +460,7 @@ class ModelAuditReadyBridgeSubscriber implements ListenerInterface
             accessScope: $accessScope,
             firstResponseLatency: $firstResponseLatency,
             eventId: $this->resolveModelAuditEventId($businessParams),
-        ));
+        );
     }
 
     private function processAfterEmbeddings(AfterEmbeddingsEvent $event): void
@@ -506,13 +481,10 @@ class ModelAuditReadyBridgeSubscriber implements ListenerInterface
 
         $operationTime = (int) ($bp['operation_time'] ?? 0);
         $ak = (string) ($bp['ak'] ?? '');
-        $accessTokenRaw = (string) ($bp['access_token_raw'] ?? '');
 
-        $accessScope = $this->resolveAccessScopeForAudit($bp, $accessTokenRaw);
-        $accessTokenName = $this->resolveAccessTokenName($accessTokenRaw);
+        $accessScope = $this->resolveAccessScopeForAudit($bp);
 
         $businessParams = array_merge($bp, [
-            'access_token_name' => $accessTokenName,
             'audit_source_marker' => 'processRequest',
             'request_id' => trim((string) ($bp['request_id'] ?? '')),
         ]);
@@ -524,7 +496,7 @@ class ModelAuditReadyBridgeSubscriber implements ListenerInterface
             ['original_model_id' => (string) ($bp['original_model_id'] ?? '')],
         );
 
-        AsyncEventUtil::dispatch(new ModelAuditReadyEvent(
+        $this->persistAudit(
             type: AuditType::EMBEDDING->value,
             productCode: (string) ($bp['model_id'] ?? $req->getModel()),
             status: AuditStatus::SUCCESS->value,
@@ -541,7 +513,76 @@ class ModelAuditReadyBridgeSubscriber implements ListenerInterface
             businessParams: $businessParams,
             accessScope: $accessScope,
             eventId: $this->resolveModelAuditEventId($businessParams),
-        ));
+        );
+    }
+
+    /**
+     * 审计落库：组装实体并持久化。
+     *
+     * @param array<string, mixed> $userInfo
+     * @param array<string, mixed> $usage
+     * @param null|array<string, mixed> $detailInfo
+     * @param array<string, mixed> $businessParams
+     */
+    private function persistAudit(
+        string $type,
+        string $productCode,
+        string $status,
+        string $ak,
+        int $operationTime,
+        int $allLatency,
+        array $userInfo,
+        array $usage,
+        ?array $detailInfo,
+        array $businessParams,
+        ModelAuditAccessScope $accessScope,
+        int $firstResponseLatency = 0,
+        string $eventId = '',
+    ): void {
+        try {
+            $userId = (string) ($userInfo['user_id'] ?? '');
+            $organizationCode = (string) ($userInfo['organization_code'] ?? '');
+
+            $raw = $businessParams['magic_topic_id'] ?? null;
+            $magicTopicId = is_string($raw) ? trim($raw) : '';
+            $magicTopicId = $magicTopicId === '' ? null : $magicTopicId;
+
+            $requestId = trim((string) ($businessParams['request_id'] ?? ''));
+            $accessTokenName = trim((string) ($businessParams['access_token_name'] ?? ''));
+            $modelVersion = trim((string) ($businessParams['model_version'] ?? ''));
+            $providerName = trim((string) ($businessParams['provider_name'] ?? ''));
+            $eventId = trim($eventId);
+
+            $entity = AuditLogFactory::createNew(
+                userId: $userId,
+                organizationCode: $organizationCode,
+                type: $type,
+                productCode: $productCode,
+                status: $status,
+                ak: $ak,
+                operationTime: $operationTime,
+                allLatency: $allLatency,
+                usage: $usage,
+                detailInfo: $detailInfo,
+                accessScope: $accessScope,
+                magicTopicId: $magicTopicId,
+                requestId: $requestId,
+                accessTokenName: $accessTokenName,
+                modelVersion: $modelVersion,
+                providerName: $providerName,
+                firstResponseLatency: $firstResponseLatency,
+                eventId: $eventId !== '' ? $eventId : null,
+            );
+
+            $this->modelCallAuditDomainService->record($entity);
+        } catch (Throwable $e) {
+            $this->logger->error('Model audit persist failed', [
+                'type' => $type,
+                'product_code' => $productCode,
+                'status' => $status,
+                'error' => $e->getMessage(),
+            ]);
+        }
     }
 
     /**
@@ -573,23 +614,11 @@ class ModelAuditReadyBridgeSubscriber implements ListenerInterface
     }
 
     /**
-     * 查库获取 access token 名称快照，供审计落库。
-     * 若 token 为空或已删除则返回空字符串（与现网 async 路径边界一致）。
+     * User→开放平台，Application→Magic；无 type 则缺省 Magic。
+     *
+     * @param array<string, mixed> $businessParams
      */
-    private function resolveAccessTokenName(string $accessToken): string
-    {
-        if ($accessToken === '') {
-            return '';
-        }
-        $tokenEntity = $this->accessTokenDomainService->getByAccessToken($accessToken);
-        return $tokenEntity?->getName() ?? '';
-    }
-
-    /**
-     * User→开放平台，Application→Magic；无 token 字符串的会话类审计视为 Magic（与网关数据隔离约定一致）.
-     * 必须完整保留 accessToken 查库 fallback，bingSearch 等工具类链路没有 access_token_type，依赖此逻辑判定 access_scope。
-     */
-    private function resolveAccessScopeForAudit(array $businessParams, string $accessToken): ModelAuditAccessScope
+    private function resolveAccessScopeForAudit(array $businessParams): ModelAuditAccessScope
     {
         $tokenType = (string) ($businessParams['access_token_type'] ?? '');
         if ($tokenType === AccessTokenType::User->value) {
@@ -598,14 +627,6 @@ class ModelAuditReadyBridgeSubscriber implements ListenerInterface
         if ($tokenType === AccessTokenType::Application->value) {
             return ModelAuditAccessScope::Magic;
         }
-        if ($accessToken === '') {
-            return ModelAuditAccessScope::Magic;
-        }
-        $tokenEntity = $this->accessTokenDomainService->getByAccessToken($accessToken);
-        if ($tokenEntity === null) {
-            return ModelAuditAccessScope::Magic;
-        }
-
-        return ModelAuditAccessScope::fromAccessTokenType($tokenEntity->getType());
+        return ModelAuditAccessScope::Magic;
     }
 }
