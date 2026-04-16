@@ -28,11 +28,13 @@ return new class extends Migration {
 
                 $now = date('Y-m-d H:i:s');
                 foreach ($defaultRoles as $defaultRole) {
+                    $defaultRole = (array) $defaultRole;
+
                     $exists = Db::table('magic_model_access_role_users')
-                        ->where('organization_code', $defaultRole->organization_code)
-                        ->where('role_id', $defaultRole->id)
+                        ->where('organization_code', $defaultRole['organization_code'])
+                        ->where('role_id', $defaultRole['id'])
                         ->where('principal_type', 3)
-                        ->where('principal_id', $defaultRole->organization_code)
+                        ->where('principal_id', $defaultRole['organization_code'])
                         ->exists();
 
                     if ($exists) {
@@ -40,10 +42,10 @@ return new class extends Migration {
                     }
 
                     Db::table('magic_model_access_role_users')->insert([
-                        'organization_code' => $defaultRole->organization_code,
-                        'role_id' => $defaultRole->id,
+                        'organization_code' => $defaultRole['organization_code'],
+                        'role_id' => $defaultRole['id'],
                         'principal_type' => 3,
-                        'principal_id' => $defaultRole->organization_code,
+                        'principal_id' => $defaultRole['organization_code'],
                         'user_id' => '',
                         'assigned_by' => 'migration',
                         'assigned_at' => $now,
