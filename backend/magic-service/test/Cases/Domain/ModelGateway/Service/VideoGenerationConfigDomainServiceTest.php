@@ -79,9 +79,25 @@ class VideoGenerationConfigDomainServiceTest extends TestCase
         $this->assertArrayHasKey('input_modes', $config->toArray());
         $this->assertSame(['reference_images'], $config->toArray()['input_modes']['image_reference']['supported_fields']);
         $this->assertSame(9, $config->toArray()['input_modes']['image_reference']['reference_images']['max_count']);
+        $this->assertStringContainsString('上传1~9 张参考图片', $config->toArray()['input_modes']['image_reference']['description']);
         $this->assertSame(['reference_images', 'reference_videos', 'reference_audios'], $config->toArray()['input_modes']['omni_reference']['supported_fields']);
         $this->assertSame(12, $config->toArray()['input_modes']['omni_reference']['max_count']);
+        $this->assertStringContainsString('上传1~12 份图 / 视 / 音参考素材', $config->toArray()['input_modes']['omni_reference']['description']);
         $this->assertSame(['start', 'end'], $config->toArray()['input_modes']['keyframe_guided']['frame_roles']);
+        $this->assertStringContainsString('首尾帧', $config->toArray()['input_modes']['keyframe_guided']['description']);
+    }
+
+    public function testResolveBuildsModeDescriptionsFromConfig(): void
+    {
+        $service = $this->createService();
+
+        $seedanceConfig = $service->resolve('rrpvTsUlqilBwMXg', 'seedance-1.5-pro', ProviderCode::Cloudsway);
+        $veoConfig = $service->resolve('LCnVzCkkMnVulyrz', 'veo-3.1-generate-preview', ProviderCode::Cloudsway);
+
+        $this->assertInstanceOf(VideoGenerationConfig::class, $seedanceConfig);
+        $this->assertInstanceOf(VideoGenerationConfig::class, $veoConfig);
+        $this->assertStringContainsString('只支持首帧', $seedanceConfig->toArray()['input_modes']['keyframe_guided']['description']);
+        $this->assertStringContainsString('上传1~3 张参考图片', $veoConfig->toArray()['input_modes']['image_reference']['description']);
     }
 
     public function testIntersectShrinksBooleanListRangeAndConstraintFields(): void

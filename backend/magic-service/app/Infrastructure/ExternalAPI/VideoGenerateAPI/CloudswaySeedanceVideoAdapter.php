@@ -10,6 +10,7 @@ namespace App\Infrastructure\ExternalAPI\VideoGenerateAPI;
 use App\Domain\ModelGateway\Entity\ValueObject\QueueExecutorConfig;
 use App\Domain\ModelGateway\Entity\ValueObject\VideoGenerationConfig;
 use App\Domain\ModelGateway\Entity\VideoQueueOperationEntity;
+use Hyperf\Contract\TranslatorInterface;
 
 /** @noinspection SpellCheckingInspection */
 readonly class CloudswaySeedanceVideoAdapter extends AbstractCloudswayVideoAdapter
@@ -74,11 +75,11 @@ readonly class CloudswaySeedanceVideoAdapter extends AbstractCloudswayVideoAdapt
             ],
             'input_modes' => [
                 'standard' => [
-                    'description' => '普通文生视频模式，不依赖任何参考素材。',
+                    'description' => $this->translateInputMode('standard'),
                     'supported_fields' => [],
                 ],
                 'keyframe_guided' => [
-                    'description' => '首尾帧引导模式，使用 frames 传入首帧图片。',
+                    'description' => $this->translateInputMode('keyframe_guided.start_only'),
                     'supported_fields' => ['frames'],
                     'frame_roles' => ['start'],
                 ],
@@ -268,5 +269,13 @@ readonly class CloudswaySeedanceVideoAdapter extends AbstractCloudswayVideoAdapt
         $acceptedParams[] = 'generation.resolution';
 
         return trim($prompt . ' ' . implode(' ', $suffixes));
+    }
+
+    /**
+     * Seedance 1.5 的 mode 文案直接跟随 adapter 输出，减少额外聚合层复杂度。
+     */
+    private function translateInputMode(string $key, array $replace = []): string
+    {
+        return di(TranslatorInterface::class)->trans('video.input_modes.' . $key, $replace);
     }
 }

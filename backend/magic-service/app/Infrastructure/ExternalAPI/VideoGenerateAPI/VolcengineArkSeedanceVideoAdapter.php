@@ -11,6 +11,7 @@ use App\Domain\ModelGateway\Contract\VideoGenerationProviderAdapterInterface;
 use App\Domain\ModelGateway\Entity\ValueObject\QueueExecutorConfig;
 use App\Domain\ModelGateway\Entity\ValueObject\VideoGenerationConfig;
 use App\Domain\ModelGateway\Entity\VideoQueueOperationEntity;
+use Hyperf\Contract\TranslatorInterface;
 
 readonly class VolcengineArkSeedanceVideoAdapter implements VideoGenerationProviderAdapterInterface
 {
@@ -118,11 +119,13 @@ readonly class VolcengineArkSeedanceVideoAdapter implements VideoGenerationProvi
             ],
             'input_modes' => [
                 'standard' => [
-                    'description' => '普通文生视频模式，不依赖任何参考素材。',
+                    'description' => $this->translateInputMode('standard'),
                     'supported_fields' => [],
                 ],
                 'image_reference' => [
-                    'description' => '参考图模式，仅支持通过 reference_images 传入图片参考。',
+                    'description' => $this->translateInputMode('image_reference.multiple', [
+                        'max_count' => 9,
+                    ]),
                     'supported_fields' => ['reference_images'],
                     'reference_images' => [
                         'max_count' => 9,
@@ -131,12 +134,14 @@ readonly class VolcengineArkSeedanceVideoAdapter implements VideoGenerationProvi
                     ],
                 ],
                 'omni_reference' => [
-                    'description' => '全能参考模式，支持混合传入参考图、参考视频、参考音频，素材总数为 1 到 12 个。',
+                    'description' => $this->translateInputMode('omni_reference', [
+                        'max_count' => 12,
+                    ]),
                     'supported_fields' => ['reference_images', 'reference_videos', 'reference_audios'],
                     'max_count' => 12,
                 ],
                 'keyframe_guided' => [
-                    'description' => '首尾帧引导模式，使用 frames 传入首帧和尾帧图片。',
+                    'description' => $this->translateInputMode('keyframe_guided.start_end'),
                     'supported_fields' => ['frames'],
                     'frame_roles' => ['start', 'end'],
                 ],
@@ -554,5 +559,13 @@ readonly class VolcengineArkSeedanceVideoAdapter implements VideoGenerationProvi
         }
 
         return null;
+    }
+
+    /**
+     * 方舟 Seedance 的 mode 文案放在 adapter 原位生成，和它自己的能力配置保持同源。
+     */
+    private function translateInputMode(string $key, array $replace = []): string
+    {
+        return di(TranslatorInterface::class)->trans('video.input_modes.' . $key, $replace);
     }
 }

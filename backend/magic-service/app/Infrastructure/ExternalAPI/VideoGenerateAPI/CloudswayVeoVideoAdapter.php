@@ -10,6 +10,7 @@ namespace App\Infrastructure\ExternalAPI\VideoGenerateAPI;
 use App\Domain\ModelGateway\Entity\ValueObject\QueueExecutorConfig;
 use App\Domain\ModelGateway\Entity\ValueObject\VideoGenerationConfig;
 use App\Domain\ModelGateway\Entity\VideoQueueOperationEntity;
+use Hyperf\Contract\TranslatorInterface;
 
 readonly class CloudswayVeoVideoAdapter extends AbstractCloudswayVideoAdapter
 {
@@ -111,11 +112,13 @@ readonly class CloudswayVeoVideoAdapter extends AbstractCloudswayVideoAdapter
             ],
             'input_modes' => array_filter([
                 'standard' => [
-                    'description' => '普通文生视频模式，不依赖任何参考素材。',
+                    'description' => $this->translateInputMode('standard'),
                     'supported_fields' => [],
                 ],
                 'image_reference' => $supportsReferenceImages ? [
-                    'description' => '参考图模式，仅支持通过 reference_images 传入图片参考。',
+                    'description' => $this->translateInputMode('image_reference.multiple', [
+                        'max_count' => self::MAX_REFERENCE_IMAGES,
+                    ]),
                     'supported_fields' => ['reference_images'],
                     'reference_images' => [
                         'max_count' => self::MAX_REFERENCE_IMAGES,
@@ -124,7 +127,7 @@ readonly class CloudswayVeoVideoAdapter extends AbstractCloudswayVideoAdapter
                     ],
                 ] : null,
                 'keyframe_guided' => [
-                    'description' => '首尾帧引导模式，使用 frames 传入首帧和尾帧图片。',
+                    'description' => $this->translateInputMode('keyframe_guided.start_end'),
                     'supported_fields' => ['frames'],
                     'frame_roles' => ['start', 'end'],
                 ],
@@ -518,5 +521,13 @@ readonly class CloudswayVeoVideoAdapter extends AbstractCloudswayVideoAdapter
     {
         $seed = (int) $value;
         return $seed >= self::MIN_SEED && $seed <= self::MAX_SEED;
+    }
+
+    /**
+     * Veo 的 mode 文案继续在 adapter 原位生成，便于和当前模型能力配置一起维护。
+     */
+    private function translateInputMode(string $key, array $replace = []): string
+    {
+        return di(TranslatorInterface::class)->trans('video.input_modes.' . $key, $replace);
     }
 }

@@ -10,6 +10,7 @@ namespace App\Infrastructure\ExternalAPI\VideoGenerateAPI;
 use App\Domain\ModelGateway\Entity\ValueObject\QueueExecutorConfig;
 use App\Domain\ModelGateway\Entity\ValueObject\VideoGenerationConfig;
 use App\Domain\ModelGateway\Entity\VideoQueueOperationEntity;
+use Hyperf\Contract\TranslatorInterface;
 
 readonly class CloudswayKelingVideoAdapter extends AbstractCloudswayVideoAdapter
 {
@@ -91,11 +92,11 @@ readonly class CloudswayKelingVideoAdapter extends AbstractCloudswayVideoAdapter
             ],
             'input_modes' => [
                 'standard' => [
-                    'description' => '普通文生视频模式，不依赖任何参考素材。',
+                    'description' => $this->translateInputMode('standard'),
                     'supported_fields' => [],
                 ],
                 'keyframe_guided' => [
-                    'description' => '首尾帧引导模式，使用 frames 传入首帧图片。',
+                    'description' => $this->translateInputMode('keyframe_guided.start_end'),
                     'supported_fields' => ['frames'],
                     'frame_roles' => ['start', 'end'],
                 ],
@@ -325,5 +326,13 @@ readonly class CloudswayKelingVideoAdapter extends AbstractCloudswayVideoAdapter
         }
 
         return $this->buildEndpointPath($operation, $path);
+    }
+
+    /**
+     * Keling 的 mode 文案保留在 adapter 内生成，避免前端看到的说明和模型能力配置脱节。
+     */
+    private function translateInputMode(string $key, array $replace = []): string
+    {
+        return di(TranslatorInterface::class)->trans('video.input_modes.' . $key, $replace);
     }
 }
