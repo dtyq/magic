@@ -11,7 +11,9 @@ class BillingTierItem extends AbstractTokenPricingValueObject
 {
     protected BillingObject $billingObject;
 
-    protected BillingTierMode $billingMode;
+    protected BillingTierMode $pricingMode;
+
+    protected BillingTierMode $costMode;
 
     protected BillingObject $followObject;
 
@@ -20,6 +22,11 @@ class BillingTierItem extends AbstractTokenPricingValueObject
      */
     protected array $pricingRules = [];
 
+    /**
+     * @var BillingTierPriceRule[]
+     */
+    protected array $costRules = [];
+
     public function __construct(?array $data = null)
     {
         if (! is_array($data)) {
@@ -27,30 +34,32 @@ class BillingTierItem extends AbstractTokenPricingValueObject
         }
 
         $billingObject = BillingObject::tryFrom((string) ($data['billing_object'] ?? ''));
-        $billingMode = BillingTierMode::tryFrom((string) ($data['billing_mode'] ?? ''));
+        $pricingMode = BillingTierMode::tryFrom((string) ($data['pricing_mode'] ?? ''));
+        $costMode = BillingTierMode::tryFrom((string) ($data['cost_mode'] ?? ''));
         $followObject = BillingObject::tryFrom((string) ($data['follow_object'] ?? ''));
 
-        if (! $billingObject instanceof BillingObject || ! $billingMode instanceof BillingTierMode || ! $followObject instanceof BillingObject) {
+        if (! $billingObject instanceof BillingObject
+            || ! $pricingMode instanceof BillingTierMode
+            || ! $costMode instanceof BillingTierMode
+            || ! $followObject instanceof BillingObject) {
             $this->throwInvalidPricing();
         }
 
         $pricingRules = $data['pricing_rules'] ?? null;
-        if (! is_array($pricingRules)) {
+        $costRules = $data['cost_rules'] ?? null;
+        if (! is_array($pricingRules) || ! is_array($costRules)) {
             $this->throwInvalidPricing();
         }
 
         $this->billingObject = $billingObject;
-        $this->billingMode = $billingMode;
+        $this->pricingMode = $pricingMode;
+        $this->costMode = $costMode;
         $this->followObject = $followObject;
-        $this->pricingRules = array_map(function (mixed $pricingRule): BillingTierPriceRule {
-            if (! is_array($pricingRule)) {
-                $this->throwInvalidPricing();
-            }
+        $this->pricingRules = $this->mapPricingRules($pricingRules);
+        $this->costRules = $this->mapPricingRules($costRules);
 
-            return new BillingTierPriceRule($pricingRule);
-        }, $pricingRules);
-
-        $this->assertPricingRulesAreValid();
+        $this->assertPricingRulesAreValid($this->pricingMode, $this->pricingRules);
+        $this->assertPricingRulesAreValid($this->costMode, $this->costRules);
     }
 
     public function getBillingObject(): BillingObject
@@ -58,9 +67,14 @@ class BillingTierItem extends AbstractTokenPricingValueObject
         return $this->billingObject;
     }
 
-    public function getBillingMode(): BillingTierMode
+    public function getPricingMode(): BillingTierMode
     {
-        return $this->billingMode;
+        return $this->pricingMode;
+    }
+
+    public function getCostMode(): BillingTierMode
+    {
+        return $this->costMode;
     }
 
     public function getFollowObject(): BillingObject
@@ -76,17 +90,61 @@ class BillingTierItem extends AbstractTokenPricingValueObject
         return $this->pricingRules;
     }
 
-    public function resolvePrice(?int $followValue): ?float
+    /**
+     * @return BillingTierPriceRule[]
+     */
+    public function getCostRules(): array
     {
-        if ($this->billingMode === BillingTierMode::Fixed) {
-            return $this->pricingRules[0]->getPrice();
+        return $this->costRules;
+    }
+
+    public function resolvePricingPrice(?int $followValue): ?float
+    {
+        return $this->resolveRulesPrice($this->pricingMode, $this->pricingRules, $followValue);
+    }
+
+    public function resolveCostPrice(?int $followValue): ?float
+    {
+        return $this->resolveRulesPrice($this->costMode, $this->costRules, $followValue);
+    }
+
+    public function toArray(): array
+    {
+        return [
+            'billing_object' => $this->billingObject->value,
+            'pricing_mode' => $this->pricingMode->value,
+            'follow_object' => $this->followObject->value,
+            'pricing_rules' => array_map(
+                static fn (BillingTierPriceRule $pricingRule): array => $pricingRule->toArray(),
+                $this->pricingRules
+            ),
+            'cost_mode' => $this->costMode->value,
+            'cost_rules' => array_map(
+                static fn (BillingTierPriceRule $pricingRule): array => $pricingRule->toArray(),
+                $this->costRules
+            ),
+        ];
+    }
+
+    public function jsonSerialize(): array
+    {
+        return $this->toArray();
+    }
+
+    /**
+     * @param BillingTierPriceRule[] $rules
+     */
+    private function resolveRulesPrice(BillingTierMode $mode, array $rules, ?int $followValue): ?float
+    {
+        if ($mode === BillingTierMode::Fixed) {
+            return $rules[0]->getPrice();
         }
 
         if ($followValue === null) {
             return null;
         }
 
-        foreach ($this->pricingRules as $pricingRule) {
+        foreach ($rules as $pricingRule) {
             $min = $pricingRule->getMin();
             $max = $pricingRule->getMax();
             if ($min === null) {
@@ -107,55 +165,61 @@ class BillingTierItem extends AbstractTokenPricingValueObject
         return null;
     }
 
-    public function toArray(): array
+    /**
+     * @param BillingTierPriceRule[] $rules
+     */
+    private function assertPricingRulesAreValid(BillingTierMode $mode, array $rules): void
     {
-        return [
-            'billing_object' => $this->billingObject->value,
-            'billing_mode' => $this->billingMode->value,
-            'follow_object' => $this->followObject->value,
-            'pricing_rules' => array_map(
-                static fn (BillingTierPriceRule $pricingRule): array => $pricingRule->toArray(),
-                $this->pricingRules
-            ),
-        ];
-    }
-
-    public function jsonSerialize(): array
-    {
-        return $this->toArray();
-    }
-
-    private function assertPricingRulesAreValid(): void
-    {
-        if ($this->pricingRules === []) {
+        if ($rules === []) {
             $this->throwInvalidPricing();
         }
 
-        if ($this->billingMode === BillingTierMode::Fixed) {
-            $this->assertFixedPricingRulesAreValid();
+        if ($mode === BillingTierMode::Fixed) {
+            $this->assertFixedPricingRulesAreValid($rules);
             return;
         }
 
-        $this->assertTieredPricingRulesAreValid();
+        $this->assertTieredPricingRulesAreValid($rules);
     }
 
-    private function assertFixedPricingRulesAreValid(): void
+    /**
+     * @param array<int, mixed> $rules
+     * @return BillingTierPriceRule[]
+     */
+    private function mapPricingRules(array $rules): array
     {
-        if (count($this->pricingRules) !== 1) {
+        return array_map(function (mixed $pricingRule): BillingTierPriceRule {
+            if (! is_array($pricingRule)) {
+                $this->throwInvalidPricing();
+            }
+
+            return new BillingTierPriceRule($pricingRule);
+        }, $rules);
+    }
+
+    /**
+     * @param BillingTierPriceRule[] $rules
+     */
+    private function assertFixedPricingRulesAreValid(array $rules): void
+    {
+        if (count($rules) !== 1) {
             $this->throwInvalidPricing();
         }
 
-        $pricingRule = $this->pricingRules[0];
+        $pricingRule = $rules[0];
         if ($pricingRule->getMin() !== null || $pricingRule->getMax() !== null) {
             $this->throwInvalidPricing();
         }
     }
 
-    private function assertTieredPricingRulesAreValid(): void
+    /**
+     * @param BillingTierPriceRule[] $rules
+     */
+    private function assertTieredPricingRulesAreValid(array $rules): void
     {
         $previousMax = null;
 
-        foreach ($this->pricingRules as $index => $pricingRule) {
+        foreach ($rules as $index => $pricingRule) {
             $min = $pricingRule->getMin();
             $max = $pricingRule->getMax();
 
@@ -175,7 +239,7 @@ class BillingTierItem extends AbstractTokenPricingValueObject
                 $this->throwInvalidPricing();
             }
 
-            if ($max === null && $index !== array_key_last($this->pricingRules)) {
+            if ($max === null && $index !== array_key_last($rules)) {
                 $this->throwInvalidPricing();
             }
 
