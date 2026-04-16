@@ -8,9 +8,9 @@ declare(strict_types=1);
 namespace App\Domain\Provider\DTO\Item;
 
 use App\Domain\Provider\DTO\Item\TokenPricing\BillingObject;
-use App\Domain\Provider\DTO\Item\TokenPricing\BillingTiers;
 use App\Domain\Provider\DTO\Item\TokenPricing\BillingTierItem;
 use App\Domain\Provider\DTO\Item\TokenPricing\BillingTierMode;
+use App\Domain\Provider\DTO\Item\TokenPricing\BillingTiers;
 use App\ErrorCode\ServiceProviderErrorCode;
 use App\Infrastructure\Core\AbstractDTO;
 use App\Infrastructure\Core\Exception\ExceptionBuilder;
