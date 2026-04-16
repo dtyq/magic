@@ -336,7 +336,7 @@ class LLMAppService extends AbstractLLMAppService
                 'operation_time' => (int) round($startTime * 1000),
                 'user_name' => $authorization->getNickname(),
                 'source_id' => (string) ($data['source_id'] ?? ''),
-                'request_id' => (string) ($data['request_id'] ?? ''),
+                'request_id' => CoContext::getRequestId(),
                 'event_id' => (string) IdGenerator::getSnowId(),
                 'failure_reason' => $exception->getMessage(),
             ]);
@@ -376,7 +376,7 @@ class LLMAppService extends AbstractLLMAppService
             'original_model_id' => $modelId,
             'provider_name' => trim($providerConfigEntity->getAlias()),
             'status' => self::AUDIT_STATUS_SUCCESS,
-            'request_id' => (string) ($data['request_id'] ?? ''),
+            'request_id' => CoContext::getRequestId(),
             'event_id' => (string) IdGenerator::getSnowId(),
         ];
 
@@ -443,7 +443,7 @@ class LLMAppService extends AbstractLLMAppService
                 'operation_time' => (int) round($startTime * 1000),
                 'user_name' => $userAuthorization->getNickname(),
                 'source_id' => $reqDTO->getSourceId(),
-                'request_id' => (string) ($reqDTO->getRequestId() ?? ''),
+                'request_id' => CoContext::getRequestId(),
                 'event_id' => (string) IdGenerator::getSnowId(),
                 'failure_reason' => $exception->getMessage(),
             ]);
@@ -468,7 +468,7 @@ class LLMAppService extends AbstractLLMAppService
             'source_id' => $reqDTO->getSourceId(),
             'provider_name' => trim($miracleVisionServiceProviderConfig->getAlias()),
             'status' => self::AUDIT_STATUS_SUCCESS,
-            'request_id' => (string) ($reqDTO->getRequestId() ?? ''),
+            'request_id' => CoContext::getRequestId(),
             'event_id' => (string) IdGenerator::getSnowId(),
         ];
 
@@ -804,9 +804,7 @@ class LLMAppService extends AbstractLLMAppService
 
             // 审计补齐：在 dispatch 前写入 Bridge dispatchSearchAudit 所需字段
             $businessParams['operation_time'] = (int) round($startTime * 1000);
-            $searchAccessTokenRaw = $searchRequestDTO->getAccessToken();
-            $businessParams['access_token_raw'] = $searchAccessTokenRaw;
-            $businessParams['ak'] = StringMaskUtil::mask($searchAccessTokenRaw);
+            $businessParams['ak'] = $modelGatewayDataIsolation->getAccessToken()->getAccessToken();
             $businessParams['engine'] = $adapter->getEngineName();
             $businessParams['query'] = $searchRequestDTO->getQuery();
             $businessParams['status'] = self::AUDIT_STATUS_SUCCESS;
@@ -815,6 +813,7 @@ class LLMAppService extends AbstractLLMAppService
             $businessParams['access_token_type'] = $modelGatewayDataIsolation->getAccessToken()->getType()->value;
             $businessParams['organization_id'] = $modelGatewayDataIsolation->getCurrentOrganizationCode();
             $businessParams['user_id'] = $modelGatewayDataIsolation->getCurrentUserId();
+            $businessParams['request_id'] = CoContext::getRequestId();
             $businessParams['event_id'] = (string) IdGenerator::getSnowId();
 
             $webSearchUsageEvent = new WebSearchUsageEvent(
@@ -973,9 +972,7 @@ class LLMAppService extends AbstractLLMAppService
             $businessParams['access_token_id'] = $modelGatewayDataIsolation->getAccessToken()->getId();
             $businessParams['access_token_name'] = $modelGatewayDataIsolation->getAccessToken()->getName();
             $businessParams['operation_time'] = (int) round($startTime * 1000);
-            $imageSearchAccessTokenRaw = $imageSearchRequestDTO->getAccessToken();
-            $businessParams['access_token_raw'] = $imageSearchAccessTokenRaw;
-            $businessParams['ak'] = StringMaskUtil::mask($imageSearchAccessTokenRaw);
+            $businessParams['ak'] = $modelGatewayDataIsolation->getAccessToken()->getAccessToken();
             $businessParams['engine'] = $adapter->getEngineName();
             $businessParams['query'] = $imageSearchRequestDTO->getQuery();
             $businessParams['status'] = self::AUDIT_STATUS_SUCCESS;
@@ -984,6 +981,7 @@ class LLMAppService extends AbstractLLMAppService
             $businessParams['access_token_type'] = $modelGatewayDataIsolation->getAccessToken()->getType()->value;
             $businessParams['organization_id'] = $modelGatewayDataIsolation->getCurrentOrganizationCode();
             $businessParams['user_id'] = $modelGatewayDataIsolation->getCurrentUserId();
+            $businessParams['request_id'] = CoContext::getRequestId();
             $businessParams['event_id'] = (string) IdGenerator::getSnowId();
             $imageSearchUsageEvent = new ImageSearchUsageEvent(
                 $adapter->getEngineName(),
@@ -1154,7 +1152,6 @@ class LLMAppService extends AbstractLLMAppService
         }
 
         $latencyMs = (int) ((microtime(true) - $startTime) * 1000);
-        $textGenerateImageAccessTokenRaw = $textGenerateImageDTO->getAccessToken();
 
         $imageGenerateFailedEvent = new ImageGenerateFailedEvent();
         $imageGenerateFailedEvent->setOrganizationCode($organizationCode);
@@ -1172,9 +1169,8 @@ class LLMAppService extends AbstractLLMAppService
             'user_name' => $modelGatewayDataIsolation->getUserName(),
             'app_id' => $modelGatewayDataIsolation->getAppId(),
             'source_id' => $textGenerateImageDTO->getSourceId(),
-            'request_id' => trim((string) ($textGenerateImageDTO->getBusinessParam('request_id') ?? '')),
-            'access_token_raw' => $textGenerateImageAccessTokenRaw,
-            'ak' => StringMaskUtil::mask($textGenerateImageAccessTokenRaw),
+            'request_id' => CoContext::getRequestId(),
+            'ak' => $accessTokenEntity->getAccessToken(),
             'access_token_type' => $accessTokenEntity->getType()->value,
             'event_id' => (string) IdGenerator::getSnowId(),
             'failure_reason' => $errorMessage,
@@ -1280,7 +1276,6 @@ class LLMAppService extends AbstractLLMAppService
         }
 
         $latencyMs = (int) ((microtime(true) - $startTime) * 1000);
-        $imageEditAccessTokenRaw = $imageEditDTO->getAccessToken();
 
         $imageGenerateFailedEvent = new ImageGenerateFailedEvent();
         $imageGenerateFailedEvent->setOrganizationCode($organizationCode);
@@ -1298,9 +1293,8 @@ class LLMAppService extends AbstractLLMAppService
             'user_name' => $modelGatewayDataIsolation->getUserName(),
             'app_id' => $modelGatewayDataIsolation->getAppId(),
             'source_id' => $imageEditDTO->getSourceId(),
-            'request_id' => trim((string) ($imageEditDTO->getBusinessParam('request_id') ?? '')),
-            'access_token_raw' => $imageEditAccessTokenRaw,
-            'ak' => StringMaskUtil::mask($imageEditAccessTokenRaw),
+            'request_id' => CoContext::getRequestId(),
+            'ak' => $accessTokenEntity->getAccessToken(),
             'access_token_type' => $accessTokenEntity->getType()->value,
             'event_id' => (string) IdGenerator::getSnowId(),
             'failure_reason' => $imageEditFailureMessage,
@@ -1495,10 +1489,8 @@ class LLMAppService extends AbstractLLMAppService
             // 审计所需字段：调用发起时间（Unix 毫秒时间戳）
             $proxyModelRequest->addBusinessParam('operation_time', (int) round($startTime * 1000));
 
-            // 审计所需字段：原始 access token（仅用于 Bridge 查库解析 name，不直接落库明文）
-            $accessTokenRaw = $proxyModelRequest->getAccessToken();
-            $proxyModelRequest->addBusinessParam('access_token_raw', $accessTokenRaw);
-            $proxyModelRequest->addBusinessParam('ak', StringMaskUtil::mask($accessTokenRaw));
+            // 审计脱敏 ak：直接从 Entity 拿脱敏展示串，与库表一致
+            $proxyModelRequest->addBusinessParam('ak', $modelGatewayDataIsolation->getAccessToken()->getAccessToken());
 
             // 审计所需字段：请求类型（chat/embedding/image/video），让 Bridge 正确区分 AuditType
             $proxyModelRequest->addBusinessParam('model_type', $proxyModelRequest->getType());
@@ -1512,6 +1504,8 @@ class LLMAppService extends AbstractLLMAppService
             if ($modelAttributes !== null) {
                 $proxyModelRequest->addBusinessParam('provider_name', $modelAttributes->getProviderName());
             }
+
+            $proxyModelRequest->addBusinessParam('request_id', CoContext::getRequestId());
 
             // 审计与计费关联：在 Odin 成功/失败事件之前生成，保证同一调用共用一个 event_id
             $proxyModelRequest->addBusinessParam('event_id', (string) IdGenerator::getSnowId());
@@ -1568,9 +1562,7 @@ class LLMAppService extends AbstractLLMAppService
                 $businessParams['response_duration'] = $failLatency;
                 $businessParams['model_type'] = $proxyModelRequest->getType();
                 $businessParams['operation_time'] = (int) round($failStart * 1000);
-                $catchAccessTokenRaw = $proxyModelRequest->getAccessToken();
-                $businessParams['access_token_raw'] = $catchAccessTokenRaw;
-                $businessParams['ak'] = StringMaskUtil::mask($catchAccessTokenRaw);
+                $businessParams['ak'] = $modelGatewayDataIsolation?->getAccessToken()?->getAccessToken() ?? '';
                 if ($modelAttributes !== null) {
                     $businessParams['model_version'] = $modelAttributes->getModelVersion();
                     $businessParams['provider_name'] = $modelAttributes->getProviderName();
@@ -2391,7 +2383,6 @@ class LLMAppService extends AbstractLLMAppService
             $responseTime,
             $accessTokenEntity
         );
-        $requestAccessTokenRaw = $requestDTO->getAccessToken();
         $businessParams = array_merge(
             $requestDTO->getBusinessParams(),
             [
@@ -2404,10 +2395,9 @@ class LLMAppService extends AbstractLLMAppService
                 'organization_id' => $organizationCode,
                 'user_id' => $creator,
                 'source_id' => $requestDTO->getSourceId(),
-                'request_id' => trim((string) ($requestDTO->getBusinessParam('request_id') ?? '')),
+                'request_id' => CoContext::getRequestId(),
                 'status' => self::AUDIT_STATUS_SUCCESS,
-                'access_token_raw' => $requestAccessTokenRaw,
-                'ak' => StringMaskUtil::mask($requestAccessTokenRaw),
+                'ak' => $accessTokenEntity?->getAccessToken() ?? '',
                 'access_token_id' => $accessTokenEntity?->getId(),
                 'access_token_name' => $accessTokenEntity?->getName(),
                 'access_token_type' => $accessTokenEntity?->getType()->value,
@@ -2501,9 +2491,7 @@ class LLMAppService extends AbstractLLMAppService
         $businessParams['response_duration'] = (int) ((microtime(true) - $startTime) * 1000);
         $businessParams['operation_time'] = (int) round($startTime * 1000);
 
-        $searchAccessTokenRaw = $searchRequestDTO->getAccessToken();
-        $businessParams['access_token_raw'] = $searchAccessTokenRaw;
-        $businessParams['ak'] = StringMaskUtil::mask($searchAccessTokenRaw);
+        $businessParams['ak'] = $modelGatewayDataIsolation->getAccessToken()->getAccessToken();
         $businessParams['query'] = $searchRequestDTO->getQuery();
         if ($engineName !== '') {
             $businessParams['engine'] = $engineName;
@@ -2517,6 +2505,7 @@ class LLMAppService extends AbstractLLMAppService
         $businessParams['user_name'] = $modelGatewayDataIsolation->getUserName();
         $businessParams['organization_id'] = $modelGatewayDataIsolation->getCurrentOrganizationCode();
         $businessParams['user_id'] = $modelGatewayDataIsolation->getCurrentUserId();
+        $businessParams['request_id'] = CoContext::getRequestId();
         $businessParams['event_id'] = (string) IdGenerator::getSnowId();
         $businessParams['failure_reason'] = $failureReason;
 
@@ -2544,9 +2533,7 @@ class LLMAppService extends AbstractLLMAppService
         $businessParams['response_duration'] = (int) ((microtime(true) - $startTime) * 1000);
         $businessParams['operation_time'] = (int) round($startTime * 1000);
 
-        $imageSearchAccessTokenRaw = $imageSearchRequestDTO->getAccessToken();
-        $businessParams['access_token_raw'] = $imageSearchAccessTokenRaw;
-        $businessParams['ak'] = StringMaskUtil::mask($imageSearchAccessTokenRaw);
+        $businessParams['ak'] = $modelGatewayDataIsolation->getAccessToken()->getAccessToken();
         $businessParams['query'] = $imageSearchRequestDTO->getQuery();
         if ($engineName !== '') {
             $businessParams['engine'] = $engineName;
@@ -2560,6 +2547,7 @@ class LLMAppService extends AbstractLLMAppService
         $businessParams['user_name'] = $modelGatewayDataIsolation->getUserName();
         $businessParams['organization_id'] = $modelGatewayDataIsolation->getCurrentOrganizationCode();
         $businessParams['user_id'] = $modelGatewayDataIsolation->getCurrentUserId();
+        $businessParams['request_id'] = CoContext::getRequestId();
         $businessParams['event_id'] = (string) IdGenerator::getSnowId();
         $businessParams['failure_reason'] = $failureReason;
 

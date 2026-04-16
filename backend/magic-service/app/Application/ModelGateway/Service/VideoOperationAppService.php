@@ -30,9 +30,9 @@ use App\Infrastructure\Core\Exception\ExceptionBuilder;
 use App\Infrastructure\Core\Traits\HasLogger;
 use App\Infrastructure\Core\ValueObject\StorageBucketType;
 use App\Infrastructure\ExternalAPI\VideoGenerateAPI\ProviderVideoException;
+use App\Infrastructure\Util\Context\CoContext;
 use App\Infrastructure\Util\IdGenerator\IdGenerator;
 use App\Infrastructure\Util\SSRF\SSRFUtil;
-use App\Infrastructure\Util\StringMaskUtil;
 use DateTime;
 use Dtyq\AsyncEvent\AsyncEventUtil;
 use Dtyq\CloudFile\Kernel\Struct\UploadFile;
@@ -116,10 +116,10 @@ readonly class VideoOperationAppService
         try {
             $providerTaskId = $this->queueOperationExecutionDomainService->submit($operation, $config);
         } catch (ProviderVideoException $throwable) {
+            $this->videoQueueDomainService->finishExecutionFailure($operation, $throwable->getMessage());
             $this->dispatchVideoGenerateFailedEvent(
                 $dataIsolation,
                 $operation,
-                $accessToken,
                 $requestDTO->getBusinessParams(),
             );
             ExceptionBuilder::throw(MagicApiErrorCode::ValidateFailed, $throwable->getMessage(), throwable: $throwable);
@@ -153,14 +153,14 @@ readonly class VideoOperationAppService
                 $probeResult = $this->extractProbeResult($result);
                 $syncResult = $this->videoQueueDomainService->syncWithExecutionResult($operation, $providerTaskId, $result);
                 if ($syncResult->isFirstSucceeded()) {
-                    $this->dispatchVideoGeneratedEvent($dataIsolation, $operation, $probeResult, $accessToken, $businessParams);
+                    $this->dispatchVideoGeneratedEvent($dataIsolation, $operation, $probeResult, $businessParams);
                 } elseif ($syncResult->isStatusChanged() && $syncResult->getStatus() === VideoOperationStatus::FAILED) {
-                    $this->dispatchVideoGenerateFailedEvent($dataIsolation, $operation, $accessToken, $businessParams);
+                    $this->dispatchVideoGenerateFailedEvent($dataIsolation, $operation, $businessParams);
                 }
                 $this->videoQueueDomainService->saveOperation($operation);
             } catch (ProviderVideoException $throwable) {
                 $this->videoQueueDomainService->finishExecutionFailure($operation, $throwable->getMessage());
-                $this->dispatchVideoGenerateFailedEvent($dataIsolation, $operation, $accessToken, $businessParams);
+                $this->dispatchVideoGenerateFailedEvent($dataIsolation, $operation, $businessParams);
                 $this->videoQueueDomainService->saveOperation($operation);
             }
         }
@@ -182,7 +182,6 @@ readonly class VideoOperationAppService
         ModelGatewayDataIsolation $dataIsolation,
         VideoQueueOperationEntity $operation,
         ?array $probeResult = null,
-        string $accessTokenRaw = '',
         array $requestBusinessParams = []
     ): void {
         $event = new VideoGeneratedEvent();
@@ -191,7 +190,6 @@ readonly class VideoOperationAppService
         $businessParams = $this->buildVideoAuditBusinessParams(
             $dataIsolation,
             $operation,
-            $accessTokenRaw,
             $requestBusinessParams,
         );
 
@@ -236,14 +234,12 @@ readonly class VideoOperationAppService
     private function dispatchVideoGenerateFailedEvent(
         ModelGatewayDataIsolation $dataIsolation,
         VideoQueueOperationEntity $operation,
-        string $accessTokenRaw = '',
         array $requestBusinessParams = []
     ): void {
         $event = new VideoGenerateFailedEvent();
         $businessParams = $this->buildVideoAuditBusinessParams(
             $dataIsolation,
             $operation,
-            $accessTokenRaw,
             $requestBusinessParams,
             self::AUDIT_STATUS_FAIL,
         );
@@ -267,13 +263,12 @@ readonly class VideoOperationAppService
     private function buildVideoAuditBusinessParams(
         ModelGatewayDataIsolation $dataIsolation,
         VideoQueueOperationEntity $operation,
-        string $accessTokenRaw = '',
         array $requestBusinessParams = [],
         string $status = self::AUDIT_STATUS_SUCCESS
     ): array {
         $accessTokenEntity = $this->resolveAccessTokenEntity($dataIsolation);
         $sourceId = (string) ($operation->getSourceId() ?: $dataIsolation->getSourceId());
-        $requestId = trim((string) ($requestBusinessParams['request_id'] ?? ''));
+        $requestId = CoContext::getRequestId();
         $magicTopicId = trim((string) ($requestBusinessParams['magic_topic_id'] ?? ''));
         $accessTokenName = (string) $accessTokenEntity?->getName();
         $accessTokenType = $accessTokenEntity === null ? '' : $accessTokenEntity->getType()->value;
@@ -296,8 +291,7 @@ readonly class VideoOperationAppService
             'source_id' => $sourceId,
             'request_id' => $requestId,
             'magic_topic_id' => $magicTopicId,
-            'access_token_raw' => $accessTokenRaw,
-            'ak' => StringMaskUtil::mask($accessTokenRaw),
+            'ak' => $accessTokenEntity?->getAccessToken() ?? '',
             'access_token_name' => $accessTokenName,
             'access_token_type' => $accessTokenType,
         ];
