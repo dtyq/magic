@@ -1301,6 +1301,9 @@ class TopicDomainService
         if ($lastMessageId === null && $lastMessageAt === null) {
             return false;
         }
+        if ($topic->getLastReadMessageId() === null && $topic->getLastReadAt() === null) {
+            return false;
+        }
 
         $lastReadMessageId = $topic->getLastReadMessageId();
         if ($lastReadMessageId !== null && $lastMessageId !== null) {
