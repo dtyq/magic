@@ -7,7 +7,10 @@ declare(strict_types=1);
 
 namespace App\Domain\Provider\DTO\Item;
 
+use App\Domain\Provider\DTO\Item\TokenPricing\BillingObject;
 use App\Domain\Provider\DTO\Item\TokenPricing\BillingTiers;
+use App\Domain\Provider\DTO\Item\TokenPricing\BillingTierItem;
+use App\Domain\Provider\DTO\Item\TokenPricing\BillingTierMode;
 use App\ErrorCode\ServiceProviderErrorCode;
 use App\Infrastructure\Core\AbstractDTO;
 use App\Infrastructure\Core\Exception\ExceptionBuilder;
@@ -384,6 +387,7 @@ class ModelConfigItem extends AbstractDTO
         }
 
         $this->billingTiers = new BillingTiers($billingTiers);
+        $this->syncFlatTokenPricesFromBillingTiers();
     }
 
     private function handleCreativityAndTemperatureConflict(): void
@@ -425,5 +429,78 @@ class ModelConfigItem extends AbstractDTO
         }
 
         return (string) $value;
+    }
+
+    private function syncFlatTokenPricesFromBillingTiers(): void
+    {
+        if (! $this->billingTiers instanceof BillingTiers) {
+            return;
+        }
+
+        $this->setInputPricing(null);
+        $this->setOutputPricing(null);
+        $this->setCacheHitPricing(null);
+        $this->setCacheWritePricing(null);
+        $this->setInputCost(null);
+        $this->setOutputCost(null);
+        $this->setCacheHitCost(null);
+        $this->setCacheWriteCost(null);
+
+        foreach ($this->billingTiers->getItems() as $billingTierItem) {
+            $this->syncFlatTokenPriceByBillingTierItem($billingTierItem);
+        }
+    }
+
+    private function syncFlatTokenPriceByBillingTierItem(BillingTierItem $billingTierItem): void
+    {
+        $pricingValue = $this->resolveFixedRulePrice($billingTierItem->getPricingMode(), $billingTierItem->getPricingRules());
+        $costValue = $this->resolveFixedRulePrice($billingTierItem->getCostMode(), $billingTierItem->getCostRules());
+
+        match ($billingTierItem->getBillingObject()) {
+            BillingObject::InputToken => $this->syncInputTokenFlatPrices($pricingValue, $costValue),
+            BillingObject::OutputToken => $this->syncOutputTokenFlatPrices($pricingValue, $costValue),
+            BillingObject::CacheHitToken => $this->syncCacheHitTokenFlatPrices($pricingValue, $costValue),
+            BillingObject::CacheWriteToken => $this->syncCacheWriteTokenFlatPrices($pricingValue, $costValue),
+        };
+    }
+
+    /**
+     * @param array<int, mixed> $rules
+     */
+    private function resolveFixedRulePrice(BillingTierMode $mode, array $rules): ?string
+    {
+        if ($mode !== BillingTierMode::Fixed) {
+            return null;
+        }
+
+        if ($rules === []) {
+            return null;
+        }
+
+        return (string) $rules[0]->getPrice();
+    }
+
+    private function syncInputTokenFlatPrices(?string $pricingValue, ?string $costValue): void
+    {
+        $this->setInputPricing($pricingValue);
+        $this->setInputCost($costValue);
+    }
+
+    private function syncOutputTokenFlatPrices(?string $pricingValue, ?string $costValue): void
+    {
+        $this->setOutputPricing($pricingValue);
+        $this->setOutputCost($costValue);
+    }
+
+    private function syncCacheHitTokenFlatPrices(?string $pricingValue, ?string $costValue): void
+    {
+        $this->setCacheHitPricing($pricingValue);
+        $this->setCacheHitCost($costValue);
+    }
+
+    private function syncCacheWriteTokenFlatPrices(?string $pricingValue, ?string $costValue): void
+    {
+        $this->setCacheWritePricing($pricingValue);
+        $this->setCacheWriteCost($costValue);
     }
 }

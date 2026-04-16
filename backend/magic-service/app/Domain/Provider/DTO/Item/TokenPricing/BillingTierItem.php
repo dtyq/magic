@@ -143,7 +143,7 @@ class BillingTierItem extends AbstractTokenPricingValueObject
         if ($followValue === null) {
             return null;
         }
-
+        // 不可能出现rules为空的情况，因为resolveBillingTierUnitPrices这里已经判断了，如果rules为空，直接就跳过了
         foreach ($rules as $pricingRule) {
             $min = $pricingRule->getMin();
             $max = $pricingRule->getMax();
