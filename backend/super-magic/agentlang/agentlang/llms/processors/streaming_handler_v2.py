@@ -508,7 +508,10 @@ class StreamResponseHandlerV2(StreamResponseHandlerBase):
         StreamingLogger.log_stream_stats(request_id, state, correlation_id, total_stream_time, finish_reason)
 
         # ===== 流结束：统一触发一次 after_agent_reply =====
-        if agent_context and should_trigger_events and not state.interrupted_by_signal:
+        # 中断时若已收到文本内容，也需触发以确保落库（对齐 V1 行为）。
+        # 注意：中断时 tool_calls 可能不完整，_trigger_after_agent_reply 内部会忽略它们。
+        has_partial_content = bool(state.content_text or state.reasoning_text)
+        if agent_context and should_trigger_events and (not state.interrupted_by_signal or has_partial_content):
             await StreamResponseHandlerV2._trigger_after_agent_reply(
                 agent_context=agent_context,
                 model_id=model_id,
@@ -517,11 +520,17 @@ class StreamResponseHandlerV2(StreamResponseHandlerBase):
                 state=state,
                 usage=usage,
                 collected_chunks=collected_chunks,
+                interrupted=state.interrupted_by_signal,
             )
+
+        # 中断时在 completion_text 末尾追加说明，仅用于 chat_history 上下文，不影响前端展示
+        completion_text = state.content_text
+        if state.interrupted_by_signal and has_partial_content:
+            completion_text += "\n\n<system_injected_context>\n[Response was interrupted by the user and may be incomplete]\n</system_injected_context>"
 
         return StreamProcessResult(
             collected_chunks=collected_chunks,
-            completion_text=state.content_text,
+            completion_text=completion_text,
             reasoning_content=state.reasoning_text,
             tool_calls=state.tool_calls,
             finish_reason=finish_reason,
@@ -537,16 +546,25 @@ class StreamResponseHandlerV2(StreamResponseHandlerBase):
         state: StreamingState,
         usage: Optional[CompletionUsage],
         collected_chunks: List[ChatCompletionChunk],
+        interrupted: bool = False,
     ) -> None:
-        """流结束后统一触发一次 AFTER_AGENT_REPLY 事件，携带完整 content + reasoning + tool_calls。"""
+        """流结束后统一触发一次 AFTER_AGENT_REPLY 事件，携带完整 content + reasoning + tool_calls。
+
+        Args:
+            interrupted: 是否因用户中断而触发。中断时工具调用可能不完整，不纳入消息。
+        """
         from agentlang.context.tool_context import ToolContext
         from agentlang.event.data import AfterAgentReplyEventData
         from agentlang.event.event import Event, EventType
         from agentlang.llms.token_usage.models import TokenUsage
 
         try:
+            # 中断时 tool_calls 可能是部分流式数据，参数尚未完整；
+            # 带入会导致工厂走 pending 路径而丢失已有文本，因此忽略。
+            effective_tool_calls = {} if interrupted else state.tool_calls
+            tool_call_objects = _build_tool_call_objects(effective_tool_calls)
+
             # 构建完整的 ChatCompletionMessage（含 tool_calls 和 reasoning_content）
-            tool_call_objects = _build_tool_call_objects(state.tool_calls)
             llm_msg = ChatCompletionMessage(
                 role="assistant",
                 content=state.content_text if state.content_text else None,
@@ -582,7 +600,7 @@ class StreamResponseHandlerV2(StreamResponseHandlerBase):
                 token_usage=token_usage,
                 execution_time=0.0,
                 use_stream_mode=True,
-                success=True,
+                success=not interrupted,
                 content_type="content",
                 # V2 不触发 BEFORE_AGENT_REPLY，手动设置 correlation_id 以跳过
                 correlation_id=request_id,
@@ -592,10 +610,10 @@ class StreamResponseHandlerV2(StreamResponseHandlerBase):
             await agent_context.dispatch_event(event.event_type, event_data)
 
             logger.debug(
-                f"[{request_id}] after_agent_reply 已触发, "
+                f"[{request_id}] after_agent_reply 已触发 (interrupted={interrupted}), "
                 f"content_len={len(state.content_text)}, "
                 f"reasoning_len={len(state.reasoning_text)}, "
-                f"tool_calls={len(state.tool_calls)}"
+                f"tool_calls={len(effective_tool_calls)}"
             )
 
         except Exception as e:
