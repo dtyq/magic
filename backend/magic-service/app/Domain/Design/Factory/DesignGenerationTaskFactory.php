@@ -49,7 +49,7 @@ class DesignGenerationTaskFactory
             'reference_videos' => $referenceVideos,
             'reference_audios' => $referenceAudios,
             'frames' => $frames,
-        ], static fn (mixed $value): bool => $value !== [] && $value !== ''));
+        ], static fn (mixed $value): bool => $value !== []));
 
         // request_payload 顶层透传 input_mode，避免在 app / gateway 层丢失输入模式语义。
         $requestPayload = [
@@ -64,7 +64,7 @@ class DesignGenerationTaskFactory
                 'reference_videos' => $referenceVideos,
                 'reference_audios' => $referenceAudios,
                 'frames' => $frames,
-            ], static fn (mixed $value): bool => $value !== [] && $value !== ''),
+            ], static fn (mixed $value): bool => $value !== []),
             'generation' => $requestDTO->getGeneration(),
             'callbacks' => $requestDTO->getCallbacks(),
             'execution' => $requestDTO->getExecution(),

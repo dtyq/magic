@@ -85,8 +85,6 @@ class DesignVideoCreateDTO extends AbstractDTO
 
     private const array REFERENCE_IMAGE_ALLOWED_KEYS = ['uri', 'type'];
 
-    private const string AUDIO_ROLE_REFERENCE = self::AUDIO_ROLES[0];
-
     protected string $inputMode = '';
 
     protected ?int $projectId = null;
