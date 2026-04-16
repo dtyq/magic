@@ -44,6 +44,7 @@ class CloudswayVeoVideoAdapterTest extends TestCase
         $this->assertSame([1, 4], $config->toArray()['generation']['sample_count_range']);
         $this->assertSame([0, 4294967295], $config->toArray()['generation']['seed_range']);
         $this->assertTrue($config->toArray()['generation']['supports_enhance_prompt']);
+        $this->assertSame(['standard', 'keyframe_guided'], array_keys($config->toArray()['input_modes']));
         $this->assertSame([], $config->toArray()['constraints']);
     }
 
@@ -58,6 +59,10 @@ class CloudswayVeoVideoAdapterTest extends TestCase
         $this->assertSame(3, $config->toArray()['reference_images']['max_count']);
         $this->assertSame(['asset'], $config->toArray()['reference_images']['reference_types']);
         $this->assertFalse($config->toArray()['reference_images']['style_supported']);
+        $this->assertSame(
+            ['standard', 'image_reference', 'keyframe_guided'],
+            array_keys($config->toArray()['input_modes'])
+        );
         $this->assertSame([
             'reference_images_requires_duration_seconds' => 8,
         ], $config->toArray()['constraints']);
