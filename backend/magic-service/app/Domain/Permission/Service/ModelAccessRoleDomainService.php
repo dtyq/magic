@@ -43,40 +43,18 @@ readonly class ModelAccessRoleDomainService
     public function getMeta(PermissionDataIsolation $dataIsolation): array
     {
         $organizationCode = $dataIsolation->getCurrentOrganizationCode();
-        $defaultRole = $this->repository->getDefaultRole($organizationCode);
-        if (! $defaultRole) {
-            return [
-                'permission_control_status' => PermissionControlStatus::UNINITIALIZED,
-                'default_role' => null,
-            ];
-        }
-
-        $defaultRole->setDeniedModelIds($this->repository->getDeniedModelIdsByRoleId($organizationCode, $defaultRole->getId()));
-
         return [
             'permission_control_status' => $this->resolvePermissionControlStatus($organizationCode),
-            'default_role' => $defaultRole,
         ];
     }
 
     public function updatePermissionControlStatus(PermissionDataIsolation $dataIsolation, PermissionControlStatus $status): array
     {
-        if ($status === PermissionControlStatus::UNINITIALIZED) {
-            ExceptionBuilder::throw(PermissionErrorCode::ValidateFailed, 'permission control status cannot be set to uninitialized');
-        }
-
         $organizationCode = $dataIsolation->getCurrentOrganizationCode();
-        $defaultRole = $this->repository->getDefaultRole($organizationCode);
-        if (! $defaultRole) {
-            ExceptionBuilder::throw(PermissionErrorCode::ValidateFailed, 'default role required');
-        }
-
-        $defaultRole->setDeniedModelIds($this->repository->getDeniedModelIdsByRoleId($organizationCode, $defaultRole->getId()));
         $this->savePermissionControlSetting($organizationCode, $status);
 
         return [
             'permission_control_status' => $status,
-            'default_role' => $defaultRole,
         ];
     }
 
@@ -101,17 +79,9 @@ readonly class ModelAccessRoleDomainService
         return $role;
     }
 
-    public function createDefaultRole(PermissionDataIsolation $dataIsolation, ModelAccessRoleEntity $entity): ModelAccessRoleEntity
-    {
-        $entity->setOrganizationCode($dataIsolation->getCurrentOrganizationCode());
-        $entity->setIsDefault(true);
-        return $this->save($dataIsolation, $entity);
-    }
-
     public function createRole(PermissionDataIsolation $dataIsolation, ModelAccessRoleEntity $entity): ModelAccessRoleEntity
     {
         $entity->setOrganizationCode($dataIsolation->getCurrentOrganizationCode());
-        $entity->setIsDefault(false);
         return $this->save($dataIsolation, $entity);
     }
 
@@ -120,44 +90,21 @@ readonly class ModelAccessRoleDomainService
         $existing = $this->show($dataIsolation, $roleId);
         $entity->setId($roleId);
         $entity->setOrganizationCode($dataIsolation->getCurrentOrganizationCode());
-        $entity->setIsDefault($existing->isDefault());
-        if ($existing->isDefault()) {
-            $entity->setParentRoleId(null);
-        }
+        $entity->setCreatedAt($existing->getCreatedAt());
+        $entity->setCreatedUid($existing->getCreatedUid());
         return $this->save($dataIsolation, $entity);
     }
 
     public function destroy(PermissionDataIsolation $dataIsolation, int $roleId): PermissionControlStatus
     {
         $organizationCode = $dataIsolation->getCurrentOrganizationCode();
-        $role = $this->show($dataIsolation, $roleId);
-        $deleteDefaultRole = $role->isDefault();
+        $this->show($dataIsolation, $roleId);
 
-        if ($this->repository->countChildren($organizationCode, $roleId) > 0) {
-            ExceptionBuilder::throw(PermissionErrorCode::ValidateFailed, 'role has children');
-        }
-
-        if ($role->isDefault()) {
-            if ($this->repository->hasOtherRoles($organizationCode, $roleId)) {
-                ExceptionBuilder::throw(PermissionErrorCode::ValidateFailed, 'default role must be last to delete');
-            }
-        }
-
-        Db::transaction(function () use ($organizationCode, $roleId, $deleteDefaultRole) {
+        Db::transaction(function () use ($organizationCode, $roleId) {
             $this->repository->replaceBindings($organizationCode, $roleId, [], [], false, '');
             $this->repository->replaceDeniedModels($organizationCode, $roleId, [], '');
             $this->repository->delete($organizationCode, $roleId);
-            if ($deleteDefaultRole) {
-                $this->adminGlobalSettingsRepository->deleteSettingsByTypeAndOrganization(
-                    AdminGlobalSettingsType::MODEL_ACCESS_PERMISSION_CONTROL,
-                    $organizationCode
-                );
-            }
         });
-
-        if ($deleteDefaultRole) {
-            return PermissionControlStatus::UNINITIALIZED;
-        }
 
         return $this->resolvePermissionControlStatus($organizationCode);
     }
@@ -165,14 +112,9 @@ readonly class ModelAccessRoleDomainService
     public function getUserSummary(PermissionDataIsolation $dataIsolation, string $userId): array
     {
         $organizationCode = $dataIsolation->getCurrentOrganizationCode();
-        $defaultRole = $this->repository->getDefaultRole($organizationCode);
-        $roles = [];
-        if ($defaultRole) {
-            $roles[] = $defaultRole;
-        }
         $contactIsolation = ContactDataIsolation::create($organizationCode, $dataIsolation->getCurrentUserId());
         $userDepartmentIds = $this->magicDepartmentUserDomainService->getDepartmentIdsByUserId($contactIsolation, $userId, true);
-        $roles = array_merge($roles, $this->repository->getUserAssignedRoles($organizationCode, $userId, $userDepartmentIds));
+        $roles = $this->repository->getUserAssignedRoles($organizationCode, $userId, $userDepartmentIds);
 
         $uniqueRoles = [];
         foreach ($roles as $role) {
@@ -181,31 +123,27 @@ readonly class ModelAccessRoleDomainService
         $roles = array_values($uniqueRoles);
         $this->hydrateRelations($organizationCode, $roles);
 
-        $status = $defaultRole ? $this->resolvePermissionControlStatus($organizationCode) : PermissionControlStatus::UNINITIALIZED;
+        $status = $this->resolvePermissionControlStatus($organizationCode);
         $availableModelIds = $this->resolveOrganizationAvailableModelIds($dataIsolation);
         $deniedModelIds = [];
         $accessibleModelIds = $availableModelIds;
 
-        if ($defaultRole && $status === PermissionControlStatus::ENABLED) {
-            $accessibleModelIdMap = [];
+        if ($status === PermissionControlStatus::ENABLED) {
+            $deniedModelIdMap = [];
             foreach ($roles as $role) {
                 $roleModelIds = $this->repository->getDeniedModelIdsByRoleId($organizationCode, $role->getId());
-                $roleDeniedModelIdMap = array_fill_keys(array_values(array_unique($roleModelIds)), true);
-
-                foreach ($availableModelIds as $modelId) {
-                    if (! isset($roleDeniedModelIdMap[$modelId])) {
-                        $accessibleModelIdMap[$modelId] = $modelId;
-                    }
+                foreach ($roleModelIds as $modelId) {
+                    $deniedModelIdMap[$modelId] = true;
                 }
             }
 
-            $accessibleModelIds = array_values(array_filter(
-                $availableModelIds,
-                static fn (string $modelId): bool => isset($accessibleModelIdMap[$modelId])
-            ));
             $deniedModelIds = array_values(array_filter(
                 $availableModelIds,
-                static fn (string $modelId): bool => ! isset($accessibleModelIdMap[$modelId])
+                static fn (string $modelId): bool => isset($deniedModelIdMap[$modelId])
+            ));
+            $accessibleModelIds = array_values(array_filter(
+                $availableModelIds,
+                static fn (string $modelId): bool => ! isset($deniedModelIdMap[$modelId])
             ));
         }
 
@@ -263,10 +201,6 @@ readonly class ModelAccessRoleDomainService
                 $saved->isAllUsers(),
                 $dataIsolation->getCurrentUserId()
             );
-            if ($saved->isDefault()) {
-                $this->savePermissionControlSetting($organizationCode, PermissionControlStatus::ENABLED);
-            }
-
             return $this->show($dataIsolation, $saved->getId());
         });
     }
@@ -279,7 +213,7 @@ readonly class ModelAccessRoleDomainService
         );
 
         if ($setting === null) {
-            return PermissionControlStatus::ENABLED;
+            return PermissionControlStatus::DISABLED;
         }
 
         return $setting->getStatus() === AdminGlobalSettingsStatus::DISABLED
@@ -292,12 +226,7 @@ readonly class ModelAccessRoleDomainService
         $settingStatus = match ($status) {
             PermissionControlStatus::ENABLED => AdminGlobalSettingsStatus::ENABLED,
             PermissionControlStatus::DISABLED => AdminGlobalSettingsStatus::DISABLED,
-            PermissionControlStatus::UNINITIALIZED => null,
         };
-
-        if ($settingStatus === null) {
-            ExceptionBuilder::throw(PermissionErrorCode::ValidateFailed, 'permission control status cannot be set to uninitialized');
-        }
 
         $this->adminGlobalSettingsRepository->updateSettings(
             (new AdminGlobalSettingsEntity())
@@ -313,50 +242,6 @@ readonly class ModelAccessRoleDomainService
         if ($existingByName && $existingByName->getId() !== $entity->getId()) {
             ExceptionBuilder::throw(PermissionErrorCode::ValidateFailed, 'role name already exists');
         }
-
-        $defaultRole = $this->repository->getDefaultRole($organizationCode);
-        if ($entity->isDefault()) {
-            if ($defaultRole && $defaultRole->getId() !== $entity->getId()) {
-                ExceptionBuilder::throw(PermissionErrorCode::ValidateFailed, 'default role already exists');
-            }
-            return;
-        }
-
-        if (! $defaultRole) {
-            ExceptionBuilder::throw(PermissionErrorCode::ValidateFailed, 'default role required');
-        }
-
-        if ($entity->getParentRoleId() === null) {
-            return;
-        }
-
-        $this->validateParentChain($organizationCode, $entity, $defaultRole->getId());
-    }
-
-    private function validateParentChain(string $organizationCode, ModelAccessRoleEntity $entity, int $defaultRoleId): void
-    {
-        $currentParentId = $entity->getParentRoleId();
-        $visited = [];
-
-        while ($currentParentId !== null) {
-            if (isset($visited[$currentParentId]) || $currentParentId === $entity->getId()) {
-                ExceptionBuilder::throw(PermissionErrorCode::ValidateFailed, 'role cycle detected');
-            }
-            $visited[$currentParentId] = true;
-
-            $parent = $this->repository->getById($organizationCode, $currentParentId);
-            if (! $parent) {
-                ExceptionBuilder::throw(PermissionErrorCode::ValidateFailed, 'parent role invalid');
-            }
-
-            if ($parent->getId() === $defaultRoleId) {
-                return;
-            }
-
-            $currentParentId = $parent->getParentRoleId();
-        }
-
-        ExceptionBuilder::throw(PermissionErrorCode::ValidateFailed, 'parent role must trace to default role');
     }
 
     private function validateUsers(string $organizationCode, string $operatorUserId, array $userIds): void

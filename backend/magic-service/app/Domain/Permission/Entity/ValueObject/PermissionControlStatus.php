@@ -9,7 +9,6 @@ namespace App\Domain\Permission\Entity\ValueObject;
 
 enum PermissionControlStatus: string
 {
-    case UNINITIALIZED = 'uninitialized';
     case ENABLED = 'enabled';
     case DISABLED = 'disabled';
 }

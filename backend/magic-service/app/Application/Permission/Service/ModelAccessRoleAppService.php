@@ -37,32 +37,18 @@ class ModelAccessRoleAppService extends AbstractPermissionAppService
     public function meta(PermissionDataIsolation $dataIsolation): array
     {
         $meta = $this->domainService->getMeta($dataIsolation);
-        $defaultRole = $meta['default_role'];
 
         return [
             'permission_control_status' => $meta['permission_control_status']->value,
-            'default_role' => $defaultRole ? [
-                'id' => (string) $defaultRole->getId(),
-                'name' => $defaultRole->getName(),
-                'denied_model_count' => count($defaultRole->getDeniedModelIds()),
-                'model_rule_effect' => 'deny',
-            ] : null,
         ];
     }
 
     public function updateMeta(PermissionDataIsolation $dataIsolation, PermissionControlStatus $status): array
     {
         $meta = $this->domainService->updatePermissionControlStatus($dataIsolation, $status);
-        $defaultRole = $meta['default_role'];
 
         return [
             'permission_control_status' => $meta['permission_control_status']->value,
-            'default_role' => $defaultRole ? [
-                'id' => (string) $defaultRole->getId(),
-                'name' => $defaultRole->getName(),
-                'denied_model_count' => count($defaultRole->getDeniedModelIds()),
-                'model_rule_effect' => 'deny',
-            ] : null,
         ];
     }
 
@@ -84,22 +70,13 @@ class ModelAccessRoleAppService extends AbstractPermissionAppService
     public function queries(PermissionDataIsolation $dataIsolation, Page $page, ?array $filters = null): array
     {
         $result = $this->domainService->queries($dataIsolation, $page, $filters);
-        $roleIds = array_map(static fn (ModelAccessRoleEntity $role) => $role->getId(), $result['list']);
-        $roleMap = [];
-        foreach ($result['list'] as $role) {
-            $roleMap[$role->getId()] = $role;
-        }
 
         $list = [];
         foreach ($result['list'] as $role) {
-            $parent = $role->getParentRoleId() ? ($roleMap[$role->getParentRoleId()] ?? $this->domainService->show($dataIsolation, $role->getParentRoleId())) : null;
             $list[] = [
                 'id' => (string) $role->getId(),
                 'name' => $role->getName(),
                 'description' => $role->getDescription(),
-                'is_default' => $role->isDefault(),
-                'parent_role_id' => $role->getParentRoleId() === null ? null : (string) $role->getParentRoleId(),
-                'parent_role_name' => $parent?->getName(),
                 'model_rule_effect' => 'deny',
                 'denied_model_ids' => $role->getDeniedModelIds(),
                 'denied_model_count' => count($role->getDeniedModelIds()),
@@ -146,19 +123,10 @@ class ModelAccessRoleAppService extends AbstractPermissionAppService
             }
         }
 
-        $parentName = null;
-        if ($role->getParentRoleId()) {
-            $parentName = $this->domainService->show($dataIsolation, $role->getParentRoleId())->getName();
-        }
-
         return [
             'id' => (string) $role->getId(),
             'name' => $role->getName(),
             'description' => $role->getDescription(),
-            'is_default' => $role->isDefault(),
-            'parent_role_id' => $role->getParentRoleId() === null ? null : (string) $role->getParentRoleId(),
-            'parent_role_name' => $parentName,
-            'inherited_path' => $this->buildInheritedPath($dataIsolation, $role),
             'model_rule_effect' => 'deny',
             'denied_model_ids' => $role->getDeniedModelIds(),
             'binding_scope' => $this->buildBindingScopeDetail($role, $userInfo, $departments, $departmentFullPaths),
@@ -174,15 +142,6 @@ class ModelAccessRoleAppService extends AbstractPermissionAppService
             'department_count' => count($role->getDepartmentIds()),
             'created_at' => $role->getCreatedAt()?->format('Y-m-d H:i:s'),
             'updated_at' => $role->getUpdatedAt()?->format('Y-m-d H:i:s'),
-        ];
-    }
-
-    public function createDefaultRole(PermissionDataIsolation $dataIsolation, ModelAccessRoleEntity $entity): array
-    {
-        $role = $this->domainService->createDefaultRole($dataIsolation, $entity);
-        return [
-            ...$this->simpleRoleResponse($dataIsolation, $role),
-            'permission_control_status' => PermissionControlStatus::ENABLED->value,
         ];
     }
 
@@ -219,7 +178,6 @@ class ModelAccessRoleAppService extends AbstractPermissionAppService
             'roles' => array_map(static fn (ModelAccessRoleEntity $role) => [
                 'id' => (string) $role->getId(),
                 'name' => $role->getName(),
-                'is_default' => $role->isDefault(),
             ], $summary['roles']),
             'denied_model_ids' => $summary['denied_model_ids'],
             'accessible_model_ids' => $summary['accessible_model_ids'],
@@ -232,8 +190,6 @@ class ModelAccessRoleAppService extends AbstractPermissionAppService
             'id' => (string) $role->getId(),
             'name' => $role->getName(),
             'description' => $role->getDescription(),
-            'is_default' => $role->isDefault(),
-            'parent_role_id' => $role->getParentRoleId() === null ? null : (string) $role->getParentRoleId(),
             'model_rule_effect' => 'deny',
             'denied_model_count' => count($role->getDeniedModelIds()),
             'binding_scope' => $this->buildBindingScopeSummary($role),
@@ -242,12 +198,8 @@ class ModelAccessRoleAppService extends AbstractPermissionAppService
         ];
     }
 
-    private function buildBindingScopeSummary(ModelAccessRoleEntity $role): ?array
+    private function buildBindingScopeSummary(ModelAccessRoleEntity $role): array
     {
-        if ($role->isDefault()) {
-            return null;
-        }
-
         return [
             'type' => $role->isAllUsers()
                 ? ModelAccessRoleBindingScopeType::OrganizationAll->value
@@ -260,11 +212,7 @@ class ModelAccessRoleAppService extends AbstractPermissionAppService
         array $userInfo,
         array $departments,
         array $departmentFullPaths
-    ): ?array {
-        if ($role->isDefault()) {
-            return null;
-        }
-
+    ): array {
         if ($role->isAllUsers()) {
             return [
                 'type' => ModelAccessRoleBindingScopeType::OrganizationAll->value,
@@ -294,20 +242,5 @@ class ModelAccessRoleAppService extends AbstractPermissionAppService
                 ];
             }, $role->getDepartmentIds()),
         ];
-    }
-
-    private function buildInheritedPath(PermissionDataIsolation $dataIsolation, ModelAccessRoleEntity $role): array
-    {
-        $path = [];
-        $current = $role;
-        while ($current) {
-            array_unshift($path, [
-                'id' => (string) $current->getId(),
-                'name' => $current->getName(),
-            ]);
-            $parentRoleId = $current->getParentRoleId();
-            $current = $parentRoleId ? $this->domainService->show($dataIsolation, $parentRoleId) : null;
-        }
-        return $path;
     }
 }

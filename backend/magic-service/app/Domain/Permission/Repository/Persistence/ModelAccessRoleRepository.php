@@ -31,11 +31,8 @@ class ModelAccessRoleRepository
         if (! empty($filters['keyword'])) {
             $builder->where('name', 'like', '%' . trim((string) $filters['keyword']) . '%');
         }
-        if (array_key_exists('is_default', $filters ?? []) && $filters['is_default'] !== null) {
-            $builder->where('is_default', (bool) $filters['is_default'] ? 1 : 0);
-        }
 
-        $builder->orderByDesc('is_default')->orderByDesc('id');
+        $builder->orderByDesc('id');
 
         $total = $builder->count();
         $models = $builder->forPage($page->getPage(), $page->getPageNum())->get();
@@ -65,8 +62,6 @@ class ModelAccessRoleRepository
             'organization_code' => $entity->getOrganizationCode(),
             'name' => $entity->getName(),
             'description' => $entity->getDescription(),
-            'is_default' => $entity->isDefault() ? 1 : 0,
-            'parent_role_id' => $entity->getParentRoleId(),
             'created_uid' => $entity->getCreatedUid(),
             'updated_uid' => $entity->getUpdatedUid(),
         ]);
@@ -93,16 +88,6 @@ class ModelAccessRoleRepository
         $model = ModelAccessRoleModel::query()
             ->where('organization_code', $organizationCode)
             ->where('name', $name)
-            ->first();
-
-        return $model ? $this->toEntity($model) : null;
-    }
-
-    public function getDefaultRole(string $organizationCode): ?ModelAccessRoleEntity
-    {
-        $model = ModelAccessRoleModel::query()
-            ->where('organization_code', $organizationCode)
-            ->where('is_default', 1)
             ->first();
 
         return $model ? $this->toEntity($model) : null;
@@ -429,22 +414,6 @@ class ModelAccessRoleRepository
             ->toArray();
     }
 
-    public function countChildren(string $organizationCode, int $roleId): int
-    {
-        return ModelAccessRoleModel::query()
-            ->where('organization_code', $organizationCode)
-            ->where('parent_role_id', $roleId)
-            ->count();
-    }
-
-    public function hasOtherRoles(string $organizationCode, int $excludeRoleId): bool
-    {
-        return ModelAccessRoleModel::query()
-            ->where('organization_code', $organizationCode)
-            ->where('id', '!=', $excludeRoleId)
-            ->exists();
-    }
-
     private function toEntity(ModelAccessRoleModel $model): ModelAccessRoleEntity
     {
         $entity = new ModelAccessRoleEntity();
@@ -452,8 +421,6 @@ class ModelAccessRoleRepository
         $entity->setOrganizationCode((string) $model->organization_code);
         $entity->setName((string) $model->name);
         $entity->setDescription($model->description === null ? null : (string) $model->description);
-        $entity->setIsDefault((int) $model->is_default === 1);
-        $entity->setParentRoleId($model->parent_role_id === null ? null : (int) $model->parent_role_id);
         $entity->setCreatedUid($model->created_uid === null ? null : (string) $model->created_uid);
         $entity->setUpdatedUid($model->updated_uid === null ? null : (string) $model->updated_uid);
         $entity->setCreatedAt($model->created_at?->toDateTime());

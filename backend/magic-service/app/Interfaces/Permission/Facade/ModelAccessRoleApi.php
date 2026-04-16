@@ -73,7 +73,6 @@ class ModelAccessRoleApi extends AbstractPermissionApi
             $this->createPage(),
             [
                 'keyword' => $this->request->input('keyword'),
-                'is_default' => $this->request->input('is_default'),
             ]
         );
     }
@@ -88,20 +87,11 @@ class ModelAccessRoleApi extends AbstractPermissionApi
     }
 
     #[CheckPermission(MagicResourceEnum::ADMIN_AI_MODEL_ACCESS_ROLE, MagicOperationEnum::EDIT)]
-    public function createDefault(): array
-    {
-        return $this->modelAccessRoleAppService->createDefaultRole(
-            $this->createDataIsolation(),
-            $this->buildEntityFromRequest(true)
-        );
-    }
-
-    #[CheckPermission(MagicResourceEnum::ADMIN_AI_MODEL_ACCESS_ROLE, MagicOperationEnum::EDIT)]
     public function create(): array
     {
         return $this->modelAccessRoleAppService->createRole(
             $this->createDataIsolation(),
-            $this->buildEntityFromRequest(false)
+            $this->buildEntityFromRequest()
         );
     }
 
@@ -111,7 +101,7 @@ class ModelAccessRoleApi extends AbstractPermissionApi
         return $this->modelAccessRoleAppService->updateRole(
             $this->createDataIsolation(),
             (int) $this->request->route('roleId'),
-            $this->buildEntityFromRequest(false)
+            $this->buildEntityFromRequest()
         );
     }
 
@@ -143,27 +133,19 @@ class ModelAccessRoleApi extends AbstractPermissionApi
         );
     }
 
-    private function buildEntityFromRequest(bool $isDefault): ModelAccessRoleEntity
+    private function buildEntityFromRequest(): ModelAccessRoleEntity
     {
         $entity = new ModelAccessRoleEntity();
         $entity->setName((string) $this->request->input('name', ''));
         $entity->setDescription($this->request->input('description'));
-        $entity->setIsDefault($isDefault);
-        $entity->setParentRoleId($isDefault ? null : $this->parseNullableInt($this->request->input('parent_role_id')));
         $entity->setDeniedModelIds($this->parseStringArray($this->request->input('denied_model_ids', [])));
-        if ($isDefault) {
-            $entity->setUserIds([]);
-            $entity->setDepartmentIds([]);
-            $entity->setAllUsers(false);
-            return $entity;
-        }
 
         $bindingScope = $this->request->input('binding_scope', []);
         if (! is_array($bindingScope)) {
             ExceptionBuilder::throw(PermissionErrorCode::ValidateFailed, 'invalid binding_scope');
         }
 
-        $scopeType = ModelAccessRoleBindingScopeType::tryFrom((string) ($bindingScope['type'] ?? ModelAccessRoleBindingScopeType::Specific->value));
+        $scopeType = ModelAccessRoleBindingScopeType::tryFrom((string) ($bindingScope['type'] ?? ''));
         if ($scopeType === null) {
             ExceptionBuilder::throw(PermissionErrorCode::ValidateFailed, 'invalid binding_scope type');
         }
@@ -194,13 +176,5 @@ class ModelAccessRoleApi extends AbstractPermissionApi
             return [];
         }
         return array_values(array_map(static fn ($item) => (string) $item, $value));
-    }
-
-    private function parseNullableInt(mixed $value): ?int
-    {
-        if ($value === null || $value === '') {
-            return null;
-        }
-        return (int) $value;
     }
 }

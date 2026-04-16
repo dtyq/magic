@@ -10,168 +10,162 @@ namespace HyperfTest\Cases\Application\Permission;
 use App\Application\Chat\Service\MagicUserInfoAppService;
 use App\Application\Permission\Service\ModelAccessRoleAppService;
 use App\Application\Provider\Service\AdminProviderAppService;
-use App\Domain\Admin\Entity\ValueObject\AdminGlobalSettingsType;
-use App\Domain\Admin\Repository\Facade\AdminGlobalSettingsRepositoryInterface;
-use App\Domain\Contact\Service\MagicUserDomainService;
+use App\Domain\Contact\Service\MagicDepartmentDomainService;
 use App\Domain\Permission\Entity\ModelAccessRoleEntity;
 use App\Domain\Permission\Entity\ValueObject\PermissionControlStatus;
 use App\Domain\Permission\Entity\ValueObject\PermissionDataIsolation;
-use App\Domain\Permission\Repository\Persistence\ModelAccessRoleRepository;
 use App\Domain\Permission\Service\ModelAccessRoleDomainService;
 use App\Domain\Provider\Entity\ProviderModelEntity;
 use App\Domain\Provider\Service\ProviderModelDomainService;
 use App\Infrastructure\Core\ValueObject\Page;
 use HyperfTest\HttpTestCase;
-use Mockery;
 
 /**
  * @internal
  */
 class ModelAccessRoleAppServiceTest extends HttpTestCase
 {
-    public function testDetailReturnsEditableStructure(): void
+    public function testDetailReturnsFlatBindingScopeStructure(): void
     {
-        $repository = Mockery::mock(ModelAccessRoleRepository::class);
-        $adminGlobalSettingsRepository = Mockery::mock(AdminGlobalSettingsRepositoryInterface::class);
-        $userInfoAppService = Mockery::mock(MagicUserInfoAppService::class);
-        $providerModelDomainService = Mockery::mock(ProviderModelDomainService::class);
-        $adminProviderAppService = Mockery::mock(AdminProviderAppService::class);
+        $domainService = $this->createMock(ModelAccessRoleDomainService::class);
+        $userInfoAppService = $this->createMock(MagicUserInfoAppService::class);
+        $departmentDomainService = $this->createMock(MagicDepartmentDomainService::class);
+        $providerModelDomainService = $this->createMock(ProviderModelDomainService::class);
 
-        $parentRole = $this->makeRole(id: 1, name: '默认角色', isDefault: true);
-        $role = $this->makeRole(id: 2, name: '高级角色-A', isDefault: false, parentRoleId: 1);
-        $role->setDeniedModelIds(['gpt-4.1']);
-        $role->setUserIds(['u_001', 'u_002']);
+        $role = $this->makeRole(
+            id: 2,
+            name: '研发限制',
+            deniedModelIds: ['gpt-4.1'],
+            userIds: ['u_001'],
+            departmentIds: ['d_001'],
+            allUsers: false,
+        );
 
-        $repository->shouldReceive('getById')
-            ->once()
-            ->with('ORG_APP', 2)
-            ->andReturn($role);
-        $repository->shouldReceive('getRoleUserMap')
-            ->once()
-            ->with('ORG_APP', [2])
-            ->andReturn([2 => ['u_001', 'u_002']]);
-        $repository->shouldReceive('getRoleDeniedModelMap')
-            ->once()
-            ->with('ORG_APP', [2])
-            ->andReturn([2 => ['gpt-4.1']]);
-        $repository->shouldReceive('getById')
-            ->twice()
-            ->with('ORG_APP', 1)
-            ->andReturn($parentRole);
-        $repository->shouldReceive('getRoleUserMap')
-            ->twice()
-            ->with('ORG_APP', [1])
-            ->andReturn([]);
-        $repository->shouldReceive('getRoleDeniedModelMap')
-            ->twice()
-            ->with('ORG_APP', [1])
-            ->andReturn([]);
-
-        $userInfoAppService->shouldReceive('getBatchUserInfo')
-            ->once()
-            ->andReturn([
-                'u_001' => ['nickname' => '张三', 'real_name' => '张三', 'avatar_url' => 'https://example.com/a.png'],
-                'u_002' => ['nickname' => '李四', 'real_name' => '李四', 'avatar_url' => 'https://example.com/b.png'],
-            ]);
-        $providerModelDomainService->shouldReceive('getModelsByModelIds')->once()->andReturn([
+        $domainService->method('show')->willReturn($role);
+        $userInfoAppService->method('getBatchUserInfo')->willReturn([
+            'u_001' => ['nickname' => '张三', 'real_name' => '张三', 'avatar_url' => 'https://example.com/a.png'],
+        ]);
+        $departmentDomainService->method('getDepartmentByIds')->willReturn([
+            'd_001' => new class {
+                public function getName(): string
+                {
+                    return '研发部';
+                }
+            },
+        ]);
+        $departmentDomainService->method('getDepartmentFullPathByIds')->willReturn([
+            'd_001' => [
+                new class {
+                    public function getName(): string
+                    {
+                        return '总部';
+                    }
+                },
+                new class {
+                    public function getName(): string
+                    {
+                        return '研发部';
+                    }
+                },
+            ],
+        ]);
+        $providerModelDomainService->method('getModelsByModelIds')->willReturn([
             'gpt-4.1' => [new ProviderModelEntity([
                 'model_id' => 'gpt-4.1',
                 'name' => 'GPT-4.1',
             ])],
         ]);
+        $providerModelDomainService->method('getModelByModelId')->willReturn(null);
 
-        $domainService = new ModelAccessRoleDomainService($repository, $adminGlobalSettingsRepository, Mockery::mock(MagicUserDomainService::class), $providerModelDomainService);
-        $service = new ModelAccessRoleAppService($domainService, $userInfoAppService, $providerModelDomainService, $adminProviderAppService);
+        $service = new ModelAccessRoleAppService(
+            $domainService,
+            $userInfoAppService,
+            $departmentDomainService,
+            $providerModelDomainService,
+            $this->createMock(AdminProviderAppService::class),
+        );
 
         $detail = $service->detail(PermissionDataIsolation::create('ORG_APP', 'operator'), 2);
 
         $this->assertSame('2', $detail['id']);
-        $this->assertSame('高级角色-A', $detail['name']);
-        $this->assertSame('1', $detail['parent_role_id']);
+        $this->assertSame('研发限制', $detail['name']);
+        $this->assertArrayNotHasKey('parent_role_id', $detail);
+        $this->assertArrayNotHasKey('inherited_path', $detail);
         $this->assertSame(['gpt-4.1'], $detail['denied_model_ids']);
-        $this->assertSame(['u_001', 'u_002'], $detail['user_ids']);
-        $this->assertSame([[
-            'model_id' => 'gpt-4.1',
-            'model_name' => 'GPT-4.1',
-        ]], $detail['denied_model_items']);
-        $this->assertCount(2, $detail['user_items']);
-        $this->assertSame('张三', $detail['user_items'][0]['nickname']);
-        $this->assertCount(2, $detail['inherited_path']);
+        $this->assertSame('specific', $detail['binding_scope']['type']);
+        $this->assertSame(['u_001'], $detail['binding_scope']['user_ids']);
+        $this->assertSame(['d_001'], $detail['binding_scope']['department_ids']);
+        $this->assertSame('张三', $detail['binding_scope']['user_items'][0]['nickname']);
+        $this->assertSame('总部/研发部', $detail['binding_scope']['department_items'][0]['full_path_name']);
     }
 
-    public function testMetaReturnsPermissionControlStatus(): void
+    public function testMetaReturnsPermissionControlStatusOnly(): void
     {
-        $repository = Mockery::mock(ModelAccessRoleRepository::class);
-        $adminGlobalSettingsRepository = Mockery::mock(AdminGlobalSettingsRepositoryInterface::class);
-        $userInfoAppService = Mockery::mock(MagicUserInfoAppService::class);
-        $providerModelDomainService = Mockery::mock(ProviderModelDomainService::class);
-        $adminProviderAppService = Mockery::mock(AdminProviderAppService::class);
+        $domainService = $this->createMock(ModelAccessRoleDomainService::class);
+        $domainService->method('getMeta')->willReturn([
+            'permission_control_status' => PermissionControlStatus::ENABLED,
+        ]);
 
-        $defaultRole = $this->makeRole(id: 1, name: '默认角色', isDefault: true);
-
-        $repository->shouldReceive('getDefaultRole')
-            ->once()
-            ->with('ORG_APP')
-            ->andReturn($defaultRole);
-        $repository->shouldReceive('getDeniedModelIdsByRoleId')
-            ->once()
-            ->with('ORG_APP', 1)
-            ->andReturn(['gpt-4.1', 'claude-sonnet-4']);
-        $adminGlobalSettingsRepository->shouldReceive('getSettingsByTypeAndOrganization')
-            ->once()
-            ->with(AdminGlobalSettingsType::MODEL_ACCESS_PERMISSION_CONTROL, 'ORG_APP')
-            ->andReturn(null);
-
-        $domainService = new ModelAccessRoleDomainService($repository, $adminGlobalSettingsRepository, Mockery::mock(MagicUserDomainService::class), $providerModelDomainService);
-        $service = new ModelAccessRoleAppService($domainService, $userInfoAppService, $providerModelDomainService, $adminProviderAppService);
+        $service = new ModelAccessRoleAppService(
+            $domainService,
+            $this->createMock(MagicUserInfoAppService::class),
+            $this->createMock(MagicDepartmentDomainService::class),
+            $this->createMock(ProviderModelDomainService::class),
+            $this->createMock(AdminProviderAppService::class),
+        );
 
         $meta = $service->meta(PermissionDataIsolation::create('ORG_APP', 'operator'));
 
-        $this->assertSame(PermissionControlStatus::ENABLED->value, $meta['permission_control_status']);
-        $this->assertSame(2, $meta['default_role']['denied_model_count']);
+        $this->assertSame(['permission_control_status' => 'enabled'], $meta);
     }
 
-    public function testQueriesReturnsModelIds(): void
+    public function testQueriesReturnsBindingScopeWithoutDefaultFlags(): void
     {
-        $repository = Mockery::mock(ModelAccessRoleRepository::class);
-        $adminGlobalSettingsRepository = Mockery::mock(AdminGlobalSettingsRepositoryInterface::class);
-        $userInfoAppService = Mockery::mock(MagicUserInfoAppService::class);
-        $providerModelDomainService = Mockery::mock(ProviderModelDomainService::class);
-        $adminProviderAppService = Mockery::mock(AdminProviderAppService::class);
+        $domainService = $this->createMock(ModelAccessRoleDomainService::class);
+        $role = $this->makeRole(
+            id: 3,
+            name: '组织基线',
+            deniedModelIds: ['gpt-4.1'],
+            allUsers: true,
+        );
 
-        $role = $this->makeRole(id: 2, name: '高级角色-A', isDefault: false, parentRoleId: 1);
-        $role->setDeniedModelIds(['gpt-4.1', 'claude-opus-4']);
-        $role->setUserIds(['u_001']);
+        $domainService->method('queries')->willReturn([
+            'total' => 1,
+            'list' => [$role],
+        ]);
+        $domainService->method('countAssignedUsers')->willReturn(120);
 
-        $parentRole = $this->makeRole(id: 1, name: '默认角色', isDefault: true);
-
-        $repository->shouldReceive('queries')->once()->andReturn(['total' => 1, 'list' => [$role]]);
-        $repository->shouldReceive('getRoleUserMap')->once()->with('ORG_APP', [2])->andReturn([2 => ['u_001']]);
-        $repository->shouldReceive('getRoleDeniedModelMap')->once()->with('ORG_APP', [2])->andReturn([2 => ['gpt-4.1', 'claude-opus-4']]);
-        $repository->shouldReceive('getById')->once()->with('ORG_APP', 1)->andReturn($parentRole);
-        $repository->shouldReceive('getRoleUserMap')->once()->with('ORG_APP', [1])->andReturn([]);
-        $repository->shouldReceive('getRoleDeniedModelMap')->once()->with('ORG_APP', [1])->andReturn([]);
-
-        $domainService = new ModelAccessRoleDomainService($repository, $adminGlobalSettingsRepository, Mockery::mock(MagicUserDomainService::class), $providerModelDomainService);
-        $service = new ModelAccessRoleAppService($domainService, $userInfoAppService, $providerModelDomainService, $adminProviderAppService);
+        $service = new ModelAccessRoleAppService(
+            $domainService,
+            $this->createMock(MagicUserInfoAppService::class),
+            $this->createMock(MagicDepartmentDomainService::class),
+            $this->createMock(ProviderModelDomainService::class),
+            $this->createMock(AdminProviderAppService::class),
+        );
 
         $result = $service->queries(PermissionDataIsolation::create('ORG_APP', 'operator'), new Page(1, 20));
 
-        $this->assertSame(['gpt-4.1', 'claude-opus-4'], $result['list'][0]['denied_model_ids']);
+        $this->assertSame('organization_all', $result['list'][0]['binding_scope']['type']);
+        $this->assertArrayNotHasKey('is_default', $result['list'][0]);
+        $this->assertArrayNotHasKey('parent_role_id', $result['list'][0]);
     }
 
     private function makeRole(
-        ?int $id = null,
-        string $name = '角色',
-        bool $isDefault = false,
-        ?int $parentRoleId = null
+        int $id,
+        string $name,
+        array $deniedModelIds = [],
+        array $userIds = [],
+        array $departmentIds = [],
+        bool $allUsers = false
     ): ModelAccessRoleEntity {
         $role = new ModelAccessRoleEntity();
         $role->setId($id);
         $role->setOrganizationCode('ORG_APP');
         $role->setName($name);
-        $role->setIsDefault($isDefault);
-        $role->setParentRoleId($parentRoleId);
+        $role->setDeniedModelIds($deniedModelIds);
+        $role->setUserIds($userIds);
+        $role->setDepartmentIds($departmentIds);
+        $role->setAllUsers($allUsers);
         return $role;
     }
 }

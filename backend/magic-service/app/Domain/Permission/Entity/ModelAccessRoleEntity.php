@@ -22,10 +22,6 @@ class ModelAccessRoleEntity extends AbstractEntity
 
     protected ?string $description = null;
 
-    protected bool $isDefault = false;
-
-    protected ?int $parentRoleId = null;
-
     protected ?string $createdUid = null;
 
     protected ?string $updatedUid = null;
@@ -75,13 +71,8 @@ class ModelAccessRoleEntity extends AbstractEntity
         if (mb_strlen($this->name) > 255) {
             ExceptionBuilder::throw(PermissionErrorCode::ValidateFailed, 'role_name too long');
         }
-        if ($this->isDefault) {
-            $this->parentRoleId = null;
-            if (! empty($this->userIds) || ! empty($this->departmentIds) || $this->allUsers) {
-                ExceptionBuilder::throw(PermissionErrorCode::ValidateFailed, 'default role cannot bind principals');
-            }
-        } elseif ($this->parentRoleId !== null && $this->parentRoleId <= 0) {
-            ExceptionBuilder::throw(PermissionErrorCode::ValidateFailed, 'parent_role_id is invalid');
+        if ($this->allUsers && (! empty($this->userIds) || ! empty($this->departmentIds))) {
+            ExceptionBuilder::throw(PermissionErrorCode::ValidateFailed, 'organization_all binding_scope cannot include user_ids or department_ids');
         }
 
         $this->deniedModelIds = array_values(array_unique(array_filter(array_map('strval', $this->deniedModelIds), static fn ($id) => $id !== '')));
@@ -132,26 +123,6 @@ class ModelAccessRoleEntity extends AbstractEntity
     public function setDescription(?string $description): void
     {
         $this->description = $description === null ? null : trim($description);
-    }
-
-    public function isDefault(): bool
-    {
-        return $this->isDefault;
-    }
-
-    public function setIsDefault(bool $isDefault): void
-    {
-        $this->isDefault = $isDefault;
-    }
-
-    public function getParentRoleId(): ?int
-    {
-        return $this->parentRoleId;
-    }
-
-    public function setParentRoleId(?int $parentRoleId): void
-    {
-        $this->parentRoleId = $parentRoleId;
     }
 
     public function getCreatedUid(): ?string
