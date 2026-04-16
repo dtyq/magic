@@ -449,7 +449,6 @@ class MagicFSFileDomainService
      *
      * @param string $fileId 文件ID
      * @param bool $includeDescendants 是否连带删除目录下的所有子孙节点，默认 false
-     * @return int 本次删除的文件数量（包含根节点）
      */
     public function deleteFile(string $fileId, bool $includeDescendants = false): void
     {
