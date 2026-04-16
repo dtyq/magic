@@ -47,7 +47,7 @@ class VolcengineArkSeedanceVideoAdapterTest extends TestCase
         $this->assertSame(['480p', '720p'], $generation['resolutions']);
     }
 
-    public function testBuildProviderPayloadMapsGenerateEditAndAudioVideoInputsWithoutServiceTierForProModel(): void
+    public function testBuildProviderPayloadMapsGenerateEditAndReferenceInputsWithoutServiceTierForProModel(): void
     {
         $adapter = new VolcengineArkSeedanceVideoAdapter(new VolcengineArkVideoClient($this->createMock(ClientFactory::class)));
         $operation = new VideoQueueOperationEntity(
@@ -67,10 +67,12 @@ class VolcengineArkSeedanceVideoAdapterTest extends TestCase
                 'task' => 'edit',
                 'prompt' => 'replace the sky with sunset clouds',
                 'inputs' => [
-                    'video' => ['uri' => 'https://example.com/source.mp4'],
+                    'reference_videos' => [
+                        ['uri' => 'https://example.com/source.mp4'],
+                    ],
                     'mask' => ['uri' => 'https://example.com/mask.png'],
-                    'audio' => [
-                        ['role' => 'reference', 'uri' => 'https://example.com/voice.wav'],
+                    'reference_audios' => [
+                        ['uri' => 'https://example.com/voice.wav'],
                     ],
                 ],
                 'generation' => [
@@ -99,16 +101,23 @@ class VolcengineArkSeedanceVideoAdapterTest extends TestCase
 
         $this->assertSame('doubao-seedance-2-0-260128', $payload['model']);
         $this->assertSame('edit', $payload['task']);
-        $this->assertSame('replace the sky with sunset clouds --rs 720p --rt 16:9 --dur 5 --seed 7 --wm true --cf true', $payload['content'][0]['text']);
+        $this->assertSame('replace the sky with sunset clouds', $payload['content'][0]['text']);
         $this->assertSame('https://example.com/source.mp4', $payload['content'][1]['video_url']['url']);
+        $this->assertSame('reference_video', $payload['content'][1]['role']);
         $this->assertSame('https://example.com/voice.wav', $payload['content'][2]['audio_url']['url']);
+        $this->assertSame('reference_audio', $payload['content'][2]['role']);
         $this->assertSame('https://example.com/mask.png', $payload['content'][3]['mask_url']['url']);
         $this->assertSame('https://callback.example.com/video', $payload['callback_url']);
         $this->assertArrayNotHasKey('service_tier', $payload);
         $this->assertSame(7200, $payload['execution_expires_after']);
+        $this->assertSame('720p', $payload['resolution']);
+        $this->assertSame('16:9', $payload['ratio']);
+        $this->assertSame(5, $payload['duration']);
+        $this->assertSame(7, $payload['seed']);
+        $this->assertTrue($payload['camera_fixed']);
+        $this->assertTrue($payload['watermark']);
         $this->assertTrue($payload['return_last_frame']);
         $this->assertTrue($payload['generate_audio']);
-        $this->assertArrayNotHasKey('watermark', $payload);
     }
 
     public function testBuildProviderPayloadDropsServiceTierForFastModelToo(): void
@@ -174,7 +183,10 @@ class VolcengineArkSeedanceVideoAdapterTest extends TestCase
 
         $payload = $adapter->buildProviderPayload($operation);
 
-        $this->assertSame('make a fast video --rs 720p --dur 5', $payload['content'][0]['text']);
+        $this->assertSame('make a fast video', $payload['content'][0]['text']);
+        $this->assertSame('720p', $payload['resolution']);
+        $this->assertSame(5, $payload['duration']);
+        $this->assertArrayNotHasKey('ratio', $payload);
     }
 
     public function testBuildProviderPayloadMapsStartAndEndFramesWithoutDroppingThem(): void
@@ -217,6 +229,54 @@ class VolcengineArkSeedanceVideoAdapterTest extends TestCase
         $this->assertSame('https://example.com/end.png', $payload['content'][2]['image_url']['url']);
         $this->assertSame('last_frame', $payload['content'][2]['role']);
         $this->assertSame('https://example.com/reference.png', $payload['content'][3]['image_url']['url']);
+        $this->assertSame('reference_image', $payload['content'][3]['role']);
+    }
+
+    public function testBuildProviderPayloadMapsReferencesArrayToArkContent(): void
+    {
+        $adapter = new VolcengineArkSeedanceVideoAdapter(new VolcengineArkVideoClient($this->createMock(ClientFactory::class)));
+        $operation = new VideoQueueOperationEntity(
+            id: 'op-ark-references',
+            endpoint: 'video:doubao-seedance-2-0-260128',
+            model: 'doubao-seedance-2-0-260128',
+            modelVersion: 'doubao-seedance-2-0-260128',
+            providerModelId: 'provider-model-ark-seedance',
+            providerCode: 'VolcengineArk',
+            providerName: 'volcengineark',
+            organizationCode: 'org-1',
+            userId: 'user-1',
+            status: VideoOperationStatus::QUEUED,
+            seq: 1,
+            rawRequest: [
+                'model_id' => 'doubao-seedance-2-0-260128',
+                'task' => 'generate',
+                'prompt' => '大家在唱歌跳舞',
+                'input_mode' => 'omni_reference',
+                'inputs' => [
+                    'reference_images' => [
+                        ['uri' => 'https://example.com/reference.png'],
+                    ],
+                    'reference_videos' => [
+                        ['uri' => 'https://example.com/reference.mp4'],
+                    ],
+                    'reference_audios' => [
+                        ['uri' => 'https://example.com/reference.wav'],
+                    ],
+                ],
+            ],
+            createdAt: date(DATE_ATOM),
+            heartbeatAt: date(DATE_ATOM),
+        );
+
+        $payload = $adapter->buildProviderPayload($operation);
+
+        $this->assertSame('大家在唱歌跳舞', $payload['content'][0]['text']);
+        $this->assertSame('https://example.com/reference.png', $payload['content'][1]['image_url']['url']);
+        $this->assertSame('reference_image', $payload['content'][1]['role']);
+        $this->assertSame('https://example.com/reference.mp4', $payload['content'][2]['video_url']['url']);
+        $this->assertSame('reference_video', $payload['content'][2]['role']);
+        $this->assertSame('https://example.com/reference.wav', $payload['content'][3]['audio_url']['url']);
+        $this->assertSame('reference_audio', $payload['content'][3]['role']);
     }
 
     public function testQueryMapsQueuedRunningSucceededFailedExpiredAndCancelledResponses(): void

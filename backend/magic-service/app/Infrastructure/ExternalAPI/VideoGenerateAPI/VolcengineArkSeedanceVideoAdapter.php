@@ -64,15 +64,16 @@ readonly class VolcengineArkSeedanceVideoAdapter implements VideoGenerationProvi
                 'text_prompt',
                 'image',
                 'reference_images',
-                'audio',
-                'video',
+                'reference_videos',
+                'reference_audios',
                 'mask',
                 'video_extension',
                 'video_edit',
                 'video_upscale',
             ],
             'reference_images' => [
-                'max_count' => 4,
+                // Seedance 2.0 参考图能力按当前产品规格开放到 1~9 张。
+                'max_count' => 9,
                 'reference_types' => ['asset'],
                 'style_supported' => false,
             ],
@@ -93,7 +94,31 @@ readonly class VolcengineArkSeedanceVideoAdapter implements VideoGenerationProvi
                 'supports_resize_mode' => false,
                 'supports_sample_count' => false,
             ],
-            'constraints' => [],
+            'input_modes' => [
+                'standard' => [
+                    'description' => '普通文生视频模式，不依赖任何参考素材。',
+                    'supported_fields' => [],
+                ],
+                'image_reference' => [
+                    'description' => '参考图模式，仅支持通过 reference_images 传入图片参考。',
+                    'supported_fields' => ['reference_images'],
+                    'reference_images' => [
+                        'max_count' => 9,
+                        'reference_types' => ['asset'],
+                        'style_supported' => false,
+                    ],
+                ],
+                'omni_reference' => [
+                    'description' => '全能参考模式，支持混合传入参考图、参考视频、参考音频，素材总数为 1 到 12 个。',
+                    'supported_fields' => ['reference_images', 'reference_videos', 'reference_audios'],
+                    'max_count' => 12,
+                ],
+                'keyframe_guided' => [
+                    'description' => '首尾帧引导模式，使用 frames 传入首帧和尾帧图片。',
+                    'supported_fields' => ['frames'],
+                    'frame_roles' => ['start', 'end'],
+                ],
+            ],
         ]);
     }
 
@@ -104,10 +129,11 @@ readonly class VolcengineArkSeedanceVideoAdapter implements VideoGenerationProvi
         $generation = is_array($request['generation'] ?? null) ? $request['generation'] : [];
         $frames = is_array($inputs['frames'] ?? null) ? $inputs['frames'] : [];
         $referenceImages = is_array($inputs['reference_images'] ?? null) ? $inputs['reference_images'] : [];
-        $audioInputs = is_array($inputs['audio'] ?? null) ? $inputs['audio'] : [];
+        $referenceVideos = is_array($inputs['reference_videos'] ?? null) ? $inputs['reference_videos'] : [];
+        $referenceAudios = is_array($inputs['reference_audios'] ?? null) ? $inputs['reference_audios'] : [];
         $content = [[
             'type' => 'text',
-            'text' => $this->buildPrompt($request, $generation),
+            'text' => $this->buildPrompt($request),
         ]];
         $acceptedParams = ['prompt', 'task'];
         $ignoredParams = [];
@@ -145,40 +171,45 @@ readonly class VolcengineArkSeedanceVideoAdapter implements VideoGenerationProvi
             $content[] = [
                 'type' => 'image_url',
                 'image_url' => ['url' => $uri],
+                'role' => 'reference_image',
             ];
             $acceptedParams[] = 'inputs.reference_images';
         }
 
-        $videoUri = $this->firstNonEmptyString($inputs['video']['uri'] ?? null);
-        if ($videoUri !== null) {
+        foreach ($referenceVideos as $referenceVideo) {
+            if (! is_array($referenceVideo)) {
+                continue;
+            }
+
+            $referenceVideoUri = $this->firstNonEmptyString($referenceVideo['uri'] ?? null);
+            if ($referenceVideoUri === null) {
+                continue;
+            }
+
             $content[] = [
                 'type' => 'video_url',
-                'video_url' => ['url' => $videoUri],
+                'video_url' => ['url' => $referenceVideoUri],
+                'role' => 'reference_video',
             ];
-            $acceptedParams[] = 'inputs.video';
+            $acceptedParams[] = 'inputs.reference_videos';
         }
 
-        foreach ($audioInputs as $audioInput) {
-            if (! is_array($audioInput)) {
+        foreach ($referenceAudios as $referenceAudio) {
+            if (! is_array($referenceAudio)) {
                 continue;
             }
 
-            $audioUri = $this->firstNonEmptyString($audioInput['uri'] ?? null);
-            if ($audioUri === null) {
+            $referenceAudioUri = $this->firstNonEmptyString($referenceAudio['uri'] ?? null);
+            if ($referenceAudioUri === null) {
                 continue;
-            }
-
-            $audio = ['url' => $audioUri];
-            $role = $this->firstNonEmptyString($audioInput['role'] ?? null);
-            if ($role !== null) {
-                $audio['role'] = $role;
             }
 
             $content[] = [
                 'type' => 'audio_url',
-                'audio_url' => $audio,
+                'audio_url' => ['url' => $referenceAudioUri],
+                'role' => 'reference_audio',
             ];
-            $acceptedParams[] = 'inputs.audio';
+            $acceptedParams[] = 'inputs.reference_audios';
         }
 
         $maskUri = $this->firstNonEmptyString($inputs['mask']['uri'] ?? null);
@@ -196,6 +227,23 @@ readonly class VolcengineArkSeedanceVideoAdapter implements VideoGenerationProvi
             'task' => $this->firstNonEmptyString($request['task'] ?? null, 'generate') ?? 'generate',
             'content' => $content,
         ];
+        $payload['resolution'] = $this->resolveResolution($generation, $acceptedParams, $ignoredParams);
+        $payload['duration'] = $this->resolveDuration($generation, $acceptedParams, $ignoredParams);
+
+        $aspectRatio = $this->resolveAspectRatio($generation, $acceptedParams, $ignoredParams);
+        if ($aspectRatio !== null) {
+            $payload['ratio'] = $aspectRatio;
+        }
+
+        $seed = $this->resolveSeed($generation, $acceptedParams, $ignoredParams);
+        if ($seed !== null) {
+            $payload['seed'] = $seed;
+        }
+
+        if (array_key_exists('camera_fixed', $generation)) {
+            $payload['camera_fixed'] = (bool) $generation['camera_fixed'];
+            $acceptedParams[] = 'generation.camera_fixed';
+        }
 
         $callbackUrl = $this->firstNonEmptyString($request['callbacks']['webhook_url'] ?? null);
         if ($callbackUrl !== null) {
@@ -225,6 +273,7 @@ readonly class VolcengineArkSeedanceVideoAdapter implements VideoGenerationProvi
             $acceptedParams[] = 'generation.enhance_prompt';
         }
         if (array_key_exists('watermark', $generation)) {
+            $payload['watermark'] = (bool) $generation['watermark'];
             $acceptedParams[] = 'generation.watermark';
         }
 
@@ -349,48 +398,99 @@ readonly class VolcengineArkSeedanceVideoAdapter implements VideoGenerationProvi
 
     /**
      * @param array<string, mixed> $request
-     * @param array<string, mixed> $generation
      */
-    private function buildPrompt(array $request, array $generation): string
+    private function buildPrompt(array $request): string
     {
-        $parts = [];
-        $prompt = trim((string) ($request['prompt'] ?? ''));
-        if ($prompt !== '') {
-            $parts[] = $prompt;
+        return trim((string) ($request['prompt'] ?? ''));
+    }
+
+    /**
+     * @param array<string, mixed> $generation
+     * @param list<string> $acceptedParams
+     * @param list<string> $ignoredParams
+     */
+    private function resolveResolution(array $generation, array &$acceptedParams, array &$ignoredParams): string
+    {
+        if (! array_key_exists('resolution', $generation)) {
+            return self::DEFAULT_RESOLUTION;
         }
 
-        $resolution = trim((string) ($generation['resolution'] ?? self::DEFAULT_RESOLUTION));
+        $resolution = trim((string) $generation['resolution']);
         if (! in_array($resolution, self::SUPPORTED_RESOLUTIONS, true)) {
-            $resolution = self::DEFAULT_RESOLUTION;
-        }
-        $parts[] = '--rs ' . $resolution;
-
-        $aspectRatio = trim((string) ($generation['aspect_ratio'] ?? ''));
-        if (in_array($aspectRatio, self::SUPPORTED_ASPECT_RATIOS, true)) {
-            $parts[] = '--rt ' . $aspectRatio;
+            $ignoredParams[] = 'generation.resolution';
+            return self::DEFAULT_RESOLUTION;
         }
 
-        $duration = array_key_exists('duration_seconds', $generation)
-            ? (int) $generation['duration_seconds']
-            : self::DEFAULT_DURATION_SECONDS;
+        $acceptedParams[] = 'generation.resolution';
+        return $resolution;
+    }
+
+    /**
+     * @param array<string, mixed> $generation
+     * @param list<string> $acceptedParams
+     * @param list<string> $ignoredParams
+     */
+    private function resolveDuration(array $generation, array &$acceptedParams, array &$ignoredParams): int
+    {
+        if (! array_key_exists('duration_seconds', $generation)) {
+            return self::DEFAULT_DURATION_SECONDS;
+        }
+
+        $duration = (int) $generation['duration_seconds'];
         if (! in_array($duration, self::SUPPORTED_DURATIONS, true)) {
-            $duration = self::DEFAULT_DURATION_SECONDS;
-        }
-        $parts[] = '--dur ' . $duration;
-
-        if (array_key_exists('seed', $generation)) {
-            $parts[] = '--seed ' . (int) $generation['seed'];
+            $ignoredParams[] = 'generation.duration_seconds';
+            return self::DEFAULT_DURATION_SECONDS;
         }
 
-        if (array_key_exists('watermark', $generation)) {
-            $parts[] = '--wm ' . ($generation['watermark'] ? 'true' : 'false');
+        $acceptedParams[] = 'generation.duration_seconds';
+        return $duration;
+    }
+
+    /**
+     * @param array<string, mixed> $generation
+     * @param list<string> $acceptedParams
+     * @param list<string> $ignoredParams
+     */
+    private function resolveAspectRatio(array $generation, array &$acceptedParams, array &$ignoredParams): ?string
+    {
+        if (! array_key_exists('aspect_ratio', $generation)) {
+            return null;
         }
 
-        if (array_key_exists('camera_fixed', $generation)) {
-            $parts[] = '--cf ' . ($generation['camera_fixed'] ? 'true' : 'false');
+        $aspectRatio = trim((string) $generation['aspect_ratio']);
+        if (! in_array($aspectRatio, self::SUPPORTED_ASPECT_RATIOS, true)) {
+            $ignoredParams[] = 'generation.aspect_ratio';
+            return null;
         }
 
-        return trim(implode(' ', $parts));
+        $acceptedParams[] = 'generation.aspect_ratio';
+        return $aspectRatio;
+    }
+
+    /**
+     * @param array<string, mixed> $generation
+     * @param list<string> $acceptedParams
+     * @param list<string> $ignoredParams
+     */
+    private function resolveSeed(array $generation, array &$acceptedParams, array &$ignoredParams): ?int
+    {
+        if (! array_key_exists('seed', $generation)) {
+            return null;
+        }
+
+        if (! is_int($generation['seed']) && ! (is_string($generation['seed']) && is_numeric($generation['seed']))) {
+            $ignoredParams[] = 'generation.seed';
+            return null;
+        }
+
+        $seed = (int) $generation['seed'];
+        if ($seed < -1 || $seed > 4294967295) {
+            $ignoredParams[] = 'generation.seed';
+            return null;
+        }
+
+        $acceptedParams[] = 'generation.seed';
+        return $seed;
     }
 
     private function firstNonEmptyString(mixed ...$candidates): ?string

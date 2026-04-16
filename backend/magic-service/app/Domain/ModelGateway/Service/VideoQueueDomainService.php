@@ -43,14 +43,22 @@ readonly class VideoQueueDomainService
 
     private const string TASK_UPSCALE = 'upscale';
 
+    // input_mode 只负责表达输入编排方式：
+    // standard 普通文生，image_reference 参考图，omni_reference 全能参考，keyframe_guided 首尾帧。
+    private const string COMPOSITION_MODE_STANDARD = 'standard';
+
+    private const string COMPOSITION_MODE_IMAGE_REFERENCE = 'image_reference';
+
+    private const string COMPOSITION_MODE_OMNI_REFERENCE = 'omni_reference';
+
+    private const string COMPOSITION_MODE_KEYFRAME_GUIDED = 'keyframe_guided';
+
     private const array SUPPORTED_TASKS = [
         self::TASK_GENERATE,
         self::TASK_EXTEND,
         self::TASK_EDIT,
         self::TASK_UPSCALE,
     ];
-
-    private const string AUDIO_ROLE_REFERENCE = 'reference';
 
     private const array SERVICE_TIERS = ['default', 'flex'];
 
@@ -341,9 +349,9 @@ readonly class VideoQueueDomainService
             $referenceImages[] = $item;
         }
 
-        $videoInput = $this->normalizeMediaInput($requestData['inputs']['video'] ?? null, 'inputs.video');
         $maskInput = $this->normalizeMediaInput($requestData['inputs']['mask'] ?? null, 'inputs.mask');
-        $audioInputs = $this->normalizeAudioInputs($requestData['inputs']['audio'] ?? null);
+        $referenceVideoInputs = $this->normalizeMediaInputs($requestData['inputs']['reference_videos'] ?? null, 'inputs.reference_videos');
+        $referenceAudioInputs = $this->normalizeMediaInputs($requestData['inputs']['reference_audios'] ?? null, 'inputs.reference_audios');
 
         $generation = array_filter([
             'size' => $this->normalizeGenerationSize($requestData['generation']['size'] ?? null),
@@ -385,21 +393,39 @@ readonly class VideoQueueDomainService
         ], static fn (mixed $value): bool => $value !== null && $value !== '');
 
         $task = $this->normalizeTask($requestData['task'] ?? null);
-        $this->assertTaskRequirements($task, $videoInput);
+        $compositionMode = $this->normalizeCompositionMode(
+            $requestData['input_mode'] ?? null,
+            $task,
+            $frames,
+            $referenceImages,
+            $referenceVideoInputs,
+            $referenceAudioInputs,
+        );
+        // 统一约定后，所有需要视频素材的任务都从 reference_videos 取输入。
+        $this->assertTaskRequirements($task, $referenceVideoInputs);
         $this->assertCapability($task, $supportedInputs);
+        $this->assertCompositionModeRequirements(
+            $task,
+            $compositionMode,
+            $frames,
+            $referenceImages,
+            $referenceVideoInputs,
+            $referenceAudioInputs,
+        );
         $extensions = is_array($requestData['extensions'] ?? null) ? $requestData['extensions'] : [];
 
         return [
             'model_id' => (string) ($requestData['model_id'] ?? ''),
             'task' => $task,
+            'input_mode' => $compositionMode,
             'prompt' => (string) ($requestData['prompt'] ?? ''),
             'inputs' => array_filter([
                 'frames' => $frames,
                 'reference_images' => $referenceImages,
-                'video' => $videoInput,
+                'reference_videos' => $referenceVideoInputs,
+                'reference_audios' => $referenceAudioInputs,
                 'mask' => $maskInput,
-                'audio' => $audioInputs,
-            ], static fn (mixed $value): bool => $value !== []),
+            ], static fn (mixed $value): bool => $value !== [] && $value !== ''),
             'generation' => $generation,
             'callbacks' => $callbacks,
             'execution' => $execution,
@@ -572,10 +598,104 @@ readonly class VideoQueueDomainService
         }
     }
 
-    private function assertTaskRequirements(string $task, array $videoInput): void
+    private function assertTaskRequirements(string $task, array $referenceVideoInputs): void
     {
-        if (($task === self::TASK_EXTEND || $task === self::TASK_EDIT || $task === self::TASK_UPSCALE) && $videoInput === []) {
-            ExceptionBuilder::throw(MagicApiErrorCode::ValidateFailed, 'inputs.video is required');
+        if (($task === self::TASK_EXTEND || $task === self::TASK_EDIT || $task === self::TASK_UPSCALE) && $referenceVideoInputs === []) {
+            ExceptionBuilder::throw(MagicApiErrorCode::ValidateFailed, 'inputs.reference_videos is required');
+        }
+    }
+
+    private function normalizeCompositionMode(
+        mixed $value,
+        string $task,
+        array $frames,
+        array $referenceImages,
+        array $referenceVideoInputs,
+        array $referenceAudioInputs
+    ): string {
+        $mode = strtolower(trim((string) $value));
+        if ($mode !== '') {
+            if (! in_array($mode, [
+                self::COMPOSITION_MODE_STANDARD,
+                self::COMPOSITION_MODE_IMAGE_REFERENCE,
+                self::COMPOSITION_MODE_OMNI_REFERENCE,
+                self::COMPOSITION_MODE_KEYFRAME_GUIDED,
+            ], true)) {
+                ExceptionBuilder::throw(MagicApiErrorCode::ValidateFailed, 'input_mode is invalid');
+            }
+
+            return $mode;
+        }
+
+        if ($task !== self::TASK_GENERATE) {
+            return self::COMPOSITION_MODE_STANDARD;
+        }
+
+        if ($frames !== []) {
+            return self::COMPOSITION_MODE_KEYFRAME_GUIDED;
+        }
+        if ($referenceVideoInputs !== [] || $referenceAudioInputs !== []) {
+            return self::COMPOSITION_MODE_OMNI_REFERENCE;
+        }
+        if ($referenceImages !== []) {
+            return self::COMPOSITION_MODE_IMAGE_REFERENCE;
+        }
+
+        return self::COMPOSITION_MODE_STANDARD;
+    }
+
+    /**
+     * @param list<array{uri: string, type?: string}> $referenceImages
+     */
+    private function assertCompositionModeRequirements(
+        string $task,
+        string $compositionMode,
+        array $frames,
+        array $referenceImages,
+        array $referenceVideoInputs,
+        array $referenceAudioInputs
+    ): void {
+        if ($compositionMode === self::COMPOSITION_MODE_STANDARD) {
+            return;
+        }
+
+        if ($task !== self::TASK_GENERATE) {
+            ExceptionBuilder::throw(MagicApiErrorCode::ValidateFailed, 'input_mode is invalid');
+        }
+
+        if ($compositionMode === self::COMPOSITION_MODE_IMAGE_REFERENCE) {
+            if ($referenceImages === []) {
+                ExceptionBuilder::throw(MagicApiErrorCode::ValidateFailed, 'inputs.reference_images is required');
+            }
+            if ($referenceVideoInputs !== [] || $referenceAudioInputs !== [] || $frames !== []) {
+                ExceptionBuilder::throw(MagicApiErrorCode::ValidateFailed, 'input_mode is invalid');
+            }
+
+            return;
+        }
+
+        if ($compositionMode === self::COMPOSITION_MODE_OMNI_REFERENCE) {
+            if ($referenceImages === [] && $referenceVideoInputs === [] && $referenceAudioInputs === []) {
+                ExceptionBuilder::throw(MagicApiErrorCode::ValidateFailed, 'omni_reference inputs are required');
+            }
+            if ($frames !== []) {
+                ExceptionBuilder::throw(MagicApiErrorCode::ValidateFailed, 'input_mode is invalid');
+            }
+
+            return;
+        }
+
+        $hasStartFrame = false;
+        foreach ($frames as $frame) {
+            $role = strtolower(trim((string) ($frame['role'] ?? '')));
+            $hasStartFrame = $hasStartFrame || in_array($role, ['start', 'first'], true);
+        }
+
+        if (! $hasStartFrame) {
+            ExceptionBuilder::throw(MagicApiErrorCode::ValidateFailed, 'inputs.frames.start is required');
+        }
+        if ($referenceImages !== [] || $referenceVideoInputs !== [] || $referenceAudioInputs !== []) {
+            ExceptionBuilder::throw(MagicApiErrorCode::ValidateFailed, 'input_mode is invalid');
         }
     }
 
@@ -713,47 +833,29 @@ readonly class VideoQueueDomainService
         return ['uri' => $uri];
     }
 
-    private function assertAudioInputsValid(mixed $value): void
+    /**
+     * @return list<array{uri: string}>
+     */
+    private function normalizeMediaInputs(mixed $value, string $field): array
     {
         if ($value === null) {
-            return;
-        }
-
-        if (! is_array($value)) {
-            ExceptionBuilder::throw(MagicApiErrorCode::ValidateFailed, 'inputs.audio is invalid');
-        }
-
-        foreach ($value as $index => $item) {
-            if (! is_array($item)) {
-                ExceptionBuilder::throw(MagicApiErrorCode::ValidateFailed, sprintf('inputs.audio.%d is invalid', $index));
-            }
-
-            $role = trim((string) ($item['role'] ?? ''));
-            $uri = trim((string) ($item['uri'] ?? ''));
-            if ($role !== self::AUDIO_ROLE_REFERENCE) {
-                ExceptionBuilder::throw(MagicApiErrorCode::ValidateFailed, sprintf('inputs.audio.%d.role is invalid', $index));
-            }
-            if ($uri === '') {
-                ExceptionBuilder::throw(MagicApiErrorCode::ValidateFailed, sprintf('inputs.audio.%d.uri is required', $index));
-            }
-        }
-    }
-
-    private function normalizeAudioInputs(mixed $value): array
-    {
-        $this->assertAudioInputsValid($value);
-
-        if (! is_array($value)) {
             return [];
         }
 
-        return array_values(array_map(
-            static fn (array $item): array => [
-                'role' => trim((string) ($item['role'] ?? '')),
-                'uri' => trim((string) ($item['uri'] ?? '')),
-            ],
-            $value,
-        ));
+        if (! is_array($value)) {
+            ExceptionBuilder::throw(MagicApiErrorCode::ValidateFailed, sprintf('%s is invalid', $field));
+        }
+
+        $items = [];
+        foreach ($value as $index => $item) {
+            $itemField = sprintf('%s.%d', $field, $index);
+            $normalized = $this->normalizeMediaInput($item, $itemField);
+            if ($normalized !== []) {
+                $items[] = $normalized;
+            }
+        }
+
+        return $items;
     }
 
     private function normalizeOptionalString(mixed $value): ?string

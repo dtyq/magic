@@ -21,15 +21,15 @@ readonly class VideoGatewayPayloadBuilder implements VideoGatewayPayloadBuilderI
 
     private const string TEMP_FILE_PREFIX = 'design-video-';
 
-    private const string INPUT_KEY_VIDEO = 'video';
-
     private const string INPUT_KEY_MASK = 'mask';
 
     private const string INPUT_KEY_REFERENCE_IMAGES = 'reference_images';
 
-    private const string INPUT_KEY_FRAMES = 'frames';
+    private const string INPUT_KEY_REFERENCE_VIDEOS = 'reference_videos';
 
-    private const string INPUT_KEY_AUDIO = 'audio';
+    private const string INPUT_KEY_REFERENCE_AUDIOS = 'reference_audios';
+
+    private const string INPUT_KEY_FRAMES = 'frames';
 
     private const string FIELD_URI = 'uri';
 
@@ -37,9 +37,10 @@ readonly class VideoGatewayPayloadBuilder implements VideoGatewayPayloadBuilderI
 
     private const string FIELD_TYPE = 'type';
 
-    private const string AUDIO_ROLE_REFERENCE = 'reference';
+    // 由上游根据模型能力预先写入，决定图片输入走 URL 还是 data URL。
+    private const string FIELD_SUPPORTS_IMAGE_INPUT_URL = 'supports_image_input_url';
 
-    private const string ERROR_VIDEO_INPUT_URL_MISSING = 'design.video_generation.video_input_url_missing';
+    private const string ERROR_REFERENCE_MEDIA_URL_MISSING = 'design.video_generation.video_input_url_missing';
 
     private const string ERROR_REFERENCE_IMAGE_URL_MISSING = 'design.video_generation.reference_image_url_missing';
 
@@ -58,6 +59,11 @@ readonly class VideoGatewayPayloadBuilder implements VideoGatewayPayloadBuilderI
         return $payload;
     }
 
+    public function supportsImageInputUrl(DesignGenerationTaskEntity $entity): bool
+    {
+        return (bool) ($entity->getRequestPayload()[self::FIELD_SUPPORTS_IMAGE_INPUT_URL] ?? false);
+    }
+
     /**
      * @return array<string, mixed>
      */
@@ -65,20 +71,8 @@ readonly class VideoGatewayPayloadBuilder implements VideoGatewayPayloadBuilderI
     {
         $filePrefix = $this->fileDomainService->getFullPrefix($entity->getOrganizationCode());
         $workspacePrefix = PathFactory::getWorkspacePrefix($filePrefix, $entity->getProjectId());
-
-        $video = [];
-        if ($entity->getVideo() !== null) {
-            $fullPath = $workspacePrefix . $entity->getVideo();
-            $url = $this->fileDomainService->getLink($entity->getOrganizationCode(), $fullPath, StorageBucketType::SandBox)?->getUrl();
-            if (! $url) {
-                ExceptionBuilder::throw(
-                    DesignErrorCode::ThirdPartyServiceError,
-                    self::ERROR_VIDEO_INPUT_URL_MISSING,
-                    ['file_key' => $entity->getVideo()]
-                );
-            }
-            $video = [self::FIELD_URI => $url];
-        }
+        // VolcengineArk 这类支持图片直链的模型直接走 URL，避免无谓的 base64 转换。
+        $supportsImageInputUrl = $this->supportsImageInputUrl($entity);
 
         $mask = [];
         if ($entity->getMask() !== null) {
@@ -87,7 +81,7 @@ readonly class VideoGatewayPayloadBuilder implements VideoGatewayPayloadBuilderI
             if (! $url) {
                 ExceptionBuilder::throw(
                     DesignErrorCode::ThirdPartyServiceError,
-                    self::ERROR_VIDEO_INPUT_URL_MISSING,
+                    self::ERROR_REFERENCE_MEDIA_URL_MISSING,
                     ['file_key' => $entity->getMask()]
                 );
             }
@@ -98,12 +92,19 @@ readonly class VideoGatewayPayloadBuilder implements VideoGatewayPayloadBuilderI
         foreach ($entity->getReferenceImages() as $referenceImage) {
             $relativePath = (string) ($referenceImage[self::FIELD_URI] ?? '');
             $fullPath = $workspacePrefix . $relativePath;
-            $item = [self::FIELD_URI => $this->buildImageDataUrl(
-                $entity->getOrganizationCode(),
-                $fullPath,
-                $relativePath,
-                self::ERROR_REFERENCE_IMAGE_URL_MISSING,
-            )];
+            $item = [self::FIELD_URI => $supportsImageInputUrl
+                ? $this->buildImageUrl(
+                    $entity->getOrganizationCode(),
+                    $fullPath,
+                    $relativePath,
+                    self::ERROR_REFERENCE_IMAGE_URL_MISSING,
+                )
+                : $this->buildImageDataUrl(
+                    $entity->getOrganizationCode(),
+                    $fullPath,
+                    $relativePath,
+                    self::ERROR_REFERENCE_IMAGE_URL_MISSING,
+                )];
             $type = trim((string) ($referenceImage[self::FIELD_TYPE] ?? ''));
             if ($type !== '') {
                 $item[self::FIELD_TYPE] = $type;
@@ -118,40 +119,82 @@ readonly class VideoGatewayPayloadBuilder implements VideoGatewayPayloadBuilderI
             $fullPath = $workspacePrefix . $uri;
             $frames[] = [
                 self::FIELD_ROLE => $role,
-                self::FIELD_URI => $this->buildImageDataUrl(
-                    $entity->getOrganizationCode(),
-                    $fullPath,
-                    $uri,
-                    self::ERROR_FRAME_URL_MISSING,
-                ),
+                self::FIELD_URI => $supportsImageInputUrl
+                    ? $this->buildImageUrl(
+                        $entity->getOrganizationCode(),
+                        $fullPath,
+                        $uri,
+                        self::ERROR_FRAME_URL_MISSING,
+                    )
+                    : $this->buildImageDataUrl(
+                        $entity->getOrganizationCode(),
+                        $fullPath,
+                        $uri,
+                        self::ERROR_FRAME_URL_MISSING,
+                    ),
             ];
         }
 
-        $audio = [];
-        foreach ($entity->getAudioInputs() as $item) {
-            $uri = (string) ($item[self::FIELD_URI] ?? '');
+        $referenceVideos = [];
+        foreach ($entity->getReferenceVideos() as $referenceVideo) {
+            $uri = (string) ($referenceVideo[self::FIELD_URI] ?? '');
+            if ($uri === '') {
+                continue;
+            }
+
+            $fullPath = $workspacePrefix . $uri;
+            $referenceVideos[] = [self::FIELD_URI => $this->buildImageUrl(
+                $entity->getOrganizationCode(),
+                $fullPath,
+                $uri,
+                self::ERROR_REFERENCE_MEDIA_URL_MISSING,
+            )];
+        }
+
+        $referenceAudios = [];
+        foreach ($entity->getReferenceAudios() as $referenceAudio) {
+            $uri = (string) ($referenceAudio[self::FIELD_URI] ?? '');
+            if ($uri === '') {
+                continue;
+            }
+
             $fullPath = $workspacePrefix . $uri;
             $url = $this->fileDomainService->getLink($entity->getOrganizationCode(), $fullPath, StorageBucketType::SandBox)?->getUrl();
             if (! $url) {
                 ExceptionBuilder::throw(
                     DesignErrorCode::ThirdPartyServiceError,
-                    self::ERROR_VIDEO_INPUT_URL_MISSING,
+                    self::ERROR_REFERENCE_MEDIA_URL_MISSING,
                     ['file_key' => $uri]
                 );
             }
-            $audio[] = [
-                self::FIELD_ROLE => (string) ($item[self::FIELD_ROLE] ?? self::AUDIO_ROLE_REFERENCE),
-                self::FIELD_URI => $url,
-            ];
+            $referenceAudios[] = [self::FIELD_URI => $url];
         }
 
         return array_filter([
-            self::INPUT_KEY_VIDEO => $video,
             self::INPUT_KEY_MASK => $mask,
             self::INPUT_KEY_REFERENCE_IMAGES => $referenceImages,
+            self::INPUT_KEY_REFERENCE_VIDEOS => $referenceVideos,
+            self::INPUT_KEY_REFERENCE_AUDIOS => $referenceAudios,
             self::INPUT_KEY_FRAMES => $frames,
-            self::INPUT_KEY_AUDIO => $audio,
         ], static fn (array $value): bool => $value !== []);
+    }
+
+    private function buildImageUrl(
+        string $organizationCode,
+        string $fullPath,
+        string $fileKey,
+        string $errorKey,
+    ): string {
+        $url = $this->fileDomainService->getLink($organizationCode, $fullPath, StorageBucketType::SandBox)?->getUrl();
+        if (! $url) {
+            ExceptionBuilder::throw(
+                DesignErrorCode::ThirdPartyServiceError,
+                $errorKey,
+                ['file_key' => $fileKey]
+            );
+        }
+
+        return $url;
     }
 
     private function buildImageDataUrl(

@@ -19,6 +19,9 @@ readonly class VolcengineArkVideoClient
 {
     use HasLogger;
 
+    // Seedance 任务创建在高峰期可能长时间挂起，请求超时放宽到 180 秒避免 30 秒过早中断。
+    private const int REQUEST_TIMEOUT_SECONDS = 180;
+
     public function __construct(
         private ClientFactory $clientFactory,
         ?LoggerFactory $loggerFactory = null,
@@ -55,7 +58,7 @@ readonly class VolcengineArkVideoClient
     private function createClient(): Client
     {
         return $this->clientFactory->create([
-            'timeout' => 30,
+            'timeout' => self::REQUEST_TIMEOUT_SECONDS,
             'verify' => false,
         ]);
     }

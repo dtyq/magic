@@ -53,10 +53,6 @@ final class DesignVideoAssembler
     {
         $dto->setFileDir(self::normalizePath($dto->getFileDir(), true, 'file_dir'));
 
-        if ($dto->getVideo() !== null) {
-            $dto->setVideo(self::normalizePath($dto->getVideo(), false, 'video'));
-        }
-
         if ($dto->getMask() !== null) {
             $dto->setMask(self::normalizePath($dto->getMask(), false, 'mask'));
         }
@@ -81,14 +77,21 @@ final class DesignVideoAssembler
         }
         $dto->setFrames($normalizedFrames);
 
-        $normalizedAudio = [];
-        foreach ($dto->getAudioInputs() as $audio) {
-            $normalizedAudio[] = [
-                'role' => (string) ($audio['role'] ?? 'reference'),
-                'uri' => self::normalizePath((string) ($audio['uri'] ?? ''), false, 'audio.uri'),
+        $normalizedReferenceVideos = [];
+        foreach ($dto->getReferenceVideos() as $referenceVideo) {
+            $normalizedReferenceVideos[] = [
+                'uri' => self::normalizePath((string) ($referenceVideo['uri'] ?? ''), false, 'reference_videos.uri'),
             ];
         }
-        $dto->setAudioInputs($normalizedAudio);
+        $dto->setReferenceVideos($normalizedReferenceVideos);
+
+        $normalizedReferenceAudios = [];
+        foreach ($dto->getReferenceAudios() as $referenceAudio) {
+            $normalizedReferenceAudios[] = [
+                'uri' => self::normalizePath((string) ($referenceAudio['uri'] ?? ''), false, 'reference_audios.uri'),
+            ];
+        }
+        $dto->setReferenceAudios($normalizedReferenceAudios);
     }
 
     private static function normalizePath(string $path, bool $allowRoot, string $label): string

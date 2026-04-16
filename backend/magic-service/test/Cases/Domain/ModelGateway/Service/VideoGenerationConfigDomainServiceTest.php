@@ -63,15 +63,25 @@ class VideoGenerationConfigDomainServiceTest extends TestCase
         );
 
         $this->assertInstanceOf(VideoGenerationConfig::class, $config);
+        $this->assertContains('reference_videos', $config->toArray()['supported_inputs']);
+        $this->assertContains('reference_audios', $config->toArray()['supported_inputs']);
+        $this->assertNotContains('video', $config->toArray()['supported_inputs']);
         $this->assertContains('video_edit', $config->toArray()['supported_inputs']);
         $this->assertContains('video_extension', $config->toArray()['supported_inputs']);
         $this->assertContains('video_upscale', $config->toArray()['supported_inputs']);
-        $this->assertSame(['16:9', '4:3', '1:1', '3:4', '9:16', '21:9', 'adaptive'], $config->toArray()['generation']['aspect_ratios']);
-        $this->assertSame([2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12], $config->toArray()['generation']['durations']);
-        $this->assertSame(['480p', '720p', '1080p'], $config->toArray()['generation']['resolutions']);
+        $this->assertSame(['16:9', '4:3', '1:1', '3:4', '9:16', '21:9'], $config->toArray()['generation']['aspect_ratios']);
+        $this->assertSame([4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15], $config->toArray()['generation']['durations']);
+        $this->assertSame(['480p', '720p'], $config->toArray()['generation']['resolutions']);
         $this->assertSame([-1, 4294967295], $config->toArray()['generation']['seed_range']);
         $this->assertTrue($config->toArray()['generation']['supports_watermark']);
         $this->assertTrue($config->toArray()['generation']['supports_generate_audio']);
+        $this->assertSame(9, $config->toArray()['reference_images']['max_count']);
+        $this->assertArrayHasKey('input_modes', $config->toArray());
+        $this->assertSame(['reference_images'], $config->toArray()['input_modes']['image_reference']['supported_fields']);
+        $this->assertSame(9, $config->toArray()['input_modes']['image_reference']['reference_images']['max_count']);
+        $this->assertSame(['reference_images', 'reference_videos', 'reference_audios'], $config->toArray()['input_modes']['omni_reference']['supported_fields']);
+        $this->assertSame(12, $config->toArray()['input_modes']['omni_reference']['max_count']);
+        $this->assertSame(['start', 'end'], $config->toArray()['input_modes']['keyframe_guided']['frame_roles']);
     }
 
     public function testIntersectShrinksBooleanListRangeAndConstraintFields(): void
@@ -114,6 +124,12 @@ class VideoGenerationConfigDomainServiceTest extends TestCase
                 'high_resolution_requires_duration_seconds' => 8,
                 'video_extension_output_resolution' => '720p',
             ],
+            'input_modes' => [
+                'standard' => ['description' => '普通文生视频模式，不依赖任何参考素材。', 'supported_fields' => []],
+                'image_reference' => ['description' => '参考图模式，仅支持通过 reference_images 传入图片参考。', 'supported_fields' => ['reference_images']],
+                'omni_reference' => ['description' => '全能参考模式，支持混合传入参考图、参考视频、参考音频，素材总数为 1 到 12 个。', 'supported_fields' => ['reference_images', 'reference_videos', 'reference_audios']],
+                'keyframe_guided' => ['description' => '首尾帧引导模式，使用 frames 传入首帧和尾帧图片。', 'supported_fields' => ['frames'], 'frame_roles' => ['start', 'end']],
+            ],
         ]);
         $right = new VideoGenerationConfig([
             'supported_inputs' => ['text_prompt', 'image', 'reference_images'],
@@ -150,6 +166,11 @@ class VideoGenerationConfigDomainServiceTest extends TestCase
                 'reference_images_requires_duration_seconds' => 8,
                 'high_resolution_requires_duration_seconds' => 10,
             ],
+            'input_modes' => [
+                'standard' => ['description' => '普通文生视频模式，不依赖任何参考素材。', 'supported_fields' => []],
+                'image_reference' => ['description' => '参考图模式，仅支持通过 reference_images 传入图片参考。', 'supported_fields' => ['reference_images']],
+                'omni_reference' => ['description' => '全能参考模式，支持混合传入参考图、参考视频、参考音频，素材总数为 1 到 12 个。', 'supported_fields' => ['reference_images', 'reference_videos', 'reference_audios']],
+            ],
         ]);
 
         $config = $service->intersect($left, $right);
@@ -183,6 +204,10 @@ class VideoGenerationConfigDomainServiceTest extends TestCase
             'reference_images_requires_duration_seconds' => 8,
             'high_resolution_requires_duration_seconds' => 10,
         ], $config->toArray()['constraints']);
+        $this->assertSame(
+            ['standard', 'image_reference', 'omni_reference'],
+            array_keys($config->toArray()['input_modes'])
+        );
     }
 
     private function createService(): VideoGenerationConfigDomainService

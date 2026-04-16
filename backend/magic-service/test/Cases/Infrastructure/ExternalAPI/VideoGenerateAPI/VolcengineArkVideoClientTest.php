@@ -23,6 +23,40 @@ use Psr\Log\AbstractLogger;
  */
 class VolcengineArkVideoClientTest extends TestCase
 {
+    public function testPostUsesExtendedRequestTimeout(): void
+    {
+        $httpClient = $this->createMock(Client::class);
+        $httpClient->expects($this->once())
+            ->method('post')
+            ->willReturn(new Response(200, [], json_encode(['id' => 'task-1'], JSON_THROW_ON_ERROR)));
+
+        $clientFactory = $this->createMock(ClientFactory::class);
+        $clientFactory->expects($this->once())
+            ->method('create')
+            ->with([
+                'timeout' => 180,
+                'verify' => false,
+            ])
+            ->willReturn($httpClient);
+
+        $loggerFactory = $this->createMock(LoggerFactory::class);
+        $loggerFactory->expects($this->once())
+            ->method('get')
+            ->with(VolcengineArkVideoClient::class)
+            ->willReturn(new VolcengineArkRecordingLogger());
+
+        $client = new VolcengineArkVideoClient($clientFactory, $loggerFactory);
+
+        $response = $client->post(
+            'https://ark.cn-beijing.volces.com/api/v3',
+            'secret-api-key',
+            '/contents/generations/tasks',
+            ['model' => 'doubao-seedance-2-0-fast-260128'],
+        );
+
+        $this->assertSame('task-1', $response['id']);
+    }
+
     public function testPostLogsStructuredErrorContextOnHttpFailure(): void
     {
         $httpClient = $this->createMock(Client::class);

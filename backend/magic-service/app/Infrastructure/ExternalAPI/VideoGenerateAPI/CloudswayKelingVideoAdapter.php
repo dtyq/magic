@@ -89,6 +89,17 @@ readonly class CloudswayKelingVideoAdapter extends AbstractCloudswayVideoAdapter
                 'supports_resize_mode' => false,
                 'supports_sample_count' => false,
             ],
+            'input_modes' => [
+                'standard' => [
+                    'description' => '普通文生视频模式，不依赖任何参考素材。',
+                    'supported_fields' => [],
+                ],
+                'keyframe_guided' => [
+                    'description' => '首尾帧引导模式，使用 frames 传入首帧图片。',
+                    'supported_fields' => ['frames'],
+                    'frame_roles' => ['start', 'end'],
+                ],
+            ],
             'constraints' => [],
         ]);
     }
@@ -173,8 +184,8 @@ readonly class CloudswayKelingVideoAdapter extends AbstractCloudswayVideoAdapter
         if (! empty($request['task'] ?? null)) {
             $ignoredParams[] = 'task';
         }
-        if (! empty($inputs['video'] ?? null)) {
-            $ignoredParams[] = 'inputs.video';
+        if (! empty($inputs['reference_videos'] ?? null)) {
+            $ignoredParams[] = 'inputs.reference_videos';
         }
 
         $this->markAcceptedAndIgnored($operation, $acceptedParams, $ignoredParams);

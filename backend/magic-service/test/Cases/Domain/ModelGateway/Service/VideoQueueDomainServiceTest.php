@@ -486,7 +486,9 @@ class VideoQueueDomainServiceTest extends TestCase
             'task' => 'extend',
             'prompt' => 'extend the clip',
             'inputs' => [
-                'video' => ['uri' => 'https://example.com/input.mp4'],
+                'reference_videos' => [
+                    ['uri' => 'https://example.com/input.mp4'],
+                ],
             ],
         ]);
         $requestDTO->valid();
@@ -502,7 +504,7 @@ class VideoQueueDomainServiceTest extends TestCase
         );
     }
 
-    public function testCreateOperationKeepsAudioVideoMaskAndEditTaskInCanonicalRequest(): void
+    public function testCreateOperationKeepsReferenceVideoAudioMaskAndEditTaskInCanonicalRequest(): void
     {
         $service = new VideoQueueDomainService($this->createMock(VideoQueueOperationRepositoryInterface::class));
         $requestDTO = new CreateVideoDTO([
@@ -510,10 +512,12 @@ class VideoQueueDomainServiceTest extends TestCase
             'task' => 'edit',
             'prompt' => 'replace the sky',
             'inputs' => [
-                'video' => ['uri' => 'https://example.com/source.mp4'],
+                'reference_videos' => [
+                    ['uri' => 'https://example.com/source.mp4'],
+                ],
                 'mask' => ['uri' => 'https://example.com/mask.png'],
-                'audio' => [
-                    ['role' => 'reference', 'uri' => 'https://example.com/voice.wav'],
+                'reference_audios' => [
+                    ['uri' => 'https://example.com/voice.wav'],
                 ],
             ],
             'generation' => [
@@ -534,7 +538,7 @@ class VideoQueueDomainServiceTest extends TestCase
             ProviderCode::VolcengineArk,
             $requestDTO,
             new VideoGenerationConfig([
-                'supported_inputs' => ['text_prompt', 'image', 'audio', 'video', 'mask', 'video_edit', 'video_extension', 'video_upscale'],
+                'supported_inputs' => ['text_prompt', 'image', 'reference_audios', 'reference_videos', 'mask', 'video_edit', 'video_extension', 'video_upscale'],
                 'reference_images' => ['max_count' => 4, 'reference_types' => ['asset'], 'style_supported' => false],
                 'generation' => ['durations' => [5, 10], 'resolutions' => ['720p', '1080p'], 'supports_generate_audio' => true],
                 'constraints' => [],
@@ -542,13 +546,180 @@ class VideoQueueDomainServiceTest extends TestCase
         );
 
         $this->assertSame('edit', $operation->getRawRequest()['task']);
-        $this->assertSame('https://example.com/source.mp4', $operation->getRawRequest()['inputs']['video']['uri']);
+        $this->assertSame('https://example.com/source.mp4', $operation->getRawRequest()['inputs']['reference_videos'][0]['uri']);
         $this->assertSame('https://example.com/mask.png', $operation->getRawRequest()['inputs']['mask']['uri']);
-        $this->assertSame('https://example.com/voice.wav', $operation->getRawRequest()['inputs']['audio'][0]['uri']);
+        $this->assertSame('https://example.com/voice.wav', $operation->getRawRequest()['inputs']['reference_audios'][0]['uri']);
         $this->assertSame(['seedance' => ['camera_movement' => 'truck left']], $operation->getRawRequest()['extensions']);
     }
 
-    public function testCreateOperationRejectsEditWithoutVideoInput(): void
+    public function testCreateOperationNormalizesReferenceInputsAndInputModeIntoCanonicalInputs(): void
+    {
+        $service = new VideoQueueDomainService($this->createMock(VideoQueueOperationRepositoryInterface::class));
+        $requestDTO = new CreateVideoDTO([
+            'model_id' => 'doubao-seedance-2-0-260128',
+            'task' => 'generate',
+            'prompt' => '大家在唱歌跳舞',
+            'input_mode' => 'omni_reference',
+            'inputs' => [
+                'reference_images' => [
+                    ['uri' => 'https://example.com/ref.png'],
+                ],
+                'reference_videos' => [
+                    ['uri' => 'https://example.com/ref.mp4'],
+                ],
+                'reference_audios' => [
+                    ['uri' => 'https://example.com/ref.wav'],
+                ],
+            ],
+            'generation' => [
+                'duration_seconds' => 5,
+                'resolution' => '720p',
+            ],
+        ]);
+        $requestDTO->valid();
+
+        $operation = $service->createOperation(
+            ModelGatewayDataIsolation::create('org-test', 'user-test'),
+            'doubao-seedance-2-0-260128',
+            'provider-model-seedance-v2',
+            ProviderCode::VolcengineArk,
+            $requestDTO,
+            new VideoGenerationConfig([
+                'supported_inputs' => ['text_prompt', 'image', 'reference_images', 'reference_audios', 'reference_videos'],
+                'reference_images' => ['max_count' => 4, 'reference_types' => ['asset'], 'style_supported' => false],
+                'generation' => ['durations' => [5, 10], 'resolutions' => ['720p', '1080p']],
+                'constraints' => [],
+            ]),
+        );
+
+        $this->assertSame('omni_reference', $operation->getRawRequest()['input_mode']);
+        $inputs = $operation->getRawRequest()['inputs'];
+        $this->assertSame('https://example.com/ref.png', $inputs['reference_images'][0]['uri']);
+        $this->assertSame('https://example.com/ref.mp4', $inputs['reference_videos'][0]['uri']);
+        $this->assertSame('https://example.com/ref.wav', $inputs['reference_audios'][0]['uri']);
+        $this->assertArrayNotHasKey('frames', $inputs);
+    }
+
+    public function testCreateOperationAcceptsImageReferenceInputModeWithReferenceImages(): void
+    {
+        $service = new VideoQueueDomainService($this->createMock(VideoQueueOperationRepositoryInterface::class));
+        $requestDTO = new CreateVideoDTO([
+            'model_id' => 'doubao-seedance-2-0-260128',
+            'task' => 'generate',
+            'prompt' => '大家在看镜头',
+            'input_mode' => 'image_reference',
+            'inputs' => [
+                'reference_images' => [
+                    ['uri' => 'https://example.com/reference.png'],
+                ],
+            ],
+            'generation' => [
+                'duration_seconds' => 5,
+                'resolution' => '720p',
+            ],
+        ]);
+        $requestDTO->valid();
+
+        $operation = $service->createOperation(
+            ModelGatewayDataIsolation::create('org-test', 'user-test'),
+            'doubao-seedance-2-0-260128',
+            'provider-model-seedance-v2',
+            ProviderCode::VolcengineArk,
+            $requestDTO,
+            new VideoGenerationConfig([
+                'supported_inputs' => ['text_prompt', 'image', 'reference_images', 'reference_audios', 'reference_videos'],
+                'reference_images' => ['max_count' => 4, 'reference_types' => ['asset'], 'style_supported' => false],
+                'generation' => ['durations' => [5, 10], 'resolutions' => ['720p', '1080p']],
+                'constraints' => [],
+            ]),
+        );
+
+        $inputs = $operation->getRawRequest()['inputs'];
+        $this->assertSame('image_reference', $operation->getRawRequest()['input_mode']);
+        $this->assertSame('https://example.com/reference.png', $inputs['reference_images'][0]['uri']);
+        $this->assertArrayNotHasKey('reference_videos', $inputs);
+    }
+
+    public function testCreateOperationInfersInputModeFromInputs(): void
+    {
+        $service = new VideoQueueDomainService($this->createMock(VideoQueueOperationRepositoryInterface::class));
+
+        $imageReferenceRequest = new CreateVideoDTO([
+            'model_id' => 'doubao-seedance-2-0-260128',
+            'task' => 'generate',
+            'prompt' => '大家在看镜头',
+            'inputs' => [
+                'reference_images' => [
+                    ['uri' => 'https://example.com/reference.png'],
+                ],
+            ],
+        ]);
+        $imageReferenceRequest->valid();
+
+        $keyframeRequest = new CreateVideoDTO([
+            'model_id' => 'doubao-seedance-2-0-260128',
+            'task' => 'generate',
+            'prompt' => '大家在喝水',
+            'inputs' => [
+                'frames' => [
+                    ['role' => 'start', 'uri' => 'https://example.com/start.png'],
+                ],
+            ],
+        ]);
+        $keyframeRequest->valid();
+
+        $omniAudioRequest = new CreateVideoDTO([
+            'model_id' => 'doubao-seedance-2-0-260128',
+            'task' => 'generate',
+            'prompt' => '大家在唱歌',
+            'inputs' => [
+                'reference_audios' => [
+                    ['uri' => 'https://example.com/reference.wav'],
+                ],
+            ],
+        ]);
+        $omniAudioRequest->valid();
+
+        $config = new VideoGenerationConfig([
+            'supported_inputs' => ['text_prompt', 'image', 'reference_images', 'reference_audios', 'reference_videos'],
+            'reference_images' => ['max_count' => 4, 'reference_types' => ['asset'], 'style_supported' => false],
+            'generation' => ['durations' => [5, 10], 'resolutions' => ['720p', '1080p']],
+            'constraints' => [],
+        ]);
+
+        $imageReferenceOperation = $service->createOperation(
+            ModelGatewayDataIsolation::create('org-test', 'user-test'),
+            'doubao-seedance-2-0-260128',
+            'provider-model-seedance-v2',
+            ProviderCode::VolcengineArk,
+            $imageReferenceRequest,
+            $config,
+        );
+
+        $keyframeOperation = $service->createOperation(
+            ModelGatewayDataIsolation::create('org-test', 'user-test'),
+            'doubao-seedance-2-0-260128',
+            'provider-model-seedance-v2',
+            ProviderCode::VolcengineArk,
+            $keyframeRequest,
+            $config,
+        );
+
+        $omniAudioOperation = $service->createOperation(
+            ModelGatewayDataIsolation::create('org-test', 'user-test'),
+            'doubao-seedance-2-0-260128',
+            'provider-model-seedance-v2',
+            ProviderCode::VolcengineArk,
+            $omniAudioRequest,
+            $config,
+        );
+
+        $this->assertSame('image_reference', $imageReferenceOperation->getRawRequest()['input_mode']);
+        $this->assertSame('keyframe_guided', $keyframeOperation->getRawRequest()['input_mode']);
+        $this->assertSame('omni_reference', $omniAudioOperation->getRawRequest()['input_mode']);
+    }
+
+    public function testCreateOperationRejectsEditWithoutReferenceVideoInput(): void
     {
         $service = new VideoQueueDomainService($this->createMock(VideoQueueOperationRepositoryInterface::class));
         $requestDTO = new CreateVideoDTO([
@@ -562,7 +733,7 @@ class VideoQueueDomainServiceTest extends TestCase
         $requestDTO->valid();
 
         $this->expectException(BusinessException::class);
-        $this->expectExceptionMessage('inputs.video is required');
+        $this->expectExceptionMessage('inputs.reference_videos is required');
         $service->createOperation(
             ModelGatewayDataIsolation::create('org-test', 'user-test'),
             'doubao-seedance-2-0-260128',

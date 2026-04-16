@@ -443,8 +443,10 @@ class VideoOperationAppServiceTest extends TestCase
                         'model' => 'doubao-seedance-2-0-260128',
                         'task' => 'generate',
                         'content' => [
-                            ['type' => 'text', 'text' => 'make a cinematic drone shot --rs 720p --dur 5'],
+                            ['type' => 'text', 'text' => 'make a cinematic drone shot'],
                         ],
+                        'resolution' => '720p',
+                        'duration' => 5,
                         'generate_audio' => true,
                     ],
                 ],
@@ -529,7 +531,9 @@ class VideoOperationAppServiceTest extends TestCase
         $this->assertSame('doubao-seedance-2-0-260128', $storedOperation->getModelVersion());
         $this->assertSame('doubao-seedance-2-0-260128', $storedOperation->getProviderPayload()['model']);
         $this->assertTrue($storedOperation->getProviderPayload()['generate_audio']);
-        $this->assertSame('make a cinematic drone shot --rs 720p --dur 5', $storedOperation->getProviderPayload()['content'][0]['text']);
+        $this->assertSame('make a cinematic drone shot', $storedOperation->getProviderPayload()['content'][0]['text']);
+        $this->assertSame('720p', $storedOperation->getProviderPayload()['resolution']);
+        $this->assertSame(5, $storedOperation->getProviderPayload()['duration']);
 
         $detailResponse = $service->getOperation('token-ark', $enqueueResponse->getId());
 

@@ -109,6 +109,26 @@ readonly class CloudswayVeoVideoAdapter extends AbstractCloudswayVideoAdapter
                 'supports_sample_count' => true,
                 'sample_count_range' => [self::MIN_SAMPLE_COUNT, self::MAX_SAMPLE_COUNT],
             ],
+            'input_modes' => array_filter([
+                'standard' => [
+                    'description' => '普通文生视频模式，不依赖任何参考素材。',
+                    'supported_fields' => [],
+                ],
+                'image_reference' => $supportsReferenceImages ? [
+                    'description' => '参考图模式，仅支持通过 reference_images 传入图片参考。',
+                    'supported_fields' => ['reference_images'],
+                    'reference_images' => [
+                        'max_count' => self::MAX_REFERENCE_IMAGES,
+                        'reference_types' => [self::REFERENCE_TYPE_ASSET],
+                        'style_supported' => false,
+                    ],
+                ] : null,
+                'keyframe_guided' => [
+                    'description' => '首尾帧引导模式，使用 frames 传入首帧和尾帧图片。',
+                    'supported_fields' => ['frames'],
+                    'frame_roles' => ['start', 'end'],
+                ],
+            ], static fn (mixed $modeConfig): bool => $modeConfig !== null),
             'constraints' => $supportsReferenceImages
                 ? ['reference_images_requires_duration_seconds' => self::DEFAULT_DURATION_SECONDS]
                 : [],
@@ -120,7 +140,6 @@ readonly class CloudswayVeoVideoAdapter extends AbstractCloudswayVideoAdapter
         $request = $operation->getRawRequest();
         $generation = is_array($request['generation'] ?? null) ? $request['generation'] : [];
         $inputs = is_array($request['inputs'] ?? null) ? $request['inputs'] : [];
-        $videoInput = is_array($inputs['video'] ?? null) ? $inputs['video'] : [];
         $referenceImages = is_array($inputs['reference_images'] ?? null) ? $inputs['reference_images'] : [];
         $frames = is_array($inputs['frames'] ?? null) ? $inputs['frames'] : [];
         $supportsReferenceImages = $this->supportsReferenceImages($operation->getModel());
@@ -290,8 +309,8 @@ readonly class CloudswayVeoVideoAdapter extends AbstractCloudswayVideoAdapter
         if (! empty($request['task'] ?? null)) {
             $ignoredParams[] = 'task';
         }
-        if ($videoInput !== []) {
-            $ignoredParams[] = 'inputs.video';
+        if (! empty($inputs['reference_videos'] ?? null)) {
+            $ignoredParams[] = 'inputs.reference_videos';
         }
 
         $this->markAcceptedAndIgnored($operation, $acceptedParams, $ignoredParams);
