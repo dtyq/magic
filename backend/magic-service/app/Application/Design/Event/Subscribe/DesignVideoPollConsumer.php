@@ -9,6 +9,7 @@ namespace App\Application\Design\Event\Subscribe;
 
 use App\Application\Design\Event\Message\DesignVideoPollMessage;
 use App\Application\Design\Event\Publish\DesignVideoPollDelayPublisher;
+use App\Application\Design\Tool\VideoGeneration\DesignGeneratedVideoFileNameTool;
 use App\Domain\Contact\Entity\ValueObject\DataIsolation as ContactDataIsolation;
 use App\Domain\Design\Entity\DesignDataIsolation;
 use App\Domain\Design\Entity\DesignGenerationTaskEntity;
@@ -53,6 +54,7 @@ class DesignVideoPollConsumer extends ConsumerMessage
         private readonly FileDomainService $fileDomainService,
         private readonly TaskFileDomainService $taskFileDomainService,
         private readonly ProjectDomainService $projectDomainService,
+        private readonly DesignGeneratedVideoFileNameTool $generatedVideoFileNameTool,
         private readonly LoggerInterface $logger,
     ) {
     }
@@ -210,6 +212,18 @@ class DesignVideoPollConsumer extends ConsumerMessage
         $taskFileDir = $this->taskFileDomainService->getByFileKey($fullFileDir);
         if (! $taskFileDir || ! $taskFileDir->getIsDirectory()) {
             ExceptionBuilder::throw(DesignErrorCode::InvalidArgument, 'design.video_generation.file_dir_not_exists', ['file_dir' => $entity->getFileDir()]);
+        }
+
+        // 若用户未显式指定 file_name，则在归档前尝试生成智能文件名；失败时继续沿用默认 video_时间戳 命名。
+        if (trim($entity->getFileName()) === '') {
+            $resolvedBaseName = $this->generatedVideoFileNameTool->resolveBaseNameWithoutExtension(
+                $dataIsolation,
+                $entity,
+                $entity->getPrompt(),
+            );
+            if ($resolvedBaseName !== '') {
+                $entity->setFileName($resolvedBaseName);
+            }
         }
 
         $fileName = $this->domainService->buildFinalVideoFileName($entity, $videoUrl);
