@@ -15,6 +15,8 @@ class SuperMagicMessage extends MagicMessageStruct implements MessageInterface
 {
     protected ?string $topicId = null;
 
+    protected ?string $messageId = null;
+
     protected ?string $taskId = null;
 
     protected string $role;
@@ -42,9 +44,21 @@ class SuperMagicMessage extends MagicMessageStruct implements MessageInterface
 
     protected ?array $usage = null;
 
+    public function getMessageId(): ?string
+    {
+        return $this->messageId;
+    }
+
+    public function setMessageId(?string $messageId): self
+    {
+        $this->messageId = $messageId;
+        return $this;
+    }
+
     public function toArray(bool $filterNull = false): array
     {
         $data = [
+            'message_id' => $this->messageId,
             'task_id' => $this->taskId,
             'topic_id' => $this->topicId,
             'role' => $this->role,

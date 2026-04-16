@@ -27,6 +27,7 @@ from agentlang.event.data import (
 from agentlang.event.event import Event, EventType
 from agentlang.llms.token_usage.models import TokenUsageCollection
 from agentlang.logger import get_logger
+from agentlang.utils.snowflake import Snowflake
 from app.core.context.agent_context import AgentContext
 from app.core.entity.attachment import Attachment, AttachmentTag
 from app.core.entity.event.event import (
@@ -136,6 +137,11 @@ class TaskMessageFactoryV2(TaskMessageFactoryProtocol):
         """
         统一构建 raw_content + payload + ServerMessage。
         """
+        # 确保 message_id 在 inner_message 和外层 payload 中一致
+        if message_id is None:
+            message_id = str(Snowflake.create_default().get_id())
+        inner_message["message_id"] = message_id
+
         raw_content = {
             "type": "super_magic_message",
             "super_magic_message": inner_message,

@@ -91,7 +91,7 @@ class ClientMessageAppService extends AbstractAppService
         try {
             if ($messageType === ChatMessageType::SuperMagicMessage->value) {
                 // 新格式：直接用 SuperMagicMessage 发送
-                $message = $this->buildSuperMagicMessage($rawContent, $attachments, $usage);
+                $message = $this->buildSuperMagicMessage($messageId,$rawContent, $attachments, $usage);
                 $seqType = ChatMessageType::SuperMagicMessage;
                 $appMessageId = (string) $messageId;
             } else {
@@ -329,7 +329,7 @@ class ClientMessageAppService extends AbstractAppService
      *   }
      * }
      */
-    private function buildSuperMagicMessage(null|array|string $rawContent, ?array $attachments = null, ?array $usage = null): SuperMagicMessage
+    private function buildSuperMagicMessage(int $messageId, null|array|string $rawContent, ?array $attachments = null, ?array $usage = null): SuperMagicMessage
     {
         if (is_string($rawContent)) {
             $data = json_decode($rawContent, true) ?? [];
@@ -341,6 +341,7 @@ class ClientMessageAppService extends AbstractAppService
         $innerData = $data['super_magic_message'] ?? [];
         $innerData['attachments'] = $attachments;
         $innerData['usage'] = $usage;
+        $innerData['message_id'] = (string) $messageId;
         return new SuperMagicMessage($innerData);
     }
 
