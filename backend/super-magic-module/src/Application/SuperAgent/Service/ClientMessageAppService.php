@@ -91,7 +91,7 @@ class ClientMessageAppService extends AbstractAppService
         try {
             if ($messageType === ChatMessageType::SuperMagicMessage->value) {
                 // 新格式：直接用 SuperMagicMessage 发送
-                $message = $this->buildSuperMagicMessage($messageId,$rawContent, $attachments, $usage);
+                $message = $this->buildSuperMagicMessage($messageId, $rawContent, $attachments, $usage);
                 $seqType = ChatMessageType::SuperMagicMessage;
                 $appMessageId = (string) $messageId;
             } else {
