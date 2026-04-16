@@ -198,6 +198,38 @@ class CloudswayVeoVideoAdapterTest extends TestCase
         $this->assertSame('720p', $payload['parameters']['resolution']);
     }
 
+    public function testBuildProviderPayloadLetsExplicitSizeOverrideDefaultResolution(): void
+    {
+        $adapter = new CloudswayVeoVideoAdapter(new CloudswayVideoClient($this->createMock(ClientFactory::class)));
+        $operation = new VideoQueueOperationEntity(
+            id: 'op-veo-size-priority',
+            endpoint: 'video:veo-3.1-generate-preview',
+            model: 'veo-3.1-generate-preview',
+            modelVersion: self::ENDPOINT_ID,
+            providerModelId: 'provider-model-veo',
+            providerCode: 'Cloudsway',
+            providerName: 'cloudsway',
+            organizationCode: 'org-1',
+            userId: 'user-1',
+            status: VideoOperationStatus::QUEUED,
+            seq: 1,
+            rawRequest: [
+                'prompt' => 'make a vertical veo video',
+                'generation' => [
+                    'size' => '1080x1920',
+                    'resolution' => '720p',
+                ],
+            ],
+            createdAt: date(DATE_ATOM),
+            heartbeatAt: date(DATE_ATOM),
+        );
+
+        $payload = $adapter->buildProviderPayload($operation);
+
+        $this->assertSame('9:16', $payload['parameters']['aspectRatio']);
+        $this->assertSame('1080p', $payload['parameters']['resolution']);
+    }
+
     public function testBuildProviderPayloadIgnoresReferenceImagesForFastModel(): void
     {
         $adapter = new CloudswayVeoVideoAdapter(new CloudswayVideoClient($this->createMock(ClientFactory::class)));

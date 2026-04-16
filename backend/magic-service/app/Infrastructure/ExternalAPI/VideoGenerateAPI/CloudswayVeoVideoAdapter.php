@@ -419,13 +419,14 @@ readonly class CloudswayVeoVideoAdapter extends AbstractCloudswayVideoAdapter
             && $matchedResolution !== ''
             && $generation['resolution'] !== $matchedResolution
         ) {
-            return false;
+            // Veo 官方接口以 aspectRatio + resolution 为准
+            unset($parameters['resolution']);
         }
 
-        if (! array_key_exists('aspectRatio', $parameters) && $matchedAspectRatio !== '') {
+        if ($matchedAspectRatio !== '') {
             $parameters['aspectRatio'] = $matchedAspectRatio;
         }
-        if (! array_key_exists('resolution', $parameters) && $matchedResolution !== '') {
+        if ($matchedResolution !== '') {
             $parameters['resolution'] = $matchedResolution;
         }
         $acceptedParams[] = 'generation.size';
