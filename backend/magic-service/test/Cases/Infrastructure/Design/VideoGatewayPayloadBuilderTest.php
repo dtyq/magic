@@ -87,11 +87,138 @@ class VideoGatewayPayloadBuilderTest extends TestCase
         $this->assertSame('https://cdn.example.com/start.jpg', $payload['inputs']['frames'][0]['uri']);
     }
 
+    public function testBuildRewritesPromptMentionsForOmniReferenceUsingOriginalFileNames(): void
+    {
+        $builder = $this->createBuilder(
+            [
+                '/org/project_1001/workspace/1212/images/生成动物世界图_20260118220318 (2).jpg' => 'https://cdn.example.com/image-1.jpg',
+                '/org/project_1001/workspace/1212/images/生成动物世界图_20260118220318 (1).jpg' => 'https://cdn.example.com/image-2.jpg',
+                '/org/project_1001/workspace/1212/videos/钉钉录屏_2026-04-16 231755.mp4' => 'https://cdn.example.com/video-1.mp4',
+                '/org/project_1001/workspace/1212/videos/video_20260415_223740.mp4' => 'https://cdn.example.com/video-2.mp4',
+                '/org/project_1001/workspace/1212/audios/森格-看山不是山，看山还是山 (片段版)_副本.mp3' => 'https://cdn.example.com/audio-1.mp3',
+            ],
+        );
+
+        $entity = new DesignGenerationTaskEntity();
+        $entity->setOrganizationCode('org');
+        $entity->setProjectId(1001);
+        $entity->setRequestPayload([
+            'prompt' => '@森格-看山不是山，看山还是山 (片段版)_副本.mp3 你好 '
+                . '@森格-看山不是山，看山还是山 (片段版)_副本.mp3111 '
+                . '@钉钉录屏_2026-04-16 231755.mp4 将人物+唱歌 '
+                . '@video_20260415_223740.mp4 '
+                . '@生成动物世界图_20260118220318 (2).jpg '
+                . '@生成动物世界图_20260118220318 (1).jpg212',
+            'input_mode' => 'omni_reference',
+            'supports_image_input_url' => true,
+            'inputs' => [
+                'reference_images' => [
+                    ['uri' => '/1212/images/生成动物世界图_20260118220318 (2).jpg'],
+                    ['uri' => '/1212/images/生成动物世界图_20260118220318 (1).jpg'],
+                ],
+                'reference_videos' => [
+                    ['uri' => '/1212/videos/钉钉录屏_2026-04-16 231755.mp4'],
+                    ['uri' => '/1212/videos/video_20260415_223740.mp4'],
+                ],
+                'reference_audios' => [
+                    ['uri' => '/1212/audios/森格-看山不是山，看山还是山 (片段版)_副本.mp3'],
+                ],
+            ],
+        ]);
+        $entity->setInputPayload([
+            'reference_images' => [
+                ['uri' => '/1212/images/生成动物世界图_20260118220318 (2).jpg'],
+                ['uri' => '/1212/images/生成动物世界图_20260118220318 (1).jpg'],
+            ],
+            'reference_videos' => [
+                ['uri' => '/1212/videos/钉钉录屏_2026-04-16 231755.mp4'],
+                ['uri' => '/1212/videos/video_20260415_223740.mp4'],
+            ],
+            'reference_audios' => [
+                ['uri' => '/1212/audios/森格-看山不是山，看山还是山 (片段版)_副本.mp3'],
+            ],
+        ]);
+
+        $payload = $builder->build($entity);
+
+        $this->assertSame(
+            '素材索引（右侧是用户上传的原始文件名，仅用于标识素材）：' . "\n"
+            . '- 图片1：生成动物世界图_20260118220318 (2).jpg' . "\n"
+            . '- 图片2：生成动物世界图_20260118220318 (1).jpg' . "\n"
+            . '- 视频1：钉钉录屏_2026-04-16 231755.mp4' . "\n"
+            . '- 视频2：video_20260415_223740.mp4' . "\n"
+            . '- 音频1：森格-看山不是山，看山还是山 (片段版)_副本.mp3' . "\n\n"
+            . '任务描述（请按素材编号理解下面的引用）：' . "\n"
+            . '@音频1 你好 @音频1111 @视频1 将人物+唱歌 @视频2 @图片1 @图片2212',
+            $payload['prompt']
+        );
+    }
+
+    public function testBuildFormatsPromptForImageReferenceMode(): void
+    {
+        $builder = $this->createBuilder(
+            [
+                '/org/project_1001/workspace/1212/images/生成动物世界图_20260118220318 (2).jpg' => 'https://cdn.example.com/image-1.jpg',
+            ],
+        );
+
+        $entity = new DesignGenerationTaskEntity();
+        $entity->setOrganizationCode('org');
+        $entity->setProjectId(1001);
+        $entity->setRequestPayload([
+            'prompt' => '@生成动物世界图_20260118220318 (2).jpg 让它动起来',
+            'input_mode' => 'image_reference',
+            'supports_image_input_url' => true,
+            'inputs' => [
+                'reference_images' => [
+                    ['uri' => '/1212/images/生成动物世界图_20260118220318 (2).jpg'],
+                ],
+            ],
+        ]);
+        $entity->setInputPayload([
+            'reference_images' => [
+                ['uri' => '/1212/images/生成动物世界图_20260118220318 (2).jpg'],
+            ],
+        ]);
+
+        $payload = $builder->build($entity);
+
+        $this->assertSame(
+            '素材索引（右侧是用户上传的原始文件名，仅用于标识素材）：' . "\n"
+            . '- 图片1：生成动物世界图_20260118220318 (2).jpg' . "\n\n"
+            . '任务描述（请按素材编号理解下面的引用）：' . "\n"
+            . '@图片1 让它动起来',
+            $payload['prompt']
+        );
+    }
+
+    public function testBuildDoesNotRewritePromptMentionsOutsideReferenceModes(): void
+    {
+        $builder = $this->createBuilder();
+
+        $entity = new DesignGenerationTaskEntity();
+        $entity->setOrganizationCode('org');
+        $entity->setProjectId(1001);
+        $entity->setRequestPayload([
+            'prompt' => '@生成动物世界图_20260118220318 (2).jpg',
+            'input_mode' => 'keyframe_guided',
+            'inputs' => [
+                'reference_images' => [
+                    ['uri' => '/1212/images/生成动物世界图_20260118220318 (2).jpg'],
+                ],
+            ],
+        ]);
+
+        $payload = $builder->build($entity);
+
+        $this->assertSame('@生成动物世界图_20260118220318 (2).jpg', $payload['prompt']);
+    }
+
     /**
      * @param array<string, string> $links
      * @param array<string, string> $downloads
      */
-    private function createBuilder(array $links, array $downloads = []): VideoGatewayPayloadBuilder
+    private function createBuilder(array $links = [], array $downloads = []): VideoGatewayPayloadBuilder
     {
         return new VideoGatewayPayloadBuilder($this->createFileDomainService($links, $downloads));
     }

@@ -55,6 +55,11 @@ readonly class VideoGatewayPayloadBuilder implements VideoGatewayPayloadBuilderI
     {
         $payload = $entity->getRequestPayload();
         $payload['inputs'] = $this->buildInputs($entity);
+        $payload['prompt'] = $this->rewritePromptReferenceMentions(
+            (string) ($payload['prompt'] ?? ''),
+            (string) ($payload['input_mode'] ?? ''),
+            is_array($entity->getRequestPayload()['inputs'] ?? null) ? $entity->getRequestPayload()['inputs'] : [],
+        );
 
         return $payload;
     }
@@ -177,6 +182,106 @@ readonly class VideoGatewayPayloadBuilder implements VideoGatewayPayloadBuilderI
             self::INPUT_KEY_REFERENCE_AUDIOS => $referenceAudios,
             self::INPUT_KEY_FRAMES => $frames,
         ], static fn (array $value): bool => $value !== []);
+    }
+
+    /**
+     * 真正发起 submit 前，先构造“素材索引”，再把 prompt 中对文件名的引用改成稳定占位，
+     * 避免 provider 误解中文文件名，同时让模型先建立“图片1/视频1/音频1”的素材映射。
+     *
+     * @param array<string, mixed> $rawInputs
+     */
+    private function rewritePromptReferenceMentions(string $prompt, string $inputMode, array $rawInputs): string
+    {
+        if (! in_array(trim($inputMode), ['omni_reference', 'image_reference'], true)) {
+            return $prompt;
+        }
+
+        $referenceMappings = array_merge(
+            $this->buildReferenceMentionMappings(
+                is_array($rawInputs[self::INPUT_KEY_REFERENCE_IMAGES] ?? null) ? $rawInputs[self::INPUT_KEY_REFERENCE_IMAGES] : [],
+                '图片',
+            ),
+            $this->buildReferenceMentionMappings(
+                is_array($rawInputs[self::INPUT_KEY_REFERENCE_VIDEOS] ?? null) ? $rawInputs[self::INPUT_KEY_REFERENCE_VIDEOS] : [],
+                '视频',
+            ),
+            $this->buildReferenceMentionMappings(
+                is_array($rawInputs[self::INPUT_KEY_REFERENCE_AUDIOS] ?? null) ? $rawInputs[self::INPUT_KEY_REFERENCE_AUDIOS] : [],
+                '音频',
+            ),
+        );
+        if ($referenceMappings === []) {
+            return $prompt;
+        }
+
+        $rewrittenPrompt = $prompt;
+        $replacements = [];
+        foreach ($referenceMappings as $mapping) {
+            $replacements[$mapping['mention']] = $mapping['placeholder'];
+        }
+
+        uksort($replacements, static fn (string $left, string $right): int => strlen($right) <=> strlen($left));
+        if ($rewrittenPrompt !== '' && str_contains($rewrittenPrompt, '@')) {
+            $rewrittenPrompt = str_replace(array_keys($replacements), array_values($replacements), $rewrittenPrompt);
+        }
+
+        $indexLines = array_map(
+            static fn (array $mapping): string => '- ' . ltrim($mapping['placeholder'], '@') . '：' . $mapping['file_name'],
+            $referenceMappings,
+        );
+
+        return '素材索引（右侧是用户上传的原始文件名，仅用于标识素材）：' . "\n"
+            . implode("\n", $indexLines)
+            . "\n\n"
+            . '任务描述（请按素材编号理解下面的引用）：' . "\n"
+            . $rewrittenPrompt;
+    }
+
+    /**
+     * @param list<mixed> $references
+     * @return list<array{mention: string, placeholder: string, file_name: string}>
+     */
+    private function buildReferenceMentionMappings(array $references, string $label): array
+    {
+        $mappings = [];
+        $seenMentions = [];
+        $index = 0;
+        foreach ($references as $reference) {
+            if (! is_array($reference)) {
+                continue;
+            }
+
+            $fileName = $this->extractReferenceFileName((string) ($reference[self::FIELD_URI] ?? ''));
+            if ($fileName === '') {
+                continue;
+            }
+
+            $mention = '@' . $fileName;
+            if (isset($seenMentions[$mention])) {
+                continue;
+            }
+
+            ++$index;
+            $seenMentions[$mention] = true;
+            $mappings[] = [
+                'mention' => $mention,
+                'placeholder' => '@' . $label . $index,
+                'file_name' => $fileName,
+            ];
+        }
+
+        return $mappings;
+    }
+
+    private function extractReferenceFileName(string $uri): string
+    {
+        $candidate = $uri;
+        if (preg_match('#^https?://#i', $uri) === 1) {
+            $path = parse_url($uri, PHP_URL_PATH);
+            $candidate = is_string($path) && $path !== '' ? $path : $uri;
+        }
+
+        return trim(basename(rawurldecode($candidate)));
     }
 
     private function buildImageUrl(
