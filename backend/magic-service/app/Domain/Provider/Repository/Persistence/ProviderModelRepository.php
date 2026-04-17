@@ -16,6 +16,7 @@ use App\Domain\Provider\Entity\ValueObject\ProviderDataIsolation;
 use App\Domain\Provider\Entity\ValueObject\ProviderModelType;
 use App\Domain\Provider\Entity\ValueObject\Query\ProviderModelQuery;
 use App\Domain\Provider\Entity\ValueObject\Status;
+use App\Domain\Provider\Support\BillingTierFlatPriceCompatibility;
 use App\Domain\Provider\Repository\Facade\MagicProviderAndModelsInterface;
 use App\Domain\Provider\Repository\Facade\ProviderModelRepositoryInterface;
 use App\Domain\Provider\Repository\Persistence\Model\ProviderConfigModel;
@@ -110,6 +111,9 @@ class ProviderModelRepository extends AbstractProviderModelRepository implements
         $dto->setOrganizationCode($dataIsolation->getCurrentOrganizationCode());
 
         $data = $dto->toArray();
+        if (isset($data['config']) && is_array($data['config'])) {
+            $data['config'] = BillingTierFlatPriceCompatibility::deriveFlatFields($data['config']);
+        }
         $entity = new ProviderModelEntity($data);
 
         if ($dto->getId()) {
