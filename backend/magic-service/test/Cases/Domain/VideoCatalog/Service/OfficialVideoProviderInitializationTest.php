@@ -14,6 +14,7 @@ use App\Domain\Provider\Repository\Persistence\Model\ProviderModelConfigVersionM
 use App\Domain\Provider\Repository\Persistence\Model\ProviderModelModel;
 use HyperfTest\Support\UsesOfficialVideoProviderFixtures;
 use PHPUnit\Framework\TestCase;
+use RuntimeException;
 
 /**
  * @internal
@@ -114,13 +115,7 @@ class OfficialVideoProviderInitializationTest extends TestCase
             ),
         ]);
 
-        $provider = ProviderModel::query()
-            ->where('category', 'vgm')
-            ->where('provider_code', 'Cloudsway')
-            ->orderByDesc('sort_order')
-            ->orderBy('id')
-            ->firstOrFail();
-        $providerTree = $this->loadProviderTree((int) $provider->id);
+        $providerTree = $this->loadProviderTree('Cloudsway');
         $veoConfig = $providerTree['configsByEndpointKey']['veo'] ?? null;
         $seedanceConfig = $providerTree['configsByEndpointKey']['seedance'] ?? null;
         $kelingConfig = $providerTree['configsByEndpointKey']['keling'] ?? null;
@@ -148,6 +143,93 @@ class OfficialVideoProviderInitializationTest extends TestCase
             ],
             $providerTree['modelsByConfigId']
         ))));
+    }
+
+    public function testSeederCreatesVolcengineArkSeedanceV2ConfigFromEmptyState(): void
+    {
+        $this->purgeOfficialProviderTree('VolcengineArk');
+
+        $this->initializeProviders([
+            $this->officialVideoProviderEndpointSeed(
+                baseUrl: 'https://ark.cn-beijing.volces.com/api/v3',
+                apiKey: self::TEST_API_KEY,
+                endpointKey: 'seedance-v2',
+                providerCode: 'VolcengineArk',
+                config: [
+                    'sort' => 1200,
+                ],
+                models: [
+                    $this->buildVideoModelSeed(
+                        'doubao-seedance-2-0-260128',
+                        'doubao-seedance-2-0-260128',
+                        'Seedance 2.0 Pro',
+                        1200,
+                        '0.12',
+                        '火山方舟 Seedance 2.0 Pro 视频模型。',
+                        'Volcengine Ark Seedance 2.0 Pro video model.'
+                    ),
+                    $this->buildVideoModelSeed(
+                        'doubao-seedance-2-0-fast-260128',
+                        'doubao-seedance-2-0-fast-260128',
+                        'Seedance 2.0 Fast',
+                        1190,
+                        '0.06',
+                        '火山方舟 Seedance 2.0 Fast 视频模型。',
+                        'Volcengine Ark Seedance 2.0 Fast video model.'
+                    ),
+                ],
+            ),
+        ]);
+
+        $providerTree = $this->loadProviderTree('VolcengineArk');
+        $seedanceConfig = $providerTree['configsByEndpointKey']['seedance-v2'] ?? null;
+
+        $this->assertInstanceOf(ProviderConfigModel::class, $seedanceConfig);
+        $this->assertSame('https://ark.cn-beijing.volces.com/api/v3', $seedanceConfig->config['base_url'] ?? null);
+        $this->assertSame(self::TEST_API_KEY, $seedanceConfig->config['api_key'] ?? null);
+        $this->assertSame(1, count($providerTree['providerConfigs']));
+        $this->assertSame([
+            'doubao-seedance-2-0-260128',
+            'doubao-seedance-2-0-fast-260128',
+        ], array_values(array_unique($this->collectModelIds(
+            [(int) $seedanceConfig->id],
+            $providerTree['modelsByConfigId']
+        ))));
+    }
+
+    public function testOfficialVideoProviderEndpointSeedDefaultsToVolcengineArkSeedanceModelsWhenProviderCodeSwitches(): void
+    {
+        $seed = $this->officialVideoProviderEndpointSeed(
+            baseUrl: 'https://ark.cn-beijing.volces.com/api/v3',
+            apiKey: self::TEST_API_KEY,
+            endpointKey: 'seedance-v2',
+            providerCode: 'VolcengineArk',
+        );
+
+        $this->assertSame('VolcengineArk', $seed['provider_code']);
+        $this->assertSame([
+            'doubao-seedance-2-0-260128',
+            'doubao-seedance-2-0-fast-260128',
+        ], array_values(array_map(
+            static fn (array $model): string => (string) $model['model_id'],
+            $seed['models']
+        )));
+    }
+
+    public function testCreateOfficialVideoProviderFixtureFailsFastWhenMoreThanTwoModelsAreProvided(): void
+    {
+        $this->expectException(RuntimeException::class);
+        $this->createOfficialVideoProviderFixture(
+            'https://overflow.example.com',
+            self::TEST_API_KEY,
+            providerCode: 'VolcengineArk',
+            endpointKey: 'seedance-v2',
+            models: [
+                $this->buildVideoModelSeed('doubao-seedance-2-0-260128', 'doubao-seedance-2-0-260128', 'Seedance 2.0 Pro', 1200, '0.12'),
+                $this->buildVideoModelSeed('doubao-seedance-2-0-fast-260128', 'doubao-seedance-2-0-fast-260128', 'Seedance 2.0 Fast', 1190, '0.06'),
+                $this->buildVideoModelSeed('extra-model', 'extra-model', 'Extra Model', 1180, '0.03'),
+            ],
+        );
     }
 
     public function testSeederRefreshesCloudswayModelVersionByModelIdWithoutCreatingDuplicateRows(): void
@@ -248,9 +330,13 @@ class OfficialVideoProviderInitializationTest extends TestCase
 
     private function purgeOfficialProviderTree(string $providerCode): void
     {
+        // 这组初始化测试共用同一个数据库，Cloudsway / VolcengineArk 两条官方视频链路会互相污染。
+        // 这里一次性清掉两条链路，确保每个用例都从真正的空状态开始。
+        $officialProviderCodes = ['Cloudsway', 'VolcengineArk'];
+
         $providerConfigs = ProviderConfigModel::query()
             ->where('organization_code', self::TEST_OFFICIAL_ORGANIZATION_CODE)
-            ->where('provider_code', $providerCode)
+            ->whereIn('provider_code', $officialProviderCodes)
             ->get()
             ->all();
         $providerConfigIds = array_values(array_map(
@@ -282,6 +368,11 @@ class OfficialVideoProviderInitializationTest extends TestCase
                 ->whereIn('id', $providerConfigIds)
                 ->delete();
         }
+
+        ProviderModel::query()
+            ->whereIn('provider_code', $officialProviderCodes)
+            ->where('category', 'vgm')
+            ->delete();
     }
 
     /**
@@ -294,12 +385,12 @@ class OfficialVideoProviderInitializationTest extends TestCase
      *     currentPricingByModelId: array<int, ProviderModelConfigVersionModel>
      * }
      */
-    private function loadProviderTree(int $providerId): array
+    private function loadProviderTree(string $providerCode): array
     {
         /** @var list<ProviderConfigModel> $providerConfigs */
         $providerConfigs = ProviderConfigModel::query()
-            ->where('service_provider_id', $providerId)
             ->where('organization_code', self::TEST_OFFICIAL_ORGANIZATION_CODE)
+            ->where('provider_code', $providerCode)
             ->where('status', 1)
             ->orderByDesc('sort')
             ->orderBy('id')

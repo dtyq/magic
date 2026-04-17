@@ -15,6 +15,8 @@ use App\Domain\Design\Factory\PathFactory;
 use App\Domain\Design\Service\DesignGenerationTaskDomainService;
 use App\Domain\Design\Service\DesignVideoSubmissionDomainService;
 use App\Domain\File\Service\FileDomainService;
+use App\Domain\Provider\Entity\ValueObject\ProviderCode;
+use App\Domain\VideoCatalog\Entity\ValueObject\VideoCatalogModelDefinition;
 use App\Domain\VideoCatalog\Service\VideoCatalogQueryDomainService;
 use App\ErrorCode\DesignErrorCode;
 use App\Infrastructure\Core\Exception\ExceptionBuilder;
@@ -28,6 +30,9 @@ use Throwable;
 
 class DesignVideoAppService extends DesignAppService
 {
+    // 给 payload builder 的能力标记：支持图片 URL 时就不再转 base64。
+    private const string REQUEST_KEY_SUPPORTS_IMAGE_INPUT_URL = 'supports_image_input_url';
+
     public function __construct(
         private readonly TaskFileDomainService $taskFileDomainService,
         private readonly FileDomainService $fileDomainService,
@@ -42,7 +47,7 @@ class DesignVideoAppService extends DesignAppService
     {
         $designDataIsolation = $this->createDesignDataIsolation($authenticatable);
         $project = $this->assertProjectAccess($designDataIsolation, $entity->getProjectId(), MemberRole::EDITOR);
-        $this->assertModelExists($entity->getModelId());
+        $modelDefinition = $this->findModelOrFail($entity->getModelId());
         $this->assertWorkspacePathsExist(
             $designDataIsolation->getCurrentOrganizationCode(),
             $project->getId(),
@@ -70,6 +75,8 @@ class DesignVideoAppService extends DesignAppService
             $businessParams['magic_task_id'] = $requestPayload['task_id'];
             unset($requestPayload['task_id']);
         }
+        // 先在请求体里写入能力开关，后续 builder 就能无状态地选择图片输入格式。
+        $requestPayload[self::REQUEST_KEY_SUPPORTS_IMAGE_INPUT_URL] = $this->supportsImageInputUrl($modelDefinition);
         $requestPayload['business_params'] = $businessParams;
         $entity->setOrganizationCode($designDataIsolation->getCurrentOrganizationCode());
         $entity->setUserId($designDataIsolation->getCurrentUserId());
@@ -132,11 +139,19 @@ class DesignVideoAppService extends DesignAppService
         return $entity;
     }
 
-    private function assertModelExists(string $modelId): void
+    private function findModelOrFail(string $modelId): VideoCatalogModelDefinition
     {
-        if ($this->videoCatalogDomainService->findModel($modelId) === null) {
+        $modelDefinition = $this->videoCatalogDomainService->findModel($modelId);
+        if ($modelDefinition === null) {
             ExceptionBuilder::throw(DesignErrorCode::InvalidArgument, 'common.not_found', ['label' => $modelId]);
         }
+
+        return $modelDefinition;
+    }
+
+    private function supportsImageInputUrl(VideoCatalogModelDefinition $modelDefinition): bool
+    {
+        return $modelDefinition->getProviderCode() === ProviderCode::VolcengineArk->value;
     }
 
     private function assertWorkspacePathsExist(string $organizationCode, int $projectId, DesignGenerationTaskEntity $entity): void
@@ -156,9 +171,12 @@ class DesignVideoAppService extends DesignAppService
             $this->assertWorkspaceFileExists($workspacePrefix, (string) ($referenceImage['uri'] ?? ''));
         }
 
-        $videoUri = (string) ($inputPayload['video']['uri'] ?? '');
-        if ($videoUri !== '') {
-            $this->assertWorkspaceFileExists($workspacePrefix, $videoUri);
+        foreach ((array) ($inputPayload['reference_videos'] ?? []) as $referenceVideo) {
+            $this->assertWorkspaceFileExists($workspacePrefix, (string) ($referenceVideo['uri'] ?? ''));
+        }
+
+        foreach ((array) ($inputPayload['reference_audios'] ?? []) as $referenceAudio) {
+            $this->assertWorkspaceFileExists($workspacePrefix, (string) ($referenceAudio['uri'] ?? ''));
         }
 
         $maskUri = (string) ($inputPayload['mask']['uri'] ?? '');
@@ -168,10 +186,6 @@ class DesignVideoAppService extends DesignAppService
 
         foreach ((array) ($inputPayload['frames'] ?? []) as $frame) {
             $this->assertWorkspaceFileExists($workspacePrefix, (string) ($frame['uri'] ?? ''));
-        }
-
-        foreach ((array) ($inputPayload['audio'] ?? []) as $audio) {
-            $this->assertWorkspaceFileExists($workspacePrefix, (string) ($audio['uri'] ?? ''));
         }
     }
 

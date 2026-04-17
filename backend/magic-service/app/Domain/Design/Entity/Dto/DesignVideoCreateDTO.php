@@ -22,6 +22,12 @@ class DesignVideoCreateDTO extends AbstractDTO
 
     public const array AUDIO_ROLES = ['reference'];
 
+    // standard: 普通文生视频；
+    // image_reference: 参考图模式，使用 reference_images[] 传入图片参考；
+    // omni_reference: 全能参考模式，使用 reference_images[] / reference_videos[] / reference_audios[]；
+    // keyframe_guided: 首尾帧引导生成，继续使用 frames[] 传入首帧/尾帧。
+    public const array INPUT_MODES = ['standard', 'image_reference', 'omni_reference', 'keyframe_guided'];
+
     public const array REFERENCE_IMAGE_TYPES = ['asset', 'style'];
 
     public const array SERVICE_TIERS = ['default', 'flex'];
@@ -35,6 +41,7 @@ class DesignVideoCreateDTO extends AbstractDTO
         'topic_id',
         'task_id',
         'task',
+        'input_mode',
         'prompt',
         'file_dir',
         'file_name',
@@ -45,7 +52,8 @@ class DesignVideoCreateDTO extends AbstractDTO
         'extensions',
     ];
 
-    private const array INPUT_ALLOWED_KEYS = ['frames', 'reference_images', 'video', 'mask', 'audio'];
+    // Design 创建入口统一使用参考输入，视频和音频参考都通过复数数组字段传入。
+    private const array INPUT_ALLOWED_KEYS = ['frames', 'reference_images', 'reference_videos', 'reference_audios', 'mask'];
 
     private const array GENERATION_ALLOWED_KEYS = [
         'size',
@@ -77,7 +85,7 @@ class DesignVideoCreateDTO extends AbstractDTO
 
     private const array REFERENCE_IMAGE_ALLOWED_KEYS = ['uri', 'type'];
 
-    private const string AUDIO_ROLE_REFERENCE = self::AUDIO_ROLES[0];
+    protected string $inputMode = '';
 
     protected ?int $projectId = null;
 
@@ -219,6 +227,31 @@ class DesignVideoCreateDTO extends AbstractDTO
         $this->fileName = $fileName === '' ? null : $fileName;
     }
 
+    public function setInputMode(mixed $inputMode): void
+    {
+        $this->inputMode = is_string($inputMode) ? trim($inputMode) : '';
+    }
+
+    public function getInputMode(): string
+    {
+        if (in_array($this->inputMode, self::INPUT_MODES, true)) {
+            return $this->inputMode;
+        }
+
+        // 旧调用不传 input_mode 时，仍按输入形态推断，避免 reference_images / frames 被误判。
+        if ($this->getFrames() !== []) {
+            return 'keyframe_guided';
+        }
+        if ($this->getReferenceVideos() !== [] || $this->getReferenceAudios() !== []) {
+            return 'omni_reference';
+        }
+        if ($this->getReferenceImages() !== []) {
+            return 'image_reference';
+        }
+
+        return '';
+    }
+
     public function setInputs(mixed $inputs): void
     {
         $this->inputs = $this->normalizeJsonArrayInput($inputs);
@@ -269,28 +302,6 @@ class DesignVideoCreateDTO extends AbstractDTO
         return $this->extensions;
     }
 
-    public function getVideo(): ?string
-    {
-        $inputs = $this->getInputs();
-        $video = $inputs['video'] ?? null;
-        if (! is_array($video)) {
-            return null;
-        }
-
-        $uri = trim((string) ($video['uri'] ?? ''));
-        return $uri === '' ? null : $uri;
-    }
-
-    public function setVideo(?string $uri): void
-    {
-        if ($uri === null || trim($uri) === '') {
-            unset($this->inputs['video']);
-            return;
-        }
-
-        $this->inputs['video'] = ['uri' => trim($uri)];
-    }
-
     public function getMask(): ?string
     {
         $inputs = $this->getInputs();
@@ -337,16 +348,28 @@ class DesignVideoCreateDTO extends AbstractDTO
         $this->inputs['frames'] = array_values($this->normalizeJsonArrayInput($frames));
     }
 
-    public function getAudioInputs(): array
+    public function getReferenceAudios(): array
     {
         $inputs = $this->getInputs();
-        $audio = $inputs['audio'] ?? [];
-        return is_array($audio) ? array_values($audio) : [];
+        $referenceAudios = $inputs['reference_audios'] ?? [];
+        return is_array($referenceAudios) ? array_values($referenceAudios) : [];
     }
 
-    public function setAudioInputs(mixed $audio): void
+    public function setReferenceAudios(mixed $referenceAudios): void
     {
-        $this->inputs['audio'] = array_values($this->normalizeJsonArrayInput($audio));
+        $this->inputs['reference_audios'] = array_values($this->normalizeJsonArrayInput($referenceAudios));
+    }
+
+    public function getReferenceVideos(): array
+    {
+        $inputs = $this->getInputs();
+        $referenceVideos = $inputs['reference_videos'] ?? [];
+        return is_array($referenceVideos) ? array_values($referenceVideos) : [];
+    }
+
+    public function setReferenceVideos(mixed $referenceVideos): void
+    {
+        $this->inputs['reference_videos'] = array_values($this->normalizeJsonArrayInput($referenceVideos));
     }
 
     public function valid(): void
@@ -421,26 +444,13 @@ class DesignVideoCreateDTO extends AbstractDTO
             }
         }
 
-        $this->assertMediaObject($this->inputs['video'] ?? null, 'inputs.video');
-        $this->assertMediaObject($this->inputs['mask'] ?? null, 'inputs.mask');
-
-        foreach ($this->getAudioInputs() as $index => $item) {
-            if (! is_array($item)) {
-                ExceptionBuilder::throw(MagicApiErrorCode::ValidateFailed, sprintf('inputs.audio.%d must be an object', $index));
-            }
-
-            $this->assertAllowedKeys($item, self::FRAME_ALLOWED_KEYS, sprintf('inputs.audio.%d', $index));
-
-            $role = trim((string) ($item['role'] ?? ''));
-            if ($role !== self::AUDIO_ROLE_REFERENCE) {
-                ExceptionBuilder::throw(MagicApiErrorCode::ValidateFailed, sprintf('inputs.audio.%d.role is invalid', $index));
-            }
-
-            $uri = trim((string) ($item['uri'] ?? ''));
-            if ($uri === '') {
-                ExceptionBuilder::throw(MagicApiErrorCode::ValidateFailed, sprintf('inputs.audio.%d.uri is required', $index));
-            }
+        if ($this->inputMode !== '' && ! in_array($this->getInputMode(), self::INPUT_MODES, true)) {
+            ExceptionBuilder::throw(MagicApiErrorCode::ValidateFailed, 'input_mode is invalid');
         }
+
+        $this->assertMediaObject($this->inputs['mask'] ?? null, 'inputs.mask');
+        $this->assertMediaObjectList($this->getReferenceVideos(), 'inputs.reference_videos');
+        $this->assertMediaObjectList($this->getReferenceAudios(), 'inputs.reference_audios');
 
         $this->assertOptionalStringField($this->generation, 'aspect_ratio', 'generation.aspect_ratio', 20);
         $this->assertOptionalStringField($this->generation, 'size', 'generation.size', 50);
@@ -521,6 +531,7 @@ class DesignVideoCreateDTO extends AbstractDTO
         $this->setTopicId($data['topic_id'] ?? null);
         $this->setTaskId($data['task_id'] ?? null);
         $this->setTask($data['task'] ?? null);
+        $this->setInputMode($data['input_mode'] ?? null);
         $this->setPrompt($data['prompt'] ?? null);
         $this->setFileDir($data['file_dir'] ?? null);
         $this->setFileName($data['file_name'] ?? null);
@@ -555,6 +566,16 @@ class DesignVideoCreateDTO extends AbstractDTO
         $uri = trim((string) ($value['uri'] ?? ''));
         if ($uri === '') {
             ExceptionBuilder::throw(MagicApiErrorCode::ValidateFailed, sprintf('%s.uri is required', $path));
+        }
+    }
+
+    /**
+     * @param list<mixed> $values
+     */
+    private function assertMediaObjectList(array $values, string $path): void
+    {
+        foreach ($values as $index => $value) {
+            $this->assertMediaObject($value, sprintf('%s.%d', $path, $index));
         }
     }
 

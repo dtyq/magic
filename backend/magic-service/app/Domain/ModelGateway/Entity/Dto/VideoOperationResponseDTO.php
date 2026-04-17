@@ -33,6 +33,8 @@ class VideoOperationResponseDTO extends AbstractDTO
 
     protected ?array $providerResult = null;
 
+    protected ?string $providerTaskId = null;
+
     public function getId(): string
     {
         return $this->id;
@@ -141,6 +143,16 @@ class VideoOperationResponseDTO extends AbstractDTO
     public function setProviderResult(?array $providerResult): void
     {
         $this->providerResult = $providerResult;
+    }
+
+    public function getProviderTaskId(): ?string
+    {
+        return $this->providerTaskId;
+    }
+
+    public function setProviderTaskId(?string $providerTaskId): void
+    {
+        $this->providerTaskId = $providerTaskId;
     }
 
     public function toArray(): array

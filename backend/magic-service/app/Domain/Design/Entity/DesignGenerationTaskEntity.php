@@ -47,13 +47,13 @@ class DesignGenerationTaskEntity extends AbstractEntity
 
     private const string INPUT_KEY_REFERENCE_IMAGES = 'reference_images';
 
-    private const string INPUT_KEY_VIDEO = 'video';
+    private const string INPUT_KEY_REFERENCE_VIDEOS = 'reference_videos';
+
+    private const string INPUT_KEY_REFERENCE_AUDIOS = 'reference_audios';
 
     private const string INPUT_KEY_MASK = 'mask';
 
     private const string INPUT_KEY_FRAMES = 'frames';
-
-    private const string INPUT_KEY_AUDIO = 'audio';
 
     private const string FIELD_URI = 'uri';
 
@@ -185,20 +185,6 @@ class DesignGenerationTaskEntity extends AbstractEntity
         return is_array($referenceImages) ? $referenceImages : [];
     }
 
-    public function getVideo(): ?string
-    {
-        $video = $this->inputPayload[self::INPUT_KEY_VIDEO] ?? null;
-        if (is_string($video) && $video !== '') {
-            return $video;
-        }
-        if (! is_array($video)) {
-            return null;
-        }
-
-        $uri = trim((string) ($video[self::FIELD_URI] ?? ''));
-        return $uri === '' ? null : $uri;
-    }
-
     public function getMask(): ?string
     {
         $mask = $this->inputPayload[self::INPUT_KEY_MASK] ?? null;
@@ -216,10 +202,16 @@ class DesignGenerationTaskEntity extends AbstractEntity
         return is_array($frames) ? $frames : [];
     }
 
-    public function getAudioInputs(): array
+    public function getReferenceVideos(): array
     {
-        $audio = $this->inputPayload[self::INPUT_KEY_AUDIO] ?? [];
-        return is_array($audio) ? $audio : [];
+        $referenceVideos = $this->inputPayload[self::INPUT_KEY_REFERENCE_VIDEOS] ?? [];
+        return is_array($referenceVideos) ? $referenceVideos : [];
+    }
+
+    public function getReferenceAudios(): array
+    {
+        $referenceAudios = $this->inputPayload[self::INPUT_KEY_REFERENCE_AUDIOS] ?? [];
+        return is_array($referenceAudios) ? $referenceAudios : [];
     }
 
     public function getId(): ?int
