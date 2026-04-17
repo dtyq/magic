@@ -21,10 +21,14 @@ final class BillingTierFlatPriceCompatibility
     ];
 
     private const array BILLING_OBJECT_FIELD_MAP = [
-        'input_token' => ['pricing' => 'input_pricing', 'cost' => 'input_cost'],
-        'output_token' => ['pricing' => 'output_pricing', 'cost' => 'output_cost'],
-        'cache_hit_token' => ['pricing' => 'cache_hit_pricing', 'cost' => 'cache_hit_cost'],
-        'cache_write_token' => ['pricing' => 'cache_write_pricing', 'cost' => 'cache_write_cost'],
+        'input_token' => 'input_pricing',
+        'output_token' => 'output_pricing',
+        'cache_hit_token' => 'cache_hit_pricing',
+        'cache_write_token' => 'cache_write_pricing',
+        'input_cost' => 'input_cost',
+        'output_cost' => 'output_cost',
+        'cache_hit_cost' => 'cache_hit_cost',
+        'cache_write_cost' => 'cache_write_cost',
     ];
 
     public static function normalizeSavePayload(array $payload): array
@@ -56,18 +60,14 @@ final class BillingTierFlatPriceCompatibility
                 continue;
             }
 
-            $fieldMap = self::BILLING_OBJECT_FIELD_MAP[$billingTierItem['billing_object'] ?? ''] ?? null;
-            if ($fieldMap === null) {
+            $field = self::BILLING_OBJECT_FIELD_MAP[$billingTierItem['billing_object'] ?? ''] ?? null;
+            if ($field === null) {
                 continue;
             }
 
-            $config[$fieldMap['pricing']] = self::resolveFixedRulePrice(
+            $config[$field] = self::resolveFixedRulePrice(
                 (string) ($billingTierItem['pricing_mode'] ?? ''),
                 $billingTierItem['pricing_rules'] ?? []
-            );
-            $config[$fieldMap['cost']] = self::resolveFixedRulePrice(
-                (string) ($billingTierItem['cost_mode'] ?? ''),
-                $billingTierItem['cost_rules'] ?? []
             );
         }
 

@@ -13,19 +13,12 @@ class BillingTierItem extends AbstractTokenPricingValueObject
 
     protected BillingTierMode $pricingMode;
 
-    protected BillingTierMode $costMode;
-
     protected BillingObject $followObject;
 
     /**
      * @var BillingTierPriceRule[]
      */
     protected array $pricingRules = [];
-
-    /**
-     * @var BillingTierPriceRule[]
-     */
-    protected array $costRules = [];
 
     public function __construct(?array $data = null)
     {
@@ -35,31 +28,25 @@ class BillingTierItem extends AbstractTokenPricingValueObject
 
         $billingObject = BillingObject::tryFrom((string) ($data['billing_object'] ?? ''));
         $pricingMode = BillingTierMode::tryFrom((string) ($data['pricing_mode'] ?? ''));
-        $costMode = BillingTierMode::tryFrom((string) ($data['cost_mode'] ?? ''));
         $followObject = BillingObject::tryFrom((string) ($data['follow_object'] ?? ''));
 
         if (! $billingObject instanceof BillingObject
             || ! $pricingMode instanceof BillingTierMode
-            || ! $costMode instanceof BillingTierMode
             || ! $followObject instanceof BillingObject) {
             $this->throwInvalidPricing();
         }
 
         $pricingRules = $data['pricing_rules'] ?? null;
-        $costRules = $data['cost_rules'] ?? null;
-        if (! is_array($pricingRules) || ! is_array($costRules)) {
+        if (! is_array($pricingRules)) {
             $this->throwInvalidPricing();
         }
 
         $this->billingObject = $billingObject;
         $this->pricingMode = $pricingMode;
-        $this->costMode = $costMode;
         $this->followObject = $followObject;
         $this->pricingRules = $this->mapPricingRules($pricingRules);
-        $this->costRules = $this->mapPricingRules($costRules);
 
         $this->assertPricingRulesAreValid($this->pricingMode, $this->pricingRules);
-        $this->assertPricingRulesAreValid($this->costMode, $this->costRules);
     }
 
     public function getBillingObject(): BillingObject
@@ -70,11 +57,6 @@ class BillingTierItem extends AbstractTokenPricingValueObject
     public function getPricingMode(): BillingTierMode
     {
         return $this->pricingMode;
-    }
-
-    public function getCostMode(): BillingTierMode
-    {
-        return $this->costMode;
     }
 
     public function getFollowObject(): BillingObject
@@ -90,22 +72,9 @@ class BillingTierItem extends AbstractTokenPricingValueObject
         return $this->pricingRules;
     }
 
-    /**
-     * @return BillingTierPriceRule[]
-     */
-    public function getCostRules(): array
-    {
-        return $this->costRules;
-    }
-
-    public function resolvePricingPrice(?int $followValue): ?float
+    public function resolvePrice(?int $followValue): ?float
     {
         return $this->resolveRulesPrice($this->pricingMode, $this->pricingRules, $followValue);
-    }
-
-    public function resolveCostPrice(?int $followValue): ?float
-    {
-        return $this->resolveRulesPrice($this->costMode, $this->costRules, $followValue);
     }
 
     public function toArray(): array
@@ -117,11 +86,6 @@ class BillingTierItem extends AbstractTokenPricingValueObject
             'pricing_rules' => array_map(
                 static fn (BillingTierPriceRule $pricingRule): array => $pricingRule->toArray(),
                 $this->pricingRules
-            ),
-            'cost_mode' => $this->costMode->value,
-            'cost_rules' => array_map(
-                static fn (BillingTierPriceRule $pricingRule): array => $pricingRule->toArray(),
-                $this->costRules
             ),
         ];
     }
