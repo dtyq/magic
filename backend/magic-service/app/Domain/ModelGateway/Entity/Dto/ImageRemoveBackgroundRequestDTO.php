@@ -23,21 +23,6 @@ class ImageRemoveBackgroundRequestDTO extends AbstractRequestDTO
      */
     protected bool $enableVisibleWatermark = true;
 
-    public function __construct(array $requestData = [])
-    {
-        parent::__construct($requestData);
-
-        $images = $requestData['images'] ?? [];
-        if (isset($requestData['images'])) {
-            $this->images = $images;
-        }
-
-        $outputFormat = $requestData['output_format'] ?? $requestData['outputFormat'] ?? null;
-        if (is_string($outputFormat) && $outputFormat !== '') {
-            $this->outputFormat = strtolower(trim($outputFormat));
-        }
-    }
-
     public function getImages(): array
     {
         return $this->images;
@@ -74,9 +59,9 @@ class ImageRemoveBackgroundRequestDTO extends AbstractRequestDTO
         return $this->enableVisibleWatermark;
     }
 
-    public function setEnableVisibleWatermark(bool $enableVisibleWatermark): void
+    public function closeVisibleWatermark(): void
     {
-        $this->enableVisibleWatermark = $enableVisibleWatermark;
+        $this->enableVisibleWatermark = false;
     }
 
     public function getType(): string
