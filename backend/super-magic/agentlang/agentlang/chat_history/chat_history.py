@@ -867,6 +867,10 @@ class ChatHistory:
                             is_dup = True
                     elif not prev_tc and not curr_tc:
                         is_dup = True
+                elif isinstance(curr, ToolMessage):
+                    # tool 消息还需比较 tool_call_id，避免将不同调用的相同结果误判为重复
+                    if curr.tool_call_id == prev.tool_call_id:
+                        is_dup = True
                 else:
                     is_dup = True
 
@@ -913,6 +917,11 @@ class ChatHistory:
             prev_content = getattr(prev_msg, 'content', '')
             if prev_content != current_content:
                 break
+
+            # tool 消息还需比较 tool_call_id，避免将不同调用的相同结果误判为重复
+            if isinstance(message, ToolMessage):
+                if getattr(prev_msg, 'tool_call_id', None) != getattr(message, 'tool_call_id', None):
+                    break
 
             # 找到了相同内容、相同角色的消息，应该跳过
             return True
@@ -1400,6 +1409,10 @@ class ChatHistory:
                             if prev_ids == curr_ids:
                                 should_add = False
                         elif len(prev_tool_calls) == 0 and len(curr_tool_calls) == 0:
+                            should_add = False
+                    elif message.get("role") == "tool":
+                        # tool 消息还需比较 tool_call_id，避免将不同调用的相同结果误判为重复
+                        if message.get("tool_call_id") == prev_message.get("tool_call_id"):
                             should_add = False
                     else:
                         should_add = False
