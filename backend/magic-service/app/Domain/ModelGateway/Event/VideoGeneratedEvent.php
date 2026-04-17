@@ -51,6 +51,18 @@ class VideoGeneratedEvent extends AbstractEvent
     /** Provider 任务结果 usage 中的 total_tokens；可与 completion 一并用于拆分 prompt/output */
     protected ?int $totalTokens = null;
 
+    /**
+     * 视频生成请求的参考素材摘要（来自 raw_request），计费/审计可整包读取。
+     *
+     * @var array{
+     *     input_mode: ?string,
+     *     reference_image_count: int,
+     *     reference_video_count: int,
+     *     reference_audio_count: int
+     * }
+     */
+    protected array $videoReferenceMaterial = [];
+
     protected array $businessParams = [];
 
     public function getOrganizationCode(): string
@@ -231,6 +243,40 @@ class VideoGeneratedEvent extends AbstractEvent
     public function setTotalTokens(?int $totalTokens): void
     {
         $this->totalTokens = $totalTokens !== null && $totalTokens > 0 ? $totalTokens : null;
+    }
+
+    /**
+     * @return array{
+     *     input_mode: ?string,
+     *     reference_image_count: int,
+     *     reference_video_count: int,
+     *     reference_audio_count: int
+     * }
+     */
+    public function getVideoReferenceMaterial(): array
+    {
+        return $this->videoReferenceMaterial;
+    }
+
+    /**
+     * @param array{
+     *     input_mode: ?string,
+     *     reference_image_count: int,
+     *     reference_video_count: int,
+     *     reference_audio_count: int
+     * } $videoReferenceMaterial
+     */
+    public function setVideoReferenceMaterial(array $videoReferenceMaterial): void
+    {
+        $this->videoReferenceMaterial = $videoReferenceMaterial;
+    }
+
+    /**
+     * 参考视频数量是否大于 0。
+     */
+    public function hasReferenceVideoCount(): bool
+    {
+        return ((int) ($this->videoReferenceMaterial['reference_video_count'] ?? 0)) > 0;
     }
 
     public function getBusinessParams(): array

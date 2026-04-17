@@ -236,6 +236,7 @@ readonly class VideoOperationAppService
             $operation,
             $requestBusinessParams,
         );
+        $referenceMaterial = $this->resolveVideoReferenceMaterialContext($operation);
         if ($usageTokens['completion_tokens'] !== null) {
             $businessParams['completion_tokens'] = $usageTokens['completion_tokens'];
         }
@@ -259,6 +260,7 @@ readonly class VideoOperationAppService
         $event->setSourceId($operation->getSourceId());
         $event->setSourceType($this->resolveSourceType($accessTokenEntity, $operation));
         $event->setCreatedAt(new DateTime());
+        $event->setVideoReferenceMaterial($referenceMaterial);
         $event->setBusinessParams($businessParams);
         // 与 businessParams 中字段一致，便于 billing-manager 读事件对象直接扣费
         $event->setCompletionTokens($usageTokens['completion_tokens']);
@@ -283,6 +285,7 @@ readonly class VideoOperationAppService
             'source_type' => $event->getSourceType()->value,
             'completion_tokens' => $event->getCompletionTokens(),
             'total_tokens' => $event->getTotalTokens(),
+            'video_reference_material' => $event->getVideoReferenceMaterial(),
         ]);
     }
 
@@ -900,5 +903,33 @@ readonly class VideoOperationAppService
             'video/wmv', 'video/x-ms-wmv' => 'wmv',
             default => 'mp4',
         };
+    }
+
+    /**
+     * 从入队时的 raw_request 解析参考素材，与 VideoGeneratedEvent::videoReferenceMaterial 结构一致。
+     *
+     * @return array{
+     *     input_mode: ?string,
+     *     reference_image_count: int,
+     *     reference_video_count: int,
+     *     reference_audio_count: int
+     * }
+     */
+    private function resolveVideoReferenceMaterialContext(VideoQueueOperationEntity $operation): array
+    {
+        $raw = $operation->getRawRequest();
+        $inputs = is_array($raw['inputs'] ?? null) ? $raw['inputs'] : [];
+        $inputMode = isset($raw['input_mode']) ? trim((string) $raw['input_mode']) : '';
+
+        $images = is_array($inputs['reference_images'] ?? null) ? $inputs['reference_images'] : [];
+        $videos = is_array($inputs['reference_videos'] ?? null) ? $inputs['reference_videos'] : [];
+        $audios = is_array($inputs['reference_audios'] ?? null) ? $inputs['reference_audios'] : [];
+
+        return [
+            'input_mode' => $inputMode === '' ? null : $inputMode,
+            'reference_image_count' => count($images),
+            'reference_video_count' => count($videos),
+            'reference_audio_count' => count($audios),
+        ];
     }
 }
