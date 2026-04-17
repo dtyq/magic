@@ -265,12 +265,14 @@ class ImageRemoveBackgroundAppService extends AbstractLLMAppService
         // 去背景不需要完整的 ImageGenerateRequest，这里只构造后处理真正关心的字段。
         $options = new ImagePostProcessOptions();
         $options->setOutputFormat($dto->getOutputFormat() ?? '');
-        $watermarkConfig = $this->watermarkConfig->getWatermarkConfig(
-            $dataIsolation->getCurrentOrganizationCode()
-        );
-        $options->setWatermarkConfig(
-            $this->resolveWatermarkConfig($dataIsolation, $watermarkConfig)
-        );
+        if ($dto->isEnableVisibleWatermark()) {
+            $watermarkConfig = $this->watermarkConfig->getWatermarkConfig(
+                $dataIsolation->getCurrentOrganizationCode()
+            );
+            $options->setWatermarkConfig(
+                $this->resolveWatermarkConfig($dataIsolation, $watermarkConfig)
+            );
+        }
 
         $implicitWatermark = new ImplicitWatermark();
         $implicitWatermark->setOrganizationCode($dataIsolation->getCurrentOrganizationCode())

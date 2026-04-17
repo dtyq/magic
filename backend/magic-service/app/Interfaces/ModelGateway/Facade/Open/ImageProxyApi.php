@@ -51,6 +51,8 @@ class ImageProxyApi extends AbstractOpenApi
         $dto = new ImageRemoveBackgroundRequestDTO($this->request->all());
         $dto->setAccessToken($this->getAccessToken());
         $dto->setIps($this->getClientIps());
+        // 默认开启水印，后续需要支持可以注释掉
+        $dto->closeVisibleWatermark();
         $dto->valid();
 
         $this->enrichRequestDTO($dto, $this->request->getHeaders());

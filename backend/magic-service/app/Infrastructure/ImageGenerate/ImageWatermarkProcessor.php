@@ -161,7 +161,15 @@ class ImageWatermarkProcessor
 
         // 创建新图片资源以避免修改原图
         $watermarkedImage = imagecreatetruecolor($width, $height);
+
+        // 先用全透明画布初始化，避免透明区域在拷贝时落成黑底
+        imagealphablending($watermarkedImage, false);
+        imagesavealpha($watermarkedImage, true);
+        $transparent = imagecolorallocatealpha($watermarkedImage, 0, 0, 0, 127);
+        imagefill($watermarkedImage, 0, 0, $transparent);
+
         imagecopy($watermarkedImage, $image, 0, 0, 0, 0, $width, $height);
+        imagealphablending($watermarkedImage, true);
 
         // 添加文字水印
         $this->addTextWatermark($watermarkedImage, $config, $width, $height);

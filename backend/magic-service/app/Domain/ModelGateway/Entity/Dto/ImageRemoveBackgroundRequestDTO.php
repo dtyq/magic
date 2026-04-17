@@ -18,20 +18,10 @@ class ImageRemoveBackgroundRequestDTO extends AbstractRequestDTO
 
     protected ?string $outputFormat = null;
 
-    public function __construct(array $requestData = [])
-    {
-        parent::__construct($requestData);
-
-        $images = $requestData['images'] ?? [];
-        if (isset($requestData['images'])) {
-            $this->images = $images;
-        }
-
-        $outputFormat = $requestData['output_format'] ?? $requestData['outputFormat'] ?? null;
-        if (is_string($outputFormat) && $outputFormat !== '') {
-            $this->outputFormat = strtolower(trim($outputFormat));
-        }
-    }
+    /**
+     * 显式水印默认开启，仅允许服务内部按场景关闭，不从外部 API 请求体读取。
+     */
+    protected bool $enableVisibleWatermark = true;
 
     public function getImages(): array
     {
@@ -62,6 +52,16 @@ class ImageRemoveBackgroundRequestDTO extends AbstractRequestDTO
     public function setOutputFormat(?string $outputFormat): void
     {
         $this->outputFormat = $outputFormat ? strtolower(trim($outputFormat)) : null;
+    }
+
+    public function isEnableVisibleWatermark(): bool
+    {
+        return $this->enableVisibleWatermark;
+    }
+
+    public function closeVisibleWatermark(): void
+    {
+        $this->enableVisibleWatermark = false;
     }
 
     public function getType(): string

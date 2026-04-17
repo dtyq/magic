@@ -57,7 +57,7 @@ class OfficialProxyImageRemoveBackgroundDriver implements ImageRemoveBackgroundD
             throw new InvalidArgumentException('image_generate.invalid_image_url');
         }
 
-        $requestUrl = trim((string) ($this->providerConfig['url'] ?? ''));
+        $requestUrl = trim((string) ($this->providerConfig['request_url'] ?? ($this->providerConfig['url'] ?? '')));
         $apiKey = trim((string) ($this->providerConfig['api_key'] ?? ''));
         if ($requestUrl === '' || $apiKey === '') {
             throw new InvalidArgumentException('image_generate.remove_background_provider_not_configured');
@@ -66,7 +66,8 @@ class OfficialProxyImageRemoveBackgroundDriver implements ImageRemoveBackgroundD
         $client = $this->createClient($this->getTimeout());
 
         $payload = [
-            'image_url' => $request->getSourceValue(),
+            'images' => [$request->getSourceValue()],
+            'output_format' => 'png',
         ];
         $outputFormat = $request->getOutputFormat();
         if (is_string($outputFormat) && $outputFormat !== '') {
@@ -84,7 +85,7 @@ class OfficialProxyImageRemoveBackgroundDriver implements ImageRemoveBackgroundD
         try {
             $response = $client->post($requestUrl, [
                 RequestOptions::HEADERS => [
-                    'Authorization' => 'Bearer ' . $apiKey,
+                    'Authorization' => $apiKey,
                     'Content-Type' => 'application/json',
                     'Accept' => 'application/json',
                 ],
