@@ -8,6 +8,7 @@ declare(strict_types=1);
 namespace App\Application\Provider\Service;
 
 use App\Application\Kernel\EnvManager;
+use App\Application\Kernel\Service\PlatformSettingsAppService;
 use App\Application\Kernel\SmartFileLinks;
 use App\Application\ModelGateway\Service\LLMAppService;
 use App\Domain\File\Service\FileDomainService;
@@ -65,6 +66,7 @@ readonly class AdminProviderAppService
         private ProviderModelDomainService $providerModelDomainService,
         private AdminProviderDomainService $adminProviderDomainService,
         private EventDispatcherInterface $eventDispatcher,
+        private PlatformSettingsAppService $platformSettingsAppService,
     ) {
     }
 
@@ -1030,7 +1032,10 @@ readonly class AdminProviderAppService
         if ($this->isOfficialOrganization($organizationCode)) {
             return false;
         }
+        if (! DeploymentIdConstant::isDomestic()) {
+            return false;
+        }
 
-        return DeploymentIdConstant::isDomestic();
+        return ! $this->platformSettingsAppService->get()->isCustomServiceProviderAllowed($organizationCode);
     }
 }
