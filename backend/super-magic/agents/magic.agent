@@ -34,6 +34,7 @@ skills:
     - name: using-llm
     - name: using-cron
     - name: subagents
+    - name: user-info
   workspace_skills: "*"
 ---
 

@@ -1,10 +1,7 @@
 ---
 name: user-info
 description: >
-  Get the current session user's profile using get_user_info.
-  Use when you need any of: the user's name (nickname or real_name), job title/position, work/employee number, email address, department info (name and org path), or phone number.
-  Also invoke when asked to address the user by name, personalize output with their identity, look up their organizational context, or find their contact details.
-  Phone is desensitized by default; requesting the full phone number requires explicit prior consent from the user.
+  Use when you need the current user's identity or contact info: name, job title, employee number, email, phone, or department.
 ---
 
 # User Info Skill

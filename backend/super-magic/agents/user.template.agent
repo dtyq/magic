@@ -27,6 +27,7 @@ skills:
     - name: using-mcp
     - name: using-llm
     - name: env-manager
+    - name: user-info
   workspace_skills: "*"
 ---
 
