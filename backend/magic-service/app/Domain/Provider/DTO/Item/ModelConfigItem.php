@@ -426,5 +426,4 @@ class ModelConfigItem extends AbstractDTO
 
         return (string) $value;
     }
-
 }
