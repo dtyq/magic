@@ -1,9 +1,10 @@
-from typing import List
+from typing import Any, Dict, List, Optional
 
 from pydantic import Field
 
 from agentlang.context.tool_context import ToolContext
 from agentlang.tools.tool_result import ToolResult
+from app.i18n import i18n
 from app.tools.core import BaseTool, BaseToolParams, tool
 from app.utils.init_client_message_util import InitClientMessageUtil
 
@@ -79,9 +80,7 @@ class GetUserInfo(BaseTool[GetUserInfoParams]):
 
         dept_names = ", ".join(d["name"] for d in departments if d.get("name")) or "N/A"
         name = user.real_name or user.nickname or "Unknown"
-        content_parts = [
-            f"User: {name}",
-        ]
+        content_parts = [f"User: {name}"]
         if user.position:
             content_parts.append(f"Position: {user.position}")
         if user.work_number:
@@ -96,3 +95,22 @@ class GetUserInfo(BaseTool[GetUserInfoParams]):
         content = ". ".join(content_parts) + "."
 
         return ToolResult(content=content, data=data)
+
+    async def get_after_tool_call_friendly_action_and_remark(
+        self,
+        tool_name: str,
+        tool_context: ToolContext,
+        result: ToolResult,
+        execution_time: float,
+        arguments: Optional[Dict[str, Any]] = None,
+    ) -> Dict:
+        action = i18n.translate("get_user_info", category="tool.actions")
+        if not result.ok:
+            return {
+                "action": action,
+                "remark": i18n.translate("get_user_info.error", category="tool.messages"),
+            }
+        return {
+            "action": action,
+            "remark": i18n.translate("get_user_info.success", category="tool.messages"),
+        }

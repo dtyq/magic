@@ -358,5 +358,9 @@
     "mcp_init": {
         "zh_CN": "MCP 初始化",
         "en_US": "MCP initialization"
+    },
+    "get_user_info": {
+        "zh_CN": "获取用户信息",
+        "en_US": "Get user info"
     }
 }
