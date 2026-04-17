@@ -57,7 +57,7 @@ class OfficialProxyImageRemoveBackgroundDriver implements ImageRemoveBackgroundD
             throw new InvalidArgumentException('image_generate.invalid_image_url');
         }
 
-        $requestUrl = trim((string) ($this->providerConfig['request_url'] ?: ($this->providerConfig['url'] ?? '')));
+        $requestUrl = trim((string) ($this->providerConfig['request_url'] ?? ($this->providerConfig['url'] ?? '')));
         $apiKey = trim((string) ($this->providerConfig['api_key'] ?? ''));
         if ($requestUrl === '' || $apiKey === '') {
             throw new InvalidArgumentException('image_generate.remove_background_provider_not_configured');
