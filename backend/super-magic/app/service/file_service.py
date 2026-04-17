@@ -863,6 +863,101 @@ class FileService(Base):
             logger.error(traceback.format_exc())
             raise Exception(f"Upload failed: {e}")
 
+    async def get_download_url_by_file_key(
+        self, file_key: str, expires_in: int = 3600, options: Optional[Dict[str, Any]] = None
+    ) -> Dict[str, Any]:
+        """
+        根据已知的存储对象键（完整 S3 key）获取临时下载链接
+
+        与 get_file_download_url 不同，此方法接收的是完整的对象存储 key，
+        不会再拼接 workspace 前缀。适用于通过 magicfs 扩展属性
+        (user.magicfs.s3_key) 拿到的真实 S3 key。
+
+        Args:
+            file_key: 完整的对象存储 key，例如
+                'TGosRaFhvb/588417216353927169/project_xxx/workspace/877250661392134145'
+            expires_in: URL 过期时间（秒），默认 1 小时
+            options: 可选配置，与 get_file_download_url 一致：
+                - headers: 自定义 HTTP 请求头
+                - params: 平台特有的查询参数
+                - slash_safe: 是否对路径中的斜杠进行转义（阿里云 OSS）
+                - resize: 图片缩放百分比（1-100）
+
+        Returns:
+            Dict 包含：
+                - file_key: 传入的对象存储 key
+                - download_url: 临时下载链接
+                - expires_in: 过期时间（秒）
+                - platform: 存储平台
+                - generated_at: 生成时间
+                - object_key: 实际使用的对象存储 key（与 file_key 相同）
+
+        Raises:
+            ValueError: file_key 为空
+            Exception: 获取下载链接失败
+        """
+        try:
+            from datetime import datetime
+
+            logger.info(f"获取文件下载链接(by file_key): {file_key}, 有效期: {expires_in}秒")
+
+            if not file_key or not file_key.strip():
+                raise ValueError("file_key 不能为空")
+
+            object_key = file_key.strip()
+
+            storage_service = await self._get_storage_service()
+
+            if options is None:
+                options = {}
+
+            resize = options.get("resize")
+            if resize is not None:
+                platform = storage_service.get_platform_name()
+                image_process = f"image/resize,p_{resize}"
+
+                if "params" not in options:
+                    options["params"] = {}
+
+                if platform == "tos":
+                    options["params"]["x-tos-process"] = image_process
+                    logger.info(f"Adding TOS image resize parameter: {image_process}")
+                elif platform == "oss":
+                    options["params"]["x-oss-process"] = image_process
+                    logger.info(f"Adding OSS image resize parameter: {image_process}")
+                else:
+                    logger.warning(f"Image resize not supported for platform: {platform}")
+
+            download_url = await self._generate_download_url(storage_service, object_key, expires_in)
+
+            if options and hasattr(storage_service, "get_download_url"):
+                try:
+                    await storage_service.refresh_credentials()
+                    download_url = await storage_service.get_download_url(
+                        key=object_key, expires_in=expires_in, options=options
+                    )
+                except Exception as e:
+                    logger.warning(f"使用选项参数生成下载链接失败，使用默认方法: {e}")
+
+            platform = storage_service.get_platform_name()
+
+            result = {
+                "file_key": file_key,
+                "download_url": download_url,
+                "expires_in": expires_in,
+                "platform": platform,
+                "generated_at": datetime.now().isoformat(),
+                "object_key": object_key,
+            }
+
+            logger.info(f"成功生成下载链接(by file_key): {file_key} -> {platform}")
+            return result
+
+        except Exception as e:
+            logger.error(f"获取文件下载链接失败(by file_key): {file_key}, 错误: {e}")
+            logger.error(traceback.format_exc())
+            raise
+
     async def get_file_download_url(
         self, file_path: str, expires_in: int = 3600, options: Optional[Dict[str, Any]] = None
     ) -> Dict[str, Any]:

@@ -21,6 +21,7 @@ class Attachment(BaseModel):
     """
 
     file_key: str  # 对象存储的object_key
+    file_id: Optional[str] = None  # magicfs xattr file ID (user.magicfs.file_id)
     file_tag: AttachmentTag  # 附件标签
     file_extension: str  # 文件后缀
     filepath: str = Field(exclude=True)  # 文件在工作区中的完整路径，不序列化到输出

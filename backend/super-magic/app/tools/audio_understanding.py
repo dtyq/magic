@@ -34,6 +34,7 @@ from app.service.asr.asr_merge_task_manager import AsrMergeTaskManager
 from app.service.file_service import FileService
 from app.tools.core.base_tool_params import BaseToolParams
 from app.tools.workspace_tool import WorkspaceTool
+from app.utils.async_file_utils import get_s3_key_from_xattr
 
 
 class AudioUnderstandingError(Exception):
@@ -133,34 +134,32 @@ class AudioUnderstanding(WorkspaceTool[AudioUnderstandingParams]):
             self.logger.warning(f"检查AudioUnderstanding工具可用性失败: {e}")
             return False
 
-    async def _generate_presigned_url_for_uploaded_file(self, file_path: str) -> Optional[str]:
+    async def _generate_presigned_url_by_file_key(self, file_key: str) -> Optional[str]:
         """
-        为已上传的文件生成预签名 URL
+        根据 magicfs 真实 S3 key 生成预签名 URL
         支持多个存储平台：TOS、阿里云 OSS、本地存储
 
         Args:
-            file_path: 已上传文件的存储键
+            file_key: 通过 magicfs xattr 获取的完整对象存储 key
 
         Returns:
             str: 文件的预签名 URL，失败则返回 None
         """
         try:
-            # 创建文件服务实例
             file_service = FileService()
+            download_result = await file_service.get_download_url_by_file_key(
+                file_key, expires_in=7200, options={}
+            )
 
-            # 获取文件下载链接
-            download_result = await file_service.get_file_download_url(file_path, expires_in=7200, options={})
-
-            # 提取下载URL
             presigned_url = download_result.get("download_url")
             platform = download_result.get("platform")
 
-            self.logger.info(f"Generated presigned URL for {platform} storage file_path: {file_path}")
+            self.logger.info(f"Generated presigned URL for {platform} storage file_key: {file_key}")
             self.logger.info(f"Generated presigned URL: {presigned_url}")
             return presigned_url
 
         except Exception as e:
-            self.logger.error(f"Failed to generate presigned URL for uploaded file {file_path}: {e}")
+            self.logger.error(f"Failed to generate presigned URL for file_key {file_key}: {e}")
             return None
 
     async def _run(self, params: AudioUnderstandingParams, correlation_id: str) -> str:
@@ -276,16 +275,21 @@ class AudioUnderstanding(WorkspaceTool[AudioUnderstandingParams]):
                     "FORMAT_NOT_SUPPORTED",
                 )
 
-            # FileService 期望的是相对于 workspace 根的路径（内部会拼接 upload_dir 作为对象键）
-            try:
-                storage_relative_path = str(file_path.relative_to(self.base_dir))
-            except ValueError:
-                # 文件在 workspace 外（绝对路径），退回使用原始输入
-                storage_relative_path = params.audio_path
-            self.logger.info(f"Generated file_key for storage: {storage_relative_path}")
+            # 通过 magicfs 扩展属性读取真实的对象存储 key，避免本地相对路径与 TOS 实际 key 不一致
+            file_key = await get_s3_key_from_xattr(file_path)
+            if not file_key:
+                raise AudioUnderstandingError(
+                    i18n.translate(
+                        "audio_understanding.transcription_error",
+                        category="tool.messages",
+                        error=f"无法从 magicfs 扩展属性读取 s3_key: {params.audio_path}",
+                    ),
+                    "S3_KEY_NOT_FOUND",
+                )
+            self.logger.info(f"Resolved magicfs s3_key for storage: {file_key}")
 
             # 生成预签名 URL
-            file_url = await self._generate_presigned_url_for_uploaded_file(storage_relative_path)
+            file_url = await self._generate_presigned_url_by_file_key(file_key)
             if not file_url:
                 raise AudioUnderstandingError(
                     i18n.translate("audio_understanding.transcription_error", category="tool.messages", error="生成预签名URL失败"),
