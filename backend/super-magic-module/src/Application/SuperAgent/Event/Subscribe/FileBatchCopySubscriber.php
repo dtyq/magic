@@ -317,10 +317,9 @@ class FileBatchCopySubscriber extends ConsumerMessage
             $sourceFileName
         );
 
-        // Copying a directory to the same parent should keep both.
+        // Copying a directory to the same parent should keep both and fall through to rename.
         if ($targetFileEntity !== null && $targetFileEntity->getFileId() === $sourceFileId) {
             $shouldKeepBoth = true;
-            $targetFileEntity = null;
         }
 
         $newDirName = $sourceFileName;
