@@ -435,18 +435,6 @@ class TaskMessageRepository implements TaskMessageRepositoryInterface
         return $messageEntities; // 直接返回传入的entities，因为它们已经包含了正确的ID
     }
 
-    /**
-     * `insert()` 不会自动维护时间戳，这里统一补齐消息表需要的 created_at/updated_at。
-     */
-    private function withTimestamps(array $payload): array
-    {
-        $now = Carbon::now()->toDateTimeString();
-        $payload['created_at'] = $payload['created_at'] ?? $now;
-        $payload['updated_at'] = $payload['updated_at'] ?? $now;
-
-        return $payload;
-    }
-
     public function updateMessageSeqId(int $id, ?int $imSeqId): void
     {
         // 如果 im_seq_id 为空，则不执行更新
@@ -502,6 +490,18 @@ class TaskMessageRepository implements TaskMessageRepositoryInterface
         }
 
         return $hasUnreadMap;
+    }
+
+    /**
+     * `insert()` 不会自动维护时间戳，这里统一补齐消息表需要的 created_at/updated_at。
+     */
+    private function withTimestamps(array $payload): array
+    {
+        $now = Carbon::now()->toDateTimeString();
+        $payload['created_at'] = $payload['created_at'] ?? $now;
+        $payload['updated_at'] = $payload['updated_at'] ?? $now;
+
+        return $payload;
     }
 
     /**
