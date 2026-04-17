@@ -485,26 +485,21 @@ class TopicDomainService
             ExceptionBuilder::throw(SuperAgentErrorCode::TOPIC_ACCESS_DENIED, 'topic.topic_access_denied');
         }
 
-        if ($lastReadMessageId !== null) {
-            $currentLastReadMessageId = $topicEntity->getLastReadMessageId();
-            if ($currentLastReadMessageId !== null && $lastReadMessageId < $currentLastReadMessageId) {
-                ExceptionBuilder::throw(GenericErrorCode::ParameterValidationFailed, 'last_read_message_id cannot move backwards');
-            }
-        }
-
-        if ($lastReadAt !== null) {
-            $currentLastReadAt = $topicEntity->getLastReadAt();
-            if ($currentLastReadAt !== null && strtotime($lastReadAt) < strtotime($currentLastReadAt)) {
-                ExceptionBuilder::throw(GenericErrorCode::ParameterValidationFailed, 'last_read_at cannot move backwards');
-            }
-        }
-
         $updateData = [];
-        if ($lastReadAt !== null) {
+        $currentLastReadAt = $topicEntity->getLastReadAt();
+        if (
+            $lastReadAt !== null
+            && ($currentLastReadAt === null || strtotime($lastReadAt) >= strtotime($currentLastReadAt))
+        ) {
             $updateData['last_read_at'] = $lastReadAt;
             $topicEntity->setLastReadAt($lastReadAt);
         }
-        if ($lastReadMessageId !== null) {
+
+        $currentLastReadMessageId = $topicEntity->getLastReadMessageId();
+        if (
+            $lastReadMessageId !== null
+            && ($currentLastReadMessageId === null || $lastReadMessageId >= $currentLastReadMessageId)
+        ) {
             $updateData['last_read_message_id'] = $lastReadMessageId;
             $topicEntity->setLastReadMessageId($lastReadMessageId);
         }
