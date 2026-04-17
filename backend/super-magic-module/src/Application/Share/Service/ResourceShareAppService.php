@@ -288,13 +288,6 @@ class ResourceShareAppService extends AbstractShareAppService
             $extra = $dto->getExtra();
             $isVip = $this->packageFilter->isPaidSubscription($organizationCode);
 
-            // 检查"显示原创信息"配置：设置为false时需要VIP
-            if (isset($extra[CreateShareRequestDTO::EXTRA_FIELD_SHOW_ORIGINAL_INFO]) && $extra[CreateShareRequestDTO::EXTRA_FIELD_SHOW_ORIGINAL_INFO] === false) {
-                if (! $isVip) {
-                    ExceptionBuilder::throw(ShareErrorCode::VIP_REQUIRED_FOR_SHOW_ORIGINAL_INFO, 'share.vip_required_for_show_original_info', []);
-                }
-            }
-
             // 检查"隐藏由超级麦吉创造字样"配置：设置为true时需要VIP
             if (isset($extra[CreateShareRequestDTO::EXTRA_FIELD_HIDE_CREATED_BY_SUPER_MAGIC]) && $extra[CreateShareRequestDTO::EXTRA_FIELD_HIDE_CREATED_BY_SUPER_MAGIC] === true) {
                 if (! $isVip) {
