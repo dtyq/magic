@@ -216,7 +216,7 @@ class OpenAIProxyApi extends AbstractOpenApi
             $setLang,
             $safeSearch,
             $freshness,
-            $businessParams
+            $businessParams,
         );
     }
 

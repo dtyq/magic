@@ -87,14 +87,13 @@ class CreateVideoDTOTest extends TestCase
     {
         $dto = new CreateVideoDTO([
             'model_id' => 'veo-3.1-generate-preview',
-            'task' => 'edit',
-            'prompt' => 'edit the clip',
+            'task' => 'generate',
+            'prompt' => 'make a reference-driven clip',
+            'input_mode' => 'omni_reference',
             'inputs' => [
-                'video' => ['uri' => 'https://example.com/input.mp4'],
                 'mask' => ['uri' => 'https://example.com/mask.png'],
-                'audio' => [
-                    ['role' => 'reference', 'uri' => 'https://example.com/ref.wav'],
-                ],
+                'reference_audios' => [['uri' => 'https://example.com/ref.wav']],
+                'reference_videos' => [['uri' => 'https://example.com/ref.mp4']],
             ],
             'generation' => [
                 'size' => '1920x1080',
@@ -116,8 +115,9 @@ class CreateVideoDTOTest extends TestCase
 
         $dto->valid();
 
-        $this->assertSame(['uri' => 'https://example.com/input.mp4'], $dto->getInputs()['video']);
-        $this->assertSame('edit', $dto->getTask());
+        $this->assertSame('omni_reference', $dto->getInputMode());
+        $this->assertSame([['uri' => 'https://example.com/ref.mp4']], $dto->getInputs()['reference_videos']);
+        $this->assertSame('generate', $dto->getTask());
         $this->assertSame('1920x1080', $dto->getGeneration()['size']);
         $this->assertSame(1920, $dto->getGeneration()['width']);
         $this->assertSame(1080, $dto->getGeneration()['height']);

@@ -50,7 +50,7 @@ class ReviewSkillVersionRequestDTO extends AbstractRequestDTO
     {
         return [
             'action' => ['required', 'string', Rule::in(['APPROVED', 'REJECTED'])],
-            'publisher_type' => ['nullable', 'string', Rule::in(['USER', 'OFFICIAL', 'VERIFIED_CREATOR', 'PARTNER'])],
+            'publisher_type' => ['nullable', 'string', Rule::in(['USER', 'OFFICIAL', 'VERIFIED_CREATOR', 'PARTNER', 'OFFICIAL_BUILTIN'])],
         ];
     }
 

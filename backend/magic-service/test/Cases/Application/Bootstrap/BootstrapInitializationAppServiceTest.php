@@ -247,7 +247,7 @@ class BootstrapInitializationAppServiceTest extends TestCase
                 return ['success' => true, 'count' => 0];
             }
 
-            protected function createOfficialAgents(string $userId, array $agentCodes = []): array
+            protected function initOfficialAgents(string $userId, array $agentCodes = []): array
             {
                 return ['success' => true, 'success_count' => 0, 'skip_count' => 0, 'fail_count' => 0];
             }
@@ -464,7 +464,7 @@ class BootstrapInitializationAppServiceTest extends TestCase
                 return ['success' => true, 'count' => 0];
             }
 
-            protected function createOfficialAgents(string $userId, array $agentCodes = []): array
+            protected function initOfficialAgents(string $userId, array $agentCodes = []): array
             {
                 return ['success' => true, 'success_count' => 0, 'skip_count' => 0, 'fail_count' => 0];
             }

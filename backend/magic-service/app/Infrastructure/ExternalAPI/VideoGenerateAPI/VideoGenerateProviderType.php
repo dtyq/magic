@@ -13,11 +13,13 @@ use InvalidArgumentException;
 enum VideoGenerateProviderType: string
 {
     case Cloudsway = 'Cloudsway';
+    case VolcengineArk = 'VolcengineArk';
 
     public static function fromProviderCode(ProviderCode $providerCode, ?string $modelVersion = null): self
     {
         return match ($providerCode) {
             ProviderCode::Cloudsway => self::Cloudsway,
+            ProviderCode::VolcengineArk => self::VolcengineArk,
             default => throw new InvalidArgumentException(sprintf(
                 'unsupported video provider code %s for model %s',
                 $providerCode->value,

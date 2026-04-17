@@ -49,16 +49,26 @@ def _next_for_at(s: CronSchedule, now: int) -> Optional[int]:
 
 def _next_for_every(s: CronSchedule, state: CronJobState, now: int) -> int:
     """
-    固定间隔任务：基于 Unix 纪元对齐计算。
-    - 首次发现（从未执行过）：使用下一个纪元边界（floor + 1），
-      创建后不会立即执行，等到下一个周期才开始。
-    - 后续执行：同样使用下一个纪元边界（floor + 1），保证整点对齐。
-    例如 every_ms=60000（1分钟），始终在每分钟的 :00 秒执行。
+    固定间隔任务：从创建时刻起算，每隔 every_ms 执行一次。
+    - 首次执行（从未运行过）：now + every_ms，等待一个完整间隔后触发
+    - 后续执行：last_run_at_ms + every_ms，基于上次实际执行时刻推进
+    - 后续执行但已过期（如服务宕机恢复）：从 last_run_at_ms 累加间隔，找到第一个大于 now 的时刻
     """
     if not s.every_ms or s.every_ms <= 0:
         raise ValueError("schedule.every_ms must be a positive integer for kind=every")
-    # 无论首次还是后续，都使用下一个纪元边界
-    return (now // s.every_ms + 1) * s.every_ms
+
+    if state.last_run_at_ms is None:
+        # 首次执行：等待一个完整间隔
+        return now + s.every_ms
+
+    # 后续执行：基于上次执行时刻推进
+    next_ms = state.last_run_at_ms + s.every_ms
+    if next_ms <= now:
+        # 已过期（如服务宕机后恢复），从 last_run_at_ms 跳过若干个完整间隔，保持原始锚点
+        elapsed = now - state.last_run_at_ms
+        n = elapsed // s.every_ms + 1
+        return state.last_run_at_ms + n * s.every_ms
+    return next_ms
 
 
 def _next_for_cron(s: CronSchedule, now: int) -> int:

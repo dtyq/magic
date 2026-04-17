@@ -32,6 +32,8 @@ class GenerateVideoFormRequest extends FormRequest
 
     private const int MAX_OPTION_TEXT_LENGTH = 50;
 
+    private const int MAX_VIDEO_COUNT = 10;
+
     private const int MAX_AUDIO_COUNT = 10;
 
     private const int MAX_REFERENCE_IMAGE_COUNT = 20;
@@ -49,7 +51,7 @@ class GenerateVideoFormRequest extends FormRequest
         $referenceImageTypes = implode(',', DesignVideoCreateDTO::REFERENCE_IMAGE_TYPES);
         $serviceTiers = implode(',', DesignVideoCreateDTO::SERVICE_TIERS);
         $frameRoles = implode(',', DesignVideoCreateDTO::FRAME_ROLES);
-        $audioRoles = implode(',', DesignVideoCreateDTO::AUDIO_ROLES);
+        $inputModes = implode(',', DesignVideoCreateDTO::INPUT_MODES);
 
         return [
             'project_id' => 'required|integer|min:' . self::MAX_PROJECT_ID,
@@ -58,6 +60,7 @@ class GenerateVideoFormRequest extends FormRequest
             'topic_id' => 'nullable|string|max:' . self::MAX_CONTEXT_ID_LENGTH,
             'task_id' => 'nullable|string|max:' . self::MAX_CONTEXT_ID_LENGTH,
             'task' => 'nullable|string|in:' . $taskValues . '|max:' . self::MAX_SHORT_TEXT_LENGTH,
+            'input_mode' => 'nullable|string|in:' . $inputModes . '|max:' . self::MAX_OPTION_TEXT_LENGTH,
             'prompt' => 'required|string|max:' . self::MAX_PROMPT_LENGTH,
             'file_dir' => 'required|string|max:' . self::MAX_FILE_DIR_LENGTH,
             'file_name' => 'nullable|string|max:' . self::MAX_FILE_NAME_LENGTH,
@@ -70,14 +73,14 @@ class GenerateVideoFormRequest extends FormRequest
             'inputs.reference_images.*' => 'required|array',
             'inputs.reference_images.*.uri' => 'required|string|max:' . self::MAX_URI_LENGTH,
             'inputs.reference_images.*.type' => 'nullable|string|in:' . $referenceImageTypes . '|max:' . self::MAX_SHORT_TEXT_LENGTH,
-            'inputs.video' => 'nullable|array',
-            'inputs.video.uri' => 'required_with:inputs.video|string|max:' . self::MAX_URI_LENGTH,
+            'inputs.reference_videos' => 'nullable|array|max:' . self::MAX_VIDEO_COUNT,
+            'inputs.reference_videos.*' => 'required|array',
+            'inputs.reference_videos.*.uri' => 'required|string|max:' . self::MAX_URI_LENGTH,
+            'inputs.reference_audios' => 'nullable|array|max:' . self::MAX_AUDIO_COUNT,
+            'inputs.reference_audios.*' => 'required|array',
+            'inputs.reference_audios.*.uri' => 'required|string|max:' . self::MAX_URI_LENGTH,
             'inputs.mask' => 'nullable|array',
             'inputs.mask.uri' => 'required_with:inputs.mask|string|max:' . self::MAX_URI_LENGTH,
-            'inputs.audio' => 'nullable|array|max:' . self::MAX_AUDIO_COUNT,
-            'inputs.audio.*' => 'required|array',
-            'inputs.audio.*.role' => 'required|string|in:' . $audioRoles,
-            'inputs.audio.*.uri' => 'required|string|max:' . self::MAX_URI_LENGTH,
             'generation' => 'nullable|array',
             'generation.size' => 'nullable|string|max:' . self::MAX_OPTION_TEXT_LENGTH,
             'generation.mode' => 'nullable|string|max:' . self::MAX_SHORT_TEXT_LENGTH,

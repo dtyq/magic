@@ -67,6 +67,23 @@ class RequestHelper
     }
 
     /**
+     * 当前协程存在 HTTP 请求时解析客户端 IP（等同对当前 Request 调用 getClientIp）.
+     * 拿不到 IP、无请求、容器不可用或任意异常时均返回 null，不抛出异常.
+     */
+    public static function getClientIpFromContainer(): ?string
+    {
+        try {
+            if (! container()->has(RequestInterface::class)) {
+                return null;
+            }
+
+            return self::getClientIp(container()->get(RequestInterface::class));
+        } catch (Throwable) {
+            return null;
+        }
+    }
+
+    /**
      * 获取User-Agent.
      *
      * @param RequestInterface $request HTTP请求对象

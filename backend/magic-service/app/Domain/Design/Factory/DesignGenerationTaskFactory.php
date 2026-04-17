@@ -21,12 +21,13 @@ class DesignGenerationTaskFactory
         $entity->setProjectId($requestDTO->getProjectId());
         $entity->setGenerationId($requestDTO->getVideoId());
         $entity->setAssetType(DesignGenerationAssetType::VIDEO);
+        $inputMode = $requestDTO->getInputMode();
         $entity->setGenerationType(
             ($requestDTO->getReferenceImages() !== []
+                || $requestDTO->getReferenceVideos() !== []
+                || $requestDTO->getReferenceAudios() !== []
                 || $requestDTO->getFrames() !== []
-                || $requestDTO->getVideo() !== null
-                || $requestDTO->getMask() !== null
-                || $requestDTO->getAudioInputs() !== [])
+                || $requestDTO->getMask() !== null)
                 ? DesignGenerationType::IMAGE_TO_VIDEO
                 : DesignGenerationType::TEXT_TO_VIDEO
         );
@@ -35,31 +36,34 @@ class DesignGenerationTaskFactory
         $entity->setFileDir($requestDTO->getFileDir());
         $entity->setFileName($requestDTO->getFileName() ?? '');
 
-        $videoInput = $requestDTO->getVideo() === null ? [] : ['uri' => $requestDTO->getVideo()];
         $maskInput = $requestDTO->getMask() === null ? [] : ['uri' => $requestDTO->getMask()];
         $referenceImages = $requestDTO->getReferenceImages();
         $frames = $requestDTO->getFrames();
-        $audioInputs = $requestDTO->getAudioInputs();
+        $referenceVideos = $requestDTO->getReferenceVideos();
+        $referenceAudios = $requestDTO->getReferenceAudios();
 
-        $entity->setInputPayload([
-            'video' => $videoInput,
+        // input_payload 仅保留当前协议字段，方便工作区文件校验和提单链路统一消费。
+        $entity->setInputPayload(array_filter([
             'mask' => $maskInput,
             'reference_images' => $referenceImages,
+            'reference_videos' => $referenceVideos,
+            'reference_audios' => $referenceAudios,
             'frames' => $frames,
-            'audio' => $audioInputs,
-        ]);
+        ], static fn (mixed $value): bool => $value !== []));
 
+        // request_payload 顶层透传 input_mode，避免在 app / gateway 层丢失输入模式语义。
         $requestPayload = [
             'video_id' => $requestDTO->getVideoId(),
+            'input_mode' => $inputMode,
             'prompt' => $requestDTO->getPrompt(),
             'model_id' => $requestDTO->getModelId(),
             'task' => $requestDTO->getTask(),
             'inputs' => array_filter([
-                'video' => $videoInput,
                 'mask' => $maskInput,
                 'reference_images' => $referenceImages,
+                'reference_videos' => $referenceVideos,
+                'reference_audios' => $referenceAudios,
                 'frames' => $frames,
-                'audio' => $audioInputs,
             ], static fn (mixed $value): bool => $value !== []),
             'generation' => $requestDTO->getGeneration(),
             'callbacks' => $requestDTO->getCallbacks(),

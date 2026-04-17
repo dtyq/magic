@@ -31,7 +31,6 @@ use App\Infrastructure\Core\ValueObject\Page;
 use App\Infrastructure\ExternalAPI\Sms\Enum\LanguageEnum;
 use App\Infrastructure\Util\File\EasyFileTools;
 use App\Infrastructure\Util\OfficialOrganizationUtil;
-use DateTime;
 use Dtyq\AsyncEvent\AsyncEventUtil;
 use Dtyq\SuperMagic\Domain\Agent\Entity\AgentMarketEntity;
 use Dtyq\SuperMagic\Domain\Agent\Entity\AgentPlaybookEntity;
@@ -40,7 +39,6 @@ use Dtyq\SuperMagic\Domain\Agent\Entity\AgentVersionEntity;
 use Dtyq\SuperMagic\Domain\Agent\Entity\SuperMagicAgentEntity;
 use Dtyq\SuperMagic\Domain\Agent\Entity\UserAgentEntity;
 use Dtyq\SuperMagic\Domain\Agent\Entity\ValueObject\AgentSourceType;
-use Dtyq\SuperMagic\Domain\Agent\Entity\ValueObject\BuiltinSkill;
 use Dtyq\SuperMagic\Domain\Agent\Entity\ValueObject\PublisherType;
 use Dtyq\SuperMagic\Domain\Agent\Entity\ValueObject\PublishTargetType;
 use Dtyq\SuperMagic\Domain\Agent\Entity\ValueObject\PublishType;
@@ -57,6 +55,7 @@ use Dtyq\SuperMagic\Domain\Agent\Service\SuperMagicAgentVersionDomainService;
 use Dtyq\SuperMagic\Domain\Agent\Service\UserAgentDomainService;
 use Dtyq\SuperMagic\Domain\Skill\Entity\SkillEntity;
 use Dtyq\SuperMagic\Domain\Skill\Entity\SkillVersionEntity;
+use Dtyq\SuperMagic\Domain\Skill\Entity\ValueObject\BuiltinSkill;
 use Dtyq\SuperMagic\Domain\Skill\Entity\ValueObject\SkillDataIsolation;
 use Dtyq\SuperMagic\Domain\Skill\Entity\ValueObject\SkillMentionSource;
 use Dtyq\SuperMagic\Domain\Skill\Service\SkillDomainService;
@@ -821,7 +820,7 @@ class SuperMagicAgentAppService extends AbstractSuperMagicAppService
         $this->checkPermission($dataIsolation, $code);
 
         $agentEntity = $this->superMagicAgentDomainService->getByCodeWithException($dataIsolation, $code);
-        $this->hydrateAgentI18nForPublish($agentEntity);
+        $agentEntity->hydrateI18nForPublish();
 
         $versionEntity = new AgentVersionEntity();
         $versionEntity->setCode($code);
@@ -930,6 +929,8 @@ class SuperMagicAgentAppService extends AbstractSuperMagicAppService
     }
 
     /**
+     * 我的技能列表，包含系统技能 + 当前数字员工技能 + 我的技能列表。
+     *
      * @return array<int, array{id: string, code: string, name: string, description: string, logo: ?string, mention_source: string}>
      */
     public function getMentionSkills(Authenticatable $authorization, string $employeeCode = ''): array
@@ -939,14 +940,25 @@ class SuperMagicAgentAppService extends AbstractSuperMagicAppService
 
         $result = [];
         $seenCodes = [];
+        // 按优先级从高到低合并，命中重复 code 时保留先出现的技能：
+        // 系统内置 > 员工可见 > 我的技能
+        $mentionSkillGroupsByPriority = [
+            $this->buildSystemMentionSkills(),
+            $this->buildEmployeeMentionSkills($dataIsolation, $employeeCode, $language),
+            $this->buildMineMentionSkills($dataIsolation, $language),
+        ];
 
-        $this->appendMentionSkills($result, $seenCodes, $this->buildSystemMentionSkills());
-        $this->appendMentionSkills(
-            $result,
-            $seenCodes,
-            $this->buildEmployeeMentionSkills($dataIsolation, $employeeCode, $language)
-        );
-        $this->appendMentionSkills($result, $seenCodes, $this->buildMineMentionSkills($dataIsolation, $language));
+        foreach ($mentionSkillGroupsByPriority as $mentionSkillGroup) {
+            foreach ($mentionSkillGroup as $item) {
+                $code = $item['code'];
+                if ($code === '' || isset($seenCodes[$code])) {
+                    continue;
+                }
+
+                $seenCodes[$code] = true;
+                $result[] = $item;
+            }
+        }
 
         return $result;
     }
@@ -1090,153 +1102,6 @@ class SuperMagicAgentAppService extends AbstractSuperMagicAppService
 
         $featuredAgentResult['playbooks'] = $agentCodeMapPlaybookEntities;
         return $featuredAgentResult;
-    }
-
-    /**
-     * 批量创建官方组织 Agent.
-     *
-     * @param Authenticatable $authorization 授权对象
-     * @param string $organizationCode 组织编码
-     * @param string $userId 用户ID
-     * @param null|array<string> $agentCodes 指定要同步的员工 code，为空则同步全部
-     * @return array{success_count: int, skip_count: int, fail_count: int, results: array}
-     */
-    public function createOfficialAgents(Authenticatable $authorization, string $organizationCode, string $userId, ?array $agentCodes = null): array
-    {
-        $dataIsolation = $this->createSuperMagicDataIsolation($authorization);
-        $successCount = 0;
-        $failCount = 0;
-        $skipCount = 0;
-        $results = [];
-
-        $officialAgentsConfig = config('service_provider.official_agents', []);
-        if ($agentCodes !== null && $agentCodes !== []) {
-            $agentCodesSet = array_flip($agentCodes);
-            $officialAgentsConfig = array_filter($officialAgentsConfig, static fn (array $c) => isset($agentCodesSet[$c['code']]));
-        }
-        foreach ($officialAgentsConfig as $config) {
-            try {
-                // 检查是否已存在
-                $existingAgent = $this->superMagicAgentDomainService->getByCode($dataIsolation, $config['code']);
-                if ($existingAgent !== null) {
-                    // 已存在，跳过
-                    $results[] = [
-                        'code' => $config['code'],
-                        'status' => 'skipped',
-                        'reason' => '已存在',
-                    ];
-                    ++$skipCount;
-                    continue;
-                }
-
-                // 创建 Entity
-                $entity = new SuperMagicAgentEntity();
-                $entity->setCode($config['code']);
-                $entity->setNameI18n($config['name_i18n']);
-                $entity->setRoleI18n($config['role_i18n']);
-                $entity->setDescriptionI18n($config['description_i18n']);
-                $entity->setIcon([
-                    'type' => $config['icon'],
-                    'value' => $config['icon_url'],
-                    'color' => $config['color'],
-                ]);
-                $entity->setIconType(2); // 图片类型
-                $entity->setName($config['name_i18n']['en_US'] ?? $config['name_i18n']['zh_CN'] ?? '');
-                $entity->setDescription($config['description_i18n']['en_US'] ?? $config['description_i18n']['zh_CN'] ?? '');
-                $entity->setOrganizationCode($organizationCode);
-                $entity->setCreator($userId);
-                $entity->setCreatedAt((new DateTime())->format('Y-m-d H:i:s'));
-                $entity->setModifier($userId);
-                $entity->setUpdatedAt((new DateTime())->format('Y-m-d H:i:s'));
-                $entity->setEnabled(true);
-                $entity->setType(SuperMagicAgentType::Custom);
-                $entity->setSourceType(AgentSourceType::LOCAL_CREATE);
-                // 设置默认 prompt（空 prompt，避免验证失败）
-                $entity->setPrompt([
-                    'version' => '1.0.0',
-                    'structure' => [
-                        'type' => 'string',
-                        'string' => '',
-                    ],
-                ]);
-
-                // 处理 icon URL
-                $iconArr = $entity->getIcon();
-                if (! empty($iconArr['value'])) {
-                    $iconArr['value'] = EasyFileTools::formatPath($iconArr['value']);
-                    $entity->setIcon($iconArr);
-                }
-
-                // 直接调用 domain service 的 saveDirectly 方法保存
-                $entity = $this->superMagicAgentDomainService->saveDirectly($dataIsolation, $entity);
-
-                // 创建权限配置（全员可见）
-                $visibilityConfig = new VisibilityConfig();
-                $visibilityConfig->setVisibilityType(VisibilityType::ALL);
-                $this->resourceVisibilityDomainService->saveVisibilityConfig(
-                    $dataIsolation,
-                    ResourceVisibilityResourceType::SUPER_MAGIC_AGENT,
-                    $entity->getCode(),
-                    $visibilityConfig
-                );
-
-                // 官方内置：发布到市场（不写 workspace 导出 file_key），并自动审核通过上架
-                $versionEntity = new AgentVersionEntity();
-                $versionEntity->setVersion('1.0.0');
-                $versionEntity->setVersionDescriptionI18n([]);
-                $versionEntity->setPublishTargetType(PublishTargetType::MARKET);
-                $versionEntity->setPublishTargetValue(null);
-                $publishedVersion = $this->publishPreparedAgentVersion(
-                    $authorization,
-                    $dataIsolation,
-                    $entity->getCode(),
-                    $entity,
-                    $versionEntity,
-                    false
-                );
-                $reviewIsolation = clone $dataIsolation;
-                $this->superMagicAgentDomainService->reviewAgentVersion(
-                    $reviewIsolation->disabled(),
-                    (int) $publishedVersion->getId(),
-                    'APPROVED',
-                    $userId,
-                    PublisherType::OFFICIAL_BUILTIN->value,
-                    true,
-                    isset($config['sort_order']) ? (int) $config['sort_order'] : null
-                );
-
-                $this->saveUserAgentOwnership(
-                    $dataIsolation,
-                    $entity->getCode(),
-                    $entity->getSourceType(),
-                    $entity->getSourceId(),
-                    (int) $publishedVersion->getId()
-                );
-
-                // 创建成功
-                $results[] = [
-                    'code' => $config['code'],
-                    'status' => 'success',
-                    'agent_id' => (string) $entity->getId(),
-                ];
-                ++$successCount;
-            } catch (Throwable $e) {
-                // 创建失败
-                $results[] = [
-                    'code' => $config['code'],
-                    'status' => 'failed',
-                    'error' => $e->getMessage(),
-                ];
-                ++$failCount;
-            }
-        }
-
-        return [
-            'success_count' => $successCount,
-            'skip_count' => $skipCount,
-            'fail_count' => $failCount,
-            'results' => $results,
-        ];
     }
 
     /**
@@ -1880,13 +1745,7 @@ class SuperMagicAgentAppService extends AbstractSuperMagicAppService
      */
     private function resolveAccessibleSkillsWithCurrentVersion(SuperMagicAgentDataIsolation $dataIsolation, array $skillCodes): array
     {
-        $permissionDataIsolation = $this->createPermissionDataIsolation($dataIsolation);
-        $accessibleSkillCodes = $this->resourceVisibilityDomainService->getUserAccessibleResourceCodes(
-            $permissionDataIsolation,
-            $dataIsolation->getCurrentUserId(),
-            ResourceVisibilityResourceType::SKILL,
-            $skillCodes
-        );
+        $accessibleSkillCodes = $this->getAccessibleSkillCodesWithBuiltinFallback($dataIsolation, $skillCodes);
 
         $accessibleSkillCodeMap = array_flip($accessibleSkillCodes);
         foreach ($skillCodes as $skillCode) {
@@ -1909,24 +1768,30 @@ class SuperMagicAgentAppService extends AbstractSuperMagicAppService
     }
 
     /**
-     * @param array<int, array{id: string, code: string, name: string, description: string, logo: ?string, mention_source: string}> $result
-     * @param array<string, bool> $seenCodes
-     * @param array<int, array{id: string, code: string, name: string, description: string, logo: ?string, mention_source: string}> $items
+     * 获取用户可访问的技能代码.
+     *
+     * @param array<string> $skillCodes
+     * @return array<string>
      */
-    private function appendMentionSkills(array &$result, array &$seenCodes, array $items): void
+    private function getAccessibleSkillCodesWithBuiltinFallback(SuperMagicAgentDataIsolation $dataIsolation, array $skillCodes): array
     {
-        foreach ($items as $item) {
-            $code = $item['code'];
-            if ($code === '' || isset($seenCodes[$code])) {
-                continue;
-            }
+        $permissionDataIsolation = $this->createPermissionDataIsolation($dataIsolation);
+        $accessibleSkillCodes = $this->resourceVisibilityDomainService->getUserAccessibleResourceCodes(
+            $permissionDataIsolation,
+            $dataIsolation->getCurrentUserId(),
+            ResourceVisibilityResourceType::SKILL,
+            $skillCodes
+        );
 
-            $seenCodes[$code] = true;
-            $result[] = $item;
-        }
+        return array_values(array_unique(array_merge(
+            $accessibleSkillCodes,
+            array_values(array_intersect(BuiltinSkill::values(), $skillCodes))
+        )));
     }
 
     /**
+     * 构建系统内置技能列表.
+     *
      * @return array<int, array{id: string, code: string, name: string, description: string, logo: ?string, mention_source: string}>
      */
     private function buildSystemMentionSkills(): array
@@ -1948,6 +1813,8 @@ class SuperMagicAgentAppService extends AbstractSuperMagicAppService
     }
 
     /**
+     * 构建员工可见技能列表.
+     *
      * @return array<int, array{id: string, code: string, name: string, description: string, logo: ?string, mention_source: string}>
      */
     private function buildEmployeeMentionSkills(
@@ -2013,6 +1880,8 @@ class SuperMagicAgentAppService extends AbstractSuperMagicAppService
     }
 
     /**
+     * 构建我的技能列表.
+     *
      * @return array<int, array{id: string, code: string, name: string, description: string, logo: ?string, mention_source: string}>
      */
     private function buildMineMentionSkills(SuperMagicAgentDataIsolation $dataIsolation, string $language): array
@@ -2048,6 +1917,9 @@ class SuperMagicAgentAppService extends AbstractSuperMagicAppService
         return $items;
     }
 
+    /**
+     * 构建技能版本名称.
+     */
     private function resolveSkillVersionName(SkillVersionEntity $skillVersion, string $language): string
     {
         $nameI18n = $skillVersion->getNameI18n();
@@ -2068,6 +1940,9 @@ class SuperMagicAgentAppService extends AbstractSuperMagicAppService
         return '';
     }
 
+    /**
+     * 构建技能版本描述.
+     */
     private function resolveSkillVersionDescription(SkillVersionEntity $skillVersion, string $language): string
     {
         $descriptionI18n = $skillVersion->getDescriptionI18n() ?? [];
@@ -2088,6 +1963,9 @@ class SuperMagicAgentAppService extends AbstractSuperMagicAppService
         return '';
     }
 
+    /**
+     * 构建智能体详情.
+     */
     private function buildAgentDetailFromVersion(AgentVersionEntity $versionEntity): SuperMagicAgentEntity
     {
         $agent = new SuperMagicAgentEntity();
@@ -2116,6 +1994,8 @@ class SuperMagicAgentAppService extends AbstractSuperMagicAppService
     }
 
     /**
+     * 构建外部可见智能体列表.
+     *
      * @param array<string, AgentVersionEntity> $currentVersionsMap
      * @return array<SuperMagicAgentEntity>
      */
@@ -2158,6 +2038,8 @@ class SuperMagicAgentAppService extends AbstractSuperMagicAppService
     }
 
     /**
+     * 获取官方内置智能体列表.
+     *
      * @return array<SuperMagicAgentEntity>
      */
     private function getBuiltinAgent(SuperMagicAgentDataIsolation $superMagicAgentDataIsolation): array
@@ -2304,6 +2186,9 @@ class SuperMagicAgentAppService extends AbstractSuperMagicAppService
         );
     }
 
+    /**
+     * 发布准备智能体版本.
+     */
     private function publishPreparedAgentVersion(
         Authenticatable $authorization,
         SuperMagicAgentDataIsolation $dataIsolation,
@@ -2343,75 +2228,6 @@ class SuperMagicAgentAppService extends AbstractSuperMagicAppService
         }
 
         return $versionEntity;
-    }
-
-    private function hydrateAgentI18nForPublish(SuperMagicAgentEntity $agentEntity): void
-    {
-        $resolvedName = $this->resolvePublishTextFallback($agentEntity->getName(), $agentEntity->getNameI18n());
-        if ($resolvedName !== '') {
-            $agentEntity->setName($resolvedName);
-            $agentEntity->setNameI18n($this->fillPublishI18nValues($agentEntity->getNameI18n(), $resolvedName));
-        }
-
-        $resolvedDescription = $this->resolvePublishTextFallback($agentEntity->getDescription(), $agentEntity->getDescriptionI18n());
-        if ($resolvedDescription !== '') {
-            $agentEntity->setDescription($resolvedDescription);
-            $agentEntity->setDescriptionI18n($this->fillPublishI18nValues($agentEntity->getDescriptionI18n(), $resolvedDescription));
-        }
-    }
-
-    private function resolvePublishTextFallback(string $text, ?array $i18n): string
-    {
-        $text = trim($text);
-        if ($text !== '') {
-            return $text;
-        }
-
-        $i18n = is_array($i18n) ? $i18n : [];
-        foreach (LanguageEnum::getAllLanguageCodes() as $languageCode) {
-            $value = trim((string) ($i18n[$languageCode] ?? ''));
-            if ($value !== '') {
-                return $value;
-            }
-        }
-
-        return '';
-    }
-
-    private function fillPublishI18nValues(?array $i18n, string $fallback): array
-    {
-        $i18n = is_array($i18n) ? $i18n : [];
-        $fallback = trim($fallback);
-        if ($fallback === '') {
-            return $i18n;
-        }
-
-        foreach (LanguageEnum::getAllLanguageCodes() as $languageCode) {
-            if (trim((string) ($i18n[$languageCode] ?? '')) === '') {
-                $i18n[$languageCode] = $fallback;
-            }
-        }
-
-        return $i18n;
-    }
-
-    private function saveUserAgentOwnership(
-        SuperMagicAgentDataIsolation $dataIsolation,
-        string $agentCode,
-        AgentSourceType $sourceType,
-        ?int $sourceId = null,
-        ?int $agentVersionId = null
-    ): void {
-        $entity = new UserAgentEntity([
-            'organization_code' => $dataIsolation->getCurrentOrganizationCode(),
-            'user_id' => $dataIsolation->getCurrentUserId(),
-            'agent_code' => $agentCode,
-            'agent_version_id' => $agentVersionId,
-            'source_type' => $sourceType->value,
-            'source_id' => $sourceId,
-        ]);
-
-        $this->userAgentDomainService->saveUserAgentOwnership($dataIsolation, $entity);
     }
 
     /**

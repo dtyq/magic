@@ -24,6 +24,7 @@ from agentlang.event.data import (
     BeforeToolCallEventData,
     PendingToolCallEventData,
 )
+from agentlang.agent.state import AgentState
 from agentlang.event.event import Event, EventType
 from agentlang.llms.token_usage.models import TokenUsageCollection
 from agentlang.logger import get_logger
@@ -788,6 +789,9 @@ class TaskMessageFactoryV2(TaskMessageFactoryProtocol):
         elif event.data.agent_state == TaskStatus.SUSPENDED.value:
             status = TaskStatus.SUSPENDED
             content = i18n.translate("messages.agent_suspended", category="common.messages")
+        elif event.data.agent_state == AgentState.WAITING_FOR_USER.value:
+            status = TaskStatus.WAITING_FOR_USER
+            content = ""
         else:
             status = TaskStatus.ERROR
             content = i18n.translate("messages.task.failed", category="common.messages")

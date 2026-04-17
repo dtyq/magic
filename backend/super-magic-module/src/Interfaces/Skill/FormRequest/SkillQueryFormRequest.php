@@ -26,7 +26,7 @@ class SkillQueryFormRequest extends FormRequest
             // 搜索条件
             'keyword' => 'nullable|string|max:255',
             'source_type' => 'nullable|string',
-            'publisher_type' => 'nullable|string|in:USER,OFFICIAL,VERIFIED_CREATOR,PARTNER',
+            'publisher_type' => 'nullable|string|in:USER,OFFICIAL,VERIFIED_CREATOR,PARTNER,OFFICIAL_BUILTIN',
             // 市场技能库等场景：按 skill_code 批量过滤（不传则不限定）
             'codes' => 'nullable|array|max:1000',
             'codes.*' => 'nullable|string|max:64',

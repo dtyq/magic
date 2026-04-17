@@ -29,6 +29,8 @@ return [
         'workspace_ai' => 'AI Management',
         'workspace_ai_model' => 'AI Model',
         'workspace_ai_image' => 'AI Image',
+        'workspace_ai_model_audit_log' => 'Model Audit Log',
+        'platform_ai_model_audit_log' => 'Model Audit Log',
         'platform_setting' => 'System Settings',
         'platform_setting_platform_info' => 'Platform Info',
         'platform_setting_maintenance' => 'Maintenance',

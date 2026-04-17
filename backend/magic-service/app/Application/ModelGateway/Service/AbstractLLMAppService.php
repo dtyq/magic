@@ -55,7 +55,7 @@ abstract class AbstractLLMAppService extends AbstractKernelAppService
         protected ImageWatermarkProcessor $imageWatermarkProcessor,
         protected PackageFilterInterface $packageFilter,
         protected ProviderModelDomainService $providerModelDomainService,
-        protected AggregateModelResolverService $aggregateModelResolverService
+        protected AggregateModelResolverService $aggregateModelResolverService,
     ) {
         $this->logger = $this->loggerFactory->get(static::class);
     }

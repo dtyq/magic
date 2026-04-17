@@ -10,6 +10,7 @@ namespace App\Infrastructure\ExternalAPI\VideoGenerateAPI;
 use App\Domain\ModelGateway\Entity\ValueObject\QueueExecutorConfig;
 use App\Domain\ModelGateway\Entity\ValueObject\VideoGenerationConfig;
 use App\Domain\ModelGateway\Entity\VideoQueueOperationEntity;
+use Hyperf\Contract\TranslatorInterface;
 
 /** @noinspection SpellCheckingInspection */
 readonly class CloudswaySeedanceVideoAdapter extends AbstractCloudswayVideoAdapter
@@ -71,6 +72,17 @@ readonly class CloudswaySeedanceVideoAdapter extends AbstractCloudswayVideoAdapt
                 'supports_compression_quality' => false,
                 'supports_resize_mode' => false,
                 'supports_sample_count' => false,
+            ],
+            'input_modes' => [
+                'standard' => [
+                    'description' => $this->translateInputMode('standard'),
+                    'supported_fields' => [],
+                ],
+                'keyframe_guided' => [
+                    'description' => $this->translateInputMode('keyframe_guided.start_only'),
+                    'supported_fields' => ['frames'],
+                    'frame_roles' => ['start'],
+                ],
             ],
             'constraints' => [],
         ]);
@@ -149,8 +161,8 @@ readonly class CloudswaySeedanceVideoAdapter extends AbstractCloudswayVideoAdapt
         if ($endFrame !== null && $startFrame === null) {
             $ignoredParams[] = 'inputs.frames';
         }
-        if (! empty($inputs['video'] ?? null)) {
-            $ignoredParams[] = 'inputs.video';
+        if (! empty($inputs['reference_videos'] ?? null)) {
+            $ignoredParams[] = 'inputs.reference_videos';
         }
 
         $this->markAcceptedAndIgnored($operation, $acceptedParams, $ignoredParams);
@@ -257,5 +269,13 @@ readonly class CloudswaySeedanceVideoAdapter extends AbstractCloudswayVideoAdapt
         $acceptedParams[] = 'generation.resolution';
 
         return trim($prompt . ' ' . implode(' ', $suffixes));
+    }
+
+    /**
+     * Seedance 1.5 的 mode 文案直接跟随 adapter 输出，减少额外聚合层复杂度。
+     */
+    private function translateInputMode(string $key, array $replace = []): string
+    {
+        return di(TranslatorInterface::class)->trans('video.input_modes.' . $key, $replace);
     }
 }

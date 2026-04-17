@@ -44,6 +44,7 @@ class CloudswayVeoVideoAdapterTest extends TestCase
         $this->assertSame([1, 4], $config->toArray()['generation']['sample_count_range']);
         $this->assertSame([0, 4294967295], $config->toArray()['generation']['seed_range']);
         $this->assertTrue($config->toArray()['generation']['supports_enhance_prompt']);
+        $this->assertSame(['standard', 'keyframe_guided'], array_keys($config->toArray()['input_modes']));
         $this->assertSame([], $config->toArray()['constraints']);
     }
 
@@ -58,6 +59,10 @@ class CloudswayVeoVideoAdapterTest extends TestCase
         $this->assertSame(3, $config->toArray()['reference_images']['max_count']);
         $this->assertSame(['asset'], $config->toArray()['reference_images']['reference_types']);
         $this->assertFalse($config->toArray()['reference_images']['style_supported']);
+        $this->assertSame(
+            ['standard', 'image_reference', 'keyframe_guided'],
+            array_keys($config->toArray()['input_modes'])
+        );
         $this->assertSame([
             'reference_images_requires_duration_seconds' => 8,
         ], $config->toArray()['constraints']);
@@ -191,6 +196,38 @@ class CloudswayVeoVideoAdapterTest extends TestCase
         $this->assertArrayHasKey('parameters', $payload);
         $this->assertSame(8, $payload['parameters']['durationSeconds']);
         $this->assertSame('720p', $payload['parameters']['resolution']);
+    }
+
+    public function testBuildProviderPayloadLetsExplicitSizeOverrideDefaultResolution(): void
+    {
+        $adapter = new CloudswayVeoVideoAdapter(new CloudswayVideoClient($this->createMock(ClientFactory::class)));
+        $operation = new VideoQueueOperationEntity(
+            id: 'op-veo-size-priority',
+            endpoint: 'video:veo-3.1-generate-preview',
+            model: 'veo-3.1-generate-preview',
+            modelVersion: self::ENDPOINT_ID,
+            providerModelId: 'provider-model-veo',
+            providerCode: 'Cloudsway',
+            providerName: 'cloudsway',
+            organizationCode: 'org-1',
+            userId: 'user-1',
+            status: VideoOperationStatus::QUEUED,
+            seq: 1,
+            rawRequest: [
+                'prompt' => 'make a vertical veo video',
+                'generation' => [
+                    'size' => '1080x1920',
+                    'resolution' => '720p',
+                ],
+            ],
+            createdAt: date(DATE_ATOM),
+            heartbeatAt: date(DATE_ATOM),
+        );
+
+        $payload = $adapter->buildProviderPayload($operation);
+
+        $this->assertSame('9:16', $payload['parameters']['aspectRatio']);
+        $this->assertSame('1080p', $payload['parameters']['resolution']);
     }
 
     public function testBuildProviderPayloadIgnoresReferenceImagesForFastModel(): void

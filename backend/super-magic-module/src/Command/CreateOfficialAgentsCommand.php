@@ -7,9 +7,9 @@ declare(strict_types=1);
 
 namespace Dtyq\SuperMagic\Command;
 
-use App\Application\Agent\Official\OfficialAgentsInitializer;
 use App\Domain\Contact\Service\MagicUserDomainService;
 use App\Infrastructure\Util\OfficialOrganizationUtil;
+use Dtyq\SuperMagic\Application\Agent\Service\OfficialAgentsInitializer;
 use Hyperf\Command\Annotation\Command;
 use Hyperf\Command\Command as HyperfCommand;
 use Hyperf\Logger\LoggerFactory;

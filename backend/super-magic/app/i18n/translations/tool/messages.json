@@ -1147,6 +1147,14 @@
         "zh_CN": "未找到匹配的结果",
         "en_US": "No matching results found"
     },
+    "get_user_info.success": {
+        "zh_CN": "已获取用户信息",
+        "en_US": "User info retrieved"
+    },
+    "get_user_info.error": {
+        "zh_CN": "无法获取用户信息",
+        "en_US": "Failed to get user info"
+    },
     "unknown.message": {
         "zh_CN": "未知",
         "en_US": "Unknown"

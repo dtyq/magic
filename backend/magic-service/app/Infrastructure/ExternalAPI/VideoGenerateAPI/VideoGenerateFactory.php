@@ -21,6 +21,7 @@ readonly class VideoGenerateFactory implements VideoGenerationProviderAdapterFac
 {
     public function __construct(
         private CloudswayVideoAdapterRouter $cloudswayVideoAdapterRouter,
+        private VolcengineArkSeedanceVideoAdapter $volcengineArkSeedanceVideoAdapter,
     ) {
     }
 
@@ -28,6 +29,7 @@ readonly class VideoGenerateFactory implements VideoGenerationProviderAdapterFac
     {
         return match ($providerType) {
             VideoGenerateProviderType::Cloudsway => $this->cloudswayVideoAdapterRouter,
+            VideoGenerateProviderType::VolcengineArk => $this->volcengineArkSeedanceVideoAdapter,
         };
     }
 
