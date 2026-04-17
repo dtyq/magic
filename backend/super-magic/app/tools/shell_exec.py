@@ -83,6 +83,10 @@ class ShellExec(AbstractFileTool[ShellExecParams], WorkspaceTool[ShellExecParams
 
             logger.debug(f"Executing command: {params.command}, working directory: {work_dir}")
 
+            # 检查当前是否是 skill agent（用于决定是否启用 Python 命令改写）
+            # 只有 skill agent 才启用 Python 命令改写，使脚本可以使用打包的依赖
+            enable_python_rewrite = tool_context.is_skill_agent()
+
             # Parse file operations and dispatch before-execution events
             before_events, after_events = ShellCommandParser.parse_file_operations(params.command, work_dir)
             for file_path, event_type in before_events:
@@ -96,6 +100,7 @@ class ShellExec(AbstractFileTool[ShellExecParams], WorkspaceTool[ShellExecParams
                 command=params.command,
                 cwd=work_dir,
                 timeout=params.timeout,
+                enable_python_rewrite=enable_python_rewrite,
             )
 
             # 保留命令原始成功状态，用于 after-events 触发判断

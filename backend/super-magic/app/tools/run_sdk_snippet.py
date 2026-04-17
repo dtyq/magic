@@ -167,6 +167,7 @@ class RunSdkSnippet(AbstractFileTool[RunSdkSnippetParams]):
                     command=command,
                     cwd=runtime_dir,
                     timeout=effective_timeout,
+                    enable_python_rewrite=True,
                     extra_env=extra_env,
                     interruption_event=agent_ctx.get_interruption_event(),
                 )
