@@ -370,7 +370,7 @@ return [
             'config' => [
                 'providers' => [
                     [
-                        'name' => 'Official Proxy',
+                        'name' => '官方代理服务',
                         'enable' => env('AI_ABILITY_IMAGE_REMOVE_BACKGROUND_OFFICIAL_PROXY_ENABLE', env('AI_ABILITY_IMAGE_REMOVE_BACKGROUND_OFFICIAL_ENABLE', true)),
                         'provider' => 'official_proxy',
                         'url' => env('AI_ABILITY_IMAGE_REMOVE_BACKGROUND_OFFICIAL_PROXY_URL', env('AI_ABILITY_IMAGE_REMOVE_BACKGROUND_OFFICIAL_URL', '')),
@@ -378,7 +378,7 @@ return [
                         'timeout' => env('AI_ABILITY_IMAGE_REMOVE_BACKGROUND_OFFICIAL_PROXY_TIMEOUT', env('AI_ABILITY_IMAGE_REMOVE_BACKGROUND_OFFICIAL_TIMEOUT', 300)),
                     ],
                     [
-                        'name' => 'Official Model Service',
+                        'name' => '官方服务',
                         'enable' => env('AI_ABILITY_IMAGE_REMOVE_BACKGROUND_OFFICIAL_MODEL_SERVICE_ENABLE', env('AI_ABILITY_IMAGE_REMOVE_BACKGROUND_BUILTIN_ENABLE', false)),
                         'provider' => 'official_model_service',
                         'url' => env('AI_ABILITY_IMAGE_REMOVE_BACKGROUND_OFFICIAL_MODEL_SERVICE_URL', env('AI_ABILITY_IMAGE_REMOVE_BACKGROUND_BUILTIN_URL', '')),
