@@ -100,6 +100,9 @@ from app.tools.design.tools import (
     SearchImagePrompts,
 )
 
+# 用户信息工具
+from app.tools.get_user_info import GetUserInfo
+
 # Skill 管理工具
 from app.tools.read_skills import ReadSkills
 from app.tools.run_sdk_snippet import RunSdkSnippet
@@ -157,6 +160,7 @@ __all__ = [
     "GenerateVideo",
     "QueryVideoGeneration",
     "GetIMChannelStatus",
+    "GetUserInfo",
     "ListDir",
     "Purify",
     "RunPythonSnippet",
