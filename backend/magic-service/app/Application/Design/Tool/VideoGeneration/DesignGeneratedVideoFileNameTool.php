@@ -45,6 +45,14 @@ class DesignGeneratedVideoFileNameTool
             return '';
         }
 
+        if (mb_strlen($prompt) < 10) {
+            $fileName = $this->sanitizeFileName($prompt);
+            if ($fileName === '') {
+                return '';
+            }
+            return $fileName . '_' . date('YmdHis');
+        }
+
         try {
             $basePath = defined('BASE_PATH') ? BASE_PATH : dirname(__DIR__, 5);
             $agentFilePath = $basePath . '/app/Application/Design/MicroAgent/VideoFileNameGenerator.agent.yaml';
