@@ -53,6 +53,8 @@ use App\Domain\AppMenu\Repository\Facade\AppMenuRepositoryInterface;
 use App\Domain\AppMenu\Repository\Persistence\AppMenuRepository;
 use App\Domain\Audit\Contract\PermissionLabelProviderInterface;
 use App\Domain\Audit\Contract\PermissionLabelServiceInterface;
+use App\Domain\Audit\ModelCall\Repository\Facade\AuditLogRepositoryInterface;
+use App\Domain\Audit\ModelCall\Repository\Persistence\AuditLogRepository;
 use App\Domain\Audit\Repository\Facade\AdminOperationLogRepositoryInterface;
 use App\Domain\Authentication\Repository\ApiKeyProviderRepository;
 use App\Domain\Authentication\Repository\Facade\ApiKeyProviderRepositoryInterface;
@@ -438,6 +440,7 @@ $dependencies = [
 
     // audit (操作日志)
     AdminOperationLogRepositoryInterface::class => AdminOperationLogRepository::class,
+    AuditLogRepositoryInterface::class => AuditLogRepository::class,
     PermissionLabelProviderInterface::class => PermissionLabelProvider::class,
     PermissionLabelServiceInterface::class => PermissionLabelService::class,
 

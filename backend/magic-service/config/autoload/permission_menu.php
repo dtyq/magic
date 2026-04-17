@@ -33,6 +33,14 @@ return [
             ],
             'tag' => '平台模型',
         ],
+        'platform.ai.model_audit_log' => [
+            'path' => [
+                ['key' => 'platform_management', 'label' => '平台管理'],
+                ['key' => 'platform_model', 'label' => '平台模型'],
+                ['key' => 'model_audit_log', 'label' => '模型调用审计'],
+            ],
+            'tag' => '平台模型',
+        ],
         'platform.ai.mode_management' => [
             'path' => [
                 ['key' => 'platform_management', 'label' => '平台管理'],
@@ -134,6 +142,14 @@ return [
                 ['key' => 'ai_management', 'label' => 'AI 管理'],
                 ['key' => 'custom_model', 'label' => '自定义大模型'],
                 ['key' => 'image_model', 'label' => '生图大模型'],
+            ],
+            'tag' => '自定义大模型',
+        ],
+        'workspace.ai.model_audit_log' => [
+            'path' => [
+                ['key' => 'ai_management', 'label' => 'AI 管理'],
+                ['key' => 'custom_model', 'label' => '自定义大模型'],
+                ['key' => 'model_audit_log', 'label' => '模型调用审计'],
             ],
             'tag' => '自定义大模型',
         ],

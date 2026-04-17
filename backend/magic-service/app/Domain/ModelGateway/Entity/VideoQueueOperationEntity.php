@@ -49,6 +49,7 @@ class VideoQueueOperationEntity
         protected ?string $finishedAt = null,
         protected ?string $heartbeatAt = null,
         protected ?string $canceledAt = null,
+        protected string $auditProviderName = '',
     ) {
     }
 
@@ -62,6 +63,7 @@ class VideoQueueOperationEntity
             providerModelId: (string) ($data['provider_model_id'] ?? ''),
             providerCode: (string) ($data['provider_code'] ?? ''),
             providerName: (string) ($data['provider_name'] ?? ''),
+            auditProviderName: (string) ($data['audit_provider_name'] ?? ''),
             organizationCode: (string) ($data['organization_code'] ?? ''),
             userId: (string) ($data['user_id'] ?? ''),
             status: VideoOperationStatus::fromStorage((string) ($data['status'] ?? VideoOperationStatus::QUEUED->value)),
@@ -103,6 +105,7 @@ class VideoQueueOperationEntity
             'provider_model_id' => $this->providerModelId,
             'provider_code' => $this->providerCode,
             'provider_name' => $this->providerName,
+            'audit_provider_name' => $this->auditProviderName,
             'organization_code' => $this->organizationCode,
             'user_id' => $this->userId,
             'project_id' => $this->projectId === null ? '' : (string) $this->projectId,
@@ -172,6 +175,16 @@ class VideoQueueOperationEntity
     public function getProviderName(): string
     {
         return $this->providerName;
+    }
+
+    public function getAuditProviderName(): string
+    {
+        return $this->auditProviderName;
+    }
+
+    public function setAuditProviderName(string $auditProviderName): void
+    {
+        $this->auditProviderName = $auditProviderName;
     }
 
     public function getOrganizationCode(): string
