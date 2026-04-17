@@ -32,8 +32,8 @@ from app.core.entity.message.server_message import DisplayType, ToolDetail
 from app.infrastructure.magic_service.config import MagicServiceConfigLoader
 from app.service.asr.asr_merge_task_manager import AsrMergeTaskManager
 from app.service.file_service import FileService
-from app.tools.core.base_tool import BaseTool
 from app.tools.core.base_tool_params import BaseToolParams
+from app.tools.workspace_tool import WorkspaceTool
 
 
 class AudioUnderstandingError(Exception):
@@ -67,7 +67,7 @@ class AudioUnderstandingParams(BaseToolParams):
     timeout: int = 60 * 60 * 3  # 长音频文件超时时间3小时
 
 
-class AudioUnderstanding(BaseTool[AudioUnderstandingParams]):
+class AudioUnderstanding(WorkspaceTool[AudioUnderstandingParams]):
     """<!--zh: 使用音频理解将音频文件转换为文本。支持多种音频格式，包括 wav、mp3、mp4、ogg、m4a 等。-->
     Convert audio files to text using audio understanding. Supports multiple audio formats including wav, mp3, mp4, ogg, m4a, etc."""
 
@@ -175,8 +175,8 @@ class AudioUnderstanding(BaseTool[AudioUnderstandingParams]):
             str: 转录的文本或错误消息
         """
         try:
-            # 验证文件路径
-            file_path = Path(params.audio_path)
+            # 相对路径锚定到 workspace 根目录，绝对路径直接使用
+            file_path = self.resolve_path(params.audio_path)
             audio_filename = file_path.name
             # 检查文件是否存在（异步执行以避免阻塞）
             file_exists = await asyncio.to_thread(file_path.exists)
@@ -276,10 +276,16 @@ class AudioUnderstanding(BaseTool[AudioUnderstandingParams]):
                     "FORMAT_NOT_SUPPORTED",
                 )
 
-            self.logger.info(f"Generated file_key for storage: {file_path}")
+            # FileService 期望的是相对于 workspace 根的路径（内部会拼接 upload_dir 作为对象键）
+            try:
+                storage_relative_path = str(file_path.relative_to(self.base_dir))
+            except ValueError:
+                # 文件在 workspace 外（绝对路径），退回使用原始输入
+                storage_relative_path = params.audio_path
+            self.logger.info(f"Generated file_key for storage: {storage_relative_path}")
 
-            # 生成预签名 URL (将 Path 对象转换为字符串)
-            file_url = await self._generate_presigned_url_for_uploaded_file(str(file_path))
+            # 生成预签名 URL
+            file_url = await self._generate_presigned_url_for_uploaded_file(storage_relative_path)
             if not file_url:
                 raise AudioUnderstandingError(
                     i18n.translate("audio_understanding.transcription_error", category="tool.messages", error="生成预签名URL失败"),
@@ -321,9 +327,8 @@ class AudioUnderstanding(BaseTool[AudioUnderstandingParams]):
             else:
                 self.logger.warning("API did not return duration information, using local duration estimation")
 
-            # 从音频文件路径提取目录，构造完整的转录文件路径
-            audio_file_path = Path(params.audio_path)
-            transcript_full_path = audio_file_path.parent / params.transcript_filename
+            # 转录文件输出到音频文件所在目录（使用已解析的绝对路径，避免依赖进程 CWD）
+            transcript_full_path = file_path.parent / params.transcript_filename
 
             # 确保目录存在
             await asyncio.to_thread(transcript_full_path.parent.mkdir, parents=True, exist_ok=True)
