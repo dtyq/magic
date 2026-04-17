@@ -403,12 +403,11 @@ class TopicDomainService
         int $pageSize = 20
     ): array {
         $result = $this->topicRepository->getSidebarTopicsByProjectId($projectId, $userId, $keyword, $page, $pageSize);
-        $topicIds = array_map(static fn (TopicEntity $topic) => $topic->getId(), $result['list']);
-        $latestMessageSnapshots = $this->taskMessageRepository->getLatestMessageSnapshotsByTopicIds($topicIds);
+        $hasUnreadMap = $this->taskMessageRepository->getHasUnreadMapByTopics($result['list']);
 
         $list = [];
         foreach ($result['list'] as $topic) {
-            $list[] = $this->toSidebarTopicArray($topic, $latestMessageSnapshots[$topic->getId()] ?? null);
+            $list[] = $this->toSidebarTopicArray($topic, $hasUnreadMap[$topic->getId()] ?? false);
         }
 
         return [
@@ -431,13 +430,13 @@ class TopicDomainService
             }
         }
 
-        $latestMessageSnapshots = $this->taskMessageRepository->getLatestMessageSnapshotsByTopicIds(array_keys($topicMap));
+        $hasUnreadMap = $this->taskMessageRepository->getHasUnreadMapByTopics(array_values($topicMap));
         $list = [];
         foreach ($topicIds as $topicId) {
             if (! isset($topicMap[$topicId])) {
                 continue;
             }
-            $list[] = $this->toTopicStatusArray($topicMap[$topicId], $latestMessageSnapshots[$topicId] ?? null);
+            $list[] = $this->toTopicStatusArray($topicMap[$topicId], $hasUnreadMap[$topicId] ?? false);
         }
 
         return $list;
@@ -520,13 +519,13 @@ class TopicDomainService
             );
         }
 
-        $latestMessageSnapshots = $this->taskMessageRepository->getLatestMessageSnapshotsByTopicIds([$topicId]);
+        $hasUnreadMap = $this->taskMessageRepository->getHasUnreadMapByTopics([$topicEntity]);
 
         return [
             'topic_id' => (string) $topicEntity->getId(),
             'last_read_at' => $topicEntity->getLastReadAt(),
             'last_read_message_id' => $topicEntity->getLastReadMessageId() !== null ? (string) $topicEntity->getLastReadMessageId() : null,
-            'has_unread' => $this->calculateHasUnread($topicEntity, $latestMessageSnapshots[$topicId] ?? null),
+            'has_unread' => $hasUnreadMap[$topicId] ?? false,
         ];
     }
 
@@ -1253,7 +1252,7 @@ class TopicDomainService
         return $this->topicRepository->detachWorkspace($workspaceId, $dataIsolation->getCurrentUserId());
     }
 
-    private function toSidebarTopicArray(TopicEntity $topic, ?array $latestMessageSnapshot): array
+    private function toSidebarTopicArray(TopicEntity $topic, bool $hasUnread): array
     {
         return [
             'id' => (string) $topic->getId(),
@@ -1268,16 +1267,16 @@ class TopicDomainService
             'is_archived' => $topic->isArchived(),
             'last_read_at' => $topic->getLastReadAt(),
             'last_read_message_id' => $topic->getLastReadMessageId() !== null ? (string) $topic->getLastReadMessageId() : null,
-            'has_unread' => $this->calculateHasUnread($topic, $latestMessageSnapshot),
+            'has_unread' => $hasUnread,
         ];
     }
 
-    private function toTopicStatusArray(TopicEntity $topic, ?array $latestMessageSnapshot): array
+    private function toTopicStatusArray(TopicEntity $topic, bool $hasUnread): array
     {
         return [
             'id' => (string) $topic->getId(),
             'status' => $this->normalizeTopicStatus($topic->getCurrentTaskStatus()?->value),
-            'has_unread' => $this->calculateHasUnread($topic, $latestMessageSnapshot),
+            'has_unread' => $hasUnread,
         ];
     }
 
@@ -1288,34 +1287,6 @@ class TopicDomainService
             TaskStatus::WAITING->value, null, '' => TaskStatus::WAITING->value,
             default => TaskStatus::FINISHED->value,
         };
-    }
-
-    private function calculateHasUnread(TopicEntity $topic, ?array $latestMessageSnapshot): bool
-    {
-        if (empty($latestMessageSnapshot)) {
-            return false;
-        }
-
-        $lastMessageId = $latestMessageSnapshot['last_message_id'] ?? null;
-        $lastMessageAt = $latestMessageSnapshot['last_message_at'] ?? null;
-        if ($lastMessageId === null && $lastMessageAt === null) {
-            return false;
-        }
-        if ($topic->getLastReadMessageId() === null && $topic->getLastReadAt() === null) {
-            return false;
-        }
-
-        $lastReadAt = $topic->getLastReadAt();
-        if ($lastReadAt !== null && $lastMessageAt !== null) {
-            return strtotime($lastMessageAt) > strtotime($lastReadAt);
-        }
-
-        $lastReadMessageId = $topic->getLastReadMessageId();
-        if ($lastReadMessageId !== null && $lastMessageId !== null) {
-            return (int) $lastMessageId > $lastReadMessageId;
-        }
-
-        return true;
     }
 
     private function getOwnedTopicOrFail(DataIsolation $dataIsolation, int $topicId): TopicEntity
@@ -1339,9 +1310,9 @@ class TopicDomainService
             ExceptionBuilder::throw(SuperAgentErrorCode::TOPIC_NOT_FOUND, 'topic.topic_not_found');
         }
 
-        $latestMessageSnapshots = $this->taskMessageRepository->getLatestMessageSnapshotsByTopicIds([$topicId]);
+        $hasUnreadMap = $this->taskMessageRepository->getHasUnreadMapByTopics([$topicEntity]);
 
-        return $this->toSidebarTopicArray($topicEntity, $latestMessageSnapshots[$topicId] ?? null);
+        return $this->toSidebarTopicArray($topicEntity, $hasUnreadMap[$topicId] ?? false);
     }
 
     private function copyTopicEntity(

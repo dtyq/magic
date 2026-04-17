@@ -10,6 +10,8 @@ namespace Dtyq\SuperMagic\Domain\SuperAgent\Repository\Persistence;
 use App\Infrastructure\Util\IdGenerator\IdGenerator;
 use Carbon\Carbon;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\TaskMessageEntity;
+use Dtyq\SuperMagic\Domain\SuperAgent\Entity\TopicEntity;
+use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\TaskStatus;
 use Dtyq\SuperMagic\Domain\SuperAgent\Repository\Facade\TaskMessageRepositoryInterface;
 use Dtyq\SuperMagic\Domain\SuperAgent\Repository\Model\TaskMessageModel;
 use Hyperf\DbConnection\Db;
@@ -458,29 +460,106 @@ class TaskMessageRepository implements TaskMessageRepositoryInterface
             ->update(['im_seq_id' => $imSeqId]);
     }
 
-    public function getLatestMessageSnapshotsByTopicIds(array $topicIds): array
+    public function getHasUnreadMapByTopics(array $topics): array
     {
-        if (empty($topicIds)) {
+        if (empty($topics)) {
             return [];
         }
 
-        $results = $this->model::query()
-            ->selectRaw('topic_id, MAX(id) as last_message_id, MAX(created_at) as last_message_at')
-            ->whereIn('topic_id', $topicIds)
-            ->whereNull('deleted_at')
-            ->where('show_in_ui', true)
-            ->groupBy('topic_id')
-            ->get();
+        $hasUnreadMap = [];
+        $timeCursorTopics = [];
+        $messageCursorTopics = [];
+        foreach ($topics as $topic) {
+            if (! $topic instanceof TopicEntity) {
+                continue;
+            }
 
-        $snapshots = [];
-        foreach ($results as $result) {
-            $snapshots[(int) $result->topic_id] = [
-                'last_message_id' => (int) $result->last_message_id,
-                'last_message_at' => $result->last_message_at ? (string) $result->last_message_at : null,
-            ];
+            $topicId = $topic->getId();
+            if ($topicId <= 0) {
+                continue;
+            }
+
+            $hasUnreadMap[$topicId] = false;
+
+            $lastReadAt = $topic->getLastReadAt();
+            if ($lastReadAt !== null && $lastReadAt !== '') {
+                $timeCursorTopics[$topicId] = $lastReadAt;
+                continue;
+            }
+
+            $lastReadMessageId = $topic->getLastReadMessageId();
+            if ($lastReadMessageId !== null && $lastReadMessageId !== '') {
+                $messageCursorTopics[$topicId] = (int) $lastReadMessageId;
+            }
         }
 
-        return $snapshots;
+        if (! empty($timeCursorTopics)) {
+            $this->markUnreadTopicsByCreatedAt($hasUnreadMap, $timeCursorTopics);
+        }
+
+        if (! empty($messageCursorTopics)) {
+            $this->markUnreadTopicsByMessageId($hasUnreadMap, $messageCursorTopics);
+        }
+
+        return $hasUnreadMap;
+    }
+
+    /**
+     * @param array<int, bool> $hasUnreadMap
+     * @param array<int, string> $timeCursorTopics
+     */
+    private function markUnreadTopicsByCreatedAt(array &$hasUnreadMap, array $timeCursorTopics): void
+    {
+        $records = $this->newUnreadCandidateQuery(array_keys($timeCursorTopics))
+            ->select(['topic_id', 'created_at'])
+            ->where('created_at', '>', min($timeCursorTopics))
+            ->get();
+
+        foreach ($records as $record) {
+            $topicId = (int) $record->topic_id;
+            if (($hasUnreadMap[$topicId] ?? false) === true) {
+                continue;
+            }
+
+            $createdAt = $record->created_at ? (string) $record->created_at : null;
+            if ($createdAt !== null && $createdAt > $timeCursorTopics[$topicId]) {
+                $hasUnreadMap[$topicId] = true;
+            }
+        }
+    }
+
+    /**
+     * @param array<int, bool> $hasUnreadMap
+     * @param array<int, int> $messageCursorTopics
+     */
+    private function markUnreadTopicsByMessageId(array &$hasUnreadMap, array $messageCursorTopics): void
+    {
+        $records = $this->newUnreadCandidateQuery(array_keys($messageCursorTopics))
+            ->select(['id', 'topic_id'])
+            ->where('id', '>', min($messageCursorTopics))
+            ->get();
+
+        foreach ($records as $record) {
+            $topicId = (int) $record->topic_id;
+            if (($hasUnreadMap[$topicId] ?? false) === true) {
+                continue;
+            }
+
+            if ((int) $record->id > $messageCursorTopics[$topicId]) {
+                $hasUnreadMap[$topicId] = true;
+            }
+        }
+    }
+
+    private function newUnreadCandidateQuery(array $topicIds)
+    {
+        return $this->model::query()
+            ->whereIn('topic_id', $topicIds)
+            ->whereNull('deleted_at')
+            ->whereIn('status', [
+                TaskStatus::FINISHED->value,
+                TaskStatus::ERROR->value,
+            ]);
     }
 
     private function findFollowUpBoundaryQuestion(int $topicId, int $roundLimit): ?TaskMessageEntity

@@ -8,6 +8,7 @@ declare(strict_types=1);
 namespace Dtyq\SuperMagic\Domain\SuperAgent\Repository\Facade;
 
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\TaskMessageEntity;
+use Dtyq\SuperMagic\Domain\SuperAgent\Entity\TopicEntity;
 use Dtyq\SuperMagic\Domain\SuperAgent\Repository\Model\TaskMessageModel;
 
 interface TaskMessageRepositoryInterface
@@ -178,9 +179,10 @@ interface TaskMessageRepositoryInterface
     public function updateMessageSeqId(int $id, ?int $imSeqId): void;
 
     /**
-     * 批量获取话题最新消息快照.
+     * 批量获取话题未读状态映射.
      *
-     * @return array<int, array{last_message_id: int, last_message_at: null|string}>
+     * @param TopicEntity[] $topics
+     * @return array<int, bool>
      */
-    public function getLatestMessageSnapshotsByTopicIds(array $topicIds): array;
+    public function getHasUnreadMapByTopics(array $topics): array;
 }

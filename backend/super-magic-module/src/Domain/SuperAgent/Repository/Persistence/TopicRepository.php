@@ -203,6 +203,9 @@ class TopicRepository implements TopicRepositoryInterface
         $topicEntity->setId(IdGenerator::getSnowId());
         $topicEntity->setCreatedAt($date);
         $topicEntity->setUpdatedAt($date);
+        if ($topicEntity->getLastReadAt() === null) {
+            $topicEntity->setLastReadAt($date);
+        }
 
         $entityArray = $topicEntity->toArray();
 
