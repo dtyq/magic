@@ -1305,14 +1305,14 @@ class TopicDomainService
             return false;
         }
 
-        $lastReadMessageId = $topic->getLastReadMessageId();
-        if ($lastReadMessageId !== null && $lastMessageId !== null) {
-            return (int) $lastMessageId > $lastReadMessageId;
-        }
-
         $lastReadAt = $topic->getLastReadAt();
         if ($lastReadAt !== null && $lastMessageAt !== null) {
             return strtotime($lastMessageAt) > strtotime($lastReadAt);
+        }
+
+        $lastReadMessageId = $topic->getLastReadMessageId();
+        if ($lastReadMessageId !== null && $lastMessageId !== null) {
+            return (int) $lastMessageId > $lastReadMessageId;
         }
 
         return true;

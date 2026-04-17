@@ -39,7 +39,7 @@ class TaskMessageRepository implements TaskMessageRepositoryInterface
     public function batchSave(array $messages): void
     {
         $data = array_map(function (TaskMessageEntity $message) {
-            return $message->toArray();
+            return $this->withTimestamps($message->toArray());
         }, $messages);
 
         $this->model::query()->insert($data);
@@ -424,13 +424,25 @@ class TaskMessageRepository implements TaskMessageRepositoryInterface
                 $messageEntity->setId(IdGenerator::getSnowId());
             }
 
-            $insertData[] = $messageEntity->toArrayWithoutOtherField();
+            $insertData[] = $this->withTimestamps($messageEntity->toArrayWithoutOtherField());
         }
 
         // 批量插入
         $this->model::query()->insert($insertData);
 
         return $messageEntities; // 直接返回传入的entities，因为它们已经包含了正确的ID
+    }
+
+    /**
+     * `insert()` 不会自动维护时间戳，这里统一补齐消息表需要的 created_at/updated_at。
+     */
+    private function withTimestamps(array $payload): array
+    {
+        $now = Carbon::now()->toDateTimeString();
+        $payload['created_at'] = $payload['created_at'] ?? $now;
+        $payload['updated_at'] = $payload['updated_at'] ?? $now;
+
+        return $payload;
     }
 
     public function updateMessageSeqId(int $id, ?int $imSeqId): void
