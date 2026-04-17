@@ -61,7 +61,6 @@ readonly class VolcengineArkVideoClient
     {
         return $this->clientFactory->create([
             'timeout' => self::REQUEST_TIMEOUT_SECONDS,
-            'verify' => false,
         ]);
     }
 
