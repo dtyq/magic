@@ -2113,7 +2113,6 @@ class ResourceShareAppService extends AbstractShareAppService
                 $relativePathMap = $this->buildRelativePathsByParentIds([$fileEntity]);
                 $taskFileDto->relativeFilePath = $relativePathMap[$fileEntity->getFileId()] ?? $fileEntity->getFileKey();
                 $taskFileDto->isDirectory = $fileEntity->getIsDirectory();
-                $taskFileDto->metadata = FileMetadataUtil::decodeJsonObject($fileEntity->getMetadata());
                 $taskFileDto->displayConfig = FileMetadataUtil::decodeJsonObject($fileEntity->getDisplayConfig());
                 $taskFileDto->projectId = (string) $fileEntity->getProjectId();
                 $taskFileDto->sort = $fileEntity->getSort();
@@ -2285,7 +2284,6 @@ class ResourceShareAppService extends AbstractShareAppService
             $taskFileDto->relativeFilePath = $relativePath;
 
             $taskFileDto->isDirectory = $entity->getIsDirectory();
-            $taskFileDto->metadata = FileMetadataUtil::decodeJsonObject($entity->getMetadata());
             $taskFileDto->displayConfig = FileMetadataUtil::decodeJsonObject($entity->getDisplayConfig());
             $taskFileDto->projectId = (string) $entity->getProjectId();
             $taskFileDto->sort = $entity->getSort();

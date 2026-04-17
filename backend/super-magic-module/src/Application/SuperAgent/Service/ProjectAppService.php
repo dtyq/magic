@@ -1331,7 +1331,6 @@ class ProjectAppService extends AbstractAppService
             $dto->topicId = (string) $entity->getTopicId();
             $dto->relativeFilePath = $relativePathMap[$entity->getFileId()] ?? WorkDirectoryUtil::getRelativeFilePath($entity->getFileKey(), $workDir);
             $dto->isDirectory = $entity->getIsDirectory();
-            $dto->metadata = FileMetadataUtil::decodeJsonObject($entity->getMetadata());
             $dto->displayConfig = FileMetadataUtil::decodeJsonObject($entity->getDisplayConfig());
             $dto->projectId = (string) $entity->getProjectId();
             $dto->sort = $entity->getSort();
@@ -1400,7 +1399,6 @@ class ProjectAppService extends AbstractAppService
             $dto->topicId = (string) $entity->getTopicId();
             $dto->relativeFilePath = $relativePathMap[$entity->getFileId()] ?? WorkDirectoryUtil::getRelativeFilePath($entity->getFileKey(), $workDir);
             $dto->isDirectory = $entity->getIsDirectory();
-            $dto->metadata = FileMetadataUtil::decodeJsonObject($entity->getMetadata());
             $dto->displayConfig = FileMetadataUtil::decodeJsonObject($entity->getDisplayConfig());
             // 添加 project_id 字段
             $dto->projectId = (string) $entity->getProjectId();

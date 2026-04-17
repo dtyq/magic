@@ -48,7 +48,6 @@ use Dtyq\SuperMagic\ErrorCode\ShareErrorCode;
 use Dtyq\SuperMagic\ErrorCode\SuperAgentErrorCode;
 use Dtyq\SuperMagic\Infrastructure\ExternalAPI\SandboxOS\Gateway\Constant\SandboxStatus;
 use Dtyq\SuperMagic\Infrastructure\Utils\AccessTokenUtil;
-use Dtyq\SuperMagic\Infrastructure\Utils\FileMetadataUtil;
 use Dtyq\SuperMagic\Infrastructure\Utils\FileTreeUtil;
 use Dtyq\SuperMagic\Infrastructure\Utils\RelativeFilePathUtil;
 use Dtyq\SuperMagic\Infrastructure\Utils\TaskStatusValidator;
@@ -486,7 +485,6 @@ class TopicAppService extends AbstractAppService
             $dto->relativeFilePath = $relativePathMap[$entity->getFileId()]
                 ?? WorkDirectoryUtil::getRelativeFilePath($entity->getFileKey(), $workDir);
             $dto->isDirectory = $entity->getIsDirectory();
-            $dto->metadata = FileMetadataUtil::getMetadataObject($entity->getMetadata());
             $dto->projectId = (string) $entity->getProjectId();
             $dto->sort = $entity->getSort();
             $dto->parentId = (string) $entity->getParentId();

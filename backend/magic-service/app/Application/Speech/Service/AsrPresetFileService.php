@@ -385,12 +385,20 @@ class AsrPresetFileService extends AbstractAppService
             return $result;
         }
 
-        // 如果插入被忽略（文件已存在），查询现有记录
-        $existingFile = $this->taskFileDomainService->getByProjectIdAndFileKey($projectId, $fileKey);
+        // Tree-model fallback: locate the existing record by (project_id, parent_id, file_name)
+        // instead of by file_key string, so this code path no longer depends on file_key
+        // continuing to act as a path-shaped identifier.
+        $existingFile = $this->taskFileDomainService->getByProjectParentAndName(
+            $projectId,
+            $parentId,
+            $fileName
+        );
         if ($existingFile !== null) {
             $this->logger->info(sprintf('%s已存在，使用现有记录', $logPrefix), [
                 'task_key' => $taskKey,
                 'file_id' => $existingFile->getFileId(),
+                'parent_id' => $parentId,
+                'file_name' => $fileName,
             ]);
             return $existingFile;
         }

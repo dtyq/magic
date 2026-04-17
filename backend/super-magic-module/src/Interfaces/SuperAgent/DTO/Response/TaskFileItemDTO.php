@@ -85,11 +85,6 @@ class TaskFileItemDTO extends AbstractDTO
     public bool $isDirectory = false;
 
     /**
-     * 文件元数据，解析后的数组.
-     */
-    public ?array $metadata = null;
-
-    /**
      * 前端展示配置，解析后的数组.
      */
     public ?array $displayConfig = null;
@@ -135,15 +130,6 @@ class TaskFileItemDTO extends AbstractDTO
         $dto->parentId = (string) $entity->getParentId();
         $dto->updatedAt = (string) $entity->getUpdatedAt();
         $dto->source = $entity->getSource();
-
-        // Handle metadata JSON decoding
-        $metadata = $entity->getMetadata();
-        if ($metadata !== null) {
-            $decodedMetadata = json_decode($metadata, true);
-            $dto->metadata = (json_last_error() === JSON_ERROR_NONE) ? $decodedMetadata : null;
-        } else {
-            $dto->metadata = null;
-        }
 
         // Handle display_config JSON decoding
         $displayConfig = $entity->getDisplayConfig();
@@ -199,21 +185,6 @@ class TaskFileItemDTO extends AbstractDTO
                 : TaskFileSource::DEFAULT;
         }
 
-        // Handle metadata - could be string (JSON) or array
-        $metadata = $data['metadata'] ?? null;
-        if ($metadata !== null) {
-            if (is_string($metadata)) {
-                $decodedMetadata = json_decode($metadata, true);
-                $dto->metadata = (json_last_error() === JSON_ERROR_NONE) ? $decodedMetadata : null;
-            } elseif (is_array($metadata)) {
-                $dto->metadata = $metadata;
-            } else {
-                $dto->metadata = null;
-            }
-        } else {
-            $dto->metadata = null;
-        }
-
         // Handle display_config - could be string (JSON) or array
         $displayConfig = $data['display_config'] ?? null;
         if ($displayConfig !== null) {
@@ -253,7 +224,6 @@ class TaskFileItemDTO extends AbstractDTO
             'topic_id' => $this->topicId,
             'updated_at' => $this->updatedAt,
             'is_directory' => $this->isDirectory,
-            'metadata' => $this->metadata,
             'display_config' => $this->displayConfig,
             'sort' => $this->sort,
             'parent_id' => $this->parentId,

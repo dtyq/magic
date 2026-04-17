@@ -354,10 +354,19 @@ class AsrDirectoryService extends AbstractAppService
             $workDir = $projectEntity->getWorkDir();
             $fullPrefix = $this->taskFileDomainService->getFullPrefix($organizationCode);
 
-            // 3. 检查目录是否已存在
-            $fileKey = AsrAssembler::buildFileKey($fullPrefix, $workDir, $relativePath);
-            $fileKey = rtrim($fileKey, '/') . '/';
-            $existingDir = $this->taskFileDomainService->getByProjectIdAndFileKey((int) $projectId, $fileKey);
+            // Compute the canonical directory file_name. Mirrors AsrAssembler::createDirectoryEntity
+            // so the existence check uses the same name that will be persisted on insert.
+            $directoryFileName = $role === AsrDirectoryRoleEnum::SUMMARY_DIR
+                ? $relativePath
+                : basename($relativePath);
+
+            // 3. Check whether the directory already exists via tree-model lookup
+            // (project_id, parent_id, file_name) — independent of file_key string format.
+            $existingDir = $this->taskFileDomainService->getByProjectParentAndName(
+                (int) $projectId,
+                $effectiveParentId,
+                $directoryFileName
+            );
             if ($existingDir !== null) {
                 return new AsrRecordingDirectoryDTO(
                     $relativePath,
@@ -391,8 +400,12 @@ class AsrDirectoryService extends AbstractAppService
                 );
             }
 
-            // 6. 如果插入被忽略，查询现有目录
-            $existingDir = $this->taskFileDomainService->getByProjectIdAndFileKey((int) $projectId, $fileKey);
+            // 6. Tree-model fallback when the insert was ignored due to a concurrent insert.
+            $existingDir = $this->taskFileDomainService->getByProjectParentAndName(
+                (int) $projectId,
+                $effectiveParentId,
+                $directoryFileName
+            );
             if ($existingDir !== null) {
                 return new AsrRecordingDirectoryDTO(
                     $relativePath,
