@@ -199,7 +199,9 @@ class TaskInitializationConsumer extends ConsumerMessage
             $messageDTO->getAgentUserId()
         );
 
-        // Build task context with all fields populated
+        // Build task context with all fields populated.
+        // Bridge model_id from extraData so it is delivered to the sandbox
+        // via ChatMessageRequest and auto-registered into dynamic_config.models.
         $taskContext = new TaskContext(
             task: $taskEntity,
             dataIsolation: $dataIsolation,
@@ -210,6 +212,7 @@ class TaskInitializationConsumer extends ConsumerMessage
             taskId: (string) $taskEntity->getId(),
             instruction: ChatInstruction::FollowUp,
             agentMode: $topicEntity->getTopicMode(),
+            modelId: (string) ($extraData['model_id'] ?? ''),
             isFirstTask: empty($topicEntity->getSandboxId()),
             extra: $extra
         );
