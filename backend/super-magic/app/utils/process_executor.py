@@ -10,12 +10,10 @@
 
 import asyncio
 import os
-import re
 import shlex
 import subprocess
-import sys
 from pathlib import Path
-from typing import Dict, List, Optional, Set, Tuple
+from typing import Dict, Optional, Set, Tuple
 
 from dotenv import dotenv_values
 
@@ -85,128 +83,6 @@ class ProcessExecutor:
             logger.warning(f"加载用户持久化环境变量失败: {e}")
 
         return env_vars
-
-    @staticmethod
-    def _rewrite_single_python_command(command: str, cwd: Optional[Path]) -> str:
-        """
-        改写单个不含链式操作符的 python 命令。
-
-        在 PyInstaller 环境下将 `python script.py` 改写为
-        `{script_runner} script.py`，使脚本使用打包的依赖而非系统 Python。
-
-        Args:
-            command: 单条命令（不含 &&、||、; 等操作符）
-            cwd: 解析相对路径所用的工作目录
-
-        Returns:
-            str: 改写后的命令，无需改写则返回原命令
-        """
-        try:
-            parts = shlex.split(command)
-        except ValueError:
-            return command
-
-        if not parts or parts[0] not in ('python', 'python3', 'python3.11'):
-            return command
-
-        if len(parts) < 2:
-            return command
-
-        script_path = parts[1]
-        script_args = parts[2:]
-
-        script_path_obj = Path(script_path)
-        if not script_path_obj.is_absolute() and cwd:
-            script_path_obj = cwd / script_path_obj
-
-        # 脚本文件不存在时可能是 python -c "..." 等形式，保持原样
-        if not script_path_obj.exists():
-            return command
-
-        # script_runner 与主可执行文件在同一目录
-        main_executable = Path(sys.executable)
-        script_runner_path = main_executable.parent / 'script_runner'
-
-        new_parts = [str(script_runner_path), script_path] + script_args
-        return shlex.join(new_parts)
-
-    @staticmethod
-    def _rewrite_python_command(
-        command: str,
-        cwd: Optional[Path] = None,
-        enable_rewrite: bool = False
-    ) -> str:
-        """
-        在 PyInstaller 环境下，将命令中的 `python script.py` 改写为
-        `{script_runner} script.py`，支持 &&、||、; 链式命令。
-
-        链式命令处理逻辑：
-        - 按 &&、||、; 分割命令，逐段处理
-        - 遇到 cd 时更新虚拟工作目录，用于解析后续子命令的相对路径
-        - 遇到 python 命令时执行改写
-
-        注意：不处理引号内出现操作符的极端情况（如 python -c "a && b"），
-        此类命令无需改写，分割后也不会匹配 python 命令头，会原样返回。
-
-        Args:
-            command: 原始命令（可以是单命令或链式命令）
-            cwd: 工作目录，用于解析相对路径
-            enable_rewrite: 是否启用命令改写，默认为 False
-
-        Returns:
-            str: 改写后的命令，无需改写则返回原命令
-        """
-        if not enable_rewrite or not getattr(sys, 'frozen', False):
-            return command
-
-        # 按链式操作符分割，使用捕获组保留分隔符
-        shell_op_re = re.compile(r'(\s*(?:&&|\|\||;)\s*)')
-        segments = shell_op_re.split(command)
-
-        if len(segments) <= 1:
-            # 无链式操作符，单命令处理
-            rewritten = ProcessExecutor._rewrite_single_python_command(command, cwd)
-            if rewritten != command:
-                logger.info(f"命令改写: {command} -> {rewritten}")
-            return rewritten
-
-        # 链式命令：跟踪 cd 引起的目录变化
-        current_cwd = cwd
-        result_parts: List[str] = []
-
-        for i, segment in enumerate(segments):
-            if i % 2 == 1:
-                # 奇数位是分隔符，直接保留
-                result_parts.append(segment)
-                continue
-
-            stripped = segment.strip()
-            if not stripped:
-                result_parts.append(segment)
-                continue
-
-            # 检查是否是 cd 命令，更新虚拟工作目录
-            try:
-                cmd_parts = shlex.split(stripped)
-                if cmd_parts and cmd_parts[0] == 'cd' and len(cmd_parts) >= 2:
-                    cd_target = cmd_parts[1]
-                    if os.path.isabs(cd_target):
-                        current_cwd = Path(cd_target)
-                    elif current_cwd:
-                        current_cwd = (current_cwd / cd_target).resolve()
-                    else:
-                        current_cwd = Path(cd_target).resolve()
-            except ValueError:
-                pass
-
-            # 尝试改写 python 命令
-            rewritten = ProcessExecutor._rewrite_single_python_command(stripped, current_cwd)
-            result_parts.append(rewritten)
-
-        rewritten_command = ''.join(result_parts)
-        if rewritten_command != command:
-            logger.info(f"链式命令改写: {command} -> {rewritten_command}")
-        return rewritten_command
 
     @staticmethod
     def _format_process_output(
@@ -292,7 +168,6 @@ class ProcessExecutor:
         command: str,
         cwd: Optional[Path] = None,
         timeout: int = 60,
-        enable_python_rewrite: bool = False,
         extra_env: Optional[Dict[str, str]] = None,
         interruption_event: Optional[asyncio.Event] = None,
     ) -> TerminalToolResult:
@@ -303,7 +178,6 @@ class ProcessExecutor:
             command: 要执行的命令
             cwd: 工作目录，默认为None
             timeout: 超时时间（秒），默认60秒
-            enable_python_rewrite: 是否启用 Python 命令改写（仅在特定场景如 skills 执行时启用），默认为 False
             extra_env: 仅对当前子进程附加的环境变量，优先级高于默认环境
             interruption_event: 中断事件，被 set 时终止子进程并抛出 asyncio.CancelledError
 
@@ -314,9 +188,6 @@ class ProcessExecutor:
             asyncio.CancelledError: 当 interruption_event 触发时抛出，表示 run 已中断
         """
         try:
-            # 在 PyInstaller 环境下且明确启用时改写 python 命令
-            command = ProcessExecutor._rewrite_python_command(command, cwd, enable_python_rewrite)
-
             # 构建过滤后的环境变量
             env_vars = ProcessExecutor._build_filtered_env()
             if extra_env:

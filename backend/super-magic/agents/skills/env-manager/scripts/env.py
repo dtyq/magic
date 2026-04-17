@@ -12,34 +12,13 @@ import json
 import re
 from pathlib import Path
 
-
-def _setup_project_root() -> Path:
-    """
-    向上查找项目根目录，加入 sys.path 并返回根目录路径。
-    与 agents/skills/using-cron/scripts/_context.py 保持一致。
-    支持标志文件：setup.py（本地开发）、script_runner（PyInstaller 生产）。
-    """
-    current = Path(__file__).resolve().parent
-    markers = {"setup.py", "script_runner"}
-    for _ in range(10):
-        if any((current / marker).exists() for marker in markers):
-            root = str(current)
-            if root not in sys.path:
-                sys.path.insert(0, root)
-            return current
-        current = current.parent
-    raise RuntimeError("无法定位项目根目录（未找到 setup.py 或 script_runner）")
+# agents/skills/_shared/ 对所有 skill 脚本均在 parents[2] 下
+sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
+import _shared.bootstrap  # noqa: F401 — 触发环境初始化
 
 
 def _init_path_manager():
-    """初始化 PathManager 并返回模块引用。"""
-    root = _setup_project_root()
-    try:
-        from app.path_manager import PathManager as _PM
-        if not getattr(_PM, "_initialized", False):
-            _PM.set_project_root(root)
-    except Exception:
-        pass
+    """返回 PathManager 模块引用。"""
     from app.path_manager import PathManager
     return PathManager
 
