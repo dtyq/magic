@@ -216,6 +216,8 @@ readonly class VideoOperationAppService
     }
 
     /**
+     * 派发视频生成成功事件：供审计、计费（billing-manager）订阅。
+     *
      * @param null|array{metadata: VideoMediaMetadata, source: string} $probeResult
      */
     private function dispatchVideoGeneratedEvent(
@@ -227,11 +229,19 @@ readonly class VideoOperationAppService
         $event = new VideoGeneratedEvent();
         $accessTokenEntity = $this->resolveAccessTokenEntity($dataIsolation);
         $billingDetails = $this->resolveBillingDetails($operation, $probeResult);
+        // 从 provider 轮询结果中取出 usage（如 completion_tokens），供事件、审计与按 token 计费侧使用
+        $usageTokens = $this->resolveVideoProviderUsageTokens($operation);
         $businessParams = $this->buildVideoAuditBusinessParams(
             $dataIsolation,
             $operation,
             $requestBusinessParams,
         );
+        if ($usageTokens['completion_tokens'] !== null) {
+            $businessParams['completion_tokens'] = $usageTokens['completion_tokens'];
+        }
+        if ($usageTokens['total_tokens'] !== null) {
+            $businessParams['total_tokens'] = $usageTokens['total_tokens'];
+        }
 
         $event->setOrganizationCode($operation->getOrganizationCode());
         $event->setUserId($operation->getUserId());
@@ -250,6 +260,9 @@ readonly class VideoOperationAppService
         $event->setSourceType($this->resolveSourceType($accessTokenEntity, $operation));
         $event->setCreatedAt(new DateTime());
         $event->setBusinessParams($businessParams);
+        // 与 businessParams 中字段一致，便于 billing-manager 读事件对象直接扣费
+        $event->setCompletionTokens($usageTokens['completion_tokens']);
+        $event->setTotalTokens($usageTokens['total_tokens']);
 
         AsyncEventUtil::dispatch($event);
         $this->logger->info('VideoGeneratedEventDispatched', [
@@ -268,6 +281,8 @@ readonly class VideoOperationAppService
             'task_id' => $event->getTaskId(),
             'source_id' => $event->getSourceId(),
             'source_type' => $event->getSourceType()->value,
+            'completion_tokens' => $event->getCompletionTokens(),
+            'total_tokens' => $event->getTotalTokens(),
         ]);
     }
 
@@ -342,6 +357,31 @@ readonly class VideoOperationAppService
         }
 
         return $params;
+    }
+
+    /**
+     * 解析视频任务 provider 回包中的 token 用量（如火山方舟 succeeded 时的 usage.completion_tokens）。
+     * 无字段或非法结构时返回 null，计费侧可回退到按时长等规则。
+     *
+     * @return array{completion_tokens: ?int, total_tokens: ?int}
+     */
+    private function resolveVideoProviderUsageTokens(VideoQueueOperationEntity $operation): array
+    {
+        $providerResult = $operation->getProviderResult();
+        if (! is_array($providerResult)) {
+            return ['completion_tokens' => null, 'total_tokens' => null];
+        }
+        $usage = $providerResult['usage'] ?? null;
+        if (! is_array($usage)) {
+            return ['completion_tokens' => null, 'total_tokens' => null];
+        }
+        $completion = $usage['completion_tokens'] ?? null;
+        $total = $usage['total_tokens'] ?? null;
+
+        return [
+            'completion_tokens' => $completion !== null ? max(0, (int) $completion) : null,
+            'total_tokens' => $total !== null ? max(0, (int) $total) : null,
+        ];
     }
 
     private function toTimestampMs(?string $time): int

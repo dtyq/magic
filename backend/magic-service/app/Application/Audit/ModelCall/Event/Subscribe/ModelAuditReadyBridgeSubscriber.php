@@ -252,6 +252,19 @@ class ModelAuditReadyBridgeSubscriber implements ListenerInterface
             ['original_model_id' => $originalModelId],
         );
 
+        // 视频默认带次数与成片时长；若事件含 provider token 用量则一并写入，与对话类审计结构对齐供计费回写
+        $usage = [
+            'count' => 1,
+            'duration_seconds' => $event->getDurationSeconds(),
+        ];
+        $completionTokens = $event->getCompletionTokens();
+        $totalTokens = $event->getTotalTokens();
+        if ($completionTokens !== null && $completionTokens > 0) {
+            $usage['completion_tokens'] = $completionTokens;
+            $resolvedTotal = $totalTokens ?? $completionTokens;
+            $usage['total_tokens'] = $resolvedTotal;
+        }
+
         $this->persistAudit(
             type: AuditType::VIDEO->value,
             productCode: (string) ($bp['model_id'] ?? $event->getModel()),
@@ -264,7 +277,7 @@ class ModelAuditReadyBridgeSubscriber implements ListenerInterface
                 'user_id' => (string) ($bp['user_id'] ?? $event->getUserId()),
                 'user_name' => (string) ($bp['user_name'] ?? ''),
             ],
-            usage: ['count' => 1, 'duration_seconds' => $event->getDurationSeconds()],
+            usage: $usage,
             detailInfo: $detailInfo,
             businessParams: $businessParams,
             accessScope: $accessScope,

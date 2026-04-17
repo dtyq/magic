@@ -45,6 +45,12 @@ class VideoGeneratedEvent extends AbstractEvent
 
     protected ?string $originalModelId = null;
 
+    /** Provider 任务结果 usage 中的 completion_tokens，用于按 token 计费/审计；无则保持 null */
+    protected ?int $completionTokens = null;
+
+    /** Provider 任务结果 usage 中的 total_tokens；可与 completion 一并用于拆分 prompt/output */
+    protected ?int $totalTokens = null;
+
     protected array $businessParams = [];
 
     public function getOrganizationCode(): string
@@ -205,6 +211,26 @@ class VideoGeneratedEvent extends AbstractEvent
     public function setOriginalModelId(?string $originalModelId): void
     {
         $this->originalModelId = $originalModelId;
+    }
+
+    public function getCompletionTokens(): ?int
+    {
+        return $this->completionTokens;
+    }
+
+    public function setCompletionTokens(?int $completionTokens): void
+    {
+        $this->completionTokens = $completionTokens !== null && $completionTokens > 0 ? $completionTokens : null;
+    }
+
+    public function getTotalTokens(): ?int
+    {
+        return $this->totalTokens;
+    }
+
+    public function setTotalTokens(?int $totalTokens): void
+    {
+        $this->totalTokens = $totalTokens !== null && $totalTokens > 0 ? $totalTokens : null;
     }
 
     public function getBusinessParams(): array
