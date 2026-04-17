@@ -31,6 +31,16 @@ def get_project_root() -> Path:
     raise RuntimeError("Cannot locate project root (.super-magic-project-root not found)")
 
 
+def get_workspace_dir() -> Path:
+    """工作区目录：project_root/.workspace（与 PathManager / agentlang 一致）。"""
+    return get_project_root() / ".workspace"
+
+
+def get_magic_env_file() -> Path:
+    """Magic 全局环境变量文件路径：.workspace/.magic/.env。"""
+    return get_workspace_dir() / ".magic" / ".env"
+
+
 def init_environment() -> Path:
     """
     完整初始化 skill 脚本运行环境，返回项目根目录 Path。

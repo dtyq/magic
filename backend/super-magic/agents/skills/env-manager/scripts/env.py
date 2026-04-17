@@ -14,23 +14,18 @@ from pathlib import Path
 
 # agents/skills/_shared/ 对所有 skill 脚本均在 parents[2] 下
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
+from _shared.bootstrap import get_magic_env_file, get_workspace_dir
 import _shared.bootstrap  # noqa: F401 — 触发环境初始化
-
-
-def _init_path_manager():
-    """返回 PathManager 模块引用。"""
-    from app.path_manager import PathManager
-    return PathManager
-
-
-def get_env_file() -> Path:
-    """返回写操作目标文件（.workspace/.magic/.env）。"""
-    return _init_path_manager().get_magic_env_file()
 
 
 def get_env_paths() -> list[Path]:
     """返回读取时的全部环境变量文件路径列表（按优先级从低到高）。"""
-    return _init_path_manager().get_process_env_paths()
+    ws = get_workspace_dir()
+    return [
+        ws / ".magic" / "skills" / ".env",
+        ws / ".env",
+        ws / ".magic" / ".env",
+    ]
 
 
 def cmd_set(key: str, value: str) -> None:
@@ -43,7 +38,7 @@ def cmd_set(key: str, value: str) -> None:
         sys.exit(1)
 
     from dotenv import set_key
-    env_file = get_env_file()
+    env_file = get_magic_env_file()
     env_file.parent.mkdir(parents=True, exist_ok=True)
     if not env_file.exists():
         env_file.touch()
@@ -58,7 +53,7 @@ def cmd_unset(key: str) -> None:
         sys.exit(1)
 
     from dotenv import unset_key, dotenv_values
-    env_file = get_env_file()
+    env_file = get_magic_env_file()
 
     if not env_file.exists() or key not in dotenv_values(str(env_file)):
         print(json.dumps({"ok": False, "error": f"KEY 不存在: {key}"}, ensure_ascii=False))
