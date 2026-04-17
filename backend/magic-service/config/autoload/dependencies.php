@@ -41,6 +41,8 @@ use App\Application\MCP\Utils\MCPExecutor\ExternalStdioExecutor;
 use App\Application\MCP\Utils\MCPExecutor\ExternalStdioExecutorInterface;
 use App\Application\ModelGateway\Component\Points\PointComponent;
 use App\Application\ModelGateway\Component\Points\PointComponentInterface;
+use App\Application\Provider\Policy\DefaultProviderControlPolicy;
+use App\Application\Provider\Policy\ProviderControlPolicyInterface;
 use App\Domain\Admin\Repository\Facade\AdminGlobalSettingsRepositoryInterface;
 use App\Domain\Admin\Repository\Persistence\AdminGlobalSettingsRepository;
 use App\Domain\Agent\Repository\Facade\AgentRepositoryInterface;
@@ -547,6 +549,7 @@ $dependencies = [
     ModeGroupRelationRepositoryInterface::class => ModeGroupRelationRepository::class,
 
     OrganizationBasedModelFilterInterface::class => DefaultOrganizationModelFilter::class,
+    ProviderControlPolicyInterface::class => DefaultProviderControlPolicy::class,
 
     // proxy
     ProxyConfigResolverInterface::class => EmptyProxyConfigResolverInterface::class,

@@ -8,9 +8,9 @@ declare(strict_types=1);
 namespace App\Application\Provider\Service;
 
 use App\Application\Kernel\EnvManager;
-use App\Application\Kernel\Service\PlatformSettingsAppService;
 use App\Application\Kernel\SmartFileLinks;
 use App\Application\ModelGateway\Service\LLMAppService;
+use App\Application\Provider\Policy\ProviderControlPolicyInterface;
 use App\Domain\File\Service\FileDomainService;
 use App\Domain\ModelGateway\Entity\Dto\CompletionDTO;
 use App\Domain\ModelGateway\Entity\Dto\EmbeddingsDTO;
@@ -40,7 +40,6 @@ use App\Domain\Provider\Service\ProviderModelDomainService;
 use App\ErrorCode\ServiceProviderErrorCode;
 use App\Infrastructure\Core\Exception\ExceptionBuilder;
 use App\Infrastructure\Core\Traits\HasLogger;
-use App\Infrastructure\Util\DeploymentIdConstant;
 use App\Infrastructure\Util\FuzzMatchUtil;
 use App\Infrastructure\Util\Redis\ProviderModelCacheUtil;
 use App\Interfaces\Agent\Assembler\FileAssembler;
@@ -54,8 +53,6 @@ use Hyperf\Odin\Api\Response\ChatCompletionResponse;
 use JsonException;
 use Psr\EventDispatcher\EventDispatcherInterface;
 
-use function Hyperf\Translation\__;
-
 readonly class AdminProviderAppService
 {
     use HasLogger;
@@ -66,7 +63,7 @@ readonly class AdminProviderAppService
         private ProviderModelDomainService $providerModelDomainService,
         private AdminProviderDomainService $adminProviderDomainService,
         private EventDispatcherInterface $eventDispatcher,
-        private PlatformSettingsAppService $platformSettingsAppService,
+        private ProviderControlPolicyInterface $providerControlPolicy,
     ) {
     }
 
@@ -129,15 +126,8 @@ readonly class AdminProviderAppService
             ExceptionBuilder::throw(ServiceProviderErrorCode::ServiceProviderNotFound);
         }
 
-        // 非官方国内 SaaS 组织只能选择白名单内的服务商，避免绕过前端限制直接调接口。
-        $this->validateAllowedProviderForNonOfficialOrganization(
-            $authorization->getOrganizationCode(),
-            $providerEntity->getProviderCode(),
-            $providerEntity->getCategory(),
-        );
-
-        // 标准化配置
-        $saveProviderConfigRequest->setConfig($this->normalizeProviderConfig(
+        // 根据 Provider Control Policy 预处理保存配置，统一收口准入校验与 URL 规则。
+        $saveProviderConfigRequest->setConfig($this->providerControlPolicy->prepareProviderConfigForSave(
             $authorization->getOrganizationCode(),
             $providerEntity->getProviderCode(),
             $providerEntity->getCategory(),
@@ -379,15 +369,8 @@ readonly class AdminProviderAppService
             return [];
         }
 
-        // 非官方组织只展示受控白名单内的服务商模板，官方组织保持原样。
-        if ($this->shouldRestrictNonOfficialOrganizationTemplates($organizationCode, $category)) {
-            // 非官方组织只展示受控白名单内的服务商模板，官方组织保持原样。
-            $serviceProviders = array_values(array_filter(
-                $serviceProviders,
-                static fn (ProviderConfigModelsDTO $serviceProvider): bool => $category !== null
-                    && ($serviceProvider->getProviderCode()?->isNonOfficialOrganizationTemplateWhitelist($category) ?? false)
-            ));
-        }
+        // 根据 Provider Control Policy 过滤可见的服务商模板。
+        $serviceProviders = $this->providerControlPolicy->filterSelectableProviders($organizationCode, $category, $serviceProviders);
 
         // 前台场景仅返回火山与通义千问模板
         if ($isFrontend && $category === Category::VLM) {
@@ -420,12 +403,8 @@ readonly class AdminProviderAppService
             return [];
         }
 
-        if ($this->shouldRestrictNonOfficialOrganizationTemplates($organizationCode, $category)) {
-            $serviceProviders = array_values(array_filter(
-                $serviceProviders,
-                static fn (ProviderConfigModelsDTO $serviceProvider): bool => $serviceProvider->getProviderCode()?->isNonOfficialOrganizationTemplateWhitelist($category) ?? false
-            ));
-        }
+        // 过滤服务商
+        $serviceProviders = $this->providerControlPolicy->filterSelectableProviders($organizationCode, $category, $serviceProviders);
 
         // 处理图标
         $this->processServiceProviderEntityListIcons($serviceProviders, $organizationCode);
@@ -968,74 +947,5 @@ readonly class AdminProviderAppService
                 }
             }
         }
-    }
-
-    /**
-     * 归一化服务商配置。
-     *
-     * 非官方组织下仍允许前端直接填写 URL，这里只负责统一校验：
-     * 1. URL 的一级域名是否和服务商匹配
-     */
-    private function normalizeProviderConfig(
-        string $organizationCode,
-        ProviderCode $providerCode,
-        Category $category,
-        array $config,
-    ): array {
-        if (! $this->shouldRestrictNonOfficialOrganizationTemplates($organizationCode, $category)) {
-            return $config;
-        }
-
-        $url = trim((string) ($config['url'] ?? ''));
-        if ($url === '' || ! $providerCode->isAllowedPrimaryDomainUrl($url)) {
-            ExceptionBuilder::throw(
-                ServiceProviderErrorCode::InvalidParameter,
-                __('service_provider.invalid_parameter')
-            );
-        }
-
-        return $config;
-    }
-
-    /**
-     * 非官方组织在国内 SaaS 下只能接入白名单内的服务商，避免通过接口直接绕过前端限制。
-     */
-    private function validateAllowedProviderForNonOfficialOrganization(
-        string $organizationCode,
-        ProviderCode $providerCode,
-        Category $category,
-    ): void {
-        if (! $this->shouldRestrictNonOfficialOrganizationTemplates($organizationCode, $category)) {
-            return;
-        }
-
-        if ($providerCode->isNonOfficialOrganizationTemplateWhitelist($category)) {
-            return;
-        }
-
-        ExceptionBuilder::throw(
-            ServiceProviderErrorCode::InvalidParameter,
-            __('service_provider.invalid_parameter')
-        );
-    }
-
-    /**
-     * 判断当前实例是否为国内受控部署，且组织为非官方、模型分类为 LLM/VLM 的模板收口场景。
-     */
-    private function shouldRestrictNonOfficialOrganizationTemplates(
-        string $organizationCode,
-        ?Category $category,
-    ): bool {
-        if ($category !== Category::LLM && $category !== Category::VLM) {
-            return false;
-        }
-        if ($this->isOfficialOrganization($organizationCode)) {
-            return false;
-        }
-        if (! DeploymentIdConstant::isDomestic()) {
-            return false;
-        }
-
-        return ! $this->platformSettingsAppService->get()->isCustomServiceProviderAllowed($organizationCode);
     }
 }
