@@ -1564,6 +1564,9 @@ function handleWebSocketMessage(event) {
                     if (eventType === 'before_tool_call' && smsg.reasoning_content) {
                         showThinkingMessage(smsg.reasoning_content, payload.send_timestamp);
                     }
+                    if (eventType === 'before_tool_call' && smsg.content) {
+                        showAIMessage(smsg.content, payload.send_timestamp);
+                    }
                     showToolCallMessage(smsg.tool, eventType, payload.send_timestamp);
                 } else if (smsg.role === 'assistant') {
                     if (smsg.reasoning_content) {
