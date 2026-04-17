@@ -46,7 +46,7 @@ class SkillMarketApi extends AbstractApi
             $result['list'],
             $result['userSkills'],
             $result['publisherUserMap'],
-            $result['creatorSkillCodes'],
+            $this->getAuthorization()->getId(),
             $page->getPage(),
             $page->getPageNum(),
             $result['total'],
