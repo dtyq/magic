@@ -70,6 +70,15 @@ class ModelAccessRoleAppService extends AbstractPermissionAppService
     public function queries(PermissionDataIsolation $dataIsolation, Page $page, ?array $filters = null): array
     {
         $result = $this->domainService->queries($dataIsolation, $page, $filters);
+        $deniedModelIds = [];
+        foreach ($result['list'] as $role) {
+            $deniedModelIds = [...$deniedModelIds, ...$role->getDeniedModelIds()];
+        }
+
+        $deniedModelNameMap = $this->resolveDeniedModelNameMap(
+            $dataIsolation,
+            $deniedModelIds
+        );
 
         $list = [];
         foreach ($result['list'] as $role) {
@@ -79,6 +88,10 @@ class ModelAccessRoleAppService extends AbstractPermissionAppService
                 'description' => $role->getDescription(),
                 'model_rule_effect' => 'deny',
                 'denied_model_ids' => $role->getDeniedModelIds(),
+                'denied_model_names' => array_map(
+                    static fn (string $modelId): string => $deniedModelNameMap[$modelId] ?? $modelId,
+                    $role->getDeniedModelIds()
+                ),
                 'denied_model_count' => count($role->getDeniedModelIds()),
                 'binding_scope' => $this->buildBindingScopeSummary($role),
                 'exclusion_user_count' => count($role->getExcludedUserIds()),
@@ -112,20 +125,7 @@ class ModelAccessRoleAppService extends AbstractPermissionAppService
         $departments = $this->magicDepartmentDomainService->getDepartmentByIds($contactIsolation, $allDepartmentIds, true);
         $departmentFullPaths = $this->magicDepartmentDomainService->getDepartmentFullPathByIds($contactIsolation, $allDepartmentIds);
 
-        $modelMap = $this->providerModelDomainService->getModelsByModelIds(
-            ProviderDataIsolation::create($dataIsolation->getCurrentOrganizationCode()),
-            $role->getDeniedModelIds()
-        );
-        $fallbackModelNames = [];
-        foreach ($role->getDeniedModelIds() as $modelId) {
-            if (isset($modelMap[$modelId][0])) {
-                continue;
-            }
-            $model = $this->providerModelDomainService->getModelByModelId($modelId);
-            if ($model !== null) {
-                $fallbackModelNames[$modelId] = $model->getName();
-            }
-        }
+        $deniedModelNameMap = $this->resolveDeniedModelNameMap($dataIsolation, $role->getDeniedModelIds());
 
         return [
             'id' => (string) $role->getId(),
@@ -135,11 +135,10 @@ class ModelAccessRoleAppService extends AbstractPermissionAppService
             'denied_model_ids' => $role->getDeniedModelIds(),
             'binding_scope' => $this->buildBindingScopeDetail($role, $userInfo, $departments, $departmentFullPaths),
             'exclusion_scope' => $this->buildExclusionScopeDetail($role, $userInfo, $departments, $departmentFullPaths),
-            'denied_model_items' => array_map(static function (string $modelId) use ($modelMap, $fallbackModelNames) {
-                $first = $modelMap[$modelId][0] ?? null;
+            'denied_model_items' => array_map(static function (string $modelId) use ($deniedModelNameMap) {
                 return [
                     'model_id' => $modelId,
-                    'model_name' => $first?->getName() ?? ($fallbackModelNames[$modelId] ?? $modelId),
+                    'model_name' => $deniedModelNameMap[$modelId] ?? $modelId,
                 ];
             }, $role->getDeniedModelIds()),
             'denied_model_count' => count($role->getDeniedModelIds()),
@@ -282,5 +281,38 @@ class ModelAccessRoleAppService extends AbstractPermissionAppService
                 ];
             }, $role->getExcludedDepartmentIds()),
         ];
+    }
+
+    /**
+     * @param string[] $modelIds
+     * @return array<string, string>
+     */
+    private function resolveDeniedModelNameMap(PermissionDataIsolation $dataIsolation, array $modelIds): array
+    {
+        $modelIds = array_values(array_unique($modelIds));
+        if ($modelIds === []) {
+            return [];
+        }
+
+        $modelMap = $this->providerModelDomainService->getModelsByModelIds(
+            ProviderDataIsolation::create($dataIsolation->getCurrentOrganizationCode()),
+            $modelIds
+        );
+
+        $deniedModelNameMap = [];
+        foreach ($modelIds as $modelId) {
+            $first = $modelMap[$modelId][0] ?? null;
+            if ($first !== null) {
+                $deniedModelNameMap[$modelId] = $first->getName();
+                continue;
+            }
+
+            $model = $this->providerModelDomainService->getModelByModelId($modelId);
+            if ($model !== null) {
+                $deniedModelNameMap[$modelId] = $model->getName();
+            }
+        }
+
+        return $deniedModelNameMap;
     }
 }

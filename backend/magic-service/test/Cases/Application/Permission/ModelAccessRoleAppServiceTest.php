@@ -156,6 +156,7 @@ class ModelAccessRoleAppServiceTest extends HttpTestCase
     public function testQueriesReturnsBindingScopeWithoutDefaultFlags(): void
     {
         $domainService = $this->createMock(ModelAccessRoleDomainService::class);
+        $providerModelDomainService = $this->createMock(ProviderModelDomainService::class);
         $role = $this->makeRole(
             id: 3,
             name: '组织基线',
@@ -170,17 +171,26 @@ class ModelAccessRoleAppServiceTest extends HttpTestCase
             'list' => [$role],
         ]);
         $domainService->method('countAssignedUsers')->willReturn(120);
+        $providerModelDomainService->method('getModelsByModelIds')->willReturn([
+            'gpt-4.1' => [new ProviderModelEntity([
+                'model_id' => 'gpt-4.1',
+                'name' => 'GPT-4.1',
+            ])],
+        ]);
+        $providerModelDomainService->method('getModelByModelId')->willReturn(null);
 
         $service = new ModelAccessRoleAppService(
             $domainService,
             $this->createMock(MagicUserInfoAppService::class),
             $this->createMock(MagicDepartmentDomainService::class),
-            $this->createMock(ProviderModelDomainService::class),
+            $providerModelDomainService,
             $this->createMock(AdminProviderAppService::class),
         );
 
         $result = $service->queries(PermissionDataIsolation::create('ORG_APP', 'operator'), new Page(1, 20));
 
+        $this->assertSame(['gpt-4.1'], $result['list'][0]['denied_model_ids']);
+        $this->assertSame(['GPT-4.1'], $result['list'][0]['denied_model_names']);
         $this->assertSame('organization_all', $result['list'][0]['binding_scope']['type']);
         $this->assertSame(1, $result['list'][0]['exclusion_user_count']);
         $this->assertSame(1, $result['list'][0]['exclusion_department_count']);
