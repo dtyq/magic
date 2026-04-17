@@ -179,19 +179,13 @@ class TaskInitializationConsumer extends ConsumerMessage
             return;
         }
 
-        // Reconstruct SuperAgentExtra from extraData
-        $extra = null;
+        // Reconstruct full SuperAgentExtra directly from messageContent so that all
+        // fields written by the producer (topic_pattern, model, image_model,
+        // video_model, enable_web_search, mentions, etc.) are preserved end to end.
+        // Falls back to the legacy extraData fast-path for backward compatibility
+        // (older messages already in the queue may only carry extraData).
+        $extra = $this->reconstructSuperAgentExtra($messageDTO);
         $extraData = $messageDTO->getExtraData();
-        if ($messageDTO->getExtraData() !== null) {
-            $extra = new SuperAgentExtra();
-
-            if (! empty($extraData['image_model_id'])) {
-                $extra->setImageModel(['model_id' => $extraData['image_model_id']]);
-            }
-            if (! empty($extraData['model_id'])) {
-                $extra->setModel(['model_id' => $extraData['model_id']]);
-            }
-        }
 
         // Get AI Agent's conversation ID using unique index for optimal query performance
         $agentConversationId = $this->getAgentConversationId(
@@ -199,9 +193,20 @@ class TaskInitializationConsumer extends ConsumerMessage
             $messageDTO->getAgentUserId()
         );
 
+        // Resolve agent_mode with fallback chain:
+        //   1) topic_pattern from the current message extra (request-level override)
+        //   2) topic entity's persisted topic_mode (legacy / IM-driven flow)
+        $extraTopicPattern = $extra?->getTopicPattern();
+        $agentMode = ! empty($extraTopicPattern) ? $extraTopicPattern : $topicEntity->getTopicMode();
+
+        // Resolve model_id with fallback chain (extra > extraData)
+        $extraModelId = $extra?->getModelId() ?? '';
+        $modelId = $extraModelId !== '' ? $extraModelId : (string) ($extraData['model_id'] ?? '');
+
         // Build task context with all fields populated.
-        // Bridge model_id from extraData so it is delivered to the sandbox
-        // via ChatMessageRequest and auto-registered into dynamic_config.models.
+        // Bridge model_id and agent_mode so that they reach the sandbox via
+        // ChatMessageRequest. model_id is auto-registered into
+        // dynamic_config.models by TaskContext::getDynamicConfig().
         $taskContext = new TaskContext(
             task: $taskEntity,
             dataIsolation: $dataIsolation,
@@ -211,8 +216,8 @@ class TaskInitializationConsumer extends ConsumerMessage
             sandboxId: $topicEntity->getSandboxId(),
             taskId: (string) $taskEntity->getId(),
             instruction: ChatInstruction::FollowUp,
-            agentMode: $topicEntity->getTopicMode(),
-            modelId: (string) ($extraData['model_id'] ?? ''),
+            agentMode: $agentMode,
+            modelId: $modelId,
             isFirstTask: empty($topicEntity->getSandboxId()),
             extra: $extra
         );
@@ -365,6 +370,44 @@ class TaskInitializationConsumer extends ConsumerMessage
                 'error' => $notificationError->getMessage(),
             ]);
         }
+    }
+
+    /**
+     * Reconstruct SuperAgentExtra from the queue payload.
+     *
+     * Strategy:
+     *   1) Prefer rebuilding from messageContent.extra.super_agent so all fields
+     *      (topic_pattern, model, image_model, video_model, enable_web_search,
+     *      mentions, etc.) survive the round-trip through MQ.
+     *   2) Fall back to the legacy extraData fast-path for backward compatibility
+     *      with messages enqueued before this change (or producers that only
+     *      populate extraData).
+     */
+    private function reconstructSuperAgentExtra(TaskInitializationMessageDTO $messageDTO): ?SuperAgentExtra
+    {
+        $messageContent = $messageDTO->getMessageContent();
+        $superAgentArray = $messageContent['extra']['super_agent'] ?? null;
+        if (is_array($superAgentArray) && $superAgentArray !== []) {
+            return new SuperAgentExtra($superAgentArray);
+        }
+
+        $extraData = $messageDTO->getExtraData();
+        if ($extraData === null) {
+            return null;
+        }
+
+        $extra = new SuperAgentExtra();
+        if (! empty($extraData['image_model_id'])) {
+            $extra->setImageModel(['model_id' => $extraData['image_model_id']]);
+        }
+        if (! empty($extraData['model_id'])) {
+            $extra->setModel(['model_id' => $extraData['model_id']]);
+        }
+        if (! empty($extraData['video_model_id'])) {
+            $extra->setVideoModel(['model_id' => $extraData['video_model_id']]);
+        }
+
+        return $extra;
     }
 
     /**
