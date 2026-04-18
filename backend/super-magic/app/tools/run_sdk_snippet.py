@@ -10,6 +10,8 @@ SDK 代码片段执行工具（Code Mode 执行器）
 
 
 import asyncio
+import re
+import time
 
 import aiofiles
 from pathlib import Path
@@ -23,6 +25,9 @@ from app.tools.core import BaseToolParams, tool
 from app.tools.abstract_file_tool import AbstractFileTool
 from app.tools.snippet_timeout_registry import SdkSnippetTimeoutRegistry
 from app.utils.process_executor import ProcessExecutor
+
+# 匹配 tool.call('tool_name', ...) 或 tool.call("tool_name", ...) 中的工具名
+_TOOL_CALL_PATTERN = re.compile(r'tool\.call\s*\(\s*[\'"](\w+)[\'"]')
 
 logger = get_logger(__name__)
 
@@ -101,13 +106,34 @@ class RunSdkSnippet(AbstractFileTool[RunSdkSnippetParams]):
             "SUPER_MAGIC_PROJECT_ROOT": project_root_str,
         }
 
-    async def execute(self, tool_context: ToolContext, params: RunSdkSnippetParams) -> ToolResult:
-        import uuid
+    @staticmethod
+    def _check_code_mode_compatibility(python_code: str) -> list[str]:
+        """扫描代码中所有 tool.call() 调用，返回不允许 Code Mode 的工具名列表。"""
+        from app.tools.core.tool_factory import tool_factory
 
-        script_file_path = None
+        blocked: list[str] = []
+        for tool_name in _TOOL_CALL_PATTERN.findall(python_code):
+            try:
+                instance = tool_factory.get_tool_instance(tool_name)
+                if not instance.allow_code_mode():
+                    blocked.append(tool_name)
+            except Exception:
+                # 工具不存在或实例化失败时跳过，不影响执行
+                pass
+        return blocked
+
+    async def execute(self, tool_context: ToolContext, params: RunSdkSnippetParams) -> ToolResult:
+        # 检查是否包含不允许在 Code Mode 中调用的工具
+        blocked_tools = self._check_code_mode_compatibility(params.python_code)
+        if blocked_tools:
+            names = ", ".join(blocked_tools)
+            return ToolResult.error(
+                f"The following tool(s) cannot be called via Code Mode (run_sdk_snippet): {names}. "
+                f"Call '{blocked_tools[0]}' directly as a standalone tool call instead."
+            )
 
         try:
-            script_filename = f"temp_sdk_{uuid.uuid4().hex[:8]}.py"
+            script_filename = f"temp_sdk_{int(time.time() * 1000)}.py"
 
             project_root = PathManager.get_project_root()
 

@@ -1387,11 +1387,19 @@ class ChatHistory:
 
                 # 找到 assistant 之后连续 tool 消息的末尾位置，
                 # 合成占位必须紧跟 assistant + 已有 tool results，不能隔着 user 消息，
-                # 否则 step2 的向后搜索遇到 user 会提前终止，导致合成 tool 被误判为孤立消息
+                # 否则 step2 的向后搜索遇到 user 会提前终止，导致合成 tool 被误判为孤立消息。
+                # 注意：只有属于当前 assistant 的 tool result 才算入连续块；
+                # 遇到不属于当前 assistant 的孤立 tool 消息（如 ask_user 的回答）立即停止，
+                # 否则合成占位会被插在孤立 tool 之后，导致 step2 将孤立 tool 转换的 assistant
+                # 消息夹在 tool_calls 和其真正的 tool results 之间，触发大模型 400 错误。
+                assistant_tool_call_ids = {tc.get("id") for tc in tool_calls_in_msg}
                 contiguous_tool_end = i  # 默认紧跟 assistant
                 for k in range(i + 1, next_assistant_idx):
                     if llm_messages[k].get("role") == "tool":
-                        contiguous_tool_end = k
+                        if llm_messages[k].get("tool_call_id") in assistant_tool_call_ids:
+                            contiguous_tool_end = k
+                        else:
+                            break  # 遇到不属于当前 assistant 的孤立 tool，停止扩展连续块
                     else:
                         break
 

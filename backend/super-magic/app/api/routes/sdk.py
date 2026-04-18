@@ -102,6 +102,7 @@ async def sdk_tool_call(request: SdkToolCallRequest):
         results = await tool_call_executor.execute(
             tool_calls=[tool_call],
             agent_context=agent_context,
+            is_code_mode=True,
         )
 
         if results:

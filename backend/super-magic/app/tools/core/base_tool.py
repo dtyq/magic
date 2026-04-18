@@ -73,6 +73,18 @@ class BaseTool(Generic[T], ABC):
         """
         return True
 
+    def allow_code_mode(self) -> bool:
+        """
+        检查工具是否允许在 Code Mode（run_sdk_snippet）中通过 sdk.tool.call() 调用。
+
+        需要与用户交互或依赖 agent 主事件循环挂起-恢复机制的工具（如 ask_user）
+        不能在 Code Mode 中使用，必须由模型直接作为工具调用发出。
+
+        Returns:
+            bool: 如果允许 Code Mode 调用返回 True，否则返回 False
+        """
+        return True
+
     def get_horizon(self, tool_context: "ToolContext") -> "AgentHorizon":
         """从 tool_context 获取当前 agent 的 AgentHorizon 实例。"""
         from app.core.context.agent_context import AgentContext

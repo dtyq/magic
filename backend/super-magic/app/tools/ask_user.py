@@ -144,6 +144,9 @@ For select/multi_select, the system auto-appends an "Other" free-input option.
 Use the `default` attribute to set a fallback when the user times out or skips.
 """
 
+    def allow_code_mode(self) -> bool:
+        return False
+
     async def set_extra_arguments(self, tool_context: ToolContext) -> None:
         """Pre-generate question_id, expiry and parse XML before BEFORE_TOOL_CALL fires."""
         from app.tools.ask_user_parser import parse_questions_xml

@@ -92,6 +92,16 @@ class ToolExecutor:
                 logger.error(f"❌ {friendly_error}")
                 raise ValueError(friendly_error)
 
+            # 第二道 Code Mode 拦截：不依赖代码静态分析，运行时兜底
+            if tool_context.get_extension("is_code_mode") and not tool_instance.allow_code_mode():
+                result = ToolResult.error(
+                    f"Tool '{tool_name}' cannot be called via Code Mode. "
+                    f"Call it directly as a standalone tool call instead.",
+                    name=tool_name,
+                )
+                result.tool_call_id = tool_context.tool_call_id
+                return result
+
             # 确保参数不为None
             if arguments is None:
                 arguments = {}

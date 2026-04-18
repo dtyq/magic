@@ -57,6 +57,7 @@ class ToolCallExecutor:
         self,
         tool_calls: List[ToolCall],
         agent_context: AgentContext,
+        is_code_mode: bool = False,
     ) -> List[ToolResult]:
         """执行工具调用（自动选择串行或并行模式）
 
@@ -65,6 +66,7 @@ class ToolCallExecutor:
         Args:
             tool_calls: 工具调用列表
             agent_context: Agent上下文
+            is_code_mode: 是否为 Code Mode 调用（run_sdk_snippet 子进程发起），会写入 ToolContext extension
 
         Returns:
             List[ToolResult]: 工具执行结果列表
@@ -77,7 +79,7 @@ class ToolCallExecutor:
         # 决策逻辑：根据配置和工具数量决定执行模式
         if not self.default_enable_parallel or len(tool_calls) <= 1:
             logger.debug("Using sequential execution mode for tool calls")
-            return await self.execute_sequential(tool_calls, agent_context)
+            return await self.execute_sequential(tool_calls, agent_context, is_code_mode=is_code_mode)
         else:
             logger.info(f"Using parallel execution mode for {len(tool_calls)} tool calls")
             return await self.execute_parallel(
@@ -88,12 +90,14 @@ class ToolCallExecutor:
         self,
         tool_calls: List[ToolCall],
         agent_context: AgentContext,
+        is_code_mode: bool = False,
     ) -> List[ToolResult]:
         """使用顺序模式执行 Tools 调用
 
         Args:
             tool_calls: 工具调用列表
             agent_context: Agent上下文
+            is_code_mode: 是否为 Code Mode 调用，True 时写入 ToolContext extension
 
         Returns:
             List[ToolResult]: 工具执行结果列表
@@ -129,6 +133,10 @@ class ToolCallExecutor:
                         tool_name,
                         tool_arguments_dict,
                     )
+
+                    # 标记 Code Mode 来源，供工具层做第二道拦截
+                    if is_code_mode:
+                        tool_context.register_extension("is_code_mode", True)
 
                     # 触发工具调用前事件
                     await ToolCallEventManager.trigger_before_tool_call(
