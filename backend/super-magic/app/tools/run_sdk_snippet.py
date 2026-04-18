@@ -12,6 +12,7 @@ SDK 代码片段执行工具（Code Mode 执行器）
 import asyncio
 import re
 import time
+import uuid
 
 import aiofiles
 from pathlib import Path
