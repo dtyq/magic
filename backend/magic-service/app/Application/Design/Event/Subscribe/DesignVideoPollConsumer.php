@@ -210,8 +210,15 @@ class DesignVideoPollConsumer extends ConsumerMessage
         $filePrefix = $this->fileDomainService->getFullPrefix($entity->getOrganizationCode());
         $fullFileDir = PathFactory::buildFullDirPath($filePrefix, $entity->getProjectId(), $entity->getFileDir());
         $taskFileDir = $this->taskFileDomainService->getByFileKey($fullFileDir);
-        if (! $taskFileDir || ! $taskFileDir->getIsDirectory()) {
-            ExceptionBuilder::throw(DesignErrorCode::InvalidArgument, 'design.video_generation.file_dir_not_exists', ['file_dir' => $entity->getFileDir()]);
+        $fileDirExists = $taskFileDir && $taskFileDir->getIsDirectory();
+
+        if (! $fileDirExists) {
+            $this->logger->warning('design video poll archive skipped: file dir not found, completing without file archive', [
+                'video_id' => $entity->getGenerationId(),
+                'project_id' => $entity->getProjectId(),
+                'organization_code' => $entity->getOrganizationCode(),
+                'file_dir' => $entity->getFileDir(),
+            ]);
         }
 
         // 若用户未显式指定 file_name，则在归档前尝试生成智能文件名；失败时继续沿用默认 video_时间戳 命名。
@@ -229,6 +236,22 @@ class DesignVideoPollConsumer extends ConsumerMessage
         $fileName = $this->domainService->buildFinalVideoFileName($entity, $videoUrl);
         $posterUrl = trim((string) ($output['poster_url'] ?? ''));
         $posterFileName = $posterUrl !== '' ? $this->domainService->buildPosterFileName($fileName, $posterUrl) : '';
+
+        $outputPayload = [
+            'relative_file_path' => $fileDirExists ? $this->buildRelativeFilePath($entity->getFileDir(), $fileName) : '',
+            'relative_poster_path' => ($fileDirExists && $posterFileName !== '') ? $this->buildRelativeFilePath($entity->getFileDir(), $posterFileName) : '',
+            'poster_file_name' => $posterFileName,
+            'provider_video_url' => $videoUrl,
+            'provider_poster_url' => $posterUrl,
+            'duration_seconds' => $output['duration_seconds'] ?? null,
+            'resolution' => (string) ($output['resolution'] ?? ''),
+            'fps' => $output['fps'] ?? null,
+        ];
+
+        if (! $fileDirExists) {
+            $this->domainService->markAsCompleted($dataIsolation, $entity, $outputPayload, $fileName);
+            return;
+        }
 
         $uploadPath = substr($fullFileDir, strlen($filePrefix));
         $videoUploadFile = new UploadFile($videoUrl, $uploadPath, $fileName, false);
@@ -260,17 +283,6 @@ class DesignVideoPollConsumer extends ConsumerMessage
             if ($posterUploadFile !== null) {
                 $this->fileDomainService->uploadByCredential($entity->getOrganizationCode(), $posterUploadFile, StorageBucketType::SandBox, false);
             }
-
-            $outputPayload = [
-                'relative_file_path' => $this->buildRelativeFilePath($entity->getFileDir(), $fileName),
-                'relative_poster_path' => $posterFileName !== '' ? $this->buildRelativeFilePath($entity->getFileDir(), $posterFileName) : '',
-                'poster_file_name' => $posterFileName,
-                'provider_video_url' => $videoUrl,
-                'provider_poster_url' => $posterUrl,
-                'duration_seconds' => $output['duration_seconds'] ?? null,
-                'resolution' => (string) ($output['resolution'] ?? ''),
-                'fps' => $output['fps'] ?? null,
-            ];
 
             $this->domainService->markAsCompleted($dataIsolation, $entity, $outputPayload, $fileName);
             Db::commit();
