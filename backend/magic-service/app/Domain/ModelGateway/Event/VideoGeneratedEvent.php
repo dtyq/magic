@@ -61,7 +61,12 @@ class VideoGeneratedEvent extends AbstractEvent
      *     reference_audio_count: int
      * }
      */
-    protected array $videoReferenceMaterial = [];
+    protected array $videoReferenceMaterial = [
+        'input_mode' => null,
+        'reference_image_count' => 0,
+        'reference_video_count' => 0,
+        'reference_audio_count' => 0,
+    ];
 
     protected array $businessParams = [];
 
