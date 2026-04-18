@@ -730,12 +730,17 @@ class TaskMessageFactoryV2(TaskMessageFactoryProtocol):
         else:
             tool_status = ToolStatus.FINISHED
 
-        # 使用 LLM 请求 ID 作为 correlation_id，与流式 chunk 及 before_tool_call 对齐
-        # pending_state.correlation_id 在 after_agent_reply 暂存时设置为 LLM 请求 ID
+        # 使用 LLM 请求 ID 作为 correlation_id，与流式 chunk 及 before_tool_call 对齐。
+        # pending_state.correlation_id 在 after_agent_reply 暂存时设置为 LLM 请求 ID。
+        # Code Mode（is_code_mode=True）的内层工具调用不从 pending_state 取 correlation_id：
+        # 它们是 run_sdk_snippet 子进程发起的独立调用，有各自的 before/after 配对，
+        # 不应与外层 run_sdk_snippet 的 LLM correlation_id 混淆。
         correlation_id = event.data.correlation_id
-        pending_state = agent_context.get_pending_reply_state()
-        if pending_state and pending_state.correlation_id:
-            correlation_id = pending_state.correlation_id
+        is_code_mode = event.data.tool_context.get_extension("is_code_mode")
+        if not is_code_mode:
+            pending_state = agent_context.get_pending_reply_state()
+            if pending_state and pending_state.correlation_id:
+                correlation_id = pending_state.correlation_id
 
         inner = cls._build_inner_message(
             agent_context,

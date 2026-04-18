@@ -264,6 +264,20 @@ class StreamListenerService:
                    f"耗时: {event.data.execution_time:.2f}ms, correlation_id: {event.data.correlation_id}")
 
     @staticmethod
+    def _should_suppress_tool_events(event, agent_context: AgentContext) -> bool:
+        """判断当前事件是否应被抑制（仅 v1 受 should_trigger_events() 控制）。
+
+        v2 不再依赖 should_trigger_events() 抑制事件——LLM 输出已直接透传给前端，
+        工具调用事件同样需要完整发出，由各自工具的展示逻辑控制。
+        """
+        if agent_context.get_message_version() == "v2":
+            return False
+        if (hasattr(event.data, "tool_instance")
+                and isinstance(event.data.tool_instance, BaseTool)):
+            return not event.data.tool_instance.should_trigger_events()
+        return False
+
+    @staticmethod
     async def _handle_before_tool_call(event: Event[BeforeToolCallEventData]) -> None:
         """
         处理工具调用前事件
@@ -271,14 +285,10 @@ class StreamListenerService:
         Args:
             event: 工具调用前事件对象，包含BeforeToolCallEventData数据
         """
-
-        if (hasattr(event.data, 'tool_instance')
-            and isinstance(event.data.tool_instance, BaseTool)):
-            tool_instance = event.data.tool_instance
-            if not tool_instance.should_trigger_events():
-                return
-
         agent_context = event.data.tool_context.get_extension_typed("agent_context", AgentContext)
+        if StreamListenerService._should_suppress_tool_events(event, agent_context):
+            return
+
         factory = agent_context.get_message_factory()
 
         # 检查是否为MCP初始化事件
@@ -312,17 +322,19 @@ class StreamListenerService:
         Args:
             event: 工具调用后事件对象，包含AfterToolCallEventData数据
         """
-        if (hasattr(event.data, 'tool_instance')
-            and isinstance(event.data.tool_instance, BaseTool)):
-            tool_instance = event.data.tool_instance
-            if not tool_instance.should_trigger_events():
-                return
+        agent_context = event.data.tool_context.get_extension_typed("agent_context", AgentContext)
+        if StreamListenerService._should_suppress_tool_events(event, agent_context):
+            return
 
         # ask_user manages its own AFTER message (sent after user reply or timeout)
         if getattr(event.data.result, "system", None) == "ASK_USER":
             return
 
-        agent_context = event.data.tool_context.get_extension_typed("agent_context", AgentContext)
+        # run_sdk_snippet (v2) already sent its after message before script execution;
+        # suppress this outer after triggered by tool_call_executor after execute() returns
+        if getattr(event.data.result, "system", None) == "SDK_SNIPPET_DISPATCHED":
+            return
+
         factory = agent_context.get_message_factory()
 
         # 检查是否为MCP初始化事件

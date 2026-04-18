@@ -63,6 +63,10 @@
         "zh_CN": "执行命令",
         "en_US": "Execute Shell command"
     },
+    "run_sdk_snippet": {
+        "zh_CN": "代码模式",
+        "en_US": "Code Mode"
+    },
     "run_python_snippet": {
         "zh_CN": "执行Python代码片段",
         "en_US": "Execute Python snippet"

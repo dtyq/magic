@@ -1,15 +1,19 @@
 """
 SDK 代码片段执行工具（Code Mode 执行器）
 
-执行模型生成的 Python 代码片段，代码通过 sdk.tool / sdk.mcp 调用底层工具，
-中间结果在执行环境内部流转，不进入模型上下文。
+执行模型生成的 Python 代码片段，代码通过 sdk.tool / sdk.mcp 调用底层工具。
 与 run_python_snippet 的区别：
-1. should_trigger_events() 返回 False，不触发工具调用事件
-2. 自动注入 agent_context 到子进程环境变量，供 SDK 请求精确路由
+1. 自动注入 agent_context 到子进程环境变量，供 SDK 请求精确路由
+2. 子进程内的每次 tool.call() / mcp.call() 会触发独立的 before/after_tool_call 事件，
+   在 v2 消息模式下对应各自一组 assistant + tool 消息
+
+注意：should_trigger_events() 返回 False 仅影响 v1 消息模式；
+v2 消息模式由 StreamListenerService 统一跳过该限制，事件正常发出。
 """
 
 
 import asyncio
+import json
 import re
 import time
 import uuid
@@ -18,9 +22,13 @@ import aiofiles
 from pathlib import Path
 from pydantic import Field
 
+from typing import Any, Dict
+
 from agentlang.context.tool_context import ToolContext
 from agentlang.tools.tool_result import ToolResult
 from agentlang.logger import get_logger
+from app.core.context.agent_context import AgentContext
+from app.i18n import i18n
 from app.path_manager import PathManager
 from app.tools.core import BaseToolParams, tool
 from app.tools.abstract_file_tool import AbstractFileTool
@@ -29,6 +37,9 @@ from app.utils.process_executor import ProcessExecutor
 
 # 匹配 tool.call('tool_name', ...) 或 tool.call("tool_name", ...) 中的工具名
 _TOOL_CALL_PATTERN = re.compile(r'tool\.call\s*\(\s*[\'"](\w+)[\'"]')
+
+# v2 提前 after 使用的占位 content（与真实终端输出区分，用于选择 remark 文案）
+_EARLY_AFTER_FAKE_CONTENT = "Script dispatched, executing inner tool calls."
 
 logger = get_logger(__name__)
 
@@ -133,6 +144,9 @@ class RunSdkSnippet(AbstractFileTool[RunSdkSnippetParams]):
                 f"Call '{blocked_tools[0]}' directly as a standalone tool call instead."
             )
 
+        # v2 模式下在脚本执行前是否已提前触发 after_tool_call
+        early_after_sent = False
+
         try:
             script_filename = f"temp_sdk_{int(time.time() * 1000)}.py"
 
@@ -166,7 +180,7 @@ class RunSdkSnippet(AbstractFileTool[RunSdkSnippetParams]):
             # 将调用方 AgentContext 的 context_id 注入子进程，供 SDK 请求带回服务端，
             # 使服务端能精确路由到正确的 Agent 上下文。
             extra_env = self._build_snippet_extra_env(project_root)
-            agent_ctx = tool_context.get_extension("agent_context")
+            agent_ctx: AgentContext = tool_context.get_extension("agent_context")
             if agent_ctx is None:
                 raise RuntimeError(
                     "run_sdk_snippet: tool_context 中不存在 agent_context，"
@@ -189,6 +203,28 @@ class RunSdkSnippet(AbstractFileTool[RunSdkSnippetParams]):
 
             agent_ctx.register_run_cleanup(cleanup_key, _cancel_inflight)
 
+            # v2 模式：在脚本执行前提前触发 after_tool_call，保证消息顺序为：
+            # assistant(run_sdk_snippet before) → tool(run_sdk_snippet after) → 内层工具消息对
+            # 外层 tool_call_executor 触发的 after_tool_call 通过 SDK_SNIPPET_DISPATCHED 屏蔽。
+            if agent_ctx.get_message_version() == "v2":
+                from app.tools.core.tool_call_event_manager import ToolCallEventManager
+                early_tool_call = ToolCallEventManager.create_openai_tool_call(
+                    tool_context.tool_call_id,
+                    "function",
+                    tool_context.tool_name,
+                    json.dumps(tool_context.arguments, ensure_ascii=False),
+                )
+                await ToolCallEventManager.trigger_after_tool_call(
+                    agent_ctx,
+                    early_tool_call,
+                    tool_context,
+                    tool_context.tool_name,
+                    tool_context.arguments,
+                    ToolResult(content=_EARLY_AFTER_FAKE_CONTENT),
+                    0.0,
+                )
+                early_after_sent = True
+
             try:
                 terminal_result = await ProcessExecutor.execute_command(
                     command=command,
@@ -202,10 +238,12 @@ class RunSdkSnippet(AbstractFileTool[RunSdkSnippetParams]):
                 # 正常完成后清理残留的 in-flight 记录（容错）
                 registry.cancel_by_execution(agent_ctx.context_id, sdk_execution_id)
 
+            # early_after_sent=True 时外层 after_tool_call 应被屏蔽（已提前发出）
+            system = "SDK_SNIPPET_DISPATCHED" if early_after_sent else None
             if terminal_result.ok:
-                return ToolResult(content=terminal_result.content)
+                return ToolResult(content=terminal_result.content, system=system)
             else:
-                return ToolResult.error(terminal_result.content)
+                return ToolResult.error(terminal_result.content, system=system)
 
         except asyncio.CancelledError:
             # 中断信号，直接向上传播，不要降级为普通错误
@@ -213,4 +251,31 @@ class RunSdkSnippet(AbstractFileTool[RunSdkSnippetParams]):
 
         except Exception as e:
             logger.exception(f"执行 SDK 代码片段时出错: {e}")
-            return ToolResult.error(f"执行 SDK 代码片段时出错: {e}")
+            system = "SDK_SNIPPET_DISPATCHED" if early_after_sent else None
+            return ToolResult.error(f"执行 SDK 代码片段时出错: {e}", system=system)
+
+    async def get_after_tool_call_friendly_action_and_remark(
+        self,
+        tool_name: str,
+        tool_context: ToolContext,
+        result: ToolResult,
+        execution_time: float,
+        arguments: Dict[str, Any] = None,
+    ) -> Dict:
+        if not result.ok:
+            return {
+                "action": i18n.translate("run_sdk_snippet", category="tool.actions"),
+                "remark": i18n.translate(
+                    "run_sdk_snippet.error",
+                    category="tool.messages",
+                    error=result.content,
+                ),
+            }
+        if result.content == _EARLY_AFTER_FAKE_CONTENT:
+            remark_key = "run_sdk_snippet.after_dispatched"
+        else:
+            remark_key = "run_sdk_snippet.after_completed"
+        return {
+            "action": i18n.translate("run_sdk_snippet", category="tool.actions"),
+            "remark": i18n.translate(remark_key, category="tool.messages"),
+        }

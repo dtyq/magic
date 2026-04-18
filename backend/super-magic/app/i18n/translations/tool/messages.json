@@ -183,6 +183,18 @@
         "zh_CN": "Shell命令执行失败: {{error}}",
         "en_US": "Shell command execution failed: {{error}}"
     },
+    "run_sdk_snippet.after_dispatched": {
+        "zh_CN": "正在执行",
+        "en_US": "Running"
+    },
+    "run_sdk_snippet.after_completed": {
+        "zh_CN": "执行完毕",
+        "en_US": "Completed"
+    },
+    "run_sdk_snippet.error": {
+        "zh_CN": "代码模式执行失败: {{error}}",
+        "en_US": "Code Mode execution failed: {{error}}"
+    },
     "run_python_snippet.error": {
         "zh_CN": "Python代码片段执行失败: {{error}}",
         "en_US": "Python snippet execution failed: {{error}}"
