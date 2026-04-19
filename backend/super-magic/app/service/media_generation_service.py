@@ -1,4 +1,8 @@
-"""图片/视频生成完成后的共享后处理能力。"""
+"""图片/视频生成完成后的共享后处理能力。
+
+工作区文件 → 预签名 URL 已统一迁移到 `FileService.get_workspace_file_url`，
+本模块仅保留与文件变更通知（File Notification）相关的代码。
+"""
 
 import time
 import traceback
@@ -8,7 +12,6 @@ from typing import Optional, Union
 from app.api.http_dto.file_notification_dto import FileNotificationRequest
 from app.infrastructure.magic_service.client import MagicServiceClient
 from app.infrastructure.magic_service.config import MagicServiceConfigLoader
-from app.service.file_service import FileService
 from app.utils.async_file_utils import async_stat
 from app.utils.init_client_message_util import InitClientMessageUtil, InitializationError
 from app.utils.video_logger import get_video_logger
@@ -17,22 +20,6 @@ logger = get_video_logger(__name__)
 
 AI_IMAGE_GENERATION_SOURCE = 5
 AI_VIDEO_GENERATION_SOURCE = 7
-
-
-async def generate_presigned_url_for_file(file_path: str) -> Optional[str]:
-    """为工作区文件生成可访问的预签名 URL。"""
-    try:
-        file_service = FileService()
-        download_result = await file_service.get_file_download_url(file_path, expires_in=7200, options={"size": 80})
-        presigned_url = download_result.get("download_url")
-        platform = download_result.get("platform")
-
-        logger.info(f"为 {platform} 存储生成预签名 URL，file_path: {file_path}")
-        logger.info(f"生成的预签名 URL: {presigned_url}")
-        return presigned_url
-    except Exception as e:
-        logger.error(f"为文件 {file_path} 生成预签名 URL 失败: {e}")
-        return None
 
 
 async def notify_generated_media_file(

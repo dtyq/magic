@@ -13,7 +13,14 @@ import traceback
 from pathlib import Path
 from typing import List, Optional, Union
 
-from app.utils.async_file_utils import async_stat, async_read_json, async_write_text, async_exists, get_file_id_from_xattr
+from app.utils.async_file_utils import (
+    async_stat,
+    async_read_json,
+    async_write_text,
+    async_exists,
+    get_file_id_from_xattr,
+    get_s3_key_from_xattr,
+)
 
 from agentlang.context.tool_context import ToolContext
 from agentlang.event.data import AfterMainAgentRunEventData, AgentSuspendedEventData
@@ -579,9 +586,9 @@ class FileStorageListenerService:
         """
         Construct the object-storage key for a file, without uploading it.
 
-        When the file carries an agfs xattr ``user.agfs.file_id`` the key is
-        built as ``storage_dir + '/' + file_id``; otherwise the original
-        workspace-relative path is used as a fallback.
+        Prefer the real magicfs object key from ``user.magicfs.s3_key``.
+        When unavailable, fall back to ``user.magicfs.file_id`` and finally
+        to the workspace-relative path for compatibility.
 
         Args:
             filepath: 文件路径
@@ -604,6 +611,11 @@ class FileStorageListenerService:
             except Exception as e:
                 logger.warning(f"无法获取文件状态信息，使用默认文件处理: {filepath}, 错误: {e}")
                 is_directory = False
+
+            s3_key = await get_s3_key_from_xattr(filepath)
+            if s3_key:
+                logger.info(f"构造文件键成功 (xattr s3_key): {filepath}, 存储键: {s3_key}")
+                return (s3_key, None)
 
             sts_token_refresh = agent_context.get_init_client_message_sts_token_refresh()
             metadata = agent_context.get_metadata()

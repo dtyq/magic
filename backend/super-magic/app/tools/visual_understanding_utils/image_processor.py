@@ -9,8 +9,6 @@ from agentlang.logger import get_logger
 from agentlang.llms.factory import LLMFactory
 from app.utils.async_file_utils import async_read_bytes, async_exists, async_stat, async_mkdir
 from app.tools.download_from_url import DownloadFromUrl, DownloadFromUrlParams
-from app.service.file_service import FileService
-
 from .models import (
     ImageDownloadStatus,
     ImageDownloadResult,
@@ -52,7 +50,6 @@ class ImageProcessor:
         """初始化图片处理器"""
         # 内部初始化依赖
         self._download_tool = DownloadFromUrl()
-        self._file_service = FileService()
 
         # 从环境变量读取URL模式配置
         self.url_mode_enabled = os.environ.get('VISUAL_URL_MODE_ENABLED', 'true').lower() == 'true'
@@ -327,7 +324,7 @@ class ImageProcessor:
                     await asyncio.sleep(0.1)
 
             # Generate download URL
-            download_url = await generate_file_download_url(relative_path, self._file_service)
+            download_url = await generate_file_download_url(relative_path)
             if not download_url:
                 raise ValueError(f"生成下载URL失败: {image_source}")
 

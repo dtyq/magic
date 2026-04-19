@@ -37,11 +37,7 @@ from agentlang.utils.metadata import MetadataUtil
 from app.core.entity.tool.tool_result import VideoToolResult
 from app.i18n import i18n
 from app.infrastructure.magic_service.config import MagicServiceConfig, MagicServiceConfigLoader
-from app.service.media_generation_service import (
-    AI_VIDEO_GENERATION_SOURCE,
-    generate_presigned_url_for_file,
-    notify_generated_media_file,
-)
+from app.service.file_service import FileService, WorkspaceFileURLError
 from app.tools.abstract_file_tool import AbstractFileTool
 from app.tools.core import BaseToolParams, tool
 from app.tools.snippet_timeout_registry import SdkSnippetTimeoutRegistry
@@ -1008,11 +1004,10 @@ class GenerateVideo(AbstractFileTool[GenerateVideoParams], WorkspaceTool[Generat
             return media_path
 
         resolved_path = await self._resolve_workspace_file(media_path)
-        relative_path = self._relative_to_workspace(resolved_path)
-        url = await generate_presigned_url_for_file(relative_path)
-        if not url:
-            raise ValueError(f"无法将本地文件转换为可访问 URL: {media_path}")
-        return url
+        try:
+            return await FileService().get_workspace_file_url(resolved_path, expires_in=7200)
+        except (FileNotFoundError, WorkspaceFileURLError) as e:
+            raise ValueError(f"无法将本地文件转换为可访问 URL: {media_path}, 错误: {e}") from e
 
     async def _resolve_workspace_file(self, media_path: str) -> Path:
         path_obj = Path(media_path)
@@ -1066,7 +1061,9 @@ class GenerateVideo(AbstractFileTool[GenerateVideoParams], WorkspaceTool[Generat
                 if downloaded_size > MAX_VIDEO_DOWNLOAD_BYTES:
                     raise ValueError("下载媒体文件失败，文件过大")
 
-                async with self._file_versioning_context(tool_context, save_path, update_timestamp=False) as file_existed_before:
+                async with self._file_versioning_context(
+                    tool_context, save_path, update_timestamp=False
+                ) as _file_existed_before:
                     try:
                         async with aiofiles.open(save_path, "wb") as f:
                             await f.write(content)
@@ -1075,16 +1072,7 @@ class GenerateVideo(AbstractFileTool[GenerateVideoParams], WorkspaceTool[Generat
                         save_path.unlink(missing_ok=True)
                         raise
 
-                    try:
-                        await notify_generated_media_file(
-                            file_path=save_path,
-                            base_dir=self.base_dir,
-                            file_existed=file_existed_before,
-                            file_size=downloaded_size,
-                            source=AI_VIDEO_GENERATION_SOURCE,
-                        )
-                    except Exception as e:
-                        logger.warning(f"发送视频文件通知失败: {e}")
+                    # magicfs 已实现文件同步与索引，该通知方法已废弃。
 
         relative_path = self._relative_to_workspace(save_path)
         return str(save_path), relative_path

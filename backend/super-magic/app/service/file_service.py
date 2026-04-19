@@ -6,7 +6,7 @@ Provides file-related operations including version history retrieval.
 
 import traceback
 import logging
-from typing import List, Dict, Any, Optional
+from typing import List, Dict, Any, Optional, Union
 from pathlib import Path
 
 from app.infrastructure.git.git import GitService
@@ -21,8 +21,13 @@ from app.infrastructure.storage.types import (
 from app.infrastructure.storage.base import AbstractStorage
 from app.core.config.communication_config import STSTokenRefreshConfig
 from app.core.base_service import Base
+from app.utils.async_file_utils import async_exists, get_s3_key_from_xattr
 
 logger = logging.getLogger(__name__)
+
+
+class WorkspaceFileURLError(RuntimeError):
+    """Raised when a workspace file cannot be resolved into a presigned URL."""
 
 
 class FileService(Base):
@@ -957,6 +962,64 @@ class FileService(Base):
             logger.error(f"获取文件下载链接失败(by file_key): {file_key}, 错误: {e}")
             logger.error(traceback.format_exc())
             raise
+
+    async def get_workspace_file_url(
+        self,
+        file_path: Union[str, Path],
+        expires_in: int = 3600,
+        options: Optional[Dict[str, Any]] = None,
+    ) -> str:
+        """Resolve a local workspace file to a presigned download URL via magicfs.
+
+        The only supported resolution chain:
+            local file -> xattr ``user.magicfs.s3_key``
+                       -> ``self.get_download_url_by_file_key`` -> presigned URL
+
+        The caller is responsible for resolving relative paths (e.g. via
+        ``WorkspaceTool.resolve_path``) before invoking this method. The file
+        must exist locally AND have been synchronized to magicfs (which
+        populates the xattr). When the xattr is missing the file is not yet
+        consistent with object storage, and we raise instead of guessing a
+        key from a relative path - that fallback would silently point
+        downstream consumers at the wrong object.
+
+        Args:
+            file_path: absolute path to a local file under the workspace.
+            expires_in: presigned URL lifetime in seconds. Defaults to 1 hour.
+            options: passthrough options for the storage backend (e.g.
+                ``{"resize": 80}`` for image scaling). No business defaults
+                are injected here; pass ``None`` for non-image use cases.
+
+        Returns:
+            The presigned download URL.
+
+        Raises:
+            FileNotFoundError: local file does not exist.
+            WorkspaceFileURLError: xattr missing, or storage backend returned
+                no URL.
+        """
+        path = Path(file_path).expanduser()
+        if not await async_exists(path):
+            raise FileNotFoundError(f"workspace file not found: {path}")
+
+        file_key = await get_s3_key_from_xattr(path)
+        if not file_key:
+            raise WorkspaceFileURLError(
+                f"magicfs xattr 'user.magicfs.s3_key' missing for {path}; "
+                "the file may not yet be synchronized to object storage"
+            )
+
+        result = await self.get_download_url_by_file_key(
+            file_key=file_key,
+            expires_in=expires_in,
+            options=options or {},
+        )
+        download_url = result.get("download_url")
+        if not download_url:
+            raise WorkspaceFileURLError(
+                f"storage backend returned no download URL for file_key={file_key}"
+            )
+        return download_url
 
     async def get_file_download_url(
         self, file_path: str, expires_in: int = 3600, options: Optional[Dict[str, Any]] = None

@@ -241,7 +241,46 @@ Python 代码中凡是涉及文件操作，必须使用 `app/utils/async_file_ut
 - `config/tool_definitions.json` 是缓存文件，不要手动编辑
 - 修改工具的真实来源应为 `app/tools/` 下的工具代码；缓存如有需要应走项目既有生成流程刷新
 
-## 15. 深度参考文档索引
+## 15. 工作区文件转 URL 必须走统一入口
+
+`.workspace/` 下的本地文件转可访问 URL，统一调用：
+
+```python
+from app.service.file_service import FileService, WorkspaceFileURLError
+
+try:
+    url = await FileService().get_workspace_file_url(
+        file_path=resolved_local_path,   # 必须是绝对路径，由调用方完成路径解析
+        expires_in=3600,
+        options=None,                    # 仅图片缩放等场景按需传，例如 {"resize": 80}
+    )
+except FileNotFoundError:
+    ...    # 本地文件不存在
+except WorkspaceFileURLError:
+    ...    # xattr 缺失或对象存储后端未返回 URL
+```
+
+唯一合法的解析链路：
+
+`本地文件 → xattr user.magicfs.s3_key → FileService.get_download_url_by_file_key → presigned URL`
+
+不允许做的事：
+
+- 把工作区相对路径直接拼到对象存储 key 上（绕过 magicfs 真实 s3_key）
+- xattr 读不到时静默回落到"按相对路径猜 key"
+- 在通用 helper 里硬编码业务专属参数（例如图片缩放 `resize`）；图片场景由 `generate_image` 自己传 `{"resize": 80}`，视频/音频不传
+- 把"路径解析"塞进 `FileService.get_workspace_file_url`；候选路径、output_path 前缀拼接、模糊匹配等属于工具层职责，先解析出绝对路径再调本方法
+
+xattr 缺失说明文件尚未与对象存储同步完成，应直接抛错让上层感知，而不是回落到不可靠的路径。
+
+例外（语义不同，保留各自实现）：
+
+- `app/service/agent_event/file_storage_listener_service.py::_construct_file_key`
+  上传链路里的 file_key 推断，需兼容历史数据，保留 `xattr.s3_key → xattr.file_id → workspace 相对路径` 三级回落。
+- `app/api/routes/file.py::get_file_download_url`
+  对外 HTTP API，路径由外部调用方传入，不属于"本机本地文件 → URL"的范畴。
+
+## 16. 深度参考文档索引
 
 以下文档不需要常驻上下文，按需查阅：
 
@@ -253,7 +292,7 @@ Python 代码中凡是涉及文件操作，必须使用 `app/utils/async_file_ut
 | Skill 概念与加载链路 | `agents/guides/SKILLS_OVERVIEW.md` | 快速了解 Skill 是什么、加载方式、来源与模型使用规则时 |
 | Skill 开发指南 | `agents/guides/SKILLS_DEVELOPMENT_GUIDE.md` | 新建或修改 Skill、需要了解 SKILL.md 规范和最佳实践时 |
 
-## 16. 每次改动前自检
+## 17. 每次改动前自检
 
 - 这是在解决真实问题，还是在满足抽象冲动？
 - 这层包装有没有新增语义？
