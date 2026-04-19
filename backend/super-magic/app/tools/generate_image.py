@@ -96,7 +96,7 @@ Save directory. Auto-determined when empty. Chinese users use Chinese path (e.g.
     )
     image_paths: List[str] = Field(
         default_factory=list,
-        description="""<!--zh: 参考图或待编辑图片的工作区相对路径列表（如 ['uploads/image.png']）。generate 模式下作为风格/内容参考；edit 模式下作为待修改原图（必须提供）。用户上传了图片且需要参考时必须传入。-->
+        description="""<!--zh: 用户上传了图片必须传入,参考图或待编辑图片的工作区相对路径列表（如 ['uploads/image.png']）。generate 模式下作为风格/内容参考；edit 模式下作为待修改原图（必须提供）。-->
 Workspace-relative paths of reference or source images (e.g. ['uploads/image.png']). In generate mode: style/content reference. In edit mode: source images to modify (required). Must provide when the user has uploaded images to build upon.""",
     )
     override: bool = Field(
@@ -139,6 +139,7 @@ class GenerateImage(AbstractFileTool[GenerateImageParams], WorkspaceTool[Generat
 - 用户说"只改 X，其他保持不变"→ 这是参考图任务，必须传 image_paths，否则生成结果与原图完全无关
 - generate + image_paths：以参考图为风格/内容基础生成新图（适合"保留大部分、只改局部"）
 - edit + image_paths：对原图进行像素级修改（适合"改背景/改颜色/删除元素"）
+- 视觉理解（visual_understanding）失败不代表不能传 image_paths：两者完全独立，即使看不懂图，仍必须将上传图片传入 image_paths 供模型参考
 -->
 Call generate_image when the user wants to create, generate, or edit images.
 Key rules:
@@ -146,6 +147,7 @@ Key rules:
 - "Change only X, keep everything else" → this is a reference-image task; image_paths is required, or the output will share nothing with the original.
 - generate + image_paths: generate a new image using the reference as style/content basis (best for "keep most features, change one part")
 - edit + image_paths: directly modify the source image at pixel level (best for background swap, color change, element removal)
+- visual_understanding failure does NOT mean skipping image_paths: the two are independent. Even if visual_understanding fails, you must still pass uploaded image paths via image_paths so the generation model can use them as reference.
 """
 
     # 跟踪每个对话的生成计数
