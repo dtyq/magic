@@ -135,15 +135,17 @@ class GenerateImage(AbstractFileTool[GenerateImageParams], WorkspaceTool[Generat
 <!--zh
 调用 generate_image 的场景：用户想创建、生成、编辑图片时。
 关键规则：
-- 用户上传了图片且希望参考/编辑时，必须将路径传入 image_paths
-- generate + image_paths：以参考图为风格/内容基础生成新图
-- edit + image_paths：对原图进行像素级修改
+- 用户上传了图片（不论是要参考、要修改、还是只改局部），必须将图片路径传入 image_paths
+- 用户说"只改 X，其他保持不变"→ 这是参考图任务，必须传 image_paths，否则生成结果与原图完全无关
+- generate + image_paths：以参考图为风格/内容基础生成新图（适合"保留大部分、只改局部"）
+- edit + image_paths：对原图进行像素级修改（适合"改背景/改颜色/删除元素"）
 -->
 Call generate_image when the user wants to create, generate, or edit images.
 Key rules:
-- When reference images exist, always pass their paths via image_paths. Never use visual_understanding to describe the image first.
-- generate + image_paths: generate a new image using the reference as style/content basis
-- edit + image_paths: directly modify the source image at pixel level
+- When the user has uploaded images (whether to reference, modify, or change only one detail), always pass those paths via image_paths.
+- "Change only X, keep everything else" → this is a reference-image task; image_paths is required, or the output will share nothing with the original.
+- generate + image_paths: generate a new image using the reference as style/content basis (best for "keep most features, change one part")
+- edit + image_paths: directly modify the source image at pixel level (best for background swap, color change, element removal)
 """
 
     # 跟踪每个对话的生成计数
