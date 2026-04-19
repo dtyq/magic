@@ -12,6 +12,17 @@ use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\MessageMetadata;
 use Dtyq\SuperMagic\ErrorCode\MagicFSErrorCode;
 use Hyperf\HttpServer\Contract\RequestInterface;
 
+/**
+ * Request DTO for POST /api/v1/open-api/magicfs/files.
+ *
+ * 两类 metadata 的职责划分（与 agfs-server magicfs 插件对齐）：
+ *
+ * - message_metadata：一次请求的上下文（user / trace / authorization / …），
+ *   不持久化在文件上。对应 Go 侧 magicfs.MessageMetadata。
+ * - file_metadata：文件级的持久化 key/value 标记，会落到 task_files.metadata
+ *   JSON 列里和 mode 并存。对应 Go 侧 File.FileMetadata，当前已知 key：
+ *     * "local_shadow" = "1"  → agfs-fuse 把该目录子树本地化，不上云。
+ */
 class CreateFileRequestDTO
 {
     public string $name = '';
@@ -20,7 +31,11 @@ class CreateFileRequestDTO
 
     public bool $is_directory = false;
 
-    public array $metadata = [];
+    /** @var array<string, mixed> Per-request context (user/trace/authorization/...) */
+    public array $message_metadata = [];
+
+    /** @var array<string, string> Per-file persisted flags (e.g. local_shadow=1) */
+    public array $file_metadata = [];
 
     public static function fromRequest(RequestInterface $request): self
     {
@@ -30,7 +45,8 @@ class CreateFileRequestDTO
         $dto->name = trim($data['name'] ?? '');
         $dto->parent_id = $data['parent_id'] ?? '';
         $dto->is_directory = (bool) ($data['is_directory'] ?? false);
-        $dto->metadata = $data['metadata'] ?? [];
+        $dto->message_metadata = $data['message_metadata'] ?? [];
+        $dto->file_metadata = self::normalizeFileMetadata($data['file_metadata'] ?? []);
 
         // 验证必填字段
         if (empty($dto->name)) {
@@ -44,18 +60,53 @@ class CreateFileRequestDTO
     }
 
     /**
-     * 获取 MessageMetadata 值对象.
+     * 获取 MessageMetadata 值对象（per-request 上下文）.
      */
-    public function getMetadataValueObject(): MessageMetadata
+    public function getMessageMetadataValueObject(): MessageMetadata
     {
-        return MessageMetadata::fromArray($this->metadata);
+        return MessageMetadata::fromArray($this->message_metadata);
     }
 
     /**
-     * 获取 metadata 数组.
+     * 获取原始 message_metadata 数组.
      */
-    public function getMetadata(): array
+    public function getMessageMetadata(): array
     {
-        return $this->metadata;
+        return $this->message_metadata;
+    }
+
+    /**
+     * 获取持久化的 file_metadata 数组.
+     *
+     * @return array<string, string>
+     */
+    public function getFileMetadata(): array
+    {
+        return $this->file_metadata;
+    }
+
+    /**
+     * Normalize incoming file_metadata: only scalar / stringifiable values
+     * are kept, matching the Go-side `map[string]string` contract. Any
+     * non-scalar value is silently dropped to avoid persisting junk.
+     *
+     * @param mixed $raw
+     * @return array<string, string>
+     */
+    private static function normalizeFileMetadata($raw): array
+    {
+        if (! is_array($raw)) {
+            return [];
+        }
+        $out = [];
+        foreach ($raw as $k => $v) {
+            if (! is_string($k) || $k === '') {
+                continue;
+            }
+            if (is_scalar($v) || $v === null) {
+                $out[$k] = (string) $v;
+            }
+        }
+        return $out;
     }
 }

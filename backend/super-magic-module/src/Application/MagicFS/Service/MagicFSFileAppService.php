@@ -116,15 +116,19 @@ class MagicFSFileAppService
      */
     public function createFile(CreateFileRequestDTO $requestDTO): FileInfoResponseDTO
     {
-        // 获取 metadata 值对象
-        $metadata = $requestDTO->getMetadataValueObject();
+        // 获取 per-request 上下文（user/trace/authorization/...）
+        $messageMetadata = $requestDTO->getMessageMetadataValueObject();
 
         // project_id、user_id 和 organization_code 将从父文件或认证信息中自动获取
         $fileEntity = $this->magicFSFileDomainService->createFile(
             $requestDTO->name,
             $requestDTO->parent_id,
             $requestDTO->is_directory,
-            $metadata->getSuperMagicTaskId()  // 传递任务ID
+            $messageMetadata->getSuperMagicTaskId(), // 传递任务ID
+            null,                                   // sortValue
+            null,                                   // fileType
+            null,                                   // source
+            $requestDTO->getFileMetadata()          // 持久化的插件 flag，如 local_shadow
         );
 
         // Dispatch file uploaded event so downstream subscribers are notified
@@ -168,8 +172,9 @@ class MagicFSFileAppService
             );
         }
 
-        // 获取 metadata 值对象
-        $metadata = $requestDTO->getMetadataValueObject();
+        // 获取 per-request 上下文（预留给未来审计/trace 透传）
+        $messageMetadata = $requestDTO->getMessageMetadataValueObject();
+        unset($messageMetadata); // 当前 domain 层未使用；保留读取以便 DTO 校验
 
         // 调用领域服务更新文件（文件系统语义：同名自动覆盖）
         $fileEntity = $this->magicFSFileDomainService->updateFile($fileId, $updates);

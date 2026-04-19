@@ -89,9 +89,10 @@ class MagicFSFileDomainService
      * @param null|int $sortValue 排序值（可选，不传则不设置排序）
      * @param null|FileType $fileType 文件类型（可选，不传则根据 isDirectory 自动推断）
      * @param null|TaskFileSource $source 文件来源（可选，不传则默认 AGENT）
+     * @param null|array<string, string> $fileMetadata 文件级持久化 flag（例如 local_shadow=1），会与 mode 一同落到 task_files.metadata JSON 列
      * @return TaskFileEntity 创建的文件实体
      */
-    public function createFile(string $name, string $parentId, bool $isDirectory, ?string $superMagicTaskId = null, ?int $sortValue = null, ?FileType $fileType = null, ?TaskFileSource $source = null): TaskFileEntity
+    public function createFile(string $name, string $parentId, bool $isDirectory, ?string $superMagicTaskId = null, ?int $sortValue = null, ?FileType $fileType = null, ?TaskFileSource $source = null, ?array $fileMetadata = null): TaskFileEntity
     {
         // 1. 获取 project_id、user_id 和 organization_code（从父文件或认证信息）
         $parentInfo = $this->getParentFileInfo($parentId);
@@ -196,10 +197,21 @@ class MagicFSFileDomainService
             $entity->setFileType(FileType::SYSTEM_AUTO_UPLOAD->value);
         }
 
-        // 10. 设置 metadata（包含 mode 字段）
-        $mode = $isDirectory ? 0755 : 0644;
-        $metadataJson = json_encode(['mode' => $mode]);
-        $entity->setMetadata($metadataJson);
+        // 10. 设置 metadata（包含 mode + 调用方传入的 file_metadata flag）
+        //     mode 是 POSIX 权限位；file_metadata 是插件级持久化 bag（如
+        //     local_shadow=1）。两者共用同一 JSON 列，约定 "mode" 始终由
+        //     本服务计算并覆盖，其它 key 来自 $fileMetadata。
+        $metadataArray = [];
+        if ($fileMetadata !== null) {
+            foreach ($fileMetadata as $k => $v) {
+                if ($k === 'mode' || ! is_string($k) || $k === '') {
+                    continue; // 禁止客户端从 file_metadata 里绕过 mode 权限逻辑
+                }
+                $metadataArray[$k] = (string) $v;
+            }
+        }
+        $metadataArray['mode'] = $isDirectory ? 0755 : 0644;
+        $entity->setMetadata(json_encode($metadataArray));
 
         // 10.1. 设置 is_hidden（根据文件名和父目录判断）
         $entity->setIsHidden($this->determineIsHidden($name, $parentIdInt, $projectId));
@@ -363,12 +375,38 @@ class MagicFSFileDomainService
             }
         }
 
-        // 处理 mode 更新
-        if (isset($updates['mode'])) {
+        // 处理 mode / file_metadata 更新
+        //
+        // mode 和 file_metadata 共享 task_files.metadata JSON 列：
+        //   - mode 由本服务的调用方以 POSIX 权限位语义维护。
+        //   - file_metadata 是插件级 flag bag（local_shadow 等）；按 API
+        //     合同，显式提供时做"整体替换"（与 Go 侧 UpdateFileRequest
+        //     .FileMetadata 非 nil 即覆盖的语义一致）。
+        // 两者都未提供时，这一列不做任何改动。
+        if (isset($updates['mode']) || array_key_exists('file_metadata', $updates)) {
             $existingMetadata = $file->getMetadata();
-            $metadataArray = $existingMetadata ? json_decode($existingMetadata, true) : [];
-            $metadataArray['mode'] = (int) $updates['mode'];
-            $updateData['metadata'] = json_encode($metadataArray);
+            $existingArray = $existingMetadata ? (json_decode($existingMetadata, true) ?: []) : [];
+
+            if (array_key_exists('file_metadata', $updates)) {
+                $next = [];
+                foreach ((array) $updates['file_metadata'] as $k => $v) {
+                    if ($k === 'mode' || ! is_string($k) || $k === '') {
+                        continue; // 禁止通过 file_metadata 修改 mode
+                    }
+                    $next[$k] = (string) $v;
+                }
+                // mode 单独受管
+                if (isset($updates['mode'])) {
+                    $next['mode'] = (int) $updates['mode'];
+                } elseif (array_key_exists('mode', $existingArray)) {
+                    $next['mode'] = $existingArray['mode'];
+                }
+                $updateData['metadata'] = json_encode($next);
+            } else {
+                // 只有 mode 更新：保留原有 file_metadata bag
+                $existingArray['mode'] = (int) $updates['mode'];
+                $updateData['metadata'] = json_encode($existingArray);
+            }
         }
 
         // 处理 size 更新
