@@ -135,7 +135,7 @@ class GenerateImage(AbstractFileTool[GenerateImageParams], WorkspaceTool[Generat
 <!--zh
 调用 generate_image 的场景：用户想创建、生成、编辑图片时。
 关键规则：
-- 用户上传了图片且希望参考/编辑时，必须将路径传入 image_paths，不得先用 visual_understanding 读图再生成
+- 用户上传了图片且希望参考/编辑时，必须将路径传入 image_paths
 - generate + image_paths：以参考图为风格/内容基础生成新图
 - edit + image_paths：对原图进行像素级修改
 -->
