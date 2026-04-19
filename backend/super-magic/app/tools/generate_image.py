@@ -106,20 +106,7 @@ Whether to override existing files""",
     )
     model: str = Field(
         "",
-        description="""<!--zh
-用户指定时使用指定模型；未指定时默认使用 doubao-seedream-4-0-250828。
-可用模型：
-- doubao-seedream-4-0-250828（默认，中文文字渲染最佳，支持生成和编辑）
-- qwen-image（文本生成图片）
-- qwen-image-edit（图片编辑）
-- high_aes_general_v21_L（通用生成）
--->
-Use the user-specified model when provided; otherwise default to doubao-seedream-4-0-250828.
-Available models:
-- doubao-seedream-4-0-250828 (default; best Chinese text rendering; supports generate and edit)
-- qwen-image (text-to-image)
-- qwen-image-edit (image editing)
-- high_aes_general_v21_L (general generation)""",
+        description="",
     )
 
 
