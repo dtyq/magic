@@ -252,13 +252,13 @@ class PathManager(BasePathManager):
         return cls._task_metadata_file
 
     @classmethod
-    def get_ask_user_pending_file(cls, agent_name: str = "magic", agent_id: str = "main") -> Path:
-        """获取 ask_user 待处理问题持久化文件路径
+    def get_user_tool_call_pending_file(cls, agent_name: str = "magic", agent_id: str = "main") -> Path:
+        """获取 user_tool_call 待处理工具调用的持久化文件路径
 
-        命名规则与 chat_history 一致：{agent_name}<{agent_id}>.ask_user.json
+        命名规则与 chat_history 一致：{agent_name}<{agent_id}>.user_tool_call.json
         """
         cls._ensure_app_initialization()
-        return cls.get_chat_history_dir() / f"{agent_name}<{agent_id}>.ask_user.json"
+        return cls.get_chat_history_dir() / f"{agent_name}<{agent_id}>.user_tool_call.json"
 
     @classmethod
     def get_task_message_file(cls, task_id: str) -> Path:
