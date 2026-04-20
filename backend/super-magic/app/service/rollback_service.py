@@ -253,23 +253,31 @@ class RollbackService:
         将文件路径转换为OSS存储键
 
         Args:
-            file_path: 本地文件绝对路径
+            file_path: 文件路径，可能是 workspace 下的相对路径（新的 checkpoint
+                格式），也可能是历史数据里的绝对路径，两种都要兼容
 
         Returns:
             Optional[str]: OSS存储键，转换失败则返回None
         """
         try:
-            # 获取本地工作空间目录
-            local_workspace_dir = PathManager.get_workspace_dir()
-
             # 获取OSS工作空间目录
             oss_work_dir = InitClientMessageUtil.get_work_dir()
             if not oss_work_dir:
                 logger.warning("无法获取OSS工作目录，跳过文件版本创建")
                 return None
 
-            # 计算相对路径
-            relative_path = file_path.replace(str(local_workspace_dir), "").lstrip("/")
+            # 归一化为相对于本地 workspace 的相对路径
+            from pathlib import Path as _Path
+            path_obj = _Path(file_path)
+            if path_obj.is_absolute():
+                local_workspace_dir = PathManager.get_workspace_dir()
+                try:
+                    relative_path = str(path_obj.relative_to(local_workspace_dir))
+                except ValueError:
+                    # 绝对路径不在 workspace 内，退化为字符串替换兜底
+                    relative_path = file_path.replace(str(local_workspace_dir), "").lstrip("/")
+            else:
+                relative_path = file_path.lstrip("/")
 
             # 构造file_key
             file_key = BaseFileProcessor.combine_path(oss_work_dir, relative_path)
