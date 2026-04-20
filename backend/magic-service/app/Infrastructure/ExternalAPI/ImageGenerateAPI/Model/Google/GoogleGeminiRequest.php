@@ -113,7 +113,7 @@ class GoogleGeminiRequest extends ImageGenerateRequest
         $imageConfig = [];
 
         if (! empty($this->getRatio())) {
-            $imageConfig['aspectRatio'] = $this->getRatio();
+            $imageConfig['aspect_ratio'] = $this->getRatio();
         }
 
         // 分辨率预设：1k，2k，4k
@@ -126,7 +126,7 @@ class GoogleGeminiRequest extends ImageGenerateRequest
             $preset = str_replace('X', 'K', $preset);
             $preset = str_replace('x', 'K', $preset);
             $preset = str_replace('k', 'K', $preset);
-            $imageConfig['imageSize'] = $preset;
+            $imageConfig['image_size'] = $preset;
         }
 
         // 如果有 image_config 参数，添加到配置中
