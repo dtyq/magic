@@ -45,6 +45,7 @@ class PathManager(BasePathManager):
     _credentials_dir: ClassVar[Optional[Path]] = None
     _init_client_message_file: ClassVar[Optional[Path]] = None
     _chat_client_message_file: ClassVar[Optional[Path]] = None
+    _agent_config_file: ClassVar[Optional[Path]] = None
 
     # 项目架构目录：project_root/.project_schemas（预创建）
     _project_schema_dir_name: ClassVar[str] = ".project_schemas"
@@ -114,6 +115,7 @@ class PathManager(BasePathManager):
         cls._credentials_dir = cls._project_root / cls._credentials_dir_name
         cls._init_client_message_file = cls.get_credentials_dir() / "init_client_message.json"
         cls._chat_client_message_file = cls.get_credentials_dir() / "chat_client_message.json"
+        cls._agent_config_file = cls.get_credentials_dir() / "agent_config.json"
 
         cls._project_schema_absolute_dir = cls._project_root / cls._project_schema_dir_name
         cls._project_archive_info_file_relative_path = f"{cls._project_schema_dir_name}/project_archive_info.json"
@@ -205,6 +207,12 @@ class PathManager(BasePathManager):
     def get_chat_client_message_file(cls) -> Path:
         cls._ensure_app_initialization()
         return cls._chat_client_message_file
+
+    @classmethod
+    def get_agent_config_file(cls) -> Path:
+        """获取 Agent 配置文件路径（project_root/.credentials/agent_config.json）"""
+        cls._ensure_app_initialization()
+        return cls._agent_config_file
 
     @classmethod
     def get_upload_credentials_file(cls) -> Path:

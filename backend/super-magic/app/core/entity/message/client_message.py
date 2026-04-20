@@ -156,6 +156,10 @@ class ChatClientMessage(ClientMessage):
     dynamic_config: Optional[Dict[str, Any]] = Field(
         default=None, description="动态配置（JSON格式），将转换为YAML格式写入config/dynamic_config.yaml"
     )
+    agent: Optional["InitAgentConfig"] = Field(
+        default=None,
+        description="Agent config from server. Carries type and profile (name/description/role). Null for default agent."
+    )
 
     @validator("mcp_config", pre=True)
     def validate_mcp_config(cls, v):
@@ -234,19 +238,20 @@ class InitAgentProfile(BaseModel):
     code: Optional[str] = None
     name: Optional[str] = None
     description: Optional[str] = None
+    role: Optional[str] = None
     template_code: Optional[str] = None
 
 
 class InitAgentConfig(BaseModel):
     """Custom agent configuration carried in the INIT message.
 
-    name and description identify the agent in prompts.
     type indicates which agent variant to use (e.g. 'magiclaw').
-    profile carries optional claw / template metadata.
+    profile carries the agent identity: name, description, role, etc.
+    Top-level name/description are deprecated but kept for backward compatibility.
     """
 
-    name: str
-    description: str = "是一个专业的AI助手。"
+    name: Optional[str] = None
+    description: Optional[str] = None
     type: Optional[str] = None
     profile: Optional[InitAgentProfile] = None
 
@@ -278,8 +283,8 @@ class InitClientMessage(ClientMessage):
     )  # 长期记忆数据，用于传递给 dynamic_context
     agent: Optional["InitAgentConfig"] = Field(
         default=None,
-        description="""<!--zh: 自定义 Agent 配置；含 name、description；magiclaw 等模式还会带 type、profile 嵌套对象-->
-Custom agent config. Contains name, description; magiclaw and similar modes also include type and an optional profile object."""
+        description="""<!--zh: 自定义 Agent 配置；type 标识类型，profile 携带名称/描述/角色等身份信息。外层 name/description 已废弃，仅做兜底兼容-->
+Custom agent config. type identifies the agent variant; profile carries identity (name, description, role). Top-level name/description are deprecated fallbacks."""
     )
 
     @validator("message_subscription_config")
