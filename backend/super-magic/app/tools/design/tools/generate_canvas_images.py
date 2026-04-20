@@ -512,7 +512,7 @@ Expand brief user descriptions into full prompts covering subject, style, compos
                     if extracted.has_success:
                         retry_note = " (重试成功)" if is_retry else ""
                         logger.info(f"Task {idx + 1} 生成成功{retry_note}")
-                        best = self._pick_best_image(extracted.images, generate_params.size)
+                        best = self._pick_best_image(extracted.images)
                         return ImageGenerationResult(
                             index=idx,
                             success=True,
@@ -596,36 +596,24 @@ Expand brief user descriptions into full prompts covering subject, style, compos
 
         return ExtractedImagesResult(images=images, errors=errors)
 
-    def _pick_best_image(self, images: List[GeneratedImageInfo], requested_size: str) -> GeneratedImageInfo:
-        """从候选图列表中选出实际分辨率最接近目标尺寸的图片。
+    def _pick_best_image(self, images: List[GeneratedImageInfo]) -> GeneratedImageInfo:
+        """从候选图列表中选出分辨率最高的图片。
 
-        当 API 返回多张图时（edit 模式偶发）以总像素数差值为距离指标排序，
-        无法解析尺寸时回退到第一张。
+        当 API 返回多张图时（edit 模式偶发）以总像素数为指标取最大值，
+        无法读取尺寸时回退到第一张。
         """
         if len(images) == 1:
             return images[0]
 
-        req_pixels: Optional[int] = None
-        try:
-            if "x" in requested_size:
-                w_str, h_str = requested_size.split("x", 1)
-                req_pixels = int(w_str.strip()) * int(h_str.strip())
-        except (ValueError, AttributeError):
-            pass
-
-        if req_pixels is None:
-            logger.debug(f"无法解析目标尺寸 '{requested_size}'，回退到第一张图")
-            return images[0]
-
-        def _distance(img: GeneratedImageInfo) -> float:
+        def _pixels(img: GeneratedImageInfo) -> float:
             if img.width is not None and img.height is not None:
-                return abs(img.width * img.height - req_pixels)
-            return float("inf")
+                return img.width * img.height
+            return -1.0
 
-        best = min(images, key=_distance)
+        best = max(images, key=_pixels)
         if best is not images[0]:
             logger.info(
-                f"多图候选：共 {len(images)} 张，选取分辨率最接近 {requested_size} 的图片: {best.relative_path}"
+                f"多图候选：共 {len(images)} 张，选取分辨率最高的图片: {best.relative_path}"
             )
         return best
 
