@@ -109,7 +109,7 @@ class GoogleGeminiRequest extends ImageGenerateRequest
             'responseModalities' => $this->responseModalities,
         ];
 
-        // 构建 image_config（直接使用 snake_case 格式，供 API 层直接使用）
+        // Vertex Gemini API uses camelCase fields in imageConfig.
         $imageConfig = [];
 
         if (! empty($this->getRatio())) {
