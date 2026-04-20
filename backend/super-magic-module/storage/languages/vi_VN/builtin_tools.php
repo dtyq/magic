@@ -34,8 +34,6 @@ return [
         'create_slide' => 'Tạo slide',
         'create_slide_project' => 'Tạo dự án slide',
         'create_dashboard_project' => 'Tạo dashboard',
-        'update_dashboard_template' => 'Cập nhật mẫu dashboard',
-        'backup_dashboard_template' => 'Sao lưu mẫu dashboard',
         'finish_dashboard_task' => 'Hoàn thành tác vụ dashboard',
 
         // Thực thi hệ thống
@@ -79,8 +77,6 @@ return [
         'create_slide' => 'Công cụ tạo slide, tạo slide HTML và thực thi phân tích JavaScript tùy chỉnh, hỗ trợ kiểm tra bố cục và xác thực ranh giới phần tử',
         'create_slide_project' => 'Công cụ tạo dự án slide, tự động tạo cấu trúc dự án hoàn chỉnh, bao gồm bộ điều khiển trình bày, tệp cấu hình, thư mục tài nguyên và script giao tiếp',
         'create_dashboard_project' => 'Công cụ tạo dự án dashboard dữ liệu, sao chép khung dashboard dữ liệu hoàn chỉnh từ thư mục mẫu, bao gồm HTML, CSS, JavaScript và các thành phần biểu đồ',
-        'update_dashboard_template' => 'Công cụ cập nhật mẫu dashboard, đồng bộ các tệp dashboard.js, index.css, index.html và config.js từ thư mục mẫu đến dự án hiện có',
-        'backup_dashboard_template' => 'Công cụ khôi phục sao lưu mẫu dashboard, khôi phục phiên bản sao lưu tệp mẫu cho dự án được chỉ định, thực hiện hoán đổi tệp hiện tại và tệp sao lưu',
         'finish_dashboard_task' => 'Công cụ hoàn thành dự án dashboard, tự động hóa hoàn thành cấu hình bản đồ và nguồn dữ liệu, bao gồm tải xuống GeoJSON, cập nhật cấu hình HTML và quét tệp dữ liệu',
 
         // Thực thi hệ thống
