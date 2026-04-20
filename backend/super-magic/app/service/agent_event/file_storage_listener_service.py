@@ -2,14 +2,15 @@
 文件存储监听器服务，用于监听文件事件并上传文件到对象存储服务
 """
 
+import asyncio
 import hashlib
 import json
 import os
 import shutil
-import stat
 import tempfile
 import time
 import traceback
+from dataclasses import dataclass
 from pathlib import Path
 from typing import List, Optional, Union
 
@@ -31,7 +32,6 @@ from app.core.entity.attachment import Attachment, AttachmentTag
 from app.core.entity.event.file_event import FileEventData  # 从业务层导入 FileEventData
 from app.core.entity.project_archive import ArchiveDetail, ProjectArchiveInfo
 from app.infrastructure.storage.base import BaseFileProcessor
-from app.infrastructure.storage.exceptions import InitException, UploadException
 from app.infrastructure.storage.factory import StorageFactory
 from app.infrastructure.storage.types import StorageResponse
 from app.path_manager import PathManager
@@ -40,6 +40,14 @@ from app.utils.init_client_message_util import InitClientMessageUtil
 from app.utils.path_utils import get_workspace_dir, get_storage_dir, get_storage_dir_with_fallback
 
 logger = get_logger(__name__)
+
+
+@dataclass(frozen=True, slots=True)
+class ConstructedFileKey:
+    """Object-storage location of a workspace file managed by magicfs."""
+
+    file_key: str
+    file_id: Optional[str]
 
 
 class FileStorageListenerService:
@@ -79,21 +87,19 @@ class FileStorageListenerService:
         event_type_name = "创建" if event.event_type == EventType.FILE_CREATED else "更新"
         logger.info(f"处理文件{event_type_name}事件: {event.data.filepath}")
 
-        # 1. 构造文件存储键
-        file_key_result = await FileStorageListenerService._construct_file_key(
+        # 1. 构造文件存储键（仅消费 magicfs xattr，没有 xattr 视为 magicfs 未接管，跳过）
+        constructed = await FileStorageListenerService._construct_file_key(
             event.data.filepath,
-            event.data.tool_context.get_extension_typed("agent_context", AgentContext)
         )
 
         # 2. 如果构造成功，创建附件并添加到事件上下文
-        if file_key_result:
-            file_key, file_id = file_key_result
+        if constructed:
             try:
                 # 创建附件对象，传递file_key字符串
                 attachment = FileStorageListenerService._create_attachment_from_uploaded_file(
                     filepath=event.data.filepath,
-                    file_key=file_key,
-                    file_id=file_id,
+                    file_key=constructed.file_key,
+                    file_id=constructed.file_id,
                     file_event_data=event.data
                 )
 
@@ -582,84 +588,42 @@ class FileStorageListenerService:
         return md5_hash.hexdigest()
 
     @staticmethod
-    async def _construct_file_key(filepath: str, agent_context: AgentContext) -> Optional[tuple]:
+    async def _construct_file_key(filepath: str) -> Optional[ConstructedFileKey]:
         """
-        Construct the object-storage key for a file, without uploading it.
+        Resolve the magicfs object-storage key for a workspace file.
 
-        Prefer the real magicfs object key from ``user.magicfs.s3_key``.
-        When unavailable, fall back to ``user.magicfs.file_id`` and finally
-        to the workspace-relative path for compatibility.
+        Reads ``user.magicfs.s3_key`` (and ``user.magicfs.file_id``) directly
+        from xattr. Files without ``s3_key`` xattr are skipped — they are not
+        managed by magicfs and any synthetic key would only feed dead links
+        to ``create_file_version`` and the frontend.
 
         Args:
-            filepath: 文件路径
-            agent_context: 代理上下文对象
+            filepath: 文件绝对路径
 
         Returns:
-            Optional[tuple]: (file_key, file_id) on success, None on failure.
-              file_id is None when the xattr is absent.
+            Optional[ConstructedFileKey]: None when the file does not exist
+              or has no magicfs xattr. ``file_id`` may still be None when
+              ``user.magicfs.file_id`` is absent (e.g. read-only mounts).
         """
-        try:
-            # 检查文件是否存在
-            if not os.path.exists(filepath):
-                logger.warning(f"文件不存在，无法生成file_key: {filepath}")
-                return None
+        if not await async_exists(filepath):
+            logger.warning(f"文件不存在，跳过 file_key 构造: {filepath}")
+            return None
 
-            # 使用 async_stat 判断是否为目录
-            try:
-                stat_info = await async_stat(filepath)
-                is_directory = stat.S_ISDIR(stat_info.st_mode)
-            except Exception as e:
-                logger.warning(f"无法获取文件状态信息，使用默认文件处理: {filepath}, 错误: {e}")
-                is_directory = False
+        s3_key, file_id = await asyncio.gather(
+            get_s3_key_from_xattr(filepath),
+            get_file_id_from_xattr(filepath),
+        )
 
-            s3_key = await get_s3_key_from_xattr(filepath)
-            if s3_key:
-                logger.info(f"构造文件键成功 (xattr s3_key): {filepath}, 存储键: {s3_key}")
-                return (s3_key, None)
-
-            sts_token_refresh = agent_context.get_init_client_message_sts_token_refresh()
-            metadata = agent_context.get_metadata()
-
-            # 获取平台类型，优先使用客户端消息中指定的平台
-            platform_type = agent_context.get_init_client_message_platform_type()
-
-            storage_service = await StorageFactory.get_storage(
-                sts_token_refresh=sts_token_refresh,
-                metadata=metadata,
-                platform=platform_type
+        if not s3_key:
+            logger.error(
+                f"文件无 magicfs xattr (user.magicfs.s3_key)，跳过 file_key 构造: {filepath}"
             )
-
-            storage_dir = get_storage_dir_with_fallback(storage_service.credentials)
-
-            # Try to read file_id from magicfs xattr; use it as the key suffix when available
-            file_id = await get_file_id_from_xattr(filepath)
-            if file_id:
-                file_key = BaseFileProcessor.combine_path(storage_dir, file_id)
-                logger.info(f"构造文件键成功 (xattr file_id): {filepath}, file_id: {file_id}, 存储键: {file_key}")
-                return (file_key, file_id)
-
-            # Fallback: derive key from workspace-relative path
-            if isinstance(filepath, Path):
-                filepath = str(filepath)
-            workspace_dir = agent_context.get_workspace_dir()
-            if isinstance(workspace_dir, Path):
-                workspace_dir = str(workspace_dir)
-            relative_path = filepath.replace(workspace_dir, "")
-
-            # 如果是目录且相对路径不以"/"结尾，则添加"/"
-            if is_directory and not relative_path.endswith("/"):
-                relative_path += "/"
-
-            file_key = BaseFileProcessor.combine_path(storage_dir, relative_path)
-            logger.info(f"构造文件键成功 (relative path): {filepath} ({'目录' if is_directory else '文件'}), 存储键: {file_key}")
-            return (file_key, None)
-
-        except (InitException, UploadException) as e:
-            logger.error(f"构造文件键失败: {e}")
             return None
-        except Exception as e:
-            logger.error(f"构造文件键过程中发生错误: {e}")
-            return None
+
+        logger.info(
+            f"构造文件键成功: {filepath}, file_id: {file_id}, 存储键: {s3_key}"
+        )
+        return ConstructedFileKey(file_key=s3_key, file_id=file_id)
 
     @staticmethod
     def _create_attachment_from_uploaded_file(
