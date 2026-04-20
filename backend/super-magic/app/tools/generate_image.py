@@ -405,8 +405,7 @@ Key rules:
                         parser = ResponseParserFactory.get_parser(model)
                         image_urls = parser.parse(response_data, model)
 
-                    # 如果返回的图片数量超过请求数量，仅返回请求的数量
-                    return image_urls[: params.image_count]
+                    return image_urls
 
         except Exception as e:
             logger.error(f"magic-service 图片生成失败: {e}")
