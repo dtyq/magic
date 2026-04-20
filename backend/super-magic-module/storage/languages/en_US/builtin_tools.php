@@ -34,8 +34,6 @@ return [
         'create_slide' => 'Create Slide',
         'create_slide_project' => 'Create Slide Project',
         'create_dashboard_project' => 'Create Dashboard',
-        'update_dashboard_template' => 'Update Dashboard Template',
-        'backup_dashboard_template' => 'Backup Dashboard Template',
         'finish_dashboard_task' => 'Finish Dashboard Task',
 
         // System Execution
@@ -79,8 +77,6 @@ return [
         'create_slide' => 'Slide creation tool, generates HTML slides and executes custom JavaScript analysis, supports layout checking and element boundary validation',
         'create_slide_project' => 'Slide project creation tool, automatically creates complete project structure, includes presentation controller, configuration files, resource folders and communication scripts',
         'create_dashboard_project' => 'Data dashboard project creation tool, copies complete data dashboard framework from template directory, includes HTML, CSS, JavaScript and chart components',
-        'update_dashboard_template' => 'Dashboard template update tool, syncs dashboard.js, index.css, index.html and config.js files from template directory to existing project',
-        'backup_dashboard_template' => 'Dashboard template backup recovery tool, restores backup version of template files for specified project, implements swapping of current files and backup files',
         'finish_dashboard_task' => 'Dashboard project completion tool, automates completion of map and data source configuration, includes GeoJSON download, HTML configuration update and data file scanning',
 
         // System Execution

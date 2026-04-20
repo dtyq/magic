@@ -203,14 +203,6 @@
         "zh_CN": "验证数据看板",
         "en_US": "Validate dashboard"
     },
-    "update_dashboard_template": {
-        "zh_CN": "更新数据看板模板",
-        "en_US": "Update dashboard template"
-    },
-    "backup_dashboard_template": {
-        "zh_CN": "备份数据看板模板",
-        "en_US": "Backup dashboard template"
-    },
     "query_dashboard_cards": {
         "zh_CN": "查询卡片",
         "en_US": "Query cards"

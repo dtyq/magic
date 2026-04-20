@@ -294,7 +294,5 @@ tools:
 | `update_dashboard_cards` | Update dashboard cards |
 | `delete_dashboard_cards` | Delete dashboard cards |
 | `query_dashboard_cards` | Query dashboard cards |
-| `backup_dashboard_template` | Backup dashboard template |
-| `update_dashboard_template` | Update dashboard template |
 | `download_dashboard_maps` | Download dashboard map data |
 | `validate_dashboard` | Validate dashboard configuration |

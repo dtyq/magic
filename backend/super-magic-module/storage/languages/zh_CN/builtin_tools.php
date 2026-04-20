@@ -34,8 +34,6 @@ return [
         'create_slide' => '创建幻灯片',
         'create_slide_project' => '创建幻灯片项目',
         'create_dashboard_project' => '创建数据看板',
-        'update_dashboard_template' => '更新看板模板',
-        'backup_dashboard_template' => '备份看板模板',
         'finish_dashboard_task' => '完成看板配置',
 
         // 系统执行
@@ -79,8 +77,6 @@ return [
         'create_slide' => '幻灯片创建工具，生成HTML幻灯片并执行自定义JavaScript分析，支持布局检查和元素边界验证',
         'create_slide_project' => '幻灯片项目创建工具，自动创建完整项目结构，包含演示控制器、配置文件、资源文件夹和通信脚本',
         'create_dashboard_project' => '数据看板项目创建工具，从模板目录复制完整的数据看板框架，包含HTML、CSS、JavaScript和图表组件',
-        'update_dashboard_template' => '看板模板更新工具，从模板目录同步dashboard.js、index.css、index.html和config.js文件到现有项目',
-        'backup_dashboard_template' => '看板模板备份恢复工具，恢复指定项目的模板文件备份版本，实现当前文件和备份文件的互换',
         'finish_dashboard_task' => '看板项目完成工具，自动化完成地图和数据源配置，包括GeoJSON下载、HTML配置更新和数据文件扫描',
 
         // 系统执行
