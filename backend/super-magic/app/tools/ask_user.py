@@ -333,12 +333,15 @@ def _humanize_batch(
 
     # answered
     parts = []
-    for q in questions:
+    for i, q in enumerate(questions):
         name = q.get("question", "")
         interaction_type = q.get("interaction_type", "input")
         sub_id = q.get("sub_id", "")
         default = [] if interaction_type == "multi_select" else ""
-        ans = answers.get(sub_id, default)
+        # 优先用 sub_id（UUID，新前端）查找；找不到时 fallback 到 q-{index}（旧前端兼容格式）
+        ans = answers.get(sub_id)
+        if ans is None:
+            ans = answers.get(f"q-{i}", default)
         parts.append(_humanize_single(name, interaction_type, ans))
     summary = "; ".join(parts)
     return f"The user answered the following questions: {summary}. Proceed accordingly."
