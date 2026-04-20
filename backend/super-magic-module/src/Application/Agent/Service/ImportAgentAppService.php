@@ -23,7 +23,6 @@ use Dtyq\SuperMagic\Application\SuperAgent\Service\ProjectAppService;
 use Dtyq\SuperMagic\Domain\Agent\Entity\AgentVersionEntity;
 use Dtyq\SuperMagic\Domain\Agent\Entity\SuperMagicAgentEntity;
 use Dtyq\SuperMagic\Domain\Agent\Entity\ValueObject\PublishTargetType;
-use Dtyq\SuperMagic\Domain\Agent\Entity\ValueObject\SuperMagicAgentDataIsolation;
 use Dtyq\SuperMagic\Domain\Agent\Service\SuperMagicAgentVersionDomainService;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ProjectEntity;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\ProjectMode;
@@ -127,9 +126,11 @@ class ImportAgentAppService extends AbstractSuperMagicAppService
             $this->superMagicAgentDomainService->saveDirectly($dataIsolation, $savedEntity);
 
             // 6. Auto-publish (skip sandbox export — reuse the already-uploaded ZIP as file_key)
+            // Inherit publish_target_type from the latest version; fall back to ORGANIZATION when no prior version exists.
+            $latestVersion = $this->superMagicAgentVersionDomainService->findLatestVersionByCreatedAt($dataIsolation, $agentCode);
             $versionEntity = new AgentVersionEntity();
-            $versionEntity->setVersion($this->resolveNextVersion($dataIsolation, $agentCode));
-            $versionEntity->setPublishTargetType(PublishTargetType::ORGANIZATION);
+            $versionEntity->setVersion($this->resolveNextVersion($latestVersion));
+            $versionEntity->setPublishTargetType($latestVersion?->getPublishTargetType() ?? PublishTargetType::ORGANIZATION);
             $this->superMagicAgentDomainService->publishAgent($dataIsolation, $savedEntity, $versionEntity);
 
             // 7. Sync resource visibility: ORGANIZATION publish means the agent is visible to all org members.
@@ -361,12 +362,11 @@ class ImportAgentAppService extends AbstractSuperMagicAppService
 
     /**
      * Determine the next publish version for the agent.
-     * Queries the latest published version and increments the patch segment.
+     * Accepts the latest version entity (already fetched by the caller) and increments the patch segment.
      * Falls back to "1.0.0" when no prior version exists.
      */
-    private function resolveNextVersion(SuperMagicAgentDataIsolation $dataIsolation, string $agentCode): string
+    private function resolveNextVersion(?AgentVersionEntity $latestVersion): string
     {
-        $latestVersion = $this->superMagicAgentVersionDomainService->findLatestVersionByCreatedAt($dataIsolation, $agentCode);
         if ($latestVersion === null) {
             return '1.0.0';
         }
