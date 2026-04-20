@@ -12,46 +12,20 @@ import json
 import re
 from pathlib import Path
 
-
-def _setup_project_root() -> Path:
-    """
-    向上查找项目根目录，加入 sys.path 并返回根目录路径。
-    与 agents/skills/using-cron/scripts/_context.py 保持一致。
-    支持标志文件：setup.py（本地开发）、script_runner（PyInstaller 生产）。
-    """
-    current = Path(__file__).resolve().parent
-    markers = {"setup.py", "script_runner"}
-    for _ in range(10):
-        if any((current / marker).exists() for marker in markers):
-            root = str(current)
-            if root not in sys.path:
-                sys.path.insert(0, root)
-            return current
-        current = current.parent
-    raise RuntimeError("无法定位项目根目录（未找到 setup.py 或 script_runner）")
-
-
-def _init_path_manager():
-    """初始化 PathManager 并返回模块引用。"""
-    root = _setup_project_root()
-    try:
-        from app.path_manager import PathManager as _PM
-        if not getattr(_PM, "_initialized", False):
-            _PM.set_project_root(root)
-    except Exception:
-        pass
-    from app.path_manager import PathManager
-    return PathManager
-
-
-def get_env_file() -> Path:
-    """返回写操作目标文件（.workspace/.magic/.env）。"""
-    return _init_path_manager().get_magic_env_file()
+# agents/skills/_shared/ 对所有 skill 脚本均在 parents[2] 下
+sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
+from _shared.bootstrap import get_magic_env_file, get_workspace_dir
+import _shared.bootstrap  # noqa: F401 — 触发环境初始化
 
 
 def get_env_paths() -> list[Path]:
     """返回读取时的全部环境变量文件路径列表（按优先级从低到高）。"""
-    return _init_path_manager().get_process_env_paths()
+    ws = get_workspace_dir()
+    return [
+        ws / ".magic" / "skills" / ".env",
+        ws / ".env",
+        ws / ".magic" / ".env",
+    ]
 
 
 def cmd_set(key: str, value: str) -> None:
@@ -64,7 +38,7 @@ def cmd_set(key: str, value: str) -> None:
         sys.exit(1)
 
     from dotenv import set_key
-    env_file = get_env_file()
+    env_file = get_magic_env_file()
     env_file.parent.mkdir(parents=True, exist_ok=True)
     if not env_file.exists():
         env_file.touch()
@@ -79,7 +53,7 @@ def cmd_unset(key: str) -> None:
         sys.exit(1)
 
     from dotenv import unset_key, dotenv_values
-    env_file = get_env_file()
+    env_file = get_magic_env_file()
 
     if not env_file.exists() or key not in dotenv_values(str(env_file)):
         print(json.dumps({"ok": False, "error": f"KEY 不存在: {key}"}, ensure_ascii=False))
