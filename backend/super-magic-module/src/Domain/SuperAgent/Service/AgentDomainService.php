@@ -42,7 +42,6 @@ use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\TaskContext;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\UserInfoValueObject;
 use Dtyq\SuperMagic\Domain\SuperAgent\Exception\WorkspaceReadyTimeoutException;
 use Dtyq\SuperMagic\Infrastructure\ExternalAPI\SandboxOS\Agent\Constant\WorkspaceStatus;
-use Dtyq\SuperMagic\Infrastructure\ExternalAPI\SandboxOS\Agent\Request\AskUserResponseMessageRequest;
 use Dtyq\SuperMagic\Infrastructure\ExternalAPI\SandboxOS\Agent\Request\ChatMessageRequest;
 use Dtyq\SuperMagic\Infrastructure\ExternalAPI\SandboxOS\Agent\Request\CheckpointRollbackCheckRequest;
 use Dtyq\SuperMagic\Infrastructure\ExternalAPI\SandboxOS\Agent\Request\CheckpointRollbackCommitRequest;
@@ -50,6 +49,7 @@ use Dtyq\SuperMagic\Infrastructure\ExternalAPI\SandboxOS\Agent\Request\Checkpoin
 use Dtyq\SuperMagic\Infrastructure\ExternalAPI\SandboxOS\Agent\Request\CheckpointRollbackStartRequest;
 use Dtyq\SuperMagic\Infrastructure\ExternalAPI\SandboxOS\Agent\Request\CheckpointRollbackUndoRequest;
 use Dtyq\SuperMagic\Infrastructure\ExternalAPI\SandboxOS\Agent\Request\InterruptRequest;
+use Dtyq\SuperMagic\Infrastructure\ExternalAPI\SandboxOS\Agent\Request\UserToolCallFeedbackRequest;
 use Dtyq\SuperMagic\Infrastructure\ExternalAPI\SandboxOS\Agent\Response\AgentResponse;
 use Dtyq\SuperMagic\Infrastructure\ExternalAPI\SandboxOS\Agent\SandboxAgentInterface;
 use Dtyq\SuperMagic\Infrastructure\ExternalAPI\SandboxOS\Exception\SandboxOperationException;
@@ -595,54 +595,50 @@ class AgentDomainService
     }
 
     /**
-     * 发送 ask_user 答复给沙盒（Human-in-the-Loop 回调）.
+     * 发送用户工具调用回传给沙盒（Human-in-the-Loop 回调）.
      *
      * @param DataIsolation $dataIsolation 数据隔离上下文
      * @param string $sandboxId 沙箱ID
-     * @param string $taskId 任务ID
-     * @param string $questionId 问题ID
-     * @param string $responseStatus 答复状态（'answered' | 'skipped'）
-     * @param string $answer 用户答复内容
+     * @param string $name 工具名称（如 ask_user）
+     * @param string $toolCallId 工具调用ID
+     * @param array $detail 工具特定的回复数据，结构由各工具自行约定
      */
-    public function sendAskUserFeedback(
+    public function sendUserToolCallFeedback(
         DataIsolation $dataIsolation,
         string $sandboxId,
-        string $taskId,
-        string $questionId,
-        string $responseStatus,
-        string $answer
+        string $name,
+        string $toolCallId,
+        array $detail
     ): void {
-        $this->logger->debug('[Sandbox][Domain] Sending ask_user feedback to sandbox', [
+        $this->logger->debug('[Sandbox][Domain] Sending user_tool_call feedback to sandbox', [
             'sandbox_id' => $sandboxId,
-            'task_id' => $taskId,
-            'question_id' => $questionId,
-            'response_status' => $responseStatus,
+            'name' => $name,
+            'tool_call_id' => $toolCallId,
         ]);
 
-        $request = AskUserResponseMessageRequest::createResponse(
+        $request = UserToolCallFeedbackRequest::createFeedback(
             userId: $dataIsolation->getCurrentUserId(),
-            taskId: $taskId,
-            questionId: $questionId,
-            responseStatus: $responseStatus,
-            answer: $answer,
+            name: $name,
+            toolCallId: $toolCallId,
+            detail: $detail,
         );
 
         $result = $this->agent->sendChatMessage($sandboxId, $request);
 
         if (! $result->isSuccess()) {
-            $this->logger->error('[Sandbox][Domain] Failed to send ask_user feedback', [
+            $this->logger->error('[Sandbox][Domain] Failed to send user_tool_call feedback', [
                 'sandbox_id' => $sandboxId,
-                'task_id' => $taskId,
-                'question_id' => $questionId,
+                'name' => $name,
+                'tool_call_id' => $toolCallId,
                 'error' => $result->getMessage(),
             ]);
-            throw new SandboxOperationException('Send ask_user feedback', $result->getMessage(), $result->getCode());
+            throw new SandboxOperationException('Send user_tool_call feedback', $result->getMessage(), $result->getCode());
         }
 
-        $this->logger->debug('[Sandbox][Domain] Ask_user feedback sent successfully', [
+        $this->logger->debug('[Sandbox][Domain] user_tool_call feedback sent successfully', [
             'sandbox_id' => $sandboxId,
-            'task_id' => $taskId,
-            'question_id' => $questionId,
+            'name' => $name,
+            'tool_call_id' => $toolCallId,
         ]);
     }
 
