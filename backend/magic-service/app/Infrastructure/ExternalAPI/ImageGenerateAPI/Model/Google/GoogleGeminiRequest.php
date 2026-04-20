@@ -11,16 +11,53 @@ use App\Infrastructure\ExternalAPI\ImageGenerateAPI\Request\ImageGenerateRequest
 
 class GoogleGeminiRequest extends ImageGenerateRequest
 {
+    /**
+     * 采样温度，控制生成随机性。
+     * 值越高结果越发散；图片生成默认 0.7，兼顾稳定性和创造性。
+     */
     protected float $temperature = 0.7;
 
+    /**
+     * 候选结果数量。
+     * 当前图片生成链路按单张结果处理，默认只请求 1 个 candidate。
+     */
     protected int $candidateCount = 1;
 
+    /**
+     * 最大输出 token 数。
+     * Gemini 图片模型会同时返回文本/图片 part，保持较大上限避免复杂图像任务被截断。
+     */
     protected int $maxOutputTokens = 32768;
 
+    /**
+     * nucleus sampling 参数，限制候选 token 的累计概率范围。
+     * 默认 0.95，减少低概率噪声，同时保留一定创造性。
+     */
     protected float $topP = 0.95;
 
+    /**
+     * 响应模态。
+     * 图片生成需要同时允许 TEXT 和 IMAGE，Google 可能返回文本说明、思考 part 和最终图片 part。
+     */
     protected array $responseModalities = ['TEXT', 'IMAGE'];
 
+    /**
+     * 是否让 Google 在响应中返回思考内容。
+     * 默认为 false：请求侧不返回思考文本/思考图；响应侧仍会过滤 part.thought=true 作为兜底。
+     */
+    protected bool $includeThoughts = false;
+
+    /**
+     * Gemini thinking 等级。
+     * Gemini 3.1 Flash Image 支持 MINIMAL/HIGH，默认 MINIMAL 用于尽量关闭思考；
+     * Gemini 3 Pro Image 不支持 MINIMAL，默认保持 null，仅通过 includeThoughts=false 禁止返回思考内容。
+     */
+    protected ?string $thinkingLevel = null;
+
+    /**
+     * 参考图片列表。
+     * 有值时走图生图/图片编辑链路，会转换为 Gemini fileData 或 inlineData。
+     */
     protected array $referImages = [];
 
     /**
@@ -28,6 +65,20 @@ class GoogleGeminiRequest extends ImageGenerateRequest
      * 用于 Nano Banana / Nano Banana Pro 模型.
      */
     protected ?string $resolutionPreset = null;
+
+    public function __construct(
+        string $width = '',
+        string $height = '',
+        string $prompt = '',
+        string $negativePrompt = '',
+        string $model = '',
+    ) {
+        parent::__construct($width, $height, $prompt, $negativePrompt, $model);
+
+        if (str_contains($this->getModel(), 'gemini-3.1')) {
+            $this->thinkingLevel = 'MINIMAL';
+        }
+    }
 
     public function getTemperature(): float
     {
@@ -79,6 +130,26 @@ class GoogleGeminiRequest extends ImageGenerateRequest
         $this->responseModalities = $responseModalities;
     }
 
+    public function getIncludeThoughts(): bool
+    {
+        return $this->includeThoughts;
+    }
+
+    public function setIncludeThoughts(bool $includeThoughts): void
+    {
+        $this->includeThoughts = $includeThoughts;
+    }
+
+    public function getThinkingLevel(): ?string
+    {
+        return $this->thinkingLevel;
+    }
+
+    public function setThinkingLevel(?string $thinkingLevel): void
+    {
+        $this->thinkingLevel = $thinkingLevel;
+    }
+
     public function getReferImages(): array
     {
         return $this->referImages;
@@ -107,6 +178,7 @@ class GoogleGeminiRequest extends ImageGenerateRequest
             'maxOutputTokens' => $this->maxOutputTokens,
             'topP' => $this->topP,
             'responseModalities' => $this->responseModalities,
+            'thinkingConfig' => $this->getThinkingConfig(),
         ];
 
         // Vertex Gemini API uses camelCase fields in imageConfig.
@@ -133,6 +205,19 @@ class GoogleGeminiRequest extends ImageGenerateRequest
         if (! empty($imageConfig)) {
             $config['imageConfig'] = $imageConfig;
         }
+
+        return $config;
+    }
+
+    private function getThinkingConfig(): array
+    {
+        $config = [];
+
+        if ($this->thinkingLevel !== null && $this->thinkingLevel !== '') {
+            $config['thinkingLevel'] = $this->thinkingLevel;
+        }
+
+        $config['includeThoughts'] = $this->includeThoughts;
 
         return $config;
     }
