@@ -126,11 +126,17 @@ class ImportAgentAppService extends AbstractSuperMagicAppService
             $this->superMagicAgentDomainService->saveDirectly($dataIsolation, $savedEntity);
 
             // 6. Auto-publish (skip sandbox export — reuse the already-uploaded ZIP as file_key)
-            // Inherit publish_target_type from the latest version; fall back to ORGANIZATION when no prior version exists.
+            // Inherit publish_target_type and publish_target_value from the latest version;
+            // fall back to ORGANIZATION (with no target value) when no prior version exists.
             $latestVersion = $this->superMagicAgentVersionDomainService->findLatestVersionByCreatedAt($dataIsolation, $agentCode);
+            $inheritedTargetType = $latestVersion?->getPublishTargetType() ?? PublishTargetType::ORGANIZATION;
+            $inheritedTargetValue = ($latestVersion !== null && $inheritedTargetType->requiresTargetValue())
+                ? $latestVersion->getPublishTargetValue()
+                : null;
             $versionEntity = new AgentVersionEntity();
             $versionEntity->setVersion($this->resolveNextVersion($latestVersion));
-            $versionEntity->setPublishTargetType($latestVersion?->getPublishTargetType() ?? PublishTargetType::ORGANIZATION);
+            $versionEntity->setPublishTargetType($inheritedTargetType);
+            $versionEntity->setPublishTargetValue($inheritedTargetValue);
             $this->superMagicAgentDomainService->publishAgent($dataIsolation, $savedEntity, $versionEntity);
 
             // 7. Sync resource visibility: ORGANIZATION publish means the agent is visible to all org members.
