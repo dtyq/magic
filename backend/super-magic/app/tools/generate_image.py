@@ -236,7 +236,11 @@ Key rules:
                 logger.error(f"图片文件不存在: {image_path}")
                 image_path = output_path + "/" + image_path
                 if not await async_exists(image_path):
-                    raise ValueError(f"Image file does not exist: {image_path}")
+                    raise ValueError(
+                        f"Image file not found: '{image_path}'. "
+                        f"Verify the path is relative to the workspace root and the file exists. "
+                        f"Use list_dir or file_search to locate the correct path before retrying."
+                    )
 
             logger.info(f"将本地图片转换为 URL: {image_path}")
 
@@ -342,7 +346,11 @@ Key rules:
                         else:
                             image_url = await self._convert_local_image_to_url(image_source, params.output_path)
                         if not image_url:
-                            raise ValueError(f"Failed to convert local reference image to accessible URL: {image_source}")
+                            raise ValueError(
+                                f"Reference image '{image_source}' could not be converted to an accessible URL. "
+                                f"Check that the path is correct and the file exists in the workspace. "
+                                f"Do not retry with the same path; either correct the path or proceed without a reference image."
+                            )
                         logger.info(f"参考图已转换为 URL: {image_source} -> {image_url}")
                     reference_image_urls.append(image_url)
 
@@ -385,7 +393,11 @@ Key rules:
 
                         if not image_urls:
                             logger.warning(f"新格式：响应中未找到图片 URL: {response_data}")
-                            raise Exception("No valid image URLs returned from magic-service")
+                            raise Exception(
+                                "Image generation service returned no image URLs. "
+                                "This is a transient service error; retry the same request once. "
+                                "If it fails again, inform the user that the image service is temporarily unavailable."
+                            )
 
                         logger.info(f"新格式：成功解析 {len(image_urls)} 个图片 URL")
                     else:
@@ -492,7 +504,11 @@ Key rules:
                         image_url = await self._convert_local_image_to_url(image_source, params.output_path)
 
                     if not image_url:
-                        raise ValueError(f"Failed to convert local image to accessible URL: {image_source}")
+                        raise ValueError(
+                            f"Reference image '{image_source}' could not be converted to an accessible URL. "
+                            f"Check that the path is correct and the file exists in the workspace. "
+                            f"Do not retry with the same path; either correct the path or proceed without a reference image."
+                        )
                     logger.info(f"本地图片已转换为 URL: {image_source} -> {image_url}")
 
                 image_urls.append(image_url)
@@ -538,7 +554,11 @@ Key rules:
 
                         if not image_urls:
                             logger.warning(f"新格式：响应中未找到图片 URL: {response_data}")
-                            raise Exception("No valid image URLs returned from magic-service")
+                            raise Exception(
+                                "Image edit service returned no image URLs. "
+                                "This is a transient service error; retry the same request once. "
+                                "If it fails again, inform the user that the image service is temporarily unavailable."
+                            )
 
                         logger.info(f"新格式：成功解析 {len(image_urls)} 个图片 URL")
                     else:
@@ -685,7 +705,11 @@ Key rules:
         # 所有策略都失败
         if last_exception:
             raise last_exception
-        raise Exception("All download strategies failed")
+        raise Exception(
+            "All download strategies failed when fetching the generated image from the remote URL. "
+            "This is likely a transient network issue. Retry the generation request once; "
+            "if it fails again, inform the user."
+        )
 
     async def _download_image(
         self,
@@ -857,7 +881,8 @@ Key rules:
                 # 只有在不跳过限制检查时才进行限制验证
                 if not skip_limit_check and self._generation_counts[conversation_id] >= self.MAX_EDITS_PER_CONVERSATION:
                     raise ValueError(
-                        f"Reached conversation image editing limit ({self.MAX_EDITS_PER_CONVERSATION} edits)"
+                        f"Reached the per-conversation image editing limit ({self.MAX_EDITS_PER_CONVERSATION} edits). "
+                        f"Do not retry. Inform the user that the image editing quota for this session has been exhausted."
                     )
 
                 # 验证编辑参数
@@ -881,7 +906,8 @@ Key rules:
                 # 只有在不跳过限制检查时才进行限制验证
                 if not skip_limit_check and self._generation_counts[conversation_id] >= self.MAX_IMAGES_PER_CONVERSATION:
                     raise ValueError(
-                        f"Reached conversation image generation limit ({self.MAX_IMAGES_PER_CONVERSATION} images)"
+                        f"Reached the per-conversation image generation limit ({self.MAX_IMAGES_PER_CONVERSATION} images). "
+                        f"Do not retry. Inform the user that the image generation quota for this session has been exhausted."
                     )
 
                 # 验证生成参数
@@ -904,7 +930,11 @@ Key rules:
                     "saved_to": "generate_image.saved_to",
                 }
             if not image_urls:
-                raise ValueError(f"Image {operation_type} failed")
+                raise ValueError(
+                    f"Image {operation_type} returned no results. "
+                    f"The service accepted the request but produced no output. "
+                    f"Retry once with the same parameters; if it fails again, report the issue to the user."
+                )
 
             # 保存图片
             save_dir = os.path.join(self.base_dir, params.output_path)
@@ -929,7 +959,11 @@ Key rules:
                     continue
 
             if not saved_paths:
-                raise ValueError("All image saves failed")
+                raise ValueError(
+                    "All generated images failed to save to the workspace. "
+                    "This is likely a transient I/O error. Retry the generation once; "
+                    "if it keeps failing, report the issue to the user."
+                )
 
             # 更新生成计数
             self._generation_counts[conversation_id] += len(saved_paths)
