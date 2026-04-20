@@ -8,7 +8,7 @@ import asyncio
 import traceback
 from typing import Any, Dict
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 
 from agentlang.logger import get_logger
 from app.api.http_dto.response import BaseResponse, create_error_response, create_success_response
@@ -34,6 +34,21 @@ class UserToolCallPayload(BaseModel):
     tool_call_id: str
     detail: Dict[str, Any] = Field(default_factory=dict)
     extra: Dict[str, Any] = Field(default_factory=dict)
+
+    @field_validator("extra", mode="before")
+    @classmethod
+    def coerce_extra(cls, v: Any) -> Dict[str, Any]:
+        # PHP 空数组序列化为 JSON []，兼容处理
+        if isinstance(v, list):
+            return {}
+        return v
+
+    @field_validator("detail", mode="before")
+    @classmethod
+    def coerce_detail(cls, v: Any) -> Dict[str, Any]:
+        if isinstance(v, list):
+            return {}
+        return v
 
 
 async def dispatch(payload: UserToolCallPayload) -> BaseResponse:
