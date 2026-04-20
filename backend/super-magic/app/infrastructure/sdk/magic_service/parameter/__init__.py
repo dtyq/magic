@@ -18,6 +18,7 @@ from .find_similar_share_parameter import FindSimilarShareParameter
 from .cancel_share_parameter import CancelShareParameter
 from .get_latest_published_skill_versions_parameter import GetLatestPublishedSkillVersionsParameter
 from .ingest_third_party_message_parameter import IngestThirdPartyMessageParameter
+from .search_knowledge_parameter import SearchKnowledgeParameter
 
 __all__ = [
     'GetAgentDetailsParameter',
@@ -36,4 +37,5 @@ __all__ = [
     'CancelShareParameter',
     'GetLatestPublishedSkillVersionsParameter',
     'IngestThirdPartyMessageParameter',
+    'SearchKnowledgeParameter',
 ]

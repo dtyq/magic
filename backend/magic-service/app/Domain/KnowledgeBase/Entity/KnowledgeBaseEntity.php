@@ -29,37 +29,37 @@ class KnowledgeBaseEntity extends AbstractKnowledgeBaseEntity
 
     protected ?int $id = null;
 
-    protected string $organizationCode;
+    protected string $organizationCode = '';
 
-    protected string $code;
+    protected string $code = '';
 
     protected string $icon = '';
 
-    protected int $version;
+    protected int $version = 0;
 
-    protected string $name;
+    protected string $name = '';
 
     protected string $description = '';
 
-    protected int $type;
+    protected int $type = 0;
 
-    protected bool $enabled;
+    protected bool $enabled = false;
 
     protected string $businessId = '';
 
-    protected KnowledgeSyncStatus $syncStatus;
+    protected KnowledgeSyncStatus $syncStatus = KnowledgeSyncStatus::NotSynced;
 
     protected string $syncStatusMessage = '';
 
     protected ?string $model = null;
 
-    protected string $vectorDB;
+    protected string $vectorDB = '';
 
-    protected string $creator;
+    protected string $creator = '';
 
     protected DateTime $createdAt;
 
-    protected string $modifier;
+    protected string $modifier = '';
 
     protected DateTime $updatedAt;
 
@@ -102,6 +102,8 @@ class KnowledgeBaseEntity extends AbstractKnowledgeBaseEntity
     protected int $wordCount = 0;
 
     protected ?int $sourceType = null;
+
+    protected array $agentCodes = [];
 
     private string $forceCreateCode = '';
 
@@ -301,8 +303,11 @@ class KnowledgeBaseEntity extends AbstractKnowledgeBaseEntity
         return $this->syncStatus;
     }
 
-    public function setSyncStatus(KnowledgeSyncStatus $syncStatus): static
+    public function setSyncStatus(int|KnowledgeSyncStatus $syncStatus): static
     {
+        if (is_int($syncStatus)) {
+            $syncStatus = KnowledgeSyncStatus::tryFrom($syncStatus) ?? KnowledgeSyncStatus::NotSynced;
+        }
         $this->syncStatus = $syncStatus;
         return $this;
     }
@@ -345,19 +350,41 @@ class KnowledgeBaseEntity extends AbstractKnowledgeBaseEntity
         return $this->creator;
     }
 
-    public function setCreator(string $creator): static
+    public function setCreator(null|int|string $creator): static
     {
-        $this->creator = $creator;
+        $this->creator = (string) ($creator ?? '');
         return $this;
+    }
+
+    public function getCreatedUid(): string
+    {
+        return $this->creator;
+    }
+
+    /**
+     * 兼容 RPC / DB 风格字段名 created_uid.
+     */
+    public function setCreatedUid(null|int|string $createdUid): static
+    {
+        return $this->setCreator($createdUid);
     }
 
     public function getCreatedAt(): DateTime
     {
+        if (! isset($this->createdAt)) {
+            $this->createdAt = new DateTime();
+        }
         return $this->createdAt;
     }
 
-    public function setCreatedAt(DateTime $createdAt): static
+    public function setCreatedAt(null|DateTime|string $createdAt): static
     {
+        if ($createdAt === null || $createdAt === '') {
+            $createdAt = new DateTime();
+        }
+        if (is_string($createdAt)) {
+            $createdAt = new DateTime($createdAt);
+        }
         $this->createdAt = $createdAt;
         return $this;
     }
@@ -367,21 +394,51 @@ class KnowledgeBaseEntity extends AbstractKnowledgeBaseEntity
         return $this->modifier;
     }
 
-    public function setModifier(string $modifier): static
+    public function setModifier(null|int|string $modifier): static
     {
-        $this->modifier = $modifier;
+        $this->modifier = (string) ($modifier ?? '');
         return $this;
+    }
+
+    public function getUpdatedUid(): string
+    {
+        return $this->modifier;
+    }
+
+    /**
+     * 兼容 RPC / DB 风格字段名 updated_uid.
+     */
+    public function setUpdatedUid(null|int|string $updatedUid): static
+    {
+        return $this->setModifier($updatedUid);
     }
 
     public function getUpdatedAt(): DateTime
     {
+        if (! isset($this->updatedAt)) {
+            $this->updatedAt = new DateTime();
+        }
         return $this->updatedAt;
     }
 
-    public function setUpdatedAt(DateTime $updatedAt): static
+    public function setUpdatedAt(null|DateTime|string $updatedAt): static
     {
+        if ($updatedAt === null || $updatedAt === '') {
+            $updatedAt = new DateTime();
+        }
+        if (is_string($updatedAt)) {
+            $updatedAt = new DateTime($updatedAt);
+        }
         $this->updatedAt = $updatedAt;
         return $this;
+    }
+
+    /**
+     * 兼容 RPC 返回 avatar 字段.
+     */
+    public function setAvatar(string $avatar): static
+    {
+        return $this->setIcon($avatar);
     }
 
     public function getFragmentCount(): int
@@ -550,7 +607,7 @@ class KnowledgeBaseEntity extends AbstractKnowledgeBaseEntity
         return $this->icon;
     }
 
-    public function setIcon(string $icon): KnowledgeBaseEntity
+    public function setIcon(string $icon): static
     {
         $this->icon = $icon;
         return $this;
@@ -580,6 +637,27 @@ class KnowledgeBaseEntity extends AbstractKnowledgeBaseEntity
     {
         $this->sourceType = $sourceType;
         return $this;
+    }
+
+    public function getAgentCodes(): array
+    {
+        return $this->agentCodes;
+    }
+
+    public function setAgentCodes(?array $agentCodes): static
+    {
+        $this->agentCodes = array_values(array_map('strval', $agentCodes ?? []));
+        return $this;
+    }
+
+    public function getAgentIds(): array
+    {
+        return $this->getAgentCodes();
+    }
+
+    public function setAgentIds(?array $agentCodes): static
+    {
+        return $this->setAgentCodes($agentCodes);
     }
 
     private static function createTemplate(string $organizationCode, string $code, string $creator): KnowledgeBaseEntity

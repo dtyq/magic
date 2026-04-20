@@ -8,13 +8,10 @@ declare(strict_types=1);
 namespace App\Application\Flow\ExecuteManager\NodeRunner\Knowledge;
 
 use App\Application\Flow\ExecuteManager\ExecutionData\ExecutionData;
-use App\Application\KnowledgeBase\VectorDatabase\Similarity\KnowledgeSimilarityFilter;
-use App\Application\KnowledgeBase\VectorDatabase\Similarity\KnowledgeSimilarityManager;
+use App\Application\KnowledgeBase\Service\KnowledgeBaseFragmentAppService;
 use App\Domain\Flow\Entity\ValueObject\NodeParamsConfig\Knowledge\KnowledgeFragmentRemoveNodeParamsConfig;
 use App\Domain\Flow\Entity\ValueObject\NodeType;
 use App\Domain\KnowledgeBase\Entity\ValueObject\KnowledgeBaseDataIsolation;
-use App\Domain\KnowledgeBase\Service\KnowledgeBaseDomainService;
-use App\Domain\KnowledgeBase\Service\KnowledgeBaseFragmentDomainService;
 use App\ErrorCode\FlowErrorCode;
 use App\Infrastructure\Core\Collector\ExecuteManager\Annotation\FlowNodeDefine;
 use App\Infrastructure\Core\Dag\VertexResult;
@@ -52,26 +49,21 @@ class KnowledgeFragmentRemoveNodeRunner extends AbstractKnowledgeNodeRunner
             ExceptionBuilder::throw(FlowErrorCode::ExecuteValidateFailed, 'flow.node.knowledge_fragment_remove.metadata_business_id_empty');
         }
 
-        $knowledgeDomainService = di(KnowledgeBaseDomainService::class);
-        $fragmentDomainService = di(KnowledgeBaseFragmentDomainService::class);
         $dataIsolation = $executionData->getDataIsolation();
         $knowledgeBaseDataIsolation = KnowledgeBaseDataIsolation::createByBaseDataIsolation($dataIsolation);
-        $KnowledgeEntity = $knowledgeDomainService->show($knowledgeBaseDataIsolation, $knowledgeCode);
 
         if (! empty($businessId)) {
-            // 优先级高
-            $fragment = $fragmentDomainService->showByBusinessId(
+            di(KnowledgeBaseFragmentAppService::class)->runtimeDestroyByBusinessIdByDataIsolation(
                 $knowledgeBaseDataIsolation,
                 $knowledgeCode,
-                $businessId
+                $businessId,
             );
-            $fragmentDomainService->destroy($knowledgeBaseDataIsolation, $KnowledgeEntity, $fragment);
             return;
         }
-        $filter = new KnowledgeSimilarityFilter();
-        $filter->setKnowledgeCodes([$knowledgeCode]);
-        $filter->setMetadataFilter($metadataFilter);
-
-        di(KnowledgeSimilarityManager::class)->destroyByMetadataFilter($knowledgeBaseDataIsolation, $KnowledgeEntity, $filter);
+        di(KnowledgeBaseFragmentAppService::class)->runtimeDestroyByMetadataFilterByDataIsolation(
+            $knowledgeBaseDataIsolation,
+            $knowledgeCode,
+            $metadataFilter,
+        );
     }
 }

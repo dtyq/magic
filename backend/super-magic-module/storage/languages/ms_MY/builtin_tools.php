@@ -18,6 +18,7 @@ return [
 
         // Carian & Pengekstrakan
         'web_search' => 'Carian Web',
+        'search_knowledge' => 'Carian Pengetahuan',
         'image_search' => 'Carian Imej',
         'read_webpages_as_markdown' => 'Laman Web ke Markdown',
         'use_browser' => 'Operasi Pelayar',
@@ -62,6 +63,7 @@ return [
 
         // Carian & Pengekstrakan
         'web_search' => 'Alat carian internet, menyokong konfigurasi format XML untuk pemprosesan selari berbilang permintaan carian, menyokong carian berpaging dan penapisan julat masa, hasil carian termasuk tajuk, URL, ringkasan dan laman web sumber',
+        'search_knowledge' => 'Mencari pengetahuan dan konteks berkaitan yang mungkin membantu menjawab soalan semasa. Ia hanya menerima parameter query',
         'image_search' => 'Alat carian imej, mencari dan menapis imej berkualiti tinggi secara pintar berdasarkan kata kunci, menyokong analisis pemahaman visual dan penapisan nisbah aspek, deduplikasi automatik memastikan kualiti imej',
         'read_webpages_as_markdown' => 'Alat bacaan laman web berkelompok, mengagregatkan kandungan berbilang laman web dan menukarnya menjadi dokumen Markdown tunggal, menyokong pengambilan kandungan penuh dan mod ringkasan',
         'use_browser' => 'Alat automasi pelayar, menyediakan keupayaan operasi pelayar atom, menyokong navigasi halaman, interaksi elemen, pengisian borang dan operasi modular lain',

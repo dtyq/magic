@@ -11,6 +11,7 @@ use Dtyq\SuperMagic\Domain\SuperAgent\Entity\TaskFileEntity;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\FileType;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\StorageType;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\TaskFileSource;
+use Dtyq\SuperMagic\Infrastructure\Utils\WorkFileUtil;
 use JsonSerializable;
 
 /**
@@ -283,7 +284,7 @@ class SaveProjectFileRequestDTO implements JsonSerializable
             $taskFileEntity->setSource(TaskFileSource::DEFAULT);
         }
 
-        $taskFileEntity->setIsHidden(false);
+        $taskFileEntity->setIsHidden(WorkFileUtil::isHiddenFile($this->fileKey));
 
         return $taskFileEntity;
     }

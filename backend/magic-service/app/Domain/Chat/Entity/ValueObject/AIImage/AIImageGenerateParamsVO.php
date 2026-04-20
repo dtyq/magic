@@ -58,6 +58,9 @@ class AIImageGenerateParamsVO extends AbstractValueObject
     // 连续图片生成选项配置
     public array $sequentialImageGenerationOptions = [];
 
+    // 输出图片格式（统一使用小写格式，如 png、jpeg、webp；空字符串表示使用服务商默认格式）
+    public string $outputFormat = '';
+
     public function __construct()
     {
         $this->model = ImageGenerateModelType::Volcengine->value;
@@ -257,5 +260,15 @@ class AIImageGenerateParamsVO extends AbstractValueObject
     public function setSequentialImageGenerationOptions(array $sequentialImageGenerationOptions): void
     {
         $this->sequentialImageGenerationOptions = $sequentialImageGenerationOptions;
+    }
+
+    public function getOutputFormat(): string
+    {
+        return $this->outputFormat;
+    }
+
+    public function setOutputFormat(string $outputFormat): void
+    {
+        $this->outputFormat = $outputFormat;
     }
 }

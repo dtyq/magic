@@ -8,10 +8,13 @@ import asyncio
 import os
 import json
 import uuid
-from typing import TYPE_CHECKING, Any, Dict, List, Optional
+from typing import TYPE_CHECKING, Any, Dict, List, Optional, Type
+
+from app.core.context.pending_reply_state import PendingReplyState
 
 if TYPE_CHECKING:
     from app.core.horizon.agent_horizon import AgentHorizon
+    from app.core.entity.factory.task_message_factory_protocol import TaskMessageFactoryProtocol
 from datetime import datetime, timedelta
 
 from agentlang.context.base_agent_context import BaseAgentContext
@@ -254,6 +257,8 @@ class AgentContext(BaseAgentContext):
         from app.core.stream import Stream
         import asyncio
 
+        from app.core.context.pending_reply_state import PendingReplyState
+
         # 初始化并注册共享字段
         self.shared_context.register_fields({
             "streams": ({}, Dict[str, Stream]),
@@ -283,8 +288,14 @@ class AgentContext(BaseAgentContext):
             "excluded_skills": ([], List[str]),  # 当前 agent 排除的 system skill 名称列表
             # 额外流式推送目标（各渠道的 StreamingInterface，处理消息期间注册，完成后清除）
             "streaming_sinks": ([], List),
+            # Human in the Loop：ask_user 工具等待用户回答时的暂停标记
+            "ask_user_pending_id": (None, Optional[str]),
             # Agent Master 管理
             "agent_code": (None, Optional[str]),  # 当前自定义 Agent 的 agent_code
+            # 消息版本协商（v1 / v2），由 set_chat_client_message 提取 dynamic_config.message_version 写入
+            "message_version": ("v1", str),
+            # v2 批量 tool_calls 暂存状态
+            "pending_reply_state": (None, Optional[PendingReplyState]),
         })
 
         # 标记初始化完成
@@ -526,12 +537,21 @@ class AgentContext(BaseAgentContext):
         return None
 
     def set_chat_client_message(self, chat_client_message: ChatClientMessage) -> None:
-        """设置聊天客户端消息
+        """设置聊天客户端消息，并从 dynamic_config 中提取 message_version。
+
+        仅当 dynamic_config 中明确提供了 message_version 时才更新，
+        否则保持 shared_context 中已有的值（如从 session.json 回落设置的值）。
 
         Args:
             chat_client_message: 聊天客户端消息
         """
         self.shared_context.update_field("chat_client_message", chat_client_message)
+
+        dynamic_config = getattr(chat_client_message, "dynamic_config", None) or {}
+        version = dynamic_config.get("message_version") if isinstance(dynamic_config, dict) else None
+        if version:
+            self.shared_context.update_field("message_version", version)
+            logger.debug(f"消息版本已设置为: {version}")
 
     def get_chat_client_message(self) -> Optional[ChatClientMessage]:
         """获取聊天客户端消息
@@ -644,12 +664,33 @@ class AgentContext(BaseAgentContext):
         """更新agent活动时间"""
         self.shared_context.update_activity_time()
 
+    # ─── Human in the Loop：ask_user 暂停标记 ────────────────────────────────
+
+    def set_ask_user_pending(self, question_id: str) -> None:
+        """设置 ask_user 等待状态（Agent 已暂停，等待用户回答 question_id 对应的问题）"""
+        self.shared_context.update_field("ask_user_pending_id", question_id)
+
+    def clear_ask_user_pending(self) -> None:
+        """清除 ask_user 等待状态"""
+        self.shared_context.update_field("ask_user_pending_id", None)
+
+    def has_ask_user_pending(self) -> bool:
+        """返回当前是否存在尚未收到用户回答的 ask_user 问题"""
+        return self.shared_context.get_field("ask_user_pending_id") is not None
+
+    def get_ask_user_pending_id(self) -> Optional[str]:
+        """返回当前待回答的 question_id，无则返回 None"""
+        return self.shared_context.get_field("ask_user_pending_id")
+
     def is_idle_timeout(self) -> bool:
         """检查agent是否超时闲置
 
         Returns:
             bool: 如果超时则返回True，否则返回False
         """
+        # 等待用户回答 ask_user 问题期间，不触发空闲超时
+        if self.has_ask_user_pending():
+            return False
         return self.shared_context.is_idle_timeout()
 
     def add_attachment(self, attachment: Attachment) -> None:
@@ -1190,3 +1231,85 @@ class AgentContext(BaseAgentContext):
     def get_streaming_sinks(self) -> list:
         """返回当前所有额外流式推送目标列表。"""
         return self.shared_context.get_field("streaming_sinks") or []
+
+    # ====== 消息版本协商 ======
+
+    def get_message_version(self) -> str:
+        """获取当前会话的消息版本号，默认 'v1'。"""
+        return self.shared_context.get_field("message_version") or "v1"
+
+    def set_message_version(self, version: str) -> None:
+        """显式设置消息结构版本，在 chat 消息到达后、init 事件触发前提前写入。
+
+        Args:
+            version: 消息版本字符串，如 "v1"、"v2"
+        """
+        if version:
+            self.shared_context.update_field("message_version", version)
+
+    async def load_last_message_version(self) -> Optional[str]:
+        """从 session.json 读取上次保存的 message_version。
+
+        在 chat 消息未携带 message_version 时作为回落来源。
+        读取 current 块（存储最近一次完成请求的配置）。
+
+        Returns:
+            Optional[str]: 上次保存的 message_version，文件不存在或无记录时返回 None
+        """
+        from pathlib import Path
+        from app.utils.async_file_utils import async_try_read_json
+        chat_history_dir = self.get_chat_history_dir()
+        agent_name = self.agent_name
+        agent_id = self._agent_id or "main"
+        session_file = Path(chat_history_dir) / f"{agent_name}<{agent_id}>.session.json"
+        doc = await async_try_read_json(session_file)
+        if doc is None:
+            return None
+        current = doc.get("current", {})
+        if isinstance(current, dict):
+            return current.get("message_version") or None
+        return None
+
+    def get_message_factory(self) -> "Type[TaskMessageFactoryProtocol]":
+        """根据 message_version 从注册表获取对应的消息工厂类。"""
+        from app.core.entity.factory.factory_registry import get_factory_by_version
+        return get_factory_by_version(self.get_message_version())
+
+    def get_tool_label(self, tool_name: str) -> str:
+        """根据工具名称查 i18n 标签，查无结果时返回空字符串。"""
+        from app.i18n import i18n
+        label = i18n.translate(tool_name, category="tool.actions")
+        # i18n.translate 查无结果时回退返回 tool_name 本身，此时视为无标签
+        return label if label != tool_name else ""
+
+    # ====== v2 批量 tool_calls 暂存状态 ======
+
+    def get_pending_reply_state(self) -> Optional["PendingReplyState"]:
+        """获取 v2 批量 tool_calls 暂存状态，不存在时返回 None。"""
+        from app.core.context.pending_reply_state import PendingReplyState
+        return self.shared_context.get_field("pending_reply_state")
+
+    def set_pending_reply_state(self, state: Optional["PendingReplyState"]) -> None:
+        """设置 v2 批量 tool_calls 暂存状态，传 None 可清除。"""
+        self.shared_context.update_field("pending_reply_state", state)
+
+    def refresh_streaming_message_id(self) -> str:
+        """为下一次 v2 流式回复预生成 Snowflake message_id，写入 pending_reply_state。
+
+        - 若 pending_reply_state 已存在，仅刷新 message_id，保留其余字段
+        - 若不存在，创建新的 PendingReplyState 并设置 message_id
+        - 返回生成的 message_id，供调用方按需使用
+
+        Returns:
+            str: 预生成的 message_id
+        """
+        from agentlang.utils.snowflake import Snowflake
+        from app.core.context.pending_reply_state import PendingReplyState
+
+        message_id = str(Snowflake.create_default().get_id())
+        existing = self.get_pending_reply_state()
+        if existing is not None:
+            existing.message_id = message_id
+        else:
+            self.set_pending_reply_state(PendingReplyState(message_id=message_id))
+        return message_id

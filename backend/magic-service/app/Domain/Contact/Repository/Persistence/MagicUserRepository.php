@@ -527,6 +527,7 @@ readonly class MagicUserRepository implements MagicUserRepositoryInterface
             'a.email',
             'u.profession',
             'u.channel',
+            'u.timezone',
             'u.option',
             'a.ai_code',
             'a.magic_environment_id',

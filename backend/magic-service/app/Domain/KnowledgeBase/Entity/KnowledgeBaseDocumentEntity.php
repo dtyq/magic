@@ -25,7 +25,13 @@ class KnowledgeBaseDocumentEntity extends AbstractKnowledgeBaseEntity
 
     protected string $knowledgeBaseCode = '';
 
-    protected string $name;
+    protected int $sourceBindingId = 0;
+
+    protected int $sourceItemId = 0;
+
+    protected bool $autoAdded = false;
+
+    protected string $name = '';
 
     protected string $description = '';
 
@@ -35,7 +41,7 @@ class KnowledgeBaseDocumentEntity extends AbstractKnowledgeBaseEntity
 
     protected bool $enabled = true;
 
-    protected int $docType;
+    protected int $docType = 0;
 
     protected array $docMetadata = [];
 
@@ -51,9 +57,9 @@ class KnowledgeBaseDocumentEntity extends AbstractKnowledgeBaseEntity
 
     protected string $syncStatusMessage = '';
 
-    protected string $embeddingModel;
+    protected string $embeddingModel = '';
 
-    protected string $vectorDb;
+    protected string $vectorDb = '';
 
     protected ?RetrieveConfig $retrieveConfig = null;
 
@@ -63,19 +69,21 @@ class KnowledgeBaseDocumentEntity extends AbstractKnowledgeBaseEntity
 
     protected ?array $vectorDbConfig = null;
 
-    protected string $createdUid;
+    protected string $createdUid = '';
 
-    protected string $updatedUid;
+    protected string $updatedUid = '';
 
-    protected string $createdAt;
+    protected string $createdAt = '';
 
-    protected string $updatedAt;
+    protected string $updatedAt = '';
 
     protected ?string $deletedAt = null;
 
     protected int $wordCount = 0;
 
-    protected string $organizationCode;
+    protected string $organizationCode = '';
+
+    private array $explicitFields = [];
 
     public function getId(): ?int
     {
@@ -96,6 +104,39 @@ class KnowledgeBaseDocumentEntity extends AbstractKnowledgeBaseEntity
     public function setKnowledgeBaseCode(string $knowledgeBaseCode): self
     {
         $this->knowledgeBaseCode = $knowledgeBaseCode;
+        return $this;
+    }
+
+    public function getSourceBindingId(): int
+    {
+        return $this->sourceBindingId;
+    }
+
+    public function setSourceBindingId(?int $sourceBindingId): self
+    {
+        $this->sourceBindingId = max(0, (int) $sourceBindingId);
+        return $this;
+    }
+
+    public function getSourceItemId(): int
+    {
+        return $this->sourceItemId;
+    }
+
+    public function setSourceItemId(?int $sourceItemId): self
+    {
+        $this->sourceItemId = max(0, (int) $sourceItemId);
+        return $this;
+    }
+
+    public function isAutoAdded(): bool
+    {
+        return $this->autoAdded;
+    }
+
+    public function setAutoAdded(?bool $autoAdded): self
+    {
+        $this->autoAdded = (bool) $autoAdded;
         return $this;
     }
 
@@ -159,8 +200,11 @@ class KnowledgeBaseDocumentEntity extends AbstractKnowledgeBaseEntity
         return $this->docMetadata;
     }
 
-    public function setDocMetadata(array $docMetadata): self
+    public function setDocMetadata(?array $docMetadata): self
     {
+        if (is_null($docMetadata)) {
+            $docMetadata = [];
+        }
         $this->docMetadata = $docMetadata;
         return $this;
     }
@@ -273,9 +317,9 @@ class KnowledgeBaseDocumentEntity extends AbstractKnowledgeBaseEntity
         return $this->createdUid;
     }
 
-    public function setCreatedUid(string $createdUid): self
+    public function setCreatedUid(null|int|string $createdUid): self
     {
-        $this->createdUid = $createdUid;
+        $this->createdUid = (string) ($createdUid ?? '');
         return $this;
     }
 
@@ -284,9 +328,9 @@ class KnowledgeBaseDocumentEntity extends AbstractKnowledgeBaseEntity
         return $this->updatedUid;
     }
 
-    public function setUpdatedUid(string $updatedUid): self
+    public function setUpdatedUid(null|int|string $updatedUid): self
     {
-        $this->updatedUid = $updatedUid;
+        $this->updatedUid = (string) ($updatedUid ?? '');
         return $this;
     }
 
@@ -300,8 +344,14 @@ class KnowledgeBaseDocumentEntity extends AbstractKnowledgeBaseEntity
         return $this->createdAt;
     }
 
-    public function setCreatedAt(string $createdAt): self
+    public function setCreatedAt(null|int|string $createdAt): self
     {
+        if ($createdAt === null) {
+            $createdAt = '';
+        }
+        if (is_int($createdAt)) {
+            $createdAt = date('Y-m-d H:i:s', $createdAt);
+        }
         $this->createdAt = $createdAt;
         return $this;
     }
@@ -311,8 +361,14 @@ class KnowledgeBaseDocumentEntity extends AbstractKnowledgeBaseEntity
         return $this->updatedAt;
     }
 
-    public function setUpdatedAt(string $updatedAt): self
+    public function setUpdatedAt(null|int|string $updatedAt): self
     {
+        if ($updatedAt === null) {
+            $updatedAt = '';
+        }
+        if (is_int($updatedAt)) {
+            $updatedAt = date('Y-m-d H:i:s', $updatedAt);
+        }
         $this->updatedAt = $updatedAt;
         return $this;
     }
@@ -402,5 +458,26 @@ class KnowledgeBaseDocumentEntity extends AbstractKnowledgeBaseEntity
     {
         $this->thirdFileId = $thirdFileId;
         return $this;
+    }
+
+    /**
+     * @param array<int, string> $fields
+     */
+    public function markExplicitFields(array $fields): self
+    {
+        $this->explicitFields = [];
+        foreach ($fields as $field) {
+            $field = trim($field);
+            if ($field === '') {
+                continue;
+            }
+            $this->explicitFields[$field] = true;
+        }
+        return $this;
+    }
+
+    public function isExplicitField(string $field): bool
+    {
+        return isset($this->explicitFields[$field]);
     }
 }

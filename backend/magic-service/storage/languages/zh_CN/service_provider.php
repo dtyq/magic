@@ -39,6 +39,7 @@ return [
     'dynamic_model_config_invalid' => '动态模型配置无效',
     'dynamic_model_sub_models_empty' => '动态模型子模型列表为空',
     'insufficient_permission_for_model' => '当前套餐不支持该智能模型',
+    'provider_not_implemented' => '当前服务商暂未实现或缺少运行依赖',
     // 服务商名称国际化（key 使用枚举的 value）
     'provider_name' => [
         'Official' => 'Magic',
@@ -54,6 +55,7 @@ return [
         'MiracleVision' => '美图奇想',
         'Qwen' => '阿里云 (百炼)',
         'OpenAI' => '自定义提供商',
+        'Anthropic' => 'Anthropic',
     ],
     'provider' => [
         'service_provider_config_id' => [

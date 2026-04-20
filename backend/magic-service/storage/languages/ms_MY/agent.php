@@ -101,6 +101,8 @@ return [
     'no_version' => 'Tiada versi untuk masa ini',
     'sandbox_upgrade_failed' => 'Naik taraf imej sandbox gagal',
     'sandbox_not_found' => 'Sandbox tidak dijumpai',
+    'sandbox_init_failed' => 'Permulaan sandbox gagal, sila cuba semula',
+    'sandbox_init_timeout' => 'Permulaan sandbox tamat masa, sila cuba semula',
     'create_group_user_not_exist' => 'Pengguna cipta kumpulan tidak wujud',
     'create_group_user_account_not_exist' => 'Akaun pengguna cipta kumpulan tidak wujud',
     'get_third_platform_user_id_failed' => 'Gagal mendapatkan ID pengguna platform pihak ketiga',

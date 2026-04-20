@@ -9,7 +9,7 @@ import subprocess
 import sys
 import time
 import traceback
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import datetime
 from enum import Enum
 from pathlib import Path
@@ -29,17 +29,18 @@ from agentlang.event.data import (
 )
 from agentlang.event.event import EventType
 from agentlang.config.config import config
-from agentlang.llms.error_classifier import LLMErrorClassifier
+from agentlang.llms.error_classifier import LLMErrorClassifier, LLMErrorSnapshot
 from agentlang.llms.factory import LLMFactory
 from agentlang.llms.processors.processor_config import ProcessorConfig
 from app.streaming.message_builder import LLMStreamingMessageBuilder
 from app.streaming.config_generator import StreamingConfigGenerator
 from agentlang.llms.token_usage.models import TokenUsage
+from agentlang.llms.token_usage.report import TokenUsageReport
 from agentlang.logger import get_logger
 from agentlang.tools.tool_result import ToolResult
 from agentlang.utils.token_estimator import num_tokens_from_string
 from agentlang.utils.datetime_formatter import get_current_datetime_str
-from agentlang.exceptions import UserFriendlyException, ResourceLimitExceededException, LLMFastRetryExhaustedException
+from agentlang.exceptions import UserFriendlyException, ResourceLimitExceededException, StreamChunkTimeoutError, StreamInterruptedError, iter_exception_chain
 from agentlang.utils.tool_param_utils import preprocess_tool_calls_batch
 from openai.types.chat import ChatCompletion, ChatCompletionMessage, ChatCompletionMessageToolCall
 
@@ -73,14 +74,29 @@ logger = get_logger(__name__)
 
 # Agent Loop Context Objects for clean parameter passing and state management
 @dataclass
+class LLMRetryState:
+    """LLM 两阶梯重试状态"""
+    # 当前是否已降级到非流式模式（第一阶梯失败后置 True，后续调用不再尝试流式）
+    streaming_disabled: bool = False
+    # 第二阶梯退避重试计数
+    backoff_retry_count: int = 0
+    # 总退避等待时间（用于日志）
+    total_backoff_wait_time: float = 0.0
+
+
+@dataclass
 class AgentLoopState:
     """Agent loop state management with simple direct property access"""
     no_tool_call_count: int = 0
     agent_loop_retry_count: int = 0  # Agent loop 级别的重试计数（跨所有LLM请求）
-    llm_call_retry_count: int = 0  # 当前 LLM call 的重试次数（成功后归零）
     final_response: Optional[str] = None
     last_llm_message: Optional[ChatCompletionMessage] = None
     should_continue: bool = True
+    output_recovery_count: int = 0
+    # reactive compact：context_window_exceeded 时自动压缩一次后重试
+    reactive_compact_attempted: bool = False
+    # LLM 两阶梯重试状态
+    retry_state: LLMRetryState = field(default_factory=LLMRetryState)
 
 
 @dataclass
@@ -92,6 +108,7 @@ class LLMResponseContext:
     duration_ms: float = 0.0
     request_id: Optional[str] = None
     is_streaming: bool = False  # 标识是否来自流式调用
+    finish_reason: Optional[str] = None  # LLM 返回的完成原因（stop/length/tool_calls 等）
 
     def __post_init__(self):
         if self.tool_calls is None:
@@ -137,6 +154,9 @@ class ToolExecutionResult:
     """Tool execution result with exit detection"""
     should_exit: bool = False
     final_response: Optional[str] = None
+    inject_horizon_after_tools: bool = True
+    # 检测到某个工具因超长参数导致校验失败（参数有效但缺字段，通常是模型输出过长导致）
+    has_long_args_failure: bool = False
 
 
 @dataclass
@@ -247,6 +267,9 @@ class Agent(BaseAgent):
             self.agent_context.chat_history_dir,
             self.agent_context.get_event_dispatcher(),  # 传递事件分发器
         )
+
+        # 将 token usage 报告文件名前缀与聊天历史文件保持一致
+        TokenUsageReport.get_instance().set_file_prefix(f"{self.agent_name}<{self.id}>")
 
         # 将 chat_history 设置到 agent_context 中，确保工具可以访问
         self.agent_context.chat_history = self.chat_history
@@ -647,10 +670,9 @@ class Agent(BaseAgent):
         injected_context = (
             "<system_injected_context>\n"
             f'<notification source="agent_run_exception" time="{escaped_time}">\n'
-            f"The previous run terminated with an exception at {escaped_time}.\n"
-            "This error has already been shown to the user in the UI.\n"
+            "The previous run terminated with an exception.\n"
             f"Error summary: {escaped_summary}\n"
-            "Use this event as immediate prior context if the user asks why the task stopped, failed, or got stuck.\n"
+            "This error has already been shown to the user in the UI.\n"
             "</notification>\n"
             "</system_injected_context>"
         )
@@ -668,17 +690,8 @@ class Agent(BaseAgent):
             logger.error(f"添加异常终止上下文到历史记录时失败: {append_err}")
 
     def _iter_exception_chain(self, exception: Exception) -> List[Exception]:
-        """按因果链遍历异常，避免同一对象重复处理。"""
-        exceptions: List[Exception] = []
-        current: Optional[BaseException] = exception
-        seen_ids: set[int] = set()
-
-        while isinstance(current, Exception) and id(current) not in seen_ids:
-            exceptions.append(current)
-            seen_ids.add(id(current))
-            current = current.__cause__ or current.__context__
-
-        return exceptions
+        """委托给统一的 iter_exception_chain，遍历完整异常图（含侧链）。"""
+        return iter_exception_chain(exception)
 
     def _build_final_task_state_from_exception(self, exception: Exception) -> Optional[FinalTaskState]:
         """把已知终态异常直接归一成 FinalTaskState。"""
@@ -698,22 +711,49 @@ class Agent(BaseAgent):
                     vendor_message=current.message,
                 )
 
-            snapshot = None
-            if (
-                hasattr(current, "response")
-                or hasattr(current, "body")
-                or hasattr(current, "message")
-            ):
-                snapshot = LLMErrorClassifier.extract_snapshot(current)
-
-            if snapshot and LLMErrorClassifier.is_context_window_exceeded(snapshot):
-                return build_final_task_state(
-                    FinalTaskStateCode.CONTEXT_WINDOW_EXCEEDED,
-                    vendor_message=snapshot.primary_message,
-                    status_code=snapshot.status_code,
-                )
+        snapshot = self._find_context_window_error(exception)
+        if snapshot:
+            return build_final_task_state(
+                FinalTaskStateCode.CONTEXT_WINDOW_EXCEEDED,
+                vendor_message=snapshot.primary_message,
+                status_code=snapshot.status_code,
+            )
 
         return None
+
+    def _classify_llm_exception_for_user(self, exception: Exception) -> str | None:
+        """根据 LLM 异常类型返回用户友好的 i18n key，返回 None 则使用默认文案。"""
+        from openai import APITimeoutError, APIConnectionError, APIStatusError
+
+        if isinstance(exception, (StreamChunkTimeoutError, StreamInterruptedError, asyncio.TimeoutError, APITimeoutError)):
+            return "messages.llm_provider_timeout"
+
+        if isinstance(exception, APIConnectionError):
+            return "messages.llm_provider_connection_failed"
+
+        if isinstance(exception, APIStatusError) and exception.status_code in self._PROVIDER_RATE_LIMIT_STATUS_CODES:
+            return "messages.llm_provider_rate_limited"
+
+        if isinstance(exception, APIStatusError) and exception.status_code in self._NON_RETRYABLE_STATUS_CODES:
+            # 400/401/403/404/405：配置错误、权限问题或消息序列损坏，重试无意义，需要人工介入
+            return "messages.llm_provider_config_error"
+
+        if isinstance(exception, APIStatusError):
+            return "messages.llm_provider_error"
+
+        if isinstance(exception, (ConnectionError, OSError)):
+            return "messages.llm_provider_connection_failed"
+
+        return None
+
+    def _build_user_friendly_custom_message(self, exception: Exception, is_llm_path: bool) -> str | None:
+        """为终态构建用户友好的 custom_message。非 LLM 路径或无法分类时返回 None。"""
+        if not is_llm_path:
+            return None
+        i18n_key = self._classify_llm_exception_for_user(exception)
+        if not i18n_key:
+            return None
+        return i18n.translate(i18n_key, category="common.messages")
 
     async def run_main_agent(self, query: str):
         """运行主 agent"""
@@ -754,14 +794,26 @@ class Agent(BaseAgent):
         self.agent_context.set_final_task_state(None)
         self.agent_context.set_final_response(None)
 
+        # 异步加载聊天记录（幂等：首次加载从磁盘读取并修复序列，后续调用跳过）
+        await self.chat_history.load()
+
         session_prep_result = await self._prepare_run_session(query)
 
+        # 在首次 build_context_update 前设置输出预算，确保 output_size_limit 能写入 initial_context
+        # set_output_token_budget 只在首次设置时生效，_handle_agent_loop 里的调用会成为幂等 no-op
+        budget = self.model_config.max_output_tokens
+        self.agent_context.horizon.set_output_token_budget(budget)
+
         # 注入点1：用户消息入库后、第一次 LLM 调用前，注入 system_injected_context
+        # 若历史末尾存在未完成的 tool call 序列，跳过注入避免破坏序列完整性
         try:
-            self._sync_horizon_llm_model_info()
-            ctx_update = await self.agent_context.horizon.build_context_update()
-            await self.chat_history.append_user_message(ctx_update, show_in_ui=False, source="horizon")
-            logger.debug("[AgentHorizon] 已注入 user query 后 system_injected_context")
+            if self.chat_history._is_tool_call_sequence_complete():
+                self._sync_horizon_llm_model_info()
+                ctx_update = await self.agent_context.horizon.build_context_update()
+                await self.chat_history.append_user_message(ctx_update, show_in_ui=False, source="horizon")
+                logger.debug("[AgentHorizon] 已注入 user query 后 system_injected_context")
+            else:
+                logger.warning("[AgentHorizon] 注入点1 跳过：历史末尾存在未完成的 tool call 序列，避免消息序列错误")
         except Exception as _horizon_err:
             logger.warning(f"[AgentHorizon] 注入点1 注入失败: {_horizon_err}")
 
@@ -799,7 +851,7 @@ class Agent(BaseAgent):
                 logger.error(f"切换工作目录时出错: {e!s}")
 
             # 构造 chat_history
-            # ChatHistory 初始化时已加载历史
+            # ChatHistory 在 run() 入口已 await load()
             # 检查是否需要添加 System Prompt (仅在历史为空时)
             if not self.chat_history.messages:
                 logger.info("聊天记录为空，添加主 System Prompt")
@@ -838,6 +890,7 @@ class Agent(BaseAgent):
         # 检测用户命令（/compact、/new 等），命令处理后 query 替换为命令执行结果
         original_command = Commands.get(query)
         is_continue_request = original_command and original_command.name == "continue"
+        is_resume_request = original_command and original_command.name == "resume"
 
         if original_command:
             query = await Commands.process(query, self)
@@ -869,6 +922,12 @@ class Agent(BaseAgent):
                 await self.chat_history.append_user_message(query)
                 return SessionPrepResult(user_message_added=True)
         else:
+            # /resume 是系统内部信号（由 ask_user 等工具的 resume 流程发出）：
+            # ToolResult 已写入历史，LLM 直接响应即可，不追加任何用户消息。
+            if is_resume_request:
+                logger.info("检测到 /resume 信号，跳过追加用户消息，直接让 LLM 响应工具结果")
+                return SessionPrepResult(user_message_added=False)
+
             # 没有pending工具调用，正常添加用户消息
             await self.chat_history.append_user_message(query)
             return SessionPrepResult(user_message_added=True)
@@ -880,7 +939,11 @@ class Agent(BaseAgent):
         Args:
             assistant_message: 包含pending工具调用的assistant消息
         """
-        message_content = "当前工具调用被用户打断，请结合用户的新请求判断是否要继续执行上一个工具调用，如果需要，则以相同的调用参数继续执行；若用户是想要中断当前的任务去执行新的任务，则忽略之前的工具调用，并根据用户的新请求给出新的响应"
+        message_content = (
+            "The previous tool call was interrupted by a new user message. "
+            "Decide whether to resume the interrupted tool call with the same arguments, "
+            "or abandon it and respond to the new request instead."
+        )
 
         # 为所有pending的工具调用添加中断消息
         await self._add_interruption_messages(assistant_message.tool_calls, message_content)
@@ -888,6 +951,13 @@ class Agent(BaseAgent):
     async def _handle_agent_loop(self, session_prep_result: SessionPrepResult) -> None:
         """处理 agent 循环 - 使用Context对象简化参数传递和状态管理"""
         loop_state = AgentLoopState()
+
+        # 初始输出预算：直接使用模型配置的 max_output_tokens，只设置一次
+        if hasattr(self, "model_config") and self.model_config:
+            initial_budget = self.model_config.max_output_tokens
+        else:
+            initial_budget = 4096
+        self.agent_context.horizon.set_output_token_budget(initial_budget)
 
         while loop_state.should_continue:
             # 更新活动时间，用于活动追踪
@@ -939,20 +1009,25 @@ class Agent(BaseAgent):
                     ))
                     break
                 else:
-                    # 调用LLM获取响应
-                    if loop_state.llm_call_retry_count > 0:
-                        logger.info(f"开始调用LLM（第{loop_state.llm_call_retry_count}次重试）")
-
+                    # 调用LLM获取响应（两阶梯重试在 _call_llm_with_retry 内闭环）
                     try:
-                        llm_context = await self._prepare_and_call_llm(
-                            llm_call_retry_count=loop_state.llm_call_retry_count
-                        )
+                        llm_context = await self._call_llm_with_retry(loop_state)
                     except LLMCallRequestException as e:
-                        # 仅把真实 provider 调用失败归入 llm retry，前后置准备/解析异常仍按普通异常处理。
+                        # 前后置准备/解析异常（非 provider 调用失败），按普通异常处理
                         exception_result = await self._handle_agent_loop_exception(
                             e.original_exception,
                             loop_state,
-                            is_llm_retry_path=True,
+                        )
+                        if exception_result.final_response:
+                            loop_state.final_response = exception_result.final_response
+                        if not exception_result.should_continue:
+                            break
+                        continue
+                    except Exception as e:
+                        # LLM 两阶梯重试全部耗尽后抛出的异常
+                        exception_result = await self._handle_agent_loop_exception(
+                            e,
+                            loop_state,
                         )
                         if exception_result.final_response:
                             loop_state.final_response = exception_result.final_response
@@ -961,14 +1036,68 @@ class Agent(BaseAgent):
                         continue
                     loop_state.last_llm_message = llm_context.message  # 保存用于循环结束时的最终响应
 
-                    # ✨ 新增：在保存到聊天记录前先预处理工具参数
+                    # finish_reason 截断恢复：输出真正撞到了模型 max_tokens 上限
+                    # max_tokens 已直接使用配置最大值，无扩容空间，直接注入恢复消息
+                    if llm_context.finish_reason in self._OUTPUT_TRUNCATED_FINISH_REASONS:
+                        if llm_context.has_tool_calls:
+                            logger.warning(
+                                f"finish_reason={llm_context.finish_reason} 且有 tool_calls，"
+                                "合成 error tool_result 占位，跳过工具执行"
+                            )
+                        await self._add_tool_calls_to_history(llm_context)
+                        if llm_context.has_tool_calls:
+                            await self._synthesize_error_tool_results(
+                                llm_context.tool_calls,
+                                "Tool call was truncated due to output token limit. "
+                                "Do NOT retry this call. Break the work into smaller pieces.",
+                            )
+                        await self._try_inject_output_recovery_message(
+                            loop_state,
+                            "Output token limit hit. Resume directly — no apology, no recap. "
+                            "Pick up mid-thought if that is where the cut happened. "
+                            "Break remaining work into smaller pieces.",
+                            source="max_output_tokens_recovery",
+                        )
+                        continue
+
+                    # 预处理工具参数：修复畸形 JSON、检测截断
+                    # 部分模型（如千问）截断工具参数时仍返回 finish_reason=tool_calls，
+                    # 上面的 finish_reason 检测无法覆盖，通过检测畸形 JSON 来发现截断。
                     if llm_context.has_tool_calls:
-                        processed_count = preprocess_tool_calls_batch(llm_context.tool_calls)
-                        if processed_count > 0:
-                            logger.debug(f"工具调用参数预处理完成，处理了 {processed_count} 个工具调用")
+                        preprocess_result = preprocess_tool_calls_batch(llm_context.tool_calls)
+                        if preprocess_result.processed_count > 0:
+                            logger.debug(f"工具调用参数预处理完成，处理了 {preprocess_result.processed_count} 个工具调用")
+                        if preprocess_result.has_truncation:
+                            logger.warning(
+                                f"检测到工具参数截断: "
+                                f"{', '.join(preprocess_result.truncated_tool_names)}，"
+                                f"合成 error tool_result，跳过工具执行"
+                            )
+                            await self._add_tool_calls_to_history(llm_context)
+                            await self._synthesize_error_tool_results(
+                                llm_context.tool_calls,
+                                "Tool call arguments were truncated due to output token limit. "
+                                "Do NOT retry this call. Break the work into smaller pieces.",
+                            )
+                            await self._try_inject_output_recovery_message(
+                                loop_state,
+                                "One or more tool calls above failed because their arguments were "
+                                "truncated — the content was too long. "
+                                "Do NOT retry with the same approach. "
+                                "Break the work into smaller pieces.",
+                                source="tool_args_truncation_recovery",
+                            )
+                            continue
 
                     # 添加工具调用响应到历史（现在包含修复后的参数）
-                    await self._add_tool_calls_to_history(llm_context)
+                    # 中断时 stop_run 会在 cancel_blocker 归零后调用 task.cancel()，
+                    # 下一个 await 即会抛出 CancelledError，导致历史无法落盘。
+                    # 用 asyncio.shield 保护写入：即使 task 被 cancel，shielded task
+                    # 仍会在事件循环内完成文件写入，CancelledError 自然向上传播。
+                    if self.agent_context.is_interruption_requested():
+                        await asyncio.shield(self._add_tool_calls_to_history(llm_context))
+                    else:
+                        await self._add_tool_calls_to_history(llm_context)
 
                     # State recovery checkpoint: runs immediately after a successful LLM call,
                     # regardless of whether the response contains tool calls or not.
@@ -976,15 +1105,14 @@ class Agent(BaseAgent):
                     # Must be placed here (before break/continue branches) so it is never skipped.
                     if self.is_agent_error():
                         retry_info = (
-                            f"（LLM call 重试 {loop_state.llm_call_retry_count} 次，"
-                            f"agent loop 重试 {loop_state.agent_loop_retry_count} 次）"
+                            f"（agent loop 重试 {loop_state.agent_loop_retry_count} 次）"
                             if loop_state.agent_loop_retry_count > 0 else ""
                         )
                         logger.info(f"从 ERROR 状态恢复为 RUNNING{retry_info}")
                         self.set_agent_state(AgentState.RUNNING)
-                        # Reset counters after successful recovery
-                        loop_state.llm_call_retry_count = 0
                         loop_state.agent_loop_retry_count = 0
+                        # 重置 LLM 重试状态（成功恢复后重新开始）
+                        loop_state.retry_state = LLMRetryState()
 
                     # 处理无工具调用的情况
                     if not llm_context.has_tool_calls and llm_context.message.role == "assistant":
@@ -1004,14 +1132,13 @@ class Agent(BaseAgent):
                 # session-restore path we still need this guard before executing tool calls.
                 if self.is_agent_error():
                     retry_info = (
-                        f"（LLM call 重试 {loop_state.llm_call_retry_count} 次，"
-                        f"agent loop 重试 {loop_state.agent_loop_retry_count} 次）"
+                        f"（agent loop 重试 {loop_state.agent_loop_retry_count} 次）"
                         if loop_state.agent_loop_retry_count > 0 else ""
                     )
                     logger.info(f"从 ERROR 状态恢复为 RUNNING（会话恢复路径）{retry_info}")
                     self.set_agent_state(AgentState.RUNNING)
-                    loop_state.llm_call_retry_count = 0
                     loop_state.agent_loop_retry_count = 0
+                    loop_state.retry_state = LLMRetryState()
 
                 # 执行工具调用并处理结果
                 tool_result = await self._execute_and_process_tool_calls(llm_context)
@@ -1019,23 +1146,36 @@ class Agent(BaseAgent):
                 # 注入点 2：tool result 返回后，注入 system_injected_context
                 # 无论是否 should_exit 都注入，因为 hidden message 会留在 chat history 供后续 LLM call 读取
                 try:
-                    self._sync_horizon_llm_model_info()
-                    ctx_update = await self.agent_context.horizon.build_context_update()
-                    await self.chat_history.append_user_message(ctx_update, show_in_ui=False, source="horizon")
-                    logger.debug("[AgentHorizon] 已注入 tool result 后 system_injected_context")
+                    if tool_result.inject_horizon_after_tools:
+                        self._sync_horizon_llm_model_info()
+                        ctx_update = await self.agent_context.horizon.build_context_update()
+                        await self.chat_history.append_user_message(ctx_update, show_in_ui=False, source="horizon")
+                        logger.debug("[AgentHorizon] 已注入 tool result 后 system_injected_context")
                 except Exception as _horizon_err:
                     logger.warning(f"[AgentHorizon] tool result 后注入失败: {_horizon_err}")
+
+                # 工具执行后检测到参数超长导致校验失败（has_long_args_failure）：
+                # 参数 JSON 语法正确但缺少必填字段，preprocess 阶段不会检测到，
+                # 执行报错后在此注入恢复消息
+                if tool_result.has_long_args_failure:
+                    await self._try_inject_output_recovery_message(
+                        loop_state,
+                        "One or more tool calls above failed because their arguments were "
+                        "truncated or incomplete — the content was too long. "
+                        "Do NOT retry with the same approach. "
+                        "Break the work into smaller pieces.",
+                        source="tool_args_truncation_recovery",
+                    )
 
                 if tool_result.should_exit:
                     loop_state.final_response = tool_result.final_response
                     break
 
             except Exception as e:
-                # 处理其他异常情况
+                # 处理非 LLM 异常（工具执行失败等）
                 exception_result = await self._handle_agent_loop_exception(
                     e,
                     loop_state,
-                    is_llm_retry_path=False,
                 )
                 if exception_result.final_response:
                     loop_state.final_response = exception_result.final_response
@@ -1175,8 +1315,11 @@ class Agent(BaseAgent):
         """
         logger.info("检测到用户有新的请求，将中断之前的工具调用，并让 LLM 处理新请求")
 
-        # 添加中断消息
-        message_content = "当前工具调用被用户打断，请结合用户的新请求判断是否要继续执行上一个工具调用，如果需要，则以相同的调用参数继续执行；若用户是想要中断当前的任务去执行新的任务，则忽略之前的工具调用，并根据用户的新请求给出新的响应"
+        message_content = (
+            "The previous tool call was interrupted by a new user message. "
+            "Decide whether to resume the interrupted tool call with the same arguments, "
+            "or abandon it and respond to the new request instead."
+        )
 
         # 为所有工具调用添加中断消息
         await self._add_interruption_messages(second_last_message.tool_calls, message_content)
@@ -1196,7 +1339,7 @@ class Agent(BaseAgent):
         # 不需要为每个工具调用单独添加消息，避免消息重复
         if tool_calls:
             interrupt_assistant_msg = AssistantMessage(
-                content=f"工具调用被用户中断：{message_content}"
+                content=f"Tool call interrupted: {message_content}"
             )
             try:
                 await self.chat_history.insert_message_before_last(interrupt_assistant_msg)
@@ -1278,6 +1421,14 @@ class Agent(BaseAgent):
 
         # Check if compact is needed
         if token_count > token_threshold or message_count > message_threshold:
+            # 若末尾消息已是压缩请求（reactive compact 刚注入），跳过重复注入
+            if self.chat_history.messages:
+                last_msg = self.chat_history.messages[-1]
+                last_content = getattr(last_msg, "content", "") or ""
+                if "compact_chat_history" in last_content:
+                    logger.info("已存在待处理的 compact 请求，跳过重复注入")
+                    return False
+
             logger.info(f"Triggering compact: tokens={token_count}/{token_threshold}, messages={message_count}/{message_threshold}")
 
             # Build compact request message
@@ -1295,6 +1446,29 @@ class Agent(BaseAgent):
             return True
 
         return False
+
+    async def _try_compact_chat_history_force(self) -> bool:
+        """强制触发上下文压缩（不检查阈值），用于 reactive compact 场景。
+
+        与 `_try_compact_chat_history` 的区别：跳过 token/message 阈值检查，
+        直接注入压缩请求，让下一轮 LLM 调用执行压缩。
+
+        Returns:
+            bool: True 表示压缩请求已注入成功，False 表示消息太少无法压缩
+        """
+        message_count = len(self.chat_history.messages)
+        if message_count < 4:
+            logger.warning(f"消息数过少 ({message_count})，无法执行 reactive compact")
+            return False
+
+        logger.info(f"强制触发 reactive compact: messages={message_count}")
+        compact_request = self._build_compact_request()
+        compact_message = UserMessage(
+            content=compact_request,
+            show_in_ui=False,
+        )
+        await self.chat_history.add_message(compact_message)
+        return True
 
     def _activate_compact_model(self) -> None:
         """切换到 compact 专属模型（如果配置了的话），并保存压缩前的模型状态
@@ -1350,13 +1524,219 @@ class Agent(BaseAgent):
         # 被动触发：直接注入 SKILL.md 内容，无需 Agent 额外调用 read_skills
         return f"The conversation is too long and must be compacted now. You must call the `compact_chat_history` tool immediately.\n\n{self._compact_skill_content}"
 
+    # 供应商限流/过载的状态码
+    _PROVIDER_RATE_LIMIT_STATUS_CODES = {429, 529}
 
-    async def _prepare_and_call_llm(self, llm_call_retry_count: int = 0) -> LLMResponseContext:
+    # 确定性错误状态码：这些错误与请求内容或配置相关，换非流式/等待/重试都不会改变结果，
+    # 唯一的出路是修复配置或聊天记录，继续重试只是浪费预算和用户时间。
+    #
+    # 各状态码含义：
+    #   400 = 请求格式/消息序列错误（如 assistant 后面少了 tool_result）
+    #         ⚠️ 特例：上下文超长也是 400，但已被 _find_context_window_error 在此之前拦截并
+    #         走 compact 路径，所以走到这里的 400 必然是不可恢复的消息序列/格式问题。
+    #   401 = 未授权（API Key 无效）
+    #   403 = 禁止访问（权限不足）
+    #   404 = 模型不存在（模型 ID 配置错误，或该账号无访问权限）
+    #   405 = 方法不允许
+    _NON_RETRYABLE_STATUS_CODES = {400, 401, 403, 404, 405}
+
+    # 兼容各家不同的 finish_reason 值（"输出被截断"）
+    _OUTPUT_TRUNCATED_FINISH_REASONS = {"length", "max_tokens"}
+
+    # 递进式恢复提示词（逐级加严）
+    _PROGRESSIVE_RECOVERY_PROMPTS = [
+        # 第 1 次（含流式降级）
+        "Your previous response was interrupted. "
+        "Break remaining work into smaller pieces and generate shorter responses.",
+        # 第 2 次
+        "Your response was interrupted again. You MUST generate shorter responses. "
+        "Limit each response to ONE focused step.",
+        # 第 3 次
+        "CRITICAL: Your responses keep getting interrupted. "
+        "Each response MUST be under 5000 characters. "
+        "Generate only ONE small, focused action per response.",
+        # 第 4~5 次
+        "FINAL WARNING: Output is still too long. "
+        "Respond with ONLY a single tool call with minimal arguments. "
+        "Do NOT include explanations or commentary. Maximum 2000 characters.",
+    ]
+
+    def _extract_chunk_count(self, exception: Exception) -> int:
+        """从异常链中提取已收到的 chunk 数量（仅用于日志）"""
+        for exc in self._iter_exception_chain(exception):
+            if isinstance(exc, (StreamInterruptedError, StreamChunkTimeoutError)):
+                return exc.chunk_count
+        return 0
+
+    def _find_context_window_error(self, exception: Exception) -> Optional[LLMErrorSnapshot]:
+        """在异常链中查找上下文超长错误，返回对应的 snapshot 或 None"""
+        from openai import APIError
+        for exc in self._iter_exception_chain(exception):
+            if isinstance(exc, APIError):
+                snapshot = LLMErrorClassifier.extract_snapshot(exc)
+                if snapshot and LLMErrorClassifier.is_context_window_exceeded(snapshot):
+                    return snapshot
+        return None
+
+    async def _interruptible_sleep(self, seconds: float) -> None:
+        """可中断的等待，监听 interruption_event 以快速响应用户取消"""
+        interrupt_event = self.agent_context.get_interruption_event()
+        sleep_task = asyncio.ensure_future(asyncio.sleep(seconds))
+        interrupt_task = asyncio.ensure_future(interrupt_event.wait())
+        done, pending = await asyncio.wait(
+            [sleep_task, interrupt_task], return_when=asyncio.FIRST_COMPLETED
+        )
+        for t in pending:
+            t.cancel()
+        if interrupt_task in done:
+            raise asyncio.CancelledError()
+
+    async def _call_llm_with_retry(self, loop_state: AgentLoopState) -> LLMResponseContext:
+        """两阶梯重试：先流式快速失败，再非流式退避重试
+
+        第一阶梯：流式请求，首包 60s + chunk 间隔 60s 的短超时快速检测。
+        部分供应商流式实现存在 bug，且缓存亲和性导致同一请求反复命中同一个
+        有问题的节点，流式重试无意义，首次失败即降级非流式。
+
+        第二阶梯：非流式退避重试，600s 超时，指数退避 + jitter。
+        降级到非流式可绕过供应商流式 bug，以成功率为最高优先级。
+
+        retry_state 的生命周期覆盖整个 run（非单次请求）：
+        - streaming_disabled 一旦设置，整个 run 内不再尝试流式（临时性流式故障
+          在下一轮 run 自然恢复）
+        - backoff_retry_count 跨请求累积，避免持续失败时消耗过多预算
+        - 仅在 agent 从 ERROR 状态成功恢复时重置（见 agent loop checkpoint）
+        """
+        from openai import APIStatusError
+        from agentlang.utils.retry import extract_retry_delay_from_error
+
+        # 第一阶梯：流式尝试（仅在未降级时）
+        if not loop_state.retry_state.streaming_disabled:
+            try:
+                return await self._prepare_and_call_llm(
+                    use_stream=True,
+                    first_chunk_timeout=config.get("llm.stream_first_chunk_timeout_seconds", 60),
+                    chunk_timeout=config.get("llm.stream_chunk_timeout_seconds", 60),
+                )
+            except ResourceLimitExceededException:
+                raise  # 平台业务限制（积分/并发），直接终止
+            except Exception as e:
+                if self._find_context_window_error(e):
+                    raise  # 上下文超长走 compact 路径
+                # 确定性错误：不降级非流式，也不重试。
+                # 这类错误换成非流式请求同样会失败（模型不存在、API Key 无效、消息序列损坏等），
+                # 必须先检查此条件再走降级分支，否则会白白浪费一轮非流式请求。
+                # 注意：上下文超长（同样是 400）已在前面被 _find_context_window_error 拦截并 raise，
+                # 走到这里的 400 一定是消息序列/格式问题，无法通过重试自愈。
+                if isinstance(e, APIStatusError) and e.status_code in self._NON_RETRYABLE_STATUS_CODES:
+                    logger.warning(
+                        f"流式请求遇到确定性错误 HTTP {e.status_code}，不降级不重试，直接抛出: {e}"
+                    )
+                    raise
+                if isinstance(e, APIStatusError) and e.status_code in self._PROVIDER_RATE_LIMIT_STATUS_CODES:
+                    # 供应商限流/过载，等待后降级到非流式。
+                    # 不计入 backoff_retry_count — 流式阶段的 429 等待仅用于降级过渡，
+                    # 进入第二阶梯后应拥有完整的重试预算。
+                    retry_delay = extract_retry_delay_from_error(str(e)) or 30
+                    logger.warning(f"供应商 {e.status_code}（流式阶段），等待 {retry_delay}s 后降级非流式")
+                    await self._interruptible_sleep(retry_delay)
+                    loop_state.retry_state.streaming_disabled = True
+                else:
+                    # 流式失败 → 降级非流式
+                    loop_state.retry_state.streaming_disabled = True
+                    received_chunks = self._extract_chunk_count(e)
+                    # 无论是否收到过 chunk，都注入恢复提示词（保成功率优先）
+                    await self._try_inject_output_recovery_message(
+                        loop_state,
+                        self._PROGRESSIVE_RECOVERY_PROMPTS[0],
+                        source="stream_interruption_recovery",
+                    )
+                    logger.warning(f"流式请求失败（chunks={received_chunks}），降级非流式: {e}")
+                # 落入第二阶梯
+
+        # 第二阶梯：非流式退避重试
+        max_retries = config.get("llm.backoff_max_retries", 5)
+        timeout = config.get("llm.non_stream_timeout_seconds", 600)
+
+        while True:
+            try:
+                return await self._prepare_and_call_llm(
+                    use_stream=False,
+                    non_stream_timeout=timeout,
+                )
+            except ResourceLimitExceededException:
+                raise  # 平台业务限制，直接终止
+            except Exception as e:
+                if self._find_context_window_error(e):
+                    if not loop_state.reactive_compact_attempted:
+                        loop_state.reactive_compact_attempted = True
+                        if await self._try_compact_chat_history_force():
+                            # compact 后 messages 已变，重置退避计数
+                            loop_state.retry_state.backoff_retry_count = 0
+                            continue
+                    raise
+
+                # 确定性错误：重试必然失败，直接抛出由上层走终态逻辑。
+                # 400 消息序列损坏时，每次重试还会额外注入 recovery user 消息，
+                # 反而让序列更乱，形成死亡螺旋，必须在退避重试逻辑之前先拦截。
+                if isinstance(e, APIStatusError) and e.status_code in self._NON_RETRYABLE_STATUS_CODES:
+                    raise
+
+                # 供应商 429/529：等待后重试，不注入恢复提示词，纳入重试计数
+                if isinstance(e, APIStatusError) and e.status_code in self._PROVIDER_RATE_LIMIT_STATUS_CODES:
+                    retry_delay = extract_retry_delay_from_error(str(e)) or 30
+                    loop_state.retry_state.backoff_retry_count += 1
+                    if loop_state.retry_state.backoff_retry_count >= max_retries:
+                        raise
+                    logger.warning(f"供应商 {e.status_code}，等待 {retry_delay}s 后重试")
+                    await self._interruptible_sleep(retry_delay)
+                    continue
+
+                loop_state.retry_state.backoff_retry_count += 1
+                if loop_state.retry_state.backoff_retry_count >= max_retries:
+                    raise  # 重试预算耗尽
+
+                # 递进式恢复提示词：backoff_retry_count=1 时取 prompt[1]（第二级）。
+                # prompt[0] 已在流式降级时注入；若从 429 降级（未注入 prompt[0]），
+                # 直接从 prompt[1] 开始也合理——429 不是输出截断问题，不需要最温和的提示。
+                prompt_idx = min(
+                    loop_state.retry_state.backoff_retry_count,
+                    len(self._PROGRESSIVE_RECOVERY_PROMPTS) - 1
+                )
+                await self._try_inject_output_recovery_message(
+                    loop_state,
+                    self._PROGRESSIVE_RECOVERY_PROMPTS[prompt_idx],
+                    source="backoff_retry_recovery",
+                )
+
+                # 指数退避 + jitter（base=10s, max=60s）
+                base_wait = min(10 * (2 ** (loop_state.retry_state.backoff_retry_count - 1)), 60)
+                wait_time = base_wait * (0.5 + random.random())  # jitter: 50%~150%
+                wait_time = min(wait_time, 60.0)  # cap at 60s
+                loop_state.retry_state.total_backoff_wait_time += wait_time
+
+                logger.warning(
+                    f"非流式请求失败，退避重试 "
+                    f"(retry={loop_state.retry_state.backoff_retry_count}/{max_retries}, "
+                    f"wait={wait_time:.1f}s): {e}"
+                )
+                await self._interruptible_sleep(wait_time)
+
+    async def _prepare_and_call_llm(
+        self,
+        use_stream: bool = True,
+        first_chunk_timeout: Optional[int] = None,
+        chunk_timeout: Optional[int] = None,
+        non_stream_timeout: Optional[int] = None,
+    ) -> LLMResponseContext:
         """
         准备与LLM的对话，处理消息，调用LLM并解析响应
 
         Args:
-            llm_call_retry_count: LLM call 重试次数，0表示第一次调用，>0表示重试调用
+            use_stream: 是否使用流式模式
+            first_chunk_timeout: 流式首包超时（秒）
+            chunk_timeout: 流式 chunk 间隔超时（秒）
+            non_stream_timeout: 非流式请求超时（秒）
 
         Returns:
             LLMResponseContext: 包含LLM响应的所有相关数据
@@ -1374,86 +1754,87 @@ class Agent(BaseAgent):
         # 🔥 检测并更新动态模型信息（确保记录的模型信息与实际使用的一致）
         effective_model_id, effective_model_name = self._resolve_effective_model_info()
 
-        # 记录调用开始时间并调用LLM
+        # _call_llm 的异常全部透传给 _call_llm_with_retry 做分类处理
         llm_start_time = time.time()
-        try:
-            chat_response = await self._call_llm(messages_for_llm, llm_call_retry_count)
-        except Exception as e:
-            raise LLMCallRequestException(e) from e
+        chat_response = await self._call_llm(
+            messages_for_llm,
+            use_stream=use_stream,
+            first_chunk_timeout=first_chunk_timeout,
+            chunk_timeout=chunk_timeout,
+            non_stream_timeout=non_stream_timeout,
+        )
         llm_duration_ms = (time.time() - llm_start_time) * 1000
 
-        # 获取token使用数据
-        token_usage = LLMFactory.token_tracker.extract_chat_history_usage_data(chat_response)
-        # 🔥 使用实际生效的模型信息（而不是Agent初始化时的信息）
-        token_usage.model_id = effective_model_id
-        token_usage.model_name = effective_model_name
-
-        # 更新 horizon：实际生效的 LLM 模型 + 当前上下文窗口使用量
+        # 响应解析阶段：异常包装为 LLMCallRequestException 以区分 provider 异常
         try:
-            horizon_model_info = self._build_horizon_llm_model_info(
-                effective_model_id=effective_model_id,
-                effective_model_name=effective_model_name,
+            token_usage = LLMFactory.token_tracker.extract_chat_history_usage_data(chat_response)
+            token_usage.model_id = effective_model_id
+            token_usage.model_name = effective_model_name
+            try:
+                model_config = LLMFactory.get_model_config(effective_model_id)
+                token_usage.resolved_model_id = model_config.resolved_model_id or None
+            except Exception:
+                pass
+
+            # 更新 horizon：实际生效的 LM 模型 + 当前上下文窗口使用量
+            try:
+                horizon_model_info = self._build_horizon_llm_model_info(
+                    effective_model_id=effective_model_id,
+                    effective_model_name=effective_model_name,
+                )
+                context_window_total = (
+                    self.model_config.max_context_tokens
+                    if hasattr(self, "model_config") and self.model_config
+                    else 0
+                )
+                self.agent_context.horizon.update_llm_model(
+                    horizon_model_info.model_id,
+                    horizon_model_info.model_name,
+                    horizon_model_info.description,
+                )
+                self.agent_context.horizon.update_context_usage(token_usage.input_tokens, context_window_total)
+            except Exception as _horizon_err:
+                logger.warning(f"[AgentHorizon] 更新模型/上下文用量失败: {_horizon_err}")
+
+            llm_response_message = chat_response.choices[0].message
+
+            if llm_response_message.content is None or llm_response_message.content.strip() == "":
+                if llm_response_message.tool_calls:
+                    logger.debug("LLM响应content为空，但包含tool_calls。")
+                    if llm_response_message.content is None:
+                        llm_response_message.content = ""
+                else:
+                    logger.warning("LLM响应消息内容为空且无tool_calls，使用默认值'Continue'")
+                    try:
+                        message_dict = llm_response_message.model_dump()
+                        formatted_json = json.dumps(message_dict, ensure_ascii=False, indent=2)
+                        logger.warning(f"详细信息:\n{formatted_json}")
+                    except Exception as e:
+                        logger.warning(f"尝试打印LLM响应消息失败: {e!s}")
+                    llm_response_message.content = "Continue"
+
+            openai_tool_calls = self._parse_tool_calls(chat_response)
+            logger.debug(f"来自chat_response的OpenAI tool_calls: {openai_tool_calls}")
+
+            from app.utils.tool_call_utils import parse_and_convert_tool_calls
+            tool_calls_to_execute = parse_and_convert_tool_calls(openai_tool_calls)
+
+            current_request_id = self.agent_context.get_current_llm_request_id()
+            actual_entered_stream_phase = self.agent_context.get_metadata().get("_llm_call_entered_stream_phase", False)
+
+            return LLMResponseContext(
+                message=llm_response_message,
+                tool_calls=tool_calls_to_execute,
+                token_usage=token_usage,
+                duration_ms=llm_duration_ms,
+                request_id=current_request_id,
+                is_streaming=actual_entered_stream_phase,
+                finish_reason=chat_response.choices[0].finish_reason if chat_response.choices else None,
             )
-            context_window_total = (
-                self.model_config.max_context_tokens
-                if hasattr(self, "model_config") and self.model_config
-                else 0
-            )
-            self.agent_context.horizon.update_llm_model(
-                horizon_model_info.model_id,
-                horizon_model_info.model_name,
-                horizon_model_info.description,
-            )
-            self.agent_context.horizon.update_context_usage(token_usage.input_tokens, context_window_total)
-        except Exception as _horizon_err:
-            logger.warning(f"[AgentHorizon] 更新模型/上下文用量失败: {_horizon_err}")
-
-        # 获取LLM响应消息
-        llm_response_message = chat_response.choices[0].message
-
-        # 处理LLM响应内容为空的情况
-        if llm_response_message.content is None or llm_response_message.content.strip() == "":
-            if llm_response_message.tool_calls:
-                logger.debug("LLM响应content为空，但包含tool_calls。")
-                # In the past, we used the explanation parameter as a fallback, but now we no longer use it due to cost and the impact on streaming implementation, allowing the frontend to directly display the large model output.
-
-                # 如果仍为空，设为空字符串
-                if llm_response_message.content is None:
-                    llm_response_message.content = ""
-            else:
-                # 没有tool_calls，内容不应为空
-                logger.warning("LLM响应消息内容为空且无tool_calls，使用默认值'Continue'")
-                try:
-                    message_dict = llm_response_message.model_dump()
-                    formatted_json = json.dumps(message_dict, ensure_ascii=False, indent=2)
-                    logger.warning(f"详细信息:\n{formatted_json}")
-                except Exception as e:
-                    logger.warning(f"尝试打印LLM响应消息失败: {e!s}")
-                llm_response_message.content = "Continue"
-
-        # 解析OpenAI的ToolCalls
-        openai_tool_calls = self._parse_tool_calls(chat_response)
-        logger.debug(f"来自chat_response的OpenAI tool_calls: {openai_tool_calls}")
-
-        # 标准化并转换为内部ToolCall类型
-        from app.utils.tool_call_utils import parse_and_convert_tool_calls
-        tool_calls_to_execute = parse_and_convert_tool_calls(openai_tool_calls)
-
-        # 获取当前 LLM 请求的 request_id
-        current_request_id = self.agent_context.get_current_llm_request_id()
-
-        # 从 metadata 中获取实际是否进入了流式阶段（由 factory.py 设置）
-        # 只有实际增加了 cancel_blocker_count 的流式调用才会标记为 True
-        actual_entered_stream_phase = self.agent_context.get_metadata().get("_llm_call_entered_stream_phase", False)
-
-        return LLMResponseContext(
-            message=llm_response_message,
-            tool_calls=tool_calls_to_execute,
-            token_usage=token_usage,
-            duration_ms=llm_duration_ms,
-            request_id=current_request_id,
-            is_streaming=actual_entered_stream_phase  # 根据实际是否进入流式阶段来设置
-        )
+        except (ResourceLimitExceededException, asyncio.CancelledError):
+            raise
+        except Exception as e:
+            raise LLMCallRequestException(e) from e
 
     def _resolve_effective_model_info(self) -> tuple[str, str]:
         """
@@ -1560,16 +1941,29 @@ class Agent(BaseAgent):
             logger.error(f"添加带工具调用的助手消息失败: {e}")
             self.set_agent_state(AgentState.ERROR)
             raise ValueError(f"无法记录助手响应 ({e})")
-        finally:
-            # 只有流式调用才需要减少计数阻止器
-            if llm_context.is_streaming:
-                try:
-                    self.agent_context.decrement_cancel_blocker()
-                    current_count = self.agent_context.get_cancel_blocker_count()
-                    logger.info(f"[流式LLM响应处理完成] 聊天历史已保存，cancel_blocker_count={current_count}")
-                except Exception as e:
-                    logger.error(f"减少流式计数阻止器失败: {e}")
                     # 不重新抛出异常，避免影响主流程
+
+    async def _synthesize_error_tool_results(
+        self,
+        tool_calls: List[ToolCall],
+        error_message: str,
+    ) -> None:
+        """为截断的 tool_calls 合成 error tool_result 占位，不执行工具。
+        让模型知道调用失败并调整策略（而不是收到"参数没传"的困惑报错）。
+        """
+        for tc in tool_calls:
+            tool_call_id = tc.id if tc.id else f"synthetic_{id(tc)}"
+            tool_name = tc.function.name if tc.function else "unknown"
+            try:
+                await self.chat_history.append_tool_message(
+                    content=error_message,
+                    tool_call_id=tool_call_id,
+                )
+                logger.info(
+                    f"合成 error tool_result: tool={tool_name}, tool_call_id={tool_call_id}"
+                )
+            except Exception as e:
+                logger.warning(f"合成 error tool_result 失败: tool={tool_name}, error={e}")
 
     async def _handle_no_tool_calls(self, llm_context: LLMResponseContext, loop_state: AgentLoopState) -> None:
         """
@@ -1619,14 +2013,52 @@ class Agent(BaseAgent):
         tool_call_results = await self._execute_tool_calls(llm_context.tool_calls, llm_context.message)
 
         # 处理工具调用结果
-        should_exit, final_response = await self._process_tool_call_results(tool_call_results)
+        should_exit, final_response, inject_horizon_after_tools = await self._process_tool_call_results(
+            tool_call_results
+        )
+
+        # 检测"工具校验失败 + 参数超长"模式：模型输出过长时可能生成有效 JSON 但缺少必填字段，
+        # 这种情况 preprocess 阶段不会标记 tool_args_truncated，需要在执行后补充检测
+        has_long_args_failure = self._detect_long_args_failure(
+            llm_context.tool_calls, tool_call_results
+        )
 
         return ToolExecutionResult(
             should_exit=should_exit,
-            final_response=final_response
+            final_response=final_response,
+            inject_horizon_after_tools=inject_horizon_after_tools,
+            has_long_args_failure=has_long_args_failure,
         )
 
-    async def _process_tool_call_results(self, tool_call_results: List[ToolResult]) -> tuple[bool, Optional[str]]:
+    # 工具参数长度阈值：超过此值的失败工具调用被视为"超长参数导致的校验失败"
+    _LONG_ARGS_THRESHOLD = 2000
+
+    def _detect_long_args_failure(
+        self,
+        tool_calls: List[ToolCall],
+        tool_call_results: List[ToolResult],
+    ) -> bool:
+        """检测是否有工具因超长参数导致校验失败。
+
+        场景：模型输出过长时生成的 JSON 语法正确但缺少必填字段，preprocess 阶段
+        无法识别（参数非空 {}），但工具执行时 Pydantic 校验会报 missing field。
+        """
+        for tc, result in zip(tool_calls, tool_call_results):
+            if not result or result.ok:
+                continue
+            args_str = tc.function.arguments if tc.function else ""
+            if len(args_str) > self._LONG_ARGS_THRESHOLD:
+                logger.warning(
+                    f"检测到工具 '{tc.function.name}' 校验失败且参数超长 "
+                    f"({len(args_str)} chars > {self._LONG_ARGS_THRESHOLD})，"
+                    f"可能是模型输出过长导致参数不完整"
+                )
+                return True
+        return False
+
+    async def _process_tool_call_results(
+        self, tool_call_results: List[ToolResult]
+    ) -> tuple[bool, Optional[str], bool]:
         """
         处理工具调用结果
 
@@ -1634,10 +2066,11 @@ class Agent(BaseAgent):
             tool_call_results: 工具调用结果列表
 
         Returns:
-            Tuple: (是否应该退出循环, 最终响应)
+            Tuple: (是否应该退出循环, 最终响应, 是否执行主循环注入点 2 horizon)
         """
         should_exit = False
         final_response = None
+        inject_horizon_after_tools = True
 
         for result in tool_call_results:
             if not result:  # 跳过空结果
@@ -1652,6 +2085,17 @@ class Agent(BaseAgent):
                     except (ValueError, TypeError):
                         logger.warning(f"无法将工具执行时间 {result.execution_time} 转换为毫秒。")
 
+                # ASK_USER：不写入占位 ToolResult，直接退出循环等待用户回复。
+                # 用户回复（或超时）后，由 AskUserService.resume_after_ask_user
+                # 将真实答复作为 ToolResult 追加到历史，上下文此时才完整，再启动 Agent。
+                if result.system == "ASK_USER":
+                    inject_horizon_after_tools = False
+                    logger.info("检测到 ASK_USER 工具调用，退出主循环等待用户回复（不写入占位 ToolResult）")
+                    final_response = result.content
+                    self.set_agent_state(AgentState.WAITING_FOR_USER)
+                    should_exit = True
+                    break
+
                 # 追加工具调用结果到聊天历史
                 await self.chat_history.append_tool_message(
                     content=result.content,
@@ -1660,14 +2104,8 @@ class Agent(BaseAgent):
                     duration_ms=tool_duration_ms,
                 )
 
-                # 检查特殊工具调用
-                if result.system == "ASK_USER":
-                    logger.info("检测到 ASK_USER 工具调用，等待用户回复")
-                    final_response = result.content  # 将用户的问题作为最终响应
-                    self.set_agent_state(AgentState.FINISHED)  # 设置状态为 FINISHED
-                    should_exit = True  # 设置标志为 True，触发主循环退出
-                    break  # 退出循环
-                elif result.system == "COMPACT_HISTORY":
+                # 检查其他特殊工具调用
+                if result.system == "COMPACT_HISTORY":
                     logger.info("检测到 COMPACT_HISTORY 工具调用，执行聊天历史压缩")
                     # Get summary from extra_info
                     if result.extra_info and 'summary' in result.extra_info:
@@ -1685,7 +2123,7 @@ class Agent(BaseAgent):
         if should_exit:
             logger.info("特殊工具调用已处理，跳出主循环")
 
-        return should_exit, final_response
+        return should_exit, final_response, inject_horizon_after_tools
 
     async def _check_incomplete_todos(self) -> tuple[bool, Optional[str]]:
         """
@@ -1873,46 +2311,83 @@ Since your subsequent output will be merged with pre-interruption content and di
         except Exception as e:
             logger.error(f"Failed to backup chat history before compact: {e}", exc_info=True)
 
+    # 输出过长恢复消息的共享上限（覆盖流式降级 + 退避重试 + finish_reason 截断等场景）
+    _MAX_OUTPUT_RECOVERY_LIMIT = 6
+
+    async def _try_inject_output_recovery_message(
+        self,
+        loop_state: AgentLoopState,
+        message: str,
+        source: str,
+    ) -> bool:
+        """尝试注入"输出过长"恢复消息到聊天历史。
+        共享计数器，超过上限时不再注入。覆盖 finish_reason=length 和流中断两种场景。
+
+        Returns:
+            是否成功注入
+        """
+        if loop_state.output_recovery_count >= self._MAX_OUTPUT_RECOVERY_LIMIT:
+            logger.info(
+                f"[{source}] 输出恢复消息已达上限 {self._MAX_OUTPUT_RECOVERY_LIMIT} 次，跳过注入"
+            )
+            return False
+        loop_state.output_recovery_count += 1
+        try:
+            await self.chat_history.append_user_message(
+                message, show_in_ui=False, source=source,
+            )
+            logger.warning(
+                f"[{source}] 注入恢复消息 (#{loop_state.output_recovery_count}/{self._MAX_OUTPUT_RECOVERY_LIMIT})"
+            )
+            return True
+        except Exception as e:
+            logger.warning(f"[{source}] 注入恢复消息失败: {e}")
+            return False
+
     async def _handle_agent_loop_exception(
         self,
         exception: Exception,
         loop_state: AgentLoopState,
-        is_llm_retry_path: bool = False,
     ) -> ExceptionHandlingResult:
         """
-        处理Agent循环中的异常
+        处理Agent循环中的异常（LLM 重试已在 _call_llm_with_retry 内闭环，
+        到这里的异常是：前后置准备/解析失败、LLM 重试全部耗尽、或非 LLM 异常）
 
         Args:
             exception: 捕获的异常
             loop_state: 循环状态，会被直接修改
-            is_llm_retry_path: 当前异常是否来自实际的 LLM 请求
 
         Returns:
             ExceptionHandlingResult: 异常处理结果
         """
+        from openai import APIError as _openai_APIError
+
         logger.error(f"Agent循环执行过程中发生错误: {exception!r}")
         logger.error(f"错误堆栈: {traceback.format_exc()}")
 
         # 处理中断的工具调用
         await self._handle_interrupted_tool_calls(exception)
 
-        # LLM 内层快速重试已耗尽：直接结束本轮，不再外层退避重试
-        for exc in self._iter_exception_chain(exception):
-            if isinstance(exc, LLMFastRetryExhaustedException):
-                logger.warning(f"LLM 快速重试已耗尽，停止外层泛化重试: {exc}")
-                await self._append_agent_run_exception_context_safely(exc)
-                loop_state.last_llm_message = None
-                self._apply_final_task_state(build_final_task_state(
-                    FinalTaskStateCode.MESSAGE_PROCESSING_FAILED,
-                    vendor_message=str(exc),
-                ))
-                return ExceptionHandlingResult(should_continue=False, final_response=None)
+        # Reactive compact：context_window_exceeded 时先压缩上下文再重试
+        if not loop_state.reactive_compact_attempted:
+            cw_snapshot = self._find_context_window_error(exception)
+            if cw_snapshot:
+                loop_state.reactive_compact_attempted = True
+                logger.warning(
+                    f"context_window_exceeded，尝试 reactive compact: "
+                    f"{cw_snapshot.primary_message}"
+                )
+                compacted = await self._try_compact_chat_history_force()
+                if compacted:
+                    logger.info("reactive compact 成功，重试 LLM 调用")
+                    return ExceptionHandlingResult(should_continue=True, final_response=None)
+                else:
+                    logger.warning("reactive compact 无法执行（消息太少），继续走终态逻辑")
 
         final_task_state = self._build_final_task_state_from_exception(exception)
         if final_task_state is not None:
             logger.warning(f"检测到终态异常 {final_task_state.code.value}，停止当前任务的自动重试")
             await self._append_agent_run_exception_context_safely(exception)
-            # 本轮调用没有成功拿到新的最终文本，避免 finalize 误回落到旧的 LLM 内容。
             loop_state.last_llm_message = None
             self._apply_final_task_state(final_task_state)
             return ExceptionHandlingResult(
@@ -1924,76 +2399,49 @@ Since your subsequent output will be merged with pre-interruption content and di
 
         # 更新计数器
         loop_state.agent_loop_retry_count += 1
-        if is_llm_retry_path:
-            loop_state.llm_call_retry_count += 1
 
-        # 计算重试策略
+        # 非 LLM 异常的通用退避重试
         max_retries = 10
         max_total_retry_wait_time = 900.0
-        enable_agent_loop_retry = False
-        total_retry_wait_time = 0.0
+        enable_agent_loop_retry = config.get("agent.enable_agent_loop_retry", False)
         stop_reason = ""
-        if is_llm_retry_path:
-            # LLM 自身已有快重试预算，外层不再叠加指数退避等待。
-            wait_time = 0.0
-            can_continue = loop_state.agent_loop_retry_count < max_retries
+
+        if enable_agent_loop_retry:
+            wait_time, total_retry_wait_time = self._apply_exponential_backoff(loop_state.agent_loop_retry_count)
+            retry_count_exhausted = loop_state.agent_loop_retry_count >= max_retries
+            retry_wait_limit_exceeded = total_retry_wait_time >= max_total_retry_wait_time
+            can_continue = not retry_count_exhausted and not retry_wait_limit_exceeded
             if not can_continue:
-                stop_reason = (
-                    "llm retry path exhausted agent loop retry budget "
-                    f"(agent_loop_retry_count={loop_state.agent_loop_retry_count}, "
-                    f"llm_call_retry_count={loop_state.llm_call_retry_count}, "
-                    f"max_retries={max_retries}, total_retry_wait_time={total_retry_wait_time:.1f}s)"
-                )
+                if retry_count_exhausted:
+                    stop_reason = (
+                        "agent loop retry budget exhausted "
+                        f"(agent_loop_retry_count={loop_state.agent_loop_retry_count}, "
+                        f"max_retries={max_retries})"
+                    )
+                else:
+                    stop_reason = (
+                        "agent loop total wait limit exceeded "
+                        f"(agent_loop_retry_count={loop_state.agent_loop_retry_count}, "
+                        f"total_retry_wait_time={total_retry_wait_time:.1f}s, "
+                        f"max_total_retry_wait_time={max_total_retry_wait_time:.1f}s)"
+                    )
         else:
-            enable_agent_loop_retry = config.get("agent.enable_agent_loop_retry", False)
-            if enable_agent_loop_retry:
-                # 仅在显式开启时，才对非 LLM 的基础设施异常保留通用退避。
-                wait_time, total_retry_wait_time = self._apply_exponential_backoff(loop_state.agent_loop_retry_count)
-                retry_count_exhausted = loop_state.agent_loop_retry_count >= max_retries
-                retry_wait_limit_exceeded = total_retry_wait_time >= max_total_retry_wait_time
-                can_continue = not retry_count_exhausted and not retry_wait_limit_exceeded
-                if not can_continue:
-                    if retry_count_exhausted:
-                        stop_reason = (
-                            "non-llm retry path exhausted agent loop retry budget "
-                            f"(agent_loop_retry_count={loop_state.agent_loop_retry_count}, "
-                            f"max_retries={max_retries}, total_retry_wait_time={total_retry_wait_time:.1f}s)"
-                        )
-                    else:
-                        stop_reason = (
-                            "non-llm retry path exceeded agent loop total wait limit "
-                            f"(agent_loop_retry_count={loop_state.agent_loop_retry_count}, "
-                            f"total_retry_wait_time={total_retry_wait_time:.1f}s, "
-                            f"max_total_retry_wait_time={max_total_retry_wait_time:.1f}s)"
-                        )
-            else:
-                wait_time = 0.0
-                can_continue = False
-                stop_reason = (
-                    "agent loop retry disabled for non-llm exception "
-                    f"(agent_loop_retry_count={loop_state.agent_loop_retry_count}, "
-                    f"enable_agent_loop_retry={enable_agent_loop_retry}, "
-                    f"total_retry_wait_time={total_retry_wait_time:.1f}s)"
-                )
+            wait_time = 0.0
+            can_continue = False
+            stop_reason = (
+                "agent loop retry disabled "
+                f"(agent_loop_retry_count={loop_state.agent_loop_retry_count})"
+            )
 
         if not can_continue:
             await self._append_agent_run_exception_context_safely(exception)
 
-        # 如果可以继续，执行等待
         if can_continue:
-            if is_llm_retry_path:
-                logger.warning(
-                    f"LLM 调用失败，跳过外层指数退避，直接进入下一次循环 "
-                    f"(agent_loop_retry_count={loop_state.agent_loop_retry_count}, "
-                    f"llm_call_retry_count={loop_state.llm_call_retry_count})"
-                )
-            else:
-                logger.warning(
-                    f"虽然遇到了错误，但还没有达到最大尝试次数，"
-                    f"当前 agent loop 重试次数为{loop_state.agent_loop_retry_count}，"
-                    f"等待{wait_time:.1f}秒后继续下一次循环"
-                )
-                await asyncio.sleep(wait_time)  # 异步等待，不阻塞事件循环，允许中断请求被处理
+            logger.warning(
+                f"非 LLM 异常，当前 agent loop 重试次数为{loop_state.agent_loop_retry_count}，"
+                f"等待{wait_time:.1f}秒后继续下一次循环"
+            )
+            await self._interruptible_sleep(wait_time)
             return ExceptionHandlingResult(should_continue=True, final_response=None)
         else:
             logger.warning(
@@ -2004,6 +2452,14 @@ Since your subsequent output will be merged with pre-interruption content and di
             self._apply_final_task_state(build_final_task_state(
                 FinalTaskStateCode.MESSAGE_PROCESSING_FAILED,
                 vendor_message=str(exception),
+                custom_message=self._build_user_friendly_custom_message(
+                    exception,
+                    is_llm_path=isinstance(exception, LLMCallRequestException)
+                    or any(
+                        isinstance(exc, _openai_APIError)
+                        for exc in self._iter_exception_chain(exception)
+                    ),
+                ),
             ))
             loop_state.last_llm_message = None
             return ExceptionHandlingResult(should_continue=False, final_response=None)
@@ -2124,12 +2580,22 @@ Since your subsequent output will be merged with pre-interruption content and di
         # 目前未实现流式处理，返回空值
         return None
 
-    async def _call_llm(self, messages: List[Dict[str, Any]], llm_call_retry_count: int = 0) -> ChatCompletion:
+    async def _call_llm(
+        self,
+        messages: List[Dict[str, Any]],
+        use_stream: bool = True,
+        first_chunk_timeout: Optional[int] = None,
+        chunk_timeout: Optional[int] = None,
+        non_stream_timeout: Optional[int] = None,
+    ) -> ChatCompletion:
         """调用 LLM
 
         Args:
             messages: 聊天消息历史
-            llm_call_retry_count: LLM call 重试次数，0表示第一次调用，>0表示重试调用
+            use_stream: 是否使用流式模式
+            first_chunk_timeout: 流式首包超时（秒）
+            chunk_timeout: 流式 chunk 间隔超时（秒）
+            non_stream_timeout: 非流式请求超时（秒）
         """
 
         # 构建工具列表：基础工具 + 授权的 MCP 工具
@@ -2180,35 +2646,45 @@ Since your subsequent output will be merged with pre-interruption content and di
         start_time = time.time()
         # logger.debug(f"发送给 LLM 的 messages: {messages}")
 
-        # 创建流式调用配置，传入消息构建器和driver配置
+        # 创建调用配置：根据 use_stream 决定流式/非流式
         # 子 Agent (is_main_agent=False) 静默运行，不向前端推送 LLM token 流。
         # 多个子 Agent 并行时共享同一 SocketIO topic_id，推流会导致前端收到交织输出。
-        if self.agent_context.is_main_agent:
-            message_builder = LLMStreamingMessageBuilder()
+        if use_stream and self.agent_context.is_main_agent:
+            message_version = self.agent_context.get_message_version()
+            from app.streaming.builder_registry import get_builder_by_version
+            message_builder = get_builder_by_version(message_version)
+            await message_builder.prepare_for_streaming(self.agent_context)
             socketio_driver_config = StreamingConfigGenerator.create_for_agent()
             processor_config = ProcessorConfig.create_with_socketio_push(
                 message_builder=message_builder,
                 socketio_driver_config=socketio_driver_config
             )
+        elif use_stream:
+            processor_config = ProcessorConfig.create_streaming_only()
         else:
             processor_config = ProcessorConfig.create_default()
 
-        # 将实际生效的模型信息写入 processor_config，确保流式/非流式事件中
-        # model_name 为配置目标模型名（如 kimi-k2.5），而非内部配置键（如 claude-3.7-cache）
+        # 设置超时参数（由业务层 _call_llm_with_retry 传入）
+        if first_chunk_timeout is not None:
+            processor_config.stream_first_chunk_timeout_seconds = first_chunk_timeout
+        if chunk_timeout is not None:
+            processor_config.stream_chunk_timeout_seconds = chunk_timeout
+        if non_stream_timeout is not None:
+            processor_config.non_stream_timeout_seconds = non_stream_timeout
+
+        # 将实际生效的模型信息写入 processor_config
         processor_config.model_id = effective_model_id
         processor_config.model_name = effective_model_name
 
         try:
-            # 使用 LLMFactory.call_with_tool_support 方法统一处理工具调用
             llm_response: ChatCompletion = await LLMFactory.call_with_tool_support(
                 effective_model_id,
-                messages, # 传递字典列表
+                messages,
                 tools=tools_list if tools_list else None,
                 stop=self.agent_context.stop_sequences if hasattr(self.agent_context, 'stop_sequences') else None,
                 agent_context=self.agent_context,
                 processor_config=processor_config,
-                enable_llm_response_events=True,  # 开启LLM响应事件触发
-                llm_call_retry_count=llm_call_retry_count  # 传递 LLM call 重试次数
+                enable_llm_response_events=True,
             )
         except ResourceLimitExceededException:
             raise
@@ -2328,22 +2804,6 @@ Since your subsequent output will be merged with pre-interruption content and di
             bool: 是否具有该 skill
         """
         return skill_name in self.loaded_skills
-
-    def has_existing_chat_history(self) -> bool:
-        """
-        Check if the agent already has existing chat history
-        This uses the same logic as in run() method to check if chat history is empty
-
-        Returns:
-            bool: True if chat history exists and is not empty, False otherwise
-        """
-        try:
-            # The chat_history is already initialized in __init__, so we can directly check it
-            # This is the same logic used in run() method
-            return bool(self.chat_history.messages)
-        except Exception as e:
-            logger.warning(f"Failed to check existing chat history for agent {self.agent_name}:{self.id}: {e}")
-            return False
 
     async def _add_mcp_tools_to_list(self, tools_list: List[Dict[str, Any]]) -> None:
         """添加授权的 MCP 工具到工具列表

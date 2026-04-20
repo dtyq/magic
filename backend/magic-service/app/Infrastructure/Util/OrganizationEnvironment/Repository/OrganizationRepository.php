@@ -206,6 +206,10 @@ class OrganizationRepository implements OrganizationRepositoryInterface
             $query->where('magic_organization_code', $filters['magic_organization_code']);
         }
 
+        if (! empty($filters['magic_organization_codes'])) {
+            $query->whereIn('magic_organization_code', $filters['magic_organization_codes']);
+        }
+
         if (isset($filters['status'])) {
             $query->where('status', $filters['status']);
         }

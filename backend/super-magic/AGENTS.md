@@ -23,6 +23,17 @@
 - 不要混淆模型文案、日志文案、展示文案，也不要把 JSON 或程序内部结构直接塞进 `content`
 - **所有会进入模型上下文的内容一律使用英文**。判断标准：这段文字是代码生成的、最终会被 LLM 读到吗？是 → 英文。用户自己输入的内容不受此约束，只有代码生成的文案需要遵守。
 
+`ToolResult` 创建方式：
+
+```python
+return ToolResult(content="操作完成")                                    # 成功
+return ToolResult(content="操作完成", data={"key": "value"})             # 成功带数据
+return ToolResult.error("文件不存在")                                    # 失败
+return ToolResult.error("转换失败", extra_info={"path": "/tmp/file"})    # 失败带内部数据
+```
+
+合法字段：`content`（必填）、`ok`、`data`、`extra_info`、`system`、`execution_time`、`tool_call_id`、`name`、`use_custom_remark`。
+
 ## 4. 给你（当前这个助手）的规则
 
 - 给用户看的所有内容——对话回复、方案说明、计划文档、`docs/plans/` 下的 Markdown——使用用户当前使用的语言
@@ -190,12 +201,15 @@ Python 代码中凡是涉及文件操作，必须使用 `app/utils/async_file_ut
 | 操作 | 函数 |
 |------|------|
 | 读文本 | `async_read_text` / `async_try_read_text`（不抛异常版） |
-| 写文本 | `async_write_text` |
+| 写文本 | `async_write_text` / `async_write_text_with_retry`（失败自动重试版） |
 | 读二进制 | `async_read_bytes` |
 | 写二进制 | `async_write_bytes` |
-| 读/写 JSON | `async_read_json` / `async_write_json` |
+| 读/写 JSON | `async_read_json` / `async_write_json` / `async_try_read_json`（不抛异常版） |
+| 读 Markdown | `async_read_markdown` / `async_try_read_markdown`（不抛异常版） |
+| 统计行数 | `async_count_text_lines` / `async_try_count_text_lines`（不抛异常版） |
 | 复制文件 | `async_copy2` |
 | 复制目录 | `async_copytree` |
+| 重命名/移动 | `async_rename` |
 | 删除文件 | `async_unlink` |
 | 删除目录 | `async_rmtree` / `async_rmdir` |
 | 创建目录 | `async_mkdir` |

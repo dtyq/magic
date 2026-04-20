@@ -14,49 +14,26 @@ def _load_agent(agent_name: str):
 
 
 @pytest.mark.parametrize(
-    ("agent_name", "expected_skill", "absent_tools"),
+    ("agent_name", "absent_tools"),
     [
-        (
-            "design",
-            "designing-canvas-videos",
-            {"generate_videos_to_canvas", "query_video_generation"},
-        ),
-        (
-            "magic",
-            "generating-videos",
-            {"generate_video", "query_video_generation"},
-        ),
-        (
-            "skill",
-            "generating-videos",
-            {"generate_video", "query_video_generation"},
-        ),
-        (
-            "slider",
-            "generating-videos",
-            {"generate_video", "query_video_generation"},
-        ),
+        ("design", {"generate_videos_to_canvas", "generate_canvas_videos", "query_video_generation"}),
+        ("magic", {"generate_video", "query_video_generation"}),
+        ("slider", {"generate_video", "query_video_generation"}),
+        ("audio-chat", {"generate_video", "query_video_generation"}),
     ],
 )
-def test_video_agents_use_video_skills_instead_of_direct_tools(agent_name, expected_skill, absent_tools):
+def test_video_tools_not_directly_mounted(agent_name, absent_tools):
+    """Video tools should not be directly mounted on agents; they go through skills or code mode."""
     agent_define = _load_agent(agent_name)
-
-    assert agent_define.skills_config is not None
-    assert expected_skill in agent_define.skills_config.get_system_skill_names()
-
     tool_names = set(agent_define.tools_config.keys())
     for tool_name in absent_tools:
         assert tool_name not in tool_names
 
 
-def test_audio_chat_agent_excludes_video_tools_and_video_skills():
-    agent_define = _load_agent("audio-chat")
-
-    tool_names = set(agent_define.tools_config.keys())
-    assert "generate_video" not in tool_names
-    assert "query_video_generation" not in tool_names
+def test_design_agent_uses_canvas_designer_for_video():
+    """Video capability is now part of the preloaded canvas-designer skill."""
+    agent_define = _load_agent("design")
 
     assert agent_define.skills_config is not None
-    skill_names = set(agent_define.skills_config.get_system_skill_names())
-    assert "generating-videos" not in skill_names
-    assert "designing-canvas-videos" not in skill_names
+    preload_names = [e.name for e in agent_define.skills_config.preload]
+    assert "canvas-designer" in preload_names

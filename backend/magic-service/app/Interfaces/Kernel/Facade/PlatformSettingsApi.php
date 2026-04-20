@@ -77,6 +77,9 @@ class PlatformSettingsApi
         if (! empty($payload['agent_role_description_i18n'] ?? [])) {
             $data['agent_role_description_i18n'] = (array) $payload['agent_role_description_i18n'];
         }
+        if (array_key_exists('custom_service_provider_whitelist', $payload)) {
+            $data['custom_service_provider_whitelist'] = (array) ($payload['custom_service_provider_whitelist'] ?? []);
+        }
 
         $this->validateUrls($data);
 
@@ -133,6 +136,7 @@ class PlatformSettingsApi
                 $resp[$key] = (array) $settings[$key];
             }
         }
+        $resp['custom_service_provider_whitelist'] = (array) ($settings['custom_service_provider_whitelist'] ?? []);
         return $resp;
     }
 }

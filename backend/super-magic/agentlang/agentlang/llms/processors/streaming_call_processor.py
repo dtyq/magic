@@ -14,10 +14,13 @@ from typing import AsyncIterator
 from openai import AsyncOpenAI, APIError, APITimeoutError, APIConnectionError
 from openai.types.chat import ChatCompletionChunk, ChatCompletion
 
+from agentlang.exceptions import StreamChunkTimeoutError, StreamInterruptedError, STREAMING_PASSTHROUGH_EXCEPTIONS
 from agentlang.interface.context import AgentContextInterface
 from .processor_config import ProcessorConfig
-from .streaming_context import StreamProcessContext, StreamResponseHandler
+from .streaming_context import StreamProcessContext
+from .streaming_handler import StreamResponseHandler
 from agentlang.logger import get_logger
+from agentlang.streaming.interface import StreamingInterface
 from agentlang.streaming.manager import create_driver
 
 logger = get_logger(__name__)
@@ -25,20 +28,15 @@ logger = get_logger(__name__)
 class StreamCancelBlockerContext:
     """流式取消阻止器上下文管理器，确保计数增加和减少严格一一对应"""
 
-    def __init__(self, agent_context: Optional[AgentContextInterface], operation_id: str, retry_count: int = 0):
+    def __init__(self, agent_context: Optional[AgentContextInterface], operation_id: str):
         self.agent_context = agent_context
         self.operation_id = operation_id
-        self.retry_count = retry_count
         self.blocker_active = False
 
     async def __aenter__(self):
         if self.agent_context:
-            # 只有首次调用（非重试）时才增加计数
-            if self.retry_count == 0:
-                self.agent_context.increment_cancel_blocker()
-                self.blocker_active = True
-            else:
-                self.blocker_active = False
+            self.agent_context.increment_cancel_blocker()
+            self.blocker_active = True
         return self
 
     async def __aexit__(self, exc_type, exc_val, exc_tb):
@@ -77,7 +75,6 @@ class StreamingCallProcessor:
         request_id: Optional[str] = None,
         correlation_id: Optional[str] = None,
         enable_llm_response_events: bool = True,
-        llm_call_retry_count: int = 0
     ) -> ChatCompletion:
         """使用流式调用LLM的方法
 
@@ -91,7 +88,6 @@ class StreamingCallProcessor:
             request_id: 请求ID
             correlation_id: 关联ID
             enable_llm_response_events: 是否启用LLM响应事件
-            llm_call_retry_count: LLM call 重试次数
 
         Returns:
             ChatCompletion响应
@@ -106,7 +102,7 @@ class StreamingCallProcessor:
         streaming_driver = None
 
         # 使用上下文管理器确保流式模式下计数的严格一一对应
-        async with StreamCancelBlockerContext(agent_context, request_id, llm_call_retry_count):
+        async with StreamCancelBlockerContext(agent_context, request_id):
             try:
                 # 初始化流式推送驱动
                 streaming_driver = await StreamingCallProcessor.initialize_streaming_driver(
@@ -144,11 +140,14 @@ class StreamingCallProcessor:
                     agent_context=agent_context,
                     http_request_start_time=http_request_start_time,
                     enable_llm_response_events=enable_llm_response_events,
-                    retry_count=llm_call_retry_count
                 )
 
-                # 处理流式响应（包含开始消息、流式chunk处理、完成消息推送）
-                result = await StreamResponseHandler.process_stream_chunks(
+                # 根据 message_version 从注册表获取对应的流式处理器
+                _message_version = agent_context.get_message_version() if agent_context else "v1"
+
+                from agentlang.llms.processors.streaming_handler_registry import get_handler_by_version
+                _handler = get_handler_by_version(_message_version)
+                result = await _handler.process_stream_chunks(
                     stream, streaming_driver, stream_context
                 )
 
@@ -157,12 +156,19 @@ class StreamingCallProcessor:
 
                 return response
 
+            # ===== 异常处理分层（Layer 2：纯透传） =====
+            #
+            # 本层只做透传，不记录重复日志（日志由 Layer 1 产生处和 Layer 3 决策处负责）。
+            # 仅对"未分类的意外异常"记录 ERROR 并包装为 RuntimeError。
+            #
+            # 新增需要透传的异常时：
+            # - 结构性异常：加入 STREAMING_PASSTHROUGH_EXCEPTIONS 元组（exceptions.py）
+            # - API / 网络类异常：加到下面对应的 except 分支
             except (APIError, APITimeoutError, APIConnectionError):
-                # 重新抛出API相关的错误
                 raise
-            except asyncio.TimeoutError:
-                # 直接重新抛出 asyncio.TimeoutError，让上层处理
-                logger.error(f"[{request_id}] 流式调用超时 (correlation_id={correlation_id})")
+            except STREAMING_PASSTHROUGH_EXCEPTIONS:
+                raise
+            except (asyncio.TimeoutError, ConnectionError):
                 raise
             except Exception as e:
                 logger.error(f"[{request_id}] 流式调用发生意外错误: {e} (correlation_id={correlation_id})")
@@ -183,7 +189,7 @@ class StreamingCallProcessor:
         processor_config: ProcessorConfig,
         agent_context: Optional[AgentContextInterface],
         request_id: str
-    ):
+    ) -> Optional[StreamingInterface]:
         """初始化流式推送驱动"""
         if not processor_config.is_push_enabled() or not agent_context:
             return None

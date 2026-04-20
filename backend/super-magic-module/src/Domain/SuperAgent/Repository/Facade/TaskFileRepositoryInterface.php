@@ -246,7 +246,7 @@ interface TaskFileRepositoryInterface
      * @param int $limit Maximum number of files to return
      * @return TaskFileEntity[] File entity list
      */
-    public function getChildrenByParentIdsAndProject(int $projectId, array $parentIds, int $limit = 1000): array;
+    public function getChildrenByParentIdsAndProject(int $projectId, array $parentIds, int $limit = 1000, int $offset = 0): array;
 
     /**
      * Batch update file_key for multiple files.

@@ -42,6 +42,7 @@ use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\TaskContext;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\UserInfoValueObject;
 use Dtyq\SuperMagic\Domain\SuperAgent\Exception\WorkspaceReadyTimeoutException;
 use Dtyq\SuperMagic\Infrastructure\ExternalAPI\SandboxOS\Agent\Constant\WorkspaceStatus;
+use Dtyq\SuperMagic\Infrastructure\ExternalAPI\SandboxOS\Agent\Request\AskUserResponseMessageRequest;
 use Dtyq\SuperMagic\Infrastructure\ExternalAPI\SandboxOS\Agent\Request\ChatMessageRequest;
 use Dtyq\SuperMagic\Infrastructure\ExternalAPI\SandboxOS\Agent\Request\CheckpointRollbackCheckRequest;
 use Dtyq\SuperMagic\Infrastructure\ExternalAPI\SandboxOS\Agent\Request\CheckpointRollbackCommitRequest;
@@ -594,6 +595,58 @@ class AgentDomainService
     }
 
     /**
+     * 发送 ask_user 答复给沙盒（Human-in-the-Loop 回调）.
+     *
+     * @param DataIsolation $dataIsolation 数据隔离上下文
+     * @param string $sandboxId 沙箱ID
+     * @param string $taskId 任务ID
+     * @param string $questionId 问题ID
+     * @param string $responseStatus 答复状态（'answered' | 'skipped'）
+     * @param string $answer 用户答复内容
+     */
+    public function sendAskUserFeedback(
+        DataIsolation $dataIsolation,
+        string $sandboxId,
+        string $taskId,
+        string $questionId,
+        string $responseStatus,
+        string $answer
+    ): void {
+        $this->logger->debug('[Sandbox][Domain] Sending ask_user feedback to sandbox', [
+            'sandbox_id' => $sandboxId,
+            'task_id' => $taskId,
+            'question_id' => $questionId,
+            'response_status' => $responseStatus,
+        ]);
+
+        $request = AskUserResponseMessageRequest::createResponse(
+            userId: $dataIsolation->getCurrentUserId(),
+            taskId: $taskId,
+            questionId: $questionId,
+            responseStatus: $responseStatus,
+            answer: $answer,
+        );
+
+        $result = $this->agent->sendChatMessage($sandboxId, $request);
+
+        if (! $result->isSuccess()) {
+            $this->logger->error('[Sandbox][Domain] Failed to send ask_user feedback', [
+                'sandbox_id' => $sandboxId,
+                'task_id' => $taskId,
+                'question_id' => $questionId,
+                'error' => $result->getMessage(),
+            ]);
+            throw new SandboxOperationException('Send ask_user feedback', $result->getMessage(), $result->getCode());
+        }
+
+        $this->logger->debug('[Sandbox][Domain] Ask_user feedback sent successfully', [
+            'sandbox_id' => $sandboxId,
+            'task_id' => $taskId,
+            'question_id' => $questionId,
+        ]);
+    }
+
+    /**
      * 发送中断消息给Agent.
      *
      * @param DataIsolation $dataIsolation 数据隔离上下文
@@ -686,7 +739,7 @@ class AgentDomainService
      * @param string $sandboxId Sandbox ID
      * @param null|callable $interruptChecker Interrupt checker closure, return true to interrupt
      * @param int $maxWaitSeconds Maximum wait time in seconds (default 5 minutes)
-     * @param int $checkIntervalSeconds Check interval in seconds (default 2 seconds)
+     * @param int $checkIntervalMs Check interval in milliseconds (default 100 ms)
      * @return bool True if workspace is ready, false if interrupted
      * @throws WorkspaceReadyTimeoutException When timeout occurs
      * @throws SandboxOperationException When initialization fails or error occurs
@@ -694,13 +747,13 @@ class AgentDomainService
     public function waitForWorkspaceReady(
         string $sandboxId,
         int $maxWaitSeconds = 300,
-        int $checkIntervalSeconds = 2,
+        int $checkIntervalMs = 100,
         ?callable $interruptChecker = null
     ): bool {
         $this->logger->debug('[Sandbox][App] Waiting for workspace to be ready', [
             'sandbox_id' => $sandboxId,
             'max_wait_seconds' => $maxWaitSeconds,
-            'check_interval_seconds' => $checkIntervalSeconds,
+            'check_interval_ms' => $checkIntervalMs,
             'has_interrupt_checker' => $interruptChecker !== null,
         ]);
 
@@ -777,7 +830,9 @@ class AgentDomainService
             }
 
             // 4. Wait before retry
-            sleep($checkIntervalSeconds);
+            if ($checkIntervalMs > 0) {
+                usleep($checkIntervalMs * 1000);
+            }
         }
     }
 

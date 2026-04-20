@@ -317,12 +317,17 @@ func registryConfigHostPath(cfg Config) string {
 	return filepath.Join(cfg.ConfigDir, fmt.Sprintf("registry-%s-config.yml", cfg.Name))
 }
 
-// run executes a docker command, discarding stdout/stderr.
+// run executes a command and appends combined output to failures when available.
 func run(ctx context.Context, name string, args ...string) error {
-	cmd := exec.CommandContext(ctx, name, args...)
-	cmd.Stdout = nil
-	cmd.Stderr = nil
-	return cmd.Run()
+	out, err := exec.CommandContext(ctx, name, args...).CombinedOutput()
+	if err == nil {
+		return nil
+	}
+	msg := strings.TrimSpace(string(out))
+	if msg == "" {
+		return err
+	}
+	return fmt.Errorf("%w: %s", err, msg)
 }
 
 // output executes a command and returns its combined stdout.

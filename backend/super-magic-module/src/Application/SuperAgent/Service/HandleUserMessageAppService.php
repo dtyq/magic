@@ -28,6 +28,7 @@ use Dtyq\SuperMagic\Domain\SuperAgent\Entity\TaskEntity;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\TaskFileEntity;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\TaskMessageEntity;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\TopicEntity;
+use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\AskUserResponseStatus;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\ChatInstruction;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\CreationSource;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\FileType;
@@ -219,6 +220,33 @@ class HandleUserMessageAppService extends AbstractAppService
             }
             $topicId = $topicEntity->getId();
             $projectId = $topicEntity->getProjectId();
+
+            $toolReply = $userMessageDTO->getDynamicParam('tool_reply');
+            $currentTaskId = $topicEntity->getCurrentTaskId();
+            $currentTaskEntity = null;
+            if (! empty($currentTaskId)) {
+                $currentTaskEntity = $this->taskDomainService->getTaskById($currentTaskId);
+            }
+
+            if (is_array($toolReply) && ($toolReply['name'] ?? '') === 'ask_user') {
+                $this->handleAskUserReplyFromChat(
+                    dataIsolation: $dataIsolation,
+                    topicEntity: $topicEntity,
+                    userMessageDTO: $userMessageDTO,
+                    currentTaskEntity: $currentTaskEntity,
+                    currentTaskId: (string) $currentTaskId,
+                    toolReply: $toolReply,
+                );
+                return;
+            }
+
+            if ($currentTaskEntity?->getStatus() === TaskStatus::WAITING_FOR_USER) {
+                $this->topicTaskAppService->handleAskUserCancelled(
+                    dataIsolation: $dataIsolation,
+                    task: $currentTaskEntity,
+                );
+            }
+
             // Check if this is the first task for the topic
             // If topic source is COPY, it's not the first task
             $isFirstTask = (empty($topicEntity->getCurrentTaskId()) || empty($topicEntity->getSandboxId()))
@@ -379,6 +407,92 @@ class HandleUserMessageAppService extends AbstractAppService
             );
             throw new BusinessException('Initialize task failed', 500);
         }
+    }
+
+    private function handleAskUserReplyFromChat(
+        DataIsolation $dataIsolation,
+        TopicEntity $topicEntity,
+        UserMessageDTO $userMessageDTO,
+        ?TaskEntity $currentTaskEntity,
+        string $currentTaskId,
+        array $toolReply
+    ): void {
+        if ($currentTaskEntity?->getStatus() !== TaskStatus::WAITING_FOR_USER || $currentTaskId === '') {
+            $this->sendAskUserChatReplyReminder($topicEntity, $userMessageDTO, $currentTaskId, '当前 ask_user 回复无效，请刷新后重试。');
+            return;
+        }
+
+        $detail = $toolReply['detail'] ?? null;
+        if (! is_array($detail)) {
+            $this->sendAskUserChatReplyReminder($topicEntity, $userMessageDTO, $currentTaskId, '当前 ask_user 回复无效，请刷新后重试。');
+            return;
+        }
+
+        $taskId = $this->getAskUserReplyString($detail, 'task_id');
+        $questionId = $this->getAskUserReplyString($detail, 'question_id');
+        $responseStatus = $this->getAskUserReplyString($detail, 'response_status');
+        $answer = $this->getAskUserReplyString($detail, 'answer');
+
+        $isAnswered = $responseStatus === AskUserResponseStatus::Answered->value;
+        $isSkipped = $responseStatus === AskUserResponseStatus::Skipped->value;
+        if ($taskId === null
+            || $taskId === ''
+            || $taskId !== $currentTaskId
+            || $questionId === null
+            || $questionId === ''
+            || (! $isAnswered && ! $isSkipped)
+            || ($isAnswered && ($answer === null || $answer === ''))) {
+            $this->sendAskUserChatReplyReminder($topicEntity, $userMessageDTO, $currentTaskId, '当前 ask_user 回复无效，请刷新后重试。');
+            return;
+        }
+
+        try {
+            // Current product decision: keep ask_user reply handling simple.
+            // Frontend disables the card immediately after submit, so we do not
+            // add extra deduplication or lock-based handling for edge retries here.
+            $this->topicTaskAppService->handleAskUserReply(
+                dataIsolation: $dataIsolation,
+                taskId: $taskId,
+                questionId: $questionId,
+                responseStatus: $responseStatus,
+                answer: $isSkipped ? ($answer ?? '') : (string) $answer
+            );
+        } catch (Throwable $throwable) {
+            $this->logger->error('handleAskUserReplyFromChat failed', [
+                'question_id' => $questionId,
+                'task_id' => $taskId,
+                'error' => $throwable->getMessage(),
+            ]);
+            $this->sendAskUserChatReplyReminder($topicEntity, $userMessageDTO, $taskId, '当前 ask_user 回复处理失败，请稍后重试。');
+        }
+    }
+
+    private function sendAskUserChatReplyReminder(
+        TopicEntity $topicEntity,
+        UserMessageDTO $userMessageDTO,
+        string $taskId,
+        string $message
+    ): void {
+        $this->clientMessageAppService->sendReminderMessageToClient(
+            topicId: $topicEntity->getId(),
+            taskId: $taskId,
+            chatTopicId: $userMessageDTO->getChatTopicId(),
+            chatConversationId: $userMessageDTO->getChatConversationId(),
+            remind: $message,
+        );
+    }
+
+    private function getAskUserReplyString(array $detail, string $key): ?string
+    {
+        $value = $detail[$key] ?? null;
+        if (is_string($value)) {
+            return $value;
+        }
+        if (is_int($value) || is_float($value) || is_bool($value)) {
+            return (string) $value;
+        }
+
+        return null;
     }
 
     /**

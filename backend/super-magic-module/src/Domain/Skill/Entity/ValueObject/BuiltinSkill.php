@@ -13,12 +13,12 @@ enum BuiltinSkill: string
 {
     case AnalyzingDataDashboard = 'analyzing-data-dashboard';
     case AnalyzingDataHtmlReport = 'analyzing-data-html-report';
-    case ConnectingImBot = 'connecting-im-bot';
+    case ImChannels = 'im-channels';
     case CreatingSlides = 'creating-slides';
     case CrewCreator = 'crew-creator';
     case DataQa = 'data-qa';
     case DeepResearch = 'deep-research';
-    case DesigningCanvasImages = 'designing-canvas-images';
+    case CanvasDesigner = 'canvas-designer';
     case SkillCreator = 'skill-creator';
 
     public function getSkillName(): string

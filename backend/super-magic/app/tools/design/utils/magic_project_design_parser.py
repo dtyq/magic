@@ -539,6 +539,44 @@ def _dict_to_element(data: Dict[str, Any]) -> Optional[CanvasElement]:
         return None
 
 
+# 项目内媒体文件的规范存储目录名，用于识别旧格式 workspace 相对路径
+_CANONICAL_MEDIA_DIRS = {"images", "videos"}
+
+
+def _normalize_media_src(src: str) -> str:
+    """
+    将旧格式的 workspace 相对路径规范化为项目相对路径。
+
+    旧格式：project-name/images/xxx.jpg（相对于 workspace 根目录）
+    新格式：images/xxx.jpg（相对于项目目录，即 magic.project.js 所在目录）
+
+    识别方式：从第二段开始扫描，找到第一个已知媒体目录（images/videos），
+    将其及后续部分作为项目相对路径，兼容 project_path 为多层路径的情况。
+
+    Args:
+        src: 原始 src 字符串
+
+    Returns:
+        规范化后的 src（项目相对路径）
+    """
+    if not src:
+        return src
+
+    # 去除开头的斜杠，统一处理
+    normalized = src.lstrip("/")
+    parts = normalized.split("/")
+
+    # 从第二段开始扫描（index=0 跳过，避免将已是项目相对路径的 images/xxx.jpg 误处理）
+    # 支持多层 project_path，如 xx/yy/images/a.jpg → images/a.jpg
+    for i in range(1, len(parts)):
+        if parts[i] in _CANONICAL_MEDIA_DIRS:
+            new_src = "/".join(parts[i:])
+            logger.info(f"Normalized src from old workspace-relative format '{src}' to '{new_src}'")
+            return new_src
+
+    return src
+
+
 def _parse_config_dict(data: Dict[str, Any]) -> MagicProjectConfig:
     """
     将字典解析为 MagicProjectConfig
@@ -562,6 +600,11 @@ def _parse_config_dict(data: Dict[str, Any]) -> MagicProjectConfig:
         skipped_count = 0
 
         for idx, elem in enumerate(elements_data):
+            # 规范化 image/video 元素的 src 路径：旧格式（workspace 相对）→ 新格式（项目相对）
+            if elem.get("type") in ("image", "video") and elem.get("src"):
+                elem = dict(elem)  # 避免修改原始数据
+                elem["src"] = _normalize_media_src(elem["src"])
+
             parsed_elem = _dict_to_element(elem)
             if parsed_elem is not None:
                 parsed_elements.append(parsed_elem)
@@ -713,7 +756,7 @@ async def read_magic_project_js(project_path: str) -> MagicProjectConfig:
     if not await async_exists(file_path):
         raise FileNotFoundError(
             f"magic.project.js not found at: {file_path}\n"
-            f"Please create the project first using create_design_project tool."
+            f"Please create the project first using create_canvas tool."
         )
 
     file_handle = None

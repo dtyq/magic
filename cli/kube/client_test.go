@@ -2,6 +2,7 @@ package kube
 
 import (
 	"context"
+	"errors"
 	"testing"
 	"time"
 
@@ -54,31 +55,43 @@ func succeededPod(name string) corev1.Pod {
 	}
 }
 
-// ── allReady ─────────────────────────────────────────────────────────────────
+// ── PodReadyOrCompleted / PodsReadyOrCompleted ───────────────────────────────
 
-func TestAllReady_AllRunningAndReady(t *testing.T) {
-	pods := []corev1.Pod{runningReadyPod("p1"), runningReadyPod("p2")}
-	assert.True(t, allReady(pods))
+func TestPodReadyOrCompleted_RunningReady(t *testing.T) {
+	assert.True(t, PodReadyOrCompleted(runningReadyPod("p1")))
 }
 
-func TestAllReady_PodPhasePending(t *testing.T) {
-	pods := []corev1.Pod{runningReadyPod("p1"), pendingPod("p2")}
-	assert.False(t, allReady(pods))
+func TestPodReadyOrCompleted_Succeeded(t *testing.T) {
+	assert.True(t, PodReadyOrCompleted(succeededPod("job")))
 }
 
-func TestAllReady_RunningButNotReady(t *testing.T) {
+func TestPodReadyOrCompleted_Pending(t *testing.T) {
+	assert.False(t, PodReadyOrCompleted(pendingPod("p1")))
+}
+
+func TestPodsReadyOrCompleted_RunningButNotReady(t *testing.T) {
 	pods := []corev1.Pod{runningReadyPod("p1"), runningNotReadyPod("p2")}
-	assert.False(t, allReady(pods))
+	assert.False(t, PodsReadyOrCompleted(pods))
 }
 
-func TestAllReady_SucceededJobPodDoesNotBlock(t *testing.T) {
+func TestPodsReadyOrCompleted_AllRunningAndReady(t *testing.T) {
+	pods := []corev1.Pod{runningReadyPod("p1"), runningReadyPod("p2")}
+	assert.True(t, PodsReadyOrCompleted(pods))
+}
+
+func TestPodsReadyOrCompleted_PodPhasePending(t *testing.T) {
+	pods := []corev1.Pod{runningReadyPod("p1"), pendingPod("p2")}
+	assert.False(t, PodsReadyOrCompleted(pods))
+}
+
+func TestPodsReadyOrCompleted_SucceededJobPodDoesNotBlock(t *testing.T) {
 	pods := []corev1.Pod{runningReadyPod("p1"), succeededPod("job-pod")}
-	assert.True(t, allReady(pods))
+	assert.True(t, PodsReadyOrCompleted(pods))
 }
 
-func TestAllReady_EmptyList(t *testing.T) {
-	// no pods should not block: allReady returns true so WaitForPodsReady can return nil
-	assert.True(t, allReady([]corev1.Pod{}))
+func TestPodsReadyOrCompleted_EmptyList(t *testing.T) {
+	// Vacuously true; WaitForPodsReady still requires len(pods) > 0 before completion.
+	assert.True(t, PodsReadyOrCompleted([]corev1.Pod{}))
 }
 
 // ── EnsureNamespace ──────────────────────────────────────────────────────────
@@ -134,14 +147,14 @@ func TestWaitForPodsReady_PodsAlreadyReady(t *testing.T) {
 	pod.Labels = map[string]string{"app": "test"}
 	cs := fake.NewSimpleClientset(&pod)
 	c := clientFromFake(cs)
-	err := c.WaitForPodsReady(context.Background(), "default", "app=test", 10*time.Second, nil)
+	err := c.WaitForPodsReady(context.Background(), "default", "app=test", 10*time.Second)
 	assert.NoError(t, err)
 }
 
 func TestWaitForPodsReady_TimeoutWhenNoPods(t *testing.T) {
 	cs := fake.NewSimpleClientset()
 	c := clientFromFake(cs)
-	err := c.WaitForPodsReady(context.Background(), "default", "app=test", 1*time.Millisecond, nil)
+	err := c.WaitForPodsReady(context.Background(), "default", "app=test", 1*time.Millisecond)
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "timeout")
 }
@@ -151,27 +164,60 @@ func TestWaitForPodsReady_ContextCancelledReturnsError(t *testing.T) {
 	c := clientFromFake(cs)
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel() // cancel immediately
-	err := c.WaitForPodsReady(ctx, "default", "app=test", 10*time.Second, nil)
+	err := c.WaitForPodsReady(ctx, "default", "app=test", 10*time.Second)
 	require.Error(t, err)
 }
 
-func TestWaitForPodsReady_ReporterIsCalled(t *testing.T) {
+func TestWaitForPodsReady_UsesThinWrapper(t *testing.T) {
 	pod := runningReadyPod("p1")
 	pod.Labels = map[string]string{"app": "test"}
 	cs := fake.NewSimpleClientset(&pod)
 	c := clientFromFake(cs)
+	ctx := context.Background()
+	ns, sel := "default", "app=test"
+	timeout := 10 * time.Second
 
-	called := 0
-	var lastPods []corev1.Pod
-	reporter := func(pods []corev1.Pod) {
-		called++
-		lastPods = pods
-	}
-	err := c.WaitForPodsReady(context.Background(), "default", "app=test", 10*time.Second, reporter)
+	errReady := c.WaitForPodsReady(ctx, ns, sel, timeout)
+	errWatch := c.WatchPods(ctx, ns, sel, timeout, func(pods []corev1.Pod) (bool, error) {
+		return len(pods) > 0 && PodsReadyOrCompleted(pods), nil
+	})
+	require.NoError(t, errReady)
+	require.NoError(t, errWatch)
+}
+
+// ── WatchPods ─────────────────────────────────────────────────────────────────
+
+func TestWatchPods_StopsWhenCallbackReturnsDone(t *testing.T) {
+	cs := fake.NewSimpleClientset()
+	c := clientFromFake(cs)
+	err := c.WatchPods(context.Background(), "default", "app=test", 10*time.Second, func([]corev1.Pod) (bool, error) {
+		return true, nil
+	})
 	require.NoError(t, err)
-	assert.Greater(t, called, 0, "reporter should have been called at least once")
-	assert.Len(t, lastPods, 1)
-	assert.Equal(t, "p1", lastPods[0].Name)
+}
+
+func TestWatchPods_PropagatesCallbackError(t *testing.T) {
+	cs := fake.NewSimpleClientset()
+	c := clientFromFake(cs)
+	want := errors.New("callback failed")
+	err := c.WatchPods(context.Background(), "default", "app=test", 10*time.Second, func([]corev1.Pod) (bool, error) {
+		return false, want
+	})
+	require.ErrorIs(t, err, want)
+}
+
+// ── WaitForPodsScheduled ─────────────────────────────────────────────────────
+
+func TestWaitForPodsScheduled_TimeoutWhenPodsRemainUnscheduled(t *testing.T) {
+	pod := pendingPod("p1")
+	pod.Labels = map[string]string{"app": "test"}
+	cs := fake.NewSimpleClientset(&pod)
+	c := clientFromFake(cs)
+
+	err := c.WaitForPodsScheduled(context.Background(), "default", "app=test", 1*time.Millisecond, nil)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "timeout waiting for pods scheduled")
+	assert.Contains(t, err.Error(), "selector: app=test")
 }
 
 // ── WaitForDaemonSetsSettled ──────────────────────────────────────────────────
@@ -183,9 +229,9 @@ func settledDaemonSet(name string, labels map[string]string, desired int32, read
 	}
 	return appsv1.DaemonSet{
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      name,
-			Namespace: "default",
-			Labels:    labels,
+			Name:       name,
+			Namespace:  "default",
+			Labels:     labels,
 			Generation: 3,
 		},
 		Status: appsv1.DaemonSetStatus{
@@ -231,6 +277,16 @@ func TestWaitForDaemonSetsSettled_RequiresObservedGenerationCaughtUp(t *testing.
 	err := c.WaitForDaemonSetsSettled(context.Background(), "default", "app=prepull", 1*time.Millisecond, true, nil)
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "timeout")
+}
+
+func TestWaitForDaemonSetsSettled_TimeoutWhenNoDaemonSetsMatch(t *testing.T) {
+	cs := fake.NewSimpleClientset()
+	c := clientFromFake(cs)
+
+	err := c.WaitForDaemonSetsSettled(context.Background(), "default", "app=prepull", 1*time.Millisecond, true, nil)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "timeout waiting for daemonsets settled")
+	assert.Contains(t, err.Error(), "selector: app=prepull")
 }
 
 func TestWaitForDaemonSetsSettled_ReporterIsCalled(t *testing.T) {

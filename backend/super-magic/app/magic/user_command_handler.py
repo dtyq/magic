@@ -137,6 +137,14 @@ async def handle_new_session(agent: 'Agent') -> str:
     )
 
 
+def handle_resume(agent: 'Agent') -> str:
+    """处理 resume 命令：系统内部专用，用于 ask_user 等工具等待用户答复后恢复 Agent。
+    与 continue 的区别：continue 是用户主动发起的继续指令；resume 是系统在 ToolResult
+    已写入历史后发出的恢复信号，Agent 收到后应直接让 LLM 响应，不追加任何用户消息。
+    """
+    return "/resume"
+
+
 # ===== 注册内置命令 =====
 
 Commands.register(
@@ -155,4 +163,10 @@ Commands.register(
     name="new",
     variants=['/new', '/reset'],
     handler=handle_new_session
+)
+
+Commands.register(
+    name="resume",
+    variants=['/resume'],
+    handler=handle_resume
 )

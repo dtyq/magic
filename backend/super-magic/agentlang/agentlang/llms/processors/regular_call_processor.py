@@ -23,7 +23,6 @@ from agentlang.logger import get_logger
 
 logger = get_logger(__name__)
 
-
 class RegularCallProcessor:
     """Handles regular (non-streaming) LLM calls."""
 
@@ -58,10 +57,6 @@ class RegularCallProcessor:
             del request_params["stream"]
         if "stream_options" in request_params:
             del request_params["stream_options"]
-
-        # Qwen3 enable_thinking 参数检查和处理，非 stream 模式必须设置为 false，通过 extra_body 传入
-        if llm_config.name.startswith("qwen3"):
-            request_params["extra_body"] = {"enable_thinking": False}
 
         # 添加请求ID到请求头
         if request_id:

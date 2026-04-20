@@ -178,10 +178,11 @@ class AgentSkillsAddedEventSubscriber implements ListenerInterface
 
         $allCreatedFiles = [];
         $addedPackageNames = [];
+        $addedSystemPackageNames = [];
 
         foreach ($skillCodes as $skillCode) {
             try {
-                [$createdFiles, $packageName] = $this->syncSingleSkill(
+                [$createdFiles, $packageName, $isSystem] = $this->syncSingleSkill(
                     $skillDataIsolation,
                     $skillCode,
                     $projectId,
@@ -195,7 +196,11 @@ class AgentSkillsAddedEventSubscriber implements ListenerInterface
                 );
                 $allCreatedFiles = array_merge($allCreatedFiles, $createdFiles);
                 if ($packageName !== null) {
-                    $addedPackageNames[] = $packageName;
+                    if ($isSystem) {
+                        $addedSystemPackageNames[] = $packageName;
+                    } else {
+                        $addedPackageNames[] = $packageName;
+                    }
                 }
             } catch (Throwable $e) {
                 $this->logger->error('Failed to sync skill file', [
@@ -223,7 +228,8 @@ class AgentSkillsAddedEventSubscriber implements ListenerInterface
             $organizationCode,
             $projectOrgCode,
             $addedPackageNames,
-            SkillsMdSyncService::OPERATION_ADD
+            SkillsMdSyncService::OPERATION_ADD,
+            $addedSystemPackageNames
         );
 
         $this->logger->info('Agent skill file sync completed', [
@@ -232,11 +238,12 @@ class AgentSkillsAddedEventSubscriber implements ListenerInterface
             'project_id' => $projectId,
             'files_created' => count($allCreatedFiles),
             'added_package_count' => count($addedPackageNames),
+            'added_system_package_count' => count($addedSystemPackageNames),
         ]);
     }
 
     /**
-     * @return array{0: TaskFileEntity[], 1: null|string}
+     * @return array{0: TaskFileEntity[], 1: null|string, 2: bool}
      */
     private function syncSingleSkill(
         SkillDataIsolation $skillDataIsolation,
@@ -253,19 +260,25 @@ class AgentSkillsAddedEventSubscriber implements ListenerInterface
         $skillEntity = $this->skillRepository->findByCode($skillDataIsolation, $skillCode);
         if ($skillEntity === null) {
             $this->logger->warning('Skill not found', ['skill_code' => $skillCode]);
-            return [[], null];
-        }
-
-        $fileKey = $skillEntity->getFileKey();
-        if (empty($fileKey)) {
-            $this->logger->warning('Skill file_key is empty', ['skill_code' => $skillCode]);
-            return [[], null];
+            return [[], null, false];
         }
 
         $packageName = $skillEntity->getPackageName();
         if (empty($packageName)) {
             $this->logger->warning('Skill packageName is empty', ['skill_code' => $skillCode]);
-            return [[], null];
+            return [[], null, false];
+        }
+
+        // System builtin skills have no zip package; only update SKILLS.md via packageName.
+        if ($skillEntity->getSourceType()->isSystem()) {
+            $this->logger->info('System builtin skill, skip file extraction', ['skill_code' => $skillCode]);
+            return [[], $packageName, true];
+        }
+
+        $fileKey = $skillEntity->getFileKey();
+        if (empty($fileKey)) {
+            $this->logger->warning('Skill file_key is empty', ['skill_code' => $skillCode]);
+            return [[], null, false];
         }
 
         $skillOrganizationCode = $skillEntity->getOrganizationCode();
@@ -286,7 +299,7 @@ class AgentSkillsAddedEventSubscriber implements ListenerInterface
 
             if (! file_exists($localZipPath)) {
                 $this->logger->error('Skill file download failed', ['skill_code' => $skillCode, 'file_key' => $fileKey]);
-                return [[], null];
+                return [[], null, false];
             }
 
             $extractDir = $tempDir . '/extracted';
@@ -325,7 +338,7 @@ class AgentSkillsAddedEventSubscriber implements ListenerInterface
                 $createdFiles
             );
 
-            return [$createdFiles, $packageName];
+            return [$createdFiles, $packageName, false];
         } finally {
             ZipUtil::removeDirectory($tempDir);
         }

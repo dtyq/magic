@@ -33,6 +33,10 @@ class CloudswaySeedanceVideoAdapterTest extends TestCase
         $this->assertNotNull($config);
         $this->assertSame(5, $config->toArray()['generation']['default_duration_seconds']);
         $this->assertSame('720p', $config->toArray()['generation']['default_resolution']);
+        $this->assertSame(
+            ['standard', 'image_reference', 'keyframe_guided'],
+            array_keys($config->toArray()['input_modes'])
+        );
     }
 
     public function testBuildProviderPayloadMapsPromptAndReferenceImage(): void

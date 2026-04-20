@@ -174,10 +174,11 @@ class CronService:
             # 注意：changed_ids 包含新增任务，若此时不保存，下次 tick 加载磁盘状态
             # 会拿到空 state，导致 next_run_at_ms 丢失，任务永远无法被调度
             should_save = bool(due_jobs or changed_ids or removed_ids or (set(state.jobs.keys()) != scanned_ids))
-            logger.info(
-                f"cron tick: jobs={sorted(scanned_ids)} due={[j.id for j in due_jobs]} "
-                f"changed={sorted(changed_ids)} removed={removed_ids} saved={should_save}"
-            )
+            if scanned_ids or due_jobs or changed_ids or removed_ids or should_save:
+                logger.info(
+                    f"cron tick: jobs={sorted(scanned_ids)} due={[j.id for j in due_jobs]} "
+                    f"changed={sorted(changed_ids)} removed={removed_ids} saved={should_save}"
+                )
             if should_save:
                 await save_cron_state(state)
 
@@ -211,11 +212,13 @@ class CronService:
 
             if result.status == "ok":
                 # 保活语义绑定到“任务本身已经成功跑完”，而不是后面的归档/落盘是否成功。
+                # 使用 notify_activity 而非 keepalive_once，启动 72h 自动续期循环，
+                # 确保在下一次定时任务到来之前沙盒不会被 idle monitor 杀掉。
                 try:
                     from app.core.keepalive_registry import KeepaliveRegistry
-                    KeepaliveRegistry.get_instance().keepalive_once(f"cron:{job.id}")
+                    KeepaliveRegistry.get_instance().notify_activity(f"cron:{job.id}")
                 except Exception as e:
-                    logger.warning(f"cron job [{job.id}] keepalive_once failed: {e}")
+                    logger.warning(f"cron job [{job.id}] keepalive failed: {e}")
 
             # at 类型一次性任务执行成功后归档并删除原始文件
             if result.status == "ok" and job.schedule.kind == ScheduleKind.AT:

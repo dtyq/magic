@@ -24,7 +24,7 @@ func newPrepareValuesStage(d *Deployer) *PrepareValuesStage {
 
 func (s *PrepareValuesStage) Exec(_ context.Context) error {
 	defaultsByChart := map[string]map[string]interface{}{}
-	for release := range s.d.chartSpecs {
+	for release := range s.d.opts.chartSpecs {
 		ref, err := s.d.chartRef(release)
 		if err != nil {
 			return err
@@ -40,8 +40,8 @@ func (s *PrepareValuesStage) Exec(_ context.Context) error {
 	if err != nil {
 		return fmt.Errorf("merge values: %w", err)
 	}
-	injectMagicGatewayAllowedTargetIP(merged, s.d.opts.Kind.ServiceSubnet)
-	injectWebBaseURL(merged, s.d.opts.WebBaseURL)
+	injectMagicGatewayAllowedTargetIP(merged, s.d.opts.kind.ServiceSubnet)
+	injectWebBaseURL(merged, s.d.opts.webBaseURL)
 	s.d.merged = merged
 	return nil
 }
@@ -107,12 +107,21 @@ func buildDeployValues(
 	return result, nil
 }
 
-// withRegistryEndpoint returns a deep copy of merged with global.imageRegistry overridden
-// to endpoint. Used by stages that must route image pulls through the local registry proxy.
+// withRegistryEndpoint returns a deep copy of merged with the registry endpoint
+// propagated through the global keys consumed by the infra release and its
+// ingress-nginx dependency.
 func withRegistryEndpoint(merged map[string]interface{}, endpoint string) map[string]interface{} {
 	result := cloneMap(merged)
 	global := mapValue(result["global"])
+
+	// The infra chart reads this flat key directly for its own images.
 	global["imageRegistry"] = endpoint
+
+	// ingress-nginx expects the nested global.image.registry convention.
+	image := mapValue(global["image"])
+	image["registry"] = endpoint
+	global["image"] = image
+
 	result["global"] = global
 	return result
 }

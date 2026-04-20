@@ -157,7 +157,7 @@ return [
             'extract_failed' => 'Failed to extract the archive. Please verify the file and try again',
         ],
         'publish' => [
-            'identity_md_not_found' => 'IDENTITY.md file is missing. Please initialize the agent first, then publish',
+            'identity_md_not_found' => 'Publish failed: the required file :path was not found under the project root. Please add it and try again.',
         ],
         'export_failed' => 'Agent export failed. Please try again later',
     ],

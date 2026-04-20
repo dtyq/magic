@@ -134,7 +134,7 @@ class CompactionConfig:
             label = metadata.get("label")
             if label:
                 match_texts.append(str(label))
-        return [text.lower() for text in match_texts if text]
+        return [str(text).lower() for text in match_texts if text]
 
     def _match_pricing_tier_rule(self, match_texts: List[str]) -> Optional[PricingTierCompactionRule]:
         """根据硬编码定价分区规则匹配命中项（命中即返回规则）"""

@@ -26,6 +26,7 @@ from app.service.agent_event.third_party_message_listener_service import ThirdPa
 from app.infrastructure.observability import install_tool_monitoring_listener
 from app.service.mcp_service import MCPService
 from app.path_manager import PathManager
+from app.service.agent_event.ask_user_listener_service import AskUserListenerService
 from app.service.agent_event.channel_startup_listener_service import ChannelStartupListenerService
 from app.core.entity.message.client_message import InitClientMessage, ChatClientMessage, AgentMode
 from agentlang.logger import get_logger
@@ -95,6 +96,7 @@ class AgentDispatcher(Base):
         CheckpointListenerService.register_standard_listeners(self.agent_context)
         ResourceCleanupListenerService.register_standard_listeners(self.agent_context)
         ChannelStartupListenerService.register_standard_listeners(self.agent_context)
+        AskUserListenerService.register_standard_listeners(self.agent_context)
         ThirdPartyMessageListenerService.register_standard_listeners(self.agent_context)
 
         # 注册工具监控监听器（非侵入式）
@@ -163,7 +165,7 @@ class AgentDispatcher(Base):
         # ========== 配置更新阶段 - 每次都执行 ==========
         # 保存初始化消息到文件
         from app.utils.init_client_message_util import InitClientMessageUtil
-        InitClientMessageUtil.save_init_client_message(init_message)
+        await InitClientMessageUtil.save_init_client_message(init_message)
 
         # 从 init_message.metadata 提取并设置关键字段
         if init_message.metadata:
@@ -659,6 +661,7 @@ class AgentDispatcher(Base):
                 current_video_model_id,
                 current_video_generation_config,
                 current_mcp_servers,
+                message_version=agent_context.get_message_version() if agent_context else None,
             )
         except Exception as e:
             logger.debug(f"保存会话配置时出错: {e}")

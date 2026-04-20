@@ -14,14 +14,15 @@ tools:
   - multi_edit_file_range
   - delete_files
   - shell_exec
+  - ask_user
 skills:
   preload:
-    - name: designing-canvas-images
+    - name: canvas-designer
   system_skills:
-    - name: designing-canvas-videos
     - name: skill-vetter
     - name: find-skill
     - name: using-mcp
+    - name: user-info
   workspace_skills: "*"
 ---
 

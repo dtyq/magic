@@ -1,0 +1,2 @@
+backend/magic-service/go-engine/assets/gse/data/dict/zh/s_1.txt filter=lfs diff=lfs merge=lfs -text
+backend/magic-service/go-engine/assets/gse/data/dict/zh/t_1.txt filter=lfs diff=lfs merge=lfs -text

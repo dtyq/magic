@@ -18,6 +18,7 @@ return [
 
         // Tìm kiếm & Trích xuất
         'web_search' => 'Tìm kiếm web',
+        'search_knowledge' => 'Tìm kiếm tri thức',
         'image_search' => 'Tìm kiếm hình ảnh',
         'read_webpages_as_markdown' => 'Trang web thành Markdown',
         'use_browser' => 'Thao tác trình duyệt',
@@ -62,6 +63,7 @@ return [
 
         // Tìm kiếm & Trích xuất
         'web_search' => 'Công cụ tìm kiếm internet, hỗ trợ cấu hình định dạng XML để xử lý song song nhiều yêu cầu tìm kiếm, hỗ trợ tìm kiếm phân trang và lọc phạm vi thời gian, kết quả tìm kiếm bao gồm tiêu đề, URL, tóm tắt và trang web nguồn',
+        'search_knowledge' => 'Tìm kiếm tri thức và ngữ cảnh liên quan có thể giúp trả lời câu hỏi hiện tại. Công cụ này chỉ nhận tham số query',
         'image_search' => 'Công cụ tìm kiếm hình ảnh, tìm kiếm và lọc thông minh hình ảnh chất lượng cao dựa trên từ khóa, hỗ trợ phân tích hiểu thị giác và lọc tỷ lệ khung hình, tự động loại bỏ trùng lặp đảm bảo chất lượng hình ảnh',
         'read_webpages_as_markdown' => 'Công cụ đọc trang web hàng loạt, tổng hợp nội dung nhiều trang web và chuyển đổi thành tài liệu Markdown duy nhất, hỗ trợ lấy nội dung đầy đủ và chế độ tóm tắt',
         'use_browser' => 'Công cụ tự động hóa trình duyệt, cung cấp khả năng thao tác trình duyệt nguyên tử, hỗ trợ điều hướng trang, tương tác phần tử, điền biểu mẫu và các thao tác mô-đun khác',

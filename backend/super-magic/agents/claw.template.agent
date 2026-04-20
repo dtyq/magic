@@ -21,6 +21,7 @@ tools:
   - shell_exec
   - run_python_snippet
   - manage_cron
+  - ask_user
 skills:
   system_skills: "*"
   workspace_skills: "*"

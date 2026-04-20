@@ -20,6 +20,7 @@ tools:
   - multi_edit_file
   - multi_edit_file_range
   - delete_files
+  - ask_user
 skills:
   system_skills:
     - name: skill-vetter
@@ -27,13 +28,13 @@ skills:
     - name: using-mcp
     - name: env-manager
     - name: skill-creator
-    - name: designing-canvas-images
-    - name: generating-videos
+    - name: canvas-designer
     - name: creating-slides
     - name: deep-research
     - name: using-llm
     - name: using-cron
     - name: subagents
+    - name: user-info
   workspace_skills: "*"
 ---
 

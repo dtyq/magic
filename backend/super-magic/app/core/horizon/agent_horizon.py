@@ -161,6 +161,10 @@ class AgentHorizon:
         self._memory_current: Optional[str] = None
         self._language_current: Optional[str] = None
 
+        # 初始输出 token 预算（由 agent 在首次 LLM 调用前设置，提限时不更新）
+        # 用于在 initial_context 里给模型写入单次输出的字符量参考，让模型主动控制输出长度
+        self._output_token_budget: Optional[int] = None
+
         # magiclaw 文件驱动启动状态（纯内存，per-context-window，不持久化）
         self._is_magiclaw: bool = False              # 会话是否为 magiclaw 模式
         self._magiclaw_dir: Optional[Path] = None    # .magic 目录，用于重置时重算文件集合
@@ -304,6 +308,7 @@ class AgentHorizon:
         self._video_model_changed = False
         self._is_first_injection = True
         self._state.initial_context_injected = False
+        self._state.last_injected_date = ""
         self._state.context_usage_baseline_used = 0
         self._state.context_usage_baseline_total = 0
         self._state.context_usage_baseline_used_pct = 0
@@ -437,7 +442,7 @@ class AgentHorizon:
 
         # 从持久化 file_records 恢复已读必读文件集合
         persisted_paths = set(self._state.file_records.keys())
-        restored_read_paths = required_paths & persisted_paths
+        restored_read_paths = set(required_paths & persisted_paths)
 
         self._is_magiclaw = True
         self._magiclaw_dir = magic_dir
@@ -527,6 +532,59 @@ class AgentHorizon:
     # ─────────────────────────────────────────────────────────────────────────
     # 运行时状态更新
     # ─────────────────────────────────────────────────────────────────────────
+
+    def set_output_token_budget(self, tokens: int) -> None:
+        """设置初始输出 token 预算，只在未设置时生效（提限时不调用，保持原始引导值）。
+
+        max_tokens 提升（finish_reason=length 后的扩容）只是为了让已经超限的内容能顺利输出，
+        而不是授权模型输出更多内容。如果把扩容后的值也注入给模型，模型会认为上限变高了，
+        从而产生更长的输出，反复触发截断——这与提升成功率的初衷相反。
+
+        因此：
+        - 这里只允许设置一次（_output_token_budget is None 时才写入）
+        - initial_context 里注入的字符量引导始终基于初始值，不随提限更新
+        - 扩容后的 max_tokens 不通过 initial_context 或任何 change 事件告知模型
+        """
+        if self._output_token_budget is None:
+            self._output_token_budget = tokens
+
+    @staticmethod
+    def _build_output_size_hint(max_tokens: int) -> str:
+        """根据 max_tokens 换算各语言单次安全字符量，生成写入 initial_context 的提示行。
+
+        只在首次注入（initial_context）时调用，后续不随 max_tokens 变化更新。
+        即使 agent 因 finish_reason=length 扩容了 max_tokens，模型也不会收到新的引导值，
+        原因见 set_output_token_budget 注释。
+
+        换算系数（含 50% 安全裕量，code 额外考虑中文注释混入场景）：
+        - 拉丁字母系（英/德/法/西/葡/意）：4 chars/token × 0.5
+        - 非拉丁密集脚本（俄/阿拉伯/印地语）：2 chars/token × 0.5
+        - 中文：1.5 chars/token × 0.5
+        - 日/韩：1.5 chars/token × 0.5
+        - 代码（含中文注释）：2.5 chars/token × 0.5
+        """
+        def _k(chars: float) -> str:
+            return f"~{int(chars / 1000)}k"
+
+        latin = max_tokens * 4.0 * 0.5   # English, German, French, Spanish, Portuguese, Italian
+        dense = max_tokens * 2.0 * 0.5   # Russian, Arabic, Hindi
+        zh    = max_tokens * 1.5 * 0.5   # Chinese
+        jk    = max_tokens * 1.5 * 0.5   # Japanese, Korean
+        code  = max_tokens * 2.5 * 0.5
+        return (
+            f'<output_size_limit max_tokens="{max_tokens}">'
+            f"Every single response — whether writing/editing a file, filling tool arguments, "
+            f"or producing plain text — is hard-capped at: "
+            f"English/German/French/Spanish/Portuguese/Italian {_k(latin)} chars, "
+            f"Russian/Arabic/Hindi {_k(dense)} chars, "
+            f"Chinese {_k(zh)} chars, Japanese/Korean {_k(jk)} chars, "
+            f"code with inline comments {_k(code)} chars. "
+            f"Exceeding the limit causes the output to be cut off mid-way with no warning. "
+            f"Any content over {_k(zh)}–{_k(latin)} chars (lower end for Chinese, upper for Latin-script) "
+            f"must be broken up: write a skeleton with placeholder anchors first, "
+            f"then fill each section in a separate, focused action."
+            f"</output_size_limit>"
+        )
 
     def update_llm_model(self, model_id: str, model_name: str, description: str = "") -> None:
         """LLM 调用返回后调用，记录实际生效的模型信息；仅在模型变化时标记需要注入。"""
@@ -768,6 +826,11 @@ class AgentHorizon:
         from agentlang.utils.datetime_formatter import get_current_datetime_str
         tz = self._agent_context.get_user_timezone() if self._agent_context else None
         now_str = get_current_datetime_str(tz)
+        # 格式固定为 "YYYY-MM-DD HH:MM:SS Weekday (Week N) TZ (UTC+xx:xx)"
+        today_date = now_str[:10]
+        date_changed = today_date != self._state.last_injected_date
+        # 同一天内省略周几、第几周、时区，只保留 "YYYY-MM-DD HH:MM:SS"
+        time_display = now_str if date_changed else now_str[:19]
 
         current_workspace_files = self._get_workspace_files_current()
         current_workspace_entries = self._get_workspace_entries_current()
@@ -783,10 +846,13 @@ class AgentHorizon:
         if self._is_first_injection:
             # 当前上下文窗口的首包注入：只应发生在真正的新窗口里，而不是容器重启恢复后
             init_parts = [
-                # 时间：附带使用说明，确保 LLM 正确解析"今年/近期/现在"等模糊表达
                 f"<current_time>{now_str}</current_time>"
                 "\n<!-- When handling time expressions like 'this year', 'recently', 'now', use the above as your authoritative current time. -->"
             ]
+
+            # 单次输出字符量引导：基于初始 max_tokens 换算，提限时不更新，维持原始约束
+            if self._output_token_budget is not None:
+                init_parts.append(self._build_output_size_hint(self._output_token_budget))
 
             # LLM 模型（首次注入时无论是否"变化"都输出）
             if self._last_llm_model_id:
@@ -836,8 +902,8 @@ class AgentHorizon:
             self._video_model_changed = False
 
         else:
-            # 常规增量注入
-            parts.append(f"<current_time>{now_str}</current_time>")
+            # 常规增量注入：同一天只输出时间，跨天输出完整日期时间
+            parts.append(f"<current_time>{time_display}</current_time>")
 
             # 上下文窗口使用量：只有达到绝对百分点阈值时才再次告诉模型。
             if self._context_total > 0:
@@ -899,6 +965,9 @@ class AgentHorizon:
 
         # 注入完成后，把 current staging 提交成新的持久化 baseline。
         persistence_changed = False
+        if self._state.last_injected_date != today_date:
+            self._state.last_injected_date = today_date
+            persistence_changed = True
         if self._state.initial_context_injected is not True:
             self._state.initial_context_injected = True
             persistence_changed = True

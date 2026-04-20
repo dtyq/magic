@@ -259,55 +259,115 @@ tools:
 <!--zh
 ## 5. SKILLS.md — 技能配置（可选）
 
-YAML header 定义技能列表。**列出来的就是要加载的，没列出来的不加载。**
+YAML header 定义技能配置，支持以下字段：
+
+- `skills`：crew 专属技能列表（覆盖模板 `crew_skills`），从 `crews/{code}/skills/` 目录或已安装的技能中查找
+- `system_skills`：追加到模板默认 `system_skills`（去重），从 `agents/skills/` 目录查找，不影响已有默认值
+- `preload`：将指定 skill 的文件内容**直接嵌入**系统提示词；被 preload 的 skill 不在 available skills 列表中展示，模型无需额外调用即可直接使用；也可以不在 `system_skills`/`skills` 中重复声明，preload 会自动补查找并加载
+- `excluded_skills`：按名称排除已加载的 skill（对 system、crew、workspace 三类来源均有效），`compact-chat-history` 例外，始终挂载无法排除
+
+这四个字段完全独立，可按需组合使用。
 -->
 ## 5. SKILLS.md — Skill Configuration (Optional)
 
-YAML header defines the skill list. **Listed skills are loaded; unlisted skills are not.**
+YAML header defines skill configuration using the following fields:
 
-### Example
+- `skills`: crew-specific skills (overwrites template `crew_skills`), searched in `crews/{code}/skills/` or installed skills
+- `system_skills`: appended (deduplicated) to the template's default `system_skills`, searched in `agents/skills/`
+- `preload`: embeds the specified skill's file content **directly into the system prompt**; pre-loaded skills are not shown in the available skills list — the model can use them directly without additional file reads; skills listed here do not need to be declared again in `system_skills`/`skills`, as preload will auto-locate and load them
+- `excluded_skills`: removes loaded skills by name (applies to system, crew, and workspace sources); `compact-chat-history` is always mounted and cannot be excluded
+
+All four fields are independent and can be combined as needed.
+
+<!--zh
+### 示例：仅 crew 专属技能
+-->
+### Example: Crew-specific skills only
 
 ```markdown
 ---
 skills:
-  - find-skill
-  - using-mcp
-  - env-manager
-  - deep-research
+  - my-custom-skill
+  - another-skill
 ---
 ```
 
 <!--zh
-也可以附加 `preload` 字段，指定哪些 skill 的文件要预加载进系统提示词：
+### 示例：追加系统技能
 -->
-You can also add a `preload` field to specify which skill files should be pre-loaded into the system prompt:
+### Example: Appending system skills
+
+```markdown
+---
+system_skills:
+  - deep-research
+  - creating-slides
+---
+```
+
+<!--zh
+### 示例：同时使用两个字段
+-->
+### Example: Both fields together
 
 ```markdown
 ---
 skills:
-  - find-skill
-  - using-mcp
-  - env-manager
+  - my-custom-skill
+  - another-skill
+system_skills:
+  - deep-research
+  - creating-slides
+---
+```
+
+<!--zh
+### 示例：附加 `preload` 字段，将 skill 内容直接嵌入系统提示词
+-->
+### Example: With `preload` field (embed skill content directly into system prompt)
+
+```markdown
+---
+skills:
+  - my-custom-skill
+system_skills:
+  - deep-research
 preload:
-  - find-skill              # shorthand: loads SKILL.md by default
-  - name: env-manager
+  - deep-research             # shorthand: loads SKILL.md by default
+  - name: my-custom-skill
     files:
       - SKILL.md
-      - QUICK-REF.md        # load additional reference files
+      - QUICK-REF.md          # load additional reference files
+---
+```
+
+<!--zh
+### 示例：使用 `excluded_skills` 排除不需要的技能
+-->
+### Example: Excluding unwanted skills with `excluded_skills`
+
+```markdown
+---
+excluded_skills:
+  - using-mcp      # 该 crew 不需要 MCP 能力，从已加载列表中移除
 ---
 ```
 
 <!--zh
 ### 编译规则
 
-- YAML `skills` 列表 → 覆盖编译后 `.agent` 文件 frontmatter 中的 `skills.system_skills` 字段
-- YAML `preload` 列表 → 注入到编译后 `.agent` 文件 frontmatter 中的 `skills.preload` 字段
+- `skills` 列表 → 覆盖编译后 `.agent` frontmatter 中的 `crew_skills` 字段；运行时从 `crews/{code}/skills/` 查找
+- `system_skills` 列表 → 追加（去重）到模板默认 `system_skills`；运行时从 `agents/skills/` 查找
+- `preload` 列表 → 追加到编译后 `.agent` frontmatter 中的 `preload` 字段；运行时将文件内容直接嵌入系统提示词，该 skill 会从 available skills 列表移除；无需在 `system_skills`/`skills` 中重复声明
+- `excluded_skills` 列表 → 覆盖 `excluded_skills` 字段；对 system / crew / workspace 三类来源均生效；`compact-chat-history` 始终挂载，不受此字段影响
 - 不提供 SKILLS.md → 使用 `crew.template.agent` 中的默认技能集，无预加载
 -->
 ### Compilation Rules
 
-- YAML `skills` list → overwrites the `skills.system_skills` field in the compiled `.agent` file frontmatter
-- YAML `preload` list → injected into the `skills.preload` field in the compiled `.agent` file frontmatter
+- `skills` list → overwrites `crew_skills` in the compiled `.agent` frontmatter; searched in `crews/{code}/skills/` at runtime
+- `system_skills` list → appended (deduplicated) to the template's default `system_skills`; searched in `agents/skills/` at runtime
+- `preload` list → appended to the `preload` field in the compiled `.agent` frontmatter; at runtime, file content is embedded directly into the system prompt and the skill is removed from the available skills list; no need to declare again in `system_skills`/`skills`
+- `excluded_skills` list → overwrites `excluded_skills`; applies to system, crew, and workspace sources; `compact-chat-history` is always mounted and is not affected
 - No SKILLS.md provided → uses default skill set from `crew.template.agent`, no preloads
 
 ---

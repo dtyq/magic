@@ -61,8 +61,8 @@ class ModelConfig:
         """
         return cls(
             model_id=model_id,
-            name=config_dict.get("name", model_id),
-            provider=config_dict.get("provider", "openai"),
+            name=str(config_dict.get("name", model_id)),
+            provider=str(config_dict.get("provider", "openai")),
             api_key=config_dict.get("api_key", ""),
             api_base_url=config_dict.get("api_base_url", ""),
             type=config_dict.get("type", "llm"),

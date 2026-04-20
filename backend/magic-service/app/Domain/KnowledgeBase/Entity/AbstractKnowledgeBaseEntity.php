@@ -16,15 +16,7 @@ abstract class AbstractKnowledgeBaseEntity extends AbstractEntity
     protected function getDefaultFragmentConfig(): FragmentConfig
     {
         $fragmentConfig = [
-            'mode' => FragmentMode::NORMAL->value,
-            'normal' => [
-                'text_preprocess_rule' => [],
-                'segment_rule' => [
-                    'separator' => '\n\n',
-                    'chunk_size' => 500,
-                    'chunk_overlap' => 50,
-                ],
-            ],
+            'mode' => FragmentMode::AUTO->value,
         ];
         return FragmentConfig::fromArray($fragmentConfig);
     }

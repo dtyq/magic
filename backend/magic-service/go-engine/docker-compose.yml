@@ -1,0 +1,92 @@
+services:
+  # Qdrant 向量数据库
+  qdrant:
+    image: qdrant/qdrant:v1.12.2
+    container_name: magic-qdrant
+    ports:
+      - "6333:6333" # REST API (含 Web UI: http://localhost:6333/dashboard)
+      - "6334:6334" # gRPC API
+    environment:
+      # Qdrant API 密钥认证配置（本地开发固定密码）
+      - QDRANT__SERVICE__API_KEY=magic-dev-api-key-2024
+      # 启用 CORS (开发环境)
+      - QDRANT__SERVICE__ENABLE_CORS=true
+      # 日志级别
+      - QDRANT__LOG_LEVEL=INFO
+      # 性能优化配置
+      - QDRANT__STORAGE__PERFORMANCE__MAX_SEARCH_THREADS=4
+      - QDRANT__STORAGE__OPTIMIZERS__MAX_OPTIMIZATION_THREADS=2
+    volumes:
+      - qdrant_data:/qdrant/storage
+      - qdrant_config:/qdrant/config
+    networks:
+      - magic_network
+    # 注意：Qdrant 镜像是极简镜像，不包含 curl/wget
+    # 健康检查可以从外部通过 API 验证，内部使用简单的端口检查即可
+    # healthcheck:
+    #   test: [ "CMD-SHELL", "nc -z localhost 6333 || exit 1" ]
+    #   interval: 30s
+    #   timeout: 10s
+    #   retries: 3
+    #   start_period: 20s
+    restart: always
+
+  # RabbitMQ 消息队列（含管理界面）
+  rabbitmq:
+    image: rabbitmq:3-management
+    container_name: magic-rabbitmq
+    ports:
+      - "5672:5672"   # AMQP
+      - "15672:15672" # 管理UI
+    environment:
+      - RABBITMQ_DEFAULT_USER=guest
+      - RABBITMQ_DEFAULT_PASS=guest
+      - RABBITMQ_DEFAULT_VHOST=/
+    networks:
+      - magic_network
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "-q", "ping"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 30s
+
+  # MySQL 关系型数据库 (可选)
+  mysql:
+    image: mysql:8.0
+    container_name: magic-mysql
+    ports:
+      - "3306:3306"
+    environment:
+      - MYSQL_ROOT_PASSWORD=dev123456
+      - MYSQL_DATABASE=magic_migrations
+      - MYSQL_USER=magic
+      - MYSQL_PASSWORD=dev123456
+      - MYSQL_CHARACTER_SET_SERVER=utf8mb4
+      - MYSQL_COLLATION_SERVER=utf8mb4_unicode_ci
+    volumes:
+      - mysql_data:/var/lib/mysql
+      - mysql_logs:/var/log/mysql
+    networks:
+      - magic_network
+    healthcheck:
+      test: [ "CMD", "mysqladmin", "ping", "-h", "localhost", "-uroot", "-pdev123456" ]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+    command: --default-authentication-plugin=mysql_native_password
+
+volumes:
+  qdrant_data:
+    driver: local
+  qdrant_config:
+    driver: local
+  mysql_data:
+    driver: local
+  mysql_logs:
+    driver: local
+
+networks:
+  magic_network:
+    driver: bridge

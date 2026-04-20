@@ -67,6 +67,8 @@ class ImageGeneratedEvent extends AbstractEvent
      */
     protected ?int $responseTime = null;
 
+    protected array $businessParams = [];
+
     public function getProviderModelId(): string
     {
         return $this->providerModelId;
@@ -135,6 +137,16 @@ class ImageGeneratedEvent extends AbstractEvent
     public function setResponseTime(?int $responseTime): void
     {
         $this->responseTime = $responseTime;
+    }
+
+    public function getBusinessParams(): array
+    {
+        return $this->businessParams;
+    }
+
+    public function setBusinessParams(array $businessParams): void
+    {
+        $this->businessParams = $businessParams;
     }
 
     public function getOrganizationCode(): string

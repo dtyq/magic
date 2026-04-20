@@ -74,7 +74,7 @@ return [
         'publisher_type_invalid' => 'Invalid publisher type',
         'publish_target_value_required' => 'publish_target_value is required for current publish target type',
         'publish' => [
-            'identity_md_not_found' => 'ไม่พบไฟล์ IDENTITY.md กรุณาเริ่มต้นพนักงานก่อน แล้วจึงกดเผยแพร่',
+            'identity_md_not_found' => 'เผยแพร่ไม่สำเร็จ: ไม่พบไฟล์ที่จำเป็น :path ภายใต้ไดเรกทอรีรากของโปรเจ็กต์ กรุณาเพิ่มไฟล์นี้แล้วลองอีกครั้ง',
         ],
     ],
     'task' => [

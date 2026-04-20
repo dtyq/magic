@@ -63,17 +63,47 @@ infra:
 }
 
 func TestWithRegistryEndpoint(t *testing.T) {
-	merged := map[string]interface{}{
-		"global": map[string]interface{}{"foo": "bar"},
-		"infra":  map[string]interface{}{"redis": "x"},
-	}
-	result := withRegistryEndpoint(merged, "kind-registry:5000")
-	global := mapValue(result["global"])
-	assert.Equal(t, "kind-registry:5000", global["imageRegistry"])
-	// original must be unchanged
-	origGlobal := mapValue(merged["global"])
-	_, has := origGlobal["imageRegistry"]
-	assert.False(t, has)
+	t.Run("injects flat and nested registry keys", func(t *testing.T) {
+		merged := map[string]interface{}{
+			"global": map[string]interface{}{
+				"foo": "bar",
+				"image": map[string]interface{}{
+					"pullPolicy": "IfNotPresent",
+				},
+			},
+			"infra": map[string]interface{}{"redis": "x"},
+		}
+		result := withRegistryEndpoint(merged, "kind-registry:5000")
+		global := mapValue(result["global"])
+		image := mapValue(global["image"])
+
+		assert.Equal(t, "kind-registry:5000", global["imageRegistry"])
+		assert.Equal(t, "kind-registry:5000", image["registry"])
+		assert.Equal(t, "IfNotPresent", image["pullPolicy"])
+	})
+
+	t.Run("does not mutate original nested image map", func(t *testing.T) {
+		merged := map[string]interface{}{
+			"global": map[string]interface{}{
+				"image": map[string]interface{}{
+					"pullPolicy": "IfNotPresent",
+				},
+			},
+		}
+		result := withRegistryEndpoint(merged, "kind-registry:5000")
+
+		origGlobal := mapValue(merged["global"])
+		origImage := mapValue(origGlobal["image"])
+		_, hasFlatRegistry := origGlobal["imageRegistry"]
+		_, hasNestedRegistry := origImage["registry"]
+
+		assert.False(t, hasFlatRegistry)
+		assert.False(t, hasNestedRegistry)
+		assert.Equal(t, "IfNotPresent", origImage["pullPolicy"])
+
+		resultImage := mapValue(mapValue(result["global"])["image"])
+		assert.Equal(t, "kind-registry:5000", resultImage["registry"])
+	})
 }
 
 func TestInjectWebBaseURL(t *testing.T) {

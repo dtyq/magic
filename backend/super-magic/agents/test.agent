@@ -12,6 +12,7 @@ tools:
   - multi_edit_file_range
   - delete_files
   - file_search
+  - ask_user
 skills:
   system_skills:
     - name: skill-vetter
