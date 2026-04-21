@@ -174,6 +174,11 @@ class TopicEntity extends AbstractEntity
      */
     protected ?int $hiddenType = null;
 
+    /**
+     * @var null|array 动态参数，存储话题创建时前端传递的动态配置（如 message_version 等）
+     */
+    protected ?array $dynamicParams = null;
+
     public function __construct(array $data = [])
     {
         parent::__construct($data);
@@ -217,6 +222,7 @@ class TopicEntity extends AbstractEntity
             'chat_history_commit_hash' => $this->chatHistoryCommitHash,
             'is_hidden' => $this->isHidden,
             'hidden_type' => $this->hiddenType,
+            'dynamic_params' => $this->dynamicParams,
         ];
 
         // 移除null值
@@ -723,6 +729,23 @@ class TopicEntity extends AbstractEntity
     public function setHiddenTypeEnum(?HiddenType $hiddenType): self
     {
         $this->hiddenType = $hiddenType?->value;
+        return $this;
+    }
+
+    /**
+     * 获取动态参数.
+     */
+    public function getDynamicParams(): ?array
+    {
+        return $this->dynamicParams;
+    }
+
+    /**
+     * 设置动态参数.
+     */
+    public function setDynamicParams(?array $dynamicParams): self
+    {
+        $this->dynamicParams = $dynamicParams;
         return $this;
     }
 }

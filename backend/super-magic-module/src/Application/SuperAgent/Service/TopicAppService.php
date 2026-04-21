@@ -171,6 +171,7 @@ class TopicAppService extends AbstractAppService
             [$chatConversationId, $chatConversationTopicId] = $this->chatAppService->initMagicChatConversation($dataIsolation);
 
             // 2. 创建话题
+            $dynamicParams = $this->buildDynamicParams($requestDTO);
             $topicEntity = $this->topicDomainService->createTopic(
                 $dataIsolation,
                 $projectEntity->getWorkspaceId(),
@@ -182,7 +183,9 @@ class TopicAppService extends AbstractAppService
                 $requestDTO->getTopicMode(),
                 CreationSource::USER_CREATED->value,
                 '',
-                $requestDTO->isHidden()
+                $requestDTO->isHidden(),
+                null,
+                $dynamicParams
             );
 
             // 3. 如果传入了 project_mode，更新项目的模式
@@ -225,6 +228,7 @@ class TopicAppService extends AbstractAppService
             [$chatConversationId, $chatConversationTopicId] = $this->chatAppService->initMagicChatConversation($dataIsolation);
 
             // 2. 创建话题
+            $dynamicParams = $this->buildDynamicParams($requestDTO);
             $topicEntity = $this->topicDomainService->createTopic(
                 $dataIsolation,
                 (int) $requestDTO->getWorkspaceId(),
@@ -236,7 +240,9 @@ class TopicAppService extends AbstractAppService
                 $requestDTO->getTopicMode(),
                 CreationSource::USER_CREATED->value,
                 '',
-                $requestDTO->isHidden()
+                $requestDTO->isHidden(),
+                null,
+                $dynamicParams
             );
 
             // 3. 如果传入了 project_mode，更新项目的模式
@@ -1246,6 +1252,11 @@ class TopicAppService extends AbstractAppService
             $hiddenTopic->setHiddenType(null);
             $hiddenTopic->setUpdatedUid($dataIsolation->getCurrentUserId());
             $hiddenTopic->setUpdatedAt(date('Y-m-d H:i:s'));
+            // 更新动态参数（使用当前请求传入的配置覆盖预热话题的旧配置）
+            $dynamicParams = $this->buildDynamicParams($requestDTO);
+            if ($dynamicParams !== null) {
+                $hiddenTopic->setDynamicParams($dynamicParams);
+            }
 
             $this->topicDomainService->saveTopicEntity($hiddenTopic);
 
@@ -1278,5 +1289,15 @@ class TopicAppService extends AbstractAppService
         $this->eventDispatcher->dispatch(new TopicCreatedEvent($hiddenTopic, $userAuthorization));
 
         return TopicItemDTO::fromEntity($hiddenTopic);
+    }
+
+    /**
+     * 从请求 DTO 中构建动态参数数组.
+     * 直接使用前端传入的 dynamic_params 对象.
+     */
+    private function buildDynamicParams(SaveTopicRequestDTO $requestDTO): ?array
+    {
+        $params = $requestDTO->getDynamicParams();
+        return empty($params) ? null : $params;
     }
 }
