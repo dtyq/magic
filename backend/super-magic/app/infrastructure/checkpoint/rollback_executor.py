@@ -646,14 +646,25 @@ class RollbackExecutor:
                 # 确保目标目录存在
                 await async_mkdir(target_path.parent, parents=True, exist_ok=True)
 
-                # 诊断：打印拷贝前后的源/目标大小，用于定位内容丢失问题
-                src_size_before = latest_content_path.stat().st_size
+                # 诊断：dump 拷贝前后的源/目标内容，用于定位内容丢失问题
+                import hashlib
+                src_bytes = latest_content_path.read_bytes()
                 await async_copy2(latest_content_path, target_path)
-                dst_size_after = target_path.stat().st_size if target_path.exists() else -1
+                dst_bytes = target_path.read_bytes() if target_path.exists() else b""
                 logger.info(
                     f"CREATED操作正向回滚成功，创建文件: {file_snapshot.file_path} | "
-                    f"src(latest_content)={src_size_before}, dst={dst_size_after}, "
+                    f"src_size={len(src_bytes)}, dst_size={len(dst_bytes)}, "
+                    f"src_md5={hashlib.md5(src_bytes).hexdigest()}, "
+                    f"dst_md5={hashlib.md5(dst_bytes).hexdigest()}, "
                     f"src_path={latest_content_path}"
+                )
+                logger.info(
+                    f"[rollback-forward-src] {file_snapshot.file_path}:\n"
+                    f"{src_bytes.decode('utf-8', errors='replace')}"
+                )
+                logger.info(
+                    f"[rollback-forward-dst] {file_snapshot.file_path}:\n"
+                    f"{dst_bytes.decode('utf-8', errors='replace')}"
                 )
 
             elif file_snapshot.file_type == FileType.DIRECTORY:
@@ -721,14 +732,25 @@ class RollbackExecutor:
                 # 确保目标目录存在
                 await async_mkdir(target_path.parent, parents=True, exist_ok=True)
 
-                # 诊断：打印拷贝前后的源/目标大小，用于定位内容丢失问题
-                src_size_before = latest_content_path.stat().st_size
+                # 诊断：dump 拷贝前后的源/目标内容，用于定位内容丢失问题
+                import hashlib
+                src_bytes = latest_content_path.read_bytes()
                 await async_copy2(latest_content_path, target_path)
-                dst_size_after = target_path.stat().st_size if target_path.exists() else -1
+                dst_bytes = target_path.read_bytes() if target_path.exists() else b""
                 logger.info(
                     f"UPDATED操作正向回滚成功，恢复到更新后状态: {file_snapshot.file_path} | "
-                    f"src(latest_content)={src_size_before}, dst={dst_size_after}, "
+                    f"src_size={len(src_bytes)}, dst_size={len(dst_bytes)}, "
+                    f"src_md5={hashlib.md5(src_bytes).hexdigest()}, "
+                    f"dst_md5={hashlib.md5(dst_bytes).hexdigest()}, "
                     f"src_path={latest_content_path}"
+                )
+                logger.info(
+                    f"[rollback-forward-src] {file_snapshot.file_path}:\n"
+                    f"{src_bytes.decode('utf-8', errors='replace')}"
+                )
+                logger.info(
+                    f"[rollback-forward-dst] {file_snapshot.file_path}:\n"
+                    f"{dst_bytes.decode('utf-8', errors='replace')}"
                 )
 
             elif file_snapshot.file_type == FileType.DIRECTORY:
