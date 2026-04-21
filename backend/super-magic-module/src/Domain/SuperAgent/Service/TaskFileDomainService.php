@@ -1880,6 +1880,15 @@ class TaskFileDomainService
             return $result;
         }
 
+        // Collect non-directory file IDs for batch latest-version query (1 SQL for all files)
+        $nonDirectoryFileIds = [];
+        foreach ($fileEntities as $fileEntity) {
+            if (! $fileEntity->getIsDirectory()) {
+                $nonDirectoryFileIds[] = $fileEntity->getFileId();
+            }
+        }
+        $latestVersionMap = $this->taskFileVersionRepository->batchGetLatestVersionNumbers($nonDirectoryFileIds);
+
         foreach ($fileEntities as $fileEntity) {
             // 跳过目录
             if ($fileEntity->getIsDirectory()) {
@@ -1932,6 +1941,9 @@ class TaskFileDomainService
                     );
                     $this->writeFileUrlCache($cacheKey, $urlData['url']);
                 }
+
+                $urlData['version'] = $latestVersionMap[$fileEntity->getFileId()] ?? null;
+                $urlData['updated_at'] = $fileEntity->getUpdatedAt();
 
                 $result[] = $urlData;
             } catch (Throwable $e) {

@@ -990,12 +990,13 @@ class FileProcessAppService extends AbstractAppService
         $this->updateFileMetadata($taskFileEntity, $result, $authorization);
 
         // 5. 创建文件版本
-        $this->taskFileVersionDomainService->createFileVersion($projectEntity->getUserOrganizationCode(), $taskFileEntity);
+        $versionEntity = $this->taskFileVersionDomainService->createFileVersion($projectEntity->getUserOrganizationCode(), $taskFileEntity);
 
         return [
             'file_id' => $requestDTO->getFileId(),
             'size' => $result['size'],
             'updated_at' => date('Y-m-d H:i:s'),
+            'version' => $versionEntity?->getVersion(),
             'shadow_decoded' => $requestDTO->getEnableShadow(),
         ];
     }
