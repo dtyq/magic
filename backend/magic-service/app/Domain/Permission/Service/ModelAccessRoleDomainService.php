@@ -129,6 +129,7 @@ readonly class ModelAccessRoleDomainService
 
         $status = $this->resolvePermissionControlStatus($organizationCode);
         $availableModelIds = $this->resolveOrganizationAvailableModelIds($dataIsolation);
+        $dynamicModelMap = $this->indexDynamicModelsByModelId($this->getEnabledDynamicModels($dataIsolation));
         $deniedModelIds = [];
         $accessibleModelIds = $availableModelIds;
 
@@ -145,10 +146,19 @@ readonly class ModelAccessRoleDomainService
                 $availableModelIds,
                 static fn (string $modelId): bool => isset($deniedModelIdMap[$modelId])
             ));
-            $accessibleModelIds = array_values(array_filter(
-                $availableModelIds,
-                static fn (string $modelId): bool => ! isset($deniedModelIdMap[$modelId])
-            ));
+            $accessibleModelIdMap = [];
+            foreach ($availableModelIds as $modelId) {
+                if (isset($deniedModelIdMap[$modelId])) {
+                    continue;
+                }
+                $accessibleModelIdMap[$modelId] = true;
+            }
+
+            $accessibleModelIdMap = $this->filterDynamicModelIdMapByAccessibleChildren(
+                $accessibleModelIdMap,
+                $dynamicModelMap
+            );
+            $accessibleModelIds = array_keys($accessibleModelIdMap);
         }
 
         return [
@@ -366,16 +376,21 @@ readonly class ModelAccessRoleDomainService
 
         $models = $this->providerModelDomainService->getEnableModels($providerDataIsolation);
         $dynamicModels = $this->getEnabledDynamicModels($dataIsolation);
+        $dynamicModelMap = $this->indexDynamicModelsByModelId($dynamicModels);
+
+        $result = [];
+        foreach ($models as $model) {
+            $this->appendAvailableModelId($result, $model->getModelId());
+        }
 
         if ($dataIsolation->getMagicId() === '') {
-            $result = [];
-            foreach ($models as $model) {
-                $this->appendAvailableModelId($result, $model->getModelId());
-            }
             foreach ($dynamicModels as $dynamicModel) {
+                if (! $this->isDynamicModelAvailableByAccessibleChildren($dynamicModel, $result, $dynamicModelMap)) {
+                    continue;
+                }
                 $this->appendAvailableModelId($result, $dynamicModel->getModelId());
             }
-            return array_values($result);
+            return array_keys($result);
         }
 
         $modelGatewayDataIsolation = new ModelGatewayDataIsolation(
@@ -389,23 +404,23 @@ readonly class ModelAccessRoleDomainService
             ? array_fill_keys($subscriptionAvailableModelIds, true)
             : null;
 
-        $result = [];
-        foreach ($models as $model) {
-            $modelId = $model->getModelId();
+        $subscriptionFilteredModelIdMap = [];
+        foreach (array_keys($result) as $modelId) {
             if ($subscriptionAvailableModelIdMap !== null && ! isset($subscriptionAvailableModelIdMap[$modelId])) {
+                unset($result[$modelId]);
                 continue;
             }
-            $this->appendAvailableModelId($result, $modelId);
+            $subscriptionFilteredModelIdMap[$modelId] = true;
         }
 
         foreach ($dynamicModels as $dynamicModel) {
-            if (! $this->isDynamicModelAvailableBySubscription($dynamicModel, $subscriptionAvailableModelIdMap)) {
+            if (! $this->isDynamicModelAvailableByAccessibleChildren($dynamicModel, $subscriptionFilteredModelIdMap, $dynamicModelMap)) {
                 continue;
             }
             $this->appendAvailableModelId($result, $dynamicModel->getModelId());
         }
 
-        return array_values($result);
+        return array_keys($result);
     }
 
     /**
@@ -429,7 +444,7 @@ readonly class ModelAccessRoleDomainService
     }
 
     /**
-     * @param array<string, string> $result
+     * @param array<string, true> $result
      */
     private function appendAvailableModelId(array &$result, string $modelId): void
     {
@@ -438,28 +453,100 @@ readonly class ModelAccessRoleDomainService
         }
 
         if (! isset($result[$modelId])) {
-            $result[$modelId] = $modelId;
+            $result[$modelId] = true;
         }
     }
 
     /**
-     * @param null|array<string, true> $subscriptionAvailableModelIdMap
+     * @param array<string, true> $accessibleModelIdMap
+     * @param array<string, ProviderModelEntity> $dynamicModelMap
      */
-    private function isDynamicModelAvailableBySubscription(
+    private function isDynamicModelAvailableByAccessibleChildren(
         ProviderModelEntity $dynamicModel,
-        ?array $subscriptionAvailableModelIdMap
+        array $accessibleModelIdMap,
+        array $dynamicModelMap,
+        array &$visitedModelIds = []
     ): bool {
-        if ($subscriptionAvailableModelIdMap === null) {
-            return true;
+        $modelId = $dynamicModel->getModelId();
+        if ($modelId === '' || isset($visitedModelIds[$modelId])) {
+            return false;
         }
+        $visitedModelIds[$modelId] = true;
 
         foreach ($this->extractDynamicSubModelIds($dynamicModel) as $subModelId) {
-            if (isset($subscriptionAvailableModelIdMap[$subModelId])) {
+            if (isset($accessibleModelIdMap[$subModelId])) {
+                return true;
+            }
+
+            $subDynamicModel = $dynamicModelMap[$subModelId] ?? null;
+            if (! $subDynamicModel instanceof ProviderModelEntity) {
+                continue;
+            }
+
+            if ($this->isDynamicModelAvailableByAccessibleChildren($subDynamicModel, $accessibleModelIdMap, $dynamicModelMap, $visitedModelIds)) {
                 return true;
             }
         }
 
         return false;
+    }
+
+    /**
+     * @param array<string, ProviderModelEntity> $dynamicModelMap
+     * @param array<string, true> $accessibleModelIdMap
+     * @return array<string, true>
+     */
+    private function filterDynamicModelIdMapByAccessibleChildren(
+        array $accessibleModelIdMap,
+        array $dynamicModelMap
+    ): array {
+        foreach ($dynamicModelMap as $modelId => $dynamicModel) {
+            if (! isset($accessibleModelIdMap[$modelId])) {
+                continue;
+            }
+
+            if ($this->hasDirectAccessibleChildModel($dynamicModel, $accessibleModelIdMap)) {
+                continue;
+            }
+
+            unset($accessibleModelIdMap[$modelId]);
+        }
+
+        return $accessibleModelIdMap;
+    }
+
+    /**
+     * @param array<string, true> $accessibleModelIdMap
+     */
+    private function hasDirectAccessibleChildModel(
+        ProviderModelEntity $dynamicModel,
+        array $accessibleModelIdMap
+    ): bool {
+        foreach ($this->extractDynamicSubModelIds($dynamicModel) as $subModelId) {
+            if (isset($accessibleModelIdMap[$subModelId])) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /**
+     * @param ProviderModelEntity[] $dynamicModels
+     * @return array<string, ProviderModelEntity>
+     */
+    private function indexDynamicModelsByModelId(array $dynamicModels): array
+    {
+        $dynamicModelMap = [];
+        foreach ($dynamicModels as $dynamicModel) {
+            $modelId = $dynamicModel->getModelId();
+            if ($modelId === '') {
+                continue;
+            }
+            $dynamicModelMap[$modelId] = $dynamicModel;
+        }
+
+        return $dynamicModelMap;
     }
 
     /**

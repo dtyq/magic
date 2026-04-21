@@ -238,6 +238,82 @@ class ModelAccessRoleDomainServiceTest extends HttpTestCase
         $this->assertSame(['model-c', 'dynamic-1'], $summary['accessible_model_ids']);
     }
 
+    public function testGetUserSummaryHidesDynamicModelWhenAllChildrenAreDenied(): void
+    {
+        $repository = $this->createMock(ModelAccessRoleRepository::class);
+        $settingsRepository = $this->createMock(AdminGlobalSettingsRepositoryInterface::class);
+        $departmentUserDomainService = $this->createMock(MagicDepartmentUserDomainService::class);
+        $providerModelDomainService = $this->createMock(ProviderModelDomainService::class);
+
+        $role = $this->makeRole(id: 1, name: '组织基线');
+
+        $settingsRepository
+            ->method('getSettingsByTypeAndOrganization')
+            ->with(AdminGlobalSettingsType::MODEL_ACCESS_PERMISSION_CONTROL, 'ORG_DYNAMIC_DENY')
+            ->willReturn(
+                (new AdminGlobalSettingsEntity())
+                    ->setType(AdminGlobalSettingsType::MODEL_ACCESS_PERMISSION_CONTROL)
+                    ->setOrganization('ORG_DYNAMIC_DENY')
+                    ->setStatus(AdminGlobalSettingsStatus::ENABLED)
+            );
+        $departmentUserDomainService
+            ->method('getDepartmentIdsByUserId')
+            ->willReturn([]);
+        $repository->method('getUserAssignedRoles')
+            ->with('ORG_DYNAMIC_DENY', 'user-1', [])
+            ->willReturn([$role]);
+        $repository->method('getRoleBindingMap')
+            ->with('ORG_DYNAMIC_DENY', [1])
+            ->willReturn([]);
+        $repository->method('getRoleDeniedModelMap')
+            ->with('ORG_DYNAMIC_DENY', [1])
+            ->willReturn([
+                1 => ['model-c'],
+            ]);
+        $repository->method('getDeniedModelIdsByRoleId')
+            ->willReturn(['model-c']);
+        $providerModelDomainService->method('getEnableModels')->willReturn([
+            new class('model-c') {
+                public function __construct(private readonly string $modelId)
+                {
+                }
+
+                public function getModelId(): string
+                {
+                    return $this->modelId;
+                }
+            },
+        ]);
+        $providerModelDomainService->method('queries')->willReturn([
+            'total' => 1,
+            'list' => [
+                (new ProviderModelEntity())
+                    ->setModelId('dynamic-1')
+                    ->setType(ProviderModelType::DYNAMIC)
+                    ->setAggregateConfig([
+                        'models' => ['model-c'],
+                        'strategy' => 'permission_fallback',
+                        'strategy_config' => ['order' => 'asc'],
+                    ]),
+            ],
+        ]);
+
+        $service = $this->createService(
+            repository: $repository,
+            settingsRepository: $settingsRepository,
+            departmentUserDomainService: $departmentUserDomainService,
+            providerModelDomainService: $providerModelDomainService,
+        );
+
+        $summary = $service->getUserSummary(
+            PermissionDataIsolation::create('ORG_DYNAMIC_DENY', 'operator'),
+            'user-1'
+        );
+
+        $this->assertSame(['model-c'], $summary['denied_model_ids']);
+        $this->assertSame([], $summary['accessible_model_ids']);
+    }
+
     private function createService(
         ?ModelAccessRoleRepository $repository = null,
         ?AdminGlobalSettingsRepositoryInterface $settingsRepository = null,
