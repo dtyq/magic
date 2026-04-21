@@ -70,9 +70,11 @@ class FileBatchCopySubscriber extends ConsumerMessage
      */
     private string $currentBatchKey = '';
 
-    private int $totalTopLevelFiles = 0;
+    /** Total number of all files (including nested) to be copied in the current batch. */
+    private int $totalFiles = 0;
 
-    private int $processedTopLevelFiles = 0;
+    /** Number of individual files (non-directories) successfully copied so far. */
+    private int $processedFiles = 0;
 
     /**
      * Constructor.
@@ -263,6 +265,10 @@ class FileBatchCopySubscriber extends ConsumerMessage
                     $dataIsolation->getCurrentUserId(),
                     $dataIsolation->getCurrentOrganizationCode()
                 ));
+
+                // Update fine-grained progress after each individual file is copied
+                ++$this->processedFiles;
+                $this->updateFileCopyingProgress();
             }
 
             $this->logger->info('Copying file/directory in batch operation', [
@@ -432,6 +438,8 @@ class FileBatchCopySubscriber extends ConsumerMessage
 
         // Initialize progress tracking
         $this->currentBatchKey = $batchKey;
+        $this->totalFiles = count($fileIds);
+        $this->processedFiles = 0;
 
         $this->logger->info('Processing batch copy business logic', [
             'batch_key' => $batchKey,
@@ -541,20 +549,12 @@ class FileBatchCopySubscriber extends ConsumerMessage
             return;
         }
 
-        // Initialize progress tracking - simple count of file tree
-        $this->totalTopLevelFiles = count($fileTree);
-        $this->processedTopLevelFiles = 0;
-
         foreach ($fileTree as $node) {
             if (empty($node['file_id']) || $node['parent_id'] === $targetParentId) {
                 continue;
             }
 
             $this->copyFile($dataIsolation, $node, $sourceProject, $targetProject, $targetParentEntity, $keepBothFileIds);
-
-            // Update progress after each file copy
-            ++$this->processedTopLevelFiles;
-            $this->updateFileCopyingProgress();
         }
     }
 
@@ -641,8 +641,8 @@ class FileBatchCopySubscriber extends ConsumerMessage
         }
 
         try {
-            // Use a reasonable count based on total files for consistent progress display
-            $totalCount = $this->totalTopLevelFiles > 0 ? $this->totalTopLevelFiles : 1;
+            // Use the real total file count so progress percentages reflect actual work
+            $totalCount = $this->totalFiles > 0 ? $this->totalFiles : 1;
             $completedCount = (int) (($percentage / 100) * $totalCount);
 
             $this->statusManager->setTaskProgress(
@@ -670,28 +670,28 @@ class FileBatchCopySubscriber extends ConsumerMessage
      */
     private function updateFileCopyingProgress(): void
     {
-        if ($this->totalTopLevelFiles <= 0 || empty($this->currentBatchKey)) {
+        if ($this->totalFiles <= 0 || empty($this->currentBatchKey)) {
             return;
         }
 
         try {
             // File copying phase occupies 10%-90%, total 80% progress
-            $copyProgress = 10 + (80 * ($this->processedTopLevelFiles / $this->totalTopLevelFiles));
+            $copyProgress = 10 + (80 * ($this->processedFiles / $this->totalFiles));
             $percentage = (int) $copyProgress;
 
-            $message = "Copying files ({$this->processedTopLevelFiles}/{$this->totalTopLevelFiles})";
+            $message = "Copying files ({$this->processedFiles}/{$this->totalFiles})";
 
             $this->statusManager->setTaskProgress(
                 $this->currentBatchKey,
-                $this->processedTopLevelFiles,
-                $this->totalTopLevelFiles,
+                $this->processedFiles,
+                $this->totalFiles,
                 $message
             );
 
             $this->logger->info('File copying progress updated', [
                 'batch_key' => $this->currentBatchKey,
-                'processed' => $this->processedTopLevelFiles,
-                'total' => $this->totalTopLevelFiles,
+                'processed' => $this->processedFiles,
+                'total' => $this->totalFiles,
                 'percentage' => $percentage,
                 'message' => $message,
             ]);
