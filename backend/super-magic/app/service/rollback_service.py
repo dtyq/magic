@@ -10,6 +10,7 @@
 """
 
 import asyncio
+from pathlib import Path
 from typing import List, Dict, Optional
 from app.service.checkpoint_service import CheckpointService
 from app.infrastructure.checkpoint.rollback_executor import RollbackExecutor
@@ -18,9 +19,8 @@ from app.service.file_version_service import FileVersionService
 from app.infrastructure.magic_service.constants import FileEditType
 from app.infrastructure.magic_service.client import MagicServiceClient
 from app.infrastructure.magic_service.config import MagicServiceConfigLoader, ConfigurationError
-from app.infrastructure.storage.base import BaseFileProcessor
-from app.utils.init_client_message_util import InitClientMessageUtil
 from app.path_manager import PathManager
+from app.utils.async_file_utils import async_exists, get_s3_key_from_xattr
 from agentlang.logger import get_logger
 from app.core.exceptions import RollbackException, ErrorCode
 
@@ -234,11 +234,11 @@ class RollbackService:
             # 将文件路径转换为file_key列表
             file_keys = []
             for file_path in file_paths:
-                file_key = self._convert_file_path_to_file_key(file_path)
+                file_key = await self._resolve_file_key_from_xattr(file_path)
                 if file_key:
                     file_keys.append(file_key)
                 else:
-                    logger.warning(f"无法转换文件路径为file_key，跳过: {file_path}")
+                    logger.warning(f"无法从 magicfs xattr 解析 file_key，跳过: {file_path}")
 
             if not file_keys:
                 logger.info("没有有效的file_key，跳过文件版本创建")
@@ -258,43 +258,45 @@ class RollbackService:
         except Exception as e:
             logger.error(f"异步创建文件版本失败: {e}")
 
-    def _convert_file_path_to_file_key(self, file_path: str) -> Optional[str]:
+    async def _resolve_file_key_from_xattr(self, file_path: str) -> Optional[str]:
         """
-        将文件路径转换为OSS存储键
+        从 magicfs xattr 解析文件对应的对象存储 file_key。
+
+        唯一合法链路: 本地文件 → xattr user.magicfs.s3_key → file_key。
+        不允许根据相对路径拼接 OSS key, 因为 magicfs 实际使用 file_id 作为
+        存储键 (例如 ".../workspace/<file_id>"), 路径拼出来的 key 在后端
+        根本不存在, 会触发 "文件未找到"。
 
         Args:
-            file_path: 文件路径，可能是 workspace 下的相对路径（新的 checkpoint
-                格式），也可能是历史数据里的绝对路径，两种都要兼容
+            file_path: checkpoint 中记录的文件路径, 可能是 workspace 下的
+                相对路径, 也可能是历史数据里的绝对路径
 
         Returns:
-            Optional[str]: OSS存储键，转换失败则返回None
+            Optional[str]: 真实的对象存储 file_key; 文件不存在或 xattr 缺失
+            时返回 None, 由调用方跳过。
         """
         try:
-            # 获取OSS工作空间目录
-            oss_work_dir = InitClientMessageUtil.get_work_dir()
-            if not oss_work_dir:
-                logger.warning("无法获取OSS工作目录，跳过文件版本创建")
+            # 归一化为本地绝对路径
+            path_obj = Path(file_path)
+            if path_obj.is_absolute():
+                local_path = path_obj
+            else:
+                local_path = PathManager.get_workspace_dir() / file_path.lstrip("/")
+
+            if not await async_exists(local_path):
+                logger.warning(f"文件不存在，跳过 file_key 解析: {local_path}")
                 return None
 
-            # 归一化为相对于本地 workspace 的相对路径
-            from pathlib import Path as _Path
-            path_obj = _Path(file_path)
-            if path_obj.is_absolute():
-                local_workspace_dir = PathManager.get_workspace_dir()
-                try:
-                    relative_path = str(path_obj.relative_to(local_workspace_dir))
-                except ValueError:
-                    # 绝对路径不在 workspace 内，退化为字符串替换兜底
-                    relative_path = file_path.replace(str(local_workspace_dir), "").lstrip("/")
-            else:
-                relative_path = file_path.lstrip("/")
+            s3_key = await get_s3_key_from_xattr(local_path)
+            if not s3_key:
+                logger.error(
+                    f"文件缺少 magicfs xattr (user.magicfs.s3_key)，跳过 file_key 解析: {local_path}"
+                )
+                return None
 
-            # 构造file_key
-            file_key = BaseFileProcessor.combine_path(oss_work_dir, relative_path)
-
-            logger.debug(f"文件路径转换成功: {file_path} -> {file_key}")
-            return file_key
+            logger.debug(f"文件路径解析成功: {file_path} -> {s3_key}")
+            return s3_key
 
         except Exception as e:
-            logger.error(f"转换文件路径到file_key失败: {file_path}, 错误: {e}")
+            logger.error(f"从 xattr 解析 file_key 失败: {file_path}, 错误: {e}")
             return None
