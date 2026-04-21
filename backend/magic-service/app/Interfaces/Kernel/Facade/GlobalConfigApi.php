@@ -12,6 +12,7 @@ use App\Application\Bootstrap\Service\BootstrapStatusService;
 use App\Application\Chat\Service\MagicUserContactAppService;
 use App\Application\File\Service\FileAppService;
 use App\Application\Flow\Service\MagicFlowAppService;
+use App\Application\Kernel\DTO\PlatformSettings;
 use App\Application\Kernel\Enum\MagicOperationEnum;
 use App\Application\Kernel\Enum\MagicResourceEnum;
 use App\Application\Kernel\Service\MagicSettingAppService;
@@ -504,6 +505,7 @@ class GlobalConfigApi extends AbstractApi
             'favicon' => $favicon,
             'minimal_logo' => $minimalLogo,
             'default_language' => (string) ($settings['default_language'] ?? 'zh_CN'),
+            'footer' => PlatformSettings::fromArray($settings)->getFooter(),
         ];
         foreach (['name_i18n', 'title_i18n', 'keywords_i18n', 'description_i18n'] as $key) {
             if (isset($settings[$key])) {

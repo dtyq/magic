@@ -27,6 +27,13 @@ class PlatformSettingsUpdateRequest extends FormRequest
             'favicon_url' => 'sometimes|nullable|string|min:1|regex:/^https?:\/\/.+$/',
             'minimal_logo_url' => 'sometimes|nullable|string|min:1|regex:/^https?:\/\/.+$/',
             'default_language' => 'sometimes|string|in:zh_CN,en_US',
+            'footer' => 'sometimes|array',
+            'footer.copyright_i18n' => 'sometimes|array',
+            'footer.copyright_i18n.*' => 'nullable|string|max:255',
+            'footer.filing' => 'sometimes|array',
+            'footer.filing.enabled' => 'sometimes|boolean',
+            'footer.filing.number' => 'sometimes|nullable|string|max:64',
+            'footer.filing.link' => 'sometimes|nullable|string|regex:/^https?:\/\/.+$/',
             'name_i18n' => 'sometimes|array',
             'name_i18n.*' => 'nullable|string|max:255',
             'title_i18n' => 'sometimes|array',
@@ -51,6 +58,7 @@ class PlatformSettingsUpdateRequest extends FormRequest
             'logo_en_url.regex' => 'platform_settings.invalid_url',
             'favicon_url.regex' => 'platform_settings.invalid_url',
             'minimal_logo_url.regex' => 'platform_settings.invalid_url',
+            'footer.filing.link.regex' => 'platform_settings.invalid_url',
             'default_language.in' => 'platform_settings.invalid_locale',
         ];
     }
@@ -61,6 +69,17 @@ class PlatformSettingsUpdateRequest extends FormRequest
         foreach (['logo_zh_url', 'logo_en_url', 'favicon_url', 'minimal_logo_url', 'default_language'] as $field) {
             if (array_key_exists($field, $data) && is_string($data[$field]) && trim($data[$field]) === '') {
                 $data[$field] = null;
+            }
+        }
+        if (isset($data['footer']['filing']) && is_array($data['footer']['filing'])) {
+            foreach (['number', 'link'] as $field) {
+                if (
+                    array_key_exists($field, $data['footer']['filing'])
+                    && is_string($data['footer']['filing'][$field])
+                    && trim($data['footer']['filing'][$field]) === ''
+                ) {
+                    $data['footer']['filing'][$field] = null;
+                }
             }
         }
         return $data;

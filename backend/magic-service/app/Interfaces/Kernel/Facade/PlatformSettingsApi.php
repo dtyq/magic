@@ -80,8 +80,12 @@ class PlatformSettingsApi
         if (array_key_exists('custom_service_provider_whitelist', $payload)) {
             $data['custom_service_provider_whitelist'] = (array) ($payload['custom_service_provider_whitelist'] ?? []);
         }
+        if (array_key_exists('footer', $payload) && is_array($payload['footer'])) {
+            $data['footer'] = self::mergeFooterSettings((array) ($data['footer'] ?? []), $payload['footer']);
+        }
 
         $this->validateUrls($data);
+        $this->validateFooter($data);
 
         $settings = PlatformSettings::fromArray($data);
         $this->platformSettingsAppService->save($settings);
@@ -93,21 +97,24 @@ class PlatformSettingsApi
      */
     private function validateUrls(array $data): void
     {
-        foreach (['favicon_url'] as $key) {
-            if (empty($data[$key])) {
-                ExceptionBuilder::throw(PermissionErrorCode::ValidateFailed, 'platform_settings.validation_failed');
-            }
-        }
-        // 简单 https 检查
         $urls = [];
         $urls[] = $data['favicon_url'] ?? '';
         $urls[] = $data['logo_urls']['zh_CN'] ?? '';
         $urls[] = $data['logo_urls']['en_US'] ?? '';
         $urls[] = $data['minimal_logo_url'] ?? '';
+        $urls[] = $data['footer']['filing']['link'] ?? '';
         foreach ($urls as $u) {
             if ($u !== '' && ! str_starts_with($u, 'https://') && ! str_starts_with($u, 'http://')) {
                 ExceptionBuilder::throw(PermissionErrorCode::ValidateFailed, 'platform_settings.invalid_url');
             }
+        }
+    }
+
+    private function validateFooter(array $data): void
+    {
+        $filing = (array) ($data['footer']['filing'] ?? []);
+        if ((bool) ($filing['enabled'] ?? false) && trim((string) ($filing['number'] ?? '')) === '') {
+            ExceptionBuilder::throw(PermissionErrorCode::ValidateFailed, 'platform_settings.validation_failed');
         }
     }
 
@@ -130,6 +137,7 @@ class PlatformSettingsApi
             'favicon' => $favicon,
             'minimal_logo' => $minimalLogo,
             'default_language' => (string) ($settings['default_language'] ?? 'zh_CN'),
+            'footer' => PlatformSettings::fromArray($settings)->getFooter(),
         ];
         foreach (['name_i18n', 'title_i18n', 'keywords_i18n', 'description_i18n', 'agent_role_name_i18n', 'agent_role_description_i18n'] as $key) {
             if (isset($settings[$key])) {
@@ -138,5 +146,43 @@ class PlatformSettingsApi
         }
         $resp['custom_service_provider_whitelist'] = (array) ($settings['custom_service_provider_whitelist'] ?? []);
         return $resp;
+    }
+
+    /**
+     * @param array{
+     *     copyright_i18n?: array<string,mixed>,
+     *     filing?: array{enabled?: mixed, number?: mixed, link?: mixed}
+     * } $existing
+     * @param array{
+     *     copyright_i18n?: array<string,mixed>,
+     *     filing?: array{enabled?: mixed, number?: mixed, link?: mixed}
+     * } $payload
+     * @return array{
+     *     copyright_i18n?: array<string,mixed>,
+     *     filing?: array{enabled?: mixed, number?: mixed, link?: mixed}
+     * }
+     */
+    private static function mergeFooterSettings(array $existing, array $payload): array
+    {
+        if (array_key_exists('copyright_i18n', $payload)) {
+            $existing['copyright_i18n'] = (array) $payload['copyright_i18n'];
+        }
+
+        if (array_key_exists('filing', $payload) && is_array($payload['filing'])) {
+            $existing['filing'] = (array) ($existing['filing'] ?? []);
+            $filingPayload = (array) $payload['filing'];
+
+            if (array_key_exists('enabled', $filingPayload)) {
+                $existing['filing']['enabled'] = (bool) $filingPayload['enabled'];
+            }
+            if (array_key_exists('number', $filingPayload)) {
+                $existing['filing']['number'] = (string) ($filingPayload['number'] ?? '');
+            }
+            if (array_key_exists('link', $filingPayload)) {
+                $existing['filing']['link'] = (string) ($filingPayload['link'] ?? '');
+            }
+        }
+
+        return $existing;
     }
 }
