@@ -15,10 +15,12 @@ use App\Domain\Mode\Entity\ModeAggregate;
 use App\Domain\Mode\Entity\ValueQuery\ModeQuery;
 use App\Domain\Provider\Entity\ProviderModelEntity;
 use App\Domain\Provider\Entity\ValueObject\Category;
+use App\Domain\Provider\Entity\ValueObject\ProviderDataIsolation;
 use App\ErrorCode\ModeErrorCode;
 use App\Infrastructure\Core\Exception\ExceptionBuilder;
 use App\Infrastructure\Core\ValueObject\Page;
 use App\Infrastructure\Util\File\EasyFileTools;
+use App\Infrastructure\Util\OfficialOrganizationUtil;
 use App\Interfaces\Authorization\Web\MagicUserAuthorization;
 use Dtyq\SuperMagic\Application\Agent\Service\Old\SuperMagicAgentOldAppService;
 use Dtyq\SuperMagic\Application\Agent\Service\SuperMagicAgentAppService;
@@ -554,6 +556,11 @@ class ModeAppService extends AbstractModeAppService
 
     /**
      * 批量获取模型和服务商状态（性能优化版本）.
+     *
+     * 必须把真实的 providerStatuses 传给 filterAvailableModels，
+     * 否则动态模型在 isDynamicModelEffectivelyAvailable 里会因为
+     * 叶子 provider 的状态查不到而被一律视为不可用。
+     *
      * @param array $allModelIds 所有需要查询的modelId
      * @return array<string, ProviderModelEntity> 已通过级联状态筛选的可用模型
      */
@@ -562,9 +569,13 @@ class ModeAppService extends AbstractModeAppService
         if (empty($allModelIds)) {
             return [];
         }
-        $groupedModels = $this->getModelGroupsBatch($allModelIds);
 
-        return $this->filterAvailableModels($groupedModels, []);
+        $providerDataIsolation = new ProviderDataIsolation(OfficialOrganizationUtil::getOfficialOrganizationCode());
+        $allModels = $this->providerModelDomainService->getModelsByModelIds($providerDataIsolation, $allModelIds);
+        $allModels = $this->expandModelGroupsForDynamicSubModels($providerDataIsolation, $allModels);
+        $providerStatuses = $this->getProviderStatuses($providerDataIsolation, $allModels);
+
+        return $this->filterAvailableModels($allModels, $providerStatuses);
     }
 
     /**

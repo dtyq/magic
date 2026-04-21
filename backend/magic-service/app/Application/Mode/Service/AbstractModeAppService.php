@@ -400,6 +400,64 @@ abstract class AbstractModeAppService extends AbstractKernelAppService
     }
 
     /**
+     * @param array<string, list<ProviderModelEntity>> $allModels
+     * @return array<string, list<ProviderModelEntity>>
+     */
+    protected function expandModelGroupsForDynamicSubModels(
+        ProviderDataIsolation $providerDataIsolation,
+        array $allModels
+    ): array {
+        $expandedModels = $allModels;
+        $scannedModelIds = [];
+        $pendingModelIds = array_keys($expandedModels);
+
+        while ($pendingModelIds !== []) {
+            $missingSubModelIds = [];
+            $nextPendingModelIds = [];
+
+            foreach ($pendingModelIds as $modelId) {
+                if (isset($scannedModelIds[$modelId])) {
+                    continue;
+                }
+                $scannedModelIds[$modelId] = true;
+
+                foreach ($expandedModels[$modelId] ?? [] as $providerModel) {
+                    if (! $providerModel->isDynamicModel()) {
+                        continue;
+                    }
+
+                    foreach ($this->extractDynamicSubModelIds($providerModel) as $subModelId) {
+                        if (isset($expandedModels[$subModelId])) {
+                            if (! isset($scannedModelIds[$subModelId])) {
+                                $nextPendingModelIds[$subModelId] = $subModelId;
+                            }
+                            continue;
+                        }
+
+                        $missingSubModelIds[$subModelId] = $subModelId;
+                    }
+                }
+            }
+
+            if ($missingSubModelIds !== []) {
+                $fetchedModels = $this->providerModelDomainService->getModelsByModelIds(
+                    $providerDataIsolation,
+                    array_values($missingSubModelIds)
+                );
+
+                foreach ($fetchedModels as $subModelId => $providerModels) {
+                    $expandedModels[$subModelId] = $providerModels;
+                    $nextPendingModelIds[$subModelId] = $subModelId;
+                }
+            }
+
+            $pendingModelIds = array_values($nextPendingModelIds);
+        }
+
+        return $expandedModels;
+    }
+
+    /**
      * 根据模型列表确定状态（考虑服务商级联状态）.
      *
      * @param ProviderModelEntity[] $models 模型列表
@@ -587,64 +645,6 @@ abstract class AbstractModeAppService extends AbstractKernelAppService
     private function isModelEnabled(ProviderModelEntity $model): bool
     {
         return $model->getStatus() === Status::Enabled;
-    }
-
-    /**
-     * @param array<string, list<ProviderModelEntity>> $allModels
-     * @return array<string, list<ProviderModelEntity>>
-     */
-    private function expandModelGroupsForDynamicSubModels(
-        ProviderDataIsolation $providerDataIsolation,
-        array $allModels
-    ): array {
-        $expandedModels = $allModels;
-        $scannedModelIds = [];
-        $pendingModelIds = array_keys($expandedModels);
-
-        while ($pendingModelIds !== []) {
-            $missingSubModelIds = [];
-            $nextPendingModelIds = [];
-
-            foreach ($pendingModelIds as $modelId) {
-                if (isset($scannedModelIds[$modelId])) {
-                    continue;
-                }
-                $scannedModelIds[$modelId] = true;
-
-                foreach ($expandedModels[$modelId] ?? [] as $providerModel) {
-                    if (! $providerModel->isDynamicModel()) {
-                        continue;
-                    }
-
-                    foreach ($this->extractDynamicSubModelIds($providerModel) as $subModelId) {
-                        if (isset($expandedModels[$subModelId])) {
-                            if (! isset($scannedModelIds[$subModelId])) {
-                                $nextPendingModelIds[$subModelId] = $subModelId;
-                            }
-                            continue;
-                        }
-
-                        $missingSubModelIds[$subModelId] = $subModelId;
-                    }
-                }
-            }
-
-            if ($missingSubModelIds !== []) {
-                $fetchedModels = $this->providerModelDomainService->getModelsByModelIds(
-                    $providerDataIsolation,
-                    array_values($missingSubModelIds)
-                );
-
-                foreach ($fetchedModels as $subModelId => $providerModels) {
-                    $expandedModels[$subModelId] = $providerModels;
-                    $nextPendingModelIds[$subModelId] = $subModelId;
-                }
-            }
-
-            $pendingModelIds = array_values($nextPendingModelIds);
-        }
-
-        return $expandedModels;
     }
 
     /**

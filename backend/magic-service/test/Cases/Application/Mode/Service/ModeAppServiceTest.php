@@ -216,6 +216,87 @@ class ModeAppServiceTest extends TestCase
         $this->assertSame([], $models);
     }
 
+    public function testGetModelsBatchKeepsDynamicModelWhenChildIsEnabled(): void
+    {
+        $service = $this->createService(
+            [11 => $this->createProviderConfigEntity(11, ProviderCode::Cloudsway)],
+            [
+                'dynamic-model' => [
+                    $this->createProviderModel(
+                        'dynamic-model',
+                        Category::LLM,
+                        'dynamic-version',
+                        0,
+                        Status::Enabled,
+                        ProviderModelType::DYNAMIC,
+                        ['models' => ['atom-model']]
+                    ),
+                ],
+                'atom-model' => [
+                    $this->createProviderModel(
+                        'atom-model',
+                        Category::LLM,
+                        'atom-version',
+                        11,
+                        Status::Enabled
+                    ),
+                ],
+            ]
+        );
+
+        $models = $this->invokePrivateMethod($service, 'getModelsBatch', [['dynamic-model']]);
+
+        $this->assertArrayHasKey('dynamic-model', $models);
+        $this->assertSame('dynamic-model', $models['dynamic-model']->getModelId());
+        $this->assertTrue($models['dynamic-model']->isDynamicModel());
+    }
+
+    public function testGetModelsBatchKeepsNestedDynamicModelWhenLeafIsEnabled(): void
+    {
+        $service = $this->createService(
+            [11 => $this->createProviderConfigEntity(11, ProviderCode::Cloudsway)],
+            [
+                'dynamic-root' => [
+                    $this->createProviderModel(
+                        'dynamic-root',
+                        Category::LLM,
+                        'dynamic-root-version',
+                        0,
+                        Status::Enabled,
+                        ProviderModelType::DYNAMIC,
+                        ['models' => ['dynamic-mid']]
+                    ),
+                ],
+                'dynamic-mid' => [
+                    $this->createProviderModel(
+                        'dynamic-mid',
+                        Category::LLM,
+                        'dynamic-mid-version',
+                        0,
+                        Status::Enabled,
+                        ProviderModelType::DYNAMIC,
+                        ['models' => [['model_id' => 'atom-leaf']]]
+                    ),
+                ],
+                'atom-leaf' => [
+                    $this->createProviderModel(
+                        'atom-leaf',
+                        Category::LLM,
+                        'atom-leaf-version',
+                        11,
+                        Status::Enabled
+                    ),
+                ],
+            ]
+        );
+
+        $models = $this->invokePrivateMethod($service, 'getModelsBatch', [['dynamic-root']]);
+
+        $this->assertArrayHasKey('dynamic-root', $models);
+        $this->assertArrayHasKey('dynamic-mid', $models);
+        $this->assertArrayHasKey('atom-leaf', $models);
+    }
+
     public function testBuildModeRuntimeDataIncludesKelingResolutionConfigWithoutSizes(): void
     {
         $service = $this->createService(
