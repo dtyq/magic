@@ -393,6 +393,76 @@ class AliyunOSSUploader(AbstractStorage, BaseFileProcessor):
             raise
 
     @with_refreshed_credentials
+    async def download_file_by_stream(
+        self,
+        key: str,
+        dest_path: str,
+        options: Optional[Options] = None,
+        chunk_size: int = 4 * 1024 * 1024,
+    ) -> int:
+        """
+        以流式方式从阿里云 OSS 下载文件并写入本地路径。
+
+        OSS SDK 的 ``GetObjectResult`` 支持 ``read(amt)``，按需从底层 socket 读取分块，
+        不会一次性把整个对象读进内存。
+
+        Args:
+            key: 文件名/路径
+            dest_path: 本地目标文件绝对路径
+            options: 可选配置
+            chunk_size: 每次读取的字节数，默认 4MiB
+
+        Returns:
+            int: 写入到 ``dest_path`` 的字节总数
+
+        Raises:
+            DownloadException: 如果下载失败
+            ValueError: 如果凭证类型不正确或未设置元数据
+        """
+        if options is None:
+            options = {}
+
+        try:
+            bucket = self._get_bucket_client()
+
+            try:
+                loop = asyncio.get_event_loop()
+                result = await loop.run_in_executor(
+                    None,
+                    lambda: bucket.get_object(key)
+                )
+
+                def _stream_to_file() -> int:
+                    written = 0
+                    try:
+                        with open(dest_path, "wb") as f:
+                            while True:
+                                chunk = result.read(chunk_size)
+                                if not chunk:
+                                    break
+                                f.write(chunk)
+                                written += len(chunk)
+                    finally:
+                        try:
+                            result.close()
+                        except Exception:
+                            pass
+                    return written
+
+                total_bytes = await loop.run_in_executor(None, _stream_to_file)
+                return total_bytes
+
+            except Exception as e:
+                logger.error(f"Error during streaming download: {e}")
+                raise DownloadException(DownloadExceptionCode.NETWORK_ERROR, str(e))
+
+        except Exception as e:
+            if not isinstance(e, DownloadException):
+                logger.error(f"Unexpected error during streaming download: {e}")
+                raise DownloadException(DownloadExceptionCode.NETWORK_ERROR, str(e))
+            raise
+
+    @with_refreshed_credentials
     async def exists(
         self,
         key: str,
