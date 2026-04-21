@@ -165,15 +165,7 @@ class MagicFSFileDomainService
             }
 
             if ($this->isTombstoneWithinRevivalTtl($existing->getDeletedAt())) {
-                return $this->reviveTombstone(
-                    $existing,
-                    $isDirectory,
-                    $superMagicTaskId,
-                    $sortValue,
-                    $fileType,
-                    $source,
-                    $fileMetadata
-                );
+                return $this->reviveTombstone($existing);
             }
         }
 
@@ -686,6 +678,42 @@ class MagicFSFileDomainService
     }
 
     /**
+     * 恢复软删除的文件：清除 deleted_at 并将 file_size 置 0，其他字段原样保留。
+     *
+     * 语义（checkpoint 撤回取消撤回 / 墓碑复活场景）：
+     *   - file_id、file_key、project_id、user_id、organization_code、parent_id、
+     *     file_name、metadata、task_id/topic_id、file_type、is_hidden、sort、
+     *     version 等全部保持不变 —— 这是外链稳定、元数据可信的前提；
+     *   - 仅 file_size 归零：复活只还原"文件存在"这一事实，后续内容由调用方
+     *     通过 updateFile + PUT S3 写回；
+     *   - S3 对象不动：软删除时未清理对象，复活后的 file_key 直接复用原对象，
+     *     下一步业务层 PutObject（覆盖）会把 latest_content 写回，天然一致。
+     */
+    public function restoreFile(string $fileId): TaskFileEntity
+    {
+        $fileIdInt = (int) $fileId;
+
+        // 1. 清除 deleted_at，把墓碑变回活跃记录
+        $this->taskFileRepository->restoreFile($fileIdInt);
+
+        // 2. 读取恢复后的实体，仅重置 file_size
+        $file = $this->taskFileRepository->getById($fileIdInt);
+        if ($file === null) {
+            ExceptionBuilder::throw(
+                MagicFSErrorCode::FILE_NOT_FOUND,
+                'magicfs.file_not_found',
+                ['file_id' => $fileId]
+            );
+        }
+
+        $file->setDeletedAt(null);
+        $file->setFileSize(0);
+        $file->setUpdatedAt(date('Y-m-d H:i:s'));
+
+        return $this->taskFileRepository->updateById($file);
+    }
+
+    /**
      * 判断墓碑是否仍在可复活的 TTL 窗口内（基于 deleted_at 与当前时间差）.
      */
     protected function isTombstoneWithinRevivalTtl(?string $deletedAt): bool
@@ -703,96 +731,19 @@ class MagicFSFileDomainService
     }
 
     /**
-     * 复活软删除的文件记录，保留原 file_id 和 file_key，返回更新后的实体。
+     * 复活软删除的墓碑记录：保留原 file_id / file_key / 元数据，
+     * 仅把 file_size 归零并清除 deleted_at（通过 restoreFile 完成），
+     * 其它字段一律不改。
      *
-     * 语义：
-     *   - file_id、file_key、project_id、user_id、organization_code、parent_id、
-     *     file_name 保持不变（这正是链接稳定的前提）；
-     *   - file_size 归零——复活仅还原「文件存在」这一事实，后续内容由调用方
-     *     通过 updateFile + PUT S3 写回；
-     *   - metadata 按当前传入的 $fileMetadata + 新计算的 mode 整体重算，遵循
-     *     与正常 create 同样的「mode 由服务掌管、file_metadata 禁止覆盖 mode」
-     *     的规则；
-     *   - task_id / topic_id 按当前 $superMagicTaskId 重新绑定，避免挂在过期任务上；
-     *   - is_hidden 按当前 name 和 parent_id 重算；
-     *   - latest_version / metadata_version 递增，触发上游 version 同步；
-     *   - S3 对象不动：软删除时未清理对象，复活后的 file_key 直接复用原对象，
-     *     下一步业务层 PutObject（覆盖）会把 latest_content 写回，天然一致。
-     *
-     * @param null|array<string, string> $fileMetadata
+     * 父节点链的 metadata_version 递增与正常 create 保持一致，
+     * 便于上游感知目录下的新增事件。
      */
-    protected function reviveTombstone(
-        TaskFileEntity $tombstone,
-        bool $isDirectory,
-        ?string $superMagicTaskId,
-        ?int $sortValue,
-        ?FileType $fileType,
-        ?TaskFileSource $source,
-        ?array $fileMetadata
-    ): TaskFileEntity {
-        $fileId = (int) $tombstone->getFileId();
+    protected function reviveTombstone(TaskFileEntity $tombstone): TaskFileEntity
+    {
         $originalDeletedAt = $tombstone->getDeletedAt();
 
-        // 1. 清除 deleted_at，把墓碑变回活跃记录
-        $this->taskFileRepository->restoreFile($fileId);
+        $revived = $this->restoreFile((string) $tombstone->getFileId());
 
-        // 2. 重算 metadata（mode 受管 + 客户端 file_metadata bag）
-        $metadataArray = [];
-        if ($fileMetadata !== null) {
-            foreach ($fileMetadata as $k => $v) {
-                if ($k === 'mode' || ! is_string($k) || $k === '') {
-                    continue;
-                }
-                $metadataArray[$k] = (string) $v;
-            }
-        }
-        $metadataArray['mode'] = $isDirectory ? 0755 : 0644;
-
-        // 3. 重新计算 is_hidden（防止父目录在墓碑期间被 rename 等）
-        $newIsHidden = $this->determineIsHidden(
-            $tombstone->getFileName(),
-            $tombstone->getParentId(),
-            $tombstone->getProjectId()
-        );
-
-        // 4. 重新绑定 task/topic
-        $newTaskId = null;
-        $newTopicId = null;
-        if (! empty($superMagicTaskId)) {
-            $taskEntity = $this->taskRepository->getTaskById((int) $superMagicTaskId);
-            if ($taskEntity) {
-                $newTaskId = $taskEntity->getId();
-                $newTopicId = $taskEntity->getTopicId();
-            }
-        }
-
-        // 5. 应用到实体：file_id / file_key / parent_id / file_name 不动
-        $tombstone->setDeletedAt(null);
-        $tombstone->setFileSize(0);
-        $tombstone->setIsDirectory($isDirectory);
-        $tombstone->setIsHidden($newIsHidden);
-        $tombstone->setMetadata(json_encode($metadataArray));
-        $tombstone->setSource($source ?? TaskFileSource::AGENT);
-        if ($sortValue !== null) {
-            $tombstone->setSort($sortValue);
-        }
-        if ($fileType !== null) {
-            $tombstone->setFileType($fileType->value);
-        } elseif ($isDirectory) {
-            $tombstone->setFileType(FileType::DIRECTORY->value);
-        } else {
-            $tombstone->setFileType(FileType::SYSTEM_AUTO_UPLOAD->value);
-        }
-        if ($newTaskId !== null) {
-            $tombstone->setTaskId($newTaskId);
-            $tombstone->setTopicId($newTopicId);
-        }
-        $tombstone->setLatestVersion($tombstone->getLatestVersion() + 1);
-        $tombstone->setMetadataVersion($tombstone->getMetadataVersion() + 1);
-
-        $revived = $this->taskFileRepository->updateById($tombstone);
-
-        // 6. 传播父节点链 version（与正常 create 一致）
         $parentId = $revived->getParentId();
         if ($parentId !== null && $parentId > 0) {
             $this->incrementVersionChain((string) $parentId);
