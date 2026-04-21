@@ -651,8 +651,9 @@ class RollbackExecutor:
                 await async_copy2(latest_content_path, target_path)
                 dst_size_after = target_path.stat().st_size if target_path.exists() else -1
                 logger.info(
-                    "CREATED操作正向回滚成功，创建文件: %s | src(latest_content)=%d, dst=%d, src_path=%s",
-                    file_snapshot.file_path, src_size_before, dst_size_after, latest_content_path,
+                    f"CREATED操作正向回滚成功，创建文件: {file_snapshot.file_path} | "
+                    f"src(latest_content)={src_size_before}, dst={dst_size_after}, "
+                    f"src_path={latest_content_path}"
                 )
 
             elif file_snapshot.file_type == FileType.DIRECTORY:
@@ -725,8 +726,9 @@ class RollbackExecutor:
                 await async_copy2(latest_content_path, target_path)
                 dst_size_after = target_path.stat().st_size if target_path.exists() else -1
                 logger.info(
-                    "UPDATED操作正向回滚成功，恢复到更新后状态: %s | src(latest_content)=%d, dst=%d, src_path=%s",
-                    file_snapshot.file_path, src_size_before, dst_size_after, latest_content_path,
+                    f"UPDATED操作正向回滚成功，恢复到更新后状态: {file_snapshot.file_path} | "
+                    f"src(latest_content)={src_size_before}, dst={dst_size_after}, "
+                    f"src_path={latest_content_path}"
                 )
 
             elif file_snapshot.file_type == FileType.DIRECTORY:

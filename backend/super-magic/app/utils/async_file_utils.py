@@ -73,12 +73,12 @@ async def async_copy2(src: Union[str, Path], dst: Union[str, Path]) -> None:
 
         if src_size != read_bytes or src_size != dst_size_after_write:
             logger.warning(
-                "async_copy2 大小不一致: %s -> %s | src_stat=%d, read=%d, dst_stat=%d",
-                src_path, dst_path, src_size, read_bytes, dst_size_after_write,
+                f"async_copy2 大小不一致: {src_path} -> {dst_path} | "
+                f"src_stat={src_size}, read={read_bytes}, dst_stat={dst_size_after_write}"
             )
         else:
             logger.debug(
-                "async_copy2 完成: %s -> %s, size=%d", src_path, dst_path, src_size,
+                f"async_copy2 完成: {src_path} -> {dst_path}, size={src_size}"
             )
 
     except Exception as e:
