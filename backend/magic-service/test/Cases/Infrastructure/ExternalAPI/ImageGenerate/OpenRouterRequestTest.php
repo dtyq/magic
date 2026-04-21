@@ -16,7 +16,7 @@ use PHPUnit\Framework\TestCase;
  */
 class OpenRouterRequestTest extends TestCase
 {
-    public function testRequestExcludesReasoningByDefault(): void
+    public function testRequestUsesProviderDefaultReasoningAndExcludesReasoningByDefault(): void
     {
         $request = new OpenRouterRequest(
             'google/gemini-3.1-flash-image-preview',
@@ -30,8 +30,8 @@ class OpenRouterRequestTest extends TestCase
         $payload = $request->toArray();
 
         $this->assertSame([
-            'effort' => 'minimal',
             'exclude' => true,
         ], $payload['reasoning']);
+        $this->assertArrayNotHasKey('effort', $payload['reasoning']);
     }
 }

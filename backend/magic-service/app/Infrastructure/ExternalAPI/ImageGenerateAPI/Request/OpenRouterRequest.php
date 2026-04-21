@@ -13,10 +13,9 @@ class OpenRouterRequest extends ImageGenerateRequest
 
     /**
      * OpenRouter reasoning 配置。
-     * 默认隐藏 reasoning 文本，并把支持 thinking level 的模型压到 minimal。
+     * 默认只隐藏 reasoning 文本，思考等级交给服务商默认策略。
      */
     protected array $reasoning = [
-        'effort' => 'minimal',
         'exclude' => true,
     ];
 

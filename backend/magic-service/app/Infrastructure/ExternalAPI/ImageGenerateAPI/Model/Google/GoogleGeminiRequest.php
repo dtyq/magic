@@ -48,13 +48,6 @@ class GoogleGeminiRequest extends ImageGenerateRequest
     protected bool $includeThoughts = false;
 
     /**
-     * Gemini thinking 等级。
-     * Gemini 3.1 Flash Image 支持 MINIMAL/HIGH，默认 MINIMAL 用于尽量关闭思考；
-     * Gemini 3 Pro Image 不支持 MINIMAL，默认保持 null，仅通过 includeThoughts=false 禁止返回思考内容。
-     */
-    protected ?string $thinkingLevel = null;
-
-    /**
      * 参考图片列表。
      * 有值时走图生图/图片编辑链路，会转换为 Gemini fileData 或 inlineData。
      */
@@ -74,10 +67,6 @@ class GoogleGeminiRequest extends ImageGenerateRequest
         string $model = '',
     ) {
         parent::__construct($width, $height, $prompt, $negativePrompt, $model);
-
-        if (str_contains($this->getModel(), 'gemini-3.1')) {
-            $this->thinkingLevel = 'MINIMAL';
-        }
     }
 
     public function getTemperature(): float
@@ -138,16 +127,6 @@ class GoogleGeminiRequest extends ImageGenerateRequest
     public function setIncludeThoughts(bool $includeThoughts): void
     {
         $this->includeThoughts = $includeThoughts;
-    }
-
-    public function getThinkingLevel(): ?string
-    {
-        return $this->thinkingLevel;
-    }
-
-    public function setThinkingLevel(?string $thinkingLevel): void
-    {
-        $this->thinkingLevel = $thinkingLevel;
     }
 
     public function getReferImages(): array
@@ -211,14 +190,8 @@ class GoogleGeminiRequest extends ImageGenerateRequest
 
     private function getThinkingConfig(): array
     {
-        $config = [];
-
-        if ($this->thinkingLevel !== null && $this->thinkingLevel !== '') {
-            $config['thinkingLevel'] = $this->thinkingLevel;
-        }
-
-        $config['includeThoughts'] = $this->includeThoughts;
-
-        return $config;
+        return [
+            'includeThoughts' => $this->includeThoughts,
+        ];
     }
 }

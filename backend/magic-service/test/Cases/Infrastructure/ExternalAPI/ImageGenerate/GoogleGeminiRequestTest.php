@@ -32,19 +32,19 @@ class GoogleGeminiRequestTest extends TestCase
         $this->assertArrayNotHasKey('image_size', $generationConfig['imageConfig']);
     }
 
-    public function testFlashImageDefaultsToMinimalThinkingAndExcludesThoughts(): void
+    public function testFlashImageUsesProviderDefaultThinkingAndExcludesThoughts(): void
     {
         $request = new GoogleGeminiRequest('1792', '2400', '小猫在喝水', '', 'gemini-3.1-flash-image-preview');
 
         $generationConfig = $request->getGenerationConfig();
 
         $this->assertSame([
-            'thinkingLevel' => 'MINIMAL',
             'includeThoughts' => false,
         ], $generationConfig['thinkingConfig']);
+        $this->assertArrayNotHasKey('thinkingLevel', $generationConfig['thinkingConfig']);
     }
 
-    public function testProImageDefaultsToExcludeThoughtsWithoutUnsupportedMinimalThinking(): void
+    public function testProImageUsesProviderDefaultThinkingAndExcludesThoughts(): void
     {
         $request = new GoogleGeminiRequest('1792', '2400', '小猫在喝水', '', 'gemini-3-pro-image-preview');
 
@@ -56,17 +56,11 @@ class GoogleGeminiRequestTest extends TestCase
         $this->assertArrayNotHasKey('thinkingLevel', $generationConfig['thinkingConfig']);
     }
 
-    public function testThinkingConfigCanBeConfiguredByRequestFields(): void
+    public function testThinkingLevelFieldIsNotExposed(): void
     {
         $request = new GoogleGeminiRequest('1792', '2400', '小猫在喝水', '', 'gemini-3.1-flash-image-preview');
-        $request->setThinkingLevel('HIGH');
-        $request->setIncludeThoughts(true);
 
-        $generationConfig = $request->getGenerationConfig();
-
-        $this->assertSame([
-            'thinkingLevel' => 'HIGH',
-            'includeThoughts' => true,
-        ], $generationConfig['thinkingConfig']);
+        $this->assertFalse(method_exists($request, 'getThinkingLevel'));
+        $this->assertFalse(method_exists($request, 'setThinkingLevel'));
     }
 }
