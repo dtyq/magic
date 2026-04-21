@@ -101,7 +101,7 @@ class CheckpointManifest(BaseModel):
         False,
         description=(
             "是否正在执行回滚（反向或撤回回滚）。回滚期间 Python 会直接改写工作区，"
-            "magicfs 看到 workspace 写入时应跳过 checkpoint 维护（不要更新 latest_content），"
+            "magicfs 看到 workspace 写入时应跳过 checkpoint 维护，"
             "否则会把正在恢复的内容当成新的用户改动回灌进 checkpoint"
         ),
     )
