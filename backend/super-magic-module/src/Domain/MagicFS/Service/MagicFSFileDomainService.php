@@ -21,17 +21,30 @@ use Dtyq\SuperMagic\Domain\SuperAgent\Repository\Facade\TaskRepositoryInterface;
 use Dtyq\SuperMagic\ErrorCode\MagicFSErrorCode;
 use Dtyq\SuperMagic\Infrastructure\Utils\WorkDirectoryUtil;
 use Dtyq\SuperMagic\Infrastructure\Utils\WorkFileUtil;
+use Hyperf\Logger\LoggerFactory;
+use Psr\Log\LoggerInterface;
 use RuntimeException;
 use Throwable;
 
 class MagicFSFileDomainService
 {
+    /**
+     * 墓碑复活 TTL：文件软删除后的 6 小时内，若同 (project_id, parent_id, file_name)
+     * 再次被创建，则视为「撤回/取消撤回」场景——复活原墓碑，保持 file_id 与
+     * file_key 不变，避免外部链接 404。超过该时长视为普通创建，分配新雪花 ID。
+     */
+    private const TOMBSTONE_REVIVAL_TTL_SECONDS = 6 * 3600;
+
+    protected LoggerInterface $logger;
+
     public function __construct(
         protected TaskFileRepositoryInterface $taskFileRepository,
         protected TaskRepositoryInterface $taskRepository,
         protected CloudFileRepositoryInterface $cloudFileRepository,
         protected ProjectRepositoryInterface $projectRepository,
+        LoggerFactory $loggerFactory,
     ) {
+        $this->logger = $loggerFactory->get(get_class($this));
     }
 
     /**
@@ -124,13 +137,44 @@ class MagicFSFileDomainService
             }
         }
 
-        // 3. 检查是否已存在同名文件（使用数据库查询）
-        if ($this->fileExistsByName($projectId, $parentIdInt, $name)) {
-            ExceptionBuilder::throw(
-                MagicFSErrorCode::FILE_ALREADY_EXISTS,
-                'magicfs.file_already_exists',
-                ['name' => $name]
-            );
+        // 3. 检查同目录下是否已存在同名记录（含墓碑）
+        //
+        // Checkpoint 撤回/取消撤回场景需要 file_id 稳定：撤回时文件被软删除成
+        // 墓碑，取消撤回会再次调用本 createFile。如果此时分配新雪花 ID，所有
+        // 引用旧 ID 的外部链接都会 404。对策是「TTL 内的同路径复活」：
+        //   - 命中活跃记录 → 同名冲突，按既有语义抛错；
+        //   - 命中墓碑且 deleted_at 距今 < TOMBSTONE_REVIVAL_TTL_SECONDS → 复活
+        //     原记录（保留 file_id 与 file_key），视同 checkpoint 取消撤回；
+        //   - 命中墓碑但已过期 → 直接忽略，走下方「分配新雪花 ID」路径。
+        //     (project_id, parent_id, file_name) 上没有 UNIQUE 约束，过期墓碑
+        //     留着不会阻塞新 insert；S3 侧的清理由独立的 GC 通道负责，本接口
+        //     不承担墓碑回收责任。
+        $existing = $this->taskFileRepository->getByProjectParentAndName(
+            $projectId,
+            $parentIdInt,
+            $name,
+            true
+        );
+        if ($existing !== null) {
+            if ($existing->getDeletedAt() === null) {
+                ExceptionBuilder::throw(
+                    MagicFSErrorCode::FILE_ALREADY_EXISTS,
+                    'magicfs.file_already_exists',
+                    ['name' => $name]
+                );
+            }
+
+            if ($this->isTombstoneWithinRevivalTtl($existing->getDeletedAt())) {
+                return $this->reviveTombstone(
+                    $existing,
+                    $isDirectory,
+                    $superMagicTaskId,
+                    $sortValue,
+                    $fileType,
+                    $source,
+                    $fileMetadata
+                );
+            }
         }
 
         // 4. 生成文件 ID
@@ -639,6 +683,130 @@ class MagicFSFileDomainService
     public function renameFile(string $fileId, string $newName): TaskFileEntity
     {
         return $this->updateFile($fileId, ['name' => $newName]);
+    }
+
+    /**
+     * 判断墓碑是否仍在可复活的 TTL 窗口内（基于 deleted_at 与当前时间差）.
+     */
+    protected function isTombstoneWithinRevivalTtl(?string $deletedAt): bool
+    {
+        if ($deletedAt === null || $deletedAt === '') {
+            return false;
+        }
+
+        $deletedTs = strtotime($deletedAt);
+        if ($deletedTs === false) {
+            return false;
+        }
+
+        return (time() - $deletedTs) < self::TOMBSTONE_REVIVAL_TTL_SECONDS;
+    }
+
+    /**
+     * 复活软删除的文件记录，保留原 file_id 和 file_key，返回更新后的实体。
+     *
+     * 语义：
+     *   - file_id、file_key、project_id、user_id、organization_code、parent_id、
+     *     file_name 保持不变（这正是链接稳定的前提）；
+     *   - file_size 归零——复活仅还原「文件存在」这一事实，后续内容由调用方
+     *     通过 updateFile + PUT S3 写回；
+     *   - metadata 按当前传入的 $fileMetadata + 新计算的 mode 整体重算，遵循
+     *     与正常 create 同样的「mode 由服务掌管、file_metadata 禁止覆盖 mode」
+     *     的规则；
+     *   - task_id / topic_id 按当前 $superMagicTaskId 重新绑定，避免挂在过期任务上；
+     *   - is_hidden 按当前 name 和 parent_id 重算；
+     *   - latest_version / metadata_version 递增，触发上游 version 同步；
+     *   - S3 对象不动：软删除时未清理对象，复活后的 file_key 直接复用原对象，
+     *     下一步业务层 PutObject（覆盖）会把 latest_content 写回，天然一致。
+     *
+     * @param null|array<string, string> $fileMetadata
+     */
+    protected function reviveTombstone(
+        TaskFileEntity $tombstone,
+        bool $isDirectory,
+        ?string $superMagicTaskId,
+        ?int $sortValue,
+        ?FileType $fileType,
+        ?TaskFileSource $source,
+        ?array $fileMetadata
+    ): TaskFileEntity {
+        $fileId = (int) $tombstone->getFileId();
+        $originalDeletedAt = $tombstone->getDeletedAt();
+
+        // 1. 清除 deleted_at，把墓碑变回活跃记录
+        $this->taskFileRepository->restoreFile($fileId);
+
+        // 2. 重算 metadata（mode 受管 + 客户端 file_metadata bag）
+        $metadataArray = [];
+        if ($fileMetadata !== null) {
+            foreach ($fileMetadata as $k => $v) {
+                if ($k === 'mode' || ! is_string($k) || $k === '') {
+                    continue;
+                }
+                $metadataArray[$k] = (string) $v;
+            }
+        }
+        $metadataArray['mode'] = $isDirectory ? 0755 : 0644;
+
+        // 3. 重新计算 is_hidden（防止父目录在墓碑期间被 rename 等）
+        $newIsHidden = $this->determineIsHidden(
+            $tombstone->getFileName(),
+            $tombstone->getParentId(),
+            $tombstone->getProjectId()
+        );
+
+        // 4. 重新绑定 task/topic
+        $newTaskId = null;
+        $newTopicId = null;
+        if (! empty($superMagicTaskId)) {
+            $taskEntity = $this->taskRepository->getTaskById((int) $superMagicTaskId);
+            if ($taskEntity) {
+                $newTaskId = $taskEntity->getId();
+                $newTopicId = $taskEntity->getTopicId();
+            }
+        }
+
+        // 5. 应用到实体：file_id / file_key / parent_id / file_name 不动
+        $tombstone->setDeletedAt(null);
+        $tombstone->setFileSize(0);
+        $tombstone->setIsDirectory($isDirectory);
+        $tombstone->setIsHidden($newIsHidden);
+        $tombstone->setMetadata(json_encode($metadataArray));
+        $tombstone->setSource($source ?? TaskFileSource::AGENT);
+        if ($sortValue !== null) {
+            $tombstone->setSort($sortValue);
+        }
+        if ($fileType !== null) {
+            $tombstone->setFileType($fileType->value);
+        } elseif ($isDirectory) {
+            $tombstone->setFileType(FileType::DIRECTORY->value);
+        } else {
+            $tombstone->setFileType(FileType::SYSTEM_AUTO_UPLOAD->value);
+        }
+        if ($newTaskId !== null) {
+            $tombstone->setTaskId($newTaskId);
+            $tombstone->setTopicId($newTopicId);
+        }
+        $tombstone->setLatestVersion($tombstone->getLatestVersion() + 1);
+        $tombstone->setMetadataVersion($tombstone->getMetadataVersion() + 1);
+
+        $revived = $this->taskFileRepository->updateById($tombstone);
+
+        // 6. 传播父节点链 version（与正常 create 一致）
+        $parentId = $revived->getParentId();
+        if ($parentId !== null && $parentId > 0) {
+            $this->incrementVersionChain((string) $parentId);
+        }
+
+        $this->logger->info('[magicfs.create] revived from tombstone', [
+            'file_id' => $revived->getFileId(),
+            'file_name' => $revived->getFileName(),
+            'parent_id' => $parentId,
+            'project_id' => $revived->getProjectId(),
+            'deleted_at' => $originalDeletedAt ?? '',
+        ]);
+
+        return $revived;
     }
 
     /**
