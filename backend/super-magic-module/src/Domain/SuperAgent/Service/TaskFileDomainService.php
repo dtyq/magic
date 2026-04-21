@@ -2725,7 +2725,7 @@ class TaskFileDomainService
     /**
      * Navigate the file tree by relative path segments, returning any entity (file or directory).
      * Intermediate segments must be directories; the last segment can be either.
-     * e.g. "测试/images/photo.png" → root → 测试(dir) → images(dir) → photo.png(file)
+     * e.g. "测试/images/photo.png" → root → 测试(dir) → images(dir) → photo.png(file).
      *
      * @param int $projectId Project ID
      * @param string $relativePath Relative path from project root (e.g. "测试/images/photo.png" or "/测试/images/")
