@@ -45,6 +45,7 @@ class PathManager(BasePathManager):
     _credentials_dir: ClassVar[Optional[Path]] = None
     _init_client_message_file: ClassVar[Optional[Path]] = None
     _chat_client_message_file: ClassVar[Optional[Path]] = None
+    _agent_config_file: ClassVar[Optional[Path]] = None
 
     # 项目架构目录：project_root/.project_schemas（预创建）
     _project_schema_dir_name: ClassVar[str] = ".project_schemas"
@@ -114,6 +115,7 @@ class PathManager(BasePathManager):
         cls._credentials_dir = cls._project_root / cls._credentials_dir_name
         cls._init_client_message_file = cls.get_credentials_dir() / "init_client_message.json"
         cls._chat_client_message_file = cls.get_credentials_dir() / "chat_client_message.json"
+        cls._agent_config_file = cls.get_credentials_dir() / "agent_config.json"
 
         cls._project_schema_absolute_dir = cls._project_root / cls._project_schema_dir_name
         cls._project_archive_info_file_relative_path = f"{cls._project_schema_dir_name}/project_archive_info.json"
@@ -207,6 +209,12 @@ class PathManager(BasePathManager):
         return cls._chat_client_message_file
 
     @classmethod
+    def get_agent_config_file(cls) -> Path:
+        """获取 Agent 配置文件路径（project_root/.credentials/agent_config.json）"""
+        cls._ensure_app_initialization()
+        return cls._agent_config_file
+
+    @classmethod
     def get_upload_credentials_file(cls) -> Path:
         """获取上传凭证文件路径（project_root/.credentials/upload_credentials.json）"""
         cls._ensure_app_initialization()
@@ -252,13 +260,13 @@ class PathManager(BasePathManager):
         return cls._task_metadata_file
 
     @classmethod
-    def get_ask_user_pending_file(cls, agent_name: str = "magic", agent_id: str = "main") -> Path:
-        """获取 ask_user 待处理问题持久化文件路径
+    def get_user_tool_call_pending_file(cls, agent_name: str = "magic", agent_id: str = "main") -> Path:
+        """获取 user_tool_call 待处理工具调用的持久化文件路径
 
-        命名规则与 chat_history 一致：{agent_name}<{agent_id}>.ask_user.json
+        命名规则与 chat_history 一致：{agent_name}<{agent_id}>.user_tool_call.json
         """
         cls._ensure_app_initialization()
-        return cls.get_chat_history_dir() / f"{agent_name}<{agent_id}>.ask_user.json"
+        return cls.get_chat_history_dir() / f"{agent_name}<{agent_id}>.user_tool_call.json"
 
     @classmethod
     def get_task_message_file(cls, task_id: str) -> Path:

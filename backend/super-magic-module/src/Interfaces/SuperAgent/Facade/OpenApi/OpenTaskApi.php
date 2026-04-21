@@ -15,7 +15,6 @@ use App\Infrastructure\Util\Context\RequestContext;
 use App\Interfaces\Authorization\Web\MagicUserAuthorization;
 use Dtyq\ApiResponse\Annotation\ApiResponse;
 use Dtyq\SuperMagic\Application\Share\Service\ResourceShareAppService;
-use Dtyq\SuperMagic\Application\SuperAgent\DTO\UserMessageDTO;
 use Dtyq\SuperMagic\Application\SuperAgent\Service\AgentAppService;
 use Dtyq\SuperMagic\Application\SuperAgent\Service\HandleTaskMessageAppService;
 use Dtyq\SuperMagic\Application\SuperAgent\Service\ProjectAppService;
@@ -106,69 +105,42 @@ class OpenTaskApi extends AbstractApi
     #[ApiResponse('low_code')]
     public function agentTask(RequestContext $requestContext): array
     {
-        // 从请求中创建DTO并验证参数
-        $requestDTO = CreateAgentTaskRequestDTO::fromRequest($this->request);
+        $userAuthorization = RequestCoContext::getUserAuthorization();
+        if (empty($userAuthorization)) {
+            ExceptionBuilder::throw(GenericErrorCode::ParameterMissing, 'user_authorization_not_found');
+        }
+        $requestContext->setUserAuthorization($userAuthorization);
 
-        $this->handRequestContext($requestContext);
-        /** @var MagicUserAuthorization $magicUserAuthorization */
-        $magicUserAuthorization = $this->getAuthorization();
-        // 判断话题是否存在，不存在则初始化话题
+        $requestDTO = CreateAgentTaskRequestDTO::fromRequest($this->request);
         $topicId = $requestDTO->getTopicId();
 
         $topicDTO = $this->topicAppService->getTopic($requestContext, (int) $topicId);
 
-        $requestDTO->setConversationId($topicId);
+        $tiptapContent = $this->convertTextToTiptap($requestDTO->getPrompt());
 
-        $dataIsolation = new DataIsolation();
-        $dataIsolation->setCurrentUserId($magicUserAuthorization->getId());
-        $dataIsolation->setThirdPartyOrganizationCode($magicUserAuthorization->getThirdPlatformOrganizationCode());
-        $dataIsolation->setCurrentOrganizationCode($magicUserAuthorization->getOrganizationCode());
-        $dataIsolation->setUserType($magicUserAuthorization->getUserType());
-        $sandboxId = $topicDTO->getSandboxId();
-        try {
-            // 检查容器是否正常
-            $result = $this->agentAppService->getSandboxStatus($sandboxId);
+        $messageContent = [
+            'content' => json_encode($tiptapContent),
+            'instructs' => [['value' => 'normal']],
+            'extra' => [
+                'super_agent' => [
+                    'mentions' => [],
+                    'chat_mode' => 'normal',
+                    'topic_pattern' => 'general',
+                    'enable_web_search' => false,
+                ],
+            ],
+        ];
 
-            if ($result->getStatus() !== SandboxStatus::RUNNING) {
-                // 容器未正常运行，需要先运行容器
-                $userMessage = [
-                    'chat_topic_id' => $topicDTO->getChatTopicId(),
-                    'topic_id' => (int) $topicDTO->getId(),
-                    'prompt' => $requestDTO->getPrompt(),
-                    'attachments' => null,
-                    'mentions' => null,
-                    'agent_mode' => '',
-                    'task_mode' => '',
-                ];
-                $userMessageDTO = UserMessageDTO::fromArray($userMessage);
-                $result = $this->handleTaskMessageAppService->initSandbox($dataIsolation, $userMessageDTO);
+        $taskRequestData = [
+            'project_id' => $topicDTO->getProjectId(),
+            'topic_id' => $topicId,
+            'message_type' => 'rich_text',
+            'message_content' => $messageContent,
+        ];
 
-                if (empty($result['sandbox_id'])) {
-                    ExceptionBuilder::throw(GenericErrorCode::ParameterMissing, 'the sandbox cannot running,please check the sandbox status');
-                }
-                $taskEntity = $this->handleTaskAppService->getTask((int) $result['task_id']);
-            } else {
-                $taskEntity = $this->handleTaskAppService->getTaskBySandboxId($sandboxId);
-            }
+        $taskDTO = new CreateTaskRequestDTO($taskRequestData);
 
-            $userMessage = [
-                'chat_topic_id' => $topicDTO->getChatTopicId(),
-                'chat_conversation_id' => $topicDTO->getChatConversationId(),
-                'prompt' => $requestDTO->getPrompt(),
-                'attachments' => null,
-                'mentions' => null,
-                'agent_user_id' => $magicUserAuthorization->getId(),
-                'agent_mode' => '',
-                'task_mode' => $taskEntity->getTaskMode(),
-            ];
-            $userMessageDTO = UserMessageDTO::fromArray($userMessage);
-
-            $taskEntity = $this->handleTaskMessageAppService->sendChatMessage($dataIsolation, $userMessageDTO);
-        } catch (Exception $e) {
-            ExceptionBuilder::throw(GenericErrorCode::ParameterMissing, $e->getMessage());
-        }
-
-        return $taskEntity?->toArray() ?? [];
+        return $this->topicTaskAppService->createTask($requestContext, $taskDTO);
     }
 
     /**

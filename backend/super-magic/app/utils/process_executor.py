@@ -313,9 +313,12 @@ class ProcessExecutor:
         Raises:
             asyncio.CancelledError: 当 interruption_event 触发时抛出，表示 run 已中断
         """
+        original_command = command
         try:
-            # 在 PyInstaller 环境下且明确启用时改写 python 命令
-            command = ProcessExecutor._rewrite_python_command(command, cwd, enable_python_rewrite)
+            # 在 PyInstaller 环境下且明确启用时改写 python 命令（仅影响子进程实际执行串）
+            executed_command = ProcessExecutor._rewrite_python_command(
+                original_command, cwd, enable_python_rewrite
+            )
 
             # 构建过滤后的环境变量
             env_vars = ProcessExecutor._build_filtered_env()
@@ -326,7 +329,7 @@ class ProcessExecutor:
             # Use shlex.quote to ensure command is safely quoted
             # Prefer /bin/bash, fallback to /bin/sh if not exists
             bash_path = '/bin/bash' if os.path.exists('/bin/bash') else '/bin/sh'
-            shell_command = f'{bash_path} -c {shlex.quote(command)}'
+            shell_command = f'{bash_path} -c {shlex.quote(executed_command)}'
 
             # 启动前检查：如果中断信号已经到达，直接抛出，避免多余的子进程创建
             if interruption_event and interruption_event.is_set():
@@ -361,9 +364,9 @@ class ProcessExecutor:
                     stdout_str, stderr_str, exit_code
                 )
 
-                # 构建结果
+                # 构建结果（command 始终为调用方传入的原始串，便于前端与模型展示）
                 result = TerminalToolResult(
-                    command=command,
+                    command=original_command,
                     content=content,
                     ok=is_success
                 )
@@ -371,13 +374,15 @@ class ProcessExecutor:
 
                 # 将结构化信息保存到extra_info字段，供系统内部使用
                 result.extra_info = {
-                    "command": command,
+                    "command": original_command,
                     "cwd": str(cwd) if cwd else "",
                     "stdout": stdout_str,
                     "stderr": stderr_str,
                     "exit_code": exit_code,
                     "execution_time": timeout,
                 }
+                if executed_command != original_command:
+                    result.extra_info["executed_command"] = executed_command
 
                 return result
 
@@ -392,7 +397,7 @@ class ProcessExecutor:
 
                 return TerminalToolResult.error(
                     f"Command timed out ({timeout}s)",
-                    command=command,
+                    command=original_command,
                     exit_code=-1,
                 )
 
@@ -403,7 +408,7 @@ class ProcessExecutor:
             logger.exception(f"执行命令时出错: {e}")
             return TerminalToolResult.error(
                 f"Command execution failed: {e}",
-                command=command,
+                command=original_command,
                 exit_code=-2,
             )
 

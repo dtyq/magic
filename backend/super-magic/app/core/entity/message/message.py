@@ -15,5 +15,5 @@ class MessageType(str, Enum):
     CONTINUE = "continue"  # 继续指令
     AGENT_REPLY = "agent_reply"  # 智能体文本回复
     AGENT_THINKING = "agent_thinking"  # 智能体思考内容
-    ASK_USER_RESPONSE = "ask_user_response"  # Human-in-the-Loop：用户对 ask_user 的回答
+    USER_TOOL_CALL = "user_tool_call"  # 用户工具调用：前端执行工具并回传结果（如 ask_user）
     SUPER_MAGIC_MESSAGE = "super_magic_message"  # V2 非流式消息

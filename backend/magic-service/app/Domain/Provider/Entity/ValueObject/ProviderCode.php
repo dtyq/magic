@@ -133,9 +133,9 @@ enum ProviderCode: string
     }
 
     /**
-     * 判断当前服务商是否属于非官方组织的文本模型模板白名单。
+     * 判断当前服务商是否属于 Provider Control 的 LLM allowlist。
      */
-    public function isNonOfficialOrganizationLlmWhitelist(): bool
+    public function isInProviderControlLlmAllowlist(): bool
     {
         return match ($this) {
             self::DashScope,
@@ -153,12 +153,12 @@ enum ProviderCode: string
     }
 
     /**
-     * 判断当前服务商是否属于非官方组织模板白名单。
+     * 判断当前服务商是否属于 Provider Control allowlist。
      */
-    public function isNonOfficialOrganizationTemplateWhitelist(Category $category): bool
+    public function isInProviderControlAllowlist(Category $category): bool
     {
         return match ($category) {
-            Category::LLM => $this->isNonOfficialOrganizationLlmWhitelist(),
+            Category::LLM => $this->isInProviderControlLlmAllowlist(),
             Category::VLM => match ($this) {
                 self::Qwen, self::VolcengineArk, self::TTAPI, self::MiracleVision, self::Volcengine => true,
                 default => false,

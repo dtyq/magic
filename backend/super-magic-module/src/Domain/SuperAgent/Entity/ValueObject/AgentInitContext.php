@@ -101,11 +101,6 @@ class AgentInitContext
     private bool $fetchHistory = false;
 
     /**
-     * Agent information.
-     */
-    private array $agent = [];
-
-    /**
      * Create a new instance.
      */
     public function __construct()
@@ -410,23 +405,6 @@ class AgentInitContext
     }
 
     /**
-     * Get agent information.
-     */
-    public function getAgent(): array
-    {
-        return $this->agent;
-    }
-
-    /**
-     * Set agent information.
-     */
-    public function setAgent(array $agent): self
-    {
-        $this->agent = $agent;
-        return $this;
-    }
-
-    /**
      * Convert to array format matching generateInitializationInfo return structure.
      */
     public function toArray(): array
@@ -449,7 +427,6 @@ class AgentInitContext
             'work_dir' => $this->workDir,
             'model_id' => $this->modelId,
             'fetch_history' => $this->fetchHistory,
-            'agent' => $this->agent,
         ];
     }
 }

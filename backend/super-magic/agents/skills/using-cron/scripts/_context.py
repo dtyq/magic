@@ -10,55 +10,9 @@ import sys
 from pathlib import Path
 from typing import Optional, Tuple
 
-def _setup_project_root() -> Path:
-    """
-    向上查找项目根目录，加入 sys.path 并返回根目录路径。
-    支持以下标志文件：
-    - setup.py：本地开发环境
-    - script_runner：PyInstaller 编译后的生产环境（setup.py 不会被打包进镜像）
-    """
-    current = Path(__file__).resolve().parent
-    markers = {"setup.py", "script_runner"}
-    for _ in range(10):
-        if any((current / marker).exists() for marker in markers):
-            root = str(current)
-            if root not in sys.path:
-                sys.path.insert(0, root)
-            return current
-        current = current.parent
-    raise RuntimeError("无法定位项目根目录（未找到 setup.py 或 script_runner）")
-
-
-_PROJECT_ROOT = _setup_project_root()
-
-# PyInstaller 生产环境下，PathManager 会以 cwd 推断项目根目录，
-# 而 script_runner 常从 skill 子目录调用，cwd 并非 /app，导致路径错误。
-# 这里提前用已知的正确根目录初始化 PathManager，确保后续所有路径读取正确。
-try:
-    from app.path_manager import PathManager as _PathManager
-    if not _PathManager._initialized:
-        _PathManager.set_project_root(_PROJECT_ROOT)
-except Exception:
-    pass
-
-# agentlang 框架在被 import 时会通过 Logger.setup() 将 loguru 重置为 INFO 级别，
-# 并立即触发 Config() 单例初始化（module-level），打印 3 条 INFO 日志。
-# 解决方案：主动提前 import，期间屏蔽 stderr，完成后重新配置 loguru 为 WARNING。
-try:
-    import io as _io
-    _old_stderr = sys.stderr
-    sys.stderr = _io.StringIO()
-    try:
-        import agentlang.config.config  # 触发 Config() 初始化
-        import agentlang.logger         # 触发 Logger.setup()（重置 loguru 为 INFO）
-    finally:
-        sys.stderr = _old_stderr
-
-    from loguru import logger as _loguru_logger
-    _loguru_logger.remove()
-    _loguru_logger.add(sys.stderr, level="WARNING")
-except Exception:
-    pass
+# agents/skills/_shared/ 对所有 skill 脚本均在 parents[2] 下
+sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
+import _shared.bootstrap  # noqa: F401 — 触发环境初始化
 
 
 def _get_topic_id() -> Optional[str]:

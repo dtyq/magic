@@ -2085,12 +2085,12 @@ class Agent(BaseAgent):
                     except (ValueError, TypeError):
                         logger.warning(f"无法将工具执行时间 {result.execution_time} 转换为毫秒。")
 
-                # ASK_USER：不写入占位 ToolResult，直接退出循环等待用户回复。
-                # 用户回复（或超时）后，由 AskUserService.resume_after_ask_user
-                # 将真实答复作为 ToolResult 追加到历史，上下文此时才完整，再启动 Agent。
-                if result.system == "ASK_USER":
+                # USER_TOOL_CALL：前端工具调用，不写入占位 ToolResult，直接退出循环等待前端回传。
+                # 前端回传（或超时）后，由 UserToolCallService.resume_after_user_tool_call
+                # 将真实结果追加到历史，上下文此时才完整，再重启 Agent。
+                if result.system == "USER_TOOL_CALL":
                     inject_horizon_after_tools = False
-                    logger.info("检测到 ASK_USER 工具调用，退出主循环等待用户回复（不写入占位 ToolResult）")
+                    logger.info("检测到 USER_TOOL_CALL 工具调用，退出主循环等待前端回传（不写入占位 ToolResult）")
                     final_response = result.content
                     self.set_agent_state(AgentState.WAITING_FOR_USER)
                     should_exit = True
