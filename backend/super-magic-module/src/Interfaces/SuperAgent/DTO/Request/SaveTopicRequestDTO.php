@@ -143,7 +143,7 @@ class SaveTopicRequestDTO extends AbstractRequestDTO
         return $this->dynamicParams;
     }
 
-    public function setDynamicParams(null|array $dynamicParams): void
+    public function setDynamicParams(?array $dynamicParams): void
     {
         $this->dynamicParams = $dynamicParams ?? [];
     }

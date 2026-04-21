@@ -64,10 +64,6 @@ class TopicModel extends AbstractModel
         'commit_hash',
     ];
 
-    protected array $casts = [
-        'dynamic_params' => 'array',
-    ];
-
     /**
      * 日期字段.
      */

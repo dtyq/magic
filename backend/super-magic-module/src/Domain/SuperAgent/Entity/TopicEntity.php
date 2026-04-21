@@ -222,7 +222,7 @@ class TopicEntity extends AbstractEntity
             'chat_history_commit_hash' => $this->chatHistoryCommitHash,
             'is_hidden' => $this->isHidden,
             'hidden_type' => $this->hiddenType,
-            'dynamic_params' => $this->dynamicParams,
+            'dynamic_params' => $this->dynamicParams !== null ? json_encode($this->dynamicParams, JSON_UNESCAPED_UNICODE) : null,
         ];
 
         // 移除null值
@@ -743,9 +743,14 @@ class TopicEntity extends AbstractEntity
     /**
      * 设置动态参数.
      */
-    public function setDynamicParams(?array $dynamicParams): self
+    public function setDynamicParams(null|array|string $dynamicParams): self
     {
-        $this->dynamicParams = $dynamicParams;
+        if (is_string($dynamicParams)) {
+            $decoded = json_decode($dynamicParams, true);
+            $this->dynamicParams = is_array($decoded) ? $decoded : null;
+        } else {
+            $this->dynamicParams = $dynamicParams;
+        }
         return $this;
     }
 }
