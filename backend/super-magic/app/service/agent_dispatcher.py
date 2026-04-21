@@ -26,7 +26,7 @@ from app.service.agent_event.third_party_message_listener_service import ThirdPa
 from app.infrastructure.observability import install_tool_monitoring_listener
 from app.service.mcp_service import MCPService
 from app.path_manager import PathManager
-from app.service.agent_event.ask_user_listener_service import AskUserListenerService
+from app.service.agent_event.user_tool_call_listener_service import UserToolCallListenerService
 from app.service.agent_event.channel_startup_listener_service import ChannelStartupListenerService
 from app.core.entity.message.client_message import InitClientMessage, ChatClientMessage, AgentMode
 from agentlang.logger import get_logger
@@ -96,7 +96,7 @@ class AgentDispatcher(Base):
         CheckpointListenerService.register_standard_listeners(self.agent_context)
         ResourceCleanupListenerService.register_standard_listeners(self.agent_context)
         ChannelStartupListenerService.register_standard_listeners(self.agent_context)
-        AskUserListenerService.register_standard_listeners(self.agent_context)
+        UserToolCallListenerService.register_standard_listeners(self.agent_context)
         ThirdPartyMessageListenerService.register_standard_listeners(self.agent_context)
 
         # 注册工具监控监听器（非侵入式）
@@ -198,18 +198,8 @@ class AgentDispatcher(Base):
                 i18n.set_language("zh_CN")
                 logger.info("使用默认语言: zh_CN")
 
-        # 设置 Agent Profile（如果提供）
-        if init_message.agent and init_message.agent.name.strip():
-            from app.core.entity.agent_profile import AgentProfile
-
-            agent_profile = AgentProfile(
-                name=init_message.agent.name.strip(),
-                description=init_message.agent.description.strip(),
-            )
-            self.agent_context.set_agent_profile(agent_profile)
-            logger.info(f"设置自定义 Agent: name={agent_profile.name}, description={agent_profile.description[:50]}...")
-        elif init_message.agent:
-            logger.info("INIT 未提供有效 agent name，保持默认 AgentProfile")
+        # Agent Profile 不再从 init 消息获取，统一由 chat 消息设置
+        # 见 dispatch_message() 中的 _apply_chat_agent_config()
 
         # ========== 资源初始化阶段 - 仅首次执行 ==========
         if self.is_workspace_initialized:
@@ -408,6 +398,44 @@ class AgentDispatcher(Base):
             self.agent_context.set_agent_profile(AgentProfile(name=name, role=role, description=description))
             logger.info(f"Set claw agent profile: name={name}, role={role}")
 
+    def _apply_chat_agent_config(self, message: ChatClientMessage) -> None:
+        """从 chat 消息的 agent 字段设置 AgentProfile（基线配置）。
+
+        优先从 agent.profile 读取，兜底从旧的 agent.name / agent.description 读取。
+        crew/claw 类型会在后续 _prepare_agent() 中被编译产物覆盖。
+        """
+        agent_config = message.agent
+        if not agent_config:
+            return
+
+        try:
+            from app.core.entity.agent_profile import AgentProfile
+
+            profile = agent_config.profile
+            agent_name = (
+                (profile.name.strip() if profile and profile.name and profile.name.strip() else None)
+                or (agent_config.name.strip() if agent_config.name and agent_config.name.strip() else None)
+            )
+            agent_desc = (
+                (profile.description.strip() if profile and profile.description and profile.description.strip() else None)
+                or (agent_config.description.strip() if agent_config.description and agent_config.description.strip() else None)
+            )
+            agent_role = (
+                profile.role.strip() if profile and profile.role and profile.role.strip() else None
+            )
+
+            if agent_name:
+                kwargs = {"name": agent_name}
+                if agent_desc:
+                    kwargs["description"] = agent_desc
+                if agent_role:
+                    kwargs["role"] = agent_role
+                agent_profile = AgentProfile(**kwargs)
+                self.agent_context.set_agent_profile(agent_profile)
+                logger.info(f"从 chat agent 配置设置 AgentProfile: name={agent_profile.name}")
+        except Exception as e:
+            logger.warning(f"从 chat agent 配置设置 AgentProfile 失败: {e}")
+
     async def _prepare_agent(self, agent_mode: str, agent_code: Optional[str]) -> None:
         """Compile + set AgentProfile for modes that need it (crew / magiclaw)."""
         try:
@@ -450,6 +478,13 @@ class AgentDispatcher(Base):
         last_agent_code = (last.get("dynamic_config") or {}).get("agent_code")
         if not current_agent_code and last_agent_code:
             message.dynamic_config = {**(message.dynamic_config or {}), "agent_code": last_agent_code}
+        # agent：当前未携带时从 last 取（沙箱复用场景下 continuation 消息可能不带 agent）
+        if message.agent is None and last.get("agent"):
+            try:
+                from app.core.entity.message.client_message import InitAgentConfig
+                message.agent = InitAgentConfig(**last["agent"])
+            except Exception as e:
+                logger.debug(f"从上次 dispatch 快照恢复 agent 配置失败: {e}")
 
     async def _save_last_dispatch_message(self, message: ChatClientMessage) -> None:
         """保存本次 dispatch 的完整消息快照到文件（.chat_history/last_dispatch_message.json）。"""
@@ -578,6 +613,10 @@ class AgentDispatcher(Base):
             agent_code_val = message.dynamic_config.get("agent_code")
             if agent_code_val and isinstance(agent_code_val, str) and agent_code_val.strip():
                 agent_code = agent_code_val.strip()
+
+        # 从 chat 消息的 agent 字段设置 AgentProfile（基线）
+        # _prepare_agent() 中 crew/claw 编译可能会覆盖此设置
+        self._apply_chat_agent_config(message)
 
         # Compile agent files and set AgentProfile before loading the agent instance
         await self._prepare_agent(str(message.agent_mode), agent_code)

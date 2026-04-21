@@ -6,19 +6,16 @@ declare(strict_types=1);
  */
 return [
     'names' => [
-        'analyzing-data-dashboard' => '数据分析看板',
-        'analyzing-data-html-report' => '数据分析报告',
+        'develop-data-analysis-dashboard' => '数据分析看板开发',
         'im-channels' => '连接 IM 机器人',
         'creating-slides' => '创建幻灯片',
         'crew-creator' => '智能体配置管理',
-        'data-qa' => '数据问答',
         'deep-research' => '深度研究',
         'canvas-designer' => '画布设计',
         'skill-creator' => '技能创建',
     ],
     'descriptions' => [
-        'analyzing-data-dashboard' => '数据分析看板开发技能。当用户需要开发数据看板、创建或编辑看板项目、构建数据可视化看板，或为看板进行数据清洗时使用。包含看板项目创建（支持通过 sources 参数自动标记数据源）、卡片规划、数据清洗（data_cleaning.py）、卡片管理工具（create_dashboard_cards、update_dashboard_cards、delete_dashboard_cards、query_dashboard_cards）、地图下载工具（download_dashboard_maps）、看板开发、校验以及数据源标记（magic.project.js 的 sources 数组）。',
-        'analyzing-data-html-report' => '数据分析报告开发技能。当用户需要开发数据分析报告、创建分析报告项目、构建静态 HTML 分析文档，或生成一次性的可视化分析报告时使用。',
+        'develop-data-analysis-dashboard' => '数据分析看板开发技能。适用于用户需要开发数据看板、创建/编辑看板项目、搭建数据可视化看板，或为看板进行数据清洗的场景。包含看板项目创建（可通过 sources 参数自动标记数据源）、卡片规划、数据清洗脚本指导、卡片管理工具（create_dashboard_cards、update_dashboard_cards、delete_dashboard_cards、query_dashboard_cards）、地图下载工具（download_dashboard_maps）、看板开发、校验，以及数据源标记（magic.project.js 的 sources 数组）。数据清洗输出必须为 `cleaned_data` 目录下的 CSV 文件。',
         'im-channels' => '配置和连接 IM 渠道机器人（企业微信、钉钉、飞书）。当用户提到「配置机器人」「接入企微/钉钉/飞书」「连接到 IM」「设置机器人」等相关需求时使用。',
         'creating-slides' => '幻灯片/PPT 创建技能，提供完整的幻灯片创建、编辑和管理能力。当用户需要创建幻灯片、制作演示文稿、编辑幻灯片内容或管理幻灯片项目时使用。重要：当用户消息中包含 [@slide_project:...] 提及时，必须在执行任何操作前优先加载此技能。',
         'crew-creator' => '用于管理和优化自定义 Agent 定义文件（IDENTITY.md、AGENTS.md、SOUL.md、TOOLS.md）。当用户想要编辑 Agent 身份、修改工作流说明、调整性格、增删工具或优化提示词时使用。触发信号包括：“modify prompt”“change identity”“add tool”“remove tool”“optimize workflow”“adjust personality”“修改提示词”“改身份”“加工具”“去掉工具”“优化能力”“调性格”。不要用于：技能创建（请使用 skill-creator）、技能列表查询（请使用 find-skill）。',

@@ -396,26 +396,37 @@ class TopicTaskAppService extends AbstractAppService
     }
 
     /**
-     * 处理用户对 ask_user 问题的答复（Human-in-the-Loop 回调入口）.
+     * 处理用户工具调用的答复（Human-in-the-Loop 回调入口）.
      *
      * @param DataIsolation $dataIsolation 数据隔离上下文（来自 WebSocket 认证用户）
-     * @param string $taskId 任务ID（前端回答时携带，用于定位任务）
-     * @param string $questionId 问题ID
-     * @param string $responseStatus 答复状态（'answered' | 'skipped'）
-     * @param string $answer 用户答复内容
+     * @param string $chatTopicId 会话 topic ID，用于定位当前任务
+     * @param string $name 工具名称（如 ask_user）
+     * @param string $toolCallId 工具调用ID（tool_call_id），对应沙盒下发的调用标识
+     * @param array $detail 工具特定的回复数据，结构由各工具自行约定，直接透传给沙盒
      */
-    public function handleAskUserReply(
+    public function handleUserToolCallReply(
         DataIsolation $dataIsolation,
-        string $taskId,
-        string $questionId,
-        string $responseStatus,
-        string $answer
+        string $chatTopicId,
+        string $name,
+        string $toolCallId,
+        array $detail
     ): void {
+        $topicEntity = $this->topicDomainService->getTopicByChatTopicId($dataIsolation, $chatTopicId);
+        $taskId = (string) $topicEntity->getCurrentTaskId();
         $task = $this->taskDomainService->getTaskById((int) $taskId);
         if (! $task) {
-            $this->logger->error('handleAskUserReply: task not found', ['task_id' => $taskId]);
+            $this->logger->error('HandleUserToolCallReplyTaskNotFound', ['task_id' => $taskId]);
             throw new RuntimeException('Task not found: ' . $taskId);
         }
+
+        // 透传给沙盒（沙盒取消定时器 → 加工答复 → 注入历史 → 推送 AFTER_TOOL_CALL → 重启 Agent）
+        $this->agentDomainService->sendUserToolCallFeedback(
+            $dataIsolation,
+            $task->getSandboxId(),
+            $name,
+            $toolCallId,
+            $detail
+        );
 
         // 更新任务状态为运行中
         $this->updateTaskStatus(
@@ -424,24 +435,14 @@ class TopicTaskAppService extends AbstractAppService
             status: TaskStatus::RUNNING,
         );
 
-        // 透传给沙盒（沙盒取消定时器 → 加工答复 → 注入历史 → 推送 AFTER_TOOL_CALL → 重启 Agent）
-        $this->agentDomainService->sendAskUserFeedback(
-            $dataIsolation,
-            $task->getSandboxId(),
-            $taskId,
-            $questionId,
-            $responseStatus,
-            $answer
-        );
-
-        $this->logger->info('handleAskUserReply: completed', [
+        $this->logger->info('HandleUserToolCallReplyCompleted', [
             'task_id' => $taskId,
-            'question_id' => $questionId,
-            'response_status' => $responseStatus,
+            'name' => $name,
+            'tool_call_id' => $toolCallId,
         ]);
     }
 
-    public function handleAskUserCancelled(
+    public function handleUserToolCallCancelled(
         DataIsolation $dataIsolation,
         TaskEntity $task,
         string $errMsg = ''
@@ -453,7 +454,7 @@ class TopicTaskAppService extends AbstractAppService
             errMsg: $errMsg,
         );
 
-        $this->logger->info('handleAskUserCancelled: completed', [
+        $this->logger->info('HandleUserToolCallCancelledCompleted', [
             'task_id' => (string) $task->getId(),
             'topic_id' => $task->getTopicId(),
             'status' => TaskStatus::Suspended->value,

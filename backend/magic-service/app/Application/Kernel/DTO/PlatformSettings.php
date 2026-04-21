@@ -38,6 +38,15 @@ class PlatformSettings
     /** @var array<string,string> */
     private array $agentRoleDescriptionI18n = [];
 
+    /**
+     * [运营规则]
+     * 允许配置自定义服务商的组织白名单。
+     * 空数组表示全部禁止自定义服务商。
+     *
+     * @var string[]
+     */
+    private array $customServiceProviderWhitelist = [];
+
     public function getDefaultLanguage(): string
     {
         return $this->defaultLanguage;
@@ -180,6 +189,27 @@ class PlatformSettings
         $this->agentRoleDescriptionI18n = $agentRoleDescriptionI18n;
     }
 
+    /**
+     * @return string[]
+     */
+    public function getCustomServiceProviderWhitelist(): array
+    {
+        return $this->customServiceProviderWhitelist;
+    }
+
+    /**
+     * @param string[] $customServiceProviderWhitelist
+     */
+    public function setCustomServiceProviderWhitelist(array $customServiceProviderWhitelist): void
+    {
+        $this->customServiceProviderWhitelist = array_values(array_filter(array_unique($customServiceProviderWhitelist)));
+    }
+
+    public function isCustomServiceProviderAllowed(string $organizationCode): bool
+    {
+        return in_array($organizationCode, $this->customServiceProviderWhitelist, true);
+    }
+
     public function toArray(): array
     {
         return [
@@ -193,6 +223,7 @@ class PlatformSettings
             'description_i18n' => $this->descriptionI18n,
             'agent_role_name_i18n' => $this->agentRoleNameI18n,
             'agent_role_description_i18n' => $this->agentRoleDescriptionI18n,
+            'custom_service_provider_whitelist' => $this->customServiceProviderWhitelist,
         ];
     }
 
@@ -209,6 +240,11 @@ class PlatformSettings
         $i->setDescriptionI18n((array) ($data['description_i18n'] ?? []));
         $i->setAgentRoleNameI18n((array) ($data['agent_role_name_i18n'] ?? []));
         $i->setAgentRoleDescriptionI18n((array) ($data['agent_role_description_i18n'] ?? []));
+        $i->setCustomServiceProviderWhitelist((array) (
+            $data['custom_service_provider_whitelist']
+            ?? $data['foreign_provider_org_whitelist']
+            ?? []
+        ));
         return $i;
     }
 }

@@ -9,18 +9,19 @@ logger = get_logger(__name__)
 
 class ConfigJsValidator:
     """config.js 文件验证器
-    
-    职责：验证 config.js 文件的格式和内容是否符合规范
+
+    职责：验证 config.js 是否将仪表盘配置挂到 window.DASHBOARD_CONFIG（支持对象字面量或变量再导出）。
     """
     
     async def validate(self, project_dir: Path) -> None:
         """校验config.js文件内容
 
         校验要求：
-        1. 必须存在 window.DASHBOARD_CONFIG 导出语句，支持两种格式：
-           - window.DASHBOARD_CONFIG = DASHBOARD_CONFIG; (需要同时有变量声明)
-           - window.DASHBOARD_CONFIG = {}; (可以没有变量声明)
-        2. 如果使用变量引用格式，必须有 DASHBOARD_CONFIG 变量声明
+        1. 必须存在 window.DASHBOARD_CONFIG 赋值，支持：
+           - window.DASHBOARD_CONFIG = { ... };（对象字面量直接挂到 window，当前模板格式）
+           - window.DASHBOARD_CONFIG = {};（空对象）
+           - window.DASHBOARD_CONFIG = DASHBOARD_CONFIG;（须先有 const/let/var DASHBOARD_CONFIG = ...）
+        2. 使用变量引用格式时，必须有 DASHBOARD_CONFIG 变量声明
 
         Args:
             project_dir: 项目目录路径
@@ -38,29 +39,30 @@ class ConfigJsValidator:
             with open(config_js_path, 'r', encoding='utf-8') as f:
                 content = f.read()
 
-            # 校验1: 检查DASHBOARD_CONFIG变量声明
-            # 匹配各种可能的声明方式：const, let, var
+            # const / let / var DASHBOARD_CONFIG = ...
             dashboard_config_pattern = r'(?:const|let|var)\s+DASHBOARD_CONFIG\s*='
             has_dashboard_config_declaration = re.search(dashboard_config_pattern, content)
-            
-            # 校验2: 检查window.DASHBOARD_CONFIG导出语句
-            # 支持两种格式：
-            # 1. window.DASHBOARD_CONFIG = DASHBOARD_CONFIG;
-            # 2. window.DASHBOARD_CONFIG = {};
-            window_export_pattern_with_var = r'window\.DASHBOARD_CONFIG\s*=\s*DASHBOARD_CONFIG\s*;'
-            window_export_pattern_with_object = r'window\.DASHBOARD_CONFIG\s*=\s*\{\s*\}\s*;'
-            has_window_export = re.search(window_export_pattern_with_var, content) or re.search(window_export_pattern_with_object, content)
-            
-            # 验证逻辑：
-            # - 如果有 window.DASHBOARD_CONFIG = DASHBOARD_CONFIG; 必须有变量声明
-            # - 如果只有 window.DASHBOARD_CONFIG = {}; 可以没有变量声明
-            if re.search(window_export_pattern_with_var, content):
-                # 使用变量引用的方式，必须有变量声明
+
+            window_export_assign_var = re.search(
+                r'window\.DASHBOARD_CONFIG\s*=\s*DASHBOARD_CONFIG\s*;',
+                content,
+            )
+            # 对象字面量（含空对象 {}）：window.DASHBOARD_CONFIG = {
+            window_export_object_literal = re.search(
+                r'window\.DASHBOARD_CONFIG\s*=\s*\{',
+                content,
+            )
+
+            if window_export_assign_var:
                 if not has_dashboard_config_declaration:
-                    raise ValueError("Missing DASHBOARD_CONFIG variable declaration. Please ensure config.js file contains a declaration like 'const DASHBOARD_CONFIG = {...}'")
-            elif not has_window_export:
-                # 没有任何window.DASHBOARD_CONFIG导出语句
-                raise ValueError("Missing window.DASHBOARD_CONFIG export statement. Please ensure config.js file contains 'window.DASHBOARD_CONFIG = DASHBOARD_CONFIG;' or 'window.DASHBOARD_CONFIG = {};' export statement")
+                    raise ValueError(
+                        "Missing DASHBOARD_CONFIG variable declaration. Please ensure config.js file contains a declaration like 'const DASHBOARD_CONFIG = {...}' before 'window.DASHBOARD_CONFIG = DASHBOARD_CONFIG;'"
+                    )
+            elif not window_export_object_literal:
+                raise ValueError(
+                    "Missing window.DASHBOARD_CONFIG assignment. Please ensure config.js contains e.g. "
+                    "'window.DASHBOARD_CONFIG = { ... };' or 'window.DASHBOARD_CONFIG = DASHBOARD_CONFIG;' (with a prior const/let/var declaration)."
+                )
 
             # 校验通过
 

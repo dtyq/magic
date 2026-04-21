@@ -288,8 +288,8 @@ class AgentContext(BaseAgentContext):
             "excluded_skills": ([], List[str]),  # 当前 agent 排除的 system skill 名称列表
             # 额外流式推送目标（各渠道的 StreamingInterface，处理消息期间注册，完成后清除）
             "streaming_sinks": ([], List),
-            # Human in the Loop：ask_user 工具等待用户回答时的暂停标记
-            "ask_user_pending_id": (None, Optional[str]),
+            # Human in the Loop：前端工具调用等待用户完成时的暂停标记
+            "user_tool_call_pending_id": (None, Optional[str]),
             # Agent Master 管理
             "agent_code": (None, Optional[str]),  # 当前自定义 Agent 的 agent_code
             # 消息版本协商（v1 / v2），由 set_chat_client_message 提取 dynamic_config.message_version 写入
@@ -664,23 +664,23 @@ class AgentContext(BaseAgentContext):
         """更新agent活动时间"""
         self.shared_context.update_activity_time()
 
-    # ─── Human in the Loop：ask_user 暂停标记 ────────────────────────────────
+    # ─── Human in the Loop：前端工具调用暂停标记 ─────────────────────────────
 
-    def set_ask_user_pending(self, question_id: str) -> None:
-        """设置 ask_user 等待状态（Agent 已暂停，等待用户回答 question_id 对应的问题）"""
-        self.shared_context.update_field("ask_user_pending_id", question_id)
+    def set_user_tool_call_pending(self, tool_call_id: str) -> None:
+        """设置前端工具调用等待状态（Agent 已暂停，等待用户在前端完成 tool_call_id 对应的操作）"""
+        self.shared_context.update_field("user_tool_call_pending_id", tool_call_id)
 
-    def clear_ask_user_pending(self) -> None:
-        """清除 ask_user 等待状态"""
-        self.shared_context.update_field("ask_user_pending_id", None)
+    def clear_user_tool_call_pending(self) -> None:
+        """清除前端工具调用等待状态"""
+        self.shared_context.update_field("user_tool_call_pending_id", None)
 
-    def has_ask_user_pending(self) -> bool:
-        """返回当前是否存在尚未收到用户回答的 ask_user 问题"""
-        return self.shared_context.get_field("ask_user_pending_id") is not None
+    def has_user_tool_call_pending(self) -> bool:
+        """返回当前是否存在尚未完成的前端工具调用"""
+        return self.shared_context.get_field("user_tool_call_pending_id") is not None
 
-    def get_ask_user_pending_id(self) -> Optional[str]:
-        """返回当前待回答的 question_id，无则返回 None"""
-        return self.shared_context.get_field("ask_user_pending_id")
+    def get_user_tool_call_pending_id(self) -> Optional[str]:
+        """返回当前待完成的前端工具调用 ID，无则返回 None"""
+        return self.shared_context.get_field("user_tool_call_pending_id")
 
     def is_idle_timeout(self) -> bool:
         """检查agent是否超时闲置
@@ -688,8 +688,8 @@ class AgentContext(BaseAgentContext):
         Returns:
             bool: 如果超时则返回True，否则返回False
         """
-        # 等待用户回答 ask_user 问题期间，不触发空闲超时
-        if self.has_ask_user_pending():
+        # 等待前端工具调用完成期间，不触发空闲超时
+        if self.has_user_tool_call_pending():
             return False
         return self.shared_context.is_idle_timeout()
 

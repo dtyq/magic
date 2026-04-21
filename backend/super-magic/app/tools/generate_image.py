@@ -58,111 +58,46 @@ logger = get_logger(__name__)
 class GenerateImageParams(BaseToolParams):
     prompt: str = Field(
         ...,
-        description="""<!--zh
-能力：生成、编辑、创作海报、漫画、插画、卡通、手绘、油画、水彩、素描、版画等跟图片创作相关的能力
-严格禁止：包含任何风险关键词，如色情、暴力或种族歧视。
-明确主题：清晰地说明图像的主题，如活动、产品、电影等，让模型清楚地知道图像的主要内容
-详细描述元素：对画面中的主要元素进行详细描述，包括形状、颜色、位置等，让模型能够准确地生成想要的画面
-突出风格：明确图像的风格，如科技感、时尚感、复古风等，通过色彩搭配、字体选择等细节来体现风格特点
-合理布局：描述图像的布局，包括元素的排列顺序、大小比例等，使海报整体看起来协调美观
-关键信息：确保图像包含的关键信息，如标题、标语、时间、地点、联系方式等，清晰可读，方便观众获取重要信息
-
-海报示例：
-生成一张科技产品发布会活动海报。画面中心是一个未来感十足的智能手机，屏幕亮起，展示着产品的关键功能图标，如高清摄像头、超长续航等。
-背景是现代化的发布会场馆，有巨大的LED屏幕，上面滚动播放着发布会的主题标语'未来科技，触手可及'。整体色调以冷色调为主，蓝色和银色搭配，营造出科技感和高端感。
-画面中还有一群穿着时尚的观众，他们或举着手机拍照，或聚精会神地观看，体现出发布会的热烈氛围。海报底部有活动的时间、地点和主办方的标志，字体简洁大方，与整体风格协调
-
-图像示例：
-主题：生成一幅未来城市夜景图像
-未来城市夜景，赛博朋克风格，霓虹灯光闪烁，高耸的摩天大楼，透明的空中交通管道，飞行汽车穿梭其中，
-地面有行人和机器人，充满科技感和未来感，夜晚，星空背景，4K超高清，电影级画质
--->
-Capabilities: Generate, edit, create posters, comics, illustrations, cartoons, hand-drawn, oil paintings, watercolors, sketches, prints and other image creation capabilities
-Strict prohibitions: No risk keywords such as pornography, violence or racism
-Clear theme: Clearly state image theme such as event, product, movie etc., let model know main content
-Detailed elements: Describe main elements including shape, color, position etc., let model accurately generate desired scene
-Highlight style: Specify image style such as tech feel, fashion sense, retro style etc., reflect style through color matching, font selection details
-Reasonable layout: Describe layout including element arrangement, size proportions etc., make poster coordinated and aesthetically pleasing
-Key information: Ensure image contains key information such as title, slogan, time, location, contact info etc., clear and readable for audience
-
-Poster example:
-Generate a tech product launch event poster. Center features a futuristic smartphone with screen lit up showing key feature icons like HD camera, long battery life.
-Background is modern launch venue with giant LED screen scrolling launch theme slogan 'Future Tech, Within Reach'. Overall cool tone dominated by blue and silver, creating tech and premium feel.
-Also fashionably dressed audience either taking photos with phones or watching attentively, reflecting enthusiastic atmosphere. Poster bottom has event time, location and organizer logo with clean elegant fonts matching overall style
-
-Image example:
-Theme: Generate future city night scene
-Future city night scene, cyberpunk style, neon lights flashing, towering skyscrapers, transparent aerial traffic tubes, flying cars shuttling through,
-Ground with pedestrians and robots, full of tech and futuristic feel, night time, starry background, 4K ultra HD, cinema quality
-""",
+        description="""<!--zh: 图片生成/编辑提示词。应包含主体、风格、构图、光线、色调等细节，描述越具体生成质量越高。禁止包含色情、暴力、种族歧视等风险内容。-->
+Image generation/editing prompt. Include subject, style, composition, lighting, and color tone. More specific prompts produce better results. Prohibited: pornography, violence, racism.""",
     )
     mode: str = Field(
         ...,
         description="""<!--zh
 操作模式：
-**生成模式 (generate)**：从头创建新图片 - 使用场景：根据文本描述生成图片 -
-    参数：mode='generate' - 示例：生成一只可爱的猫、创建标志、绘制风景画
-**编辑模式 (edit)**：修改现有图片 - 使用场景：基于特定现有图片编辑或修改图片
-    参数：mode='edit'，必须提供 image_path 参数 - 示例：将白猫改成红色、在图片上添加文字、更改背景颜色、移除对象、修改现有图片的颜色/特征
-**重要提示**：当用户说'将[现有项目]更改/修改/编辑为[新状态]'时，使用编辑模式并指定现有图片文件的路径
+- generate：从文本描述生成新图片；提供 image_paths 时，以其为风格/内容参考生成新图
+- edit：直接对 image_paths 中的图片进行像素级修改（必须提供 image_paths）
+选择依据："以这张图为参考生成" → generate + image_paths；"修改/编辑这张图" → edit + image_paths
 -->
 Operation mode:
-**Generate mode (generate)**: Create new image from scratch - Use case: Generate image from text description -
-    Parameters: mode='generate' - Examples: Generate a cute cat, create a logo, draw a landscape
-**Edit mode (edit)**: Modify existing image - Use case: Edit or modify based on specific existing image
-    Parameters: mode='edit', must provide image_path parameter - Examples: Change white cat to red, add text to image, change background color, remove objects, modify existing image colors/features
-**Important tip**: When user says 'change/modify/edit [existing item] to [new state]', use edit mode and specify existing image file path
-""",
+- generate: Create new images from text; with image_paths, uses them as style/content reference
+- edit: Directly modify images in image_paths at pixel level (image_paths required)
+Decision: "generate based on this image" → generate + image_paths; "modify/edit this image" → edit + image_paths""",
     )
     image_count: int = Field(
         1,
-        description="""<!--zh: 要生成的图片数量（仅用于生成模式），默认为1，最大为4。当用户的提示词中有组或多个项目时，应设置为4-->
-Number of images to generate (generate mode only), default 1, max 4. Should set to 4 when user's prompt contains groups or multiple items""",
+        description="""<!--zh: 生成图片数量（仅 generate 模式），默认 1，最大 4。用户需要多张或一组图时设为 4。-->
+Number of images to generate (generate mode only). Default 1, max 4. Set to 4 when user requests multiple or a set of images.""",
     )
     size: str = Field(
         "2048x2048",
-        description="""<!--zh
-要生成或编辑的图片尺寸
-指定生成图片的尺寸信息。支持以下两种方法，且不能同时使用。
-方法1：指定图片的宽度和高度，范围：'2048x2048'、'2304x1728'、'1728x2304'、'2560x1440'、'1440x2560'、'2496x1664'、'1664x2496'、'3024x1296'
-方法2：指定图片的宽高比，范围：'1:1'、'4:3'、'3:4'、'16:9'、'9:16'、'3:2'、'2:3'、'21:9'
-注意：当用户需要进行图片编辑时，请参考他们引用的图片尺寸，并相应设置尺寸以保持图片尺寸的一致性。
--->
-Image size to generate or edit
-Specify dimension information for generated image. Supports two methods, cannot use simultaneously.
-Method 1: Specify width and height, options: '2048x2048', '2304x1728', '1728x2304', '2560x1440', '1440x2560', '2496x1664', '1664x2496', '3024x1296'
-Method 2: Specify aspect ratio, options: '1:1', '4:3', '3:4', '16:9', '9:16', '3:2', '2:3', '21:9'
-Note: When user needs image editing, refer to their referenced image dimensions and set size accordingly to maintain consistency.
-""",
+        description="""<!--zh: 图片尺寸。支持两种格式（不可同时用）：WxH（如 '2048x2048'、'2560x1440'、'1440x2560'、'2304x1728'、'1728x2304'）或宽高比（如 '1:1'、'16:9'、'9:16'、'4:3'、'3:2'）。编辑模式时应与原图尺寸保持一致。-->
+Image dimensions. Two formats supported (not both): WxH (e.g. '2048x2048', '2560x1440', '1440x2560', '2304x1728', '1728x2304') or aspect ratio (e.g. '1:1', '16:9', '9:16', '4:3', '3:2'). In edit mode, match the source image dimensions.""",
     )
     image_name: str = Field(
         "",
-        description="""<!--zh
-根据用户偏好语言命名文件，使用描述性文件名：- **中文用户**：使用中文，例如：'可爱小猫'、'黑色小狗' -
-**英文用户**：使用英文描述，例如：'cute_cat'、'sunset_landscape'
-**避免特殊字符**：不要使用 / \\ : * ? ' < > | 字符
-**建议格式**：3-5个词，用下划线连接，反映核心内容
--->
-Name file according to user preferred language using descriptive filename: - **Chinese users**: Use Chinese, e.g., '可爱小猫', '黑色小狗' -
-**English users**: Use English description, e.g., 'cute_cat', 'sunset_landscape'
-**Avoid special characters**: Don't use / \\ : * ? ' < > | characters
-**Recommended format**: 3-5 words, underscore-connected, reflecting core content
-""",
+        description="""<!--zh: 文件名，根据用户语言命名：中文用户用中文（如 '可爱小猫'），英文用户用英文（如 'cute_cat'）。3-5 词，下划线连接，避免 / \\ : * ? ' < > | 字符。-->
+Filename based on user's language: Chinese users use Chinese (e.g. '可爱小猫'), English users use English (e.g. 'cute_cat'). 3-5 words, underscore-connected. Avoid / \\ : * ? ' < > | characters.""",
     )
     output_path: str = Field(
         "",
-        description="""<!--zh: 保存图片的目录（如果为空则根据模式自动确定），如果语言是中文，例如：'图片目录'，否则为'images'-->
-Directory to save images (auto-determined by mode if empty), if language is Chinese e.g., '图片目录', otherwise 'images'""",
+        description="""<!--zh: 保存目录，留空则自动确定。中文用户用中文路径（如 '图片目录'），否则用英文（如 'images'）。-->
+Save directory. Auto-determined when empty. Chinese users use Chinese path (e.g. '图片目录'), otherwise use English (e.g. 'images').""",
     )
     image_paths: List[str] = Field(
         default_factory=list,
-        description="""<!--zh
-要编辑的图片路径列表。每个路径应该是工作区目录中的相对文件路径，例如：['images/white_cat.jpg', '图片目录/可爱小猫.png']确保所有图片文件都存在。
-**编辑模式必需**：支持多张图片进行批量编辑操作。当用户说'更改[现有项目]'时，提供所有相关图片文件的路径。
--->
-List of image paths to edit. Each path should be relative file path in workspace directory, e.g., ['images/white_cat.jpg', '图片目录/可爱小猫.png']. Ensure all image files exist.
-**Required for edit mode**: Supports batch editing of multiple images. When user says 'change [existing item]', provide all relevant image file paths.
-""",
+        description="""<!--zh: 用户上传了图片必须传入,参考图或待编辑图片的工作区相对路径列表（如 ['uploads/image.png']）。generate 模式下作为风格/内容参考；edit 模式下作为待修改原图（必须提供）。-->
+Workspace-relative paths of reference or source images (e.g. ['uploads/image.png']). In generate mode: style/content reference. In edit mode: source images to modify (required). Must provide when the user has uploaded images to build upon.""",
     )
     override: bool = Field(
         False,
@@ -171,179 +106,35 @@ Whether to override existing files""",
     )
     model: str = Field(
         "",
-        description="""<!--zh
-用户指定模型，需按照用户指定模型执行。如果用户未指定，则根据以下决策逻辑选择合适的模型。
-
-【可用模型列表】
-
-文本生成图片模型（用于从零创建新图片）：
-- doubao-seedream-4-0-250828：中文文字渲染最佳
-- qwen-image：通用模型
-- high_aes_general_v21_L：通用模型
-
-图片编辑模型（用于修改现有图片）：
-- doubao-seedream-4-0-250828：首选
-- qwen-image-edit：专用编辑模型
-
-【模型选择决策逻辑】（按优先级顺序）
-
-1. 用户明确指定模型 → 直接使用用户指定的模型
-
-2. 判断是否有参考图片：
-   - 有参考图片（需要编辑）→ 使用图片编辑模型
-     * 首选：doubao-seedream-4-0-250828
-     * 备选：qwen-image-edit
-
-3. 特殊风格需求判断：
-   - 动漫风格、东方美学、追求艺术感（不需要精确文字或布局）
-     * 首选：doubao-seedream-4-0-250828（视觉效果极佳）
-     * 备选：qwen-image-edit
-
-4. 文字渲染需求判断：
-   - 需要渲染中文文字 → 使用 doubao-seedream-4-0-250828（中文文字渲染最佳）
-
-
-5. 默认情况（无特殊需求）：
-   - 使用 doubao-seedream-4-0-250828
-
-【实际应用场景示例】
-
-场景 1：用户说"生成一张科技感海报"
-- 分析：没有参考图，需要生成新图片
-- 选择：doubao-seedream-4-0-250828
-
-场景 2：用户上传产品图并说"把背景换成森林"
-- 分析：有参考图，需要编辑现有图片
-- 选择：doubao-seedream-4-0-250828（编辑模式）
-
-场景 3：用户说"生成动漫风格的魔法少女"
-- 分析：动漫风格需求，追求视觉效果
-- 选择：doubao-seedream-4-0-250828
-
-场景 4：用户说"生成一张包含'欢迎光临'文字的海报"
-- 分析：需要渲染中文文字
-- 选择：doubao-seedream-4-0-250828
--->
-User-specified model, execute according to user specification. If user doesn't specify, select appropriate model based on following decision logic.
-
-[Available Model List]
-
-Text-to-image models (for creating new images from scratch):
-- doubao-seedream-4-0-250828: Best Chinese text rendering
-- qwen-image: General-purpose model
-- high_aes_general_v21_L: General-purpose model
-
-Image editing models (for modifying existing images):
-- doubao-seedream-4-0-250828: First choice
-- qwen-image-edit: Dedicated editing model
-
-[Model Selection Decision Logic] (in priority order)
-
-1. User explicitly specifies model → Use user-specified model directly
-
-2. Determine if reference images exist:
-   - Has reference images (need editing) → Use image editing model
-     * First choice: doubao-seedream-4-0-250828
-     * Alternative: qwen-image-edit
-
-3. Special style requirements:
-   - Anime style, Eastern aesthetics, artistic feel (no need for precise text or layout)
-     * First choice: doubao-seedream-4-0-250828 (excellent visual effects)
-     * Alternative: qwen-image-edit
-
-4. Text rendering requirements:
-   - Need Chinese text rendering → Use doubao-seedream-4-0-250828 (best Chinese text rendering)
-
-
-5. Default (no special requirements):
-   - Use doubao-seedream-4-0-250828
-
-[Practical Application Examples]
-
-Scenario 1: User says "Generate a tech-style poster"
-- Analysis: No reference image, need new image generation
-- Choice: doubao-seedream-4-0-250828
-
-Scenario 2: User uploads product image and says "Change background to forest"
-- Analysis: Has reference image, need to edit existing image
-- Choice: doubao-seedream-4-0-250828 (edit mode)
-
-Scenario 3: User says "Generate anime style magical girl"
-- Analysis: Anime style requirement, pursuing visual effects
-- Choice: doubao-seedream-4-0-250828
-
-Scenario 4: User says "Generate poster with '欢迎光临' text"
-- Analysis: Need Chinese text rendering
-- Choice: doubao-seedream-4-0-250828
-""",
+        description="",
     )
 
 
 @tool()
 class GenerateImage(AbstractFileTool[GenerateImageParams], WorkspaceTool[GenerateImageParams]):
-    """<!--zh
-    图片生成和编辑工具
-    该工具支持使用文本提示进行文本到图片生成和图片编辑。
-    模型会根据操作模式和提示内容分析自动选择。
-
-    **模式选择指南：**
-    - **使用 EDIT 模式**：用户想要修改现有图片（例如："把白猫改成红色"、"让天空变蓝"、"在图片上添加文字"）
-    - **使用 GENERATE 模式**：用户想要从头创建全新的图片（例如："生成一只可爱的猫"、"创建一幅风景画"）
-
-    **编辑模式要求：**
-    - 必须提供 image_paths 参数，包含一个或多个现有图片文件
-    - 每个 image_path 应该是工作区目录内的相对文件路径
-    - 示例：单张图片 ['images/white_cat.jpg']，多张图片 ['images/cat1.jpg', '图片目录/cat2.png']
-    - 使用编辑模式前确保所有图片文件存在
-    - 支持使用相同提示批量编辑多张图片
-
-    **使用提示：**
-    - 提示应该具体明确，包括风格、颜色、构图等细节
-    - 编辑时，清楚指定要修改的部分
-    - 生成多张图片时，设置 image_count 参数（最多 4 张）
-    - 通过 size 参数控制生成图片的尺寸（例如："512x512"、"1:1"）
-    -->
-    Image generation and editing tool
-    This tool supports text-to-image generation and image editing using text prompts.
-    Model automatically selects based on operation mode and prompt content.
-
-    **Mode Selection Guide:**
-    - **Use EDIT mode**: User wants to modify existing images (e.g., "change white cat to red", "make sky blue", "add text to image")
-    - **Use GENERATE mode**: User wants to create entirely new images from scratch (e.g., "generate a cute cat", "create a landscape painting")
-
-    **Edit Mode Requirements:**
-    - Must provide image_paths parameter with one or more existing image files
-    - Each image_path should be relative file path within workspace directory
-    - Examples: single image ['images/white_cat.jpg'], multiple images ['images/cat1.jpg', 'image-dir/cat2.png']
-    - Ensure all image files exist before using edit mode
-    - Supports batch editing multiple images with same prompt
-
-    **Usage Tips:**
-    - Prompts should be specific and clear, including style, color, composition details
-    - When editing, clearly specify parts to modify
-    - When generating multiple images, set image_count parameter (max 4)
-    - Control generated image size via size parameter (e.g., "512x512", "1:1")
-
+    """<!--zh: 图片生成和编辑工具，支持文本到图片生成和像素级图片编辑，两种模式均支持通过 image_paths 传入参考图。-->
+    Generate or edit images from text descriptions. Both generate and edit modes accept reference images via image_paths.
+    When the user uploads images and wants to build upon them, always pass image_paths regardless of mode.
     """
 
     def get_prompt_hint(self) -> str:
         return """\
 <!--zh
-当用户出现以下场景时，直接调用generate_image工具
-- 用户上传图片附件、并希望参考上传的图片附件创造、编辑一张或多张新图片
-- 用户希望批量生成、创造图片，如：创建一组连续相似的近代风格的风景图
-- 用户目的是创造、创建、生成、编辑图片时，应遵循：
-    - 存在参考图时，应利用image_paths参数提供参考图
-    - 避免使用视觉理解的结果来生成图片，这会导致细节丢失
-    - 避免调用图片搜索来交付图片
+调用 generate_image 的场景：用户想创建、生成、编辑图片时。
+关键规则：
+- 用户上传了图片（不论是要参考、要修改、还是只改局部），必须将图片路径传入 image_paths
+- 用户说"只改 X，其他保持不变"→ 这是参考图任务，必须传 image_paths，否则生成结果与原图完全无关
+- generate + image_paths：以参考图为风格/内容基础生成新图（适合"保留大部分、只改局部"）
+- edit + image_paths：对原图进行像素级修改（适合"改背景/改颜色/删除元素"）
+- 视觉理解（visual_understanding）失败不代表不能传 image_paths：两者完全独立，即使看不懂图，仍必须将上传图片传入 image_paths 供模型参考
 -->
-Call generate_image tool directly when user has following scenarios:
-- User uploads image attachments and wants to create/edit one or more new images based on uploaded image attachments
-- User wants to batch generate/create images, e.g., create a series of similar modern-style landscape images
-- When user's purpose is to create/generate/edit images, follow these rules:
-    - When reference images exist, use image_paths parameter to provide reference images
-    - Avoid using visual understanding results to generate images, this causes detail loss
-    - Avoid calling image search to deliver images
+Call generate_image when the user wants to create, generate, or edit images.
+Key rules:
+- When the user has uploaded images (whether to reference, modify, or change only one detail), always pass those paths via image_paths.
+- "Change only X, keep everything else" → this is a reference-image task; image_paths is required, or the output will share nothing with the original.
+- generate + image_paths: generate a new image using the reference as style/content basis (best for "keep most features, change one part")
+- edit + image_paths: directly modify the source image at pixel level (best for background swap, color change, element removal)
+- visual_understanding failure does NOT mean skipping image_paths: the two are independent. Even if visual_understanding fails, you must still pass uploaded image paths via image_paths so the generation model can use them as reference.
 """
 
     # 跟踪每个对话的生成计数
@@ -445,7 +236,11 @@ Call generate_image tool directly when user has following scenarios:
                 logger.error(f"图片文件不存在: {image_path}")
                 image_path = output_path + "/" + image_path
                 if not await async_exists(image_path):
-                    raise ValueError(f"Image file does not exist: {image_path}")
+                    raise ValueError(
+                        f"Image file not found: '{image_path}'. "
+                        f"Verify the path is relative to the workspace root and the file exists. "
+                        f"Use list_dir or file_search to locate the correct path before retrying."
+                    )
 
             logger.info(f"将本地图片转换为 URL: {image_path}")
 
@@ -481,6 +276,7 @@ Call generate_image tool directly when user has following scenarios:
 
     async def _generate_image_via_magic_service(self, params: GenerateImageParams, tool_context: Optional[ToolContext] = None) -> List[str]:
         """通过 magic-service 平台生成图片"""
+        compressed_temp_files: List[str] = []
         try:
             # 获取 magic-service 相关配置
             api_base_url = config.get("image_generator.text_to_image_api_base_url")
@@ -528,12 +324,42 @@ Call generate_image tool directly when user has following scenarios:
             if model == "qwen-image":
                 params.size = "1328x1328"
 
+            # Convert local reference image paths to presigned URLs so the API can access them
+            reference_image_urls: List[str] = []
+            if params.image_paths:
+                visual_dir = os.path.join(str(self.base_dir), ".visual")
+                for image_source in params.image_paths:
+                    image_url = image_source
+                    if not image_source.startswith(("http://", "https://")):
+                        logger.info(f"将参考图本地路径转换为 URL: {image_source}")
+                        await async_mkdir(visual_dir, parents=True, exist_ok=True)
+                        compressed_path = await compress_if_needed(image_source, output_dir=visual_dir)
+                        if compressed_path != image_source and await async_exists(compressed_path):
+                            logger.info(f"参考图超过大小限制，已压缩: {image_source} -> {compressed_path}")
+                            compressed_temp_files.append(compressed_path)
+                            workspace_dir = PathManager.get_workspace_dir()
+                            try:
+                                rel_path = str(Path(compressed_path).relative_to(workspace_dir))
+                            except ValueError:
+                                rel_path = Path(compressed_path).name
+                            image_url = await self._generate_presigned_url_for_file(rel_path)
+                        else:
+                            image_url = await self._convert_local_image_to_url(image_source, params.output_path)
+                        if not image_url:
+                            raise ValueError(
+                                f"Reference image '{image_source}' could not be converted to an accessible URL. "
+                                f"Check that the path is correct and the file exists in the workspace. "
+                                f"Do not retry with the same path; either correct the path or proceed without a reference image."
+                            )
+                        logger.info(f"参考图已转换为 URL: {image_source} -> {image_url}")
+                    reference_image_urls.append(image_url)
+
             # 构建请求参数
             payload = {
                 "model": model,
                 "prompt": params.prompt,
                 "size": params.size if params.size else "2048x2048",
-                "images": params.image_paths,
+                "images": reference_image_urls,
                 "n": params.image_count,
                 "sequential_image_generation": "auto",
             }
@@ -567,7 +393,11 @@ Call generate_image tool directly when user has following scenarios:
 
                         if not image_urls:
                             logger.warning(f"新格式：响应中未找到图片 URL: {response_data}")
-                            raise Exception("No valid image URLs returned from magic-service")
+                            raise Exception(
+                                "Image generation service returned no image URLs. "
+                                "This is a transient service error; retry the same request once. "
+                                "If it fails again, inform the user that the image service is temporarily unavailable."
+                            )
 
                         logger.info(f"新格式：成功解析 {len(image_urls)} 个图片 URL")
                     else:
@@ -575,12 +405,19 @@ Call generate_image tool directly when user has following scenarios:
                         parser = ResponseParserFactory.get_parser(model)
                         image_urls = parser.parse(response_data, model)
 
-                    # 如果返回的图片数量超过请求数量，仅返回请求的数量
-                    return image_urls[: params.image_count]
+                    return image_urls
 
         except Exception as e:
             logger.error(f"magic-service 图片生成失败: {e}")
             raise
+        finally:
+            for temp_file in compressed_temp_files:
+                try:
+                    if await async_exists(temp_file):
+                        await async_unlink(temp_file)
+                        logger.debug(f"已清理临时压缩文件: {temp_file}")
+                except Exception as cleanup_e:
+                    logger.warning(f"清理临时压缩文件失败: {temp_file}, 错误: {cleanup_e}")
 
     async def _edit_image_via_magic_service(self, params: GenerateImageParams, tool_context: Optional[ToolContext] = None) -> List[str]:
         """通过 magic-service 平台编辑图片"""
@@ -666,7 +503,11 @@ Call generate_image tool directly when user has following scenarios:
                         image_url = await self._convert_local_image_to_url(image_source, params.output_path)
 
                     if not image_url:
-                        raise ValueError(f"Failed to convert local image to accessible URL: {image_source}")
+                        raise ValueError(
+                            f"Reference image '{image_source}' could not be converted to an accessible URL. "
+                            f"Check that the path is correct and the file exists in the workspace. "
+                            f"Do not retry with the same path; either correct the path or proceed without a reference image."
+                        )
                     logger.info(f"本地图片已转换为 URL: {image_source} -> {image_url}")
 
                 image_urls.append(image_url)
@@ -712,7 +553,11 @@ Call generate_image tool directly when user has following scenarios:
 
                         if not image_urls:
                             logger.warning(f"新格式：响应中未找到图片 URL: {response_data}")
-                            raise Exception("No valid image URLs returned from magic-service")
+                            raise Exception(
+                                "Image edit service returned no image URLs. "
+                                "This is a transient service error; retry the same request once. "
+                                "If it fails again, inform the user that the image service is temporarily unavailable."
+                            )
 
                         logger.info(f"新格式：成功解析 {len(image_urls)} 个图片 URL")
                     else:
@@ -859,7 +704,11 @@ Call generate_image tool directly when user has following scenarios:
         # 所有策略都失败
         if last_exception:
             raise last_exception
-        raise Exception("All download strategies failed")
+        raise Exception(
+            "All download strategies failed when fetching the generated image from the remote URL. "
+            "This is likely a transient network issue. Retry the generation request once; "
+            "if it fails again, inform the user."
+        )
 
     async def _download_image(
         self,
@@ -1031,7 +880,8 @@ Call generate_image tool directly when user has following scenarios:
                 # 只有在不跳过限制检查时才进行限制验证
                 if not skip_limit_check and self._generation_counts[conversation_id] >= self.MAX_EDITS_PER_CONVERSATION:
                     raise ValueError(
-                        f"Reached conversation image editing limit ({self.MAX_EDITS_PER_CONVERSATION} edits)"
+                        f"Reached the per-conversation image editing limit ({self.MAX_EDITS_PER_CONVERSATION} edits). "
+                        f"Do not retry. Inform the user that the image editing quota for this session has been exhausted."
                     )
 
                 # 验证编辑参数
@@ -1055,7 +905,8 @@ Call generate_image tool directly when user has following scenarios:
                 # 只有在不跳过限制检查时才进行限制验证
                 if not skip_limit_check and self._generation_counts[conversation_id] >= self.MAX_IMAGES_PER_CONVERSATION:
                     raise ValueError(
-                        f"Reached conversation image generation limit ({self.MAX_IMAGES_PER_CONVERSATION} images)"
+                        f"Reached the per-conversation image generation limit ({self.MAX_IMAGES_PER_CONVERSATION} images). "
+                        f"Do not retry. Inform the user that the image generation quota for this session has been exhausted."
                     )
 
                 # 验证生成参数
@@ -1078,7 +929,11 @@ Call generate_image tool directly when user has following scenarios:
                     "saved_to": "generate_image.saved_to",
                 }
             if not image_urls:
-                raise ValueError(f"Image {operation_type} failed")
+                raise ValueError(
+                    f"Image {operation_type} returned no results. "
+                    f"The service accepted the request but produced no output. "
+                    f"Retry once with the same parameters; if it fails again, report the issue to the user."
+                )
 
             # 保存图片
             save_dir = os.path.join(self.base_dir, params.output_path)
@@ -1103,7 +958,11 @@ Call generate_image tool directly when user has following scenarios:
                     continue
 
             if not saved_paths:
-                raise ValueError("All image saves failed")
+                raise ValueError(
+                    "All generated images failed to save to the workspace. "
+                    "This is likely a transient I/O error. Retry the generation once; "
+                    "if it keeps failing, report the issue to the user."
+                )
 
             # 更新生成计数
             self._generation_counts[conversation_id] += len(saved_paths)

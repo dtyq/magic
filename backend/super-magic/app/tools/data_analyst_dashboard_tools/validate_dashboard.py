@@ -17,7 +17,6 @@ from app.tools.data_analyst_dashboard_tools.validators import (
     JavascriptSyntaxValidator,
     CardCompletenessValidator,
     LayoutGridValidator,
-    DataCleaningValidator,
     MagicProjectValidator,
     BrowserValidator,
     GeoJsonDownloader,
@@ -82,8 +81,8 @@ class ValidateDashboard(AbstractFileTool[ValidateDashboardParams], WorkspaceTool
             # 步骤1: 验证项目目录（使用 resolve_path 解析路径）
             project_dir = self.resolve_path(params.project_path)
             if not project_dir or not project_dir.exists():
-                return ToolResult(
-                    error=f"Project does not exist: {params.project_path}"
+                return ToolResult.error(
+                    f"Project does not exist: {params.project_path}"
                 )
 
             # 准备geo目录配置（但不立即创建）
@@ -92,8 +91,8 @@ class ValidateDashboard(AbstractFileTool[ValidateDashboardParams], WorkspaceTool
             magic_project_path = project_dir / "magic.project.js"
 
             if not magic_project_path.exists():
-                return ToolResult(
-                    error="magic.project.js file does not exist"
+                return ToolResult.error(
+                    "magic.project.js file does not exist"
                 )
 
             # 步骤2: 校验并尝试修复 magic.project.js 文件
@@ -101,15 +100,13 @@ class ValidateDashboard(AbstractFileTool[ValidateDashboardParams], WorkspaceTool
                 magic_project_validator = MagicProjectValidator()
                 is_magic_ok = magic_project_validator.validate_and_repair(magic_project_path)
                 if not is_magic_ok:
-                    return ToolResult(
-                        error=(
-                            "magic.project.js file validation failed and automatic repair was unsuccessful. "
-                        )
+                    return ToolResult.error(
+                        "magic.project.js file validation failed and automatic repair was unsuccessful. "
                     )
             except Exception as e:
                 logger.error(f"magic.project.js 文件校验失败: {e}")
-                return ToolResult(
-                    error=f"magic.project.js file validation process failed: {str(e)}"
+                return ToolResult.error(
+                    f"magic.project.js file validation process failed: {str(e)}"
                 )
 
             # 步骤3: 校验data.js文件内容
@@ -118,8 +115,8 @@ class ValidateDashboard(AbstractFileTool[ValidateDashboardParams], WorkspaceTool
                 await data_js_validator.validate(project_dir)
             except Exception as e:
                 logger.error(f"data.js文件校验失败: {e}")
-                return ToolResult(
-                    error=f"data.js file validation failed: {str(e)}"
+                return ToolResult.error(
+                    f"data.js file validation failed: {str(e)}"
                 )
 
             # 步骤4: 校验config.js文件内容
@@ -137,8 +134,8 @@ class ValidateDashboard(AbstractFileTool[ValidateDashboardParams], WorkspaceTool
                     logger.info("config.js文件已从模板恢复并校验通过")
                 except Exception as restore_error:
                     logger.error(f"从模板恢复config.js文件失败: {restore_error}")
-                    return ToolResult(
-                        error=f"config.js file validation failed and template recovery failed: original_error={str(e)}, recovery_error={str(restore_error)}"
+                    return ToolResult.error(
+                        f"config.js file validation failed and template recovery failed: original_error={str(e)}, recovery_error={str(restore_error)}"
                     )
 
             # 步骤4.1: 检查JavaScript语法
@@ -148,20 +145,22 @@ class ValidateDashboard(AbstractFileTool[ValidateDashboardParams], WorkspaceTool
                 logger.info("JavaScript语法检查通过")
             except Exception as e:
                 logger.error(f"JavaScript语法检查失败: {e}")
-                return ToolResult(
-                    error=f"JavaScript syntax check failed: {str(e)}"
+                return ToolResult.error(
+                    f"JavaScript syntax check failed: {str(e)}"
                 )
 
-            # 步骤4.2: 验证卡片完成度（对比data.js与cards_todo.md）
+            # 步骤4.2: 验证卡片完成度（对比data.js与cards_plan.md）
             try:
                 card_completeness_validator = CardCompletenessValidator()
                 await card_completeness_validator.validate(project_dir)
                 logger.info("卡片完成度验证通过")
             except Exception as e:
                 logger.error(f"卡片完成度验证失败: {e}")
-                return ToolResult(
-                    error=f"Card completeness validation failed: {str(e)}"
+                return ToolResult.error(
+                    f"Card completeness validation failed: {str(e)}"
                 )
+
+            layout_grid_warning: Optional[str] = None
 
             # 步骤4.3: 验证布局栅格横向铺满
             try:
@@ -169,21 +168,8 @@ class ValidateDashboard(AbstractFileTool[ValidateDashboardParams], WorkspaceTool
                 await layout_grid_validator.validate(project_dir)
                 logger.info("布局栅格验证通过")
             except Exception as e:
-                logger.error(f"布局栅格验证失败: {e}")
-                return ToolResult(
-                    error=f"Layout grid validation failed: {str(e)}"
-                )
-
-            # 步骤4.4: 验证data_cleaning.py的必需语句和数据源配置
-            try:
-                data_cleaning_validator = DataCleaningValidator()
-                await data_cleaning_validator.validate(project_dir, magic_project_path)
-                logger.info("数据清洗脚本验证通过")
-            except Exception as e:
-                logger.error(f"数据清洗脚本验证失败: {e}")
-                return ToolResult(
-                    error=f"Data cleaning script validation failed: {str(e)}"
-                )
+                layout_grid_warning = f"Layout grid validation warning: {str(e)}"
+                logger.warning(f"布局栅格验证失败: {e}")
 
             # 步骤5 & 8: 自动检测地图卡片并更新地图与数据源配置（复用同步工具）
             sync_extra: Dict[str, Any] = {}
@@ -267,8 +253,11 @@ class ValidateDashboard(AbstractFileTool[ValidateDashboardParams], WorkspaceTool
                             if detail_parts:
                                 error_summary += f" (Details: {'; '.join(detail_parts)})"
 
-                return ToolResult(
-                    error=error_summary,
+                if layout_grid_warning:
+                    error_summary += f"\n\nNon-blocking warning:\n- {layout_grid_warning}"
+
+                return ToolResult.error(
+                    error_summary,
                     extra_info={
                         "project_path": params.project_path,
                         "validation_failed": True,
@@ -277,8 +266,8 @@ class ValidateDashboard(AbstractFileTool[ValidateDashboardParams], WorkspaceTool
                         "config_js_validation": "passed",
                         "javascript_syntax_validation": "passed",
                         "card_completeness_validation": "passed",
-                        "layout_grid_validation": "passed",
-                        "data_cleaning_validation": "passed"
+                        "layout_grid_validation": "warning" if layout_grid_warning else "passed",
+                        "layout_grid_warning": layout_grid_warning,
                     }
                 )
 
@@ -329,11 +318,14 @@ class ValidateDashboard(AbstractFileTool[ValidateDashboardParams], WorkspaceTool
             else:
                 content += "\n\nBrowser validation: completely passed, no warnings or errors."
 
+            if layout_grid_warning:
+                content += f"\n\nLayout grid validation: warning.\n- {layout_grid_warning}"
+
             return ToolResult(
                 content=content,
                 extra_info={
                     "project_path": params.project_path,
-                        "total_areas": total_areas,
+                    "total_areas": total_areas,
                     "downloaded_count": downloaded_count,
                     "skipped_count": skipped_count,
                     "added_geo_config_count": added_geo_config_count,
@@ -348,16 +340,16 @@ class ValidateDashboard(AbstractFileTool[ValidateDashboardParams], WorkspaceTool
                     "config_js_validation": "passed",
                     "javascript_syntax_validation": "passed",
                     "card_completeness_validation": "passed",
-                    "layout_grid_validation": "passed",
-                    "data_cleaning_validation": "passed",
+                    "layout_grid_validation": "warning" if layout_grid_warning else "passed",
+                    "layout_grid_warning": layout_grid_warning,
                     "browser_validation": validation_result
                 }
             )
 
         except Exception as e:
             logger.error(f"设置dashboard地图数据时发生错误: {e}", exc_info=True)
-            return ToolResult(
-                error=f"Failed to setup dashboard map data: {str(e)}"
+            return ToolResult.error(
+                f"Failed to setup dashboard map data: {str(e)}"
             )
 
     def _generate_success_detail(self, project_path: str, extra_info: Dict[str, Any]) -> ToolDetail:

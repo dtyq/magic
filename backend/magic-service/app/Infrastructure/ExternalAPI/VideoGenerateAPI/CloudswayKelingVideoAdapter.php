@@ -26,6 +26,18 @@ readonly class CloudswayKelingVideoAdapter extends AbstractCloudswayVideoAdapter
 
     private const array SUPPORTED_RESOLUTIONS = ['720p', '1080p'];
 
+    /**
+     * @var list<array{label: string, value: string, width: int, height: int, resolution: string}>
+     */
+    private const array SUPPORTED_SIZES = [
+        ['label' => '16:9', 'value' => '1280x720', 'width' => 1280, 'height' => 720, 'resolution' => '720p'],
+        ['label' => '9:16', 'value' => '720x1280', 'width' => 720, 'height' => 1280, 'resolution' => '720p'],
+        ['label' => '1:1', 'value' => '960x960', 'width' => 960, 'height' => 960, 'resolution' => '720p'],
+        ['label' => '16:9', 'value' => '1920x1080', 'width' => 1920, 'height' => 1080, 'resolution' => '1080p'],
+        ['label' => '9:16', 'value' => '1080x1920', 'width' => 1080, 'height' => 1920, 'resolution' => '1080p'],
+        ['label' => '1:1', 'value' => '1440x1440', 'width' => 1440, 'height' => 1440, 'resolution' => '1080p'],
+    ];
+
     private const string DEFAULT_MODE = 'std';
 
     /**
@@ -79,6 +91,7 @@ readonly class CloudswayKelingVideoAdapter extends AbstractCloudswayVideoAdapter
                 'durations' => self::SUPPORTED_DURATIONS,
                 'default_duration_seconds' => 5,
                 'resolutions' => self::SUPPORTED_RESOLUTIONS,
+                'sizes' => self::SUPPORTED_SIZES,
                 'default_resolution' => self::MODE_TO_RESOLUTION[self::DEFAULT_MODE],
                 'supports_seed' => false,
                 'supports_watermark' => true,
@@ -94,6 +107,15 @@ readonly class CloudswayKelingVideoAdapter extends AbstractCloudswayVideoAdapter
                 'standard' => [
                     'description' => $this->translateInputMode('standard'),
                     'supported_fields' => [],
+                ],
+                'image_reference' => [
+                    'description' => $this->translateInputMode('image_reference.single'),
+                    'supported_fields' => ['reference_images'],
+                    'reference_images' => [
+                        'max_count' => 1,
+                        'reference_types' => ['asset'],
+                        'style_supported' => false,
+                    ],
                 ],
                 'keyframe_guided' => [
                     'description' => $this->translateInputMode('keyframe_guided.start_end'),

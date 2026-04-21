@@ -112,7 +112,7 @@ Rules for shell_exec:
                 command=params.command,
                 cwd=work_dir,
                 timeout=params.timeout,
-                enable_python_rewrite=enable_python_rewrite
+                enable_python_rewrite=enable_python_rewrite,
             )
 
             # 保留命令原始成功状态，用于 after-events 触发判断

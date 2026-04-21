@@ -12,7 +12,6 @@ use App\Application\File\Service\FileAppService;
 use App\Domain\Contact\Entity\ValueObject\DataIsolation;
 use App\Domain\Contact\Service\MagicUserDomainService;
 use App\Domain\File\Repository\Persistence\Facade\CloudFileRepositoryInterface;
-use App\Domain\Kernel\Service\PlatformSettingsDomainService;
 use App\Domain\Token\Entity\MagicTokenEntity;
 use App\Domain\Token\Entity\ValueObject\MagicTokenType;
 use App\Domain\Token\Repository\Facade\MagicTokenRepositoryInterface;
@@ -20,6 +19,7 @@ use App\Infrastructure\Core\ValueObject\StorageBucketType;
 use App\Infrastructure\ExternalAPI\ImageGenerateAPI\SizeManager;
 use App\Infrastructure\Util\IdGenerator\IdGenerator;
 use App\Infrastructure\Util\Locker\LockerInterface;
+use App\Infrastructure\Util\OfficialOrganizationUtil;
 use Carbon\Carbon;
 use Dtyq\SuperMagic\Domain\Agent\Entity\ValueObject\SuperMagicAgentDataIsolation;
 use Dtyq\SuperMagic\Domain\Agent\Repository\Facade\MagicClawRepositoryInterface;
@@ -30,8 +30,6 @@ use Dtyq\SuperMagic\Domain\SuperAgent\Entity\TaskEntity;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\TopicEntity;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\AgentContext;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\AgentInitContext;
-use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\AgentProfileValueObject;
-use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\AgentRoleValueObject;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\ChatInstruction;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\DynamicConfig\DynamicConfigManager;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\InitializationMetadataDTO;
@@ -42,7 +40,6 @@ use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\TaskContext;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\UserInfoValueObject;
 use Dtyq\SuperMagic\Domain\SuperAgent\Exception\WorkspaceReadyTimeoutException;
 use Dtyq\SuperMagic\Infrastructure\ExternalAPI\SandboxOS\Agent\Constant\WorkspaceStatus;
-use Dtyq\SuperMagic\Infrastructure\ExternalAPI\SandboxOS\Agent\Request\AskUserResponseMessageRequest;
 use Dtyq\SuperMagic\Infrastructure\ExternalAPI\SandboxOS\Agent\Request\ChatMessageRequest;
 use Dtyq\SuperMagic\Infrastructure\ExternalAPI\SandboxOS\Agent\Request\CheckpointRollbackCheckRequest;
 use Dtyq\SuperMagic\Infrastructure\ExternalAPI\SandboxOS\Agent\Request\CheckpointRollbackCommitRequest;
@@ -50,6 +47,7 @@ use Dtyq\SuperMagic\Infrastructure\ExternalAPI\SandboxOS\Agent\Request\Checkpoin
 use Dtyq\SuperMagic\Infrastructure\ExternalAPI\SandboxOS\Agent\Request\CheckpointRollbackStartRequest;
 use Dtyq\SuperMagic\Infrastructure\ExternalAPI\SandboxOS\Agent\Request\CheckpointRollbackUndoRequest;
 use Dtyq\SuperMagic\Infrastructure\ExternalAPI\SandboxOS\Agent\Request\InterruptRequest;
+use Dtyq\SuperMagic\Infrastructure\ExternalAPI\SandboxOS\Agent\Request\UserToolCallFeedbackRequest;
 use Dtyq\SuperMagic\Infrastructure\ExternalAPI\SandboxOS\Agent\Response\AgentResponse;
 use Dtyq\SuperMagic\Infrastructure\ExternalAPI\SandboxOS\Agent\SandboxAgentInterface;
 use Dtyq\SuperMagic\Infrastructure\ExternalAPI\SandboxOS\Exception\SandboxOperationException;
@@ -175,20 +173,6 @@ class AgentDomainService
         } else {
             $agentInitContext->setFetchHistory(false);
         }
-        // 设置站点角色与 agent profile
-        $language = $dataIsolation->getLanguage() ?? 'zh_CN';
-        $agentRoleName = di(PlatformSettingsDomainService::class)->getAgentRoleName($language);
-        $agentRoleDescription = di(PlatformSettingsDomainService::class)->getAgentRoleDescription($language);
-        $agentMode = $topicEntity->getTopicMode();
-        $agentCode = $topicEntity->getAgentCode();
-        $profile = $this->buildAgentProfile($dataIsolation, $agentMode, $agentCode);
-        $agentRole = new AgentRoleValueObject(
-            name: $agentRoleName,
-            description: $agentRoleDescription,
-            type: $agentCode !== '' ? $agentMode : '',
-            profile: $profile,
-        );
-        $agentInitContext->setAgent($agentRole->toArray());
 
         return new AgentContext(
             sandboxId: $sandboxId,
@@ -239,7 +223,7 @@ class AgentDomainService
                 'timeout_seconds' => 60,
             ]);
 
-            $lockAcquired = $this->locker->spinLock($lockKey, $lockOwner, 60);
+            $lockAcquired = $this->locker->spinLock($lockKey, $lockOwner, 120, 360);
 
             if (! $lockAcquired) {
                 $this->logger->error('[Sandbox][Domain] Failed to acquire lock for sandbox initialization', [
@@ -537,6 +521,10 @@ class AgentDomainService
             $taskDynamicConfig['agent_code'] = $agentCode;
         }
 
+        // Build agent profile for chat message (ensures Python side always gets agent info, even for reused sandbox)
+        $language = $dataIsolation->getLanguage() ?? 'zh_CN';
+        $agentProfile = $this->buildAgentProfile($dataIsolation, $agentMode, $taskContext->getAgentCode(), $language);
+
         $this->logger->debug('[Sandbox][App] Sending chat message to agent', [
             'sandbox_id' => $taskContext->getSandboxId(),
             'task_id' => $taskContext->getTask()->getId(),
@@ -547,6 +535,7 @@ class AgentDomainService
             'mcp_config' => $taskContext->getMcpConfig(),
             'model_id' => $taskContext->getModelId(),
             'dynamic_config' => $taskDynamicConfig,
+            'agent' => $agentProfile,
         ]);
         $mentionsJsonStruct = $this->buildMentionsJsonStruct($taskContext->getTask()->getMentions());
 
@@ -580,6 +569,7 @@ class AgentDomainService
             modelId: $taskContext->getModelId(),
             dynamicConfig: $taskDynamicConfig,
             metadata: $messageMetadata->toArray(),
+            agent: ! empty($agentProfile) ? $agentProfile : null,
         );
 
         $result = $this->agent->sendChatMessage($taskContext->getSandboxId(), $chatMessage);
@@ -595,54 +585,50 @@ class AgentDomainService
     }
 
     /**
-     * 发送 ask_user 答复给沙盒（Human-in-the-Loop 回调）.
+     * 发送用户工具调用回传给沙盒（Human-in-the-Loop 回调）.
      *
      * @param DataIsolation $dataIsolation 数据隔离上下文
      * @param string $sandboxId 沙箱ID
-     * @param string $taskId 任务ID
-     * @param string $questionId 问题ID
-     * @param string $responseStatus 答复状态（'answered' | 'skipped'）
-     * @param string $answer 用户答复内容
+     * @param string $name 工具名称（如 ask_user）
+     * @param string $toolCallId 工具调用ID
+     * @param array $detail 工具特定的回复数据，结构由各工具自行约定
      */
-    public function sendAskUserFeedback(
+    public function sendUserToolCallFeedback(
         DataIsolation $dataIsolation,
         string $sandboxId,
-        string $taskId,
-        string $questionId,
-        string $responseStatus,
-        string $answer
+        string $name,
+        string $toolCallId,
+        array $detail
     ): void {
-        $this->logger->debug('[Sandbox][Domain] Sending ask_user feedback to sandbox', [
+        $this->logger->debug('[Sandbox][Domain] Sending user_tool_call feedback to sandbox', [
             'sandbox_id' => $sandboxId,
-            'task_id' => $taskId,
-            'question_id' => $questionId,
-            'response_status' => $responseStatus,
+            'name' => $name,
+            'tool_call_id' => $toolCallId,
         ]);
 
-        $request = AskUserResponseMessageRequest::createResponse(
+        $request = UserToolCallFeedbackRequest::createFeedback(
             userId: $dataIsolation->getCurrentUserId(),
-            taskId: $taskId,
-            questionId: $questionId,
-            responseStatus: $responseStatus,
-            answer: $answer,
+            name: $name,
+            toolCallId: $toolCallId,
+            detail: $detail,
         );
 
         $result = $this->agent->sendChatMessage($sandboxId, $request);
 
         if (! $result->isSuccess()) {
-            $this->logger->error('[Sandbox][Domain] Failed to send ask_user feedback', [
+            $this->logger->error('[Sandbox][Domain] Failed to send user_tool_call feedback', [
                 'sandbox_id' => $sandboxId,
-                'task_id' => $taskId,
-                'question_id' => $questionId,
+                'name' => $name,
+                'tool_call_id' => $toolCallId,
                 'error' => $result->getMessage(),
             ]);
-            throw new SandboxOperationException('Send ask_user feedback', $result->getMessage(), $result->getCode());
+            throw new SandboxOperationException('Send user_tool_call feedback', $result->getMessage(), $result->getCode());
         }
 
-        $this->logger->debug('[Sandbox][Domain] Ask_user feedback sent successfully', [
+        $this->logger->debug('[Sandbox][Domain] user_tool_call feedback sent successfully', [
             'sandbox_id' => $sandboxId,
-            'task_id' => $taskId,
-            'question_id' => $questionId,
+            'name' => $name,
+            'tool_call_id' => $toolCallId,
         ]);
     }
 
@@ -1118,24 +1104,25 @@ class AgentDomainService
     /**
      * Build agent profile based on agent mode and code.
      * Dispatches to specific profile builders per mode type.
+     * Returns array format: {type, profile: {code, name, description, [role], [template_code]}}.
      */
-    private function buildAgentProfile(DataIsolation $dataIsolation, string $agentMode, string $agentCode): ?AgentProfileValueObject
+    private function buildAgentProfile(DataIsolation $dataIsolation, string $agentMode, string $agentCode, string $language): array
     {
-        if (empty($agentCode)) {
-            return null;
+        if (empty($agentMode)) {
+            return [];
         }
 
         return match ($agentMode) {
             ProjectMode::MAGICLAW->value => $this->buildMagicClawProfile($dataIsolation, $agentCode),
-            ProjectMode::CUSTOM_AGENT->value => $this->buildCustomAgentProfile($dataIsolation, $agentCode),
-            default => null,
+            ProjectMode::CUSTOM_AGENT->value => $this->buildCustomAgentProfile($dataIsolation, $agentCode, $language),
+            default => $this->buildOfficialAgentProfile($agentMode, $language),
         };
     }
 
     /**
      * Build profile from magic_super_magic_claw table.
      */
-    private function buildMagicClawProfile(DataIsolation $dataIsolation, string $agentCode): ?AgentProfileValueObject
+    private function buildMagicClawProfile(DataIsolation $dataIsolation, string $agentCode): array
     {
         $entity = $this->magicClawRepository->findByCode(
             $agentCode,
@@ -1144,21 +1131,51 @@ class AgentDomainService
         );
 
         if ($entity === null) {
-            return null;
+            return [];
         }
 
-        return new AgentProfileValueObject(
-            code: $entity->getCode(),
-            name: $entity->getName(),
-            description: $entity->getDescription(),
-            templateCode: $entity->getTemplateCode(),
-        );
+        return [
+            'type' => ProjectMode::MAGICLAW->value,
+            'profile' => [
+                'code' => $entity->getCode(),
+                'name' => $entity->getName(),
+                'description' => $entity->getDescription(),
+                'template_code' => $entity->getTemplateCode(),
+            ],
+        ];
+    }
+
+    /**
+     * Build profile from magic_super_magic_agents table using official organization code as default fallback.
+     */
+    private function buildOfficialAgentProfile(string $agentCode, string $language): array
+    {
+        $officialOrgCode = OfficialOrganizationUtil::getOfficialOrganizationCode();
+        if (empty($officialOrgCode)) {
+            return [];
+        }
+
+        $agentDataIsolation = SuperMagicAgentDataIsolation::create($officialOrgCode);
+        $entity = $this->superMagicAgentRepository->getByCode($agentDataIsolation, $agentCode);
+
+        if ($entity === null) {
+            return [];
+        }
+
+        return [
+            'type' => 'official',
+            'profile' => [
+                'code' => $entity->getCode(),
+                'name' => $entity->getI18nName($language),
+                'description' => $entity->getI18nDescription($language),
+            ],
+        ];
     }
 
     /**
      * Build profile from magic_super_magic_agents table.
      */
-    private function buildCustomAgentProfile(DataIsolation $dataIsolation, string $agentCode): ?AgentProfileValueObject
+    private function buildCustomAgentProfile(DataIsolation $dataIsolation, string $agentCode, string $language): array
     {
         $agentDataIsolation = SuperMagicAgentDataIsolation::create(
             $dataIsolation->getCurrentOrganizationCode(),
@@ -1168,14 +1185,18 @@ class AgentDomainService
         $entity = $this->superMagicAgentRepository->getByCode($agentDataIsolation, $agentCode);
 
         if ($entity === null) {
-            return null;
+            return [];
         }
 
-        return new AgentProfileValueObject(
-            code: $entity->getCode(),
-            name: $entity->getName(),
-            description: $entity->getDescription(),
-        );
+        return [
+            'type' => ProjectMode::CUSTOM_AGENT->value,
+            'profile' => [
+                'code' => $entity->getCode(),
+                'name' => $entity->getI18nName($language),
+                'description' => $entity->getI18nDescription($language),
+                'role' => $entity->getI18nRole($language),
+            ],
+        ];
     }
 
     /**

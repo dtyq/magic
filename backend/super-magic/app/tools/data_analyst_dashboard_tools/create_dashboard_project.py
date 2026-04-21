@@ -1,11 +1,10 @@
 from app.i18n import i18n
 import asyncio
-import json
 import shutil
 import os
 import re
 from pathlib import Path
-from typing import Optional, Dict, Any, List
+from typing import Any, Dict, List, Literal, Optional
 
 import aiofiles
 from pydantic import BaseModel, Field, field_validator
@@ -19,28 +18,77 @@ from app.tools.core import BaseToolParams, tool
 from app.tools.workspace_tool import WorkspaceTool
 from app.tools.abstract_file_tool import AbstractFileTool
 from app.core.entity.message.server_message import DisplayType, FileContent, ToolDetail, FileTreeContent, FileTreeNode, FileTreeNodeType, TerminalContent
-from app.utils.async_file_utils import async_copy2
+from app.utils.async_file_utils import async_copy2, async_write_text
 
 logger = get_logger(__name__)
 
 
-class DataSourceConfig(BaseModel):
-    """数据源配置模型"""
-    type: str = Field(
-        default="file",
-        description="""<!--zh: 数据源类型，默认为 "file"-->
-Data source type, default is "file" """
-    )
-    name: str = Field(
+class DashboardCardPlanItem(BaseModel):
+    """Single card entry for cards_plan.md generation (matches CardCompletenessValidator patterns)."""
+
+    display_name: str = Field(
         ...,
-        description="""<!--zh: 数据源名称-->
-Data source name"""
+        min_length=1,
+        description="""<!--zh: 卡片展示名称，勿含方括号或换行-->
+Human-readable card title; must not contain square brackets or line breaks"""
     )
-    url: str = Field(
+    card_id: str = Field(
         ...,
-        description="""<!--zh: 数据源URL路径-->
-Data source URL path"""
+        min_length=1,
+        description="""<!--zh: 卡片 id，须与后续 create_dashboard_cards 中 id 一致；字母开头，仅字母数字下划线-->
+Card id; must match `id` in create_dashboard_cards; start with a letter, then letters, digits, or underscores only"""
     )
+    type: Literal["metric", "table", "markdown", "echarts"] = Field(
+        ...,
+        description="""<!--zh: 卡片类型-->
+Card type"""
+    )
+    data_detail: Optional[str] = Field(
+        default=None,
+        description="""<!--zh: 可选，数据含义或清洗要点说明，单行，勿含方括号-->
+Optional single-line data or cleaning note; must not contain square brackets"""
+    )
+
+    @field_validator("display_name", "data_detail", mode="before")
+    @classmethod
+    def _strip_optional(cls, v: Any) -> Any:
+        if v is None:
+            return None
+        if isinstance(v, str):
+            return v.strip()
+        return v
+
+    @field_validator("display_name")
+    @classmethod
+    def _display_name_shape(cls, v: str) -> str:
+        if not v:
+            raise ValueError("display_name cannot be empty")
+        if "\n" in v or "\r" in v:
+            raise ValueError("display_name must be a single line")
+        if "[" in v or "]" in v:
+            raise ValueError("display_name must not contain [ or ]")
+        return v
+
+    @field_validator("data_detail")
+    @classmethod
+    def _data_detail_shape(cls, v: Optional[str]) -> Optional[str]:
+        if v is None or v == "":
+            return None
+        if "\n" in v or "\r" in v:
+            raise ValueError("data_detail must be a single line")
+        if "[" in v or "]" in v:
+            raise ValueError("data_detail must not contain [ or ]")
+        return v
+
+    @field_validator("card_id")
+    @classmethod
+    def _card_id_shape(cls, v: str) -> str:
+        s = v.strip()
+        if not re.match(r"^[a-zA-Z][a-zA-Z0-9_]*$", s):
+            raise ValueError(
+                "card_id must start with a letter and contain only letters, digits, and underscores"
+            )
+        return s
 
 
 class CreateDashboardProjectParams(BaseToolParams):
@@ -49,28 +97,22 @@ class CreateDashboardProjectParams(BaseToolParams):
         description="""<!--zh: 项目名称，数据看板项目将以此名称创建到工作区目录下-->
 Project name, data dashboard project will be created in workspace directory with this name"""
     )
-    sources: Optional[List[DataSourceConfig]] = Field(
-        default=None,
-        description="""<!--zh: 原始数据源配置列表，将自动写入 magic.project.js 的 sources 数组。每项需含 type、name、url，示例：[{"type": "file", "name": "sales.csv", "url": "../sales.csv"}]-->
-Original data source config list, auto-written to magic.project.js sources array. Each item needs type, name, url, e.g.: [{"type": "file", "name": "sales.csv", "url": "../sales.csv"}]"""
+    cards_plan: List[DashboardCardPlanItem] = Field(
+        ...,
+        min_length=1,
+        description="""<!--zh
+卡片规划（必填，至少一项），写入 cards_plan.md。调用前完成规划准备；新建默认条数见技能 Quick Start「新建看板默认数量」（metric ≥6，echarts 26~30，table 2~3 含明细，markdown 0，合计约 34～39）。`type` 仅 metric、table、markdown、echarts。仅用户明确精简可低于；否则列满。交付前可用 query_dashboard_cards 按 type 核对。本工具不校验数量。
+-->
+Required `cards_plan` (≥1 row); writes cards_plan.md. Finish Planning prep first. Default per-type counts for new dashboards: see the skill Quick Start, **Default card counts for new dashboards** (metric ≥6; echarts 26–30; table 2–3 with a detail table; markdown 0; ~34–39 total). `type` is only metric, table, markdown, echarts. Only if the user explicitly wants a reduced dashboard may you go lower; otherwise list every row. Optional: `query_dashboard_cards` count by `type` before delivery. This tool does not validate counts."""
     )
 
-    @field_validator('sources', mode='before')
+    @field_validator("cards_plan")
     @classmethod
-    def parse_sources(cls, value: Any) -> Any:
-        """解析字符串化的 JSON 数组，兼容 LLM 误传的格式"""
-        if value is None:
-            return None
-        if isinstance(value, str):
-            value = value.strip()
-            if not value:
-                return None
-            try:
-                parsed = json.loads(value)
-                return parsed if isinstance(parsed, list) else value
-            except json.JSONDecodeError:
-                return value
-        return value
+    def _unique_card_ids(cls, v: List[DashboardCardPlanItem]) -> List[DashboardCardPlanItem]:
+        ids = [item.card_id for item in v]
+        if len(ids) != len(set(ids)):
+            raise ValueError("cards_plan contains duplicate card_id values")
+        return v
 
 
 @tool()
@@ -78,11 +120,16 @@ class CreateDashboardProject(AbstractFileTool[CreateDashboardProjectParams], Wor
     """<!--zh
     创建数据分析看板项目工具
 
-    将模板目录复制到工作区，创建完整的数据看板项目结构。
-    -->
-    Create data analysis dashboard project tool
+    将模板目录复制到工作区，创建完整的数据看板项目结构。调用前请通读 develop-data-analysis-dashboard 技能全文。
 
-    Copy template directory to workspace, create complete data dashboard project structure.
+    新建看板：调用前须完成**规划准备**——发散业务问题与分析视角，**深度阅读**数据源（字段/粒度/口径、时间范围、分布与缺失、可对维度），再填写 `cards_plan`。
+    新建默认条数见技能 Quick Start「新建看板默认数量」。**仅用户明确要精简看板**可低于；否则 `cards_plan` 列满，建卡可分批。本工具不校验数量，须与技能及 agent 提示一致。
+    -->
+    Create data analysis dashboard project tool.
+
+    Copy the template into the workspace and create the full dashboard project layout. Read the develop-data-analysis-dashboard skill end-to-end before calling.
+
+    New dashboards: finish Planning prep first, then author `cards_plan`. Default per-type counts: see the skill Quick Start, **Default card counts for new dashboards**. Only if the user explicitly wants a reduced dashboard may you go lower; otherwise list every row; you may call `create_dashboard_cards` in batches. This tool does not validate counts; comply via the skill and agent instructions.
     """
 
     async def execute(self, tool_context: ToolContext, params: CreateDashboardProjectParams) -> ToolResult:
@@ -114,6 +161,7 @@ class CreateDashboardProject(AbstractFileTool[CreateDashboardProjectParams], Wor
                 logger.error(error_msg)
                 return ToolResult.error(error_msg)
 
+            # 调用前请先阅读 develop-data-analysis-dashboard 技能
             # 获取安全的目标路径
             target_path = self.resolve_path(params.name)
             logger.info(f"目标路径: {target_path}")
@@ -147,11 +195,25 @@ class CreateDashboardProject(AbstractFileTool[CreateDashboardProjectParams], Wor
                     logger.info(f"复制目录: {item.name}")
             logger.info(f"模板复制成功: {template_source} -> {target_path}")
 
-            # 更新 magic.project.js 中的项目名称和数据源
-            await self._update_project_config(target_path, params.name, params.sources or [])
+            # 更新 magic.project.js 中的项目名称
+            await self._update_project_config(target_path, params.name)
+
+            await self._write_cards_plan(target_path, params.cards_plan)
+            logger.info(
+                "已写入 cards_plan.md，共 %s 条卡片规划", len(params.cards_plan)
+            )
 
             # 触发文件创建事件 - 为主要文件触发事件（无需更新时间戳，因为是工具生成的文件）
-            main_files = ['index.html', 'config.js', 'data.js', 'dashboard.js', 'magic.project.js', 'echarts.theme.js', 'data_cleaning.py']
+            main_files = [
+                "index.html",
+                "config.js",
+                "data.js",
+                "dashboard.js",
+                "magic.project.js",
+                "echarts.theme.js",
+                "data_cleaning.py",
+                "cards_plan.md",
+            ]
             for file_name in main_files:
                 file_path = target_path / file_name
                 if file_path.exists():
@@ -163,15 +225,19 @@ class CreateDashboardProject(AbstractFileTool[CreateDashboardProjectParams], Wor
             logger.info(f"复制完成，共 {file_count} 个文件")
 
             # 生成结果信息
-            result_content = self._generate_result_content(target_path, params, file_count)
+            result_content = self._generate_result_content(
+                target_path, params, file_count
+            )
 
             return ToolResult(
                 content=result_content,
                 extra_info={
                     "project_name": params.name,
                     "file_count": file_count,
-                    "target_path": str(target_path)
-                }
+                    "target_path": str(target_path),
+                    "cards_plan_written": True,
+                    "cards_plan_count": len(params.cards_plan),
+                },
             )
 
         except Exception as e:
@@ -182,14 +248,30 @@ class CreateDashboardProject(AbstractFileTool[CreateDashboardProjectParams], Wor
 
             return ToolResult.error("Failed to create dashboard project")
 
-    async def _update_project_config(self, target_path: Path, project_name: str, sources: List[DataSourceConfig]):
+    async def _write_cards_plan(
+        self, target_path: Path, cards_plan: List[DashboardCardPlanItem]
+    ) -> None:
+        lines: List[str] = []
+        for item in cards_plan:
+            name = item.display_name
+            cid = item.card_id
+            ctype = item.type
+            detail = item.data_detail
+            if detail:
+                lines.append(f"- {name} [{cid}] ({ctype}) - {detail}")
+            else:
+                lines.append(f"- {name} [{cid}] ({ctype})")
+        body = "\n".join(lines) + "\n"
+        out_path = target_path / "cards_plan.md"
+        await async_write_text(out_path, body)
+
+    async def _update_project_config(self, target_path: Path, project_name: str):
         """
-        更新 magic.project.js 中的项目名称和原始数据源
+        更新 magic.project.js 中的项目名称
 
         Args:
             target_path: 项目目标路径
             project_name: 项目名称
-            sources: 原始数据源配置列表，每项需含 type、name、url
         """
         magic_project_file = target_path / "magic.project.js"
 
@@ -211,37 +293,6 @@ class CreateDashboardProject(AbstractFileTool[CreateDashboardProjectParams], Wor
                 return f'{quote}name{quote}: "{project_name}"'
 
             updated_content = re.sub(pattern, replacement_func, content)
-
-            # 写入 sources 数组
-            # 处理 Pydantic 模型和字典，统一转换为字典格式
-            valid_sources = []
-            for s in sources:
-                if isinstance(s, BaseModel):
-                    # Pydantic 模型，转换为字典
-                    source_dict = s.model_dump()
-                    if source_dict.get("name") and source_dict.get("url"):
-                        valid_sources.append(source_dict)
-                elif isinstance(s, dict):
-                    # 字典格式，直接使用
-                    if s.get("name") and s.get("url"):
-                        valid_sources.append(s)
-            
-            if valid_sources:
-                source_items = [
-                    {
-                        "type": s.get("type", "file"),
-                        "name": str(s.get("name", "")),
-                        "url": str(s.get("url", "")),
-                    }
-                    for s in valid_sources
-                ]
-                # 每个 item 一行，保持与顶层 key 一致的缩进层级（4 空格）
-                source_lines = [json.dumps(item, ensure_ascii=False) for item in source_items]
-                sources_json = "[\n    " + ",\n    ".join(source_lines) + "\n  ]"
-                sources_pattern = r'(["\']?)sources\1\s*:\s*\[[\s\S]*?\]'
-                sources_replacement = rf'\1sources\1: {sources_json}'
-                updated_content = re.sub(sources_pattern, sources_replacement, updated_content)
-                logger.info(f"已更新 magic.project.js 中的 sources: {len(valid_sources)} 个数据源")
 
             # 异步写回文件
             async with aiofiles.open(magic_project_file, 'w', encoding='utf-8') as f:
@@ -270,7 +321,12 @@ class CreateDashboardProject(AbstractFileTool[CreateDashboardProjectParams], Wor
                 logger.error(f"回滚删除失败 {path}: {rollback_error}")
                 # 继续尝试删除其他文件，不中断回滚过程
 
-    def _generate_result_content(self, target_path: Path, params: CreateDashboardProjectParams, file_count: int) -> str:
+    def _generate_result_content(
+        self,
+        target_path: Path,
+        params: CreateDashboardProjectParams,
+        file_count: int,
+    ) -> str:
         """
         生成简洁的结果内容
 
@@ -282,9 +338,11 @@ class CreateDashboardProject(AbstractFileTool[CreateDashboardProjectParams], Wor
         Returns:
             str: 格式化的结果内容
         """
-        result = f"Dashboard project created successfully: {params.name}/ ({file_count} files)"
-
-        return result
+        n = len(params.cards_plan)
+        return (
+            f"Dashboard project created successfully: {params.name}/ ({file_count} files)"
+            f". cards_plan.md written with {n} card plan item(s)."
+        )
 
     def _count_files(self, directory: Path) -> int:
         """递归统计目录中的文件数量"""

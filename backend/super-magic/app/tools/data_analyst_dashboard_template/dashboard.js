@@ -6796,8 +6796,8 @@ var getDashboardDefaultConfig = function getDashboardDefaultConfig() {
     BODY_BACKGROUND_IMAGE: ["linear-gradient(135deg, rgba(49, 92, 236, 0.04) 0%, rgba(248, 250, 252, 0.6) 50%, #ffffff 100%)", "radial-gradient(circle at 15% 85%, rgba(49, 92, 236, 0.06) 0%, transparent 40%)", "radial-gradient(circle at 85% 15%, rgba(49, 92, 236, 0.03) 0%, transparent 40%)"],
     // Page font family
     BODY_FONT_FAMILY: '"Microsoft YaHei", "PingFang SC", "Hiragino Sans GB", "SimSun", sans-serif',
-    // Primary color
-    COLORS_PRIMARY: "#6851ff",
+    // Primary color（与 config.js / window.DASHBOARD_CONFIG 默认保持一致）
+    COLORS_PRIMARY: "#8674ff",
     // Success status color
     COLORS_SUCCESS: "#52c41a",
     // Warning status color
@@ -6817,9 +6817,9 @@ var getDashboardDefaultConfig = function getDashboardDefaultConfig() {
     // Card title font size
     CARD_TITLE_FONT_SIZE: "14px",
     // Table header background color
-    TABLE_HEADER_BACKGROUND_COLOR: "#6851ff",
+    TABLE_HEADER_BACKGROUND_COLOR: "#8674ff",
     // ECharts color palette
-    ECHARTS_COLOR: ["#6851ff", "#4c9dff", "#57c7e6", "#4cc9a6", "#3e7d6b", "#f3bd51", "#fd905a", "#e65454", "#f3738c", "#c34b9d", "#7a89a6", "#4c4c5c"],
+    ECHARTS_COLOR: ["#8674ff", "#4c9dff", "#57c7e6", "#4cc9a6", "#3e7d6b", "#f3bd51", "#fd905a", "#e65454", "#f3738c", "#c34b9d", "#7a89a6", "#4c4c5c"],
     // Metric card icon type: circle, normal
     METRIC_CARD_ICON_TYPE: "circle",
     // ==================== Private configuration items ====================
@@ -6860,6 +6860,185 @@ var getDashboardDefaultConfig = function getDashboardDefaultConfig() {
     TABLE_BORDER_RADIUS: "4px",
     // Enable card hover interaction effects
     INTERACTION_CARD_HOVERABLE: true
+  };
+};
+// 与 config.js 中 window.GET_ECHARTS_THEME_CONFIG 逻辑一致，供未加载 config 时在组件侧兜底
+var getDefaultEChartsThemeConfig = function getDefaultEChartsThemeConfig(dashboardConfig) {
+  var fontFamily = dashboardConfig.BODY_FONT_FAMILY;
+  var fontSize = parseFloat(dashboardConfig.BASE_FONT_SIZE);
+  var fontSizeSecondary = fontSize - 2;
+  var fontSizeWithPixel = "".concat(fontSize, "px");
+  var fontSizeSecondaryWithPixel = "".concat(fontSizeSecondary, "px");
+  var colorTextPrimary = dashboardConfig.COLORS_TEXT_PRIMARY;
+  var colorTextSecondary = dashboardConfig.COLORS_TEXT_SECONDARY;
+  var colorTextThird = dashboardConfig.COLORS_TEXT_THIRD;
+  var colorBorder = dashboardConfig.COLORS_BORDER;
+  var colorPrimary = dashboardConfig.COLORS_PRIMARY;
+  var color = dashboardConfig.ECHARTS_COLOR.slice();
+  return {
+    color: color,
+    backgroundColor: "transparent",
+    textStyle: {
+      color: colorTextPrimary,
+      fontFamily: fontFamily,
+      fontSize: fontSizeWithPixel
+    },
+    title: {
+      textStyle: {
+        color: colorTextPrimary,
+        fontFamily: fontFamily,
+        fontSize: fontSizeWithPixel
+      },
+      subtextStyle: {
+        color: colorTextThird,
+        fontFamily: fontFamily,
+        fontSize: fontSizeSecondaryWithPixel
+      }
+    },
+    legend: {
+      type: "scroll",
+      itemWidth: 20,
+      itemHeight: 11.2,
+      textStyle: {
+        color: colorTextThird,
+        fontFamily: fontFamily,
+        fontSize: fontSizeWithPixel
+      }
+    },
+    categoryAxis: {
+      axisLine: {
+        lineStyle: {
+          color: colorBorder
+        }
+      },
+      axisTick: {
+        lineStyle: {
+          color: colorBorder
+        }
+      },
+      axisLabel: {
+        color: colorTextThird,
+        fontFamily: fontFamily,
+        fontSize: fontSizeWithPixel,
+        hideOverlap: true
+      },
+      nameTextStyle: {
+        color: colorTextThird,
+        fontFamily: fontFamily,
+        fontSize: fontSizeWithPixel
+      },
+      splitLine: {
+        show: false,
+        lineStyle: {
+          color: colorBorder
+        }
+      }
+    },
+    valueAxis: {
+      alignTicks: true,
+      axisLine: {
+        lineStyle: {
+          color: colorBorder
+        }
+      },
+      axisTick: {
+        lineStyle: {
+          color: colorBorder
+        }
+      },
+      axisLabel: {
+        color: colorTextThird,
+        fontFamily: fontFamily,
+        fontSize: fontSizeWithPixel,
+        hideOverlap: true
+      },
+      nameTextStyle: {
+        color: colorTextThird,
+        fontFamily: fontFamily,
+        fontSize: fontSizeWithPixel
+      },
+      splitLine: {
+        lineStyle: {
+          color: colorBorder
+        }
+      }
+    },
+    toolbox: {
+      iconStyle: {
+        colorBorder: colorTextThird
+      },
+      emphasis: {
+        iconStyle: {
+          colorBorder: colorBorder
+        }
+      }
+    },
+    tooltip: {
+      appendTo: "body",
+      appendToBody: true,
+      renderMode: "html",
+      className: "echarts-tooltip",
+      backgroundColor: dashboardConfig.CARD_BACKGROUND,
+      padding: 6,
+      textStyle: {
+        fontFamily: fontFamily,
+        fontSize: fontSizeWithPixel,
+        color: colorTextThird
+      },
+      axisPointer: {
+        label: {
+          backgroundColor: colorPrimary
+        }
+      }
+    },
+    pie: {
+      label: {
+        color: colorTextSecondary,
+        fontFamily: fontFamily,
+        fontSize: fontSizeWithPixel
+      },
+      labelLine: {
+        lineStyle: {
+          color: colorBorder
+        }
+      }
+    },
+    bar: {
+      label: {
+        color: colorTextSecondary,
+        fontFamily: fontFamily,
+        fontSize: fontSizeWithPixel
+      }
+    },
+    line: {
+      label: {
+        color: colorTextSecondary,
+        fontFamily: fontFamily,
+        fontSize: fontSizeWithPixel
+      }
+    },
+    geo: {
+      label: {
+        color: colorTextSecondary,
+        fontFamily: fontFamily,
+        fontSize: fontSizeWithPixel
+      }
+    },
+    scatter: {
+      label: {
+        color: colorTextSecondary,
+        fontFamily: fontFamily,
+        fontSize: fontSizeWithPixel
+      }
+    },
+    visualMap: {
+      padding: 0,
+      textStyle: {
+        color: colorTextThird,
+        fontFamily: fontFamily,
+        fontSize: fontSizeSecondaryWithPixel
+      }
+    }
   };
 };
 // Parse color string to RGB values
@@ -7071,8 +7250,37 @@ var createMobileDashboardConfig = function createMobileDashboardConfig(dashboard
     TABLE_CELL_PADDING: "0 6px"
   });
 };
+// Generate tablet dashboard configuration based on desktop configuration
+var createTabletDashboardConfig = function createTabletDashboardConfig(dashboardConfig) {
+  if (!dashboardConfig) {
+    return null;
+  }
+  return _objectSpread(_objectSpread({}, dashboardConfig), {}, {
+    GRID_COLS: 12,
+    GRID_CONTAINER_PADDING: [10, 10],
+    GRID_DEFAULT_ROW_HEIGHT: 34,
+    GRID_MARGIN: [8, 8],
+    INTERACTION_CARD_HOVERABLE: true,
+    BASE_FONT_SIZE: "12px",
+    CARD_TITLE_FONT_SIZE: "14px",
+    CARD_GAP: "8px",
+    TABLE_FONT_SIZE: "12px",
+    TABLE_CELL_MIN_WIDTH: "100px",
+    TABLE_CELL_HEIGHT: "30px",
+    TABLE_CELL_PADDING: "0 8px"
+  });
+};
 // Generate mobile editor configuration based on desktop configuration
 var createMobileEditorConfig = function createMobileEditorConfig(editorConfig) {
+  return _objectSpread(_objectSpread({}, editorConfig), {}, {
+    DRAGGABLE: false,
+    RESIZABLE: false,
+    DELETABLE: false,
+    EXPANDABLE: true
+  });
+};
+// Generate tablet editor configuration based on desktop configuration
+var createTabletEditorConfig = function createTabletEditorConfig(editorConfig) {
   return _objectSpread(_objectSpread({}, editorConfig), {}, {
     DRAGGABLE: false,
     RESIZABLE: false,
@@ -7109,11 +7317,14 @@ window.UTILS = {
   ceil: ceil,
   floor: floor,
   getDashboardDefaultConfig: getDashboardDefaultConfig,
+  getDefaultEChartsThemeConfig: getDefaultEChartsThemeConfig,
   getComposeDashboardConfig: getComposeDashboardConfig,
   parseColorToRGB: parseColorToRGB,
   getCircleGradientBackground: getCircleGradientBackground,
   createMobileDashboardConfig: createMobileDashboardConfig,
   createMobileEditorConfig: createMobileEditorConfig,
+  createTabletDashboardConfig: createTabletDashboardConfig,
+  createTabletEditorConfig: createTabletEditorConfig,
   getOpaqueBackgroundColor: getOpaqueBackgroundColor
 };
 
@@ -7886,11 +8097,16 @@ var MobileGridLayout = /*#__PURE__*/function (_React$Component17) {
         return "".concat(card.id, "-").concat(card.type, "-").concat(JSON.stringify(card.layout));
       }).join("|");
     }
-    // Get mobile ECharts theme name
   }, {
-    key: "getMobileEChartsThemeName",
-    value: function getMobileEChartsThemeName() {
-      return (window.ECHARTS_THEME_NAME || "dashboard") + "_mobile";
+    key: "getLayoutMode",
+    value: function getLayoutMode() {
+      return this.props.layoutMode === "tablet" ? "tablet" : "mobile";
+    }
+    // Get compact layout ECharts theme name
+  }, {
+    key: "getCompactEChartsThemeName",
+    value: function getCompactEChartsThemeName() {
+      return "".concat(window.ECHARTS_THEME_NAME || "dashboard", "_").concat(this.getLayoutMode());
     }
     // Get sorted cards with caching
   }, {
@@ -7920,6 +8136,7 @@ var MobileGridLayout = /*#__PURE__*/function (_React$Component17) {
   }, {
     key: "calculateKPIHeight",
     value: function calculateKPIHeight(cardData) {
+      var layoutMode = arguments.length > 1 && arguments[1] !== undefined ? arguments[1] : this.getLayoutMode();
       // Check actual KPI card properties
       var hasTitle = cardData.title && cardData.title.trim() !== "";
       // Base height for KPI card (minimum space needed)
@@ -7951,12 +8168,14 @@ var MobileGridLayout = /*#__PURE__*/function (_React$Component17) {
       // Ensure minimum and maximum bounds for KPI
       // Minimum: 2 units (very compact)
       // Maximum: 7 units (for cases with many indicators)
-      return Math.max(2, Math.min(Math.ceil(height), 7));
+      var maxHeight = layoutMode === "tablet" ? 6 : 7;
+      return Math.max(2, Math.min(Math.ceil(height), maxHeight));
     }
     // Calculate height based on markdown content
   }, {
     key: "calculateMarkdownHeight",
     value: function calculateMarkdownHeight(cardData) {
+      var layoutMode = arguments.length > 1 && arguments[1] !== undefined ? arguments[1] : this.getLayoutMode();
       // Check if card has title
       var hasTitle = cardData.title && cardData.title.trim() !== "";
       // Base height for markdown card
@@ -7990,8 +8209,8 @@ var MobileGridLayout = /*#__PURE__*/function (_React$Component17) {
               contentLines += 1.5;
             } else {
               // Regular text lines
-              // Estimate line wrapping based on content length (assuming ~50 chars per line on mobile)
-              var estimatedLines = Math.ceil(trimmedLine.length / 50);
+              var charactersPerLine = layoutMode === "tablet" ? 80 : 50;
+              var estimatedLines = Math.ceil(trimmedLine.length / charactersPerLine);
               contentLines += Math.max(1, estimatedLines);
             }
           }
@@ -8007,177 +8226,93 @@ var MobileGridLayout = /*#__PURE__*/function (_React$Component17) {
         height += 3;
       }
       // Ensure minimum and maximum bounds for markdown
-      return Math.max(4, Math.min(Math.ceil(height), 12));
+      var maxHeight = layoutMode === "tablet" ? 10 : 12;
+      return Math.max(4, Math.min(Math.ceil(height), maxHeight));
     }
-    // Convert desktop layout to mobile layout intelligently with caching
   }, {
-    key: "convertToMobileLayout",
-    value: function convertToMobileLayout(card, cardIndex, totalCols, allCards) {
-      // Create cache key for this specific layout calculation
-      var cacheKey = "".concat(card.id, "-").concat(cardIndex, "-").concat(totalCols, "-").concat(allCards.length);
-      // Return cached result if available
+    key: "getCompactCardSpec",
+    value: function getCompactCardSpec(card, totalCols) {
+      var layoutMode = arguments.length > 2 && arguments[2] !== undefined ? arguments[2] : this.getLayoutMode();
+      var cardType = card.type;
+      if (cardType === "metric") {
+        var cardsPerRow = layoutMode === "tablet" ? 3 : 2;
+        return {
+          w: Math.max(1, Math.floor(totalCols / cardsPerRow)),
+          h: 2
+        };
+      }
+      if (cardType === "kpi") {
+        return {
+          w: layoutMode === "tablet" ? Math.max(1, Math.floor(totalCols / 2)) : totalCols,
+          h: this.calculateKPIHeight(card, layoutMode)
+        };
+      }
+      if (layoutMode === "tablet" && (cardType === "markdown" || cardType === "text" || cardType === "image")) {
+        return {
+          w: Math.max(1, Math.floor(totalCols / 2)),
+          h: cardType === "markdown" ? this.calculateMarkdownHeight(card, layoutMode) : 5
+        };
+      }
+      var height = 6;
+      if (cardType === "echarts") {
+        height = 7;
+      } else if (cardType === "table") {
+        height = 8;
+      } else if (cardType === "markdown") {
+        height = this.calculateMarkdownHeight(card, layoutMode);
+      }
+      return {
+        w: totalCols,
+        h: height
+      };
+    }
+    // Convert desktop layout to compact layout intelligently with caching
+  }, {
+    key: "getCompactLayouts",
+    value: function getCompactLayouts(cards, totalCols) {
+      var _this38 = this;
+      var layoutMode = arguments.length > 2 && arguments[2] !== undefined ? arguments[2] : this.getLayoutMode();
+      var cacheKey = "".concat(this.generateCardsHash(cards), "-").concat(totalCols, "-").concat(layoutMode);
       if (this.layoutCache.has(cacheKey)) {
         return this.layoutCache.get(cacheKey);
       }
-      var cardType = card.type;
-      var desktopLayout = card.layout;
-      if (cardType === "metric") {
-        // Metric cards: 2 per row
-        var mobileWidth = Math.floor(totalCols / 2);
-        var mobileHeight = 2; // Smaller height for metric cards on mobile
-        // Find how many metric cards are before this one
-        var metricCardsBefore = 0;
-        for (var i = 0; i < cardIndex; i++) {
-          if (allCards[i].type === "metric") {
-            metricCardsBefore++;
-          }
+      var layouts = [];
+      var rowGap = 1;
+      var currentX = 0;
+      var currentY = 0;
+      var currentRowHeight = 0;
+      cards.forEach(function (card) {
+        var desktopLayout = card.layout || {};
+        var compactSpec = _this38.getCompactCardSpec(card, totalCols, layoutMode);
+        var compactWidth = Math.min(compactSpec.w, totalCols);
+        var compactHeight = compactSpec.h;
+        if (currentX > 0 && currentX + compactWidth > totalCols) {
+          currentY += currentRowHeight + rowGap;
+          currentX = 0;
+          currentRowHeight = 0;
         }
-        // Calculate position based on metric card index
-        var metricRowIndex = Math.floor(metricCardsBefore / 2);
-        var isFirstInRow = metricCardsBefore % 2 === 0;
-        // Calculate Y position considering non-metric cards before this metric card
-        var yPosition = 0;
-        for (var _i = 0; _i < cardIndex; _i++) {
-          var prevCard = allCards[_i];
-          if (prevCard.type !== "metric") {
-            // Non-metric card takes full row
-            var prevDesktopAspectRatio = prevCard.layout.w / prevCard.layout.h;
-            var prevMobileHeight = Math.max(3, Math.min(Math.round(totalCols / prevDesktopAspectRatio), 8));
-            yPosition += prevMobileHeight + 1;
-          }
-        }
-        // Add metric rows height
-        yPosition += metricRowIndex * (mobileHeight + 1);
         var layout = {
           i: card.id,
-          x: isFirstInRow ? 0 : mobileWidth,
-          y: yPosition,
-          w: mobileWidth,
-          h: mobileHeight,
-          minW: Math.min(desktopLayout.minW || mobileWidth, mobileWidth),
-          minH: Math.min(desktopLayout.minH || mobileHeight, mobileHeight),
-          maxW: Math.min(desktopLayout.maxW || mobileWidth, mobileWidth),
-          maxH: Math.min(desktopLayout.maxH || mobileHeight, mobileHeight)
+          x: currentX,
+          y: currentY,
+          w: compactWidth,
+          h: compactHeight,
+          minW: Math.min(desktopLayout.minW || compactWidth, compactWidth),
+          minH: Math.min(desktopLayout.minH || compactHeight, compactHeight),
+          maxW: Math.min(desktopLayout.maxW || compactWidth, compactWidth),
+          maxH: Math.min(desktopLayout.maxH || compactHeight, compactHeight)
         };
-        // Cache the result
-        this.layoutCache.set(cacheKey, layout);
-        return layout;
-      } else if (cardType === "kpi") {
-        // KPI cards: 1 per row (full width) with dynamic height based on content
-        var _mobileWidth = totalCols;
-        var _mobileHeight = this.calculateKPIHeight(card);
-        console.log("mobileHeight", _mobileHeight);
-        // Calculate Y position considering all previous cards
-        var _yPosition = 0;
-        for (var _i2 = 0; _i2 < cardIndex; _i2++) {
-          var _prevCard = allCards[_i2];
-          if (_prevCard.type === "metric") {
-            // Check if this metric card starts a new row
-            var _metricCardsBefore = 0;
-            for (var j = 0; j < _i2; j++) {
-              if (allCards[j].type === "metric") {
-                _metricCardsBefore++;
-              }
-            }
-            var isFirstMetricInRow = _metricCardsBefore % 2 === 0;
-            if (isFirstMetricInRow) {
-              _yPosition += 2 + 1; // metric card height + gap
-            }
-          } else {
-            // Non-metric card (KPI or other cards)
-            var _prevMobileHeight = void 0;
-            if (_prevCard.type === "kpi") {
-              _prevMobileHeight = this.calculateKPIHeight(_prevCard);
-            } else {
-              // Height calculation for different card types
-              _prevMobileHeight = 6; // Base height for other cards
-              if (_prevCard.type === "echarts") {
-                _prevMobileHeight = 7; // ECharts cards: base + 1
-              } else if (_prevCard.type === "table") {
-                _prevMobileHeight = 8; // Table cards: base + 2
-              } else if (_prevCard.type === "markdown") {
-                _prevMobileHeight = this.calculateMarkdownHeight(_prevCard); // Markdown cards: intelligent height calculation
-              }
-            }
-            _yPosition += _prevMobileHeight + 1;
-          }
+        layouts.push(layout);
+        currentX += compactWidth;
+        currentRowHeight = Math.max(currentRowHeight, compactHeight);
+        if (currentX >= totalCols) {
+          currentY += currentRowHeight + rowGap;
+          currentX = 0;
+          currentRowHeight = 0;
         }
-        var _layout = {
-          i: card.id,
-          x: 0,
-          y: _yPosition,
-          w: _mobileWidth,
-          h: _mobileHeight,
-          minW: Math.min(desktopLayout.minW || _mobileWidth, _mobileWidth),
-          minH: Math.min(desktopLayout.minH || _mobileHeight, _mobileHeight),
-          maxW: Math.min(desktopLayout.maxW || _mobileWidth, _mobileWidth),
-          maxH: Math.min(desktopLayout.maxH || _mobileHeight, _mobileHeight)
-        };
-        // Cache the result
-        this.layoutCache.set(cacheKey, _layout);
-        return _layout;
-      } else {
-        // Other cards (chart, table, text, image, etc.): 1 per row (full width) with fixed height
-        var _mobileWidth2 = totalCols;
-        // Height calculation for different card types (except metric and KPI)
-        var _mobileHeight2 = 6; // Base height for other cards
-        if (cardType === "echarts") {
-          _mobileHeight2 = 7; // ECharts cards: base + 1
-        } else if (cardType === "table") {
-          _mobileHeight2 = 8; // Table cards: base + 2
-        } else if (cardType === "markdown") {
-          _mobileHeight2 = this.calculateMarkdownHeight(card); // Markdown cards: intelligent height calculation
-        }
-        // Calculate Y position considering all previous cards
-        var _yPosition2 = 0;
-        for (var _i3 = 0; _i3 < cardIndex; _i3++) {
-          var _prevCard2 = allCards[_i3];
-          if (_prevCard2.type === "metric") {
-            // Check if this metric card starts a new row
-            var _metricCardsBefore2 = 0;
-            for (var _j = 0; _j < _i3; _j++) {
-              if (allCards[_j].type === "metric") {
-                _metricCardsBefore2++;
-              }
-            }
-            var _isFirstMetricInRow = _metricCardsBefore2 % 2 === 0;
-            if (_isFirstMetricInRow) {
-              _yPosition2 += 2 + 1; // metric card height + gap
-            }
-          } else {
-            // Non-metric card (KPI or other cards)
-            var _prevMobileHeight2 = void 0;
-            if (_prevCard2.type === "kpi") {
-              _prevMobileHeight2 = this.calculateKPIHeight(_prevCard2);
-            } else {
-              // Height calculation for different card types
-              _prevMobileHeight2 = 6; // Base height for other cards
-              if (_prevCard2.type === "echarts") {
-                _prevMobileHeight2 = 7; // ECharts cards: base + 1
-              } else if (_prevCard2.type === "table") {
-                _prevMobileHeight2 = 8; // Table cards: base + 2
-              } else if (_prevCard2.type === "markdown") {
-                _prevMobileHeight2 = this.calculateMarkdownHeight(_prevCard2); // Markdown cards: intelligent height calculation
-              }
-            }
-            _yPosition2 += _prevMobileHeight2 + 1;
-          }
-        }
-        var _layout2 = {
-          i: card.id,
-          x: 0,
-          y: _yPosition2,
-          w: _mobileWidth2,
-          h: _mobileHeight2,
-          minW: Math.min(desktopLayout.minW || _mobileWidth2, _mobileWidth2),
-          minH: Math.min(desktopLayout.minH || _mobileHeight2, _mobileHeight2),
-          maxW: Math.min(desktopLayout.maxW || _mobileWidth2, _mobileWidth2),
-          maxH: Math.min(desktopLayout.maxH || _mobileHeight2, _mobileHeight2)
-        };
-        // Cache the result
-        this.layoutCache.set(cacheKey, _layout2);
-        return _layout2;
-      }
+      });
+      this.layoutCache.set(cacheKey, layouts);
+      return layouts;
     }
     // Optimize re-rendering by checking if props have actually changed
   }, {
@@ -8188,7 +8323,7 @@ var MobileGridLayout = /*#__PURE__*/function (_React$Component17) {
         return true;
       }
       // Check if other important props have changed
-      if (this.props.visible !== nextProps.visible || this.props.editorConfig !== nextProps.editorConfig || this.props.dashboardConfig !== nextProps.dashboardConfig) {
+      if (this.props.visible !== nextProps.visible || this.props.editorConfig !== nextProps.editorConfig || this.props.dashboardConfig !== nextProps.dashboardConfig || this.props.layoutMode !== nextProps.layoutMode) {
         return true;
       }
       return false;
@@ -8206,38 +8341,42 @@ var MobileGridLayout = /*#__PURE__*/function (_React$Component17) {
     key: "componentDidUpdate",
     value: function componentDidUpdate(prevProps) {
       // If cards array reference changed, clear layout cache
-      if (prevProps.cards !== this.props.cards) {
+      if (prevProps.cards !== this.props.cards || prevProps.layoutMode !== this.props.layoutMode) {
         this.layoutCache.clear();
       }
+      if (prevProps.layoutMode !== this.props.layoutMode || prevProps.dashboardConfig !== this.props.dashboardConfig) {
+        this.ensureCompactEChartsTheme();
+      }
     }
-    // Check and register mobile ECharts theme on component mount
+    // Check and register compact ECharts theme on component mount
   }, {
     key: "componentDidMount",
     value: function componentDidMount() {
-      this.ensureMobileEChartsTheme();
+      this.ensureCompactEChartsTheme();
     }
-    // Ensure mobile ECharts theme is registered
+    // Ensure compact ECharts theme is registered
   }, {
-    key: "ensureMobileEChartsTheme",
-    value: function ensureMobileEChartsTheme() {
-      var echartsThemeName = this.getMobileEChartsThemeName();
-      // Check if ECharts is available and theme is not already registered
-      if (window.echarts && window.GET_ECHARTS_THEME_CONFIG) {
-        // Use mobile dashboard configuration directly from props
+    key: "ensureCompactEChartsTheme",
+    value: function ensureCompactEChartsTheme() {
+      var _window$UTILS2;
+      var echartsThemeName = this.getCompactEChartsThemeName();
+      var getTheme = typeof window.GET_ECHARTS_THEME_CONFIG === "function" ? window.GET_ECHARTS_THEME_CONFIG : (_window$UTILS2 = window.UTILS) === null || _window$UTILS2 === void 0 ? void 0 : _window$UTILS2.getDefaultEChartsThemeConfig;
+      if (window.echarts && typeof getTheme === "function") {
+        var _window$UTILS3, _window$UTILS3$getCom;
         var dashboardConfig = this.props.dashboardConfig;
+        var configForTheme = dashboardConfig && _typeof(dashboardConfig) === "object" ? dashboardConfig : ((_window$UTILS3 = window.UTILS) === null || _window$UTILS3 === void 0 || (_window$UTILS3$getCom = _window$UTILS3.getComposeDashboardConfig) === null || _window$UTILS3$getCom === void 0 ? void 0 : _window$UTILS3$getCom.call(_window$UTILS3, {})) || {};
         try {
-          var mobileThemeConfig = window.GET_ECHARTS_THEME_CONFIG(dashboardConfig);
-          window.echarts.registerTheme(echartsThemeName, mobileThemeConfig);
+          var compactThemeConfig = getTheme(configForTheme);
+          window.echarts.registerTheme(echartsThemeName, compactThemeConfig);
         } catch (error) {
-          console.warn("Failed to register mobile ECharts theme: ".concat(echartsThemeName), error);
+          console.warn("Failed to register compact ECharts theme: ".concat(echartsThemeName), error);
         }
       }
     }
   }, {
     key: "render",
     value: function render() {
-      var _React2,
-        _this38 = this;
+      var _React2;
       var _this$props8 = this.props,
         cards = _this$props8.cards,
         editorConfig = _this$props8.editorConfig,
@@ -8245,14 +8384,13 @@ var MobileGridLayout = /*#__PURE__*/function (_React$Component17) {
         visible = _this$props8.visible,
         createCardFromConfig = _this$props8.createCardFromConfig,
         GridLayout = _this$props8.GridLayout;
-      // Define mobile-specific ECharts theme configuration
-      var echartsThemeName = this.getMobileEChartsThemeName();
+      var layoutMode = this.getLayoutMode();
+      var echartsThemeName = this.getCompactEChartsThemeName();
       // Get sorted cards with caching
       var sortedCards = this.getSortedCards(cards);
-      // Create card elements for mobile (no drag/resize/hover support) using sorted cards
-      // Use map with optimized rendering
+      var compactLayouts = this.getCompactLayouts(sortedCards, dashboardConfig.GRID_COLS, layoutMode);
       var cardElements = sortedCards.map(function (cardConfig) {
-        var className = "grid-item mobile-grid-item non-draggable non-resizable non-hoverable";
+        var className = "grid-item ".concat(layoutMode, "-grid-item non-draggable non-resizable non-hoverable");
         var cardElement = visible ? createCardFromConfig(cardConfig, {
           editorConfig: editorConfig,
           dashboardConfig: dashboardConfig,
@@ -8267,25 +8405,19 @@ var MobileGridLayout = /*#__PURE__*/function (_React$Component17) {
         }, cardElement);
       });
       return React.createElement(React.Fragment, null, (_React2 = React).createElement.apply(_React2, [GridLayout, {
-        className: "layout mobile-layout",
-        layout: sortedCards.map(function (card, index) {
-          return _this38.convertToMobileLayout(card, index, dashboardConfig.GRID_COLS, sortedCards);
-        }),
+        className: "layout ".concat(layoutMode, "-layout"),
+        layout: compactLayouts,
         cols: dashboardConfig.GRID_COLS,
         rowHeight: dashboardConfig.GRID_DEFAULT_ROW_HEIGHT,
         isDraggable: false,
-        // Force disable dragging on mobile
         isResizable: false,
-        // Force disable resizing on mobile
         margin: dashboardConfig.GRID_MARGIN,
         containerPadding: dashboardConfig.GRID_CONTAINER_PADDING,
         useCSSTransforms: true,
         transformScale: 1,
         allowOverlap: false,
-        preventCollision: true // Prevent collision on mobile
-      }].concat(_toConsumableArray(cardElements))),
-      // No resizing overlay for mobile since resizing is disabled
-      null);
+        preventCollision: true
+      }].concat(_toConsumableArray(cardElements))), null);
     }
   }]);
 }(React.Component);
@@ -8294,28 +8426,35 @@ window.MobileGridLayout = MobileGridLayout;
 // Grid dashboard component
 var GridDashboard = /*#__PURE__*/function (_React$Component18) {
   function GridDashboard(props) {
-    var _window$UTILS2, _window$UTILS3;
+    var _window$UTILS4, _window$UTILS5, _window$UTILS6, _window$UTILS7;
     var _this39;
     _classCallCheck(this, GridDashboard);
     _this39 = _callSuper(this, GridDashboard, [props]);
     var WidthProvider = window.ReactGridLayout.WidthProvider;
     _this39.GridLayout = WidthProvider(window.ReactGridLayout);
-    var initialIsMobile = _this39.detectMobileDevice();
+    var initialLayoutMode = _this39.resolveLayoutMode();
     _this39.state = {
       visible: false,
       rowHeight: _this39.calculateDynamicRowHeight(),
       isResizing: false,
       isDragging: false,
       isExpanding: false,
-      isMobile: initialIsMobile
+      layoutMode: initialLayoutMode
     };
-    // Cache for mobile configurations to avoid recreating on each render
-    // Initialize with default values based on initial mobile state
-    _this39.mobileConfigCache = {
-      editorConfig: initialIsMobile ? (_window$UTILS2 = window.UTILS) === null || _window$UTILS2 === void 0 ? void 0 : _window$UTILS2.createMobileEditorConfig(props.editorConfig) : null,
-      dashboardConfig: initialIsMobile ? (_window$UTILS3 = window.UTILS) === null || _window$UTILS3 === void 0 ? void 0 : _window$UTILS3.createMobileDashboardConfig(props.dashboardConfig) : null,
-      lastEditorConfigRef: initialIsMobile ? props.editorConfig : null,
-      lastDashboardConfigRef: initialIsMobile ? props.dashboardConfig : null
+    // Cache compact layout configurations to avoid recreating on each render
+    _this39.compactConfigCache = {
+      mobile: {
+        editorConfig: initialLayoutMode === "mobile" ? (_window$UTILS4 = window.UTILS) === null || _window$UTILS4 === void 0 ? void 0 : _window$UTILS4.createMobileEditorConfig(props.editorConfig) : null,
+        dashboardConfig: initialLayoutMode === "mobile" ? (_window$UTILS5 = window.UTILS) === null || _window$UTILS5 === void 0 ? void 0 : _window$UTILS5.createMobileDashboardConfig(props.dashboardConfig) : null,
+        lastEditorConfigRef: initialLayoutMode === "mobile" ? props.editorConfig : null,
+        lastDashboardConfigRef: initialLayoutMode === "mobile" ? props.dashboardConfig : null
+      },
+      tablet: {
+        editorConfig: initialLayoutMode === "tablet" ? (_window$UTILS6 = window.UTILS) === null || _window$UTILS6 === void 0 ? void 0 : _window$UTILS6.createTabletEditorConfig(props.editorConfig) : null,
+        dashboardConfig: initialLayoutMode === "tablet" ? (_window$UTILS7 = window.UTILS) === null || _window$UTILS7 === void 0 ? void 0 : _window$UTILS7.createTabletDashboardConfig(props.dashboardConfig) : null,
+        lastEditorConfigRef: initialLayoutMode === "tablet" ? props.editorConfig : null,
+        lastDashboardConfigRef: initialLayoutMode === "tablet" ? props.dashboardConfig : null
+      }
     };
     _this39.cardRenderStatus = new Map();
     _this39.hasNotifiedAllCardsComplete = false;
@@ -8325,75 +8464,129 @@ var GridDashboard = /*#__PURE__*/function (_React$Component18) {
     _this39.handleResizeStart = _this39.handleResizeStart.bind(_this39);
     _this39.handleResizeStop = _this39.handleResizeStop.bind(_this39);
     _this39.handleCardRenderStatusChange = _this39.handleCardRenderStatusChange.bind(_this39);
+    _this39.getRenderMode = _this39.getRenderMode.bind(_this39);
     _this39.detectMobileDevice = _this39.detectMobileDevice.bind(_this39);
+    _this39.detectTabletDevice = _this39.detectTabletDevice.bind(_this39);
+    _this39.resolveLayoutMode = _this39.resolveLayoutMode.bind(_this39);
     _this39.debouncedResize = window.UTILS.debounce(_this39.handleResize, 100);
     return _this39;
   }
-  // Detect if current device is mobile with comprehensive checks
   _inherits(GridDashboard, _React$Component18);
   return _createClass(GridDashboard, [{
+    key: "normalizeRenderMode",
+    value: function normalizeRenderMode(renderMode) {
+      return renderMode === "mobile" || renderMode === "tablet" || renderMode === "desktop" ? renderMode : "auto";
+    }
+  }, {
+    key: "getRenderMode",
+    value: function getRenderMode() {
+      return this.normalizeRenderMode(this.props.renderMode);
+    }
+  }, {
+    key: "getCompactLayoutMode",
+    value: function getCompactLayoutMode() {
+      var layoutMode = this.state.layoutMode;
+      return layoutMode === "mobile" || layoutMode === "tablet" ? layoutMode : null;
+    }
+  }, {
+    key: "isCompactLayout",
+    value: function isCompactLayout() {
+      var layoutMode = arguments.length > 0 && arguments[0] !== undefined ? arguments[0] : this.state.layoutMode;
+      return layoutMode === "mobile" || layoutMode === "tablet";
+    }
+    // Detect if current device is mobile
+  }, {
     key: "detectMobileDevice",
     value: function detectMobileDevice() {
-      // Check if touch is supported
       var hasTouchSupport = "ontouchstart" in window || navigator.maxTouchPoints > 0 || navigator.msMaxTouchPoints > 0;
-      // Enhanced user agent detection with more modern patterns
       var userAgent = navigator.userAgent || navigator.vendor || window.opera || "";
-      var isMobileUserAgent = /android|webos|iphone|ipad|ipod|blackberry|iemobile|opera mini|mobile|phone|tablet/i.test(userAgent);
-      // Check for specific mobile platforms
-      var isAndroid = /android/i.test(userAgent);
-      var isIOS = /iphone|ipad|ipod/i.test(userAgent);
-      var isWindowsMobile = /windows phone|iemobile|wpdesktop/i.test(userAgent);
-      // Screen size checks with different thresholds
-      var screenWidth = Math.max(window.innerWidth, window.screen.width);
-      var screenHeight = Math.max(window.innerHeight, window.screen.height);
-      var isMobileScreenSize = screenWidth <= 768;
-      var isSmallScreen = Math.min(screenWidth, screenHeight) <= 480; // Definitely mobile
-      // Check device pixel ratio (high DPI mobile devices)
-      var devicePixelRatio = window.devicePixelRatio || 1;
-      var hasHighDPI = devicePixelRatio > 1.5;
-      // Check for mobile-specific CSS media queries support
-      var isMobileMediaQuery = window.matchMedia && window.matchMedia("(max-width: 768px)").matches;
-      // Combine all indicators with weighted logic
-      var mobileIndicators = [isSmallScreen,
-      // Strong indicator
-      isAndroid || isIOS || isWindowsMobile,
-      // Strong indicator
-      isMobileUserAgent && hasTouchSupport,
-      // Medium indicator
-      isMobileScreenSize && hasTouchSupport,
-      // Medium indicator
-      isMobileMediaQuery && hasHighDPI // Weak indicator
-      ];
-      // Return true if we have strong indicators or multiple medium indicators
-      var strongIndicators = mobileIndicators.slice(0, 2).filter(Boolean).length;
-      var mediumIndicators = mobileIndicators.slice(2, 4).filter(Boolean).length;
-      var weakIndicators = mobileIndicators.slice(4).filter(Boolean).length;
-      return strongIndicators > 0 || mediumIndicators >= 2 || mediumIndicators >= 1 && weakIndicators >= 1;
+      var longSide = Math.max(window.innerWidth, window.screen.width || 0);
+      var shortSide = Math.min(window.innerWidth, window.innerHeight);
+      var isPhoneUserAgent = /iphone|ipod|android.*mobile|windows phone|iemobile|opera mini|mobile|phone/i.test(userAgent);
+      var isPhoneScreen = shortSide <= 768 && longSide <= 1024;
+      var isPhoneMediaQuery = window.matchMedia && window.matchMedia("(max-width: 768px)").matches;
+      return Boolean(hasTouchSupport && (isPhoneUserAgent || isPhoneScreen || isPhoneMediaQuery));
     }
-    // Get mobile configurations with caching
+    // Detect if current device is tablet
   }, {
-    key: "getMobileConfigs",
-    value: function getMobileConfigs(editorConfig, dashboardConfig) {
-      var _window$UTILS4, _window$UTILS5;
-      // Check if configs have changed (by reference)
-      if (this.mobileConfigCache.lastEditorConfigRef === editorConfig && this.mobileConfigCache.lastDashboardConfigRef === dashboardConfig && this.mobileConfigCache.editorConfig && this.mobileConfigCache.dashboardConfig) {
+    key: "detectTabletDevice",
+    value: function detectTabletDevice() {
+      if (this.detectMobileDevice()) {
+        return false;
+      }
+      var hasTouchSupport = "ontouchstart" in window || navigator.maxTouchPoints > 0 || navigator.msMaxTouchPoints > 0;
+      var userAgent = navigator.userAgent || navigator.vendor || window.opera || "";
+      var longSide = Math.max(window.innerWidth, window.innerHeight, window.screen.width || 0, window.screen.height || 0);
+      var shortSide = Math.min(window.innerWidth, window.innerHeight);
+      var isTabletUserAgent = /ipad|tablet|playbook|silk|(android(?!.*mobile))/i.test(userAgent);
+      var isTabletScreen = shortSide > 768 && shortSide <= 1280 && longSide <= 1600;
+      var isTabletMediaQuery = window.matchMedia && window.matchMedia("(min-width: 769px) and (max-width: 1280px)").matches;
+      return Boolean(hasTouchSupport && (isTabletUserAgent || isTabletScreen || isTabletMediaQuery));
+    }
+  }, {
+    key: "resolveLayoutMode",
+    value: function resolveLayoutMode() {
+      var renderMode = this.getRenderMode();
+      if (renderMode === "mobile") {
+        return "mobile";
+      }
+      if (renderMode === "tablet") {
+        return "tablet";
+      }
+      if (renderMode === "desktop") {
+        return "desktop";
+      }
+      if (this.detectMobileDevice()) {
+        return "mobile";
+      }
+      if (this.detectTabletDevice()) {
+        return "tablet";
+      }
+      return "desktop";
+    }
+    // Get compact layout configurations with caching
+  }, {
+    key: "getCompactConfigs",
+    value: function getCompactConfigs(layoutMode, editorConfig, dashboardConfig) {
+      var _window$UTILS8, _window$UTILS9, _window$UTILS0, _window$UTILS1;
+      if (!this.isCompactLayout(layoutMode)) {
         return {
-          mobileEditorConfig: this.mobileConfigCache.editorConfig,
-          mobileDashboardConfig: this.mobileConfigCache.dashboardConfig
+          compactEditorConfig: editorConfig,
+          compactDashboardConfig: dashboardConfig
         };
       }
-      // Create new mobile configurations
-      var mobileEditorConfig = (_window$UTILS4 = window.UTILS) === null || _window$UTILS4 === void 0 ? void 0 : _window$UTILS4.createMobileEditorConfig(editorConfig);
-      var mobileDashboardConfig = (_window$UTILS5 = window.UTILS) === null || _window$UTILS5 === void 0 ? void 0 : _window$UTILS5.createMobileDashboardConfig(dashboardConfig);
-      // Cache the configurations
-      this.mobileConfigCache.editorConfig = mobileEditorConfig;
-      this.mobileConfigCache.dashboardConfig = mobileDashboardConfig;
-      this.mobileConfigCache.lastEditorConfigRef = editorConfig;
-      this.mobileConfigCache.lastDashboardConfigRef = dashboardConfig;
-      return {
-        mobileEditorConfig: mobileEditorConfig,
-        mobileDashboardConfig: mobileDashboardConfig
+      var creators = layoutMode === "tablet" ? {
+        createEditorConfig: (_window$UTILS8 = window.UTILS) === null || _window$UTILS8 === void 0 ? void 0 : _window$UTILS8.createTabletEditorConfig,
+        createDashboardConfig: (_window$UTILS9 = window.UTILS) === null || _window$UTILS9 === void 0 ? void 0 : _window$UTILS9.createTabletDashboardConfig
+      } : {
+        createEditorConfig: (_window$UTILS0 = window.UTILS) === null || _window$UTILS0 === void 0 ? void 0 : _window$UTILS0.createMobileEditorConfig,
+        createDashboardConfig: (_window$UTILS1 = window.UTILS) === null || _window$UTILS1 === void 0 ? void 0 : _window$UTILS1.createMobileDashboardConfig
       };
+      var cache = this.compactConfigCache[layoutMode];
+      if (cache.lastEditorConfigRef === editorConfig && cache.lastDashboardConfigRef === dashboardConfig && cache.editorConfig && cache.dashboardConfig) {
+        return {
+          compactEditorConfig: cache.editorConfig,
+          compactDashboardConfig: cache.dashboardConfig
+        };
+      }
+      var compactEditorConfig = creators.createEditorConfig ? creators.createEditorConfig(editorConfig) : editorConfig;
+      var compactDashboardConfig = creators.createDashboardConfig ? creators.createDashboardConfig(dashboardConfig) : dashboardConfig;
+      cache.editorConfig = compactEditorConfig;
+      cache.dashboardConfig = compactDashboardConfig;
+      cache.lastEditorConfigRef = editorConfig;
+      cache.lastDashboardConfigRef = dashboardConfig;
+      return {
+        compactEditorConfig: compactEditorConfig,
+        compactDashboardConfig: compactDashboardConfig
+      };
+    }
+  }, {
+    key: "getActiveDashboardConfig",
+    value: function getActiveDashboardConfig(layoutMode, editorConfig, dashboardConfig) {
+      if (!this.isCompactLayout(layoutMode)) {
+        return dashboardConfig;
+      }
+      return this.getCompactConfigs(layoutMode, editorConfig, dashboardConfig).compactDashboardConfig;
     }
   }, {
     key: "handleCardRenderStatusChange",
@@ -8515,11 +8708,11 @@ var GridDashboard = /*#__PURE__*/function (_React$Component18) {
     key: "handleResize",
     value: function handleResize() {
       var newRowHeight = this.calculateDynamicRowHeight();
-      var newIsMobile = this.detectMobileDevice();
-      if (newRowHeight !== this.state.rowHeight || newIsMobile !== this.state.isMobile) {
+      var newLayoutMode = this.resolveLayoutMode();
+      if (newRowHeight !== this.state.rowHeight || newLayoutMode !== this.state.layoutMode) {
         this.setState({
           rowHeight: newRowHeight,
-          isMobile: newIsMobile
+          layoutMode: newLayoutMode
         });
       }
     }
@@ -8571,8 +8764,7 @@ var GridDashboard = /*#__PURE__*/function (_React$Component18) {
       window.addEventListener("resize", this.debouncedResize);
       this.handleResize();
       this.resetRenderStatus(this.props.cards);
-      // Apply theme styles based on current mobile state
-      var configToApply = this.state.isMobile ? this.getMobileConfigs(this.props.editorConfig, this.props.dashboardConfig).mobileDashboardConfig : this.props.dashboardConfig;
+      var configToApply = this.getActiveDashboardConfig(this.state.layoutMode, this.props.editorConfig, this.props.dashboardConfig);
       if ((_window$DashboardFram = window.DashboardFramework) !== null && _window$DashboardFram !== void 0 && _window$DashboardFram.applyThemeStyles && configToApply) {
         window.DashboardFramework.applyThemeStyles(configToApply);
       }
@@ -8586,29 +8778,36 @@ var GridDashboard = /*#__PURE__*/function (_React$Component18) {
   }, {
     key: "componentDidUpdate",
     value: function componentDidUpdate(prevProps, prevState) {
+      if (prevProps.renderMode !== this.props.renderMode) {
+        var nextLayoutMode = this.resolveLayoutMode();
+        var nextRowHeight = this.calculateDynamicRowHeight();
+        if (prevState.layoutMode !== nextLayoutMode || prevState.rowHeight !== nextRowHeight) {
+          this.setState({
+            layoutMode: nextLayoutMode,
+            rowHeight: nextRowHeight
+          });
+          return;
+        }
+      }
       // If card list changes, reset render status
       if (prevProps.cards !== this.props.cards) {
         this.resetRenderStatus(this.props.cards);
       }
-      // Clear mobile config cache if editor or dashboard config changes
+      // Clear compact config cache if editor or dashboard config changes
       if (prevProps.editorConfig !== this.props.editorConfig || prevProps.dashboardConfig !== this.props.dashboardConfig) {
-        this.mobileConfigCache.editorConfig = null;
-        this.mobileConfigCache.dashboardConfig = null;
-        this.mobileConfigCache.lastEditorConfigRef = null;
-        this.mobileConfigCache.lastDashboardConfigRef = null;
+        this.compactConfigCache.mobile.editorConfig = null;
+        this.compactConfigCache.mobile.dashboardConfig = null;
+        this.compactConfigCache.mobile.lastEditorConfigRef = null;
+        this.compactConfigCache.mobile.lastDashboardConfigRef = null;
+        this.compactConfigCache.tablet.editorConfig = null;
+        this.compactConfigCache.tablet.dashboardConfig = null;
+        this.compactConfigCache.tablet.lastEditorConfigRef = null;
+        this.compactConfigCache.tablet.lastDashboardConfigRef = null;
       }
-      // If dashboard configuration changes, apply theme styles
-      if (prevProps.dashboardConfig !== this.props.dashboardConfig) {
+      if (prevProps.editorConfig !== this.props.editorConfig || prevProps.dashboardConfig !== this.props.dashboardConfig || prevState.layoutMode !== this.state.layoutMode) {
         var _window$DashboardFram2;
-        if ((_window$DashboardFram2 = window.DashboardFramework) !== null && _window$DashboardFram2 !== void 0 && _window$DashboardFram2.applyThemeStyles && this.props.dashboardConfig) {
-          window.DashboardFramework.applyThemeStyles(this.props.dashboardConfig);
-        }
-      }
-      // If mobile state changes, apply appropriate theme styles
-      if (prevState.isMobile !== this.state.isMobile) {
-        var _window$DashboardFram3;
-        var configToApply = this.state.isMobile ? this.getMobileConfigs(this.props.editorConfig, this.props.dashboardConfig).mobileDashboardConfig : this.props.dashboardConfig;
-        if ((_window$DashboardFram3 = window.DashboardFramework) !== null && _window$DashboardFram3 !== void 0 && _window$DashboardFram3.applyThemeStyles && configToApply) {
+        var configToApply = this.getActiveDashboardConfig(this.state.layoutMode, this.props.editorConfig, this.props.dashboardConfig);
+        if ((_window$DashboardFram2 = window.DashboardFramework) !== null && _window$DashboardFram2 !== void 0 && _window$DashboardFram2.applyThemeStyles && configToApply) {
           window.DashboardFramework.applyThemeStyles(configToApply);
         }
       }
@@ -8630,7 +8829,7 @@ var GridDashboard = /*#__PURE__*/function (_React$Component18) {
       var extraProps = additionalProps.length > 0 ? Object.assign.apply(Object, [{}].concat(additionalProps)) : {};
       return React.createElement(window.BaseCard, _objectSpread(_objectSpread({}, cardConfig), {}, {
         onRenderStatusChange: this.handleCardRenderStatusChange,
-        isMobile: this.state.isMobile,
+        isMobile: this.isCompactLayout(),
         echartsThemeName: window.ECHARTS_THEME_NAME || "default"
       }, extraProps));
     }
@@ -8651,25 +8850,26 @@ var GridDashboard = /*#__PURE__*/function (_React$Component18) {
       }
       return validCards;
     }
-    // Render mobile layout
+    // Render compact layout
   }, {
-    key: "renderMobileLayout",
-    value: function renderMobileLayout() {
+    key: "renderCompactLayout",
+    value: function renderCompactLayout() {
       var _this$props9 = this.props,
         cards = _this$props9.cards,
         editorConfig = _this$props9.editorConfig,
         dashboardConfig = _this$props9.dashboardConfig;
       var visible = this.state.visible;
+      var layoutMode = this.getCompactLayoutMode();
       // Filter cards and collect layout warnings
-      var validCards = this.filterCardsAndCollectWarnings(cards, "GridDashboard.renderMobileLayout");
-      // Get cached mobile configurations
-      var _this$getMobileConfig = this.getMobileConfigs(editorConfig, dashboardConfig),
-        mobileEditorConfig = _this$getMobileConfig.mobileEditorConfig,
-        mobileDashboardConfig = _this$getMobileConfig.mobileDashboardConfig;
+      var validCards = this.filterCardsAndCollectWarnings(cards, "GridDashboard.renderCompactLayout");
+      var _this$getCompactConfi = this.getCompactConfigs(layoutMode, editorConfig, dashboardConfig),
+        compactEditorConfig = _this$getCompactConfi.compactEditorConfig,
+        compactDashboardConfig = _this$getCompactConfi.compactDashboardConfig;
       return React.createElement(window.MobileGridLayout, {
         cards: validCards,
-        editorConfig: mobileEditorConfig,
-        dashboardConfig: mobileDashboardConfig,
+        editorConfig: compactEditorConfig,
+        dashboardConfig: compactDashboardConfig,
+        layoutMode: layoutMode,
         visible: visible,
         createCardFromConfig: this.createCardFromConfig.bind(this),
         GridLayout: this.GridLayout
@@ -8758,7 +8958,7 @@ var GridDashboard = /*#__PURE__*/function (_React$Component18) {
     key: "render",
     value: function render() {
       var cards = this.props.cards;
-      var isMobile = this.state.isMobile;
+      var layoutMode = this.state.layoutMode;
       var config = this.props.dashboardConfig;
       if (!config) return null;
       // Check if there is card data
@@ -8766,7 +8966,7 @@ var GridDashboard = /*#__PURE__*/function (_React$Component18) {
         return null; // GridDashboard doesn't handle empty state directly, let parent Dashboard component handle it
       }
       // Route to appropriate render method based on device type
-      return isMobile ? this.renderMobileLayout() : this.renderDesktopLayout();
+      return this.isCompactLayout(layoutMode) ? this.renderCompactLayout() : this.renderDesktopLayout();
     }
   }]);
 }(React.Component);
@@ -8782,6 +8982,7 @@ var Dashboard = /*#__PURE__*/function (_React$Component19) {
       cards: null
     };
     _this44.isInitialized = false;
+    _this44.emptyDashboardCompleteNotified = false;
     _this44.handleLayoutChange = _this44.handleLayoutChange.bind(_this44);
     _this44.handleAllCardsRenderComplete = _this44.handleAllCardsRenderComplete.bind(_this44);
     _this44.handleDeleteCard = _this44.handleDeleteCard.bind(_this44);
@@ -8821,11 +9022,39 @@ var Dashboard = /*#__PURE__*/function (_React$Component19) {
       }
     }
   }, {
+    key: "hasCardList",
+    value: function hasCardList(cards) {
+      return Boolean(cards && Array.isArray(cards) && cards.length > 0);
+    }
+  }, {
+    key: "notifyEmptyDashboardIfNeeded",
+    value: function notifyEmptyDashboardIfNeeded(cardsOverride) {
+      var cards = cardsOverride !== undefined ? cardsOverride : this.state.cards || this.props.dashboardCards;
+      if (this.hasCardList(cards)) {
+        this.emptyDashboardCompleteNotified = false;
+        return;
+      }
+      if (this.emptyDashboardCompleteNotified) {
+        return;
+      }
+      this.emptyDashboardCompleteNotified = true;
+      var timestamp = Date.now();
+      this.handleAllCardsRenderComplete({
+        totalCards: 0,
+        renderedCards: 0,
+        successCount: 0,
+        errorCount: 0,
+        skippedCount: 0,
+        cardsStatus: [],
+        timestamp: timestamp
+      });
+    }
+  }, {
     key: "handleAllCardsRenderComplete",
     value: function handleAllCardsRenderComplete(renderInfo) {
       var totalCards = renderInfo.totalCards,
-        cardsStatus = renderInfo.cardsStatus,
         timestamp = renderInfo.timestamp;
+      var cardsStatus = renderInfo.cardsStatus || [];
       // 从 ErrorCollector 获取更准确的错误统计
       var errorCount = 0;
       var successCount = totalCards;
@@ -9023,9 +9252,13 @@ var Dashboard = /*#__PURE__*/function (_React$Component19) {
   }, {
     key: "componentDidUpdate",
     value: function componentDidUpdate(prevProps) {
-      if (this.hasCardsChanged(prevProps.dashboardCards, this.props.dashboardCards)) {
-        this.updateCardsState(this.props.dashboardCards);
+      var propsCards = this.props.dashboardCards;
+      var cardsFromParentChanged = this.hasCardsChanged(prevProps.dashboardCards, propsCards);
+      if (cardsFromParentChanged) {
+        this.updateCardsState(propsCards);
       }
+      var cardsForEmptyCheck = cardsFromParentChanged ? propsCards : this.state.cards || propsCards;
+      this.notifyEmptyDashboardIfNeeded(cardsForEmptyCheck);
     }
     // Check if card data has changed
   }, {
@@ -9050,6 +9283,7 @@ var Dashboard = /*#__PURE__*/function (_React$Component19) {
         });
         this.isInitialized = true;
       }
+      this.notifyEmptyDashboardIfNeeded();
     }
     // Handle title change
   }, {
@@ -9151,7 +9385,9 @@ var Dashboard = /*#__PURE__*/function (_React$Component19) {
       var _window$magicDashboar3;
       // Use card data from component state, fallback to props if not available
       var cards = this.state.cards || this.props.dashboardCards;
-      var editorConfig = this.props.editorConfig;
+      var _this$props1 = this.props,
+        editorConfig = _this$props1.editorConfig,
+        renderMode = _this$props1.renderMode;
       // Check if dashboard is ready
       var isDashboardReady = ((_window$magicDashboar3 = window.magicDashboard) === null || _window$magicDashboar3 === void 0 ? void 0 : _window$magicDashboar3.ready) === true;
       // Check if there is no card data
@@ -9161,6 +9397,7 @@ var Dashboard = /*#__PURE__*/function (_React$Component19) {
         className: "dashboard-container"
       }, hasCards && isDashboardReady ? React.createElement(window.GridDashboard, {
         cards: cards,
+        renderMode: renderMode,
         editorConfig: editorConfig,
         dashboardConfig: this.props.dashboardConfig,
         onLayoutChange: this.handleLayoutChange,
@@ -9182,33 +9419,53 @@ var Dashboard = /*#__PURE__*/function (_React$Component19) {
 }(React.Component);
 window.Dashboard = Dashboard;
 
+// Initialize ECharts theme from config before app render（无 config.js 时用 UTILS 与合并后的默认仪表盘配置兜底）
+function initializeEChartsTheme() {
+  window.ECHARTS_THEME_NAME = "dashboard";
+  if (!window.echarts || !window.UTILS) return;
+  var getTheme = typeof window.GET_ECHARTS_THEME_CONFIG === "function" ? window.GET_ECHARTS_THEME_CONFIG : window.UTILS.getDefaultEChartsThemeConfig;
+  var mergedDashboardConfig = window.UTILS.getComposeDashboardConfig(window.DASHBOARD_CONFIG || {});
+  try {
+    window.echarts.registerTheme(window.ECHARTS_THEME_NAME, getTheme(mergedDashboardConfig));
+  } catch (e) {
+    console.warn("[App] ECharts theme registration failed:", e);
+  }
+}
+initializeEChartsTheme();
+function normalizeRuntimeRenderMode(mode) {
+  return mode === "mobile" || mode === "tablet" || mode === "desktop" ? mode : "auto";
+}
 // Main application component
 function DashboardApp() {
-  var _window$magicDashboar4, _window$magicDashboar5, _window$magicDashboar6, _window$magicDashboar7, _window$magicDashboar8, _window$magicDashboar9;
+  var _window$magicDashboar4, _window$magicDashboar5, _window$magicDashboar6, _window$magicDashboar7, _window$magicDashboar8, _window$magicDashboar9, _window$magicDashboar0;
   var _React4 = React,
     useState = _React4.useState;
   var _useState = useState(((_window$magicDashboar4 = window.magicDashboard) === null || _window$magicDashboar4 === void 0 ? void 0 : _window$magicDashboar4.geo) || []),
     _useState2 = _slicedToArray(_useState, 2),
     geoConfig = _useState2[0],
     setGeoConfig = _useState2[1];
-  var _useState3 = useState({
-      EDITABLE: ((_window$magicDashboar5 = window.magicDashboard) === null || _window$magicDashboar5 === void 0 ? void 0 : _window$magicDashboar5.editable) || false,
-      DRAGGABLE: ((_window$magicDashboar6 = window.magicDashboard) === null || _window$magicDashboar6 === void 0 ? void 0 : _window$magicDashboar6.draggable) || false,
-      RESIZABLE: ((_window$magicDashboar7 = window.magicDashboard) === null || _window$magicDashboar7 === void 0 ? void 0 : _window$magicDashboar7.resizable) || false,
-      DELETABLE: ((_window$magicDashboar8 = window.magicDashboard) === null || _window$magicDashboar8 === void 0 ? void 0 : _window$magicDashboar8.deletable) || false,
-      EXPANDABLE: ((_window$magicDashboar9 = window.magicDashboard) === null || _window$magicDashboar9 === void 0 ? void 0 : _window$magicDashboar9.expandable) || false
-    }),
+  var _useState3 = useState(normalizeRuntimeRenderMode((_window$magicDashboar5 = window.magicDashboard) === null || _window$magicDashboar5 === void 0 ? void 0 : _window$magicDashboar5.renderMode)),
     _useState4 = _slicedToArray(_useState3, 2),
-    editorConfig = _useState4[0],
-    setEditorConfig = _useState4[1];
-  var _useState5 = useState(window.DASHBOARD_CARDS || []),
+    renderMode = _useState4[0],
+    _setRenderMode = _useState4[1];
+  var _useState5 = useState({
+      EDITABLE: ((_window$magicDashboar6 = window.magicDashboard) === null || _window$magicDashboar6 === void 0 ? void 0 : _window$magicDashboar6.editable) || false,
+      DRAGGABLE: ((_window$magicDashboar7 = window.magicDashboard) === null || _window$magicDashboar7 === void 0 ? void 0 : _window$magicDashboar7.draggable) || false,
+      RESIZABLE: ((_window$magicDashboar8 = window.magicDashboard) === null || _window$magicDashboar8 === void 0 ? void 0 : _window$magicDashboar8.resizable) || false,
+      DELETABLE: ((_window$magicDashboar9 = window.magicDashboard) === null || _window$magicDashboar9 === void 0 ? void 0 : _window$magicDashboar9.deletable) || false,
+      EXPANDABLE: ((_window$magicDashboar0 = window.magicDashboard) === null || _window$magicDashboar0 === void 0 ? void 0 : _window$magicDashboar0.expandable) || false
+    }),
     _useState6 = _slicedToArray(_useState5, 2),
-    dashboardCards = _useState6[0],
-    setDashboardCards = _useState6[1];
-  var _useState7 = useState(window.DASHBOARD_CONFIG || {}),
+    editorConfig = _useState6[0],
+    setEditorConfig = _useState6[1];
+  var _useState7 = useState(window.DASHBOARD_CARDS || []),
     _useState8 = _slicedToArray(_useState7, 2),
-    dashboardConfig = _useState8[0],
-    setDashboardConfig = _useState8[1];
+    dashboardCards = _useState8[0],
+    setDashboardCards = _useState8[1];
+  var _useState9 = useState(window.DASHBOARD_CONFIG !== undefined && window.DASHBOARD_CONFIG !== null ? window.DASHBOARD_CONFIG : {}),
+    _useState0 = _slicedToArray(_useState9, 2),
+    dashboardConfig = _useState0[0],
+    setDashboardConfig = _useState0[1];
   var composeDashboardConfig = React.useMemo(function () {
     return window.UTILS.getComposeDashboardConfig(dashboardConfig);
   }, [dashboardConfig]);
@@ -9218,9 +9475,15 @@ function DashboardApp() {
       setGeoConfig: setGeoConfig,
       setEditorConfig: setEditorConfig,
       setDashboardCards: setDashboardCards,
-      setDashboardConfig: setDashboardConfig
+      setDashboardConfig: setDashboardConfig,
+      setRenderMode: function setRenderMode(mode) {
+        var normalizedMode = normalizeRuntimeRenderMode(mode);
+        _setRenderMode(function (prevMode) {
+          return prevMode === normalizedMode ? prevMode : normalizedMode;
+        });
+      }
     };
-  }, [setGeoConfig, setEditorConfig, setDashboardCards, setDashboardConfig]);
+  }, [setGeoConfig, setEditorConfig, setDashboardCards, setDashboardConfig, _setRenderMode]);
   // Sync state to window global variables
   React.useEffect(function () {
     if (window.magicDashboard) {
@@ -9236,6 +9499,11 @@ function DashboardApp() {
       window.magicDashboard.expandable = editorConfig.EXPANDABLE;
     }
   }, [editorConfig]);
+  React.useEffect(function () {
+    if (window.magicDashboard) {
+      window.magicDashboard.renderMode = renderMode;
+    }
+  }, [renderMode]);
   React.useEffect(function () {
     window.DASHBOARD_CARDS = dashboardCards;
   }, [dashboardCards]);
@@ -9265,6 +9533,7 @@ function DashboardApp() {
   }, [geoConfig]);
   return React.createElement(window.DashboardFramework.Dashboard, {
     geoConfig: geoConfig,
+    renderMode: renderMode,
     editorConfig: editorConfig,
     dashboardCards: dashboardCards,
     dashboardConfig: composeDashboardConfig,

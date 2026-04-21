@@ -34,7 +34,7 @@ import argparse
 import json
 import sys
 
-from _context import _setup_project_root  # noqa: F401 — 触发 sys.path 设置
+import _context  # noqa: F401 — 触发 sys.path 设置及环境初始化
 from app.infrastructure.sdk.magic_service.factory import create_magic_service_sdk_with_defaults
 from app.infrastructure.sdk.magic_service.parameter.query_skills_parameter import QuerySkillsParameter
 from app.infrastructure.sdk.magic_service.parameter.get_latest_published_skill_versions_parameter import (
