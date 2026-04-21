@@ -97,6 +97,14 @@ class CheckpointManifest(BaseModel):
 
     checkpoints: List[str] = Field(default_factory=list, description="checkpoint ID列表（按时间顺序）")
     current_checkpoint_id: Optional[str] = Field(None, description="当前所处的checkpoint ID")
+    rollback_in_progress: bool = Field(
+        False,
+        description=(
+            "是否正在执行回滚（反向或撤回回滚）。回滚期间 Python 会直接改写工作区，"
+            "magicfs 看到 workspace 写入时应跳过 checkpoint 维护（不要更新 latest_content），"
+            "否则会把正在恢复的内容当成新的用户改动回灌进 checkpoint"
+        ),
+    )
     created_time: datetime = Field(..., description="创建时间")
     updated_time: datetime = Field(..., description="更新时间")
 

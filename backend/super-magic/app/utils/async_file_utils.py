@@ -48,38 +48,22 @@ async def async_copy2(src: Union[str, Path], dst: Union[str, Path]) -> None:
         if not await async_exists(src_path):
             raise FileNotFoundError(f"源文件不存在: {src_path}")
 
-        # 读取源文件 stat，用于后续大小校验与元数据复制
-        src_stat = await aiofiles.os.stat(str(src_path))
-        src_size = src_stat.st_size
-
         # 确保目标目录存在
         await async_mkdir(dst_path.parent, parents=True, exist_ok=True)
 
         # 异步复制文件内容
         async with aiofiles.open(src_path, 'rb') as src_file:
             content = await src_file.read()
-        read_bytes = len(content)
 
         async with aiofiles.open(dst_path, 'wb') as dst_file:
             await dst_file.write(content)
 
-        # 写完立刻回读 stat，用于诊断拷贝是否真正落盘
-        dst_stat_after_write = await aiofiles.os.stat(str(dst_path))
-        dst_size_after_write = dst_stat_after_write.st_size
-
         # 复制文件元数据（时间戳、权限）
-        await asyncio.to_thread(os.utime, str(dst_path), (src_stat.st_atime, src_stat.st_mtime))
-        await asyncio.to_thread(os.chmod, str(dst_path), src_stat.st_mode)
+        stat = await aiofiles.os.stat(str(src_path))
+        await asyncio.to_thread(os.utime, str(dst_path), (stat.st_atime, stat.st_mtime))
+        await asyncio.to_thread(os.chmod, str(dst_path), stat.st_mode)
 
-        if src_size != read_bytes or src_size != dst_size_after_write:
-            logger.warning(
-                f"async_copy2 大小不一致: {src_path} -> {dst_path} | "
-                f"src_stat={src_size}, read={read_bytes}, dst_stat={dst_size_after_write}"
-            )
-        else:
-            logger.debug(
-                f"async_copy2 完成: {src_path} -> {dst_path}, size={src_size}"
-            )
+        logger.debug(f"异步复制文件完成: {src_path} -> {dst_path}")
 
     except Exception as e:
         logger.error(f"异步复制文件失败 {src_path} -> {dst_path}: {e}")
