@@ -176,9 +176,9 @@ readonly class ChatMessageAssembler
             ],
         ];
 
-        // 将话题动态参数直接合并到 super_agent extra 中
+        // 将话题动态参数合并到 super_agent.dynamic_params 中，使其随 dynamic_config 下发到 super-magic
         if (! empty($dynamicParams)) {
-            $superAgentExtra = array_merge($superAgentExtra, $dynamicParams);
+            $superAgentExtra['dynamic_params'] = array_merge($superAgentExtra['dynamic_params'], $dynamicParams);
         }
 
         return [
