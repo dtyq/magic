@@ -1310,8 +1310,9 @@ class TaskFileDomainService
         $shouldKeepBoth = in_array($sourceFileIdStr, $keepBothFileIds, true);
 
         if ($existingTargetFile !== null && $existingTargetFile->getFileId() === $fileEntity->getFileId()) {
-            // Copying to the same directory should not overwrite itself; keep both and rename below.
+            // Copying to the same directory should not overwrite itself.
             $shouldKeepBoth = true;
+            $existingTargetFile = null;
         }
 
         if ($existingTargetFile !== null && $shouldKeepBoth) {
@@ -2719,6 +2720,46 @@ class TaskFileDomainService
     public function findChildDirectoryByName(int $projectId, int $parentId, string $dirName): ?TaskFileEntity
     {
         return $this->findDirectChildByName($projectId, $parentId, $dirName, true);
+    }
+
+    /**
+     * Navigate the file tree by relative path segments, returning any entity (file or directory).
+     * Intermediate segments must be directories; the last segment can be either.
+     * e.g. "测试/images/photo.png" → root → 测试(dir) → images(dir) → photo.png(file)
+     *
+     * @param int $projectId Project ID
+     * @param string $relativePath Relative path from project root (e.g. "测试/images/photo.png" or "/测试/images/")
+     * @return null|TaskFileEntity Target entity or null if any segment not found
+     */
+    public function findEntityByRelativePath(int $projectId, string $relativePath): ?TaskFileEntity
+    {
+        $segments = array_values(array_filter(explode('/', trim($relativePath, '/')), static fn (string $s) => $s !== ''));
+        if (empty($segments)) {
+            return $this->getRootFile($projectId);
+        }
+
+        $rootDir = $this->getRootFile($projectId);
+        if ($rootDir === null) {
+            return null;
+        }
+
+        $lastIndex = count($segments) - 1;
+        $currentParentId = $rootDir->getFileId();
+
+        foreach ($segments as $index => $segment) {
+            if ($index === $lastIndex) {
+                // Last segment: match file or directory by name under current parent
+                return $this->getByProjectParentAndName($projectId, $currentParentId, $segment);
+            }
+            // Intermediate segments: must be directories
+            $found = $this->findDirectoryByParentIdAndName($currentParentId, $segment, $projectId);
+            if ($found === null) {
+                return null;
+            }
+            $currentParentId = $found->getFileId();
+        }
+
+        return null;
     }
 
     /**

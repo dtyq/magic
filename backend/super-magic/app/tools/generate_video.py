@@ -1022,7 +1022,7 @@ class GenerateVideo(AbstractFileTool[GenerateVideoParams], WorkspaceTool[Generat
         raise ValueError(f"本地文件不存在: {media_path}")
 
     def _relative_to_workspace(self, file_path: Path) -> str:
-        workspace = Path(self.base_dir).resolve()
+        workspace = Path(self.base_dir)
         try:
             return str(file_path.relative_to(workspace))
         except ValueError:
@@ -1681,10 +1681,15 @@ class QueryVideoGeneration(AbstractFileTool[QueryVideoGenerationParams], Workspa
         properties: Dict[str, Any] = {"generateVideoRequest": merged_request}
 
         if status == "succeeded":
+            # saved_*_relative_path is workspace-relative; canvas src must be project-relative.
+            # Strip the project directory prefix the same way generate_canvas_videos does.
+            rel_proj = str(self.resolve_path(params.project_path).name)
+            video_src = self._to_project_relative(extra_info.get("saved_video_relative_path"), rel_proj)
+            poster_src = self._to_project_relative(extra_info.get("saved_poster_relative_path"), rel_proj)
             properties.update(
                 {
-                    "src": extra_info.get("saved_video_relative_path"),
-                    "poster": extra_info.get("saved_poster_relative_path"),
+                    "src": video_src,
+                    "poster": poster_src,
                     "status": "completed",
                     "errorMessage": None,
                 }
@@ -1763,6 +1768,21 @@ class QueryVideoGeneration(AbstractFileTool[QueryVideoGenerationParams], Workspa
         if normalized <= 0:
             return None
         return normalized
+
+    @staticmethod
+    def _to_project_relative(workspace_rel_path: Optional[str], relative_project_path: str) -> Optional[str]:
+        """将工作区相对路径转为项目相对路径。
+
+        saved_video_relative_path is workspace-relative (e.g. project/videos/a.mp4).
+        Canvas src must be project-relative (e.g. videos/a.mp4).
+        Strip the project directory prefix, mirroring generate_canvas_videos._to_project_relative.
+        """
+        if not workspace_rel_path:
+            return workspace_rel_path
+        try:
+            return str(Path(workspace_rel_path).relative_to(relative_project_path))
+        except ValueError:
+            return workspace_rel_path
 
     async def get_after_tool_call_friendly_action_and_remark(
         self,
