@@ -21,7 +21,11 @@ use App\Domain\Permission\Entity\ModelAccessRoleEntity;
 use App\Domain\Permission\Entity\ValueObject\PermissionControlStatus;
 use App\Domain\Permission\Entity\ValueObject\PermissionDataIsolation;
 use App\Domain\Permission\Repository\Persistence\ModelAccessRoleRepository;
+use App\Domain\Provider\Entity\ProviderModelEntity;
 use App\Domain\Provider\Entity\ValueObject\ProviderDataIsolation;
+use App\Domain\Provider\Entity\ValueObject\ProviderModelType;
+use App\Domain\Provider\Entity\ValueObject\Query\ProviderModelQuery;
+use App\Domain\Provider\Entity\ValueObject\Status;
 use App\Domain\Provider\Service\ProviderModelDomainService;
 use App\ErrorCode\PermissionErrorCode;
 use App\Infrastructure\Core\Exception\ExceptionBuilder;
@@ -361,14 +365,15 @@ readonly class ModelAccessRoleDomainService
         );
 
         $models = $this->providerModelDomainService->getEnableModels($providerDataIsolation);
-        if (empty($models)) {
-            return [];
-        }
+        $dynamicModels = $this->getEnabledDynamicModels($dataIsolation);
 
         if ($dataIsolation->getMagicId() === '') {
             $result = [];
             foreach ($models as $model) {
-                $result[$model->getModelId()] = $model->getModelId();
+                $this->appendAvailableModelId($result, $model->getModelId());
+            }
+            foreach ($dynamicModels as $dynamicModel) {
+                $this->appendAvailableModelId($result, $dynamicModel->getModelId());
             }
             return array_values($result);
         }
@@ -390,11 +395,94 @@ readonly class ModelAccessRoleDomainService
             if ($subscriptionAvailableModelIdMap !== null && ! isset($subscriptionAvailableModelIdMap[$modelId])) {
                 continue;
             }
-            if (! isset($result[$modelId])) {
-                $result[$modelId] = $modelId;
+            $this->appendAvailableModelId($result, $modelId);
+        }
+
+        foreach ($dynamicModels as $dynamicModel) {
+            if (! $this->isDynamicModelAvailableBySubscription($dynamicModel, $subscriptionAvailableModelIdMap)) {
+                continue;
             }
+            $this->appendAvailableModelId($result, $dynamicModel->getModelId());
         }
 
         return array_values($result);
+    }
+
+    /**
+     * @return ProviderModelEntity[]
+     */
+    private function getEnabledDynamicModels(PermissionDataIsolation $dataIsolation): array
+    {
+        $providerDataIsolation = ProviderDataIsolation::create(
+            $dataIsolation->getCurrentOrganizationCode(),
+            $dataIsolation->getCurrentUserId(),
+            $dataIsolation->getMagicId()
+        );
+        $providerDataIsolation->setContainOfficialOrganization(true);
+
+        $query = new ProviderModelQuery();
+        $query->setStatus(Status::Enabled);
+        $query->setProviderModelType(ProviderModelType::DYNAMIC);
+
+        $data = $this->providerModelDomainService->queries($providerDataIsolation, $query, Page::createNoPage());
+        return $data['list'] ?? [];
+    }
+
+    /**
+     * @param array<string, string> $result
+     */
+    private function appendAvailableModelId(array &$result, string $modelId): void
+    {
+        if ($modelId === '') {
+            return;
+        }
+
+        if (! isset($result[$modelId])) {
+            $result[$modelId] = $modelId;
+        }
+    }
+
+    /**
+     * @param null|array<string, true> $subscriptionAvailableModelIdMap
+     */
+    private function isDynamicModelAvailableBySubscription(
+        ProviderModelEntity $dynamicModel,
+        ?array $subscriptionAvailableModelIdMap
+    ): bool {
+        if ($subscriptionAvailableModelIdMap === null) {
+            return true;
+        }
+
+        foreach ($this->extractDynamicSubModelIds($dynamicModel) as $subModelId) {
+            if (isset($subscriptionAvailableModelIdMap[$subModelId])) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function extractDynamicSubModelIds(ProviderModelEntity $dynamicModel): array
+    {
+        $aggregateConfig = $dynamicModel->getAggregateConfig() ?? [];
+        $subModels = $aggregateConfig['models'] ?? [];
+        $modelIds = [];
+
+        foreach ($subModels as $subModel) {
+            if (is_string($subModel) && $subModel !== '') {
+                $modelIds[$subModel] = $subModel;
+                continue;
+            }
+
+            if (is_array($subModel) && ($subModel['model_id'] ?? '') !== '') {
+                $modelId = (string) $subModel['model_id'];
+                $modelIds[$modelId] = $modelId;
+            }
+        }
+
+        return array_values($modelIds);
     }
 }

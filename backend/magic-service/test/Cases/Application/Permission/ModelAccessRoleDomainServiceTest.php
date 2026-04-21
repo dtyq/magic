@@ -19,6 +19,8 @@ use App\Domain\Permission\Entity\ValueObject\PermissionControlStatus;
 use App\Domain\Permission\Entity\ValueObject\PermissionDataIsolation;
 use App\Domain\Permission\Repository\Persistence\ModelAccessRoleRepository;
 use App\Domain\Permission\Service\ModelAccessRoleDomainService;
+use App\Domain\Provider\Entity\ProviderModelEntity;
+use App\Domain\Provider\Entity\ValueObject\ProviderModelType;
 use App\Domain\Provider\Service\ProviderModelDomainService;
 use HyperfTest\HttpTestCase;
 
@@ -204,6 +206,19 @@ class ModelAccessRoleDomainServiceTest extends HttpTestCase
                 }
             },
         ]);
+        $providerModelDomainService->method('queries')->willReturn([
+            'total' => 1,
+            'list' => [
+                (new ProviderModelEntity())
+                    ->setModelId('dynamic-1')
+                    ->setType(ProviderModelType::DYNAMIC)
+                    ->setAggregateConfig([
+                        'models' => ['model-c', 'model-d'],
+                        'strategy' => 'permission_fallback',
+                        'strategy_config' => ['order' => 'asc'],
+                    ]),
+            ],
+        ]);
 
         $service = $this->createService(
             repository: $repository,
@@ -220,7 +235,7 @@ class ModelAccessRoleDomainServiceTest extends HttpTestCase
         $this->assertSame(PermissionControlStatus::ENABLED, $summary['permission_control_status']);
         $this->assertCount(2, $summary['roles']);
         $this->assertSame(['model-a', 'model-b'], $summary['denied_model_ids']);
-        $this->assertSame(['model-c'], $summary['accessible_model_ids']);
+        $this->assertSame(['model-c', 'dynamic-1'], $summary['accessible_model_ids']);
     }
 
     private function createService(
