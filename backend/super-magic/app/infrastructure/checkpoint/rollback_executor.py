@@ -646,9 +646,14 @@ class RollbackExecutor:
                 # 确保目标目录存在
                 await async_mkdir(target_path.parent, parents=True, exist_ok=True)
 
-                # 复制latest_content到目标位置
+                # 诊断：打印拷贝前后的源/目标大小，用于定位内容丢失问题
+                src_size_before = latest_content_path.stat().st_size
                 await async_copy2(latest_content_path, target_path)
-                logger.info(f"CREATED操作正向回滚成功，创建文件: {file_snapshot.file_path}")
+                dst_size_after = target_path.stat().st_size if target_path.exists() else -1
+                logger.info(
+                    "CREATED操作正向回滚成功，创建文件: %s | src(latest_content)=%d, dst=%d, src_path=%s",
+                    file_snapshot.file_path, src_size_before, dst_size_after, latest_content_path,
+                )
 
             elif file_snapshot.file_type == FileType.DIRECTORY:
                 # 目录：直接创建目录
@@ -715,9 +720,14 @@ class RollbackExecutor:
                 # 确保目标目录存在
                 await async_mkdir(target_path.parent, parents=True, exist_ok=True)
 
-                # 复制latest_content到目标位置
+                # 诊断：打印拷贝前后的源/目标大小，用于定位内容丢失问题
+                src_size_before = latest_content_path.stat().st_size
                 await async_copy2(latest_content_path, target_path)
-                logger.info(f"UPDATED操作正向回滚成功，恢复到更新后状态: {file_snapshot.file_path}")
+                dst_size_after = target_path.stat().st_size if target_path.exists() else -1
+                logger.info(
+                    "UPDATED操作正向回滚成功，恢复到更新后状态: %s | src(latest_content)=%d, dst=%d, src_path=%s",
+                    file_snapshot.file_path, src_size_before, dst_size_after, latest_content_path,
+                )
 
             elif file_snapshot.file_type == FileType.DIRECTORY:
                 # 目录：UPDATED操作对目录无意义，确保目录存在即可
