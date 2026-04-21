@@ -26,7 +26,7 @@ from app.service.agent_event.third_party_message_listener_service import ThirdPa
 from app.infrastructure.observability import install_tool_monitoring_listener
 from app.service.mcp_service import MCPService
 from app.path_manager import PathManager
-from app.service.agent_event.ask_user_listener_service import AskUserListenerService
+from app.service.agent_event.user_tool_call_listener_service import UserToolCallListenerService
 from app.service.agent_event.channel_startup_listener_service import ChannelStartupListenerService
 from app.core.entity.message.client_message import InitClientMessage, ChatClientMessage, AgentMode
 from agentlang.logger import get_logger
@@ -96,7 +96,7 @@ class AgentDispatcher(Base):
         CheckpointListenerService.register_standard_listeners(self.agent_context)
         ResourceCleanupListenerService.register_standard_listeners(self.agent_context)
         ChannelStartupListenerService.register_standard_listeners(self.agent_context)
-        AskUserListenerService.register_standard_listeners(self.agent_context)
+        UserToolCallListenerService.register_standard_listeners(self.agent_context)
         ThirdPartyMessageListenerService.register_standard_listeners(self.agent_context)
 
         # 注册工具监控监听器（非侵入式）
