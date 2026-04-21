@@ -259,6 +259,11 @@ class OpenRouterModel extends AbstractImageGenerate
         // 优先从 images 字段提取
         if (isset($responseData['choices'][0]['message']['images'])) {
             foreach ($responseData['choices'][0]['message']['images'] as $image) {
+                if (($image['thought'] ?? false) === true || ($image['image_url']['thought'] ?? false) === true) {
+                    $this->logger->info('OpenRouter响应：检测到思考图，已过滤');
+                    continue;
+                }
+
                 if (isset($image['image_url']['url'])) {
                     $images[] = ['url' => $image['image_url']['url']];
                 } elseif (isset($image['url'])) {
