@@ -273,6 +273,34 @@ final class InMemoryVideoQueueOperationRepository implements VideoQueueOperation
     {
         $this->activeRemoved[] = $operation->getId();
     }
+
+    public function claimUserActiveOperation(VideoQueueOperationEntity $operation, int $limit, int $ttlSeconds): bool
+    {
+        return true;
+    }
+
+    public function getUserActiveOperations(string $organizationCode, string $userId): array
+    {
+        return [];
+    }
+
+    public function releaseUserActiveOperation(VideoQueueOperationEntity $operation): void
+    {
+    }
+
+    public function claimOrganizationActiveOperation(VideoQueueOperationEntity $operation, int $limit, int $ttlSeconds): bool
+    {
+        return true;
+    }
+
+    public function getOrganizationActiveOperations(string $organizationCode): array
+    {
+        return [];
+    }
+
+    public function releaseOrganizationActiveOperation(VideoQueueOperationEntity $operation): void
+    {
+    }
 }
 
 final class FakeLocker implements LockerInterface
@@ -282,7 +310,7 @@ final class FakeLocker implements LockerInterface
         return true;
     }
 
-    public function spinLock(string $name, string $owner, int $expire = 10): bool
+    public function spinLock(string $name, string $owner, int $expire = 10, ?int $waitTimeout = null): bool
     {
         return true;
     }

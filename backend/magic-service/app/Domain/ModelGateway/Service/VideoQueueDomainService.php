@@ -250,6 +250,57 @@ readonly class VideoQueueDomainService
         $this->videoQueueOperationRepository->saveOperation($operation, $this->operationTtlSeconds());
     }
 
+    /**
+     * 占用当前任务的个人和组织视频运行槽位，任一维度达到上限时抛出限流异常。
+     */
+    public function claimUserActiveOperation(VideoQueueOperationEntity $operation): void
+    {
+        $ttlSeconds = $this->operationTtlSeconds();
+        $this->releaseDoneActiveOperations($operation);
+
+        // 个人并发先占位，避免同一组织用户超过配置的运行任务数。
+        if (! $this->videoQueueOperationRepository->claimUserActiveOperation(
+            $operation,
+            $this->userActiveOperationLimit($operation->getOrganizationCode()),
+            $ttlSeconds
+        )) {
+            ExceptionBuilder::throw(MagicApiErrorCode::RATE_LIMIT, 'video task already running');
+        }
+
+        $organizationLimit = $this->organizationActiveOperationLimit($operation->getOrganizationCode());
+        if ($organizationLimit <= 0) {
+            return;
+        }
+
+        // 组织总并发占位失败时回滚个人槽位，避免一次失败提交占住用户名额。
+        if (! $this->videoQueueOperationRepository->claimOrganizationActiveOperation($operation, $organizationLimit, $ttlSeconds)) {
+            $this->videoQueueOperationRepository->releaseUserActiveOperation($operation);
+            ExceptionBuilder::throw(MagicApiErrorCode::RATE_LIMIT, 'organization video task concurrency limit exceeded');
+        }
+    }
+
+    /**
+     * 任务进入终态时释放个人和组织视频运行槽位，未完成任务继续保持占用。
+     */
+    public function releaseUserActiveOperationIfDone(VideoQueueOperationEntity $operation): void
+    {
+        // provider 仍在运行时保留槽位，只有任务进入终态后才释放。
+        if (! $operation->getStatus()->isDone()) {
+            return;
+        }
+
+        $this->releaseUserActiveOperation($operation);
+    }
+
+    /**
+     * 释放当前任务占用的个人和组织视频运行槽位，用于提交失败等未进入运行态的场景。
+     */
+    public function releaseUserActiveOperation(VideoQueueOperationEntity $operation): void
+    {
+        $this->videoQueueOperationRepository->releaseUserActiveOperation($operation);
+        $this->videoQueueOperationRepository->releaseOrganizationActiveOperation($operation);
+    }
+
     public function buildDirectQueueSnapshot(): array
     {
         return [
@@ -284,6 +335,32 @@ readonly class VideoQueueDomainService
         return max(1, (int) config('model_gateway.video_queue.max_concurrency', 1));
     }
 
+    /**
+     * 获取组织用户维度的视频并发上限，支持按组织 code 覆盖默认值。
+     */
+    public function userActiveOperationLimit(string $organizationCode): int
+    {
+        return max(1, $this->resolveOrganizationLimit(
+            'model_gateway.video_queue.default_user_active_operation_limit',
+            'model_gateway.video_queue.user_active_operation_limit_overrides',
+            $organizationCode,
+            1
+        ));
+    }
+
+    /**
+     * 获取组织维度的视频总并发上限，返回 0 表示不启用组织总并发限制。
+     */
+    public function organizationActiveOperationLimit(string $organizationCode): int
+    {
+        return max(0, $this->resolveOrganizationLimit(
+            'model_gateway.video_queue.default_organization_active_operation_limit',
+            'model_gateway.video_queue.organization_active_operation_limit_overrides',
+            $organizationCode,
+            0
+        ));
+    }
+
     public function operationTtlSeconds(): int
     {
         return max(600, (int) config('model_gateway.video_queue.operation_ttl_seconds', 72 * 3600));
@@ -292,6 +369,51 @@ readonly class VideoQueueDomainService
     public function lockExpireSeconds(): int
     {
         return max(5, (int) config('model_gateway.video_queue.lock_expire_seconds', 30));
+    }
+
+    /**
+     * 提交新任务前清理个人和组织维度中已完成但残留的运行槽位。
+     */
+    private function releaseDoneActiveOperations(VideoQueueOperationEntity $operation): void
+    {
+        $this->releaseDoneOperations($this->videoQueueOperationRepository->getUserActiveOperations(
+            $operation->getOrganizationCode(),
+            $operation->getUserId(),
+        ));
+        $this->releaseDoneOperations($this->videoQueueOperationRepository->getOrganizationActiveOperations(
+            $operation->getOrganizationCode(),
+        ));
+    }
+
+    /**
+     * 批量释放已进入终态的运行槽位。
+     *
+     * @param array<int, VideoQueueOperationEntity> $operations
+     */
+    private function releaseDoneOperations(array $operations): void
+    {
+        foreach ($operations as $activeOperation) {
+            if ($activeOperation->getStatus()->isDone()) {
+                $this->releaseUserActiveOperation($activeOperation);
+            }
+        }
+    }
+
+    /**
+     * 从默认配置和组织覆盖配置中解析当前组织最终使用的并发上限。
+     */
+    private function resolveOrganizationLimit(
+        string $defaultConfigKey,
+        string $organizationConfigKey,
+        string $organizationCode,
+        int $default
+    ): int {
+        $organizationLimits = config($organizationConfigKey, []);
+        if (is_array($organizationLimits) && array_key_exists($organizationCode, $organizationLimits)) {
+            return (int) $organizationLimits[$organizationCode];
+        }
+
+        return (int) config($defaultConfigKey, $default);
     }
 
     private function normalizeRequest(
