@@ -97,8 +97,8 @@ class MagicFSFileDomainService
      * @param null|TaskFileSource $source 文件来源（可选，不传则默认 AGENT）
      * @param null|array<string, string> $fileMetadata 文件级持久化 flag（例如 local_shadow=1），会与 mode 一同落到 task_files.metadata JSON 列
      * @param bool $reuseDeletedFileId 同名文件若已被软删除，是否复用其原 file_id；
-     *                                  agfs magicfs 插件在 checkpoint 回滚重放时置为 true，
-     *                                  以保证外链引用的 file_id 在撤回/取消撤回前后保持稳定
+     *                                 agfs magicfs 插件在 checkpoint 回滚重放时置为 true，
+     *                                 以保证外链引用的 file_id 在撤回/取消撤回前后保持稳定
      * @return TaskFileEntity 创建的文件实体
      */
     public function createFile(string $name, string $parentId, bool $isDirectory, ?string $superMagicTaskId = null, ?int $sortValue = null, ?FileType $fileType = null, ?TaskFileSource $source = null, ?array $fileMetadata = null, bool $reuseDeletedFileId = false): TaskFileEntity
