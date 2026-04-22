@@ -72,6 +72,8 @@ use Psr\Log\LoggerInterface;
 use Psr\Log\NullLogger;
 use Throwable;
 
+use function Hyperf\Translation\trans;
+
 /**
  * @internal
  */
@@ -181,7 +183,7 @@ class VideoOperationAppServiceTest extends TestCase
             ]));
             $this->fail('Expected the second running video request to be rejected.');
         } catch (BusinessException $exception) {
-            $this->assertSame('video task already running', $exception->getMessage());
+            $this->assertSame(trans('video.errors.user_concurrency_limit', ['limit' => 1]), $exception->getMessage());
         }
 
         $this->assertCount(1, $executor->submittedOperations);
@@ -217,7 +219,7 @@ class VideoOperationAppServiceTest extends TestCase
             ]));
             $this->fail('Expected the third running video request to be rejected.');
         } catch (BusinessException $exception) {
-            $this->assertSame('video task already running', $exception->getMessage());
+            $this->assertSame(trans('video.errors.user_concurrency_limit', ['limit' => 2]), $exception->getMessage());
         }
 
         $this->assertCount(2, $executor->submittedOperations);
@@ -293,7 +295,7 @@ class VideoOperationAppServiceTest extends TestCase
             ]));
             $this->fail('Expected the third organization video request to be rejected.');
         } catch (BusinessException $exception) {
-            $this->assertSame('organization video task concurrency limit exceeded', $exception->getMessage());
+            $this->assertSame(trans('video.errors.organization_concurrency_limit', ['limit' => 2]), $exception->getMessage());
         }
 
         $this->assertCount(2, $executor->submittedOperations);

@@ -259,12 +259,13 @@ readonly class VideoQueueDomainService
         $this->releaseDoneActiveOperations($operation);
 
         // 个人并发先占位，避免同一组织用户超过配置的运行任务数。
+        $userLimit = $this->userActiveOperationLimit($operation->getOrganizationCode());
         if (! $this->videoQueueOperationRepository->claimUserActiveOperation(
             $operation,
-            $this->userActiveOperationLimit($operation->getOrganizationCode()),
+            $userLimit,
             $ttlSeconds
         )) {
-            ExceptionBuilder::throw(MagicApiErrorCode::RATE_LIMIT, 'video task already running');
+            ExceptionBuilder::throw(MagicApiErrorCode::RATE_LIMIT, 'video.errors.user_concurrency_limit', ['limit' => $userLimit]);
         }
 
         $organizationLimit = $this->organizationActiveOperationLimit($operation->getOrganizationCode());
@@ -275,7 +276,7 @@ readonly class VideoQueueDomainService
         // 组织总并发占位失败时回滚个人槽位，避免一次失败提交占住用户名额。
         if (! $this->videoQueueOperationRepository->claimOrganizationActiveOperation($operation, $organizationLimit, $ttlSeconds)) {
             $this->videoQueueOperationRepository->releaseUserActiveOperation($operation);
-            ExceptionBuilder::throw(MagicApiErrorCode::RATE_LIMIT, 'organization video task concurrency limit exceeded');
+            ExceptionBuilder::throw(MagicApiErrorCode::RATE_LIMIT, 'video.errors.organization_concurrency_limit', ['limit' => $organizationLimit]);
         }
     }
 

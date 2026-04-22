@@ -19,6 +19,8 @@ return [
     ],
     'errors' => [
         'generic' => 'Video generation failed. Please check your input and try again later.',
+        'user_concurrency_limit' => 'Your video generation concurrency limit has been reached (maximum :limit running task(s)). Please wait for an existing task to finish before submitting another one.',
+        'organization_concurrency_limit' => 'This organization has reached its video generation concurrency limit (maximum :limit running task(s)). Please wait for an existing organization task to finish before submitting another one.',
         'volcengine' => [
             'InputVideoSensitiveContentDetected' => [
                 'PrivacyInformation' => 'The input video or image may contain a real person or face. Please replace it with non-person content and try again.',
