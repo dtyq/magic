@@ -285,6 +285,16 @@ Background mode rules (allow_background=True):
         """获取备注内容"""
         return arguments.get("command", "") if arguments else ""
 
+    async def get_before_tool_call_friendly_action_and_remark(
+        self, tool_name: str, tool_context: ToolContext, arguments: Dict[str, Any] = None
+    ) -> Dict:
+        args = arguments or {}
+        return {
+            "action": i18n.translate("shell_exec", category="tool.actions"),
+            "remark": args.get("command", ""),
+            "tool_name": tool_name,
+        }
+
     async def get_after_tool_call_friendly_action_and_remark(self, tool_name: str, tool_context: ToolContext, result: ToolResult, execution_time: float, arguments: Dict[str, Any] = None) -> Dict:
         """
         获取工具调用后的友好动作和备注

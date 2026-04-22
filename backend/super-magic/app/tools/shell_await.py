@@ -232,6 +232,35 @@ Rules for shell_await:
             result.set_exit_code(-2)
             return result
 
+    async def get_before_tool_call_friendly_action_and_remark(
+        self, tool_name: str, tool_context: ToolContext, arguments: Dict[str, Any] = None
+    ) -> Dict:
+        args = arguments or {}
+        task_id = args.get("task_id")
+        timeout = args.get("timeout", 30)
+        input_text = args.get("input_text")
+
+        if task_id is None:
+            remark = i18n.translate(
+                "shell_await.before_sleep",
+                category="tool.messages",
+                seconds=timeout,
+            )
+        elif timeout == -1:
+            remark = i18n.translate("shell_await.before_kill", category="tool.messages")
+        elif timeout == 0:
+            remark = i18n.translate("shell_await.before_snapshot", category="tool.messages")
+        elif input_text:
+            remark = i18n.translate("shell_await.before_send_input", category="tool.messages")
+        else:
+            remark = i18n.translate("shell_await.before_wait", category="tool.messages")
+
+        return {
+            "action": i18n.translate("shell_await", category="tool.actions"),
+            "remark": remark,
+            "tool_name": tool_name,
+        }
+
     async def get_after_tool_call_friendly_action_and_remark(
         self,
         tool_name: str,
@@ -265,9 +294,12 @@ Rules for shell_await:
         try:
             payload = json.loads(result.content)
             status = payload.get("status", "")
-            remark = f"task_id={task_id} status={status}" if task_id else status
+            i18n_key = f"shell_await.status_{status}"
+            translated = i18n.translate(i18n_key, category="tool.messages")
+            # i18n key 不存在时会原样返回 key，此时降级为 status 原文
+            remark = translated if translated != i18n_key else status
         except Exception:
-            remark = task_id or ""
+            remark = ""
 
         return {
             "action": i18n.translate("shell_await", category="tool.actions"),
