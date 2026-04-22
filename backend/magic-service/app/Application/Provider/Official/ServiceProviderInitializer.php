@@ -330,6 +330,32 @@ class ServiceProviderInitializer
                 ]),
                 'remark' => '',
             ],
+            // Anthropic - LLM
+            [
+                'name' => 'Anthropic',
+                'provider_code' => ProviderCode::Anthropic->value,
+                'sort_order' => 993,
+                'description' => 'Anthropic 提供 Claude 系列大语言模型，支持长上下文与多轮对话，适用于复杂推理与专业写作等场景。',
+                'icon' => 'MAGIC/713471849556451329/default/default.png',
+                'provider_type' => 0,
+                'category' => 'llm',
+                'status' => 1,
+                'is_models_enable' => 0,
+                'created_at' => $now,
+                'updated_at' => $now,
+                'deleted_at' => null,
+                'translate' => json_encode([
+                    'name' => [
+                        'en_US' => 'Anthropic',
+                        'zh_CN' => 'Anthropic',
+                    ],
+                    'description' => [
+                        'en_US' => 'Anthropic provides the Claude family of large language models with long context and multi-turn dialogue, suitable for complex reasoning and professional writing.',
+                        'zh_CN' => 'Anthropic 提供 Claude 系列大语言模型，支持长上下文与多轮对话，适用于复杂推理与专业写作等场景。',
+                    ],
+                ]),
+                'remark' => '',
+            ],
             // Custom OpenAI - LLM
             [
                 'name' => '自定义提供商',

@@ -43,6 +43,11 @@ enum TaskStatus: string
     case ERROR = 'error';
 
     /**
+     * 等待用户处理（Human in the Loop）.
+     */
+    case WAITING_FOR_USER = 'waiting_for_user';
+
+    /**
      * 获取状态描述.
      */
     public function getDescription(): string
@@ -54,6 +59,7 @@ enum TaskStatus: string
             self::ERROR => '错误',
             self::Suspended => '挂起',
             self::Stopped => '终止',
+            self::WAITING_FOR_USER => '等待用户处理',
         };
     }
 
@@ -71,6 +77,7 @@ enum TaskStatus: string
             self::ERROR->value => self::ERROR->getDescription(),
             self::Suspended->value => self::Suspended->getDescription(),
             self::Stopped->value => self::Stopped->getDescription(),
+            self::WAITING_FOR_USER->value => self::WAITING_FOR_USER->getDescription(),
         ];
     }
 
@@ -87,6 +94,6 @@ enum TaskStatus: string
      */
     public function isActive(): bool
     {
-        return in_array($this, [self::WAITING, self::RUNNING], true);
+        return in_array($this, [self::WAITING, self::RUNNING, self::WAITING_FOR_USER], true);
     }
 }

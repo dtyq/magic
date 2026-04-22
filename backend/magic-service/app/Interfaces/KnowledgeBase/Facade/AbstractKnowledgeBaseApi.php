@@ -8,6 +8,7 @@ declare(strict_types=1);
 namespace App\Interfaces\KnowledgeBase\Facade;
 
 use App\Application\File\Service\FileAppService;
+use App\Application\KnowledgeBase\Port\EmbeddingProviderPort;
 use App\Application\KnowledgeBase\Service\KnowledgeBaseAppService;
 use App\Application\KnowledgeBase\Service\KnowledgeBaseDocumentAppService;
 use App\Application\KnowledgeBase\Service\KnowledgeBaseFragmentAppService;
@@ -28,7 +29,43 @@ abstract class AbstractKnowledgeBaseApi extends AbstractApi
         protected FileAppService $fileAppService,
         protected KnowledgeBaseStrategyInterface $knowledgeBaseStrategy,
         protected LLMAppService $llmAppService,
+        protected EmbeddingProviderPort $embeddingProviderPort,
     ) {
         parent::__construct($request);
+    }
+
+    /**
+     * @return array<string>
+     */
+    protected function getAgentCodesFromQuery(): array
+    {
+        return $this->normalizeAgentCodes($this->request->query('agent_codes', []));
+    }
+
+    /**
+     * @return array<string>
+     */
+    protected function getAgentCodesFromBody(): array
+    {
+        return $this->normalizeAgentCodes($this->request->input('agent_codes', []));
+    }
+
+    /**
+     * @return array<string>
+     */
+    private function normalizeAgentCodes(mixed $value): array
+    {
+        $items = is_array($value) ? $value : [$value];
+        $result = [];
+        $seen = [];
+        array_walk_recursive($items, function (mixed $item) use (&$result, &$seen): void {
+            $trimmed = trim((string) $item);
+            if ($trimmed === '' || isset($seen[$trimmed])) {
+                return;
+            }
+            $seen[$trimmed] = true;
+            $result[] = $trimmed;
+        });
+        return $result;
     }
 }

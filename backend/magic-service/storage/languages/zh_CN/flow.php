@@ -70,6 +70,7 @@ return [
     ],
     'knowledge_base' => [
         're_vectorized_not_support' => '不支持重新向量化',
+        'fragment_write_disabled' => '知识库片段不支持单独创建、修改、删除或同步，请重新向量化整个文档',
     ],
     'max_record' => [
         'positive_integer' => '最大记录数 只能是 :min - :max 的正整数',

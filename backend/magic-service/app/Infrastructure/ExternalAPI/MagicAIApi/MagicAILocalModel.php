@@ -8,8 +8,10 @@ declare(strict_types=1);
 namespace App\Infrastructure\ExternalAPI\MagicAIApi;
 
 use App\Application\ModelGateway\Service\LLMAppService;
+use App\Domain\ModelGateway\Entity\Dto\AbstractRequestDTO;
 use App\Domain\ModelGateway\Entity\Dto\CompletionDTO;
 use App\Domain\ModelGateway\Entity\Dto\EmbeddingsDTO;
+use App\Infrastructure\Util\Http\RequestHelper;
 use Hyperf\Odin\Api\Providers\OpenAI\OpenAI;
 use Hyperf\Odin\Api\Providers\OpenAI\OpenAIConfig;
 use Hyperf\Odin\Api\Response\ChatCompletionResponse;
@@ -71,6 +73,8 @@ class MagicAILocalModel extends AbstractModel
         $sendMsgGPTDTO->setAccessToken($this->accessToken);
         $sendMsgGPTDTO->setUser($user);
         $sendMsgGPTDTO->setBusinessParams($businessParams);
+        $this->fillClientIpsIfEmpty($sendMsgGPTDTO);
+
         return di(LLMAppService::class)->embeddings($sendMsgGPTDTO);
     }
 
@@ -143,6 +147,7 @@ class MagicAILocalModel extends AbstractModel
         $sendMsgGPTDTO->setStop($stop);
         $sendMsgGPTDTO->setMaxTokens($maxTokens);
         $sendMsgGPTDTO->setBusinessParams($businessParams);
+        $this->fillClientIpsIfEmpty($sendMsgGPTDTO);
 
         return di(LLMAppService::class)->chatCompletion($sendMsgGPTDTO);
     }
@@ -198,6 +203,7 @@ class MagicAILocalModel extends AbstractModel
         $sendMsgGPTDTO->setMessages($messageList);
         $sendMsgGPTDTO->setStream($stream);
         $sendMsgGPTDTO->setBusinessParams($businessParams);
+        $this->fillClientIpsIfEmpty($sendMsgGPTDTO);
 
         $lastException = null;
         foreach ($models as $model) {
@@ -223,5 +229,19 @@ class MagicAILocalModel extends AbstractModel
             $businessParams['user_id'] = $this->userId;
         }
         return $businessParams;
+    }
+
+    /**
+     * 本地代理链上的 DTO 常无 ips；仅在仍为空时用 RequestHelper::getClientIpFromContainer 补一条.
+     */
+    private function fillClientIpsIfEmpty(AbstractRequestDTO $dto): void
+    {
+        if ($dto->getIps() !== []) {
+            return;
+        }
+        $ip = RequestHelper::getClientIpFromContainer();
+        if ($ip !== null && $ip !== '') {
+            $dto->setIps([$ip]);
+        }
     }
 }

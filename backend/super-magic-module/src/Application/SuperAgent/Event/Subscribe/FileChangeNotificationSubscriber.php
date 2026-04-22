@@ -9,6 +9,7 @@ namespace Dtyq\SuperMagic\Application\SuperAgent\Event\Subscribe;
 
 use App\Domain\Chat\Entity\ValueObject\SocketEventType;
 use App\Domain\Contact\Repository\Persistence\MagicUserRepository;
+use App\Infrastructure\Rpc\JsonRpc\Client\Knowledge\ProjectFileRpcClient;
 use App\Infrastructure\Util\SocketIO\SocketIOUtil;
 use Dtyq\AsyncEvent\Kernel\Annotation\AsyncListener;
 use Dtyq\SuperMagic\Domain\SuperAgent\Event\DirectoryDeletedEvent;
@@ -44,6 +45,7 @@ class FileChangeNotificationSubscriber implements ListenerInterface
         private readonly ProjectDomainService $projectDomainService,
         private readonly TaskFileDomainService $taskFileDomainService,
         private readonly MagicUserRepository $magicUserRepository,
+        private readonly ProjectFileRpcClient $projectFileRpcClient,
         LoggerFactory $loggerFactory
     ) {
         $this->logger = $loggerFactory->get(self::class);
@@ -122,6 +124,7 @@ class FileChangeNotificationSubscriber implements ListenerInterface
         );
 
         $this->pushNotification($event->getUserId(), $pushData);
+        $this->notifyKnowledgeProjectFileChange($fileEntity->getFileId());
     }
 
     /**
@@ -148,6 +151,7 @@ class FileChangeNotificationSubscriber implements ListenerInterface
         );
 
         $this->pushNotification($event->getUserId(), $pushData);
+        $this->notifyKnowledgeProjectFileChange($fileEntity->getFileId());
     }
 
     /**
@@ -177,6 +181,7 @@ class FileChangeNotificationSubscriber implements ListenerInterface
         );
 
         $this->pushNotification($event->getUserId(), $pushData);
+        $this->notifyKnowledgeProjectFileChange($fileEntity->getFileId());
     }
 
     /**
@@ -204,6 +209,7 @@ class FileChangeNotificationSubscriber implements ListenerInterface
         );
 
         $this->pushNotification($userAuthorization->getId(), $pushData);
+        $this->notifyKnowledgeProjectFileChange($fileEntity->getFileId());
     }
 
     /**
@@ -239,6 +245,9 @@ class FileChangeNotificationSubscriber implements ListenerInterface
         );
 
         $this->pushNotification($userAuthorization->getId(), $pushData);
+        foreach ($fileIds as $fileId) {
+            $this->notifyKnowledgeProjectFileChange((int) $fileId);
+        }
     }
 
     /**
@@ -266,6 +275,7 @@ class FileChangeNotificationSubscriber implements ListenerInterface
         );
 
         $this->pushNotification($userAuthorization->getId(), $pushData);
+        $this->notifyKnowledgeProjectFileChange($fileEntity->getFileId());
     }
 
     /**
@@ -293,6 +303,7 @@ class FileChangeNotificationSubscriber implements ListenerInterface
         );
 
         $this->pushNotification($userAuthorization->getId(), $pushData);
+        $this->notifyKnowledgeProjectFileChange($fileEntity->getFileId());
     }
 
     /**
@@ -347,6 +358,9 @@ class FileChangeNotificationSubscriber implements ListenerInterface
         );
 
         $this->pushNotification($event->getUserId(), $pushData);
+        foreach ($fileIds as $fileId) {
+            $this->notifyKnowledgeProjectFileChange((int) $fileId);
+        }
     }
 
     /**
@@ -444,6 +458,22 @@ class FileChangeNotificationSubscriber implements ListenerInterface
                 ],
             ],
         ];
+    }
+
+    private function notifyKnowledgeProjectFileChange(int $projectFileId): void
+    {
+        if ($projectFileId <= 0) {
+            return;
+        }
+
+        try {
+            $this->projectFileRpcClient->notifyChange($projectFileId);
+        } catch (Throwable $throwable) {
+            $this->logger->warning('Notify knowledge project file change failed', [
+                'project_file_id' => $projectFileId,
+                'error' => $throwable->getMessage(),
+            ]);
+        }
     }
 
     /**

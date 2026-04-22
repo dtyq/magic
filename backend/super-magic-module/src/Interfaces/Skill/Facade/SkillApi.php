@@ -291,7 +291,7 @@ class SkillApi extends AbstractApi
         $responseDTO = $this->userSkillAppService->getSkillDetail($requestContext, $code);
 
         // 如果项目ID为空，则创建并绑定项目（兼容历史数据）
-        if (empty($responseDTO->getProjectId()) && $responseDTO->getSourceType() !== SkillSourceType::MARKET->value) {
+        if (empty($responseDTO->getProjectId()) && $requestContext->getUserAuthorization()->getId() === ($responseDTO->getCreatorInfo()?->getId() ?? null)) {
             $projectInfo = $this->createAndBindProject($requestContext, $responseDTO->getPackageName(), $code);
             $responseDTO->setProjectId((int) ($projectInfo['project']['id'] ?? 0));
         }

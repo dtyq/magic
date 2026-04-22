@@ -59,6 +59,42 @@ func TestMagicStagePrep_UsesMagicCredentialForSandboxBucket(t *testing.T) {
 	assert.Equal(t, "http://infra-minio.infra.svc.cluster.local:9000", stage.fileDriver.Minio.InternalEndpoint)
 }
 
+func TestMagicStagePrep_UsesOptsMinIOURLAsExternalEndpoint(t *testing.T) {
+	const resolvedMinIO = "http://203.0.113.22:39000"
+	d := &Deployer{
+		opts: &options{minioURL: resolvedMinIO},
+		merged: map[string]interface{}{
+			"infra": map[string]interface{}{
+				"minio": map[string]interface{}{
+					"provisioning": map[string]interface{}{
+						"buckets": []interface{}{
+							map[string]interface{}{"name": "magic-private", "tags": map[string]interface{}{"type": "private", "app": "magic"}},
+							map[string]interface{}{"name": "magic-public", "tags": map[string]interface{}{"type": "public", "app": "magic"}},
+							map[string]interface{}{"name": "magic-sandbox", "tags": map[string]interface{}{"type": "private", "app": "magic-sandbox"}},
+						},
+					},
+				},
+			},
+		},
+	}
+	reg := newInfraRegistry(t.TempDir())
+	stage := newMagicStage(d, reg)
+	reg.MinIO.Users = []MinIOUser{
+		{Username: "magic", Password: "magic-secret"},
+		{Username: "magic-sandbox", Password: "sandbox-secret"},
+	}
+	reg.MinIO.Buckets = []MinIOBucket{
+		{Name: "magic-private", Tags: map[string]string{"app": "magic", "type": "private"}},
+		{Name: "magic-public", Tags: map[string]string{"app": "magic", "type": "public"}},
+		{Name: "magic-sandbox", Tags: map[string]string{"app": "magic-sandbox", "type": "private"}},
+	}
+
+	err := stage.Prep(context.Background())
+	require.NoError(t, err)
+	assert.Equal(t, resolvedMinIO, stage.fileDriver.Minio.Endpoint)
+	assert.Equal(t, "http://infra-minio.infra.svc.cluster.local:9000", stage.fileDriver.Minio.InternalEndpoint)
+}
+
 func TestMagicSandboxStagePrep_S3MapUsesAccessKeyFields(t *testing.T) {
 	d := &Deployer{
 		opts: &options{},

@@ -1,10 +1,12 @@
 window.magicProjectConfig = {
-  "version": "1.0.0",
-  "type": "dashboard",
-  "name": "Super Magic Dashboard",
-  "sources": [],
-  "dataSources": [],
-  "geo": [],
+  version: "2.0.0",
+  type: "dashboard",
+  name: "Super Magic Dashboard",
+  ready: false,
+  dataSources: [],
+  geo: [],
 };
 
-window.magicProjectConfigure(window.magicProjectConfig);
+if (window.magicProjectConfig) {
+  window.magicProjectConfigure(window.magicProjectConfig);
+}

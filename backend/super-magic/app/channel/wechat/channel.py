@@ -171,7 +171,7 @@ class WechatChannel(BaseChannel):
             self._context_tokens_by_user = dict(state.context_tokens_by_user)
             self._poll_task = asyncio.create_task(self._poll_loop())
             keepalive_registry = KeepaliveRegistry.get_instance()
-            keepalive_registry.restore_message_time(self.key, self._last_message_at_ms)
+            keepalive_registry.restore_activity_time(self.key, self._last_message_at_ms)
             logger.info(
                 f"[WechatChannel] 启动轮询, ilink_bot_id={credential.ilink_bot_id}, "
                 f"get_updates_buf_len={len(self._get_updates_buf)}"
@@ -328,7 +328,7 @@ class WechatChannel(BaseChannel):
 
         current_message_at_ms = now_ms()
         self._last_message_at_ms = current_message_at_ms
-        KeepaliveRegistry.get_instance().notify_message(self.key, current_message_at_ms)
+        KeepaliveRegistry.get_instance().notify_activity(self.key, current_message_at_ms)
         context_token: str = msg.get("context_token", "")
         user_id: str = msg.get("from_user_id", "wechat_user")
 

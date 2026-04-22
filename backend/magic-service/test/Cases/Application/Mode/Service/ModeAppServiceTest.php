@@ -41,6 +41,8 @@ use App\Infrastructure\ExternalAPI\VideoGenerateAPI\CloudswayVeoVideoAdapter;
 use App\Infrastructure\ExternalAPI\VideoGenerateAPI\CloudswayVideoAdapterRouter;
 use App\Infrastructure\ExternalAPI\VideoGenerateAPI\CloudswayVideoClient;
 use App\Infrastructure\ExternalAPI\VideoGenerateAPI\VideoGenerateFactory;
+use App\Infrastructure\ExternalAPI\VideoGenerateAPI\VolcengineArkSeedanceVideoAdapter;
+use App\Infrastructure\ExternalAPI\VideoGenerateAPI\VolcengineArkVideoClient;
 use App\Infrastructure\Util\Locker\LockerInterface;
 use App\Interfaces\Authorization\Web\MagicUserAuthorization;
 use Hyperf\Guzzle\ClientFactory;
@@ -265,6 +267,7 @@ class ModeAppServiceTest extends TestCase
                 new CloudswaySeedanceVideoAdapter(new CloudswayVideoClient($this->createMock(ClientFactory::class))),
                 new CloudswayKelingVideoAdapter(new CloudswayVideoClient($this->createMock(ClientFactory::class))),
             ),
+            new VolcengineArkSeedanceVideoAdapter(new VolcengineArkVideoClient($this->createMock(ClientFactory::class))),
         );
     }
 

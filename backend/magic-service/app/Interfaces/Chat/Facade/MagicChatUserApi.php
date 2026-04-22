@@ -9,11 +9,11 @@ namespace App\Interfaces\Chat\Facade;
 
 use App\Application\Chat\Service\MagicUserContactAppService;
 use App\Domain\Contact\DTO\FriendQueryDTO;
-use App\Domain\Contact\DTO\UserUpdateDTO;
 use App\Domain\Contact\Entity\ValueObject\AddFriendType;
 use App\Domain\Contact\Entity\ValueObject\UserType;
 use App\Interfaces\Chat\Assembler\PageListAssembler;
 use App\Interfaces\Chat\Assembler\UserAssembler;
+use App\Interfaces\Chat\DTO\Request\UpdateUserInfoRequestDTO;
 use Dtyq\ApiResponse\Annotation\ApiResponse;
 use Hyperf\HttpServer\Contract\RequestInterface;
 use JetBrains\PhpStorm\ArrayShape;
@@ -146,14 +146,8 @@ class MagicChatUserApi extends AbstractApi
     public function updateUserInfo(RequestInterface $request): array
     {
         $authorization = $this->getAuthorization();
-
-        $userUpdateDTO = new UserUpdateDTO();
-        $userUpdateDTO->setAvatarUrl($request->input('avatar_url', null));
-        $userUpdateDTO->setNickname($request->input('nickname', null));
-        $userUpdateDTO->setProfession($request->input('profession', null));
-        $userUpdateDTO->setChannel($request->input('channel', null));
-
-        $userEntity = $this->userAppService->updateUserInfo($authorization, $userUpdateDTO);
+        $requestDTO = UpdateUserInfoRequestDTO::fromRequest($request);
+        $userEntity = $this->userAppService->updateUserInfo($authorization, $requestDTO->toDomainDTO());
         return $userEntity->toArray();
     }
 }

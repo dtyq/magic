@@ -14,6 +14,7 @@ use App\Domain\Provider\Repository\Persistence\Model\ProviderModel;
 use App\Domain\Provider\Repository\Persistence\Model\ProviderModelConfigVersionModel;
 use App\Domain\Provider\Repository\Persistence\Model\ProviderModelModel;
 use App\Interfaces\Provider\Assembler\ProviderConfigAssembler;
+use RuntimeException;
 
 trait UsesOfficialVideoProviderFixtures
 {
@@ -41,6 +42,7 @@ trait UsesOfficialVideoProviderFixtures
             $this->officialVideoProviderEndpointSeed(
                 baseUrl: 'https://cloudsway-video.mock.example.test',
                 apiKey: '',
+                providerCode: 'Cloudsway',
                 models: $this->defaultOfficialVideoProviderModels(),
             ),
         ]);
@@ -60,14 +62,19 @@ trait UsesOfficialVideoProviderFixtures
      */
     protected function createOfficialVideoProviderFixture(
         string $baseUrl = 'https://official-video-fixture.example.com',
-        string $apiKey = 'official-video-fixture-key'
+        string $apiKey = 'official-video-fixture-key',
+        string $providerCode = 'Cloudsway',
+        string $endpointKey = 'default',
+        ?array $models = null
     ): array {
         $fixtureIds = $this->officialVideoFixtureIds();
         $fixtureSorts = $this->officialVideoFixtureSorts();
         $organizationCode = $this->officialVideoFixtureOrganizationCode();
-        $providerSeed = $this->officialVideoProviderSeed();
-        $fastModelSeed = $this->officialVideoModelSeed(self::TEST_FAST_MODEL_ID);
-        $proModelSeed = $this->officialVideoModelSeed(self::TEST_PRO_MODEL_ID);
+        $providerSeed = $this->officialVideoProviderSeed($providerCode);
+        $modelSeeds = $models ?? $this->defaultOfficialVideoProviderModels($providerCode);
+        if (count($modelSeeds) > 2) {
+            throw new RuntimeException('Official video provider fixtures support at most 2 models.');
+        }
         $now = date('Y-m-d H:i:s');
 
         $this->upsertProvider([
@@ -96,7 +103,7 @@ trait UsesOfficialVideoProviderFixtures
             'config' => ProviderConfigAssembler::encodeConfig([
                 'base_url' => $baseUrl,
                 'api_key' => $apiKey,
-                '_seed_endpoint_key' => 'default',
+                '_seed_endpoint_key' => $endpointKey,
             ], (string) $fixtureIds['provider_config_id']),
             'status' => Status::Enabled->value,
             'alias' => $providerSeed['alias'],
@@ -109,25 +116,26 @@ trait UsesOfficialVideoProviderFixtures
             'deleted_at' => null,
         ], $now);
 
-        $this->insertOfficialVideoProviderModel(
+        $modelIds = [
             $fixtureIds['fast_model_id'],
-            $fixtureIds['fast_model_config_version_id'],
-            $fastModelSeed,
-            $fixtureSorts['fast_model_sort'],
-            $organizationCode,
-            $fixtureIds['provider_config_id'],
-            $now
-        );
-        $this->insertOfficialVideoProviderModel(
             $fixtureIds['pro_model_id'],
+        ];
+        $configVersionIds = [
+            $fixtureIds['fast_model_config_version_id'],
             $fixtureIds['pro_model_config_version_id'],
-            $proModelSeed,
-            $fixtureSorts['pro_model_sort'],
-            $organizationCode,
-            $fixtureIds['provider_config_id'],
-            $now
-        );
-        $this->disableCompetingOfficialVideoRows($organizationCode, $fixtureIds, $fastModelSeed, $proModelSeed, $now);
+        ];
+        foreach (array_values($modelSeeds) as $index => $modelSeed) {
+            $this->insertOfficialVideoProviderModel(
+                $modelIds[$index] ?? $fixtureIds['fast_model_id'],
+                $configVersionIds[$index] ?? $fixtureIds['fast_model_config_version_id'],
+                $modelSeed,
+                $fixtureSorts[$index === 0 ? 'fast_model_sort' : 'pro_model_sort'],
+                $organizationCode,
+                $fixtureIds['provider_config_id'],
+                $now
+            );
+        }
+        $this->disableCompetingOfficialVideoRows($organizationCode, $fixtureIds, $modelSeeds, $now, $providerCode);
 
         return [
             'provider_id' => $fixtureIds['provider_id'],
@@ -285,7 +293,7 @@ trait UsesOfficialVideoProviderFixtures
                 'alias' => $providerSeed['alias'],
                 'sort' => $providerSeed['sort'],
             ], $config ?? []),
-            'models' => $models ?? $this->defaultOfficialVideoProviderModels(),
+            'models' => $models ?? $this->defaultOfficialVideoProviderModels($providerCode),
         ];
     }
 
@@ -337,6 +345,45 @@ trait UsesOfficialVideoProviderFixtures
     /**
      * @return array<string, mixed>
      */
+    protected function buildVideoModelSeed(
+        string $modelId,
+        string $modelVersion,
+        string $name,
+        int $sort,
+        string $timePricing,
+        ?string $descriptionZh = null,
+        ?string $descriptionEn = null,
+    ): array {
+        $descriptionZh ??= sprintf('%s 视频模型。', $name);
+        $descriptionEn ??= sprintf('%s video model.', $name);
+
+        return [
+            'model_id' => $modelId,
+            'model_version' => $modelVersion,
+            'name' => $name,
+            'description' => $descriptionZh,
+            'icon' => 'MAGIC/713471849556451329/default/magic.png',
+            'sort' => $sort,
+            'category' => 'vgm',
+            'model_type' => 5,
+            'load_balancing_weight' => 100,
+            'translate' => [
+                'name' => ['zh_CN' => $name, 'en_US' => $name],
+                'description' => ['zh_CN' => $descriptionZh, 'en_US' => $descriptionEn],
+            ],
+            'pricing' => [
+                'billing_currency' => 'CNY',
+                'billing_type' => 'Times',
+                'time_pricing' => $timePricing,
+                'time_cost' => $timePricing,
+                'official_recommended' => 1,
+            ],
+        ];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
     protected function officialVideoModelSeed(string $identifier): array
     {
         return match ($identifier) {
@@ -368,6 +415,84 @@ trait UsesOfficialVideoProviderFixtures
                     'billing_currency' => 'CNY',
                     'time_pricing' => '0.01',
                     'time_cost' => '0.01',
+                    'input_pricing' => null,
+                    'output_pricing' => null,
+                    'cache_write_pricing' => null,
+                    'cache_hit_pricing' => null,
+                    'input_cost' => null,
+                    'output_cost' => null,
+                    'cache_write_cost' => null,
+                    'cache_hit_cost' => null,
+                    'official_recommended' => 1,
+                ],
+            ],
+            'doubao-seedance-2-0-260128' => [
+                'model_id' => 'doubao-seedance-2-0-260128',
+                'model_version' => 'doubao-seedance-2-0-260128',
+                'name' => 'Seedance 2.0 Pro',
+                'description' => '火山方舟 Seedance 2.0 Pro 视频模型。',
+                'icon' => 'MAGIC/713471849556451329/default/magic.png',
+                'sort' => 1200,
+                'category' => 'vgm',
+                'model_type' => 5,
+                'load_balancing_weight' => 0,
+                'translate' => [
+                    'name' => ['zh_CN' => 'Seedance 2.0 Pro', 'en_US' => 'Seedance 2.0 Pro'],
+                    'description' => [
+                        'zh_CN' => '火山方舟 Seedance 2.0 Pro 视频模型。',
+                        'en_US' => 'Volcengine Ark Seedance 2.0 Pro video model.',
+                    ],
+                ],
+                'config' => [],
+                'visible_organizations' => [],
+                'visible_applications' => [],
+                'visible_packages' => [],
+                'aggregate_config' => [],
+                'status' => 1,
+                'pricing' => [
+                    'billing_type' => 'Times',
+                    'billing_currency' => 'CNY',
+                    'time_pricing' => '0.12',
+                    'time_cost' => '0.12',
+                    'input_pricing' => null,
+                    'output_pricing' => null,
+                    'cache_write_pricing' => null,
+                    'cache_hit_pricing' => null,
+                    'input_cost' => null,
+                    'output_cost' => null,
+                    'cache_write_cost' => null,
+                    'cache_hit_cost' => null,
+                    'official_recommended' => 1,
+                ],
+            ],
+            'doubao-seedance-2-0-fast-260128' => [
+                'model_id' => 'doubao-seedance-2-0-fast-260128',
+                'model_version' => 'doubao-seedance-2-0-fast-260128',
+                'name' => 'Seedance 2.0 Fast',
+                'description' => '火山方舟 Seedance 2.0 Fast 视频模型。',
+                'icon' => 'MAGIC/713471849556451329/default/magic.png',
+                'sort' => 1190,
+                'category' => 'vgm',
+                'model_type' => 5,
+                'load_balancing_weight' => 0,
+                'translate' => [
+                    'name' => ['zh_CN' => 'Seedance 2.0 Fast', 'en_US' => 'Seedance 2.0 Fast'],
+                    'description' => [
+                        'zh_CN' => '火山方舟 Seedance 2.0 Fast 视频模型。',
+                        'en_US' => 'Volcengine Ark Seedance 2.0 Fast video model.',
+                    ],
+                ],
+                'config' => [],
+                'visible_organizations' => [],
+                'visible_applications' => [],
+                'visible_packages' => [],
+                'aggregate_config' => [],
+                'status' => 1,
+                'pricing' => [
+                    'billing_type' => 'Times',
+                    'billing_currency' => 'CNY',
+                    'time_pricing' => '0.06',
+                    'time_cost' => '0.06',
                     'input_pricing' => null,
                     'output_pricing' => null,
                     'cache_write_pricing' => null,
@@ -601,19 +726,17 @@ trait UsesOfficialVideoProviderFixtures
      *     fast_model_config_version_id: int,
      *     pro_model_config_version_id: int
      * } $fixtureIds
-     * @param array<string, mixed> $fastModelSeed
-     * @param array<string, mixed> $proModelSeed
      */
     private function disableCompetingOfficialVideoRows(
         string $organizationCode,
         array $fixtureIds,
-        array $fastModelSeed,
-        array $proModelSeed,
-        string $now
+        array $modelSeeds,
+        string $now,
+        string $providerCode
     ): void {
         ProviderConfigModel::query()
             ->where('organization_code', $organizationCode)
-            ->where('provider_code', $this->officialVideoProviderSeed()['provider_code'])
+            ->where('provider_code', $providerCode)
             ->where('id', '!=', $fixtureIds['provider_config_id'])
             ->update([
                 'status' => 0,
@@ -623,15 +746,23 @@ trait UsesOfficialVideoProviderFixtures
 
         ProviderModelModel::query()
             ->where('organization_code', $organizationCode)
-            ->where('id', '!=', $fixtureIds['fast_model_id'])
-            ->where('id', '!=', $fixtureIds['pro_model_id'])
-            ->where(function ($query) use ($fastModelSeed, $proModelSeed): void {
+            ->whereNotIn('id', [
+                $fixtureIds['fast_model_id'],
+                $fixtureIds['pro_model_id'],
+            ])
+            ->where(function ($query) use ($modelSeeds): void {
+                $modelIds = array_values(array_map(
+                    static fn (array $modelSeed): string => (string) ($modelSeed['model_id'] ?? ''),
+                    $modelSeeds
+                ));
+                $modelVersions = array_values(array_map(
+                    static fn (array $modelSeed): string => (string) ($modelSeed['model_version'] ?? ''),
+                    $modelSeeds
+                ));
                 $query->whereIn('model_id', [
-                    $fastModelSeed['model_id'],
-                    $proModelSeed['model_id'],
+                    ...$modelIds,
                 ])->orWhereIn('model_version', [
-                    $fastModelSeed['model_version'],
-                    $proModelSeed['model_version'],
+                    ...$modelVersions,
                 ]);
             })
             ->update([
@@ -643,11 +774,17 @@ trait UsesOfficialVideoProviderFixtures
     /**
      * @return list<array<string, mixed>>
      */
-    private function defaultOfficialVideoProviderModels(): array
+    private function defaultOfficialVideoProviderModels(string $providerCode = 'Cloudsway'): array
     {
-        return [
-            $this->officialVideoModelSeed(self::TEST_FAST_MODEL_ID),
-            $this->officialVideoModelSeed(self::TEST_PRO_MODEL_ID),
-        ];
+        return match ($providerCode) {
+            'VolcengineArk' => [
+                $this->officialVideoModelSeed('doubao-seedance-2-0-260128'),
+                $this->officialVideoModelSeed('doubao-seedance-2-0-fast-260128'),
+            ],
+            default => [
+                $this->officialVideoModelSeed(self::TEST_FAST_MODEL_ID),
+                $this->officialVideoModelSeed(self::TEST_PRO_MODEL_ID),
+            ],
+        };
     }
 }

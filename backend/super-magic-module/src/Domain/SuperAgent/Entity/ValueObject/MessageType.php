@@ -20,6 +20,8 @@ enum MessageType: string
     case ProjectArchive = 'project_archive';
     case Reminder = 'reminder';
     case AskUserResponse = 'ask_user_response';
+    case UserToolCall = 'user_tool_call';
+    case SuperMagicMessage = 'super_magic_message';
 
     public static function isValid(string $type): bool
     {

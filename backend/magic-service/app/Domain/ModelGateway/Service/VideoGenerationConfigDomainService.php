@@ -262,6 +262,11 @@ readonly class VideoGenerationConfigDomainService
             }
         }
 
+        $inputModes = self::intersectInputModes(
+            $leftConfig['input_modes'],
+            $rightConfig['input_modes'],
+        );
+
         return new VideoGenerationConfig([
             'supported_inputs' => $supportedInputs,
             'reference_images' => [
@@ -274,6 +279,7 @@ readonly class VideoGenerationConfigDomainService
             ],
             'generation' => $generation,
             'constraints' => $constraints,
+            'input_modes' => $inputModes,
         ]);
     }
 
@@ -306,7 +312,8 @@ readonly class VideoGenerationConfigDomainService
      *         reference_images_requires_duration_seconds: ?int,
      *         high_resolution_requires_duration_seconds: ?int,
      *         video_extension_output_resolution: ?string
-     *     }
+     *     },
+     *     input_modes: array<string, array<string, mixed>>
      * }
      */
     private static function normalizeConfig(VideoGenerationConfig $config): array
@@ -316,6 +323,7 @@ readonly class VideoGenerationConfigDomainService
         $referenceImages = is_array($configArray['reference_images'] ?? null) ? $configArray['reference_images'] : [];
         $generation = is_array($configArray['generation'] ?? null) ? $configArray['generation'] : [];
         $constraints = is_array($configArray['constraints'] ?? null) ? $configArray['constraints'] : [];
+        $inputModes = is_array($configArray['input_modes'] ?? null) ? $configArray['input_modes'] : [];
 
         return [
             'supported_inputs' => self::normalizeStringList($configArray['supported_inputs'] ?? []),
@@ -356,7 +364,73 @@ readonly class VideoGenerationConfigDomainService
                     ? $constraints['video_extension_output_resolution']
                     : null,
             ],
+            'input_modes' => self::normalizeInputModes($inputModes),
         ];
+    }
+
+    /**
+     * @param array<string, mixed> $inputModes
+     * @return array<string, array<string, mixed>>
+     */
+    private static function normalizeInputModes(array $inputModes): array
+    {
+        $normalized = [];
+        foreach ($inputModes as $mode => $config) {
+            if (! is_string($mode) || $mode === '' || ! is_array($config)) {
+                continue;
+            }
+
+            $item = [];
+            if (is_string($config['description'] ?? null) && trim($config['description']) !== '') {
+                $item['description'] = trim($config['description']);
+            }
+
+            $supportedFields = self::normalizeStringList($config['supported_fields'] ?? []);
+            if ($supportedFields !== []) {
+                $item['supported_fields'] = $supportedFields;
+            }
+
+            $frameRoles = self::normalizeStringList($config['frame_roles'] ?? []);
+            if ($frameRoles !== []) {
+                $item['frame_roles'] = $frameRoles;
+            }
+
+            if (is_array($config['reference_images'] ?? null)) {
+                $referenceImages = $config['reference_images'];
+                $item['reference_images'] = [
+                    'max_count' => max(0, (int) ($referenceImages['max_count'] ?? 0)),
+                    'reference_types' => self::normalizeStringList($referenceImages['reference_types'] ?? []),
+                    'style_supported' => (bool) ($referenceImages['style_supported'] ?? false),
+                ];
+            }
+
+            if (array_key_exists('max_count', $config)) {
+                $item['max_count'] = max(0, (int) $config['max_count']);
+            } elseif (is_array($config['total_count'] ?? null)) {
+                $totalCount = $config['total_count'];
+                $item['max_count'] = max(0, (int) ($totalCount['max'] ?? 0));
+            }
+
+            $normalized[$mode] = $item;
+        }
+
+        return $normalized;
+    }
+
+    /**
+     * @param array<string, array<string, mixed>> $leftModes
+     * @param array<string, array<string, mixed>> $rightModes
+     * @return array<string, array<string, mixed>>
+     */
+    private static function intersectInputModes(array $leftModes, array $rightModes): array
+    {
+        $commonModes = array_values(array_intersect(array_keys($leftModes), array_keys($rightModes)));
+        $result = [];
+        foreach ($commonModes as $mode) {
+            $result[$mode] = $leftModes[$mode];
+        }
+
+        return $result;
     }
 
     /**

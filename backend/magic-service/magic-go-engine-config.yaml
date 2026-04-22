@@ -1,0 +1,151 @@
+server:
+  # HTTP server host and port
+  enabled: ${SERVER_ENABLED:=false}
+  host: ${SERVER_HOST:=localhost}
+  port: ${SERVER_PORT:=81}
+  # mode is optional: debug|release|test; defaults to debug if omitted
+  mode: ${SERVER_MODE:-debug}
+  # env is optional: dev|staging|production; defaults to production if omitted
+  env: ${APP_ENV:-production}
+  pprofEnabled: ${SERVER_PPROF_ENABLED:=false}
+
+logging:
+  # Log level: debug|info|warn|error (default: info)
+  level: ${LOG_LEVEL:-debug}
+  # Log format: json|text|magic (default: magic)
+  format: ${LOG_FORMAT:-magic}
+
+qdrant:
+  # 复用 PHP 侧变量命名（magic-service/config/autoload/magic_flows.php）
+  # 注意：该 URI 默认使用 HTTP 端口 6333，Go 侧实际连接仍使用 QDRANT_PORT（gRPC，默认 6334）
+  baseUri: ${ODIN_QDRANT_BASE_URI:=http://127.0.0.1:6333}
+  host: ${QDRANT_HOST:=localhost}
+  port: ${QDRANT_PORT:=6334}
+  # 优先复用 ODIN_QDRANT_API_KEY；若未配置，代码中会回退读取 QDRANT_API_KEY
+  apiKey: ${ODIN_QDRANT_API_KEY:=}
+  targetSparseBackend: ${QDRANT_TARGET_SPARSE_BACKEND:=client_bm25_qdrant_idf_v1}
+  maxConcurrentWrites: ${QDRANT_MAX_CONCURRENT_WRITES:=4}
+  logTimingEnabled: ${QDRANT_LOG_TIMING_ENABLED:=true}
+  logSlowThresholdMs: ${QDRANT_LOG_SLOW_THRESHOLD_MS:=100}
+  # gRPC connection settings
+  keepAliveTime: 10       # KeepAlive ping interval (seconds)
+  keepAliveTimeout: 3     # KeepAlive ping timeout (seconds)
+  maxMessageSizeMb: 100   # Maximum message size (MB)
+  connectionTimeout: 30   # Connection timeout (seconds)
+
+rebuild:
+  maxConcurrency: ${KNOWLEDGE_REBUILD_MAX_CONCURRENCY:=8}
+
+mysql:
+  host: ${DB_HOST:=localhost}
+  port: ${DB_PORT:=3306}
+  database: ${DB_DATABASE:=hyperf}
+  username: ${DB_USERNAME:=root}
+  password: ${DB_PASSWORD:=}
+  params: ${MYSQL_PARAMS:=parseTime=true&multiStatements=true}
+  # Connection pool settings
+  maxOpenConns: 25    # Maximum number of open connections
+  maxIdleConns: 5     # Maximum number of idle connections
+  connMaxLifetime: 300 # Connection maximum lifetime (seconds)
+  pingTimeout: 5      # Timeout for ping operations (seconds)
+  # Logging
+  logSql: ${DB_LOG_SQL:=true}
+
+redis:
+  host: ${REDIS_HOST:=localhost}
+  port: ${REDIS_PORT:=6379}
+  username: ${REDIS_USERNAME:=""}
+  password: ${REDIS_AUTH:=""}
+  db: ${REDIS_DB:=0}
+  lockPrefix: ${REDIS_LOCK_PREFIX:-"magic_lock:"}
+  lockTtlSeconds: 60
+  spinIntervalMillis: 100
+  spinMaxRetries: 50
+  # Connection pool settings
+  poolSize: 10              # Maximum number of connections in pool
+  minIdleConns: 2           # Minimum idle connections to maintain
+  connMaxIdleTime: 300      # Maximum idle time for connections (seconds)
+  connMaxLifetime: 3600     # Maximum lifetime for connections (seconds)
+  poolTimeout: 4            # Timeout for acquiring connection from pool (seconds)
+
+events:
+  workerCount: 0            # Number of workers for async event processing (0 to disable)
+  queueSize: 0              # Event queue size for async processing (0 to disable)
+
+security:
+  jwtSecret: ${JWT_SECRET:=change-me}
+  allowedOrigins: ["*"]
+
+ipc:
+  engineSocket: ${IPC_ENGINE_SOCKET:-./runtime/magic_engine.sock}
+  phpSocket: ${IPC_PHP_SOCKET:-./runtime/magic_php.sock}
+  protocolVersion: ${IPC_PROTOCOL_VERSION:=1}
+  authToken: ${IPC_AUTH_TOKEN:=}
+  maxMessageBytes: ${IPC_MAX_MESSAGE_BYTES:=10485760}
+  readTimeout: ${IPC_READ_TIMEOUT:=30}
+  writeTimeout: ${IPC_WRITE_TIMEOUT:=10}
+  heartbeatInterval: ${IPC_HEARTBEAT_INTERVAL:=10}
+  heartbeatTimeout: ${IPC_HEARTBEAT_TIMEOUT:=30}
+  maxPendingRequests: ${IPC_MAX_PENDING_REQUESTS:=1024}
+  discardCapMultiplier: ${IPC_DISCARD_CAP_MULTIPLIER:=4}
+  discardChunkSize: ${IPC_DISCARD_CHUNK_SIZE:=32768}
+  discardTimeout: ${IPC_DISCARD_TIMEOUT:=0}
+  oversizeMaxBurst: ${IPC_OVERSIZE_MAX_BURST:=3}
+
+magicModelGateway:
+  baseUrl: ${MAGIC_MODEL_GATEWAY_BASE_URL:=http://localhost:8080}
+  defaultEmbeddingModel: ${KNOWLEDGE_BASE_DEFAULT_EMBEDDING_MODEL:=text-embedding-3-small}
+  magicAccessToken: ${MAGIC_ACCESS_TOKEN:=""}  # 支持环境变量替换, 未配置或为空时自动生成
+
+# Embedding 模型配置
+embedding:
+  # 默认向量维度（需与默认模型一致）
+  dimension: ${EMBEDDING_DIMENSION:=1536}  # text-embedding-3-small 的向量维度
+  # 嵌入客户端类型: php (通过 IPC 回调 PHP) 或 openai (直接调用 API)
+  clientType: ${EMBEDDING_CLIENT_TYPE:=php}
+  # 其他可选配置
+  # text-embedding-3-small: 1536 维
+  # text-embedding-3-large: 3072 维
+  # dmeta-embedding: 1024 维
+
+embeddingCacheCleanup:
+  autoCleanupEnabled: ${EMBEDDING_CACHE_AUTO_CLEANUP_ENABLED:=true}
+  cleanupIntervalHours: ${EMBEDDING_CACHE_CLEANUP_INTERVAL_HOURS:=24}
+  cleanupTimeoutMinutes: ${EMBEDDING_CACHE_CLEANUP_TIMEOUT_MINUTES:=30}
+  minAccessCount: ${EMBEDDING_CACHE_MIN_ACCESS_COUNT:=2}
+  maxIdleDurationHours: ${EMBEDDING_CACHE_MAX_IDLE_DURATION_HOURS:=720}
+  maxCacheAgeHours: ${EMBEDDING_CACHE_MAX_CACHE_AGE_HOURS:=2160}
+  batchSize: ${EMBEDDING_CACHE_BATCH_SIZE:=1000}
+
+storage:
+  # 与 PHP cloudfile.php 对齐，默认读取私有 TOS 桶配置
+  endpoint: ${FILE_PRIVATE_TOS_ENDPOINT:=}
+  region: ${FILE_PRIVATE_TOS_REGION:=}
+  accessKey: ${FILE_PRIVATE_TOS_AK:=}
+  secretKey: ${FILE_PRIVATE_TOS_SK:=}
+  bucket: ${FILE_PRIVATE_TOS_BUCKET:=}
+  type: ${FILE_DRIVER:=}
+
+ocr:
+  # 知识库 OCR 真值优先来自 PHP RPC，这里只保留与 PHP 配置一致的环境变量兜底
+  accessKey: ${VOLCENGINE_OCR_PDF_AK:=}
+  secretKey: ${VOLCENGINE_OCR_PDF_SK:=}
+  endpoint: ${VOLC_ENDPOINT:=}
+  region: ${VOLC_REGION:=}
+
+rabbitmq:
+  # RabbitMQ host and port
+  host: ${AMQP_HOST:=localhost}
+  port: ${AMQP_PORT:=5672}
+  # Authentication
+  username: ${AMQP_USER:=guest}
+  password: ${AMQP_PASSWORD:=guest}
+  # Virtual host
+  vhost: ${AMQP_VHOST:=/}
+  # Queue configuration
+  queues:
+    embedding: ${RABBITMQ_EMBEDDING_QUEUE:=embedding_jobs}
+  # Embedding processing defaults
+  embeddingDefaults:
+    minIntervalSeconds: ${EMBEDDING_MIN_INTERVAL_SECONDS:=1}
+    minEventsBetween: ${EMBEDDING_MIN_EVENTS_BETWEEN:=10}

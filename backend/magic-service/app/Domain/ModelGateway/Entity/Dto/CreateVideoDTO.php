@@ -19,6 +19,8 @@ class CreateVideoDTO extends AbstractRequestDTO
 
     protected string $task = '';
 
+    protected string $inputMode = '';
+
     protected string $prompt = '';
 
     protected array $inputs = [];
@@ -76,6 +78,16 @@ class CreateVideoDTO extends AbstractRequestDTO
     public function getTask(): string
     {
         return $this->task;
+    }
+
+    public function setInputMode(mixed $inputMode): void
+    {
+        $this->inputMode = is_string($inputMode) ? trim($inputMode) : '';
+    }
+
+    public function getInputMode(): string
+    {
+        return $this->inputMode;
     }
 
     public function setInputs(mixed $inputs): void
@@ -154,6 +166,23 @@ class CreateVideoDTO extends AbstractRequestDTO
         return 'video';
     }
 
+    public function getVideoId(): ?string
+    {
+        foreach (['video_id', 'generation_id'] as $key) {
+            $businessParam = $this->getBusinessParam($key);
+            if (is_string($businessParam) && trim($businessParam) !== '') {
+                return trim($businessParam);
+            }
+
+            $rawValue = $this->rawData[$key] ?? null;
+            if (is_string($rawValue) && trim($rawValue) !== '') {
+                return trim($rawValue);
+            }
+        }
+
+        return null;
+    }
+
     private function assertTopLevelArrayField(string $field): void
     {
         if (! array_key_exists($field, $this->rawData) || $this->rawData[$field] === null) {
@@ -181,6 +210,7 @@ class CreateVideoDTO extends AbstractRequestDTO
             'model_id' => $this->setModelId(...),
             'prompt' => $this->setPrompt(...),
             'task' => $this->setTask(...),
+            'input_mode' => $this->setInputMode(...),
             'inputs' => $this->setInputs(...),
             'generation' => $this->setGeneration(...),
             'callbacks' => $this->setCallbacks(...),

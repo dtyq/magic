@@ -104,6 +104,33 @@ async def clean_mcp():
         logger.error("清理 .mcp 目录失败")
     return result
 
+async def clean_debug_logs():
+    """
+    异步删除调试日志文件
+
+    读取 STDOUT_MESSAGE_DEBUG_FILE 和 STDOUT_STREAM_DEBUG_FILE 环境变量指定的文件路径，
+    若文件存在则删除。路径解析方式与 StdoutStream 一致，基于当前工作目录。
+
+    Returns:
+        bool: 操作是否成功
+    """
+    env_keys = ["STDOUT_MESSAGE_DEBUG_FILE", "STDOUT_STREAM_DEBUG_FILE"]
+    success = True
+    for key in env_keys:
+        path_str = os.environ.get(key)
+        if not path_str:
+            continue
+        abs_path = Path(os.path.abspath(path_str))
+        try:
+            if await aiofiles.os.path.exists(abs_path):
+                await aiofiles.os.remove(abs_path)
+                logger.info(f"已删除调试日志文件: {abs_path}")
+        except Exception as e:
+            logger.error(f"删除调试日志文件 {abs_path} 失败: {e}")
+            success = False
+    return success
+
+
 async def clean_directories():
     """
     异步清理.chat_history、.workspace和.mcp目录中的文件
@@ -112,14 +139,15 @@ async def clean_directories():
     Returns:
         bool: 操作是否成功
     """
-    # 并发执行三个清理任务
-    chat_result, workspace_result, mcp_result = await asyncio.gather(
+    # 并发执行四个清理任务
+    chat_result, workspace_result, mcp_result, debug_logs_result = await asyncio.gather(
         clean_chat_history(),
         clean_workspace(),
-        clean_mcp()
+        clean_mcp(),
+        clean_debug_logs()
     )
 
-    return chat_result and workspace_result and mcp_result
+    return chat_result and workspace_result and mcp_result and debug_logs_result
 
 
 def print_banner(mode='super'):
@@ -259,6 +287,8 @@ async def main():
                         help='挂载指定目录中的内容到.workspace目录')
     parser.add_argument('--mode', type=str, choices=['normal', 'super'], default='super',
                         help='运行模式：normal 使用 magic.agent，super 使用 super-magic.agent，默认为 super')
+    parser.add_argument('--message-version', type=str, choices=['v1', 'v2'], default='v1',
+                        help='消息版本：v1 使用标准消息格式，v2 使用 super_magic_message 格式，默认为 v1')
     parser.add_argument('query', nargs='?', type=str, default=None,
                         help='要发送给 agent 的查询文本。如果提供，则执行单次查询并退出')
 
@@ -329,6 +359,11 @@ async def main():
 
         dispatcher = AgentDispatcher.get_instance()
         await dispatcher.setup()
+
+        # 将 CLI 指定的消息版本写入 agent_context（生产路径由 set_chat_client_message 负责）
+        if args.message_version != 'v1':
+            dispatcher.agent_context.shared_context.update_field("message_version", args.message_version)
+            logger.info(f"CLI: 消息版本设置为 {args.message_version}")
 
         # 设置自定义 Agent Profile（如果提供）
         if args.agent_display_name or args.agent_display_description:

@@ -201,12 +201,15 @@ Python 代码中凡是涉及文件操作，必须使用 `app/utils/async_file_ut
 | 操作 | 函数 |
 |------|------|
 | 读文本 | `async_read_text` / `async_try_read_text`（不抛异常版） |
-| 写文本 | `async_write_text` |
+| 写文本 | `async_write_text` / `async_write_text_with_retry`（失败自动重试版） |
 | 读二进制 | `async_read_bytes` |
 | 写二进制 | `async_write_bytes` |
-| 读/写 JSON | `async_read_json` / `async_write_json` |
+| 读/写 JSON | `async_read_json` / `async_write_json` / `async_try_read_json`（不抛异常版） |
+| 读 Markdown | `async_read_markdown` / `async_try_read_markdown`（不抛异常版） |
+| 统计行数 | `async_count_text_lines` / `async_try_count_text_lines`（不抛异常版） |
 | 复制文件 | `async_copy2` |
 | 复制目录 | `async_copytree` |
+| 重命名/移动 | `async_rename` |
 | 删除文件 | `async_unlink` |
 | 删除目录 | `async_rmtree` / `async_rmdir` |
 | 创建目录 | `async_mkdir` |

@@ -63,6 +63,46 @@ JSON, true));
         $this->assertTrue($node->getNodeDebugResult()->isSuccess());
     }
 
+    public function testRunTextWithStringArray()
+    {
+        $node = Node::generateTemplate(NodeType::ReplyMessage, json_decode(<<<'JSON'
+{
+    "type": "text",
+    "content": {
+        "id": "component-675bce7fe7691",
+        "version": "1",
+        "type": "value",
+        "structure": {
+            "type": "expression",
+            "const_value": null,
+            "expression_value": [
+                {
+                    "type": "fields",
+                    "value": "9527.similarities",
+                    "name": "",
+                    "args": null
+                }
+            ]
+        }
+    },
+    "link": null,
+    "link_desc": null
+}
+JSON, true));
+        $node->setDebug(true);
+
+        $runner = NodeRunnerFactory::make($node);
+        $vertexResult = new VertexResult();
+        $executionData = $this->createExecutionData();
+        $executionData->saveNodeContext('9527', [
+            'similarities' => ['第一行', '第二行'],
+        ]);
+        $runner->execute($vertexResult, $executionData, []);
+
+        $this->assertTrue($node->getNodeDebugResult()->isSuccess());
+        $this->assertSame('第一行' . "\n" . '第二行', $vertexResult->getResult()['content'] ?? null);
+    }
+
     public function testRunTextForChat()
     {
         $node = Node::generateTemplate(NodeType::ReplyMessage, json_decode(<<<'JSON'

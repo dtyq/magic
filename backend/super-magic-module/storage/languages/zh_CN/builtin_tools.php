@@ -18,6 +18,7 @@ return [
 
         // 搜索提取
         'web_search' => '网络搜索',
+        'search_knowledge' => '知识检索',
         'image_search' => '图片搜索',
         'read_webpages_as_markdown' => '网页转Markdown',
         'use_browser' => '浏览器操作',
@@ -33,8 +34,6 @@ return [
         'create_slide' => '创建幻灯片',
         'create_slide_project' => '创建幻灯片项目',
         'create_dashboard_project' => '创建数据看板',
-        'update_dashboard_template' => '更新看板模板',
-        'backup_dashboard_template' => '备份看板模板',
         'finish_dashboard_task' => '完成看板配置',
 
         // 系统执行
@@ -62,6 +61,7 @@ return [
 
         // 搜索提取
         'web_search' => '互联网搜索工具，支持XML格式配置多个搜索需求并行处理，支持分页搜索和时间范围筛选，搜索结果包含标题、URL、摘要和来源网站',
+        'search_knowledge' => '在知识库中检索可能与当前问题相关的知识与上下文，帮助为回答提供依据',
         'image_search' => '图片搜索工具，根据关键词搜索并智能筛选高质量图片，支持视觉理解分析和长宽比筛选，自动去重确保图片质量',
         'read_webpages_as_markdown' => '批量网页读取工具，将多个网页内容聚合转换为单个Markdown文档，支持完整内容获取和摘要模式',
         'use_browser' => '浏览器自动化工具，提供原子化的浏览器操作能力，支持页面导航、元素交互、表单填写等模块化操作',
@@ -77,8 +77,6 @@ return [
         'create_slide' => '幻灯片创建工具，生成HTML幻灯片并执行自定义JavaScript分析，支持布局检查和元素边界验证',
         'create_slide_project' => '幻灯片项目创建工具，自动创建完整项目结构，包含演示控制器、配置文件、资源文件夹和通信脚本',
         'create_dashboard_project' => '数据看板项目创建工具，从模板目录复制完整的数据看板框架，包含HTML、CSS、JavaScript和图表组件',
-        'update_dashboard_template' => '看板模板更新工具，从模板目录同步dashboard.js、index.css、index.html和config.js文件到现有项目',
-        'backup_dashboard_template' => '看板模板备份恢复工具，恢复指定项目的模板文件备份版本，实现当前文件和备份文件的互换',
         'finish_dashboard_task' => '看板项目完成工具，自动化完成地图和数据源配置，包括GeoJSON下载、HTML配置更新和数据文件扫描',
 
         // 系统执行

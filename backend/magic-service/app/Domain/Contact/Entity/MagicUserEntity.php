@@ -56,6 +56,8 @@ class MagicUserEntity extends AbstractEntity implements ArrayAccess
 
     protected ?string $channel = null;
 
+    protected ?string $timezone = null;
+
     private string $friendNum = '0';
 
     public function __construct(array $data = [])
@@ -278,6 +280,16 @@ class MagicUserEntity extends AbstractEntity implements ArrayAccess
     public function setChannel(?string $channel): void
     {
         $this->channel = $channel;
+    }
+
+    public function getTimezone(): ?string
+    {
+        return $this->timezone;
+    }
+
+    public function setTimezone(?string $timezone): void
+    {
+        $this->timezone = $timezone;
     }
 
     public function getExtra(): ?UserExtra

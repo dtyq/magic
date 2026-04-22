@@ -3,8 +3,11 @@ package cli
 import (
 	"context"
 	"fmt"
+	"net"
+	"net/url"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 
 	"github.com/dtyq/magicrew-cli/deployer"
@@ -14,6 +17,7 @@ import (
 )
 
 const envNameCLIWebBaseURL = "MAGICREW_CLI_WEB_BASE_URL"
+const envNameCLIMinIOURL = "MAGICREW_CLI_MINIO_URL"
 const envNameCLILegacyWebBaseURL = "MAGIC_WEB_BASE_URL"
 const envNameCLIAutoRecoverRelease = "MAGICREW_CLI_AUTO_RECOVER_RELEASE"
 const envNameCLIConfigDir = "MAGICREW_CLI_CONFIG_DIR"
@@ -25,6 +29,7 @@ var (
 	deployChartRepo          string
 	deployPlainHTTP          bool
 	deployWebURL             string
+	deployMinIOURL           string
 	deployAutoRecoverRelease bool
 
 	deployCmd = &cobra.Command{
@@ -40,6 +45,7 @@ func init() {
 	deployCmd.Flags().StringVar(&deployChartRepo, "chart-repo", "", "Remote chart repository URL (supports https:// and oci://)")
 	deployCmd.Flags().BoolVar(&deployPlainHTTP, "plain-http", false, "Use plain HTTP for OCI chart repository")
 	deployCmd.Flags().StringVar(&deployWebURL, "web-url", "", "magic-web external access URL (for server deploy; overrides MAGICREW_CLI_WEB_BASE_URL)")
+	deployCmd.Flags().StringVar(&deployMinIOURL, "minio-url", "", "MinIO external access URL (overrides MAGICREW_CLI_MINIO_URL)")
 	deployCmd.Flags().BoolVar(&deployAutoRecoverRelease, "auto-recover-release", false, "Automatically recover pending Helm releases without interactive confirmation")
 	deployCmd.Flags().BoolP("help", "h", false, "Help for deploy")
 	rootCmd.AddCommand(deployCmd)
@@ -72,8 +78,13 @@ func runDeploy(cmd *cobra.Command, args []string) error {
 			envNameCLIWebBaseURL,
 		)
 	}
-	if err := deployer.ValidateWebBaseURL(webBaseURL); err != nil {
-		return err
+	if err := deployer.ValidateAccessURL(webBaseURL); err != nil {
+		return fmt.Errorf("invalid web URL: %w", err)
+	}
+
+	minioURL := resolveDeployMinIOURL(deployMinIOURL, webBaseURL, cfg.Deploy.Kind.MinIOHostPort)
+	if err := deployer.ValidateAccessURL(minioURL); err != nil {
+		return fmt.Errorf("invalid minio URL: %w", err)
 	}
 
 	autoRecoverRelease, err := resolveAutoRecoverRelease(
@@ -94,6 +105,7 @@ func runDeploy(cmd *cobra.Command, args []string) error {
 		deployer.WithChartSpecs(chartSpecs),
 		deployer.WithValuesFile(valuesFile),
 		deployer.WithWebBaseURL(webBaseURL),
+		deployer.WithMinIOURL(minioURL),
 		deployer.WithRegistry(withRegistryConfigDir(cfg.Deploy.Registry, configDir)),
 		deployer.WithKind(cfg.Deploy.Kind),
 		deployer.WithInfraUseProxy(cfg.Deploy.InfraUseProxy),
@@ -148,6 +160,35 @@ func resolveDeployWebBaseURL(cliValue string) (string, bool) {
 		return v, true
 	}
 	return "", false
+}
+
+// resolveDeployMinIOURL chooses the MinIO access URL for deploy, in order:
+// 1) CLI --minio-url
+// 2) MAGICREW_CLI_MINIO_URL
+// 3) same scheme and hostname as webBaseURL with port replaced by minIOPort
+// 4) http://localhost:<minIOPort>
+func resolveDeployMinIOURL(cliValue, webBaseURL string, minIOPort int) string {
+	if v := strings.TrimSpace(cliValue); v != "" {
+		return v
+	}
+	if v := strings.TrimSpace(os.Getenv(envNameCLIMinIOURL)); v != "" {
+		return v
+	}
+	if w := strings.TrimSpace(webBaseURL); w != "" {
+		if derived := minIOURLDerivedFromWebBaseURL(w, minIOPort); derived != "" {
+			return derived
+		}
+	}
+	return fmt.Sprintf("http://localhost:%d", minIOPort)
+}
+
+func minIOURLDerivedFromWebBaseURL(webBaseURL string, minIOPort int) string {
+	u, err := url.Parse(webBaseURL)
+	if err != nil || u == nil || u.Hostname() == "" {
+		return ""
+	}
+	u.Host = net.JoinHostPort(u.Hostname(), strconv.Itoa(minIOPort))
+	return u.String()
 }
 
 func resolveAutoRecoverRelease(flagValue bool, flagChanged bool, envValue string) (bool, error) {

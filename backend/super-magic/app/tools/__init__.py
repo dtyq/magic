@@ -4,7 +4,8 @@
 """
 
 # 导出工具类
-from app.tools.dummy_tool import DummyTool # DummyTool 必须在第一个位置导入，否则其他工具会因为循环依赖导致收集不到
+from app.tools.dummy_tool import DummyTool # DummyTool 必须在第一个位置导入，
+from app.tools.ask_user import AskUserTool
 from app.tools.web_search import WebSearch
 from app.tools.call_subagent import CallSubagent
 from app.tools.wait_for_subagents import WaitForSubagents
@@ -66,8 +67,6 @@ from app.tools.data_analyst_dashboard_tools import (
     CreateDashboardProject,
     ValidateDashboard,
     DownloadDashboardMaps,
-    UpdateDashboardTemplate,
-    BackupDashboardTemplate,
     CreateDashboardCards,
     UpdateDashboardCards,
     DeleteDashboardCards,
@@ -99,10 +98,14 @@ from app.tools.design.tools import (
     SearchImagePrompts,
 )
 
+# 用户信息工具
+from app.tools.get_user_info import GetUserInfo
+
 # Skill 管理工具
 from app.tools.read_skills import ReadSkills
 from app.tools.run_sdk_snippet import RunSdkSnippet
 from app.tools.skill_list import SkillList
+from app.tools.search_knowledge import SearchKnowledge
 
 # Import design package modules to ensure they are available in encrypted environment
 import app.tools.design.manager
@@ -111,6 +114,7 @@ import app.tools.design
 
 __all__ = [
     "DummyTool",
+    "AskUserTool",
 
     # 核心组件
     "BaseTool",
@@ -154,12 +158,14 @@ __all__ = [
     "GenerateVideo",
     "QueryVideoGeneration",
     "GetIMChannelStatus",
+    "GetUserInfo",
     "ListDir",
     "Purify",
     "RunPythonSnippet",
     "ReadSkills",
     "RunSdkSnippet",
     "SkillList",
+    "SearchKnowledge",
     "ReadFile",
     "ReadFiles",
     "ReadWebpagesAsMarkdown",
@@ -196,8 +202,6 @@ __all__ = [
     "CreateDashboardProject",
     "ValidateDashboard",
     "DownloadDashboardMaps",
-    "UpdateDashboardTemplate",
-    "BackupDashboardTemplate",
     "CreateDashboardCards",
     "UpdateDashboardCards",
     "DeleteDashboardCards",
@@ -217,4 +221,3 @@ __all__ = [
     "SearchCanvasImages",
     "SearchImagePrompts",
 ]
-

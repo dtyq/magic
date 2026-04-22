@@ -442,7 +442,7 @@ class AgentHorizon:
 
         # 从持久化 file_records 恢复已读必读文件集合
         persisted_paths = set(self._state.file_records.keys())
-        restored_read_paths = required_paths & persisted_paths
+        restored_read_paths = set(required_paths & persisted_paths)
 
         self._is_magiclaw = True
         self._magiclaw_dir = magic_dir

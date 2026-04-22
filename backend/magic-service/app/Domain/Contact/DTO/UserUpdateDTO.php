@@ -12,6 +12,11 @@ use App\Domain\Contact\Entity\AbstractEntity;
 class UserUpdateDTO extends AbstractEntity
 {
     /**
+     * @var array<string, bool>
+     */
+    protected array $presentFields = [];
+
+    /**
      * 用户头像URL.
      */
     protected ?string $avatarUrl = null;
@@ -31,6 +36,11 @@ class UserUpdateDTO extends AbstractEntity
      */
     protected ?string $channel = null;
 
+    /**
+     * 用户所在时区(IANA).
+     */
+    protected ?string $timezone = null;
+
     public function getAvatarUrl(): ?string
     {
         return $this->avatarUrl;
@@ -38,6 +48,7 @@ class UserUpdateDTO extends AbstractEntity
 
     public function setAvatarUrl(?string $avatarUrl): void
     {
+        $this->markFieldPresent('avatar_url');
         $this->avatarUrl = $avatarUrl;
     }
 
@@ -48,6 +59,7 @@ class UserUpdateDTO extends AbstractEntity
 
     public function setNickname(?string $nickname): void
     {
+        $this->markFieldPresent('nickname');
         $this->nickname = $nickname;
     }
 
@@ -58,6 +70,7 @@ class UserUpdateDTO extends AbstractEntity
 
     public function setProfession(?string $profession): void
     {
+        $this->markFieldPresent('profession');
         $this->profession = $profession;
     }
 
@@ -68,7 +81,24 @@ class UserUpdateDTO extends AbstractEntity
 
     public function setChannel(?string $channel): void
     {
+        $this->markFieldPresent('channel');
         $this->channel = $channel;
+    }
+
+    public function getTimezone(): ?string
+    {
+        return $this->timezone;
+    }
+
+    public function setTimezone(?string $timezone): void
+    {
+        $this->markFieldPresent('timezone');
+        $this->timezone = $timezone;
+    }
+
+    public function isFieldPresent(string $field): bool
+    {
+        return $this->presentFields[$field] ?? false;
     }
 
     /**
@@ -78,22 +108,31 @@ class UserUpdateDTO extends AbstractEntity
     {
         $data = [];
 
-        if ($this->avatarUrl !== null) {
+        if ($this->isFieldPresent('avatar_url')) {
             $data['avatar_url'] = $this->avatarUrl;
         }
 
-        if ($this->nickname !== null) {
+        if ($this->isFieldPresent('nickname')) {
             $data['nickname'] = $this->nickname;
         }
 
-        if ($this->profession !== null) {
+        if ($this->isFieldPresent('profession')) {
             $data['profession'] = $this->profession;
         }
 
-        if ($this->channel !== null) {
+        if ($this->isFieldPresent('channel')) {
             $data['channel'] = $this->channel;
         }
 
+        if ($this->isFieldPresent('timezone')) {
+            $data['timezone'] = $this->timezone;
+        }
+
         return $data;
+    }
+
+    private function markFieldPresent(string $field): void
+    {
+        $this->presentFields[$field] = true;
     }
 }

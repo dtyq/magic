@@ -12,9 +12,9 @@ use App\Domain\KnowledgeBase\Entity\ValueObject\DocumentFile\Interfaces\ThirdPla
 
 class ThirdPlatformDocumentFile extends AbstractDocumentFile implements ThirdPlatformDocumentFileInterface
 {
-    public string $thirdFileId;
+    public string $thirdFileId = '';
 
-    public string $platformType;
+    public string $platformType = '';
 
     // 第三方文件类型，自定义字段，由第三方平台设置
     public ?string $thirdFileType = null;

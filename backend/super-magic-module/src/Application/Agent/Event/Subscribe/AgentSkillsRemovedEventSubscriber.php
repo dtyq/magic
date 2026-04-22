@@ -143,6 +143,7 @@ class AgentSkillsRemovedEventSubscriber implements ListenerInterface
 
         $allDeletedFileIds = [];
         $removedPackageNames = [];
+        $removedSystemPackageNames = [];
 
         foreach ($skillCodes as $skillCode) {
             try {
@@ -155,6 +156,13 @@ class AgentSkillsRemovedEventSubscriber implements ListenerInterface
                 $packageName = $skillEntity->getPackageName();
                 if (empty($packageName)) {
                     $this->logger->warning('Skill packageName is empty for removal', ['skill_code' => $skillCode]);
+                    continue;
+                }
+
+                // System builtin skills have no files on disk, skip directory deletion.
+                if ($skillEntity->getSourceType()->isSystem()) {
+                    $removedSystemPackageNames[] = $packageName;
+                    $this->logger->info('System builtin skill, skip file removal', ['skill_code' => $skillCode]);
                     continue;
                 }
 
@@ -226,7 +234,8 @@ class AgentSkillsRemovedEventSubscriber implements ListenerInterface
             $organizationCode,
             $projectOrgCode,
             $removedPackageNames,
-            SkillsMdSyncService::OPERATION_REMOVE
+            SkillsMdSyncService::OPERATION_REMOVE,
+            $removedSystemPackageNames
         );
 
         $this->logger->info('Agent skill file removal completed', [
@@ -235,6 +244,7 @@ class AgentSkillsRemovedEventSubscriber implements ListenerInterface
             'project_id' => $projectId,
             'total_files_deleted' => count($allDeletedFileIds),
             'removed_package_count' => count($removedPackageNames),
+            'removed_system_package_count' => count($removedSystemPackageNames),
         ]);
     }
 

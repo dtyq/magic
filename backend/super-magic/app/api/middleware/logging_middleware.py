@@ -31,15 +31,11 @@ class RequestLoggingMiddleware(BaseHTTPMiddleware):
         start_time = time.time()
 
         # 记录请求信息
-        logger.info(f"请求开始: {request.method} {request.url.path}")
+        logger.debug(f"请求开始: {request.method} {request.url.path}")
 
-        # 记录更详细的头信息，特别是连接相关的
+        # 请求头详情仅 DEBUG 级别记录
         headers = dict(request.headers)
-        connection_type = headers.get("connection", "未指定")
-        user_agent = headers.get("user-agent", "未指定")
-
-        logger.info(f"连接类型: {connection_type}, User-Agent: {user_agent}")
-        logger.info(f"请求头详情: {headers}")
+        logger.debug(f"请求头详情: {headers}")
 
         try:
             # 调用下一个中间件或路由处理函数
@@ -47,12 +43,15 @@ class RequestLoggingMiddleware(BaseHTTPMiddleware):
 
             # 计算处理时间
             process_time = time.time() - start_time
-            logger.info(
-                f"请求完成: {request.method} {request.url.path} - 状态码: {response.status_code}, 耗时: {process_time:.4f}秒"
-            )
+            # 错误请求（>=400）WARNING，正常请求 DEBUG
+            msg = f"请求完成: {request.method} {request.url.path} - 状态码: {response.status_code}, 耗时: {process_time:.4f}秒"
+            if response.status_code >= 400:
+                logger.warning(msg)
+            else:
+                logger.debug(msg)
 
-            # 记录响应头
-            logger.info(f"响应头: {dict(response.headers)}")
+            # 响应头仅 DEBUG 级别记录
+            logger.debug(f"响应头: {dict(response.headers)}")
 
             return response
         except Exception as e:

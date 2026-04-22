@@ -3,10 +3,10 @@ import json
 import os
 import time
 import traceback
-from typing import Dict, Any, Optional
-from fastapi import APIRouter, HTTPException, Depends, WebSocket, WebSocketDisconnect
-from typing import Union
-from pydantic import ValidationError, Field, validator
+from typing import Any, Dict, Optional
+
+from fastapi import APIRouter, WebSocket, WebSocketDisconnect
+from pydantic import ValidationError
 
 from app.api.dto.base import WebSocketMessage
 from app.api.http_dto.response import (
@@ -39,13 +39,13 @@ router = APIRouter(prefix="/v1/messages", tags=["消息处理"])
 logger = get_logger(__name__)
 
 
+
 class MessageProcessor:
     """HTTP消息处理器，复用WebSocket的处理逻辑"""
 
     # TTL for processed message deduplication (seconds)
     # Messages within this window will be deduplicated
     _MESSAGE_DEDUP_TTL: float = 600.0
-
     def __init__(self):
         self.agent_dispatcher = AgentDispatcher.get_instance()
 
@@ -99,6 +99,61 @@ class MessageProcessor:
         if message_id and message_id in self._processing_messages:
             timestamp, _ = self._processing_messages[message_id]
             self._processing_messages[message_id] = (timestamp, False)
+
+    def _save_agent_config(self, message: ChatClientMessage):
+        """将 chat 消息中的 agent 配置持久化到独立文件
+
+        agent 配置的唯一来源从 init 迁移到 chat 消息。
+        持久化到 agent_config.json，供后续 dispatch 和工具读取。
+        """
+        if not message.agent:
+            return
+
+        try:
+            agent_config_file = PathManager.get_agent_config_file()
+            agent_config_file.parent.mkdir(exist_ok=True)
+            agent_dict = message.agent.dict()
+            with open(agent_config_file, 'w', encoding='utf-8') as f:
+                json.dump(agent_dict, f, ensure_ascii=False, indent=2)
+            logger.info(f"已保存 agent 配置到: {agent_config_file}")
+        except Exception as e:
+            logger.error(f"保存 agent 配置失败: {e}")
+
+    def _apply_agent_profile_from_chat(self, message: ChatClientMessage, agent_context: AgentContext):
+        """从 chat 消息的 agent 字段提取并设置 AgentProfile
+
+        优先从 agent.profile 读取，兜底从 agent.name / agent.description（旧结构）读取。
+        """
+        if not message.agent:
+            return
+
+        try:
+            from app.core.entity.agent_profile import AgentProfile
+
+            profile = message.agent.profile
+            agent_name = (
+                (profile.name.strip() if profile and profile.name and profile.name.strip() else None)
+                or (message.agent.name.strip() if message.agent.name and message.agent.name.strip() else None)
+            )
+            agent_desc = (
+                (profile.description.strip() if profile and profile.description and profile.description.strip() else None)
+                or (message.agent.description.strip() if message.agent.description and message.agent.description.strip() else None)
+            )
+            agent_role = (
+                profile.role.strip() if profile and profile.role and profile.role.strip() else None
+            )
+
+            if agent_name:
+                kwargs = {"name": agent_name}
+                if agent_desc:
+                    kwargs["description"] = agent_desc
+                if agent_role:
+                    kwargs["role"] = agent_role
+                agent_profile = AgentProfile(**kwargs)
+                agent_context.set_agent_profile(agent_profile)
+                logger.info(f"从 chat 消息设置 Agent Profile: name={agent_profile.name}")
+        except Exception as e:
+            logger.error(f"从 chat 消息设置 Agent Profile 失败: {e}")
 
     def _save_chat_message(self, message: ChatClientMessage):
         """保存聊天消息到文件"""
@@ -305,6 +360,12 @@ class MessageProcessor:
             # 处理非人类限流配置（容错模式：失败不影响聊天流程）
             await self._handle_non_human_options(message.dynamic_config, agent_context)
 
+            # 普通新消息命中 ask_user 等待态时，先按 cancelled 收口旧工具调用，
+            # 再让这条消息作为新的用户输入进入后续主链路。
+            if message.context_type in [ContextType.NORMAL, ContextType.FOLLOW_UP] and agent_context.has_user_tool_call_pending():
+                from app.service.user_tool_call_service import UserToolCallService
+                await UserToolCallService.get_instance().cancel_pending_for_new_message(agent_context)
+
             # 保存聊天消息
             if message.context_type in [ContextType.NORMAL, ContextType.FOLLOW_UP]:
                 self._save_chat_message(message)
@@ -319,7 +380,23 @@ class MessageProcessor:
                 from app.i18n import i18n
                 i18n.set_language(chat_language)
 
+            # 在延迟 init 事件触发前先写入 message_version，确保 init 事件使用正确的工厂。
+            # 若本次请求未携带 message_version，则从 session.json 读取上次保存的值作为回落。
+            version = message.dynamic_config.get("message_version") if message.dynamic_config else None
+            if not version:
+                try:
+                    version = await agent_context.load_last_message_version()
+                except Exception as e:
+                    logger.debug(f"读取上次保存的 message_version 失败: {e}")
+            if version:
+                agent_context.set_message_version(version)
+
             await self._dispatch_delayed_init_event_if_needed(agent_context, preferred_language=chat_language)
+
+            # 从 chat 消息的 agent 字段设置 AgentProfile 并持久化
+            # agent 配置的唯一来源已从 init 迁移到 chat 消息
+            self._apply_agent_profile_from_chat(message, agent_context)
+            self._save_agent_config(message)
 
             # Extract agent_code from dynamic_config and inject into AgentContext (agent-manager scenario)
             try:
@@ -450,6 +527,16 @@ class MessageProcessor:
             logger.error(f"处理继续指令失败: {e}")
             logger.error(traceback.format_exc())
             return create_error_response("继续指令处理失败")
+
+    async def handle_user_tool_call(self, message_data: dict) -> BaseResponse:
+        """处理用户工具调用回传：解析 payload 后交由对应处理器执行。"""
+        from app.api.handlers.user_tool_call import UserToolCallPayload, dispatch
+        try:
+            raw = message_data.get("user_tool_call") or {}
+            payload = UserToolCallPayload(**raw)
+        except (ValidationError, TypeError) as e:
+            return create_error_response(f"user_tool_call 格式错误: {e}")
+        return await dispatch(payload)
 
     def _resolve_agent_type(self, agent_mode) -> str:
         """将 agent_mode（枚举或字符串）解析为 agent_type 字符串
@@ -592,8 +679,17 @@ async def process_message(
             # 处理继续指令
             return await message_processor.handle_continue()
 
+        elif message_type == MessageType.USER_TOOL_CALL.value:
+            # 用户工具调用回传：前端执行工具后将结果回传（如 ask_user）
+            return await message_processor.handle_user_tool_call(message_data)
+
         else:
-            valid_types = [MessageType.CHAT.value, MessageType.INIT.value, MessageType.CONTINUE.value]
+            valid_types = [
+                MessageType.CHAT.value,
+                MessageType.INIT.value,
+                MessageType.CONTINUE.value,
+                MessageType.USER_TOOL_CALL.value,
+            ]
             return create_error_response(
                 f"不支持的消息类型: {message_type}，支持的类型: {valid_types}"
             )

@@ -363,6 +363,12 @@ class ImageGenerateFactory
             $request->setSequentialImageGenerationOptions($data['sequential_image_generation_options']);
         }
 
+        // 处理输出图片格式：根据模型配置校验并解析
+        if (! empty($data['output_format']) && ! empty($imageConfig['supported_output_formats'])) {
+            $resolvedFormat = ImageOutputFormatConverter::resolveForModel($data['output_format'], $imageConfig);
+            $request->setOutputFormat($resolvedFormat);
+        }
+
         return $request;
     }
 

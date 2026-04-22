@@ -54,7 +54,7 @@ class IdleMonitorService:
 
         while self._running:
             try:
-                logger.info("正在进行Agent空闲状态检查...")
+                logger.debug("正在进行Agent空闲状态检查...")
                 dispatcher = AgentDispatcher.get_instance()
                 if dispatcher.agent_context.is_idle_timeout():
                     idle_timeout_seconds = Environment.get_agent_idle_timeout()

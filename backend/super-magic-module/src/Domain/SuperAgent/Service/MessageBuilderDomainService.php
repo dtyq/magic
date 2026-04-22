@@ -36,12 +36,13 @@ class MessageBuilderDomainService
         MessageMetadata $metaData,
         bool $isFirstTaskMessage,
         ?array $sandboxConfig,
-        string $taskMode = 'chat'
+        string $taskMode = 'chat',
+        ?array $dynamicConfig = null
     ): array {
         // Process metadata
         $metaDataArray = $metaData->toArray();
 
-        return [
+        $message = [
             'message_id' => (string) IdGenerator::getSnowId(),
             'user_id' => $userId,
             'type' => MessageType::Init->value,
@@ -61,6 +62,10 @@ class MessageBuilderDomainService
             'magic_service_host' => config('super-magic.sandbox.callback_host', ''),
             'magic_service_ws_host' => config('super-magic.sandbox.magic_service_ws_host', ''),
         ];
+        if ($dynamicConfig !== null) {
+            $message['dynamic_config'] = $dynamicConfig;
+        }
+        return $message;
     }
 
     /**

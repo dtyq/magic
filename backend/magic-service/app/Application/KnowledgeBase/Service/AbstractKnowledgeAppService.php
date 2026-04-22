@@ -16,6 +16,9 @@ use App\Domain\Contact\Service\MagicUserDomainService;
 use App\Domain\File\Service\FileDomainService;
 use App\Domain\KnowledgeBase\Entity\ValueObject\DocumentFile\Interfaces\DocumentFileInterface;
 use App\Domain\KnowledgeBase\Entity\ValueObject\KnowledgeBaseDataIsolation;
+use App\Domain\KnowledgeBase\Port\DocumentGateway;
+use App\Domain\KnowledgeBase\Port\FragmentGateway;
+use App\Domain\KnowledgeBase\Port\KnowledgeBaseGateway;
 use App\Domain\KnowledgeBase\Service\KnowledgeBaseDocumentDomainService;
 use App\Domain\KnowledgeBase\Service\KnowledgeBaseDomainService;
 use App\Domain\KnowledgeBase\Service\KnowledgeBaseFragmentDomainService;
@@ -45,6 +48,9 @@ abstract class AbstractKnowledgeAppService extends AbstractKernelAppService
         protected readonly KnowledgeSimilarityManager $knowledgeSimilarityManager,
         protected readonly DocumentFileStrategy $documentFileStrategy,
         protected readonly KnowledgeBaseStrategyInterface $knowledgeBaseStrategy,
+        protected readonly KnowledgeBaseGateway $knowledgeBaseAppClient,
+        protected readonly DocumentGateway $documentAppClient,
+        protected readonly FragmentGateway $fragmentAppClient,
         LoggerFactory $loggerFactory,
     ) {
         $this->logger = $loggerFactory->get(get_class($this));

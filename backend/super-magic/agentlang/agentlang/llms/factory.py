@@ -256,7 +256,8 @@ class LLMFactory:
                 response.usage,
                 model_id,
                 user_id=agent_context.get_user_id() if agent_context else None,
-                model_name=llm_config.name
+                model_name=llm_config.name,
+                resolved_model_id=llm_config.resolved_model_id or None
             )
 
             # 记录成功响应日志和耗时

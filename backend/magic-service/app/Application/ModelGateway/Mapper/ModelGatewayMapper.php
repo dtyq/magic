@@ -518,6 +518,7 @@ class ModelGatewayMapper extends ModelMapper
                 $resolvedImpl->getModelVersion(),
                 $resolvedImpl->getProviderModelId(),
                 $resolvedImpl->getProviderCode(),
+                $resolvedModelId,
             ),
         };
 
@@ -547,11 +548,12 @@ class ModelGatewayMapper extends ModelMapper
         } elseif ($providerModelEntity->getModelType()->isEmbedding()) {
             $embedding = true;
             $vectorSize = $providerModelEntity->getConfig()?->getVectorSize();
+            $multiModal = $providerModelEntity->getConfig()?->isSupportMultiModal() ?? false;
         }
 
         $key = $providerModelEntity->getModelId();
 
-        $implementation = $providerEntity->getProviderCode()->getImplementation();
+        $implementation = $providerEntity->getProviderCode()->getImplementationForModel($embedding, $multiModal);
         $providerConfigItem = $providerConfigEntity->getConfig();
         $implementationConfig = $providerEntity->getProviderCode()->getImplementationConfig($providerConfigItem, $providerModelEntity->getModelVersion());
 
@@ -583,12 +585,20 @@ class ModelGatewayMapper extends ModelMapper
             modelType: $providerModelEntity->getModelType()->value,
             description: $providerModelEntity->getLocalizedDescription($providerDataIsolation->getLanguage()),
             resolvedModelId: $key,
+            modelVersion: $providerModelEntity->getModelVersion(),
+            providerName: $providerName,
         );
 
         if ($providerModelEntity->getModelType()->isVLM()) {
             return new ModelEntry(
                 attributes: $attributes,
-                model: new ImageModel($providerConfigItem->toArray(), $providerModelEntity->getModelVersion(), (string) $providerModelEntity->getId(), $providerEntity->getProviderCode()),
+                model: new ImageModel(
+                    $providerConfigItem->toArray(),
+                    $providerModelEntity->getModelVersion(),
+                    (string) $providerModelEntity->getId(),
+                    $providerEntity->getProviderCode(),
+                    $providerModelEntity->getModelId()
+                ),
             );
         }
 

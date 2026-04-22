@@ -70,7 +70,34 @@ abstract class AbstractDocumentFile extends AbstractValueObject implements Docum
 
     public static function fromArray(array $data): ?DocumentFileInterface
     {
-        $documentFileType = isset($data['type']) ? DocumentFileType::tryFrom($data['type']) : DocumentFileType::EXTERNAL;
+        if (isset($data['third_id']) && ! isset($data['third_file_id'])) {
+            $data['third_file_id'] = (string) $data['third_id'];
+        }
+        if (isset($data['source_type']) && ! isset($data['platform_type'])) {
+            $data['platform_type'] = (string) $data['source_type'];
+        }
+        if (isset($data['extension']) && ! isset($data['third_file_extension_name'])) {
+            $data['third_file_extension_name'] = (string) $data['extension'];
+        }
+        if (isset($data['file_link']) && is_array($data['file_link']) && ! isset($data['url'])) {
+            $data['url'] = (string) ($data['file_link']['url'] ?? '');
+        }
+        if (($data['key'] ?? '') === '' && isset($data['url'])) {
+            $data['key'] = (string) $data['url'];
+        }
+
+        $typeRaw = $data['type'] ?? DocumentFileType::EXTERNAL->value;
+        $documentFileType = match (true) {
+            $typeRaw instanceof DocumentFileType => $typeRaw,
+            is_int($typeRaw), is_numeric($typeRaw) => DocumentFileType::tryFrom((int) $typeRaw),
+            is_string($typeRaw) => match (strtolower($typeRaw)) {
+                'external' => DocumentFileType::EXTERNAL,
+                'third_platform', 'third-platform', 'thirdplatform', 'third' => DocumentFileType::THIRD_PLATFORM,
+                default => null,
+            },
+            default => null,
+        };
+        $documentFileType ??= DocumentFileType::EXTERNAL;
         $data['type'] = $documentFileType;
         return match ($documentFileType) {
             DocumentFileType::EXTERNAL => make(ExternalDocumentFileInterface::class, [$data]),

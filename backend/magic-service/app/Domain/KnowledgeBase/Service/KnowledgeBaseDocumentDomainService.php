@@ -13,7 +13,6 @@ use App\Domain\KnowledgeBase\Entity\KnowledgeBaseEntity;
 use App\Domain\KnowledgeBase\Entity\ValueObject\DocType;
 use App\Domain\KnowledgeBase\Entity\ValueObject\KnowledgeBaseDataIsolation;
 use App\Domain\KnowledgeBase\Entity\ValueObject\KnowledgeSyncStatus;
-use App\Domain\KnowledgeBase\Event\KnowledgeBaseDefaultDocumentSavedEvent;
 use App\Domain\KnowledgeBase\Event\KnowledgeBaseDocumentRemovedEvent;
 use App\Domain\KnowledgeBase\Event\KnowledgeBaseDocumentSavedEvent;
 use App\Domain\KnowledgeBase\Repository\Facade\KnowledgeBaseDocumentRepositoryInterface;
@@ -187,56 +186,12 @@ readonly class KnowledgeBaseDocumentDomainService
             ->setRetrieveConfig($knowledgeBaseEntity->getRetrieveConfig())
             ->setWordCount(0)
             ->setVectorDb(VectorStoreDriver::default()->value);
-        $res = $this->knowledgeBaseDocumentRepository->restoreOrCreate($dataIsolation, $documentEntity);
-        $event = new KnowledgeBaseDefaultDocumentSavedEvent($dataIsolation, $knowledgeBaseEntity, $documentEntity);
-        AsyncEventUtil::dispatch($event);
-        return $res;
+        return $this->knowledgeBaseDocumentRepository->restoreOrCreate($dataIsolation, $documentEntity);
     }
 
     public function increaseVersion(KnowledgeBaseDataIsolation $dataIsolation, KnowledgeBaseDocumentEntity $documentEntity): int
     {
         return $this->knowledgeBaseDocumentRepository->increaseVersion($dataIsolation, $documentEntity);
-    }
-
-    public function reVectorizedByThirdFileId(KnowledgeBaseDataIsolation $dataIsolation, string $thirdPlatformType, string $thirdFileId): void
-    {
-        /** @var KnowledgeBaseDocumentDomainService $knowledgeBaseDocumentDomainService */
-        $knowledgeBaseDocumentDomainService = di(KnowledgeBaseDocumentDomainService::class);
-        /** @var KnowledgeBaseDomainService $knowledgeBaseDomainService */
-        $knowledgeBaseDomainService = di(KnowledgeBaseDomainService::class);
-
-        $documents = $knowledgeBaseDocumentDomainService->getByThirdFileId($dataIsolation, $thirdPlatformType, $thirdFileId);
-        $knowledgeEntities = $knowledgeBaseDomainService->getByCodes($dataIsolation, array_column($documents, 'knowledge_base_code'));
-
-        foreach ($documents as $document) {
-            $knowledgeEntity = $knowledgeEntities[$document['knowledge_base_code']] ?? null;
-            if ($knowledgeEntity) {
-                $event = new KnowledgeBaseDocumentSavedEvent($dataIsolation, $knowledgeEntity, $document, false);
-                AsyncEventUtil::dispatch($event);
-            }
-        }
-    }
-
-    /**
-     * @return array<KnowledgeBaseDocumentEntity>
-     */
-    public function getByThirdFileId(KnowledgeBaseDataIsolation $dataIsolation, string $thirdPlatformType, string $thirdFileId, ?string $knowledgeBaseCode = null): array
-    {
-        $loopCount = 20;
-        $pageSize = 500;
-        $lastId = null;
-        /** @var array<KnowledgeBaseDocumentEntity> $res */
-        $res = [];
-        // 最多允许获取一万份文档
-        while ($loopCount--) {
-            $entities = $this->knowledgeBaseDocumentRepository->getByThirdFileId($dataIsolation, $thirdPlatformType, $thirdFileId, $knowledgeBaseCode, $lastId, $pageSize);
-            if (empty($entities)) {
-                break;
-            }
-            $res = array_merge($res, $entities);
-            $lastId = $entities[count($entities) - 1]->getId();
-        }
-        return $res;
     }
 
     /**

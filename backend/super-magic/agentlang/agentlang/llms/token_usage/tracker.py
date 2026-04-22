@@ -106,7 +106,8 @@ class TokenUsageTracker:
 
     def record_llm_usage(self, response_usage: Any, model_id: str,
                          user_id: Optional[str] = None,
-                         model_name: Optional[str] = None) -> LlmUsageResponse:
+                         model_name: Optional[str] = None,
+                         resolved_model_id: Optional[str] = None) -> LlmUsageResponse:
         """记录LLM使用情况，并生成报告
 
         Args:
@@ -147,7 +148,7 @@ class TokenUsageTracker:
 
         # 如果有报告管理器，则生成报告
         if self._report_manager:
-            self._report_manager.update_and_save_usage(model_id, token_usage)
+            self._report_manager.update_and_save_usage(model_id, token_usage, resolved_model_id=resolved_model_id)
 
         # 返回处理结果，实现LlmUsageResponse协议
         class UsageResult:

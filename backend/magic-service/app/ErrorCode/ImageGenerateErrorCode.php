@@ -88,4 +88,7 @@ enum ImageGenerateErrorCode: int
 
     #[ErrorMessage(message: 'image_generate.invalid_base64_image')]
     case INVALID_BASE64_IMAGE = 44024;
+
+    #[ErrorMessage(message: 'image_generate.unsupported_output_format')]
+    case UNSUPPORTED_OUTPUT_FORMAT = 44025;
 }

@@ -512,10 +512,11 @@ Expand brief user descriptions into full prompts covering subject, style, compos
                     if extracted.has_success:
                         retry_note = " (重试成功)" if is_retry else ""
                         logger.info(f"Task {idx + 1} 生成成功{retry_note}")
+                        best = self._pick_best_image(extracted.images)
                         return ImageGenerationResult(
                             index=idx,
                             success=True,
-                            image_info=extracted.images[0],
+                            image_info=best,
                         )
 
                     error_msg = extracted.errors[0] if extracted.errors else "图片文件校验失败"
@@ -594,6 +595,27 @@ Expand brief user descriptions into full prompts covering subject, style, compos
             ))
 
         return ExtractedImagesResult(images=images, errors=errors)
+
+    def _pick_best_image(self, images: List[GeneratedImageInfo]) -> GeneratedImageInfo:
+        """从候选图列表中选出分辨率最高的图片。
+
+        当 API 返回多张图时（edit 模式偶发）以总像素数为指标取最大值，
+        无法读取尺寸时回退到第一张。
+        """
+        if len(images) == 1:
+            return images[0]
+
+        def _pixels(img: GeneratedImageInfo) -> float:
+            if img.width is not None and img.height is not None:
+                return img.width * img.height
+            return -1.0
+
+        best = max(images, key=_pixels)
+        if best is not images[0]:
+            logger.info(
+                f"多图候选：共 {len(images)} 张，选取分辨率最高的图片: {best.relative_path}"
+            )
+        return best
 
     def _get_model_from_config(self, tool_context: Optional[ToolContext] = None) -> str:
         """获取图片生成模型，优先从 agent context 读取，均未配置时使用默认模型"""

@@ -12,6 +12,7 @@ use App\Domain\KnowledgeBase\Entity\ValueObject\KnowledgeType;
 use App\Domain\KnowledgeBase\Entity\ValueObject\SearchType;
 use App\Domain\KnowledgeBase\Entity\ValueObject\SourceType;
 use App\ErrorCode\FlowErrorCode;
+use App\ErrorCode\PermissionErrorCode;
 use App\Infrastructure\Util\Text\TextPreprocess\ValueObject\TextPreprocessRule;
 use Hyperf\Snowflake\IdGeneratorInterface;
 use HyperfTest\HttpTestCase;
@@ -23,6 +24,8 @@ use HyperfTest\HttpTestCase;
 class KnowledgeBaseApiTest extends HttpTestCase
 {
     public const string API = '/api/v1/knowledge-bases';
+
+    private const string FRAGMENT_WRITE_DISABLED_MESSAGE = '知识库片段不支持单独创建、修改、删除或同步，请重新向量化整个文档';
 
     protected function setUp(): void
     {
@@ -80,6 +83,16 @@ class KnowledgeBaseApiTest extends HttpTestCase
         $this->assertIsInt($knowledgeBase['word_count']);
         $this->assertIsInt($knowledgeBase['document_count']);
         $this->assertIsString($knowledgeBase['icon']);
+
+        $documentList = $this->post(
+            sprintf('%s/%s/documents/queries', self::API, $knowledgeBase['code']),
+            ['page' => 1, 'page_size' => 10],
+            $this->getCommonHeaders()
+        );
+        $this->assertSame(1000, $documentList['code'], $documentList['message']);
+        $this->assertGreaterThanOrEqual(1, $documentList['data']['total']);
+        $this->assertNotEmpty($documentList['data']['list']);
+        $this->assertSame('aaa.txt', $documentList['data']['list'][0]['name']);
     }
 
     /**
@@ -98,8 +111,20 @@ class KnowledgeBaseApiTest extends HttpTestCase
         $this->assertSame($name, $knowledgeBase['name']);
         $this->assertIsString($knowledgeBase['description']);
         $this->assertTrue($knowledgeBase['enabled']);
+        $this->assertNotEmpty($knowledgeBase['creator']);
+        $this->assertNotEmpty($knowledgeBase['modifier']);
+        $this->assertIsArray($knowledgeBase['creator_info']);
+        $this->assertIsArray($knowledgeBase['modifier_info']);
+        $this->assertSame($knowledgeBase['creator'], $knowledgeBase['creator_info']['id']);
+        $this->assertSame($knowledgeBase['modifier'], $knowledgeBase['modifier_info']['id']);
         $this->assertIsInt($knowledgeBase['word_count']);
         $this->assertIsInt($knowledgeBase['document_count']);
+        $this->assertArrayHasKey('fragment_count', $knowledgeBase);
+        $this->assertArrayHasKey('expected_count', $knowledgeBase);
+        $this->assertArrayHasKey('completed_count', $knowledgeBase);
+        $this->assertIsInt($knowledgeBase['fragment_count']);
+        $this->assertIsInt($knowledgeBase['expected_count']);
+        $this->assertIsInt($knowledgeBase['completed_count']);
         $this->assertSame(SourceType::EXTERNAL_FILE->value, $knowledgeBase['source_type']);
     }
 
@@ -224,7 +249,6 @@ class KnowledgeBaseApiTest extends HttpTestCase
                     'chunk_overlap' => 10,
                 ],
             ],
-            'parent_child' => null,
         ], $knowledgeBase['fragment_config']);
 
         $this->assertSame(['model_id' => 'dmeta-embedding'], $knowledgeBase['embedding_config']);
@@ -262,7 +286,6 @@ class KnowledgeBaseApiTest extends HttpTestCase
                         'chunk_overlap' => 10,
                     ],
                 ],
-                'parent_child' => null,
             ],
         ];
         $document = $this->createDocument($createData);
@@ -280,6 +303,12 @@ class KnowledgeBaseApiTest extends HttpTestCase
     {
         $document = $this->createDocument();
 
+        $newStrategyConfig = [
+            'parsing_type' => 1,
+            'image_extraction' => true,
+            'table_extraction' => false,
+            'image_ocr' => true,
+        ];
         $newFragmentConfig = [
             'mode' => 1,
             'normal' => [
@@ -292,13 +321,13 @@ class KnowledgeBaseApiTest extends HttpTestCase
                     'chunk_overlap' => 20,
                 ],
             ],
-            'parent_child' => null,
         ];
 
         $updateData = [
             'name' => '更新后的文档名称',
             'enabled' => false,
             'doc_metadata' => ['source' => 'updated'],
+            'strategy_config' => $newStrategyConfig,
             'fragment_config' => $newFragmentConfig,
         ];
 
@@ -313,6 +342,7 @@ class KnowledgeBaseApiTest extends HttpTestCase
         $this->assertSame($updateData['name'], $res['data']['name']);
         $this->assertSame($updateData['enabled'], $res['data']['enabled']);
         $this->assertSame($updateData['doc_metadata'], $res['data']['doc_metadata']);
+        $this->assertSame($newStrategyConfig, $res['data']['strategy_config']);
         $this->assertSame($newFragmentConfig, $res['data']['fragment_config']);
     }
 
@@ -403,26 +433,16 @@ class KnowledgeBaseApiTest extends HttpTestCase
 
     public function testCreateFragment()
     {
-        $fragment = $this->createFragment();
+        $document = $this->createDocument();
 
-        $this->assertIsString($fragment['creator']);
-        $this->assertIsString($fragment['modifier']);
-        $this->assertIsString($fragment['created_at']);
-        $this->assertIsString($fragment['updated_at']);
-        $this->assertIsString($fragment['id']);
-        $this->assertIsString($fragment['knowledge_base_code']);
-        $this->assertIsString($fragment['document_code']);
-        $this->assertSame('这是一个测试片段内容', $fragment['content']);
-        $this->assertSame(['page' => 1], $fragment['metadata']);
-        $this->assertSame('', $fragment['business_id']);
-        $this->assertSame(0, $fragment['sync_status']);
-        $this->assertSame('', $fragment['sync_status_message']);
-        $this->assertSame(0, $fragment['score']);
+        $res = $this->createFragment([], $document['code'], $document['knowledge_base_code']);
+
+        $this->assertFragmentWriteDisabled($res);
     }
 
     public function testUpdateFragment()
     {
-        $fragment = $this->createFragment();
+        $document = $this->createDocument();
 
         $updateData = [
             'content' => '更新后的片段内容',
@@ -433,48 +453,28 @@ class KnowledgeBaseApiTest extends HttpTestCase
             sprintf(
                 '%s/%s/documents/%s/fragments/%s',
                 self::API,
-                $fragment['knowledge_base_code'],
-                $fragment['document_code'],
-                $fragment['id']
+                $document['knowledge_base_code'],
+                $document['code'],
+                1
             ),
             $updateData,
             $this->getCommonHeaders()
         );
 
-        $this->assertSame(1000, $res['code'], $res['message']);
-        $this->assertSame($fragment['id'], $res['data']['id']);
-        $this->assertSame($updateData['content'], $res['data']['content']);
-        $this->assertSame($updateData['metadata'], $res['data']['metadata']);
+        $this->assertFragmentWriteDisabled($res);
     }
 
     public function testGetFragmentList()
     {
         $document = $this->createDocument();
-        // 创建多个片段
-        $this->createFragment(['content' => '片段1'], $document['code'], $document['knowledge_base_code']);
-        $this->createFragment(['content' => '片段2'], $document['code'], $document['knowledge_base_code']);
-
-        $params = [
-            'page' => 1,
-            'page_size' => 10,
-        ];
-
-        $res = $this->post(
-            sprintf('%s/%s/documents/%s/fragments/queries', self::API, $document['knowledge_base_code'], $document['code']),
-            $params,
-            $this->getCommonHeaders()
-        );
-
-        $this->assertSame(1000, $res['code'], $res['message']);
-        $this->assertArrayHasKey('total', $res['data']);
-        $this->assertArrayHasKey('list', $res['data']);
-        $this->assertIsArray($res['data']['list']);
-        $this->assertCount(4, $res['data']['list']);
+        $list = $this->waitForDocumentFragments($document['knowledge_base_code'], $document['code']);
+        $this->assertNotEmpty($list);
     }
 
     public function testGetFragmentDetail()
     {
-        $fragment = $this->createFragment();
+        $document = $this->createDocument();
+        $fragment = $this->getFirstDocumentFragment($document['knowledge_base_code'], $document['code']);
 
         $res = $this->get(
             sprintf(
@@ -503,34 +503,20 @@ class KnowledgeBaseApiTest extends HttpTestCase
 
     public function testDestroyFragment()
     {
-        $fragment = $this->createFragment();
+        $document = $this->createDocument();
 
         $res = $this->delete(
             sprintf(
                 '%s/%s/documents/%s/fragments/%s',
                 self::API,
-                $fragment['knowledge_base_code'],
-                $fragment['document_code'],
-                $fragment['id']
+                $document['knowledge_base_code'],
+                $document['code'],
+                1
             ),
             [],
             $this->getCommonHeaders()
         );
-        $this->assertSame(1000, $res['code'], $res['message']);
-
-        // 验证片段已被删除
-        $res = $this->get(
-            sprintf(
-                '%s/%s/documents/%s/fragments/%s',
-                self::API,
-                $fragment['knowledge_base_code'],
-                $fragment['document_code'],
-                $fragment['id']
-            ),
-            [],
-            $this->getCommonHeaders()
-        );
-        $this->assertSame(FlowErrorCode::KnowledgeValidateFailed->value, $res['code']);
+        $this->assertFragmentWriteDisabled($res);
     }
 
     /**
@@ -585,6 +571,68 @@ class KnowledgeBaseApiTest extends HttpTestCase
         }
     }
 
+    public function testFragmentPreviewV2ShouldReturnDocumentNodes()
+    {
+        $data = [
+            'document_file' => [
+                'name' => 'test.md',
+                'key' => 'test001/open/4c9184f37cff01bcdc32dc486ec36961/9w-fHAaMI4hY3VEIhhozL.md',
+            ],
+            'fragment_config' => [
+                'mode' => FragmentMode::NORMAL->value,
+                'normal' => [
+                    'text_preprocess_rule' => [],
+                    'segment_rule' => [
+                        'separator' => '\n',
+                        'chunk_size' => 50,
+                        'chunk_overlap' => 10,
+                    ],
+                ],
+            ],
+        ];
+
+        $res = $this->post(
+            self::API . '/fragments/preview',
+            $data,
+            $this->getCommonHeaders()
+        );
+
+        $this->assertSame(1000, $res['code'], $res['message']);
+        $this->assertArrayHasKey('data', $res);
+        $this->assertArrayHasKey('document_nodes', $res['data']);
+        $this->assertIsArray($res['data']['document_nodes']);
+    }
+
+    public function testFragmentPreviewShouldRejectExternalWithoutSource()
+    {
+        $data = [
+            'document_file' => [
+                'name' => 'test.md',
+                'type' => 1,
+                'key' => '',
+            ],
+            'fragment_config' => [
+                'mode' => FragmentMode::NORMAL->value,
+                'normal' => [
+                    'text_preprocess_rule' => [],
+                    'segment_rule' => [
+                        'separator' => '\n',
+                        'chunk_size' => 50,
+                        'chunk_overlap' => 10,
+                    ],
+                ],
+            ],
+        ];
+
+        $res = $this->post(
+            self::API . '/fragments/preview',
+            $data,
+            $this->getCommonHeaders()
+        );
+
+        $this->assertSame(5003, $res['code']);
+    }
+
     public function testSimilarity()
     {
         // 创建测试知识库
@@ -593,11 +641,7 @@ class KnowledgeBaseApiTest extends HttpTestCase
 
         // 创建测试文档
         $document = $this->createDocument([], $code);
-
-        // 创建测试片段
-        $fragment = $this->createFragment([
-            'content' => '这是一个测试片段内容，用于测试相似度查询功能',
-        ], $document['code'], $code);
+        $this->waitForDocumentFragments($code, $document['code']);
 
         // 执行相似度查询
         $query = '测试相似度查询';
@@ -642,6 +686,37 @@ class KnowledgeBaseApiTest extends HttpTestCase
             $this->getCommonHeaders()
         );
         $this->assertSame(1000, $res['code'], $res['message']);
+    }
+
+    public function testReVectorizedSync()
+    {
+        $knowledgeBase = $this->createKnowledgeBase();
+        $code = $knowledgeBase['code'];
+        $document = $this->createDocument([], $code);
+        $documentCode = $document['code'];
+
+        $res = $this->post(
+            sprintf('%s/%s/documents/%s/re-vectorized', self::API, $code, $documentCode),
+            ['sync' => true],
+            $this->getCommonHeaders()
+        );
+        $this->assertSame(1000, $res['code'], $res['message']);
+    }
+
+    public function testFragmentQueriesShouldReturnDocumentNodes()
+    {
+        $knowledgeBase = $this->createKnowledgeBase();
+        $knowledgeBaseCode = $knowledgeBase['code'];
+        $document = $this->createDocument([], $knowledgeBaseCode);
+        $documentCode = $document['code'];
+
+        $data = $this->waitForDocumentFragmentsRaw($knowledgeBaseCode, $documentCode);
+
+        $this->assertArrayHasKey('page', $data);
+        $this->assertArrayHasKey('total', $data);
+        $this->assertArrayHasKey('list', $data);
+        $this->assertArrayHasKey('document_nodes', $data);
+        $this->assertIsArray($data['document_nodes']);
     }
 
     // 删除所有知识库
@@ -767,13 +842,71 @@ class KnowledgeBaseApiTest extends HttpTestCase
         ];
 
         $data = array_merge($defaultData, $overrideData);
-        $res = $this->post(
+        return $this->post(
             sprintf('%s/%s/documents/%s/fragments', self::API, $knowledgeBaseCode, $documentCode),
             $data,
             $this->getCommonHeaders()
         );
+    }
 
-        $this->assertSame(1000, $res['code'], $res['message']);
-        return $res['data'];
+    protected function assertFragmentWriteDisabled(array $res): void
+    {
+        $this->assertSame(PermissionErrorCode::ValidateFailed->value, $res['code'], $res['message']);
+        $this->assertSame(self::FRAGMENT_WRITE_DISABLED_MESSAGE, $res['message']);
+    }
+
+    protected function getFirstDocumentFragment(string $knowledgeBaseCode, string $documentCode): array
+    {
+        $fragments = $this->waitForDocumentFragments($knowledgeBaseCode, $documentCode);
+        return $fragments[0];
+    }
+
+    protected function waitForDocumentFragments(string $knowledgeBaseCode, string $documentCode): array
+    {
+        $params = [
+            'page' => 1,
+            'page_size' => 10,
+        ];
+
+        for ($attempt = 0; $attempt < 20; ++$attempt) {
+            $res = $this->post(
+                sprintf('%s/%s/documents/%s/fragments/queries', self::API, $knowledgeBaseCode, $documentCode),
+                $params,
+                $this->getCommonHeaders()
+            );
+            $this->assertSame(1000, $res['code'], $res['message']);
+            $list = $res['data']['list'] ?? [];
+            if ($list !== []) {
+                return $list;
+            }
+            usleep(200000);
+        }
+
+        $this->fail(sprintf('等待文档 %s/%s 生成片段超时', $knowledgeBaseCode, $documentCode));
+    }
+
+    protected function waitForDocumentFragmentsRaw(string $knowledgeBaseCode, string $documentCode): array
+    {
+        $params = [
+            'page' => 1,
+            'page_size' => 10,
+        ];
+
+        for ($attempt = 0; $attempt < 20; ++$attempt) {
+            $res = $this->post(
+                sprintf('%s/%s/documents/%s/fragments/queries', self::API, $knowledgeBaseCode, $documentCode),
+                $params,
+                $this->getCommonHeaders()
+            );
+            $this->assertSame(1000, $res['code'], $res['message']);
+            $this->assertArrayHasKey('document_nodes', $res['data']);
+            $list = $res['data']['list'] ?? [];
+            if ($list !== []) {
+                return $res['data'];
+            }
+            usleep(200000);
+        }
+
+        $this->fail(sprintf('等待文档 %s/%s 生成片段超时', $knowledgeBaseCode, $documentCode));
     }
 }

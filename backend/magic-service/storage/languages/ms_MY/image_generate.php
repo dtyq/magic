@@ -58,6 +58,14 @@ return [
     'too_many_reference_images_limit_14' => 'Terlalu banyak imej rujukan, maksimum yang dibenarkan ialah 14',
     'too_many_reference_images_limit_3' => 'Terlalu banyak imej rujukan, maksimum yang dibenarkan ialah 3',
     'too_many_reference_images_limit' => 'Terlalu banyak imej rujukan, maksimum yang dibenarkan ialah :limit',
+    'google_gemini_model_or_endpoint_not_found' => 'Model atau endpoint Google Gemini tidak ditemui (model: :model)',
+    'api_request_failed_after_retries' => 'Permintaan API gagal selepas percubaan semula',
+    'unsupported_output_format' => 'Model semasa tidak menyokong format output :format, format yang disokong ialah: :supported',
+    'remove_background_image_required' => 'URL imej untuk buang latar belakang tidak boleh kosong',
+    'remove_background_invalid_image_url' => 'Format URL imej untuk buang latar belakang tidak sah',
+    'remove_background_provider_not_configured' => 'Penyedia perkhidmatan buang latar belakang belum dikonfigurasi atau belum diaktifkan',
+    'remove_background_only_image_allowed' => 'Hanya fail imej dibenarkan',
+    'remove_background_image_too_large' => 'Saiz imej tidak boleh melebihi 20MB',
     # 水印相关
     'image_watermark' => 'Dijana oleh Maiji AI',
 ];

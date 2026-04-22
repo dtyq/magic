@@ -42,6 +42,7 @@ return [
     'dynamic_model_config_invalid' => 'Dynamic model configuration is invalid',
     'dynamic_model_sub_models_empty' => 'Dynamic model sub-models list is empty',
     'insufficient_permission_for_model' => 'Current subscription does not support this intelligent model',
+    'provider_not_implemented' => 'This service provider is not implemented or runtime dependencies are missing.',
     // Service provider name i18n (key uses enum value)
     'provider_name' => [
         'Official' => 'Magic',
@@ -57,6 +58,7 @@ return [
         'MiracleVision' => 'MiracleVision',
         'Qwen' => 'Amazon Bedrock',
         'OpenAI' => 'Custom Provider',
+        'Anthropic' => 'Anthropic',
     ],
     'provider' => [
         'service_provider_config_id' => [

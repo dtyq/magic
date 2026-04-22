@@ -255,14 +255,12 @@ class SkillDomainService
         SkillDataIsolation $dataIsolation,
         array $codes,
         ?string $keyword,
-        string $languageCode,
         Page $page
     ): array {
         return $this->skillVersionRepository->queriesCurrentPublishedByCodes(
             $dataIsolation,
             $codes,
             $keyword,
-            $languageCode,
             $page
         );
     }
@@ -823,6 +821,11 @@ class SkillDomainService
         return $this->skillVersionRepository->countByCode($dataIsolation, $code);
     }
 
+    public function clearCurrentVersionByCode(SkillDataIsolation $dataIsolation, string $code): int
+    {
+        return $this->skillVersionRepository->clearCurrentVersion($dataIsolation, $code);
+    }
+
     /**
      * 查询管理后台版本列表.
      *
@@ -970,6 +973,10 @@ class SkillDomainService
                 SkillErrorCode::SKILL_CREATOR_CANNOT_ADD_FROM_MARKET,
                 'skill.skill_creator_cannot_add_from_market'
             );
+        }
+
+        if ($skillVersion->getSourceType()->isSystem()) {
+            ExceptionBuilder::throw(SkillErrorCode::STORE_SKILL_ALREADY_ADDED, 'skill.store_skill_already_added');
         }
 
         // 3. 检查用户是否已添加该市场 skill_code

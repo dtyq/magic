@@ -1,0 +1,50 @@
+root = "."
+testdata_dir = "testdata"
+tmp_dir = "tmp"
+
+[build]
+  entrypoint = "../bin/magic-go-engine"
+  cmd = "./scripts/air-build.sh"
+  delay = 1000
+  exclude_dir = ["assets", "tmp", "vendor", "testdata", "storage", "docs", "frontend", "node_modules", ".git"]
+  exclude_file = ["wire_gen.go"]
+  exclude_regex = ["_test.go"]
+  exclude_unchanged = false
+  follow_symlink = false
+  full_bin = "cd .. && CONFIG_FILE=./magic-go-engine-config.yaml ./bin/magic-go-engine"
+  include_dir = []
+  include_ext = ["go", "tpl", "tmpl", "html"]
+  include_file = []
+  kill_delay = "1s"
+  log = "build-errors.log"
+  poll = false
+  poll_interval = 0
+  post_cmd = []
+  pre_cmd = []
+  rerun = false
+  rerun_delay = 500
+  send_interrupt = true
+  stop_on_root = false
+
+[color]
+  app = ""
+  build = "yellow"
+  main = "magenta"
+  runner = "green"
+  watcher = "cyan"
+
+[log]
+  main_only = true
+  time = false
+
+[misc]
+  clean_on_exit = false
+
+[proxy]
+  enabled = false
+  proxy_port = 8090
+  app_port = 8080
+
+[screen]
+  clear_on_rebuild = true
+  keep_scroll = false

@@ -73,6 +73,18 @@ class BaseTool(Generic[T], ABC):
         """
         return True
 
+    def allow_code_mode(self) -> bool:
+        """
+        检查工具是否允许在 Code Mode（run_sdk_snippet）中通过 sdk.tool.call() 调用。
+
+        需要与用户交互或依赖 agent 主事件循环挂起-恢复机制的工具（如 ask_user）
+        不能在 Code Mode 中使用，必须由模型直接作为工具调用发出。
+
+        Returns:
+            bool: 如果允许 Code Mode 调用返回 True，否则返回 False
+        """
+        return True
+
     def get_horizon(self, tool_context: "ToolContext") -> "AgentHorizon":
         """从 tool_context 获取当前 agent 的 AgentHorizon 实例。"""
         from app.core.context.agent_context import AgentContext
@@ -242,6 +254,10 @@ class BaseTool(Generic[T], ABC):
         Returns:
             bool: 如果应该触发事件返回 True，否则返回 False
         """
+        return True
+
+    def is_visible_in_ui(self) -> bool:
+        """声明工具调用消息是否默认展示给用户。"""
         return True
 
     def _create_tool_span(self, tool_context: ToolContext, kwargs: Dict[str, Any]) -> Optional[Any]:
@@ -953,6 +969,14 @@ class BaseTool(Generic[T], ABC):
             str: 友好的执行结果消息
         """
         return ""
+
+    async def set_extra_arguments(self, tool_context: ToolContext) -> None:
+        """Inject extra keys into tool_context.arguments before BEFORE_TOOL_CALL fires.
+
+        Override in subclasses to add tool-specific metadata (e.g. pre-generated IDs,
+        expiry timestamps) directly into the arguments dict so that both the event and
+        execute() share the exact same values via tool_context.arguments.
+        """
 
     async def get_before_tool_call_friendly_action_and_remark(self, tool_name: str, tool_context: ToolContext, arguments: Dict[str, Any] = None) -> Dict:
         """
