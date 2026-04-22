@@ -11,6 +11,7 @@ tools:
   - multi_edit_file_range
   - delete_files
   - shell_exec
+  - shell_await
   - run_python_snippet
   - get_youtube_video_info
   - download_youtube_video_media

@@ -15,6 +15,7 @@ tools:
   - grep_search
   - run_python_snippet
   - shell_exec
+  - shell_await
   - write_file
   - edit_file
   - edit_file_range

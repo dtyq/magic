@@ -21,6 +21,8 @@ class PathManager(BasePathManager):
         .project_schemas/    ← 项目架构（应用层，预创建）
         .client_message/     ← 客户端消息（应用层，预创建）
         .mcp/                ← MCP 配置（应用层，预创建）
+        .runtime/            ← 运行时数据（应用层，按需创建）
+            bg_shell/        ← 后台 shell 任务日志（按需创建）
         app/i18n/            ← 语言翻译（源码只读目录）
         .checkpoints/        ← 检查点（getter 内按需创建）
         .workspace/          ← 工作区（父类管理）
@@ -73,6 +75,14 @@ class PathManager(BasePathManager):
     # 浏览器存储状态文件：project_root/.browser/storage_state.json（由父类目录承载）
     _browser_storage_state_file: ClassVar[Optional[Path]] = None
 
+    # 运行时数据目录：project_root/.runtime（按需创建）
+    _runtime_dir_name: ClassVar[str] = ".runtime"
+    _runtime_dir: ClassVar[Optional[Path]] = None
+
+    # 后台 shell 任务日志目录：project_root/.runtime/bg_shell（按需创建）
+    _bg_shell_dir_name: ClassVar[str] = "bg_shell"
+    _bg_shell_dir: ClassVar[Optional[Path]] = None
+
     # ── workspace（project_root/.workspace）下 ────────────────────────────────
 
     # ASR 任务状态目录：.workspace/.asr_states（按需创建）
@@ -86,6 +96,10 @@ class PathManager(BasePathManager):
     _magic_dir: ClassVar[Optional[Path]] = None
     _magic_config_dir: ClassVar[Optional[Path]] = None
     _magic_skills_dir: ClassVar[Optional[Path]] = None
+
+    # Agents 外部扩展 skills 目录：.workspace/.agents/skills（按需创建）
+    _agents_dir_name: ClassVar[str] = ".agents"
+    _agents_skills_dir: ClassVar[Optional[Path]] = None
 
     # 临时目录：.workspace/.tmp（按需创建）
     _tmp_dir_name: ClassVar[str] = ".tmp"
@@ -126,6 +140,9 @@ class PathManager(BasePathManager):
 
         cls._mcp_config_dir = cls._project_root / cls._mcp_config_dir_name
 
+        cls._runtime_dir = cls._project_root / cls._runtime_dir_name
+        cls._bg_shell_dir = cls._runtime_dir / cls._bg_shell_dir_name
+
         cls._languages_dir = cls._project_root / cls._languages_dir_name
         cls._translations_dir = cls._languages_dir / "translations"
 
@@ -136,6 +153,7 @@ class PathManager(BasePathManager):
         cls._magic_dir = cls.get_workspace_dir() / cls._magic_dir_name
         cls._magic_config_dir = cls._magic_dir / cls._magic_config_dir_name
         cls._magic_skills_dir = cls._magic_dir / cls._magic_skills_dir_name
+        cls._agents_skills_dir = cls.get_workspace_dir() / cls._agents_dir_name / "skills"
         cls._tmp_dir = cls.get_workspace_dir() / cls._tmp_dir_name
 
         # 确保应用层预创建目录存在
@@ -425,6 +443,12 @@ class PathManager(BasePathManager):
         return cls._magic_skills_dir
 
     @classmethod
+    def get_agents_skills_dir(cls) -> Path:
+        """获取外部扩展 skills 目录路径（.workspace/.agents/skills，按需创建）"""
+        cls._ensure_app_initialization()
+        return cls._agents_skills_dir
+
+    @classmethod
     def get_magic_env_file(cls) -> Path:
         """获取 Magic 全局环境变量文件路径（.workspace/.magic/.env）"""
         cls._ensure_app_initialization()
@@ -489,6 +513,23 @@ class PathManager(BasePathManager):
         """获取指定日期的已归档一次性任务文件（.workspace/.magic/cron/result/archive/{YYYY-MM-DD}/.archived-jobs.jsonl）。
         每行一条 JSON，at 类型任务执行成功后追加，原始 MD 文件随后删除。"""
         return cls.get_cron_result_dir() / "archive" / date_dir / ".archived-jobs.jsonl"
+
+    @classmethod
+    def get_runtime_dir(cls) -> Path:
+        """获取运行时数据目录（project_root/.runtime，按需创建）"""
+        cls._ensure_app_initialization()
+        return cls._runtime_dir
+
+    @classmethod
+    def get_bg_shell_dir(cls) -> Path:
+        """获取后台 shell 任务日志目录（project_root/.runtime/bg_shell，按需创建）"""
+        cls._ensure_app_initialization()
+        return cls._bg_shell_dir
+
+    @classmethod
+    def get_bg_shell_log_file(cls, task_id: str) -> Path:
+        """获取指定后台任务的日志文件路径（project_root/.runtime/bg_shell/{task_id}.log）"""
+        return cls.get_bg_shell_dir() / f"{task_id}.log"
 
     @classmethod
     def get_wechat_im_uploads_dir(cls) -> Path:

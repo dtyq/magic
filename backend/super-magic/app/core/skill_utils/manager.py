@@ -51,6 +51,8 @@ class GlobalSkillManager:
                 get_system_skills_dir,
                 get_crew_skills_dir,
                 get_workspace_skills_dir,
+                get_agents_workspace_skills_dir,
+                get_home_skills_dir,
             )
 
             skills_dirs = [get_system_skills_dir()]
@@ -63,6 +65,8 @@ class GlobalSkillManager:
                 except ValueError as e:
                     logger.warning(f"当前 agent 标识非法，跳过 crew skills 目录: {e}")
             skills_dirs.append(get_workspace_skills_dir())
+            skills_dirs.append(get_agents_workspace_skills_dir())
+            skills_dirs.append(get_home_skills_dir())
             cls._skills_dirs = skills_dirs
             logger.info(f"初始化 skills 目录: {[str(d) for d in cls._skills_dirs]}")
         return cls._skills_dirs

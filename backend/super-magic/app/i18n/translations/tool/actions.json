@@ -63,6 +63,10 @@
         "zh_CN": "执行命令",
         "en_US": "Execute Shell command"
     },
+    "shell_await": {
+        "zh_CN": "等待后台任务",
+        "en_US": "Await background task"
+    },
     "run_sdk_snippet": {
         "zh_CN": "代码模式",
         "en_US": "Code Mode"
