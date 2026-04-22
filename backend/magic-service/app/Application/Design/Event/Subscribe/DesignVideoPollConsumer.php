@@ -342,7 +342,7 @@ class DesignVideoPollConsumer extends ConsumerMessage
         $taskFileEntity->setFileKey($fileKey);
         $taskFileEntity->setSource(TaskFileSource::AI_VIDEO_GENERATION);
         $taskFileEntity->setFileName($fileName);
-        $taskFileEntity->setFileType(FileType::SYSTEM_AUTO_UPLOAD->name);
+        $taskFileEntity->setFileType(FileType::SYSTEM_AUTO_UPLOAD->value);
         $taskFileEntity->setFileSize($uploadFile->getSize());
         $taskFileEntity->setIsDirectory(false);
         $taskFileEntity->setParentId($parentId);
