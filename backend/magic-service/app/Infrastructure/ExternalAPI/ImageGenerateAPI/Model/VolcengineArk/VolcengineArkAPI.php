@@ -79,7 +79,21 @@ class VolcengineArkAPI
             'json' => $payload,
         ]);
 
-        $result = Json::decode($response->getBody()->getContents());
+        $responseBody = $response->getBody()->getContents();
+        $result = Json::decode($responseBody);
+
+        $this->logger->info('VolcengineArk API 响应', [
+            'status_code' => $response->getStatusCode(),
+            'response_length' => strlen($responseBody),
+            'data_count' => is_array($result['data'] ?? null) ? count($result['data']) : 0,
+            'usage' => $result['usage'] ?? null,
+        ]);
+
+        if (isset($result['usage'])) {
+            $this->logger->info('VolcengineArk API usage', [
+                'usage' => $result['usage'],
+            ]);
+        }
 
         if ($response->getStatusCode() !== 200) {
             $errorMessage = $result['error']['message'] ?? "HTTP 错误: {$response->getStatusCode()}";

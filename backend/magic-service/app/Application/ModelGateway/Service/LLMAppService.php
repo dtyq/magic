@@ -1824,7 +1824,8 @@ class LLMAppService extends AbstractLLMAppService
                 $callTime,
                 $startTime,
                 $modelGatewayDataIsolation->getAccessToken(),
-                ['chain' => 'textGenerateImageV2']
+                ['chain' => 'textGenerateImageV2'],
+                $this->resolveImageTokenUsage($generateImageOpenAIFormat->getUsage())
             );
         } catch (Exception $e) {
             $errorMessage = $e->getMessage();
@@ -2358,6 +2359,7 @@ class LLMAppService extends AbstractLLMAppService
      * @param string $callTime 调用时间
      * @param float $startTime 开始时间（微秒）
      * @param null|AccessTokenEntity $accessTokenEntity 访问令牌实体
+     * @param null|Usage $usage 图片模型返回的 token 用量
      */
     private function dispatchImageGeneratedEvent(
         string $creator,
@@ -2368,7 +2370,8 @@ class LLMAppService extends AbstractLLMAppService
         string $callTime,
         float $startTime,
         ?AccessTokenEntity $accessTokenEntity = null,
-        array $auditBusinessParams = []
+        array $auditBusinessParams = [],
+        ?Usage $usage = null
     ): void {
         // 计算响应时间（毫秒）
         $responseTime = (int) ((microtime(true) - $startTime) * 1000);
@@ -2389,7 +2392,8 @@ class LLMAppService extends AbstractLLMAppService
             $priceId,
             $callTime,
             $responseTime,
-            $accessTokenEntity
+            $accessTokenEntity,
+            $usage
         );
         $businessParams = array_merge(
             $requestDTO->getBusinessParams(),
@@ -2436,7 +2440,8 @@ class LLMAppService extends AbstractLLMAppService
         ?int $priceId = null,
         ?string $callTime = null,
         ?int $responseTime = null,
-        ?AccessTokenEntity $accessTokenEntity = null
+        ?AccessTokenEntity $accessTokenEntity = null,
+        ?Usage $usage = null
     ): ImageGeneratedEvent {
         $imageGeneratedEvent = new ImageGeneratedEvent();
 
@@ -2462,6 +2467,7 @@ class LLMAppService extends AbstractLLMAppService
         $imageGeneratedEvent->setResponseTime($responseTime);
         // 设置原始 model_id（目前用于识别是否动态模型），用于计费服务
         $imageGeneratedEvent->setOriginalModelId($requestDTO->getOriginalModelId());
+        $imageGeneratedEvent->setUsage($usage);
 
         if ($accessTokenEntity && $accessTokenEntity->getType()->isUser()) {
             $imageGeneratedEvent->setSourceType(ImageGenerateSourceEnum::API_PLATFORM);
@@ -2472,6 +2478,15 @@ class LLMAppService extends AbstractLLMAppService
         }
 
         return $imageGeneratedEvent;
+    }
+
+    private function resolveImageTokenUsage(?Usage $usage): ?Usage
+    {
+        if ($usage === null || $usage->getTotalTokens() <= 0) {
+            return null;
+        }
+
+        return $usage;
     }
 
     /**

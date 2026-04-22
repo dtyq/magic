@@ -92,8 +92,9 @@ class ImageWatermarkProcessor
             ]);
         }
 
-        // 根据实际输出格式生成正确的base64前缀
-        $outputPrefix = $this->generateBase64Prefix($imageData);
+        // 根据处理后的真实图片二进制重新检测格式，避免 PNG 被错误包装成 image/jpeg。
+        $outputFormat = $this->detectImageFormat($imageData);
+        $outputPrefix = $this->generateBase64Prefix($outputFormat);
         return $this->processBase64Images($outputPrefix . base64_encode($imageData), $imageGenerateRequest);
     }
 

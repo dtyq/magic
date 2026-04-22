@@ -11,6 +11,14 @@ class OpenRouterRequest extends ImageGenerateRequest
 {
     protected array $imageConfig = [];
 
+    /**
+     * OpenRouter reasoning 配置。
+     * 默认只隐藏 reasoning 文本，思考等级交给服务商默认策略。
+     */
+    protected array $reasoning = [
+        'exclude' => true,
+    ];
+
     protected array $referenceImages = [];
 
     public function __construct(
@@ -30,6 +38,16 @@ class OpenRouterRequest extends ImageGenerateRequest
     public function setImageConfig(array $imageConfig): void
     {
         $this->imageConfig = $imageConfig;
+    }
+
+    public function getReasoning(): array
+    {
+        return $this->reasoning;
+    }
+
+    public function setReasoning(array $reasoning): void
+    {
+        $this->reasoning = $reasoning;
     }
 
     public function getReferenceImages(): array
@@ -64,6 +82,10 @@ class OpenRouterRequest extends ImageGenerateRequest
 
         if (! empty($this->imageConfig)) {
             $data['image_config'] = $this->imageConfig;
+        }
+
+        if (! empty($this->reasoning)) {
+            $data['reasoning'] = $this->reasoning;
         }
 
         return $data;

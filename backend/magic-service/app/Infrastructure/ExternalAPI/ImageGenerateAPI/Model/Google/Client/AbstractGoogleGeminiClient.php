@@ -174,6 +174,9 @@ abstract class AbstractGoogleGeminiClient implements GoogleGeminiInterface
 
                 $result = Json::decode($response->getBody()->getContents());
                 if ($statusCode === 200) {
+                    $this->logger->info('Google Gemini API usage', [
+                        'usageMetadata' => $result['usageMetadata'],
+                    ]);
                     return $result;
                 }
 

@@ -291,6 +291,7 @@ class VolcengineArkModel extends AbstractImageGenerate
 
             $currentData = $response->getData();
             $currentUsage = $response->getUsage() ?? new ImageUsage();
+            $addedImageCount = 0;
 
             foreach ($volcengineResult['data'] as $item) {
                 if (! empty($item['url'])) {
@@ -310,14 +311,13 @@ class VolcengineArkModel extends AbstractImageGenerate
                         'url' => $processedUrl,
                         'size' => $item['size'] ?? null,
                     ];
+                    ++$addedImageCount;
                 }
             }
 
             // 累计usage信息
             if (! empty($volcengineResult['usage']) && is_array($volcengineResult['usage'])) {
-                $currentUsage->addGeneratedImages($volcengineResult['usage']['generated_images'] ?? 0);
-                $currentUsage->completionTokens += $volcengineResult['usage']['output_tokens'] ?? 0;
-                $currentUsage->totalTokens += $volcengineResult['usage']['total_tokens'] ?? 0;
+                $this->accumulateUsage($currentUsage, $volcengineResult['usage'], $addedImageCount);
             }
 
             // 更新响应对象
@@ -327,6 +327,29 @@ class VolcengineArkModel extends AbstractImageGenerate
             // 确保锁一定会被释放
             $this->unlockResponse($response, $lockOwner);
         }
+    }
+
+    private function accumulateUsage(ImageUsage $currentUsage, array $usage, int $fallbackGeneratedImages): void
+    {
+        // 火山方舟生图 usage 当前可能返回 input/output，也可能接近 OpenAI 的 prompt/completion，统一转成内部 ImageUsage。
+        $promptTokens = (int) ($usage['prompt_tokens'] ?? $usage['input_tokens'] ?? 0);
+        $completionTokens = (int) ($usage['completion_tokens'] ?? $usage['output_tokens'] ?? 0);
+        $totalTokens = (int) ($usage['total_tokens'] ?? 0);
+
+        if ($totalTokens <= 0 && ($promptTokens > 0 || $completionTokens > 0)) {
+            $totalTokens = $promptTokens + $completionTokens;
+        }
+        if ($promptTokens <= 0 && $totalTokens > 0 && $completionTokens > 0) {
+            $promptTokens = max(0, $totalTokens - $completionTokens);
+        }
+        if ($completionTokens <= 0 && $totalTokens > 0 && $promptTokens > 0) {
+            $completionTokens = max(0, $totalTokens - $promptTokens);
+        }
+
+        $currentUsage->promptTokens += $promptTokens;
+        $currentUsage->completionTokens += $completionTokens;
+        $currentUsage->totalTokens += $totalTokens;
+        $currentUsage->addGeneratedImages((int) ($usage['generated_images'] ?? $usage['image_count'] ?? $fallbackGeneratedImages));
     }
 
     private function generateImageRawInternal(ImageGenerateRequest $imageGenerateRequest): array
