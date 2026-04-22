@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="zh-CN">
   <head>
     <meta charset="UTF-8" />
@@ -29,7 +29,6 @@
     <script>
       window.magicDashboard = {
         language: "zh-CN", // "zh-CN"、"en-US"
-        sources: [],
         dataSources: [],
         geo: [],
         ready: false,
@@ -38,6 +37,7 @@
         resizable: false,
         deletable: false,
         expandable: true,
+        renderMode: "auto", // "auto"、"mobile"、"tablet"、"desktop"
       };
       window.magicProjectConfigure = function (config) {
         document.title = config.name;
@@ -53,177 +53,6 @@
   </head>
   <body>
     <div id="root"></div>
-    <!-- Set ECharts Theme -->
-    <script>
-      window.ECHARTS_THEME_NAME = "dashboard";
-      window.GET_ECHARTS_THEME_CONFIG = function (dashboardConfig) {
-        var fontFamily = dashboardConfig.BODY_FONT_FAMILY;
-        var fontSize = parseFloat(dashboardConfig.BASE_FONT_SIZE);
-        var fontSizeSecondary = fontSize - 2;
-        var fontSizeWithPixel = `${fontSize}px`;
-        var fontSizeSecondaryWithPixel = `${fontSizeSecondary}px`;
-        var colorTextPrimary = dashboardConfig.COLORS_TEXT_PRIMARY;
-        var colorTextSecondary = dashboardConfig.COLORS_TEXT_SECONDARY;
-        var colorTextThird = dashboardConfig.COLORS_TEXT_THIRD;
-        var colorBorder = dashboardConfig.COLORS_BORDER;
-        var colorPrimary = dashboardConfig.COLORS_PRIMARY;
-        var color = dashboardConfig.ECHARTS_COLOR.slice();
-        return {
-          color,
-          backgroundColor: "transparent",
-          textStyle: {
-            color: colorTextPrimary,
-            fontFamily: fontFamily,
-            fontSize: fontSizeWithPixel,
-          },
-          title: {
-            textStyle: {
-              color: colorTextPrimary,
-              fontFamily: fontFamily,
-              fontSize: fontSizeWithPixel,
-            },
-            subtextStyle: {
-              color: colorTextThird,
-              fontFamily: fontFamily,
-              fontSize: fontSizeSecondaryWithPixel,
-            },
-          },
-          legend: {
-            type: "scroll",
-            itemWidth: 20, // 25
-            itemHeight: 11.2, // 14
-            textStyle: {
-              color: colorTextThird,
-              fontFamily: fontFamily,
-              fontSize: fontSizeWithPixel,
-            },
-          },
-          categoryAxis: {
-            axisLine: {
-              lineStyle: { color: colorBorder },
-            },
-            axisTick: {
-              lineStyle: { color: colorBorder },
-            },
-            axisLabel: {
-              color: colorTextThird,
-              fontFamily: fontFamily,
-              fontSize: fontSizeWithPixel,
-              hideOverlap: true,
-            },
-            nameTextStyle: {
-              color: colorTextThird,
-              fontFamily: fontFamily,
-              fontSize: fontSizeWithPixel,
-            },
-            splitLine: {
-              show: false,
-              lineStyle: { color: colorBorder },
-            },
-          },
-          valueAxis: {
-            alignTicks: true,
-            axisLine: {
-              lineStyle: { color: colorBorder },
-            },
-            axisTick: {
-              lineStyle: { color: colorBorder },
-            },
-            axisLabel: {
-              color: colorTextThird,
-              fontFamily: fontFamily,
-              fontSize: fontSizeWithPixel,
-              hideOverlap: true,
-            },
-            nameTextStyle: {
-              color: colorTextThird,
-              fontFamily: fontFamily,
-              fontSize: fontSizeWithPixel,
-            },
-            splitLine: {
-              lineStyle: { color: colorBorder },
-            },
-          },
-          toolbox: {
-            iconStyle: {
-              colorBorder: colorTextThird,
-            },
-            emphasis: {
-              iconStyle: {
-                colorBorder: colorBorder,
-              },
-            },
-          },
-          tooltip: {
-            appendTo: "body",
-            appendToBody: true,
-            renderMode: "html",
-            className: "echarts-tooltip",
-            backgroundColor: dashboardConfig.CARD_BACKGROUND,
-            padding: 6,
-            textStyle: {
-              fontFamily: fontFamily,
-              fontSize: fontSizeWithPixel,
-              color: colorTextThird,
-            },
-            axisPointer: {
-              label: {
-                backgroundColor: colorPrimary,
-              },
-            },
-          },
-          pie: {
-            label: {
-              color: colorTextSecondary,
-              fontFamily: fontFamily,
-              fontSize: fontSizeWithPixel,
-            },
-            labelLine: {
-              lineStyle: {
-                color: colorBorder,
-              },
-            },
-          },
-          bar: {
-            label: {
-              color: colorTextSecondary,
-              fontFamily: fontFamily,
-              fontSize: fontSizeWithPixel,
-            },
-          },
-          line: {
-            label: {
-              color: colorTextSecondary,
-              fontFamily: fontFamily,
-              fontSize: fontSizeWithPixel,
-            },
-          },
-          geo: {
-            label: {
-              color: colorTextSecondary,
-              fontFamily: fontFamily,
-              fontSize: fontSizeWithPixel,
-            },
-          },
-          scatter: {
-            label: {
-              color: colorTextSecondary,
-              fontFamily: fontFamily,
-              fontSize: fontSizeWithPixel,
-            },
-          },
-          visualMap: {
-            padding: 0,
-            textStyle: {
-              color: colorTextThird,
-              fontFamily: fontFamily,
-              fontSize: fontSizeSecondaryWithPixel,
-            },
-          },
-        };
-      };
-      window.echarts.registerTheme(window.ECHARTS_THEME_NAME, window.GET_ECHARTS_THEME_CONFIG(window.DASHBOARD_CONFIG));
-    </script>
     <!-- Render application -->
     <script>
       const root = ReactDOM.createRoot(document.getElementById("root"));

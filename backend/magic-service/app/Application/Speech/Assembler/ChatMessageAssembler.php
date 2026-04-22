@@ -32,15 +32,16 @@ readonly class ChatMessageAssembler
      * @param AsrFileDataDTO $audioFileData 音频文件数据
      * @param null|AsrFileDataDTO $noteFileData 笔记文件数据，可选
      * @param null|AsrFileDataDTO $markerFileData 标记文件数据，可选
+     * @param null|array $dynamicParams 话题动态参数（如 message_version），可选
      * @return ChatRequest 聊天请求对象
      */
-    public function buildSummaryMessage(ProcessSummaryTaskDTO $dto, AsrFileDataDTO $audioFileData, ?AsrFileDataDTO $noteFileData = null, ?AsrFileDataDTO $markerFileData = null): ChatRequest
+    public function buildSummaryMessage(ProcessSummaryTaskDTO $dto, AsrFileDataDTO $audioFileData, ?AsrFileDataDTO $noteFileData = null, ?AsrFileDataDTO $markerFileData = null, ?array $dynamicParams = null): ChatRequest
     {
         // 在协程环境中，使用 di() 获取 translator 实例以确保协程上下文正确
         $translator = di(TranslatorInterface::class);
         $translator->setLocale(CoContext::getLanguage());
         // 构建消息内容
-        $messageContent = $this->buildMessageContent($dto->modelId, $audioFileData, $noteFileData, $markerFileData);
+        $messageContent = $this->buildMessageContent($dto->modelId, $audioFileData, $noteFileData, $markerFileData, $dynamicParams);
 
         // 构建聊天请求数据
         $chatRequestData = [
@@ -68,9 +69,10 @@ readonly class ChatMessageAssembler
      * @param AsrFileDataDTO $fileData 文件数据
      * @param null|AsrFileDataDTO $noteData 笔记文件数据，可选
      * @param null|AsrFileDataDTO $markerData 标记文件数据，可选（隐藏，暂不在消息中显示）
+     * @param null|array $dynamicParams 话题动态参数（如 message_version），可选
      * @return array 消息内容数组
      */
-    public function buildMessageContent(string $modelId, AsrFileDataDTO $fileData, ?AsrFileDataDTO $noteData = null, ?AsrFileDataDTO $markerData = null): array
+    public function buildMessageContent(string $modelId, AsrFileDataDTO $fileData, ?AsrFileDataDTO $noteData = null, ?AsrFileDataDTO $markerData = null, ?array $dynamicParams = null): array
     {
         // 在协程环境中，使用 di() 获取 translator 实例以确保协程上下文正确
         $translator = di(TranslatorInterface::class);
@@ -138,6 +140,47 @@ readonly class ChatMessageAssembler
             ];
         }
 
+        $superAgentExtra = [
+            'mentions' => $noteData !== null && ! empty($noteData->fileName) && ! empty($noteData->filePath) ? [
+                [
+                    'type' => 'mention',
+                    'attrs' => [
+                        'type' => 'project_file',
+                        'data' => $fileData->toArray(),
+                    ],
+                ],
+                [
+                    'type' => 'mention',
+                    'attrs' => [
+                        'type' => 'project_file',
+                        'data' => $noteData->toArray(),
+                    ],
+                ],
+            ] : [
+                [
+                    'type' => 'mention',
+                    'attrs' => [
+                        'type' => 'project_file',
+                        'data' => $fileData->toArray(),
+                    ],
+                ],
+            ],
+            'input_mode' => 'plan',
+            'chat_mode' => 'normal',
+            'topic_pattern' => 'summary',
+            'model' => [
+                'model_id' => $modelId,
+            ],
+            'dynamic_params' => [
+                'summary_task' => true,
+            ],
+        ];
+
+        // 将话题动态参数合并到 super_agent.dynamic_params 中，使其随 dynamic_config 下发到 super-magic
+        if (! empty($dynamicParams)) {
+            $superAgentExtra['dynamic_params'] = array_merge($superAgentExtra['dynamic_params'], $dynamicParams);
+        }
+
         return [
             'content' => Json::encode([
                 'type' => 'doc',
@@ -154,41 +197,7 @@ readonly class ChatMessageAssembler
             ],
             'attachments' => [],
             'extra' => [
-                'super_agent' => [
-                    'mentions' => $noteData !== null && ! empty($noteData->fileName) && ! empty($noteData->filePath) ? [
-                        [
-                            'type' => 'mention',
-                            'attrs' => [
-                                'type' => 'project_file',
-                                'data' => $fileData->toArray(),
-                            ],
-                        ],
-                        [
-                            'type' => 'mention',
-                            'attrs' => [
-                                'type' => 'project_file',
-                                'data' => $noteData->toArray(),
-                            ],
-                        ],
-                    ] : [
-                        [
-                            'type' => 'mention',
-                            'attrs' => [
-                                'type' => 'project_file',
-                                'data' => $fileData->toArray(),
-                            ],
-                        ],
-                    ],
-                    'input_mode' => 'plan',
-                    'chat_mode' => 'normal',
-                    'topic_pattern' => 'summary',
-                    'model' => [
-                        'model_id' => $modelId,
-                    ],
-                    'dynamic_params' => [
-                        'summary_task' => true,
-                    ],
-                ],
+                'super_agent' => $superAgentExtra,
             ],
         ];
     }

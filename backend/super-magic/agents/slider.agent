@@ -8,6 +8,7 @@ tools:
   - list_dir
   - read_files
   - shell_exec
+  - shell_await
   - create_slide_project
   - create_slide
   - write_file

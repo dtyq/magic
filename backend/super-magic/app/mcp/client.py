@@ -331,6 +331,11 @@ class MCPClient:
         error_str = str(error)
         error_type = type(error).__name__
 
+        # anyio cancel scope 冲突不是协议协商失败，强行 SSE 回退只会在紊乱的
+        # cancel scope 环境中创建更多 zombie，导致 TaskGroup 异常
+        if "cancel scope" in error_str.lower():
+            return False
+
         # 检查常见的需要回退的错误条件
         fallback_indicators = [
             "405" in error_str,
@@ -433,6 +438,7 @@ class MCPClient:
 
     async def disconnect(self) -> None:
         """断开连接"""
+        cancel_scope_conflict = False
         try:
             if self.session:
                 try:
@@ -447,10 +453,22 @@ class MCPClient:
                     logger.debug(f"MCP 会话关闭被取消: {self.config.name}")
                 except Exception as e:
                     logger.warning(f"关闭 MCP 会话时出错: {self.config.name}: {e}")
+                    # 跨 task 调用 __aexit__ 会触发 anyio cancel scope 冲突，
+                    # transport 与 session 共享相同的 zombie 状态，后续不能再调 __aexit__
+                    if "cancel scope" in str(e).lower():
+                        cancel_scope_conflict = True
                 finally:
                     self.session = None
 
-            await self._cleanup_transport()
+            if cancel_scope_conflict:
+                # 直接丢弃引用，避免对 zombie transport context 再次调用 __aexit__
+                # zombie 的后台 task 会自行超时结束，不会影响主流程
+                self._transport_context = None
+                self._read_stream = None
+                self._write_stream = None
+            else:
+                await self._cleanup_transport()
+
             logger.info(f"MCP 服务器 '{self.config.name}' 连接已断开")
 
         except Exception as e:

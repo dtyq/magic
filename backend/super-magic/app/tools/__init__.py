@@ -43,6 +43,7 @@ from app.tools.reflection import Reflection
 from app.tools.deep_write import DeepWrite
 from app.tools.run_python_snippet import RunPythonSnippet
 from app.tools.shell_exec import ShellExec
+from app.tools.shell_await import ShellAwait
 from app.tools.summarize import Summarize
 from app.tools.thinking import Thinking
 from app.tools.todo_read import TodoRead
@@ -68,8 +69,6 @@ from app.tools.data_analyst_dashboard_tools import (
     CreateDashboardProject,
     ValidateDashboard,
     DownloadDashboardMaps,
-    UpdateDashboardTemplate,
-    BackupDashboardTemplate,
     CreateDashboardCards,
     UpdateDashboardCards,
     DeleteDashboardCards,
@@ -174,6 +173,7 @@ __all__ = [
     "ReadWebpagesAsMarkdown",
     "Reflection",
     "ShellExec",
+    "ShellAwait",
     "Summarize",
     "Thinking",
     "TodoRead",
@@ -207,8 +207,6 @@ __all__ = [
     "CreateDashboardProject",
     "ValidateDashboard",
     "DownloadDashboardMaps",
-    "UpdateDashboardTemplate",
-    "BackupDashboardTemplate",
     "CreateDashboardCards",
     "UpdateDashboardCards",
     "DeleteDashboardCards",

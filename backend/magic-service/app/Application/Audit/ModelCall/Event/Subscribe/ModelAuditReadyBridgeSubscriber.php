@@ -169,7 +169,7 @@ class ModelAuditReadyBridgeSubscriber implements ListenerInterface
             $extras,
         );
 
-        $usage = $status->isSuccess() ? ['count' => (int) ($bp['image_count'] ?? 0)] : [];
+        $usage = $this->buildImageGeneratedUsage($event, $status, $bp);
 
         $this->persistAudit(
             type: AuditType::IMAGE->value,
@@ -189,6 +189,21 @@ class ModelAuditReadyBridgeSubscriber implements ListenerInterface
             accessScope: $accessScope,
             eventId: $this->resolveModelAuditEventId($businessParams),
         );
+    }
+
+    private function buildImageGeneratedUsage(ImageGeneratedEvent $event, AuditStatus $status, array $businessParams): array
+    {
+        if ($status->isFail()) {
+            return [];
+        }
+
+        $usage = ['count' => (int) ($businessParams['image_count'] ?? 0)];
+        $tokenUsage = $event->getUsage();
+        if ($tokenUsage === null || $tokenUsage->getTotalTokens() <= 0) {
+            return $usage;
+        }
+
+        return array_merge($usage, $tokenUsage->toArray());
     }
 
     private function processImageGenerateFailed(ImageGenerateFailedEvent $event): void

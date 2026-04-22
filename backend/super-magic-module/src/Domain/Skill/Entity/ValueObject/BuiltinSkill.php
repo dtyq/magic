@@ -11,12 +11,10 @@ use function Hyperf\Translation\trans;
 
 enum BuiltinSkill: string
 {
-    case AnalyzingDataDashboard = 'analyzing-data-dashboard';
-    case AnalyzingDataHtmlReport = 'analyzing-data-html-report';
+    case DevelopDataAnalysisDashboard = 'develop-data-analysis-dashboard';
     case ImChannels = 'im-channels';
     case CreatingSlides = 'creating-slides';
     case CrewCreator = 'crew-creator';
-    case DataQa = 'data-qa';
     case DeepResearch = 'deep-research';
     case CanvasDesigner = 'canvas-designer';
     case SkillCreator = 'skill-creator';

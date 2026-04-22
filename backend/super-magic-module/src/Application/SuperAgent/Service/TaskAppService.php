@@ -665,6 +665,7 @@ class TaskAppService extends AbstractAppService
             $isFirstTaskMessage,
             $sandboxConfig,
             $task->getTaskMode(),
+            $topicEntity->getDynamicParams() ?: null,
         );
         $this->logger->info(sprintf('[Send to Sandbox Init Message] task_id: %s, data: %s', $task->getTaskId(), json_encode($initMessage, JSON_UNESCAPED_UNICODE)));
         $session->send($initMessage);

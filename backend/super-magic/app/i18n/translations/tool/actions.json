@@ -61,7 +61,11 @@
     },
     "shell_exec": {
         "zh_CN": "执行命令",
-        "en_US": "Execute Shell command"
+        "en_US": "Run command"
+    },
+    "shell_await": {
+        "zh_CN": "查询后台任务",
+        "en_US": "Check background task"
     },
     "run_sdk_snippet": {
         "zh_CN": "代码模式",
@@ -202,14 +206,6 @@
     "validate_dashboard": {
         "zh_CN": "验证数据看板",
         "en_US": "Validate dashboard"
-    },
-    "update_dashboard_template": {
-        "zh_CN": "更新数据看板模板",
-        "en_US": "Update dashboard template"
-    },
-    "backup_dashboard_template": {
-        "zh_CN": "备份数据看板模板",
-        "en_US": "Backup dashboard template"
     },
     "query_dashboard_cards": {
         "zh_CN": "查询卡片",

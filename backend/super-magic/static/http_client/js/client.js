@@ -2078,11 +2078,14 @@ function renderAskUserCard(data, container) {
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
                     message_id: generateTimestampId(),
-                    type: 'ask_user_response',
-                    dynamic_config: {
-                        question_id,
-                        response_status,
-                        answer: JSON.stringify(answers)
+                    type: 'user_tool_call',
+                    user_tool_call: {
+                        name: 'ask_user',
+                        tool_call_id: question_id,
+                        detail: {
+                            response_status,
+                            answer: JSON.stringify(answers)
+                        }
                     }
                 })
             });

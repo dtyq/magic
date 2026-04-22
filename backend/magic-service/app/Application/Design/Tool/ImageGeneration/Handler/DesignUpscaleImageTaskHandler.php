@@ -46,6 +46,7 @@ final class DesignUpscaleImageTaskHandler extends AbstractDesignImageGenerationT
         $this->applyMagicAccessToken($dto);
         $dto->setBusinessParams($this->designImageGenerationBusinessParams($dataIsolation));
         $dto->setImages([$imageUrl]);
+        $dto->setSize($entity->getSize());
 
         return $this->narrowToOpenAiFormatImageResponse($this->imageLLMAppService->imageConvertHighV2($dto));
     }

@@ -256,9 +256,19 @@ class OpenRouterModel extends AbstractImageGenerate
     {
         $images = [];
 
-        // 优先从 images 字段提取
-        if (isset($responseData['choices'][0]['message']['images'])) {
+        // 优先从 images 字段提取。字段本身也做数组判断，避免异常响应触发 foreach warning。
+        if (is_array($responseData['choices'][0]['message']['images'] ?? null)) {
             foreach ($responseData['choices'][0]['message']['images'] as $image) {
+                // OpenRouter 理论上返回图片对象数组；这里防御异常结构，避免非数组项进入后续字段解析。
+                if (! is_array($image)) {
+                    continue;
+                }
+
+                if (($image['thought'] ?? false) === true || ($image['image_url']['thought'] ?? false) === true) {
+                    $this->logger->info('OpenRouter响应：检测到思考图，已过滤');
+                    continue;
+                }
+
                 if (isset($image['image_url']['url'])) {
                     $images[] = ['url' => $image['image_url']['url']];
                 } elseif (isset($image['url'])) {

@@ -404,6 +404,18 @@ class ModelGatewayMapper extends ModelMapper
                     $orderedList[$modelId] = $list[$modelId];
                 }
             }
+
+            // env 模型不受订阅权限限制，始终追加到列表末尾
+            $envModelKeys = array_merge(
+                array_keys($this->getModels('chat')),
+                array_keys($this->getModels('embedding')),
+            );
+            foreach ($envModelKeys as $envKey) {
+                if (isset($list[$envKey]) && ! isset($orderedList[$envKey])) {
+                    $orderedList[$envKey] = $list[$envKey];
+                }
+            }
+
             $list = $orderedList;
         }
 

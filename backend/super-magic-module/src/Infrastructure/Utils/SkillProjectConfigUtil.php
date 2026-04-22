@@ -44,7 +44,7 @@ final class SkillProjectConfigUtil
     }
 
     /**
-     * @return array{skill: array<string, string>}
+     * @return array{skill: array<string, mixed>}
      */
     public static function parse(string $content): array
     {
@@ -64,12 +64,7 @@ final class SkillProjectConfigUtil
             throw new InvalidArgumentException('Missing skill block in skill project config.');
         }
 
-        $skill = [];
-        foreach ($parsed['skill'] as $key => $value) {
-            $skill[(string) $key] = is_string($value) ? $value : (string) $value;
-        }
-
-        return ['skill' => $skill];
+        return ['skill' => $parsed['skill']];
     }
 
     public static function isValidSkillDir(string $dir): bool

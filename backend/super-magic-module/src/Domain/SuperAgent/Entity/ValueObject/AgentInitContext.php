@@ -101,9 +101,9 @@ class AgentInitContext
     private bool $fetchHistory = false;
 
     /**
-     * Agent information.
+     * Dynamic configuration (e.g. message_version).
      */
-    private array $agent = [];
+    private ?array $dynamicConfig = null;
 
     /**
      * Create a new instance.
@@ -410,19 +410,19 @@ class AgentInitContext
     }
 
     /**
-     * Get agent information.
+     * Get dynamic configuration.
      */
-    public function getAgent(): array
+    public function getDynamicConfig(): ?array
     {
-        return $this->agent;
+        return $this->dynamicConfig;
     }
 
     /**
-     * Set agent information.
+     * Set dynamic configuration.
      */
-    public function setAgent(array $agent): self
+    public function setDynamicConfig(?array $dynamicConfig): self
     {
-        $this->agent = $agent;
+        $this->dynamicConfig = $dynamicConfig;
         return $this;
     }
 
@@ -431,7 +431,7 @@ class AgentInitContext
      */
     public function toArray(): array
     {
-        return [
+        $data = [
             'message_id' => $this->messageId,
             'user_id' => $this->userId,
             'project_id' => $this->projectId,
@@ -449,7 +449,10 @@ class AgentInitContext
             'work_dir' => $this->workDir,
             'model_id' => $this->modelId,
             'fetch_history' => $this->fetchHistory,
-            'agent' => $this->agent,
         ];
+        if ($this->dynamicConfig !== null) {
+            $data['dynamic_config'] = $this->dynamicConfig;
+        }
+        return $data;
     }
 }

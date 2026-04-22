@@ -1477,8 +1477,15 @@ class AsrFileAppService extends AbstractAppService
             // 构建标记文件数据（如果存在）
             $markerFileData = $this->buildMarkerFileDataFromTaskStatus($dto->taskStatus);
 
+            // 获取话题动态参数（如 message_version），用于透传给 super-magic
+            $topicDynamicParams = null;
+            if (! empty($dto->topicId)) {
+                $topicEntity = $this->superAgentTopicDomainService->getTopicById((int) $dto->topicId);
+                $topicDynamicParams = $topicEntity?->getDynamicParams();
+            }
+
             // 构建聊天消息（包含笔记文件和标记文件）
-            $chatRequest = $this->chatMessageAssembler->buildSummaryMessage($dto, $audioFileData, $noteFileData, $markerFileData);
+            $chatRequest = $this->chatMessageAssembler->buildSummaryMessage($dto, $audioFileData, $noteFileData, $markerFileData, $topicDynamicParams);
 
             // 记录消息详细内容
             $messageData = $chatRequest->getData()->getMessage()->getMagicMessage();
@@ -1495,6 +1502,7 @@ class AsrFileAppService extends AbstractAppService
                 'marker_file_id' => $dto->taskStatus->markerFileId,
                 'has_marker_file' => $markerFileData !== null,
                 'message_content' => $messageData->toArray(),
+                'topic_dynamic_params' => $topicDynamicParams,
                 'is_queued' => $this->shouldQueueMessage($dto->topicId),
                 'language' => CoContext::getLanguage(),
             ]);

@@ -183,6 +183,98 @@
         "zh_CN": "Shell命令执行失败: {{error}}",
         "en_US": "Shell command execution failed: {{error}}"
     },
+    "shell_exec.error_timeout": {
+        "zh_CN": "命令运行超时，如需长时间运行请使用后台模式",
+        "en_US": "Command took too long — try allow_background=true for long-running tasks"
+    },
+    "shell_exec.error_task_limit": {
+        "zh_CN": "后台任务太多了，请先结束一些任务再试",
+        "en_US": "Too many background tasks running — finish some before starting new ones"
+    },
+    "shell_exec.error_exception": {
+        "zh_CN": "命令运行时遇到了问题",
+        "en_US": "Something went wrong while running the command"
+    },
+    "shell_exec.error_failed": {
+        "zh_CN": "命令没能成功完成",
+        "en_US": "Command didn't complete successfully"
+    },
+    "shell_await.error": {
+        "zh_CN": "等待后台任务失败: {{error}}",
+        "en_US": "Failed to check background task: {{error}}"
+    },
+    "shell_await.error_task_not_found": {
+        "zh_CN": "找不到这个后台任务，可能已经结束了",
+        "en_US": "Task not found — it may have already finished"
+    },
+    "shell_await.error_invalid_pattern": {
+        "zh_CN": "匹配规则写法有误，请检查后重试",
+        "en_US": "Pattern expression has a syntax error — please check and retry"
+    },
+    "shell_await.error_log_missing": {
+        "zh_CN": "任务日志丢失，无法获取输出",
+        "en_US": "Task output log is missing and can't be retrieved"
+    },
+    "shell_await.error_exception": {
+        "zh_CN": "等待任务时遇到了问题",
+        "en_US": "Something went wrong while waiting for the task"
+    },
+    "shell_await.error_failed": {
+        "zh_CN": "无法查询到任务状态",
+        "en_US": "Couldn't retrieve task status"
+    },
+    "shell_await.status_completed": {
+        "zh_CN": "任务已完成",
+        "en_US": "Task completed"
+    },
+    "shell_await.status_killed": {
+        "zh_CN": "任务已终止",
+        "en_US": "Task stopped"
+    },
+    "shell_await.status_error": {
+        "zh_CN": "任务异常退出",
+        "en_US": "Task exited with an error"
+    },
+    "shell_await.status_timeout": {
+        "zh_CN": "仍在运行中，等待超时",
+        "en_US": "Still running — timed out while waiting"
+    },
+    "shell_await.status_running": {
+        "zh_CN": "任务正在运行",
+        "en_US": "Task is running"
+    },
+    "shell_await.status_pattern_matched": {
+        "zh_CN": "已在输出中匹配到指定内容",
+        "en_US": "Pattern matched in output"
+    },
+    "shell_await.status_waiting_for_input": {
+        "zh_CN": "任务正在等待用户输入",
+        "en_US": "Task is waiting for input"
+    },
+    "shell_await.status_slept": {
+        "zh_CN": "等待完成",
+        "en_US": "Sleep completed"
+    },
+    "shell_await.before_sleep": {
+        "zh_CN": "等待 {{seconds}} 秒",
+        "en_US": "Sleeping for {{seconds}} seconds"
+    },
+    "shell_await.before_kill": {
+        "zh_CN": "终止后台任务",
+        "en_US": "Stopping background task"
+    },
+    "shell_await.before_snapshot": {
+        "zh_CN": "查询任务当前状态",
+        "en_US": "Checking current task status"
+    },
+    "shell_await.before_send_input": {
+        "zh_CN": "向任务发送输入",
+        "en_US": "Sending input to task"
+    },
+    "shell_await.before_wait": {
+        "zh_CN": "等待任务执行",
+        "en_US": "Waiting for task"
+    },
     "run_sdk_snippet.after_dispatched": {
         "zh_CN": "正在执行",
         "en_US": "Running"
@@ -667,22 +759,6 @@
         "zh_CN": "数据看板验证失败: {{error}}",
         "en_US": "Dashboard validation failed: {{error}}"
     },
-    "update_dashboard_template.success": {
-        "zh_CN": "{{project_name}}",
-        "en_US": "{{project_name}}"
-    },
-    "update_dashboard_template.error": {
-        "zh_CN": "数据看板模板更新失败: {{error}}",
-        "en_US": "Dashboard template update failed: {{error}}"
-    },
-    "backup_dashboard_template.success": {
-        "zh_CN": "{{project_name}}",
-        "en_US": "{{project_name}}"
-    },
-    "backup_dashboard_template.error": {
-        "zh_CN": "数据看板模板备份失败: {{error}}",
-        "en_US": "Dashboard template backup failed: {{error}}"
-    },
     "dashboard_cards.project_not_exist": {
         "zh_CN": "项目不存在: {{project_path}}",
         "en_US": "Project does not exist: {{project_path}}"
@@ -711,6 +787,10 @@
         "zh_CN": "成功查询 {{count}} 个卡片",
         "en_US": "Successfully queried {{count}} card(s)"
     },
+    "query_dashboard_cards.partial_success": {
+        "zh_CN": "成功查询 {{queried}} 个卡片，{{failed}} 个未找到",
+        "en_US": "Successfully queried {{queried}} card(s), {{failed}} card(s) not found"
+    },
     "query_dashboard_cards.error": {
         "zh_CN": "查询卡片失败: {{error}}",
         "en_US": "Failed to query cards: {{error}}"
@@ -718,6 +798,10 @@
     "create_dashboard_cards.success": {
         "zh_CN": "成功创建 {{count}} 个卡片",
         "en_US": "Successfully created {{count}} card(s)"
+    },
+    "create_dashboard_cards.partial_success": {
+        "zh_CN": "成功创建 {{created}} 个卡片，{{failed}} 个创建失败",
+        "en_US": "Successfully created {{created}} card(s), {{failed}} creation(s) failed"
     },
     "create_dashboard_cards.skipped": {
         "zh_CN": "以下卡片因验证失败未成功添加（该卡片不存在，请修正后使用 create_dashboard_cards 重新创建）: {{failed_list}}",
@@ -743,6 +827,10 @@
         "zh_CN": "成功更新 {{count}} 个卡片",
         "en_US": "Successfully updated {{count}} card(s)"
     },
+    "update_dashboard_cards.partial_success": {
+        "zh_CN": "成功更新 {{updated}} 个卡片，{{failed}} 个更新失败",
+        "en_US": "Successfully updated {{updated}} card(s), {{failed}} update(s) failed"
+    },
     "update_dashboard_cards.skipped": {
         "zh_CN": "以下卡片未成功更新（卡片ID不存在或验证失败，请修正后重试）: {{failed_list}}",
         "en_US": "The following card(s) were not updated (card ID not found or validation failed, please fix and retry): {{failed_list}}"
@@ -756,8 +844,12 @@
         "en_US": "Cannot delete all cards. At least one card must remain."
     },
     "delete_dashboard_cards.success": {
-        "zh_CN": "成功删除 {{count}} 个卡片，剩余 {{remaining}} 个卡片",
-        "en_US": "Successfully deleted {{count}} card(s), {{remaining}} card(s) remaining"
+        "zh_CN": "成功删除 {{count}} 个卡片",
+        "en_US": "Successfully deleted {{count}} card(s)"
+    },
+    "delete_dashboard_cards.partial_success": {
+        "zh_CN": "成功删除 {{deleted}} 个卡片，{{failed}} 个删除失败",
+        "en_US": "Successfully deleted {{deleted}} card(s), {{failed}} deletion(s) failed"
     },
     "delete_dashboard_cards.error": {
         "zh_CN": "删除卡片失败: {{error}}",
