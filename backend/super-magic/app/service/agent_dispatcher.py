@@ -198,6 +198,14 @@ class AgentDispatcher(Base):
                 i18n.set_language("zh_CN")
                 logger.info("使用默认语言: zh_CN")
 
+        # 从 init 消息的 dynamic_config 中提前写入 message_version，确保 BEFORE_INIT/AFTER_INIT 使用正确的工厂。
+        # chat 消息到达后若携带 message_version 会再次覆盖，以 chat 消息的值为准。
+        if init_message.dynamic_config:
+            version = init_message.dynamic_config.get("message_version")
+            if version:
+                self.agent_context.set_message_version(version)
+                logger.info(f"从 init 消息的 dynamic_config 设置 message_version: {version}")
+
         # Agent Profile 不再从 init 消息获取，统一由 chat 消息设置
         # 见 dispatch_message() 中的 _apply_chat_agent_config()
 

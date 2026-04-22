@@ -55,6 +55,7 @@ class TopicModel extends AbstractModel
         'source_id',
         'is_hidden',
         'hidden_type',
+        'dynamic_params',
         'created_at',
         'updated_at',
         'deleted_at',
