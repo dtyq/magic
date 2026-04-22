@@ -37,7 +37,22 @@ class CloudswayKelingVideoAdapterTest extends TestCase
         $this->assertSame(['720p', '1080p'], $config->toArray()['generation']['resolutions']);
         $this->assertSame(5, $config->toArray()['generation']['default_duration_seconds']);
         $this->assertSame('720p', $config->toArray()['generation']['default_resolution']);
-        $this->assertArrayNotHasKey('sizes', $config->toArray()['generation']);
+        $this->assertArrayHasKey('sizes', $config->toArray()['generation']);
+        $this->assertCount(6, $config->toArray()['generation']['sizes']);
+        $this->assertSame([
+            'label' => '16:9',
+            'value' => '1280x720',
+            'width' => 1280,
+            'height' => 720,
+            'resolution' => '720p',
+        ], $config->toArray()['generation']['sizes'][0]);
+        $this->assertSame([
+            'label' => '1:1',
+            'value' => '1440x1440',
+            'width' => 1440,
+            'height' => 1440,
+            'resolution' => '1080p',
+        ], $config->toArray()['generation']['sizes'][5]);
         $this->assertSame(
             ['standard', 'image_reference', 'keyframe_guided'],
             array_keys($config->toArray()['input_modes'])

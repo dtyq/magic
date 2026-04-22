@@ -19,6 +19,7 @@ use App\Domain\VideoCatalog\Service\VideoCatalogQueryDomainService;
 use App\ErrorCode\DesignErrorCode;
 use App\Infrastructure\Core\Exception\ExceptionBuilder;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ProjectEntity;
+use Dtyq\SuperMagic\Domain\SuperAgent\Entity\TaskFileEntity;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\MemberRole;
 use Dtyq\SuperMagic\Domain\SuperAgent\Service\TaskFileDomainService;
 use Hyperf\Amqp\Producer;
@@ -45,7 +46,9 @@ class DesignVideoAppService extends DesignAppService
         $designDataIsolation = $this->createDesignDataIsolation($authenticatable);
         $project = $this->assertProjectAccess($designDataIsolation, $entity->getProjectId(), MemberRole::EDITOR);
         $modelDefinition = $this->findModelOrFail($entity->getModelId());
-        $this->assertWorkspacePathsExist($project->getId(), $entity);
+        $outputDirectory = $this->assertWorkspacePathsExist($project->getId(), $entity);
+        // 记录输出目录 ID，后续目录被改名或移动时仍可按 ID 找到真实目录。
+        $entity->setOutputDirectoryFileId($outputDirectory->getFileId());
 
         $existingEntity = $this->designGenerationTaskDomainService->findVideoTask($designDataIsolation, $project->getId(), $entity->getGenerationId());
         if ($existingEntity !== null) {
@@ -147,7 +150,7 @@ class DesignVideoAppService extends DesignAppService
         return $modelDefinition->getProviderCode() === ProviderCode::VolcengineArk->value;
     }
 
-    private function assertWorkspacePathsExist(int $projectId, DesignGenerationTaskEntity $entity): void
+    private function assertWorkspacePathsExist(int $projectId, DesignGenerationTaskEntity $entity): TaskFileEntity
     {
         // Verify target directory exists via tree navigation
         $taskFileDir = $this->taskFileDomainService->findEntityByRelativePath($projectId, $entity->getFileDir());
@@ -177,6 +180,8 @@ class DesignVideoAppService extends DesignAppService
         foreach ((array) ($inputPayload['frames'] ?? []) as $frame) {
             $this->assertWorkspaceFileExists($projectId, (string) ($frame['uri'] ?? ''));
         }
+
+        return $taskFileDir;
     }
 
     private function assertWorkspaceFileExists(int $projectId, string $relativePath): void

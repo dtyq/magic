@@ -19,6 +19,8 @@ return [
     ],
     'errors' => [
         'generic' => '视频生成失败，请检查输入内容或稍后重试。',
+        'user_concurrency_limit' => '您的视频生成任务已达到同时运行上限（最多 :limit 个），请等待已有任务完成后再提交。',
+        'organization_concurrency_limit' => '当前组织的视频生成任务已达到同时运行上限（最多 :limit 个），请等待组织内已有任务完成后再提交。',
         'volcengine' => [
             'InputVideoSensitiveContentDetected' => [
                 'PrivacyInformation' => '输入视频或图片可能包含真人或人脸，请更换无真人、无肖像的素材后再试。',

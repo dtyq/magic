@@ -31,8 +31,25 @@ class CloudswaySeedanceVideoAdapterTest extends TestCase
         $config = $adapter->resolveGenerationConfig(self::ENDPOINT_ID, 'seedance-1.5-pro');
 
         $this->assertNotNull($config);
-        $this->assertSame(5, $config->toArray()['generation']['default_duration_seconds']);
-        $this->assertSame('720p', $config->toArray()['generation']['default_resolution']);
+        $generation = $config->toArray()['generation'];
+        $this->assertSame(5, $generation['default_duration_seconds']);
+        $this->assertSame('720p', $generation['default_resolution']);
+        $this->assertArrayHasKey('sizes', $generation);
+        $this->assertCount(9, $generation['sizes']);
+        $this->assertSame([
+            'label' => '16:9',
+            'value' => '864x496',
+            'width' => 864,
+            'height' => 496,
+            'resolution' => '480p',
+        ], $generation['sizes'][0]);
+        $this->assertSame([
+            'label' => '9:16',
+            'value' => '1080x1920',
+            'width' => 1080,
+            'height' => 1920,
+            'resolution' => '1080p',
+        ], $generation['sizes'][7]);
         $this->assertSame(
             ['standard', 'image_reference', 'keyframe_guided'],
             array_keys($config->toArray()['input_modes'])
