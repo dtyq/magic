@@ -208,6 +208,43 @@ readonly class RedisVideoQueueOperationRepository implements VideoQueueOperation
             return [];
         }
 
-        return $this->getOperations(array_values(array_map('strval', $operationIds)));
+        $operationIds = array_values(array_map('strval', $operationIds));
+        $operations = $this->getOperations($operationIds);
+        return $this->filterActiveOperationsAndPruneInactive($key, $operationIds, $operations);
+    }
+
+    /**
+     * 过滤仍在运行的任务，并清理 hash 缺失或已结束的槽位成员。
+     *
+     * @param list<string> $operationIds
+     * @param array<int, VideoQueueOperationEntity> $operations
+     * @return array<int, VideoQueueOperationEntity>
+     */
+    private function filterActiveOperationsAndPruneInactive(string $key, array $operationIds, array $operations): array
+    {
+        $existingOperationIds = [];
+        $activeOperations = [];
+        $finishedOperationIds = [];
+        foreach ($operations as $operation) {
+            $existingOperationIds[$operation->getId()] = true;
+            if ($operation->getStatus()->isDone()) {
+                $finishedOperationIds[] = $operation->getId();
+                continue;
+            }
+
+            $activeOperations[] = $operation;
+        }
+
+        $missingOperationIds = array_values(array_filter(
+            $operationIds,
+            static fn (string $operationId): bool => ! isset($existingOperationIds[$operationId])
+        ));
+        $prunableOperationIds = array_values(array_unique([...$missingOperationIds, ...$finishedOperationIds]));
+        if ($prunableOperationIds !== []) {
+            // operation 不存在或已进入终态时同步清理运行槽位，避免“任务列表为空但并发已满”的残留占位。
+            $this->redis->zRem($key, ...$prunableOperationIds);
+        }
+
+        return $activeOperations;
     }
 }

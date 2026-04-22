@@ -136,6 +136,9 @@ class RedisVideoQueueOperationRepositoryTest extends TestCase
                 [],
                 $secondOperation->toStorageArray(),
             ]);
+        $redis->shouldReceive('zRem')
+            ->once()
+            ->with(QueueCoreRedisKeys::userActiveOperations('org-test', 'user-test'), 'op-missing');
 
         $repository = new RedisVideoQueueOperationRepository($redis);
         $operations = $repository->getUserActiveOperations('org-test', 'user-test');
@@ -145,6 +148,37 @@ class RedisVideoQueueOperationRepositoryTest extends TestCase
             static fn (VideoQueueOperationEntity $operation): string => $operation->getId(),
             $operations
         ));
+    }
+
+    public function testGetUserActiveOperationsPrunesFinishedOperationsFromUserZset(): void
+    {
+        $runningOperation = $this->createOperation('op-user-running');
+        $finishedOperation = $this->createOperation('op-user-finished');
+        $finishedOperation->setStatus(VideoOperationStatus::SUCCEEDED);
+        $redis = Mockery::mock(Redis::class);
+        $pipeline = Mockery::mock();
+        $redis->shouldReceive('zRange')
+            ->once()
+            ->with(QueueCoreRedisKeys::userActiveOperations('org-test', 'user-test'), 0, -1)
+            ->andReturn([$runningOperation->getId(), $finishedOperation->getId()]);
+        $redis->shouldReceive('pipeline')->once()->andReturn($pipeline);
+        $pipeline->shouldReceive('hGetAll')->once()->with(QueueCoreRedisKeys::operation($runningOperation->getId()));
+        $pipeline->shouldReceive('hGetAll')->once()->with(QueueCoreRedisKeys::operation($finishedOperation->getId()));
+        $pipeline->shouldReceive('exec')
+            ->once()
+            ->andReturn([
+                $runningOperation->toStorageArray(),
+                $finishedOperation->toStorageArray(),
+            ]);
+        $redis->shouldReceive('zRem')
+            ->once()
+            ->with(QueueCoreRedisKeys::userActiveOperations('org-test', 'user-test'), $finishedOperation->getId());
+
+        $repository = new RedisVideoQueueOperationRepository($redis);
+        $operations = $repository->getUserActiveOperations('org-test', 'user-test');
+
+        $this->assertCount(1, $operations);
+        $this->assertSame($runningOperation->getId(), $operations[0]->getId());
     }
 
     public function testGetOrganizationActiveOperationsReadsOperationEntitiesFromOrganizationZset(): void

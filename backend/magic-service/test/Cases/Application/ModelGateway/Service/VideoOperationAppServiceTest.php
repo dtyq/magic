@@ -34,7 +34,6 @@ use App\Domain\ModelGateway\Service\VideoGenerationConfigDomainService;
 use App\Domain\ModelGateway\Service\VideoQueueDomainService;
 use App\Domain\Provider\Entity\ValueObject\ProviderCode;
 use App\Infrastructure\Core\DataIsolation\BaseOrganizationInfoManager;
-use App\Infrastructure\Core\DataIsolation\BaseSubscriptionManager;
 use App\Infrastructure\Core\DataIsolation\BaseThirdPlatformDataIsolationManager;
 use App\Infrastructure\Core\DataIsolation\OrganizationInfoManagerInterface;
 use App\Infrastructure\Core\DataIsolation\SubscriptionManagerInterface;
@@ -57,6 +56,7 @@ use Dtyq\CloudFile\Kernel\Struct\ChunkUploadFile;
 use Dtyq\CloudFile\Kernel\Struct\FileLink;
 use Dtyq\CloudFile\Kernel\Struct\FilePreSignedUrl;
 use Dtyq\CloudFile\Kernel\Struct\UploadFile;
+use Dtyq\MagicEnterprise\Application\Kernel\EnterpriseSubscriptionManager;
 use GuzzleHttp\Client;
 use GuzzleHttp\Psr7\Response;
 use Hyperf\Codec\Packer\PhpSerializerPacker;
@@ -70,6 +70,7 @@ use Psr\EventDispatcher\EventDispatcherInterface;
 use Psr\Log\AbstractLogger;
 use Psr\Log\LoggerInterface;
 use Psr\Log\NullLogger;
+use RuntimeException;
 use Throwable;
 
 use function Hyperf\Translation\trans;
@@ -189,13 +190,15 @@ class VideoOperationAppServiceTest extends TestCase
         $this->assertCount(1, $executor->submittedOperations);
     }
 
-    public function testEnqueueAllowsConfiguredUserConcurrencyForSameOrganizationUser(): void
+    public function testEnqueueAllowsPackageVideoConcurrencyForSameOrganizationUser(): void
     {
-        $this->setVideoQueueConfig('default_user_active_operation_limit', 2);
-
         $operationRepository = new InMemoryVideoQueueOperationRepository();
         $executor = new RecordingQueueOperationExecutor(submitResult: 'provider-task-1');
-        $service = $this->createVideoOperationAppService($operationRepository, $executor);
+        $service = $this->createVideoOperationAppService(
+            $operationRepository,
+            $executor,
+            $this->createDataIsolationWithVideoConcurrencyLimit(2)
+        );
 
         $firstResponse = $service->enqueue('token-active-1', new CreateVideoDTO([
             'model_id' => 'veo-3.1-fast-generate-preview',
@@ -225,38 +228,64 @@ class VideoOperationAppServiceTest extends TestCase
         $this->assertCount(2, $executor->submittedOperations);
     }
 
-    public function testEnqueueUsesOrganizationSpecificUserConcurrencyLimit(): void
+    public function testEnqueueFallsBackToOneWhenPackageVideoConcurrencyIsMissing(): void
     {
-        $this->setVideoQueueConfig('default_user_active_operation_limit', 1);
-        $this->setVideoQueueConfig('user_active_operation_limit_overrides', [
-            'org-special' => 2,
-        ]);
-
         $operationRepository = new InMemoryVideoQueueOperationRepository();
         $executor = new RecordingQueueOperationExecutor(submitResult: 'provider-task-1');
-        $service = $this->createVideoOperationAppService(
-            $operationRepository,
-            $executor,
-            ModelGatewayDataIsolation::create('org-special', 'user-test')
-        );
+        $service = $this->createVideoOperationAppService($operationRepository, $executor);
 
         $service->enqueue('token-special-1', new CreateVideoDTO([
             'model_id' => 'veo-3.1-fast-generate-preview',
             'task' => 'generate',
             'prompt' => 'make org special first video',
         ]));
-        $service->enqueue('token-special-2', new CreateVideoDTO([
-            'model_id' => 'veo-3.1-fast-generate-preview',
-            'task' => 'generate',
-            'prompt' => 'make org special second video',
-        ]));
 
-        $this->assertCount(2, $executor->submittedOperations);
+        try {
+            $service->enqueue('token-special-2', new CreateVideoDTO([
+                'model_id' => 'veo-3.1-fast-generate-preview',
+                'task' => 'generate',
+                'prompt' => 'make org special second video',
+            ]));
+            $this->fail('Expected the second running video request to be rejected.');
+        } catch (BusinessException $exception) {
+            $this->assertSame(trans('video.errors.user_concurrency_limit', ['limit' => 1]), $exception->getMessage());
+        }
+
+        $this->assertCount(1, $executor->submittedOperations);
     }
 
-    public function testEnqueueRejectsWhenOrganizationConcurrencyLimitReached(): void
+    public function testEnqueueDoesNotLimitWhenPackageVideoConcurrencyIsUnlimited(): void
     {
-        $this->setVideoQueueConfig('default_organization_active_operation_limit', 2);
+        foreach ([null, 'unlimited'] as $limit) {
+            $operationRepository = new InMemoryVideoQueueOperationRepository();
+            $executor = new RecordingQueueOperationExecutor(submitResult: 'provider-task-1');
+            $service = $this->createVideoOperationAppService(
+                $operationRepository,
+                $executor,
+                $this->createDataIsolationWithVideoConcurrencyLimit($limit)
+            );
+
+            $firstResponse = $service->enqueue('token-unlimited-1', new CreateVideoDTO([
+                'model_id' => 'veo-3.1-fast-generate-preview',
+                'task' => 'generate',
+                'prompt' => 'make the first unlimited video',
+            ]));
+            $secondResponse = $service->enqueue('token-unlimited-2', new CreateVideoDTO([
+                'model_id' => 'veo-3.1-fast-generate-preview',
+                'task' => 'generate',
+                'prompt' => 'make the second unlimited video',
+            ]));
+
+            $this->assertSame('running', $firstResponse->getStatus());
+            $this->assertSame('running', $secondResponse->getStatus());
+            $this->assertArrayNotHasKey('org-test:user-test', $operationRepository->activeSlots);
+            $this->assertCount(2, $executor->submittedOperations);
+        }
+    }
+
+    public function testEnqueueIgnoresDeprecatedOrganizationConcurrencyLimit(): void
+    {
+        $this->setVideoQueueConfig('default_organization_active_operation_limit', 1);
 
         $operationRepository = new InMemoryVideoQueueOperationRepository();
         $executor = new RecordingQueueOperationExecutor(submitResult: 'provider-task-1');
@@ -286,19 +315,14 @@ class VideoOperationAppServiceTest extends TestCase
             'task' => 'generate',
             'prompt' => 'make org limited second video',
         ]));
+        $thirdService->enqueue('token-org-limit-3', new CreateVideoDTO([
+            'model_id' => 'veo-3.1-fast-generate-preview',
+            'task' => 'generate',
+            'prompt' => 'make org limited third video',
+        ]));
 
-        try {
-            $thirdService->enqueue('token-org-limit-3', new CreateVideoDTO([
-                'model_id' => 'veo-3.1-fast-generate-preview',
-                'task' => 'generate',
-                'prompt' => 'make org limited third video',
-            ]));
-            $this->fail('Expected the third organization video request to be rejected.');
-        } catch (BusinessException $exception) {
-            $this->assertSame(trans('video.errors.organization_concurrency_limit', ['limit' => 2]), $exception->getMessage());
-        }
-
-        $this->assertCount(2, $executor->submittedOperations);
+        $this->assertSame([], $operationRepository->organizationActiveSlots);
+        $this->assertCount(3, $executor->submittedOperations);
     }
 
     public function testEnqueueAllowsNextVideoAfterPreviousOperationFinishes(): void
@@ -335,20 +359,10 @@ class VideoOperationAppServiceTest extends TestCase
         $this->assertCount(2, $executor->submittedOperations);
     }
 
-    public function testEnqueueAllowsOrganizationNextVideoAfterPreviousOperationFinishes(): void
+    public function testEnqueueDoesNotTrackDeprecatedOrganizationActiveSlots(): void
     {
-        $this->setVideoQueueConfig('default_organization_active_operation_limit', 1);
-
         $operationRepository = new InMemoryVideoQueueOperationRepository();
-        $executor = new RecordingQueueOperationExecutor(
-            submitResult: 'provider-task-1',
-            queryResult: [
-                'status' => 'succeeded',
-                'output' => [
-                    'video_url' => 'https://example.com/generated.mp4',
-                ],
-            ],
-        );
+        $executor = new RecordingQueueOperationExecutor(submitResult: 'provider-task-1');
         $firstService = $this->createVideoOperationAppService(
             $operationRepository,
             $executor,
@@ -365,18 +379,14 @@ class VideoOperationAppServiceTest extends TestCase
             'task' => 'generate',
             'prompt' => 'make the first organization video',
         ]));
-
-        $firstService->getOperation('token-org-release-query', $firstResponse->getId());
-
-        $this->assertArrayNotHasKey('org-limited', $operationRepository->organizationActiveSlots);
-
-        $secondResponse = $secondService->enqueue('token-org-release-2', new CreateVideoDTO([
+        $secondService->enqueue('token-org-release-2', new CreateVideoDTO([
             'model_id' => 'veo-3.1-fast-generate-preview',
             'task' => 'generate',
             'prompt' => 'make the second organization video',
         ]));
 
-        $this->assertSame('running', $secondResponse->getStatus());
+        $this->assertSame('running', $firstResponse->getStatus());
+        $this->assertSame([], $operationRepository->organizationActiveSlots);
         $this->assertCount(2, $executor->submittedOperations);
     }
 
@@ -403,10 +413,8 @@ class VideoOperationAppServiceTest extends TestCase
         $this->assertArrayNotHasKey('org-test:user-test', $operationRepository->activeSlots);
     }
 
-    public function testEnqueueReleasesOrganizationActiveSlotWhenProviderSubmitFails(): void
+    public function testEnqueueProviderFailureDoesNotCreateDeprecatedOrganizationActiveSlot(): void
     {
-        $this->setVideoQueueConfig('default_organization_active_operation_limit', 1);
-
         $operationRepository = new InMemoryVideoQueueOperationRepository();
         $failingExecutor = new RecordingQueueOperationExecutor(
             submitResult: 'unused',
@@ -429,7 +437,7 @@ class VideoOperationAppServiceTest extends TestCase
             $this->assertSame('provider submit failed', $exception->getMessage());
         }
 
-        $this->assertArrayNotHasKey('org-limited', $operationRepository->organizationActiveSlots);
+        $this->assertSame([], $operationRepository->organizationActiveSlots);
 
         $successfulExecutor = new RecordingQueueOperationExecutor(submitResult: 'provider-task-2');
         $successfulService = $this->createVideoOperationAppService(
@@ -1657,6 +1665,22 @@ class VideoOperationAppServiceTest extends TestCase
         return $dataIsolation;
     }
 
+    private function createDataIsolationWithVideoConcurrencyLimit(mixed $limit): ModelGatewayDataIsolation
+    {
+        $dataIsolation = $this->createDataIsolation();
+        $dataIsolation->getSubscriptionManager()->setCurrentSubscription('subscription-test', [
+            'skus' => [[
+                'attributes' => [
+                    'feature_limits' => [
+                        'personal_video_generation_concurrency_limit' => $limit,
+                    ],
+                ],
+            ]],
+        ]);
+
+        return $dataIsolation;
+    }
+
     private function createVideoGenerationConfigDomainService(): VideoGenerationConfigDomainService
     {
         return new VideoGenerationConfigDomainService(
@@ -2266,7 +2290,7 @@ final readonly class EventDispatcherContainer implements ContainerInterface
             EventDispatcherInterface::class => $this->eventDispatcher,
             ConfigInterface::class => $this->config,
             ThirdPlatformDataIsolationManagerInterface::class => new BaseThirdPlatformDataIsolationManager(),
-            SubscriptionManagerInterface::class => new BaseSubscriptionManager(),
+            SubscriptionManagerInterface::class => new EnterpriseSubscriptionManager(),
             OrganizationInfoManagerInterface::class => new BaseOrganizationInfoManager(),
             PhpSerializerPacker::class => new PhpSerializerPacker(),
             LoggerFactory::class => $this->loggerFactory,

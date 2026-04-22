@@ -37,6 +37,11 @@ interface SubscriptionManagerInterface
      */
     public function getAvailableModelIds(?ModelType $modelType): ?array;
 
+    /**
+     * 获取当前套餐个人视频生成并发上限，返回 null 表示不限并发。
+     */
+    public function getPersonalVideoGenerationConcurrencyLimit(): ?int;
+
     public function isValidModelAvailable(string $modelId, ?ModelType $modelType): bool;
 
     public function isPaidSubscription(): bool;

@@ -112,24 +112,37 @@ readonly class VideoOperationAppService
         );
         $auditProviderName = (string) ($videoModelEntry?->getAttributes()->getProviderName() ?? '');
         $operation->setAuditProviderName($auditProviderName);
-        // 提交 provider 前先占用个人和组织视频运行槽位，避免超过配置的并发上限。
-        $this->videoQueueDomainService->claimUserActiveOperation($operation);
-        $config = $this->queueOperationExecutionDomainService->getConfig($operation);
+
+        // 获取个人并发数量限制
+        $personalVideoGenerationConcurrencyLimit = $dataIsolation->getSubscriptionManager()->getPersonalVideoGenerationConcurrencyLimit();
+
+        // 占用新槽位前先清理已结束或已失效的旧槽位，避免任务已结束仍占用并发名额。
+        $this->videoQueueDomainService->cleanupActiveOperationsBeforeClaim($operation);
+
+        // 先保存 operation hash，再写入并发槽位，避免并发清理把正在提交 provider 的任务误判为无效槽位。
+        $this->videoQueueDomainService->saveOperation($operation);
+
         try {
+            // 提交 provider 前先按套餐占用个人视频运行槽位
+            $this->videoQueueDomainService->claimUserActiveOperation($operation, $personalVideoGenerationConcurrencyLimit);
+
+            $config = $this->queueOperationExecutionDomainService->getConfig($operation);
             $providerTaskId = $this->queueOperationExecutionDomainService->submit($operation, $config);
         } catch (ProviderVideoException $throwable) {
             $this->videoQueueDomainService->finishExecutionFailure($operation, $throwable->getMessage());
-            // provider 明确拒绝提交后任务不会继续运行，需要立即释放本次占用的个人和组织槽位。
+            // provider 明确拒绝提交后任务不会继续运行，需要立即释放本次占用的个人槽位。
             $this->videoQueueDomainService->releaseUserActiveOperation($operation);
             $this->dispatchVideoGenerateFailedEvent(
                 $dataIsolation,
                 $operation,
                 $requestDTO->getBusinessParams(),
             );
+            $this->videoQueueDomainService->deleteOperation($operation);
             ExceptionBuilder::throw(MagicApiErrorCode::ValidateFailed, $throwable->getMessage(), throwable: $throwable);
         } catch (Throwable $throwable) {
             // 非业务异常会中断提交流程，释放槽位避免残留运行态阻塞后续提交。
             $this->videoQueueDomainService->releaseUserActiveOperation($operation);
+            $this->videoQueueDomainService->deleteOperation($operation);
             throw $throwable;
         }
         $this->logger->info('video operation submitted', [
@@ -199,7 +212,7 @@ readonly class VideoOperationAppService
                     $this->dispatchVideoGenerateFailedEvent($dataIsolation, $operation, $businessParams);
                 }
                 $this->videoQueueDomainService->saveOperation($operation);
-                // provider 查询后如果任务进入终态，立即释放个人和组织视频运行槽位。
+                // provider 查询后如果任务进入终态，立即释放个人视频运行槽位。
                 $this->videoQueueDomainService->releaseUserActiveOperationIfDone($operation);
             } catch (ProviderVideoException $throwable) {
                 $this->logger->warning('video provider query failed', [
@@ -212,7 +225,7 @@ readonly class VideoOperationAppService
                 $this->videoQueueDomainService->finishExecutionFailure($operation, $throwable->getMessage());
                 $this->dispatchVideoGenerateFailedEvent($dataIsolation, $operation, $businessParams);
                 $this->videoQueueDomainService->saveOperation($operation);
-                // 查询 provider 失败会把任务标记为失败，也需要释放个人和组织视频运行槽位。
+                // 查询 provider 失败会把任务标记为失败，也需要释放个人视频运行槽位。
                 $this->videoQueueDomainService->releaseUserActiveOperationIfDone($operation);
             }
         }
