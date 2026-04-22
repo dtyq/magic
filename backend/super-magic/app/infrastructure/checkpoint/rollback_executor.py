@@ -874,6 +874,12 @@ class RollbackExecutor:
             # 根据回滚方向和操作类型过滤文件
             files_for_version = []
             for checkpoint_id, file_snapshot in merged_operations:
+                # 跳过目录快照：file version 只针对文件，服务端对目录型 file_key 会
+                # 直接返回 "无法为目录创建版本"。与 checkpoint 链路
+                # (_collect_changed_file_paths) 的过滤策略对齐。
+                if file_snapshot.file_type == FileType.DIRECTORY:
+                    continue
+
                 should_create_version = False
 
                 if direction == "forward":
