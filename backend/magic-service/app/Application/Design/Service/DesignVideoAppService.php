@@ -11,10 +11,8 @@ use App\Application\Design\Event\Message\DesignVideoPollMessage;
 use App\Application\Design\Event\Publish\DesignVideoPollDelayPublisher;
 use App\Domain\Design\Entity\DesignGenerationTaskEntity;
 use App\Domain\Design\Entity\ValueObject\DesignGenerationStatus;
-use App\Domain\Design\Factory\PathFactory;
 use App\Domain\Design\Service\DesignGenerationTaskDomainService;
 use App\Domain\Design\Service\DesignVideoSubmissionDomainService;
-use App\Domain\File\Service\FileDomainService;
 use App\Domain\Provider\Entity\ValueObject\ProviderCode;
 use App\Domain\VideoCatalog\Entity\ValueObject\VideoCatalogModelDefinition;
 use App\Domain\VideoCatalog\Service\VideoCatalogQueryDomainService;
@@ -35,7 +33,6 @@ class DesignVideoAppService extends DesignAppService
 
     public function __construct(
         private readonly TaskFileDomainService $taskFileDomainService,
-        private readonly FileDomainService $fileDomainService,
         private readonly VideoCatalogQueryDomainService $videoCatalogDomainService,
         private readonly DesignGenerationTaskDomainService $designGenerationTaskDomainService,
         private readonly DesignVideoSubmissionDomainService $submissionDomainService,
@@ -48,11 +45,7 @@ class DesignVideoAppService extends DesignAppService
         $designDataIsolation = $this->createDesignDataIsolation($authenticatable);
         $project = $this->assertProjectAccess($designDataIsolation, $entity->getProjectId(), MemberRole::EDITOR);
         $modelDefinition = $this->findModelOrFail($entity->getModelId());
-        $this->assertWorkspacePathsExist(
-            $designDataIsolation->getCurrentOrganizationCode(),
-            $project->getId(),
-            $entity
-        );
+        $this->assertWorkspacePathsExist($project->getId(), $entity);
 
         $existingEntity = $this->designGenerationTaskDomainService->findVideoTask($designDataIsolation, $project->getId(), $entity->getGenerationId());
         if ($existingEntity !== null) {
@@ -154,13 +147,10 @@ class DesignVideoAppService extends DesignAppService
         return $modelDefinition->getProviderCode() === ProviderCode::VolcengineArk->value;
     }
 
-    private function assertWorkspacePathsExist(string $organizationCode, int $projectId, DesignGenerationTaskEntity $entity): void
+    private function assertWorkspacePathsExist(int $projectId, DesignGenerationTaskEntity $entity): void
     {
-        $filePrefix = $this->fileDomainService->getFullPrefix($organizationCode);
-        $workspacePrefix = PathFactory::getWorkspacePrefix($filePrefix, $projectId);
-        $fullFileDir = PathFactory::buildFullDirPath($filePrefix, $projectId, $entity->getFileDir());
-
-        $taskFileDir = $this->taskFileDomainService->getByFileKey($fullFileDir);
+        // Verify target directory exists via tree navigation
+        $taskFileDir = $this->taskFileDomainService->findEntityByRelativePath($projectId, $entity->getFileDir());
         if (! $taskFileDir || ! $taskFileDir->getIsDirectory()) {
             ExceptionBuilder::throw(DesignErrorCode::InvalidArgument, 'design.video_generation.file_dir_not_exists', ['file_dir' => $entity->getFileDir()]);
         }
@@ -168,30 +158,30 @@ class DesignVideoAppService extends DesignAppService
         $inputPayload = $entity->getInputPayload();
 
         foreach ((array) ($inputPayload['reference_images'] ?? []) as $referenceImage) {
-            $this->assertWorkspaceFileExists($workspacePrefix, (string) ($referenceImage['uri'] ?? ''));
+            $this->assertWorkspaceFileExists($projectId, (string) ($referenceImage['uri'] ?? ''));
         }
 
         foreach ((array) ($inputPayload['reference_videos'] ?? []) as $referenceVideo) {
-            $this->assertWorkspaceFileExists($workspacePrefix, (string) ($referenceVideo['uri'] ?? ''));
+            $this->assertWorkspaceFileExists($projectId, (string) ($referenceVideo['uri'] ?? ''));
         }
 
         foreach ((array) ($inputPayload['reference_audios'] ?? []) as $referenceAudio) {
-            $this->assertWorkspaceFileExists($workspacePrefix, (string) ($referenceAudio['uri'] ?? ''));
+            $this->assertWorkspaceFileExists($projectId, (string) ($referenceAudio['uri'] ?? ''));
         }
 
         $maskUri = (string) ($inputPayload['mask']['uri'] ?? '');
         if ($maskUri !== '') {
-            $this->assertWorkspaceFileExists($workspacePrefix, $maskUri);
+            $this->assertWorkspaceFileExists($projectId, $maskUri);
         }
 
         foreach ((array) ($inputPayload['frames'] ?? []) as $frame) {
-            $this->assertWorkspaceFileExists($workspacePrefix, (string) ($frame['uri'] ?? ''));
+            $this->assertWorkspaceFileExists($projectId, (string) ($frame['uri'] ?? ''));
         }
     }
 
-    private function assertWorkspaceFileExists(string $workspacePrefix, string $relativePath): void
+    private function assertWorkspaceFileExists(int $projectId, string $relativePath): void
     {
-        $taskFile = $this->taskFileDomainService->getByFileKey($workspacePrefix . $relativePath);
+        $taskFile = $this->taskFileDomainService->findEntityByRelativePath($projectId, $relativePath);
         if (! $taskFile || $taskFile->getIsDirectory()) {
             ExceptionBuilder::throw(
                 DesignErrorCode::InvalidArgument,
@@ -212,10 +202,9 @@ class DesignVideoAppService extends DesignAppService
 
     private function hydrateCompletedTaskFiles(ProjectEntity $project, DesignGenerationTaskEntity $entity): void
     {
-        $filePrefix = $this->fileDomainService->getFullPrefix($entity->getOrganizationCode());
         $relativeFilePath = (string) ($entity->getOutputPayload()['relative_file_path'] ?? '');
         if ($relativeFilePath !== '') {
-            $taskFile = $this->taskFileDomainService->getByFileKey(PathFactory::getWorkspacePrefix($filePrefix, $entity->getProjectId()) . $relativeFilePath);
+            $taskFile = $this->taskFileDomainService->findEntityByRelativePath($entity->getProjectId(), $relativeFilePath);
             if ($taskFile) {
                 $entity->setFileId($taskFile->getFileId());
                 $entity->setFileUrl(
@@ -234,7 +223,7 @@ class DesignVideoAppService extends DesignAppService
 
         $relativePosterPath = (string) ($entity->getOutputPayload()['relative_poster_path'] ?? '');
         if ($relativePosterPath !== '') {
-            $posterTaskFile = $this->taskFileDomainService->getByFileKey(PathFactory::getWorkspacePrefix($filePrefix, $entity->getProjectId()) . $relativePosterPath);
+            $posterTaskFile = $this->taskFileDomainService->findEntityByRelativePath($entity->getProjectId(), $relativePosterPath);
             if ($posterTaskFile) {
                 $entity->setPosterFileId($posterTaskFile->getFileId());
                 $entity->setPosterUrl(

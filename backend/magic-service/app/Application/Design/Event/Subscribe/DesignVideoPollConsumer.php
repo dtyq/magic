@@ -13,7 +13,6 @@ use App\Application\Design\Tool\VideoGeneration\DesignGeneratedVideoFileNameTool
 use App\Domain\Contact\Entity\ValueObject\DataIsolation as ContactDataIsolation;
 use App\Domain\Design\Entity\DesignDataIsolation;
 use App\Domain\Design\Entity\DesignGenerationTaskEntity;
-use App\Domain\Design\Factory\PathFactory;
 use App\Domain\Design\Service\DesignGenerationTaskDomainService;
 use App\Domain\File\Service\FileDomainService;
 use App\ErrorCode\DesignErrorCode;
@@ -207,9 +206,8 @@ class DesignVideoPollConsumer extends ConsumerMessage
             ExceptionBuilder::throw(DesignErrorCode::InvalidArgument, 'design.video_generation.project_not_exists', ['project_id' => $entity->getProjectId()]);
         }
 
-        $filePrefix = $this->fileDomainService->getFullPrefix($entity->getOrganizationCode());
-        $fullFileDir = PathFactory::buildFullDirPath($filePrefix, $entity->getProjectId(), $entity->getFileDir());
-        $taskFileDir = $this->taskFileDomainService->getByFileKey($fullFileDir);
+        // Locate target directory via tree navigation (parent_id + name model)
+        $taskFileDir = $this->taskFileDomainService->findEntityByRelativePath($entity->getProjectId(), $entity->getFileDir());
         if (! $taskFileDir || ! $taskFileDir->getIsDirectory()) {
             ExceptionBuilder::throw(DesignErrorCode::InvalidArgument, 'design.video_generation.file_dir_not_exists', ['file_dir' => $entity->getFileDir()]);
         }
@@ -230,7 +228,10 @@ class DesignVideoPollConsumer extends ConsumerMessage
         $posterUrl = trim((string) ($output['poster_url'] ?? ''));
         $posterFileName = $posterUrl !== '' ? $this->domainService->buildPosterFileName($fileName, $posterUrl) : '';
 
-        $uploadPath = substr($fullFileDir, strlen($filePrefix));
+        // Derive upload path and file keys from directory entity's actual file_key
+        $filePrefix = $this->fileDomainService->getFullPrefix($entity->getOrganizationCode());
+        $dirFileKey = rtrim($taskFileDir->getFileKey(), '/');
+        $uploadPath = substr($dirFileKey, strlen($filePrefix));
         $videoUploadFile = new UploadFile($videoUrl, $uploadPath, $fileName, false);
         $posterUploadFile = $posterUrl !== '' ? new UploadFile($posterUrl, $uploadPath, $posterFileName, false) : null;
 
@@ -240,7 +241,7 @@ class DesignVideoPollConsumer extends ConsumerMessage
                 $dataIsolation,
                 $project,
                 $taskFileDir->getFileId(),
-                PathFactory::buildFullFilePath($filePrefix, $entity->getProjectId(), $entity->getFileDir(), $fileName),
+                $dirFileKey . '/' . $fileName,
                 $fileName,
                 $videoUploadFile
             );
@@ -250,7 +251,7 @@ class DesignVideoPollConsumer extends ConsumerMessage
                     $dataIsolation,
                     $project,
                     $taskFileDir->getFileId(),
-                    PathFactory::buildFullFilePath($filePrefix, $entity->getProjectId(), $entity->getFileDir(), $posterFileName),
+                    $dirFileKey . '/' . $posterFileName,
                     $posterFileName,
                     $posterUploadFile
                 );
