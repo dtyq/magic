@@ -28,13 +28,6 @@ use Throwable;
 
 class MagicFSFileDomainService
 {
-    /**
-     * 墓碑复活 TTL：文件软删除后的 6 小时内，若同 (project_id, parent_id, file_name)
-     * 再次被创建，则视为「撤回/取消撤回」场景——复活原墓碑，保持 file_id 与
-     * file_key 不变，避免外部链接 404。超过该时长视为普通创建，分配新雪花 ID。
-     */
-    private const TOMBSTONE_REVIVAL_TTL_SECONDS = 6 * 3600;
-
     protected LoggerInterface $logger;
 
     public function __construct(
@@ -103,9 +96,12 @@ class MagicFSFileDomainService
      * @param null|FileType $fileType 文件类型（可选，不传则根据 isDirectory 自动推断）
      * @param null|TaskFileSource $source 文件来源（可选，不传则默认 AGENT）
      * @param null|array<string, string> $fileMetadata 文件级持久化 flag（例如 local_shadow=1），会与 mode 一同落到 task_files.metadata JSON 列
+     * @param bool $reuseDeletedFileId 同名文件若已被软删除，是否复用其原 file_id；
+     *                                  agfs magicfs 插件在 checkpoint 回滚重放时置为 true，
+     *                                  以保证外链引用的 file_id 在撤回/取消撤回前后保持稳定
      * @return TaskFileEntity 创建的文件实体
      */
-    public function createFile(string $name, string $parentId, bool $isDirectory, ?string $superMagicTaskId = null, ?int $sortValue = null, ?FileType $fileType = null, ?TaskFileSource $source = null, ?array $fileMetadata = null): TaskFileEntity
+    public function createFile(string $name, string $parentId, bool $isDirectory, ?string $superMagicTaskId = null, ?int $sortValue = null, ?FileType $fileType = null, ?TaskFileSource $source = null, ?array $fileMetadata = null, bool $reuseDeletedFileId = false): TaskFileEntity
     {
         // 1. 获取 project_id、user_id 和 organization_code（从父文件或认证信息）
         $parentInfo = $this->getParentFileInfo($parentId);
@@ -137,18 +133,18 @@ class MagicFSFileDomainService
             }
         }
 
-        // 3. 检查同目录下是否已存在同名记录（含墓碑）
+        // 3. 检查同目录下是否已存在同名记录（含已软删除的）
         //
-        // Checkpoint 撤回/取消撤回场景需要 file_id 稳定：撤回时文件被软删除成
-        // 墓碑，取消撤回会再次调用本 createFile。如果此时分配新雪花 ID，所有
-        // 引用旧 ID 的外部链接都会 404。对策是「TTL 内的同路径复活」：
+        // Checkpoint 撤回/取消撤回场景需要 file_id 稳定：撤回时文件被软删除，
+        // 取消撤回会再次调用本 createFile。如果此时分配新雪花 ID，所有引用
+        // 旧 ID 的外部链接都会 404。对策是由调用方显式声明「复用已删除的 ID」：
         //   - 命中活跃记录 → 同名冲突，按既有语义抛错；
-        //   - 命中墓碑且 deleted_at 距今 < TOMBSTONE_REVIVAL_TTL_SECONDS → 复活
-        //     原记录（保留 file_id 与 file_key），视同 checkpoint 取消撤回；
-        //   - 命中墓碑但已过期 → 直接忽略，走下方「分配新雪花 ID」路径。
-        //     (project_id, parent_id, file_name) 上没有 UNIQUE 约束，过期墓碑
-        //     留着不会阻塞新 insert；S3 侧的清理由独立的 GC 通道负责，本接口
-        //     不承担墓碑回收责任。
+        //   - 命中已软删除且 $reuseDeletedFileId=true → 复用原记录的 file_id
+        //     与 file_key，视同 checkpoint 取消撤回；
+        //   - 命中已软删除但 $reuseDeletedFileId=false → 直接忽略，走下方
+        //     「分配新雪花 ID」路径。(project_id, parent_id, file_name) 上
+        //     没有 UNIQUE 约束，旧的软删除记录留着不会阻塞新 insert；
+        //     S3 侧的清理由独立的 GC 通道负责，本接口不承担回收责任。
         $existing = $this->taskFileRepository->getByProjectParentAndName(
             $projectId,
             $parentIdInt,
@@ -164,8 +160,8 @@ class MagicFSFileDomainService
                 );
             }
 
-            if ($this->isTombstoneWithinRevivalTtl($existing->getDeletedAt())) {
-                return $this->reviveTombstone($existing);
+            if ($reuseDeletedFileId) {
+                return $this->reuseDeletedFile($existing);
             }
         }
 
@@ -680,20 +676,20 @@ class MagicFSFileDomainService
     /**
      * 恢复软删除的文件：清除 deleted_at 并将 file_size 置 0，其他字段原样保留。
      *
-     * 语义（checkpoint 撤回取消撤回 / 墓碑复活场景）：
+     * 语义（checkpoint 撤回取消撤回 / 复用已删除 file_id 场景）：
      *   - file_id、file_key、project_id、user_id、organization_code、parent_id、
      *     file_name、metadata、task_id/topic_id、file_type、is_hidden、sort、
      *     version 等全部保持不变 —— 这是外链稳定、元数据可信的前提；
-     *   - 仅 file_size 归零：复活只还原"文件存在"这一事实，后续内容由调用方
+     *   - 仅 file_size 归零：恢复只还原"文件存在"这一事实，后续内容由调用方
      *     通过 updateFile + PUT S3 写回；
-     *   - S3 对象不动：软删除时未清理对象，复活后的 file_key 直接复用原对象，
+     *   - S3 对象不动：软删除时未清理对象，恢复后的 file_key 直接复用原对象，
      *     下一步业务层 PutObject（覆盖）会把 latest_content 写回，天然一致。
      */
     public function restoreFile(string $fileId): TaskFileEntity
     {
         $fileIdInt = (int) $fileId;
 
-        // 1. 清除 deleted_at，把墓碑变回活跃记录
+        // 1. 清除 deleted_at，把软删除记录变回活跃记录
         $this->taskFileRepository->restoreFile($fileIdInt);
 
         // 2. 读取恢复后的实体，仅重置 file_size
@@ -714,50 +710,38 @@ class MagicFSFileDomainService
     }
 
     /**
-     * 判断墓碑是否仍在可复活的 TTL 窗口内（基于 deleted_at 与当前时间差）.
-     */
-    protected function isTombstoneWithinRevivalTtl(?string $deletedAt): bool
-    {
-        if ($deletedAt === null || $deletedAt === '') {
-            return false;
-        }
-
-        $deletedTs = strtotime($deletedAt);
-        if ($deletedTs === false) {
-            return false;
-        }
-
-        return (time() - $deletedTs) < self::TOMBSTONE_REVIVAL_TTL_SECONDS;
-    }
-
-    /**
-     * 复活软删除的墓碑记录：保留原 file_id / file_key / 元数据，
+     * 复用已软删除的同名记录：保留原 file_id / file_key / 元数据不变，
      * 仅把 file_size 归零并清除 deleted_at（通过 restoreFile 完成），
      * 其它字段一律不改。
+     *
+     * 触发条件由调用方通过 createFile($reuseDeletedFileId=true) 显式声明，
+     * 典型场景是 agfs magicfs 插件在 checkpoint 回滚重放（rollback_in_progress
+     * 为 true）时请求按 (project_id, parent_id, name) 复用原 file_id，
+     * 使引用该 file_id 的外链在撤回/取消撤回前后保持稳定。
      *
      * 父节点链的 metadata_version 递增与正常 create 保持一致，
      * 便于上游感知目录下的新增事件。
      */
-    protected function reviveTombstone(TaskFileEntity $tombstone): TaskFileEntity
+    protected function reuseDeletedFile(TaskFileEntity $deletedFile): TaskFileEntity
     {
-        $originalDeletedAt = $tombstone->getDeletedAt();
+        $originalDeletedAt = $deletedFile->getDeletedAt();
 
-        $revived = $this->restoreFile((string) $tombstone->getFileId());
+        $restored = $this->restoreFile((string) $deletedFile->getFileId());
 
-        $parentId = $revived->getParentId();
+        $parentId = $restored->getParentId();
         if ($parentId !== null && $parentId > 0) {
             $this->incrementVersionChain((string) $parentId);
         }
 
-        $this->logger->info('[magicfs.create] revived from tombstone', [
-            'file_id' => $revived->getFileId(),
-            'file_name' => $revived->getFileName(),
+        $this->logger->info('[magicfs.create] reuse deleted file id', [
+            'file_id' => $restored->getFileId(),
+            'file_name' => $restored->getFileName(),
             'parent_id' => $parentId,
-            'project_id' => $revived->getProjectId(),
+            'project_id' => $restored->getProjectId(),
             'deleted_at' => $originalDeletedAt ?? '',
         ]);
 
-        return $revived;
+        return $restored;
     }
 
     /**

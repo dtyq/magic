@@ -128,7 +128,8 @@ class MagicFSFileAppService
             null,                                   // sortValue
             null,                                   // fileType
             null,                                   // source
-            $requestDTO->getFileMetadata()          // 持久化的插件 flag，如 local_shadow
+            $requestDTO->getFileMetadata(),         // 持久化的插件 flag，如 local_shadow
+            $requestDTO->getReuseDeletedFileId()    // rollback 重放时请求复用已软删除同名的 file_id
         );
 
         // Dispatch file uploaded event so downstream subscribers are notified

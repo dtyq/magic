@@ -31,6 +31,21 @@ class CreateFileRequestDTO
 
     public bool $is_directory = false;
 
+    /**
+     * 同名文件若已被软删除，是否复用其原 file_id.
+     *
+     * 由 agfs magicfs 插件在 checkpoint 回滚重放（rollback_in_progress=true）
+     * 时置为 true，保证引用该 file_id 的外链在撤回/取消撤回前后保持稳定。
+     * 语义：
+     *   - true  → 命中已软删除的同名记录则复用其 file_id / file_key；命中
+     *     活跃同名则按冲突抛错；都没有则按常规分配新雪花 ID。
+     *   - false → 命中活跃同名按冲突抛错；命中软删除记录忽略，分配新雪花 ID。
+     *
+     * 非 rollback 场景（手工 create、批量移动/复制等）不会传该字段，
+     * 默认 false，与历史行为一致。
+     */
+    public bool $reuse_deleted_file_id = false;
+
     /** @var array<string, mixed> Per-request context (user/trace/authorization/...) */
     public array $message_metadata = [];
 
@@ -45,6 +60,7 @@ class CreateFileRequestDTO
         $dto->name = trim($data['name'] ?? '');
         $dto->parent_id = $data['parent_id'] ?? '';
         $dto->is_directory = (bool) ($data['is_directory'] ?? false);
+        $dto->reuse_deleted_file_id = (bool) ($data['reuse_deleted_file_id'] ?? false);
         $dto->message_metadata = $data['message_metadata'] ?? [];
         $dto->file_metadata = self::normalizeFileMetadata($data['file_metadata'] ?? []);
 
@@ -83,6 +99,14 @@ class CreateFileRequestDTO
     public function getFileMetadata(): array
     {
         return $this->file_metadata;
+    }
+
+    /**
+     * 是否复用已软删除同名文件的 file_id（rollback 重放语义）.
+     */
+    public function getReuseDeletedFileId(): bool
+    {
+        return $this->reuse_deleted_file_id;
     }
 
     /**
