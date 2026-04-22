@@ -331,6 +331,14 @@
         "zh_CN": "管理定时任务",
         "en_US": "Manage cron jobs"
     },
+    "create_calendar_project": {
+        "zh_CN": "创建日历项目",
+        "en_US": "Create calendar project"
+    },
+    "manage_calendar": {
+        "zh_CN": "管理日程",
+        "en_US": "Manage calendar"
+    },
     "connect_wecom_bot": {
         "zh_CN": "连接企业微信",
         "en_US": "Connect WeCom"
