@@ -281,6 +281,7 @@ class InitClientMessage(ClientMessage):
         default=None,
         description="长期记忆数据（新格式），数组格式，每个元素包含 id 和 content 字段"
     )  # 长期记忆数据，用于传递给 dynamic_context
+    dynamic_config: Optional[Dict[str, Any]] = None  # 动态配置（如 message_version），由 PHP 侧 dynamic_params 透传
     agent: Optional["InitAgentConfig"] = Field(
         default=None,
         description="""<!--zh: 自定义 Agent 配置；type 标识类型，profile 携带名称/描述/角色等身份信息。外层 name/description 已废弃，仅做兜底兼容-->

@@ -174,6 +174,12 @@ class AgentDomainService
             $agentInitContext->setFetchHistory(false);
         }
 
+        // 将话题的 dynamic_params 作为 dynamic_config 下发，使 sandbox 在 init 阶段即可获取 message_version 等配置
+        $dynamicParams = $topicEntity->getDynamicParams();
+        if (! empty($dynamicParams)) {
+            $agentInitContext->setDynamicConfig($dynamicParams);
+        }
+
         return new AgentContext(
             sandboxId: $sandboxId,
             authToken: $authToken,
