@@ -68,6 +68,7 @@ readonly class AggregateModelResolverService
      * @param ModelGatewayDataIsolation $dataIsolation 数据隔离对象
      * @param null|ModelAccessContext $accessContext 当前用户最终模型访问上下文；为空时仅按 subscription 语义筛选子模型
      * @param array<string, true> $visitedModelIds 当前递归链路已访问的动态模型 ID 集合，用于防止动态模型互相引用造成死循环
+     * @param-out array<string, true> $visitedModelIds
      * @return null|string 解析出的真实模型 ID，null 表示无可用子模型
      */
     public function resolveModel(
@@ -124,6 +125,7 @@ readonly class AggregateModelResolverService
      * @param null|ModelType $modelType 模型类型，用于交给 subscription 做类型内可用性判断
      * @param null|ModelAccessContext $accessContext 当前用户最终模型访问上下文；传入后会额外叠加用户级权限过滤
      * @param array<string, true> $visitedModelIds 当前递归链路已访问的动态模型 ID 集合，用于防环
+     * @param-out array<string, true> $visitedModelIds
      */
     private function resolveByStrategy(
         string $strategy,
@@ -151,6 +153,9 @@ readonly class AggregateModelResolverService
     /**
      * 按照权限降级策略解析真实模型ID.
      * 按照配置的模型顺序，找到第一个用户有权限使用的模型.
+     *
+     * @param array<string, true> $visitedModelIds 当前递归链路已访问的动态模型 ID 集合，用于防环
+     * @param-out array<string, true> $visitedModelIds
      */
     private function resolveByPermissionFallback(
         array $models,
