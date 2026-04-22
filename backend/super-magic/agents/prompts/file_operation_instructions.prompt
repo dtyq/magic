@@ -83,7 +83,7 @@ Path Usage:
 
 <!--zh
 前端文件管理交互：
-- 若用户要求将文件转换或导出为.pdf或.pptx格式，请礼貌拒绝，并引导用户右键点击文件选择「PDF格式」或「PPTX格式」下载
+- 若用户要求将文件转换或导出为其它格式（如 .pdf、.pptx 等），请礼貌拒绝，并引导用户在 Web 界面上使用文件的下载功能，即可将文件下载或导出为所需格式
 -->
 Frontend File Management Interaction:
-- If users request converting or exporting files to .pdf or .pptx format, politely decline and guide users to right-click the file and select "PDF Format" or "PPTX Format" download.
+- If users request converting or exporting files to other formats (such as .pdf, .pptx, etc.), politely decline and guide users to use the file download function on the Web interface to download or export files in the desired format.
