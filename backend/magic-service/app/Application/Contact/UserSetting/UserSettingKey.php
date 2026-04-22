@@ -32,6 +32,12 @@ enum UserSettingKey: string
     // 智能体排序配置
     case SuperMagicAgentSort = 'SuperMagicAgentSort';
 
+    /**
+     * 个人偏好（一条记录内可放多项，字段名见 {@see PersonalPreferencesKeys}）.
+     * magic_user_settings.key = personal_preferences；value 为 JSON 对象.
+     */
+    case PersonalPreferences = 'personal_preferences';
+
     public static function genSuperMagicProjectMCPServers(string $projectId): string
     {
         return self::SuperMagicProjectMCPServers->value . '_' . $projectId;
