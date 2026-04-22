@@ -483,6 +483,9 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // 初始隐藏文件名显示
     currentFileNameDisplay.style.display = 'none';
+
+    // 页面加载后自动尝试订阅 WebSocket
+    autoConnectWebSocket();
 });
 
 // 清理模型列表：清除 localStorage 缓存并恢复文本输入框
@@ -1490,6 +1493,9 @@ function toggleWebSocketConnection() {
     if (isWebSocketConnected) {
         disconnectWebSocket();
     } else {
+        // 手动点击恢复自动重连
+        wsAutoReconnect = true;
+        wsReconnectAttempt = 0;
         connectWebSocket();
     }
 }
@@ -1522,6 +1528,8 @@ function connectWebSocket() {
 }
 
 function disconnectWebSocket() {
+    wsAutoReconnect = false;
+    if (wsReconnectTimer) { clearTimeout(wsReconnectTimer); wsReconnectTimer = null; }
     if (websocket) {
         websocket.close();
         websocket = null;
@@ -1533,9 +1541,10 @@ function disconnectWebSocket() {
 
 function handleWebSocketOpen(event) {
     isWebSocketConnected = true;
+    wsReconnectAttempt = 0;
+    if (wsReconnectTimer) { clearTimeout(wsReconnectTimer); wsReconnectTimer = null; }
     updateSubscribeButtonState('connected');
     showSystemMessage("WebSocket连接已建立，开始接收消息");
-    // 通知所有等待连接的发送操作
     wsOpenCallbacks.splice(0).forEach(cb => cb.resolve());
 }
 
@@ -2223,6 +2232,29 @@ function showEventLog(data, _noLog = false) {
     messageList.appendChild(wrapper);
 }
 
+// ── 自动订阅 & 断线重连 ──
+let wsAutoReconnect = true;  // 手动断开时设为 false，阻止自动重连
+let wsReconnectAttempt = 0;
+let wsReconnectTimer = null;
+const WS_RECONNECT_BASE_MS = 2000;
+const WS_RECONNECT_MAX_MS = 30000;
+
+function autoConnectWebSocket() {
+    wsAutoReconnect = true;
+    wsReconnectAttempt = 0;
+    connectWebSocket();
+}
+
+function scheduleReconnect() {
+    if (!wsAutoReconnect) return;
+    if (wsReconnectTimer) clearTimeout(wsReconnectTimer);
+    wsReconnectAttempt++;
+    // 指数退避：2s → 4s → 8s → 16s → 30s（封顶）
+    const delay = Math.min(WS_RECONNECT_BASE_MS * Math.pow(2, wsReconnectAttempt - 1), WS_RECONNECT_MAX_MS);
+    showSystemMessage(`将在 ${(delay / 1000).toFixed(0)} 秒后自动重连（第 ${wsReconnectAttempt} 次）…`);
+    wsReconnectTimer = setTimeout(() => connectWebSocket(), delay);
+}
+
 function handleWebSocketClose(event) {
     isWebSocketConnected = false;
     updateSubscribeButtonState('disconnected');
@@ -2231,6 +2263,7 @@ function handleWebSocketClose(event) {
         showSystemMessage("WebSocket连接正常关闭");
     } else {
         showSystemMessage(`WebSocket连接意外断开 (code: ${event.code})`);
+        scheduleReconnect();
     }
 }
 
@@ -2238,7 +2271,6 @@ function handleWebSocketError(error) {
     console.error('WebSocket error:', error);
     wsOpenCallbacks.splice(0).forEach(cb => cb.reject(new Error('WebSocket连接失败')));
 
-    // 根据错误类型提供不同的用户提示
     let errorMessage = "WebSocket连接发生错误";
     let suggestions = "";
 
@@ -2249,6 +2281,7 @@ function handleWebSocketError(error) {
 
     showSystemMessage(`${errorMessage}。${suggestions}`);
     updateSubscribeButtonState('error');
+    scheduleReconnect();
 }
 
 function updateSubscribeButtonState(state, additionalInfo = '') {
@@ -2663,9 +2696,86 @@ const filePreviewName = document.getElementById('filePreviewName');
 const filePreviewBody = document.getElementById('filePreviewBody');
 const filePreviewMeta = document.getElementById('filePreviewMeta');
 const filePreviewClose = document.getElementById('filePreviewClose');
+const filePreviewOpenBtn = document.getElementById('filePreviewOpenBtn');
+const filePreviewRenderBtn = document.getElementById('filePreviewRenderBtn');
 
 /** 媒体/PDF 预览用的 blob URL，关闭或切换预览时需 revoke */
 let filePreviewObjectUrl = null;
+
+/** 当前正在预览的文件，供"新窗口打开/渲染预览"按钮使用 */
+let currentPreviewFile = null;
+let currentPreviewPath = '';
+
+/**
+ * 后端返回的 workspace 绝对路径（如 /Users/.../super-magic/.workspace），
+ * 用于拼接 file:// URL。启动时自动从后端获取。
+ */
+let workspaceAbsolutePath = '';
+
+let wsPathRetryTimer = null;
+let wsPathRetryAttempt = 0;
+const WS_PATH_RETRY_BASE_MS = 3000;
+const WS_PATH_RETRY_MAX_MS = 30000;
+const WS_PATH_MAX_RETRIES = 10;
+
+async function fetchWorkspaceAbsolutePath() {
+    try {
+        const base = document.getElementById('serverUrl')?.value || 'http://127.0.0.1:8002';
+        const resp = await fetch(`${base}/api/v1/workspace/info`);
+        const json = await resp.json();
+        if (json?.data?.workspace_path) {
+            workspaceAbsolutePath = json.data.workspace_path.replace(/\/+$/, '');
+            wsPathRetryAttempt = 0;
+            if (wsPathRetryTimer) { clearTimeout(wsPathRetryTimer); wsPathRetryTimer = null; }
+            return;
+        }
+    } catch (_) { /* ignore */ }
+    // 失败时自动重试
+    if (wsPathRetryAttempt < WS_PATH_MAX_RETRIES) {
+        wsPathRetryAttempt++;
+        const delay = Math.min(WS_PATH_RETRY_BASE_MS * Math.pow(2, wsPathRetryAttempt - 1), WS_PATH_RETRY_MAX_MS);
+        wsPathRetryTimer = setTimeout(fetchWorkspaceAbsolutePath, delay);
+    }
+}
+
+// 页面加载后立即尝试获取
+fetchWorkspaceAbsolutePath();
+
+function isHtmlPreviewable(filePath, file) {
+    const ext = getWorkspaceFileExt(filePath);
+    if (ext === 'html' || ext === 'htm' || ext === 'svg') return true;
+    const mime = (file && file.type) || '';
+    return mime === 'text/html' || mime === 'image/svg+xml';
+}
+
+/**
+ * 构造当前预览文件的 file:// URL。
+ * 能拿到 workspace 绝对路径时返回 file:// URL，否则返回 null 降级为 blob。
+ */
+function buildFileUrl(filePath) {
+    if (!workspaceAbsolutePath || !filePath) return null;
+    // filePath 是工作区内的相对路径（如 hello-world/index.html）
+    return `file://${workspaceAbsolutePath}/${filePath}`;
+}
+
+/**
+ * 在新窗口打开当前预览文件。
+ * 优先用 file:// URL（需要后端返回过 workspace 路径），否则降级 blob URL。
+ */
+function openCurrentPreviewInNewTab() {
+    if (!currentPreviewFile) return;
+    const fileUrl = buildFileUrl(currentPreviewPath);
+    if (fileUrl) {
+        window.open(fileUrl, '_blank');
+    } else {
+        // 降级：blob URL
+        const type = currentPreviewFile.type || 'application/octet-stream';
+        const blob = currentPreviewFile.slice(0, currentPreviewFile.size, type);
+        const url = URL.createObjectURL(blob);
+        const win = window.open(url, '_blank');
+        if (!win) alert('浏览器拦截了新窗口，请允许本站点的弹出窗口后重试。');
+    }
+}
 
 /** 画布预览加载的图片/视频 blob URL 列表，关闭或切换视图时统一 revoke */
 let canvasBlobUrls = [];
@@ -2693,6 +2803,9 @@ function hideFilePreview() {
     if (dialog) dialog.classList.remove('has-canvas-panel');
     if (filePreviewMeta) filePreviewMeta.innerHTML = '';
     if (filePreviewOverlay) filePreviewOverlay.style.display = 'none';
+    currentPreviewFile = null;
+    currentPreviewPath = '';
+    if (filePreviewRenderBtn) filePreviewRenderBtn.style.display = 'none';
 }
 
 function getWorkspaceFileBaseName(filePath) {
@@ -3081,6 +3194,31 @@ if (filePreviewClose) {
 if (filePreviewOverlay) {
     filePreviewOverlay.addEventListener('click', (e) => {
         if (e.target === filePreviewOverlay) hideFilePreview();
+    });
+}
+
+if (filePreviewOpenBtn) {
+    filePreviewOpenBtn.addEventListener('click', () => openCurrentPreviewInNewTab());
+}
+
+if (filePreviewRenderBtn) {
+    filePreviewRenderBtn.addEventListener('click', async () => {
+        if (!currentPreviewFile || !filePreviewBody) return;
+        filePreviewBody.innerHTML = '';
+        const iframe = document.createElement('iframe');
+        iframe.className = 'file-preview-pdf';
+        iframe.title = currentPreviewPath;
+
+        const fileUrl = buildFileUrl(currentPreviewPath);
+        if (fileUrl) {
+            // file:// 协议下相对资源能正常加载
+            iframe.src = fileUrl;
+        } else {
+            // 降级：用 srcdoc 渲染（单文件 HTML 有效，多文件的相对资源不可用）
+            const text = await currentPreviewFile.text();
+            iframe.srcdoc = text;
+        }
+        filePreviewBody.appendChild(iframe);
     });
 }
 
@@ -3580,6 +3718,13 @@ async function previewFile(fileHandle, filePath) {
         filePreviewBody.innerHTML = '';
         if (filePreviewMeta) filePreviewMeta.innerHTML = '';
         filePreviewName.textContent = filePath;
+
+        // 记录当前预览对象，供 header 上的"新窗口打开/渲染预览"按钮使用
+        currentPreviewFile = file;
+        currentPreviewPath = filePath;
+        if (filePreviewRenderBtn) {
+            filePreviewRenderBtn.style.display = isHtmlPreviewable(filePath, file) ? '' : 'none';
+        }
 
         const kind = getWorkspacePreviewKind(filePath, file);
 

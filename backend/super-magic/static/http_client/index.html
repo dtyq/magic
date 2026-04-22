@@ -217,7 +217,11 @@
         <div class="file-preview-dialog">
             <div class="file-preview-header">
                 <span id="filePreviewName" class="file-preview-name"></span>
-                <button id="filePreviewClose" class="file-preview-close">✕</button>
+                <div class="file-preview-actions">
+                    <button id="filePreviewRenderBtn" class="file-preview-action-btn" title="在新窗口渲染 HTML（实际效果）" style="display:none">渲染预览</button>
+                    <button id="filePreviewOpenBtn" class="file-preview-action-btn" title="在新窗口打开（按原始类型）">新窗口打开</button>
+                    <button id="filePreviewClose" class="file-preview-close">✕</button>
+                </div>
             </div>
             <div class="file-preview-main">
                 <div id="filePreviewBody" class="file-preview-body"></div>

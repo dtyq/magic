@@ -1933,6 +1933,31 @@ input[type="file"] {
     white-space: nowrap;
 }
 
+.file-preview-actions {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-shrink: 0;
+}
+
+.file-preview-action-btn {
+    background: #fff;
+    border: 1px solid var(--wechat-border);
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 12px;
+    color: var(--wechat-text-dark);
+    padding: 4px 10px;
+    line-height: 1.4;
+    transition: background-color 0.15s, border-color 0.15s, color 0.15s;
+}
+
+.file-preview-action-btn:hover {
+    background: var(--wechat-green, #07c160);
+    border-color: var(--wechat-green, #07c160);
+    color: #fff;
+}
+
 .file-preview-close {
     background: none;
     border: none;
