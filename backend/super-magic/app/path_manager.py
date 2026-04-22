@@ -97,6 +97,10 @@ class PathManager(BasePathManager):
     _magic_config_dir: ClassVar[Optional[Path]] = None
     _magic_skills_dir: ClassVar[Optional[Path]] = None
 
+    # Agents 外部扩展 skills 目录：.workspace/.agents/skills（按需创建）
+    _agents_dir_name: ClassVar[str] = ".agents"
+    _agents_skills_dir: ClassVar[Optional[Path]] = None
+
     # 临时目录：.workspace/.tmp（按需创建）
     _tmp_dir_name: ClassVar[str] = ".tmp"
     _tmp_dir: ClassVar[Optional[Path]] = None
@@ -149,6 +153,7 @@ class PathManager(BasePathManager):
         cls._magic_dir = cls.get_workspace_dir() / cls._magic_dir_name
         cls._magic_config_dir = cls._magic_dir / cls._magic_config_dir_name
         cls._magic_skills_dir = cls._magic_dir / cls._magic_skills_dir_name
+        cls._agents_skills_dir = cls.get_workspace_dir() / cls._agents_dir_name / "skills"
         cls._tmp_dir = cls.get_workspace_dir() / cls._tmp_dir_name
 
         # 确保应用层预创建目录存在
@@ -436,6 +441,12 @@ class PathManager(BasePathManager):
         """获取 skills 配置目录路径（.workspace/.magic/skills，按需创建）"""
         cls._ensure_app_initialization()
         return cls._magic_skills_dir
+
+    @classmethod
+    def get_agents_skills_dir(cls) -> Path:
+        """获取外部扩展 skills 目录路径（.workspace/.agents/skills，按需创建）"""
+        cls._ensure_app_initialization()
+        return cls._agents_skills_dir
 
     @classmethod
     def get_magic_env_file(cls) -> Path:
