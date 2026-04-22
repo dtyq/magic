@@ -10,6 +10,7 @@ tools:
   - read_files
   - grep_search
   - shell_exec
+  - shell_await
   - run_python_snippet
   - write_file
   - edit_file

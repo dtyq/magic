@@ -183,6 +183,46 @@
         "zh_CN": "Shell命令执行失败: {{error}}",
         "en_US": "Shell command execution failed: {{error}}"
     },
+    "shell_exec.error_timeout": {
+        "zh_CN": "命令执行超时",
+        "en_US": "Command timed out"
+    },
+    "shell_exec.error_task_limit": {
+        "zh_CN": "后台任务数量已达上限",
+        "en_US": "Background task limit reached"
+    },
+    "shell_exec.error_exception": {
+        "zh_CN": "命令执行异常",
+        "en_US": "Command execution error"
+    },
+    "shell_exec.error_failed": {
+        "zh_CN": "命令执行失败",
+        "en_US": "Command failed"
+    },
+    "shell_await.error": {
+        "zh_CN": "等待后台任务失败: {{error}}",
+        "en_US": "Await background task failed: {{error}}"
+    },
+    "shell_await.error_task_not_found": {
+        "zh_CN": "后台任务不存在",
+        "en_US": "Background task not found"
+    },
+    "shell_await.error_invalid_pattern": {
+        "zh_CN": "正则表达式无效",
+        "en_US": "Invalid regex pattern"
+    },
+    "shell_await.error_log_missing": {
+        "zh_CN": "日志文件丢失",
+        "en_US": "Log file missing"
+    },
+    "shell_await.error_exception": {
+        "zh_CN": "任务等待异常",
+        "en_US": "Task await error"
+    },
+    "shell_await.error_failed": {
+        "zh_CN": "后台任务查询失败",
+        "en_US": "Background task query failed"
+    },
     "run_sdk_snippet.after_dispatched": {
         "zh_CN": "正在执行",
         "en_US": "Running"
