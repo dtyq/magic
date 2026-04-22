@@ -184,20 +184,20 @@
         "en_US": "Shell command execution failed: {{error}}"
     },
     "shell_exec.error_timeout": {
-        "zh_CN": "命令执行超时",
-        "en_US": "Command timed out"
+        "zh_CN": "命令运行超时，如需长时间运行请使用后台模式",
+        "en_US": "Command took too long — try allow_background=true for long-running tasks"
     },
     "shell_exec.error_task_limit": {
-        "zh_CN": "后台任务数量已达上限",
-        "en_US": "Background task limit reached"
+        "zh_CN": "后台任务太多了，请先结束一些任务再试",
+        "en_US": "Too many background tasks running — finish some before starting new ones"
     },
     "shell_exec.error_exception": {
-        "zh_CN": "命令执行异常",
-        "en_US": "Command execution error"
+        "zh_CN": "命令运行时遇到了问题",
+        "en_US": "Something went wrong while running the command"
     },
     "shell_exec.error_failed": {
-        "zh_CN": "命令执行失败",
-        "en_US": "Command failed"
+        "zh_CN": "命令没能成功完成",
+        "en_US": "Command didn't complete successfully"
     },
     "shell_await.error": {
         "zh_CN": "等待后台任务失败: {{error}}",

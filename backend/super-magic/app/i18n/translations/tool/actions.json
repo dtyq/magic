@@ -61,11 +61,11 @@
     },
     "shell_exec": {
         "zh_CN": "执行命令",
-        "en_US": "Execute Shell command"
+        "en_US": "Run command"
     },
     "shell_await": {
-        "zh_CN": "等待后台任务",
-        "en_US": "Await background task"
+        "zh_CN": "查询后台任务",
+        "en_US": "Check background task"
     },
     "run_sdk_snippet": {
         "zh_CN": "代码模式",
