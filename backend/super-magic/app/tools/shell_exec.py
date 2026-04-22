@@ -12,7 +12,7 @@ from app.tools.abstract_file_tool import AbstractFileTool
 from app.tools.core import BaseToolParams, tool
 from app.tools.core.shell_command_parser import ShellCommandParser
 from app.tools.workspace_tool import WorkspaceTool
-from app.tools.shell_exec_utils.skillhub import handle_skillhub
+from app.tools.shell_exec_utils.dispatcher import DISPATCHER
 from app.utils.process_executor import ProcessExecutor
 
 logger = get_logger(__name__)
@@ -75,23 +75,14 @@ Rules for shell_exec:
             # Handle working directory
             work_dir = self.base_dir
 
-            # 特殊处理：如果命令是 python bin/super-magic.py，且没有指定 cwd，则使用项目根目录
-            if not params.cwd and params.command.strip().startswith('python bin/super-magic.py'):
-                work_dir = self.base_dir.parent
-            elif params.command.strip().startswith('skillhub'):
-                # 自定义命令拦截：CLI 本身不支持的子命令由 skillhub 模块内部处理
-                intercepted = await handle_skillhub(params.command.strip())
-                if intercepted is not None:
-                    return intercepted
-                # skillhub CLI 默认安装目录是 ./skills（相对于 CWD），
-                # 因此 CWD 必须是 skills 目录的父级（.magic/）。
-                # 但若命令已通过 --dir 显式指定安装目录，则无需覆盖 work_dir。
-                if '--dir' not in params.command:
-                    from app.core.skill_utils.constants import get_workspace_skills_dir
-                    work_dir = (await get_workspace_skills_dir()).parent
+            command = params.command.strip()
+            handle_result = await DISPATCHER.dispatch(command, params, self.base_dir)
+            if handle_result.intercepted is not None:
+                return handle_result.intercepted
+            if handle_result.work_dir is not None:
+                work_dir = handle_result.work_dir
             elif params.cwd:
-                cwd_path = self.resolve_path(params.cwd)
-                work_dir = cwd_path
+                work_dir = self.resolve_path(params.cwd)
 
             logger.debug(f"Executing command: {params.command}, working directory: {work_dir}")
 
@@ -135,7 +126,7 @@ Rules for shell_exec:
             if (
                 not params.cwd
                 and result.exit_code > 0
-                and params.command.strip().startswith("python")
+                and command.startswith("python")
             ):
                 content = result.content or ""
                 stderr = result.extra_info.get("stderr", "") if result.extra_info else ""

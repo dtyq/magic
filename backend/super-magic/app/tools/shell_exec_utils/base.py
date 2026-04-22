@@ -1,0 +1,67 @@
+"""shell 命令特殊处理器的抽象接口与结果类。
+
+新增命令特殊处理只需：
+1. 继承 ShellCommandHandler 并实现 matches / handle
+2. 将实例追加到 shell_exec.py 的 _COMMAND_HANDLERS 列表
+"""
+from abc import ABC, abstractmethod
+from dataclasses import dataclass, field
+from pathlib import Path
+from typing import TYPE_CHECKING, Optional
+
+if TYPE_CHECKING:
+    from app.core.entity.tool.tool_result_types import TerminalToolResult
+    from app.tools.core import BaseToolParams
+
+
+@dataclass
+class CommandHandleResult:
+    """handler 处理命令后返回的结果。
+
+    intercepted: 非 None 时直接作为工具结果返回，命令不再交给真实 shell 执行。
+    work_dir:    非 None 时覆盖 execute() 中的默认工作目录。
+    """
+    intercepted: Optional["TerminalToolResult"] = field(default=None)
+    work_dir: Optional[Path] = field(default=None)
+
+
+class ShellCommandHandler(ABC):
+    """shell 命令特殊处理器基类。
+
+    子类通过 matches() 声明自己关心哪些命令，
+    通过 handle() 实现对应的拦截或工作目录调整逻辑。
+
+    priority: 数值越大优先级越高，dispatcher 按降序排列后依次匹配。
+              默认值为 0，仅当多个 handler 可能匹配同一命令时才需要显式设置。
+    """
+
+    priority: int = 0
+
+    @abstractmethod
+    def matches(self, command: str) -> bool:
+        """判断是否处理该命令。
+
+        Args:
+            command: 去除首尾空白后的完整命令字符串。
+
+        Returns:
+            True 表示由本 handler 处理。
+        """
+
+    @abstractmethod
+    async def handle(
+        self,
+        command: str,
+        params: "BaseToolParams",
+        base_dir: Path,
+    ) -> CommandHandleResult:
+        """执行命令的特殊处理逻辑。
+
+        Args:
+            command: 去除首尾空白后的完整命令字符串。
+            params:  原始工具调用参数。
+            base_dir: 工具的默认基础工作目录。
+
+        Returns:
+            CommandHandleResult，intercepted 或 work_dir 二选一或都填充。
+        """
