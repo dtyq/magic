@@ -20,10 +20,14 @@ _FIXED_SUBSTRINGS: list[str] = [
     "正在获取你的应用配置结果",
     # lark-cli config init --new（部分版本）：另一种等待提示
     "等待配置应用",
-    # 终端 QR 码渲染（所有终端 QR 渲染库均使用 U+2588 FULL BLOCK 连续填充）
+    # 终端 QR 码渲染：U+2588 FULL BLOCK 连续填充（lark-cli / dws 等使用）
     "████████",
+    # 终端 QR 码渲染：U+2584 LOWER HALF BLOCK 连续填充（wecom-cli 等使用）
+    "▄▄▄▄▄▄▄▄",
     # dws auth login --device：等待用户在浏览器完成授权（Step 2 提示 + 每轮 polling 行均含此串）
     "Waiting for user authorization",
+    # wecom-cli init：展示二维码后输出的最终等待行
+    "等待扫码中",
 ]
 
 # ── 高置信正则组：误判率极低，直接匹配 ──────────────────────────────────────
@@ -95,7 +99,7 @@ def scan_chunk_for_prompt(chunk: str) -> bool:
     - looks_like_prompt() 只看末尾行，适合正则（避免历史输出误触）
     - scan_chunk_for_prompt() 扫描全文，适合固定子串（例如 QR 码渲染行在 chunk 中间出现）
 
-    典型场景：lark-cli 把 QR 码 + "等待配置应用..." 放在同一个大 chunk 里，
+    典型场景：lark-cli / wecom-cli 把 QR 码 + 等待提示行放在同一个大 chunk 里，
     末尾行不含 QR 码字符，只有全文扫描才能命中。
     """
     for substr in _FIXED_SUBSTRINGS:

@@ -27,6 +27,10 @@ _AUTO_BACKGROUND_PREFIXES: list[str] = [
     "dws auth login",
     # 版本升级：有交互式确认提示，除非命令中已带 -y
     "dws upgrade",
+
+    # ── wecom-cli（企业微信 CLI）─────────────────────────────────────────────
+    # 初始化凭证：交互式选择接入方式，展示二维码，等待用户扫码
+    "wecom-cli init",
 ]
 
 
