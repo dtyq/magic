@@ -1,8 +1,11 @@
 from app.i18n import i18n
 import asyncio
+import ctypes
+import gc
 import html
 import json
 import os
+import platform
 import random
 import string
 import subprocess
@@ -788,6 +791,26 @@ class Agent(BaseAgent):
                     agent_context=self.agent_context,
                     final_task_state=final_task_state,
                 ))
+        finally:
+            # 每次请求结束后回收内存碎片：强制 GC 并归还空闲 arena 给 OS
+            self._reclaim_memory()
+
+    @staticmethod
+    def _reclaim_memory() -> None:
+        """回收 Python 堆碎片，尝试将空闲内存归还给操作系统。
+
+        长会话中大量 JSON 序列化/反序列化会产生 pymalloc arena 碎片，
+        导致 RSS 只增不减。在每个请求间隙（用户不感知延迟）执行：
+        1. gc.collect() — 回收循环引用
+        2. malloc_trim(0) — 通知 glibc 归还空闲 arena（仅 Linux）
+        """
+        try:
+            gc.collect()
+            if platform.system() == "Linux":
+                libc = ctypes.CDLL("libc.so.6")
+                libc.malloc_trim(0)
+        except Exception:
+            pass
 
     async def run(self, query: str):
         """运行 agent"""
