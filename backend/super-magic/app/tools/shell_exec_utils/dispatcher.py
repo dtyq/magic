@@ -11,6 +11,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING
 
 from app.tools.shell_exec_utils.base import CommandHandleResult, ShellCommandHandler
+from app.tools.shell_exec_utils.handlers.auto_background_handler import AutoBackgroundHandler
 from app.tools.shell_exec_utils.handlers.skillhub_handler import SkillhubCommandHandler
 from app.tools.shell_exec_utils.handlers.super_magic_handler import SuperMagicCommandHandler
 
@@ -51,4 +52,5 @@ class CommandDispatcher:
 DISPATCHER = CommandDispatcher([
     SuperMagicCommandHandler(),
     SkillhubCommandHandler(),
+    AutoBackgroundHandler(),
 ])

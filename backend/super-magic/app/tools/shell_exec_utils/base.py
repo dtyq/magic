@@ -18,11 +18,13 @@ if TYPE_CHECKING:
 class CommandHandleResult:
     """handler 处理命令后返回的结果。
 
-    intercepted: 非 None 时直接作为工具结果返回，命令不再交给真实 shell 执行。
-    work_dir:    非 None 时覆盖 execute() 中的默认工作目录。
+    intercepted:      非 None 时直接作为工具结果返回，命令不再交给真实 shell 执行。
+    work_dir:         非 None 时覆盖 execute() 中的默认工作目录。
+    force_background: True 时强制开启后台模式，等同于调用方传入 allow_background=True。
     """
     intercepted: Optional["TerminalToolResult"] = field(default=None)
     work_dir: Optional[Path] = field(default=None)
+    force_background: bool = field(default=False)
 
 
 class ShellCommandHandler(ABC):
