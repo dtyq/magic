@@ -18,6 +18,7 @@ use App\Domain\Permission\Entity\ModelAccessRoleEntity;
 use App\Domain\Permission\Entity\ValueObject\PermissionControlStatus;
 use App\Domain\Permission\Entity\ValueObject\PermissionDataIsolation;
 use App\Domain\Permission\Repository\Persistence\ModelAccessRoleRepository;
+use App\Domain\Permission\Service\ModelAccessContextRequestCacheService;
 use App\Domain\Permission\Service\ModelAccessRoleDomainService;
 use App\Domain\Provider\Entity\ProviderModelEntity;
 use App\Domain\Provider\Entity\ValueObject\ProviderModelType;
@@ -52,6 +53,7 @@ class ModelAccessRoleDomainServiceTest extends HttpTestCase
     public function testCreateRoleAllowsOrganizationAllWithoutDefaultRole(): void
     {
         $repository = $this->createMock(ModelAccessRoleRepository::class);
+        $cacheService = $this->createMock(ModelAccessContextRequestCacheService::class);
         $repository->expects($this->once())
             ->method('getByName')
             ->with('ORG_CREATE', '组织基线')
@@ -88,8 +90,11 @@ class ModelAccessRoleDomainServiceTest extends HttpTestCase
             ->method('getRoleDeniedModelMap')
             ->with('ORG_CREATE', [9])
             ->willReturn([]);
+        $cacheService->expects($this->once())
+            ->method('bumpOrganizationVersion')
+            ->with('ORG_CREATE');
 
-        $service = $this->createService(repository: $repository);
+        $service = $this->createService(repository: $repository, cacheService: $cacheService);
 
         $entity = $this->makeRole(name: '组织基线', allUsers: true);
         $result = $service->createRole(PermissionDataIsolation::create('ORG_CREATE', 'operator'), $entity);
@@ -321,6 +326,7 @@ class ModelAccessRoleDomainServiceTest extends HttpTestCase
         ?MagicDepartmentUserDomainService $departmentUserDomainService = null,
         ?MagicUserDomainService $userDomainService = null,
         ?ProviderModelDomainService $providerModelDomainService = null,
+        ?ModelAccessContextRequestCacheService $cacheService = null,
     ): ModelAccessRoleDomainService {
         return new ModelAccessRoleDomainService(
             $repository ?? $this->createMock(ModelAccessRoleRepository::class),
@@ -329,6 +335,7 @@ class ModelAccessRoleDomainServiceTest extends HttpTestCase
             $departmentUserDomainService ?? $this->createMock(MagicDepartmentUserDomainService::class),
             $userDomainService ?? $this->createMock(MagicUserDomainService::class),
             $providerModelDomainService ?? $this->createMock(ProviderModelDomainService::class),
+            $cacheService ?? new ModelAccessContextRequestCacheService(),
         );
     }
 

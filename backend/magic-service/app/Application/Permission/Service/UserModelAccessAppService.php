@@ -7,7 +7,7 @@ declare(strict_types=1);
 
 namespace App\Application\Permission\Service;
 
-use App\Domain\Permission\Entity\ValueObject\PermissionControlStatus;
+use App\Domain\Permission\Entity\ValueObject\ModelAccessContext;
 use App\Domain\Permission\Entity\ValueObject\PermissionDataIsolation;
 use App\Domain\Permission\Service\ModelAccessRoleDomainService;
 use App\Interfaces\Authorization\Web\MagicUserAuthorization;
@@ -30,23 +30,12 @@ class UserModelAccessAppService
      */
     public function resolveAccessContext(MagicUserAuthorization $authorization): array
     {
-        $summary = $this->domainService->getUserSummary(
-            PermissionDataIsolation::create($authorization->getOrganizationCode(), $authorization->getId(), $authorization->getMagicId()),
+        $context = $this->domainService->resolveAccessContext(
+            $this->createPermissionDataIsolation($authorization),
             $authorization->getId()
         );
 
-        $status = $summary['permission_control_status'];
-        $deniedModelIds = array_values(array_unique($summary['denied_model_ids']));
-        $accessibleModelIds = array_values(array_unique($summary['accessible_model_ids']));
-        $isRestricted = $status === PermissionControlStatus::ENABLED;
-
-        return [
-            'permission_control_status' => $status->value,
-            'is_restricted' => $isRestricted,
-            'denied_model_ids' => $deniedModelIds,
-            'accessible_model_ids' => $accessibleModelIds,
-            'accessible_model_id_map' => $isRestricted ? array_fill_keys($accessibleModelIds, true) : [],
-        ];
+        return $this->serializeAccessContext($context);
     }
 
     public function isRestrictionEnabled(MagicUserAuthorization $authorization): bool
@@ -88,5 +77,34 @@ class UserModelAccessAppService
             $entries,
             static fn (mixed $entry): bool => isset($context['accessible_model_id_map'][$modelIdResolver($entry)])
         ));
+    }
+
+    protected function createPermissionDataIsolation(MagicUserAuthorization $authorization): PermissionDataIsolation
+    {
+        return PermissionDataIsolation::create(
+            $authorization->getOrganizationCode(),
+            $authorization->getId(),
+            $authorization->getMagicId()
+        );
+    }
+
+    /**
+     * @return array{
+     *     permission_control_status:string,
+     *     is_restricted:bool,
+     *     denied_model_ids:list<string>,
+     *     accessible_model_ids:list<string>,
+     *     accessible_model_id_map:array<string, true>
+     * }
+     */
+    private function serializeAccessContext(ModelAccessContext $context): array
+    {
+        return [
+            'permission_control_status' => $context->getPermissionControlStatus()->value,
+            'is_restricted' => $context->isRestricted(),
+            'denied_model_ids' => $context->getDeniedModelIds(),
+            'accessible_model_ids' => $context->getAccessibleModelIds(),
+            'accessible_model_id_map' => $context->isRestricted() ? $context->getAccessibleModelIdMap() : [],
+        ];
     }
 }

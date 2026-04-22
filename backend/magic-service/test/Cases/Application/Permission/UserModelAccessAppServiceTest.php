@@ -8,7 +8,9 @@ declare(strict_types=1);
 namespace HyperfTest\Cases\Application\Permission;
 
 use App\Application\Permission\Service\UserModelAccessAppService;
+use App\Domain\Permission\Entity\ValueObject\ModelAccessContext;
 use App\Domain\Permission\Entity\ValueObject\PermissionControlStatus;
+use App\Domain\Permission\Entity\ValueObject\PermissionDataIsolation;
 use App\Domain\Permission\Service\ModelAccessRoleDomainService;
 use App\Interfaces\Authorization\Web\MagicUserAuthorization;
 use PHPUnit\Framework\TestCase;
@@ -20,15 +22,11 @@ class UserModelAccessAppServiceTest extends TestCase
 {
     public function testResolveAccessContextMarksEnabledStatusAsRestricted(): void
     {
-        $domainService = $this->createMock(ModelAccessRoleDomainService::class);
-        $domainService->method('getUserSummary')->willReturn([
-            'permission_control_status' => PermissionControlStatus::ENABLED,
-            'roles' => [],
-            'denied_model_ids' => ['model-b'],
-            'accessible_model_ids' => ['model-a', 'model-c'],
-        ]);
+        $domainService = $this->createDomainService(
+            new ModelAccessContext(PermissionControlStatus::ENABLED, ['model-b'], ['model-a', 'model-c'])
+        );
 
-        $service = new UserModelAccessAppService($domainService);
+        $service = $this->createService($domainService);
         $context = $service->resolveAccessContext($this->createAuthorization());
 
         $this->assertSame('enabled', $context['permission_control_status']);
@@ -40,15 +38,11 @@ class UserModelAccessAppServiceTest extends TestCase
 
     public function testResolveAccessContextMarksDisabledStatusAsUnrestricted(): void
     {
-        $domainService = $this->createMock(ModelAccessRoleDomainService::class);
-        $domainService->method('getUserSummary')->willReturn([
-            'permission_control_status' => PermissionControlStatus::DISABLED,
-            'roles' => [],
-            'denied_model_ids' => [],
-            'accessible_model_ids' => ['model-a', 'model-b'],
-        ]);
+        $domainService = $this->createDomainService(
+            new ModelAccessContext(PermissionControlStatus::DISABLED, [], ['model-a', 'model-b'])
+        );
 
-        $service = new UserModelAccessAppService($domainService);
+        $service = $this->createService($domainService);
         $context = $service->resolveAccessContext($this->createAuthorization());
 
         $this->assertSame('disabled', $context['permission_control_status']);
@@ -60,15 +54,11 @@ class UserModelAccessAppServiceTest extends TestCase
 
     public function testFilterModelEntriesUsesDenyUnionAccessibleSet(): void
     {
-        $domainService = $this->createMock(ModelAccessRoleDomainService::class);
-        $domainService->method('getUserSummary')->willReturn([
-            'permission_control_status' => PermissionControlStatus::ENABLED,
-            'roles' => [],
-            'denied_model_ids' => ['model-a', 'model-c'],
-            'accessible_model_ids' => ['model-b'],
-        ]);
+        $domainService = $this->createDomainService(
+            new ModelAccessContext(PermissionControlStatus::ENABLED, ['model-a', 'model-c'], ['model-b'])
+        );
 
-        $service = new UserModelAccessAppService($domainService);
+        $service = $this->createService($domainService);
         $filtered = $service->filterModelEntries(
             $this->createAuthorization(),
             [
@@ -84,15 +74,11 @@ class UserModelAccessAppServiceTest extends TestCase
 
     public function testResolveAccessContextUsesDomainSummaryAfterRoleExclusionsApplied(): void
     {
-        $domainService = $this->createMock(ModelAccessRoleDomainService::class);
-        $domainService->method('getUserSummary')->willReturn([
-            'permission_control_status' => PermissionControlStatus::ENABLED,
-            'roles' => [],
-            'denied_model_ids' => ['model-b'],
-            'accessible_model_ids' => ['model-a'],
-        ]);
+        $domainService = $this->createDomainService(
+            new ModelAccessContext(PermissionControlStatus::ENABLED, ['model-b'], ['model-a'])
+        );
 
-        $service = new UserModelAccessAppService($domainService);
+        $service = $this->createService($domainService);
         $context = $service->resolveAccessContext($this->createAuthorization());
 
         $this->assertSame(['model-b'], $context['denied_model_ids']);
@@ -104,5 +90,42 @@ class UserModelAccessAppServiceTest extends TestCase
         return (new MagicUserAuthorization())
             ->setOrganizationCode('org-1')
             ->setId('user-1');
+    }
+
+    private function createService(ModelAccessRoleDomainService $domainService): UserModelAccessAppService
+    {
+        $permissionDataIsolation = $this->getMockBuilder(PermissionDataIsolation::class)
+            ->disableOriginalConstructor()
+            ->getMock();
+
+        return new class($domainService, $permissionDataIsolation) extends UserModelAccessAppService {
+            public function __construct(
+                ModelAccessRoleDomainService $domainService,
+                private PermissionDataIsolation $permissionDataIsolation
+            ) {
+                parent::__construct($domainService);
+            }
+
+            protected function createPermissionDataIsolation(MagicUserAuthorization $authorization): PermissionDataIsolation
+            {
+                return $this->permissionDataIsolation;
+            }
+        };
+    }
+
+    private function createDomainService(ModelAccessContext $context): ModelAccessRoleDomainService
+    {
+        return new readonly class($context) extends ModelAccessRoleDomainService {
+            public function __construct(private ModelAccessContext $context)
+            {
+            }
+
+            public function resolveAccessContext(
+                PermissionDataIsolation $dataIsolation,
+                string $userId
+            ): ModelAccessContext {
+                return $this->context;
+            }
+        };
     }
 }

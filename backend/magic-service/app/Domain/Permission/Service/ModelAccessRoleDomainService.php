@@ -18,6 +18,7 @@ use App\Domain\Contact\Service\MagicDepartmentUserDomainService;
 use App\Domain\Contact\Service\MagicUserDomainService;
 use App\Domain\ModelGateway\Entity\ValueObject\ModelGatewayDataIsolation;
 use App\Domain\Permission\Entity\ModelAccessRoleEntity;
+use App\Domain\Permission\Entity\ValueObject\ModelAccessContext;
 use App\Domain\Permission\Entity\ValueObject\PermissionControlStatus;
 use App\Domain\Permission\Entity\ValueObject\PermissionDataIsolation;
 use App\Domain\Permission\Repository\Persistence\ModelAccessRoleRepository;
@@ -41,6 +42,7 @@ readonly class ModelAccessRoleDomainService
         private MagicDepartmentUserDomainService $magicDepartmentUserDomainService,
         private MagicUserDomainService $magicUserDomainService,
         private ProviderModelDomainService $providerModelDomainService,
+        private ModelAccessContextRequestCacheService $modelAccessContextRequestCacheService,
     ) {
     }
 
@@ -56,6 +58,7 @@ readonly class ModelAccessRoleDomainService
     {
         $organizationCode = $dataIsolation->getCurrentOrganizationCode();
         $this->savePermissionControlSetting($organizationCode, $status);
+        $this->modelAccessContextRequestCacheService->bumpOrganizationVersion($organizationCode);
 
         return [
             'permission_control_status' => $status,
@@ -110,63 +113,36 @@ readonly class ModelAccessRoleDomainService
             $this->repository->delete($organizationCode, $roleId);
         });
 
+        $this->modelAccessContextRequestCacheService->bumpOrganizationVersion($organizationCode);
+
         return $this->resolvePermissionControlStatus($organizationCode);
     }
 
     public function getUserSummary(PermissionDataIsolation $dataIsolation, string $userId): array
     {
-        $organizationCode = $dataIsolation->getCurrentOrganizationCode();
-        $contactIsolation = ContactDataIsolation::create($organizationCode, $dataIsolation->getCurrentUserId());
-        $userDepartmentIds = $this->magicDepartmentUserDomainService->getDepartmentIdsByUserId($contactIsolation, $userId, true);
-        $roles = $this->repository->getUserAssignedRoles($organizationCode, $userId, $userDepartmentIds);
-
-        $uniqueRoles = [];
-        foreach ($roles as $role) {
-            $uniqueRoles[$role->getId()] = $role;
-        }
-        $roles = array_values($uniqueRoles);
-        $this->hydrateRelations($organizationCode, $roles);
-
-        $status = $this->resolvePermissionControlStatus($organizationCode);
-        $availableModelIds = $this->resolveOrganizationAvailableModelIds($dataIsolation);
-        $dynamicModelMap = $this->indexDynamicModelsByModelId($this->getEnabledDynamicModels($dataIsolation));
-        $deniedModelIds = [];
-        $accessibleModelIds = $availableModelIds;
-
-        if ($status === PermissionControlStatus::ENABLED) {
-            $deniedModelIdMap = [];
-            foreach ($roles as $role) {
-                $roleModelIds = $this->repository->getDeniedModelIdsByRoleId($organizationCode, $role->getId());
-                foreach ($roleModelIds as $modelId) {
-                    $deniedModelIdMap[$modelId] = true;
-                }
-            }
-
-            $deniedModelIds = array_values(array_filter(
-                $availableModelIds,
-                static fn (string $modelId): bool => isset($deniedModelIdMap[$modelId])
-            ));
-            $accessibleModelIdMap = [];
-            foreach ($availableModelIds as $modelId) {
-                if (isset($deniedModelIdMap[$modelId])) {
-                    continue;
-                }
-                $accessibleModelIdMap[$modelId] = true;
-            }
-
-            $accessibleModelIdMap = $this->filterDynamicModelIdMapByAccessibleChildren(
-                $accessibleModelIdMap,
-                $dynamicModelMap
-            );
-            $accessibleModelIds = array_keys($accessibleModelIdMap);
-        }
+        $roles = $this->getUserAssignedRoles($dataIsolation, $userId);
+        $context = $this->buildAccessContext($dataIsolation, $roles);
 
         return [
-            'permission_control_status' => $status,
+            'permission_control_status' => $context->getPermissionControlStatus(),
             'roles' => $roles,
-            'denied_model_ids' => $deniedModelIds,
-            'accessible_model_ids' => array_values(array_unique($accessibleModelIds)),
+            'denied_model_ids' => $context->getDeniedModelIds(),
+            'accessible_model_ids' => $context->getAccessibleModelIds(),
         ];
+    }
+
+    public function resolveAccessContext(PermissionDataIsolation $dataIsolation, string $userId): ModelAccessContext
+    {
+        $cacheKey = $this->modelAccessContextRequestCacheService->buildKey($dataIsolation, $userId);
+        $cachedContext = $this->modelAccessContextRequestCacheService->get($cacheKey);
+        if ($cachedContext instanceof ModelAccessContext) {
+            return $cachedContext;
+        }
+
+        $context = $this->doResolveAccessContext($dataIsolation, $userId);
+        $this->modelAccessContextRequestCacheService->put($cacheKey, $context);
+
+        return $context;
     }
 
     public function countAssignedUsers(PermissionDataIsolation $dataIsolation, ModelAccessRoleEntity $role): int
@@ -193,6 +169,24 @@ readonly class ModelAccessRoleDomainService
         return count($userIdMap);
     }
 
+    private function doResolveAccessContext(PermissionDataIsolation $dataIsolation, string $userId): ModelAccessContext
+    {
+        $status = $this->resolvePermissionControlStatus($dataIsolation->getCurrentOrganizationCode());
+        if ($status === PermissionControlStatus::DISABLED) {
+            return new ModelAccessContext(
+                $status,
+                [],
+                $this->resolveOrganizationAvailableModelIds($dataIsolation)
+            );
+        }
+
+        return $this->buildAccessContext(
+            $dataIsolation,
+            $this->getUserAssignedRoles($dataIsolation, $userId),
+            $status
+        );
+    }
+
     private function save(PermissionDataIsolation $dataIsolation, ModelAccessRoleEntity $entity): ModelAccessRoleEntity
     {
         $organizationCode = $dataIsolation->getCurrentOrganizationCode();
@@ -205,7 +199,7 @@ readonly class ModelAccessRoleDomainService
         $this->validateModels($dataIsolation, $entity->getDeniedModelIds());
         $this->validateRoleForSave($organizationCode, $entity);
 
-        return Db::transaction(function () use ($dataIsolation, $entity, $organizationCode) {
+        $savedEntity = Db::transaction(function () use ($dataIsolation, $entity, $organizationCode) {
             if ($entity->shouldCreate()) {
                 $entity->prepareForCreation($dataIsolation->getCurrentUserId());
             } else {
@@ -226,6 +220,10 @@ readonly class ModelAccessRoleDomainService
             );
             return $this->show($dataIsolation, $saved->getId());
         });
+
+        $this->modelAccessContextRequestCacheService->bumpOrganizationVersion($organizationCode);
+
+        return $savedEntity;
     }
 
     private function resolvePermissionControlStatus(string $organizationCode): PermissionControlStatus
@@ -313,6 +311,72 @@ readonly class ModelAccessRoleDomainService
     }
 
     /**
+     * @return ModelAccessRoleEntity[]
+     */
+    private function getUserAssignedRoles(PermissionDataIsolation $dataIsolation, string $userId): array
+    {
+        $organizationCode = $dataIsolation->getCurrentOrganizationCode();
+        $contactIsolation = ContactDataIsolation::create($organizationCode, $dataIsolation->getCurrentUserId());
+        $userDepartmentIds = $this->magicDepartmentUserDomainService->getDepartmentIdsByUserId($contactIsolation, $userId, true);
+        $roles = $this->repository->getUserAssignedRoles($organizationCode, $userId, $userDepartmentIds);
+
+        $uniqueRoles = [];
+        foreach ($roles as $role) {
+            $uniqueRoles[$role->getId()] = $role;
+        }
+
+        $roles = array_values($uniqueRoles);
+        $this->hydrateRelations($organizationCode, $roles);
+
+        return $roles;
+    }
+
+    /**
+     * @param ModelAccessRoleEntity[] $roles
+     */
+    private function buildAccessContext(
+        PermissionDataIsolation $dataIsolation,
+        array $roles,
+        ?PermissionControlStatus $status = null
+    ): ModelAccessContext {
+        $organizationCode = $dataIsolation->getCurrentOrganizationCode();
+        $status ??= $this->resolvePermissionControlStatus($organizationCode);
+        $availableModelIds = $this->resolveOrganizationAvailableModelIds($dataIsolation);
+        $deniedModelIds = [];
+        $accessibleModelIds = $availableModelIds;
+
+        if ($status === PermissionControlStatus::ENABLED) {
+            $deniedModelIdMap = [];
+            foreach ($roles as $role) {
+                foreach ($role->getDeniedModelIds() as $modelId) {
+                    $deniedModelIdMap[$modelId] = true;
+                }
+            }
+
+            $deniedModelIds = array_values(array_filter(
+                $availableModelIds,
+                static fn (string $modelId): bool => isset($deniedModelIdMap[$modelId])
+            ));
+
+            $accessibleModelIdMap = [];
+            foreach ($availableModelIds as $modelId) {
+                if (isset($deniedModelIdMap[$modelId])) {
+                    continue;
+                }
+                $accessibleModelIdMap[$modelId] = true;
+            }
+
+            $accessibleModelIdMap = $this->filterDynamicModelIdMapByAccessibleChildren(
+                $accessibleModelIdMap,
+                $this->indexDynamicModelsByModelId($this->getEnabledDynamicModels($dataIsolation))
+            );
+            $accessibleModelIds = array_keys($accessibleModelIdMap);
+        }
+
+        return new ModelAccessContext($status, $deniedModelIds, $accessibleModelIds);
+    }
+
+    /**
      * @param ModelAccessRoleEntity[] $roles
      */
     private function hydrateRelations(string $organizationCode, array $roles): void
@@ -383,7 +447,8 @@ readonly class ModelAccessRoleDomainService
             $this->appendAvailableModelId($result, $model->getModelId());
         }
 
-        if ($dataIsolation->getMagicId() === '') {
+        $subscriptionAvailableModelIdMap = $this->resolveSubscriptionAvailableModelIdMap($dataIsolation);
+        if ($subscriptionAvailableModelIdMap === null) {
             foreach ($dynamicModels as $dynamicModel) {
                 if (! $this->isDynamicModelAvailableByAccessibleChildren($dynamicModel, $result, $dynamicModelMap)) {
                     continue;
@@ -393,20 +458,9 @@ readonly class ModelAccessRoleDomainService
             return array_keys($result);
         }
 
-        $modelGatewayDataIsolation = new ModelGatewayDataIsolation(
-            $dataIsolation->getCurrentOrganizationCode(),
-            $dataIsolation->getCurrentUserId(),
-            $dataIsolation->getMagicId()
-        );
-        EnvManager::initDataIsolationEnv($modelGatewayDataIsolation, force: true);
-        $subscriptionAvailableModelIds = $modelGatewayDataIsolation->getSubscriptionManager()->getAvailableModelIds(null);
-        $subscriptionAvailableModelIdMap = is_array($subscriptionAvailableModelIds)
-            ? array_fill_keys($subscriptionAvailableModelIds, true)
-            : null;
-
         $subscriptionFilteredModelIdMap = [];
         foreach (array_keys($result) as $modelId) {
-            if ($subscriptionAvailableModelIdMap !== null && ! isset($subscriptionAvailableModelIdMap[$modelId])) {
+            if (! isset($subscriptionAvailableModelIdMap[$modelId])) {
                 unset($result[$modelId]);
                 continue;
             }
@@ -421,6 +475,35 @@ readonly class ModelAccessRoleDomainService
         }
 
         return array_keys($result);
+    }
+
+    /**
+     * @return null|array<string, true>
+     */
+    private function resolveSubscriptionAvailableModelIdMap(PermissionDataIsolation $dataIsolation): ?array
+    {
+        if ($dataIsolation->getMagicId() === '') {
+            return null;
+        }
+
+        $subscriptionManager = $dataIsolation->getSubscriptionManager();
+        if (! $subscriptionManager->isEnabled()) {
+            return null;
+        }
+
+        if ($subscriptionManager->getCurrentSubscriptionId() === '') {
+            $modelGatewayDataIsolation = new ModelGatewayDataIsolation(
+                $dataIsolation->getCurrentOrganizationCode(),
+                $dataIsolation->getCurrentUserId(),
+                $dataIsolation->getMagicId()
+            );
+            $modelGatewayDataIsolation->getSubscriptionManager()->setEnabled(true);
+            EnvManager::initDataIsolationEnv($modelGatewayDataIsolation, force: true);
+            $subscriptionManager = $modelGatewayDataIsolation->getSubscriptionManager();
+        }
+
+        $availableModelIds = $subscriptionManager->getAvailableModelIds(null);
+        return is_array($availableModelIds) ? array_fill_keys($availableModelIds, true) : null;
     }
 
     /**
