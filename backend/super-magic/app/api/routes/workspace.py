@@ -14,6 +14,7 @@ from app.api.http_dto.workspace import (
     WorkspaceImportRequest,
     WorkspaceImportData,
 )
+from agentlang.path_manager import PathManager
 from app.service.agent_dispatcher import AgentDispatcher
 from app.service.workspace_export_service import export_workspace
 from app.service.workspace_import_service import import_workspace_from_url
@@ -23,6 +24,20 @@ from agentlang.logger import get_logger
 router = APIRouter(prefix="/v1/workspace", tags=["工作区管理"])
 
 logger = get_logger(__name__)
+
+
+@router.get("/info", response_model=BaseResponse)
+async def get_workspace_info() -> BaseResponse:
+    """返回工作区的绝对路径等基本信息，供本地调试客户端构造 file:// URL"""
+    try:
+        workspace_dir = PathManager.get_workspace_dir()
+        return create_success_response(
+            message="获取工作区信息成功",
+            data={"workspace_path": str(workspace_dir.resolve())},
+        )
+    except Exception as e:
+        logger.error(f"获取工作区信息失败: {e}")
+        return create_error_response(message=f"获取工作区信息失败: {e}")
 
 
 @router.get("/status", response_model=BaseResponse)
