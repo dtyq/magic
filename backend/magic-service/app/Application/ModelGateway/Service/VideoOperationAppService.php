@@ -112,10 +112,17 @@ readonly class VideoOperationAppService
         );
         $auditProviderName = (string) ($videoModelEntry?->getAttributes()->getProviderName() ?? '');
         $operation->setAuditProviderName($auditProviderName);
-        // 提交 provider 前先占用个人和组织视频运行槽位，避免超过配置的并发上限。
-        $this->videoQueueDomainService->claimUserActiveOperation($operation);
-        $config = $this->queueOperationExecutionDomainService->getConfig($operation);
+
+        // 占用新槽位前先清理已结束或已失效的旧槽位，避免任务已结束仍占用并发名额。
+        $this->videoQueueDomainService->cleanupActiveOperationsBeforeClaim($operation);
+
+        // 先保存 operation hash，再写入并发槽位，避免并发清理把正在提交 provider 的任务误判为无效槽位。
+        $this->videoQueueDomainService->saveOperation($operation);
+
         try {
+            // 提交 provider 前先占用个人和组织视频运行槽位，避免超过配置的并发上限。
+            $this->videoQueueDomainService->claimUserActiveOperation($operation);
+            $config = $this->queueOperationExecutionDomainService->getConfig($operation);
             $providerTaskId = $this->queueOperationExecutionDomainService->submit($operation, $config);
         } catch (ProviderVideoException $throwable) {
             $this->videoQueueDomainService->finishExecutionFailure($operation, $throwable->getMessage());
@@ -126,10 +133,12 @@ readonly class VideoOperationAppService
                 $operation,
                 $requestDTO->getBusinessParams(),
             );
+            $this->videoQueueDomainService->deleteOperation($operation);
             ExceptionBuilder::throw(MagicApiErrorCode::ValidateFailed, $throwable->getMessage(), throwable: $throwable);
         } catch (Throwable $throwable) {
             // 非业务异常会中断提交流程，释放槽位避免残留运行态阻塞后续提交。
             $this->videoQueueDomainService->releaseUserActiveOperation($operation);
+            $this->videoQueueDomainService->deleteOperation($operation);
             throw $throwable;
         }
         $this->logger->info('video operation submitted', [

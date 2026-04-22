@@ -22,6 +22,8 @@ use App\Domain\Provider\Entity\ValueObject\ProviderCode;
 use App\ErrorCode\MagicApiErrorCode;
 use App\Infrastructure\Core\Exception\ExceptionBuilder;
 use App\Infrastructure\Util\IdGenerator\IdGenerator;
+use Hyperf\Logger\LoggerFactory;
+use Psr\Log\LoggerInterface;
 use RuntimeException;
 
 /**
@@ -131,9 +133,12 @@ readonly class VideoQueueDomainService
         '4k' => 2160,
     ];
 
+    private LoggerInterface $logger;
+
     public function __construct(
         private VideoQueueOperationRepositoryInterface $videoQueueOperationRepository,
     ) {
+        $this->logger = di()->get(LoggerFactory::class)->get(get_class($this));
     }
 
     public function createOperation(
@@ -251,12 +256,33 @@ readonly class VideoQueueDomainService
     }
 
     /**
+     * 删除尚未成功提交到 provider 的操作记录，避免限流等失败提交留下不可查询的临时记录。
+     */
+    public function deleteOperation(VideoQueueOperationEntity $operation): void
+    {
+        $this->videoQueueOperationRepository->deleteOperation($operation->getId());
+    }
+
+    /**
+     * 占用新槽位前先检查个人和组织维度的现有槽位，释放已结束的残留任务。
+     */
+    public function cleanupActiveOperationsBeforeClaim(VideoQueueOperationEntity $operation): void
+    {
+        $this->releaseDoneOperations($this->videoQueueOperationRepository->getUserActiveOperations(
+            $operation->getOrganizationCode(),
+            $operation->getUserId(),
+        ));
+        $this->releaseDoneOperations($this->videoQueueOperationRepository->getOrganizationActiveOperations(
+            $operation->getOrganizationCode(),
+        ));
+    }
+
+    /**
      * 占用当前任务的个人和组织视频运行槽位，任一维度达到上限时抛出限流异常。
      */
     public function claimUserActiveOperation(VideoQueueOperationEntity $operation): void
     {
         $ttlSeconds = $this->operationTtlSeconds();
-        $this->releaseDoneActiveOperations($operation);
 
         // 个人并发先占位，避免同一组织用户超过配置的运行任务数。
         $userLimit = $this->userActiveOperationLimit($operation->getOrganizationCode());
@@ -265,6 +291,15 @@ readonly class VideoQueueDomainService
             $userLimit,
             $ttlSeconds
         )) {
+            $this->logActiveOperationsLimitReached(
+                'user',
+                $operation,
+                $this->videoQueueOperationRepository->getUserActiveOperations(
+                    $operation->getOrganizationCode(),
+                    $operation->getUserId(),
+                ),
+                $userLimit,
+            );
             ExceptionBuilder::throw(MagicApiErrorCode::RATE_LIMIT, 'video.errors.user_concurrency_limit', ['limit' => $userLimit]);
         }
 
@@ -276,6 +311,12 @@ readonly class VideoQueueDomainService
         // 组织总并发占位失败时回滚个人槽位，避免一次失败提交占住用户名额。
         if (! $this->videoQueueOperationRepository->claimOrganizationActiveOperation($operation, $organizationLimit, $ttlSeconds)) {
             $this->videoQueueOperationRepository->releaseUserActiveOperation($operation);
+            $this->logActiveOperationsLimitReached(
+                'organization',
+                $operation,
+                $this->videoQueueOperationRepository->getOrganizationActiveOperations($operation->getOrganizationCode()),
+                $organizationLimit,
+            );
             ExceptionBuilder::throw(MagicApiErrorCode::RATE_LIMIT, 'video.errors.organization_concurrency_limit', ['limit' => $organizationLimit]);
         }
     }
@@ -373,20 +414,6 @@ readonly class VideoQueueDomainService
     }
 
     /**
-     * 提交新任务前清理个人和组织维度中已完成但残留的运行槽位。
-     */
-    private function releaseDoneActiveOperations(VideoQueueOperationEntity $operation): void
-    {
-        $this->releaseDoneOperations($this->videoQueueOperationRepository->getUserActiveOperations(
-            $operation->getOrganizationCode(),
-            $operation->getUserId(),
-        ));
-        $this->releaseDoneOperations($this->videoQueueOperationRepository->getOrganizationActiveOperations(
-            $operation->getOrganizationCode(),
-        ));
-    }
-
-    /**
      * 批量释放已进入终态的运行槽位。
      *
      * @param array<int, VideoQueueOperationEntity> $operations
@@ -398,6 +425,35 @@ readonly class VideoQueueDomainService
                 $this->releaseUserActiveOperation($activeOperation);
             }
         }
+    }
+
+    /**
+     * 并发限流时打印当前仍占用运行槽位的任务，便于排查是谁占住了名额。
+     *
+     * @param array<int, VideoQueueOperationEntity> $activeOperations
+     */
+    private function logActiveOperationsLimitReached(
+        string $dimension,
+        VideoQueueOperationEntity $operation,
+        array $activeOperations,
+        int $limit
+    ): void {
+        $this->logger->warning('video active operation limit reached', [
+            'dimension' => $dimension,
+            'limit' => $limit,
+            'organization_code' => $operation->getOrganizationCode(),
+            'user_id' => $operation->getUserId(),
+            'active_operations' => array_map(
+                static fn (VideoQueueOperationEntity $activeOperation): array => [
+                    'operation_id' => $activeOperation->getId(),
+                    'status' => $activeOperation->getStatus()->value,
+                    'provider_task_id' => $activeOperation->getProviderTaskId(),
+                    'created_at' => $activeOperation->getCreatedAt(),
+                    'started_at' => $activeOperation->getStartedAt(),
+                ],
+                $activeOperations
+            ),
+        ]);
     }
 
     /**
