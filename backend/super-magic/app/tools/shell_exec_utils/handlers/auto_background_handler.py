@@ -56,4 +56,9 @@ class AutoBackgroundHandler(ShellCommandHandler):
         params: "BaseToolParams",
         base_dir: Path,
     ) -> CommandHandleResult:
-        return CommandHandleResult(force_background=True)
+        hint = (
+            f"[Auto] Command `{command}` is a known interactive/long-running command. "
+            "allow_background has been automatically set to True. "
+            "A task_id will be returned — follow up with shell_await."
+        )
+        return CommandHandleResult(force_background=True, before_hint=hint)

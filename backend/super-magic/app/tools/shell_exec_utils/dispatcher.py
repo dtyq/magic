@@ -12,6 +12,7 @@ from typing import TYPE_CHECKING
 
 from app.tools.shell_exec_utils.base import CommandHandleResult, ShellCommandHandler
 from app.tools.shell_exec_utils.handlers.auto_background_handler import AutoBackgroundHandler
+from app.tools.shell_exec_utils.handlers.pkg_mirror_handler import PkgMirrorHandler
 from app.tools.shell_exec_utils.handlers.skillhub_handler import SkillhubCommandHandler
 from app.tools.shell_exec_utils.handlers.super_magic_handler import SuperMagicCommandHandler
 
@@ -44,7 +45,9 @@ class CommandDispatcher:
         """
         for handler in self._handlers:
             if handler.matches(command):
-                return await handler.handle(command, params, base_dir)
+                result = await handler.handle(command, params, base_dir)
+                result.matched_handler = handler
+                return result
         return CommandHandleResult()
 
 
@@ -53,4 +56,5 @@ DISPATCHER = CommandDispatcher([
     SuperMagicCommandHandler(),
     SkillhubCommandHandler(),
     AutoBackgroundHandler(),
+    PkgMirrorHandler(),
 ])

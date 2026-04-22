@@ -108,19 +108,13 @@ Background mode rules (allow_background=True):
                 return handle_result.intercepted
             if handle_result.force_background:
                 params.allow_background = True
-                try:
-                    self.get_horizon(tool_context).push_notification(
-                        "shell_exec",
-                        f"[Auto] Command `{command}` is a known interactive/long-running command. "
-                        "allow_background has been automatically set to True. "
-                        "A task_id will be returned — follow up with shell_await.",
-                    )
-                except Exception as e:
-                    logger.warning("Failed to push force_background hint to horizon: %s", e)
             if handle_result.work_dir is not None:
                 work_dir = handle_result.work_dir
             elif params.cwd:
                 work_dir = self.resolve_path(params.cwd)
+
+            if handle_result.before_hint:
+                self.get_horizon(tool_context).push_notification("shell_exec", handle_result.before_hint)
 
             logger.debug(f"Executing command: {params.command}, working directory: {work_dir}")
 
@@ -191,6 +185,11 @@ Background mode rules (allow_background=True):
                         )
                     except Exception as e:
                         logger.warning("Failed to push python cwd hint to horizon: %s", e)
+
+            if handle_result.matched_handler:
+                after = handle_result.matched_handler.after_hint(command, result)
+                if after:
+                    self.get_horizon(tool_context).push_notification("shell_exec", after)
 
             return result
 
