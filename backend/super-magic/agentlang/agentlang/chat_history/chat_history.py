@@ -1079,7 +1079,8 @@ class ChatHistory:
                                  # --- 仅接受 TokenUsage 对象 ---
                                  token_usage: Optional[TokenUsage] = None,
                                  request_id: Optional[str] = None,
-                                 reasoning_content: Optional[str] = None
+                                 reasoning_content: Optional[str] = None,
+                                 interrupted: bool = False,
                                  ) -> None:
         """
         添加一条助手消息。
@@ -1161,7 +1162,8 @@ class ChatHistory:
             duration_ms=duration_ms,
             token_usage=token_usage,
             request_id=request_id,
-            reasoning_content=reasoning_content
+            reasoning_content=reasoning_content,
+            interrupted=interrupted,
         )
         await self.add_message(message)
 

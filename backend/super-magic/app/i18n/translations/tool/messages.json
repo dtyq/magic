@@ -1111,10 +1111,6 @@
         "zh_CN": "，AI 将尝试解决",
         "en_US": ", AI will attempt to resolve this"
     },
-    "tool.execution_interrupted": {
-        "zh_CN": "由于处理过程中出现意外错误 ({{error}})，工具调用被中断，请重新检查工具调用的参数是否正确。",
-        "en_US": "Tool execution was interrupted due to an unexpected error ({{error}}). Please check if the tool call parameters are correct."
-    },
     "task.completed": {
         "zh_CN": "任务完成",
         "en_US": "Task completed"
