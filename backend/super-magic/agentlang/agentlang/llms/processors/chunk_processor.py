@@ -15,6 +15,29 @@ from .streaming_util import StreamingState, StreamingHelper
 
 logger = get_logger(__name__)
 
+# 上游可能用的"思考内容"字段别名（按优先级排列），首个非 None 字段被采纳
+# - reasoning_content: DeepSeek / 早期 Kimi
+# - reasoning: 部分 Kimi/OpenRouter 上游
+REASONING_FIELD_ALIASES: tuple[str, ...] = (
+    "reasoning_content",
+    "reasoning",
+)
+
+
+def _extract_reasoning_text(delta_or_dict) -> Optional[str]:
+    """从 delta 对象或 dict 中按别名顺序提取 reasoning 文本，找不到返回 None"""
+    if isinstance(delta_or_dict, dict):
+        for name in REASONING_FIELD_ALIASES:
+            value = delta_or_dict.get(name)
+            if value is not None:
+                return value
+        return None
+    for name in REASONING_FIELD_ALIASES:
+        value = getattr(delta_or_dict, name, None)
+        if value is not None:
+            return value
+    return None
+
 
 @dataclass
 class ChunkProcessResult:
@@ -71,8 +94,9 @@ class ChunkProcessor:
         if not choice:
             return result
 
-        # 处理文本内容（优先处理 reasoning_content，其次处理 content）
-        reasoning_content = getattr(choice.delta, 'reasoning_content', None)
+        # 处理文本内容（优先处理 reasoning，其次处理 content）
+        # 不同上游用不同字段名传递思考内容，统一通过 REASONING_FIELD_ALIASES 兜底
+        reasoning_content = _extract_reasoning_text(choice.delta)
         if reasoning_content is not None:
             result.text = reasoning_content
             result.text_type = "reasoning"
