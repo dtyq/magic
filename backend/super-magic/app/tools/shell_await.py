@@ -42,14 +42,16 @@ If omitted, the tool simply sleeps for timeout seconds (useful as an async alter
     timeout: int = Field(
         description="""<!--zh
 等待超时秒数。含义取决于 task_id 是否提供：
-- 无 task_id：sleep 时长
+- 无 task_id：sleep 时长（须 >= 0）
 - 有 task_id，timeout > 0：最长等待时间
-- 有 task_id，timeout = 0：立即 kill 该任务并返回已有输出
+- 有 task_id，timeout = 0：立即返回当前输出，不等待
+- 有 task_id，timeout = -1：立即 kill 该任务并返回已有输出
 -->
 Timeout in seconds.
-- No task_id: sleep duration.
+- No task_id: sleep duration (must be >= 0).
 - With task_id and timeout > 0: max wait time for output or process completion.
-- With task_id and timeout = 0: immediately kill the task and return its current output."""
+- With task_id and timeout = 0: return current output immediately without waiting.
+- With task_id and timeout = -1: immediately kill the task and return its current output."""
     )
 
     pattern: Optional[str] = Field(
@@ -65,10 +67,10 @@ Only effective when task_id is provided and timeout > 0."""
         None,
         description="""<!--zh
 向进程 stdin 写入的文本（交互命令场景）。末尾须含换行符 \\n 才能触发命令行读取。
-仅 timeout > 0 且 task_id 有值时有效；kill 模式（timeout=0）下忽略。
+仅 timeout >= 0 且 task_id 有值时有效；kill 模式（timeout=-1）下忽略。
 -->
 Text to write to the process stdin (for interactive commands).
-Must end with \\n to trigger readline. Ignored in kill mode (timeout=0)."""
+Must end with \\n to trigger readline. Ignored in kill mode (timeout=-1)."""
     )
 
     @model_validator(mode="before")
@@ -96,7 +98,8 @@ shell_await 使用规则：
 - 无 task_id 时为纯 sleep，等待 timeout 秒，适合替代 `sleep N` 命令
 - pattern 为 Python 正则，匹配到新输出即提前返回，适合等待特定日志行出现
 - input_text 末尾必须含 \\n 才能触发交互命令的 readline
-- timeout=0 且有 task_id 时为 kill 语义，立即终止后台任务并返回已有输出；对已结束任务无副作用
+- timeout=0 且有 task_id 时：立即返回当前输出快照，不等待进程结束
+- timeout=-1 且有 task_id 时为 kill 语义，立即终止后台任务并返回已有输出；对已结束任务无副作用
 - 对 waiting_for_input 状态的任务：先用 ask_user 向用户收集输入，再通过 input_text 参数发送；不要直接 kill
 - ask_user 类型选择（根据命令输出中的提示内容判断）：
   - 输出含 (y/n)、(yes/no) → 用 confirm 类型或带 y/n 选项的 select 类型
@@ -108,7 +111,8 @@ Rules for shell_await:
 - Without task_id: pure sleep for timeout seconds (use instead of `sleep N`)
 - pattern: Python regex; matched against new output, triggers early return when found
 - input_text MUST end with \\n to trigger readline in interactive commands
-- timeout=0 with task_id: kills the task immediately; safe to call on already-finished tasks
+- timeout=0 with task_id: return current output snapshot immediately without waiting
+- timeout=-1 with task_id: kills the task immediately; safe to call on already-finished tasks
 - For waiting_for_input tasks: collect input via ask_user first, then send via input_text; do not kill
 - Choosing the ask_user question type (infer from the prompt text in command output):
   - Output contains (y/n) or (yes/no) → use confirm type or select with y/n options
@@ -124,8 +128,9 @@ Rules for shell_await:
         try:
             # ── 纯 sleep 模式 ─────────────────────────────────────────────────
             if params.task_id is None:
-                await asyncio.sleep(params.timeout)
-                content = json.dumps({"status": "slept", "seconds": params.timeout})
+                sleep_secs = max(0, params.timeout)
+                await asyncio.sleep(sleep_secs)
+                content = json.dumps({"status": "slept", "seconds": sleep_secs})
                 result = TerminalToolResult(command="shell_await(sleep)", content=content, ok=True)
                 result.set_exit_code(0)
                 return result
@@ -140,8 +145,8 @@ Rules for shell_await:
                 result.set_exit_code(-1)
                 return result
 
-            # ── kill 模式（timeout=0）────────────────────────────────────────
-            if params.timeout == 0:
+            # ── kill 模式（timeout=-1）───────────────────────────────────────
+            if params.timeout == -1:
                 if task.status != TaskStatus.RUNNING:
                     content = err_kill_on_finished_task(params.task_id, task.status.value)
                     output = truncate_output_for_llm(await manager._store.read_full(params.task_id))
@@ -168,7 +173,7 @@ Rules for shell_await:
                 result.set_exit_code(0)
                 return result
 
-            # ── 等待模式（timeout > 0）───────────────────────────────────────
+            # ── 等待模式（timeout >= 0）──────────────────────────────────────
             # 编译 pattern（如果有）
             compiled_pattern: Optional[re.Pattern] = None
             if params.pattern:

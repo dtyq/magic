@@ -244,7 +244,7 @@ Background mode rules (allow_background=True):
                 f"- Normal progress output, still running → "
                 f'shell_await(task_id="{bg.task_id}", timeout=30)\n'
                 f"- Kill immediately → "
-                f'shell_await(task_id="{bg.task_id}", timeout=0)'
+                f'shell_await(task_id="{bg.task_id}", timeout=-1)'
             )
 
         try:
