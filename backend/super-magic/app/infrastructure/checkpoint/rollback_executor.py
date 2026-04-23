@@ -164,10 +164,20 @@ class RollbackExecutor:
 
             logger.debug(f"处理checkpoint {checkpoint_id}，包含 {checkpoint_snapshot_count} 个文件快照")
 
-            for file_snapshot in checkpoint_info.file_snapshots:
+            # file_snapshots 按事件发生时间升序 append，反向回滚需要
+            # 连同 checkpoint 内部的 snapshot 顺序一起反转，否则同一个
+            # checkpoint 内同一文件的多次操作（如 created→updated→deleted）
+            # 会被最晚的一次覆盖，反向时保留的仍是最新操作，语义错误。
+            snapshots_order = (
+                checkpoint_info.file_snapshots
+                if is_forward
+                else list(reversed(checkpoint_info.file_snapshots))
+            )
+
+            for file_snapshot in snapshots_order:
                 file_path = file_snapshot.file_path
 
-                # 由于处理顺序已通过reversed()调整，直接覆盖即可达到预期效果：
+                # 处理顺序已通过 reversed 调整，直接覆盖即可达到预期效果：
                 # - 反向回滚：从新到旧处理，最后保留最早的操作
                 # - 正向回滚：从旧到新处理，最后保留最晚的操作
                 file_operations[file_path] = (checkpoint_id, file_snapshot)
