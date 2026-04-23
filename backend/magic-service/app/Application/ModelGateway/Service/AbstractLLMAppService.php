@@ -13,6 +13,7 @@ use App\Application\ModelGateway\Component\Points\PointComponentInterface;
 use App\Application\ModelGateway\Mapper\ModelGatewayMapper;
 use App\Application\ModelGateway\Request\ModelGatewayRequestCoContext;
 use App\Domain\Contact\Service\MagicUserDomainService;
+use App\Domain\File\Service\FileCleanupDomainService;
 use App\Domain\File\Service\FileDomainService;
 use App\Domain\ImageGenerate\Contract\WatermarkConfigInterface;
 use App\Domain\ModelGateway\Entity\ValueObject\AccessTokenType;
