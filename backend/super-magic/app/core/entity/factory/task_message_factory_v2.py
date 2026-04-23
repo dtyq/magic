@@ -244,9 +244,11 @@ class TaskMessageFactoryV2(TaskMessageFactoryProtocol):
             remark=friendly.get("remark", ""),
             detail=tool_detail,
         )
+        arguments_str = json.dumps(arguments, ensure_ascii=False) if arguments else "{}"
         item = cls._build_tool_call_item(
             tool_call_id,
             tool_name,
+            arguments=arguments_str,
             label=friendly.get("action", ""),
         )
         item["tool"] = tool_dict
