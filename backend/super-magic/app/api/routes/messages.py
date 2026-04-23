@@ -332,12 +332,22 @@ class MessageProcessor:
             if message_id and message.context_type in [ContextType.NORMAL, ContextType.FOLLOW_UP]:
                 self._mark_message_processing(message_id)
 
-            # 检查是否已有 task_id，如果没有才生成新的
+            # 优先使用 chat 消息 metadata 中的 super_magic_task_id 更新 task_id，
+            # 确保沙箱预启动场景下每条新 chat 消息都能携带正确的 task_id。
+            new_task_id_from_chat = message.metadata.super_magic_task_id if message.metadata else None
             existing_task_id = agent_context.get_task_id()
-            if not existing_task_id:
+            if new_task_id_from_chat:
+                if new_task_id_from_chat != existing_task_id:
+                    agent_context.set_task_id(new_task_id_from_chat)
+                    agent_context.initialize_task_sequence()
+                    logger.info(f"已从 chat metadata 更新任务ID: {existing_task_id} -> {new_task_id_from_chat}")
+                else:
+                    logger.info(f"使用现有的任务ID（与 chat metadata 一致）: {existing_task_id}")
+            elif not existing_task_id:
                 snowflake = Snowflake.create_default()
                 task_id = str(snowflake.get_id())
                 agent_context.set_task_id(task_id)
+                agent_context.initialize_task_sequence()
                 logger.info(f"生成新的任务ID: {task_id}")
             else:
                 logger.info(f"使用现有的任务ID: {existing_task_id}")
