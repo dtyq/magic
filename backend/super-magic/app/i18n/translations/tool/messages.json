@@ -1211,6 +1211,10 @@
         "zh_CN": "任务完成",
         "en_US": "Task completed"
     },
+    "task.waiting_for_user": {
+        "zh_CN": "等待用户回答",
+        "en_US": "Waiting for user response"
+    },
     "task_vm_init.start": {
         "zh_CN": "虚拟机正在初始化",
         "en_US": "Virtual machine is initializing"

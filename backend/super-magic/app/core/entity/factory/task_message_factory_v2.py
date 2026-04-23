@@ -859,10 +859,16 @@ class TaskMessageFactoryV2(TaskMessageFactoryProtocol):
 
         tool_call_id = cls._make_tool_call_id(event.data.correlation_id)
         tool_status = ToolStatus.FINISHED if status != TaskStatus.ERROR else ToolStatus.ERROR
+        # waiting_for_user 时 content 故意为空，但 tool.action 需给前端可读的摘要
+        tool_action = (
+            i18n.translate("task.waiting_for_user", category="tool.messages")
+            if status == TaskStatus.WAITING_FOR_USER
+            else content
+        )
         tool_obj = cls._build_tool_object(
             tool_id=tool_call_id,
             name="finish_task",
-            action=content,
+            action=tool_action,
             status=tool_status,
             attachments=attachments if attachments else None,
         )
