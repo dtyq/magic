@@ -7,8 +7,11 @@ declare(strict_types=1);
 
 namespace App\Application\ModelGateway\Service;
 
+use App\Application\ModelGateway\Component\Points\DTO\PointEstimateResult;
+use App\Application\ModelGateway\Component\Points\DTO\VideoPointEstimateRequest;
 use App\Application\ModelGateway\Component\Points\PointComponentInterface;
 use App\Application\ModelGateway\Mapper\ModelGatewayMapper;
+use App\Application\ModelGateway\Service\Video\VideoInputMediaMetadataResolver;
 use App\Domain\File\Service\FileDomainService;
 use App\Domain\ImageGenerate\ValueObject\ImageGenerateSourceEnum;
 use App\Domain\ModelGateway\Contract\VideoMediaProbeInterface;
@@ -16,6 +19,7 @@ use App\Domain\ModelGateway\Entity\AccessTokenEntity;
 use App\Domain\ModelGateway\Entity\Dto\CreateVideoDTO;
 use App\Domain\ModelGateway\Entity\Dto\VideoOperationResponseDTO;
 use App\Domain\ModelGateway\Entity\ValueObject\ModelGatewayDataIsolation;
+use App\Domain\ModelGateway\Entity\ValueObject\VideoGenerationConfig;
 use App\Domain\ModelGateway\Entity\ValueObject\VideoMediaMetadata;
 use App\Domain\ModelGateway\Entity\ValueObject\VideoOperationStatus;
 use App\Domain\ModelGateway\Entity\VideoQueueOperationEntity;
@@ -25,6 +29,7 @@ use App\Domain\ModelGateway\Service\QueueOperationExecutionDomainService;
 use App\Domain\ModelGateway\Service\VideoBillingDetailsResolver;
 use App\Domain\ModelGateway\Service\VideoGenerationConfigDomainService;
 use App\Domain\ModelGateway\Service\VideoQueueDomainService;
+use App\Domain\Provider\Entity\ValueObject\ProviderCode;
 use App\ErrorCode\MagicApiErrorCode;
 use App\Infrastructure\Core\Exception\ExceptionBuilder;
 use App\Infrastructure\Core\Traits\HasLogger;
@@ -72,7 +77,48 @@ readonly class VideoOperationAppService
         private FileDomainService $fileDomainService,
         private VideoBillingDetailsResolver $videoBillingDetailsResolver,
         private VideoMediaProbeInterface $videoMediaProbe,
+        private VideoInputMediaMetadataResolver $videoInputMediaMetadataResolver,
     ) {
+    }
+
+    /**
+     * 预估视频任务积分.
+     */
+    public function estimate(string $accessToken, CreateVideoDTO $requestDTO): PointEstimateResult
+    {
+        $dataIsolation = $this->llmAppService->createModelGatewayDataIsolationByAccessToken($accessToken, $requestDTO->getBusinessParams());
+        $videoModelEntry = $this->modelGatewayMapper->getOrganizationVideoModel($dataIsolation, $requestDTO->getModel());
+        $videoModel = $videoModelEntry?->getVideoModel();
+        if ($videoModel === null) {
+            ExceptionBuilder::throw(MagicApiErrorCode::MODEL_NOT_SUPPORT);
+        }
+
+        // 预估和真实提交使用同一份模型能力配置，防止费用展示和实际执行参数不一致。
+        $videoGenerationConfig = $this->videoGenerationConfigDomainService->resolve(
+            $videoModel->getModelVersion(),
+            $requestDTO->getModel(),
+            $videoModel->getProviderCode(),
+        );
+        if ($videoGenerationConfig === null) {
+            ExceptionBuilder::throw(MagicApiErrorCode::ValidateFailed, 'unsupported_option: model_id');
+        }
+
+        $estimateRequest = $this->buildVideoPointEstimateRequest(
+            $dataIsolation,
+            $requestDTO,
+            $videoModel->getProviderCode(),
+            $videoGenerationConfig,
+        );
+        $result = $this->pointComponent->estimateVideoPoints($estimateRequest, $dataIsolation);
+        $this->logger->info('video point estimate calculated', [
+            'organization_code' => $dataIsolation->getCurrentOrganizationCode(),
+            'user_id' => $dataIsolation->getCurrentUserId(),
+            'model_id' => $requestDTO->getModel(),
+            'points' => $result->getPoints(),
+            'detail' => $result->getDetail(),
+        ]);
+
+        return $result;
     }
 
     /**
@@ -213,6 +259,65 @@ readonly class VideoOperationAppService
         $response->setOutput($this->resolveResponseOutput($operation, $response->getOutput()));
 
         return $response;
+    }
+
+    /**
+     * 基于真实提交前的规范化结果，组装积分组件需要的视频预估请求。
+     */
+    private function buildVideoPointEstimateRequest(
+        ModelGatewayDataIsolation $dataIsolation,
+        CreateVideoDTO $requestDTO,
+        ProviderCode $providerCode,
+        VideoGenerationConfig $videoGenerationConfig
+    ): VideoPointEstimateRequest {
+        // 预估和提交共用同一套规范化，避免默认时长、分辨率和 provider 能力校验不一致。
+        $normalizedRequest = $this->videoQueueDomainService->normalizeRequestForEstimate(
+            $requestDTO,
+            $providerCode,
+            $videoGenerationConfig
+        );
+        $outputDetails = $this->videoBillingDetailsResolver->resolveFromRequest($normalizedRequest, $videoGenerationConfig);
+        $referenceVideos = is_array($normalizedRequest['inputs']['reference_videos'] ?? null)
+            ? $normalizedRequest['inputs']['reference_videos']
+            : [];
+        $inputMetadata = $this->resolveEstimateInputMetadata($dataIsolation, $requestDTO, $referenceVideos);
+
+        return new VideoPointEstimateRequest(
+            $requestDTO->getModel(),
+            (string) ($outputDetails['resolution'] ?? ''),
+            (int) ($outputDetails['duration_seconds'] ?? 0),
+            (int) ($outputDetails['width'] ?? 0),
+            (int) ($outputDetails['height'] ?? 0),
+            (int) $inputMetadata['total_duration_seconds'],
+            (int) $inputMetadata['reference_video_count'] > 0,
+            $requestDTO->getBusinessParams(),
+        );
+    }
+
+    /**
+     * 解析参考视频元数据；没有参考视频时返回 0，存在参考视频时必须带项目 ID。
+     *
+     * @param list<array<string, mixed>> $referenceVideos
+     * @return array{total_duration_seconds: int, reference_video_count: int}
+     */
+    private function resolveEstimateInputMetadata(
+        ModelGatewayDataIsolation $dataIsolation,
+        CreateVideoDTO $requestDTO,
+        array $referenceVideos
+    ): array {
+        if ($referenceVideos === []) {
+            return [
+                'total_duration_seconds' => 0,
+                'reference_video_count' => 0,
+            ];
+        }
+
+        $projectId = $requestDTO->getProjectId();
+        if ($projectId === null) {
+            ExceptionBuilder::throw(MagicApiErrorCode::ValidateFailed, 'project_id is required for video estimate');
+        }
+
+        return $this->videoInputMediaMetadataResolver->resolve($dataIsolation, $projectId, $referenceVideos);
     }
 
     /**

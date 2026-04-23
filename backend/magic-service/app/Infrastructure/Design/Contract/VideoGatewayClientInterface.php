@@ -17,6 +17,15 @@ interface VideoGatewayClientInterface
     public function submitVideo(array $payload, array $businessParams): array;
 
     /**
+     * 预估视频生成积分，只返回费用结果，不创建 provider 任务。
+     *
+     * @param array<string, mixed> $payload
+     * @param array<string, string> $businessParams
+     * @return array<string, mixed>
+     */
+    public function estimateVideo(array $payload, array $businessParams): array;
+
+    /**
      * @param array<string, string> $businessParams
      * @return array<string, mixed>
      */

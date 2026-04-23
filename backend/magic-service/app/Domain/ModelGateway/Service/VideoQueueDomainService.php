@@ -176,6 +176,17 @@ readonly class VideoQueueDomainService
         );
     }
 
+    /**
+     * 预估费用只需要规范化后的请求参数，不创建运行任务。
+     */
+    public function normalizeRequestForEstimate(
+        CreateVideoDTO $requestDTO,
+        ProviderCode $providerCode,
+        VideoGenerationConfig $videoGenerationConfig
+    ): array {
+        return $this->normalizeRequest($requestDTO, $providerCode, $videoGenerationConfig);
+    }
+
     public function getOperation(string $operationId, string $organizationCode, string $userId): VideoQueueOperationEntity
     {
         $operation = $this->videoQueueOperationRepository->getOperation($operationId);

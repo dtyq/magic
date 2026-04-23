@@ -12,6 +12,7 @@ use App\Application\ModelGateway\Mapper\ModelAttributes;
 use App\Application\ModelGateway\Mapper\ModelEntry;
 use App\Application\ModelGateway\Mapper\ModelGatewayMapper;
 use App\Application\ModelGateway\Service\LLMAppService;
+use App\Application\ModelGateway\Service\Video\VideoInputMediaMetadataResolver;
 use App\Application\ModelGateway\Service\VideoOperationAppService;
 use App\Domain\File\Repository\Persistence\Facade\CloudFileRepositoryInterface;
 use App\Domain\File\Service\FileDomainService;
@@ -62,14 +63,18 @@ use GuzzleHttp\Psr7\Response;
 use Hyperf\Codec\Packer\PhpSerializerPacker;
 use Hyperf\Context\ApplicationContext;
 use Hyperf\Contract\ConfigInterface;
+use Hyperf\Contract\TranslatorInterface;
 use Hyperf\Guzzle\ClientFactory;
 use Hyperf\Logger\LoggerFactory;
+use Hyperf\Snowflake\IdGeneratorInterface as SnowflakeIdGeneratorInterface;
+use Hyperf\Snowflake\Meta;
 use PHPUnit\Framework\TestCase;
 use Psr\Container\ContainerInterface;
 use Psr\EventDispatcher\EventDispatcherInterface;
 use Psr\Log\AbstractLogger;
 use Psr\Log\LoggerInterface;
 use Psr\Log\NullLogger;
+use RuntimeException;
 use Throwable;
 
 /**
@@ -87,7 +92,19 @@ class VideoOperationAppServiceTest extends TestCase
 
         MockHttpsStreamWrapper::register();
         MockHttpsStreamWrapper::reset();
-        $this->originalContainer = ApplicationContext::getContainer();
+        $this->originalContainer = ApplicationContext::hasContainer()
+            ? ApplicationContext::getContainer()
+            : new class implements ContainerInterface {
+                public function get(string $id): mixed
+                {
+                    throw new RuntimeException(sprintf('test container entry not found: %s', $id));
+                }
+
+                public function has(string $id): bool
+                {
+                    return false;
+                }
+            };
         $this->eventDispatcher = new RecordingEventDispatcher();
         ApplicationContext::setContainer(new EventDispatcherContainer($this->eventDispatcher, $this->originalContainer));
     }
@@ -144,6 +161,7 @@ class VideoOperationAppServiceTest extends TestCase
             new FileDomainService(new InMemoryCloudFileRepository()),
             $this->createVideoBillingDetailsResolver(),
             $this->createFallbackProbe(),
+            $this->createVideoInputMediaMetadataResolver(),
         );
         $logger = new RecordingLogger();
         $service->logger = $logger;
@@ -199,6 +217,7 @@ class VideoOperationAppServiceTest extends TestCase
             new FileDomainService(new InMemoryCloudFileRepository()),
             $this->createVideoBillingDetailsResolver(),
             $this->createFallbackProbe(),
+            $this->createVideoInputMediaMetadataResolver(),
         );
 
         $this->expectException(BusinessException::class);
@@ -262,6 +281,7 @@ class VideoOperationAppServiceTest extends TestCase
             new FileDomainService(new InMemoryCloudFileRepository()),
             $this->createVideoBillingDetailsResolver(),
             $this->createFallbackProbe(),
+            $this->createVideoInputMediaMetadataResolver(),
         );
 
         $enqueueResponse = $service->enqueue('token-veo-default', $requestDTO);
@@ -330,6 +350,7 @@ class VideoOperationAppServiceTest extends TestCase
             new FileDomainService(new InMemoryCloudFileRepository()),
             $this->createVideoBillingDetailsResolver(),
             $this->createFallbackProbe(),
+            $this->createVideoInputMediaMetadataResolver(),
         );
 
         $enqueueResponse = $service->enqueue('token-seedance-default', $requestDTO);
@@ -398,6 +419,7 @@ class VideoOperationAppServiceTest extends TestCase
             new FileDomainService(new InMemoryCloudFileRepository()),
             $this->createVideoBillingDetailsResolver(),
             $this->createFallbackProbe(),
+            $this->createVideoInputMediaMetadataResolver(),
         );
 
         $enqueueResponse = $service->enqueue('token-keling-default', $requestDTO);
@@ -519,6 +541,7 @@ class VideoOperationAppServiceTest extends TestCase
             new FileDomainService(new InMemoryCloudFileRepository()),
             $this->createVideoBillingDetailsResolver(),
             $this->createFallbackProbe(),
+            $this->createVideoInputMediaMetadataResolver(),
         );
 
         $enqueueResponse = $service->enqueue('token-ark', $requestDTO);
@@ -601,6 +624,7 @@ class VideoOperationAppServiceTest extends TestCase
             new FileDomainService(new InMemoryCloudFileRepository()),
             $this->createVideoBillingDetailsResolver(),
             $probe,
+            $this->createVideoInputMediaMetadataResolver(),
         );
 
         $response = $service->getOperation('token-probe-base64', $operation->getId(), ['organization_id' => 'org-test']);
@@ -667,6 +691,7 @@ class VideoOperationAppServiceTest extends TestCase
             new FileDomainService(new InMemoryCloudFileRepository()),
             $this->createVideoBillingDetailsResolver(),
             $probe,
+            $this->createVideoInputMediaMetadataResolver(),
         );
 
         $response = $service->getOperation('token-probe-remote', $operation->getId(), ['organization_id' => 'org-test']);
@@ -739,6 +764,7 @@ class VideoOperationAppServiceTest extends TestCase
             new FileDomainService(new InMemoryCloudFileRepository()),
             $this->createVideoBillingDetailsResolver(),
             $this->createFallbackProbe(),
+            $this->createVideoInputMediaMetadataResolver(),
         );
         $service->logger = $logger;
 
@@ -816,6 +842,7 @@ class VideoOperationAppServiceTest extends TestCase
             new FileDomainService(new InMemoryCloudFileRepository()),
             $this->createVideoBillingDetailsResolver(),
             $this->createFallbackProbe(),
+            $this->createVideoInputMediaMetadataResolver(),
         );
         $logger = new RecordingLogger();
         $service->logger = $logger;
@@ -926,6 +953,7 @@ class VideoOperationAppServiceTest extends TestCase
             new FileDomainService(new InMemoryCloudFileRepository()),
             $this->createVideoBillingDetailsResolver(),
             $this->createFallbackProbe(),
+            $this->createVideoInputMediaMetadataResolver(),
         );
 
         $response = $service->getOperation('token-keling', 'op-keling-billing', ['organization_id' => 'org-test']);
@@ -1005,6 +1033,7 @@ class VideoOperationAppServiceTest extends TestCase
             $fileDomainService,
             $this->createVideoBillingDetailsResolver(),
             $this->createFallbackProbe(),
+            $this->createVideoInputMediaMetadataResolver(),
         );
 
         $response = $service->getOperation('token-3', 'op-3', ['organization_id' => 'org-test']);
@@ -1072,6 +1101,7 @@ class VideoOperationAppServiceTest extends TestCase
             new FileDomainService(new InMemoryCloudFileRepository()),
             $this->createVideoBillingDetailsResolver(),
             $this->createFallbackProbe(),
+            $this->createVideoInputMediaMetadataResolver(),
         );
 
         $response = $service->getOperation('token-4', 'op-4', ['organization_id' => 'org-test']);
@@ -1126,6 +1156,7 @@ class VideoOperationAppServiceTest extends TestCase
             new FileDomainService(new InMemoryCloudFileRepository()),
             $this->createVideoBillingDetailsResolver(),
             $this->createFallbackProbe(),
+            $this->createVideoInputMediaMetadataResolver(),
         );
 
         $this->expectException(BusinessException::class);
@@ -1166,6 +1197,7 @@ class VideoOperationAppServiceTest extends TestCase
             new FileDomainService(new InMemoryCloudFileRepository()),
             $this->createVideoBillingDetailsResolver(),
             $this->createFallbackProbe(),
+            $this->createVideoInputMediaMetadataResolver(),
         );
 
         $response = $service->getOperation('token-provider-query-error', $operation->getId(), ['organization_id' => 'org-test']);
@@ -1220,6 +1252,7 @@ class VideoOperationAppServiceTest extends TestCase
             new FileDomainService(new InMemoryCloudFileRepository()),
             $this->createVideoBillingDetailsResolver(),
             $this->createFallbackProbe(),
+            $this->createVideoInputMediaMetadataResolver(),
         );
 
         $response = $service->getOperation('token-provider-fallback', 'video-task-123', [
@@ -1271,6 +1304,14 @@ class VideoOperationAppServiceTest extends TestCase
         });
     }
 
+    private function createVideoInputMediaMetadataResolver(): VideoInputMediaMetadataResolver
+    {
+        return new VideoInputMediaMetadataResolver(
+            new FileDomainService(new InMemoryCloudFileRepository()),
+            $this->createFallbackProbe(),
+        );
+    }
+
     private function createOperation(string $id): VideoQueueOperationEntity
     {
         return new VideoQueueOperationEntity(
@@ -1295,6 +1336,7 @@ class VideoOperationAppServiceTest extends TestCase
         $dataIsolation = ModelGatewayDataIsolation::create('org-test', 'user-test');
         $accessTokenEntity = new AccessTokenEntity();
         $accessTokenEntity->setId(9527);
+        $accessTokenEntity->setAccessToken('unit-test-access-token');
         $accessTokenEntity->setName($accessTokenType->isUser() ? 'user-token' : 'app-token');
         $accessTokenEntity->setType($accessTokenType);
         $dataIsolation->setAccessToken($accessTokenEntity);
@@ -1816,6 +1858,8 @@ final readonly class EventDispatcherContainer implements ContainerInterface
             OrganizationInfoManagerInterface::class,
             PhpSerializerPacker::class,
             LoggerFactory::class,
+            TranslatorInterface::class,
+            SnowflakeIdGeneratorInterface::class,
         ], true) || $this->fallbackContainer->has($id);
     }
 
@@ -1829,6 +1873,44 @@ final readonly class EventDispatcherContainer implements ContainerInterface
             OrganizationInfoManagerInterface::class => new BaseOrganizationInfoManager(),
             PhpSerializerPacker::class => new PhpSerializerPacker(),
             LoggerFactory::class => $this->loggerFactory,
+            TranslatorInterface::class => new class implements TranslatorInterface {
+                private string $locale = 'zh_CN';
+
+                public function trans(string $key, array $replace = [], ?string $locale = null): array|string
+                {
+                    foreach ($replace as $name => $value) {
+                        $key = str_replace('{' . $name . '}', (string) $value, $key);
+                    }
+
+                    return $key;
+                }
+
+                public function transChoice(string $key, $number, array $replace = [], ?string $locale = null): string
+                {
+                    return (string) $this->trans($key, $replace, $locale);
+                }
+
+                public function getLocale(): string
+                {
+                    return $this->locale;
+                }
+
+                public function setLocale(string $locale): void
+                {
+                    $this->locale = $locale;
+                }
+            },
+            SnowflakeIdGeneratorInterface::class => new class implements SnowflakeIdGeneratorInterface {
+                public function generate(?Meta $meta = null): int
+                {
+                    return 24234234;
+                }
+
+                public function degenerate(int $id): Meta
+                {
+                    return new Meta(0, 0, 0, time());
+                }
+            },
             default => $this->fallbackContainer->get($id),
         };
     }

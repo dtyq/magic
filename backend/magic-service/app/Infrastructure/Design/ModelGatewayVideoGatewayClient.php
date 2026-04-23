@@ -20,6 +20,9 @@ readonly class ModelGatewayVideoGatewayClient implements VideoGatewayClientInter
     ) {
     }
 
+    /**
+     * 将 Design 侧生成请求转成模型网关 DTO，并提交视频任务。
+     */
     public function submitVideo(array $payload, array $businessParams): array
     {
         $mergedBusinessParams = $this->mergeBusinessParams($payload, $businessParams);
@@ -35,11 +38,33 @@ readonly class ModelGatewayVideoGatewayClient implements VideoGatewayClientInter
 
         return [
             'id' => $response->getId(),
+            'provider_task_id' => $response->getProviderTaskId(),
             'provider' => is_string($responseArray['provider'] ?? null) ? $responseArray['provider'] : '',
             'status' => $response->getStatus(),
         ];
     }
 
+    /**
+     * 将 Design 侧预估 payload 转成模型网关 DTO，并委托视频应用服务计算积分。
+     */
+    public function estimateVideo(array $payload, array $businessParams): array
+    {
+        $mergedBusinessParams = $this->mergeBusinessParams($payload, $businessParams);
+        $requestDTO = new CreateVideoDTO($payload);
+        $requestDTO->setAccessToken($this->getMagicAccessToken());
+        $requestDTO->setBusinessParams($mergedBusinessParams);
+        $requestDTO->setHeaderConfigs($this->buildHeaderConfigs($mergedBusinessParams));
+        $requestDTO->setIps(['127.0.0.1']);
+        $requestDTO->valid();
+
+        return $this->videoOperationAppService
+            ->estimate($requestDTO->getAccessToken(), $requestDTO)
+            ->toArray();
+    }
+
+    /**
+     * 查询模型网关视频任务，并透传 provider 原始结果给 Design 侧归档流程。
+     */
     public function queryVideo(string $operationId, array $businessParams): array
     {
         $response = $this->videoOperationAppService
@@ -55,6 +80,8 @@ readonly class ModelGatewayVideoGatewayClient implements VideoGatewayClientInter
     }
 
     /**
+     * 合并调用方透传和 Design 层补充的业务参数，供鉴权、日志和计费共用。
+     *
      * @param array<string, mixed> $payload
      * @param array<string, string> $businessParams
      * @return array<string, mixed>
@@ -71,6 +98,8 @@ readonly class ModelGatewayVideoGatewayClient implements VideoGatewayClientInter
     }
 
     /**
+     * 构造内部调用模型网关所需的业务请求头。
+     *
      * @param array<string, string> $businessParams
      * @return array<string, string>
      */
@@ -102,6 +131,9 @@ readonly class ModelGatewayVideoGatewayClient implements VideoGatewayClientInter
         return $headers;
     }
 
+    /**
+     * 读取内部模型网关访问令牌，未配置时抛出 Design 侧第三方服务错误。
+     */
     private function getMagicAccessToken(): string
     {
         if (! defined('MAGIC_ACCESS_TOKEN') || ! is_string(MAGIC_ACCESS_TOKEN) || MAGIC_ACCESS_TOKEN === '') {
