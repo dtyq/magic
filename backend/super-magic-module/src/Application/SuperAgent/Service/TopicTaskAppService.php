@@ -257,7 +257,7 @@ class TopicTaskAppService extends AbstractAppService
 
             // 2，存储消息
             $messageEntity = $this->taskMessageDomainService->findByTopicIdAndMessageId($topicId, $messageId);
-            if (! is_null($messageEntity)) {
+            if (is_null($messageEntity)) {
                 // Create new message
                 $messageEntity = $this->parseMessageContent($messageDTO);
                 $messageEntity->setTopicId($topicId);
