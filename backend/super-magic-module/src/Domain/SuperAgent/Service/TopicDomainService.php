@@ -442,27 +442,17 @@ class TopicDomainService
         return $list;
     }
 
-    public function getResourceStatus(string $userId): array
+    public function getResourceStatus(array $workspaceIds, array $projectIds, string $userId): array
     {
-        $projectIds = $this->topicRepository->getRunningProjectIdsByUser($userId);
-        if (empty($projectIds)) {
-            return [
-                'project_ids' => [],
-                'workspace_ids' => [],
-            ];
-        }
-
-        $workspaceIdsByProject = $this->projectRepository->getWorkspaceIdsByProjectIds($projectIds);
-
         return [
-            'project_ids' => $projectIds,
-            'workspace_ids' => array_values(array_map(
-                static fn (mixed $workspaceId): string => (string) $workspaceId,
-                array_unique(array_filter(
-                    array_values($workspaceIdsByProject),
-                    static fn (mixed $workspaceId): bool => $workspaceId !== null && $workspaceId !== ''
-                ))
-            )),
+            'workspaces' => $this->buildResourceStatusItems(
+                $workspaceIds,
+                $this->calculateWorkspaceStatusBatch($workspaceIds, $userId)
+            ),
+            'projects' => $this->buildResourceStatusItems(
+                $projectIds,
+                $this->calculateProjectStatusBatch($projectIds, $userId)
+            ),
         ];
     }
 
@@ -1273,6 +1263,19 @@ class TopicDomainService
             'status' => $this->normalizeTopicStatus($topic->getCurrentTaskStatus()?->value),
             'has_unread' => $hasUnread,
         ];
+    }
+
+    private function buildResourceStatusItems(array $resourceIds, array $statusMap): array
+    {
+        $items = [];
+        foreach ($resourceIds as $resourceId) {
+            $items[] = [
+                'id' => (string) $resourceId,
+                'status' => (string) ($statusMap[$resourceId] ?? TaskStatus::WAITING->value),
+            ];
+        }
+
+        return $items;
     }
 
     private function normalizeTopicStatus(?string $status): string

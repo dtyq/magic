@@ -27,6 +27,7 @@ use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\CheckpointRollbackStartReq
 use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\DeleteTopicRequestDTO;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\DuplicateTopicCheckRequestDTO;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\DuplicateTopicRequestDTO;
+use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\GetResourceStatusRequestDTO;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\GetTopicAttachmentsRequestDTO;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\GetTopicMessagesByTopicIdRequestDTO;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\SaveTopicRequestDTO;
@@ -492,7 +493,9 @@ class TopicApi extends AbstractApi
     public function getResourceStatus(RequestContext $requestContext): array
     {
         $requestContext->setUserAuthorization($this->getAuthorization());
-        return $this->topicAppService->getResourceStatus($requestContext);
+        $requestDTO = GetResourceStatusRequestDTO::fromRequest($this->request);
+
+        return $this->topicAppService->getResourceStatus($requestContext, $requestDTO);
     }
 
     private function buildDataIsolation(): DataIsolation

@@ -28,9 +28,11 @@ use Dtyq\SuperMagic\Domain\RecycleBin\Service\RecycleBinDomainService;
 use Dtyq\SuperMagic\Domain\Share\Constant\ResourceType;
 use Dtyq\SuperMagic\Domain\Share\Service\ResourceShareDomainService;
 use Dtyq\SuperMagic\Domain\SuperAgent\Constant\TopicDuplicateConstant;
+use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ProjectEntity;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\TopicEntity;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\CreationSource;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\DeleteDataType;
+use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\HiddenType;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\TaskStatus;
 use Dtyq\SuperMagic\Domain\SuperAgent\Event\StopRunningTaskEvent;
 use Dtyq\SuperMagic\Domain\SuperAgent\Event\TopicCreatedEvent;
@@ -52,6 +54,7 @@ use Dtyq\SuperMagic\Infrastructure\Utils\TaskTerminationUtil;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\BatchTopicStatusRequestDTO;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\DeleteTopicRequestDTO;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\DuplicateTopicRequestDTO;
+use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\GetResourceStatusRequestDTO;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\GetTopicAttachmentsRequestDTO;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\SaveTopicRequestDTO;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\UpdateTopicReadProgressRequestDTO;
@@ -136,17 +139,22 @@ class TopicAppService extends AbstractAppService
         $result = $this->topicDomainService->getTopicStatuses($requestDTO->getTopicIds(), $userAuthorization->getId());
 
         return [
-            'list' => array_map(
+            'topics' => array_map(
                 static fn (array $item) => TopicStatusItemDTO::fromArray($item)->toArray(),
                 $result
             ),
         ];
     }
 
-    public function getResourceStatus(RequestContext $requestContext): array
+    public function getResourceStatus(RequestContext $requestContext, GetResourceStatusRequestDTO $requestDTO): array
     {
         $userAuthorization = $requestContext->getUserAuthorization();
-        $result = $this->topicDomainService->getResourceStatus($userAuthorization->getId());
+        $result = $this->topicDomainService->getResourceStatus(
+            $requestDTO->getWorkspaceIds(),
+            $requestDTO->getProjectIds(),
+            $userAuthorization->getId()
+        );
+
         return ResourceStatusResponseDTO::fromArray($result)->toArray();
     }
 
