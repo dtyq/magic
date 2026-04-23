@@ -984,7 +984,7 @@ class TopicTaskAppService extends AbstractAppService
     {
         // 根据类型处理
         $tool = $taskMessageEntity->getTool();
-        if (empty($tool) && !empty($taskMessageEntity->getRawContent())) {
+        if (empty($tool) && ! empty($taskMessageEntity->getRawContent())) {
             if ($rawContent = json_decode($taskMessageEntity->getRawContent(), true)) {
                 $tool = $rawContent['super_magic_message']['tool'] ?? [];
                 $taskMessageEntity->setTool($tool);
