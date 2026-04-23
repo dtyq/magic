@@ -278,25 +278,6 @@ readonly class VideoQueueDomainService
     }
 
     /**
-     * 删除尚未成功提交到 provider 的操作记录，避免限流等失败提交留下不可查询的临时记录。
-     */
-    public function deleteOperation(VideoQueueOperationEntity $operation): void
-    {
-        $this->videoQueueOperationRepository->deleteOperation($operation->getId());
-    }
-
-    /**
-     * 占用新槽位前先检查个人维度的现有槽位，释放已结束的残留任务。
-     */
-    public function cleanupActiveOperationsBeforeClaim(VideoQueueOperationEntity $operation): void
-    {
-        $this->releaseDoneOperations($this->videoQueueOperationRepository->getUserActiveOperations(
-            $operation->getOrganizationCode(),
-            $operation->getUserId(),
-        ));
-    }
-
-    /**
      * 占用当前任务的个人视频运行槽位，达到套餐上限时抛出限流异常。
      */
     public function claimUserActiveOperation(VideoQueueOperationEntity $operation, ?int $personalVideoGenerationConcurrencyLimit): void
@@ -405,35 +386,6 @@ readonly class VideoQueueDomainService
                 $this->releaseUserActiveOperation($activeOperation);
             }
         }
-    }
-
-    /**
-     * 并发限流时打印当前仍占用运行槽位的任务，便于排查是谁占住了名额。
-     *
-     * @param array<int, VideoQueueOperationEntity> $activeOperations
-     */
-    private function logActiveOperationsLimitReached(
-        string $dimension,
-        VideoQueueOperationEntity $operation,
-        array $activeOperations,
-        int $limit
-    ): void {
-        $this->logger->warning('video active operation limit reached', [
-            'dimension' => $dimension,
-            'limit' => $limit,
-            'organization_code' => $operation->getOrganizationCode(),
-            'user_id' => $operation->getUserId(),
-            'active_operations' => array_map(
-                static fn (VideoQueueOperationEntity $activeOperation): array => [
-                    'operation_id' => $activeOperation->getId(),
-                    'status' => $activeOperation->getStatus()->value,
-                    'provider_task_id' => $activeOperation->getProviderTaskId(),
-                    'created_at' => $activeOperation->getCreatedAt(),
-                    'started_at' => $activeOperation->getStartedAt(),
-                ],
-                $activeOperations
-            ),
-        ]);
     }
 
     /**
