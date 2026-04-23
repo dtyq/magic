@@ -274,20 +274,22 @@ class TaskMessageFactoryV2(TaskMessageFactoryProtocol):
         content = i18n.translate("task_vm_init.start", category="tool.messages")
 
         tool_call_id = cls._make_tool_call_id(event.data.correlation_id)
+        tool_dict = cls._build_tool_object(
+            tool_id=tool_call_id,
+            name="init_virtual_machine",
+            action=content,
+            status=ToolStatus.RUNNING,
+        )
+        tool_call_item = cls._build_tool_call_item(
+            tool_call_id, "init_virtual_machine",
+            label=agent_context.get_tool_label("init_virtual_machine"),
+        )
+        tool_call_item["tool"] = tool_dict
         inner = cls._build_inner_message(
             agent_context,
             role="assistant",
             correlation_id=event.data.correlation_id,
-            tool_calls=[cls._build_tool_call_item(
-                tool_call_id, "init_virtual_machine",
-                label=agent_context.get_tool_label("init_virtual_machine"),
-            )],
-            tool=cls._build_tool_object(
-                tool_id=tool_call_id,
-                name="init_virtual_machine",
-                action=content,
-                status=ToolStatus.RUNNING,
-            ),
+            tool_calls=[tool_call_item],
             status="waiting",
         )
         return cls._build_and_send(
@@ -354,22 +356,24 @@ class TaskMessageFactoryV2(TaskMessageFactoryProtocol):
         )
 
         tool_call_id = agent_context.get_task_id() or ""
+        tool_dict = cls._build_tool_object(
+            tool_id=tool_call_id,
+            name="mcp_init",
+            action=agent_context.get_tool_label("mcp_init"),
+            status=ToolStatus.RUNNING,
+            remark=extensions_text,
+            detail=detail,
+        )
+        tool_call_item = cls._build_tool_call_item(
+            tool_call_id, "mcp_init",
+            label=agent_context.get_tool_label("mcp_init"),
+        )
+        tool_call_item["tool"] = tool_dict
         inner = cls._build_inner_message(
             agent_context,
             role="assistant",
             correlation_id=event.data.correlation_id,
-            tool_calls=[cls._build_tool_call_item(
-                tool_call_id, "mcp_init",
-                label=agent_context.get_tool_label("mcp_init"),
-            )],
-            tool=cls._build_tool_object(
-                tool_id=tool_call_id,
-                name="mcp_init",
-                action=agent_context.get_tool_label("mcp_init"),
-                status=ToolStatus.RUNNING,
-                remark=extensions_text,
-                detail=detail,
-            ),
+            tool_calls=[tool_call_item],
             status="running",
         )
         return cls._build_and_send(
@@ -595,6 +599,18 @@ class TaskMessageFactoryV2(TaskMessageFactoryProtocol):
                 if action_label and p_tool_calls:
                     p_tool_calls[0]["function"]["label"] = action_label
 
+                tool_dict = cls._build_tool_object(
+                    tool_id=event.data.tool_call.id,
+                    name=friendly.get("tool_name", event.data.tool_name),
+                    action=friendly.get("action", ""),
+                    status=ToolStatus.RUNNING,
+                    remark=friendly.get("remark", ""),
+                    detail=tool_detail,
+                )
+                # 将 tool 对象嵌入当前执行的 tool_call item（p_tool_calls[0]）
+                if p_tool_calls:
+                    p_tool_calls[0]["tool"] = tool_dict
+
                 inner = cls._build_inner_message(
                     agent_context,
                     role="assistant",
@@ -603,14 +619,6 @@ class TaskMessageFactoryV2(TaskMessageFactoryProtocol):
                     content=p_content or None,
                     reasoning_content=p_reasoning or None,
                     tool_calls=p_tool_calls,
-                    tool=cls._build_tool_object(
-                        tool_id=event.data.tool_call.id,
-                        name=friendly.get("tool_name", event.data.tool_name),
-                        action=friendly.get("action", ""),
-                        status=ToolStatus.RUNNING,
-                        remark=friendly.get("remark", ""),
-                        detail=tool_detail,
-                    ),
                     status="running",
                 )
                 return cls._build_and_send(
@@ -639,23 +647,26 @@ class TaskMessageFactoryV2(TaskMessageFactoryProtocol):
         except Exception as e:
             logger.warning(f"获取工具调用前详细信息失败: {e}")
 
+        tool_dict = cls._build_tool_object(
+            tool_id=event.data.tool_call.id,
+            name=friendly.get("tool_name", event.data.tool_name),
+            action=friendly.get("action", ""),
+            status=ToolStatus.RUNNING,
+            remark=friendly.get("remark", ""),
+            detail=tool_detail,
+        )
+        tool_call_item = cls._build_tool_call_item(
+            event.data.tool_call.id,
+            event.data.tool_name,
+            label=friendly.get("action", ""),
+        )
+        tool_call_item["tool"] = tool_dict
+
         inner = cls._build_inner_message(
             agent_context,
             role="assistant",
             correlation_id=event.data.correlation_id,
-            tool_calls=[cls._build_tool_call_item(
-                event.data.tool_call.id,
-                event.data.tool_name,
-                label=friendly.get("action", ""),
-            )],
-            tool=cls._build_tool_object(
-                tool_id=event.data.tool_call.id,
-                name=friendly.get("tool_name", event.data.tool_name),
-                action=friendly.get("action", ""),
-                status=ToolStatus.RUNNING,
-                remark=friendly.get("remark", ""),
-                detail=tool_detail,
-            ),
+            tool_calls=[tool_call_item],
             status="running",
         )
         return cls._build_and_send(

@@ -1560,14 +1560,16 @@ function handleWebSocketMessage(event) {
             const smsg = payload.raw_content.super_magic_message;
             if (smsg) {
                 // 工具调用事件：before_tool_call 时先渲染思考块（如有），再渲染工具块
-                if (smsg.tool && (eventType === 'before_tool_call' || eventType === 'after_tool_call')) {
+                // v2 新格式：tool 嵌入 tool_calls[0].tool；after 事件 tool 仍在顶层，兼容两种格式
+                const smsgTool = smsg.tool || (smsg.tool_calls && smsg.tool_calls[0] && smsg.tool_calls[0].tool);
+                if (smsgTool && (eventType === 'before_tool_call' || eventType === 'after_tool_call')) {
                     if (eventType === 'before_tool_call' && smsg.reasoning_content) {
                         showThinkingMessage(smsg.reasoning_content, payload.send_timestamp);
                     }
                     if (eventType === 'before_tool_call' && smsg.content) {
                         showAIMessage(smsg.content, payload.send_timestamp);
                     }
-                    showToolCallMessage(smsg.tool, eventType, payload.send_timestamp);
+                    showToolCallMessage(smsgTool, eventType, payload.send_timestamp);
                 } else if (smsg.role === 'assistant') {
                     if (smsg.reasoning_content) {
                         showThinkingMessage(smsg.reasoning_content, payload.send_timestamp);
