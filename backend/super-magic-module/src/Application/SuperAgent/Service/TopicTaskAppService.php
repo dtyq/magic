@@ -294,12 +294,7 @@ class TopicTaskAppService extends AbstractAppService
             }
 
             // 3.5 ask_user Human-in-the-Loop（见 tryEarlyDeliverResponseForAskUserToolCall）
-            if (($earlyDeliverResponse = $this->tryEarlyDeliverResponseForAskUserToolCall(
-                $messageDTO,
-                $dataIsolation,
-                $taskEntity,
-                $messageId
-                )) !== null) {
+            if (($earlyDeliverResponse = $this->tryEarlyDeliverResponseForAskUserToolCall($messageDTO, $dataIsolation, $taskEntity, $messageId)) !== null) {
                 return $earlyDeliverResponse;
             }
 
