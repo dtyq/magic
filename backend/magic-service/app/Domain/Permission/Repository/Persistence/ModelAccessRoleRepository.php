@@ -48,10 +48,9 @@ class ModelAccessRoleRepository
 
     public function save(ModelAccessRoleEntity $entity): ModelAccessRoleEntity
     {
-        if ($entity->getId()) {
-            $model = ModelAccessRoleModel::query()
-                ->where('organization_code', $entity->getOrganizationCode())
-                ->find($entity->getId());
+        $id = $entity->getId();
+        if ($id) {
+            $model = $this->findModelById($entity->getOrganizationCode(), $id);
             if (! $model) {
                 return $entity;
             }
@@ -77,9 +76,7 @@ class ModelAccessRoleRepository
 
     public function getById(string $organizationCode, int $id): ?ModelAccessRoleEntity
     {
-        $model = ModelAccessRoleModel::query()
-            ->where('organization_code', $organizationCode)
-            ->find($id);
+        $model = $this->findModelById($organizationCode, $id);
 
         return $model ? $this->toEntity($model) : null;
     }
@@ -510,5 +507,14 @@ class ModelAccessRoleRepository
         $entity->setCreatedAt($model->created_at?->toDateTime());
         $entity->setUpdatedAt($model->updated_at?->toDateTime());
         return $entity;
+    }
+
+    private function findModelById(string $organizationCode, int $id): ?ModelAccessRoleModel
+    {
+        $model = ModelAccessRoleModel::query()
+            ->where('organization_code', $organizationCode)
+            ->find($id);
+
+        return $model instanceof ModelAccessRoleModel ? $model : null;
     }
 }
