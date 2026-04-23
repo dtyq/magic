@@ -7,6 +7,7 @@ V2 消息工厂：将事件转换为 super_magic_message 格式的 ServerMessage
 - correlation_id / topic_id / task_id / status
 """
 
+import json
 from datetime import datetime
 from typing import Any, Dict, List, Optional
 
@@ -50,6 +51,7 @@ from app.core.entity.message.server_message import (
     ToolStatus,
 )
 from app.core.entity.factory.task_message_factory_protocol import TaskMessageFactoryProtocol
+from app.tools.core.tool_executor import tool_executor
 from app.i18n import i18n
 from app.utils.attachment_sorter import AttachmentSorter
 
@@ -214,6 +216,41 @@ class TaskMessageFactoryV2(TaskMessageFactoryProtocol):
             attachments=attachments or [],
         )
         return tool.model_dump(exclude_none=True)
+
+    @classmethod
+    async def _build_running_tool_call_item(
+        cls,
+        tool_instance,
+        tool_name: str,
+        tool_context,
+        arguments: dict,
+        tool_call_id: str,
+    ) -> Dict[str, Any]:
+        """获取 friendly 信息并构建 status=running 的 tool_call item（含嵌入的 tool 对象）"""
+        friendly = await tool_instance.get_before_tool_call_friendly_action_and_remark(
+            tool_name, tool_context, arguments
+        )
+        tool_detail = None
+        try:
+            tool_detail = await tool_instance.get_before_tool_detail(tool_context, arguments)
+        except Exception as e:
+            logger.warning(f"获取工具调用前详细信息失败: {e}")
+
+        tool_dict = cls._build_tool_object(
+            tool_id=tool_call_id,
+            name=friendly.get("tool_name", tool_name),
+            action=friendly.get("action", ""),
+            status=ToolStatus.RUNNING,
+            remark=friendly.get("remark", ""),
+            detail=tool_detail,
+        )
+        item = cls._build_tool_call_item(
+            tool_call_id,
+            tool_name,
+            label=friendly.get("action", ""),
+        )
+        item["tool"] = tool_dict
+        return item
 
     @classmethod
     def _build_mcp_config_details(cls, server_configs) -> List[Dict[str, Any]]:
@@ -581,35 +618,52 @@ class TaskMessageFactoryV2(TaskMessageFactoryProtocol):
                     # 收集后续 tool_call_id
                     pending_state.batch_subsequent_ids = {tc["id"] for tc in p_tool_calls[1:]}
 
-                # 获取工具展示信息
-                tool_instance = event.data.tool_instance
-                friendly = await tool_instance.get_before_tool_call_friendly_action_and_remark(
-                    event.data.tool_name, event.data.tool_context, event.data.arguments
+                # 获取第一个工具的展示信息并构建 tool_call item
+                first_item = await cls._build_running_tool_call_item(
+                    event.data.tool_instance,
+                    event.data.tool_name,
+                    event.data.tool_context,
+                    event.data.arguments,
+                    event.data.tool_call.id,
                 )
-                tool_detail = None
-                try:
-                    tool_detail = await tool_instance.get_before_tool_detail(
-                        event.data.tool_context, event.data.arguments
-                    )
-                except Exception as e:
-                    logger.warning(f"获取工具调用前详细信息失败: {e}")
-
-                # 用 friendly action 更新第一个 tool_call 的 label（比 after_agent_reply 阶段的 i18n 静态值更精确）
-                action_label = friendly.get("action", "")
-                if action_label and p_tool_calls:
-                    p_tool_calls[0]["function"]["label"] = action_label
-
-                tool_dict = cls._build_tool_object(
-                    tool_id=event.data.tool_call.id,
-                    name=friendly.get("tool_name", event.data.tool_name),
-                    action=friendly.get("action", ""),
-                    status=ToolStatus.RUNNING,
-                    remark=friendly.get("remark", ""),
-                    detail=tool_detail,
-                )
-                # 将 tool 对象嵌入当前执行的 tool_call item（p_tool_calls[0]）
+                # 将构建好的 item 覆盖 p_tool_calls[0]，保留原有字段（arguments 等）并补充 tool/label
                 if p_tool_calls:
-                    p_tool_calls[0]["tool"] = tool_dict
+                    p_tool_calls[0]["function"]["label"] = first_item["function"].get("label", "")
+                    p_tool_calls[0]["tool"] = first_item["tool"]
+
+                # 为后续未执行的 tool_calls 获取准确的展示信息
+                for tc in p_tool_calls[1:]:
+                    func = tc.get("function", {})
+                    tool_name = func.get("name", "")
+                    sub_instance = tool_executor.get_tool(tool_name)
+                    if sub_instance:
+                        try:
+                            args_str = func.get("arguments", "{}")
+                            sub_args = json.loads(args_str) if isinstance(args_str, str) else (args_str or {})
+                            sub_item = await cls._build_running_tool_call_item(
+                                sub_instance,
+                                tool_name,
+                                event.data.tool_context,
+                                sub_args,
+                                tc["id"],
+                            )
+                            tc["function"]["label"] = sub_item["function"].get("label", "")
+                            tc["tool"] = sub_item["tool"]
+                        except Exception as e:
+                            logger.warning(f"获取工具 {tool_name} 展示信息失败: {e}")
+                            tc["tool"] = cls._build_tool_object(
+                                tool_id=tc["id"],
+                                name=tool_name,
+                                action=func.get("label", ""),
+                                status=ToolStatus.RUNNING,
+                            )
+                    else:
+                        tc["tool"] = cls._build_tool_object(
+                            tool_id=tc["id"],
+                            name=tool_name,
+                            action=func.get("label", ""),
+                            status=ToolStatus.RUNNING,
+                        )
 
                 inner = cls._build_inner_message(
                     agent_context,
@@ -630,38 +684,18 @@ class TaskMessageFactoryV2(TaskMessageFactoryProtocol):
                     message_id=p_message_id,
                 )
 
-        # 检查是否应跳过（同批次后续 before_tool_call）
+        # 批量后续工具：第一条 before 消息已包含所有 tool_calls（均为 running），跳过后续 before 事件
         if pending_state and pending_state.should_skip_tool_call():
             return None
 
-        # 普通单次 tool_call（无暂存数据）
-        tool_instance = event.data.tool_instance
-        friendly = await tool_instance.get_before_tool_call_friendly_action_and_remark(
-            event.data.tool_name, event.data.tool_context, event.data.arguments
-        )
-        tool_detail = None
-        try:
-            tool_detail = await tool_instance.get_before_tool_detail(
-                event.data.tool_context, event.data.arguments
-            )
-        except Exception as e:
-            logger.warning(f"获取工具调用前详细信息失败: {e}")
-
-        tool_dict = cls._build_tool_object(
-            tool_id=event.data.tool_call.id,
-            name=friendly.get("tool_name", event.data.tool_name),
-            action=friendly.get("action", ""),
-            status=ToolStatus.RUNNING,
-            remark=friendly.get("remark", ""),
-            detail=tool_detail,
-        )
-        tool_call_item = cls._build_tool_call_item(
-            event.data.tool_call.id,
+        # 普通单次 tool_call
+        tool_call_item = await cls._build_running_tool_call_item(
+            event.data.tool_instance,
             event.data.tool_name,
-            label=friendly.get("action", ""),
+            event.data.tool_context,
+            event.data.arguments,
+            event.data.tool_call.id,
         )
-        tool_call_item["tool"] = tool_dict
-
         inner = cls._build_inner_message(
             agent_context,
             role="assistant",
