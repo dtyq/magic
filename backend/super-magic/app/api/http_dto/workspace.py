@@ -87,8 +87,8 @@ class UploadConfigRequest(BaseModel):
 class WorkspaceExportRequest(BaseModel):
     """Request body for workspace export endpoint."""
 
-    type: Literal["custom_agent", "custom_skill"] = Field(
-        ..., description="Export type: 'custom_agent' or 'custom_skill'"
+    type: Literal["agent_creator", "skill_creator", "custom_agent", "custom_skill"] = Field(
+        ..., description="Export type: 'agent_creator' or 'skill_creator' (legacy: 'custom_agent' or 'custom_skill')"
     )
     code: str = Field(
         ..., description="Unique identifier for the agent/skill (e.g. 'SMA_XXXXXX')"

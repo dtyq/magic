@@ -202,7 +202,7 @@ class SkillDomainService
         );
 
         // Call sandbox workspace export API via proxy request
-        $request = new ExportWorkspaceRequest(ProjectMode::CUSTOM_AGENT->value, $code, $uploadConfig);
+        $request = new ExportWorkspaceRequest(ProjectMode::SKILL_CREATOR->value, $code, $uploadConfig);
         $response = $this->workspaceExporter->export($sandboxId, $request);
 
         if (! $response->isSuccess()) {

@@ -244,7 +244,7 @@ class ImportAgentAppService extends AbstractSuperMagicAppService
             $dto->setProjectName($agentName);
             $dto->setInitTemplateFiles(false);
 
-            $result = $projectAppService->createAgentProject($requestContext, $dto, ProjectMode::CUSTOM_AGENT);
+            $result = $projectAppService->createAgentProject($requestContext, $dto, ProjectMode::AGENT_CREATOR);
             $projectId = (int) ($result['project']['id'] ?? 0);
 
             if ($projectId <= 0) {

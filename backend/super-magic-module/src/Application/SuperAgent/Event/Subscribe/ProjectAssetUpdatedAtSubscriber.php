@@ -159,11 +159,11 @@ class ProjectAssetUpdatedAtSubscriber implements ListenerInterface
     {
         // 按项目模式路由到不同领域服务，仅更新关联资源 updated_at，不做其他副作用。
         match ($project->getProjectMode()) {
-            ProjectMode::CUSTOM_AGENT->value => $this->superMagicAgentDomainService->updateUpdatedAtByProjectId(
+            ProjectMode::AGENT_CREATOR->value => $this->superMagicAgentDomainService->updateUpdatedAtByProjectId(
                 SuperMagicAgentDataIsolation::create($organizationCode, $userId),
                 $project->getId()
             ),
-            ProjectMode::CUSTOM_SKILL->value => $this->skillDomainService->updateUpdatedAtByProjectId(
+            ProjectMode::SKILL_CREATOR->value => $this->skillDomainService->updateUpdatedAtByProjectId(
                 SkillDataIsolation::create($organizationCode, $userId),
                 $project->getId()
             ),

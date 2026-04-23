@@ -12,6 +12,7 @@ use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ProjectMemberEntity;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\MemberRole;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\MemberStatus;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\MemberType;
+use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\ProjectMode;
 use Dtyq\SuperMagic\Domain\SuperAgent\Repository\Facade\ProjectMemberRepositoryInterface;
 use Dtyq\SuperMagic\Domain\SuperAgent\Repository\Model\ProjectMemberModel;
 use Hyperf\DbConnection\Db;
@@ -530,6 +531,9 @@ class ProjectMemberRepository implements ProjectMemberRepositoryInterface
         if (! $showHidden) {
             $query->where('p.is_hidden', 0);
         }
+
+        // 过滤特定项目模式（音频、agent/skill 创建器、magiclaw 等）
+        $query->whereNotIn('p.project_mode', ProjectMode::getQueryFilterModes());
 
         // 获取总数
         $totalQuery = clone $query;

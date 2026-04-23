@@ -261,22 +261,24 @@ class AgentDispatcher(Base):
 
         Args:
             agent_mode: Agent模式，可以是AgentMode枚举或者自定义Agent的字符串ID
-            agent_code: (optional) crew agent code, used when agent_mode == "custom_agent"
+            agent_code: (optional) crew agent code, used when agent_mode == "agent_creator"
 
         Returns:
             Agent: 选择的Agent实例
         """
-        # 如果是字符串，仅支持 custom_agent + agent_code 或内置 AgentMode
+        # 如果是字符串，仅支持 agent_creator + agent_code 或内置 AgentMode
         if isinstance(agent_mode, str):
-            normalized_mode = agent_mode.strip()
+            normalized_mode = {
+                "custom_agent": "agent_creator",
+            }.get(agent_mode.strip(), agent_mode.strip())
 
-            # 0. custom_agent + agent_code => compiled crew agent
-            if normalized_mode == "custom_agent":
+            # 0. agent_creator + agent_code => compiled crew agent
+            if normalized_mode == "agent_creator":
                 if agent_code and agent_code.strip():
                     agent_type = agent_code.strip()
                     logger.info(f"使用编译后的 crew agent: {agent_type}.agent")
                 else:
-                    logger.warning("custom_agent 未提供 agent_code，回退到默认模式")
+                    logger.warning("agent_creator 未提供 agent_code，回退到默认模式")
                     agent_type = AgentMode.GENERAL.get_agent_type()
 
             # 0b. magiclaw + agent_code => compiled claw agent (from agents/claws/<claw_code>/)
@@ -447,9 +449,13 @@ class AgentDispatcher(Base):
     async def _prepare_agent(self, agent_mode: str, agent_code: Optional[str]) -> None:
         """Compile + set AgentProfile for modes that need it (crew / magiclaw)."""
         try:
-            if agent_mode == "custom_agent" and agent_code:
+            normalized_mode = {
+                "custom_agent": "agent_creator",
+            }.get(agent_mode, agent_mode)
+
+            if normalized_mode == "agent_creator" and agent_code:
                 await self._prepare_crew_agent(agent_code)
-            elif agent_mode == "magiclaw" and agent_code:
+            elif normalized_mode == "magiclaw" and agent_code:
                 await self._prepare_claw_agent(agent_code)
         except Exception as e:
             logger.error(f"Agent preparation failed (mode={agent_mode}, code={agent_code}): {e}")
