@@ -297,7 +297,7 @@ class ProjectMemberDomainService
      * 获取用户参与的项目列表（支持协作项目筛选）.
      *
      * @param string $userId 用户ID
-     * @param int $workspaceId 工作区ID（0表示不限制工作区）
+     * @param null|int $workspaceId 工作区ID（null 或 0 表示不限制工作区）
      * @param bool $showCollaboration 是否显示协作项目
      * @param null|string $projectName 项目名称模糊搜索
      * @param int $page 页码
@@ -309,7 +309,7 @@ class ProjectMemberDomainService
      */
     public function getParticipatedProjectsWithCollaboration(
         string $userId,
-        int $workspaceId,
+        ?int $workspaceId,
         bool $showCollaboration = true,
         ?string $projectName = null,
         int $page = 1,
@@ -319,8 +319,8 @@ class ProjectMemberDomainService
         string $sortDirection = 'desc',
         bool $showHidden = false,
     ): array {
-        // 判断是否限制工作区
-        $limitWorkspace = $workspaceId > 0;
+        // 判断是否限制工作区（null 或 0 均表示不限制）
+        $limitWorkspace = $workspaceId !== null && $workspaceId > 0;
 
         return $this->projectMemberRepository->getParticipatedProjects(
             $userId,
