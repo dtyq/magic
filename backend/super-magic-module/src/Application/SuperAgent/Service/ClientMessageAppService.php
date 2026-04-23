@@ -91,7 +91,7 @@ class ClientMessageAppService extends AbstractAppService
         try {
             if ($messageType === ChatMessageType::SuperMagicMessage->value) {
                 // 新格式：直接用 SuperMagicMessage 发送
-                $message = $this->buildSuperMagicMessage($messageId, $rawContent, $attachments, $usage);
+                $message = $this->buildSuperMagicMessage($messageId, $rawContent, $attachments, $usage, $tool);
                 $seqType = ChatMessageType::SuperMagicMessage;
                 $appMessageId = (string) $messageId;
             } else {
@@ -328,8 +328,10 @@ class ClientMessageAppService extends AbstractAppService
      *     "tool": { "id": "...", "name": "...", "action": "...", "status": "...", "remark": "", "detail": null, "attachments": [] }
      *   }
      * }
+     *
+     * @param null|array $tool 经过附件处理后的 tool 数据（含 source_file_id、file_id 等），用于覆盖 rawContent 里的原始 tool
      */
-    private function buildSuperMagicMessage(int $messageId, null|array|string $rawContent, ?array $attachments = null, ?array $usage = null): SuperMagicMessage
+    private function buildSuperMagicMessage(int $messageId, null|array|string $rawContent, ?array $attachments = null, ?array $usage = null, ?array $tool = null): SuperMagicMessage
     {
         if (is_string($rawContent)) {
             $data = json_decode($rawContent, true) ?? [];
@@ -342,6 +344,13 @@ class ClientMessageAppService extends AbstractAppService
         $innerData['attachments'] = $attachments;
         $innerData['usage'] = $usage;
         $innerData['message_id'] = (string) $messageId;
+
+        // 使用经过处理的 tool 覆盖 rawContent 中的原始 tool
+        // 处理后的 tool 已包含 source_file_id、file_id 等填充数据
+        if ($tool !== null) {
+            $innerData['tool'] = $tool;
+        }
+
         return new SuperMagicMessage($innerData);
     }
 
