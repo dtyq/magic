@@ -295,9 +295,9 @@ class MagicUserEntity extends AbstractEntity implements ArrayAccess
         $this->timezone = $timezone;
     }
 
-    public function getPreferences(): ?UserPreferences
+    public function getPreferences(): UserPreferences
     {
-        return $this->preferences;
+        return $this->preferences ?? new UserPreferences();
     }
 
     public function setPreferences(null|array|string|UserPreferences $preferences): void
