@@ -9,6 +9,7 @@ namespace App\Domain\Contact\Entity;
 
 use App\Domain\Agent\Entity\MagicAgentVersionEntity;
 use App\Domain\Contact\Entity\Item\UserExtra;
+use App\Domain\Contact\Entity\ValueObject\UserPreferences;
 use App\Domain\Contact\Entity\ValueObject\UserStatus;
 use App\Domain\Contact\Entity\ValueObject\UserType;
 use ArrayAccess;
@@ -57,6 +58,8 @@ class MagicUserEntity extends AbstractEntity implements ArrayAccess
     protected ?string $channel = null;
 
     protected ?string $timezone = null;
+
+    protected ?UserPreferences $preferences = null;
 
     private string $friendNum = '0';
 
@@ -290,6 +293,27 @@ class MagicUserEntity extends AbstractEntity implements ArrayAccess
     public function setTimezone(?string $timezone): void
     {
         $this->timezone = $timezone;
+    }
+
+    public function getPreferences(): ?UserPreferences
+    {
+        return $this->preferences;
+    }
+
+    public function setPreferences(null|array|string|UserPreferences $preferences): void
+    {
+        if (empty($preferences)) {
+            $this->preferences = null;
+            return;
+        }
+        if (is_string($preferences)) {
+            $preferences = json_decode($preferences, true) ?? [];
+            $preferences = UserPreferences::fromArray($preferences);
+        }
+        if (is_array($preferences)) {
+            $preferences = UserPreferences::fromArray($preferences);
+        }
+        $this->preferences = $preferences;
     }
 
     public function getExtra(): ?UserExtra

@@ -32,7 +32,7 @@ class MagicUserDomainExtendService implements MagicUserDomainExtendInterface
         if (empty($userId)) {
             return [];
         }
-        return ['avatar_url', 'nickname', 'profession', 'channel', 'timezone'];
+        return ['avatar_url', 'nickname', 'profession', 'channel', 'timezone', 'preferences'];
     }
 
     /**
@@ -68,6 +68,12 @@ class MagicUserDomainExtendService implements MagicUserDomainExtendInterface
         // 处理时区
         if (in_array('timezone', $permission, true) && $userUpdateDTO->isFieldPresent('timezone')) {
             $updateFilter['timezone'] = $userUpdateDTO->getTimezone();
+        }
+
+        // 处理偏好设置，序列化为 JSON 字符串存储
+        if (in_array('preferences', $permission, true) && $userUpdateDTO->isFieldPresent('preferences')) {
+            $preferences = $userUpdateDTO->getPreferences();
+            $updateFilter['preferences'] = $preferences !== null ? json_encode($preferences->toArray(), JSON_UNESCAPED_UNICODE) : null;
         }
 
         return $this->userRepository->updateDataById($userId, $updateFilter);

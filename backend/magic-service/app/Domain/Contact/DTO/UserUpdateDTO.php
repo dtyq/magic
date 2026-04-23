@@ -8,6 +8,7 @@ declare(strict_types=1);
 namespace App\Domain\Contact\DTO;
 
 use App\Domain\Contact\Entity\AbstractEntity;
+use App\Domain\Contact\Entity\ValueObject\UserPreferences;
 
 class UserUpdateDTO extends AbstractEntity
 {
@@ -40,6 +41,11 @@ class UserUpdateDTO extends AbstractEntity
      * 用户所在时区(IANA).
      */
     protected ?string $timezone = null;
+
+    /**
+     * 用户偏好设置.
+     */
+    protected ?UserPreferences $preferences = null;
 
     public function getAvatarUrl(): ?string
     {
@@ -96,6 +102,17 @@ class UserUpdateDTO extends AbstractEntity
         $this->timezone = $timezone;
     }
 
+    public function getPreferences(): ?UserPreferences
+    {
+        return $this->preferences;
+    }
+
+    public function setPreferences(?UserPreferences $preferences): void
+    {
+        $this->markFieldPresent('preferences');
+        $this->preferences = $preferences;
+    }
+
     public function isFieldPresent(string $field): bool
     {
         return $this->presentFields[$field] ?? false;
@@ -126,6 +143,10 @@ class UserUpdateDTO extends AbstractEntity
 
         if ($this->isFieldPresent('timezone')) {
             $data['timezone'] = $this->timezone;
+        }
+
+        if ($this->isFieldPresent('preferences')) {
+            $data['preferences'] = $this->preferences;
         }
 
         return $data;
