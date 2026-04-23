@@ -131,6 +131,7 @@ class TaskMessageFactoryV2(TaskMessageFactoryProtocol):
         show_in_ui: bool = True,
         message_id: Optional[str] = None,
         token_used: Optional[int] = None,
+        outer_tool: Optional[Tool] = None,
         attachments: Optional[List[Attachment]] = None,
         project_archive: Optional[ProjectArchiveInfo] = None,
         token_usage_details: Optional[TokenUsageCollection] = None,
@@ -139,6 +140,10 @@ class TaskMessageFactoryV2(TaskMessageFactoryProtocol):
     ) -> ServerMessage:
         """
         统一构建 raw_content + payload + ServerMessage。
+
+        outer_tool: 由调用方从 _make_tool() 取得的 Tool 实例，直接同步到外层 payload。
+        role="tool" 的消息（after_tool_call / pending_tool_call / after_init 等）应显式传入；
+        role="assistant" 的消息（before_tool_call / before_init 等）不需要传。
         """
         # 确保 message_id 在 inner_message 和外层 payload 中一致
         if message_id is None:
@@ -163,6 +168,7 @@ class TaskMessageFactoryV2(TaskMessageFactoryProtocol):
             raw_content=raw_content,
             message_id=message_id,
             token_used=token_used,
+            tool=outer_tool,
             attachments=attachments,
             project_archive=project_archive,
             content_type=content_type,
@@ -194,6 +200,29 @@ class TaskMessageFactoryV2(TaskMessageFactoryProtocol):
         }
 
     @classmethod
+    def _make_tool(
+        cls,
+        *,
+        tool_id: str,
+        name: str,
+        action: str,
+        status: ToolStatus,
+        remark: str = "",
+        detail: Optional[ToolDetail] = None,
+        attachments: Optional[List[Attachment]] = None,
+    ) -> Tool:
+        """构建 Tool 实例（供外层 payload 直接使用，或序列化后放入 inner_message）"""
+        return Tool(
+            id=tool_id,
+            name=name,
+            action=action,
+            status=status,
+            remark=remark,
+            detail=detail,
+            attachments=attachments or [],
+        )
+
+    @classmethod
     def _build_tool_object(
         cls,
         *,
@@ -205,17 +234,11 @@ class TaskMessageFactoryV2(TaskMessageFactoryProtocol):
         detail: Optional[ToolDetail] = None,
         attachments: Optional[List[Attachment]] = None,
     ) -> Dict[str, Any]:
-        """构建 tool 对象（序列化为 dict 以放入 inner_message）"""
-        tool = Tool(
-            id=tool_id,
-            name=name,
-            action=action,
-            status=status,
-            remark=remark,
-            detail=detail,
-            attachments=attachments or [],
-        )
-        return tool.model_dump(exclude_none=True)
+        """构建 tool 序列化 dict（放入 inner_message）。mode="json" 确保枚举值为字符串。"""
+        return cls._make_tool(
+            tool_id=tool_id, name=name, action=action, status=status,
+            remark=remark, detail=detail, attachments=attachments,
+        ).model_dump(mode="json", exclude_none=True)
 
     @classmethod
     async def _build_running_tool_call_item(
@@ -352,17 +375,18 @@ class TaskMessageFactoryV2(TaskMessageFactoryProtocol):
             content = i18n.translate("task_vm_init.failed", category="tool.messages")
 
         tool_call_id = cls._make_tool_call_id(event.data.correlation_id)
+        tool_obj = cls._make_tool(
+            tool_id=tool_call_id,
+            name="init_virtual_machine",
+            action=content,
+            status=tool_status,
+        )
         inner = cls._build_inner_message(
             agent_context,
             role="tool",
             correlation_id=event.data.correlation_id,
             tool_call_id=tool_call_id,
-            tool=cls._build_tool_object(
-                tool_id=tool_call_id,
-                name="init_virtual_machine",
-                action=content,
-                status=tool_status,
-            ),
+            tool=tool_obj.model_dump(mode="json", exclude_none=True),
             status=task_status.value,
         )
         return cls._build_and_send(
@@ -370,6 +394,7 @@ class TaskMessageFactoryV2(TaskMessageFactoryProtocol):
             status=task_status,
             event_type=event.event_type,
             correlation_id=event.data.correlation_id,
+            outer_tool=tool_obj,
         )
 
     # ──────────────────────────────────────────────
@@ -502,19 +527,20 @@ class TaskMessageFactoryV2(TaskMessageFactoryProtocol):
         detail = ToolDetail(type=DisplayType.MCP_INIT, data=detail_data)
 
         tool_call_id = agent_context.get_task_id() or ""
+        tool_obj = cls._make_tool(
+            tool_id=tool_call_id,
+            name="mcp_init",
+            action=agent_context.get_tool_label("mcp_init"),
+            status=tool_status,
+            remark=extensions_text,
+            detail=detail,
+        )
         inner = cls._build_inner_message(
             agent_context,
             role="tool",
             correlation_id=event.data.correlation_id,
             tool_call_id=tool_call_id,
-            tool=cls._build_tool_object(
-                tool_id=tool_call_id,
-                name="mcp_init",
-                action=agent_context.get_tool_label("mcp_init"),
-                status=tool_status,
-                remark=extensions_text,
-                detail=detail,
-            ),
+            tool=tool_obj.model_dump(mode="json", exclude_none=True),
             status="running",
         )
         return cls._build_and_send(
@@ -522,6 +548,7 @@ class TaskMessageFactoryV2(TaskMessageFactoryProtocol):
             status=TaskStatus.RUNNING,
             event_type=event.event_type,
             correlation_id=event.data.correlation_id,
+            outer_tool=tool_obj,
         )
 
     # ──────────────────────────────────────────────
@@ -727,19 +754,20 @@ class TaskMessageFactoryV2(TaskMessageFactoryProtocol):
                 event.data.tool_context.tool_call_id, correlation_id
             )
 
+        tool_obj = cls._make_tool(
+            tool_id=event.data.tool_context.tool_call_id,
+            name=arguments.get("name", ""),
+            action=arguments.get("action", ""),
+            status=ToolStatus.RUNNING,
+            remark=arguments.get("detail", {}).get("data", {}).get("message", ""),
+            detail=arguments.get("detail"),
+        )
         inner = cls._build_inner_message(
             agent_context,
             role="tool",
             correlation_id=correlation_id,
             tool_call_id=event.data.tool_context.tool_call_id,
-            tool=cls._build_tool_object(
-                tool_id=event.data.tool_context.tool_call_id,
-                name=arguments.get("name", ""),
-                action=arguments.get("action", ""),
-                status=ToolStatus.RUNNING,
-                remark=arguments.get("detail", {}).get("data", {}).get("message", ""),
-                detail=arguments.get("detail"),
-            ),
+            tool=tool_obj.model_dump(mode="json", exclude_none=True),
             status="running",
         )
         return cls._build_and_send(
@@ -747,6 +775,7 @@ class TaskMessageFactoryV2(TaskMessageFactoryProtocol):
             status=TaskStatus.RUNNING,
             event_type=event.event_type,
             correlation_id=correlation_id,
+            outer_tool=tool_obj,
         )
 
     @classmethod
@@ -789,20 +818,21 @@ class TaskMessageFactoryV2(TaskMessageFactoryProtocol):
             if pending_state and pending_state.correlation_id:
                 correlation_id = pending_state.correlation_id
 
+        tool_obj = cls._make_tool(
+            tool_id=event.data.tool_call.id,
+            name=friendly.get("tool_name", event.data.tool_name),
+            action=friendly.get("action", ""),
+            status=tool_status,
+            remark=remark_value,
+            detail=tool_detail,
+            attachments=attachments,
+        )
         inner = cls._build_inner_message(
             agent_context,
             role="tool",
             correlation_id=correlation_id,
             tool_call_id=event.data.tool_call.id,
-            tool=cls._build_tool_object(
-                tool_id=event.data.tool_call.id,
-                name=friendly.get("tool_name", event.data.tool_name),
-                action=friendly.get("action", ""),
-                status=tool_status,
-                remark=remark_value,
-                detail=tool_detail,
-                attachments=attachments,
-            ),
+            tool=tool_obj.model_dump(mode="json", exclude_none=True),
             status="running",
         )
         return cls._build_and_send(
@@ -810,6 +840,7 @@ class TaskMessageFactoryV2(TaskMessageFactoryProtocol):
             status=TaskStatus.RUNNING,
             event_type=event.event_type,
             correlation_id=correlation_id,
+            outer_tool=tool_obj,
         )
 
     # ──────────────────────────────────────────────
