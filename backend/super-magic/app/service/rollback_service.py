@@ -36,6 +36,48 @@ class RollbackService:
         # 添加文件版本服务
         self.file_version_service = FileVersionService()
 
+    async def _reload_main_agent_chat_history(self) -> None:
+        """将磁盘上刚被回滚覆盖的聊天历史重新加载进主 Agent 的内存。
+
+        checkpoint 回滚只能直接覆盖磁盘上的聊天历史文件；主 Agent 进程内
+        常驻的 ChatHistory 实例因 load() 幂等保护不会主动重读磁盘，这会
+        造成"内存中的历史仍是回滚前旧状态、但文件已是回滚后新状态"的
+        错位。只要此后再追加一条新消息并落盘，旧的内存状态就会覆盖回
+        滚结果（即用户看到的 revoke + commit + 新消息后，被撤回的那轮对
+        话又复活）。
+
+        仅在 commit_rollback 的成功路径上调用：
+        - start_rollback 之后必然走 commit 或 undo，中间不会触发 agent.run，
+          不需要在 start 里 reload。
+        - undo_rollback 的语义本身就是把磁盘恢复成内存当前所在的 latest
+          状态，内存与磁盘天然一致，不需要 reload。
+
+        主 Agent 尚未创建（例如回滚发生在会话首次启动前）时，agents 为
+        空，直接跳过即可；reload 过程中任何单个 Agent 失败都不应影响
+        回滚主流程成功的语义，因此这里只记日志不抛错。
+        """
+        # 局部 import 避免与 agent_dispatcher 的模块级循环依赖
+        from app.service.agent_dispatcher import AgentDispatcher
+
+        dispatcher = AgentDispatcher.get_instance()
+        agents = getattr(dispatcher, "agents", None) or {}
+        if not agents:
+            logger.debug("主 Agent 尚未创建，跳过聊天历史内存重载")
+            return
+
+        for agent_type, agent in agents.items():
+            chat_history = getattr(agent, "chat_history", None)
+            if chat_history is None:
+                continue
+            try:
+                await chat_history.reload_from_disk()
+                logger.info(f"已从磁盘重新加载聊天历史: agent_type={agent_type}")
+            except Exception as e:
+                logger.error(
+                    f"从磁盘重新加载聊天历史失败 (agent_type={agent_type}): {e}",
+                    exc_info=True,
+                )
+
     async def _get_previous_checkpoint(self, checkpoint_id: str) -> Optional[str]:
         """获取指定checkpoint的前一个checkpoint（支持虚拟checkpoint）
 
@@ -90,6 +132,10 @@ class RollbackService:
                 await self.checkpoint_service.metadata_manager.set_rollback_in_progress(False)
             logger.info(f"开始回滚成功完成: {target_message_id}")
 
+            # 注意：这里不需要 reload 主 Agent 的内存 chat_history。
+            # start_rollback 之后产品上必然走 commit_rollback 或 undo_rollback，
+            # 中间不会触发 agent.run 把陈旧内存写回磁盘；commit 里统一 reload 即可。
+
             # 文件版本创建延迟到 commit_rollback 成功后再做。
             # start_rollback 阶段只是把工作区文件临时切到历史状态，
             # 用户仍可能通过 undo_rollback 撤回，此时创建的版本就是无效噪音。
@@ -121,6 +167,15 @@ class RollbackService:
                 raise RollbackException(ErrorCode.ROLLBACK_GENERAL_ERROR, "提交回滚操作失败")
 
             logger.info("回滚提交成功完成")
+
+            # 在这里重新加载主 Agent 的内存 chat_history。
+            # start_rollback 已经把磁盘上的聊天历史覆盖为目标状态，但内存
+            # 中的 ChatHistory 因 load() 幂等保护未被刷新；若不在此处 reload，
+            # 后续新消息会以陈旧内存为基线再写回磁盘，把刚回滚掉的那轮
+            # 对话又"复活"到历史记录里。
+            # 另一条终态路径 undo_rollback 天然一致（内存=磁盘=latest），
+            # 因此只需要在 commit 这一个点 reload。
+            await self._reload_main_agent_chat_history()
 
             if files_to_version:
                 logger.info(f"准备为 {len(files_to_version)} 个文件创建版本")
@@ -181,6 +236,11 @@ class RollbackService:
                 await self.checkpoint_service.metadata_manager.set_rollback_in_progress(False)
             if not success:
                 raise RollbackException(ErrorCode.ROLLBACK_GENERAL_ERROR, "撤回回滚执行失败")
+
+            # 注意：这里不需要 reload 主 Agent 的内存 chat_history。
+            # undo_rollback 的语义就是把磁盘恢复成内存当前所在的 latest 状态，
+            # 而内存自 agent 启动以来就一直是 latest（load() 幂等未被改写），
+            # 因此 undo 完成后内存与磁盘天然一致，无需额外 reload。
 
             # 撤回回滚只是把工作区恢复到 start_rollback 之前的最新状态，
             # 不意味着用户确认了任何变更，因此不在这里创建文件版本。
