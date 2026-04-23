@@ -343,16 +343,55 @@ class DesignVideoPollConsumer extends ConsumerMessage
         }
 
         $fullFileDir = rtrim($taskFileDir->getFileKey(), '/') . '/';
-        $fullFileDirWithoutSlash = rtrim($fullFileDir, '/');
-        $relativeFileDir = $fullFileDirWithoutSlash === $workspacePrefix
-            ? '/'
-            : '/' . ltrim(substr($fullFileDirWithoutSlash, strlen($workspacePrefix)), '/');
+        $relativeFileDir = $this->buildNameBasedRelativeDirectoryPath($entity, $taskFileDir);
+        if ($relativeFileDir === null) {
+            return null;
+        }
 
         return [
             'task_file_dir' => $taskFileDir,
             'full_file_dir' => $fullFileDir,
             'relative_file_dir' => $relativeFileDir,
         ];
+    }
+
+    private function buildNameBasedRelativeDirectoryPath(
+        DesignGenerationTaskEntity $entity,
+        TaskFileEntity $taskFileDir,
+    ): ?string {
+        $segments = [];
+        $visitedFileIds = [];
+        $current = $taskFileDir;
+
+        for ($depth = 0; $depth < 100; ++$depth) {
+            if ($current->getProjectId() !== $entity->getProjectId()) {
+                return null;
+            }
+
+            $fileId = $current->getFileId();
+            if (isset($visitedFileIds[$fileId])) {
+                return null;
+            }
+            $visitedFileIds[$fileId] = true;
+
+            $fileName = trim($current->getFileName(), '/');
+            if ($fileName !== '') {
+                array_unshift($segments, $fileName);
+            }
+
+            $parentId = $current->getParentId();
+            if ($parentId === null || $parentId <= 0) {
+                return $segments === [] ? '/' : '/' . implode('/', $segments);
+            }
+
+            $parent = $this->taskFileDomainService->getById($parentId);
+            if (! $parent instanceof TaskFileEntity) {
+                return null;
+            }
+            $current = $parent;
+        }
+
+        return null;
     }
 
     private function isValidArchiveDirectory(

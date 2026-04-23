@@ -66,6 +66,35 @@ class DesignVideoPollConsumerTest extends TestCase
         $this->assertSame(1, $repository->updateCount);
     }
 
+    public function testArchiveFilesKeepsNameBasedRelativePathWhenDirectoryFileKeyUsesIds(): void
+    {
+        $repository = new InMemoryDesignGenerationTaskRepository();
+        $consumer = $this->createConsumer(
+            repository: $repository,
+            taskFileDomainService: $this->createTaskFileDomainServiceForIdBasedDirectoryPath(),
+            fileDomainService: $this->createFileDomainServiceExpectingUpload('/project_123/workspace/7001/'),
+        );
+        $entity = $this->createEntity('/old-id-path', [
+            'file_dir_id' => 7001,
+        ]);
+        $videoPath = $this->createTemporaryVideoFile();
+
+        try {
+            $consumer->archiveFilesForTest(
+                DesignDataIsolation::create('org', 'user-1'),
+                $entity,
+                $this->createSucceededResult($videoPath),
+            );
+        } finally {
+            @unlink($videoPath);
+        }
+
+        $this->assertSame(DesignGenerationStatus::COMPLETED, $entity->getStatus());
+        $this->assertSame('/433333/videos/smart-video.mp4', $entity->getOutputPayload()['relative_file_path'] ?? null);
+        $this->assertSame('/433333/videos', $entity->getFileDir());
+        $this->assertSame(7001, $entity->getOutputPayload()['file_dir_id'] ?? null);
+    }
+
     public function testArchiveFilesCompletesWithoutDirectoryAndKeepsProviderOutputAndSmartFileName(): void
     {
         $repository = new InMemoryDesignGenerationTaskRepository();
@@ -158,7 +187,7 @@ class DesignVideoPollConsumerTest extends TestCase
     {
         $service = $this->createMock(TaskFileDomainService::class);
         $service->expects($this->once())->method('getById')->with(8001)->willReturn(null);
-        $service->expects($this->once())->method('getByFileKey')->with('/org/project_123/workspace/missing-name/')->willReturn(null);
+        $service->expects($this->once())->method('findEntityByRelativePath')->with(123, '/missing-name')->willReturn(null);
         $service->expects($this->never())->method('saveProjectFile');
 
         return $service;
@@ -168,9 +197,33 @@ class DesignVideoPollConsumerTest extends TestCase
     {
         $service = $this->createMock(TaskFileDomainService::class);
         $service->expects($this->never())->method('getById');
-        $service->expects($this->once())->method('getByFileKey')->with('/org/project_123/workspace/legacy/')->willReturn($this->createDirectory(6001, '/org/project_123/workspace/legacy'));
+        $service->expects($this->once())->method('findEntityByRelativePath')->with(123, '/legacy')->willReturn($this->createDirectory(6001, '/org/project_123/workspace/legacy'));
         $service->expects($this->once())->method('saveProjectFile')->willReturnCallback(
             fn (mixed $dataIsolation, ProjectEntity $projectEntity, TaskFileEntity $taskFileEntity): TaskFileEntity => $this->createSavedFile(9002, $taskFileEntity->getFileKey())
+        );
+
+        return $service;
+    }
+
+    private function createTaskFileDomainServiceForIdBasedDirectoryPath(): TaskFileDomainService
+    {
+        $videosDirectory = $this->createDirectory(7001, '/org/project_123/workspace/7001', 'videos', 7000);
+        $parentDirectory = $this->createDirectory(7000, '/org/project_123/workspace/7000', '433333', 6000);
+        $rootDirectory = $this->createDirectory(6000, '/org/project_123/workspace', '/', null);
+
+        $service = $this->createMock(TaskFileDomainService::class);
+        $service->expects($this->exactly(3))->method('getById')->willReturnMap([
+            [7001, $videosDirectory],
+            [7000, $parentDirectory],
+            [6000, $rootDirectory],
+        ]);
+        $service->expects($this->never())->method('findEntityByRelativePath');
+        $service->expects($this->once())->method('saveProjectFile')->willReturnCallback(
+            function (mixed $dataIsolation, ProjectEntity $projectEntity, TaskFileEntity $taskFileEntity): TaskFileEntity {
+                $this->assertSame(7001, $taskFileEntity->getParentId());
+                $this->assertSame('/org/project_123/workspace/7001/smart-video.mp4', $taskFileEntity->getFileKey());
+                return $this->createSavedFile(9003, $taskFileEntity->getFileKey());
+            }
         );
 
         return $service;
@@ -229,14 +282,15 @@ class DesignVideoPollConsumerTest extends TestCase
         return $entity;
     }
 
-    private function createDirectory(int $fileId, string $fileKey): TaskFileEntity
+    private function createDirectory(int $fileId, string $fileKey, ?string $fileName = null, ?int $parentId = null): TaskFileEntity
     {
         $entity = new TaskFileEntity();
         $entity->setFileId($fileId);
         $entity->setProjectId(123);
         $entity->setFileKey($fileKey);
-        $entity->setFileName(basename($fileKey));
+        $entity->setFileName($fileName ?? basename($fileKey));
         $entity->setIsDirectory(true);
+        $entity->setParentId($parentId);
         $entity->setSource(TaskFileSource::DEFAULT);
         $entity->setCreatedAt('2026-04-22 00:00:00');
         $entity->setUpdatedAt('2026-04-22 00:00:00');
