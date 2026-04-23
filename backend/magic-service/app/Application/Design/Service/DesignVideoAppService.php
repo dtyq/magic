@@ -265,6 +265,8 @@ class DesignVideoAppService extends DesignAppService
 
         $inputPayload = $entity->getInputPayload();
         $this->assertWorkspaceInputPayloadFilesExist($workspacePrefix, $inputPayload);
+
+        return $taskFileDir;
     }
 
     /**
@@ -294,8 +296,6 @@ class DesignVideoAppService extends DesignAppService
         foreach ((array) ($inputPayload['frames'] ?? []) as $frame) {
             $this->assertWorkspaceFileExists($workspacePrefix, (string) ($frame['uri'] ?? ''));
         }
-
-        return $taskFileDir;
     }
 
     /**
