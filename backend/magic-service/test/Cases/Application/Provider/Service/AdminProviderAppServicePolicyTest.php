@@ -86,7 +86,7 @@ class AdminProviderAppServicePolicyTest extends TestCase
                         }
                     },
                     TranslatorInterface::class => new class implements TranslatorInterface {
-                        public function trans(string $key, array $replace = [], ?string $locale = null): array|string
+                        public function trans(string $key, array $replace = [], ?string $locale = null): string
                         {
                             return $key;
                         }
@@ -147,6 +147,11 @@ class AdminProviderAppServicePolicyTest extends TestCase
                         public function getAvailableModelIds(?ModelType $modelType): ?array
                         {
                             return null;
+                        }
+
+                        public function getPersonalVideoGenerationConcurrencyLimit(): int
+                        {
+                            return 1;
                         }
 
                         public function isValidModelAvailable(string $modelId, ?ModelType $modelType): bool

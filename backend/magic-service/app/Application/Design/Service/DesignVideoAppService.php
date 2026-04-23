@@ -25,6 +25,7 @@ use App\ErrorCode\DesignErrorCode;
 use App\Infrastructure\Core\Exception\ExceptionBuilder;
 use App\Interfaces\Design\DTO\VideoPointEstimateDTO;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ProjectEntity;
+use Dtyq\SuperMagic\Domain\SuperAgent\Entity\TaskFileEntity;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\MemberRole;
 use Dtyq\SuperMagic\Domain\SuperAgent\Service\TaskFileDomainService;
 use Hyperf\Amqp\Producer;
@@ -57,11 +58,13 @@ class DesignVideoAppService extends DesignAppService
         $designDataIsolation = $this->createDesignDataIsolation($authenticatable);
         $project = $this->assertProjectAccess($designDataIsolation, $entity->getProjectId(), MemberRole::EDITOR);
         $modelDefinition = $this->findModelOrFail($entity->getModelId());
-        $this->assertWorkspacePathsExist(
+        $outputDirectory = $this->assertWorkspacePathsExist(
             $designDataIsolation->getCurrentOrganizationCode(),
             $project->getId(),
             $entity
         );
+        // 记录输出目录 ID，后续目录被改名或移动时仍可按 ID 找到真实目录。
+        $entity->setOutputDirectoryFileId($outputDirectory->getFileId());
 
         $existingEntity = $this->designGenerationTaskDomainService->findVideoTask($designDataIsolation, $project->getId(), $entity->getGenerationId());
         if ($existingEntity !== null) {
@@ -249,7 +252,7 @@ class DesignVideoAppService extends DesignAppService
     /**
      * 校验输出目录和所有输入素材均在当前项目工作区内存在。
      */
-    private function assertWorkspacePathsExist(string $organizationCode, int $projectId, DesignGenerationTaskEntity $entity): void
+    private function assertWorkspacePathsExist(string $organizationCode, int $projectId, DesignGenerationTaskEntity $entity): TaskFileEntity
     {
         $filePrefix = $this->fileDomainService->getFullPrefix($organizationCode);
         $workspacePrefix = PathFactory::getWorkspacePrefix($filePrefix, $projectId);
@@ -291,6 +294,8 @@ class DesignVideoAppService extends DesignAppService
         foreach ((array) ($inputPayload['frames'] ?? []) as $frame) {
             $this->assertWorkspaceFileExists($workspacePrefix, (string) ($frame['uri'] ?? ''));
         }
+
+        return $taskFileDir;
     }
 
     /**
