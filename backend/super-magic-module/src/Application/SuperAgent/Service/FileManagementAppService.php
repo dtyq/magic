@@ -26,6 +26,7 @@ use Dtyq\SuperMagic\Domain\Share\Constant\ResourceType;
 use Dtyq\SuperMagic\Domain\Share\Entity\ResourceShareEntity;
 use Dtyq\SuperMagic\Domain\Share\Service\ResourceShareDomainService;
 use Dtyq\SuperMagic\Domain\SuperAgent\Constant\ProjectFileConstant;
+use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ProjectEntity;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\TaskFileEntity;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\FileType;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\StorageType;
@@ -1415,6 +1416,7 @@ class FileManagementAppService extends AbstractAppService
         $dataIsolation = $this->createDataIsolation($userAuthorization);
         $sourceProject = null;
         $targetProject = null;
+        $targetParentId = null;
 
         try {
             // 1. Get source project and verify permission
@@ -1433,7 +1435,49 @@ class FileManagementAppService extends AbstractAppService
                 )
                 : $sourceProject;
 
-            // Generate batch key for tracking
+            // 3. Resolve and validate target parent directory
+            if (empty($requestDTO->getTargetParentId())) {
+                $targetParentId = $this->taskFileDomainService->findOrCreateProjectRootDirectory(
+                    projectId: $targetProject->getId(),
+                    workDir: $targetProject->getWorkDir(),
+                    userId: $dataIsolation->getCurrentUserId(),
+                    organizationCode: $dataIsolation->getCurrentOrganizationCode(),
+                    projectOrganizationCode: $targetProject->getUserOrganizationCode()
+                );
+            } else {
+                $targetParentId = (int) $requestDTO->getTargetParentId();
+            }
+
+            $targetParentEntity = $this->taskFileDomainService->getById($targetParentId);
+            if ($targetParentEntity === null || $targetParentEntity->getProjectId() !== $targetProject->getId()) {
+                ExceptionBuilder::throw(
+                    SuperAgentErrorCode::FILE_PERMISSION_DENIED,
+                    trans('file.target_parent_not_in_target_project')
+                );
+            }
+
+            // 4. Decide sync vs async path:
+            // - Cross project / cross organization / keep-both conflicts / explicit positioning
+            //   require background processing because they involve heavier work or richer ordering logic.
+            // - Same project + same organization without keep-both / pre_file_id can be handled inline,
+            //   the same way single-file move does, since we only need to update parent_id per row.
+            $isCrossProject = $sourceProject->getId() !== $targetProject->getId();
+            $isCrossOrganization = $sourceProject->getUserOrganizationCode() !== $targetProject->getUserOrganizationCode();
+            $hasKeepBoth = ! empty($requestDTO->getKeepBothFileIds());
+            $hasPreFileId = ! empty($requestDTO->getPreFileId());
+            $shouldAsync = $isCrossProject || $isCrossOrganization || $hasKeepBoth || $hasPreFileId;
+
+            if (! $shouldAsync) {
+                return $this->batchMoveFileSync(
+                    $userAuthorization,
+                    $sourceProject,
+                    $targetProject,
+                    $targetParentId,
+                    $requestDTO->getFileIds()
+                );
+            }
+
+            // 5. Async path: generate batch key for tracking
             $fileIds = $requestDTO->getFileIds();
             sort($fileIds); // Ensure consistent hash for same file IDs
             $fileIdsHash = md5(implode(',', $fileIds));
@@ -1457,7 +1501,7 @@ class FileManagementAppService extends AbstractAppService
                 'expanded_count' => count($expandedFileIds),
             ]);
 
-            // 6. Initialize task status with expanded file count
+            // Initialize task status with expanded file count
             $this->batchOperationStatusManager->initializeTask(
                 $batchKey,
                 FileBatchOperationStatusManager::OPERATION_MOVE,
@@ -1465,39 +1509,18 @@ class FileManagementAppService extends AbstractAppService
                 count($expandedFileIds)
             );
 
-            // 7. Print request data
             $this->logger->info(sprintf('Batch move file request data, batchKey: %s', $batchKey), [
                 'file_ids' => $requestDTO->getFileIds(),
                 'expanded_file_ids' => $expandedFileIds,
                 'source_project_id' => $sourceProject->getId(),
                 'target_project_id' => $targetProject->getId(),
-                'target_parent_id' => $requestDTO->getTargetParentId(),
+                'target_parent_id' => $targetParentId,
                 'pre_file_id' => $requestDTO->getPreFileId(),
                 'keep_both_file_ids' => $requestDTO->getKeepBothFileIds(),
             ]);
 
             // Create and publish batch move event
-            $preFileId = ! empty($requestDTO->getPreFileId()) ? (int) $requestDTO->getPreFileId() : null;
-            if (empty($requestDTO->getTargetParentId())) {
-                $targetParentId = $this->taskFileDomainService->findOrCreateProjectRootDirectory(
-                    projectId: $targetProject->getId(),
-                    workDir: $targetProject->getWorkDir(),
-                    userId: $dataIsolation->getCurrentUserId(),
-                    organizationCode: $dataIsolation->getCurrentOrganizationCode(),
-                    projectOrganizationCode: $targetProject->getUserOrganizationCode()
-                );
-            } else {
-                $targetParentId = (int) $requestDTO->getTargetParentId();
-            }
-
-            $targetParentEntity = $this->taskFileDomainService->getById($targetParentId);
-            if ($targetParentEntity === null || $targetParentEntity->getProjectId() !== $targetProject->getId()) {
-                ExceptionBuilder::throw(
-                    SuperAgentErrorCode::FILE_PERMISSION_DENIED,
-                    trans('file.target_parent_not_in_target_project')
-                );
-            }
-
+            $preFileId = $hasPreFileId ? (int) $requestDTO->getPreFileId() : null;
             $event = FileBatchMoveEvent::fromDTO(
                 $batchKey,
                 $dataIsolation->getCurrentUserId(),
@@ -2072,6 +2095,95 @@ class FileManagementAppService extends AbstractAppService
             ]);
             ExceptionBuilder::throw(SuperAgentErrorCode::FILE_NOT_FOUND, trans('file.get_tree_failed'));
         }
+    }
+
+    /**
+     * Synchronous batch move for the same project + same organization scenario.
+     *
+     * Mirrors the inline branch of single-file moveFile(): each top-level file id is updated via
+     * moveFileWithCheck() (parent_id only), and a FileMovedEvent is dispatched per file so downstream
+     * subscribers (display_config cleanup, notifications, etc.) behave the same as a single move.
+     *
+     * @param MagicUserAuthorization $userAuthorization Caller authorization
+     * @param ProjectEntity $sourceProject Source project (== target project here)
+     * @param ProjectEntity $targetProject Target project
+     * @param int $targetParentId Resolved target parent directory id
+     * @param array $fileIds Top-level file ids requested by client (may contain directories)
+     * @return array Sync response payload
+     */
+    private function batchMoveFileSync(
+        MagicUserAuthorization $userAuthorization,
+        ProjectEntity $sourceProject,
+        ProjectEntity $targetProject,
+        int $targetParentId,
+        array $fileIds
+    ): array {
+        $movedItems = [];
+
+        // Build a lightweight authorization clone for event payload, matching single-file move().
+        $movedUserAuth = new MagicUserAuthorization();
+        $movedUserAuth->setId($userAuthorization->getId());
+        $movedUserAuth->setOrganizationCode($userAuthorization->getOrganizationCode());
+
+        foreach ($fileIds as $rawFileId) {
+            $intFileId = (int) $rawFileId;
+            if ($intFileId <= 0) {
+                continue;
+            }
+
+            // Load source file and ensure it belongs to the source project.
+            $sourceFileEntity = $this->taskFileDomainService->getUserFileEntityNoUser($intFileId);
+            if ($sourceFileEntity->getProjectId() !== $sourceProject->getId()) {
+                ExceptionBuilder::throw(
+                    SuperAgentErrorCode::FILE_PERMISSION_DENIED,
+                    trans('file.target_parent_not_in_target_project')
+                );
+            }
+
+            // Already under the target parent: skip the update but still return the entity to keep
+            // a stable response shape for the client.
+            if ($sourceFileEntity->getParentId() === $targetParentId) {
+                $relativeFilePath = $this->buildRelativeFilePathForEntity($sourceFileEntity, $targetProject->getId());
+                $movedItems[] = TaskFileItemDTO::fromEntity(
+                    $sourceFileEntity,
+                    $targetProject->getWorkDir(),
+                    $relativeFilePath
+                )->toArray();
+                continue;
+            }
+
+            $oldParentId = $sourceFileEntity->getParentId();
+            $updatedFileEntity = $this->taskFileDomainService->moveFileWithCheck(
+                (string) $sourceFileEntity->getFileId(),
+                (string) $targetParentId,
+                true
+            );
+
+            $this->eventDispatcher->dispatch(new FileMovedEvent($updatedFileEntity, $movedUserAuth, $oldParentId));
+
+            // Re-fetch with the updated row so the response reflects the latest state.
+            $newFileEntity = $this->taskFileDomainService->getById($intFileId);
+            if ($newFileEntity === null) {
+                continue;
+            }
+
+            $relativeFilePath = $this->buildRelativeFilePathForEntity($newFileEntity, $targetProject->getId());
+            $movedItems[] = TaskFileItemDTO::fromEntity(
+                $newFileEntity,
+                $targetProject->getWorkDir(),
+                $relativeFilePath
+            )->toArray();
+        }
+
+        $this->logger->info('Batch move file sync completed', [
+            'source_project_id' => $sourceProject->getId(),
+            'target_project_id' => $targetProject->getId(),
+            'target_parent_id' => $targetParentId,
+            'requested_file_count' => count($fileIds),
+            'moved_file_count' => count($movedItems),
+        ]);
+
+        return FileBatchOperationResponseDTO::createSyncSuccess($movedItems)->toArray();
     }
 
     /**
