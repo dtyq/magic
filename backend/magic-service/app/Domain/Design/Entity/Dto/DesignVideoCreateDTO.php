@@ -422,9 +422,6 @@ class DesignVideoCreateDTO extends AbstractDTO
         if (! in_array($this->task, self::SUPPORTED_TASKS, true)) {
             ExceptionBuilder::throw(MagicApiErrorCode::ValidateFailed, 'task is invalid');
         }
-        if ($this->prompt === '') {
-            ExceptionBuilder::throw(MagicApiErrorCode::ValidateFailed, 'prompt is required');
-        }
 
         foreach (self::TOP_LEVEL_ARRAY_FIELDS as $field) {
             $this->assertTopLevelArrayField($field);
