@@ -49,57 +49,83 @@ class RunSdkSnippetParams(BaseToolParams):
     python_code: str = Field(
         ...,
         description="""<!--zh: 要执行的 Python 代码，通过 sdk.tool / sdk.mcp 调用工具-->
-Python code to execute; use sdk.tool / sdk.mcp to call tools or MCP primitives"""
+Python code to execute that calls tools via sdk.tool / sdk.mcp"""
     )
     timeout: int = Field(
         120,
-        description="""<!--zh: 代码执行超时时间（秒），默认120秒，按预期执行时长调整-->
-Code execution timeout in seconds, default 120. Adjust based on expected operation duration."""
+        description="""<!--zh: 超时秒数，默认120，按预期时长调整-->
+Timeout in seconds, default 120. Increase for long-running scripts."""
     )
 
 
 @tool()
 class RunSdkSnippet(AbstractFileTool[RunSdkSnippetParams]):
-    """<!--zh
-    Code Mode 执行器：运行模型生成的 Python 代码片段，代码通过 sdk.tool / sdk.mcp 调用底层工具。
-    中间结果在执行环境内流转，不进入模型上下文，适合多步编排和复杂逻辑。
-    常与 Skill 配合使用——Skill 描述工作流，此工具负责执行。
-
-    适用场景：
-    - 需要编程方式组合多个工具调用
-    - 需要进行数据处理、转换、分析
-    - 需要实现条件判断、循环等复杂逻辑
-    - 需要调用外部 Python 库
-
-    使用示例：
-    ```python
-    {
-        "python_code": "from sdk.tool import tool\\n\\nresult = tool.call('create_canvas', {\\n    \\\"project_path\\\": \\\"my-design\\\"\\n})\\nprint(result)"
-    }
-    ```
-    -->
-    Code Mode executor: runs model-generated Python code that calls tools via sdk.tool / sdk.mcp.
-    Intermediate results stay in the execution environment and do not flow through model context,
-    making it efficient for multi-step orchestration and complex logic.
-    Commonly used in Skills — Skills describe the workflow, this tool handles execution.
-
-    Use cases:
-    - Programmatically combine multiple tool calls
-    - Data processing, transformation, or analysis
-    - Conditional logic, loops, or complex control flow
-    - Use external Python libraries
-
-    Usage example:
-    ```python
-    {
-        "python_code": "from sdk.tool import tool\\n\\nresult = tool.call('create_canvas', {\\n    \\\"project_path\\\": \\\"my-design\\\"\\n})\\nprint(result)"
-    }
-    ```
+    """<!--zh: 执行 Python 脚本，脚本可通过 SDK 调用任意工具和 MCP，print 的内容作为结果返回。-->
+    Run a Python script that can call any tool or MCP via SDK. Whatever the script prints becomes the result.
     """
 
     def should_trigger_events(self) -> bool:
         """Code Mode 执行不触发工具调用事件，对对话透明"""
         return False
+
+    def get_prompt_hint(self) -> str:
+        return """\
+<!--zh
+写一段 Python 脚本来编排工具调用。脚本里可以串联多个工具、加入判断和循环，
+中间结果留在脚本内部，不进入你的上下文——只有 print 的内容会回到你手里。
+
+适用场景：需要多步工具编排、逻辑处理，或调用仅通过 Code Mode 可用的工具。
+常与 Skill 搭配：Skill 告诉你做什么，这个工具负责怎么做。
+
+示例——搜索关键词，再批量读取匹配的文件：
+
+```python
+from sdk.tool import tool
+
+hits = tool.call("grep_search", {"query": "def handle_error", "file_pattern": "*.py"})
+print(hits.content)
+```
+
+也可以调 MCP：
+
+```python
+from sdk.mcp import mcp
+
+result = mcp.call("server_name", "tool_name", {"key": "value"})
+print(result.content)
+```
+
+参数和你平时直接调工具完全一样。
+result.content 是工具返回的文本结果，直接 print 即可。
+timeout 默认 120 秒，跑得久就传大一点。
+-->
+Write a Python script to orchestrate tool calls. You can chain multiple tools, add conditionals and loops — intermediate results stay inside the script and never enter your context. Only what you print comes back.
+
+Use when you need multi-step tool orchestration, logic processing, or tools that are only available via Code Mode.
+Often paired with Skills: the Skill tells you what to do, this tool handles how.
+
+Example — search for a pattern and print results:
+
+```python
+from sdk.tool import tool
+
+hits = tool.call("grep_search", {"query": "def handle_error", "file_pattern": "*.py"})
+print(hits.content)
+```
+
+MCP calls work the same way:
+
+```python
+from sdk.mcp import mcp
+
+result = mcp.call("server_name", "tool_name", {"key": "value"})
+print(result.content)
+```
+
+Arguments are exactly the same as calling tools directly.
+result.content is the tool's text output — just print it.
+timeout defaults to 120s. Increase it for longer-running scripts.
+"""
 
     @staticmethod
     def _build_snippet_extra_env(project_root: Path) -> dict[str, str]:
