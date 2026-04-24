@@ -162,4 +162,56 @@ return [
             'tag' => '自定义大模型',
         ],
     ],
+
+    /*
+     * 菜单别名映射（仅影响权限树展示，不影响 permission_tag 与接口鉴权）。
+     *
+     * 用途：
+     * - 当前产品存在“多个菜单入口复用同一组权限资源”的场景
+     * - 例如视频大模型、Skill 审核/市场、员工审核/市场
+     * - 主路径仍由 resource_menu_mapping 决定，这里只追加别名菜单节点
+     */
+    'resource_menu_alias_mapping' => [
+        'platform.ai.model_management' => [
+            [
+                'path' => [
+                    ['key' => 'platform_management', 'label' => '平台管理'],
+                    ['key' => 'platform_model', 'label' => '平台模型'],
+                    ['key' => 'video_model', 'label' => '视频大模型'],
+                ],
+            ],
+        ],
+        'platform.ai.skill_management' => [
+            [
+                'path' => [
+                    ['key' => 'platform_management', 'label' => '平台管理'],
+                    ['key' => 'agent_enhancement', 'label' => '智能体增强'],
+                    ['key' => 'skill_review', 'label' => 'Skill 审核'],
+                ],
+            ],
+            [
+                'path' => [
+                    ['key' => 'platform_management', 'label' => '平台管理'],
+                    ['key' => 'agent_enhancement', 'label' => '智能体增强'],
+                    ['key' => 'skill_market', 'label' => 'Skill 市场'],
+                ],
+            ],
+        ],
+        'platform.ai.agent_management' => [
+            [
+                'path' => [
+                    ['key' => 'platform_management', 'label' => '平台管理'],
+                    ['key' => 'agent_enhancement', 'label' => '智能体增强'],
+                    ['key' => 'employee_review', 'label' => '员工审核'],
+                ],
+            ],
+            [
+                'path' => [
+                    ['key' => 'platform_management', 'label' => '平台管理'],
+                    ['key' => 'agent_enhancement', 'label' => '智能体增强'],
+                    ['key' => 'employee_market', 'label' => '员工市场'],
+                ],
+            ],
+        ],
+    ],
 ];
