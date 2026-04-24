@@ -55,6 +55,9 @@ readonly class ModelGatewayVideoGatewayClient implements VideoGatewayClientInter
         $requestDTO->setBusinessParams($mergedBusinessParams);
         $requestDTO->setHeaderConfigs($this->buildHeaderConfigs($mergedBusinessParams));
         $requestDTO->setIps(['127.0.0.1']);
+        if (empty($requestDTO->getPrompt())) {
+            $requestDTO->setPrompt('test');
+        }
         $requestDTO->valid();
 
         return $this->videoOperationAppService

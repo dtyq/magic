@@ -15,7 +15,7 @@ class EstimateVideoPointsFormRequest extends GenerateVideoFormRequest
     public function rules(): array
     {
         $rules = parent::rules();
-        unset($rules['video_id'], $rules['file_dir'], $rules['file_name']);
+        unset($rules['video_id'], $rules['file_dir'], $rules['file_name'], $rules['prompt']);
 
         return $rules;
     }
