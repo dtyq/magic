@@ -154,7 +154,7 @@ readonly class VolcengineArkVideoClient
                 $error = is_array($payload['error'] ?? null) ? $payload['error'] : [];
                 $errorCode = trim((string) ($error['code'] ?? ''));
                 if ($errorCode !== '') {
-                    $key = sprintf('video.errors.volcengine.%s', $errorCode);
+                    $key = sprintf('video.errors.%s', $errorCode);
                     $translated = __($key);
                     if (is_string($translated) && $translated !== '' && $translated !== $key) {
                         return $translated;
