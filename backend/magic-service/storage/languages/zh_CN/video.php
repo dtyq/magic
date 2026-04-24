@@ -21,24 +21,27 @@ return [
         'generic' => '视频生成失败，请检查输入内容或稍后重试。',
         'user_concurrency_limit' => '您的视频生成任务已达到同时运行上限（最多 :limit 个），请等待已有任务完成后再提交。',
         'organization_concurrency_limit' => '当前组织的视频生成任务已达到同时运行上限（最多 :limit 个），请等待组织内已有任务完成后再提交。',
-        'volcengine' => [
-            'InputVideoSensitiveContentDetected' => [
-                'PrivacyInformation' => '输入视频或图片可能包含真人或人脸，请更换无真人、无肖像的素材后再试。',
-            ],
-            'ContentSecurity' => [
-                'CopyrightRisk' => '当前内容可能涉及版权风险，请替换无版权音频或删除提示词中的明星、IP、品牌信息后重试。',
-                'SensitiveContent' => '输入内容可能包含敏感信息，请简化提示词并删除违规、低俗、政治或擦边内容后重试。',
-                'TrademarkRisk' => '素材中可能包含品牌 Logo 或商标，请裁剪、模糊标识或更换无标识素材后重试。',
-                'ViolentContent' => '输入内容可能包含暴力或不适画面，请更换合规素材后重试。',
-            ],
-            'InvalidParameter' => [
-                'InvalidVideoDuration' => '当前视频时长不受支持，请改为官方支持的时长档位后重试。',
-                'InvalidResolution' => '当前分辨率不受支持，请改为 480p 或 720p 后重试。',
-                'EmptyInput' => '未检测到有效的图片、视频或音频素材，请确认素材上传成功后重试。',
-            ],
-            'InvalidFileFormat' => '素材格式不受支持，请使用 JPG/PNG 图片、MP4 视频或 MP3/WAV 音频后重试。',
-            'FileSizeTooLarge' => '素材文件大小超出限制，请压缩后重试。',
-            'AudioDurationTooLong' => '音频时长长于生成视频时长，请裁剪音频后重试。',
+
+        // volcengine ark
+        'InputVideoSensitiveContentDetected' => [
+            'PrivacyInformation' => '输入视频或图片可能包含真人或人脸，请更换无真人、无肖像的素材后再试。',
         ],
+        'OutputVideoSensitiveContentDetected' => [
+            'PolicyViolation' => '生成视频可能涉及版权相关限制，请调整提示词、音频或参考素材后重试。',
+        ],
+        'ContentSecurity' => [
+            'CopyrightRisk' => '当前内容可能涉及版权风险，请替换无版权音频或删除提示词中的明星、IP、品牌信息后重试。',
+            'SensitiveContent' => '输入内容可能包含敏感信息，请简化提示词并删除违规、低俗、政治或擦边内容后重试。',
+            'TrademarkRisk' => '素材中可能包含品牌 Logo 或商标，请裁剪、模糊标识或更换无标识素材后重试。',
+            'ViolentContent' => '输入内容可能包含暴力或不适画面，请更换合规素材后重试。',
+        ],
+        'InvalidParameter' => [
+            'InvalidVideoDuration' => '当前视频时长不受支持，请改为官方支持的时长档位后重试。',
+            'InvalidResolution' => '当前分辨率不受支持，请改为 480p 或 720p 后重试。',
+            'EmptyInput' => '未检测到有效的图片、视频或音频素材，请确认素材上传成功后重试。',
+        ],
+        'InvalidFileFormat' => '素材格式不受支持，请使用 JPG/PNG 图片、MP4 视频或 MP3/WAV 音频后重试。',
+        'FileSizeTooLarge' => '素材文件大小超出限制，请压缩后重试。',
+        'AudioDurationTooLong' => '音频时长长于生成视频时长，请裁剪音频后重试。',
     ],
 ];

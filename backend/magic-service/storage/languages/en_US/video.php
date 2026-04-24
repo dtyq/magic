@@ -21,24 +21,27 @@ return [
         'generic' => 'Video generation failed. Please check your input and try again later.',
         'user_concurrency_limit' => 'Your video generation concurrency limit has been reached (maximum :limit running task(s)). Please wait for an existing task to finish before submitting another one.',
         'organization_concurrency_limit' => 'This organization has reached its video generation concurrency limit (maximum :limit running task(s)). Please wait for an existing organization task to finish before submitting another one.',
-        'volcengine' => [
-            'InputVideoSensitiveContentDetected' => [
-                'PrivacyInformation' => 'The input video or image may contain a real person or face. Please replace it with non-person content and try again.',
-            ],
-            'ContentSecurity' => [
-                'CopyrightRisk' => 'The content may involve copyright risk. Please remove copyrighted audio or brand, celebrity, or IP references and try again.',
-                'SensitiveContent' => 'The input may contain sensitive content. Please simplify the prompt and remove inappropriate or restricted content before trying again.',
-                'TrademarkRisk' => 'The asset may contain a logo or trademark. Please crop, blur, or replace the marked asset and try again.',
-                'ViolentContent' => 'The input may contain violent or inappropriate content. Please replace it with compliant material and try again.',
-            ],
-            'InvalidParameter' => [
-                'InvalidVideoDuration' => 'The requested video duration is not supported. Please switch to a supported duration and try again.',
-                'InvalidResolution' => 'The requested resolution is not supported. Please use 480p or 720p and try again.',
-                'EmptyInput' => 'No valid image, video, or audio input was found. Please confirm the asset upload succeeded and try again.',
-            ],
-            'InvalidFileFormat' => 'The asset format is not supported. Please use JPG/PNG images, MP4 videos, or MP3/WAV audio files.',
-            'FileSizeTooLarge' => 'The asset file is too large. Please compress the file and try again.',
-            'AudioDurationTooLong' => 'The audio is longer than the target video duration. Please trim the audio and try again.',
+
+        // volcengine ark
+        'InputVideoSensitiveContentDetected' => [
+            'PrivacyInformation' => 'The input video or image may contain a real person or face. Please replace it with non-person content and try again.',
         ],
+        'OutputVideoSensitiveContentDetected' => [
+            'PolicyViolation' => 'The request failed because the output video may be related to copyright restrictions. Please adjust your prompt, audio, or reference assets and try again.',
+        ],
+        'ContentSecurity' => [
+            'CopyrightRisk' => 'The content may involve copyright risk. Please remove copyrighted audio or brand, celebrity, or IP references and try again.',
+            'SensitiveContent' => 'The input may contain sensitive content. Please simplify the prompt and remove inappropriate or restricted content before trying again.',
+            'TrademarkRisk' => 'The asset may contain a logo or trademark. Please crop, blur, or replace the marked asset and try again.',
+            'ViolentContent' => 'The input may contain violent or inappropriate content. Please replace it with compliant material and try again.',
+        ],
+        'InvalidParameter' => [
+            'InvalidVideoDuration' => 'The requested video duration is not supported. Please switch to a supported duration and try again.',
+            'InvalidResolution' => 'The requested resolution is not supported. Please use 480p or 720p and try again.',
+            'EmptyInput' => 'No valid image, video, or audio input was found. Please confirm the asset upload succeeded and try again.',
+        ],
+        'InvalidFileFormat' => 'The asset format is not supported. Please use JPG/PNG images, MP4 videos, or MP3/WAV audio files.',
+        'FileSizeTooLarge' => 'The asset file is too large. Please compress the file and try again.',
+        'AudioDurationTooLong' => 'The audio is longer than the target video duration. Please trim the audio and try again.',
     ],
 ];

@@ -391,14 +391,19 @@ readonly class VolcengineArkSeedanceVideoAdapter implements VideoGenerationProvi
             'failed', 'error', 'expired', 'cancelled', 'canceled' => 'failed',
             default => 'processing',
         };
-        $errorCode = match ($status) {
-            'expired' => 'PROVIDER_EXPIRED',
-            'cancelled', 'canceled' => 'PROVIDER_CANCELLED',
-            'failed', 'error' => 'PROVIDER_FAILED',
-            default => null,
-        };
+
         $error = is_array($detail['error'] ?? null) ? $detail['error'] : [];
         $data = is_array($detail['data'] ?? null) ? $detail['data'] : [];
+
+        $errorCode = $detail['error']['code'] ?? '';
+        if (! $errorCode) {
+            $errorCode = match ($status) {
+                'expired' => 'PROVIDER_EXPIRED',
+                'cancelled', 'canceled' => 'PROVIDER_CANCELLED',
+                'failed', 'error' => 'PROVIDER_FAILED',
+                default => null,
+            };
+        }
 
         return [
             'status' => $resultStatus,

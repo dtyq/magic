@@ -144,7 +144,8 @@ class DesignVideoPollConsumer extends ConsumerMessage
             $this->domainService->markAsFailed(
                 $dataIsolation,
                 $entity,
-                (string) ($error['message'] ?? 'video generation failed')
+                (string) ($error['message'] ?? 'video generation failed'),
+                $error['code'] ?? null
             );
             return Result::ACK;
         }
