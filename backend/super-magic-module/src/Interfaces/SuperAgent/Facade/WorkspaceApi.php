@@ -33,6 +33,18 @@ class WorkspaceApi extends AbstractApi
     }
 
     /**
+     * Get or create a system-managed workspace by type code.
+     * If the workspace does not exist for the current user, it will be created automatically.
+     *
+     * @param string $code WorkspaceType value, e.g. "chat"
+     */
+    public function getAppWorkspace(RequestContext $requestContext, string $code): array
+    {
+        $requestContext->setUserAuthorization($this->getAuthorization());
+        return $this->workspaceAppService->getAppWorkspace($requestContext, $code)->toArray();
+    }
+
+    /**
      * 获取工作区列表.
      */
     public function getWorkspaceList(RequestContext $requestContext): array

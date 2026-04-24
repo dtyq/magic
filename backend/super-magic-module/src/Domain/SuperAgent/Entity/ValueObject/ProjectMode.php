@@ -26,6 +26,7 @@ enum ProjectMode: string
     case CUSTOM_AGENT = 'custom_agent'; // 自定义 agent 模式
     case CUSTOM_SKILL = 'custom_skill'; // 自定义 skill 模式
     case MAGICLAW = 'magiclaw'; // magic 龙虾模式
+    case CHAT = 'chat';         // 对话模式
 
     /**
      * Get all available project modes.
@@ -46,6 +47,7 @@ enum ProjectMode: string
             self::CUSTOM_AGENT->value,
             self::CUSTOM_SKILL->value,
             self::MAGICLAW->value,
+            self::CHAT->value,
         ];
     }
 
@@ -56,6 +58,7 @@ enum ProjectMode: string
             self::AGENT_CREATOR->value,
             self::SKILL_CREATOR->value,
             self::MAGICLAW->value,
+            self::CHAT->value,
         ];
     }
 
@@ -78,6 +81,7 @@ enum ProjectMode: string
             self::CUSTOM_AGENT => '自定义 agent 模式',
             self::CUSTOM_SKILL => '自定义 skill 模式',
             self::MAGICLAW => 'magic 龙虾模式',
+            self::CHAT => '对话模式',
         };
     }
 }

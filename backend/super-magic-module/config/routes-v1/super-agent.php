@@ -30,6 +30,8 @@ Router::addGroup(
         Router::addGroup('/workspaces', static function () {
             // 获取工作区列表
             Router::get('/queries', [WorkspaceApi::class, 'getWorkspaceList']);
+            // 获取指定类型的系统管理工作区（不存在则自动创建），code 为 WorkspaceType 值如 "chat"
+            Router::get('/app/{code}', [WorkspaceApi::class, 'getAppWorkspace']);
             // 获取工作区详情
             Router::get('/{id}', [WorkspaceApi::class, 'getWorkspaceDetail']);
             // 获取工作区下的话题列表（优化时再实现）
@@ -44,8 +46,6 @@ Router::addGroup(
             Router::put('/{id}/detach', [WorkspaceApi::class, 'detachWorkspace']);
             // 设置工作区归档状态
             Router::post('/set-archived', [WorkspaceApi::class, 'setArchived']);
-            // 获取应用工作区（不存在则创建）
-            Router::get('/app/{code}', [WorkspaceApi::class, 'getAppWorkspace']);
             // 批量转让工作区
             Router::post('/transfer', [WorkspaceApi::class, 'transferWorkspaces']);
         });

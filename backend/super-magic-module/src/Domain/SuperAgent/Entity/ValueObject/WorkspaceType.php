@@ -29,11 +29,34 @@ enum WorkspaceType: string
     case Audio = 'audio';
 
     /**
-     * Get all available workspace types.
+     * Chat workspace type for conversation sessions.
+     * Each user has at most one chat workspace per organization.
+     * Managed programmatically; not user-selectable via API.
+     */
+    case Chat = 'chat';
+
+    /**
+     * Get all available workspace types (including internal types).
      *
      * @return array<string>
      */
     public static function getAllTypes(): array
+    {
+        return [
+            self::Default->value,
+            self::Finance->value,
+            self::Audio->value,
+            self::Chat->value,
+        ];
+    }
+
+    /**
+     * Get workspace types available for user-facing API operations.
+     * Excludes internal types such as Chat.
+     *
+     * @return array<string>
+     */
+    public static function getPublicTypes(): array
     {
         return [
             self::Default->value,

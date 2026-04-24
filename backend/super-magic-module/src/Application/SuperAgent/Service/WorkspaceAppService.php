@@ -153,6 +153,33 @@ class WorkspaceAppService extends AbstractAppService
     }
 
     /**
+     * Get or create a system-managed workspace by its type code.
+     * Only internal workspace types (not in getPublicTypes()) are allowed.
+     *
+     * @param string $code WorkspaceType value, e.g. "chat"
+     * @throws BusinessException if code is invalid or refers to a public workspace type
+     */
+    public function getAppWorkspace(RequestContext $requestContext, string $code): WorkspaceItemDTO
+    {
+        $type = WorkspaceType::tryFrom($code);
+        if ($type === null) {
+            ExceptionBuilder::throw(GenericErrorCode::ParameterValidationFailed, "Invalid workspace code: {$code}");
+        }
+        if (in_array($type->value, WorkspaceType::getPublicTypes(), true)) {
+            ExceptionBuilder::throw(GenericErrorCode::ParameterValidationFailed, "Workspace code '{$code}' is a user-managed type and cannot be auto-created via this endpoint");
+        }
+
+        $dataIsolation = $this->createDataIsolation($requestContext->getUserAuthorization());
+        $workspaceEntity = $this->workspaceDomainService->getOrCreateWorkspaceByType($dataIsolation, $type);
+
+        $workspaceId = (int) $workspaceEntity->getId();
+        $workspaceStatusMap = $this->topicDomainService->calculateWorkspaceStatusBatch([$workspaceId], $dataIsolation->getCurrentUserId());
+        $workspaceStatus = $workspaceStatusMap[$workspaceId] ?? null;
+
+        return WorkspaceItemDTO::fromEntity($workspaceEntity, $workspaceStatus);
+    }
+
+    /**
      * 获取工作区详情.
      */
     public function getWorkspaceDetail(RequestContext $requestContext, int $workspaceId): WorkspaceItemDTO
