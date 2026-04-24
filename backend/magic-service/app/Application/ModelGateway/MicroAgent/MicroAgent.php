@@ -69,6 +69,13 @@ class MicroAgent
             }
         }
 
+        if (! isset($businessParams['thinking'])) {
+            // easy_call 默认关闭 think
+            $businessParams['thinking'] = [
+                'type' => 'disabled',
+            ];
+        }
+
         $modelGatewayMapper = di(ModelGatewayMapper::class);
 
         return $modelGatewayMapper->getChatModelProxy($dataIsolation, $modelId)->chat(
