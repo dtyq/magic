@@ -202,7 +202,7 @@ def _build_truncation_message(info: TruncationInfo, file_path: str) -> str:
     lines.append("\n\n[File truncated: content exceeded the single-read token limit]\n")
 
     # 1. Estimated context cost — helps model decide whether continuing is worth it.
-    # All token numbers are estimates (tiktoken-based), not the actual API billing count.
+    # All token numbers are character-based estimates, not the actual API billing count.
     remaining_file_tokens = info.original_tokens - info.current_tokens
     if info.context_remaining > 0:
         cost_pct = round(info.current_tokens / info.context_remaining * 100, 1)
