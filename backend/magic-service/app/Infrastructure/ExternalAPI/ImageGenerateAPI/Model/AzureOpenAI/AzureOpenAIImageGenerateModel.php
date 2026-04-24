@@ -26,9 +26,12 @@ class AzureOpenAIImageGenerateModel extends AbstractImageGenerate
 
     private array $configItem;
 
+    private string $model;
+
     public function __construct(array $serviceProviderConfig)
     {
         $this->configItem = $serviceProviderConfig;
+        $this->model = $serviceProviderConfig['model_version'] ?? '';
         $proxyUrl = $serviceProviderConfig['proxy_url'] ?? null;
         $this->api = new AzureOpenAIAPI($serviceProviderConfig['api_key'], baseUrl: $serviceProviderConfig['url'], proxyUrl: $proxyUrl);
     }
@@ -50,17 +53,19 @@ class AzureOpenAIImageGenerateModel extends AbstractImageGenerate
         $this->validateRequest($imageGenerateRequest);
 
         $this->logger->info('Azure OpenAI图像生成：开始调用生成API', [
+            'model' => $this->model,
             'prompt' => $imageGenerateRequest->getPrompt(),
             'size' => $imageGenerateRequest->getSize(),
             'quality' => $imageGenerateRequest->getQuality(),
             'n' => $imageGenerateRequest->getN(),
+            'images' => $imageGenerateRequest->getReferenceImages(),
             'reference_images_count' => count($imageGenerateRequest->getReferenceImages()),
         ]);
 
         try {
             if ($imageGenerateRequest->getReferenceImages() !== []) {
                 return $this->api->editImage(
-                    $imageGenerateRequest->getModel(),
+                    $this->model,
                     $imageGenerateRequest->getReferenceImages(),
                     null,
                     $imageGenerateRequest->getPrompt(),
@@ -70,7 +75,7 @@ class AzureOpenAIImageGenerateModel extends AbstractImageGenerate
             }
 
             $requestData = [
-                'model' => $imageGenerateRequest->getModel(),
+                'model' => $this->model,
                 'prompt' => $imageGenerateRequest->getPrompt(),
                 'size' => $imageGenerateRequest->getSize(),
                 'quality' => $imageGenerateRequest->getQuality(),

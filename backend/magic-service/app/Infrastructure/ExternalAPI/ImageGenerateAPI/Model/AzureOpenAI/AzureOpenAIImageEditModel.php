@@ -62,7 +62,7 @@ class AzureOpenAIImageEditModel extends AbstractImageGenerate
 
         try {
             return $this->api->editImage(
-                $imageGenerateRequest->getModel(),
+                $this->model,
                 $imageGenerateRequest->getReferenceImages(),
                 $imageGenerateRequest->getMaskUrl(),
                 $imageGenerateRequest->getPrompt(),
