@@ -26,13 +26,14 @@ class AzureOpenAIImageEditModel extends AbstractImageGenerate
 
     private array $configItem;
 
+    private string $model;
+
     public function __construct(array $config)
     {
         $this->configItem = $config;
-        $baseUrl = $config['url'];
-        $apiVersion = $config['api_version'];
+        $this->model = $config['model_version'];
         $proxyUrl = $config['proxy_url'] ?? null;
-        $this->api = new AzureOpenAIAPI($config['api_key'], $baseUrl, $apiVersion, $proxyUrl);
+        $this->api = new AzureOpenAIAPI($config['api_key'], baseUrl: $config['url'], proxyUrl: $proxyUrl);
     }
 
     #[Retry(
@@ -61,6 +62,7 @@ class AzureOpenAIImageEditModel extends AbstractImageGenerate
 
         try {
             return $this->api->editImage(
+                $imageGenerateRequest->getModel(),
                 $imageGenerateRequest->getReferenceImages(),
                 $imageGenerateRequest->getMaskUrl(),
                 $imageGenerateRequest->getPrompt(),

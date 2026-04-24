@@ -26,19 +26,15 @@ class AzureOpenAIAPI
 
     private string $baseUrl;
 
-    private string $apiVersion;
-
     private ?string $proxyUrl;
 
     public function __construct(
         string $apiKey,
-        string $baseUrl,
-        string $apiVersion,
+        ?string $baseUrl = null,
         ?string $proxyUrl = null
     ) {
         $this->apiKey = $apiKey;
         $this->baseUrl = rtrim($baseUrl, '/');
-        $this->apiVersion = $apiVersion;
         $this->proxyUrl = $proxyUrl;
         $this->logger = di(LoggerFactory::class)->get(static::class);
     }
@@ -51,6 +47,7 @@ class AzureOpenAIAPI
         $url = $this->buildUrl('images/generations');
 
         $this->logger->info('Azure OpenAI API 请求', [
+            'url' => $url,
             'payload' => $data,
         ]);
 
@@ -63,7 +60,7 @@ class AzureOpenAIAPI
             $response = $client->post($url, [
                 'headers' => [
                     'Content-Type' => 'application/json',
-                    'api-key' => $this->apiKey,
+                    'Authorization' => 'Bearer ' . $this->apiKey,
                 ],
                 'json' => $data,
             ]);
@@ -78,7 +75,7 @@ class AzureOpenAIAPI
     /**
      * Image edit API call with OSS URL support - supports multiple images.
      */
-    public function editImage(array $imageUrls, ?string $maskUrl, string $prompt, string $size = '1024x1024', int $n = 1): array
+    public function editImage(string $model, array $imageUrls, ?string $maskUrl, string $prompt, string $size = '1024x1024', int $n = 1): array
     {
         $url = $this->buildUrl('images/edits');
 
@@ -113,20 +110,24 @@ class AzureOpenAIAPI
 
             // Add other parameters
             $multipartData[] = ['name' => 'prompt', 'contents' => $prompt];
+            $multipartData[] = ['name' => 'size', 'contents' => $size];
+            $multipartData[] = ['name' => 'n', 'contents' => (string) $n];
 
             $this->logger->info('Azure OpenAI API 请求', [
+                'url' => $url,
                 'payload' => [
                     'imageUrls' => $imageUrls,
                     'maskUrl' => $maskUrl,
                     'prompt' => $prompt,
                     'size' => $size,
                     'n' => $n,
+                    'model' => $model,
                 ],
             ]);
 
             $response = $client->post($url, [
                 'headers' => [
-                    'api-key' => $this->apiKey,
+                    'Authorization' => 'Bearer ' . $this->apiKey,
                 ],
                 'multipart' => $multipartData,
             ]);
@@ -161,13 +162,10 @@ class AzureOpenAIAPI
      */
     private function buildUrl(string $endpoint): string
     {
-        // baseUrl already contains the full deployment path
-        // e.g., https://kobayashi-aoai-westus3.openai.azure.com/openai/deployments/kobayashi-aoai-westus3-gpt-image-1-global
         return sprintf(
-            '%s/%s?api-version=%s',
+            '%s/%s',
             $this->baseUrl,
-            $endpoint,
-            $this->apiVersion
+            ltrim($endpoint, '/')
         );
     }
 

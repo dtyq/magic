@@ -12,8 +12,7 @@ use App\Infrastructure\Core\Exception\BusinessException;
 use App\Infrastructure\Core\Exception\ExceptionBuilder;
 use App\Infrastructure\ExternalAPI\ImageGenerateAPI\AbstractImageGenerate;
 use App\Infrastructure\ExternalAPI\ImageGenerateAPI\ImageGenerateType;
-use App\Infrastructure\ExternalAPI\ImageGenerateAPI\Request\AzureOpenAIImageEditRequest;
-use App\Infrastructure\ExternalAPI\ImageGenerateAPI\Request\AzureOpenAIImageGenerateRequest;
+use App\Infrastructure\ExternalAPI\ImageGenerateAPI\Request\AzureOpenAIImageRequest;
 use App\Infrastructure\ExternalAPI\ImageGenerateAPI\Request\ImageGenerateRequest;
 use App\Infrastructure\ExternalAPI\ImageGenerateAPI\Response\ImageGenerateResponse;
 use App\Infrastructure\ExternalAPI\ImageGenerateAPI\Response\ImageUsage;
@@ -30,10 +29,8 @@ class AzureOpenAIImageGenerateModel extends AbstractImageGenerate
     public function __construct(array $serviceProviderConfig)
     {
         $this->configItem = $serviceProviderConfig;
-        $baseUrl = $serviceProviderConfig['url'];
-        $apiVersion = $serviceProviderConfig['api_version'];
         $proxyUrl = $serviceProviderConfig['proxy_url'] ?? null;
-        $this->api = new AzureOpenAIAPI($serviceProviderConfig['api_key'], $baseUrl, $apiVersion, $proxyUrl);
+        $this->api = new AzureOpenAIAPI($serviceProviderConfig['api_key'], baseUrl: $serviceProviderConfig['url'], proxyUrl: $proxyUrl);
     }
 
     #[Retry(
@@ -42,9 +39,9 @@ class AzureOpenAIImageGenerateModel extends AbstractImageGenerate
     )]
     public function generateImageRaw(ImageGenerateRequest $imageGenerateRequest): array
     {
-        if (! $imageGenerateRequest instanceof AzureOpenAIImageGenerateRequest) {
+        if (! $imageGenerateRequest instanceof AzureOpenAIImageRequest) {
             $this->logger->error('Azure OpenAI图像生成：请求类型错误', [
-                'expected' => AzureOpenAIImageGenerateRequest::class,
+                'expected' => AzureOpenAIImageRequest::class,
                 'actual' => get_class($imageGenerateRequest),
             ]);
             ExceptionBuilder::throw(ImageGenerateErrorCode::GENERAL_ERROR);
@@ -52,16 +49,28 @@ class AzureOpenAIImageGenerateModel extends AbstractImageGenerate
 
         $this->validateRequest($imageGenerateRequest);
 
-        // 无参考图像，使用原有的生成逻辑
         $this->logger->info('Azure OpenAI图像生成：开始调用生成API', [
             'prompt' => $imageGenerateRequest->getPrompt(),
             'size' => $imageGenerateRequest->getSize(),
             'quality' => $imageGenerateRequest->getQuality(),
             'n' => $imageGenerateRequest->getN(),
+            'reference_images_count' => count($imageGenerateRequest->getReferenceImages()),
         ]);
 
         try {
+            if ($imageGenerateRequest->getReferenceImages() !== []) {
+                return $this->api->editImage(
+                    $imageGenerateRequest->getModel(),
+                    $imageGenerateRequest->getReferenceImages(),
+                    null,
+                    $imageGenerateRequest->getPrompt(),
+                    $imageGenerateRequest->getSize(),
+                    $imageGenerateRequest->getN()
+                );
+            }
+
             $requestData = [
+                'model' => $imageGenerateRequest->getModel(),
                 'prompt' => $imageGenerateRequest->getPrompt(),
                 'size' => $imageGenerateRequest->getSize(),
                 'quality' => $imageGenerateRequest->getQuality(),
@@ -93,9 +102,6 @@ class AzureOpenAIImageGenerateModel extends AbstractImageGenerate
 
     public function setApiKey(string $apiKey): void
     {
-        $baseUrl = $this->config->getUrl();
-        $apiVersion = $this->config->getApiVersion();
-        $this->api = new AzureOpenAIAPI($apiKey, $baseUrl, $apiVersion);
     }
 
     public function generateImageRawWithWatermark(ImageGenerateRequest $imageGenerateRequest): array
@@ -118,20 +124,14 @@ class AzureOpenAIImageGenerateModel extends AbstractImageGenerate
         ]);
 
         // 2. 参数验证
-        if (! $imageGenerateRequest instanceof AzureOpenAIImageGenerateRequest) {
+        if (! $imageGenerateRequest instanceof AzureOpenAIImageRequest) {
             $this->logger->error('Azure OpenAI OpenAI格式生图：无效的请求类型', ['class' => get_class($imageGenerateRequest)]);
             return $response; // 返回空数据响应
         }
 
         try {
-            // 3. 图像生成（同步处理，Azure OpenAI API 支持 n 参数一次性生成多张图片）
-            if (! empty($imageGenerateRequest->getReferenceImages())) {
-                $editModel = new AzureOpenAIImageEditModel($this->configItem);
-                $editRequest = $this->convertToEditRequest($imageGenerateRequest);
-                $result = $editModel->generateImageRaw($editRequest);
-            } else {
-                $result = $this->generateImageRaw($imageGenerateRequest);
-            }
+            // 3. 图像生成（同步处理）
+            $result = $this->generateImageRaw($imageGenerateRequest);
 
             $this->validateAzureOpenAIResponse($result);
 
@@ -169,10 +169,6 @@ class AzureOpenAIImageGenerateModel extends AbstractImageGenerate
     protected function generateImageInternal(ImageGenerateRequest $imageGenerateRequest): ImageGenerateResponse
     {
         try {
-            if ($imageGenerateRequest instanceof AzureOpenAIImageGenerateRequest && ! empty($imageGenerateRequest->getReferenceImages())) {
-                return $this->generateImageWithReference($imageGenerateRequest);
-            }
-
             $result = $this->generateImageRaw($imageGenerateRequest);
             return $this->buildResponse($result);
         } catch (Exception $e) {
@@ -231,47 +227,7 @@ class AzureOpenAIImageGenerateModel extends AbstractImageGenerate
         }
     }
 
-    /**
-     * 当有参考图像时，使用图像编辑模型生成图像.
-     */
-    private function generateImageWithReference(AzureOpenAIImageGenerateRequest $imageGenerateRequest): ImageGenerateResponse
-    {
-        try {
-            $editModel = new AzureOpenAIImageEditModel($this->config);
-            $editRequest = $this->convertToEditRequest($imageGenerateRequest);
-            return $editModel->generateImage($editRequest);
-        } catch (Exception $e) {
-            $this->logger->error('Azure OpenAI图像生成：参考图像生成失败', [
-                'error' => $e->getMessage(),
-            ]);
-            throw $e;
-        }
-    }
-
-    /**
-     * 将图像生成请求转换为图像编辑请求
-     */
-    private function convertToEditRequest(AzureOpenAIImageGenerateRequest $imageGenerateRequest): AzureOpenAIImageEditRequest
-    {
-        try {
-            $editRequest = new AzureOpenAIImageEditRequest();
-            $editRequest->setPrompt($imageGenerateRequest->getPrompt());
-            $editRequest->setReferenceImages($imageGenerateRequest->getReferenceImages());
-            $editRequest->setSize($imageGenerateRequest->getSize());
-            $editRequest->setN($imageGenerateRequest->getN());
-            // 图像编辑不需要mask，所以设置为null
-            $editRequest->setMaskUrl(null);
-
-            return $editRequest;
-        } catch (Exception $e) {
-            $this->logger->error('Azure OpenAI图像生成：请求格式转换失败', [
-                'error' => $e->getMessage(),
-            ]);
-            ExceptionBuilder::throw(ImageGenerateErrorCode::GENERAL_ERROR, 'image_generate.request_conversion_failed');
-        }
-    }
-
-    private function validateRequest(AzureOpenAIImageGenerateRequest $request): void
+    private function validateRequest(AzureOpenAIImageRequest $request): void
     {
         if (empty($request->getPrompt())) {
             $this->logger->error('Azure OpenAI图像生成：缺少必要参数 - prompt');
@@ -284,6 +240,16 @@ class AzureOpenAIImageGenerateModel extends AbstractImageGenerate
                 'valid_range' => '1-10',
             ]);
             ExceptionBuilder::throw(ImageGenerateErrorCode::GENERAL_ERROR, 'image_generate.invalid_image_count');
+        }
+
+        foreach ($request->getReferenceImages() as $index => $imageUrl) {
+            if (empty($imageUrl) || ! filter_var($imageUrl, FILTER_VALIDATE_URL)) {
+                $this->logger->error('Azure OpenAI图像生成：无效的参考图像URL', [
+                    'index' => $index,
+                    'url' => $imageUrl,
+                ]);
+                ExceptionBuilder::throw(ImageGenerateErrorCode::GENERAL_ERROR, 'image_generate.invalid_image_url');
+            }
         }
     }
 
