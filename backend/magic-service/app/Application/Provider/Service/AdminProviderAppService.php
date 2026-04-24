@@ -54,6 +54,8 @@ use Hyperf\Odin\Api\Response\ChatCompletionResponse;
 use JsonException;
 use Psr\EventDispatcher\EventDispatcherInterface;
 
+use function Hyperf\Translation\__;
+
 readonly class AdminProviderAppService
 {
     use HasLogger;
