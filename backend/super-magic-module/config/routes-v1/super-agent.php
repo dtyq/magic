@@ -229,7 +229,7 @@ Router::addGroup(
 
         Router::addGroup('/me', static function () {
             // 获取当前用户运行中的资源状态
-            Router::get('/resource-status', [TopicApi::class, 'getResourceStatus']);
+            Router::post('/resource-status', [TopicApi::class, 'getResourceStatus']);
         });
 
         // 消息队列管理
