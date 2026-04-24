@@ -461,6 +461,10 @@ readonly class VideoOperationAppService
         $sourceId = (string) ($operation->getSourceId() ?: $dataIsolation->getSourceId());
         $requestId = CoContext::getRequestId();
         $magicTopicId = trim((string) ($requestBusinessParams['magic_topic_id'] ?? ''));
+        // 轮询触发审计时调用方不一定带 magic_topic_id，用 operation 里存的话题兜底
+        if ($magicTopicId === '') {
+            $magicTopicId = trim((string) ($operation->getTopicId() ?? ''));
+        }
         $accessTokenName = (string) $accessTokenEntity?->getName();
         $accessTokenType = $accessTokenEntity === null ? '' : $accessTokenEntity->getType()->value;
         $providerName = $operation->getAuditProviderName();
