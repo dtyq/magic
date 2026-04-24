@@ -88,11 +88,12 @@ class AzureOpenAIAPI
             // Download images from OSS URLs to memory streams
             $multipartData = [];
 
+            $imageKey = count($imageUrls) > 1 ? 'image[]' : 'image';
             // Add multiple images
             foreach ($imageUrls as $index => $imageUrl) {
                 $imageStreamBody = $this->downloadToStream($imageUrl);
                 $multipartData[] = [
-                    'name' => 'image',
+                    'name' => $imageKey,
                     'contents' => $imageStreamBody->getContents(),
                     'filename' => "image{$index}.png",
                 ];
