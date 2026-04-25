@@ -66,13 +66,6 @@ readonly class DesignVideoSubmissionDomainService
         ];
     }
 
-    /**
-     * 调用视频网关进行积分预估，统一把下游异常转换为 Design 侧错误。
-     *
-     * @param array<string, mixed> $payload
-     * @param array<string, string> $businessParams
-     * @return array<string, mixed>
-     */
     public function estimate(array $payload, array $businessParams): array
     {
         try {

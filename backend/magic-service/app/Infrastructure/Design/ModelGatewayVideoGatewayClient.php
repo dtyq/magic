@@ -44,9 +44,6 @@ readonly class ModelGatewayVideoGatewayClient implements VideoGatewayClientInter
         ];
     }
 
-    /**
-     * 将 Design 侧预估 payload 转成模型网关 DTO，并委托视频应用服务计算积分。
-     */
     public function estimateVideo(array $payload, array $businessParams): array
     {
         $mergedBusinessParams = $this->mergeBusinessParams($payload, $businessParams);

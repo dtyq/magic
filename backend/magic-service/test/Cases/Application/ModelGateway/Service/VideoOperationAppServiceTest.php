@@ -7,6 +7,8 @@ declare(strict_types=1);
 
 namespace HyperfTest\Cases\Application\ModelGateway\Service;
 
+use App\Application\ModelGateway\Component\Points\DTO\PointEstimateResult;
+use App\Application\ModelGateway\Component\Points\DTO\VideoPointEstimateRequest;
 use App\Application\ModelGateway\Component\Points\PointComponentInterface;
 use App\Application\ModelGateway\Mapper\ModelAttributes;
 use App\Application\ModelGateway\Mapper\ModelEntry;
@@ -58,6 +60,7 @@ use Dtyq\CloudFile\Kernel\Struct\FileLink;
 use Dtyq\CloudFile\Kernel\Struct\FilePreSignedUrl;
 use Dtyq\CloudFile\Kernel\Struct\UploadFile;
 use Dtyq\MagicEnterprise\Application\Kernel\EnterpriseSubscriptionManager;
+use Dtyq\SuperMagic\Domain\SuperAgent\Service\TaskFileDomainService;
 use GuzzleHttp\Client;
 use GuzzleHttp\Psr7\Response;
 use Hyperf\Codec\Packer\PhpSerializerPacker;
@@ -74,6 +77,7 @@ use Psr\EventDispatcher\EventDispatcherInterface;
 use Psr\Log\AbstractLogger;
 use Psr\Log\LoggerInterface;
 use Psr\Log\NullLogger;
+use Psr\SimpleCache\CacheInterface;
 use RuntimeException;
 use Throwable;
 
@@ -503,6 +507,100 @@ class VideoOperationAppServiceTest extends TestCase
         $this->assertSame([$firstResponse->getId()], $operationRepository->activeSlots['org-a:user-a'] ?? null);
         $this->assertSame([$secondResponse->getId()], $operationRepository->activeSlots['org-b:user-a'] ?? null);
         $this->assertCount(2, $executor->submittedOperations);
+    }
+
+    public function testEstimateAllowsExternalReferenceVideosWithoutProjectId(): void
+    {
+        $dataIsolation = $this->createDataIsolation();
+        $referenceVideoUrl = 'https://93.184.216.34/reference-estimate.mp4';
+        $requestDTO = new CreateVideoDTO([
+            'model_id' => 'veo-3.1-fast-generate-preview',
+            'task' => 'generate',
+            'prompt' => 'make a video',
+            'inputs' => [
+                'reference_videos' => [
+                    ['uri' => $referenceVideoUrl],
+                ],
+            ],
+            'generation' => [
+                'duration_seconds' => 5,
+                'size' => '1280x720',
+                'resolution' => '720p',
+            ],
+        ]);
+
+        MockHttpsStreamWrapper::setBody($referenceVideoUrl, 'reference-video-binary');
+
+        $llmAppService = $this->createMock(LLMAppService::class);
+        $llmAppService->expects($this->once())
+            ->method('createModelGatewayDataIsolationByAccessToken')
+            ->with('token-estimate-remote', [])
+            ->willReturn($dataIsolation);
+
+        $pointComponent = $this->createMock(PointComponentInterface::class);
+        $pointComponent->expects($this->once())
+            ->method('estimateVideoPoints')
+            ->with(
+                $this->callback(function (VideoPointEstimateRequest $request): bool {
+                    $this->assertSame(8, $request->getInputVideoDurationSeconds());
+                    $this->assertTrue($request->hasReferenceVideo());
+
+                    return true;
+                }),
+                $dataIsolation,
+            )
+            ->willReturn(new PointEstimateResult('video', 88, ['mode' => 'test']));
+
+        $modelGatewayMapper = $this->createMock(ModelGatewayMapper::class);
+        $modelGatewayMapper->expects($this->once())
+            ->method('getOrganizationVideoModel')
+            ->with($dataIsolation, 'veo-3.1-fast-generate-preview')
+            ->willReturn($this->createVideoModelEntry(
+                new VideoModel([], 'LCnVzCkkMnVulyrz', 'provider-model', ProviderCode::Cloudsway)
+            ));
+
+        $probe = new CallbackVideoMediaProbe(function (string $filePath): VideoMediaMetadata {
+            $this->assertFileExists($filePath);
+            $this->assertSame('reference-video-binary', file_get_contents($filePath));
+
+            return new VideoMediaMetadata(8.02, 1920, 1080);
+        });
+
+        $taskFileDomainService = $this->getMockBuilder(TaskFileDomainService::class)
+            ->disableOriginalConstructor()
+            ->getMock();
+        $taskFileDomainService->expects($this->never())
+            ->method('getRootFile');
+        $taskFileDomainService->expects($this->never())
+            ->method('getByProjectIdAndFileKey');
+
+        $resolver = new VideoInputMediaMetadataResolver(
+            $taskFileDomainService,
+            new FileDomainService(new InMemoryCloudFileRepository()),
+            $probe,
+            $this->createMock(CacheInterface::class),
+        );
+
+        $service = new VideoOperationAppService(
+            $llmAppService,
+            new VideoQueueDomainService(new InMemoryVideoQueueOperationRepository()),
+            new QueueOperationExecutionDomainService(
+                new FixedQueueExecutorConfigRepository(new QueueExecutorConfig('https://genaiapi.cloudsway.net', 'secret', 3, 20)),
+                new RecordingQueueOperationExecutor(submitResult: 'unused'),
+            ),
+            $pointComponent,
+            $modelGatewayMapper,
+            $this->createVideoGenerationConfigDomainService(),
+            new FileDomainService(new InMemoryCloudFileRepository()),
+            $this->createVideoBillingDetailsResolver(),
+            $probe,
+            $resolver,
+        );
+
+        $result = $service->estimate('token-estimate-remote', $requestDTO);
+
+        $this->assertSame(88, $result->getPoints());
+        $this->assertSame(['mode' => 'test'], $result->getDetail());
     }
 
     public function testGetOperationRejectsProviderTaskIdFallbackWhenInternalOperationIsMissing(): void
@@ -1648,6 +1746,7 @@ class VideoOperationAppServiceTest extends TestCase
             new FileDomainService(new InMemoryCloudFileRepository()),
             $this->createVideoBillingDetailsResolver(),
             $this->createFallbackProbe(),
+            $this->createVideoInputMediaMetadataResolver(),
         );
     }
 
@@ -1665,12 +1764,21 @@ class VideoOperationAppServiceTest extends TestCase
         });
     }
 
-    private function createVideoInputMediaMetadataResolver(): VideoInputMediaMetadataResolver
+    private function createVideoInputMediaMetadataResolver(?VideoMediaProbeInterface $probe = null): VideoInputMediaMetadataResolver
     {
         return new VideoInputMediaMetadataResolver(
+            $this->createTaskFileDomainServiceMock(),
             new FileDomainService(new InMemoryCloudFileRepository()),
-            $this->createFallbackProbe(),
+            $probe ?? $this->createFallbackProbe(),
+            $this->createMock(CacheInterface::class),
         );
+    }
+
+    private function createTaskFileDomainServiceMock(): TaskFileDomainService
+    {
+        return $this->getMockBuilder(TaskFileDomainService::class)
+            ->disableOriginalConstructor()
+            ->getMock();
     }
 
     private function createOperation(string $id): VideoQueueOperationEntity

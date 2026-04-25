@@ -21,9 +21,6 @@ class PointComponent implements PointComponentInterface
     {
     }
 
-    /**
-     * 开源默认实现不接入计费，返回对应资源类型的 0 积分预估。
-     */
     public function estimateVideoPoints(VideoPointEstimateRequest $request, ModelGatewayDataIsolation $modelGatewayDataIsolation): PointEstimateResult
     {
         return PointEstimateResult::zero($request->getResourceType());
