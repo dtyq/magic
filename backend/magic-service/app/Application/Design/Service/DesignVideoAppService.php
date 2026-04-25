@@ -143,9 +143,6 @@ class DesignVideoAppService extends DesignAppService
         return $entity;
     }
 
-    /**
-     * 预估视频生成需要消耗的积分，并在进入模型网关前完成项目权限和参考素材校验。
-     */
     public function estimatePoints(Authenticatable $authenticatable, DesignVideoCreateDTO $dto): VideoPointEstimateDTO
     {
         $dto->validForEstimate();

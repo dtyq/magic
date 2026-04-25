@@ -19,8 +19,5 @@ interface PointComponentInterface
 {
     public function checkPointsSufficient(ProxyModelRequestInterface $proxyModelRequest, ModelGatewayDataIsolation $modelGatewayDataIsolation): void;
 
-    /**
-     * 预估视频生成积分，默认实现可返回 0，企业包负责真实计算。
-     */
     public function estimateVideoPoints(VideoPointEstimateRequest $request, ModelGatewayDataIsolation $modelGatewayDataIsolation): PointEstimateResult;
 }

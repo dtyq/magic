@@ -81,9 +81,6 @@ readonly class VideoOperationAppService
     ) {
     }
 
-    /**
-     * 预估视频任务积分.
-     */
     public function estimate(string $accessToken, CreateVideoDTO $requestDTO): PointEstimateResult
     {
         $dataIsolation = $this->llmAppService->createModelGatewayDataIsolationByAccessToken($accessToken, $requestDTO->getBusinessParams());
@@ -289,7 +286,7 @@ readonly class VideoOperationAppService
     }
 
     /**
-     * 基于真实提交前的规范化结果，组装积分组件需要的视频预估请求。
+     * 基于真实提交前的规范化结果。
      */
     private function buildVideoPointEstimateRequest(
         ModelGatewayDataIsolation $dataIsolation,
@@ -322,7 +319,8 @@ readonly class VideoOperationAppService
     }
 
     /**
-     * 解析参考视频元数据；没有参考视频时返回 0，存在参考视频时必须带项目 ID。
+     * 解析参考视频元数据；没有参考视频时返回 0。
+     * 工作区路径仍要求 project_id，外部 URL 则由 resolver 直接下载探测。
      *
      * @param list<array<string, mixed>> $referenceVideos
      * @return array{total_duration_seconds: int, reference_video_count: int}
@@ -339,12 +337,11 @@ readonly class VideoOperationAppService
             ];
         }
 
-        $projectId = $requestDTO->getProjectId();
-        if ($projectId === null) {
-            ExceptionBuilder::throw(MagicApiErrorCode::ValidateFailed, 'project_id is required for video estimate');
-        }
-
-        return $this->videoInputMediaMetadataResolver->resolve($dataIsolation, $projectId, $referenceVideos);
+        return $this->videoInputMediaMetadataResolver->resolve(
+            $dataIsolation,
+            $requestDTO->getProjectId(),
+            $referenceVideos
+        );
     }
 
     /**
