@@ -14,7 +14,6 @@ use App\Domain\Design\Entity\DesignGenerationTaskEntity;
 use App\Domain\Design\Entity\Dto\DesignVideoCreateDTO;
 use App\Domain\Design\Entity\ValueObject\DesignGenerationStatus;
 use App\Domain\Design\Factory\DesignVideoInputPayloadPreparer;
-use App\Domain\Design\Factory\PathFactory;
 use App\Domain\Design\Service\DesignGenerationTaskDomainService;
 use App\Domain\Design\Service\DesignVideoSubmissionDomainService;
 use App\Domain\Provider\Entity\ValueObject\ProviderCode;
@@ -233,9 +232,8 @@ class DesignVideoAppService extends DesignAppService
      */
     private function prepareEstimateInputs(string $organizationCode, int $projectId, DesignVideoCreateDTO $dto): array
     {
-        $workspacePrefix = PathFactory::getWorkspacePrefix($this->fileDomainService->getFullPrefix($organizationCode), $projectId);
         $inputs = DesignVideoInputPayloadPreparer::prepareInputs($dto);
-        $this->assertWorkspaceInputPayloadFilesExist($workspacePrefix, $inputs);
+        $this->assertWorkspaceInputPayloadFilesExist($projectId, $inputs);
 
         return $inputs;
     }
@@ -252,7 +250,7 @@ class DesignVideoAppService extends DesignAppService
         }
 
         $inputPayload = $entity->getInputPayload();
-        $this->assertWorkspaceInputPayloadFilesExist($workspacePrefix, $inputPayload);
+        $this->assertWorkspaceInputPayloadFilesExist($projectId, $inputPayload);
 
         return $taskFileDir;
     }
@@ -262,7 +260,7 @@ class DesignVideoAppService extends DesignAppService
      *
      * @param array<string, mixed> $inputPayload
      */
-    private function assertWorkspaceInputPayloadFilesExist(string $workspacePrefix, array $inputPayload): void
+    private function assertWorkspaceInputPayloadFilesExist(int $projectId, array $inputPayload): void
     {
         foreach ((array) ($inputPayload['reference_images'] ?? []) as $referenceImage) {
             $this->assertWorkspaceFileExists($projectId, (string) ($referenceImage['uri'] ?? ''));
