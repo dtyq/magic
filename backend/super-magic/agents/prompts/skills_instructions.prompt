@@ -49,12 +49,12 @@ Tool parameter schemas and usage instructions are in skill documentation (SKILL.
 
 <!--zh
 ## 工具调用结果
-Result 对象字段：`content`（结果内容）、`ok`（是否成功）、`data`（结构化数据）
-**重要**：使用前必须检查 `result.ok`，成功时才使用 `result.data`
+Result 对象字段：`content`（人类可读结果）、`ok`（是否成功）、`data`（给程序使用的结构化数据）
+优先使用 `result.content` 进行推理和回答。只有已加载的 skill 明确给出 schema 且需要程序化串联时，才读取 `result.data`。
 -->
 ## Tool results
-Result object fields: `content` (result content), `ok` (success status), `data` (structured data)
-**Important**: Check `result.ok` before use, only use `result.data` when succeeded
+Result object fields: `content` (human-readable result), `ok` (success status), `data` (structured data for programmatic use).
+Prefer `result.content` for reasoning and final answers. Use `result.data` only when the loaded skill explicitly defines the schema and requires programmatic chaining.
 
 <!--zh
 ## Skill 目录
