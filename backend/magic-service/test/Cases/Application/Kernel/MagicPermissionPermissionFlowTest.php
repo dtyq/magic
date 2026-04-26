@@ -119,6 +119,16 @@ class MagicPermissionPermissionFlowTest extends HttpTestCase
         $this->assertFalse($this->permission->checkPermission($editPermission, [], false));
     }
 
+    public function testCheckPermissionSupportsModelAccessRoleEditImplicitlyContainsQuery(): void
+    {
+        $resource = MagicResourceEnum::ADMIN_AI_MODEL_ACCESS_ROLE->value;
+        $queryPermission = $this->permission->buildPermission($resource, MagicOperationEnum::QUERY->value);
+        $editPermission = $this->permission->buildPermission($resource, MagicOperationEnum::EDIT->value);
+
+        $this->assertTrue($this->permission->checkPermission($queryPermission, [$editPermission], false));
+        $this->assertFalse($this->permission->checkPermission($editPermission, [$queryPermission], false));
+    }
+
     public function testGetPermissionTreeUsesMappedPathForMenuKey(): void
     {
         $this->config->set('permission_menu.fallback_legacy_tree', false);
@@ -177,6 +187,21 @@ class MagicPermissionPermissionFlowTest extends HttpTestCase
         $this->assertTrue($this->containsPermissionKey($platformTree, 'menu.platform_management.platform_tenant'));
         $this->assertTrue($this->containsPermissionKey($platformTree, 'menu.platform_management.platform_tenant.platform_user'));
         $this->assertTrue($this->containsPermissionKey($platformTree, $platformUserPermission));
+    }
+
+    public function testGetPermissionTreeContainsModelAccessRolePermissionWhenMapped(): void
+    {
+        $modelAccessRolePermission = $this->permission->buildPermission(
+            MagicResourceEnum::ADMIN_AI_MODEL_ACCESS_ROLE->value,
+            MagicOperationEnum::QUERY->value
+        );
+
+        $tree = $this->permission->getPermissionTree(false);
+
+        $this->assertTrue($this->containsPermissionKey($tree, 'menu.ai_management'));
+        $this->assertTrue($this->containsPermissionKey($tree, 'menu.ai_management.custom_model'));
+        $this->assertTrue($this->containsPermissionKey($tree, 'menu.ai_management.custom_model.model_access_role'));
+        $this->assertTrue($this->containsPermissionKey($tree, $modelAccessRolePermission));
     }
 
     public function testCheckPermissionGroupCompatibilityForOrganizationAdminAnnotationStyle(): void

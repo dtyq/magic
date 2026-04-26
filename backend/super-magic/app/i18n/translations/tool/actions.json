@@ -370,5 +370,9 @@
     "get_user_info": {
         "zh_CN": "获取用户信息",
         "en_US": "Get user info"
+    },
+    "ask_user": {
+        "zh_CN": "向用户提问",
+        "en_US": "Ask user"
     }
 }

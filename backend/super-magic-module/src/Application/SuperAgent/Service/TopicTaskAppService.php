@@ -294,12 +294,7 @@ class TopicTaskAppService extends AbstractAppService
             }
 
             // 3.5 ask_user Human-in-the-Loop（见 tryEarlyDeliverResponseForAskUserToolCall）
-            if (($earlyDeliverResponse = $this->tryEarlyDeliverResponseForAskUserToolCall(
-                $messageDTO,
-                $dataIsolation,
-                $taskEntity,
-                $messageId
-            )) !== null) {
+            if (($earlyDeliverResponse = $this->tryEarlyDeliverResponseForAskUserToolCall($messageDTO, $dataIsolation, $taskEntity, $messageId)) !== null) {
                 return $earlyDeliverResponse;
             }
 
@@ -984,6 +979,12 @@ class TopicTaskAppService extends AbstractAppService
     {
         // 根据类型处理
         $tool = $taskMessageEntity->getTool();
+        if (empty($tool) && ! empty($taskMessageEntity->getRawContent())) {
+            if ($rawContent = json_decode($taskMessageEntity->getRawContent(), true)) {
+                $tool = $rawContent['super_magic_message']['tool'] ?? [];
+                $taskMessageEntity->setTool($tool);
+            }
+        }
         $detailType = $tool['detail']['type'] ?? '';
         switch ($detailType) {
             case 'image':

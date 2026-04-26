@@ -1393,6 +1393,7 @@ class LLMAppService extends AbstractLLMAppService
         $endpointDTO = null;
         $modelGatewayDataIsolation = null;
         $modelAttributes = null;
+        $accessContext = null;
         $originalModelId = $proxyModelRequest->getModel();
         $invocationSuccessAudited = false;
         try {
@@ -1407,8 +1408,14 @@ class LLMAppService extends AbstractLLMAppService
             // Try to get high availability model configuration
             $orgCode = $modelGatewayDataIsolation->getCurrentOrganizationCode();
 
+            $accessContext = $this->modelGatewayModelAccessService->resolveAccessContext($modelGatewayDataIsolation);
+            // 先校验用户请求的原始模型，避免被 deny 的模型通过直接传 model_id 绕过前台可见性限制。
+            $this->modelGatewayModelAccessService->assertCanAccess($accessContext, $originalModelId);
+
             // 检查是否为动态模型
-            $modeId = $this->aggregateModelResolverService->resolve($originalModelId, $modelGatewayDataIsolation);
+            $modeId = $this->aggregateModelResolverService->resolve($originalModelId, $modelGatewayDataIsolation, $accessContext);
+            // 动态模型解析后仍需二次校验，确保最终落到的真实子模型也在用户可访问范围内。
+            $this->modelGatewayModelAccessService->assertCanAccess($accessContext, $modeId);
 
             // 设置原始 model_id（目前用于识别是否动态模型）.
             if ($proxyModelRequest instanceof AbstractRequestDTO) {

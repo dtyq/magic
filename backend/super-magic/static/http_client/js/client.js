@@ -1568,27 +1568,27 @@ function handleWebSocketMessage(event) {
         if (payload && payload.type === 'super_magic_message' && payload.raw_content) {
             const smsg = payload.raw_content.super_magic_message;
             if (smsg) {
-                // 工具调用事件：before_tool_call 时先渲染思考块（如有），再渲染工具块
-                if (smsg.tool && (eventType === 'before_tool_call' || eventType === 'after_tool_call')) {
-                    if (eventType === 'before_tool_call' && smsg.reasoning_content) {
-                        showThinkingMessage(smsg.reasoning_content, payload.send_timestamp);
+                // reasoning/content 独立渲染（不与工具块互斥）
+                if (smsg.reasoning_content) {
+                    showThinkingMessage(smsg.reasoning_content, payload.send_timestamp);
+                }
+                if (smsg.content) {
+                    showAIMessage(smsg.content, payload.send_timestamp);
+                }
+
+                // 工具块：顶层 smsg.tool 优先，取不到则退避到 tool_calls[i].tool
+                const smsgToolDirect = smsg.tool;
+                const smsgToolsFromCalls = smsg.tool_calls
+                    ? smsg.tool_calls.filter(tc => tc.tool).map(tc => tc.tool)
+                    : [];
+                const toolsToRender = smsgToolDirect ? [smsgToolDirect] : smsgToolsFromCalls;
+                const hasToolInfo = toolsToRender.length > 0;
+                if (hasToolInfo) {
+                    for (const t of toolsToRender) {
+                        showToolCallMessage(t, eventType, payload.send_timestamp);
                     }
-                    if (eventType === 'before_tool_call' && smsg.content) {
-                        showAIMessage(smsg.content, payload.send_timestamp);
-                    }
-                    showToolCallMessage(smsg.tool, eventType, payload.send_timestamp);
-                } else if (smsg.role === 'assistant') {
-                    if (smsg.reasoning_content) {
-                        showThinkingMessage(smsg.reasoning_content, payload.send_timestamp);
-                    }
-                    if (smsg.content) {
-                        showAIMessage(smsg.content, payload.send_timestamp);
-                    }
-                    if (!smsg.content && !smsg.reasoning_content) {
-                        showEventLog(data);
-                    }
-                } else {
-                    // role=tool 等其他角色（after_main_agent_run 等），折叠为事件日志
+                } else if (!smsg.content && !smsg.reasoning_content) {
+                    // 既无工具也无内容，折叠为事件日志
                     showEventLog(data);
                 }
             } else {

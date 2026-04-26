@@ -533,6 +533,7 @@ readonly class AdminProviderAppService
         usort($sortedModels, static function ($a, $b) {
             return strcmp($a->getName(), $b->getName());
         });
+        $this->processModelIcons($sortedModels);
 
         return $sortedModels;
     }

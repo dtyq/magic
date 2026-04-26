@@ -27,6 +27,7 @@ use App\Domain\Provider\Entity\ProviderConfigEntity;
 use App\Domain\Provider\Entity\ProviderModelEntity;
 use App\Domain\Provider\Entity\ValueObject\Category;
 use App\Domain\Provider\Entity\ValueObject\ProviderCode;
+use App\Domain\Provider\Entity\ValueObject\ProviderModelType;
 use App\Domain\Provider\Entity\ValueObject\Status;
 use App\Domain\Provider\Repository\Facade\ProviderConfigRepositoryInterface;
 use App\Domain\Provider\Repository\Facade\ProviderModelConfigVersionRepositoryInterface;
@@ -182,6 +183,120 @@ class ModeAppServiceTest extends TestCase
         ], $config->toArray()['constraints']);
     }
 
+    public function testGetModelsBatchExcludesDynamicModelWhenAllChildrenDisabled(): void
+    {
+        $service = $this->createService(
+            [11 => $this->createProviderConfigEntity(11, ProviderCode::Cloudsway)],
+            [
+                'dynamic-model' => [
+                    $this->createProviderModel(
+                        'dynamic-model',
+                        Category::LLM,
+                        'dynamic-version',
+                        0,
+                        Status::Enabled,
+                        ProviderModelType::DYNAMIC,
+                        ['models' => ['atom-model']]
+                    ),
+                ],
+                'atom-model' => [
+                    $this->createProviderModel(
+                        'atom-model',
+                        Category::LLM,
+                        'atom-version',
+                        11,
+                        Status::Disabled
+                    ),
+                ],
+            ]
+        );
+
+        $models = $this->invokePrivateMethod($service, 'getModelsBatch', [['dynamic-model']]);
+
+        $this->assertSame([], $models);
+    }
+
+    public function testGetModelsBatchKeepsDynamicModelWhenChildIsEnabled(): void
+    {
+        $service = $this->createService(
+            [11 => $this->createProviderConfigEntity(11, ProviderCode::Cloudsway)],
+            [
+                'dynamic-model' => [
+                    $this->createProviderModel(
+                        'dynamic-model',
+                        Category::LLM,
+                        'dynamic-version',
+                        0,
+                        Status::Enabled,
+                        ProviderModelType::DYNAMIC,
+                        ['models' => ['atom-model']]
+                    ),
+                ],
+                'atom-model' => [
+                    $this->createProviderModel(
+                        'atom-model',
+                        Category::LLM,
+                        'atom-version',
+                        11,
+                        Status::Enabled
+                    ),
+                ],
+            ]
+        );
+
+        $models = $this->invokePrivateMethod($service, 'getModelsBatch', [['dynamic-model']]);
+
+        $this->assertArrayHasKey('dynamic-model', $models);
+        $this->assertSame('dynamic-model', $models['dynamic-model']->getModelId());
+        $this->assertTrue($models['dynamic-model']->isDynamicModel());
+    }
+
+    public function testGetModelsBatchKeepsNestedDynamicModelWhenLeafIsEnabled(): void
+    {
+        $service = $this->createService(
+            [11 => $this->createProviderConfigEntity(11, ProviderCode::Cloudsway)],
+            [
+                'dynamic-root' => [
+                    $this->createProviderModel(
+                        'dynamic-root',
+                        Category::LLM,
+                        'dynamic-root-version',
+                        0,
+                        Status::Enabled,
+                        ProviderModelType::DYNAMIC,
+                        ['models' => ['dynamic-mid']]
+                    ),
+                ],
+                'dynamic-mid' => [
+                    $this->createProviderModel(
+                        'dynamic-mid',
+                        Category::LLM,
+                        'dynamic-mid-version',
+                        0,
+                        Status::Enabled,
+                        ProviderModelType::DYNAMIC,
+                        ['models' => [['model_id' => 'atom-leaf']]]
+                    ),
+                ],
+                'atom-leaf' => [
+                    $this->createProviderModel(
+                        'atom-leaf',
+                        Category::LLM,
+                        'atom-leaf-version',
+                        11,
+                        Status::Enabled
+                    ),
+                ],
+            ]
+        );
+
+        $models = $this->invokePrivateMethod($service, 'getModelsBatch', [['dynamic-root']]);
+
+        $this->assertArrayHasKey('dynamic-root', $models);
+        $this->assertArrayHasKey('dynamic-mid', $models);
+        $this->assertArrayHasKey('atom-leaf', $models);
+    }
+
     public function testBuildModeRuntimeDataIncludesKelingResolutionConfigWithoutSizes(): void
     {
         $service = $this->createService(
@@ -213,8 +328,11 @@ class ModeAppServiceTest extends TestCase
      * @param array<int, ProviderConfigEntity> $providerConfigs
      * @param array<string, list<ProviderModelEntity>> $providerModelsByModelIds
      */
-    private function createService(array $providerConfigs = [], array $providerModelsByModelIds = []): ModeAppService
-    {
+    private function createService(
+        array $providerConfigs = [],
+        array $providerModelsByModelIds = [],
+        ?OrganizationBasedModelFilterInterface $organizationModelFilter = null
+    ): ModeAppService {
         $providerConfigRepository = $this->createMock(ProviderConfigRepositoryInterface::class);
         $providerConfigRepository
             ->method('getByIds')
@@ -222,14 +340,21 @@ class ModeAppServiceTest extends TestCase
         $providerModelRepository = $this->createMock(ProviderModelRepositoryInterface::class);
         $providerModelRepository
             ->method('getByModelIds')
-            ->willReturnCallback(static fn (): array => $providerModelsByModelIds);
-        $organizationModelFilter = $this->createMock(OrganizationBasedModelFilterInterface::class);
-        $organizationModelFilter
-            ->method('filterModelsByOrganization')
-            ->willReturnCallback(static fn (string $organizationCode, array $models): array => $models);
-        $organizationModelFilter
-            ->method('getUpgradeRequiredModelIds')
-            ->willReturn([]);
+            ->willReturnCallback(
+                static fn ($dataIsolation, array $modelIds): array => array_intersect_key(
+                    $providerModelsByModelIds,
+                    array_fill_keys($modelIds, true)
+                )
+            );
+        if ($organizationModelFilter === null) {
+            $organizationModelFilter = $this->createMock(OrganizationBasedModelFilterInterface::class);
+            $organizationModelFilter
+                ->method('filterModelsByOrganization')
+                ->willReturnCallback(static fn (string $organizationCode, array $models): array => $models);
+            $organizationModelFilter
+                ->method('getUpgradeRequiredModelIds')
+                ->willReturn([]);
+        }
 
         return new ModeAppService(
             new ModeDomainService(
@@ -311,7 +436,10 @@ class ModeAppServiceTest extends TestCase
         string $modelId,
         Category $category,
         ?string $modelVersion = null,
-        int $serviceProviderConfigId = 1
+        int $serviceProviderConfigId = 1,
+        Status $status = Status::Enabled,
+        ProviderModelType $providerModelType = ProviderModelType::ATOM,
+        ?array $aggregateConfig = null
     ): ProviderModelEntity {
         return new ProviderModelEntity([
             'id' => random_int(1000, 9999),
@@ -320,7 +448,9 @@ class ModeAppServiceTest extends TestCase
             'model_id' => $modelId,
             'model_version' => $modelVersion ?? ($modelId . '-version'),
             'category' => $category->value,
-            'status' => 1,
+            'status' => $status->value,
+            'type' => $providerModelType->value,
+            'aggregate_config' => $aggregateConfig,
             'organization_code' => 'TGosRaFhvb',
             'config' => ['support_function' => true],
         ]);

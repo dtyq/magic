@@ -109,4 +109,12 @@ class AdminGlobalSettingsRepository implements AdminGlobalSettingsRepositoryInte
 
         return array_map(fn ($model) => new AdminGlobalSettingsEntity($model), $models);
     }
+
+    public function deleteSettingsByTypeAndOrganization(AdminGlobalSettingsType $type, string $organization): void
+    {
+        AdminGlobalSettingsModel::query()
+            ->where('type', $type->value)
+            ->where('organization', $organization)
+            ->delete();
+    }
 }

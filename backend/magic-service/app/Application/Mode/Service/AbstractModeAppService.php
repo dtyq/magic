@@ -215,9 +215,18 @@ abstract class AbstractModeAppService extends AbstractKernelAppService
         $providerModels = [];
         foreach ($allModels as $modelId => $models) {
             $bestModel = $this->selectBestModel($models, $providerStatuses);
-            if ($bestModel) {
-                $providerModels[$modelId] = $bestModel;
+            if (! $bestModel instanceof ProviderModelEntity) {
+                continue;
             }
+
+            if (
+                $bestModel->isDynamicModel()
+                && ! $this->isDynamicModelEffectivelyAvailable($bestModel, $allModels, $providerStatuses)
+            ) {
+                continue;
+            }
+
+            $providerModels[$modelId] = $bestModel;
         }
 
         return $providerModels;
@@ -237,6 +246,7 @@ abstract class AbstractModeAppService extends AbstractKernelAppService
         // 相比 selectBestModel 只选一条，这里保留整组数据，是为了后续做视频能力交集。
         $providerDataIsolation = new ProviderDataIsolation(OfficialOrganizationUtil::getOfficialOrganizationCode());
         $allModels = $this->providerModelDomainService->getModelsByModelIds($providerDataIsolation, $allModelIds);
+        $allModels = $this->expandModelGroupsForDynamicSubModels($providerDataIsolation, $allModels);
         $providerStatuses = $this->getProviderStatuses($providerDataIsolation, $allModels);
 
         return $this->filterAvailableModelGroups($allModels, $providerStatuses);
@@ -349,6 +359,13 @@ abstract class AbstractModeAppService extends AbstractKernelAppService
         foreach ($allModels as $modelId => $providerModels) {
             $availableProviderModels = [];
             foreach ($providerModels as $providerModel) {
+                if (
+                    $providerModel->isDynamicModel()
+                    && ! $this->isDynamicModelEffectivelyAvailable($providerModel, $allModels, $providerStatuses)
+                ) {
+                    continue;
+                }
+
                 if (! $this->isProviderModelAvailable($providerModel, $providerStatuses)) {
                     continue;
                 }
@@ -380,6 +397,64 @@ abstract class AbstractModeAppService extends AbstractKernelAppService
         $providerStatus = $providerStatuses[$providerModel->getServiceProviderConfigId()] ?? Status::Disabled;
 
         return $providerStatus === Status::Enabled;
+    }
+
+    /**
+     * @param array<string, list<ProviderModelEntity>> $allModels
+     * @return array<string, list<ProviderModelEntity>>
+     */
+    protected function expandModelGroupsForDynamicSubModels(
+        ProviderDataIsolation $providerDataIsolation,
+        array $allModels
+    ): array {
+        $expandedModels = $allModels;
+        $scannedModelIds = [];
+        $pendingModelIds = array_keys($expandedModels);
+
+        while ($pendingModelIds !== []) {
+            $missingSubModelIds = [];
+            $nextPendingModelIds = [];
+
+            foreach ($pendingModelIds as $modelId) {
+                if (isset($scannedModelIds[$modelId])) {
+                    continue;
+                }
+                $scannedModelIds[$modelId] = true;
+
+                foreach ($expandedModels[$modelId] ?? [] as $providerModel) {
+                    if (! $providerModel->isDynamicModel()) {
+                        continue;
+                    }
+
+                    foreach ($this->extractDynamicSubModelIds($providerModel) as $subModelId) {
+                        if (isset($expandedModels[$subModelId])) {
+                            if (! isset($scannedModelIds[$subModelId])) {
+                                $nextPendingModelIds[$subModelId] = $subModelId;
+                            }
+                            continue;
+                        }
+
+                        $missingSubModelIds[$subModelId] = $subModelId;
+                    }
+                }
+            }
+
+            if ($missingSubModelIds !== []) {
+                $fetchedModels = $this->providerModelDomainService->getModelsByModelIds(
+                    $providerDataIsolation,
+                    array_values($missingSubModelIds)
+                );
+
+                foreach ($fetchedModels as $subModelId => $providerModels) {
+                    $expandedModels[$subModelId] = $providerModels;
+                    $nextPendingModelIds[$subModelId] = $subModelId;
+                }
+            }
+
+            $pendingModelIds = array_values($nextPendingModelIds);
+        }
+
+        return $expandedModels;
     }
 
     /**
@@ -562,6 +637,7 @@ abstract class AbstractModeAppService extends AbstractKernelAppService
 
         $providerDataIsolation = new ProviderDataIsolation(OfficialOrganizationUtil::getOfficialOrganizationCode());
         $allModels = $this->providerModelDomainService->getModelsByModelIds($providerDataIsolation, $modelIds);
+        $allModels = $this->expandModelGroupsForDynamicSubModels($providerDataIsolation, $allModels);
 
         return [$modelIds, $allModels, $this->getProviderStatuses($providerDataIsolation, $allModels)];
     }
@@ -569,5 +645,64 @@ abstract class AbstractModeAppService extends AbstractKernelAppService
     private function isModelEnabled(ProviderModelEntity $model): bool
     {
         return $model->getStatus() === Status::Enabled;
+    }
+
+    /**
+     * @param array<string, list<ProviderModelEntity>> $allModels
+     * @param array<int, Status> $providerStatuses
+     */
+    private function isDynamicModelEffectivelyAvailable(
+        ProviderModelEntity $dynamicModel,
+        array $allModels,
+        array $providerStatuses,
+        array &$visitedModelIds = []
+    ): bool {
+        $modelId = $dynamicModel->getModelId();
+        if ($modelId === '' || isset($visitedModelIds[$modelId])) {
+            return false;
+        }
+        $visitedModelIds[$modelId] = true;
+
+        foreach ($this->extractDynamicSubModelIds($dynamicModel) as $subModelId) {
+            $subProviderModels = $allModels[$subModelId] ?? [];
+            foreach ($subProviderModels as $subProviderModel) {
+                if ($subProviderModel->isDynamicModel()) {
+                    if ($this->isDynamicModelEffectivelyAvailable($subProviderModel, $allModels, $providerStatuses, $visitedModelIds)) {
+                        return true;
+                    }
+                    continue;
+                }
+
+                if ($this->isProviderModelAvailable($subProviderModel, $providerStatuses)) {
+                    return true;
+                }
+            }
+        }
+
+        return false;
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function extractDynamicSubModelIds(ProviderModelEntity $dynamicModel): array
+    {
+        $aggregateConfig = $dynamicModel->getAggregateConfig() ?? [];
+        $subModels = $aggregateConfig['models'] ?? [];
+        $subModelIds = [];
+
+        foreach ($subModels as $subModel) {
+            if (is_string($subModel) && $subModel !== '') {
+                $subModelIds[$subModel] = $subModel;
+                continue;
+            }
+
+            if (is_array($subModel) && ($subModel['model_id'] ?? '') !== '') {
+                $subModelId = (string) $subModel['model_id'];
+                $subModelIds[$subModelId] = $subModelId;
+            }
+        }
+
+        return array_values($subModelIds);
     }
 }
