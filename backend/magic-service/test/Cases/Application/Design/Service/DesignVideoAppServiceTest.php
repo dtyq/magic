@@ -13,6 +13,8 @@ use App\Domain\Design\Entity\DesignDataIsolation;
 use App\Domain\Design\Entity\DesignGenerationTaskEntity;
 use App\Domain\Design\Entity\Dto\DesignVideoCreateDTO;
 use App\Domain\Design\Entity\ValueObject\DesignGenerationAssetType;
+use App\Domain\Design\Entity\ValueObject\DesignGenerationStatus;
+use App\Domain\Design\Entity\ValueObject\DesignGenerationType;
 use App\Domain\Design\Factory\DesignGenerationTaskFactory;
 use App\Domain\Design\Repository\Facade\DesignGenerationTaskRepositoryInterface;
 use App\Domain\Design\Service\DesignGenerationTaskDomainService;
@@ -22,6 +24,7 @@ use App\Domain\VideoCatalog\Entity\ValueObject\VideoCatalogModelDefinition;
 use App\Domain\VideoCatalog\Service\VideoCatalogQueryDomainService;
 use App\Infrastructure\Core\DataIsolation\BaseDataIsolation;
 use App\Infrastructure\Core\ValueObject\StorageBucketType;
+use DateTime;
 use Dtyq\CloudFile\Kernel\Struct\UploadFile;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ProjectEntity;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\TaskFileEntity;
@@ -42,9 +45,10 @@ class DesignVideoAppServiceTest extends TestCase
         $repository = new InMemoryDesignVideoTaskRepository();
         $taskFileDomainService = $this->createMock(TaskFileDomainService::class);
         $taskFileDomainService->expects($this->once())
-            ->method('getByFileKey')
-            ->with('/org/project_123/workspace/out/')
+            ->method('findEntityByRelativePath')
+            ->with(123, '/out')
             ->willReturn($this->createDirectory(7001, '/org/project_123/workspace/out'));
+        $taskFileDomainService->expects($this->never())->method('getByFileKey');
 
         $producer = $this->createMock(Producer::class);
         $producer->expects($this->once())
@@ -72,6 +76,45 @@ class DesignVideoAppServiceTest extends TestCase
 
         $this->assertSame(7001, $result->getOutputDirectoryFileId());
         $this->assertSame(7001, $repository->createdEntity?->getOutputDirectoryFileId());
+    }
+
+    public function testQueryHydratesCompletedFileByNameBasedRelativePath(): void
+    {
+        $repository = new InMemoryDesignVideoTaskRepository();
+        $repository->foundEntity = $this->createCompletedEntity('/433333/videos/smart-video.mp4');
+
+        $taskFileDomainService = $this->createMock(TaskFileDomainService::class);
+        $taskFileDomainService->expects($this->once())
+            ->method('findEntityByRelativePath')
+            ->with(123, '/433333/videos/smart-video.mp4')
+            ->willReturn($this->createFile(9003, '/org/project_123/workspace/7001/smart-video.mp4'));
+        $taskFileDomainService->expects($this->never())->method('getByFileKey');
+        $taskFileDomainService->expects($this->once())
+            ->method('getFileUrls')
+            ->with(
+                projectOrganizationCode: 'org',
+                projectId: 123,
+                fileIds: [9003],
+                downloadMode: 'preview'
+            )
+            ->willReturn([[
+                'url' => 'https://cdn.example.com/smart-video.mp4',
+            ]]);
+
+        $service = new TestableDesignVideoAppService(
+            $taskFileDomainService,
+            new CreateVideoFileDomainService('/org'),
+            new StubVideoCatalogQueryDomainService($this->createModelDefinition()),
+            new DesignGenerationTaskDomainService($repository),
+            new StubDesignVideoSubmissionDomainService(),
+            $this->createMock(Producer::class),
+        );
+
+        $result = $service->query($this->createMock(Authenticatable::class), 123, 'video-1');
+
+        $this->assertSame(DesignGenerationStatus::COMPLETED, $result->getStatus());
+        $this->assertSame('9003', $result->getFileId());
+        $this->assertSame('https://cdn.example.com/smart-video.mp4', $result->getFileUrl());
     }
 
     private function createModelDefinition(): VideoCatalogModelDefinition
@@ -102,6 +145,50 @@ class DesignVideoAppServiceTest extends TestCase
         $entity->setSource(TaskFileSource::DEFAULT);
         $entity->setCreatedAt('2026-04-22 00:00:00');
         $entity->setUpdatedAt('2026-04-22 00:00:00');
+
+        return $entity;
+    }
+
+    private function createFile(int $fileId, string $fileKey): TaskFileEntity
+    {
+        $entity = new TaskFileEntity();
+        $entity->setFileId($fileId);
+        $entity->setProjectId(123);
+        $entity->setFileKey($fileKey);
+        $entity->setFileName(basename($fileKey));
+        $entity->setIsDirectory(false);
+        $entity->setSource(TaskFileSource::AI_VIDEO_GENERATION);
+        $entity->setCreatedAt('2026-04-22 00:00:00');
+        $entity->setUpdatedAt('2026-04-22 00:00:00');
+
+        return $entity;
+    }
+
+    private function createCompletedEntity(string $relativeFilePath): DesignGenerationTaskEntity
+    {
+        $entity = new DesignGenerationTaskEntity();
+        $entity->setId(1001);
+        $entity->setOrganizationCode('org');
+        $entity->setUserId('user-1');
+        $entity->setProjectId(123);
+        $entity->setGenerationId('video-1');
+        $entity->setAssetType(DesignGenerationAssetType::VIDEO);
+        $entity->setGenerationType(DesignGenerationType::TEXT_TO_VIDEO);
+        $entity->setModelId('video-model');
+        $entity->setPrompt('生成一个用于测试的视频');
+        $entity->setFileDir('/433333/videos');
+        $entity->setFileName('smart-video.mp4');
+        $entity->setInputPayload([]);
+        $entity->setRequestPayload([]);
+        $entity->setProviderPayload([]);
+        $entity->setOutputPayload([
+            'relative_file_path' => $relativeFilePath,
+            'relative_poster_path' => '',
+        ]);
+        $entity->setStatus(DesignGenerationStatus::COMPLETED);
+        $entity->setErrorMessage(null);
+        $entity->setCreatedAt(new DateTime());
+        $entity->setUpdatedAt(new DateTime());
 
         return $entity;
     }
@@ -181,6 +268,8 @@ class InMemoryDesignVideoTaskRepository implements DesignGenerationTaskRepositor
 {
     public ?DesignGenerationTaskEntity $createdEntity = null;
 
+    public ?DesignGenerationTaskEntity $foundEntity = null;
+
     public function create(DesignDataIsolation $dataIsolation, DesignGenerationTaskEntity $entity): void
     {
         $entity->setId(1001);
@@ -201,7 +290,7 @@ class InMemoryDesignVideoTaskRepository implements DesignGenerationTaskRepositor
         DesignGenerationAssetType $assetType,
         string $generationId
     ): ?DesignGenerationTaskEntity {
-        return null;
+        return $this->foundEntity;
     }
 
     public function findProcessingTasksAfterId(int $cursorId, int $limit): array

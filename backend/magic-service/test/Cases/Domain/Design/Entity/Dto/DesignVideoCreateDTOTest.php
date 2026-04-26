@@ -137,4 +137,111 @@ class DesignVideoCreateDTOTest extends TestCase
         $this->assertSame('keyframe_guided', $keyframeDto->getInputMode());
         $this->assertSame('omni_reference', $omniAudioDto->getInputMode());
     }
+
+    public function testToModelGatewayPayloadOnlyContainsGatewayFields(): void
+    {
+        $dto = new DesignVideoCreateDTO([
+            'project_id' => 1,
+            'video_id' => 'video-7',
+            'model_id' => 'doubao-seedance-2-0-fast-260128',
+            'topic_id' => 'topic-1',
+            'task_id' => 'task-1',
+            'task' => 'extend',
+            'input_mode' => 'omni_reference',
+            'prompt' => '大家在海边奔跑',
+            'file_dir' => '/2121/videos/',
+            'file_name' => 'output.mp4',
+            'inputs' => [
+                'reference_videos' => [
+                    ['uri' => '/2121/videos/ref1.mp4'],
+                ],
+            ],
+            'generation' => [
+                'resolution' => '480p',
+                'duration_seconds' => 4,
+            ],
+            'callbacks' => [
+                'webhook_url' => 'https://example.com/callback',
+            ],
+            'execution' => [
+                'service_tier' => 'default',
+            ],
+            'extensions' => [
+                'seedance' => ['camera' => 'static'],
+            ],
+        ]);
+
+        $payload = $dto->toModelGatewayPayload();
+
+        $this->assertSame([
+            'model_id' => 'doubao-seedance-2-0-fast-260128',
+            'task' => 'extend',
+            'input_mode' => 'omni_reference',
+            'prompt' => '大家在海边奔跑',
+            'inputs' => [
+                'reference_videos' => [
+                    ['uri' => '/2121/videos/ref1.mp4'],
+                ],
+            ],
+            'generation' => [
+                'resolution' => '480p',
+                'duration_seconds' => 4,
+            ],
+            'callbacks' => [
+                'webhook_url' => 'https://example.com/callback',
+            ],
+            'execution' => [
+                'service_tier' => 'default',
+            ],
+            'extensions' => [
+                'seedance' => ['camera' => 'static'],
+            ],
+            'topic_id' => 'topic-1',
+            'task_id' => 'task-1',
+        ], $payload);
+        $this->assertArrayNotHasKey('supports_image_input_url', $payload);
+        $this->assertArrayNotHasKey('video_id', $payload);
+        $this->assertArrayNotHasKey('file_dir', $payload);
+        $this->assertArrayNotHasKey('file_name', $payload);
+    }
+
+    public function testValidForEstimateDoesNotRequireVideoIdAndFileDir(): void
+    {
+        $dto = new DesignVideoCreateDTO([
+            'project_id' => 1,
+            'model_id' => 'doubao-seedance-2-0-fast-260128',
+            'prompt' => '大家在跑步',
+            'inputs' => [
+                'reference_videos' => [
+                    ['uri' => '/2121/videos/ref.mp4'],
+                ],
+            ],
+            'generation' => [
+                'resolution' => '480p',
+                'duration_seconds' => 4,
+            ],
+        ]);
+
+        $dto->validForEstimate();
+
+        $this->assertSame(1, $dto->getProjectId());
+        $this->assertSame('', $dto->getVideoId());
+        $this->assertSame('', $dto->getFileDir());
+    }
+
+    public function testValidForEstimateRejectsUnsupportedInputKey(): void
+    {
+        $dto = new DesignVideoCreateDTO([
+            'project_id' => 1,
+            'model_id' => 'doubao-seedance-2-0-fast-260128',
+            'prompt' => '大家在跑步',
+            'inputs' => [
+                'video' => ['uri' => '/2121/videos/ref.mp4'],
+            ],
+        ]);
+
+        $this->expectException(Throwable::class);
+
+        $dto->validForEstimate();
+    }
 }

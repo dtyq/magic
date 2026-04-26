@@ -38,6 +38,7 @@ use App\Domain\Provider\Service\ConnectivityTest\ConnectResponse;
 use App\Domain\Provider\Service\ProviderConfigDomainService;
 use App\Domain\Provider\Service\ProviderModelDomainService;
 use App\ErrorCode\ServiceProviderErrorCode;
+use App\Infrastructure\Core\Exception\BusinessException;
 use App\Infrastructure\Core\Exception\ExceptionBuilder;
 use App\Infrastructure\Core\Traits\HasLogger;
 use App\Infrastructure\Util\FuzzMatchUtil;
@@ -52,6 +53,8 @@ use Hyperf\DbConnection\Db;
 use Hyperf\Odin\Api\Response\ChatCompletionResponse;
 use JsonException;
 use Psr\EventDispatcher\EventDispatcherInterface;
+
+use function Hyperf\Translation\__;
 
 readonly class AdminProviderAppService
 {
@@ -348,7 +351,7 @@ readonly class AdminProviderAppService
         return match ($this->getConnectivityTestType($providerModelEntity->getCategory()->value, $providerModelEntity->getModelType()->value)) {
             NaturalLanguageProcessing::EMBEDDING => $this->embeddingConnectivityTest($modelPrimaryId, $authorization),
             NaturalLanguageProcessing::LLM => $this->llmConnectivityTest($modelPrimaryId, $authorization),
-            default => $this->adminProviderDomainService->vlmConnectivityTest($modelPrimaryId, $authorization),
+            default => throw new BusinessException(__('service_provider.connectivity_not_supported')),
         };
     }
 

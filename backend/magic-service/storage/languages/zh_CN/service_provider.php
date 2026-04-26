@@ -36,6 +36,7 @@ return [
     'config_not_found' => '服务商配置不存在',
     'config_load_failed' => '配置加载失败',
     'connectivity_test_prompt' => '生成小猫图片',
+    'connectivity_not_supported' => '当前模型类型暂不支持连通性测试。',
     'dynamic_model_config_invalid' => '动态模型配置无效',
     'dynamic_model_sub_models_empty' => '动态模型子模型列表为空',
     'insufficient_permission_for_model' => '当前套餐不支持该智能模型',

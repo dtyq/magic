@@ -181,6 +181,17 @@ readonly class VideoQueueDomainService
         );
     }
 
+    /**
+     * 预估费用只需要规范化后的请求参数，不创建运行任务。
+     */
+    public function normalizeRequestForEstimate(
+        CreateVideoDTO $requestDTO,
+        ProviderCode $providerCode,
+        VideoGenerationConfig $videoGenerationConfig
+    ): array {
+        return $this->normalizeRequest($requestDTO, $providerCode, $videoGenerationConfig);
+    }
+
     public function getOperation(string $operationId, string $organizationCode, string $userId): VideoQueueOperationEntity
     {
         $operation = $this->videoQueueOperationRepository->getOperation($operationId);
@@ -278,14 +289,19 @@ readonly class VideoQueueDomainService
     }
 
     /**
-     * 占用当前任务的个人和组织视频运行槽位，任一维度达到上限时抛出限流异常。
+     * 占用当前任务的个人视频运行槽位，达到套餐上限时抛出限流异常。
      */
-    public function claimUserActiveOperation(VideoQueueOperationEntity $operation): void
+    public function claimUserActiveOperation(VideoQueueOperationEntity $operation, ?int $personalVideoGenerationConcurrencyLimit): void
     {
+        // 套餐值为 null/unlimited 时表示不限个人视频并发，不需要写入运行槽位。
+        if ($personalVideoGenerationConcurrencyLimit === null) {
+            return;
+        }
+
         $ttlSeconds = $this->operationTtlSeconds();
 
-        // 个人并发先占位，避免同一组织用户超过配置的运行任务数。
-        $userLimit = $this->userActiveOperationLimit($operation->getOrganizationCode());
+        // 个人视频并发由套餐 feature_limits 控制；旧 env 覆盖和组织总并发限制已废弃。
+        $userLimit = max(1, $personalVideoGenerationConcurrencyLimit);
         if (! $this->videoQueueOperationRepository->claimUserActiveOperation(
             $operation,
             $userLimit,
@@ -302,27 +318,10 @@ readonly class VideoQueueDomainService
             );
             ExceptionBuilder::throw(MagicApiErrorCode::RATE_LIMIT, 'video.errors.user_concurrency_limit', ['limit' => $userLimit]);
         }
-
-        $organizationLimit = $this->organizationActiveOperationLimit($operation->getOrganizationCode());
-        if ($organizationLimit <= 0) {
-            return;
-        }
-
-        // 组织总并发占位失败时回滚个人槽位，避免一次失败提交占住用户名额。
-        if (! $this->videoQueueOperationRepository->claimOrganizationActiveOperation($operation, $organizationLimit, $ttlSeconds)) {
-            $this->videoQueueOperationRepository->releaseUserActiveOperation($operation);
-            $this->logActiveOperationsLimitReached(
-                'organization',
-                $operation,
-                $this->videoQueueOperationRepository->getOrganizationActiveOperations($operation->getOrganizationCode()),
-                $organizationLimit,
-            );
-            ExceptionBuilder::throw(MagicApiErrorCode::RATE_LIMIT, 'video.errors.organization_concurrency_limit', ['limit' => $organizationLimit]);
-        }
     }
 
     /**
-     * 任务进入终态时释放个人和组织视频运行槽位，未完成任务继续保持占用。
+     * 任务进入终态时释放个人视频运行槽位，未完成任务继续保持占用。
      */
     public function releaseUserActiveOperationIfDone(VideoQueueOperationEntity $operation): void
     {
@@ -335,12 +334,11 @@ readonly class VideoQueueDomainService
     }
 
     /**
-     * 释放当前任务占用的个人和组织视频运行槽位，用于提交失败等未进入运行态的场景。
+     * 释放当前任务占用的个人视频运行槽位，用于提交失败等未进入运行态的场景。
      */
     public function releaseUserActiveOperation(VideoQueueOperationEntity $operation): void
     {
         $this->videoQueueOperationRepository->releaseUserActiveOperation($operation);
-        $this->videoQueueOperationRepository->releaseOrganizationActiveOperation($operation);
     }
 
     public function buildDirectQueueSnapshot(): array
@@ -375,32 +373,6 @@ readonly class VideoQueueDomainService
     public function maxConcurrency(): int
     {
         return max(1, (int) config('model_gateway.video_queue.max_concurrency', 1));
-    }
-
-    /**
-     * 获取组织用户维度的视频并发上限，支持按组织 code 覆盖默认值。
-     */
-    public function userActiveOperationLimit(string $organizationCode): int
-    {
-        return max(1, $this->resolveOrganizationLimit(
-            'model_gateway.video_queue.default_user_active_operation_limit',
-            'model_gateway.video_queue.user_active_operation_limit_overrides',
-            $organizationCode,
-            1
-        ));
-    }
-
-    /**
-     * 获取组织维度的视频总并发上限，返回 0 表示不启用组织总并发限制。
-     */
-    public function organizationActiveOperationLimit(string $organizationCode): int
-    {
-        return max(0, $this->resolveOrganizationLimit(
-            'model_gateway.video_queue.default_organization_active_operation_limit',
-            'model_gateway.video_queue.organization_active_operation_limit_overrides',
-            $organizationCode,
-            0
-        ));
     }
 
     public function operationTtlSeconds(): int
@@ -454,23 +426,6 @@ readonly class VideoQueueDomainService
                 $activeOperations
             ),
         ]);
-    }
-
-    /**
-     * 从默认配置和组织覆盖配置中解析当前组织最终使用的并发上限。
-     */
-    private function resolveOrganizationLimit(
-        string $defaultConfigKey,
-        string $organizationConfigKey,
-        string $organizationCode,
-        int $default
-    ): int {
-        $organizationLimits = config($organizationConfigKey, []);
-        if (is_array($organizationLimits) && array_key_exists($organizationCode, $organizationLimits)) {
-            return (int) $organizationLimits[$organizationCode];
-        }
-
-        return (int) config($defaultConfigKey, $default);
     }
 
     private function normalizeRequest(
