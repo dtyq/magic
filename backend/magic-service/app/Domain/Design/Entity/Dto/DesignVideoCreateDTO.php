@@ -408,9 +408,6 @@ class DesignVideoCreateDTO extends AbstractDTO
         $this->assertExtensionFields();
     }
 
-    /**
-     * 校验视频积分预估入参；预估不创建任务，因此不要求 video_id、file_dir、file_name。
-     */
     public function validForEstimate(): void
     {
         if (($this->projectId ?? 0) <= 0) {

@@ -21,8 +21,6 @@ return [
         'poll_interval_seconds' => (int) env('MODEL_GATEWAY_VIDEO_QUEUE_POLL_INTERVAL_SECONDS', 3),
         // 视频队列 worker 查询 provider 任务状态的最大轮询次数。
         'poll_max_times' => (int) env('MODEL_GATEWAY_VIDEO_QUEUE_POLL_MAX_TIMES', 200),
-        // 视频生成提交前要求的最低可用积分，后续预扣费会替换为精确估算。
-        'min_points_balance' => (int) env('MODEL_GATEWAY_VIDEO_MIN_POINTS_BALANCE', 1000),
     ],
     'video_media' => [
         // ffprobe 用于读取参考视频真实时长和宽高；本地路径不在 PATH 时可配置绝对路径。

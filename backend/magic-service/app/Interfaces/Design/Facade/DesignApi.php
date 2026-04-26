@@ -257,9 +257,6 @@ class DesignApi extends AbstractApi
         return DesignVideoAssembler::toDTO($entity)->toArray();
     }
 
-    /**
-     * 预估视频生成积分。
-     */
     public function estimateVideoPoints(EstimateVideoPointsFormRequest $request): array
     {
         $request->validateResolved();

@@ -36,7 +36,6 @@ Router::addGroup('/api/v1', static function () {
         // 生成视频
         Router::post('/generate-video', [DesignApi::class, 'generateVideo']);
 
-        // 预估视频生成积分
         Router::post('/estimate-video-points', [DesignApi::class, 'estimateVideoPoints']);
 
         // 查询视频生成结果
