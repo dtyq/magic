@@ -864,6 +864,11 @@ magic_space:
   api_key: "${MAGIC_SPACE_API_KEY}"
   api_base_url: "${MAGIC_SPACE_API_BASE_URL}"
 
+# MDE 配置
+mde:
+  api_key: "${MDE_API_KEY}"
+  api_base_url: "${MDE_API_BASE_URL}"
+
 # PDF 理解服务配置
 pdf_understanding:
   api_key: "${PDF_UNDERSTANDING_API_KEY}"
