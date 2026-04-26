@@ -85,6 +85,8 @@ class ToolExecutor:
         tool_name = tool_context.tool_name
 
         try:
+            await tool_factory.ensure_definitions_initialized()
+
             # 获取工具实例
             tool_instance = self.get_tool(tool_name)
             if not tool_instance:
@@ -98,8 +100,18 @@ class ToolExecutor:
                     f"Tool '{tool_name}' cannot be called via Code Mode. "
                     f"Call it directly as a standalone tool call instead.",
                     name=tool_name,
+                    tool_call_id=tool_context.tool_call_id,
                 )
-                result.tool_call_id = tool_context.tool_call_id
+                return result
+
+            # CodeModeOnly 工具只作为 sdk.tool.call 的执行底座；误挂到 agent tools 时在执行层兜底拦截
+            if getattr(tool_instance, "code_mode_only", False) and not tool_context.get_extension("is_code_mode"):
+                result = ToolResult.error(
+                    f"Tool '{tool_name}' is Code Mode only. "
+                    f"Call it from Code Mode via sdk.tool.call().",
+                    name=tool_name,
+                    tool_call_id=tool_context.tool_call_id,
+                )
                 return result
 
             # 确保参数不为None
@@ -131,13 +143,11 @@ class ToolExecutor:
             # 尝试提取友好的错误消息
             error_msg = self._get_friendly_validation_error(tool_name, ve)
 
-            result = ToolResult.error(error_msg, name=tool_name)
-
-            # 设置工具调用ID
-            if hasattr(tool_context, 'tool_call_id'):
-                result.tool_call_id = tool_context.tool_call_id
-
-            return result
+            return ToolResult.error(
+                error_msg,
+                name=tool_name,
+                tool_call_id=getattr(tool_context, "tool_call_id", None),
+            )
         except Exception as e:
             # 记录异常信息
             error_stack = traceback.format_exc()
@@ -148,13 +158,11 @@ class ToolExecutor:
             # 根据错误类型生成友好的错误消息
             error_msg = self._get_friendly_error_message(tool_name, error_type, str(e))
 
-            result = ToolResult.error(error_msg, name=tool_name)
-
-            # 设置工具调用ID
-            if hasattr(tool_context, 'tool_call_id'):
-                result.tool_call_id = tool_context.tool_call_id
-
-            return result
+            return ToolResult.error(
+                error_msg,
+                name=tool_name,
+                tool_call_id=getattr(tool_context, "tool_call_id", None),
+            )
 
     def _get_friendly_validation_error(self, tool_name: str, validation_error: ValidationError) -> str:
         """获取友好的验证错误消息
@@ -270,8 +278,8 @@ class ToolExecutor:
     def get_tool_schemas(self) -> List[Dict[str, Any]]:
         """获取所有工具的函数调用架构
 
-        生成OpenAI兼容的Function Calling格式描述
-        优先使用预构建定义，不存在时自动生成
+        生成 OpenAI 兼容的 Function Calling 格式描述。
+        优先使用预构建定义；缓存缺失或初始化失败时回退到运行时工具实例。
 
         Returns:
             函数调用架构列表，格式为OpenAI规范
@@ -286,15 +294,18 @@ class ToolExecutor:
             tool_names = tool_factory.get_tool_names()
 
         for tool_name in tool_names:
-            # 只从预构建定义获取参数
+            if tool_factory.is_code_mode_only_tool(tool_name):
+                logger.debug(f"跳过 CodeModeOnly 工具参数: {tool_name}")
+                continue
+
+            # 优先从预构建定义获取参数，必要时由工具工厂回退到运行时实例
             tool_param = tool_factory.get_tool_param_from_definition(tool_name)
 
             if tool_param:
                 schemas.append(tool_param)
-                logger.debug(f"从预构建定义获取工具参数: {tool_name}")
+                logger.debug(f"获取工具参数成功: {tool_name}")
             else:
-                # 预定义参数不存在，跳过该工具并警告
-                logger.warning(f"工具 {tool_name} 的预定义参数不存在，跳过添加。请运行工具定义生成命令来创建预定义文件。")
+                logger.warning(f"工具 {tool_name} 的参数定义不存在，跳过添加")
 
         return schemas
 

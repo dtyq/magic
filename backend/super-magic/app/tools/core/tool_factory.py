@@ -12,6 +12,7 @@
 import importlib
 import importlib.metadata
 import inspect
+import asyncio
 import os
 import pkgutil
 import time
@@ -49,6 +50,8 @@ class ToolInfo:
     definition: Optional['ToolDefinition'] = None
     # 是否为延迟加载模式
     lazy_load: bool = False
+    # 是否仅允许 Code Mode 调用
+    code_mode_only: bool = False
 
     def __post_init__(self):
         """验证创建的工具信息对象"""
@@ -79,41 +82,56 @@ class ToolFactory:
 
         self._tools: Dict[str, ToolInfo] = {}  # 工具信息字典：name -> ToolInfo对象
         self._tool_instances: Dict[str, BaseTool] = {}  # 工具实例缓存：name -> instance
+        self._definitions_initialized = False
+        self._definitions_init_lock: Optional[asyncio.Lock] = None
+        self._initialized = True
 
-        # 检查环境变量控制是否自动重新生成预定义文件
+    async def ensure_definitions_initialized(self) -> None:
+        """工具定义初始化的唯一公开入口；幂等、防并发，失败时保留运行时扫描能力。"""
+        if self._definitions_initialized:
+            return
+
+        if self._definitions_init_lock is None:
+            self._definitions_init_lock = asyncio.Lock()
+
+        async with self._definitions_init_lock:
+            if self._definitions_initialized:
+                return
+            await self._initialize_definitions()
+
+    async def _initialize_definitions(self) -> None:
+        """初始化工具定义缓存；失败时回退到运行时工具扫描。"""
         auto_regenerate = os.getenv("AUTO_REGENERATE_TOOL_DEFINITIONS", "true").lower() in ("true", "1", "yes", "on")
 
-        # 检查是否存在预构建的工具定义文件
-        has_prebuilt_definitions = self._should_use_prebuilt_definitions()
-
         if auto_regenerate:
-            # 每次启动都重新生成预定义文件
             logger.info("AUTO_REGENERATE_TOOL_DEFINITIONS=true，正在重新生成预定义文件...")
             self.initialize()
 
-            if self.generate_tool_definitions(force=True):
+            if await self.generate_tool_definitions(force=True):
                 logger.info("✓ 预定义文件重新生成完成")
-                # 重新加载以使用新生成的定义
-                self._load_from_prebuilt_definitions()
+                if not await self._load_from_prebuilt_definitions():
+                    logger.error("预定义文件已生成但加载失败，继续使用运行时工具扫描")
             else:
-                logger.warning("预定义文件生成失败，继续使用正常模式")
+                logger.error("预定义文件生成失败，继续使用运行时工具扫描")
+            self._definitions_initialized = True
+            return
 
-        elif has_prebuilt_definitions:
-            # 不自动重新生成，且预定义文件存在，直接加载
+        if await self._should_use_prebuilt_definitions():
             logger.info("AUTO_REGENERATE_TOOL_DEFINITIONS=false，使用现有预定义文件")
-            self._load_from_prebuilt_definitions()
+            if await self._load_from_prebuilt_definitions():
+                self._definitions_initialized = True
+                return
+            logger.warning("现有预定义文件加载失败，尝试重新生成")
+
+        self.initialize()
+        if await self.generate_tool_definitions(force=True):
+            logger.info("✓ 预定义文件生成完成")
+            if not await self._load_from_prebuilt_definitions():
+                logger.error("预定义文件已生成但加载失败，继续使用运行时工具扫描")
         else:
-            # 不自动重新生成，但预定义文件不存在，需要生成一次
-            self.initialize()
+            logger.error("预定义文件生成失败，继续使用运行时工具扫描")
 
-            if self.generate_tool_definitions(force=False):
-                logger.info("✓ 预定义文件生成完成")
-                # 重新加载以使用新生成的定义
-                self._load_from_prebuilt_definitions()
-            else:
-                logger.warning("预定义文件生成失败，继续使用正常模式")
-
-        self._initialized = True
+        self._definitions_initialized = True
 
     def register_tool(self, tool_class: Type[BaseTool]) -> None:
         """注册工具类
@@ -136,7 +154,8 @@ class ToolFactory:
                 tool_class=tool_class,
                 name=tool_name,
                 description=tool_class._tool_description,
-                params_class=params_class
+                params_class=params_class,
+                code_mode_only=bool(getattr(tool_class, "code_mode_only", False)),
             )
 
             # 存储工具信息
@@ -156,7 +175,8 @@ class ToolFactory:
                 name=tool_name,
                 description=getattr(tool_class, '_tool_description', "无法获取描述"),
                 params_class=None,
-                error=str(e)
+                error=str(e),
+                code_mode_only=bool(getattr(tool_class, "code_mode_only", False)),
             )
 
     def register_tool_instance(self, tool_name: str, tool_instance: BaseTool) -> None:
@@ -172,7 +192,8 @@ class ToolFactory:
                 tool_class=tool_instance.__class__,
                 name=tool_name,
                 description=tool_instance.get_effective_description(),
-                params_class=getattr(tool_instance, 'get_params_class', lambda: None)()
+                params_class=getattr(tool_instance, 'get_params_class', lambda: None)(),
+                code_mode_only=bool(getattr(tool_instance, "code_mode_only", False)),
             )
 
             # 存储工具信息
@@ -202,12 +223,12 @@ class ToolFactory:
 
         logger.debug(f"注销工具: {tool_name}")
 
-    def _should_use_prebuilt_definitions(self) -> bool:
-        # 自动检测：如果定义文件存在且不是空的，则使用预构建模式
+    async def _should_use_prebuilt_definitions(self) -> bool:
+        # 自动生成关闭时，优先直接使用缓存；读不到或读坏时再生成。
         definition_file = tool_definition_manager.definition_file
-        if definition_file.exists():
+        if await asyncio.to_thread(definition_file.exists):
             try:
-                stats = tool_definition_manager.get_stats()
+                stats = await tool_definition_manager.get_stats()
                 return stats.get('total_tools', 0) > 0
             except Exception:
                 return False
@@ -257,13 +278,16 @@ class ToolFactory:
 
         return False
 
-    def _load_from_prebuilt_definitions(self) -> None:
+    async def _load_from_prebuilt_definitions(self) -> bool:
         """从预构建的工具定义文件加载工具信息"""
         start_time = time.time()
 
         try:
             # 从定义管理器加载所有定义
-            definitions = tool_definition_manager.get_all_definitions()
+            definitions = await tool_definition_manager.get_all_definitions()
+            if not definitions:
+                logger.warning("预构建工具定义为空")
+                return False
 
             # 将定义转换为 ToolInfo 对象
             for tool_name, definition in definitions.items():
@@ -275,6 +299,7 @@ class ToolFactory:
                         name=definition.name,
                         description=definition.description,
                         params_class=None,  # 从 schema 中获取
+                        code_mode_only=definition.code_mode_only,
                     )
 
                     # 保存额外的元数据用于按需加载
@@ -289,11 +314,13 @@ class ToolFactory:
 
             duration = time.time() - start_time
             logger.info(f"从预构建定义加载了 {len(self._tools)} 个工具，耗时 {duration:.3f}s")
+            return True
 
         except Exception as e:
             logger.error(f"加载预构建工具定义时发生错误: {e}", exc_info=True)
             # 回退到正常模式
             self.initialize()
+            return False
 
     def tool_exists(self, tool_name: str) -> bool:
         """检查工具是否存在，不加载工具类
@@ -434,7 +461,7 @@ class ToolFactory:
         return ""
 
     def get_tool_param_from_definition(self, tool_name: str) -> Optional[Dict]:
-        """从预构建定义直接生成工具参数，无需加载工具类
+        """获取工具参数定义；优先使用缓存，缺失时回退到运行时实例。
 
         Args:
             tool_name: 工具名称
@@ -460,10 +487,18 @@ class ToolFactory:
 
         tool_info = self._tools[tool_name]
 
-        # 只要有预构建定义就可以生成参数（无论是否已加载过）
+        # 优先使用预构建定义；没有缓存时使用运行时实例，保证缓存失败不影响服务可用性。
         if not tool_info.definition:
-            logger.debug(f"工具 {tool_name} 没有预构建定义")
-            return None
+            try:
+                tool_instance = self.get_tool_instance(tool_name)
+                if getattr(tool_instance, "code_mode_only", False):
+                    logger.debug(f"跳过 CodeModeOnly 工具参数: {tool_name}")
+                    return None
+                logger.debug(f"工具 {tool_name} 没有预构建定义，使用实例生成参数")
+                return tool_instance.to_param()
+            except Exception as e:
+                logger.debug(f"工具 {tool_name} 无法从实例生成参数: {e}")
+                return None
 
         definition = tool_info.definition
 
@@ -480,7 +515,7 @@ class ToolFactory:
         logger.debug(f"从预构建定义获取工具参数: {tool_name}")
         return tool_param
 
-    def generate_tool_definitions(self, force: bool = False) -> bool:
+    async def generate_tool_definitions(self, force: bool = False) -> bool:
         """生成预定义文件
 
         Args:
@@ -490,9 +525,10 @@ class ToolFactory:
             bool: 是否成功生成
         """
         # 检查预定义文件是否存在
-        if not force and tool_definition_manager.definition_file.exists():
+        definition_exists = await asyncio.to_thread(tool_definition_manager.definition_file.exists)
+        if not force and definition_exists:
             try:
-                stats = tool_definition_manager.get_stats()
+                stats = await tool_definition_manager.get_stats()
                 tool_count = stats.get('total_tools', 0)
                 if tool_count > 0:
                     logger.info(f"预定义文件已存在且包含 {tool_count} 个工具，跳过生成")
@@ -543,7 +579,8 @@ class ToolFactory:
                         class_name=class_name,
                         parameters_schema=tool_param_definition.get("function", {}).get("parameters"),
                         created_at=time.strftime("%Y-%m-%d %H:%M:%S"),
-                        version="1.0"
+                        version="1.0",
+                        code_mode_only=bool(getattr(tool_instance, "code_mode_only", False)),
                     )
 
                     # 添加到工具定义管理器
@@ -555,10 +592,10 @@ class ToolFactory:
                     failed_tools.append(tool_name)
 
             # 保存所有定义到文件
-            tool_definition_manager.save_definitions()
+            await tool_definition_manager.save_definitions()
 
             # 重新加载当前工厂的工具定义
-            self._reload_definitions_after_generation()
+            await self._reload_definitions_after_generation()
 
             duration = time.time() - start_time
             total_tools = len(all_tools_info)
@@ -575,12 +612,12 @@ class ToolFactory:
             logger.error(f"生成工具预定义文件失败: {e}")
             return False
 
-    def _reload_definitions_after_generation(self):
+    async def _reload_definitions_after_generation(self):
         """生成完成后重新加载定义到当前工厂实例"""
         try:
             # 重新加载定义
             tool_definition_manager._loaded = False
-            definitions = tool_definition_manager.get_all_definitions()
+            definitions = await tool_definition_manager.get_all_definitions()
 
             # 更新当前工具信息中的定义
             for tool_name, definition in definitions.items():
@@ -806,6 +843,17 @@ class ToolFactory:
             logger.error(f"💥 创建工具实例失败: {tool_name} - {str(e)}")
             raise ValueError(f"无法创建工具 {tool_name} 的实例: {e}")
 
+    def is_code_mode_only_tool(self, tool_name: str) -> bool:
+        """检查工具是否仅允许 Code Mode 调用。"""
+        if remote_tool_manager.is_remote_tool(tool_name):
+            return False
+
+        tool_info = self.get_tool(tool_name)
+        if not tool_info:
+            return False
+
+        return bool(tool_info.code_mode_only)
+
     def get_all_tools(self) -> Dict[str, ToolInfo]:
         """获取所有工具信息
 
@@ -857,8 +905,8 @@ class ToolFactory:
         if not self._tools:
             self.initialize()
 
-        # 合并本地工具和远程工具名称
-        all_names = list(self._tools.keys())
+        # 合并本地工具和远程工具名称；CodeModeOnly 工具只允许 sdk.tool.call 调用，不进入直接挂载列表
+        all_names = [tool_name for tool_name in self._tools.keys() if not self.is_code_mode_only_tool(tool_name)]
         all_names.extend(remote_tool_manager.get_registered_tool_names())
 
         # 去重并保持顺序
@@ -876,6 +924,8 @@ class ToolFactory:
         for tool_name in self.get_tool_names():
             try:
                 instance = self.get_tool_instance(tool_name)
+                if getattr(instance, "code_mode_only", False):
+                    continue
                 instances.append(instance)
             except Exception as e:
                 logger.warning(f"获取工具 {tool_name} 实例时出错: {e}")

@@ -57,6 +57,7 @@ class BaseTool(Generic[T], ABC):
     name: ClassVar[str] = ""
     description: ClassVar[str] = ""
     params_class: ClassVar[Type[T]] = None
+    code_mode_only: ClassVar[bool] = False
 
     # 配置项
     model_config = ConfigDict(arbitrary_types_allowed=True)
