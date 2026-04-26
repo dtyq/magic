@@ -117,7 +117,8 @@ readonly class VolcengineArkVideoClient
                     $errorMessageArr['status'] = 'error';
                     return $errorMessageArr;
                 }
-            } catch (Throwable $throwable) {}
+            } catch (Throwable $throwable) {
+            }
 
             throw new ProviderVideoException($this->formatRequestExceptionMessage($errorMessage), $exception);
         } catch (Throwable $throwable) {
