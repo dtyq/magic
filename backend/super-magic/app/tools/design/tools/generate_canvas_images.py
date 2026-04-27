@@ -277,7 +277,7 @@ Expand brief user descriptions into full prompts covering subject, style, compos
         self, tool_context: ToolContext, params: GenerateCanvasImagesParams
     ) -> ToolResult:
         try:
-            workspace_root = Path(tool_context.base_dir).resolve()
+            workspace_root = Path(self.base_dir)
             project_prefix = params.project_path.strip("/")
             normalize_error = await self._normalize_tasks(params.tasks, workspace_root, project_prefix)
             if normalize_error:
@@ -358,7 +358,7 @@ Expand brief user descriptions into full prompts covering subject, style, compos
     ) -> Dict[str, Any]:
         timestamp = datetime.now().strftime("%Y%m%d%H%M%S")
         await asyncio.to_thread((project_path / "images").mkdir, parents=True, exist_ok=True)
-        workspace_path = Path(tool_context.base_dir).resolve()
+        workspace_path = Path(self.base_dir)
         relative_project_path = project_path.relative_to(workspace_path)
         output_path = str(relative_project_path / "images")
         return {
@@ -659,7 +659,7 @@ Expand brief user descriptions into full prompts covering subject, style, compos
         tool_context: ToolContext,
         arguments: Dict[str, Any] = None,
     ) -> Dict:
-        action = i18n.translate("generate_canvas_images", category="tool.actions")
+        action = i18n.translate("generate_canvas_images_ing", category="tool.actions")
 
         tasks: List[dict] = (arguments or {}).get("tasks", [])
         names = [t.get("name", "").strip() for t in tasks if t.get("name", "").strip()]

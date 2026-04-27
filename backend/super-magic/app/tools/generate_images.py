@@ -569,7 +569,7 @@ class GenerateImages(AbstractFileTool[GenerateImagesParams], WorkspaceTool[Gener
         tool_context: ToolContext,
         arguments: dict | None = None,
     ) -> dict:
-        action = i18n.translate("generate_images", category="tool.actions")
+        action = i18n.translate("generate_images_ing", category="tool.actions")
 
         tasks: List[dict] = (arguments or {}).get("tasks", [])
         names = [t.get("name", "").strip() for t in tasks if t.get("name", "").strip()]
