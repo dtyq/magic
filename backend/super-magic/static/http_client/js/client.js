@@ -20,6 +20,15 @@ let websocket = null;
 let isWebSocketConnected = false;
 let wsOpenCallbacks = []; // 等待连接建立的 Promise 回调队列
 
+// LLM token 流走 Magic Service 的 Socket.IO；HTTP WebSocket 只负责事件消息。
+let socketIoClient = null;
+let socketIoConfigKey = '';
+let isSocketIoConnected = false;
+let socketIoReconnectTimer = null;
+let socketIoHeartbeatTimer = null;
+let socketIoPingInterval = 25000;
+let socketIoAuthContext = {};
+
 // 确保 WebSocket 已连接，未连接则自动发起连接并等待
 function ensureWebSocketConnected() {
     if (isWebSocketConnected) return Promise.resolve();
@@ -94,7 +103,7 @@ function renderLogEntry(entry) {
     }
 }
 
-function renderClientEntry(entry) {
+function renderClientEntry(entry, options = {}) {
     const messageDiv = document.createElement('div');
     messageDiv.className = 'message client';
     const header = document.createElement('div');
@@ -115,7 +124,7 @@ function renderClientEntry(entry) {
     content.textContent = entry.prompt;
     messageDiv.appendChild(header);
     messageDiv.appendChild(content);
-    messageList.appendChild(messageDiv);
+    appendMessageNode(messageDiv, options);
 }
 
 // 定义示例文本常量
@@ -147,6 +156,9 @@ const messageVersionSelect = document.getElementById('messageVersionSelect');
 const imModeToggle = document.getElementById('imModeToggle');
 const imChannelSelect = document.getElementById('imChannelSelect');
 const imUserIdInput = document.getElementById('imUserIdInput');
+const messagesContainer = document.getElementById('messagesContainer');
+const scrollToLatestBtn = document.getElementById('scrollToLatestBtn');
+const messageInputPanel = document.getElementById('messageInputPanel');
 
 // 初始化配置折叠面板
 const configPanelToggle = document.getElementById('configPanelToggle');
@@ -543,6 +555,7 @@ function initResizers() {
             // 限制最小和最大高度
             if (newHeight > 180 && newHeight < window.innerHeight * 0.8) {
                 inputPanel.style.height = newHeight + 'px';
+                updateScrollButtonPosition();
             }
         }
     });
@@ -576,6 +589,9 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // 初始化快捷键提示
     initSendHint();
+
+    // 初始化消息滚动控制
+    initMessageScrollControls();
 
     // Enter 发送，Shift+Enter 换行
     // isComposing 用于屏蔽输入法合成过程中的 Enter（避免确认候选字时误触发发送）
@@ -649,6 +665,7 @@ document.addEventListener('DOMContentLoaded', () => {
             showConfirmDialog('确定要清除所有对话消息吗？', () => {
                 clearChatLog();
                 messageList.innerHTML = '';
+                resetConnectionStatusLog();
                 showSystemMessage('对话已清除');
             });
         });
@@ -761,6 +778,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // 页面加载后自动尝试订阅 WebSocket
     autoConnectWebSocket();
+    connectSocketIoStreamFromConfig();
 });
 
 // 清理模型列表：清除 localStorage 缓存并恢复文本输入框
@@ -938,6 +956,7 @@ function setupDefaultConfigs() {
                 // 尝试解析验证 JSON
                 JSON.parse(this.value);
                 localStorage.setItem('savedConfigContent', this.value);
+                scheduleSocketIoReconnectFromConfig();
             } catch (e) {
                 // 如果格式不对，不保存，但也不报错，允许用户继续编辑
             }
@@ -1020,7 +1039,6 @@ async function sendMessage(contextType = ContextType.NORMAL) {
 
         showClientMessage(messageData);
         await sendHttpMessage(messageData);
-        scrollToBottom();
         return;
     }
 
@@ -1050,9 +1068,6 @@ async function sendMessage(contextType = ContextType.NORMAL) {
 
     // 发送HTTP请求
     await sendHttpMessage(chatMessage);
-
-    // 滚动到底部
-    scrollToBottom();
 }
 
 // 发送中断消息
@@ -1106,6 +1121,7 @@ async function sendInitMessage() {
     try {
         // 解析配置内容
         const configData = JSON.parse(uploadConfigContent.value);
+        connectSocketIoStreamFromConfig(configData);
 
         // 显示客户端消息
         showClientMessage({
@@ -1144,6 +1160,7 @@ function handleConfigFileUpload(event) {
             // 保存到 localStorage
             localStorage.setItem('savedConfigContent', content);
             localStorage.setItem('savedConfigFileName', currentFileName);
+            connectSocketIoStreamFromConfig();
 
             showSystemMessage(`配置文件 "${file.name}" 上传成功并已保存`);
         } catch (error) {
@@ -1376,8 +1393,7 @@ function showClientMessage(message) {
         imChannel,
         imUserId,
         time,
-    });
-    scrollToBottom();
+    }, { forceScroll: true });
 }
 
 // 显示服务器消息
@@ -1395,9 +1411,7 @@ function showServerMessage(message) {
 
     messageDiv.appendChild(messageHeader);
     messageDiv.appendChild(messageContent);
-    messageList.appendChild(messageDiv);
-
-    scrollToBottom();
+    appendMessageNode(messageDiv);
 }
 
 // 显示系统消息
@@ -1406,14 +1420,121 @@ function showSystemMessage(text, _noLog = false) {
     const messageDiv = document.createElement('div');
     messageDiv.className = 'message system';
     messageDiv.textContent = `[系统] ${text} (${new Date().toLocaleTimeString()})`;
-    messageList.appendChild(messageDiv);
-    scrollToBottom();
+    appendMessageNode(messageDiv);
+}
+
+const MESSAGE_BOTTOM_THRESHOLD_PX = 56;
+let connectionStatusLog = null;
+let connectionStatusItems = [];
+const streamMessageRegistry = new Map();
+const toolCallRegistry = new Map();
+
+function initMessageScrollControls() {
+    if (!messagesContainer || !scrollToLatestBtn) return;
+
+    updateScrollButtonPosition();
+    window.addEventListener('resize', updateScrollButtonPosition);
+
+    messagesContainer.addEventListener('scroll', () => {
+        if (isMessageViewportAtBottom()) {
+            hideScrollToLatestButton();
+        }
+    });
+
+    scrollToLatestBtn.addEventListener('click', () => {
+        scrollToBottom({ behavior: 'smooth' });
+    });
+}
+
+function updateScrollButtonPosition() {
+    if (!messageInputPanel || !scrollToLatestBtn) return;
+    const panelHeight = Math.ceil(messageInputPanel.getBoundingClientRect().height);
+    scrollToLatestBtn.style.setProperty('--message-input-panel-height', `${panelHeight}px`);
+}
+
+function isMessageViewportAtBottom() {
+    if (!messagesContainer) return true;
+    const distanceToBottom = messagesContainer.scrollHeight - messagesContainer.scrollTop - messagesContainer.clientHeight;
+    return distanceToBottom <= MESSAGE_BOTTOM_THRESHOLD_PX;
+}
+
+function appendMessageNode(node, options = {}) {
+    const shouldStickToBottom = options.forceScroll || isRestoring || isMessageViewportAtBottom();
+    messageList.appendChild(node);
+    syncScrollAfterMessageChange(shouldStickToBottom, { showLatestButton: options.showLatestButton !== false });
+}
+
+function syncScrollAfterMessageChange(shouldStickToBottom, options = {}) {
+    if (isRestoring) return;
+    if (shouldStickToBottom) {
+        scrollToBottom();
+    } else if (options.showLatestButton !== false) {
+        showScrollToLatestButton();
+    }
 }
 
 // 滚动到底部
-function scrollToBottom() {
-    const container = document.getElementById('messagesContainer');
-    container.scrollTop = container.scrollHeight;
+function scrollToBottom(options = {}) {
+    if (!messagesContainer) return;
+    const behavior = options.behavior || 'auto';
+    messagesContainer.scrollTo({ top: messagesContainer.scrollHeight, behavior });
+    hideScrollToLatestButton();
+}
+
+function showScrollToLatestButton() {
+    if (scrollToLatestBtn) scrollToLatestBtn.classList.add('visible');
+}
+
+function hideScrollToLatestButton() {
+    if (scrollToLatestBtn) scrollToLatestBtn.classList.remove('visible');
+}
+
+function resetConnectionStatusLog() {
+    connectionStatusLog = null;
+    connectionStatusItems = [];
+    streamMessageRegistry.clear();
+    toolCallRegistry.clear();
+}
+
+function showConnectionStatusMessage(text) {
+    const timeStr = new Date().toLocaleTimeString();
+    const shouldStickToBottom = isMessageViewportAtBottom();
+    connectionStatusItems.push(`[${timeStr}] ${text}`);
+    if (connectionStatusItems.length > 30) {
+        connectionStatusItems = connectionStatusItems.slice(-30);
+    }
+
+    if (!connectionStatusLog || !messageList.contains(connectionStatusLog.wrapper)) {
+        connectionStatusLog = createConnectionStatusLog();
+        appendMessageNode(connectionStatusLog.wrapper, { showLatestButton: false });
+    }
+
+    connectionStatusLog.summary.textContent = `${connectionStatusLog.expanded ? '▼' : '▶'} [系统] ${text} (${timeStr})`;
+    connectionStatusLog.detail.textContent = connectionStatusItems.join('\n');
+    syncScrollAfterMessageChange(shouldStickToBottom, { showLatestButton: false });
+}
+
+function createConnectionStatusLog() {
+    const wrapper = document.createElement('div');
+    wrapper.className = 'connection-status-log';
+
+    const summary = document.createElement('div');
+    summary.className = 'connection-status-summary';
+
+    const detail = document.createElement('div');
+    detail.className = 'connection-status-detail';
+
+    const state = { wrapper, summary, detail, expanded: false };
+    summary.addEventListener('click', () => {
+        state.expanded = !state.expanded;
+        detail.style.display = state.expanded ? 'block' : 'none';
+        const summaryText = summary.textContent.replace(/^[▶▼]\s*/, '');
+        summary.textContent = `${state.expanded ? '▼' : '▶'} ${summaryText}`;
+    });
+
+    wrapper.appendChild(summary);
+    wrapper.appendChild(detail);
+    return state;
 }
 
 // 加载示例文本
@@ -1797,7 +1918,7 @@ function connectWebSocket() {
 
     try {
         updateSubscribeButtonState('connecting');
-        showSystemMessage("正在建立WebSocket连接...");
+        showConnectionStatusMessage("正在建立WebSocket连接...");
 
         websocket = new WebSocket(wsUrl);
 
@@ -1807,7 +1928,7 @@ function connectWebSocket() {
         websocket.onerror = handleWebSocketError;
 
     } catch (error) {
-        showSystemMessage(`WebSocket连接失败: ${error.message}`);
+        showConnectionStatusMessage(`WebSocket连接失败: ${error.message}`);
         updateSubscribeButtonState('disconnected');
     }
 }
@@ -1821,7 +1942,7 @@ function disconnectWebSocket() {
     }
     isWebSocketConnected = false;
     updateSubscribeButtonState('disconnected');
-    showSystemMessage("WebSocket连接已断开");
+    showConnectionStatusMessage("WebSocket连接已断开");
 }
 
 function handleWebSocketOpen(event) {
@@ -1829,8 +1950,322 @@ function handleWebSocketOpen(event) {
     wsReconnectAttempt = 0;
     if (wsReconnectTimer) { clearTimeout(wsReconnectTimer); wsReconnectTimer = null; }
     updateSubscribeButtonState('connected');
-    showSystemMessage("WebSocket连接已建立，开始接收消息");
+    showConnectionStatusMessage("WebSocket连接已建立，开始接收消息");
     wsOpenCallbacks.splice(0).forEach(cb => cb.resolve());
+}
+
+function scheduleSocketIoReconnectFromConfig() {
+    if (socketIoReconnectTimer) clearTimeout(socketIoReconnectTimer);
+    socketIoReconnectTimer = setTimeout(() => {
+        socketIoReconnectTimer = null;
+        connectSocketIoStreamFromConfig();
+    }, 500);
+}
+
+function connectSocketIoStreamFromConfig(configData = null) {
+    const streamConfig = buildSocketIoStreamConfig(configData);
+    if (!streamConfig) return;
+
+    const nextKey = `${streamConfig.baseUrl}|${streamConfig.socketioPath}`;
+    if (socketIoClient && socketIoConfigKey === nextKey) return;
+
+    disconnectSocketIoStream();
+    socketIoConfigKey = nextKey;
+    socketIoAuthContext = streamConfig.authContext || {};
+
+    try {
+        const socketUrl = buildSocketIoWebSocketUrl(streamConfig);
+        socketIoClient = new WebSocket(socketUrl);
+
+        socketIoClient.onopen = () => {
+            isSocketIoConnected = true;
+            showConnectionStatusMessage("Socket.IO 流式通道已连接");
+        };
+        socketIoClient.onclose = () => {
+            isSocketIoConnected = false;
+            stopSocketIoHeartbeat();
+            showConnectionStatusMessage("Socket.IO 流式通道已断开");
+        };
+        socketIoClient.onerror = () => {
+            isSocketIoConnected = false;
+            showConnectionStatusMessage("Socket.IO 流式通道连接失败");
+        };
+        socketIoClient.onmessage = handleSocketIoPacketMessage;
+    } catch (error) {
+        showConnectionStatusMessage(`Socket.IO 流式通道初始化失败: ${error.message}`);
+    }
+}
+
+function disconnectSocketIoStream() {
+    if (!socketIoClient) return;
+    stopSocketIoHeartbeat();
+    socketIoClient.onopen = null;
+    socketIoClient.onclose = null;
+    socketIoClient.onerror = null;
+    socketIoClient.onmessage = null;
+    socketIoClient.close();
+    socketIoClient = null;
+    isSocketIoConnected = false;
+}
+
+function buildSocketIoWebSocketUrl(streamConfig) {
+    const path = streamConfig.socketioPath.endsWith('/')
+        ? streamConfig.socketioPath
+        : `${streamConfig.socketioPath}/`;
+    return `${streamConfig.baseUrl}${path}?EIO=3&transport=websocket&timestamp=${Date.now()}`;
+}
+
+function startSocketIoHeartbeat() {
+    stopSocketIoHeartbeat();
+    socketIoHeartbeatTimer = setInterval(() => {
+        if (socketIoClient && socketIoClient.readyState === WebSocket.OPEN) {
+            socketIoClient.send('2');
+        }
+    }, socketIoPingInterval);
+}
+
+function stopSocketIoHeartbeat() {
+    if (socketIoHeartbeatTimer) {
+        clearInterval(socketIoHeartbeatTimer);
+        socketIoHeartbeatTimer = null;
+    }
+}
+
+function connectSocketIoNamespace() {
+    if (socketIoClient && socketIoClient.readyState === WebSocket.OPEN) {
+        socketIoClient.send('40/im');
+    }
+}
+
+function sendSocketIoLoginMessage() {
+    if (!socketIoClient || socketIoClient.readyState !== WebSocket.OPEN) return;
+
+    const payload = {
+        context: {
+            timestamp: Date.now(),
+            authorization: '',
+            organization_code: '',
+            language: 'zh_CN',
+            signature: '',
+            ...socketIoAuthContext,
+        },
+        data: {
+            message: {
+                type: 'text',
+                text: { content: '登录' },
+                app_message_id: `debug-login-${Date.now()}`,
+            },
+            conversation_id: '',
+        },
+    };
+    socketIoClient.send(`42/im,0${JSON.stringify(['login', payload])}`);
+}
+
+function buildSocketIoStreamConfig(configData = null) {
+    const config = configData || getUploadedConfig();
+    if (!config) return null;
+
+    const wsHost = config.magic_service_ws_host || '';
+    const httpHost = config.magic_service_host || '';
+    const authContext = buildSocketIoAuthContext(config);
+    if (wsHost) {
+        const streamConfig = buildSocketIoConfigFromHost(wsHost, false);
+        return streamConfig ? { ...streamConfig, authContext } : null;
+    }
+    if (httpHost) {
+        const streamConfig = buildSocketIoConfigFromHost(httpHost, true);
+        return streamConfig ? { ...streamConfig, authContext } : null;
+    }
+    return null;
+}
+
+function buildSocketIoAuthContext(config) {
+    const metadata = config.metadata || {};
+    const authorization = config.authorization || metadata.authorization || '';
+    return {
+        authorization,
+        'user-authorization': authorization,
+        organization_code: metadata.organization_code || metadata.magicOrganizationCode || '',
+        language: metadata.language || config.language || 'zh_CN',
+        super_magic_agent_user_id: metadata.agent_user_id || '',
+        topic_id: metadata.chat_topic_id || '',
+    };
+}
+
+function getUploadedConfig() {
+    const rawConfig = uploadConfigContent && uploadConfigContent.value;
+    if (!rawConfig || rawConfig === "请上传配置文件") return null;
+    try {
+        return JSON.parse(rawConfig);
+    } catch (e) {
+        return null;
+    }
+}
+
+function buildSocketIoConfigFromHost(host, convertHttpToWs) {
+    try {
+        const parsed = new URL(host);
+        let protocol = parsed.protocol.replace(':', '');
+        if (convertHttpToWs) {
+            if (protocol === 'https') protocol = 'wss';
+            else if (protocol === 'http') protocol = 'ws';
+        } else if (protocol === 'https') {
+            protocol = 'wss';
+        } else if (protocol === 'http') {
+            protocol = 'ws';
+        }
+        if (!['ws', 'wss'].includes(protocol)) return null;
+
+        let port = parsed.port;
+        if (convertHttpToWs && port === '9501') port = '9502';
+        const portPart = port ? `:${port}` : '';
+        const baseUrl = `${protocol}://${parsed.hostname}${portPart}`;
+        const normalizedPath = parsed.pathname.replace(/\/$/, '');
+        const socketioPath = normalizedPath ? `${normalizedPath}/socket.io/` : '/socket.io/';
+        return { baseUrl, socketioPath };
+    } catch (e) {
+        return null;
+    }
+}
+
+function handleSocketIoPacketMessage(event) {
+    const data = event && event.data;
+    if (typeof data !== 'string' || !data) return;
+
+    const engineIoPacketType = data.slice(0, 1);
+    if (engineIoPacketType === '0') {
+        handleSocketIoOpenPacket(data);
+        return;
+    }
+    if (engineIoPacketType === '3') {
+        return;
+    }
+    if (engineIoPacketType !== '4') {
+        return;
+    }
+
+    const packet = decodeSocketIoPacket(data.slice(1));
+    if (!packet) return;
+    if (packet.type === '0' || packet.type === '3') return;
+
+    const packetData = packet.data;
+    if (Array.isArray(packetData) && packetData.length >= 2) {
+        const [eventName, payload] = packetData;
+        if (eventName === 'intermediate') {
+            handleSocketIoIntermediateMessage(payload);
+            return;
+        }
+        showEventLog({ socketio_event: eventName, payload });
+        return;
+    }
+
+    showEventLog({ socketio_packet: packet });
+}
+
+function handleSocketIoOpenPacket(data) {
+    try {
+        const openPayload = JSON.parse(data.slice(1));
+        if (Number.isFinite(openPayload.pingInterval)) {
+            socketIoPingInterval = openPayload.pingInterval;
+        }
+    } catch (e) {
+        socketIoPingInterval = 25000;
+    }
+    startSocketIoHeartbeat();
+    connectSocketIoNamespace();
+    sendSocketIoLoginMessage();
+}
+
+function decodeSocketIoPacket(packetText) {
+    if (!packetText) return null;
+
+    const packetType = packetText.slice(0, 1);
+    let payloadText = packetText.slice(1);
+    let namespace = '';
+    if (payloadText.startsWith('/')) {
+        const namespaceEnd = payloadText.indexOf(',');
+        if (namespaceEnd === -1) return { type: packetType, namespace: payloadText, id: null, data: null };
+        namespace = payloadText.slice(0, namespaceEnd);
+        payloadText = payloadText.slice(namespaceEnd + 1);
+    }
+
+    let ackId = null;
+    const payloadStart = payloadText.search(/[\[{]/);
+    if (payloadStart > 0) {
+        const ackText = payloadText.slice(0, payloadStart);
+        ackId = /^\d+$/.test(ackText) ? Number(ackText) : null;
+        payloadText = payloadText.slice(payloadStart);
+    }
+
+    if (!payloadText) return { type: packetType, namespace, id: ackId, data: null };
+    try {
+        return {
+            type: packetType,
+            namespace,
+            id: ackId,
+            data: JSON.parse(payloadText),
+        };
+    } catch (e) {
+        console.warn('Socket.IO packet parse failed:', e, packetText);
+        return null;
+    }
+}
+
+function handleSocketIoIntermediateMessage(message) {
+    const decoded = decodeSocketIoPayload(message);
+    if (!decoded) return;
+    if (handleSuperMagicChunkMessage(decoded)) return;
+    if (handleRawStreamMessage(decoded)) return;
+    showEventLog({ socketio_intermediate_unhandled: decoded });
+}
+
+function decodeSocketIoPayload(message) {
+    let payload = message;
+    if (typeof payload === 'string') {
+        try {
+            payload = JSON.parse(payload);
+        } catch (e) {
+            return null;
+        }
+    }
+
+    const shadowText =
+        (payload && payload.shadow) ||
+        (payload && payload.obfuscated && typeof payload.data === 'string' ? payload.data : '');
+    if (shadowText) {
+        try {
+            return JSON.parse(unshadowText(shadowText));
+        } catch (e) {
+            console.warn('Socket.IO shadow payload decode failed:', e);
+            return null;
+        }
+    }
+
+    return payload;
+}
+
+const SHADOW_PREFIX = 'SHADOWED_';
+const UNSHUFFLE_MAP = [
+    0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31,
+    62, 116, 33, 102, 126, 59, 119, 114, 44, 79, 100, 88, 67, 34, 103, 89, 46, 87, 53, 38, 41, 85, 65, 108, 97, 71, 74, 72, 36, 92, 81, 49, 40, 117,
+    55, 109, 42, 78, 110, 93, 95, 54, 80, 106, 61, 51, 123, 58, 124, 99, 90, 98, 73, 111, 35, 63, 121, 105, 45, 43, 104, 70, 77, 84, 64, 57,
+    52, 82, 91, 68, 60, 37, 115, 83, 125, 122, 75, 101, 48, 66, 107, 56, 39, 86, 69, 113, 112, 96, 76, 118, 32, 120, 50, 94, 47, 127,
+    129, 128, 131, 130, 133, 132, 135, 134, 137, 136, 139, 138, 141, 140, 143, 142, 145, 144, 147, 146, 149, 148, 151, 150, 153, 152, 155, 154, 157, 156, 159, 158,
+    161, 160, 163, 162, 165, 164, 167, 166, 169, 168, 171, 170, 173, 172, 175, 174, 177, 176, 179, 178, 181, 180, 183, 182, 185, 184, 187, 186, 189, 188, 191, 190,
+    193, 192, 195, 194, 197, 196, 199, 198, 201, 200, 203, 202, 205, 204, 207, 206, 209, 208, 211, 210, 213, 212, 215, 214, 217, 216, 219, 218, 221, 220, 223, 222,
+    225, 224, 227, 226, 229, 228, 231, 230, 233, 232, 235, 234, 237, 236, 239, 238, 241, 240, 243, 242, 245, 244, 247, 246, 249, 248, 251, 250, 253, 252, 255, 254
+];
+
+function unshadowText(value) {
+    if (!value || !value.startsWith(SHADOW_PREFIX)) return value;
+    const obfuscatedPart = value.slice(SHADOW_PREFIX.length);
+    const inputBytes = new TextEncoder().encode(obfuscatedPart);
+    const resultBytes = new Uint8Array(inputBytes.length);
+    for (let i = 0; i < inputBytes.length; i++) {
+        const byteValue = inputBytes[i];
+        resultBytes[i] = byteValue < UNSHUFFLE_MAP.length ? UNSHUFFLE_MAP[byteValue] : byteValue;
+    }
+    return new TextDecoder('utf-8', { fatal: false }).decode(resultBytes);
 }
 
 function handleWebSocketMessage(event) {
@@ -1840,7 +2275,10 @@ function handleWebSocketMessage(event) {
             data = JSON.parse(event.data);
         } catch (parseError) {
             showEventLog({ error: "无法解析JSON", raw_data: event.data });
-            scrollToBottom();
+            return;
+        }
+
+        if (handleSuperMagicChunkMessage(data)) {
             return;
         }
 
@@ -1853,26 +2291,8 @@ function handleWebSocketMessage(event) {
         if (payload && payload.type === 'super_magic_message' && payload.raw_content) {
             const smsg = payload.raw_content.super_magic_message;
             if (smsg) {
-                // reasoning/content 独立渲染（不与工具块互斥）
-                if (smsg.reasoning_content) {
-                    showThinkingMessage(smsg.reasoning_content, payload.send_timestamp);
-                }
-                if (smsg.content) {
-                    showAIMessage(smsg.content, payload.send_timestamp);
-                }
-
-                // 工具块：顶层 smsg.tool 优先，取不到则退避到 tool_calls[i].tool
-                const smsgToolDirect = smsg.tool;
-                const smsgToolsFromCalls = smsg.tool_calls
-                    ? smsg.tool_calls.filter(tc => tc.tool).map(tc => tc.tool)
-                    : [];
-                const toolsToRender = smsgToolDirect ? [smsgToolDirect] : smsgToolsFromCalls;
-                const hasToolInfo = toolsToRender.length > 0;
-                if (hasToolInfo) {
-                    for (const t of toolsToRender) {
-                        showToolCallMessage(t, eventType, payload.send_timestamp);
-                    }
-                } else if (!smsg.content && !smsg.reasoning_content) {
+                const hasVisibleContent = handleSuperMagicMessage(smsg, payload);
+                if (!hasVisibleContent) {
                     // 既无工具也无内容，折叠为事件日志
                     showEventLog(data);
                 }
@@ -1881,12 +2301,13 @@ function handleWebSocketMessage(event) {
             }
         } else if (eventType === 'after_agent_reply' && content) {
             // v1 消息格式
+            const messageKey = payload.app_message_id || payload.correlation_id || '';
+            const renderOptions = messageKey ? { key: messageKey, replace: true } : {};
             if (contentType === 'content') {
-                // AI 正式回复 → 白色气泡
-                showAIMessage(content, payload.send_timestamp);
+                // v1 流式已按 correlation_id 创建气泡，最终消息只做原地校准。
+                showAIMessage(content, payload.send_timestamp, false, renderOptions);
             } else if (contentType === 'reasoning') {
-                // 思考过程 → 折叠的思考块
-                showThinkingMessage(content, payload.send_timestamp);
+                showThinkingMessage(content, payload.send_timestamp, false, renderOptions);
             } else {
                 showEventLog(data);
             }
@@ -1894,7 +2315,10 @@ function handleWebSocketMessage(event) {
             // 工具调用事件 → 紧凑的工具调用块，detail 默认折叠
             const tool = payload && payload.tool;
             if (tool) {
-                showToolCallMessage(tool, eventType, payload.send_timestamp);
+                showToolCallMessage(tool, eventType, payload.send_timestamp, false, {
+                    correlationId: payload.correlation_id,
+                    toolCallId: tool.id,
+                });
             } else {
                 showEventLog(data);
             }
@@ -1902,10 +2326,138 @@ function handleWebSocketMessage(event) {
             // 其余所有事件 → 折叠日志条目
             showEventLog(data);
         }
-        scrollToBottom();
     } catch (error) {
         showSystemMessage(`处理WebSocket消息时出错: ${error.message}`);
     }
+}
+
+function handleSuperMagicChunkMessage(data) {
+    const envelope = extractSuperMagicChunkEnvelope(data);
+    if (!envelope || !envelope.chunk) return false;
+
+    const chunk = envelope.chunk;
+    const messageKey = envelope.appMessageId || chunk.id || chunk.correlation_id || '';
+    const choices = Array.isArray(chunk.choices) ? chunk.choices : [];
+    for (const choice of choices) {
+        const delta = choice && choice.delta ? choice.delta : {};
+        if (typeof delta.reasoning_content === 'string' && delta.reasoning_content) {
+            showThinkingMessage(delta.reasoning_content, Math.floor((envelope.timestampMs || Date.now()) / 1000), true, {
+                key: messageKey || `reasoning-${chunk.correlation_id || chunk.i || Date.now()}`,
+                append: true,
+            });
+        }
+        if (typeof delta.content === 'string' && delta.content) {
+            showAIMessage(delta.content, Math.floor((envelope.timestampMs || Date.now()) / 1000), true, {
+                key: messageKey || `content-${chunk.correlation_id || chunk.i || Date.now()}`,
+                append: true,
+            });
+        }
+    }
+
+    return true;
+}
+
+function handleRawStreamMessage(data) {
+    const message =
+        (data && data.seq && data.seq.message) ||
+        (data && data.data && data.data.message);
+    const rawData = message && message.raw && message.raw.raw_data;
+    if (!rawData) return false;
+
+    const content = rawData.content || '';
+    if (!content) return true;
+
+    const streamStatus = Number(rawData.stream_status);
+    const isFinal = streamStatus === 2;
+    const key = message.app_message_id || rawData.correlation_id || '';
+    const timestamp = rawData.send_timestamp
+        ? Math.floor(rawData.send_timestamp / 1000)
+        : Math.floor(Date.now() / 1000);
+    const options = { key, append: !isFinal, replace: isFinal };
+
+    if (rawData.content_type === 'reasoning') {
+        showThinkingMessage(content, timestamp, true, options);
+    } else {
+        showAIMessage(content, timestamp, true, options);
+    }
+    return true;
+}
+
+function extractSuperMagicChunkEnvelope(data) {
+    const payload = data && data.payload;
+    const seqMessage = data && data.seq && data.seq.message;
+    const directMessage = data && data.data && data.data.message;
+    const message = directMessage || data.message || data;
+    const streamMessage = seqMessage || message;
+    const rawContent = payload && payload.raw_content;
+    const chunk =
+        (rawContent && rawContent.super_magic_chunk) ||
+        (streamMessage && streamMessage.super_magic_chunk) ||
+        (data && data.super_magic_chunk);
+
+    if (!chunk) return null;
+    return {
+        chunk,
+        appMessageId:
+            (streamMessage && streamMessage.app_message_id) ||
+            (payload && payload.message_id) ||
+            (chunk && chunk.app_message_id) ||
+            '',
+        timestampMs:
+            (data && data.context && data.context.timestamp) ||
+            (streamMessage && streamMessage.send_time ? streamMessage.send_time * 1000 : 0) ||
+            (payload && payload.send_timestamp ? payload.send_timestamp * 1000 : 0),
+    };
+}
+
+function handleSuperMagicMessage(smsg, payload) {
+    const messageKey = smsg.message_id || payload.message_id || smsg.correlation_id || payload.correlation_id || '';
+    let hasVisibleContent = false;
+
+    // 最终消息是权威全文；如果已有流式气泡，则原地校准，不再新增一条。
+    if (smsg.reasoning_content) {
+        showThinkingMessage(smsg.reasoning_content, payload.send_timestamp, false, {
+            key: messageKey,
+            replace: true,
+        });
+        hasVisibleContent = true;
+    }
+    if (smsg.content) {
+        showAIMessage(smsg.content, payload.send_timestamp, false, {
+            key: messageKey,
+            replace: true,
+        });
+        hasVisibleContent = true;
+    }
+
+    const tools = collectToolsFromSuperMagicMessage(smsg, payload);
+    for (const item of tools) {
+        showToolCallMessage(item.tool, payload.event, payload.send_timestamp, false, {
+            correlationId: smsg.correlation_id || payload.correlation_id,
+            toolCallId: item.toolCallId,
+        });
+        hasVisibleContent = true;
+    }
+
+    return hasVisibleContent;
+}
+
+function collectToolsFromSuperMagicMessage(smsg, payload) {
+    const tools = [];
+    if (smsg.tool) {
+        tools.push({ tool: smsg.tool, toolCallId: smsg.tool_call_id || smsg.tool.id });
+    }
+    if (Array.isArray(smsg.tool_calls)) {
+        for (const toolCall of smsg.tool_calls) {
+            if (toolCall && toolCall.tool) {
+                tools.push({ tool: toolCall.tool, toolCallId: toolCall.id || toolCall.tool.id });
+            }
+        }
+    }
+    if (payload && payload.tool) {
+        tools.push({ tool: payload.tool, toolCallId: payload.tool.id });
+    }
+    return tools;
 }
 
 // 将文本片段用 marked 渲染为 markdown，marked 不可用时降级为纯文本
@@ -1973,9 +2525,16 @@ function buildRenderedView(content) {
     return fragment;
 }
 
-// 显示 AI 回复消息气泡，支持 markdown 渲染与原文切换
-function showAIMessage(content, timestamp, _noLog = false) {
+// 显示 AI 回复消息气泡，支持 markdown 渲染、原文切换和流式更新。
+function showAIMessage(content, timestamp, _noLog = false, options = {}) {
     if (!_noLog) pushLog({ type: 'ai', content, timestamp });
+
+    const registryKey = options.key ? `content:${options.key}` : '';
+    let messageState = registryKey ? streamMessageRegistry.get(registryKey) : null;
+    if (messageState) {
+        updateAIMessageState(messageState, content, options);
+        return;
+    }
 
     const messageDiv = document.createElement('div');
     messageDiv.className = 'message ai';
@@ -2008,7 +2567,6 @@ function showAIMessage(content, timestamp, _noLog = false) {
     const rawView = document.createElement('div');
     rawView.className = 'ai-raw-view';
     rawView.style.display = 'none';
-    rawView.textContent = content;
 
     messageDiv.appendChild(renderedView);
     messageDiv.appendChild(rawView);
@@ -2022,12 +2580,33 @@ function showAIMessage(content, timestamp, _noLog = false) {
         toggleBtn.textContent = showingRaw ? 'MD' : '原文';
     });
 
-    messageList.appendChild(messageDiv);
+    messageState = { messageDiv, renderedView, rawView, content: '' };
+    updateAIMessageState(messageState, content, options);
+    if (registryKey) {
+        streamMessageRegistry.set(registryKey, messageState);
+    }
+    appendMessageNode(messageDiv);
+}
+
+function updateAIMessageState(messageState, content, options = {}) {
+    const nextContent = options.append ? messageState.content + content : content;
+    messageState.content = nextContent;
+    messageState.renderedView.replaceChildren(buildRenderedView(nextContent));
+    messageState.rawView.textContent = nextContent;
+    syncScrollAfterMessageChange(isMessageViewportAtBottom());
 }
 
 // 显示思考过程（折叠展示）
-function showThinkingMessage(content, timestamp, _noLog = false) {
+function showThinkingMessage(content, timestamp, _noLog = false, options = {}) {
     if (!_noLog) pushLog({ type: 'thinking', content, timestamp });
+
+    const registryKey = options.key ? `reasoning:${options.key}` : '';
+    let thinkingState = registryKey ? streamMessageRegistry.get(registryKey) : null;
+    if (thinkingState) {
+        updateThinkingMessageState(thinkingState, content, options);
+        return;
+    }
+
     const timeStr = timestamp
         ? new Date(timestamp * 1000).toLocaleTimeString()
         : new Date().toLocaleTimeString();
@@ -2046,11 +2625,21 @@ function showThinkingMessage(content, timestamp, _noLog = false) {
 
     const detail = document.createElement('div');
     detail.className = 'thinking-detail';
-    detail.textContent = content;
 
     wrapper.appendChild(summary);
     wrapper.appendChild(detail);
-    messageList.appendChild(wrapper);
+    thinkingState = { wrapper, detail, content: '' };
+    updateThinkingMessageState(thinkingState, content, options);
+    if (registryKey) {
+        streamMessageRegistry.set(registryKey, thinkingState);
+    }
+    appendMessageNode(wrapper);
+}
+
+function updateThinkingMessageState(thinkingState, content, options = {}) {
+    thinkingState.content = options.append ? thinkingState.content + content : content;
+    thinkingState.detail.textContent = thinkingState.content;
+    syncScrollAfterMessageChange(isMessageViewportAtBottom());
 }
 
 // ─── ask_user 交互卡片 ───────────────────────────────────────────────────────
@@ -2412,20 +3001,22 @@ function renderAskUserCard(data, container) {
 }
 
 // 显示工具调用消息块（before_tool_call / after_tool_call）
-function showToolCallMessage(tool, eventType, timestamp, _noLog = false) {
+function showToolCallMessage(tool, eventType, timestamp, _noLog = false, options = {}) {
     if (!_noLog) pushLog({ type: 'tool_call', tool, eventType, timestamp });
 
     const timeStr = timestamp
         ? new Date(timestamp * 1000).toLocaleTimeString()
         : new Date().toLocaleTimeString();
 
-    const isRunning = tool.status === 'running';
-    const action = tool.action || tool.name || '工具调用';
-    const remark = tool.remark || '';
-    const detail = tool.detail || null;
+    const toolKey = getToolCallKey(tool, options);
+    let toolState = toolKey ? toolCallRegistry.get(toolKey) : null;
+    if (toolState) {
+        updateToolCallState(toolState, tool, eventType, timeStr, options);
+        return;
+    }
 
     const wrapper = document.createElement('div');
-    wrapper.className = `tool-call-block ${isRunning ? 'tool-call-running' : 'tool-call-finished'}`;
+    wrapper.className = 'tool-call-block';
 
     const header = document.createElement('div');
     header.className = 'tool-call-header';
@@ -2435,59 +3026,141 @@ function showToolCallMessage(tool, eventType, timestamp, _noLog = false) {
 
     const actionSpan = document.createElement('span');
     actionSpan.className = 'tool-call-action';
-    actionSpan.textContent = action;
 
     header.appendChild(statusDot);
     header.appendChild(actionSpan);
 
-    if (remark) {
-        const remarkSpan = document.createElement('span');
-        remarkSpan.className = 'tool-call-remark';
-        remarkSpan.textContent = remark;
-        header.appendChild(remarkSpan);
-    }
+    const remarkSpan = document.createElement('span');
+    remarkSpan.className = 'tool-call-remark';
+    header.appendChild(remarkSpan);
 
     const timeSpan = document.createElement('span');
     timeSpan.className = 'tool-call-time';
-    timeSpan.textContent = timeStr;
     header.appendChild(timeSpan);
 
+    const arrow = document.createElement('span');
+    arrow.className = 'tool-call-arrow';
+    arrow.textContent = '▶';
+    header.appendChild(arrow);
+
+    const detailEl = document.createElement('pre');
+    detailEl.className = 'tool-call-detail';
+    detailEl.style.display = 'none';
+
+    header.style.cursor = 'pointer';
+    header.addEventListener('click', () => {
+        if (!detailEl.textContent) return;
+        const isHidden = detailEl.style.display === 'none';
+        detailEl.style.display = isHidden ? 'block' : 'none';
+        arrow.textContent = isHidden ? '▼' : '▶';
+    });
+
     wrapper.appendChild(header);
+    wrapper.appendChild(detailEl);
 
-    if (detail) {
-        // ask_user：渲染交互卡片
-        if (detail.type === 'ask_user' && detail.data) {
-            const qid = detail.data.question_id;
-            if (eventType === 'after_tool_call' && qid && askUserCardRegistry.has(qid)) {
-                // 已有卡片：就地更新状态，不新增 wrapper
-                finalizeAskUserCard(askUserCardRegistry.get(qid), detail.data);
-                return;
-            }
-            renderAskUserCard(detail.data, wrapper);
-        } else {
-            // 其余工具：折叠 JSON 详情
-            const arrow = document.createElement('span');
-            arrow.className = 'tool-call-arrow';
-            arrow.textContent = '▶';
-            header.appendChild(arrow);
+    toolState = { wrapper, header, actionSpan, remarkSpan, timeSpan, arrow, detailEl };
+    updateToolCallState(toolState, tool, eventType, timeStr, options);
+    if (toolKey) {
+        toolCallRegistry.set(toolKey, toolState);
+    }
+    appendMessageNode(wrapper);
+}
 
-            const detailEl = document.createElement('pre');
-            detailEl.className = 'tool-call-detail';
-            detailEl.style.display = 'none';
-            detailEl.textContent = JSON.stringify(detail, null, 2);
+function getToolCallKey(tool, options = {}) {
+    return (
+        options.toolCallId ||
+        tool.id ||
+        tool.tool_call_id ||
+        tool.call_id ||
+        (options.correlationId ? `${options.correlationId}:${tool.name || tool.action || 'tool'}` : '')
+    );
+}
 
-            header.style.cursor = 'pointer';
-            header.addEventListener('click', () => {
-                const isHidden = detailEl.style.display === 'none';
-                detailEl.style.display = isHidden ? 'block' : 'none';
-                arrow.textContent = isHidden ? '▼' : '▶';
-            });
+function updateToolCallState(toolState, tool, eventType, timeStr, options = {}) {
+    const status = normalizeToolStatus(tool.status, eventType);
+    const action = tool.action || tool.name || '工具调用';
+    const remark = tool.remark || tool.error || tool.message || '';
+    const detail = extractToolDetail(tool, status, remark);
+    const shouldStickToBottom = isMessageViewportAtBottom();
 
-            wrapper.appendChild(detailEl);
+    toolState.wrapper.className = `tool-call-block tool-call-${status}`;
+    toolState.actionSpan.textContent = action;
+    toolState.remarkSpan.textContent = remark;
+    toolState.remarkSpan.style.display = remark ? '' : 'none';
+    toolState.timeSpan.textContent = timeStr;
+
+    updateToolDetailView(toolState, detail, tool, eventType);
+    syncScrollAfterMessageChange(shouldStickToBottom);
+}
+
+function normalizeToolStatus(status, eventType) {
+    if (status === 'error' || status === 'failed' || status === 'failure') return 'error';
+    if (status === 'running' || eventType === 'before_tool_call' || eventType === 'pending_tool_call') return 'running';
+    return 'finished';
+}
+
+function extractToolDetail(tool, status, remark) {
+    const explicitDetail = tool.detail || tool.details || tool.tool_detail || tool.toolDetails;
+    if (explicitDetail) return explicitDetail;
+    if (status === 'error') {
+        return {
+            type: 'text',
+            data: {
+                message: remark || '工具调用失败，但后端没有返回详细错误信息。',
+                tool: {
+                    id: tool.id,
+                    name: tool.name,
+                    status: tool.status,
+                },
+            },
+        };
+    }
+    return null;
+}
+
+function updateToolDetailView(toolState, detail, tool, eventType) {
+    if (detail && detail.type === 'ask_user' && detail.data) {
+        const qid = detail.data.question_id;
+        if (eventType === 'after_tool_call' && qid && askUserCardRegistry.has(qid)) {
+            finalizeAskUserCard(askUserCardRegistry.get(qid), detail.data);
+        } else if (!toolState.wrapper.querySelector('.ask-user-card')) {
+            renderAskUserCard(detail.data, toolState.wrapper);
         }
+        toolState.detailEl.style.display = 'none';
+        toolState.detailEl.textContent = '';
+        toolState.arrow.style.display = 'none';
+        return;
     }
 
-    messageList.appendChild(wrapper);
+    if (!detail && toolState.detailEl.textContent) {
+        toolState.arrow.style.display = '';
+        return;
+    }
+
+    const detailText = detail ? formatToolDetail(detail) : '';
+    toolState.detailEl.textContent = detailText;
+    toolState.arrow.style.display = detailText ? '' : 'none';
+    if (!detailText) {
+        toolState.detailEl.style.display = 'none';
+        toolState.arrow.textContent = '▶';
+    }
+}
+
+function formatToolDetail(detail) {
+    if (typeof detail === 'string') return detail;
+    if (!detail || typeof detail !== 'object') return '';
+    if (detail.type === 'md' && detail.data && detail.data.content) return detail.data.content;
+    if (detail.type === 'text' && detail.data && detail.data.content) return detail.data.content;
+    if (detail.type === 'text' && detail.data && detail.data.message) return detail.data.message;
+    if (detail.type === 'terminal' && detail.data) {
+        return [
+            detail.data.command ? `$ ${detail.data.command}` : '',
+            detail.data.stdout || '',
+            detail.data.stderr || '',
+            typeof detail.data.exit_code === 'number' ? `exit_code: ${detail.data.exit_code}` : '',
+        ].filter(Boolean).join('\n');
+    }
+    return JSON.stringify(detail, null, 2);
 }
 
 // 显示折叠的事件日志条目
@@ -2517,7 +3190,7 @@ function showEventLog(data, _noLog = false) {
 
     wrapper.appendChild(summary);
     wrapper.appendChild(detail);
-    messageList.appendChild(wrapper);
+    appendMessageNode(wrapper);
 }
 
 // ── 自动订阅 & 断线重连 ──
@@ -2539,7 +3212,7 @@ function scheduleReconnect() {
     wsReconnectAttempt++;
     // 指数退避：2s → 4s → 8s → 16s → 30s（封顶）
     const delay = Math.min(WS_RECONNECT_BASE_MS * Math.pow(2, wsReconnectAttempt - 1), WS_RECONNECT_MAX_MS);
-    showSystemMessage(`将在 ${(delay / 1000).toFixed(0)} 秒后自动重连（第 ${wsReconnectAttempt} 次）…`);
+    showConnectionStatusMessage(`将在 ${(delay / 1000).toFixed(0)} 秒后自动重连（第 ${wsReconnectAttempt} 次）…`);
     wsReconnectTimer = setTimeout(() => connectWebSocket(), delay);
 }
 
@@ -2548,9 +3221,9 @@ function handleWebSocketClose(event) {
     updateSubscribeButtonState('disconnected');
 
     if (event.wasClean) {
-        showSystemMessage("WebSocket连接正常关闭");
+        showConnectionStatusMessage("WebSocket连接正常关闭");
     } else {
-        showSystemMessage(`WebSocket连接意外断开 (code: ${event.code})`);
+        showConnectionStatusMessage(`WebSocket连接意外断开 (code: ${event.code})`);
         scheduleReconnect();
     }
 }
@@ -2567,7 +3240,7 @@ function handleWebSocketError(error) {
         suggestions = "请检查服务器地址是否正确，服务器是否运行正常";
     }
 
-    showSystemMessage(`${errorMessage}。${suggestions}`);
+    showConnectionStatusMessage(`${errorMessage}。${suggestions}`);
     updateSubscribeButtonState('error');
     scheduleReconnect();
 }

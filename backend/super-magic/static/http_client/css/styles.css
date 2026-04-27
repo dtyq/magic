@@ -351,6 +351,7 @@ input[type="checkbox"] {
 .chat-container {
     display: flex;
     flex-direction: column;
+    position: relative;
     height: 100%;
     border: none;
     border-radius: 0;
@@ -360,6 +361,7 @@ input[type="checkbox"] {
 .messages-container {
     flex: 1;
     overflow-y: auto;
+    position: relative;
     padding: 12px 15px;
     background-color: var(--wechat-background);
 }
@@ -406,6 +408,71 @@ input[type="checkbox"] {
     padding: 4px 8px;
     border-radius: 4px;
     margin: 4px 0;
+}
+
+.scroll-to-latest-btn {
+    position: absolute;
+    right: 24px;
+    bottom: calc(var(--message-input-panel-height, 180px) + 18px);
+    z-index: 20;
+    display: none;
+    width: fit-content;
+    padding: 7px 14px;
+    border: 1px solid rgba(7, 193, 96, 0.25);
+    border-radius: 999px;
+    background: rgba(7, 193, 96, 0.95);
+    color: #fff;
+    font-size: 13px;
+    line-height: 1.4;
+    cursor: pointer;
+    box-shadow: 0 4px 14px rgba(0, 0, 0, 0.16);
+}
+
+.scroll-to-latest-btn.visible {
+    display: block;
+}
+
+.scroll-to-latest-btn:hover {
+    background: #06ae56;
+}
+
+.connection-status-log {
+    align-self: center;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    width: min(720px, calc(100% - 48px));
+    margin: 2px 0;
+}
+
+.connection-status-summary {
+    display: inline-block;
+    padding: 4px 10px;
+    border: 1px solid rgba(0, 0, 0, 0.08);
+    border-radius: 4px;
+    background-color: rgba(0, 0, 0, 0.03);
+    color: var(--wechat-text-gray);
+    font-size: 12px;
+    cursor: pointer;
+    user-select: none;
+}
+
+.connection-status-summary:hover {
+    background-color: rgba(0, 0, 0, 0.06);
+}
+
+.connection-status-detail {
+    display: none;
+    width: 100%;
+    margin-top: 4px;
+    padding: 8px 10px;
+    border: 1px solid rgba(0, 0, 0, 0.08);
+    border-radius: 4px;
+    background-color: rgba(255, 255, 255, 0.7);
+    color: var(--wechat-text-gray);
+    font-size: 12px;
+    line-height: 1.5;
+    white-space: pre-wrap;
 }
 
 .message-header {
@@ -637,6 +704,12 @@ input[type="checkbox"] {
     border: 1px solid rgba(41, 128, 185, 0.22);
 }
 
+.tool-call-block.tool-call-error .tool-call-header {
+    color: #c0392b;
+    background-color: rgba(231, 76, 60, 0.06);
+    border: 1px solid rgba(231, 76, 60, 0.25);
+}
+
 .tool-call-header:hover {
     filter: brightness(0.95);
 }
@@ -654,6 +727,10 @@ input[type="checkbox"] {
 
 .tool-call-finished .tool-call-status-dot {
     background-color: #27ae60;
+}
+
+.tool-call-error .tool-call-status-dot {
+    background-color: #e74c3c;
 }
 
 .tool-call-action {
