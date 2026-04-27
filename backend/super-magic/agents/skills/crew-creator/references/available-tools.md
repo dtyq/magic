@@ -63,7 +63,7 @@ tools:
 tools:
   - web_search
   - read_webpages_as_markdown
-  - generate_image
+  - generate_images
   - image_search
   - visual_understanding
   - run_python_snippet
@@ -149,7 +149,7 @@ tools:
 |------|-------------|
 | `visual_understanding` | Analyze image content and answer questions |
 | `visual_understanding_webpage` | Screenshot and analyze a webpage visually |
-| `generate_image` | Generate images from text or edit existing images |
+| `generate_images` | Batch generate images from text prompts or reference images |
 | `image_search` | Search for images by keyword |
 
 <!--zh

@@ -386,6 +386,10 @@ class DownloadFromUrl(AbstractFileTool[DownloadFromUrlParams], WorkspaceTool[Dow
             await asyncio.to_thread(os.makedirs, directory, exist_ok=True)
             logger.info(f"创建目录: {directory}")
 
+    async def download_file(self, url: str, file_path: Path, cache_only: bool = False) -> DownloadResult:
+        """下载文件到指定路径，支持缓存和并发锁，供外部调用方复用。"""
+        return await self._download_file(url, file_path, cache_only)
+
     async def _download_file(self, url: str, file_path: Path, cache_only: bool = False) -> DownloadResult:
         """Download file with caching mechanism"""
         # 获取或创建此 URL 的锁，防止并发下载同一个 URL

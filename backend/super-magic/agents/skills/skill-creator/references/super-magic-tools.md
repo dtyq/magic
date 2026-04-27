@@ -275,49 +275,59 @@ print(json.dumps(data, indent=2))
 
 ## 图片生成与搜索类 / Image Generation & Search
 
-### generate_image
+### generate_images
 
 <!--zh
-文生图和图片编辑工具。支持两种模式：
-- generate 模式：从文字描述生成全新图片
-- edit 模式：基于已有图片进行编辑（需提供 image_paths）
+批量文生图和图片编辑工具。每个 task 独立指定 prompt / size / name / output_path / reference_images，
+有几个 task 就生成几张图，所有任务并发执行。
+- reference_images 为空：纯文本生成（generations 模式）
+- reference_images 有值：基于参考图生成/编辑（edits 模式）
 -->
-Text-to-image generation and image editing. Two modes:
-- **generate**: Create new images from text prompts
-- **edit**: Modify existing images (requires `image_paths`)
+Batch text-to-image generation and image editing. Each task produces one image; all tasks run concurrently.
+- `reference_images` empty: text-only generation
+- `reference_images` non-empty: reference-based generation / editing
 
 **Schema:**
 
 ```json
 {
-  "prompt": "string (required) — 图片描述或编辑指令",
-  "mode": "string (required) — 'generate'（生成）或 'edit'（编辑）",
-  "image_paths": "string[] (optional) — edit 模式必填，要编辑的图片路径列表",
-  "image_count": "integer (optional, default 1, max 4) — generate 模式下生成数量",
-  "size": "string (optional, default '2048x2048') — 图片尺寸，如 '1:1'、'16:9'、'2048x2048'",
-  "image_name": "string (optional) — 输出文件名（不含扩展名）",
-  "output_path": "string (optional) — 保存目录，为空时自动确定",
-  "override": "boolean (optional, default false) — 是否覆盖已有文件",
-  "model": "string (optional) — 指定模型，为空时自动选择"
+  "tasks": [
+    {
+      "prompt": "string (required) — 图片描述，建议包含主体、风格、构图、光线、色调",
+      "name": "string (required) — 输出文件名（不含扩展名）",
+      "output_path": "string (required) — 保存目录，相对于工作区根目录",
+      "size": "string (optional) — 图片尺寸 'WxH'，有参考图时可省略（自动取最大参考图尺寸）；无参考图时必填，如 '2048x2048'、'2560x1440'、'1440x2560'",
+      "reference_images": "string[] (optional) — 参考图路径列表，路径相对于工作区根目录"
+    }
+  ]
 }
 ```
 
 ```python
 from sdk.tool import tool
 
-# 生成图片 / Generate image
-result = tool.call('generate_image', {
-    "prompt": "A minimalist flat-design icon for a travel planning app, blue and white color scheme",
-    "mode": "generate",
-    "size": "1:1",
-    "image_name": "travel_icon"
+# 文本生成图片 / Text-to-image
+result = tool.call('generate_images', {
+    "tasks": [
+        {
+            "prompt": "A minimalist flat-design icon for a travel planning app, blue and white color scheme",
+            "name": "travel_icon",
+            "output_path": "images",
+            "size": "2048x2048"
+        }
+    ]
 })
 
-# 编辑图片 / Edit image
-result = tool.call('generate_image', {
-    "prompt": "将背景改为纯白色",
-    "mode": "edit",
-    "image_paths": [".workspace/images/original.png"]
+# 基于参考图编辑 / Reference-based editing
+result = tool.call('generate_images', {
+    "tasks": [
+        {
+            "prompt": "将背景改为纯白色",
+            "name": "result",
+            "output_path": "images",
+            "reference_images": ["images/original.png"]
+        }
+    ]
 })
 ```
 

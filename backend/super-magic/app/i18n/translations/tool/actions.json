@@ -147,6 +147,10 @@
         "zh_CN": "生成图像",
         "en_US": "Generate image"
     },
+    "generate_images": {
+        "zh_CN": "生成图像",
+        "en_US": "Generate images"
+    },
     "generate_video": {
         "zh_CN": "生成视频",
         "en_US": "Generate video"
