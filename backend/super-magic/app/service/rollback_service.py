@@ -123,6 +123,9 @@ class RollbackService:
                                         f"无法回滚到checkpoint {target_message_id} 的执行前状态，因为它是最早的checkpoint")
             logger.info(f"实际回滚目标: {actual_target_checkpoint_id} (消息{target_message_id}的执行前状态)")
 
+            # 获取当前checkpoint状态（用于版本创建）
+            current_checkpoint_id = await self.checkpoint_service.metadata_manager.get_current_checkpoint()
+
             # 通知 magicfs：回滚期间跳过 checkpoint 维护，避免它把工作区改动回灌成 latest_content
             await self.checkpoint_service.metadata_manager.set_rollback_in_progress(True)
             try:
@@ -136,9 +139,12 @@ class RollbackService:
             # start_rollback 之后产品上必然走 commit_rollback 或 undo_rollback，
             # 中间不会触发 agent.run 把陈旧内存写回磁盘；commit 里统一 reload 即可。
 
-            # 文件版本创建延迟到 commit_rollback 成功后再做。
-            # start_rollback 阶段只是把工作区文件临时切到历史状态，
-            # 用户仍可能通过 undo_rollback 撤回，此时创建的版本就是无效噪音。
+            # 在回滚成功后创建文件版本
+            try:
+                await self._create_file_versions_after_rollback(current_checkpoint_id, actual_target_checkpoint_id)
+            except Exception as version_error:
+                # 版本创建失败不应该影响回滚操作
+                logger.error(f"文件版本创建失败，但回滚操作已成功: {version_error}")
         except RollbackException:
             raise
         except Exception as e:
@@ -158,10 +164,6 @@ class RollbackService:
         try:
             logger.info("开始提交回滚操作，清理后续checkpoint")
 
-            # 清理会从 manifest 中删除最新 checkpoint，之后就无法再通过
-            # checkpoint 差异溯源本次回滚改动过的文件，所以必须先算好文件清单
-            files_to_version = await self._collect_files_to_version_on_commit()
-
             success = await self.rollback_executor.commit_rollback()
             if not success:
                 raise RollbackException(ErrorCode.ROLLBACK_GENERAL_ERROR, "提交回滚操作失败")
@@ -176,12 +178,6 @@ class RollbackService:
             # 另一条终态路径 undo_rollback 天然一致（内存=磁盘=latest），
             # 因此只需要在 commit 这一个点 reload。
             await self._reload_main_agent_chat_history()
-
-            if files_to_version:
-                logger.info(f"准备为 {len(files_to_version)} 个文件创建版本")
-                # _create_versions_for_files 内部已自行兜底异常，
-                # 不会把版本创建失败冒泡影响本次提交
-                await self._create_versions_for_files(files_to_version)
 
         except RollbackException:
             raise
@@ -242,9 +238,12 @@ class RollbackService:
             # 而内存自 agent 启动以来就一直是 latest（load() 幂等未被改写），
             # 因此 undo 完成后内存与磁盘天然一致，无需额外 reload。
 
-            # 撤回回滚只是把工作区恢复到 start_rollback 之前的最新状态，
-            # 不意味着用户确认了任何变更，因此不在这里创建文件版本。
-            # 文件版本只在 commit_rollback 成功后创建。
+            # 5. 在撤回回滚成功后创建文件版本
+            try:
+                await self._create_file_versions_after_rollback(current_checkpoint_id, latest_checkpoint_id)
+            except Exception as version_error:
+                # 版本创建失败不应该影响回滚操作
+                logger.error(f"文件版本创建失败，但撤回回滚操作已成功: {version_error}")
 
             logger.info(f"撤回回滚成功完成，当前checkpoint: {latest_checkpoint_id}")
 
@@ -254,39 +253,34 @@ class RollbackService:
             logger.error(f"撤回回滚过程中发生错误: {e}")
             raise RollbackException(ErrorCode.ROLLBACK_GENERAL_ERROR, f"撤回回滚过程中发生未知错误: {str(e)}")
 
-    async def _collect_files_to_version_on_commit(self) -> List[str]:
-        """在 commit_rollback 清理之前计算要为其创建文件版本的工作区文件列表
+    async def _create_file_versions_after_rollback(self, current_checkpoint_id: Optional[str], target_checkpoint_id: str) -> None:
+        """
+        在回滚后创建文件版本
 
-        计算方式：读取 manifest，把"最新 checkpoint（即将被清理）"与"当前
-        checkpoint（回滚后的状态）"之间的差异文件列出来，这些就是本次
-        commit 需要固化一份新版本的文件。
-
-        必须在 commit_rollback 清理之前调用：清理会从 manifest 中删除最新
-        checkpoint，之后 get_files_for_version_creation 无法再溯源差异。
-
-        返回空列表表示本次 commit 无需创建任何文件版本（未发生回滚、
-        manifest 缺失或读取失败等）。
+        Args:
+            current_checkpoint_id: 回滚前的checkpoint ID
+            target_checkpoint_id: 回滚后的checkpoint ID
         """
         try:
-            manifest = await self.checkpoint_service.metadata_manager.load_checkpoint_manifest()
+            logger.info("开始为回滚相关文件创建版本")
+
+            # 获取需要创建版本的文件列表
+            files_for_version = await self.rollback_executor.get_files_for_version_creation(
+                current_checkpoint_id, target_checkpoint_id
+            )
+
+            if not files_for_version:
+                logger.info("没有文件需要创建版本")
+                return
+
+            logger.info(f"准备为 {len(files_for_version)} 个文件创建版本")
+
+            # 直接调用异步版本创建方法，不使用 asyncio.run()
+            await self._create_versions_for_files(files_for_version)
+
         except Exception as e:
-            logger.warning(f"读取 checkpoint 清单失败，提交回滚后将跳过文件版本创建: {e}")
-            return []
-
-        if not manifest or not manifest.checkpoints or not manifest.current_checkpoint_id:
-            logger.info("checkpoint 清单缺少必要信息，跳过文件版本创建")
-            return []
-
-        latest_checkpoint_id = manifest.checkpoints[-1]
-        current_checkpoint_id = manifest.current_checkpoint_id
-
-        if latest_checkpoint_id == current_checkpoint_id:
-            logger.info("当前即为最新 checkpoint，未发生回滚，跳过文件版本创建")
-            return []
-
-        return await self.rollback_executor.get_files_for_version_creation(
-            latest_checkpoint_id, current_checkpoint_id
-        )
+            logger.error(f"创建文件版本过程中发生错误: {e}")
+            # 不重新抛出异常，避免影响回滚主流程
 
     async def _create_versions_for_files(self, file_paths: List[str]) -> None:
         """
