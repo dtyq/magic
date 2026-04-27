@@ -11,7 +11,7 @@ use App\Application\Kernel\Enum\MagicOperationEnum;
 use App\Application\Kernel\Enum\MagicResourceEnum;
 use App\Application\Permission\Service\ModelAccessRoleAppService;
 use App\Domain\Permission\Entity\ModelAccessRoleEntity;
-use App\Domain\Permission\Entity\ValueObject\ModelAccessRoleBindingScopeType;
+use App\Domain\Permission\Entity\ValueObject\BindingScopeType;
 use App\Domain\Permission\Entity\ValueObject\PermissionControlStatus;
 use App\Domain\Permission\Entity\ValueObject\PermissionDataIsolation;
 use App\ErrorCode\PermissionErrorCode;
@@ -145,7 +145,7 @@ class ModelAccessRoleApi extends AbstractPermissionApi
             ExceptionBuilder::throw(PermissionErrorCode::ValidateFailed, 'invalid binding_scope');
         }
 
-        $scopeType = ModelAccessRoleBindingScopeType::tryFrom((string) ($bindingScope['type'] ?? ''));
+        $scopeType = BindingScopeType::tryFrom((string) ($bindingScope['type'] ?? ''));
         if ($scopeType === null) {
             ExceptionBuilder::throw(PermissionErrorCode::ValidateFailed, 'invalid binding_scope type');
         }
@@ -159,17 +159,17 @@ class ModelAccessRoleApi extends AbstractPermissionApi
 
         $exclusionScope = is_array($exclusionScope) ? $exclusionScope : [];
         if ($exclusionScope !== []) {
-            $exclusionType = ModelAccessRoleBindingScopeType::tryFrom((string) ($exclusionScope['type'] ?? ''));
-            if ($exclusionType !== ModelAccessRoleBindingScopeType::Specific) {
+            $exclusionType = BindingScopeType::tryFrom((string) ($exclusionScope['type'] ?? ''));
+            if ($exclusionType !== BindingScopeType::Specific) {
                 ExceptionBuilder::throw(PermissionErrorCode::ValidateFailed, 'invalid exclusion_scope type');
             }
         }
 
-        $entity->setExclusionScopeType(ModelAccessRoleBindingScopeType::Specific->value);
+        $entity->setExclusionScopeType(BindingScopeType::Specific->value);
         $entity->setExcludedUserIds($this->parseStringArray($exclusionScope['user_ids'] ?? []));
         $entity->setExcludedDepartmentIds($this->parseStringArray($exclusionScope['department_ids'] ?? []));
 
-        if ($scopeType === ModelAccessRoleBindingScopeType::OrganizationAll) {
+        if ($scopeType === BindingScopeType::OrganizationAll) {
             if (! empty($userIds) || ! empty($departmentIds)) {
                 ExceptionBuilder::throw(PermissionErrorCode::ValidateFailed, 'organization_all binding_scope cannot include user_ids or department_ids');
             }

@@ -12,6 +12,7 @@ use App\Interfaces\Audit\Facade\AdminOperationLogApi;
 use App\Interfaces\Contact\Facade\Admin\PlatformUserApi;
 use App\Interfaces\Kernel\Facade\PlatformSettingsApi;
 use App\Interfaces\OrganizationEnvironment\Facade\Admin\OrganizationApi;
+use App\Interfaces\Permission\Facade\FunctionPermissionAdminApi;
 use App\Interfaces\Permission\Facade\ModelAccessRoleApi;
 use App\Interfaces\Permission\Facade\OrganizationAdminApi;
 use App\Interfaces\Permission\Facade\PermissionApi;
@@ -141,6 +142,16 @@ Router::addGroup('/api/v1/admin', static function () {
         Router::get('/{id:\d+}', [AppMenuAdminApi::class, 'show']);
         Router::post('/save', [AppMenuAdminApi::class, 'save']);
         Router::post('/delete', [AppMenuAdminApi::class, 'delete']);
+    }, ['middleware' => [RequestContextMiddleware::class]]);
+
+    Router::addGroup('/function-permissions', static function () {
+        Router::get('/catalog', [FunctionPermissionAdminApi::class, 'catalog']);
+        Router::get('', [FunctionPermissionAdminApi::class, 'queries']);
+        Router::get('/settings', [FunctionPermissionAdminApi::class, 'settings']);
+        Router::put('/settings', [FunctionPermissionAdminApi::class, 'updateSettings']);
+        Router::get('/{functionCode}', [FunctionPermissionAdminApi::class, 'show']);
+        Router::put('/{functionCode}', [FunctionPermissionAdminApi::class, 'save']);
+        Router::post('/batch', [FunctionPermissionAdminApi::class, 'batchSave']);
     }, ['middleware' => [RequestContextMiddleware::class]]);
 });
 

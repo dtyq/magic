@@ -7,7 +7,7 @@ declare(strict_types=1);
 
 namespace App\Domain\Permission\Entity\ValueObject;
 
-enum ModelAccessRoleBindingScopeType: string
+enum BindingScopeType: string
 {
     case Specific = 'specific';
     case OrganizationAll = 'organization_all';

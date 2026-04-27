@@ -30,6 +30,7 @@ enum MagicResourceEnum: string
     // ===== 二级：模块 =====
     case ADMIN_AI = 'admin.ai'; # 组织管理后台-AI管理
     case ADMIN_SAFE = 'admin.safe'; # 安全管控
+    case ADMIN_SAFE_FUNCTION_PERMISSION = 'admin.safe.function_permission'; # 安全管控-功能权限
     case PLATFORM_AI = 'platform.ai'; # 平台管理后台-AI管理
     case WORKSPACE_AI = 'workspace.ai'; # 工作区-AI管理
     case PLATFORM_SETTING = 'platform.setting'; # 系统设置
@@ -66,6 +67,7 @@ enum MagicResourceEnum: string
             self::WORKSPACE => 'permission.resource.workspace',
             self::ADMIN_AI => 'permission.resource.admin_ai',
             self::ADMIN_SAFE => 'permission.resource.admin_safe', # 安全与权限
+            self::ADMIN_SAFE_FUNCTION_PERMISSION => 'permission.resource.safe_function_permission',
             self::PLATFORM_AI_MODEL => 'permission.resource.ai_model',
             self::WORKSPACE_AI_MODEL => 'permission.resource.workspace_ai_model',
             self::PLATFORM_AI_IMAGE => 'permission.resource.ai_image',
@@ -111,6 +113,7 @@ enum MagicResourceEnum: string
             self::WORKSPACE_AI => self::WORKSPACE,
             self::ADMIN_AI,
             self::ADMIN_SAFE => self::ADMIN,
+            self::ADMIN_SAFE_FUNCTION_PERMISSION => self::ADMIN_SAFE,
             // 操作资源
             self::PLATFORM_AI_MODEL,
             self::PLATFORM_AI_IMAGE,

@@ -9,6 +9,7 @@ return [
         'admin' => 'Backend pentadbiran',
         'admin_ai' => 'Pengurusan AI',
         'admin_safe' => 'Keselamatan & Kebenaran',
+        'safe_function_permission' => 'Kebenaran Fungsi',
         'safe_admin' => 'Pentadbir organisasi',
         'safe_sub_admin' => 'Sub pentadbir',
         'safe_operation_log' => 'Log pentadbir',
@@ -49,6 +50,43 @@ return [
     'organization_code_exists' => 'Kod organisasi sudah wujud',
     'organization_name_exists' => 'Nama organisasi sudah wujud',
     'organization_not_exists' => 'Organisasi tidak wujud',
+    'function_permission' => [
+        'modules' => [
+            'skill' => 'Kemahiran',
+            'agent' => 'Ejen',
+            'magic_claw' => 'Magic Claw',
+        ],
+        'functions' => [
+            'skill_create' => [
+                'name' => 'Cipta Kemahiran',
+                'description' => 'Pintu masuk untuk mencipta kemahiran kosong.',
+            ],
+            'skill_publish' => [
+                'name' => 'Terbitkan Kemahiran',
+                'description' => 'Pintu masuk untuk menerbitkan versi kemahiran.',
+            ],
+            'agent_create' => [
+                'name' => 'Cipta Ejen',
+                'description' => 'Pintu masuk untuk mencipta pembantu atau ejen.',
+            ],
+            'agent_publish' => [
+                'name' => 'Terbitkan Ejen',
+                'description' => 'Pintu masuk untuk menerbitkan versi ejen.',
+            ],
+            'magic_claw_create' => [
+                'name' => 'Cipta Magic Claw',
+                'description' => 'Pintu masuk untuk mencipta Magic Claw.',
+            ],
+        ],
+        'binding_scope_label' => [
+            'all_users_available' => 'Tersedia untuk semua',
+            'organization_all' => 'Seluruh organisasi',
+            'specific_users_and_departments' => 'Pengguna dan jabatan tertentu',
+            'specific_users' => 'Pengguna tertentu',
+            'specific_departments' => 'Jabatan tertentu',
+            'not_configured' => 'Belum dikonfigurasi',
+        ],
+    ],
     'operation' => [
         'query' => 'Pertanyaan',
         'edit' => 'Edit',

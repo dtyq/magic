@@ -129,6 +129,14 @@ return [
             ],
             'tag' => '安全与权限',
         ],
+        'admin.safe.function_permission' => [
+            'path' => [
+                ['key' => 'enterprise_feature', 'label' => '企业功能'],
+                ['key' => 'security_and_permission', 'label' => '安全与权限'],
+                ['key' => 'function_permission', 'label' => '功能权限'],
+            ],
+            'tag' => '安全与权限',
+        ],
         'admin.ai.model_access_role' => [
             'path' => [
                 ['key' => 'ai_management', 'label' => 'AI管理'],

@@ -9,6 +9,7 @@ return [
         'admin' => '管理后台',
         'admin_ai' => 'AI管理',
         'admin_safe' => '安全与权限',
+        'safe_function_permission' => '功能权限',
         'safe_admin' => '组织管理员',
         'safe_sub_admin' => '子管理员',
         'safe_operation_log' => '管理员日志',
@@ -85,6 +86,43 @@ return [
         'resource_code_required' => '资源编码必填',
         'resource_code_string' => '资源编码必须是字符串',
         'resource_code_max' => '资源编码最大长度为50个字符',
+    ],
+    'function_permission' => [
+        'modules' => [
+            'skill' => '技能',
+            'agent' => '数字员工',
+            'magic_claw' => '龙虾',
+        ],
+        'functions' => [
+            'skill_create' => [
+                'name' => '技能创建',
+                'description' => '创建空技能入口。',
+            ],
+            'skill_publish' => [
+                'name' => '技能发布',
+                'description' => '发布技能版本入口。',
+            ],
+            'agent_create' => [
+                'name' => '数字员工创建',
+                'description' => '创建助理/数字员工入口。',
+            ],
+            'agent_publish' => [
+                'name' => '数字员工发布',
+                'description' => '发布助理版本入口。',
+            ],
+            'magic_claw_create' => [
+                'name' => '龙虾创建',
+                'description' => '创建 Magic Claw 入口。',
+            ],
+        ],
+        'binding_scope_label' => [
+            'all_users_available' => '全员可用',
+            'organization_all' => '组织全员',
+            'specific_users_and_departments' => '指定员工和部门',
+            'specific_users' => '指定员工',
+            'specific_departments' => '指定部门',
+            'not_configured' => '未配置',
+        ],
     ],
     'error' => [
         'role_name_exists' => '角色名称 :name 已存在',

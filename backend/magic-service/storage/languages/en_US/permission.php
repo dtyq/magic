@@ -9,6 +9,7 @@ return [
         'admin' => 'Admin',
         'admin_ai' => 'AI Management',
         'admin_safe' => 'Security & Permission',
+        'safe_function_permission' => 'Function Permission',
         'safe_admin' => 'Organization Admin',
         'safe_sub_admin' => 'Sub Admin',
         'safe_operation_log' => 'Admin Log',
@@ -54,6 +55,43 @@ return [
     'organization_code_exists' => 'Organization code already exists',
     'organization_name_exists' => 'Organization name already exists',
     'organization_not_exists' => 'Organization does not exist',
+    'function_permission' => [
+        'modules' => [
+            'skill' => 'Skill',
+            'agent' => 'Agent',
+            'magic_claw' => 'Magic Claw',
+        ],
+        'functions' => [
+            'skill_create' => [
+                'name' => 'Skill Creation',
+                'description' => 'Entry for creating an empty skill.',
+            ],
+            'skill_publish' => [
+                'name' => 'Skill Publishing',
+                'description' => 'Entry for publishing a skill version.',
+            ],
+            'agent_create' => [
+                'name' => 'Agent Creation',
+                'description' => 'Entry for creating an assistant or agent.',
+            ],
+            'agent_publish' => [
+                'name' => 'Agent Publishing',
+                'description' => 'Entry for publishing an agent version.',
+            ],
+            'magic_claw_create' => [
+                'name' => 'Magic Claw Creation',
+                'description' => 'Entry for creating Magic Claw.',
+            ],
+        ],
+        'binding_scope_label' => [
+            'all_users_available' => 'Available to everyone',
+            'organization_all' => 'Entire organization',
+            'specific_users_and_departments' => 'Specific users and departments',
+            'specific_users' => 'Specific users',
+            'specific_departments' => 'Specific departments',
+            'not_configured' => 'Not configured',
+        ],
+    ],
     'error' => [
         'role_name_exists' => 'Role name :name already exists',
         'role_not_found' => 'Role not found',
