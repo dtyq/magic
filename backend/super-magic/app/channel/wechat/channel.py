@@ -299,8 +299,9 @@ class WechatChannel(BaseChannel):
             # 微信长轮询没有单独的“connected”回调。
             # 这里以首次成功拿到 getUpdates 响应作为“连接已真正可用”的信号，比 task 创建成功更接近真实连通。
             KeepaliveRegistry.get_instance().notify_connected_once(self.key)
-            if data.get("get_updates_buf"):
-                self._get_updates_buf = data["get_updates_buf"]
+            next_get_updates_buf = str(data.get("get_updates_buf") or "")
+            if next_get_updates_buf and next_get_updates_buf != self._get_updates_buf:
+                self._get_updates_buf = next_get_updates_buf
                 try:
                     await self._persist_runtime_state()
                 except Exception as e:

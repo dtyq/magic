@@ -174,11 +174,14 @@ class CronService:
             # 注意：changed_ids 包含新增任务，若此时不保存，下次 tick 加载磁盘状态
             # 会拿到空 state，导致 next_run_at_ms 丢失，任务永远无法被调度
             should_save = bool(due_jobs or changed_ids or removed_ids or (set(state.jobs.keys()) != scanned_ids))
-            if scanned_ids or due_jobs or changed_ids or removed_ids or should_save:
-                logger.info(
-                    f"cron tick: jobs={sorted(scanned_ids)} due={[j.id for j in due_jobs]} "
-                    f"changed={sorted(changed_ids)} removed={removed_ids} saved={should_save}"
-                )
+            tick_log = (
+                f"cron tick: jobs={sorted(scanned_ids)} due={[j.id for j in due_jobs]} "
+                f"changed={sorted(changed_ids)} removed={removed_ids} saved={should_save}"
+            )
+            if due_jobs or changed_ids or removed_ids or should_save:
+                logger.info(tick_log)
+            elif scanned_ids:
+                logger.debug(tick_log)
             if should_save:
                 await save_cron_state(state)
 

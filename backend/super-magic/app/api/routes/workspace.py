@@ -72,12 +72,12 @@ async def get_workspace_status() -> BaseResponse:
         if agent_dispatcher is None:
             # AgentDispatcher未初始化
             status = WorkspaceStatus.NOT_INITIALIZED
-            logger.info("AgentDispatcher实例不存在，工作区未初始化")
+            logger.debug("AgentDispatcher实例不存在，工作区未初始化")
         else:
             # 根据is_workspace_initialized字段映射状态
             is_initialized = agent_dispatcher.is_workspace_initialized
             status = WorkspaceStatus.from_boolean(is_initialized)
-            logger.info(f"AgentDispatcher存在，初始化状态: {is_initialized}, 状态码: {status}")
+            logger.debug(f"AgentDispatcher存在，初始化状态: {is_initialized}, 状态码: {status}")
 
         # 构造响应数据
         status_data = WorkspaceStatusData(
@@ -85,7 +85,7 @@ async def get_workspace_status() -> BaseResponse:
             description=WorkspaceStatus.get_description(status),
         )
 
-        logger.info(f"工作区状态查询成功: {status_data.model_dump()}")
+        logger.debug(f"工作区状态查询成功: {status_data.model_dump()}")
 
         return create_success_response(
             message="获取工作区状态成功",
