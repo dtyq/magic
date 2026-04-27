@@ -19,7 +19,6 @@ enum ImageGenerateModelType: string
     case MiracleVision = 'MiracleVision';
     case TTAPIGPT4o = 'GPT4o';
     case AzureOpenAIImageGenerate = 'AzureOpenAI-ImageGenerate';
-    case AzureOpenAIImageEdit = 'AzureOpenAI-ImageEdit';
     case QwenImage = 'Qwen-Image';
     case GoogleGemini = 'GoogleGemini';
     case VolcengineArk = 'VolcengineArk';
@@ -45,7 +44,6 @@ enum ImageGenerateModelType: string
             in_array($model, self::getVolcengineImageGenerateV3Modes()) => self::VolcengineImageGenerateV3,
             in_array($model, self::getGPT4oModes()) => self::TTAPIGPT4o,
             in_array($model, self::getAzureOpenAIModes()) => self::AzureOpenAIImageGenerate,
-            in_array($model, self::getAzureOpenAIEditModes()) => self::AzureOpenAIImageEdit,
             in_array($model, self::getQwenImageModes()) => self::QwenImage,
             in_array($model, self::getGoogleGeminiModes()) => self::GoogleGemini,
             in_array($model, self::getVolcengineArkModes()) => self::VolcengineArk,
@@ -104,11 +102,6 @@ enum ImageGenerateModelType: string
         return [self::AzureOpenAIImageGenerate->value];
     }
 
-    public static function getAzureOpenAIEditModes(): array
-    {
-        return [self::AzureOpenAIImageEdit->value];
-    }
-
     public static function getQwenImageModes(): array
     {
         return [self::QwenImage->value, 'qwen-image', 'wan2.2-t2i-flash', 'qwen-image-edit', 'qwen-image-edit-plus'];
@@ -139,17 +132,6 @@ enum ImageGenerateModelType: string
      */
     public static function fromProviderCode(ProviderCode $providerCode, ?string $modelVersion = null): self
     {
-        if ($modelVersion) {
-            $modelType = match (true) {
-                in_array($modelVersion, self::getFluxModes()) => self::Flux,
-                in_array($modelVersion, self::getAzureOpenAIEditModes()) => self::AzureOpenAIImageEdit,
-                default => null,
-            };
-            if ($modelType) {
-                return $modelType;
-            }
-        }
-
         return match ($providerCode) {
             ProviderCode::Official => self::Official,
             ProviderCode::Volcengine => self::Volcengine,

@@ -134,30 +134,18 @@ class AzureOpenAIImageGenerateModel extends AbstractImageGenerate
             return $response; // 返回空数据响应
         }
 
-        try {
-            // 3. 图像生成（同步处理）
-            $result = $this->generateImageRaw($imageGenerateRequest);
+        // 3. 图像生成（同步处理）
+        $result = $this->generateImageRaw($imageGenerateRequest);
 
-            $this->validateAzureOpenAIResponse($result);
+        $this->validateAzureOpenAIResponse($result);
 
-            // 4. 转换响应格式
-            $this->addImageDataToResponseAzureOpenAI($response, $result, $imageGenerateRequest);
+        // 4. 转换响应格式
+        $this->addImageDataToResponseAzureOpenAI($response, $result, $imageGenerateRequest);
 
-            $this->logger->info('Azure OpenAI OpenAI格式生图：处理完成', [
-                '请求图片数' => $imageGenerateRequest->getN(),
-                '成功图片数' => count($response->getData()),
-            ]);
-        } catch (Exception $e) {
-            // 设置错误信息到响应对象
-            $response->setProviderErrorCode($e->getCode());
-            $response->setProviderErrorMessage($e->getMessage());
-
-            $this->logger->error('Azure OpenAI OpenAI格式生图：处理失败', [
-                'error_code' => $e->getCode(),
-                'error_message' => $e->getMessage(),
-            ]);
-        }
-
+        $this->logger->info('Azure OpenAI OpenAI格式生图：处理完成', [
+            '请求图片数' => $imageGenerateRequest->getN(),
+            '成功图片数' => count($response->getData()),
+        ]);
         return $response;
     }
 

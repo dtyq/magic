@@ -178,27 +178,6 @@ class ImageGenerateFactoryTest extends BaseTest
     }
 
     /**
-     * 测试 Azure OpenAI Image Edit 请求创建
-     * 使用配置文件中 AzureOpenAI-ImageEdit 的配置.
-     */
-    public function testAzureOpenAIImageEditRequest()
-    {
-        $data = $this->getCommonData();
-        $data['size'] = '1:1'; // 应该匹配到 1024x1024
-        $request = ImageGenerateFactory::createRequestType(
-            ImageGenerateModelType::AzureOpenAIImageEdit,
-            'AzureOpenAI-ImageEdit',
-            null,
-            $data
-        );
-
-        $this->assertInstanceOf(AzureOpenAIImageRequest::class, $request);
-        $this->assertEquals('1024', $request->getWidth());
-        $this->assertEquals('1024', $request->getHeight());
-        $this->assertEquals('1024x1024', $request->getSize());
-    }
-
-    /**
      * 测试 Google Gemini 请求创建
      * 使用配置文件中 gemini-2.5-flash-image 的配置.
      */
@@ -1176,34 +1155,6 @@ class ImageGenerateFactoryTest extends BaseTest
     // ==========================================================
     // Azure OpenAI Image Edit - 所有尺寸测试
     // ==========================================================
-
-    /**
-     * 测试 AzureOpenAI-ImageEdit 所有尺寸.
-     */
-    public function testAzureOpenAIImageEditAllSizes()
-    {
-        $sizes = [
-            ['size' => '1:1', 'width' => '1024', 'height' => '1024', 'sizeStr' => '1024x1024'],
-            ['size' => '2:3', 'width' => '1024', 'height' => '1536', 'sizeStr' => '1024x1536'],
-            ['size' => '3:2', 'width' => '1536', 'height' => '1024', 'sizeStr' => '1536x1024'],
-        ];
-
-        foreach ($sizes as $testCase) {
-            $data = $this->getCommonData();
-            $data['size'] = $testCase['size'];
-            $request = ImageGenerateFactory::createRequestType(
-                ImageGenerateModelType::AzureOpenAIImageEdit,
-                'AzureOpenAI-ImageEdit',
-                null,
-                $data
-            );
-
-            $this->assertInstanceOf(AzureOpenAIImageRequest::class, $request, "Failed for size: {$testCase['size']}");
-            $this->assertEquals($testCase['width'], $request->getWidth(), "Width mismatch for size: {$testCase['size']}");
-            $this->assertEquals($testCase['height'], $request->getHeight(), "Height mismatch for size: {$testCase['size']}");
-            $this->assertEquals($testCase['sizeStr'], $request->getSize(), "Size string mismatch for size: {$testCase['size']}");
-        }
-    }
 
     private function getCommonData(): array
     {
