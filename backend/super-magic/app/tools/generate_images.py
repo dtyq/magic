@@ -62,6 +62,7 @@ class ImageTaskResult:
     saved_path: Optional[str] = None
     relative_path: Optional[str] = None
     error: Optional[str] = None
+    model: Optional[str] = None
 
     def to_dict(self) -> dict:
         return dataclasses.asdict(self)
@@ -428,6 +429,7 @@ class GenerateImages(AbstractFileTool[GenerateImagesParams], WorkspaceTool[Gener
                     reference_images=task.reference_images,
                     saved_path=saved_path,
                     relative_path=self._make_relative_path(saved_path),
+                    model=model,
                 )
 
             except ImageGenerationProviderError as e:

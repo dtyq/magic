@@ -507,6 +507,9 @@ Expand brief user descriptions into full prompts covering subject, style, compos
             "end_time": _end_dt.isoformat(timespec="milliseconds"),
             "duration_ms": _duration_ms,
         }
+        model_id = task_info.get("model")
+        if model_id:
+            generate_request["model_id"] = model_id
         if mode == "edit" and task.reference_images:
             generate_request["reference_images"] = task.reference_images
 
