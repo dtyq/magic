@@ -928,8 +928,12 @@ class SandboxGatewayService extends AbstractSandboxOS implements SandboxGatewayI
 
     protected function getCommonHeaders(): array
     {
+        $requestId = CoContext::getRequestId() ?: (string) IdGenerator::getSnowId();
+
         return [
             'Content-Type' => 'application/json',
+            'request-id' => $requestId,
+            'X-Request-ID' => $requestId,
         ];
     }
 
@@ -975,17 +979,12 @@ class SandboxGatewayService extends AbstractSandboxOS implements SandboxGatewayI
     }
 
     /**
-     * Override parent getAuthHeaders to include user-specific headers.
+     * Override parent getAuthHeaders to include request tracing headers.
+     * Reuses getCommonHeaders() so request-id and X-Request-ID are always consistent.
      */
     protected function getAuthHeaders(): array
     {
-        $headers = parent::getAuthHeaders();
-
-        # 判断header中是否包含request_id，如果没有，从上下文中获取
-        if (empty($headers['request-id'])) {
-            $requestId = CoContext::getRequestId() ?: (string) IdGenerator::getSnowId();
-            $headers['request-id'] = $requestId;
-        }
+        $headers = array_merge(parent::getAuthHeaders(), $this->getCommonHeaders());
 
         $traceId = CoContext::getTraceId() ?: (string) IdGenerator::getSnowId();
         $headers['x-b3-trace-id'] = $traceId;

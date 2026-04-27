@@ -63,4 +63,14 @@ class AsrRedisKeys
      * 心跳扫描模式.
      */
     public const string HEARTBEAT_SCAN_PATTERN = 'asr:heartbeat:*';
+
+    /**
+     * 合并任务恢复定时任务互斥锁 Key.
+     */
+    public const string MERGING_RECOVERY_LOCK = 'asr:merging_recovery:lock';
+
+    /**
+     * 合并任务恢复重试计数 Key 格式（TTL 与任务状态一致，7 天）.
+     */
+    public const string MERGING_RECOVERY_RETRY_COUNT = 'asr:merging_recovery:retry:%s';
 }

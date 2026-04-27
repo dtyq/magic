@@ -2012,7 +2012,7 @@ class AsrFileAppService extends AbstractAppService
         AudioProjectEntity $audioProject
     ): bool {
         return ! $audioProject->isAutoSummary()                                    // Manual mode
-            && $taskStatus->status === AsrTaskStatusEnum::AUDIO_PROCESSED          // Audio processed
+            && in_array($taskStatus->status, [AsrTaskStatusDTO::PHASE_MERGING, AsrTaskStatusEnum::AUDIO_PROCESSED])          // Audio processed
             && $taskStatus->recordingStatus === AsrRecordingStatusEnum::STOPPED->value
             && ! empty($taskStatus->audioFileId);                                  // Has audio file
     }

@@ -364,6 +364,45 @@ class AudioProjectRepository implements AudioProjectRepositoryInterface
     }
 
     /**
+     * Find audio projects stuck in the merging phase.
+     *
+     * @param int $stuckMinutes Minutes since last update before a task is considered stuck
+     * @param int $limit Maximum number of tasks to return
+     * @return array<int, array{project_id: int, task_key: string, user_id: string, organization_code: string, auto_summary: bool}>
+     */
+    public function findStuckMergingTasks(int $stuckMinutes, int $limit): array
+    {
+        $threshold = date('Y-m-d H:i:s', time() - $stuckMinutes * 60);
+
+        $rows = AudioProjectModel::query()
+            ->join('magic_super_agent_project as p', 'magic_super_agent_audio_project.project_id', '=', 'p.id')
+            ->where('magic_super_agent_audio_project.current_phase', 'merging')
+            ->where('magic_super_agent_audio_project.phase_status', 'in_progress')
+            ->where('magic_super_agent_audio_project.updated_at', '<', $threshold)
+            ->whereNull('p.deleted_at')
+            ->select([
+                'magic_super_agent_audio_project.project_id',
+                'magic_super_agent_audio_project.task_key',
+                'magic_super_agent_audio_project.auto_summary',
+                'p.user_id',
+                'p.user_organization_code',
+            ])
+            ->orderBy('magic_super_agent_audio_project.updated_at')
+            ->limit($limit)
+            ->get();
+
+        return array_map(static function ($row): array {
+            return [
+                'project_id' => (int) $row->project_id,
+                'task_key' => (string) $row->task_key,
+                'user_id' => (string) $row->user_id,
+                'organization_code' => (string) $row->user_organization_code,
+                'auto_summary' => (bool) $row->auto_summary,
+            ];
+        }, $rows->all());
+    }
+
+    /**
      * Convert Model to Entity.
      */
     private function toEntity(AudioProjectModel $model): AudioProjectEntity
