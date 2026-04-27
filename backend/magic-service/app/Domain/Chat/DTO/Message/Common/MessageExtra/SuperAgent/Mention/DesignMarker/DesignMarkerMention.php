@@ -17,7 +17,12 @@ final class DesignMarkerMention extends AbstractMention
 {
     public function getMentionTextStruct(): string
     {
-        return '';
+        $data = $this->getAttrs()?->getData();
+        if (! $data instanceof DesignMarkerData) {
+            return '';
+        }
+        $label = $data->getLabel() ?? '';
+        return sprintf('[@design_marker:%s]', $label);
     }
 
     public function getMentionJsonStruct(): array

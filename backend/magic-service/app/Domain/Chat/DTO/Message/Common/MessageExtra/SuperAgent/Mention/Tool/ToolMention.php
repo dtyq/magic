@@ -20,7 +20,8 @@ final class ToolMention extends AbstractMention
             return '';
         }
 
-        return $data->getName() ?? '';
+        $name = $data->getName() ?? '';
+        return sprintf('[@tool:%s]', $name);
     }
 
     public function getMentionJsonStruct(): array

@@ -102,7 +102,7 @@ class DesignMarkerMentionTest extends TestCase
         ]);
 
         $textStruct = $mention->getMentionTextStruct();
-        $this->assertEquals('', $textStruct);
+        $this->assertEquals('[@design_marker:棕色耳尖]', $textStruct);
     }
 
     public function testGetMentionJsonStruct(): void

@@ -20,7 +20,8 @@ final class AgentMention extends AbstractMention
             return '';
         }
 
-        return $data->getAgentName() ?? '';
+        $agentName = $data->getAgentName() ?? '';
+        return sprintf('[@agent:%s]', $agentName);
     }
 
     public function getMentionJsonStruct(): array
