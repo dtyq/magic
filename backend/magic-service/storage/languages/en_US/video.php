@@ -21,6 +21,7 @@ return [
         'generic' => 'Video generation failed. Please check your input and try again later.',
         'user_concurrency_limit' => 'Your video generation concurrency limit has been reached (maximum :limit running task(s)). Please wait for an existing task to finish before submitting another one.',
         'organization_concurrency_limit' => 'This organization has reached its video generation concurrency limit (maximum :limit running task(s)). Please wait for an existing organization task to finish before submitting another one.',
+        'model_resolution_not_supported' => 'The current model (:model) does not support :resolution. Please switch to :supported and try again.',
 
         // volcengine ark
         'SensitiveContentDetected' => 'The input or generated content may contain sensitive material. Please adjust the prompt or assets and try again.',

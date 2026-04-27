@@ -87,6 +87,21 @@ class VideoGenerationConfigDomainServiceTest extends TestCase
         $this->assertStringContainsString('首尾帧', $config->toArray()['input_modes']['keyframe_guided']['description']);
     }
 
+    public function testResolveReturnsVolcengineArkSeedanceFastConfigWithout1080p(): void
+    {
+        $service = $this->createService();
+
+        $config = $service->resolve(
+            'doubao-seedance-2-0-fast-260128',
+            'doubao-seedance-2-0-fast-260128',
+            ProviderCode::VolcengineArk,
+        );
+
+        $this->assertInstanceOf(VideoGenerationConfig::class, $config);
+        $this->assertSame(['480p', '720p'], $config->toArray()['generation']['resolutions']);
+        $this->assertCount(12, $config->toArray()['generation']['sizes']);
+    }
+
     public function testResolveBuildsModeDescriptionsFromConfig(): void
     {
         $service = $this->createService();
