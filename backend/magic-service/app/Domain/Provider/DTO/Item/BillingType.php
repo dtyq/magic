@@ -50,7 +50,7 @@ enum BillingType: string
 
     public function isVideoDuration(): bool
     {
-        return in_array($this, [self::VideoDuration, self::Per_Second, self::Per_Hour], true);
+        return in_array($this, [self::VideoDuration, self::Per_Second], true);
     }
 
     public function isVideoToken(): bool
