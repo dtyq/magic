@@ -167,9 +167,24 @@ class ImageGenerateFactory
 
     private static function createAzureOpenAIImageRequest(string $modelVersion, ?string $modelId, array $data): AzureOpenAIImageRequest
     {
+        $size = (string) ($data['size'] ?? '1024x1024');
+
         // 解析 size 参数为 width 和 height
-        [$width, $height] = SizeManager::getSizeFromConfig($data['size'] ?? '1024x1024', $modelVersion, $modelId);
+        [$width, $height] = SizeManager::getSizeFromConfig($size, $modelVersion, $modelId);
         $imageConfig = SizeManager::matchConfig($modelVersion, $modelId) ?? [];
+
+        // 校验尺寸是否正确
+        if (! SizeManager::isDivisibleBy16((int) $width, (int) $height)) {
+            $sizeContent = $width . 'x' . $height;
+            if ($sizeContent !== $size) {
+                $sizeContent = sprintf('%s(%s)', $size, $sizeContent);
+            }
+            ExceptionBuilder::throw(
+                ImageGenerateErrorCode::UNSUPPORTED_IMAGE_SIZE,
+                'image_generate.azure_image_size_must_be_divisible_by_16',
+                ['size' => $sizeContent]
+            );
+        }
 
         $request = new AzureOpenAIImageRequest((string) $width, (string) $height, $data['user_prompt'] ?? $data['prompt'] ?? '', '');
         $request->setSize($width . 'x' . $height);

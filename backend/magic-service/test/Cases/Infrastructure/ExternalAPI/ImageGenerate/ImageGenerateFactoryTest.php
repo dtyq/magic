@@ -7,6 +7,8 @@ declare(strict_types=1);
 
 namespace HyperfTest\Cases\Infrastructure\ExternalAPI\ImageGenerate;
 
+use App\ErrorCode\ImageGenerateErrorCode;
+use App\Infrastructure\Core\Exception\BusinessException;
 use App\Infrastructure\ExternalAPI\ImageGenerateAPI\ImageGenerateFactory;
 use App\Infrastructure\ExternalAPI\ImageGenerateAPI\ImageGenerateModelType;
 use App\Infrastructure\ExternalAPI\ImageGenerateAPI\Model\Google\GoogleGeminiRequest;
@@ -157,6 +159,22 @@ class ImageGenerateFactoryTest extends BaseTest
         $this->assertEquals('1024', $request->getWidth());
         $this->assertEquals('1536', $request->getHeight());
         $this->assertEquals('1024x1536', $request->getSize());
+    }
+
+    public function testAzureGptImage2RejectsSizesThatAreNotDivisibleBy16(): void
+    {
+        $this->expectException(BusinessException::class);
+        $this->expectExceptionCode(ImageGenerateErrorCode::UNSUPPORTED_IMAGE_SIZE->value);
+
+        $data = $this->getCommonData();
+        $data['size'] = '819x1024';
+
+        ImageGenerateFactory::createRequestType(
+            ImageGenerateModelType::AzureOpenAIImageGenerate,
+            'gpt-image-2',
+            null,
+            $data
+        );
     }
 
     /**

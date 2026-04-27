@@ -1569,7 +1569,7 @@ class LLMAppService extends AbstractLLMAppService
             if ($throwable instanceof OdinException || $throwable instanceof InvalidArgumentException || $throwable instanceof BusinessException) {
                 $message = $throwable->getMessage();
             }
-            if (! $invocationSuccessAudited) {
+            if (! $invocationSuccessAudited && $proxyModelRequest->getBusinessParam('skip_process_request_failure_audit') !== true) {
                 $businessParams = $proxyModelRequest->getBusinessParams();
                 $businessParams['is_success'] = false;
                 $businessParams['response_duration'] = $failLatency;
@@ -1814,19 +1814,24 @@ class LLMAppService extends AbstractLLMAppService
             // 记录日志
             $this->recordImageGenerateMessageLog($modelVersion, $creator, $organizationCode);
 
-            // 计算计费数量
-            $n = $proxyModelRequest->getN();
-            // 除了 mj和 图生图 是 1 次之外，其他都按张数算
-            if (in_array($modelVersion, ImageGenerateModelType::getMidjourneyModes())) {
-                $n = 1;
+            // 获取图片生成次数
+            $imageCount = $generateImageOpenAIFormat->getUsage()?->getGeneratedImages();
+            // 图片生成次数为空时，尝试获取图片数量
+            if (is_null($imageCount) && $generateImageOpenAIFormat->getData()) {
+                $imageCount = count($generateImageOpenAIFormat->getData());
             }
+            // 图片生成次数为空时，尝试获取错误信息
+            if (is_null($imageCount) && ! empty($generateImageOpenAIFormat->getProviderErrorMessage())) {
+                throw new BusinessException($generateImageOpenAIFormat->getProviderErrorMessage(), $generateImageOpenAIFormat->getProviderErrorCode());
+            }
+            $imageCount ??= 0;
 
             // 统一触发事件
             $this->dispatchImageGeneratedEvent(
                 $creator,
                 $organizationCode,
                 $proxyModelRequest,
-                $n,
+                $imageCount,
                 $imageModel->getProviderModelId(),
                 $callTime,
                 $startTime,
@@ -1840,6 +1845,23 @@ class LLMAppService extends AbstractLLMAppService
             $generateImageOpenAIFormat->setProviderErrorCode($e->getCode());
             $generateImageOpenAIFormat->setProvider('magic');
             $this->logger->warning('text generate image error:' . $e->getMessage());
+
+            // 记录错误事件
+            $this->dispatchImageGeneratedEvent(
+                $creator,
+                $organizationCode,
+                $proxyModelRequest,
+                0,
+                $imageModel->getProviderModelId(),
+                $callTime,
+                $startTime,
+                $modelGatewayDataIsolation->getAccessToken(),
+                [
+                    'chain' => 'textGenerateImageV2',
+                    'status' => self::AUDIT_STATUS_FAIL,
+                    'failure_reason' => $errorMessage,
+                ]
+            );
         }
 
         return $generateImageOpenAIFormat;
