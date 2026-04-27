@@ -1,7 +1,7 @@
 """Formatting utilities for visual understanding output."""
-import re
 from typing import List, Dict, Any, Optional
 from agentlang.logger import get_logger
+from app.tools.media_utils.format_utils import extract_media_source_name
 from .models import (
     ImageDownloadResult,
     ImageDownloadStatus,
@@ -39,13 +39,11 @@ def extract_image_source_name(image_source: str) -> str:
     Returns:
         str: 图片显示路径，本地文件直接返回原始路径，URL返回文件名
     """
-    if re.match(r'^https?://', image_source):
-        # 如果是URL，提取URL中的文件名
-        file_name = image_source.split('/')[-1].split('?')[0]
-        return file_name if file_name else "网络图片"
-    else:
-        # 如果是本地文件路径，直接返回原始路径（已经是相对于工作区的路径）
-        return image_source
+    result = extract_media_source_name(image_source)
+    # URL 无法提取到文件名时使用图片专属 fallback
+    if result == image_source and image_source.startswith("http"):
+        return "网络图片"
+    return result
 
 
 def build_dimension_info_text(image_dimensions: ImageDimensionInfo) -> str:

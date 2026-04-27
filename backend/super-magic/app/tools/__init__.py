@@ -61,6 +61,7 @@ from app.tools.convert_pdf import ConvertPdf
 from app.tools.convert_to_markdown import ConvertToMarkdown
 from app.tools.visual_understanding import VisualUnderstanding
 from app.tools.visual_understanding_webpage import VisualUnderstandingWebpage
+from app.tools.video_understanding import VideoUnderstanding
 from app.tools.analysis_slide_webpage import AnalysisSlideWebpage
 from app.tools.channel import ConnectDingTalkBot, ConnectLarkBot, ConnectWecomBot, ConnectWechatBot, GetIMChannelStatus, WaitWechatLogin
 
@@ -184,6 +185,7 @@ __all__ = [
     "UseBrowser",
     "VisualUnderstanding",
     "VisualUnderstandingWebpage",
+    "VideoUnderstanding",
     "WriteFile",
     "ManageCron",
     "excel_plugin",

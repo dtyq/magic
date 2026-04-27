@@ -5,6 +5,7 @@ tools:
   - search_knowledge
   - read_webpages_as_markdown
   - visual_understanding
+  - video_understanding
   - convert_to_markdown
   - image_search
   - download_from_urls

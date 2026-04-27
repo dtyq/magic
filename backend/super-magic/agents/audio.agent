@@ -18,6 +18,7 @@ tools:
   - setup_audio_project
   - analyze_audio_project
   - visual_understanding
+  - video_understanding
   - web_search
   - read_webpages_as_markdown
   - download_from_url

@@ -204,6 +204,7 @@ tools:
   - web_search
   - read_webpages_as_markdown
   - visual_understanding
+  - video_understanding
   - convert_to_markdown
   - list_dir
   - file_search

@@ -143,6 +143,18 @@
         "zh_CN": "视觉理解",
         "en_US": "Visual understanding"
     },
+    "visual_understanding_ing": {
+        "zh_CN": "正在视觉理解",
+        "en_US": "Analyzing image"
+    },
+    "video_understanding": {
+        "zh_CN": "视频理解",
+        "en_US": "Video understanding"
+    },
+    "video_understanding_ing": {
+        "zh_CN": "正在视频理解",
+        "en_US": "Analyzing video"
+    },
     "generate_image": {
         "zh_CN": "生成图像",
         "en_US": "Generate image"

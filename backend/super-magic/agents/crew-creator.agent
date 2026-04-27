@@ -4,6 +4,7 @@ tools:
   - web_search
   - read_webpages_as_markdown
   - visual_understanding
+  - video_understanding
   - list_dir
   - file_search
   - read_files

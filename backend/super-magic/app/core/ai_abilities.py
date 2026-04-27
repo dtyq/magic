@@ -27,6 +27,7 @@ class AIAbility(str, Enum):
     # v1.2 implementations
     COMPACT = "compact"
     ANALYSIS_AUDIO = "analysis_audio"
+    VIDEO_UNDERSTANDING = "video_understanding"
 
 
 # Default configurations for each AI ability
@@ -95,6 +96,14 @@ AI_ABILITY_DEFAULTS: Dict[str, Dict[str, Any]] = {
     # 用于音频项目分析
     AIAbility.ANALYSIS_AUDIO: {
         "model_id": "qwen3.5-flash",
+        "enabled": True,
+    },
+
+    # Video Understanding Ability (v1.2)
+    # 用于视频内容理解与分析
+    AIAbility.VIDEO_UNDERSTANDING: {
+        "model_id": "qwen3.5-flash",
+        "timeout": 600,
         "enabled": True,
     },
 }
@@ -198,6 +207,24 @@ def get_analysis_audio_model_id() -> str:
         str: 模型ID
     """
     return get_ability_config(AIAbility.ANALYSIS_AUDIO, "model_id", default="qwen3.5-flash")
+
+
+def get_video_understanding_model_id() -> str:
+    """获取视频理解能力使用的模型ID
+
+    Returns:
+        str: 模型ID
+    """
+    return get_ability_config(AIAbility.VIDEO_UNDERSTANDING, "model_id", default="qwen3.5-flash")
+
+
+def get_video_understanding_timeout() -> int:
+    """获取视频理解能力使用的超时时间（秒）
+
+    Returns:
+        int: 超时时间（秒）
+    """
+    return int(get_ability_config(AIAbility.VIDEO_UNDERSTANDING, "timeout", default=600))
 
 
 def get_compact_model_id() -> str | None:

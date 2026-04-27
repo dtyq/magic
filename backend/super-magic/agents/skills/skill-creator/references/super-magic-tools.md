@@ -165,6 +165,29 @@ result = tool.call('visual_understanding', {
 })
 ```
 
+### video_understanding
+
+<!--zh 分析视频内容，返回描述。适合处理用户上传的视频文件或视频 URL。 -->
+Analyze video content. Useful for video files or video URLs uploaded by users.
+
+**Schema:**
+
+```json
+{
+  "videos": "string[] (required) — 视频 URL 或本地文件路径列表，支持多视频",
+  "query": "string (required) — 对视频的分析问题或要求"
+}
+```
+
+```python
+from sdk.tool import tool
+
+result = tool.call('video_understanding', {
+    "videos": ["https://example.com/demo.mp4"],
+    "query": "请描述这段视频中展示的操作流程"
+})
+```
+
 ### visual_understanding_webpage
 
 <!--zh

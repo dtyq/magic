@@ -5,6 +5,7 @@ tools:
   - read_webpages_as_markdown
   - image_search
   - visual_understanding
+  - video_understanding
   - convert_pdf
   - convert_to_markdown
   - list_dir

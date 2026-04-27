@@ -563,6 +563,50 @@
         "zh_CN": "视觉理解结果.md",
         "en_US": "visual_understanding_result.md"
     },
+    "visual_understanding.analyzing": {
+        "zh_CN": "正在分析图片: {{image_name}}",
+        "en_US": "Analyzing image: {{image_name}}"
+    },
+    "visual_understanding.analyzing_multiple": {
+        "zh_CN": "正在分析 {{count}} 张图片",
+        "en_US": "Analyzing {{count}} images"
+    },
+    "video_understanding.title": {
+        "zh_CN": "视频理解",
+        "en_US": "Video understanding"
+    },
+    "video_understanding.single": {
+        "zh_CN": "视频理解: {{video_name}}",
+        "en_US": "Video understanding: {{video_name}}"
+    },
+    "video_understanding.multiple": {
+        "zh_CN": "多视频理解 ({{count}}个)",
+        "en_US": "Multiple video understanding ({{count}} videos)"
+    },
+    "video_understanding.completed": {
+        "zh_CN": "已理解视频: {{video_name}}",
+        "en_US": "Video understanding completed: {{video_name}}"
+    },
+    "video_understanding.multiple_videos": {
+        "zh_CN": "已理解 {{count}} 个视频",
+        "en_US": "Understood {{count}} videos"
+    },
+    "video_understanding.error": {
+        "zh_CN": "视频理解失败: {{error}}",
+        "en_US": "Video understanding failed: {{error}}"
+    },
+    "video_understanding.result_file": {
+        "zh_CN": "视频理解结果.md",
+        "en_US": "video_understanding_result.md"
+    },
+    "video_understanding.analyzing": {
+        "zh_CN": "正在分析视频: {{video_name}}",
+        "en_US": "Analyzing video: {{video_name}}"
+    },
+    "video_understanding.analyzing_multiple": {
+        "zh_CN": "正在分析 {{count}} 个视频",
+        "en_US": "Analyzing {{count}} videos"
+    },
     "generate_image.processing": {
         "zh_CN": "图片生成",
         "en_US": "Image generation"

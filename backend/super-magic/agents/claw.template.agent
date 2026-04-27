@@ -6,6 +6,7 @@ tools:
   - image_search
   - download_from_urls
   - visual_understanding
+  - video_understanding
   - convert_to_markdown
   - generate_images
   - list_dir
