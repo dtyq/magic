@@ -2,6 +2,7 @@ from app.tools.media_generator.audio_dispatcher import AudioGeneratorDispatcher
 from app.tools.media_generator.base import (
     BaseImageGeneratorHandler,
     GeneratedImage,
+    ImageGenerationProviderError,
     ImageGenerationRequest,
     ImageGenerationResponse,
 )
@@ -17,6 +18,7 @@ __all__ = [
     "BaseImageGeneratorHandler",
     "GeneratedImage",
     "HANDLER_MAGIC_SERVICE",
+    "ImageGenerationProviderError",
     "ImageGenerationRequest",
     "ImageGenerationResponse",
     "ImageGeneratorDispatcher",

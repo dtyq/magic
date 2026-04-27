@@ -45,6 +45,7 @@ from app.tools.media_generator import (
     ImageGeneratorDispatcher,
     get_image_generator,
 )
+from app.tools.media_generator.base import ImageGenerationProviderError
 from app.tools.workspace_tool import WorkspaceTool
 from app.utils.async_file_utils import async_copy2, async_exists, async_mkdir, async_stat, async_unlink
 
@@ -235,6 +236,12 @@ class GenerateImages(AbstractFileTool[GenerateImagesParams], WorkspaceTool[Gener
             data["base_dir"] = PathManager.get_workspace_dir()
         super().__init__(**data)
 
+    async def execute_purely(
+        self, tool_context: ToolContext, params: GenerateImagesParams
+    ) -> ImageToolResult:
+        """供其他工具内部调用的纯执行入口，等价于 execute。"""
+        return await self.execute(tool_context, params)
+
     async def execute(
         self, tool_context: ToolContext, params: GenerateImagesParams
     ) -> ImageToolResult:
@@ -421,6 +428,16 @@ class GenerateImages(AbstractFileTool[GenerateImagesParams], WorkspaceTool[Gener
                     relative_path=self._make_relative_path(saved_path),
                 )
 
+            except ImageGenerationProviderError as e:
+                # provider 级别的明确错误（内容审核、参数非法等），直接失败，不重试
+                error_msg = str(e)
+                logger.warning(f"单张图片生成失败 (provider error): {error_msg} (prompt={task.prompt[:50]!r})")
+                return ImageTaskResult(
+                    success=False,
+                    prompt=task.prompt,
+                    reference_images=task.reference_images,
+                    error=error_msg,
+                )
             except Exception as e:
                 error_msg = f"失败 ({attempt_desc}): {e}"
                 logger.warning(f"单张图片生成{error_msg} (prompt={task.prompt[:50]!r})")

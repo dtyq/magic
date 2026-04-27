@@ -900,8 +900,8 @@
         "en_US": "Creation exception, please retry"
     },
     "generate_canvas_images.exception": {
-        "zh_CN": "AI 图片生成异常，请重试",
-        "en_US": "AI image generation exception, please retry"
+        "zh_CN": "生图异常，开始重试",
+        "en_US": "Image generation failed, retrying"
     },
     "generate_canvas_images.success": {
         "zh_CN": "成功生成 {{succeeded_count}} 张图片并添加到画布",

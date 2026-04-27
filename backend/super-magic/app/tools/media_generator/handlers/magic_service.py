@@ -5,6 +5,7 @@
 
 import dataclasses
 import json
+import re
 from dataclasses import dataclass
 from typing import List, Optional
 
@@ -14,6 +15,7 @@ from agentlang.logger import get_logger
 from agentlang.utils.metadata import MetadataUtil
 from app.tools.media_generator.base import (
     BaseImageGeneratorHandler,
+    ImageGenerationProviderError,
     ImageGenerationRequest,
     ImageGenerationResponse,
 )
@@ -100,6 +102,21 @@ class MagicServiceHandler(BaseImageGeneratorHandler):
                 )
 
                 if isinstance(response_data, dict) and "data" in response_data:
+                    # 优先检查 provider 级别的明确错误（内容审核、参数非法等），此类错误不应重试
+                    provider_error_code = response_data.get("provider_error_code")
+                    provider_error_message = response_data.get("provider_error_message") or "unknown provider error"
+                    if provider_error_code:
+                        # 过滤掉错误信息中的真实 URL，避免暴露内部服务地址
+                        sanitized_message = re.sub(
+                            r"https?://[^\s`'\"]+",
+                            "[hidden]",
+                            provider_error_message,
+                        )
+                        raise ImageGenerationProviderError(
+                            f"Image generation rejected by provider (code={provider_error_code}): {sanitized_message}",
+                            provider_error_code=provider_error_code,
+                        )
+
                     data_array = response_data.get("data", [])
                     image_urls = [
                         item["url"]

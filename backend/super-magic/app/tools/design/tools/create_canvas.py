@@ -215,6 +215,17 @@ Project: {project_name} (canvas project)"""
 
         return i18n.translate("create_canvas.success", category="tool.messages", project_name=project_name)
 
+    async def get_before_tool_call_friendly_action_and_remark(
+        self,
+        tool_name: str,
+        tool_context: ToolContext,
+        arguments: Dict[str, Any] = None,
+    ) -> Dict:
+        action = i18n.translate("create_canvas", category="tool.actions")
+        project_path = (arguments or {}).get("project_path", "")
+        remark = Path(project_path).name if project_path else ""
+        return {"action": action, "remark": remark}
+
     async def get_after_tool_call_friendly_action_and_remark(
         self, tool_name: str, tool_context: ToolContext, result: ToolResult,
         execution_time: float, arguments: Dict[str, Any] = None

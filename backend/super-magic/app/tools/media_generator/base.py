@@ -16,6 +16,17 @@ from app.utils.async_file_utils import async_close_fd, async_mkstemp
 logger = get_logger(__name__)
 
 
+class ImageGenerationProviderError(Exception):
+    """Provider 级别的图片生成错误（非瞬时，不应重试）。
+
+    当下游服务返回明确的业务错误码（如内容审核拦截、参数非法）时抛出。
+    """
+
+    def __init__(self, message: str, provider_error_code: Optional[int] = None) -> None:
+        super().__init__(message)
+        self.provider_error_code = provider_error_code
+
+
 @dataclass
 class ImageGenerationRequest:
     """图片生成请求"""
