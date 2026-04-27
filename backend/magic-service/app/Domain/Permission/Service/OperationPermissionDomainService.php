@@ -276,8 +276,10 @@ readonly class OperationPermissionDomainService
             'string' => Operation::class,
         ],
     ])]
-    public function getResourceOperationByUserIds(PermissionDataIsolation $dataIsolation, ResourceType $resourceType, array $userIds, array $resourceIds = []): array
+    public function getResourceOperationByUserIds(PermissionDataIsolation $dataIsolation, ResourceType $resourceType, array $userIds, ?array $resourceIds = []): array
     {
+        $resourceIds = $resourceIds ?? [];
+
         $contactDataIsolation = ContactDataIsolation::simpleMake($dataIsolation->getCurrentOrganizationCode(), $dataIsolation->getCurrentUserId());
         // 获取用户所在部门、群组添加到 target 中查找
         $userDepartmentList = $this->departmentUserRepository->getDepartmentIdsByUserIds($contactDataIsolation, $userIds, true);
