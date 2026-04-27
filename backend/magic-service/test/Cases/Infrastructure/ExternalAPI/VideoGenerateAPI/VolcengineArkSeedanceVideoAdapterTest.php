@@ -44,8 +44,8 @@ class VolcengineArkSeedanceVideoAdapterTest extends TestCase
         $generation = $config->toArray()['generation'];
         $this->assertSame(['16:9', '4:3', '1:1', '3:4', '9:16', '21:9'], $generation['aspect_ratios']);
         $this->assertSame([4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15], $generation['durations']);
-        $this->assertSame(['480p', '720p'], $generation['resolutions']);
-        $this->assertCount(12, $generation['sizes']);
+        $this->assertSame(['480p', '720p', '1080p'], $generation['resolutions']);
+        $this->assertCount(18, $generation['sizes']);
         $this->assertSame([
             'label' => '16:9',
             'value' => '864x496',
@@ -60,6 +60,13 @@ class VolcengineArkSeedanceVideoAdapterTest extends TestCase
             'height' => 1280,
             'resolution' => '720p',
         ], $generation['sizes'][10]);
+        $this->assertSame([
+            'label' => '21:9',
+            'value' => '2205x945',
+            'width' => 2205,
+            'height' => 945,
+            'resolution' => '1080p',
+        ], $generation['sizes'][17]);
     }
 
     public function testBuildProviderPayloadMapsGenerateEditAndReferenceInputsWithoutServiceTierForProModel(): void
@@ -125,7 +132,7 @@ class VolcengineArkSeedanceVideoAdapterTest extends TestCase
         $this->assertSame('https://callback.example.com/video', $payload['callback_url']);
         $this->assertArrayNotHasKey('service_tier', $payload);
         $this->assertSame(7200, $payload['execution_expires_after']);
-        $this->assertSame('720p', $payload['resolution']);
+        $this->assertSame('1080p', $payload['resolution']);
         $this->assertSame('16:9', $payload['ratio']);
         $this->assertSame(5, $payload['duration']);
         $this->assertSame(7, $payload['seed']);
@@ -133,6 +140,45 @@ class VolcengineArkSeedanceVideoAdapterTest extends TestCase
         $this->assertTrue($payload['watermark']);
         $this->assertTrue($payload['return_last_frame']);
         $this->assertTrue($payload['generate_audio']);
+    }
+
+    public function testBuildProviderPayloadRejectsReferenceImagesWhenResolutionIs1080p(): void
+    {
+        $adapter = new VolcengineArkSeedanceVideoAdapter(new VolcengineArkVideoClient($this->createMock(ClientFactory::class)));
+        $operation = new VideoQueueOperationEntity(
+            id: 'op-ark-ref-image-1080p',
+            endpoint: 'video:doubao-seedance-2-0-260128',
+            model: 'doubao-seedance-2-0-260128',
+            modelVersion: 'doubao-seedance-2-0-260128',
+            providerModelId: 'provider-model-ark-seedance',
+            providerCode: 'VolcengineArk',
+            providerName: 'volcengineark',
+            organizationCode: 'org-1',
+            userId: 'user-1',
+            status: VideoOperationStatus::QUEUED,
+            seq: 1,
+            rawRequest: [
+                'model_id' => 'doubao-seedance-2-0-260128',
+                'task' => 'generate',
+                'prompt' => 'animate this portrait',
+                'inputs' => [
+                    'reference_images' => [
+                        ['uri' => 'https://example.com/reference.png'],
+                    ],
+                ],
+                'generation' => [
+                    'resolution' => '1080p',
+                    'duration_seconds' => 5,
+                ],
+            ],
+            createdAt: date(DATE_ATOM),
+            heartbeatAt: date(DATE_ATOM),
+        );
+
+        $this->expectException(ProviderVideoException::class);
+        $this->expectExceptionMessage('generation.resolution=1080p is not supported when inputs.reference_images is provided');
+
+        $adapter->buildProviderPayload($operation);
     }
 
     public function testBuildProviderPayloadDropsServiceTierForFastModelToo(): void

@@ -71,7 +71,7 @@ class VideoGenerationConfigDomainServiceTest extends TestCase
         $this->assertContains('video_upscale', $config->toArray()['supported_inputs']);
         $this->assertSame(['16:9', '4:3', '1:1', '3:4', '9:16', '21:9'], $config->toArray()['generation']['aspect_ratios']);
         $this->assertSame([4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15], $config->toArray()['generation']['durations']);
-        $this->assertSame(['480p', '720p'], $config->toArray()['generation']['resolutions']);
+        $this->assertSame(['480p', '720p', '1080p'], $config->toArray()['generation']['resolutions']);
         $this->assertSame([-1, 4294967295], $config->toArray()['generation']['seed_range']);
         $this->assertTrue($config->toArray()['generation']['supports_watermark']);
         $this->assertTrue($config->toArray()['generation']['supports_generate_audio']);

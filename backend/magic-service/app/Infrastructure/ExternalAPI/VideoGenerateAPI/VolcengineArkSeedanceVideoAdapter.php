@@ -40,7 +40,7 @@ readonly class VolcengineArkSeedanceVideoAdapter implements VideoGenerationProvi
      *
      * @var list<string>
      */
-    private const array SUPPORTED_RESOLUTIONS = ['480p', '720p'];
+    private const array SUPPORTED_RESOLUTIONS = ['480p', '720p', '1080p'];
 
     /**
      * 当前接入的 Seedance 1.5 Pro / 2.0 / 2.0 Fast 尺寸表。
@@ -61,6 +61,12 @@ readonly class VolcengineArkSeedanceVideoAdapter implements VideoGenerationProvi
         ['label' => '3:4', 'value' => '834x1112', 'width' => 834, 'height' => 1112, 'resolution' => '720p'],
         ['label' => '9:16', 'value' => '720x1280', 'width' => 720, 'height' => 1280, 'resolution' => '720p'],
         ['label' => '21:9', 'value' => '1470x630', 'width' => 1470, 'height' => 630, 'resolution' => '720p'],
+        ['label' => '16:9', 'value' => '1920x1080', 'width' => 1920, 'height' => 1080, 'resolution' => '1080p'],
+        ['label' => '4:3', 'value' => '1668x1252', 'width' => 1668, 'height' => 1252, 'resolution' => '1080p'],
+        ['label' => '1:1', 'value' => '1440x1440', 'width' => 1440, 'height' => 1440, 'resolution' => '1080p'],
+        ['label' => '3:4', 'value' => '1252x1668', 'width' => 1252, 'height' => 1668, 'resolution' => '1080p'],
+        ['label' => '9:16', 'value' => '1080x1920', 'width' => 1080, 'height' => 1920, 'resolution' => '1080p'],
+        ['label' => '21:9', 'value' => '2205x945', 'width' => 2205, 'height' => 945, 'resolution' => '1080p'],
     ];
 
     public function __construct(
@@ -255,6 +261,12 @@ readonly class VolcengineArkSeedanceVideoAdapter implements VideoGenerationProvi
             'content' => $content,
         ];
         $payload['resolution'] = $this->resolveResolution($generation, $acceptedParams, $ignoredParams);
+
+        // 如果是1080p，不支持参考图
+        if ($payload['resolution'] === '1080p' && $referenceImages !== []) {
+            throw new ProviderVideoException('generation.resolution=1080p is not supported when inputs.reference_images is provided');
+        }
+
         $payload['duration'] = $this->resolveDuration($generation, $acceptedParams, $ignoredParams);
 
         $aspectRatio = $this->resolveAspectRatio($generation, $acceptedParams, $ignoredParams);
