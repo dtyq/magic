@@ -7,6 +7,8 @@ declare(strict_types=1);
 
 namespace App\Domain\Provider\Support;
 
+use App\Domain\Provider\DTO\Item\TokenPricing\BillingObject;
+
 final class BillingTierFlatPriceCompatibility
 {
     private const array FLAT_PRICE_FIELDS = [
@@ -18,17 +20,8 @@ final class BillingTierFlatPriceCompatibility
         'output_cost',
         'cache_hit_cost',
         'cache_write_cost',
-    ];
-
-    private const array BILLING_OBJECT_FIELD_MAP = [
-        'input_token' => 'input_pricing',
-        'output_token' => 'output_pricing',
-        'cache_hit_token' => 'cache_hit_pricing',
-        'cache_write_token' => 'cache_write_pricing',
-        'input_cost' => 'input_cost',
-        'output_cost' => 'output_cost',
-        'cache_hit_cost' => 'cache_hit_cost',
-        'cache_write_cost' => 'cache_write_cost',
+        'time_pricing',
+        'time_cost',
     ];
 
     public static function normalizeSavePayload(array $payload): array
@@ -60,7 +53,12 @@ final class BillingTierFlatPriceCompatibility
                 continue;
             }
 
-            $field = self::BILLING_OBJECT_FIELD_MAP[$billingTierItem['billing_object'] ?? ''] ?? null;
+            $billingObject = BillingObject::tryFrom((string) ($billingTierItem['billing_object'] ?? ''));
+            if (! $billingObject instanceof BillingObject) {
+                continue;
+            }
+
+            $field = $billingObject->toFlatConfigField();
             if ($field === null) {
                 continue;
             }
