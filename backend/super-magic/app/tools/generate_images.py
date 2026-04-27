@@ -102,8 +102,8 @@ Output image dimensions in 'WxH' format. Optional when reference_images is non-e
     )
     name: str = Field(
         ...,
-        description="""<!--zh: 文件名（无扩展名），根据用户语言命名：中文用户用中文（如 '可爱小猫'），英文用户用英文（如 'cute_cat'）。3-5 词，下划线连接，避免 / \\ : * ? ' < > | 字符。-->
-Filename without extension. Chinese users use Chinese (e.g. '可爱小猫'), English users use English (e.g. 'cute_cat'). 3-5 words, underscore-connected. Avoid / \\ : * ? ' < > | characters.""",
+        description="""<!--zh: 输出文件的主文件名（无扩展名），**仅**由本字段决定，系统**不会**从 reference_images 的路径或参考图原文件名推断保存名。命名原则：名字必须**描述本次生成的结果内容**——如果结果与参考图在主题/风格/时段等方面有明显差异（如改为夜晚、换季节、变画风），务必体现差异（如加 夜景、_night、_winter）；只有当结果与参考图内容实质相同（如单纯提高分辨率）时才可沿用参考图主名。命名语言与用户一致；3-5 个词，下划线连接，避免 / \\ : * ? ' < > | 字符。-->
+Output file stem (no extension). **Only** this field sets the saved filename; the system does **not** infer it from reference_images paths or the reference file's basename. Naming rule: the name must **describe what this output actually is** — if the result differs meaningfully from the reference (e.g. different time of day, season, style, subject), reflect that difference in the name (e.g. add 夜景, _night, _winter, _sketch); only when the result is essentially identical to the reference (e.g. upscaling only) may you reuse the reference file's stem. Same language as the user; 3-5 words, underscore-connected. Avoid / \\ : * ? ' < > | characters.""",
     )
     output_path: str = Field(
         ...,
@@ -199,6 +199,7 @@ class GenerateImages(AbstractFileTool[GenerateImagesParams], WorkspaceTool[Gener
 **每个 task 的关键规则**
 - 用户上传了图片，不论是"参考风格"、"修改内容"还是"改局部"，都必须传入 reference_images
 - 每个 task 可以有不同的 output_path，实现分类保存
+- 保存用的文件名**只**看 `name` 字段，与参考图路径无关；`name` 必须描述**本次结果**的内容——结果与参考图有明显差异时（改时段、改风格等）要体现差异，不要惯性复用参考图文件的主名
 
 **Prompt 写法**
 - Prompt 是创意简报，不是关键词堆砌。把你要传达的视觉决定逐一写清楚，而不是堆叠空洞形容词（"精美"、"震撼"）
@@ -217,6 +218,7 @@ class GenerateImages(AbstractFileTool[GenerateImagesParams], WorkspaceTool[Gener
 **Key rules per task**
 - If the user uploaded images — whether to reference style, modify content, or change a detail — always pass them via reference_images
 - Each task can have a different output_path for organized saving
+- The saved file stem comes **only** from `name`, not from reference image paths. `name` must describe what **this output actually is** — when the result differs meaningfully from the reference (different time of day, style, subject, etc.), reflect that in the name; do not default to the reference file's stem
 
 **Prompt writing**
 - A prompt is a creative brief, not a keyword list. Make every visual decision explicit rather than stacking vague adjectives ("beautiful", "stunning")
