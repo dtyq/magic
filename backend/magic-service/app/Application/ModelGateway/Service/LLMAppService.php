@@ -1569,7 +1569,7 @@ class LLMAppService extends AbstractLLMAppService
             if ($throwable instanceof OdinException || $throwable instanceof InvalidArgumentException || $throwable instanceof BusinessException) {
                 $message = $throwable->getMessage();
             }
-            if (! $invocationSuccessAudited && $proxyModelRequest->getBusinessParam('skip_process_request_failure_audit') !== true) {
+            if (! $invocationSuccessAudited) {
                 $businessParams = $proxyModelRequest->getBusinessParams();
                 $businessParams['is_success'] = false;
                 $businessParams['response_duration'] = $failLatency;
