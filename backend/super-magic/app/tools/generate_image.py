@@ -1,5 +1,11 @@
 """
 图片生成和编辑工具
+
+.. deprecated::
+    该模块已弃用，请使用 app.tools.generate_images.GenerateImages 替代。
+    generate_canvas_images 已迁移至调用 GenerateImages，外部业务代码不应再直接依赖本模块。
+    待确认无新引用后将移除。
+
 该模块提供文本到图片生成和图片编辑功能。
 模型通过 GenerateImageParams 的 model 参数指定，不再从环境变量读取。
 生成/编辑的图片将保存到 .workspace/generate_image 或 .workspace/edited_image 目录，并可在前端预览。

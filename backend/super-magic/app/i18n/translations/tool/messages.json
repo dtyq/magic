@@ -599,6 +599,34 @@
         "zh_CN": "保存到: {{paths}}",
         "en_US": "Saved to: {{paths}}"
     },
+    "generate_images.processing": {
+        "zh_CN": "图片生成中",
+        "en_US": "Generating images"
+    },
+    "generate_images.success": {
+        "zh_CN": "成功生成 {{succeeded_count}} 张图片，保存路径：{{file_paths}}",
+        "en_US": "Successfully generated {{succeeded_count}} image(s). Saved to: {{file_paths}}"
+    },
+    "generate_images.success_partial": {
+        "zh_CN": "部分图片生成成功（{{succeeded_count}}/{{total_count}}），已保存：{{file_paths}}；失败任务：{{errors}}",
+        "en_US": "Images partially generated ({{succeeded_count}}/{{total_count}} succeeded). Saved: {{file_paths}}. Failed: {{errors}}"
+    },
+    "generate_images.error": {
+        "zh_CN": "图片生成失败: {{error}}",
+        "en_US": "Image generation failed: {{error}}"
+    },
+    "generate_images.failed": {
+        "zh_CN": "生成失败",
+        "en_US": "Generation failed"
+    },
+    "generate_images.remark_success": {
+        "zh_CN": "成功生成 {{succeeded_count}} 张图片",
+        "en_US": "Successfully generated {{succeeded_count}} image(s)"
+    },
+    "generate_images.remark_success_partial": {
+        "zh_CN": "部分图片生成成功（{{succeeded_count}}/{{total_count}}）",
+        "en_US": "Images partially generated ({{succeeded_count}}/{{total_count}} succeeded)"
+    },
     "generate_video.success": {
         "zh_CN": "视频生成成功，文件：{{file_name}}",
         "en_US": "Video generation successful, file: {{file_name}}"
@@ -872,8 +900,8 @@
         "en_US": "Creation exception, please retry"
     },
     "generate_canvas_images.exception": {
-        "zh_CN": "AI 图片生成异常，请重试",
-        "en_US": "AI image generation exception, please retry"
+        "zh_CN": "生图异常，开始重试",
+        "en_US": "Image generation failed, retrying"
     },
     "generate_canvas_images.success": {
         "zh_CN": "成功生成 {{succeeded_count}} 张图片并添加到画布",

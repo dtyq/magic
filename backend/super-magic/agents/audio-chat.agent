@@ -18,7 +18,7 @@ tools:
   - multi_edit_file
   - multi_edit_file_range
   - delete_files
-  - generate_image
+  - generate_images
   - read_webpages_as_markdown
   - download_from_urls
 skills:

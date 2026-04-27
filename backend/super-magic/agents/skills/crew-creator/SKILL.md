@@ -242,7 +242,7 @@ tools:
    - 需要文件处理？→ 加 `read_files`, `write_file`, `edit_file` 等
    - 需要代码执行？→ 加 `run_python_snippet`, `shell_exec`
    - 需要视觉理解？→ 加 `visual_understanding`
-   - 需要图片生成？→ 加 `generate_image`
+   - 需要图片生成？→ 加 `generate_images`
 4. 向用户展示工具变更对比
 5. 用户确认后写入 TOOLS.md
 

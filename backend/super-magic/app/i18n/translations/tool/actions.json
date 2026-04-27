@@ -147,6 +147,14 @@
         "zh_CN": "生成图像",
         "en_US": "Generate image"
     },
+    "generate_images": {
+        "zh_CN": "生成图像",
+        "en_US": "Generate images"
+    },
+    "generate_images_ing": {
+        "zh_CN": "正在生成图像",
+        "en_US": "Generating images"
+    },
     "generate_video": {
         "zh_CN": "生成视频",
         "en_US": "Generate video"
@@ -242,6 +250,10 @@
     "generate_canvas_images": {
         "zh_CN": "生成图片",
         "en_US": "Generate images"
+    },
+    "generate_canvas_images_ing": {
+        "zh_CN": "正在生成图片",
+        "en_US": "Generating images"
     },
     "generate_canvas_videos": {
         "zh_CN": "生成视频",

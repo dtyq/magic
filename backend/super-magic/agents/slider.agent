@@ -18,7 +18,7 @@ tools:
   - multi_edit_file_range
   - image_search
   - download_from_urls
-  - generate_image
+  - generate_images
   - ask_user
 skills:
   system_skills:

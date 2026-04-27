@@ -7,7 +7,7 @@ tools:
   - download_from_urls
   - visual_understanding
   - convert_to_markdown
-  - generate_image
+  - generate_images
   - list_dir
   - file_search
   - read_files

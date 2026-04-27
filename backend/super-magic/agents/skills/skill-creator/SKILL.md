@@ -93,13 +93,13 @@ Before specifying tools in the skill, read the reference file `references/super-
 - 网络搜索与抓取：`web_search`, `read_webpages_as_markdown`, `download_from_url`, `download_from_urls`
 - 视觉理解：`visual_understanding`, `visual_understanding_webpage`
 - 代码执行：`shell_exec`, `run_python_snippet`
-- 图片生成与搜索：`generate_image`, `image_search`
+- 图片生成与搜索：`generate_images`, `image_search`
 -->
 Common tool categories — quick reference (see `references/super-magic-tools.md` for details and examples):
 - Web search & fetch: `web_search`, `read_webpages_as_markdown`, `download_from_url`, `download_from_urls`
 - Vision: `visual_understanding`, `visual_understanding_webpage`
 - Code execution: `shell_exec`, `run_python_snippet`
-- Image generation & search: `generate_image`, `image_search`
+- Image generation & search: `generate_images`, `image_search`
 
 ---
 

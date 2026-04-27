@@ -15,7 +15,6 @@ from typing import Any, Dict, List, Optional, Tuple
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
-from agentlang.config.dynamic_config import dynamic_config
 from agentlang.context.tool_context import ToolContext
 from agentlang.logger import get_logger
 from agentlang.tools.tool_result import ToolResult
@@ -28,7 +27,7 @@ from app.tools.design.tools.base_generate_canvas_elements import (
     TaskExecutionResult,
     TaskPlaceholderInfo,
 )
-from app.tools.generate_image import GenerateImage, GenerateImageParams
+from app.tools.generate_images import GenerateImages, GenerateImagesParams, ImageGenerationTask as CanvasImageGenTask
 from app.tools.snippet_timeout_registry import SdkSnippetTimeoutRegistry
 from app.utils.async_file_utils import async_exists
 
@@ -114,25 +113,6 @@ class GeneratedImageInfo:
     height: Optional[float]
     generate_request: Dict[str, Any]
 
-
-@dataclass
-class ExtractedImagesResult:
-    """从 generate_image 结果中提取的图片列表
-
-    Attributes:
-        images: 成功提取的图片列表
-        errors: 提取失败的错误列表
-    """
-    images: List[GeneratedImageInfo]
-    errors: List[str]
-
-    @property
-    def has_success(self) -> bool:
-        return len(self.images) > 0
-
-    @property
-    def has_errors(self) -> bool:
-        return len(self.errors) > 0
 
 
 class ImageTaskSpec(BaseModel):
@@ -291,13 +271,13 @@ Expand brief user descriptions into full prompts covering subject, style, compos
 
     def __init__(self, **data):
         super().__init__(**data)
-        self._generate_tool = GenerateImage()
+        self._generate_tool = GenerateImages()
 
     async def execute(
         self, tool_context: ToolContext, params: GenerateCanvasImagesParams
     ) -> ToolResult:
         try:
-            workspace_root = Path(tool_context.base_dir).resolve()
+            workspace_root = Path(self.base_dir)
             project_prefix = params.project_path.strip("/")
             normalize_error = await self._normalize_tasks(params.tasks, workspace_root, project_prefix)
             if normalize_error:
@@ -330,7 +310,6 @@ Expand brief user descriptions into full prompts covering subject, style, compos
         placeholder: ElementDetail,
         tool_context: ToolContext,
         project_path: Path,
-        model: str = "",
         timestamp: str = "",
         output_path: str = "",
         workspace_path: Optional[Path] = None,
@@ -340,13 +319,11 @@ Expand brief user descriptions into full prompts covering subject, style, compos
         if idx > 0:
             await asyncio.sleep(min(idx * 0.1 + random.uniform(0, 1.0), 3.0))
 
-        result = await self._generate_single_with_retry(
+        result = await self._generate_single(
             idx=idx,
             task=task,
-            model=model,
             timestamp=timestamp,
             output_path=output_path,
-            workspace_path=workspace_path or Path(tool_context.base_dir).resolve(),
             project_path=project_path,
             tool_context=tool_context,
         )
@@ -379,14 +356,12 @@ Expand brief user descriptions into full prompts covering subject, style, compos
         tool_context: ToolContext,
         project_path: Path,
     ) -> Dict[str, Any]:
-        model = self._get_model_from_config(tool_context)
         timestamp = datetime.now().strftime("%Y%m%d%H%M%S")
         await asyncio.to_thread((project_path / "images").mkdir, parents=True, exist_ok=True)
-        workspace_path = Path(tool_context.base_dir).resolve()
+        workspace_path = Path(self.base_dir)
         relative_project_path = project_path.relative_to(workspace_path)
         output_path = str(relative_project_path / "images")
         return {
-            "model": model,
             "timestamp": timestamp,
             "output_path": output_path,
             "workspace_path": workspace_path,
@@ -421,31 +396,46 @@ Expand brief user descriptions into full prompts covering subject, style, compos
         succeeded_count = sum(1 for r in task_results if r.is_success)
         failed_count = total - succeeded_count
 
-        warning_line = (
-            f"\n- Warning: {failed_count}/{total} images failed to generate"
-            if failed_count > 0 else ""
-        )
-
-        result = (
-            f"Generated and Added to Canvas:\n"
-            f"- Success: {succeeded_count} images generated\n"
-            f"- Failed: {failed_count} images{warning_line}\n"
-            f"- Project: {project_path}"
-        )
+        result = f"Generated {succeeded_count}/{total} image(s) and added to canvas."
+        if failed_count > 0:
+            result += f" {failed_count} task(s) failed."
 
         success_results = [r for r in task_results if r.is_success]
         if success_results:
-            result += "\n\nSucceeded Elements:"
+            result += "\n\nSucceeded:"
             for r in success_results:
                 p = placeholders[r.index]
-                result += f"\n- {p.name} (id: {p.id})"
+                result += f"\n- {p.name}"
 
         failed_results = [r for r in task_results if r.is_failed]
         if failed_results:
-            result += "\n\nFailed Elements (pass element_id to retry in place):"
+            all_exhausted = all(
+                placeholders[r.index].retry_count >= self.MAX_GENERATION_ATTEMPTS
+                for r in failed_results
+            )
+            if all_exhausted:
+                result += (
+                    "\n\nFailed (image generation service may be unavailable, "
+                    "please contact the administrator):"
+                )
+            else:
+                result += (
+                    "\n\nFailed (to retry in place, pass element_id in the next call):"
+                )
             for r in failed_results:
                 p = placeholders[r.index]
-                result += f'\n- {p.name} (element_id: "{p.id}")'
+                # p.retry_count 已在 _run_generate_flow 递增，反映本轮失败后的新计数
+                can_retry = p.retry_count < self.MAX_GENERATION_ATTEMPTS
+                if can_retry:
+                    line = f'\n- name="{p.name}", element_id="{p.id}"'
+                else:
+                    line = f'\n- name="{p.name}" [max attempts reached, do not retry]'
+                if r.error_message:
+                    short_error = r.error_message[:200]
+                    if len(r.error_message) > 200:
+                        short_error += "..."
+                    line += f", reason: {short_error}"
+                result += line
 
         return result
 
@@ -453,199 +443,84 @@ Expand brief user descriptions into full prompts covering subject, style, compos
     # 图片生成私有实现
     # ------------------------------------------------------------------
 
-    async def _generate_single_with_retry(
+    async def _generate_single(
         self,
         idx: int,
         task: ImageTaskSpec,
-        model: str,
         timestamp: str,
         output_path: str,
-        workspace_path: Path,
         project_path: Path,
         tool_context: ToolContext,
     ) -> ImageGenerationResult:
-        """生成单张图片，失败自动重试一次"""
+        """生成单张图片，委托 generate_images 执行（含重试、下载、保存）"""
         mode = "edit" if task.reference_images else "generate"
         clean_name = self._sanitize_filename(task.name)
         image_name = f"{clean_name}_{timestamp}"
 
-        for attempt in range(2):
-            is_retry = attempt > 0
-            attempt_desc = f"重试 {attempt}/1" if is_retry else "首次"
-            image_name_attempt = f"{image_name}_retry{attempt}" if is_retry else image_name
+        gen_task = CanvasImageGenTask(
+            prompt=task.prompt,
+            size=task.size,
+            name=image_name,
+            output_path=output_path,
+            reference_images=task.reference_images,
+        )
+        gen_params = GenerateImagesParams(tasks=[gen_task])
 
-            if is_retry:
-                await asyncio.sleep(random.uniform(0.5, 1.5))
+        _start_dt = datetime.now()
+        _t0 = time.monotonic()
+        try:
+            gen_result = await self._generate_tool.execute_purely(tool_context, gen_params)
+        except Exception as exc:
+            error_msg = f"Task {idx + 1} 异常: {exc!s}"
+            logger.error(error_msg, exc_info=True)
+            return ImageGenerationResult(index=idx, success=False, error_message=error_msg)
+        _end_dt = datetime.now()
+        _duration_ms = int((time.monotonic() - _t0) * 1000)
 
-            try:
-                generate_params = GenerateImageParams(
-                    prompt=task.prompt,
-                    mode=mode,
-                    model=model,
-                    size=task.size,
-                    image_count=1,
-                    image_name=image_name_attempt,
-                    output_path=output_path,
-                    image_paths=task.reference_images,
-                    override=False,
-                )
+        extra = gen_result.extra_info or {}
+        task_info_list = extra.get("tasks", [])
+        task_info = task_info_list[0] if task_info_list else {}
 
-                _start_dt = datetime.now()
-                _t0 = time.monotonic()
-                gen_result = await self._generate_tool.execute_purely(
-                    tool_context, generate_params, skip_limit_check=True
-                )
-                _end_dt = datetime.now()
-                _duration_ms = int((time.monotonic() - _t0) * 1000)
+        if not gen_result.ok or not task_info.get("success"):
+            error_msg = task_info.get("error") or gen_result.content or "unknown error"
+            full_error = f"Task {idx + 1} 失败: {error_msg}"
+            logger.warning(full_error)
+            return ImageGenerationResult(index=idx, success=False, error_message=full_error)
 
-                if gen_result.ok:
-                    extracted = await self._extract_generated_images(
-                        gen_result,
-                        workspace_path,
-                        generate_params,
-                        project_path=project_path,
-                        duration_ms=_duration_ms,
-                        start_time=_start_dt.isoformat(timespec="milliseconds"),
-                        end_time=_end_dt.isoformat(timespec="milliseconds"),
-                    )
+        saved_path = task_info.get("saved_path")
+        if not saved_path:
+            return ImageGenerationResult(
+                index=idx, success=False, error_message=f"Task {idx + 1}: saved_path missing in result"
+            )
 
-                    if extracted.has_success:
-                        retry_note = " (重试成功)" if is_retry else ""
-                        logger.info(f"Task {idx + 1} 生成成功{retry_note}")
-                        best = self._pick_best_image(extracted.images)
-                        return ImageGenerationResult(
-                            index=idx,
-                            success=True,
-                            image_info=best,
-                        )
+        relative_path = self._make_relative_to_project(saved_path, project_path)
+        dimensions = self._read_image_dimensions(saved_path)
+        image_id = Path(saved_path).stem
+        size_value = dimensions.size_string if dimensions.is_valid else task.size
 
-                    error_msg = extracted.errors[0] if extracted.errors else "图片文件校验失败"
-                    full_error = f"Task {idx + 1} 失败 ({attempt_desc}): {error_msg}"
-                    logger.warning(full_error)
-                    if attempt < 1:
-                        continue
-                    return ImageGenerationResult(index=idx, success=False, error_message=full_error)
-                else:
-                    error_msg = f"Task {idx + 1} 失败 ({attempt_desc}): {gen_result.content}"
-                    logger.warning(error_msg)
-                    if attempt < 1:
-                        continue
-                    return ImageGenerationResult(index=idx, success=False, error_message=error_msg)
+        generate_request: Dict[str, Any] = {
+            "prompt": task.prompt,
+            "size": size_value,
+            "image_id": image_id,
+            "mode": mode,
+            "start_time": _start_dt.isoformat(timespec="milliseconds"),
+            "end_time": _end_dt.isoformat(timespec="milliseconds"),
+            "duration_ms": _duration_ms,
+        }
+        if mode == "edit" and task.reference_images:
+            generate_request["reference_images"] = task.reference_images
 
-            except Exception as exc:
-                error_msg = f"Task {idx + 1} 异常 ({attempt_desc}): {exc!s}"
-                logger.error(error_msg, exc_info=True)
-                if attempt < 1:
-                    continue
-                return ImageGenerationResult(index=idx, success=False, error_message=error_msg)
-
-        return ImageGenerationResult(index=idx, success=False, error_message="未知错误")
-
-    async def _extract_generated_images(
-        self,
-        generation_result: ToolResult,
-        workspace_path: Path,
-        generate_params: GenerateImageParams,
-        project_path: Path,
-        duration_ms: Optional[int] = None,
-        start_time: Optional[str] = None,
-        end_time: Optional[str] = None,
-    ) -> ExtractedImagesResult:
-        """从 generate_image 结果中提取图片信息，校验文件完整性并组装元数据"""
-        images = []
-        errors = []
-
-        extra_info = generation_result.extra_info or {}
-        image_list = extra_info.get("saved_images", [])
-
-        for img_path in image_list:
-            is_valid, error_msg = await self._validate_image_file(img_path)
-            if not is_valid:
-                logger.warning(f"图片文件校验失败: {error_msg}")
-                errors.append(f"图片校验失败: {Path(img_path).name} - {error_msg}")
-                continue
-
-            relative_path = self._make_relative_to_project(img_path, project_path)
-            dimensions = self._read_image_dimensions(img_path)
-            image_id = Path(img_path).stem
-
-            size_value = dimensions.size_string if dimensions.is_valid else generate_params.size
-
-            generate_request: Dict[str, Any] = {
-                "model_id": generate_params.model,
-                "prompt": generate_params.prompt,
-                "size": size_value,
-                "image_id": image_id,
-                "mode": generate_params.mode,
-            }
-            if start_time is not None:
-                generate_request["start_time"] = start_time
-            if end_time is not None:
-                generate_request["end_time"] = end_time
-            if duration_ms is not None:
-                generate_request["duration_ms"] = duration_ms
-            if generate_params.mode == "edit" and generate_params.image_paths:
-                generate_request["reference_images"] = generate_params.image_paths
-
-            images.append(GeneratedImageInfo(
+        logger.info(f"Task {idx + 1} 生成成功: {saved_path}")
+        return ImageGenerationResult(
+            index=idx,
+            success=True,
+            image_info=GeneratedImageInfo(
                 relative_path=relative_path,
                 width=dimensions.width,
                 height=dimensions.height,
                 generate_request=generate_request,
-            ))
-
-        return ExtractedImagesResult(images=images, errors=errors)
-
-    def _pick_best_image(self, images: List[GeneratedImageInfo]) -> GeneratedImageInfo:
-        """从候选图列表中选出分辨率最高的图片。
-
-        当 API 返回多张图时（edit 模式偶发）以总像素数为指标取最大值，
-        无法读取尺寸时回退到第一张。
-        """
-        if len(images) == 1:
-            return images[0]
-
-        def _pixels(img: GeneratedImageInfo) -> float:
-            if img.width is not None and img.height is not None:
-                return img.width * img.height
-            return -1.0
-
-        best = max(images, key=_pixels)
-        if best is not images[0]:
-            logger.info(
-                f"多图候选：共 {len(images)} 张，选取分辨率最高的图片: {best.relative_path}"
-            )
-        return best
-
-    def _get_model_from_config(self, tool_context: Optional[ToolContext] = None) -> str:
-        """获取图片生成模型，优先从 agent context 读取，均未配置时使用默认模型"""
-        from app.core.context.agent_context import AgentContext
-        default_model = "doubao-seedream-4-0-250828"
-
-        try:
-            agent_context = (
-                tool_context.get_extension_typed("agent_context", AgentContext)
-                if tool_context else None
-            )
-            if agent_context:
-                resolved = agent_context.get_dynamic_image_model_id()
-                if resolved:
-                    logger.info(f"使用图片模型: {resolved}")
-                    return resolved
-            else:
-                config_data = dynamic_config.read_dynamic_config()
-                if config_data:
-                    image_model_config = config_data.get("image_model", {})
-                    if isinstance(image_model_config, dict):
-                        model_id = image_model_config.get("model_id")
-                        if model_id and isinstance(model_id, str) and model_id.strip():
-                            model = model_id.strip()
-                            logger.info(f"从 dynamic_config.yaml 读取图片模型: {model}")
-                            return model
-        except Exception as e:
-            logger.debug(f"获取图片模型失败，使用默认模型: {e}")
-
-        return default_model
+            ),
+        )
 
     # noinspection PyMethodMayBeStatic
     def _parse_size_to_dimensions(self, size: str) -> Tuple[int, int]:
@@ -778,6 +653,20 @@ Expand brief user descriptions into full prompts covering subject, style, compos
             succeeded_count=succeeded_count,
         )
 
+    async def get_before_tool_call_friendly_action_and_remark(
+        self,
+        tool_name: str,
+        tool_context: ToolContext,
+        arguments: Dict[str, Any] = None,
+    ) -> Dict:
+        action = i18n.translate("generate_canvas_images_ing", category="tool.actions")
+
+        tasks: List[dict] = (arguments or {}).get("tasks", [])
+        names = [t.get("name", "").strip() for t in tasks if t.get("name", "").strip()]
+        remark = ", ".join(names)
+
+        return {"action": action, "remark": remark}
+
     async def get_after_tool_call_friendly_action_and_remark(
         self,
         tool_name: str,
@@ -786,12 +675,7 @@ Expand brief user descriptions into full prompts covering subject, style, compos
         execution_time: float,
         arguments: Dict[str, Any] = None,
     ) -> Dict:
-        if not result.ok:
-            return self._handle_design_tool_error(
-                result,
-                default_action_code="generate_canvas_images",
-                default_success_message_code="generate_canvas_images.exception",
-            )
+        result.use_custom_remark = True
         return {
             "action": i18n.translate("generate_canvas_images", category="tool.actions"),
             "remark": self._get_remark_content(result, arguments),
