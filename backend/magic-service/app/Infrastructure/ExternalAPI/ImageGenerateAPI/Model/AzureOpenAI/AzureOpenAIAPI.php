@@ -30,6 +30,8 @@ class AzureOpenAIAPI
 
     private ?string $proxyUrl;
 
+    private AzureAuthType $authType;
+
     public function __construct(
         AzureOpenAIClientConfig $azureOpenAIClientConfig
     ) {
@@ -37,6 +39,7 @@ class AzureOpenAIAPI
         $this->baseUrl = rtrim($azureOpenAIClientConfig->getBaseUrl(), '/');
         $this->proxyUrl = $azureOpenAIClientConfig->getProxyUrl();
         $this->apiVersion = $azureOpenAIClientConfig->getApiVersion();
+        $this->authType = $azureOpenAIClientConfig->getAuthType();
         $this->logger = di(LoggerFactory::class)->get(static::class);
     }
 
@@ -49,6 +52,7 @@ class AzureOpenAIAPI
 
         $this->logger->info('Azure OpenAI API 请求', [
             'url' => $url,
+            'auth_type' => $this->authType->value,
             'payload' => $data,
         ]);
 
@@ -59,10 +63,10 @@ class AzureOpenAIAPI
             );
 
             $response = $client->post($url, [
-                'headers' => [
-                    'Content-Type' => 'application/json',
-                    'Authorization' => 'Bearer ' . $this->apiKey,
-                ],
+                'headers' => array_merge(
+                    ['Content-Type' => 'application/json'],
+                    $this->buildAuthHeaders()
+                ),
                 'json' => $data,
             ]);
 
@@ -117,6 +121,7 @@ class AzureOpenAIAPI
 
             $this->logger->info('Azure OpenAI API 请求', [
                 'url' => $url,
+                'auth_type' => $this->authType->value,
                 'payload' => [
                     'imageUrls' => $imageUrls,
                     'maskUrl' => $maskUrl,
@@ -128,9 +133,7 @@ class AzureOpenAIAPI
             ]);
 
             $response = $client->post($url, [
-                'headers' => [
-                    'Authorization' => 'Bearer ' . $this->apiKey,
-                ],
+                'headers' => $this->buildAuthHeaders(),
                 'multipart' => $multipartData,
             ]);
 
@@ -139,6 +142,17 @@ class AzureOpenAIAPI
             $this->handleException($e);
             throw $e;
         }
+    }
+
+    /**
+     * 根据鉴权模式构建请求头.
+     */
+    private function buildAuthHeaders(): array
+    {
+        return match ($this->authType) {
+            AzureAuthType::ApiKey => ['api-key' => $this->apiKey],
+            AzureAuthType::Token => ['Authorization' => 'Bearer ' . $this->apiKey],
+        };
     }
 
     /**

@@ -10,6 +10,7 @@ namespace App\Infrastructure\ExternalAPI\ImageGenerateAPI;
 use App\ErrorCode\ImageGenerateErrorCode;
 use App\ErrorCode\ServiceProviderErrorCode;
 use App\Infrastructure\Core\Exception\ExceptionBuilder;
+use App\Infrastructure\ExternalAPI\ImageGenerateAPI\Model\AzureOpenAI\AzureAuthType;
 use App\Infrastructure\ExternalAPI\ImageGenerateAPI\Model\AzureOpenAI\AzureOpenAIImageGenerateModel;
 use App\Infrastructure\ExternalAPI\ImageGenerateAPI\Model\Flux\FluxModel;
 use App\Infrastructure\ExternalAPI\ImageGenerateAPI\Model\Google\GoogleGeminiModel;
@@ -49,11 +50,16 @@ class ImageGenerateFactory
             ImageGenerateModelType::Flux => new FluxModel($serviceProviderConfig),
             ImageGenerateModelType::MiracleVision => new MiracleVisionModel($serviceProviderConfig),
             ImageGenerateModelType::TTAPIGPT4o => new GPT4oModel($serviceProviderConfig),
-            ImageGenerateModelType::AzureOpenAIImageGenerate => new AzureOpenAIImageGenerateModel($serviceProviderConfig),
             ImageGenerateModelType::QwenImage => new QwenImageModel($serviceProviderConfig),
             ImageGenerateModelType::GoogleGemini => new GoogleGeminiModel($serviceProviderConfig),
             ImageGenerateModelType::VolcengineArk => new VolcengineArkModel($serviceProviderConfig),
             ImageGenerateModelType::OpenRouter => new OpenRouterModel($serviceProviderConfig),
+            ImageGenerateModelType::OpenAI => new AzureOpenAIImageGenerateModel(
+                self::withDefaultAuthType($serviceProviderConfig, AzureAuthType::Token)
+            ),
+            ImageGenerateModelType::AzureOpenAIImageGenerate => new AzureOpenAIImageGenerateModel(
+                self::withDefaultAuthType($serviceProviderConfig, AzureAuthType::ApiKey)
+            ),
             default => throw new InvalidArgumentException('not support ' . $imageGenerateType->value),
         };
     }
@@ -67,13 +73,25 @@ class ImageGenerateFactory
             ImageGenerateModelType::Midjourney => self::createMidjourneyRequest($modelVersion, $modelId, $data),
             ImageGenerateModelType::Flux => self::createFluxRequest($modelVersion, $modelId, $data),
             ImageGenerateModelType::TTAPIGPT4o => self::createGPT4oRequest($modelVersion, $modelId, $data),
-            ImageGenerateModelType::AzureOpenAIImageGenerate => self::createAzureOpenAIImageRequest($modelVersion, $modelId, $data),
             ImageGenerateModelType::QwenImage => self::createQwenImageRequest($modelVersion, $modelId, $data),
             ImageGenerateModelType::GoogleGemini => self::createGoogleGeminiRequest($modelVersion, $modelId, $data),
             ImageGenerateModelType::VolcengineArk => self::createVolcengineArkRequest($modelVersion, $modelId, $data),
             ImageGenerateModelType::OpenRouter => self::createOpenRouterRequest($modelVersion, $modelId, $data),
+            ImageGenerateModelType::OpenAI => self::createAzureOpenAIImageRequest($modelVersion, $modelId, $data),
+            ImageGenerateModelType::AzureOpenAIImageGenerate => self::createAzureOpenAIImageRequest($modelVersion, $modelId, $data),
             default => throw new InvalidArgumentException('not support ' . $imageGenerateType->value),
         };
+    }
+
+    /**
+     * 当配置中未显式指定 auth_type 时，注入默认鉴权类型.
+     */
+    private static function withDefaultAuthType(array $serviceProviderConfig, AzureAuthType $default): array
+    {
+        if (! isset($serviceProviderConfig['auth_type']) || $serviceProviderConfig['auth_type'] === '') {
+            $serviceProviderConfig['auth_type'] = $default->value;
+        }
+        return $serviceProviderConfig;
     }
 
     private static function createOfficialProxyRequest(string $modelVersion, ?string $modelId, array $data): OfficialProxyRequest

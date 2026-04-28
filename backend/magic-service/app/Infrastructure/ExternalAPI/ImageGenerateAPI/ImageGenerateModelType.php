@@ -23,12 +23,9 @@ enum ImageGenerateModelType: string
     case GoogleGemini = 'GoogleGemini';
     case VolcengineArk = 'VolcengineArk';
     case OpenRouter = 'OpenRouter';
-
-    // 目前美图ai超清的model_id
     case MiracleVisionHightModelId = 'miracleVision_mtlab';
-
-    // 官方服务商
     case Official = 'Official';
+    case OpenAI = 'OpenAI';
 
     /**
      * 从模型名称获取对应的类型.
@@ -135,7 +132,7 @@ enum ImageGenerateModelType: string
         return match ($providerCode) {
             ProviderCode::Official => self::Official,
             ProviderCode::Volcengine => self::Volcengine,
-            ProviderCode::OpenAI => self::AzureOpenAIImageGenerate,
+            ProviderCode::OpenAI => self::OpenAI,
             ProviderCode::MicrosoftAzure => self::AzureOpenAIImageGenerate,
             ProviderCode::Qwen => self::QwenImage,
             ProviderCode::TTAPI => self::TTAPIGPT4o,
