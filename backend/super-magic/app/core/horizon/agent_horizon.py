@@ -7,6 +7,8 @@ from __future__ import annotations
 
 import asyncio
 import difflib
+import hashlib
+import re
 import time
 from datetime import datetime, timezone
 from pathlib import Path
@@ -30,6 +32,7 @@ NETWORK_FS_MTIME_BUFFER = 1.0                  # seconds
 VALIDATION_ERROR_NOT_READ = "File must be read before editing. Please read the file first."
 VALIDATION_ERROR_CHANGED = "File changed since last read. Please read the file again."
 FILE_CONTENT_SNAPSHOT_MAX_BYTES = 64 * 1024   # 64 KB — 整文件快照上限
+HORIZON_CONTEXT_MAX_CHARS = 32 * 1024          # 32 KB — 单条 horizon 注入上限
 
 # context usage 注入灵敏度规则：
 # - 当前占用 < 70%：变化不到 5 个百分点时，不再重复注入
@@ -42,6 +45,20 @@ CONTEXT_USAGE_HIGH_USAGE_START_PCT = 80
 CONTEXT_USAGE_LOW_USAGE_DIFF_THRESHOLD_PCT = 5
 CONTEXT_USAGE_MEDIUM_USAGE_DIFF_THRESHOLD_PCT = 3
 CONTEXT_USAGE_HIGH_USAGE_DIFF_THRESHOLD_PCT = 1
+
+_DIAGNOSTIC_BLOCK_TAGS = (
+    "current_time",
+    "initial_context",
+    "workspace_files",
+    "context_usage",
+    "model_info",
+    "workspace_files_changed",
+    "long_term_memory_changed",
+    "user_preferred_language_changed",
+    "file_changes",
+    "notifications",
+    "magiclaw_startup",
+)
 
 def _iso_now() -> str:
     return datetime.now(timezone.utc).isoformat()
@@ -127,6 +144,40 @@ def _string_diff(old: str, new: str) -> str:
     added = sum(1 for l in diff_lines if l.startswith("+") and not l.startswith("+++"))
     removed = sum(1 for l in diff_lines if l.startswith("-") and not l.startswith("---"))
     return f"[summary: +{added} lines / -{removed} lines]"
+
+
+def _sha256_short(content: str) -> str:
+    return hashlib.sha256(content.encode("utf-8")).hexdigest()[:12]
+
+
+def _tag_total_len(content: str, tag: str) -> int:
+    normal_pattern = rf"<{tag}(?:\s[^>]*)?>.*?</{tag}>"
+    self_closing_pattern = rf"<{tag}(?:\s[^>]*)?/>"
+    normal_total = sum(len(match.group(0)) for match in re.finditer(normal_pattern, content, re.DOTALL))
+    self_closing_total = sum(len(match.group(0)) for match in re.finditer(self_closing_pattern, content))
+    return normal_total + self_closing_total
+
+
+def _format_context_block_lengths(content: str) -> str:
+    parts = [f"{tag}:{_tag_total_len(content, tag):,}" for tag in _DIAGNOSTIC_BLOCK_TAGS]
+    return "{" + ", ".join(parts) + "}"
+
+
+def _largest_xml_block(content: str, tag: str, path_attr: str) -> tuple[int, str, int]:
+    count = 0
+    largest_value = "none"
+    largest_len = 0
+    pattern = rf"<{tag}\b([^>]*)>.*?</{tag}>"
+    attr_pattern = rf'{path_attr}="([^"]+)"'
+    for match in re.finditer(pattern, content, re.DOTALL):
+        count += 1
+        block_len = len(match.group(0))
+        if block_len <= largest_len:
+            continue
+        largest_len = block_len
+        attr_match = re.search(attr_pattern, match.group(1))
+        largest_value = attr_match.group(1) if attr_match else "unknown"
+    return count, largest_value, largest_len
 
 
 class AgentHorizon:
@@ -771,7 +822,34 @@ class AgentHorizon:
     # 核心：构建注入给 LLM 的动态上下文
     # ─────────────────────────────────────────────────────────────────────────
 
-    async def build_context_update(self) -> str:
+    def _log_oversized_context_update(self, content: str, injection_point: str) -> None:
+        file_count, largest_file_path, largest_file_len = _largest_xml_block(content, "file", "path")
+        notification_count, largest_notification_source, largest_notification_len = _largest_xml_block(
+            content, "notification", "source"
+        )
+        logger.warning(
+            "[AgentHorizon] oversized context update dropped: "
+            f"agent_name={getattr(self._store, 'agent_name', 'unknown')} "
+            f"agent_id={self._state.agent_id} "
+            f"injection_point={injection_point} "
+            f"horizon_file={getattr(self._store, 'path', 'unknown')} "
+            f"content_len={len(content):,} "
+            f"limit={HORIZON_CONTEXT_MAX_CHARS:,} "
+            f"sha256={_sha256_short(content)} "
+            f"blocks={_format_context_block_lengths(content)} "
+            f"workspace_entries={len(self._get_workspace_entries_current())} "
+            f"workspace_files_len={len(self._get_workspace_files_current()):,} "
+            f"file_records={len(self._state.file_records)} "
+            f"pending_notifications={len(self._state.pending_notifications)} "
+            f"file_changes_count={file_count} "
+            f"largest_file_path={largest_file_path} "
+            f"largest_file_block_len={largest_file_len:,} "
+            f"notification_count={notification_count} "
+            f"largest_notification_source={largest_notification_source} "
+            f"largest_notification_len={largest_notification_len:,}"
+        )
+
+    async def build_context_update(self, injection_point: str = "unknown") -> Optional[str]:
         """
         编排所有动态上下文，返回完整的 <system_injected_context> XML 文本，每次调用均输出。
 
@@ -787,6 +865,8 @@ class AgentHorizon:
           <language_changed> — user_preferred_language 变化时
           <file_changes>     — 文件有变化时
           <notifications>    — 有待注入通知时
+
+        超过安全上限时返回 None，并保留当前 baseline，避免模型没看到内容却推进状态。
         """
         await self._ensure_loaded()
 
@@ -842,8 +922,11 @@ class AgentHorizon:
         injected_context_usage_used_pct = 0
 
         parts = ["<system_injected_context>"]
+        was_first_injection = self._is_first_injection
+        llm_model_change_injected = False
+        media_model_change_injected = False
 
-        if self._is_first_injection:
+        if was_first_injection:
             # 当前上下文窗口的首包注入：只应发生在真正的新窗口里，而不是容器重启恢复后
             init_parts = [
                 f"<current_time>{now_str}</current_time>"
@@ -895,12 +978,6 @@ class AgentHorizon:
             parts.extend(init_parts)
             parts.append("</initial_context>")
 
-            # 首包注入完成后立刻切到增量模式；该状态会在本轮结束时写回 .horizon.json
-            self._is_first_injection = False
-            self._llm_model_changed = False
-            self._image_model_changed = False
-            self._video_model_changed = False
-
         else:
             # 常规增量注入：同一天只输出时间，跨天输出完整日期时间
             parts.append(f"<current_time>{time_display}</current_time>")
@@ -926,7 +1003,7 @@ class AgentHorizon:
                 model_info_parts.append(
                     f'<llm id="{self._last_llm_model_id}" name="{self._last_llm_model_name}"{desc_attr}/>'
                 )
-                self._llm_model_changed = False
+                llm_model_change_injected = True
 
             if self._image_model_changed or self._video_model_changed:
                 model_info_parts.extend(
@@ -937,8 +1014,7 @@ class AgentHorizon:
                         video_changed=self._video_model_changed,
                     )
                 )
-                self._image_model_changed = False
-                self._video_model_changed = False
+                media_model_change_injected = True
 
             if model_info_parts:
                 parts.append("<model_info>")
@@ -962,6 +1038,41 @@ class AgentHorizon:
                 parts.append(
                     f'<user_preferred_language_changed>{current_language}</user_preferred_language_changed>'
                 )
+
+        if file_blocks:
+            parts.append("<file_changes>")
+            parts.extend(file_blocks)
+            parts.append("</file_changes>")
+
+        if notif_blocks:
+            parts.append("<notifications>")
+            parts.extend(notif_blocks)
+            parts.append("</notifications>")
+
+        # magiclaw 启动提醒：每轮都注入，直到所有必读文件完成
+        magiclaw_ctx = self._build_magiclaw_startup_context()
+        if magiclaw_ctx:
+            parts.append(magiclaw_ctx)
+
+        parts.append("</system_injected_context>")
+        context_update = "\n".join(parts)
+
+        if len(context_update) > HORIZON_CONTEXT_MAX_CHARS:
+            self._log_oversized_context_update(context_update, injection_point)
+            return None
+
+        # 只有确认本轮上下文会进入 ChatHistory，才推进运行时标志和持久化 baseline。
+        if was_first_injection:
+            self._is_first_injection = False
+            self._llm_model_changed = False
+            self._image_model_changed = False
+            self._video_model_changed = False
+        else:
+            if llm_model_change_injected:
+                self._llm_model_changed = False
+            if media_model_change_injected:
+                self._image_model_changed = False
+                self._video_model_changed = False
 
         # 注入完成后，把 current staging 提交成新的持久化 baseline。
         persistence_changed = False
@@ -997,23 +1108,6 @@ class AgentHorizon:
                 or persistence_changed
             )
 
-        if file_blocks:
-            parts.append("<file_changes>")
-            parts.extend(file_blocks)
-            parts.append("</file_changes>")
-
-        if notif_blocks:
-            parts.append("<notifications>")
-            parts.extend(notif_blocks)
-            parts.append("</notifications>")
-
-        # magiclaw 启动提醒：每轮都注入，直到所有必读文件完成
-        magiclaw_ctx = self._build_magiclaw_startup_context()
-        if magiclaw_ctx:
-            parts.append(magiclaw_ctx)
-
-        parts.append("</system_injected_context>")
-
         state_changed = bool(file_blocks) or bool(self._state.pending_notifications) or persistence_changed
         for abs_path, (cur_hash, cur_size) in current_hashes.items():
             rec = self._state.file_records.get(abs_path)
@@ -1027,4 +1121,4 @@ class AgentHorizon:
         if state_changed:
             await self._save()
 
-        return "\n".join(parts)
+        return context_update

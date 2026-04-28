@@ -832,9 +832,12 @@ class Agent(BaseAgent):
         try:
             if self.chat_history._is_tool_call_sequence_complete():
                 self._sync_horizon_llm_model_info()
-                ctx_update = await self.agent_context.horizon.build_context_update()
-                await self.chat_history.append_user_message(ctx_update, show_in_ui=False, source="horizon")
-                logger.debug("[AgentHorizon] 已注入 user query 后 system_injected_context")
+                ctx_update = await self.agent_context.horizon.build_context_update(
+                    injection_point="before_first_llm"
+                )
+                if ctx_update:
+                    await self.chat_history.append_user_message(ctx_update, show_in_ui=False, source="horizon")
+                    logger.debug("[AgentHorizon] 已注入 user query 后 system_injected_context")
             else:
                 logger.warning("[AgentHorizon] 注入点1 跳过：历史末尾存在未完成的 tool call 序列，避免消息序列错误")
         except Exception as _horizon_err:
@@ -1156,9 +1159,12 @@ class Agent(BaseAgent):
                 try:
                     if tool_result.inject_horizon_after_tools:
                         self._sync_horizon_llm_model_info()
-                        ctx_update = await self.agent_context.horizon.build_context_update()
-                        await self.chat_history.append_user_message(ctx_update, show_in_ui=False, source="horizon")
-                        logger.debug("[AgentHorizon] 已注入 tool result 后 system_injected_context")
+                        ctx_update = await self.agent_context.horizon.build_context_update(
+                            injection_point="after_tool_result"
+                        )
+                        if ctx_update:
+                            await self.chat_history.append_user_message(ctx_update, show_in_ui=False, source="horizon")
+                            logger.debug("[AgentHorizon] 已注入 tool result 后 system_injected_context")
                 except Exception as _horizon_err:
                     logger.warning(f"[AgentHorizon] tool result 后注入失败: {_horizon_err}")
 

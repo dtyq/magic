@@ -174,8 +174,11 @@ class UserToolCallService:
         logger.info(f"Appended user_tool_call cancelled ToolResult: tool_call_id={pending.tool_call_id}")
 
         try:
-            ctx_update = await pending.agent_context.horizon.build_context_update()
-            await chat_history.append_user_message(ctx_update, show_in_ui=False, source="horizon")
+            ctx_update = await pending.agent_context.horizon.build_context_update(
+                injection_point="after_user_tool_call_cancel"
+            )
+            if ctx_update:
+                await chat_history.append_user_message(ctx_update, show_in_ui=False, source="horizon")
         except Exception as e:
             logger.warning(f"[AgentHorizon] horizon injection after user_tool_call cancel failed: {e}")
 
@@ -236,8 +239,11 @@ class UserToolCallService:
             return
 
         try:
-            ctx_update = await pending.agent_context.horizon.build_context_update()
-            await chat_history.append_user_message(ctx_update, show_in_ui=False, source="horizon")
+            ctx_update = await pending.agent_context.horizon.build_context_update(
+                injection_point="after_user_tool_call_resume"
+            )
+            if ctx_update:
+                await chat_history.append_user_message(ctx_update, show_in_ui=False, source="horizon")
         except Exception as e:
             logger.warning(f"[AgentHorizon] horizon injection after user_tool_call resume failed: {e}")
 
