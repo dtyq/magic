@@ -1,29 +1,39 @@
 /* 全局样式 */
 :root {
-    --wechat-green: #07C160;
+    --wechat-green: #007aff;
     /* 微信特有的绿色 */
-    --wechat-light-green: #95ec9c;
+    --wechat-light-green: #e8f2ff;
     /* 微信浅绿色 */
-    --wechat-background: #f5f5f5;
+    --wechat-background: #f5f5f7;
     /* 微信背景色 */
-    --wechat-panel-bg: #ffffff;
+    --wechat-panel-bg: rgba(255, 255, 255, 0.78);
     /* 微信面板背景 */
-    --wechat-text-dark: #333333;
+    --wechat-text-dark: #1d1d1f;
     /* 微信主要文字颜色 */
-    --wechat-text-gray: #999999;
+    --wechat-text-gray: #86868b;
     /* 微信次要文字颜色 */
-    --wechat-border: #e6e6e6;
+    --wechat-border: rgba(60, 60, 67, 0.14);
     /* 微信边框颜色 */
-    --wechat-highlight: #07C160;
+    --wechat-highlight: #007aff;
     /* 微信高亮色 */
-    --wechat-danger: #fa5151;
+    --wechat-danger: #ff3b30;
     /* 微信危险色 */
-    --wechat-warning: #fa9d3b;
+    --wechat-warning: #ff9f0a;
     /* 微信警告色 */
-    --chat-blue: #4c8bf5;
+    --chat-blue: #007aff;
     /* 聊天模式蓝色 */
-    --plan-green: #34a853;
+    --plan-green: #34c759;
     /* 计划模式绿色 */
+    --apple-surface: rgba(255, 255, 255, 0.72);
+    --apple-surface-strong: rgba(255, 255, 255, 0.9);
+    --apple-surface-soft: rgba(248, 248, 250, 0.82);
+    --apple-shadow: 0 18px 50px rgba(0, 0, 0, 0.06);
+    --apple-shadow-soft: 0 6px 24px rgba(0, 0, 0, 0.045);
+    --apple-focus-ring: rgba(0, 122, 255, 0.16);
+    --radius-panel: 12px;
+    --radius-card: 10px;
+    --radius-control: 8px;
+    --radius-small: 6px;
 }
 
 * {
@@ -36,7 +46,9 @@ body {
     font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', sans-serif;
     line-height: 1.6;
     color: var(--wechat-text-dark);
-    background-color: var(--wechat-background);
+    background:
+        radial-gradient(circle at 12% 8%, rgba(255, 255, 255, 0.94) 0, rgba(255, 255, 255, 0) 30%),
+        linear-gradient(135deg, #f8f8fa 0%, #f1f2f5 100%);
     padding: 0;
     margin: 0;
     height: 100vh;
@@ -47,7 +59,7 @@ body {
     display: flex;
     width: 100vw;
     height: 100vh;
-    background-color: var(--wechat-panel-bg);
+    background-color: transparent;
 }
 
 .sidebar {
@@ -55,12 +67,14 @@ body {
     min-width: 200px;
     max-width: 600px;
     flex-shrink: 0;
-    background-color: #f7f7f7;
+    background: rgba(246, 246, 248, 0.82);
     border-right: 1px solid var(--wechat-border);
-    padding: 20px 15px;
+    padding: 22px 16px;
     display: flex;
     flex-direction: column;
     overflow-y: auto;
+    backdrop-filter: blur(22px);
+    -webkit-backdrop-filter: blur(22px);
 }
 
 /* 侧边栏拖拽条 */
@@ -73,7 +87,7 @@ body {
 }
 
 .resizer:hover, .resizer.resizing {
-    background-color: var(--wechat-green);
+    background-color: rgba(0, 122, 255, 0.34);
 }
 
 /* 输入框拖拽条 */
@@ -87,7 +101,7 @@ body {
 }
 
 .resizer-horizontal:hover, .resizer-horizontal.resizing {
-    background-color: var(--wechat-green);
+    background-color: rgba(0, 122, 255, 0.34);
 }
 
 .main-content {
@@ -95,29 +109,33 @@ body {
     display: flex;
     flex-direction: column;
     overflow: hidden;
-    background-color: var(--wechat-background);
+    background:
+        linear-gradient(180deg, rgba(251, 251, 253, 0.92), rgba(245, 245, 247, 0.98));
 }
 
 
 h1 {
     text-align: center;
-    margin-bottom: 20px;
+    margin-bottom: 22px;
     color: var(--wechat-text-dark);
-    font-size: 18px;
-    font-weight: 500;
+    font-size: 19px;
+    font-weight: 650;
+    letter-spacing: -0.02em;
 }
 
 /* 连接配置面板 */
 .connection-panel {
-    background-color: var(--wechat-panel-bg);
-    padding: 15px;
-    border-radius: 6px;
-    margin-bottom: 20px;
+    background: var(--apple-surface);
+    padding: 14px;
+    border-radius: 14px;
+    margin-bottom: 16px;
     display: flex;
     flex-direction: column;
     gap: 12px;
     border: 1px solid var(--wechat-border);
-    box-shadow: 0 1px 3px rgba(0,0,0,0.02);
+    box-shadow: var(--apple-shadow-soft);
+    backdrop-filter: blur(18px);
+    -webkit-backdrop-filter: blur(18px);
 }
 
 .form-group {
@@ -131,41 +149,47 @@ h1 {
 label {
     margin-right: 0;
     margin-bottom: 0;
-    font-weight: 500;
-    font-size: 13px;
+    font-weight: 560;
+    font-size: 12px;
     color: var(--wechat-text-dark);
     white-space: nowrap;
+    letter-spacing: -0.01em;
 }
 
 input[type="text"] {
     width: 100%;
-    padding: 8px 10px;
+    padding: 9px 11px;
     border: 1px solid var(--wechat-border);
-    border-radius: 4px;
-    font-size: 14px;
-    transition: border-color 0.2s;
+    border-radius: 10px;
+    background: rgba(255, 255, 255, 0.72);
+    color: var(--wechat-text-dark);
+    font-size: 13px;
+    transition: border-color 0.18s ease, box-shadow 0.18s ease, background-color 0.18s ease;
 }
 
 input[type="text"]:focus {
     border-color: var(--wechat-green);
+    box-shadow: 0 0 0 4px var(--apple-focus-ring);
+    background: rgba(255, 255, 255, 0.96);
     outline: none;
 }
 
 /* Agent模式选择器样式 */
 .agent-mode-select {
     flex: 1;
-    padding: 8px 10px;
+    padding: 9px 11px;
     border: 1px solid var(--wechat-border);
-    border-radius: 4px;
-    font-size: 14px;
-    background-color: white;
+    border-radius: 10px;
+    font-size: 13px;
+    background-color: rgba(255, 255, 255, 0.72);
     color: var(--wechat-text-dark);
     cursor: pointer;
-    transition: border-color 0.2s;
+    transition: border-color 0.18s ease, box-shadow 0.18s ease, background-color 0.18s ease;
 }
 
 .agent-mode-select:focus {
     border-color: var(--wechat-green);
+    box-shadow: 0 0 0 4px var(--apple-focus-ring);
     outline: none;
 }
 
@@ -211,18 +235,18 @@ input[type="text"]:focus {
 .custom-select-trigger {
     width: 100%;
     min-height: 36px;
-    padding: 7px 10px;
+    padding: 8px 11px;
     border: 1px solid var(--wechat-border);
-    border-radius: 6px;
-    background: #fff;
+    border-radius: 10px;
+    background: rgba(255, 255, 255, 0.72);
     color: var(--wechat-text-dark);
     cursor: pointer;
     display: flex;
     align-items: center;
     justify-content: space-between;
     gap: 8px;
-    font-size: 14px;
-    transition: border-color 0.2s, box-shadow 0.2s;
+    font-size: 13px;
+    transition: border-color 0.18s ease, box-shadow 0.18s ease, background-color 0.18s ease;
 }
 
 .custom-select-trigger:hover,
@@ -231,13 +255,14 @@ input[type="text"]:focus {
 }
 
 .custom-select.open .custom-select-trigger {
-    box-shadow: 0 0 0 2px rgba(7, 193, 96, 0.1);
+    background: rgba(255, 255, 255, 0.96);
+    box-shadow: 0 0 0 4px var(--apple-focus-ring);
 }
 
 .custom-select.disabled .custom-select-trigger {
     cursor: not-allowed;
     color: var(--wechat-text-gray);
-    background: #f7f7f7;
+    background: rgba(242, 242, 247, 0.72);
 }
 
 .custom-select-value {
@@ -263,11 +288,13 @@ input[type="text"]:focus {
     display: none;
     position: fixed;
     z-index: 1000;
-    background: #fff;
+    background: rgba(255, 255, 255, 0.92);
     border: 1px solid var(--wechat-border);
-    border-radius: 10px;
-    box-shadow: 0 10px 32px rgba(0, 0, 0, 0.16);
+    border-radius: 14px;
+    box-shadow: 0 18px 48px rgba(0, 0, 0, 0.13);
     overflow: hidden;
+    backdrop-filter: blur(22px);
+    -webkit-backdrop-filter: blur(22px);
 }
 
 .custom-select-panel.open {
@@ -280,14 +307,15 @@ input[type="text"]:focus {
     margin: 8px;
     padding: 8px 10px;
     border: 1px solid var(--wechat-border);
-    border-radius: 6px;
+    border-radius: 10px;
+    background: rgba(242, 242, 247, 0.76);
     font-size: 13px;
     outline: none;
 }
 
 .custom-select-search:focus {
     border-color: var(--wechat-green);
-    box-shadow: 0 0 0 2px rgba(7, 193, 96, 0.08);
+    box-shadow: 0 0 0 4px var(--apple-focus-ring);
 }
 
 .custom-select-list {
@@ -300,7 +328,7 @@ input[type="text"]:focus {
 .custom-select-option {
     width: 100%;
     border: none;
-    border-radius: 7px;
+    border-radius: 10px;
     background: transparent;
     cursor: pointer;
     padding: 8px 10px;
@@ -313,11 +341,11 @@ input[type="text"]:focus {
 
 .custom-select-option:hover,
 .custom-select-option.selected {
-    background: rgba(7, 193, 96, 0.08);
+    background: rgba(0, 122, 255, 0.08);
 }
 
 .custom-select-option.selected {
-    color: #058a45;
+    color: #0066cc;
 }
 
 .custom-select-option-title,
@@ -346,83 +374,87 @@ input[type="text"]:focus {
 }
 
 .btn {
-    padding: 8px 15px;
-    border: none;
-    border-radius: 3px;
+    padding: 8px 14px;
+    border: 1px solid transparent;
+    border-radius: 10px;
     cursor: pointer;
-    font-weight: normal;
-    font-size: 14px;
-    transition: background-color 0.2s;
+    font-weight: 560;
+    font-size: 13px;
+    transition: background-color 0.18s ease, border-color 0.18s ease, color 0.18s ease, box-shadow 0.18s ease;
 }
 
 .primary {
-    background-color: var(--wechat-green);
+    background-color: #007aff;
     color: white;
+    box-shadow: 0 6px 16px rgba(0, 122, 255, 0.16);
 }
 
 .secondary {
-    background-color: #f2f2f2;
+    background-color: rgba(118, 118, 128, 0.08);
+    border-color: rgba(60, 60, 67, 0.08);
     color: var(--wechat-text-dark);
 }
 
 .danger {
-    background-color: var(--wechat-danger);
-    color: white;
+    background-color: rgba(255, 59, 48, 0.1);
+    border-color: rgba(255, 59, 48, 0.12);
+    color: #d70015;
 }
 
 .warning {
-    background-color: var(--wechat-warning);
-    color: white;
+    background-color: rgba(255, 149, 0, 0.12);
+    border-color: rgba(255, 149, 0, 0.14);
+    color: #b25b00;
 }
 
 .primary:hover {
-    background-color: #06ae56;
+    background-color: #006fe6;
 }
 
 .secondary:hover {
-    background-color: #e6e6e6;
+    background-color: rgba(118, 118, 128, 0.13);
 }
 
 .danger:hover {
-    background-color: #e64848;
+    background-color: rgba(255, 59, 48, 0.15);
 }
 
 .warning:hover {
-    background-color: #e8932f;
+    background-color: rgba(255, 149, 0, 0.18);
 }
 
 .warning.active {
-    background-color: #e8932f;
-    box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.2);
+    background-color: rgba(255, 149, 0, 0.2);
+    box-shadow: inset 0 0 0 1px rgba(255, 149, 0, 0.12);
 }
 
 .status {
     padding: 4px 8px;
-    border-radius: 3px;
+    border-radius: 999px;
     font-size: 12px;
-    font-weight: normal;
-    background-color: #f2f2f2;
+    font-weight: 560;
+    background-color: rgba(118, 118, 128, 0.1);
     color: var(--wechat-text-gray);
 }
 
 .status.connected {
-    background-color: var(--wechat-green);
-    color: white;
+    background-color: rgba(52, 199, 89, 0.12);
+    color: #248a3d;
 }
 
 .status.connecting {
-    background-color: var(--wechat-warning);
-    color: white;
+    background-color: rgba(255, 149, 0, 0.14);
+    color: #b25b00;
 }
 
 .status.error {
-    background-color: var(--wechat-danger);
-    color: white;
+    background-color: rgba(255, 59, 48, 0.12);
+    color: #d70015;
 }
 
 .status.ready {
-    background-color: var(--wechat-highlight);
-    color: white;
+    background-color: rgba(0, 122, 255, 0.12);
+    color: #0066cc;
 }
 
 /* 连接面板样式 */
@@ -440,15 +472,17 @@ input[type="text"]:focus {
 
 /* 配置内容面板 */
 .config-panel {
-    background-color: var(--wechat-panel-bg);
-    padding: 15px;
-    border-radius: 6px;
-    margin-bottom: 20px;
+    background: var(--apple-surface);
+    padding: 14px;
+    border-radius: 14px;
+    margin-bottom: 16px;
     border: 1px solid var(--wechat-border);
-    box-shadow: 0 1px 3px rgba(0,0,0,0.02);
+    box-shadow: var(--apple-shadow-soft);
     display: flex;
     flex-direction: column;
     flex: 1;
+    backdrop-filter: blur(18px);
+    -webkit-backdrop-filter: blur(18px);
 }
 
 .tabs {
@@ -471,7 +505,7 @@ input[type="text"]:focus {
 
 .tab-btn.active {
     border-bottom: 2px solid var(--wechat-green);
-    color: var(--wechat-green);
+    color: #0066cc;
 }
 
 .tab-content {
@@ -497,7 +531,8 @@ input[type="text"]:focus {
     min-height: 180px;
     padding: 10px;
     border: 1px solid var(--wechat-border);
-    border-radius: 4px;
+    border-radius: 10px;
+    background: rgba(255, 255, 255, 0.72);
     resize: vertical;
     font-family: monospace;
     font-size: 13px;
@@ -506,6 +541,7 @@ input[type="text"]:focus {
 
 .config-textarea:focus {
     border-color: var(--wechat-green);
+    box-shadow: 0 0 0 4px var(--apple-focus-ring);
     outline: none;
 }
 
@@ -534,14 +570,16 @@ input[type="checkbox"] {
     flex: 1;
     overflow-y: auto;
     position: relative;
-    padding: 12px 15px;
-    background-color: var(--wechat-background);
+    padding: 18px 20px;
+    background:
+        radial-gradient(circle at 78% 0%, rgba(255, 255, 255, 0.88), rgba(255, 255, 255, 0) 34%),
+        linear-gradient(180deg, rgba(251, 251, 253, 0.96), rgba(245, 245, 247, 0.98));
 }
 
 .message-list {
     display: flex;
     flex-direction: column;
-    gap: 4px;
+    gap: 7px;
 }
 
 .message {
@@ -556,21 +594,23 @@ input[type="checkbox"] {
     align-self: flex-end;
     position: relative;
     max-width: min(78%, 820px);
-    padding: 11px 14px 12px;
-    background: linear-gradient(180deg, rgba(255, 255, 255, 0.96), rgba(249, 251, 250, 0.94));
-    color: #202a25;
-    border: 1px solid rgba(30, 49, 39, 0.07);
-    border-radius: 9px;
-    box-shadow: 0 2px 8px rgba(23, 40, 31, 0.04);
+    padding: 12px 15px 13px;
+    background: linear-gradient(180deg, rgba(255, 255, 255, 0.96), rgba(248, 249, 251, 0.94));
+    color: var(--wechat-text-dark);
+    border: 1px solid rgba(60, 60, 67, 0.1);
+    border-radius: 14px;
+    box-shadow: var(--apple-shadow-soft);
+    backdrop-filter: blur(18px);
+    -webkit-backdrop-filter: blur(18px);
 }
 
 .message.client .message-header,
 .message.ai .message-header {
-    color: #81908a;
+    color: var(--wechat-text-gray);
     opacity: 1;
-    margin-bottom: 7px;
+    margin-bottom: 8px;
     font-size: 10px;
-    letter-spacing: 0.01em;
+    letter-spacing: -0.01em;
 }
 
 .message.client .message-content,
@@ -578,23 +618,23 @@ input[type="checkbox"] {
     font-family: inherit;
     font-size: 13.5px;
     line-height: 1.7;
-    color: #26332d;
+    color: var(--wechat-text-dark);
 }
 
 .message.client .copy-action {
-    background: rgba(255, 255, 255, 0.52);
-    border-color: rgba(30, 49, 39, 0.06);
-    color: #81908a;
+    background: rgba(255, 255, 255, 0.5);
+    border-color: rgba(60, 60, 67, 0.08);
+    color: var(--wechat-text-gray);
 }
 
 .message.server {
     align-self: flex-start;
-    background-color: white;
+    background-color: var(--apple-surface-strong);
     color: var(--wechat-text-dark);
-    border-radius: 0 8px 8px 8px;
+    border-radius: 14px;
     /* 微信气泡特有的形状 */
     border: 1px solid var(--wechat-border);
-    box-shadow: 0 1px 2px rgba(0,0,0,0.02);
+    box-shadow: var(--apple-shadow-soft);
 }
 
 .message.system {
@@ -602,13 +642,13 @@ input[type="checkbox"] {
     display: inline-flex;
     align-items: center;
     gap: 6px;
-    background-color: rgba(0, 0, 0, 0.03);
+    background-color: rgba(118, 118, 128, 0.08);
     color: var(--wechat-text-gray);
     font-style: normal;
     font-size: 12px;
     border: none;
-    padding: 4px 8px;
-    border-radius: 4px;
+    padding: 4px 9px;
+    border-radius: 999px;
     margin: 4px 0;
 }
 
@@ -619,15 +659,17 @@ input[type="checkbox"] {
     z-index: 20;
     display: none;
     width: fit-content;
-    padding: 7px 14px;
-    border: 1px solid rgba(7, 193, 96, 0.25);
+    padding: 8px 14px;
+    border: 1px solid rgba(0, 122, 255, 0.18);
     border-radius: 999px;
-    background: rgba(7, 193, 96, 0.95);
+    background: rgba(0, 122, 255, 0.9);
     color: #fff;
     font-size: 13px;
     line-height: 1.4;
     cursor: pointer;
-    box-shadow: 0 4px 14px rgba(0, 0, 0, 0.16);
+    box-shadow: 0 10px 26px rgba(0, 122, 255, 0.22);
+    backdrop-filter: blur(18px);
+    -webkit-backdrop-filter: blur(18px);
 }
 
 .scroll-to-latest-btn.visible {
@@ -635,61 +677,68 @@ input[type="checkbox"] {
 }
 
 .scroll-to-latest-btn:hover {
-    background: #06ae56;
+    background: #006fe6;
 }
 
 .assistant-activity {
     align-self: flex-start;
     display: inline-flex;
     align-items: center;
-    gap: 8px;
+    gap: 10px;
     width: fit-content;
     max-width: min(85%, 520px);
-    margin: 2px 0;
-    padding: 6px 11px;
-    border: 1px solid rgba(41, 128, 185, 0.16);
-    border-radius: 999px;
-    background: rgba(255, 255, 255, 0.86);
-    color: #5d7181;
+    margin: 3px 0;
+    padding: 7px 12px;
+    border: 1px solid rgba(60, 60, 67, 0.1);
+    border-radius: 13px;
+    background: rgba(255, 255, 255, 0.72);
+    color: var(--wechat-text-gray);
     font-size: 12px;
     line-height: 1.5;
-    box-shadow: 0 2px 8px rgba(20, 43, 64, 0.05);
+    box-shadow: var(--apple-shadow-soft);
+    backdrop-filter: blur(18px);
+    -webkit-backdrop-filter: blur(18px);
 }
 
 .assistant-activity-dot {
-    width: 7px;
-    height: 7px;
+    width: 4px;
+    height: 4px;
+    margin-right: 14px;
     border-radius: 50%;
-    background: #3498db;
-    box-shadow: 0 0 0 rgba(52, 152, 219, 0.35);
-    animation: assistantActivityPulse 1.25s ease-in-out infinite;
+    background: rgba(60, 60, 67, 0.58);
+    box-shadow:
+        7px 0 0 rgba(60, 60, 67, 0.38),
+        14px 0 0 rgba(60, 60, 67, 0.22);
+    animation: assistantActivityPulse 1.15s ease-in-out infinite;
 }
 
 .assistant-activity-writing .assistant-activity-dot {
-    background: #07c160;
-    box-shadow: 0 0 0 rgba(7, 193, 96, 0.35);
+    background: rgba(0, 122, 255, 0.58);
+    box-shadow:
+        7px 0 0 rgba(0, 122, 255, 0.36),
+        14px 0 0 rgba(0, 122, 255, 0.2);
 }
 
 .assistant-activity-tool .assistant-activity-dot {
-    background: #e67e22;
-    box-shadow: 0 0 0 rgba(230, 126, 34, 0.35);
+    background: rgba(142, 142, 147, 0.64);
+    box-shadow:
+        7px 0 0 rgba(142, 142, 147, 0.42),
+        14px 0 0 rgba(142, 142, 147, 0.24);
+}
+
+.assistant-activity-label {
+    letter-spacing: -0.01em;
 }
 
 @keyframes assistantActivityPulse {
     0% {
-        transform: scale(0.9);
-        box-shadow: 0 0 0 0 currentColor;
-        opacity: 0.65;
+        opacity: 0.38;
     }
     55% {
-        transform: scale(1);
-        box-shadow: 0 0 0 5px rgba(52, 152, 219, 0);
-        opacity: 1;
+        opacity: 0.92;
     }
     100% {
-        transform: scale(0.9);
-        box-shadow: 0 0 0 0 rgba(52, 152, 219, 0);
-        opacity: 0.65;
+        opacity: 0.38;
     }
 }
 
@@ -704,18 +753,20 @@ input[type="checkbox"] {
 
 .connection-status-summary {
     display: inline-block;
-    padding: 4px 10px;
-    border: 1px solid rgba(0, 0, 0, 0.08);
-    border-radius: 4px;
-    background-color: rgba(0, 0, 0, 0.03);
+    padding: 5px 11px;
+    border: 1px solid rgba(60, 60, 67, 0.1);
+    border-radius: 999px;
+    background-color: rgba(255, 255, 255, 0.68);
     color: var(--wechat-text-gray);
     font-size: 12px;
     cursor: pointer;
     user-select: none;
+    backdrop-filter: blur(16px);
+    -webkit-backdrop-filter: blur(16px);
 }
 
 .connection-status-summary:hover {
-    background-color: rgba(0, 0, 0, 0.06);
+    background-color: rgba(255, 255, 255, 0.9);
 }
 
 .connection-status-detail {
@@ -723,9 +774,9 @@ input[type="checkbox"] {
     width: 100%;
     margin-top: 4px;
     padding: 8px 10px;
-    border: 1px solid rgba(0, 0, 0, 0.08);
-    border-radius: 4px;
-    background-color: rgba(255, 255, 255, 0.7);
+    border: 1px solid rgba(60, 60, 67, 0.1);
+    border-radius: 12px;
+    background-color: rgba(255, 255, 255, 0.72);
     color: var(--wechat-text-gray);
     font-size: 12px;
     line-height: 1.5;
@@ -739,7 +790,7 @@ input[type="checkbox"] {
     justify-content: space-between;
     font-size: 11px;
     margin-bottom: 4px;
-    color: rgba(255, 255, 255, 0.8);
+    color: var(--wechat-text-gray);
     opacity: 0.8;
 }
 
@@ -757,16 +808,18 @@ input[type="checkbox"] {
 .message.ai {
     align-self: flex-start;
     position: relative;
-    background: linear-gradient(180deg, rgba(255, 255, 255, 0.96), rgba(250, 251, 250, 0.94));
-    color: #202a25;
-    border: 1px solid rgba(30, 49, 39, 0.07);
-    border-radius: 9px;
-    box-shadow: 0 2px 8px rgba(23, 40, 31, 0.04);
-    padding: 11px 14px 12px;
+    background: linear-gradient(180deg, rgba(255, 255, 255, 0.97), rgba(248, 249, 251, 0.94));
+    color: var(--wechat-text-dark);
+    border: 1px solid rgba(60, 60, 67, 0.1);
+    border-radius: 14px;
+    box-shadow: var(--apple-shadow-soft);
+    padding: 12px 15px 13px;
     max-width: min(78%, 820px);
     word-break: break-word;
     font-size: 13.5px;
     line-height: 1.7;
+    backdrop-filter: blur(18px);
+    -webkit-backdrop-filter: blur(18px);
 }
 
 .message.ai .ai-header {
@@ -788,7 +841,7 @@ input[type="checkbox"] {
 .message-actions {
     display: inline-flex;
     align-items: center;
-    gap: 4px;
+    gap: 5px;
     min-height: 24px;
     flex-shrink: 0;
 }
@@ -803,7 +856,7 @@ input[type="checkbox"] {
     height: 22px;
     box-sizing: border-box;
     padding: 0 8px;
-    border-radius: 6px;
+    border-radius: 7px;
     color: var(--wechat-text-gray);
     font-size: 11px;
     line-height: 1;
@@ -812,20 +865,25 @@ input[type="checkbox"] {
 }
 
 .ai-toggle-btn {
-    border: 1px solid rgba(0, 0, 0, 0.045);
-    background: transparent;
+    border: 1px solid rgba(60, 60, 67, 0.08);
+    background: rgba(118, 118, 128, 0.06);
 }
 
 .ai-toggle-btn:hover {
-    background: rgba(0,0,0,0.035);
+    background: rgba(118, 118, 128, 0.12);
 }
 
 .copy-action {
-    border: 1px solid rgba(0, 0, 0, 0.055);
-    background: rgba(255, 255, 255, 0.44);
+    border: 1px solid rgba(60, 60, 67, 0.08);
+    background: rgba(255, 255, 255, 0.5);
     opacity: 0;
     visibility: hidden;
     transition: background-color 0.15s ease, border-color 0.15s ease, color 0.15s ease;
+}
+
+.message.ai .copy-action {
+    opacity: 1;
+    visibility: visible;
 }
 
 .message:hover .copy-action,
@@ -837,15 +895,15 @@ input[type="checkbox"] {
 }
 
 .copy-action:hover {
-    background: rgba(69, 89, 108, 0.07);
-    border-color: rgba(69, 89, 108, 0.18);
-    color: #566574;
+    background: rgba(118, 118, 128, 0.11);
+    border-color: rgba(60, 60, 67, 0.14);
+    color: #515154;
 }
 
 .copy-action.copied {
-    background: rgba(69, 89, 108, 0.1);
-    border-color: rgba(69, 89, 108, 0.22);
-    color: #3f4e5c;
+    background: rgba(0, 122, 255, 0.1);
+    border-color: rgba(0, 122, 255, 0.18);
+    color: #0066cc;
 }
 
 .copy-action-compact {
@@ -1271,11 +1329,13 @@ input[type="checkbox"] {
     max-width: 76%;
     max-height: 168px;
     margin: 4px 0;
-    border: 1px solid rgba(30, 49, 39, 0.06);
-    border-radius: 9px;
-    background: rgba(255, 255, 255, 0.66);
+    border: 1px solid rgba(60, 60, 67, 0.1);
+    border-radius: 13px;
+    background: rgba(255, 255, 255, 0.62);
     overflow: hidden;
-    box-shadow: 0 2px 8px rgba(23, 40, 31, 0.03);
+    box-shadow: var(--apple-shadow-soft);
+    backdrop-filter: blur(18px);
+    -webkit-backdrop-filter: blur(18px);
 }
 
 .event-trace-box.expanded {
@@ -1288,17 +1348,17 @@ input[type="checkbox"] {
     gap: 8px;
     height: 28px;
     padding: 0 10px;
-    background: rgba(245, 247, 246, 0.74);
-    color: #9aa1a8;
+    background: rgba(242, 242, 247, 0.66);
+    color: var(--wechat-text-gray);
     font-size: 11px;
     line-height: 28px;
     cursor: pointer;
 }
 
 .event-trace-title {
-    font-weight: 500;
+    font-weight: 560;
     flex-shrink: 0;
-    color: #8d979f;
+    color: #6e6e73;
 }
 
 .event-trace-latest {
@@ -1307,7 +1367,7 @@ input[type="checkbox"] {
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
-    color: #aeb4ba;
+    color: #9a9aa0;
     font-size: 10.5px;
 }
 
@@ -1315,15 +1375,15 @@ input[type="checkbox"] {
     margin-left: auto;
     flex-shrink: 0;
     font-size: 10px;
-    color: #b4bac0;
+    color: #a1a1a6;
 }
 
 .event-trace-body {
     max-height: 140px;
     overflow: auto;
     padding: 4px 7px 6px;
-    background: rgba(255, 255, 255, 0.38);
-    border-top: 1px solid rgba(30, 49, 39, 0.045);
+    background: rgba(255, 255, 255, 0.36);
+    border-top: 1px solid rgba(60, 60, 67, 0.08);
 }
 
 .event-trace-box.expanded .event-trace-body {
@@ -1353,7 +1413,7 @@ input[type="checkbox"] {
     padding: 0 5px;
     font-size: 10px;
     line-height: 18px;
-    color: #b7b7b7;
+    color: #a1a1a6;
     cursor: pointer;
     border-radius: 999px;
     user-select: none;
@@ -1361,8 +1421,8 @@ input[type="checkbox"] {
 }
 
 .event-log-summary:hover {
-    background-color: rgba(0,0,0,0.035);
-    color: #7f8790;
+    background-color: rgba(118, 118, 128, 0.08);
+    color: #6e6e73;
 }
 
 .event-log-summary .copy-action {
@@ -1382,16 +1442,16 @@ input[type="checkbox"] {
 .event-log-summary:hover .copy-action {
     opacity: 1;
     visibility: visible;
-    border-color: rgba(0, 0, 0, 0.08);
+    border-color: rgba(60, 60, 67, 0.1);
     pointer-events: auto;
 }
 
 .event-log-detail {
     margin-top: 2px;
     padding: 8px 12px;
-    background-color: #f9f9f9;
+    background-color: rgba(255, 255, 255, 0.72);
     border: 1px solid var(--wechat-border);
-    border-radius: 4px;
+    border-radius: 10px;
     font-family: monospace;
     font-size: 11px;
     white-space: pre-wrap;
@@ -1405,11 +1465,13 @@ input[type="checkbox"] {
 .message-input-panel {
     display: flex;
     flex-direction: column;
-    padding: 12px 16px 10px;
-    background-color: #f9f9f9;
+    padding: 14px 18px 12px;
+    background: rgba(250, 250, 252, 0.86);
     border-top: 1px solid var(--wechat-border);
     position: relative;
-    box-shadow: 0 -2px 8px rgba(0,0,0,0.03);
+    box-shadow: 0 -12px 34px rgba(0, 0, 0, 0.045);
+    backdrop-filter: blur(22px);
+    -webkit-backdrop-filter: blur(22px);
     /* 固定默认高度，JS 拖拽后会覆盖 */
     height: 240px;
     min-height: 150px;
@@ -1444,12 +1506,14 @@ input[type="checkbox"] {
     margin-bottom: 4px;
     max-height: 220px;
     overflow-y: auto;
-    background: var(--wechat-panel-bg);
+    background: rgba(255, 255, 255, 0.92);
     border: 1px solid var(--wechat-border);
-    border-radius: 8px;
-    box-shadow: 0 -4px 18px rgba(0, 0, 0, 0.1);
+    border-radius: 14px;
+    box-shadow: 0 -12px 38px rgba(0, 0, 0, 0.12);
     z-index: 50;
     font-size: 13px;
+    backdrop-filter: blur(22px);
+    -webkit-backdrop-filter: blur(22px);
 }
 
 .mention-picker.visible {
@@ -1462,7 +1526,7 @@ input[type="checkbox"] {
     display: flex;
     align-items: center;
     gap: 8px;
-    border-bottom: 1px solid #f0f0f0;
+    border-bottom: 1px solid rgba(60, 60, 67, 0.08);
 }
 
 .mention-picker-item:last-child {
@@ -1471,7 +1535,7 @@ input[type="checkbox"] {
 
 .mention-picker-item:hover,
 .mention-picker-item.active {
-    background: #f5f5f5;
+    background: rgba(0, 122, 255, 0.08);
 }
 
 .mention-picker-kind {
@@ -1500,42 +1564,55 @@ input[type="checkbox"] {
     flex-direction: column;
     align-items: center;
     justify-content: flex-end;
-    gap: 6px;
+    gap: 5px;
     flex-shrink: 0;
-    padding-bottom: 4px;
+    padding-bottom: 2px;
 }
 
 .send-btn {
-    width: 72px;
-    height: 40px;
+    width: 64px;
+    height: 36px;
     padding: 0;
-    font-size: 14px;
-    font-weight: 500;
-    border-radius: 6px;
+    border: none;
+    border-radius: var(--radius-control);
+    font-size: 13px;
+    font-weight: 600;
+    letter-spacing: -0.01em;
+    background: #007aff;
+    box-shadow: 0 8px 18px rgba(0, 122, 255, 0.16);
+}
+
+.send-btn:hover {
+    background: #006fe6;
+    box-shadow: 0 10px 22px rgba(0, 122, 255, 0.2);
 }
 
 .send-hint {
-    font-size: 11px;
-    color: var(--wechat-text-gray);
+    max-width: 72px;
+    font-size: 10px;
+    color: #a1a1a6;
     text-align: center;
-    line-height: 1.4;
+    line-height: 1.3;
 }
 
 textarea {
     width: 100%;
     flex: 1;
     min-height: 0;
-    padding: 10px 12px;
+    padding: 12px 13px;
     border: 1px solid var(--wechat-border);
-    border-radius: 6px;
+    border-radius: 14px;
+    background: rgba(255, 255, 255, 0.78);
+    color: var(--wechat-text-dark);
     resize: none;
-    font-size: 14px;
-    transition: border-color 0.2s, box-shadow 0.2s;
+    font-size: 13.5px;
+    transition: border-color 0.18s ease, box-shadow 0.18s ease, background-color 0.18s ease;
 }
 
 textarea:focus {
     border-color: var(--wechat-green);
-    box-shadow: 0 0 0 2px rgba(7, 193, 96, 0.1);
+    background: rgba(255, 255, 255, 0.96);
+    box-shadow: 0 0 0 4px var(--apple-focus-ring);
     outline: none;
 }
 
@@ -1595,7 +1672,7 @@ textarea:focus {
 .secondary-actions .btn {
     padding: 4px 10px;
     font-size: 12px;
-    border-radius: 4px;
+    border-radius: 9px;
 }
 
 .button-group {
@@ -2117,14 +2194,16 @@ input[type="file"] {
 /* 高级模式 JSON 输入框 */
 .raw-json-textarea {
     width: 100%;
-    height: 160px;
+    flex: 1;
+    min-height: 0;
+    height: auto;
     padding: 10px;
     border: 1px solid var(--wechat-border);
     border-radius: 3px;
-    resize: vertical;
+    resize: none;
     font-family: monospace;
     font-size: 12px;
-    margin-bottom: 6px;
+    margin-bottom: 0;
     color: var(--wechat-text-dark);
     line-height: 1.5;
 }
@@ -2132,13 +2211,6 @@ input[type="file"] {
 .raw-json-textarea:focus {
     border-color: var(--wechat-green);
     outline: none;
-}
-
-.advanced-mode-tip {
-    font-size: 12px;
-    color: var(--wechat-text-gray);
-    margin-bottom: 8px;
-    line-height: 1.4;
 }
 
 /* ── 侧边栏整体布局调整 ── */
@@ -2497,7 +2569,7 @@ input[type="file"] {
     flex: 1;
     display: flex;
     flex-direction: column;
-    background-color: var(--wechat-panel-bg);
+    background: rgba(255, 255, 255, 0.72);
     border: 1px solid var(--wechat-border);
     border-radius: 6px;
     overflow: hidden;
@@ -2509,7 +2581,7 @@ input[type="file"] {
     align-items: center;
     justify-content: space-between;
     padding: 8px 12px;
-    background-color: #fafafa;
+    background: rgba(242, 242, 247, 0.72);
     border-bottom: 1px solid var(--wechat-border);
     flex-shrink: 0;
 }
@@ -2546,8 +2618,8 @@ input[type="file"] {
     display: flex;
     align-items: center;
     gap: 4px;
-    padding: 4px 8px;
-    background-color: #f5f5f5;
+    padding: 6px 8px;
+    background: rgba(255, 255, 255, 0.5);
     border-bottom: 1px solid var(--wechat-border);
     flex-shrink: 0;
 }
@@ -2564,9 +2636,9 @@ input[type="file"] {
     min-width: 0;
     font-size: 11px;
     border: 1px solid var(--wechat-border);
-    border-radius: 3px;
-    padding: 2px 5px;
-    background: #fff;
+    border-radius: var(--radius-control);
+    padding: 5px 8px;
+    background: rgba(255, 255, 255, 0.72);
     color: var(--wechat-text-dark);
     outline: none;
 }
@@ -2603,13 +2675,6 @@ input[type="file"] {
 
 .ft-context-menu-item:hover {
     background: #f0f0f0;
-}
-
-.filetree-hint {
-    font-size: 11px;
-    color: var(--wechat-text-gray);
-    margin-top: 6px;
-    line-height: 1.4;
 }
 
 .filetree-empty {
@@ -2662,6 +2727,7 @@ input[type="file"] {
 }
 
 .ft-children {
+    display: block;
     /* 子节点通过 padding-left 动态设置缩进 */
 }
 
@@ -3132,4 +3198,367 @@ input[type="file"] {
     max-width: 92vw;
     max-height: calc(92vh - 40px);
     object-fit: contain;
+}
+
+/* Apple 风格统一收口：覆盖早期后台感较重的局部组件 */
+.ai-markdown code,
+.ai-markdown pre,
+.tool-call-detail,
+.raw-json-textarea,
+.mcp-json-textarea,
+.mcp-modal-textarea {
+    background: rgba(242, 242, 247, 0.72);
+    border-color: rgba(60, 60, 67, 0.1);
+    border-radius: 10px;
+}
+
+.ai-markdown th {
+    background: rgba(242, 242, 247, 0.72);
+}
+
+.ai-markdown a {
+    color: #0066cc;
+}
+
+.tool-call-header {
+    border-radius: 10px;
+    background-color: rgba(255, 255, 255, 0.68);
+    border: 1px solid rgba(60, 60, 67, 0.1);
+    color: #6e6e73;
+    backdrop-filter: blur(16px);
+    -webkit-backdrop-filter: blur(16px);
+}
+
+.tool-call-block.tool-call-running .tool-call-header {
+    color: #6e6e73;
+    background-color: rgba(255, 255, 255, 0.72);
+    border-color: rgba(60, 60, 67, 0.1);
+}
+
+.tool-call-block.tool-call-finished .tool-call-header {
+    color: #0066cc;
+    background-color: rgba(0, 122, 255, 0.08);
+    border-color: rgba(0, 122, 255, 0.12);
+}
+
+.tool-call-block.tool-call-error .tool-call-header {
+    color: #d70015;
+    background-color: rgba(255, 59, 48, 0.08);
+    border-color: rgba(255, 59, 48, 0.14);
+}
+
+.tool-call-block.tool-call-running .tool-call-header:hover,
+.tool-call-block.tool-call-finished .tool-call-header:hover,
+.tool-call-block.tool-call-error .tool-call-header:hover {
+    background-color: rgba(255, 255, 255, 0.9);
+}
+
+.tool-call-running .tool-call-status-dot {
+    background-color: #8e8e93;
+}
+
+.tool-call-finished .tool-call-status-dot {
+    background-color: #007aff;
+}
+
+.tool-call-error .tool-call-status-dot {
+    background-color: #ff3b30;
+}
+
+.ask-user-card,
+.user-reply-config,
+.config-panel-compact,
+.mcp-server-item,
+.mcp-modal-dialog {
+    background: rgba(255, 255, 255, 0.72);
+    border: 1px solid rgba(60, 60, 67, 0.1);
+    border-radius: 14px;
+    box-shadow: var(--apple-shadow-soft);
+    backdrop-filter: blur(18px);
+    -webkit-backdrop-filter: blur(18px);
+}
+
+.ask-user-card.answered {
+    background: rgba(52, 199, 89, 0.08);
+    border-color: rgba(52, 199, 89, 0.14);
+}
+
+.ask-user-card.expired {
+    background: rgba(242, 242, 247, 0.72);
+    border-color: rgba(60, 60, 67, 0.1);
+}
+
+.ask-user-countdown {
+    color: #8e8e93;
+}
+
+.ask-user-countdown.urgent {
+    color: #d70015;
+}
+
+.ask-user-input,
+.mcp-modal-textarea,
+.raw-json-textarea {
+    border: 1px solid rgba(60, 60, 67, 0.12);
+    border-radius: 10px;
+    background: rgba(255, 255, 255, 0.78);
+}
+
+.ask-user-input:focus,
+.raw-json-textarea:focus,
+.mcp-modal-textarea:focus {
+    border-color: #007aff;
+    box-shadow: 0 0 0 4px var(--apple-focus-ring);
+    outline: none;
+}
+
+.ask-user-option,
+.ask-user-confirm-btn,
+.ask-user-submit-btn,
+.ask-user-skip-btn,
+.mcp-tab,
+.mcp-expand-btn,
+.file-preview-action-btn,
+.icon-btn {
+    border-radius: 9px;
+}
+
+.ask-user-option:hover,
+.ask-user-confirm-btn:hover,
+.mcp-tab:hover:not(.active),
+.mcp-expand-btn:hover,
+.icon-btn:hover {
+    background: rgba(118, 118, 128, 0.1);
+}
+
+.ask-user-confirm-btn {
+    background: rgba(118, 118, 128, 0.08);
+    border-color: rgba(60, 60, 67, 0.1);
+}
+
+.ask-user-confirm-btn.selected,
+.ask-user-submit-btn,
+.mcp-tab.active,
+.mcp-panel-badge.has-enabled,
+.mcp-modal-save-btn {
+    background: #007aff;
+    border-color: #007aff;
+    color: #fff;
+}
+
+.ask-user-submit-btn:hover,
+.mcp-modal-save-btn:hover {
+    background: #006fe6;
+}
+
+.ask-user-skip-btn {
+    background: transparent;
+    border-color: rgba(60, 60, 67, 0.12);
+    color: var(--wechat-text-gray);
+}
+
+.file-name-display {
+    background-color: rgba(0, 122, 255, 0.08);
+    border-color: rgba(0, 122, 255, 0.12);
+    border-radius: 10px;
+    color: #0066cc;
+}
+
+.toggle-container,
+.config-panel-header,
+.mcp-panel-badge,
+.file-toolbar,
+.file-preview-toolbar,
+.mcp-toggle-slider,
+.toggle-switch-slider {
+    background: rgba(242, 242, 247, 0.82);
+    border-color: rgba(60, 60, 67, 0.1);
+}
+
+.config-panel-header:hover {
+    background: rgba(229, 229, 234, 0.82);
+}
+
+.config-panel-compact {
+    overflow: hidden;
+}
+
+.toggle-slider,
+.toggle-switch input:checked + .toggle-switch-slider,
+.mcp-server-toggle input:checked + .mcp-toggle-slider {
+    background-color: #007aff;
+}
+
+.mcp-server-item.enabled {
+    border-color: rgba(0, 122, 255, 0.2);
+    background-color: rgba(0, 122, 255, 0.06);
+}
+
+.mcp-server-type,
+.mcp-server-type.stdio {
+    background-color: rgba(118, 118, 128, 0.1);
+    color: #6e6e73;
+    border-radius: 999px;
+}
+
+.ft-node.ft-selected {
+    background-color: rgba(0, 122, 255, 0.08);
+    color: #0066cc;
+}
+
+.file-preview-action-btn {
+    background: rgba(255, 255, 255, 0.76);
+    border-color: rgba(60, 60, 67, 0.12);
+}
+
+.file-preview-action-btn:hover {
+    background: rgba(0, 122, 255, 0.1);
+    border-color: rgba(0, 122, 255, 0.18);
+    color: #0066cc;
+}
+
+/* 圆角与图标体系收敛 */
+.connection-panel,
+.config-panel,
+.config-panel-compact,
+.filetree-panel,
+.message.client,
+.message.ai,
+.event-trace-box,
+.ask-user-card,
+.user-reply-config,
+.mcp-server-item,
+.mcp-modal-dialog {
+    border-radius: var(--radius-panel);
+}
+
+.message.server,
+.assistant-activity,
+.mention-picker,
+.custom-select-panel,
+textarea,
+input[type="text"],
+.custom-select-trigger,
+.history-dropdown,
+.file-preview-dialog {
+    border-radius: var(--radius-card);
+}
+
+.btn,
+.ai-toggle-btn,
+.copy-action,
+.icon-btn,
+.mcp-tab,
+.mcp-expand-btn,
+.file-preview-action-btn,
+.ask-user-option,
+.ask-user-confirm-btn,
+.ask-user-submit-btn,
+.ask-user-skip-btn,
+.event-log-detail {
+    border-radius: var(--radius-control);
+}
+
+.message.system {
+    gap: 8px;
+    padding: 5px 8px 5px 10px;
+    border-radius: var(--radius-control);
+}
+
+.message.system .copy-action {
+    opacity: 1;
+    visibility: visible;
+    pointer-events: auto;
+    height: 20px;
+    min-width: 34px;
+    padding: 0 7px;
+    background: rgba(255, 255, 255, 0.48);
+}
+
+.event-trace-box.expanded .event-trace-body {
+    padding: 10px 12px 12px;
+}
+
+.event-log-detail {
+    padding: 12px 14px;
+}
+
+.icon-btn {
+    width: 32px;
+    height: 32px;
+    padding: 0;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    background: rgba(255, 255, 255, 0.7);
+    border-color: rgba(60, 60, 67, 0.12);
+}
+
+.icon-btn svg {
+    width: 17px;
+    height: 17px;
+    display: block;
+}
+
+.icon-btn-active {
+    color: #0066cc;
+    border-color: rgba(0, 122, 255, 0.18);
+    background: rgba(0, 122, 255, 0.08);
+}
+
+.icon-btn-warning {
+    color: #b25b00;
+    border-color: rgba(255, 149, 0, 0.18);
+    background: rgba(255, 149, 0, 0.1);
+}
+
+.filetree-empty {
+    padding: 18px 14px;
+}
+
+.ft-icon {
+    width: 22px;
+    min-width: 22px;
+    height: 22px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    color: #8e8e93;
+}
+
+.ft-icon svg {
+    width: 18px;
+    height: 18px;
+    display: block;
+}
+
+.ft-icon-folderClosed,
+.ft-icon-folderOpen {
+    color: #6e6e73;
+}
+
+.ft-icon-markdown {
+    color: #5e5ce6;
+}
+
+.ft-icon-pdf {
+    color: #d70015;
+}
+
+.ft-icon-code {
+    color: #0066cc;
+}
+
+.ft-icon-image {
+    color: #248a3d;
+}
+
+.ft-icon-audio,
+.ft-icon-video {
+    color: #af52de;
+}
+
+.ft-icon-archive,
+.ft-icon-spreadsheet {
+    color: #b25b00;
 }

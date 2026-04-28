@@ -55,6 +55,29 @@ const CHAT_LOG_MAX = 300; // 最多保留条数
 let chatLog = [];         // 消息数据列表
 let isRestoring = false;  // 恢复阶段不触发二次保存
 let chatScrollSaveFrame = null;
+const systemMessageRegistry = new Map();
+
+function getSystemMessageKey(text) {
+    if (text.startsWith('已切换到高级模式')) return 'mode-toggle';
+    if (text.startsWith('已切换到普通模式')) return 'mode-toggle';
+    if (text.startsWith('语言已切换为:')) return 'language-toggle';
+    if (text.startsWith('消息版本已切换为:')) return 'message-version-toggle';
+    return '';
+}
+
+function upsertSystemLog(text, key) {
+    if (!key) {
+        pushLog({ type: 'system', text });
+        return;
+    }
+    const existingIndex = chatLog.findIndex(entry => entry.type === 'system' && entry.key === key);
+    if (existingIndex >= 0) {
+        chatLog[existingIndex] = { type: 'system', key, text };
+        saveChatLog();
+        return;
+    }
+    pushLog({ type: 'system', key, text });
+}
 
 function saveChatLog() {
     if (isRestoring) return;
@@ -74,6 +97,7 @@ function pushLog(entry) {
 
 function clearChatLog() {
     chatLog = [];
+    systemMessageRegistry.clear();
     localStorage.removeItem(CHAT_LOG_KEY);
     localStorage.removeItem(CHAT_SCROLL_KEY);
 }
@@ -102,7 +126,7 @@ function renderLogEntry(entry) {
         case 'thinking':  showThinkingMessage(entry.content, entry.timestamp, true); break;
         case 'tool_call': showToolCallMessage(entry.tool, entry.eventType, entry.timestamp, true); break;
         case 'event':     showEventLog(entry.data, true); break;
-        case 'system':    showSystemMessage(entry.text, true); break;
+        case 'system':    showSystemMessage(entry.text, true, { key: entry.key }); break;
     }
 }
 
@@ -166,19 +190,35 @@ const messagesContainer = document.getElementById('messagesContainer');
 const scrollToLatestBtn = document.getElementById('scrollToLatestBtn');
 const messageInputPanel = document.getElementById('messageInputPanel');
 
+const INIT_CONFIG_PANEL_OPEN_KEY = 'httpClient.initConfigPanelOpen';
+const MCP_CONFIG_PANEL_OPEN_KEY = 'httpClient.mcpConfigPanelOpen';
+
+function getStoredPanelOpen(storageKey, defaultOpen) {
+    const saved = localStorage.getItem(storageKey);
+    if (saved === null) return defaultOpen;
+    return saved === 'true';
+}
+
+function setCompactPanelOpen(body, arrow, isOpen) {
+    if (body) body.style.display = isOpen ? 'block' : 'none';
+    if (arrow) arrow.classList.toggle('open', isOpen);
+}
+
+function initCompactPanelToggle(toggle, body, arrow, storageKey, defaultOpen) {
+    if (!toggle || !body) return;
+    setCompactPanelOpen(body, arrow, getStoredPanelOpen(storageKey, defaultOpen));
+    toggle.addEventListener('click', () => {
+        const nextOpen = body.style.display === 'none';
+        setCompactPanelOpen(body, arrow, nextOpen);
+        localStorage.setItem(storageKey, String(nextOpen));
+    });
+}
+
 // 初始化配置折叠面板
 const configPanelToggle = document.getElementById('configPanelToggle');
 const configPanelBody = document.getElementById('configPanelBody');
 const configPanelArrow = document.getElementById('configPanelArrow');
-if (configPanelToggle) {
-    // 默认展开
-    configPanelArrow.classList.add('open');
-    configPanelToggle.addEventListener('click', () => {
-        const isOpen = configPanelBody.style.display !== 'none';
-        configPanelBody.style.display = isOpen ? 'none' : 'block';
-        configPanelArrow.classList.toggle('open', !isOpen);
-    });
-}
+initCompactPanelToggle(configPanelToggle, configPanelBody, configPanelArrow, INIT_CONFIG_PANEL_OPEN_KEY, false);
 
 // ── MCP 配置面板 ──────────────────────────────────────────────────────────────
 
@@ -368,14 +408,7 @@ function initMcpPanel() {
     const toggle = document.getElementById('mcpPanelToggle');
     const body = document.getElementById('mcpPanelBody');
     const arrow = document.getElementById('mcpPanelArrow');
-    if (toggle) {
-        // 默认折叠
-        toggle.addEventListener('click', () => {
-            const isOpen = body.style.display !== 'none';
-            body.style.display = isOpen ? 'none' : 'block';
-            arrow.classList.toggle('open', !isOpen);
-        });
-    }
+    initCompactPanelToggle(toggle, body, arrow, MCP_CONFIG_PANEL_OPEN_KEY, false);
 
     const listTab = document.getElementById('mcpListTab');
     const jsonTab = document.getElementById('mcpJsonTab');
@@ -1657,15 +1690,28 @@ function showServerMessage(message) {
 }
 
 // 显示系统消息
-function showSystemMessage(text, _noLog = false) {
-    if (!_noLog) pushLog({ type: 'system', text });
-    const messageDiv = document.createElement('div');
-    messageDiv.className = 'message system';
-    const label = document.createElement('span');
+function showSystemMessage(text, _noLog = false, options = {}) {
+    const key = options.key || getSystemMessageKey(text);
+    if (!_noLog) upsertSystemLog(text, key);
+
+    let messageDiv = key ? systemMessageRegistry.get(key) : null;
+    let label = messageDiv ? messageDiv.querySelector('.system-message-label') : null;
+    if (!messageDiv || !messageList.contains(messageDiv) || !label) {
+        messageDiv = document.createElement('div');
+        messageDiv.className = 'message system';
+        label = document.createElement('span');
+        label.className = 'system-message-label';
+        messageDiv.appendChild(label);
+        attachCopyButton(messageDiv, () => messageDiv.dataset.copyText || '', { compact: true });
+        if (key) systemMessageRegistry.set(key, messageDiv);
+        appendMessageNode(messageDiv);
+    } else {
+        messageList.appendChild(messageDiv);
+        syncScrollAfterMessageChange(isMessageViewportAtBottom());
+    }
+
+    messageDiv.dataset.copyText = text;
     label.textContent = `[系统] ${text} (${new Date().toLocaleTimeString()})`;
-    messageDiv.appendChild(label);
-    attachCopyButton(messageDiv, () => text, { compact: true });
-    appendMessageNode(messageDiv);
 }
 
 function attachCopyButton(container, getText, options = {}) {
@@ -1985,13 +2031,14 @@ function toggleAdvancedMode() {
             toggleImMode();
         }
         normalFields.style.display = 'none';
-        advancedFields.style.display = 'block';
+        advancedFields.style.display = '';
         showSystemMessage("已切换到高级模式：粘贴完整 JSON 后点击「发送消息」");
     } else {
-        normalFields.style.display = 'block';
+        normalFields.style.display = '';
         advancedFields.style.display = 'none';
         showSystemMessage("已切换到普通模式");
     }
+    updateScrollButtonPosition();
 }
 
 // 切换语言
@@ -4815,19 +4862,15 @@ async function loadHandle() {
 function updateSelectBtn(state) {
     selectBtnState = state;
     if (!selectWorkspaceBtn) return;
+    selectWorkspaceBtn.classList.toggle('icon-btn-active', state === 'active');
+    selectWorkspaceBtn.classList.toggle('icon-btn-warning', state === 'need-auth');
     if (state === 'active') {
         selectWorkspaceBtn.title = '切换项目根目录';
-        selectWorkspaceBtn.textContent = '📂';
-        selectWorkspaceBtn.style.color = 'var(--wechat-green)';
     } else if (state === 'need-auth') {
         const dirHint = mountDirName || '根目录';
         selectWorkspaceBtn.title = `点击重新授权读取 ${dirHint}`;
-        selectWorkspaceBtn.textContent = '🔓';
-        selectWorkspaceBtn.style.color = 'var(--wechat-warning)';
     } else {
         selectWorkspaceBtn.title = '选择项目根目录';
-        selectWorkspaceBtn.textContent = '📂';
-        selectWorkspaceBtn.style.color = '';
     }
 }
 
@@ -4884,7 +4927,7 @@ async function applyMountDir() {
         updateSelectBtn('need-auth');
         if (filetreeContainer) {
             const dirHint = mountDirName || '根目录';
-            filetreeContainer.innerHTML = `<div class="filetree-empty">点击 🔓 重新授权读取 ${dirHint}</div>`;
+            filetreeContainer.innerHTML = `<div class="filetree-empty">点击上方按钮重新授权读取 ${dirHint}</div>`;
         }
     } catch (e) {
         console.warn('恢复目录句柄失败', e);
@@ -5027,9 +5070,7 @@ async function buildTreeNodes(dirHandle, container, pathPrefix, depth) {
         node.className = `ft-node ${isDir ? 'ft-dir' : 'ft-file'}`;
         node.style.paddingLeft = `${8 + depth * 14}px`;
 
-        const icon = document.createElement('span');
-        icon.className = 'ft-icon';
-        icon.textContent = isDir ? (expandedDirs.has(fullPath) ? '▾' : '▸') : getFileIcon(entry.name);
+        const icon = createFileTreeIcon(entry.name, isDir, expandedDirs.has(fullPath));
 
         const name = document.createElement('span');
         name.className = 'ft-name';
@@ -5058,13 +5099,13 @@ async function buildTreeNodes(dirHandle, container, pathPrefix, depth) {
                     expandedDirs.delete(fullPath);
                     childContainer.style.display = 'none';
                     childContainer.innerHTML = '';
-                    icon.textContent = '▸';
+                    updateFileTreeIcon(icon, entry.name, true, false);
                 } else {
                     expandedDirs.add(fullPath);
                     childContainer.innerHTML = '';
                     await buildTreeNodes(entry, childContainer, fullPath, depth + 1);
                     childContainer.style.display = 'block';
-                    icon.textContent = '▾';
+                    updateFileTreeIcon(icon, entry.name, true, true);
                 }
             });
             node.addEventListener('contextmenu', (e) => {
@@ -5610,14 +5651,48 @@ async function previewFile(fileHandle, filePath) {
     }
 }
 
-// 根据扩展名返回图标
-function getFileIcon(name) {
+const FILE_TREE_ICON_PATHS = {
+    folderClosed: '<path d="M3.5 6.5a2 2 0 0 1 2-2h4l1.7 2H18.5a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2h-13a2 2 0 0 1-2-2v-10Z" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"></path><path d="M4 9.5h16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"></path>',
+    folderOpen: '<path d="M3.5 8.5a2 2 0 0 1 2-2h4l1.5 2h7.5a2 2 0 0 1 1.94 2.48l-1.45 5.8a2 2 0 0 1-1.94 1.52H5.18a2 2 0 0 1-1.95-2.44l1.25-5.55A2 2 0 0 1 6.43 8.5H20" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"></path>',
+    file: '<path d="M7 3.5h6.5L18 8v12.5H7V3.5Z" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"></path><path d="M13.5 3.8V8H18" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"></path>',
+    code: '<path d="M9 9 6 12l3 3" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"></path><path d="m15 9 3 3-3 3" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"></path><path d="m13 7-2 10" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"></path>',
+    markdown: '<path d="M4 6.5h16v11H4v-11Z" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"></path><path d="M7 14v-4l2.2 2.4L11.4 10v4" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"></path><path d="M15 10v4m0 0-1.6-1.6M15 14l1.6-1.6" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"></path>',
+    pdf: '<path d="M7 3.5h6.5L18 8v12.5H7V3.5Z" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"></path><path d="M9 15.5h6M9 12.5h6M9 9.5h2.5" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"></path>',
+    image: '<path d="M5 5.5h14v13H5v-13Z" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"></path><path d="m7.5 16 3.2-3.4 2.2 2.2 1.5-1.6L17.2 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"></path><circle cx="14.8" cy="9.2" r="1.2" fill="currentColor"></circle>',
+    audio: '<path d="M8 14H5.8a1.8 1.8 0 0 1 0-3.6H8l5-3.2v10L8 14Z" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"></path><path d="M16 10.2a3 3 0 0 1 0 4" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"></path>',
+    video: '<path d="M5 7h10v10H5V7Z" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"></path><path d="m15 10 4-2.5v9L15 14" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"></path>',
+    archive: '<path d="M7 4.5h10v15H7v-15Z" fill="none" stroke="currentColor" stroke-width="1.7"></path><path d="M10 4.5v4h4v-4M10 8.5h4M12 11v2.5" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"></path>',
+    spreadsheet: '<path d="M6 4.5h12v15H6v-15Z" fill="none" stroke="currentColor" stroke-width="1.7"></path><path d="M6 9h12M6 13h12M10 4.5v15M14 4.5v15" fill="none" stroke="currentColor" stroke-width="1.2"></path>',
+};
+
+function createFileTreeIcon(name, isDir, isOpen) {
+    const icon = document.createElement('span');
+    icon.className = 'ft-icon';
+    updateFileTreeIcon(icon, name, isDir, isOpen);
+    return icon;
+}
+
+function updateFileTreeIcon(icon, name, isDir, isOpen) {
+    if (!icon) return;
+    const iconType = isDir ? (isOpen ? 'folderOpen' : 'folderClosed') : getFileIconType(name);
+    icon.className = `ft-icon ft-icon-${iconType}`;
+    icon.innerHTML = `<svg viewBox="0 0 24 24" aria-hidden="true">${FILE_TREE_ICON_PATHS[iconType] || FILE_TREE_ICON_PATHS.file}</svg>`;
+}
+
+// 根据扩展名返回文件图标类型
+function getFileIconType(name) {
     const ext = name.split('.').pop().toLowerCase();
     const map = {
-        md: '📝', json: '{}', js: 'JS', ts: 'TS', py: '🐍',
-        txt: '📄', yaml: '⚙', yml: '⚙', sh: '>', html: '🌐',
-        css: '🎨', png: '🖼', jpg: '🖼', jpeg: '🖼', gif: '🖼',
-        svg: '🖼', pdf: '📕', zip: '📦', env: '🔑',
+        md: 'markdown', markdown: 'markdown',
+        pdf: 'pdf',
+        html: 'code', htm: 'code', js: 'code', ts: 'code', jsx: 'code',
+        tsx: 'code', css: 'code', py: 'code', sh: 'code', json: 'code',
+        yaml: 'code', yml: 'code', env: 'code',
+        png: 'image', jpg: 'image', jpeg: 'image', gif: 'image', svg: 'image', webp: 'image',
+        wav: 'audio', mp3: 'audio', m4a: 'audio', aac: 'audio', flac: 'audio',
+        mp4: 'video', mov: 'video', webm: 'video', mkv: 'video',
+        zip: 'archive', tar: 'archive', gz: 'archive', rar: 'archive', '7z': 'archive',
+        xlsx: 'spreadsheet', xls: 'spreadsheet', csv: 'spreadsheet',
     };
-    return map[ext] || '📄';
+    return map[ext] || 'file';
 }

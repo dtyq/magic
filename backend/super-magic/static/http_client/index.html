@@ -34,7 +34,7 @@
                     <span class="config-panel-title">初始化配置</span>
                     <span class="config-panel-arrow" id="configPanelArrow">▶</span>
                 </div>
-                <div class="config-panel-body" id="configPanelBody">
+                <div class="config-panel-body" id="configPanelBody" style="display:none">
                     <div id="currentFileName" class="file-name-display"></div>
                     <textarea id="uploadConfigContent" class="config-textarea" readonly
                         placeholder="请上传配置文件，不提供默认配置。"></textarea>
@@ -82,19 +82,32 @@
                 <div class="filetree-header">
                     <span class="filetree-title">工作区文件</span>
                     <div class="filetree-actions">
-                        <button id="refreshTreeBtn" class="icon-btn" title="刷新">↻</button>
-                        <button id="selectWorkspaceBtn" class="icon-btn" title="选择项目根目录">📂</button>
+                        <button id="refreshTreeBtn" class="icon-btn" title="刷新" aria-label="刷新工作区文件">
+                            <svg viewBox="0 0 24 24" aria-hidden="true">
+                                <path d="M20 12a8 8 0 1 1-2.34-5.66" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"></path>
+                                <path d="M20 4.5v5h-5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"></path>
+                            </svg>
+                        </button>
+                        <button id="selectWorkspaceBtn" class="icon-btn" title="选择项目根目录" aria-label="选择项目根目录">
+                            <svg viewBox="0 0 24 24" aria-hidden="true">
+                                <path d="M3.5 7.5a2 2 0 0 1 2-2h4.2l1.7 2H18.5a2 2 0 0 1 2 2v7a2 2 0 0 1-2 2h-13a2 2 0 0 1-2-2v-9Z" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"></path>
+                                <path d="M4 10h16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"></path>
+                            </svg>
+                        </button>
                     </div>
                 </div>
                 <div class="mount-dir-row">
                     <span class="mount-dir-label">挂载目录:</span>
                     <input type="text" id="mountDirInput" class="mount-dir-input" placeholder="留空为根目录">
-                    <button id="applyMountDirBtn" class="icon-btn" title="应用挂载目录">✓</button>
+                    <button id="applyMountDirBtn" class="icon-btn" title="应用挂载目录" aria-label="应用挂载目录">
+                        <svg viewBox="0 0 24 24" aria-hidden="true">
+                            <path d="m5 12.5 4.2 4.2L19 7" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"></path>
+                        </svg>
+                    </button>
                 </div>
                 <div id="filetreeContainer" class="filetree-container">
-                    <div class="filetree-empty">点击 📂 选择项目根目录</div>
+                    <div class="filetree-empty">点击上方按钮选择项目根目录</div>
                 </div>
-                <p class="filetree-hint">在输入框中输入 <code>@</code> 可调起工作区路径联想；或在文件树上右键插入引用（最终格式为 <code>[@directory_path:…]</code> / <code>[@file_path:…]</code>）。新建文件后若列表未更新，可点刷新。</p>
             </div>
         </div>
 
@@ -218,7 +231,6 @@
                         <div id="advancedModeFields" class="input-area-wrapper" style="display:none">
                             <textarea id="rawJsonInput" class="raw-json-textarea"
                                 placeholder='粘贴完整消息 JSON，例如：{"prompt": "...", "agent_mode": "magic", "dynamic_config": {...}, ...}'></textarea>
-                            <p class="advanced-mode-tip">发送消息时将自动刷新 message_id</p>
                         </div>
 
                         <div class="primary-actions">
