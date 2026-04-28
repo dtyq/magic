@@ -9,6 +9,7 @@ from pydantic import Field
 from agentlang.context.tool_context import ToolContext
 from agentlang.tools.tool_result import ToolResult
 from agentlang.logger import get_logger
+from app.core.entity.message.server_message import DisplayType, FileContent, ToolDetail
 from app.tools.core import BaseTool, BaseToolParams, tool
 from app.core.skill_utils.manager import GlobalSkillManager
 from app.core.skill_utils.skill_directory_scan import (
@@ -224,6 +225,25 @@ class SkillList(BaseTool[SkillListParams]):
             "action": i18n.translate(tool_name, category="tool.actions"),
             "remark": self._get_remark_content(result, arguments),
         }
+
+    async def get_tool_detail(
+        self,
+        tool_context: ToolContext,
+        result: ToolResult,
+        arguments: Dict[str, Any] = None,
+    ) -> Optional[ToolDetail]:
+        """为前端提供标准工具详情，避免 skill_list 只在模型上下文中可见。"""
+        if not result.content:
+            return None
+
+        source = (arguments or {}).get("source", "all")
+        return ToolDetail(
+            type=DisplayType.MD,
+            data=FileContent(
+                file_name=f"skill_list_{source}.md",
+                content=f"```xml\n{result.content}\n```",
+            ),
+        )
 
     async def _list_my_library_skills(self) -> List[SkillItem]:
         """从平台「我的技能库」获取最多 200 个技能，失败时降级为空列表"""
