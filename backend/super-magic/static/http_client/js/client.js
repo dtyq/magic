@@ -50,9 +50,11 @@ function ensureWebSocketConnected() {
 
 // 对话消息持久化
 const CHAT_LOG_KEY = 'chatMessageLog';
+const CHAT_SCROLL_KEY = 'chatMessageScrollState';
 const CHAT_LOG_MAX = 300; // 最多保留条数
 let chatLog = [];         // 消息数据列表
 let isRestoring = false;  // 恢复阶段不触发二次保存
+let chatScrollSaveFrame = null;
 
 function saveChatLog() {
     if (isRestoring) return;
@@ -73,6 +75,7 @@ function pushLog(entry) {
 function clearChatLog() {
     chatLog = [];
     localStorage.removeItem(CHAT_LOG_KEY);
+    localStorage.removeItem(CHAT_SCROLL_KEY);
 }
 
 function restoreChatLog() {
@@ -89,7 +92,7 @@ function restoreChatLog() {
         renderLogEntry(entry);
     }
     isRestoring = false;
-    scrollToBottom();
+    restoreChatScrollState();
 }
 
 function renderLogEntry(entry) {
@@ -118,7 +121,10 @@ function renderClientEntry(entry, options = {}) {
         const modelId = entry.modelId ? ` - Model: ${entry.modelId}` : '';
         headerText = `客户端消息 (${entry.time}) - Agent模式: ${agentMode}${modelId}`;
     }
-    header.textContent = headerText;
+    const headerLabel = document.createElement('span');
+    headerLabel.textContent = headerText;
+    header.appendChild(headerLabel);
+    attachCopyButton(header, () => entry.prompt || '', { compact: true });
     const content = document.createElement('div');
     content.className = 'message-content';
     content.textContent = entry.prompt;
@@ -579,6 +585,216 @@ function initResizers() {
     });
 }
 
+const customSelectRegistry = new Map();
+
+function initCustomSelects() {
+    document.querySelectorAll('.input-controls-row select.agent-mode-select').forEach(enhanceSelect);
+    document.addEventListener('click', (event) => {
+        if (!event.target.closest('.custom-select') && !event.target.closest('.custom-select-panel')) {
+            closeAllCustomSelects();
+        }
+    });
+    document.addEventListener('keydown', (event) => {
+        if (event.key === 'Escape') closeAllCustomSelects();
+    });
+    window.addEventListener('resize', positionOpenCustomSelect);
+    window.addEventListener('scroll', positionOpenCustomSelect, true);
+}
+
+function enhanceSelect(select) {
+    if (!select || customSelectRegistry.has(select)) return;
+
+    const wrapper = document.createElement('div');
+    wrapper.className = 'custom-select';
+    wrapper.dataset.selectId = select.id || '';
+
+    const trigger = document.createElement('button');
+    trigger.type = 'button';
+    trigger.className = 'custom-select-trigger';
+
+    const value = document.createElement('span');
+    value.className = 'custom-select-value';
+    const arrow = document.createElement('span');
+    arrow.className = 'custom-select-arrow';
+    arrow.textContent = '▾';
+    trigger.append(value, arrow);
+
+    const panel = document.createElement('div');
+    panel.className = 'custom-select-panel';
+    const search = document.createElement('input');
+    search.type = 'search';
+    search.className = 'custom-select-search';
+    search.placeholder = '搜索选项...';
+    const list = document.createElement('div');
+    list.className = 'custom-select-list';
+    panel.append(search, list);
+
+    select.classList.add('custom-select-native');
+    select.tabIndex = -1;
+    select.setAttribute('aria-hidden', 'true');
+    select.insertAdjacentElement('afterend', wrapper);
+    document.body.appendChild(panel);
+    wrapper.appendChild(trigger);
+
+    const state = { select, wrapper, trigger, value, arrow, panel, search, list, observer: null };
+    customSelectRegistry.set(select, state);
+
+    trigger.addEventListener('click', (event) => {
+        event.preventDefault();
+        event.stopPropagation();
+        toggleCustomSelect(select);
+    });
+    search.addEventListener('input', () => renderCustomSelectOptions(state, search.value));
+    select.addEventListener('change', () => refreshCustomSelect(select));
+
+    state.observer = new MutationObserver(() => refreshCustomSelect(select));
+    state.observer.observe(select, {
+        attributes: true,
+        attributeFilter: ['style', 'disabled'],
+        childList: true,
+        subtree: true,
+    });
+
+    refreshCustomSelect(select);
+}
+
+function toggleCustomSelect(select) {
+    const state = customSelectRegistry.get(select);
+    if (!state || select.disabled || select.style.display === 'none') return;
+
+    if (state.wrapper.classList.contains('open')) {
+        closeCustomSelect(state);
+        return;
+    }
+
+    closeAllCustomSelects();
+    state.wrapper.classList.add('open');
+    state.panel.classList.add('open');
+    state.search.value = '';
+    renderCustomSelectOptions(state, '');
+    positionCustomSelectPanel(state);
+
+    if (select.options.length > 8) {
+        state.search.style.display = '';
+        state.search.focus({ preventScroll: true });
+    } else {
+        state.search.style.display = 'none';
+        state.trigger.focus({ preventScroll: true });
+    }
+}
+
+function refreshCustomSelect(select) {
+    const state = customSelectRegistry.get(select);
+    if (!state) return;
+
+    const selectedOption = select.options[select.selectedIndex] || select.options[0];
+    state.value.textContent = selectedOption ? selectedOption.textContent : '';
+    state.value.title = selectedOption ? selectedOption.textContent : '';
+    state.wrapper.style.display = select.style.display === 'none' ? 'none' : '';
+    state.wrapper.classList.toggle('disabled', select.disabled);
+    if (select.style.display === 'none' || select.disabled) {
+        closeCustomSelect(state);
+    }
+}
+
+function renderCustomSelectOptions(state, keyword) {
+    const normalizedKeyword = keyword.trim().toLowerCase();
+    state.list.innerHTML = '';
+
+    const options = Array.from(state.select.options);
+    const matchedOptions = options.filter(option => {
+        if (!normalizedKeyword) return true;
+        return option.textContent.toLowerCase().includes(normalizedKeyword) ||
+            option.value.toLowerCase().includes(normalizedKeyword);
+    });
+
+    if (matchedOptions.length === 0) {
+        const empty = document.createElement('div');
+        empty.className = 'custom-select-empty';
+        empty.textContent = '没有匹配选项';
+        state.list.appendChild(empty);
+        return;
+    }
+
+    matchedOptions.forEach(option => {
+        const item = document.createElement('button');
+        item.type = 'button';
+        item.className = 'custom-select-option';
+        item.title = option.textContent;
+        item.disabled = option.disabled;
+        item.classList.toggle('selected', option.value === state.select.value);
+
+        const { title, detail } = splitCustomSelectLabel(option.textContent);
+        const titleEl = document.createElement('span');
+        titleEl.className = 'custom-select-option-title';
+        titleEl.textContent = title;
+        item.appendChild(titleEl);
+        if (detail) {
+            const detailEl = document.createElement('span');
+            detailEl.className = 'custom-select-option-detail';
+            detailEl.textContent = detail;
+            item.appendChild(detailEl);
+        }
+
+        item.addEventListener('click', () => {
+            state.select.value = option.value;
+            state.select.dispatchEvent(new Event('change', { bubbles: true }));
+            refreshCustomSelect(state.select);
+            closeCustomSelect(state);
+        });
+        state.list.appendChild(item);
+    });
+}
+
+function splitCustomSelectLabel(label) {
+    const match = label.match(/^(.*?)\s*\(([^()]*)\)$/);
+    if (!match) return { title: label, detail: '' };
+    return {
+        title: match[1].trim() || label,
+        detail: match[2].trim(),
+    };
+}
+
+function positionOpenCustomSelect() {
+    for (const state of customSelectRegistry.values()) {
+        if (state.wrapper.classList.contains('open')) {
+            positionCustomSelectPanel(state);
+        }
+    }
+}
+
+function positionCustomSelectPanel(state) {
+    const rect = state.trigger.getBoundingClientRect();
+    const viewportHeight = window.innerHeight || document.documentElement.clientHeight;
+    const preferWidth = state.select.id === 'modelIdSelect' ? 520 : 360;
+    const width = Math.min(Math.max(rect.width, preferWidth), window.innerWidth - 24);
+    const left = Math.min(Math.max(12, rect.left), window.innerWidth - width - 12);
+    const belowSpace = viewportHeight - rect.bottom - 8;
+    const aboveSpace = rect.top - 8;
+    const openAbove = belowSpace < 240 && aboveSpace > belowSpace;
+    const maxHeight = Math.min(340, Math.max(180, (openAbove ? aboveSpace : belowSpace) - 8));
+
+    state.panel.style.width = `${width}px`;
+    state.panel.style.left = `${left}px`;
+    state.panel.style.maxHeight = `${maxHeight}px`;
+    if (openAbove) {
+        state.panel.style.top = '';
+        state.panel.style.bottom = `${viewportHeight - rect.top + 6}px`;
+    } else {
+        state.panel.style.top = `${rect.bottom + 6}px`;
+        state.panel.style.bottom = '';
+    }
+}
+
+function closeAllCustomSelects() {
+    customSelectRegistry.forEach(closeCustomSelect);
+}
+
+function closeCustomSelect(state) {
+    state.wrapper.classList.remove('open');
+    state.panel.classList.remove('open');
+}
+
 // 初始化事件监听
 document.addEventListener('DOMContentLoaded', () => {
     // 初始化拖拽功能
@@ -592,6 +808,9 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // 初始化消息滚动控制
     initMessageScrollControls();
+
+    // 初始化输入栏自定义选择器
+    initCustomSelects();
 
     // Enter 发送，Shift+Enter 换行
     // isComposing 用于屏蔽输入法合成过程中的 Enter（避免确认候选字时误触发发送）
@@ -798,9 +1017,11 @@ function clearModelList() {
     }
     if (imageModelSelect) {
         imageModelSelect.innerHTML = '<option value="">不指定图片模型</option>';
+        refreshCustomSelect(imageModelSelect);
     }
     const imageModelGroup = document.getElementById('imageModelGroup');
     if (imageModelGroup) imageModelGroup.style.display = 'none';
+    refreshCustomSelect(modelIdSelect);
 
     showSystemMessage('模型列表已清理');
 }
@@ -896,6 +1117,7 @@ function populateModelSelects(textModels, imageModels) {
         modelIdSelect.onchange = () => {
             localStorage.setItem('selectedModelId', modelIdSelect.value);
         };
+        refreshCustomSelect(modelIdSelect);
     }
 
     // 图片模型
@@ -921,6 +1143,7 @@ function populateModelSelects(textModels, imageModels) {
         imageModelSelect.onchange = () => {
             localStorage.setItem('selectedImageModelId', imageModelSelect.value);
         };
+        refreshCustomSelect(imageModelSelect);
     }
 
     // 图片模型组：非 IM 模式下显示
@@ -1038,7 +1261,11 @@ async function sendMessage(contextType = ContextType.NORMAL) {
         messageData.message_id = generateTimestampId();
 
         showClientMessage(messageData);
-        await sendHttpMessage(messageData);
+        showAssistantActivity('thinking');
+        const responseData = await sendHttpMessage(messageData);
+        if (!responseData || responseData.code !== 1000) {
+            hideAssistantActivity();
+        }
         return;
     }
 
@@ -1059,6 +1286,7 @@ async function sendMessage(contextType = ContextType.NORMAL) {
 
     // 显示客户端消息
     showClientMessage(chatMessage);
+    showAssistantActivity('thinking');
 
     // 清空输入框
     messageInput.value = '';
@@ -1067,12 +1295,16 @@ async function sendMessage(contextType = ContextType.NORMAL) {
     saveMessageToHistory(message);
 
     // 发送HTTP请求
-    await sendHttpMessage(chatMessage);
+    const responseData = await sendHttpMessage(chatMessage);
+    if (!responseData || responseData.code !== 1000) {
+        hideAssistantActivity();
+    }
 }
 
 // 发送中断消息
 async function sendInterrupt() {
     const interruptMessage = createChatMessage("", ContextType.INTERRUPT, "用户中断");
+    hideAssistantActivity();
 
     // 显示客户端消息
     showClientMessage({
@@ -1096,9 +1328,13 @@ async function sendContinue() {
         type: "continue",
         prompt: "[继续]"
     });
+    showAssistantActivity('thinking');
 
     // 发送HTTP请求
-    await sendHttpMessage(continueMessage);
+    const responseData = await sendHttpMessage(continueMessage);
+    if (!responseData || responseData.code !== 1000) {
+        hideAssistantActivity();
+    }
 
     // 显示系统消息
     showSystemMessage("继续请求已发送");
@@ -1128,12 +1364,17 @@ async function sendInitMessage() {
             type: MessageType.INIT,
             prompt: "[初始化工作区]"
         });
+        showAssistantActivity('thinking');
 
         showSystemMessage("正在发送工作区初始化消息...");
 
         // 发送HTTP请求
-        await sendHttpMessage(configData);
+        const responseData = await sendHttpMessage(configData);
+        if (!responseData || responseData.code !== 1000) {
+            hideAssistantActivity();
+        }
     } catch (error) {
+        hideAssistantActivity();
         showSystemMessage(`初始化失败: ${error.message}`);
     }
 }
@@ -1408,6 +1649,7 @@ function showServerMessage(message) {
     const messageContent = document.createElement('div');
     messageContent.className = 'message-content';
     messageContent.textContent = JSON.stringify(message, null, 2);
+    attachCopyButton(messageHeader, () => messageContent.textContent, { compact: true });
 
     messageDiv.appendChild(messageHeader);
     messageDiv.appendChild(messageContent);
@@ -1419,15 +1661,136 @@ function showSystemMessage(text, _noLog = false) {
     if (!_noLog) pushLog({ type: 'system', text });
     const messageDiv = document.createElement('div');
     messageDiv.className = 'message system';
-    messageDiv.textContent = `[系统] ${text} (${new Date().toLocaleTimeString()})`;
+    const label = document.createElement('span');
+    label.textContent = `[系统] ${text} (${new Date().toLocaleTimeString()})`;
+    messageDiv.appendChild(label);
+    attachCopyButton(messageDiv, () => text, { compact: true });
     appendMessageNode(messageDiv);
+}
+
+function attachCopyButton(container, getText, options = {}) {
+    if (!container) return null;
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.className = `copy-action${options.compact ? ' copy-action-compact' : ''}`;
+    button.title = '复制';
+    button.setAttribute('aria-label', '复制内容');
+    button.textContent = '复制';
+    button.addEventListener('click', async (event) => {
+        event.preventDefault();
+        event.stopPropagation();
+        const text = typeof getText === 'function' ? getText() : '';
+        if (!text) return;
+        const ok = await copyTextToClipboard(text);
+        const originalText = button.textContent;
+        button.textContent = ok ? '已复制' : '复制失败';
+        button.classList.toggle('copied', ok);
+        setTimeout(() => {
+            button.textContent = originalText;
+            button.classList.remove('copied');
+        }, 1200);
+    });
+    container.appendChild(button);
+    return button;
+}
+
+async function copyTextToClipboard(text) {
+    try {
+        if (navigator.clipboard && window.isSecureContext) {
+            await navigator.clipboard.writeText(text);
+            return true;
+        }
+    } catch (e) {
+        console.warn('clipboard API failed, falling back:', e);
+    }
+
+    const textarea = document.createElement('textarea');
+    textarea.value = text;
+    textarea.setAttribute('readonly', '');
+    textarea.style.position = 'fixed';
+    textarea.style.left = '-9999px';
+    textarea.style.top = '0';
+    document.body.appendChild(textarea);
+    textarea.select();
+    let ok = false;
+    try {
+        ok = document.execCommand('copy');
+    } catch (e) {
+        ok = false;
+    }
+    textarea.remove();
+    return ok;
+}
+
+const assistantActivityLabels = {
+    thinking: 'AI 正在思考中...',
+    writing: 'AI 正在输出中...',
+    tool: 'AI 正在调用工具...',
+};
+
+const assistantActivityState = {
+    wrapper: null,
+    label: null,
+    status: '',
+};
+
+function showAssistantActivity(status = 'thinking') {
+    if (isRestoring) return;
+    const label = assistantActivityLabels[status] || assistantActivityLabels.thinking;
+    const shouldStickToBottom = isMessageViewportAtBottom();
+
+    if (!assistantActivityState.wrapper || !messageList.contains(assistantActivityState.wrapper)) {
+        const wrapper = document.createElement('div');
+        wrapper.className = 'assistant-activity';
+
+        const dot = document.createElement('span');
+        dot.className = 'assistant-activity-dot';
+
+        const text = document.createElement('span');
+        text.className = 'assistant-activity-label';
+
+        wrapper.appendChild(dot);
+        wrapper.appendChild(text);
+        assistantActivityState.wrapper = wrapper;
+        assistantActivityState.label = text;
+    }
+
+    assistantActivityState.status = status;
+    assistantActivityState.wrapper.className = `assistant-activity assistant-activity-${status}`;
+    assistantActivityState.label.textContent = label;
+    messageList.appendChild(assistantActivityState.wrapper);
+    syncScrollAfterMessageChange(shouldStickToBottom);
+}
+
+function keepAssistantActivityLast(exceptNode = null) {
+    const wrapper = assistantActivityState.wrapper;
+    if (!wrapper || wrapper === exceptNode || wrapper.parentNode !== messageList) return;
+    messageList.appendChild(wrapper);
+}
+
+function closeActiveEventTraceLog() {
+    eventTraceLog = null;
+}
+
+function hideAssistantActivity() {
+    const wrapper = assistantActivityState.wrapper;
+    if (wrapper && wrapper.parentNode) {
+        wrapper.parentNode.removeChild(wrapper);
+    }
+    assistantActivityState.status = '';
 }
 
 const MESSAGE_BOTTOM_THRESHOLD_PX = 56;
 let connectionStatusLog = null;
 let connectionStatusItems = [];
+let eventTraceLog = null;
+const eventTraceObjectSeen = new WeakSet();
 const streamMessageRegistry = new Map();
+const rawStreamRegistry = new Map();
 const toolCallRegistry = new Map();
+const superMagicChunkSeenKeys = new Set();
+const superMagicChunkSeenQueue = [];
+const SUPER_MAGIC_CHUNK_SEEN_LIMIT = 3000;
 
 function initMessageScrollControls() {
     if (!messagesContainer || !scrollToLatestBtn) return;
@@ -1439,11 +1802,64 @@ function initMessageScrollControls() {
         if (isMessageViewportAtBottom()) {
             hideScrollToLatestButton();
         }
+        saveChatScrollState();
     });
 
     scrollToLatestBtn.addEventListener('click', () => {
         scrollToBottom({ behavior: 'smooth' });
     });
+}
+
+function saveChatScrollState() {
+    if (isRestoring || !messagesContainer) return;
+    if (chatScrollSaveFrame) return;
+
+    chatScrollSaveFrame = requestAnimationFrame(() => {
+        chatScrollSaveFrame = null;
+        try {
+            localStorage.setItem(CHAT_SCROLL_KEY, JSON.stringify({
+                top: messagesContainer.scrollTop,
+                wasAtBottom: isMessageViewportAtBottom(),
+                scrollHeight: messagesContainer.scrollHeight,
+                savedAt: Date.now(),
+            }));
+        } catch (e) {
+            console.warn('保存对话滚动位置失败:', e);
+        }
+    });
+}
+
+function readChatScrollState() {
+    try {
+        const saved = localStorage.getItem(CHAT_SCROLL_KEY);
+        return saved ? JSON.parse(saved) : null;
+    } catch (e) {
+        return null;
+    }
+}
+
+function restoreChatScrollState() {
+    const saved = readChatScrollState();
+    if (!saved) {
+        scrollToBottom();
+        return;
+    }
+
+    const applyScroll = () => {
+        if (!messagesContainer) return;
+        if (saved.wasAtBottom) {
+            scrollToBottom();
+            return;
+        }
+        const top = Number.isFinite(Number(saved.top)) ? Number(saved.top) : 0;
+        const maxTop = Math.max(0, messagesContainer.scrollHeight - messagesContainer.clientHeight);
+        messagesContainer.scrollTop = Math.min(Math.max(0, top), maxTop);
+        hideScrollToLatestButton();
+    };
+
+    applyScroll();
+    requestAnimationFrame(applyScroll);
+    setTimeout(applyScroll, 120);
 }
 
 function updateScrollButtonPosition() {
@@ -1460,7 +1876,11 @@ function isMessageViewportAtBottom() {
 
 function appendMessageNode(node, options = {}) {
     const shouldStickToBottom = options.forceScroll || isRestoring || isMessageViewportAtBottom();
+    if (!eventTraceLog || node !== eventTraceLog.wrapper) {
+        closeActiveEventTraceLog();
+    }
     messageList.appendChild(node);
+    keepAssistantActivityLast(node);
     syncScrollAfterMessageChange(shouldStickToBottom, { showLatestButton: options.showLatestButton !== false });
 }
 
@@ -1492,8 +1912,16 @@ function hideScrollToLatestButton() {
 function resetConnectionStatusLog() {
     connectionStatusLog = null;
     connectionStatusItems = [];
+    eventTraceLog = null;
+    hideAssistantActivity();
+    rawStreamRegistry.forEach(state => {
+        if (state.timer) clearTimeout(state.timer);
+    });
+    rawStreamRegistry.clear();
     streamMessageRegistry.clear();
     toolCallRegistry.clear();
+    superMagicChunkSeenKeys.clear();
+    superMagicChunkSeenQueue.length = 0;
 }
 
 function showConnectionStatusMessage(text) {
@@ -1984,10 +2412,12 @@ function connectSocketIoStreamFromConfig(configData = null) {
         socketIoClient.onclose = () => {
             isSocketIoConnected = false;
             stopSocketIoHeartbeat();
+            hideAssistantActivity();
             showConnectionStatusMessage("Socket.IO 流式通道已断开");
         };
         socketIoClient.onerror = () => {
             isSocketIoConnected = false;
+            hideAssistantActivity();
             showConnectionStatusMessage("Socket.IO 流式通道连接失败");
         };
         socketIoClient.onmessage = handleSocketIoPacketMessage;
@@ -2214,6 +2644,7 @@ function decodeSocketIoPacket(packetText) {
 function handleSocketIoIntermediateMessage(message) {
     const decoded = decodeSocketIoPayload(message);
     if (!decoded) return;
+    showEventLog(decoded);
     if (handleSuperMagicChunkMessage(decoded)) return;
     if (handleRawStreamMessage(decoded)) return;
     showEventLog({ socketio_intermediate_unhandled: decoded });
@@ -2277,6 +2708,7 @@ function handleWebSocketMessage(event) {
             showEventLog({ error: "无法解析JSON", raw_data: event.data });
             return;
         }
+        showEventLog(data);
 
         if (handleSuperMagicChunkMessage(data)) {
             return;
@@ -2304,10 +2736,14 @@ function handleWebSocketMessage(event) {
             const messageKey = payload.app_message_id || payload.correlation_id || '';
             const renderOptions = messageKey ? { key: messageKey, replace: true } : {};
             if (contentType === 'content') {
+                if (queueRawStreamFinal(messageKey, 'content', content, payload.send_timestamp)) return;
                 // v1 流式已按 correlation_id 创建气泡，最终消息只做原地校准。
                 showAIMessage(content, payload.send_timestamp, false, renderOptions);
+                hideAssistantActivity();
             } else if (contentType === 'reasoning') {
+                if (queueRawStreamFinal(messageKey, 'reasoning', content, payload.send_timestamp)) return;
                 showThinkingMessage(content, payload.send_timestamp, false, renderOptions);
+                hideAssistantActivity();
             } else {
                 showEventLog(data);
             }
@@ -2319,14 +2755,23 @@ function handleWebSocketMessage(event) {
                     correlationId: payload.correlation_id,
                     toolCallId: tool.id,
                 });
+                if (eventType === 'before_tool_call') {
+                    showAssistantActivity('tool');
+                } else {
+                    showAssistantActivity('thinking');
+                }
             } else {
                 showEventLog(data);
             }
+        } else if (eventType === 'before_agent_reply') {
+            showAssistantActivity('thinking');
+            showEventLog(data);
         } else {
             // 其余所有事件 → 折叠日志条目
             showEventLog(data);
         }
     } catch (error) {
+        hideAssistantActivity();
         showSystemMessage(`处理WebSocket消息时出错: ${error.message}`);
     }
 }
@@ -2341,12 +2786,16 @@ function handleSuperMagicChunkMessage(data) {
     for (const choice of choices) {
         const delta = choice && choice.delta ? choice.delta : {};
         if (typeof delta.reasoning_content === 'string' && delta.reasoning_content) {
+            if (isDuplicateSuperMagicChunkDelta(envelope, choice, 'reasoning')) continue;
+            showAssistantActivity('thinking');
             showThinkingMessage(delta.reasoning_content, Math.floor((envelope.timestampMs || Date.now()) / 1000), true, {
                 key: messageKey || `reasoning-${chunk.correlation_id || chunk.i || Date.now()}`,
                 append: true,
             });
         }
         if (typeof delta.content === 'string' && delta.content) {
+            if (isDuplicateSuperMagicChunkDelta(envelope, choice, 'content')) continue;
+            showAssistantActivity('writing');
             showAIMessage(delta.content, Math.floor((envelope.timestampMs || Date.now()) / 1000), true, {
                 key: messageKey || `content-${chunk.correlation_id || chunk.i || Date.now()}`,
                 append: true,
@@ -2355,6 +2804,33 @@ function handleSuperMagicChunkMessage(data) {
     }
 
     return true;
+}
+
+function isDuplicateSuperMagicChunkDelta(envelope, choice, deltaType) {
+    const chunk = envelope && envelope.chunk;
+    if (!chunk) return false;
+
+    const chunkIndex = chunk.i ?? chunk.chunk_id ?? chunk.index;
+    if (chunkIndex === undefined || chunkIndex === null) return false;
+
+    const messageKey =
+        envelope.appMessageId ||
+        chunk.id ||
+        chunk.correlation_id ||
+        chunk.app_message_id ||
+        'unknown';
+    const choiceIndex = choice && choice.index !== undefined ? choice.index : 0;
+    const dedupeKey = `${messageKey}:${choiceIndex}:${deltaType}:${chunkIndex}`;
+
+    if (superMagicChunkSeenKeys.has(dedupeKey)) return true;
+
+    superMagicChunkSeenKeys.add(dedupeKey);
+    superMagicChunkSeenQueue.push(dedupeKey);
+    while (superMagicChunkSeenQueue.length > SUPER_MAGIC_CHUNK_SEEN_LIMIT) {
+        const oldKey = superMagicChunkSeenQueue.shift();
+        if (oldKey) superMagicChunkSeenKeys.delete(oldKey);
+    }
+    return false;
 }
 
 function handleRawStreamMessage(data) {
@@ -2373,14 +2849,161 @@ function handleRawStreamMessage(data) {
     const timestamp = rawData.send_timestamp
         ? Math.floor(rawData.send_timestamp / 1000)
         : Math.floor(Date.now() / 1000);
-    const options = { key, append: !isFinal, replace: isFinal };
 
-    if (rawData.content_type === 'reasoning') {
-        showThinkingMessage(content, timestamp, true, options);
-    } else {
-        showAIMessage(content, timestamp, true, options);
-    }
+    showAssistantActivity(rawData.content_type === 'reasoning' ? 'thinking' : 'writing');
+    queueRawStreamChunk({
+        key,
+        content,
+        contentType: rawData.content_type === 'reasoning' ? 'reasoning' : 'content',
+        streamStatus,
+        timestamp,
+        isFinal,
+        chunkId: rawData.chunk_id,
+    });
     return true;
+}
+
+function queueRawStreamChunk({ key, content, contentType, streamStatus, timestamp, isFinal, chunkId }) {
+    const streamKey = `${contentType}:${key || 'default'}`;
+    let state = rawStreamRegistry.get(streamKey);
+    if (!state) {
+        const renderedContent = getRenderedStreamContent(contentType, key || streamKey);
+        state = {
+            key: key || streamKey,
+            contentType,
+            timestamp,
+            targetContent: renderedContent,
+            renderedContent,
+            timer: null,
+            isFinal: false,
+            seenChunkIds: new Set(),
+            loggedFinal: false,
+        };
+        rawStreamRegistry.set(streamKey, state);
+    }
+
+    if (chunkId !== undefined && chunkId !== null) {
+        if (state.seenChunkIds.has(chunkId)) return;
+        state.seenChunkIds.add(chunkId);
+    }
+
+    state.timestamp = timestamp || state.timestamp;
+    if (state.isFinal && !isFinal) {
+        return;
+    }
+    state.isFinal = state.isFinal || isFinal;
+    if (streamStatus === 0) {
+        state.targetContent = content;
+        state.renderedContent = '';
+    } else if (isFinal) {
+        // V1 end chunks carry the full text. Use it as the authoritative target
+        // and let the paced renderer consume the remaining suffix.
+        state.targetContent = mergeRawStreamContent(state.targetContent, content);
+    } else {
+        state.targetContent = mergeRawStreamContent(state.targetContent, content);
+    }
+
+    scheduleRawStreamRender(state, streamKey);
+}
+
+function mergeRawStreamContent(currentContent, nextContent) {
+    if (!nextContent) return currentContent;
+    if (!currentContent) return nextContent;
+    if (nextContent.startsWith(currentContent)) return nextContent;
+    if (currentContent.endsWith(nextContent)) return currentContent;
+
+    const maxOverlap = Math.min(currentContent.length, nextContent.length);
+    for (let overlap = maxOverlap; overlap > 0; overlap--) {
+        if (currentContent.endsWith(nextContent.slice(0, overlap))) {
+            return currentContent + nextContent.slice(overlap);
+        }
+    }
+
+    return currentContent + nextContent;
+}
+
+function queueRawStreamFinal(key, contentType, content, timestamp) {
+    if (!key) return false;
+    const streamKey = `${contentType}:${key}`;
+    const state = rawStreamRegistry.get(streamKey);
+    if (!state) return false;
+
+    state.timestamp = timestamp || state.timestamp;
+    state.targetContent = mergeRawStreamContent(state.targetContent, content);
+    state.isFinal = true;
+    scheduleRawStreamRender(state, streamKey);
+    return true;
+}
+
+function getRenderedStreamContent(contentType, key) {
+    if (!key) return '';
+    const registryKey = `${contentType === 'reasoning' ? 'reasoning' : 'content'}:${key}`;
+    const messageState = streamMessageRegistry.get(registryKey);
+    return messageState && typeof messageState.content === 'string' ? messageState.content : '';
+}
+
+function scheduleRawStreamRender(state, streamKey) {
+    if (state.timer) return;
+    state.timer = setTimeout(() => {
+        state.timer = null;
+        renderRawStreamStep(state, streamKey);
+    }, 12);
+}
+
+function renderRawStreamStep(state, streamKey) {
+    if (state.renderedContent.length >= state.targetContent.length) {
+        if (state.isFinal) {
+            persistRawStreamFinal(state, streamKey);
+            rawStreamRegistry.delete(streamKey);
+        }
+        return;
+    }
+
+    const remaining = state.targetContent.length - state.renderedContent.length;
+    const step = state.targetContent.length > 120 ? 5 : 2;
+    const nextLength = state.renderedContent.length + Math.min(step, remaining);
+    const nextContent = state.targetContent.slice(0, nextLength);
+    state.renderedContent = nextContent;
+
+    const options = {
+        key: state.key,
+        replace: true,
+    };
+    if (state.contentType === 'reasoning') {
+        showThinkingMessage(nextContent, state.timestamp, true, options);
+    } else {
+        showAIMessage(nextContent, state.timestamp, true, options);
+    }
+
+    scheduleRawStreamRender(state, streamKey);
+}
+
+function persistRawStreamFinal(state, streamKey) {
+    if (state.loggedFinal || !state.renderedContent) return;
+    state.loggedFinal = true;
+    hideAssistantActivity();
+    const entry = {
+        type: state.contentType === 'reasoning' ? 'thinking' : 'ai',
+        content: state.renderedContent,
+        timestamp: state.timestamp,
+        rawStreamKey: streamKey,
+    };
+
+    const existingIndex = chatLog.findIndex(item => item.rawStreamKey === streamKey);
+    if (existingIndex >= 0) {
+        chatLog[existingIndex] = entry;
+        saveChatLog();
+        return;
+    }
+
+    const sameContentExists = chatLog.some(item =>
+        item.type === entry.type &&
+        item.content === entry.content &&
+        Math.abs((item.timestamp || 0) - (entry.timestamp || 0)) <= 1
+    );
+    if (!sameContentExists) {
+        pushLog(entry);
+    }
 }
 
 function extractSuperMagicChunkEnvelope(data) {
@@ -2413,6 +3036,7 @@ function extractSuperMagicChunkEnvelope(data) {
 function handleSuperMagicMessage(smsg, payload) {
     const messageKey = smsg.message_id || payload.message_id || smsg.correlation_id || payload.correlation_id || '';
     let hasVisibleContent = false;
+    let hasReplyContent = false;
 
     // 最终消息是权威全文；如果已有流式气泡，则原地校准，不再新增一条。
     if (smsg.reasoning_content) {
@@ -2421,6 +3045,7 @@ function handleSuperMagicMessage(smsg, payload) {
             replace: true,
         });
         hasVisibleContent = true;
+        hasReplyContent = true;
     }
     if (smsg.content) {
         showAIMessage(smsg.content, payload.send_timestamp, false, {
@@ -2428,6 +3053,7 @@ function handleSuperMagicMessage(smsg, payload) {
             replace: true,
         });
         hasVisibleContent = true;
+        hasReplyContent = true;
     }
 
     const tools = collectToolsFromSuperMagicMessage(smsg, payload);
@@ -2436,9 +3062,17 @@ function handleSuperMagicMessage(smsg, payload) {
             correlationId: smsg.correlation_id || payload.correlation_id,
             toolCallId: item.toolCallId,
         });
+        if (payload.event === 'before_tool_call') {
+            showAssistantActivity('tool');
+        } else if (payload.event === 'after_tool_call') {
+            showAssistantActivity('thinking');
+        }
         hasVisibleContent = true;
     }
 
+    if (hasReplyContent) {
+        hideAssistantActivity();
+    }
     return hasVisibleContent;
 }
 
@@ -2550,12 +3184,20 @@ function showAIMessage(content, timestamp, _noLog = false, options = {}) {
     const headerText = document.createElement('span');
     headerText.textContent = `AI 回复 (${timeStr})`;
 
+    const titleGroup = document.createElement('div');
+    titleGroup.className = 'ai-title-group';
+
     const toggleBtn = document.createElement('button');
     toggleBtn.className = 'ai-toggle-btn';
     toggleBtn.textContent = '原文';
 
-    header.appendChild(headerText);
-    header.appendChild(toggleBtn);
+    const actions = document.createElement('div');
+    actions.className = 'message-actions';
+
+    titleGroup.appendChild(headerText);
+    actions.appendChild(toggleBtn);
+    header.appendChild(titleGroup);
+    header.appendChild(actions);
     messageDiv.appendChild(header);
 
     // 渲染视图（默认显示）
@@ -2581,6 +3223,7 @@ function showAIMessage(content, timestamp, _noLog = false, options = {}) {
     });
 
     messageState = { messageDiv, renderedView, rawView, content: '' };
+    attachCopyButton(actions, () => messageState.content);
     updateAIMessageState(messageState, content, options);
     if (registryKey) {
         streamMessageRegistry.set(registryKey, messageState);
@@ -2616,11 +3259,13 @@ function showThinkingMessage(content, timestamp, _noLog = false, options = {}) {
 
     const summary = document.createElement('div');
     summary.className = 'thinking-summary';
-    summary.textContent = `▼ 思考过程 (${timeStr})`;
+    const summaryLabel = document.createElement('span');
+    summaryLabel.textContent = `▼ 思考过程 (${timeStr})`;
+    summary.appendChild(summaryLabel);
     summary.addEventListener('click', () => {
         const isHidden = detail.style.display === 'none';
         detail.style.display = isHidden ? 'block' : 'none';
-        summary.textContent = (isHidden ? '▼' : '▶') + ` 思考过程 (${timeStr})`;
+        summaryLabel.textContent = (isHidden ? '▼' : '▶') + ` 思考过程 (${timeStr})`;
     });
 
     const detail = document.createElement('div');
@@ -2629,6 +3274,7 @@ function showThinkingMessage(content, timestamp, _noLog = false, options = {}) {
     wrapper.appendChild(summary);
     wrapper.appendChild(detail);
     thinkingState = { wrapper, detail, content: '' };
+    attachCopyButton(summary, () => thinkingState.content, { compact: true });
     updateThinkingMessageState(thinkingState, content, options);
     if (registryKey) {
         streamMessageRegistry.set(registryKey, thinkingState);
@@ -3043,6 +3689,11 @@ function showToolCallMessage(tool, eventType, timestamp, _noLog = false, options
     arrow.textContent = '▶';
     header.appendChild(arrow);
 
+    const copyBtn = attachCopyButton(header, () => {
+        return toolState.detailEl.textContent ||
+            [toolState.actionSpan.textContent, toolState.remarkSpan.textContent].filter(Boolean).join('\n');
+    }, { compact: true });
+
     const detailEl = document.createElement('pre');
     detailEl.className = 'tool-call-detail';
     detailEl.style.display = 'none';
@@ -3058,7 +3709,7 @@ function showToolCallMessage(tool, eventType, timestamp, _noLog = false, options
     wrapper.appendChild(header);
     wrapper.appendChild(detailEl);
 
-    toolState = { wrapper, header, actionSpan, remarkSpan, timeSpan, arrow, detailEl };
+    toolState = { wrapper, header, actionSpan, remarkSpan, timeSpan, arrow, detailEl, copyBtn };
     updateToolCallState(toolState, tool, eventType, timeStr, options);
     if (toolKey) {
         toolCallRegistry.set(toolKey, toolState);
@@ -3165,32 +3816,117 @@ function formatToolDetail(detail) {
 
 // 显示折叠的事件日志条目
 function showEventLog(data, _noLog = false) {
+    if (data && typeof data === 'object') {
+        if (eventTraceObjectSeen.has(data)) return;
+        eventTraceObjectSeen.add(data);
+    }
     if (!_noLog) pushLog({ type: 'event', data });
-    const payload = data && data.payload;
-    const eventType = data.label || (payload && payload.event) || '未知事件';
-    const timeStr = (payload && payload.send_timestamp)
-        ? new Date(payload.send_timestamp * 1000).toLocaleTimeString()
-        : new Date().toLocaleTimeString();
+    const eventLabel = getEventTraceLabel(data);
+    const timeStr = getEventTraceTime(data);
+    const shouldStickToBottom = isMessageViewportAtBottom();
+
+    const trace = ensureEventTraceLog();
+    trace.countValue += 1;
+    trace.latest.textContent = `[${timeStr}] ${eventLabel} 等 ${trace.countValue} 个事件`;
 
     const wrapper = document.createElement('div');
     wrapper.className = 'event-log';
 
     const summary = document.createElement('div');
     summary.className = 'event-log-summary';
-    summary.textContent = `▶ [${timeStr}] ${eventType}`;
+    const summaryLabel = document.createElement('span');
+    summaryLabel.textContent = `▶ [${timeStr}] ${eventLabel}`;
+    summary.appendChild(summaryLabel);
     summary.addEventListener('click', () => {
         detail.style.display = detail.style.display === 'none' ? 'block' : 'none';
-        summary.textContent = (detail.style.display === 'none' ? '▶' : '▼') + ` [${timeStr}] ${eventType}`;
+        summaryLabel.textContent = (detail.style.display === 'none' ? '▶' : '▼') + ` [${timeStr}] ${eventLabel}`;
     });
 
     const detail = document.createElement('pre');
     detail.className = 'event-log-detail';
     detail.style.display = 'none';
     detail.textContent = JSON.stringify(data, null, 2);
+    trace.rawTexts.push(detail.textContent);
+    attachCopyButton(summary, () => detail.textContent, { compact: true });
 
     wrapper.appendChild(summary);
     wrapper.appendChild(detail);
-    appendMessageNode(wrapper);
+    trace.body.appendChild(wrapper);
+    trace.body.scrollTop = trace.body.scrollHeight;
+    keepAssistantActivityLast();
+    syncScrollAfterMessageChange(shouldStickToBottom, { showLatestButton: true });
+}
+
+function ensureEventTraceLog() {
+    if (eventTraceLog && messageList.contains(eventTraceLog.wrapper)) return eventTraceLog;
+
+    const wrapper = document.createElement('div');
+    wrapper.className = 'event-trace-box';
+
+    const header = document.createElement('div');
+    header.className = 'event-trace-header';
+    header.title = '点击展开/收起原始事件';
+
+    const title = document.createElement('span');
+    title.className = 'event-trace-title';
+    title.textContent = '原始事件';
+
+    const latest = document.createElement('span');
+    latest.className = 'event-trace-latest';
+    latest.textContent = '等待事件';
+
+    const body = document.createElement('div');
+    body.className = 'event-trace-body';
+    body.style.display = 'none';
+
+    header.appendChild(title);
+    header.appendChild(latest);
+    const copyAll = attachCopyButton(header, () => eventTraceLog ? eventTraceLog.rawTexts.join('\n\n') : '', { compact: true });
+    copyAll.classList.add('event-trace-copy-all');
+    wrapper.appendChild(header);
+    wrapper.appendChild(body);
+    header.addEventListener('click', (event) => {
+        if (event.target.closest('.copy-action')) return;
+        const isHidden = body.style.display === 'none';
+        body.style.display = isHidden ? 'block' : 'none';
+        wrapper.classList.toggle('expanded', isHidden);
+    });
+
+    eventTraceLog = { wrapper, header, title, latest, copyAll, body, countValue: 0, rawTexts: [] };
+    appendMessageNode(wrapper, { showLatestButton: false });
+    return eventTraceLog;
+}
+
+function getEventTraceLabel(data) {
+    if (!data || typeof data !== 'object') return '未知事件';
+    const payload = data.payload || {};
+    const seqMessage = data.seq && data.seq.message;
+    const dataMessage = data.data && data.data.message;
+    const message = seqMessage || dataMessage || data.message || {};
+    if (data.label) return data.label;
+    if (payload.event) return payload.event;
+    if (payload.type) return payload.type;
+    if (message.type === 'raw' && message.raw && message.raw.raw_data) {
+        const raw = message.raw.raw_data;
+        return `raw.${raw.content_type || 'content'}#${raw.chunk_id ?? '?'}`;
+    }
+    if (message.type) return message.type;
+    if (data.type) return data.type;
+    if (data.socketio_intermediate_unhandled) return 'socketio_intermediate_unhandled';
+    if (data.error) return 'error';
+    return '未知事件';
+}
+
+function getEventTraceTime(data) {
+    const payload = data && data.payload;
+    const seqMessage = data && data.seq && data.seq.message;
+    const dataMessage = data && data.data && data.data.message;
+    const message = seqMessage || dataMessage || {};
+    const timestamp =
+        (payload && payload.send_timestamp) ||
+        (message && message.send_time) ||
+        (data && data.context && data.context.timestamp ? data.context.timestamp / 1000 : 0);
+    return timestamp ? new Date(timestamp * 1000).toLocaleTimeString() : new Date().toLocaleTimeString();
 }
 
 // ── 自动订阅 & 断线重连 ──
@@ -3219,6 +3955,7 @@ function scheduleReconnect() {
 function handleWebSocketClose(event) {
     isWebSocketConnected = false;
     updateSubscribeButtonState('disconnected');
+    hideAssistantActivity();
 
     if (event.wasClean) {
         showConnectionStatusMessage("WebSocket连接正常关闭");
@@ -3231,6 +3968,7 @@ function handleWebSocketClose(event) {
 function handleWebSocketError(error) {
     console.error('WebSocket error:', error);
     wsOpenCallbacks.splice(0).forEach(cb => cb.reject(new Error('WebSocket连接失败')));
+    hideAssistantActivity();
 
     let errorMessage = "WebSocket连接发生错误";
     let suggestions = "";
@@ -3659,13 +4397,64 @@ const filePreviewMeta = document.getElementById('filePreviewMeta');
 const filePreviewClose = document.getElementById('filePreviewClose');
 const filePreviewOpenBtn = document.getElementById('filePreviewOpenBtn');
 const filePreviewRenderBtn = document.getElementById('filePreviewRenderBtn');
+const FILE_PREVIEW_SIZE_KEY = 'filePreviewDialogSize';
 
 /** 媒体/PDF 预览用的 blob URL，关闭或切换预览时需 revoke */
 let filePreviewObjectUrl = null;
+let filePreviewResizeObserver = null;
 
 /** 当前正在预览的文件，供"新窗口打开/渲染预览"按钮使用 */
 let currentPreviewFile = null;
 let currentPreviewPath = '';
+
+function getFilePreviewDialog() {
+    return filePreviewOverlay?.querySelector('.file-preview-dialog') || null;
+}
+
+function clampFilePreviewSize(size) {
+    const viewportWidth = window.innerWidth || 1200;
+    const viewportHeight = window.innerHeight || 800;
+    return {
+        width: Math.min(Math.max(Number(size.width) || 0, 640), Math.max(640, viewportWidth - 32)),
+        height: Math.min(Math.max(Number(size.height) || 0, 420), Math.max(420, viewportHeight - 32)),
+    };
+}
+
+function applySavedFilePreviewSize() {
+    const dialog = getFilePreviewDialog();
+    if (!dialog) return;
+    try {
+        const saved = JSON.parse(localStorage.getItem(FILE_PREVIEW_SIZE_KEY) || 'null');
+        if (!saved) {
+            dialog.style.width = '';
+            dialog.style.height = '';
+            return;
+        }
+        const size = clampFilePreviewSize(saved);
+        dialog.style.width = `${size.width}px`;
+        dialog.style.height = `${size.height}px`;
+    } catch (e) {
+        dialog.style.width = '';
+        dialog.style.height = '';
+    }
+}
+
+function initFilePreviewResizeMemory() {
+    const dialog = getFilePreviewDialog();
+    if (!dialog || filePreviewResizeObserver) return;
+    filePreviewResizeObserver = new ResizeObserver((entries) => {
+        if (!filePreviewOverlay || filePreviewOverlay.style.display === 'none') return;
+        const rect = entries[0]?.contentRect;
+        if (!rect) return;
+        try {
+            localStorage.setItem(FILE_PREVIEW_SIZE_KEY, JSON.stringify({
+                width: Math.round(rect.width),
+                height: Math.round(rect.height),
+            }));
+        } catch (e) {}
+    });
+    filePreviewResizeObserver.observe(dialog);
+}
 
 /**
  * 后端返回的 workspace 绝对路径（如 /Users/.../super-magic/.workspace），
@@ -3897,6 +4686,7 @@ function appendPreviewMessage(bodyEl, message) {
 }
 
 const PREVIEW_KIND_LABEL = {
+    html: 'HTML',
     image: '图片',
     video: '视频',
     audio: '音频',
@@ -4153,34 +4943,44 @@ if (filePreviewClose) {
     });
 }
 if (filePreviewOverlay) {
-    filePreviewOverlay.addEventListener('click', (e) => {
-        if (e.target === filePreviewOverlay) hideFilePreview();
+    filePreviewOverlay.addEventListener('keydown', (event) => {
+        if (event.key === 'Escape') {
+            event.preventDefault();
+            hideFilePreview();
+        }
     });
 }
+
+document.addEventListener('keydown', (event) => {
+    if (event.key === 'Escape' && filePreviewOverlay && filePreviewOverlay.style.display !== 'none') {
+        hideFilePreview();
+    }
+});
 
 if (filePreviewOpenBtn) {
     filePreviewOpenBtn.addEventListener('click', () => openCurrentPreviewInNewTab());
 }
 
-if (filePreviewRenderBtn) {
-    filePreviewRenderBtn.addEventListener('click', async () => {
-        if (!currentPreviewFile || !filePreviewBody) return;
-        filePreviewBody.innerHTML = '';
-        const iframe = document.createElement('iframe');
-        iframe.className = 'file-preview-pdf';
-        iframe.title = currentPreviewPath;
+async function renderCurrentPreviewAsHtml() {
+    if (!currentPreviewFile || !filePreviewBody) return;
+    filePreviewBody.innerHTML = '';
+    const iframe = document.createElement('iframe');
+    iframe.className = 'file-preview-pdf file-preview-html';
+    iframe.title = currentPreviewPath;
 
-        const fileUrl = buildFileUrl(currentPreviewPath);
-        if (fileUrl) {
-            // file:// 协议下相对资源能正常加载
-            iframe.src = fileUrl;
-        } else {
-            // 降级：用 srcdoc 渲染（单文件 HTML 有效，多文件的相对资源不可用）
-            const text = await currentPreviewFile.text();
-            iframe.srcdoc = text;
-        }
-        filePreviewBody.appendChild(iframe);
-    });
+    const fileUrl = buildFileUrl(currentPreviewPath);
+    if (fileUrl) {
+        // file:// 协议下相对资源能正常加载
+        iframe.src = fileUrl;
+    } else {
+        // 降级：用 srcdoc 渲染（单文件 HTML 有效，多文件的相对资源不可用）
+        iframe.srcdoc = await currentPreviewFile.text();
+    }
+    filePreviewBody.appendChild(iframe);
+}
+
+if (filePreviewRenderBtn) {
+    filePreviewRenderBtn.addEventListener('click', renderCurrentPreviewAsHtml);
 }
 
 // 自动刷新（每 3 秒）
@@ -4683,13 +5483,15 @@ async function previewFile(fileHandle, filePath) {
         // 记录当前预览对象，供 header 上的"新窗口打开/渲染预览"按钮使用
         currentPreviewFile = file;
         currentPreviewPath = filePath;
-        if (filePreviewRenderBtn) {
-            filePreviewRenderBtn.style.display = isHtmlPreviewable(filePath, file) ? '' : 'none';
-        }
+        const isHtmlFile = isHtmlPreviewable(filePath, file);
+        if (filePreviewRenderBtn) filePreviewRenderBtn.style.display = 'none';
 
         const kind = getWorkspacePreviewKind(filePath, file);
 
-        if (kind === 'unsupported') {
+        if (isHtmlFile) {
+            setFilePreviewMeta(file, filePath, 'html', []);
+            await renderCurrentPreviewAsHtml();
+        } else if (kind === 'unsupported') {
             setFilePreviewMeta(file, filePath, kind, []);
             appendPreviewMessage(filePreviewBody, '此文件类型无法在浏览器内预览，请使用本地应用打开。');
         } else if (kind === 'image') {
@@ -4799,7 +5601,10 @@ async function previewFile(fileHandle, filePath) {
             }
         }
 
+        applySavedFilePreviewSize();
         filePreviewOverlay.style.display = 'flex';
+        initFilePreviewResizeMemory();
+        filePreviewOverlay.focus({ preventScroll: true });
     } catch (e) {
         console.error('读取文件失败', e);
     }

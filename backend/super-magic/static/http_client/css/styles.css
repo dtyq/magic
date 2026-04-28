@@ -173,6 +173,178 @@ input[type="text"]:focus {
     border-color: var(--wechat-green);
 }
 
+.custom-select-native {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    margin: 0;
+    padding: 0;
+    opacity: 0;
+    pointer-events: none;
+}
+
+.custom-select {
+    position: relative;
+    flex-shrink: 0;
+    width: 180px;
+}
+
+#agentModeGroup .custom-select,
+#modelIdGroup .custom-select {
+    width: 320px;
+}
+
+#imageModelGroup .custom-select {
+    width: 260px;
+}
+
+#agentCodeGroup .custom-select {
+    width: 150px;
+}
+
+#imChannelGroup .custom-select,
+#languageGroup .custom-select,
+#messageVersionGroup .custom-select {
+    width: 150px;
+}
+
+.custom-select-trigger {
+    width: 100%;
+    min-height: 36px;
+    padding: 7px 10px;
+    border: 1px solid var(--wechat-border);
+    border-radius: 6px;
+    background: #fff;
+    color: var(--wechat-text-dark);
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    font-size: 14px;
+    transition: border-color 0.2s, box-shadow 0.2s;
+}
+
+.custom-select-trigger:hover,
+.custom-select.open .custom-select-trigger {
+    border-color: var(--wechat-green);
+}
+
+.custom-select.open .custom-select-trigger {
+    box-shadow: 0 0 0 2px rgba(7, 193, 96, 0.1);
+}
+
+.custom-select.disabled .custom-select-trigger {
+    cursor: not-allowed;
+    color: var(--wechat-text-gray);
+    background: #f7f7f7;
+}
+
+.custom-select-value {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    text-align: left;
+}
+
+.custom-select-arrow {
+    flex-shrink: 0;
+    color: var(--wechat-text-gray);
+    font-size: 11px;
+    transition: transform 0.2s;
+}
+
+.custom-select.open .custom-select-arrow {
+    transform: rotate(180deg);
+}
+
+.custom-select-panel {
+    display: none;
+    position: fixed;
+    z-index: 1000;
+    background: #fff;
+    border: 1px solid var(--wechat-border);
+    border-radius: 10px;
+    box-shadow: 0 10px 32px rgba(0, 0, 0, 0.16);
+    overflow: hidden;
+}
+
+.custom-select-panel.open {
+    display: flex;
+    flex-direction: column;
+}
+
+.custom-select-search {
+    width: calc(100% - 16px);
+    margin: 8px;
+    padding: 8px 10px;
+    border: 1px solid var(--wechat-border);
+    border-radius: 6px;
+    font-size: 13px;
+    outline: none;
+}
+
+.custom-select-search:focus {
+    border-color: var(--wechat-green);
+    box-shadow: 0 0 0 2px rgba(7, 193, 96, 0.08);
+}
+
+.custom-select-list {
+    flex: 1;
+    min-height: 0;
+    overflow-y: auto;
+    padding: 4px;
+}
+
+.custom-select-option {
+    width: 100%;
+    border: none;
+    border-radius: 7px;
+    background: transparent;
+    cursor: pointer;
+    padding: 8px 10px;
+    text-align: left;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    color: var(--wechat-text-dark);
+}
+
+.custom-select-option:hover,
+.custom-select-option.selected {
+    background: rgba(7, 193, 96, 0.08);
+}
+
+.custom-select-option.selected {
+    color: #058a45;
+}
+
+.custom-select-option-title,
+.custom-select-option-detail {
+    display: block;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.custom-select-option-title {
+    font-size: 13px;
+    font-weight: 500;
+}
+
+.custom-select-option-detail {
+    font-size: 12px;
+    color: var(--wechat-text-gray);
+}
+
+.custom-select-empty {
+    padding: 14px 12px;
+    color: var(--wechat-text-gray);
+    font-size: 13px;
+    text-align: center;
+}
+
 .btn {
     padding: 8px 15px;
     border: none;
@@ -369,7 +541,7 @@ input[type="checkbox"] {
 .message-list {
     display: flex;
     flex-direction: column;
-    gap: 8px;
+    gap: 4px;
 }
 
 .message {
@@ -382,10 +554,37 @@ input[type="checkbox"] {
 
 .message.client {
     align-self: flex-end;
-    background-color: var(--wechat-green);
-    color: white;
-    border-radius: 8px 0 8px 8px;
-    /* 微信气泡特有的形状 */
+    position: relative;
+    max-width: min(78%, 820px);
+    padding: 11px 14px 12px;
+    background: linear-gradient(180deg, rgba(255, 255, 255, 0.96), rgba(249, 251, 250, 0.94));
+    color: #202a25;
+    border: 1px solid rgba(30, 49, 39, 0.07);
+    border-radius: 9px;
+    box-shadow: 0 2px 8px rgba(23, 40, 31, 0.04);
+}
+
+.message.client .message-header,
+.message.ai .message-header {
+    color: #81908a;
+    opacity: 1;
+    margin-bottom: 7px;
+    font-size: 10px;
+    letter-spacing: 0.01em;
+}
+
+.message.client .message-content,
+.message.ai .message-content {
+    font-family: inherit;
+    font-size: 13.5px;
+    line-height: 1.7;
+    color: #26332d;
+}
+
+.message.client .copy-action {
+    background: rgba(255, 255, 255, 0.52);
+    border-color: rgba(30, 49, 39, 0.06);
+    color: #81908a;
 }
 
 .message.server {
@@ -400,6 +599,9 @@ input[type="checkbox"] {
 
 .message.system {
     align-self: center;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
     background-color: rgba(0, 0, 0, 0.03);
     color: var(--wechat-text-gray);
     font-style: normal;
@@ -434,6 +636,61 @@ input[type="checkbox"] {
 
 .scroll-to-latest-btn:hover {
     background: #06ae56;
+}
+
+.assistant-activity {
+    align-self: flex-start;
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    width: fit-content;
+    max-width: min(85%, 520px);
+    margin: 2px 0;
+    padding: 6px 11px;
+    border: 1px solid rgba(41, 128, 185, 0.16);
+    border-radius: 999px;
+    background: rgba(255, 255, 255, 0.86);
+    color: #5d7181;
+    font-size: 12px;
+    line-height: 1.5;
+    box-shadow: 0 2px 8px rgba(20, 43, 64, 0.05);
+}
+
+.assistant-activity-dot {
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    background: #3498db;
+    box-shadow: 0 0 0 rgba(52, 152, 219, 0.35);
+    animation: assistantActivityPulse 1.25s ease-in-out infinite;
+}
+
+.assistant-activity-writing .assistant-activity-dot {
+    background: #07c160;
+    box-shadow: 0 0 0 rgba(7, 193, 96, 0.35);
+}
+
+.assistant-activity-tool .assistant-activity-dot {
+    background: #e67e22;
+    box-shadow: 0 0 0 rgba(230, 126, 34, 0.35);
+}
+
+@keyframes assistantActivityPulse {
+    0% {
+        transform: scale(0.9);
+        box-shadow: 0 0 0 0 currentColor;
+        opacity: 0.65;
+    }
+    55% {
+        transform: scale(1);
+        box-shadow: 0 0 0 5px rgba(52, 152, 219, 0);
+        opacity: 1;
+    }
+    100% {
+        transform: scale(0.9);
+        box-shadow: 0 0 0 0 rgba(52, 152, 219, 0);
+        opacity: 0.65;
+    }
 }
 
 .connection-status-log {
@@ -476,6 +733,10 @@ input[type="checkbox"] {
 }
 
 .message-header {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    justify-content: space-between;
     font-size: 11px;
     margin-bottom: 4px;
     color: rgba(255, 255, 255, 0.8);
@@ -495,45 +756,103 @@ input[type="checkbox"] {
 /* AI 回复消息气泡 */
 .message.ai {
     align-self: flex-start;
-    background-color: white;
-    color: var(--wechat-text-dark);
-    border-radius: 0 8px 8px 8px;
-    border: 1px solid var(--wechat-border);
-    box-shadow: 0 1px 4px rgba(0,0,0,0.06);
-    padding: 8px 12px;
-    max-width: 85%;
+    position: relative;
+    background: linear-gradient(180deg, rgba(255, 255, 255, 0.96), rgba(250, 251, 250, 0.94));
+    color: #202a25;
+    border: 1px solid rgba(30, 49, 39, 0.07);
+    border-radius: 9px;
+    box-shadow: 0 2px 8px rgba(23, 40, 31, 0.04);
+    padding: 11px 14px 12px;
+    max-width: min(78%, 820px);
     word-break: break-word;
-    font-size: 14px;
-    line-height: 1.6;
+    font-size: 13.5px;
+    line-height: 1.7;
 }
 
 .message.ai .ai-header {
     display: flex;
     align-items: center;
     justify-content: space-between;
-    margin-bottom: 6px;
+    gap: 12px;
+    min-height: 24px;
+    margin-bottom: 7px;
 }
 
-.message.ai .message-header {
-    color: var(--wechat-text-gray);
-    font-size: 11px;
-    margin-bottom: 0;
+.ai-title-group {
+    display: inline-flex;
+    align-items: center;
+    min-height: 24px;
+    min-width: 0;
+}
+
+.message-actions {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    min-height: 24px;
+    flex-shrink: 0;
 }
 
 /* 原文 / MD 切换按钮 */
-.ai-toggle-btn {
-    font-size: 11px;
-    padding: 1px 7px;
-    border: 1px solid var(--wechat-border);
-    border-radius: 3px;
-    background: transparent;
+.ai-toggle-btn,
+.copy-action {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 36px;
+    height: 22px;
+    box-sizing: border-box;
+    padding: 0 8px;
+    border-radius: 6px;
     color: var(--wechat-text-gray);
+    font-size: 11px;
+    line-height: 1;
     cursor: pointer;
-    line-height: 1.6;
     flex-shrink: 0;
 }
+
+.ai-toggle-btn {
+    border: 1px solid rgba(0, 0, 0, 0.045);
+    background: transparent;
+}
+
 .ai-toggle-btn:hover {
-    background: rgba(0,0,0,0.04);
+    background: rgba(0,0,0,0.035);
+}
+
+.copy-action {
+    border: 1px solid rgba(0, 0, 0, 0.055);
+    background: rgba(255, 255, 255, 0.44);
+    opacity: 0;
+    visibility: hidden;
+    transition: background-color 0.15s ease, border-color 0.15s ease, color 0.15s ease;
+}
+
+.message:hover .copy-action,
+.tool-call-header:hover .copy-action,
+.event-trace-box:hover > .event-trace-header .copy-action,
+.event-log-summary:hover .copy-action {
+    opacity: 1;
+    visibility: visible;
+}
+
+.copy-action:hover {
+    background: rgba(69, 89, 108, 0.07);
+    border-color: rgba(69, 89, 108, 0.18);
+    color: #566574;
+}
+
+.copy-action.copied {
+    background: rgba(69, 89, 108, 0.1);
+    border-color: rgba(69, 89, 108, 0.22);
+    color: #3f4e5c;
+}
+
+.copy-action-compact {
+    min-width: 36px;
+    height: 22px;
+    padding: 0 8px;
+    font-size: 11px;
 }
 
 /* 原文视图 */
@@ -646,7 +965,9 @@ input[type="checkbox"] {
 }
 
 .thinking-summary {
-    display: inline-block;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
     padding: 3px 10px;
     font-size: 12px;
     color: #9b59b6;
@@ -710,8 +1031,16 @@ input[type="checkbox"] {
     border: 1px solid rgba(231, 76, 60, 0.25);
 }
 
-.tool-call-header:hover {
-    filter: brightness(0.95);
+.tool-call-block.tool-call-running .tool-call-header:hover {
+    background-color: rgba(230, 126, 34, 0.1);
+}
+
+.tool-call-block.tool-call-finished .tool-call-header:hover {
+    background-color: rgba(41, 128, 185, 0.1);
+}
+
+.tool-call-block.tool-call-error .tool-call-header:hover {
+    background-color: rgba(231, 76, 60, 0.1);
 }
 
 .tool-call-status-dot {
@@ -934,29 +1263,131 @@ input[type="checkbox"] {
     color: #888;
 }
 
+/* 原始事件聚合盒 */
+.event-trace-box {
+    align-self: flex-start;
+    width: min(520px, calc(100% - 48px));
+    min-width: min(320px, calc(100% - 48px));
+    max-width: 76%;
+    max-height: 168px;
+    margin: 4px 0;
+    border: 1px solid rgba(30, 49, 39, 0.06);
+    border-radius: 9px;
+    background: rgba(255, 255, 255, 0.66);
+    overflow: hidden;
+    box-shadow: 0 2px 8px rgba(23, 40, 31, 0.03);
+}
+
+.event-trace-box.expanded {
+    max-height: min(420px, 45vh);
+}
+
+.event-trace-header {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    height: 28px;
+    padding: 0 10px;
+    background: rgba(245, 247, 246, 0.74);
+    color: #9aa1a8;
+    font-size: 11px;
+    line-height: 28px;
+    cursor: pointer;
+}
+
+.event-trace-title {
+    font-weight: 500;
+    flex-shrink: 0;
+    color: #8d979f;
+}
+
+.event-trace-latest {
+    flex: 1;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    color: #aeb4ba;
+    font-size: 10.5px;
+}
+
+.event-trace-count {
+    margin-left: auto;
+    flex-shrink: 0;
+    font-size: 10px;
+    color: #b4bac0;
+}
+
+.event-trace-body {
+    max-height: 140px;
+    overflow: auto;
+    padding: 4px 7px 6px;
+    background: rgba(255, 255, 255, 0.38);
+    border-top: 1px solid rgba(30, 49, 39, 0.045);
+}
+
+.event-trace-box.expanded .event-trace-body {
+    max-height: min(360px, 38vh);
+}
+
+.event-trace-copy-all {
+    margin-left: auto;
+    opacity: 1;
+    visibility: visible;
+}
+
 /* 事件日志折叠条目 */
 .event-log {
-    align-self: stretch;
-    margin: 2px 0;
+    align-self: flex-start;
+    width: fit-content;
+    max-width: 100%;
+    margin: -4px 0;
+    line-height: 1;
 }
 
 .event-log-summary {
-    display: inline-block;
-    padding: 2px 8px;
-    font-size: 11px;
-    color: #aaa;
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    height: 18px;
+    padding: 0 5px;
+    font-size: 10px;
+    line-height: 18px;
+    color: #b7b7b7;
     cursor: pointer;
-    border-radius: 4px;
+    border-radius: 999px;
     user-select: none;
+    transition: background-color 0.15s ease, color 0.15s ease;
 }
 
 .event-log-summary:hover {
-    background-color: rgba(0,0,0,0.04);
-    color: #888;
+    background-color: rgba(0,0,0,0.035);
+    color: #7f8790;
+}
+
+.event-log-summary .copy-action {
+    width: 34px;
+    height: 16px;
+    margin-left: 2px;
+    padding: 0;
+    opacity: 0;
+    border-color: transparent;
+    visibility: hidden;
+    pointer-events: none;
+    font-size: 10px;
+    line-height: 14px;
+    transition: opacity 0.15s ease, border-color 0.15s ease, color 0.15s ease, background-color 0.15s ease;
+}
+
+.event-log-summary:hover .copy-action {
+    opacity: 1;
+    visibility: visible;
+    border-color: rgba(0, 0, 0, 0.08);
+    pointer-events: auto;
 }
 
 .event-log-detail {
-    margin-top: 4px;
+    margin-top: 2px;
     padding: 8px 12px;
     background-color: #f9f9f9;
     border: 1px solid var(--wechat-border);
@@ -2245,16 +2676,24 @@ input[type="file"] {
     z-index: 9000;
 }
 
+.file-preview-overlay:focus {
+    outline: none;
+}
+
 .file-preview-dialog {
     background: #fff;
     border-radius: 8px;
     box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2);
-    width: 78vw;
-    max-width: 1040px;
-    max-height: 80vh;
+    width: 82vw;
+    height: 82vh;
+    min-width: min(720px, calc(100vw - 32px));
+    min-height: min(420px, calc(100vh - 32px));
+    max-width: calc(100vw - 32px);
+    max-height: calc(100vh - 32px);
     display: flex;
     flex-direction: column;
-    overflow: hidden;
+    overflow: auto;
+    resize: both;
 }
 
 .file-preview-main {
@@ -2418,6 +2857,10 @@ input[type="file"] {
     height: min(75vh, 900px);
     border: 0;
     background: #e8e8e8;
+}
+
+.file-preview-html {
+    background: #fff;
 }
 
 .file-preview-message {
