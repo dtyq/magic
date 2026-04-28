@@ -143,9 +143,29 @@
         "zh_CN": "视觉理解",
         "en_US": "Visual understanding"
     },
+    "visual_understanding_ing": {
+        "zh_CN": "正在视觉理解",
+        "en_US": "Analyzing image"
+    },
+    "video_understanding": {
+        "zh_CN": "视频理解",
+        "en_US": "Video understanding"
+    },
+    "video_understanding_ing": {
+        "zh_CN": "正在视频理解",
+        "en_US": "Analyzing video"
+    },
     "generate_image": {
         "zh_CN": "生成图像",
         "en_US": "Generate image"
+    },
+    "generate_images": {
+        "zh_CN": "生成图像",
+        "en_US": "Generate images"
+    },
+    "generate_images_ing": {
+        "zh_CN": "正在生成图像",
+        "en_US": "Generating images"
     },
     "generate_video": {
         "zh_CN": "生成视频",
@@ -242,6 +262,10 @@
     "generate_canvas_images": {
         "zh_CN": "生成图片",
         "en_US": "Generate images"
+    },
+    "generate_canvas_images_ing": {
+        "zh_CN": "正在生成图片",
+        "en_US": "Generating images"
     },
     "generate_canvas_videos": {
         "zh_CN": "生成视频",

@@ -49,6 +49,7 @@ tools:
   - web_search
   - read_webpages_as_markdown
   - visual_understanding
+  - video_understanding
   - run_python_snippet
   - download_from_url
   - download_from_urls
@@ -63,9 +64,10 @@ tools:
 tools:
   - web_search
   - read_webpages_as_markdown
-  - generate_image
+  - generate_images
   - image_search
   - visual_understanding
+  - video_understanding
   - run_python_snippet
 ```
 
@@ -97,6 +99,7 @@ tools:
   - shell_exec
   - web_search
   - visual_understanding
+  - video_understanding
   - convert_to_markdown
   - download_from_url
 ```
@@ -149,7 +152,8 @@ tools:
 |------|-------------|
 | `visual_understanding` | Analyze image content and answer questions |
 | `visual_understanding_webpage` | Screenshot and analyze a webpage visually |
-| `generate_image` | Generate images from text or edit existing images |
+| `video_understanding` | Analyze video content and answer questions |
+| `generate_images` | Batch generate images from text prompts or reference images |
 | `image_search` | Search for images by keyword |
 
 <!--zh

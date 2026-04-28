@@ -1,5 +1,6 @@
 ---
 model_id: deepseek-v3.2
+ai_ability_code: follow_up_questions
 temperature: 0.3
 max_tokens: 256
 enabled_model_fallback_chain: true

@@ -1709,6 +1709,281 @@ input[type="file"] {
     font-size: 12px;
 }
 
+/* ── MCP 配置面板 ── */
+.mcp-panel-badge {
+    font-size: 11px;
+    color: var(--wechat-text-gray);
+    background-color: #f0f0f0;
+    border-radius: 10px;
+    padding: 1px 7px;
+    margin-left: 4px;
+    flex: 1;
+}
+
+.mcp-panel-badge.has-enabled {
+    color: #fff;
+    background-color: var(--wechat-green);
+}
+
+.mcp-mode-tabs {
+    display: flex;
+    gap: 4px;
+    margin-bottom: 10px;
+}
+
+.mcp-tab {
+    flex: 1;
+    padding: 4px 0;
+    font-size: 12px;
+    border: 1px solid var(--wechat-border);
+    border-radius: 4px;
+    background-color: #f5f5f5;
+    color: var(--wechat-text-gray);
+    cursor: pointer;
+    transition: background-color 0.15s, color 0.15s;
+}
+
+.mcp-tab.active {
+    background-color: var(--wechat-green);
+    border-color: var(--wechat-green);
+    color: #fff;
+}
+
+.mcp-tab:hover:not(.active) {
+    background-color: #e8e8e8;
+}
+
+.mcp-server-list {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+.mcp-list-empty {
+    font-size: 12px;
+    color: var(--wechat-text-gray);
+    text-align: center;
+    padding: 12px 0;
+}
+
+.mcp-server-item {
+    border: 1px solid var(--wechat-border);
+    border-radius: 6px;
+    padding: 8px 10px;
+    background-color: #fafafa;
+    transition: border-color 0.15s;
+}
+
+.mcp-server-item.enabled {
+    border-color: var(--wechat-green);
+    background-color: #f0faf4;
+}
+
+.mcp-server-item-header {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.mcp-server-name {
+    flex: 1;
+    font-size: 13px;
+    font-weight: 500;
+    color: var(--wechat-text-dark);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.mcp-server-type {
+    font-size: 10px;
+    padding: 1px 5px;
+    border-radius: 3px;
+    background-color: #e8f0fe;
+    color: #4c8bf5;
+    flex-shrink: 0;
+}
+
+.mcp-server-type.stdio {
+    background-color: #fef3e2;
+    color: #fa9d3b;
+}
+
+.mcp-server-toggle {
+    position: relative;
+    width: 32px;
+    height: 18px;
+    flex-shrink: 0;
+}
+
+.mcp-server-toggle input {
+    opacity: 0;
+    width: 0;
+    height: 0;
+    position: absolute;
+}
+
+.mcp-toggle-slider {
+    position: absolute;
+    inset: 0;
+    background-color: #ccc;
+    border-radius: 18px;
+    cursor: pointer;
+    transition: background-color 0.2s;
+}
+
+.mcp-toggle-slider::before {
+    content: '';
+    position: absolute;
+    width: 12px;
+    height: 12px;
+    left: 3px;
+    top: 3px;
+    background-color: #fff;
+    border-radius: 50%;
+    transition: transform 0.2s;
+}
+
+.mcp-server-toggle input:checked + .mcp-toggle-slider {
+    background-color: var(--wechat-green);
+}
+
+.mcp-server-toggle input:checked + .mcp-toggle-slider::before {
+    transform: translateX(14px);
+}
+
+.mcp-server-meta {
+    margin-top: 4px;
+    font-size: 11px;
+    color: var(--wechat-text-gray);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.mcp-json-toolbar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 5px;
+}
+
+.mcp-json-hint {
+    font-size: 11px;
+    color: var(--wechat-text-gray);
+}
+
+.mcp-expand-btn {
+    padding: 2px 6px;
+    font-size: 13px;
+    line-height: 1;
+    border: 1px solid var(--wechat-border);
+    border-radius: 4px;
+    background-color: #f5f5f5;
+    color: var(--wechat-text-gray);
+    cursor: pointer;
+    flex-shrink: 0;
+    transition: background-color 0.15s;
+}
+
+.mcp-expand-btn:hover {
+    background-color: #e0e0e0;
+    color: var(--wechat-text-dark);
+}
+
+.mcp-json-textarea {
+    min-height: 140px;
+    font-size: 12px;
+    font-family: 'Menlo', 'Consolas', monospace;
+    resize: vertical;
+}
+
+/* MCP JSON 全屏编辑弹窗 */
+.mcp-modal-overlay {
+    position: fixed;
+    inset: 0;
+    background-color: rgba(0, 0, 0, 0.45);
+    z-index: 2000;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.mcp-modal-dialog {
+    width: min(760px, 90vw);
+    height: min(600px, 85vh);
+    background-color: var(--wechat-panel-bg);
+    border-radius: 10px;
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.18);
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+}
+
+.mcp-modal-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 12px 16px;
+    border-bottom: 1px solid var(--wechat-border);
+    flex-shrink: 0;
+}
+
+.mcp-modal-title {
+    font-size: 14px;
+    font-weight: 500;
+    color: var(--wechat-text-dark);
+}
+
+.mcp-modal-actions {
+    display: flex;
+    gap: 8px;
+}
+
+.mcp-modal-save-btn {
+    padding: 5px 16px;
+    font-size: 13px;
+    border: none;
+    border-radius: 5px;
+    background-color: var(--wechat-green);
+    color: #fff;
+    cursor: pointer;
+    transition: opacity 0.15s;
+}
+
+.mcp-modal-save-btn:hover {
+    opacity: 0.85;
+}
+
+.mcp-modal-close-btn {
+    padding: 5px 14px;
+    font-size: 13px;
+    border: 1px solid var(--wechat-border);
+    border-radius: 5px;
+    background-color: #f5f5f5;
+    color: var(--wechat-text-dark);
+    cursor: pointer;
+    transition: background-color 0.15s;
+}
+
+.mcp-modal-close-btn:hover {
+    background-color: #e8e8e8;
+}
+
+.mcp-modal-textarea {
+    flex: 1;
+    width: 100%;
+    padding: 14px 16px;
+    border: none;
+    outline: none;
+    resize: none;
+    font-size: 13px;
+    font-family: 'Menlo', 'Consolas', monospace;
+    color: var(--wechat-text-dark);
+    line-height: 1.6;
+    background-color: #fafafa;
+}
+
 /* ── 文件树面板 ── */
 .filetree-panel {
     flex: 1;

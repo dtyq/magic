@@ -20,6 +20,7 @@ tools:
   - setup_video_project
   - analyze_video_project
   - visual_understanding
+  - video_understanding
   - web_search
   - read_webpages_as_markdown
   - download_from_url

@@ -300,7 +300,7 @@ class TaskMessageFactoryV2(TaskMessageFactoryProtocol):
         return config_details
 
     # ──────────────────────────────────────────────
-    # 错误消息（保持 CHAT 类型，不走 super_magic_message）
+    # 错误消息（与 after_agent_reply 一致：assistant + super_magic_message）
     # ──────────────────────────────────────────────
 
     @classmethod
@@ -313,17 +313,20 @@ class TaskMessageFactoryV2(TaskMessageFactoryProtocol):
             "messages.task.failed",
             category="common.messages",
         )
-        return ServerMessage(
-            metadata=agent_context.get_metadata(),
-            payload=ServerMessagePayload.create(
-                task_id="",
-                sandbox_id=agent_context.get_sandbox_id(),
-                message_type=MessageType.CHAT,
-                status=final_task_state.task_status,
-                content=content,
-                seq_id=agent_context.get_next_seq_id(),
-                event=EventType.ERROR,
-            ),
+        status = final_task_state.task_status
+        inner = cls._build_inner_message(
+            agent_context,
+            role="assistant",
+            content=content,
+            status=status.value,
+        )
+        return cls._build_and_send(
+            agent_context,
+            inner,
+            status=status,
+            event_type=EventType.ERROR,
+            content=content,
+            content_type="content",
         )
 
     # ──────────────────────────────────────────────

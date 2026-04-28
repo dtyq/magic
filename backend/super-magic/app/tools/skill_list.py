@@ -116,8 +116,11 @@ class SkillList(BaseTool[SkillListParams]):
             if not workspace_skills:
                 workspace_skills = await self._list_workspace_skills()
             workspace_names = {s.name for s in workspace_skills}
+            existing_names = {s.name for s in skills}
             my_library = await self._list_my_library_skills()
             for item in my_library:
+                if item.name in existing_names:
+                    continue
                 item.installed = item.name in workspace_names
                 skills.append(item)
 
@@ -241,6 +244,7 @@ class SkillList(BaseTool[SkillListParams]):
                     code=item.code,
                 )
                 for item in result.get_items()
+                if item.source_type != "SYSTEM"
             ]
             results.sort(key=lambda x: x.name)
             logger.info(f"my_library skills: {len(results)} 个")

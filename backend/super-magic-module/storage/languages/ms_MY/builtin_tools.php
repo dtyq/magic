@@ -27,6 +27,7 @@ return [
 
         // Pemprosesan Kandungan
         'visual_understanding' => 'Pemahaman Visual',
+        'video_understanding' => 'Pemahaman Video',
         'convert_to_markdown' => 'Tukar ke Markdown',
         'voice_understanding' => 'Pengecaman Suara',
         'summarize' => 'Ringkasan',
@@ -70,6 +71,7 @@ return [
 
         // Pemprosesan Kandungan
         'visual_understanding' => 'Alat pemahaman visual, menganalisis dan mentafsir kandungan imej, menyokong JPEG, PNG, GIF dan format lain, sesuai untuk penerangan pengecaman imej, analisis carta, pengekstrakan teks, perbandingan berbilang imej dan senario lain',
+        'video_understanding' => 'Alat pemahaman video, menganalisis dan mentafsir kandungan video, sesuai untuk penerangan bingkai, pemahaman gerakan dan adegan, penaakulan berkait garis masa dan senario serupa',
         'convert_to_markdown' => 'Alat penukaran format dokumen, menukar dokumen ke format Markdown dan menyimpan ke lokasi yang ditentukan. Menyokong pelbagai jenis fail: PDF, Word, Excel, PowerPoint, imej, Jupyter notebooks, dll',
         'voice_understanding' => 'Alat pengecaman pertuturan, menukar fail audio ke teks, menyokong wav, mp3, ogg, m4a dan format lain, boleh membolehkan fungsi pengecaman maklumat penutur',
         'summarize' => 'Alat penapisan maklumat, meningkatkan kepadatan maklumat teks, menghapuskan kandungan berlebihan untuk menjadikannya lebih berstruktur, menyokong keperluan penapisan tersuai dan tetapan panjang sasaran',

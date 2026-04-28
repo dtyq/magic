@@ -4,6 +4,7 @@ tools:
   - web_search
   - image_search
   - visual_understanding
+  - video_understanding
   - convert_to_markdown
   - list_dir
   - file_search
@@ -18,7 +19,7 @@ tools:
   - multi_edit_file
   - multi_edit_file_range
   - delete_files
-  - generate_image
+  - generate_images
   - read_webpages_as_markdown
   - download_from_urls
 skills:

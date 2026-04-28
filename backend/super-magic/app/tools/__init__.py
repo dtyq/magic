@@ -29,6 +29,7 @@ from app.tools.get_js_cdn_address import GetJsCdnAddress
 from app.tools.grep_search import GrepSearch
 
 from app.tools.generate_image import GenerateImage
+from app.tools.generate_images import GenerateImages
 from app.tools.generate_video import GenerateVideo, QueryVideoGeneration
 from app.tools.image_search import ImageSearch
 from app.tools.list_dir import ListDir
@@ -61,6 +62,7 @@ from app.tools.convert_pdf import ConvertPdf
 from app.tools.convert_to_markdown import ConvertToMarkdown
 from app.tools.visual_understanding import VisualUnderstanding
 from app.tools.visual_understanding_webpage import VisualUnderstandingWebpage
+from app.tools.video_understanding import VideoUnderstanding
 from app.tools.analysis_slide_webpage import AnalysisSlideWebpage
 from app.tools.channel import ConnectDingTalkBot, ConnectLarkBot, ConnectWecomBot, ConnectWechatBot, GetIMChannelStatus, WaitWechatLogin
 
@@ -157,6 +159,7 @@ __all__ = [
     "GrepSearch",
     "ImageSearch",
     "GenerateImage",
+    "GenerateImages",
     "GenerateVideo",
     "QueryVideoGeneration",
     "GetIMChannelStatus",
@@ -183,6 +186,7 @@ __all__ = [
     "UseBrowser",
     "VisualUnderstanding",
     "VisualUnderstandingWebpage",
+    "VideoUnderstanding",
     "WriteFile",
     "ManageCron",
     "ManageCalendar",

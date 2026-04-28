@@ -10,6 +10,7 @@ from __future__ import annotations
 import asyncio
 import dataclasses
 from abc import abstractmethod
+from collections import OrderedDict
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Dict, Generic, List, Optional, Tuple, TypeVar
@@ -32,6 +33,26 @@ logger = get_logger(__name__)
 
 TParams = TypeVar("TParams", bound=BaseToolParams)
 
+# 内存存储：element_id -> 累计失败次数
+# FIFO 淘汰，最多 _RETRY_STORE_MAX_SIZE 条，进程级单例
+_element_retry_counts: OrderedDict[str, int] = OrderedDict()
+_RETRY_STORE_MAX_SIZE = 200
+
+
+def _get_element_retry_count(element_id: str) -> int:
+    """读取 element_id 的当前累计失败次数，默认为 0。"""
+    return _element_retry_counts.get(element_id, 0)
+
+
+def _increment_element_retry_count(element_id: str) -> int:
+    """递增 element_id 的失败次数并返回新值；超出容量时淘汰最旧条目。"""
+    current = _element_retry_counts.pop(element_id, 0)
+    new_count = current + 1
+    _element_retry_counts[element_id] = new_count
+    while len(_element_retry_counts) > _RETRY_STORE_MAX_SIZE:
+        _element_retry_counts.popitem(last=False)
+    return new_count
+
 
 @dataclass
 class ElementDetail:
@@ -47,6 +68,7 @@ class ElementDetail:
         y: Y 坐标，复用已有元素时可能为 None
         width: 宽度，复用已有元素时可能为 None
         height: 高度，复用已有元素时可能为 None
+        retry_count: 从画布元素读取的当前已失败次数（新建占位符默认为 0）
     """
 
     id: str
@@ -56,6 +78,7 @@ class ElementDetail:
     y: Optional[float]
     width: Optional[float]
     height: Optional[float]
+    retry_count: int = 0
 
 
 @dataclass
@@ -138,6 +161,9 @@ class BaseGenerateCanvasElements(BaseDesignTool[TParams], Generic[TParams]):
 
     # 每行最多放几个占位符，子类可覆盖
     _max_elements_per_row: int = 6
+
+    # 单个 canvas 元素最多总尝试次数（初始 1 次 + 最多 2 次重试）
+    MAX_GENERATION_ATTEMPTS: int = 3
 
     # ------------------------------------------------------------------
     # 抽象接口
@@ -318,6 +344,11 @@ class BaseGenerateCanvasElements(BaseDesignTool[TParams], Generic[TParams]):
 
         logger.info(f"流程完成: 成功={succeeded_count}, 失败={failed_count}")
 
+        # 失败的任务：递增内存中的重试计数，同步更新 placeholder.retry_count（供错误信息使用）
+        for p, r in zip(all_placeholders, task_results):
+            if r.is_failed:
+                p.retry_count = _increment_element_retry_count(p.id)
+
         placeholders_as_dicts = [
             self._build_created_element_dict(all_placeholders[i], task_results[i])
             for i in range(len(all_placeholders))
@@ -325,13 +356,36 @@ class BaseGenerateCanvasElements(BaseDesignTool[TParams], Generic[TParams]):
         extra_data = self._collect_extra_info(tasks, all_placeholders, task_results)
 
         if succeeded_count == 0 and all_placeholders:
-            failed_desc = "; ".join(
-                f"{p.name or p.id} (element_id: \"{p.id}\")"
+            failed_lines = []
+            for p, r in zip(all_placeholders, task_results):
+                # p.retry_count 此时已是递增后的新值
+                can_retry = p.retry_count < self.MAX_GENERATION_ATTEMPTS
+                if can_retry:
+                    line = f'- name="{p.name or p.id}", element_id="{p.id}"'
+                else:
+                    line = f'- name="{p.name or p.id}" [max attempts reached, do not retry]'
+                if r.error_message:
+                    # 截取错误前 200 字符，避免长串 JSON 干扰 LLM 理解 element_id
+                    short_error = r.error_message[:200]
+                    if len(r.error_message) > 200:
+                        short_error += "..."
+                    line += f", reason: {short_error}"
+                failed_lines.append(line)
+            failed_desc = "\n".join(failed_lines)
+            has_retryable = any(
+                p.retry_count < self.MAX_GENERATION_ATTEMPTS
                 for p in all_placeholders
             )
+            retry_hint = (
+                "To retry a failed task in place (even if changing the prompt), "
+                "pass its element_id in the next call:\n"
+                if has_retryable
+                else "Image generation service may be unavailable, "
+                     "please contact the administrator:\n"
+            )
             return ToolResult.error(
-                f"Task execution failed: all {len(all_placeholders)} task(s) failed. "
-                f"To retry in place, pass element_id for each: {failed_desc}",
+                f"All {len(all_placeholders)} task(s) failed.\n"
+                f"{retry_hint}{failed_desc}",
                 extra_info={
                     "error_type": "design.error_unexpected",
                     "project_path": project_path_str,
@@ -390,8 +444,28 @@ class BaseGenerateCanvasElements(BaseDesignTool[TParams], Generic[TParams]):
         manager = CanvasManager(str(project_path))
         config_file = self._get_magic_project_js_path(project_path)
 
-        # 复用已有占位符：一次事务批量重置为 processing
+        # 复用已有占位符：校验重试次数上限，再批量重置为 processing
         if existing_task_indices:
+            exceeded_desc: List[str] = []
+            for idx in existing_task_indices:
+                task = tasks[idx]
+                current_retry = _get_element_retry_count(task.element_id)
+                if current_retry >= self.MAX_GENERATION_ATTEMPTS:
+                    exceeded_desc.append(
+                        f'- "{getattr(task, "name", task.element_id)}" (element_id="{task.element_id}") '
+                        f'has already reached the maximum of {self.MAX_GENERATION_ATTEMPTS} attempts. '
+                        f'Remove element_id to create a new placeholder instead.'
+                    )
+
+            if exceeded_desc:
+                return None, ToolResult.error(
+                    f"Image generation service may be unavailable. "
+                    f"The following elements have failed {self.MAX_GENERATION_ATTEMPTS} times in a row "
+                    f"and cannot be retried. Please contact the administrator:\n"
+                    + "\n".join(exceeded_desc),
+                    extra_info={"error_type": "design.error_unexpected"},
+                )
+
             existing_ids = [tasks[idx].element_id for idx in existing_task_indices]
 
             async def reset_to_processing(config: Any) -> None:
@@ -418,6 +492,7 @@ class BaseGenerateCanvasElements(BaseDesignTool[TParams], Generic[TParams]):
                     y=None,
                     width=None,
                     height=None,
+                    retry_count=_get_element_retry_count(task.element_id),
                 )
 
             logger.info(f"复用占位符：重置 {len(existing_task_indices)} 个为 processing")
