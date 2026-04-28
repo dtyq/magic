@@ -1,3 +1,4 @@
+import asyncio
 import json
 from typing import Any, Dict, List, Optional
 
@@ -11,7 +12,12 @@ from app.core.entity.message.server_message import DisplayType, FileContent, Too
 from app.i18n import i18n
 from app.tools.core import BaseTool, BaseToolParams, tool
 from app.tools.media_utils import extract_media_source_name
-from app.tools.video_understanding_utils import VideoLLMRequestHandler, VideoProcessor
+from app.tools.video_understanding_utils import (
+    VideoLLMRequestHandler,
+    VideoProcessor,
+    format_video_source_info,
+    probe_all_videos,
+)
 
 logger = get_logger(__name__)
 
@@ -145,8 +151,11 @@ class VideoUnderstanding(BaseTool[VideoUnderstandingParams]):
         if batch.success_count == 0:
             return ToolResult.error(f"所有视频处理失败 ({batch.failed_count} 个视频)")
 
+        # LLM 调用与元信息提取并发执行，互不阻塞
         try:
-            response = await VideoLLMRequestHandler.call_with_fallback(model_id, query, batch, timeout)
+            llm_task = VideoLLMRequestHandler.call_with_fallback(model_id, query, batch, timeout)
+            metadata_task = probe_all_videos(videos)
+            response, metadata_list = await asyncio.gather(llm_task, metadata_task)
         except Exception as e:
             logger.error(f"视频理解 LLM 调用失败 (模型: {model_id}): {e}")
             return ToolResult.error("视频理解服务暂时不可用，请稍后重试")
@@ -156,12 +165,19 @@ class VideoUnderstanding(BaseTool[VideoUnderstandingParams]):
 
         content = response.choices[0].message.content
 
+        # 在内容末尾追加视频来源信息，格式与视觉理解的图片尺寸信息对齐
+        source_info = format_video_source_info(metadata_list, videos)
+        if source_info:
+            content = f"{content}\n\n{source_info}"
+
+        video_names = [extract_media_source_name(v) for v in videos]
+
         return ToolResult(
             content=content,
             extra_info={
                 "videos": videos,
                 "video_count": len(videos),
-                "video_names": [extract_media_source_name(v) for v in videos],
+                "video_names": video_names,
             }
         )
 
