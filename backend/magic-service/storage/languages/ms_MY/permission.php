@@ -59,19 +59,19 @@ return [
         'functions' => [
             'skill_create' => [
                 'name' => 'Cipta Kemahiran',
-                'description' => 'Pintu masuk untuk mencipta kemahiran kosong.',
+                'description' => 'Pintu masuk untuk mencipta kemahiran kosong dan penerbitan peribadi.',
             ],
-            'skill_publish' => [
-                'name' => 'Terbitkan Kemahiran',
-                'description' => 'Pintu masuk untuk menerbitkan versi kemahiran.',
+            'skill_publish_team' => [
+                'name' => 'Terbitkan Kemahiran ke Pasukan',
+                'description' => 'Pintu masuk untuk menerbitkan kemahiran kepada pasukan.',
             ],
             'agent_create' => [
                 'name' => 'Cipta Ejen',
-                'description' => 'Pintu masuk untuk mencipta pembantu atau ejen.',
+                'description' => 'Pintu masuk untuk mencipta pembantu atau ejen dan penerbitan peribadi.',
             ],
-            'agent_publish' => [
-                'name' => 'Terbitkan Ejen',
-                'description' => 'Pintu masuk untuk menerbitkan versi ejen.',
+            'agent_publish_team' => [
+                'name' => 'Terbitkan Ejen ke Pasukan',
+                'description' => 'Pintu masuk untuk menerbitkan ejen kepada pasukan.',
             ],
             'magic_claw_create' => [
                 'name' => 'Cipta Magic Claw',

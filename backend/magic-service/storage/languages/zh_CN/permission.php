@@ -96,19 +96,19 @@ return [
         'functions' => [
             'skill_create' => [
                 'name' => '技能创建',
-                'description' => '创建空技能入口。',
+                'description' => '创建空技能并支持仅自己可见发布入口。',
             ],
-            'skill_publish' => [
-                'name' => '技能发布',
-                'description' => '发布技能版本入口。',
+            'skill_publish_team' => [
+                'name' => '技能发布到团队',
+                'description' => '发布技能到团队入口。',
             ],
             'agent_create' => [
                 'name' => '数字员工创建',
-                'description' => '创建助理/数字员工入口。',
+                'description' => '创建助理/数字员工并支持仅自己可见发布入口。',
             ],
-            'agent_publish' => [
-                'name' => '数字员工发布',
-                'description' => '发布助理版本入口。',
+            'agent_publish_team' => [
+                'name' => '数字员工发布到团队',
+                'description' => '发布助理到团队入口。',
             ],
             'magic_claw_create' => [
                 'name' => '龙虾创建',

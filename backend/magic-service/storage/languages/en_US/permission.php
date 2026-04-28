@@ -64,19 +64,19 @@ return [
         'functions' => [
             'skill_create' => [
                 'name' => 'Skill Creation',
-                'description' => 'Entry for creating an empty skill.',
+                'description' => 'Entry for creating an empty skill and private publishing.',
             ],
-            'skill_publish' => [
-                'name' => 'Skill Publishing',
-                'description' => 'Entry for publishing a skill version.',
+            'skill_publish_team' => [
+                'name' => 'Skill Team Publishing',
+                'description' => 'Entry for publishing a skill to the team.',
             ],
             'agent_create' => [
                 'name' => 'Agent Creation',
-                'description' => 'Entry for creating an assistant or agent.',
+                'description' => 'Entry for creating an assistant or agent and private publishing.',
             ],
-            'agent_publish' => [
-                'name' => 'Agent Publishing',
-                'description' => 'Entry for publishing an agent version.',
+            'agent_publish_team' => [
+                'name' => 'Agent Team Publishing',
+                'description' => 'Entry for publishing an agent to the team.',
             ],
             'magic_claw_create' => [
                 'name' => 'Magic Claw Creation',

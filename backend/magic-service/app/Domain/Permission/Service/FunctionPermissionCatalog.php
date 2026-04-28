@@ -23,12 +23,12 @@ final class FunctionPermissionCatalog
                 'description_key' => 'permission.function_permission.functions.skill_create.description',
                 'default_binding_scope' => ['type' => 'organization_all'],
             ],
-            'skill.publish' => [
-                'function_code' => 'skill.publish',
+            'skill.publish_team' => [
+                'function_code' => 'skill.publish_team',
                 'module_code' => 'skill',
-                'function_name_key' => 'permission.function_permission.functions.skill_publish.name',
+                'function_name_key' => 'permission.function_permission.functions.skill_publish_team.name',
                 'module_name_key' => 'permission.function_permission.modules.skill',
-                'description_key' => 'permission.function_permission.functions.skill_publish.description',
+                'description_key' => 'permission.function_permission.functions.skill_publish_team.description',
                 'default_binding_scope' => ['type' => 'organization_all'],
             ],
             'agent.create' => [
@@ -39,12 +39,12 @@ final class FunctionPermissionCatalog
                 'description_key' => 'permission.function_permission.functions.agent_create.description',
                 'default_binding_scope' => ['type' => 'organization_all'],
             ],
-            'agent.publish' => [
-                'function_code' => 'agent.publish',
+            'agent.publish_team' => [
+                'function_code' => 'agent.publish_team',
                 'module_code' => 'agent',
-                'function_name_key' => 'permission.function_permission.functions.agent_publish.name',
+                'function_name_key' => 'permission.function_permission.functions.agent_publish_team.name',
                 'module_name_key' => 'permission.function_permission.modules.agent',
-                'description_key' => 'permission.function_permission.functions.agent_publish.description',
+                'description_key' => 'permission.function_permission.functions.agent_publish_team.description',
                 'default_binding_scope' => ['type' => 'organization_all'],
             ],
             'magic_claw.create' => [
