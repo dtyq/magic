@@ -26,16 +26,17 @@ class AzureOpenAIAPI
 
     private string $baseUrl;
 
+    private ?string $apiVersion;
+
     private ?string $proxyUrl;
 
     public function __construct(
-        string $apiKey,
-        ?string $baseUrl = null,
-        ?string $proxyUrl = null
+        AzureOpenAIClientConfig $azureOpenAIClientConfig
     ) {
-        $this->apiKey = $apiKey;
-        $this->baseUrl = rtrim($baseUrl, '/');
-        $this->proxyUrl = $proxyUrl;
+        $this->apiKey = $azureOpenAIClientConfig->getApiKey();
+        $this->baseUrl = rtrim($azureOpenAIClientConfig->getBaseUrl(), '/');
+        $this->proxyUrl = $azureOpenAIClientConfig->getProxyUrl();
+        $this->apiVersion = $azureOpenAIClientConfig->getApiVersion();
         $this->logger = di(LoggerFactory::class)->get(static::class);
     }
 
@@ -163,11 +164,17 @@ class AzureOpenAIAPI
      */
     private function buildUrl(string $endpoint): string
     {
-        return sprintf(
+        $url = sprintf(
             '%s/%s',
             $this->baseUrl,
             ltrim($endpoint, '/')
         );
+
+        if (trim($this->apiVersion)) {
+            $url = sprintf('%s?api-version=%s', $url, $this->apiVersion);
+        }
+
+        return $url;
     }
 
     /**

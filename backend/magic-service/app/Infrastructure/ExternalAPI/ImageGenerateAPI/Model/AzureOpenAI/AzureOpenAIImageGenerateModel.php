@@ -32,8 +32,8 @@ class AzureOpenAIImageGenerateModel extends AbstractImageGenerate
     {
         $this->configItem = $serviceProviderConfig;
         $this->model = $serviceProviderConfig['model_version'] ?? '';
-        $proxyUrl = $serviceProviderConfig['proxy_url'] ?? null;
-        $this->api = new AzureOpenAIAPI($serviceProviderConfig['api_key'], baseUrl: $serviceProviderConfig['url'], proxyUrl: $proxyUrl);
+        $apiConfig = AzureOpenAIClientConfig::fromServiceProviderConfig($serviceProviderConfig);
+        $this->api = new AzureOpenAIAPI($apiConfig);
     }
 
     #[Retry(
