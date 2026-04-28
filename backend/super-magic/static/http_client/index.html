@@ -45,6 +45,38 @@
                 </div>
             </div>
 
+            <!-- MCP 配置面板 -->
+            <div class="config-panel-compact" id="mcpPanel">
+                <div class="config-panel-header" id="mcpPanelToggle">
+                    <span class="config-panel-title">MCP 配置</span>
+                    <span class="mcp-panel-badge" id="mcpPanelBadge"></span>
+                    <span class="config-panel-arrow" id="mcpPanelArrow">▶</span>
+                </div>
+                <div class="config-panel-body" id="mcpPanelBody" style="display:none">
+                    <!-- 模式切换 Tab -->
+                    <div class="mcp-mode-tabs">
+                        <button class="mcp-tab active" id="mcpListTab">列表</button>
+                        <button class="mcp-tab" id="mcpJsonTab">JSON</button>
+                    </div>
+
+                    <!-- 列表模式 -->
+                    <div id="mcpListView">
+                        <div id="mcpServerList" class="mcp-server-list"></div>
+                        <div class="mcp-list-empty" id="mcpListEmpty">暂无 MCP 服务器，请切换到 JSON 模式添加配置</div>
+                    </div>
+
+                    <!-- JSON 模式 -->
+                    <div id="mcpJsonView" style="display:none">
+                        <div class="mcp-json-toolbar">
+                            <span class="mcp-json-hint">填写 mcpServers 的值，切换列表模式时自动同步</span>
+                            <button class="mcp-expand-btn" id="mcpExpandBtn" title="全屏编辑">⤢</button>
+                        </div>
+                        <textarea id="mcpJsonInput" class="config-textarea mcp-json-textarea"
+                            placeholder='{"服务器名称": {"type": "http", "url": "https://...", "token": ""}}'></textarea>
+                    </div>
+                </div>
+            </div>
+
             <!-- 工作区文件树 -->
             <div class="filetree-panel">
                 <div class="filetree-header">
@@ -223,6 +255,21 @@
                 <div id="filePreviewBody" class="file-preview-body"></div>
                 <aside id="filePreviewMeta" class="file-preview-meta" aria-label="文件信息"></aside>
             </div>
+        </div>
+    </div>
+
+    <!-- MCP JSON 全屏编辑弹窗 -->
+    <div id="mcpJsonModal" class="mcp-modal-overlay" style="display:none">
+        <div class="mcp-modal-dialog">
+            <div class="mcp-modal-header">
+                <span class="mcp-modal-title">编辑 MCP 配置（mcpServers）</span>
+                <div class="mcp-modal-actions">
+                    <button class="mcp-modal-save-btn" id="mcpModalSaveBtn">保存</button>
+                    <button class="mcp-modal-close-btn" id="mcpModalCloseBtn">取消</button>
+                </div>
+            </div>
+            <textarea id="mcpModalJsonInput" class="mcp-modal-textarea"
+                placeholder='{"服务器名称": {"type": "http", "url": "https://...", "token": ""}}'></textarea>
         </div>
     </div>
 

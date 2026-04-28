@@ -162,6 +162,278 @@ if (configPanelToggle) {
     });
 }
 
+// ── MCP 配置面板 ──────────────────────────────────────────────────────────────
+
+/** 服务器配置表：{ [name]: configObj } */
+let mcpServersConfig = {};
+/** 启用状态表：{ [name]: boolean } */
+let mcpEnabledStates = {};
+/** 当前视图模式 */
+let mcpViewMode = 'list';
+
+/** 从 localStorage 加载 MCP 状态 */
+function loadMcpState() {
+    try {
+        const raw = localStorage.getItem('mcpServersConfig');
+        mcpServersConfig = raw ? JSON.parse(raw) : {};
+    } catch (e) {
+        mcpServersConfig = {};
+    }
+    try {
+        const raw = localStorage.getItem('mcpEnabledStates');
+        mcpEnabledStates = raw ? JSON.parse(raw) : {};
+    } catch (e) {
+        mcpEnabledStates = {};
+    }
+    // 补全缺失的 enabled 状态：默认启用
+    for (const name of Object.keys(mcpServersConfig)) {
+        if (mcpEnabledStates[name] === undefined) {
+            mcpEnabledStates[name] = true;
+        }
+    }
+}
+
+/** 保存 MCP 状态到 localStorage */
+function saveMcpState() {
+    localStorage.setItem('mcpServersConfig', JSON.stringify(mcpServersConfig));
+    localStorage.setItem('mcpEnabledStates', JSON.stringify(mcpEnabledStates));
+}
+
+/** 更新面板头部徽标 */
+function updateMcpBadge() {
+    const badge = document.getElementById('mcpPanelBadge');
+    if (!badge) return;
+    const total = Object.keys(mcpServersConfig).length;
+    const enabled = Object.keys(mcpServersConfig).filter(n => mcpEnabledStates[n]).length;
+    if (total === 0) {
+        badge.textContent = '';
+        badge.classList.remove('has-enabled');
+    } else {
+        badge.textContent = `启用 ${enabled} / 共 ${total}`;
+        badge.classList.toggle('has-enabled', enabled > 0);
+    }
+}
+
+/** 渲染列表视图 */
+function renderMcpList() {
+    const listEl = document.getElementById('mcpServerList');
+    const emptyEl = document.getElementById('mcpListEmpty');
+    if (!listEl) return;
+    listEl.innerHTML = '';
+    const names = Object.keys(mcpServersConfig);
+    if (names.length === 0) {
+        if (emptyEl) emptyEl.style.display = '';
+        return;
+    }
+    if (emptyEl) emptyEl.style.display = 'none';
+    for (const name of names) {
+        const cfg = mcpServersConfig[name];
+        const enabled = !!mcpEnabledStates[name];
+        const isHttp = (cfg.type || '').toLowerCase() === 'http';
+        const meta = isHttp ? (cfg.url || '') : (cfg.command || '');
+        const typeLabel = isHttp ? 'HTTP' : 'stdio';
+        const typeClass = isHttp ? '' : 'stdio';
+
+        const item = document.createElement('div');
+        item.className = `mcp-server-item${enabled ? ' enabled' : ''}`;
+        item.innerHTML = `
+            <div class="mcp-server-item-header">
+                <span class="mcp-server-name" title="${escapeHtml(name)}">${escapeHtml(name)}</span>
+                <span class="mcp-server-type ${typeClass}">${typeLabel}</span>
+                <label class="mcp-server-toggle" title="${enabled ? '点击禁用' : '点击启用'}">
+                    <input type="checkbox" ${enabled ? 'checked' : ''} data-name="${escapeHtml(name)}">
+                    <span class="mcp-toggle-slider"></span>
+                </label>
+            </div>
+            <div class="mcp-server-meta" title="${escapeHtml(meta)}">${escapeHtml(meta)}</div>
+        `;
+        item.querySelector('input[type=checkbox]').addEventListener('change', (e) => {
+            const n = e.target.getAttribute('data-name');
+            mcpEnabledStates[n] = e.target.checked;
+            item.classList.toggle('enabled', e.target.checked);
+            saveMcpState();
+            updateMcpBadge();
+        });
+        listEl.appendChild(item);
+    }
+}
+
+/** 将当前配置序列化到 JSON textarea */
+function syncListToJson() {
+    const el = document.getElementById('mcpJsonInput');
+    if (!el) return;
+    el.value = Object.keys(mcpServersConfig).length > 0
+        ? JSON.stringify(mcpServersConfig, null, 2)
+        : '';
+}
+
+/** 从 JSON textarea 解析配置并更新列表，返回是否成功 */
+function syncJsonToList() {
+    const el = document.getElementById('mcpJsonInput');
+    if (!el) return true;
+    const raw = el.value.trim();
+    if (!raw) {
+        mcpServersConfig = {};
+        saveMcpState();
+        return true;
+    }
+    try {
+        const parsed = JSON.parse(raw);
+        if (typeof parsed !== 'object' || Array.isArray(parsed)) {
+            throw new Error('顶层应为对象');
+        }
+        // 对每个服务器补全 name 字段
+        for (const [k, v] of Object.entries(parsed)) {
+            if (typeof v === 'object' && v !== null) {
+                parsed[k] = Object.assign({ name: k }, v);
+            }
+        }
+        mcpServersConfig = parsed;
+        // 补全缺失的 enabled 状态
+        for (const name of Object.keys(mcpServersConfig)) {
+            if (mcpEnabledStates[name] === undefined) {
+                mcpEnabledStates[name] = true;
+            }
+        }
+        saveMcpState();
+        return true;
+    } catch (e) {
+        showSystemMessage(`MCP JSON 格式错误: ${e.message}`);
+        return false;
+    }
+}
+
+/** 构建发送用的 mcp_config（只包含启用的服务器），无启用服务器时返回 null */
+function buildMcpConfig() {
+    const enabledServers = {};
+    for (const [name, cfg] of Object.entries(mcpServersConfig)) {
+        if (mcpEnabledStates[name]) {
+            enabledServers[name] = cfg;
+        }
+    }
+    if (Object.keys(enabledServers).length === 0) return null;
+    return { mcpServers: enabledServers };
+}
+
+/** 切换 MCP 视图模式 */
+function switchMcpView(mode) {
+    if (mode === mcpViewMode) return;
+    if (mode === 'json') {
+        // 列表 → JSON：先同步内容到 textarea
+        syncListToJson();
+    } else {
+        // JSON → 列表：先解析 textarea
+        if (!syncJsonToList()) return;
+        renderMcpList();
+        updateMcpBadge();
+    }
+    mcpViewMode = mode;
+    document.getElementById('mcpListView').style.display = mode === 'list' ? '' : 'none';
+    document.getElementById('mcpJsonView').style.display = mode === 'json' ? '' : 'none';
+    document.getElementById('mcpListTab').classList.toggle('active', mode === 'list');
+    document.getElementById('mcpJsonTab').classList.toggle('active', mode === 'json');
+}
+
+/** 简单 HTML 转义 */
+function escapeHtml(str) {
+    return String(str)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;');
+}
+
+/** 初始化 MCP 面板 */
+function initMcpPanel() {
+    loadMcpState();
+
+    const toggle = document.getElementById('mcpPanelToggle');
+    const body = document.getElementById('mcpPanelBody');
+    const arrow = document.getElementById('mcpPanelArrow');
+    if (toggle) {
+        // 默认折叠
+        toggle.addEventListener('click', () => {
+            const isOpen = body.style.display !== 'none';
+            body.style.display = isOpen ? 'none' : 'block';
+            arrow.classList.toggle('open', !isOpen);
+        });
+    }
+
+    const listTab = document.getElementById('mcpListTab');
+    const jsonTab = document.getElementById('mcpJsonTab');
+    if (listTab) listTab.addEventListener('click', () => switchMcpView('list'));
+    if (jsonTab) jsonTab.addEventListener('click', () => switchMcpView('json'));
+
+    // JSON 输入框失焦时自动验证（不切换视图，只提示错误）
+    const jsonInput = document.getElementById('mcpJsonInput');
+    if (jsonInput) {
+        jsonInput.addEventListener('blur', () => {
+            const raw = jsonInput.value.trim();
+            if (!raw) return;
+            try {
+                JSON.parse(raw);
+            } catch (e) {
+                showSystemMessage(`MCP JSON 格式错误: ${e.message}`);
+            }
+        });
+    }
+
+    // 全屏编辑弹窗
+    const expandBtn = document.getElementById('mcpExpandBtn');
+    const modal = document.getElementById('mcpJsonModal');
+    const modalInput = document.getElementById('mcpModalJsonInput');
+    const modalSaveBtn = document.getElementById('mcpModalSaveBtn');
+    const modalCloseBtn = document.getElementById('mcpModalCloseBtn');
+
+    if (expandBtn && modal && modalInput) {
+        expandBtn.addEventListener('click', () => {
+            // 将当前 textarea 内容同步到弹窗
+            modalInput.value = jsonInput ? jsonInput.value : '';
+            modal.style.display = 'flex';
+            setTimeout(() => modalInput.focus(), 50);
+        });
+
+        const closeMcpModal = () => {
+            modal.style.display = 'none';
+        };
+
+        modalSaveBtn.addEventListener('click', () => {
+            const raw = modalInput.value.trim();
+            // 验证 JSON
+            if (raw) {
+                try {
+                    JSON.parse(raw);
+                } catch (e) {
+                    showSystemMessage(`MCP JSON 格式错误: ${e.message}`);
+                    return;
+                }
+            }
+            // 同步回小 textarea
+            if (jsonInput) jsonInput.value = raw;
+            closeMcpModal();
+        });
+
+        modalCloseBtn.addEventListener('click', closeMcpModal);
+
+        // 点击遮罩关闭
+        modal.addEventListener('click', (e) => {
+            if (e.target === modal) closeMcpModal();
+        });
+
+        // ESC 关闭
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'Escape' && modal.style.display !== 'none') {
+                closeMcpModal();
+            }
+        });
+    }
+
+    renderMcpList();
+    updateMcpBadge();
+}
+
+// ── MCP 配置面板 end ──────────────────────────────────────────────────────────
+
 // 消息类型枚举
 const MessageType = {
     CHAT: "chat",
@@ -298,6 +570,9 @@ function initResizers() {
 document.addEventListener('DOMContentLoaded', () => {
     // 初始化拖拽功能
     initResizers();
+
+    // 初始化 MCP 配置面板
+    initMcpPanel();
 
     // 初始化快捷键提示
     initSendHint();
@@ -953,6 +1228,11 @@ function createImChatMessage(prompt) {
         msg.mentions = mentions;
         msg.mcp_config = { mcpServers: [] };
     }
+    // MCP 面板配置优先级高于 mentions 的空配置
+    const mcpCfg = buildMcpConfig();
+    if (mcpCfg) {
+        msg.mcp_config = mcpCfg;
+    }
     return msg;
 }
 
@@ -1040,6 +1320,11 @@ function createChatMessage(prompt, contextType = ContextType.NORMAL, remark = nu
     if (mentions.length > 0) {
         message.mentions = mentions;
         message.mcp_config = { mcpServers: [] };
+    }
+    // MCP 面板配置优先级高于 mentions 的空配置
+    const mcpCfg = buildMcpConfig();
+    if (mcpCfg) {
+        message.mcp_config = mcpCfg;
     }
 
     return message;
