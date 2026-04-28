@@ -14,23 +14,17 @@ final class AzureOpenAIClientConfig
         private string $baseUrl,
         private string $apiVersion = '',
         private ?string $proxyUrl = null,
-        private AzureAuthType $authType = AzureAuthType::ApiKey,
     ) {
         $this->baseUrl = rtrim($this->baseUrl, '/');
     }
 
-    public static function fromServiceProviderConfig(array $serviceProviderConfig, AzureAuthType $defaultAuthType = AzureAuthType::ApiKey): self
+    public static function fromServiceProviderConfig(array $serviceProviderConfig): self
     {
-        $authType = isset($serviceProviderConfig['auth_type']) && $serviceProviderConfig['auth_type'] !== ''
-            ? AzureAuthType::fromConfig((string) $serviceProviderConfig['auth_type'])
-            : $defaultAuthType;
-
         return new self(
             (string) ($serviceProviderConfig['api_key'] ?? ''),
             (string) ($serviceProviderConfig['url'] ?? $serviceProviderConfig['api_base'] ?? ''),
             (string) ($serviceProviderConfig['api_version'] ?? ''),
             isset($serviceProviderConfig['proxy_url']) ? (string) $serviceProviderConfig['proxy_url'] : null,
-            $authType,
         );
     }
 
@@ -60,10 +54,5 @@ final class AzureOpenAIClientConfig
     public function getProxyUrl(): ?string
     {
         return $this->proxyUrl;
-    }
-
-    public function getAuthType(): AzureAuthType
-    {
-        return $this->authType;
     }
 }

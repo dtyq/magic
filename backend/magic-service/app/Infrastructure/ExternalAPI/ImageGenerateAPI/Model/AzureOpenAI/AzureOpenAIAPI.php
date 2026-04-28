@@ -30,8 +30,6 @@ class AzureOpenAIAPI
 
     private ?string $proxyUrl;
 
-    private AzureAuthType $authType;
-
     public function __construct(
         AzureOpenAIClientConfig $azureOpenAIClientConfig
     ) {
@@ -39,7 +37,6 @@ class AzureOpenAIAPI
         $this->baseUrl = rtrim($azureOpenAIClientConfig->getBaseUrl(), '/');
         $this->proxyUrl = $azureOpenAIClientConfig->getProxyUrl();
         $this->apiVersion = $azureOpenAIClientConfig->getApiVersion();
-        $this->authType = $azureOpenAIClientConfig->getAuthType();
         $this->logger = di(LoggerFactory::class)->get(static::class);
     }
 
@@ -52,7 +49,6 @@ class AzureOpenAIAPI
 
         $this->logger->info('Azure OpenAI API 请求', [
             'url' => $url,
-            'auth_type' => $this->authType->value,
             'payload' => $data,
         ]);
 
@@ -63,10 +59,10 @@ class AzureOpenAIAPI
             );
 
             $response = $client->post($url, [
-                'headers' => array_merge(
-                    ['Content-Type' => 'application/json'],
-                    $this->buildAuthHeaders()
-                ),
+                'headers' => [
+                    'Content-Type' => 'application/json',
+                    'Authorization' => 'Bearer ' . $this->apiKey,
+                ],
                 'json' => $data,
             ]);
 
@@ -90,11 +86,9 @@ class AzureOpenAIAPI
                 $this->proxyUrl
             );
 
-            // Download images from OSS URLs to memory streams
             $multipartData = [];
 
             $imageKey = count($imageUrls) > 1 ? 'image[]' : 'image';
-            // Add multiple images
             foreach ($imageUrls as $index => $imageUrl) {
                 $imageStreamBody = $this->downloadToStream($imageUrl);
                 $multipartData[] = [
@@ -104,7 +98,6 @@ class AzureOpenAIAPI
                 ];
             }
 
-            // Add mask if provided
             if ($maskUrl !== null) {
                 $maskStreamBody = $this->downloadToStream($maskUrl);
                 $multipartData[] = [
@@ -114,14 +107,12 @@ class AzureOpenAIAPI
                 ];
             }
 
-            // Add other parameters
             $multipartData[] = ['name' => 'prompt', 'contents' => $prompt];
             $multipartData[] = ['name' => 'size', 'contents' => $size];
             $multipartData[] = ['name' => 'n', 'contents' => (string) $n];
 
             $this->logger->info('Azure OpenAI API 请求', [
                 'url' => $url,
-                'auth_type' => $this->authType->value,
                 'payload' => [
                     'imageUrls' => $imageUrls,
                     'maskUrl' => $maskUrl,
@@ -133,7 +124,9 @@ class AzureOpenAIAPI
             ]);
 
             $response = $client->post($url, [
-                'headers' => $this->buildAuthHeaders(),
+                'headers' => [
+                    'Authorization' => 'Bearer ' . $this->apiKey,
+                ],
                 'multipart' => $multipartData,
             ]);
 
@@ -142,17 +135,6 @@ class AzureOpenAIAPI
             $this->handleException($e);
             throw $e;
         }
-    }
-
-    /**
-     * 根据鉴权模式构建请求头.
-     */
-    private function buildAuthHeaders(): array
-    {
-        return match ($this->authType) {
-            AzureAuthType::ApiKey => ['api-key' => $this->apiKey],
-            AzureAuthType::Token => ['Authorization' => 'Bearer ' . $this->apiKey],
-        };
     }
 
     /**
