@@ -8,6 +8,7 @@ declare(strict_types=1);
 namespace App\Interfaces\Chat\DTO\Request;
 
 use App\Domain\Contact\DTO\UserUpdateDTO;
+use App\Domain\Contact\Entity\ValueObject\UserPreferences;
 use App\Infrastructure\Core\AbstractRequestDTO;
 use Closure;
 use Hyperf\HttpServer\Contract\RequestInterface;
@@ -23,6 +24,8 @@ class UpdateUserInfoRequestDTO extends AbstractRequestDTO
     protected ?string $channel = null;
 
     protected ?string $timezone = null;
+
+    protected ?array $preferences = null;
 
     /**
      * @var array<string, bool>
@@ -43,6 +46,9 @@ class UpdateUserInfoRequestDTO extends AbstractRequestDTO
             'nickname' => 'sometimes|nullable|string|max:64',
             'profession' => 'sometimes|nullable|string|max:64',
             'channel' => 'sometimes|nullable|string|max:64',
+            'preferences' => 'sometimes|nullable|array',
+            'preferences.show_follow_up_suggestions' => 'sometimes|boolean',
+            'preferences.keep_used_follow_up_suggestions' => 'sometimes|boolean',
             'timezone' => [
                 'sometimes',
                 'nullable',
@@ -75,6 +81,9 @@ class UpdateUserInfoRequestDTO extends AbstractRequestDTO
             'profession.max' => '职业身份长度不能超过64个字符',
             'channel.string' => '获知渠道格式不正确',
             'channel.max' => '获知渠道长度不能超过64个字符',
+            'preferences.array' => '偏好设置格式不正确',
+            'preferences.show_follow_up_suggestions.boolean' => '始终显示追问建议必须是布尔值',
+            'preferences.keep_used_follow_up_suggestions.boolean' => '保留使用过的追问建议必须是布尔值',
             'timezone.string' => 'timezone 格式不正确',
             'timezone.max' => 'timezone 长度不能超过64个字符',
         ];
@@ -130,6 +139,16 @@ class UpdateUserInfoRequestDTO extends AbstractRequestDTO
         $this->timezone = $timezone;
     }
 
+    public function getPreferences(): ?array
+    {
+        return $this->preferences;
+    }
+
+    public function setPreferences(?array $preferences): void
+    {
+        $this->preferences = $preferences;
+    }
+
     public function isFieldPresent(string $field): bool
     {
         return $this->presentFields[$field] ?? false;
@@ -153,6 +172,10 @@ class UpdateUserInfoRequestDTO extends AbstractRequestDTO
         }
         if ($this->isFieldPresent('timezone')) {
             $dto->setTimezone($this->getTimezone());
+        }
+        if ($this->isFieldPresent('preferences')) {
+            $preferences = $this->getPreferences();
+            $dto->setPreferences($preferences !== null ? UserPreferences::fromArray($preferences) : null);
         }
 
         return $dto;

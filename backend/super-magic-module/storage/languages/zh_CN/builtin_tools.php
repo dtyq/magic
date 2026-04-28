@@ -27,6 +27,7 @@ return [
 
         // 内容处理
         'visual_understanding' => '图片理解',
+        'video_understanding' => '视频理解',
         'convert_to_markdown' => '转换为Markdown',
         'voice_understanding' => '语音识别',
         'summarize' => '内容摘要',
@@ -70,6 +71,7 @@ return [
 
         // 内容处理
         'visual_understanding' => '视觉理解工具，分析和解释图像内容，支持JPEG、PNG、GIF等多种格式，适用于图片识别描述、图表分析、文字提取、多图对比等场景',
+        'video_understanding' => '视频理解工具，分析和解释视频内容，适用于画面描述、动作与场景理解、时间线相关推理等场景',
         'convert_to_markdown' => '文档格式转换工具，将文档转换为Markdown格式并保存到指定位置。支持多种文件类型：PDF、Word、Excel、PowerPoint、图片、Jupyter笔记本等',
         'voice_understanding' => '语音识别工具，将音频文件转换为文本，支持wav、mp3、ogg、m4a等格式，可启用说话人信息识别功能',
         'summarize' => '信息精炼工具，提升文本信息密度，剔除冗余内容使其更结构化，支持自定义精炼要求和目标长度设置',

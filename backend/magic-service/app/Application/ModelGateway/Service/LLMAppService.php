@@ -1393,6 +1393,7 @@ class LLMAppService extends AbstractLLMAppService
         $endpointDTO = null;
         $modelGatewayDataIsolation = null;
         $modelAttributes = null;
+        $accessContext = null;
         $originalModelId = $proxyModelRequest->getModel();
         $invocationSuccessAudited = false;
         try {
@@ -1407,8 +1408,14 @@ class LLMAppService extends AbstractLLMAppService
             // Try to get high availability model configuration
             $orgCode = $modelGatewayDataIsolation->getCurrentOrganizationCode();
 
+            $accessContext = $this->modelGatewayModelAccessService->resolveAccessContext($modelGatewayDataIsolation);
+            // 先校验用户请求的原始模型，避免被 deny 的模型通过直接传 model_id 绕过前台可见性限制。
+            $this->modelGatewayModelAccessService->assertCanAccess($accessContext, $originalModelId);
+
             // 检查是否为动态模型
-            $modeId = $this->aggregateModelResolverService->resolve($originalModelId, $modelGatewayDataIsolation);
+            $modeId = $this->aggregateModelResolverService->resolve($originalModelId, $modelGatewayDataIsolation, $accessContext);
+            // 动态模型解析后仍需二次校验，确保最终落到的真实子模型也在用户可访问范围内。
+            $this->modelGatewayModelAccessService->assertCanAccess($accessContext, $modeId);
 
             // 设置原始 model_id（目前用于识别是否动态模型）.
             if ($proxyModelRequest instanceof AbstractRequestDTO) {
@@ -1824,7 +1831,8 @@ class LLMAppService extends AbstractLLMAppService
                 $callTime,
                 $startTime,
                 $modelGatewayDataIsolation->getAccessToken(),
-                ['chain' => 'textGenerateImageV2']
+                ['chain' => 'textGenerateImageV2'],
+                $this->resolveImageTokenUsage($generateImageOpenAIFormat->getUsage())
             );
         } catch (Exception $e) {
             $errorMessage = $e->getMessage();
@@ -2358,6 +2366,7 @@ class LLMAppService extends AbstractLLMAppService
      * @param string $callTime 调用时间
      * @param float $startTime 开始时间（微秒）
      * @param null|AccessTokenEntity $accessTokenEntity 访问令牌实体
+     * @param null|Usage $usage 图片模型返回的 token 用量
      */
     private function dispatchImageGeneratedEvent(
         string $creator,
@@ -2368,7 +2377,8 @@ class LLMAppService extends AbstractLLMAppService
         string $callTime,
         float $startTime,
         ?AccessTokenEntity $accessTokenEntity = null,
-        array $auditBusinessParams = []
+        array $auditBusinessParams = [],
+        ?Usage $usage = null
     ): void {
         // 计算响应时间（毫秒）
         $responseTime = (int) ((microtime(true) - $startTime) * 1000);
@@ -2389,7 +2399,8 @@ class LLMAppService extends AbstractLLMAppService
             $priceId,
             $callTime,
             $responseTime,
-            $accessTokenEntity
+            $accessTokenEntity,
+            $usage
         );
         $businessParams = array_merge(
             $requestDTO->getBusinessParams(),
@@ -2436,7 +2447,8 @@ class LLMAppService extends AbstractLLMAppService
         ?int $priceId = null,
         ?string $callTime = null,
         ?int $responseTime = null,
-        ?AccessTokenEntity $accessTokenEntity = null
+        ?AccessTokenEntity $accessTokenEntity = null,
+        ?Usage $usage = null
     ): ImageGeneratedEvent {
         $imageGeneratedEvent = new ImageGeneratedEvent();
 
@@ -2462,6 +2474,7 @@ class LLMAppService extends AbstractLLMAppService
         $imageGeneratedEvent->setResponseTime($responseTime);
         // 设置原始 model_id（目前用于识别是否动态模型），用于计费服务
         $imageGeneratedEvent->setOriginalModelId($requestDTO->getOriginalModelId());
+        $imageGeneratedEvent->setUsage($usage);
 
         if ($accessTokenEntity && $accessTokenEntity->getType()->isUser()) {
             $imageGeneratedEvent->setSourceType(ImageGenerateSourceEnum::API_PLATFORM);
@@ -2472,6 +2485,15 @@ class LLMAppService extends AbstractLLMAppService
         }
 
         return $imageGeneratedEvent;
+    }
+
+    private function resolveImageTokenUsage(?Usage $usage): ?Usage
+    {
+        if ($usage === null || $usage->getTotalTokens() <= 0) {
+            return null;
+        }
+
+        return $usage;
     }
 
     /**

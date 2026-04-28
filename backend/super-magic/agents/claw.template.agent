@@ -6,8 +6,9 @@ tools:
   - image_search
   - download_from_urls
   - visual_understanding
+  - video_understanding
   - convert_to_markdown
-  - generate_image
+  - generate_images
   - list_dir
   - file_search
   - read_files
@@ -19,6 +20,7 @@ tools:
   - multi_edit_file_range
   - delete_files
   - shell_exec
+  - shell_await
   - run_python_snippet
   - manage_cron
   - ask_user

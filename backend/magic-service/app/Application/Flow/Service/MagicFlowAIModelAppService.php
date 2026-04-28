@@ -8,7 +8,9 @@ declare(strict_types=1);
 namespace App\Application\Flow\Service;
 
 use App\Application\ModelGateway\Mapper\ModelGatewayMapper;
+use App\Application\Permission\Service\UserModelAccessAppService;
 use App\Domain\Flow\Entity\MagicFlowAIModelEntity;
+use App\Interfaces\Authorization\Web\MagicUserAuthorization;
 use Dtyq\CloudFile\Kernel\Struct\FileLink;
 use Hyperf\Odin\Model\AbstractModel;
 use Qbhy\HyperfAuth\Authenticatable;
@@ -22,6 +24,7 @@ class MagicFlowAIModelAppService extends AbstractFlowAppService
     {
         $dataIsolation = $this->createFlowDataIsolation($authorization);
         $mapper = di(ModelGatewayMapper::class);
+        $accessibleModelIdMap = $this->getAccessibleModelIdMap($authorization);
 
         $iconPaths = [];
         $list = [];
@@ -37,6 +40,9 @@ class MagicFlowAIModelAppService extends AbstractFlowAppService
                 continue;
             }
             if ($model->getModelOptions()->isEmbedding()) {
+                continue;
+            }
+            if ($accessibleModelIdMap !== null && ! isset($accessibleModelIdMap[$model->getModelName()])) {
                 continue;
             }
 
@@ -64,5 +70,18 @@ class MagicFlowAIModelAppService extends AbstractFlowAppService
             'list' => $list,
             'icons' => $icons,
         ];
+    }
+
+    /**
+     * @return null|array<string, true>
+     */
+    private function getAccessibleModelIdMap(Authenticatable $authorization): ?array
+    {
+        if (! $authorization instanceof MagicUserAuthorization) {
+            return null;
+        }
+
+        $context = di(UserModelAccessAppService::class)->resolveAccessContext($authorization);
+        return $context['is_restricted'] ? $context['accessible_model_id_map'] : null;
     }
 }

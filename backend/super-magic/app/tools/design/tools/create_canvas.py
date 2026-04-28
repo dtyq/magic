@@ -118,53 +118,49 @@ class CreateCanvas(BaseDesignTool[CreateCanvasParams]):
             # 从路径中提取项目名称，使用基类方法
             project_name = self._get_project_name(project_path)
 
-            # 检查 magic.project.js 是否已存在
+            # 检查 magic.project.js 是否已存在，已存在则跳过写入
             config_file_exists = await async_exists(project_js_path)
 
-            # 从模板生成 magic.project.js 配置文件
-            # 使用 PathManager 获取项目根目录，确保在任何环境下都能正确找到模板文件
-            project_root = PathManager.get_project_root()
-            template_path = project_root / "app" / "tools" / "magic_design" / "magic.project.template.js"
+            if config_file_exists:
+                logger.info(f"Project config file already exists, skipping write: {project_js_path}")
+            else:
+                # 从模板生成 magic.project.js 配置文件
+                # 使用 PathManager 获取项目根目录，确保在任何环境下都能正确找到模板文件
+                project_root = PathManager.get_project_root()
+                template_path = project_root / "app" / "tools" / "magic_design" / "magic.project.template.js"
 
-            if not await async_exists(template_path):
-                raise FileNotFoundError(f"找不到模板文件: {template_path}")
+                if not await async_exists(template_path):
+                    raise FileNotFoundError(f"找不到模板文件: {template_path}")
 
-            # 读取模板内容
-            template_content = await async_read_text(template_path)
+                # 读取模板内容
+                template_content = await async_read_text(template_path)
 
-            # 替换模板占位符
-            project_js_content = template_content.replace("{{PROJECT_NAME}}", project_name)
+                # 替换模板占位符
+                project_js_content = template_content.replace("{{PROJECT_NAME}}", project_name)
 
-            # 写入 magic.project.js 配置文件（异步）
-            try:
-                # 触发文件事件（创建或更新）前事件
-                before_event_type = EventType.BEFORE_FILE_UPDATED if config_file_exists else EventType.BEFORE_FILE_CREATED
-                await self._dispatch_file_event(tool_context, str(project_js_path), before_event_type)
+                # 写入 magic.project.js 配置文件（异步）
+                try:
+                    await self._dispatch_file_event(tool_context, str(project_js_path), EventType.BEFORE_FILE_CREATED)
 
-                # 写入文件并验证（带重试，适应 TOS 同步延迟）
-                await async_write_text_with_retry(
-                    project_js_path,
-                    project_js_content,
-                    content_validator=lambda c: "magicProjectConfig" in c,
-                )
+                    # 写入文件并验证（带重试，适应 TOS 同步延迟）
+                    await async_write_text_with_retry(
+                        project_js_path,
+                        project_js_content,
+                        content_validator=lambda c: "magicProjectConfig" in c,
+                    )
 
-                # 触发文件事件（创建或更新）后事件
-                after_event_type = EventType.FILE_UPDATED if config_file_exists else EventType.FILE_CREATED
-                await self._dispatch_file_event(tool_context, str(project_js_path), after_event_type)
+                    await self._dispatch_file_event(tool_context, str(project_js_path), EventType.FILE_CREATED)
 
-                if config_file_exists:
-                    logger.info(f"Updated project config file: {project_js_path}")
-                else:
                     logger.info(f"Created project config file: {project_js_path}")
-            except Exception as e:
-                logger.error(f"Failed to create magic.project.js file: {e}")
-                return ToolResult.error(
-                    f"Failed to create magic.project.js file: {e}",
-                    extra_info={"error_type": "design.error_unexpected"}
-                )
+                except Exception as e:
+                    logger.error(f"Failed to create magic.project.js file: {e}")
+                    return ToolResult.error(
+                        f"Failed to create magic.project.js file: {e}",
+                        extra_info={"error_type": "design.error_unexpected"}
+                    )
 
             # 生成结果信息
-            result_content = self._generate_result_content(project_path, params, project_name)
+            result_content = self._generate_result_content(project_path, params, project_name, config_file_exists)
 
             return ToolResult(
                 content=result_content,
@@ -186,22 +182,24 @@ class CreateCanvas(BaseDesignTool[CreateCanvasParams]):
             )
 
     # noinspection PyMethodMayBeStatic
-    def _generate_result_content(self, project_path: Path, params: CreateCanvasParams, project_name: str) -> str:
+    def _generate_result_content(self, project_path: Path, params: CreateCanvasParams, project_name: str, already_exists: bool = False) -> str:
         """生成结构化的结果内容
 
         Args:
             project_path: 项目文件夹路径
             params: 项目参数
             project_name: 项目名称
+            already_exists: 项目是否已经存在
 
         Returns:
             str: 格式化的结果内容
         """
+        status_note = "Note: project already existed, no changes were made." if already_exists else ""
         result = f"""Project structure:
 {params.project_path}/
 └── magic.project.js  # Canvas project identifier (auto-managed)
 
-Project: {project_name} (canvas project)"""
+Project: {project_name} (canvas project){chr(10) + status_note if status_note else ""}"""
 
         return result
 
@@ -214,6 +212,17 @@ Project: {project_name} (canvas project)"""
         project_name = Path(project_path).name
 
         return i18n.translate("create_canvas.success", category="tool.messages", project_name=project_name)
+
+    async def get_before_tool_call_friendly_action_and_remark(
+        self,
+        tool_name: str,
+        tool_context: ToolContext,
+        arguments: Dict[str, Any] = None,
+    ) -> Dict:
+        action = i18n.translate("create_canvas", category="tool.actions")
+        project_path = (arguments or {}).get("project_path", "")
+        remark = Path(project_path).name if project_path else ""
+        return {"action": action, "remark": remark}
 
     async def get_after_tool_call_friendly_action_and_remark(
         self, tool_name: str, tool_context: ToolContext, result: ToolResult,

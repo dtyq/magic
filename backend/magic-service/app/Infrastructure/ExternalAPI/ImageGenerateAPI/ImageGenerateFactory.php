@@ -374,17 +374,26 @@ class ImageGenerateFactory
 
     private static function createOpenRouterRequest(string $modelVersion, ?string $modelId, array $data): OpenRouterRequest
     {
-        // 构建 user_prompt，如果有 size 则直接拼接尺寸信息
-        $userPrompt = $data['user_prompt'] ?? '';
-        if (! empty($data['size'])) {
-            $userPrompt = $userPrompt . ' ' . $data['size'];
-        }
+        $sizeConfig = SizeManager::getSizeConfig($data['size'] ?? '1024x1024', $modelVersion, $modelId);
+        $width = $sizeConfig['width'];
+        $height = $sizeConfig['height'];
+        $ratio = $sizeConfig['ratio'];
+        $scale = $sizeConfig['scale'];
+
+        $imageConfig = [
+            'aspect_ratio' => $ratio,
+            'image_size' => $scale,
+        ];
 
         $request = new OpenRouterRequest(
             $data['model'] ?? $modelVersion,
-            $userPrompt,
-            []
+            $data['user_prompt'] ?? '',
+            $imageConfig
         );
+        $request->setWidth((string) $width);
+        $request->setHeight((string) $height);
+        $request->setSize($width . 'x' . $height);
+        $request->setRatio($ratio);
 
         if (isset($data['generate_num'])) {
             $request->setGenerateNum((int) $data['generate_num']);

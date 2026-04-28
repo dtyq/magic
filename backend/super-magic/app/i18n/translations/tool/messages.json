@@ -183,6 +183,98 @@
         "zh_CN": "Shell命令执行失败: {{error}}",
         "en_US": "Shell command execution failed: {{error}}"
     },
+    "shell_exec.error_timeout": {
+        "zh_CN": "命令运行超时，如需长时间运行请使用后台模式",
+        "en_US": "Command took too long — try allow_background=true for long-running tasks"
+    },
+    "shell_exec.error_task_limit": {
+        "zh_CN": "后台任务太多了，请先结束一些任务再试",
+        "en_US": "Too many background tasks running — finish some before starting new ones"
+    },
+    "shell_exec.error_exception": {
+        "zh_CN": "命令运行时遇到了问题",
+        "en_US": "Something went wrong while running the command"
+    },
+    "shell_exec.error_failed": {
+        "zh_CN": "命令没能成功完成",
+        "en_US": "Command didn't complete successfully"
+    },
+    "shell_await.error": {
+        "zh_CN": "等待后台任务失败: {{error}}",
+        "en_US": "Failed to check background task: {{error}}"
+    },
+    "shell_await.error_task_not_found": {
+        "zh_CN": "找不到这个后台任务，可能已经结束了",
+        "en_US": "Task not found — it may have already finished"
+    },
+    "shell_await.error_invalid_pattern": {
+        "zh_CN": "匹配规则写法有误，请检查后重试",
+        "en_US": "Pattern expression has a syntax error — please check and retry"
+    },
+    "shell_await.error_log_missing": {
+        "zh_CN": "任务日志丢失，无法获取输出",
+        "en_US": "Task output log is missing and can't be retrieved"
+    },
+    "shell_await.error_exception": {
+        "zh_CN": "等待任务时遇到了问题",
+        "en_US": "Something went wrong while waiting for the task"
+    },
+    "shell_await.error_failed": {
+        "zh_CN": "无法查询到任务状态",
+        "en_US": "Couldn't retrieve task status"
+    },
+    "shell_await.status_completed": {
+        "zh_CN": "任务已完成",
+        "en_US": "Task completed"
+    },
+    "shell_await.status_killed": {
+        "zh_CN": "任务已终止",
+        "en_US": "Task stopped"
+    },
+    "shell_await.status_error": {
+        "zh_CN": "任务异常退出",
+        "en_US": "Task exited with an error"
+    },
+    "shell_await.status_timeout": {
+        "zh_CN": "仍在运行中，等待超时",
+        "en_US": "Still running — timed out while waiting"
+    },
+    "shell_await.status_running": {
+        "zh_CN": "任务正在运行",
+        "en_US": "Task is running"
+    },
+    "shell_await.status_pattern_matched": {
+        "zh_CN": "已在输出中匹配到指定内容",
+        "en_US": "Pattern matched in output"
+    },
+    "shell_await.status_waiting_for_input": {
+        "zh_CN": "任务正在等待用户输入",
+        "en_US": "Task is waiting for input"
+    },
+    "shell_await.status_slept": {
+        "zh_CN": "等待完成",
+        "en_US": "Sleep completed"
+    },
+    "shell_await.before_sleep": {
+        "zh_CN": "等待 {{seconds}} 秒",
+        "en_US": "Sleeping for {{seconds}} seconds"
+    },
+    "shell_await.before_kill": {
+        "zh_CN": "终止后台任务",
+        "en_US": "Stopping background task"
+    },
+    "shell_await.before_snapshot": {
+        "zh_CN": "查询任务当前状态",
+        "en_US": "Checking current task status"
+    },
+    "shell_await.before_send_input": {
+        "zh_CN": "向任务发送输入",
+        "en_US": "Sending input to task"
+    },
+    "shell_await.before_wait": {
+        "zh_CN": "等待任务执行",
+        "en_US": "Waiting for task"
+    },
     "run_sdk_snippet.after_dispatched": {
         "zh_CN": "正在执行",
         "en_US": "Running"
@@ -471,6 +563,50 @@
         "zh_CN": "视觉理解结果.md",
         "en_US": "visual_understanding_result.md"
     },
+    "visual_understanding.analyzing": {
+        "zh_CN": "正在分析图片: {{image_name}}",
+        "en_US": "Analyzing image: {{image_name}}"
+    },
+    "visual_understanding.analyzing_multiple": {
+        "zh_CN": "正在分析 {{count}} 张图片",
+        "en_US": "Analyzing {{count}} images"
+    },
+    "video_understanding.title": {
+        "zh_CN": "视频理解",
+        "en_US": "Video understanding"
+    },
+    "video_understanding.single": {
+        "zh_CN": "视频理解: {{video_name}}",
+        "en_US": "Video understanding: {{video_name}}"
+    },
+    "video_understanding.multiple": {
+        "zh_CN": "多视频理解 ({{count}}个)",
+        "en_US": "Multiple video understanding ({{count}} videos)"
+    },
+    "video_understanding.completed": {
+        "zh_CN": "已理解视频: {{video_name}}",
+        "en_US": "Video understanding completed: {{video_name}}"
+    },
+    "video_understanding.multiple_videos": {
+        "zh_CN": "已理解 {{count}} 个视频",
+        "en_US": "Understood {{count}} videos"
+    },
+    "video_understanding.error": {
+        "zh_CN": "视频理解失败: {{error}}",
+        "en_US": "Video understanding failed: {{error}}"
+    },
+    "video_understanding.result_file": {
+        "zh_CN": "视频理解结果.md",
+        "en_US": "video_understanding_result.md"
+    },
+    "video_understanding.analyzing": {
+        "zh_CN": "正在分析视频: {{video_name}}",
+        "en_US": "Analyzing video: {{video_name}}"
+    },
+    "video_understanding.analyzing_multiple": {
+        "zh_CN": "正在分析 {{count}} 个视频",
+        "en_US": "Analyzing {{count}} videos"
+    },
     "generate_image.processing": {
         "zh_CN": "图片生成",
         "en_US": "Image generation"
@@ -506,6 +642,34 @@
     "generate_image.saved_to": {
         "zh_CN": "保存到: {{paths}}",
         "en_US": "Saved to: {{paths}}"
+    },
+    "generate_images.processing": {
+        "zh_CN": "图片生成中",
+        "en_US": "Generating images"
+    },
+    "generate_images.success": {
+        "zh_CN": "成功生成 {{succeeded_count}} 张图片，保存路径：{{file_paths}}",
+        "en_US": "Successfully generated {{succeeded_count}} image(s). Saved to: {{file_paths}}"
+    },
+    "generate_images.success_partial": {
+        "zh_CN": "部分图片生成成功（{{succeeded_count}}/{{total_count}}），已保存：{{file_paths}}；失败任务：{{errors}}",
+        "en_US": "Images partially generated ({{succeeded_count}}/{{total_count}} succeeded). Saved: {{file_paths}}. Failed: {{errors}}"
+    },
+    "generate_images.error": {
+        "zh_CN": "图片生成失败: {{error}}",
+        "en_US": "Image generation failed: {{error}}"
+    },
+    "generate_images.failed": {
+        "zh_CN": "生成失败",
+        "en_US": "Generation failed"
+    },
+    "generate_images.remark_success": {
+        "zh_CN": "成功生成 {{succeeded_count}} 张图片",
+        "en_US": "Successfully generated {{succeeded_count}} image(s)"
+    },
+    "generate_images.remark_success_partial": {
+        "zh_CN": "部分图片生成成功（{{succeeded_count}}/{{total_count}}）",
+        "en_US": "Images partially generated ({{succeeded_count}}/{{total_count}} succeeded)"
     },
     "generate_video.success": {
         "zh_CN": "视频生成成功，文件：{{file_name}}",
@@ -780,8 +944,8 @@
         "en_US": "Creation exception, please retry"
     },
     "generate_canvas_images.exception": {
-        "zh_CN": "AI 图片生成异常，请重试",
-        "en_US": "AI image generation exception, please retry"
+        "zh_CN": "生图异常，开始重试",
+        "en_US": "Image generation failed, retrying"
     },
     "generate_canvas_images.success": {
         "zh_CN": "成功生成 {{succeeded_count}} 张图片并添加到画布",
@@ -1118,6 +1282,10 @@
     "task.completed": {
         "zh_CN": "任务完成",
         "en_US": "Task completed"
+    },
+    "task.waiting_for_user": {
+        "zh_CN": "等待用户回答",
+        "en_US": "Waiting for user response"
     },
     "task_vm_init.start": {
         "zh_CN": "虚拟机正在初始化",

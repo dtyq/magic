@@ -29,6 +29,7 @@ from app.tools.get_js_cdn_address import GetJsCdnAddress
 from app.tools.grep_search import GrepSearch
 
 from app.tools.generate_image import GenerateImage
+from app.tools.generate_images import GenerateImages
 from app.tools.generate_video import GenerateVideo, QueryVideoGeneration
 from app.tools.image_search import ImageSearch
 from app.tools.list_dir import ListDir
@@ -43,6 +44,7 @@ from app.tools.reflection import Reflection
 from app.tools.deep_write import DeepWrite
 from app.tools.run_python_snippet import RunPythonSnippet
 from app.tools.shell_exec import ShellExec
+from app.tools.shell_await import ShellAwait
 from app.tools.summarize import Summarize
 from app.tools.thinking import Thinking
 from app.tools.todo_read import TodoRead
@@ -59,6 +61,7 @@ from app.tools.convert_pdf import ConvertPdf
 from app.tools.convert_to_markdown import ConvertToMarkdown
 from app.tools.visual_understanding import VisualUnderstanding
 from app.tools.visual_understanding_webpage import VisualUnderstandingWebpage
+from app.tools.video_understanding import VideoUnderstanding
 from app.tools.analysis_slide_webpage import AnalysisSlideWebpage
 from app.tools.channel import ConnectDingTalkBot, ConnectLarkBot, ConnectWecomBot, ConnectWechatBot, GetIMChannelStatus, WaitWechatLogin
 
@@ -155,6 +158,7 @@ __all__ = [
     "GrepSearch",
     "ImageSearch",
     "GenerateImage",
+    "GenerateImages",
     "GenerateVideo",
     "QueryVideoGeneration",
     "GetIMChannelStatus",
@@ -171,6 +175,7 @@ __all__ = [
     "ReadWebpagesAsMarkdown",
     "Reflection",
     "ShellExec",
+    "ShellAwait",
     "Summarize",
     "Thinking",
     "TodoRead",
@@ -180,6 +185,7 @@ __all__ = [
     "UseBrowser",
     "VisualUnderstanding",
     "VisualUnderstandingWebpage",
+    "VideoUnderstanding",
     "WriteFile",
     "ManageCron",
     "excel_plugin",

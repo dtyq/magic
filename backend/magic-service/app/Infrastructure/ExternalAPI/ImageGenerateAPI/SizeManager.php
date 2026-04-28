@@ -198,11 +198,12 @@ class SizeManager
             foreach ($config['match'] ?? [] as $rule) {
                 $field = $rule['field'] ?? '';
                 $value = strtolower($rule['value'] ?? '');
+                $matchType = strtolower($rule['match_type'] ?? 'exact');
 
-                if ($field === 'model_version' && $modelVersion === $value) {
+                if ($field === 'model_version' && self::matchesRule($modelVersion, $value, $matchType)) {
                     return $config['config'] ?? null;
                 }
-                if ($field === 'model_id' && $modelId !== null && preg_match('/' . $rule['value'] . '/i', $modelId)) {
+                if ($field === 'model_id' && $modelId !== null && self::matchesRule($modelId, $value, $matchType)) {
                     return $config['config'] ?? null;
                 }
             }
@@ -468,5 +469,13 @@ class SizeManager
         }
 
         return $a;
+    }
+
+    private static function matchesRule(string $actualValue, string $expectedValue, string $matchType): bool
+    {
+        return match ($matchType) {
+            'fuzzy' => str_contains($actualValue, $expectedValue),
+            default => $actualValue === $expectedValue,
+        };
     }
 }

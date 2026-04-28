@@ -31,6 +31,7 @@ enum BuiltinTool: string
 
     // 内容处理 (ContentProcessing)
     case VisualUnderstanding = 'visual_understanding';
+    case VideoUnderstanding = 'video_understanding';
     case GenerateImage = 'generate_image';
     case ConvertToMarkdown = 'convert_to_markdown';
 
@@ -78,7 +79,7 @@ enum BuiltinTool: string
             self::DownloadFromUrls, self::DownloadFromMarkdown => BuiltinToolCategory::SearchExtraction,
 
             // 内容处理
-            self::VisualUnderstanding, self::GenerateImage, self::ConvertToMarkdown => BuiltinToolCategory::ContentProcessing,
+            self::VisualUnderstanding, self::VideoUnderstanding, self::GenerateImage, self::ConvertToMarkdown => BuiltinToolCategory::ContentProcessing,
 
             // 系统执行
             self::ShellExec, self::RunPythonSnippet => BuiltinToolCategory::SystemExecution,
@@ -115,6 +116,8 @@ enum BuiltinTool: string
             self::ReadWebpagesAsMarkdown,
             // 视觉理解
             self::VisualUnderstanding,
+            // 视频理解
+            self::VideoUnderstanding,
             // 命令行执行
             self::ShellExec,
         ];

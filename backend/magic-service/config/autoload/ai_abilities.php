@@ -470,5 +470,43 @@ return [
                 ],
             ],
         ],
+
+        // 视频理解
+        'video_understanding' => [
+            'code' => 'video_understanding',
+            'name' => [
+                'zh_CN' => '视频理解',
+                'en_US' => 'Video Understanding',
+            ],
+            'description' => [
+                'zh_CN' => '本能力覆盖平台所有需要让大模型进行视频理解的应用场景，精准理解视频画面、动作、场景及与时间线相关的内容与关系。',
+                'en_US' => 'This capability covers all application scenarios that require AI models to perform video understanding on the platform, accurately understanding frames, motion, scenes, and timeline-related content and relationships in video.',
+            ],
+            'icon' => 'video-understanding-icon',
+            'sort_order' => 19,
+            'status' => env('AI_ABILITY_VIDEO_UNDERSTANDING_STATUS', true),
+            'config' => [
+                'model_id' => env('AI_ABILITY_VIDEO_UNDERSTANDING_MODEL_ID', null), // 对应service_provider_models.model_id
+            ],
+        ],
+
+        // 追加提问（对话追问建议）
+        'follow_up_questions' => [
+            'code' => 'follow_up_questions',
+            'name' => [
+                'zh_CN' => '追加提问',
+                'en_US' => 'Follow-up Questions',
+            ],
+            'description' => [
+                'zh_CN' => '本能力覆盖对话场景中根据历史上下文生成后续追问建议的应用场景，用于引导用户继续深入探讨。',
+                'en_US' => 'This capability covers scenarios where follow-up question suggestions are generated from conversation history to guide users to explore topics further.',
+            ],
+            'icon' => 'follow-up-questions-icon',
+            'sort_order' => 20,
+            'status' => env('AI_ABILITY_FOLLOW_UP_QUESTIONS_STATUS', true),
+            'config' => [
+                'model_id' => env('AI_ABILITY_FOLLOW_UP_QUESTIONS_MODEL_ID', null), // 对应service_provider_models.model_id
+            ],
+        ],
     ],
 ];

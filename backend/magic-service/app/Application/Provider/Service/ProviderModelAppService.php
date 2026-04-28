@@ -7,8 +7,14 @@ declare(strict_types=1);
 
 namespace App\Application\Provider\Service;
 
+use App\Application\Kernel\EnvManager;
+use App\Application\Permission\Service\UserModelAccessAppService;
 use App\Domain\File\Service\FileDomainService;
+use App\Domain\ModelGateway\Entity\ValueObject\ModelGatewayDataIsolation;
 use App\Domain\Provider\DTO\ProviderModelItemDTO;
+use App\Domain\Provider\Entity\ProviderModelEntity;
+use App\Domain\Provider\Entity\ValueObject\Category;
+use App\Domain\Provider\Entity\ValueObject\ModelType;
 use App\Domain\Provider\Entity\ValueObject\ProviderDataIsolation;
 use App\Domain\Provider\Service\ProviderModelDomainService;
 use App\Infrastructure\Util\OfficialOrganizationUtil;
@@ -45,6 +51,7 @@ class ProviderModelAppService extends AbstractProviderAppService
 
         $dataIsolation = ProviderDataIsolation::create($organizationCode, $userId);
         $models = $this->providerModelDomainService->getModelsForOrganization($dataIsolation, isOffModelLoaded: false);
+        $models = $this->filterProviderModelsByUserAccess($authorization, $models);
 
         $this->processModelIcons($models);
 
@@ -67,5 +74,95 @@ class ProviderModelAppService extends AbstractProviderAppService
             'list' => $providerModelDetailDTOs,
             'total' => count($providerModelDetailDTOs),
         ];
+    }
+
+    /**
+     * 获取当前组织下前台可见的活跃模型列表.
+     *
+     * @param ModelType[] $modelTypes
+     * @return ProviderModelItemDTO[]
+     */
+    public function getAvailableOrganizationModels(
+        MagicUserAuthorization $authorization,
+        ?Category $category = null,
+        array $modelTypes = []
+    ): array {
+        $modelGatewayDataIsolation = new ModelGatewayDataIsolation(
+            $authorization->getOrganizationCode(),
+            $authorization->getId(),
+            $authorization->getMagicId()
+        );
+        $dataIsolation = ProviderDataIsolation::create(
+            $authorization->getOrganizationCode(),
+            $authorization->getId(),
+        );
+
+        $models = $this->providerModelDomainService->getEnableModels($dataIsolation, $category, $modelTypes);
+        if ($models === []) {
+            return [];
+        }
+
+        EnvManager::initDataIsolationEnv($modelGatewayDataIsolation, force: true);
+        $availableModelIds = $modelGatewayDataIsolation->getSubscriptionManager()->getAvailableModelIds(null);
+        $accessibleModelIdMap = $this->getAccessibleModelIdMap($authorization);
+
+        $providerModelItemDTOs = [];
+        foreach ($models as $model) {
+            $modelId = $model->getModelId();
+            if ($availableModelIds !== null && ! in_array($modelId, $availableModelIds, true)) {
+                continue;
+            }
+            if ($accessibleModelIdMap !== null && ! isset($accessibleModelIdMap[$modelId])) {
+                continue;
+            }
+            if (isset($providerModelItemDTOs[$modelId])) {
+                continue;
+            }
+
+            $providerModelItemDTOs[$modelId] = new ProviderModelItemDTO([
+                'id' => (string) $model->getId(),
+                'name' => $model->getName(),
+                'model_id' => $modelId,
+                'model_type' => $model->getModelType()->value,
+                'category' => $model->getCategory()->value,
+                'icon' => $model->getIcon(),
+                'description' => $model->getDescription(),
+            ]);
+        }
+
+        $sortedModels = array_values($providerModelItemDTOs);
+        usort($sortedModels, static function ($a, $b) {
+            return strcmp($a->getName(), $b->getName());
+        });
+        $this->processModelIcons($sortedModels);
+
+        return $sortedModels;
+    }
+
+    /**
+     * @param ProviderModelEntity[] $models
+     * @return ProviderModelEntity[]
+     */
+    private function filterProviderModelsByUserAccess(MagicUserAuthorization $authorization, array $models): array
+    {
+        return $this->getUserModelAccessAppService()->filterModelEntries(
+            $authorization,
+            $models,
+            static fn (ProviderModelEntity $model): string => $model->getModelId()
+        );
+    }
+
+    /**
+     * @return null|array<string, true>
+     */
+    private function getAccessibleModelIdMap(MagicUserAuthorization $authorization): ?array
+    {
+        $context = $this->getUserModelAccessAppService()->resolveAccessContext($authorization);
+        return $context['is_restricted'] ? $context['accessible_model_id_map'] : null;
+    }
+
+    private function getUserModelAccessAppService(): UserModelAccessAppService
+    {
+        return di(UserModelAccessAppService::class);
     }
 }

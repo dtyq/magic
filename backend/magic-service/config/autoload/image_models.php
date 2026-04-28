@@ -14,10 +14,7 @@ return [
         // ==========================================================
         [
             'match' => [
-                ['field' => 'model_version', 'value' => 'gemini-3,1-pro-image-preview'],
-                ['field' => 'model_version', 'value' => 'gemini-3.1-flash-image-preview'],
-                ['field' => 'model_version', 'value' => 'gemini-3-pro-image-preview'],
-                ['field' => 'model_version', 'value' => 'gemini-3-pro-image'],
+                ['field' => 'model_version', 'value' => 'gemini-3', 'match_type' => 'fuzzy'],
             ],
             'config' => [
                 'sizes' => [
@@ -95,7 +92,7 @@ return [
         // ==========================================================
         [
             'match' => [
-                ['field' => 'model_id', 'value' => 'seedream-4-0'],
+                ['field' => 'model_id', 'value' => 'seedream-4-0', 'match_type' => 'fuzzy'],
             ],
             'config' => [
                 'sizes' => [
@@ -121,7 +118,7 @@ return [
         // ==========================================================
         [
             'match' => [
-                ['field' => 'model_id', 'value' => 'seedream-4-5'],
+                ['field' => 'model_id', 'value' => 'seedream-4-5', 'match_type' => 'fuzzy'],
             ],
             'config' => [
                 'sizes' => [
@@ -164,8 +161,8 @@ return [
         // ==========================================================
         [
             'match' => [
-                ['field' => 'model_id', 'value' => 'seedream-5\.0-lite'],
-                ['field' => 'model_id', 'value' => 'seedream-5-0-lite'],
+                ['field' => 'model_id', 'value' => 'seedream-5.0-lite', 'match_type' => 'fuzzy'],
+                ['field' => 'model_id', 'value' => 'seedream-5-0-lite', 'match_type' => 'fuzzy'],
             ],
             'config' => [
                 'supported_output_formats' => [

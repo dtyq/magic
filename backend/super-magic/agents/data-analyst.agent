@@ -5,6 +5,7 @@ tools:
   - read_webpages_as_markdown
   - image_search
   - visual_understanding
+  - video_understanding
   - convert_pdf
   - convert_to_markdown
   - list_dir
@@ -18,6 +19,7 @@ tools:
   - file_search
   - grep_search
   - shell_exec
+  - shell_await
   - download_from_urls
   - run_python_snippet
   - ask_user
