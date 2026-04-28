@@ -8,12 +8,13 @@ WechatStream — 侦听 agent 事件，在 after_main_agent_run 时发送最终�
 """
 import asyncio
 import json
-from typing import Any, Optional
+from typing import Optional
 
 import aiohttp
 
 from agentlang.logger import get_logger
 from app.channel.base.message_splitter import split_reply
+from app.channel.base.reply_content import extract_reply_content
 from app.channel.wechat import api
 from app.channel.wechat.reply_media_parser import MediaItem, parse_reply_media
 from app.channel.wechat.send_media import send_media_item
@@ -21,40 +22,6 @@ from app.channel.wechat.typing import WechatTypingController
 from app.core.stream import Stream
 
 logger = get_logger(__name__)
-
-
-def _extract_v1_reply_content(payload: dict[str, Any]) -> str:
-    """从 v1 agent_reply 消息提取 assistant 正文。"""
-    if payload.get("type") != "agent_reply":
-        return ""
-
-    content = payload.get("content")
-    return content if isinstance(content, str) else ""
-
-
-def _extract_v2_reply_content(payload: dict[str, Any]) -> str:
-    """从 v2 super_magic_message 消息提取 assistant 正文。"""
-    raw_content = payload.get("raw_content")
-    if not isinstance(raw_content, dict):
-        return ""
-
-    super_magic_message = raw_content.get("super_magic_message")
-    if not isinstance(super_magic_message, dict):
-        return ""
-
-    if super_magic_message.get("role") != "assistant":
-        return ""
-
-    content = super_magic_message.get("content")
-    return content if isinstance(content, str) else ""
-
-
-def _extract_reply_content(payload: dict[str, Any]) -> str:
-    """兼容 v1/v2 ServerMessage，提取可发给微信用户的 assistant 正文。"""
-    if payload.get("content_type") != "content":
-        return ""
-
-    return _extract_v1_reply_content(payload) or _extract_v2_reply_content(payload)
 
 
 class WechatStream(Stream):
@@ -90,7 +57,7 @@ class WechatStream(Stream):
             event = payload.get("event", "")
 
             # 捕获最终 assistant 正文，兼容 v1 agent_reply 与 v2 super_magic_message。
-            content = _extract_reply_content(payload)
+            content = extract_reply_content(payload)
             if content:
                 self._last_content = content
 
