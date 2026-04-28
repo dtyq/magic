@@ -26,7 +26,7 @@ class AzureOpenAIAPI
 
     private string $baseUrl;
 
-    private ?string $apiVersion;
+    private string $apiVersion;
 
     private ?string $proxyUrl;
 
