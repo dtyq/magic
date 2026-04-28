@@ -100,6 +100,7 @@ class ReadFiles(AbstractFileTool[ReadFilesParams], WorkspaceTool[ReadFilesParams
 - 无法读取支持的文件类型以外的文件，尤其是二进制文件
 - 对于Excel和CSV文件，你可以使用本工具读取文件的前10行了解结构，然后使用Python脚本进行数据分析处理
 - 为避免内容过长超过上下文窗口，读取大文件时可能会被自动截断，若必须阅读完整的情况下，你可以分多次读取
+- 文本读取结果会用「行号 + 制表符 + 内容」展示行号；复制到任何编辑工具参数时，只复制制表符之后的真实文件内容，不要带行号前缀
 
 强烈建议在需要批量读取多个参考文件时使用此工具一次性读取，而非多次调用工具逐个读取，这将会极大提升任务效率
 -->
@@ -116,6 +117,7 @@ Notes:
 - Cannot read files other than supported types, especially binary files
 - For Excel/CSV files, use this tool to read first 10 lines to understand structure, then use Python scripts for data analysis
 - Large files may be auto-truncated to avoid exceeding context window; read in multiple operations if full content needed
+- Text read output displays line numbers as line number + tab + content; when copying into any edit tool parameter, copy only the real file content after the tab and omit the line-number prefix
 
 Strongly recommended to use this tool for batch reading multiple reference files at once, rather than calling tools multiple times individually, which will greatly improve task efficiency"""
 

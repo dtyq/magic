@@ -100,6 +100,8 @@ Workflow for multiple edits:
 Each edit's requirements are the same as the edit_file tool, please refer to the edit_file tool's hints.
 
 IMPORTANT: Copy text exactly as it appears in the file, including punctuation style.
+When copying from read_file output, copy only the actual file content after the line-number prefix.
+Never include the line number + tab in any old_string or new_string.
 """
 
     async def execute(self, tool_context: ToolContext, params: MultiEditFileParams) -> ToolResult:
