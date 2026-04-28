@@ -57,6 +57,10 @@ class DesignGenerationTaskEntity extends AbstractEntity
 
     private const string FIELD_URI = 'uri';
 
+    private const string OUTPUT_KEY_FILE_DIR_ID = 'file_dir_id';
+
+    private const string OUTPUT_KEY_ARCHIVE_SKIPPED_REASON = 'archive_skipped_reason';
+
     protected ?int $id = null;
 
     protected string $organizationCode = '';
@@ -365,6 +369,41 @@ class DesignGenerationTaskEntity extends AbstractEntity
     public function setOutputPayload(array $outputPayload): void
     {
         $this->outputPayload = $outputPayload;
+    }
+
+    /**
+     * 获取创建视频任务时记录的输出目录 ID，用于目录改名或移动后的归档定位。
+     */
+    public function getOutputDirectoryFileId(): ?int
+    {
+        $fileDirId = $this->outputPayload[self::OUTPUT_KEY_FILE_DIR_ID] ?? null;
+        if (! is_numeric($fileDirId)) {
+            return null;
+        }
+
+        $fileDirId = (int) $fileDirId;
+        return $fileDirId > 0 ? $fileDirId : null;
+    }
+
+    /**
+     * 记录输出目录 ID；传入空值或非法值时移除该快照。
+     */
+    public function setOutputDirectoryFileId(?int $fileDirId): void
+    {
+        if ($fileDirId !== null && $fileDirId > 0) {
+            $this->outputPayload[self::OUTPUT_KEY_FILE_DIR_ID] = $fileDirId;
+            return;
+        }
+
+        unset($this->outputPayload[self::OUTPUT_KEY_FILE_DIR_ID]);
+    }
+
+    /**
+     * 记录归档跳过原因，便于排查已完成但未写入项目文件的任务。
+     */
+    public function setArchiveSkippedReason(string $reason): void
+    {
+        $this->outputPayload[self::OUTPUT_KEY_ARCHIVE_SKIPPED_REASON] = $reason;
     }
 
     public function getStatus(): DesignGenerationStatus

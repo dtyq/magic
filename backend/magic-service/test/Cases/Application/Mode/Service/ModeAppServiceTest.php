@@ -297,7 +297,7 @@ class ModeAppServiceTest extends TestCase
         $this->assertArrayHasKey('atom-leaf', $models);
     }
 
-    public function testBuildModeRuntimeDataIncludesKelingResolutionConfigWithoutSizes(): void
+    public function testBuildModeRuntimeDataIncludesKelingResolutionAndSizeConfig(): void
     {
         $service = $this->createService(
             [11 => $this->createProviderConfigEntity(11, ProviderCode::Cloudsway)],
@@ -321,7 +321,14 @@ class ModeAppServiceTest extends TestCase
         $this->assertNotNull($config);
         $this->assertSame(['720p', '1080p'], $config->toArray()['generation']['resolutions']);
         $this->assertSame('720p', $config->toArray()['generation']['default_resolution']);
-        $this->assertArrayNotHasKey('sizes', $config->toArray()['generation']);
+        $this->assertCount(6, $config->toArray()['generation']['sizes']);
+        $this->assertSame([
+            'label' => '16:9',
+            'value' => '1280x720',
+            'width' => 1280,
+            'height' => 720,
+            'resolution' => '720p',
+        ], $config->toArray()['generation']['sizes'][0]);
     }
 
     /**

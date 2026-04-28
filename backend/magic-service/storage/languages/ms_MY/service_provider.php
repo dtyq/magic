@@ -36,6 +36,7 @@ return [
     'config_not_found' => 'Konfigurasi penyedia perkhidmatan tidak dijumpai',
     'config_load_failed' => 'Pemuatan konfigurasi gagal',
     'connectivity_test_prompt' => 'Menjadikan imej kucing',
+    'connectivity_not_supported' => 'Ujian sambungan tidak disokong untuk jenis model ini.',
     'dynamic_model_config_invalid' => 'Konfigurasi model dinamik tidak sah',
     'dynamic_model_sub_models_empty' => 'Senarai sub-model model dinamik kosong',
     'insufficient_permission_for_model' => 'Langganan semasa tidak menyokong model pintar ini',

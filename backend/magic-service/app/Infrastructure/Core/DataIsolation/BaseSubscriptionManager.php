@@ -58,6 +58,12 @@ class BaseSubscriptionManager implements SubscriptionManagerInterface
         return null;
     }
 
+    public function getPersonalVideoGenerationConcurrencyLimit(): ?int
+    {
+        // 开源基础版本不接入套餐权益，返回 null 表示不限个人视频并发。
+        return null;
+    }
+
     public function isValidModelAvailable(string $modelId, ?ModelType $modelType): bool
     {
         $modelIds = $this->getAvailableModelIds($modelType);

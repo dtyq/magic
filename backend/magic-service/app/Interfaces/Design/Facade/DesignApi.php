@@ -19,6 +19,7 @@ use App\Interfaces\Design\Assembler\ImageGenerationAssembler;
 use App\Interfaces\Design\DTO\ImageGenerationDTO;
 use App\Interfaces\Design\RequestForm\ConvertHighImageFormRequest;
 use App\Interfaces\Design\RequestForm\EraserFormRequest;
+use App\Interfaces\Design\RequestForm\EstimateVideoPointsFormRequest;
 use App\Interfaces\Design\RequestForm\ExpandImageFormRequest;
 use App\Interfaces\Design\RequestForm\GenerateImageFormRequest;
 use App\Interfaces\Design\RequestForm\GenerateVideoFormRequest;
@@ -254,6 +255,15 @@ class DesignApi extends AbstractApi
         $entity = $this->designVideoAppService->create($authenticatable, $entity);
 
         return DesignVideoAssembler::toDTO($entity)->toArray();
+    }
+
+    public function estimateVideoPoints(EstimateVideoPointsFormRequest $request): array
+    {
+        $request->validateResolved();
+        $authenticatable = $this->getAuthorization();
+        $dto = new DesignVideoCreateDTO($request->validated());
+
+        return $this->designVideoAppService->estimatePoints($authenticatable, $dto)->toArray();
     }
 
     /**

@@ -16,6 +16,8 @@ interface VideoGatewayClientInterface
      */
     public function submitVideo(array $payload, array $businessParams): array;
 
+    public function estimateVideo(array $payload, array $businessParams): array;
+
     /**
      * @param array<string, string> $businessParams
      * @return array<string, mixed>
