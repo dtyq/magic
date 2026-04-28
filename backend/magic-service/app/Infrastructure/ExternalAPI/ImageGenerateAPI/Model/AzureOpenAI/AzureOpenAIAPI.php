@@ -43,9 +43,9 @@ class AzureOpenAIAPI
     /**
      * Image generation API call.
      */
-    public function generateImage(array $data): array
+    public function generateImage(string $model, array $data): array
     {
-        $url = $this->buildUrl('images/generations');
+        $url = $this->buildUrl($model, 'images/generations');
 
         $this->logger->info('Azure OpenAI API 请求', [
             'url' => $url,
@@ -78,7 +78,7 @@ class AzureOpenAIAPI
      */
     public function editImage(string $model, array $imageUrls, ?string $maskUrl, string $prompt, string $size = '1024x1024', int $n = 1): array
     {
-        $url = $this->buildUrl('images/edits');
+        $url = $this->buildUrl($model, 'images/edits');
 
         try {
             $client = GuzzleClientFactory::createProxyClient(
@@ -119,7 +119,6 @@ class AzureOpenAIAPI
                     'prompt' => $prompt,
                     'size' => $size,
                     'n' => $n,
-                    'model' => $model,
                 ],
             ]);
 
@@ -157,14 +156,22 @@ class AzureOpenAIAPI
 
     /**
      * Build full API URL.
+     *
+     * 若 baseUrl 仅为 host（无有效 path），自动补全部署路径：
+     * {host}/openai/deployments/{model}/{endpoint}
+     * 否则直接拼接：{baseUrl}/{endpoint}
      */
-    private function buildUrl(string $endpoint): string
+    private function buildUrl(string $model, string $endpoint): string
     {
-        $url = sprintf(
-            '%s/%s',
-            $this->baseUrl,
-            ltrim($endpoint, '/')
-        );
+        $path = parse_url($this->baseUrl, PHP_URL_PATH) ?? '';
+
+        if (empty($path) || $path === '/') {
+            $base = rtrim($this->baseUrl, '/') . '/openai/deployments/' . $model;
+        } else {
+            $base = $this->baseUrl;
+        }
+
+        $url = sprintf('%s/%s', $base, ltrim($endpoint, '/'));
 
         if (trim($this->apiVersion)) {
             $url = sprintf('%s?api-version=%s', $url, $this->apiVersion);

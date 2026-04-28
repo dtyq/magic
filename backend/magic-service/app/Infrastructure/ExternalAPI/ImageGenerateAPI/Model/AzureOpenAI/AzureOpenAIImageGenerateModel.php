@@ -75,14 +75,13 @@ class AzureOpenAIImageGenerateModel extends AbstractImageGenerate
             }
 
             $requestData = [
-                'model' => $this->model,
                 'prompt' => $imageGenerateRequest->getPrompt(),
                 'size' => $imageGenerateRequest->getSize(),
                 'quality' => $imageGenerateRequest->getQuality(),
                 'n' => $imageGenerateRequest->getN(),
             ];
 
-            $result = $this->api->generateImage($requestData);
+            $result = $this->api->generateImage($this->model, $requestData);
 
             $this->logger->info('Azure OpenAI图像生成：API调用成功', [
                 'result_data_count' => isset($result['data']) ? count($result['data']) : 0,
