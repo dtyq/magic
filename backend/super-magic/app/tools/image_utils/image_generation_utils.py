@@ -13,7 +13,7 @@ from typing import Dict, List, Optional, Tuple
 from agentlang.context.tool_context import ToolContext
 from agentlang.logger import get_logger
 from agentlang.path_manager import PathManager
-from app.service.media_generation_service import generate_presigned_url_for_file
+from app.service.file_service import FileService, WorkspaceFileURLError
 from app.tools.visual_understanding_utils.image_compress_utils import compress_if_needed
 from app.utils.async_file_utils import async_exists, async_mkdir, async_unlink
 
@@ -57,37 +57,31 @@ async def local_image_to_presigned_url(
         ValueError: 文件不存在或 URL 生成失败
     """
     temp_files: List[str] = []
-    image_path = image_source.lstrip("/")
+    workspace_dir = Path(PathManager.get_workspace_dir())
 
-    if not await async_exists(image_path):
+    try:
+        resolved_path = await _resolve_local_image_path(image_source, workspace_dir)
+
+        await async_mkdir(visual_dir, parents=True, exist_ok=True)
+        compressed_path = await compress_if_needed(str(resolved_path), output_dir=visual_dir)
+
+        presigned_target = resolved_path
+        if compressed_path != str(resolved_path) and await async_exists(compressed_path):
+            logger.info(f"参考图超过大小限制，已压缩: {resolved_path} -> {compressed_path}")
+            temp_files.append(compressed_path)
+            presigned_target = Path(compressed_path).expanduser().resolve()
+
+        url = await FileService().get_workspace_file_url(presigned_target)
+    except FileNotFoundError as e:
         raise ValueError(
             f"Reference image '{image_source}' not found. "
             f"Verify the path is relative to the workspace root and the file exists."
-        )
-
-    await async_mkdir(visual_dir, parents=True, exist_ok=True)
-    compressed_path = await compress_if_needed(image_path, output_dir=visual_dir)
-
-    if compressed_path != image_path and await async_exists(compressed_path):
-        logger.info(f"参考图超过大小限制，已压缩: {image_path} -> {compressed_path}")
-        temp_files.append(compressed_path)
-        workspace_dir = PathManager.get_workspace_dir()
-        try:
-            rel_path = str(Path(compressed_path).relative_to(workspace_dir))
-        except ValueError:
-            rel_path = Path(compressed_path).name
-        url = await generate_presigned_url_for_file(rel_path)
-    else:
-        file_path = Path(image_path)
-        if file_path.is_absolute():
-            try:
-                workspace_dir = PathManager.get_workspace_dir()
-                file_path_str = str(file_path.relative_to(workspace_dir))
-            except ValueError:
-                file_path_str = file_path.name
-        else:
-            file_path_str = str(file_path)
-        url = await generate_presigned_url_for_file(file_path_str)
+        ) from e
+    except WorkspaceFileURLError as e:
+        raise ValueError(
+            f"Reference image '{image_source}' could not be converted to an accessible URL. "
+            f"Check that the path is correct and the file exists in the workspace."
+        ) from e
 
     if not url:
         raise ValueError(
@@ -97,6 +91,28 @@ async def local_image_to_presigned_url(
 
     logger.info(f"参考图已转换为 URL: {image_source} -> {url}")
     return url, temp_files
+
+
+async def _resolve_local_image_path(image_source: str, workspace_dir: Path) -> Path:
+    """将参考图路径解析为绝对路径。
+
+    兼容三种写法：绝对路径、相对 workspace 根目录、相对当前工作目录的旧写法。
+    解析顺序优先 workspace 根目录，避免把 workspace 相对路径误判为当前进程 cwd 相对路径。
+    """
+    normalized_input = Path(image_source).expanduser()
+    candidates: List[Path] = []
+
+    if normalized_input.is_absolute():
+        candidates.append(normalized_input)
+    else:
+        candidates.append(workspace_dir / normalized_input)
+        candidates.append(normalized_input)
+
+    for candidate in candidates:
+        if await async_exists(candidate):
+            return candidate.resolve()
+
+    raise FileNotFoundError(f"Image file does not exist: {image_source}")
 
 
 async def resolve_reference_images_to_urls(
