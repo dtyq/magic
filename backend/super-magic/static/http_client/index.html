@@ -114,6 +114,21 @@
         <!-- 右侧主区域 -->
         <div class="resizer" id="sidebarResizer"></div>
         <div class="main-content">
+            <section id="filePreviewWorkbench" class="file-preview-workbench" hidden>
+                <div class="file-preview-tabbar">
+                    <div id="filePreviewTabs" class="file-preview-tabs" role="tablist" aria-label="文件预览"></div>
+                    <div class="file-preview-actions">
+                        <button id="filePreviewRenderBtn" class="file-preview-action-btn" title="渲染 HTML 预览" style="display:none">渲染预览</button>
+                        <button id="filePreviewOpenBtn" class="file-preview-action-btn" title="在新窗口打开">新窗口打开</button>
+                        <button id="filePreviewClose" class="file-preview-close" title="关闭当前预览">✕</button>
+                    </div>
+                </div>
+                <div id="filePreviewMeta" class="file-preview-meta" aria-label="文件信息"></div>
+                <div class="file-preview-main">
+                    <div id="filePreviewBody" class="file-preview-body"></div>
+                </div>
+            </section>
+            <div class="resizer preview-chat-resizer" id="previewChatResizer"></div>
             <div class="chat-container">
                 <!-- 消息显示区域 -->
                 <div id="messagesContainer" class="messages-container">
@@ -140,6 +155,15 @@
                             <label class="toggle-switch-label">IM 渠道</label>
                             <label class="toggle-switch">
                                 <input type="checkbox" id="imModeToggle">
+                                <span class="toggle-switch-slider"></span>
+                            </label>
+                        </div>
+
+                        <!-- 原始事件显示开关 -->
+                        <div class="advanced-mode-toggle">
+                            <label class="toggle-switch-label">原始事件</label>
+                            <label class="toggle-switch">
+                                <input type="checkbox" id="rawEventsToggle">
                                 <span class="toggle-switch-slider"></span>
                             </label>
                         </div>
@@ -253,24 +277,6 @@
                         <!-- 历史消息项将通过JavaScript动态生成 -->
                     </div>
                 </div>
-            </div>
-        </div>
-    </div>
-
-    <!-- 文件预览弹窗 -->
-    <div id="filePreviewOverlay" class="file-preview-overlay" style="display:none" tabindex="-1">
-        <div class="file-preview-dialog">
-            <div class="file-preview-header">
-                <span id="filePreviewName" class="file-preview-name"></span>
-                <div class="file-preview-actions">
-                    <button id="filePreviewRenderBtn" class="file-preview-action-btn" title="在新窗口渲染 HTML（实际效果）" style="display:none">渲染预览</button>
-                    <button id="filePreviewOpenBtn" class="file-preview-action-btn" title="在新窗口打开（按原始类型）">新窗口打开</button>
-                    <button id="filePreviewClose" class="file-preview-close">✕</button>
-                </div>
-            </div>
-            <div class="file-preview-main">
-                <div id="filePreviewBody" class="file-preview-body"></div>
-                <aside id="filePreviewMeta" class="file-preview-meta" aria-label="文件信息"></aside>
             </div>
         </div>
     </div>
