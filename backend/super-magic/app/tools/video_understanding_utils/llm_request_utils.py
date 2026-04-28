@@ -112,7 +112,9 @@ class VideoLLMRequestHandler:
         except Exception as first_error:
             logger.warning(f"第一次 LLM 调用失败: {first_error}")
 
-        # 检查是否有 HTTP URL 可以 fallback 到 base64
+        # 检查是否有可以 fallback 到 base64 的视频
+        # - 本地文件（source 非 http）：直接读取本地文件编码，无需下载预签名 URL
+        # - HTTP URL 来源：下载远程 URL 编码
         url_results = [
             r for r in successful
             if r.resolved_url and re.match(r'^https?://', r.resolved_url)
@@ -120,13 +122,18 @@ class VideoLLMRequestHandler:
         if not url_results:
             raise first_error
 
-        logger.info(f"检测到 {len(url_results)} 个 HTTP URL 视频，尝试下载并编码为 base64")
+        logger.info(f"检测到 {len(url_results)} 个视频需要 fallback 到 base64")
         processor = VideoProcessor()
         try:
-            fallback_tasks = [
-                processor.download_and_encode_base64(r.resolved_url, timeout)
-                for r in url_results
-            ]
+            fallback_tasks = []
+            for r in url_results:
+                if re.match(r'^https?://', r.source):
+                    # 来源本身就是 HTTP URL，下载远程文件
+                    fallback_tasks.append(processor.download_and_encode_base64(r.resolved_url, timeout))
+                else:
+                    # 来源是本地文件，直接读取本地文件编码，避免下载预签名 URL
+                    logger.info(f"本地文件 fallback 到 base64: {r.source}")
+                    fallback_tasks.append(processor.local_file_to_base64(r.source))
             b64_urls = await asyncio.gather(*fallback_tasks)
 
             url_set = {r.resolved_url for r in url_results}
