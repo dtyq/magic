@@ -483,15 +483,16 @@ class GenerateImages(AbstractFileTool[GenerateImagesParams], WorkspaceTool[Gener
         except Exception as e:
             logger.warning(f"清理临时文件失败: {image.temp_file_path}, 错误: {e}")
 
-        try:
-            await notify_generated_media_file(
-                file_path=str(save_path),
-                base_dir=self.base_dir,
-                file_existed=file_existed,
-                source=AI_IMAGE_GENERATION_SOURCE,
-            )
-        except Exception as e:
-            logger.warning(f"发送文件通知失败: {e}")
+        # TODO: temporarily disabled - file notification via generate_images (link 2)
+        # try:
+        #     await notify_generated_media_file(
+        #         file_path=str(save_path),
+        #         base_dir=self.base_dir,
+        #         file_existed=file_existed,
+        #         source=AI_IMAGE_GENERATION_SOURCE,
+        #     )
+        # except Exception as e:
+        #     logger.warning(f"发送文件通知失败: {e}")
 
         return str(save_path)
 
