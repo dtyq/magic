@@ -41,7 +41,6 @@ class MCPService:
             logger.info("开始初始化 MCP 配置...")
             await initialize_global_mcp_manager(
                 server_configs,
-                agent_context=agent_context,
                 append_mode=append_mode
             )
 
@@ -73,7 +72,6 @@ class MCPService:
 
             # 直接调用全局管理器初始化，它会自动读取 config/mcp.json
             success = await initialize_global_mcp_manager(
-                agent_context=agent_context,
                 append_mode=append_mode
             )
             if success:
