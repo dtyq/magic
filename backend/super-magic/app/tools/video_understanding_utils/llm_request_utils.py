@@ -99,6 +99,7 @@ class VideoLLMRequestHandler:
         system_content = VideoLLMRequestHandler.get_system_prompt()
         processor_config = ProcessorConfig(non_stream_timeout_seconds=timeout)
         successful = batch.successful
+        first_error: Optional[Exception] = None
 
         try:
             messages = VideoLLMRequestHandler.build_messages(query, successful, system_content)
@@ -109,8 +110,9 @@ class VideoLLMRequestHandler:
                 extra_body=DISABLE_THINKING_BODY,
                 processor_config=processor_config,
             )
-        except Exception as first_error:
-            logger.warning(f"第一次 LLM 调用失败: {first_error}")
+        except Exception as exc:
+            first_error = exc
+            logger.warning(f"第一次 LLM 调用失败: {exc}")
 
         # 检查是否有可以 fallback 到 base64 的视频
         # - 本地文件（source 非 http）：直接读取本地文件编码，无需下载预签名 URL
@@ -120,7 +122,9 @@ class VideoLLMRequestHandler:
             if r.resolved_url and re.match(r'^https?://', r.resolved_url)
         ]
         if not url_results:
-            raise first_error
+            if first_error is not None:
+                raise first_error
+            raise RuntimeError("第一次 LLM 调用失败但未记录异常")
 
         logger.info(f"检测到 {len(url_results)} 个视频需要 fallback 到 base64")
         processor = VideoProcessor()
@@ -157,4 +161,6 @@ class VideoLLMRequestHandler:
             )
         except Exception as b64_error:
             logger.error(f"base64 fallback 也失败: {b64_error}")
-            raise first_error
+            if first_error is not None:
+                raise first_error
+            raise b64_error
