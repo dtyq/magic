@@ -19,7 +19,9 @@ use App\Domain\Permission\Entity\ValueObject\PermissionControlStatus;
 use App\Domain\Permission\Entity\ValueObject\PermissionDataIsolation;
 use App\Domain\Permission\Repository\Persistence\FunctionPermissionPolicyRepository;
 use App\ErrorCode\PermissionErrorCode;
+use App\Infrastructure\Core\Exception\BusinessException;
 use App\Infrastructure\Core\Exception\ExceptionBuilder;
+use RuntimeException;
 
 readonly class FunctionPermissionDomainService
 {
@@ -101,6 +103,63 @@ readonly class FunctionPermissionDomainService
         }
 
         return $this->repository->save($entity);
+    }
+
+    public function updatePolicyEnabled(
+        PermissionDataIsolation $dataIsolation,
+        string $functionCode,
+        bool $enabled,
+        array $defaultBindingScope
+    ): FunctionPermissionPolicyEntity {
+        $normalizedDefaultBindingScope = FunctionPermissionPolicyEntity::normalizeValidatedBindingScope($defaultBindingScope);
+        $existing = $this->repository->getByFunctionCode($dataIsolation, $functionCode);
+        if ($existing === null) {
+            if (! $enabled) {
+                $entity = new FunctionPermissionPolicyEntity();
+                $entity->setOrganizationCode($dataIsolation->getCurrentOrganizationCode());
+                $entity->setFunctionCode($functionCode);
+                $entity->setEnabled(false);
+                $entity->setBindingScope($normalizedDefaultBindingScope);
+                $entity->setRemark(null);
+
+                return $entity;
+            }
+
+            $entity = new FunctionPermissionPolicyEntity();
+            $entity->setOrganizationCode($dataIsolation->getCurrentOrganizationCode());
+            $entity->setFunctionCode($functionCode);
+            $entity->setEnabled(true);
+            $entity->setBindingScope($normalizedDefaultBindingScope);
+            $entity->setRemark(null);
+            $entity->prepareForCreation();
+
+            return $this->repository->save($entity);
+        }
+
+        if ($enabled) {
+            try {
+                $existing->setBindingScope(
+                    FunctionPermissionPolicyEntity::normalizeValidatedBindingScope($existing->getBindingScope())
+                );
+            } catch (BusinessException $exception) {
+                ExceptionBuilder::throw(
+                    PermissionErrorCode::ValidateFailed,
+                    'current binding_scope is invalid, please use full save api',
+                    throwable: $exception
+                );
+            }
+
+            $existing->setEnabled(true);
+            $existing->prepareForModification();
+
+            return $this->repository->save($existing);
+        }
+
+        return $this->repository->updateEnabled(
+            $dataIsolation->getCurrentOrganizationCode(),
+            $functionCode,
+            $enabled
+        ) ?? throw new RuntimeException('function permission policy not found when updating enabled');
     }
 
     /**

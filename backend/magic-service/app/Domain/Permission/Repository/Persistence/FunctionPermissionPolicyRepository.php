@@ -74,6 +74,26 @@ class FunctionPermissionPolicyRepository extends MagicAbstractRepository
         return FunctionPermissionPolicyFactory::createEntity($model);
     }
 
+    public function updateEnabled(string $organizationCode, string $functionCode, bool $enabled): ?FunctionPermissionPolicyEntity
+    {
+        /** @var null|FunctionPermissionPolicyModel $model */
+        $model = FunctionPermissionPolicyModel::query()
+            ->where('organization_code', $organizationCode)
+            ->where('function_code', $functionCode)
+            ->first();
+
+        if ($model === null) {
+            return null;
+        }
+
+        $model->fill([
+            'enabled' => $enabled ? 1 : 0,
+        ]);
+        $model->save();
+
+        return FunctionPermissionPolicyFactory::createEntity($model);
+    }
+
     /**
      * @param array<FunctionPermissionPolicyEntity> $entities
      * @return array<FunctionPermissionPolicyEntity>

@@ -19,6 +19,7 @@ use App\Domain\Permission\Entity\ValueObject\BindingScopeType;
 use App\Domain\Permission\Entity\ValueObject\PermissionDataIsolation;
 use App\Domain\Permission\Repository\Persistence\FunctionPermissionPolicyRepository;
 use App\Domain\Permission\Service\FunctionPermissionDomainService;
+use App\Infrastructure\Core\Exception\BusinessException;
 use Closure;
 use PHPUnit\Framework\TestCase;
 use RuntimeException;
@@ -28,6 +29,194 @@ use RuntimeException;
  */
 class FunctionPermissionDomainServiceTest extends TestCase
 {
+    public function testUpdatePolicyEnabledCreatesPolicyWithDefaultBindingScopeWhenMissing(): void
+    {
+        $repository = $this->createMock(FunctionPermissionPolicyRepository::class);
+        $settingsService = $this->createUnusedSettingsService();
+        $departmentUserDomainService = $this->createDepartmentUserDomainService(
+            static function (): array {
+                throw new RuntimeException('getDepartmentIdsByUserId should not be called');
+            }
+        );
+
+        $repository->expects($this->once())
+            ->method('getByFunctionCode')
+            ->with($this->isInstanceOf(PermissionDataIsolation::class), 'skill.create')
+            ->willReturn(null);
+        $repository->expects($this->once())
+            ->method('save')
+            ->with($this->callback(function (FunctionPermissionPolicyEntity $entity): bool {
+                return $entity->getOrganizationCode() === 'ORG_ENABLED'
+                    && $entity->getFunctionCode() === 'skill.create'
+                    && $entity->getEnabled()
+                    && $entity->getBindingScope() === ['type' => BindingScopeType::OrganizationAll->value]
+                    && $entity->getRemark() === null;
+            }))
+            ->willReturn($this->createPolicy('ORG_ENABLED', 'skill.create', true, ['type' => BindingScopeType::OrganizationAll->value]));
+
+        $service = new FunctionPermissionDomainService($repository, $settingsService, $departmentUserDomainService);
+        $dataIsolation = $this->createPermissionDataIsolation('ORG_ENABLED', 'operator');
+
+        $saved = $service->updatePolicyEnabled(
+            $dataIsolation,
+            'skill.create',
+            true,
+            ['type' => BindingScopeType::OrganizationAll->value]
+        );
+
+        $this->assertTrue($saved->getEnabled());
+        $this->assertSame(['type' => BindingScopeType::OrganizationAll->value], $saved->getBindingScope());
+    }
+
+    public function testUpdatePolicyEnabledReturnsDefaultDisabledPolicyWithoutSavingWhenMissing(): void
+    {
+        $repository = $this->createMock(FunctionPermissionPolicyRepository::class);
+        $settingsService = $this->createUnusedSettingsService();
+        $departmentUserDomainService = $this->createDepartmentUserDomainService(
+            static function (): array {
+                throw new RuntimeException('getDepartmentIdsByUserId should not be called');
+            }
+        );
+
+        $repository->expects($this->once())
+            ->method('getByFunctionCode')
+            ->with($this->isInstanceOf(PermissionDataIsolation::class), 'skill.create')
+            ->willReturn(null);
+        $repository->expects($this->never())->method('save');
+        $repository->expects($this->never())->method('updateEnabled');
+
+        $service = new FunctionPermissionDomainService($repository, $settingsService, $departmentUserDomainService);
+        $dataIsolation = $this->createPermissionDataIsolation('ORG_ENABLED', 'operator');
+
+        $saved = $service->updatePolicyEnabled(
+            $dataIsolation,
+            'skill.create',
+            false,
+            ['type' => BindingScopeType::OrganizationAll->value]
+        );
+
+        $this->assertSame('ORG_ENABLED', $saved->getOrganizationCode());
+        $this->assertSame('skill.create', $saved->getFunctionCode());
+        $this->assertFalse($saved->getEnabled());
+        $this->assertSame(['type' => BindingScopeType::OrganizationAll->value], $saved->getBindingScope());
+        $this->assertNull($saved->getRemark());
+    }
+
+    public function testUpdatePolicyEnabledNormalizesAndPersistsExistingEmptyBindingScopeWhenEnabling(): void
+    {
+        $repository = $this->createMock(FunctionPermissionPolicyRepository::class);
+        $settingsService = $this->createUnusedSettingsService();
+        $departmentUserDomainService = $this->createDepartmentUserDomainService(
+            static function (): array {
+                throw new RuntimeException('getDepartmentIdsByUserId should not be called');
+            }
+        );
+        $existing = $this->createPolicy('ORG_ENABLED', 'skill.create', false, []);
+
+        $repository->expects($this->once())
+            ->method('getByFunctionCode')
+            ->with($this->isInstanceOf(PermissionDataIsolation::class), 'skill.create')
+            ->willReturn($existing);
+        $repository->expects($this->once())
+            ->method('save')
+            ->with($this->callback(function (FunctionPermissionPolicyEntity $entity): bool {
+                return $entity->getOrganizationCode() === 'ORG_ENABLED'
+                    && $entity->getFunctionCode() === 'skill.create'
+                    && $entity->getEnabled()
+                    && $entity->getBindingScope() === ['type' => BindingScopeType::OrganizationAll->value];
+            }))
+            ->willReturn($this->createPolicy('ORG_ENABLED', 'skill.create', true, ['type' => BindingScopeType::OrganizationAll->value]));
+        $repository->expects($this->never())->method('updateEnabled');
+
+        $service = new FunctionPermissionDomainService($repository, $settingsService, $departmentUserDomainService);
+        $dataIsolation = $this->createPermissionDataIsolation('ORG_ENABLED', 'operator');
+
+        $saved = $service->updatePolicyEnabled(
+            $dataIsolation,
+            'skill.create',
+            true,
+            ['type' => BindingScopeType::OrganizationAll->value]
+        );
+
+        $this->assertTrue($saved->getEnabled());
+        $this->assertSame(['type' => BindingScopeType::OrganizationAll->value], $saved->getBindingScope());
+    }
+
+    public function testUpdatePolicyEnabledDisablesExistingPolicyWithoutRevalidatingInvalidBindingScope(): void
+    {
+        $repository = $this->createMock(FunctionPermissionPolicyRepository::class);
+        $settingsService = $this->createUnusedSettingsService();
+        $departmentUserDomainService = $this->createDepartmentUserDomainService(
+            static function (): array {
+                throw new RuntimeException('getDepartmentIdsByUserId should not be called');
+            }
+        );
+        $existing = $this->createPolicy('ORG_ENABLED', 'skill.create', true, [
+            'type' => BindingScopeType::Specific->value,
+            'user_ids' => [],
+            'department_ids' => [],
+        ]);
+
+        $repository->expects($this->once())
+            ->method('getByFunctionCode')
+            ->with($this->isInstanceOf(PermissionDataIsolation::class), 'skill.create')
+            ->willReturn($existing);
+        $repository->expects($this->once())
+            ->method('updateEnabled')
+            ->with('ORG_ENABLED', 'skill.create', false)
+            ->willReturn($this->createPolicy('ORG_ENABLED', 'skill.create', false, $existing->getBindingScope()));
+        $repository->expects($this->never())->method('save');
+
+        $service = new FunctionPermissionDomainService($repository, $settingsService, $departmentUserDomainService);
+        $dataIsolation = $this->createPermissionDataIsolation('ORG_ENABLED', 'operator');
+
+        $saved = $service->updatePolicyEnabled(
+            $dataIsolation,
+            'skill.create',
+            false,
+            ['type' => BindingScopeType::OrganizationAll->value]
+        );
+
+        $this->assertFalse($saved->getEnabled());
+        $this->assertSame($existing->getBindingScope(), $saved->getBindingScope());
+    }
+
+    public function testUpdatePolicyEnabledRejectsEnablingExistingPolicyWithInvalidBindingScope(): void
+    {
+        $repository = $this->createMock(FunctionPermissionPolicyRepository::class);
+        $settingsService = $this->createUnusedSettingsService();
+        $departmentUserDomainService = $this->createDepartmentUserDomainService(
+            static function (): array {
+                throw new RuntimeException('getDepartmentIdsByUserId should not be called');
+            }
+        );
+        $existing = $this->createPolicy('ORG_ENABLED', 'skill.create', false, [
+            'type' => BindingScopeType::Specific->value,
+            'user_ids' => [],
+            'department_ids' => [],
+        ]);
+
+        $repository->expects($this->once())
+            ->method('getByFunctionCode')
+            ->with($this->isInstanceOf(PermissionDataIsolation::class), 'skill.create')
+            ->willReturn($existing);
+        $repository->expects($this->never())->method('updateEnabled');
+        $repository->expects($this->never())->method('save');
+
+        $service = new FunctionPermissionDomainService($repository, $settingsService, $departmentUserDomainService);
+        $dataIsolation = $this->createPermissionDataIsolation('ORG_ENABLED', 'operator');
+
+        $this->expectException(BusinessException::class);
+        $this->expectExceptionMessage('current binding_scope is invalid, please use full save api');
+
+        $service->updatePolicyEnabled(
+            $dataIsolation,
+            'skill.create',
+            true,
+            ['type' => BindingScopeType::OrganizationAll->value]
+        );
+    }
+
     public function testCheckPermissionReturnsTrueWithoutPolicyLookupWhenPermissionControlDisabled(): void
     {
         $repository = $this->createMock(FunctionPermissionPolicyRepository::class);
@@ -160,6 +349,11 @@ class FunctionPermissionDomainServiceTest extends TestCase
         return new AdminGlobalSettingsDomainService($settingsRepository);
     }
 
+    private function createUnusedSettingsService(): AdminGlobalSettingsDomainService
+    {
+        return new AdminGlobalSettingsDomainService($this->createStub(AdminGlobalSettingsRepositoryInterface::class));
+    }
+
     /**
      * @param list<string> $userIds
      * @param list<string> $departmentIds
@@ -176,6 +370,31 @@ class FunctionPermissionDomainServiceTest extends TestCase
         ]);
 
         return $policy;
+    }
+
+    private function createPolicy(
+        string $organizationCode,
+        string $functionCode,
+        bool $enabled,
+        array $bindingScope
+    ): FunctionPermissionPolicyEntity {
+        $policy = new FunctionPermissionPolicyEntity();
+        $policy->setOrganizationCode($organizationCode);
+        $policy->setFunctionCode($functionCode);
+        $policy->setEnabled($enabled);
+        $policy->setBindingScope($bindingScope);
+
+        return $policy;
+    }
+
+    private function createPermissionDataIsolation(string $organizationCode, string $userId): PermissionDataIsolation
+    {
+        $dataIsolation = $this->createMock(PermissionDataIsolation::class);
+        $dataIsolation->method('getCurrentOrganizationCode')->willReturn($organizationCode);
+        $dataIsolation->method('getCurrentUserId')->willReturn($userId);
+        $dataIsolation->method('getMagicId')->willReturn('');
+
+        return $dataIsolation;
     }
 
     private function createDepartmentUserDomainService(Closure $resolver): MagicDepartmentUserDomainService

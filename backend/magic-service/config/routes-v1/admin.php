@@ -149,6 +149,7 @@ Router::addGroup('/api/v1/admin', static function () {
         Router::get('', [FunctionPermissionAdminApi::class, 'queries']);
         Router::get('/settings', [FunctionPermissionAdminApi::class, 'settings']);
         Router::put('/settings', [FunctionPermissionAdminApi::class, 'updateSettings']);
+        Router::put('/{functionCode}/enabled', [FunctionPermissionAdminApi::class, 'updateEnabled']);
         Router::get('/{functionCode}', [FunctionPermissionAdminApi::class, 'show']);
         Router::put('/{functionCode}', [FunctionPermissionAdminApi::class, 'save']);
         Router::post('/batch', [FunctionPermissionAdminApi::class, 'batchSave']);

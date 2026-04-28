@@ -62,40 +62,7 @@ class FunctionPermissionPolicyEntity extends AbstractEntity
             ExceptionBuilder::throw(PermissionErrorCode::ValidateFailed, 'function_code is required');
         }
 
-        if ($this->bindingScope === []) {
-            $this->bindingScope = [
-                'type' => BindingScopeType::OrganizationAll->value,
-            ];
-        }
-
-        $scopeType = (string) ($this->bindingScope['type'] ?? '');
-        if ($scopeType === '') {
-            ExceptionBuilder::throw(PermissionErrorCode::ValidateFailed, 'binding_scope.type is required');
-        }
-
-        $scopeTypeEnum = BindingScopeType::tryFrom($scopeType);
-        if ($scopeTypeEnum === null) {
-            ExceptionBuilder::throw(PermissionErrorCode::ValidateFailed, 'binding_scope.type is invalid');
-        }
-
-        $userIds = $this->normalizeStringArray($this->bindingScope['user_ids'] ?? []);
-        $departmentIds = $this->normalizeStringArray($this->bindingScope['department_ids'] ?? []);
-
-        if ($scopeTypeEnum === BindingScopeType::OrganizationAll) {
-            $userIds = [];
-            $departmentIds = [];
-        } elseif ($userIds === [] && $departmentIds === []) {
-            ExceptionBuilder::throw(PermissionErrorCode::ValidateFailed, 'binding_scope.user_ids or binding_scope.department_ids is required');
-        }
-
-        $this->bindingScope = [
-            'type' => $scopeTypeEnum->value,
-        ];
-
-        if ($scopeTypeEnum === BindingScopeType::Specific) {
-            $this->bindingScope['user_ids'] = $userIds;
-            $this->bindingScope['department_ids'] = $departmentIds;
-        }
+        $this->bindingScope = self::normalizeValidatedBindingScope($this->bindingScope);
     }
 
     public function getId(): ?int
@@ -183,7 +150,50 @@ class FunctionPermissionPolicyEntity extends AbstractEntity
         $this->updatedAt = $updatedAt;
     }
 
+    public static function normalizeValidatedBindingScope(array $bindingScope): array
+    {
+        if ($bindingScope === []) {
+            $bindingScope = [
+                'type' => BindingScopeType::OrganizationAll->value,
+            ];
+        }
+
+        $scopeType = (string) ($bindingScope['type'] ?? '');
+        if ($scopeType === '') {
+            ExceptionBuilder::throw(PermissionErrorCode::ValidateFailed, 'binding_scope.type is required');
+        }
+
+        $scopeTypeEnum = BindingScopeType::tryFrom($scopeType);
+        if ($scopeTypeEnum === null) {
+            ExceptionBuilder::throw(PermissionErrorCode::ValidateFailed, 'binding_scope.type is invalid');
+        }
+
+        $userIds = self::normalizeStringArrayValue($bindingScope['user_ids'] ?? []);
+        $departmentIds = self::normalizeStringArrayValue($bindingScope['department_ids'] ?? []);
+
+        if ($scopeTypeEnum === BindingScopeType::OrganizationAll) {
+            return [
+                'type' => $scopeTypeEnum->value,
+            ];
+        }
+
+        if ($userIds === [] && $departmentIds === []) {
+            ExceptionBuilder::throw(PermissionErrorCode::ValidateFailed, 'binding_scope.user_ids or binding_scope.department_ids is required');
+        }
+
+        return [
+            'type' => $scopeTypeEnum->value,
+            'user_ids' => $userIds,
+            'department_ids' => $departmentIds,
+        ];
+    }
+
     private function normalizeStringArray(mixed $value): array
+    {
+        return self::normalizeStringArrayValue($value);
+    }
+
+    private static function normalizeStringArrayValue(mixed $value): array
     {
         if (! is_array($value)) {
             return [];

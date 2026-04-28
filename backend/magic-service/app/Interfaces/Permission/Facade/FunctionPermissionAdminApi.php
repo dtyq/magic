@@ -85,6 +85,25 @@ class FunctionPermissionAdminApi extends AbstractPermissionApi
     }
 
     #[CheckPermission(MagicResourceEnum::ADMIN_SAFE_FUNCTION_PERMISSION, MagicOperationEnum::EDIT)]
+    public function updateEnabled(string $functionCode): array
+    {
+        $authorization = $this->getAuthorization();
+        $payload = $this->request->all();
+        $enabled = array_key_exists('enabled', $payload)
+            ? filter_var($payload['enabled'], FILTER_VALIDATE_BOOL, FILTER_NULL_ON_FAILURE)
+            : null;
+        if ($enabled === null) {
+            ExceptionBuilder::throw(PermissionErrorCode::ValidateFailed, 'invalid enabled');
+        }
+
+        return $this->functionPermissionAppService->updateEnabled(
+            $this->createPermissionDataIsolation($authorization),
+            $functionCode,
+            $enabled
+        );
+    }
+
+    #[CheckPermission(MagicResourceEnum::ADMIN_SAFE_FUNCTION_PERMISSION, MagicOperationEnum::EDIT)]
     public function batchSave(): array
     {
         $authorization = $this->getAuthorization();

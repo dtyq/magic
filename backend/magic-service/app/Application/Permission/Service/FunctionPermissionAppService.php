@@ -102,6 +102,27 @@ class FunctionPermissionAppService extends AbstractPermissionAppService
         return $this->buildDetailItem($catalog, $savedEntity);
     }
 
+    public function updateEnabled(
+        PermissionDataIsolation $dataIsolation,
+        string $functionCode,
+        bool $enabled
+    ): array {
+        $catalog = FunctionPermissionCatalog::find($functionCode);
+        if ($catalog === []) {
+            ExceptionBuilder::throw(PermissionErrorCode::ValidateFailed, 'invalid function code');
+        }
+        $catalog = $this->resolveCatalogItem($catalog);
+
+        $savedEntity = $this->domainService->updatePolicyEnabled(
+            $dataIsolation,
+            $functionCode,
+            $enabled,
+            is_array($catalog['default_binding_scope'] ?? null) ? $catalog['default_binding_scope'] : []
+        );
+
+        return $this->buildDetailItem($catalog, $savedEntity);
+    }
+
     /**
      * @param array<int, array<string, mixed>> $items
      */
