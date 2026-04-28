@@ -745,6 +745,9 @@ readonly class AdminProviderAppService
         if (Category::from($category) === Category::LLM) {
             return $modelType === ModelType::EMBEDDING->value ? NaturalLanguageProcessing::EMBEDDING : NaturalLanguageProcessing::LLM;
         }
+        if (Category::from($category)->isVlm()) {
+            return NaturalLanguageProcessing::VLM;
+        }
         return NaturalLanguageProcessing::DEFAULT;
     }
 
