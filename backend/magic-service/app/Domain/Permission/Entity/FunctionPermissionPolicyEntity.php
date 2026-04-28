@@ -188,11 +188,6 @@ class FunctionPermissionPolicyEntity extends AbstractEntity
         ];
     }
 
-    private function normalizeStringArray(mixed $value): array
-    {
-        return self::normalizeStringArrayValue($value);
-    }
-
     private static function normalizeStringArrayValue(mixed $value): array
     {
         if (! is_array($value)) {
