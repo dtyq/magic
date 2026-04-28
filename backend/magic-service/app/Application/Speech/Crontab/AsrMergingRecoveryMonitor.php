@@ -185,25 +185,24 @@ class AsrMergingRecoveryMonitor
         $this->redis->incr($retryKey);
         $this->redis->expire($retryKey, AsrConfig::TASK_STATUS_TTL);
 
-        // ── Prepare Redis state for clean re-entry ────────────────────────────
-        // Reset phase_status from in_progress → failed so that handleFinishRecording's
-        // idempotent guard (which only blocks on phase_status=completed) does not
-        // interfere. If the Redis key has already expired this is a no-op.
-        $this->resetPhaseStatusInRedis($taskKey, $userId);
-
         // ── Async dispatch ─────────────────────────────────────────────────────
-        // handleFinishRecording is synchronous and can take up to SANDBOX_MERGE_TIMEOUT
-        // seconds. Running it in a child coroutine keeps this cron function fast.
-        Coroutine::create(function () use ($taskKey, $userId, $organizationCode): void {
+        // recoverCompletedMerging reads the sandbox result file and only completes
+        // the post-merge bookkeeping steps; it never re-triggers the actual merge.
+        // Running in a child coroutine keeps this cron function fast.
+        $projectId = $task['project_id'];
+        Coroutine::create(function () use ($projectId, $taskKey, $userId, $organizationCode): void {
             try {
                 $this->logger->info('Recovery coroutine started', ['task_key' => $taskKey]);
-                $this->asrFileAppService->handleFinishRecording(
+                $recovered = $this->asrFileAppService->recoverCompletedMerging(
+                    $projectId,
                     $taskKey,
                     $userId,
-                    $organizationCode,
-                    null
+                    $organizationCode
                 );
-                $this->logger->info('Recovery coroutine completed', ['task_key' => $taskKey]);
+                $this->logger->info('Recovery coroutine completed', [
+                    'task_key' => $taskKey,
+                    'recovered' => $recovered,
+                ]);
             } catch (Throwable $e) {
                 $this->logger->error('Recovery coroutine failed', [
                     'task_key' => $taskKey,
@@ -270,32 +269,6 @@ class AsrMergingRecoveryMonitor
                 'phase_error' => $errorMessage,
             ]);
         }
-    }
-
-    /**
-     * Reset phase_status in Redis to 'failed' so handleFinishRecording can re-enter.
-     *
-     * Only the two phase fields are touched; all other task state (file IDs,
-     * sandbox ID, recording status, etc.) is preserved so the retry has full context.
-     */
-    private function resetPhaseStatusInRedis(string $taskKey, string $userId): void
-    {
-        $hash = md5($userId . ':' . $taskKey);
-        $redisKey = sprintf(AsrRedisKeys::TASK_HASH, $hash);
-
-        if (! $this->redis->exists($redisKey)) {
-            // Key already expired; handleFinishRecording will rebuild from DB.
-            return;
-        }
-
-        $this->redis->hMSet($redisKey, [
-            'phase_status' => AsrTaskStatusDTO::PHASE_STATUS_FAILED,
-            'phase_error' => 'Recovered by AsrMergingRecoveryMonitor after pod/process restart',
-        ]);
-
-        $this->logger->info('Reset Redis phase_status to failed for clean recovery', [
-            'task_key' => $taskKey,
-        ]);
     }
 
     /**
