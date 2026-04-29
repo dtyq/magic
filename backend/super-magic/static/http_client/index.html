@@ -156,7 +156,7 @@
                             <input type="text" id="imUserIdInput" class="model-id-input"
                                 placeholder="agent_user_id (留空用默认)">
                         </div>
-                        
+
                         <!-- Agent模式选择（IM 模式下隐藏） -->
                         <div class="mode-switch" id="agentModeGroup">
                             <select id="agentModeSelect" class="agent-mode-select">
@@ -230,44 +230,53 @@
                                 placeholder='粘贴完整消息 JSON，例如：{"prompt": "...", "agent_mode": "magic", "dynamic_config": {...}, ...}'></textarea>
                         </div>
 
-                        <div class="primary-actions">
-                            <button id="sendBtn" class="btn primary send-btn">发送</button>
+                        <div class="input-card-footer">
+                            <div class="input-footer-scroll">
+                                <div class="input-footer-left">
+                                    <div class="secondary-toggle-group" aria-label="低频调试开关">
+                                        <!-- 高级模式开关 -->
+                                        <div class="advanced-mode-toggle compact-toggle">
+                                            <label class="toggle-switch-label">高级模式</label>
+                                            <label class="toggle-switch">
+                                                <input type="checkbox" id="advancedModeToggle">
+                                                <span class="toggle-switch-slider"></span>
+                                            </label>
+                                        </div>
+
+                                        <!-- IM 渠道模拟开关 -->
+                                        <div class="advanced-mode-toggle compact-toggle">
+                                            <label class="toggle-switch-label">IM 渠道</label>
+                                            <label class="toggle-switch">
+                                                <input type="checkbox" id="imModeToggle">
+                                                <span class="toggle-switch-slider"></span>
+                                            </label>
+                                        </div>
+
+                                        <!-- 原始事件显示开关 -->
+                                        <div class="advanced-mode-toggle compact-toggle">
+                                            <label class="toggle-switch-label">原始事件</label>
+                                            <label class="toggle-switch">
+                                                <input type="checkbox" id="rawEventsToggle">
+                                                <span class="toggle-switch-slider"></span>
+                                            </label>
+                                        </div>
+                                    </div>
+                                    <button id="historyBtn" class="btn secondary small">历史消息</button>
+                                </div>
+                                <div class="input-footer-middle">
+                                    <button id="interruptBtn" class="btn danger small">中断任务</button>
+                                    <button id="clearChatBtn" class="btn secondary small">清除对话</button>
+                                </div>
+                            </div>
+                            <div class="primary-actions">
+                                <span class="send-hint" id="sendHint"></span>
+                                <button id="sendBtn" class="btn primary send-btn" title="发送" aria-label="发送">
+                                    <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+                                        <path d="M12 5l-6 6 1.4 1.4L11 8.8V19h2V8.8l3.6 3.6L18 11z"></path>
+                                    </svg>
+                                </button>
+                            </div>
                         </div>
-                    </div>
-
-                    <div class="secondary-actions">
-                        <div class="secondary-toggle-group" aria-label="低频调试开关">
-                            <!-- 高级模式开关 -->
-                            <div class="advanced-mode-toggle compact-toggle">
-                                <label class="toggle-switch-label">高级模式</label>
-                                <label class="toggle-switch">
-                                    <input type="checkbox" id="advancedModeToggle">
-                                    <span class="toggle-switch-slider"></span>
-                                </label>
-                            </div>
-
-                            <!-- IM 渠道模拟开关 -->
-                            <div class="advanced-mode-toggle compact-toggle">
-                                <label class="toggle-switch-label">IM 渠道</label>
-                                <label class="toggle-switch">
-                                    <input type="checkbox" id="imModeToggle">
-                                    <span class="toggle-switch-slider"></span>
-                                </label>
-                            </div>
-
-                            <!-- 原始事件显示开关 -->
-                            <div class="advanced-mode-toggle compact-toggle">
-                                <label class="toggle-switch-label">原始事件</label>
-                                <label class="toggle-switch">
-                                    <input type="checkbox" id="rawEventsToggle">
-                                    <span class="toggle-switch-slider"></span>
-                                </label>
-                            </div>
-                        </div>
-                        <button id="historyBtn" class="btn secondary small">历史消息</button>
-                        <button id="interruptBtn" class="btn danger small">中断任务</button>
-                        <button id="clearChatBtn" class="btn secondary small">清除对话</button>
-                        <span class="send-hint" id="sendHint"></span>
                     </div>
 
                 </div>

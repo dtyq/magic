@@ -50,16 +50,27 @@ function ensureWebSocketConnected() {
 
 // 对话消息持久化
 const CHAT_LOG_KEY = 'chatMessageLog';
+const CHAT_LOG_DB_NAME = 'httpClientChatLogDb';
+const CHAT_LOG_DB_VERSION = 1;
+const CHAT_LOG_STORE_NAME = 'chatLog';
+const CHAT_LOG_STATE_KEY = 'entries';
+const CHAT_LOG_SAVE_DEBOUNCE_MS = 120;
 const CHAT_SCROLL_KEY = 'chatMessageScrollState';
 const RAW_EVENTS_TOGGLE_KEY = 'httpClient.showRawEvents';
 const PREVIEW_CHAT_WIDTH_KEY = 'httpClient.previewChatWidth';
 const FILE_PREVIEW_STATE_KEY = 'httpClient.filePreviewState';
 const FILE_PREVIEW_INITIALIZED_KEY = 'httpClient.filePreviewInitialized';
 const WORKSPACE_ABSOLUTE_PATH_KEY = 'httpClient.workspaceAbsolutePath';
+const MESSAGE_INPUT_DRAFT_KEY = 'httpClient.messageInputDraft';
+const RAW_JSON_INPUT_DRAFT_KEY = 'httpClient.rawJsonInputDraft';
+const TOOL_DETAIL_MODEL_RATIO_KEY = 'httpClient.toolDetailModelRatio';
+const TOOL_DETAIL_MODEL_COLLAPSED_KEY = 'httpClient.toolDetailModelCollapsed';
 const TOOL_DETAIL_PREVIEW_PATH = '__virtual__/tool-detail.md';
-const CHAT_LOG_MAX = 300; // 最多保留条数
 let chatLog = [];         // 消息数据列表
 let isRestoring = false;  // 恢复阶段不触发二次保存
+let chatLogDbPromise = null;
+let chatLogSaveTimer = null;
+let chatLogGeneration = 0;
 let chatScrollSaveFrame = null;
 const systemMessageRegistry = new Map();
 let showRawEvents = localStorage.getItem(RAW_EVENTS_TOGGLE_KEY) === 'true';
@@ -79,6 +90,31 @@ function getSystemMessageKey(text) {
     return '';
 }
 
+function saveTextDraft(storageKey, value) {
+    const text = typeof value === 'string' ? value : '';
+    if (text) {
+        localStorage.setItem(storageKey, text);
+    } else {
+        localStorage.removeItem(storageKey);
+    }
+}
+
+function restoreInputDrafts() {
+    const messageDraft = localStorage.getItem(MESSAGE_INPUT_DRAFT_KEY);
+    if (messageInput && messageDraft !== null && !messageInput.value) {
+        messageInput.value = messageDraft;
+    }
+
+    const rawJsonDraft = localStorage.getItem(RAW_JSON_INPUT_DRAFT_KEY);
+    if (rawJsonInput && rawJsonDraft !== null && !rawJsonInput.value) {
+        rawJsonInput.value = rawJsonDraft;
+    }
+}
+
+function clearMessageInputDraft() {
+    localStorage.removeItem(MESSAGE_INPUT_DRAFT_KEY);
+}
+
 function upsertSystemLog(text, key) {
     if (!key) {
         pushLog({ type: 'system', text });
@@ -93,15 +129,88 @@ function upsertSystemLog(text, key) {
     pushLog({ type: 'system', key, text });
 }
 
+function openChatLogDB() {
+    if (!('indexedDB' in window)) {
+        return Promise.resolve(null);
+    }
+    if (!chatLogDbPromise) {
+        chatLogDbPromise = new Promise((resolve, reject) => {
+            const req = indexedDB.open(CHAT_LOG_DB_NAME, CHAT_LOG_DB_VERSION);
+            req.onupgradeneeded = () => {
+                if (!req.result.objectStoreNames.contains(CHAT_LOG_STORE_NAME)) {
+                    req.result.createObjectStore(CHAT_LOG_STORE_NAME);
+                }
+            };
+            req.onsuccess = () => resolve(req.result);
+            req.onerror = () => reject(req.error);
+        }).catch((error) => {
+            chatLogDbPromise = null;
+            throw error;
+        });
+    }
+    return chatLogDbPromise;
+}
+
+async function readChatLogFromDB() {
+    const db = await openChatLogDB();
+    if (!db) return null;
+    const tx = db.transaction(CHAT_LOG_STORE_NAME, 'readonly');
+    const store = tx.objectStore(CHAT_LOG_STORE_NAME);
+    return await new Promise((resolve, reject) => {
+        const req = store.get(CHAT_LOG_STATE_KEY);
+        req.onsuccess = () => resolve(req.result || null);
+        req.onerror = () => reject(req.error);
+    });
+}
+
+async function writeChatLogToDB(entries, generation) {
+    const db = await openChatLogDB();
+    if (!db || generation !== chatLogGeneration) return;
+    const tx = db.transaction(CHAT_LOG_STORE_NAME, 'readwrite');
+    tx.objectStore(CHAT_LOG_STORE_NAME).put({ entries, updatedAt: Date.now() }, CHAT_LOG_STATE_KEY);
+    await new Promise((resolve, reject) => {
+        tx.oncomplete = resolve;
+        tx.onerror = () => reject(tx.error);
+        tx.onabort = () => reject(tx.error);
+    });
+    if (generation === chatLogGeneration) {
+        localStorage.removeItem(CHAT_LOG_KEY);
+    }
+}
+
+async function clearChatLogStorage(generation) {
+    try {
+        const db = await openChatLogDB();
+        if (!db || generation !== chatLogGeneration) return;
+        const tx = db.transaction(CHAT_LOG_STORE_NAME, 'readwrite');
+        tx.objectStore(CHAT_LOG_STORE_NAME).delete(CHAT_LOG_STATE_KEY);
+        await new Promise((resolve, reject) => {
+            tx.oncomplete = resolve;
+            tx.onerror = () => reject(tx.error);
+            tx.onabort = () => reject(tx.error);
+        });
+    } catch (e) {
+        console.warn('清理 IndexedDB 对话记录失败:', e);
+    }
+}
+
 function saveChatLog() {
     if (isRestoring) return;
-    try {
-        // 超出上限时丢弃最早的记录
-        if (chatLog.length > CHAT_LOG_MAX) chatLog = chatLog.slice(-CHAT_LOG_MAX);
-        localStorage.setItem(CHAT_LOG_KEY, JSON.stringify(chatLog));
-    } catch (e) {
-        console.warn('保存对话记录失败:', e);
+    if (chatLogSaveTimer) {
+        clearTimeout(chatLogSaveTimer);
     }
+    const generation = chatLogGeneration;
+    chatLogSaveTimer = setTimeout(() => {
+        chatLogSaveTimer = null;
+        writeChatLogToDB(chatLog, generation).catch((e) => {
+            console.warn('保存 IndexedDB 对话记录失败:', e);
+            try {
+                localStorage.setItem(CHAT_LOG_KEY, JSON.stringify(chatLog));
+            } catch (storageError) {
+                console.warn('保存 localStorage 对话记录失败:', storageError);
+            }
+        });
+    }, CHAT_LOG_SAVE_DEBOUNCE_MS);
 }
 
 function pushLog(entry) {
@@ -111,28 +220,40 @@ function pushLog(entry) {
 
 function clearChatLog() {
     chatLog = [];
+    chatLogGeneration += 1;
+    if (chatLogSaveTimer) {
+        clearTimeout(chatLogSaveTimer);
+        chatLogSaveTimer = null;
+    }
     systemMessageRegistry.clear();
     eventTraceObjectSeen = new WeakSet();
     eventLogObjectSeen = new WeakSet();
     localStorage.removeItem(CHAT_LOG_KEY);
     localStorage.removeItem(CHAT_SCROLL_KEY);
+    clearChatLogStorage(chatLogGeneration);
 }
 
-function restoreChatLog() {
+async function restoreChatLog() {
     try {
-        const saved = localStorage.getItem(CHAT_LOG_KEY);
-        if (!saved) return;
-        chatLog = compactRestoredChatLog(JSON.parse(saved));
+        const savedState = await readChatLogFromDB();
+        if (savedState && Array.isArray(savedState.entries)) {
+            chatLog = compactRestoredChatLog(savedState.entries);
+        } else {
+            const saved = localStorage.getItem(CHAT_LOG_KEY);
+            if (!saved) return;
+            chatLog = compactRestoredChatLog(JSON.parse(saved));
+        }
     } catch (e) {
+        console.warn('恢复对话记录失败:', e);
         chatLog = [];
         return;
     }
-    saveChatLog();
     isRestoring = true;
     for (const entry of chatLog) {
         renderLogEntry(entry);
     }
     isRestoring = false;
+    saveChatLog();
     restoreChatScrollState();
 }
 
@@ -922,6 +1043,8 @@ document.addEventListener('DOMContentLoaded', () => {
     // 初始化输入栏自定义选择器
     initCustomSelects();
 
+    restoreInputDrafts();
+
     // 原始事件默认隐藏，用户打开后才展示调试事件盒
     initRawEventsToggle();
 
@@ -943,6 +1066,7 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         });
         messageInputEl.addEventListener('input', () => {
+            saveTextDraft(MESSAGE_INPUT_DRAFT_KEY, messageInputEl.value);
             syncMentionPickerFromInput();
         });
         messageInputEl.addEventListener('click', () => {
@@ -967,6 +1091,9 @@ document.addEventListener('DOMContentLoaded', () => {
                 e.preventDefault();
                 sendMessage(ContextType.NORMAL);
             }
+        });
+        rawJsonInput.addEventListener('input', () => {
+            saveTextDraft(RAW_JSON_INPUT_DRAFT_KEY, rawJsonInput.value);
         });
     }
 
@@ -993,11 +1120,17 @@ document.addEventListener('DOMContentLoaded', () => {
     const clearChatBtn = document.getElementById('clearChatBtn');
     if (clearChatBtn) {
         clearChatBtn.addEventListener('click', () => {
-            showConfirmDialog('确定要清除所有对话消息吗？', () => {
+            showConfirmDialog('确定要清除所有对话消息吗？', async () => {
                 clearChatLog();
+                clearToolDetailPreviewTab();
                 messageList.innerHTML = '';
                 resetConnectionStatusLog();
-                showSystemMessage('对话已清除');
+                const historyCleared = await clearRemoteChatHistory();
+                if (historyCleared) {
+                    showSystemMessage('对话、工具详情、历史文件和运行时状态已清除', true);
+                } else {
+                    showSystemMessage('本地对话已清除，但历史文件清理失败', true);
+                }
             });
         });
     }
@@ -1030,6 +1163,8 @@ document.addEventListener('DOMContentLoaded', () => {
             currentLanguage = savedLanguage;
             languageSelect.value = savedLanguage;
         }
+        currentLanguage = languageSelect.value || currentLanguage;
+        refreshCustomSelect(languageSelect);
         languageSelect.addEventListener('change', changeLanguage);
     }
 
@@ -1040,6 +1175,8 @@ document.addEventListener('DOMContentLoaded', () => {
             currentMessageVersion = savedVersion;
             messageVersionSelect.value = savedVersion;
         }
+        currentMessageVersion = messageVersionSelect.value;
+        refreshCustomSelect(messageVersionSelect);
         messageVersionSelect.addEventListener('change', changeMessageVersion);
     }
 
@@ -1304,6 +1441,7 @@ async function sendHttpMessage(messageData) {
     }
 
     try {
+        applyLocalDebugOptions(messageData);
         const response = await fetch(`${serverUrl}/api/v1/messages/chat`, {
             method: 'POST',
             headers: {
@@ -1331,6 +1469,38 @@ async function sendHttpMessage(messageData) {
     } catch (error) {
         showSystemMessage(`连接失败: ${error.message}。请检查服务器地址是否正确。`);
         return null;
+    }
+}
+
+async function clearRemoteChatHistory() {
+    const serverUrl = (serverUrlInput.value.trim() || 'http://127.0.0.1:8002').replace(/\/+$/, '');
+
+    try {
+        const response = await fetch(`${serverUrl}/api/v1/debug/clear-chat-history`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+        });
+        const json = await response.json().catch(() => null);
+        if (!response.ok || json?.code !== 1000) {
+            console.warn('清理历史文件失败:', json || response.status);
+            return false;
+        }
+        return true;
+    } catch (e) {
+        console.warn('清理历史文件请求失败:', e);
+        return false;
+    }
+}
+
+function applyLocalDebugOptions(messageData) {
+    if (!messageData || typeof messageData !== 'object') return;
+    messageData.dynamic_config = Object.assign({}, messageData.dynamic_config, {
+        enable_debug_tool_result_content: true,
+    });
+    if (currentMessageVersion) {
+        messageData.dynamic_config.message_version = currentMessageVersion;
+    } else {
+        delete messageData.dynamic_config.message_version;
     }
 }
 
@@ -1397,6 +1567,7 @@ async function sendMessage(contextType = ContextType.NORMAL) {
 
     // 清空输入框
     messageInput.value = '';
+    clearMessageInputDraft();
 
     // 保存到历史记录
     saveMessageToHistory(message);
@@ -1826,15 +1997,10 @@ const assistantActivityState = {
     wrapper: null,
     label: null,
     status: '',
-    hideTimer: null,
 };
 
 function showAssistantActivity(status = 'thinking') {
     if (isRestoring) return;
-    if (assistantActivityState.hideTimer) {
-        clearTimeout(assistantActivityState.hideTimer);
-        assistantActivityState.hideTimer = null;
-    }
     const label = assistantActivityLabels[status] || assistantActivityLabels.thinking;
     const shouldStickToBottom = isMessageViewportAtBottom();
 
@@ -1872,25 +2038,11 @@ function closeActiveEventTraceLog() {
 }
 
 function hideAssistantActivity() {
-    if (assistantActivityState.hideTimer) {
-        clearTimeout(assistantActivityState.hideTimer);
-        assistantActivityState.hideTimer = null;
-    }
     const wrapper = assistantActivityState.wrapper;
     if (wrapper && wrapper.parentNode) {
         wrapper.parentNode.removeChild(wrapper);
     }
     assistantActivityState.status = '';
-}
-
-function scheduleAssistantActivityHide(delayMs = 8000) {
-    if (assistantActivityState.hideTimer) {
-        clearTimeout(assistantActivityState.hideTimer);
-    }
-    assistantActivityState.hideTimer = setTimeout(() => {
-        assistantActivityState.hideTimer = null;
-        hideAssistantActivity();
-    }, delayMs);
 }
 
 const MESSAGE_BOTTOM_THRESHOLD_PX = 56;
@@ -2991,6 +3143,8 @@ function handleWebSocketMessage(event) {
                 });
                 if (eventType === 'before_tool_call') {
                     showAssistantActivity('tool');
+                } else if (isFinalTaskTool(tool)) {
+                    hideAssistantActivity();
                 } else {
                     showAssistantActivity('thinking');
                 }
@@ -3036,8 +3190,15 @@ function handleSuperMagicChunkMessage(data) {
             });
         }
     }
+    if (isSuperMagicChunkFinished(choices)) {
+        hideAssistantActivity();
+    }
 
     return true;
+}
+
+function isSuperMagicChunkFinished(choices) {
+    return choices.some(choice => choice && choice.finish_reason === 'stop');
 }
 
 function isDuplicateSuperMagicChunkDelta(envelope, choice, deltaType) {
@@ -3269,11 +3430,12 @@ function extractSuperMagicChunkEnvelope(data) {
 
 function handleSuperMagicMessage(smsg, payload) {
     const messageKey = smsg.message_id || payload.message_id || smsg.correlation_id || payload.correlation_id || '';
+    const isToolRole = smsg.role === 'tool';
     let hasVisibleContent = false;
     let hasReplyContent = false;
 
     // 最终消息是权威全文；如果已有流式气泡，则原地校准，不再新增一条。
-    if (smsg.reasoning_content) {
+    if (!isToolRole && smsg.reasoning_content) {
         showThinkingMessage(smsg.reasoning_content, payload.send_timestamp, false, {
             key: messageKey,
             replace: true,
@@ -3281,7 +3443,7 @@ function handleSuperMagicMessage(smsg, payload) {
         hasVisibleContent = true;
         hasReplyContent = true;
     }
-    if (smsg.content) {
+    if (!isToolRole && smsg.content) {
         showAIMessage(smsg.content, payload.send_timestamp, false, {
             key: messageKey,
             replace: true,
@@ -3295,9 +3457,12 @@ function handleSuperMagicMessage(smsg, payload) {
         showToolCallMessage(item.tool, payload.event, payload.send_timestamp, false, {
             correlationId: smsg.correlation_id || payload.correlation_id,
             toolCallId: item.toolCallId,
+            modelContent: item.modelContent,
         });
         if (payload.event === 'before_tool_call') {
             showAssistantActivity('tool');
+        } else if (isFinalTaskTool(item.tool)) {
+            hideAssistantActivity();
         } else if (payload.event === 'after_tool_call') {
             showAssistantActivity('thinking');
         }
@@ -3305,27 +3470,33 @@ function handleSuperMagicMessage(smsg, payload) {
     }
 
     if (hasReplyContent && tools.length === 0) {
-        // 可见回复后可能紧跟工具规划事件，保留短暂思考态，避免交接间隙看起来像空闲。
         showAssistantActivity('thinking');
-        scheduleAssistantActivityHide();
+    }
+    if (isMainAgentFinished(payload)) {
+        hideAssistantActivity();
     }
     return hasVisibleContent;
+}
+
+function isMainAgentFinished(payload) {
+    if (!payload || typeof payload !== 'object') return false;
+    return payload.event === 'after_main_agent_run' && payload.status === 'finished';
 }
 
 function collectToolsFromSuperMagicMessage(smsg, payload) {
     const tools = [];
     if (smsg.tool) {
-        tools.push({ tool: smsg.tool, toolCallId: smsg.tool_call_id || smsg.tool.id });
+        tools.push({ tool: smsg.tool, toolCallId: smsg.tool_call_id || smsg.tool.id, modelContent: smsg.content || '' });
     }
     if (Array.isArray(smsg.tool_calls)) {
         for (const toolCall of smsg.tool_calls) {
             if (toolCall && toolCall.tool) {
-                tools.push({ tool: toolCall.tool, toolCallId: toolCall.id || toolCall.tool.id });
+                tools.push({ tool: toolCall.tool, toolCallId: toolCall.id || toolCall.tool.id, modelContent: toolCall.content || '' });
             }
         }
     }
     if (payload && payload.tool) {
-        tools.push({ tool: payload.tool, toolCallId: payload.tool.id });
+        tools.push({ tool: payload.tool, toolCallId: payload.tool.id, modelContent: smsg.content || '' });
     }
     return tools;
 }
@@ -3336,12 +3507,19 @@ function renderMarkdown(text) {
     div.className = 'ai-markdown';
     try {
         div.innerHTML = (typeof marked !== 'undefined')
-            ? marked.parse(text)
+            ? marked.parse(text, { breaks: true })
             : text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
     } catch (e) {
         div.textContent = text;
     }
     return div;
+}
+
+function renderMarkdownContent(text) {
+    if (typeof marked !== 'undefined') {
+        return marked.parse(text || '', { breaks: true });
+    }
+    return escapeHtml(text || '');
 }
 
 // 将内容按 ```html / ```qrcode 块拆分，返回渲染好的 DOM 片段数组
@@ -3884,6 +4062,7 @@ function renderAskUserCard(data, container) {
 
 // 显示工具调用消息块（before_tool_call / after_tool_call）
 function showToolCallMessage(tool, eventType, timestamp, _noLog = false, options = {}) {
+    if (isCodeModeToolMessage(tool)) return;
     if (!_noLog) pushLog({ type: 'tool_call', tool, eventType, timestamp });
 
     const timeStr = timestamp
@@ -3925,10 +4104,12 @@ function showToolCallMessage(tool, eventType, timestamp, _noLog = false, options
     arrow.textContent = '▶';
     header.appendChild(arrow);
 
-    const copyBtn = attachCopyButton(header, () => {
-        return toolState.detailEl.textContent ||
-            [toolState.actionSpan.textContent, toolState.remarkSpan.textContent].filter(Boolean).join('\n');
-    }, { compact: true });
+    const copyBtn = shouldShowToolCopyButton(tool)
+        ? attachCopyButton(header, () => {
+            return toolState.detailEl.textContent ||
+                [toolState.actionSpan.textContent, toolState.remarkSpan.textContent].filter(Boolean).join('\n');
+        }, { compact: true })
+        : null;
 
     const detailEl = document.createElement('pre');
     detailEl.className = 'tool-call-detail';
@@ -3949,12 +4130,33 @@ function showToolCallMessage(tool, eventType, timestamp, _noLog = false, options
     wrapper.appendChild(header);
     wrapper.appendChild(detailEl);
 
-    toolState = { wrapper, header, actionSpan, remarkSpan, timeSpan, arrow, detailEl, copyBtn, openDetailPreview: null };
+    toolState = { wrapper, header, actionSpan, remarkSpan, timeSpan, arrow, detailEl, copyBtn, openDetailPreview: null, modelContent: '' };
     updateToolCallState(toolState, tool, eventType, timeStr, options);
     if (toolKey) {
         toolCallRegistry.set(toolKey, toolState);
     }
     appendMessageNode(wrapper);
+}
+
+function isCodeModeToolMessage(tool) {
+    if (!tool || typeof tool !== 'object') return false;
+    const name = String(tool.name || '').toLowerCase();
+    const action = String(tool.action || '');
+    return name === 'run_sdk_snippet' || action.includes('代码模式');
+}
+
+function shouldShowToolCopyButton(tool) {
+    if (!tool || typeof tool !== 'object') return false;
+    const name = String(tool.name || '').toLowerCase();
+    const action = String(tool.action || '');
+    return name !== 'init_virtual_machine' && !isFinalTaskTool(tool);
+}
+
+function isFinalTaskTool(tool) {
+    if (!tool || typeof tool !== 'object') return false;
+    const name = String(tool.name || '').toLowerCase();
+    const action = String(tool.action || '');
+    return action === '任务完成' || name === 'task_complete' || name === 'finish_task';
 }
 
 function getToolCallKey(tool, options = {}) {
@@ -3973,10 +4175,15 @@ function updateToolCallState(toolState, tool, eventType, timeStr, options = {}) 
     const remark = tool.remark || tool.error || tool.message || '';
     const detail = extractToolDetail(tool, status, remark);
     const shouldStickToBottom = isMessageViewportAtBottom();
+    if (typeof options.modelContent === 'string' && options.modelContent) {
+        toolState.modelContent = options.modelContent;
+    }
 
     toolState.wrapper.className = `tool-call-block tool-call-${status}`;
     toolState.actionSpan.textContent = action;
+    toolState.actionSpan.title = action;
     toolState.remarkSpan.textContent = remark;
+    toolState.remarkSpan.title = remark;
     toolState.remarkSpan.style.display = remark ? '' : 'none';
     toolState.timeSpan.textContent = timeStr;
 
@@ -4031,9 +4238,9 @@ function updateToolDetailView(toolState, detail, tool, eventType) {
 
     const detailText = detail ? formatToolDetail(detail) : '';
     toolState.detailEl.textContent = detailText;
-    toolState.arrow.style.display = detailText ? '' : 'none';
-    toolState.openDetailPreview = detailText
-        ? () => openToolDetailPreview(tool, detail, detailText)
+    toolState.arrow.style.display = detailText || toolState.modelContent ? '' : 'none';
+    toolState.openDetailPreview = detailText || toolState.modelContent
+        ? () => openToolDetailPreview(tool, detail, detailText, toolState.modelContent || '')
         : null;
     if (!detailText) {
         toolState.detailEl.style.display = 'none';
@@ -4058,8 +4265,8 @@ function formatToolDetail(detail) {
     return JSON.stringify(detail, null, 2);
 }
 
-function openToolDetailPreview(tool, detail, detailText) {
-    if (!detailText) return;
+function openToolDetailPreview(tool, detail, detailText, modelContent = '') {
+    if (!detailText && !modelContent) return;
     const toolName = tool.action || tool.name || '工具详情';
     const markdown = buildToolDetailMarkdown(detail, detailText);
     filePreviewTabs.set(TOOL_DETAIL_PREVIEW_PATH, {
@@ -4068,6 +4275,7 @@ function openToolDetailPreview(tool, detail, detailText) {
         title: '工具详情',
         detailTitle: toolName,
         content: markdown,
+        modelContent,
         updatedAt: Date.now(),
     });
     filePreviewScrollPositions[TOOL_DETAIL_PREVIEW_PATH] = 0;
@@ -4165,10 +4373,13 @@ function ensureEventTraceLog() {
     body.className = 'event-trace-body';
     body.style.display = 'none';
 
+    const traceState = { wrapper, header, title, latest, copyAll: null, body, countValue: 0, rawTexts: [] };
+
     header.appendChild(title);
     header.appendChild(latest);
-    const copyAll = attachCopyButton(header, () => eventTraceLog ? eventTraceLog.rawTexts.join('\n\n') : '', { compact: true });
+    const copyAll = attachCopyButton(header, () => traceState.rawTexts.join('\n\n'), { compact: true });
     copyAll.classList.add('event-trace-copy-all');
+    traceState.copyAll = copyAll;
     wrapper.appendChild(header);
     wrapper.appendChild(body);
     header.addEventListener('click', (event) => {
@@ -4178,7 +4389,7 @@ function ensureEventTraceLog() {
         wrapper.classList.toggle('expanded', isHidden);
     });
 
-    eventTraceLog = { wrapper, header, title, latest, copyAll, body, countValue: 0, rawTexts: [] };
+    eventTraceLog = traceState;
     appendMessageNode(wrapper, { showLatestButton: false });
     return eventTraceLog;
 }
@@ -4691,11 +4902,61 @@ let filePreviewObjectUrl = null;
 /** 当前正在预览的文件，供"新窗口打开/渲染预览"按钮使用 */
 let currentPreviewFile = null;
 let currentPreviewPath = '';
+let currentPreviewCopyText = '';
 const filePreviewTabs = new Map();
 let activeFilePreviewPath = '';
 let filePreviewScrollPositions = {};
 let filePreviewScrollSaveFrame = null;
 let isRestoringFilePreviewState = false;
+
+const UNSUPPORTED_REMOTE_IMAGE_EXT_RE = /\.(heic|heif|tif|tiff)(?:[?#]|$)/i;
+
+function normalizeRemoteImageUrl(src) {
+    const value = String(src || '').trim();
+    if (!value) return '';
+    try {
+        const normalized = value.startsWith('//') ? `https:${value}` : value;
+        const url = new URL(normalized);
+        return url.protocol === 'http:' || url.protocol === 'https:' ? url.href : '';
+    } catch (e) {
+        return '';
+    }
+}
+
+function buildPreviewImageProxyUrl(remoteUrl) {
+    const base = (serverUrlInput?.value?.trim() || 'http://127.0.0.1:8002').replace(/\/+$/, '');
+    return `${base}/api/v1/media/image-preview?url=${encodeURIComponent(remoteUrl)}`;
+}
+
+function usePreviewImageProxy(img, originalSrc) {
+    const remoteUrl = normalizeRemoteImageUrl(originalSrc);
+    if (!remoteUrl) return false;
+    img.dataset.originalSrc = remoteUrl;
+    img.src = buildPreviewImageProxyUrl(remoteUrl);
+    return true;
+}
+
+function enhanceFilePreviewMarkdownImages(root) {
+    if (!root) return;
+    root.querySelectorAll('img[src]').forEach((img) => {
+        const originalSrc = normalizeRemoteImageUrl(img.getAttribute('src'));
+        if (!originalSrc) return;
+
+        img.dataset.originalSrc = originalSrc;
+        img.decoding = 'async';
+        img.loading = 'lazy';
+        img.addEventListener('error', () => {
+            if (img.dataset.previewProxyTried === 'true') return;
+            img.dataset.previewProxyTried = 'true';
+            usePreviewImageProxy(img, img.dataset.originalSrc || originalSrc);
+        });
+
+        if (UNSUPPORTED_REMOTE_IMAGE_EXT_RE.test(originalSrc)) {
+            img.dataset.previewProxyTried = 'true';
+            usePreviewImageProxy(img, originalSrc);
+        }
+    });
+}
 
 /**
  * 后端返回的 workspace 绝对路径（如 /Users/.../super-magic/.workspace），
@@ -5018,7 +5279,29 @@ function renderFilePreviewMetaRows(metaEl, rows) {
         wrap.appendChild(val);
         chips.appendChild(wrap);
     }
+    renderFilePreviewCopyButton(chips);
     metaEl.appendChild(chips);
+}
+
+function renderFilePreviewCopyButton(metaEl) {
+    if (!metaEl || !currentPreviewCopyText) return;
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.className = 'file-preview-action-btn file-preview-copy-btn';
+    button.title = '复制当前预览内容';
+    button.textContent = '复制';
+    button.addEventListener('click', async (event) => {
+        event.stopPropagation();
+        const ok = await copyTextToClipboard(currentPreviewCopyText);
+        const originalText = button.textContent;
+        button.textContent = ok ? '已复制' : '复制失败';
+        button.classList.toggle('copied', ok);
+        setTimeout(() => {
+            button.textContent = originalText;
+            button.classList.remove('copied');
+        }, 1400);
+    });
+    metaEl.appendChild(button);
 }
 
 function setFilePreviewMeta(file, filePath, kind, extraRows) {
@@ -5040,23 +5323,29 @@ function isToolDetailPreviewPath(filePath) {
 }
 
 function createToolDetailPreviewTab(toolDetail) {
-    if (!toolDetail || typeof toolDetail.content !== 'string' || !toolDetail.content) return null;
+    if (!toolDetail || (
+        (typeof toolDetail.content !== 'string' || !toolDetail.content) &&
+        (typeof toolDetail.modelContent !== 'string' || !toolDetail.modelContent)
+    )) return null;
     return {
         path: TOOL_DETAIL_PREVIEW_PATH,
         type: 'tool-detail',
         title: '工具详情',
         detailTitle: typeof toolDetail.title === 'string' && toolDetail.title ? toolDetail.title : '最近一次工具详情',
-        content: toolDetail.content,
+        content: typeof toolDetail.content === 'string' ? toolDetail.content : '',
+        modelContent: typeof toolDetail.modelContent === 'string' ? toolDetail.modelContent : '',
         updatedAt: Number.isFinite(Number(toolDetail.updatedAt)) ? Number(toolDetail.updatedAt) : Date.now(),
     };
 }
 
 function normalizeToolDetailPreviewState(value) {
     if (!value || typeof value !== 'object') return null;
-    if (typeof value.content !== 'string' || !value.content) return null;
+    if ((typeof value.content !== 'string' || !value.content) &&
+        (typeof value.modelContent !== 'string' || !value.modelContent)) return null;
     return {
         title: typeof value.title === 'string' ? value.title : '',
-        content: value.content,
+        content: typeof value.content === 'string' ? value.content : '',
+        modelContent: typeof value.modelContent === 'string' ? value.modelContent : '',
         updatedAt: Number.isFinite(Number(value.updatedAt)) ? Number(value.updatedAt) : Date.now(),
     };
 }
@@ -5132,6 +5421,7 @@ function saveFilePreviewState() {
         state.toolDetail = {
             title: toolDetailTab.detailTitle || '最近一次工具详情',
             content: toolDetailTab.content,
+            modelContent: toolDetailTab.modelContent || '',
             updatedAt: toolDetailTab.updatedAt || Date.now(),
         };
     }
@@ -5246,11 +5536,83 @@ function resetActivePreviewSurface() {
     filePreviewMain?.classList.remove('has-canvas-panel');
     if (filePreviewBody) {
         filePreviewBody.innerHTML = '';
-        filePreviewBody.classList.remove('file-preview-body-markdown');
+        filePreviewBody.classList.remove('file-preview-body-markdown', 'file-preview-body-tool-detail');
     }
     if (filePreviewMeta) filePreviewMeta.innerHTML = '';
     if (filePreviewOpenBtn) filePreviewOpenBtn.style.display = '';
     if (filePreviewRenderBtn) filePreviewRenderBtn.style.display = 'none';
+    currentPreviewCopyText = '';
+}
+
+function getStoredToolDetailModelRatio() {
+    const saved = Number(localStorage.getItem(TOOL_DETAIL_MODEL_RATIO_KEY));
+    if (!Number.isFinite(saved)) return 0.5;
+    return Math.min(Math.max(saved, 0.18), 0.82);
+}
+
+function isToolDetailModelCollapsed() {
+    return localStorage.getItem(TOOL_DETAIL_MODEL_COLLAPSED_KEY) === 'true';
+}
+
+function applyToolDetailSplitLayout(userPanel, modelPanel, modelRatio, collapsed) {
+    if (!userPanel || !modelPanel) return;
+    modelPanel.classList.toggle('collapsed', collapsed);
+    if (collapsed) {
+        userPanel.style.flex = '1 1 auto';
+        modelPanel.style.flex = '0 0 42px';
+        return;
+    }
+    const ratio = Math.min(Math.max(modelRatio, 0.18), 0.82);
+    userPanel.style.flex = `${1 - ratio} 1 0`;
+    modelPanel.style.flex = `${ratio} 1 0`;
+}
+
+function createToolDetailSplitResizer(split, userPanel, modelPanel) {
+    const resizer = document.createElement('div');
+    resizer.className = 'file-preview-tool-detail-resizer';
+    resizer.title = '上下拖拽调整区域占比，拖到底部可折叠大模型内容';
+
+    let dragging = false;
+    const syncFromPointer = (clientY) => {
+        const rect = split.getBoundingClientRect();
+        if (!rect.height) return;
+        const rawRatio = (rect.bottom - clientY) / rect.height;
+        const collapsed = rawRatio < 0.08 || clientY > rect.bottom - 54;
+        if (collapsed) {
+            localStorage.setItem(TOOL_DETAIL_MODEL_COLLAPSED_KEY, 'true');
+            applyToolDetailSplitLayout(userPanel, modelPanel, getStoredToolDetailModelRatio(), true);
+            return;
+        }
+        const ratio = Math.min(Math.max(rawRatio, 0.18), 0.82);
+        localStorage.setItem(TOOL_DETAIL_MODEL_RATIO_KEY, String(ratio));
+        localStorage.setItem(TOOL_DETAIL_MODEL_COLLAPSED_KEY, 'false');
+        applyToolDetailSplitLayout(userPanel, modelPanel, ratio, false);
+    };
+
+    const stopDragging = () => {
+        if (!dragging) return;
+        dragging = false;
+        resizer.classList.remove('resizing');
+        document.body.style.cursor = '';
+        document.removeEventListener('mousemove', onMouseMove);
+        document.removeEventListener('mouseup', stopDragging);
+    };
+    const onMouseMove = (event) => {
+        if (!dragging) return;
+        syncFromPointer(event.clientY);
+        event.preventDefault();
+    };
+
+    resizer.addEventListener('mousedown', (event) => {
+        dragging = true;
+        resizer.classList.add('resizing');
+        document.body.style.cursor = 'row-resize';
+        document.addEventListener('mousemove', onMouseMove);
+        document.addEventListener('mouseup', stopDragging);
+        event.preventDefault();
+    });
+
+    return resizer;
 }
 
 function renderToolDetailPreviewTab(tab) {
@@ -5258,6 +5620,7 @@ function renderToolDetailPreviewTab(tab) {
     resetActivePreviewSurface();
     currentPreviewFile = null;
     currentPreviewPath = TOOL_DETAIL_PREVIEW_PATH;
+    currentPreviewCopyText = '';
     if (filePreviewOpenBtn) filePreviewOpenBtn.style.display = 'none';
     const updatedAt = tab.updatedAt ? new Date(tab.updatedAt).toLocaleTimeString() : '—';
     renderFilePreviewMetaRows(filePreviewMeta, [
@@ -5267,15 +5630,174 @@ function renderToolDetailPreviewTab(tab) {
         { label: '来源', value: tab.detailTitle || '工具详情' },
         { label: '更新时间', value: updatedAt },
     ]);
-    filePreviewBody.classList.add('file-preview-body-markdown');
-    const article = document.createElement('article');
-    article.className = 'file-preview-markdown ai-markdown';
-    try {
-        article.innerHTML = window.marked ? marked.parse(tab.content || '') : escapeHtml(tab.content || '');
-    } catch (e) {
-        article.textContent = tab.content || '';
+    filePreviewBody.classList.add('file-preview-body-markdown', 'file-preview-body-tool-detail');
+
+    const split = document.createElement('div');
+    split.className = 'file-preview-tool-detail-split';
+
+    let userPanel = null;
+    if (tab.content) {
+        userPanel = document.createElement('section');
+        userPanel.className = 'file-preview-tool-detail-panel file-preview-tool-detail-user';
+        const userTitle = document.createElement('div');
+        userTitle.className = 'file-preview-tool-detail-panel-title';
+        const titleText = document.createElement('span');
+        titleText.textContent = '用户看到的详情';
+        const viewSwitch = document.createElement('div');
+        viewSwitch.className = 'file-preview-tool-detail-view-switch';
+        const renderedBtn = document.createElement('button');
+        renderedBtn.type = 'button';
+        renderedBtn.className = 'file-preview-tool-detail-view-btn active';
+        renderedBtn.textContent = '渲染';
+        const sourceBtn = document.createElement('button');
+        sourceBtn.type = 'button';
+        sourceBtn.className = 'file-preview-tool-detail-view-btn';
+        sourceBtn.textContent = '原文';
+        viewSwitch.appendChild(renderedBtn);
+        viewSwitch.appendChild(sourceBtn);
+        const userCopyBtn = document.createElement('button');
+        userCopyBtn.type = 'button';
+        userCopyBtn.className = 'file-preview-tool-detail-view-btn file-preview-tool-detail-copy-btn';
+        userCopyBtn.textContent = '复制';
+        userCopyBtn.title = '复制用户看到的详情';
+        const userActions = document.createElement('div');
+        userActions.className = 'file-preview-tool-detail-panel-actions';
+        userActions.appendChild(viewSwitch);
+        userActions.appendChild(userCopyBtn);
+        userTitle.appendChild(titleText);
+        userTitle.appendChild(userActions);
+
+        const article = document.createElement('article');
+        article.className = 'file-preview-markdown ai-markdown';
+        try {
+            article.innerHTML = renderMarkdownContent(tab.content || '');
+        } catch (e) {
+            article.textContent = tab.content || '';
+        }
+        enhanceFilePreviewMarkdownImages(article);
+        const source = document.createElement('pre');
+        source.className = 'file-preview-model-content file-preview-tool-source-content';
+        source.textContent = tab.content;
+        source.style.display = 'none';
+        renderedBtn.addEventListener('click', () => {
+            renderedBtn.classList.add('active');
+            sourceBtn.classList.remove('active');
+            article.style.display = '';
+            source.style.display = 'none';
+        });
+        sourceBtn.addEventListener('click', () => {
+            sourceBtn.classList.add('active');
+            renderedBtn.classList.remove('active');
+            article.style.display = 'none';
+            source.style.display = '';
+        });
+        userCopyBtn.addEventListener('click', async () => {
+            const ok = await copyTextToClipboard(tab.content || '');
+            const originalText = userCopyBtn.textContent;
+            userCopyBtn.textContent = ok ? '已复制' : '失败';
+            userCopyBtn.classList.toggle('active', ok);
+            setTimeout(() => {
+                userCopyBtn.textContent = originalText;
+                userCopyBtn.classList.remove('active');
+            }, 1400);
+        });
+        userPanel.appendChild(userTitle);
+        userPanel.appendChild(article);
+        userPanel.appendChild(source);
+        split.appendChild(userPanel);
     }
-    filePreviewBody.appendChild(article);
+
+    const modelPanel = document.createElement('section');
+    modelPanel.className = 'file-preview-tool-detail-panel file-preview-tool-detail-model';
+    const modelTitle = document.createElement('div');
+    modelTitle.className = 'file-preview-tool-detail-panel-title';
+    const modelTitleText = document.createElement('span');
+    modelTitleText.textContent = '大模型看到的内容';
+    const modelActions = document.createElement('div');
+    modelActions.className = 'file-preview-tool-detail-panel-actions';
+    const modelViewSwitch = document.createElement('div');
+    modelViewSwitch.className = 'file-preview-tool-detail-view-switch';
+    const modelRenderedBtn = document.createElement('button');
+    modelRenderedBtn.type = 'button';
+    modelRenderedBtn.className = 'file-preview-tool-detail-view-btn active';
+    modelRenderedBtn.textContent = '渲染';
+    const modelSourceBtn = document.createElement('button');
+    modelSourceBtn.type = 'button';
+    modelSourceBtn.className = 'file-preview-tool-detail-view-btn';
+    modelSourceBtn.textContent = '原文';
+    modelViewSwitch.appendChild(modelRenderedBtn);
+    modelViewSwitch.appendChild(modelSourceBtn);
+    const modelCopyBtn = document.createElement('button');
+    modelCopyBtn.type = 'button';
+    modelCopyBtn.className = 'file-preview-tool-detail-view-btn file-preview-tool-detail-copy-btn';
+    modelCopyBtn.textContent = '复制';
+    modelCopyBtn.disabled = !tab.modelContent;
+    modelCopyBtn.title = tab.modelContent ? '复制大模型看到的内容' : '当前消息没有可复制的大模型内容';
+    modelActions.appendChild(modelViewSwitch);
+    modelActions.appendChild(modelCopyBtn);
+    modelTitle.appendChild(modelTitleText);
+    modelTitle.appendChild(modelActions);
+
+    const modelArticle = document.createElement('article');
+    modelArticle.className = tab.modelContent
+        ? 'file-preview-markdown ai-markdown'
+        : 'file-preview-markdown ai-markdown file-preview-model-empty';
+    if (tab.modelContent) {
+        try {
+            modelArticle.innerHTML = renderMarkdownContent(tab.modelContent);
+        } catch (e) {
+            modelArticle.textContent = tab.modelContent;
+        }
+    } else {
+        modelArticle.textContent = '当前消息未包含 ToolResult.content。请确认请求体 dynamic_config.message_version 为 v2，且后端 ENABLE_LOCAL_DEBUG_MODE=true 已生效。';
+    }
+    enhanceFilePreviewMarkdownImages(modelArticle);
+
+    const modelSource = document.createElement('pre');
+    modelSource.className = tab.modelContent
+        ? 'file-preview-model-content'
+        : 'file-preview-model-content file-preview-model-empty';
+    modelSource.textContent = tab.modelContent || '当前消息未包含 ToolResult.content。请确认请求体 dynamic_config.message_version 为 v2，且后端 ENABLE_LOCAL_DEBUG_MODE=true 已生效。';
+    modelSource.style.display = 'none';
+    modelRenderedBtn.addEventListener('click', () => {
+        modelRenderedBtn.classList.add('active');
+        modelSourceBtn.classList.remove('active');
+        modelArticle.style.display = '';
+        modelSource.style.display = 'none';
+    });
+    modelSourceBtn.addEventListener('click', () => {
+        modelSourceBtn.classList.add('active');
+        modelRenderedBtn.classList.remove('active');
+        modelArticle.style.display = 'none';
+        modelSource.style.display = '';
+    });
+    modelCopyBtn.addEventListener('click', async () => {
+        if (!tab.modelContent) return;
+        const ok = await copyTextToClipboard(tab.modelContent);
+        const originalText = modelCopyBtn.textContent;
+        modelCopyBtn.textContent = ok ? '已复制' : '失败';
+        modelCopyBtn.classList.toggle('active', ok);
+        setTimeout(() => {
+            modelCopyBtn.textContent = originalText;
+            modelCopyBtn.classList.remove('active');
+        }, 1400);
+    });
+    modelPanel.appendChild(modelTitle);
+    modelPanel.appendChild(modelArticle);
+    modelPanel.appendChild(modelSource);
+    if (userPanel) {
+        modelTitle.addEventListener('click', (event) => {
+            if (event.target.closest('button')) return;
+            if (!modelPanel.classList.contains('collapsed')) return;
+            localStorage.setItem(TOOL_DETAIL_MODEL_COLLAPSED_KEY, 'false');
+            applyToolDetailSplitLayout(userPanel, modelPanel, getStoredToolDetailModelRatio(), false);
+        });
+        split.appendChild(createToolDetailSplitResizer(split, userPanel, modelPanel));
+        applyToolDetailSplitLayout(userPanel, modelPanel, getStoredToolDetailModelRatio(), isToolDetailModelCollapsed());
+    }
+    split.appendChild(modelPanel);
+
+    filePreviewBody.appendChild(split);
     setFilePreviewWorkbenchVisible(true);
 }
 
@@ -5296,6 +5818,29 @@ function clearFilePreviewTabs() {
     filePreviewTabs.clear();
     filePreviewScrollPositions = {};
     renderEmptyFilePreviewPlaceholder();
+}
+
+function clearToolDetailPreviewTab() {
+    if (!filePreviewTabs.has(TOOL_DETAIL_PREVIEW_PATH)) {
+        const saved = readFilePreviewState();
+        if (saved && saved.toolDetail) {
+            const tabs = saved.tabs.filter(path => path !== TOOL_DETAIL_PREVIEW_PATH);
+            if (!tabs.length && !saved.visible) {
+                localStorage.removeItem(FILE_PREVIEW_STATE_KEY);
+                return;
+            }
+            localStorage.setItem(FILE_PREVIEW_STATE_KEY, JSON.stringify({
+                tabs,
+                activePath: saved.activePath === TOOL_DETAIL_PREVIEW_PATH ? (tabs[0] || '') : saved.activePath,
+                visible: saved.visible,
+                scrollPositions: Object.fromEntries(
+                    Object.entries(saved.scrollPositions || {}).filter(([path]) => path !== TOOL_DETAIL_PREVIEW_PATH)
+                ),
+            }));
+        }
+        return;
+    }
+    closeFilePreviewTab(TOOL_DETAIL_PREVIEW_PATH);
 }
 
 function closeFilePreviewTab(filePath) {
@@ -6209,6 +6754,7 @@ async function previewFile(fileHandle, filePath) {
         const kind = getWorkspacePreviewKind(filePath, file);
 
         if (isHtmlFile) {
+            currentPreviewCopyText = await file.text();
             setFilePreviewMeta(file, filePath, 'html', []);
             await renderCurrentPreviewAsHtml();
         } else if (kind === 'unsupported') {
@@ -6306,12 +6852,14 @@ async function previewFile(fileHandle, filePath) {
             if (file.size > MAX_SIZE) {
                 textExtras.push({ label: '说明', value: '正文仅预览前 512KB；行数/字符数为截断后统计' });
             }
+            currentPreviewCopyText = text;
             setFilePreviewMeta(file, filePath, kind, textExtras);
             if (isMarkdownPreviewFile(filePath) && window.marked) {
                 filePreviewBody.classList.add('file-preview-body-markdown');
                 const article = document.createElement('article');
                 article.className = 'file-preview-markdown ai-markdown';
                 article.innerHTML = marked.parse(text);
+                enhanceFilePreviewMarkdownImages(article);
                 filePreviewBody.appendChild(article);
             } else {
                 const pre = document.createElement('pre');

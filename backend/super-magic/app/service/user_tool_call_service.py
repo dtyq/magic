@@ -94,6 +94,15 @@ class UserToolCallService:
     def pop_pending(self, tool_call_id: str) -> Optional[PendingToolCall]:
         return self._pending.pop(tool_call_id, None)
 
+    def clear_all_pending(self) -> int:
+        """取消并清空所有内存中的 user_tool_call 等待态。"""
+        pending_items = list(self._pending.values())
+        self._pending.clear()
+        for pending in pending_items:
+            pending.timeout_task.cancel()
+            pending.agent_context.clear_user_tool_call_pending()
+        return len(pending_items)
+
     # ─── 注册 pending ─────────────────────────────────────────────────────────
 
     async def create_and_register_pending(
