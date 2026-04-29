@@ -25,7 +25,7 @@ class TextGenerateImageDTO extends AbstractRequestDTO
 
     protected string $sequentialImageGeneration = 'disabled';
 
-    protected array $sequentialImageGenerationOptions = [];
+    protected array $imageGenerationConfig = [];
 
     protected string $outputFormat = '';
 
@@ -103,14 +103,14 @@ class TextGenerateImageDTO extends AbstractRequestDTO
         $this->sequentialImageGeneration = $sequentialImageGeneration;
     }
 
-    public function getSequentialImageGenerationOptions(): array
+    public function getImageGenerationConfig(): array
     {
-        return $this->sequentialImageGenerationOptions;
+        return $this->imageGenerationConfig;
     }
 
-    public function setSequentialImageGenerationOptions(array $sequentialImageGenerationOptions): void
+    public function setImageGenerationConfig(array $imageGenerationConfig): void
     {
-        $this->sequentialImageGenerationOptions = $sequentialImageGenerationOptions;
+        $this->imageGenerationConfig = $imageGenerationConfig;
     }
 
     public function getImages(): array

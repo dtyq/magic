@@ -339,9 +339,9 @@ class ImageGenerateFactory
             $request->setSequentialImageGeneration($data['sequential_image_generation']);
         }
 
-        // 处理组图功能选项参数
-        if (isset($data['sequential_image_generation_options']) && is_array($data['sequential_image_generation_options'])) {
-            $request->setSequentialImageGenerationOptions($data['sequential_image_generation_options']);
+        // 处理图片生成附加配置；当前火山组图选项仍复用这一映射。
+        if (isset($data['image_generation_config']) && is_array($data['image_generation_config'])) {
+            $request->setSequentialImageGenerationOptions($data['image_generation_config']);
         }
 
         // 处理输出图片格式：根据模型配置校验并解析

@@ -362,6 +362,8 @@ return [
                 ['field' => 'model_id', 'value' => 'gpt-image-2', 'match_type' => 'fuzzy'],
             ],
             'config' => [
+                // 默认显示的分辨率档位（前端 scale 选项默认值）。
+                'default_scale' => '2K',
                 // 沿用同文件其他模型的标准比例标签，避免前端看到 7:4 / 7:3 这类“尺寸即比例”的特殊写法。
                 // 同一比例按 1K -> 2K -> 4K 排列，ratio label 默认命中首个已声明档位，也就是 1K。
                 // 业务若传入 1344x576、1792x1024 这类未显式列出的精确尺寸，仍会由 total_pixels_range 原样兜底。
@@ -409,7 +411,7 @@ return [
                 'image_settings' => [
                     [
                         // 特殊项：质量
-                        'key' => 'image_options.quality',
+                        'key' => 'image_generation_config.quality',
                         'label' => 'i18n:image_generate.image_model_settings.quality.label',
                         'description' => 'i18n:image_generate.image_model_settings.quality.description',
                         'component' => 'single_select',
