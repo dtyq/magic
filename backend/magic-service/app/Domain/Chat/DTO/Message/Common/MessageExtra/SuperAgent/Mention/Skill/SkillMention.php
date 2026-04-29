@@ -20,7 +20,8 @@ final class SkillMention extends AbstractMention
             return '';
         }
 
-        return $data->getName() ?? '';
+        $name = $data->getName() ?? '';
+        return sprintf('[@skill:%s]', $name);
     }
 
     /**
