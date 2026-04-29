@@ -7,6 +7,8 @@ import (
 	"strings"
 
 	"magic/internal/constants"
+	"magic/internal/domain/knowledge/shared"
+	sharedsnapshot "magic/internal/domain/knowledge/shared/snapshot"
 )
 
 var (
@@ -15,26 +17,25 @@ var (
 	levelFilterRegex         = regexp.MustCompile(`(?i)(?:level|层级)[:：]\s*([1-9])`)
 	fromTimestampFilterRegex = regexp.MustCompile(`(?i)(?:from|开始)[:：]\s*(\d{10})`)
 	toTimestampFilterRegex   = regexp.MustCompile(`(?i)(?:to|结束)[:：]\s*(\d{10})`)
-	numericHeadingRegex      = regexp.MustCompile(`(?i)第\s*([0-9]+)\s*[章节]`)
 )
 
 const softFilterCapacity = 8
 
-func buildSimilarityFilter(kb knowledgeBaseRuntimeSnapshot) *VectorFilter {
+func buildSimilarityFilter(kb sharedsnapshot.KnowledgeBaseRuntimeSnapshot) *shared.VectorFilter {
 	knowledgeCode := kb.Code
-	filter := &VectorFilter{
-		Must: []FieldFilter{{
+	filter := &shared.VectorFilter{
+		Must: []shared.FieldFilter{{
 			Key: constants.KnowledgeCodeField,
-			Match: Match{
+			Match: shared.Match{
 				EqString: &knowledgeCode,
 			},
 		}},
 	}
 	if kb.OrganizationCode != "" {
 		orgCode := kb.OrganizationCode
-		filter.Must = append(filter.Must, FieldFilter{
+		filter.Must = append(filter.Must, shared.FieldFilter{
 			Key: constants.OrganizationCodeField,
-			Match: Match{
+			Match: shared.Match{
 				EqString: &orgCode,
 			},
 		})
@@ -42,7 +43,7 @@ func buildSimilarityFilter(kb knowledgeBaseRuntimeSnapshot) *VectorFilter {
 	return filter
 }
 
-func mergeVectorFilters(base, extra *VectorFilter) *VectorFilter {
+func mergeVectorFilters(base, extra *shared.VectorFilter) *shared.VectorFilter {
 	if base == nil && extra == nil {
 		return nil
 	}
@@ -52,10 +53,10 @@ func mergeVectorFilters(base, extra *VectorFilter) *VectorFilter {
 	if extra == nil {
 		return cloneVectorFilter(base)
 	}
-	merged := &VectorFilter{
-		Must:    make([]FieldFilter, 0, len(base.Must)+len(extra.Must)),
-		Should:  make([]FieldFilter, 0, len(base.Should)+len(extra.Should)),
-		MustNot: make([]FieldFilter, 0, len(base.MustNot)+len(extra.MustNot)),
+	merged := &shared.VectorFilter{
+		Must:    make([]shared.FieldFilter, 0, len(base.Must)+len(extra.Must)),
+		Should:  make([]shared.FieldFilter, 0, len(base.Should)+len(extra.Should)),
+		MustNot: make([]shared.FieldFilter, 0, len(base.MustNot)+len(extra.MustNot)),
 	}
 	merged.Must = append(merged.Must, base.Must...)
 	merged.Must = append(merged.Must, extra.Must...)
@@ -66,18 +67,18 @@ func mergeVectorFilters(base, extra *VectorFilter) *VectorFilter {
 	return merged
 }
 
-func cloneVectorFilter(filter *VectorFilter) *VectorFilter {
+func cloneVectorFilter(filter *shared.VectorFilter) *shared.VectorFilter {
 	if filter == nil {
 		return nil
 	}
-	return &VectorFilter{
-		Must:    append([]FieldFilter{}, filter.Must...),
-		Should:  append([]FieldFilter{}, filter.Should...),
-		MustNot: append([]FieldFilter{}, filter.MustNot...),
+	return &shared.VectorFilter{
+		Must:    append([]shared.FieldFilter{}, filter.Must...),
+		Should:  append([]shared.FieldFilter{}, filter.Should...),
+		MustNot: append([]shared.FieldFilter{}, filter.MustNot...),
 	}
 }
 
-func vectorFilterDebugView(filter *VectorFilter) map[string]any {
+func vectorFilterDebugView(filter *shared.VectorFilter) map[string]any {
 	if filter == nil {
 		return map[string]any{}
 	}
@@ -88,7 +89,7 @@ func vectorFilterDebugView(filter *VectorFilter) map[string]any {
 	}
 }
 
-func fieldFiltersDebugView(filters []FieldFilter) []map[string]any {
+func fieldFiltersDebugView(filters []shared.FieldFilter) []map[string]any {
 	if len(filters) == 0 {
 		return nil
 	}
@@ -102,7 +103,7 @@ func fieldFiltersDebugView(filters []FieldFilter) []map[string]any {
 	return result
 }
 
-func matchDebugView(match Match) map[string]any {
+func matchDebugView(match shared.Match) map[string]any {
 	result := map[string]any{}
 	if match.EqString != nil {
 		result["eq_string"] = *match.EqString
@@ -125,7 +126,7 @@ func matchDebugView(match Match) map[string]any {
 	return result
 }
 
-func rangeDebugView(value *Range) map[string]float64 {
+func rangeDebugView(value *shared.Range) map[string]float64 {
 	if value == nil {
 		return nil
 	}
@@ -151,16 +152,7 @@ func rewriteSimilarityQuery(query string) QueryRewriteResult {
 		return QueryRewriteResult{Original: query, Rewritten: "", Used: []string{}}
 	}
 
-	rewritten := strings.NewReplacer(
-		"，", ",",
-		"。", ".",
-		"：", ":",
-		"（", "(",
-		"）", ")",
-		"　", " ",
-	).Replace(trimmed)
-	rewritten = numericHeadingRegex.ReplaceAllString(rewritten, "$1")
-	rewritten = normalizeWhitespace(rewritten)
+	rewritten := normalizeDenseSimilarityQuery(trimmed)
 
 	if strings.EqualFold(rewritten, trimmed) {
 		return QueryRewriteResult{Original: query, Rewritten: "", Used: []string{trimmed}}
@@ -268,11 +260,11 @@ func parseUnixTimestamp(match []string) int64 {
 	return unix
 }
 
-func buildSoftSimilarityFilter(filters *SimilarityFilters) *VectorFilter {
+func buildSoftSimilarityFilter(filters *SimilarityFilters) *shared.VectorFilter {
 	if filters == nil || filters.empty() {
 		return nil
 	}
-	must := make([]FieldFilter, 0, softFilterCapacity)
+	must := make([]shared.FieldFilter, 0, softFilterCapacity)
 	appendStringListFilter(&must, constants.DocumentCodeField, filters.DocumentCodes)
 	appendFloatListFilter(&must, "document_type", filters.DocumentTypes)
 	appendStringListFilter(&must, "section_path", filters.SectionPaths)
@@ -283,22 +275,22 @@ func buildSoftSimilarityFilter(filters *SimilarityFilters) *VectorFilter {
 	if len(must) == 0 {
 		return nil
 	}
-	return &VectorFilter{Must: must}
+	return &shared.VectorFilter{Must: must}
 }
 
-func appendStringListFilter(target *[]FieldFilter, key string, values []string) {
+func appendStringListFilter(target *[]shared.FieldFilter, key string, values []string) {
 	if len(values) == 0 {
 		return
 	}
-	*target = append(*target, FieldFilter{
+	*target = append(*target, shared.FieldFilter{
 		Key: key,
-		Match: Match{
+		Match: shared.Match{
 			InStrings: values,
 		},
 	})
 }
 
-func appendFloatListFilter(target *[]FieldFilter, key string, values []int) {
+func appendFloatListFilter(target *[]shared.FieldFilter, key string, values []int) {
 	if len(values) == 0 {
 		return
 	}
@@ -306,19 +298,19 @@ func appendFloatListFilter(target *[]FieldFilter, key string, values []int) {
 	for _, value := range values {
 		floatValues = append(floatValues, float64(value))
 	}
-	*target = append(*target, FieldFilter{
+	*target = append(*target, shared.FieldFilter{
 		Key: key,
-		Match: Match{
+		Match: shared.Match{
 			InFloats: floatValues,
 		},
 	})
 }
 
-func appendTimeRangeFilter(target *[]FieldFilter, timeRange *SimilarityTimeRange) {
+func appendTimeRangeFilter(target *[]shared.FieldFilter, timeRange *SimilarityTimeRange) {
 	if timeRange == nil {
 		return
 	}
-	rangeFilter := &Range{}
+	rangeFilter := &shared.Range{}
 	if timeRange.StartUnix > 0 {
 		start := float64(timeRange.StartUnix)
 		rangeFilter.Gte = &start
@@ -330,19 +322,19 @@ func appendTimeRangeFilter(target *[]FieldFilter, timeRange *SimilarityTimeRange
 	if isSimilarityRangeEmpty(rangeFilter) {
 		return
 	}
-	*target = append(*target, FieldFilter{
+	*target = append(*target, shared.FieldFilter{
 		Key: "metadata.created_at_ts",
-		Match: Match{
+		Match: shared.Match{
 			Range: rangeFilter,
 		},
 	})
 }
 
-func isSimilarityRangeEmpty(value *Range) bool {
+func isSimilarityRangeEmpty(value *shared.Range) bool {
 	return value == nil || (value.Lt == nil && value.Gt == nil && value.Gte == nil && value.Lte == nil)
 }
 
-func buildFilterPlan(kb knowledgeBaseRuntimeSnapshot, explicitFilters *SimilarityFilters, query string) FilterPlan {
+func buildFilterPlan(kb sharedsnapshot.KnowledgeBaseRuntimeSnapshot, explicitFilters *SimilarityFilters, query string) FilterPlan {
 	hard := mergeVectorFilters(
 		buildSimilarityFilter(kb),
 		buildSoftSimilarityFilter(explicitFilters),

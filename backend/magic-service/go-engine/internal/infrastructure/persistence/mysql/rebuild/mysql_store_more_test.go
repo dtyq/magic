@@ -29,7 +29,7 @@ func TestGetCollectionMetaScenarios(t *testing.T) {
 		defer func() { _ = db.Close() }()
 
 		store := mysqlrebuild.NewMySQLStore(db)
-		mock.ExpectQuery(regexp.QuoteMeta("SELECT model, COALESCE(embedding_config, CAST('{}' AS JSON)) AS embedding_config")).
+		mock.ExpectQuery(regexp.QuoteMeta("-- name: FindKnowledgeBaseCollectionMeta :one")).
 			WithArgs(constants.KnowledgeBaseCollectionMetaCode).
 			WillReturnRows(sqlmock.NewRows([]string{"model", "embedding_config"}))
 
@@ -52,7 +52,7 @@ func TestGetCollectionMetaScenarios(t *testing.T) {
 		defer func() { _ = db.Close() }()
 
 		store := mysqlrebuild.NewMySQLStore(db)
-		mock.ExpectQuery(regexp.QuoteMeta("SELECT model, COALESCE(embedding_config, CAST('{}' AS JSON)) AS embedding_config")).
+		mock.ExpectQuery(regexp.QuoteMeta("-- name: FindKnowledgeBaseCollectionMeta :one")).
 			WithArgs(constants.KnowledgeBaseCollectionMetaCode).
 			WillReturnRows(
 				sqlmock.NewRows([]string{"model", "embedding_config"}).
@@ -78,7 +78,7 @@ func TestGetCollectionMetaScenarios(t *testing.T) {
 		defer func() { _ = db.Close() }()
 
 		store := mysqlrebuild.NewMySQLStore(db)
-		mock.ExpectQuery(regexp.QuoteMeta("SELECT model, COALESCE(embedding_config, CAST('{}' AS JSON)) AS embedding_config")).
+		mock.ExpectQuery(regexp.QuoteMeta("-- name: FindKnowledgeBaseCollectionMeta :one")).
 			WithArgs(constants.KnowledgeBaseCollectionMetaCode).
 			WillReturnRows(
 				sqlmock.NewRows([]string{"model", "embedding_config"}).
@@ -98,8 +98,11 @@ func TestGetCollectionMetaObjectCompatibilityPayloads(t *testing.T) {
 		name    string
 		payload []byte
 	}{
+		{name: "null", payload: nil},
 		{name: "empty array", payload: []byte(`[]`)},
 		{name: "empty string", payload: []byte(`""`)},
+		{name: "quoted empty array", payload: []byte(`"[]"`)},
+		{name: "empty object", payload: []byte(`{}`)},
 	}
 
 	for _, tc := range cases {
@@ -113,7 +116,7 @@ func TestGetCollectionMetaObjectCompatibilityPayloads(t *testing.T) {
 			defer func() { _ = db.Close() }()
 
 			store := mysqlrebuild.NewMySQLStore(db)
-			mock.ExpectQuery(regexp.QuoteMeta("SELECT model, COALESCE(embedding_config, CAST('{}' AS JSON)) AS embedding_config")).
+			mock.ExpectQuery(regexp.QuoteMeta("-- name: FindKnowledgeBaseCollectionMeta :one")).
 				WithArgs(constants.KnowledgeBaseCollectionMetaCode).
 				WillReturnRows(
 					sqlmock.NewRows([]string{"model", "embedding_config"}).
@@ -144,13 +147,20 @@ func TestListDocumentsBatchBuildsScopeQueryAndScansRows(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	store := mysqlrebuild.NewMySQLStore(db)
-	mock.ExpectQuery(regexp.QuoteMeta("SELECT d.id,")).
-		WithArgs(int64(99), constants.KnowledgeBaseCollectionMetaCode, "org-1", "org-1", 2).
+	mock.ExpectQuery(regexp.QuoteMeta("-- name: ListRebuildDocumentsBatchByOrganization :many")).
+		WithArgs(int64(99), "org-1", int32(8)).
 		WillReturnRows(
-			sqlmock.NewRows([]string{"id", "organization_code", "knowledge_base_code", "code", "user_id"}).
-				AddRow(int64(100), "org-1", "kb-1", "doc-1", "user-1").
-				AddRow(int64(101), "org-1", "kb-1", "doc-2", "user-2"),
+			newRebuildDocumentRows().
+				AddRow(
+					int64(100), "org-1", "kb-1", "doc-1", "creator-1", "user-1",
+				).
+				AddRow(
+					int64(101), "org-1", "kb-1", "doc-2", "user-2", "",
+				),
 		)
+	mock.ExpectQuery(regexp.QuoteMeta("-- name: ListActiveKnowledgeBaseCodesByOrganizationAndCodes :many")).
+		WithArgs("org-1", "kb-1").
+		WillReturnRows(sqlmock.NewRows([]string{"code"}).AddRow("kb-1"))
 
 	tasks, err := store.ListDocumentsBatch(context.Background(), domainrebuild.Scope{
 		Mode:             domainrebuild.ScopeModeOrganization,
@@ -162,6 +172,17 @@ func TestListDocumentsBatchBuildsScopeQueryAndScansRows(t *testing.T) {
 	if len(tasks) != 2 || tasks[0].DocumentCode != "doc-1" || tasks[1].UserID != "user-2" {
 		t.Fatalf("unexpected tasks: %+v", tasks)
 	}
+}
+
+func newRebuildDocumentRows() *sqlmock.Rows {
+	return sqlmock.NewRows([]string{
+		"id",
+		"organization_code",
+		"knowledge_base_code",
+		"code",
+		"created_uid",
+		"updated_uid",
+	})
 }
 
 func TestListDocumentsBatchRejectsInvalidScope(t *testing.T) {
@@ -190,11 +211,9 @@ func TestScopedMigrationFlows(t *testing.T) {
 
 		store := mysqlrebuild.NewMySQLStore(db)
 		mock.ExpectBegin()
-		mock.ExpectExec(regexp.QuoteMeta("UPDATE magic_flow_knowledge")).
-			WithArgs(0, constants.KnowledgeBaseCollectionMetaCode).
+		mock.ExpectExec(regexp.QuoteMeta("-- name: ResetKnowledgeBaseSyncStatusAll :execrows")).
 			WillReturnResult(sqlmock.NewResult(0, 3))
-		mock.ExpectExec(regexp.QuoteMeta("UPDATE knowledge_base_documents")).
-			WithArgs(0, constants.KnowledgeBaseCollectionMetaCode).
+		mock.ExpectExec(regexp.QuoteMeta("-- name: ResetDocumentSyncStatusAll :execrows")).
 			WillReturnResult(sqlmock.NewResult(0, 5))
 		mock.ExpectCommit()
 
@@ -218,8 +237,8 @@ func TestScopedMigrationFlows(t *testing.T) {
 
 		store := mysqlrebuild.NewMySQLStore(db)
 		mock.ExpectBegin()
-		mock.ExpectExec(regexp.QuoteMeta("UPDATE magic_flow_knowledge")).
-			WithArgs("model-x", "model-x", constants.KnowledgeBaseCollectionMetaCode, "org-1", "kb-1").
+		mock.ExpectExec(regexp.QuoteMeta("-- name: UpdateKnowledgeBaseModelByKnowledgeBase :execrows")).
+			WithArgs("model-x", "model-x", "org-1", "kb-1").
 			WillReturnError(errMySQLStoreExecFailed)
 		mock.ExpectRollback()
 

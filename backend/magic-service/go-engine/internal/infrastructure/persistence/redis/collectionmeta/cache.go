@@ -77,5 +77,5 @@ func (c *Cache) Warn(ctx context.Context, message string, err error) {
 	if c == nil || c.logger == nil || err == nil {
 		return
 	}
-	c.logger.WarnContext(ctx, message, "error", err)
+	c.logger.KnowledgeWarnContext(ctx, message, "error", err)
 }

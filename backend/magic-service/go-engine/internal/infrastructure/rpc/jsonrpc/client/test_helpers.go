@@ -7,6 +7,7 @@ import (
 
 	"magic/internal/domain/knowledge/embedding"
 	"magic/internal/infrastructure/transport/ipc/unixsocket"
+	"magic/internal/pkg/thirdplatform"
 )
 
 // MagicAccessTokenResponseForTest 暴露 access token RPC 响应结构供外部测试使用。
@@ -140,4 +141,84 @@ func (c *PHPEmbeddingRPCClient) SetCallEmbeddingProvidersRPCForTest(fn func(cont
 		out.Data = append(out.Data[:0], testOut.Data...)
 		return nil
 	}
+}
+
+// SetCallListKnowledgeBasesRPCForTest 替换企业知识库列表 RPC 调用逻辑。
+func (c *PHPThirdPlatformDocumentRPCClient) SetCallListKnowledgeBasesRPCForTest(
+	fn func(context.Context, *unixsocket.Server, map[string]any, any) error,
+) {
+	c.callListKnowledgeBasesRPC = func(
+		ctx context.Context,
+		server *unixsocket.Server,
+		params map[string]any,
+		out *thirdPlatformKnowledgeBaseListResponse,
+	) error {
+		testOut := &RPCResultForTest[[]thirdplatform.KnowledgeBaseItem]{
+			Code:    out.Code,
+			Message: out.Message,
+			Data:    append([]thirdplatform.KnowledgeBaseItem(nil), out.Data...),
+		}
+		if err := fn(ctx, server, params, testOut); err != nil {
+			return err
+		}
+		out.Code = testOut.Code
+		out.Message = testOut.Message
+		out.Data = append(out.Data[:0], testOut.Data...)
+		return nil
+	}
+}
+
+// SetCallListTreeNodesRPCForTest 替换企业知识库树节点 RPC 调用逻辑。
+func (c *PHPThirdPlatformDocumentRPCClient) SetCallListTreeNodesRPCForTest(
+	fn func(context.Context, *unixsocket.Server, map[string]any, any) error,
+) {
+	c.callListTreeNodesRPC = func(
+		ctx context.Context,
+		server *unixsocket.Server,
+		params map[string]any,
+		out *thirdPlatformTreeNodeListResponse,
+	) error {
+		testOut := &RPCResultForTest[[]thirdplatform.TreeNode]{
+			Code:    out.Code,
+			Message: out.Message,
+			Data:    append([]thirdplatform.TreeNode(nil), out.Data...),
+		}
+		if err := fn(ctx, server, params, testOut); err != nil {
+			return err
+		}
+		out.Code = testOut.Code
+		out.Message = testOut.Message
+		out.Data = append(out.Data[:0], testOut.Data...)
+		return nil
+	}
+}
+
+// SetCallResolveNodeRPCForTest 替换企业知识库单文件元信息 RPC 调用逻辑。
+func (c *PHPThirdPlatformDocumentRPCClient) SetCallResolveNodeRPCForTest(
+	fn func(context.Context, *unixsocket.Server, map[string]any, any) error,
+) {
+	c.callResolveNodeRPC = func(
+		ctx context.Context,
+		server *unixsocket.Server,
+		params map[string]any,
+		out *thirdPlatformNodeResolveResponse,
+	) error {
+		testOut := &RPCResultForTest[*thirdplatform.NodeResolveResult]{
+			Code:    out.Code,
+			Message: out.Message,
+			Data:    out.Data,
+		}
+		if err := fn(ctx, server, params, testOut); err != nil {
+			return err
+		}
+		out.Code = testOut.Code
+		out.Message = testOut.Message
+		out.Data = testOut.Data
+		return nil
+	}
+}
+
+// SetThirdPlatformDocumentClientReadyFuncForTest 替换第三方文档客户端连接状态判断逻辑。
+func (c *PHPThirdPlatformDocumentRPCClient) SetThirdPlatformDocumentClientReadyFuncForTest(fn func() bool) {
+	c.isClientReady = fn
 }

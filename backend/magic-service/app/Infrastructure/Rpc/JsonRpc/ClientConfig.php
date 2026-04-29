@@ -10,10 +10,10 @@ namespace App\Infrastructure\Rpc\JsonRpc;
 class ClientConfig
 {
     public function __construct(
-        public readonly int $protocolVersion = 1,
+        public readonly int $protocolVersion = 2,
         public readonly string $authToken = '',
         public readonly string $clientId = '',
-        public readonly int $maxMessageBytes = 10 * 1024 * 1024,
+        public readonly int $maxMessageBytes = 30 * 1024 * 1024,
         public readonly float $readTimeout = 30.0,
         public readonly float $writeTimeout = 10.0,
         public readonly float $heartbeatInterval = 10.0,
@@ -29,10 +29,10 @@ class ClientConfig
     public static function fromArray(array $config): self
     {
         return new self(
-            protocolVersion: (int) ($config['protocol_version'] ?? 1),
+            protocolVersion: (int) ($config['protocol_version'] ?? 2),
             authToken: (string) ($config['auth_token'] ?? ''),
             clientId: (string) ($config['client_id'] ?? ''),
-            maxMessageBytes: (int) ($config['max_message_bytes'] ?? 10 * 1024 * 1024),
+            maxMessageBytes: (int) ($config['max_message_bytes'] ?? 30 * 1024 * 1024),
             readTimeout: (float) ($config['read_timeout'] ?? 30.0),
             writeTimeout: (float) ($config['write_timeout'] ?? 10.0),
             heartbeatInterval: (float) ($config['heartbeat_interval'] ?? 10.0),

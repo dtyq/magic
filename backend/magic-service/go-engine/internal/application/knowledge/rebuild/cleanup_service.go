@@ -11,6 +11,7 @@ import (
 	"magic/internal/constants"
 	fragmodel "magic/internal/domain/knowledge/fragment/model"
 	domainrebuild "magic/internal/domain/knowledge/rebuild"
+	sharedroute "magic/internal/domain/knowledge/shared/route"
 	"magic/internal/infrastructure/logging"
 )
 
@@ -31,7 +32,7 @@ var (
 )
 
 type cleanupCollectionMetaReader interface {
-	GetCollectionMeta(context.Context) (domainrebuild.CollectionMeta, error)
+	GetCollectionMeta(context.Context) (sharedroute.CollectionMeta, error)
 }
 
 type cleanupCoordinator interface {

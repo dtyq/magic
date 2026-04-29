@@ -4,6 +4,8 @@ import (
 	"errors"
 	"fmt"
 	"strings"
+
+	sharedroute "magic/internal/domain/knowledge/shared/route"
 )
 
 var (
@@ -92,7 +94,7 @@ func DetermineEffectiveScope(requested Scope, bootstrap bool) (Scope, bool, stri
 }
 
 // ResolveRequestedTargetModel 解析本次执行的目标模型。
-func ResolveRequestedTargetModel(requested string, meta CollectionMeta) string {
+func ResolveRequestedTargetModel(requested string, meta sharedroute.CollectionMeta) string {
 	targetModel := strings.TrimSpace(requested)
 	if targetModel != "" {
 		return targetModel
@@ -101,7 +103,7 @@ func ResolveRequestedTargetModel(requested string, meta CollectionMeta) string {
 }
 
 // SelectMode 根据元数据与目标模型选择执行模式。
-func SelectMode(requested RunMode, meta CollectionMeta, targetModel, targetSparseBackend string) RunMode {
+func SelectMode(requested RunMode, meta sharedroute.CollectionMeta, targetModel, targetSparseBackend string) RunMode {
 	currentBackend := strings.TrimSpace(meta.SparseBackend)
 	targetBackend := strings.TrimSpace(targetSparseBackend)
 	if requested == ModeInplace && currentBackend != "" && currentBackend != targetBackend {
@@ -124,7 +126,7 @@ func SelectMode(requested RunMode, meta CollectionMeta, targetModel, targetSpars
 
 // ResolveActiveCollectionState 根据元数据、alias 与集合信息计算活动集合状态。
 func ResolveActiveCollectionState(
-	meta CollectionMeta,
+	meta sharedroute.CollectionMeta,
 	alias string,
 	aliasTarget string,
 	info *VectorCollectionInfo,

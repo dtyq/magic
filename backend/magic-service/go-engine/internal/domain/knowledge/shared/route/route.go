@@ -87,7 +87,7 @@ func loadCollectionMeta(
 	meta, err := metaReader.GetCollectionMeta(ctx)
 	if err != nil {
 		if logger != nil {
-			logger.WarnContext(ctx, "Failed to read collection meta, fallback to legacy routing", "error", err)
+			logger.KnowledgeWarnContext(ctx, "Failed to read collection meta, fallback to legacy routing", "error", err)
 		}
 		return CollectionMeta{}
 	}

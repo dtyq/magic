@@ -42,6 +42,28 @@ func TestEmbeddingAndVectorDBConfigNilReceiver(t *testing.T) {
 	}
 }
 
+func TestCloneEmbeddingConfigClonesRawMessageBytes(t *testing.T) {
+	t.Parallel()
+
+	cfg := &shared.EmbeddingConfig{
+		ModelID: "m1",
+		Extra: map[string]json.RawMessage{
+			"provider": json.RawMessage(`"openai"`),
+		},
+	}
+
+	cloned := shared.CloneEmbeddingConfig(cfg)
+	raw := cloned.Extra["provider"]
+	raw[1] = 'x'
+
+	if string(cfg.Extra["provider"]) != `"openai"` {
+		t.Fatalf("expected source raw message to stay isolated, got %s", cfg.Extra["provider"])
+	}
+	if string(cloned.Extra["provider"]) != `"xpenai"` {
+		t.Fatalf("expected cloned raw message to be mutable independently, got %s", cloned.Extra["provider"])
+	}
+}
+
 func TestVectorDBConfigJSONAndSyncStatusString(t *testing.T) {
 	t.Parallel()
 

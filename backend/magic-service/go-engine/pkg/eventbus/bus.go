@@ -3,6 +3,7 @@ package eventbus
 
 import (
 	"cmp"
+	"context"
 	"errors"
 	"fmt"
 	"maps"
@@ -10,6 +11,8 @@ import (
 	"slices"
 	"sync"
 	"sync/atomic"
+
+	"magic/internal/pkg/runguard"
 )
 
 // 错误定义
@@ -49,6 +52,14 @@ type Config struct {
 
 	// OnError 错误回调，用于处理异步执行中的错误
 	OnError func(eventName string, err error)
+
+	// Logger 可选，用于记录异步处理器 panic。
+	Logger ErrorLogger
+}
+
+// ErrorLogger 是事件总线需要的最小日志接口。
+type ErrorLogger interface {
+	ErrorContext(ctx context.Context, msg string, keysAndValues ...any)
 }
 
 // Bus 是类型安全的事件总线
@@ -63,6 +74,7 @@ type Bus struct {
 	jobs    chan asyncJob
 	wg      sync.WaitGroup
 	onError func(string, error)
+	logger  ErrorLogger
 	sendMu  sync.RWMutex
 	asyncWg sync.WaitGroup
 
@@ -103,6 +115,7 @@ func NewWithConfig(cfg *Config) *Bus {
 		handlers: make(map[string][]*handlerRecord),
 		types:    make(map[string]reflect.Type),
 		onError:  cfg.OnError,
+		logger:   cfg.Logger,
 	}
 
 	// 启动工作池
@@ -120,6 +133,7 @@ func NewWithConfig(cfg *Config) *Bus {
 // worker 工作池 goroutine
 func (b *Bus) worker() {
 	defer b.wg.Done()
+	defer runguard.Recover(context.Background(), b.goroutinePanicOptions("eventbus.worker", ""))
 	for job := range b.jobs {
 		stop, err := job.invoker(job.envelope, job.record)
 		b.reportError(job.eventName, err)
@@ -352,7 +366,7 @@ func invokeTyped[T any](eventName string, envelope *EventEnvelope[T], rec *handl
 		)
 	}
 
-	err := callHandler(handler, envelope)
+	err := callHandler(eventName, handler, envelope)
 	if err == nil {
 		return false, nil
 	}
@@ -573,6 +587,7 @@ func spawnAsync[T any](b *Bus, eventName string, rec *handlerRecord, envelope *E
 	b.asyncWg.Add(1)
 	go func(r *handlerRecord, env *EventEnvelope[T]) {
 		defer b.asyncWg.Done()
+		defer runguard.Recover(context.Background(), b.goroutinePanicOptions("eventbus.async_handler", eventName))
 		_, err := invokeTyped(eventName, env, r)
 		b.reportError(eventName, err)
 		if r.once {
@@ -581,14 +596,36 @@ func spawnAsync[T any](b *Bus, eventName string, rec *handlerRecord, envelope *E
 	}(rec, envelope)
 }
 
-func callHandler[T any](handler Handler[T], envelope *EventEnvelope[T]) (err error) {
-	defer func() {
-		if r := recover(); r != nil {
-			err = fmt.Errorf("%w: %v", ErrPanic, r)
-		}
-	}()
+func callHandler[T any](eventName string, handler Handler[T], envelope *EventEnvelope[T]) (err error) {
+	defer runguard.Recover(context.Background(), runguard.Options{
+		Scope:  "eventbus.handler",
+		Policy: runguard.Continue,
+		Fields: []any{"event_name", eventName},
+		OnPanic: func(_ context.Context, report runguard.Report) {
+			err = &PanicError{
+				Recovered: report.Recovered,
+				Stack:     report.Stack,
+				Report:    report,
+			}
+		},
+	})
 
 	return handler(envelope)
+}
+
+// PanicError wraps a recovered handler panic and preserves its stack.
+type PanicError struct {
+	Recovered any
+	Stack     string
+	Report    runguard.Report
+}
+
+func (e *PanicError) Error() string {
+	return fmt.Sprintf("%v: %v", ErrPanic, e.Recovered)
+}
+
+func (e *PanicError) Unwrap() error {
+	return ErrPanic
 }
 
 func (b *Bus) waitSubscriptionsToDrain() {
@@ -600,12 +637,54 @@ func (b *Bus) waitSubscriptionsToDrain() {
 }
 
 func (b *Bus) reportError(eventName string, err error) {
-	if err == nil || b.onError == nil {
+	if err == nil {
 		return
 	}
-	b.onError(eventName, err)
+	b.logPanicError(eventName, err)
+	if b.onError != nil {
+		b.onError(eventName, err)
+	}
 }
 
 func (b *Bus) reportQueueFull(eventName string) {
 	b.reportError(eventName, ErrQueueFull)
+}
+
+func (b *Bus) logPanicError(eventName string, err error) {
+	if b.logger == nil {
+		return
+	}
+	var panicErr *PanicError
+	if !errors.As(err, &panicErr) {
+		return
+	}
+	fields := panicErr.Report.Fields
+	if len(fields) == 0 {
+		fields = []any{
+			"event_name", eventName,
+			"panic", fmt.Sprint(panicErr.Recovered),
+			"stack", panicErr.Stack,
+			"scope", "eventbus.handler",
+		}
+	}
+	b.logger.ErrorContext(context.Background(), "Event bus handler panic recovered", fields...)
+}
+
+func (b *Bus) goroutinePanicOptions(scope, eventName string) runguard.Options {
+	fields := []any{
+		"event_name", eventName,
+	}
+	if eventName == "" {
+		fields = nil
+	}
+	return runguard.Options{
+		Scope:  scope,
+		Policy: runguard.Continue,
+		Fields: fields,
+		OnPanic: func(ctx context.Context, report runguard.Report) {
+			if b.logger != nil {
+				b.logger.ErrorContext(ctx, "Event bus goroutine panic recovered", report.Fields...)
+			}
+		},
+	}
 }

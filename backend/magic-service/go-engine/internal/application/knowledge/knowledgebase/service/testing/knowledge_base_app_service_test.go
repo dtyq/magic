@@ -11,7 +11,8 @@ import (
 
 	kbdto "magic/internal/application/knowledge/knowledgebase/dto"
 	service "magic/internal/application/knowledge/knowledgebase/service"
-	knowledgebasedomain "magic/internal/domain/knowledge/knowledgebase/service"
+	kbentity "magic/internal/domain/knowledge/knowledgebase/entity"
+	kbrepository "magic/internal/domain/knowledge/knowledgebase/repository"
 	"magic/internal/domain/knowledge/shared"
 	sharedroute "magic/internal/domain/knowledge/shared/route"
 )
@@ -19,8 +20,8 @@ import (
 func TestKnowledgeBaseEntityToDTO_MapsCreatorModifier(t *testing.T) {
 	t.Parallel()
 	svc := &service.KnowledgeBaseAppService{}
-	sourceType := int(knowledgebasedomain.SourceTypeCustomContent)
-	kb := &knowledgebasedomain.KnowledgeBase{
+	sourceType := int(kbentity.SourceTypeCustomContent)
+	kb := &kbentity.KnowledgeBase{
 		Code:       "KNOWLEDGE-TEST",
 		CreatedUID: "usi_creator",
 		UpdatedUID: "usi_modifier",
@@ -61,19 +62,19 @@ func TestInputToEntity_DefaultsSourceTypeToLocalFile(t *testing.T) {
 		UserID:           "u1",
 	})
 
-	normalized, err := knowledgebasedomain.NormalizeSourceType(knowledgebasedomain.KnowledgeBaseTypeFlowVector, entity.SourceType)
+	normalized, err := kbentity.NormalizeSourceType(kbentity.KnowledgeBaseTypeFlowVector, entity.SourceType)
 	if err != nil {
 		t.Fatalf("NormalizeSourceType returned error: %v", err)
 	}
-	if normalized == nil || *normalized != int(knowledgebasedomain.SourceTypeLocalFile) {
-		t.Fatalf("expected default source_type=%d, got %#v", int(knowledgebasedomain.SourceTypeLocalFile), normalized)
+	if normalized == nil || *normalized != int(kbentity.SourceTypeLocalFile) {
+		t.Fatalf("expected default source_type=%d, got %#v", int(kbentity.SourceTypeLocalFile), normalized)
 	}
 }
 
 func TestKnowledgeBaseEntityToDTO_VectorSettingIncludesEmptyFields(t *testing.T) {
 	t.Parallel()
 	svc := &service.KnowledgeBaseAppService{}
-	kb := &knowledgebasedomain.KnowledgeBase{
+	kb := &kbentity.KnowledgeBase{
 		Code: "KNOWLEDGE-TEST",
 		RetrieveConfig: &shared.RetrieveConfig{
 			Weights: &shared.RetrieveWeights{
@@ -139,7 +140,7 @@ func TestKnowledgeBaseEntityToDTO_VectorSettingIncludesEmptyFields(t *testing.T)
 func TestKnowledgeBaseEntityToDTO_FragmentConfigOutputOmitsRemovedParentChildField(t *testing.T) {
 	t.Parallel()
 	svc := &service.KnowledgeBaseAppService{}
-	kb := &knowledgebasedomain.KnowledgeBase{
+	kb := &kbentity.KnowledgeBase{
 		Code: "KNOWLEDGE-TEST",
 		FragmentConfig: &shared.FragmentConfig{
 			Mode: shared.FragmentModeCustom,
@@ -292,7 +293,7 @@ func TestInputToEntity_AssignsCode(t *testing.T) {
 func TestKnowledgeBaseEntityToDTOWithContext_UsesEffectiveRouteModel(t *testing.T) {
 	t.Parallel()
 	svc := service.NewKnowledgeBaseAppServiceForTest(t, &routeAwareKnowledgeBaseDomainService{effectiveModel: effectiveEmbeddingModel}, nil, nil, nil, "")
-	kb := &knowledgebasedomain.KnowledgeBase{
+	kb := &kbentity.KnowledgeBase{
 		Code:            "KNOWLEDGE-TEST",
 		Model:           "text-embedding-3-small",
 		EmbeddingConfig: &shared.EmbeddingConfig{ModelID: "text-embedding-3-small"},
@@ -327,39 +328,39 @@ type routeAwareKnowledgeBaseDomainService struct {
 
 var errRouteAwareNotImplemented = errors.New("route aware test double: not implemented")
 
-func (f *routeAwareKnowledgeBaseDomainService) PrepareForSave(context.Context, *knowledgebasedomain.KnowledgeBase) error {
+func (f *routeAwareKnowledgeBaseDomainService) PrepareForSave(context.Context, *kbentity.KnowledgeBase) error {
 	return nil
 }
 
-func (f *routeAwareKnowledgeBaseDomainService) Save(context.Context, *knowledgebasedomain.KnowledgeBase) error {
+func (f *routeAwareKnowledgeBaseDomainService) Save(context.Context, *kbentity.KnowledgeBase) error {
 	return nil
 }
 
-func (f *routeAwareKnowledgeBaseDomainService) Update(context.Context, *knowledgebasedomain.KnowledgeBase) error {
+func (f *routeAwareKnowledgeBaseDomainService) Update(context.Context, *kbentity.KnowledgeBase) error {
 	return nil
 }
 
-func (f *routeAwareKnowledgeBaseDomainService) UpdateProgress(context.Context, *knowledgebasedomain.KnowledgeBase) error {
+func (f *routeAwareKnowledgeBaseDomainService) UpdateProgress(context.Context, *kbentity.KnowledgeBase) error {
 	return nil
 }
 
-func (f *routeAwareKnowledgeBaseDomainService) ShowByCodeAndOrg(context.Context, string, string) (*knowledgebasedomain.KnowledgeBase, error) {
+func (f *routeAwareKnowledgeBaseDomainService) ShowByCodeAndOrg(context.Context, string, string) (*kbentity.KnowledgeBase, error) {
 	return nil, errRouteAwareNotImplemented
 }
 
-func (f *routeAwareKnowledgeBaseDomainService) List(context.Context, *knowledgebasedomain.Query) ([]*knowledgebasedomain.KnowledgeBase, int64, error) {
+func (f *routeAwareKnowledgeBaseDomainService) List(context.Context, *kbrepository.Query) ([]*kbentity.KnowledgeBase, int64, error) {
 	return nil, 0, errRouteAwareNotImplemented
 }
 
-func (f *routeAwareKnowledgeBaseDomainService) Destroy(context.Context, *knowledgebasedomain.KnowledgeBase) error {
+func (f *routeAwareKnowledgeBaseDomainService) Destroy(context.Context, *kbentity.KnowledgeBase) error {
 	return nil
 }
 
-func (f *routeAwareKnowledgeBaseDomainService) DeleteVectorData(context.Context, *knowledgebasedomain.KnowledgeBase) error {
+func (f *routeAwareKnowledgeBaseDomainService) DeleteVectorData(context.Context, *kbentity.KnowledgeBase) error {
 	return nil
 }
 
-func (f *routeAwareKnowledgeBaseDomainService) ResolveRuntimeRoute(_ context.Context, kb *knowledgebasedomain.KnowledgeBase) sharedroute.ResolvedRoute {
+func (f *routeAwareKnowledgeBaseDomainService) ResolveRuntimeRoute(_ context.Context, kb *kbentity.KnowledgeBase) sharedroute.ResolvedRoute {
 	collectionName := ""
 	if kb != nil {
 		collectionName = kb.CollectionName()

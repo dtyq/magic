@@ -11,10 +11,7 @@ func buildListItemFromFragmentDTO(fragment *fragdto.FragmentDTO) *fragdto.Fragme
 	if fragment == nil {
 		return nil
 	}
-	metadata := fragment.Metadata
-	if metadata == nil {
-		metadata = map[string]any{}
-	}
+	metadata := sanitizeFragmentResponseMetadata(fragment.Metadata)
 	return &fragdto.FragmentListItemDTO{
 		ID:                fragment.ID,
 		KnowledgeBaseCode: fragment.KnowledgeCode,
@@ -28,6 +25,8 @@ func buildListItemFromFragmentDTO(fragment *fragdto.FragmentDTO) *fragdto.Fragme
 		BusinessID:        fragment.BusinessID,
 		DocumentName:      fragment.DocumentName,
 		DocumentType:      fragment.DocumentType,
+		KnowledgeBaseType: fragment.KnowledgeBaseType,
+		SourceType:        cloneOptionalInt(fragment.SourceType),
 		DocType:           fragment.DocumentType,
 		Content:           fragment.Content,
 		Metadata:          metadata,
@@ -40,6 +39,14 @@ func buildListItemFromFragmentDTO(fragment *fragdto.FragmentDTO) *fragdto.Fragme
 		UpdatedAt:         fragment.UpdatedAt,
 		Version:           fragmentResponseVersion,
 	}
+}
+
+func cloneOptionalInt(value *int) *int {
+	if value == nil {
+		return nil
+	}
+	cloned := *value
+	return &cloned
 }
 
 func buildDocumentNodeDTOs(documentTitle string, sources []fragdomain.DocumentNodeSource) []fragdto.DocumentNodeDTO {

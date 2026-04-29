@@ -15,6 +15,8 @@ const (
 	SparseBackendSelectionReasonLegacyDefault = "legacy_default"
 	// SparseBackendSelectionReasonQueryPointsUnsupported 表示 Points.Query 不可用，降级为客户端 sparse backend。
 	SparseBackendSelectionReasonQueryPointsUnsupported = "query_points_unsupported"
+	// SparseBackendSelectionReasonNativeBM25Unsupported 表示 Qdrant 原生 BM25 inference 不可用，降级为客户端 sparse backend。
+	SparseBackendSelectionReasonNativeBM25Unsupported = "native_bm25_unsupported"
 	// SparseBackendSelectionReasonQueryPointsProbeNotReady 表示能力探测未就绪，暂不允许使用依赖 Points.Query 的 backend。
 	SparseBackendSelectionReasonQueryPointsProbeNotReady = "query_points_probe_not_ready"
 )
@@ -24,6 +26,7 @@ type VectorDBCollectionRepository interface {
 	CreateCollection(ctx context.Context, name string, vectorSize int64) error
 	CollectionExists(ctx context.Context, name string) (bool, error)
 	GetCollectionInfo(ctx context.Context, name string) (*VectorCollectionInfo, error)
+	EnsurePayloadIndexes(ctx context.Context, name string, specs []PayloadIndexSpec) error
 	ListCollections(ctx context.Context) ([]string, error)
 	DeleteCollection(ctx context.Context, name string) error
 }

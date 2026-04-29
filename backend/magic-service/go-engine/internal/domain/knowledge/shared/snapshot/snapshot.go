@@ -65,6 +65,7 @@ type DocumentFile struct {
 	Extension       string
 	ThirdID         string
 	SourceType      string
+	ThirdFileType   string
 	KnowledgeBaseID string
 }
 

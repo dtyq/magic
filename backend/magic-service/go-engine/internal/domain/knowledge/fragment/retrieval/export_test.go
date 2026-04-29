@@ -3,9 +3,15 @@ package retrieval
 import (
 	"context"
 	"fmt"
+	"reflect"
 	"slices"
 
 	"github.com/go-ego/gse"
+
+	fragmodel "magic/internal/domain/knowledge/fragment/model"
+	"magic/internal/domain/knowledge/shared"
+	sharedroute "magic/internal/domain/knowledge/shared/route"
+	sharedsnapshot "magic/internal/domain/knowledge/shared/snapshot"
 )
 
 type CandidateFieldTextForTest struct {
@@ -21,82 +27,79 @@ type CandidateAnalysisSnapshotForTest struct {
 }
 
 type HybridSearchConfigForTest struct {
-	DenseTopK    int
-	SparseTopK   int
-	DenseWeight  float64
-	SparseWeight float64
-	HybridAlpha  float64
+	DenseTopK            int
+	SparseTopK           int
+	DenseWeight          float64
+	SparseWeight         float64
+	HybridAlpha          float64
+	LegacyWeightUpgraded bool
 }
 
 func FuseHybridResultsForTest(
-	denseResults []*VectorSearchResult[FragmentPayload],
-	sparseResults []*VectorSearchResult[FragmentPayload],
+	denseResults []*shared.VectorSearchResult[fragmodel.FragmentPayload],
+	sparseResults []*shared.VectorSearchResult[fragmodel.FragmentPayload],
 	denseWeight float64,
 	sparseWeight float64,
-) []*VectorSearchResult[FragmentPayload] {
+) []*shared.VectorSearchResult[fragmodel.FragmentPayload] {
 	return fuseHybridResults(denseResults, sparseResults, hybridSearchConfig{
 		DenseWeight:  denseWeight,
 		SparseWeight: sparseWeight,
 	})
 }
 
-func FuseHybridResultsWithCutoffForTest(
-	denseResults []*VectorSearchResult[FragmentPayload],
-	sparseResults []*VectorSearchResult[FragmentPayload],
-	denseWeight float64,
-	sparseWeight float64,
-	denseCutoffThreshold float64,
-) []*VectorSearchResult[FragmentPayload] {
-	return fuseHybridResults(denseResults, sparseResults, hybridSearchConfig{
-		DenseWeight:          denseWeight,
-		SparseWeight:         sparseWeight,
-		DenseCutoffThreshold: denseCutoffThreshold,
-		EffectiveHybridAlpha: denseWeight,
-	})
-}
-
 func ScoreSimilarityResultsForTest(
 	query string,
-	results []*VectorSearchResult[FragmentPayload],
+	results []*shared.VectorSearchResult[fragmodel.FragmentPayload],
 	kb any,
 	topK int,
-) []*SimilarityResult {
+) []*fragmodel.SimilarityResult {
 	service := NewService(nil, nil, Infra{})
-	return service.scoreSimilarityResults(context.Background(), query, results, snapshotKnowledgeBase(kb), topK, similarityResultOptions{})
+	profile := buildSimilarityQueryProfile(query, query, service.newRetrievalAnalyzer())
+	return service.scoreSimilarityResults(context.Background(), profile, results, *snapshotKnowledgeBaseForTest(kb), topK, similarityResultOptions{
+		Trace: similaritySearchTrace{
+			SparseBackend: SparseBackendQdrantBM25ZHV1,
+			QueryProfile:  profile,
+			QueryType:     profile.QueryType,
+		},
+	})
 }
 
 func ScoreSimilarityResultsWithDebugForTest(
 	query string,
-	results []*VectorSearchResult[FragmentPayload],
+	results []*shared.VectorSearchResult[fragmodel.FragmentPayload],
 	kb any,
 	topK int,
-) []*SimilarityResult {
+) []*fragmodel.SimilarityResult {
 	service := NewService(nil, nil, Infra{})
-	return service.scoreSimilarityResults(context.Background(), query, results, snapshotKnowledgeBase(kb), topK, similarityResultOptions{
+	profile := buildSimilarityQueryProfile(query, query, service.newRetrievalAnalyzer())
+	return service.scoreSimilarityResults(context.Background(), profile, results, *snapshotKnowledgeBaseForTest(kb), topK, similarityResultOptions{
 		SearchOptions: &SimilaritySearchOptions{Debug: true},
+		Trace: similaritySearchTrace{
+			SparseBackend: SparseBackendQdrantBM25ZHV1,
+			QueryProfile:  profile,
+			QueryType:     profile.QueryType,
+		},
 	})
 }
 
 func ScoreSimilarityResultsWithThresholdAndDebugForTest(
 	query string,
-	results []*VectorSearchResult[FragmentPayload],
+	results []*shared.VectorSearchResult[fragmodel.FragmentPayload],
 	kb any,
 	topK int,
 	threshold float64,
-) []*SimilarityResult {
+) []*fragmodel.SimilarityResult {
 	service := NewService(nil, nil, Infra{})
-	return service.scoreSimilarityResults(context.Background(), query, results, snapshotKnowledgeBase(kb), topK, similarityResultOptions{
+	profile := buildSimilarityQueryProfile(query, query, service.newRetrievalAnalyzer())
+	return service.scoreSimilarityResults(context.Background(), profile, results, *snapshotKnowledgeBaseForTest(kb), topK, similarityResultOptions{
 		ResultScoreThreshold: threshold,
 		SearchOptions:        &SimilaritySearchOptions{Debug: true},
+		Trace: similaritySearchTrace{
+			SparseBackend: SparseBackendQdrantBM25ZHV1,
+			QueryProfile:  profile,
+			QueryType:     profile.QueryType,
+		},
 	})
-}
-
-func EnrichSimilarityResultsWithContextForTest(
-	ctx context.Context,
-	results []*SimilarityResult,
-	repo KnowledgeBaseFragmentReader,
-) []*SimilarityResult {
-	return enrichSimilarityResultsWithContext(ctx, results, repo, newTestRetrievalAnalyzer())
 }
 
 func SearchSimilarityCandidatesForTest(
@@ -104,19 +107,20 @@ func SearchSimilarityCandidatesForTest(
 	service *Service,
 	kb any,
 	req SimilarityRequest,
-) ([]*VectorSearchResult[FragmentPayload], error) {
-	results, _, err := service.searchSimilarityCandidates(ctx, snapshotKnowledgeBase(kb), req)
+) ([]*shared.VectorSearchResult[fragmodel.FragmentPayload], error) {
+	results, _, err := service.searchSimilarityCandidates(ctx, snapshotKnowledgeBaseForTest(kb), req)
 	return results, err
 }
 
 func ResolveHybridSearchConfigForTest(topK int, kb any) HybridSearchConfigForTest {
-	config := resolveHybridSearchConfig(topK, snapshotKnowledgeBase(kb))
+	config := resolveHybridSearchConfig(topK, *snapshotKnowledgeBaseForTest(kb))
 	return HybridSearchConfigForTest{
-		DenseTopK:    config.DenseTopK,
-		SparseTopK:   config.SparseTopK,
-		DenseWeight:  config.DenseWeight,
-		SparseWeight: config.SparseWeight,
-		HybridAlpha:  config.EffectiveHybridAlpha,
+		DenseTopK:            config.DenseTopK,
+		SparseTopK:           config.SparseTopK,
+		DenseWeight:          config.DenseWeight,
+		SparseWeight:         config.SparseWeight,
+		HybridAlpha:          config.EffectiveHybridAlpha,
+		LegacyWeightUpgraded: config.LegacyWeightUpgraded,
 	}
 }
 
@@ -139,41 +143,78 @@ func ApplyResultScoreThresholdWithFallbackForTest(
 	return result, appliedThreshold, false
 }
 
-func ApplyResultScoreThresholdWithSupportForTest(
-	finalScores []float64,
-	supportScores []float64,
-	threshold float64,
-) []float64 {
-	scored := make([]scoredResult, len(finalScores))
-	for i, score := range finalScores {
-		if i < len(supportScores) {
-			scored[i] = scoredResult{finalScore: score, denseScore: supportScores[i]}
-			continue
-		}
-		scored[i] = scoredResult{finalScore: score}
+func snapshotKnowledgeBaseForTest(value any) *sharedsnapshot.KnowledgeBaseRuntimeSnapshot {
+	if snapshot, ok := value.(*sharedsnapshot.KnowledgeBaseRuntimeSnapshot); ok {
+		return sharedsnapshot.NormalizeKnowledgeBaseSnapshotConfigs(sharedsnapshot.CloneKnowledgeBaseRuntimeSnapshot(snapshot))
 	}
 
-	filtered := applyResultScoreThreshold(scored, threshold)
-	result := make([]float64, len(filtered))
-	for i, item := range filtered {
-		result[i] = item.finalScore
+	root := reflect.ValueOf(value)
+	for root.IsValid() && (root.Kind() == reflect.Pointer || root.Kind() == reflect.Interface) {
+		if root.IsNil() {
+			return sharedsnapshot.NormalizeKnowledgeBaseSnapshotConfigs(&sharedsnapshot.KnowledgeBaseRuntimeSnapshot{})
+		}
+		root = root.Elem()
 	}
-	return result
+	if !root.IsValid() || root.Kind() != reflect.Struct {
+		return sharedsnapshot.NormalizeKnowledgeBaseSnapshotConfigs(&sharedsnapshot.KnowledgeBaseRuntimeSnapshot{})
+	}
+
+	snapshot := &sharedsnapshot.KnowledgeBaseRuntimeSnapshot{
+		Code:             stringFieldForTest(root, "Code"),
+		Name:             stringFieldForTest(root, "Name"),
+		OrganizationCode: stringFieldForTest(root, "OrganizationCode"),
+		Model:            stringFieldForTest(root, "Model"),
+		VectorDB:         stringFieldForTest(root, "VectorDB"),
+		RetrieveConfig:   retrieveConfigFieldForTest(root, "RetrieveConfig"),
+		FragmentConfig:   fragmentConfigFieldForTest(root, "FragmentConfig"),
+		EmbeddingConfig:  embeddingConfigFieldForTest(root, "EmbeddingConfig"),
+		ResolvedRoute:    resolvedRouteFieldForTest(root, "ResolvedRoute"),
+	}
+	return sharedsnapshot.NormalizeKnowledgeBaseSnapshotConfigs(snapshot)
 }
 
-func ResolveHanFallbackModeForTest(text string, primaryTerms []string, queryMode bool) (string, float64, []bool) {
-	mode, covered, coverage := resolveHanFallbackMode(normalizeTokenTerm(text), primaryTerms, queryMode)
-	return hanFallbackModeString(mode), coverage, slices.Clone(covered)
+func stringFieldForTest(root reflect.Value, name string) string {
+	field := root.FieldByName(name)
+	if !field.IsValid() || field.Kind() != reflect.String {
+		return ""
+	}
+	return field.String()
 }
 
-func BuildHanTokensForTest(text, field string, primaryTerms []string, queryMode bool) []AnalyzedToken {
-	normalizedTerms := make([]string, 0, len(primaryTerms))
-	for _, term := range primaryTerms {
-		if normalizedTerm := normalizeTokenTerm(term); normalizedTerm != "" {
-			normalizedTerms = append(normalizedTerms, normalizedTerm)
-		}
+func retrieveConfigFieldForTest(root reflect.Value, name string) *shared.RetrieveConfig {
+	field := root.FieldByName(name)
+	if !field.IsValid() || !field.CanInterface() {
+		return nil
 	}
-	return buildHanTokens(normalizeTokenTerm(text), field, normalizedTerms, queryMode)
+	cfg, _ := field.Interface().(*shared.RetrieveConfig)
+	return shared.CloneRetrieveConfig(cfg)
+}
+
+func fragmentConfigFieldForTest(root reflect.Value, name string) *shared.FragmentConfig {
+	field := root.FieldByName(name)
+	if !field.IsValid() || !field.CanInterface() {
+		return nil
+	}
+	cfg, _ := field.Interface().(*shared.FragmentConfig)
+	return shared.CloneFragmentConfig(cfg)
+}
+
+func embeddingConfigFieldForTest(root reflect.Value, name string) *shared.EmbeddingConfig {
+	field := root.FieldByName(name)
+	if !field.IsValid() || !field.CanInterface() {
+		return nil
+	}
+	cfg, _ := field.Interface().(*shared.EmbeddingConfig)
+	return shared.CloneEmbeddingConfig(cfg)
+}
+
+func resolvedRouteFieldForTest(root reflect.Value, name string) *sharedroute.ResolvedRoute {
+	field := root.FieldByName(name)
+	if !field.IsValid() || !field.CanInterface() {
+		return nil
+	}
+	route, _ := field.Interface().(*sharedroute.ResolvedRoute)
+	return sharedroute.CloneResolvedRoute(route)
 }
 
 func SetSegmenterLoaderForTest(service *Service, load func(*gse.Segmenter) error) {
@@ -202,6 +243,14 @@ func BundledRetrievalTraditionalDictFileForTest() string {
 	return retrievalBundledTraditionalDictFile
 }
 
+func BundledRetrievalCustomTermsDictFileForTest() string {
+	return retrievalBundledCustomTermsDictFile
+}
+
+func BundledRetrievalStopwordsDictFileForTest() string {
+	return retrievalBundledRetrievalStopwordsFile
+}
+
 func SharedSegmenterForTest(service *Service) *gse.Segmenter {
 	if service == nil {
 		return nil
@@ -216,13 +265,13 @@ func SharedSegmenterForTest(service *Service) *gse.Segmenter {
 	}
 }
 
-func BuildCandidateAnalysisSnapshotForTest(result *VectorSearchResult[FragmentPayload]) CandidateAnalysisSnapshotForTest {
+func BuildCandidateAnalysisSnapshotForTest(result *shared.VectorSearchResult[fragmodel.FragmentPayload]) CandidateAnalysisSnapshotForTest {
 	return convertCandidateAnalysisSnapshotForTest(buildCandidateAnalysisSnapshot(result, newTestRetrievalAnalyzer()))
 }
 
-func BuildLegacyCandidateAnalysisForTest(result *VectorSearchResult[FragmentPayload]) CandidateAnalysisSnapshotForTest {
+func BuildLegacyCandidateAnalysisForTest(result *shared.VectorSearchResult[fragmodel.FragmentPayload]) CandidateAnalysisSnapshotForTest {
 	analyzer := newTestRetrievalAnalyzer()
-	fieldTexts := resultSparseFieldTexts(result)
+	fieldTexts := resultSparseFieldTextsWithAnalyzer(result, analyzer)
 	return CandidateAnalysisSnapshotForTest{
 		FieldTexts:        convertFieldTextsForTest(fieldTexts),
 		DocTokens:         slices.Clone(buildRankingTermsFromResultWithAnalyzer(result, analyzer)),
@@ -231,7 +280,7 @@ func BuildLegacyCandidateAnalysisForTest(result *VectorSearchResult[FragmentPayl
 	}
 }
 
-func ComputeExactPhraseMatchScoreForTest(query string, result *VectorSearchResult[FragmentPayload]) float64 {
+func ComputeExactPhraseMatchScoreForTest(query string, result *shared.VectorSearchResult[fragmodel.FragmentPayload]) float64 {
 	return computeExactPhraseMatchScore(query, result)
 }
 
@@ -241,28 +290,12 @@ func ComputeSectionPathMatchScoreForTest(query, sectionPath string) float64 {
 }
 
 func ComputeSectionPathMatchScoreWithTokensForTest(query, sectionPath string, sectionPathTokens []string) float64 {
-	return computeSectionPathMatchScoreWithTokens(query, tokenizeForRetrieval(query), sectionPath, sectionPathTokens)
+	analyzer := newTestRetrievalAnalyzer()
+	return computeSectionPathMatchScoreWithTokens(query, analyzer.tokenTerms(query), sectionPath, sectionPathTokens)
 }
 
 func ComputeExactPhraseMatchScoreFromSnapshotForTest(query string, snapshot CandidateAnalysisSnapshotForTest) float64 {
 	return computeExactPhraseMatchScoreFromFieldTexts(query, convertFieldTextsFromTest(snapshot.FieldTexts))
-}
-
-func hanFallbackModeString(mode hanFallbackMode) string {
-	const (
-		hanFallbackFullMode      = "full"
-		hanFallbackSelectiveMode = "selective"
-		hanFallbackNoneMode      = "none"
-	)
-
-	switch mode {
-	case hanFallbackModeFull:
-		return hanFallbackFullMode
-	case hanFallbackModeSelective:
-		return hanFallbackSelectiveMode
-	default:
-		return hanFallbackNoneMode
-	}
 }
 
 func convertCandidateAnalysisSnapshotForTest(snapshot candidateAnalysisSnapshot) CandidateAnalysisSnapshotForTest {

@@ -1,14 +1,12 @@
 -- name: FindCacheByHash :one
-SELECT id, text_hash, text_preview, text_length, embedding, embedding_model,
-       vector_dimension, access_count, last_accessed_at, created_at, updated_at
+SELECT *
 FROM embedding_cache
 WHERE text_hash = ?
   AND embedding_model = ?
 LIMIT 1;
 
 -- name: FindCachesByHashes :many
-SELECT id, text_hash, text_preview, text_length, embedding, embedding_model,
-       vector_dimension, access_count, last_accessed_at, created_at, updated_at
+SELECT *
 FROM embedding_cache
 WHERE text_hash IN (sqlc.slice(text_hashes))
   AND embedding_model = ?;
@@ -62,23 +60,153 @@ DELETE FROM embedding_cache WHERE text_hash = ?;
 -- name: DeleteCachesByIDs :execrows
 DELETE FROM embedding_cache WHERE id IN (sqlc.slice(ids));
 
--- name: GetCachesByModel :many
-SELECT id, text_hash, text_preview, text_length, embedding, embedding_model,
-       vector_dimension, access_count, last_accessed_at, created_at, updated_at
+-- name: CountExpiredCachesByAccess :one
+SELECT COUNT(*)
 FROM embedding_cache
-WHERE embedding_model = ?
-ORDER BY created_at DESC, id DESC
+WHERE access_count < sqlc.arg(max_access_count);
+
+-- name: ListExpiredCachesByAccess :many
+SELECT *
+FROM embedding_cache
+WHERE access_count < sqlc.arg(max_access_count)
+ORDER BY last_accessed_at ASC, access_count ASC, id ASC
 LIMIT ? OFFSET ?;
 
--- name: CountByModel :one
-SELECT COUNT(*) FROM embedding_cache WHERE embedding_model = ?;
-
--- name: GetLeastAccessed :many
-SELECT id, text_hash, text_preview, text_length, embedding, embedding_model,
-       vector_dimension, access_count, last_accessed_at, created_at, updated_at
+-- name: ListExpiredCacheIDsByAccess :many
+SELECT id
 FROM embedding_cache
-ORDER BY last_accessed_at ASC, access_count ASC
-LIMIT ?;
+WHERE access_count < sqlc.arg(max_access_count)
+ORDER BY last_accessed_at ASC, access_count ASC, id ASC
+LIMIT ? OFFSET ?;
+
+-- name: CountExpiredCachesByIdle :one
+SELECT COUNT(*)
+FROM embedding_cache
+WHERE last_accessed_at < sqlc.arg(max_idle_before);
+
+-- name: ListExpiredCachesByIdle :many
+SELECT *
+FROM embedding_cache
+WHERE last_accessed_at < sqlc.arg(max_idle_before)
+ORDER BY last_accessed_at ASC, access_count ASC, id ASC
+LIMIT ? OFFSET ?;
+
+-- name: ListExpiredCacheIDsByIdle :many
+SELECT id
+FROM embedding_cache
+WHERE last_accessed_at < sqlc.arg(max_idle_before)
+ORDER BY last_accessed_at ASC, access_count ASC, id ASC
+LIMIT ? OFFSET ?;
+
+-- name: CountExpiredCachesByAge :one
+SELECT COUNT(*)
+FROM embedding_cache
+WHERE created_at < sqlc.arg(max_created_before);
+
+-- name: ListExpiredCachesByAge :many
+SELECT *
+FROM embedding_cache
+WHERE created_at < sqlc.arg(max_created_before)
+ORDER BY last_accessed_at ASC, access_count ASC, id ASC
+LIMIT ? OFFSET ?;
+
+-- name: ListExpiredCacheIDsByAge :many
+SELECT id
+FROM embedding_cache
+WHERE created_at < sqlc.arg(max_created_before)
+ORDER BY last_accessed_at ASC, access_count ASC, id ASC
+LIMIT ? OFFSET ?;
+
+-- name: CountExpiredCachesByAccessOrIdle :one
+SELECT COUNT(*)
+FROM embedding_cache
+WHERE access_count < sqlc.arg(max_access_count)
+   OR last_accessed_at < sqlc.arg(max_idle_before);
+
+-- name: ListExpiredCachesByAccessOrIdle :many
+SELECT *
+FROM embedding_cache
+WHERE access_count < sqlc.arg(max_access_count)
+   OR last_accessed_at < sqlc.arg(max_idle_before)
+ORDER BY last_accessed_at ASC, access_count ASC, id ASC
+LIMIT ? OFFSET ?;
+
+-- name: ListExpiredCacheIDsByAccessOrIdle :many
+SELECT id
+FROM embedding_cache
+WHERE access_count < sqlc.arg(max_access_count)
+   OR last_accessed_at < sqlc.arg(max_idle_before)
+ORDER BY last_accessed_at ASC, access_count ASC, id ASC
+LIMIT ? OFFSET ?;
+
+-- name: CountExpiredCachesByAccessOrAge :one
+SELECT COUNT(*)
+FROM embedding_cache
+WHERE access_count < sqlc.arg(max_access_count)
+   OR created_at < sqlc.arg(max_created_before);
+
+-- name: ListExpiredCachesByAccessOrAge :many
+SELECT *
+FROM embedding_cache
+WHERE access_count < sqlc.arg(max_access_count)
+   OR created_at < sqlc.arg(max_created_before)
+ORDER BY last_accessed_at ASC, access_count ASC, id ASC
+LIMIT ? OFFSET ?;
+
+-- name: ListExpiredCacheIDsByAccessOrAge :many
+SELECT id
+FROM embedding_cache
+WHERE access_count < sqlc.arg(max_access_count)
+   OR created_at < sqlc.arg(max_created_before)
+ORDER BY last_accessed_at ASC, access_count ASC, id ASC
+LIMIT ? OFFSET ?;
+
+-- name: CountExpiredCachesByIdleOrAge :one
+SELECT COUNT(*)
+FROM embedding_cache
+WHERE last_accessed_at < sqlc.arg(max_idle_before)
+   OR created_at < sqlc.arg(max_created_before);
+
+-- name: ListExpiredCachesByIdleOrAge :many
+SELECT *
+FROM embedding_cache
+WHERE last_accessed_at < sqlc.arg(max_idle_before)
+   OR created_at < sqlc.arg(max_created_before)
+ORDER BY last_accessed_at ASC, access_count ASC, id ASC
+LIMIT ? OFFSET ?;
+
+-- name: ListExpiredCacheIDsByIdleOrAge :many
+SELECT id
+FROM embedding_cache
+WHERE last_accessed_at < sqlc.arg(max_idle_before)
+   OR created_at < sqlc.arg(max_created_before)
+ORDER BY last_accessed_at ASC, access_count ASC, id ASC
+LIMIT ? OFFSET ?;
+
+-- name: CountExpiredCachesByAccessOrIdleOrAge :one
+SELECT COUNT(*)
+FROM embedding_cache
+WHERE access_count < sqlc.arg(max_access_count)
+   OR last_accessed_at < sqlc.arg(max_idle_before)
+   OR created_at < sqlc.arg(max_created_before);
+
+-- name: ListExpiredCachesByAccessOrIdleOrAge :many
+SELECT *
+FROM embedding_cache
+WHERE access_count < sqlc.arg(max_access_count)
+   OR last_accessed_at < sqlc.arg(max_idle_before)
+   OR created_at < sqlc.arg(max_created_before)
+ORDER BY last_accessed_at ASC, access_count ASC, id ASC
+LIMIT ? OFFSET ?;
+
+-- name: ListExpiredCacheIDsByAccessOrIdleOrAge :many
+SELECT id
+FROM embedding_cache
+WHERE access_count < sqlc.arg(max_access_count)
+   OR last_accessed_at < sqlc.arg(max_idle_before)
+   OR created_at < sqlc.arg(max_created_before)
+ORDER BY last_accessed_at ASC, access_count ASC, id ASC
+LIMIT ? OFFSET ?;
 
 -- name: BasicStats :one
 SELECT COUNT(*) AS total_caches,

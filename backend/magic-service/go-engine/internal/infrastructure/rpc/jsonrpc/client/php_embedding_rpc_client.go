@@ -7,8 +7,6 @@ import (
 	"errors"
 	"fmt"
 
-	"golang.org/x/sync/errgroup"
-
 	"magic/internal/constants"
 	"magic/internal/domain/knowledge/embedding"
 	"magic/internal/infrastructure/logging"
@@ -41,10 +39,10 @@ type RPCCaller interface {
 }
 
 const (
-	tokenNotExistCode               = 4000
-	tokenExpiredCode                = 4005
-	tokenDisabledCode               = 4019
-	phpEmbeddingBatchMaxConcurrency = 3
+	tokenNotExistCode     = 4000
+	tokenExpiredCode      = 4005
+	tokenDisabledCode     = 4019
+	modelNetworkErrorCode = 4020
 )
 
 // PHPEmbeddingRPCClient 通过 JSON-RPC over Unix Socket 调用 PHP 的嵌入客户端。
@@ -130,22 +128,14 @@ func (c *PHPEmbeddingRPCClient) GetBatchEmbeddings(ctx context.Context, inputs [
 		return embeddings, nil
 	}
 
-	group, groupCtx := errgroup.WithContext(ctx)
-	group.SetLimit(phpEmbeddingBatchMaxConcurrency)
-
 	for i, input := range inputs {
-		group.Go(func() error {
-			embedding, err := c.computeSingleEmbedding(groupCtx, input, model, businessParams)
-			if err != nil {
-				return fmt.Errorf("compute embedding at index %d: %w", i, err)
-			}
-			embeddings[i] = embedding
-			return nil
-		})
+		vector, err := c.computeSingleEmbedding(ctx, input, model, businessParams)
+		if err != nil {
+			return nil, fmt.Errorf("compute embedding at index %d: %w", i, err)
+		}
+		embeddings[i] = vector
 	}
-	if err := group.Wait(); err != nil {
-		return nil, fmt.Errorf("wait batch embedding tasks: %w", err)
-	}
+
 	return embeddings, nil
 }
 
@@ -162,7 +152,7 @@ func (c *PHPEmbeddingRPCClient) computeSingleEmbedding(
 	applyBusinessParams(rpcParams, businessParams)
 	attachAccessToken(ctx, rpcParams, c.accessTokenProvider, c.logger)
 
-	result, err := executeRPCWithAuthRetry(ctx, rpcAuthRetryOptions[EmbeddingResult]{
+	options := rpcAuthRetryOptions[EmbeddingResult]{
 		params:    rpcParams,
 		provider:  c.accessTokenProvider,
 		logger:    c.logger,
@@ -171,7 +161,15 @@ func (c *PHPEmbeddingRPCClient) computeSingleEmbedding(
 		call: func(params map[string]any, out *RPCResult[EmbeddingResult]) error {
 			return c.callEmbeddingComputeRPC(ctx, c.server, params, out)
 		},
-	})
+	}
+
+	result, err := executeRPCWithAuthRetry(ctx, options)
+	if err != nil && shouldRetryOnEmbeddingNetworkError(result.ErrorCode) {
+		if c.logger != nil {
+			c.logger.KnowledgeWarnContext(ctx, "embedding compute 遇到网络异常，准备重试一次", "rpc_code", result.Code, "error_code", result.ErrorCode)
+		}
+		result, err = executeRPCWithNetworkRetry(ctx, options)
+	}
 	if err != nil {
 		return nil, err
 	}
@@ -234,7 +232,7 @@ func attachAccessToken(ctx context.Context, params map[string]any, provider Acce
 	token, err := provider.GetAccessToken(ctx)
 	if err != nil {
 		if logger != nil {
-			logger.WarnContext(ctx, "获取 MAGIC_ACCESS_TOKEN 失败，继续走 PHP 兜底", "error", err)
+			logger.KnowledgeWarnContext(ctx, "获取 MAGIC_ACCESS_TOKEN 失败，继续走 PHP 兜底", "error", err)
 		}
 		return
 	}
@@ -273,7 +271,7 @@ func invokeRPC[T any](
 	var result RPCResult[T]
 	if err := call(params, &result); err != nil {
 		if logger != nil {
-			logger.ErrorContext(ctx, fmt.Sprintf("调用 PHP %s 失败", operation), "error", err)
+			logger.KnowledgeErrorContext(ctx, fmt.Sprintf("调用 PHP %s 失败", operation), "error", err)
 		}
 		return result, errors.Join(ErrPHPRequestFailed, err)
 	}
@@ -282,12 +280,12 @@ func invokeRPC[T any](
 
 func retryRPCWithRefreshedToken[T any](ctx context.Context, options rpcAuthRetryOptions[T], result RPCResult[T]) (RPCResult[T], error) {
 	if options.logger != nil {
-		options.logger.WarnContext(ctx, fmt.Sprintf("%s 鉴权失败，尝试刷新 access token", options.operation), "rpc_code", result.Code, "error_code", result.ErrorCode)
+		options.logger.KnowledgeWarnContext(ctx, fmt.Sprintf("%s 鉴权失败，尝试刷新 access token", options.operation), "rpc_code", result.Code, "error_code", result.ErrorCode)
 	}
 	token, err := options.refresh(ctx)
 	if err != nil {
 		if options.logger != nil {
-			options.logger.WarnContext(ctx, fmt.Sprintf("%s 刷新 access token 失败", options.operation), "error", err, "error_code", result.ErrorCode)
+			options.logger.KnowledgeWarnContext(ctx, fmt.Sprintf("%s 刷新 access token 失败", options.operation), "error", err, "error_code", result.ErrorCode)
 		}
 		return result, buildRPCError(result.Code, result.Message, result.ErrorCode)
 	}
@@ -303,7 +301,7 @@ func retryRPCWithRefreshedToken[T any](ctx context.Context, options rpcAuthRetry
 	}
 	if retryResult.Code != 0 {
 		if options.logger != nil {
-			options.logger.WarnContext(ctx, fmt.Sprintf("%s 刷新 token 后仍失败", options.operation), "rpc_code", retryResult.Code, "error_code", retryResult.ErrorCode)
+			options.logger.KnowledgeWarnContext(ctx, fmt.Sprintf("%s 刷新 token 后仍失败", options.operation), "rpc_code", retryResult.Code, "error_code", retryResult.ErrorCode)
 		}
 		return retryResult, buildRPCError(retryResult.Code, retryResult.Message, retryResult.ErrorCode)
 	}
@@ -320,6 +318,22 @@ func shouldRetryOnAuthError(errorCode int) bool {
 	default:
 		return false
 	}
+}
+
+func shouldRetryOnEmbeddingNetworkError(errorCode int) bool {
+	return errorCode == modelNetworkErrorCode
+}
+
+func executeRPCWithNetworkRetry[T any](ctx context.Context, options rpcAuthRetryOptions[T]) (RPCResult[T], error) {
+	retryResult, retryErr := invokeRPC(ctx, options.logger, options.operation, options.params, options.call)
+	if retryErr != nil || retryResult.Code == 0 {
+		return retryResult, retryErr
+	}
+
+	if options.logger != nil {
+		options.logger.KnowledgeWarnContext(ctx, fmt.Sprintf("%s 网络异常重试后仍失败", options.operation), "rpc_code", retryResult.Code, "error_code", retryResult.ErrorCode)
+	}
+	return retryResult, buildRPCError(retryResult.Code, retryResult.Message, retryResult.ErrorCode)
 }
 
 func buildRPCError(code int, message string, errorCode int) error {

@@ -6,6 +6,7 @@ import (
 	"slices"
 	"testing"
 
+	docentity "magic/internal/domain/knowledge/document/entity"
 	documentdomain "magic/internal/domain/knowledge/document/service"
 	"magic/internal/pkg/projectfile"
 )
@@ -37,7 +38,7 @@ type projectFileChangeOperatorStub struct {
 	scheduled   []*documentdomain.SyncDocumentInput
 }
 
-func (s *projectFileChangeOperatorStub) DestroyDocument(_ context.Context, doc *documentdomain.KnowledgeBaseDocument) error {
+func (s *projectFileChangeOperatorStub) DestroyDocument(_ context.Context, doc *docentity.KnowledgeBaseDocument) error {
 	if s.events != nil && doc != nil {
 		*s.events = append(*s.events, "destroy:"+doc.Code)
 	}
@@ -92,7 +93,7 @@ func TestProjectFileChangeLifecycleServiceDeletesDocumentsAndStops(t *testing.T)
 			ProjectID:        900,
 			ProjectFileID:    501,
 		},
-		Documents: []*documentdomain.KnowledgeBaseDocument{
+		Documents: []*docentity.KnowledgeBaseDocument{
 			{Code: "DOC-1"},
 		},
 	})
@@ -210,7 +211,7 @@ func projectFileChangeLifecycleInput() documentdomain.ProjectFileChangeLifecycle
 			projectFileChangeBinding(3, "KB-ENT", "USER-3"),
 			projectFileChangeBinding(4, "KB-ENT", "USER-4"),
 		},
-		Documents: []*documentdomain.KnowledgeBaseDocument{
+		Documents: []*docentity.KnowledgeBaseDocument{
 			projectFileChangeDocument("DOC-STD-OLD", "KB-STD", 1),
 			projectFileChangeDocument("DOC-ENT-OLD", "KB-ENT", 3),
 		},
@@ -238,8 +239,8 @@ func projectFileChangeDocument(
 	code string,
 	knowledgeBaseCode string,
 	sourceBindingID int64,
-) *documentdomain.KnowledgeBaseDocument {
-	return &documentdomain.KnowledgeBaseDocument{
+) *docentity.KnowledgeBaseDocument {
+	return &docentity.KnowledgeBaseDocument{
 		Code:              code,
 		OrganizationCode:  "ORG1",
 		KnowledgeBaseCode: knowledgeBaseCode,

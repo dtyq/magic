@@ -10,7 +10,7 @@ const (
 	DefaultSparseModelName = "qdrant/bm25"
 	// SparseBackendClientBM25QdrantIDFV1 表示客户端构造 sparse vector、Qdrant 负责 IDF 的后端版本。
 	SparseBackendClientBM25QdrantIDFV1 = "client_bm25_qdrant_idf_v1"
-	// SparseBackendQdrantBM25ZHV1 表示中文优先的 Qdrant BM25 后端版本。
+	// SparseBackendQdrantBM25ZHV1 表示依赖 Qdrant 原生 BM25 inference 的中文优先后端版本，不等价于 gse 分词。
 	SparseBackendQdrantBM25ZHV1 = "qdrant_bm25_zh_v1"
 )
 
@@ -52,6 +52,7 @@ type VectorCollectionInfo struct {
 	Points              int64  `json:"points"`
 	HasNamedDenseVector bool   `json:"has_named_dense_vector"`
 	HasSparseVector     bool   `json:"has_sparse_vector"`
+	PayloadSchemaKeys   []string
 }
 
 // SparseVector 表示稀疏向量。

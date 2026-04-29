@@ -13,70 +13,47 @@ SET content = ?,
     metadata = ?,
     point_id = ?,
     word_count = ?,
+    sync_status = ?,
+    sync_times = ?,
+    sync_status_message = ?,
     updated_uid = ?,
     updated_at = ?
 WHERE id = ?
   AND deleted_at IS NULL;
 
 -- name: FindFragmentByID :one
-SELECT id, knowledge_code, document_code, content,
-       COALESCE(metadata, CAST('null' AS JSON)) AS metadata, business_id,
-       sync_status, sync_times, sync_status_message, point_id, word_count,
-       created_uid, updated_uid, created_at, updated_at, deleted_at
+SELECT *
 FROM magic_flow_knowledge_fragment
 WHERE id = ?
   AND deleted_at IS NULL;
 
--- name: FindFragmentByPointID :one
-SELECT id, knowledge_code, document_code, content,
-       COALESCE(metadata, CAST('null' AS JSON)) AS metadata, business_id,
-       sync_status, sync_times, sync_status_message, point_id, word_count,
-       created_uid, updated_uid, created_at, updated_at, deleted_at
-FROM magic_flow_knowledge_fragment
-WHERE point_id = ?
-  AND deleted_at IS NULL
-LIMIT 1;
-
 -- name: FindFragmentsByPointIDs :many
-SELECT id, knowledge_code, document_code, content,
-       COALESCE(metadata, CAST('null' AS JSON)) AS metadata, business_id,
-       sync_status, sync_times, sync_status_message, point_id, word_count,
-       created_uid, updated_uid, created_at, updated_at, deleted_at
+SELECT *
 FROM magic_flow_knowledge_fragment
 WHERE deleted_at IS NULL
   AND point_id IN (sqlc.slice(point_ids))
 ORDER BY id ASC;
 
--- name: CountFragments :one
+-- name: CountFragmentsByKnowledge :one
 SELECT COUNT(*)
 FROM magic_flow_knowledge_fragment
 WHERE deleted_at IS NULL
-  AND (sqlc.narg(knowledge_code) IS NULL OR knowledge_code = sqlc.narg(knowledge_code))
-  AND (sqlc.narg(document_code) IS NULL OR document_code = sqlc.narg(document_code))
-  AND (sqlc.narg(business_id) IS NULL OR business_id = sqlc.narg(business_id))
-  AND (sqlc.narg(content_like) IS NULL OR content LIKE sqlc.narg(content_like))
-  AND (sqlc.narg(sync_status) IS NULL OR sync_status = sqlc.narg(sync_status));
+  AND knowledge_code = sqlc.arg(knowledge_code)
+  AND content LIKE sqlc.arg(content_like)
+  AND sync_status IN (sqlc.slice(sync_status_values));
 
--- name: ListFragments :many
-SELECT id, knowledge_code, document_code, content,
-       COALESCE(metadata, CAST('null' AS JSON)) AS metadata, business_id,
-       sync_status, sync_times, sync_status_message, point_id, word_count,
-       created_uid, updated_uid, created_at, updated_at, deleted_at
+-- name: ListFragmentsByKnowledge :many
+SELECT *
 FROM magic_flow_knowledge_fragment
 WHERE deleted_at IS NULL
-  AND (sqlc.narg(knowledge_code) IS NULL OR knowledge_code = sqlc.narg(knowledge_code))
-  AND (sqlc.narg(document_code) IS NULL OR document_code = sqlc.narg(document_code))
-  AND (sqlc.narg(business_id) IS NULL OR business_id = sqlc.narg(business_id))
-  AND (sqlc.narg(content_like) IS NULL OR content LIKE sqlc.narg(content_like))
-  AND (sqlc.narg(sync_status) IS NULL OR sync_status = sqlc.narg(sync_status))
+  AND knowledge_code = sqlc.arg(knowledge_code)
+  AND content LIKE sqlc.arg(content_like)
+  AND sync_status IN (sqlc.slice(sync_status_values))
 ORDER BY id ASC
 LIMIT ? OFFSET ?;
 
 -- name: ListPendingFragments :many
-SELECT id, knowledge_code, document_code, content,
-       COALESCE(metadata, CAST('null' AS JSON)) AS metadata, business_id,
-       sync_status, sync_times, sync_status_message, point_id, word_count,
-       created_uid, updated_uid, created_at, updated_at, deleted_at
+SELECT *
 FROM magic_flow_knowledge_fragment
 WHERE knowledge_code = ?
   AND sync_status IN (?, ?)
@@ -88,10 +65,19 @@ LIMIT ?;
 DELETE FROM magic_flow_knowledge_fragment
 WHERE id = ?;
 
+-- name: DeleteFragmentsByIDs :execrows
+DELETE FROM magic_flow_knowledge_fragment
+WHERE id IN (sqlc.slice(ids));
+
 -- name: DeleteFragmentsByDocument :execrows
 DELETE FROM magic_flow_knowledge_fragment
 WHERE knowledge_code = ?
   AND document_code = ?;
+
+-- name: DeleteFragmentsByDocumentCodes :execrows
+DELETE FROM magic_flow_knowledge_fragment
+WHERE knowledge_code = sqlc.arg(knowledge_code)
+  AND document_code IN (sqlc.slice(document_codes));
 
 -- name: CountFragmentsByKnowledgeAndDocument :one
 SELECT COUNT(*)
@@ -101,16 +87,63 @@ WHERE deleted_at IS NULL
   AND document_code = ?;
 
 -- name: ListFragmentsByKnowledgeAndDocument :many
-SELECT id, knowledge_code, document_code, content,
-       COALESCE(metadata, CAST('null' AS JSON)) AS metadata, business_id,
-       sync_status, sync_times, sync_status_message, point_id, word_count,
-       created_uid, updated_uid, created_at, updated_at, deleted_at
+SELECT *
 FROM magic_flow_knowledge_fragment
 WHERE deleted_at IS NULL
   AND knowledge_code = ?
   AND document_code = ?
 ORDER BY id ASC
 LIMIT ? OFFSET ?;
+
+-- name: CountFragmentsByKnowledgeAndDocumentFiltered :one
+SELECT COUNT(*)
+FROM magic_flow_knowledge_fragment
+WHERE deleted_at IS NULL
+  AND knowledge_code = sqlc.arg(knowledge_code)
+  AND document_code = sqlc.arg(document_code)
+  AND content LIKE sqlc.arg(content_like)
+  AND sync_status IN (sqlc.slice(sync_status_values));
+
+-- name: ListFragmentsByKnowledgeAndDocumentFiltered :many
+SELECT *
+FROM magic_flow_knowledge_fragment
+WHERE deleted_at IS NULL
+  AND knowledge_code = sqlc.arg(knowledge_code)
+  AND document_code = sqlc.arg(document_code)
+  AND content LIKE sqlc.arg(content_like)
+  AND sync_status IN (sqlc.slice(sync_status_values))
+ORDER BY id ASC
+LIMIT ? OFFSET ?;
+
+-- name: CountFragmentsByKnowledgeAndBusinessID :one
+SELECT COUNT(*)
+FROM magic_flow_knowledge_fragment
+WHERE deleted_at IS NULL
+  AND knowledge_code = sqlc.arg(knowledge_code)
+  AND business_id = sqlc.arg(business_id)
+  AND content LIKE sqlc.arg(content_like)
+  AND sync_status IN (sqlc.slice(sync_status_values));
+
+-- name: ListFragmentsByKnowledgeAndBusinessID :many
+SELECT *
+FROM magic_flow_knowledge_fragment
+WHERE deleted_at IS NULL
+  AND knowledge_code = sqlc.arg(knowledge_code)
+  AND business_id = sqlc.arg(business_id)
+  AND content LIKE sqlc.arg(content_like)
+  AND sync_status IN (sqlc.slice(sync_status_values))
+ORDER BY id ASC
+LIMIT ? OFFSET ?;
+
+-- name: ListFragmentsByKnowledgeAndDocumentAfterID :many
+SELECT *
+FROM magic_flow_knowledge_fragment
+WHERE deleted_at IS NULL
+  AND knowledge_code = ?
+  AND document_code = ?
+  AND id > ?
+ORDER BY id ASC
+LIMIT ?;
 
 -- name: DeleteFragmentsByKnowledgeBase :execrows
 DELETE FROM magic_flow_knowledge_fragment
@@ -139,10 +172,7 @@ WHERE knowledge_code = ?
   AND deleted_at IS NULL;
 
 -- name: FindFragmentsByIDs :many
-SELECT id, knowledge_code, document_code, content,
-       COALESCE(metadata, CAST('null' AS JSON)) AS metadata, business_id,
-       sync_status, sync_times, sync_status_message, point_id, word_count,
-       created_uid, updated_uid, created_at, updated_at, deleted_at
+SELECT *
 FROM magic_flow_knowledge_fragment
 WHERE deleted_at IS NULL
   AND id IN (sqlc.slice(ids))
@@ -169,55 +199,72 @@ WHERE deleted_at IS NULL
 GROUP BY knowledge_code
 ORDER BY knowledge_code ASC;
 
--- name: ListThirdFileRepairOrganizationCodes :many
-SELECT DISTINCT kb.organization_code
-FROM magic_flow_knowledge_fragment AS f
-INNER JOIN magic_flow_knowledge AS kb
-	ON kb.code = f.knowledge_code
-	AND kb.deleted_at IS NULL
-WHERE f.deleted_at IS NULL
-  AND JSON_UNQUOTE(JSON_EXTRACT(f.metadata, '$.file_id')) <> ''
-ORDER BY kb.organization_code ASC;
+-- name: ListFragmentsMissingDocumentCodeByKnowledge :many
+SELECT *
+FROM magic_flow_knowledge_fragment
+WHERE deleted_at IS NULL
+  AND (document_code = '' OR document_code IS NULL)
+  AND knowledge_code = sqlc.arg(knowledge_code)
+  AND id > sqlc.arg(start_id)
+ORDER BY id ASC
+LIMIT ?;
 
--- name: ListThirdFileRepairGroups :many
-SELECT
-	f.knowledge_code,
-	JSON_UNQUOTE(JSON_EXTRACT(f.metadata, '$.file_id')) AS third_file_id,
-	COALESCE(MIN(NULLIF(JSON_UNQUOTE(JSON_EXTRACT(f.metadata, '$.knowledge_base_id')), '')), '') AS knowledge_base_id,
-	COALESCE(
-		MIN(NULLIF(JSON_UNQUOTE(JSON_EXTRACT(f.metadata, '$.group_ref')), '')),
-		MIN(NULLIF(JSON_UNQUOTE(JSON_EXTRACT(f.metadata, '$.folder_id')), '')),
-		MIN(NULLIF(JSON_UNQUOTE(JSON_EXTRACT(f.metadata, '$.parent_id')), '')),
-		''
-	) AS group_ref,
-	COALESCE(MIN(NULLIF(JSON_UNQUOTE(JSON_EXTRACT(f.metadata, '$.third_file_type')), '')), '') AS third_file_type,
-	COALESCE(MIN(NULLIF(f.document_code, '')), '') AS document_code,
-	COALESCE(MIN(NULLIF(JSON_UNQUOTE(JSON_EXTRACT(f.metadata, '$.document_name')), '')), '') AS document_name,
-	COALESCE(MIN(NULLIF(JSON_UNQUOTE(JSON_EXTRACT(f.metadata, '$.url')), '')), '') AS preview_url,
-	COALESCE(MIN(NULLIF(f.created_uid, '')), '') AS created_uid,
-	COALESCE(MIN(NULLIF(f.updated_uid, '')), '') AS updated_uid,
-	COUNT(*) AS fragment_count,
-	COALESCE(SUM(CASE WHEN f.document_code = '' OR f.document_code IS NULL THEN 1 ELSE 0 END), 0) AS missing_document_code_count
-FROM magic_flow_knowledge_fragment AS f
-INNER JOIN magic_flow_knowledge AS kb
-	ON kb.code = f.knowledge_code
-	AND kb.deleted_at IS NULL
-WHERE f.deleted_at IS NULL
-  AND kb.organization_code = ?
-  AND JSON_UNQUOTE(JSON_EXTRACT(f.metadata, '$.file_id')) <> ''
-GROUP BY f.knowledge_code, JSON_UNQUOTE(JSON_EXTRACT(f.metadata, '$.file_id'))
-ORDER BY f.knowledge_code ASC, third_file_id ASC
+-- name: ListFragmentsMissingDocumentCodeByKnowledgeCodes :many
+SELECT *
+FROM magic_flow_knowledge_fragment
+WHERE deleted_at IS NULL
+  AND (document_code = '' OR document_code IS NULL)
+  AND knowledge_code IN (sqlc.slice(knowledge_codes))
+  AND id > sqlc.arg(start_id)
+ORDER BY id ASC
+LIMIT ?;
+
+-- name: BackfillFragmentDocumentCodeByIDs :execrows
+UPDATE magic_flow_knowledge_fragment
+SET document_code = sqlc.arg(document_code),
+    updated_at = sqlc.arg(updated_at)
+WHERE deleted_at IS NULL
+  AND (document_code = '' OR document_code IS NULL)
+  AND id IN (sqlc.slice(ids));
+
+-- name: BackfillFragmentDocumentCodeByThirdFile :execrows
+UPDATE magic_flow_knowledge_fragment
+SET document_code = sqlc.arg(document_code),
+    updated_at = sqlc.arg(updated_at)
+WHERE deleted_at IS NULL
+  AND (document_code = '' OR document_code IS NULL)
+  AND knowledge_code = sqlc.arg(knowledge_code)
+  AND JSON_UNQUOTE(JSON_EXTRACT(metadata, '$.file_id')) = CAST(sqlc.arg(third_file_id) AS CHAR(255));
+
+-- name: ListThirdFileRepairKnowledgeCodes :many
+SELECT DISTINCT knowledge_code
+FROM magic_flow_knowledge_fragment
+WHERE deleted_at IS NULL
+  AND JSON_UNQUOTE(JSON_EXTRACT(metadata, '$.file_id')) <> ''
+ORDER BY knowledge_code ASC;
+
+-- name: ListThirdFileRepairGroupsByKnowledgeCodes :many
+SELECT knowledge_code,
+       JSON_UNQUOTE(JSON_EXTRACT(metadata, '$.file_id')) AS third_file_id,
+       COALESCE(MIN(NULLIF(JSON_UNQUOTE(JSON_EXTRACT(metadata, '$.knowledge_base_id')), '')), '') AS knowledge_base_id,
+       COALESCE(
+         MIN(NULLIF(JSON_UNQUOTE(JSON_EXTRACT(metadata, '$.group_ref')), '')),
+         MIN(NULLIF(JSON_UNQUOTE(JSON_EXTRACT(metadata, '$.folder_id')), '')),
+         MIN(NULLIF(JSON_UNQUOTE(JSON_EXTRACT(metadata, '$.parent_id')), '')),
+         ''
+       ) AS group_ref,
+       COALESCE(MIN(NULLIF(JSON_UNQUOTE(JSON_EXTRACT(metadata, '$.third_file_type')), '')), '') AS third_file_type,
+       COALESCE(MIN(NULLIF(document_code, '')), '') AS document_code,
+       COALESCE(MIN(NULLIF(JSON_UNQUOTE(JSON_EXTRACT(metadata, '$.document_name')), '')), '') AS document_name,
+       COALESCE(MIN(NULLIF(JSON_UNQUOTE(JSON_EXTRACT(metadata, '$.url')), '')), '') AS preview_url,
+       COALESCE(MIN(NULLIF(created_uid, '')), '') AS created_uid,
+       COALESCE(MIN(NULLIF(updated_uid, '')), '') AS updated_uid,
+       COUNT(*) AS fragment_count,
+       COALESCE(SUM(CASE WHEN document_code = '' OR document_code IS NULL THEN 1 ELSE 0 END), 0) AS missing_document_code_count
+FROM magic_flow_knowledge_fragment
+WHERE deleted_at IS NULL
+  AND JSON_UNQUOTE(JSON_EXTRACT(metadata, '$.file_id')) <> ''
+  AND knowledge_code IN (sqlc.slice(knowledge_codes))
+GROUP BY knowledge_code, JSON_UNQUOTE(JSON_EXTRACT(metadata, '$.file_id'))
+ORDER BY knowledge_code ASC, third_file_id ASC
 LIMIT ? OFFSET ?;
-
--- name: BackfillDocumentCodeByThirdFile :execrows
-UPDATE magic_flow_knowledge_fragment AS f
-INNER JOIN magic_flow_knowledge AS kb
-	ON kb.code = f.knowledge_code
-	AND kb.deleted_at IS NULL
-SET f.document_code = ?,
-    f.updated_at = ?
-WHERE f.deleted_at IS NULL
-  AND (f.document_code = '' OR f.document_code IS NULL)
-  AND kb.organization_code = ?
-  AND f.knowledge_code = ?
-  AND JSON_UNQUOTE(JSON_EXTRACT(f.metadata, '$.file_id')) = CAST(sqlc.arg(third_file_id) AS CHAR(255));

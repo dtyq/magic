@@ -111,6 +111,44 @@ func (q *Queries) ListKnowledgeBaseBindingIDs(ctx context.Context, arg ListKnowl
 	return items, nil
 }
 
+const listKnowledgeBaseBindingIDsByOrgAndCode = `-- name: ListKnowledgeBaseBindingIDsByOrgAndCode :many
+SELECT bind_id
+FROM knowledge_base_bindings
+WHERE organization_code = ?
+  AND knowledge_base_code = ?
+  AND bind_type = ?
+ORDER BY id ASC
+`
+
+type ListKnowledgeBaseBindingIDsByOrgAndCodeParams struct {
+	OrganizationCode  string `json:"organization_code"`
+	KnowledgeBaseCode string `json:"knowledge_base_code"`
+	BindType          string `json:"bind_type"`
+}
+
+func (q *Queries) ListKnowledgeBaseBindingIDsByOrgAndCode(ctx context.Context, arg ListKnowledgeBaseBindingIDsByOrgAndCodeParams) ([]string, error) {
+	rows, err := q.db.QueryContext(ctx, listKnowledgeBaseBindingIDsByOrgAndCode, arg.OrganizationCode, arg.KnowledgeBaseCode, arg.BindType)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []string{}
+	for rows.Next() {
+		var bind_id string
+		if err := rows.Scan(&bind_id); err != nil {
+			return nil, err
+		}
+		items = append(items, bind_id)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listKnowledgeBaseBindingPairsByCodes = `-- name: ListKnowledgeBaseBindingPairsByCodes :many
 SELECT knowledge_base_code, bind_id
 FROM knowledge_base_bindings

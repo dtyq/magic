@@ -69,3 +69,53 @@ func TestKnowledgeBaseHelpers(t *testing.T) {
 		t.Fatalf("expected large vector size %d, got %d", entity.VectorSize3Large, got)
 	}
 }
+
+func TestKnowledgeBaseIsVectorizationCompleted(t *testing.T) {
+	t.Parallel()
+
+	testCases := []struct {
+		name          string
+		knowledgeBase *entity.KnowledgeBase
+		want          bool
+	}{
+		{
+			name:          "nil knowledge base",
+			knowledgeBase: nil,
+			want:          false,
+		},
+		{
+			name: "empty knowledge base",
+			knowledgeBase: &entity.KnowledgeBase{
+				ExpectedNum:  0,
+				CompletedNum: 0,
+			},
+			want: true,
+		},
+		{
+			name: "completed knowledge base",
+			knowledgeBase: &entity.KnowledgeBase{
+				ExpectedNum:  7,
+				CompletedNum: 7,
+			},
+			want: true,
+		},
+		{
+			name: "processing knowledge base",
+			knowledgeBase: &entity.KnowledgeBase{
+				ExpectedNum:  7,
+				CompletedNum: 3,
+			},
+			want: false,
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			if got := tc.knowledgeBase.IsVectorizationCompleted(); got != tc.want {
+				t.Fatalf("expected completed=%t, got %t", tc.want, got)
+			}
+		})
+	}
+}

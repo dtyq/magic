@@ -6,6 +6,7 @@ import (
 
 	fragmodel "magic/internal/domain/knowledge/fragment/model"
 	fragretrieval "magic/internal/domain/knowledge/fragment/retrieval"
+	sharedsnapshot "magic/internal/domain/knowledge/shared/snapshot"
 )
 
 func (s *FragmentDomainService) retrievalService() *fragretrieval.Service {
@@ -26,7 +27,7 @@ func (s *FragmentDomainService) WarmupRetrieval(ctx context.Context) error {
 // Similarity 执行片段相似度检索。
 func (s *FragmentDomainService) Similarity(
 	ctx context.Context,
-	kb any,
+	kb *sharedsnapshot.KnowledgeBaseRuntimeSnapshot,
 	req fragretrieval.SimilarityRequest,
 ) ([]*fragmodel.SimilarityResult, error) {
 	results, err := s.retrievalService().Similarity(ctx, kb, req)

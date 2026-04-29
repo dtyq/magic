@@ -12,7 +12,7 @@ import (
 )
 
 func TestBuildCandidateAnalysisSnapshotMatchesLegacyHelpers(t *testing.T) {
-	result := &fragmodel.VectorSearchResult[fragmodel.FragmentPayload]{
+	result := &shared.VectorSearchResult[fragmodel.FragmentPayload]{
 		ID:      "fragment-1",
 		Score:   0.82,
 		Content: "小哥 提到 录音 纪要 原文 显示 质量 问题，并建议优化录音质量与原文显示。",
@@ -75,7 +75,7 @@ func BenchmarkScoreSimilarityResultsWithCandidateSnapshots(b *testing.B) {
 	}
 	query := "小哥对录音纪要提出了哪些问题"
 
-	for _, candidateCount := range []int{20, 50, 100} {
+	for _, candidateCount := range []int{20, 30, 40, 50, 100} {
 		b.Run(strings.Join([]string{"candidates", strconv.Itoa(candidateCount)}, "_"), func(b *testing.B) {
 			results := buildBenchmarkSimilarityResults(candidateCount)
 			b.ReportAllocs()
@@ -87,10 +87,10 @@ func BenchmarkScoreSimilarityResultsWithCandidateSnapshots(b *testing.B) {
 	}
 }
 
-func buildBenchmarkSimilarityResults(count int) []*fragmodel.VectorSearchResult[fragmodel.FragmentPayload] {
-	results := make([]*fragmodel.VectorSearchResult[fragmodel.FragmentPayload], 0, count)
+func buildBenchmarkSimilarityResults(count int) []*shared.VectorSearchResult[fragmodel.FragmentPayload] {
+	results := make([]*shared.VectorSearchResult[fragmodel.FragmentPayload], 0, count)
 	for i := range count {
-		results = append(results, &fragmodel.VectorSearchResult[fragmodel.FragmentPayload]{
+		results = append(results, &shared.VectorSearchResult[fragmodel.FragmentPayload]{
 			ID:    "fragment-" + strconv.Itoa(i),
 			Score: 0.45 + float64(i%10)*0.03,
 			Content: strings.Repeat(

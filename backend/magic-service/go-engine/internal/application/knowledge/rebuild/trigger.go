@@ -63,7 +63,7 @@ func (s *TriggerService) runAsync(ctx context.Context, opts rebuilddto.RunOption
 	defer s.clearPendingRunID(runID)
 
 	if _, err := s.runner.Run(ctx, opts); err != nil && s.logger != nil {
-		s.logger.ErrorContext(ctx, "Knowledge rebuild run failed", "run_id", runID, "error", err)
+		s.logger.KnowledgeErrorContext(ctx, "Knowledge rebuild run failed", "run_id", runID, "error", err)
 	}
 }
 

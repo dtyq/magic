@@ -7,88 +7,57 @@ declare(strict_types=1);
 
 namespace HyperfTest\Cases\Application\Kernel;
 
+use App\Infrastructure\Rpc\Lifecycle\GoEngineBootstrapService;
 use App\Infrastructure\Rpc\Listener\StartRpcClientListener;
-use Hyperf\Contract\ConfigInterface;
+use Hyperf\Framework\Event\OnWorkerStop;
+use Hyperf\Server\Event\MainCoroutineServerStart;
 use Mockery;
 use PHPUnit\Framework\TestCase;
-use Psr\Container\ContainerInterface;
-use ReflectionMethod;
+use ReflectionProperty;
+use Swoole\Server;
 
 /**
  * @internal
  */
 class StartRpcClientListenerTest extends TestCase
 {
-    /** @var resource[] */
-    private array $socketServers = [];
-
-    /** @var string[] */
-    private array $socketPaths = [];
-
     protected function tearDown(): void
     {
-        foreach ($this->socketServers as $server) {
-            if (is_resource($server)) {
-                fclose($server);
-            }
-        }
-        $this->socketServers = [];
-
-        foreach ($this->socketPaths as $path) {
-            @unlink($path);
-        }
-        $this->socketPaths = [];
+        $started = new ReflectionProperty(StartRpcClientListener::class, 'started');
+        $started->setAccessible(true);
+        $started->setValue(null, false);
 
         Mockery::close();
     }
 
-    public function testWaitForSocketReadyReturnsTrueWhenSocketIsReady(): void
+    public function testProcessBootsBootstrapServiceOnMainServerStart(): void
     {
-        $socketPath = $this->createUnixSocketServer();
-        $listener = $this->createListener();
+        $bootstrapService = Mockery::mock(GoEngineBootstrapService::class);
+        $bootstrapService->shouldReceive('boot')->once();
 
-        $method = new ReflectionMethod(StartRpcClientListener::class, 'waitForSocketReady');
-        $method->setAccessible(true);
-        $result = $method->invoke($listener, $socketPath, 1, 50);
-
-        $this->assertTrue($result);
+        $listener = new StartRpcClientListener($bootstrapService);
+        $listener->process(new MainCoroutineServerStart('http', null, []));
+        $this->addToAssertionCount(1);
     }
 
-    public function testWaitForSocketReadyReturnsFalseAfterTimeout(): void
+    public function testProcessShutsDownBootstrapServiceOnWorkerZeroStop(): void
     {
-        $listener = $this->createListener();
-        $path = sys_get_temp_dir() . '/magic-heartbeat-timeout-' . uniqid('', true) . '.sock';
-        @unlink($path);
+        $bootstrapService = Mockery::mock(GoEngineBootstrapService::class);
+        $bootstrapService->shouldReceive('shutdown')->once();
 
-        $method = new ReflectionMethod(StartRpcClientListener::class, 'waitForSocketReady');
-        $method->setAccessible(true);
-        $result = $method->invoke($listener, $path, 1, 50);
-
-        $this->assertFalse($result);
+        $listener = new StartRpcClientListener($bootstrapService);
+        $workerStop = new OnWorkerStop(Mockery::mock(Server::class), 0);
+        $listener->process($workerStop);
+        $this->addToAssertionCount(1);
     }
 
-    private function createListener(): StartRpcClientListener
+    public function testProcessIgnoresNonZeroWorkerStop(): void
     {
-        $container = Mockery::mock(ContainerInterface::class);
-        $config = Mockery::mock(ConfigInterface::class);
-        return new StartRpcClientListener($container, $config);
-    }
+        $bootstrapService = Mockery::mock(GoEngineBootstrapService::class);
+        $bootstrapService->shouldNotReceive('shutdown');
 
-    private function createUnixSocketServer(): string
-    {
-        $path = sys_get_temp_dir() . '/magic-listener-' . uniqid('', true) . '.sock';
-        @unlink($path);
-
-        $server = stream_socket_server(
-            'unix://' . $path,
-            $errno,
-            $errstr,
-            STREAM_SERVER_BIND | STREAM_SERVER_LISTEN
-        );
-        $this->assertNotFalse($server, sprintf('failed to create unix socket server: %s (%d)', $errstr, $errno));
-
-        $this->socketServers[] = $server;
-        $this->socketPaths[] = $path;
-        return $path;
+        $listener = new StartRpcClientListener($bootstrapService);
+        $listener->process(new OnWorkerStop(Mockery::mock(Server::class), 1));
+        $this->addToAssertionCount(1);
     }
 }

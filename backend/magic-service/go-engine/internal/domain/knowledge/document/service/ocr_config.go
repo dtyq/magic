@@ -3,6 +3,7 @@ package document
 import (
 	"context"
 	"errors"
+	"fmt"
 	"strings"
 
 	"magic/internal/domain/knowledge/shared"
@@ -44,6 +45,46 @@ type OCRProviderConfig struct {
 	Enable    bool   `json:"enable"`
 	AccessKey string `json:"access_key"`
 	SecretKey string `json:"secret_key"`
+}
+
+// OCROverloadedError 表示 OCR provider 当前限流或配额过载，适合稍后重试。
+type OCROverloadedError struct {
+	Provider string
+	Err      error
+}
+
+// NewOCROverloadedError 创建 OCR 过载错误。
+func NewOCROverloadedError(provider string, err error) error {
+	if err == nil {
+		return nil
+	}
+	return &OCROverloadedError{
+		Provider: strings.TrimSpace(provider),
+		Err:      err,
+	}
+}
+
+func (e *OCROverloadedError) Error() string {
+	if e == nil {
+		return ""
+	}
+	if e.Provider == "" {
+		return fmt.Sprintf("ocr provider overloaded: %v", e.Err)
+	}
+	return fmt.Sprintf("ocr provider %s overloaded: %v", e.Provider, e.Err)
+}
+
+func (e *OCROverloadedError) Unwrap() error {
+	if e == nil {
+		return nil
+	}
+	return e.Err
+}
+
+// IsOCROverloaded 判断错误链中是否包含 OCR 过载错误。
+func IsOCROverloaded(err error) bool {
+	var overload *OCROverloadedError
+	return errors.As(err, &overload)
 }
 
 // ResolveVolcengineConfig 校验 OCR 能力并提取火山 OCR 配置。

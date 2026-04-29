@@ -8,7 +8,7 @@ import (
 
 	"github.com/DATA-DOG/go-sqlmock"
 
-	documentdomain "magic/internal/domain/knowledge/document/service"
+	docentity "magic/internal/domain/knowledge/document/entity"
 	mysqlclient "magic/internal/infrastructure/persistence/mysql"
 	ocrcache "magic/internal/infrastructure/persistence/mysql/knowledge/document/ocrcache"
 )
@@ -51,7 +51,7 @@ ON DUPLICATE KEY UPDATE
 		).
 		WillReturnResult(sqlmock.NewResult(1, 1))
 
-	err = repo.UpsertURLCache(context.Background(), &documentdomain.OCRResultCache{
+	err = repo.UpsertURLCache(context.Background(), &docentity.OCRResultCache{
 		TextHash:       "hash-url",
 		EmbeddingModel: "ocr:volcengine:url",
 		Content:        "识别结果内容超长截断测试",

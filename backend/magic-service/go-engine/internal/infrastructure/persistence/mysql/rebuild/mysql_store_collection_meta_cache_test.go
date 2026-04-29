@@ -11,7 +11,7 @@ import (
 	"github.com/redis/go-redis/v9"
 
 	"magic/internal/constants"
-	domainrebuild "magic/internal/domain/knowledge/rebuild"
+	sharedroute "magic/internal/domain/knowledge/shared/route"
 	mysqlrebuild "magic/internal/infrastructure/persistence/mysql/rebuild"
 )
 
@@ -28,7 +28,8 @@ func TestMySQLStoreGetCollectionMetaUsesRedisCache(t *testing.T) {
 	defer redisServer.Close()
 
 	store := mysqlrebuild.NewMySQLStoreWithCollectionMetaCache(db, redisClient, nil)
-	mock.ExpectQuery(regexp.QuoteMeta(`SELECT model, COALESCE(embedding_config, CAST('{}' AS JSON)) AS embedding_config
+	mock.ExpectQuery(regexp.QuoteMeta(`SELECT model,
+       embedding_config
 FROM magic_flow_knowledge
 WHERE code = ?
   AND deleted_at IS NULL
@@ -69,7 +70,8 @@ func TestMySQLStoreGetCollectionMetaCachesNoRows(t *testing.T) {
 	defer redisServer.Close()
 
 	store := mysqlrebuild.NewMySQLStoreWithCollectionMetaCache(db, redisClient, nil)
-	mock.ExpectQuery(regexp.QuoteMeta(`SELECT model, COALESCE(embedding_config, CAST('{}' AS JSON)) AS embedding_config
+	mock.ExpectQuery(regexp.QuoteMeta(`SELECT model,
+       embedding_config
 FROM magic_flow_knowledge
 WHERE code = ?
   AND deleted_at IS NULL
@@ -107,7 +109,7 @@ func TestMySQLStoreUpsertCollectionMetaRefreshesRedisCache(t *testing.T) {
 	defer redisServer.Close()
 
 	store := mysqlrebuild.NewMySQLStoreWithCollectionMetaCache(db, redisClient, nil)
-	meta := domainrebuild.CollectionMeta{
+	meta := sharedroute.CollectionMeta{
 		CollectionName:         "magic_knowledge",
 		PhysicalCollectionName: "magic_knowledge_r2",
 		Model:                  "text-embedding-3-large",

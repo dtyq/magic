@@ -14,3 +14,13 @@ sql:
         emit_interface: false
         emit_json_tags: true
         emit_empty_slices: true
+        overrides:
+          - db_type: "json"
+            go_type:
+              type: "byte"
+              slice: true
+          - db_type: "json"
+            nullable: true
+            go_type:
+              type: "byte"
+              slice: true

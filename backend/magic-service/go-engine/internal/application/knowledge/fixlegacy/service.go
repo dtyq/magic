@@ -3,18 +3,22 @@ package fixlegacy
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"slices"
 	"sync"
 
 	"golang.org/x/sync/errgroup"
 
-	"magic/internal/domain/knowledge/document/service"
+	docentity "magic/internal/domain/knowledge/document/entity"
 	fragmodel "magic/internal/domain/knowledge/fragment/model"
-	"magic/internal/domain/knowledge/knowledgebase/service"
+	kbentity "magic/internal/domain/knowledge/knowledgebase/entity"
+	"magic/internal/domain/knowledge/shared"
+	sharedroute "magic/internal/domain/knowledge/shared/route"
 	sharedsnapshot "magic/internal/domain/knowledge/shared/snapshot"
 	"magic/internal/infrastructure/logging"
 	"magic/internal/pkg/ctxmeta"
+	"magic/internal/pkg/runguard"
 )
 
 const (
@@ -22,6 +26,8 @@ const (
 	defaultSyncConcurrency = 4
 	maxFailureSamples      = 10
 )
+
+var errFixLegacyGroupPanic = errors.New("fix legacy group panic")
 
 // ScanQuery 定义空 document_code 片段扫描条件。
 type ScanQuery struct {
@@ -38,16 +44,16 @@ type fragmentRepository interface {
 }
 
 type knowledgeBaseReader interface {
-	Show(ctx context.Context, code string) (*knowledgebase.KnowledgeBase, error)
-	ShowByCodeAndOrg(ctx context.Context, code, orgCode string) (*knowledgebase.KnowledgeBase, error)
+	Show(ctx context.Context, code string) (*kbentity.KnowledgeBase, error)
+	ShowByCodeAndOrg(ctx context.Context, code, orgCode string) (*kbentity.KnowledgeBase, error)
 }
 
 type defaultDocumentEnsurer interface {
-	EnsureDefaultDocument(ctx context.Context, kb *sharedsnapshot.KnowledgeBaseRuntimeSnapshot) (*document.KnowledgeBaseDocument, bool, error)
+	EnsureDefaultDocument(ctx context.Context, kb *sharedsnapshot.KnowledgeBaseRuntimeSnapshot) (*docentity.KnowledgeBaseDocument, bool, error)
 }
 
 type fragmentBatchSyncer interface {
-	SyncFragmentBatch(ctx context.Context, kb any, fragments []*fragmodel.KnowledgeBaseFragment, businessParams *ctxmeta.BusinessParams) error
+	SyncFragmentBatch(ctx context.Context, kb *sharedsnapshot.KnowledgeBaseRuntimeSnapshot, fragments []*fragmodel.KnowledgeBaseFragment, businessParams *ctxmeta.BusinessParams) error
 }
 
 // Options 定义修复任务参数。
@@ -94,7 +100,7 @@ type Runner struct {
 	logger    *logging.SugaredLogger
 }
 
-func knowledgeBaseSnapshotFromDomain(kb *knowledgebase.KnowledgeBase) *sharedsnapshot.KnowledgeBaseRuntimeSnapshot {
+func knowledgeBaseSnapshotFromDomain(kb *kbentity.KnowledgeBase) *sharedsnapshot.KnowledgeBaseRuntimeSnapshot {
 	if kb == nil {
 		return nil
 	}
@@ -106,10 +112,10 @@ func knowledgeBaseSnapshotFromDomain(kb *knowledgebase.KnowledgeBase) *sharedsna
 		VectorDB:         kb.VectorDB,
 		CreatedUID:       kb.CreatedUID,
 		UpdatedUID:       kb.UpdatedUID,
-		RetrieveConfig:   kb.RetrieveConfig,
-		FragmentConfig:   kb.FragmentConfig,
-		EmbeddingConfig:  kb.EmbeddingConfig,
-		ResolvedRoute:    kb.ResolvedRoute,
+		RetrieveConfig:   shared.CloneRetrieveConfig(kb.RetrieveConfig),
+		FragmentConfig:   shared.CloneFragmentConfig(kb.FragmentConfig),
+		EmbeddingConfig:  shared.CloneEmbeddingConfig(kb.EmbeddingConfig),
+		ResolvedRoute:    sharedroute.CloneResolvedRoute(kb.ResolvedRoute),
 	})
 }
 
@@ -205,7 +211,18 @@ func (r *Runner) processBatch(
 
 	for _, knowledgeCode := range keys {
 		fragments := grouped[knowledgeCode]
-		eg.Go(func() error {
+		eg.Go(func() (err error) {
+			defer runguard.Recover(ctx, runguard.Options{
+				Scope:  "knowledge.fixlegacy.group",
+				Policy: runguard.Continue,
+				Fields: []any{"knowledge_base_code", knowledgeCode},
+				OnPanic: func(ctx context.Context, report runguard.Report) {
+					if r.logger != nil {
+						r.logger.KnowledgeErrorContext(ctx, "Fix legacy group goroutine panic recovered", report.Fields...)
+					}
+					err = fmt.Errorf("%w: %v", errFixLegacyGroupPanic, report.Recovered)
+				},
+			})
 			groupResult := r.processKnowledgeGroup(ctx, options, knowledgeCode, fragments)
 			mu.Lock()
 			defer mu.Unlock()
@@ -268,7 +285,7 @@ func (r *Runner) processKnowledgeGroup(
 		fragment.DocumentType = defaultDoc.DocType
 	}
 
-	if err := r.syncer.SyncFragmentBatch(ctx, kb, reloaded, &ctxmeta.BusinessParams{
+	if err := r.syncer.SyncFragmentBatch(ctx, knowledgeBaseSnapshotFromDomain(kb), reloaded, &ctxmeta.BusinessParams{
 		OrganizationCode: kb.OrganizationCode,
 	}); err != nil {
 		return result.withFailure(knowledgeCode, ids, fmt.Sprintf("sync fragment batch: %v", err))
@@ -278,7 +295,7 @@ func (r *Runner) processKnowledgeGroup(
 	return result
 }
 
-func (r *Runner) loadKnowledgeBase(ctx context.Context, knowledgeCode, organizationCode string) (*knowledgebase.KnowledgeBase, error) {
+func (r *Runner) loadKnowledgeBase(ctx context.Context, knowledgeCode, organizationCode string) (*kbentity.KnowledgeBase, error) {
 	if organizationCode != "" {
 		kb, err := r.knowledge.ShowByCodeAndOrg(ctx, knowledgeCode, organizationCode)
 		if err != nil {

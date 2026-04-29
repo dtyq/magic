@@ -178,6 +178,64 @@ func TestRunnerDoesNotCacheTransientDiffFailure(t *testing.T) {
 	}
 }
 
+func TestRunnerDisableCacheAlwaysExecutes(t *testing.T) {
+	t.Parallel()
+
+	rootDir := t.TempDir()
+	cacheFile := filepath.Join(rootDir, ".cache", "lint", "wire.json")
+
+	writeTrackedFiles(t, rootDir)
+
+	var output bytes.Buffer
+	checkCount := 0
+	diffCount := 0
+	runner := newTestRunner(t, rootDir, cacheFile, &output,
+		func(context.Context, string) (string, error) {
+			checkCount++
+			return "", nil
+		},
+		func(context.Context, string) (string, error) {
+			diffCount++
+			return "", nil
+		},
+	)
+
+	if err := runner.Run(t.Context()); err != nil {
+		t.Fatalf("first run failed: %v", err)
+	}
+	assertRunCounts(t, checkCount, diffCount, 1, 1)
+
+	output.Reset()
+	runner = smartwire.NewRunner(smartwire.Options{
+		RootDir:      rootDir,
+		CacheFile:    cacheFile,
+		Binary:       filepath.Join(rootDir, "wire"),
+		DisableCache: true,
+	}, &output, &output)
+	smartwire.SetLookPathForTest(runner, func(file string) (string, error) {
+		return file, nil
+	})
+	smartwire.SetRunCheckForTest(runner, func(context.Context, string) (string, error) {
+		checkCount++
+		return "", nil
+	})
+	smartwire.SetRunDiffForTest(runner, func(context.Context, string) (string, error) {
+		diffCount++
+		return "", nil
+	})
+
+	if err := runner.Run(t.Context()); err != nil {
+		t.Fatalf("second run with disabled cache failed: %v", err)
+	}
+	assertRunCounts(t, checkCount, diffCount, 2, 2)
+	if strings.Contains(output.String(), "Skipping wire checks") {
+		t.Fatalf("expected disabled cache run to execute instead of skipping, got %q", output.String())
+	}
+	if !strings.Contains(output.String(), "✓ wire checks passed") {
+		t.Fatalf("expected success output, got %q", output.String())
+	}
+}
+
 func writeTrackedFiles(t *testing.T, rootDir string) {
 	t.Helper()
 

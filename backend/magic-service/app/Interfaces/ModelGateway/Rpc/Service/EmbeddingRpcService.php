@@ -14,16 +14,18 @@ use App\Application\ModelGateway\Service\LLMAppService;
 use App\Domain\ModelGateway\Entity\Dto\EmbeddingsDTO;
 use App\Domain\ModelGateway\Entity\ModelConfigEntity;
 use App\Domain\ModelGateway\Entity\ValueObject\ModelListType;
+use App\ErrorCode\MagicApiErrorCode;
 use App\Infrastructure\Core\Exception\BusinessException;
 use App\Infrastructure\Rpc\Annotation\RpcMethod;
 use App\Infrastructure\Rpc\Annotation\RpcService;
 use App\Infrastructure\Rpc\Method\SvcMethods;
+use Hyperf\Odin\Exception\LLMException\LLMNetworkException;
 use Psr\Log\LoggerInterface;
 use RuntimeException;
 use Throwable;
 
 #[RpcService(name: SvcMethods::SERVICE_MODEL_GATEWAY_EMBEDDING)]
-class EmbeddingRpcService
+readonly class EmbeddingRpcService
 {
     public function __construct(
         private LLMAppService $llmAppService,
@@ -86,9 +88,16 @@ class EmbeddingRpcService
         $businessParams = $request->businessParams->toArray();
         $accessToken = $request->accessToken;
 
+        $inputCount = 1;
+        if (is_array($input)) {
+            $inputCount = count($input);
+        } elseif ($input === '') {
+            $inputCount = 0;
+        }
+
         $this->logger->info('IPC Embedding compute request', [
             'model' => $model,
-            'input_count' => is_array($input) ? count($input) : ($input === '' ? 0 : 1),
+            'input_count' => $inputCount,
         ]);
 
         try {
@@ -129,7 +138,7 @@ class EmbeddingRpcService
             return [
                 'code' => 500,
                 'message' => $e->getMessage(),
-                'error_code' => $e instanceof BusinessException ? $e->getCode() : 0,
+                'error_code' => $this->resolveComputeErrorCode($e),
             ];
         }
     }
@@ -192,6 +201,29 @@ class EmbeddingRpcService
 
         $response = $this->llmAppService->embeddings($embeddingsDTO);
         return $this->extractEmbeddingResult($response);
+    }
+
+    private function resolveComputeErrorCode(Throwable $throwable): int
+    {
+        if ($this->containsThrowable($throwable, static fn (Throwable $candidate): bool => $candidate instanceof LLMNetworkException)) {
+            return MagicApiErrorCode::MODEL_NETWORK_ERROR->value;
+        }
+
+        return $throwable instanceof BusinessException ? $throwable->getCode() : 0;
+    }
+
+    /**
+     * @param callable(Throwable): bool $predicate
+     */
+    private function containsThrowable(Throwable $throwable, callable $predicate): bool
+    {
+        for ($current = $throwable; $current !== null; $current = $current->getPrevious()) {
+            if ($predicate($current)) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     /**

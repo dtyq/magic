@@ -82,8 +82,8 @@ func TestNew_WhenConfigFileMissing_UseDefaults(t *testing.T) {
 	if cfg == nil {
 		t.Fatalf("config is nil")
 	}
-	if cfg.Server.Mode == "" {
-		t.Fatalf("server.mode should fallback to debug")
+	if cfg.Server.Mode != "" {
+		t.Fatalf("server.mode should stay empty when unset, got %q", cfg.Server.Mode)
 	}
 	if string(cfg.Logging.Level) != "info" {
 		t.Fatalf("logging.level default should be info, got %q", cfg.Logging.Level)

@@ -8,13 +8,20 @@ import (
 	"testing"
 
 	docdto "magic/internal/application/knowledge/document/dto"
+	revectorizeshared "magic/internal/application/knowledge/shared/revectorize"
+	kbaccess "magic/internal/domain/knowledge/access/service"
+	docentity "magic/internal/domain/knowledge/document/entity"
+	docrepo "magic/internal/domain/knowledge/document/repository"
 	documentdomain "magic/internal/domain/knowledge/document/service"
 	documentsplitter "magic/internal/domain/knowledge/document/splitter"
 	fragmodel "magic/internal/domain/knowledge/fragment/model"
 	fragdomain "magic/internal/domain/knowledge/fragment/service"
-	"magic/internal/domain/knowledge/knowledgebase/service"
+	kbentity "magic/internal/domain/knowledge/knowledgebase/entity"
+	kbrepository "magic/internal/domain/knowledge/knowledgebase/repository"
 	"magic/internal/domain/knowledge/shared"
+	parseddocument "magic/internal/domain/knowledge/shared/parseddocument"
 	sharedroute "magic/internal/domain/knowledge/shared/route"
+	sharedsnapshot "magic/internal/domain/knowledge/shared/snapshot"
 	"magic/internal/pkg/tokenizer"
 )
 
@@ -31,26 +38,37 @@ func ensureTokenizerServiceForTest(svc *tokenizer.Service) *tokenizer.Service {
 
 type defaultKnowledgeBaseReaderForTest struct{}
 
-func (defaultKnowledgeBaseReaderForTest) ShowByCodeAndOrg(_ context.Context, code, orgCode string) (*knowledgebase.KnowledgeBase, error) {
-	return &knowledgebase.KnowledgeBase{
+func (defaultKnowledgeBaseReaderForTest) ShowByCodeAndOrg(_ context.Context, code, orgCode string) (*kbentity.KnowledgeBase, error) {
+	return &kbentity.KnowledgeBase{
 		Code:             code,
 		OrganizationCode: orgCode,
 		Model:            "text-embedding-3-small",
 	}, nil
 }
 
-func (defaultKnowledgeBaseReaderForTest) Show(_ context.Context, code string) (*knowledgebase.KnowledgeBase, error) {
-	return &knowledgebase.KnowledgeBase{
+func (defaultKnowledgeBaseReaderForTest) Show(_ context.Context, code string) (*kbentity.KnowledgeBase, error) {
+	return &kbentity.KnowledgeBase{
 		Code:  code,
 		Model: "text-embedding-3-small",
 	}, nil
 }
 
-func (defaultKnowledgeBaseReaderForTest) List(context.Context, *knowledgebase.Query) ([]*knowledgebase.KnowledgeBase, int64, error) {
-	return nil, 0, nil
+func (defaultKnowledgeBaseReaderForTest) List(_ context.Context, query *kbrepository.Query) ([]*kbentity.KnowledgeBase, int64, error) {
+	if query == nil || len(query.Codes) == 0 {
+		return nil, 0, nil
+	}
+	results := make([]*kbentity.KnowledgeBase, 0, len(query.Codes))
+	for _, code := range query.Codes {
+		results = append(results, &kbentity.KnowledgeBase{
+			Code:    strings.TrimSpace(code),
+			Enabled: true,
+			Model:   "text-embedding-3-small",
+		})
+	}
+	return results, int64(len(results)), nil
 }
 
-func (defaultKnowledgeBaseReaderForTest) ResolveRuntimeRoute(_ context.Context, kb *knowledgebase.KnowledgeBase) sharedroute.ResolvedRoute {
+func (defaultKnowledgeBaseReaderForTest) ResolveRuntimeRoute(_ context.Context, kb *kbentity.KnowledgeBase) sharedroute.ResolvedRoute {
 	collectionName := ""
 	model := "text-embedding-3-small"
 	if kb != nil {
@@ -66,6 +84,14 @@ func (defaultKnowledgeBaseReaderForTest) ResolveRuntimeRoute(_ context.Context, 
 		TermCollectionName:     collectionName,
 		Model:                  model,
 	}
+}
+
+func (defaultKnowledgeBaseReaderForTest) EnsureCollectionExists(context.Context, *kbentity.KnowledgeBase) error {
+	return nil
+}
+
+func (defaultKnowledgeBaseReaderForTest) UpdateProgress(context.Context, *kbentity.KnowledgeBase) error {
+	return nil
 }
 
 // PreviewSegmentConfigForTest 暴露给测试的切片配置。
@@ -112,7 +138,7 @@ type SplitContentWithEffectiveModePipelineForTestInput struct {
 
 // SplitParsedDocumentToChunksForTestInput 描述解析文档切片测试输入。
 type SplitParsedDocumentToChunksForTestInput struct {
-	ParsedDocument *documentdomain.ParsedDocument
+	ParsedDocument *parseddocument.ParsedDocument
 	SourceFileType string
 	RequestedMode  shared.FragmentMode
 	FragmentConfig *shared.FragmentConfig
@@ -121,25 +147,35 @@ type SplitParsedDocumentToChunksForTestInput struct {
 }
 
 type legacyDocumentWriteService interface {
-	Save(ctx context.Context, doc *documentdomain.KnowledgeBaseDocument) error
-	Update(ctx context.Context, doc *documentdomain.KnowledgeBaseDocument) error
+	Save(ctx context.Context, doc *docentity.KnowledgeBaseDocument) error
+	Update(ctx context.Context, doc *docentity.KnowledgeBaseDocument) error
 	Delete(ctx context.Context, id int64) error
-	UpdateSyncStatus(ctx context.Context, doc *documentdomain.KnowledgeBaseDocument) error
+	UpdateSyncStatus(ctx context.Context, doc *docentity.KnowledgeBaseDocument) error
 }
 
 type legacyDocumentLookupService interface {
-	Show(ctx context.Context, code string) (*documentdomain.KnowledgeBaseDocument, error)
-	ShowByCodeAndKnowledgeBase(ctx context.Context, code, knowledgeBaseCode string) (*documentdomain.KnowledgeBaseDocument, error)
-	FindByKnowledgeBaseAndThirdFile(ctx context.Context, knowledgeBaseCode, thirdPlatformType, thirdFileID string) (*documentdomain.KnowledgeBaseDocument, error)
-	FindByKnowledgeBaseAndProjectFile(ctx context.Context, knowledgeBaseCode string, projectFileID int64) (*documentdomain.KnowledgeBaseDocument, error)
-	ListByThirdFileInOrg(ctx context.Context, organizationCode, thirdPlatformType, thirdFileID string) ([]*documentdomain.KnowledgeBaseDocument, error)
-	ListByProjectFileInOrg(ctx context.Context, organizationCode string, projectFileID int64) ([]*documentdomain.KnowledgeBaseDocument, error)
-	ListByKnowledgeBaseAndProject(ctx context.Context, knowledgeBaseCode string, projectID int64) ([]*documentdomain.KnowledgeBaseDocument, error)
+	Show(ctx context.Context, code string) (*docentity.KnowledgeBaseDocument, error)
+	ShowByCodeAndKnowledgeBase(ctx context.Context, code, knowledgeBaseCode string) (*docentity.KnowledgeBaseDocument, error)
+	FindByKnowledgeBaseAndThirdFile(ctx context.Context, knowledgeBaseCode, thirdPlatformType, thirdFileID string) (*docentity.KnowledgeBaseDocument, error)
+	FindByKnowledgeBaseAndProjectFile(ctx context.Context, knowledgeBaseCode string, projectFileID int64) (*docentity.KnowledgeBaseDocument, error)
+	ListByThirdFileInOrg(ctx context.Context, organizationCode, thirdPlatformType, thirdFileID string) ([]*docentity.KnowledgeBaseDocument, error)
+	ListByProjectFileInOrg(ctx context.Context, organizationCode string, projectFileID int64) ([]*docentity.KnowledgeBaseDocument, error)
+	ListByKnowledgeBaseAndProject(ctx context.Context, knowledgeBaseCode string, projectID int64) ([]*docentity.KnowledgeBaseDocument, error)
 }
 
 type legacyDocumentQueryService interface {
-	List(ctx context.Context, query *documentdomain.Query) ([]*documentdomain.KnowledgeBaseDocument, int64, error)
+	List(ctx context.Context, query *docrepo.DocumentQuery) ([]*docentity.KnowledgeBaseDocument, int64, error)
 	CountByKnowledgeBaseCodes(ctx context.Context, organizationCode string, knowledgeBaseCodes []string) (map[string]int64, error)
+}
+
+// KnowledgeBaseSnapshotFromDomainForTest 供测试验证知识库快照隔离。
+func KnowledgeBaseSnapshotFromDomainForTest(kb *kbentity.KnowledgeBase) *sharedsnapshot.KnowledgeBaseRuntimeSnapshot {
+	return knowledgeBaseSnapshotFromDomain(kb)
+}
+
+// FragDocumentFromDomainForTest 供测试验证文档投影隔离。
+func FragDocumentFromDomainForTest(doc *docentity.KnowledgeBaseDocument) *fragmodel.KnowledgeBaseDocument {
+	return fragDocumentFromDomain(doc)
 }
 
 type documentDomainServiceCompat struct {
@@ -176,11 +212,11 @@ func wrapCompatError(action string, err error) error {
 	return fmt.Errorf("%s: %w", action, err)
 }
 
-func (c documentDomainServiceCompat) Save(ctx context.Context, doc *documentdomain.KnowledgeBaseDocument) error {
+func (c documentDomainServiceCompat) Save(ctx context.Context, doc *docentity.KnowledgeBaseDocument) error {
 	return wrapCompatError("save document", c.writer.Save(ctx, doc))
 }
 
-func (c documentDomainServiceCompat) Update(ctx context.Context, doc *documentdomain.KnowledgeBaseDocument) error {
+func (c documentDomainServiceCompat) Update(ctx context.Context, doc *docentity.KnowledgeBaseDocument) error {
 	return wrapCompatError("update document", c.writer.Update(ctx, doc))
 }
 
@@ -188,39 +224,39 @@ func (c documentDomainServiceCompat) Delete(ctx context.Context, id int64) error
 	return wrapCompatError("delete document", c.writer.Delete(ctx, id))
 }
 
-func (c documentDomainServiceCompat) UpdateSyncStatus(ctx context.Context, doc *documentdomain.KnowledgeBaseDocument) error {
+func (c documentDomainServiceCompat) UpdateSyncStatus(ctx context.Context, doc *docentity.KnowledgeBaseDocument) error {
 	return wrapCompatError("update document sync status", c.writer.UpdateSyncStatus(ctx, doc))
 }
 
-func (c documentDomainServiceCompat) MarkSyncing(ctx context.Context, doc *documentdomain.KnowledgeBaseDocument) error {
+func (c documentDomainServiceCompat) MarkSyncing(ctx context.Context, doc *docentity.KnowledgeBaseDocument) error {
 	doc.MarkSyncing()
 	return wrapCompatError("mark document syncing", c.writer.Update(ctx, doc))
 }
 
-func (c documentDomainServiceCompat) MarkSynced(ctx context.Context, doc *documentdomain.KnowledgeBaseDocument, wordCount int) error {
+func (c documentDomainServiceCompat) MarkSynced(ctx context.Context, doc *docentity.KnowledgeBaseDocument, wordCount int) error {
 	doc.MarkSynced(wordCount)
 	return wrapCompatError("mark document synced", c.writer.Update(ctx, doc))
 }
 
-func (c documentDomainServiceCompat) MarkSyncedWithContent(ctx context.Context, doc *documentdomain.KnowledgeBaseDocument, content string) error {
+func (c documentDomainServiceCompat) MarkSyncedWithContent(ctx context.Context, doc *docentity.KnowledgeBaseDocument, content string) error {
 	return c.MarkSynced(ctx, doc, len([]rune(strings.TrimSpace(content))))
 }
 
-func (c documentDomainServiceCompat) MarkSyncFailed(ctx context.Context, doc *documentdomain.KnowledgeBaseDocument, message string) error {
+func (c documentDomainServiceCompat) MarkSyncFailed(ctx context.Context, doc *docentity.KnowledgeBaseDocument, message string) error {
 	doc.MarkSyncFailed(message)
 	return wrapCompatError("mark document sync failed", c.writer.Update(ctx, doc))
 }
 
 func (c documentDomainServiceCompat) MarkSyncFailedWithError(
 	ctx context.Context,
-	doc *documentdomain.KnowledgeBaseDocument,
+	doc *docentity.KnowledgeBaseDocument,
 	reason string,
 	err error,
 ) error {
 	return c.MarkSyncFailed(ctx, doc, documentdomain.BuildSyncFailureMessage(reason, err))
 }
 
-func (c documentDomainServiceCompat) Show(ctx context.Context, code string) (*documentdomain.KnowledgeBaseDocument, error) {
+func (c documentDomainServiceCompat) Show(ctx context.Context, code string) (*docentity.KnowledgeBaseDocument, error) {
 	doc, err := c.lookup.Show(ctx, code)
 	if err != nil {
 		return nil, fmt.Errorf("show document: %w", err)
@@ -228,7 +264,7 @@ func (c documentDomainServiceCompat) Show(ctx context.Context, code string) (*do
 	return doc, nil
 }
 
-func (c documentDomainServiceCompat) ShowByCodeAndKnowledgeBase(ctx context.Context, code, knowledgeBaseCode string) (*documentdomain.KnowledgeBaseDocument, error) {
+func (c documentDomainServiceCompat) ShowByCodeAndKnowledgeBase(ctx context.Context, code, knowledgeBaseCode string) (*docentity.KnowledgeBaseDocument, error) {
 	doc, err := c.lookup.ShowByCodeAndKnowledgeBase(ctx, code, knowledgeBaseCode)
 	if err != nil {
 		return nil, fmt.Errorf("show document by knowledge base: %w", err)
@@ -236,7 +272,7 @@ func (c documentDomainServiceCompat) ShowByCodeAndKnowledgeBase(ctx context.Cont
 	return doc, nil
 }
 
-func (c documentDomainServiceCompat) FindByKnowledgeBaseAndThirdFile(ctx context.Context, knowledgeBaseCode, thirdPlatformType, thirdFileID string) (*documentdomain.KnowledgeBaseDocument, error) {
+func (c documentDomainServiceCompat) FindByKnowledgeBaseAndThirdFile(ctx context.Context, knowledgeBaseCode, thirdPlatformType, thirdFileID string) (*docentity.KnowledgeBaseDocument, error) {
 	doc, err := c.lookup.FindByKnowledgeBaseAndThirdFile(ctx, knowledgeBaseCode, thirdPlatformType, thirdFileID)
 	if err != nil {
 		return nil, fmt.Errorf("find document by third file: %w", err)
@@ -244,7 +280,7 @@ func (c documentDomainServiceCompat) FindByKnowledgeBaseAndThirdFile(ctx context
 	return doc, nil
 }
 
-func (c documentDomainServiceCompat) FindByKnowledgeBaseAndProjectFile(ctx context.Context, knowledgeBaseCode string, projectFileID int64) (*documentdomain.KnowledgeBaseDocument, error) {
+func (c documentDomainServiceCompat) FindByKnowledgeBaseAndProjectFile(ctx context.Context, knowledgeBaseCode string, projectFileID int64) (*docentity.KnowledgeBaseDocument, error) {
 	doc, err := c.lookup.FindByKnowledgeBaseAndProjectFile(ctx, knowledgeBaseCode, projectFileID)
 	if err != nil {
 		return nil, fmt.Errorf("find document by project file: %w", err)
@@ -271,7 +307,14 @@ func (c documentDomainServiceCompat) ResolveThirdFileDocumentPlan(
 	return documentdomain.ThirdFileDocumentPlan{Documents: docs, Seed: seed}, nil
 }
 
-func (c documentDomainServiceCompat) ListByThirdFileInOrg(ctx context.Context, organizationCode, thirdPlatformType, thirdFileID string) ([]*documentdomain.KnowledgeBaseDocument, error) {
+func (c documentDomainServiceCompat) ResolveRealtimeThirdFileDocumentPlan(
+	ctx context.Context,
+	input documentdomain.ThirdFileDocumentPlanInput,
+) (documentdomain.ThirdFileDocumentPlan, error) {
+	return c.ResolveThirdFileDocumentPlan(ctx, input)
+}
+
+func (c documentDomainServiceCompat) ListByThirdFileInOrg(ctx context.Context, organizationCode, thirdPlatformType, thirdFileID string) ([]*docentity.KnowledgeBaseDocument, error) {
 	docs, err := c.lookup.ListByThirdFileInOrg(ctx, organizationCode, thirdPlatformType, thirdFileID)
 	if err != nil {
 		return nil, fmt.Errorf("list documents by third file in org: %w", err)
@@ -279,7 +322,19 @@ func (c documentDomainServiceCompat) ListByThirdFileInOrg(ctx context.Context, o
 	return docs, nil
 }
 
-func (c documentDomainServiceCompat) ListByProjectFileInOrg(ctx context.Context, organizationCode string, projectFileID int64) ([]*documentdomain.KnowledgeBaseDocument, error) {
+func (c documentDomainServiceCompat) ListRealtimeByThirdFileInOrg(ctx context.Context, organizationCode, thirdPlatformType, thirdFileID string) ([]*docentity.KnowledgeBaseDocument, error) {
+	return c.ListByThirdFileInOrg(ctx, organizationCode, thirdPlatformType, thirdFileID)
+}
+
+func (c documentDomainServiceCompat) HasRealtimeThirdFileDocumentInOrg(ctx context.Context, organizationCode, thirdPlatformType, thirdFileID string) (bool, error) {
+	docs, err := c.ListRealtimeByThirdFileInOrg(ctx, organizationCode, thirdPlatformType, thirdFileID)
+	if err != nil {
+		return false, err
+	}
+	return len(docs) > 0, nil
+}
+
+func (c documentDomainServiceCompat) ListByProjectFileInOrg(ctx context.Context, organizationCode string, projectFileID int64) ([]*docentity.KnowledgeBaseDocument, error) {
 	docs, err := c.lookup.ListByProjectFileInOrg(ctx, organizationCode, projectFileID)
 	if err != nil {
 		return nil, fmt.Errorf("list documents by project file in org: %w", err)
@@ -287,7 +342,19 @@ func (c documentDomainServiceCompat) ListByProjectFileInOrg(ctx context.Context,
 	return docs, nil
 }
 
-func (c documentDomainServiceCompat) ListByKnowledgeBaseAndProject(ctx context.Context, knowledgeBaseCode string, projectID int64) ([]*documentdomain.KnowledgeBaseDocument, error) {
+func (c documentDomainServiceCompat) ListRealtimeByProjectFileInOrg(ctx context.Context, organizationCode string, projectFileID int64) ([]*docentity.KnowledgeBaseDocument, error) {
+	return c.ListByProjectFileInOrg(ctx, organizationCode, projectFileID)
+}
+
+func (c documentDomainServiceCompat) HasRealtimeProjectFileDocumentInOrg(ctx context.Context, organizationCode string, projectFileID int64) (bool, error) {
+	docs, err := c.ListRealtimeByProjectFileInOrg(ctx, organizationCode, projectFileID)
+	if err != nil {
+		return false, err
+	}
+	return len(docs) > 0, nil
+}
+
+func (c documentDomainServiceCompat) ListByKnowledgeBaseAndProject(ctx context.Context, knowledgeBaseCode string, projectID int64) ([]*docentity.KnowledgeBaseDocument, error) {
 	docs, err := c.lookup.ListByKnowledgeBaseAndProject(ctx, knowledgeBaseCode, projectID)
 	if err != nil {
 		return nil, fmt.Errorf("list documents by project binding: %w", err)
@@ -295,7 +362,7 @@ func (c documentDomainServiceCompat) ListByKnowledgeBaseAndProject(ctx context.C
 	return docs, nil
 }
 
-func (c documentDomainServiceCompat) List(ctx context.Context, query *documentdomain.Query) ([]*documentdomain.KnowledgeBaseDocument, int64, error) {
+func (c documentDomainServiceCompat) List(ctx context.Context, query *docrepo.DocumentQuery) ([]*docentity.KnowledgeBaseDocument, int64, error) {
 	docs, total, err := c.query.List(ctx, query)
 	if err != nil {
 		return nil, 0, fmt.Errorf("list documents: %w", err)
@@ -311,8 +378,8 @@ func (c documentDomainServiceCompat) CountByKnowledgeBaseCodes(ctx context.Conte
 	return counts, nil
 }
 
-func (c documentDomainServiceCompat) ListByKnowledgeBase(ctx context.Context, knowledgeBaseCode string, offset, limit int) ([]*documentdomain.KnowledgeBaseDocument, int64, error) {
-	return c.List(ctx, &documentdomain.Query{
+func (c documentDomainServiceCompat) ListByKnowledgeBase(ctx context.Context, knowledgeBaseCode string, offset, limit int) ([]*docentity.KnowledgeBaseDocument, int64, error) {
+	return c.List(ctx, &docrepo.DocumentQuery{
 		KnowledgeBaseCode: knowledgeBaseCode,
 		Offset:            offset,
 		Limit:             limit,
@@ -370,12 +437,12 @@ func NewDocumentAppServiceForTest(
 }
 
 // DocumentEntityToDTOWithContextForTest 供测试调用 DTO 转换。
-func DocumentEntityToDTOWithContextForTest(ctx context.Context, svc *DocumentAppService, doc *documentdomain.KnowledgeBaseDocument) *docdto.DocumentDTO {
+func DocumentEntityToDTOWithContextForTest(ctx context.Context, svc *DocumentAppService, doc *docentity.KnowledgeBaseDocument) *docdto.DocumentDTO {
 	return svc.entityToDTOWithContext(ctx, doc)
 }
 
 // PreflightDocumentSourceForTest 供测试执行文档源预检。
-func PreflightDocumentSourceForTest(ctx context.Context, svc *DocumentAppService, doc *documentdomain.KnowledgeBaseDocument) error {
+func PreflightDocumentSourceForTest(ctx context.Context, svc *DocumentAppService, doc *docentity.KnowledgeBaseDocument) error {
 	return svc.preflightDocumentSource(ctx, doc, nil)
 }
 
@@ -384,7 +451,7 @@ func FetchDocumentForSyncForTest(
 	ctx context.Context,
 	svc *DocumentAppService,
 	input *documentdomain.SyncDocumentInput,
-) (*documentdomain.KnowledgeBaseDocument, error) {
+) (*docentity.KnowledgeBaseDocument, error) {
 	return svc.fetchDocumentForSync(ctx, input)
 }
 
@@ -404,33 +471,49 @@ func (s *DocumentAppService) SetThirdPlatformDocumentPortForTest(port thirdPlatf
 	s.thirdPlatformDocumentPort = port
 }
 
+// SetKnowledgeBasePermissionReaderForTest 供测试覆盖知识库权限读取依赖。
+func (s *DocumentAppService) SetKnowledgeBasePermissionReaderForTest(reader kbaccess.PermissionReader) {
+	if s == nil {
+		return
+	}
+	s.permissionReader = reader
+}
+
+// SetKnowledgeRevectorizeProgressStoreForTest 供测试覆盖知识库重向量化进度存储。
+func (s *DocumentAppService) SetKnowledgeRevectorizeProgressStoreForTest(store revectorizeshared.ProgressStore) {
+	if s == nil {
+		return
+	}
+	s.revectorizeProgressStore = store
+}
+
 // MarkDocumentSyncingForTest 供测试标记同步中状态。
-func MarkDocumentSyncingForTest(ctx context.Context, svc *DocumentAppService, doc *documentdomain.KnowledgeBaseDocument) error {
+func MarkDocumentSyncingForTest(ctx context.Context, svc *DocumentAppService, doc *docentity.KnowledgeBaseDocument) error {
 	return svc.markDocumentSyncing(ctx, doc)
 }
 
 // BuildDocumentFilePayloadForTest 供测试构造文档文件载荷。
-func BuildDocumentFilePayloadForTest(doc *documentdomain.KnowledgeBaseDocument) map[string]any {
+func BuildDocumentFilePayloadForTest(doc *docentity.KnowledgeBaseDocument) map[string]any {
 	return documentdomain.BuildDocumentFilePayload(doc)
 }
 
 // ApplyResolvedDocumentResultForTest 供测试回填第三方文档解析结果。
-func ApplyResolvedDocumentResultForTest(doc *documentdomain.KnowledgeBaseDocument, docType int, result map[string]any) {
+func ApplyResolvedDocumentResultForTest(doc *docentity.KnowledgeBaseDocument, docType int, result map[string]any) {
 	documentdomain.ApplyResolvedDocumentResult(doc, docType, result)
 }
 
 // ResolveDocumentSourceFileTypeForTest 供测试解析文档源文件类型。
-func ResolveDocumentSourceFileTypeForTest(doc *documentdomain.KnowledgeBaseDocument) string {
+func ResolveDocumentSourceFileTypeForTest(doc *docentity.KnowledgeBaseDocument) string {
 	return documentdomain.ResolveDocumentSourceFileType(doc)
 }
 
 // FinishSyncForTest 供测试执行同步完成流程。
-func FinishSyncForTest(ctx context.Context, svc *DocumentAppService, doc *documentdomain.KnowledgeBaseDocument, content string) error {
+func FinishSyncForTest(ctx context.Context, svc *DocumentAppService, doc *docentity.KnowledgeBaseDocument, content string) error {
 	return svc.finishSync(ctx, doc, content)
 }
 
 // FailSyncForTest 供测试执行同步失败流程。
-func FailSyncForTest(ctx context.Context, svc *DocumentAppService, doc *documentdomain.KnowledgeBaseDocument, msg string) {
+func FailSyncForTest(ctx context.Context, svc *DocumentAppService, doc *docentity.KnowledgeBaseDocument, msg string) {
 	_ = svc.domainService.MarkSyncFailed(ctx, doc, msg)
 }
 
@@ -475,7 +558,7 @@ func BuildFragmentResyncPlanForTestWithForce(
 }
 
 // BuildSyncSegmentConfigForTest 供测试构造同步切片配置。
-func BuildSyncSegmentConfigForTest(doc *documentdomain.KnowledgeBaseDocument, kb *knowledgebase.KnowledgeBase) PreviewSegmentConfigForTest {
+func BuildSyncSegmentConfigForTest(doc *docentity.KnowledgeBaseDocument, kb *kbentity.KnowledgeBase) PreviewSegmentConfigForTest {
 	config := documentdomain.BuildSyncSegmentConfig(doc, knowledgeBaseSnapshotFromDomain(kb))
 	return PreviewSegmentConfigForTest{
 		ChunkSize:          config.ChunkSize,
@@ -486,7 +569,7 @@ func BuildSyncSegmentConfigForTest(doc *documentdomain.KnowledgeBaseDocument, kb
 }
 
 // ResolveSplitModelForTest 供测试解析切片使用的模型。
-func ResolveSplitModelForTest(ctx context.Context, tb testing.TB, kbService any, kb *knowledgebase.KnowledgeBase, fallbackModel string) string {
+func ResolveSplitModelForTest(ctx context.Context, tb testing.TB, kbService any, kb *kbentity.KnowledgeBase, fallbackModel string) string {
 	tb.Helper()
 
 	var reader knowledgeBaseReader

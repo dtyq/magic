@@ -1,6 +1,9 @@
 package document
 
-import "magic/internal/domain/knowledge/shared"
+import (
+	docentity "magic/internal/domain/knowledge/document/entity"
+	"magic/internal/domain/knowledge/shared"
+)
 
 // UpdateDocumentInput 表示应用层更新文档时传给领域的最小输入。
 type UpdateDocumentInput struct {
@@ -9,7 +12,7 @@ type UpdateDocumentInput struct {
 	Enabled        *bool
 	DocType        *int
 	DocMetadata    map[string]any
-	DocumentFile   *File
+	DocumentFile   *docentity.File
 	RetrieveConfig *shared.RetrieveConfig
 	FragmentConfig *shared.FragmentConfig
 	WordCount      *int
@@ -17,12 +20,12 @@ type UpdateDocumentInput struct {
 }
 
 // BuildUpdatePatch 根据领域输入构造可应用的文档补丁。
-func BuildUpdatePatch(input *UpdateDocumentInput) UpdatePatch {
+func BuildUpdatePatch(input *UpdateDocumentInput) docentity.UpdatePatch {
 	if input == nil {
-		return UpdatePatch{}
+		return docentity.UpdatePatch{}
 	}
 
-	return UpdatePatch{
+	return docentity.UpdatePatch{
 		Name:           optionalNonEmptyString(input.Name),
 		Description:    optionalNonEmptyString(input.Description),
 		Enabled:        input.Enabled,

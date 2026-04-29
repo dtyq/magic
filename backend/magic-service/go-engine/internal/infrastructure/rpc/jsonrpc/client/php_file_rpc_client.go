@@ -23,6 +23,7 @@ var (
 	errFilePathEmpty         = errors.New("file path is empty")
 	errFilePathInvalid       = errors.New("file path is empty after normalization")
 	errFileOrgCodeEmpty      = errors.New("organization code is empty in file path")
+	errFileOrgScopeMissing   = errors.New("organization scope is missing in file path")
 )
 
 // PHPFileRPCClient 通过 IPC 调用 PHP 文件服务。
@@ -48,7 +49,8 @@ type fileStatResponse struct {
 	Code    int    `json:"code"`
 	Message string `json:"message"`
 	Data    struct {
-		Exists bool `json:"exists"`
+		Exists bool  `json:"exists"`
+		Size   int64 `json:"size"`
 	} `json:"data"`
 }
 
@@ -217,6 +219,66 @@ func (c *PHPFileRPCClient) Stat(ctx context.Context, path string) error {
 	return nil
 }
 
+// FileSize 返回源文件大小，无法获取时返回错误并交由读取阶段兜底限制。
+func (c *PHPFileRPCClient) FileSize(ctx context.Context, path string) (int64, error) {
+	if isHTTPURL(path) {
+		return c.httpURLFileSize(ctx, path)
+	}
+	if !c.connected() {
+		return 0, ErrNoClientConnected
+	}
+	filePath, organizationCode, err := normalizeRPCFilePath(path)
+	if err != nil {
+		return 0, errors.Join(ErrFileSourceUnreachable, err)
+	}
+
+	params := map[string]any{
+		"organization_code": organizationCode,
+		"file_path":         filePath,
+		"bucket_type":       "private",
+	}
+	result, err := c.requestStat(ctx, params, filePath)
+	if err != nil {
+		return 0, err
+	}
+	if result.Code != 0 {
+		return 0, classifyFileRPCCode(result.Code, result.Message)
+	}
+	if !result.Data.Exists {
+		return 0, fmt.Errorf("%w: exists=false", ErrFileObjectNotFound)
+	}
+	if result.Data.Size <= 0 {
+		return 0, fmt.Errorf("%w: file size unavailable", ErrFileSourceUnreachable)
+	}
+	return result.Data.Size, nil
+}
+
+func (c *PHPFileRPCClient) httpURLFileSize(ctx context.Context, path string) (int64, error) {
+	req, err := http.NewRequestWithContext(ctx, http.MethodHead, strings.TrimSpace(path), nil)
+	if err != nil {
+		return 0, fmt.Errorf("%w: create request failed: %w", ErrFileSourceUnreachable, err)
+	}
+	resp, err := roundTrip(req)
+	if err != nil {
+		return 0, fmt.Errorf("%w: do request failed: %w", ErrFileSourceUnreachable, err)
+	}
+	_ = resp.Body.Close()
+	if resp.StatusCode == http.StatusOK {
+		return contentLengthOrError(resp.ContentLength)
+	}
+	if resp.StatusCode == http.StatusNotFound {
+		return 0, fmt.Errorf("%w: status=%d", ErrFileObjectNotFound, resp.StatusCode)
+	}
+	return 0, fmt.Errorf("%w: status=%d", ErrFileSourceUnreachable, resp.StatusCode)
+}
+
+func contentLengthOrError(contentLength int64) (int64, error) {
+	if contentLength <= 0 {
+		return 0, fmt.Errorf("%w: content length unavailable", ErrFileSourceUnreachable)
+	}
+	return contentLength, nil
+}
+
 func (c *PHPFileRPCClient) connected() bool {
 	return c != nil && c.isClientConnected != nil && c.isClientConnected()
 }
@@ -239,6 +301,9 @@ func normalizeRPCFilePath(raw string) (filePath, organizationCode string, err er
 	}
 
 	parts := strings.SplitN(trimmed, "/", 2)
+	if len(parts) < 2 || strings.TrimSpace(parts[1]) == "" {
+		return "", "", errFileOrgScopeMissing
+	}
 	org := strings.TrimSpace(parts[0])
 	if org == "" {
 		return "", "", errFileOrgCodeEmpty

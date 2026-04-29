@@ -1,8 +1,10 @@
 package retrieval
 
 import (
+	"bufio"
 	"errors"
 	"fmt"
+	"io"
 	"math"
 	"os"
 	"path/filepath"
@@ -28,14 +30,23 @@ const (
 	errRetrievalBundledDictDirsEmpty       = runtimeStaticError("no bundled retrieval dictionary directories configured")
 	errRetrievalBundledDictsNotFound       = runtimeStaticError("bundled retrieval dictionaries not found")
 	errRetrievalBundledDictPathIsDirectory = runtimeStaticError("bundled retrieval dictionary path is a directory")
+	errRetrievalBundledDictNameUnknown     = runtimeStaticError("unknown bundled retrieval dictionary file")
 	retrievalBundledDictCandidateCapacity  = 4
 )
 
 const (
-	retrievalBundledDictMagicServiceDir = "go-engine/assets/gse/data/dict/zh"
-	retrievalBundledDictGoEngineDir     = "assets/gse/data/dict/zh"
-	retrievalBundledSimplifiedDictFile  = "s_1.txt"
-	retrievalBundledTraditionalDictFile = "t_1.txt"
+	retrievalBundledDictMagicServiceDir      = "go-engine/assets/gse/data/dict/zh"
+	retrievalBundledDictGoEngineDir          = "assets/gse/data/dict/zh"
+	retrievalBundledSimplifiedDictFile       = "s_1.txt"
+	retrievalBundledTraditionalDictFile      = "t_1.txt"
+	retrievalBundledCustomTermsDictFile      = "custom_terms.txt"
+	retrievalBundledRetrievalStopwordsFile   = "retrieval_stopwords.txt"
+	retrievalBundledStopTokensDictFile       = "stop_tokens.txt"
+	retrievalBundledStopWordDictFile         = "stop_word.txt"
+	retrievalBundledIDFDictFile              = "idf.txt"
+	retrievalBundledTFIDFDictFile            = "tf_idf.txt"
+	retrievalBundledTFIDFOriginDictFile      = "tf_idf_origin.txt"
+	retrievalBundledCoreDictMinimumFileCount = 4
 )
 
 // defaultRetrievalSegmenterProvider 必须保持为进程级单例。
@@ -50,6 +61,93 @@ const (
 //
 //nolint:gochecknoglobals // 默认检索分词器必须是进程级单例，避免重复初始化 gse 的全局 HMM 状态。
 var defaultRetrievalSegmenterProvider = newRetrievalSegmenterProvider(loadDefaultRetrievalSegmenter)
+
+//nolint:gochecknoglobals // 默认检索 token policy 同样需要共享懒加载，避免重复读取仓库词典。
+var defaultRetrievalTokenPolicyProvider = newRetrievalTokenPolicyProvider(loadDefaultRetrievalTokenPolicy)
+
+//nolint:gochecknoglobals // gse/hmm 维护进程级全局词典状态，必须用进程内锁建立并发读写同步。
+var retrievalSegmenterProcessMu sync.RWMutex
+
+type retrievalBundledDictionarySet struct {
+	dir   string
+	paths map[string]string
+}
+
+type retrievalTokenPolicy struct {
+	stopwords              map[string]struct{}
+	dictDir                string
+	customTermsPath        string
+	retrievalStopwords     string
+	upstreamStopWordPath   string
+	upstreamStopTokensPath string
+	idfPath                string
+	tfIDFPath              string
+	tfIDFOriginPath        string
+}
+
+type retrievalTokenPolicyProvider struct {
+	once sync.Once
+
+	mu     sync.RWMutex
+	policy retrievalTokenPolicy
+	err    error
+	load   func() (retrievalTokenPolicy, error)
+}
+
+func newRetrievalTokenPolicyProvider(load func() (retrievalTokenPolicy, error)) *retrievalTokenPolicyProvider {
+	return &retrievalTokenPolicyProvider{load: load}
+}
+
+func (p *retrievalTokenPolicyProvider) warmup() error {
+	_, err := p.get()
+	return err
+}
+
+func (p *retrievalTokenPolicyProvider) get() (retrievalTokenPolicy, error) {
+	p.once.Do(func() {
+		if p.load != nil {
+			p.policy, p.err = p.load()
+		}
+	})
+
+	p.mu.RLock()
+	defer p.mu.RUnlock()
+	return p.policy, p.err
+}
+
+func retrievalBundledCoreServingDictFiles() []string {
+	return []string{
+		retrievalBundledSimplifiedDictFile,
+		retrievalBundledTraditionalDictFile,
+		retrievalBundledCustomTermsDictFile,
+		retrievalBundledRetrievalStopwordsFile,
+	}
+}
+
+func retrievalBundledSegmenterDictFiles() []string {
+	return []string{
+		retrievalBundledSimplifiedDictFile,
+		retrievalBundledTraditionalDictFile,
+		retrievalBundledCustomTermsDictFile,
+	}
+}
+
+func retrievalBundledExtendedDictFiles() []string {
+	return []string{
+		retrievalBundledStopTokensDictFile,
+		retrievalBundledStopWordDictFile,
+		retrievalBundledIDFDictFile,
+		retrievalBundledTFIDFDictFile,
+		retrievalBundledTFIDFOriginDictFile,
+	}
+}
+
+func retrievalBundledKnownDictFiles() []string {
+	files := make([]string, 0, retrievalBundledCoreDictMinimumFileCount+len(retrievalBundledExtendedDictFiles()))
+	files = append(files, retrievalBundledCoreServingDictFiles()...)
+	files = append(files, retrievalBundledExtendedDictFiles()...)
+	return files
+}
 
 func loadDefaultRetrievalSegmenter(segmenter *gse.Segmenter) error {
 	if isRetrievalTestBinary() {
@@ -100,47 +198,197 @@ func retrievalBundledDictionaryDirCandidates() []string {
 }
 
 func resolveBundledRetrievalDictionaryFiles(candidateDirs []string) ([]string, error) {
-	if len(candidateDirs) == 0 {
-		return nil, errRetrievalBundledDictDirsEmpty
-	}
-
-	for _, candidateDir := range candidateDirs {
-		dictFiles, err := bundledRetrievalDictionaryFilesFromDir(candidateDir)
-		if err == nil {
-			return dictFiles, nil
-		}
-		if errors.Is(err, os.ErrNotExist) {
-			continue
-		}
+	dictSet, err := resolveBundledRetrievalDictionarySet(candidateDirs)
+	if err != nil {
 		return nil, err
 	}
-
-	return nil, fmt.Errorf("%w: %s", errRetrievalBundledDictsNotFound, strings.Join(candidateDirs, ", "))
+	return dictSet.requiredPaths(retrievalBundledSegmenterDictFiles()...)
 }
 
-func bundledRetrievalDictionaryFilesFromDir(dir string) ([]string, error) {
-	fileNames := []string{
-		retrievalBundledSimplifiedDictFile,
-		retrievalBundledTraditionalDictFile,
+func resolveBundledRetrievalDictionarySet(candidateDirs []string) (retrievalBundledDictionarySet, error) {
+	if len(candidateDirs) == 0 {
+		return retrievalBundledDictionarySet{}, errRetrievalBundledDictDirsEmpty
 	}
-	files := make([]string, 0, len(fileNames))
+
+	var missingCore []string
+	for _, candidateDir := range candidateDirs {
+		dictSet, err := bundledRetrievalDictionarySetFromDir(candidateDir)
+		if err == nil {
+			return dictSet, nil
+		}
+		if errors.Is(err, os.ErrNotExist) {
+			missingCore = append(missingCore, err.Error())
+			continue
+		}
+		return retrievalBundledDictionarySet{}, err
+	}
+
+	if len(missingCore) == 0 {
+		return retrievalBundledDictionarySet{}, fmt.Errorf("%w: %s", errRetrievalBundledDictsNotFound, strings.Join(candidateDirs, ", "))
+	}
+	return retrievalBundledDictionarySet{}, fmt.Errorf(
+		"%w: %s",
+		errRetrievalBundledDictsNotFound,
+		strings.Join(missingCore, "; "),
+	)
+}
+
+func bundledRetrievalDictionarySetFromDir(dir string) (retrievalBundledDictionarySet, error) {
+	fileNames := retrievalBundledKnownDictFiles()
+	paths := make(map[string]string, len(fileNames))
+	missingCore := make([]string, 0, retrievalBundledCoreDictMinimumFileCount)
 	for _, fileName := range fileNames {
 		filePath := filepath.Join(dir, fileName)
 		info, err := os.Stat(filePath)
 		if err != nil {
-			return nil, fmt.Errorf("stat bundled retrieval dictionary %s: %w", filePath, err)
+			if errors.Is(err, os.ErrNotExist) {
+				if slices.Contains(retrievalBundledCoreServingDictFiles(), fileName) {
+					missingCore = append(missingCore, fileName)
+				}
+				continue
+			}
+			return retrievalBundledDictionarySet{}, fmt.Errorf("stat bundled retrieval dictionary %s: %w", filePath, err)
 		}
 		if info.IsDir() {
-			return nil, fmt.Errorf("%w: %s", errRetrievalBundledDictPathIsDirectory, filePath)
+			return retrievalBundledDictionarySet{}, fmt.Errorf("%w: %s", errRetrievalBundledDictPathIsDirectory, filePath)
+		}
+		paths[fileName] = filePath
+	}
+	if len(missingCore) > 0 {
+		return retrievalBundledDictionarySet{}, fmt.Errorf(
+			"stat bundled retrieval dictionaries under %s: %w: missing core files [%s]",
+			dir,
+			os.ErrNotExist,
+			strings.Join(missingCore, ", "),
+		)
+	}
+	return retrievalBundledDictionarySet{
+		dir:   dir,
+		paths: paths,
+	}, nil
+}
+
+func (s retrievalBundledDictionarySet) requiredPaths(fileNames ...string) ([]string, error) {
+	files := make([]string, 0, len(fileNames))
+	for _, fileName := range fileNames {
+		filePath, err := s.path(fileName)
+		if err != nil {
+			return nil, err
 		}
 		files = append(files, filePath)
 	}
 	return files, nil
 }
 
+func (s retrievalBundledDictionarySet) path(fileName string) (string, error) {
+	if !slices.Contains(retrievalBundledKnownDictFiles(), fileName) {
+		return "", fmt.Errorf("%w: %s", errRetrievalBundledDictNameUnknown, fileName)
+	}
+	filePath := strings.TrimSpace(s.paths[fileName])
+	if filePath == "" {
+		return "", fmt.Errorf(
+			"bundled retrieval dictionary %s in %s: %w",
+			fileName,
+			s.dir,
+			os.ErrNotExist,
+		)
+	}
+	return filePath, nil
+}
+
+func loadDefaultRetrievalTokenPolicy() (retrievalTokenPolicy, error) {
+	if isRetrievalTestBinary() {
+		stopwords, err := loadStopwordMapFromReader(strings.NewReader(retrievalTestStopwords))
+		if err != nil {
+			return retrievalTokenPolicy{}, fmt.Errorf("load retrieval test stopwords: %w", err)
+		}
+		return retrievalTokenPolicy{
+			stopwords: stopwords,
+		}, nil
+	}
+
+	dictSet, err := resolveBundledRetrievalDictionarySet(retrievalBundledDictionaryDirCandidates())
+	if err != nil {
+		return retrievalTokenPolicy{}, fmt.Errorf("resolve bundled retrieval token policy dictionaries: %w", err)
+	}
+	return loadRetrievalTokenPolicyFromSet(dictSet)
+}
+
+func loadRetrievalTokenPolicyFromSet(dictSet retrievalBundledDictionarySet) (retrievalTokenPolicy, error) {
+	stopwordsPath, err := dictSet.path(retrievalBundledRetrievalStopwordsFile)
+	if err != nil {
+		return retrievalTokenPolicy{}, fmt.Errorf("resolve retrieval stopwords path: %w", err)
+	}
+	stopwords, err := loadStopwordMap(stopwordsPath)
+	if err != nil {
+		return retrievalTokenPolicy{}, fmt.Errorf("load retrieval stopwords %s: %w", stopwordsPath, err)
+	}
+
+	customTermsPath, err := dictSet.path(retrievalBundledCustomTermsDictFile)
+	if err != nil {
+		return retrievalTokenPolicy{}, fmt.Errorf("resolve custom terms path: %w", err)
+	}
+
+	policy := retrievalTokenPolicy{
+		stopwords:          stopwords,
+		dictDir:            dictSet.dir,
+		customTermsPath:    customTermsPath,
+		retrievalStopwords: stopwordsPath,
+	}
+	if path, err := dictSet.path(retrievalBundledStopWordDictFile); err == nil {
+		policy.upstreamStopWordPath = path
+	}
+	if path, err := dictSet.path(retrievalBundledStopTokensDictFile); err == nil {
+		policy.upstreamStopTokensPath = path
+	}
+	if path, err := dictSet.path(retrievalBundledIDFDictFile); err == nil {
+		policy.idfPath = path
+	}
+	if path, err := dictSet.path(retrievalBundledTFIDFDictFile); err == nil {
+		policy.tfIDFPath = path
+	}
+	if path, err := dictSet.path(retrievalBundledTFIDFOriginDictFile); err == nil {
+		policy.tfIDFOriginPath = path
+	}
+	return policy, nil
+}
+
+func loadStopwordMap(filePath string) (map[string]struct{}, error) {
+	file, err := os.Open(filePath)
+	if err != nil {
+		return nil, fmt.Errorf("open stopword file %s: %w", filePath, err)
+	}
+	defer func() {
+		_ = file.Close()
+	}()
+	return loadStopwordMapFromReader(file)
+}
+
+func loadStopwordMapFromReader(reader io.Reader) (map[string]struct{}, error) {
+	return loadStopwordMapFromScanner(bufio.NewScanner(reader))
+}
+
+func loadStopwordMapFromScanner(scanner *bufio.Scanner) (map[string]struct{}, error) {
+	stopwords := make(map[string]struct{})
+	for scanner.Scan() {
+		line := strings.TrimSpace(scanner.Text())
+		if line == "" || strings.HasPrefix(line, "#") {
+			continue
+		}
+		stopwords[line] = struct{}{}
+	}
+	if err := scanner.Err(); err != nil {
+		return nil, fmt.Errorf("scan stopword entries: %w", err)
+	}
+	return stopwords, nil
+}
+
 type retrievalSegmenterGate struct{}
 
 func (retrievalSegmenterGate) withExclusiveLock(run func() error) error {
+	retrievalSegmenterProcessMu.Lock()
+	defer retrievalSegmenterProcessMu.Unlock()
+
 	unlock, err := lockDefaultRetrievalDictionary(syscall.LOCK_EX)
 	if err != nil {
 		return err
@@ -150,6 +398,9 @@ func (retrievalSegmenterGate) withExclusiveLock(run func() error) error {
 }
 
 func (retrievalSegmenterGate) withSharedLock(run func() []string) ([]string, error) {
+	retrievalSegmenterProcessMu.RLock()
+	defer retrievalSegmenterProcessMu.RUnlock()
+
 	unlock, err := lockDefaultRetrievalDictionary(syscall.LOCK_SH)
 	if err != nil {
 		return nil, err

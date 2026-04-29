@@ -11,6 +11,14 @@ type EmbeddingConfig struct {
 	// - "php": 使用 PHP IPC 回调（调用 LLMAppService.embeddings）
 	// - "openai": 直接调用兼容 OpenAI 的 API（默认）
 	ClientType string `json:"client_type"`
+	// RateLimitEnabled 控制 Go 侧 embedding compute 调用是否启用 Redis 全局限流。
+	RateLimitEnabled bool `mapstructure:"rateLimitEnabled" json:"rate_limit_enabled"`
+	// RateLimitQPS 是全局 embedding compute 请求速率。
+	RateLimitQPS float64 `mapstructure:"rateLimitQPS" json:"rate_limit_qps"`
+	// RateLimitBurst 是全局 embedding compute 令牌桶突发容量。
+	RateLimitBurst int `mapstructure:"rateLimitBurst" json:"rate_limit_burst"`
+	// RateLimitWaitTimeoutSeconds 是等待令牌的最大秒数。
+	RateLimitWaitTimeoutSeconds int `mapstructure:"rateLimitWaitTimeoutSeconds" json:"rate_limit_wait_timeout_seconds"`
 }
 
 // EmbeddingClientType 是 embedding 客户端类型的强类型 DI Token

@@ -14,17 +14,17 @@ return [
     'socket_path' => env('IPC_ENGINE_SOCKET', BASE_PATH . '/runtime/magic_engine.sock'),
 
     // 协议与安全
-    'protocol_version' => (int) env('IPC_PROTOCOL_VERSION', 1),
+    'protocol_version' => (int) env('IPC_PROTOCOL_VERSION', 2),
     'auth_token' => (string) env('IPC_AUTH_TOKEN', ''),
     'client_id' => env('IPC_CLIENT_ID', ''),
 
     // 消息与超时
-    'max_message_bytes' => (int) env('IPC_MAX_MESSAGE_BYTES', 10 * 1024 * 1024),
+    'max_message_bytes' => 30 * 1024 * 1024,
     'read_timeout' => (float) env('IPC_READ_TIMEOUT', 30),
     'write_timeout' => (float) env('IPC_WRITE_TIMEOUT', 10),
     'heartbeat_interval' => (float) env('IPC_HEARTBEAT_INTERVAL', 10),
     'heartbeat_timeout' => (float) env('IPC_HEARTBEAT_TIMEOUT', 30),
-    'max_pending_requests' => (int) env('IPC_MAX_PENDING_REQUESTS', 1024),
+    'max_pending_requests' => (int) env('IPC_MAX_PENDING_REQUESTS', 4096),
     'discard_cap_multiplier' => (int) env('IPC_DISCARD_CAP_MULTIPLIER', 4),
     'discard_chunk_size' => (int) env('IPC_DISCARD_CHUNK_SIZE', 32768),
     'discard_timeout' => (float) env('IPC_DISCARD_TIMEOUT', 0),
@@ -52,8 +52,19 @@ return [
 
     // Go Engine 自动启动配置（由 PHP 启动阶段触发）
     'engine_auto_start' => (bool) env('IPC_ENGINE_AUTO_START', true),
-    'engine_start_command' => (string) env('IPC_ENGINE_START_COMMAND', 'CONFIG_FILE=./magic-go-engine-config.yaml ./bin/magic-go-engine'),
+    'engine_executable' => (string) env('IPC_ENGINE_EXECUTABLE', './bin/magic-go-engine'),
+    'engine_arguments' => (string) env('IPC_ENGINE_ARGUMENTS_JSON', '[]'),
+    'engine_config_file' => (string) env('IPC_ENGINE_CONFIG_FILE', './magic-go-engine-config.yaml'),
+    'engine_env' => (string) env('IPC_ENGINE_ENV_JSON', '{}'),
     'engine_workdir' => (string) env('IPC_ENGINE_WORKDIR', BASE_PATH),
     'engine_start_wait_timeout_seconds' => (int) env('IPC_ENGINE_START_WAIT_TIMEOUT_SECONDS', 20),
     'engine_start_wait_interval_ms' => (int) env('IPC_ENGINE_START_WAIT_INTERVAL_MS', 200),
+
+    // Go Engine PHP 内建保活配置
+    'engine_supervisor_enabled' => (bool) env('IPC_ENGINE_SUPERVISOR_ENABLED', true),
+    'engine_supervisor_interval_seconds' => (int) env('IPC_ENGINE_SUPERVISOR_INTERVAL_SECONDS', 2),
+    'engine_supervisor_rpc_unhealthy_seconds' => (int) env('IPC_ENGINE_SUPERVISOR_RPC_UNHEALTHY_SECONDS', 30),
+    'engine_supervisor_restart_backoff_ms' => (int) env('IPC_ENGINE_SUPERVISOR_RESTART_BACKOFF_MS', 1000),
+    'engine_supervisor_restart_max_backoff_ms' => (int) env('IPC_ENGINE_SUPERVISOR_RESTART_MAX_BACKOFF_MS', 30000),
+    'engine_supervisor_terminate_grace_seconds' => (int) env('IPC_ENGINE_SUPERVISOR_TERMINATE_GRACE_SECONDS', 5),
 ];

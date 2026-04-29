@@ -10,6 +10,7 @@ import (
 	"magic/internal/constants"
 	fragmodel "magic/internal/domain/knowledge/fragment/model"
 	domainrebuild "magic/internal/domain/knowledge/rebuild"
+	sharedroute "magic/internal/domain/knowledge/shared/route"
 )
 
 // Run 执行一次知识库重建任务。
@@ -160,7 +161,7 @@ func (r *Runner) prepareRun(ctx context.Context, runID string, opts rebuilddto.R
 
 func (r *Runner) resolveActiveCollectionState(
 	ctx context.Context,
-	meta domainrebuild.CollectionMeta,
+	meta sharedroute.CollectionMeta,
 ) (activeCollectionState, error) {
 	aliasTarget := ""
 	loadedAliasTarget, exists, err := r.collections.GetAliasTarget(ctx, constants.KnowledgeBaseCollectionName)

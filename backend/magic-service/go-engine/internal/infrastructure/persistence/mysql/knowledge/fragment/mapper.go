@@ -61,7 +61,7 @@ func fillFragmentCommon(raw fragmentRaw) (*fragmodel.KnowledgeBaseFragment, erro
 		return nil, err
 	}
 	fragment.Metadata = metadata
-	fragmetadata.ApplyFragmentMetadataContractV1(fragment)
+	fragmetadata.ApplyFragmentMetadataContract(fragment)
 
 	return fragment, nil
 }
@@ -74,7 +74,7 @@ func decodeFragmentMetadata(metadataJSON []byte) (map[string]any, error) {
 	return metadata, nil
 }
 
-func toFragmentFromFindByID(row mysqlsqlc.FindFragmentByIDRow) (*fragmodel.KnowledgeBaseFragment, error) {
+func toFragmentFromModel(row mysqlsqlc.MagicFlowKnowledgeFragment) (*fragmodel.KnowledgeBaseFragment, error) {
 	return fillFragmentCommon(fragmentRaw{
 		id:                row.ID,
 		knowledgeCode:     row.KnowledgeCode,
@@ -95,134 +95,46 @@ func toFragmentFromFindByID(row mysqlsqlc.FindFragmentByIDRow) (*fragmodel.Knowl
 	})
 }
 
-func toFragmentFromFindByPointIDs(row mysqlsqlc.FindFragmentsByPointIDsRow) (*fragmodel.KnowledgeBaseFragment, error) {
-	return fillFragmentCommon(fragmentRaw{
-		id:                row.ID,
-		knowledgeCode:     row.KnowledgeCode,
-		documentCode:      row.DocumentCode,
-		content:           row.Content,
-		metadataJSON:      row.Metadata,
-		businessID:        row.BusinessID,
-		syncStatus:        row.SyncStatus,
-		syncTimes:         row.SyncTimes,
-		syncStatusMessage: row.SyncStatusMessage,
-		pointID:           row.PointID,
-		wordCount:         row.WordCount,
-		createdUID:        row.CreatedUid,
-		updatedUID:        row.UpdatedUid,
-		createdAt:         row.CreatedAt,
-		updatedAt:         row.UpdatedAt,
-		deletedAt:         row.DeletedAt,
-	})
+func toFragmentFromFindByID(row mysqlsqlc.MagicFlowKnowledgeFragment) (*fragmodel.KnowledgeBaseFragment, error) {
+	return toFragmentFromModel(row)
 }
 
-func toFragmentFromList(row mysqlsqlc.ListFragmentsRow) (*fragmodel.KnowledgeBaseFragment, error) {
-	return fillFragmentCommon(fragmentRaw{
-		id:                row.ID,
-		knowledgeCode:     row.KnowledgeCode,
-		documentCode:      row.DocumentCode,
-		content:           row.Content,
-		metadataJSON:      row.Metadata,
-		businessID:        row.BusinessID,
-		syncStatus:        row.SyncStatus,
-		syncTimes:         row.SyncTimes,
-		syncStatusMessage: row.SyncStatusMessage,
-		pointID:           row.PointID,
-		wordCount:         row.WordCount,
-		createdUID:        row.CreatedUid,
-		updatedUID:        row.UpdatedUid,
-		createdAt:         row.CreatedAt,
-		updatedAt:         row.UpdatedAt,
-		deletedAt:         row.DeletedAt,
-	})
+func toFragmentFromFindByPointIDs(row mysqlsqlc.MagicFlowKnowledgeFragment) (*fragmodel.KnowledgeBaseFragment, error) {
+	return toFragmentFromModel(row)
 }
 
-func toFragmentFromListByKnowledgeAndDocument(
-	row mysqlsqlc.ListFragmentsByKnowledgeAndDocumentRow,
-) (*fragmodel.KnowledgeBaseFragment, error) {
-	return fillFragmentCommon(fragmentRaw{
-		id:                row.ID,
-		knowledgeCode:     row.KnowledgeCode,
-		documentCode:      row.DocumentCode,
-		content:           row.Content,
-		metadataJSON:      row.Metadata,
-		businessID:        row.BusinessID,
-		syncStatus:        row.SyncStatus,
-		syncTimes:         row.SyncTimes,
-		syncStatusMessage: row.SyncStatusMessage,
-		pointID:           row.PointID,
-		wordCount:         row.WordCount,
-		createdUID:        row.CreatedUid,
-		updatedUID:        row.UpdatedUid,
-		createdAt:         row.CreatedAt,
-		updatedAt:         row.UpdatedAt,
-		deletedAt:         row.DeletedAt,
-	})
+func toFragmentFromFindByIDs(row mysqlsqlc.MagicFlowKnowledgeFragment) (*fragmodel.KnowledgeBaseFragment, error) {
+	return toFragmentFromModel(row)
 }
 
-func toFragmentFromFindByIDs(row mysqlsqlc.FindFragmentsByIDsRow) (*fragmodel.KnowledgeBaseFragment, error) {
-	return fillFragmentCommon(fragmentRaw{
-		id:                row.ID,
-		knowledgeCode:     row.KnowledgeCode,
-		documentCode:      row.DocumentCode,
-		content:           row.Content,
-		metadataJSON:      row.Metadata,
-		businessID:        row.BusinessID,
-		syncStatus:        row.SyncStatus,
-		syncTimes:         row.SyncTimes,
-		syncStatusMessage: row.SyncStatusMessage,
-		pointID:           row.PointID,
-		wordCount:         row.WordCount,
-		createdUID:        row.CreatedUid,
-		updatedUID:        row.UpdatedUid,
-		createdAt:         row.CreatedAt,
-		updatedAt:         row.UpdatedAt,
-		deletedAt:         row.DeletedAt,
-	})
+func toFragmentFromListByKnowledge(row mysqlsqlc.MagicFlowKnowledgeFragment) (*fragmodel.KnowledgeBaseFragment, error) {
+	return toFragmentFromModel(row)
 }
 
-func toFragmentFromListPending(row mysqlsqlc.ListPendingFragmentsRow) (*fragmodel.KnowledgeBaseFragment, error) {
-	return fillFragmentCommon(fragmentRaw{
-		id:                row.ID,
-		knowledgeCode:     row.KnowledgeCode,
-		documentCode:      row.DocumentCode,
-		content:           row.Content,
-		metadataJSON:      row.Metadata,
-		businessID:        row.BusinessID,
-		syncStatus:        row.SyncStatus,
-		syncTimes:         row.SyncTimes,
-		syncStatusMessage: row.SyncStatusMessage,
-		pointID:           row.PointID,
-		wordCount:         row.WordCount,
-		createdUID:        row.CreatedUid,
-		updatedUID:        row.UpdatedUid,
-		createdAt:         row.CreatedAt,
-		updatedAt:         row.UpdatedAt,
-		deletedAt:         row.DeletedAt,
-	})
+func toFragmentFromListByKnowledgeAndDocument(row mysqlsqlc.MagicFlowKnowledgeFragment) (*fragmodel.KnowledgeBaseFragment, error) {
+	return toFragmentFromModel(row)
 }
 
-func scanFragmentListRow(rows *sql.Rows) (mysqlsqlc.ListFragmentsRow, error) {
-	var row mysqlsqlc.ListFragmentsRow
-	if err := rows.Scan(
-		&row.ID,
-		&row.KnowledgeCode,
-		&row.DocumentCode,
-		&row.Content,
-		&row.Metadata,
-		&row.BusinessID,
-		&row.SyncStatus,
-		&row.SyncTimes,
-		&row.SyncStatusMessage,
-		&row.PointID,
-		&row.WordCount,
-		&row.CreatedUid,
-		&row.UpdatedUid,
-		&row.CreatedAt,
-		&row.UpdatedAt,
-		&row.DeletedAt,
-	); err != nil {
-		return mysqlsqlc.ListFragmentsRow{}, fmt.Errorf("scan fragment row: %w", err)
-	}
-	return row, nil
+func toFragmentFromListByKnowledgeAndDocumentAfterID(row mysqlsqlc.MagicFlowKnowledgeFragment) (*fragmodel.KnowledgeBaseFragment, error) {
+	return toFragmentFromModel(row)
+}
+
+func toFragmentFromListByKnowledgeAndDocumentFiltered(row mysqlsqlc.MagicFlowKnowledgeFragment) (*fragmodel.KnowledgeBaseFragment, error) {
+	return toFragmentFromModel(row)
+}
+
+func toFragmentFromListByKnowledgeAndBusinessID(row mysqlsqlc.MagicFlowKnowledgeFragment) (*fragmodel.KnowledgeBaseFragment, error) {
+	return toFragmentFromModel(row)
+}
+
+func toFragmentFromMissingDocumentCode(row mysqlsqlc.MagicFlowKnowledgeFragment) (*fragmodel.KnowledgeBaseFragment, error) {
+	return toFragmentFromModel(row)
+}
+
+func toFragmentFromMissingDocumentCodeByCodes(row mysqlsqlc.MagicFlowKnowledgeFragment) (*fragmodel.KnowledgeBaseFragment, error) {
+	return toFragmentFromModel(row)
+}
+
+func toFragmentFromListPending(row mysqlsqlc.MagicFlowKnowledgeFragment) (*fragmodel.KnowledgeBaseFragment, error) {
+	return toFragmentFromModel(row)
 }

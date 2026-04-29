@@ -16,14 +16,14 @@ import (
 
 // DocumentFragmentAssembleInput 描述基于既有 chunk 组装持久化片段的输入。
 type DocumentFragmentAssembleInput struct {
-	Doc          any
+	Doc          *fragmodel.KnowledgeBaseDocument
 	Chunks       []TokenChunk
 	SplitVersion string
 }
 
 // AssembleDocumentFragments 基于既有 chunk 组装持久化片段。
 func AssembleDocumentFragments(input DocumentFragmentAssembleInput) ([]*fragmodel.KnowledgeBaseFragment, error) {
-	doc := snapshotDocument(input.Doc)
+	doc := fragmodel.SnapshotDocument(input.Doc)
 	if doc == nil {
 		return nil, nil
 	}
@@ -31,7 +31,7 @@ func AssembleDocumentFragments(input DocumentFragmentAssembleInput) ([]*fragmode
 }
 
 func assembleDocumentFragments(
-	doc *KnowledgeBaseDocument,
+	doc *fragmodel.KnowledgeBaseDocument,
 	chunks []TokenChunk,
 	splitVersion string,
 ) []*fragmodel.KnowledgeBaseFragment {
@@ -53,7 +53,7 @@ func assembleDocumentFragments(
 		if len(chunk.Metadata) > 0 {
 			maps.Copy(extraMetadata, chunk.Metadata)
 		}
-		meta := fragmetadata.BuildFragmentSemanticMetadataV1(doc.DocMetadata, fragmetadata.FragmentSemanticMetadataDefaults{
+		meta := fragmetadata.BuildFragmentSemanticMetadata(doc.DocMetadata, fragmetadata.FragmentSemanticMetadataDefaults{
 			ChunkIndex:           index,
 			ContentHash:          contentHash,
 			SplitVersion:         splitVersion,

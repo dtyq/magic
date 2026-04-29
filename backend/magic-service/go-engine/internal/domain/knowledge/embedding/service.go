@@ -7,7 +7,7 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
-	"time"
+	"sync"
 
 	"magic/internal/infrastructure/logging"
 	"magic/internal/pkg/ctxmeta"
@@ -26,12 +26,14 @@ var (
 	ErrEmbeddingComputeFailed = errors.New("embedding compute failed")
 	// ErrEmbeddingProvidersListFailed 表示 embedding provider 查询失败。
 	ErrEmbeddingProvidersListFailed = errors.New("embedding providers list failed")
+	// ErrCacheNotFound 表示缓存未命中。
+	ErrCacheNotFound = errors.New("embedding cache not found")
 )
 
 // 缓存操作的超时常量
 const (
-	cacheWriteTimeout      = 5 * time.Second
-	batchCacheWriteTimeout = 10 * time.Second
+	missingBatchSize           = 4
+	missingBatchMaxConcurrency = 4
 )
 
 // Result 封装单条 embedding 结果和缓存命中信息。
@@ -44,6 +46,29 @@ type Result struct {
 type BatchResult struct {
 	Embeddings [][]float64
 	CacheHit   int
+}
+
+type missingEmbeddingsInput struct {
+	result               [][]float64
+	missingHashes        []string
+	missingTextByHash    map[string]string
+	missingIndicesByHash map[string][]int
+	model                string
+	businessParams       *ctxmeta.BusinessParams
+}
+
+type missingEmbeddingBatch struct {
+	index  int
+	hashes []string
+	texts  []string
+}
+
+type missingEmbeddingBatchOutcome struct {
+	index      int
+	hashes     []string
+	texts      []string
+	embeddings [][]float64
+	err        error
 }
 
 // ContentLoader 定义内容加载能力
@@ -115,8 +140,8 @@ func (s *DomainService) GetEmbeddingWithMeta(
 
 	// 1. 尝试从缓存获取
 	cached, err := s.cacheRepo.FindByHash(ctx, textHash, model)
-	if err != nil {
-		s.logger.WarnContext(ctx, "Failed to query cache", logkey.Error, err)
+	if err != nil && !errors.Is(err, ErrCacheNotFound) {
+		s.logger.KnowledgeWarnContext(ctx, "Failed to query cache", logkey.Error, err)
 	} else if cached != nil {
 		return &Result{
 			Embedding: cached.Embedding,
@@ -130,8 +155,8 @@ func (s *DomainService) GetEmbeddingWithMeta(
 		return nil, fmt.Errorf("%w: failed to compute embedding: %w", ErrEmbeddingComputeFailed, err)
 	}
 
-	// 3. 异步保存到缓存
-	go s.asyncSaveToCache(ctx, text, embedding, model)
+	// 3. 同步 best-effort 写入缓存，失败只记录日志。
+	s.syncSaveToCache(ctx, text, embedding, model)
 
 	return &Result{
 		Embedding: embedding,
@@ -177,7 +202,7 @@ func (s *DomainService) GetEmbeddingsWithMeta(
 	// 2. 批量查询缓存
 	cachedMap, err := s.cacheRepo.FindByHashes(ctx, textHashes, model)
 	if err != nil {
-		s.logger.WarnContext(ctx, "Failed to query cache batch", logkey.Error, err)
+		s.logger.KnowledgeWarnContext(ctx, "Failed to query cache batch", logkey.Error, err)
 		cachedMap = make(map[string]*Cache)
 	}
 
@@ -205,28 +230,19 @@ func (s *DomainService) GetEmbeddingsWithMeta(
 
 	// 4. 批量计算缺失的 embeddings
 	if len(missingHashes) > 0 {
-		missingTexts := make([]string, len(missingHashes))
-		for i, hash := range missingHashes {
-			missingTexts[i] = missingTextByHash[hash]
+		if err := s.fillMissingEmbeddings(
+			ctx,
+			missingEmbeddingsInput{
+				result:               result,
+				missingHashes:        missingHashes,
+				missingTextByHash:    missingTextByHash,
+				missingIndicesByHash: missingIndicesByHash,
+				model:                model,
+				businessParams:       businessParams,
+			},
+		); err != nil {
+			return nil, err
 		}
-		embeddings, err := s.embeddingRepo.ComputeBatchEmbeddings(ctx, missingTexts, model, businessParams)
-		if err != nil {
-			return nil, fmt.Errorf("%w: failed to batch compute embeddings: %w", ErrEmbeddingComputeFailed, err)
-		}
-		if len(embeddings) != len(missingTexts) {
-			return nil, fmt.Errorf("%w: got %d, want %d", ErrInvalidBatchEmbeddingResultLength, len(embeddings), len(missingTexts))
-		}
-
-		// 填充结果（按 hash 回填到所有对应条目）
-		for idx, hash := range missingHashes {
-			embedding := embeddings[idx]
-			for _, resultIdx := range missingIndicesByHash[hash] {
-				result[resultIdx] = embedding
-			}
-		}
-
-		// 5. 异步批量保存到缓存
-		go s.asyncSaveBatchToCache(ctx, missingTexts, embeddings, model)
 	}
 
 	return &BatchResult{
@@ -256,31 +272,214 @@ func (s *DomainService) buildUniqueTextHashes(texts []string) []string {
 	return textHashes
 }
 
-// asyncSaveToCache 异步保存单个缓存
-func (s *DomainService) asyncSaveToCache(parentCtx context.Context, text string, embedding []float64, model string) {
-	// 保留上下文 value，同时避免请求取消导致缓存写入被中断。
-	ctx, cancel := context.WithTimeout(context.WithoutCancel(parentCtx), cacheWriteTimeout)
-	defer cancel()
+func (s *DomainService) fillMissingEmbeddings(
+	ctx context.Context,
+	input missingEmbeddingsInput,
+) error {
+	batches := buildMissingEmbeddingBatches(input.missingHashes, input.missingTextByHash)
+	if len(batches) == 0 {
+		return nil
+	}
 
-	if err := s.cacheRepo.SaveIfAbsent(ctx, text, embedding, model); err != nil {
-		s.logger.WarnContext(ctx, "Failed to save cache", logkey.Error, err)
+	return s.computeAndCommitMissingEmbeddingBatches(ctx, input, batches)
+}
+
+func (s *DomainService) computeAndCommitMissingEmbeddingBatches(
+	ctx context.Context,
+	input missingEmbeddingsInput,
+	batches []missingEmbeddingBatch,
+) error {
+	for waveStart := 0; waveStart < len(batches); waveStart += missingBatchMaxConcurrency {
+		waveEnd := min(waveStart+missingBatchMaxConcurrency, len(batches))
+		waveBatches := batches[waveStart:waveEnd]
+		waveOutcomes, err := s.computeMissingEmbeddingBatchWave(ctx, input, waveBatches)
+		s.commitMissingEmbeddingBatchOutcomes(ctx, input, waveBatches, orderedMissingEmbeddingBatchOutcomes(waveBatches, waveOutcomes))
+		if err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func (s *DomainService) computeMissingEmbeddingBatchWave(
+	ctx context.Context,
+	input missingEmbeddingsInput,
+	batches []missingEmbeddingBatch,
+) (map[int]missingEmbeddingBatchOutcome, error) {
+	outcomes := make(chan missingEmbeddingBatchOutcome, len(batches))
+	var wg sync.WaitGroup
+	startSignals := make([]chan struct{}, len(batches)+1)
+	for index := range startSignals {
+		startSignals[index] = make(chan struct{})
+	}
+	launchBatch := func(batchIndex int, batch missingEmbeddingBatch) {
+		wg.Go(func() {
+			<-startSignals[batchIndex]
+			close(startSignals[batchIndex+1])
+			outcomes <- s.computeMissingEmbeddingBatch(ctx, input, batch)
+		})
+	}
+	for batchIndex, batch := range batches {
+		launchBatch(batchIndex, batch)
+	}
+	close(startSignals[0])
+	wg.Wait()
+	close(outcomes)
+
+	return collectMissingEmbeddingBatchWaveOutcomes(batches, outcomes)
+}
+
+func collectMissingEmbeddingBatchWaveOutcomes(
+	batches []missingEmbeddingBatch,
+	outcomes <-chan missingEmbeddingBatchOutcome,
+) (map[int]missingEmbeddingBatchOutcome, error) {
+	waveOutcomes := make(map[int]missingEmbeddingBatchOutcome, len(batches))
+	var firstErr error
+	for outcome := range outcomes {
+		waveOutcomes[outcome.index] = outcome
+	}
+	for _, batch := range batches {
+		outcome := waveOutcomes[batch.index]
+		if outcome.err != nil && firstErr == nil {
+			firstErr = outcome.err
+		}
+	}
+	if firstErr != nil {
+		return waveOutcomes, wrapMissingEmbeddingBatchErr(firstErr)
+	}
+	return waveOutcomes, nil
+}
+
+func orderedMissingEmbeddingBatchOutcomes(
+	batches []missingEmbeddingBatch,
+	outcomes map[int]missingEmbeddingBatchOutcome,
+) []missingEmbeddingBatchOutcome {
+	orderedOutcomes := make([]missingEmbeddingBatchOutcome, 0, len(batches))
+	for _, batch := range batches {
+		orderedOutcomes = append(orderedOutcomes, outcomes[batch.index])
+	}
+	return orderedOutcomes
+}
+
+func (s *DomainService) commitMissingEmbeddingBatchOutcomes(
+	ctx context.Context,
+	input missingEmbeddingsInput,
+	batches []missingEmbeddingBatch,
+	outcomes []missingEmbeddingBatchOutcome,
+) {
+	if len(outcomes) == 0 {
+		return
+	}
+
+	outcomesByIndex := make(map[int]missingEmbeddingBatchOutcome, len(outcomes))
+	for _, outcome := range outcomes {
+		outcomesByIndex[outcome.index] = outcome
+	}
+
+	for _, batch := range batches {
+		outcome, ok := outcomesByIndex[batch.index]
+		if !ok || outcome.err != nil {
+			break
+		}
+
+		fillBatchResults(input.result, outcome.hashes, outcome.embeddings, input.missingIndicesByHash)
+		s.syncSaveBatchToCache(ctx, outcome.texts, outcome.embeddings, input.model)
 	}
 }
 
-// asyncSaveBatchToCache 异步批量保存缓存
-func (s *DomainService) asyncSaveBatchToCache(parentCtx context.Context, texts []string, embeddings [][]float64, model string) {
-	// 保留上下文 value，同时避免请求取消导致缓存写入被中断。
-	ctx, cancel := context.WithTimeout(context.WithoutCancel(parentCtx), batchCacheWriteTimeout)
-	defer cancel()
+func wrapMissingEmbeddingBatchErr(err error) error {
+	if err == nil {
+		return nil
+	}
+	if errors.Is(err, ErrEmbeddingComputeFailed) {
+		return err
+	}
+	return fmt.Errorf("%w: failed to batch compute embeddings: %w", ErrEmbeddingComputeFailed, err)
+}
 
+func buildMissingBatchTexts(batchHashes []string, missingTextByHash map[string]string) []string {
+	batchTexts := make([]string, len(batchHashes))
+	for i, hash := range batchHashes {
+		batchTexts[i] = missingTextByHash[hash]
+	}
+	return batchTexts
+}
+
+func fillBatchResults(
+	result [][]float64,
+	batchHashes []string,
+	embeddings [][]float64,
+	missingIndicesByHash map[string][]int,
+) {
+	for idx, hash := range batchHashes {
+		embedding := embeddings[idx]
+		for _, resultIdx := range missingIndicesByHash[hash] {
+			result[resultIdx] = embedding
+		}
+	}
+}
+
+func buildMissingEmbeddingBatches(
+	missingHashes []string,
+	missingTextByHash map[string]string,
+) []missingEmbeddingBatch {
+	batches := make([]missingEmbeddingBatch, 0, (len(missingHashes)+missingBatchSize-1)/missingBatchSize)
+	for start := 0; start < len(missingHashes); start += missingBatchSize {
+		end := min(start+missingBatchSize, len(missingHashes))
+		batchHashes := append([]string(nil), missingHashes[start:end]...)
+		batches = append(batches, missingEmbeddingBatch{
+			index:  len(batches),
+			hashes: batchHashes,
+			texts:  buildMissingBatchTexts(batchHashes, missingTextByHash),
+		})
+	}
+	return batches
+}
+
+func (s *DomainService) computeMissingEmbeddingBatch(
+	ctx context.Context,
+	input missingEmbeddingsInput,
+	batch missingEmbeddingBatch,
+) missingEmbeddingBatchOutcome {
+	outcome := missingEmbeddingBatchOutcome{
+		index:  batch.index,
+		hashes: append([]string(nil), batch.hashes...),
+		texts:  append([]string(nil), batch.texts...),
+	}
+	embeddings, err := s.embeddingRepo.ComputeBatchEmbeddings(ctx, batch.texts, input.model, input.businessParams)
+	if err != nil {
+		outcome.err = fmt.Errorf("%w: failed to batch compute embeddings: %w", ErrEmbeddingComputeFailed, err)
+		return outcome
+	}
+	if len(embeddings) != len(batch.texts) {
+		outcome.err = fmt.Errorf("%w: got %d, want %d", ErrInvalidBatchEmbeddingResultLength, len(embeddings), len(batch.texts))
+		return outcome
+	}
+	outcome.embeddings = embeddings
+	return outcome
+}
+
+// syncSaveToCache 同步 best-effort 保存单个缓存。
+func (s *DomainService) syncSaveToCache(parentCtx context.Context, text string, embedding []float64, model string) {
+	if s == nil || s.cacheRepo == nil {
+		return
+	}
+	if err := s.cacheRepo.SaveIfAbsent(parentCtx, text, embedding, model); err != nil && s.logger != nil {
+		s.logger.KnowledgeWarnContext(parentCtx, "failed to save embedding cache synchronously", "model", model, logkey.Error, err)
+	}
+}
+
+// syncSaveBatchToCache 同步 best-effort 批量保存缓存。
+func (s *DomainService) syncSaveBatchToCache(parentCtx context.Context, texts []string, embeddings [][]float64, model string) {
+	if s == nil || s.cacheRepo == nil || len(texts) == 0 {
+		return
+	}
 	caches := make([]*Cache, len(texts))
-
 	for i, text := range texts {
 		caches[i] = NewEmbeddingCache(text, embeddings[i], model)
 	}
-
-	if err := s.cacheRepo.SaveBatch(ctx, caches); err != nil {
-		s.logger.WarnContext(ctx, "Failed to save cache batch", logkey.Error, err)
+	if err := s.cacheRepo.SaveBatch(parentCtx, caches); err != nil && s.logger != nil {
+		s.logger.KnowledgeWarnContext(parentCtx, "failed to save embedding cache batch synchronously", "model", model, "batch_size", len(caches), logkey.Error, err)
 	}
 }
 
@@ -302,24 +501,6 @@ func (s *DomainService) CleanupExpiredCaches(ctx context.Context, criteria *Cach
 	return count, nil
 }
 
-// SearchCaches 根据条件搜索缓存
-func (s *DomainService) SearchCaches(ctx context.Context, query *CacheQuery) ([]*Cache, int64, error) {
-	caches, total, err := s.analysisRepo.SearchCaches(ctx, query)
-	if err != nil {
-		return nil, 0, fmt.Errorf("failed to search caches: %w", err)
-	}
-	return caches, total, nil
-}
-
-// GetCachesByModel 根据模型获取缓存
-func (s *DomainService) GetCachesByModel(ctx context.Context, model string, offset, limit int) ([]*Cache, error) {
-	caches, err := s.analysisRepo.GetCachesByModel(ctx, model, offset, limit)
-	if err != nil {
-		return nil, fmt.Errorf("failed to get caches by model: %w", err)
-	}
-	return caches, nil
-}
-
 // DeleteCacheByHash 根据 hash 删除缓存
 func (s *DomainService) DeleteCacheByHash(ctx context.Context, textHash string) error {
 	if err := s.cacheRepo.DeleteByHash(ctx, textHash); err != nil {
@@ -334,15 +515,6 @@ func (s *DomainService) BatchDeleteCaches(ctx context.Context, ids []int64) erro
 		return fmt.Errorf("failed to batch delete caches: %w", err)
 	}
 	return nil
-}
-
-// GetLeastAccessedCaches 获取访问最少的缓存
-func (s *DomainService) GetLeastAccessedCaches(ctx context.Context, limit int) ([]*Cache, error) {
-	caches, err := s.analysisRepo.GetLeastAccessed(ctx, limit)
-	if err != nil {
-		return nil, fmt.Errorf("failed to get least accessed caches: %w", err)
-	}
-	return caches, nil
 }
 
 // GetProviders 获取可用的 embedding 模型提供商列表

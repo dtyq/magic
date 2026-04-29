@@ -6,8 +6,10 @@ import (
 	"strings"
 	"testing"
 
+	fragmodel "magic/internal/domain/knowledge/fragment/model"
 	fragdomain "magic/internal/domain/knowledge/fragment/service"
 	"magic/internal/domain/knowledge/shared"
+	sharedsnapshot "magic/internal/domain/knowledge/shared/snapshot"
 )
 
 const testManualWriteAutoDocumentCode = "DOC-AUTO"
@@ -20,17 +22,19 @@ var (
 func TestBuildManualWriteLifecycleUsesExistingDocumentByCode(t *testing.T) {
 	t.Parallel()
 
-	existingDoc := &fragdomain.KnowledgeBaseDocument{
-		Code:             "DOC-1",
-		Name:             "Document 1",
-		DocType:          1,
-		OrganizationCode: "ORG-1",
+	existingDoc := &fragmodel.KnowledgeBaseDocument{
+		KnowledgeDocumentSnapshot: sharedsnapshot.KnowledgeDocumentSnapshot{
+			Code:             "DOC-1",
+			Name:             "Document 1",
+			DocType:          1,
+			OrganizationCode: "ORG-1",
+		},
 	}
 
 	result, err := fragdomain.BuildManualWriteLifecycle(
 		context.Background(),
 		fragdomain.ManualWriteLifecycleInput{
-			KnowledgeBase: &struct{ Code string }{Code: "KB-1"},
+			KnowledgeBase: &sharedsnapshot.KnowledgeBaseRuntimeSnapshot{Code: "KB-1"},
 			Fragment: fragdomain.ManualFragmentInput{
 				KnowledgeCode:    "KB-1",
 				DocumentCode:     "DOC-1",
@@ -40,7 +44,7 @@ func TestBuildManualWriteLifecycleUsesExistingDocumentByCode(t *testing.T) {
 			},
 		},
 		fragdomain.ManualWriteLifecyclePorts{
-			LoadDocumentByCode: func(context.Context, string, string) (*fragdomain.KnowledgeBaseDocument, error) {
+			LoadDocumentByCode: func(context.Context, string, string) (*fragmodel.KnowledgeBaseDocument, error) {
 				return existingDoc, nil
 			},
 		},
@@ -62,10 +66,7 @@ func TestBuildManualWriteLifecycleFallsBackToManualDocument(t *testing.T) {
 	result, err := fragdomain.BuildManualWriteLifecycle(
 		context.Background(),
 		fragdomain.ManualWriteLifecycleInput{
-			KnowledgeBase: &struct {
-				Code  string
-				Model string
-			}{
+			KnowledgeBase: &sharedsnapshot.KnowledgeBaseRuntimeSnapshot{
 				Code:  "KB-1",
 				Model: "text-embedding-3-small",
 			},
@@ -78,7 +79,7 @@ func TestBuildManualWriteLifecycleFallsBackToManualDocument(t *testing.T) {
 			},
 		},
 		fragdomain.ManualWriteLifecyclePorts{
-			LoadDocumentByCode: func(context.Context, string, string) (*fragdomain.KnowledgeBaseDocument, error) {
+			LoadDocumentByCode: func(context.Context, string, string) (*fragmodel.KnowledgeBaseDocument, error) {
 				return nil, fragdomain.ErrManualWriteDocumentMissing
 			},
 		},
@@ -103,10 +104,7 @@ func TestBuildManualWriteLifecycleBuildsLegacyThirdPlatformDocument(t *testing.T
 	result, err := fragdomain.BuildManualWriteLifecycle(
 		context.Background(),
 		fragdomain.ManualWriteLifecycleInput{
-			KnowledgeBase: &struct {
-				Code  string
-				Model string
-			}{
+			KnowledgeBase: &sharedsnapshot.KnowledgeBaseRuntimeSnapshot{
 				Code:  "KB-1",
 				Model: "text-embedding-3-small",
 			},
@@ -122,17 +120,17 @@ func TestBuildManualWriteLifecycleBuildsLegacyThirdPlatformDocument(t *testing.T
 			},
 		},
 		fragdomain.ManualWriteLifecyclePorts{
-			LoadDocumentByCode: func(context.Context, string, string) (*fragdomain.KnowledgeBaseDocument, error) {
+			LoadDocumentByCode: func(context.Context, string, string) (*fragmodel.KnowledgeBaseDocument, error) {
 				return nil, errManualWriteShouldNotLoadByCode
 			},
-			FindDocumentByLegacyThirdFile: func(context.Context, string, string, string) (*fragdomain.KnowledgeBaseDocument, error) {
+			FindDocumentByLegacyThirdFile: func(context.Context, string, string, string) (*fragmodel.KnowledgeBaseDocument, error) {
 				return nil, fragdomain.ErrManualWriteDocumentMissing
 			},
 			BuildLegacyThirdPlatformDocSpec: func(context.Context, fragdomain.LegacyThirdPlatformDocumentSeed) (*fragdomain.LegacyThirdPlatformDocumentSpec, error) {
 				return &fragdomain.LegacyThirdPlatformDocumentSpec{
 					Name:              "file.docx",
 					DocType:           2,
-					DocumentFile:      &fragdomain.File{Name: "file.docx", Type: "third_platform", Extension: "docx", ThirdID: "FILE-1"},
+					DocumentFile:      &fragmodel.DocumentFile{Name: "file.docx", Type: "third_platform", Extension: "docx", ThirdID: "FILE-1"},
 					ThirdPlatformType: "teamshare",
 					ThirdFileID:       "FILE-1",
 					UserID:            "U-1",
@@ -161,7 +159,7 @@ func TestBuildManualWriteLifecycleReturnsLegacyDocumentLookupError(t *testing.T)
 	_, err := fragdomain.BuildManualWriteLifecycle(
 		context.Background(),
 		fragdomain.ManualWriteLifecycleInput{
-			KnowledgeBase: &struct{ Code string }{Code: "KB-1"},
+			KnowledgeBase: &sharedsnapshot.KnowledgeBaseRuntimeSnapshot{Code: "KB-1"},
 			Fragment: fragdomain.ManualFragmentInput{
 				KnowledgeCode:    "KB-1",
 				Content:          "hello world",
@@ -173,10 +171,10 @@ func TestBuildManualWriteLifecycleReturnsLegacyDocumentLookupError(t *testing.T)
 			},
 		},
 		fragdomain.ManualWriteLifecyclePorts{
-			LoadDocumentByCode: func(context.Context, string, string) (*fragdomain.KnowledgeBaseDocument, error) {
+			LoadDocumentByCode: func(context.Context, string, string) (*fragmodel.KnowledgeBaseDocument, error) {
 				return nil, errManualWriteShouldNotLoadByCode
 			},
-			FindDocumentByLegacyThirdFile: func(context.Context, string, string, string) (*fragdomain.KnowledgeBaseDocument, error) {
+			FindDocumentByLegacyThirdFile: func(context.Context, string, string, string) (*fragmodel.KnowledgeBaseDocument, error) {
 				return nil, errManualWriteLookupFailed
 			},
 		},

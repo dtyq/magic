@@ -41,9 +41,10 @@ const (
 
 // Options configures the incremental deadcode runner.
 type Options struct {
-	RootDir   string
-	CacheFile string
-	Binary    string
+	RootDir      string
+	CacheFile    string
+	Binary       string
+	DisableCache bool
 }
 
 // Runner executes deadcode only when tracked inputs have changed.
@@ -136,6 +137,9 @@ func (r *Runner) Run(ctx context.Context) error {
 	if ctx == nil {
 		return errContextRequired
 	}
+	if r.opts.DisableCache {
+		return r.executeWithoutCache(ctx)
+	}
 
 	previousState, currentState, binaryPath, err := r.prepareRunState()
 	if err != nil {
@@ -150,6 +154,26 @@ func (r *Runner) Run(ctx context.Context) error {
 	}
 
 	return r.executeAndPersist(ctx, binaryPath, currentState)
+}
+
+func (r *Runner) executeWithoutCache(ctx context.Context) error {
+	binaryPath, err := r.lookPath(r.opts.Binary)
+	if err != nil {
+		return fmt.Errorf("deadcode not found: %w", err)
+	}
+
+	output, err := r.runDeadcode(ctx, binaryPath)
+	trimmedOutput := strings.TrimSpace(output)
+	if err != nil {
+		return r.reportRunFailure(trimmedOutput, err)
+	}
+	if trimmedOutput != "" {
+		_, _ = fmt.Fprintln(r.stderr, trimmedOutput)
+		return errDeadcodeFound
+	}
+
+	_, _ = fmt.Fprintln(r.stdout, "✓ No deadcode found")
+	return nil
 }
 
 func (r *Runner) prepareRunState() (cacheState, cacheState, string, error) {

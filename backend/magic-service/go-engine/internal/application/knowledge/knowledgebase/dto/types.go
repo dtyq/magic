@@ -33,10 +33,30 @@ type KnowledgeBaseDTO struct {
 	FragmentConfig    *confighelper.FragmentConfigOutputDTO `json:"fragment_config"`
 	EmbeddingConfig   *confighelper.EmbeddingConfig         `json:"embedding_config"`
 	SourceType        *int                                  `json:"source_type,omitempty"`
+	SourceBindings    []SourceBindingDTO                    `json:"source_bindings,omitempty"`
 	KnowledgeBaseType string                                `json:"knowledge_base_type"`
 	AgentCodes        []string                              `json:"agent_codes,omitempty"`
 	CreatedAt         string                                `json:"created_at"`
 	UpdatedAt         string                                `json:"updated_at"`
+}
+
+// SourceBindingTargetDTO 表示来源绑定的精确选择项输出。
+type SourceBindingTargetDTO struct {
+	TargetType string `json:"target_type"`
+	TargetRef  string `json:"target_ref"`
+}
+
+// SourceBindingDTO 表示知识库来源绑定输出。
+type SourceBindingDTO struct {
+	Provider      string                   `json:"provider"`
+	RootType      string                   `json:"root_type"`
+	RootRef       string                   `json:"root_ref"`
+	WorkspaceID   *int64                   `json:"workspace_id,omitempty"`
+	WorkspaceType *string                  `json:"workspace_type,omitempty"`
+	SyncMode      string                   `json:"sync_mode"`
+	Enabled       bool                     `json:"enabled"`
+	SyncConfig    map[string]any           `json:"sync_config,omitempty"`
+	Targets       []SourceBindingTargetDTO `json:"targets,omitempty"`
 }
 
 // SourceBindingTargetInput 表示来源绑定的精确选择项。
@@ -55,6 +75,9 @@ type SourceBindingInput struct {
 	SyncConfig map[string]any
 	Targets    []SourceBindingTargetInput
 }
+
+// LegacyDocumentFileInput 表示 legacy document_files 原始输入。
+type LegacyDocumentFileInput map[string]any
 
 // SourceBindingNode 表示来源绑定选择器统一节点。
 type SourceBindingNode struct {
@@ -133,38 +156,41 @@ type RepairSourceBindingsResult struct {
 
 // CreateKnowledgeBaseInput 表示创建知识库请求。
 type CreateKnowledgeBaseInput struct {
-	OrganizationCode string
-	UserID           string
-	Code             string
-	Name             string
-	Description      string
-	Type             int
-	Model            string
-	VectorDB         string
-	BusinessID       string
-	Icon             string
-	SourceType       *int
-	AgentCodes       []string
-	RetrieveConfig   *confighelper.RetrieveConfigDTO
-	FragmentConfig   *confighelper.FragmentConfigDTO
-	EmbeddingConfig  *confighelper.EmbeddingConfig
-	SourceBindings   []SourceBindingInput
+	OrganizationCode       string
+	UserID                 string
+	Code                   string
+	Name                   string
+	Description            string
+	Type                   int
+	Model                  string
+	VectorDB               string
+	BusinessID             string
+	Icon                   string
+	SourceType             *int
+	AgentCodes             []string
+	RetrieveConfig         *confighelper.RetrieveConfigDTO
+	FragmentConfig         *confighelper.FragmentConfigDTO
+	EmbeddingConfig        *confighelper.EmbeddingConfig
+	SourceBindings         []SourceBindingInput
+	LegacyDocumentFiles    []LegacyDocumentFileInput
+	SourceBindingsProvided bool
 }
 
 // UpdateKnowledgeBaseInput 表示更新知识库请求。
 type UpdateKnowledgeBaseInput struct {
-	OrganizationCode string
-	UserID           string
-	Code             string
-	Name             string
-	Description      string
-	Enabled          *bool
-	Icon             string
-	SourceType       *int
-	RetrieveConfig   *confighelper.RetrieveConfigDTO
-	FragmentConfig   *confighelper.FragmentConfigDTO
-	EmbeddingConfig  *confighelper.EmbeddingConfig
-	SourceBindings   *[]SourceBindingInput
+	OrganizationCode    string
+	UserID              string
+	Code                string
+	Name                string
+	Description         string
+	Enabled             *bool
+	Icon                string
+	SourceType          *int
+	RetrieveConfig      *confighelper.RetrieveConfigDTO
+	FragmentConfig      *confighelper.FragmentConfigDTO
+	EmbeddingConfig     *confighelper.EmbeddingConfig
+	SourceBindings      *[]SourceBindingInput
+	LegacyDocumentFiles *[]LegacyDocumentFileInput
 }
 
 // SaveProcessKnowledgeBaseInput 表示知识库向量化进度更新请求。
@@ -188,4 +214,19 @@ type ListKnowledgeBaseInput struct {
 	BusinessIDs      []string
 	Offset           int
 	Limit            int
+}
+
+// RebuildKnowledgeBasePermissionsInput 表示知识库权限补齐输入。
+type RebuildKnowledgeBasePermissionsInput struct {
+	OperatorOrganizationCode  string
+	OperatorUserID            string
+	KnowledgeOrganizationCode string
+	KnowledgeBaseCodes        []string
+	Limit                     int
+}
+
+// RebuildKnowledgeBasePermissionsResult 表示知识库权限补齐结果。
+type RebuildKnowledgeBasePermissionsResult struct {
+	Scanned     int `json:"scanned"`
+	Initialized int `json:"initialized"`
 }

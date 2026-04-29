@@ -7,7 +7,8 @@ import (
 	"strings"
 
 	fragdto "magic/internal/application/knowledge/fragment/dto"
-	knowledgebasedomain "magic/internal/domain/knowledge/knowledgebase/service"
+	kbentity "magic/internal/domain/knowledge/knowledgebase/entity"
+	kbrepository "magic/internal/domain/knowledge/knowledgebase/repository"
 	kshared "magic/internal/domain/knowledge/shared"
 	"magic/internal/pkg/ctxmeta"
 )
@@ -163,10 +164,10 @@ func (s *FragmentAppService) listBoundKnowledgeBasesByAgent(
 	ctx context.Context,
 	organizationCode string,
 	agentCode string,
-) ([]*knowledgebasedomain.KnowledgeBase, error) {
+) ([]*kbentity.KnowledgeBase, error) {
 	knowledgeBaseCodes, err := s.knowledgeBaseBindingRepo.ListKnowledgeBaseCodesByBindID(
 		ctx,
-		knowledgebasedomain.BindingTypeSuperMagicAgent,
+		kbentity.BindingTypeSuperMagicAgent,
 		agentCode,
 		organizationCode,
 	)
@@ -183,7 +184,7 @@ func (s *FragmentAppService) collectAgentSimilarityHits(
 	ctx context.Context,
 	organizationCode string,
 	query string,
-	knowledgeBases []*knowledgebasedomain.KnowledgeBase,
+	knowledgeBases []*kbentity.KnowledgeBase,
 	businessParams *ctxmeta.BusinessParams,
 ) ([]*fragdto.SimilarityResultDTO, error) {
 	hits := make([]*fragdto.SimilarityResultDTO, 0, employeeKnowledgeTopK)
@@ -210,12 +211,12 @@ func (s *FragmentAppService) listDigitalEmployeeKnowledgeBases(
 	ctx context.Context,
 	organizationCode string,
 	codes []string,
-) ([]*knowledgebasedomain.KnowledgeBase, error) {
+) ([]*kbentity.KnowledgeBase, error) {
 	// 数字员工相似度只按 knowledge_base_type=digital_employee 取知识库；
 	// source_type 只在该产品线内部解释，不能用来兜底筛产品线。
-	kbType := knowledgebasedomain.KnowledgeBaseTypeDigitalEmployee
+	kbType := kbentity.KnowledgeBaseTypeDigitalEmployee
 	enabled := true
-	items, _, err := s.kbService.List(ctx, &knowledgebasedomain.Query{
+	items, _, err := s.kbService.List(ctx, &kbrepository.Query{
 		OrganizationCode:  organizationCode,
 		KnowledgeBaseType: &kbType,
 		Enabled:           &enabled,

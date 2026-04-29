@@ -13,13 +13,19 @@ import (
 	fragdto "magic/internal/application/knowledge/fragment/dto"
 	pagehelper "magic/internal/application/knowledge/helper/page"
 	thirdplatformprovider "magic/internal/application/knowledge/shared/thirdplatformprovider"
+	userdomain "magic/internal/domain/contact/user"
+	kbaccess "magic/internal/domain/knowledge/access/service"
+	docentity "magic/internal/domain/knowledge/document/entity"
 	documentdomain "magic/internal/domain/knowledge/document/service"
 	documentsplitter "magic/internal/domain/knowledge/document/splitter"
 	fragmodel "magic/internal/domain/knowledge/fragment/model"
 	fragretrieval "magic/internal/domain/knowledge/fragment/retrieval"
 	fragdomain "magic/internal/domain/knowledge/fragment/service"
+	kbentity "magic/internal/domain/knowledge/knowledgebase/entity"
+	kbrepository "magic/internal/domain/knowledge/knowledgebase/repository"
 	knowledgebasedomain "magic/internal/domain/knowledge/knowledgebase/service"
 	"magic/internal/domain/knowledge/shared"
+	parseddocument "magic/internal/domain/knowledge/shared/parseddocument"
 	sharedroute "magic/internal/domain/knowledge/shared/route"
 	sharedsnapshot "magic/internal/domain/knowledge/shared/snapshot"
 	"magic/internal/infrastructure/logging"
@@ -35,15 +41,19 @@ type FragmentAppService struct {
 	documentService           fragmentAppDocumentReader
 	manualFragmentCoordinator fragmentManualCoordinator
 	parseService              fragmentAppParseService
+	projectFileContentPort    documentdomain.ProjectFileContentAccessor
 	thirdPlatformDocumentPort thirdPlatformPreviewResolver
 	previewSplitter           documentsplitter.PreviewSplitter
 	knowledgeBaseBindingRepo  fragmentAppKnowledgeBaseBindingReader
 	superMagicAgentAccess     fragmentAppSuperMagicAgentAccessChecker
 	teamshareTempCodeMapper   fragmentAppTeamshareTempCodeMapper
+	permissionReader          kbaccess.PermissionReader
+	thirdPlatformAccess       fragmentKnowledgeAccessPort
 	tokenizer                 *tokenizer.Service
 	defaultEmbeddingModel     string
 	thirdPlatformProviders    *thirdplatformprovider.Registry
 	legacyThirdPlatformCompat *LegacyThirdPlatformFragmentCompat
+	userService               *userdomain.DomainService
 	logger                    *logging.SugaredLogger
 	previewGroup              singleflight.Group
 }
@@ -60,19 +70,16 @@ var (
 	ErrFragmentPermissionDenied = errors.New("fragment permission denied")
 	// ErrFragmentManualCoordinatorRequired 表示缺少手工片段事务协调器。
 	ErrFragmentManualCoordinatorRequired = errors.New("fragment manual coordinator is required")
+	// ErrFragmentKnowledgeBaseUserNotFound 表示默认文档继承的知识库用户无法确认。
+	ErrFragmentKnowledgeBaseUserNotFound = errors.New("fragment knowledge base user not found")
 )
 
 type fragmentAppFragmentReader interface {
 	Show(ctx context.Context, id int64) (*fragmodel.KnowledgeBaseFragment, error)
 	FindByPointIDs(ctx context.Context, pointIDs []string) ([]*fragmodel.KnowledgeBaseFragment, error)
-	ListContextByDocuments(
-		ctx context.Context,
-		documentKeys []fragmodel.DocumentKey,
-		limit int,
-	) (map[fragmodel.DocumentKey][]*fragmodel.KnowledgeBaseFragment, error)
 	List(ctx context.Context, query *fragmodel.Query) ([]*fragmodel.KnowledgeBaseFragment, int64, error)
 	ListPointIDsByFilter(ctx context.Context, collectionName string, filter *fragmodel.VectorFilter, limit int) ([]string, error)
-	Similarity(ctx context.Context, kb any, req fragretrieval.SimilarityRequest) ([]*fragmodel.SimilarityResult, error)
+	Similarity(ctx context.Context, kb *sharedsnapshot.KnowledgeBaseRuntimeSnapshot, req fragretrieval.SimilarityRequest) ([]*fragmodel.SimilarityResult, error)
 	WarmupRetrieval(ctx context.Context) error
 }
 
@@ -81,7 +88,7 @@ type fragmentAppFragmentWriter interface {
 	Destroy(ctx context.Context, fragment *fragmodel.KnowledgeBaseFragment, collectionName string) error
 	DestroyBatch(ctx context.Context, fragments []*fragmodel.KnowledgeBaseFragment, collectionName string) error
 	SetPayloadByPointIDs(ctx context.Context, collection string, updates map[string]map[string]any) error
-	SyncFragment(ctx context.Context, kb any, fragment *fragmodel.KnowledgeBaseFragment, businessParams *ctxmeta.BusinessParams) error
+	SyncFragment(ctx context.Context, kb *sharedsnapshot.KnowledgeBaseRuntimeSnapshot, fragment *fragmodel.KnowledgeBaseFragment, businessParams *ctxmeta.BusinessParams) error
 }
 
 type fragmentAppFragmentService interface {
@@ -90,52 +97,59 @@ type fragmentAppFragmentService interface {
 }
 
 type fragmentAppKnowledgeBaseReader interface {
-	Show(ctx context.Context, code string) (*knowledgebasedomain.KnowledgeBase, error)
-	ShowByCodeAndOrg(ctx context.Context, code, orgCode string) (*knowledgebasedomain.KnowledgeBase, error)
-	List(ctx context.Context, query *knowledgebasedomain.Query) ([]*knowledgebasedomain.KnowledgeBase, int64, error)
-	ResolveRuntimeRoute(ctx context.Context, kb *knowledgebasedomain.KnowledgeBase) sharedroute.ResolvedRoute
+	Show(ctx context.Context, code string) (*kbentity.KnowledgeBase, error)
+	ShowByCodeAndOrg(ctx context.Context, code, orgCode string) (*kbentity.KnowledgeBase, error)
+	List(ctx context.Context, query *kbrepository.Query) ([]*kbentity.KnowledgeBase, int64, error)
+	ResolveRuntimeRoute(ctx context.Context, kb *kbentity.KnowledgeBase) sharedroute.ResolvedRoute
 }
 
 type fragmentAppDocumentReader interface {
-	ShowByCodeAndKnowledgeBase(ctx context.Context, code, knowledgeBaseCode string) (*documentdomain.KnowledgeBaseDocument, error)
-	FindByKnowledgeBaseAndThirdFile(ctx context.Context, knowledgeBaseCode, thirdPlatformType, thirdFileID string) (*documentdomain.KnowledgeBaseDocument, error)
-	EnsureDefaultDocument(ctx context.Context, kb *sharedsnapshot.KnowledgeBaseRuntimeSnapshot) (*documentdomain.KnowledgeBaseDocument, bool, error)
+	Show(ctx context.Context, code string) (*docentity.KnowledgeBaseDocument, error)
+	ShowByCodeAndKnowledgeBase(ctx context.Context, code, knowledgeBaseCode string) (*docentity.KnowledgeBaseDocument, error)
+	FindByKnowledgeBaseAndThirdFile(ctx context.Context, knowledgeBaseCode, thirdPlatformType, thirdFileID string) (*docentity.KnowledgeBaseDocument, error)
+	EnsureDefaultDocument(ctx context.Context, kb *sharedsnapshot.KnowledgeBaseRuntimeSnapshot) (*docentity.KnowledgeBaseDocument, bool, error)
 }
 
 type fragmentManualCoordinator interface {
 	EnsureDocumentAndSaveFragment(
 		ctx context.Context,
-		doc *documentdomain.KnowledgeBaseDocument,
+		doc *docentity.KnowledgeBaseDocument,
 		fragment *fragmodel.KnowledgeBaseFragment,
-	) (*documentdomain.KnowledgeBaseDocument, error)
+	) (*docentity.KnowledgeBaseDocument, error)
 }
 
 type fragmentAppParseService interface {
 	Parse(ctx context.Context, rawURL, ext string) (string, error)
-	ParseDocument(ctx context.Context, rawURL, ext string) (*documentdomain.ParsedDocument, error)
+	ParseDocument(ctx context.Context, rawURL, ext string) (*parseddocument.ParsedDocument, error)
 	ParseDocumentReaderWithOptions(
 		ctx context.Context,
 		fileURL string,
 		file io.Reader,
 		fileType string,
 		options documentdomain.ParseOptions,
-	) (*documentdomain.ParsedDocument, error)
+	) (*parseddocument.ParsedDocument, error)
 	ParseDocumentWithOptions(
 		ctx context.Context,
 		rawURL, ext string,
 		options documentdomain.ParseOptions,
-	) (*documentdomain.ParsedDocument, error)
+	) (*parseddocument.ParsedDocument, error)
 }
 
 type fragmentAppKnowledgeBaseBindingReader interface {
 	ListBindIDsByKnowledgeBase(
 		ctx context.Context,
 		knowledgeBaseCode string,
-		bindType knowledgebasedomain.BindingType,
+		bindType kbentity.BindingType,
+	) ([]string, error)
+	ListBindIDsByKnowledgeBaseInOrg(
+		ctx context.Context,
+		organizationCode string,
+		knowledgeBaseCode string,
+		bindType kbentity.BindingType,
 	) ([]string, error)
 	ListKnowledgeBaseCodesByBindID(
 		ctx context.Context,
-		bindType knowledgebasedomain.BindingType,
+		bindType kbentity.BindingType,
 		bindID string,
 		organizationCode string,
 	) ([]string, error)
@@ -161,6 +175,7 @@ type thirdPlatformPreviewResolver interface {
 // AppDeps 聚合片段应用服务需要的窄协作对象。
 type AppDeps struct {
 	ParseService              *documentdomain.ParseService
+	ProjectFileContentPort    documentdomain.ProjectFileContentAccessor
 	ThirdPlatformDocumentPort thirdPlatformPreviewResolver
 	ThirdPlatformProviders    *thirdplatformprovider.Registry
 	PreviewSplitter           documentsplitter.PreviewSplitter
@@ -168,7 +183,10 @@ type AppDeps struct {
 	SuperMagicAgentAccess     fragmentAppSuperMagicAgentAccessChecker
 	TeamshareTempCodeMapper   fragmentAppTeamshareTempCodeMapper
 	ManualFragmentCoordinator fragmentManualCoordinator
+	PermissionReader          kbaccess.PermissionReader
+	ThirdPlatformAccess       fragmentKnowledgeAccessPort
 	Tokenizer                 *tokenizer.Service
+	UserService               *userdomain.DomainService
 	DefaultEmbeddingModel     string
 }
 
@@ -190,14 +208,18 @@ func NewFragmentAppService(
 		documentService:           documentService,
 		manualFragmentCoordinator: deps.ManualFragmentCoordinator,
 		parseService:              deps.ParseService,
+		projectFileContentPort:    deps.ProjectFileContentPort,
 		thirdPlatformDocumentPort: deps.ThirdPlatformDocumentPort,
 		previewSplitter:           previewSplitter,
 		knowledgeBaseBindingRepo:  deps.KnowledgeBaseBindingRepo,
 		superMagicAgentAccess:     deps.SuperMagicAgentAccess,
 		teamshareTempCodeMapper:   deps.TeamshareTempCodeMapper,
+		permissionReader:          deps.PermissionReader,
+		thirdPlatformAccess:       deps.ThirdPlatformAccess,
 		tokenizer:                 deps.Tokenizer,
 		defaultEmbeddingModel:     resolveDefaultEmbeddingModel(deps.DefaultEmbeddingModel),
 		thirdPlatformProviders:    deps.ThirdPlatformProviders,
+		userService:               deps.UserService,
 		logger:                    logger,
 	}
 	service.legacyThirdPlatformCompat = NewLegacyThirdPlatformFragmentCompat(documentService, deps.ThirdPlatformProviders)
@@ -232,8 +254,9 @@ func (s *FragmentAppService) Create(ctx context.Context, input *fragdto.CreateFr
 		return nil, err
 	}
 	s.applyResolvedRouteToKnowledgeBase(ctx, kb)
+	kbSnapshot := knowledgeBaseSnapshotFromDomain(kb)
 
-	lifecycle, err := s.buildManualWriteLifecycle(ctx, kb, input)
+	lifecycle, err := s.buildManualWriteLifecycle(ctx, kbSnapshot, input)
 	if err != nil {
 		return nil, err
 	}
@@ -255,7 +278,7 @@ func (s *FragmentAppService) Create(ctx context.Context, input *fragdto.CreateFr
 	fragment.DocumentType = resolvedDoc.DocType
 	fragment.OrganizationCode = resolvedDoc.OrganizationCode
 
-	return s.entityToDTO(fragment), nil
+	return withKnowledgeBaseContext(s.entityToDTO(fragment), kb), nil
 }
 
 func resolveDefaultEmbeddingModel(model string) string {
@@ -272,6 +295,9 @@ func (s *FragmentAppService) Show(
 	id int64,
 	organizationCode, knowledgeCode, documentCode string,
 ) (*fragdto.FragmentDTO, error) {
+	if err := s.authorizeKnowledgeBaseAction(ctx, organizationCode, "", knowledgeCode, "read"); err != nil {
+		return nil, err
+	}
 	fragment, err := s.fragmentService.Show(ctx, id)
 	if err != nil {
 		return nil, fmt.Errorf("failed to find fragment: %w", err)
@@ -279,10 +305,11 @@ func (s *FragmentAppService) Show(
 	if err := validateFragmentScope(fragment, organizationCode, knowledgeCode, documentCode); err != nil {
 		return nil, err
 	}
-	if _, err := s.loadScopedKnowledgeBase(ctx, fragment.OrganizationCode, fragment.KnowledgeCode); err != nil {
+	kb, err := s.loadScopedKnowledgeBase(ctx, fragment.OrganizationCode, fragment.KnowledgeCode)
+	if err != nil {
 		return nil, err
 	}
-	return s.entityToDTO(fragment), nil
+	return withKnowledgeBaseContext(s.entityToDTO(fragment), kb), nil
 }
 
 // List 查询片段列表
@@ -317,16 +344,17 @@ func (s *FragmentAppService) List(ctx context.Context, input *fragdto.ListFragme
 
 // ListV2 查询片段列表并返回结构化预览数据。
 func (s *FragmentAppService) ListV2(ctx context.Context, input *fragdto.ListFragmentInput) (*fragdto.FragmentPageResultDTO, error) {
+	var kb *kbentity.KnowledgeBase
 	if input != nil {
-		allowed, err := s.isKnowledgeBaseAccessibleInAgentScope(
-			ctx,
-			input.OrganizationCode,
-			input.KnowledgeCode,
-		)
-		if err != nil {
+		if err := s.authorizeKnowledgeBaseAction(ctx, input.OrganizationCode, input.UserID, input.KnowledgeCode, "read"); err != nil {
 			return nil, err
 		}
-		if !allowed {
+		var err error
+		kb, err = s.loadScopedKnowledgeBase(ctx, input.OrganizationCode, input.KnowledgeCode)
+		if err != nil {
+			if !errors.Is(err, shared.ErrKnowledgeBaseNotFound) {
+				return nil, err
+			}
 			return &fragdto.FragmentPageResultDTO{
 				Page:          1,
 				Total:         0,
@@ -360,7 +388,7 @@ func (s *FragmentAppService) ListV2(ctx context.Context, input *fragdto.ListFrag
 	sources := make([]fragdomain.DocumentNodeSource, 0, len(fragments))
 	documentTitle := ""
 	for _, fragment := range fragments {
-		item := buildListItemFromFragmentDTO(s.entityToDTO(fragment))
+		item := buildListItemFromFragmentDTO(withKnowledgeBaseContext(s.entityToDTO(fragment), kb))
 		list = append(list, item)
 		chunkIndex, hasChunkIndex := metadataIntLookup(fragment.Metadata, "chunk_index")
 		sectionChunkIndex, hasSectionChunkIndex := metadataIntLookup(fragment.Metadata, "section_chunk_index")
@@ -400,6 +428,9 @@ func (s *FragmentAppService) Destroy(
 	id int64,
 	knowledgeCode, documentCode, organizationCode string,
 ) error {
+	if err := s.authorizeKnowledgeBaseAction(ctx, organizationCode, "", knowledgeCode, "delete"); err != nil {
+		return err
+	}
 	fragment, err := s.fragmentService.Show(ctx, id)
 	if err != nil {
 		return fmt.Errorf("failed to find fragment: %w", err)
@@ -423,6 +454,13 @@ func (s *FragmentAppService) Destroy(
 
 // Sync 同步片段到向量库
 func (s *FragmentAppService) Sync(ctx context.Context, input *fragdto.SyncFragmentInput) (*fragdto.FragmentDTO, error) {
+	userID := ""
+	if input != nil && input.BusinessParams != nil {
+		userID = input.BusinessParams.UserID
+	}
+	if err := s.authorizeKnowledgeBaseAction(ctx, input.OrganizationCode, userID, input.KnowledgeCode, "edit"); err != nil {
+		return nil, err
+	}
 	kb, err := s.kbService.Show(ctx, input.KnowledgeCode)
 	if err != nil {
 		return nil, fmt.Errorf("failed to find knowledge base: %w", err)
@@ -435,8 +473,9 @@ func (s *FragmentAppService) Sync(ctx context.Context, input *fragdto.SyncFragme
 	if err := validateFragmentScope(fragment, input.OrganizationCode, input.KnowledgeCode, ""); err != nil {
 		return nil, err
 	}
+	s.applyResolvedRouteToKnowledgeBase(ctx, kb)
 
-	if err := s.fragmentService.SyncFragment(ctx, kb, fragment, input.BusinessParams); err != nil {
+	if err := s.fragmentService.SyncFragment(ctx, knowledgeBaseSnapshotFromDomain(kb), fragment, input.BusinessParams); err != nil {
 		return nil, fmt.Errorf("failed to sync fragment: %w", err)
 	}
 
@@ -445,6 +484,13 @@ func (s *FragmentAppService) Sync(ctx context.Context, input *fragdto.SyncFragme
 
 // Similarity 相似度搜索
 func (s *FragmentAppService) Similarity(ctx context.Context, input *fragdto.SimilarityInput) ([]*fragdto.SimilarityResultDTO, error) {
+	userID := ""
+	if input != nil && input.BusinessParams != nil {
+		userID = input.BusinessParams.UserID
+	}
+	if err := s.authorizeSimilarityRead(ctx, input.OrganizationCode, userID, input.KnowledgeCode); err != nil {
+		return nil, err
+	}
 	kb, err := s.loadScopedKnowledgeBase(ctx, input.OrganizationCode, input.KnowledgeCode)
 	if err != nil {
 		return nil, err
@@ -452,18 +498,58 @@ func (s *FragmentAppService) Similarity(ctx context.Context, input *fragdto.Simi
 	return s.similarityByKnowledgeBase(ctx, kb, input)
 }
 
+func (s *FragmentAppService) authorizeSimilarityRead(
+	ctx context.Context,
+	organizationCode string,
+	userID string,
+	knowledgeBaseCode string,
+) error {
+	actor := resolveFragmentAccessActor(ctx, organizationCode, userID)
+	if s == nil || s.knowledgeBaseBindingRepo == nil {
+		return s.authorizeKnowledgeBaseAction(ctx, actor.OrganizationCode, actor.UserID, knowledgeBaseCode, "read")
+	}
+
+	agentCodes, err := s.knowledgeBaseBindingRepo.ListBindIDsByKnowledgeBaseInOrg(
+		ctx,
+		actor.OrganizationCode,
+		knowledgeBaseCode,
+		kbentity.BindingTypeSuperMagicAgent,
+	)
+	if err != nil {
+		return fmt.Errorf("list knowledge base agent bindings: %w", err)
+	}
+	if len(agentCodes) == 0 {
+		return s.authorizeKnowledgeBaseAction(ctx, actor.OrganizationCode, actor.UserID, knowledgeBaseCode, "read")
+	}
+	if s.superMagicAgentAccess == nil {
+		return ErrFragmentSuperMagicAgentAccessCheckerRequired
+	}
+
+	accessibleCodes, err := s.superMagicAgentAccess.ListAccessibleCodes(ctx, actor.OrganizationCode, actor.UserID, agentCodes)
+	if err != nil {
+		return fmt.Errorf("list accessible super magic agents: %w", err)
+	}
+	for _, agentCode := range agentCodes {
+		if _, ok := accessibleCodes[agentCode]; ok {
+			return nil
+		}
+	}
+	return fmt.Errorf("%w: action=read knowledge_base_code=%s", ErrFragmentPermissionDenied, knowledgeBaseCode)
+}
+
 func (s *FragmentAppService) similarityByKnowledgeBase(
 	ctx context.Context,
-	kb *knowledgebasedomain.KnowledgeBase,
+	kb *kbentity.KnowledgeBase,
 	input *fragdto.SimilarityInput,
 ) ([]*fragdto.SimilarityResultDTO, error) {
 	if kb == nil {
 		return nil, shared.ErrKnowledgeBaseNotFound
 	}
+	kbSnapshot := knowledgeBaseSnapshotFromDomain(kb)
 	results, err := s.fragmentService.Similarity(
 		ctx,
-		kb,
-		fragdomain.BuildSimilarityRequest(kb, fragdomain.SimilarityRequestInput{
+		kbSnapshot,
+		fragdomain.BuildSimilarityRequest(kbSnapshot, fragdomain.SimilarityRequestInput{
 			Query:          input.Query,
 			TopK:           input.TopK,
 			ScoreThreshold: input.ScoreThreshold,
@@ -474,11 +560,32 @@ func (s *FragmentAppService) similarityByKnowledgeBase(
 	if err != nil {
 		return nil, fmt.Errorf("failed to search similarity: %w", err)
 	}
-	return s.similarityResultsToDTOs(ctx, kb, results)
+	return s.similarityResultsToDTOs(ctx, kb, results, input.Debug)
 }
 
 func (s *FragmentAppService) entityToDTO(e *fragmodel.KnowledgeBaseFragment) *fragdto.FragmentDTO {
 	return EntityToDTO(e)
+}
+
+func withKnowledgeBaseContext(dto *fragdto.FragmentDTO, kb *kbentity.KnowledgeBase) *fragdto.FragmentDTO {
+	if dto == nil || kb == nil {
+		return dto
+	}
+	dto.KnowledgeBaseType = string(kb.KnowledgeBaseType)
+	dto.SourceType = cloneOptionalInt(kb.SourceType)
+	return dto
+}
+
+func withSimilarityKnowledgeBaseContext(
+	dto *fragdto.SimilarityResultDTO,
+	kb *kbentity.KnowledgeBase,
+) *fragdto.SimilarityResultDTO {
+	if dto == nil || kb == nil {
+		return dto
+	}
+	dto.KnowledgeBaseType = string(kb.KnowledgeBaseType)
+	dto.SourceType = cloneOptionalInt(kb.SourceType)
+	return dto
 }
 
 func buildSimilarityDisplayContent(content string, metadata map[string]any) (string, int) {
@@ -501,7 +608,7 @@ func validateFragmentScope(fragment *fragmodel.KnowledgeBaseFragment, organizati
 	return nil
 }
 
-func (s *FragmentAppService) applyResolvedRouteToKnowledgeBase(ctx context.Context, kb *knowledgebasedomain.KnowledgeBase) {
+func (s *FragmentAppService) applyResolvedRouteToKnowledgeBase(ctx context.Context, kb *kbentity.KnowledgeBase) {
 	if s == nil || s.kbService == nil || kb == nil {
 		return
 	}

@@ -1,5 +1,9 @@
 domain:
   structureSegmentsWhitelist:
+    - entity
+    - metadata
+    - model
+    - retrieval
     - service
     - repository
   sharedKernelSubdomainsWhitelist:

@@ -21,11 +21,16 @@ func TestResolveBundledRetrievalDictionaryFiles(t *testing.T) {
 	want := []string{
 		filepath.Join(dictDir, retrieval.BundledRetrievalSimplifiedDictFileForTest()),
 		filepath.Join(dictDir, retrieval.BundledRetrievalTraditionalDictFileForTest()),
+		filepath.Join(dictDir, retrieval.BundledRetrievalCustomTermsDictFileForTest()),
 	}
 	for _, filePath := range want {
 		if err := os.WriteFile(filePath, []byte("test"), 0o600); err != nil {
 			t.Fatalf("write bundled retrieval dict %s: %v", filePath, err)
 		}
+	}
+	stopwordsPath := filepath.Join(dictDir, retrieval.BundledRetrievalStopwordsDictFileForTest())
+	if err := os.WriteFile(stopwordsPath, []byte("的\n了\n"), 0o600); err != nil {
+		t.Fatalf("write bundled retrieval stopwords %s: %v", stopwordsPath, err)
 	}
 
 	got, err := retrieval.ResolveBundledRetrievalDictionaryFilesForTest([]string{

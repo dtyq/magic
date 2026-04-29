@@ -2,14 +2,17 @@ package kbapp
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strconv"
 	"strings"
 
 	kbdto "magic/internal/application/knowledge/knowledgebase/dto"
-	sourcebindingdomain "magic/internal/domain/knowledge/sourcebinding/service"
+	sourcebindingdomain "magic/internal/domain/knowledge/sourcebinding/entity"
+	sourcebindingservice "magic/internal/domain/knowledge/sourcebinding/service"
 	"magic/internal/pkg/projectfile"
 	"magic/internal/pkg/thirdplatform"
+	"magic/pkg/convert"
 )
 
 const (
@@ -31,6 +34,8 @@ const (
 	sourceBindingNodesDefaultLimit = 20
 	sourceBindingNodesMaxLimit     = 100
 )
+
+var errSourceBindingTreeRootKnowledgeBaseMismatch = errors.New("source binding tree root knowledge base mismatch")
 
 // ListSourceBindingNodes 查询来源绑定选择器节点。
 func (s *SourceBindingNodesApp) ListSourceBindingNodes(
@@ -110,9 +115,11 @@ func (s *SourceBindingNodesApp) listProjectSourceBindingNodes(
 				List:  []kbdto.SourceBindingNode{},
 			}, nil
 		}
+		projectIDs := collectProjectIDsFromProjectItems(page.List)
+		sharedProjectIDs := s.loadSharedProjectIDsByProjectIDs(ctx, input.OrganizationCode, input.UserID, projectIDs)
 		return &kbdto.ListSourceBindingNodesResult{
 			Total: page.Total,
-			List:  buildProjectNodes(page.List),
+			List:  buildProjectNodes(page.List, sharedProjectIDs),
 		}, nil
 	case sourceBindingParentTypeProject, sourceBindingParentTypeFolder:
 		if s.taskFileService == nil {
@@ -157,7 +164,13 @@ func (s *SourceBindingNodesApp) listEnterpriseSourceBindingNodes(
 
 	switch parentType {
 	case sourceBindingParentTypeRoot:
-		items, err := s.thirdPlatformExpander.ListKnowledgeBases(ctx, organizationCode, userID)
+		actor := resolveKnowledgeBaseAccessActor(ctx, organizationCode, userID)
+		items, err := s.thirdPlatformExpander.ListKnowledgeBases(ctx, thirdplatform.KnowledgeBaseListInput{
+			OrganizationCode:              actor.OrganizationCode,
+			UserID:                        actor.UserID,
+			ThirdPlatformUserID:           actor.ThirdPlatformUserID,
+			ThirdPlatformOrganizationCode: actor.ThirdPlatformOrganizationCode,
+		})
 		if err != nil {
 			return nil, fmt.Errorf("list enterprise knowledge bases: %w", err)
 		}
@@ -170,9 +183,9 @@ func (s *SourceBindingNodesApp) listEnterpriseSourceBindingNodes(
 		if parentRef == "" {
 			return nil, ErrSourceBindingNodesParentRefRequired
 		}
-		items, err := s.thirdPlatformExpander.ListTreeNodes(ctx, organizationCode, userID, parentType, parentRef)
+		items, err := s.listDirectEnterpriseTreeNodes(ctx, organizationCode, userID, parentType, parentRef)
 		if err != nil {
-			return nil, fmt.Errorf("list enterprise tree nodes: %w", err)
+			return nil, err
 		}
 		nodes := buildEnterpriseTreeNodes(items)
 		return &kbdto.ListSourceBindingNodesResult{
@@ -182,6 +195,264 @@ func (s *SourceBindingNodesApp) listEnterpriseSourceBindingNodes(
 	default:
 		return nil, fmt.Errorf("%w: %s", ErrInvalidSourceBindingNodesParentType, parentType)
 	}
+}
+
+func (s *SourceBindingNodesApp) listDirectEnterpriseTreeNodes(
+	ctx context.Context,
+	organizationCode string,
+	userID string,
+	parentType string,
+	parentRef string,
+) ([]thirdplatform.TreeNode, error) {
+	switch parentType {
+	case sourceBindingParentTypeKnowledgeBase:
+		index, err := s.loadEnterpriseRootTreeIndex(
+			ctx,
+			organizationCode,
+			userID,
+			sourcebindingdomain.ProviderTeamshare,
+			parentRef,
+		)
+		if err != nil {
+			return nil, fmt.Errorf("load enterprise knowledge base tree index: %w", err)
+		}
+		return index.DirectChildren(parentRef), nil
+	case sourceBindingParentTypeFolder:
+		nodes, err := s.listEnterpriseFolderDirectTreeNodes(
+			ctx,
+			organizationCode,
+			userID,
+			sourcebindingdomain.ProviderTeamshare,
+			parentRef,
+		)
+		if err != nil {
+			return nil, fmt.Errorf("list enterprise folder direct children: %w", err)
+		}
+		return nodes, nil
+	default:
+		return nil, fmt.Errorf("%w: %s", ErrInvalidSourceBindingNodesParentType, parentType)
+	}
+}
+
+func (s *SourceBindingNodesApp) loadEnterpriseRootTreeIndex(
+	ctx context.Context,
+	organizationCode string,
+	userID string,
+	provider string,
+	knowledgeBaseID string,
+) (*sourcebindingservice.EnterpriseTreeIndex, error) {
+	if index, hit, err := s.getCachedEnterpriseRootTreeIndex(ctx, organizationCode, userID, provider, knowledgeBaseID); err != nil {
+		s.warnSourceBindingTreeRootCache(
+			ctx,
+			"Read source binding root cache failed, fallback to live Teamshare query",
+			"knowledge_base_id",
+			knowledgeBaseID,
+			"error",
+			err,
+		)
+	} else if hit {
+		return index, nil
+	}
+
+	actor := resolveKnowledgeBaseAccessActor(ctx, organizationCode, userID)
+	nodes, err := s.thirdPlatformExpander.ListTreeNodes(
+		ctx,
+		thirdplatform.TreeNodeListInput{
+			OrganizationCode:              actor.OrganizationCode,
+			UserID:                        actor.UserID,
+			ThirdPlatformUserID:           actor.ThirdPlatformUserID,
+			ThirdPlatformOrganizationCode: actor.ThirdPlatformOrganizationCode,
+			ParentType:                    sourceBindingParentTypeKnowledgeBase,
+			ParentRef:                     knowledgeBaseID,
+		},
+	)
+	if err != nil {
+		return nil, fmt.Errorf(
+			"list enterprise tree nodes %s/%s: %w",
+			sourceBindingParentTypeKnowledgeBase,
+			knowledgeBaseID,
+			err,
+		)
+	}
+	index, err := sourcebindingservice.BuildEnterpriseTreeIndex(nodes)
+	if err != nil {
+		return nil, fmt.Errorf("build enterprise tree index for knowledge base %s: %w", knowledgeBaseID, err)
+	}
+	if index.KnowledgeBaseID == "" {
+		index.KnowledgeBaseID = knowledgeBaseID
+	} else if index.KnowledgeBaseID != knowledgeBaseID {
+		return nil, fmt.Errorf(
+			"%w: requested=%s, actual=%s",
+			errSourceBindingTreeRootKnowledgeBaseMismatch,
+			knowledgeBaseID,
+			index.KnowledgeBaseID,
+		)
+	}
+	s.rememberEnterpriseTreeRootIndex(organizationCode, userID, provider, index)
+	if err := s.setCachedEnterpriseRootTreeIndex(ctx, organizationCode, userID, provider, knowledgeBaseID, index); err != nil {
+		s.warnSourceBindingTreeRootCache(
+			ctx,
+			"Write source binding root cache failed, keep live Teamshare result",
+			"knowledge_base_id",
+			knowledgeBaseID,
+			"error",
+			err,
+		)
+	}
+	return index, nil
+}
+
+func (s *SourceBindingNodesApp) listEnterpriseFolderDirectTreeNodes(
+	ctx context.Context,
+	organizationCode string,
+	userID string,
+	provider string,
+	folderRef string,
+) ([]thirdplatform.TreeNode, error) {
+	if knowledgeBaseID, ok := s.lookupEnterpriseTreeKnowledgeBaseID(organizationCode, userID, provider, folderRef); ok {
+		index, hit, err := s.getCachedEnterpriseRootTreeIndex(ctx, organizationCode, userID, provider, knowledgeBaseID)
+		switch {
+		case err != nil:
+			s.warnSourceBindingTreeRootCache(
+				ctx,
+				"Read source binding root cache failed during folder expansion, fallback to live Teamshare query",
+				"folder_ref",
+				folderRef,
+				"knowledge_base_id",
+				knowledgeBaseID,
+				"error",
+				err,
+			)
+		case hit:
+			return index.DirectChildren(folderRef), nil
+		default:
+			s.forgetEnterpriseTreeKnowledgeBaseID(organizationCode, userID, provider, folderRef)
+		}
+	}
+
+	actor := resolveKnowledgeBaseAccessActor(ctx, organizationCode, userID)
+	nodes, err := s.thirdPlatformExpander.ListTreeNodes(
+		ctx,
+		thirdplatform.TreeNodeListInput{
+			OrganizationCode:              actor.OrganizationCode,
+			UserID:                        actor.UserID,
+			ThirdPlatformUserID:           actor.ThirdPlatformUserID,
+			ThirdPlatformOrganizationCode: actor.ThirdPlatformOrganizationCode,
+			ParentType:                    sourceBindingParentTypeFolder,
+			ParentRef:                     folderRef,
+		},
+	)
+	if err != nil {
+		return nil, fmt.Errorf("list enterprise tree nodes %s/%s: %w", sourceBindingParentTypeFolder, folderRef, err)
+	}
+	index, err := sourcebindingservice.BuildEnterpriseTreeIndex(nodes)
+	if err != nil {
+		return nil, fmt.Errorf("build enterprise tree index for folder %s: %w", folderRef, err)
+	}
+	if index.KnowledgeBaseID != "" {
+		s.rememberEnterpriseTreeRootIndex(organizationCode, userID, provider, index)
+	}
+	return index.DirectChildren(folderRef), nil
+}
+
+func (s *SourceBindingNodesApp) getCachedEnterpriseRootTreeIndex(
+	ctx context.Context,
+	organizationCode string,
+	userID string,
+	provider string,
+	knowledgeBaseID string,
+) (*sourcebindingservice.EnterpriseTreeIndex, bool, error) {
+	if s == nil || s.sourceBindingTreeRootCache == nil {
+		return nil, false, nil
+	}
+
+	index, hit, err := s.sourceBindingTreeRootCache.Get(ctx, organizationCode, userID, provider, knowledgeBaseID)
+	if err != nil {
+		return nil, false, fmt.Errorf("get source binding tree root cache: %w", err)
+	}
+	if !hit || index == nil {
+		return nil, false, nil
+	}
+	s.rememberEnterpriseTreeRootIndex(organizationCode, userID, provider, index)
+	return index, true, nil
+}
+
+func (s *SourceBindingNodesApp) setCachedEnterpriseRootTreeIndex(
+	ctx context.Context,
+	organizationCode string,
+	userID string,
+	provider string,
+	knowledgeBaseID string,
+	index *sourcebindingservice.EnterpriseTreeIndex,
+) error {
+	if s == nil || s.sourceBindingTreeRootCache == nil || index == nil {
+		return nil
+	}
+	if err := s.sourceBindingTreeRootCache.Set(ctx, organizationCode, userID, provider, knowledgeBaseID, index); err != nil {
+		return fmt.Errorf("set source binding tree root cache: %w", err)
+	}
+	return nil
+}
+
+func (s *SourceBindingNodesApp) rememberEnterpriseTreeRootIndex(
+	organizationCode string,
+	userID string,
+	provider string,
+	index *sourcebindingservice.EnterpriseTreeIndex,
+) {
+	if s == nil || index == nil {
+		return
+	}
+	if s.sourceBindingTreeRootLocator == nil {
+		s.sourceBindingTreeRootLocator = newSourceBindingTreeRootLocator()
+	}
+	s.sourceBindingTreeRootLocator.remember(
+		organizationCode,
+		userID,
+		provider,
+		index.KnowledgeBaseIDByFolderRef,
+	)
+}
+
+func (s *SourceBindingNodesApp) lookupEnterpriseTreeKnowledgeBaseID(
+	organizationCode string,
+	userID string,
+	provider string,
+	folderRef string,
+) (string, bool) {
+	if s == nil {
+		return "", false
+	}
+	if s.sourceBindingTreeRootLocator == nil {
+		s.sourceBindingTreeRootLocator = newSourceBindingTreeRootLocator()
+	}
+	return s.sourceBindingTreeRootLocator.get(organizationCode, userID, provider, folderRef)
+}
+
+func (s *SourceBindingNodesApp) forgetEnterpriseTreeKnowledgeBaseID(
+	organizationCode string,
+	userID string,
+	provider string,
+	folderRef string,
+) {
+	if s == nil {
+		return
+	}
+	if s.sourceBindingTreeRootLocator == nil {
+		s.sourceBindingTreeRootLocator = newSourceBindingTreeRootLocator()
+	}
+	s.sourceBindingTreeRootLocator.forget(organizationCode, userID, provider, folderRef)
+}
+
+func (s *SourceBindingNodesApp) warnSourceBindingTreeRootCache(
+	ctx context.Context,
+	message string,
+	keysAndValues ...any,
+) {
+	if s == nil || s.logger == nil {
+		return
+	}
+	s.logger.KnowledgeWarnContext(ctx, message, keysAndValues...)
 }
 
 func parsePositiveInt64ParentRef(parentRef string) (int64, error) {
@@ -220,16 +491,21 @@ func buildWorkspaceNodes(items []projectfile.WorkspaceItem) []kbdto.SourceBindin
 			HasChildren: true,
 			Selectable:  false,
 			Meta: map[string]any{
-				"workspace_id": item.WorkspaceID,
+				"workspace_id":   convert.ToString(item.WorkspaceID),
+				"workspace_type": workspaceTypeNormal,
 			},
 		})
 	}
 	return nodes
 }
 
-func buildProjectNodes(items []projectfile.ProjectItem) []kbdto.SourceBindingNode {
+func buildProjectNodes(items []projectfile.ProjectItem, sharedProjectIDs map[int64]struct{}) []kbdto.SourceBindingNode {
 	nodes := make([]kbdto.SourceBindingNode, 0, len(items))
 	for _, item := range items {
+		workspaceType := workspaceTypeNormal
+		if _, ok := sharedProjectIDs[item.ProjectID]; ok {
+			workspaceType = workspaceTypeShared
+		}
 		nodes = append(nodes, kbdto.SourceBindingNode{
 			NodeType:    sourceBindingNodeTypeProject,
 			NodeRef:     strconv.FormatInt(item.ProjectID, 10),
@@ -238,12 +514,33 @@ func buildProjectNodes(items []projectfile.ProjectItem) []kbdto.SourceBindingNod
 			HasChildren: true,
 			Selectable:  true,
 			Meta: map[string]any{
-				"workspace_id": item.WorkspaceID,
-				"project_id":   item.ProjectID,
+				"workspace_id":   convert.ToString(item.WorkspaceID),
+				"workspace_type": workspaceType,
+				"project_id":     convert.ToString(item.ProjectID),
 			},
 		})
 	}
 	return nodes
+}
+
+func collectProjectIDsFromProjectItems(items []projectfile.ProjectItem) []int64 {
+	if len(items) == 0 {
+		return nil
+	}
+
+	seen := make(map[int64]struct{}, len(items))
+	projectIDs := make([]int64, 0, len(items))
+	for _, item := range items {
+		if item.ProjectID <= 0 {
+			continue
+		}
+		if _, ok := seen[item.ProjectID]; ok {
+			continue
+		}
+		seen[item.ProjectID] = struct{}{}
+		projectIDs = append(projectIDs, item.ProjectID)
+	}
+	return projectIDs
 }
 
 func buildProjectTreeNodes(items []projectfile.TreeNode) []kbdto.SourceBindingNode {
@@ -261,9 +558,9 @@ func buildProjectTreeNodes(items []projectfile.TreeNode) []kbdto.SourceBindingNo
 			HasChildren: item.IsDirectory,
 			Selectable:  true,
 			Meta: map[string]any{
-				"project_id":         item.ProjectID,
-				"project_file_id":    item.ProjectFileID,
-				"parent_id":          item.ParentID,
+				"project_id":         convert.ToString(item.ProjectID),
+				"project_file_id":    convert.ToString(item.ProjectFileID),
+				"parent_id":          convert.ToString(item.ParentID),
 				"relative_file_path": item.RelativeFilePath,
 				"file_extension":     item.FileExtension,
 			},

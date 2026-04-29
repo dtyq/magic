@@ -6,7 +6,8 @@ import (
 	"testing"
 	"time"
 
-	sourcebinding "magic/internal/domain/knowledge/sourcebinding/service"
+	sourcebinding "magic/internal/domain/knowledge/sourcebinding/entity"
+	sourcebindingservice "magic/internal/domain/knowledge/sourcebinding/service"
 )
 
 var errNoPermission = errors.New("没有文件权限")
@@ -18,7 +19,7 @@ const (
 )
 
 type materializationResolverStub struct {
-	resultsByUser map[string][]sourcebinding.ResolvedDocument
+	resultsByUser map[string][]sourcebindingservice.ResolvedDocument
 	errByUser     map[string]error
 	calls         []string
 }
@@ -28,12 +29,13 @@ func (s *materializationResolverStub) ResolveBindingDocuments(
 	_ sourcebinding.Binding,
 	_ string,
 	userID string,
-) ([]sourcebinding.ResolvedDocument, error) {
+	_ int,
+) ([]sourcebindingservice.ResolvedDocument, error) {
 	s.calls = append(s.calls, userID)
 	if err := s.errByUser[userID]; err != nil {
 		return nil, err
 	}
-	return append([]sourcebinding.ResolvedDocument(nil), s.resultsByUser[userID]...), nil
+	return append([]sourcebindingservice.ResolvedDocument(nil), s.resultsByUser[userID]...), nil
 }
 
 type materializationRepoStub struct {
@@ -52,17 +54,17 @@ func (s *materializationRepoStub) ReplaceBindingItems(_ context.Context, _ int64
 }
 
 type managedDocumentManagerStub struct {
-	created   []sourcebinding.CreateManagedDocumentInput
-	scheduled []sourcebinding.SyncRequest
+	created   []sourcebindingservice.CreateManagedDocumentInput
+	scheduled []sourcebindingservice.SyncRequest
 	destroyed []string
 }
 
 func (s *managedDocumentManagerStub) CreateManagedDocument(
 	_ context.Context,
-	input sourcebinding.CreateManagedDocumentInput,
-) (*sourcebinding.ManagedDocument, error) {
+	input sourcebindingservice.CreateManagedDocumentInput,
+) (*sourcebindingservice.ManagedDocument, error) {
 	s.created = append(s.created, input)
-	return &sourcebinding.ManagedDocument{Code: input.Name + "-code"}, nil
+	return &sourcebindingservice.ManagedDocument{Code: input.Name + "-code"}, nil
 }
 
 func (s *managedDocumentManagerStub) DestroyManagedDocument(
@@ -74,7 +76,7 @@ func (s *managedDocumentManagerStub) DestroyManagedDocument(
 	return nil
 }
 
-func (s *managedDocumentManagerStub) ScheduleManagedDocumentSync(_ context.Context, input sourcebinding.SyncRequest) {
+func (s *managedDocumentManagerStub) ScheduleManagedDocumentSync(_ context.Context, input sourcebindingservice.SyncRequest) {
 	s.scheduled = append(s.scheduled, input)
 }
 
@@ -85,7 +87,7 @@ func TestMaterializationServiceMaterializeFallsBackToKnowledgeBaseUser(t *testin
 		errByUser: map[string]error{
 			testBindingUpdater: errNoPermission,
 		},
-		resultsByUser: map[string][]sourcebinding.ResolvedDocument{
+		resultsByUser: map[string][]sourcebindingservice.ResolvedDocument{
 			testKnowledgeOwner: {{
 				Name:         "doc-1",
 				DocumentFile: map[string]any{"name": "doc-1"},
@@ -97,9 +99,9 @@ func TestMaterializationServiceMaterializeFallsBackToKnowledgeBaseUser(t *testin
 	repo := &materializationRepoStub{}
 	docManager := &managedDocumentManagerStub{}
 	now := time.Date(2026, 4, 12, 10, 0, 0, 0, time.UTC)
-	svc := sourcebinding.NewMaterializationService(repo, resolver, docManager, func() time.Time { return now })
+	svc := sourcebindingservice.NewMaterializationService(repo, resolver, docManager, func() time.Time { return now })
 
-	count, err := svc.Materialize(context.Background(), sourcebinding.MaterializationInput{
+	count, err := svc.Materialize(context.Background(), sourcebindingservice.MaterializationInput{
 		KnowledgeBaseCode:   "KB-1",
 		OrganizationCode:    "ORG-1",
 		KnowledgeBaseUserID: testKnowledgeOwner,
@@ -151,14 +153,14 @@ func TestMaterializationServicePreflightReturnsPermissionErrorOnLastCandidate(t 
 			testTriggerUser:    errNoPermission,
 		},
 	}
-	svc := sourcebinding.NewMaterializationService(
+	svc := sourcebindingservice.NewMaterializationService(
 		&materializationRepoStub{},
 		resolver,
 		&managedDocumentManagerStub{},
 		nil,
 	)
 
-	err := svc.Preflight(context.Background(), sourcebinding.MaterializationInput{
+	err := svc.Preflight(context.Background(), sourcebindingservice.MaterializationInput{
 		KnowledgeBaseCode:   "KB-1",
 		OrganizationCode:    "ORG-1",
 		KnowledgeBaseUserID: testKnowledgeOwner,
@@ -177,5 +179,54 @@ func TestMaterializationServicePreflightReturnsPermissionErrorOnLastCandidate(t 
 	}
 	if got := resolver.calls; len(got) != 3 || got[2] != testTriggerUser {
 		t.Fatalf("expected all candidates to be retried, got %#v", got)
+	}
+}
+
+func TestMaterializationServiceMaterializeRespectsKnowledgeBaseDocumentLimit(t *testing.T) {
+	t.Parallel()
+
+	resolver := &materializationResolverStub{
+		resultsByUser: map[string][]sourcebindingservice.ResolvedDocument{
+			testBindingUpdater: {
+				{Name: "doc-1", DocumentFile: map[string]any{"name": "doc-1"}, DocumentType: 1, ItemRef: "item-1"},
+				{Name: "doc-2", DocumentFile: map[string]any{"name": "doc-2"}, DocumentType: 1, ItemRef: "item-2"},
+			},
+		},
+	}
+	repo := &materializationRepoStub{}
+	docManager := &managedDocumentManagerStub{}
+	svc := sourcebindingservice.NewMaterializationService(repo, resolver, docManager, nil)
+
+	count, err := svc.Materialize(context.Background(), sourcebindingservice.MaterializationInput{
+		KnowledgeBaseCode: "KB-1",
+		OrganizationCode:  "ORG-1",
+		MaxDocuments:      1,
+		Bindings: []sourcebinding.Binding{{
+			ID:         11,
+			Provider:   sourcebinding.ProviderLocalUpload,
+			RootType:   sourcebinding.RootTypeFile,
+			RootRef:    "FILE-1",
+			Enabled:    true,
+			UpdatedUID: testBindingUpdater,
+		}, {
+			ID:         12,
+			Provider:   sourcebinding.ProviderLocalUpload,
+			RootType:   sourcebinding.RootTypeFile,
+			RootRef:    "FILE-2",
+			Enabled:    true,
+			UpdatedUID: testBindingUpdater,
+		}},
+	})
+	if err != nil {
+		t.Fatalf("Materialize returned error: %v", err)
+	}
+	if count != 1 {
+		t.Fatalf("expected one created document under limit, got %d", count)
+	}
+	if len(docManager.created) != 1 || docManager.created[0].Name != "doc-1" {
+		t.Fatalf("expected only first document to be materialized, got %#v", docManager.created)
+	}
+	if len(repo.replaceCalls) != 1 || len(repo.replaceCalls[0]) != 1 {
+		t.Fatalf("expected only one binding item replace call, got %#v", repo.replaceCalls)
 	}
 }

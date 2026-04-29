@@ -15,8 +15,12 @@ return new class extends Migration {
     public function up(): void
     {
         Schema::table('service_provider_models_config_versions', function (Blueprint $table) {
-            $table->decimal('second_pricing', 10, 4)->nullable()->after('time_cost')->comment('按秒计价单价');
-            $table->decimal('second_cost', 10, 4)->nullable()->after('second_pricing')->comment('按秒计价成本');
+            if (! Schema::hasColumn('service_provider_models_config_versions', 'second_pricing')) {
+                $table->decimal('second_pricing', 10, 4)->nullable()->after('time_cost')->comment('按秒计价单价');
+            }
+            if (! Schema::hasColumn('service_provider_models_config_versions', 'second_cost')) {
+                $table->decimal('second_cost', 10, 4)->nullable()->after('second_pricing')->comment('按秒计价成本');
+            }
         });
     }
 
@@ -26,7 +30,16 @@ return new class extends Migration {
     public function down(): void
     {
         Schema::table('service_provider_models_config_versions', function (Blueprint $table) {
-            $table->dropColumn(['second_pricing', 'second_cost']);
+            $dropColumns = [];
+            if (Schema::hasColumn('service_provider_models_config_versions', 'second_pricing')) {
+                $dropColumns[] = 'second_pricing';
+            }
+            if (Schema::hasColumn('service_provider_models_config_versions', 'second_cost')) {
+                $dropColumns[] = 'second_cost';
+            }
+            if ($dropColumns !== []) {
+                $table->dropColumn($dropColumns);
+            }
         });
     }
 };

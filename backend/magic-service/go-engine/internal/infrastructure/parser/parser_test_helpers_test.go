@@ -10,7 +10,7 @@ import (
 	"testing"
 	"time"
 
-	documentdomain "magic/internal/domain/knowledge/document/service"
+	documentdomain "magic/internal/domain/knowledge/document/metadata"
 	documentsplitter "magic/internal/domain/knowledge/document/splitter"
 	"magic/internal/domain/knowledge/shared"
 	"magic/internal/infrastructure/logging"

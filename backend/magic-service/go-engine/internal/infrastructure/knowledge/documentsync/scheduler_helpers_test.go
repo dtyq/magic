@@ -29,12 +29,3 @@ func TestRunnerFuncCloneTaskAndDedupeKey(t *testing.T) {
 		t.Fatalf("expected original payload to remain unchanged, got %q", string(original.Payload))
 	}
 }
-
-func TestNormalizeRedisSchedulerConfigDefaults(t *testing.T) {
-	t.Parallel()
-
-	cfg := documentsync.DefaultRedisSchedulerConfig()
-	if cfg.DebounceWindow <= 0 || cfg.LockTTL <= 0 || cfg.StateTTL <= 0 || cfg.RedisOpTimeout <= 0 || cfg.WatchRetryTimes <= 0 {
-		t.Fatalf("expected zero config to be normalized, got %+v", cfg)
-	}
-}

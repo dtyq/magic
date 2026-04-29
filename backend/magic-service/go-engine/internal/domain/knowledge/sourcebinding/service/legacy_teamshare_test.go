@@ -3,7 +3,8 @@ package sourcebinding_test
 import (
 	"testing"
 
-	sourcebinding "magic/internal/domain/knowledge/sourcebinding/service"
+	sourcebinding "magic/internal/domain/knowledge/sourcebinding/entity"
+	sourcebindingservice "magic/internal/domain/knowledge/sourcebinding/service"
 	thirdfilemappingpkg "magic/internal/pkg/thirdfilemapping"
 )
 
@@ -12,7 +13,7 @@ const testLegacyTeamshareNewFileID = "FILE-NEW"
 func TestBuildLegacyTeamshareBindingPrefersKnowledgeBaseRoot(t *testing.T) {
 	t.Parallel()
 
-	binding := sourcebinding.BuildLegacyTeamshareBinding("ORG-1", "KB-1", "user-1", thirdfilemappingpkg.RepairGroup{
+	binding := sourcebindingservice.BuildLegacyTeamshareBinding("ORG-1", "KB-1", "user-1", thirdfilemappingpkg.RepairGroup{
 		KnowledgeCode:   "KB-1",
 		ThirdFileID:     "FILE-1",
 		KnowledgeBaseID: "TS-KB-1",
@@ -31,7 +32,7 @@ func TestBuildLegacyTeamshareBindingPrefersKnowledgeBaseRoot(t *testing.T) {
 func TestBuildLegacyTeamshareBindingFallsBackToFolderAndFile(t *testing.T) {
 	t.Parallel()
 
-	folderBinding := sourcebinding.BuildLegacyTeamshareBinding("ORG-1", "KB-1", "user-1", thirdfilemappingpkg.RepairGroup{
+	folderBinding := sourcebindingservice.BuildLegacyTeamshareBinding("ORG-1", "KB-1", "user-1", thirdfilemappingpkg.RepairGroup{
 		ThirdFileID: "FILE-1",
 		GroupRef:    "GROUP-1",
 	})
@@ -39,7 +40,7 @@ func TestBuildLegacyTeamshareBindingFallsBackToFolderAndFile(t *testing.T) {
 		t.Fatalf("expected folder binding, got %#v", folderBinding)
 	}
 
-	fileBinding := sourcebinding.BuildLegacyTeamshareBinding("ORG-1", "KB-1", "user-1", thirdfilemappingpkg.RepairGroup{
+	fileBinding := sourcebindingservice.BuildLegacyTeamshareBinding("ORG-1", "KB-1", "user-1", thirdfilemappingpkg.RepairGroup{
 		ThirdFileID: "FILE-2",
 	})
 	if fileBinding.RootType != sourcebinding.RootTypeFile || fileBinding.RootRef != "FILE-2" {
@@ -50,7 +51,7 @@ func TestBuildLegacyTeamshareBindingFallsBackToFolderAndFile(t *testing.T) {
 func TestPlanLegacyTeamshareBindingsSkipsCoveredGroups(t *testing.T) {
 	t.Parallel()
 
-	planned := sourcebinding.PlanLegacyTeamshareBindings(
+	planned := sourcebindingservice.PlanLegacyTeamshareBindings(
 		"ORG-1",
 		"KB-1",
 		"user-1",

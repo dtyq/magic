@@ -5,6 +5,7 @@ import (
 	"errors"
 	"testing"
 
+	docentity "magic/internal/domain/knowledge/document/entity"
 	documentdomain "magic/internal/domain/knowledge/document/service"
 	sharedsnapshot "magic/internal/domain/knowledge/shared/snapshot"
 	"magic/internal/infrastructure/logging"
@@ -24,7 +25,7 @@ var (
 func TestDocumentDomainServiceErrorWrappers(t *testing.T) {
 	t.Parallel()
 
-	doc := &documentdomain.KnowledgeBaseDocument{ID: 1, Code: "doc-1"}
+	doc := &docentity.KnowledgeBaseDocument{ID: 1, Code: "doc-1"}
 	svc := documentdomain.NewDocumentDomainService(&documentRepoStub{
 		saveErr:                       errDocumentSaveBoom,
 		updateErr:                     errDocumentUpdateBoom,

@@ -131,25 +131,3 @@ func TestDefaultCleanupCriteriaAndShouldCleanup(t *testing.T) {
 		t.Fatal("expected fresh active cache not to cleanup")
 	}
 }
-
-func TestEmbeddingCacheOrderByIsValid(t *testing.T) {
-	t.Parallel()
-
-	validOrders := []entity.EmbeddingCacheOrderBy{
-		entity.EmbeddingCacheOrderByID,
-		entity.EmbeddingCacheOrderByCreatedAt,
-		entity.EmbeddingCacheOrderByUpdatedAt,
-		entity.EmbeddingCacheOrderByLastAccessedAt,
-		entity.EmbeddingCacheOrderByAccessCount,
-		entity.EmbeddingCacheOrderByTextLength,
-		entity.EmbeddingCacheOrderByVectorDimension,
-	}
-	for _, order := range validOrders {
-		if !order.IsValid() {
-			t.Fatalf("expected %q valid", order)
-		}
-	}
-	if entity.EmbeddingCacheOrderBy("other").IsValid() {
-		t.Fatal("expected unknown order invalid")
-	}
-}

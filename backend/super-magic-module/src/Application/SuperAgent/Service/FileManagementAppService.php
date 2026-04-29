@@ -25,6 +25,7 @@ use Dtyq\SuperMagic\Domain\Share\Constant\ResourceType;
 use Dtyq\SuperMagic\Domain\Share\Entity\ResourceShareEntity;
 use Dtyq\SuperMagic\Domain\Share\Service\ResourceShareDomainService;
 use Dtyq\SuperMagic\Domain\SuperAgent\Constant\ProjectFileConstant;
+use Dtyq\SuperMagic\Domain\SuperAgent\Entity\TaskFileEntity;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\StorageType;
 use Dtyq\SuperMagic\Domain\SuperAgent\Event\AttachmentsProcessedEvent;
 use Dtyq\SuperMagic\Domain\SuperAgent\Event\DirectoryDeletedEvent;
@@ -301,8 +302,7 @@ class FileManagementAppService extends AbstractAppService
             Db::commit();
 
             // 发布文件已上传事件
-            $fileUploadedEvent = new FileUploadedEvent($taskFileEntity, $userAuthorization->getId(), $userAuthorization->getOrganizationCode());
-            $this->eventDispatcher->dispatch($fileUploadedEvent);
+            $this->dispatchFileUploadedEvent($savedEntity, $userAuthorization);
 
             // 返回保存结果
             return TaskFileItemDTO::fromEntity($savedEntity, $projectEntity->getWorkDir())->toArray();
@@ -408,6 +408,8 @@ class FileManagementAppService extends AbstractAppService
                 }
             }
             Db::commit();
+
+            $this->dispatchFileUploadedEvents($savedEntities, $userAuthorization);
 
             // 4. Check if any saved files are metadata files and trigger event once
             foreach ($savedEntities as $savedEntity) {
@@ -540,10 +542,12 @@ class FileManagementAppService extends AbstractAppService
             $fileEntity = $this->taskFileDomainService->getUserFileEntityNoUser($fileId);
             $projectEntity = $this->getAccessibleProjectWithEditor($fileEntity->getProjectId(), $userAuthorization->getId(), $userAuthorization->getOrganizationCode());
             if ($fileEntity->getIsDirectory()) {
+                $deletedFileIds = $this->taskFileDomainService->getDirectoryFileIds($dataIsolation, $fileEntity);
                 $deletedCount = $this->taskFileDomainService->deleteDirectoryFiles($dataIsolation, $projectEntity->getWorkDir(), $projectEntity->getId(), $fileEntity->getFileKey(), $projectEntity->getUserOrganizationCode());
                 // 发布目录已删除事件
                 $directoryDeletedEvent = new DirectoryDeletedEvent($fileEntity, $userAuthorization);
                 $this->eventDispatcher->dispatch($directoryDeletedEvent);
+                $this->dispatchFilesBatchDeletedEvent($projectEntity->getId(), $deletedFileIds, $userAuthorization);
             } else {
                 $deletedCount = 1;
                 $this->taskFileDomainService->deleteProjectFiles($projectEntity->getUserOrganizationCode(), $fileEntity, $projectEntity->getWorkDir());
@@ -598,6 +602,7 @@ class FileManagementAppService extends AbstractAppService
 
             // 3. 构建目标删除路径
             $targetPath = $fileEntity->getFileKey();
+            $deletedFileIds = $this->taskFileDomainService->getDirectoryFileIds($dataIsolation, $fileEntity);
 
             // 4. 调用领域服务执行批量删除
             $deletedCount = $this->taskFileDomainService->deleteDirectoryFiles($dataIsolation, $workDir, $projectId, $targetPath, $projectEntity->getUserOrganizationCode());
@@ -605,6 +610,7 @@ class FileManagementAppService extends AbstractAppService
             // 发布目录已删除事件
             $directoryDeletedEvent = new DirectoryDeletedEvent($fileEntity, $userAuthorization);
             $this->eventDispatcher->dispatch($directoryDeletedEvent);
+            $this->dispatchFilesBatchDeletedEvent($projectId, $deletedFileIds, $userAuthorization);
 
             $this->logger->info(sprintf(
                 'Successfully deleted directory: Project ID: %s, Path: %s, Deleted files: %d',
@@ -651,6 +657,9 @@ class FileManagementAppService extends AbstractAppService
 
             // Validate project ownership
             $projectEntity = $this->getAccessibleProjectWithEditor($projectId, $userAuthorization->getId(), $userAuthorization->getOrganizationCode());
+            $deletedFileIds = $this->collectFileIds(
+                $this->taskFileDomainService->getFilesByIds($fileIds, $projectId)
+            );
 
             // Call domain service to batch delete files
             $result = $this->taskFileDomainService->batchDeleteProjectFiles(
@@ -668,9 +677,8 @@ class FileManagementAppService extends AbstractAppService
                 count($fileIds)
             ));
 
-            // 发布文件已上传事件
-            $fileUploadedEvent = new FilesBatchDeletedEvent((int) $requestDTO->getProjectId(), $requestDTO->getFileIds(), $userAuthorization);
-            $this->eventDispatcher->dispatch($fileUploadedEvent);
+            // 发布文件批量删除事件
+            $this->dispatchFilesBatchDeletedEvent((int) $requestDTO->getProjectId(), $deletedFileIds, $userAuthorization);
 
             return $result;
         } catch (BusinessException $e) {
@@ -2006,6 +2014,74 @@ class FileManagementAppService extends AbstractAppService
             ]);
             ExceptionBuilder::throw(SuperAgentErrorCode::FILE_NOT_FOUND, trans('file.get_tree_failed'));
         }
+    }
+
+    /**
+     * @param array<int, null|TaskFileEntity> $fileEntities
+     */
+    protected function dispatchFileUploadedEvents(array $fileEntities, MagicUserAuthorization $userAuthorization): void
+    {
+        foreach ($fileEntities as $fileEntity) {
+            $this->dispatchFileUploadedEvent($fileEntity, $userAuthorization);
+        }
+    }
+
+    protected function dispatchFileUploadedEvent(?TaskFileEntity $fileEntity, MagicUserAuthorization $userAuthorization): void
+    {
+        if ($fileEntity === null) {
+            return;
+        }
+
+        $fileUploadedEvent = new FileUploadedEvent(
+            $fileEntity,
+            $userAuthorization->getId(),
+            $userAuthorization->getOrganizationCode()
+        );
+        $this->eventDispatcher->dispatch($fileUploadedEvent);
+    }
+
+    /**
+     * @param array<int, mixed> $fileIds
+     */
+    protected function dispatchFilesBatchDeletedEvent(int $projectId, array $fileIds, MagicUserAuthorization $userAuthorization): void
+    {
+        $fileIds = $this->normalizeFileIds($fileIds);
+        if (empty($fileIds)) {
+            return;
+        }
+
+        $this->eventDispatcher->dispatch(new FilesBatchDeletedEvent($projectId, $fileIds, $userAuthorization));
+    }
+
+    /**
+     * @param array<int, TaskFileEntity> $fileEntities
+     * @return array<int, int>
+     */
+    private function collectFileIds(array $fileEntities): array
+    {
+        $fileIds = [];
+        foreach ($fileEntities as $fileEntity) {
+            $fileIds[] = $fileEntity->getFileId();
+        }
+
+        return $this->normalizeFileIds($fileIds);
+    }
+
+    /**
+     * @param array<int, mixed> $fileIds
+     * @return array<int, int>
+     */
+    private function normalizeFileIds(array $fileIds): array
+    {
+        $normalized = [];
+        foreach ($fileIds as $fileId) {
+            $fileId = (int) $fileId;
+            if ($fileId > 0) {
+                $normalized[$fileId] = $fileId;
+            }
+        }
+
+        return array_values($normalized);
     }
 
     /**

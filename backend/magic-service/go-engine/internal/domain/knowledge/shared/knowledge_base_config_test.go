@@ -32,7 +32,7 @@ func assertDefaultRetrieveWeights(t *testing.T, cfg *shared.RetrieveConfig) {
 	if cfg.Weights == nil || cfg.Weights.VectorSetting == nil || cfg.Weights.KeywordSetting == nil || cfg.Weights.GraphSetting == nil {
 		t.Fatalf("expected complete default weights, got %#v", cfg.Weights)
 	}
-	if cfg.Weights.VectorSetting.VectorWeight != 1 || cfg.Weights.KeywordSetting.KeywordWeight != 0 {
+	if cfg.Weights.VectorSetting.VectorWeight != 0.75 || cfg.Weights.KeywordSetting.KeywordWeight != 0.25 {
 		t.Fatalf("unexpected vector/keyword weights: %#v", cfg.Weights)
 	}
 	if cfg.Weights.GraphSetting.RelationWeight != 0.5 || cfg.Weights.GraphSetting.MaxDepth != 2 {

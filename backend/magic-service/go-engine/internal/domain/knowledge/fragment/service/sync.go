@@ -9,6 +9,7 @@ import (
 	fragmetadata "magic/internal/domain/knowledge/fragment/metadata"
 	fragmodel "magic/internal/domain/knowledge/fragment/model"
 	fragretrieval "magic/internal/domain/knowledge/fragment/retrieval"
+	sharedsnapshot "magic/internal/domain/knowledge/shared/snapshot"
 	"magic/internal/pkg/ctxmeta"
 )
 
@@ -22,18 +23,18 @@ type batchVectorWrite struct {
 // SyncFragment 同步片段到向量库（核心逻辑）
 func (s *FragmentDomainService) SyncFragment(
 	ctx context.Context,
-	kb any,
+	kb *sharedsnapshot.KnowledgeBaseRuntimeSnapshot,
 	fragment *fragmodel.KnowledgeBaseFragment,
 	businessParams *ctxmeta.BusinessParams,
 ) error {
 	// fragment 写点只能命中统一运行时路由给出的目标集合；embedding 模型也必须与这次路由解析保持一致。
-	resolvedRoute := resolveFragmentRuntimeRoute(kb, s.defaultEmbeddingModel)
+	resolvedRoute := fragmodel.ResolveRuntimeRoute(kb, s.defaultEmbeddingModel)
 	collectionName := resolvedRoute.VectorCollectionName
 	model := resolvedRoute.Model
 
 	fragment.MarkSyncing()
 	if err := s.repo.UpdateSyncStatus(ctx, fragment); err != nil {
-		s.logger.WarnContext(ctx, "Failed to update sync status to syncing", "fragmentID", fragment.ID, "error", err)
+		s.logger.KnowledgeWarnContext(ctx, "Failed to update sync status to syncing", "fragmentID", fragment.ID, "error", err)
 	}
 
 	if len(fragment.Vector) == 0 {
@@ -50,7 +51,7 @@ func (s *FragmentDomainService) SyncFragment(
 		}
 
 		if err := s.repo.UpdateVector(ctx, fragment.ID, embedding); err != nil {
-			s.logger.WarnContext(ctx, "Failed to update vector", "fragmentID", fragment.ID, "error", err)
+			s.logger.KnowledgeWarnContext(ctx, "Failed to update vector", "fragmentID", fragment.ID, "error", err)
 		}
 	}
 
@@ -64,7 +65,7 @@ func (s *FragmentDomainService) SyncFragment(
 
 	fragment.MarkSynced()
 	if err := s.repo.UpdateSyncStatus(ctx, fragment); err != nil {
-		s.logger.WarnContext(ctx, "Failed to update sync status to synced", "fragmentID", fragment.ID, "error", err)
+		s.logger.KnowledgeWarnContext(ctx, "Failed to update sync status to synced", "fragmentID", fragment.ID, "error", err)
 	}
 
 	s.logger.DebugContext(ctx, "Fragment synced", "fragmentID", fragment.ID, "pointID", fragment.PointID)
@@ -74,7 +75,7 @@ func (s *FragmentDomainService) SyncFragment(
 // SyncFragmentBatch 批量同步片段
 func (s *FragmentDomainService) SyncFragmentBatch(
 	ctx context.Context,
-	kb any,
+	kb *sharedsnapshot.KnowledgeBaseRuntimeSnapshot,
 	fragments []*fragmodel.KnowledgeBaseFragment,
 	businessParams *ctxmeta.BusinessParams,
 ) (err error) {
@@ -82,10 +83,10 @@ func (s *FragmentDomainService) SyncFragmentBatch(
 		return nil
 	}
 
-	trace := newBatchSyncTracer(s, snapshotKnowledgeBase(kb))
+	trace := newBatchSyncTracer(s, fragmodel.SnapshotKnowledgeBase(kb))
 	syncStartedAt := time.Now()
 	// batch sync 与单片段 sync 共享同一套运行时路由语义，避免同批数据落到不同物理集合。
-	resolvedRoute := resolveFragmentRuntimeRoute(kb, s.defaultEmbeddingModel)
+	resolvedRoute := fragmodel.ResolveRuntimeRoute(kb, s.defaultEmbeddingModel)
 	collectionName := resolvedRoute.VectorCollectionName
 	model := resolvedRoute.Model
 	defer func() {
@@ -294,7 +295,7 @@ func (s *FragmentDomainService) logBatchDimensionMismatch(ctx context.Context, m
 	if dimErr.Index >= 0 && dimErr.Index < len(fragments) {
 		documentCode = fragments[dimErr.Index].DocumentCode
 	}
-	s.logger.ErrorContext(
+	s.logger.KnowledgeErrorContext(
 		ctx,
 		"Vector dimension mismatch while syncing fragments",
 		"knowledge_base_code", resolveBatchKnowledgeCode(fragments),
@@ -336,12 +337,12 @@ func (s *FragmentDomainService) markFragmentsSynced(ctx context.Context, fragmen
 		if err == nil {
 			return
 		}
-		s.logger.WarnContext(ctx, "Failed to batch update fragment sync status", "count", len(fragments), "error", err)
+		s.logger.KnowledgeWarnContext(ctx, "Failed to batch update fragment sync status", "count", len(fragments), "error", err)
 	}
 
 	for _, fragment := range fragments {
 		if err := s.repo.UpdateSyncStatus(ctx, fragment); err != nil {
-			s.logger.WarnContext(ctx, "Failed to update sync status", "fragmentID", fragment.ID, "error", err)
+			s.logger.KnowledgeWarnContext(ctx, "Failed to update sync status", "fragmentID", fragment.ID, "error", err)
 		}
 	}
 }
@@ -358,11 +359,11 @@ func (s *FragmentDomainService) markFragmentsSyncing(ctx context.Context, fragme
 		if err := batchUpdater.UpdateSyncStatusBatch(ctx, fragments); err == nil {
 			return
 		}
-		s.logger.WarnContext(ctx, "Failed to batch update fragment sync status to syncing", "count", len(fragments))
+		s.logger.KnowledgeWarnContext(ctx, "Failed to batch update fragment sync status to syncing", "count", len(fragments))
 	}
 	for _, fragment := range fragments {
 		if err := s.repo.UpdateSyncStatus(ctx, fragment); err != nil {
-			s.logger.WarnContext(ctx, "Failed to update fragment sync status to syncing", "fragmentID", fragment.ID, "error", err)
+			s.logger.KnowledgeWarnContext(ctx, "Failed to update fragment sync status to syncing", "fragmentID", fragment.ID, "error", err)
 		}
 	}
 }
@@ -379,11 +380,11 @@ func (s *FragmentDomainService) markFragmentsFailed(ctx context.Context, fragmen
 		if err := batchUpdater.UpdateSyncStatusBatch(ctx, fragments); err == nil {
 			return
 		}
-		s.logger.WarnContext(ctx, "Failed to batch update fragment sync status to failed", "count", len(fragments))
+		s.logger.KnowledgeWarnContext(ctx, "Failed to batch update fragment sync status to failed", "count", len(fragments))
 	}
 	for _, fragment := range fragments {
 		if err := s.repo.UpdateSyncStatus(ctx, fragment); err != nil {
-			s.logger.WarnContext(ctx, "Failed to update fragment sync status to failed", "fragmentID", fragment.ID, "error", err)
+			s.logger.KnowledgeWarnContext(ctx, "Failed to update fragment sync status to failed", "fragmentID", fragment.ID, "error", err)
 		}
 	}
 }

@@ -55,6 +55,8 @@ final class SvcMethods
 
     public const string METHOD_REBUILD = 'rebuild';
 
+    public const string METHOD_REBUILD_PERMISSIONS = 'rebuildPermissions';
+
     public const string METHOD_START_VECTOR = 'startVector';
 
     public const string METHOD_MANAGEABLE = 'manageable';
@@ -73,7 +75,13 @@ final class SvcMethods
 
     public const string METHOD_PREVIEW = 'preview';
 
+    public const string METHOD_PREVIEW_HTTP = 'preview_http';
+
     public const string METHOD_SIMILARITY = 'similarity';
+
+    public const string METHOD_SIMILARITY_HTTP = 'similarity_http';
+
+    public const string METHOD_QUERIES_HTTP = 'queries_http';
 
     public const string METHOD_RUNTIME_SIMILARITY = 'runtimeSimilarity';
 
@@ -99,6 +107,8 @@ final class SvcMethods
 
     public const string METHOD_RESOLVE = 'resolve';
 
+    public const string METHOD_RESOLVE_NODE = 'resolveNode';
+
     public const string METHOD_LIST_BY_PROJECT = 'listByProject';
 
     public const string METHOD_EXPAND = 'expand';
@@ -121,11 +131,19 @@ final class SvcMethods
 
     public const string METHOD_LIST_OPERATIONS = 'listOperations';
 
+    public const string METHOD_INITIALIZE = 'initialize';
+
+    public const string METHOD_GRANT_OWNER = 'grantOwner';
+
+    public const string METHOD_CLEANUP = 'cleanup';
+
     public const string METHOD_CHECK_OFFICIAL_ORGANIZATION_MEMBER = 'checkOfficialOrganizationMember';
 
     public const string METHOD_NOTIFY_CHANGE = 'notifyChange';
 
     public const string METHOD_CONFIG = 'config';
+
+    public const string METHOD_REPORT_USAGE = 'reportUsage';
 
     public const string METHOD_ACCESS_OWNER = 'accessOwner';
 

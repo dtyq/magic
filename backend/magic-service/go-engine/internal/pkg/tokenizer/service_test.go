@@ -47,6 +47,46 @@ func TestUnknownModelFallsBackToCl100kBase(t *testing.T) {
 	}
 }
 
+func TestDoubaoEmbeddingVisionUsesO200KBase(t *testing.T) {
+	t.Parallel()
+
+	svc := tokenizer.NewService()
+	encoder, err := svc.EncoderForModel("doubao-embedding-vision")
+	if err != nil {
+		t.Fatalf("resolve encoder failed: %v", err)
+	}
+
+	if encoder.UsesFallback() {
+		t.Fatal("expected doubao-embedding-vision to avoid fallback")
+	}
+	if encoder.EncodingName() != "o200k_base" {
+		t.Fatalf("expected encoding %q, got %q", "o200k_base", encoder.EncodingName())
+	}
+	if encoder.ResolvedModel() != "doubao-embedding-vision" {
+		t.Fatalf("expected resolved model %q, got %q", "doubao-embedding-vision", encoder.ResolvedModel())
+	}
+}
+
+func TestDoubaoEmbeddingVisionVersionUsesO200KBase(t *testing.T) {
+	t.Parallel()
+
+	svc := tokenizer.NewService()
+	encoder, err := svc.EncoderForModel("doubao-embedding-vision-251215")
+	if err != nil {
+		t.Fatalf("resolve encoder failed: %v", err)
+	}
+
+	if encoder.UsesFallback() {
+		t.Fatal("expected versioned doubao-embedding-vision to avoid fallback")
+	}
+	if encoder.EncodingName() != "o200k_base" {
+		t.Fatalf("expected encoding %q, got %q", "o200k_base", encoder.EncodingName())
+	}
+	if encoder.ResolvedModel() != "doubao-embedding-vision-251215" {
+		t.Fatalf("expected resolved model %q, got %q", "doubao-embedding-vision-251215", encoder.ResolvedModel())
+	}
+}
+
 func TestModelEncoderCached(t *testing.T) {
 	t.Parallel()
 

@@ -6,7 +6,7 @@ import (
 	"testing"
 	"time"
 
-	documentdomain "magic/internal/domain/knowledge/document/service"
+	documentdomain "magic/internal/domain/knowledge/document/metadata"
 	"magic/internal/infrastructure/logging"
 	client "magic/internal/infrastructure/rpc/jsonrpc/client"
 )

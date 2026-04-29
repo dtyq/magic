@@ -90,9 +90,9 @@ class KnowledgeBaseDocumentEntity extends AbstractKnowledgeBaseEntity
         return $this->id;
     }
 
-    public function setId(?int $id): self
+    public function setId(null|int|string $id): self
     {
-        $this->id = $id;
+        $this->id = is_null($id) ? null : (int) $id;
         return $this;
     }
 
@@ -112,7 +112,7 @@ class KnowledgeBaseDocumentEntity extends AbstractKnowledgeBaseEntity
         return $this->sourceBindingId;
     }
 
-    public function setSourceBindingId(?int $sourceBindingId): self
+    public function setSourceBindingId(null|int|string $sourceBindingId): self
     {
         $this->sourceBindingId = max(0, (int) $sourceBindingId);
         return $this;
@@ -123,7 +123,7 @@ class KnowledgeBaseDocumentEntity extends AbstractKnowledgeBaseEntity
         return $this->sourceItemId;
     }
 
-    public function setSourceItemId(?int $sourceItemId): self
+    public function setSourceItemId(null|int|string $sourceItemId): self
     {
         $this->sourceItemId = max(0, (int) $sourceItemId);
         return $this;

@@ -2,18 +2,16 @@ package docapp
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"strings"
 
 	docdto "magic/internal/application/knowledge/document/dto"
 	confighelper "magic/internal/application/knowledge/helper/config"
 	texthelper "magic/internal/application/knowledge/helper/text"
+	docentity "magic/internal/domain/knowledge/document/entity"
 	documentdomain "magic/internal/domain/knowledge/document/service"
 	"magic/internal/domain/knowledge/shared"
 )
-
-var errDocumentSyncInputRequired = errors.New("document sync input is required")
 
 // DocumentCreateAppService 负责文档创建命令流。
 type DocumentCreateAppService struct {
@@ -33,6 +31,9 @@ func (s *DocumentCreateAppService) Create(
 	if input == nil {
 		return nil, errManagedDocumentInputRequired
 	}
+	if err := s.support.requireActiveUser(ctx, input.OrganizationCode, input.UserID, "create document"); err != nil {
+		return nil, err
+	}
 	if err := s.support.ensureKnowledgeBaseAccessibleInAgentScope(
 		ctx,
 		input.OrganizationCode,
@@ -40,6 +41,11 @@ func (s *DocumentCreateAppService) Create(
 	); err != nil {
 		return nil, err
 	}
+	kb, err := s.support.kbService.ShowByCodeAndOrg(ctx, input.KnowledgeBaseCode, input.OrganizationCode)
+	if err != nil {
+		return nil, fmt.Errorf("failed to find knowledge base: %w", err)
+	}
+	input.KnowledgeBaseType = string(kb.KnowledgeBaseType)
 
 	dto, err := s.support.createManagedDocument(ctx, createDocumentInputToManaged(input))
 	if err != nil {
@@ -47,11 +53,8 @@ func (s *DocumentCreateAppService) Create(
 	}
 	if input.AutoSync && dto != nil {
 		syncInput := s.support.buildCreateSyncInput(input.OrganizationCode, input.UserID, input.KnowledgeBaseCode, dto.Code)
-		if !input.WaitForSyncResult {
-			s.support.ScheduleSync(ctx, syncInput)
-			return dto, nil
-		}
-		return s.support.syncDocumentInlineAndReload(ctx, syncInput)
+		s.support.ScheduleSync(ctx, syncInput)
+		return dto, nil
 	}
 	return dto, nil
 }
@@ -71,13 +74,27 @@ func (s *DocumentUpdateAppService) Update(
 	ctx context.Context,
 	input *docdto.UpdateDocumentInput,
 ) (*docdto.DocumentDTO, error) {
+	if input == nil {
+		return nil, errManagedDocumentInputRequired
+	}
 	if err := validateDocumentKnowledgeBaseCode(input.KnowledgeBaseCode); err != nil {
+		return nil, err
+	}
+	if err := s.support.requireActiveUser(ctx, input.OrganizationCode, input.UserID, "update document"); err != nil {
+		return nil, err
+	}
+	if err := s.support.authorizeKnowledgeBaseAction(ctx, input.OrganizationCode, input.UserID, input.KnowledgeBaseCode, "edit"); err != nil {
 		return nil, err
 	}
 	doc, err := s.support.domainService.ShowByCodeAndKnowledgeBase(ctx, input.Code, input.KnowledgeBaseCode)
 	if err != nil {
 		return nil, fmt.Errorf("failed to find document: %w", err)
 	}
+	kb, err := s.support.kbService.ShowByCodeAndOrg(ctx, doc.KnowledgeBaseCode, doc.OrganizationCode)
+	if err != nil {
+		return nil, fmt.Errorf("failed to find knowledge base: %w", err)
+	}
+	input.KnowledgeBaseType = string(kb.KnowledgeBaseType)
 
 	if doc.OrganizationCode != input.OrganizationCode {
 		return nil, ErrDocumentOrgMismatch
@@ -91,16 +108,21 @@ func (s *DocumentUpdateAppService) Update(
 	}
 	configStateBefore := documentdomain.CaptureEffectiveConfigState(doc)
 
-	var documentFile *documentdomain.File
+	var documentFile *docentity.File
 	if input.DocumentFile != nil {
 		documentFile = documentFileDTOToDomain(input.DocumentFile)
 	}
 	doc.ApplyUpdate(documentdomain.BuildUpdatePatch(&documentdomain.UpdateDocumentInput{
-		Name:           input.Name,
-		Description:    input.Description,
-		Enabled:        input.Enabled,
-		DocType:        input.DocType,
-		DocMetadata:    normalizeUpdateDocumentMetadata(doc.DocMetadata, input.DocMetadata, input.StrategyConfig),
+		Name:        input.Name,
+		Description: input.Description,
+		Enabled:     input.Enabled,
+		DocType:     input.DocType,
+		DocMetadata: normalizeUpdateDocumentMetadata(
+			input.KnowledgeBaseType,
+			doc.DocMetadata,
+			input.DocMetadata,
+			input.StrategyConfig,
+		),
 		DocumentFile:   documentFile,
 		RetrieveConfig: confighelper.RetrieveConfigDTOToEntity(input.RetrieveConfig),
 		FragmentConfig: confighelper.FragmentConfigDTOToEntity(input.FragmentConfig),
@@ -112,16 +134,12 @@ func (s *DocumentUpdateAppService) Update(
 	if err := s.support.domainService.Update(ctx, doc); err != nil {
 		return nil, fmt.Errorf("failed to update document: %w", err)
 	}
-	if documentdomain.ShouldResyncAfterConfigUpdate(configStateBefore, doc) {
-		if !input.WaitForSyncResult {
-			s.support.scheduleDocumentUpdateResync(ctx, doc, input.UserID)
-			return s.support.entityToDTOWithContext(ctx, doc), nil
-		}
-		syncInput := s.support.buildDocumentUpdateResyncRequest(ctx, doc, input.UserID)
-		if syncInput != nil {
-			syncInput.Async = false
-			return s.support.syncDocumentInlineAndReload(ctx, syncInput)
-		}
+	configChanged := documentdomain.ShouldResyncAfterConfigUpdate(configStateBefore, doc)
+	configRefreshRequested := input.StrategyConfig != nil || input.FragmentConfig != nil
+	needsRecoveryResync := documentdomain.ShouldRecoveryResyncForNonSyncedDocument(doc)
+	if configChanged || (configRefreshRequested && needsRecoveryResync) {
+		s.support.scheduleDocumentUpdateResync(ctx, doc, input.UserID)
+		return s.support.entityToDTOWithContext(ctx, doc), nil
 	}
 
 	return s.support.entityToDTOWithContext(ctx, doc), nil
@@ -140,9 +158,12 @@ func NewDocumentDestroyAppService(support *DocumentAppService) *DocumentDestroyA
 // Destroy 删除文档。
 func (s *DocumentDestroyAppService) Destroy(
 	ctx context.Context,
-	code, knowledgeBaseCode, organizationCode string,
+	code, knowledgeBaseCode, organizationCode, userID string,
 ) error {
 	if err := validateDocumentKnowledgeBaseCode(knowledgeBaseCode); err != nil {
+		return err
+	}
+	if err := s.support.authorizeKnowledgeBaseAction(ctx, organizationCode, userID, knowledgeBaseCode, "delete"); err != nil {
 		return err
 	}
 	doc, err := s.support.domainService.ShowByCodeAndKnowledgeBase(ctx, code, knowledgeBaseCode)
@@ -157,6 +178,9 @@ func (s *DocumentDestroyAppService) Destroy(
 		doc.OrganizationCode,
 		doc.KnowledgeBaseCode,
 	); err != nil {
+		return err
+	}
+	if err := s.support.validateSingleDocumentDeleteAllowed(ctx, doc); err != nil {
 		return err
 	}
 	return s.support.destroyDocument(ctx, doc)
@@ -205,86 +229,14 @@ func (s *DocumentAppService) buildCreateSyncInput(
 		KnowledgeBaseCode: knowledgeBaseCode,
 		Code:              documentCode,
 		Mode:              documentdomain.SyncModeCreate,
+		Async:             true,
 		BusinessParams:    texthelper.BuildCreateBusinessParams(organizationCode, userID, knowledgeBaseCode),
 	}
-}
-
-func (s *DocumentAppService) syncDocumentInlineAndReload(
-	ctx context.Context,
-	input *documentdomain.SyncDocumentInput,
-) (*docdto.DocumentDTO, error) {
-	if s == nil {
-		return nil, errManagedDocumentAppRequired
-	}
-	if input == nil {
-		return nil, errDocumentSyncInputRequired
-	}
-
-	syncErr := s.executeSync(ctx, input)
-	if syncErr != nil && s.logger != nil {
-		s.logger.WarnContext(
-			ctx,
-			"Document inline sync completed with error, returning latest document state",
-			"knowledge_base_code", input.KnowledgeBaseCode,
-			"document_code", input.Code,
-			"mode", input.Mode,
-			"error", syncErr,
-		)
-	}
-
-	doc, err := s.reloadDocumentForSyncResult(ctx, input.KnowledgeBaseCode, input.Code)
-	if err != nil {
-		return nil, err
-	}
-	if syncErr != nil {
-		if err := s.ensureInlineSyncFailureState(ctx, doc, syncErr); err != nil {
-			return nil, err
-		}
-	}
-	return s.entityToDTOWithContext(ctx, doc), nil
-}
-
-func (s *DocumentAppService) reloadDocumentForSyncResult(
-	ctx context.Context,
-	knowledgeBaseCode string,
-	documentCode string,
-) (*documentdomain.KnowledgeBaseDocument, error) {
-	doc, err := s.domainService.ShowByCodeAndKnowledgeBase(ctx, documentCode, knowledgeBaseCode)
-	if err != nil {
-		return nil, fmt.Errorf("reload document after sync: %w", err)
-	}
-	return doc, nil
 }
 
 func validateDocumentKnowledgeBaseCode(knowledgeBaseCode string) error {
 	if strings.TrimSpace(knowledgeBaseCode) == "" {
 		return shared.ErrDocumentKnowledgeBaseRequired
-	}
-	return nil
-}
-
-func (s *DocumentAppService) ensureInlineSyncFailureState(
-	ctx context.Context,
-	doc *documentdomain.KnowledgeBaseDocument,
-	syncErr error,
-) error {
-	if doc == nil || syncErr == nil {
-		return nil
-	}
-	if doc.SyncStatus == shared.SyncStatusSynced || doc.SyncStatus == shared.SyncStatusSyncFailed {
-		return nil
-	}
-
-	reason, cause := unwrapDocumentSyncStageError(syncErr, "")
-	message := strings.TrimSpace(syncErr.Error())
-	if reason != "" {
-		message = documentdomain.BuildSyncFailureMessage(reason, cause)
-	}
-	if message == "" {
-		message = "document sync failed"
-	}
-	if err := s.domainService.MarkSyncFailed(ctx, doc, message); err != nil {
-		return fmt.Errorf("mark inline sync failed: %w", err)
 	}
 	return nil
 }

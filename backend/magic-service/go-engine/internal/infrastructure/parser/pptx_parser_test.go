@@ -10,7 +10,7 @@ import (
 	"baliance.com/gooxml/common"
 	"baliance.com/gooxml/presentation"
 
-	documentdomain "magic/internal/domain/knowledge/document/service"
+	documentdomain "magic/internal/domain/knowledge/document/metadata"
 	parser "magic/internal/infrastructure/parser"
 )
 

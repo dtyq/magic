@@ -86,7 +86,7 @@ func run() int {
 		MaxRows:          options.maxRows,
 	})
 	if err != nil {
-		cmd.logger.ErrorContext(ctx, "fix legacy fragment document code failed", "error", err)
+		cmd.logger.KnowledgeErrorContext(ctx, "fix legacy fragment document code failed", "error", err)
 		return 1
 	}
 
@@ -124,7 +124,13 @@ func newCommandRunner() (*commandRunner, error) {
 	accessTokenProvider := diinfra.ProvideAccessTokenProvider(cfg, rpcServer, logger.Named("access_token_provider"))
 	embeddingClientFactory := diinfra.ProvideEmbeddingClientFactory(cfg, rpcServer, logger.Named("embedding_client_factory"), accessTokenProvider)
 	defaultEmbeddingModel := diapp.ProvideEmbeddingDefaultModel(cfg)
-	embeddingService := diinfra.ProvideEmbeddingService(embeddingClientFactory, defaultEmbeddingModel)
+	embeddingService := diinfra.ProvideEmbeddingService(
+		cfg,
+		clients.redisClient,
+		embeddingClientFactory,
+		defaultEmbeddingModel,
+		logger.Named("embedding_service"),
+	)
 	embeddingRepo := diinfra.ProvideEmbeddingRepository(embeddingService)
 	embeddingDimensionResolver := diinfra.ProvideEmbeddingDimensionResolver(cfg, embeddingService)
 
@@ -286,7 +292,7 @@ func printResult(logger *logging.SugaredLogger, result appfix.Result) {
 		"default_documents_created", result.DefaultDocumentsCreated,
 	)
 	for index, failure := range result.Failures {
-		logger.Warnw(
+		logger.KnowledgeWarnw(
 			"fix legacy fragment document code failure sample",
 			"sample_index", index+1,
 			"knowledge_code", failure.KnowledgeCode,

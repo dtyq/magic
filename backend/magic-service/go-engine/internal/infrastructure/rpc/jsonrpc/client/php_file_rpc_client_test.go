@@ -133,3 +133,17 @@ func TestPHPFileRPCClient_GetLink_InvalidPath(t *testing.T) {
 		t.Fatalf("expected file path error, got %v", err)
 	}
 }
+
+func TestPHPFileRPCClient_GetLink_RejectsPathWithoutOrganizationScope(t *testing.T) {
+	t.Parallel()
+	c := ipcclient.NewPHPFileRPCClient(nil, nil)
+	c.SetConnectedHookForTest(func() bool { return true })
+
+	_, err := c.GetLink(context.Background(), "服务商、供应商、承包商资质审查标准", http.MethodGet, time.Minute)
+	if !errors.Is(err, ipcclient.ErrFileSourceUnreachable) {
+		t.Fatalf("expected ErrFileSourceUnreachable, got %v", err)
+	}
+	if err == nil || !strings.Contains(err.Error(), "organization scope is missing") {
+		t.Fatalf("expected organization scope error, got %v", err)
+	}
+}

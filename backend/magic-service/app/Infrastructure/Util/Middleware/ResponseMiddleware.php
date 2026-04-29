@@ -95,7 +95,9 @@ class ResponseMiddleware implements MiddlewareInterface
 
     protected function formatMessage(ServerRequestInterface $request, MessageInterface|Throwable $response, float $startTime, float $endTime): array
     {
+        $responseHeaders = [];
         if ($response instanceof MessageInterface) {
+            $responseHeaders = $response->getHeaders();
             $response = $response->getBody()->getContents();
         }
         if ($response instanceof Throwable) {
@@ -131,6 +133,13 @@ class ResponseMiddleware implements MiddlewareInterface
             'parsed_body' => $parsedBody,
         ];
         $responseBody = $errorResponse ?? $response;
+        if (is_string($responseBody) && $this->isEncodedResponse($responseHeaders)) {
+            $responseBody = sprintf(
+                '[encoded body omitted encoding=%s len=%d]',
+                implode(',', $responseHeaders['Content-Encoding'] ?? $responseHeaders['content-encoding'] ?? []),
+                strlen($responseBody)
+            );
+        }
         // 大于 5K 的数据不记录
         if (strlen($responseBody) > 5 * 1024) {
             $responseBody = 'ResponseBodyIsTooLarge';
@@ -151,6 +160,11 @@ class ResponseMiddleware implements MiddlewareInterface
             'requestBody' => $requestBody,
             'responseBody' => $responseBody,
         ];
+    }
+
+    private function isEncodedResponse(array $headers): bool
+    {
+        return isset($headers['Content-Encoding']) || isset($headers['content-encoding']);
     }
 
     private function desensitizeRequestHeaders(array $headers): array

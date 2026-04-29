@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	kbdto "magic/internal/application/knowledge/knowledgebase/dto"
+	kbentity "magic/internal/domain/knowledge/knowledgebase/entity"
 	knowledgebasedomain "magic/internal/domain/knowledge/knowledgebase/service"
 )
 
@@ -88,7 +89,7 @@ func (s *KnowledgeBaseAppService) replaceKnowledgeBaseAgentBindings(
 	if _, err := s.knowledgeBaseBindings.ReplaceBindings(
 		ctx,
 		kbCode,
-		knowledgebasedomain.BindingTypeSuperMagicAgent,
+		kbentity.BindingTypeSuperMagicAgent,
 		organizationCode,
 		userID,
 		agentCodes,
@@ -124,18 +125,18 @@ func (s *KnowledgeBaseAppService) resolveKnowledgeBaseBindingSnapshot(
 	return snapshot, nil
 }
 
-func knowledgeBaseTypeFromAgentCodes(agentCodes []string) knowledgebasedomain.Type {
+func knowledgeBaseTypeFromAgentCodes(agentCodes []string) kbentity.Type {
 	return knowledgebasedomain.ResolveKnowledgeBaseTypeByAgentCodes(agentCodes)
 }
 
 // knowledgeBaseTypeFromKnowledgeBase 返回存量知识库已经确定好的产品线。
 //
 // 更新、详情、列表和下游消费都必须以这个结果为准，不能按本次请求的 source_type 重判产品线。
-func knowledgeBaseTypeFromKnowledgeBase(kb *knowledgebasedomain.KnowledgeBase) knowledgebasedomain.Type {
+func knowledgeBaseTypeFromKnowledgeBase(kb *kbentity.KnowledgeBase) kbentity.Type {
 	if kb == nil {
-		return knowledgebasedomain.KnowledgeBaseTypeFlowVector
+		return kbentity.KnowledgeBaseTypeFlowVector
 	}
-	return knowledgebasedomain.NormalizeKnowledgeBaseTypeOrDefault(kb.KnowledgeBaseType)
+	return kbentity.NormalizeKnowledgeBaseTypeOrDefault(kb.KnowledgeBaseType)
 }
 
 func (s *KnowledgeBaseAppService) filterKnowledgeBaseCodesByAgentCodes(
@@ -182,12 +183,12 @@ func hasAgentCodeIntersection(currentAgentCodes, requestedAgentCodes []string) b
 func applyKnowledgeBaseBindingInfo(
 	dto *kbdto.KnowledgeBaseDTO,
 	agentCodes []string,
-	knowledgeBaseType knowledgebasedomain.Type,
+	knowledgeBaseType kbentity.Type,
 ) *kbdto.KnowledgeBaseDTO {
 	if dto == nil {
 		return nil
 	}
 	dto.AgentCodes = append([]string(nil), agentCodes...)
-	dto.KnowledgeBaseType = string(knowledgebasedomain.NormalizeKnowledgeBaseTypeOrDefault(knowledgeBaseType))
+	dto.KnowledgeBaseType = string(kbentity.NormalizeKnowledgeBaseTypeOrDefault(knowledgeBaseType))
 	return dto
 }

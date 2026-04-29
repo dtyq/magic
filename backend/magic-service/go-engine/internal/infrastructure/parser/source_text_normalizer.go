@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"io"
 
-	documentdomain "magic/internal/domain/knowledge/document/service"
+	documentdomain "magic/internal/domain/knowledge/document/metadata"
 )
 
 func readAndNormalizeParserSource(file io.Reader, fileType string) ([]byte, error) {

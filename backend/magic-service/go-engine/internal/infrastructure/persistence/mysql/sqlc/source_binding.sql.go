@@ -8,7 +8,7 @@ package mysqlsqlc
 import (
 	"context"
 	"database/sql"
-	"encoding/json"
+	"strings"
 	"time"
 )
 
@@ -25,13 +25,40 @@ func (q *Queries) DeleteSourceBindingItemsByBinding(ctx context.Context, binding
 	return result.RowsAffected()
 }
 
-const deleteSourceBindingItemsByKnowledgeBase = `-- name: DeleteSourceBindingItemsByKnowledgeBase :execrows
+const deleteSourceBindingItemsByBindingIDs = `-- name: DeleteSourceBindingItemsByBindingIDs :execrows
 DELETE FROM knowledge_source_binding_items
-WHERE binding_id IN (
-    SELECT id FROM knowledge_source_bindings WHERE knowledge_base_code = ?
-)
+WHERE binding_id IN (/*SLICE:binding_ids*/?)
 `
 
+func (q *Queries) DeleteSourceBindingItemsByBindingIDs(ctx context.Context, bindingIds []int64) (int64, error) {
+	query := deleteSourceBindingItemsByBindingIDs
+	var queryParams []interface{}
+	if len(bindingIds) > 0 {
+		for _, v := range bindingIds {
+			queryParams = append(queryParams, v)
+		}
+		query = strings.Replace(query, "/*SLICE:binding_ids*/?", strings.Repeat(",?", len(bindingIds))[1:], 1)
+	} else {
+		query = strings.Replace(query, "/*SLICE:binding_ids*/?", "NULL", 1)
+	}
+	result, err := q.db.ExecContext(ctx, query, queryParams...)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
+}
+
+const deleteSourceBindingItemsByKnowledgeBase = `-- name: DeleteSourceBindingItemsByKnowledgeBase :execrows
+DELETE knowledge_source_binding_items
+FROM knowledge_source_binding_items
+INNER JOIN knowledge_source_bindings
+    ON knowledge_source_bindings.id = knowledge_source_binding_items.binding_id
+WHERE knowledge_source_bindings.knowledge_base_code = ?
+`
+
+// Join delete is intentional here. Keep this cleanup in sqlc so concurrent
+// knowledge-base replacement/destruction cannot regress back to "list IDs then
+// delete" and reopen the cross-transaction leak window.
 func (q *Queries) DeleteSourceBindingItemsByKnowledgeBase(ctx context.Context, knowledgeBaseCode string) (int64, error) {
 	result, err := q.db.ExecContext(ctx, deleteSourceBindingItemsByKnowledgeBase, knowledgeBaseCode)
 	if err != nil {
@@ -40,15 +67,78 @@ func (q *Queries) DeleteSourceBindingItemsByKnowledgeBase(ctx context.Context, k
 	return result.RowsAffected()
 }
 
-const deleteSourceBindingTargetsByKnowledgeBase = `-- name: DeleteSourceBindingTargetsByKnowledgeBase :execrows
-DELETE t
-FROM knowledge_source_bindings b
-STRAIGHT_JOIN knowledge_source_binding_targets t ON t.binding_id = b.id
-WHERE b.knowledge_base_code = ?
+const deleteSourceBindingTargetsByBinding = `-- name: DeleteSourceBindingTargetsByBinding :execrows
+DELETE FROM knowledge_source_binding_targets
+WHERE binding_id = ?
 `
 
+func (q *Queries) DeleteSourceBindingTargetsByBinding(ctx context.Context, bindingID int64) (int64, error) {
+	result, err := q.db.ExecContext(ctx, deleteSourceBindingTargetsByBinding, bindingID)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
+}
+
+const deleteSourceBindingTargetsByBindingIDs = `-- name: DeleteSourceBindingTargetsByBindingIDs :execrows
+DELETE FROM knowledge_source_binding_targets
+WHERE binding_id IN (/*SLICE:binding_ids*/?)
+`
+
+func (q *Queries) DeleteSourceBindingTargetsByBindingIDs(ctx context.Context, bindingIds []int64) (int64, error) {
+	query := deleteSourceBindingTargetsByBindingIDs
+	var queryParams []interface{}
+	if len(bindingIds) > 0 {
+		for _, v := range bindingIds {
+			queryParams = append(queryParams, v)
+		}
+		query = strings.Replace(query, "/*SLICE:binding_ids*/?", strings.Repeat(",?", len(bindingIds))[1:], 1)
+	} else {
+		query = strings.Replace(query, "/*SLICE:binding_ids*/?", "NULL", 1)
+	}
+	result, err := q.db.ExecContext(ctx, query, queryParams...)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
+}
+
+const deleteSourceBindingTargetsByKnowledgeBase = `-- name: DeleteSourceBindingTargetsByKnowledgeBase :execrows
+DELETE knowledge_source_binding_targets
+FROM knowledge_source_binding_targets
+INNER JOIN knowledge_source_bindings
+    ON knowledge_source_bindings.id = knowledge_source_binding_targets.binding_id
+WHERE knowledge_source_bindings.knowledge_base_code = ?
+`
+
+// Join delete is intentional here. Keep this cleanup in sqlc so concurrent
+// knowledge-base replacement/destruction cannot regress back to "list IDs then
+// delete" and reopen the cross-transaction leak window.
 func (q *Queries) DeleteSourceBindingTargetsByKnowledgeBase(ctx context.Context, knowledgeBaseCode string) (int64, error) {
 	result, err := q.db.ExecContext(ctx, deleteSourceBindingTargetsByKnowledgeBase, knowledgeBaseCode)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
+}
+
+const deleteSourceBindingsByBindingIDs = `-- name: DeleteSourceBindingsByBindingIDs :execrows
+DELETE FROM knowledge_source_bindings
+WHERE id IN (/*SLICE:binding_ids*/?)
+`
+
+func (q *Queries) DeleteSourceBindingsByBindingIDs(ctx context.Context, bindingIds []int64) (int64, error) {
+	query := deleteSourceBindingsByBindingIDs
+	var queryParams []interface{}
+	if len(bindingIds) > 0 {
+		for _, v := range bindingIds {
+			queryParams = append(queryParams, v)
+		}
+		query = strings.Replace(query, "/*SLICE:binding_ids*/?", strings.Repeat(",?", len(bindingIds))[1:], 1)
+	} else {
+		query = strings.Replace(query, "/*SLICE:binding_ids*/?", "NULL", 1)
+	}
+	result, err := q.db.ExecContext(ctx, query, queryParams...)
 	if err != nil {
 		return 0, err
 	}
@@ -60,6 +150,8 @@ DELETE FROM knowledge_source_bindings
 WHERE knowledge_base_code = ?
 `
 
+// Join delete is intentional here. Keep this cleanup in sqlc and do not
+// replace it with ad hoc SQL assembly in Go.
 func (q *Queries) DeleteSourceBindingsByKnowledgeBase(ctx context.Context, knowledgeBaseCode string) (int64, error) {
 	result, err := q.db.ExecContext(ctx, deleteSourceBindingsByKnowledgeBase, knowledgeBaseCode)
 	if err != nil {
@@ -78,18 +170,18 @@ INSERT INTO knowledge_source_bindings (
 `
 
 type InsertKnowledgeSourceBindingParams struct {
-	OrganizationCode  string          `json:"organization_code"`
-	KnowledgeBaseCode string          `json:"knowledge_base_code"`
-	Provider          string          `json:"provider"`
-	RootType          string          `json:"root_type"`
-	RootRef           string          `json:"root_ref"`
-	SyncMode          string          `json:"sync_mode"`
-	SyncConfig        json.RawMessage `json:"sync_config"`
-	Enabled           bool            `json:"enabled"`
-	CreatedUid        string          `json:"created_uid"`
-	UpdatedUid        string          `json:"updated_uid"`
-	CreatedAt         time.Time       `json:"created_at"`
-	UpdatedAt         time.Time       `json:"updated_at"`
+	OrganizationCode  string    `json:"organization_code"`
+	KnowledgeBaseCode string    `json:"knowledge_base_code"`
+	Provider          string    `json:"provider"`
+	RootType          string    `json:"root_type"`
+	RootRef           string    `json:"root_ref"`
+	SyncMode          string    `json:"sync_mode"`
+	SyncConfig        []byte    `json:"sync_config"`
+	Enabled           bool      `json:"enabled"`
+	CreatedUid        string    `json:"created_uid"`
+	UpdatedUid        string    `json:"updated_uid"`
+	CreatedAt         time.Time `json:"created_at"`
+	UpdatedAt         time.Time `json:"updated_at"`
 }
 
 func (q *Queries) InsertKnowledgeSourceBinding(ctx context.Context, arg InsertKnowledgeSourceBindingParams) (sql.Result, error) {
@@ -138,6 +230,177 @@ func (q *Queries) InsertKnowledgeSourceBindingItem(ctx context.Context, arg Inse
 	return err
 }
 
+const insertKnowledgeSourceBindingItemsBatch2 = `-- name: InsertKnowledgeSourceBindingItemsBatch2 :execrows
+INSERT INTO knowledge_source_binding_items (
+    binding_id, source_item_id, resolve_reason, last_resolved_at, created_at, updated_at
+) VALUES
+    (?, ?, ?, ?, ?, ?),
+    (?, ?, ?, ?, ?, ?)
+`
+
+type InsertKnowledgeSourceBindingItemsBatch2Params struct {
+	BindingID        int64        `json:"binding_id"`
+	SourceItemID     int64        `json:"source_item_id"`
+	ResolveReason    string       `json:"resolve_reason"`
+	LastResolvedAt   sql.NullTime `json:"last_resolved_at"`
+	CreatedAt        time.Time    `json:"created_at"`
+	UpdatedAt        time.Time    `json:"updated_at"`
+	BindingID_2      int64        `json:"binding_id_2"`
+	SourceItemID_2   int64        `json:"source_item_id_2"`
+	ResolveReason_2  string       `json:"resolve_reason_2"`
+	LastResolvedAt_2 sql.NullTime `json:"last_resolved_at_2"`
+	CreatedAt_2      time.Time    `json:"created_at_2"`
+	UpdatedAt_2      time.Time    `json:"updated_at_2"`
+}
+
+func (q *Queries) InsertKnowledgeSourceBindingItemsBatch2(ctx context.Context, arg InsertKnowledgeSourceBindingItemsBatch2Params) (int64, error) {
+	result, err := q.db.ExecContext(ctx, insertKnowledgeSourceBindingItemsBatch2,
+		arg.BindingID,
+		arg.SourceItemID,
+		arg.ResolveReason,
+		arg.LastResolvedAt,
+		arg.CreatedAt,
+		arg.UpdatedAt,
+		arg.BindingID_2,
+		arg.SourceItemID_2,
+		arg.ResolveReason_2,
+		arg.LastResolvedAt_2,
+		arg.CreatedAt_2,
+		arg.UpdatedAt_2,
+	)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
+}
+
+const insertKnowledgeSourceBindingItemsBatch3 = `-- name: InsertKnowledgeSourceBindingItemsBatch3 :execrows
+INSERT INTO knowledge_source_binding_items (
+    binding_id, source_item_id, resolve_reason, last_resolved_at, created_at, updated_at
+) VALUES
+    (?, ?, ?, ?, ?, ?),
+    (?, ?, ?, ?, ?, ?),
+    (?, ?, ?, ?, ?, ?)
+`
+
+type InsertKnowledgeSourceBindingItemsBatch3Params struct {
+	BindingID        int64        `json:"binding_id"`
+	SourceItemID     int64        `json:"source_item_id"`
+	ResolveReason    string       `json:"resolve_reason"`
+	LastResolvedAt   sql.NullTime `json:"last_resolved_at"`
+	CreatedAt        time.Time    `json:"created_at"`
+	UpdatedAt        time.Time    `json:"updated_at"`
+	BindingID_2      int64        `json:"binding_id_2"`
+	SourceItemID_2   int64        `json:"source_item_id_2"`
+	ResolveReason_2  string       `json:"resolve_reason_2"`
+	LastResolvedAt_2 sql.NullTime `json:"last_resolved_at_2"`
+	CreatedAt_2      time.Time    `json:"created_at_2"`
+	UpdatedAt_2      time.Time    `json:"updated_at_2"`
+	BindingID_3      int64        `json:"binding_id_3"`
+	SourceItemID_3   int64        `json:"source_item_id_3"`
+	ResolveReason_3  string       `json:"resolve_reason_3"`
+	LastResolvedAt_3 sql.NullTime `json:"last_resolved_at_3"`
+	CreatedAt_3      time.Time    `json:"created_at_3"`
+	UpdatedAt_3      time.Time    `json:"updated_at_3"`
+}
+
+func (q *Queries) InsertKnowledgeSourceBindingItemsBatch3(ctx context.Context, arg InsertKnowledgeSourceBindingItemsBatch3Params) (int64, error) {
+	result, err := q.db.ExecContext(ctx, insertKnowledgeSourceBindingItemsBatch3,
+		arg.BindingID,
+		arg.SourceItemID,
+		arg.ResolveReason,
+		arg.LastResolvedAt,
+		arg.CreatedAt,
+		arg.UpdatedAt,
+		arg.BindingID_2,
+		arg.SourceItemID_2,
+		arg.ResolveReason_2,
+		arg.LastResolvedAt_2,
+		arg.CreatedAt_2,
+		arg.UpdatedAt_2,
+		arg.BindingID_3,
+		arg.SourceItemID_3,
+		arg.ResolveReason_3,
+		arg.LastResolvedAt_3,
+		arg.CreatedAt_3,
+		arg.UpdatedAt_3,
+	)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
+}
+
+const insertKnowledgeSourceBindingItemsBatch4 = `-- name: InsertKnowledgeSourceBindingItemsBatch4 :execrows
+INSERT INTO knowledge_source_binding_items (
+    binding_id, source_item_id, resolve_reason, last_resolved_at, created_at, updated_at
+) VALUES
+    (?, ?, ?, ?, ?, ?),
+    (?, ?, ?, ?, ?, ?),
+    (?, ?, ?, ?, ?, ?),
+    (?, ?, ?, ?, ?, ?)
+`
+
+type InsertKnowledgeSourceBindingItemsBatch4Params struct {
+	BindingID        int64        `json:"binding_id"`
+	SourceItemID     int64        `json:"source_item_id"`
+	ResolveReason    string       `json:"resolve_reason"`
+	LastResolvedAt   sql.NullTime `json:"last_resolved_at"`
+	CreatedAt        time.Time    `json:"created_at"`
+	UpdatedAt        time.Time    `json:"updated_at"`
+	BindingID_2      int64        `json:"binding_id_2"`
+	SourceItemID_2   int64        `json:"source_item_id_2"`
+	ResolveReason_2  string       `json:"resolve_reason_2"`
+	LastResolvedAt_2 sql.NullTime `json:"last_resolved_at_2"`
+	CreatedAt_2      time.Time    `json:"created_at_2"`
+	UpdatedAt_2      time.Time    `json:"updated_at_2"`
+	BindingID_3      int64        `json:"binding_id_3"`
+	SourceItemID_3   int64        `json:"source_item_id_3"`
+	ResolveReason_3  string       `json:"resolve_reason_3"`
+	LastResolvedAt_3 sql.NullTime `json:"last_resolved_at_3"`
+	CreatedAt_3      time.Time    `json:"created_at_3"`
+	UpdatedAt_3      time.Time    `json:"updated_at_3"`
+	BindingID_4      int64        `json:"binding_id_4"`
+	SourceItemID_4   int64        `json:"source_item_id_4"`
+	ResolveReason_4  string       `json:"resolve_reason_4"`
+	LastResolvedAt_4 sql.NullTime `json:"last_resolved_at_4"`
+	CreatedAt_4      time.Time    `json:"created_at_4"`
+	UpdatedAt_4      time.Time    `json:"updated_at_4"`
+}
+
+func (q *Queries) InsertKnowledgeSourceBindingItemsBatch4(ctx context.Context, arg InsertKnowledgeSourceBindingItemsBatch4Params) (int64, error) {
+	result, err := q.db.ExecContext(ctx, insertKnowledgeSourceBindingItemsBatch4,
+		arg.BindingID,
+		arg.SourceItemID,
+		arg.ResolveReason,
+		arg.LastResolvedAt,
+		arg.CreatedAt,
+		arg.UpdatedAt,
+		arg.BindingID_2,
+		arg.SourceItemID_2,
+		arg.ResolveReason_2,
+		arg.LastResolvedAt_2,
+		arg.CreatedAt_2,
+		arg.UpdatedAt_2,
+		arg.BindingID_3,
+		arg.SourceItemID_3,
+		arg.ResolveReason_3,
+		arg.LastResolvedAt_3,
+		arg.CreatedAt_3,
+		arg.UpdatedAt_3,
+		arg.BindingID_4,
+		arg.SourceItemID_4,
+		arg.ResolveReason_4,
+		arg.LastResolvedAt_4,
+		arg.CreatedAt_4,
+		arg.UpdatedAt_4,
+	)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
+}
+
 const insertKnowledgeSourceBindingTarget = `-- name: InsertKnowledgeSourceBindingTarget :exec
 INSERT INTO knowledge_source_binding_targets (
     binding_id, target_type, target_ref, created_at, updated_at
@@ -165,17 +428,178 @@ func (q *Queries) InsertKnowledgeSourceBindingTarget(ctx context.Context, arg In
 	return err
 }
 
-const listKnowledgeSourceBindingItemsByKnowledgeBase = `-- name: ListKnowledgeSourceBindingItemsByKnowledgeBase :many
-SELECT
-    bi.id, bi.binding_id, bi.source_item_id, bi.resolve_reason, bi.last_resolved_at, bi.created_at, bi.updated_at
-FROM knowledge_source_binding_items bi
-INNER JOIN knowledge_source_bindings b ON b.id = bi.binding_id
-WHERE b.knowledge_base_code = ?
-ORDER BY bi.id ASC
+const insertKnowledgeSourceBindingTargetsBatch2 = `-- name: InsertKnowledgeSourceBindingTargetsBatch2 :execrows
+INSERT INTO knowledge_source_binding_targets (
+    binding_id, target_type, target_ref, created_at, updated_at
+) VALUES
+    (?, ?, ?, ?, ?),
+    (?, ?, ?, ?, ?)
 `
 
-func (q *Queries) ListKnowledgeSourceBindingItemsByKnowledgeBase(ctx context.Context, knowledgeBaseCode string) ([]KnowledgeSourceBindingItem, error) {
-	rows, err := q.db.QueryContext(ctx, listKnowledgeSourceBindingItemsByKnowledgeBase, knowledgeBaseCode)
+type InsertKnowledgeSourceBindingTargetsBatch2Params struct {
+	BindingID    int64     `json:"binding_id"`
+	TargetType   string    `json:"target_type"`
+	TargetRef    string    `json:"target_ref"`
+	CreatedAt    time.Time `json:"created_at"`
+	UpdatedAt    time.Time `json:"updated_at"`
+	BindingID_2  int64     `json:"binding_id_2"`
+	TargetType_2 string    `json:"target_type_2"`
+	TargetRef_2  string    `json:"target_ref_2"`
+	CreatedAt_2  time.Time `json:"created_at_2"`
+	UpdatedAt_2  time.Time `json:"updated_at_2"`
+}
+
+func (q *Queries) InsertKnowledgeSourceBindingTargetsBatch2(ctx context.Context, arg InsertKnowledgeSourceBindingTargetsBatch2Params) (int64, error) {
+	result, err := q.db.ExecContext(ctx, insertKnowledgeSourceBindingTargetsBatch2,
+		arg.BindingID,
+		arg.TargetType,
+		arg.TargetRef,
+		arg.CreatedAt,
+		arg.UpdatedAt,
+		arg.BindingID_2,
+		arg.TargetType_2,
+		arg.TargetRef_2,
+		arg.CreatedAt_2,
+		arg.UpdatedAt_2,
+	)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
+}
+
+const insertKnowledgeSourceBindingTargetsBatch3 = `-- name: InsertKnowledgeSourceBindingTargetsBatch3 :execrows
+INSERT INTO knowledge_source_binding_targets (
+    binding_id, target_type, target_ref, created_at, updated_at
+) VALUES
+    (?, ?, ?, ?, ?),
+    (?, ?, ?, ?, ?),
+    (?, ?, ?, ?, ?)
+`
+
+type InsertKnowledgeSourceBindingTargetsBatch3Params struct {
+	BindingID    int64     `json:"binding_id"`
+	TargetType   string    `json:"target_type"`
+	TargetRef    string    `json:"target_ref"`
+	CreatedAt    time.Time `json:"created_at"`
+	UpdatedAt    time.Time `json:"updated_at"`
+	BindingID_2  int64     `json:"binding_id_2"`
+	TargetType_2 string    `json:"target_type_2"`
+	TargetRef_2  string    `json:"target_ref_2"`
+	CreatedAt_2  time.Time `json:"created_at_2"`
+	UpdatedAt_2  time.Time `json:"updated_at_2"`
+	BindingID_3  int64     `json:"binding_id_3"`
+	TargetType_3 string    `json:"target_type_3"`
+	TargetRef_3  string    `json:"target_ref_3"`
+	CreatedAt_3  time.Time `json:"created_at_3"`
+	UpdatedAt_3  time.Time `json:"updated_at_3"`
+}
+
+func (q *Queries) InsertKnowledgeSourceBindingTargetsBatch3(ctx context.Context, arg InsertKnowledgeSourceBindingTargetsBatch3Params) (int64, error) {
+	result, err := q.db.ExecContext(ctx, insertKnowledgeSourceBindingTargetsBatch3,
+		arg.BindingID,
+		arg.TargetType,
+		arg.TargetRef,
+		arg.CreatedAt,
+		arg.UpdatedAt,
+		arg.BindingID_2,
+		arg.TargetType_2,
+		arg.TargetRef_2,
+		arg.CreatedAt_2,
+		arg.UpdatedAt_2,
+		arg.BindingID_3,
+		arg.TargetType_3,
+		arg.TargetRef_3,
+		arg.CreatedAt_3,
+		arg.UpdatedAt_3,
+	)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
+}
+
+const insertKnowledgeSourceBindingTargetsBatch4 = `-- name: InsertKnowledgeSourceBindingTargetsBatch4 :execrows
+INSERT INTO knowledge_source_binding_targets (
+    binding_id, target_type, target_ref, created_at, updated_at
+) VALUES
+    (?, ?, ?, ?, ?),
+    (?, ?, ?, ?, ?),
+    (?, ?, ?, ?, ?),
+    (?, ?, ?, ?, ?)
+`
+
+type InsertKnowledgeSourceBindingTargetsBatch4Params struct {
+	BindingID    int64     `json:"binding_id"`
+	TargetType   string    `json:"target_type"`
+	TargetRef    string    `json:"target_ref"`
+	CreatedAt    time.Time `json:"created_at"`
+	UpdatedAt    time.Time `json:"updated_at"`
+	BindingID_2  int64     `json:"binding_id_2"`
+	TargetType_2 string    `json:"target_type_2"`
+	TargetRef_2  string    `json:"target_ref_2"`
+	CreatedAt_2  time.Time `json:"created_at_2"`
+	UpdatedAt_2  time.Time `json:"updated_at_2"`
+	BindingID_3  int64     `json:"binding_id_3"`
+	TargetType_3 string    `json:"target_type_3"`
+	TargetRef_3  string    `json:"target_ref_3"`
+	CreatedAt_3  time.Time `json:"created_at_3"`
+	UpdatedAt_3  time.Time `json:"updated_at_3"`
+	BindingID_4  int64     `json:"binding_id_4"`
+	TargetType_4 string    `json:"target_type_4"`
+	TargetRef_4  string    `json:"target_ref_4"`
+	CreatedAt_4  time.Time `json:"created_at_4"`
+	UpdatedAt_4  time.Time `json:"updated_at_4"`
+}
+
+func (q *Queries) InsertKnowledgeSourceBindingTargetsBatch4(ctx context.Context, arg InsertKnowledgeSourceBindingTargetsBatch4Params) (int64, error) {
+	result, err := q.db.ExecContext(ctx, insertKnowledgeSourceBindingTargetsBatch4,
+		arg.BindingID,
+		arg.TargetType,
+		arg.TargetRef,
+		arg.CreatedAt,
+		arg.UpdatedAt,
+		arg.BindingID_2,
+		arg.TargetType_2,
+		arg.TargetRef_2,
+		arg.CreatedAt_2,
+		arg.UpdatedAt_2,
+		arg.BindingID_3,
+		arg.TargetType_3,
+		arg.TargetRef_3,
+		arg.CreatedAt_3,
+		arg.UpdatedAt_3,
+		arg.BindingID_4,
+		arg.TargetType_4,
+		arg.TargetRef_4,
+		arg.CreatedAt_4,
+		arg.UpdatedAt_4,
+	)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
+}
+
+const listKnowledgeSourceBindingItemsByBindingIDs = `-- name: ListKnowledgeSourceBindingItemsByBindingIDs :many
+SELECT knowledge_source_binding_items.id, knowledge_source_binding_items.binding_id, knowledge_source_binding_items.source_item_id, knowledge_source_binding_items.resolve_reason, knowledge_source_binding_items.last_resolved_at, knowledge_source_binding_items.created_at, knowledge_source_binding_items.updated_at
+FROM knowledge_source_binding_items
+WHERE binding_id IN (/*SLICE:binding_ids*/?)
+ORDER BY binding_id ASC, id ASC
+`
+
+func (q *Queries) ListKnowledgeSourceBindingItemsByBindingIDs(ctx context.Context, bindingIds []int64) ([]KnowledgeSourceBindingItem, error) {
+	query := listKnowledgeSourceBindingItemsByBindingIDs
+	var queryParams []interface{}
+	if len(bindingIds) > 0 {
+		for _, v := range bindingIds {
+			queryParams = append(queryParams, v)
+		}
+		query = strings.Replace(query, "/*SLICE:binding_ids*/?", strings.Repeat(",?", len(bindingIds))[1:], 1)
+	} else {
+		query = strings.Replace(query, "/*SLICE:binding_ids*/?", "NULL", 1)
+	}
+	rows, err := q.db.QueryContext(ctx, query, queryParams...)
 	if err != nil {
 		return nil, err
 	}
@@ -205,67 +629,39 @@ func (q *Queries) ListKnowledgeSourceBindingItemsByKnowledgeBase(ctx context.Con
 	return items, nil
 }
 
-const listKnowledgeSourceBindingsByKnowledgeBase = `-- name: ListKnowledgeSourceBindingsByKnowledgeBase :many
-SELECT
-    b.id, b.organization_code, b.knowledge_base_code, b.provider, b.root_type, b.root_ref, b.sync_mode,
-    COALESCE(b.sync_config, CAST('null' AS JSON)) AS sync_config, b.enabled, b.created_uid, b.updated_uid,
-    b.created_at, b.updated_at,
-    t.id, COALESCE(t.target_type, ''), COALESCE(t.target_ref, ''), t.created_at, t.updated_at
-FROM knowledge_source_bindings b
-LEFT JOIN knowledge_source_binding_targets t FORCE INDEX (uk_kb_source_binding_targets) ON t.binding_id = b.id
-WHERE b.knowledge_base_code = ?
-ORDER BY b.id ASC, t.id ASC
+const listKnowledgeSourceBindingTargetsByBindingIDs = `-- name: ListKnowledgeSourceBindingTargetsByBindingIDs :many
+SELECT knowledge_source_binding_targets.id, knowledge_source_binding_targets.binding_id, knowledge_source_binding_targets.target_type, knowledge_source_binding_targets.target_ref, knowledge_source_binding_targets.created_at, knowledge_source_binding_targets.updated_at
+FROM knowledge_source_binding_targets
+WHERE binding_id IN (/*SLICE:binding_ids*/?)
+ORDER BY binding_id ASC, id ASC
 `
 
-type ListKnowledgeSourceBindingsByKnowledgeBaseRow struct {
-	ID                int64           `json:"id"`
-	OrganizationCode  string          `json:"organization_code"`
-	KnowledgeBaseCode string          `json:"knowledge_base_code"`
-	Provider          string          `json:"provider"`
-	RootType          string          `json:"root_type"`
-	RootRef           string          `json:"root_ref"`
-	SyncMode          string          `json:"sync_mode"`
-	SyncConfig        json.RawMessage `json:"sync_config"`
-	Enabled           bool            `json:"enabled"`
-	CreatedUid        string          `json:"created_uid"`
-	UpdatedUid        string          `json:"updated_uid"`
-	CreatedAt         time.Time       `json:"created_at"`
-	UpdatedAt         time.Time       `json:"updated_at"`
-	ID_2              sql.NullInt64   `json:"id_2"`
-	TargetType        string          `json:"target_type"`
-	TargetRef         string          `json:"target_ref"`
-	CreatedAt_2       sql.NullTime    `json:"created_at_2"`
-	UpdatedAt_2       sql.NullTime    `json:"updated_at_2"`
-}
-
-func (q *Queries) ListKnowledgeSourceBindingsByKnowledgeBase(ctx context.Context, knowledgeBaseCode string) ([]ListKnowledgeSourceBindingsByKnowledgeBaseRow, error) {
-	rows, err := q.db.QueryContext(ctx, listKnowledgeSourceBindingsByKnowledgeBase, knowledgeBaseCode)
+func (q *Queries) ListKnowledgeSourceBindingTargetsByBindingIDs(ctx context.Context, bindingIds []int64) ([]KnowledgeSourceBindingTarget, error) {
+	query := listKnowledgeSourceBindingTargetsByBindingIDs
+	var queryParams []interface{}
+	if len(bindingIds) > 0 {
+		for _, v := range bindingIds {
+			queryParams = append(queryParams, v)
+		}
+		query = strings.Replace(query, "/*SLICE:binding_ids*/?", strings.Repeat(",?", len(bindingIds))[1:], 1)
+	} else {
+		query = strings.Replace(query, "/*SLICE:binding_ids*/?", "NULL", 1)
+	}
+	rows, err := q.db.QueryContext(ctx, query, queryParams...)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	items := []ListKnowledgeSourceBindingsByKnowledgeBaseRow{}
+	items := []KnowledgeSourceBindingTarget{}
 	for rows.Next() {
-		var i ListKnowledgeSourceBindingsByKnowledgeBaseRow
+		var i KnowledgeSourceBindingTarget
 		if err := rows.Scan(
 			&i.ID,
-			&i.OrganizationCode,
-			&i.KnowledgeBaseCode,
-			&i.Provider,
-			&i.RootType,
-			&i.RootRef,
-			&i.SyncMode,
-			&i.SyncConfig,
-			&i.Enabled,
-			&i.CreatedUid,
-			&i.UpdatedUid,
-			&i.CreatedAt,
-			&i.UpdatedAt,
-			&i.ID_2,
+			&i.BindingID,
 			&i.TargetType,
 			&i.TargetRef,
-			&i.CreatedAt_2,
-			&i.UpdatedAt_2,
+			&i.CreatedAt,
+			&i.UpdatedAt,
 		); err != nil {
 			return nil, err
 		}
@@ -280,57 +676,417 @@ func (q *Queries) ListKnowledgeSourceBindingsByKnowledgeBase(ctx context.Context
 	return items, nil
 }
 
-const listRealtimeProjectSourceBindingsByProject = `-- name: ListRealtimeProjectSourceBindingsByProject :many
-SELECT
-    b.id, b.organization_code, b.knowledge_base_code, b.provider, b.root_type, b.root_ref, b.sync_mode,
-    COALESCE(b.sync_config, CAST('null' AS JSON)) AS sync_config, b.enabled, b.created_uid, b.updated_uid,
-    b.created_at, b.updated_at,
-    t.id, COALESCE(t.target_type, ''), COALESCE(t.target_ref, ''), t.created_at, t.updated_at
-FROM knowledge_source_bindings b
-LEFT JOIN knowledge_source_binding_targets t FORCE INDEX (uk_kb_source_binding_targets) ON t.binding_id = b.id
-WHERE b.organization_code = ?
-  AND b.provider = 'project'
-  AND b.root_type = 'project'
-  AND b.root_ref = ?
-  AND b.sync_mode = 'realtime'
-ORDER BY b.id ASC, t.id ASC
+const listKnowledgeSourceBindingsCoreByIDs = `-- name: ListKnowledgeSourceBindingsCoreByIDs :many
+SELECT knowledge_source_bindings.id, knowledge_source_bindings.organization_code, knowledge_source_bindings.knowledge_base_code, knowledge_source_bindings.provider, knowledge_source_bindings.root_type, knowledge_source_bindings.root_ref, knowledge_source_bindings.sync_mode, knowledge_source_bindings.sync_config, knowledge_source_bindings.enabled, knowledge_source_bindings.created_uid, knowledge_source_bindings.updated_uid, knowledge_source_bindings.created_at, knowledge_source_bindings.updated_at
+FROM knowledge_source_bindings
+WHERE id IN (/*SLICE:ids*/?)
+ORDER BY id ASC
 `
 
-type ListRealtimeProjectSourceBindingsByProjectParams struct {
+func (q *Queries) ListKnowledgeSourceBindingsCoreByIDs(ctx context.Context, ids []int64) ([]KnowledgeSourceBinding, error) {
+	query := listKnowledgeSourceBindingsCoreByIDs
+	var queryParams []interface{}
+	if len(ids) > 0 {
+		for _, v := range ids {
+			queryParams = append(queryParams, v)
+		}
+		query = strings.Replace(query, "/*SLICE:ids*/?", strings.Repeat(",?", len(ids))[1:], 1)
+	} else {
+		query = strings.Replace(query, "/*SLICE:ids*/?", "NULL", 1)
+	}
+	rows, err := q.db.QueryContext(ctx, query, queryParams...)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []KnowledgeSourceBinding{}
+	for rows.Next() {
+		var i KnowledgeSourceBinding
+		if err := rows.Scan(
+			&i.ID,
+			&i.OrganizationCode,
+			&i.KnowledgeBaseCode,
+			&i.Provider,
+			&i.RootType,
+			&i.RootRef,
+			&i.SyncMode,
+			&i.SyncConfig,
+			&i.Enabled,
+			&i.CreatedUid,
+			&i.UpdatedUid,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listKnowledgeSourceBindingsCoreByKnowledgeBase = `-- name: ListKnowledgeSourceBindingsCoreByKnowledgeBase :many
+SELECT knowledge_source_bindings.id, knowledge_source_bindings.organization_code, knowledge_source_bindings.knowledge_base_code, knowledge_source_bindings.provider, knowledge_source_bindings.root_type, knowledge_source_bindings.root_ref, knowledge_source_bindings.sync_mode, knowledge_source_bindings.sync_config, knowledge_source_bindings.enabled, knowledge_source_bindings.created_uid, knowledge_source_bindings.updated_uid, knowledge_source_bindings.created_at, knowledge_source_bindings.updated_at
+FROM knowledge_source_bindings
+WHERE knowledge_base_code = ?
+ORDER BY id ASC
+`
+
+func (q *Queries) ListKnowledgeSourceBindingsCoreByKnowledgeBase(ctx context.Context, knowledgeBaseCode string) ([]KnowledgeSourceBinding, error) {
+	rows, err := q.db.QueryContext(ctx, listKnowledgeSourceBindingsCoreByKnowledgeBase, knowledgeBaseCode)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []KnowledgeSourceBinding{}
+	for rows.Next() {
+		var i KnowledgeSourceBinding
+		if err := rows.Scan(
+			&i.ID,
+			&i.OrganizationCode,
+			&i.KnowledgeBaseCode,
+			&i.Provider,
+			&i.RootType,
+			&i.RootRef,
+			&i.SyncMode,
+			&i.SyncConfig,
+			&i.Enabled,
+			&i.CreatedUid,
+			&i.UpdatedUid,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listKnowledgeSourceBindingsCoreByKnowledgeBases = `-- name: ListKnowledgeSourceBindingsCoreByKnowledgeBases :many
+SELECT knowledge_source_bindings.id, knowledge_source_bindings.organization_code, knowledge_source_bindings.knowledge_base_code, knowledge_source_bindings.provider, knowledge_source_bindings.root_type, knowledge_source_bindings.root_ref, knowledge_source_bindings.sync_mode, knowledge_source_bindings.sync_config, knowledge_source_bindings.enabled, knowledge_source_bindings.created_uid, knowledge_source_bindings.updated_uid, knowledge_source_bindings.created_at, knowledge_source_bindings.updated_at
+FROM knowledge_source_bindings
+WHERE knowledge_base_code IN (/*SLICE:knowledge_base_codes*/?)
+ORDER BY knowledge_base_code ASC, id ASC
+`
+
+func (q *Queries) ListKnowledgeSourceBindingsCoreByKnowledgeBases(ctx context.Context, knowledgeBaseCodes []string) ([]KnowledgeSourceBinding, error) {
+	query := listKnowledgeSourceBindingsCoreByKnowledgeBases
+	var queryParams []interface{}
+	if len(knowledgeBaseCodes) > 0 {
+		for _, v := range knowledgeBaseCodes {
+			queryParams = append(queryParams, v)
+		}
+		query = strings.Replace(query, "/*SLICE:knowledge_base_codes*/?", strings.Repeat(",?", len(knowledgeBaseCodes))[1:], 1)
+	} else {
+		query = strings.Replace(query, "/*SLICE:knowledge_base_codes*/?", "NULL", 1)
+	}
+	rows, err := q.db.QueryContext(ctx, query, queryParams...)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []KnowledgeSourceBinding{}
+	for rows.Next() {
+		var i KnowledgeSourceBinding
+		if err := rows.Scan(
+			&i.ID,
+			&i.OrganizationCode,
+			&i.KnowledgeBaseCode,
+			&i.Provider,
+			&i.RootType,
+			&i.RootRef,
+			&i.SyncMode,
+			&i.SyncConfig,
+			&i.Enabled,
+			&i.CreatedUid,
+			&i.UpdatedUid,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listKnowledgeSourceItemsByOrganizationAndProviderAndItemRefs = `-- name: ListKnowledgeSourceItemsByOrganizationAndProviderAndItemRefs :many
+SELECT id, organization_code, provider, root_type, root_ref, group_ref, item_type, item_ref, display_name, extension, content_hash, snapshot_meta, last_resolved_at, created_at, updated_at
+FROM knowledge_source_items
+WHERE organization_code = ?
+  AND provider = ?
+  AND item_ref IN (/*SLICE:item_refs*/?)
+ORDER BY id ASC
+`
+
+type ListKnowledgeSourceItemsByOrganizationAndProviderAndItemRefsParams struct {
+	OrganizationCode string   `json:"organization_code"`
+	Provider         string   `json:"provider"`
+	ItemRefs         []string `json:"item_refs"`
+}
+
+func (q *Queries) ListKnowledgeSourceItemsByOrganizationAndProviderAndItemRefs(ctx context.Context, arg ListKnowledgeSourceItemsByOrganizationAndProviderAndItemRefsParams) ([]KnowledgeSourceItem, error) {
+	query := listKnowledgeSourceItemsByOrganizationAndProviderAndItemRefs
+	var queryParams []interface{}
+	queryParams = append(queryParams, arg.OrganizationCode)
+	queryParams = append(queryParams, arg.Provider)
+	if len(arg.ItemRefs) > 0 {
+		for _, v := range arg.ItemRefs {
+			queryParams = append(queryParams, v)
+		}
+		query = strings.Replace(query, "/*SLICE:item_refs*/?", strings.Repeat(",?", len(arg.ItemRefs))[1:], 1)
+	} else {
+		query = strings.Replace(query, "/*SLICE:item_refs*/?", "NULL", 1)
+	}
+	rows, err := q.db.QueryContext(ctx, query, queryParams...)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []KnowledgeSourceItem{}
+	for rows.Next() {
+		var i KnowledgeSourceItem
+		if err := rows.Scan(
+			&i.ID,
+			&i.OrganizationCode,
+			&i.Provider,
+			&i.RootType,
+			&i.RootRef,
+			&i.GroupRef,
+			&i.ItemType,
+			&i.ItemRef,
+			&i.DisplayName,
+			&i.Extension,
+			&i.ContentHash,
+			&i.SnapshotMeta,
+			&i.LastResolvedAt,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listProjectSourceBindingIDsByKnowledgeBase = `-- name: ListProjectSourceBindingIDsByKnowledgeBase :many
+SELECT id
+FROM knowledge_source_bindings
+WHERE knowledge_base_code = ?
+  AND provider = 'project'
+ORDER BY id ASC
+`
+
+func (q *Queries) ListProjectSourceBindingIDsByKnowledgeBase(ctx context.Context, knowledgeBaseCode string) ([]int64, error) {
+	rows, err := q.db.QueryContext(ctx, listProjectSourceBindingIDsByKnowledgeBase, knowledgeBaseCode)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []int64{}
+	for rows.Next() {
+		var id int64
+		if err := rows.Scan(&id); err != nil {
+			return nil, err
+		}
+		items = append(items, id)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listProjectSourceBindingIDsByKnowledgeBaseAndProject = `-- name: ListProjectSourceBindingIDsByKnowledgeBaseAndProject :many
+SELECT id
+FROM knowledge_source_bindings
+WHERE knowledge_base_code = ?
+  AND provider = 'project'
+  AND root_type = 'project'
+  AND root_ref = ?
+ORDER BY id ASC
+`
+
+type ListProjectSourceBindingIDsByKnowledgeBaseAndProjectParams struct {
+	KnowledgeBaseCode string `json:"knowledge_base_code"`
+	RootRef           string `json:"root_ref"`
+}
+
+func (q *Queries) ListProjectSourceBindingIDsByKnowledgeBaseAndProject(ctx context.Context, arg ListProjectSourceBindingIDsByKnowledgeBaseAndProjectParams) ([]int64, error) {
+	rows, err := q.db.QueryContext(ctx, listProjectSourceBindingIDsByKnowledgeBaseAndProject, arg.KnowledgeBaseCode, arg.RootRef)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []int64{}
+	for rows.Next() {
+		var id int64
+		if err := rows.Scan(&id); err != nil {
+			return nil, err
+		}
+		items = append(items, id)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listProjectSourceBindingIDsByOrganization = `-- name: ListProjectSourceBindingIDsByOrganization :many
+SELECT id
+FROM knowledge_source_bindings
+WHERE organization_code = ?
+  AND provider = 'project'
+  AND root_type = 'project'
+ORDER BY id ASC
+`
+
+func (q *Queries) ListProjectSourceBindingIDsByOrganization(ctx context.Context, organizationCode string) ([]int64, error) {
+	rows, err := q.db.QueryContext(ctx, listProjectSourceBindingIDsByOrganization, organizationCode)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []int64{}
+	for rows.Next() {
+		var id int64
+		if err := rows.Scan(&id); err != nil {
+			return nil, err
+		}
+		items = append(items, id)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listRealtimeKnowledgeSourceBindingsCoreByIDsAndProvider = `-- name: ListRealtimeKnowledgeSourceBindingsCoreByIDsAndProvider :many
+SELECT knowledge_source_bindings.id, knowledge_source_bindings.organization_code, knowledge_source_bindings.knowledge_base_code, knowledge_source_bindings.provider, knowledge_source_bindings.root_type, knowledge_source_bindings.root_ref, knowledge_source_bindings.sync_mode, knowledge_source_bindings.sync_config, knowledge_source_bindings.enabled, knowledge_source_bindings.created_uid, knowledge_source_bindings.updated_uid, knowledge_source_bindings.created_at, knowledge_source_bindings.updated_at
+FROM knowledge_source_bindings
+WHERE id IN (/*SLICE:ids*/?)
+  AND organization_code = ?
+  AND provider = ?
+  AND sync_mode = 'realtime'
+  AND enabled = TRUE
+ORDER BY id ASC
+`
+
+type ListRealtimeKnowledgeSourceBindingsCoreByIDsAndProviderParams struct {
+	Ids              []int64 `json:"ids"`
+	OrganizationCode string  `json:"organization_code"`
+	Provider         string  `json:"provider"`
+}
+
+func (q *Queries) ListRealtimeKnowledgeSourceBindingsCoreByIDsAndProvider(ctx context.Context, arg ListRealtimeKnowledgeSourceBindingsCoreByIDsAndProviderParams) ([]KnowledgeSourceBinding, error) {
+	query := listRealtimeKnowledgeSourceBindingsCoreByIDsAndProvider
+	var queryParams []interface{}
+	if len(arg.Ids) > 0 {
+		for _, v := range arg.Ids {
+			queryParams = append(queryParams, v)
+		}
+		query = strings.Replace(query, "/*SLICE:ids*/?", strings.Repeat(",?", len(arg.Ids))[1:], 1)
+	} else {
+		query = strings.Replace(query, "/*SLICE:ids*/?", "NULL", 1)
+	}
+	queryParams = append(queryParams, arg.OrganizationCode)
+	queryParams = append(queryParams, arg.Provider)
+	rows, err := q.db.QueryContext(ctx, query, queryParams...)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []KnowledgeSourceBinding{}
+	for rows.Next() {
+		var i KnowledgeSourceBinding
+		if err := rows.Scan(
+			&i.ID,
+			&i.OrganizationCode,
+			&i.KnowledgeBaseCode,
+			&i.Provider,
+			&i.RootType,
+			&i.RootRef,
+			&i.SyncMode,
+			&i.SyncConfig,
+			&i.Enabled,
+			&i.CreatedUid,
+			&i.UpdatedUid,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listRealtimeProjectSourceBindingsCoreByProject = `-- name: ListRealtimeProjectSourceBindingsCoreByProject :many
+SELECT knowledge_source_bindings.id, knowledge_source_bindings.organization_code, knowledge_source_bindings.knowledge_base_code, knowledge_source_bindings.provider, knowledge_source_bindings.root_type, knowledge_source_bindings.root_ref, knowledge_source_bindings.sync_mode, knowledge_source_bindings.sync_config, knowledge_source_bindings.enabled, knowledge_source_bindings.created_uid, knowledge_source_bindings.updated_uid, knowledge_source_bindings.created_at, knowledge_source_bindings.updated_at
+FROM knowledge_source_bindings
+WHERE organization_code = ?
+  AND provider = 'project'
+  AND root_type = 'project'
+  AND root_ref = ?
+  AND sync_mode = 'realtime'
+  AND enabled = TRUE
+ORDER BY id ASC
+`
+
+type ListRealtimeProjectSourceBindingsCoreByProjectParams struct {
 	OrganizationCode string `json:"organization_code"`
 	RootRef          string `json:"root_ref"`
 }
 
-type ListRealtimeProjectSourceBindingsByProjectRow struct {
-	ID                int64           `json:"id"`
-	OrganizationCode  string          `json:"organization_code"`
-	KnowledgeBaseCode string          `json:"knowledge_base_code"`
-	Provider          string          `json:"provider"`
-	RootType          string          `json:"root_type"`
-	RootRef           string          `json:"root_ref"`
-	SyncMode          string          `json:"sync_mode"`
-	SyncConfig        json.RawMessage `json:"sync_config"`
-	Enabled           bool            `json:"enabled"`
-	CreatedUid        string          `json:"created_uid"`
-	UpdatedUid        string          `json:"updated_uid"`
-	CreatedAt         time.Time       `json:"created_at"`
-	UpdatedAt         time.Time       `json:"updated_at"`
-	ID_2              sql.NullInt64   `json:"id_2"`
-	TargetType        string          `json:"target_type"`
-	TargetRef         string          `json:"target_ref"`
-	CreatedAt_2       sql.NullTime    `json:"created_at_2"`
-	UpdatedAt_2       sql.NullTime    `json:"updated_at_2"`
-}
-
-func (q *Queries) ListRealtimeProjectSourceBindingsByProject(ctx context.Context, arg ListRealtimeProjectSourceBindingsByProjectParams) ([]ListRealtimeProjectSourceBindingsByProjectRow, error) {
-	rows, err := q.db.QueryContext(ctx, listRealtimeProjectSourceBindingsByProject, arg.OrganizationCode, arg.RootRef)
+func (q *Queries) ListRealtimeProjectSourceBindingsCoreByProject(ctx context.Context, arg ListRealtimeProjectSourceBindingsCoreByProjectParams) ([]KnowledgeSourceBinding, error) {
+	rows, err := q.db.QueryContext(ctx, listRealtimeProjectSourceBindingsCoreByProject, arg.OrganizationCode, arg.RootRef)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	items := []ListRealtimeProjectSourceBindingsByProjectRow{}
+	items := []KnowledgeSourceBinding{}
 	for rows.Next() {
-		var i ListRealtimeProjectSourceBindingsByProjectRow
+		var i KnowledgeSourceBinding
 		if err := rows.Scan(
 			&i.ID,
 			&i.OrganizationCode,
@@ -345,11 +1101,6 @@ func (q *Queries) ListRealtimeProjectSourceBindingsByProject(ctx context.Context
 			&i.UpdatedUid,
 			&i.CreatedAt,
 			&i.UpdatedAt,
-			&i.ID_2,
-			&i.TargetType,
-			&i.TargetRef,
-			&i.CreatedAt_2,
-			&i.UpdatedAt_2,
 		); err != nil {
 			return nil, err
 		}
@@ -362,6 +1113,690 @@ func (q *Queries) ListRealtimeProjectSourceBindingsByProject(ctx context.Context
 		return nil, err
 	}
 	return items, nil
+}
+
+const listRealtimeTeamshareSourceBindingsCoreByKnowledgeBase = `-- name: ListRealtimeTeamshareSourceBindingsCoreByKnowledgeBase :many
+SELECT knowledge_source_bindings.id, knowledge_source_bindings.organization_code, knowledge_source_bindings.knowledge_base_code, knowledge_source_bindings.provider, knowledge_source_bindings.root_type, knowledge_source_bindings.root_ref, knowledge_source_bindings.sync_mode, knowledge_source_bindings.sync_config, knowledge_source_bindings.enabled, knowledge_source_bindings.created_uid, knowledge_source_bindings.updated_uid, knowledge_source_bindings.created_at, knowledge_source_bindings.updated_at
+FROM knowledge_source_bindings
+WHERE organization_code = ?
+  AND provider = ?
+  AND root_type = 'knowledge_base'
+  AND root_ref = ?
+  AND sync_mode = 'realtime'
+  AND enabled = TRUE
+ORDER BY id ASC
+`
+
+type ListRealtimeTeamshareSourceBindingsCoreByKnowledgeBaseParams struct {
+	OrganizationCode string `json:"organization_code"`
+	Provider         string `json:"provider"`
+	RootRef          string `json:"root_ref"`
+}
+
+func (q *Queries) ListRealtimeTeamshareSourceBindingsCoreByKnowledgeBase(ctx context.Context, arg ListRealtimeTeamshareSourceBindingsCoreByKnowledgeBaseParams) ([]KnowledgeSourceBinding, error) {
+	rows, err := q.db.QueryContext(ctx, listRealtimeTeamshareSourceBindingsCoreByKnowledgeBase, arg.OrganizationCode, arg.Provider, arg.RootRef)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []KnowledgeSourceBinding{}
+	for rows.Next() {
+		var i KnowledgeSourceBinding
+		if err := rows.Scan(
+			&i.ID,
+			&i.OrganizationCode,
+			&i.KnowledgeBaseCode,
+			&i.Provider,
+			&i.RootType,
+			&i.RootRef,
+			&i.SyncMode,
+			&i.SyncConfig,
+			&i.Enabled,
+			&i.CreatedUid,
+			&i.UpdatedUid,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listSourceBindingIDsByKnowledgeBase = `-- name: ListSourceBindingIDsByKnowledgeBase :many
+SELECT id
+FROM knowledge_source_bindings
+WHERE knowledge_base_code = ?
+ORDER BY id ASC
+`
+
+func (q *Queries) ListSourceBindingIDsByKnowledgeBase(ctx context.Context, knowledgeBaseCode string) ([]int64, error) {
+	rows, err := q.db.QueryContext(ctx, listSourceBindingIDsByKnowledgeBase, knowledgeBaseCode)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []int64{}
+	for rows.Next() {
+		var id int64
+		if err := rows.Scan(&id); err != nil {
+			return nil, err
+		}
+		items = append(items, id)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listSourceBindingLookupsByIDs = `-- name: ListSourceBindingLookupsByIDs :many
+SELECT id, provider, root_ref
+FROM knowledge_source_bindings
+WHERE id IN (/*SLICE:ids*/?)
+ORDER BY id ASC
+`
+
+type ListSourceBindingLookupsByIDsRow struct {
+	ID       int64  `json:"id"`
+	Provider string `json:"provider"`
+	RootRef  string `json:"root_ref"`
+}
+
+func (q *Queries) ListSourceBindingLookupsByIDs(ctx context.Context, ids []int64) ([]ListSourceBindingLookupsByIDsRow, error) {
+	query := listSourceBindingLookupsByIDs
+	var queryParams []interface{}
+	if len(ids) > 0 {
+		for _, v := range ids {
+			queryParams = append(queryParams, v)
+		}
+		query = strings.Replace(query, "/*SLICE:ids*/?", strings.Repeat(",?", len(ids))[1:], 1)
+	} else {
+		query = strings.Replace(query, "/*SLICE:ids*/?", "NULL", 1)
+	}
+	rows, err := q.db.QueryContext(ctx, query, queryParams...)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListSourceBindingLookupsByIDsRow{}
+	for rows.Next() {
+		var i ListSourceBindingLookupsByIDsRow
+		if err := rows.Scan(&i.ID, &i.Provider, &i.RootRef); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listSourceBindingOrganizationsByIDs = `-- name: ListSourceBindingOrganizationsByIDs :many
+SELECT DISTINCT organization_code
+FROM knowledge_source_bindings
+WHERE id IN (/*SLICE:ids*/?)
+ORDER BY organization_code ASC
+`
+
+func (q *Queries) ListSourceBindingOrganizationsByIDs(ctx context.Context, ids []int64) ([]string, error) {
+	query := listSourceBindingOrganizationsByIDs
+	var queryParams []interface{}
+	if len(ids) > 0 {
+		for _, v := range ids {
+			queryParams = append(queryParams, v)
+		}
+		query = strings.Replace(query, "/*SLICE:ids*/?", strings.Repeat(",?", len(ids))[1:], 1)
+	} else {
+		query = strings.Replace(query, "/*SLICE:ids*/?", "NULL", 1)
+	}
+	rows, err := q.db.QueryContext(ctx, query, queryParams...)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []string{}
+	for rows.Next() {
+		var organization_code string
+		if err := rows.Scan(&organization_code); err != nil {
+			return nil, err
+		}
+		items = append(items, organization_code)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listSourceItemIDsByOrganizationAndProviderAndItemRef = `-- name: ListSourceItemIDsByOrganizationAndProviderAndItemRef :many
+SELECT id
+FROM knowledge_source_items
+WHERE organization_code = ?
+  AND provider = ?
+  AND item_ref = ?
+ORDER BY id ASC
+`
+
+type ListSourceItemIDsByOrganizationAndProviderAndItemRefParams struct {
+	OrganizationCode string `json:"organization_code"`
+	Provider         string `json:"provider"`
+	ItemRef          string `json:"item_ref"`
+}
+
+func (q *Queries) ListSourceItemIDsByOrganizationAndProviderAndItemRef(ctx context.Context, arg ListSourceItemIDsByOrganizationAndProviderAndItemRefParams) ([]int64, error) {
+	rows, err := q.db.QueryContext(ctx, listSourceItemIDsByOrganizationAndProviderAndItemRef, arg.OrganizationCode, arg.Provider, arg.ItemRef)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []int64{}
+	for rows.Next() {
+		var id int64
+		if err := rows.Scan(&id); err != nil {
+			return nil, err
+		}
+		items = append(items, id)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listSourceItemIDsByProviderAndItemRef = `-- name: ListSourceItemIDsByProviderAndItemRef :many
+SELECT id
+FROM knowledge_source_items
+WHERE provider = ?
+  AND item_ref = ?
+ORDER BY id ASC
+`
+
+type ListSourceItemIDsByProviderAndItemRefParams struct {
+	Provider string `json:"provider"`
+	ItemRef  string `json:"item_ref"`
+}
+
+func (q *Queries) ListSourceItemIDsByProviderAndItemRef(ctx context.Context, arg ListSourceItemIDsByProviderAndItemRefParams) ([]int64, error) {
+	rows, err := q.db.QueryContext(ctx, listSourceItemIDsByProviderAndItemRef, arg.Provider, arg.ItemRef)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []int64{}
+	for rows.Next() {
+		var id int64
+		if err := rows.Scan(&id); err != nil {
+			return nil, err
+		}
+		items = append(items, id)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listSourceItemLookupsByIDs = `-- name: ListSourceItemLookupsByIDs :many
+SELECT id, item_ref
+FROM knowledge_source_items
+WHERE id IN (/*SLICE:ids*/?)
+ORDER BY id ASC
+`
+
+type ListSourceItemLookupsByIDsRow struct {
+	ID      int64  `json:"id"`
+	ItemRef string `json:"item_ref"`
+}
+
+func (q *Queries) ListSourceItemLookupsByIDs(ctx context.Context, ids []int64) ([]ListSourceItemLookupsByIDsRow, error) {
+	query := listSourceItemLookupsByIDs
+	var queryParams []interface{}
+	if len(ids) > 0 {
+		for _, v := range ids {
+			queryParams = append(queryParams, v)
+		}
+		query = strings.Replace(query, "/*SLICE:ids*/?", strings.Repeat(",?", len(ids))[1:], 1)
+	} else {
+		query = strings.Replace(query, "/*SLICE:ids*/?", "NULL", 1)
+	}
+	rows, err := q.db.QueryContext(ctx, query, queryParams...)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListSourceItemLookupsByIDsRow{}
+	for rows.Next() {
+		var i ListSourceItemLookupsByIDsRow
+		if err := rows.Scan(&i.ID, &i.ItemRef); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const updateKnowledgeSourceBindingByID = `-- name: UpdateKnowledgeSourceBindingByID :execrows
+UPDATE knowledge_source_bindings
+SET provider = ?,
+    root_type = ?,
+    root_ref = ?,
+    sync_mode = ?,
+    sync_config = ?,
+    enabled = ?,
+    updated_uid = ?,
+    updated_at = ?
+WHERE id = ?
+`
+
+type UpdateKnowledgeSourceBindingByIDParams struct {
+	Provider   string    `json:"provider"`
+	RootType   string    `json:"root_type"`
+	RootRef    string    `json:"root_ref"`
+	SyncMode   string    `json:"sync_mode"`
+	SyncConfig []byte    `json:"sync_config"`
+	Enabled    bool      `json:"enabled"`
+	UpdatedUid string    `json:"updated_uid"`
+	UpdatedAt  time.Time `json:"updated_at"`
+	ID         int64     `json:"id"`
+}
+
+func (q *Queries) UpdateKnowledgeSourceBindingByID(ctx context.Context, arg UpdateKnowledgeSourceBindingByIDParams) (int64, error) {
+	result, err := q.db.ExecContext(ctx, updateKnowledgeSourceBindingByID,
+		arg.Provider,
+		arg.RootType,
+		arg.RootRef,
+		arg.SyncMode,
+		arg.SyncConfig,
+		arg.Enabled,
+		arg.UpdatedUid,
+		arg.UpdatedAt,
+		arg.ID,
+	)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
+}
+
+const upsertKnowledgeSourceBinding = `-- name: UpsertKnowledgeSourceBinding :execrows
+INSERT INTO knowledge_source_bindings (
+    organization_code, knowledge_base_code, provider, root_type, root_ref, sync_mode, sync_config,
+    enabled, created_uid, updated_uid, created_at, updated_at
+) VALUES (
+    ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?
+)
+ON DUPLICATE KEY UPDATE
+    sync_mode = VALUES(sync_mode),
+    sync_config = VALUES(sync_config),
+    enabled = VALUES(enabled),
+    updated_uid = VALUES(updated_uid),
+    updated_at = VALUES(updated_at)
+`
+
+type UpsertKnowledgeSourceBindingParams struct {
+	OrganizationCode  string    `json:"organization_code"`
+	KnowledgeBaseCode string    `json:"knowledge_base_code"`
+	Provider          string    `json:"provider"`
+	RootType          string    `json:"root_type"`
+	RootRef           string    `json:"root_ref"`
+	SyncMode          string    `json:"sync_mode"`
+	SyncConfig        []byte    `json:"sync_config"`
+	Enabled           bool      `json:"enabled"`
+	CreatedUid        string    `json:"created_uid"`
+	UpdatedUid        string    `json:"updated_uid"`
+	CreatedAt         time.Time `json:"created_at"`
+	UpdatedAt         time.Time `json:"updated_at"`
+}
+
+func (q *Queries) UpsertKnowledgeSourceBinding(ctx context.Context, arg UpsertKnowledgeSourceBindingParams) (int64, error) {
+	result, err := q.db.ExecContext(ctx, upsertKnowledgeSourceBinding,
+		arg.OrganizationCode,
+		arg.KnowledgeBaseCode,
+		arg.Provider,
+		arg.RootType,
+		arg.RootRef,
+		arg.SyncMode,
+		arg.SyncConfig,
+		arg.Enabled,
+		arg.CreatedUid,
+		arg.UpdatedUid,
+		arg.CreatedAt,
+		arg.UpdatedAt,
+	)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
+}
+
+const upsertKnowledgeSourceBindingsBatch2 = `-- name: UpsertKnowledgeSourceBindingsBatch2 :execrows
+INSERT INTO knowledge_source_bindings (
+    organization_code, knowledge_base_code, provider, root_type, root_ref, sync_mode, sync_config,
+    enabled, created_uid, updated_uid, created_at, updated_at
+) VALUES
+    (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?),
+    (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+ON DUPLICATE KEY UPDATE
+    sync_mode = VALUES(sync_mode),
+    sync_config = VALUES(sync_config),
+    enabled = VALUES(enabled),
+    updated_uid = VALUES(updated_uid),
+    updated_at = VALUES(updated_at)
+`
+
+type UpsertKnowledgeSourceBindingsBatch2Params struct {
+	OrganizationCode    string    `json:"organization_code"`
+	KnowledgeBaseCode   string    `json:"knowledge_base_code"`
+	Provider            string    `json:"provider"`
+	RootType            string    `json:"root_type"`
+	RootRef             string    `json:"root_ref"`
+	SyncMode            string    `json:"sync_mode"`
+	SyncConfig          []byte    `json:"sync_config"`
+	Enabled             bool      `json:"enabled"`
+	CreatedUid          string    `json:"created_uid"`
+	UpdatedUid          string    `json:"updated_uid"`
+	CreatedAt           time.Time `json:"created_at"`
+	UpdatedAt           time.Time `json:"updated_at"`
+	OrganizationCode_2  string    `json:"organization_code_2"`
+	KnowledgeBaseCode_2 string    `json:"knowledge_base_code_2"`
+	Provider_2          string    `json:"provider_2"`
+	RootType_2          string    `json:"root_type_2"`
+	RootRef_2           string    `json:"root_ref_2"`
+	SyncMode_2          string    `json:"sync_mode_2"`
+	SyncConfig_2        []byte    `json:"sync_config_2"`
+	Enabled_2           bool      `json:"enabled_2"`
+	CreatedUid_2        string    `json:"created_uid_2"`
+	UpdatedUid_2        string    `json:"updated_uid_2"`
+	CreatedAt_2         time.Time `json:"created_at_2"`
+	UpdatedAt_2         time.Time `json:"updated_at_2"`
+}
+
+func (q *Queries) UpsertKnowledgeSourceBindingsBatch2(ctx context.Context, arg UpsertKnowledgeSourceBindingsBatch2Params) (int64, error) {
+	result, err := q.db.ExecContext(ctx, upsertKnowledgeSourceBindingsBatch2,
+		arg.OrganizationCode,
+		arg.KnowledgeBaseCode,
+		arg.Provider,
+		arg.RootType,
+		arg.RootRef,
+		arg.SyncMode,
+		arg.SyncConfig,
+		arg.Enabled,
+		arg.CreatedUid,
+		arg.UpdatedUid,
+		arg.CreatedAt,
+		arg.UpdatedAt,
+		arg.OrganizationCode_2,
+		arg.KnowledgeBaseCode_2,
+		arg.Provider_2,
+		arg.RootType_2,
+		arg.RootRef_2,
+		arg.SyncMode_2,
+		arg.SyncConfig_2,
+		arg.Enabled_2,
+		arg.CreatedUid_2,
+		arg.UpdatedUid_2,
+		arg.CreatedAt_2,
+		arg.UpdatedAt_2,
+	)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
+}
+
+const upsertKnowledgeSourceBindingsBatch3 = `-- name: UpsertKnowledgeSourceBindingsBatch3 :execrows
+INSERT INTO knowledge_source_bindings (
+    organization_code, knowledge_base_code, provider, root_type, root_ref, sync_mode, sync_config,
+    enabled, created_uid, updated_uid, created_at, updated_at
+) VALUES
+    (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?),
+    (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?),
+    (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+ON DUPLICATE KEY UPDATE
+    sync_mode = VALUES(sync_mode),
+    sync_config = VALUES(sync_config),
+    enabled = VALUES(enabled),
+    updated_uid = VALUES(updated_uid),
+    updated_at = VALUES(updated_at)
+`
+
+type UpsertKnowledgeSourceBindingsBatch3Params struct {
+	OrganizationCode    string    `json:"organization_code"`
+	KnowledgeBaseCode   string    `json:"knowledge_base_code"`
+	Provider            string    `json:"provider"`
+	RootType            string    `json:"root_type"`
+	RootRef             string    `json:"root_ref"`
+	SyncMode            string    `json:"sync_mode"`
+	SyncConfig          []byte    `json:"sync_config"`
+	Enabled             bool      `json:"enabled"`
+	CreatedUid          string    `json:"created_uid"`
+	UpdatedUid          string    `json:"updated_uid"`
+	CreatedAt           time.Time `json:"created_at"`
+	UpdatedAt           time.Time `json:"updated_at"`
+	OrganizationCode_2  string    `json:"organization_code_2"`
+	KnowledgeBaseCode_2 string    `json:"knowledge_base_code_2"`
+	Provider_2          string    `json:"provider_2"`
+	RootType_2          string    `json:"root_type_2"`
+	RootRef_2           string    `json:"root_ref_2"`
+	SyncMode_2          string    `json:"sync_mode_2"`
+	SyncConfig_2        []byte    `json:"sync_config_2"`
+	Enabled_2           bool      `json:"enabled_2"`
+	CreatedUid_2        string    `json:"created_uid_2"`
+	UpdatedUid_2        string    `json:"updated_uid_2"`
+	CreatedAt_2         time.Time `json:"created_at_2"`
+	UpdatedAt_2         time.Time `json:"updated_at_2"`
+	OrganizationCode_3  string    `json:"organization_code_3"`
+	KnowledgeBaseCode_3 string    `json:"knowledge_base_code_3"`
+	Provider_3          string    `json:"provider_3"`
+	RootType_3          string    `json:"root_type_3"`
+	RootRef_3           string    `json:"root_ref_3"`
+	SyncMode_3          string    `json:"sync_mode_3"`
+	SyncConfig_3        []byte    `json:"sync_config_3"`
+	Enabled_3           bool      `json:"enabled_3"`
+	CreatedUid_3        string    `json:"created_uid_3"`
+	UpdatedUid_3        string    `json:"updated_uid_3"`
+	CreatedAt_3         time.Time `json:"created_at_3"`
+	UpdatedAt_3         time.Time `json:"updated_at_3"`
+}
+
+func (q *Queries) UpsertKnowledgeSourceBindingsBatch3(ctx context.Context, arg UpsertKnowledgeSourceBindingsBatch3Params) (int64, error) {
+	result, err := q.db.ExecContext(ctx, upsertKnowledgeSourceBindingsBatch3,
+		arg.OrganizationCode,
+		arg.KnowledgeBaseCode,
+		arg.Provider,
+		arg.RootType,
+		arg.RootRef,
+		arg.SyncMode,
+		arg.SyncConfig,
+		arg.Enabled,
+		arg.CreatedUid,
+		arg.UpdatedUid,
+		arg.CreatedAt,
+		arg.UpdatedAt,
+		arg.OrganizationCode_2,
+		arg.KnowledgeBaseCode_2,
+		arg.Provider_2,
+		arg.RootType_2,
+		arg.RootRef_2,
+		arg.SyncMode_2,
+		arg.SyncConfig_2,
+		arg.Enabled_2,
+		arg.CreatedUid_2,
+		arg.UpdatedUid_2,
+		arg.CreatedAt_2,
+		arg.UpdatedAt_2,
+		arg.OrganizationCode_3,
+		arg.KnowledgeBaseCode_3,
+		arg.Provider_3,
+		arg.RootType_3,
+		arg.RootRef_3,
+		arg.SyncMode_3,
+		arg.SyncConfig_3,
+		arg.Enabled_3,
+		arg.CreatedUid_3,
+		arg.UpdatedUid_3,
+		arg.CreatedAt_3,
+		arg.UpdatedAt_3,
+	)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
+}
+
+const upsertKnowledgeSourceBindingsBatch4 = `-- name: UpsertKnowledgeSourceBindingsBatch4 :execrows
+INSERT INTO knowledge_source_bindings (
+    organization_code, knowledge_base_code, provider, root_type, root_ref, sync_mode, sync_config,
+    enabled, created_uid, updated_uid, created_at, updated_at
+) VALUES
+    (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?),
+    (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?),
+    (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?),
+    (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+ON DUPLICATE KEY UPDATE
+    sync_mode = VALUES(sync_mode),
+    sync_config = VALUES(sync_config),
+    enabled = VALUES(enabled),
+    updated_uid = VALUES(updated_uid),
+    updated_at = VALUES(updated_at)
+`
+
+type UpsertKnowledgeSourceBindingsBatch4Params struct {
+	OrganizationCode    string    `json:"organization_code"`
+	KnowledgeBaseCode   string    `json:"knowledge_base_code"`
+	Provider            string    `json:"provider"`
+	RootType            string    `json:"root_type"`
+	RootRef             string    `json:"root_ref"`
+	SyncMode            string    `json:"sync_mode"`
+	SyncConfig          []byte    `json:"sync_config"`
+	Enabled             bool      `json:"enabled"`
+	CreatedUid          string    `json:"created_uid"`
+	UpdatedUid          string    `json:"updated_uid"`
+	CreatedAt           time.Time `json:"created_at"`
+	UpdatedAt           time.Time `json:"updated_at"`
+	OrganizationCode_2  string    `json:"organization_code_2"`
+	KnowledgeBaseCode_2 string    `json:"knowledge_base_code_2"`
+	Provider_2          string    `json:"provider_2"`
+	RootType_2          string    `json:"root_type_2"`
+	RootRef_2           string    `json:"root_ref_2"`
+	SyncMode_2          string    `json:"sync_mode_2"`
+	SyncConfig_2        []byte    `json:"sync_config_2"`
+	Enabled_2           bool      `json:"enabled_2"`
+	CreatedUid_2        string    `json:"created_uid_2"`
+	UpdatedUid_2        string    `json:"updated_uid_2"`
+	CreatedAt_2         time.Time `json:"created_at_2"`
+	UpdatedAt_2         time.Time `json:"updated_at_2"`
+	OrganizationCode_3  string    `json:"organization_code_3"`
+	KnowledgeBaseCode_3 string    `json:"knowledge_base_code_3"`
+	Provider_3          string    `json:"provider_3"`
+	RootType_3          string    `json:"root_type_3"`
+	RootRef_3           string    `json:"root_ref_3"`
+	SyncMode_3          string    `json:"sync_mode_3"`
+	SyncConfig_3        []byte    `json:"sync_config_3"`
+	Enabled_3           bool      `json:"enabled_3"`
+	CreatedUid_3        string    `json:"created_uid_3"`
+	UpdatedUid_3        string    `json:"updated_uid_3"`
+	CreatedAt_3         time.Time `json:"created_at_3"`
+	UpdatedAt_3         time.Time `json:"updated_at_3"`
+	OrganizationCode_4  string    `json:"organization_code_4"`
+	KnowledgeBaseCode_4 string    `json:"knowledge_base_code_4"`
+	Provider_4          string    `json:"provider_4"`
+	RootType_4          string    `json:"root_type_4"`
+	RootRef_4           string    `json:"root_ref_4"`
+	SyncMode_4          string    `json:"sync_mode_4"`
+	SyncConfig_4        []byte    `json:"sync_config_4"`
+	Enabled_4           bool      `json:"enabled_4"`
+	CreatedUid_4        string    `json:"created_uid_4"`
+	UpdatedUid_4        string    `json:"updated_uid_4"`
+	CreatedAt_4         time.Time `json:"created_at_4"`
+	UpdatedAt_4         time.Time `json:"updated_at_4"`
+}
+
+func (q *Queries) UpsertKnowledgeSourceBindingsBatch4(ctx context.Context, arg UpsertKnowledgeSourceBindingsBatch4Params) (int64, error) {
+	result, err := q.db.ExecContext(ctx, upsertKnowledgeSourceBindingsBatch4,
+		arg.OrganizationCode,
+		arg.KnowledgeBaseCode,
+		arg.Provider,
+		arg.RootType,
+		arg.RootRef,
+		arg.SyncMode,
+		arg.SyncConfig,
+		arg.Enabled,
+		arg.CreatedUid,
+		arg.UpdatedUid,
+		arg.CreatedAt,
+		arg.UpdatedAt,
+		arg.OrganizationCode_2,
+		arg.KnowledgeBaseCode_2,
+		arg.Provider_2,
+		arg.RootType_2,
+		arg.RootRef_2,
+		arg.SyncMode_2,
+		arg.SyncConfig_2,
+		arg.Enabled_2,
+		arg.CreatedUid_2,
+		arg.UpdatedUid_2,
+		arg.CreatedAt_2,
+		arg.UpdatedAt_2,
+		arg.OrganizationCode_3,
+		arg.KnowledgeBaseCode_3,
+		arg.Provider_3,
+		arg.RootType_3,
+		arg.RootRef_3,
+		arg.SyncMode_3,
+		arg.SyncConfig_3,
+		arg.Enabled_3,
+		arg.CreatedUid_3,
+		arg.UpdatedUid_3,
+		arg.CreatedAt_3,
+		arg.UpdatedAt_3,
+		arg.OrganizationCode_4,
+		arg.KnowledgeBaseCode_4,
+		arg.Provider_4,
+		arg.RootType_4,
+		arg.RootRef_4,
+		arg.SyncMode_4,
+		arg.SyncConfig_4,
+		arg.Enabled_4,
+		arg.CreatedUid_4,
+		arg.UpdatedUid_4,
+		arg.CreatedAt_4,
+		arg.UpdatedAt_4,
+	)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
 }
 
 const upsertKnowledgeSourceItem = `-- name: UpsertKnowledgeSourceItem :execresult
@@ -386,20 +1821,20 @@ ON DUPLICATE KEY UPDATE
 `
 
 type UpsertKnowledgeSourceItemParams struct {
-	OrganizationCode string          `json:"organization_code"`
-	Provider         string          `json:"provider"`
-	RootType         string          `json:"root_type"`
-	RootRef          string          `json:"root_ref"`
-	GroupRef         string          `json:"group_ref"`
-	ItemType         string          `json:"item_type"`
-	ItemRef          string          `json:"item_ref"`
-	DisplayName      string          `json:"display_name"`
-	Extension        string          `json:"extension"`
-	ContentHash      string          `json:"content_hash"`
-	SnapshotMeta     json.RawMessage `json:"snapshot_meta"`
-	LastResolvedAt   sql.NullTime    `json:"last_resolved_at"`
-	CreatedAt        time.Time       `json:"created_at"`
-	UpdatedAt        time.Time       `json:"updated_at"`
+	OrganizationCode string       `json:"organization_code"`
+	Provider         string       `json:"provider"`
+	RootType         string       `json:"root_type"`
+	RootRef          string       `json:"root_ref"`
+	GroupRef         string       `json:"group_ref"`
+	ItemType         string       `json:"item_type"`
+	ItemRef          string       `json:"item_ref"`
+	DisplayName      string       `json:"display_name"`
+	Extension        string       `json:"extension"`
+	ContentHash      string       `json:"content_hash"`
+	SnapshotMeta     []byte       `json:"snapshot_meta"`
+	LastResolvedAt   sql.NullTime `json:"last_resolved_at"`
+	CreatedAt        time.Time    `json:"created_at"`
+	UpdatedAt        time.Time    `json:"updated_at"`
 }
 
 func (q *Queries) UpsertKnowledgeSourceItem(ctx context.Context, arg UpsertKnowledgeSourceItemParams) (sql.Result, error) {
@@ -419,4 +1854,355 @@ func (q *Queries) UpsertKnowledgeSourceItem(ctx context.Context, arg UpsertKnowl
 		arg.CreatedAt,
 		arg.UpdatedAt,
 	)
+}
+
+const upsertKnowledgeSourceItemsBatch2 = `-- name: UpsertKnowledgeSourceItemsBatch2 :execrows
+INSERT INTO knowledge_source_items (
+    organization_code, provider, root_type, root_ref, group_ref, item_type, item_ref,
+    display_name, extension, content_hash, snapshot_meta, last_resolved_at, created_at, updated_at
+) VALUES
+    (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?),
+    (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+ON DUPLICATE KEY UPDATE
+    root_type = VALUES(root_type),
+    root_ref = VALUES(root_ref),
+    group_ref = VALUES(group_ref),
+    item_type = VALUES(item_type),
+    display_name = VALUES(display_name),
+    extension = VALUES(extension),
+    content_hash = VALUES(content_hash),
+    snapshot_meta = VALUES(snapshot_meta),
+    last_resolved_at = VALUES(last_resolved_at),
+    updated_at = VALUES(updated_at)
+`
+
+type UpsertKnowledgeSourceItemsBatch2Params struct {
+	OrganizationCode   string       `json:"organization_code"`
+	Provider           string       `json:"provider"`
+	RootType           string       `json:"root_type"`
+	RootRef            string       `json:"root_ref"`
+	GroupRef           string       `json:"group_ref"`
+	ItemType           string       `json:"item_type"`
+	ItemRef            string       `json:"item_ref"`
+	DisplayName        string       `json:"display_name"`
+	Extension          string       `json:"extension"`
+	ContentHash        string       `json:"content_hash"`
+	SnapshotMeta       []byte       `json:"snapshot_meta"`
+	LastResolvedAt     sql.NullTime `json:"last_resolved_at"`
+	CreatedAt          time.Time    `json:"created_at"`
+	UpdatedAt          time.Time    `json:"updated_at"`
+	OrganizationCode_2 string       `json:"organization_code_2"`
+	Provider_2         string       `json:"provider_2"`
+	RootType_2         string       `json:"root_type_2"`
+	RootRef_2          string       `json:"root_ref_2"`
+	GroupRef_2         string       `json:"group_ref_2"`
+	ItemType_2         string       `json:"item_type_2"`
+	ItemRef_2          string       `json:"item_ref_2"`
+	DisplayName_2      string       `json:"display_name_2"`
+	Extension_2        string       `json:"extension_2"`
+	ContentHash_2      string       `json:"content_hash_2"`
+	SnapshotMeta_2     []byte       `json:"snapshot_meta_2"`
+	LastResolvedAt_2   sql.NullTime `json:"last_resolved_at_2"`
+	CreatedAt_2        time.Time    `json:"created_at_2"`
+	UpdatedAt_2        time.Time    `json:"updated_at_2"`
+}
+
+func (q *Queries) UpsertKnowledgeSourceItemsBatch2(ctx context.Context, arg UpsertKnowledgeSourceItemsBatch2Params) (int64, error) {
+	result, err := q.db.ExecContext(ctx, upsertKnowledgeSourceItemsBatch2,
+		arg.OrganizationCode,
+		arg.Provider,
+		arg.RootType,
+		arg.RootRef,
+		arg.GroupRef,
+		arg.ItemType,
+		arg.ItemRef,
+		arg.DisplayName,
+		arg.Extension,
+		arg.ContentHash,
+		arg.SnapshotMeta,
+		arg.LastResolvedAt,
+		arg.CreatedAt,
+		arg.UpdatedAt,
+		arg.OrganizationCode_2,
+		arg.Provider_2,
+		arg.RootType_2,
+		arg.RootRef_2,
+		arg.GroupRef_2,
+		arg.ItemType_2,
+		arg.ItemRef_2,
+		arg.DisplayName_2,
+		arg.Extension_2,
+		arg.ContentHash_2,
+		arg.SnapshotMeta_2,
+		arg.LastResolvedAt_2,
+		arg.CreatedAt_2,
+		arg.UpdatedAt_2,
+	)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
+}
+
+const upsertKnowledgeSourceItemsBatch3 = `-- name: UpsertKnowledgeSourceItemsBatch3 :execrows
+INSERT INTO knowledge_source_items (
+    organization_code, provider, root_type, root_ref, group_ref, item_type, item_ref,
+    display_name, extension, content_hash, snapshot_meta, last_resolved_at, created_at, updated_at
+) VALUES
+    (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?),
+    (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?),
+    (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+ON DUPLICATE KEY UPDATE
+    root_type = VALUES(root_type),
+    root_ref = VALUES(root_ref),
+    group_ref = VALUES(group_ref),
+    item_type = VALUES(item_type),
+    display_name = VALUES(display_name),
+    extension = VALUES(extension),
+    content_hash = VALUES(content_hash),
+    snapshot_meta = VALUES(snapshot_meta),
+    last_resolved_at = VALUES(last_resolved_at),
+    updated_at = VALUES(updated_at)
+`
+
+type UpsertKnowledgeSourceItemsBatch3Params struct {
+	OrganizationCode   string       `json:"organization_code"`
+	Provider           string       `json:"provider"`
+	RootType           string       `json:"root_type"`
+	RootRef            string       `json:"root_ref"`
+	GroupRef           string       `json:"group_ref"`
+	ItemType           string       `json:"item_type"`
+	ItemRef            string       `json:"item_ref"`
+	DisplayName        string       `json:"display_name"`
+	Extension          string       `json:"extension"`
+	ContentHash        string       `json:"content_hash"`
+	SnapshotMeta       []byte       `json:"snapshot_meta"`
+	LastResolvedAt     sql.NullTime `json:"last_resolved_at"`
+	CreatedAt          time.Time    `json:"created_at"`
+	UpdatedAt          time.Time    `json:"updated_at"`
+	OrganizationCode_2 string       `json:"organization_code_2"`
+	Provider_2         string       `json:"provider_2"`
+	RootType_2         string       `json:"root_type_2"`
+	RootRef_2          string       `json:"root_ref_2"`
+	GroupRef_2         string       `json:"group_ref_2"`
+	ItemType_2         string       `json:"item_type_2"`
+	ItemRef_2          string       `json:"item_ref_2"`
+	DisplayName_2      string       `json:"display_name_2"`
+	Extension_2        string       `json:"extension_2"`
+	ContentHash_2      string       `json:"content_hash_2"`
+	SnapshotMeta_2     []byte       `json:"snapshot_meta_2"`
+	LastResolvedAt_2   sql.NullTime `json:"last_resolved_at_2"`
+	CreatedAt_2        time.Time    `json:"created_at_2"`
+	UpdatedAt_2        time.Time    `json:"updated_at_2"`
+	OrganizationCode_3 string       `json:"organization_code_3"`
+	Provider_3         string       `json:"provider_3"`
+	RootType_3         string       `json:"root_type_3"`
+	RootRef_3          string       `json:"root_ref_3"`
+	GroupRef_3         string       `json:"group_ref_3"`
+	ItemType_3         string       `json:"item_type_3"`
+	ItemRef_3          string       `json:"item_ref_3"`
+	DisplayName_3      string       `json:"display_name_3"`
+	Extension_3        string       `json:"extension_3"`
+	ContentHash_3      string       `json:"content_hash_3"`
+	SnapshotMeta_3     []byte       `json:"snapshot_meta_3"`
+	LastResolvedAt_3   sql.NullTime `json:"last_resolved_at_3"`
+	CreatedAt_3        time.Time    `json:"created_at_3"`
+	UpdatedAt_3        time.Time    `json:"updated_at_3"`
+}
+
+func (q *Queries) UpsertKnowledgeSourceItemsBatch3(ctx context.Context, arg UpsertKnowledgeSourceItemsBatch3Params) (int64, error) {
+	result, err := q.db.ExecContext(ctx, upsertKnowledgeSourceItemsBatch3,
+		arg.OrganizationCode,
+		arg.Provider,
+		arg.RootType,
+		arg.RootRef,
+		arg.GroupRef,
+		arg.ItemType,
+		arg.ItemRef,
+		arg.DisplayName,
+		arg.Extension,
+		arg.ContentHash,
+		arg.SnapshotMeta,
+		arg.LastResolvedAt,
+		arg.CreatedAt,
+		arg.UpdatedAt,
+		arg.OrganizationCode_2,
+		arg.Provider_2,
+		arg.RootType_2,
+		arg.RootRef_2,
+		arg.GroupRef_2,
+		arg.ItemType_2,
+		arg.ItemRef_2,
+		arg.DisplayName_2,
+		arg.Extension_2,
+		arg.ContentHash_2,
+		arg.SnapshotMeta_2,
+		arg.LastResolvedAt_2,
+		arg.CreatedAt_2,
+		arg.UpdatedAt_2,
+		arg.OrganizationCode_3,
+		arg.Provider_3,
+		arg.RootType_3,
+		arg.RootRef_3,
+		arg.GroupRef_3,
+		arg.ItemType_3,
+		arg.ItemRef_3,
+		arg.DisplayName_3,
+		arg.Extension_3,
+		arg.ContentHash_3,
+		arg.SnapshotMeta_3,
+		arg.LastResolvedAt_3,
+		arg.CreatedAt_3,
+		arg.UpdatedAt_3,
+	)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
+}
+
+const upsertKnowledgeSourceItemsBatch4 = `-- name: UpsertKnowledgeSourceItemsBatch4 :execrows
+INSERT INTO knowledge_source_items (
+    organization_code, provider, root_type, root_ref, group_ref, item_type, item_ref,
+    display_name, extension, content_hash, snapshot_meta, last_resolved_at, created_at, updated_at
+) VALUES
+    (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?),
+    (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?),
+    (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?),
+    (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+ON DUPLICATE KEY UPDATE
+    root_type = VALUES(root_type),
+    root_ref = VALUES(root_ref),
+    group_ref = VALUES(group_ref),
+    item_type = VALUES(item_type),
+    display_name = VALUES(display_name),
+    extension = VALUES(extension),
+    content_hash = VALUES(content_hash),
+    snapshot_meta = VALUES(snapshot_meta),
+    last_resolved_at = VALUES(last_resolved_at),
+    updated_at = VALUES(updated_at)
+`
+
+type UpsertKnowledgeSourceItemsBatch4Params struct {
+	OrganizationCode   string       `json:"organization_code"`
+	Provider           string       `json:"provider"`
+	RootType           string       `json:"root_type"`
+	RootRef            string       `json:"root_ref"`
+	GroupRef           string       `json:"group_ref"`
+	ItemType           string       `json:"item_type"`
+	ItemRef            string       `json:"item_ref"`
+	DisplayName        string       `json:"display_name"`
+	Extension          string       `json:"extension"`
+	ContentHash        string       `json:"content_hash"`
+	SnapshotMeta       []byte       `json:"snapshot_meta"`
+	LastResolvedAt     sql.NullTime `json:"last_resolved_at"`
+	CreatedAt          time.Time    `json:"created_at"`
+	UpdatedAt          time.Time    `json:"updated_at"`
+	OrganizationCode_2 string       `json:"organization_code_2"`
+	Provider_2         string       `json:"provider_2"`
+	RootType_2         string       `json:"root_type_2"`
+	RootRef_2          string       `json:"root_ref_2"`
+	GroupRef_2         string       `json:"group_ref_2"`
+	ItemType_2         string       `json:"item_type_2"`
+	ItemRef_2          string       `json:"item_ref_2"`
+	DisplayName_2      string       `json:"display_name_2"`
+	Extension_2        string       `json:"extension_2"`
+	ContentHash_2      string       `json:"content_hash_2"`
+	SnapshotMeta_2     []byte       `json:"snapshot_meta_2"`
+	LastResolvedAt_2   sql.NullTime `json:"last_resolved_at_2"`
+	CreatedAt_2        time.Time    `json:"created_at_2"`
+	UpdatedAt_2        time.Time    `json:"updated_at_2"`
+	OrganizationCode_3 string       `json:"organization_code_3"`
+	Provider_3         string       `json:"provider_3"`
+	RootType_3         string       `json:"root_type_3"`
+	RootRef_3          string       `json:"root_ref_3"`
+	GroupRef_3         string       `json:"group_ref_3"`
+	ItemType_3         string       `json:"item_type_3"`
+	ItemRef_3          string       `json:"item_ref_3"`
+	DisplayName_3      string       `json:"display_name_3"`
+	Extension_3        string       `json:"extension_3"`
+	ContentHash_3      string       `json:"content_hash_3"`
+	SnapshotMeta_3     []byte       `json:"snapshot_meta_3"`
+	LastResolvedAt_3   sql.NullTime `json:"last_resolved_at_3"`
+	CreatedAt_3        time.Time    `json:"created_at_3"`
+	UpdatedAt_3        time.Time    `json:"updated_at_3"`
+	OrganizationCode_4 string       `json:"organization_code_4"`
+	Provider_4         string       `json:"provider_4"`
+	RootType_4         string       `json:"root_type_4"`
+	RootRef_4          string       `json:"root_ref_4"`
+	GroupRef_4         string       `json:"group_ref_4"`
+	ItemType_4         string       `json:"item_type_4"`
+	ItemRef_4          string       `json:"item_ref_4"`
+	DisplayName_4      string       `json:"display_name_4"`
+	Extension_4        string       `json:"extension_4"`
+	ContentHash_4      string       `json:"content_hash_4"`
+	SnapshotMeta_4     []byte       `json:"snapshot_meta_4"`
+	LastResolvedAt_4   sql.NullTime `json:"last_resolved_at_4"`
+	CreatedAt_4        time.Time    `json:"created_at_4"`
+	UpdatedAt_4        time.Time    `json:"updated_at_4"`
+}
+
+func (q *Queries) UpsertKnowledgeSourceItemsBatch4(ctx context.Context, arg UpsertKnowledgeSourceItemsBatch4Params) (int64, error) {
+	result, err := q.db.ExecContext(ctx, upsertKnowledgeSourceItemsBatch4,
+		arg.OrganizationCode,
+		arg.Provider,
+		arg.RootType,
+		arg.RootRef,
+		arg.GroupRef,
+		arg.ItemType,
+		arg.ItemRef,
+		arg.DisplayName,
+		arg.Extension,
+		arg.ContentHash,
+		arg.SnapshotMeta,
+		arg.LastResolvedAt,
+		arg.CreatedAt,
+		arg.UpdatedAt,
+		arg.OrganizationCode_2,
+		arg.Provider_2,
+		arg.RootType_2,
+		arg.RootRef_2,
+		arg.GroupRef_2,
+		arg.ItemType_2,
+		arg.ItemRef_2,
+		arg.DisplayName_2,
+		arg.Extension_2,
+		arg.ContentHash_2,
+		arg.SnapshotMeta_2,
+		arg.LastResolvedAt_2,
+		arg.CreatedAt_2,
+		arg.UpdatedAt_2,
+		arg.OrganizationCode_3,
+		arg.Provider_3,
+		arg.RootType_3,
+		arg.RootRef_3,
+		arg.GroupRef_3,
+		arg.ItemType_3,
+		arg.ItemRef_3,
+		arg.DisplayName_3,
+		arg.Extension_3,
+		arg.ContentHash_3,
+		arg.SnapshotMeta_3,
+		arg.LastResolvedAt_3,
+		arg.CreatedAt_3,
+		arg.UpdatedAt_3,
+		arg.OrganizationCode_4,
+		arg.Provider_4,
+		arg.RootType_4,
+		arg.RootRef_4,
+		arg.GroupRef_4,
+		arg.ItemType_4,
+		arg.ItemRef_4,
+		arg.DisplayName_4,
+		arg.Extension_4,
+		arg.ContentHash_4,
+		arg.SnapshotMeta_4,
+		arg.LastResolvedAt_4,
+		arg.CreatedAt_4,
+		arg.UpdatedAt_4,
+	)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
 }

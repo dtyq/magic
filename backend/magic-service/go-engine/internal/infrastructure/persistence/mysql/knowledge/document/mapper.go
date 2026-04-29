@@ -2,65 +2,22 @@ package documentrepo
 
 import (
 	"database/sql"
+	"encoding/json"
+	"errors"
 	"fmt"
+	"math"
 	"strconv"
 
-	documentdomain "magic/internal/domain/knowledge/document/service"
+	docentity "magic/internal/domain/knowledge/document/entity"
 	"magic/internal/domain/knowledge/shared"
-	sourcebindingdomain "magic/internal/domain/knowledge/sourcebinding/service"
+	sourcebindingentity "magic/internal/domain/knowledge/sourcebinding/entity"
 	"magic/internal/infrastructure/persistence/mysql/jsoncompat"
 	knowledgeShared "magic/internal/infrastructure/persistence/mysql/knowledge/shared"
 	mysqlsqlc "magic/internal/infrastructure/persistence/mysql/sqlc"
 	"magic/internal/pkg/filetype"
-	"magic/pkg/convert"
 )
 
-const documentCoreSelectColumns = `d.id,
-d.organization_code,
-d.knowledge_base_code,
-d.source_binding_id,
-d.source_item_id,
-d.auto_added,
-d.name,
-d.description,
-d.code,
-d.enabled,
-d.doc_type,
-COALESCE(d.doc_metadata, CAST('null' AS JSON)) AS doc_metadata,
-COALESCE(d.document_file, CAST('null' AS JSON)) AS document_file,
-d.sync_status,
-d.sync_times,
-d.sync_status_message,
-d.embedding_model,
-d.vector_db,
-COALESCE(d.retrieve_config, CAST('null' AS JSON)) AS retrieve_config,
-COALESCE(d.fragment_config, CAST('null' AS JSON)) AS fragment_config,
-COALESCE(d.embedding_config, CAST('null' AS JSON)) AS embedding_config,
-COALESCE(d.vector_db_config, CAST('null' AS JSON)) AS vector_db_config,
-d.word_count,
-d.third_platform_type,
-d.third_file_id,
-d.created_uid,
-d.updated_uid,
-d.created_at,
-d.updated_at,
-d.deleted_at`
-
-const documentSelectColumns = documentCoreSelectColumns + `,
-COALESCE(b.provider, '') AS source_provider,
-COALESCE(b.root_ref, '') AS binding_root_ref,
-COALESCE(si.item_ref, '') AS source_item_ref`
-
-const documentScopedSelectColumns = documentCoreSelectColumns + `,
-? AS source_provider,
-? AS binding_root_ref,
-? AS source_item_ref`
-
-const documentSelectFromSQL = ` FROM knowledge_base_documents d
-LEFT JOIN knowledge_source_bindings b ON b.id = d.source_binding_id
-LEFT JOIN knowledge_source_items si ON si.id = d.source_item_id`
-
-const documentSelectSQL = `SELECT ` + documentSelectColumns + documentSelectFromSQL
+var errDocumentDocTypeOverflow = errors.New("document doc_type overflows int32")
 
 type documentRecord struct {
 	ID                int64
@@ -98,119 +55,37 @@ type documentRecord struct {
 	SourceItemRef     string
 }
 
-func scanDocumentRecord(scanner interface{ Scan(dest ...any) error }) (documentRecord, error) {
-	var record documentRecord
-	if err := scanner.Scan(
-		&record.ID,
-		&record.OrganizationCode,
-		&record.KnowledgeBaseCode,
-		&record.SourceBindingID,
-		&record.SourceItemID,
-		&record.AutoAdded,
-		&record.Name,
-		&record.Description,
-		&record.Code,
-		&record.Enabled,
-		&record.DocType,
-		&record.DocMetadata,
-		&record.DocumentFile,
-		&record.SyncStatus,
-		&record.SyncTimes,
-		&record.SyncStatusMessage,
-		&record.EmbeddingModel,
-		&record.VectorDB,
-		&record.RetrieveConfig,
-		&record.FragmentConfig,
-		&record.EmbeddingConfig,
-		&record.VectorDBConfig,
-		&record.WordCount,
-		&record.ThirdPlatformType,
-		&record.ThirdFileID,
-		&record.CreatedUID,
-		&record.UpdatedUID,
-		&record.CreatedAt,
-		&record.UpdatedAt,
-		&record.DeletedAt,
-		&record.SourceProvider,
-		&record.BindingRootRef,
-		&record.SourceItemRef,
-	); err != nil {
-		return documentRecord{}, fmt.Errorf("scan document record: %w", err)
-	}
-	return record, nil
+type documentFileExtensionPayload struct {
+	Extension              string                         `json:"extension"`
+	ThirdFileExtensionName string                         `json:"third_file_extension_name"`
+	Name                   string                         `json:"name"`
+	URL                    string                         `json:"url"`
+	Key                    string                         `json:"key"`
+	FileLink               *documentFileExtensionFileLink `json:"file_link"`
 }
 
-func documentRecordFromFindDocumentByIDCompatRow(row mysqlsqlc.FindDocumentByIDCompatRow) (documentRecord, error) {
-	docType, err := convert.SafeInt64ToInt32(int64(row.DocType), "doc_type")
+type documentFileExtensionFileLink struct {
+	URL string `json:"url"`
+}
+
+// ToKnowledgeBaseDocumentByCodeAndKnowledgeBase 将 sqlc 查询行映射为领域文档实体。
+func ToKnowledgeBaseDocumentByCodeAndKnowledgeBase(
+	row mysqlsqlc.KnowledgeBaseDocument,
+) (*docentity.KnowledgeBaseDocument, error) {
+	record, err := documentRecordFromFindByCodeAndKnowledgeBaseRow(row)
 	if err != nil {
-		return documentRecord{}, fmt.Errorf("invalid doc_type: %w", err)
+		return nil, err
 	}
-	return documentRecord{
-		ID:                row.ID,
-		OrganizationCode:  row.OrganizationCode,
-		KnowledgeBaseCode: row.KnowledgeBaseCode,
-		SourceBindingID:   row.SourceBindingID,
-		SourceItemID:      row.SourceItemID,
-		AutoAdded:         row.AutoAdded,
-		Name:              row.Name,
-		Description:       row.Description,
-		Code:              row.Code,
-		Enabled:           row.Enabled,
-		DocType:           docType,
-		DocMetadata:       row.DocMetadata,
-		DocumentFile:      row.DocumentFile,
-		SyncStatus:        row.SyncStatus,
-		SyncTimes:         row.SyncTimes,
-		SyncStatusMessage: row.SyncStatusMessage,
-		EmbeddingModel:    row.EmbeddingModel,
-		VectorDB:          row.VectorDb,
-		RetrieveConfig:    row.RetrieveConfig,
-		FragmentConfig:    row.FragmentConfig,
-		EmbeddingConfig:   row.EmbeddingConfig,
-		VectorDBConfig:    row.VectorDbConfig,
-		WordCount:         row.WordCount,
-		ThirdPlatformType: row.ThirdPlatformType,
-		ThirdFileID:       row.ThirdFileID,
-		CreatedUID:        row.CreatedUid,
-		UpdatedUID:        row.UpdatedUid,
-		CreatedAt:         sql.NullTime{Time: row.CreatedAt, Valid: true},
-		UpdatedAt:         sql.NullTime{Time: row.UpdatedAt, Valid: true},
-		DeletedAt:         row.DeletedAt,
-		SourceProvider:    row.SourceProvider,
-		BindingRootRef:    row.BindingRootRef,
-		SourceItemRef:     row.SourceItemRef,
-	}, nil
+	return toKnowledgeBaseDocument(record)
 }
 
-func documentRecordFromFindDocumentByCodeCompatRow(row mysqlsqlc.FindDocumentByCodeCompatRow) (documentRecord, error) {
-	return documentRecordFromFindDocumentByIDCompatRow(mysqlsqlc.FindDocumentByIDCompatRow(row))
-}
-
-func documentRecordFromFindDocumentByCodeAndKnowledgeBaseCompatRow(
-	row mysqlsqlc.FindDocumentByCodeAndKnowledgeBaseCompatRow,
-) (documentRecord, error) {
-	return documentRecordFromFindDocumentByIDCompatRow(mysqlsqlc.FindDocumentByIDCompatRow(row))
-}
-
-func documentRecordFromFindDocumentByKnowledgeBaseAndProjectFileCompatRow(
-	row mysqlsqlc.FindDocumentByKnowledgeBaseAndProjectFileCompatRow,
-) (documentRecord, error) {
-	return documentRecordFromFindDocumentByIDCompatRow(mysqlsqlc.FindDocumentByIDCompatRow(row))
-}
-
-func documentRecordFromFindDocumentIncludingDeletedCompatRow(
-	row mysqlsqlc.FindDocumentIncludingDeletedCompatRow,
-) (documentRecord, error) {
-	return documentRecordFromFindDocumentByIDCompatRow(mysqlsqlc.FindDocumentByIDCompatRow(row))
-}
-
-func toKnowledgeBaseDocument(record documentRecord) (*documentdomain.KnowledgeBaseDocument, error) {
+func toKnowledgeBaseDocument(record documentRecord) (*docentity.KnowledgeBaseDocument, error) {
 	wordCount, err := knowledgeShared.SafeUint64ToInt(record.WordCount, "word_count")
 	if err != nil {
 		return nil, fmt.Errorf("invalid word_count: %w", err)
 	}
 
-	doc := &documentdomain.KnowledgeBaseDocument{
+	doc := &docentity.KnowledgeBaseDocument{
 		ID:                record.ID,
 		OrganizationCode:  record.OrganizationCode,
 		KnowledgeBaseCode: record.KnowledgeBaseCode,
@@ -251,7 +126,115 @@ func toKnowledgeBaseDocument(record documentRecord) (*documentdomain.KnowledgeBa
 	return doc, nil
 }
 
-func decodeDocumentJSONFields(record documentRecord, doc *documentdomain.KnowledgeBaseDocument) error {
+func documentRecordFromFindByIDRow(row mysqlsqlc.KnowledgeBaseDocument) (documentRecord, error) {
+	if row.DocType > math.MaxInt32 {
+		return documentRecord{}, fmt.Errorf("%w: %d", errDocumentDocTypeOverflow, row.DocType)
+	}
+	return documentRecord{
+		ID:                row.ID,
+		OrganizationCode:  row.OrganizationCode,
+		KnowledgeBaseCode: row.KnowledgeBaseCode,
+		SourceBindingID:   row.SourceBindingID,
+		SourceItemID:      row.SourceItemID,
+		AutoAdded:         row.AutoAdded,
+		Name:              row.Name,
+		Description:       row.Description,
+		Code:              row.Code,
+		Enabled:           row.Enabled,
+		DocType:           int32(row.DocType),
+		DocMetadata:       row.DocMetadata,
+		DocumentFile:      row.DocumentFile,
+		SyncStatus:        row.SyncStatus,
+		SyncTimes:         row.SyncTimes,
+		SyncStatusMessage: row.SyncStatusMessage,
+		EmbeddingModel:    row.EmbeddingModel,
+		VectorDB:          row.VectorDb,
+		RetrieveConfig:    row.RetrieveConfig,
+		FragmentConfig:    row.FragmentConfig,
+		EmbeddingConfig:   row.EmbeddingConfig,
+		VectorDBConfig:    row.VectorDbConfig,
+		WordCount:         row.WordCount,
+		ThirdPlatformType: row.ThirdPlatformType,
+		ThirdFileID:       row.ThirdFileID,
+		CreatedUID:        row.CreatedUid,
+		UpdatedUID:        row.UpdatedUid,
+		CreatedAt:         sql.NullTime{Time: row.CreatedAt, Valid: true},
+		UpdatedAt:         sql.NullTime{Time: row.UpdatedAt, Valid: true},
+		DeletedAt:         row.DeletedAt,
+	}, nil
+}
+
+func documentRecordFromModel(row mysqlsqlc.KnowledgeBaseDocument) (documentRecord, error) {
+	return documentRecordFromFindByIDRow(row)
+}
+
+func documentRecordFromFindByCodeRow(row mysqlsqlc.KnowledgeBaseDocument) (documentRecord, error) {
+	return documentRecordFromFindByIDRow(row)
+}
+
+func documentRecordFromFindByCodeAndKnowledgeBaseRow(row mysqlsqlc.KnowledgeBaseDocument) (documentRecord, error) {
+	return documentRecordFromFindByIDRow(row)
+}
+
+func documentRecordFromFindByThirdFileRow(row mysqlsqlc.KnowledgeBaseDocument) (documentRecord, error) {
+	return documentRecordFromFindByIDRow(row)
+}
+
+func documentRecordFromFindByKnowledgeBaseAndThirdFileRow(row mysqlsqlc.KnowledgeBaseDocument) (documentRecord, error) {
+	return documentRecordFromFindByIDRow(row)
+}
+
+func documentRecordFromFindLatestByBindingAndItemsRow(row mysqlsqlc.KnowledgeBaseDocument) (documentRecord, error) {
+	return documentRecordFromFindByIDRow(row)
+}
+
+func documentRecordFromFindLatestBySourceItemsRow(row mysqlsqlc.KnowledgeBaseDocument) (documentRecord, error) {
+	return documentRecordFromFindByIDRow(row)
+}
+
+func documentRecordFromFindDocumentIncludingDeletedRow(row mysqlsqlc.KnowledgeBaseDocument) (documentRecord, error) {
+	return documentRecordFromFindByIDRow(row)
+}
+
+func documentRecordFromListByKnowledgeBaseRow(row mysqlsqlc.KnowledgeBaseDocument) (documentRecord, error) {
+	return documentRecordFromFindByIDRow(row)
+}
+
+func documentRecordFromListByKnowledgeBaseAndSourceBindingIDsRow(
+	row mysqlsqlc.KnowledgeBaseDocument,
+) (documentRecord, error) {
+	return documentRecordFromFindByIDRow(row)
+}
+
+func documentRecordFromListByOrganizationRow(row mysqlsqlc.KnowledgeBaseDocument) (documentRecord, error) {
+	return documentRecordFromFindByIDRow(row)
+}
+
+func documentRecordFromListByOrganizationAndKnowledgeBaseRow(
+	row mysqlsqlc.KnowledgeBaseDocument,
+) (documentRecord, error) {
+	return documentRecordFromFindByIDRow(row)
+}
+
+func documentRecordFromListByOrganizationAndSourceBindingAndSourceItemsRow(
+	row mysqlsqlc.KnowledgeBaseDocument,
+) (documentRecord, error) {
+	return documentRecordFromFindByIDRow(row)
+}
+
+func documentRecordFromListByOrganizationAndSourceItemIDsRow(
+	row mysqlsqlc.KnowledgeBaseDocument,
+) (documentRecord, error) {
+	return documentRecordFromFindByIDRow(row)
+}
+
+func documentRecordFromListByOrganizationAndThirdFileRow(
+	row mysqlsqlc.KnowledgeBaseDocument,
+) (documentRecord, error) {
+	return documentRecordFromFindByIDRow(row)
+}
+
+func decodeDocumentJSONFields(record documentRecord, doc *docentity.KnowledgeBaseDocument) error {
 	metadata, err := jsoncompat.DecodeObjectMap(record.DocMetadata, "doc_metadata")
 	if err != nil {
 		return fmt.Errorf("decode doc_metadata: %w", err)
@@ -262,7 +245,7 @@ func decodeDocumentJSONFields(record documentRecord, doc *documentdomain.Knowled
 	if err != nil {
 		return fmt.Errorf("decode document_file: %w", err)
 	}
-	if documentFile != nil && *documentFile == (documentdomain.File{}) {
+	if documentFile != nil && *documentFile == (docentity.File{}) {
 		documentFile = nil
 	}
 	doc.DocumentFile = documentFile
@@ -293,19 +276,19 @@ func decodeDocumentJSONFields(record documentRecord, doc *documentdomain.Knowled
 	return nil
 }
 
-func applyLegacySourceCompatibility(doc *documentdomain.KnowledgeBaseDocument, provider, bindingRootRef, itemRef string) {
+func applyLegacySourceCompatibility(doc *docentity.KnowledgeBaseDocument, provider, bindingRootRef, itemRef string) {
 	if doc == nil {
 		return
 	}
 	switch provider {
-	case sourcebindingdomain.ProviderProject:
+	case sourcebindingentity.ProviderProject:
 		if doc.ProjectID == 0 {
 			doc.ProjectID = parseInt64(bindingRootRef)
 		}
 		if doc.ProjectFileID == 0 {
 			doc.ProjectFileID = parseInt64(itemRef)
 		}
-	case "", sourcebindingdomain.ProviderLocalUpload:
+	case "", sourcebindingentity.ProviderLocalUpload:
 		return
 	default:
 		if doc.ThirdPlatformType == "" {
@@ -318,13 +301,13 @@ func applyLegacySourceCompatibility(doc *documentdomain.KnowledgeBaseDocument, p
 }
 
 // DecodeDocumentFile 将 JSON 文档文件信息解析为统一结构。
-func DecodeDocumentFile(documentFileJSON []byte) (*documentdomain.File, error) {
+func DecodeDocumentFile(documentFileJSON []byte) (*docentity.File, error) {
 	file, err := jsoncompat.DecodeObjectMap(documentFileJSON, "document_file")
 	if err != nil {
 		return nil, fmt.Errorf("decode document_file object: %w", err)
 	}
 	if len(file) == 0 {
-		return &documentdomain.File{}, nil
+		return &docentity.File{}, nil
 	}
 
 	fileLinkURL := ""
@@ -332,7 +315,7 @@ func DecodeDocumentFile(documentFileJSON []byte) (*documentdomain.File, error) {
 		fileLinkURL = anyToString(fileLink["url"])
 	}
 
-	return &documentdomain.File{
+	return &docentity.File{
 		Type:            normalizeDocumentFileType(file["type"]),
 		Name:            anyToString(file["name"]),
 		URL:             firstNonEmpty(anyToString(file["url"]), fileLinkURL, anyToString(file["key"])),
@@ -340,8 +323,33 @@ func DecodeDocumentFile(documentFileJSON []byte) (*documentdomain.File, error) {
 		Extension:       inferDocumentFileExtension(file, fileLinkURL),
 		ThirdID:         firstNonEmpty(anyToString(file["third_id"]), anyToString(file["third_file_id"])),
 		SourceType:      firstNonEmpty(anyToString(file["source_type"]), anyToString(file["platform_type"])),
+		ThirdFileType:   firstNonEmpty(anyToString(file["third_file_type"]), anyToString(file["teamshare_file_type"]), anyToString(file["file_type"])),
 		KnowledgeBaseID: anyToString(file["knowledge_base_id"]),
 	}, nil
+}
+
+func extractDocumentFileExtension(documentFileJSON []byte) (string, error) {
+	if len(documentFileJSON) == 0 {
+		return "", nil
+	}
+
+	var payload documentFileExtensionPayload
+	if err := json.Unmarshal(documentFileJSON, &payload); err != nil {
+		return "", fmt.Errorf("decode document_file extension: %w", err)
+	}
+
+	fileLinkURL := ""
+	if payload.FileLink != nil {
+		fileLinkURL = payload.FileLink.URL
+	}
+
+	return inferDocumentFileExtension(map[string]any{
+		"extension":                 payload.Extension,
+		"third_file_extension_name": payload.ThirdFileExtensionName,
+		"name":                      payload.Name,
+		"url":                       payload.URL,
+		"key":                       payload.Key,
+	}, fileLinkURL), nil
 }
 
 func inferDocumentFileExtension(file map[string]any, fileLinkURL string) string {

@@ -5,6 +5,8 @@ import (
 	"encoding/json"
 	"io"
 	"net"
+	"strconv"
+	"strings"
 	"testing"
 	"time"
 
@@ -29,7 +31,7 @@ func (c *benchConn) SetReadDeadline(_ time.Time) error  { return nil }
 func (c *benchConn) SetWriteDeadline(_ time.Time) error { return nil }
 
 func newBenchSession() *jsonrpc.Session {
-	return jsonrpc.NewSessionForTest(1, &benchConn{}, jsonrpc.NewServer(nil, jsonrpc.DefaultRuntimeConfig()))
+	return jsonrpc.NewSessionForTest(1, &benchConn{}, jsonrpc.NewServerForTest(nil, jsonrpc.DefaultRuntimeConfig()))
 }
 
 func BenchmarkHandleMessageRequest(b *testing.B) {
@@ -80,6 +82,22 @@ func BenchmarkSendPacket(b *testing.B) {
 	}
 }
 
+func BenchmarkSendPacketSimilarityPayload(b *testing.B) {
+	session := newBenchSession()
+	resp, err := common.NewResponse(1, buildSimilarityBenchmarkResponsePayload(12))
+	if err != nil {
+		b.Fatalf("new response: %v", err)
+	}
+
+	b.ReportAllocs()
+	b.ResetTimer()
+	for range b.N {
+		if err := jsonrpc.SendPacketToSessionForTest(session, resp); err != nil {
+			b.Fatalf("send packet: %v", err)
+		}
+	}
+}
+
 func BenchmarkRequestIDFromRawJSON(b *testing.B) {
 	raw := json.RawMessage(`{"request_id":"bench-request-id","foo":1}`)
 
@@ -87,5 +105,34 @@ func BenchmarkRequestIDFromRawJSON(b *testing.B) {
 	b.ResetTimer()
 	for range b.N {
 		_ = jsonrpc.RequestIDFromRawJSONForTest(raw)
+	}
+}
+
+func buildSimilarityBenchmarkResponsePayload(resultCount int) map[string]any {
+	results := make([]map[string]any, 0, resultCount)
+	for i := range resultCount {
+		results = append(results, map[string]any{
+			"id":            i + 1,
+			"content":       strings.Repeat("录音功能优化讨论会议纪要，重点关注原文显示、录音质量与上传问题。", 8),
+			"score":         0.92 - float64(i)*0.01,
+			"word_count":    128 + i,
+			"business_id":   "BIZ-" + strconv.Itoa(i+1),
+			"document_code": "DOC-" + strconv.Itoa(i%4),
+			"document_name": "录音功能优化讨论.md",
+			"document_type": 1,
+			"metadata": map[string]any{
+				"url":            "https://example.test/doc/" + strconv.Itoa(i+1),
+				"section_title":  "原文显示问题",
+				"section_path":   "录音功能优化讨论会议纪要 > 讨论要点及总结 > UI界面与交互体验优化",
+				"fragment_id":    i + 1,
+				"business_id":    "BIZ-" + strconv.Itoa(i+1),
+				"hit_chunk":      strings.Repeat("原文显示存在错位，建议优化 chunk 拼接策略。", 4),
+				"word_count":     128 + i,
+				"retrieval_rank": i + 1,
+			},
+		})
+	}
+	return map[string]any{
+		"results": results,
 	}
 }

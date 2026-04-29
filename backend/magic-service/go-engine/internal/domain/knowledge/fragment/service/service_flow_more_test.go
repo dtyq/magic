@@ -7,7 +7,9 @@ import (
 
 	fragmodel "magic/internal/domain/knowledge/fragment/model"
 	fragmentdomain "magic/internal/domain/knowledge/fragment/service"
+	"magic/internal/domain/knowledge/shared"
 	sharedentity "magic/internal/domain/knowledge/shared/entity"
+	sharedsnapshot "magic/internal/domain/knowledge/shared/snapshot"
 	"magic/internal/infrastructure/logging"
 	"magic/internal/pkg/ctxmeta"
 )
@@ -210,10 +212,10 @@ func TestFragmentDomainServiceSyncFragment(t *testing.T) {
 		VectorDataRepo: vectorData,
 	})
 
-	if err := svc.SyncFragment(context.Background(), &struct {
-		Code  string
-		Model string
-	}{Code: "KB1", Model: "text-embedding-3-small"}, fragment, nil); err != nil {
+	if err := svc.SyncFragment(context.Background(), &sharedsnapshot.KnowledgeBaseRuntimeSnapshot{
+		Code:  "KB1",
+		Model: "text-embedding-3-small",
+	}, fragment, nil); err != nil {
 		t.Fatalf("sync fragment failed: %v", err)
 	}
 	if fragment.SyncStatus != sharedentity.SyncStatusSynced || len(fragment.Vector) != 2 {
@@ -255,10 +257,10 @@ func TestFragmentDomainServiceSyncFragmentFailure(t *testing.T) {
 			return nil, errEmbeddingCalcBoom
 		},
 	}, fragmentdomain.FragmentDomainInfra{})
-	if err := svc.SyncFragment(context.Background(), &struct {
-		Code  string
-		Model string
-	}{Code: "KB1", Model: "text-embedding-3-small"}, fragment, nil); !errors.Is(err, errEmbeddingCalcBoom) {
+	if err := svc.SyncFragment(context.Background(), &sharedsnapshot.KnowledgeBaseRuntimeSnapshot{
+		Code:  "KB1",
+		Model: "text-embedding-3-small",
+	}, fragment, nil); !errors.Is(err, errEmbeddingCalcBoom) {
 		t.Fatalf("expected embedding error, got %v", err)
 	}
 
@@ -266,10 +268,10 @@ func TestFragmentDomainServiceSyncFragmentFailure(t *testing.T) {
 	vectorFailSvc := newFlowFragmentDomainService(&flowFragmentRepoStub{}, &flowEmbeddingServiceStub{}, fragmentdomain.FragmentDomainInfra{
 		VectorDataRepo: &flowVectorDataRepoStub{storeHybridPointErr: errVectorStoreBoom},
 	})
-	if err := vectorFailSvc.SyncFragment(context.Background(), &struct {
-		Code  string
-		Model string
-	}{Code: "KB1", Model: "text-embedding-3-small"}, fragment, nil); !errors.Is(err, errVectorStoreBoom) {
+	if err := vectorFailSvc.SyncFragment(context.Background(), &sharedsnapshot.KnowledgeBaseRuntimeSnapshot{
+		Code:  "KB1",
+		Model: "text-embedding-3-small",
+	}, fragment, nil); !errors.Is(err, errVectorStoreBoom) {
 		t.Fatalf("expected vector store error, got %v", err)
 	}
 }
@@ -291,10 +293,10 @@ func TestFragmentDomainServiceSyncFragmentBatch(t *testing.T) {
 		VectorDataRepo: vectorData,
 	})
 
-	if err := svc.SyncFragmentBatch(context.Background(), &struct {
-		Code  string
-		Model string
-	}{Code: "KB1", Model: "text-embedding-3-small"}, fragments, nil); err != nil {
+	if err := svc.SyncFragmentBatch(context.Background(), &sharedsnapshot.KnowledgeBaseRuntimeSnapshot{
+		Code:  "KB1",
+		Model: "text-embedding-3-small",
+	}, fragments, nil); err != nil {
 		t.Fatalf("sync fragment batch failed: %v", err)
 	}
 	if len(repo.updatedStatusBatch) != 2 || len(vectorData.lastBatchPointIDs) != 2 || repo.updateSyncCalls != 0 {
@@ -403,6 +405,10 @@ func (s *flowFragmentRepoStub) DeleteByDocument(context.Context, string, string)
 	return s.deleteByDocumentErr
 }
 
+func (s *flowFragmentRepoStub) DeleteByDocumentCodes(_ context.Context, _ string, _ []string) error {
+	return s.deleteByDocumentErr
+}
+
 func (s *flowFragmentRepoStub) DeleteByKnowledgeBase(_ context.Context, knowledgeCode string) error {
 	s.deletedKnowledgeBase = knowledgeCode
 	return s.deleteByKnowledgeErr
@@ -427,7 +433,7 @@ func (s *flowFragmentRepoStub) FindByID(context.Context, int64) (*fragmodel.Know
 	return s.findByIDResult, s.findByIDErr
 }
 
-func (*flowFragmentRepoStub) FindByPointID(context.Context, string, string, string) (*fragmodel.KnowledgeBaseFragment, error) {
+func (*flowFragmentRepoStub) FindByPointIDs(context.Context, []string) ([]*fragmodel.KnowledgeBaseFragment, error) {
 	return nil, errFlowNotFound
 }
 
@@ -442,6 +448,10 @@ func (s *flowFragmentRepoStub) List(_ context.Context, query *fragmodel.Query) (
 
 func (s *flowFragmentRepoStub) ListByDocument(context.Context, string, string, int, int) ([]*fragmodel.KnowledgeBaseFragment, int64, error) {
 	return s.listByDocumentResult, s.listByDocumentTotal, s.listByDocumentErr
+}
+
+func (s *flowFragmentRepoStub) ListByDocumentAfterID(context.Context, string, string, int64, int) ([]*fragmodel.KnowledgeBaseFragment, error) {
+	return s.listByDocumentResult, s.listByDocumentErr
 }
 
 func (*flowFragmentRepoStub) ListByKnowledgeBase(context.Context, string, int, int) ([]*fragmodel.KnowledgeBaseFragment, int64, error) {
@@ -496,6 +506,10 @@ func (*flowVectorMgmtRepoStub) CollectionExists(context.Context, string) (bool, 
 
 func (*flowVectorMgmtRepoStub) GetCollectionInfo(context.Context, string) (*fragmodel.VectorCollectionInfo, error) {
 	return &fragmodel.VectorCollectionInfo{}, nil
+}
+
+func (*flowVectorMgmtRepoStub) EnsurePayloadIndexes(context.Context, string, []shared.PayloadIndexSpec) error {
+	return nil
 }
 
 func (*flowVectorMgmtRepoStub) GetAliasTarget(context.Context, string) (string, bool, error) {

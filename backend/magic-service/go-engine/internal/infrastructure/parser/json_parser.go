@@ -8,7 +8,7 @@ import (
 	"io"
 	"strings"
 
-	documentdomain "magic/internal/domain/knowledge/document/service"
+	documentdomain "magic/internal/domain/knowledge/document/metadata"
 )
 
 // JSONParser 解析 JSON 文档。

@@ -37,9 +37,10 @@ const (
 
 // Options configures the incremental golangci-lint runner.
 type Options struct {
-	RootDir   string
-	CacheFile string
-	Binary    string
+	RootDir      string
+	CacheFile    string
+	Binary       string
+	DisableCache bool
 }
 
 // Runner executes golangci-lint only when tracked inputs have changed.
@@ -127,6 +128,9 @@ func (r *Runner) Run(ctx context.Context) error {
 	if err != nil {
 		return fmt.Errorf("golangci-lint not found: %w", err)
 	}
+	if r.opts.DisableCache {
+		return r.executeWithoutCache(ctx, binaryPath)
+	}
 
 	toolHash, err := r.fileHash(binaryPath)
 	if err != nil {
@@ -178,6 +182,17 @@ func (r *Runner) Run(ctx context.Context) error {
 	currentState.Output = ""
 	if err := persistCache(r.opts.CacheFile, currentState, r.atomicWrite); err != nil {
 		return err
+	}
+
+	_, _ = fmt.Fprintln(r.stdout, "✓ golangci-lint passed")
+	return nil
+}
+
+func (r *Runner) executeWithoutCache(ctx context.Context, binaryPath string) error {
+	output, err := r.runLint(ctx, binaryPath)
+	trimmedOutput := strings.TrimSpace(output)
+	if err != nil {
+		return r.reportRunFailure(trimmedOutput, err)
 	}
 
 	_, _ = fmt.Fprintln(r.stdout, "✓ golangci-lint passed")

@@ -17,6 +17,11 @@ type sampleValidatedReq struct {
 	Name string `json:"name"`
 }
 
+type sampleIntegerReq struct {
+	Count int     `json:"count"`
+	IDs   []int64 `json:"ids"`
+}
+
 func (r sampleValidatedReq) Validate() error {
 	if r.Name == "" {
 		return jsonrpc.NewBusinessErrorWithMessage(jsonrpc.ErrCodeInvalidParams, "name is required", nil)
@@ -120,5 +125,27 @@ func TestWrapTyped_ValidateFailure(t *testing.T) {
 	}
 	if bizErr.Message != "name is required" {
 		t.Fatalf("expected validate message, got %q", bizErr.Message)
+	}
+}
+
+func TestWrapTyped_StringifiedIntegersAreRejectedByDefault(t *testing.T) {
+	t.Parallel()
+
+	h := func(ctx context.Context, req *sampleIntegerReq) (*sampleResp, error) {
+		return &sampleResp{OK: true}, nil
+	}
+
+	wrapped := jsonrpc.WrapTyped(h)
+	_, err := wrapped(context.Background(), "m", json.RawMessage(`{"count":"64","ids":["1","2"]}`))
+	if err == nil {
+		t.Fatal("expected error")
+	}
+
+	var bizErr *jsonrpc.BusinessError
+	if !errors.As(err, &bizErr) {
+		t.Fatalf("expected BusinessError, got %T", err)
+	}
+	if bizErr.Code != jsonrpc.ErrCodeInvalidParams {
+		t.Fatalf("expected ErrCodeInvalidParams, got %d", bizErr.Code)
 	}
 }

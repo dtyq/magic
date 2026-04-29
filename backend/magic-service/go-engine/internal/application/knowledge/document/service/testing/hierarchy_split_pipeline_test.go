@@ -8,9 +8,9 @@ import (
 	"unicode/utf8"
 
 	service "magic/internal/application/knowledge/document/service"
-	documentdomain "magic/internal/domain/knowledge/document/service"
 	fragdomain "magic/internal/domain/knowledge/fragment/service"
 	"magic/internal/domain/knowledge/shared"
+	"magic/internal/domain/knowledge/shared/parseddocument"
 	"magic/internal/pkg/tokenizer"
 )
 
@@ -38,80 +38,38 @@ func TestSplitContentWithEffectiveModeSharedTokenizerCases(t *testing.T) {
 	t.Parallel()
 	tokenizerSvc := newSharedTokenizerForTest(t)
 
-	t.Run("Mode1CustomDoesNotAutoHierarchy", func(t *testing.T) {
-		t.Parallel()
-		assertHierarchyMode1CustomDoesNotAutoHierarchy(t, tokenizerSvc)
-	})
+	for _, tc := range sharedTokenizerHierarchyCases() {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			tc.assert(t, tokenizerSvc)
+		})
+	}
+}
 
-	t.Run("Mode2NoHierarchyFallsBackToNormal", func(t *testing.T) {
-		t.Parallel()
-		assertHierarchyMode2NoHierarchyFallsBackToNormal(t, tokenizerSvc)
-	})
+type sharedTokenizerHierarchyCase struct {
+	name   string
+	assert func(*testing.T, *tokenizer.Service)
+}
 
-	t.Run("HierarchyMaxLevel", func(t *testing.T) {
-		t.Parallel()
-		assertHierarchyMaxLevel(t, tokenizerSvc)
-	})
-
-	t.Run("HierarchyDefaultMaxLevelIsThree", func(t *testing.T) {
-		t.Parallel()
-		assertHierarchyDefaultMaxLevelIsThree(t, tokenizerSvc)
-	})
-
-	t.Run("Mode2AutoHierarchy", func(t *testing.T) {
-		t.Parallel()
-		assertHierarchyMode2AutoHierarchy(t, tokenizerSvc)
-	})
-
-	t.Run("Mode3NoHierarchyFallbackToNormal", func(t *testing.T) {
-		t.Parallel()
-		assertHierarchyMode3FallbackToNormal(t, tokenizerSvc)
-	})
-
-	t.Run("HierarchyMaxLevelKeepsDescendantContentOnParent", func(t *testing.T) {
-		t.Parallel()
-		assertHierarchyKeepsDescendantContentOnParent(t, tokenizerSvc)
-	})
-
-	t.Run("MarkdownASTDetector", func(t *testing.T) {
-		t.Parallel()
-		assertHierarchyMarkdownASTDetector(t, tokenizerSvc)
-	})
-
-	t.Run("MarkdownFallbackRegexDetector", func(t *testing.T) {
-		t.Parallel()
-		assertHierarchyMarkdownFallbackRegexDetector(t, tokenizerSvc)
-	})
-
-	t.Run("DocxStyleDetector", func(t *testing.T) {
-		t.Parallel()
-		assertHierarchyDocxStyleDetector(t, tokenizerSvc)
-	})
-
-	t.Run("SkipHeadingOnlyChunks", func(t *testing.T) {
-		t.Parallel()
-		assertHierarchySkipsHeadingOnlyChunks(t, tokenizerSvc)
-	})
-
-	t.Run("OutlineOnlyHierarchyKeepsLeafChunks", func(t *testing.T) {
-		t.Parallel()
-		assertHierarchyOutlineOnlyKeepsLeafChunks(t, tokenizerSvc)
-	})
-
-	t.Run("MarkdownParserKeepsListItemsForHierarchyPreview", func(t *testing.T) {
-		t.Parallel()
-		assertMarkdownParserKeepsListItemsForHierarchyPreview(t, tokenizerSvc)
-	})
-
-	t.Run("HierarchyChunksCapAtOneKTokensAndReuseHeading", func(t *testing.T) {
-		t.Parallel()
-		assertHierarchyChunksCapAtOneKTokensAndReuseHeading(t, tokenizerSvc)
-	})
-
-	t.Run("HierarchyOverflowPreservesChineseUTF8Boundaries", func(t *testing.T) {
-		t.Parallel()
-		assertHierarchyOverflowPreservesChineseUTF8Boundaries(t, tokenizerSvc)
-	})
+func sharedTokenizerHierarchyCases() []sharedTokenizerHierarchyCase {
+	return []sharedTokenizerHierarchyCase{
+		{"Mode1CustomDoesNotAutoHierarchy", assertHierarchyMode1CustomDoesNotAutoHierarchy},
+		{"Mode2NoHierarchyFallsBackToNormal", assertHierarchyMode2NoHierarchyFallsBackToNormal},
+		{"HierarchyMaxLevel", assertHierarchyMaxLevel},
+		{"HierarchyDefaultMaxLevelIsThree", assertHierarchyDefaultMaxLevelIsThree},
+		{"Mode2AutoHierarchy", assertHierarchyMode2AutoHierarchy},
+		{"MarkdownMagicCompressibleContentTags", assertMarkdownMagicCompressibleContentTags},
+		{"Mode3NoHierarchyFallbackToNormal", assertHierarchyMode3FallbackToNormal},
+		{"HierarchyMaxLevelKeepsDescendantContentOnParent", assertHierarchyKeepsDescendantContentOnParent},
+		{"MarkdownASTDetector", assertHierarchyMarkdownASTDetector},
+		{"MarkdownFallbackRegexDetector", assertHierarchyMarkdownFallbackRegexDetector},
+		{"DocxStyleDetector", assertHierarchyDocxStyleDetector},
+		{"SkipHeadingOnlyChunks", assertHierarchySkipsHeadingOnlyChunks},
+		{"OutlineOnlyHierarchyKeepsLeafChunks", assertHierarchyOutlineOnlyKeepsLeafChunks},
+		{"MarkdownParserKeepsListItemsForHierarchyPreview", assertMarkdownParserKeepsListItemsForHierarchyPreview},
+		{"HierarchyChunksCapAtOneKTokensAndReuseHeading", assertHierarchyChunksCapAtOneKTokensAndReuseHeading},
+		{"HierarchyOverflowPreservesChineseUTF8Boundaries", assertHierarchyOverflowPreservesChineseUTF8Boundaries},
+	}
 }
 
 func assertHierarchyMode1CustomDoesNotAutoHierarchy(t *testing.T, tokenizerSvc *tokenizer.Service) {
@@ -303,6 +261,62 @@ func assertHierarchyMode2AutoHierarchy(t *testing.T, tokenizerSvc *tokenizer.Ser
 	}
 	if effectiveMode != expectedHierarchyAutoMode {
 		t.Fatalf("expected hierarchy_auto, got %q", effectiveMode)
+	}
+}
+
+func assertMarkdownMagicCompressibleContentTags(t *testing.T, tokenizerSvc *tokenizer.Service) {
+	t.Helper()
+
+	content := "# Teamshare APP 下载\n## 下载链接\n### 1.扫码进行下载\n<MagicCompressibleContent Type=\"Image\">\n```oss-file\n{\"name\":\"image.png\"}\n```\n</MagicCompressibleContent>\n## 2.安装 Teamshare app\n### Install the Teamshare app\nchoose privatization and input KK"
+	cfg := service.PreviewSegmentConfigForTest{ChunkSize: 512, ChunkOverlap: 16, Separator: "\n\n"}
+
+	chunks, effectiveMode, detector, err := service.SplitContentWithEffectiveModePipelineWithSourceTypeAndTokenizerForTest(
+		context.Background(),
+		service.SplitContentWithEffectiveModePipelineForTestInput{
+			Content:        content,
+			SourceFileType: "md",
+			RequestedMode:  shared.FragmentModeAuto,
+			SegmentConfig:  cfg,
+			Model:          "text-embedding-3-small",
+		},
+		tokenizerSvc,
+	)
+	if err != nil {
+		t.Fatalf("split failed: %v", err)
+	}
+	if effectiveMode != expectedHierarchyAutoMode {
+		t.Fatalf("expected hierarchy_auto, got %q", effectiveMode)
+	}
+	if detector != expectedHierarchyDetectorMarkdownAST {
+		t.Fatalf("expected markdown_ast detector, got %q", detector)
+	}
+
+	foundOssFileChunk := false
+	foundInstallChunk := false
+	for _, chunk := range chunks {
+		if strings.Contains(chunk.Content, "MagicCompressibleContent") {
+			t.Fatalf("expected MagicCompressibleContent tags stripped, got %q", chunk.Content)
+		}
+		if strings.Contains(chunk.Content, "oss-file") {
+			foundOssFileChunk = true
+			if !strings.Contains(chunk.Content, "{\"name\":\"image.png\"}") {
+				t.Fatalf("expected oss-file json kept, got %q", chunk.Content)
+			}
+			if strings.Contains(chunk.Content, "## 2.安装 Teamshare app") {
+				t.Fatalf("expected next H2 not to stick to image chunk, got %q", chunk.Content)
+			}
+		}
+		if chunk.SectionTitle == "Install the Teamshare app" &&
+			strings.Contains(chunk.Content, "## 2.安装 Teamshare app") &&
+			strings.Contains(chunk.Content, "### Install the Teamshare app") {
+			foundInstallChunk = true
+		}
+	}
+	if !foundOssFileChunk {
+		t.Fatalf("expected oss-file content kept, got %+v", chunks)
+	}
+	if !foundInstallChunk {
+		t.Fatalf("expected install section chunk with parent H2 context, got %+v", chunks)
 	}
 }
 
@@ -562,7 +576,7 @@ func splitHierarchyPreviewMarkdownWithListsForTest(t *testing.T, tokenizerSvc *t
 		"时间区间查询：根据时间区间提取对应文本",
 		"实时支持：支持录音过程中实时查询",
 	}, "\n")
-	parsed := documentdomain.NewPlainTextParsedDocument("md", content)
+	parsed := parseddocument.NewPlainTextParsedDocument("md", content)
 
 	chunks, splitVersion, err := service.SplitParsedDocumentToChunksWithTokenizerForTest(
 		context.Background(),
@@ -619,7 +633,7 @@ func splitHierarchyChunkCapMarkdownForTest(t *testing.T, tokenizerSvc *tokenizer
 	t.Helper()
 
 	content := buildHierarchyChunkCapMarkdown()
-	parsed := documentdomain.NewPlainTextParsedDocument("md", content)
+	parsed := parseddocument.NewPlainTextParsedDocument("md", content)
 
 	chunks, splitVersion, err := service.SplitParsedDocumentToChunksWithTokenizerForTest(
 		context.Background(),
@@ -722,7 +736,7 @@ func assertHierarchyOverflowPreservesChineseUTF8Boundaries(t *testing.T, tokeniz
 	body := strings.Join(bodyLines, "\n")
 	content := "# 文档内容提取汇总\n\n## 表格内容\n\n" + body
 
-	parsed := documentdomain.NewPlainTextParsedDocument("md", content)
+	parsed := parseddocument.NewPlainTextParsedDocument("md", content)
 
 	chunks, splitVersion, err := service.SplitParsedDocumentToChunksWithTokenizerForTest(
 		context.Background(),

@@ -5,12 +5,13 @@ import (
 	"context"
 	"errors"
 
+	"magic/internal/domain/knowledge/embedding"
 	"magic/internal/infrastructure/logging"
 	mysqlclient "magic/internal/infrastructure/persistence/mysql"
 )
 
 // ErrCacheNotFound 表示缓存未找到的哨兵错误
-var ErrCacheNotFound = errors.New("embedding cache not found")
+var ErrCacheNotFound = embedding.ErrCacheNotFound
 
 var (
 	// ErrCacheNotFoundByID 表示按 ID 未找到缓存
@@ -23,24 +24,21 @@ var (
 
 // Repository MySQL 实现的向量化缓存仓储。
 type Repository struct {
-	client        *mysqlclient.SQLCClient
-	logger        *logging.SugaredLogger
-	accessUpdater *accessUpdater
+	client *mysqlclient.SQLCClient
+	logger *logging.SugaredLogger
 }
 
 // NewRepository 创建新的缓存仓储实例。
 func NewRepository(client *mysqlclient.SQLCClient, logger *logging.SugaredLogger) *Repository {
 	return &Repository{
-		client:        client,
-		logger:        logger,
-		accessUpdater: newAccessUpdater(client, logger),
+		client: client,
+		logger: logger,
 	}
 }
 
-// Close 停止异步访问计数更新器并尽力刷完剩余队列。
+// Close 为兼容保留的空实现；embedding_cache 现已改为同步落库。
 func (repo *Repository) Close(ctx context.Context) error {
-	if repo == nil || repo.accessUpdater == nil {
-		return nil
-	}
-	return repo.accessUpdater.Close(ctx)
+	_ = repo
+	_ = ctx
+	return nil
 }

@@ -8,117 +8,77 @@ package mysqlsqlc
 import (
 	"context"
 	"database/sql"
-	"strings"
-	"time"
 )
 
-const findProjectFileMetaByID = `-- name: FindProjectFileMetaByID :one
-SELECT organization_code,
-       project_id,
-       file_id,
-       COALESCE(file_key, '') AS file_key,
-       file_name,
-       COALESCE(file_extension, '') AS file_extension,
-       COALESCE(file_size, 0) AS file_size,
-       updated_at
-FROM magic_super_agent_project_files
-WHERE file_id = ?
-LIMIT 1
-`
-
-type FindProjectFileMetaByIDRow struct {
-	OrganizationCode string    `json:"organization_code"`
-	ProjectID        uint64    `json:"project_id"`
-	FileID           uint64    `json:"file_id"`
-	FileKey          string    `json:"file_key"`
-	FileName         string    `json:"file_name"`
-	FileExtension    string    `json:"file_extension"`
-	FileSize         uint64    `json:"file_size"`
-	UpdatedAt        time.Time `json:"updated_at"`
-}
-
-func (q *Queries) FindProjectFileMetaByID(ctx context.Context, fileID uint64) (FindProjectFileMetaByIDRow, error) {
-	row := q.db.QueryRowContext(ctx, findProjectFileMetaByID, fileID)
-	var i FindProjectFileMetaByIDRow
-	err := row.Scan(
-		&i.OrganizationCode,
-		&i.ProjectID,
-		&i.FileID,
-		&i.FileKey,
-		&i.FileName,
-		&i.FileExtension,
-		&i.FileSize,
-		&i.UpdatedAt,
-	)
-	return i, err
-}
-
 const findTaskFileMetaByID = `-- name: FindTaskFileMetaByID :one
-SELECT organization_code,
-       project_id,
-       file_id,
-       COALESCE(file_key, '') AS file_key,
-       file_name,
-       COALESCE(file_extension, '') AS file_extension,
-       COALESCE(file_size, 0) AS file_size,
-       COALESCE(is_directory, FALSE) AS is_directory,
-       COALESCE(is_hidden, FALSE) AS is_hidden,
-       updated_at,
-       deleted_at,
-       COALESCE(parent_id, 0) AS parent_id
+SELECT file_id, user_id, organization_code, project_id, topic_id, latest_modified_topic_id, task_id, latest_modified_task_id, file_type, file_name, file_extension, file_key, file_size, external_url, storage_type, is_hidden, is_directory, sort, parent_id, metadata, source, created_at, updated_at, deleted_at
 FROM magic_super_agent_task_files
 WHERE file_id = ?
 LIMIT 1
 `
 
-type FindTaskFileMetaByIDRow struct {
-	OrganizationCode string       `json:"organization_code"`
-	ProjectID        uint64       `json:"project_id"`
-	FileID           uint64       `json:"file_id"`
-	FileKey          string       `json:"file_key"`
-	FileName         string       `json:"file_name"`
-	FileExtension    string       `json:"file_extension"`
-	FileSize         uint64       `json:"file_size"`
-	IsDirectory      bool         `json:"is_directory"`
-	IsHidden         bool         `json:"is_hidden"`
-	UpdatedAt        time.Time    `json:"updated_at"`
-	DeletedAt        sql.NullTime `json:"deleted_at"`
-	ParentID         uint64       `json:"parent_id"`
-}
-
-func (q *Queries) FindTaskFileMetaByID(ctx context.Context, fileID uint64) (FindTaskFileMetaByIDRow, error) {
+func (q *Queries) FindTaskFileMetaByID(ctx context.Context, fileID uint64) (MagicSuperAgentTaskFile, error) {
 	row := q.db.QueryRowContext(ctx, findTaskFileMetaByID, fileID)
-	var i FindTaskFileMetaByIDRow
+	var i MagicSuperAgentTaskFile
 	err := row.Scan(
+		&i.FileID,
+		&i.UserID,
 		&i.OrganizationCode,
 		&i.ProjectID,
-		&i.FileID,
-		&i.FileKey,
+		&i.TopicID,
+		&i.LatestModifiedTopicID,
+		&i.TaskID,
+		&i.LatestModifiedTaskID,
+		&i.FileType,
 		&i.FileName,
 		&i.FileExtension,
+		&i.FileKey,
 		&i.FileSize,
-		&i.IsDirectory,
+		&i.ExternalUrl,
+		&i.StorageType,
 		&i.IsHidden,
+		&i.IsDirectory,
+		&i.Sort,
+		&i.ParentID,
+		&i.Metadata,
+		&i.Source,
+		&i.CreatedAt,
 		&i.UpdatedAt,
 		&i.DeletedAt,
+	)
+	return i, err
+}
+
+const findTaskFileParentLinkByID = `-- name: FindTaskFileParentLinkByID :one
+SELECT file_id, project_id, parent_id, is_directory, deleted_at
+FROM magic_super_agent_task_files
+WHERE file_id = ?
+LIMIT 1
+`
+
+type FindTaskFileParentLinkByIDRow struct {
+	FileID      uint64        `json:"file_id"`
+	ProjectID   uint64        `json:"project_id"`
+	ParentID    sql.NullInt64 `json:"parent_id"`
+	IsDirectory bool          `json:"is_directory"`
+	DeletedAt   sql.NullTime  `json:"deleted_at"`
+}
+
+func (q *Queries) FindTaskFileParentLinkByID(ctx context.Context, fileID uint64) (FindTaskFileParentLinkByIDRow, error) {
+	row := q.db.QueryRowContext(ctx, findTaskFileParentLinkByID, fileID)
+	var i FindTaskFileParentLinkByIDRow
+	err := row.Scan(
+		&i.FileID,
+		&i.ProjectID,
 		&i.ParentID,
+		&i.IsDirectory,
+		&i.DeletedAt,
 	)
 	return i, err
 }
 
 const findTaskFileRootDirectoryByProjectID = `-- name: FindTaskFileRootDirectoryByProjectID :one
-SELECT organization_code,
-       project_id,
-       file_id,
-       COALESCE(file_key, '') AS file_key,
-       file_name,
-       COALESCE(file_extension, '') AS file_extension,
-       COALESCE(file_size, 0) AS file_size,
-       COALESCE(is_directory, FALSE) AS is_directory,
-       COALESCE(is_hidden, FALSE) AS is_hidden,
-       updated_at,
-       deleted_at,
-       COALESCE(parent_id, 0) AS parent_id
+SELECT file_id, user_id, organization_code, project_id, topic_id, latest_modified_topic_id, task_id, latest_modified_task_id, file_type, file_name, file_extension, file_key, file_size, external_url, storage_type, is_hidden, is_directory, sort, parent_id, metadata, source, created_at, updated_at, deleted_at
 FROM magic_super_agent_task_files
 WHERE project_id = ?
   AND parent_id IS NULL
@@ -128,59 +88,82 @@ ORDER BY file_id DESC
 LIMIT 1
 `
 
-type FindTaskFileRootDirectoryByProjectIDRow struct {
-	OrganizationCode string       `json:"organization_code"`
-	ProjectID        uint64       `json:"project_id"`
-	FileID           uint64       `json:"file_id"`
-	FileKey          string       `json:"file_key"`
-	FileName         string       `json:"file_name"`
-	FileExtension    string       `json:"file_extension"`
-	FileSize         uint64       `json:"file_size"`
-	IsDirectory      bool         `json:"is_directory"`
-	IsHidden         bool         `json:"is_hidden"`
-	UpdatedAt        time.Time    `json:"updated_at"`
-	DeletedAt        sql.NullTime `json:"deleted_at"`
-	ParentID         uint64       `json:"parent_id"`
-}
-
-func (q *Queries) FindTaskFileRootDirectoryByProjectID(ctx context.Context, projectID uint64) (FindTaskFileRootDirectoryByProjectIDRow, error) {
+func (q *Queries) FindTaskFileRootDirectoryByProjectID(ctx context.Context, projectID uint64) (MagicSuperAgentTaskFile, error) {
 	row := q.db.QueryRowContext(ctx, findTaskFileRootDirectoryByProjectID, projectID)
-	var i FindTaskFileRootDirectoryByProjectIDRow
+	var i MagicSuperAgentTaskFile
 	err := row.Scan(
+		&i.FileID,
+		&i.UserID,
 		&i.OrganizationCode,
 		&i.ProjectID,
-		&i.FileID,
-		&i.FileKey,
+		&i.TopicID,
+		&i.LatestModifiedTopicID,
+		&i.TaskID,
+		&i.LatestModifiedTaskID,
+		&i.FileType,
 		&i.FileName,
 		&i.FileExtension,
+		&i.FileKey,
 		&i.FileSize,
-		&i.IsDirectory,
+		&i.ExternalUrl,
+		&i.StorageType,
 		&i.IsHidden,
+		&i.IsDirectory,
+		&i.Sort,
+		&i.ParentID,
+		&i.Metadata,
+		&i.Source,
+		&i.CreatedAt,
 		&i.UpdatedAt,
 		&i.DeletedAt,
-		&i.ParentID,
 	)
 	return i, err
 }
 
+const listTaskFileParentLinksByProjectID = `-- name: ListTaskFileParentLinksByProjectID :many
+SELECT file_id, parent_id, is_directory
+FROM magic_super_agent_task_files
+WHERE project_id = ?
+  AND deleted_at IS NULL
+`
+
+type ListTaskFileParentLinksByProjectIDRow struct {
+	FileID      uint64        `json:"file_id"`
+	ParentID    sql.NullInt64 `json:"parent_id"`
+	IsDirectory bool          `json:"is_directory"`
+}
+
+func (q *Queries) ListTaskFileParentLinksByProjectID(ctx context.Context, projectID uint64) ([]ListTaskFileParentLinksByProjectIDRow, error) {
+	rows, err := q.db.QueryContext(ctx, listTaskFileParentLinksByProjectID, projectID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListTaskFileParentLinksByProjectIDRow{}
+	for rows.Next() {
+		var i ListTaskFileParentLinksByProjectIDRow
+		if err := rows.Scan(&i.FileID, &i.ParentID, &i.IsDirectory); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listVisibleTaskFileChildrenByParent = `-- name: ListVisibleTaskFileChildrenByParent :many
-SELECT organization_code,
-       project_id,
-       file_id,
-       COALESCE(file_key, '') AS file_key,
-       file_name,
-       COALESCE(file_extension, '') AS file_extension,
-       COALESCE(file_size, 0) AS file_size,
-       COALESCE(is_directory, FALSE) AS is_directory,
-       COALESCE(is_hidden, FALSE) AS is_hidden,
-       updated_at,
-       deleted_at,
-       COALESCE(parent_id, 0) AS parent_id
+SELECT file_id, user_id, organization_code, project_id, topic_id, latest_modified_topic_id, task_id, latest_modified_task_id, file_type, file_name, file_extension, file_key, file_size, external_url, storage_type, is_hidden, is_directory, sort, parent_id, metadata, source, created_at, updated_at, deleted_at
 FROM magic_super_agent_task_files
 WHERE project_id = ?
   AND parent_id = ?
   AND is_hidden = FALSE
   AND deleted_at IS NULL
+ORDER BY sort ASC, file_id ASC
 LIMIT ?
 `
 
@@ -190,43 +173,40 @@ type ListVisibleTaskFileChildrenByParentParams struct {
 	Limit     int32         `json:"limit"`
 }
 
-type ListVisibleTaskFileChildrenByParentRow struct {
-	OrganizationCode string       `json:"organization_code"`
-	ProjectID        uint64       `json:"project_id"`
-	FileID           uint64       `json:"file_id"`
-	FileKey          string       `json:"file_key"`
-	FileName         string       `json:"file_name"`
-	FileExtension    string       `json:"file_extension"`
-	FileSize         uint64       `json:"file_size"`
-	IsDirectory      bool         `json:"is_directory"`
-	IsHidden         bool         `json:"is_hidden"`
-	UpdatedAt        time.Time    `json:"updated_at"`
-	DeletedAt        sql.NullTime `json:"deleted_at"`
-	ParentID         uint64       `json:"parent_id"`
-}
-
-func (q *Queries) ListVisibleTaskFileChildrenByParent(ctx context.Context, arg ListVisibleTaskFileChildrenByParentParams) ([]ListVisibleTaskFileChildrenByParentRow, error) {
+func (q *Queries) ListVisibleTaskFileChildrenByParent(ctx context.Context, arg ListVisibleTaskFileChildrenByParentParams) ([]MagicSuperAgentTaskFile, error) {
 	rows, err := q.db.QueryContext(ctx, listVisibleTaskFileChildrenByParent, arg.ProjectID, arg.ParentID, arg.Limit)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	items := []ListVisibleTaskFileChildrenByParentRow{}
+	items := []MagicSuperAgentTaskFile{}
 	for rows.Next() {
-		var i ListVisibleTaskFileChildrenByParentRow
+		var i MagicSuperAgentTaskFile
 		if err := rows.Scan(
+			&i.FileID,
+			&i.UserID,
 			&i.OrganizationCode,
 			&i.ProjectID,
-			&i.FileID,
-			&i.FileKey,
+			&i.TopicID,
+			&i.LatestModifiedTopicID,
+			&i.TaskID,
+			&i.LatestModifiedTaskID,
+			&i.FileType,
 			&i.FileName,
 			&i.FileExtension,
+			&i.FileKey,
 			&i.FileSize,
-			&i.IsDirectory,
+			&i.ExternalUrl,
+			&i.StorageType,
 			&i.IsHidden,
+			&i.IsDirectory,
+			&i.Sort,
+			&i.ParentID,
+			&i.Metadata,
+			&i.Source,
+			&i.CreatedAt,
 			&i.UpdatedAt,
 			&i.DeletedAt,
-			&i.ParentID,
 		); err != nil {
 			return nil, err
 		}
@@ -241,82 +221,71 @@ func (q *Queries) ListVisibleTaskFileChildrenByParent(ctx context.Context, arg L
 	return items, nil
 }
 
-const listVisibleTaskFileChildrenByParents = `-- name: ListVisibleTaskFileChildrenByParents :many
-SELECT organization_code,
-       project_id,
-       file_id,
-       COALESCE(file_key, '') AS file_key,
-       file_name,
-       COALESCE(file_extension, '') AS file_extension,
-       COALESCE(file_size, 0) AS file_size,
-       COALESCE(is_directory, FALSE) AS is_directory,
-       COALESCE(is_hidden, FALSE) AS is_hidden,
-       updated_at,
-       deleted_at,
-       COALESCE(parent_id, 0) AS parent_id
+const listVisibleTaskFileChildrenByParentAfter = `-- name: ListVisibleTaskFileChildrenByParentAfter :many
+SELECT file_id, user_id, organization_code, project_id, topic_id, latest_modified_topic_id, task_id, latest_modified_task_id, file_type, file_name, file_extension, file_key, file_size, external_url, storage_type, is_hidden, is_directory, sort, parent_id, metadata, source, created_at, updated_at, deleted_at
 FROM magic_super_agent_task_files
 WHERE project_id = ?
-  AND parent_id IN (/*SLICE:parent_ids*/?)
+  AND parent_id = ?
   AND is_hidden = FALSE
   AND deleted_at IS NULL
+  AND (
+    sort > ?
+    OR (sort = ? AND file_id > ?)
+  )
+ORDER BY sort ASC, file_id ASC
 LIMIT ?
 `
 
-type ListVisibleTaskFileChildrenByParentsParams struct {
-	ProjectID uint64          `json:"project_id"`
-	ParentIds []sql.NullInt64 `json:"parent_ids"`
-	Limit     int32           `json:"limit"`
+type ListVisibleTaskFileChildrenByParentAfterParams struct {
+	ProjectID uint64        `json:"project_id"`
+	ParentID  sql.NullInt64 `json:"parent_id"`
+	Sort      int64         `json:"sort"`
+	Sort_2    int64         `json:"sort_2"`
+	FileID    uint64        `json:"file_id"`
+	Limit     int32         `json:"limit"`
 }
 
-type ListVisibleTaskFileChildrenByParentsRow struct {
-	OrganizationCode string       `json:"organization_code"`
-	ProjectID        uint64       `json:"project_id"`
-	FileID           uint64       `json:"file_id"`
-	FileKey          string       `json:"file_key"`
-	FileName         string       `json:"file_name"`
-	FileExtension    string       `json:"file_extension"`
-	FileSize         uint64       `json:"file_size"`
-	IsDirectory      bool         `json:"is_directory"`
-	IsHidden         bool         `json:"is_hidden"`
-	UpdatedAt        time.Time    `json:"updated_at"`
-	DeletedAt        sql.NullTime `json:"deleted_at"`
-	ParentID         uint64       `json:"parent_id"`
-}
-
-func (q *Queries) ListVisibleTaskFileChildrenByParents(ctx context.Context, arg ListVisibleTaskFileChildrenByParentsParams) ([]ListVisibleTaskFileChildrenByParentsRow, error) {
-	query := listVisibleTaskFileChildrenByParents
-	var queryParams []interface{}
-	queryParams = append(queryParams, arg.ProjectID)
-	if len(arg.ParentIds) > 0 {
-		for _, v := range arg.ParentIds {
-			queryParams = append(queryParams, v)
-		}
-		query = strings.Replace(query, "/*SLICE:parent_ids*/?", strings.Repeat(",?", len(arg.ParentIds))[1:], 1)
-	} else {
-		query = strings.Replace(query, "/*SLICE:parent_ids*/?", "NULL", 1)
-	}
-	queryParams = append(queryParams, arg.Limit)
-	rows, err := q.db.QueryContext(ctx, query, queryParams...)
+func (q *Queries) ListVisibleTaskFileChildrenByParentAfter(ctx context.Context, arg ListVisibleTaskFileChildrenByParentAfterParams) ([]MagicSuperAgentTaskFile, error) {
+	rows, err := q.db.QueryContext(ctx, listVisibleTaskFileChildrenByParentAfter,
+		arg.ProjectID,
+		arg.ParentID,
+		arg.Sort,
+		arg.Sort_2,
+		arg.FileID,
+		arg.Limit,
+	)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	items := []ListVisibleTaskFileChildrenByParentsRow{}
+	items := []MagicSuperAgentTaskFile{}
 	for rows.Next() {
-		var i ListVisibleTaskFileChildrenByParentsRow
+		var i MagicSuperAgentTaskFile
 		if err := rows.Scan(
+			&i.FileID,
+			&i.UserID,
 			&i.OrganizationCode,
 			&i.ProjectID,
-			&i.FileID,
-			&i.FileKey,
+			&i.TopicID,
+			&i.LatestModifiedTopicID,
+			&i.TaskID,
+			&i.LatestModifiedTaskID,
+			&i.FileType,
 			&i.FileName,
 			&i.FileExtension,
+			&i.FileKey,
 			&i.FileSize,
-			&i.IsDirectory,
+			&i.ExternalUrl,
+			&i.StorageType,
 			&i.IsHidden,
+			&i.IsDirectory,
+			&i.Sort,
+			&i.ParentID,
+			&i.Metadata,
+			&i.Source,
+			&i.CreatedAt,
 			&i.UpdatedAt,
 			&i.DeletedAt,
-			&i.ParentID,
 		); err != nil {
 			return nil, err
 		}

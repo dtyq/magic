@@ -170,6 +170,14 @@ func (l *RedisLock) fullKey() string {
 	return l.manager.config.LockPrefix + l.key
 }
 
+// FullKey 返回业务锁 key 在 Redis 中的完整 key。
+func (m *RedisLockManager) FullKey(key string) string {
+	if m == nil || m.config == nil {
+		return key
+	}
+	return m.config.LockPrefix + key
+}
+
 // CreateLock 创建新的 Redis 锁实例
 func (m *RedisLockManager) CreateLock(key string, ttl time.Duration) *RedisLock {
 	return &RedisLock{

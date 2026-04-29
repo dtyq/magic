@@ -20,6 +20,14 @@ WHERE knowledge_base_code = ?
   AND bind_type = ?
 ORDER BY id ASC;
 
+-- name: ListKnowledgeBaseBindingIDsByOrgAndCode :many
+SELECT bind_id
+FROM knowledge_base_bindings
+WHERE organization_code = ?
+  AND knowledge_base_code = ?
+  AND bind_type = ?
+ORDER BY id ASC;
+
 -- name: ListKnowledgeBaseBindingPairsByCodes :many
 SELECT knowledge_base_code, bind_id
 FROM knowledge_base_bindings

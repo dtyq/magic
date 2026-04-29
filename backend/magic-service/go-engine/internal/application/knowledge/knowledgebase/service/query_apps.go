@@ -6,7 +6,7 @@ import (
 
 	pagehelper "magic/internal/application/knowledge/helper/page"
 	kbdto "magic/internal/application/knowledge/knowledgebase/dto"
-	knowledgebasedomain "magic/internal/domain/knowledge/knowledgebase/service"
+	kbrepository "magic/internal/domain/knowledge/knowledgebase/repository"
 )
 
 // KnowledgeBaseSaveProcessApp 承接知识库进度更新查询流。
@@ -58,7 +58,7 @@ func (s *KnowledgeBaseSaveProcessApp) SaveProcess(
 		return nil, fmt.Errorf("failed to update knowledge base progress: %w", err)
 	}
 
-	dto, err := s.entityToDTOWithContext(ctx, kb)
+	dto, err := s.entityToDTOWithContext(ctx, kb, input.UserID)
 	if err != nil {
 		return nil, err
 	}
@@ -79,7 +79,7 @@ func (s *KnowledgeBaseShowApp) Show(
 		return nil, fmt.Errorf("failed to find knowledge base: %w", err)
 	}
 
-	dto, err := s.entityToDTOWithContext(ctx, kb)
+	dto, err := s.entityToDTOWithContext(ctx, kb, userID)
 	if err != nil {
 		return nil, err
 	}
@@ -108,7 +108,7 @@ func (s *KnowledgeBaseListApp) List(
 		return &pagehelper.Result{Total: 0, List: []*kbdto.KnowledgeBaseDTO{}}, nil
 	}
 	targetKnowledgeBaseType := knowledgeBaseTypeFromAgentCodes(normalizedAgentCodes)
-	query := &knowledgebasedomain.Query{
+	query := &kbrepository.Query{
 		OrganizationCode:  input.OrganizationCode,
 		Name:              input.Name,
 		Type:              input.Type,
@@ -143,6 +143,15 @@ func (s *KnowledgeBaseListApp) List(
 	if s != nil && s.domainService != nil {
 		effectiveModel = s.domainService.ResolveRuntimeRoute(ctx, nil).Model
 	}
+	sourceBindingsByKnowledgeBase, err := s.listKnowledgeBaseSourceBindingDTOs(
+		ctx,
+		input.OrganizationCode,
+		input.UserID,
+		listedCodes,
+	)
+	if err != nil {
+		return nil, err
+	}
 
 	list := make([]*kbdto.KnowledgeBaseDTO, len(kbs))
 	for i, kb := range kbs {
@@ -153,6 +162,7 @@ func (s *KnowledgeBaseListApp) List(
 			knowledgeBaseTypeFromKnowledgeBase(kb),
 		)
 		dto = applyKnowledgeBaseUserOperation(dto, operations[kb.Code])
+		dto.SourceBindings = sourceBindingsByKnowledgeBase[kb.Code]
 		list[i] = dto
 	}
 	s.populateFragmentCountsBatch(ctx, list)

@@ -48,8 +48,7 @@ class KnowledgeBaseDocumentApi extends AbstractKnowledgeBaseApi
         return $this->knowledgeBaseDocumentAppService->queryRaw(
             $this->getAuthorization(),
             $query,
-            $knowledgeBaseCode,
-            $this->createPage()
+            $knowledgeBaseCode
         );
     }
 

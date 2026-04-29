@@ -5,6 +5,7 @@ import (
 
 	pagehelper "magic/internal/application/knowledge/helper/page"
 	kbdto "magic/internal/application/knowledge/knowledgebase/dto"
+	revectorizeshared "magic/internal/application/knowledge/shared/revectorize"
 )
 
 // KnowledgeBaseCreateApp 承接知识库创建命令流。
@@ -124,6 +125,24 @@ func (s *KnowledgeBaseAppService) SaveProcess(
 	input *kbdto.SaveProcessKnowledgeBaseInput,
 ) (*kbdto.KnowledgeBaseDTO, error) {
 	return s.SaveProcessQueryApp().SaveProcess(ctx, input)
+}
+
+// SaveRevectorizeProgress 为知识库级重向量化用例提供进度持久化入口。
+func (s *KnowledgeBaseAppService) SaveRevectorizeProgress(
+	ctx context.Context,
+	input *revectorizeshared.SaveProcessInput,
+) error {
+	if input == nil {
+		return nil
+	}
+	_, err := s.SaveProcess(ctx, &kbdto.SaveProcessKnowledgeBaseInput{
+		OrganizationCode: input.OrganizationCode,
+		UserID:           input.UserID,
+		Code:             input.Code,
+		ExpectedNum:      input.ExpectedNum,
+		CompletedNum:     input.CompletedNum,
+	})
+	return err
 }
 
 // Show 兼容旧接线，内部转发给详情查询 app。

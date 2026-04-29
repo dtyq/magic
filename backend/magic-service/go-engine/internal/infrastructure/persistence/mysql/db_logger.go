@@ -5,12 +5,14 @@ import (
 	"context"
 	"database/sql"
 	"database/sql/driver"
+	"errors"
 	"fmt"
 	"reflect"
 	"slices"
 	"strconv"
 	"strings"
 	"time"
+	"unicode"
 	"unicode/utf8"
 
 	"magic/internal/infrastructure/logging"
@@ -22,8 +24,9 @@ const (
 	maxSQLLogLength     = 1024
 	sqlNullLiteral      = "NULL"
 	sqlTruncationSuffix = "...(truncated)"
-	slowSQLLogMessage   = "slowSql"
 	slowSQLThreshold    = 5 * time.Millisecond
+	sqlLogPrefix        = "mysql"
+	sqlFoldColumnCount  = 5
 )
 
 // DBLogger 包装 DBTX 接口以记录 SQL 查询日志
@@ -45,7 +48,7 @@ func NewDBLoggerWithMode(inner sqlc.DBTX, logger *logging.SugaredLogger, logAllS
 		inner:     inner,
 		logger:    logger,
 		logAllSQL: logAllSQL,
-		logErrors: logAllSQL,
+		logErrors: true,
 	}
 }
 
@@ -57,23 +60,20 @@ func (l *DBLogger) ExecContext(ctx context.Context, query string, args ...any) (
 
 	if err != nil {
 		l.logSQLResult(ctx, sqlResultLogInput{
-			successMsg: "SQL Exec Success",
-			errorMsg:   "SQL Exec Failed",
-			op:         "exec",
-			duration:   duration,
-			query:      query,
-			args:       args,
-			err:        err,
+			op:       "exec",
+			duration: duration,
+			query:    query,
+			args:     args,
+			err:      err,
 		})
 		return res, fmt.Errorf("exec context failed: %w", err)
 	}
 
 	l.logSQLResult(ctx, sqlResultLogInput{
-		successMsg: "SQL Exec Success",
-		op:         "exec",
-		duration:   duration,
-		query:      query,
-		args:       args,
+		op:       "exec",
+		duration: duration,
+		query:    query,
+		args:     args,
 	})
 	return res, nil
 }
@@ -86,21 +86,18 @@ func (l *DBLogger) PrepareContext(ctx context.Context, query string) (*sql.Stmt,
 
 	if err != nil {
 		l.logSQLResult(ctx, sqlResultLogInput{
-			successMsg: "SQL Prepare Success",
-			errorMsg:   "SQL Prepare Failed",
-			op:         "prepare",
-			duration:   duration,
-			query:      query,
-			err:        err,
+			op:       "prepare",
+			duration: duration,
+			query:    query,
+			err:      err,
 		})
 		return stmt, fmt.Errorf("prepare context failed: %w", err)
 	}
 
 	l.logSQLResult(ctx, sqlResultLogInput{
-		successMsg: "SQL Prepare Success",
-		op:         "prepare",
-		duration:   duration,
-		query:      query,
+		op:       "prepare",
+		duration: duration,
+		query:    query,
 	})
 	return stmt, nil
 }
@@ -113,23 +110,20 @@ func (l *DBLogger) QueryContext(ctx context.Context, query string, args ...any) 
 
 	if err != nil {
 		l.logSQLResult(ctx, sqlResultLogInput{
-			successMsg: "SQL Query Success",
-			errorMsg:   "SQL Query Failed",
-			op:         "query",
-			duration:   duration,
-			query:      query,
-			args:       args,
-			err:        err,
+			op:       "query",
+			duration: duration,
+			query:    query,
+			args:     args,
+			err:      err,
 		})
 		return rows, fmt.Errorf("query context failed: %w", err)
 	}
 
 	l.logSQLResult(ctx, sqlResultLogInput{
-		successMsg: "SQL Query Success",
-		op:         "query",
-		duration:   duration,
-		query:      query,
-		args:       args,
+		op:       "query",
+		duration: duration,
+		query:    query,
+		args:     args,
 	})
 	return rows, nil
 }
@@ -139,40 +133,42 @@ func (l *DBLogger) QueryRowContext(ctx context.Context, query string, args ...an
 	start := time.Now()
 	row := l.inner.QueryRowContext(ctx, query, args...)
 	duration := time.Since(start)
+	rowErr := row.Err()
+	if errors.Is(rowErr, sql.ErrNoRows) {
+		rowErr = nil
+	}
 
 	l.logSQLResult(ctx, sqlResultLogInput{
-		successMsg: "SQL QueryRow Executed",
-		op:         "query_row",
-		duration:   duration,
-		query:      query,
-		args:       args,
+		op:       "query_row",
+		duration: duration,
+		query:    query,
+		args:     args,
+		err:      rowErr,
 	})
 
 	return row
 }
 
 func buildSQLFields(op string, duration time.Duration, query string, args []any) []any {
-	sqlTemplate := normalizeSQLForLog(query)
 	sqlRendered := normalizeSQLForLog(renderSQLWithArgs(query, args))
+	return buildSQLFieldsFromRendered(op, duration, sqlRendered)
+}
+
+func buildSQLFieldsFromRendered(op string, duration time.Duration, sqlRendered string) []any {
 	return []any{
 		"type", "sql",
 		"op", op,
 		logkey.DurationMS, logkey.DurationToMS(duration),
 		logkey.SQL, sqlRendered,
-		logkey.SQLTemplate, sqlTemplate,
-		logkey.SQLRendered, sqlRendered,
-		logkey.ArgsCount, len(args),
 	}
 }
 
 type sqlResultLogInput struct {
-	successMsg string
-	errorMsg   string
-	op         string
-	duration   time.Duration
-	query      string
-	args       []any
-	err        error
+	op       string
+	duration time.Duration
+	query    string
+	args     []any
+	err      error
 }
 
 func (l *DBLogger) logSQLResult(ctx context.Context, input sqlResultLogInput) {
@@ -187,29 +183,59 @@ func (l *DBLogger) logSQLResult(ctx context.Context, input sqlResultLogInput) {
 		return
 	}
 
-	fields := buildSQLFields(input.op, input.duration, input.query, input.args)
+	if needsDebugLog && !needsSlowLog && !needsErrorLog {
+		l.logger.DebugContext(ctx, buildSQLSummaryMessage(input.duration, input.query, input.args))
+		return
+	}
+
+	details := buildSQLLogDetails(input.duration, input.query, input.args)
+	fields := buildSQLFieldsFromRendered(input.op, input.duration, details.renderedSQL)
 	if needsSlowLog {
 		slowFields := append(slices.Clone(fields), logkey.SlowSQLThresholdMS, logkey.DurationToMS(slowSQLThreshold))
 		if input.err != nil {
 			slowFields = append(slowFields, logkey.Error, input.err)
 		}
-		l.logger.WarnContext(ctx, slowSQLLogMessage, slowFields...)
+		l.logger.WarnContext(ctx, details.message, slowFields...)
 	}
 
 	if needsErrorLog {
-		l.logger.ErrorContext(ctx, input.errorMsg, append(fields, logkey.Error, input.err)...)
+		l.logger.ErrorContext(ctx, details.message, append(fields, logkey.Error, input.err)...)
 		return
-	}
-
-	if needsDebugLog {
-		l.logger.DebugContext(ctx, input.successMsg, fields...)
 	}
 }
 
+type sqlLogDetails struct {
+	message     string
+	renderedSQL string
+}
+
+func buildSQLLogDetails(duration time.Duration, query string, args []any) sqlLogDetails {
+	renderedSQL := renderSQLWithArgs(query, args)
+	return sqlLogDetails{
+		message:     buildSQLLogMessage(duration, renderedSQL),
+		renderedSQL: normalizeSQLForLog(renderedSQL),
+	}
+}
+
+func buildSQLSummaryMessage(duration time.Duration, query string, args []any) string {
+	return buildSQLLogMessage(duration, renderSQLWithArgs(query, args))
+}
+
+func buildSQLLogMessage(duration time.Duration, renderedSQL string) string {
+	return fmt.Sprintf("[%s:%.2fms] %s", sqlLogPrefix, logkey.DurationToMS(duration), summarizeSQLForLog(renderedSQL))
+}
+
 func normalizeSQLForLog(query string) string {
-	compact := strings.Join(strings.Fields(strings.TrimSpace(query)), " ")
-	if utf8.RuneCountInString(compact) <= maxSQLLogLength {
-		return compact
+	return truncateSQLForLog(compactSQLForLog(query))
+}
+
+func compactSQLForLog(query string) string {
+	return strings.Join(strings.Fields(strings.TrimSpace(query)), " ")
+}
+
+func truncateSQLForLog(query string) string {
+	if utf8.RuneCountInString(query) <= maxSQLLogLength {
+		return query
 	}
 
 	suffixRunes := utf8.RuneCountInString(sqlTruncationSuffix)
@@ -217,8 +243,253 @@ func normalizeSQLForLog(query string) string {
 		return string([]rune(sqlTruncationSuffix)[:maxSQLLogLength])
 	}
 
-	runes := []rune(compact)
+	runes := []rune(query)
 	return string(runes[:maxSQLLogLength-suffixRunes]) + sqlTruncationSuffix
+}
+
+func summarizeSQLForLog(query string) string {
+	compact := compactSQLForLog(stripLeadingSQLComments(query))
+	if compact == "" {
+		return compact
+	}
+	if folded, ok := foldSimpleSelectColumns(compact); ok {
+		return truncateSQLForLog(compactSQLForLog(folded))
+	}
+	return truncateSQLForLog(compact)
+}
+
+func stripLeadingSQLComments(query string) string {
+	lines := strings.Split(query, "\n")
+	start := 0
+	for start < len(lines) {
+		trimmed := strings.TrimSpace(lines[start])
+		if trimmed == "" || strings.HasPrefix(trimmed, "--") {
+			start++
+			continue
+		}
+		break
+	}
+	return strings.Join(lines[start:], "\n")
+}
+
+func foldSimpleSelectColumns(query string) (string, bool) {
+	upperQuery := strings.ToUpper(query)
+	if !strings.HasPrefix(upperQuery, "SELECT ") {
+		return "", false
+	}
+	if strings.HasPrefix(upperQuery, "WITH ") ||
+		findTopLevelKeyword(query, " JOIN ") >= 0 ||
+		findTopLevelKeyword(query, " UNION ") >= 0 ||
+		findTopLevelKeyword(query, " INTERSECT ") >= 0 ||
+		findTopLevelKeyword(query, " EXCEPT ") >= 0 ||
+		strings.Contains(upperQuery, "(SELECT ") ||
+		strings.Contains(upperQuery, "( SELECT ") {
+		return "", false
+	}
+
+	fromIdx := findTopLevelKeyword(query, " FROM ")
+	if fromIdx < len("SELECT ") {
+		return "", false
+	}
+
+	selectPart := strings.TrimSpace(query[len("SELECT "):fromIdx])
+	if selectPart == "" || strings.Contains(selectPart, "*") {
+		return "", false
+	}
+
+	fromRemainder := query[fromIdx+len(" FROM "):]
+	tableSource, tail := splitFromRemainder(fromRemainder)
+	if !isSimpleTableSource(tableSource) {
+		return "", false
+	}
+
+	columns := splitCSV(selectPart)
+	if len(columns) < sqlFoldColumnCount {
+		return "", false
+	}
+	for _, column := range columns {
+		if !isSimpleSelectColumn(column, tableSource) {
+			return "", false
+		}
+	}
+
+	return buildFoldedSelectSummary(tableSource, tail), true
+}
+
+func splitFromRemainder(fromRemainder string) (string, string) {
+	nextClause := findFirstTopLevelKeyword(fromRemainder, []string{
+		" WHERE ",
+		" GROUP BY ",
+		" HAVING ",
+		" ORDER BY ",
+		" LIMIT ",
+		" FOR UPDATE",
+		" LOCK IN SHARE MODE",
+		" INTO ",
+	})
+	if nextClause == -1 {
+		return strings.TrimSpace(fromRemainder), ""
+	}
+	return strings.TrimSpace(fromRemainder[:nextClause]), fromRemainder[nextClause:]
+}
+
+func splitCSV(value string) []string {
+	parts := strings.Split(value, ",")
+	result := make([]string, 0, len(parts))
+	for _, part := range parts {
+		part = strings.TrimSpace(part)
+		if part == "" {
+			return nil
+		}
+		result = append(result, part)
+	}
+	return result
+}
+
+func isSimpleTableSource(source string) bool {
+	if source == "" || strings.ContainsAny(source, " ,()") {
+		return false
+	}
+	return isQualifiedIdentifier(stripBackticks(source))
+}
+
+func isSimpleSelectColumn(column, source string) bool {
+	if column == "" || strings.ContainsAny(column, " ()+-/*%<>=!|&^?:") {
+		return false
+	}
+	if strings.Contains(strings.ToUpper(column), " AS ") {
+		return false
+	}
+
+	normalizedColumn := stripBackticks(column)
+	parts := strings.Split(normalizedColumn, ".")
+	if len(parts) == 0 {
+		return false
+	}
+
+	columnName := parts[len(parts)-1]
+	if !isIdentifier(columnName) {
+		return false
+	}
+	if len(parts) == 1 {
+		return true
+	}
+
+	prefix := strings.Join(parts[:len(parts)-1], ".")
+	if !isQualifiedIdentifier(prefix) {
+		return false
+	}
+
+	normalizedSource := stripBackticks(source)
+	return prefix == normalizedSource || prefix == lastIdentifierSegment(normalizedSource)
+}
+
+func isQualifiedIdentifier(value string) bool {
+	parts := strings.Split(value, ".")
+	if len(parts) == 0 {
+		return false
+	}
+	for _, part := range parts {
+		if !isIdentifier(part) {
+			return false
+		}
+	}
+	return true
+}
+
+func isIdentifier(value string) bool {
+	if value == "" {
+		return false
+	}
+	for _, r := range value {
+		if r != '_' && !unicode.IsLetter(r) && !unicode.IsDigit(r) {
+			return false
+		}
+	}
+	return true
+}
+
+func lastIdentifierSegment(value string) string {
+	if idx := strings.LastIndex(value, "."); idx >= 0 {
+		return value[idx+1:]
+	}
+	return value
+}
+
+func stripBackticks(value string) string {
+	return strings.ReplaceAll(value, "`", "")
+}
+
+func buildFoldedSelectSummary(tableSource, tail string) string {
+	return strings.Join([]string{"SELECT", "*", "FROM", tableSource}, " ") + tail
+}
+
+func findFirstTopLevelKeyword(query string, keywords []string) int {
+	first := -1
+	for _, keyword := range keywords {
+		idx := findTopLevelKeyword(query, keyword)
+		if idx == -1 {
+			continue
+		}
+		if first == -1 || idx < first {
+			first = idx
+		}
+	}
+	return first
+}
+
+func findTopLevelKeyword(query, keyword string) int {
+	if keyword == "" || len(query) < len(keyword) {
+		return -1
+	}
+
+	var quoted byte
+	depth := 0
+	for i := 0; i < len(query); i++ {
+		ch := query[i]
+		if quoted != 0 {
+			quoted, i = advanceQuotedState(query, i, quoted)
+			continue
+		}
+
+		switch ch {
+		case '\'', '"', '`':
+			quoted = ch
+		case '(':
+			depth++
+		case ')':
+			if depth > 0 {
+				depth--
+			}
+		default:
+			if depth == 0 && matchesKeywordAt(query, keyword, i) {
+				return i
+			}
+		}
+	}
+	return -1
+}
+
+func advanceQuotedState(query string, idx int, quoted byte) (byte, int) {
+	if query[idx] != quoted {
+		return quoted, idx
+	}
+	if isRepeatedQuote(query, idx, quoted) {
+		return quoted, idx + 1
+	}
+	if idx > 0 && query[idx-1] == '\\' {
+		return quoted, idx
+	}
+
+	return 0, idx
+}
+
+func isRepeatedQuote(query string, idx int, quoted byte) bool {
+	return quoted != '`' && idx+1 < len(query) && query[idx+1] == quoted
+}
+
+func matchesKeywordAt(query, keyword string, idx int) bool {
+	return idx+len(keyword) <= len(query) && strings.EqualFold(query[idx:idx+len(keyword)], keyword)
 }
 
 func renderSQLWithArgs(query string, args []any) string {

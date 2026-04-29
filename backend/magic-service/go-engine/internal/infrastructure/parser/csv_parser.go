@@ -7,15 +7,22 @@ import (
 	"io"
 	"strings"
 
-	document "magic/internal/domain/knowledge/document/service"
+	document "magic/internal/domain/knowledge/document/metadata"
 )
 
 // CSVParser CSV 解析器
-type CSVParser struct{}
+type CSVParser struct {
+	limits document.ResourceLimits
+}
 
 // NewCSVParser 创建 CSV 解析器
 func NewCSVParser() *CSVParser {
-	return &CSVParser{}
+	return NewCSVParserWithLimits(document.DefaultResourceLimits())
+}
+
+// NewCSVParserWithLimits 创建带资源限制的 CSV 解析器。
+func NewCSVParserWithLimits(limits document.ResourceLimits) *CSVParser {
+	return &CSVParser{limits: document.NormalizeResourceLimits(limits)}
 }
 
 // Parse 解析 CSV 文件
@@ -62,7 +69,7 @@ func (p *CSVParser) ParseDocumentWithOptions(
 		}
 		return document.NewPlainTextParsedDocument(fileType, strings.TrimSpace(string(content))), nil
 	}
-	parsed, err := parseCSVDocument(file, fileURL, fileType)
+	parsed, err := parseCSVDocument(file, fileURL, fileType, p.limits)
 	if err != nil {
 		return nil, fmt.Errorf("parse csv document failed: %w", err)
 	}

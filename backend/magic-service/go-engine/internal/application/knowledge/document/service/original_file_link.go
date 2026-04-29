@@ -2,13 +2,16 @@ package docapp
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net/http"
 	"strings"
 	"time"
 
 	docdto "magic/internal/application/knowledge/document/dto"
+	docentity "magic/internal/domain/knowledge/document/entity"
 	documentdomain "magic/internal/domain/knowledge/document/service"
+	"magic/internal/pkg/projectfile"
 	"magic/internal/pkg/thirdplatform"
 )
 
@@ -17,8 +20,11 @@ var errDocumentFileLinkProviderNil = fmt.Errorf("document file link provider is 
 // GetOriginalFileLink 获取文档原始文件访问链接。
 func (s *DocumentAppService) GetOriginalFileLink(
 	ctx context.Context,
-	code, knowledgeBaseCode, organizationCode string,
+	code, knowledgeBaseCode, organizationCode, userID string,
 ) (*docdto.OriginalFileLinkDTO, error) {
+	if err := s.authorizeKnowledgeBaseAction(ctx, organizationCode, userID, knowledgeBaseCode, "read"); err != nil {
+		return nil, err
+	}
 	if err := validateDocumentKnowledgeBaseCode(knowledgeBaseCode); err != nil {
 		return nil, err
 	}
@@ -52,7 +58,7 @@ func (s *DocumentAppService) GetOriginalFileLink(
 
 func (s *DocumentAppService) buildExternalOriginalFileLink(
 	ctx context.Context,
-	doc *documentdomain.KnowledgeBaseDocument,
+	doc *docentity.KnowledgeBaseDocument,
 	result *docdto.OriginalFileLinkDTO,
 ) (*docdto.OriginalFileLinkDTO, error) {
 	fileKey := strings.TrimSpace(doc.DocumentFile.URL)
@@ -79,11 +85,14 @@ func (s *DocumentAppService) buildExternalOriginalFileLink(
 
 func (s *DocumentAppService) buildProjectOriginalFileLink(
 	ctx context.Context,
-	doc *documentdomain.KnowledgeBaseDocument,
+	doc *docentity.KnowledgeBaseDocument,
 	result *docdto.OriginalFileLinkDTO,
 ) (*docdto.OriginalFileLinkDTO, error) {
 	link, err := documentdomain.ResolveProjectFileContentLink(ctx, s.projectFileContentPort, doc.ProjectFileID, 10*time.Minute)
 	if err != nil {
+		if errors.Is(err, projectfile.ErrFileUnavailable) {
+			return result, nil
+		}
 		return nil, fmt.Errorf("get original project file link: %w", err)
 	}
 	if link == "" {
@@ -101,7 +110,7 @@ func (s *DocumentAppService) buildProjectOriginalFileLink(
 
 func (s *DocumentAppService) buildThirdPlatformOriginalFileLink(
 	ctx context.Context,
-	doc *documentdomain.KnowledgeBaseDocument,
+	doc *docentity.KnowledgeBaseDocument,
 	result *docdto.OriginalFileLinkDTO,
 ) (*docdto.OriginalFileLinkDTO, error) {
 	if s == nil || s.thirdPlatformDocumentPort == nil {
@@ -121,7 +130,7 @@ func (s *DocumentAppService) buildThirdPlatformOriginalFileLink(
 		return merged, nil
 	}
 
-	downloadURL := strings.TrimSpace(resolved.DownloadURL)
+	downloadURL := resolveThirdPlatformDownloadURL(doc, resolved)
 	if downloadURL == "" {
 		return merged, nil
 	}
@@ -134,7 +143,25 @@ func (s *DocumentAppService) buildThirdPlatformOriginalFileLink(
 	return merged, nil
 }
 
-func buildUnavailableOriginalFileLink(doc *documentdomain.KnowledgeBaseDocument) *docdto.OriginalFileLinkDTO {
+func resolveThirdPlatformDownloadURL(
+	doc *docentity.KnowledgeBaseDocument,
+	resolved *thirdplatform.DocumentResolveResult,
+) string {
+	if resolved == nil {
+		return ""
+	}
+
+	extension := ""
+	if file, ok := documentdomain.FileFromPayload(resolved.DocumentFile); ok && file != nil {
+		extension = documentdomain.ResolveDocumentFileExtension(file, "")
+	}
+	if extension == "" && doc != nil && doc.DocumentFile != nil {
+		extension = documentdomain.ResolveDocumentFileExtension(doc.DocumentFile, "")
+	}
+	return thirdplatform.SelectDownloadURL(extension, resolved.DownloadURLs, resolved.DownloadURL)
+}
+
+func buildUnavailableOriginalFileLink(doc *docentity.KnowledgeBaseDocument) *docdto.OriginalFileLinkDTO {
 	if doc == nil || doc.DocumentFile == nil {
 		return &docdto.OriginalFileLinkDTO{
 			Available: false,

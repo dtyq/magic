@@ -39,14 +39,14 @@ func FragmentConfigEntityToDTO(cfg *shared.FragmentConfig) *FragmentConfigDTO {
 	}
 	if normalized.Normal != nil {
 		result.Normal = &NormalFragmentConfigDTO{
-			TextPreprocessRule: slices.Clone(normalized.Normal.TextPreprocessRule),
+			TextPreprocessRule: cloneIntSliceOrEmpty(normalized.Normal.TextPreprocessRule),
 			SegmentRule:        segmentRuleEntityToDTO(normalized.Normal.SegmentRule),
 		}
 	}
 	if normalized.Hierarchy != nil {
 		result.Hierarchy = &HierarchyFragmentConfigDTO{
 			MaxLevel:           normalized.Hierarchy.MaxLevel,
-			TextPreprocessRule: slices.Clone(normalized.Hierarchy.TextPreprocessRule),
+			TextPreprocessRule: cloneIntSliceOrEmpty(normalized.Hierarchy.TextPreprocessRule),
 			KeepHierarchyInfo:  normalized.Hierarchy.KeepHierarchyInfo,
 		}
 	}
@@ -64,14 +64,14 @@ func FragmentConfigEntityToOutputDTO(cfg *shared.FragmentConfig) *FragmentConfig
 	}
 	if normalized.Normal != nil {
 		result.Normal = &NormalFragmentConfigOutputDTO{
-			TextPreprocessRule: slices.Clone(normalized.Normal.TextPreprocessRule),
+			TextPreprocessRule: cloneIntSliceOrEmpty(normalized.Normal.TextPreprocessRule),
 			SegmentRule:        segmentRuleEntityToOutputDTO(normalized.Normal.SegmentRule),
 		}
 	}
 	if normalized.Hierarchy != nil {
 		result.Hierarchy = &HierarchyFragmentConfigDTO{
 			MaxLevel:           normalized.Hierarchy.MaxLevel,
-			TextPreprocessRule: slices.Clone(normalized.Hierarchy.TextPreprocessRule),
+			TextPreprocessRule: cloneIntSliceOrEmpty(normalized.Hierarchy.TextPreprocessRule),
 			KeepHierarchyInfo:  normalized.Hierarchy.KeepHierarchyInfo,
 		}
 	}
@@ -93,7 +93,7 @@ func NormalizeFragmentConfigOutputDTO(cfg *FragmentConfigOutputDTO) *FragmentCon
 	}
 	if cfg.Normal != nil {
 		result.Normal = &NormalFragmentConfigOutputDTO{
-			TextPreprocessRule: slices.Clone(cfg.Normal.TextPreprocessRule),
+			TextPreprocessRule: cloneIntSliceOrEmpty(cfg.Normal.TextPreprocessRule),
 		}
 		if cfg.Normal.SegmentRule != nil {
 			segmentRule := *cfg.Normal.SegmentRule
@@ -103,10 +103,18 @@ func NormalizeFragmentConfigOutputDTO(cfg *FragmentConfigOutputDTO) *FragmentCon
 	}
 	if cfg.Hierarchy != nil {
 		hierarchy := *cfg.Hierarchy
-		hierarchy.TextPreprocessRule = slices.Clone(cfg.Hierarchy.TextPreprocessRule)
+		hierarchy.TextPreprocessRule = cloneIntSliceOrEmpty(cfg.Hierarchy.TextPreprocessRule)
 		result.Hierarchy = &hierarchy
 	}
 	return result
+}
+
+func cloneIntSliceOrEmpty(values []int) []int {
+	cloned := slices.Clone(values)
+	if cloned == nil {
+		return []int{}
+	}
+	return cloned
 }
 
 func fragmentConfigDTOToEntityRaw(cfg *FragmentConfigDTO) *shared.FragmentConfig {

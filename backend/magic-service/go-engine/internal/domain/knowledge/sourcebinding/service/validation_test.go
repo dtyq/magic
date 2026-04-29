@@ -4,13 +4,14 @@ import (
 	"errors"
 	"testing"
 
-	sourcebinding "magic/internal/domain/knowledge/sourcebinding/service"
+	sourcebinding "magic/internal/domain/knowledge/sourcebinding/entity"
+	sourcebindingservice "magic/internal/domain/knowledge/sourcebinding/service"
 )
 
 func TestValidateBindingsProjectRejectsInvalidTargetType(t *testing.T) {
 	t.Parallel()
 
-	err := sourcebinding.ValidateBindings(sourcebinding.SemanticProject, []sourcebinding.Binding{{
+	err := sourcebindingservice.ValidateBindings(sourcebinding.SemanticProject, []sourcebinding.Binding{{
 		Provider: sourcebinding.ProviderProject,
 		RootType: sourcebinding.RootTypeProject,
 		RootRef:  "300",
@@ -28,7 +29,7 @@ func TestValidateBindingsProjectRejectsInvalidTargetType(t *testing.T) {
 func TestNormalizeBindingsCanonicalizesGroupTargetAndDefaultSyncMode(t *testing.T) {
 	t.Parallel()
 
-	bindings := sourcebinding.NormalizeBindings([]sourcebinding.Binding{{
+	bindings := sourcebindingservice.NormalizeBindings([]sourcebinding.Binding{{
 		Provider: " TeamShare ",
 		RootType: " Knowledge_Base ",
 		RootRef:  " KB-1 ",
@@ -54,5 +55,27 @@ func TestNormalizeBindingsCanonicalizesGroupTargetAndDefaultSyncMode(t *testing.
 	}
 	if bindings[0].Targets[0].TargetRef != "G-1" {
 		t.Fatalf("expected trimmed target ref, got %#v", bindings[0].Targets[0])
+	}
+}
+
+func TestValidateBindingsRejectsDuplicateRoot(t *testing.T) {
+	t.Parallel()
+
+	err := sourcebindingservice.ValidateBindings(sourcebinding.SemanticProject, []sourcebinding.Binding{
+		{
+			Provider: sourcebinding.ProviderProject,
+			RootType: sourcebinding.RootTypeProject,
+			RootRef:  "300",
+			SyncMode: sourcebinding.SyncModeManual,
+		},
+		{
+			Provider: " Project ",
+			RootType: " PROJECT ",
+			RootRef:  "300",
+			SyncMode: sourcebinding.SyncModeManual,
+		},
+	})
+	if !errors.Is(err, sourcebinding.ErrDuplicateBindingRoot) {
+		t.Fatalf("expected ErrDuplicateBindingRoot, got %v", err)
 	}
 }

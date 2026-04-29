@@ -21,6 +21,7 @@ func RegisterKnowledgeBaseRoutes(router RPCRouter, h HandlerProvider) {
 		constants.MethodKnowledgeTeamshareManageableProgress,
 		constants.MethodKnowledgeBaseNodes,
 		constants.MethodKnowledgeBaseDestroy,
+		constants.MethodKnowledgeBaseRebuildPermissions,
 		constants.MethodKnowledgeBaseRebuild,
 		constants.MethodKnowledgeBaseRepairSourceBindings,
 		constants.MethodKnowledgeBaseRebuildCleanup,

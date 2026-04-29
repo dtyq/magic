@@ -3,14 +3,20 @@ package infra
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"os"
 	"strings"
+	"time"
 
 	"github.com/redis/go-redis/v9"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 
 	configloader "magic/internal/config"
 	autoloadcfg "magic/internal/config/autoload"
+	userdomain "magic/internal/domain/contact/user"
+	docrepo "magic/internal/domain/knowledge/document/repository"
 	documentdomain "magic/internal/domain/knowledge/document/service"
 	embeddingdomain "magic/internal/domain/knowledge/embedding"
 	fragmodel "magic/internal/domain/knowledge/fragment/model"
@@ -18,11 +24,14 @@ import (
 	"magic/internal/infrastructure/external"
 	"magic/internal/infrastructure/external/ocr"
 	"magic/internal/infrastructure/health"
+	"magic/internal/infrastructure/knowledge/documentsync"
+	sourcecallbackcache "magic/internal/infrastructure/knowledge/sourcecallbackcache"
 	"magic/internal/infrastructure/logging"
 	metrics "magic/internal/infrastructure/metrics"
 	parser "magic/internal/infrastructure/parser"
 	"magic/internal/infrastructure/persistence"
 	"magic/internal/infrastructure/persistence/mysql"
+	mysqlcontactuserrepo "magic/internal/infrastructure/persistence/mysql/contact/user"
 	mysqldocumentrepo "magic/internal/infrastructure/persistence/mysql/knowledge/document"
 	mysqlocrcache "magic/internal/infrastructure/persistence/mysql/knowledge/document/ocrcache"
 	mysqlembeddingcache "magic/internal/infrastructure/persistence/mysql/knowledge/embeddingcache"
@@ -33,6 +42,7 @@ import (
 	mysqlsupermagicagentrepo "magic/internal/infrastructure/persistence/mysql/knowledge/supermagicagent"
 	mysqltransaction "magic/internal/infrastructure/persistence/mysql/knowledge/transaction"
 	mysqlrebuild "magic/internal/infrastructure/persistence/mysql/rebuild"
+	mysqlsupermagicprojectrepo "magic/internal/infrastructure/persistence/mysql/supermagicproject"
 	mysqltaskfilerepo "magic/internal/infrastructure/persistence/mysql/taskfile"
 	redisrebuild "magic/internal/infrastructure/persistence/redis/rebuild"
 	ipcclient "magic/internal/infrastructure/rpc/jsonrpc/client"
@@ -40,6 +50,7 @@ import (
 	"magic/internal/infrastructure/vectordb/qdrant"
 	"magic/internal/pkg/lock"
 	"magic/internal/pkg/logkey"
+	"magic/internal/pkg/ratelimit"
 	"magic/internal/pkg/tokenizer"
 )
 
@@ -47,6 +58,19 @@ import (
 type FragmentVectorDBDataRepository struct {
 	*qdrant.VectorDBDataRepository[fragmodel.FragmentPayload]
 }
+
+const (
+	defaultEmbeddingRateLimitQPS                = 30
+	defaultEmbeddingRateLimitBurst              = 30
+	defaultEmbeddingRateLimitWaitTimeoutSeconds = 10
+	embeddingRateLimitRedisKeyPrefix            = "knowledge:rate_limit:"
+	embeddingRateLimitKey                       = "embedding:compute"
+	defaultOCRRateLimitQPS                      = 2
+	defaultOCRRateLimitBurst                    = 1
+	defaultOCRRateLimitWaitTimeoutSeconds       = 10
+	ocrRateLimitRedisKeyPrefix                  = "knowledge:rate_limit:"
+	ocrRateLimitKey                             = "ocr:Volcengine"
+)
 
 // ProvideConfig 提供配置
 func ProvideConfig() *autoloadcfg.Config {
@@ -131,9 +155,14 @@ func ProvideAccessTokenProvider(
 // ProvideThirdPlatformDocumentPort 提供第三方文档解析端口实现（Go -> PHP IPC）。
 func ProvideThirdPlatformDocumentPort(
 	server *unixsocket.Server,
+	redisClient *redis.Client,
 	logger *logging.SugaredLogger,
 ) *ipcclient.PHPThirdPlatformDocumentRPCClient {
-	return ipcclient.NewPHPThirdPlatformDocumentRPCClient(server, logger.Named("ipcclient.PHPThirdPlatformDocumentRPCClient"))
+	return ipcclient.NewPHPThirdPlatformDocumentRPCClient(
+		server,
+		logger.Named("ipcclient.PHPThirdPlatformDocumentRPCClient"),
+		redisClient,
+	)
 }
 
 // ProvideProjectFilePort 提供项目文件解析端口实现（Go -> PHP IPC）。
@@ -149,12 +178,14 @@ func ProvideTaskFileDomainService(client *mysql.SQLCClient) *taskfiledomain.Doma
 	return taskfiledomain.NewDomainService(mysqltaskfilerepo.NewRepository(client))
 }
 
-// ProvideOperationPermissionPort 提供权限 owner 授权端口实现（Go -> PHP IPC）。
-func ProvideOperationPermissionPort(
-	server *unixsocket.Server,
-	logger *logging.SugaredLogger,
-) *ipcclient.PHPOperationPermissionRPCClient {
-	return ipcclient.NewPHPOperationPermissionRPCClient(server, logger.Named("ipcclient.PHPOperationPermissionRPCClient"))
+// ProvideContactUserRepository 提供 Magic 联系人用户仓储。
+func ProvideContactUserRepository(client *mysql.SQLCClient) *mysqlcontactuserrepo.Repository {
+	return mysqlcontactuserrepo.NewRepository(client)
+}
+
+// ProvideContactUserDomainService 提供 Magic 联系人用户领域服务。
+func ProvideContactUserDomainService(repo *mysqlcontactuserrepo.Repository) *userdomain.DomainService {
+	return userdomain.NewDomainService(repo)
 }
 
 // ProvideKnowledgeBasePermissionPort 提供知识库权限只读端口实现（Go -> PHP IPC）。
@@ -183,10 +214,61 @@ func ProvideOCRConfigProvider(
 
 // ProvideEmbeddingService 提供嵌入服务
 func ProvideEmbeddingService(
+	cfg *autoloadcfg.Config,
+	redisClient *redis.Client,
 	factory *external.EmbeddingClientFactory,
 	defaultModel autoloadcfg.EmbeddingDefaultModel,
+	logger *logging.SugaredLogger,
 ) *external.EmbeddingService {
-	return external.NewEmbeddingService(factory.GetClient(), string(defaultModel))
+	service := external.NewEmbeddingService(factory.GetClient(), string(defaultModel))
+	if cfg == nil || !cfg.Embedding.RateLimitEnabled {
+		return service
+	}
+
+	limiter, err := ratelimit.NewRedisTokenBucket(redisClient, newEmbeddingRateLimitConfig(cfg))
+	if err != nil {
+		if logger != nil {
+			logger.KnowledgeWarnContext(
+				context.Background(),
+				"Init embedding rate limiter failed",
+				"error", err,
+			)
+		}
+		service.SetRateLimiter(
+			unavailableRateLimiter{err: err},
+			newEmbeddingServiceRateLimitConfig(cfg),
+		)
+		return service
+	}
+	service.SetRateLimiter(limiter, newEmbeddingServiceRateLimitConfig(cfg))
+	return service
+}
+
+func newEmbeddingRateLimitConfig(cfg *autoloadcfg.Config) ratelimit.Config {
+	rate := cfg.Embedding.RateLimitQPS
+	if rate <= 0 {
+		rate = defaultEmbeddingRateLimitQPS
+	}
+	burst := cfg.Embedding.RateLimitBurst
+	if burst <= 0 {
+		burst = defaultEmbeddingRateLimitBurst
+	}
+	return ratelimit.Config{
+		KeyPrefix:     embeddingRateLimitRedisKeyPrefix,
+		RatePerSecond: rate,
+		Burst:         burst,
+	}
+}
+
+func newEmbeddingServiceRateLimitConfig(cfg *autoloadcfg.Config) external.EmbeddingRateLimitConfig {
+	timeout := time.Duration(cfg.Embedding.RateLimitWaitTimeoutSeconds) * time.Second
+	if timeout <= 0 {
+		timeout = defaultEmbeddingRateLimitWaitTimeoutSeconds * time.Second
+	}
+	return external.EmbeddingRateLimitConfig{
+		Key:         embeddingRateLimitKey,
+		WaitTimeout: timeout,
+	}
 }
 
 // ProvideEmbeddingDimensionResolver 提供嵌入维度解析器
@@ -221,7 +303,7 @@ func ProvideFragmentRepository(client *mysql.SQLCClient, logger *logging.Sugared
 }
 
 // ProvideDocumentRepository 提供 KnowledgeBaseDocumentRepository 实现
-func ProvideDocumentRepository(client *mysql.SQLCClient, logger *logging.SugaredLogger) documentdomain.KnowledgeBaseDocumentRepository {
+func ProvideDocumentRepository(client *mysql.SQLCClient, logger *logging.SugaredLogger) docrepo.KnowledgeBaseDocumentRepository {
 	return mysqldocumentrepo.NewDocumentRepository(client, logger.Named("mysql.DocumentRepository"))
 }
 
@@ -229,13 +311,23 @@ func ProvideDocumentRepository(client *mysql.SQLCClient, logger *logging.Sugared
 func ProvideOCRResultCacheRepository(
 	client *mysql.SQLCClient,
 	logger *logging.SugaredLogger,
-) documentdomain.OCRResultCacheRepository {
+) docrepo.OCRResultCacheRepository {
 	return mysqlocrcache.NewRepository(client, logger.Named("mysql.OCRResultCacheRepository"))
 }
 
 // ProvideSourceBindingRepository 提供知识库来源绑定仓储实现。
-func ProvideSourceBindingRepository(client *mysql.SQLCClient) *mysqlsourcebindingrepo.Repository {
-	return mysqlsourcebindingrepo.NewRepository(client)
+func ProvideSourceBindingRepository(
+	client *mysql.SQLCClient,
+	redisClient *redis.Client,
+	cfg *autoloadcfg.Config,
+) *mysqlsourcebindingrepo.Repository {
+	_ = cfg
+	repo := mysqlsourcebindingrepo.NewRepository(client)
+	if redisClient == nil {
+		return repo
+	}
+	repo.SetSourceCallbackEligibilityInvalidator(sourcecallbackcache.NewRedisCache(redisClient))
+	return repo
 }
 
 // ProvideKnowledgeBaseBindingRepository 提供知识库绑定对象仓储实现。
@@ -246,6 +338,11 @@ func ProvideKnowledgeBaseBindingRepository(client *mysql.SQLCClient) *mysqlknowl
 // ProvideSuperMagicAgentRepository 提供数字员工只读仓储实现。
 func ProvideSuperMagicAgentRepository(client *mysql.SQLCClient) *mysqlsupermagicagentrepo.Repository {
 	return mysqlsupermagicagentrepo.NewRepository(client)
+}
+
+// ProvideSuperMagicProjectRepository 提供 super magic project 只读仓储实现。
+func ProvideSuperMagicProjectRepository(client *mysql.SQLCClient) *mysqlsupermagicprojectrepo.Repository {
+	return mysqlsupermagicprojectrepo.NewRepository(client)
 }
 
 // ProvideManualFragmentCoordinator 提供手工片段创建事务协调器。
@@ -281,11 +378,47 @@ func ProvideRedisClient(cfg *autoloadcfg.Config, logger *logging.SugaredLogger) 
 		return nil, nil, fmt.Errorf("failed to create Redis client: %w", err)
 	}
 	cleanup := func() {
-		if err := client.Close(); err != nil {
+		if err := closeRedisClient(client); err != nil {
 			redisLogger.WarnContext(context.Background(), "failed to close Redis client", logkey.Error, err)
 		}
 	}
 	return client, cleanup, nil
+}
+
+// ProvideDocumentSyncRabbitMQBroker 提供文档重向量化 RabbitMQ broker。
+func ProvideDocumentSyncRabbitMQBroker(
+	cfg *autoloadcfg.Config,
+	logger *logging.SugaredLogger,
+) (*documentsync.RabbitMQBroker, func(), error) {
+	if cfg == nil || !cfg.RabbitMQ.Enabled || cfg.RabbitMQ.Host == "" || cfg.RabbitMQ.Port <= 0 {
+		return nil, func() {}, nil
+	}
+
+	broker := documentsync.NewRabbitMQBroker(documentsync.RabbitMQBrokerConfig{
+		Enabled:  cfg.RabbitMQ.Enabled,
+		Host:     cfg.RabbitMQ.Host,
+		Port:     cfg.RabbitMQ.Port,
+		User:     cfg.RabbitMQ.Username,
+		Password: cfg.RabbitMQ.AuthValue,
+		VHost:    cfg.RabbitMQ.VHost,
+	}, logger.Named("documentsync.RabbitMQBroker"))
+	if err := broker.ValidateConfig(); err != nil {
+		logger.ErrorContext(
+			context.Background(),
+			"Validate document sync rabbitmq config failed",
+			"host", strings.TrimSpace(cfg.RabbitMQ.Host),
+			"port", cfg.RabbitMQ.Port,
+			"user", strings.TrimSpace(cfg.RabbitMQ.Username),
+			"vhost", strings.TrimSpace(cfg.RabbitMQ.VHost),
+			"error", err,
+		)
+		return nil, func() {}, fmt.Errorf("validate document sync rabbitmq broker config: %w", err)
+	}
+	return broker, func() {
+		if err := broker.Close(); err != nil {
+			logger.KnowledgeWarnContext(context.Background(), "failed to close document sync rabbitmq broker", logkey.Error, err)
+		}
+	}, nil
 }
 
 // ProvideRedisLockManager 提供 Redis 分布式锁管理器
@@ -337,8 +470,8 @@ func ProvideQdrantClient(cfg *autoloadcfg.Config, logger *logging.SugaredLogger)
 		return nil, nil, fmt.Errorf("failed to create Qdrant client: %w", err)
 	}
 	cleanup := func() {
-		if err := client.Close(); err != nil {
-			qdrantLogger.WarnContext(context.Background(), "failed to close Qdrant client", logkey.Error, err)
+		if err := closeQdrantClient(client); err != nil {
+			qdrantLogger.KnowledgeWarnContext(context.Background(), "failed to close Qdrant client", logkey.Error, err)
 		}
 	}
 	return client, cleanup, nil
@@ -373,6 +506,8 @@ func ProvideHealthCheckService(
 	mysqlClient *mysql.SQLCClient,
 	redisClient *redis.Client,
 	embeddingCacheRepo *mysqlembeddingcache.Repository,
+	qdrantClient *qdrant.Client,
+	rabbitMQBroker *documentsync.RabbitMQBroker,
 ) *health.CheckService {
 	// 适配 redis.Client 以满足 health.RedisPinger 接口
 	redisPinger := &redisPingerAdapter{client: redisClient}
@@ -381,7 +516,72 @@ func ProvideHealthCheckService(
 		"mysql": health.NewMySQLHealthChecker(mysqlClient.DB()),
 		"redis": health.NewRedisHealthChecker(redisPinger),
 	}
-	return health.NewHealthCheckService(checkers, embeddingCacheRepo)
+	return health.NewHealthCheckService(
+		checkers,
+		embeddingCacheRepo,
+		newContextCloser("mysql client", func(context.Context) error {
+			if mysqlClient == nil {
+				return nil
+			}
+			return mysqlClient.Close()
+		}),
+		newContextCloser("redis client", func(context.Context) error {
+			return closeRedisClient(redisClient)
+		}),
+		newContextCloser("qdrant client", func(context.Context) error {
+			return closeQdrantClient(qdrantClient)
+		}),
+		newContextCloser("rabbitmq broker", func(context.Context) error {
+			if rabbitMQBroker == nil {
+				return nil
+			}
+			return rabbitMQBroker.Close()
+		}),
+	)
+}
+
+type contextCloser struct {
+	name  string
+	close func(ctx context.Context) error
+}
+
+func newContextCloser(name string, closeFn func(ctx context.Context) error) health.Closer {
+	if closeFn == nil {
+		return nil
+	}
+	return contextCloser{name: name, close: closeFn}
+}
+
+func (c contextCloser) Close(ctx context.Context) error {
+	if c.close == nil {
+		return nil
+	}
+	if err := c.close(ctx); err != nil {
+		return fmt.Errorf("%s: %w", c.name, err)
+	}
+	return nil
+}
+
+func closeRedisClient(client *redis.Client) error {
+	if client == nil {
+		return nil
+	}
+	err := client.Close()
+	if err != nil && !errors.Is(err, redis.ErrClosed) {
+		return fmt.Errorf("close redis client: %w", err)
+	}
+	return nil
+}
+
+func closeQdrantClient(client *qdrant.Client) error {
+	if client == nil {
+		return nil
+	}
+	err := client.Close()
+	if err != nil && status.Code(err) != codes.Canceled {
+		return fmt.Errorf("close qdrant client: %w", err)
+	}
+	return nil
 }
 
 // redisPingerAdapter 适配 go-redis 客户端到 RedisPinger 接口
@@ -399,11 +599,68 @@ func (a *redisPingerAdapter) Ping(ctx context.Context) error {
 
 // ProvideVolcengineOCRClient 提供火山引擎 OCR 客户端。
 func ProvideVolcengineOCRClient(
+	cfg *autoloadcfg.Config,
+	redisClient *redis.Client,
 	configProvider documentdomain.OCRConfigProviderPort,
-	cacheRepo documentdomain.OCRResultCacheRepository,
+	usageReporter documentdomain.OCRUsageReporterPort,
+	cacheRepo docrepo.OCRResultCacheRepository,
 	logger *logging.SugaredLogger,
 ) *ocr.VolcengineOCRClient {
-	return ocr.NewVolcengineOCRClient(configProvider, cacheRepo, logger.Named("ocr.VolcengineOCRClient"))
+	client := ocr.NewVolcengineOCRClient(configProvider, cacheRepo, logger.Named("ocr.VolcengineOCRClient"))
+	client.SetUsageReporter(usageReporter)
+	limiter, err := ratelimit.NewRedisTokenBucket(redisClient, newOCRRateLimitConfig(cfg))
+	if err != nil {
+		client.SetRateLimiter(
+			unavailableRateLimiter{err: err},
+			newOCRClientRateLimitConfig(cfg),
+		)
+		return client
+	}
+	client.SetRateLimiter(limiter, newOCRClientRateLimitConfig(cfg))
+	return client
+}
+
+type unavailableRateLimiter struct {
+	err error
+}
+
+func (l unavailableRateLimiter) Wait(context.Context, string, time.Duration) (ratelimit.Result, error) {
+	if l.err == nil {
+		return ratelimit.Result{}, ratelimit.ErrUnavailable
+	}
+	return ratelimit.Result{}, fmt.Errorf("%w: %w", ratelimit.ErrUnavailable, l.err)
+}
+
+func newOCRRateLimitConfig(cfg *autoloadcfg.Config) ratelimit.Config {
+	rate := float64(defaultOCRRateLimitQPS)
+	if cfg != nil {
+		rate = cfg.OCR.RateLimitQPS
+	}
+	if rate <= 0 {
+		rate = defaultOCRRateLimitQPS
+	}
+	if rate > defaultOCRRateLimitQPS {
+		rate = defaultOCRRateLimitQPS
+	}
+	return ratelimit.Config{
+		KeyPrefix:     ocrRateLimitRedisKeyPrefix,
+		RatePerSecond: rate,
+		Burst:         defaultOCRRateLimitBurst,
+	}
+}
+
+func newOCRClientRateLimitConfig(cfg *autoloadcfg.Config) ocr.RateLimitConfig {
+	var timeout time.Duration
+	if cfg != nil {
+		timeout = time.Duration(cfg.OCR.RateLimitWaitTimeoutSeconds) * time.Second
+	}
+	if timeout <= 0 {
+		timeout = defaultOCRRateLimitWaitTimeoutSeconds * time.Second
+	}
+	return ocr.RateLimitConfig{
+		Key:         ocrRateLimitKey,
+		WaitTimeout: timeout,
+	}
 }
 
 // ProvidePHPFileRPCClient 提供 PHP 文件服务 RPC 客户端。
@@ -421,9 +678,10 @@ func ProvideDocumentParsers(
 	ocrClient *ocr.VolcengineOCRClient,
 ) []documentdomain.Parser {
 	maxOCRPerFile := documentdomain.NormalizeEmbeddedImageOCRLimit(cfg.OCR.MaxOCRPerFile)
+	resourceLimits := documentResourceLimitsFromConfig(cfg)
 	return []documentdomain.Parser{
-		parser.NewCSVParser(),
-		parser.NewXlsxParserWithOCR(ocrClient, maxOCRPerFile),
+		parser.NewCSVParserWithLimits(resourceLimits),
+		parser.NewXlsxParserWithOCRAndLimits(ocrClient, maxOCRPerFile, resourceLimits),
 		parser.NewDocxParserWithLimit(ocrClient, maxOCRPerFile),
 		parser.NewPptxParserWithLimit(ocrClient, maxOCRPerFile),
 		parser.NewPDFHybridParserWithLimit(ocrClient, maxOCRPerFile),
@@ -438,9 +696,31 @@ func ProvideDocumentParsers(
 
 // ProvideDocumentParseService 提供文档解析领域服务
 func ProvideDocumentParseService(
+	cfg *autoloadcfg.Config,
 	fileFetcher documentdomain.FileFetcher,
 	parsers []documentdomain.Parser,
 	logger *logging.SugaredLogger,
 ) *documentdomain.ParseService {
-	return documentdomain.NewParseService(fileFetcher, parsers, logger.Named("documentdomain.ParseService"))
+	return documentdomain.NewParseServiceWithLimits(
+		fileFetcher,
+		parsers,
+		logger.Named("documentdomain.ParseService"),
+		documentResourceLimitsFromConfig(cfg),
+	)
+}
+
+func documentResourceLimitsFromConfig(cfg *autoloadcfg.Config) documentdomain.ResourceLimits {
+	if cfg == nil {
+		return documentdomain.DefaultResourceLimits()
+	}
+	limits := cfg.DocumentResourceLimits
+	return documentdomain.NormalizeResourceLimits(documentdomain.ResourceLimits{
+		MaxSourceBytes:           limits.MaxSourceBytes,
+		MaxTabularRows:           limits.MaxTabularRows,
+		MaxTabularCells:          limits.MaxTabularCells,
+		MaxPlainTextChars:        limits.MaxPlainTextChars,
+		MaxParsedBlocks:          limits.MaxParsedBlocks,
+		MaxFragmentsPerDocument:  limits.MaxFragmentsPerDocument,
+		SyncMemorySoftLimitBytes: limits.SyncMemorySoftLimitBytes,
+	})
 }

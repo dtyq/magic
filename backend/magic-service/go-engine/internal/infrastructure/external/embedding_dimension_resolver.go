@@ -7,7 +7,7 @@ import (
 	"strings"
 
 	autoloadcfg "magic/internal/config/autoload"
-	"magic/internal/domain/knowledge/knowledgebase/service"
+	knowledgebase "magic/internal/domain/knowledge/knowledgebase/entity"
 	"magic/internal/pkg/ctxmeta"
 )
 

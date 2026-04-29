@@ -26,12 +26,12 @@ func TestBuildFragmentPayloadSectionPathFallbackFromMetadata(t *testing.T) {
 	if payload.SectionPath != "A > B" {
 		t.Fatalf("expected section path fallback from metadata, got %s", payload.SectionPath)
 	}
-	if payload.Metadata[fragmetadata.MetadataContractVersionKey] != fragmetadata.FragmentSemanticMetadataContractVersionV1 {
-		t.Fatalf("expected metadata contract version %q, got %#v", fragmetadata.FragmentSemanticMetadataContractVersionV1, payload.Metadata[fragmetadata.MetadataContractVersionKey])
+	if _, exists := payload.Metadata["metadata_contract_version"]; exists {
+		t.Fatalf("expected metadata_contract_version removed from payload metadata, got %#v", payload.Metadata)
 	}
 }
 
-func TestApplyFragmentMetadataContractV1NormalizesAliases(t *testing.T) {
+func TestApplyFragmentMetadataContractNormalizesAliases(t *testing.T) {
 	t.Parallel()
 
 	fragment := &fragmodel.KnowledgeBaseFragment{
@@ -50,7 +50,7 @@ func TestApplyFragmentMetadataContractV1NormalizesAliases(t *testing.T) {
 		},
 	}
 
-	restore := fragmetadata.ApplyFragmentMetadataContractV1(fragment)
+	restore := fragmetadata.ApplyFragmentMetadataContract(fragment)
 	if fragment.DocumentCode != "doc-001" || fragment.DocumentType != 7 {
 		t.Fatalf("expected document info restored from metadata, got code=%q type=%d", fragment.DocumentCode, fragment.DocumentType)
 	}
@@ -183,10 +183,10 @@ func TestBuildFragmentDisplayContent(t *testing.T) {
 	}
 }
 
-func TestBuildFragmentSemanticMetadataV1MergesBaseAndExtra(t *testing.T) {
+func TestBuildFragmentSemanticMetadataMergesBaseAndExtra(t *testing.T) {
 	t.Parallel()
 
-	metadata := fragmetadata.BuildFragmentSemanticMetadataV1(
+	metadata := fragmetadata.BuildFragmentSemanticMetadata(
 		map[string]any{"chunkIndex": 3, "ext": map[string]any{"from_base": "yes"}},
 		fragmetadata.FragmentSemanticMetadataDefaults{
 			ContentHash:  "hash-1",
@@ -207,10 +207,10 @@ func TestBuildFragmentSemanticMetadataV1MergesBaseAndExtra(t *testing.T) {
 	}
 }
 
-func TestNormalizeFragmentSemanticMetadataV1SupportsExtStringAndBytes(t *testing.T) {
+func TestNormalizeFragmentSemanticMetadataSupportsExtStringAndBytes(t *testing.T) {
 	t.Parallel()
 
-	restore := fragmetadata.NormalizeFragmentSemanticMetadataV1(
+	restore := fragmetadata.NormalizeFragmentSemanticMetadata(
 		map[string]any{
 			"ext":          `{"documentCode":"doc-1"}`,
 			"createdAtTs":  []byte(`1700000001`),
@@ -226,10 +226,10 @@ func TestNormalizeFragmentSemanticMetadataV1SupportsExtStringAndBytes(t *testing
 	}
 }
 
-func TestNormalizeFragmentSemanticMetadataV1CoercesNumbersAndTags(t *testing.T) {
+func TestNormalizeFragmentSemanticMetadataCoercesNumbersAndTags(t *testing.T) {
 	t.Parallel()
 
-	restore := fragmetadata.NormalizeFragmentSemanticMetadataV1(
+	restore := fragmetadata.NormalizeFragmentSemanticMetadata(
 		map[string]any{
 			"chunkIndex":   3,
 			"sectionLevel": float64(2),

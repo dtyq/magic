@@ -8,7 +8,7 @@ import (
 	"time"
 
 	"magic/internal/constants"
-	documentdomain "magic/internal/domain/knowledge/document/service"
+	documentdomain "magic/internal/domain/knowledge/document/metadata"
 	"magic/internal/infrastructure/logging"
 	"magic/internal/infrastructure/transport/ipc/unixsocket"
 )
@@ -17,12 +17,13 @@ const defaultOCRConfigCacheTTL = 30 * time.Second
 
 // PHPOCRConfigRPCClient 通过 IPC 调用 PHP 获取 OCR 配置真值。
 type PHPOCRConfigRPCClient struct {
-	server              *unixsocket.Server
-	logger              *logging.SugaredLogger
-	ttl                 time.Duration
-	now                 func() time.Time
-	isClientReady       func() bool
-	callGetOCRConfigRPC func(context.Context, *ocrConfigResponse) error
+	server                *unixsocket.Server
+	logger                *logging.SugaredLogger
+	ttl                   time.Duration
+	now                   func() time.Time
+	isClientReady         func() bool
+	callGetOCRConfigRPC   func(context.Context, *ocrConfigResponse) error
+	callReportOCRUsageRPC func(context.Context, ocrUsageRequest, *ocrUsageResponse) error
 
 	mu        sync.RWMutex
 	cached    *documentdomain.OCRAbilityConfig
@@ -44,6 +45,27 @@ type ocrConfigResponse struct {
 	} `json:"data"`
 }
 
+type ocrUsageRequest struct {
+	Provider          string         `json:"provider"`
+	OrganizationCode  string         `json:"organization_code"`
+	UserID            string         `json:"user_id"`
+	PageCount         int            `json:"page_count"`
+	FileType          string         `json:"file_type"`
+	BusinessParams    map[string]any `json:"business_params"`
+	BusinessID        string         `json:"business_id"`
+	SourceID          string         `json:"source_id"`
+	KnowledgeBaseCode string         `json:"knowledge_base_code"`
+	DocumentCode      string         `json:"document_code"`
+	RequestID         string         `json:"request_id"`
+	EventID           string         `json:"event_id"`
+	OCRCallType       string         `json:"ocr_call_type"`
+}
+
+type ocrUsageResponse struct {
+	Code    int    `json:"code"`
+	Message string `json:"message"`
+}
+
 // NewPHPOCRConfigRPCClient 创建 OCR 配置 RPC 客户端。
 func NewPHPOCRConfigRPCClient(server *unixsocket.Server, logger *logging.SugaredLogger) *PHPOCRConfigRPCClient {
 	return &PHPOCRConfigRPCClient{
@@ -54,6 +76,9 @@ func NewPHPOCRConfigRPCClient(server *unixsocket.Server, logger *logging.Sugared
 		isClientReady: func() bool { return server != nil && server.GetRPCClientCount() > 0 },
 		callGetOCRConfigRPC: func(ctx context.Context, out *ocrConfigResponse) error {
 			return unixsocket.CallRPCTypedWithContext(ctx, server, constants.MethodKnowledgeOCRConfig, map[string]any{}, out)
+		},
+		callReportOCRUsageRPC: func(ctx context.Context, request ocrUsageRequest, out *ocrUsageResponse) error {
+			return unixsocket.CallRPCTypedWithContext(ctx, server, constants.MethodKnowledgeOCRReportUsage, request, out)
 		},
 	}
 }
@@ -73,7 +98,7 @@ func (c *PHPOCRConfigRPCClient) GetOCRConfig(ctx context.Context) (*documentdoma
 	var result ocrConfigResponse
 	if err := c.callGetOCRConfigRPC(ctx, &result); err != nil {
 		if c.logger != nil {
-			c.logger.ErrorContext(ctx, "获取 OCR 配置失败", "error", err)
+			c.logger.KnowledgeErrorContext(ctx, "获取 OCR 配置失败", "error", err)
 		}
 		return nil, errorsJoinPHPRequest(err)
 	}
@@ -97,6 +122,57 @@ func (c *PHPOCRConfigRPCClient) GetOCRConfig(ctx context.Context) (*documentdoma
 
 	c.setCachedConfig(cfg)
 	return cloneOCRAbilityConfig(cfg), nil
+}
+
+// ReportOCRUsage 通过 PHP IPC 上报 OCR 实际识别页数。
+func (c *PHPOCRConfigRPCClient) ReportOCRUsage(ctx context.Context, usage documentdomain.OCRUsage) error {
+	if c == nil {
+		return ErrNoClientConnected
+	}
+	if c.isClientReady == nil || !c.isClientReady() {
+		return ErrNoClientConnected
+	}
+
+	request := buildOCRUsageRequest(usage)
+	var result ocrUsageResponse
+	if err := c.callReportOCRUsageRPC(ctx, request, &result); err != nil {
+		if c.logger != nil {
+			c.logger.KnowledgeErrorContext(ctx, "上报 OCR 用量失败", "error", err)
+		}
+		return errorsJoinPHPRequest(err)
+	}
+	if result.Code != 0 {
+		return fmt.Errorf("%w: code=%d, message=%s", ErrPHPRequestFailed, result.Code, result.Message)
+	}
+	return nil
+}
+
+func buildOCRUsageRequest(usage documentdomain.OCRUsage) ocrUsageRequest {
+	businessParams := map[string]any{
+		"event_id":            strings.TrimSpace(usage.EventID),
+		"request_id":          strings.TrimSpace(usage.RequestID),
+		"knowledge_base_code": strings.TrimSpace(usage.KnowledgeBaseCode),
+		"document_code":       strings.TrimSpace(usage.DocumentCode),
+		"business_id":         strings.TrimSpace(usage.BusinessID),
+		"source_id":           strings.TrimSpace(usage.SourceID),
+		"ocr_call_type":       strings.TrimSpace(usage.CallType),
+		"page_count":          usage.PageCount,
+	}
+	return ocrUsageRequest{
+		Provider:          strings.TrimSpace(usage.Provider),
+		OrganizationCode:  strings.TrimSpace(usage.OrganizationCode),
+		UserID:            strings.TrimSpace(usage.UserID),
+		PageCount:         usage.PageCount,
+		FileType:          strings.TrimSpace(usage.FileType),
+		BusinessParams:    businessParams,
+		BusinessID:        strings.TrimSpace(usage.BusinessID),
+		SourceID:          strings.TrimSpace(usage.SourceID),
+		KnowledgeBaseCode: strings.TrimSpace(usage.KnowledgeBaseCode),
+		DocumentCode:      strings.TrimSpace(usage.DocumentCode),
+		RequestID:         strings.TrimSpace(usage.RequestID),
+		EventID:           strings.TrimSpace(usage.EventID),
+		OCRCallType:       strings.TrimSpace(usage.CallType),
+	}
 }
 
 func (c *PHPOCRConfigRPCClient) cachedConfig() *documentdomain.OCRAbilityConfig {
@@ -203,6 +279,34 @@ func (c *PHPOCRConfigRPCClient) SetFetchHookForTest(
 				SecretKey: provider.SecretKey,
 			})
 		}
+		return nil
+	}
+}
+
+// SetReportUsageHookForTest 设置 OCR 用量上报测试钩子。
+func (c *PHPOCRConfigRPCClient) SetReportUsageHookForTest(fn func(context.Context, documentdomain.OCRUsage) error) {
+	if c == nil || fn == nil {
+		return
+	}
+	c.callReportOCRUsageRPC = func(ctx context.Context, request ocrUsageRequest, out *ocrUsageResponse) error {
+		err := fn(ctx, documentdomain.OCRUsage{
+			EventID:           request.EventID,
+			Provider:          request.Provider,
+			OrganizationCode:  request.OrganizationCode,
+			UserID:            request.UserID,
+			PageCount:         request.PageCount,
+			FileType:          request.FileType,
+			BusinessID:        request.BusinessID,
+			SourceID:          request.SourceID,
+			KnowledgeBaseCode: request.KnowledgeBaseCode,
+			DocumentCode:      request.DocumentCode,
+			RequestID:         request.RequestID,
+			CallType:          request.OCRCallType,
+		})
+		if err != nil {
+			return err
+		}
+		out.Code = 0
 		return nil
 	}
 }

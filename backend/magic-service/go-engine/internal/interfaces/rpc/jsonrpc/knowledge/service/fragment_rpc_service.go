@@ -69,6 +69,7 @@ func newFragmentRPCService(
 
 // CreateRPC 创建片段（RPC 版本）
 func (h *FragmentRPCService) CreateRPC(ctx context.Context, req *dto.CreateFragmentRequest) (*dto.FragmentResponse, error) {
+	ctx = withAccessActorFromDataIsolation(ctx, req.DataIsolation)
 	input := &fragdto.CreateFragmentInput{
 		OrganizationCode: req.DataIsolation.ResolveOrganizationCode(),
 		UserID:           req.DataIsolation.UserID,
@@ -81,7 +82,7 @@ func (h *FragmentRPCService) CreateRPC(ctx context.Context, req *dto.CreateFragm
 
 	result, err := h.appService.Create(ctx, input)
 	if err != nil {
-		h.logger.ErrorContext(ctx, "Failed to create fragment", "error", err)
+		h.logger.KnowledgeErrorContext(ctx, "Failed to create fragment", "error", err)
 		return nil, mapBusinessError(err)
 	}
 
@@ -90,6 +91,7 @@ func (h *FragmentRPCService) CreateRPC(ctx context.Context, req *dto.CreateFragm
 
 // RuntimeCreateRPC flow/teamshare runtime 创建片段（同步写向量）。
 func (h *FragmentRPCService) RuntimeCreateRPC(ctx context.Context, req *dto.RuntimeCreateFragmentRequest) (*dto.FragmentResponse, error) {
+	ctx = withAccessActorFromDataIsolation(ctx, req.DataIsolation)
 	result, err := h.appService.RuntimeCreate(ctx, &fragdto.RuntimeCreateFragmentInput{
 		OrganizationCode: req.DataIsolation.ResolveOrganizationCode(),
 		UserID:           req.DataIsolation.UserID,
@@ -106,7 +108,7 @@ func (h *FragmentRPCService) RuntimeCreateRPC(ctx context.Context, req *dto.Runt
 		},
 	})
 	if err != nil {
-		h.logger.ErrorContext(ctx, "Failed to runtime create fragment", "error", err)
+		h.logger.KnowledgeErrorContext(ctx, "Failed to runtime create fragment", "error", err)
 		return nil, mapBusinessError(err)
 	}
 	return dto.NewFragmentResponse(result), nil
@@ -114,6 +116,7 @@ func (h *FragmentRPCService) RuntimeCreateRPC(ctx context.Context, req *dto.Runt
 
 // ShowRPC 查询片段详情（RPC 版本）
 func (h *FragmentRPCService) ShowRPC(ctx context.Context, req *dto.ShowFragmentRequest) (*dto.FragmentResponse, error) {
+	ctx = withAccessActorFromDataIsolation(ctx, req.DataIsolation)
 	result, err := h.appService.Show(
 		ctx,
 		req.ID,
@@ -130,8 +133,10 @@ func (h *FragmentRPCService) ShowRPC(ctx context.Context, req *dto.ShowFragmentR
 
 // ListRPC 查询片段列表（RPC 版本）
 func (h *FragmentRPCService) ListRPC(ctx context.Context, req *dto.ListFragmentRequest) (*dto.FragmentPageResponse, error) {
+	ctx = withAccessActorFromDataIsolation(ctx, req.DataIsolation)
 	input := &fragdto.ListFragmentInput{
 		OrganizationCode: req.DataIsolation.ResolveOrganizationCode(),
+		UserID:           req.DataIsolation.UserID,
 		KnowledgeCode:    req.KnowledgeCode,
 		DocumentCode:     req.DocumentCode,
 		Content:          req.Content,
@@ -142,15 +147,40 @@ func (h *FragmentRPCService) ListRPC(ctx context.Context, req *dto.ListFragmentR
 
 	result, err := h.appService.ListV2(ctx, input)
 	if err != nil {
-		h.logger.ErrorContext(ctx, "Failed to list fragments", "error", err)
+		h.logger.KnowledgeErrorContext(ctx, "Failed to list fragments", "error", err)
 		return nil, mapBusinessError(err)
 	}
 	result.Page = resolveListPage(req)
 	return dto.NewFragmentPageResponse(result), nil
 }
 
+// ListHTTPRPC 查询片段列表并返回最终 low_code HTTP body。
+func (h *FragmentRPCService) ListHTTPRPC(ctx context.Context, req *dto.ListFragmentRequest) (*dto.HTTPPassthroughResponse, error) {
+	ctx = withAccessActorFromDataIsolation(ctx, req.DataIsolation)
+	input := &fragdto.ListFragmentInput{
+		OrganizationCode: req.DataIsolation.ResolveOrganizationCode(),
+		UserID:           req.DataIsolation.UserID,
+		KnowledgeCode:    req.KnowledgeCode,
+		DocumentCode:     req.DocumentCode,
+		Content:          req.Content,
+		SyncStatus:       req.SyncStatus,
+		Offset:           req.Page.Offset,
+		Limit:            req.Page.Limit,
+	}
+
+	result, err := h.appService.ListV2(ctx, input)
+	if err != nil {
+		h.logger.KnowledgeErrorContext(ctx, "Failed to list fragments for passthrough", "error", err)
+		return newErrorPassthroughResponse(err, req.AcceptEncoding)
+	}
+	result.Page = resolveListPage(req)
+
+	return newSuccessPassthroughResponse(dto.NewFragmentPageResponse(result), req.AcceptEncoding)
+}
+
 // DestroyRPC 删除片段（RPC 版本）
 func (h *FragmentRPCService) DestroyRPC(ctx context.Context, req *dto.DestroyFragmentRequest) (*map[string]bool, error) {
+	ctx = withAccessActorFromDataIsolation(ctx, req.DataIsolation)
 	if err := h.appService.Destroy(
 		ctx,
 		req.ID,
@@ -158,7 +188,7 @@ func (h *FragmentRPCService) DestroyRPC(ctx context.Context, req *dto.DestroyFra
 		req.DocumentCode,
 		req.DataIsolation.ResolveOrganizationCode(),
 	); err != nil {
-		h.logger.ErrorContext(ctx, "Failed to destroy fragment", "error", err)
+		h.logger.KnowledgeErrorContext(ctx, "Failed to destroy fragment", "error", err)
 		return nil, mapBusinessError(err)
 	}
 
@@ -170,12 +200,13 @@ func (h *FragmentRPCService) RuntimeDestroyByBusinessIDRPC(
 	ctx context.Context,
 	req *dto.RuntimeDestroyByBusinessIDRequest,
 ) (*map[string]bool, error) {
+	ctx = withAccessActorFromDataIsolation(ctx, req.DataIsolation)
 	if err := h.appService.RuntimeDestroyByBusinessID(ctx, &fragdto.RuntimeDestroyByBusinessIDInput{
 		OrganizationCode: req.DataIsolation.ResolveOrganizationCode(),
 		KnowledgeCode:    req.KnowledgeCode,
 		BusinessID:       req.BusinessID,
 	}); err != nil {
-		h.logger.ErrorContext(ctx, "Failed to runtime destroy fragment by business id", "error", err)
+		h.logger.KnowledgeErrorContext(ctx, "Failed to runtime destroy fragment by business id", "error", err)
 		return nil, mapBusinessError(err)
 	}
 	return &map[string]bool{"success": true}, nil
@@ -186,12 +217,13 @@ func (h *FragmentRPCService) RuntimeDestroyByMetadataFilterRPC(
 	ctx context.Context,
 	req *dto.RuntimeDestroyByMetadataFilterRequest,
 ) (*map[string]bool, error) {
+	ctx = withAccessActorFromDataIsolation(ctx, req.DataIsolation)
 	if err := h.appService.RuntimeDestroyByMetadataFilter(ctx, &fragdto.RuntimeDestroyByMetadataFilterInput{
 		OrganizationCode: req.DataIsolation.ResolveOrganizationCode(),
 		KnowledgeCode:    req.KnowledgeCode,
 		MetadataFilter:   map[string]any(req.MetadataFilter),
 	}); err != nil {
-		h.logger.ErrorContext(ctx, "Failed to runtime destroy fragment by metadata filter", "error", err)
+		h.logger.KnowledgeErrorContext(ctx, "Failed to runtime destroy fragment by metadata filter", "error", err)
 		return nil, mapBusinessError(err)
 	}
 	return &map[string]bool{"success": true}, nil
@@ -204,6 +236,7 @@ func (h *FragmentRPCService) SyncRPC(_ context.Context, _ *dto.SyncFragmentReque
 
 // SimilarityRPC 相似度搜索（RPC 版本）
 func (h *FragmentRPCService) SimilarityRPC(ctx context.Context, req *dto.SimilarityRequest) (*dto.SimilarityPageResponse, error) {
+	ctx = withAccessActorFromDataIsolation(ctx, req.DataIsolation)
 	input := &fragdto.SimilarityInput{
 		OrganizationCode: req.DataIsolation.ResolveOrganizationCode(),
 		KnowledgeCode:    req.KnowledgeCode,
@@ -223,10 +256,37 @@ func (h *FragmentRPCService) SimilarityRPC(ctx context.Context, req *dto.Similar
 
 	results, err := h.appService.Similarity(ctx, input)
 	if err != nil {
-		h.logger.ErrorContext(ctx, "Failed to search similarity", "error", err)
+		h.logger.KnowledgeErrorContext(ctx, "Failed to search similarity", "error", err)
 		return nil, mapBusinessError(err)
 	}
 	return dto.NewSimilarityPageResponse(results), nil
+}
+
+// SimilarityHTTPRPC 相似度搜索并返回最终 low_code HTTP body。
+func (h *FragmentRPCService) SimilarityHTTPRPC(ctx context.Context, req *dto.SimilarityRequest) (*dto.HTTPPassthroughResponse, error) {
+	ctx = withAccessActorFromDataIsolation(ctx, req.DataIsolation)
+	input := &fragdto.SimilarityInput{
+		OrganizationCode: req.DataIsolation.ResolveOrganizationCode(),
+		KnowledgeCode:    req.KnowledgeCode,
+		Query:            req.Query,
+		TopK:             0,
+		ScoreThreshold:   req.ScoreThreshold,
+		Filters:          toSimilarityFilterInput(req.Filters),
+		Debug:            req.Debug,
+		BusinessParams: &ctxmeta.BusinessParams{
+			OrganizationCode: req.BusinessParams.ResolveOrganizationCode(),
+			UserID:           req.BusinessParams.UserID,
+			BusinessID:       req.BusinessParams.BusinessID,
+		},
+	}
+
+	results, err := h.appService.Similarity(ctx, input)
+	if err != nil {
+		h.logger.KnowledgeErrorContext(ctx, "Failed to search similarity for passthrough", "error", err)
+		return newErrorPassthroughResponse(err, req.AcceptEncoding)
+	}
+
+	return newSuccessPassthroughResponse(dto.NewSimilarityPageResponse(results), req.AcceptEncoding)
 }
 
 // RuntimeSimilarityRPC flow/teamshare runtime 多知识库相似度搜索。
@@ -234,6 +294,7 @@ func (h *FragmentRPCService) RuntimeSimilarityRPC(
 	ctx context.Context,
 	req *dto.RuntimeSimilarityRequest,
 ) (*dto.SimilarityPageResponse, error) {
+	ctx = withAccessActorFromDataIsolation(ctx, req.DataIsolation)
 	results, err := h.appService.RuntimeSimilarity(ctx, &fragdto.RuntimeSimilarityInput{
 		OrganizationCode: req.DataIsolation.ResolveOrganizationCode(),
 		KnowledgeCodes:   append([]string{}, req.KnowledgeCodes...),
@@ -250,7 +311,7 @@ func (h *FragmentRPCService) RuntimeSimilarityRPC(
 		},
 	})
 	if err != nil {
-		h.logger.ErrorContext(ctx, "Failed to runtime search similarity", "error", err)
+		h.logger.KnowledgeErrorContext(ctx, "Failed to runtime search similarity", "error", err)
 		return nil, mapBusinessError(err)
 	}
 	return dto.NewSimilarityPageResponse(results), nil
@@ -261,6 +322,7 @@ func (h *FragmentRPCService) SimilarityByAgentRPC(
 	ctx context.Context,
 	req *dto.AgentSimilarityRequest,
 ) (*dto.AgentSimilarityResponse, error) {
+	ctx = withAccessActorFromDataIsolation(ctx, req.DataIsolation)
 	result, err := h.appService.SimilarityByAgent(ctx, &fragdto.AgentSimilarityInput{
 		OrganizationCode: req.DataIsolation.ResolveOrganizationCode(),
 		UserID:           req.DataIsolation.UserID,
@@ -272,7 +334,7 @@ func (h *FragmentRPCService) SimilarityByAgentRPC(
 		},
 	})
 	if err != nil {
-		h.logger.ErrorContext(ctx, "Failed to search employee knowledge similarity", "error", err)
+		h.logger.KnowledgeErrorContext(ctx, "Failed to search employee knowledge similarity", "error", err)
 		return nil, mapBusinessError(err)
 	}
 	return dto.NewAgentSimilarityResponse(result), nil
@@ -300,7 +362,29 @@ func toSimilarityFilterInput(filters *dto.SimilarityFilters) *fragdto.Similarity
 
 // PreviewRPC 片段预览（RPC 版本）
 func (h *FragmentRPCService) PreviewRPC(ctx context.Context, req *dto.PreviewFragmentRequest) (*dto.FragmentPageResponse, error) {
+	ctx = withAccessActorFromDataIsolation(ctx, req.DataIsolation)
 	input := &fragdto.PreviewFragmentInput{
+		OrganizationCode: req.DataIsolation.ResolveOrganizationCode(),
+		UserID:           req.DataIsolation.UserID,
+		DocumentCode:     req.DocumentCode,
+		DocumentFile:     req.DocumentFile,
+		StrategyConfig:   req.StrategyConfig,
+		FragmentConfig:   req.FragmentConfig,
+	}
+
+	result, err := h.appService.PreviewV2(ctx, input)
+	if err != nil {
+		h.logger.KnowledgeErrorContext(ctx, "Failed to preview fragments", "error", err)
+		return nil, mapBusinessError(err)
+	}
+	return dto.NewFragmentPageResponse(result), nil
+}
+
+// PreviewHTTPRPC 预览切片并返回最终 low_code HTTP body。
+func (h *FragmentRPCService) PreviewHTTPRPC(ctx context.Context, req *dto.PreviewFragmentRequest) (*dto.HTTPPassthroughResponse, error) {
+	ctx = withAccessActorFromDataIsolation(ctx, req.DataIsolation)
+	input := &fragdto.PreviewFragmentInput{
+		DocumentCode:     req.DocumentCode,
 		OrganizationCode: req.DataIsolation.ResolveOrganizationCode(),
 		UserID:           req.DataIsolation.UserID,
 		DocumentFile:     req.DocumentFile,
@@ -310,10 +394,11 @@ func (h *FragmentRPCService) PreviewRPC(ctx context.Context, req *dto.PreviewFra
 
 	result, err := h.appService.PreviewV2(ctx, input)
 	if err != nil {
-		h.logger.ErrorContext(ctx, "Failed to preview fragments", "error", err)
-		return nil, mapBusinessError(err)
+		h.logger.KnowledgeErrorContext(ctx, "Failed to preview fragments for passthrough", "error", err)
+		return newErrorPassthroughResponse(err, req.AcceptEncoding)
 	}
-	return dto.NewFragmentPageResponse(result), nil
+
+	return newSuccessPassthroughResponse(dto.NewFragmentPageResponse(result), req.AcceptEncoding)
 }
 
 func resolveListPage(req *dto.ListFragmentRequest) int {

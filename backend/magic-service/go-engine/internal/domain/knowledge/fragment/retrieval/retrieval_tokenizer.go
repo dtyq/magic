@@ -1,15 +1,14 @@
 package retrieval
 
 import (
+	"errors"
+	"fmt"
 	"slices"
 	"strings"
 	"unicode"
-	"unicode/utf8"
 )
 
 const (
-	tokenBufferCapacity = 16
-
 	retrievalFieldTitle        = "title"
 	retrievalFieldPath         = "path"
 	retrievalFieldDocumentName = "document_name"
@@ -18,22 +17,13 @@ const (
 	retrievalFieldTableKey     = "table_key"
 	retrievalFieldHeader       = "header"
 
-	tokenSourceWord               = "word"
-	tokenSourceBigram             = "bigram"
-	tokenSourceAlphaNum           = "alphanum"
-	tokenSourceSingleRune         = "single_rune"
-	fullWidthASCIIOffset          = 0xFEE0
-	hanFallbackFullThreshold      = 0.55
-	hanFallbackSelectiveThreshold = 0.80
-	hanBigramStopRunes            = "的了和是在与及并对将把被给让也又还就很"
+	tokenSourceWord        = "word"
+	retrievalSelfCheckText = "退款的流程"
+	fullWidthASCIIOffset   = 0xFEE0
 )
 
-type hanFallbackMode uint8
-
 const (
-	hanFallbackModeNone hanFallbackMode = iota
-	hanFallbackModeSelective
-	hanFallbackModeFull
+	errRetrievalAnalyzerSelfCheckNoTokens = runtimeStaticError("retrieval analyzer produced no tokens for self-check text")
 )
 
 // AnalyzedToken 表示检索 analyzer 产出的单个 token。
@@ -46,6 +36,8 @@ type AnalyzedToken struct {
 
 type retrievalAnalyzer struct {
 	segmenter segmentedWordCutter
+	policy    retrievalTokenPolicy
+	err       error
 }
 
 type segmentedWordCutter interface {
@@ -72,287 +64,90 @@ func (s *Service) AnalyzeForQuery(text string) []AnalyzedToken {
 	return s.newRetrievalAnalyzer().analyzeText(text, "", true)
 }
 
-func tokenizeForRetrieval(text string) []string {
-	return newRetrievalAnalyzer().tokenTerms(text)
-}
-
 func newRetrievalAnalyzer() retrievalAnalyzer {
 	// 包级 analyzer 也必须走默认 singleton；否则 AnalyzeForIndex/Query 这类 helper 会绕开共享 provider。
 	segmenter, err := newDefaultRetrievalSegmenterProvider().cutter()
-	if err != nil {
-		return retrievalAnalyzer{}
+	policy, policyErr := defaultRetrievalTokenPolicyProvider.get()
+	return newRetrievalAnalyzerFromParts(segmenter, err, policy, policyErr)
+}
+
+func newRetrievalAnalyzerFromParts(
+	segmenter segmentedWordCutter,
+	segmenterErr error,
+	policy retrievalTokenPolicy,
+	policyErr error,
+) retrievalAnalyzer {
+	switch {
+	case segmenterErr == nil && policyErr == nil:
+		return retrievalAnalyzer{
+			segmenter: segmenter,
+			policy:    policy,
+		}
+	case segmenterErr != nil && policyErr != nil:
+		return retrievalAnalyzer{
+			err: errors.Join(
+				fmt.Errorf("load retrieval segmenter: %w", segmenterErr),
+				fmt.Errorf("load retrieval token policy: %w", policyErr),
+			),
+		}
+	case segmenterErr != nil:
+		return retrievalAnalyzer{
+			policy: policy,
+			err:    fmt.Errorf("load retrieval segmenter: %w", segmenterErr),
+		}
+	default:
+		return retrievalAnalyzer{
+			segmenter: segmenter,
+			err:       fmt.Errorf("load retrieval token policy: %w", policyErr),
+		}
 	}
-	return retrievalAnalyzer{segmenter: segmenter}
+}
+
+func (a retrievalAnalyzer) ready() error {
+	return a.err
+}
+
+func (a retrievalAnalyzer) selfCheck() error {
+	if err := a.ready(); err != nil {
+		return err
+	}
+	tokens := a.retrievalTerms(retrievalSelfCheckText)
+	if len(tokens) == 0 {
+		return errRetrievalAnalyzerSelfCheckNoTokens
+	}
+	return nil
 }
 
 func (a retrievalAnalyzer) analyzeText(text, field string, queryMode bool) []AnalyzedToken {
+	_ = queryMode
+
 	normalized := normalizeRetrievalText(text)
-	if normalized == "" {
+	if normalized == "" || a.segmenter == nil {
 		return nil
 	}
 
-	tokens := make([]AnalyzedToken, 0, len(normalized)/2)
-	asciiBuffer := make([]rune, 0, tokenBufferCapacity)
-	hanBuffer := make([]rune, 0, tokenBufferCapacity)
-	hanCount := 0
-
-	flushASCII := func() {
-		if len(asciiBuffer) == 0 {
-			return
-		}
-		tokens = append(tokens, analyzeASCIIBuffer(asciiBuffer, field)...)
-		asciiBuffer = asciiBuffer[:0]
-	}
-	flushHan := func() {
-		if len(hanBuffer) == 0 {
-			return
-		}
-		tokens = append(tokens, a.analyzeHanBuffer(hanBuffer, field, queryMode)...)
-		hanCount += len(hanBuffer)
-		hanBuffer = hanBuffer[:0]
-	}
-
-	for _, r := range normalized {
-		switch {
-		case unicode.Is(unicode.Han, r):
-			flushASCII()
-			hanBuffer = append(hanBuffer, r)
-		case isASCIIWordRune(r):
-			flushHan()
-			asciiBuffer = append(asciiBuffer, r)
-		default:
-			flushASCII()
-			flushHan()
-		}
-	}
-	flushASCII()
-	flushHan()
-
-	if queryMode && len(tokens) == 0 && hanCount == 1 {
-		if r, _ := utf8.DecodeRuneInString(normalized); unicode.Is(unicode.Han, r) {
-			tokens = append(tokens, AnalyzedToken{
-				Term:   string(r),
-				Field:  field,
-				Source: tokenSourceSingleRune,
-			})
-		}
-	}
-
-	return compactAnalyzedTokens(tokens)
-}
-
-func analyzeASCIIBuffer(buffer []rune, field string) []AnalyzedToken {
-	if strings.Trim(bufferToLowerString(buffer), "_-") == "" {
+	segments := a.segmenter.CutSearch(normalized, true)
+	if len(segments) == 0 {
 		return nil
 	}
 
-	terms := expandASCIIWordTerms(string(buffer))
-	if len(terms) == 0 {
-		return nil
-	}
-
-	tokens := make([]AnalyzedToken, 0, len(terms))
-	for _, term := range terms {
-		tokens = append(tokens, AnalyzedToken{
-			Term:   term,
-			Field:  field,
-			Source: tokenSourceAlphaNum,
-		})
-	}
-	return tokens
-}
-
-func (a retrievalAnalyzer) analyzeHanBuffer(buffer []rune, field string, queryMode bool) []AnalyzedToken {
-	if len(buffer) == 0 {
-		return nil
-	}
-
-	text := string(buffer)
-	return buildHanTokens(text, field, a.segmentHanWords(text), queryMode)
-}
-
-func buildHanTokens(text, field string, primaryTerms []string, queryMode bool) []AnalyzedToken {
-	if text == "" {
-		return nil
-	}
-
-	textRunes := []rune(text)
-	tokens := make([]AnalyzedToken, 0, len(textRunes)*2)
-	primaryTermSet := make(map[string]struct{}, len(primaryTerms))
-	for _, word := range primaryTerms {
-		normalizedWord := normalizeTokenTerm(word)
-		if normalizedWord == "" {
+	tokens := make([]AnalyzedToken, 0, len(segments))
+	for _, segment := range segments {
+		term := normalizeTokenTerm(segment)
+		if term == "" || !a.allowRetrievalToken(term) {
 			continue
 		}
-		primaryTermSet[normalizedWord] = struct{}{}
 		tokens = append(tokens, AnalyzedToken{
-			Term:   normalizedWord,
+			Term:   term,
 			Field:  field,
 			Source: tokenSourceWord,
 		})
 	}
-
-	if len(textRunes) < 2 {
-		return tokens
-	}
-
-	mode, coveredPositions, _ := resolveHanFallbackMode(text, primaryTerms, queryMode)
-	if mode == hanFallbackModeNone {
-		return tokens
-	}
-
-	for i := range len(textRunes) - 1 {
-		bigramRunes := textRunes[i : i+2]
-		bigram := string(bigramRunes)
-		if _, ok := primaryTermSet[bigram]; ok {
-			continue
-		}
-		if mode == hanFallbackModeSelective {
-			if !hasUncoveredRune(coveredPositions, i, i+2) {
-				continue
-			}
-			if containsHanStopRune(bigramRunes) {
-				continue
-			}
-		}
-		tokens = append(tokens, AnalyzedToken{
-			Term:       bigram,
-			Field:      field,
-			Source:     tokenSourceBigram,
-			IsFallback: true,
-		})
-	}
-
-	return tokens
+	return compactAnalyzedTokens(tokens)
 }
 
-func resolveHanFallbackMode(text string, primaryTerms []string, queryMode bool) (hanFallbackMode, []bool, float64) {
-	text = normalizeTokenTerm(text)
-	textRunes := []rune(text)
-	covered := make([]bool, len(textRunes))
-	if len(textRunes) == 0 {
-		return hanFallbackModeNone, covered, 0
-	}
-	if queryMode {
-		return hanFallbackModeFull, covered, 0
-	}
-	if len(primaryTerms) == 0 {
-		return hanFallbackModeFull, covered, 0
-	}
-
-	covered = markCoveredHanPositions(textRunes, primaryTerms)
-	coverage := calculateCoveredRatio(covered)
-	switch {
-	case coverage < hanFallbackFullThreshold:
-		return hanFallbackModeFull, covered, coverage
-	case coverage < hanFallbackSelectiveThreshold:
-		return hanFallbackModeSelective, covered, coverage
-	default:
-		return hanFallbackModeNone, covered, coverage
-	}
-}
-
-func markCoveredHanPositions(textRunes []rune, primaryTerms []string) []bool {
-	covered := make([]bool, len(textRunes))
-	if len(textRunes) == 0 || len(primaryTerms) == 0 {
-		return covered
-	}
-
-	normalizedTerms := make([][]rune, 0, len(primaryTerms))
-	for _, term := range primaryTerms {
-		normalizedTerm := normalizeTokenTerm(term)
-		if normalizedTerm == "" {
-			continue
-		}
-		termRunes := []rune(normalizedTerm)
-		if len(termRunes) == 0 || len(termRunes) > len(textRunes) {
-			continue
-		}
-		normalizedTerms = append(normalizedTerms, termRunes)
-	}
-
-	for start := range textRunes {
-		for _, termRunes := range normalizedTerms {
-			end := start + len(termRunes)
-			if end > len(textRunes) {
-				continue
-			}
-			if !slices.Equal(textRunes[start:end], termRunes) {
-				continue
-			}
-			for idx := start; idx < end; idx++ {
-				covered[idx] = true
-			}
-		}
-	}
-
-	return covered
-}
-
-func calculateCoveredRatio(covered []bool) float64 {
-	if len(covered) == 0 {
-		return 0
-	}
-
-	coveredCount := 0
-	for _, value := range covered {
-		if value {
-			coveredCount++
-		}
-	}
-	return float64(coveredCount) / float64(len(covered))
-}
-
-func hasUncoveredRune(covered []bool, start, end int) bool {
-	if start < 0 {
-		start = 0
-	}
-	if end > len(covered) {
-		end = len(covered)
-	}
-	for _, value := range covered[start:end] {
-		if !value {
-			return true
-		}
-	}
-	return false
-}
-
-func containsHanStopRune(runes []rune) bool {
-	for _, r := range runes {
-		if strings.ContainsRune(hanBigramStopRunes, r) {
-			return true
-		}
-	}
-	return false
-}
-
-func (a retrievalAnalyzer) segmentHanWords(text string) []string {
-	if a.segmenter == nil {
-		return nil
-	}
-
-	cut := a.segmenter.CutSearch(text, true)
-	if len(cut) == 0 {
-		return nil
-	}
-
-	normalizedText := normalizeTokenTerm(text)
-	words := make([]string, 0, len(cut))
-	for _, word := range cut {
-		term := normalizeTokenTerm(word)
-		if utf8.RuneCountInString(term) < 2 {
-			continue
-		}
-		if !isAllHan(term) {
-			continue
-		}
-		if term == normalizedText && len(cut) > 1 {
-			continue
-		}
-		words = append(words, term)
-	}
-	return words
+func (a retrievalAnalyzer) analyzeSparseText(text, field string, queryMode bool) []AnalyzedToken {
+	return a.analyzeText(text, field, queryMode)
 }
 
 func normalizeRetrievalText(text string) string {
@@ -389,91 +184,6 @@ func foldWidthRune(r rune) rune {
 	default:
 		return r
 	}
-}
-
-func isASCIIWordRune(r rune) bool {
-	return unicode.IsLetter(r) || unicode.IsDigit(r) || r == '_' || r == '-'
-}
-
-func expandASCIIWordTerms(raw string) []string {
-	raw = strings.TrimSpace(raw)
-	if raw == "" {
-		return nil
-	}
-
-	normalized := normalizeTokenTerm(raw)
-	if normalized == "" {
-		return nil
-	}
-
-	terms := []string{normalized}
-	for _, part := range splitASCIIComponents(raw) {
-		term := normalizeTokenTerm(part)
-		if term == "" {
-			continue
-		}
-		terms = append(terms, term)
-	}
-	return uniqueNonEmptyStrings(terms...)
-}
-
-func splitASCIIComponents(raw string) []string {
-	runes := []rune(raw)
-	if len(runes) == 0 {
-		return nil
-	}
-
-	components := make([]string, 0, len(runes))
-	start := 0
-	flush := func(end int) {
-		if end <= start {
-			return
-		}
-		part := strings.Trim(string(runes[start:end]), "_-")
-		if part != "" {
-			components = append(components, part)
-		}
-		start = end
-	}
-
-	for i := 1; i < len(runes); i++ {
-		prev := runes[i-1]
-		curr := runes[i]
-		next := rune(0)
-		if i+1 < len(runes) {
-			next = runes[i+1]
-		}
-
-		switch {
-		case prev == '_' || prev == '-':
-			flush(i - 1)
-			start = i
-		case curr == '_' || curr == '-':
-			flush(i)
-			start = i + 1
-		case unicode.IsLower(prev) && unicode.IsUpper(curr):
-			flush(i)
-		case unicode.IsUpper(prev) && unicode.IsUpper(curr) && unicode.IsLower(next):
-			flush(i)
-		case unicode.IsLetter(prev) && unicode.IsDigit(curr):
-			flush(i)
-		case unicode.IsDigit(prev) && unicode.IsLetter(curr):
-			flush(i)
-		}
-	}
-	flush(len(runes))
-	return components
-}
-
-func bufferToLowerString(buffer []rune) string {
-	if len(buffer) == 0 {
-		return ""
-	}
-	normalized := make([]rune, 0, len(buffer))
-	for _, r := range buffer {
-		normalized = append(normalized, unicode.ToLower(foldWidthRune(r)))
-	}
-	return string(normalized)
 }
 
 func normalizeTokenTerm(term string) string {
@@ -515,6 +225,34 @@ func compactAnalyzedTokens(tokens []AnalyzedToken) []AnalyzedToken {
 
 func (a retrievalAnalyzer) tokenTerms(text string) []string {
 	return analyzedTokenTerms(a.analyzeText(text, "", true))
+}
+
+func (a retrievalAnalyzer) retrievalTerms(text string) []string {
+	return analyzedTokenTerms(a.analyzeSparseText(text, "", true))
+}
+
+func (a retrievalAnalyzer) allowRetrievalToken(term string) bool {
+	normalized := normalizeTokenTerm(term)
+	if normalized == "" || !hasTokenContentRune(normalized) {
+		return false
+	}
+	if len(a.policy.stopwords) == 0 {
+		return true
+	}
+	_, blocked := a.policy.stopwords[normalized]
+	return !blocked
+}
+
+func hasTokenContentRune(term string) bool {
+	for _, r := range term {
+		switch {
+		case unicode.Is(unicode.Han, r):
+			return true
+		case unicode.IsLetter(r), unicode.IsDigit(r):
+			return true
+		}
+	}
+	return false
 }
 
 func analyzedTokenTerms(tokens []AnalyzedToken) []string {
@@ -567,18 +305,6 @@ trimTail:
 		}
 	}
 	return ""
-}
-
-func isAllHan(text string) bool {
-	if text == "" {
-		return false
-	}
-	for _, r := range text {
-		if !unicode.Is(unicode.Han, r) {
-			return false
-		}
-	}
-	return true
 }
 
 func uniqueNonEmptyStrings(values ...string) []string {

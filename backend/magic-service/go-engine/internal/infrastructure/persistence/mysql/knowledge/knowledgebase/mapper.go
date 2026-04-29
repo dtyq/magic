@@ -5,14 +5,14 @@ import (
 	"fmt"
 	"time"
 
-	"magic/internal/domain/knowledge/knowledgebase/service"
+	kbentity "magic/internal/domain/knowledge/knowledgebase/entity"
 	"magic/internal/domain/knowledge/shared"
 	"magic/internal/infrastructure/persistence/mysql/jsoncompat"
 	mysqlsqlc "magic/internal/infrastructure/persistence/mysql/sqlc"
 	"magic/pkg/convert"
 )
 
-func decodeKnowledgeBaseJSON(knowledgeBase *knowledgebase.KnowledgeBase, retrieveJSON, fragmentJSON, embeddingJSON []byte) error {
+func decodeKnowledgeBaseJSON(knowledgeBase *kbentity.KnowledgeBase, retrieveJSON, fragmentJSON, embeddingJSON []byte) error {
 	retrieveConfig, err := jsoncompat.DecodeObjectPtr[shared.RetrieveConfig](retrieveJSON, "retrieve_config")
 	if err != nil {
 		return fmt.Errorf("decode retrieve_config: %w", err)
@@ -62,8 +62,8 @@ type knowledgeBaseRaw struct {
 	updatedAt         time.Time
 }
 
-func fillKnowledgeBaseCommon(raw knowledgeBaseRaw) (*knowledgebase.KnowledgeBase, error) {
-	knowledgeBase := &knowledgebase.KnowledgeBase{
+func fillKnowledgeBaseCommon(raw knowledgeBaseRaw) (*kbentity.KnowledgeBase, error) {
+	knowledgeBase := &kbentity.KnowledgeBase{
 		ID:                raw.id,
 		Code:              raw.code,
 		Version:           int(raw.version),
@@ -83,7 +83,7 @@ func fillKnowledgeBaseCommon(raw knowledgeBaseRaw) (*knowledgebase.KnowledgeBase
 		CompletedNum:      int(raw.completedNum),
 		WordCount:         int(raw.wordCount),
 		Icon:              raw.icon,
-		KnowledgeBaseType: knowledgebase.NormalizeKnowledgeBaseTypeOrDefault(knowledgebase.Type(raw.knowledgeBaseType)),
+		KnowledgeBaseType: kbentity.NormalizeKnowledgeBaseTypeOrDefault(kbentity.Type(raw.knowledgeBaseType)),
 		CreatedAt:         raw.createdAt,
 		UpdatedAt:         raw.updatedAt,
 	}
@@ -93,8 +93,8 @@ func fillKnowledgeBaseCommon(raw knowledgeBaseRaw) (*knowledgebase.KnowledgeBase
 		if err != nil {
 			return nil, fmt.Errorf("invalid source_type value %d: %w", raw.sourceType.Int32, err)
 		}
-		if !knowledgebase.IsValidSourceType(sourceTypeValue) {
-			return nil, fmt.Errorf("invalid source_type value %d: %w", raw.sourceType.Int32, knowledgebase.ErrInvalidSourceType)
+		if !kbentity.IsValidSourceType(sourceTypeValue) {
+			return nil, fmt.Errorf("invalid source_type value %d: %w", raw.sourceType.Int32, kbentity.ErrInvalidSourceType)
 		}
 		knowledgeBase.SourceType = &sourceTypeValue
 	}
@@ -105,7 +105,7 @@ func fillKnowledgeBaseCommon(raw knowledgeBaseRaw) (*knowledgebase.KnowledgeBase
 	return knowledgeBase, nil
 }
 
-func toKnowledgeBaseFromRawRow(row mysqlsqlc.FindKnowledgeBaseByIDRow) (*knowledgebase.KnowledgeBase, error) {
+func toKnowledgeBaseFromRow(row mysqlsqlc.MagicFlowKnowledge) (*kbentity.KnowledgeBase, error) {
 	return fillKnowledgeBaseCommon(knowledgeBaseRaw{
 		id:                row.ID,
 		code:              row.Code,
@@ -136,30 +136,30 @@ func toKnowledgeBaseFromRawRow(row mysqlsqlc.FindKnowledgeBaseByIDRow) (*knowled
 	})
 }
 
-func toKnowledgeBaseFromFindByID(row mysqlsqlc.FindKnowledgeBaseByIDRow) (*knowledgebase.KnowledgeBase, error) {
-	return toKnowledgeBaseFromRawRow(row)
+func toKnowledgeBaseFromFindByID(row mysqlsqlc.MagicFlowKnowledge) (*kbentity.KnowledgeBase, error) {
+	return toKnowledgeBaseFromRow(row)
 }
 
-func toKnowledgeBaseFromFindByCode(row mysqlsqlc.FindKnowledgeBaseByCodeRow) (*knowledgebase.KnowledgeBase, error) {
-	return toKnowledgeBaseFromRawRow(mysqlsqlc.FindKnowledgeBaseByIDRow(row))
+func toKnowledgeBaseFromFindByCode(row mysqlsqlc.MagicFlowKnowledge) (*kbentity.KnowledgeBase, error) {
+	return toKnowledgeBaseFromRow(row)
 }
 
-func toKnowledgeBaseFromFindByCodeAndOrg(row mysqlsqlc.FindKnowledgeBaseByCodeAndOrgRow) (*knowledgebase.KnowledgeBase, error) {
-	return toKnowledgeBaseFromRawRow(mysqlsqlc.FindKnowledgeBaseByIDRow(row))
+func toKnowledgeBaseFromFindByCodeAndOrg(row mysqlsqlc.MagicFlowKnowledge) (*kbentity.KnowledgeBase, error) {
+	return toKnowledgeBaseFromRow(row)
 }
 
-func toKnowledgeBaseFromList(row mysqlsqlc.ListKnowledgeBasesRow) (*knowledgebase.KnowledgeBase, error) {
-	return toKnowledgeBaseFromRawRow(mysqlsqlc.FindKnowledgeBaseByIDRow(row))
+func toKnowledgeBaseFromList(row mysqlsqlc.MagicFlowKnowledge) (*kbentity.KnowledgeBase, error) {
+	return toKnowledgeBaseFromRow(row)
 }
 
-func toKnowledgeBaseFromListByCodes(row mysqlsqlc.ListKnowledgeBasesByCodesRow) (*knowledgebase.KnowledgeBase, error) {
-	return toKnowledgeBaseFromRawRow(mysqlsqlc.FindKnowledgeBaseByIDRow(row))
+func toKnowledgeBaseFromListByCodes(row mysqlsqlc.MagicFlowKnowledge) (*kbentity.KnowledgeBase, error) {
+	return toKnowledgeBaseFromRow(row)
 }
 
-func toKnowledgeBaseFromListByBusinessIDs(row mysqlsqlc.ListKnowledgeBasesByBusinessIDsRow) (*knowledgebase.KnowledgeBase, error) {
-	return toKnowledgeBaseFromRawRow(mysqlsqlc.FindKnowledgeBaseByIDRow(row))
+func toKnowledgeBaseFromListByBusinessIDs(row mysqlsqlc.MagicFlowKnowledge) (*kbentity.KnowledgeBase, error) {
+	return toKnowledgeBaseFromRow(row)
 }
 
-func toKnowledgeBaseFromListByCodesAndBusinessIDs(row mysqlsqlc.ListKnowledgeBasesByCodesAndBusinessIDsRow) (*knowledgebase.KnowledgeBase, error) {
-	return toKnowledgeBaseFromRawRow(mysqlsqlc.FindKnowledgeBaseByIDRow(row))
+func toKnowledgeBaseFromListByCodesAndBusinessIDs(row mysqlsqlc.MagicFlowKnowledge) (*kbentity.KnowledgeBase, error) {
+	return toKnowledgeBaseFromRow(row)
 }

@@ -5,13 +5,13 @@ import (
 	"errors"
 	"fmt"
 
-	knowledgebasedomain "magic/internal/domain/knowledge/knowledgebase/service"
+	kbentity "magic/internal/domain/knowledge/knowledgebase/entity"
 	"magic/internal/domain/knowledge/shared"
 )
 
 func (s *DocumentAppService) ensureKnowledgeBaseMatchesAgentScope(
 	_ context.Context,
-	kb *knowledgebasedomain.KnowledgeBase,
+	kb *kbentity.KnowledgeBase,
 ) error {
 	if kb == nil {
 		return shared.ErrKnowledgeBaseNotFound
