@@ -6,6 +6,7 @@ import asyncio
 
 from app.core.context.agent_context import AgentContext
 from agentlang.context.tool_context import ToolContext
+from agentlang.tools.tool_result import TOOL_RESULT_SYSTEM_DISPATCHED
 from app.core.entity.event.event import (
     AfterClientChatEventData,
     BeforeMcpInitEventData,
@@ -332,7 +333,7 @@ class StreamListenerService:
 
         # run_sdk_snippet (v2) already sent its after message before script execution;
         # suppress this outer after triggered by tool_call_executor after execute() returns
-        if getattr(event.data.result, "system", None) == "SDK_SNIPPET_DISPATCHED":
+        if getattr(event.data.result, "system", None) == TOOL_RESULT_SYSTEM_DISPATCHED:
             return
 
         factory = agent_context.get_message_factory()

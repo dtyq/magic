@@ -3,6 +3,13 @@ from pydantic import BaseModel, Field
 from agentlang.utils.json import json_dumps
 
 
+# ToolResult.system 字段的 orchestrator 控制信号常量
+# 工具在执行前已提前触发了 after_tool_call，外层 tool_call_executor 触发的最终 after 应被屏蔽
+TOOL_RESULT_SYSTEM_DISPATCHED = "DISPATCHED"
+# 工具提前触发的早期 after_tool_call 标记，表示这是伪事件而非真实完成，消费方应跳过
+TOOL_RESULT_SYSTEM_EARLY_AFTER = "EARLY_AFTER"
+
+
 class ToolResult(BaseModel):
     """工具执行结果。
 
