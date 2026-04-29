@@ -19,7 +19,15 @@ final class DirectoryMention extends AbstractMention
             return '';
         }
         $directoryPath = $data->getDirectoryPath();
-        return sprintf('[@directory_path:%s]', $directoryPath);
+        $projectType = $data->getDirectoryMetadata()['type'] ?? null;
+
+        return match ($projectType) {
+            'design' => sprintf('[@design_canvas_project:%s]', $directoryPath),
+            'slide' => sprintf('[@slide_project:%s]', $directoryPath),
+            default => $projectType !== null
+                ? sprintf('[@project_directory:%s]', $directoryPath)
+                : sprintf('[@directory_path:%s]', $directoryPath),
+        };
     }
 
     public function getMentionJsonStruct(): array
@@ -32,6 +40,7 @@ final class DirectoryMention extends AbstractMention
         return [
             'type' => MentionType::PROJECT_DIRECTORY->value,
             'directory_path' => $data->getDirectoryPath(),
+            'directory_metadata' => $data->getDirectoryMetadata(),
         ];
     }
 }

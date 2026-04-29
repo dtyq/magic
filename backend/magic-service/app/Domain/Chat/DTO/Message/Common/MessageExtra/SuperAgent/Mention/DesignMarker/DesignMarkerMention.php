@@ -22,7 +22,21 @@ final class DesignMarkerMention extends AbstractMention
             return '';
         }
         $label = $data->getLabel() ?? '';
-        return sprintf('[@design_marker:%s]', $label);
+        $image = $data->getImage() ?? '';
+        $bbox = $data->getBbox();
+
+        $bboxStr = '';
+        if (is_array($bbox) && isset($bbox['x'], $bbox['y'], $bbox['width'], $bbox['height'])) {
+            $bboxStr = sprintf(
+                ' bbox:x=%.2f,y=%.2f,w=%.2f,h=%.2f',
+                $bbox['x'],
+                $bbox['y'],
+                $bbox['width'],
+                $bbox['height'],
+            );
+        }
+
+        return sprintf('[@design_marker:%s image:%s%s]', $label, $image, $bboxStr);
     }
 
     public function getMentionJsonStruct(): array
