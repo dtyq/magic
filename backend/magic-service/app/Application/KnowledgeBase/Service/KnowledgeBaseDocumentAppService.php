@@ -10,14 +10,18 @@ namespace App\Application\KnowledgeBase\Service;
 use App\Application\KnowledgeBase\DTO\DocumentRequestDTO;
 use App\Application\KnowledgeBase\DTO\KnowledgeBaseRawContextDTO;
 use App\Domain\KnowledgeBase\Entity\KnowledgeBaseDocumentEntity;
-use App\Domain\Permission\Entity\ValueObject\OperationPermission\OperationAction;
+use App\ErrorCode\FlowErrorCode;
 use App\ErrorCode\PermissionErrorCode;
 use App\Infrastructure\Core\Exception\ExceptionBuilder;
-use App\Infrastructure\Core\ValueObject\Page;
+use Hyperf\Coroutine\Coroutine;
 use Qbhy\HyperfAuth\Authenticatable;
 
 class KnowledgeBaseDocumentAppService extends AbstractKnowledgeAppService
 {
+    private const int REVECTORIZED_SYNC_WAIT_TIMEOUT_SECONDS = 20;
+
+    private const float REVECTORIZED_SYNC_POLL_INTERVAL_SECONDS = 0.5;
+
     public function saveRaw(
         Authenticatable $authorization,
         array $payload,
@@ -26,21 +30,17 @@ class KnowledgeBaseDocumentAppService extends AbstractKnowledgeAppService
     ): array {
         $dataIsolation = $this->createKnowledgeBaseDataIsolation($authorization);
         $context = KnowledgeBaseRawContextDTO::fromDataIsolation($dataIsolation);
-        $this->checkKnowledgeBaseOperation($dataIsolation, OperationAction::Edit->value, $knowledgeBaseCode, $code);
 
         $dataIsolationDTO = $context->dataIsolation();
         $payload['knowledge_base_code'] = $knowledgeBaseCode;
         $payload = $context->withOrganization($payload);
-        $payload['name'] ??= (string) ($payload['document_file']['name'] ?? '');
+        $payload = $context->withUserId($payload);
 
         if ($code === null || $code === '') {
-            $payload = $context->withCreatedUid($payload);
-            $payload = $context->withUpdatedUid($payload);
             return $this->documentAppClient->create(DocumentRequestDTO::forCreate($payload, $dataIsolationDTO));
         }
 
         $payload['code'] = $code;
-        $payload = $context->withUpdatedUid($payload);
         return $this->documentAppClient->update(DocumentRequestDTO::forUpdate(
             $code,
             $payload,
@@ -56,26 +56,15 @@ class KnowledgeBaseDocumentAppService extends AbstractKnowledgeAppService
         Authenticatable $authorization,
         array $query,
         string $knowledgeBaseCode,
-        Page $page,
     ): array {
         $dataIsolation = $this->createKnowledgeBaseDataIsolation($authorization);
         $context = KnowledgeBaseRawContextDTO::fromDataIsolation($dataIsolation);
-        $this->checkKnowledgeBaseOperation(
-            $dataIsolation,
-            OperationAction::Read->value,
-            $knowledgeBaseCode,
-            isset($query['code']) ? (string) $query['code'] : null,
-        );
 
         $rpcQuery = [
             'organization_code' => $dataIsolation->getCurrentOrganizationCode(),
             'knowledge_base_code' => $knowledgeBaseCode,
-            'page' => $page->getPage(),
-            'page_size' => $page->getPageNum(),
-            'offset' => $page->getSliceStart(),
-            'limit' => $page->getPageNum(),
         ];
-        foreach (['name', 'doc_type', 'enabled', 'sync_status'] as $field) {
+        foreach (['name', 'doc_type', 'enabled', 'sync_status', 'page', 'page_size', 'offset', 'limit'] as $field) {
             if (array_key_exists($field, $query)) {
                 $rpcQuery[$field] = $query[$field];
             }
@@ -129,7 +118,6 @@ class KnowledgeBaseDocumentAppService extends AbstractKnowledgeAppService
     ): array {
         $dataIsolation = $this->createKnowledgeBaseDataIsolation($authorization);
         $context = KnowledgeBaseRawContextDTO::fromDataIsolation($dataIsolation);
-        $this->checkKnowledgeBaseOperation($dataIsolation, OperationAction::Read->value, $knowledgeBaseCode, $documentCode);
         return $this->documentAppClient->show(DocumentRequestDTO::forShow(
             $documentCode,
             $knowledgeBaseCode,
@@ -147,7 +135,6 @@ class KnowledgeBaseDocumentAppService extends AbstractKnowledgeAppService
     ): array {
         $dataIsolation = $this->createKnowledgeBaseDataIsolation($authorization);
         $context = KnowledgeBaseRawContextDTO::fromDataIsolation($dataIsolation);
-        $this->checkKnowledgeBaseOperation($dataIsolation, OperationAction::Read->value, $knowledgeBaseCode, $documentCode);
 
         $result = $this->documentAppClient->getOriginalFileLink(DocumentRequestDTO::forOriginalFileLink(
             $documentCode,
@@ -174,7 +161,6 @@ class KnowledgeBaseDocumentAppService extends AbstractKnowledgeAppService
     ): void {
         $dataIsolation = $this->createKnowledgeBaseDataIsolation($authorization);
         $context = KnowledgeBaseRawContextDTO::fromDataIsolation($dataIsolation);
-        $this->checkKnowledgeBaseOperation($dataIsolation, OperationAction::Delete->value, $knowledgeBaseCode, $documentCode);
         $this->documentAppClient->destroy(DocumentRequestDTO::forDestroy(
             $documentCode,
             $knowledgeBaseCode,
@@ -193,7 +179,6 @@ class KnowledgeBaseDocumentAppService extends AbstractKnowledgeAppService
     ): void {
         $dataIsolation = $this->createKnowledgeBaseDataIsolation($authorization);
         $context = KnowledgeBaseRawContextDTO::fromDataIsolation($dataIsolation);
-        $this->checkKnowledgeBaseOperation($dataIsolation, OperationAction::Manage->value, $knowledgeBaseCode, $documentCode);
         $dataIsolationDTO = $context->dataIsolation();
         $documentEntity = new KnowledgeBaseDocumentEntity($this->documentAppClient->show(DocumentRequestDTO::forShow(
             $documentCode,
@@ -204,28 +189,85 @@ class KnowledgeBaseDocumentAppService extends AbstractKnowledgeAppService
         if (! $documentEntity->getDocumentFile()) {
             ExceptionBuilder::throw(PermissionErrorCode::Error, 'flow.knowledge_base.re_vectorized_not_support');
         }
-        $sync = $this->normalizeReVectorizedSyncFlag($payload['sync'] ?? null);
+        // 这是“当前文档手动重试”的入口，URL 已经显式指定 knowledge_base_code + document_code。
+        // 这里绝不能再借 third-file 链路扩散到别的知识库，否则接口语义会从“单文档”变成“广播”。
         $this->documentAppClient->sync(DocumentRequestDTO::forSync(
             $documentCode,
             $knowledgeBaseCode,
             'resync',
             $dataIsolationDTO,
             $context->businessParams($knowledgeBaseCode),
-            $sync
+            DocumentRequestDTO::REVECTORIZE_SOURCE_SINGLE_DOCUMENT_MANUAL,
         ));
+
+        if ($this->shouldWaitForReVectorizedSync($payload)) {
+            $this->waitForReVectorizedSyncStatusChanged(
+                $context,
+                $knowledgeBaseCode,
+                $documentCode,
+                $documentEntity->getSyncStatus(),
+            );
+        }
     }
 
-    private function normalizeReVectorizedSyncFlag(mixed $value): bool
+    private function shouldWaitForReVectorizedSync(array $payload): bool
     {
-        if ($value === null) {
+        if (! array_key_exists('sync', $payload)) {
             return false;
         }
-        if (is_bool($value)) {
-            return $value;
+
+        $sync = $payload['sync'];
+        if (is_bool($sync)) {
+            return $sync;
         }
-        if (! is_scalar($value)) {
-            return false;
+        if (is_int($sync)) {
+            return $sync === 1;
         }
-        return filter_var($value, FILTER_VALIDATE_BOOLEAN);
+        if (is_float($sync)) {
+            return $sync === 1.0;
+        }
+        if (is_string($sync)) {
+            $parsed = filter_var($sync, FILTER_VALIDATE_BOOLEAN, FILTER_NULL_ON_FAILURE);
+            return $parsed ?? false;
+        }
+
+        return false;
+    }
+
+    private function waitForReVectorizedSyncStatusChanged(
+        KnowledgeBaseRawContextDTO $context,
+        string $knowledgeBaseCode,
+        string $documentCode,
+        int $beforeSyncStatus,
+    ): void {
+        $deadline = microtime(true) + self::REVECTORIZED_SYNC_WAIT_TIMEOUT_SECONDS;
+        $dataIsolationDTO = $context->dataIsolation();
+
+        while (microtime(true) < $deadline) {
+            $currentDocument = new KnowledgeBaseDocumentEntity($this->documentAppClient->show(DocumentRequestDTO::forShow(
+                $documentCode,
+                $knowledgeBaseCode,
+                $dataIsolationDTO,
+            )));
+            if ($currentDocument->getSyncStatus() !== $beforeSyncStatus) {
+                return;
+            }
+
+            $remainingSeconds = $deadline - microtime(true);
+            if ($remainingSeconds <= 0) {
+                break;
+            }
+            Coroutine::sleep(min(self::REVECTORIZED_SYNC_POLL_INTERVAL_SECONDS, $remainingSeconds));
+        }
+
+        $this->logger->warning('knowledge_base_document_re_vectorized_sync_wait_timeout', [
+            'organization_code' => $context->organizationCode,
+            'knowledge_base_code' => $knowledgeBaseCode,
+            'document_code' => $documentCode,
+            'before_status' => $beforeSyncStatus,
+            'timeout_seconds' => self::REVECTORIZED_SYNC_WAIT_TIMEOUT_SECONDS,
+        ]);
+
+        ExceptionBuilder::throw(FlowErrorCode::ExecuteFailed, 'common.request_timeout');
     }
 }

@@ -6,6 +6,7 @@ import (
 	"time"
 
 	documentdomain "magic/internal/domain/knowledge/document/service"
+	parseddocument "magic/internal/domain/knowledge/shared/parseddocument"
 	"magic/internal/pkg/projectfile"
 )
 
@@ -14,12 +15,13 @@ const (
 )
 
 type cachedResolvedSource struct {
-	ResolvedAt   time.Time
-	Content      string
-	ContentHash  string
-	DocType      int
-	DocumentFile map[string]any
-	Source       string
+	ResolvedAt     time.Time
+	Content        string
+	ContentHash    string
+	DocType        int
+	DocumentFile   map[string]any
+	ParsedDocument *parseddocument.ParsedDocument
+	Source         string
 }
 
 func (s *DocumentAppService) loadCachedResolvedSource(cacheKey string) (*cachedResolvedSource, bool) {
@@ -93,9 +95,12 @@ func cachedResolvedSourceToSnapshot(cached *cachedResolvedSource) *documentdomai
 		return nil
 	}
 	return documentdomain.BuildResolvedSourceSnapshot(documentdomain.SourceSnapshotInput{
-		Content:            cached.Content,
-		DocType:            cached.DocType,
-		DocumentFile:       cached.DocumentFile,
+		Content:      cached.Content,
+		DocType:      cached.DocType,
+		DocumentFile: cached.DocumentFile,
+		// 从 cache 里拿出来的是底稿，先 clone 一份给当前请求用，
+		// 避免后面的重同步链路继续加工 ParsedDocument 时把 cache 一起改脏。
+		ParsedDocument:     parseddocument.CloneParsedDocument(cached.ParsedDocument),
 		Source:             cached.Source,
 		ContentHash:        cached.ContentHash,
 		FetchedAtUnixMilli: cached.ResolvedAt.UnixMilli(),
@@ -112,7 +117,10 @@ func newCachedResolvedSource(snapshot *documentdomain.ResolvedSourceSnapshot) *c
 		Content:      snapshot.Content,
 		ContentHash:  snapshot.ContentHash,
 		DocType:      snapshot.DocType,
-		DocumentFile: snapshot.DocumentFile,
-		Source:       snapshot.Source,
+		DocumentFile: documentdomain.CloneDocumentFilePayload(snapshot.DocumentFile),
+		// 写进 cache 之前先断开引用，避免调用方后面继续改 snapshot 里的 ParsedDocument，
+		// 把 cache 里的底稿也一起改脏。
+		ParsedDocument: parseddocument.CloneParsedDocument(snapshot.ParsedDocument),
+		Source:         snapshot.Source,
 	}
 }

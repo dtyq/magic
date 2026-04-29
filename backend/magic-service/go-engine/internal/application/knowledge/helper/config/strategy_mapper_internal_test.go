@@ -53,3 +53,65 @@ func TestStrategyConfigDTOFromMetadata_DefaultsForLegacyDocuments(t *testing.T) 
 		t.Fatalf("unexpected default strategy config %#v", cfg)
 	}
 }
+
+func TestStrategyConfigDTOToParseOptionsForKnowledgeBaseType_DigitalEmployeeCompat(t *testing.T) {
+	t.Parallel()
+
+	quick := StrategyConfigDTOToParseOptionsForKnowledgeBaseType("digital_employee", &StrategyConfigDTO{
+		ParsingType: 0,
+	})
+	if quick.ParsingType != documentdomain.ParsingTypeQuick || quick.ImageExtraction || quick.TableExtraction || quick.ImageOCR {
+		t.Fatalf("expected digital employee mode=0 quick, got %#v", quick)
+	}
+
+	precise := StrategyConfigDTOToParseOptionsForKnowledgeBaseType("digital_employee", &StrategyConfigDTO{
+		ParsingType:     1,
+		ImageExtraction: false,
+		TableExtraction: true,
+		ImageOCR:        true,
+	})
+	if precise.ParsingType != documentdomain.ParsingTypePrecise || precise.ImageExtraction || !precise.TableExtraction || !precise.ImageOCR {
+		t.Fatalf("expected digital employee mode=1 precise, got %#v", precise)
+	}
+
+	compatPrecise := StrategyConfigDTOToParseOptionsForKnowledgeBaseType("digital_employee", &StrategyConfigDTO{
+		ParsingType:     2,
+		ImageExtraction: false,
+		TableExtraction: true,
+		ImageOCR:        true,
+	})
+	if compatPrecise.ParsingType != documentdomain.ParsingTypePrecise ||
+		compatPrecise.ImageExtraction ||
+		!compatPrecise.TableExtraction ||
+		!compatPrecise.ImageOCR {
+		t.Fatalf("expected digital employee compat mode=2 precise, got %#v", compatPrecise)
+	}
+}
+
+func TestStrategyConfigDTOFromMetadataForKnowledgeBaseType_ProjectsDigitalEmployeeProtocol(t *testing.T) {
+	t.Parallel()
+
+	cfg := StrategyConfigDTOFromMetadataForKnowledgeBaseType("digital_employee", map[string]any{
+		documentdomain.ParseStrategyConfigKey: map[string]any{
+			"parsing_type":     documentdomain.ParsingTypeQuick,
+			"image_extraction": false,
+			"table_extraction": false,
+			"image_ocr":        false,
+		},
+	})
+	if cfg == nil || cfg.ParsingType != 0 {
+		t.Fatalf("expected digital employee quick protocol value, got %#v", cfg)
+	}
+
+	precise := StrategyConfigDTOFromMetadataForKnowledgeBaseType("digital_employee", map[string]any{
+		documentdomain.ParseStrategyConfigKey: map[string]any{
+			"parsing_type":     documentdomain.ParsingTypePrecise,
+			"image_extraction": false,
+			"table_extraction": true,
+			"image_ocr":        true,
+		},
+	})
+	if precise == nil || precise.ParsingType != 1 || precise.ImageExtraction || !precise.TableExtraction || !precise.ImageOCR {
+		t.Fatalf("expected digital employee precise protocol value, got %#v", precise)
+	}
+}

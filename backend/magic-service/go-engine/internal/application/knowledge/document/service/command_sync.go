@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"time"
 
+	docentity "magic/internal/domain/knowledge/document/entity"
 	document "magic/internal/domain/knowledge/document/service"
 	"magic/internal/pkg/knowledgeroute"
 )
@@ -52,6 +53,9 @@ func (s *DocumentAppService) executeSync(ctx context.Context, input *document.Sy
 
 	doc, err := s.fetchDocumentForSync(ctx, input)
 	if err != nil {
+		if errors.Is(err, ErrDocumentAccessActorMissing) && doc != nil {
+			return s.failSync(ctx, doc, document.SyncFailureAuthorization, err)
+		}
 		return err
 	}
 	trace.withDocument(doc)
@@ -68,7 +72,13 @@ func (s *DocumentAppService) executeSync(ctx context.Context, input *document.Sy
 	if err := s.injectProjectFileSourceOverride(ctx, doc, input); err != nil {
 		return err
 	}
-	s.prepareSingleDocumentThirdPlatformResync(ctx, doc, input)
+	deleted, err := s.prepareSingleDocumentThirdPlatformResync(ctx, doc, input)
+	if err != nil {
+		return err
+	}
+	if deleted {
+		return nil
+	}
 	if redirected, redirectErr := s.redirectThirdPlatformResync(ctx, mode, doc, input); redirectErr != nil || redirected {
 		return redirectErr
 	}
@@ -79,7 +89,7 @@ func (s *DocumentAppService) executeSyncDocument(
 	ctx context.Context,
 	input *document.SyncDocumentInput,
 	trace *documentSyncTracer,
-	doc *document.KnowledgeBaseDocument,
+	doc *docentity.KnowledgeBaseDocument,
 ) error {
 	runtimeKB, err := s.loadRuntimeKnowledgeBaseForSync(ctx, doc)
 	if err != nil {
@@ -120,6 +130,7 @@ func (s *DocumentAppService) executeSyncDocument(
 	if err := s.syncDocumentFragments(ctx, trace, documentFragmentSyncRequest{
 		doc:            doc,
 		kb:             runtimeKB,
+		kbSnapshot:     knowledgeBaseSnapshotFromDomain(runtimeKB),
 		collectionName: runtimeKB.ResolvedRoute.VectorCollectionName,
 		fragments:      fragments,
 		businessParams: input.BusinessParams,
@@ -132,7 +143,7 @@ func (s *DocumentAppService) executeSyncDocument(
 
 func (s *DocumentAppService) persistSourceOverride(
 	ctx context.Context,
-	doc *document.KnowledgeBaseDocument,
+	doc *docentity.KnowledgeBaseDocument,
 	override *document.SourceOverride,
 ) error {
 	if override == nil {
@@ -155,12 +166,16 @@ func (s *DocumentAppService) persistSourceOverride(
 
 func (s *DocumentAppService) failSync(
 	ctx context.Context,
-	doc *document.KnowledgeBaseDocument,
+	doc *docentity.KnowledgeBaseDocument,
 	fallbackReason string,
 	err error,
 ) error {
 	reason, cause := unwrapDocumentSyncStageError(err, fallbackReason)
 	failureErr := document.NewSyncStageError(reason, cause)
+	s.logResourceLimitFailure(ctx, doc, cause, reason)
+	if shouldDeferSyncFailureMark(ctx) {
+		return failureErr
+	}
 	if markErr := s.domainService.MarkSyncFailed(
 		ctx,
 		doc,
@@ -183,9 +198,16 @@ func unwrapDocumentSyncStageError(err error, fallbackReason string) (string, err
 			reason = fallbackReason
 		}
 		if stageErr.Err != nil {
-			return reason, stageErr.Err
+			return normalizeDocumentSyncResourceLimitReason(reason, stageErr.Err), stageErr.Err
 		}
-		return reason, err
+		return normalizeDocumentSyncResourceLimitReason(reason, err), err
 	}
-	return fallbackReason, err
+	return normalizeDocumentSyncResourceLimitReason(fallbackReason, err), err
+}
+
+func normalizeDocumentSyncResourceLimitReason(reason string, err error) string {
+	if errors.Is(err, document.ErrDocumentResourceLimitExceeded) {
+		return document.SyncFailureResourceLimitExceeded
+	}
+	return reason
 }

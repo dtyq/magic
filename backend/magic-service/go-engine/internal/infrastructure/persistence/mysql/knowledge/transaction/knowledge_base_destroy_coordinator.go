@@ -3,6 +3,7 @@ package transaction
 
 import (
 	"context"
+	"database/sql"
 	"fmt"
 
 	mysqlclient "magic/internal/infrastructure/persistence/mysql"
@@ -35,7 +36,7 @@ func (c *KnowledgeBaseDestroyCoordinator) Destroy(ctx context.Context, knowledge
 		}
 	}()
 	queries := c.client.WithTx(tx)
-	if err = deleteKnowledgeBaseGraph(ctx, queries, knowledgeBaseID, knowledgeBaseCode); err != nil {
+	if err = deleteKnowledgeBaseGraph(ctx, tx, queries, knowledgeBaseID, knowledgeBaseCode); err != nil {
 		return err
 	}
 
@@ -48,6 +49,7 @@ func (c *KnowledgeBaseDestroyCoordinator) Destroy(ctx context.Context, knowledge
 
 func deleteKnowledgeBaseGraph(
 	ctx context.Context,
+	tx *sql.Tx,
 	queries *mysqlsqlc.Queries,
 	knowledgeBaseID int64,
 	knowledgeBaseCode string,
@@ -58,15 +60,15 @@ func deleteKnowledgeBaseGraph(
 
 	steps := []struct {
 		label string
-		run   func(context.Context, *mysqlsqlc.Queries) error
+		run   func(context.Context, *sql.Tx, *mysqlsqlc.Queries) error
 	}{
-		{
-			label: "delete source binding items",
-			run:   deleteSourceBindingItemsStep(knowledgeBaseCode),
-		},
 		{
 			label: "delete source binding targets",
 			run:   deleteSourceBindingTargetsStep(knowledgeBaseCode),
+		},
+		{
+			label: "delete source binding items",
+			run:   deleteSourceBindingItemsStep(knowledgeBaseCode),
 		},
 		{
 			label: "delete source bindings",
@@ -91,45 +93,42 @@ func deleteKnowledgeBaseGraph(
 	}
 
 	for _, step := range steps {
-		if err := step.run(ctx, queries); err != nil {
+		if err := step.run(ctx, tx, queries); err != nil {
 			return fmt.Errorf("%s: %w", step.label, err)
 		}
 	}
 	return nil
 }
 
-func deleteSourceBindingItemsStep(knowledgeBaseCode string) func(context.Context, *mysqlsqlc.Queries) error {
-	return func(ctx context.Context, queries *mysqlsqlc.Queries) error {
-		_, err := queries.DeleteSourceBindingItemsByKnowledgeBase(ctx, knowledgeBaseCode)
-		if err != nil {
+func deleteSourceBindingItemsStep(knowledgeBaseCode string) func(context.Context, *sql.Tx, *mysqlsqlc.Queries) error {
+	return func(ctx context.Context, _ *sql.Tx, queries *mysqlsqlc.Queries) error {
+		if _, err := queries.DeleteSourceBindingItemsByKnowledgeBase(ctx, knowledgeBaseCode); err != nil {
 			return fmt.Errorf("delete source binding items by knowledge base: %w", err)
 		}
 		return nil
 	}
 }
 
-func deleteSourceBindingTargetsStep(knowledgeBaseCode string) func(context.Context, *mysqlsqlc.Queries) error {
-	return func(ctx context.Context, queries *mysqlsqlc.Queries) error {
-		_, err := queries.DeleteSourceBindingTargetsByKnowledgeBase(ctx, knowledgeBaseCode)
-		if err != nil {
+func deleteSourceBindingTargetsStep(knowledgeBaseCode string) func(context.Context, *sql.Tx, *mysqlsqlc.Queries) error {
+	return func(ctx context.Context, _ *sql.Tx, queries *mysqlsqlc.Queries) error {
+		if _, err := queries.DeleteSourceBindingTargetsByKnowledgeBase(ctx, knowledgeBaseCode); err != nil {
 			return fmt.Errorf("delete source binding targets by knowledge base: %w", err)
 		}
 		return nil
 	}
 }
 
-func deleteSourceBindingsStep(knowledgeBaseCode string) func(context.Context, *mysqlsqlc.Queries) error {
-	return func(ctx context.Context, queries *mysqlsqlc.Queries) error {
-		_, err := queries.DeleteSourceBindingsByKnowledgeBase(ctx, knowledgeBaseCode)
-		if err != nil {
+func deleteSourceBindingsStep(knowledgeBaseCode string) func(context.Context, *sql.Tx, *mysqlsqlc.Queries) error {
+	return func(ctx context.Context, _ *sql.Tx, queries *mysqlsqlc.Queries) error {
+		if _, err := queries.DeleteSourceBindingsByKnowledgeBase(ctx, knowledgeBaseCode); err != nil {
 			return fmt.Errorf("delete source bindings by knowledge base: %w", err)
 		}
 		return nil
 	}
 }
 
-func deleteKnowledgeBaseBindingsStep(knowledgeBaseCode string) func(context.Context, *mysqlsqlc.Queries) error {
-	return func(ctx context.Context, queries *mysqlsqlc.Queries) error {
+func deleteKnowledgeBaseBindingsStep(knowledgeBaseCode string) func(context.Context, *sql.Tx, *mysqlsqlc.Queries) error {
+	return func(ctx context.Context, _ *sql.Tx, queries *mysqlsqlc.Queries) error {
 		_, err := queries.DeleteKnowledgeBaseBindingsByCode(ctx, knowledgeBaseCode)
 		if err != nil {
 			return fmt.Errorf("delete knowledge base bindings by code: %w", err)
@@ -138,8 +137,8 @@ func deleteKnowledgeBaseBindingsStep(knowledgeBaseCode string) func(context.Cont
 	}
 }
 
-func deleteKnowledgeBaseFragmentsStep(knowledgeBaseCode string) func(context.Context, *mysqlsqlc.Queries) error {
-	return func(ctx context.Context, queries *mysqlsqlc.Queries) error {
+func deleteKnowledgeBaseFragmentsStep(knowledgeBaseCode string) func(context.Context, *sql.Tx, *mysqlsqlc.Queries) error {
+	return func(ctx context.Context, _ *sql.Tx, queries *mysqlsqlc.Queries) error {
 		_, err := queries.DeleteFragmentsByKnowledgeBase(ctx, knowledgeBaseCode)
 		if err != nil {
 			return fmt.Errorf("delete fragments by knowledge base: %w", err)
@@ -148,8 +147,8 @@ func deleteKnowledgeBaseFragmentsStep(knowledgeBaseCode string) func(context.Con
 	}
 }
 
-func deleteKnowledgeBaseDocumentsStep(knowledgeBaseCode string) func(context.Context, *mysqlsqlc.Queries) error {
-	return func(ctx context.Context, queries *mysqlsqlc.Queries) error {
+func deleteKnowledgeBaseDocumentsStep(knowledgeBaseCode string) func(context.Context, *sql.Tx, *mysqlsqlc.Queries) error {
+	return func(ctx context.Context, _ *sql.Tx, queries *mysqlsqlc.Queries) error {
 		_, err := queries.DeleteDocumentsByKnowledgeBase(ctx, knowledgeBaseCode)
 		if err != nil {
 			return fmt.Errorf("delete documents by knowledge base: %w", err)
@@ -158,8 +157,8 @@ func deleteKnowledgeBaseDocumentsStep(knowledgeBaseCode string) func(context.Con
 	}
 }
 
-func deleteKnowledgeBaseRowStep(knowledgeBaseID int64) func(context.Context, *mysqlsqlc.Queries) error {
-	return func(ctx context.Context, queries *mysqlsqlc.Queries) error {
+func deleteKnowledgeBaseRowStep(knowledgeBaseID int64) func(context.Context, *sql.Tx, *mysqlsqlc.Queries) error {
+	return func(ctx context.Context, _ *sql.Tx, queries *mysqlsqlc.Queries) error {
 		_, err := queries.DeleteKnowledgeBaseByID(ctx, knowledgeBaseID)
 		if err != nil {
 			return fmt.Errorf("delete knowledge base by id: %w", err)

@@ -4,25 +4,25 @@ import (
 	"errors"
 	"testing"
 
-	knowledgebasedomain "magic/internal/domain/knowledge/knowledgebase/service"
+	kbentity "magic/internal/domain/knowledge/knowledgebase/entity"
 )
 
 func TestNormalizeSourceTypeDefaultsByKnowledgeBaseType(t *testing.T) {
 	t.Parallel()
 
-	for _, knowledgeBaseType := range []knowledgebasedomain.Type{
-		knowledgebasedomain.KnowledgeBaseTypeFlowVector,
-		knowledgebasedomain.KnowledgeBaseTypeDigitalEmployee,
+	for _, knowledgeBaseType := range []kbentity.Type{
+		kbentity.KnowledgeBaseTypeFlowVector,
+		kbentity.KnowledgeBaseTypeDigitalEmployee,
 	} {
 		t.Run(string(knowledgeBaseType), func(t *testing.T) {
 			t.Parallel()
 
-			normalized, err := knowledgebasedomain.NormalizeSourceType(knowledgeBaseType, nil)
+			normalized, err := kbentity.NormalizeSourceType(knowledgeBaseType, nil)
 			if err != nil {
 				t.Fatalf("NormalizeSourceType returned error: %v", err)
 			}
-			if normalized == nil || *normalized != int(knowledgebasedomain.SourceTypeLocalFile) {
-				t.Fatalf("expected default source_type=%d, got %#v", int(knowledgebasedomain.SourceTypeLocalFile), normalized)
+			if normalized == nil || *normalized != int(kbentity.SourceTypeLocalFile) {
+				t.Fatalf("expected default source_type=%d, got %#v", int(kbentity.SourceTypeLocalFile), normalized)
 			}
 		})
 	}
@@ -32,29 +32,29 @@ func TestNormalizeSourceTypeRejectsInvalidValue(t *testing.T) {
 	t.Parallel()
 
 	invalid := 99
-	_, err := knowledgebasedomain.NormalizeSourceType(knowledgebasedomain.KnowledgeBaseTypeDigitalEmployee, &invalid)
-	if !errors.Is(err, knowledgebasedomain.ErrInvalidSourceType) {
+	_, err := kbentity.NormalizeSourceType(kbentity.KnowledgeBaseTypeDigitalEmployee, &invalid)
+	if !errors.Is(err, kbentity.ErrInvalidSourceType) {
 		t.Fatalf("expected ErrInvalidSourceType, got %v", err)
 	}
 }
 
-func TestNormalizeSourceTypeRejectsCrossProductLineValues(t *testing.T) {
+func TestNormalizeSourceTypeRejectsFlowOnlyNonEnterpriseCrossProductLineValues(t *testing.T) {
 	t.Parallel()
 
 	testCases := []struct {
 		name              string
-		knowledgeBaseType knowledgebasedomain.Type
+		knowledgeBaseType kbentity.Type
 		sourceType        int
 	}{
 		{
-			name:              "digital_employee_rejects_flow_enterprise_value",
-			knowledgeBaseType: knowledgebasedomain.KnowledgeBaseTypeDigitalEmployee,
-			sourceType:        int(knowledgebasedomain.SourceTypeLegacyEnterpriseWiki),
+			name:              "flow_rejects_custom_content",
+			knowledgeBaseType: kbentity.KnowledgeBaseTypeFlowVector,
+			sourceType:        int(kbentity.SourceTypeCustomContent),
 		},
 		{
-			name:              "flow_rejects_digital_enterprise_value",
-			knowledgeBaseType: knowledgebasedomain.KnowledgeBaseTypeFlowVector,
-			sourceType:        int(knowledgebasedomain.SourceTypeEnterpriseWiki),
+			name:              "flow_rejects_project",
+			knowledgeBaseType: kbentity.KnowledgeBaseTypeFlowVector,
+			sourceType:        int(kbentity.SourceTypeProject),
 		},
 	}
 
@@ -62,8 +62,8 @@ func TestNormalizeSourceTypeRejectsCrossProductLineValues(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			_, err := knowledgebasedomain.NormalizeSourceType(tc.knowledgeBaseType, &tc.sourceType)
-			if !errors.Is(err, knowledgebasedomain.ErrInvalidSourceType) {
+			_, err := kbentity.NormalizeSourceType(tc.knowledgeBaseType, &tc.sourceType)
+			if !errors.Is(err, kbentity.ErrInvalidSourceType) {
 				t.Fatalf("expected ErrInvalidSourceType, got %v", err)
 			}
 		})
@@ -75,22 +75,24 @@ func TestNormalizeSourceTypeAcceptsSupportedValuesByKnowledgeBaseType(t *testing
 
 	testCases := []struct {
 		name              string
-		knowledgeBaseType knowledgebasedomain.Type
+		knowledgeBaseType kbentity.Type
 		sourceType        int
 	}{
-		{"flow_local", knowledgebasedomain.KnowledgeBaseTypeFlowVector, int(knowledgebasedomain.SourceTypeLocalFile)},
-		{"flow_enterprise", knowledgebasedomain.KnowledgeBaseTypeFlowVector, int(knowledgebasedomain.SourceTypeLegacyEnterpriseWiki)},
-		{"digital_local", knowledgebasedomain.KnowledgeBaseTypeDigitalEmployee, int(knowledgebasedomain.SourceTypeLocalFile)},
-		{"digital_custom", knowledgebasedomain.KnowledgeBaseTypeDigitalEmployee, int(knowledgebasedomain.SourceTypeCustomContent)},
-		{"digital_project", knowledgebasedomain.KnowledgeBaseTypeDigitalEmployee, int(knowledgebasedomain.SourceTypeProject)},
-		{"digital_enterprise", knowledgebasedomain.KnowledgeBaseTypeDigitalEmployee, int(knowledgebasedomain.SourceTypeEnterpriseWiki)},
+		{"flow_local", kbentity.KnowledgeBaseTypeFlowVector, int(kbentity.SourceTypeLocalFile)},
+		{"flow_enterprise_legacy", kbentity.KnowledgeBaseTypeFlowVector, int(kbentity.SourceTypeLegacyEnterpriseWiki)},
+		{"flow_enterprise_digital_raw", kbentity.KnowledgeBaseTypeFlowVector, int(kbentity.SourceTypeEnterpriseWiki)},
+		{"digital_local", kbentity.KnowledgeBaseTypeDigitalEmployee, int(kbentity.SourceTypeLocalFile)},
+		{"digital_custom", kbentity.KnowledgeBaseTypeDigitalEmployee, int(kbentity.SourceTypeCustomContent)},
+		{"digital_project", kbentity.KnowledgeBaseTypeDigitalEmployee, int(kbentity.SourceTypeProject)},
+		{"digital_enterprise_legacy", kbentity.KnowledgeBaseTypeDigitalEmployee, int(kbentity.SourceTypeLegacyEnterpriseWiki)},
+		{"digital_enterprise", kbentity.KnowledgeBaseTypeDigitalEmployee, int(kbentity.SourceTypeEnterpriseWiki)},
 	}
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			normalized, err := knowledgebasedomain.NormalizeSourceType(tc.knowledgeBaseType, &tc.sourceType)
+			normalized, err := kbentity.NormalizeSourceType(tc.knowledgeBaseType, &tc.sourceType)
 			if err != nil {
 				t.Fatalf("NormalizeSourceType returned error: %v", err)
 			}
@@ -104,16 +106,22 @@ func TestNormalizeSourceTypeAcceptsSupportedValuesByKnowledgeBaseType(t *testing
 func TestKnowledgeBaseTypeHelpers(t *testing.T) {
 	t.Parallel()
 
-	if !knowledgebasedomain.IsFlowVectorSourceType(int(knowledgebasedomain.SourceTypeLocalFile)) {
+	if !kbentity.IsFlowVectorSourceType(int(kbentity.SourceTypeLocalFile)) {
 		t.Fatal("expected local file to be recognized as flow vector source type")
 	}
-	if !knowledgebasedomain.IsFlowVectorSourceType(int(knowledgebasedomain.SourceTypeLegacyEnterpriseWiki)) {
+	if !kbentity.IsFlowVectorSourceType(int(kbentity.SourceTypeLegacyEnterpriseWiki)) {
 		t.Fatal("expected legacy enterprise wiki to be recognized as flow vector source type")
 	}
-	if !knowledgebasedomain.IsDigitalEmployeeSourceType(int(knowledgebasedomain.SourceTypeProject)) {
+	if !kbentity.IsFlowVectorSourceType(int(kbentity.SourceTypeEnterpriseWiki)) {
+		t.Fatal("expected digital enterprise wiki raw value to be recognized as flow vector source type")
+	}
+	if !kbentity.IsDigitalEmployeeSourceType(int(kbentity.SourceTypeProject)) {
 		t.Fatal("expected project to be recognized as digital employee source type")
 	}
-	if knowledgebasedomain.IsFlowVectorSourceType(int(knowledgebasedomain.SourceTypeCustomContent)) {
+	if !kbentity.IsDigitalEmployeeSourceType(int(kbentity.SourceTypeLegacyEnterpriseWiki)) {
+		t.Fatal("expected legacy enterprise wiki raw value to be recognized as digital employee source type")
+	}
+	if kbentity.IsFlowVectorSourceType(int(kbentity.SourceTypeCustomContent)) {
 		t.Fatal("custom content should not be recognized as flow vector source type")
 	}
 }
@@ -123,23 +131,25 @@ func TestResolveSemanticSourceType(t *testing.T) {
 
 	testCases := []struct {
 		name              string
-		knowledgeBaseType knowledgebasedomain.Type
+		knowledgeBaseType kbentity.Type
 		sourceType        int
-		expected          knowledgebasedomain.SemanticSourceType
+		expected          kbentity.SemanticSourceType
 	}{
-		{"flow_local", knowledgebasedomain.KnowledgeBaseTypeFlowVector, int(knowledgebasedomain.SourceTypeLocalFile), knowledgebasedomain.SemanticSourceTypeLocal},
-		{"flow_enterprise", knowledgebasedomain.KnowledgeBaseTypeFlowVector, int(knowledgebasedomain.SourceTypeLegacyEnterpriseWiki), knowledgebasedomain.SemanticSourceTypeEnterprise},
-		{"digital_local", knowledgebasedomain.KnowledgeBaseTypeDigitalEmployee, int(knowledgebasedomain.SourceTypeLocalFile), knowledgebasedomain.SemanticSourceTypeLocal},
-		{"digital_custom", knowledgebasedomain.KnowledgeBaseTypeDigitalEmployee, int(knowledgebasedomain.SourceTypeCustomContent), knowledgebasedomain.SemanticSourceTypeCustomContent},
-		{"digital_project", knowledgebasedomain.KnowledgeBaseTypeDigitalEmployee, int(knowledgebasedomain.SourceTypeProject), knowledgebasedomain.SemanticSourceTypeProject},
-		{"digital_enterprise", knowledgebasedomain.KnowledgeBaseTypeDigitalEmployee, int(knowledgebasedomain.SourceTypeEnterpriseWiki), knowledgebasedomain.SemanticSourceTypeEnterprise},
+		{"flow_local", kbentity.KnowledgeBaseTypeFlowVector, int(kbentity.SourceTypeLocalFile), kbentity.SemanticSourceTypeLocal},
+		{"flow_enterprise_legacy", kbentity.KnowledgeBaseTypeFlowVector, int(kbentity.SourceTypeLegacyEnterpriseWiki), kbentity.SemanticSourceTypeEnterprise},
+		{"flow_enterprise_digital_raw", kbentity.KnowledgeBaseTypeFlowVector, int(kbentity.SourceTypeEnterpriseWiki), kbentity.SemanticSourceTypeEnterprise},
+		{"digital_local", kbentity.KnowledgeBaseTypeDigitalEmployee, int(kbentity.SourceTypeLocalFile), kbentity.SemanticSourceTypeLocal},
+		{"digital_custom", kbentity.KnowledgeBaseTypeDigitalEmployee, int(kbentity.SourceTypeCustomContent), kbentity.SemanticSourceTypeCustomContent},
+		{"digital_project", kbentity.KnowledgeBaseTypeDigitalEmployee, int(kbentity.SourceTypeProject), kbentity.SemanticSourceTypeProject},
+		{"digital_enterprise_legacy", kbentity.KnowledgeBaseTypeDigitalEmployee, int(kbentity.SourceTypeLegacyEnterpriseWiki), kbentity.SemanticSourceTypeEnterprise},
+		{"digital_enterprise", kbentity.KnowledgeBaseTypeDigitalEmployee, int(kbentity.SourceTypeEnterpriseWiki), kbentity.SemanticSourceTypeEnterprise},
 	}
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			actual, err := knowledgebasedomain.ResolveSemanticSourceType(tc.knowledgeBaseType, tc.sourceType)
+			actual, err := kbentity.ResolveSemanticSourceType(tc.knowledgeBaseType, tc.sourceType)
 			if err != nil {
 				t.Fatalf("ResolveSemanticSourceType returned error: %v", err)
 			}
@@ -153,36 +163,36 @@ func TestResolveSemanticSourceType(t *testing.T) {
 func TestNormalizeExistingSourceTypeForKnowledgeBaseType(t *testing.T) {
 	t.Parallel()
 
-	oldFlowEnterprise := int(knowledgebasedomain.SourceTypeLegacyEnterpriseWiki)
-	normalized, err := knowledgebasedomain.NormalizeExistingSourceTypeForKnowledgeBaseType(
-		knowledgebasedomain.KnowledgeBaseTypeDigitalEmployee,
+	oldFlowEnterprise := int(kbentity.SourceTypeLegacyEnterpriseWiki)
+	normalized, err := kbentity.NormalizeExistingSourceTypeForKnowledgeBaseType(
+		kbentity.KnowledgeBaseTypeDigitalEmployee,
 		&oldFlowEnterprise,
 	)
 	if err != nil {
 		t.Fatalf("NormalizeExistingSourceTypeForKnowledgeBaseType returned error: %v", err)
 	}
-	if normalized == nil || *normalized != int(knowledgebasedomain.SourceTypeEnterpriseWiki) {
-		t.Fatalf("expected normalized digital enterprise source_type=%d, got %#v", int(knowledgebasedomain.SourceTypeEnterpriseWiki), normalized)
+	if normalized == nil || *normalized != oldFlowEnterprise {
+		t.Fatalf("expected normalized digital enterprise source_type=%d, got %#v", oldFlowEnterprise, normalized)
 	}
 
-	oldDigitalEnterprise := int(knowledgebasedomain.SourceTypeEnterpriseWiki)
-	normalized, err = knowledgebasedomain.NormalizeExistingSourceTypeForKnowledgeBaseType(
-		knowledgebasedomain.KnowledgeBaseTypeFlowVector,
+	oldDigitalEnterprise := int(kbentity.SourceTypeEnterpriseWiki)
+	normalized, err = kbentity.NormalizeExistingSourceTypeForKnowledgeBaseType(
+		kbentity.KnowledgeBaseTypeFlowVector,
 		&oldDigitalEnterprise,
 	)
 	if err != nil {
 		t.Fatalf("NormalizeExistingSourceTypeForKnowledgeBaseType returned error: %v", err)
 	}
-	if normalized == nil || *normalized != int(knowledgebasedomain.SourceTypeLegacyEnterpriseWiki) {
-		t.Fatalf("expected normalized flow enterprise source_type=%d, got %#v", int(knowledgebasedomain.SourceTypeLegacyEnterpriseWiki), normalized)
+	if normalized == nil || *normalized != oldDigitalEnterprise {
+		t.Fatalf("expected normalized flow enterprise source_type=%d, got %#v", oldDigitalEnterprise, normalized)
 	}
 
-	projectSourceType := int(knowledgebasedomain.SourceTypeProject)
-	normalized, err = knowledgebasedomain.NormalizeExistingSourceTypeForKnowledgeBaseType(
-		knowledgebasedomain.KnowledgeBaseTypeFlowVector,
+	projectSourceType := int(kbentity.SourceTypeProject)
+	normalized, err = kbentity.NormalizeExistingSourceTypeForKnowledgeBaseType(
+		kbentity.KnowledgeBaseTypeFlowVector,
 		&projectSourceType,
 	)
-	if !errors.Is(err, knowledgebasedomain.ErrExplicitFlowSourceTypeRequired) {
+	if !errors.Is(err, kbentity.ErrExplicitFlowSourceTypeRequired) {
 		t.Fatalf("expected ErrExplicitFlowSourceTypeRequired, got normalized=%#v err=%v", normalized, err)
 	}
 }
@@ -192,55 +202,55 @@ func TestNormalizeOrInferSourceType(t *testing.T) {
 
 	testCases := []struct {
 		name              string
-		knowledgeBaseType knowledgebasedomain.Type
+		knowledgeBaseType kbentity.Type
 		sourceType        *int
-		bindingHints      []knowledgebasedomain.SourceBindingHint
+		bindingHints      []kbentity.SourceBindingHint
 		wantSourceType    int
 		wantErr           error
 	}{
 		{
 			name:              "digital_missing_source_type",
-			knowledgeBaseType: knowledgebasedomain.KnowledgeBaseTypeDigitalEmployee,
-			wantErr:           knowledgebasedomain.ErrDigitalEmployeeSourceTypeRequired,
+			knowledgeBaseType: kbentity.KnowledgeBaseTypeDigitalEmployee,
+			wantErr:           kbentity.ErrDigitalEmployeeSourceTypeRequired,
 		},
 		{
 			name:              "flow_without_bindings_defaults_local",
-			knowledgeBaseType: knowledgebasedomain.KnowledgeBaseTypeFlowVector,
-			wantSourceType:    int(knowledgebasedomain.SourceTypeLocalFile),
+			knowledgeBaseType: kbentity.KnowledgeBaseTypeFlowVector,
+			wantSourceType:    int(kbentity.SourceTypeLocalFile),
 		},
 		{
 			name:              "flow_local_binding_defaults_local",
-			knowledgeBaseType: knowledgebasedomain.KnowledgeBaseTypeFlowVector,
-			bindingHints: []knowledgebasedomain.SourceBindingHint{
+			knowledgeBaseType: kbentity.KnowledgeBaseTypeFlowVector,
+			bindingHints: []kbentity.SourceBindingHint{
 				{Provider: "local_upload", RootType: "file"},
 			},
-			wantSourceType: int(knowledgebasedomain.SourceTypeLocalFile),
+			wantSourceType: int(kbentity.SourceTypeLocalFile),
 		},
 		{
 			name:              "flow_enterprise_binding_infers_enterprise",
-			knowledgeBaseType: knowledgebasedomain.KnowledgeBaseTypeFlowVector,
-			bindingHints: []knowledgebasedomain.SourceBindingHint{
+			knowledgeBaseType: kbentity.KnowledgeBaseTypeFlowVector,
+			bindingHints: []kbentity.SourceBindingHint{
 				{Provider: "teamshare", RootType: "knowledge_base"},
 			},
-			wantSourceType: int(knowledgebasedomain.SourceTypeLegacyEnterpriseWiki),
+			wantSourceType: int(kbentity.SourceTypeLegacyEnterpriseWiki),
 		},
 		{
 			name:              "flow_mixed_bindings_rejected",
-			knowledgeBaseType: knowledgebasedomain.KnowledgeBaseTypeFlowVector,
-			bindingHints: []knowledgebasedomain.SourceBindingHint{
+			knowledgeBaseType: kbentity.KnowledgeBaseTypeFlowVector,
+			bindingHints: []kbentity.SourceBindingHint{
 				{Provider: "local_upload", RootType: "file"},
 				{Provider: "teamshare", RootType: "knowledge_base"},
 			},
-			wantErr: knowledgebasedomain.ErrAmbiguousFlowSourceType,
+			wantErr: kbentity.ErrAmbiguousFlowSourceType,
 		},
 		{
 			name:              "explicit_source_type_wins",
-			knowledgeBaseType: knowledgebasedomain.KnowledgeBaseTypeFlowVector,
-			sourceType:        func() *int { value := int(knowledgebasedomain.SourceTypeLegacyEnterpriseWiki); return &value }(),
-			bindingHints: []knowledgebasedomain.SourceBindingHint{
+			knowledgeBaseType: kbentity.KnowledgeBaseTypeFlowVector,
+			sourceType:        func() *int { value := int(kbentity.SourceTypeLegacyEnterpriseWiki); return &value }(),
+			bindingHints: []kbentity.SourceBindingHint{
 				{Provider: "local_upload", RootType: "file"},
 			},
-			wantSourceType: int(knowledgebasedomain.SourceTypeLegacyEnterpriseWiki),
+			wantSourceType: int(kbentity.SourceTypeLegacyEnterpriseWiki),
 		},
 	}
 
@@ -248,7 +258,7 @@ func TestNormalizeOrInferSourceType(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			normalized, err := knowledgebasedomain.NormalizeOrInferSourceType(
+			normalized, err := kbentity.NormalizeOrInferSourceType(
 				tc.knowledgeBaseType,
 				tc.sourceType,
 				tc.bindingHints,
@@ -272,33 +282,41 @@ func TestNormalizeOrInferSourceType(t *testing.T) {
 func TestValidateManualDocumentCreateAllowed(t *testing.T) {
 	t.Parallel()
 
-	projectSourceType := int(knowledgebasedomain.SourceTypeProject)
-	if err := knowledgebasedomain.ValidateManualDocumentCreateAllowed(
-		knowledgebasedomain.KnowledgeBaseTypeDigitalEmployee,
+	projectSourceType := int(kbentity.SourceTypeProject)
+	if err := kbentity.ValidateManualDocumentCreateAllowed(
+		kbentity.KnowledgeBaseTypeDigitalEmployee,
 		&projectSourceType,
-	); !errors.Is(err, knowledgebasedomain.ErrManualDocumentCreateNotAllowed) {
+	); !errors.Is(err, kbentity.ErrManualDocumentCreateNotAllowed) {
 		t.Fatalf("expected ErrManualDocumentCreateNotAllowed for project digital employee knowledge base, got %v", err)
 	}
 
-	enterpriseSourceType := int(knowledgebasedomain.SourceTypeEnterpriseWiki)
-	if err := knowledgebasedomain.ValidateManualDocumentCreateAllowed(
-		knowledgebasedomain.KnowledgeBaseTypeDigitalEmployee,
+	enterpriseSourceType := int(kbentity.SourceTypeEnterpriseWiki)
+	if err := kbentity.ValidateManualDocumentCreateAllowed(
+		kbentity.KnowledgeBaseTypeDigitalEmployee,
 		&enterpriseSourceType,
-	); !errors.Is(err, knowledgebasedomain.ErrManualDocumentCreateNotAllowed) {
+	); !errors.Is(err, kbentity.ErrManualDocumentCreateNotAllowed) {
 		t.Fatalf("expected ErrManualDocumentCreateNotAllowed for enterprise digital employee knowledge base, got %v", err)
 	}
 
-	customSourceType := int(knowledgebasedomain.SourceTypeCustomContent)
-	if err := knowledgebasedomain.ValidateManualDocumentCreateAllowed(
-		knowledgebasedomain.KnowledgeBaseTypeDigitalEmployee,
+	legacyEnterpriseSourceType := int(kbentity.SourceTypeLegacyEnterpriseWiki)
+	if err := kbentity.ValidateManualDocumentCreateAllowed(
+		kbentity.KnowledgeBaseTypeDigitalEmployee,
+		&legacyEnterpriseSourceType,
+	); !errors.Is(err, kbentity.ErrManualDocumentCreateNotAllowed) {
+		t.Fatalf("expected ErrManualDocumentCreateNotAllowed for legacy enterprise digital employee knowledge base, got %v", err)
+	}
+
+	customSourceType := int(kbentity.SourceTypeCustomContent)
+	if err := kbentity.ValidateManualDocumentCreateAllowed(
+		kbentity.KnowledgeBaseTypeDigitalEmployee,
 		&customSourceType,
 	); err != nil {
 		t.Fatalf("expected custom digital employee knowledge base to allow manual document create, got %v", err)
 	}
 
-	flowEnterpriseSourceType := int(knowledgebasedomain.SourceTypeLegacyEnterpriseWiki)
-	if err := knowledgebasedomain.ValidateManualDocumentCreateAllowed(
-		knowledgebasedomain.KnowledgeBaseTypeFlowVector,
+	flowEnterpriseSourceType := int(kbentity.SourceTypeLegacyEnterpriseWiki)
+	if err := kbentity.ValidateManualDocumentCreateAllowed(
+		kbentity.KnowledgeBaseTypeFlowVector,
 		&flowEnterpriseSourceType,
 	); err != nil {
 		t.Fatalf("expected flow knowledge base to allow manual document create, got %v", err)

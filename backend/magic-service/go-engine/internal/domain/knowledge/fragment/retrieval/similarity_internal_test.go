@@ -20,11 +20,11 @@ func TestBuildSparseSearchRequestUsesSharedServiceSegmenter(t *testing.T) {
 	})
 
 	input := similaritySingleQueryInput{
-		VectorCollectionName:    "collection",
-		TermCollectionName:      "collection",
-		SparseBackend:           fragmodel.SparseBackendClientBM25QdrantIDFV1,
-		Query:                   "小哥对录音纪要提出了哪些问题",
-		CandidateScoreThreshold: 0.1,
+		VectorCollectionName:          "collection",
+		TermCollectionName:            "collection",
+		SparseBackend:                 fragmodel.SparseBackendClientBM25QdrantIDFV1,
+		QueryProfile:                  buildSimilarityQueryProfile("小哥对录音纪要提出了哪些问题", "", service.newRetrievalAnalyzer()),
+		SparseCandidateScoreThreshold: 0,
 		Hybrid: hybridSearchConfig{
 			SparseTopK: 5,
 		},
@@ -38,8 +38,8 @@ func TestBuildSparseSearchRequestUsesSharedServiceSegmenter(t *testing.T) {
 		if request.Vector == nil {
 			t.Fatalf("expected sparse vector request, got %#v", request)
 		}
-		if request.ScoreThreshold != 0.1 {
-			t.Fatalf("expected sparse threshold to follow candidate threshold, got %#v", request)
+		if request.ScoreThreshold != 0 {
+			t.Fatalf("expected sparse threshold to default to zero, got %#v", request)
 		}
 	}
 
@@ -85,6 +85,20 @@ func TestDefaultSegmenterProviderIsProcessSingleton(t *testing.T) {
 			serviceSegmenterA,
 			serviceSegmenterB,
 		)
+	}
+}
+
+func TestEnsureRuntimeReadyAllowsMissingStopwordEntry(t *testing.T) {
+	t.Parallel()
+
+	service := NewService(nil, nil, Infra{})
+	service.segmenterProvider = newRetrievalSegmenterProvider(loadTestSegmenterDict)
+	service.tokenPolicyProvider = newRetrievalTokenPolicyProvider(func() (retrievalTokenPolicy, error) {
+		return retrievalTokenPolicy{stopwords: map[string]struct{}{}}, nil
+	})
+
+	if err := service.ensureRuntimeReady(context.Background()); err != nil {
+		t.Fatalf("expected ensureRuntimeReady to allow missing stopword entry, got %v", err)
 	}
 }
 

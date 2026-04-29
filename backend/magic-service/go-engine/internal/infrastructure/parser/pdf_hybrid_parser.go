@@ -11,7 +11,7 @@ import (
 
 	pdf "github.com/ledongthuc/pdf"
 
-	documentdomain "magic/internal/domain/knowledge/document/service"
+	documentdomain "magic/internal/domain/knowledge/document/metadata"
 )
 
 // PDFHybridParser 优先提取原生文字层，再补 OCR；没有可用文字层时回退整份 PDF OCR。
@@ -92,7 +92,7 @@ func (p *PDFHybridParser) ParseDocumentWithOptions(
 		if !p.canFallbackToDocumentOCR(fileURL, options) {
 			return nil, err
 		}
-		parsed, fallbackErr := p.parseDocumentByOCRFallback(ctx, fileURL, fileType, options)
+		parsed, fallbackErr := p.parseDocumentByOCRFallback(ctx, fileURL, tmpPath, fileType, options)
 		if fallbackErr != nil {
 			return nil, newPDFParseExecutionError(
 				errPDFParseAndOCRUnavailable,
@@ -113,9 +113,20 @@ func (p *PDFHybridParser) ParseDocumentWithOptions(
 	}
 
 	ocrHelper := newEmbeddedImageOCRHelper(p.ocrClient, p.maxOCRPerFile)
-	ocrContent, ocrErr := ocrHelper.recognizeDocumentByURLDetailed(ctx, fileURL, fileType)
+	ocrFile, openErr := os.Open(filepath.Clean(tmpPath))
+	if openErr != nil {
+		ocrHelper.apply(nativeParsed)
+		return nativeParsed, nil
+	}
+	ocrContent, ocrErr := ocrHelper.recognizeDocumentBySourceDetailed(ctx, fileURL, ocrFile, fileType)
+	_ = ocrFile.Close()
 	if ocrErr != nil {
 		ocrHelper.apply(nativeParsed)
+		if strings.TrimSpace(nativeParsed.BestEffortText()) == "" {
+			if overloadErr := ocrHelper.overloadError(); overloadErr != nil {
+				return nil, overloadErr
+			}
+		}
 		return nativeParsed, nil
 	}
 
@@ -162,6 +173,7 @@ func (p *PDFHybridParser) extractNativeText(pdfPath string) (string, error) {
 func (p *PDFHybridParser) parseDocumentByOCRFallback(
 	ctx context.Context,
 	fileURL string,
+	filePath string,
 	fileType string,
 	options documentdomain.ParseOptions,
 ) (*documentdomain.ParsedDocument, error) {
@@ -170,7 +182,13 @@ func (p *PDFHybridParser) parseDocumentByOCRFallback(
 	}
 
 	ocrHelper := newEmbeddedImageOCRHelper(p.ocrClient, p.maxOCRPerFile)
-	ocrText, err := ocrHelper.recognizeDocumentByURLDetailed(ctx, fileURL, fileType)
+	file, err := os.Open(filepath.Clean(filePath))
+	if err != nil {
+		return nil, fmt.Errorf("open pdf source for ocr: %w", err)
+	}
+	defer func() { _ = file.Close() }()
+
+	ocrText, err := ocrHelper.recognizeDocumentBySourceDetailed(ctx, fileURL, file, fileType)
 	if err != nil {
 		return nil, err
 	}

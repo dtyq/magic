@@ -8,6 +8,8 @@ import (
 	"strings"
 
 	"magic/internal/constants"
+	kbentity "magic/internal/domain/knowledge/knowledgebase/entity"
+	kbrepository "magic/internal/domain/knowledge/knowledgebase/repository"
 	"magic/internal/domain/knowledge/shared"
 	sharedroute "magic/internal/domain/knowledge/shared/route"
 	"magic/internal/infrastructure/logging"
@@ -26,7 +28,7 @@ var (
 
 // DomainService 知识库领域服务。
 type DomainService struct {
-	repo                  Repository
+	repo                  kbrepository.Repository
 	vectorRepo            shared.VectorDBManagementRepository
 	sparseBackendSelector shared.SparseBackendSelector
 	dimensionResolver     DimensionResolver
@@ -43,15 +45,15 @@ type DimensionResolver interface {
 
 // NewDomainService 创建知识库领域服务。
 func NewDomainService(
-	repo Repository,
+	repo kbrepository.Repository,
 	vectorRepo shared.VectorDBManagementRepository,
 	dimensionResolver DimensionResolver,
 	defaultEmbeddingModel string,
 	targetSparseBackend string,
 	logger *logging.SugaredLogger,
 ) *DomainService {
-	metaReader, _ := any(repo).(CollectionMetaReader)
-	metaWriter, _ := any(repo).(CollectionMetaWriter)
+	metaReader, _ := any(repo).(sharedroute.CollectionMetaReader)
+	metaWriter, _ := any(repo).(sharedroute.CollectionMetaWriter)
 	sparseBackendSelector, _ := any(vectorRepo).(shared.SparseBackendSelector)
 	targetSparseBackend = shared.NormalizeSparseBackend(targetSparseBackend)
 
@@ -76,8 +78,8 @@ func (s *DomainService) currentTargetSparseBackend() string {
 }
 
 // Save 保存知识库
-func (s *DomainService) Save(ctx context.Context, kb *KnowledgeBase) error {
-	NormalizeKnowledgeBaseConfigs(kb)
+func (s *DomainService) Save(ctx context.Context, kb *kbentity.KnowledgeBase) error {
+	kbentity.NormalizeKnowledgeBaseConfigs(kb)
 	if err := s.PrepareForSave(ctx, kb); err != nil {
 		return err
 	}
@@ -92,8 +94,8 @@ func (s *DomainService) Save(ctx context.Context, kb *KnowledgeBase) error {
 }
 
 // PrepareForSave 在持久化前准备知识库运行时资源。
-func (s *DomainService) PrepareForSave(ctx context.Context, kb *KnowledgeBase) error {
-	NormalizeKnowledgeBaseConfigs(kb)
+func (s *DomainService) PrepareForSave(ctx context.Context, kb *kbentity.KnowledgeBase) error {
+	kbentity.NormalizeKnowledgeBaseConfigs(kb)
 	// 知识库建库只依赖完整运行时路由，避免调用方在逻辑名、物理名和 override 之间各自做判断。
 	route := s.resolveRuntimeRoute(ctx, kb)
 	if kb != nil {
@@ -116,8 +118,8 @@ func (s *DomainService) PrepareForSave(ctx context.Context, kb *KnowledgeBase) e
 }
 
 // Update 更新知识库
-func (s *DomainService) Update(ctx context.Context, kb *KnowledgeBase) error {
-	NormalizeKnowledgeBaseConfigs(kb)
+func (s *DomainService) Update(ctx context.Context, kb *kbentity.KnowledgeBase) error {
+	kbentity.NormalizeKnowledgeBaseConfigs(kb)
 	if err := s.repo.Update(ctx, kb); err != nil {
 		return fmt.Errorf("failed to update knowledge base: %w", err)
 	}
@@ -127,37 +129,37 @@ func (s *DomainService) Update(ctx context.Context, kb *KnowledgeBase) error {
 }
 
 // Show 查询知识库详情
-func (s *DomainService) Show(ctx context.Context, code string) (*KnowledgeBase, error) {
+func (s *DomainService) Show(ctx context.Context, code string) (*kbentity.KnowledgeBase, error) {
 	kb, err := s.repo.FindByCode(ctx, code)
 	if err != nil {
 		return nil, fmt.Errorf("failed to find knowledge base: %w", err)
 	}
-	return NormalizeKnowledgeBaseConfigs(kb), nil
+	return kbentity.NormalizeKnowledgeBaseConfigs(kb), nil
 }
 
 // ShowByCodeAndOrg 根据 Code 和组织查询知识库
-func (s *DomainService) ShowByCodeAndOrg(ctx context.Context, code, orgCode string) (*KnowledgeBase, error) {
+func (s *DomainService) ShowByCodeAndOrg(ctx context.Context, code, orgCode string) (*kbentity.KnowledgeBase, error) {
 	kb, err := s.repo.FindByCodeAndOrg(ctx, code, orgCode)
 	if err != nil {
 		return nil, fmt.Errorf("failed to find knowledge base: %w", err)
 	}
-	return NormalizeKnowledgeBaseConfigs(kb), nil
+	return kbentity.NormalizeKnowledgeBaseConfigs(kb), nil
 }
 
 // List 分页查询知识库
-func (s *DomainService) List(ctx context.Context, query *Query) ([]*KnowledgeBase, int64, error) {
+func (s *DomainService) List(ctx context.Context, query *kbrepository.Query) ([]*kbentity.KnowledgeBase, int64, error) {
 	kbs, total, err := s.repo.List(ctx, query)
 	if err != nil {
 		return nil, 0, fmt.Errorf("failed to list knowledge bases: %w", err)
 	}
 	for _, kb := range kbs {
-		NormalizeKnowledgeBaseConfigs(kb)
+		kbentity.NormalizeKnowledgeBaseConfigs(kb)
 	}
 	return kbs, total, nil
 }
 
 // Destroy 删除知识库
-func (s *DomainService) Destroy(ctx context.Context, kb *KnowledgeBase) error {
+func (s *DomainService) Destroy(ctx context.Context, kb *kbentity.KnowledgeBase) error {
 	if err := s.DeleteVectorData(ctx, kb); err != nil {
 		return err
 	}
@@ -171,7 +173,7 @@ func (s *DomainService) Destroy(ctx context.Context, kb *KnowledgeBase) error {
 }
 
 // DeleteVectorData 删除知识库在向量库中的数据。
-func (s *DomainService) DeleteVectorData(ctx context.Context, kb *KnowledgeBase) error {
+func (s *DomainService) DeleteVectorData(ctx context.Context, kb *kbentity.KnowledgeBase) error {
 	if kb == nil {
 		return nil
 	}
@@ -205,7 +207,7 @@ func (s *DomainService) DeleteVectorData(ctx context.Context, kb *KnowledgeBase)
 }
 
 // EnsureCollectionExists 确保向量集合存在
-func (s *DomainService) EnsureCollectionExists(ctx context.Context, kb *KnowledgeBase) error {
+func (s *DomainService) EnsureCollectionExists(ctx context.Context, kb *kbentity.KnowledgeBase) error {
 	// Ensure 只对运行时真正写入的向量集合生效，不能再由上层自行挑 collection 字段。
 	route := s.resolveRuntimeRoute(ctx, kb)
 	if route.Model == "" {
@@ -220,11 +222,11 @@ func (s *DomainService) EnsureCollectionExists(ctx context.Context, kb *Knowledg
 }
 
 // ResolveRuntimeRoute 解析当前执行真正应该命中的完整运行时路由。
-func (s *DomainService) ResolveRuntimeRoute(ctx context.Context, kb *KnowledgeBase) sharedroute.ResolvedRoute {
+func (s *DomainService) ResolveRuntimeRoute(ctx context.Context, kb *kbentity.KnowledgeBase) sharedroute.ResolvedRoute {
 	return s.resolveRuntimeRoute(ctx, kb)
 }
 
-func (s *DomainService) resolveRuntimeRoute(ctx context.Context, kb *KnowledgeBase) sharedroute.ResolvedRoute {
+func (s *DomainService) resolveRuntimeRoute(ctx context.Context, kb *kbentity.KnowledgeBase) sharedroute.ResolvedRoute {
 	if route, ok := resolvedRouteFromKnowledgeBase(kb); ok {
 		selection := shared.ResolveSparseBackendSelection(s.sparseBackendSelector, route.SparseBackend)
 		if selection.Effective != "" {
@@ -245,7 +247,7 @@ func (s *DomainService) resolveRuntimeRoute(ctx context.Context, kb *KnowledgeBa
 	meta, ok, err := s.loadCurrentActiveCollectionMeta(ctx, route)
 	if err != nil {
 		if s.logger != nil {
-			s.logger.WarnContext(ctx, "Failed to load current active collection meta for runtime route", "error", err)
+			s.logger.KnowledgeWarnContext(ctx, "Failed to load current active collection meta for runtime route", "error", err)
 		}
 		return route
 	}
@@ -264,7 +266,7 @@ func (s *DomainService) resolveRuntimeRoute(ctx context.Context, kb *KnowledgeBa
 	return route
 }
 
-func resolvedRouteFromKnowledgeBase(kb *KnowledgeBase) (sharedroute.ResolvedRoute, bool) {
+func resolvedRouteFromKnowledgeBase(kb *kbentity.KnowledgeBase) (sharedroute.ResolvedRoute, bool) {
 	if kb == nil || kb.ResolvedRoute == nil {
 		return sharedroute.ResolvedRoute{}, false
 	}
@@ -275,8 +277,8 @@ func resolvedRouteFromKnowledgeBase(kb *KnowledgeBase) (sharedroute.ResolvedRout
 	return route, true
 }
 
-func (s *DomainService) metaReader() CollectionMetaReader {
-	reader, ok := any(s.repo).(CollectionMetaReader)
+func (s *DomainService) metaReader() sharedroute.CollectionMetaReader {
+	reader, ok := any(s.repo).(sharedroute.CollectionMetaReader)
 	if !ok {
 		return nil
 	}
@@ -321,6 +323,9 @@ func (s *DomainService) ensureCollection(ctx context.Context, collectionName str
 		if err := s.vectorRepo.CreateCollection(ctx, collectionName, vectorSize); err != nil {
 			return "", fmt.Errorf("failed to create collection: %w", err)
 		}
+		if err := s.vectorRepo.EnsurePayloadIndexes(ctx, collectionName, ExpectedPayloadIndexSpecs()); err != nil {
+			return "", fmt.Errorf("ensure payload indexes for %s: %w", collectionName, err)
+		}
 		s.logger.InfoContext(ctx, "Created vector collection", "collection", collectionName, "vectorSize", vectorSize)
 		return collectionName, nil
 	}
@@ -338,6 +343,9 @@ func (s *DomainService) ensureCollection(ctx context.Context, collectionName str
 			vectorSize,
 			info.VectorSize,
 		)
+	}
+	if err := s.vectorRepo.EnsurePayloadIndexes(ctx, resolvedCollectionName, ExpectedPayloadIndexSpecs()); err != nil {
+		return "", fmt.Errorf("ensure payload indexes for %s: %w", resolvedCollectionName, err)
 	}
 	return resolvedCollectionName, nil
 }
@@ -391,28 +399,28 @@ func (s *DomainService) resolveCollectionForEnsure(ctx context.Context, collecti
 func (s *DomainService) loadCurrentActiveCollectionMeta(
 	ctx context.Context,
 	route sharedroute.ResolvedRoute,
-) (CollectionMeta, bool, error) {
+) (sharedroute.CollectionMeta, bool, error) {
 	if route.HasRebuildOverride || strings.TrimSpace(route.LogicalCollectionName) != constants.KnowledgeBaseCollectionName {
-		return CollectionMeta{}, false, nil
+		return sharedroute.CollectionMeta{}, false, nil
 	}
 
 	reader := s.metaReader()
 	if reader == nil {
-		return CollectionMeta{}, false, nil
+		return sharedroute.CollectionMeta{}, false, nil
 	}
 
 	meta, err := reader.GetCollectionMeta(ctx)
 	if err != nil {
-		return CollectionMeta{}, false, fmt.Errorf("read current active collection meta: %w", err)
+		return sharedroute.CollectionMeta{}, false, fmt.Errorf("read current active collection meta: %w", err)
 	}
 	if !meta.Exists || strings.TrimSpace(meta.CollectionName) != constants.KnowledgeBaseCollectionName {
-		return CollectionMeta{}, false, nil
+		return sharedroute.CollectionMeta{}, false, nil
 	}
 	return meta, true, nil
 }
 
 // UpdateSyncStatus 更新同步状态
-func (s *DomainService) UpdateSyncStatus(ctx context.Context, kb *KnowledgeBase) error {
+func (s *DomainService) UpdateSyncStatus(ctx context.Context, kb *kbentity.KnowledgeBase) error {
 	if err := s.repo.UpdateSyncStatus(ctx, kb.ID, kb.SyncStatus, kb.SyncStatusMessage); err != nil {
 		return fmt.Errorf("failed to update sync status: %w", err)
 	}
@@ -420,7 +428,7 @@ func (s *DomainService) UpdateSyncStatus(ctx context.Context, kb *KnowledgeBase)
 }
 
 // UpdateProgress 更新同步进度
-func (s *DomainService) UpdateProgress(ctx context.Context, kb *KnowledgeBase) error {
+func (s *DomainService) UpdateProgress(ctx context.Context, kb *kbentity.KnowledgeBase) error {
 	if err := s.repo.UpdateProgress(ctx, kb.ID, kb.ExpectedNum, kb.CompletedNum); err != nil {
 		return fmt.Errorf("failed to update progress: %w", err)
 	}

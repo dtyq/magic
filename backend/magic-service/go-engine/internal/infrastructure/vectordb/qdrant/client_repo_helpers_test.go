@@ -57,12 +57,13 @@ func (f fakeCollectionsClient) Delete(ctx context.Context, in *pb.DeleteCollecti
 
 type fakePointsClient struct {
 	pb.PointsClient
-	upsertFn     fakeUnaryCall[pb.UpsertPoints, pb.PointsOperationResponse]
-	deleteFn     fakeUnaryCall[pb.DeletePoints, pb.PointsOperationResponse]
-	getFn        fakeUnaryCall[pb.GetPoints, pb.GetResponse]
-	searchFn     fakeUnaryCall[pb.SearchPoints, pb.SearchResponse]
-	queryFn      fakeUnaryCall[pb.QueryPoints, pb.QueryResponse]
-	setPayloadFn fakeUnaryCall[pb.SetPayloadPoints, pb.PointsOperationResponse]
+	upsertFn           fakeUnaryCall[pb.UpsertPoints, pb.PointsOperationResponse]
+	deleteFn           fakeUnaryCall[pb.DeletePoints, pb.PointsOperationResponse]
+	getFn              fakeUnaryCall[pb.GetPoints, pb.GetResponse]
+	searchFn           fakeUnaryCall[pb.SearchPoints, pb.SearchResponse]
+	queryFn            fakeUnaryCall[pb.QueryPoints, pb.QueryResponse]
+	setPayloadFn       fakeUnaryCall[pb.SetPayloadPoints, pb.PointsOperationResponse]
+	createFieldIndexFn fakeUnaryCall[pb.CreateFieldIndexCollection, pb.PointsOperationResponse]
 }
 
 type fakeUnaryCall[Req any, Resp any] func(context.Context, *Req, ...grpc.CallOption) (*Resp, error)
@@ -89,6 +90,10 @@ func (f fakePointsClient) Query(ctx context.Context, in *pb.QueryPoints, opts ..
 
 func (f fakePointsClient) SetPayload(ctx context.Context, in *pb.SetPayloadPoints, opts ...grpc.CallOption) (*pb.PointsOperationResponse, error) {
 	return f.setPayloadFn(ctx, in, opts...)
+}
+
+func (f fakePointsClient) CreateFieldIndex(ctx context.Context, in *pb.CreateFieldIndexCollection, opts ...grpc.CallOption) (*pb.PointsOperationResponse, error) {
+	return f.createFieldIndexFn(ctx, in, opts...)
 }
 
 func collectionInfo(points uint64) *pb.CollectionInfo {
@@ -203,6 +208,9 @@ func newClientWithWriteLimit(writeLimit int) *qdrantpkg.Client {
 				}, nil
 			},
 			setPayloadFn: func(_ context.Context, _ *pb.SetPayloadPoints, _ ...grpc.CallOption) (*pb.PointsOperationResponse, error) {
+				return &pb.PointsOperationResponse{}, nil
+			},
+			createFieldIndexFn: func(_ context.Context, _ *pb.CreateFieldIndexCollection, _ ...grpc.CallOption) (*pb.PointsOperationResponse, error) {
 				return &pb.PointsOperationResponse{}, nil
 			},
 		},

@@ -87,13 +87,7 @@ func runWithService(ctx context.Context, service cleanupRunner, apply, forceDele
 }
 
 func openMySQLClient(ctx context.Context, cfg *autoloadcfg.MySQLConfig, logger *logging.SugaredLogger) (*mysql.SQLCClient, func(), error) {
-	params := cfg.Params
-	if params == "" {
-		params = "charset=utf8mb4&parseTime=True&loc=Local"
-	}
-	dsn := fmt.Sprintf("%s:%s@tcp(%s:%d)/%s?%s",
-		cfg.Username, cfg.AuthValue, cfg.Host, cfg.Port, cfg.Database, params)
-
+	dsn := mysql.BuildDSN(cfg)
 	db, err := sql.Open("mysql", dsn)
 	if err != nil {
 		return nil, nil, fmt.Errorf("open mysql: %w", err)

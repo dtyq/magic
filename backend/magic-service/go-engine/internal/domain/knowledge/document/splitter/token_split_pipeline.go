@@ -64,7 +64,7 @@ func splitContentByTokenPipeline(
 	}
 
 	if logger != nil && splitResult != nil && splitResult.Encoder != nil && splitResult.Encoder.UsesFallback() {
-		logger.WarnContext(ctx, "Tokenizer model fallback to cl100k_base",
+		logger.KnowledgeWarnContext(ctx, "Tokenizer model fallback to cl100k_base",
 			"requested_model", splitResult.Encoder.RequestedModel(),
 			"resolved_model", splitResult.Encoder.ResolvedModel(),
 			"encoding", splitResult.Encoder.EncodingName(),

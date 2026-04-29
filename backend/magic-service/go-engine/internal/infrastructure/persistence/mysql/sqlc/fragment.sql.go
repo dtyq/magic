@@ -8,38 +8,66 @@ package mysqlsqlc
 import (
 	"context"
 	"database/sql"
-	"encoding/json"
 	"strings"
 	"time"
 )
 
-const backfillDocumentCodeByThirdFile = `-- name: BackfillDocumentCodeByThirdFile :execrows
-UPDATE magic_flow_knowledge_fragment AS f
-INNER JOIN magic_flow_knowledge AS kb
-	ON kb.code = f.knowledge_code
-	AND kb.deleted_at IS NULL
-SET f.document_code = ?,
-    f.updated_at = ?
-WHERE f.deleted_at IS NULL
-  AND (f.document_code = '' OR f.document_code IS NULL)
-  AND kb.organization_code = ?
-  AND f.knowledge_code = ?
-  AND JSON_UNQUOTE(JSON_EXTRACT(f.metadata, '$.file_id')) = CAST(? AS CHAR(255))
+const backfillFragmentDocumentCodeByIDs = `-- name: BackfillFragmentDocumentCodeByIDs :execrows
+UPDATE magic_flow_knowledge_fragment
+SET document_code = ?,
+    updated_at = ?
+WHERE deleted_at IS NULL
+  AND (document_code = '' OR document_code IS NULL)
+  AND id IN (/*SLICE:ids*/?)
 `
 
-type BackfillDocumentCodeByThirdFileParams struct {
-	DocumentCode     string      `json:"document_code"`
-	UpdatedAt        time.Time   `json:"updated_at"`
-	OrganizationCode string      `json:"organization_code"`
-	KnowledgeCode    string      `json:"knowledge_code"`
-	ThirdFileID      interface{} `json:"third_file_id"`
+type BackfillFragmentDocumentCodeByIDsParams struct {
+	DocumentCode string    `json:"document_code"`
+	UpdatedAt    time.Time `json:"updated_at"`
+	Ids          []int64   `json:"ids"`
 }
 
-func (q *Queries) BackfillDocumentCodeByThirdFile(ctx context.Context, arg BackfillDocumentCodeByThirdFileParams) (int64, error) {
-	result, err := q.db.ExecContext(ctx, backfillDocumentCodeByThirdFile,
+func (q *Queries) BackfillFragmentDocumentCodeByIDs(ctx context.Context, arg BackfillFragmentDocumentCodeByIDsParams) (int64, error) {
+	query := backfillFragmentDocumentCodeByIDs
+	var queryParams []interface{}
+	queryParams = append(queryParams, arg.DocumentCode)
+	queryParams = append(queryParams, arg.UpdatedAt)
+	if len(arg.Ids) > 0 {
+		for _, v := range arg.Ids {
+			queryParams = append(queryParams, v)
+		}
+		query = strings.Replace(query, "/*SLICE:ids*/?", strings.Repeat(",?", len(arg.Ids))[1:], 1)
+	} else {
+		query = strings.Replace(query, "/*SLICE:ids*/?", "NULL", 1)
+	}
+	result, err := q.db.ExecContext(ctx, query, queryParams...)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
+}
+
+const backfillFragmentDocumentCodeByThirdFile = `-- name: BackfillFragmentDocumentCodeByThirdFile :execrows
+UPDATE magic_flow_knowledge_fragment
+SET document_code = ?,
+    updated_at = ?
+WHERE deleted_at IS NULL
+  AND (document_code = '' OR document_code IS NULL)
+  AND knowledge_code = ?
+  AND JSON_UNQUOTE(JSON_EXTRACT(metadata, '$.file_id')) = CAST(? AS CHAR(255))
+`
+
+type BackfillFragmentDocumentCodeByThirdFileParams struct {
+	DocumentCode  string      `json:"document_code"`
+	UpdatedAt     time.Time   `json:"updated_at"`
+	KnowledgeCode string      `json:"knowledge_code"`
+	ThirdFileID   interface{} `json:"third_file_id"`
+}
+
+func (q *Queries) BackfillFragmentDocumentCodeByThirdFile(ctx context.Context, arg BackfillFragmentDocumentCodeByThirdFileParams) (int64, error) {
+	result, err := q.db.ExecContext(ctx, backfillFragmentDocumentCodeByThirdFile,
 		arg.DocumentCode,
 		arg.UpdatedAt,
-		arg.OrganizationCode,
 		arg.KnowledgeCode,
 		arg.ThirdFileID,
 	)
@@ -144,38 +172,72 @@ func (q *Queries) CountFragmentStatsByKnowledgeBases(ctx context.Context, arg Co
 	return items, nil
 }
 
-const countFragments = `-- name: CountFragments :one
+const countFragmentsByKnowledge = `-- name: CountFragmentsByKnowledge :one
 SELECT COUNT(*)
 FROM magic_flow_knowledge_fragment
 WHERE deleted_at IS NULL
-  AND (? IS NULL OR knowledge_code = ?)
-  AND (? IS NULL OR document_code = ?)
-  AND (? IS NULL OR business_id = ?)
-  AND (? IS NULL OR content LIKE ?)
-  AND (? IS NULL OR sync_status = ?)
+  AND knowledge_code = ?
+  AND content LIKE ?
+  AND sync_status IN (/*SLICE:sync_status_values*/?)
 `
 
-type CountFragmentsParams struct {
-	KnowledgeCode sql.NullString `json:"knowledge_code"`
-	DocumentCode  sql.NullString `json:"document_code"`
-	BusinessID    sql.NullString `json:"business_id"`
-	ContentLike   sql.NullString `json:"content_like"`
-	SyncStatus    sql.NullInt32  `json:"sync_status"`
+type CountFragmentsByKnowledgeParams struct {
+	KnowledgeCode    string  `json:"knowledge_code"`
+	ContentLike      string  `json:"content_like"`
+	SyncStatusValues []int32 `json:"sync_status_values"`
 }
 
-func (q *Queries) CountFragments(ctx context.Context, arg CountFragmentsParams) (int64, error) {
-	row := q.db.QueryRowContext(ctx, countFragments,
-		arg.KnowledgeCode,
-		arg.KnowledgeCode,
-		arg.DocumentCode,
-		arg.DocumentCode,
-		arg.BusinessID,
-		arg.BusinessID,
-		arg.ContentLike,
-		arg.ContentLike,
-		arg.SyncStatus,
-		arg.SyncStatus,
-	)
+func (q *Queries) CountFragmentsByKnowledge(ctx context.Context, arg CountFragmentsByKnowledgeParams) (int64, error) {
+	query := countFragmentsByKnowledge
+	var queryParams []interface{}
+	queryParams = append(queryParams, arg.KnowledgeCode)
+	queryParams = append(queryParams, arg.ContentLike)
+	if len(arg.SyncStatusValues) > 0 {
+		for _, v := range arg.SyncStatusValues {
+			queryParams = append(queryParams, v)
+		}
+		query = strings.Replace(query, "/*SLICE:sync_status_values*/?", strings.Repeat(",?", len(arg.SyncStatusValues))[1:], 1)
+	} else {
+		query = strings.Replace(query, "/*SLICE:sync_status_values*/?", "NULL", 1)
+	}
+	row := q.db.QueryRowContext(ctx, query, queryParams...)
+	var count int64
+	err := row.Scan(&count)
+	return count, err
+}
+
+const countFragmentsByKnowledgeAndBusinessID = `-- name: CountFragmentsByKnowledgeAndBusinessID :one
+SELECT COUNT(*)
+FROM magic_flow_knowledge_fragment
+WHERE deleted_at IS NULL
+  AND knowledge_code = ?
+  AND business_id = ?
+  AND content LIKE ?
+  AND sync_status IN (/*SLICE:sync_status_values*/?)
+`
+
+type CountFragmentsByKnowledgeAndBusinessIDParams struct {
+	KnowledgeCode    string  `json:"knowledge_code"`
+	BusinessID       string  `json:"business_id"`
+	ContentLike      string  `json:"content_like"`
+	SyncStatusValues []int32 `json:"sync_status_values"`
+}
+
+func (q *Queries) CountFragmentsByKnowledgeAndBusinessID(ctx context.Context, arg CountFragmentsByKnowledgeAndBusinessIDParams) (int64, error) {
+	query := countFragmentsByKnowledgeAndBusinessID
+	var queryParams []interface{}
+	queryParams = append(queryParams, arg.KnowledgeCode)
+	queryParams = append(queryParams, arg.BusinessID)
+	queryParams = append(queryParams, arg.ContentLike)
+	if len(arg.SyncStatusValues) > 0 {
+		for _, v := range arg.SyncStatusValues {
+			queryParams = append(queryParams, v)
+		}
+		query = strings.Replace(query, "/*SLICE:sync_status_values*/?", strings.Repeat(",?", len(arg.SyncStatusValues))[1:], 1)
+	} else {
+		query = strings.Replace(query, "/*SLICE:sync_status_values*/?", "NULL", 1)
+	}
+	row := q.db.QueryRowContext(ctx, query, queryParams...)
 	var count int64
 	err := row.Scan(&count)
 	return count, err
@@ -196,6 +258,43 @@ type CountFragmentsByKnowledgeAndDocumentParams struct {
 
 func (q *Queries) CountFragmentsByKnowledgeAndDocument(ctx context.Context, arg CountFragmentsByKnowledgeAndDocumentParams) (int64, error) {
 	row := q.db.QueryRowContext(ctx, countFragmentsByKnowledgeAndDocument, arg.KnowledgeCode, arg.DocumentCode)
+	var count int64
+	err := row.Scan(&count)
+	return count, err
+}
+
+const countFragmentsByKnowledgeAndDocumentFiltered = `-- name: CountFragmentsByKnowledgeAndDocumentFiltered :one
+SELECT COUNT(*)
+FROM magic_flow_knowledge_fragment
+WHERE deleted_at IS NULL
+  AND knowledge_code = ?
+  AND document_code = ?
+  AND content LIKE ?
+  AND sync_status IN (/*SLICE:sync_status_values*/?)
+`
+
+type CountFragmentsByKnowledgeAndDocumentFilteredParams struct {
+	KnowledgeCode    string  `json:"knowledge_code"`
+	DocumentCode     string  `json:"document_code"`
+	ContentLike      string  `json:"content_like"`
+	SyncStatusValues []int32 `json:"sync_status_values"`
+}
+
+func (q *Queries) CountFragmentsByKnowledgeAndDocumentFiltered(ctx context.Context, arg CountFragmentsByKnowledgeAndDocumentFilteredParams) (int64, error) {
+	query := countFragmentsByKnowledgeAndDocumentFiltered
+	var queryParams []interface{}
+	queryParams = append(queryParams, arg.KnowledgeCode)
+	queryParams = append(queryParams, arg.DocumentCode)
+	queryParams = append(queryParams, arg.ContentLike)
+	if len(arg.SyncStatusValues) > 0 {
+		for _, v := range arg.SyncStatusValues {
+			queryParams = append(queryParams, v)
+		}
+		query = strings.Replace(query, "/*SLICE:sync_status_values*/?", strings.Repeat(",?", len(arg.SyncStatusValues))[1:], 1)
+	} else {
+		query = strings.Replace(query, "/*SLICE:sync_status_values*/?", "NULL", 1)
+	}
+	row := q.db.QueryRowContext(ctx, query, queryParams...)
 	var count int64
 	err := row.Scan(&count)
 	return count, err
@@ -267,6 +366,59 @@ func (q *Queries) DeleteFragmentsByDocument(ctx context.Context, arg DeleteFragm
 	return result.RowsAffected()
 }
 
+const deleteFragmentsByDocumentCodes = `-- name: DeleteFragmentsByDocumentCodes :execrows
+DELETE FROM magic_flow_knowledge_fragment
+WHERE knowledge_code = ?
+  AND document_code IN (/*SLICE:document_codes*/?)
+`
+
+type DeleteFragmentsByDocumentCodesParams struct {
+	KnowledgeCode string   `json:"knowledge_code"`
+	DocumentCodes []string `json:"document_codes"`
+}
+
+func (q *Queries) DeleteFragmentsByDocumentCodes(ctx context.Context, arg DeleteFragmentsByDocumentCodesParams) (int64, error) {
+	query := deleteFragmentsByDocumentCodes
+	var queryParams []interface{}
+	queryParams = append(queryParams, arg.KnowledgeCode)
+	if len(arg.DocumentCodes) > 0 {
+		for _, v := range arg.DocumentCodes {
+			queryParams = append(queryParams, v)
+		}
+		query = strings.Replace(query, "/*SLICE:document_codes*/?", strings.Repeat(",?", len(arg.DocumentCodes))[1:], 1)
+	} else {
+		query = strings.Replace(query, "/*SLICE:document_codes*/?", "NULL", 1)
+	}
+	result, err := q.db.ExecContext(ctx, query, queryParams...)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
+}
+
+const deleteFragmentsByIDs = `-- name: DeleteFragmentsByIDs :execrows
+DELETE FROM magic_flow_knowledge_fragment
+WHERE id IN (/*SLICE:ids*/?)
+`
+
+func (q *Queries) DeleteFragmentsByIDs(ctx context.Context, ids []int64) (int64, error) {
+	query := deleteFragmentsByIDs
+	var queryParams []interface{}
+	if len(ids) > 0 {
+		for _, v := range ids {
+			queryParams = append(queryParams, v)
+		}
+		query = strings.Replace(query, "/*SLICE:ids*/?", strings.Repeat(",?", len(ids))[1:], 1)
+	} else {
+		query = strings.Replace(query, "/*SLICE:ids*/?", "NULL", 1)
+	}
+	result, err := q.db.ExecContext(ctx, query, queryParams...)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
+}
+
 const deleteFragmentsByKnowledgeBase = `-- name: DeleteFragmentsByKnowledgeBase :execrows
 DELETE FROM magic_flow_knowledge_fragment
 WHERE knowledge_code = ?
@@ -281,41 +433,21 @@ func (q *Queries) DeleteFragmentsByKnowledgeBase(ctx context.Context, knowledgeC
 }
 
 const findFragmentByID = `-- name: FindFragmentByID :one
-SELECT id, knowledge_code, document_code, content,
-       COALESCE(metadata, CAST('null' AS JSON)) AS metadata, business_id,
-       sync_status, sync_times, sync_status_message, point_id, word_count,
-       created_uid, updated_uid, created_at, updated_at, deleted_at
+SELECT id, knowledge_code, document_code, parent_fragment_id, version, content, metadata, business_id, sync_status, sync_times, sync_status_message, point_id, vector, word_count, created_uid, updated_uid, created_at, updated_at, deleted_at
 FROM magic_flow_knowledge_fragment
 WHERE id = ?
   AND deleted_at IS NULL
 `
 
-type FindFragmentByIDRow struct {
-	ID                int64           `json:"id"`
-	KnowledgeCode     string          `json:"knowledge_code"`
-	DocumentCode      string          `json:"document_code"`
-	Content           string          `json:"content"`
-	Metadata          json.RawMessage `json:"metadata"`
-	BusinessID        string          `json:"business_id"`
-	SyncStatus        int32           `json:"sync_status"`
-	SyncTimes         int32           `json:"sync_times"`
-	SyncStatusMessage string          `json:"sync_status_message"`
-	PointID           string          `json:"point_id"`
-	WordCount         uint64          `json:"word_count"`
-	CreatedUid        string          `json:"created_uid"`
-	UpdatedUid        string          `json:"updated_uid"`
-	CreatedAt         time.Time       `json:"created_at"`
-	UpdatedAt         time.Time       `json:"updated_at"`
-	DeletedAt         sql.NullTime    `json:"deleted_at"`
-}
-
-func (q *Queries) FindFragmentByID(ctx context.Context, id int64) (FindFragmentByIDRow, error) {
+func (q *Queries) FindFragmentByID(ctx context.Context, id int64) (MagicFlowKnowledgeFragment, error) {
 	row := q.db.QueryRowContext(ctx, findFragmentByID, id)
-	var i FindFragmentByIDRow
+	var i MagicFlowKnowledgeFragment
 	err := row.Scan(
 		&i.ID,
 		&i.KnowledgeCode,
 		&i.DocumentCode,
+		&i.ParentFragmentID,
+		&i.Version,
 		&i.Content,
 		&i.Metadata,
 		&i.BusinessID,
@@ -323,60 +455,7 @@ func (q *Queries) FindFragmentByID(ctx context.Context, id int64) (FindFragmentB
 		&i.SyncTimes,
 		&i.SyncStatusMessage,
 		&i.PointID,
-		&i.WordCount,
-		&i.CreatedUid,
-		&i.UpdatedUid,
-		&i.CreatedAt,
-		&i.UpdatedAt,
-		&i.DeletedAt,
-	)
-	return i, err
-}
-
-const findFragmentByPointID = `-- name: FindFragmentByPointID :one
-SELECT id, knowledge_code, document_code, content,
-       COALESCE(metadata, CAST('null' AS JSON)) AS metadata, business_id,
-       sync_status, sync_times, sync_status_message, point_id, word_count,
-       created_uid, updated_uid, created_at, updated_at, deleted_at
-FROM magic_flow_knowledge_fragment
-WHERE point_id = ?
-  AND deleted_at IS NULL
-LIMIT 1
-`
-
-type FindFragmentByPointIDRow struct {
-	ID                int64           `json:"id"`
-	KnowledgeCode     string          `json:"knowledge_code"`
-	DocumentCode      string          `json:"document_code"`
-	Content           string          `json:"content"`
-	Metadata          json.RawMessage `json:"metadata"`
-	BusinessID        string          `json:"business_id"`
-	SyncStatus        int32           `json:"sync_status"`
-	SyncTimes         int32           `json:"sync_times"`
-	SyncStatusMessage string          `json:"sync_status_message"`
-	PointID           string          `json:"point_id"`
-	WordCount         uint64          `json:"word_count"`
-	CreatedUid        string          `json:"created_uid"`
-	UpdatedUid        string          `json:"updated_uid"`
-	CreatedAt         time.Time       `json:"created_at"`
-	UpdatedAt         time.Time       `json:"updated_at"`
-	DeletedAt         sql.NullTime    `json:"deleted_at"`
-}
-
-func (q *Queries) FindFragmentByPointID(ctx context.Context, pointID string) (FindFragmentByPointIDRow, error) {
-	row := q.db.QueryRowContext(ctx, findFragmentByPointID, pointID)
-	var i FindFragmentByPointIDRow
-	err := row.Scan(
-		&i.ID,
-		&i.KnowledgeCode,
-		&i.DocumentCode,
-		&i.Content,
-		&i.Metadata,
-		&i.BusinessID,
-		&i.SyncStatus,
-		&i.SyncTimes,
-		&i.SyncStatusMessage,
-		&i.PointID,
+		&i.Vector,
 		&i.WordCount,
 		&i.CreatedUid,
 		&i.UpdatedUid,
@@ -388,36 +467,14 @@ func (q *Queries) FindFragmentByPointID(ctx context.Context, pointID string) (Fi
 }
 
 const findFragmentsByIDs = `-- name: FindFragmentsByIDs :many
-SELECT id, knowledge_code, document_code, content,
-       COALESCE(metadata, CAST('null' AS JSON)) AS metadata, business_id,
-       sync_status, sync_times, sync_status_message, point_id, word_count,
-       created_uid, updated_uid, created_at, updated_at, deleted_at
+SELECT id, knowledge_code, document_code, parent_fragment_id, version, content, metadata, business_id, sync_status, sync_times, sync_status_message, point_id, vector, word_count, created_uid, updated_uid, created_at, updated_at, deleted_at
 FROM magic_flow_knowledge_fragment
 WHERE deleted_at IS NULL
   AND id IN (/*SLICE:ids*/?)
 ORDER BY id ASC
 `
 
-type FindFragmentsByIDsRow struct {
-	ID                int64           `json:"id"`
-	KnowledgeCode     string          `json:"knowledge_code"`
-	DocumentCode      string          `json:"document_code"`
-	Content           string          `json:"content"`
-	Metadata          json.RawMessage `json:"metadata"`
-	BusinessID        string          `json:"business_id"`
-	SyncStatus        int32           `json:"sync_status"`
-	SyncTimes         int32           `json:"sync_times"`
-	SyncStatusMessage string          `json:"sync_status_message"`
-	PointID           string          `json:"point_id"`
-	WordCount         uint64          `json:"word_count"`
-	CreatedUid        string          `json:"created_uid"`
-	UpdatedUid        string          `json:"updated_uid"`
-	CreatedAt         time.Time       `json:"created_at"`
-	UpdatedAt         time.Time       `json:"updated_at"`
-	DeletedAt         sql.NullTime    `json:"deleted_at"`
-}
-
-func (q *Queries) FindFragmentsByIDs(ctx context.Context, ids []int64) ([]FindFragmentsByIDsRow, error) {
+func (q *Queries) FindFragmentsByIDs(ctx context.Context, ids []int64) ([]MagicFlowKnowledgeFragment, error) {
 	query := findFragmentsByIDs
 	var queryParams []interface{}
 	if len(ids) > 0 {
@@ -433,13 +490,15 @@ func (q *Queries) FindFragmentsByIDs(ctx context.Context, ids []int64) ([]FindFr
 		return nil, err
 	}
 	defer rows.Close()
-	items := []FindFragmentsByIDsRow{}
+	items := []MagicFlowKnowledgeFragment{}
 	for rows.Next() {
-		var i FindFragmentsByIDsRow
+		var i MagicFlowKnowledgeFragment
 		if err := rows.Scan(
 			&i.ID,
 			&i.KnowledgeCode,
 			&i.DocumentCode,
+			&i.ParentFragmentID,
+			&i.Version,
 			&i.Content,
 			&i.Metadata,
 			&i.BusinessID,
@@ -447,6 +506,7 @@ func (q *Queries) FindFragmentsByIDs(ctx context.Context, ids []int64) ([]FindFr
 			&i.SyncTimes,
 			&i.SyncStatusMessage,
 			&i.PointID,
+			&i.Vector,
 			&i.WordCount,
 			&i.CreatedUid,
 			&i.UpdatedUid,
@@ -468,36 +528,14 @@ func (q *Queries) FindFragmentsByIDs(ctx context.Context, ids []int64) ([]FindFr
 }
 
 const findFragmentsByPointIDs = `-- name: FindFragmentsByPointIDs :many
-SELECT id, knowledge_code, document_code, content,
-       COALESCE(metadata, CAST('null' AS JSON)) AS metadata, business_id,
-       sync_status, sync_times, sync_status_message, point_id, word_count,
-       created_uid, updated_uid, created_at, updated_at, deleted_at
+SELECT id, knowledge_code, document_code, parent_fragment_id, version, content, metadata, business_id, sync_status, sync_times, sync_status_message, point_id, vector, word_count, created_uid, updated_uid, created_at, updated_at, deleted_at
 FROM magic_flow_knowledge_fragment
 WHERE deleted_at IS NULL
   AND point_id IN (/*SLICE:point_ids*/?)
 ORDER BY id ASC
 `
 
-type FindFragmentsByPointIDsRow struct {
-	ID                int64           `json:"id"`
-	KnowledgeCode     string          `json:"knowledge_code"`
-	DocumentCode      string          `json:"document_code"`
-	Content           string          `json:"content"`
-	Metadata          json.RawMessage `json:"metadata"`
-	BusinessID        string          `json:"business_id"`
-	SyncStatus        int32           `json:"sync_status"`
-	SyncTimes         int32           `json:"sync_times"`
-	SyncStatusMessage string          `json:"sync_status_message"`
-	PointID           string          `json:"point_id"`
-	WordCount         uint64          `json:"word_count"`
-	CreatedUid        string          `json:"created_uid"`
-	UpdatedUid        string          `json:"updated_uid"`
-	CreatedAt         time.Time       `json:"created_at"`
-	UpdatedAt         time.Time       `json:"updated_at"`
-	DeletedAt         sql.NullTime    `json:"deleted_at"`
-}
-
-func (q *Queries) FindFragmentsByPointIDs(ctx context.Context, pointIds []string) ([]FindFragmentsByPointIDsRow, error) {
+func (q *Queries) FindFragmentsByPointIDs(ctx context.Context, pointIds []string) ([]MagicFlowKnowledgeFragment, error) {
 	query := findFragmentsByPointIDs
 	var queryParams []interface{}
 	if len(pointIds) > 0 {
@@ -513,13 +551,15 @@ func (q *Queries) FindFragmentsByPointIDs(ctx context.Context, pointIds []string
 		return nil, err
 	}
 	defer rows.Close()
-	items := []FindFragmentsByPointIDsRow{}
+	items := []MagicFlowKnowledgeFragment{}
 	for rows.Next() {
-		var i FindFragmentsByPointIDsRow
+		var i MagicFlowKnowledgeFragment
 		if err := rows.Scan(
 			&i.ID,
 			&i.KnowledgeCode,
 			&i.DocumentCode,
+			&i.ParentFragmentID,
+			&i.Version,
 			&i.Content,
 			&i.Metadata,
 			&i.BusinessID,
@@ -527,6 +567,7 @@ func (q *Queries) FindFragmentsByPointIDs(ctx context.Context, pointIds []string
 			&i.SyncTimes,
 			&i.SyncStatusMessage,
 			&i.PointID,
+			&i.Vector,
 			&i.WordCount,
 			&i.CreatedUid,
 			&i.UpdatedUid,
@@ -558,20 +599,20 @@ INSERT INTO magic_flow_knowledge_fragment (
 `
 
 type InsertFragmentParams struct {
-	KnowledgeCode     string          `json:"knowledge_code"`
-	DocumentCode      string          `json:"document_code"`
-	Content           string          `json:"content"`
-	Metadata          json.RawMessage `json:"metadata"`
-	BusinessID        string          `json:"business_id"`
-	SyncStatus        int32           `json:"sync_status"`
-	SyncTimes         int32           `json:"sync_times"`
-	SyncStatusMessage string          `json:"sync_status_message"`
-	PointID           string          `json:"point_id"`
-	WordCount         uint64          `json:"word_count"`
-	CreatedUid        string          `json:"created_uid"`
-	UpdatedUid        string          `json:"updated_uid"`
-	CreatedAt         time.Time       `json:"created_at"`
-	UpdatedAt         time.Time       `json:"updated_at"`
+	KnowledgeCode     string    `json:"knowledge_code"`
+	DocumentCode      string    `json:"document_code"`
+	Content           string    `json:"content"`
+	Metadata          []byte    `json:"metadata"`
+	BusinessID        string    `json:"business_id"`
+	SyncStatus        int32     `json:"sync_status"`
+	SyncTimes         int32     `json:"sync_times"`
+	SyncStatusMessage string    `json:"sync_status_message"`
+	PointID           string    `json:"point_id"`
+	WordCount         uint64    `json:"word_count"`
+	CreatedUid        string    `json:"created_uid"`
+	UpdatedUid        string    `json:"updated_uid"`
+	CreatedAt         time.Time `json:"created_at"`
+	UpdatedAt         time.Time `json:"updated_at"`
 }
 
 func (q *Queries) InsertFragment(ctx context.Context, arg InsertFragmentParams) (sql.Result, error) {
@@ -593,77 +634,54 @@ func (q *Queries) InsertFragment(ctx context.Context, arg InsertFragmentParams) 
 	)
 }
 
-const listFragments = `-- name: ListFragments :many
-SELECT id, knowledge_code, document_code, content,
-       COALESCE(metadata, CAST('null' AS JSON)) AS metadata, business_id,
-       sync_status, sync_times, sync_status_message, point_id, word_count,
-       created_uid, updated_uid, created_at, updated_at, deleted_at
+const listFragmentsByKnowledge = `-- name: ListFragmentsByKnowledge :many
+SELECT id, knowledge_code, document_code, parent_fragment_id, version, content, metadata, business_id, sync_status, sync_times, sync_status_message, point_id, vector, word_count, created_uid, updated_uid, created_at, updated_at, deleted_at
 FROM magic_flow_knowledge_fragment
 WHERE deleted_at IS NULL
-  AND (? IS NULL OR knowledge_code = ?)
-  AND (? IS NULL OR document_code = ?)
-  AND (? IS NULL OR business_id = ?)
-  AND (? IS NULL OR content LIKE ?)
-  AND (? IS NULL OR sync_status = ?)
+  AND knowledge_code = ?
+  AND content LIKE ?
+  AND sync_status IN (/*SLICE:sync_status_values*/?)
 ORDER BY id ASC
 LIMIT ? OFFSET ?
 `
 
-type ListFragmentsParams struct {
-	KnowledgeCode sql.NullString `json:"knowledge_code"`
-	DocumentCode  sql.NullString `json:"document_code"`
-	BusinessID    sql.NullString `json:"business_id"`
-	ContentLike   sql.NullString `json:"content_like"`
-	SyncStatus    sql.NullInt32  `json:"sync_status"`
-	Limit         int32          `json:"limit"`
-	Offset        int32          `json:"offset"`
+type ListFragmentsByKnowledgeParams struct {
+	KnowledgeCode    string  `json:"knowledge_code"`
+	ContentLike      string  `json:"content_like"`
+	SyncStatusValues []int32 `json:"sync_status_values"`
+	Limit            int32   `json:"limit"`
+	Offset           int32   `json:"offset"`
 }
 
-type ListFragmentsRow struct {
-	ID                int64           `json:"id"`
-	KnowledgeCode     string          `json:"knowledge_code"`
-	DocumentCode      string          `json:"document_code"`
-	Content           string          `json:"content"`
-	Metadata          json.RawMessage `json:"metadata"`
-	BusinessID        string          `json:"business_id"`
-	SyncStatus        int32           `json:"sync_status"`
-	SyncTimes         int32           `json:"sync_times"`
-	SyncStatusMessage string          `json:"sync_status_message"`
-	PointID           string          `json:"point_id"`
-	WordCount         uint64          `json:"word_count"`
-	CreatedUid        string          `json:"created_uid"`
-	UpdatedUid        string          `json:"updated_uid"`
-	CreatedAt         time.Time       `json:"created_at"`
-	UpdatedAt         time.Time       `json:"updated_at"`
-	DeletedAt         sql.NullTime    `json:"deleted_at"`
-}
-
-func (q *Queries) ListFragments(ctx context.Context, arg ListFragmentsParams) ([]ListFragmentsRow, error) {
-	rows, err := q.db.QueryContext(ctx, listFragments,
-		arg.KnowledgeCode,
-		arg.KnowledgeCode,
-		arg.DocumentCode,
-		arg.DocumentCode,
-		arg.BusinessID,
-		arg.BusinessID,
-		arg.ContentLike,
-		arg.ContentLike,
-		arg.SyncStatus,
-		arg.SyncStatus,
-		arg.Limit,
-		arg.Offset,
-	)
+func (q *Queries) ListFragmentsByKnowledge(ctx context.Context, arg ListFragmentsByKnowledgeParams) ([]MagicFlowKnowledgeFragment, error) {
+	query := listFragmentsByKnowledge
+	var queryParams []interface{}
+	queryParams = append(queryParams, arg.KnowledgeCode)
+	queryParams = append(queryParams, arg.ContentLike)
+	if len(arg.SyncStatusValues) > 0 {
+		for _, v := range arg.SyncStatusValues {
+			queryParams = append(queryParams, v)
+		}
+		query = strings.Replace(query, "/*SLICE:sync_status_values*/?", strings.Repeat(",?", len(arg.SyncStatusValues))[1:], 1)
+	} else {
+		query = strings.Replace(query, "/*SLICE:sync_status_values*/?", "NULL", 1)
+	}
+	queryParams = append(queryParams, arg.Limit)
+	queryParams = append(queryParams, arg.Offset)
+	rows, err := q.db.QueryContext(ctx, query, queryParams...)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	items := []ListFragmentsRow{}
+	items := []MagicFlowKnowledgeFragment{}
 	for rows.Next() {
-		var i ListFragmentsRow
+		var i MagicFlowKnowledgeFragment
 		if err := rows.Scan(
 			&i.ID,
 			&i.KnowledgeCode,
 			&i.DocumentCode,
+			&i.ParentFragmentID,
+			&i.Version,
 			&i.Content,
 			&i.Metadata,
 			&i.BusinessID,
@@ -671,6 +689,86 @@ func (q *Queries) ListFragments(ctx context.Context, arg ListFragmentsParams) ([
 			&i.SyncTimes,
 			&i.SyncStatusMessage,
 			&i.PointID,
+			&i.Vector,
+			&i.WordCount,
+			&i.CreatedUid,
+			&i.UpdatedUid,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+			&i.DeletedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listFragmentsByKnowledgeAndBusinessID = `-- name: ListFragmentsByKnowledgeAndBusinessID :many
+SELECT id, knowledge_code, document_code, parent_fragment_id, version, content, metadata, business_id, sync_status, sync_times, sync_status_message, point_id, vector, word_count, created_uid, updated_uid, created_at, updated_at, deleted_at
+FROM magic_flow_knowledge_fragment
+WHERE deleted_at IS NULL
+  AND knowledge_code = ?
+  AND business_id = ?
+  AND content LIKE ?
+  AND sync_status IN (/*SLICE:sync_status_values*/?)
+ORDER BY id ASC
+LIMIT ? OFFSET ?
+`
+
+type ListFragmentsByKnowledgeAndBusinessIDParams struct {
+	KnowledgeCode    string  `json:"knowledge_code"`
+	BusinessID       string  `json:"business_id"`
+	ContentLike      string  `json:"content_like"`
+	SyncStatusValues []int32 `json:"sync_status_values"`
+	Limit            int32   `json:"limit"`
+	Offset           int32   `json:"offset"`
+}
+
+func (q *Queries) ListFragmentsByKnowledgeAndBusinessID(ctx context.Context, arg ListFragmentsByKnowledgeAndBusinessIDParams) ([]MagicFlowKnowledgeFragment, error) {
+	query := listFragmentsByKnowledgeAndBusinessID
+	var queryParams []interface{}
+	queryParams = append(queryParams, arg.KnowledgeCode)
+	queryParams = append(queryParams, arg.BusinessID)
+	queryParams = append(queryParams, arg.ContentLike)
+	if len(arg.SyncStatusValues) > 0 {
+		for _, v := range arg.SyncStatusValues {
+			queryParams = append(queryParams, v)
+		}
+		query = strings.Replace(query, "/*SLICE:sync_status_values*/?", strings.Repeat(",?", len(arg.SyncStatusValues))[1:], 1)
+	} else {
+		query = strings.Replace(query, "/*SLICE:sync_status_values*/?", "NULL", 1)
+	}
+	queryParams = append(queryParams, arg.Limit)
+	queryParams = append(queryParams, arg.Offset)
+	rows, err := q.db.QueryContext(ctx, query, queryParams...)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []MagicFlowKnowledgeFragment{}
+	for rows.Next() {
+		var i MagicFlowKnowledgeFragment
+		if err := rows.Scan(
+			&i.ID,
+			&i.KnowledgeCode,
+			&i.DocumentCode,
+			&i.ParentFragmentID,
+			&i.Version,
+			&i.Content,
+			&i.Metadata,
+			&i.BusinessID,
+			&i.SyncStatus,
+			&i.SyncTimes,
+			&i.SyncStatusMessage,
+			&i.PointID,
+			&i.Vector,
 			&i.WordCount,
 			&i.CreatedUid,
 			&i.UpdatedUid,
@@ -692,10 +790,7 @@ func (q *Queries) ListFragments(ctx context.Context, arg ListFragmentsParams) ([
 }
 
 const listFragmentsByKnowledgeAndDocument = `-- name: ListFragmentsByKnowledgeAndDocument :many
-SELECT id, knowledge_code, document_code, content,
-       COALESCE(metadata, CAST('null' AS JSON)) AS metadata, business_id,
-       sync_status, sync_times, sync_status_message, point_id, word_count,
-       created_uid, updated_uid, created_at, updated_at, deleted_at
+SELECT id, knowledge_code, document_code, parent_fragment_id, version, content, metadata, business_id, sync_status, sync_times, sync_status_message, point_id, vector, word_count, created_uid, updated_uid, created_at, updated_at, deleted_at
 FROM magic_flow_knowledge_fragment
 WHERE deleted_at IS NULL
   AND knowledge_code = ?
@@ -711,26 +806,7 @@ type ListFragmentsByKnowledgeAndDocumentParams struct {
 	Offset        int32  `json:"offset"`
 }
 
-type ListFragmentsByKnowledgeAndDocumentRow struct {
-	ID                int64           `json:"id"`
-	KnowledgeCode     string          `json:"knowledge_code"`
-	DocumentCode      string          `json:"document_code"`
-	Content           string          `json:"content"`
-	Metadata          json.RawMessage `json:"metadata"`
-	BusinessID        string          `json:"business_id"`
-	SyncStatus        int32           `json:"sync_status"`
-	SyncTimes         int32           `json:"sync_times"`
-	SyncStatusMessage string          `json:"sync_status_message"`
-	PointID           string          `json:"point_id"`
-	WordCount         uint64          `json:"word_count"`
-	CreatedUid        string          `json:"created_uid"`
-	UpdatedUid        string          `json:"updated_uid"`
-	CreatedAt         time.Time       `json:"created_at"`
-	UpdatedAt         time.Time       `json:"updated_at"`
-	DeletedAt         sql.NullTime    `json:"deleted_at"`
-}
-
-func (q *Queries) ListFragmentsByKnowledgeAndDocument(ctx context.Context, arg ListFragmentsByKnowledgeAndDocumentParams) ([]ListFragmentsByKnowledgeAndDocumentRow, error) {
+func (q *Queries) ListFragmentsByKnowledgeAndDocument(ctx context.Context, arg ListFragmentsByKnowledgeAndDocumentParams) ([]MagicFlowKnowledgeFragment, error) {
 	rows, err := q.db.QueryContext(ctx, listFragmentsByKnowledgeAndDocument,
 		arg.KnowledgeCode,
 		arg.DocumentCode,
@@ -741,13 +817,15 @@ func (q *Queries) ListFragmentsByKnowledgeAndDocument(ctx context.Context, arg L
 		return nil, err
 	}
 	defer rows.Close()
-	items := []ListFragmentsByKnowledgeAndDocumentRow{}
+	items := []MagicFlowKnowledgeFragment{}
 	for rows.Next() {
-		var i ListFragmentsByKnowledgeAndDocumentRow
+		var i MagicFlowKnowledgeFragment
 		if err := rows.Scan(
 			&i.ID,
 			&i.KnowledgeCode,
 			&i.DocumentCode,
+			&i.ParentFragmentID,
+			&i.Version,
 			&i.Content,
 			&i.Metadata,
 			&i.BusinessID,
@@ -755,6 +833,284 @@ func (q *Queries) ListFragmentsByKnowledgeAndDocument(ctx context.Context, arg L
 			&i.SyncTimes,
 			&i.SyncStatusMessage,
 			&i.PointID,
+			&i.Vector,
+			&i.WordCount,
+			&i.CreatedUid,
+			&i.UpdatedUid,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+			&i.DeletedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listFragmentsByKnowledgeAndDocumentAfterID = `-- name: ListFragmentsByKnowledgeAndDocumentAfterID :many
+SELECT id, knowledge_code, document_code, parent_fragment_id, version, content, metadata, business_id, sync_status, sync_times, sync_status_message, point_id, vector, word_count, created_uid, updated_uid, created_at, updated_at, deleted_at
+FROM magic_flow_knowledge_fragment
+WHERE deleted_at IS NULL
+  AND knowledge_code = ?
+  AND document_code = ?
+  AND id > ?
+ORDER BY id ASC
+LIMIT ?
+`
+
+type ListFragmentsByKnowledgeAndDocumentAfterIDParams struct {
+	KnowledgeCode string `json:"knowledge_code"`
+	DocumentCode  string `json:"document_code"`
+	ID            int64  `json:"id"`
+	Limit         int32  `json:"limit"`
+}
+
+func (q *Queries) ListFragmentsByKnowledgeAndDocumentAfterID(ctx context.Context, arg ListFragmentsByKnowledgeAndDocumentAfterIDParams) ([]MagicFlowKnowledgeFragment, error) {
+	rows, err := q.db.QueryContext(ctx, listFragmentsByKnowledgeAndDocumentAfterID,
+		arg.KnowledgeCode,
+		arg.DocumentCode,
+		arg.ID,
+		arg.Limit,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []MagicFlowKnowledgeFragment{}
+	for rows.Next() {
+		var i MagicFlowKnowledgeFragment
+		if err := rows.Scan(
+			&i.ID,
+			&i.KnowledgeCode,
+			&i.DocumentCode,
+			&i.ParentFragmentID,
+			&i.Version,
+			&i.Content,
+			&i.Metadata,
+			&i.BusinessID,
+			&i.SyncStatus,
+			&i.SyncTimes,
+			&i.SyncStatusMessage,
+			&i.PointID,
+			&i.Vector,
+			&i.WordCount,
+			&i.CreatedUid,
+			&i.UpdatedUid,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+			&i.DeletedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listFragmentsByKnowledgeAndDocumentFiltered = `-- name: ListFragmentsByKnowledgeAndDocumentFiltered :many
+SELECT id, knowledge_code, document_code, parent_fragment_id, version, content, metadata, business_id, sync_status, sync_times, sync_status_message, point_id, vector, word_count, created_uid, updated_uid, created_at, updated_at, deleted_at
+FROM magic_flow_knowledge_fragment
+WHERE deleted_at IS NULL
+  AND knowledge_code = ?
+  AND document_code = ?
+  AND content LIKE ?
+  AND sync_status IN (/*SLICE:sync_status_values*/?)
+ORDER BY id ASC
+LIMIT ? OFFSET ?
+`
+
+type ListFragmentsByKnowledgeAndDocumentFilteredParams struct {
+	KnowledgeCode    string  `json:"knowledge_code"`
+	DocumentCode     string  `json:"document_code"`
+	ContentLike      string  `json:"content_like"`
+	SyncStatusValues []int32 `json:"sync_status_values"`
+	Limit            int32   `json:"limit"`
+	Offset           int32   `json:"offset"`
+}
+
+func (q *Queries) ListFragmentsByKnowledgeAndDocumentFiltered(ctx context.Context, arg ListFragmentsByKnowledgeAndDocumentFilteredParams) ([]MagicFlowKnowledgeFragment, error) {
+	query := listFragmentsByKnowledgeAndDocumentFiltered
+	var queryParams []interface{}
+	queryParams = append(queryParams, arg.KnowledgeCode)
+	queryParams = append(queryParams, arg.DocumentCode)
+	queryParams = append(queryParams, arg.ContentLike)
+	if len(arg.SyncStatusValues) > 0 {
+		for _, v := range arg.SyncStatusValues {
+			queryParams = append(queryParams, v)
+		}
+		query = strings.Replace(query, "/*SLICE:sync_status_values*/?", strings.Repeat(",?", len(arg.SyncStatusValues))[1:], 1)
+	} else {
+		query = strings.Replace(query, "/*SLICE:sync_status_values*/?", "NULL", 1)
+	}
+	queryParams = append(queryParams, arg.Limit)
+	queryParams = append(queryParams, arg.Offset)
+	rows, err := q.db.QueryContext(ctx, query, queryParams...)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []MagicFlowKnowledgeFragment{}
+	for rows.Next() {
+		var i MagicFlowKnowledgeFragment
+		if err := rows.Scan(
+			&i.ID,
+			&i.KnowledgeCode,
+			&i.DocumentCode,
+			&i.ParentFragmentID,
+			&i.Version,
+			&i.Content,
+			&i.Metadata,
+			&i.BusinessID,
+			&i.SyncStatus,
+			&i.SyncTimes,
+			&i.SyncStatusMessage,
+			&i.PointID,
+			&i.Vector,
+			&i.WordCount,
+			&i.CreatedUid,
+			&i.UpdatedUid,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+			&i.DeletedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listFragmentsMissingDocumentCodeByKnowledge = `-- name: ListFragmentsMissingDocumentCodeByKnowledge :many
+SELECT id, knowledge_code, document_code, parent_fragment_id, version, content, metadata, business_id, sync_status, sync_times, sync_status_message, point_id, vector, word_count, created_uid, updated_uid, created_at, updated_at, deleted_at
+FROM magic_flow_knowledge_fragment
+WHERE deleted_at IS NULL
+  AND (document_code = '' OR document_code IS NULL)
+  AND knowledge_code = ?
+  AND id > ?
+ORDER BY id ASC
+LIMIT ?
+`
+
+type ListFragmentsMissingDocumentCodeByKnowledgeParams struct {
+	KnowledgeCode string `json:"knowledge_code"`
+	StartID       int64  `json:"start_id"`
+	Limit         int32  `json:"limit"`
+}
+
+func (q *Queries) ListFragmentsMissingDocumentCodeByKnowledge(ctx context.Context, arg ListFragmentsMissingDocumentCodeByKnowledgeParams) ([]MagicFlowKnowledgeFragment, error) {
+	rows, err := q.db.QueryContext(ctx, listFragmentsMissingDocumentCodeByKnowledge, arg.KnowledgeCode, arg.StartID, arg.Limit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []MagicFlowKnowledgeFragment{}
+	for rows.Next() {
+		var i MagicFlowKnowledgeFragment
+		if err := rows.Scan(
+			&i.ID,
+			&i.KnowledgeCode,
+			&i.DocumentCode,
+			&i.ParentFragmentID,
+			&i.Version,
+			&i.Content,
+			&i.Metadata,
+			&i.BusinessID,
+			&i.SyncStatus,
+			&i.SyncTimes,
+			&i.SyncStatusMessage,
+			&i.PointID,
+			&i.Vector,
+			&i.WordCount,
+			&i.CreatedUid,
+			&i.UpdatedUid,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+			&i.DeletedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listFragmentsMissingDocumentCodeByKnowledgeCodes = `-- name: ListFragmentsMissingDocumentCodeByKnowledgeCodes :many
+SELECT id, knowledge_code, document_code, parent_fragment_id, version, content, metadata, business_id, sync_status, sync_times, sync_status_message, point_id, vector, word_count, created_uid, updated_uid, created_at, updated_at, deleted_at
+FROM magic_flow_knowledge_fragment
+WHERE deleted_at IS NULL
+  AND (document_code = '' OR document_code IS NULL)
+  AND knowledge_code IN (/*SLICE:knowledge_codes*/?)
+  AND id > ?
+ORDER BY id ASC
+LIMIT ?
+`
+
+type ListFragmentsMissingDocumentCodeByKnowledgeCodesParams struct {
+	KnowledgeCodes []string `json:"knowledge_codes"`
+	StartID        int64    `json:"start_id"`
+	Limit          int32    `json:"limit"`
+}
+
+func (q *Queries) ListFragmentsMissingDocumentCodeByKnowledgeCodes(ctx context.Context, arg ListFragmentsMissingDocumentCodeByKnowledgeCodesParams) ([]MagicFlowKnowledgeFragment, error) {
+	query := listFragmentsMissingDocumentCodeByKnowledgeCodes
+	var queryParams []interface{}
+	if len(arg.KnowledgeCodes) > 0 {
+		for _, v := range arg.KnowledgeCodes {
+			queryParams = append(queryParams, v)
+		}
+		query = strings.Replace(query, "/*SLICE:knowledge_codes*/?", strings.Repeat(",?", len(arg.KnowledgeCodes))[1:], 1)
+	} else {
+		query = strings.Replace(query, "/*SLICE:knowledge_codes*/?", "NULL", 1)
+	}
+	queryParams = append(queryParams, arg.StartID)
+	queryParams = append(queryParams, arg.Limit)
+	rows, err := q.db.QueryContext(ctx, query, queryParams...)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []MagicFlowKnowledgeFragment{}
+	for rows.Next() {
+		var i MagicFlowKnowledgeFragment
+		if err := rows.Scan(
+			&i.ID,
+			&i.KnowledgeCode,
+			&i.DocumentCode,
+			&i.ParentFragmentID,
+			&i.Version,
+			&i.Content,
+			&i.Metadata,
+			&i.BusinessID,
+			&i.SyncStatus,
+			&i.SyncTimes,
+			&i.SyncStatusMessage,
+			&i.PointID,
+			&i.Vector,
 			&i.WordCount,
 			&i.CreatedUid,
 			&i.UpdatedUid,
@@ -776,10 +1132,7 @@ func (q *Queries) ListFragmentsByKnowledgeAndDocument(ctx context.Context, arg L
 }
 
 const listPendingFragments = `-- name: ListPendingFragments :many
-SELECT id, knowledge_code, document_code, content,
-       COALESCE(metadata, CAST('null' AS JSON)) AS metadata, business_id,
-       sync_status, sync_times, sync_status_message, point_id, word_count,
-       created_uid, updated_uid, created_at, updated_at, deleted_at
+SELECT id, knowledge_code, document_code, parent_fragment_id, version, content, metadata, business_id, sync_status, sync_times, sync_status_message, point_id, vector, word_count, created_uid, updated_uid, created_at, updated_at, deleted_at
 FROM magic_flow_knowledge_fragment
 WHERE knowledge_code = ?
   AND sync_status IN (?, ?)
@@ -795,26 +1148,7 @@ type ListPendingFragmentsParams struct {
 	Limit         int32  `json:"limit"`
 }
 
-type ListPendingFragmentsRow struct {
-	ID                int64           `json:"id"`
-	KnowledgeCode     string          `json:"knowledge_code"`
-	DocumentCode      string          `json:"document_code"`
-	Content           string          `json:"content"`
-	Metadata          json.RawMessage `json:"metadata"`
-	BusinessID        string          `json:"business_id"`
-	SyncStatus        int32           `json:"sync_status"`
-	SyncTimes         int32           `json:"sync_times"`
-	SyncStatusMessage string          `json:"sync_status_message"`
-	PointID           string          `json:"point_id"`
-	WordCount         uint64          `json:"word_count"`
-	CreatedUid        string          `json:"created_uid"`
-	UpdatedUid        string          `json:"updated_uid"`
-	CreatedAt         time.Time       `json:"created_at"`
-	UpdatedAt         time.Time       `json:"updated_at"`
-	DeletedAt         sql.NullTime    `json:"deleted_at"`
-}
-
-func (q *Queries) ListPendingFragments(ctx context.Context, arg ListPendingFragmentsParams) ([]ListPendingFragmentsRow, error) {
+func (q *Queries) ListPendingFragments(ctx context.Context, arg ListPendingFragmentsParams) ([]MagicFlowKnowledgeFragment, error) {
 	rows, err := q.db.QueryContext(ctx, listPendingFragments,
 		arg.KnowledgeCode,
 		arg.SyncStatus,
@@ -825,13 +1159,15 @@ func (q *Queries) ListPendingFragments(ctx context.Context, arg ListPendingFragm
 		return nil, err
 	}
 	defer rows.Close()
-	items := []ListPendingFragmentsRow{}
+	items := []MagicFlowKnowledgeFragment{}
 	for rows.Next() {
-		var i ListPendingFragmentsRow
+		var i MagicFlowKnowledgeFragment
 		if err := rows.Scan(
 			&i.ID,
 			&i.KnowledgeCode,
 			&i.DocumentCode,
+			&i.ParentFragmentID,
+			&i.Version,
 			&i.Content,
 			&i.Metadata,
 			&i.BusinessID,
@@ -839,6 +1175,7 @@ func (q *Queries) ListPendingFragments(ctx context.Context, arg ListPendingFragm
 			&i.SyncTimes,
 			&i.SyncStatusMessage,
 			&i.PointID,
+			&i.Vector,
 			&i.WordCount,
 			&i.CreatedUid,
 			&i.UpdatedUid,
@@ -859,67 +1196,75 @@ func (q *Queries) ListPendingFragments(ctx context.Context, arg ListPendingFragm
 	return items, nil
 }
 
-const listThirdFileRepairGroups = `-- name: ListThirdFileRepairGroups :many
-SELECT
-	f.knowledge_code,
-	JSON_UNQUOTE(JSON_EXTRACT(f.metadata, '$.file_id')) AS third_file_id,
-	COALESCE(MIN(NULLIF(JSON_UNQUOTE(JSON_EXTRACT(f.metadata, '$.knowledge_base_id')), '')), '') AS knowledge_base_id,
-	COALESCE(
-		MIN(NULLIF(JSON_UNQUOTE(JSON_EXTRACT(f.metadata, '$.group_ref')), '')),
-		MIN(NULLIF(JSON_UNQUOTE(JSON_EXTRACT(f.metadata, '$.folder_id')), '')),
-		MIN(NULLIF(JSON_UNQUOTE(JSON_EXTRACT(f.metadata, '$.parent_id')), '')),
-		''
-	) AS group_ref,
-	COALESCE(MIN(NULLIF(JSON_UNQUOTE(JSON_EXTRACT(f.metadata, '$.third_file_type')), '')), '') AS third_file_type,
-	COALESCE(MIN(NULLIF(f.document_code, '')), '') AS document_code,
-	COALESCE(MIN(NULLIF(JSON_UNQUOTE(JSON_EXTRACT(f.metadata, '$.document_name')), '')), '') AS document_name,
-	COALESCE(MIN(NULLIF(JSON_UNQUOTE(JSON_EXTRACT(f.metadata, '$.url')), '')), '') AS preview_url,
-	COALESCE(MIN(NULLIF(f.created_uid, '')), '') AS created_uid,
-	COALESCE(MIN(NULLIF(f.updated_uid, '')), '') AS updated_uid,
-	COUNT(*) AS fragment_count,
-	COALESCE(SUM(CASE WHEN f.document_code = '' OR f.document_code IS NULL THEN 1 ELSE 0 END), 0) AS missing_document_code_count
-FROM magic_flow_knowledge_fragment AS f
-INNER JOIN magic_flow_knowledge AS kb
-	ON kb.code = f.knowledge_code
-	AND kb.deleted_at IS NULL
-WHERE f.deleted_at IS NULL
-  AND kb.organization_code = ?
-  AND JSON_UNQUOTE(JSON_EXTRACT(f.metadata, '$.file_id')) <> ''
-GROUP BY f.knowledge_code, JSON_UNQUOTE(JSON_EXTRACT(f.metadata, '$.file_id'))
-ORDER BY f.knowledge_code ASC, third_file_id ASC
+const listThirdFileRepairGroupsByKnowledgeCodes = `-- name: ListThirdFileRepairGroupsByKnowledgeCodes :many
+SELECT knowledge_code,
+       JSON_UNQUOTE(JSON_EXTRACT(metadata, '$.file_id')) AS third_file_id,
+       COALESCE(MIN(NULLIF(JSON_UNQUOTE(JSON_EXTRACT(metadata, '$.knowledge_base_id')), '')), '') AS knowledge_base_id,
+       COALESCE(
+         MIN(NULLIF(JSON_UNQUOTE(JSON_EXTRACT(metadata, '$.group_ref')), '')),
+         MIN(NULLIF(JSON_UNQUOTE(JSON_EXTRACT(metadata, '$.folder_id')), '')),
+         MIN(NULLIF(JSON_UNQUOTE(JSON_EXTRACT(metadata, '$.parent_id')), '')),
+         ''
+       ) AS group_ref,
+       COALESCE(MIN(NULLIF(JSON_UNQUOTE(JSON_EXTRACT(metadata, '$.third_file_type')), '')), '') AS third_file_type,
+       COALESCE(MIN(NULLIF(document_code, '')), '') AS document_code,
+       COALESCE(MIN(NULLIF(JSON_UNQUOTE(JSON_EXTRACT(metadata, '$.document_name')), '')), '') AS document_name,
+       COALESCE(MIN(NULLIF(JSON_UNQUOTE(JSON_EXTRACT(metadata, '$.url')), '')), '') AS preview_url,
+       COALESCE(MIN(NULLIF(created_uid, '')), '') AS created_uid,
+       COALESCE(MIN(NULLIF(updated_uid, '')), '') AS updated_uid,
+       COUNT(*) AS fragment_count,
+       COALESCE(SUM(CASE WHEN document_code = '' OR document_code IS NULL THEN 1 ELSE 0 END), 0) AS missing_document_code_count
+FROM magic_flow_knowledge_fragment
+WHERE deleted_at IS NULL
+  AND JSON_UNQUOTE(JSON_EXTRACT(metadata, '$.file_id')) <> ''
+  AND knowledge_code IN (/*SLICE:knowledge_codes*/?)
+GROUP BY knowledge_code, JSON_UNQUOTE(JSON_EXTRACT(metadata, '$.file_id'))
+ORDER BY knowledge_code ASC, third_file_id ASC
 LIMIT ? OFFSET ?
 `
 
-type ListThirdFileRepairGroupsParams struct {
-	OrganizationCode string `json:"organization_code"`
-	Limit            int32  `json:"limit"`
-	Offset           int32  `json:"offset"`
+type ListThirdFileRepairGroupsByKnowledgeCodesParams struct {
+	KnowledgeCodes []string `json:"knowledge_codes"`
+	Limit          int32    `json:"limit"`
+	Offset         int32    `json:"offset"`
 }
 
-type ListThirdFileRepairGroupsRow struct {
-	KnowledgeCode            string          `json:"knowledge_code"`
-	ThirdFileID              json.RawMessage `json:"third_file_id"`
-	KnowledgeBaseID          interface{}     `json:"knowledge_base_id"`
-	GroupRef                 interface{}     `json:"group_ref"`
-	ThirdFileType            interface{}     `json:"third_file_type"`
-	DocumentCode             interface{}     `json:"document_code"`
-	DocumentName             interface{}     `json:"document_name"`
-	PreviewUrl               interface{}     `json:"preview_url"`
-	CreatedUid               interface{}     `json:"created_uid"`
-	UpdatedUid               interface{}     `json:"updated_uid"`
-	FragmentCount            int64           `json:"fragment_count"`
-	MissingDocumentCodeCount interface{}     `json:"missing_document_code_count"`
+type ListThirdFileRepairGroupsByKnowledgeCodesRow struct {
+	KnowledgeCode            string      `json:"knowledge_code"`
+	ThirdFileID              []byte      `json:"third_file_id"`
+	KnowledgeBaseID          interface{} `json:"knowledge_base_id"`
+	GroupRef                 interface{} `json:"group_ref"`
+	ThirdFileType            interface{} `json:"third_file_type"`
+	DocumentCode             interface{} `json:"document_code"`
+	DocumentName             interface{} `json:"document_name"`
+	PreviewUrl               interface{} `json:"preview_url"`
+	CreatedUid               interface{} `json:"created_uid"`
+	UpdatedUid               interface{} `json:"updated_uid"`
+	FragmentCount            int64       `json:"fragment_count"`
+	MissingDocumentCodeCount interface{} `json:"missing_document_code_count"`
 }
 
-func (q *Queries) ListThirdFileRepairGroups(ctx context.Context, arg ListThirdFileRepairGroupsParams) ([]ListThirdFileRepairGroupsRow, error) {
-	rows, err := q.db.QueryContext(ctx, listThirdFileRepairGroups, arg.OrganizationCode, arg.Limit, arg.Offset)
+func (q *Queries) ListThirdFileRepairGroupsByKnowledgeCodes(ctx context.Context, arg ListThirdFileRepairGroupsByKnowledgeCodesParams) ([]ListThirdFileRepairGroupsByKnowledgeCodesRow, error) {
+	query := listThirdFileRepairGroupsByKnowledgeCodes
+	var queryParams []interface{}
+	if len(arg.KnowledgeCodes) > 0 {
+		for _, v := range arg.KnowledgeCodes {
+			queryParams = append(queryParams, v)
+		}
+		query = strings.Replace(query, "/*SLICE:knowledge_codes*/?", strings.Repeat(",?", len(arg.KnowledgeCodes))[1:], 1)
+	} else {
+		query = strings.Replace(query, "/*SLICE:knowledge_codes*/?", "NULL", 1)
+	}
+	queryParams = append(queryParams, arg.Limit)
+	queryParams = append(queryParams, arg.Offset)
+	rows, err := q.db.QueryContext(ctx, query, queryParams...)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	items := []ListThirdFileRepairGroupsRow{}
+	items := []ListThirdFileRepairGroupsByKnowledgeCodesRow{}
 	for rows.Next() {
-		var i ListThirdFileRepairGroupsRow
+		var i ListThirdFileRepairGroupsByKnowledgeCodesRow
 		if err := rows.Scan(
 			&i.KnowledgeCode,
 			&i.ThirdFileID,
@@ -947,30 +1292,27 @@ func (q *Queries) ListThirdFileRepairGroups(ctx context.Context, arg ListThirdFi
 	return items, nil
 }
 
-const listThirdFileRepairOrganizationCodes = `-- name: ListThirdFileRepairOrganizationCodes :many
-SELECT DISTINCT kb.organization_code
-FROM magic_flow_knowledge_fragment AS f
-INNER JOIN magic_flow_knowledge AS kb
-	ON kb.code = f.knowledge_code
-	AND kb.deleted_at IS NULL
-WHERE f.deleted_at IS NULL
-  AND JSON_UNQUOTE(JSON_EXTRACT(f.metadata, '$.file_id')) <> ''
-ORDER BY kb.organization_code ASC
+const listThirdFileRepairKnowledgeCodes = `-- name: ListThirdFileRepairKnowledgeCodes :many
+SELECT DISTINCT knowledge_code
+FROM magic_flow_knowledge_fragment
+WHERE deleted_at IS NULL
+  AND JSON_UNQUOTE(JSON_EXTRACT(metadata, '$.file_id')) <> ''
+ORDER BY knowledge_code ASC
 `
 
-func (q *Queries) ListThirdFileRepairOrganizationCodes(ctx context.Context) ([]string, error) {
-	rows, err := q.db.QueryContext(ctx, listThirdFileRepairOrganizationCodes)
+func (q *Queries) ListThirdFileRepairKnowledgeCodes(ctx context.Context) ([]string, error) {
+	rows, err := q.db.QueryContext(ctx, listThirdFileRepairKnowledgeCodes)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
 	items := []string{}
 	for rows.Next() {
-		var organization_code string
-		if err := rows.Scan(&organization_code); err != nil {
+		var knowledge_code string
+		if err := rows.Scan(&knowledge_code); err != nil {
 			return nil, err
 		}
-		items = append(items, organization_code)
+		items = append(items, knowledge_code)
 	}
 	if err := rows.Close(); err != nil {
 		return nil, err
@@ -987,6 +1329,9 @@ SET content = ?,
     metadata = ?,
     point_id = ?,
     word_count = ?,
+    sync_status = ?,
+    sync_times = ?,
+    sync_status_message = ?,
     updated_uid = ?,
     updated_at = ?
 WHERE id = ?
@@ -994,13 +1339,16 @@ WHERE id = ?
 `
 
 type UpdateFragmentParams struct {
-	Content    string          `json:"content"`
-	Metadata   json.RawMessage `json:"metadata"`
-	PointID    string          `json:"point_id"`
-	WordCount  uint64          `json:"word_count"`
-	UpdatedUid string          `json:"updated_uid"`
-	UpdatedAt  time.Time       `json:"updated_at"`
-	ID         int64           `json:"id"`
+	Content           string    `json:"content"`
+	Metadata          []byte    `json:"metadata"`
+	PointID           string    `json:"point_id"`
+	WordCount         uint64    `json:"word_count"`
+	SyncStatus        int32     `json:"sync_status"`
+	SyncTimes         int32     `json:"sync_times"`
+	SyncStatusMessage string    `json:"sync_status_message"`
+	UpdatedUid        string    `json:"updated_uid"`
+	UpdatedAt         time.Time `json:"updated_at"`
+	ID                int64     `json:"id"`
 }
 
 func (q *Queries) UpdateFragment(ctx context.Context, arg UpdateFragmentParams) (int64, error) {
@@ -1009,6 +1357,9 @@ func (q *Queries) UpdateFragment(ctx context.Context, arg UpdateFragmentParams) 
 		arg.Metadata,
 		arg.PointID,
 		arg.WordCount,
+		arg.SyncStatus,
+		arg.SyncTimes,
+		arg.SyncStatusMessage,
 		arg.UpdatedUid,
 		arg.UpdatedAt,
 		arg.ID,

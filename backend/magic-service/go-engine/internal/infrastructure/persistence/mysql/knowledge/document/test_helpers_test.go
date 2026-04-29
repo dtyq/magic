@@ -5,13 +5,13 @@ import (
 	"testing"
 	"time"
 
-	"magic/internal/domain/knowledge/knowledgebase/service"
+	kbentity "magic/internal/domain/knowledge/knowledgebase/entity"
 	"magic/internal/domain/knowledge/shared"
 )
 
-func sampleKnowledgeBase() *knowledgebase.KnowledgeBase {
+func sampleKnowledgeBase() *kbentity.KnowledgeBase {
 	now := time.Date(2026, 3, 11, 10, 0, 0, 0, time.Local)
-	return &knowledgebase.KnowledgeBase{
+	return &kbentity.KnowledgeBase{
 		Code:              "KB-1",
 		Version:           1,
 		Name:              "知识库",

@@ -16,6 +16,7 @@ use App\Application\Flow\ExecuteManager\NodeRunner\ReplyMessage\Struct\MessageAt
 use App\Application\Kernel\Contract\MagicPermissionInterface;
 use App\Application\Kernel\MagicPermission;
 use App\Application\KnowledgeBase\Port\EmbeddingProviderPort;
+use App\Application\KnowledgeBase\Port\FragmentHttpPassthroughPort;
 use App\Application\KnowledgeBase\Service\Strategy\DocumentFile\Driver\ExternalFileDocumentFileStrategyDriver;
 use App\Application\KnowledgeBase\Service\Strategy\DocumentFile\Driver\Interfaces\ExternalFileDocumentFileStrategyInterface;
 use App\Application\KnowledgeBase\Service\Strategy\DocumentFile\Driver\Interfaces\ThirdPlatformDocumentFileStrategyInterface;
@@ -381,6 +382,7 @@ $dependencies = [
     KnowledgeBaseGateway::class => KnowledgeBaseRpcClient::class,
     DocumentGateway::class => DocumentRpcClient::class,
     FragmentGateway::class => FragmentRpcClient::class,
+    FragmentHttpPassthroughPort::class => FragmentRpcClient::class,
     EmbeddingProviderPort::class => EmbeddingRpcClient::class,
     KnowledgeBaseDocumentRepositoryInterface::class => KnowledgeBaseDocumentRepository::class,
     KnowledgeBaseFragmentRepositoryInterface::class => KnowledgeBaseFragmentRepository::class,

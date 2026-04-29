@@ -16,7 +16,7 @@ import (
 	"time"
 	"unicode"
 
-	"magic/internal/domain/knowledge/document/service"
+	document "magic/internal/domain/knowledge/document/metadata"
 )
 
 const (
@@ -86,7 +86,12 @@ type tabularTableBuildInput struct {
 	Cells        [][]tabularCell
 }
 
-func parseCSVDocument(file io.Reader, fileURL, fileType string) (*document.ParsedDocument, error) {
+func parseCSVDocument(
+	file io.Reader,
+	fileURL string,
+	fileType string,
+	limits document.ResourceLimits,
+) (*document.ParsedDocument, error) {
 	data, err := io.ReadAll(file)
 	if err != nil {
 		return nil, fmt.Errorf("read csv failed: %w", err)
@@ -100,6 +105,10 @@ func parseCSVDocument(file io.Reader, fileURL, fileType string) (*document.Parse
 	records, err := reader.ReadAll()
 	if err != nil {
 		return nil, fmt.Errorf("read csv records failed: %w", err)
+	}
+	rows, cells := countRawTabularRowsCells(records)
+	if err := document.CheckTabularSize(rows, cells, limits, "parse_csv_records"); err != nil {
+		return nil, fmt.Errorf("check csv table size: %w", err)
 	}
 	matrix := make([][]tabularCell, 0, len(records))
 	for rowIndex, record := range records {
@@ -120,6 +129,16 @@ func parseCSVDocument(file io.Reader, fileURL, fileType string) (*document.Parse
 		return document.NewPlainTextParsedDocument(fileType, strings.TrimSpace(string(data))), nil
 	}
 	return buildTabularParsedDocument(fileType, tables), nil
+}
+
+func countRawTabularRowsCells(rows [][]string) (int64, int64) {
+	var rowCount int64
+	var cellCount int64
+	for _, row := range rows {
+		rowCount++
+		cellCount += int64(len(row))
+	}
+	return rowCount, cellCount
 }
 
 func buildTablesFromMatrix(fileName, sourceFormat, sheetName string, sheetHidden bool, matrix [][]tabularCell) []tabularTable {

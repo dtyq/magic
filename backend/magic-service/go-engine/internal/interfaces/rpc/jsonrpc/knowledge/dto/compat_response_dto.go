@@ -1,8 +1,8 @@
 package dto
 
 import (
+	"maps"
 	"math"
-	"strconv"
 	"strings"
 	"time"
 
@@ -10,13 +10,18 @@ import (
 	fragdto "magic/internal/application/knowledge/fragment/dto"
 	confighelper "magic/internal/application/knowledge/helper/config"
 	kbdto "magic/internal/application/knowledge/knowledgebase/dto"
+	"magic/internal/constants"
+	"magic/internal/pkg/projectfile"
+	"magic/pkg/convert"
 )
 
 const (
 	rpcCompatVersion                 = 1
 	legacyFlowSourceTypeLocalFile    = 1
+	legacyFlowSourceTypeEnterprise   = 1001
 	legacyDocumentFileTypeExternal   = 1
 	legacyDocumentFileTypeThirdParty = 2
+	knowledgeBaseTypeFlowVector      = "flow_vector"
 	knowledgeBaseTypeDigitalEmployee = "digital_employee"
 	fragmentModeCustom               = 1
 	fragmentModeAuto                 = 2
@@ -25,8 +30,8 @@ const (
 	defaultRetrieveTopK              = 10
 	defaultScoreThreshold            = 0.5
 	defaultRerankingMode             = "weighted_score"
-	defaultVectorWeight              = 1.0
-	defaultKeywordWeight             = 0.0
+	defaultVectorWeight              = 0.75
+	defaultKeywordWeight             = 0.25
 	defaultGraphRelationWeight       = 0.5
 	defaultGraphMaxDepth             = 2
 	defaultGraphTimeout              = 5.0
@@ -49,40 +54,41 @@ type OperatorInfoResponse struct {
 
 // KnowledgeBaseResponse 兼容 PHP 侧知识库 DTO 输出结构。
 type KnowledgeBaseResponse struct {
-	ID                string                `json:"id"`
-	Code              string                `json:"code"`
-	Name              string                `json:"name"`
-	Description       string                `json:"description"`
-	Type              int                   `json:"type"`
-	Enabled           bool                  `json:"enabled"`
-	BusinessID        string                `json:"business_id"`
-	SyncStatus        int                   `json:"sync_status"`
-	SyncStatusMessage string                `json:"sync_status_message"`
-	Model             string                `json:"model"`
-	VectorDB          string                `json:"vector_db"`
-	OrganizationCode  string                `json:"organization_code"`
-	Creator           string                `json:"creator"`
-	Modifier          string                `json:"modifier"`
-	CreatedUID        string                `json:"created_uid"`
-	UpdatedUID        string                `json:"updated_uid"`
-	CreatedAt         string                `json:"created_at"`
-	UpdatedAt         string                `json:"updated_at"`
-	FragmentCount     int                   `json:"fragment_count"`
-	ExpectedCount     int                   `json:"expected_count"`
-	CompletedCount    int                   `json:"completed_count"`
-	UserOperation     *int                  `json:"user_operation,omitempty"`
-	ExpectedNum       int                   `json:"expected_num"`
-	CompletedNum      int                   `json:"completed_num"`
-	WordCount         int                   `json:"word_count"`
-	DocumentCount     int                   `json:"document_count"`
-	RetrieveConfig    any                   `json:"retrieve_config,omitempty"`
-	FragmentConfig    any                   `json:"fragment_config,omitempty"`
-	EmbeddingConfig   any                   `json:"embedding_config,omitempty"`
-	SourceType        *int                  `json:"source_type,omitempty"`
-	AgentCodes        []string              `json:"agent_codes,omitempty"`
-	Icon              string                `json:"icon"`
-	CreatorInfo       *OperatorInfoResponse `json:"creator_info,omitempty"`
-	ModifierInfo      *OperatorInfoResponse `json:"modifier_info,omitempty"`
+	ID                string                 `json:"id"`
+	Code              string                 `json:"code"`
+	Name              string                 `json:"name"`
+	Description       string                 `json:"description"`
+	Type              int                    `json:"type"`
+	Enabled           bool                   `json:"enabled"`
+	BusinessID        string                 `json:"business_id"`
+	SyncStatus        int                    `json:"sync_status"`
+	SyncStatusMessage string                 `json:"sync_status_message"`
+	Model             string                 `json:"model"`
+	VectorDB          string                 `json:"vector_db"`
+	OrganizationCode  string                 `json:"organization_code"`
+	Creator           string                 `json:"creator"`
+	Modifier          string                 `json:"modifier"`
+	CreatedUID        string                 `json:"created_uid"`
+	UpdatedUID        string                 `json:"updated_uid"`
+	CreatedAt         string                 `json:"created_at"`
+	UpdatedAt         string                 `json:"updated_at"`
+	FragmentCount     int                    `json:"fragment_count"`
+	ExpectedCount     int                    `json:"expected_count"`
+	CompletedCount    int                    `json:"completed_count"`
+	UserOperation     *int                   `json:"user_operation,omitempty"`
+	ExpectedNum       int                    `json:"expected_num"`
+	CompletedNum      int                    `json:"completed_num"`
+	WordCount         int                    `json:"word_count"`
+	DocumentCount     int                    `json:"document_count"`
+	RetrieveConfig    any                    `json:"retrieve_config,omitempty"`
+	FragmentConfig    any                    `json:"fragment_config,omitempty"`
+	EmbeddingConfig   any                    `json:"embedding_config,omitempty"`
+	SourceType        *int                   `json:"source_type,omitempty"`
+	SourceBindings    []SourceBindingPayload `json:"source_bindings,omitempty"`
+	AgentCodes        []string               `json:"agent_codes,omitempty"`
+	Icon              string                 `json:"icon"`
+	CreatorInfo       *OperatorInfoResponse  `json:"creator_info,omitempty"`
+	ModifierInfo      *OperatorInfoResponse  `json:"modifier_info,omitempty"`
 }
 
 // KnowledgeBasePageResponse 兼容 PHP 侧分页结构。
@@ -94,13 +100,13 @@ type KnowledgeBasePageResponse struct {
 
 // DocumentResponse 兼容 PHP 侧文档 DTO 输出结构。
 type DocumentResponse struct {
-	ID                int64                 `json:"id"`
+	ID                string                `json:"id"`
 	OrganizationCode  string                `json:"organization_code"`
 	KnowledgeBaseCode string                `json:"knowledge_base_code"`
-	SourceBindingID   int64                 `json:"source_binding_id"`
-	SourceItemID      int64                 `json:"source_item_id"`
-	ProjectID         int64                 `json:"project_id"`
-	ProjectFileID     int64                 `json:"project_file_id"`
+	SourceBindingID   string                `json:"source_binding_id"`
+	SourceItemID      string                `json:"source_item_id"`
+	ProjectID         string                `json:"project_id"`
+	ProjectFileID     string                `json:"project_file_id"`
 	AutoAdded         bool                  `json:"auto_added"`
 	CreatedUID        string                `json:"created_uid"`
 	UpdatedUID        string                `json:"updated_uid"`
@@ -140,7 +146,7 @@ type DocumentPageResponse struct {
 
 // FragmentResponse 兼容 PHP 侧片段 DTO 输出结构。
 type FragmentResponse struct {
-	ID                int64                 `json:"id"`
+	ID                string                `json:"id"`
 	KnowledgeBaseCode string                `json:"knowledge_base_code"`
 	KnowledgeCode     string                `json:"knowledge_code"`
 	OrganizationCode  string                `json:"organization_code"`
@@ -154,12 +160,12 @@ type FragmentResponse struct {
 	DocumentType      int                   `json:"document_type"`
 	DocType           int                   `json:"doc_type"`
 	Content           string                `json:"content"`
+	Score             float64               `json:"score"`
 	Metadata          map[string]any        `json:"metadata"`
+	WordCount         int                   `json:"word_count"`
 	SyncStatus        int                   `json:"sync_status"`
 	SyncStatusMessage string                `json:"sync_status_message"`
-	Score             float64               `json:"score"`
 	PointID           string                `json:"point_id"`
-	WordCount         int                   `json:"word_count"`
 	CreatedAt         string                `json:"created_at"`
 	UpdatedAt         string                `json:"updated_at"`
 	CreatorInfo       *OperatorInfoResponse `json:"creator_info,omitempty"`
@@ -192,12 +198,12 @@ type SimilarityFragmentResponse struct {
 	DocumentType      int                   `json:"document_type"`
 	DocType           int                   `json:"doc_type"`
 	Content           string                `json:"content"`
+	Score             float64               `json:"score"`
 	Metadata          map[string]any        `json:"metadata"`
+	WordCount         int                   `json:"word_count"`
 	SyncStatus        int                   `json:"sync_status"`
 	SyncStatusMessage string                `json:"sync_status_message"`
-	Score             float64               `json:"score"`
 	PointID           string                `json:"point_id"`
-	WordCount         int                   `json:"word_count"`
 	CreatedAt         string                `json:"created_at"`
 	UpdatedAt         string                `json:"updated_at"`
 	CreatorInfo       *OperatorInfoResponse `json:"creator_info,omitempty"`
@@ -299,6 +305,7 @@ func NewKnowledgeBaseResponse(kb *kbdto.KnowledgeBaseDTO, documentCount int64) *
 		DocumentCount:     normalizeDocumentCount(documentCount),
 		RetrieveConfig:    normalizeCompatRetrieveConfig(kb.RetrieveConfig),
 		EmbeddingConfig:   kb.EmbeddingConfig,
+		SourceBindings:    projectKnowledgeBaseSourceBindings(kb.SourceBindings),
 		AgentCodes:        append([]string(nil), kb.AgentCodes...),
 		Icon:              kb.Icon,
 		CreatorInfo:       newOperatorInfoResponse(kb.Creator, kb.CreatedAt),
@@ -363,6 +370,64 @@ func cloneOptionalInt(value *int) *int {
 	return &cloned
 }
 
+func toOptionalStringFromInt64(value *int64) *string {
+	if value == nil {
+		return nil
+	}
+
+	converted := convert.ToString(*value)
+	return &converted
+}
+
+func cloneOptionalString(value *string) *string {
+	if value == nil {
+		return nil
+	}
+
+	cloned := *value
+	return &cloned
+}
+
+func cloneJSONObject(value map[string]any) JSONObject {
+	if len(value) == 0 {
+		return nil
+	}
+
+	cloned := make(JSONObject, len(value))
+	maps.Copy(cloned, value)
+	return cloned
+}
+
+func projectKnowledgeBaseSourceBindings(bindings []kbdto.SourceBindingDTO) []SourceBindingPayload {
+	if len(bindings) == 0 {
+		return nil
+	}
+
+	result := make([]SourceBindingPayload, 0, len(bindings))
+	for _, binding := range bindings {
+		targets := make([]SourceBindingTargetPayload, 0, len(binding.Targets))
+		for _, target := range binding.Targets {
+			targets = append(targets, SourceBindingTargetPayload{
+				TargetType: target.TargetType,
+				TargetRef:  target.TargetRef,
+			})
+		}
+		enabled := binding.Enabled
+		result = append(result, SourceBindingPayload{
+			Provider:      binding.Provider,
+			RootType:      binding.RootType,
+			RootRef:       binding.RootRef,
+			WorkspaceID:   toOptionalStringFromInt64(binding.WorkspaceID),
+			WorkspaceType: cloneOptionalString(binding.WorkspaceType),
+			SyncMode:      binding.SyncMode,
+			Enabled:       &enabled,
+			SyncConfig:    cloneJSONObject(binding.SyncConfig),
+			Targets:       targets,
+		})
+	}
+	return result
+}
+
 // NewKnowledgeBasePageResponse 将知识库分页结果投影为兼容旧 HTTP 协议的 JSON-RPC 响应。
 func NewKnowledgeBasePageResponse(
 	page int,
@@ -395,13 +460,13 @@ func NewDocumentResponse(doc *docdto.DocumentDTO) *DocumentResponse {
 		return nil
 	}
 	response := &DocumentResponse{
-		ID:                doc.ID,
+		ID:                convert.ToString(doc.ID),
 		OrganizationCode:  doc.OrganizationCode,
 		KnowledgeBaseCode: doc.KnowledgeBaseCode,
-		SourceBindingID:   doc.SourceBindingID,
-		SourceItemID:      doc.SourceItemID,
-		ProjectID:         doc.ProjectID,
-		ProjectFileID:     doc.ProjectFileID,
+		SourceBindingID:   convert.ToString(doc.SourceBindingID),
+		SourceItemID:      convert.ToString(doc.SourceItemID),
+		ProjectID:         convert.ToString(doc.ProjectID),
+		ProjectFileID:     convert.ToString(doc.ProjectFileID),
 		AutoAdded:         doc.AutoAdded,
 		CreatedUID:        doc.CreatedUID,
 		UpdatedUID:        doc.UpdatedUID,
@@ -409,7 +474,7 @@ func NewDocumentResponse(doc *docdto.DocumentDTO) *DocumentResponse {
 		Description:       doc.Description,
 		Code:              doc.Code,
 		Enabled:           doc.Enabled,
-		DocType:           doc.DocType,
+		DocType:           projectDocumentResponseDocType(doc),
 		DocMetadata:       doc.DocMetadata,
 		StrategyConfig:    doc.StrategyConfig,
 		DocumentFile:      newDocumentFileCompatPayload(doc),
@@ -453,6 +518,10 @@ func projectFlowVectorDocumentResponse(resp *DocumentResponse, doc *docdto.Docum
 	if resp == nil || doc == nil {
 		return
 	}
+	resp.StrategyConfig = confighelper.StrategyConfigDTOFromMetadataForKnowledgeBaseType(
+		knowledgeBaseTypeFlowVector,
+		doc.DocMetadata,
+	)
 	resp.FragmentConfig = projectFlowFragmentConfig(doc.FragmentConfig)
 }
 
@@ -460,7 +529,112 @@ func projectDigitalEmployeeDocumentResponse(resp *DocumentResponse, doc *docdto.
 	if resp == nil || doc == nil {
 		return
 	}
+	resp.StrategyConfig = confighelper.StrategyConfigDTOFromMetadataForKnowledgeBaseType(
+		knowledgeBaseTypeDigitalEmployee,
+		doc.DocMetadata,
+	)
 	resp.FragmentConfig = projectAutoFragmentConfig(doc.FragmentConfig)
+}
+
+// projectDocumentResponseDocType 投影主 API 响应顶层 doc_type。
+//
+// DocumentDTO.DocType 仍是 knowledge_base_documents.doc_type 的内部精确文件类型；
+// 这里输出的是前端历史契约中的知识库来源类型。
+func projectDocumentResponseDocType(doc *docdto.DocumentDTO) int {
+	if doc == nil {
+		return constants.KnowledgeBaseSourceTypeDigitalEmployeeLocalFile
+	}
+	sourceType := projectDocumentResponseSourceType(doc)
+	switch strings.ToLower(strings.TrimSpace(doc.KnowledgeBaseType)) {
+	case knowledgeBaseTypeDigitalEmployee:
+		return projectDigitalEmployeeDocumentResponseDocType(sourceType)
+	default:
+		return projectFlowVectorDocumentResponseDocType(sourceType)
+	}
+}
+
+func projectDigitalEmployeeDocumentResponseDocType(sourceType int) int {
+	switch sourceType {
+	case constants.KnowledgeBaseSourceTypeDigitalEmployeeCustomContent:
+		return constants.KnowledgeBaseSourceTypeDigitalEmployeeCustomContent
+	case constants.KnowledgeBaseSourceTypeDigitalEmployeeProject:
+		return constants.KnowledgeBaseSourceTypeDigitalEmployeeProject
+	case constants.KnowledgeBaseSourceTypeLegacyEnterpriseWiki, constants.KnowledgeBaseSourceTypeDigitalEmployeeEnterpriseWiki:
+		return constants.KnowledgeBaseSourceTypeDigitalEmployeeEnterpriseWiki
+	default:
+		return constants.KnowledgeBaseSourceTypeDigitalEmployeeLocalFile
+	}
+}
+
+func projectFlowVectorDocumentResponseDocType(sourceType int) int {
+	switch sourceType {
+	case constants.KnowledgeBaseSourceTypeLegacyEnterpriseWiki, constants.KnowledgeBaseSourceTypeDigitalEmployeeEnterpriseWiki:
+		return legacyFlowSourceTypeEnterprise
+	default:
+		return legacyFlowSourceTypeLocalFile
+	}
+}
+
+func projectDocumentResponseSourceType(doc *docdto.DocumentDTO) int {
+	if doc == nil {
+		return constants.KnowledgeBaseSourceTypeDigitalEmployeeLocalFile
+	}
+	if doc.SourceType != nil {
+		return *doc.SourceType
+	}
+	if isProjectDocumentResponseSource(doc) {
+		return constants.KnowledgeBaseSourceTypeDigitalEmployeeProject
+	}
+	if isEnterpriseDocumentResponseSource(doc) {
+		return constants.KnowledgeBaseSourceTypeDigitalEmployeeEnterpriseWiki
+	}
+	return constants.KnowledgeBaseSourceTypeDigitalEmployeeLocalFile
+}
+
+// projectFragmentResponseDocType 投影片段主 API 响应顶层 doc_type。
+//
+// FragmentDTO.DocumentType / FragmentListItemDTO.DocumentType 仍是片段所属文档的内部精确文件类型；
+// 这里输出的是前端历史契约中的知识库来源类型。缺少知识库上下文的旧调用保留原始兼容值。
+func projectFragmentResponseDocType(knowledgeBaseType string, sourceType *int, fallback int) int {
+	if sourceType == nil && strings.TrimSpace(knowledgeBaseType) == "" {
+		return fallback
+	}
+
+	source := constants.KnowledgeBaseSourceTypeDigitalEmployeeLocalFile
+	if sourceType != nil {
+		source = *sourceType
+	}
+	switch strings.ToLower(strings.TrimSpace(knowledgeBaseType)) {
+	case knowledgeBaseTypeDigitalEmployee:
+		return projectDigitalEmployeeDocumentResponseDocType(source)
+	default:
+		return projectFlowVectorDocumentResponseDocType(source)
+	}
+}
+
+func isProjectDocumentResponseSource(doc *docdto.DocumentDTO) bool {
+	if doc == nil {
+		return false
+	}
+	if doc.ProjectFileID > 0 {
+		return true
+	}
+	if doc.DocumentFile == nil {
+		return false
+	}
+	return doc.DocumentFile.ProjectFileID > 0 ||
+		strings.EqualFold(strings.TrimSpace(doc.DocumentFile.SourceType), "project")
+}
+
+func isEnterpriseDocumentResponseSource(doc *docdto.DocumentDTO) bool {
+	if doc == nil {
+		return false
+	}
+	if strings.EqualFold(strings.TrimSpace(doc.ThirdPlatformType), "teamshare") {
+		return true
+	}
+	return doc.DocumentFile != nil &&
+		strings.EqualFold(strings.TrimSpace(doc.DocumentFile.SourceType), "teamshare")
 }
 
 func newDocumentFileCompatPayload(doc *docdto.DocumentDTO) any {
@@ -478,6 +652,11 @@ func newDocumentFileCompatPayload(doc *docdto.DocumentDTO) any {
 
 	if documentFile.Extension != "" {
 		payload["extension"] = documentFile.Extension
+		payload["third_file_extension_name"] = documentFile.Extension
+	}
+	if documentFile.ThirdFileType != "" {
+		payload["third_file_type"] = documentFile.ThirdFileType
+		payload["teamshare_file_type"] = documentFile.ThirdFileType
 	}
 	if documentFile.KnowledgeBaseID != "" {
 		payload["knowledge_base_id"] = documentFile.KnowledgeBaseID
@@ -487,6 +666,12 @@ func newDocumentFileCompatPayload(doc *docdto.DocumentDTO) any {
 	}
 	if documentFile.FileLink != nil {
 		payload["file_link"] = documentFile.FileLink
+	}
+	if projectFileID := max(documentFile.ProjectFileID, doc.ProjectFileID); projectFileID > 0 {
+		payload["project_file_id"] = convert.ToString(projectFileID)
+	}
+	if relativePath := resolveCompatRelativeFilePath(documentFile.RelativeFilePath, documentFile.Key); relativePath != "" {
+		payload["relative_file_path"] = relativePath
 	}
 
 	thirdFileID := firstNonEmptyString(documentFile.ThirdID, doc.ThirdFileID)
@@ -502,6 +687,16 @@ func newDocumentFileCompatPayload(doc *docdto.DocumentDTO) any {
 	}
 
 	return payload
+}
+
+func resolveCompatRelativeFilePath(relativeFilePath, fileKey string) string {
+	if trimmed := strings.TrimSpace(relativeFilePath); trimmed != "" {
+		return trimmed
+	}
+	if inferred := strings.TrimSpace(projectfile.InferRelativeFilePath(fileKey)); inferred != "" && inferred != strings.TrimSpace(fileKey) {
+		return inferred
+	}
+	return ""
 }
 
 func convertLegacyDocumentFileType(documentFileType string) any {
@@ -563,41 +758,98 @@ func normalizeCompatRetrieveConfig(cfg *confighelper.RetrieveConfigDTO) *configh
 func projectFlowFragmentConfigOutput(
 	cfg *confighelper.FragmentConfigOutputDTO,
 ) *confighelper.FragmentConfigOutputDTO {
-	if isDefaultAutoFragmentConfigOutput(cfg) {
+	normalized := normalizeCompatFragmentConfigOutput(cfg)
+	if isDefaultAutoFragmentConfigOutput(normalized) {
 		return newFlowDefaultFragmentConfigOutput()
 	}
-	return confighelper.NormalizeFragmentConfigOutputDTO(cfg)
+	return normalized
 }
 
 func projectAutoFragmentConfigOutput(
 	cfg *confighelper.FragmentConfigOutputDTO,
 ) *confighelper.FragmentConfigOutputDTO {
-	if isDefaultAutoFragmentConfigOutput(cfg) {
+	normalized := normalizeCompatFragmentConfigOutput(cfg)
+	if isDefaultAutoFragmentConfigOutput(normalized) {
 		return newAutoDefaultFragmentConfigOutput()
 	}
-	return confighelper.NormalizeFragmentConfigOutputDTO(cfg)
+	return normalized
 }
 
 func projectFlowFragmentConfig(cfg *confighelper.FragmentConfigDTO) *confighelper.FragmentConfigDTO {
-	if isDefaultAutoFragmentConfig(cfg) {
+	normalized := normalizeCompatFragmentConfig(cfg)
+	if isDefaultAutoFragmentConfig(normalized) {
 		return newFlowDefaultFragmentConfig()
 	}
-	return confighelper.NormalizeFragmentConfigDTO(cfg)
+	return normalized
 }
 
 func projectAutoFragmentConfig(cfg *confighelper.FragmentConfigDTO) *confighelper.FragmentConfigDTO {
-	if isDefaultAutoFragmentConfig(cfg) {
+	normalized := normalizeCompatFragmentConfig(cfg)
+	if isDefaultAutoFragmentConfig(normalized) {
 		return newAutoDefaultFragmentConfig()
 	}
-	return confighelper.NormalizeFragmentConfigDTO(cfg)
+	return normalized
 }
 
 func isDefaultAutoFragmentConfigOutput(cfg *confighelper.FragmentConfigOutputDTO) bool {
-	return cfg == nil || (cfg.Mode == fragmentModeAuto && cfg.Normal == nil && cfg.Hierarchy == nil)
+	return cfg == nil || (cfg.Mode == fragmentModeAuto &&
+		isEmptyNormalFragmentConfigOutput(cfg.Normal) &&
+		isEmptyHierarchyFragmentConfig(cfg.Hierarchy))
 }
 
 func isDefaultAutoFragmentConfig(cfg *confighelper.FragmentConfigDTO) bool {
-	return cfg == nil || (cfg.Mode == fragmentModeAuto && cfg.Normal == nil && cfg.Hierarchy == nil)
+	return cfg == nil || (cfg.Mode == fragmentModeAuto &&
+		isEmptyNormalFragmentConfig(cfg.Normal) &&
+		isEmptyHierarchyFragmentConfig(cfg.Hierarchy))
+}
+
+func normalizeCompatFragmentConfig(cfg *confighelper.FragmentConfigDTO) *confighelper.FragmentConfigDTO {
+	normalized := confighelper.NormalizeFragmentConfigDTO(cfg)
+	if normalized == nil {
+		return nil
+	}
+	if isEmptyNormalFragmentConfig(normalized.Normal) {
+		normalized.Normal = nil
+	}
+	if isEmptyHierarchyFragmentConfig(normalized.Hierarchy) {
+		normalized.Hierarchy = nil
+	}
+	return normalized
+}
+
+func normalizeCompatFragmentConfigOutput(
+	cfg *confighelper.FragmentConfigOutputDTO,
+) *confighelper.FragmentConfigOutputDTO {
+	normalized := confighelper.NormalizeFragmentConfigOutputDTO(cfg)
+	if normalized == nil {
+		return nil
+	}
+	if normalized.Mode == 0 {
+		if isEmptyNormalFragmentConfigOutput(normalized.Normal) {
+			normalized.Mode = fragmentModeAuto
+		} else {
+			normalized.Mode = fragmentModeCustom
+		}
+	}
+	if isEmptyNormalFragmentConfigOutput(normalized.Normal) {
+		normalized.Normal = nil
+	}
+	if isEmptyHierarchyFragmentConfig(normalized.Hierarchy) {
+		normalized.Hierarchy = nil
+	}
+	return normalized
+}
+
+func isEmptyNormalFragmentConfig(cfg *confighelper.NormalFragmentConfigDTO) bool {
+	return cfg == nil || (len(cfg.TextPreprocessRule) == 0 && cfg.SegmentRule == nil)
+}
+
+func isEmptyNormalFragmentConfigOutput(cfg *confighelper.NormalFragmentConfigOutputDTO) bool {
+	return cfg == nil || (len(cfg.TextPreprocessRule) == 0 && cfg.SegmentRule == nil)
+}
+
+func isEmptyHierarchyFragmentConfig(cfg *confighelper.HierarchyFragmentConfigDTO) bool {
+	return cfg == nil || (cfg.MaxLevel == 0 && len(cfg.TextPreprocessRule) == 0 && !cfg.KeepHierarchyInfo)
 }
 
 func newFlowDefaultFragmentConfigOutput() *confighelper.FragmentConfigOutputDTO {
@@ -673,7 +925,7 @@ func NewFragmentResponse(fragment *fragdto.FragmentDTO) *FragmentResponse {
 		return nil
 	}
 	return &FragmentResponse{
-		ID:                fragment.ID,
+		ID:                convert.ToString(fragment.ID),
 		KnowledgeBaseCode: fragment.KnowledgeCode,
 		KnowledgeCode:     fragment.KnowledgeCode,
 		OrganizationCode:  fragment.OrganizationCode,
@@ -685,7 +937,11 @@ func NewFragmentResponse(fragment *fragdto.FragmentDTO) *FragmentResponse {
 		BusinessID:        fragment.BusinessID,
 		DocumentName:      fragment.DocumentName,
 		DocumentType:      fragment.DocumentType,
-		DocType:           fragment.DocumentType,
+		DocType: projectFragmentResponseDocType(
+			fragment.KnowledgeBaseType,
+			fragment.SourceType,
+			fragment.DocumentType,
+		),
 		Content:           fragment.Content,
 		Metadata:          fragment.Metadata,
 		SyncStatus:        fragment.SyncStatus,
@@ -707,7 +963,7 @@ func NewFragmentListResponse(fragment *fragdto.FragmentListItemDTO) *FragmentRes
 		return nil
 	}
 	return &FragmentResponse{
-		ID:                fragment.ID,
+		ID:                convert.ToString(fragment.ID),
 		KnowledgeBaseCode: fragment.KnowledgeBaseCode,
 		KnowledgeCode:     fragment.KnowledgeCode,
 		OrganizationCode:  fragment.OrganizationCode,
@@ -719,7 +975,11 @@ func NewFragmentListResponse(fragment *fragdto.FragmentListItemDTO) *FragmentRes
 		BusinessID:        fragment.BusinessID,
 		DocumentName:      fragment.DocumentName,
 		DocumentType:      fragment.DocumentType,
-		DocType:           fragment.DocType,
+		DocType: projectFragmentResponseDocType(
+			fragment.KnowledgeBaseType,
+			fragment.SourceType,
+			fragment.DocType,
+		),
 		Content:           fragment.Content,
 		Metadata:          fragment.Metadata,
 		SyncStatus:        fragment.SyncStatus,
@@ -763,19 +1023,23 @@ func NewSimilarityResponse(result *fragdto.SimilarityResultDTO) *SimilarityFragm
 		return nil
 	}
 	return &SimilarityFragmentResponse{
-		ID:                strconv.FormatInt(result.ID, 10),
+		ID:                convert.ToString(result.ID),
 		KnowledgeBaseCode: result.KnowledgeBaseCode,
 		KnowledgeCode:     result.KnowledgeCode,
 		DocumentCode:      result.DocumentCode,
 		BusinessID:        result.BusinessID,
 		DocumentName:      result.DocumentName,
 		DocumentType:      result.DocumentType,
-		DocType:           result.DocType,
-		Content:           result.Content,
-		Metadata:          result.Metadata,
-		Score:             result.Score,
-		WordCount:         result.WordCount,
-		Version:           rpcCompatVersion,
+		DocType: projectFragmentResponseDocType(
+			result.KnowledgeBaseType,
+			result.SourceType,
+			result.DocType,
+		),
+		Content:   result.Content,
+		Metadata:  result.Metadata,
+		Score:     result.Score,
+		WordCount: result.WordCount,
+		Version:   rpcCompatVersion,
 	}
 }
 

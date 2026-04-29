@@ -13,6 +13,8 @@ use Hyperf\Contract\Arrayable;
 
 class FragmentPreviewRequestDTO extends AbstractRequestDTO
 {
+    public string $documentCode = '';
+
     public array $documentFile = [];
 
     public array $fragmentConfig = [];
@@ -32,6 +34,16 @@ class FragmentPreviewRequestDTO extends AbstractRequestDTO
     public function getDocumentFile(): array
     {
         return $this->documentFile;
+    }
+
+    public function getDocumentCode(): string
+    {
+        return $this->documentCode;
+    }
+
+    public function setDocumentCode(string $documentCode): void
+    {
+        $this->documentCode = $documentCode;
     }
 
     public function setDocumentFile(array|DocumentFileDTOInterface $documentFile): void
@@ -60,10 +72,5 @@ class FragmentPreviewRequestDTO extends AbstractRequestDTO
     public function setStrategyConfig(array $strategyConfig): void
     {
         $this->strategyConfig = $strategyConfig;
-    }
-
-    protected static function checkParams(array $params): array
-    {
-        return $params;
     }
 }

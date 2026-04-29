@@ -6,9 +6,9 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"os"
 	"strings"
 	"sync"
-	"time"
 
 	"github.com/gin-gonic/gin"
 
@@ -19,17 +19,19 @@ import (
 	"magic/internal/interfaces/http/router"
 	rpcRoutes "magic/internal/interfaces/rpc/jsonrpc/knowledge/routes"
 	jsonrpc "magic/internal/pkg/jsonrpc"
+	"magic/internal/pkg/runguard"
 )
 
 // Mode 表示 HTTP 服务运行模式（debug/release/test）。
 type Mode string
 
 const (
+	// ModeDebug 表示 gin debug 模式
+	ModeDebug Mode = "debug"
 	// ModeRelease 表示 gin release 模式
 	ModeRelease Mode = "release"
 	// ModeTest 表示 gin test 模式
 	ModeTest Mode = "test"
-	// 注：ModeDebug 已移除，因未使用
 )
 
 // ServerConfig 保存 HTTP 服务配置。
@@ -71,10 +73,22 @@ type CacheCleanupService interface {
 	StartCleanupDaemon(ctx context.Context) error
 }
 
+// TaskQueueService 定义后台任务队列消费能力。
+type TaskQueueService interface {
+	Start(ctx context.Context) error
+}
+
+// TaskQueueLifecycleService 定义带显式停止等待能力的后台任务队列服务。
+type TaskQueueLifecycleService interface {
+	TaskQueueService
+	Stop(ctx context.Context) error
+}
+
 // ServerDependencies 服务器依赖参数
 type ServerDependencies struct {
 	Config              *ServerConfig
 	CacheCleanupService CacheCleanupService
+	TaskQueueService    TaskQueueService
 	RetrievalWarmup     RetrievalWarmupService
 	InfraServices       InfraServices
 	Logger              *logging.SugaredLogger
@@ -113,8 +127,10 @@ type Server struct {
 
 	// 后台服务
 	cacheCleanupService CacheCleanupService
+	taskQueueService    TaskQueueService
 	retrievalWarmup     RetrievalWarmupService
 	backgroundCancel    context.CancelFunc
+	backgroundWG        sync.WaitGroup
 
 	// 处理器
 	healthHandler  *handlers.HealthHandler
@@ -130,14 +146,7 @@ type Server struct {
 
 // NewServerWithDependencies 构建带依赖的 Server 实例
 func NewServerWithDependencies(deps *ServerDependencies) *Server {
-	switch deps.Config.Mode {
-	case ModeRelease:
-		gin.SetMode(gin.ReleaseMode)
-	case ModeTest:
-		gin.SetMode(gin.TestMode)
-	default:
-		gin.SetMode(gin.DebugMode)
-	}
+	gin.SetMode(resolveGinMode(deps.Config.Mode))
 	engine := gin.New()
 
 	return &Server{
@@ -145,6 +154,7 @@ func NewServerWithDependencies(deps *ServerDependencies) *Server {
 		config:              deps.Config,
 		infraServices:       deps.InfraServices,
 		cacheCleanupService: deps.CacheCleanupService,
+		taskQueueService:    deps.TaskQueueService,
 		retrievalWarmup:     deps.RetrievalWarmup,
 		logger:              deps.Logger,
 		metrics:             deps.Metrics,
@@ -157,14 +167,47 @@ func NewServerWithDependencies(deps *ServerDependencies) *Server {
 	}
 }
 
-// Initialize 准备服务依赖、中间件与路由。
+func resolveGinMode(configMode Mode) string {
+	switch normalizeMode(configMode) {
+	case ModeRelease:
+		return gin.ReleaseMode
+	case ModeTest:
+		return gin.TestMode
+	case ModeDebug:
+		return gin.DebugMode
+	}
+
+	if isLocalAppEnv(os.Getenv("APP_ENV")) {
+		return gin.DebugMode
+	}
+
+	return gin.ReleaseMode
+}
+
+func normalizeMode(mode Mode) Mode {
+	return Mode(strings.ToLower(strings.TrimSpace(string(mode))))
+}
+
+func isLocalAppEnv(env string) bool {
+	return strings.EqualFold(strings.TrimSpace(env), "local")
+}
+
+// Initialize 准备服务依赖、中间件、路由与 RPC 处理器。
 func (s *Server) Initialize() error {
+	s.initializeHTTP()
+	s.initializeRPC()
+
+	return nil
+}
+
+func (s *Server) initializeHTTP() {
 	s.initializeAPIs()
 	s.setupMiddleware()
 	s.setupRoutes()
-	s.setupRPCRoutes()
+}
 
-	return nil
+func (s *Server) initializeRPC() {
+	s.setupRPCRoutes()
 }
 
 func (s *Server) initializeAPIs() {
@@ -227,18 +270,22 @@ func (s *Server) setupRoutes() {
 
 // Start 启动 HTTP 服务。
 func (s *Server) Start(ctx context.Context) error {
-	// 先完成初始化
-	if err := s.Initialize(); err != nil {
-		return err
+	if s.config.Enabled {
+		// 仅在启用 HTTP 时初始化 HTTP 中间件与路由，避免 IPC-only 模式产生 Gin 路由注册副作用。
+		if err := s.Initialize(); err != nil {
+			return err
+		}
+	} else {
+		s.initializeRPC()
 	}
 
 	s.startBackgroundServices(ctx)
-	defer s.stopBackgroundServices()
+	defer s.stopBackgroundServices(ctx)
 
 	// 启动 RPC 服务
 	if s.rpcServer != nil {
 		if err := s.rpcServer.Start(); err != nil {
-			s.logger.ErrorContext(ctx, "Failed to start RPC server", "error", err)
+			s.logger.ErrorContext(ctx, "Failed to start RPC server", "error", err, "pid", os.Getpid())
 		}
 	}
 
@@ -274,7 +321,6 @@ func (s *Server) Start(ctx context.Context) error {
 // Stop 优雅关闭 HTTP 服务并关闭基础设施服务。
 func (s *Server) Stop(ctx context.Context) error {
 	s.signalStop()
-	s.stopBackgroundServices()
 
 	// 开发模式：快速关闭以避免热重载时端口冲突
 	if strings.EqualFold(s.config.Env, "dev") {
@@ -285,17 +331,9 @@ func (s *Server) Stop(ctx context.Context) error {
 		if s.rpcServer != nil {
 			_ = s.rpcServer.Close()
 		}
+		s.stopBackgroundServices(ctx)
 		s.closeInfraServices(ctx)
 		return nil
-	}
-
-	// 先停止缓存清理守护进程
-	if s.cacheCleanupService != nil {
-		s.logger.InfoContext(ctx, "Stopping cache cleanup daemon...")
-		// 留出时间以便优雅清理
-		const gracefulShutdownWait = 2 * time.Second
-		time.Sleep(gracefulShutdownWait)
-		s.logger.InfoContext(ctx, "Cache cleanup daemon stopped")
 	}
 
 	// 停止 HTTP 服务（优雅）
@@ -311,6 +349,8 @@ func (s *Server) Stop(ctx context.Context) error {
 			s.logger.WarnContext(ctx, "failed to shutdown RPC server", "error", err)
 		}
 	}
+
+	s.stopBackgroundServices(ctx)
 
 	// 关闭生命周期服务（会关闭所有连接）
 	s.closeInfraServices(ctx)
@@ -334,7 +374,7 @@ func (s *Server) closeInfraServices(ctx context.Context) {
 }
 
 func (s *Server) startBackgroundServices(ctx context.Context) {
-	if s.cacheCleanupService == nil && s.retrievalWarmup == nil {
+	if s.cacheCleanupService == nil && s.retrievalWarmup == nil && s.taskQueueService == nil {
 		return
 	}
 
@@ -342,25 +382,70 @@ func (s *Server) startBackgroundServices(ctx context.Context) {
 	s.setBackgroundCancel(backgroundCancel)
 
 	if s.cacheCleanupService != nil {
-		go func() {
+		s.backgroundWG.Go(func() {
+			defer runguard.Recover(backgroundCtx, s.backgroundPanicOptions("http.background.cache_cleanup", runguard.ExitProcess))
 			if err := s.cacheCleanupService.StartCleanupDaemon(backgroundCtx); err != nil {
-				s.logger.ErrorContext(backgroundCtx, "Cache cleanup daemon failed", "error", err)
+				s.logger.KnowledgeErrorContext(backgroundCtx, "Cache cleanup daemon failed", "error", err)
 			}
-		}()
-		s.logger.DebugContext(ctx, "Cache cleanup daemon started in background")
+		})
 	}
 	if s.retrievalWarmup != nil {
-		go func() {
+		s.backgroundWG.Go(func() {
+			defer runguard.Recover(backgroundCtx, s.backgroundPanicOptions("http.background.retrieval_warmup", runguard.Continue))
 			if err := s.retrievalWarmup.WarmupRetrieval(backgroundCtx); err != nil && !errors.Is(err, context.Canceled) {
-				s.logger.WarnContext(backgroundCtx, "Retrieval warmup failed", "error", err)
+				s.logger.KnowledgeWarnContext(backgroundCtx, "Retrieval warmup failed", "error", err)
 			}
-		}()
+		})
+	}
+	if s.taskQueueService != nil {
+		s.backgroundWG.Go(func() {
+			defer runguard.Recover(backgroundCtx, s.backgroundPanicOptions("http.background.task_queue", runguard.ExitProcess))
+			if err := s.taskQueueService.Start(backgroundCtx); err != nil && !errors.Is(err, context.Canceled) {
+				s.logger.KnowledgeErrorContext(backgroundCtx, "Task queue service failed", "error", err)
+			}
+		})
 	}
 }
 
-func (s *Server) stopBackgroundServices() {
-	if backgroundCancel := s.takeBackgroundCancel(); backgroundCancel != nil {
-		backgroundCancel()
+func (s *Server) backgroundPanicOptions(scope string, policy runguard.Policy) runguard.Options {
+	return runguard.Options{
+		Scope:  scope,
+		Policy: policy,
+		OnPanic: func(ctx context.Context, report runguard.Report) {
+			if s.logger != nil {
+				s.logger.KnowledgeErrorContext(ctx, "HTTP background goroutine panic recovered", report.Fields...)
+			}
+		},
+		Exit: os.Exit,
+	}
+}
+
+func (s *Server) stopBackgroundServices(ctx context.Context) {
+	backgroundCancel := s.takeBackgroundCancel()
+	if backgroundCancel == nil {
+		return
+	}
+
+	backgroundCancel()
+	if lifecycle, ok := s.taskQueueService.(TaskQueueLifecycleService); ok && lifecycle != nil {
+		if err := lifecycle.Stop(ctx); err != nil {
+			s.logger.KnowledgeWarnContext(ctx, "failed to stop task queue service", "error", err)
+		}
+	}
+	s.waitBackgroundServices(ctx)
+}
+
+func (s *Server) waitBackgroundServices(ctx context.Context) {
+	done := make(chan struct{})
+	go func() {
+		s.backgroundWG.Wait()
+		close(done)
+	}()
+
+	select {
+	case <-done:
+	case <-ctx.Done():
+		s.logger.WarnContext(ctx, "timed out waiting for background services to stop", "error", ctx.Err())
 	}
 }
 

@@ -3,6 +3,7 @@ package documentsync
 
 import (
 	"context"
+	"errors"
 	"strings"
 	"time"
 
@@ -12,10 +13,17 @@ import (
 const (
 	defaultTaskTimeout = 30 * time.Minute
 	resyncMode         = "resync"
+
+	// TaskKindDocumentSync 表示真正执行单文档同步的任务，也是 MQ 唯一支持的任务类型。
+	TaskKindDocumentSync = "document_sync"
 )
+
+// ErrTerminalHandlerNotRegistered 表示任务类型没有注册重试耗尽终态处理器。
+var ErrTerminalHandlerNotRegistered = errors.New("documentsync terminal handler not registered")
 
 // Task 定义通用的文档同步调度任务。
 type Task struct {
+	Kind              string
 	KnowledgeBaseCode string
 	Code              string
 	Mode              string
@@ -30,6 +38,11 @@ type Scheduler interface {
 	Schedule(ctx context.Context, task *Task)
 }
 
+// ReadinessGate 定义后台任务启动前可等待的外部依赖就绪能力。
+type ReadinessGate interface {
+	WaitReady(ctx context.Context) error
+}
+
 // Runner 定义文档同步任务执行器。
 type Runner interface {
 	Run(ctx context.Context, task *Task) error
@@ -41,6 +54,19 @@ type RunnerFunc func(ctx context.Context, task *Task) error
 // Run 执行调度任务。
 func (f RunnerFunc) Run(ctx context.Context, task *Task) error {
 	return f(ctx, task)
+}
+
+// TerminalHandler 定义任务重试耗尽后的业务终态处理能力。
+type TerminalHandler interface {
+	HandleTerminalTask(ctx context.Context, task *Task, cause error) error
+}
+
+// TerminalHandlerFunc 允许使用函数适配 TerminalHandler。
+type TerminalHandlerFunc func(ctx context.Context, task *Task, cause error) error
+
+// HandleTerminalTask 处理任务重试耗尽后的业务终态。
+func (f TerminalHandlerFunc) HandleTerminalTask(ctx context.Context, task *Task, cause error) error {
+	return f(ctx, task, cause)
 }
 
 // CloneTask 深拷贝任务，避免异步调度共享可变状态。
@@ -81,17 +107,4 @@ func withTaskContext(ctx context.Context, task *Task) context.Context {
 
 func detachTaskContext(ctx context.Context, task *Task) context.Context {
 	return withTaskContext(ctxmeta.Detach(ctx), task)
-}
-
-func dedupeKey(task *Task) (string, bool) {
-	if task == nil || task.Mode != resyncMode {
-		return "", false
-	}
-	if task.Key != "" {
-		return task.Key + ":" + task.Mode, true
-	}
-	if task.KnowledgeBaseCode == "" || task.Code == "" {
-		return "", false
-	}
-	return task.KnowledgeBaseCode + ":" + task.Code + ":" + task.Mode, true
 }

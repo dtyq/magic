@@ -26,6 +26,7 @@ type PackageInfo struct {
 	Layer          LayerType
 	Domain         string
 	AfterLayer     []string
+	Role           string
 	IsInRepository bool
 	ServiceName    string
 	IsInService    bool
@@ -61,6 +62,7 @@ func packageInfoFromExported(info PackageInfo) packageInfo {
 		layer:          layerType(info.Layer),
 		domain:         info.Domain,
 		afterLayer:     append([]string(nil), info.AfterLayer...),
+		role:           domainPackageRole(info.Role),
 		isInRepository: info.IsInRepository,
 		serviceName:    info.ServiceName,
 		isInService:    info.IsInService,
@@ -72,6 +74,7 @@ func packageInfoToExported(info packageInfo) PackageInfo {
 		Layer:          LayerType(info.layer),
 		Domain:         info.domain,
 		AfterLayer:     append([]string(nil), info.afterLayer...),
+		Role:           string(info.role),
 		IsInRepository: info.isInRepository,
 		ServiceName:    info.serviceName,
 		IsInService:    info.isInService,

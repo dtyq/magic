@@ -17,25 +17,20 @@ return new class extends Migration {
             $this->dropIndexIfExists('magic_flow_knowledge_fragment', 'idx_fragment_point_deleted_id', $table);
             $this->dropIndexIfExists('magic_flow_knowledge_fragment', 'idx_fragment_deleted', $table);
             $this->dropIndexIfExists('magic_flow_knowledge_fragment', 'idx_fragment_sync', $table);
+            $this->dropIndexIfExists('magic_flow_knowledge_fragment', 'idx_sync', $table);
+            $this->dropIndexIfExists('magic_flow_knowledge_fragment', 'knowledge_base_fragments_parent_fragment_id_index', $table);
+            $this->dropIndexIfExists('magic_flow_knowledge_fragment', 'idx_knowledge_document_version', $table);
 
             if (Schema::hasColumn('magic_flow_knowledge_fragment', 'point_id')
                 && ! Schema::hasIndex('magic_flow_knowledge_fragment', 'idx_fragment_point_id_id')) {
                 $table->index(['point_id', 'id'], 'idx_fragment_point_id_id');
             }
-            if (Schema::hasColumn('magic_flow_knowledge_fragment', 'sync_status')
-                && Schema::hasColumn('magic_flow_knowledge_fragment', 'sync_times')
-                && ! Schema::hasIndex('magic_flow_knowledge_fragment', 'idx_sync')) {
-                $table->index(['sync_status', 'sync_times'], 'idx_sync');
-            }
-            if (Schema::hasColumn('magic_flow_knowledge_fragment', 'parent_fragment_id')
-                && ! Schema::hasIndex('magic_flow_knowledge_fragment', 'knowledge_base_fragments_parent_fragment_id_index')) {
-                $table->index(['parent_fragment_id'], 'knowledge_base_fragments_parent_fragment_id_index');
-            }
             if (Schema::hasColumn('magic_flow_knowledge_fragment', 'knowledge_code')
                 && Schema::hasColumn('magic_flow_knowledge_fragment', 'document_code')
-                && Schema::hasColumn('magic_flow_knowledge_fragment', 'version')
-                && ! Schema::hasIndex('magic_flow_knowledge_fragment', 'idx_knowledge_document_version')) {
-                $table->index(['knowledge_code', 'document_code', 'version'], 'idx_knowledge_document_version');
+                && Schema::hasColumn('magic_flow_knowledge_fragment', 'deleted_at')
+                && Schema::hasColumn('magic_flow_knowledge_fragment', 'id')
+                && ! Schema::hasIndex('magic_flow_knowledge_fragment', 'idx_knowledge_document_deleted_id')) {
+                $table->index(['knowledge_code', 'document_code', 'deleted_at', 'id'], 'idx_knowledge_document_deleted_id');
             }
             if (Schema::hasColumn('magic_flow_knowledge_fragment', 'knowledge_code')
                 && Schema::hasColumn('magic_flow_knowledge_fragment', 'business_id')

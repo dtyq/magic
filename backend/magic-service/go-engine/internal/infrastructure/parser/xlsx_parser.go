@@ -8,13 +8,14 @@ import (
 
 	"github.com/xuri/excelize/v2"
 
-	"magic/internal/domain/knowledge/document/service"
+	document "magic/internal/domain/knowledge/document/metadata"
 )
 
 // XlsxParser Excel 解析器
 type XlsxParser struct {
 	ocrClient     document.OCRClient
 	maxOCRPerFile int
+	limits        document.ResourceLimits
 }
 
 // NewXlsxParser 创建 Excel 解析器
@@ -24,9 +25,19 @@ func NewXlsxParser() *XlsxParser {
 
 // NewXlsxParserWithOCR 创建带图片 OCR 能力的 Excel 解析器。
 func NewXlsxParserWithOCR(ocrClient document.OCRClient, maxOCRPerFile int) *XlsxParser {
+	return NewXlsxParserWithOCRAndLimits(ocrClient, maxOCRPerFile, document.DefaultResourceLimits())
+}
+
+// NewXlsxParserWithOCRAndLimits 创建带图片 OCR 和资源限制的 Excel 解析器。
+func NewXlsxParserWithOCRAndLimits(
+	ocrClient document.OCRClient,
+	maxOCRPerFile int,
+	limits document.ResourceLimits,
+) *XlsxParser {
 	return &XlsxParser{
 		ocrClient:     ocrClient,
 		maxOCRPerFile: document.NormalizeEmbeddedImageOCRLimit(maxOCRPerFile),
+		limits:        document.NormalizeResourceLimits(limits),
 	}
 }
 
@@ -74,7 +85,7 @@ func (p *XlsxParser) ParseDocumentWithOptions(
 	defer func() { _ = f.Close() }()
 
 	if !options.TableExtraction {
-		return buildPlainTextSpreadsheetDocument(f, fileType), nil
+		return buildPlainTextSpreadsheetDocument(f, fileType, p.limits)
 	}
 
 	var ocrHelper *embeddedImageOCRHelper
@@ -82,10 +93,18 @@ func (p *XlsxParser) ParseDocumentWithOptions(
 		ocrHelper = newEmbeddedImageOCRHelper(p.ocrClient, p.maxOCRPerFile)
 	}
 	tables := make([]tabularTable, 0)
+	var totalRows int64
+	var totalCells int64
 	for _, sheet := range f.GetSheetList() {
 		rows, err := f.GetRows(sheet)
 		if err != nil {
 			return nil, fmt.Errorf("get rows failed for sheet %s: %w", sheet, err)
+		}
+		sheetRows, sheetCells := countRawTabularRowsCells(rows)
+		totalRows += sheetRows
+		totalCells += sheetCells
+		if err := document.CheckTabularSize(totalRows, totalCells, p.limits, "parse_xlsx_rows"); err != nil {
+			return nil, fmt.Errorf("check xlsx table size: %w", err)
 		}
 		visible, visibleErr := f.GetSheetVisible(sheet)
 		if visibleErr != nil {
@@ -120,16 +139,28 @@ func (p *XlsxParser) NeedsResolvedURL() bool {
 	return false
 }
 
-func buildPlainTextSpreadsheetDocument(f *excelize.File, fileType string) *document.ParsedDocument {
+func buildPlainTextSpreadsheetDocument(
+	f *excelize.File,
+	fileType string,
+	limits document.ResourceLimits,
+) (*document.ParsedDocument, error) {
 	if f == nil {
-		return document.NewPlainTextParsedDocument(fileType, "")
+		return document.NewPlainTextParsedDocument(fileType, ""), nil
 	}
 
 	sections := make([]string, 0, len(f.GetSheetList()))
+	var totalRows int64
+	var totalCells int64
 	for _, sheet := range f.GetSheetList() {
 		rows, err := f.GetRows(sheet)
 		if err != nil {
 			continue
+		}
+		sheetRows, sheetCells := countRawTabularRowsCells(rows)
+		totalRows += sheetRows
+		totalCells += sheetCells
+		if err := document.CheckTabularSize(totalRows, totalCells, limits, "parse_xlsx_rows"); err != nil {
+			return nil, fmt.Errorf("check xlsx table size: %w", err)
 		}
 		lines := make([]string, 0, len(rows)+1)
 		lines = append(lines, "Sheet: "+sheet)
@@ -152,7 +183,7 @@ func buildPlainTextSpreadsheetDocument(f *excelize.File, fileType string) *docum
 		}
 		sections = append(sections, strings.Join(lines, "\n"))
 	}
-	return document.NewPlainTextParsedDocument(fileType, strings.Join(sections, "\n\n"))
+	return document.NewPlainTextParsedDocument(fileType, strings.Join(sections, "\n\n")), nil
 }
 
 func buildExcelMatrix(f *excelize.File, sheet string, rows [][]string) ([][]tabularCell, error) {

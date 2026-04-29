@@ -192,68 +192,6 @@ type CacheStatistics struct {
 	StorageSizeBytes   int64          `json:"storage_size_bytes"`
 }
 
-// CacheQuery 描述缓存搜索的过滤与排序条件。
-type CacheQuery struct {
-	Model           string        `json:"model,omitempty"`
-	MinAccessCount  *int          `json:"min_access_count,omitempty"`
-	MaxAccessCount  *int          `json:"max_access_count,omitempty"`
-	CreatedAfter    *time.Time    `json:"created_after,omitempty"`
-	CreatedBefore   *time.Time    `json:"created_before,omitempty"`
-	AccessedAfter   *time.Time    `json:"accessed_after,omitempty"`
-	AccessedBefore  *time.Time    `json:"accessed_before,omitempty"`
-	MinTextLength   *int          `json:"min_text_length,omitempty"`
-	MaxTextLength   *int          `json:"max_text_length,omitempty"`
-	VectorDimension *int          `json:"vector_dimension,omitempty"`
-	OrderBy         CacheOrderBy  `json:"order_by,omitempty"`
-	OrderDirection  SortDirection `json:"order_direction,omitempty"`
-	Offset          int           `json:"offset"`
-	Limit           int           `json:"limit"`
-}
-
-// SortDirection 表示排序方向。
-type SortDirection string
-
-// CacheOrderBy 表示缓存列表可选的排序字段。
-type CacheOrderBy string
-
-const (
-	// SortAsc 表示升序排序。
-	SortAsc SortDirection = "ASC"
-	// SortDesc 表示降序排序。
-	SortDesc SortDirection = "DESC"
-
-	// EmbeddingCacheOrderByID 表示按主键排序。
-	EmbeddingCacheOrderByID CacheOrderBy = "id"
-	// EmbeddingCacheOrderByCreatedAt 表示按创建时间排序。
-	EmbeddingCacheOrderByCreatedAt CacheOrderBy = "created_at"
-	// EmbeddingCacheOrderByUpdatedAt 表示按更新时间排序。
-	EmbeddingCacheOrderByUpdatedAt CacheOrderBy = "updated_at"
-	// EmbeddingCacheOrderByLastAccessedAt 表示按最后访问时间排序。
-	EmbeddingCacheOrderByLastAccessedAt CacheOrderBy = "last_accessed_at"
-	// EmbeddingCacheOrderByAccessCount 表示按访问次数排序。
-	EmbeddingCacheOrderByAccessCount CacheOrderBy = "access_count"
-	// EmbeddingCacheOrderByTextLength 表示按文本长度排序。
-	EmbeddingCacheOrderByTextLength CacheOrderBy = "text_length"
-	// EmbeddingCacheOrderByVectorDimension 表示按向量维度排序。
-	EmbeddingCacheOrderByVectorDimension CacheOrderBy = "vector_dimension"
-)
-
-// IsValid 判断排序字段是否在支持列表内。
-func (o CacheOrderBy) IsValid() bool {
-	switch o {
-	case EmbeddingCacheOrderByID,
-		EmbeddingCacheOrderByCreatedAt,
-		EmbeddingCacheOrderByUpdatedAt,
-		EmbeddingCacheOrderByLastAccessedAt,
-		EmbeddingCacheOrderByAccessCount,
-		EmbeddingCacheOrderByTextLength,
-		EmbeddingCacheOrderByVectorDimension:
-		return true
-	default:
-		return false
-	}
-}
-
 // Provider 表示 embedding 服务提供方。
 type Provider struct {
 	ID     string  `json:"id"`
@@ -269,18 +207,33 @@ type Model struct {
 	Icon    string `json:"icon"`
 }
 
-// CacheRepository 定义缓存实体的读写仓储能力。
-type CacheRepository interface {
+// CacheLookupRepository 定义缓存查询能力。
+type CacheLookupRepository interface {
 	FindByHash(ctx context.Context, textHash, model string) (*Cache, error)
 	FindByHashes(ctx context.Context, textHashes []string, model string) (map[string]*Cache, error)
+}
+
+// CacheSyncWriteRepository 定义同步 cache 写入能力。
+type CacheSyncWriteRepository interface {
 	Save(ctx context.Context, cache *Cache) error
 	SaveIfAbsent(ctx context.Context, text string, embedding []float64, model string) error
 	SaveBatch(ctx context.Context, caches []*Cache) error
 	GetOrCreate(ctx context.Context, text string, embedding []float64, model string) (*Cache, error)
+}
+
+// CacheMutationRepository 定义缓存变更能力。
+type CacheMutationRepository interface {
 	UpdateAccess(ctx context.Context, id int64) error
 	Delete(ctx context.Context, id int64) error
 	DeleteByHash(ctx context.Context, textHash string) error
 	BatchDelete(ctx context.Context, ids []int64) error
+}
+
+// CacheRepository 定义缓存实体的读写仓储能力。
+type CacheRepository interface {
+	CacheLookupRepository
+	CacheSyncWriteRepository
+	CacheMutationRepository
 }
 
 // CacheAnalysisRepository 定义缓存分析与清理相关仓储能力。
@@ -289,10 +242,6 @@ type CacheAnalysisRepository interface {
 	CountExpiredCaches(ctx context.Context, criteria *CacheCleanupCriteria) (int64, error)
 	CleanupExpiredCaches(ctx context.Context, criteria *CacheCleanupCriteria) (int64, error)
 	GetCacheStatistics(ctx context.Context) (*CacheStatistics, error)
-	GetCachesByModel(ctx context.Context, model string, offset, limit int) ([]*Cache, error)
-	CountByModel(ctx context.Context, model string) (int64, error)
-	GetLeastAccessed(ctx context.Context, limit int) ([]*Cache, error)
-	SearchCaches(ctx context.Context, query *CacheQuery) ([]*Cache, int64, error)
 }
 
 // Repository 定义 embedding 应用使用的领域仓储能力。

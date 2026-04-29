@@ -3,8 +3,8 @@ server:
   enabled: ${SERVER_ENABLED:=false}
   host: ${SERVER_HOST:=localhost}
   port: ${SERVER_PORT:=81}
-  # mode is optional: debug|release|test; defaults to debug if omitted
-  mode: ${SERVER_MODE:-debug}
+  # mode is optional: debug|release|test; if omitted, Gin uses debug only when APP_ENV=local
+  mode: ${SERVER_MODE:-}
   # env is optional: dev|staging|production; defaults to production if omitted
   env: ${APP_ENV:-production}
   pprofEnabled: ${SERVER_PPROF_ENABLED:=false}
@@ -79,14 +79,14 @@ security:
 ipc:
   engineSocket: ${IPC_ENGINE_SOCKET:-./runtime/magic_engine.sock}
   phpSocket: ${IPC_PHP_SOCKET:-./runtime/magic_php.sock}
-  protocolVersion: ${IPC_PROTOCOL_VERSION:=1}
+  protocolVersion: ${IPC_PROTOCOL_VERSION:=2}
   authToken: ${IPC_AUTH_TOKEN:=}
-  maxMessageBytes: ${IPC_MAX_MESSAGE_BYTES:=10485760}
+  maxMessageBytes: 31457280
   readTimeout: ${IPC_READ_TIMEOUT:=30}
   writeTimeout: ${IPC_WRITE_TIMEOUT:=10}
   heartbeatInterval: ${IPC_HEARTBEAT_INTERVAL:=10}
   heartbeatTimeout: ${IPC_HEARTBEAT_TIMEOUT:=30}
-  maxPendingRequests: ${IPC_MAX_PENDING_REQUESTS:=1024}
+  maxPendingRequests: ${IPC_MAX_PENDING_REQUESTS:=4096}
   discardCapMultiplier: ${IPC_DISCARD_CAP_MULTIPLIER:=4}
   discardChunkSize: ${IPC_DISCARD_CHUNK_SIZE:=32768}
   discardTimeout: ${IPC_DISCARD_TIMEOUT:=0}
@@ -103,6 +103,10 @@ embedding:
   dimension: ${EMBEDDING_DIMENSION:=1536}  # text-embedding-3-small 的向量维度
   # 嵌入客户端类型: php (通过 IPC 回调 PHP) 或 openai (直接调用 API)
   clientType: ${EMBEDDING_CLIENT_TYPE:=php}
+  rateLimitEnabled: ${EMBEDDING_RATE_LIMIT_ENABLED:=true}
+  rateLimitQPS: ${EMBEDDING_RATE_LIMIT_QPS:=30}
+  rateLimitBurst: ${EMBEDDING_RATE_LIMIT_BURST:=30}
+  rateLimitWaitTimeoutSeconds: ${EMBEDDING_RATE_LIMIT_WAIT_TIMEOUT_SECONDS:=10}
   # 其他可选配置
   # text-embedding-3-small: 1536 维
   # text-embedding-3-large: 3072 维
@@ -117,6 +121,15 @@ embeddingCacheCleanup:
   maxCacheAgeHours: ${EMBEDDING_CACHE_MAX_CACHE_AGE_HOURS:=2160}
   batchSize: ${EMBEDDING_CACHE_BATCH_SIZE:=1000}
 
+documentResourceLimits:
+  maxSourceBytes: ${DOCUMENT_RESOURCE_MAX_SOURCE_BYTES:=524288000}
+  maxTabularRows: ${DOCUMENT_RESOURCE_MAX_TABULAR_ROWS:=200000}
+  maxTabularCells: ${DOCUMENT_RESOURCE_MAX_TABULAR_CELLS:=2000000}
+  maxPlainTextChars: ${DOCUMENT_RESOURCE_MAX_PLAIN_TEXT_CHARS:=20000000}
+  maxParsedBlocks: ${DOCUMENT_RESOURCE_MAX_PARSED_BLOCKS:=250000}
+  maxFragmentsPerDocument: ${DOCUMENT_RESOURCE_MAX_FRAGMENTS_PER_DOCUMENT:=10000}
+  syncMemorySoftLimitBytes: ${DOCUMENT_RESOURCE_SYNC_MEMORY_SOFT_LIMIT_BYTES:=6442450944}
+
 storage:
   # 与 PHP cloudfile.php 对齐，默认读取私有 TOS 桶配置
   endpoint: ${FILE_PRIVATE_TOS_ENDPOINT:=}
@@ -127,25 +140,39 @@ storage:
   type: ${FILE_DRIVER:=}
 
 ocr:
-  # 知识库 OCR 真值优先来自 PHP RPC，这里只保留与 PHP 配置一致的环境变量兜底
-  accessKey: ${VOLCENGINE_OCR_PDF_AK:=}
-  secretKey: ${VOLCENGINE_OCR_PDF_SK:=}
+  # 知识库 OCR 凭据真值来自 PHP RPC，Go 本地只保留运行参数
   endpoint: ${VOLC_ENDPOINT:=}
   region: ${VOLC_REGION:=}
+  rateLimitEnabled: ${OCR_RATE_LIMIT_ENABLED:=true}
+  rateLimitQPS: ${OCR_RATE_LIMIT_QPS:=2}
+  rateLimitBurst: ${OCR_RATE_LIMIT_BURST:=1}
+  rateLimitWaitTimeoutSeconds: ${OCR_RATE_LIMIT_WAIT_TIMEOUT_SECONDS:=10}
 
 rabbitmq:
-  # RabbitMQ host and port
+  enabled: ${AMQP_ENABLE:=true}
   host: ${AMQP_HOST:=localhost}
   port: ${AMQP_PORT:=5672}
-  # Authentication
   username: ${AMQP_USER:=guest}
   password: ${AMQP_PASSWORD:=guest}
-  # Virtual host
   vhost: ${AMQP_VHOST:=/}
-  # Queue configuration
   queues:
     embedding: ${RABBITMQ_EMBEDDING_QUEUE:=embedding_jobs}
-  # Embedding processing defaults
-  embeddingDefaults:
-    minIntervalSeconds: ${EMBEDDING_MIN_INTERVAL_SECONDS:=1}
-    minEventsBetween: ${EMBEDDING_MIN_EVENTS_BETWEEN:=10}
+    documentResync: ${RABBITMQ_DOCUMENT_RESYNC_QUEUE:=knowledge.document.resync}
+  documentResync:
+    enabled: ${RABBITMQ_DOCUMENT_RESYNC_ENABLED:=true}
+    debounceWindowSeconds: ${DOCUMENT_RESYNC_MQ_DEBOUNCE_WINDOW_SECONDS:=30}
+    consumerPrefetch: ${DOCUMENT_RESYNC_MQ_CONSUMER_PREFETCH:=1}
+    consumerConcurrency: ${DOCUMENT_RESYNC_MQ_CONSUMER_CONCURRENCY:=4}
+    taskTimeoutSeconds: ${DOCUMENT_RESYNC_MQ_TASK_TIMEOUT_SECONDS:=1800}
+    stalePendingWakeupSeconds: ${DOCUMENT_RESYNC_MQ_STALE_PENDING_WAKEUP_SECONDS:=60}
+    runningDeadlineGraceSeconds: ${DOCUMENT_RESYNC_MQ_RUNNING_DEADLINE_GRACE_SECONDS:=60}
+    mqPublishTimeoutMillis: ${DOCUMENT_RESYNC_MQ_PUBLISH_TIMEOUT_MILLIS:=5000}
+    maxRequeueAttempts: ${RABBITMQ_DOCUMENT_RESYNC_MAX_REQUEUE_ATTEMPTS:=20}
+    sourceCallbackGateTTLSeconds: ${DOCUMENT_RESYNC_SOURCE_CALLBACK_GATE_TTL_SECONDS:=60}
+    lockRetryBackoffMillis: ${DOCUMENT_RESYNC_MQ_LOCK_RETRY_BACKOFF_MILLIS:=2000}
+    lockRetryMaxAttempts: ${DOCUMENT_RESYNC_MQ_LOCK_RETRY_MAX_ATTEMPTS:=60}
+    errorRetryBackoffMillis: ${DOCUMENT_RESYNC_MQ_ERROR_RETRY_BACKOFF_MILLIS:=5000}
+    errorRetryMaxAttempts: ${DOCUMENT_RESYNC_MQ_ERROR_RETRY_MAX_ATTEMPTS:=20}
+    delayedRetryBaseDelayMillis: ${DOCUMENT_RESYNC_MQ_DELAYED_RETRY_BASE_DELAY_MILLIS:=60000}
+    delayedRetryMaxDelayMillis: ${DOCUMENT_RESYNC_MQ_DELAYED_RETRY_MAX_DELAY_MILLIS:=1800000}
+    delayedRetryMaxAttempts: ${DOCUMENT_RESYNC_MQ_DELAYED_RETRY_MAX_ATTEMPTS:=12}

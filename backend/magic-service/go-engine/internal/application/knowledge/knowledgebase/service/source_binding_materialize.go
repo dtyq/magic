@@ -3,41 +3,45 @@ package kbapp
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"maps"
 	"strconv"
 	"strings"
 
 	docfilehelper "magic/internal/application/knowledge/helper/docfile"
+	docentity "magic/internal/domain/knowledge/document/entity"
 	documentdomain "magic/internal/domain/knowledge/document/service"
-	knowledgebasedomain "magic/internal/domain/knowledge/knowledgebase/service"
-	sourcebindingdomain "magic/internal/domain/knowledge/sourcebinding/service"
+	kbentity "magic/internal/domain/knowledge/knowledgebase/entity"
+	kbrepository "magic/internal/domain/knowledge/knowledgebase/repository"
+	kshared "magic/internal/domain/knowledge/shared"
+	sourcebindingdomain "magic/internal/domain/knowledge/sourcebinding/entity"
+	sourcebindingservice "magic/internal/domain/knowledge/sourcebinding/service"
 	"magic/internal/pkg/ctxmeta"
+	"magic/internal/pkg/filetype"
+	pkgjsoncompat "magic/internal/pkg/jsoncompat"
+	"magic/internal/pkg/projectfile"
+	"magic/internal/pkg/thirdplatform"
 )
 
 const knowledgeBaseRebuildListLimit = 10_000
 
-type materializedSourceDocument = sourcebindingdomain.ResolvedDocument
+const knowledgeBaseMaterializeDocumentLimit = 1000
+
+const (
+	thirdPlatformDocumentFileType         = "third_platform"
+	sourceBindingResolveReasonRoot        = "root"
+	sourceBindingResolveReasonTarget      = "target"
+	sourceBindingUnavailableReason        = "source_item_unavailable"
+	sourceBindingUnavailableLogFieldCount = 12
+)
 
 type materializeDocumentsOptions struct {
 	ScheduleSync bool
 }
 
-func (s *KnowledgeBaseDocumentFlowApp) syncSourceBindingsAndRebuildDocuments(
-	ctx context.Context,
-	kb *knowledgebasedomain.KnowledgeBase,
-	organizationCode string,
-	userID string,
-	bindings []sourcebindingdomain.Binding,
-) error {
-	if len(bindings) == 0 {
-		return nil
-	}
-	return s.replaceSourceBindingsAndRebuildDocumentsWithBindings(ctx, kb, organizationCode, userID, bindings)
-}
-
 func (s *KnowledgeBaseAppService) buildSourceBindings(
-	kb *knowledgebasedomain.KnowledgeBase,
+	kb *kbentity.KnowledgeBase,
 	organizationCode string,
 	userID string,
 	inputs []sourcebindingdomain.Binding,
@@ -59,64 +63,9 @@ func (s *KnowledgeBaseAppService) buildSourceBindings(
 	return bindings
 }
 
-func (s *KnowledgeBaseDocumentFlowApp) replaceSourceBindingsAndRebuildDocumentsWithBindings(
-	ctx context.Context,
-	kb *knowledgebasedomain.KnowledgeBase,
-	organizationCode string,
-	userID string,
-	bindings []sourcebindingdomain.Binding,
-) error {
-	if s == nil || s.support == nil || s.support.sourceBindingRepo == nil {
-		return ErrKnowledgeBaseSourceBindingRepositoryRequired
-	}
-	if s.managedDocuments == nil {
-		return ErrKnowledgeBaseDocumentFlowRequired
-	}
-
-	savedBindings, err := s.support.sourceBindingRepo.ReplaceBindings(ctx, kb.Code, bindings)
-	if err != nil {
-		return fmt.Errorf("replace source bindings: %w", err)
-	}
-	return s.rebuildKnowledgeBaseDocumentsFromBindings(ctx, kb, organizationCode, userID, savedBindings)
-}
-
-func (s *KnowledgeBaseDocumentFlowApp) replaceSourceBindingsAndMaterializeDocumentsWithBindings(
-	ctx context.Context,
-	kb *knowledgebasedomain.KnowledgeBase,
-	organizationCode string,
-	userID string,
-	bindings []sourcebindingdomain.Binding,
-) error {
-	if s == nil || s.support == nil || s.support.sourceBindingRepo == nil {
-		return ErrKnowledgeBaseSourceBindingRepositoryRequired
-	}
-	if s.managedDocuments == nil {
-		return ErrKnowledgeBaseDocumentFlowRequired
-	}
-
-	savedBindings, err := s.support.sourceBindingRepo.ReplaceBindings(ctx, kb.Code, bindings)
-	if err != nil {
-		return fmt.Errorf("replace source bindings: %w", err)
-	}
-	return s.materializeKnowledgeBaseDocuments(ctx, kb, organizationCode, userID, savedBindings)
-}
-
-func (s *KnowledgeBaseDocumentFlowApp) rebuildKnowledgeBaseDocumentsFromBindings(
-	ctx context.Context,
-	kb *knowledgebasedomain.KnowledgeBase,
-	organizationCode string,
-	userID string,
-	savedBindings []sourcebindingdomain.Binding,
-) error {
-	if err := s.destroyKnowledgeBaseDocuments(ctx, kb.Code, firstNonEmpty(kb.OrganizationCode, organizationCode)); err != nil {
-		return err
-	}
-	return s.materializeKnowledgeBaseDocuments(ctx, kb, organizationCode, userID, savedBindings)
-}
-
 func (s *KnowledgeBaseDocumentFlowApp) materializeKnowledgeBaseDocuments(
 	ctx context.Context,
-	kb *knowledgebasedomain.KnowledgeBase,
+	kb *kbentity.KnowledgeBase,
 	organizationCode string,
 	userID string,
 	bindings []sourcebindingdomain.Binding,
@@ -147,7 +96,7 @@ func (s *KnowledgeBaseDocumentFlowApp) materializeKnowledgeBaseDocuments(
 
 func (s *KnowledgeBaseDocumentFlowApp) materializeKnowledgeBaseDocumentsWithCount(
 	ctx context.Context,
-	kb *knowledgebasedomain.KnowledgeBase,
+	kb *kbentity.KnowledgeBase,
 	organizationCode string,
 	userID string,
 	bindings []sourcebindingdomain.Binding,
@@ -159,20 +108,31 @@ func (s *KnowledgeBaseDocumentFlowApp) materializeKnowledgeBaseDocumentsWithCoun
 	if s.managedDocuments == nil {
 		return 0, ErrKnowledgeBaseDocumentFlowRequired
 	}
+	if _, err := s.support.healKnowledgeBaseUIDs(ctx, kb, "source binding materialize"); err != nil {
+		return 0, err
+	}
 
-	count, err := s.newSourceBindingMaterializationService().Materialize(ctx, sourcebindingdomain.MaterializationInput{
+	report, err := s.newSourceBindingMaterializationService().MaterializeWithReport(ctx, sourcebindingservice.MaterializationInput{
 		KnowledgeBaseCode:   kb.Code,
 		OrganizationCode:    organizationCode,
 		KnowledgeBaseUserID: knowledgeBaseUpdatedUserID(kb),
 		KnowledgeBaseOwner:  knowledgeBaseCreatedUserID(kb),
 		FallbackUserID:      userID,
 		Bindings:            bindings,
+		MaxDocuments:        knowledgeBaseMaterializeDocumentLimit,
 		ScheduleSync:        options.ScheduleSync,
 	})
 	if err != nil {
 		return 0, fmt.Errorf("materialize source binding documents: %w", err)
 	}
-	return count, nil
+	s.logInfo(
+		ctx,
+		"Materialized source binding documents",
+		"knowledge_base_code", kb.Code,
+		"created_documents", len(report.CreatedDocuments),
+		"scheduled_syncs", len(report.PendingSyncs),
+	)
+	return len(report.CreatedDocuments), nil
 }
 
 type sourceBindingMaterializationResolver struct {
@@ -184,8 +144,9 @@ func (r sourceBindingMaterializationResolver) ResolveBindingDocuments(
 	binding sourcebindingdomain.Binding,
 	organizationCode string,
 	userID string,
-) ([]sourcebindingdomain.ResolvedDocument, error) {
-	items, err := r.flow.resolveBindingDocuments(ctx, binding, organizationCode, userID)
+	maxDocuments int,
+) ([]sourcebindingservice.ResolvedDocument, error) {
+	items, err := r.flow.resolveBindingDocuments(ctx, binding, organizationCode, userID, maxDocuments)
 	if err != nil {
 		return nil, fmt.Errorf("resolve binding documents: %w", err)
 	}
@@ -224,15 +185,17 @@ type sourceBindingManagedDocumentManager struct {
 
 func (m sourceBindingManagedDocumentManager) CreateManagedDocument(
 	ctx context.Context,
-	input sourcebindingdomain.CreateManagedDocumentInput,
-) (*sourcebindingdomain.ManagedDocument, error) {
-	documentFile, _ := input.DocumentFile.(*documentdomain.File)
+	input sourcebindingservice.CreateManagedDocumentInput,
+) (*sourcebindingservice.ManagedDocument, error) {
+	documentFile, _ := input.DocumentFile.(*docentity.File)
 	created, err := m.manager.CreateManagedDocument(ctx, &knowledgeBaseCreateManagedDocumentInput{
 		OrganizationCode:  input.OrganizationCode,
 		UserID:            input.UserID,
 		KnowledgeBaseCode: input.KnowledgeBaseCode,
 		SourceBindingID:   input.SourceBindingID,
 		SourceItemID:      input.SourceItemID,
+		ProjectID:         input.ProjectID,
+		ProjectFileID:     input.ProjectFileID,
 		Name:              input.Name,
 		DocType:           input.DocType,
 		DocumentFile:      cloneDocumentFile(documentFile),
@@ -244,7 +207,7 @@ func (m sourceBindingManagedDocumentManager) CreateManagedDocument(
 	if err != nil {
 		return nil, fmt.Errorf("create managed document: %w", err)
 	}
-	return &sourcebindingdomain.ManagedDocument{Code: created.Code}, nil
+	return &sourcebindingservice.ManagedDocument{Code: created.Code}, nil
 }
 
 func (m sourceBindingManagedDocumentManager) DestroyManagedDocument(
@@ -258,7 +221,7 @@ func (m sourceBindingManagedDocumentManager) DestroyManagedDocument(
 	return nil
 }
 
-func (m sourceBindingManagedDocumentManager) ScheduleManagedDocumentSync(ctx context.Context, input sourcebindingdomain.SyncRequest) {
+func (m sourceBindingManagedDocumentManager) ScheduleManagedDocumentSync(ctx context.Context, input sourcebindingservice.SyncRequest) {
 	m.manager.ScheduleManagedDocumentSync(ctx, &knowledgeBaseSyncInput{
 		OrganizationCode:  input.OrganizationCode,
 		KnowledgeBaseCode: input.KnowledgeBaseCode,
@@ -272,8 +235,8 @@ func (m sourceBindingManagedDocumentManager) ScheduleManagedDocumentSync(ctx con
 	})
 }
 
-func (s *KnowledgeBaseDocumentFlowApp) newSourceBindingMaterializationService() *sourcebindingdomain.MaterializationService {
-	return sourcebindingdomain.NewMaterializationService(
+func (s *KnowledgeBaseDocumentFlowApp) newSourceBindingMaterializationService() *sourcebindingservice.MaterializationService {
+	return sourcebindingservice.NewMaterializationService(
 		sourceBindingMaterializationRepository{repo: s.support.sourceBindingRepo},
 		sourceBindingMaterializationResolver{flow: s},
 		sourceBindingManagedDocumentManager{manager: s.managedDocuments},
@@ -286,12 +249,13 @@ func (s *KnowledgeBaseDocumentFlowApp) resolveBindingDocuments(
 	binding sourcebindingdomain.Binding,
 	organizationCode string,
 	userID string,
-) ([]materializedSourceDocument, error) {
+	maxDocuments int,
+) ([]sourcebindingservice.ResolvedDocument, error) {
 	switch binding.Provider {
 	case sourcebindingdomain.ProviderProject:
-		return s.resolveProjectBindingDocuments(ctx, binding)
+		return s.resolveProjectBindingDocuments(ctx, binding, maxDocuments)
 	case sourcebindingdomain.ProviderTeamshare:
-		return s.resolveThirdPlatformBindingDocuments(ctx, binding, organizationCode, userID)
+		return s.resolveThirdPlatformBindingDocuments(ctx, binding, organizationCode, userID, maxDocuments)
 	case sourcebindingdomain.ProviderLocalUpload:
 		return s.resolveLocalUploadBindingDocuments(binding)
 	default:
@@ -302,40 +266,106 @@ func (s *KnowledgeBaseDocumentFlowApp) resolveBindingDocuments(
 func (s *KnowledgeBaseDocumentFlowApp) resolveProjectBindingDocuments(
 	ctx context.Context,
 	binding sourcebindingdomain.Binding,
-) ([]materializedSourceDocument, error) {
-	if s == nil || s.support == nil || s.support.projectFilePort == nil {
-		return nil, ErrKnowledgeBaseProjectFileResolverRequired
+	maxDocuments int,
+) ([]sourcebindingservice.ResolvedDocument, error) {
+	if s == nil || s.support == nil || s.support.taskFileService == nil {
+		return nil, ErrKnowledgeBaseTaskFileDomainRequired
 	}
 	projectID, err := parseProjectRootRef(binding.RootRef)
 	if err != nil {
 		return nil, err
 	}
-	selectedFiles, selectedFolders := collectSelectedProjectTargetRefs(binding.Targets)
-	fileIDs, err := s.resolveProjectFileIDs(ctx, projectID, selectedFiles, selectedFolders)
-	if err != nil {
-		return nil, err
+	selectedTargets := collectSelectedProjectTargets(binding.Targets)
+	autoAdded := len(selectedTargets) == 0
+	if maxDocuments <= 0 {
+		return []sourcebindingservice.ResolvedDocument{}, nil
 	}
-	autoAdded := len(selectedFiles) == 0 && len(selectedFolders) == 0
 
-	result := make([]materializedSourceDocument, 0, len(fileIDs))
-	for _, projectFileID := range fileIDs {
-		_, requireVisibilityCheck := selectedFiles[projectFileID]
-		materialized, ok, err := s.resolveProjectSourceDocument(
-			ctx,
-			projectFileID,
-			binding,
-			autoAdded,
-			requireVisibilityCheck,
-		)
-		if err != nil {
+	result := make([]sourcebindingservice.ResolvedDocument, 0, maxDocuments)
+	state := projectBindingResolveState{
+		binding:      binding,
+		autoAdded:    autoAdded,
+		maxDocuments: maxDocuments,
+		seenFileIDs:  make(map[int64]struct{}, maxDocuments),
+		result:       &result,
+	}
+
+	if len(selectedTargets) == 0 {
+		if err := s.walkProjectBindingLeafFiles(ctx, projectID, 0, func(projectFileID int64) (bool, error) {
+			return s.appendResolvedProjectBindingDocument(ctx, projectFileID, state)
+		}); err != nil {
 			return nil, err
 		}
-		if !ok {
-			continue
-		}
-		result = append(result, materialized)
+		return result, nil
+	}
+
+	if err := s.resolveSelectedProjectBindingDocuments(ctx, projectID, selectedTargets, state); err != nil {
+		return nil, err
 	}
 	return result, nil
+}
+
+type projectBindingResolveState struct {
+	binding      sourcebindingdomain.Binding
+	autoAdded    bool
+	maxDocuments int
+	seenFileIDs  map[int64]struct{}
+	result       *[]sourcebindingservice.ResolvedDocument
+}
+
+func (s *KnowledgeBaseDocumentFlowApp) resolveSelectedProjectBindingDocuments(
+	ctx context.Context,
+	projectID int64,
+	selectedTargets []selectedProjectTarget,
+	state projectBindingResolveState,
+) error {
+	for _, target := range selectedTargets {
+		switch target.targetType {
+		case sourcebindingdomain.TargetTypeFile:
+			keepWalking, err := s.appendResolvedProjectBindingDocument(ctx, target.projectFileID, state)
+			if err != nil {
+				return err
+			}
+			if !keepWalking {
+				return nil
+			}
+		case sourcebindingdomain.TargetTypeFolder:
+			if err := s.walkProjectBindingLeafFiles(ctx, projectID, target.projectFileID, func(projectFileID int64) (bool, error) {
+				return s.appendResolvedProjectBindingDocument(ctx, projectFileID, state)
+			}); err != nil {
+				return err
+			}
+			if len(*state.result) >= state.maxDocuments {
+				return nil
+			}
+		}
+	}
+	return nil
+}
+
+func (s *KnowledgeBaseDocumentFlowApp) appendResolvedProjectBindingDocument(
+	ctx context.Context,
+	projectFileID int64,
+	state projectBindingResolveState,
+) (bool, error) {
+	if _, exists := state.seenFileIDs[projectFileID]; exists {
+		return true, nil
+	}
+	materialized, ok, err := s.resolveProjectSourceDocument(
+		ctx,
+		projectFileID,
+		state.binding,
+		state.autoAdded,
+	)
+	if err != nil {
+		return false, err
+	}
+	state.seenFileIDs[projectFileID] = struct{}{}
+	if !ok {
+		return true, nil
+	}
+	*state.result = append(*state.result, materialized)
+	return len(*state.result) < state.maxDocuments, nil
 }
 
 func parseProjectRootRef(rootRef string) (int64, error) {
@@ -346,72 +376,58 @@ func parseProjectRootRef(rootRef string) (int64, error) {
 	return projectID, nil
 }
 
-func collectSelectedProjectTargetRefs(targets []sourcebindingdomain.BindingTarget) (map[int64]struct{}, map[int64]struct{}) {
-	selectedFiles := make(map[int64]struct{}, len(targets))
-	selectedFolders := make(map[int64]struct{}, len(targets))
+type selectedProjectTarget struct {
+	targetType    string
+	projectFileID int64
+}
+
+func collectSelectedProjectTargets(targets []sourcebindingdomain.BindingTarget) []selectedProjectTarget {
+	selectedTargets := make([]selectedProjectTarget, 0, len(targets))
+	seen := make(map[string]struct{}, len(targets))
 	for _, target := range targets {
 		projectFileID, err := strconv.ParseInt(strings.TrimSpace(target.TargetRef), 10, 64)
 		if err != nil || projectFileID <= 0 {
 			continue
 		}
-		switch normalizeSourceBindingTargetType(target.TargetType) {
+		targetType := normalizeSourceBindingTargetType(target.TargetType)
+		switch targetType {
 		case sourcebindingdomain.TargetTypeFile:
-			selectedFiles[projectFileID] = struct{}{}
 		case sourcebindingdomain.TargetTypeFolder:
-			selectedFolders[projectFileID] = struct{}{}
+		default:
+			continue
 		}
+		dedupeKey := targetType + ":" + strconv.FormatInt(projectFileID, 10)
+		if _, exists := seen[dedupeKey]; exists {
+			continue
+		}
+		seen[dedupeKey] = struct{}{}
+		selectedTargets = append(selectedTargets, selectedProjectTarget{
+			targetType:    targetType,
+			projectFileID: projectFileID,
+		})
 	}
-	return selectedFiles, selectedFolders
+	return selectedTargets
 }
 
-func (s *KnowledgeBaseDocumentFlowApp) resolveProjectFileIDs(
+func (s *KnowledgeBaseDocumentFlowApp) walkProjectBindingLeafFiles(
 	ctx context.Context,
 	projectID int64,
-	selectedFiles map[int64]struct{},
-	selectedFolders map[int64]struct{},
-) ([]int64, error) {
+	folderID int64,
+	visitor func(projectFileID int64) (bool, error),
+) error {
 	if s == nil || s.support == nil || s.support.taskFileService == nil {
-		return nil, ErrKnowledgeBaseTaskFileDomainRequired
+		return ErrKnowledgeBaseTaskFileDomainRequired
 	}
-	if len(selectedFiles) == 0 && len(selectedFolders) == 0 {
-		fileIDs, err := s.support.taskFileService.ListVisibleLeafFileIDsByProject(ctx, projectID)
-		if err != nil {
-			return nil, fmt.Errorf("list visible project files by project: %w", err)
+	if folderID > 0 {
+		if err := s.support.taskFileService.WalkVisibleLeafFileIDsByFolder(ctx, folderID, visitor); err != nil {
+			return fmt.Errorf("walk visible project files by folder: %w", err)
 		}
-		return fileIDs, nil
+		return nil
 	}
-
-	fileIDSet := make(map[int64]struct{}, len(selectedFiles))
-	for projectFileID := range selectedFiles {
-		fileIDSet[projectFileID] = struct{}{}
+	if err := s.support.taskFileService.WalkVisibleLeafFileIDsByProject(ctx, projectID, visitor); err != nil {
+		return fmt.Errorf("walk visible project files by project: %w", err)
 	}
-
-	for folderID := range selectedFolders {
-		descendantFileIDs, err := s.resolveProjectFolderLeafFileIDs(ctx, folderID)
-		if err != nil {
-			return nil, err
-		}
-		for _, fileID := range descendantFileIDs {
-			fileIDSet[fileID] = struct{}{}
-		}
-	}
-
-	fileIDs := make([]int64, 0, len(fileIDSet))
-	for fileID := range fileIDSet {
-		fileIDs = append(fileIDs, fileID)
-	}
-	return fileIDs, nil
-}
-
-func (s *KnowledgeBaseDocumentFlowApp) resolveProjectFolderLeafFileIDs(ctx context.Context, folderID int64) ([]int64, error) {
-	if s == nil || s.support == nil || s.support.taskFileService == nil {
-		return nil, ErrKnowledgeBaseTaskFileDomainRequired
-	}
-	fileIDs, err := s.support.taskFileService.ListVisibleLeafFileIDsByFolder(ctx, folderID)
-	if err != nil {
-		return nil, fmt.Errorf("list visible project files by folder: %w", err)
-	}
-	return fileIDs, nil
+	return nil
 }
 
 func (s *KnowledgeBaseDocumentFlowApp) resolveProjectSourceDocument(
@@ -419,39 +435,62 @@ func (s *KnowledgeBaseDocumentFlowApp) resolveProjectSourceDocument(
 	projectFileID int64,
 	binding sourcebindingdomain.Binding,
 	autoAdded bool,
-	requireVisibilityCheck bool,
-) (materializedSourceDocument, bool, error) {
-	if requireVisibilityCheck {
-		if s == nil || s.support == nil || s.support.taskFileService == nil {
-			return materializedSourceDocument{}, false, ErrKnowledgeBaseTaskFileDomainRequired
-		}
-		visible, err := s.support.taskFileService.IsVisibleFile(ctx, projectFileID)
-		if err != nil {
-			return materializedSourceDocument{}, false, fmt.Errorf("check project file visibility %d: %w", projectFileID, err)
-		}
-		if !visible {
-			return materializedSourceDocument{}, false, nil
-		}
-	}
-	resolved, err := s.support.projectFilePort.Resolve(ctx, projectFileID)
+) (sourcebindingservice.ResolvedDocument, bool, error) {
+	meta, err := s.loadVisibleProjectFileMeta(ctx, projectFileID)
 	if err != nil {
-		return materializedSourceDocument{}, false, fmt.Errorf("resolve project file %d: %w", projectFileID, err)
+		if isProjectSourceBindingItemUnavailable(err) {
+			s.warnUnavailableSourceBindingItem(
+				ctx,
+				binding,
+				strconv.FormatInt(projectFileID, 10),
+				err,
+				"project_file_id", projectFileID,
+			)
+			return sourcebindingservice.ResolvedDocument{}, false, nil
+		}
+		return sourcebindingservice.ResolvedDocument{}, false, err
 	}
-	if resolved == nil || strings.EqualFold(strings.TrimSpace(resolved.Status), "deleted") || resolved.IsDirectory {
-		return materializedSourceDocument{}, false, nil
+	if meta == nil {
+		s.warnUnavailableSourceBindingItem(
+			ctx,
+			binding,
+			strconv.FormatInt(projectFileID, 10),
+			projectfile.ErrFileUnavailable,
+			"project_file_id", projectFileID,
+		)
+		return sourcebindingservice.ResolvedDocument{}, false, nil
+	}
+	resolved := buildProjectMaterializedResolved(meta)
+	if projectfile.IsUnsupportedResolveStatus(resolved.Status) {
+		s.logInfo(
+			ctx,
+			"Skip unsupported project source binding document",
+			"knowledge_base_code",
+			binding.KnowledgeBaseCode,
+			"project_file_id",
+			projectFileID,
+			"extension",
+			strings.TrimSpace(resolved.FileExtension),
+		)
+		return sourcebindingservice.ResolvedDocument{}, false, nil
+	}
+	if !documentdomain.ShouldMaterializeProjectResolvedFile(resolved) {
+		return sourcebindingservice.ResolvedDocument{}, false, nil
 	}
 	documentFile, ok, err := mapToDocumentFile(resolved.DocumentFile)
 	if err != nil {
-		return materializedSourceDocument{}, false, fmt.Errorf("convert project document file: %w", err)
+		return sourcebindingservice.ResolvedDocument{}, false, fmt.Errorf("convert project document file: %w", err)
 	}
 	if !ok || documentFile == nil {
-		return materializedSourceDocument{}, false, nil
+		return sourcebindingservice.ResolvedDocument{}, false, nil
 	}
-	return materializedSourceDocument{
+	return sourcebindingservice.ResolvedDocument{
 		Name:          firstNonEmpty(strings.TrimSpace(resolved.FileName), strings.TrimSpace(documentFile.Name)),
 		DocumentFile:  documentFile,
-		DocumentType:  int(documentdomain.DocTypeFile),
+		DocumentType:  int(docentity.DocumentInputKindFile),
 		ItemRef:       strconv.FormatInt(resolved.ProjectFileID, 10),
+		ProjectID:     resolved.ProjectID,
+		ProjectFileID: resolved.ProjectFileID,
 		Extension:     strings.TrimSpace(resolved.FileExtension),
 		ResolveReason: resolveReasonFromProjectBinding(binding),
 		AutoAdded:     autoAdded,
@@ -459,53 +498,479 @@ func (s *KnowledgeBaseDocumentFlowApp) resolveProjectSourceDocument(
 	}, true, nil
 }
 
+func (s *KnowledgeBaseDocumentFlowApp) loadVisibleProjectFileMeta(
+	ctx context.Context,
+	projectFileID int64,
+) (*projectfile.Meta, error) {
+	if s == nil || s.support == nil || s.support.taskFileService == nil {
+		return nil, ErrKnowledgeBaseTaskFileDomainRequired
+	}
+	meta, err := s.support.taskFileService.LoadVisibleMeta(ctx, projectFileID)
+	if err != nil {
+		return nil, fmt.Errorf("load visible project file meta %d: %w", projectFileID, err)
+	}
+	return meta, nil
+}
+
+func buildProjectMaterializedResolved(meta *projectfile.Meta) *projectfile.ResolveResult {
+	resolved := documentdomain.ProjectFileMetaToResolved(meta)
+	if resolved == nil {
+		return nil
+	}
+
+	normalizedExtension := projectfile.NormalizeExtension(resolved.FileName, resolved.FileExtension)
+	resolved.FileExtension = normalizedExtension
+	resolved.DocType = projectfile.ResolveDocType(normalizedExtension)
+	if strings.TrimSpace(resolved.Status) == "" {
+		resolved.Status = projectfile.ResolveStatusActive
+	}
+	if len(resolved.DocumentFile) == 0 {
+		resolved.DocumentFile = documentdomain.BuildProjectDocumentFilePayload(meta)
+	}
+	if normalizedExtension != "" {
+		resolved.DocumentFile["extension"] = normalizedExtension
+	}
+	if normalizedExtension != "" && !documentdomain.IsSupportedKnowledgeBaseFileExtension(normalizedExtension) {
+		resolved.Status = projectfile.ResolveStatusUnsupported
+	}
+	return resolved
+}
+
 func (s *KnowledgeBaseDocumentFlowApp) resolveThirdPlatformBindingDocuments(
 	ctx context.Context,
 	binding sourcebindingdomain.Binding,
 	organizationCode string,
 	userID string,
-) ([]materializedSourceDocument, error) {
+	maxDocuments int,
+) ([]sourcebindingservice.ResolvedDocument, error) {
 	if s == nil || s.support == nil || s.support.thirdPlatformExpander == nil {
 		return nil, ErrKnowledgeBaseThirdPlatformExpanderRequired
 	}
-	rawDocumentFiles := buildThirdPlatformExpansionInputs(binding)
-	expanded, err := s.support.thirdPlatformExpander.Expand(ctx, organizationCode, userID, rawDocumentFiles)
-	if err != nil {
-		return nil, fmt.Errorf("expand third-platform documents: %w", err)
+	if maxDocuments <= 0 {
+		return []sourcebindingservice.ResolvedDocument{}, nil
 	}
-	result := make([]materializedSourceDocument, 0, len(expanded))
-	for _, documentFile := range expanded {
-		if documentFile == nil {
-			continue
+	result := make([]sourcebindingservice.ResolvedDocument, 0, maxDocuments)
+	state := thirdPlatformMaterializeState{
+		binding:          binding,
+		organizationCode: organizationCode,
+		userID:           userID,
+		seenDirectoryIDs: make(map[string]struct{}, maxDocuments),
+		seenThirdFileIDs: make(map[string]struct{}, maxDocuments),
+	}
+	specs := sourcebindingservice.BuildEnterpriseBindingExpansionSpecs(binding)
+	for _, spec := range specs {
+		if len(result) >= maxDocuments {
+			break
 		}
-		itemRef := strings.TrimSpace(documentFile.ThirdID)
-		if itemRef == "" {
-			continue
+		items, err := s.resolveThirdPlatformBindingSpec(ctx, state, spec, maxDocuments-len(result))
+		if err != nil {
+			return nil, err
 		}
-		result = append(result, materializedSourceDocument{
-			Name:          firstNonEmpty(strings.TrimSpace(documentFile.Name), itemRef),
-			DocumentFile:  cloneDocumentFile(documentFile),
-			DocumentType:  int(documentdomain.DocTypeFile),
-			ItemRef:       itemRef,
-			Extension:     strings.TrimSpace(documentFile.Extension),
-			ResolveReason: resolveReasonFromThirdPlatformBinding(binding, documentFile),
-			AutoAdded:     binding.RootType != sourcebindingdomain.RootTypeFile,
-			SnapshotMeta:  documentFileToMap(documentFile),
-		})
+		result = append(result, items...)
 	}
 	return result, nil
 }
 
+type thirdPlatformMaterializeState struct {
+	binding          sourcebindingdomain.Binding
+	organizationCode string
+	userID           string
+	seenDirectoryIDs map[string]struct{}
+	seenThirdFileIDs map[string]struct{}
+}
+
+func (s *KnowledgeBaseDocumentFlowApp) resolveThirdPlatformBindingSpec(
+	ctx context.Context,
+	state thirdPlatformMaterializeState,
+	spec sourcebindingservice.EnterpriseBindingExpansionSpec,
+	maxDocuments int,
+) ([]sourcebindingservice.ResolvedDocument, error) {
+	if maxDocuments <= 0 {
+		return []sourcebindingservice.ResolvedDocument{}, nil
+	}
+
+	if spec.RootType == sourcebindingdomain.RootTypeFile {
+		item, ok, err := s.resolveThirdPlatformFileRoot(ctx, state, spec)
+		if err != nil {
+			return nil, err
+		}
+		if !ok {
+			return []sourcebindingservice.ResolvedDocument{}, nil
+		}
+		return []sourcebindingservice.ResolvedDocument{item}, nil
+	}
+
+	return s.collectThirdPlatformResolvedDocuments(ctx, state, spec, maxDocuments)
+}
+
+type thirdPlatformTreeParent struct {
+	parentType string
+	parentRef  string
+}
+
+func (s *KnowledgeBaseDocumentFlowApp) collectThirdPlatformResolvedDocuments(
+	ctx context.Context,
+	state thirdPlatformMaterializeState,
+	spec sourcebindingservice.EnterpriseBindingExpansionSpec,
+	maxDocuments int,
+) ([]sourcebindingservice.ResolvedDocument, error) {
+	result := make([]sourcebindingservice.ResolvedDocument, 0, maxDocuments)
+	queue := initializeThirdPlatformTreeQueue(spec, state.seenDirectoryIDs)
+
+	for len(queue) > 0 && len(result) < maxDocuments {
+		parent := queue[0]
+		queue = queue[1:]
+
+		nodes, err := s.listThirdPlatformTreeNodes(ctx, state, parent)
+		if err != nil {
+			return nil, err
+		}
+		queue = s.enqueueThirdPlatformDirectoryNodes(queue, nodes, state.seenDirectoryIDs)
+		result = s.appendThirdPlatformResolvedDocuments(ctx, result, state, spec, nodes, maxDocuments)
+	}
+	return result, nil
+}
+
+func initializeThirdPlatformTreeQueue(
+	spec sourcebindingservice.EnterpriseBindingExpansionSpec,
+	seenDirectoryIDs map[string]struct{},
+) []thirdPlatformTreeParent {
+	parentType := sourceBindingParentTypeKnowledgeBase
+	if spec.RootType == sourcebindingdomain.RootTypeFolder {
+		parentType = sourceBindingParentTypeFolder
+	}
+	parentRef := strings.TrimSpace(spec.RootRef)
+	if parentRef != "" {
+		seenDirectoryIDs[parentRef] = struct{}{}
+	}
+	return []thirdPlatformTreeParent{{
+		parentType: parentType,
+		parentRef:  parentRef,
+	}}
+}
+
+func (s *KnowledgeBaseDocumentFlowApp) listThirdPlatformTreeNodes(
+	ctx context.Context,
+	state thirdPlatformMaterializeState,
+	parent thirdPlatformTreeParent,
+) ([]thirdplatform.TreeNode, error) {
+	actor := resolveKnowledgeBaseAccessActor(ctx, state.organizationCode, state.userID)
+	nodes, err := s.support.thirdPlatformExpander.ListTreeNodes(
+		ctx,
+		thirdplatform.TreeNodeListInput{
+			OrganizationCode:              actor.OrganizationCode,
+			UserID:                        actor.UserID,
+			ThirdPlatformUserID:           actor.ThirdPlatformUserID,
+			ThirdPlatformOrganizationCode: actor.ThirdPlatformOrganizationCode,
+			ParentType:                    parent.parentType,
+			ParentRef:                     parent.parentRef,
+		},
+	)
+	if err != nil {
+		return nil, fmt.Errorf("list third-platform tree nodes %s/%s: %w", parent.parentType, parent.parentRef, err)
+	}
+	return nodes, nil
+}
+
+func (s *KnowledgeBaseDocumentFlowApp) enqueueThirdPlatformDirectoryNodes(
+	queue []thirdPlatformTreeParent,
+	nodes []thirdplatform.TreeNode,
+	seenDirectoryIDs map[string]struct{},
+) []thirdPlatformTreeParent {
+	for _, node := range nodes {
+		if !node.IsDirectory {
+			continue
+		}
+		directoryRef := thirdPlatformTreeNodeRef(node)
+		if directoryRef == "" {
+			continue
+		}
+		if _, exists := seenDirectoryIDs[directoryRef]; exists {
+			continue
+		}
+		seenDirectoryIDs[directoryRef] = struct{}{}
+		queue = append(queue, thirdPlatformTreeParent{
+			parentType: sourceBindingParentTypeFolder,
+			parentRef:  directoryRef,
+		})
+	}
+	return queue
+}
+
+func (s *KnowledgeBaseDocumentFlowApp) appendThirdPlatformResolvedDocuments(
+	ctx context.Context,
+	result []sourcebindingservice.ResolvedDocument,
+	state thirdPlatformMaterializeState,
+	spec sourcebindingservice.EnterpriseBindingExpansionSpec,
+	nodes []thirdplatform.TreeNode,
+	maxDocuments int,
+) []sourcebindingservice.ResolvedDocument {
+	for _, node := range nodes {
+		if node.IsDirectory {
+			continue
+		}
+		item, ok := s.mapThirdPlatformTreeNodeToResolvedDocument(
+			ctx,
+			state.binding,
+			spec,
+			node,
+			state.seenThirdFileIDs,
+		)
+		if !ok {
+			continue
+		}
+		result = append(result, item)
+		if len(result) >= maxDocuments {
+			break
+		}
+	}
+	return result
+}
+
+func (s *KnowledgeBaseDocumentFlowApp) resolveThirdPlatformFileRoot(
+	ctx context.Context,
+	state thirdPlatformMaterializeState,
+	spec sourcebindingservice.EnterpriseBindingExpansionSpec,
+) (sourcebindingservice.ResolvedDocument, bool, error) {
+	itemRef := strings.TrimSpace(spec.RootRef)
+	if itemRef == "" {
+		return sourcebindingservice.ResolvedDocument{}, false, nil
+	}
+	if _, exists := state.seenThirdFileIDs[itemRef]; exists {
+		return sourcebindingservice.ResolvedDocument{}, false, nil
+	}
+
+	documentFile, found, err := s.resolveThirdPlatformFileDocumentFile(ctx, state, spec)
+	if err != nil {
+		if errors.Is(err, thirdplatform.ErrDocumentUnavailable) {
+			s.warnUnavailableSourceBindingItem(
+				ctx,
+				state.binding,
+				itemRef,
+				err,
+				"third_file_id", itemRef,
+			)
+			return sourcebindingservice.ResolvedDocument{}, false, nil
+		}
+		return sourcebindingservice.ResolvedDocument{}, false, err
+	}
+	if !found {
+		s.warnUnavailableSourceBindingItem(
+			ctx,
+			state.binding,
+			itemRef,
+			thirdplatform.ErrDocumentUnavailable,
+			"third_file_id", itemRef,
+		)
+		return sourcebindingservice.ResolvedDocument{}, false, nil
+	}
+	if !documentdomain.IsSupportedKnowledgeBaseDocumentFile(documentFile) {
+		s.logInfo(
+			ctx,
+			"Skip unsupported third-platform source binding document",
+			"knowledge_base_code", state.binding.KnowledgeBaseCode,
+			"third_file_id", itemRef,
+			"extension", strings.TrimSpace(documentFile.Extension),
+		)
+		return sourcebindingservice.ResolvedDocument{}, false, nil
+	}
+	state.seenThirdFileIDs[itemRef] = struct{}{}
+	return buildThirdPlatformResolvedDocument(state.binding, documentFile, resolveReasonFromThirdPlatformSpec(state.binding, spec)), true, nil
+}
+
+func (s *KnowledgeBaseDocumentFlowApp) resolveThirdPlatformFileDocumentFile(
+	ctx context.Context,
+	state thirdPlatformMaterializeState,
+	spec sourcebindingservice.EnterpriseBindingExpansionSpec,
+) (*docentity.File, bool, error) {
+	rootDocumentFile := thirdPlatformExpansionDocumentFile(
+		state.binding.Provider,
+		spec.RootType,
+		spec.RootRef,
+		spec.RootContext,
+	)
+	resolved, err := s.support.thirdPlatformExpander.Resolve(ctx, thirdplatform.DocumentResolveInput{
+		OrganizationCode:  state.organizationCode,
+		UserID:            state.userID,
+		KnowledgeBaseCode: state.binding.KnowledgeBaseCode,
+		ThirdPlatformType: state.binding.Provider,
+		ThirdFileID:       spec.RootRef,
+		DocumentFile:      rootDocumentFile,
+	})
+	if err != nil {
+		return nil, false, fmt.Errorf("resolve third-platform file %s: %w", spec.RootRef, err)
+	}
+	if resolved == nil {
+		return nil, false, nil
+	}
+	documentFile, ok, err := mapToDocumentFile(resolved.DocumentFile)
+	if err != nil {
+		return nil, false, fmt.Errorf("convert resolved third-platform document file: %w", err)
+	}
+	if !ok || documentFile == nil {
+		return nil, false, nil
+	}
+	if documentFile.Extension == "" {
+		documentFile.Extension = documentdomainInferExtension(documentFile)
+	}
+	if documentFile.SourceType == "" {
+		documentFile.SourceType = state.binding.Provider
+	}
+	if documentFile.Type == "" {
+		documentFile.Type = thirdPlatformDocumentFileType
+	}
+	if documentFile.ThirdID == "" {
+		documentFile.ThirdID = strings.TrimSpace(spec.RootRef)
+	}
+	if documentFile.KnowledgeBaseID == "" {
+		documentFile.KnowledgeBaseID = rootContextKnowledgeBaseID(spec.RootContext)
+	}
+	return documentFile, true, nil
+}
+
+func isProjectSourceBindingItemUnavailable(err error) bool {
+	return errors.Is(err, projectfile.ErrFileUnavailable) || errors.Is(err, kshared.ErrNotFound)
+}
+
+func (s *KnowledgeBaseDocumentFlowApp) warnUnavailableSourceBindingItem(
+	ctx context.Context,
+	binding sourcebindingdomain.Binding,
+	targetRef string,
+	err error,
+	extraFields ...any,
+) {
+	if s == nil || s.support == nil || s.support.logger == nil {
+		return
+	}
+	fields := make([]any, 0, sourceBindingUnavailableLogFieldCount+len(extraFields))
+	fields = append(
+		fields,
+		"provider", binding.Provider,
+		"binding_id", binding.ID,
+		"knowledge_base_code", binding.KnowledgeBaseCode,
+		"target_ref", strings.TrimSpace(targetRef),
+		"reason", sourceBindingUnavailableReason,
+		"error", err,
+	)
+	fields = append(fields, extraFields...)
+	s.support.logger.KnowledgeWarnContext(ctx, "Skip unavailable source binding document", fields...)
+}
+
+func (s *KnowledgeBaseDocumentFlowApp) mapThirdPlatformTreeNodeToResolvedDocument(
+	ctx context.Context,
+	binding sourcebindingdomain.Binding,
+	spec sourcebindingservice.EnterpriseBindingExpansionSpec,
+	node thirdplatform.TreeNode,
+	seenThirdFileIDs map[string]struct{},
+) (sourcebindingservice.ResolvedDocument, bool) {
+	if node.IsDirectory {
+		return sourcebindingservice.ResolvedDocument{}, false
+	}
+	documentFile := mapThirdPlatformTreeNodeToDocumentFile(binding.Provider, spec, node)
+	itemRef := strings.TrimSpace(documentFile.ThirdID)
+	if itemRef == "" {
+		return sourcebindingservice.ResolvedDocument{}, false
+	}
+	if _, exists := seenThirdFileIDs[itemRef]; exists {
+		return sourcebindingservice.ResolvedDocument{}, false
+	}
+	if !documentdomain.IsSupportedKnowledgeBaseDocumentFile(documentFile) {
+		s.logInfo(
+			ctx,
+			"Skip unsupported third-platform source binding document",
+			"knowledge_base_code", binding.KnowledgeBaseCode,
+			"third_file_id", itemRef,
+			"extension", strings.TrimSpace(documentFile.Extension),
+		)
+		return sourcebindingservice.ResolvedDocument{}, false
+	}
+	seenThirdFileIDs[itemRef] = struct{}{}
+	return buildThirdPlatformResolvedDocument(binding, documentFile, resolveReasonFromThirdPlatformSpec(binding, spec)), true
+}
+
+func mapThirdPlatformTreeNodeToDocumentFile(
+	provider string,
+	spec sourcebindingservice.EnterpriseBindingExpansionSpec,
+	node thirdplatform.TreeNode,
+) *docentity.File {
+	documentFile := &docentity.File{
+		Type:            thirdPlatformDocumentFileType,
+		Name:            strings.TrimSpace(node.Name),
+		ThirdID:         thirdPlatformTreeNodeRef(node),
+		SourceType:      strings.TrimSpace(provider),
+		Extension:       filetype.NormalizeExtension(strings.TrimSpace(node.Extension)),
+		KnowledgeBaseID: strings.TrimSpace(node.KnowledgeBaseID),
+	}
+	if documentFile.Extension == "" {
+		documentFile.Extension = documentdomainInferExtension(documentFile)
+	}
+	if documentFile.KnowledgeBaseID == "" {
+		documentFile.KnowledgeBaseID = rootContextKnowledgeBaseID(spec.RootContext)
+	}
+	return documentFile
+}
+
+func thirdPlatformTreeNodeRef(node thirdplatform.TreeNode) string {
+	return firstNonEmpty(strings.TrimSpace(node.ThirdFileID), strings.TrimSpace(node.ID), strings.TrimSpace(node.FileID))
+}
+
+func buildThirdPlatformResolvedDocument(
+	binding sourcebindingdomain.Binding,
+	documentFile *docentity.File,
+	resolveReason string,
+) sourcebindingservice.ResolvedDocument {
+	return sourcebindingservice.ResolvedDocument{
+		Name:          firstNonEmpty(strings.TrimSpace(documentFile.Name), strings.TrimSpace(documentFile.ThirdID)),
+		DocumentFile:  cloneDocumentFile(documentFile),
+		DocumentType:  int(docentity.DocumentInputKindFile),
+		ItemRef:       strings.TrimSpace(documentFile.ThirdID),
+		Extension:     strings.TrimSpace(documentFile.Extension),
+		ResolveReason: resolveReason,
+		AutoAdded:     len(binding.Targets) == 0 && binding.RootType != sourcebindingdomain.RootTypeFile,
+		SnapshotMeta:  documentFileToMap(documentFile),
+	}
+}
+
+func resolveReasonFromThirdPlatformSpec(
+	binding sourcebindingdomain.Binding,
+	spec sourcebindingservice.EnterpriseBindingExpansionSpec,
+) string {
+	if len(binding.Targets) > 0 {
+		return sourceBindingResolveReasonTarget
+	}
+	if binding.RootType == sourcebindingdomain.RootTypeFile && strings.TrimSpace(binding.RootRef) == strings.TrimSpace(spec.RootRef) {
+		return sourceBindingResolveReasonRoot
+	}
+	return sourceBindingResolveReasonRoot
+}
+
+func rootContextKnowledgeBaseID(rootContext map[string]any) string {
+	value, _, err := pkgjsoncompat.IDStringFromAny(rootContext["knowledge_base_id"], "root_context.knowledge_base_id")
+	if err != nil {
+		return ""
+	}
+	return strings.TrimSpace(value)
+}
+
+func documentdomainInferExtension(file *docentity.File) string {
+	return filetype.NormalizeExtension(firstNonEmpty(
+		strings.TrimSpace(file.Extension),
+		filetype.ExtractExtension(strings.TrimSpace(file.Name)),
+		filetype.ExtractExtension(strings.TrimSpace(file.URL)),
+		filetype.ExtractExtension(strings.TrimSpace(file.FileKey)),
+	))
+}
+
 func (s *KnowledgeBaseDocumentFlowApp) resolveLocalUploadBindingDocuments(
 	binding sourcebindingdomain.Binding,
-) ([]materializedSourceDocument, error) {
+) ([]sourcebindingservice.ResolvedDocument, error) {
 	rawDocumentFile, _ := binding.SyncConfig["document_file"].(map[string]any)
 	documentFile, _, err := mapToDocumentFile(rawDocumentFile)
 	if err != nil {
 		return nil, fmt.Errorf("convert local upload document file: %w", err)
 	}
 	if documentFile == nil {
-		documentFile = &documentdomain.File{
+		documentFile = &docentity.File{
 			Type:       "external",
 			Name:       binding.RootRef,
 			URL:        binding.RootRef,
@@ -513,10 +978,10 @@ func (s *KnowledgeBaseDocumentFlowApp) resolveLocalUploadBindingDocuments(
 		}
 	}
 	itemRef := firstNonEmpty(strings.TrimSpace(binding.RootRef), strings.TrimSpace(documentFile.URL), strings.TrimSpace(documentFile.Name))
-	return []materializedSourceDocument{{
+	return []sourcebindingservice.ResolvedDocument{{
 		Name:          firstNonEmpty(strings.TrimSpace(documentFile.Name), itemRef),
 		DocumentFile:  documentFile,
-		DocumentType:  int(documentdomain.DocTypeFile),
+		DocumentType:  int(docentity.DocumentInputKindFile),
 		ItemRef:       itemRef,
 		Extension:     strings.TrimSpace(documentFile.Extension),
 		ResolveReason: "root",
@@ -525,38 +990,9 @@ func (s *KnowledgeBaseDocumentFlowApp) resolveLocalUploadBindingDocuments(
 	}}, nil
 }
 
-func buildThirdPlatformExpansionInputs(binding sourcebindingdomain.Binding) []map[string]any {
-	inputs := make([]map[string]any, 0)
-	if len(binding.Targets) == 0 {
-		inputs = append(inputs, thirdPlatformExpansionDocumentFile(
-			binding.Provider,
-			binding.RootType,
-			binding.RootRef,
-			rootContextFromBinding(binding),
-		))
-		return inputs
-	}
-	for _, target := range binding.Targets {
-		if target.TargetRef == "" {
-			continue
-		}
-		targetType := target.TargetType
-		if targetType == "" {
-			targetType = sourcebindingdomain.TargetTypeFile
-		}
-		inputs = append(inputs, thirdPlatformExpansionDocumentFile(
-			binding.Provider,
-			targetTypeToRootType(targetType),
-			target.TargetRef,
-			rootContextFromBinding(binding),
-		))
-	}
-	return inputs
-}
-
 func thirdPlatformExpansionDocumentFile(provider, rootType, rootRef string, rootContext map[string]any) map[string]any {
 	payload := map[string]any{
-		"type":          "third_platform",
+		"type":          thirdPlatformDocumentFileType,
 		"source_type":   provider,
 		"platform_type": provider,
 		"name":          rootRef,
@@ -668,7 +1104,7 @@ func (s *KnowledgeBaseDocumentFlowApp) prepareRebuild(
 
 func (s *KnowledgeBaseDocumentFlowApp) prepareRebuildKnowledgeBase(
 	ctx context.Context,
-	kb *knowledgebasedomain.KnowledgeBase,
+	kb *kbentity.KnowledgeBase,
 	scope RebuildScope,
 ) error {
 	if kb == nil {
@@ -750,7 +1186,7 @@ func (s *KnowledgeBaseDocumentFlowApp) prepareRebuildKnowledgeBase(
 
 func (s *KnowledgeBaseDocumentFlowApp) preflightRebuildSourceBindings(
 	ctx context.Context,
-	kb *knowledgebasedomain.KnowledgeBase,
+	kb *kbentity.KnowledgeBase,
 	organizationCode string,
 	userID string,
 	bindings []sourcebindingdomain.Binding,
@@ -761,13 +1197,17 @@ func (s *KnowledgeBaseDocumentFlowApp) preflightRebuildSourceBindings(
 	if s.managedDocuments == nil {
 		return ErrKnowledgeBaseDocumentFlowRequired
 	}
-	if err := s.newSourceBindingMaterializationService().Preflight(ctx, sourcebindingdomain.MaterializationInput{
+	if _, err := s.support.healKnowledgeBaseUIDs(ctx, kb, "source binding preflight"); err != nil {
+		return err
+	}
+	if err := s.newSourceBindingMaterializationService().Preflight(ctx, sourcebindingservice.MaterializationInput{
 		KnowledgeBaseCode:   kb.Code,
 		OrganizationCode:    organizationCode,
 		KnowledgeBaseUserID: knowledgeBaseUpdatedUserID(kb),
 		KnowledgeBaseOwner:  knowledgeBaseCreatedUserID(kb),
 		FallbackUserID:      userID,
 		Bindings:            bindings,
+		MaxDocuments:        knowledgeBaseMaterializeDocumentLimit,
 	}); err != nil {
 		return fmt.Errorf("preflight source binding documents: %w", err)
 	}
@@ -775,12 +1215,12 @@ func (s *KnowledgeBaseDocumentFlowApp) preflightRebuildSourceBindings(
 }
 
 func shouldSkipPrepareRebuildKnowledgeBase(scopeMode RebuildScopeMode, err error) bool {
-	return scopeMode != RebuildScopeModeKnowledgeBase && sourcebindingdomain.ShouldRetryResolve(err)
+	return scopeMode != RebuildScopeModeKnowledgeBase && sourcebindingservice.ShouldRetryResolve(err)
 }
 
 func (s *KnowledgeBaseDocumentFlowApp) warnSkippedPrepareRebuildKnowledgeBase(
 	ctx context.Context,
-	kb *knowledgebasedomain.KnowledgeBase,
+	kb *kbentity.KnowledgeBase,
 	err error,
 ) {
 	if s == nil || s.support == nil || s.support.logger == nil {
@@ -792,7 +1232,7 @@ func (s *KnowledgeBaseDocumentFlowApp) warnSkippedPrepareRebuildKnowledgeBase(
 		knowledgeBaseCode = kb.Code
 		knowledgeBaseName = kb.Name
 	}
-	s.support.logger.WarnContext(
+	s.support.logger.KnowledgeWarnContext(
 		ctx,
 		"Skip prepare knowledge rebuild because source binding documents cannot be resolved",
 		"knowledge_base_code", knowledgeBaseCode,
@@ -801,16 +1241,16 @@ func (s *KnowledgeBaseDocumentFlowApp) warnSkippedPrepareRebuildKnowledgeBase(
 	)
 }
 
-func (s *KnowledgeBaseDocumentFlowApp) listKnowledgeBasesForRebuild(ctx context.Context, scope RebuildScope) ([]*knowledgebasedomain.KnowledgeBase, error) {
+func (s *KnowledgeBaseDocumentFlowApp) listKnowledgeBasesForRebuild(ctx context.Context, scope RebuildScope) ([]*kbentity.KnowledgeBase, error) {
 	switch scope.Mode {
 	case RebuildScopeModeKnowledgeBase:
 		kb, err := s.support.domainService.ShowByCodeAndOrg(ctx, scope.KnowledgeBaseCode, scope.OrganizationCode)
 		if err != nil {
 			return nil, fmt.Errorf("show knowledge base for rebuild: %w", err)
 		}
-		return []*knowledgebasedomain.KnowledgeBase{kb}, nil
+		return []*kbentity.KnowledgeBase{kb}, nil
 	case RebuildScopeModeOrganization:
-		kbs, _, err := s.support.domainService.List(ctx, &knowledgebasedomain.Query{
+		kbs, _, err := s.support.domainService.List(ctx, &kbrepository.Query{
 			OrganizationCode: scope.OrganizationCode,
 			Offset:           0,
 			Limit:            knowledgeBaseRebuildListLimit,
@@ -820,7 +1260,7 @@ func (s *KnowledgeBaseDocumentFlowApp) listKnowledgeBasesForRebuild(ctx context.
 		}
 		return kbs, nil
 	case RebuildScopeModeAll:
-		kbs, _, err := s.support.domainService.List(ctx, &knowledgebasedomain.Query{
+		kbs, _, err := s.support.domainService.List(ctx, &kbrepository.Query{
 			Offset: 0,
 			Limit:  knowledgeBaseRebuildListLimit,
 		})
@@ -829,19 +1269,19 @@ func (s *KnowledgeBaseDocumentFlowApp) listKnowledgeBasesForRebuild(ctx context.
 		}
 		return kbs, nil
 	default:
-		return []*knowledgebasedomain.KnowledgeBase{}, nil
+		return []*kbentity.KnowledgeBase{}, nil
 	}
 }
 
 func (s *KnowledgeBaseDocumentFlowApp) bootstrapSourceBindings(
 	ctx context.Context,
-	kb *knowledgebasedomain.KnowledgeBase,
+	kb *kbentity.KnowledgeBase,
 	userID string,
 ) ([]sourcebindingdomain.Binding, error) {
 	if kb != nil && kb.SourceType != nil {
 		knowledgeBaseType := knowledgeBaseTypeFromKnowledgeBase(kb)
-		semanticSourceType, err := knowledgebasedomain.ResolveSemanticSourceType(knowledgeBaseType, *kb.SourceType)
-		if err == nil && semanticSourceType == knowledgebasedomain.SemanticSourceTypeProject {
+		semanticSourceType, err := kbentity.ResolveSemanticSourceType(knowledgeBaseType, *kb.SourceType)
+		if err == nil && semanticSourceType == kbentity.SemanticSourceTypeProject {
 			return nil, ErrMissingProjectSourceBindings
 		}
 	}
@@ -902,7 +1342,7 @@ func (s *KnowledgeBaseDocumentFlowApp) bootstrapSourceBindings(
 	return savedBindings, nil
 }
 
-func bootstrapBindingUserID(kb *knowledgebasedomain.KnowledgeBase, fallbackUserID string) string {
+func bootstrapBindingUserID(kb *kbentity.KnowledgeBase, fallbackUserID string) string {
 	if userID := knowledgeBaseUpdatedUserID(kb); userID != "" {
 		return userID
 	}
@@ -912,25 +1352,25 @@ func bootstrapBindingUserID(kb *knowledgebasedomain.KnowledgeBase, fallbackUserI
 	return strings.TrimSpace(fallbackUserID)
 }
 
-func knowledgeBaseUpdatedUserID(kb *knowledgebasedomain.KnowledgeBase) string {
+func knowledgeBaseUpdatedUserID(kb *kbentity.KnowledgeBase) string {
 	if kb == nil {
 		return ""
 	}
 	return strings.TrimSpace(kb.UpdatedUID)
 }
 
-func knowledgeBaseCreatedUserID(kb *knowledgebasedomain.KnowledgeBase) string {
+func knowledgeBaseCreatedUserID(kb *kbentity.KnowledgeBase) string {
 	if kb == nil {
 		return ""
 	}
 	return strings.TrimSpace(kb.CreatedUID)
 }
 
-func mapToDocumentFile(raw map[string]any) (*documentdomain.File, bool, error) {
+func mapToDocumentFile(raw map[string]any) (*docentity.File, bool, error) {
 	if len(raw) == 0 {
 		return nil, false, nil
 	}
-	encoded, err := json.Marshal(raw)
+	encoded, err := json.Marshal(normalizeDocumentFileIDMap(raw))
 	if err != nil {
 		return nil, false, fmt.Errorf("marshal document file payload: %w", err)
 	}
@@ -941,7 +1381,22 @@ func mapToDocumentFile(raw map[string]any) (*documentdomain.File, bool, error) {
 	return docfilehelper.ToDomainFile(&dto), true, nil
 }
 
-func documentFileToMap(documentFile *documentdomain.File) map[string]any {
+func normalizeDocumentFileIDMap(raw map[string]any) map[string]any {
+	if len(raw) == 0 {
+		return map[string]any{}
+	}
+	normalized := cloneMap(raw)
+	for _, key := range []string{"third_id", "third_file_id", "knowledge_base_id", "project_file_id"} {
+		value, provided, err := pkgjsoncompat.IDStringFromAny(normalized[key], "document_file."+key)
+		if err != nil || !provided {
+			continue
+		}
+		normalized[key] = value
+	}
+	return normalized
+}
+
+func documentFileToMap(documentFile *docentity.File) map[string]any {
 	if documentFile == nil {
 		return map[string]any{}
 	}
@@ -969,16 +1424,6 @@ func resolveReasonFromProjectBinding(binding sourcebindingdomain.Binding) string
 	return "root"
 }
 
-func resolveReasonFromThirdPlatformBinding(binding sourcebindingdomain.Binding, documentFile *documentdomain.File) string {
-	if len(binding.Targets) > 0 {
-		return "target"
-	}
-	if binding.RootType == sourcebindingdomain.RootTypeFile && documentFile != nil && documentFile.ThirdID == binding.RootRef {
-		return "root"
-	}
-	return "expanded"
-}
-
 func cloneMap(input map[string]any) map[string]any {
 	if len(input) == 0 {
 		return map[string]any{}
@@ -997,31 +1442,6 @@ func firstNonEmpty(values ...string) string {
 	return ""
 }
 
-func rootContextFromBinding(binding sourcebindingdomain.Binding) map[string]any {
-	context := cloneMap(mapValue(binding.SyncConfig, "root_context"))
-	if binding.RootType == sourcebindingdomain.RootTypeKnowledgeBase && context["knowledge_base_id"] == nil {
-		context["knowledge_base_id"] = binding.RootRef
-	}
-	return context
-}
-
-func targetTypeToRootType(targetType string) string {
-	switch normalizeSourceBindingTargetType(targetType) {
-	case sourcebindingdomain.TargetTypeFolder:
-		return sourcebindingdomain.RootTypeFolder
-	default:
-		return sourcebindingdomain.RootTypeFile
-	}
-}
-
-func mapValue(input map[string]any, key string) map[string]any {
-	if len(input) == 0 {
-		return map[string]any{}
-	}
-	value, _ := input[key].(map[string]any)
-	return value
-}
-
 func anyToString(value any) string {
 	if value == nil {
 		return ""
@@ -1036,7 +1456,7 @@ func anyToString(value any) string {
 	}
 }
 
-func cloneDocumentFile(documentFile *documentdomain.File) *documentdomain.File {
+func cloneDocumentFile(documentFile *docentity.File) *docentity.File {
 	if documentFile == nil {
 		return nil
 	}

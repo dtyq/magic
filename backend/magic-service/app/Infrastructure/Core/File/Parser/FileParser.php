@@ -29,6 +29,11 @@ class FileParser
     {
     }
 
+    public static function supportsExtension(string $extension): bool
+    {
+        return self::resolveParserDriverInterface($extension) !== null;
+    }
+
     /**
      * 解析文件内容.
      *
@@ -55,16 +60,10 @@ class FileParser
 
             $extension = FileType::getType($fileUrl);
 
-            $interface = match ($extension) {
-                // 更多的文件类型支持
-                'png', 'jpeg', 'jpg' => OcrFileParserDriverInterface::class,
-                'pdf' => PdfFileParserDriverInterface::class,
-                'xlsx', 'xls', 'xlsm' => ExcelFileParserDriverInterface::class,
-                'txt', 'json', 'csv', 'md', 'mdx',
-                'py', 'java', 'php', 'js', 'html', 'htm', 'css', 'xml', 'yaml', 'yml', 'sql' => TextFileParserDriverInterface::class,
-                'docx', 'doc' => WordFileParserDriverInterface::class,
-                default => ExceptionBuilder::throw(FlowErrorCode::ExecuteFailed, 'flow.node.loader.unsupported_file_type', ['file_extension' => $extension]),
-            };
+            $interface = self::resolveParserDriverInterface($extension);
+            if ($interface === null) {
+                ExceptionBuilder::throw(FlowErrorCode::ExecuteFailed, 'flow.node.loader.unsupported_file_type', ['file_extension' => $extension]);
+            }
 
             if (! container()->has($interface)) {
                 ExceptionBuilder::throw(FlowErrorCode::ExecuteFailed, 'flow.node.loader.unsupported_file_type', ['file_extension' => $extension]);
@@ -89,6 +88,20 @@ class FileParser
                 unlink($tempFile); // 确保临时文件被删除
             }
         }
+    }
+
+    private static function resolveParserDriverInterface(string $extension): ?string
+    {
+        return match (strtolower(trim($extension, " \t\n\r\0\x0B."))) {
+            // 更多的文件类型支持
+            'png', 'jpeg', 'jpg' => OcrFileParserDriverInterface::class,
+            'pdf' => PdfFileParserDriverInterface::class,
+            'xlsx', 'xls', 'xlsm' => ExcelFileParserDriverInterface::class,
+            'txt', 'json', 'csv', 'md', 'mdx',
+            'py', 'java', 'php', 'js', 'html', 'htm', 'css', 'xml', 'yaml', 'yml', 'sql' => TextFileParserDriverInterface::class,
+            'docx', 'doc' => WordFileParserDriverInterface::class,
+            default => null,
+        };
     }
 
     /**

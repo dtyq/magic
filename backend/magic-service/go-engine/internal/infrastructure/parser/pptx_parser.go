@@ -15,7 +15,7 @@ import (
 	"strconv"
 	"strings"
 
-	documentdomain "magic/internal/domain/knowledge/document/service"
+	documentdomain "magic/internal/domain/knowledge/document/metadata"
 )
 
 // PptxParser 按幻灯片顺序提取文本与内嵌图片 OCR 文本。
@@ -141,6 +141,9 @@ func (p *PptxParser) ParseDocumentWithOptions(
 
 	parsed := documentdomain.NewPlainTextParsedDocument(fileType, strings.Join(blocks, "\n\n"))
 	ocrHelper.apply(parsed)
+	if err := failIfEmptyDueToOCROverload(parsed, ocrHelper); err != nil {
+		return nil, err
+	}
 	return parsed, nil
 }
 

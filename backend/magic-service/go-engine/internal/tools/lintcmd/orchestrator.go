@@ -59,10 +59,13 @@ const (
 )
 
 // Options configures the lint tools executed by Runner.
-type Options struct{}
+type Options struct {
+	NoSmartCache bool
+}
 
 // Runner executes the configured lint tasks and reports a summary.
 type Runner struct {
+	opts    Options
 	stdout  io.Writer
 	stderr  io.Writer
 	tasks   []lintTask
@@ -87,10 +90,14 @@ func ParseOptions(args []string) (Options, error) {
 	fs := flag.NewFlagSet("lint", flag.ContinueOnError)
 	fs.SetOutput(io.Discard)
 
+	var opts Options
+	fs.BoolVar(&opts.NoSmartCache, "no-smart-cache", false, "disable repository smart lint cache reuse")
+
 	if err := fs.Parse(args); err != nil {
 		return Options{}, fmt.Errorf("parse flags: %w", err)
 	}
-	return Options{}, nil
+
+	return opts, nil
 }
 
 // NewRunner constructs a lint runner with the provided outputs.
@@ -105,6 +112,7 @@ func NewRunner(opts Options, stdout, stderr io.Writer) *Runner {
 	}
 
 	r := &Runner{
+		opts:   opts,
 		stdout: stdout,
 		stderr: stderr,
 	}
@@ -293,35 +301,40 @@ func (r *Runner) runTaskInProcess(ctx context.Context, taskName string) (string,
 	case taskVetToolSmart:
 		return runWithBuffer(func(stdout, stderr io.Writer) error {
 			return smartvettool.NewRunner(smartvettool.Options{
-				CacheFile: defaultVetToolCacheFile,
+				CacheFile:    defaultVetToolCacheFile,
+				DisableCache: r.opts.NoSmartCache,
 			}, stdout, stderr).Run(ctx)
 		})
 	case taskVetSmart:
 		return runWithBuffer(func(stdout, stderr io.Writer) error {
 			logger := slog.New(slog.DiscardHandler)
 			return smartvet.NewRunner(smartvet.Options{
-				VetToolPath: defaultVetToolPath,
-				CacheDir:    defaultVetCacheDir,
-				RootDir:     ".",
+				VetToolPath:  defaultVetToolPath,
+				CacheDir:     defaultVetCacheDir,
+				RootDir:      ".",
+				DisableCache: r.opts.NoSmartCache,
 			}, logger, stdout, stderr).Run()
 		})
 	case taskGolangCILint:
 		return runWithBuffer(func(stdout, stderr io.Writer) error {
 			return smartgolangci.NewRunner(smartgolangci.Options{
-				CacheFile: defaultGolangCICacheFile,
+				CacheFile:    defaultGolangCICacheFile,
+				DisableCache: r.opts.NoSmartCache,
 			}, stdout, stderr).Run(ctx)
 		})
 	case taskDeadcodeSmart:
 		return runWithBuffer(func(stdout, stderr io.Writer) error {
 			return smartdeadcode.NewRunner(smartdeadcode.Options{
-				CacheFile: defaultDeadcodeCacheFile,
+				CacheFile:    defaultDeadcodeCacheFile,
+				DisableCache: r.opts.NoSmartCache,
 			}, stdout, stderr).Run(ctx)
 		})
 	case taskWireSmart:
 		return runWithBuffer(func(stdout, stderr io.Writer) error {
 			return smartwire.NewRunner(smartwire.Options{
-				Binary:    defaultWireBinary,
-				CacheFile: defaultWireCacheFile,
+				Binary:       defaultWireBinary,
+				CacheFile:    defaultWireCacheFile,
+				DisableCache: r.opts.NoSmartCache,
 			}, stdout, stderr).Run(ctx)
 		})
 	default:

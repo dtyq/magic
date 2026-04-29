@@ -20,6 +20,8 @@ import (
 	"magic/internal/constants"
 	fragmodel "magic/internal/domain/knowledge/fragment/model"
 	domainrebuild "magic/internal/domain/knowledge/rebuild"
+	shared "magic/internal/domain/knowledge/shared"
+	sharedroute "magic/internal/domain/knowledge/shared/route"
 	"magic/internal/infrastructure/logging"
 )
 
@@ -34,7 +36,7 @@ const testEmbeddingModel = "text-embedding-3-small"
 const testFailureDocumentCode = "DOC1"
 
 type mockStore struct {
-	meta        domainrebuild.CollectionMeta
+	meta        sharedroute.CollectionMeta
 	resetStats  domainrebuild.MigrationStats
 	updateStats domainrebuild.MigrationStats
 	batches     [][]domainrebuild.DocumentTask
@@ -45,7 +47,7 @@ type mockStore struct {
 	resetScopes  []domainrebuild.Scope
 	updateScopes []domainrebuild.Scope
 	listScopes   []domainrebuild.Scope
-	upsertedMeta []domainrebuild.CollectionMeta
+	upsertedMeta []sharedroute.CollectionMeta
 }
 
 func (m *mockStore) ResetSyncStatus(_ context.Context, scope domainrebuild.Scope) (domainrebuild.MigrationStats, error) {
@@ -58,11 +60,11 @@ func (m *mockStore) UpdateModel(_ context.Context, scope domainrebuild.Scope, _ 
 	return m.updateStats, nil
 }
 
-func (m *mockStore) GetCollectionMeta(context.Context) (domainrebuild.CollectionMeta, error) {
+func (m *mockStore) GetCollectionMeta(context.Context) (sharedroute.CollectionMeta, error) {
 	return m.meta, nil
 }
 
-func (m *mockStore) UpsertCollectionMeta(_ context.Context, meta domainrebuild.CollectionMeta) error {
+func (m *mockStore) UpsertCollectionMeta(_ context.Context, meta sharedroute.CollectionMeta) error {
 	m.upsertedMeta = append(m.upsertedMeta, meta)
 	return nil
 }
@@ -148,13 +150,15 @@ func (m *mockCoordinator) IncrMetric(_ context.Context, _, _ string, _ int64) er
 }
 
 type mockCollections struct {
-	mu          sync.Mutex
-	info        map[string]int64
-	points      map[string]int64
-	deleteErr   map[string]error
-	deleted     []string
-	legacy      map[string]bool
-	aliasTarget map[string]string
+	mu                  sync.Mutex
+	info                map[string]int64
+	points              map[string]int64
+	deleteErr           map[string]error
+	deleted             []string
+	legacy              map[string]bool
+	aliasTarget         map[string]string
+	ensuredPayloadSpecs map[string][]shared.PayloadIndexSpec
+	payloadSchemaKeys   map[string][]string
 }
 
 func (m *mockCollections) CreateCollection(_ context.Context, name string, vectorSize int64) error {
@@ -196,7 +200,27 @@ func (m *mockCollections) GetCollectionInfo(_ context.Context, name string) (*do
 		Points:              points,
 		HasNamedDenseVector: !legacy,
 		HasSparseVector:     !legacy,
+		PayloadSchemaKeys:   append([]string(nil), m.payloadSchemaKeys[name]...),
 	}, nil
+}
+
+func (m *mockCollections) EnsurePayloadIndexes(_ context.Context, name string, specs []shared.PayloadIndexSpec) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	if m.ensuredPayloadSpecs == nil {
+		m.ensuredPayloadSpecs = map[string][]shared.PayloadIndexSpec{}
+	}
+	if m.payloadSchemaKeys == nil {
+		m.payloadSchemaKeys = map[string][]string{}
+	}
+	clonedSpecs := append([]shared.PayloadIndexSpec(nil), specs...)
+	m.ensuredPayloadSpecs[name] = clonedSpecs
+	keys := make([]string, 0, len(clonedSpecs))
+	for _, spec := range clonedSpecs {
+		keys = append(keys, spec.FieldName)
+	}
+	m.payloadSchemaKeys[name] = keys
+	return nil
 }
 
 func (m *mockCollections) GetAliasTarget(_ context.Context, alias string) (string, bool, error) {
@@ -386,8 +410,9 @@ func parseJSONLogRecords(t *testing.T, output string) []map[string]any {
 }
 
 func findLogRecordByMessage(records []map[string]any, message string) map[string]any {
+	prefixedMessage := logging.PrefixEngineException(message)
 	for _, record := range records {
-		if msg, _ := record["msg"].(string); msg == message {
+		if msg, _ := record["msg"].(string); msg == message || msg == prefixedMessage {
 			return record
 		}
 	}
@@ -397,7 +422,7 @@ func findLogRecordByMessage(records []map[string]any, message string) map[string
 func TestRunnerAutoSelectInplaceByMetaModel(t *testing.T) {
 	t.Parallel()
 	store := &mockStore{
-		meta: domainrebuild.CollectionMeta{
+		meta: sharedroute.CollectionMeta{
 			Exists:                 true,
 			CollectionName:         constants.KnowledgeBaseCollectionName,
 			PhysicalCollectionName: apprebuild.FixedActiveCollectionForTest,
@@ -445,6 +470,9 @@ func TestRunnerAutoSelectInplaceByMetaModel(t *testing.T) {
 	if len(store.upsertedMeta) != 1 || store.upsertedMeta[0].Model != testEmbeddingModel {
 		t.Fatalf("unexpected upserted meta: %#v", store.upsertedMeta)
 	}
+	if len(collections.ensuredPayloadSpecs[apprebuild.FixedActiveCollectionForTest]) == 0 {
+		t.Fatalf("expected inplace active collection to ensure payload indexes, got %#v", collections.ensuredPayloadSpecs)
+	}
 	if result.LegacyPhysicalCollectionDetected {
 		t.Fatalf("expected fixed physical collection not to be treated as legacy, got %+v", result)
 	}
@@ -453,7 +481,7 @@ func TestRunnerAutoSelectInplaceByMetaModel(t *testing.T) {
 func TestRunnerAutoUsesCollectionMetaModelWhenTargetModelOmitted(t *testing.T) {
 	t.Parallel()
 	store := &mockStore{
-		meta: domainrebuild.CollectionMeta{
+		meta: sharedroute.CollectionMeta{
 			Exists:                 true,
 			CollectionName:         constants.KnowledgeBaseCollectionName,
 			PhysicalCollectionName: apprebuild.FixedActiveCollectionForTest,
@@ -493,7 +521,7 @@ func TestRunnerAutoUsesCollectionMetaModelWhenTargetModelOmitted(t *testing.T) {
 func TestRunnerInplaceRequestNormalizesLegacyPhysicalCollection(t *testing.T) {
 	t.Parallel()
 	store := &mockStore{
-		meta: domainrebuild.CollectionMeta{
+		meta: sharedroute.CollectionMeta{
 			Exists:                 true,
 			CollectionName:         constants.KnowledgeBaseCollectionName,
 			PhysicalCollectionName: "magic_knowledge_r_legacy",
@@ -554,7 +582,7 @@ func TestRunnerInplaceRequestNormalizesLegacyPhysicalCollection(t *testing.T) {
 func TestRunnerAutoSelectBlueGreenWhenActiveCollectionSchemaLegacy(t *testing.T) {
 	t.Parallel()
 	store := &mockStore{
-		meta: domainrebuild.CollectionMeta{Exists: true, CollectionName: constants.KnowledgeBaseCollectionName, Model: testEmbeddingModel, VectorDimension: 1536},
+		meta: sharedroute.CollectionMeta{Exists: true, CollectionName: constants.KnowledgeBaseCollectionName, Model: testEmbeddingModel, VectorDimension: 1536},
 		batches: [][]domainrebuild.DocumentTask{
 			{{ID: 1, OrganizationCode: "ORG1", KnowledgeBaseCode: "KB1", DocumentCode: "DOC1"}},
 		},
@@ -603,7 +631,7 @@ func TestRunnerAutoSelectBlueGreenDeleteFailureKeepsSuccess(t *testing.T) {
 	t.Parallel()
 	const active = "magic_knowledge_v1"
 	store := &mockStore{
-		meta: domainrebuild.CollectionMeta{Exists: true, CollectionName: active, Model: testEmbeddingModel, VectorDimension: 1536},
+		meta: sharedroute.CollectionMeta{Exists: true, CollectionName: active, Model: testEmbeddingModel, VectorDimension: 1536},
 		batches: [][]domainrebuild.DocumentTask{
 			{{ID: 1, OrganizationCode: "ORG1", KnowledgeBaseCode: "KB1", DocumentCode: "DOC1"}},
 		},
@@ -653,7 +681,7 @@ func TestRunnerInplaceDeletesLegacyLogicalCollectionBeforeEnsuringAlias(t *testi
 	t.Parallel()
 
 	store := &mockStore{
-		meta: domainrebuild.CollectionMeta{
+		meta: sharedroute.CollectionMeta{
 			Exists:                 true,
 			CollectionName:         constants.KnowledgeBaseCollectionName,
 			PhysicalCollectionName: apprebuild.FixedActiveCollectionForTest,
@@ -699,7 +727,7 @@ func TestRunnerInplaceDeletesLegacyLogicalCollectionBeforeEnsuringAlias(t *testi
 func TestRunnerBlueGreenUsesRequestTargetModelInsteadOfDocumentHistoryModel(t *testing.T) {
 	t.Parallel()
 	store := &mockStore{
-		meta: domainrebuild.CollectionMeta{Exists: true, CollectionName: constants.KnowledgeBaseCollectionName, Model: testEmbeddingModel, VectorDimension: 1536},
+		meta: sharedroute.CollectionMeta{Exists: true, CollectionName: constants.KnowledgeBaseCollectionName, Model: testEmbeddingModel, VectorDimension: 1536},
 		batches: [][]domainrebuild.DocumentTask{
 			{{ID: 1, OrganizationCode: "ORG1", KnowledgeBaseCode: "KB1", DocumentCode: "DOC1", EmbeddingModel: testEmbeddingModel}},
 		},
@@ -736,7 +764,7 @@ func TestRunnerBlueGreenUsesRequestTargetModelInsteadOfDocumentHistoryModel(t *t
 func TestRunnerBootstrapEscalatesOrganizationScope(t *testing.T) {
 	t.Parallel()
 	store := &mockStore{
-		meta: domainrebuild.CollectionMeta{},
+		meta: sharedroute.CollectionMeta{},
 		batches: [][]domainrebuild.DocumentTask{
 			{{ID: 1, OrganizationCode: "ORG1", KnowledgeBaseCode: "KB1", DocumentCode: "DOC1"}},
 		},
@@ -789,7 +817,7 @@ func TestRunnerBootstrapEscalatesOrganizationScope(t *testing.T) {
 
 func TestRunnerInplaceRejectsTargetDimensionMismatch(t *testing.T) {
 	t.Parallel()
-	store := &mockStore{meta: domainrebuild.CollectionMeta{
+	store := &mockStore{meta: sharedroute.CollectionMeta{
 		Exists:                 true,
 		CollectionName:         constants.KnowledgeBaseCollectionName,
 		PhysicalCollectionName: apprebuild.FixedActiveCollectionForTest,
@@ -818,7 +846,7 @@ func TestRunnerInplaceRejectsTargetDimensionMismatch(t *testing.T) {
 func TestRunnerBlueGreenResolvesDimensionWhenTargetDimensionMissing(t *testing.T) {
 	t.Parallel()
 	store := &mockStore{
-		meta: domainrebuild.CollectionMeta{Exists: true, CollectionName: constants.KnowledgeBaseCollectionName, Model: testEmbeddingModel, VectorDimension: 1536},
+		meta: sharedroute.CollectionMeta{Exists: true, CollectionName: constants.KnowledgeBaseCollectionName, Model: testEmbeddingModel, VectorDimension: 1536},
 		batches: [][]domainrebuild.DocumentTask{
 			{{ID: 1, OrganizationCode: "ORG1", KnowledgeBaseCode: "KB1", DocumentCode: "DOC1"}},
 		},
@@ -844,12 +872,15 @@ func TestRunnerBlueGreenResolvesDimensionWhenTargetDimensionMissing(t *testing.T
 	if collections.info[result.ShadowCollection] != 3072 {
 		t.Fatalf("expected target collection dimension 3072, got map %#v", collections.info)
 	}
+	if len(collections.ensuredPayloadSpecs[result.ShadowCollection]) == 0 {
+		t.Fatalf("expected bluegreen shadow collection to ensure payload indexes, got %#v", collections.ensuredPayloadSpecs)
+	}
 }
 
 func TestRunnerBlueGreenRotatesBackToFixedActiveWhenAliasCurrentlyUsesShadow(t *testing.T) {
 	t.Parallel()
 	store := &mockStore{
-		meta: domainrebuild.CollectionMeta{
+		meta: sharedroute.CollectionMeta{
 			Exists:                 true,
 			CollectionName:         constants.KnowledgeBaseCollectionName,
 			PhysicalCollectionName: apprebuild.FixedShadowCollectionForTest,
@@ -897,7 +928,7 @@ func TestRunnerBlueGreenRotatesBackToFixedActiveWhenAliasCurrentlyUsesShadow(t *
 func TestRunnerBlueGreenOrganizationScopeAllowsPartialFailures(t *testing.T) {
 	t.Parallel()
 	store := &mockStore{
-		meta: domainrebuild.CollectionMeta{Exists: true, CollectionName: constants.KnowledgeBaseCollectionName, Model: testEmbeddingModel, VectorDimension: 1536},
+		meta: sharedroute.CollectionMeta{Exists: true, CollectionName: constants.KnowledgeBaseCollectionName, Model: testEmbeddingModel, VectorDimension: 1536},
 		batches: [][]domainrebuild.DocumentTask{
 			{
 				{ID: 1, OrganizationCode: "ORG1", KnowledgeBaseCode: "KB1", DocumentCode: "DOC1"},
@@ -942,7 +973,7 @@ func TestRunnerBlueGreenOrganizationScopeAllowsPartialFailures(t *testing.T) {
 func TestRunnerLogsFinalDocumentFailuresAndWritesFailureReportInLocalDev(t *testing.T) {
 	t.Parallel()
 	store := &mockStore{
-		meta: domainrebuild.CollectionMeta{Exists: true, CollectionName: constants.KnowledgeBaseCollectionName, Model: testEmbeddingModel, VectorDimension: 1536},
+		meta: sharedroute.CollectionMeta{Exists: true, CollectionName: constants.KnowledgeBaseCollectionName, Model: testEmbeddingModel, VectorDimension: 1536},
 		batches: [][]domainrebuild.DocumentTask{
 			{
 				{ID: 1, OrganizationCode: "ORG1", KnowledgeBaseCode: "KB1", DocumentCode: "DOC1"},
@@ -1018,7 +1049,7 @@ func TestRunnerLogsFinalDocumentFailuresAndWritesFailureReportInLocalDev(t *test
 func TestRunnerDoesNotWriteFailureReportOutsideLocalDev(t *testing.T) {
 	t.Parallel()
 	store := &mockStore{
-		meta: domainrebuild.CollectionMeta{Exists: true, CollectionName: constants.KnowledgeBaseCollectionName, Model: testEmbeddingModel, VectorDimension: 1536},
+		meta: sharedroute.CollectionMeta{Exists: true, CollectionName: constants.KnowledgeBaseCollectionName, Model: testEmbeddingModel, VectorDimension: 1536},
 		batches: [][]domainrebuild.DocumentTask{
 			{
 				{ID: 1, OrganizationCode: "ORG1", KnowledgeBaseCode: "KB1", DocumentCode: testFailureDocumentCode},
@@ -1073,7 +1104,7 @@ func TestRunnerDoesNotWriteFailureReportOutsideLocalDev(t *testing.T) {
 func TestRunnerBlueGreenAllScopeBlocksCutoverOnDocumentFailures(t *testing.T) {
 	t.Parallel()
 	store := &mockStore{
-		meta: domainrebuild.CollectionMeta{Exists: true, CollectionName: constants.KnowledgeBaseCollectionName, Model: testEmbeddingModel, VectorDimension: 1536},
+		meta: sharedroute.CollectionMeta{Exists: true, CollectionName: constants.KnowledgeBaseCollectionName, Model: testEmbeddingModel, VectorDimension: 1536},
 		batches: [][]domainrebuild.DocumentTask{
 			{{ID: 1, OrganizationCode: "ORG1", KnowledgeBaseCode: "KB1", DocumentCode: testFailureDocumentCode}},
 		},
@@ -1123,7 +1154,7 @@ func TestRunnerBlueGreenAllScopeBlocksCutoverOnDocumentFailures(t *testing.T) {
 func TestRunnerDocumentScopeWithoutDocumentsFails(t *testing.T) {
 	t.Parallel()
 	store := &mockStore{
-		meta: domainrebuild.CollectionMeta{Exists: true, CollectionName: constants.KnowledgeBaseCollectionName, Model: testEmbeddingModel, VectorDimension: 1536},
+		meta: sharedroute.CollectionMeta{Exists: true, CollectionName: constants.KnowledgeBaseCollectionName, Model: testEmbeddingModel, VectorDimension: 1536},
 	}
 	coordinator := &mockCoordinator{}
 	collections := &mockCollections{info: map[string]int64{constants.KnowledgeBaseCollectionName: 1536}}
@@ -1154,7 +1185,7 @@ func TestRunnerDocumentScopeWithoutDocumentsFails(t *testing.T) {
 func TestRunnerKnowledgeBaseScopeWithoutDocumentsFails(t *testing.T) {
 	t.Parallel()
 	store := &mockStore{
-		meta: domainrebuild.CollectionMeta{Exists: true, CollectionName: constants.KnowledgeBaseCollectionName, Model: testEmbeddingModel, VectorDimension: 1536},
+		meta: sharedroute.CollectionMeta{Exists: true, CollectionName: constants.KnowledgeBaseCollectionName, Model: testEmbeddingModel, VectorDimension: 1536},
 	}
 	coordinator := &mockCoordinator{}
 	collections := &mockCollections{info: map[string]int64{constants.KnowledgeBaseCollectionName: 1536}}
@@ -1184,7 +1215,7 @@ func TestRunnerKnowledgeBaseScopeWithoutDocumentsFails(t *testing.T) {
 func TestRunnerKnowledgeBaseScopeResyncsAllKnowledgeBaseDocuments(t *testing.T) {
 	t.Parallel()
 	store := &mockStore{
-		meta: domainrebuild.CollectionMeta{Exists: true, CollectionName: constants.KnowledgeBaseCollectionName, Model: testEmbeddingModel, VectorDimension: 1536},
+		meta: sharedroute.CollectionMeta{Exists: true, CollectionName: constants.KnowledgeBaseCollectionName, Model: testEmbeddingModel, VectorDimension: 1536},
 		batches: [][]domainrebuild.DocumentTask{
 			{
 				{ID: 1, OrganizationCode: "ORG1", KnowledgeBaseCode: "KB1", DocumentCode: "DOC1"},
@@ -1231,7 +1262,7 @@ func TestRunnerKnowledgeBaseScopeResyncsAllKnowledgeBaseDocuments(t *testing.T) 
 func TestRunnerResyncListErrorAlwaysBlocksCutover(t *testing.T) {
 	t.Parallel()
 	store := &mockStore{
-		meta:        domainrebuild.CollectionMeta{Exists: true, CollectionName: constants.KnowledgeBaseCollectionName, Model: testEmbeddingModel, VectorDimension: 1536},
+		meta:        sharedroute.CollectionMeta{Exists: true, CollectionName: constants.KnowledgeBaseCollectionName, Model: testEmbeddingModel, VectorDimension: 1536},
 		listErr:     errListFailed,
 		listErrCall: 0,
 	}
@@ -1263,7 +1294,7 @@ func TestRunnerAllowsSameKnowledgeBaseAcrossWorkers(t *testing.T) {
 	t.Parallel()
 	synctest.Test(t, func(t *testing.T) {
 		store := &mockStore{
-			meta: domainrebuild.CollectionMeta{Exists: true, CollectionName: constants.KnowledgeBaseCollectionName, Model: testEmbeddingModel, VectorDimension: 1536},
+			meta: sharedroute.CollectionMeta{Exists: true, CollectionName: constants.KnowledgeBaseCollectionName, Model: testEmbeddingModel, VectorDimension: 1536},
 			batches: [][]domainrebuild.DocumentTask{
 				{
 					{ID: 1, OrganizationCode: "ORG1", KnowledgeBaseCode: "KB1", DocumentCode: "DOC1"},

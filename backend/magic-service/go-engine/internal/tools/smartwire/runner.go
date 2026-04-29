@@ -35,9 +35,10 @@ const (
 
 // Options configures the incremental Wire runner.
 type Options struct {
-	RootDir   string
-	CacheFile string
-	Binary    string
+	RootDir      string
+	CacheFile    string
+	Binary       string
+	DisableCache bool
 }
 
 // Runner executes Wire validation only when tracked inputs changed.
@@ -106,6 +107,9 @@ func (r *Runner) Run(ctx context.Context) error {
 	if err != nil {
 		return fmt.Errorf("wire not found: %w; install it with `make dev-tools`", err)
 	}
+	if r.opts.DisableCache {
+		return r.executeWithoutCache(ctx, binaryPath)
+	}
 
 	toolHash, err := r.fileHash(binaryPath)
 	if err != nil {
@@ -145,6 +149,23 @@ func (r *Runner) Run(ctx context.Context) error {
 	}
 
 	return r.executeAndPersist(ctx, binaryPath, currentState)
+}
+
+func (r *Runner) executeWithoutCache(ctx context.Context, binaryPath string) error {
+	checkOutput, checkErr := r.runCheck(ctx, binaryPath)
+	trimmedCheckOutput := strings.TrimSpace(checkOutput)
+	if checkErr != nil {
+		return r.reportRunFailure(trimmedCheckOutput, fmt.Errorf("wire check failed: %w", checkErr))
+	}
+
+	diffOutput, diffErr := r.runDiff(ctx, binaryPath)
+	trimmedDiffOutput := strings.TrimSpace(diffOutput)
+	if diffErr != nil {
+		return r.reportRunFailure(trimmedDiffOutput, fmt.Errorf("wire diff failed: %w", diffErr))
+	}
+
+	_, _ = fmt.Fprintln(r.stdout, "✓ wire checks passed")
+	return nil
 }
 
 func loadTrackedFiles(root string) ([]smartcache.TrackedFile, error) {

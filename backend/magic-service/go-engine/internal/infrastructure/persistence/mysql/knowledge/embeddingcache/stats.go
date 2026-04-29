@@ -5,7 +5,6 @@ import (
 	"fmt"
 
 	"magic/internal/domain/knowledge/embedding"
-	mysqlsqlc "magic/internal/infrastructure/persistence/mysql/sqlc"
 	"magic/pkg/convert"
 )
 
@@ -91,69 +90,4 @@ func (repo *Repository) fillStorageEstimate(ctx context.Context, stats *embeddin
 	}
 	stats.StorageSizeBytes = estimate
 	return nil
-}
-
-// GetCachesByModel 根据模型名称获取缓存列表
-func (repo *Repository) GetCachesByModel(ctx context.Context, model string, offset, limit int) ([]*embedding.Cache, error) {
-	limitInt32, err := convert.SafeIntToInt32(limit, "limit")
-	if err != nil {
-		return nil, fmt.Errorf("invalid limit: %w", err)
-	}
-	offsetInt32, err := convert.SafeIntToInt32(offset, "offset")
-	if err != nil {
-		return nil, fmt.Errorf("invalid offset: %w", err)
-	}
-
-	sqlcCaches, err := repo.client.Q().GetCachesByModel(ctx, mysqlsqlc.GetCachesByModelParams{
-		EmbeddingModel: model,
-		Limit:          limitInt32,
-		Offset:         offsetInt32,
-	})
-	if err != nil {
-		return nil, fmt.Errorf("failed to get caches by model: %w", err)
-	}
-
-	caches := make([]*embedding.Cache, 0, len(sqlcCaches))
-	for _, sqlcCache := range sqlcCaches {
-		cache, err := sqlcCacheToEntity(sqlcCache)
-		if err != nil {
-			return nil, fmt.Errorf("failed to convert row to entity: %w", err)
-		}
-		caches = append(caches, cache)
-	}
-
-	return caches, nil
-}
-
-// CountByModel 统计指定模型的缓存数量
-func (repo *Repository) CountByModel(ctx context.Context, model string) (int64, error) {
-	count, err := repo.client.Q().CountByModel(ctx, model)
-	if err != nil {
-		return 0, fmt.Errorf("failed to count caches by model: %w", err)
-	}
-	return count, nil
-}
-
-// GetLeastAccessed 获取访问最少的缓存
-func (repo *Repository) GetLeastAccessed(ctx context.Context, limit int) ([]*embedding.Cache, error) {
-	limitInt32, err := convert.SafeIntToInt32(limit, "limit")
-	if err != nil {
-		return nil, fmt.Errorf("invalid limit: %w", err)
-	}
-
-	sqlcCaches, err := repo.client.Q().GetLeastAccessed(ctx, limitInt32)
-	if err != nil {
-		return nil, fmt.Errorf("failed to get least accessed caches: %w", err)
-	}
-
-	caches := make([]*embedding.Cache, 0, len(sqlcCaches))
-	for _, sqlcCache := range sqlcCaches {
-		cache, err := sqlcCacheToEntity(sqlcCache)
-		if err != nil {
-			return nil, fmt.Errorf("failed to convert row to entity: %w", err)
-		}
-		caches = append(caches, cache)
-	}
-
-	return caches, nil
 }

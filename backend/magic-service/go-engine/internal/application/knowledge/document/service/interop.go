@@ -9,9 +9,11 @@ import (
 	docdto "magic/internal/application/knowledge/document/dto"
 	confighelper "magic/internal/application/knowledge/helper/config"
 	docfilehelper "magic/internal/application/knowledge/helper/docfile"
+	docentity "magic/internal/domain/knowledge/document/entity"
 	documentdomain "magic/internal/domain/knowledge/document/service"
 	documentsplitter "magic/internal/domain/knowledge/document/splitter"
-	knowledgebasedomain "magic/internal/domain/knowledge/knowledgebase/service"
+	kbentity "magic/internal/domain/knowledge/knowledgebase/entity"
+	"magic/internal/pkg/projectfile"
 	"magic/internal/pkg/timeformat"
 )
 
@@ -31,7 +33,7 @@ type ManagedDocumentDTO struct {
 	SourceItemID      int64
 	ProjectID         int64
 	ProjectFileID     int64
-	DocumentFile      *documentdomain.File
+	DocumentFile      *docentity.File
 }
 
 // ManagedDocumentAppService 承接知识库侧托管文档协作流程。
@@ -146,7 +148,7 @@ func (s *DocumentAppService) SplitParsedDocumentToChunks(
 }
 
 // EntityToDTO 将文档实体映射为查询 DTO。
-func EntityToDTO(e *documentdomain.KnowledgeBaseDocument) *docdto.DocumentDTO {
+func EntityToDTO(e *docentity.KnowledgeBaseDocument) *docdto.DocumentDTO {
 	if e == nil {
 		return nil
 	}
@@ -186,15 +188,18 @@ func EntityToDTO(e *documentdomain.KnowledgeBaseDocument) *docdto.DocumentDTO {
 	if e.DocumentFile != nil {
 		documentFileKey := resolveDocumentFileDTOKey(e.DocumentFile)
 		dto.DocumentFile = &docfilehelper.DocumentFileDTO{
-			Type:            e.DocumentFile.Type,
-			Name:            e.DocumentFile.Name,
-			URL:             e.DocumentFile.URL,
-			Key:             documentFileKey,
-			Size:            e.DocumentFile.Size,
-			Extension:       e.DocumentFile.Extension,
-			ThirdID:         e.DocumentFile.ThirdID,
-			SourceType:      e.DocumentFile.SourceType,
-			KnowledgeBaseID: e.DocumentFile.KnowledgeBaseID,
+			Type:             e.DocumentFile.Type,
+			Name:             e.DocumentFile.Name,
+			URL:              e.DocumentFile.URL,
+			Key:              documentFileKey,
+			Size:             e.DocumentFile.Size,
+			Extension:        e.DocumentFile.Extension,
+			ThirdID:          e.DocumentFile.ThirdID,
+			SourceType:       e.DocumentFile.SourceType,
+			ThirdFileType:    e.DocumentFile.ThirdFileType,
+			ProjectFileID:    e.ProjectFileID,
+			RelativeFilePath: resolveDocumentFileDTORelativePath(e.ProjectFileID, documentFileKey),
+			KnowledgeBaseID:  e.DocumentFile.KnowledgeBaseID,
 		}
 	}
 
@@ -206,7 +211,7 @@ func EntityToDTO(e *documentdomain.KnowledgeBaseDocument) *docdto.DocumentDTO {
 	return dto
 }
 
-func resolveDocumentFileDTOKey(file *documentdomain.File) string {
+func resolveDocumentFileDTOKey(file *docentity.File) string {
 	if file == nil {
 		return ""
 	}
@@ -221,7 +226,19 @@ func resolveDocumentFileDTOKey(file *documentdomain.File) string {
 	return url
 }
 
-func managedDocumentsToDTOs(docs []*documentdomain.KnowledgeBaseDocument) []*ManagedDocumentDTO {
+func resolveDocumentFileDTORelativePath(projectFileID int64, fileKey string) string {
+	if projectFileID <= 0 {
+		return ""
+	}
+
+	relativePath := strings.TrimSpace(projectfile.InferRelativeFilePath(fileKey))
+	if relativePath == "" || relativePath == strings.TrimSpace(fileKey) {
+		return ""
+	}
+	return relativePath
+}
+
+func managedDocumentsToDTOs(docs []*docentity.KnowledgeBaseDocument) []*ManagedDocumentDTO {
 	results := make([]*ManagedDocumentDTO, 0, len(docs))
 	for _, doc := range docs {
 		if doc == nil {
@@ -250,14 +267,19 @@ func ApplyEffectiveModel(dto *docdto.DocumentDTO, effectiveModel string) *docdto
 	return dto
 }
 
-// ApplyKnowledgeBaseType 将知识库产品线回填到文档 DTO。
-func ApplyKnowledgeBaseType(
+// ApplyKnowledgeBaseContext 将知识库产品线与来源类型回填到文档 DTO。
+func ApplyKnowledgeBaseContext(
 	dto *docdto.DocumentDTO,
-	knowledgeBaseType knowledgebasedomain.Type,
+	knowledgeBaseType kbentity.Type,
+	sourceType *int,
 ) *docdto.DocumentDTO {
 	if dto == nil {
 		return nil
 	}
-	dto.KnowledgeBaseType = string(knowledgebasedomain.NormalizeKnowledgeBaseTypeOrDefault(knowledgeBaseType))
+	dto.KnowledgeBaseType = string(kbentity.NormalizeKnowledgeBaseTypeOrDefault(knowledgeBaseType))
+	if sourceType != nil {
+		cloned := *sourceType
+		dto.SourceType = &cloned
+	}
 	return dto
 }

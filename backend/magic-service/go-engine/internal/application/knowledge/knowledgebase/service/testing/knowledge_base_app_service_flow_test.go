@@ -15,15 +15,20 @@ import (
 	kbdto "magic/internal/application/knowledge/knowledgebase/dto"
 	service "magic/internal/application/knowledge/knowledgebase/service"
 	autoloadcfg "magic/internal/config/autoload"
+	kbaccess "magic/internal/domain/knowledge/access/service"
+	docentity "magic/internal/domain/knowledge/document/entity"
 	documentdomain "magic/internal/domain/knowledge/document/service"
-	knowledgebasedomain "magic/internal/domain/knowledge/knowledgebase/service"
+	kbentity "magic/internal/domain/knowledge/knowledgebase/entity"
+	kbrepository "magic/internal/domain/knowledge/knowledgebase/repository"
 	"magic/internal/domain/knowledge/shared"
 	sharedroute "magic/internal/domain/knowledge/shared/route"
-	sourcebindingdomain "magic/internal/domain/knowledge/sourcebinding/service"
+	sourcebindingdomain "magic/internal/domain/knowledge/sourcebinding/entity"
+	sourcebindingrepository "magic/internal/domain/knowledge/sourcebinding/repository"
 	taskfiledomain "magic/internal/domain/taskfile/service"
 	"magic/internal/infrastructure/logging"
 	"magic/internal/pkg/projectfile"
 	thirdfilemappingpkg "magic/internal/pkg/thirdfilemapping"
+	"magic/internal/pkg/thirdplatform"
 )
 
 const (
@@ -39,6 +44,7 @@ const (
 
 var (
 	errCreateDocumentFailed     = errors.New("create document failed")
+	errDestroyDocumentFailed    = errors.New("destroy document failed")
 	errKnowledgeBaseLookupTest  = errors.New("knowledge base lookup failed")
 	errVectorDeleteFailed       = errors.New("vector delete failed")
 	errDestroyCoordinatorFailed = errors.New("destroy coordinator failed")
@@ -46,20 +52,25 @@ var (
 	errOwnerGrantFailed         = errors.New("owner grant failed")
 	errBindingLookupFailed      = errors.New("binding lookup failed")
 	errTeamshareFilePermission  = errors.New("PHP RPC request failed: code=500, message=组织对但是没有文件权限，你需要申请文件权限")
+	errTaskFileReaderBoom       = errors.New("task file reader boom")
 )
 
 func TestKnowledgeBaseAppServiceCreateSchedulesDocumentSync(t *testing.T) {
 	t.Parallel()
 
-	domain := &recordingKnowledgeBaseDomainService{effectiveModel: effectiveEmbeddingModel}
+	events := []string{}
+	domain := &recordingKnowledgeBaseDomainService{effectiveModel: effectiveEmbeddingModel, events: &events}
 	docManager := &recordingKnowledgeBaseDocumentManager{
 		createResults: []*service.ManagedDocument{
 			{Code: "DOC-1"},
 			{Code: "DOC-2"},
 		},
+		events: &events,
 	}
+	ownerGrantPort := &recordingKnowledgeBaseOwnerGrantPort{events: &events}
 	app := service.NewKnowledgeBaseAppServiceForTest(t, domain, docManager, nil, nil, effectiveEmbeddingModel)
 	app.SetSourceBindingRepository(&fakeSourceBindingRepository{})
+	app.SetKnowledgeBasePermissionWriter(ownerGrantPort)
 
 	file := &docfilehelper.DocumentFileDTO{
 		Name:       "doc-1.md",
@@ -86,6 +97,19 @@ func TestKnowledgeBaseAppServiceCreateSchedulesDocumentSync(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Create returned error: %v", err)
 	}
+	assertCreateSchedulesDocumentSyncResult(t, result, domain, docManager, file, events)
+}
+
+func assertCreateSchedulesDocumentSyncResult(
+	t *testing.T,
+	result *kbdto.KnowledgeBaseDTO,
+	domain *recordingKnowledgeBaseDomainService,
+	docManager *recordingKnowledgeBaseDocumentManager,
+	file *docfilehelper.DocumentFileDTO,
+	events []string,
+) {
+	t.Helper()
+
 	if result == nil {
 		t.Fatal("expected result not nil")
 	}
@@ -112,6 +136,17 @@ func TestKnowledgeBaseAppServiceCreateSchedulesDocumentSync(t *testing.T) {
 	}
 	if len(docManager.syncInputs) != 2 {
 		t.Fatalf("expected 2 scheduled syncs, got %d", len(docManager.syncInputs))
+	}
+	expectedEvents := []string{
+		"kb-save",
+		"owner-grant",
+		"doc-create:doc-1.md",
+		"doc-create:doc-2.md",
+		"doc-sync:DOC-1",
+		"doc-sync:DOC-2",
+	}
+	if !reflect.DeepEqual(events, expectedEvents) {
+		t.Fatalf("expected create call sequence %#v, got %#v", expectedEvents, events)
 	}
 	if docManager.createInputs[0].KnowledgeBaseCode != domain.savedKB.Code {
 		t.Fatalf("expected document create to use generated kb code %q, got %q", domain.savedKB.Code, docManager.createInputs[0].KnowledgeBaseCode)
@@ -240,15 +275,16 @@ func TestKnowledgeBaseAppServiceUpdateUsesExistingAgentBindings(t *testing.T) {
 	t.Parallel()
 
 	sourceType := 1
+	inputSourceType := int(kbentity.SourceTypeEnterpriseWiki)
 	domain := &recordingKnowledgeBaseDomainService{
 		effectiveModel: effectiveEmbeddingModel,
-		showKB: &knowledgebasedomain.KnowledgeBase{
+		showKB: &kbentity.KnowledgeBase{
 			ID:                99,
 			Code:              testAppKnowledgeBaseCode,
 			Name:              "数字员工知识库",
 			OrganizationCode:  "ORG-1",
 			SourceType:        &sourceType,
-			KnowledgeBaseType: knowledgebasedomain.KnowledgeBaseTypeDigitalEmployee,
+			KnowledgeBaseType: kbentity.KnowledgeBaseTypeDigitalEmployee,
 		},
 	}
 	app := service.NewKnowledgeBaseAppServiceForTest(t, domain, nil, nil, nil, "")
@@ -261,13 +297,16 @@ func TestKnowledgeBaseAppServiceUpdateUsesExistingAgentBindings(t *testing.T) {
 		UserID:           "user-1",
 		Code:             testAppKnowledgeBaseCode,
 		Name:             "更新名称",
-		SourceType:       &sourceType,
+		SourceType:       &inputSourceType,
 	})
 	if err != nil {
 		t.Fatalf("expected update success, got %v", err)
 	}
 	if result == nil || result.Code != testAppKnowledgeBaseCode {
 		t.Fatalf("unexpected result: %#v", result)
+	}
+	if domain.updatedKB == nil || domain.updatedKB.SourceType == nil || *domain.updatedKB.SourceType != sourceType {
+		t.Fatalf("expected source_type preserved, got %#v", domain.updatedKB)
 	}
 }
 
@@ -310,7 +349,7 @@ func TestKnowledgeBaseAppServiceCreateRollsBackViaStableDestroyWhenOwnerGrantFai
 	ownerGrantPort := &recordingKnowledgeBaseOwnerGrantPort{err: errOwnerGrantFailed}
 	app := service.NewKnowledgeBaseAppServiceForTest(t, domain, nil, nil, nil, "")
 	app.SetDestroyCoordinator(destroyCoordinator)
-	app.SetOwnerGrantPort(ownerGrantPort)
+	app.SetKnowledgeBasePermissionWriter(ownerGrantPort)
 
 	_, err := app.Create(context.Background(), &kbdto.CreateKnowledgeBaseInput{
 		OrganizationCode: "ORG-1",
@@ -371,7 +410,7 @@ func TestKnowledgeBaseAppServiceCreateWithProjectBindingsSelected(t *testing.T) 
 		},
 	}
 
-	sourceType := int(knowledgebasedomain.SourceTypeProject)
+	sourceType := int(kbentity.SourceTypeProject)
 	app := newProjectBindingCreateApp(t, domain, docManager, sourceBindingRepo, projectFileResolver)
 	_, err := app.Create(context.Background(), newProjectBindingCreateInput(&sourceType, "100", []kbdto.SourceBindingTargetInput{
 		{TargetType: sourcebindingdomain.TargetTypeFile, TargetRef: "11"},
@@ -394,6 +433,12 @@ func TestKnowledgeBaseAppServiceCreateWithProjectBindingsSelected(t *testing.T) 
 	}
 	if docManager.createInputs[0].AutoAdded || docManager.createInputs[1].AutoAdded {
 		t.Fatalf("expected selected bindings not auto-added, got %#v", docManager.createInputs)
+	}
+	if got := projectFileResolver.resolveCalls; got != 0 {
+		t.Fatalf("expected create path not to resolve project files synchronously, got %d calls", got)
+	}
+	if docManager.createInputs[0].ProjectID != 100 || docManager.createInputs[0].ProjectFileID != 11 {
+		t.Fatalf("expected first managed document to keep project identity, got %#v", docManager.createInputs[0])
 	}
 	if len(docManager.syncInputs) != 2 || docManager.syncInputs[0].BusinessParams == nil || docManager.syncInputs[0].Mode != documentdomain.SyncModeCreate {
 		t.Fatalf("expected create sync scheduling with business params, got %#v", docManager.syncInputs)
@@ -439,7 +484,7 @@ func TestKnowledgeBaseAppServiceCreateWithProjectBindingsAll(t *testing.T) {
 		},
 	}
 
-	sourceType := int(knowledgebasedomain.SourceTypeProject)
+	sourceType := int(kbentity.SourceTypeProject)
 	app := newProjectBindingCreateApp(t, domain, docManager, sourceBindingRepo, projectFileResolver)
 	_, err := app.Create(context.Background(), newProjectBindingCreateInput(&sourceType, "200", nil))
 	if err != nil {
@@ -447,6 +492,9 @@ func TestKnowledgeBaseAppServiceCreateWithProjectBindingsAll(t *testing.T) {
 	}
 	if projectFileResolver.listVisibleLeafFileIDsByProjectCalls != 1 {
 		t.Fatalf("expected one visible project file listing call, got %d", projectFileResolver.listVisibleLeafFileIDsByProjectCalls)
+	}
+	if got := projectFileResolver.resolveCalls; got != 0 {
+		t.Fatalf("expected whole-project create path not to resolve project files synchronously, got %d calls", got)
 	}
 	if len(docManager.createInputs) != 2 {
 		t.Fatalf("expected 2 managed project documents, got %d", len(docManager.createInputs))
@@ -489,7 +537,7 @@ func TestKnowledgeBaseAppServiceCreateWithProjectBindingsAllUnderHiddenRoot(t *t
 		},
 	})
 
-	sourceType := int(knowledgebasedomain.SourceTypeProject)
+	sourceType := int(kbentity.SourceTypeProject)
 	app := service.NewKnowledgeBaseAppServiceForTest(t, domain, docManager, nil, nil, effectiveEmbeddingModel)
 	app.SetSourceBindingRepository(sourceBindingRepo)
 	app.SetProjectFileResolver(projectFileResolver)
@@ -505,6 +553,9 @@ func TestKnowledgeBaseAppServiceCreateWithProjectBindingsAllUnderHiddenRoot(t *t
 	}
 	if len(docManager.createInputs) != 2 {
 		t.Fatalf("expected 2 managed project documents under hidden root, got %d", len(docManager.createInputs))
+	}
+	if got := projectFileResolver.resolveCalls; got != 0 {
+		t.Fatalf("expected hidden-root create path not to resolve project files synchronously, got %d calls", got)
 	}
 	if docManager.createInputs[0].Name != "root-visible.md" || docManager.createInputs[1].Name != "nested-visible.md" {
 		t.Fatalf("unexpected created documents: %#v", docManager.createInputs)
@@ -538,7 +589,7 @@ func TestKnowledgeBaseAppServiceCreateWithProjectFolderBindingUnderHiddenRoot(t 
 		},
 	})
 
-	sourceType := int(knowledgebasedomain.SourceTypeProject)
+	sourceType := int(kbentity.SourceTypeProject)
 	app := service.NewKnowledgeBaseAppServiceForTest(t, domain, docManager, nil, nil, effectiveEmbeddingModel)
 	app.SetSourceBindingRepository(sourceBindingRepo)
 	app.SetProjectFileResolver(projectFileResolver)
@@ -556,6 +607,9 @@ func TestKnowledgeBaseAppServiceCreateWithProjectFolderBindingUnderHiddenRoot(t 
 	}
 	if len(docManager.createInputs) != 1 {
 		t.Fatalf("expected 1 managed project document from hidden-root folder, got %d", len(docManager.createInputs))
+	}
+	if got := projectFileResolver.resolveCalls; got != 0 {
+		t.Fatalf("expected hidden-root folder create path not to resolve project files synchronously, got %d calls", got)
 	}
 	if docManager.createInputs[0].Name != "folder-visible.md" {
 		t.Fatalf("unexpected created document: %#v", docManager.createInputs[0])
@@ -602,7 +656,7 @@ func TestKnowledgeBaseAppServiceCreateWithProjectBindingsSkipsHiddenFiles(t *tes
 		},
 	}
 
-	sourceType := int(knowledgebasedomain.SourceTypeProject)
+	sourceType := int(kbentity.SourceTypeProject)
 	app := newProjectBindingCreateApp(t, domain, docManager, sourceBindingRepo, projectFileResolver)
 	_, err := app.Create(context.Background(), newProjectBindingCreateInput(&sourceType, "300", []kbdto.SourceBindingTargetInput{
 		{TargetType: sourcebindingdomain.TargetTypeFile, TargetRef: "41"},
@@ -614,11 +668,50 @@ func TestKnowledgeBaseAppServiceCreateWithProjectBindingsSkipsHiddenFiles(t *tes
 	if len(docManager.createInputs) != 1 {
 		t.Fatalf("expected only visible file to materialize, got %d", len(docManager.createInputs))
 	}
-	if projectFileResolver.isVisibleFileCalls != 2 {
-		t.Fatalf("expected explicit file targets to recheck visibility twice, got %d", projectFileResolver.isVisibleFileCalls)
+	if projectFileResolver.loadVisibleMetaCalls != 2 {
+		t.Fatalf("expected explicit file targets to load visible meta twice, got %d", projectFileResolver.loadVisibleMetaCalls)
+	}
+	if got := projectFileResolver.resolveCalls; got != 0 {
+		t.Fatalf("expected explicit file targets not to trigger synchronous resolve, got %d calls", got)
 	}
 	if docManager.createInputs[0].Name != "visible.md" {
 		t.Fatalf("expected visible file 41, got %#v", docManager.createInputs[0])
+	}
+}
+
+func TestKnowledgeBaseAppServiceCreateWithProjectBindingsSkipsUnsupportedFiles(t *testing.T) {
+	t.Parallel()
+
+	domain := &recordingKnowledgeBaseDomainService{effectiveModel: effectiveEmbeddingModel}
+	docManager := &recordingKnowledgeBaseDocumentManager{}
+	sourceBindingRepo := &recordingSourceBindingRepository{}
+	projectFileResolver := &projectFileResolverStub{
+		visibleMetasByID: map[int64]*projectfile.Meta{
+			41: {Status: projectfile.ResolveStatusActive, OrganizationCode: "ORG-1", ProjectID: 300, ProjectFileID: 41, FileName: "visible.md"},
+			42: {Status: projectfile.ResolveStatusActive, OrganizationCode: "ORG-1", ProjectID: 300, ProjectFileID: 42, FileName: "custom.svg", FileExtension: "svg"},
+		},
+	}
+
+	sourceType := int(kbentity.SourceTypeProject)
+	app := newProjectBindingCreateApp(t, domain, docManager, sourceBindingRepo, projectFileResolver)
+	_, err := app.Create(context.Background(), newProjectBindingCreateInput(&sourceType, "300", []kbdto.SourceBindingTargetInput{
+		{TargetType: sourcebindingdomain.TargetTypeFile, TargetRef: "41"},
+		{TargetType: sourcebindingdomain.TargetTypeFile, TargetRef: "42"},
+	}))
+	if err != nil {
+		t.Fatalf("Create returned error: %v", err)
+	}
+	if len(docManager.createInputs) != 1 {
+		t.Fatalf("expected only supported file to materialize, got %#v", docManager.createInputs)
+	}
+	if got := projectFileResolver.resolveCalls; got != 0 {
+		t.Fatalf("expected unsupported filtering to happen without synchronous resolve, got %d calls", got)
+	}
+	if docManager.createInputs[0].Name != "visible.md" {
+		t.Fatalf("expected supported file 41, got %#v", docManager.createInputs[0])
+	}
+	if len(docManager.syncInputs) != 1 || docManager.syncInputs[0].Code == "" {
+		t.Fatalf("expected one sync request for supported file, got %#v", docManager.syncInputs)
 	}
 }
 
@@ -638,7 +731,7 @@ func TestKnowledgeBaseAppServiceCreateWithProjectBindingsUsesBatchVisibleFileIDs
 		},
 	}
 
-	sourceType := int(knowledgebasedomain.SourceTypeProject)
+	sourceType := int(kbentity.SourceTypeProject)
 	app := newProjectBindingCreateApp(t, domain, docManager, sourceBindingRepo, projectFileResolver)
 	_, err := app.Create(context.Background(), newProjectBindingCreateInput(&sourceType, "300", nil))
 	if err != nil {
@@ -650,36 +743,365 @@ func TestKnowledgeBaseAppServiceCreateWithProjectBindingsUsesBatchVisibleFileIDs
 	if projectFileResolver.isVisibleFileCalls != 0 {
 		t.Fatalf("expected project-wide materialization to trust batch visible-file result, got %d visibility rechecks", projectFileResolver.isVisibleFileCalls)
 	}
+	if projectFileResolver.loadVisibleMetaCalls != 2 {
+		t.Fatalf("expected project-wide materialization to load visible meta for each file, got %d", projectFileResolver.loadVisibleMetaCalls)
+	}
+	if got := projectFileResolver.resolveCalls; got != 0 {
+		t.Fatalf("expected project-wide materialization not to trigger synchronous resolve, got %d calls", got)
+	}
 	if len(docManager.createInputs) != 2 {
 		t.Fatalf("expected two managed documents, got %#v", docManager.createInputs)
+	}
+}
+
+func TestKnowledgeBaseAppServiceCreateWithProjectBindingsAllUnsupported(t *testing.T) {
+	t.Parallel()
+
+	domain := &recordingKnowledgeBaseDomainService{effectiveModel: effectiveEmbeddingModel}
+	docManager := &recordingKnowledgeBaseDocumentManager{}
+	sourceBindingRepo := &recordingSourceBindingRepository{}
+	projectFileResolver := &projectFileResolverStub{
+		visibleLeafFileIDsByProject: map[int64][]int64{
+			300: {41, 42},
+		},
+		visibleMetasByID: map[int64]*projectfile.Meta{
+			41: {Status: projectfile.ResolveStatusActive, OrganizationCode: "ORG-1", ProjectID: 300, ProjectFileID: 41, FileName: "custom-1.svg", FileExtension: "svg"},
+			42: {Status: projectfile.ResolveStatusActive, OrganizationCode: "ORG-1", ProjectID: 300, ProjectFileID: 42, FileName: "custom-2.gif", FileExtension: "gif"},
+		},
+	}
+
+	sourceType := int(kbentity.SourceTypeProject)
+	app := newProjectBindingCreateApp(t, domain, docManager, sourceBindingRepo, projectFileResolver)
+	_, err := app.Create(context.Background(), newProjectBindingCreateInput(&sourceType, "300", nil))
+	if err != nil {
+		t.Fatalf("Create returned error: %v", err)
+	}
+	if len(docManager.createInputs) != 0 {
+		t.Fatalf("expected no managed documents for unsupported files, got %#v", docManager.createInputs)
+	}
+	if got := projectFileResolver.resolveCalls; got != 0 {
+		t.Fatalf("expected all-unsupported create path not to trigger synchronous resolve, got %d calls", got)
+	}
+	if len(docManager.syncInputs) != 0 {
+		t.Fatalf("expected no sync requests for unsupported files, got %#v", docManager.syncInputs)
 	}
 }
 
 func TestKnowledgeBaseAppServiceUpdateWithProjectBindingsReconcilesDocuments(t *testing.T) {
 	t.Parallel()
 
-	sourceType := int(knowledgebasedomain.SourceTypeProject)
+	scenario := newProjectBindingReconcileScenario(t)
+	sourceBindings := []kbdto.SourceBindingInput{
+		{
+			Provider: sourcebindingdomain.ProviderProject,
+			RootType: sourcebindingdomain.RootTypeProject,
+			RootRef:  "300",
+			SyncMode: sourcebindingdomain.SyncModeManual,
+			Targets: []kbdto.SourceBindingTargetInput{
+				{TargetType: sourcebindingdomain.TargetTypeFile, TargetRef: "42"},
+				{TargetType: sourcebindingdomain.TargetTypeFile, TargetRef: "43"},
+			},
+		},
+	}
+	inputSourceType := int(kbentity.SourceTypeEnterpriseWiki)
+	result, err := scenario.app.Update(context.Background(), &kbdto.UpdateKnowledgeBaseInput{
+		OrganizationCode: "ORG-1",
+		UserID:           "user-2",
+		Code:             testAppKnowledgeBaseCode,
+		SourceType:       &inputSourceType,
+		SourceBindings:   &sourceBindings,
+	})
+	if err != nil {
+		t.Fatalf("Update returned error: %v", err)
+	}
+	if len(scenario.sourceBindingRepo.lastReplaceBindings) != 1 {
+		t.Fatalf("expected one source binding replace, got %d", len(scenario.sourceBindingRepo.lastReplaceBindings))
+	}
+	if result == nil || len(result.SourceBindings) != 1 {
+		t.Fatalf("expected update result to include source bindings, got %#v", result)
+	}
+	if !reflect.DeepEqual(result.SourceBindings[0].Targets, []kbdto.SourceBindingTargetDTO{
+		{TargetType: sourcebindingdomain.TargetTypeFile, TargetRef: "42"},
+		{TargetType: sourcebindingdomain.TargetTypeFile, TargetRef: "43"},
+	}) {
+		t.Fatalf("expected update result targets preserved, got %#v", result.SourceBindings[0].Targets)
+	}
+	assertProjectBindingReconcileResult(t, scenario.docManager, "user-2")
+	if scenario.sourceBindingRepo.lastApplyInput.KnowledgeBaseCode != testAppKnowledgeBaseCode {
+		t.Fatalf("expected incremental apply to persist updated bindings, got %#v", scenario.sourceBindingRepo.lastApplyInput)
+	}
+	assertKnowledgeBaseSourceType(t, scenario.domain.updatedKB, scenario.sourceType)
+}
+
+func TestKnowledgeBaseAppServiceUpdateWithProjectBindingsRollsBackAppliedBindingsOnCreateFailure(t *testing.T) {
+	t.Parallel()
+
+	scenario := newProjectBindingReconcileScenario(t)
+	scenario.docManager.createErrAt = 0
+	scenario.docManager.createErr = errCreateDocumentFailed
+
+	sourceBindings := []kbdto.SourceBindingInput{{
+		Provider: sourcebindingdomain.ProviderProject,
+		RootType: sourcebindingdomain.RootTypeProject,
+		RootRef:  "300",
+		SyncMode: sourcebindingdomain.SyncModeManual,
+		Targets: []kbdto.SourceBindingTargetInput{
+			{TargetType: sourcebindingdomain.TargetTypeFile, TargetRef: "42"},
+			{TargetType: sourcebindingdomain.TargetTypeFile, TargetRef: "43"},
+		},
+	}}
+	inputSourceType := int(kbentity.SourceTypeEnterpriseWiki)
+	_, err := scenario.app.Update(context.Background(), &kbdto.UpdateKnowledgeBaseInput{
+		OrganizationCode: "ORG-1",
+		UserID:           "user-2",
+		Code:             testAppKnowledgeBaseCode,
+		SourceType:       &inputSourceType,
+		SourceBindings:   &sourceBindings,
+	})
+	if err == nil || !errors.Is(err, errCreateDocumentFailed) {
+		t.Fatalf("expected create failure, got %v", err)
+	}
+	if len(scenario.sourceBindingRepo.applyInputs) != 2 {
+		t.Fatalf("expected apply + rollback applies, got %#v", scenario.sourceBindingRepo.applyInputs)
+	}
+	if got := scenario.sourceBindingRepo.applyInputs[1].UpsertBindings; len(got) != 1 || got[0].Binding.ID != 11 {
+		t.Fatalf("expected rollback to restore previous binding, got %#v", got)
+	}
+	if len(scenario.docManager.destroyInputs) != 0 {
+		t.Fatalf("expected rollback before deleting legacy documents, got %#v", scenario.docManager.destroyInputs)
+	}
+	if len(scenario.domain.updatedKBs) != 2 {
+		t.Fatalf("expected knowledge base update + rollback, got %#v", scenario.domain.updatedKBs)
+	}
+	if scenario.domain.updatedKBs[1] == nil || scenario.domain.updatedKBs[1].Name != "old" {
+		t.Fatalf("expected rollback to restore previous knowledge base snapshot, got %#v", scenario.domain.updatedKBs[1])
+	}
+}
+
+func TestKnowledgeBaseAppServiceUpdateWithProjectBindingsDestroysCreatedDocsOnceOnCreateFailure(t *testing.T) {
+	t.Parallel()
+
+	scenario := newProjectBindingReconcileScenario(t)
+	scenario.docManager.listByKnowledgeBase = []*service.ManagedDocument{
+		{Code: testRemovedProjectBindingDocumentCode, KnowledgeBaseCode: testAppKnowledgeBaseCode, ProjectID: 300, ProjectFileID: 41, SourceBindingID: 11, SourceItemID: 99},
+	}
+	scenario.sourceBindingRepo.listBindingItems = []sourcebindingdomain.BindingItem{
+		{BindingID: 11, SourceItemID: 99, ResolveReason: "target"},
+	}
+	scenario.sourceBindingRepo.sourceItemIDs = nil
+	scenario.sourceBindingRepo.nextSourceItemID = 0
+	scenario.docManager.createResults = []*service.ManagedDocument{
+		{Code: "DOC-42", KnowledgeBaseCode: testAppKnowledgeBaseCode},
+	}
+	scenario.docManager.createErrAt = 1
+	scenario.docManager.createErr = errCreateDocumentFailed
+
+	sourceBindings := []kbdto.SourceBindingInput{{
+		Provider: sourcebindingdomain.ProviderProject,
+		RootType: sourcebindingdomain.RootTypeProject,
+		RootRef:  "300",
+		SyncMode: sourcebindingdomain.SyncModeManual,
+		Targets: []kbdto.SourceBindingTargetInput{
+			{TargetType: sourcebindingdomain.TargetTypeFile, TargetRef: "42"},
+			{TargetType: sourcebindingdomain.TargetTypeFile, TargetRef: "43"},
+		},
+	}}
+	inputSourceType := int(kbentity.SourceTypeEnterpriseWiki)
+	_, err := scenario.app.Update(context.Background(), &kbdto.UpdateKnowledgeBaseInput{
+		OrganizationCode: "ORG-1",
+		UserID:           "user-2",
+		Code:             testAppKnowledgeBaseCode,
+		SourceType:       &inputSourceType,
+		SourceBindings:   &sourceBindings,
+	})
+	if err == nil || !errors.Is(err, errCreateDocumentFailed) {
+		t.Fatalf("expected create failure, got %v", err)
+	}
+	if len(scenario.docManager.destroyInputs) != 1 {
+		t.Fatalf("expected exactly one rollback destroy, got %#v", scenario.docManager.destroyInputs)
+	}
+	if scenario.docManager.destroyInputs[0].code != "DOC-42" {
+		t.Fatalf("expected rollback to destroy created doc once, got %#v", scenario.docManager.destroyInputs)
+	}
+	if len(scenario.docManager.syncInputs) != 0 {
+		t.Fatalf("expected no sync scheduling on create failure, got %#v", scenario.docManager.syncInputs)
+	}
+}
+
+func TestKnowledgeBaseAppServiceUpdateWithProjectBindingsSchedulesRecoveryResyncOnDeleteFailure(t *testing.T) {
+	t.Parallel()
+
+	const (
+		removedDocumentCode = testRemovedProjectBindingDocumentCode
+		createdDocumentCode = "DOC-43"
+	)
+
+	scenario := newProjectBindingReconcileScenario(t)
+	scenario.docManager.createResults = []*service.ManagedDocument{
+		{Code: createdDocumentCode, KnowledgeBaseCode: testAppKnowledgeBaseCode},
+	}
+	scenario.docManager.destroyErrAt = 0
+	scenario.docManager.destroyErr = errDestroyDocumentFailed
+
+	sourceBindings := []kbdto.SourceBindingInput{{
+		Provider: sourcebindingdomain.ProviderProject,
+		RootType: sourcebindingdomain.RootTypeProject,
+		RootRef:  "300",
+		SyncMode: sourcebindingdomain.SyncModeManual,
+		Targets: []kbdto.SourceBindingTargetInput{
+			{TargetType: sourcebindingdomain.TargetTypeFile, TargetRef: "42"},
+			{TargetType: sourcebindingdomain.TargetTypeFile, TargetRef: "43"},
+		},
+	}}
+	inputSourceType := int(kbentity.SourceTypeEnterpriseWiki)
+	_, err := scenario.app.Update(context.Background(), &kbdto.UpdateKnowledgeBaseInput{
+		OrganizationCode: "ORG-1",
+		UserID:           "user-2",
+		Code:             testAppKnowledgeBaseCode,
+		SourceType:       &inputSourceType,
+		SourceBindings:   &sourceBindings,
+	})
+	if err == nil || !errors.Is(err, errDestroyDocumentFailed) {
+		t.Fatalf("expected destroy failure, got %v", err)
+	}
+	if len(scenario.sourceBindingRepo.applyInputs) != 2 {
+		t.Fatalf("expected apply + rollback applies, got %#v", scenario.sourceBindingRepo.applyInputs)
+	}
+	if len(scenario.docManager.destroyInputs) != 2 {
+		t.Fatalf("expected failed delete + created-doc rollback destroy, got %#v", scenario.docManager.destroyInputs)
+	}
+	if scenario.docManager.destroyInputs[0].code != removedDocumentCode || scenario.docManager.destroyInputs[1].code != createdDocumentCode {
+		t.Fatalf("unexpected destroy order during rollback, got %#v", scenario.docManager.destroyInputs)
+	}
+	if len(scenario.docManager.syncInputs) != 1 {
+		t.Fatalf("expected one recovery resync, got %#v", scenario.docManager.syncInputs)
+	}
+	if scenario.docManager.syncInputs[0].Code != removedDocumentCode || scenario.docManager.syncInputs[0].Mode != documentdomain.SyncModeResync {
+		t.Fatalf("expected recovery resync for removed doc, got %#v", scenario.docManager.syncInputs[0])
+	}
+	if len(scenario.domain.updatedKBs) != 2 || scenario.domain.updatedKBs[1] == nil || scenario.domain.updatedKBs[1].Name != "old" {
+		t.Fatalf("expected rollback to restore previous knowledge base snapshot, got %#v", scenario.domain.updatedKBs)
+	}
+}
+
+type projectBindingReconcileScenario struct {
+	app               *service.KnowledgeBaseAppService
+	domain            *recordingKnowledgeBaseDomainService
+	docManager        *recordingKnowledgeBaseDocumentManager
+	sourceBindingRepo *recordingSourceBindingRepository
+	sourceType        int
+}
+
+const testRemovedProjectBindingDocumentCode = "DOC-41"
+
+func newProjectBindingReconcileScenario(tb testing.TB) projectBindingReconcileScenario {
+	tb.Helper()
+
+	sourceType := int(kbentity.SourceTypeProject)
 	domain := &recordingKnowledgeBaseDomainService{
-		showKB: &knowledgebasedomain.KnowledgeBase{
+		showKB: &kbentity.KnowledgeBase{
 			ID:                99,
 			Code:              testAppKnowledgeBaseCode,
 			Name:              "old",
 			OrganizationCode:  "ORG-1",
 			SourceType:        &sourceType,
-			KnowledgeBaseType: knowledgebasedomain.KnowledgeBaseTypeDigitalEmployee,
+			KnowledgeBaseType: kbentity.KnowledgeBaseTypeDigitalEmployee,
 		},
 	}
 	docManager := &recordingKnowledgeBaseDocumentManager{
-		listByProject: map[int64][]*service.ManagedDocument{
-			300: {
-				{Code: "DOC-41", KnowledgeBaseCode: testAppKnowledgeBaseCode, ProjectID: 300, ProjectFileID: 41},
-				{Code: "DOC-42", KnowledgeBaseCode: testAppKnowledgeBaseCode, ProjectID: 300, ProjectFileID: 42},
+		listByKnowledgeBase: []*service.ManagedDocument{
+			{Code: testRemovedProjectBindingDocumentCode, KnowledgeBaseCode: testAppKnowledgeBaseCode, ProjectID: 300, ProjectFileID: 41, SourceBindingID: 11, SourceItemID: 99},
+			{Code: "DOC-42", KnowledgeBaseCode: testAppKnowledgeBaseCode, ProjectID: 300, ProjectFileID: 42, SourceBindingID: 11, SourceItemID: 1},
+		},
+	}
+	app, sourceBindingRepo := newProjectBindingUpdateApp(tb, domain, docManager, map[int64]*projectfile.ResolveResult{
+		42: newResolvedProjectFile(300, 42, "keep-42.md"),
+		43: newResolvedProjectFile(300, 43, "new-43.md"),
+	})
+	sourceBindingRepo.listBindings = []sourcebindingdomain.Binding{
+		{
+			ID:                11,
+			OrganizationCode:  "ORG-1",
+			KnowledgeBaseCode: testAppKnowledgeBaseCode,
+			Provider:          sourcebindingdomain.ProviderProject,
+			RootType:          sourcebindingdomain.RootTypeProject,
+			RootRef:           "300",
+			SyncMode:          sourcebindingdomain.SyncModeManual,
+			Enabled:           true,
+			Targets: []sourcebindingdomain.BindingTarget{
+				{TargetType: sourcebindingdomain.TargetTypeFile, TargetRef: "41"},
+				{TargetType: sourcebindingdomain.TargetTypeFile, TargetRef: "42"},
 			},
 		},
 	}
+	sourceBindingRepo.listBindingItems = []sourcebindingdomain.BindingItem{
+		{BindingID: 11, SourceItemID: 99, ResolveReason: "target"},
+		{BindingID: 11, SourceItemID: 1, ResolveReason: "target"},
+	}
+	sourceBindingRepo.sourceItemIDs = map[string]int64{"42": 1}
+	sourceBindingRepo.nextSourceItemID = 1
+	app.SetKnowledgeBaseBindingRepository(&recordingKnowledgeBaseBindingRepository{
+		bindIDsByKnowledgeBase: map[string][]string{testAppKnowledgeBaseCode: {"1"}},
+	})
+	return projectBindingReconcileScenario{
+		app:               app,
+		domain:            domain,
+		docManager:        docManager,
+		sourceBindingRepo: sourceBindingRepo,
+		sourceType:        sourceType,
+	}
+}
+
+func assertProjectBindingReconcileResult(
+	tb testing.TB,
+	docManager *recordingKnowledgeBaseDocumentManager,
+	expectedSyncUserID string,
+) {
+	tb.Helper()
+
+	if len(docManager.destroyInputs) != 1 || docManager.destroyInputs[0].code != testRemovedProjectBindingDocumentCode {
+		tb.Fatalf("expected only removed project doc to be deleted, got %#v", docManager.destroyInputs)
+	}
+	if len(docManager.destroyKnowledgeBaseInputs) != 0 {
+		tb.Fatalf("expected no knowledge-base-wide rebuild destroy, got %#v", docManager.destroyKnowledgeBaseInputs)
+	}
+	if len(docManager.createInputs) != 1 || docManager.createInputs[0].SourceItemID != 2 {
+		tb.Fatalf("expected only new project document to be created, got %#v", docManager.createInputs)
+	}
+	if len(docManager.syncInputs) != 1 || docManager.syncInputs[0].Mode != documentdomain.SyncModeCreate {
+		tb.Fatalf("expected create sync only for new document, got %#v", docManager.syncInputs)
+	}
+	if docManager.syncInputs[0].BusinessParams == nil || docManager.syncInputs[0].BusinessParams.UserID != expectedSyncUserID {
+		tb.Fatalf("expected create sync user %q, got %#v", expectedSyncUserID, docManager.syncInputs[0])
+	}
+}
+
+func TestKnowledgeBaseAppServiceUpdateWithProjectBindingsSkipsUnsupportedFiles(t *testing.T) {
+	t.Parallel()
+
+	sourceType := int(kbentity.SourceTypeProject)
+	domain := &recordingKnowledgeBaseDomainService{
+		showKB: &kbentity.KnowledgeBase{
+			ID:                99,
+			Code:              testAppKnowledgeBaseCode,
+			Name:              "old",
+			OrganizationCode:  "ORG-1",
+			SourceType:        &sourceType,
+			KnowledgeBaseType: kbentity.KnowledgeBaseTypeDigitalEmployee,
+		},
+	}
+	docManager := &recordingKnowledgeBaseDocumentManager{}
 	app, sourceBindingRepo := newProjectBindingUpdateApp(t, domain, docManager, map[int64]*projectfile.ResolveResult{
 		42: newResolvedProjectFile(300, 42, "keep-42.md"),
-		43: newResolvedProjectFile(300, 43, "new-43.md"),
+		43: {
+			Status:           projectfile.ResolveStatusUnsupported,
+			OrganizationCode: "ORG-1",
+			ProjectID:        300,
+			ProjectFileID:    43,
+			FileName:         "custom.svg",
+			FileExtension:    "svg",
+			DocumentFile:     map[string]any{"type": "project_file", "name": "custom.svg", "extension": "svg"},
+		},
 	})
 	app.SetKnowledgeBaseBindingRepository(&recordingKnowledgeBaseBindingRepository{
 		bindIDsByKnowledgeBase: map[string][]string{testAppKnowledgeBaseCode: {"1"}},
@@ -697,32 +1119,370 @@ func TestKnowledgeBaseAppServiceUpdateWithProjectBindingsReconcilesDocuments(t *
 			},
 		},
 	}
+	inputSourceType := int(kbentity.SourceTypeEnterpriseWiki)
 	_, err := app.Update(context.Background(), &kbdto.UpdateKnowledgeBaseInput{
 		OrganizationCode: "ORG-1",
 		UserID:           "user-2",
 		Code:             testAppKnowledgeBaseCode,
-		SourceType:       &sourceType,
+		SourceType:       &inputSourceType,
 		SourceBindings:   &sourceBindings,
 	})
 	if err != nil {
 		t.Fatalf("Update returned error: %v", err)
 	}
 	if len(sourceBindingRepo.lastReplaceBindings) != 1 {
-		t.Fatalf("expected one source binding replace, got %d", len(sourceBindingRepo.lastReplaceBindings))
+		t.Fatalf("expected one source binding replace, got %#v", sourceBindingRepo.lastReplaceBindings)
 	}
-	if len(docManager.destroyInputs) != 0 {
-		t.Fatalf("expected no per-document project doc destroy, got %#v", docManager.destroyInputs)
+	if len(docManager.createInputs) != 1 || docManager.createInputs[0].Name != "keep-42.md" {
+		t.Fatalf("expected only supported project file to be rebuilt, got %#v", docManager.createInputs)
 	}
-	if len(docManager.destroyKnowledgeBaseInputs) != 1 ||
-		docManager.destroyKnowledgeBaseInputs[0].knowledgeBaseCode != testAppKnowledgeBaseCode ||
-		docManager.destroyKnowledgeBaseInputs[0].organizationCode != testOrganizationCode1 {
-		t.Fatalf("expected existing project docs to be batch rebuilt, got %#v", docManager.destroyKnowledgeBaseInputs)
+	if len(docManager.syncInputs) != 1 || docManager.syncInputs[0].Mode != documentdomain.SyncModeCreate {
+		t.Fatalf("expected one create sync for supported file, got %#v", docManager.syncInputs)
 	}
-	if len(docManager.createInputs) != 2 {
-		t.Fatalf("expected rebuilt project documents, got %#v", docManager.createInputs)
+}
+
+func TestKnowledgeBaseAppServicePrepareRebuildDeletesUnsupportedEnterpriseFiles(t *testing.T) {
+	t.Parallel()
+
+	sourceType := int(kbentity.SourceTypeEnterpriseWiki)
+	domain := &recordingKnowledgeBaseDomainService{
+		showKB: &kbentity.KnowledgeBase{
+			ID:                99,
+			Code:              testAppKnowledgeBaseCode,
+			Name:              "old",
+			OrganizationCode:  "ORG-1",
+			SourceType:        &sourceType,
+			KnowledgeBaseType: kbentity.KnowledgeBaseTypeDigitalEmployee,
+		},
 	}
-	if len(docManager.syncInputs) != 2 || docManager.syncInputs[0].Mode != documentdomain.SyncModeCreate || docManager.syncInputs[1].Mode != documentdomain.SyncModeCreate {
-		t.Fatalf("expected create syncs for rebuilt documents, got %#v", docManager.syncInputs)
+	docManager := &recordingKnowledgeBaseDocumentManager{
+		listByKnowledgeBase: []*service.ManagedDocument{{
+			Code:              "DOC-FILE-1",
+			KnowledgeBaseCode: testAppKnowledgeBaseCode,
+			SourceBindingID:   11,
+			SourceItemID:      1,
+			DocumentFile: &docentity.File{
+				Type:       "third_platform",
+				Name:       "legacy.docx",
+				ThirdID:    "FILE-1",
+				SourceType: sourcebindingdomain.ProviderTeamshare,
+				Extension:  "docx",
+			},
+		}},
+	}
+	sourceBindingRepo := &recordingSourceBindingRepository{
+		listBindings: []sourcebindingdomain.Binding{{
+			ID:                11,
+			OrganizationCode:  "ORG-1",
+			KnowledgeBaseCode: testAppKnowledgeBaseCode,
+			Provider:          sourcebindingdomain.ProviderTeamshare,
+			RootType:          sourcebindingdomain.RootTypeFile,
+			RootRef:           "FILE-1",
+			SyncMode:          sourcebindingdomain.SyncModeManual,
+			Enabled:           true,
+		}},
+		listBindingItems: []sourcebindingdomain.BindingItem{{
+			BindingID:     11,
+			SourceItemID:  1,
+			ResolveReason: "root",
+		}},
+		sourceItemIDs: map[string]int64{"FILE-1": 1},
+	}
+	app := service.NewKnowledgeBaseAppServiceForTest(t, domain, docManager, nil, nil, effectiveEmbeddingModel)
+	app.SetSourceBindingRepository(sourceBindingRepo)
+	app.SetThirdPlatformExpander(&fakeThirdPlatformExpander{
+		results: []*docentity.File{{
+			Type:       "third_platform",
+			Name:       "unsupported.svg",
+			ThirdID:    "FILE-1",
+			SourceType: sourcebindingdomain.ProviderTeamshare,
+			Extension:  "svg",
+		}},
+	})
+	app.SetKnowledgeBaseBindingRepository(&recordingKnowledgeBaseBindingRepository{
+		bindIDsByKnowledgeBase: map[string][]string{testAppKnowledgeBaseCode: {"SMA-1"}},
+	})
+
+	err := app.PrepareRebuild(context.Background(), "ORG-1", service.RebuildScope{
+		Mode:              service.RebuildScopeModeKnowledgeBase,
+		OrganizationCode:  "ORG-1",
+		KnowledgeBaseCode: testAppKnowledgeBaseCode,
+		UserID:            "user-2",
+	})
+	if err != nil {
+		t.Fatalf("PrepareRebuild returned error: %v", err)
+	}
+	if len(docManager.destroyKnowledgeBaseInputs) != 1 || docManager.destroyKnowledgeBaseInputs[0].knowledgeBaseCode != testAppKnowledgeBaseCode {
+		t.Fatalf("expected unsupported enterprise file rebuild to clear legacy documents, got %#v", docManager.destroyKnowledgeBaseInputs)
+	}
+	if len(docManager.createInputs) != 0 {
+		t.Fatalf("expected unsupported enterprise file not to recreate documents, got %#v", docManager.createInputs)
+	}
+	if len(docManager.syncInputs) != 0 {
+		t.Fatalf("expected unsupported enterprise file not to schedule sync, got %#v", docManager.syncInputs)
+	}
+}
+
+func TestKnowledgeBaseAppServicePrepareRebuildSkipsUnavailableTeamshareTargets(t *testing.T) {
+	t.Parallel()
+
+	domain := &recordingKnowledgeBaseDomainService{
+		showKB: &kbentity.KnowledgeBase{
+			Code:             testAppKnowledgeBaseCode,
+			Name:             "企业知识库",
+			OrganizationCode: "ORG-1",
+			CreatedUID:       "kb-owner",
+			UpdatedUID:       "kb-owner",
+			Model:            effectiveEmbeddingModel,
+			VectorDB:         "qdrant",
+		},
+	}
+	docManager := &recordingKnowledgeBaseDocumentManager{}
+	sourceBindingRepo := &recordingSourceBindingRepository{
+		listBindings: []sourcebindingdomain.Binding{{
+			ID:                61,
+			OrganizationCode:  "ORG-1",
+			KnowledgeBaseCode: testAppKnowledgeBaseCode,
+			Provider:          sourcebindingdomain.ProviderTeamshare,
+			RootType:          sourcebindingdomain.RootTypeKnowledgeBase,
+			RootRef:           testTeamshareKnowledgeID,
+			SyncMode:          sourcebindingdomain.SyncModeManual,
+			Enabled:           true,
+			CreatedUID:        "kb-owner",
+			UpdatedUID:        "kb-owner",
+			Targets: []sourcebindingdomain.BindingTarget{
+				{TargetType: sourcebindingdomain.TargetTypeFile, TargetRef: "FILE-KEEP"},
+				{TargetType: sourcebindingdomain.TargetTypeFile, TargetRef: "FILE-MISSING"},
+			},
+		}},
+	}
+	expander := &fakeThirdPlatformExpander{
+		resolveResultByFile: map[string]*thirdplatform.DocumentResolveResult{
+			"FILE-KEEP": {
+				DocumentFile: map[string]any{
+					"type":              "third_platform",
+					"name":              "keep.md",
+					"extension":         "md",
+					"source_type":       sourcebindingdomain.ProviderTeamshare,
+					"third_id":          "FILE-KEEP",
+					"third_file_id":     "FILE-KEEP",
+					"knowledge_base_id": testTeamshareKnowledgeID,
+				},
+			},
+		},
+		errByThirdFileID: map[string]error{
+			"FILE-MISSING": thirdplatform.ErrDocumentUnavailable,
+		},
+	}
+
+	app := service.NewKnowledgeBaseAppServiceForTest(t, domain, docManager, nil, testKnowledgeBaseAppLogger(), effectiveEmbeddingModel)
+	app.SetSourceBindingRepository(sourceBindingRepo)
+	app.SetThirdPlatformExpander(expander)
+
+	err := app.PrepareRebuild(context.Background(), "ORG-1", service.RebuildScope{
+		Mode:              service.RebuildScopeModeKnowledgeBase,
+		OrganizationCode:  "ORG-1",
+		KnowledgeBaseCode: testAppKnowledgeBaseCode,
+		UserID:            "rebuild-user",
+	})
+	if err != nil {
+		t.Fatalf("PrepareRebuild returned error: %v", err)
+	}
+	if len(docManager.destroyKnowledgeBaseInputs) != 1 {
+		t.Fatalf("expected legacy documents to be cleared before rebuild, got %#v", docManager.destroyKnowledgeBaseInputs)
+	}
+	if len(docManager.createInputs) != 1 {
+		t.Fatalf("expected only one valid teamshare file to be rebuilt, got %#v", docManager.createInputs)
+	}
+	if docManager.createInputs[0].ThirdFileID != "FILE-KEEP" {
+		t.Fatalf("expected rebuilt document to use valid third file, got %#v", docManager.createInputs[0])
+	}
+}
+
+func TestKnowledgeBaseAppServicePrepareRebuildSkipsMissingProjectTargets(t *testing.T) {
+	t.Parallel()
+
+	domain := &recordingKnowledgeBaseDomainService{
+		showKB: &kbentity.KnowledgeBase{
+			Code:             testAppKnowledgeBaseCode,
+			Name:             "项目知识库",
+			OrganizationCode: "ORG-1",
+			CreatedUID:       "kb-owner",
+			UpdatedUID:       "kb-owner",
+			Model:            effectiveEmbeddingModel,
+			VectorDB:         "qdrant",
+		},
+	}
+	docManager := &recordingKnowledgeBaseDocumentManager{}
+	sourceBindingRepo := &recordingSourceBindingRepository{
+		listBindings: []sourcebindingdomain.Binding{{
+			ID:                71,
+			OrganizationCode:  "ORG-1",
+			KnowledgeBaseCode: testAppKnowledgeBaseCode,
+			Provider:          sourcebindingdomain.ProviderProject,
+			RootType:          sourcebindingdomain.RootTypeProject,
+			RootRef:           "300",
+			SyncMode:          sourcebindingdomain.SyncModeManual,
+			Enabled:           true,
+			CreatedUID:        "kb-owner",
+			UpdatedUID:        "kb-owner",
+			Targets: []sourcebindingdomain.BindingTarget{
+				{TargetType: sourcebindingdomain.TargetTypeFile, TargetRef: "41"},
+				{TargetType: sourcebindingdomain.TargetTypeFile, TargetRef: "42"},
+			},
+		}},
+	}
+	projectFiles := &projectFileResolverStub{
+		visibleMetasByID: map[int64]*projectfile.Meta{
+			41: {
+				Status:           projectfile.ResolveStatusActive,
+				OrganizationCode: "ORG-1",
+				ProjectID:        300,
+				ProjectFileID:    41,
+				FileName:         "keep.md",
+				FileExtension:    "md",
+				FileKey:          "/project_300/workspace/keep.md",
+			},
+		},
+	}
+
+	app := service.NewKnowledgeBaseAppServiceForTest(t, domain, docManager, nil, testKnowledgeBaseAppLogger(), effectiveEmbeddingModel)
+	app.SetSourceBindingRepository(sourceBindingRepo)
+	app.SetProjectFileResolver(projectFiles)
+	app.SetTaskFileService(projectFiles)
+
+	err := app.PrepareRebuild(context.Background(), "ORG-1", service.RebuildScope{
+		Mode:              service.RebuildScopeModeKnowledgeBase,
+		OrganizationCode:  "ORG-1",
+		KnowledgeBaseCode: testAppKnowledgeBaseCode,
+		UserID:            "rebuild-user",
+	})
+	if err != nil {
+		t.Fatalf("PrepareRebuild returned error: %v", err)
+	}
+	if len(docManager.createInputs) != 1 {
+		t.Fatalf("expected only one visible project file to be rebuilt, got %#v", docManager.createInputs)
+	}
+	if docManager.createInputs[0].ProjectFileID != 41 {
+		t.Fatalf("expected rebuilt project file id=41, got %#v", docManager.createInputs[0])
+	}
+}
+
+func TestKnowledgeBaseAppServicePrepareRebuildSkipsUnavailableProjectTargetsBySentinelError(t *testing.T) {
+	t.Parallel()
+
+	domain := &recordingKnowledgeBaseDomainService{
+		showKB: &kbentity.KnowledgeBase{
+			Code:             testAppKnowledgeBaseCode,
+			Name:             "项目知识库",
+			OrganizationCode: "ORG-1",
+			CreatedUID:       "kb-owner",
+			UpdatedUID:       "kb-owner",
+			Model:            effectiveEmbeddingModel,
+			VectorDB:         "qdrant",
+		},
+	}
+	docManager := &recordingKnowledgeBaseDocumentManager{}
+	sourceBindingRepo := &recordingSourceBindingRepository{
+		listBindings: []sourcebindingdomain.Binding{{
+			ID:                81,
+			OrganizationCode:  "ORG-1",
+			KnowledgeBaseCode: testAppKnowledgeBaseCode,
+			Provider:          sourcebindingdomain.ProviderProject,
+			RootType:          sourcebindingdomain.RootTypeProject,
+			RootRef:           "300",
+			SyncMode:          sourcebindingdomain.SyncModeManual,
+			Enabled:           true,
+			Targets: []sourcebindingdomain.BindingTarget{
+				{TargetType: sourcebindingdomain.TargetTypeFile, TargetRef: "41"},
+				{TargetType: sourcebindingdomain.TargetTypeFile, TargetRef: "42"},
+			},
+		}},
+	}
+	projectFiles := &projectFileResolverStub{
+		visibleMetasByID: map[int64]*projectfile.Meta{
+			41: {
+				Status:           projectfile.ResolveStatusActive,
+				OrganizationCode: "ORG-1",
+				ProjectID:        300,
+				ProjectFileID:    41,
+				FileName:         "keep.md",
+				FileExtension:    "md",
+				FileKey:          "/project_300/workspace/keep.md",
+			},
+		},
+		loadVisibleMetaErrByID: map[int64]error{
+			42: projectfile.ErrFileUnavailable,
+		},
+	}
+
+	app := service.NewKnowledgeBaseAppServiceForTest(t, domain, docManager, nil, testKnowledgeBaseAppLogger(), effectiveEmbeddingModel)
+	app.SetSourceBindingRepository(sourceBindingRepo)
+	app.SetProjectFileResolver(projectFiles)
+	app.SetTaskFileService(projectFiles)
+
+	err := app.PrepareRebuild(context.Background(), "ORG-1", service.RebuildScope{
+		Mode:              service.RebuildScopeModeKnowledgeBase,
+		OrganizationCode:  "ORG-1",
+		KnowledgeBaseCode: testAppKnowledgeBaseCode,
+		UserID:            "rebuild-user",
+	})
+	if err != nil {
+		t.Fatalf("PrepareRebuild returned error: %v", err)
+	}
+	if len(docManager.createInputs) != 1 || docManager.createInputs[0].ProjectFileID != 41 {
+		t.Fatalf("expected unavailable sentinel project file to be skipped, got %#v", docManager.createInputs)
+	}
+}
+
+func TestKnowledgeBaseAppServicePrepareRebuildReturnsProjectFileLookupErrors(t *testing.T) {
+	t.Parallel()
+
+	domain := &recordingKnowledgeBaseDomainService{
+		showKB: &kbentity.KnowledgeBase{
+			Code:             testAppKnowledgeBaseCode,
+			Name:             "项目知识库",
+			OrganizationCode: "ORG-1",
+			CreatedUID:       "kb-owner",
+			UpdatedUID:       "kb-owner",
+			Model:            effectiveEmbeddingModel,
+			VectorDB:         "qdrant",
+		},
+	}
+	sourceBindingRepo := &recordingSourceBindingRepository{
+		listBindings: []sourcebindingdomain.Binding{{
+			ID:                91,
+			OrganizationCode:  "ORG-1",
+			KnowledgeBaseCode: testAppKnowledgeBaseCode,
+			Provider:          sourcebindingdomain.ProviderProject,
+			RootType:          sourcebindingdomain.RootTypeProject,
+			RootRef:           "300",
+			SyncMode:          sourcebindingdomain.SyncModeManual,
+			Enabled:           true,
+			Targets: []sourcebindingdomain.BindingTarget{
+				{TargetType: sourcebindingdomain.TargetTypeFile, TargetRef: "41"},
+			},
+		}},
+	}
+	projectFiles := &projectFileResolverStub{
+		loadVisibleMetaErrByID: map[int64]error{
+			41: errTaskFileReaderBoom,
+		},
+	}
+
+	app := service.NewKnowledgeBaseAppServiceForTest(t, domain, &recordingKnowledgeBaseDocumentManager{}, nil, testKnowledgeBaseAppLogger(), effectiveEmbeddingModel)
+	app.SetSourceBindingRepository(sourceBindingRepo)
+	app.SetProjectFileResolver(projectFiles)
+	app.SetTaskFileService(projectFiles)
+
+	err := app.PrepareRebuild(context.Background(), "ORG-1", service.RebuildScope{
+		Mode:              service.RebuildScopeModeKnowledgeBase,
+		OrganizationCode:  "ORG-1",
+		KnowledgeBaseCode: testAppKnowledgeBaseCode,
+		UserID:            "rebuild-user",
+	})
+	if err == nil || !strings.Contains(err.Error(), "task file reader boom") {
+		t.Fatalf("expected project file lookup error to be returned, got %v", err)
 	}
 }
 
@@ -730,7 +1490,7 @@ func TestKnowledgeBaseAppServiceRepairSourceBindingsReplacesBindingsWhenKnowledg
 	t.Parallel()
 
 	domain := &recordingKnowledgeBaseDomainService{
-		showKB: &knowledgebasedomain.KnowledgeBase{
+		showKB: &kbentity.KnowledgeBase{
 			Code:             testAppKnowledgeBaseCode,
 			Name:             "旧知识库",
 			OrganizationCode: "ORG-1",
@@ -742,7 +1502,7 @@ func TestKnowledgeBaseAppServiceRepairSourceBindingsReplacesBindingsWhenKnowledg
 		createResults: []*service.ManagedDocument{{
 			Code:              "DOC-NEW",
 			KnowledgeBaseCode: testAppKnowledgeBaseCode,
-			DocumentFile:      &documentdomain.File{Type: "third_platform", ThirdID: "FILE-1", SourceType: sourcebindingdomain.ProviderTeamshare},
+			DocumentFile:      &docentity.File{Type: "third_platform", ThirdID: "FILE-1", SourceType: sourcebindingdomain.ProviderTeamshare},
 		}},
 	}
 	sourceBindingRepo := &recordingSourceBindingRepository{}
@@ -762,7 +1522,7 @@ func TestKnowledgeBaseAppServiceRepairSourceBindingsReplacesBindingsWhenKnowledg
 	app := service.NewKnowledgeBaseAppServiceForTest(t, domain, docManager, nil, nil, effectiveEmbeddingModel)
 	app.SetSourceBindingRepository(sourceBindingRepo)
 	expander := &fakeThirdPlatformExpander{
-		results: []*documentdomain.File{{
+		results: []*docentity.File{{
 			Type:       "third_platform",
 			Name:       "文档-1",
 			ThirdID:    "FILE-1",
@@ -796,13 +1556,8 @@ func TestKnowledgeBaseAppServiceRepairSourceBindingsReplacesBindingsWhenKnowledg
 	if len(docManager.createInputs) != 1 || len(docManager.syncInputs) != 1 {
 		t.Fatalf("expected one document materialized and scheduled, got create=%d sync=%d", len(docManager.createInputs), len(docManager.syncInputs))
 	}
-	if len(expander.lastDocumentFiles) != 1 {
-		t.Fatalf("expected one expand input, got %#v", expander.lastDocumentFiles)
-	}
-	if expander.lastDocumentFiles[0]["knowledge_base_id"] != testTeamshareKnowledgeID ||
-		expander.lastDocumentFiles[0]["third_file_id"] != testTeamshareKnowledgeID ||
-		expander.lastDocumentFiles[0]["third_id"] != testTeamshareKnowledgeID {
-		t.Fatalf("expected knowledge_base root expand payload to carry root ids, got %#v", expander.lastDocumentFiles[0])
+	if expander.lastParentType != "knowledge_base" || expander.lastParentRef != testTeamshareKnowledgeID {
+		t.Fatalf("expected knowledge base traversal %q/%q, got %q/%q", "knowledge_base", testTeamshareKnowledgeID, expander.lastParentType, expander.lastParentRef)
 	}
 	if len(fragmentRepair.backfillInputs) != 1 || fragmentRepair.backfillInputs[0].DocumentCode != "DOC-NEW" {
 		t.Fatalf("expected backfill to use new document code, got %#v", fragmentRepair.backfillInputs)
@@ -851,7 +1606,7 @@ func buildAppendOnlyRepairSourceBindingsApp(
 	t.Helper()
 
 	domain := &recordingKnowledgeBaseDomainService{
-		showKB: &knowledgebasedomain.KnowledgeBase{
+		showKB: &kbentity.KnowledgeBase{
 			Code:             testAppKnowledgeBaseCode,
 			Name:             "旧知识库",
 			OrganizationCode: testOrganizationCode1,
@@ -863,12 +1618,12 @@ func buildAppendOnlyRepairSourceBindingsApp(
 		listByKnowledgeBase: []*service.ManagedDocument{{
 			Code:              "DOC-EXIST",
 			KnowledgeBaseCode: testAppKnowledgeBaseCode,
-			DocumentFile:      &documentdomain.File{Type: "third_platform", ThirdID: "FILE-EXIST", SourceType: sourcebindingdomain.ProviderTeamshare},
+			DocumentFile:      &docentity.File{Type: "third_platform", ThirdID: "FILE-EXIST", SourceType: sourcebindingdomain.ProviderTeamshare},
 		}},
 		createResults: []*service.ManagedDocument{{
 			Code:              "DOC-NEW",
 			KnowledgeBaseCode: testAppKnowledgeBaseCode,
-			DocumentFile:      &documentdomain.File{Type: "third_platform", ThirdID: "FILE-NEW", SourceType: sourcebindingdomain.ProviderTeamshare},
+			DocumentFile:      &docentity.File{Type: "third_platform", ThirdID: "FILE-NEW", SourceType: sourcebindingdomain.ProviderTeamshare},
 		}},
 	}
 	sourceBindingRepo := &recordingSourceBindingRepository{
@@ -896,7 +1651,7 @@ func buildAppendOnlyRepairSourceBindingsApp(
 	app := service.NewKnowledgeBaseAppServiceForTest(t, domain, docManager, nil, nil, effectiveEmbeddingModel)
 	app.SetSourceBindingRepository(sourceBindingRepo)
 	app.SetThirdPlatformExpander(&fakeThirdPlatformExpander{
-		results: []*documentdomain.File{{
+		results: []*docentity.File{{
 			Type:       "third_platform",
 			Name:       "文档-new",
 			ThirdID:    "FILE-NEW",
@@ -911,7 +1666,7 @@ func TestKnowledgeBaseAppServiceRepairSourceBindingsWithoutOrganizationCodesRepa
 	t.Parallel()
 
 	domain := &recordingKnowledgeBaseDomainService{
-		showKB: &knowledgebasedomain.KnowledgeBase{
+		showKB: &kbentity.KnowledgeBase{
 			Code:             testAppKnowledgeBaseCode,
 			Name:             "旧知识库",
 			OrganizationCode: testOrganizationCode1,
@@ -923,7 +1678,7 @@ func TestKnowledgeBaseAppServiceRepairSourceBindingsWithoutOrganizationCodesRepa
 		createResults: []*service.ManagedDocument{{
 			Code:              "DOC-NEW",
 			KnowledgeBaseCode: testAppKnowledgeBaseCode,
-			DocumentFile: &documentdomain.File{
+			DocumentFile: &docentity.File{
 				Type:       "third_platform",
 				Name:       "文档-1",
 				ThirdID:    "FILE-1",
@@ -950,7 +1705,7 @@ func TestKnowledgeBaseAppServiceRepairSourceBindingsWithoutOrganizationCodesRepa
 	app := service.NewKnowledgeBaseAppServiceForTest(t, domain, docManager, nil, nil, effectiveEmbeddingModel)
 	app.SetSourceBindingRepository(sourceBindingRepo)
 	app.SetThirdPlatformExpander(&fakeThirdPlatformExpander{
-		results: []*documentdomain.File{{
+		results: []*docentity.File{{
 			Type:       "third_platform",
 			Name:       "文档-1",
 			ThirdID:    "FILE-1",
@@ -992,7 +1747,7 @@ func TestKnowledgeBaseAppServicePrepareRebuildBootstrapsTeamshareFileBindings(t 
 	t.Parallel()
 
 	domain := &recordingKnowledgeBaseDomainService{
-		showKB: &knowledgebasedomain.KnowledgeBase{
+		showKB: &kbentity.KnowledgeBase{
 			Code:             testAppKnowledgeBaseCode,
 			Name:             "旧知识库",
 			OrganizationCode: "ORG-1",
@@ -1006,7 +1761,7 @@ func TestKnowledgeBaseAppServicePrepareRebuildBootstrapsTeamshareFileBindings(t 
 		listByKnowledgeBase: []*service.ManagedDocument{{
 			Code:              "DOC-LEGACY",
 			KnowledgeBaseCode: testAppKnowledgeBaseCode,
-			DocumentFile: &documentdomain.File{
+			DocumentFile: &docentity.File{
 				Type:            "third_platform",
 				Name:            "文档-1",
 				ThirdID:         "FILE-1",
@@ -1017,7 +1772,7 @@ func TestKnowledgeBaseAppServicePrepareRebuildBootstrapsTeamshareFileBindings(t 
 		createResults: []*service.ManagedDocument{{
 			Code:              "DOC-NEW",
 			KnowledgeBaseCode: testAppKnowledgeBaseCode,
-			DocumentFile: &documentdomain.File{
+			DocumentFile: &docentity.File{
 				Type:            "third_platform",
 				Name:            "文档-1",
 				ThirdID:         "FILE-1",
@@ -1030,7 +1785,7 @@ func TestKnowledgeBaseAppServicePrepareRebuildBootstrapsTeamshareFileBindings(t 
 	app := service.NewKnowledgeBaseAppServiceForTest(t, domain, docManager, nil, nil, effectiveEmbeddingModel)
 	app.SetSourceBindingRepository(sourceBindingRepo)
 	expander := &fakeThirdPlatformExpander{
-		results: []*documentdomain.File{{
+		results: []*docentity.File{{
 			Type:            "third_platform",
 			Name:            "文档-1",
 			ThirdID:         "FILE-1",
@@ -1070,7 +1825,7 @@ func TestKnowledgeBaseAppServicePrepareRebuildUsesExistingBindingUserForTeamshar
 	t.Parallel()
 
 	domain := &recordingKnowledgeBaseDomainService{
-		showKB: &knowledgebasedomain.KnowledgeBase{
+		showKB: &kbentity.KnowledgeBase{
 			Code:             testAppKnowledgeBaseCode,
 			Name:             "已有绑定知识库",
 			OrganizationCode: "ORG-1",
@@ -1099,7 +1854,7 @@ func TestKnowledgeBaseAppServicePrepareRebuildUsesExistingBindingUserForTeamshar
 		}},
 	}
 	expander := &fakeThirdPlatformExpander{
-		results: []*documentdomain.File{{
+		results: []*docentity.File{{
 			Type:       "third_platform",
 			Name:       "文档-1",
 			ThirdID:    "FILE-1",
@@ -1137,7 +1892,7 @@ func TestKnowledgeBaseAppServicePrepareRebuildFallsBackToKnowledgeBaseUserWhenBi
 	t.Parallel()
 
 	domain := &recordingKnowledgeBaseDomainService{
-		showKB: &knowledgebasedomain.KnowledgeBase{
+		showKB: &kbentity.KnowledgeBase{
 			Code:             testAppKnowledgeBaseCode,
 			Name:             "Teamshare 回退知识库",
 			OrganizationCode: "ORG-1",
@@ -1168,7 +1923,7 @@ func TestKnowledgeBaseAppServicePrepareRebuildFallsBackToKnowledgeBaseUserWhenBi
 		}},
 	}
 	expander := &fakeThirdPlatformExpander{
-		results: []*documentdomain.File{{
+		results: []*docentity.File{{
 			Type:       "third_platform",
 			Name:       "文档-1",
 			ThirdID:    "FILE-1",
@@ -1206,7 +1961,7 @@ func TestKnowledgeBaseAppServicePrepareRebuildPreservesDocumentsWhenKnowledgeBas
 	t.Parallel()
 
 	domain := &recordingKnowledgeBaseDomainService{
-		showKB: &knowledgebasedomain.KnowledgeBase{
+		showKB: &kbentity.KnowledgeBase{
 			Code:             testAppKnowledgeBaseCode,
 			Name:             "单库权限失败知识库",
 			OrganizationCode: "ORG-1",
@@ -1270,7 +2025,7 @@ func TestKnowledgeBaseAppServicePrepareRebuildSkipsPermissionDeniedKnowledgeBase
 	t.Parallel()
 
 	domain := &recordingKnowledgeBaseDomainService{
-		listKBS: []*knowledgebasedomain.KnowledgeBase{{
+		listKBS: []*kbentity.KnowledgeBase{{
 			Code:             testAppKnowledgeBaseCode,
 			Name:             "组织级权限失败知识库",
 			OrganizationCode: "ORG-1",
@@ -1365,14 +2120,14 @@ func assertBootstrappedTeamsharePrepareRebuild(
 func TestKnowledgeBaseAppServicePrepareRebuildRejectsProjectKnowledgeBaseWithoutBindings(t *testing.T) {
 	t.Parallel()
 
-	sourceType := int(knowledgebasedomain.SourceTypeProject)
+	sourceType := int(kbentity.SourceTypeProject)
 	domain := &recordingKnowledgeBaseDomainService{
-		showKB: &knowledgebasedomain.KnowledgeBase{
+		showKB: &kbentity.KnowledgeBase{
 			Code:              testAppKnowledgeBaseCode,
 			Name:              "项目知识库",
 			OrganizationCode:  "ORG-1",
 			SourceType:        &sourceType,
-			KnowledgeBaseType: knowledgebasedomain.KnowledgeBaseTypeDigitalEmployee,
+			KnowledgeBaseType: kbentity.KnowledgeBaseTypeDigitalEmployee,
 		},
 	}
 	app := service.NewKnowledgeBaseAppServiceForTest(t, domain, &recordingKnowledgeBaseDocumentManager{}, nil, nil, effectiveEmbeddingModel)
@@ -1395,14 +2150,14 @@ func TestKnowledgeBaseAppServicePrepareRebuildRejectsProjectKnowledgeBaseWithout
 func TestKnowledgeBaseAppServicePrepareRebuildReturnsBindingLookupError(t *testing.T) {
 	t.Parallel()
 
-	sourceType := int(knowledgebasedomain.SourceTypeProject)
+	sourceType := int(kbentity.SourceTypeProject)
 	domain := &recordingKnowledgeBaseDomainService{
-		showKB: &knowledgebasedomain.KnowledgeBase{
+		showKB: &kbentity.KnowledgeBase{
 			Code:              testAppKnowledgeBaseCode,
 			Name:              "项目知识库",
 			OrganizationCode:  "ORG-1",
 			SourceType:        &sourceType,
-			KnowledgeBaseType: knowledgebasedomain.KnowledgeBaseTypeDigitalEmployee,
+			KnowledgeBaseType: kbentity.KnowledgeBaseTypeDigitalEmployee,
 		},
 	}
 	app := service.NewKnowledgeBaseAppServiceForTest(t, domain, &recordingKnowledgeBaseDocumentManager{}, nil, nil, effectiveEmbeddingModel)
@@ -1550,7 +2305,7 @@ func TestKnowledgeBaseAppServiceUpdateMergesMutableFields(t *testing.T) {
 
 	enabled := false
 	domain := &recordingKnowledgeBaseDomainService{
-		showKB: &knowledgebasedomain.KnowledgeBase{
+		showKB: &kbentity.KnowledgeBase{
 			ID:               99,
 			Code:             testAppKnowledgeBaseCode,
 			Name:             "old",
@@ -1602,7 +2357,7 @@ func TestKnowledgeBaseAppServiceUpdateMergesMutableFields(t *testing.T) {
 func assertKnowledgeBaseMutableUpdateResult(
 	t *testing.T,
 	result *kbdto.KnowledgeBaseDTO,
-	updatedKB *knowledgebasedomain.KnowledgeBase,
+	updatedKB *kbentity.KnowledgeBase,
 	updatedName string,
 	updatedDescription string,
 ) {
@@ -1637,20 +2392,27 @@ func assertKnowledgeBaseMutableUpdateResult(
 	}
 }
 
+func assertKnowledgeBaseSourceType(t *testing.T, kb *kbentity.KnowledgeBase, expected int) {
+	t.Helper()
+	if kb == nil || kb.SourceType == nil || *kb.SourceType != expected {
+		t.Fatalf("expected source_type=%d, got %#v", expected, kb)
+	}
+}
+
 func TestKnowledgeBaseAppServiceUpdateAllowsSameAgentBindingsWithoutMutation(t *testing.T) {
 	t.Parallel()
 
 	const updatedName = "new"
 
-	sourceType := int(knowledgebasedomain.SourceTypeLocalFile)
+	sourceType := int(kbentity.SourceTypeLocalFile)
 	domain := &recordingKnowledgeBaseDomainService{
-		showKB: &knowledgebasedomain.KnowledgeBase{
+		showKB: &kbentity.KnowledgeBase{
 			ID:                99,
 			Code:              testAppKnowledgeBaseCode,
 			Name:              "old",
 			OrganizationCode:  "ORG-1",
 			SourceType:        &sourceType,
-			KnowledgeBaseType: knowledgebasedomain.KnowledgeBaseTypeDigitalEmployee,
+			KnowledgeBaseType: kbentity.KnowledgeBaseTypeDigitalEmployee,
 		},
 	}
 	bindingRepo := &recordingKnowledgeBaseBindingRepository{
@@ -1667,7 +2429,10 @@ func TestKnowledgeBaseAppServiceUpdateAllowsSameAgentBindingsWithoutMutation(t *
 		UserID:           "user-2",
 		Code:             testAppKnowledgeBaseCode,
 		Name:             updatedName,
-		SourceType:       &sourceType,
+		SourceType: func() *int {
+			value := int(kbentity.SourceTypeEnterpriseWiki)
+			return &value
+		}(),
 	})
 	if err != nil {
 		t.Fatalf("Update returned error: %v", err)
@@ -1678,8 +2443,60 @@ func TestKnowledgeBaseAppServiceUpdateAllowsSameAgentBindingsWithoutMutation(t *
 	if domain.updatedKB == nil || domain.updatedKB.Name != updatedName {
 		t.Fatalf("expected domain update with mutable fields, got %#v", domain.updatedKB)
 	}
+	assertKnowledgeBaseSourceType(t, domain.updatedKB, sourceType)
 	if bindingRepo.lastReplaceCode != "" {
 		t.Fatalf("expected agent bindings to stay untouched, got %#v", bindingRepo)
+	}
+}
+
+func TestKnowledgeBaseAppServiceUpdateRejectsProjectKnowledgeBaseEnterpriseBindings(t *testing.T) {
+	t.Parallel()
+
+	assertUpdateSemanticMismatch(t, int(kbentity.SourceTypeProject), []kbdto.SourceBindingInput{{
+		Provider: sourcebindingdomain.ProviderTeamshare,
+		RootType: sourcebindingdomain.RootTypeKnowledgeBase,
+		RootRef:  "TS-KB-1",
+		SyncMode: sourcebindingdomain.SyncModeManual,
+	}})
+}
+
+func TestKnowledgeBaseAppServiceUpdateRejectsEnterpriseKnowledgeBaseProjectBindings(t *testing.T) {
+	t.Parallel()
+
+	assertUpdateSemanticMismatch(t, int(kbentity.SourceTypeEnterpriseWiki), []kbdto.SourceBindingInput{{
+		Provider: sourcebindingdomain.ProviderProject,
+		RootType: sourcebindingdomain.RootTypeProject,
+		RootRef:  "300",
+		SyncMode: sourcebindingdomain.SyncModeManual,
+	}})
+}
+
+func assertUpdateSemanticMismatch(t *testing.T, currentSourceType int, sourceBindings []kbdto.SourceBindingInput) {
+	t.Helper()
+
+	domain := &recordingKnowledgeBaseDomainService{
+		showKB: &kbentity.KnowledgeBase{
+			ID:                99,
+			Code:              testAppKnowledgeBaseCode,
+			Name:              "old",
+			OrganizationCode:  "ORG-1",
+			SourceType:        &currentSourceType,
+			KnowledgeBaseType: kbentity.KnowledgeBaseTypeDigitalEmployee,
+		},
+	}
+	app := service.NewKnowledgeBaseAppServiceForTest(t, domain, &recordingKnowledgeBaseDocumentManager{}, nil, nil, "")
+	app.SetKnowledgeBaseBindingRepository(&recordingKnowledgeBaseBindingRepository{
+		bindIDsByKnowledgeBase: map[string][]string{testAppKnowledgeBaseCode: {"1"}},
+	})
+
+	_, err := app.Update(context.Background(), &kbdto.UpdateKnowledgeBaseInput{
+		OrganizationCode: "ORG-1",
+		UserID:           "user-2",
+		Code:             testAppKnowledgeBaseCode,
+		SourceBindings:   &sourceBindings,
+	})
+	if !errors.Is(err, service.ErrSourceBindingSemanticMismatch) {
+		t.Fatalf("expected ErrSourceBindingSemanticMismatch, got %v", err)
 	}
 }
 
@@ -1687,7 +2504,7 @@ func TestKnowledgeBaseAppServiceSaveProcessUpdatesProgress(t *testing.T) {
 	t.Parallel()
 
 	domain := &recordingKnowledgeBaseDomainService{
-		showKB: &knowledgebasedomain.KnowledgeBase{
+		showKB: &kbentity.KnowledgeBase{
 			ID:               99,
 			Code:             testAppKnowledgeBaseCode,
 			OrganizationCode: "ORG-1",
@@ -1727,7 +2544,7 @@ func TestKnowledgeBaseAppServiceShowPopulatesFallbackFragmentCounts(t *testing.T
 	t.Parallel()
 
 	domain := &recordingKnowledgeBaseDomainService{
-		showKB: &knowledgebasedomain.KnowledgeBase{
+		showKB: &kbentity.KnowledgeBase{
 			Code:             testAppKnowledgeBaseCode,
 			Name:             "知识库",
 			OrganizationCode: "ORG-1",
@@ -1760,11 +2577,120 @@ func TestKnowledgeBaseAppServiceShowPopulatesFallbackFragmentCounts(t *testing.T
 	}
 }
 
+func TestKnowledgeBaseAppServiceShowIncludesProjectSourceBindings(t *testing.T) {
+	t.Parallel()
+
+	sourceType := int(kbentity.SourceTypeProject)
+	domain := &recordingKnowledgeBaseDomainService{
+		showKB: &kbentity.KnowledgeBase{
+			Code:             testAppKnowledgeBaseCode,
+			Name:             "知识库",
+			OrganizationCode: testOrganizationCode1,
+			SourceType:       &sourceType,
+		},
+		effectiveModel: effectiveEmbeddingModel,
+	}
+	app := service.NewKnowledgeBaseAppServiceForTest(t, domain, nil, nil, nil, "")
+	app.SetKnowledgeBasePermissionReader(&recordingKnowledgeBasePermissionReader{
+		operations: map[string]string{
+			testAppKnowledgeBaseCode: "read",
+		},
+	})
+	app.SetSourceBindingRepository(&recordingSourceBindingRepository{
+		listBindings: []sourcebindingdomain.Binding{
+			{
+				Provider:   sourcebindingdomain.ProviderProject,
+				RootType:   sourcebindingdomain.RootTypeProject,
+				RootRef:    "300",
+				SyncMode:   sourcebindingdomain.SyncModeRealtime,
+				Enabled:    true,
+				SyncConfig: map[string]any{"scope": "selected"},
+				Targets: []sourcebindingdomain.BindingTarget{
+					{TargetType: sourcebindingdomain.TargetTypeFolder, TargetRef: "42"},
+					{TargetType: sourcebindingdomain.TargetTypeFile, TargetRef: "43"},
+				},
+			},
+		},
+	})
+
+	result, err := app.Show(context.Background(), testAppKnowledgeBaseCode, testOrganizationCode1, "")
+	if err != nil {
+		t.Fatalf("Show returned error: %v", err)
+	}
+	if len(result.SourceBindings) != 1 {
+		t.Fatalf("expected one source binding, got %#v", result.SourceBindings)
+	}
+	binding := result.SourceBindings[0]
+	if binding.Provider != sourcebindingdomain.ProviderProject || binding.RootType != sourcebindingdomain.RootTypeProject || binding.RootRef != "300" {
+		t.Fatalf("unexpected source binding root: %#v", binding)
+	}
+	if binding.SyncMode != sourcebindingdomain.SyncModeRealtime || !binding.Enabled {
+		t.Fatalf("unexpected source binding sync config: %#v", binding)
+	}
+	if !reflect.DeepEqual(binding.SyncConfig, map[string]any{"scope": "selected"}) {
+		t.Fatalf("unexpected source binding sync_config: %#v", binding.SyncConfig)
+	}
+	if !reflect.DeepEqual(binding.Targets, []kbdto.SourceBindingTargetDTO{
+		{TargetType: sourcebindingdomain.TargetTypeFolder, TargetRef: "42"},
+		{TargetType: sourcebindingdomain.TargetTypeFile, TargetRef: "43"},
+	}) {
+		t.Fatalf("unexpected source binding targets: %#v", binding.Targets)
+	}
+}
+
+func TestKnowledgeBaseAppServiceShowIncludesEnterpriseWholeBinding(t *testing.T) {
+	t.Parallel()
+
+	sourceType := int(kbentity.SourceTypeEnterpriseWiki)
+	domain := &recordingKnowledgeBaseDomainService{
+		showKB: &kbentity.KnowledgeBase{
+			Code:             testAppKnowledgeBaseCode,
+			Name:             "知识库",
+			OrganizationCode: testOrganizationCode1,
+			SourceType:       &sourceType,
+		},
+		effectiveModel: effectiveEmbeddingModel,
+	}
+	app := service.NewKnowledgeBaseAppServiceForTest(t, domain, nil, nil, nil, "")
+	app.SetKnowledgeBasePermissionReader(&recordingKnowledgeBasePermissionReader{
+		operations: map[string]string{
+			testAppKnowledgeBaseCode: "read",
+		},
+	})
+	app.SetSourceBindingRepository(&recordingSourceBindingRepository{
+		listBindings: []sourcebindingdomain.Binding{
+			{
+				Provider: sourcebindingdomain.ProviderTeamshare,
+				RootType: sourcebindingdomain.RootTypeKnowledgeBase,
+				RootRef:  testTeamshareKnowledgeID,
+				SyncMode: sourcebindingdomain.SyncModeManual,
+				Enabled:  true,
+				Targets:  []sourcebindingdomain.BindingTarget{},
+			},
+		},
+	})
+
+	result, err := app.Show(context.Background(), testAppKnowledgeBaseCode, testOrganizationCode1, "")
+	if err != nil {
+		t.Fatalf("Show returned error: %v", err)
+	}
+	if len(result.SourceBindings) != 1 {
+		t.Fatalf("expected one source binding, got %#v", result.SourceBindings)
+	}
+	binding := result.SourceBindings[0]
+	if binding.Provider != sourcebindingdomain.ProviderTeamshare || binding.RootRef != testTeamshareKnowledgeID {
+		t.Fatalf("unexpected enterprise source binding: %#v", binding)
+	}
+	if len(binding.Targets) != 0 {
+		t.Fatalf("expected whole knowledge base binding with empty targets, got %#v", binding.Targets)
+	}
+}
+
 func TestKnowledgeBaseAppServiceShowReturnsBindingLookupError(t *testing.T) {
 	t.Parallel()
 
 	domain := &recordingKnowledgeBaseDomainService{
-		showKB: &knowledgebasedomain.KnowledgeBase{
+		showKB: &kbentity.KnowledgeBase{
 			Code:             testAppKnowledgeBaseCode,
 			Name:             "知识库",
 			OrganizationCode: "ORG-1",
@@ -1788,7 +2714,7 @@ func TestKnowledgeBaseAppServiceListBuildsPageResult(t *testing.T) {
 	enabled := true
 	kbType := 2
 	domain := &recordingKnowledgeBaseDomainService{
-		listKBS: []*knowledgebasedomain.KnowledgeBase{
+		listKBS: []*kbentity.KnowledgeBase{
 			{Code: testAppKnowledgeBaseCode, Name: "A"},
 			{Code: testAppKnowledgeBaseCode2, Name: "B"},
 		},
@@ -1830,7 +2756,7 @@ func TestKnowledgeBaseAppServiceListReturnsBindingLookupError(t *testing.T) {
 	t.Parallel()
 
 	domain := &recordingKnowledgeBaseDomainService{
-		listKBS: []*knowledgebasedomain.KnowledgeBase{
+		listKBS: []*kbentity.KnowledgeBase{
 			{Code: testAppKnowledgeBaseCode, Name: "A"},
 		},
 		listTotal:      1,
@@ -1861,8 +2787,8 @@ func TestKnowledgeBaseAppServiceListFiltersByReadablePermissions(t *testing.T) {
 	t.Parallel()
 
 	domain := &recordingKnowledgeBaseDomainService{
-		listKBS: []*knowledgebasedomain.KnowledgeBase{
-			{Code: testAppKnowledgeBaseCode, Name: "A", KnowledgeBaseType: knowledgebasedomain.KnowledgeBaseTypeFlowVector},
+		listKBS: []*kbentity.KnowledgeBase{
+			{Code: testAppKnowledgeBaseCode, Name: "A", KnowledgeBaseType: kbentity.KnowledgeBaseTypeFlowVector},
 		},
 		listTotal: 1,
 	}
@@ -1894,7 +2820,7 @@ func TestKnowledgeBaseAppServiceListDefaultsMissingBindingsToFlowVectorView(t *t
 	t.Parallel()
 
 	domain := &recordingKnowledgeBaseDomainService{
-		listKBS: []*knowledgebasedomain.KnowledgeBase{
+		listKBS: []*kbentity.KnowledgeBase{
 			{Code: testAppKnowledgeBaseCode, Name: "A"},
 		},
 		listTotal: 1,
@@ -1930,12 +2856,49 @@ func TestKnowledgeBaseAppServiceListDefaultsMissingBindingsToFlowVectorView(t *t
 	}
 }
 
+func TestKnowledgeBaseAppServiceListKeepsRequestedCodesWithExternalPermission(t *testing.T) {
+	t.Parallel()
+
+	domain := &recordingKnowledgeBaseDomainService{
+		listKBS: []*kbentity.KnowledgeBase{
+			{Code: testAppKnowledgeBaseCode, Name: "A", BusinessID: "BIZ-1", Type: 2},
+		},
+		listTotal: 1,
+	}
+	app := service.NewKnowledgeBaseAppServiceForTest(t, domain, nil, nil, nil, "")
+	app.SetKnowledgeBasePermissionReader(&recordingKnowledgeBasePermissionReader{
+		operations: map[string]string{},
+	})
+	app.SetThirdPlatformExpander(&fakeThirdPlatformExpander{
+		knowledgeBases: []thirdplatform.KnowledgeBaseItem{
+			{KnowledgeBaseID: "BIZ-1", Name: "A"},
+		},
+	})
+
+	result, err := app.List(context.Background(), &kbdto.ListKnowledgeBaseInput{
+		OrganizationCode: "ORG-1",
+		UserID:           "user-1",
+		Codes:            []string{testAppKnowledgeBaseCode},
+		Offset:           0,
+		Limit:            20,
+	})
+	if err != nil {
+		t.Fatalf("List returned error: %v", err)
+	}
+	if domain.lastListQuery == nil || !reflect.DeepEqual(domain.lastListQuery.Codes, []string{testAppKnowledgeBaseCode}) {
+		t.Fatalf("expected externally manageable code to survive access filtering, got %#v", domain.lastListQuery)
+	}
+	if result.Total != 1 {
+		t.Fatalf("expected total=1, got %d", result.Total)
+	}
+}
+
 func TestKnowledgeBaseAppServiceListFiltersByDigitalEmployeeView(t *testing.T) {
 	t.Parallel()
 
 	domain := &recordingKnowledgeBaseDomainService{
-		listKBS: []*knowledgebasedomain.KnowledgeBase{
-			{Code: testAppKnowledgeBaseCode2, Name: "B", KnowledgeBaseType: knowledgebasedomain.KnowledgeBaseTypeDigitalEmployee},
+		listKBS: []*kbentity.KnowledgeBase{
+			{Code: testAppKnowledgeBaseCode2, Name: "B", KnowledgeBaseType: kbentity.KnowledgeBaseTypeDigitalEmployee},
 		},
 		listTotal: 1,
 	}
@@ -1967,14 +2930,14 @@ func TestKnowledgeBaseAppServiceListFiltersByDigitalEmployeeView(t *testing.T) {
 	if domain.lastListQuery == nil || !reflect.DeepEqual(domain.lastListQuery.Codes, []string{testAppKnowledgeBaseCode2}) {
 		t.Fatalf("expected readable codes passed through query, got %#v", domain.lastListQuery)
 	}
-	if domain.lastListQuery.KnowledgeBaseType == nil || *domain.lastListQuery.KnowledgeBaseType != knowledgebasedomain.KnowledgeBaseTypeDigitalEmployee {
+	if domain.lastListQuery.KnowledgeBaseType == nil || *domain.lastListQuery.KnowledgeBaseType != kbentity.KnowledgeBaseTypeDigitalEmployee {
 		t.Fatalf("expected digital-employee list query, got %#v", domain.lastListQuery)
 	}
 	if bindingRepo.batchListCalls != 2 {
 		t.Fatalf("expected two batch binding lookups, got %d", bindingRepo.batchListCalls)
 	}
 	list := mustKnowledgeBaseDTOList(t, result.List)
-	if len(list) != 1 || list[0].KnowledgeBaseType != string(knowledgebasedomain.KnowledgeBaseTypeDigitalEmployee) {
+	if len(list) != 1 || list[0].KnowledgeBaseType != string(kbentity.KnowledgeBaseTypeDigitalEmployee) {
 		t.Fatalf("expected one digital employee knowledge base, got %#v", list)
 	}
 }
@@ -1983,10 +2946,10 @@ func TestKnowledgeBaseAppServiceShowRejectsWithoutReadPermission(t *testing.T) {
 	t.Parallel()
 
 	domain := &recordingKnowledgeBaseDomainService{
-		showKB: &knowledgebasedomain.KnowledgeBase{
+		showKB: &kbentity.KnowledgeBase{
 			Code:              testAppKnowledgeBaseCode,
 			OrganizationCode:  "ORG-1",
-			KnowledgeBaseType: knowledgebasedomain.KnowledgeBaseTypeDigitalEmployee,
+			KnowledgeBaseType: kbentity.KnowledgeBaseTypeDigitalEmployee,
 		},
 	}
 	app := service.NewKnowledgeBaseAppServiceForTest(t, domain, nil, nil, nil, "")
@@ -2006,10 +2969,10 @@ func TestKnowledgeBaseAppServiceShowUsesKnowledgeBaseScope(t *testing.T) {
 	t.Parallel()
 
 	domain := &recordingKnowledgeBaseDomainService{
-		showKB: &knowledgebasedomain.KnowledgeBase{
+		showKB: &kbentity.KnowledgeBase{
 			Code:              testAppKnowledgeBaseCode,
 			OrganizationCode:  "ORG-1",
-			KnowledgeBaseType: knowledgebasedomain.KnowledgeBaseTypeDigitalEmployee,
+			KnowledgeBaseType: kbentity.KnowledgeBaseTypeDigitalEmployee,
 		},
 	}
 	app := service.NewKnowledgeBaseAppServiceForTest(t, domain, nil, nil, nil, "")
@@ -2030,10 +2993,10 @@ func TestKnowledgeBaseAppServiceShowRejectsEmptyUserIDWithoutBypass(t *testing.T
 	t.Parallel()
 
 	domain := &recordingKnowledgeBaseDomainService{
-		showKB: &knowledgebasedomain.KnowledgeBase{
+		showKB: &kbentity.KnowledgeBase{
 			Code:              testAppKnowledgeBaseCode,
 			OrganizationCode:  "ORG-1",
-			KnowledgeBaseType: knowledgebasedomain.KnowledgeBaseTypeDigitalEmployee,
+			KnowledgeBaseType: kbentity.KnowledgeBaseTypeDigitalEmployee,
 		},
 	}
 	app := service.NewKnowledgeBaseAppServiceForTest(t, domain, nil, nil, nil, "")
@@ -2049,10 +3012,10 @@ func TestKnowledgeBaseAppServiceDestroyRejectsWithoutDeletePermission(t *testing
 	t.Parallel()
 
 	domain := &recordingKnowledgeBaseDomainService{
-		showKB: &knowledgebasedomain.KnowledgeBase{
+		showKB: &kbentity.KnowledgeBase{
 			Code:              testAppKnowledgeBaseCode,
 			OrganizationCode:  "ORG-1",
-			KnowledgeBaseType: knowledgebasedomain.KnowledgeBaseTypeDigitalEmployee,
+			KnowledgeBaseType: kbentity.KnowledgeBaseTypeDigitalEmployee,
 		},
 	}
 	app := service.NewKnowledgeBaseAppServiceForTest(t, domain, nil, nil, nil, "")
@@ -2068,11 +3031,65 @@ func TestKnowledgeBaseAppServiceDestroyRejectsWithoutDeletePermission(t *testing
 	}
 }
 
+func TestKnowledgeBaseAppServiceDestroyUsesExternalPermissionForRequestedCode(t *testing.T) {
+	t.Parallel()
+
+	domain := &recordingKnowledgeBaseDomainService{
+		filterListByQuery: true,
+		listKBS: []*kbentity.KnowledgeBase{
+			{
+				Code:             testAppKnowledgeBaseCode,
+				OrganizationCode: "ORG-1",
+				BusinessID:       "BIZ-1",
+				Type:             2,
+			},
+			{
+				Code:             testAppKnowledgeBaseCode2,
+				OrganizationCode: "ORG-1",
+				BusinessID:       "BIZ-1",
+				Type:             2,
+			},
+		},
+		showKB: &kbentity.KnowledgeBase{
+			Code:             testAppKnowledgeBaseCode,
+			OrganizationCode: "ORG-1",
+			BusinessID:       "BIZ-1",
+			Type:             2,
+		},
+	}
+	app := service.NewKnowledgeBaseAppServiceForTest(t, domain, nil, nil, nil, "")
+	app.SetKnowledgeBasePermissionReader(&recordingKnowledgeBasePermissionReader{
+		operations: map[string]string{},
+	})
+	app.SetThirdPlatformExpander(&fakeThirdPlatformExpander{
+		knowledgeBases: []thirdplatform.KnowledgeBaseItem{
+			{KnowledgeBaseID: "BIZ-1", Name: "Teamshare Knowledge"},
+		},
+	})
+
+	err := app.Destroy(context.Background(), testAppKnowledgeBaseCode, "ORG-1", "user-1")
+	if err != nil {
+		t.Fatalf("expected destroy success with external admin permission, got %v", err)
+	}
+	if domain.lastListQuery == nil {
+		t.Fatal("expected external permission lookup to query local knowledge bases")
+	}
+	if !reflect.DeepEqual(domain.lastListQuery.Codes, []string{testAppKnowledgeBaseCode}) {
+		t.Fatalf("expected local lookup constrained by requested code, got %#v", domain.lastListQuery.Codes)
+	}
+	if !reflect.DeepEqual(domain.lastListQuery.BusinessIDs, []string{"BIZ-1"}) {
+		t.Fatalf("expected local lookup constrained by manageable business id, got %#v", domain.lastListQuery.BusinessIDs)
+	}
+	if domain.destroyedKB == nil || domain.destroyedKB.Code != testAppKnowledgeBaseCode {
+		t.Fatalf("expected requested knowledge base destroyed, got %#v", domain.destroyedKB)
+	}
+}
+
 func TestKnowledgeBaseAppServiceUpdateRejectsWithoutEditPermission(t *testing.T) {
 	t.Parallel()
 
 	domain := &recordingKnowledgeBaseDomainService{
-		showKB: &knowledgebasedomain.KnowledgeBase{Code: testAppKnowledgeBaseCode, OrganizationCode: "ORG-1"},
+		showKB: &kbentity.KnowledgeBase{Code: testAppKnowledgeBaseCode, OrganizationCode: "ORG-1"},
 	}
 	app := service.NewKnowledgeBaseAppServiceForTest(t, domain, nil, nil, nil, "")
 	app.SetKnowledgeBasePermissionReader(&recordingKnowledgeBasePermissionReader{
@@ -2096,10 +3113,10 @@ func TestKnowledgeBaseAppServiceDestroyUsesKnowledgeBaseScope(t *testing.T) {
 	t.Parallel()
 
 	domain := &recordingKnowledgeBaseDomainService{
-		showKB: &knowledgebasedomain.KnowledgeBase{
+		showKB: &kbentity.KnowledgeBase{
 			Code:              testAppKnowledgeBaseCode,
 			OrganizationCode:  "ORG-1",
-			KnowledgeBaseType: knowledgebasedomain.KnowledgeBaseTypeDigitalEmployee,
+			KnowledgeBaseType: kbentity.KnowledgeBaseTypeDigitalEmployee,
 		},
 	}
 	app := service.NewKnowledgeBaseAppServiceForTest(t, domain, nil, nil, nil, "")
@@ -2120,13 +3137,13 @@ func TestKnowledgeBaseAppServiceDestroyLoadsThenDestroys(t *testing.T) {
 	t.Parallel()
 
 	domain := &recordingKnowledgeBaseDomainService{
-		showKB: &knowledgebasedomain.KnowledgeBase{ID: 7, Code: testAppKnowledgeBaseCode, OrganizationCode: "ORG-1"},
+		showKB: &kbentity.KnowledgeBase{ID: 7, Code: testAppKnowledgeBaseCode, OrganizationCode: "ORG-1"},
 	}
 	app := service.NewKnowledgeBaseAppServiceForTest(t, domain, nil, nil, nil, "")
 	destroyCoordinator := &recordingDestroyCoordinator{}
 	permissionPort := &recordingKnowledgeBaseOwnerGrantPort{}
 	app.SetDestroyCoordinator(destroyCoordinator)
-	app.SetOwnerGrantPort(permissionPort)
+	app.SetKnowledgeBasePermissionWriter(permissionPort)
 
 	if err := app.Destroy(context.Background(), testAppKnowledgeBaseCode, "ORG-1", ""); err != nil {
 		t.Fatalf("Destroy returned error: %v", err)
@@ -2149,7 +3166,7 @@ func TestKnowledgeBaseAppServiceDestroyStopsWhenDeletingVectorDataFails(t *testi
 	t.Parallel()
 
 	domain := &recordingKnowledgeBaseDomainService{
-		showKB:          &knowledgebasedomain.KnowledgeBase{ID: 7, Code: testAppKnowledgeBaseCode, OrganizationCode: "ORG-1"},
+		showKB:          &kbentity.KnowledgeBase{ID: 7, Code: testAppKnowledgeBaseCode, OrganizationCode: "ORG-1"},
 		deleteVectorErr: errVectorDeleteFailed,
 	}
 	app := service.NewKnowledgeBaseAppServiceForTest(t, domain, nil, nil, nil, "")
@@ -2169,7 +3186,7 @@ func TestKnowledgeBaseAppServiceDestroyStopsWhenDestroyCoordinatorFails(t *testi
 	t.Parallel()
 
 	domain := &recordingKnowledgeBaseDomainService{
-		showKB: &knowledgebasedomain.KnowledgeBase{ID: 7, Code: testAppKnowledgeBaseCode, OrganizationCode: "ORG-1"},
+		showKB: &kbentity.KnowledgeBase{ID: 7, Code: testAppKnowledgeBaseCode, OrganizationCode: "ORG-1"},
 	}
 	app := service.NewKnowledgeBaseAppServiceForTest(t, domain, nil, nil, nil, "")
 	destroyCoordinator := &recordingDestroyCoordinator{destroyErr: errDestroyCoordinatorFailed}
@@ -2213,7 +3230,7 @@ func TestKnowledgeBaseAppServiceShowIgnoresAggregatedCountFailure(t *testing.T) 
 	t.Parallel()
 
 	domain := &recordingKnowledgeBaseDomainService{
-		showKB: &knowledgebasedomain.KnowledgeBase{Code: testAppKnowledgeBaseCode, Name: "知识库"},
+		showKB: &kbentity.KnowledgeBase{Code: testAppKnowledgeBaseCode, Name: "知识库"},
 	}
 	counter := &errorStatsFragmentCounter{err: errStatsFailed}
 	app := service.NewKnowledgeBaseAppServiceForTest(t, domain, nil, counter, testKnowledgeBaseAppLogger(), "")
@@ -2231,7 +3248,7 @@ func TestKnowledgeBaseAppServiceEntityToDTOWithZeroOverlapSegmentRule(t *testing
 	t.Parallel()
 
 	svc := &service.KnowledgeBaseAppService{}
-	kb := &knowledgebasedomain.KnowledgeBase{
+	kb := &kbentity.KnowledgeBase{
 		Code: testAppKnowledgeBaseCode,
 		FragmentConfig: &shared.FragmentConfig{
 			Mode: shared.FragmentModeCustom,
@@ -2314,31 +3331,36 @@ type recordingKnowledgeBaseDomainService struct {
 	listErr                           error
 	destroyErr                        error
 	deleteVectorErr                   error
-	savedKB                           *knowledgebasedomain.KnowledgeBase
+	savedKB                           *kbentity.KnowledgeBase
 	savedResolvedVectorCollectionName string
-	updatedKB                         *knowledgebasedomain.KnowledgeBase
-	showKB                            *knowledgebasedomain.KnowledgeBase
-	listKBS                           []*knowledgebasedomain.KnowledgeBase
+	updatedKB                         *kbentity.KnowledgeBase
+	updatedKBs                        []*kbentity.KnowledgeBase
+	showKB                            *kbentity.KnowledgeBase
+	listKBS                           []*kbentity.KnowledgeBase
 	listTotal                         int64
-	destroyedKB                       *knowledgebasedomain.KnowledgeBase
-	deletedVectorKB                   *knowledgebasedomain.KnowledgeBase
+	destroyedKB                       *kbentity.KnowledgeBase
+	deletedVectorKB                   *kbentity.KnowledgeBase
 
 	lastShowCode  string
 	lastShowOrg   string
-	lastListQuery *knowledgebasedomain.Query
+	lastListQuery *kbrepository.Query
 
 	effectiveModel           string
 	filterListByQuery        bool
 	resolvedCollection       string
 	resolveRuntimeRouteCalls int
+	events                   *[]string
 }
 
-func (r *recordingKnowledgeBaseDomainService) PrepareForSave(_ context.Context, kb *knowledgebasedomain.KnowledgeBase) error {
+func (r *recordingKnowledgeBaseDomainService) PrepareForSave(_ context.Context, kb *kbentity.KnowledgeBase) error {
 	r.savedKB = cloneKnowledgeBase(kb)
 	return r.prepareSaveErr
 }
 
-func (r *recordingKnowledgeBaseDomainService) Save(_ context.Context, kb *knowledgebasedomain.KnowledgeBase) error {
+func (r *recordingKnowledgeBaseDomainService) Save(_ context.Context, kb *kbentity.KnowledgeBase) error {
+	if r.events != nil {
+		*r.events = append(*r.events, "kb-save")
+	}
 	if kb.ResolvedRoute != nil {
 		r.savedResolvedVectorCollectionName = kb.ResolvedRoute.VectorCollectionName
 	}
@@ -2346,17 +3368,18 @@ func (r *recordingKnowledgeBaseDomainService) Save(_ context.Context, kb *knowle
 	return r.saveErr
 }
 
-func (r *recordingKnowledgeBaseDomainService) Update(_ context.Context, kb *knowledgebasedomain.KnowledgeBase) error {
+func (r *recordingKnowledgeBaseDomainService) Update(_ context.Context, kb *kbentity.KnowledgeBase) error {
 	r.updatedKB = cloneKnowledgeBase(kb)
+	r.updatedKBs = append(r.updatedKBs, cloneKnowledgeBase(kb))
 	return r.updateErr
 }
 
-func (r *recordingKnowledgeBaseDomainService) UpdateProgress(_ context.Context, kb *knowledgebasedomain.KnowledgeBase) error {
+func (r *recordingKnowledgeBaseDomainService) UpdateProgress(_ context.Context, kb *kbentity.KnowledgeBase) error {
 	r.updatedKB = cloneKnowledgeBase(kb)
 	return r.updateProgressErr
 }
 
-func (r *recordingKnowledgeBaseDomainService) ShowByCodeAndOrg(_ context.Context, code, orgCode string) (*knowledgebasedomain.KnowledgeBase, error) {
+func (r *recordingKnowledgeBaseDomainService) ShowByCodeAndOrg(_ context.Context, code, orgCode string) (*kbentity.KnowledgeBase, error) {
 	r.lastShowCode = code
 	r.lastShowOrg = orgCode
 	if r.showErr != nil {
@@ -2365,7 +3388,7 @@ func (r *recordingKnowledgeBaseDomainService) ShowByCodeAndOrg(_ context.Context
 	return cloneKnowledgeBase(r.showKB), nil
 }
 
-func (r *recordingKnowledgeBaseDomainService) List(_ context.Context, query *knowledgebasedomain.Query) ([]*knowledgebasedomain.KnowledgeBase, int64, error) {
+func (r *recordingKnowledgeBaseDomainService) List(_ context.Context, query *kbrepository.Query) ([]*kbentity.KnowledgeBase, int64, error) {
 	r.lastListQuery = query
 	if r.listErr != nil {
 		return nil, 0, r.listErr
@@ -2377,7 +3400,7 @@ func (r *recordingKnowledgeBaseDomainService) List(_ context.Context, query *kno
 
 	codeFilter := buildStringSet(query.Codes)
 	businessIDFilter := buildStringSet(query.BusinessIDs)
-	items := make([]*knowledgebasedomain.KnowledgeBase, 0, len(r.listKBS))
+	items := make([]*kbentity.KnowledgeBase, 0, len(r.listKBS))
 	for _, kb := range r.listKBS {
 		if r.matchesListQuery(kb, query, codeFilter, businessIDFilter) {
 			items = append(items, cloneKnowledgeBase(kb))
@@ -2387,8 +3410,8 @@ func (r *recordingKnowledgeBaseDomainService) List(_ context.Context, query *kno
 }
 
 func (r *recordingKnowledgeBaseDomainService) matchesListQuery(
-	kb *knowledgebasedomain.KnowledgeBase,
-	query *knowledgebasedomain.Query,
+	kb *kbentity.KnowledgeBase,
+	query *kbrepository.Query,
 	codeFilter map[string]struct{},
 	businessIDFilter map[string]struct{},
 ) bool {
@@ -2414,8 +3437,8 @@ func (r *recordingKnowledgeBaseDomainService) matchesListQuery(
 	return true
 }
 
-func cloneKnowledgeBaseList(list []*knowledgebasedomain.KnowledgeBase) []*knowledgebasedomain.KnowledgeBase {
-	items := make([]*knowledgebasedomain.KnowledgeBase, 0, len(list))
+func cloneKnowledgeBaseList(list []*kbentity.KnowledgeBase) []*kbentity.KnowledgeBase {
+	items := make([]*kbentity.KnowledgeBase, 0, len(list))
 	for _, kb := range list {
 		if kb == nil {
 			continue
@@ -2425,7 +3448,7 @@ func cloneKnowledgeBaseList(list []*knowledgebasedomain.KnowledgeBase) []*knowle
 	return items
 }
 
-func resolveKnowledgeBaseListTotal(total int64, items []*knowledgebasedomain.KnowledgeBase) int64 {
+func resolveKnowledgeBaseListTotal(total int64, items []*kbentity.KnowledgeBase) int64 {
 	if total != 0 {
 		return total
 	}
@@ -2443,17 +3466,17 @@ func buildStringSet(values []string) map[string]struct{} {
 	return result
 }
 
-func (r *recordingKnowledgeBaseDomainService) Destroy(_ context.Context, kb *knowledgebasedomain.KnowledgeBase) error {
+func (r *recordingKnowledgeBaseDomainService) Destroy(_ context.Context, kb *kbentity.KnowledgeBase) error {
 	r.destroyedKB = cloneKnowledgeBase(kb)
 	return r.destroyErr
 }
 
-func (r *recordingKnowledgeBaseDomainService) DeleteVectorData(_ context.Context, kb *knowledgebasedomain.KnowledgeBase) error {
+func (r *recordingKnowledgeBaseDomainService) DeleteVectorData(_ context.Context, kb *kbentity.KnowledgeBase) error {
 	r.deletedVectorKB = cloneKnowledgeBase(kb)
 	return r.deleteVectorErr
 }
 
-func (r *recordingKnowledgeBaseDomainService) ResolveRuntimeRoute(_ context.Context, kb *knowledgebasedomain.KnowledgeBase) sharedroute.ResolvedRoute {
+func (r *recordingKnowledgeBaseDomainService) ResolveRuntimeRoute(_ context.Context, kb *kbentity.KnowledgeBase) sharedroute.ResolvedRoute {
 	r.resolveRuntimeRouteCalls++
 	collection := r.resolvedCollection
 	if collection == "" && kb != nil {
@@ -2472,6 +3495,9 @@ type recordingKnowledgeBaseDocumentManager struct {
 	createResults []*service.ManagedDocument
 	createErrAt   int
 	createErr     error
+	destroyErrAt  int
+	destroyErr    error
+	events        *[]string
 
 	createInputs               []*service.CreateManagedDocumentInput
 	listByProject              map[int64][]*service.ManagedDocument
@@ -2495,6 +3521,9 @@ func (r *recordingKnowledgeBaseDocumentManager) CreateManagedDocument(
 	_ context.Context,
 	input *service.CreateManagedDocumentInput,
 ) (*service.ManagedDocument, error) {
+	if r.events != nil {
+		*r.events = append(*r.events, "doc-create:"+input.Name)
+	}
 	r.createInputs = append(r.createInputs, cloneCreateDocumentInput(input))
 	index := len(r.createInputs) - 1
 	if r.createErr != nil && index == r.createErrAt {
@@ -2546,6 +3575,9 @@ func (r *recordingKnowledgeBaseDocumentManager) ListManagedDocumentsByKnowledgeB
 
 func (r *recordingKnowledgeBaseDocumentManager) DestroyManagedDocument(_ context.Context, code, knowledgeBaseCode string) error {
 	r.destroyInputs = append(r.destroyInputs, destroyDocumentInput{code: code, knowledgeBaseCode: knowledgeBaseCode})
+	if r.destroyErr != nil && len(r.destroyInputs)-1 == r.destroyErrAt {
+		return r.destroyErr
+	}
 	filtered := r.listByKnowledgeBase[:0]
 	for _, doc := range r.listByKnowledgeBase {
 		if doc != nil && doc.Code == code && doc.KnowledgeBaseCode == knowledgeBaseCode {
@@ -2578,6 +3610,9 @@ func (r *recordingKnowledgeBaseDocumentManager) DestroyKnowledgeBaseDocuments(
 }
 
 func (r *recordingKnowledgeBaseDocumentManager) ScheduleManagedDocumentSync(_ context.Context, input *service.SyncDocumentInput) {
+	if r.events != nil {
+		*r.events = append(*r.events, "doc-sync:"+input.Code)
+	}
 	cloned := *input
 	if input.BusinessParams != nil {
 		copied := *input.BusinessParams
@@ -2589,9 +3624,15 @@ func (r *recordingKnowledgeBaseDocumentManager) ScheduleManagedDocumentSync(_ co
 type recordingSourceBindingRepository struct {
 	lastReplaceKnowledgeBaseCode string
 	lastReplaceBindings          []sourcebindingdomain.Binding
+	lastApplyInput               sourcebindingrepository.ApplyKnowledgeBaseBindingsInput
+	applyInputs                  []sourcebindingrepository.ApplyKnowledgeBaseBindingsInput
 	lastSavedKnowledgeBaseCode   string
 	lastSavedBindings            []sourcebindingdomain.Binding
 	listBindings                 []sourcebindingdomain.Binding
+	listBindingItems             []sourcebindingdomain.BindingItem
+	listBindingsByKnowledgeBase  map[string][]sourcebindingdomain.Binding
+	sourceItemIDs                map[string]int64
+	nextSourceItemID             int64
 	deletedKnowledgeBaseCode     string
 	deleteErr                    error
 }
@@ -2615,6 +3656,7 @@ type recordingKnowledgeBaseOwnerGrantPort struct {
 	lastKnowledgeBaseCode    string
 	lastOwnerUserID          string
 	deletedKnowledgeBaseCode string
+	events                   *[]string
 }
 
 type recordingKnowledgeBasePermissionReader struct {
@@ -2639,24 +3681,40 @@ func (r *recordingKnowledgeBasePermissionReader) IsOfficialOrganizationMember(co
 	return r.official, nil
 }
 
-func (r *recordingKnowledgeBaseOwnerGrantPort) GrantKnowledgeBaseOwner(
+func (r *recordingKnowledgeBaseOwnerGrantPort) Initialize(
 	_ context.Context,
-	organizationCode string,
-	currentUserID string,
+	actor kbaccess.Actor,
+	input kbaccess.InitializeInput,
+) error {
+	if r.events != nil {
+		*r.events = append(*r.events, "owner-grant")
+	}
+	r.lastOrganizationCode = actor.OrganizationCode
+	r.lastCurrentUserID = actor.UserID
+	r.lastKnowledgeBaseCode = input.KnowledgeBaseCode
+	r.lastOwnerUserID = input.OwnerUserID
+	return r.err
+}
+
+func (r *recordingKnowledgeBaseOwnerGrantPort) GrantOwner(
+	_ context.Context,
+	actor kbaccess.Actor,
 	knowledgeBaseCode string,
 	ownerUserID string,
 ) error {
-	r.lastOrganizationCode = organizationCode
-	r.lastCurrentUserID = currentUserID
+	if r.events != nil {
+		*r.events = append(*r.events, "owner-grant")
+	}
+	r.lastOrganizationCode = actor.OrganizationCode
+	r.lastCurrentUserID = actor.UserID
 	r.lastKnowledgeBaseCode = knowledgeBaseCode
 	r.lastOwnerUserID = ownerUserID
 	return r.err
 }
 
-func (r *recordingKnowledgeBaseOwnerGrantPort) DeleteKnowledgeBasePermissions(
+func (r *recordingKnowledgeBaseOwnerGrantPort) Cleanup(
 	_ context.Context,
-	_ string,
-	_ string,
+	_ kbaccess.Actor,
 	knowledgeBaseCode string,
 ) error {
 	r.deletedKnowledgeBaseCode = knowledgeBaseCode
@@ -2691,6 +3749,30 @@ func (r *recordingSourceBindingRepository) SaveBindings(_ context.Context, knowl
 	return append([]sourcebindingdomain.Binding(nil), r.lastSavedBindings...), nil
 }
 
+func (r *recordingSourceBindingRepository) ApplyKnowledgeBaseBindings(
+	_ context.Context,
+	input sourcebindingrepository.ApplyKnowledgeBaseBindingsInput,
+) ([]sourcebindingdomain.Binding, error) {
+	r.lastApplyInput = input
+	r.applyInputs = append(r.applyInputs, input)
+	r.lastReplaceKnowledgeBaseCode = input.KnowledgeBaseCode
+	r.lastReplaceBindings = make([]sourcebindingdomain.Binding, 0, len(input.UpsertBindings))
+	r.listBindingItems = make([]sourcebindingdomain.BindingItem, 0)
+	for idx, applyBinding := range input.UpsertBindings {
+		cloned := applyBinding.Binding
+		if cloned.ID <= 0 {
+			cloned.ID = int64(idx + 1)
+		}
+		r.lastReplaceBindings = append(r.lastReplaceBindings, cloned)
+		for _, item := range applyBinding.Items {
+			item.BindingID = cloned.ID
+			r.listBindingItems = append(r.listBindingItems, item)
+		}
+	}
+	r.listBindings = append([]sourcebindingdomain.Binding(nil), r.lastReplaceBindings...)
+	return append([]sourcebindingdomain.Binding(nil), r.lastReplaceBindings...), nil
+}
+
 func (r *recordingSourceBindingRepository) DeleteBindingsByKnowledgeBase(_ context.Context, knowledgeBaseCode string) error {
 	r.deletedKnowledgeBaseCode = knowledgeBaseCode
 	return r.deleteErr
@@ -2700,13 +3782,59 @@ func (r *recordingSourceBindingRepository) ListBindingsByKnowledgeBase(context.C
 	return append([]sourcebindingdomain.Binding(nil), r.listBindings...), nil
 }
 
+func (r *recordingSourceBindingRepository) ListBindingsByKnowledgeBases(_ context.Context, knowledgeBaseCodes []string) (map[string][]sourcebindingdomain.Binding, error) {
+	if len(r.listBindingsByKnowledgeBase) == 0 {
+		return map[string][]sourcebindingdomain.Binding{}, nil
+	}
+	result := make(map[string][]sourcebindingdomain.Binding, len(knowledgeBaseCodes))
+	for _, knowledgeBaseCode := range knowledgeBaseCodes {
+		result[knowledgeBaseCode] = append([]sourcebindingdomain.Binding(nil), r.listBindingsByKnowledgeBase[knowledgeBaseCode]...)
+	}
+	return result, nil
+}
+
 func (r *recordingSourceBindingRepository) ListRealtimeProjectBindingsByProject(context.Context, string, int64) ([]sourcebindingdomain.Binding, error) {
 	return nil, nil
 }
 
+func (r *recordingSourceBindingRepository) ListRealtimeTeamshareBindingsByKnowledgeBase(context.Context, string, string, string) ([]sourcebindingdomain.Binding, error) {
+	return nil, nil
+}
+
+func (r *recordingSourceBindingRepository) HasRealtimeProjectBindingForFile(context.Context, string, int64, int64) (bool, error) {
+	return false, nil
+}
+
 func (r *recordingSourceBindingRepository) UpsertSourceItem(_ context.Context, item sourcebindingdomain.SourceItem) (*sourcebindingdomain.SourceItem, error) {
-	item.ID = 1
+	if r.sourceItemIDs == nil {
+		r.sourceItemIDs = make(map[string]int64)
+	}
+	if id, exists := r.sourceItemIDs[item.ItemRef]; exists {
+		item.ID = id
+		return &item, nil
+	}
+	r.nextSourceItemID++
+	if r.nextSourceItemID == 0 {
+		r.nextSourceItemID = 1
+	}
+	item.ID = r.nextSourceItemID
+	r.sourceItemIDs[item.ItemRef] = item.ID
 	return &item, nil
+}
+
+func (r *recordingSourceBindingRepository) UpsertSourceItems(
+	ctx context.Context,
+	items []sourcebindingdomain.SourceItem,
+) ([]*sourcebindingdomain.SourceItem, error) {
+	result := make([]*sourcebindingdomain.SourceItem, 0, len(items))
+	for _, item := range items {
+		saved, err := r.UpsertSourceItem(ctx, item)
+		if err != nil {
+			return nil, err
+		}
+		result = append(result, saved)
+	}
+	return result, nil
 }
 
 func (r *recordingSourceBindingRepository) ReplaceBindingItems(context.Context, int64, []sourcebindingdomain.BindingItem) error {
@@ -2714,19 +3842,23 @@ func (r *recordingSourceBindingRepository) ReplaceBindingItems(context.Context, 
 }
 
 func (r *recordingSourceBindingRepository) ListBindingItemsByKnowledgeBase(context.Context, string) ([]sourcebindingdomain.BindingItem, error) {
-	return nil, nil
+	return append([]sourcebindingdomain.BindingItem(nil), r.listBindingItems...), nil
 }
 
 type projectFileResolverStub struct {
 	listByProjectResults                 map[int64][]projectfile.ListItem
 	resolveResults                       map[int64]*projectfile.ResolveResult
+	visibleMetasByID                     map[int64]*projectfile.Meta
+	loadVisibleMetaErrByID               map[int64]error
 	visibleLeafFileIDsByProject          map[int64][]int64
 	visibleLeafFileIDsByFolder           map[int64][]int64
 	visibleTreeNodesByProject            map[int64][]projectfile.TreeNode
 	visibleTreeNodesByFolder             map[int64][]projectfile.TreeNode
 	visibleFilesByID                     map[int64]bool
 	listVisibleLeafFileIDsByProjectCalls int
+	loadVisibleMetaCalls                 int
 	isVisibleFileCalls                   int
+	resolveCalls                         int
 }
 
 type fragmentRepairServiceStub struct {
@@ -2741,7 +3873,7 @@ type fragmentRepairServiceStub struct {
 type recordingKnowledgeBaseBindingRepository struct {
 	bindIDsByKnowledgeBase map[string][]string
 	lastReplaceCode        string
-	lastReplaceBindType    knowledgebasedomain.BindingType
+	lastReplaceBindType    kbentity.BindingType
 	lastReplaceBindIDs     []string
 	replaceErr             error
 	listErr                error
@@ -2752,7 +3884,7 @@ type recordingKnowledgeBaseBindingRepository struct {
 func (r *recordingKnowledgeBaseBindingRepository) ReplaceBindings(
 	_ context.Context,
 	knowledgeBaseCode string,
-	bindType knowledgebasedomain.BindingType,
+	bindType kbentity.BindingType,
 	_ string,
 	_ string,
 	bindIDs []string,
@@ -2773,7 +3905,7 @@ func (r *recordingKnowledgeBaseBindingRepository) ReplaceBindings(
 func (r *recordingKnowledgeBaseBindingRepository) ListBindIDsByKnowledgeBase(
 	_ context.Context,
 	knowledgeBaseCode string,
-	_ knowledgebasedomain.BindingType,
+	_ kbentity.BindingType,
 ) ([]string, error) {
 	if r.listErr != nil {
 		return nil, r.listErr
@@ -2784,7 +3916,7 @@ func (r *recordingKnowledgeBaseBindingRepository) ListBindIDsByKnowledgeBase(
 func (r *recordingKnowledgeBaseBindingRepository) ListBindIDsByKnowledgeBases(
 	_ context.Context,
 	knowledgeBaseCodes []string,
-	_ knowledgebasedomain.BindingType,
+	_ kbentity.BindingType,
 ) (map[string][]string, error) {
 	if r.batchListErr != nil {
 		return nil, r.batchListErr
@@ -2879,7 +4011,7 @@ type hiddenRootTaskFileReaderStub struct {
 	childrenByParentBatch map[int64][]*projectfile.Meta
 }
 
-func cloneDocumentFile(input *documentdomain.File) *documentdomain.File {
+func cloneDocumentFile(input *docentity.File) *docentity.File {
 	if input == nil {
 		return nil
 	}
@@ -2888,7 +4020,55 @@ func cloneDocumentFile(input *documentdomain.File) *documentdomain.File {
 }
 
 func (s *projectFileResolverStub) Resolve(_ context.Context, projectFileID int64) (*projectfile.ResolveResult, error) {
+	s.resolveCalls++
 	return s.resolveResults[projectFileID], nil
+}
+
+func (s *projectFileResolverStub) LoadVisibleMeta(_ context.Context, projectFileID int64) (*projectfile.Meta, error) {
+	s.loadVisibleMetaCalls++
+	if err, ok := s.loadVisibleMetaErrByID[projectFileID]; ok && err != nil {
+		return nil, err
+	}
+	if s.visibleFilesByID != nil {
+		if visible, exists := s.visibleFilesByID[projectFileID]; exists && !visible {
+			var zeroMeta *projectfile.Meta
+			return zeroMeta, nil
+		}
+	}
+	if meta, ok := s.visibleMetasByID[projectFileID]; ok {
+		return cloneProjectFileMeta(meta), nil
+	}
+	if resolved, ok := s.resolveResults[projectFileID]; ok && resolved != nil {
+		return projectFileMetaFromResolvedResult(resolved), nil
+	}
+	var zeroMeta *projectfile.Meta
+	return zeroMeta, nil
+}
+
+func cloneProjectFileMeta(input *projectfile.Meta) *projectfile.Meta {
+	if input == nil {
+		return nil
+	}
+	cloned := *input
+	return &cloned
+}
+
+func projectFileMetaFromResolvedResult(resolved *projectfile.ResolveResult) *projectfile.Meta {
+	if resolved == nil {
+		return nil
+	}
+	return &projectfile.Meta{
+		Status:           strings.TrimSpace(resolved.Status),
+		OrganizationCode: strings.TrimSpace(resolved.OrganizationCode),
+		ProjectID:        resolved.ProjectID,
+		ProjectFileID:    resolved.ProjectFileID,
+		FileKey:          strings.TrimSpace(resolved.FileKey),
+		RelativeFilePath: strings.TrimSpace(resolved.RelativeFilePath),
+		FileName:         strings.TrimSpace(resolved.FileName),
+		FileExtension:    projectfile.NormalizeExtension(resolved.FileName, resolved.FileExtension),
+		IsDirectory:      resolved.IsDirectory,
+		UpdatedAt:        strings.TrimSpace(resolved.UpdatedAt),
+	}
 }
 
 func (s *hiddenRootTaskFileReaderStub) FindByID(_ context.Context, projectFileID int64) (*projectfile.Meta, error) {
@@ -2908,21 +4088,35 @@ func (s *hiddenRootTaskFileReaderStub) ListVisibleChildrenByParent(
 	return s.childrenByParent[parentID], nil
 }
 
-func (s *hiddenRootTaskFileReaderStub) ListVisibleChildrenByParents(
+func (s *hiddenRootTaskFileReaderStub) ListVisibleChildrenByParentAfter(
 	_ context.Context,
 	_ int64,
-	parentIDs []int64,
-	_ int,
+	parentID int64,
+	_ int64,
+	lastFileID int64,
+	limit int,
 ) ([]*projectfile.Meta, error) {
-	total := 0
-	for _, parentID := range parentIDs {
-		total += len(s.childrenByParentBatch[parentID])
+	items := s.childrenByParentBatch[parentID]
+	if len(items) == 0 {
+		return nil, nil
 	}
-	result := make([]*projectfile.Meta, 0, total)
-	for _, parentID := range parentIDs {
-		result = append(result, s.childrenByParentBatch[parentID]...)
+	start := 0
+	if lastFileID > 0 {
+		for idx, item := range items {
+			if item != nil && item.ProjectFileID == lastFileID {
+				start = idx + 1
+				break
+			}
+		}
 	}
-	return result, nil
+	if start >= len(items) {
+		return nil, nil
+	}
+	end := start + limit
+	if limit <= 0 || end > len(items) {
+		end = len(items)
+	}
+	return append([]*projectfile.Meta(nil), items[start:end]...), nil
 }
 
 func (s *projectFileResolverStub) ListByProject(_ context.Context, projectID int64) ([]projectfile.ListItem, error) {
@@ -2978,6 +4172,48 @@ func (s *projectFileResolverStub) ListVisibleLeafFileIDsByFolder(_ context.Conte
 	return append([]int64(nil), s.visibleLeafFileIDsByFolder[folderID]...), nil
 }
 
+func (s *projectFileResolverStub) WalkVisibleLeafFileIDsByProject(
+	ctx context.Context,
+	projectID int64,
+	visitor func(projectFileID int64) (bool, error),
+) error {
+	items, err := s.ListVisibleLeafFileIDsByProject(ctx, projectID)
+	if err != nil {
+		return err
+	}
+	for _, item := range items {
+		keepWalking, visitErr := visitor(item)
+		if visitErr != nil {
+			return visitErr
+		}
+		if !keepWalking {
+			return nil
+		}
+	}
+	return nil
+}
+
+func (s *projectFileResolverStub) WalkVisibleLeafFileIDsByFolder(
+	ctx context.Context,
+	folderID int64,
+	visitor func(projectFileID int64) (bool, error),
+) error {
+	items, err := s.ListVisibleLeafFileIDsByFolder(ctx, folderID)
+	if err != nil {
+		return err
+	}
+	for _, item := range items {
+		keepWalking, visitErr := visitor(item)
+		if visitErr != nil {
+			return visitErr
+		}
+		if !keepWalking {
+			return nil
+		}
+	}
+	return nil
+}
+
 type fallbackFragmentCounter struct {
 	total       int64
 	synced      int64
@@ -3018,7 +4254,7 @@ func assertKnowledgeBaseListPageResult(t *testing.T, result *pagehelper.Result) 
 	}
 }
 
-func assertKnowledgeBaseListQuery(t *testing.T, query *knowledgebasedomain.Query) {
+func assertKnowledgeBaseListQuery(t *testing.T, query *kbrepository.Query) {
 	t.Helper()
 	if query == nil {
 		t.Fatal("expected list query captured")
@@ -3026,7 +4262,7 @@ func assertKnowledgeBaseListQuery(t *testing.T, query *knowledgebasedomain.Query
 	if query.OrganizationCode != "ORG-1" || query.Offset != 10 || query.Limit != 20 {
 		t.Fatalf("unexpected list query: %#v", query)
 	}
-	if query.KnowledgeBaseType == nil || *query.KnowledgeBaseType != knowledgebasedomain.KnowledgeBaseTypeFlowVector {
+	if query.KnowledgeBaseType == nil || *query.KnowledgeBaseType != kbentity.KnowledgeBaseTypeFlowVector {
 		t.Fatalf("expected flow-vector list query, got %#v", query)
 	}
 }
@@ -3048,7 +4284,7 @@ func assertKnowledgeBaseListItems(t *testing.T, list []*kbdto.KnowledgeBaseDTO) 
 	if list[0].Model != effectiveEmbeddingModel || list[1].Model != effectiveEmbeddingModel {
 		t.Fatalf("expected list items to reuse effective model %q, got %#v", effectiveEmbeddingModel, list)
 	}
-	if list[0].KnowledgeBaseType != string(knowledgebasedomain.KnowledgeBaseTypeFlowVector) || list[1].KnowledgeBaseType != string(knowledgebasedomain.KnowledgeBaseTypeFlowVector) {
+	if list[0].KnowledgeBaseType != string(kbentity.KnowledgeBaseTypeFlowVector) || list[1].KnowledgeBaseType != string(kbentity.KnowledgeBaseTypeFlowVector) {
 		t.Fatalf("expected list items to expose stored flow-vector type, got %#v", list)
 	}
 	if list[0].UserOperation != 3 || list[1].UserOperation != 4 {
@@ -3079,7 +4315,7 @@ func assertKnowledgeBaseListResolvedModelCalls(t *testing.T, calls int) {
 	}
 }
 
-func assertCreateDocumentFileCloned(t *testing.T, file *documentdomain.File, expectedName, expectedURL string) {
+func assertCreateDocumentFileCloned(t *testing.T, file *docentity.File, expectedName, expectedURL string) {
 	t.Helper()
 	if got := file.Name; got != expectedName {
 		t.Fatalf("expected document file to be cloned, got name %q", got)
@@ -3089,7 +4325,7 @@ func assertCreateDocumentFileCloned(t *testing.T, file *documentdomain.File, exp
 	}
 }
 
-func cloneKnowledgeBase(kb *knowledgebasedomain.KnowledgeBase) *knowledgebasedomain.KnowledgeBase {
+func cloneKnowledgeBase(kb *kbentity.KnowledgeBase) *kbentity.KnowledgeBase {
 	if kb == nil {
 		return nil
 	}

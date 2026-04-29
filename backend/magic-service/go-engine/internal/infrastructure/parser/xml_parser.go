@@ -9,7 +9,7 @@ import (
 	"io"
 	"strings"
 
-	documentdomain "magic/internal/domain/knowledge/document/service"
+	documentdomain "magic/internal/domain/knowledge/document/metadata"
 )
 
 // XMLParser 解析 XML 文档。

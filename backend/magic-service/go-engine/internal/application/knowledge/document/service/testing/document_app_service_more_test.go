@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"maps"
 	"slices"
 	"strings"
 	"testing"
@@ -14,13 +15,21 @@ import (
 	appservice "magic/internal/application/knowledge/document/service"
 	confighelper "magic/internal/application/knowledge/helper/config"
 	docfilehelper "magic/internal/application/knowledge/helper/docfile"
+	revectorizeshared "magic/internal/application/knowledge/shared/revectorize"
 	thirdplatformprovider "magic/internal/application/knowledge/shared/thirdplatformprovider"
+	contactuserdomain "magic/internal/domain/contact/user"
+	docentity "magic/internal/domain/knowledge/document/entity"
+	docrepo "magic/internal/domain/knowledge/document/repository"
 	documentdomain "magic/internal/domain/knowledge/document/service"
 	fragmodel "magic/internal/domain/knowledge/fragment/model"
-	"magic/internal/domain/knowledge/knowledgebase/service"
+	kbentity "magic/internal/domain/knowledge/knowledgebase/entity"
+	kbrepository "magic/internal/domain/knowledge/knowledgebase/repository"
 	"magic/internal/domain/knowledge/shared"
+	"magic/internal/domain/knowledge/shared/parseddocument"
 	sharedroute "magic/internal/domain/knowledge/shared/route"
-	sourcebindingdomain "magic/internal/domain/knowledge/sourcebinding/service"
+	sharedsnapshot "magic/internal/domain/knowledge/shared/snapshot"
+	sourcebindingdomain "magic/internal/domain/knowledge/sourcebinding/entity"
+	sourcebindingrepository "magic/internal/domain/knowledge/sourcebinding/repository"
 	"magic/internal/pkg/ctxmeta"
 	"magic/internal/pkg/projectfile"
 	"magic/internal/pkg/thirdplatform"
@@ -40,7 +49,8 @@ var (
 	errFragmentListFailed    = errors.New("fragment list failed")
 	errKnowledgeBaseShowFail = errors.New("knowledge base show failed")
 	errWrappedPrecheck       = errors.New("wrap")
-	errResyncBoom            = errors.New("resync boom")
+	errTerminalSyncTimeout   = errors.New("terminal document sync timeout")
+	errContactUserListFailed = errors.New("contact user list failed")
 )
 
 func TestDocumentAppServiceUpdate(t *testing.T) {
@@ -48,21 +58,21 @@ func TestDocumentAppServiceUpdate(t *testing.T) {
 
 	const renamedDocumentName = "new"
 
-	existing := &documentdomain.KnowledgeBaseDocument{
+	existing := &docentity.KnowledgeBaseDocument{
 		Code:              testDocumentCode,
 		OrganizationCode:  "ORG1",
 		KnowledgeBaseCode: testKnowledgeBaseCode,
 		Name:              "old",
 		Description:       "old desc",
 		Enabled:           true,
-		DocType:           int(documentdomain.DocTypeText),
-		DocumentFile:      &documentdomain.File{URL: "old.txt", Extension: "txt"},
+		DocType:           int(docentity.DocumentInputKindText),
+		DocumentFile:      &docentity.File{URL: "old.txt", Extension: "txt"},
 	}
 	domain := &documentDomainServiceStub{showByCodeAndKBResult: existing}
 	svc := appservice.NewDocumentAppServiceForTest(t, domain, &knowledgeBaseReaderStub{}, nil)
 
 	enabled := false
-	docType := int(documentdomain.DocTypeFile)
+	docType := int(docentity.DocumentInputKindFile)
 	wordCount := 42
 	result, err := svc.Update(context.Background(), &docdto.UpdateDocumentInput{
 		OrganizationCode:  "ORG1",
@@ -89,10 +99,10 @@ func TestDocumentAppServiceUpdate(t *testing.T) {
 		existing.DocumentFile.Extension != "md" {
 		t.Fatalf("unexpected document file: %#v", existing.DocumentFile)
 	}
-	if got := existing.DocMetadata[documentdomain.ParsedMetaFileName]; got != renamedDocumentName {
+	if got := existing.DocMetadata[parseddocument.MetaFileName]; got != renamedDocumentName {
 		t.Fatalf("expected metadata file_name=new, got %#v", existing.DocMetadata)
 	}
-	if existing.DocType != int(documentdomain.DocTypeFile) || existing.Enabled {
+	if existing.DocType != int(docentity.DocumentInputKindFile) || existing.Enabled {
 		t.Fatalf("unexpected updated state: %#v", existing)
 	}
 	if existing.UpdatedUID != "U1" {
@@ -112,21 +122,45 @@ func TestDocumentAppServiceUpdate(t *testing.T) {
 	}
 }
 
+func TestDocumentAppServiceShowRejectsUnauthorizedKnowledgeBase(t *testing.T) {
+	t.Parallel()
+
+	svc := appservice.NewDocumentAppServiceForTest(t, &documentDomainServiceStub{
+		showByCodeAndKBResult: &docentity.KnowledgeBaseDocument{
+			Code:              testDocumentCode,
+			OrganizationCode:  "ORG1",
+			KnowledgeBaseCode: testKnowledgeBaseCode,
+		},
+	}, &knowledgeBaseReaderStub{}, nil)
+	svc.SetKnowledgeBasePermissionReaderForTest(documentPermissionReaderStub{
+		operations: map[string]string{testKnowledgeBaseCode: "none"},
+	})
+
+	ctx := ctxmeta.WithAccessActor(context.Background(), ctxmeta.AccessActor{
+		OrganizationCode: "ORG1",
+		UserID:           "U1",
+	})
+	_, err := svc.Show(ctx, testDocumentCode, testKnowledgeBaseCode, "ORG1", "")
+	if !errors.Is(err, appservice.ErrDocumentPermissionDenied) {
+		t.Fatalf("expected document permission denied, got %v", err)
+	}
+}
+
 func TestDocumentAppServiceUpdateNameWinsForDocumentFileFields(t *testing.T) {
 	t.Parallel()
 
 	const renamedDocumentName = "门店数据 2222.md"
 
-	existing := &documentdomain.KnowledgeBaseDocument{
+	existing := &docentity.KnowledgeBaseDocument{
 		Code:              testDocumentCode,
 		OrganizationCode:  "ORG1",
 		KnowledgeBaseCode: testKnowledgeBaseCode,
 		Name:              "门店数据.txt",
 		DocMetadata: map[string]any{
-			documentdomain.ParsedMetaFileName:     "门店数据.txt",
-			documentdomain.ParsedMetaSourceFormat: "txt",
+			parseddocument.MetaFileName:     "门店数据.txt",
+			parseddocument.MetaSourceFormat: "txt",
 		},
-		DocumentFile: &documentdomain.File{
+		DocumentFile: &docentity.File{
 			Type:      "external",
 			Name:      "门店数据.txt",
 			URL:       "bucket/original.txt",
@@ -144,8 +178,8 @@ func TestDocumentAppServiceUpdateNameWinsForDocumentFileFields(t *testing.T) {
 		KnowledgeBaseCode: testKnowledgeBaseCode,
 		Name:              renamedDocumentName,
 		DocMetadata: map[string]any{
-			documentdomain.ParsedMetaFileName:     "stale.txt",
-			documentdomain.ParsedMetaSourceFormat: "txt",
+			parseddocument.MetaFileName:     "stale.txt",
+			parseddocument.MetaSourceFormat: "txt",
 		},
 		DocumentFile: &docfilehelper.DocumentFileDTO{
 			Type:      "external",
@@ -169,7 +203,7 @@ func TestDocumentAppServiceUpdateNameWinsForDocumentFileFields(t *testing.T) {
 		existing.DocumentFile.URL != "bucket/stale.txt" {
 		t.Fatalf("unexpected document file: %#v", existing.DocumentFile)
 	}
-	if got := existing.DocMetadata[documentdomain.ParsedMetaFileName]; got != renamedDocumentName {
+	if got := existing.DocMetadata[parseddocument.MetaFileName]; got != renamedDocumentName {
 		t.Fatalf("expected metadata file_name updated, got %#v", existing.DocMetadata)
 	}
 }
@@ -179,15 +213,15 @@ func TestDocumentAppServiceUpdateKeepsExistingExtensionWhenNameHasNoSuffix(t *te
 
 	const renamedDocumentName = "门店数据 2222"
 
-	existing := &documentdomain.KnowledgeBaseDocument{
+	existing := &docentity.KnowledgeBaseDocument{
 		Code:              testDocumentCode,
 		OrganizationCode:  "ORG1",
 		KnowledgeBaseCode: testKnowledgeBaseCode,
 		Name:              "门店数据.txt",
 		DocMetadata: map[string]any{
-			documentdomain.ParsedMetaFileName: "门店数据.txt",
+			parseddocument.MetaFileName: "门店数据.txt",
 		},
-		DocumentFile: &documentdomain.File{
+		DocumentFile: &docentity.File{
 			Type:      "external",
 			Name:      "门店数据.txt",
 			URL:       "bucket/original.txt",
@@ -216,7 +250,7 @@ func TestDocumentAppServiceUpdateKeepsExistingExtensionWhenNameHasNoSuffix(t *te
 	if existing.DocumentFile == nil || existing.DocumentFile.Name != renamedDocumentName || existing.DocumentFile.Extension != "txt" {
 		t.Fatalf("unexpected document file: %#v", existing.DocumentFile)
 	}
-	if got := existing.DocMetadata[documentdomain.ParsedMetaFileName]; got != renamedDocumentName {
+	if got := existing.DocMetadata[parseddocument.MetaFileName]; got != renamedDocumentName {
 		t.Fatalf("expected metadata file_name updated, got %#v", existing.DocMetadata)
 	}
 }
@@ -224,14 +258,14 @@ func TestDocumentAppServiceUpdateKeepsExistingExtensionWhenNameHasNoSuffix(t *te
 func TestDocumentAppServiceUpdateNameOnlyTouchesExistingFileNameMetadataWhenNoDocumentFile(t *testing.T) {
 	t.Parallel()
 
-	withFileName := &documentdomain.KnowledgeBaseDocument{
+	withFileName := &docentity.KnowledgeBaseDocument{
 		Code:              testDocumentCode,
 		OrganizationCode:  "ORG1",
 		KnowledgeBaseCode: testKnowledgeBaseCode,
 		Name:              "门店数据.txt",
 		DocMetadata: map[string]any{
-			documentdomain.ParsedMetaFileName:     "门店数据.txt",
-			documentdomain.ParsedMetaSourceFormat: "txt",
+			parseddocument.MetaFileName:     "门店数据.txt",
+			parseddocument.MetaSourceFormat: "txt",
 		},
 	}
 	withFileNameSvc := appservice.NewDocumentAppServiceForTest(t, &documentDomainServiceStub{
@@ -249,17 +283,17 @@ func TestDocumentAppServiceUpdateNameOnlyTouchesExistingFileNameMetadataWhenNoDo
 	if withFileName.DocumentFile != nil {
 		t.Fatalf("expected document file to stay nil, got %#v", withFileName.DocumentFile)
 	}
-	if got := withFileName.DocMetadata[documentdomain.ParsedMetaFileName]; got != "门店数据 2222.md" {
+	if got := withFileName.DocMetadata[parseddocument.MetaFileName]; got != "门店数据 2222.md" {
 		t.Fatalf("expected metadata file_name updated, got %#v", withFileName.DocMetadata)
 	}
 
-	withoutFileName := &documentdomain.KnowledgeBaseDocument{
+	withoutFileName := &docentity.KnowledgeBaseDocument{
 		Code:              "DOC2",
 		OrganizationCode:  "ORG1",
 		KnowledgeBaseCode: testKnowledgeBaseCode,
 		Name:              "纯文本文档",
 		DocMetadata: map[string]any{
-			documentdomain.ParsedMetaSourceFormat: "txt",
+			parseddocument.MetaSourceFormat: "txt",
 		},
 	}
 	withoutFileNameSvc := appservice.NewDocumentAppServiceForTest(t, &documentDomainServiceStub{
@@ -274,7 +308,7 @@ func TestDocumentAppServiceUpdateNameOnlyTouchesExistingFileNameMetadataWhenNoDo
 	}); err != nil {
 		t.Fatalf("expected nil error, got %v", err)
 	}
-	if _, ok := withoutFileName.DocMetadata[documentdomain.ParsedMetaFileName]; ok {
+	if _, ok := withoutFileName.DocMetadata[parseddocument.MetaFileName]; ok {
 		t.Fatalf("expected metadata file_name to remain absent, got %#v", withoutFileName.DocMetadata)
 	}
 }
@@ -283,7 +317,7 @@ func TestDocumentAppServiceUpdateOrgMismatch(t *testing.T) {
 	t.Parallel()
 
 	domain := &documentDomainServiceStub{
-		showByCodeAndKBResult: &documentdomain.KnowledgeBaseDocument{
+		showByCodeAndKBResult: &docentity.KnowledgeBaseDocument{
 			Code:              testDocumentCode,
 			OrganizationCode:  "ORG2",
 			KnowledgeBaseCode: testKnowledgeBaseCode,
@@ -304,7 +338,7 @@ func TestDocumentAppServiceUpdateOrgMismatch(t *testing.T) {
 func TestDocumentAppServiceUpdateSchedulesResyncWhenStrategyConfigChanges(t *testing.T) {
 	t.Parallel()
 
-	existing := &documentdomain.KnowledgeBaseDocument{
+	existing := &docentity.KnowledgeBaseDocument{
 		Code:              testDocumentCode,
 		OrganizationCode:  "ORG1",
 		KnowledgeBaseCode: testKnowledgeBaseCode,
@@ -343,7 +377,7 @@ func TestDocumentAppServiceUpdateSchedulesResyncWhenStrategyConfigChanges(t *tes
 func TestDocumentAppServiceUpdateSchedulesResyncWhenFragmentConfigChanges(t *testing.T) {
 	t.Parallel()
 
-	existing := &documentdomain.KnowledgeBaseDocument{
+	existing := &docentity.KnowledgeBaseDocument{
 		Code:              testDocumentCode,
 		OrganizationCode:  "ORG1",
 		KnowledgeBaseCode: testKnowledgeBaseCode,
@@ -388,14 +422,14 @@ func TestDocumentAppServiceUpdateSchedulesResyncWhenFragmentConfigChanges(t *tes
 	}
 }
 
-func TestDocumentAppServiceUpdateWaitForSyncResultReturnsSyncedDocument(t *testing.T) {
+func TestDocumentAppServiceUpdateWaitForSyncResultSchedulesAsyncResync(t *testing.T) {
 	t.Parallel()
 
-	existing := &documentdomain.KnowledgeBaseDocument{
+	existing := &docentity.KnowledgeBaseDocument{
 		Code:              testDocumentCode,
 		OrganizationCode:  "ORG1",
 		KnowledgeBaseCode: testKnowledgeBaseCode,
-		DocumentFile:      &documentdomain.File{Name: "doc.md", URL: "bucket/doc.md", Extension: "md"},
+		DocumentFile:      &docentity.File{Name: "doc.md", URL: "bucket/doc.md", Extension: "md"},
 		FragmentConfig: &shared.FragmentConfig{
 			Mode: shared.FragmentModeAuto,
 		},
@@ -407,7 +441,7 @@ func TestDocumentAppServiceUpdateWaitForSyncResultReturnsSyncedDocument(t *testi
 		t,
 		domain,
 		&knowledgeBaseReaderStub{
-			showByCodeAndOrgResult: &knowledgebase.KnowledgeBase{
+			showByCodeAndOrgResult: &kbentity.KnowledgeBase{
 				Code:             testKnowledgeBaseCode,
 				OrganizationCode: "ORG1",
 				Model:            "text-embedding-3-small",
@@ -417,9 +451,6 @@ func TestDocumentAppServiceUpdateWaitForSyncResultReturnsSyncedDocument(t *testi
 		scheduler,
 		fragmentSvc,
 	)
-	svc.SetParseServiceForTest(&documentParseServiceStub{
-		parseDocumentResult: documentdomain.NewPlainTextParsedDocument("md", "updated sync content"),
-	})
 
 	result, err := svc.Update(context.Background(), &docdto.UpdateDocumentInput{
 		OrganizationCode:  "ORG1",
@@ -441,25 +472,28 @@ func TestDocumentAppServiceUpdateWaitForSyncResultReturnsSyncedDocument(t *testi
 	if err != nil {
 		t.Fatalf("expected nil error, got %v", err)
 	}
-	if scheduler.scheduleCalls != 0 {
-		t.Fatalf("expected inline resync not to schedule background work, got %d", scheduler.scheduleCalls)
+	if scheduler.scheduleCalls != 1 || len(scheduler.inputs) != 1 {
+		t.Fatalf("expected wait-for-sync update to schedule background work, got calls=%d inputs=%d", scheduler.scheduleCalls, len(scheduler.inputs))
 	}
-	if fragmentSvc.syncFragmentBatchCalls != 1 {
-		t.Fatalf("expected one fragment sync batch, got %d", fragmentSvc.syncFragmentBatchCalls)
+	if !scheduler.inputs[0].Async || scheduler.inputs[0].Mode != documentdomain.SyncModeResync {
+		t.Fatalf("unexpected scheduled resync input: %#v", scheduler.inputs[0])
 	}
-	if result == nil || result.SyncStatus != int(shared.SyncStatusSynced) {
-		t.Fatalf("expected synced result, got %#v", result)
+	if fragmentSvc.syncFragmentBatchCalls != 0 {
+		t.Fatalf("expected no inline fragment sync, got %d", fragmentSvc.syncFragmentBatchCalls)
+	}
+	if result == nil {
+		t.Fatal("expected update result")
 	}
 }
 
-func TestDocumentAppServiceUpdateWaitForSyncResultReturnsFailedDocumentState(t *testing.T) {
+func TestDocumentAppServiceUpdateWaitForSyncResultDoesNotInlineFailure(t *testing.T) {
 	t.Parallel()
 
-	existing := &documentdomain.KnowledgeBaseDocument{
+	existing := &docentity.KnowledgeBaseDocument{
 		Code:              testDocumentCode,
 		OrganizationCode:  "ORG1",
 		KnowledgeBaseCode: testKnowledgeBaseCode,
-		DocumentFile:      &documentdomain.File{Name: "doc.md", URL: "bucket/doc.md", Extension: "md"},
+		DocumentFile:      &docentity.File{Name: "doc.md", URL: "bucket/doc.md", Extension: "md"},
 		FragmentConfig: &shared.FragmentConfig{
 			Mode: shared.FragmentModeAuto,
 		},
@@ -470,7 +504,7 @@ func TestDocumentAppServiceUpdateWaitForSyncResultReturnsFailedDocumentState(t *
 		t,
 		domain,
 		&knowledgeBaseReaderStub{
-			showByCodeAndOrgResult: &knowledgebase.KnowledgeBase{
+			showByCodeAndOrgResult: &kbentity.KnowledgeBase{
 				Code:             testKnowledgeBaseCode,
 				OrganizationCode: "ORG1",
 				Model:            "text-embedding-3-small",
@@ -480,9 +514,6 @@ func TestDocumentAppServiceUpdateWaitForSyncResultReturnsFailedDocumentState(t *
 		scheduler,
 		&fragmentDestroyServiceStub{},
 	)
-	svc.SetParseServiceForTest(&documentParseServiceStub{
-		parseDocumentErr: errResyncBoom,
-	})
 
 	result, err := svc.Update(context.Background(), &docdto.UpdateDocumentInput{
 		OrganizationCode:  "ORG1",
@@ -504,24 +535,54 @@ func TestDocumentAppServiceUpdateWaitForSyncResultReturnsFailedDocumentState(t *
 	if err != nil {
 		t.Fatalf("expected nil error, got %v", err)
 	}
-	if scheduler.scheduleCalls != 0 {
-		t.Fatalf("expected inline resync not to schedule background work, got %d", scheduler.scheduleCalls)
+	if scheduler.scheduleCalls != 1 || len(scheduler.inputs) != 1 {
+		t.Fatalf("expected wait-for-sync update to schedule background work, got calls=%d inputs=%d", scheduler.scheduleCalls, len(scheduler.inputs))
 	}
-	if result == nil || result.SyncStatus != int(shared.SyncStatusSyncFailed) {
-		t.Fatalf("expected sync failed result, got %#v", result)
+	if !scheduler.inputs[0].Async || scheduler.inputs[0].Mode != documentdomain.SyncModeResync {
+		t.Fatalf("unexpected scheduled resync input: %#v", scheduler.inputs[0])
 	}
-	if !strings.Contains(result.SyncStatusMessage, errResyncBoom.Error()) {
-		t.Fatalf("expected failure message to contain parse error, got %#v", result)
+	if result == nil {
+		t.Fatal("expected update result")
+	}
+}
+
+func TestDocumentAppServiceUpdateWaitForSyncResultRecoveryResyncSchedulesAsync(t *testing.T) {
+	t.Parallel()
+
+	existing := newPreciseCustomConfigDocumentForUpdateTest(shared.SyncStatusSyncFailed, 300)
+	domain := &documentDomainServiceStub{showByCodeAndKBResult: existing}
+	scheduler := &documentSyncSchedulerStub{}
+	svc := appservice.NewDocumentAppServiceForTest(
+		t,
+		domain,
+		newInlineUpdateKnowledgeBaseReaderForTest(),
+		scheduler,
+		&fragmentDestroyServiceStub{},
+	)
+
+	result, err := svc.Update(context.Background(), newPreciseCustomConfigUpdateInput(true, 300))
+	if err != nil {
+		t.Fatalf("expected nil error, got %v", err)
+	}
+	if scheduler.scheduleCalls != 1 || len(scheduler.inputs) != 1 {
+		t.Fatalf("expected recovery resync to schedule background work, got calls=%d inputs=%d", scheduler.scheduleCalls, len(scheduler.inputs))
+	}
+	if !scheduler.inputs[0].Async || scheduler.inputs[0].Mode != documentdomain.SyncModeResync {
+		t.Fatalf("unexpected scheduled recovery resync input: %#v", scheduler.inputs[0])
+	}
+	if result == nil {
+		t.Fatal("expected update result")
 	}
 }
 
 func TestDocumentAppServiceUpdateSkipsResyncWhenEffectiveConfigUnchanged(t *testing.T) {
 	t.Parallel()
 
-	existing := &documentdomain.KnowledgeBaseDocument{
+	existing := &docentity.KnowledgeBaseDocument{
 		Code:              testDocumentCode,
 		OrganizationCode:  "ORG1",
 		KnowledgeBaseCode: testKnowledgeBaseCode,
+		SyncStatus:        shared.SyncStatusSynced,
 		DocMetadata: map[string]any{
 			documentdomain.ParseStrategyConfigKey: map[string]any{
 				"parse_mode": "precise",
@@ -574,10 +635,37 @@ func TestDocumentAppServiceUpdateSkipsResyncWhenEffectiveConfigUnchanged(t *test
 	}
 }
 
-func TestDocumentAppServiceUpdateSkipsResyncForNonConfigChangesAndUpdateFailures(t *testing.T) {
+func TestDocumentAppServiceUpdateSchedulesRecoveryResyncWhenNonSyncedDocumentConfigRefreshes(t *testing.T) {
 	t.Parallel()
 
-	baseDoc := &documentdomain.KnowledgeBaseDocument{
+	for _, status := range []shared.SyncStatus{
+		shared.SyncStatusPending,
+		shared.SyncStatusSyncing,
+		shared.SyncStatusSyncFailed,
+	} {
+		t.Run(status.String(), func(t *testing.T) {
+			t.Parallel()
+
+			existing := newPreciseCustomConfigDocumentForUpdateTest(status, 200)
+			domain := &documentDomainServiceStub{showByCodeAndKBResult: existing}
+			scheduler := &documentSyncSchedulerStub{}
+			svc := appservice.NewDocumentAppServiceForTest(t, domain, &knowledgeBaseReaderStub{}, scheduler)
+
+			_, err := svc.Update(context.Background(), newPreciseCustomConfigUpdateInput(false, 200))
+			if err != nil {
+				t.Fatalf("Update returned error: %v", err)
+			}
+			if scheduler.scheduleCalls != 1 || scheduler.inputs[0].Mode != documentdomain.SyncModeResync {
+				t.Fatalf("expected non-synced document config refresh to schedule recovery resync, got %#v", scheduler.inputs)
+			}
+		})
+	}
+}
+
+func TestDocumentAppServiceUpdateSkipsResyncForNonConfigChanges(t *testing.T) {
+	t.Parallel()
+
+	baseDoc := &docentity.KnowledgeBaseDocument{
 		Code:              testDocumentCode,
 		OrganizationCode:  "ORG1",
 		KnowledgeBaseCode: testKnowledgeBaseCode,
@@ -600,10 +688,14 @@ func TestDocumentAppServiceUpdateSkipsResyncForNonConfigChangesAndUpdateFailures
 	if scheduler.scheduleCalls != 0 {
 		t.Fatalf("expected non-config update not to schedule resync, got %#v", scheduler.inputs)
 	}
+}
+
+func TestDocumentAppServiceUpdateSkipsResyncWhenUpdateFails(t *testing.T) {
+	t.Parallel()
 
 	failingScheduler := &documentSyncSchedulerStub{}
 	failingSvc := appservice.NewDocumentAppServiceForTest(t, &documentDomainServiceStub{
-		showByCodeAndKBResult: &documentdomain.KnowledgeBaseDocument{
+		showByCodeAndKBResult: &docentity.KnowledgeBaseDocument{
 			Code:              testDocumentCode,
 			OrganizationCode:  "ORG1",
 			KnowledgeBaseCode: testKnowledgeBaseCode,
@@ -629,16 +721,126 @@ func TestDocumentAppServiceUpdateSkipsResyncForNonConfigChangesAndUpdateFailures
 	}
 }
 
+func TestDocumentAppServiceUpdateSkipsResyncForNonConfigChangesOnNonSyncedDocuments(t *testing.T) {
+	t.Parallel()
+
+	for _, status := range []shared.SyncStatus{
+		shared.SyncStatusPending,
+		shared.SyncStatusSyncing,
+		shared.SyncStatusSyncFailed,
+	} {
+		t.Run("non-config-"+status.String(), func(t *testing.T) {
+			t.Parallel()
+
+			scheduler := &documentSyncSchedulerStub{}
+			svc := appservice.NewDocumentAppServiceForTest(t, &documentDomainServiceStub{
+				showByCodeAndKBResult: &docentity.KnowledgeBaseDocument{
+					Code:              testDocumentCode,
+					OrganizationCode:  "ORG1",
+					KnowledgeBaseCode: testKnowledgeBaseCode,
+					Name:              "old",
+					SyncStatus:        status,
+				},
+			}, &knowledgeBaseReaderStub{}, scheduler)
+			if _, err := svc.Update(context.Background(), &docdto.UpdateDocumentInput{
+				OrganizationCode:  "ORG1",
+				UserID:            "U1",
+				Code:              testDocumentCode,
+				KnowledgeBaseCode: testKnowledgeBaseCode,
+				Name:              "new name",
+			}); err != nil {
+				t.Fatalf("Update returned error: %v", err)
+			}
+			if scheduler.scheduleCalls != 0 {
+				t.Fatalf("expected non-config update for status %s not to schedule resync, got %#v", status.String(), scheduler.inputs)
+			}
+		})
+	}
+}
+
+func newPreciseCustomConfigDocumentForUpdateTest(
+	status shared.SyncStatus,
+	chunkSize int,
+) *docentity.KnowledgeBaseDocument {
+	return &docentity.KnowledgeBaseDocument{
+		Code:              testDocumentCode,
+		OrganizationCode:  "ORG1",
+		KnowledgeBaseCode: testKnowledgeBaseCode,
+		SyncStatus:        status,
+		DocumentFile:      &docentity.File{Name: "doc.md", URL: "bucket/doc.md", Extension: "md"},
+		DocMetadata: map[string]any{
+			documentdomain.ParseStrategyConfigKey: map[string]any{
+				"parsing_type":     documentdomain.ParsingTypePrecise,
+				"image_extraction": true,
+				"table_extraction": true,
+				"image_ocr":        true,
+			},
+		},
+		FragmentConfig: &shared.FragmentConfig{
+			Mode: shared.FragmentModeCustom,
+			Normal: &shared.NormalFragmentConfig{
+				TextPreprocessRule: []int{1},
+				SegmentRule: &shared.SegmentRule{
+					Separator:    "\n\n",
+					ChunkSize:    chunkSize,
+					ChunkOverlap: 20,
+				},
+			},
+		},
+	}
+}
+
+func newPreciseCustomConfigUpdateInput(
+	waitForSyncResult bool,
+	chunkSize int,
+) *docdto.UpdateDocumentInput {
+	return &docdto.UpdateDocumentInput{
+		OrganizationCode:  "ORG1",
+		UserID:            "U1",
+		Code:              testDocumentCode,
+		KnowledgeBaseCode: testKnowledgeBaseCode,
+		StrategyConfig: &confighelper.StrategyConfigDTO{
+			ParsingType:     documentdomain.ParsingTypePrecise,
+			ImageExtraction: true,
+			TableExtraction: true,
+			ImageOCR:        true,
+		},
+		FragmentConfig: &confighelper.FragmentConfigDTO{
+			Mode: int(shared.FragmentModeCustom),
+			Normal: &confighelper.NormalFragmentConfigDTO{
+				TextPreprocessRule: []int{1},
+				SegmentRule: &confighelper.SegmentRuleDTO{
+					Separator:    "\n\n",
+					ChunkSize:    chunkSize,
+					ChunkOverlap: 20,
+				},
+			},
+		},
+		WaitForSyncResult: waitForSyncResult,
+	}
+}
+
+func newInlineUpdateKnowledgeBaseReaderForTest() *knowledgeBaseReaderStub {
+	return &knowledgeBaseReaderStub{
+		showByCodeAndOrgResult: &kbentity.KnowledgeBase{
+			Code:             testKnowledgeBaseCode,
+			OrganizationCode: "ORG1",
+			Model:            "text-embedding-3-small",
+		},
+		routeCollection: "collection",
+	}
+}
+
 func TestDocumentAppServiceUpdateSchedulesSingleDocumentThirdPlatformResyncWithSourceOverride(t *testing.T) {
 	t.Parallel()
 
-	existing := &documentdomain.KnowledgeBaseDocument{
+	existing := &docentity.KnowledgeBaseDocument{
 		Code:              testDocumentCode,
 		OrganizationCode:  "ORG1",
 		KnowledgeBaseCode: testKnowledgeBaseCode,
 		ThirdPlatformType: "teamshare",
 		ThirdFileID:       "FILE-1",
-		DocumentFile: &documentdomain.File{
+		DocumentFile: &docentity.File{
 			Type:       "third_platform",
 			ThirdID:    "FILE-1",
 			SourceType: "teamshare",
@@ -687,7 +889,7 @@ func TestDocumentAppServiceUpdateSchedulesSingleDocumentThirdPlatformResyncWithS
 func TestDocumentAppServiceShowListCountAndDestroy(t *testing.T) {
 	t.Parallel()
 
-	doc := &documentdomain.KnowledgeBaseDocument{
+	doc := &docentity.KnowledgeBaseDocument{
 		ID:                1,
 		Code:              testDocumentCode,
 		Name:              "doc",
@@ -697,13 +899,13 @@ func TestDocumentAppServiceShowListCountAndDestroy(t *testing.T) {
 	domain := &documentDomainServiceStub{
 		showResult:             doc,
 		showByCodeAndKBResult:  doc,
-		listResult:             []*documentdomain.KnowledgeBaseDocument{doc},
+		listResult:             []*docentity.KnowledgeBaseDocument{doc},
 		listTotal:              1,
 		countByKnowledgeResult: map[string]int64{testKnowledgeBaseCode: 3},
 	}
 	fragmentSvc := &fragmentDestroyServiceStub{}
 	kbReader := &knowledgeBaseReaderStub{
-		showByCodeAndOrgResult: &knowledgebase.KnowledgeBase{Code: testKnowledgeBaseCode, Model: "m1"},
+		showByCodeAndOrgResult: &kbentity.KnowledgeBase{Code: testKnowledgeBaseCode, Model: "m1"},
 		routeCollection:        "kb_custom",
 	}
 	svc := appservice.NewDocumentAppServiceForTest(t, domain, kbReader, nil, fragmentSvc)
@@ -711,7 +913,7 @@ func TestDocumentAppServiceShowListCountAndDestroy(t *testing.T) {
 	assertDocumentShowScenarios(t, svc)
 	assertDocumentListAndCount(t, svc, domain)
 
-	if err := svc.Destroy(context.Background(), testDocumentCode, testKnowledgeBaseCode, "ORG1"); err != nil {
+	if err := svc.Destroy(context.Background(), testDocumentCode, testKnowledgeBaseCode, "ORG1", "USER1"); err != nil {
 		t.Fatalf("destroy failed: %v", err)
 	}
 	if domain.deletedID != 1 {
@@ -743,14 +945,14 @@ func TestDocumentAppServiceIgnoresAgentCodesWhenKnowledgeBaseCanBeDetermined(t *
 }
 
 func newDigitalEmployeeKnowledgeBaseReaderForDocumentScopeTest() *knowledgeBaseReaderStub {
-	sourceType := int(knowledgebase.SourceTypeLocalFile)
+	sourceType := int(kbentity.SourceTypeLocalFile)
 	return &knowledgeBaseReaderStub{
-		showByCodeAndOrgResult: &knowledgebase.KnowledgeBase{
+		showByCodeAndOrgResult: &kbentity.KnowledgeBase{
 			Code:              testKnowledgeBaseCode,
 			OrganizationCode:  "ORG1",
 			Model:             "text-embedding-3-small",
 			SourceType:        &sourceType,
-			KnowledgeBaseType: knowledgebase.KnowledgeBaseTypeDigitalEmployee,
+			KnowledgeBaseType: kbentity.KnowledgeBaseTypeDigitalEmployee,
 		},
 		routeCollection: "kb_custom",
 		routeModel:      "text-embedding-3-small",
@@ -771,18 +973,18 @@ func assertDocumentOpsUseKnowledgeBaseScopeForWrite(t *testing.T) {
 		UserID:            "U1",
 		KnowledgeBaseCode: testKnowledgeBaseCode,
 		Name:              "doc.md",
-		DocType:           int(documentdomain.DocTypeText),
+		DocType:           int(docentity.DocumentInputKindText),
 		DocumentFile:      &docfilehelper.DocumentFileDTO{Name: "doc.md", Key: "ORG1/doc.md"},
 	}); err != nil {
 		t.Fatalf("create failed: %v", err)
 	}
 
 	updateSvc := appservice.NewDocumentAppServiceForTest(t, &documentDomainServiceStub{
-		showByCodeAndKBResult: &documentdomain.KnowledgeBaseDocument{
+		showByCodeAndKBResult: &docentity.KnowledgeBaseDocument{
 			Code:              testDocumentCode,
 			OrganizationCode:  "ORG1",
 			KnowledgeBaseCode: testKnowledgeBaseCode,
-			DocumentFile:      &documentdomain.File{Name: "doc.md", URL: "ORG1/doc.md", Extension: "md"},
+			DocumentFile:      &docentity.File{Name: "doc.md", URL: "ORG1/doc.md", Extension: "md"},
 		},
 	}, newDigitalEmployeeKnowledgeBaseReaderForDocumentScopeTest(), nil)
 	if _, err := updateSvc.Update(context.Background(), &docdto.UpdateDocumentInput{
@@ -799,18 +1001,18 @@ func assertDocumentOpsUseKnowledgeBaseScopeForWrite(t *testing.T) {
 func assertDocumentOpsUseKnowledgeBaseScopeForRead(t *testing.T) {
 	t.Helper()
 
-	doc := &documentdomain.KnowledgeBaseDocument{
+	doc := &docentity.KnowledgeBaseDocument{
 		ID:                1,
 		Code:              testDocumentCode,
 		Name:              "doc",
 		OrganizationCode:  "ORG1",
 		KnowledgeBaseCode: testKnowledgeBaseCode,
-		DocumentFile:      &documentdomain.File{Type: "external", Name: "doc.md", URL: "ORG1/doc.md"},
+		DocumentFile:      &docentity.File{Type: "external", Name: "doc.md", URL: "ORG1/doc.md"},
 	}
 	showListDomain := &documentDomainServiceStub{
 		showResult:            doc,
 		showByCodeAndKBResult: doc,
-		listResult:            []*documentdomain.KnowledgeBaseDocument{doc},
+		listResult:            []*docentity.KnowledgeBaseDocument{doc},
 		listTotal:             1,
 	}
 	showListSvc := appservice.NewDocumentAppServiceForTest(
@@ -820,10 +1022,10 @@ func assertDocumentOpsUseKnowledgeBaseScopeForRead(t *testing.T) {
 		nil,
 		&fragmentDestroyServiceStub{},
 	)
-	if _, err := showListSvc.Show(context.Background(), testDocumentCode, "", "ORG1"); !errors.Is(err, shared.ErrDocumentKnowledgeBaseRequired) {
+	if _, err := showListSvc.Show(context.Background(), testDocumentCode, "", "ORG1", "USER1"); !errors.Is(err, shared.ErrDocumentKnowledgeBaseRequired) {
 		t.Fatalf("expected knowledge base required error, got %v", err)
 	}
-	if _, err := showListSvc.Show(context.Background(), testDocumentCode, testKnowledgeBaseCode, "ORG1"); err != nil {
+	if _, err := showListSvc.Show(context.Background(), testDocumentCode, testKnowledgeBaseCode, "ORG1", "USER1"); err != nil {
 		t.Fatalf("show failed: %v", err)
 	}
 	page, err := showListSvc.List(context.Background(), &docdto.ListDocumentInput{
@@ -838,7 +1040,7 @@ func assertDocumentOpsUseKnowledgeBaseScopeForRead(t *testing.T) {
 	if page.Total != 1 {
 		t.Fatalf("expected total=1, got %#v", page)
 	}
-	if err := showListSvc.Destroy(context.Background(), testDocumentCode, testKnowledgeBaseCode, "ORG1"); err != nil {
+	if err := showListSvc.Destroy(context.Background(), testDocumentCode, testKnowledgeBaseCode, "ORG1", "USER1"); err != nil {
 		t.Fatalf("destroy failed: %v", err)
 	}
 
@@ -846,7 +1048,7 @@ func assertDocumentOpsUseKnowledgeBaseScopeForRead(t *testing.T) {
 		showByCodeAndKBResult: doc,
 	}, newDigitalEmployeeKnowledgeBaseReaderForDocumentScopeTest(), nil)
 	linkSvc.SetOriginalFileLinkProvider(&originalFileLinkProviderStub{link: "https://example.com/doc.md"})
-	if _, err := linkSvc.GetOriginalFileLink(context.Background(), testDocumentCode, testKnowledgeBaseCode, "ORG1"); err != nil {
+	if _, err := linkSvc.GetOriginalFileLink(context.Background(), testDocumentCode, testKnowledgeBaseCode, "ORG1", "USER1"); err != nil {
 		t.Fatalf("get original file link failed: %v", err)
 	}
 }
@@ -854,18 +1056,22 @@ func assertDocumentOpsUseKnowledgeBaseScopeForRead(t *testing.T) {
 func assertDocumentSyncUsesKnowledgeBaseScope(t *testing.T) {
 	t.Helper()
 
+	doc := &docentity.KnowledgeBaseDocument{
+		Code:              testDocumentCode,
+		KnowledgeBaseCode: testKnowledgeBaseCode,
+		OrganizationCode:  "ORG1",
+		ThirdPlatformType: "teamshare",
+		ThirdFileID:       "FILE-1",
+		UpdatedUID:        "DOC-USER",
+	}
+	scheduler := &documentSyncSchedulerStub{}
 	syncSvc := appservice.NewDocumentAppServiceForTest(t, &documentDomainServiceStub{
-		showByCodeAndKBResult: &documentdomain.KnowledgeBaseDocument{
-			Code:              testDocumentCode,
-			KnowledgeBaseCode: testKnowledgeBaseCode,
-			OrganizationCode:  "ORG1",
-			ThirdPlatformType: "teamshare",
-			ThirdFileID:       "FILE-1",
-			UpdatedUID:        "DOC-USER",
-		},
-	}, newDigitalEmployeeKnowledgeBaseReaderForDocumentScopeTest(), nil, &fragmentDestroyServiceStub{})
-	thirdFileScheduler := &thirdFileSchedulerStub{}
-	syncSvc.SetThirdFileRevectorizeScheduler(thirdFileScheduler)
+		showByCodeAndKBResult:              doc,
+		listRealtimeByThirdFileInOrgResult: []*docentity.KnowledgeBaseDocument{doc},
+	}, newDigitalEmployeeKnowledgeBaseReaderForDocumentScopeTest(), scheduler, &fragmentDestroyServiceStub{})
+	syncSvc.SetThirdPlatformProviders(thirdplatformprovider.NewRegistry(&thirdPlatformProviderStub{
+		platformType: "teamshare",
+	}))
 	if err := syncSvc.Sync(context.Background(), &documentdomain.SyncDocumentInput{
 		OrganizationCode:  "ORG1",
 		KnowledgeBaseCode: testKnowledgeBaseCode,
@@ -880,8 +1086,11 @@ func assertDocumentSyncUsesKnowledgeBaseScope(t *testing.T) {
 	}); err != nil {
 		t.Fatalf("sync failed: %v", err)
 	}
-	if thirdFileScheduler.scheduleCalls != 1 {
-		t.Fatalf("expected one redirected third-file sync, got %d", thirdFileScheduler.scheduleCalls)
+	if scheduler.scheduleCalls != 1 {
+		t.Fatalf("expected one redirected document sync, got %d", scheduler.scheduleCalls)
+	}
+	if got := scheduler.inputs[0]; got.KnowledgeBaseCode != testKnowledgeBaseCode || got.Code != testDocumentCode {
+		t.Fatalf("unexpected redirected document sync input: %#v", got)
 	}
 }
 
@@ -889,7 +1098,7 @@ func TestDocumentAppServiceDestroyOrgMismatch(t *testing.T) {
 	t.Parallel()
 
 	svc := appservice.NewDocumentAppServiceForTest(t, &documentDomainServiceStub{
-		showByCodeAndKBResult: &documentdomain.KnowledgeBaseDocument{
+		showByCodeAndKBResult: &docentity.KnowledgeBaseDocument{
 			ID:                1,
 			Code:              testDocumentCode,
 			OrganizationCode:  "ORG2",
@@ -897,7 +1106,7 @@ func TestDocumentAppServiceDestroyOrgMismatch(t *testing.T) {
 		},
 	}, &knowledgeBaseReaderStub{}, nil)
 
-	err := svc.Destroy(context.Background(), testDocumentCode, testKnowledgeBaseCode, "ORG1")
+	err := svc.Destroy(context.Background(), testDocumentCode, testKnowledgeBaseCode, "ORG1", "USER1")
 	if !errors.Is(err, appservice.ErrDocumentOrgMismatch) {
 		t.Fatalf("expected org mismatch, got %v", err)
 	}
@@ -912,7 +1121,7 @@ func TestDocumentAppServiceGetByThirdFileID(t *testing.T) {
 		thirdFileID  = "FILE-1"
 	)
 
-	doc1 := &documentdomain.KnowledgeBaseDocument{
+	doc1 := &docentity.KnowledgeBaseDocument{
 		ID:                1,
 		Code:              testDocumentCode,
 		Name:              "doc-1",
@@ -921,7 +1130,7 @@ func TestDocumentAppServiceGetByThirdFileID(t *testing.T) {
 		ThirdPlatformType: platformType,
 		ThirdFileID:       thirdFileID,
 	}
-	doc2 := &documentdomain.KnowledgeBaseDocument{
+	doc2 := &docentity.KnowledgeBaseDocument{
 		ID:                2,
 		Code:              "DOC2",
 		Name:              "doc-2",
@@ -932,13 +1141,13 @@ func TestDocumentAppServiceGetByThirdFileID(t *testing.T) {
 	}
 	domain := &documentDomainServiceStub{
 		findByKBAndThirdResult: doc1,
-		listByThirdFileInOrgResult: []*documentdomain.KnowledgeBaseDocument{
+		listByThirdFileInOrgResult: []*docentity.KnowledgeBaseDocument{
 			doc1,
 			doc2,
 		},
 	}
 	kbReader := &knowledgeBaseReaderStub{
-		showByCodeAndOrgResult: &knowledgebase.KnowledgeBase{Code: testKnowledgeBaseCode, OrganizationCode: orgCode},
+		showByCodeAndOrgResult: &kbentity.KnowledgeBase{Code: testKnowledgeBaseCode, OrganizationCode: orgCode},
 	}
 	svc := appservice.NewDocumentAppServiceForTest(t, domain, kbReader, nil)
 
@@ -1020,13 +1229,13 @@ func TestDocumentAppServiceGetByThirdFileIDHandlesEmptyAndErrors(t *testing.T) {
 func assertDocumentShowScenarios(t *testing.T, svc *appservice.DocumentAppService) {
 	t.Helper()
 
-	if _, err := svc.Show(context.Background(), testDocumentCode, "", "ORG1"); !errors.Is(err, shared.ErrDocumentKnowledgeBaseRequired) {
+	if _, err := svc.Show(context.Background(), testDocumentCode, "", "ORG1", "USER1"); !errors.Is(err, shared.ErrDocumentKnowledgeBaseRequired) {
 		t.Fatalf("expected knowledge base required error, got %v", err)
 	}
-	if _, err := svc.Show(context.Background(), testDocumentCode, testKnowledgeBaseCode, "ORG1"); err != nil {
+	if _, err := svc.Show(context.Background(), testDocumentCode, testKnowledgeBaseCode, "ORG1", "USER1"); err != nil {
 		t.Fatalf("show with kb code failed: %v", err)
 	}
-	if _, err := svc.Show(context.Background(), testDocumentCode, testKnowledgeBaseCode, "ORG2"); !errors.Is(err, appservice.ErrDocumentOrgMismatch) {
+	if _, err := svc.Show(context.Background(), testDocumentCode, testKnowledgeBaseCode, "ORG2", "USER1"); !errors.Is(err, appservice.ErrDocumentOrgMismatch) {
 		t.Fatalf("expected show org mismatch, got %v", err)
 	}
 }
@@ -1075,7 +1284,7 @@ func TestDocumentAppServiceShowAndListErrors(t *testing.T) {
 			}, &knowledgeBaseReaderStub{}, nil),
 			target: errDocumentShowFailed,
 			call: func(s *appservice.DocumentAppService) error {
-				_, err := s.Show(context.Background(), testDocumentCode, testKnowledgeBaseCode, "ORG1")
+				_, err := s.Show(context.Background(), testDocumentCode, testKnowledgeBaseCode, "ORG1", "USER1")
 				return fmt.Errorf("show: %w", err)
 			},
 		},
@@ -1104,13 +1313,13 @@ func TestDocumentAppServiceShowAndListErrors(t *testing.T) {
 func TestDocumentAppServiceCountAndDestroyErrors(t *testing.T) {
 	t.Parallel()
 
-	doc := &documentdomain.KnowledgeBaseDocument{
+	doc := &docentity.KnowledgeBaseDocument{
 		Code:              testDocumentCode,
 		OrganizationCode:  "ORG1",
 		KnowledgeBaseCode: testKnowledgeBaseCode,
 	}
 	kbReader := &knowledgeBaseReaderStub{
-		showByCodeAndOrgResult: &knowledgebase.KnowledgeBase{Code: testKnowledgeBaseCode},
+		showByCodeAndOrgResult: &kbentity.KnowledgeBase{Code: testKnowledgeBaseCode},
 		routeCollection:        "kb_custom",
 	}
 
@@ -1126,7 +1335,7 @@ func TestDocumentAppServiceCountAndDestroyErrors(t *testing.T) {
 	}, &knowledgeBaseReaderStub{
 		showByCodeAndOrgErr: errKnowledgeBaseShowFail,
 	}, nil)
-	if err := kbErrSvc.Destroy(context.Background(), testDocumentCode, testKnowledgeBaseCode, "ORG1"); !errors.Is(err, errKnowledgeBaseShowFail) {
+	if err := kbErrSvc.Destroy(context.Background(), testDocumentCode, testKnowledgeBaseCode, "ORG1", "USER1"); !errors.Is(err, errKnowledgeBaseShowFail) {
 		t.Fatalf("expected kb error, got %v", err)
 	}
 
@@ -1134,20 +1343,144 @@ func TestDocumentAppServiceCountAndDestroyErrors(t *testing.T) {
 		showByCodeAndKBResult: doc,
 		deleteErr:             errDocumentDestroyFailed,
 	}, kbReader, nil, &fragmentDestroyServiceStub{})
-	if err := destroySvc.Destroy(context.Background(), testDocumentCode, testKnowledgeBaseCode, "ORG1"); !errors.Is(err, errDocumentDestroyFailed) {
+	if err := destroySvc.Destroy(context.Background(), testDocumentCode, testKnowledgeBaseCode, "ORG1", "USER1"); !errors.Is(err, errDocumentDestroyFailed) {
 		t.Fatalf("expected destroy error, got %v", err)
+	}
+}
+
+func TestDocumentAppServiceDestroyBlocksManagedKnowledgeBaseDocuments(t *testing.T) {
+	t.Parallel()
+
+	projectSourceType := int(kbentity.SourceTypeProject)
+	enterpriseSourceType := int(kbentity.SourceTypeEnterpriseWiki)
+
+	cases := []struct {
+		name string
+		kb   *kbentity.KnowledgeBase
+	}{
+		{
+			name: "project knowledge base",
+			kb: &kbentity.KnowledgeBase{
+				Code:              testKnowledgeBaseCode,
+				OrganizationCode:  "ORG1",
+				KnowledgeBaseType: kbentity.KnowledgeBaseTypeDigitalEmployee,
+				SourceType:        &projectSourceType,
+			},
+		},
+		{
+			name: "enterprise knowledge base",
+			kb: &kbentity.KnowledgeBase{
+				Code:              testKnowledgeBaseCode,
+				OrganizationCode:  "ORG1",
+				KnowledgeBaseType: kbentity.KnowledgeBaseTypeFlowVector,
+				SourceType:        &enterpriseSourceType,
+			},
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			doc := &docentity.KnowledgeBaseDocument{
+				ID:                101,
+				Code:              testDocumentCode,
+				OrganizationCode:  "ORG1",
+				KnowledgeBaseCode: testKnowledgeBaseCode,
+			}
+			domain := &documentDomainServiceStub{showByCodeAndKBResult: doc}
+			fragmentSvc := &fragmentDestroyServiceStub{}
+			svc := appservice.NewDocumentAppServiceForTest(t, domain, &knowledgeBaseReaderStub{
+				showByCodeAndOrgResult: tc.kb,
+				routeCollection:        "kb_blocked",
+			}, nil, fragmentSvc)
+
+			err := svc.Destroy(context.Background(), testDocumentCode, testKnowledgeBaseCode, "ORG1", "USER1")
+			if !errors.Is(err, documentdomain.ErrManagedDocumentSingleDeleteNotAllowed) {
+				t.Fatalf("expected managed delete error, got %v", err)
+			}
+			if fragmentSvc.deletePointsByDocumentCalls != 0 || fragmentSvc.deleteByDocumentCalls != 0 {
+				t.Fatalf("expected fragment delete skipped, got %#v", fragmentSvc)
+			}
+			if domain.deletedID != 0 {
+				t.Fatalf("expected document delete skipped, got deletedID=%d", domain.deletedID)
+			}
+		})
+	}
+}
+
+func TestDocumentAppServiceDestroyAllowsLocalKnowledgeBaseDocuments(t *testing.T) {
+	t.Parallel()
+
+	localSourceType := int(kbentity.SourceTypeLocalFile)
+	doc := &docentity.KnowledgeBaseDocument{
+		ID:                101,
+		Code:              testDocumentCode,
+		OrganizationCode:  "ORG1",
+		KnowledgeBaseCode: testKnowledgeBaseCode,
+	}
+	domain := &documentDomainServiceStub{showByCodeAndKBResult: doc}
+	fragmentSvc := &fragmentDestroyServiceStub{}
+	svc := appservice.NewDocumentAppServiceForTest(t, domain, &knowledgeBaseReaderStub{
+		showByCodeAndOrgResult: &kbentity.KnowledgeBase{
+			Code:              testKnowledgeBaseCode,
+			OrganizationCode:  "ORG1",
+			KnowledgeBaseType: kbentity.KnowledgeBaseTypeFlowVector,
+			SourceType:        &localSourceType,
+		},
+		routeCollection: "kb_local",
+	}, nil, fragmentSvc)
+
+	if err := svc.Destroy(context.Background(), testDocumentCode, testKnowledgeBaseCode, "ORG1", "USER1"); err != nil {
+		t.Fatalf("expected destroy success, got %v", err)
+	}
+	if fragmentSvc.deletePointsByDocumentCalls != 1 || fragmentSvc.deleteByDocumentCalls != 1 {
+		t.Fatalf("expected fragment delete executed once, got %#v", fragmentSvc)
+	}
+	if domain.deletedID != doc.ID {
+		t.Fatalf("expected deleted id=%d, got %d", doc.ID, domain.deletedID)
+	}
+}
+
+func TestDocumentAppServiceDestroyKeepsOrgMismatchPriority(t *testing.T) {
+	t.Parallel()
+
+	projectSourceType := int(kbentity.SourceTypeProject)
+	doc := &docentity.KnowledgeBaseDocument{
+		ID:                101,
+		Code:              testDocumentCode,
+		OrganizationCode:  "ORG1",
+		KnowledgeBaseCode: testKnowledgeBaseCode,
+	}
+	domain := &documentDomainServiceStub{showByCodeAndKBResult: doc}
+	fragmentSvc := &fragmentDestroyServiceStub{}
+	svc := appservice.NewDocumentAppServiceForTest(t, domain, &knowledgeBaseReaderStub{
+		showByCodeAndOrgResult: &kbentity.KnowledgeBase{
+			Code:              testKnowledgeBaseCode,
+			OrganizationCode:  "ORG1",
+			KnowledgeBaseType: kbentity.KnowledgeBaseTypeDigitalEmployee,
+			SourceType:        &projectSourceType,
+		},
+	}, nil, fragmentSvc)
+
+	err := svc.Destroy(context.Background(), testDocumentCode, testKnowledgeBaseCode, "ORG2", "USER1")
+	if !errors.Is(err, appservice.ErrDocumentOrgMismatch) {
+		t.Fatalf("expected org mismatch, got %v", err)
+	}
+	if fragmentSvc.deletePointsByDocumentCalls != 0 || fragmentSvc.deleteByDocumentCalls != 0 || domain.deletedID != 0 {
+		t.Fatalf("expected destroy chain skipped on org mismatch, domain=%#v fragments=%#v", domain, fragmentSvc)
 	}
 }
 
 func TestDocumentAppServiceFetchDocumentHelpers(t *testing.T) {
 	t.Parallel()
 
-	doc := &documentdomain.KnowledgeBaseDocument{
+	doc := &docentity.KnowledgeBaseDocument{
 		ID:                1,
 		Code:              testDocumentCode,
 		OrganizationCode:  "ORG1",
 		KnowledgeBaseCode: testKnowledgeBaseCode,
-		DocumentFile: &documentdomain.File{
+		DocumentFile: &docentity.File{
 			Type:       "third_platform",
 			Name:       "doc",
 			URL:        "https://example.com/doc.pdf",
@@ -1173,10 +1506,168 @@ func TestDocumentAppServiceFetchDocumentHelpers(t *testing.T) {
 	}
 }
 
+func TestDocumentAppServiceFetchDocumentForSyncBackfillsActorFromDocument(t *testing.T) {
+	t.Parallel()
+
+	doc := &docentity.KnowledgeBaseDocument{
+		Code:              testDocumentCode,
+		OrganizationCode:  customContentOrgCode,
+		KnowledgeBaseCode: testKnowledgeBaseCode,
+		UpdatedUID:        "DOC-UPDATER",
+		CreatedUID:        "DOC-CREATOR",
+	}
+	domain := &documentDomainServiceStub{showByCodeAndKBResult: doc}
+	capture := &documentPermissionCapture{}
+	svc := appservice.NewDocumentAppServiceForTest(t, domain, &knowledgeBaseReaderStub{}, nil)
+	svc.SetKnowledgeBasePermissionReaderForTest(documentPermissionReaderStub{
+		operations: map[string]string{testKnowledgeBaseCode: "edit"},
+		capture:    capture,
+	})
+
+	input := &documentdomain.SyncDocumentInput{
+		Code:              testDocumentCode,
+		KnowledgeBaseCode: testKnowledgeBaseCode,
+	}
+	got, err := appservice.FetchDocumentForSyncForTest(context.Background(), svc, input)
+	if err != nil || got != doc {
+		t.Fatalf("fetch failed: got=%#v err=%v", got, err)
+	}
+
+	if input.OrganizationCode != customContentOrgCode || input.BusinessParams == nil {
+		t.Fatalf("expected organization and business params backfilled, input=%#v", input)
+	}
+	if input.BusinessParams.UserID != "DOC-UPDATER" || input.BusinessParams.BusinessID != testKnowledgeBaseCode {
+		t.Fatalf("unexpected backfilled business params: %#v", input.BusinessParams)
+	}
+	if capture.calls != 1 || capture.organizationCode != customContentOrgCode || capture.userID != "DOC-UPDATER" {
+		t.Fatalf("unexpected permission call: %#v", capture)
+	}
+}
+
+func TestDocumentAppServiceFetchDocumentForSyncBackfillsActorFromKnowledgeBase(t *testing.T) {
+	t.Parallel()
+
+	doc := &docentity.KnowledgeBaseDocument{
+		Code:              testDocumentCode,
+		OrganizationCode:  customContentOrgCode,
+		KnowledgeBaseCode: testKnowledgeBaseCode,
+	}
+	domain := &documentDomainServiceStub{showByCodeAndKBResult: doc}
+	capture := &documentPermissionCapture{}
+	svc := appservice.NewDocumentAppServiceForTest(t, domain, &knowledgeBaseReaderStub{
+		showByCodeAndOrgResult: &kbentity.KnowledgeBase{
+			Code:             testKnowledgeBaseCode,
+			OrganizationCode: customContentOrgCode,
+			UpdatedUID:       "KB-UPDATER",
+			CreatedUID:       "KB-CREATOR",
+		},
+	}, nil)
+	svc.SetKnowledgeBasePermissionReaderForTest(documentPermissionReaderStub{
+		operations: map[string]string{testKnowledgeBaseCode: "edit"},
+		capture:    capture,
+	})
+
+	input := &documentdomain.SyncDocumentInput{
+		Code:              testDocumentCode,
+		KnowledgeBaseCode: testKnowledgeBaseCode,
+	}
+	got, err := appservice.FetchDocumentForSyncForTest(context.Background(), svc, input)
+	if err != nil || got != doc {
+		t.Fatalf("fetch failed: got=%#v err=%v", got, err)
+	}
+	if input.BusinessParams == nil || input.BusinessParams.UserID != "KB-UPDATER" {
+		t.Fatalf("expected knowledge base uid fallback, got %#v", input.BusinessParams)
+	}
+	if capture.calls != 1 || capture.userID != "KB-UPDATER" {
+		t.Fatalf("unexpected permission call: %#v", capture)
+	}
+}
+
+func TestDocumentAppServiceFetchDocumentForSyncKeepsExistingActor(t *testing.T) {
+	t.Parallel()
+
+	doc := &docentity.KnowledgeBaseDocument{
+		Code:              testDocumentCode,
+		OrganizationCode:  customContentOrgCode,
+		KnowledgeBaseCode: testKnowledgeBaseCode,
+		UpdatedUID:        "DOC-UPDATER",
+	}
+	capture := &documentPermissionCapture{}
+	svc := appservice.NewDocumentAppServiceForTest(t, &documentDomainServiceStub{
+		showByCodeAndKBResult: doc,
+	}, &knowledgeBaseReaderStub{}, nil)
+	svc.SetKnowledgeBasePermissionReaderForTest(documentPermissionReaderStub{
+		operations: map[string]string{testKnowledgeBaseCode: "edit"},
+		capture:    capture,
+	})
+
+	ctx := ctxmeta.WithAccessActor(context.Background(), ctxmeta.AccessActor{
+		OrganizationCode: customContentOrgCode,
+		UserID:           "CTX-USER",
+	})
+	input := &documentdomain.SyncDocumentInput{
+		Code:              testDocumentCode,
+		KnowledgeBaseCode: testKnowledgeBaseCode,
+		BusinessParams: &ctxmeta.BusinessParams{
+			UserID: "EXISTING-USER",
+		},
+	}
+	got, err := appservice.FetchDocumentForSyncForTest(ctx, svc, input)
+	if err != nil || got != doc {
+		t.Fatalf("fetch failed: got=%#v err=%v", got, err)
+	}
+	if input.BusinessParams.UserID != "EXISTING-USER" {
+		t.Fatalf("expected existing user to win, got %#v", input.BusinessParams)
+	}
+	if capture.calls != 1 || capture.userID != "EXISTING-USER" {
+		t.Fatalf("unexpected permission call: %#v", capture)
+	}
+}
+
+func TestDocumentAppServiceSyncMarksFailedWhenActorMissing(t *testing.T) {
+	t.Parallel()
+
+	doc := &docentity.KnowledgeBaseDocument{
+		Code:              testDocumentCode,
+		OrganizationCode:  customContentOrgCode,
+		KnowledgeBaseCode: testKnowledgeBaseCode,
+		SyncStatus:        shared.SyncStatusPending,
+	}
+	domain := &documentDomainServiceStub{showByCodeAndKBResult: doc}
+	capture := &documentPermissionCapture{}
+	svc := appservice.NewDocumentAppServiceForTest(t, domain, &knowledgeBaseReaderStub{
+		showByCodeAndOrgResult: &kbentity.KnowledgeBase{
+			Code:             testKnowledgeBaseCode,
+			OrganizationCode: customContentOrgCode,
+		},
+	}, nil)
+	svc.SetKnowledgeBasePermissionReaderForTest(documentPermissionReaderStub{
+		operations: map[string]string{testKnowledgeBaseCode: "edit"},
+		capture:    capture,
+	})
+
+	err := svc.Sync(context.Background(), &documentdomain.SyncDocumentInput{
+		Code:              testDocumentCode,
+		KnowledgeBaseCode: testKnowledgeBaseCode,
+	})
+	if !errors.Is(err, appservice.ErrDocumentAccessActorMissing) {
+		t.Fatalf("expected actor missing error, got %v", err)
+	}
+	if capture.calls != 0 {
+		t.Fatalf("expected permission reader skipped, got %#v", capture)
+	}
+	if domain.lastUpdatedDoc == nil || domain.lastUpdatedDoc.SyncStatus != shared.SyncStatusSyncFailed {
+		t.Fatalf("expected document marked failed, got %#v", domain.lastUpdatedDoc)
+	}
+	if !strings.Contains(domain.lastUpdatedDoc.SyncStatusMessage, documentdomain.SyncFailureAuthorization) {
+		t.Fatalf("expected authorization failure message, got %q", domain.lastUpdatedDoc.SyncStatusMessage)
+	}
+}
+
 func TestDocumentAppServiceSyncStatusHelpers(t *testing.T) {
 	t.Parallel()
 
-	doc := &documentdomain.KnowledgeBaseDocument{}
+	doc := &docentity.KnowledgeBaseDocument{}
 	svc := appservice.NewDocumentAppServiceForTest(t, &documentDomainServiceStub{}, &knowledgeBaseReaderStub{}, nil)
 
 	if err := appservice.MarkDocumentSyncingForTest(context.Background(), svc, doc); err != nil {
@@ -1202,8 +1693,8 @@ func TestDocumentAppServiceSyncStatusHelpers(t *testing.T) {
 func TestDocumentAppServiceDocumentFileHelpers(t *testing.T) {
 	t.Parallel()
 
-	doc := &documentdomain.KnowledgeBaseDocument{
-		DocumentFile: &documentdomain.File{
+	doc := &docentity.KnowledgeBaseDocument{
+		DocumentFile: &docentity.File{
 			Type:       "third_platform",
 			Name:       "doc",
 			URL:        "https://example.com/doc.pdf",
@@ -1263,7 +1754,7 @@ func TestDocumentAppServiceHelperErrors(t *testing.T) {
 		t.Fatal("expected fetch by kb error")
 	}
 
-	doc := &documentdomain.KnowledgeBaseDocument{}
+	doc := &docentity.KnowledgeBaseDocument{}
 	if err := appservice.MarkDocumentSyncingForTest(context.Background(), svc, doc); err == nil {
 		t.Fatal("expected mark syncing error")
 	}
@@ -1286,7 +1777,7 @@ func TestIsDocumentSourcePrecheckError(t *testing.T) {
 	}
 }
 
-func TestDocumentAppServiceReVectorizedByThirdFileIDSchedulesThirdFileTask(t *testing.T) {
+func TestDocumentAppServiceReVectorizedByThirdFileIDSchedulesDocumentSyncTasks(t *testing.T) {
 	t.Parallel()
 
 	const (
@@ -1296,9 +1787,21 @@ func TestDocumentAppServiceReVectorizedByThirdFileIDSchedulesThirdFileTask(t *te
 		thirdFileID  = "FILE-1"
 	)
 
-	thirdFileScheduler := &thirdFileSchedulerStub{}
-	svc := appservice.NewDocumentAppServiceForTest(t, &documentDomainServiceStub{}, &knowledgeBaseReaderStub{}, nil, &fragmentDestroyServiceStub{})
-	svc.SetThirdFileRevectorizeScheduler(thirdFileScheduler)
+	doc := &docentity.KnowledgeBaseDocument{
+		Code:              testDocumentCode,
+		KnowledgeBaseCode: testKnowledgeBaseCode,
+		OrganizationCode:  orgCode,
+		ThirdPlatformType: platformType,
+		ThirdFileID:       thirdFileID,
+		UpdatedUID:        "DOC-USER",
+	}
+	scheduler := &documentSyncSchedulerStub{}
+	svc := appservice.NewDocumentAppServiceForTest(t, &documentDomainServiceStub{
+		listRealtimeByThirdFileInOrgResult: []*docentity.KnowledgeBaseDocument{doc},
+	}, &knowledgeBaseReaderStub{}, scheduler, &fragmentDestroyServiceStub{})
+	svc.SetThirdPlatformProviders(thirdplatformprovider.NewRegistry(&thirdPlatformProviderStub{
+		platformType: platformType,
+	}))
 
 	if err := svc.ReVectorizedByThirdFileID(context.Background(), &docdto.ReVectorizedByThirdFileIDInput{
 		OrganizationCode:  orgCode,
@@ -1308,11 +1811,160 @@ func TestDocumentAppServiceReVectorizedByThirdFileIDSchedulesThirdFileTask(t *te
 	}); err != nil {
 		t.Fatalf("expected nil error, got %v", err)
 	}
-	if thirdFileScheduler.scheduleCalls != 1 {
-		t.Fatalf("expected 1 third-file schedule call, got %d", thirdFileScheduler.scheduleCalls)
+	if scheduler.scheduleCalls != 1 {
+		t.Fatalf("expected 1 document sync schedule call, got %d", scheduler.scheduleCalls)
 	}
-	if got := thirdFileScheduler.inputs[0]; got.OrganizationCode != orgCode || got.UserID != userID || got.ThirdPlatformType != platformType || got.ThirdFileID != thirdFileID {
-		t.Fatalf("unexpected third-file schedule input: %#v", got)
+	if got := scheduler.inputs[0]; got.OrganizationCode != orgCode || got.KnowledgeBaseCode != testKnowledgeBaseCode || got.Code != testDocumentCode || got.BusinessParams.UserID != "DOC-USER" {
+		t.Fatalf("unexpected document sync input: %#v", got)
+	}
+}
+
+func TestDocumentAppServiceReVectorizedByThirdFileIDSkipsWithoutRealtimeDocument(t *testing.T) {
+	t.Parallel()
+
+	scheduler := &documentSyncSchedulerStub{}
+	svc := appservice.NewDocumentAppServiceForTest(t, &documentDomainServiceStub{
+		hasRealtimeThirdFileDocumentSet:    true,
+		hasRealtimeThirdFileDocumentResult: false,
+	}, &knowledgeBaseReaderStub{}, scheduler, &fragmentDestroyServiceStub{})
+
+	if err := svc.ReVectorizedByThirdFileID(context.Background(), &docdto.ReVectorizedByThirdFileIDInput{
+		OrganizationCode:  "ORG1",
+		UserID:            "U1",
+		ThirdPlatformType: "teamshare",
+		ThirdFileID:       "FILE-1",
+	}); err != nil {
+		t.Fatalf("expected nil error, got %v", err)
+	}
+	if scheduler.scheduleCalls != 0 {
+		t.Fatalf("expected third-file callback to be skipped, got %#v", scheduler.inputs)
+	}
+}
+
+func TestDocumentAppServiceReVectorizedByThirdFileIDSchedulesFromActualRealtimeDocument(t *testing.T) {
+	t.Parallel()
+
+	scheduler := &documentSyncSchedulerStub{}
+	doc := newThirdFileMappedDocument(testDocumentCode, "DOC-USER")
+	svc := appservice.NewDocumentAppServiceForTest(t, &documentDomainServiceStub{
+		listRealtimeByThirdFileInOrgResult: []*docentity.KnowledgeBaseDocument{doc},
+	}, &knowledgeBaseReaderStub{}, scheduler, &fragmentDestroyServiceStub{})
+	svc.SetThirdPlatformProviders(thirdplatformprovider.NewRegistry(&thirdPlatformProviderStub{
+		platformType: "teamshare",
+	}))
+
+	if err := svc.ReVectorizedByThirdFileID(context.Background(), &docdto.ReVectorizedByThirdFileIDInput{
+		OrganizationCode:  "ORG1",
+		UserID:            "U1",
+		ThirdPlatformType: "teamshare",
+		ThirdFileID:       "FILE-1",
+	}); err != nil {
+		t.Fatalf("expected nil error, got %v", err)
+	}
+	if scheduler.scheduleCalls != 1 {
+		t.Fatalf("expected actual realtime document to schedule document sync, got %d", scheduler.scheduleCalls)
+	}
+}
+
+func TestDocumentAppServiceNotifyProjectFileChangeSchedulesDocumentSyncTask(t *testing.T) {
+	t.Parallel()
+
+	scheduler := &documentSyncSchedulerStub{}
+	existing := &docentity.KnowledgeBaseDocument{
+		Code:              "DOC-501",
+		KnowledgeBaseCode: testKnowledgeBaseCode,
+		OrganizationCode:  "ORG1",
+		ProjectFileID:     501,
+		UpdatedUID:        "U1",
+	}
+	svc := appservice.NewDocumentAppServiceForTest(t, &documentDomainServiceStub{
+		listByProjectFileInOrgResult: []*docentity.KnowledgeBaseDocument{existing},
+	}, &knowledgeBaseReaderStub{}, scheduler, &fragmentDestroyServiceStub{})
+	svc.SetProjectFileMetadataReader(&projectFileMetadataReaderStub{
+		metas: map[int64]*projectfile.Meta{
+			501: {
+				Status:           "active",
+				OrganizationCode: "ORG1",
+				ProjectID:        900,
+				ProjectFileID:    501,
+				FileName:         "new-file.md",
+				FileExtension:    "md",
+			},
+		},
+	})
+
+	if err := svc.NotifyProjectFileChange(context.Background(), &docdto.NotifyProjectFileChangeInput{ProjectFileID: 501}); err != nil {
+		t.Fatalf("expected nil error, got %v", err)
+	}
+	if scheduler.scheduleCalls != 1 {
+		t.Fatalf("expected 1 document sync schedule call, got %d", scheduler.scheduleCalls)
+	}
+	if got := scheduler.inputs[0]; got.Code != "DOC-501" || got.KnowledgeBaseCode != testKnowledgeBaseCode {
+		t.Fatalf("unexpected document sync input: %#v", got)
+	}
+}
+
+func TestDocumentAppServiceNotifyProjectFileChangeSkipsWithoutRealtimeBinding(t *testing.T) {
+	t.Parallel()
+
+	scheduler := &documentSyncSchedulerStub{}
+	svc := appservice.NewDocumentAppServiceForTest(t, &documentDomainServiceStub{
+		hasRealtimeProjectFileDocumentSet:    true,
+		hasRealtimeProjectFileDocumentResult: false,
+	}, &knowledgeBaseReaderStub{}, scheduler, &fragmentDestroyServiceStub{})
+	svc.SetProjectFileMetadataReader(&projectFileMetadataReaderStub{
+		metas: map[int64]*projectfile.Meta{
+			501: {
+				Status:           "active",
+				OrganizationCode: "ORG1",
+				ProjectID:        900,
+				ProjectFileID:    501,
+				FileName:         "new-file.md",
+				FileExtension:    "md",
+			},
+		},
+	})
+
+	if err := svc.NotifyProjectFileChange(context.Background(), &docdto.NotifyProjectFileChangeInput{ProjectFileID: 501}); err != nil {
+		t.Fatalf("expected nil error, got %v", err)
+	}
+	if scheduler.scheduleCalls != 0 {
+		t.Fatalf("expected project-file callback to be skipped, got %#v", scheduler.inputs)
+	}
+}
+
+func TestDocumentAppServiceNotifyProjectFileChangeSchedulesFromActualRealtimeDocument(t *testing.T) {
+	t.Parallel()
+
+	scheduler := &documentSyncSchedulerStub{}
+	existing := &docentity.KnowledgeBaseDocument{
+		Code:              "DOC-501",
+		KnowledgeBaseCode: testKnowledgeBaseCode,
+		OrganizationCode:  "ORG1",
+		ProjectFileID:     501,
+		UpdatedUID:        "U1",
+	}
+	svc := appservice.NewDocumentAppServiceForTest(t, &documentDomainServiceStub{
+		listByProjectFileInOrgResult: []*docentity.KnowledgeBaseDocument{existing},
+	}, &knowledgeBaseReaderStub{}, scheduler, &fragmentDestroyServiceStub{})
+	svc.SetProjectFileMetadataReader(&projectFileMetadataReaderStub{
+		metas: map[int64]*projectfile.Meta{
+			501: {
+				Status:           "active",
+				OrganizationCode: "ORG1",
+				ProjectID:        900,
+				ProjectFileID:    501,
+				FileName:         "new-file.md",
+				FileExtension:    "md",
+			},
+		},
+	})
+
+	if err := svc.NotifyProjectFileChange(context.Background(), &docdto.NotifyProjectFileChangeInput{ProjectFileID: 501}); err != nil {
+		t.Fatalf("expected nil error, got %v", err)
+	}
+	if scheduler.scheduleCalls != 1 {
+		t.Fatalf("expected eligibility to schedule document sync, got %d", scheduler.scheduleCalls)
 	}
 }
 
@@ -1322,7 +1974,7 @@ func TestDocumentAppServiceSyncRedirectsThirdPlatformResyncToThirdFileFlow(t *te
 	const thirdFileID = "FILE-1"
 
 	domain := &documentDomainServiceStub{
-		showByCodeAndKBResult: &documentdomain.KnowledgeBaseDocument{
+		showByCodeAndKBResult: &docentity.KnowledgeBaseDocument{
 			Code:              testDocumentCode,
 			KnowledgeBaseCode: testKnowledgeBaseCode,
 			OrganizationCode:  "ORG1",
@@ -1331,9 +1983,12 @@ func TestDocumentAppServiceSyncRedirectsThirdPlatformResyncToThirdFileFlow(t *te
 			UpdatedUID:        "DOC-USER",
 		},
 	}
-	svc := appservice.NewDocumentAppServiceForTest(t, domain, &knowledgeBaseReaderStub{}, nil, &fragmentDestroyServiceStub{})
-	thirdFileScheduler := &thirdFileSchedulerStub{}
-	svc.SetThirdFileRevectorizeScheduler(thirdFileScheduler)
+	domain.listRealtimeByThirdFileInOrgResult = []*docentity.KnowledgeBaseDocument{domain.showByCodeAndKBResult}
+	scheduler := &documentSyncSchedulerStub{}
+	svc := appservice.NewDocumentAppServiceForTest(t, domain, &knowledgeBaseReaderStub{}, scheduler, &fragmentDestroyServiceStub{})
+	svc.SetThirdPlatformProviders(thirdplatformprovider.NewRegistry(&thirdPlatformProviderStub{
+		platformType: "teamshare",
+	}))
 
 	err := svc.Sync(context.Background(), &documentdomain.SyncDocumentInput{
 		OrganizationCode:  "ORG1",
@@ -1350,25 +2005,25 @@ func TestDocumentAppServiceSyncRedirectsThirdPlatformResyncToThirdFileFlow(t *te
 	if err != nil {
 		t.Fatalf("expected nil error, got %v", err)
 	}
-	if thirdFileScheduler.scheduleCalls != 1 {
-		t.Fatalf("expected 1 third-file schedule call, got %d", thirdFileScheduler.scheduleCalls)
+	if scheduler.scheduleCalls != 1 {
+		t.Fatalf("expected 1 document sync schedule call, got %d", scheduler.scheduleCalls)
 	}
-	if got := thirdFileScheduler.inputs[0]; got.OrganizationCode != "ORG1" || got.UserID != "U1" || got.ThirdPlatformType != "teamshare" || got.ThirdFileID != thirdFileID {
-		t.Fatalf("unexpected redirected third-file input: %#v", got)
+	if got := scheduler.inputs[0]; got.OrganizationCode != "ORG1" || got.KnowledgeBaseCode != testKnowledgeBaseCode || got.Code != testDocumentCode || got.BusinessParams.UserID != "DOC-USER" {
+		t.Fatalf("unexpected redirected document sync input: %#v", got)
 	}
 }
 
-func TestDocumentAppServiceSyncThirdPlatformResyncRunsFanoutInlineWhenSync(t *testing.T) {
+func TestDocumentAppServiceSyncThirdPlatformResyncSchedulesFanoutEvenWhenInputSync(t *testing.T) {
 	t.Parallel()
 
 	doc1 := newThirdFileMappedDocument(testDocumentCode, "U1")
 	doc2 := newThirdFileMappedDocument("DOC2", "U2")
 	domain := &documentDomainServiceStub{
-		showByCodeAndKBResults: map[string]*documentdomain.KnowledgeBaseDocument{
+		showByCodeAndKBResults: map[string]*docentity.KnowledgeBaseDocument{
 			testDocumentCode: doc1,
 			"DOC2":           doc2,
 		},
-		listByThirdFileInOrgResult: []*documentdomain.KnowledgeBaseDocument{doc1, doc2},
+		listByThirdFileInOrgResult: []*docentity.KnowledgeBaseDocument{doc1, doc2},
 	}
 	scheduler := &documentSyncSchedulerStub{}
 	fragmentSvc := &fragmentDestroyServiceStub{}
@@ -1376,7 +2031,7 @@ func TestDocumentAppServiceSyncThirdPlatformResyncRunsFanoutInlineWhenSync(t *te
 		t,
 		domain,
 		&knowledgeBaseReaderStub{
-			showByCodeAndOrgResult: &knowledgebase.KnowledgeBase{
+			showByCodeAndOrgResult: &kbentity.KnowledgeBase{
 				Code:             testKnowledgeBaseCode,
 				Model:            "text-embedding-3-small",
 				OrganizationCode: "ORG1",
@@ -1386,8 +2041,6 @@ func TestDocumentAppServiceSyncThirdPlatformResyncRunsFanoutInlineWhenSync(t *te
 		scheduler,
 		fragmentSvc,
 	)
-	thirdFileScheduler := &thirdFileSchedulerStub{}
-	svc.SetThirdFileRevectorizeScheduler(thirdFileScheduler)
 	svc.SetThirdPlatformDocumentPortForTest(&thirdPlatformResolverStub{
 		result: newThirdPlatformRawContentResolveResult("new content"),
 	})
@@ -1410,22 +2063,93 @@ func TestDocumentAppServiceSyncThirdPlatformResyncRunsFanoutInlineWhenSync(t *te
 	if err != nil {
 		t.Fatalf("expected nil error, got %v", err)
 	}
-	if thirdFileScheduler.scheduleCalls != 0 {
-		t.Fatalf("expected third-file scheduler not to be called, got %d", thirdFileScheduler.scheduleCalls)
+	if scheduler.scheduleCalls != 2 {
+		t.Fatalf("expected fan-out to schedule two document sync tasks, got %d", scheduler.scheduleCalls)
+	}
+	for _, scheduled := range scheduler.inputs {
+		if scheduled == nil || !scheduled.Async || scheduled.Mode != documentdomain.SyncModeResync {
+			t.Fatalf("expected async resync task, got %#v", scheduled)
+		}
+		if scheduled.SourceOverride != nil {
+			t.Fatalf("expected fan-out task not to carry source override, got %#v", scheduled.SourceOverride)
+		}
+	}
+	if fragmentSvc.syncFragmentBatchCalls != 0 {
+		t.Fatalf("expected fan-out not to sync mapped documents inline, got %d", fragmentSvc.syncFragmentBatchCalls)
+	}
+	if doc1.DocumentFile != nil || doc2.DocumentFile != nil {
+		t.Fatalf("expected fan-out scheduling not to mutate document files, got %#v %#v", doc1.DocumentFile, doc2.DocumentFile)
+	}
+}
+
+func TestDocumentAppServiceSyncSingleDocumentManualDoesNotFanoutByThirdFile(t *testing.T) {
+	t.Parallel()
+
+	doc1 := newThirdFileMappedDocument(testDocumentCode, "U1")
+	doc2 := newThirdFileMappedDocument("DOC2", "U2")
+	domain := &documentDomainServiceStub{
+		showByCodeAndKBResults: map[string]*docentity.KnowledgeBaseDocument{
+			testDocumentCode: doc1,
+			"DOC2":           doc2,
+		},
+		listByThirdFileInOrgResult: []*docentity.KnowledgeBaseDocument{doc1, doc2},
+	}
+	scheduler := &documentSyncSchedulerStub{}
+	fragmentSvc := &fragmentDestroyServiceStub{}
+	svc := appservice.NewDocumentAppServiceForTest(
+		t,
+		domain,
+		&knowledgeBaseReaderStub{
+			showByCodeAndOrgResult: &kbentity.KnowledgeBase{
+				Code:             testKnowledgeBaseCode,
+				Model:            "text-embedding-3-small",
+				OrganizationCode: "ORG1",
+			},
+			routeCollection: "collection",
+		},
+		scheduler,
+		fragmentSvc,
+	)
+	svc.SetThirdPlatformDocumentPortForTest(&thirdPlatformResolverStub{
+		result: newThirdPlatformRawContentResolveResult("new content"),
+	})
+	svc.SetParseServiceForTest(&documentParseServiceStub{})
+	svc.SetThirdPlatformProviders(thirdplatformprovider.NewRegistry(&thirdPlatformProviderStub{
+		platformType: "teamshare",
+	}))
+
+	err := svc.Sync(context.Background(), &documentdomain.SyncDocumentInput{
+		OrganizationCode:  "ORG1",
+		KnowledgeBaseCode: testKnowledgeBaseCode,
+		Code:              testDocumentCode,
+		Mode:              documentdomain.SyncModeResync,
+		Async:             false,
+		RevectorizeSource: documentdomain.RevectorizeSourceSingleDocumentManual,
+		BusinessParams: &ctxmeta.BusinessParams{
+			OrganizationCode: "ORG1",
+			UserID:           "U1",
+			BusinessID:       testKnowledgeBaseCode,
+		},
+	})
+	if err != nil {
+		t.Fatalf("expected nil error, got %v", err)
 	}
 	if scheduler.scheduleCalls != 0 {
 		t.Fatalf("expected document sync scheduler not to be called, got %d", scheduler.scheduleCalls)
 	}
-	if fragmentSvc.syncFragmentBatchCalls != 2 {
-		t.Fatalf("expected fan-out to sync two mapped documents inline, got %d", fragmentSvc.syncFragmentBatchCalls)
+	if fragmentSvc.syncFragmentBatchCalls != 1 {
+		t.Fatalf("expected only current document to sync inline, got %d", fragmentSvc.syncFragmentBatchCalls)
 	}
-	if doc1.DocumentFile == nil || doc2.DocumentFile == nil {
-		t.Fatalf("expected source override document file to be applied, got %#v %#v", doc1.DocumentFile, doc2.DocumentFile)
+	if doc1.DocumentFile == nil {
+		t.Fatalf("expected current document to receive latest source override, got %#v", doc1)
+	}
+	if doc2.DocumentFile != nil {
+		t.Fatalf("expected sibling mapped document to stay untouched, got %#v", doc2.DocumentFile)
 	}
 }
 
-func newThirdFileMappedDocument(code, updatedUID string) *documentdomain.KnowledgeBaseDocument {
-	return &documentdomain.KnowledgeBaseDocument{
+func newThirdFileMappedDocument(code, updatedUID string) *docentity.KnowledgeBaseDocument {
+	return &docentity.KnowledgeBaseDocument{
 		Code:              code,
 		KnowledgeBaseCode: testKnowledgeBaseCode,
 		OrganizationCode:  "ORG1",
@@ -1439,31 +2163,29 @@ func TestDocumentAppServiceRunThirdFileRevectorizeSchedulesSingleMappedDocument(
 	t.Parallel()
 
 	domain := &documentDomainServiceStub{
-		listByThirdFileInOrgResult: []*documentdomain.KnowledgeBaseDocument{
+		listByThirdFileInOrgResult: []*docentity.KnowledgeBaseDocument{
 			{
 				Code:              testDocumentCode,
 				KnowledgeBaseCode: testKnowledgeBaseCode,
 				OrganizationCode:  "ORG1",
 				ThirdPlatformType: "teamshare",
 				ThirdFileID:       "FILE-1",
+				CreatedUID:        "CREATOR-1",
 			},
 		},
 	}
 	scheduler := &documentSyncSchedulerStub{}
 	svc := appservice.NewDocumentAppServiceForTest(t, domain, &knowledgeBaseReaderStub{}, scheduler, &fragmentDestroyServiceStub{})
-	svc.SetThirdPlatformDocumentPortForTest(&thirdPlatformResolverStub{
-		result: newThirdPlatformRawContentResolveResult("new content"),
-	})
-	svc.SetParseServiceForTest(&documentParseServiceStub{})
 	svc.SetThirdPlatformProviders(thirdplatformprovider.NewRegistry(&thirdPlatformProviderStub{
 		platformType: "teamshare",
 	}))
 
 	err := svc.RunThirdFileRevectorize(context.Background(), &documentdomain.ThirdFileRevectorizeInput{
-		OrganizationCode:  "ORG1",
-		UserID:            "U1",
-		ThirdPlatformType: "teamshare",
-		ThirdFileID:       "FILE-1",
+		OrganizationCode:              "ORG1",
+		UserID:                        "U1",
+		ThirdPlatformOrganizationCode: "000",
+		ThirdPlatformType:             "teamshare",
+		ThirdFileID:                   "FILE-1",
 	})
 	if err != nil {
 		t.Fatalf("expected nil error, got %v", err)
@@ -1474,14 +2196,207 @@ func TestDocumentAppServiceRunThirdFileRevectorizeSchedulesSingleMappedDocument(
 	if scheduler.scheduleCalls != 1 {
 		t.Fatalf("expected 1 schedule call, got %d", scheduler.scheduleCalls)
 	}
+	assertScheduledThirdFileRevectorizeInput(t, scheduler)
+}
+
+func TestDocumentAppServiceRunThirdFileRevectorizeSelfHealsMagicIDUser(t *testing.T) {
+	t.Parallel()
+
+	const resolvedUserID = "user_a"
+
+	domain := &documentDomainServiceStub{
+		listByThirdFileInOrgResult: []*docentity.KnowledgeBaseDocument{
+			{
+				Code:              testDocumentCode,
+				KnowledgeBaseCode: testKnowledgeBaseCode,
+				OrganizationCode:  "ORG1",
+				ThirdPlatformType: "teamshare",
+				ThirdFileID:       "FILE-1",
+				UpdatedUID:        "magic-1",
+			},
+		},
+	}
+	scheduler := &documentSyncSchedulerStub{}
+	svc := appservice.NewDocumentAppServiceForTest(t, domain, &knowledgeBaseReaderStub{}, scheduler, &fragmentDestroyServiceStub{})
+	svc.SetThirdPlatformProviders(thirdplatformprovider.NewRegistry(&thirdPlatformProviderStub{
+		platformType: "teamshare",
+	}))
+	svc.SetUserService(contactuserdomain.NewDomainService(&contactUserRepositoryStub{
+		usersByMagicID: map[string][]contactuserdomain.User{
+			"magic-1": {
+				{UserID: resolvedUserID, MagicID: "magic-1", OrganizationCode: "ORG1"},
+				{UserID: "user_b", MagicID: "magic-1", OrganizationCode: "ORG1"},
+			},
+		},
+	}))
+
+	err := svc.RunThirdFileRevectorize(context.Background(), &documentdomain.ThirdFileRevectorizeInput{
+		OrganizationCode:  "ORG1",
+		ThirdPlatformType: "teamshare",
+		ThirdFileID:       "FILE-1",
+	})
+	if err != nil {
+		t.Fatalf("expected nil error, got %v", err)
+	}
+	if scheduler.scheduleCalls != 1 {
+		t.Fatalf("expected 1 schedule call, got %d", scheduler.scheduleCalls)
+	}
+	if got := scheduler.inputs[0].BusinessParams.UserID; got != resolvedUserID {
+		t.Fatalf("expected self-healed user, got %q", got)
+	}
+	if domain.updateCalls != 1 ||
+		domain.lastUpdatedDoc.UpdatedUID != resolvedUserID ||
+		domain.lastUpdatedDoc.CreatedUID != resolvedUserID {
+		t.Fatalf("expected bad document uid to be healed, got %#v", domain.lastUpdatedDoc)
+	}
+}
+
+func TestDocumentAppServiceRunThirdFileRevectorizeSkipsMissingReadUser(t *testing.T) {
+	t.Parallel()
+
+	domain := &documentDomainServiceStub{
+		listByThirdFileInOrgResult: []*docentity.KnowledgeBaseDocument{
+			{
+				Code:              testDocumentCode,
+				KnowledgeBaseCode: testKnowledgeBaseCode,
+				OrganizationCode:  "ORG1",
+				ThirdPlatformType: "teamshare",
+				ThirdFileID:       "FILE-1",
+				UpdatedUID:        "old-app-id",
+			},
+		},
+	}
+	scheduler := &documentSyncSchedulerStub{}
+	svc := appservice.NewDocumentAppServiceForTest(t, domain, &knowledgeBaseReaderStub{}, scheduler, &fragmentDestroyServiceStub{})
+	svc.SetThirdPlatformProviders(thirdplatformprovider.NewRegistry(&thirdPlatformProviderStub{
+		platformType: "teamshare",
+	}))
+	svc.SetUserService(contactuserdomain.NewDomainService(&contactUserRepositoryStub{}))
+
+	err := svc.RunThirdFileRevectorize(context.Background(), &documentdomain.ThirdFileRevectorizeInput{
+		OrganizationCode:  "ORG1",
+		ThirdPlatformType: "teamshare",
+		ThirdFileID:       "FILE-1",
+	})
+	if err != nil {
+		t.Fatalf("expected stale uid document to be skipped, got %v", err)
+	}
+	if scheduler.scheduleCalls != 0 {
+		t.Fatalf("expected missing read user document not to schedule sync, got %#v", scheduler.inputs)
+	}
+}
+
+func TestDocumentAppServiceRunThirdFileRevectorizeSkipsOnlyMissingReadUser(t *testing.T) {
+	t.Parallel()
+
+	domain := &documentDomainServiceStub{
+		listByThirdFileInOrgResult: []*docentity.KnowledgeBaseDocument{
+			{
+				Code:              "DOC-BAD",
+				KnowledgeBaseCode: testKnowledgeBaseCode,
+				OrganizationCode:  "ORG1",
+				ThirdPlatformType: "teamshare",
+				ThirdFileID:       "FILE-1",
+				UpdatedUID:        "old-app-id",
+			},
+			{
+				Code:              "DOC-GOOD",
+				KnowledgeBaseCode: "KB2",
+				OrganizationCode:  "ORG1",
+				ThirdPlatformType: "teamshare",
+				ThirdFileID:       "FILE-1",
+				UpdatedUID:        "user-1",
+			},
+		},
+	}
+	scheduler := &documentSyncSchedulerStub{}
+	svc := appservice.NewDocumentAppServiceForTest(t, domain, &knowledgeBaseReaderStub{}, scheduler, &fragmentDestroyServiceStub{})
+	svc.SetThirdPlatformProviders(thirdplatformprovider.NewRegistry(&thirdPlatformProviderStub{
+		platformType: "teamshare",
+	}))
+	svc.SetUserService(contactuserdomain.NewDomainService(&contactUserRepositoryStub{
+		activeUsers: map[string]struct{}{"user-1": {}},
+	}))
+
+	err := svc.RunThirdFileRevectorize(context.Background(), &documentdomain.ThirdFileRevectorizeInput{
+		OrganizationCode:  "ORG1",
+		ThirdPlatformType: "teamshare",
+		ThirdFileID:       "FILE-1",
+	})
+	if err != nil {
+		t.Fatalf("expected partial stale uid fan-out to succeed, got %v", err)
+	}
+	if scheduler.scheduleCalls != 1 {
+		t.Fatalf("expected only valid document to schedule sync, got %#v", scheduler.inputs)
+	}
+	got := scheduler.inputs[0]
+	if got.Code != "DOC-GOOD" || got.KnowledgeBaseCode != "KB2" || got.BusinessParams == nil || got.BusinessParams.UserID != "user-1" {
+		t.Fatalf("unexpected scheduled sync input: %#v", got)
+	}
+}
+
+func TestDocumentAppServiceRunThirdFileRevectorizeKeepsUserLookupErrorsRetryable(t *testing.T) {
+	t.Parallel()
+
+	domain := &documentDomainServiceStub{
+		listByThirdFileInOrgResult: []*docentity.KnowledgeBaseDocument{
+			{
+				Code:              testDocumentCode,
+				KnowledgeBaseCode: testKnowledgeBaseCode,
+				OrganizationCode:  "ORG1",
+				ThirdPlatformType: "teamshare",
+				ThirdFileID:       "FILE-1",
+				UpdatedUID:        "user-1",
+			},
+		},
+	}
+	scheduler := &documentSyncSchedulerStub{}
+	svc := appservice.NewDocumentAppServiceForTest(t, domain, &knowledgeBaseReaderStub{}, scheduler, &fragmentDestroyServiceStub{})
+	svc.SetThirdPlatformProviders(thirdplatformprovider.NewRegistry(&thirdPlatformProviderStub{
+		platformType: "teamshare",
+	}))
+	svc.SetUserService(contactuserdomain.NewDomainService(&contactUserRepositoryStub{
+		listActiveUserIDsErr: errContactUserListFailed,
+	}))
+
+	err := svc.RunThirdFileRevectorize(context.Background(), &documentdomain.ThirdFileRevectorizeInput{
+		OrganizationCode:  "ORG1",
+		ThirdPlatformType: "teamshare",
+		ThirdFileID:       "FILE-1",
+	})
+	if !errors.Is(err, errContactUserListFailed) {
+		t.Fatalf("expected contact user lookup error to stay retryable, got %v", err)
+	}
+	if scheduler.scheduleCalls != 0 {
+		t.Fatalf("expected failed user lookup not to schedule sync, got %#v", scheduler.inputs)
+	}
+}
+
+func assertScheduledThirdFileRevectorizeInput(
+	t *testing.T,
+	scheduler *documentSyncSchedulerStub,
+) {
+	t.Helper()
+
 	if scheduler.inputs[0].Code != testDocumentCode || scheduler.inputs[0].KnowledgeBaseCode != testKnowledgeBaseCode {
 		t.Fatalf("unexpected scheduled inputs: %#v", scheduler.inputs)
 	}
 	if !scheduler.inputs[0].Async || scheduler.inputs[0].Mode != documentdomain.SyncModeResync {
 		t.Fatalf("unexpected first scheduled input: %#v", scheduler.inputs[0])
 	}
-	if scheduler.inputs[0].SourceOverride == nil || scheduler.inputs[0].SourceOverride.Content != "new content" {
-		t.Fatalf("expected source override to be forwarded, got %#v", scheduler.inputs[0].SourceOverride)
+	if scheduler.inputs[0].RevectorizeSource != documentdomain.RevectorizeSourceThirdFileBroadcast {
+		t.Fatalf("expected third-file broadcast source, got %#v", scheduler.inputs[0])
+	}
+	if scheduler.inputs[0].SourceOverride != nil {
+		t.Fatalf("expected async third-file fan-out not to forward source override, got %#v", scheduler.inputs[0].SourceOverride)
+	}
+	if !scheduler.inputs[0].SingleDocumentThirdPlatformResync {
+		t.Fatalf("expected third-file fan-out to keep single-document resync flag, got %#v", scheduler.inputs[0])
+	}
+	if scheduler.inputs[0].BusinessParams == nil ||
+		scheduler.inputs[0].BusinessParams.UserID != "CREATOR-1" ||
+		scheduler.inputs[0].BusinessParams.ThirdPlatformOrganizationCode != "000" {
+		t.Fatalf("unexpected third-file read identity: %#v", scheduler.inputs[0].BusinessParams)
 	}
 }
 
@@ -1495,8 +2410,11 @@ func TestDocumentAppServiceRunThirdFileRevectorizeErrors(t *testing.T) {
 		OrganizationCode:  "ORG1",
 		ThirdPlatformType: "teamshare",
 		ThirdFileID:       "FILE-1",
-	}); !errors.Is(err, shared.ErrDocumentNotFound) {
-		t.Fatalf("expected document not found, got %v", err)
+	}); err != nil {
+		t.Fatalf("expected stale third-file task to be skipped, got %v", err)
+	}
+	if scheduler.scheduleCalls != 0 {
+		t.Fatalf("expected stale third-file task not to schedule document sync, got %d", scheduler.scheduleCalls)
 	}
 
 	fragmentErrSvc := appservice.NewDocumentAppServiceForTest(t,
@@ -1513,9 +2431,126 @@ func TestDocumentAppServiceRunThirdFileRevectorizeErrors(t *testing.T) {
 		t.Fatalf("expected third file list error, got %v", err)
 	}
 
+	assertRunThirdFileRevectorizeFanOutSchedulesIndependentDocumentTasks(t, scheduler)
+	assertRunThirdFileRevectorizeReturnsUnsupportedPlatformError(t, scheduler)
+}
+
+func TestDocumentAppServiceSyncDeletesCurrentDocumentWhenThirdFileBroadcastBecomesUnsupported(t *testing.T) {
+	t.Parallel()
+
+	domain := &documentDomainServiceStub{
+		showByCodeAndKBResult: &docentity.KnowledgeBaseDocument{
+			ID:                11,
+			Code:              testDocumentCode,
+			KnowledgeBaseCode: testKnowledgeBaseCode,
+			OrganizationCode:  "ORG1",
+			ThirdPlatformType: "teamshare",
+			ThirdFileID:       "FILE-1",
+			UpdatedUID:        "U1",
+		},
+	}
+	scheduler := &documentSyncSchedulerStub{}
+	fragmentSvc := &fragmentDestroyServiceStub{}
+	svc := appservice.NewDocumentAppServiceForTest(t, domain, &knowledgeBaseReaderStub{routeCollection: "kb_custom"}, scheduler, fragmentSvc)
+	svc.SetThirdPlatformDocumentPortForTest(&thirdPlatformResolverStub{
+		result: &thirdplatform.DocumentResolveResult{
+			SourceKind: thirdplatform.DocumentSourceKindRawContent,
+			RawContent: "<svg></svg>",
+			DocumentFile: map[string]any{
+				"type":      "third_platform",
+				"name":      "diagram.svg",
+				"extension": "svg",
+			},
+		},
+	})
+	svc.SetParseServiceForTest(&documentParseServiceStub{})
+	svc.SetThirdPlatformProviders(thirdplatformprovider.NewRegistry(&thirdPlatformProviderStub{
+		platformType: "teamshare",
+	}))
+
+	if err := svc.Sync(context.Background(), &documentdomain.SyncDocumentInput{
+		OrganizationCode:                  "ORG1",
+		KnowledgeBaseCode:                 testKnowledgeBaseCode,
+		Code:                              testDocumentCode,
+		Mode:                              documentdomain.SyncModeResync,
+		Async:                             true,
+		RevectorizeSource:                 documentdomain.RevectorizeSourceThirdFileBroadcast,
+		SingleDocumentThirdPlatformResync: true,
+		BusinessParams: &ctxmeta.BusinessParams{
+			OrganizationCode: "ORG1",
+			UserID:           "U1",
+			BusinessID:       testKnowledgeBaseCode,
+		},
+	}); err != nil {
+		t.Fatalf("expected nil error, got %v", err)
+	}
+	if scheduler.scheduleCalls != 0 {
+		t.Fatalf("expected unsupported third file delete path not to reschedule sync, got %#v", scheduler.inputs)
+	}
+	if domain.deletedID != 11 {
+		t.Fatalf("expected unsupported current document to be deleted, got %#v", domain)
+	}
+	if fragmentSvc.deletePointsByDocumentCalls != 1 || fragmentSvc.deleteByDocumentCalls != 1 {
+		t.Fatalf("expected unsupported current document vectors and fragments deleted, got %#v", fragmentSvc)
+	}
+}
+
+func TestDocumentAppServiceSyncSkipsSingleThirdFileResyncWhenReadUserMissing(t *testing.T) {
+	t.Parallel()
+
+	domain := &documentDomainServiceStub{
+		showByCodeAndKBResult: &docentity.KnowledgeBaseDocument{
+			ID:                11,
+			Code:              testDocumentCode,
+			KnowledgeBaseCode: testKnowledgeBaseCode,
+			OrganizationCode:  "ORG1",
+			ThirdPlatformType: "teamshare",
+			ThirdFileID:       "FILE-1",
+			CreatedUID:        "old-app-id",
+			UpdatedUID:        "old-app-id",
+		},
+	}
+	resolver := &thirdPlatformResolverStub{
+		result: newThirdPlatformRawContentResolveResult("latest"),
+	}
+	svc := appservice.NewDocumentAppServiceForTest(t, domain, &knowledgeBaseReaderStub{}, nil, &fragmentDestroyServiceStub{})
+	svc.SetThirdPlatformDocumentPortForTest(resolver)
+	svc.SetThirdPlatformProviders(thirdplatformprovider.NewRegistry(&thirdPlatformProviderStub{
+		platformType: "teamshare",
+	}))
+	svc.SetUserService(contactuserdomain.NewDomainService(&contactUserRepositoryStub{}))
+
+	err := svc.Sync(context.Background(), &documentdomain.SyncDocumentInput{
+		OrganizationCode:                  "ORG1",
+		KnowledgeBaseCode:                 testKnowledgeBaseCode,
+		Code:                              testDocumentCode,
+		Mode:                              documentdomain.SyncModeResync,
+		Async:                             true,
+		RevectorizeSource:                 documentdomain.RevectorizeSourceThirdFileBroadcast,
+		SingleDocumentThirdPlatformResync: true,
+		BusinessParams: &ctxmeta.BusinessParams{
+			OrganizationCode: "ORG1",
+			UserID:           "old-app-id",
+			BusinessID:       testKnowledgeBaseCode,
+		},
+	})
+	if err != nil {
+		t.Fatalf("expected missing read user document sync to be skipped, got %v", err)
+	}
+	if resolver.lastInput != nil {
+		t.Fatalf("expected third-platform resolve not to run after missing read user, got %#v", resolver.lastInput)
+	}
+	if domain.updateCalls != 0 {
+		t.Fatalf("expected skipped sync not to mark failed or mutate document, got %#v", domain.lastUpdatedDoc)
+	}
+}
+
+func assertRunThirdFileRevectorizeFanOutSchedulesIndependentDocumentTasks(t *testing.T, scheduler *documentSyncSchedulerStub) {
+	t.Helper()
+
 	documentErrSvc := appservice.NewDocumentAppServiceForTest(t,
 		&documentDomainServiceStub{
-			listByThirdFileInOrgResult: []*documentdomain.KnowledgeBaseDocument{
+			listByThirdFileInOrgResult: []*docentity.KnowledgeBaseDocument{
 				{KnowledgeBaseCode: testKnowledgeBaseCode, Code: testDocumentCode, OrganizationCode: "ORG1"},
 				{KnowledgeBaseCode: "KB2", Code: "DOC2", OrganizationCode: "ORG1"},
 			},
@@ -1524,10 +2559,6 @@ func TestDocumentAppServiceRunThirdFileRevectorizeErrors(t *testing.T) {
 		scheduler,
 		&fragmentDestroyServiceStub{},
 	)
-	documentErrSvc.SetThirdPlatformDocumentPortForTest(&thirdPlatformResolverStub{
-		result: newThirdPlatformRawContentResolveResult("fanout"),
-	})
-	documentErrSvc.SetParseServiceForTest(&documentParseServiceStub{})
 	documentErrSvc.SetThirdPlatformProviders(thirdplatformprovider.NewRegistry(&thirdPlatformProviderStub{
 		platformType: "teamshare",
 	}))
@@ -1541,10 +2572,20 @@ func TestDocumentAppServiceRunThirdFileRevectorizeErrors(t *testing.T) {
 	if scheduler.scheduleCalls != 2 {
 		t.Fatalf("expected 2 schedule calls for multi-document fan-out, got %d", scheduler.scheduleCalls)
 	}
+	if scheduler.inputs[0].SourceOverride != nil || scheduler.inputs[1].SourceOverride != nil {
+		t.Fatalf("expected async source fan-out not to carry source override, got %#v", scheduler.inputs)
+	}
+	if !scheduler.inputs[0].SingleDocumentThirdPlatformResync || !scheduler.inputs[1].SingleDocumentThirdPlatformResync {
+		t.Fatalf("expected fan-out requests to pin single-document resync, got %#v", scheduler.inputs)
+	}
+}
+
+func assertRunThirdFileRevectorizeReturnsUnsupportedPlatformError(t *testing.T, scheduler *documentSyncSchedulerStub) {
+	t.Helper()
 
 	unsupportedSvc := appservice.NewDocumentAppServiceForTest(t,
 		&documentDomainServiceStub{
-			listByThirdFileInOrgResult: []*documentdomain.KnowledgeBaseDocument{
+			listByThirdFileInOrgResult: []*docentity.KnowledgeBaseDocument{
 				{KnowledgeBaseCode: testKnowledgeBaseCode, Code: testDocumentCode, OrganizationCode: "ORG1", ThirdPlatformType: "unknown", ThirdFileID: "FILE-1"},
 			},
 		},
@@ -1566,7 +2607,7 @@ func TestDocumentAppServiceNotifyProjectFileChangeAutoCreatesRealtimeAllBinding(
 
 	domain := &documentDomainServiceStub{}
 	kbReader := &knowledgeBaseReaderStub{
-		showByCodeAndOrgResult: &knowledgebase.KnowledgeBase{
+		showByCodeAndOrgResult: &kbentity.KnowledgeBase{
 			Code:             testKnowledgeBaseCode,
 			Model:            "text-embedding-3-small",
 			VectorDB:         "odin_qdrant",
@@ -1635,12 +2676,232 @@ func TestDocumentAppServiceNotifyProjectFileChangeAutoCreatesRealtimeAllBinding(
 	}
 }
 
+func TestDocumentAppServiceNotifyProjectFileChangeAutoCreatesFolderBindingDescendant(t *testing.T) {
+	t.Parallel()
+
+	domain := &documentDomainServiceStub{}
+	kbReader := &knowledgeBaseReaderStub{
+		showByCodeAndOrgResult: &kbentity.KnowledgeBase{
+			Code:             testKnowledgeBaseCode,
+			Model:            "text-embedding-3-small",
+			VectorDB:         "odin_qdrant",
+			OrganizationCode: "ORG1",
+		},
+	}
+	scheduler := &documentSyncSchedulerStub{}
+	repo := &sourceBindingRepositoryStub{
+		realtimeBindings: []sourcebindingdomain.Binding{
+			{
+				ID:                21,
+				OrganizationCode:  "ORG1",
+				KnowledgeBaseCode: testKnowledgeBaseCode,
+				Provider:          sourcebindingdomain.ProviderProject,
+				RootType:          sourcebindingdomain.RootTypeProject,
+				RootRef:           "900",
+				SyncMode:          sourcebindingdomain.SyncModeRealtime,
+				Enabled:           true,
+				UpdatedUID:        "U1",
+				Targets: []sourcebindingdomain.BindingTarget{
+					{TargetType: sourcebindingdomain.TargetTypeFolder, TargetRef: "700"},
+				},
+			},
+		},
+	}
+	svc := appservice.NewDocumentAppServiceForTest(t, domain, kbReader, scheduler, &fragmentDestroyServiceStub{})
+	svc.SetSourceBindingRepository(repo)
+	svc.SetProjectFileResolver(&projectFileResolverStub{
+		resolveResults: map[int64]*projectfile.ResolveResult{
+			506: newActiveProjectResolveResult(506, "folder-file.md"),
+		},
+	})
+	svc.SetProjectFileMetadataReader(&projectFileMetadataReaderStub{
+		metas: map[int64]*projectfile.Meta{
+			506: newActiveProjectFileMeta(506, 700, "folder-file.md"),
+			700: {Status: "active", OrganizationCode: "ORG1", ProjectID: 900, ProjectFileID: 700, IsDirectory: true},
+		},
+	})
+
+	if err := svc.NotifyProjectFileChange(context.Background(), &docdto.NotifyProjectFileChangeInput{ProjectFileID: 506}); err != nil {
+		t.Fatalf("NotifyProjectFileChange returned error: %v", err)
+	}
+	if len(domain.savedDocs) != 1 {
+		t.Fatalf("expected folder binding to auto-create document, got %#v", domain.savedDocs)
+	}
+	if got := domain.savedDocs[0]; got.SourceBindingID != 21 || got.ProjectFileID != 506 {
+		t.Fatalf("unexpected saved document: %#v", got)
+	}
+	if scheduler.scheduleCalls != 1 || scheduler.inputs[0].Mode != documentdomain.SyncModeCreate {
+		t.Fatalf("expected one create sync, got %#v", scheduler.inputs)
+	}
+}
+
+func TestDocumentAppServiceNotifyProjectFileChangeSkipsFolderOutsideBinding(t *testing.T) {
+	t.Parallel()
+
+	domain := &documentDomainServiceStub{}
+	scheduler := &documentSyncSchedulerStub{}
+	svc := appservice.NewDocumentAppServiceForTest(t, domain, &knowledgeBaseReaderStub{}, scheduler, &fragmentDestroyServiceStub{})
+	svc.SetSourceBindingRepository(&sourceBindingRepositoryStub{
+		realtimeBindings: []sourcebindingdomain.Binding{
+			{
+				ID:                22,
+				OrganizationCode:  "ORG1",
+				KnowledgeBaseCode: testKnowledgeBaseCode,
+				Provider:          sourcebindingdomain.ProviderProject,
+				RootType:          sourcebindingdomain.RootTypeProject,
+				RootRef:           "900",
+				SyncMode:          sourcebindingdomain.SyncModeRealtime,
+				Enabled:           true,
+				Targets: []sourcebindingdomain.BindingTarget{
+					{TargetType: sourcebindingdomain.TargetTypeFolder, TargetRef: "700"},
+				},
+			},
+		},
+	})
+	svc.SetProjectFileResolver(&projectFileResolverStub{
+		resolveResults: map[int64]*projectfile.ResolveResult{
+			507: newActiveProjectResolveResult(507, "outside.md"),
+		},
+	})
+	svc.SetProjectFileMetadataReader(&projectFileMetadataReaderStub{
+		metas: map[int64]*projectfile.Meta{
+			507: newActiveProjectFileMeta(507, 701, "outside.md"),
+			701: {Status: "active", OrganizationCode: "ORG1", ProjectID: 900, ProjectFileID: 701, IsDirectory: true},
+		},
+	})
+
+	if err := svc.NotifyProjectFileChange(context.Background(), &docdto.NotifyProjectFileChangeInput{ProjectFileID: 507}); err != nil {
+		t.Fatalf("NotifyProjectFileChange returned error: %v", err)
+	}
+	if len(domain.savedDocs) != 0 {
+		t.Fatalf("expected folder-outside file not to auto-create document, got %#v", domain.savedDocs)
+	}
+	if scheduler.scheduleCalls != 0 {
+		t.Fatalf("expected no sync scheduling, got %#v", scheduler.inputs)
+	}
+}
+
+func TestDocumentAppServiceNotifyProjectFileChangeDeletesExistingDocMovedOutOfFolderBinding(t *testing.T) {
+	t.Parallel()
+
+	existing := &docentity.KnowledgeBaseDocument{
+		ID:                33,
+		Code:              testDocumentCode,
+		KnowledgeBaseCode: testKnowledgeBaseCode,
+		OrganizationCode:  "ORG1",
+		SourceBindingID:   23,
+		ProjectID:         900,
+		ProjectFileID:     508,
+	}
+	domain := &documentDomainServiceStub{
+		listByProjectFileInOrgResult: []*docentity.KnowledgeBaseDocument{existing},
+	}
+	scheduler := &documentSyncSchedulerStub{}
+	svc := appservice.NewDocumentAppServiceForTest(t, domain, &knowledgeBaseReaderStub{routeCollection: "kb_custom"}, scheduler, &fragmentDestroyServiceStub{})
+	svc.SetSourceBindingRepository(&sourceBindingRepositoryStub{
+		realtimeBindings: []sourcebindingdomain.Binding{
+			{
+				ID:                23,
+				OrganizationCode:  "ORG1",
+				KnowledgeBaseCode: testKnowledgeBaseCode,
+				Provider:          sourcebindingdomain.ProviderProject,
+				RootType:          sourcebindingdomain.RootTypeProject,
+				RootRef:           "900",
+				SyncMode:          sourcebindingdomain.SyncModeRealtime,
+				Enabled:           true,
+				Targets: []sourcebindingdomain.BindingTarget{
+					{TargetType: sourcebindingdomain.TargetTypeFolder, TargetRef: "700"},
+				},
+			},
+		},
+	})
+	svc.SetProjectFileResolver(&projectFileResolverStub{
+		resolveResults: map[int64]*projectfile.ResolveResult{
+			508: newActiveProjectResolveResult(508, "moved.md"),
+		},
+	})
+	svc.SetProjectFileMetadataReader(&projectFileMetadataReaderStub{
+		metas: map[int64]*projectfile.Meta{
+			508: newActiveProjectFileMeta(508, 701, "moved.md"),
+			701: {Status: "active", OrganizationCode: "ORG1", ProjectID: 900, ProjectFileID: 701, IsDirectory: true},
+		},
+	})
+
+	if err := svc.NotifyProjectFileChange(context.Background(), &docdto.NotifyProjectFileChangeInput{ProjectFileID: 508}); err != nil {
+		t.Fatalf("NotifyProjectFileChange returned error: %v", err)
+	}
+	if domain.deletedID != 33 {
+		t.Fatalf("expected moved-out project document to be deleted, got %#v", domain)
+	}
+	if scheduler.scheduleCalls != 0 {
+		t.Fatalf("expected moved-out project document not to resync, got %#v", scheduler.inputs)
+	}
+}
+
+func TestDocumentAppServiceNotifyProjectFileChangeUsesSourceBindingCandidateCache(t *testing.T) {
+	t.Parallel()
+
+	domain := &documentDomainServiceStub{}
+	kbReader := &knowledgeBaseReaderStub{
+		showByCodeAndOrgResult: &kbentity.KnowledgeBase{
+			Code:             testKnowledgeBaseCode,
+			Model:            "text-embedding-3-small",
+			VectorDB:         "odin_qdrant",
+			OrganizationCode: "ORG1",
+		},
+	}
+	scheduler := &documentSyncSchedulerStub{}
+	repo := &sourceBindingRepositoryStub{}
+	cache := &sourceBindingCandidateCacheStub{
+		projectHit: true,
+		projectBindings: []sourcebindingdomain.Binding{
+			{
+				ID:                24,
+				OrganizationCode:  "ORG1",
+				KnowledgeBaseCode: testKnowledgeBaseCode,
+				Provider:          sourcebindingdomain.ProviderProject,
+				RootType:          sourcebindingdomain.RootTypeProject,
+				RootRef:           "900",
+				SyncMode:          sourcebindingdomain.SyncModeRealtime,
+				Enabled:           true,
+				UpdatedUID:        "U1",
+			},
+		},
+	}
+	svc := appservice.NewDocumentAppServiceForTest(t, domain, kbReader, scheduler, &fragmentDestroyServiceStub{})
+	svc.SetSourceBindingRepository(repo)
+	svc.SetSourceBindingCandidateCache(cache)
+	svc.SetProjectFileResolver(&projectFileResolverStub{
+		resolveResults: map[int64]*projectfile.ResolveResult{
+			509: newActiveProjectResolveResult(509, "cached.md"),
+		},
+	})
+	svc.SetProjectFileMetadataReader(&projectFileMetadataReaderStub{
+		metas: map[int64]*projectfile.Meta{
+			509: newActiveProjectFileMeta(509, 0, "cached.md"),
+		},
+	})
+
+	if err := svc.NotifyProjectFileChange(context.Background(), &docdto.NotifyProjectFileChangeInput{ProjectFileID: 509}); err != nil {
+		t.Fatalf("NotifyProjectFileChange returned error: %v", err)
+	}
+	if repo.listProjectBindingsCalls != 0 {
+		t.Fatalf("expected project bindings to come from cache, got %d repo calls", repo.listProjectBindingsCalls)
+	}
+	if cache.projectGetCalls == 0 || cache.projectSetCalls != 0 {
+		t.Fatalf("unexpected project binding cache calls: %#v", cache)
+	}
+	if len(domain.savedDocs) != 1 || scheduler.scheduleCalls != 1 {
+		t.Fatalf("expected cached binding to create and schedule one document, docs=%#v schedules=%#v", domain.savedDocs, scheduler.inputs)
+	}
+}
+
 func TestDocumentAppServiceNotifyProjectFileChangeSkipsNonRealtimeBindings(t *testing.T) {
 	t.Parallel()
 
 	domain := &documentDomainServiceStub{}
 	kbReader := &knowledgeBaseReaderStub{
-		showByCodeAndOrgResult: &knowledgebase.KnowledgeBase{
+		showByCodeAndOrgResult: &kbentity.KnowledgeBase{
 			Code:             testKnowledgeBaseCode,
 			Model:            "text-embedding-3-small",
 			VectorDB:         "odin_qdrant",
@@ -1714,10 +2975,209 @@ func TestDocumentAppServiceNotifyProjectFileChangeSkipsNonRealtimeBindings(t *te
 	}
 }
 
+func TestDocumentAppServiceReVectorizedByThirdFileIDAutoCreatesTeamshareBindings(t *testing.T) {
+	t.Parallel()
+
+	cases := []struct {
+		name    string
+		binding sourcebindingdomain.Binding
+	}{
+		{
+			name:    "whole knowledge base",
+			binding: newRealtimeTeamshareBinding(31, nil),
+		},
+		{
+			name:    "folder target",
+			binding: newRealtimeTeamshareBinding(32, []sourcebindingdomain.BindingTarget{{TargetType: sourcebindingdomain.TargetTypeFolder, TargetRef: "FOLDER-1"}}),
+		},
+		{
+			name:    "file target",
+			binding: newRealtimeTeamshareBinding(33, []sourcebindingdomain.BindingTarget{{TargetType: sourcebindingdomain.TargetTypeFile, TargetRef: "FILE-TS"}}),
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			domain := &documentDomainServiceStub{}
+			scheduler := &documentSyncSchedulerStub{}
+			resolver := &thirdPlatformResolverStub{nodeResult: newTeamshareNodeResolveResult("FOLDER-1")}
+			svc := newTeamshareCallbackService(t, domain, scheduler, resolver, []sourcebindingdomain.Binding{tc.binding})
+
+			if err := svc.ReVectorizedByThirdFileID(context.Background(), &docdto.ReVectorizedByThirdFileIDInput{
+				OrganizationCode:  "ORG1",
+				UserID:            "U1",
+				ThirdPlatformType: sourcebindingdomain.ProviderTeamshare,
+				ThirdFileID:       "FILE-TS",
+				ThirdKnowledgeID:  "KB-TS",
+			}); err != nil {
+				t.Fatalf("ReVectorizedByThirdFileID returned error: %v", err)
+			}
+			if len(domain.savedDocs) != 1 {
+				t.Fatalf("expected one auto-created teamshare document, got %#v", domain.savedDocs)
+			}
+			if got := domain.savedDocs[0]; got.SourceBindingID != tc.binding.ID || got.ThirdFileID != "FILE-TS" {
+				t.Fatalf("unexpected saved document: %#v", got)
+			}
+			if scheduler.scheduleCalls != 1 || scheduler.inputs[0].Mode != documentdomain.SyncModeCreate {
+				t.Fatalf("expected one create sync, got %#v", scheduler.inputs)
+			}
+			if !scheduler.inputs[0].SingleDocumentThirdPlatformResync {
+				t.Fatalf("expected create task to stay scoped to the created document, got %#v", scheduler.inputs[0])
+			}
+		})
+	}
+}
+
+func TestDocumentAppServiceReVectorizedByThirdFileIDSkipsTeamshareFolderOutsideBinding(t *testing.T) {
+	t.Parallel()
+
+	domain := &documentDomainServiceStub{}
+	scheduler := &documentSyncSchedulerStub{}
+	resolver := &thirdPlatformResolverStub{nodeResult: newTeamshareNodeResolveResult("FOLDER-2")}
+	svc := newTeamshareCallbackService(t, domain, scheduler, resolver, []sourcebindingdomain.Binding{
+		newRealtimeTeamshareBinding(34, []sourcebindingdomain.BindingTarget{{TargetType: sourcebindingdomain.TargetTypeFolder, TargetRef: "FOLDER-1"}}),
+	})
+
+	if err := svc.ReVectorizedByThirdFileID(context.Background(), &docdto.ReVectorizedByThirdFileIDInput{
+		OrganizationCode:  "ORG1",
+		UserID:            "U1",
+		ThirdPlatformType: sourcebindingdomain.ProviderTeamshare,
+		ThirdFileID:       "FILE-TS",
+		ThirdKnowledgeID:  "KB-TS",
+	}); err != nil {
+		t.Fatalf("ReVectorizedByThirdFileID returned error: %v", err)
+	}
+	if len(domain.savedDocs) != 0 {
+		t.Fatalf("expected no auto-created teamshare document, got %#v", domain.savedDocs)
+	}
+	if scheduler.scheduleCalls != 0 {
+		t.Fatalf("expected no sync scheduling, got %#v", scheduler.inputs)
+	}
+}
+
+func TestDocumentAppServiceRunThirdFileRevectorizeResyncsExistingTeamshareDocument(t *testing.T) {
+	t.Parallel()
+
+	existing := &docentity.KnowledgeBaseDocument{
+		ID:                44,
+		Code:              testDocumentCode,
+		KnowledgeBaseCode: testKnowledgeBaseCode,
+		OrganizationCode:  "ORG1",
+		SourceBindingID:   35,
+		ThirdPlatformType: sourcebindingdomain.ProviderTeamshare,
+		ThirdFileID:       "FILE-TS",
+		UpdatedUID:        "DOC-USER",
+	}
+	domain := &documentDomainServiceStub{
+		listRealtimeByThirdFileInOrgResult: []*docentity.KnowledgeBaseDocument{existing},
+	}
+	scheduler := &documentSyncSchedulerStub{}
+	resolver := &thirdPlatformResolverStub{nodeResult: newTeamshareNodeResolveResult("FOLDER-1")}
+	svc := newTeamshareCallbackService(t, domain, scheduler, resolver, []sourcebindingdomain.Binding{
+		newRealtimeTeamshareBinding(35, nil),
+	})
+
+	if err := svc.RunThirdFileRevectorize(context.Background(), &documentdomain.ThirdFileRevectorizeInput{
+		OrganizationCode:  "ORG1",
+		UserID:            "U1",
+		ThirdPlatformType: sourcebindingdomain.ProviderTeamshare,
+		ThirdFileID:       "FILE-TS",
+		ThirdKnowledgeID:  "KB-TS",
+	}); err != nil {
+		t.Fatalf("RunThirdFileRevectorize returned error: %v", err)
+	}
+	if len(domain.savedDocs) != 0 {
+		t.Fatalf("expected existing teamshare document not to be recreated, got %#v", domain.savedDocs)
+	}
+	if scheduler.scheduleCalls != 1 || scheduler.inputs[0].Mode != documentdomain.SyncModeResync {
+		t.Fatalf("expected one resync schedule, got %#v", scheduler.inputs)
+	}
+}
+
+func TestDocumentAppServiceRunThirdFileRevectorizeDeletesTeamshareDocumentWhenMovedOut(t *testing.T) {
+	t.Parallel()
+
+	existing := &docentity.KnowledgeBaseDocument{
+		ID:                45,
+		Code:              testDocumentCode,
+		KnowledgeBaseCode: testKnowledgeBaseCode,
+		OrganizationCode:  "ORG1",
+		SourceBindingID:   36,
+		ThirdPlatformType: sourcebindingdomain.ProviderTeamshare,
+		ThirdFileID:       "FILE-TS",
+		UpdatedUID:        "DOC-USER",
+	}
+	domain := &documentDomainServiceStub{
+		listRealtimeByThirdFileInOrgResult: []*docentity.KnowledgeBaseDocument{existing},
+	}
+	scheduler := &documentSyncSchedulerStub{}
+	resolver := &thirdPlatformResolverStub{nodeResult: newTeamshareNodeResolveResult("FOLDER-2")}
+	svc := newTeamshareCallbackService(t, domain, scheduler, resolver, []sourcebindingdomain.Binding{
+		newRealtimeTeamshareBinding(36, []sourcebindingdomain.BindingTarget{{TargetType: sourcebindingdomain.TargetTypeFolder, TargetRef: "FOLDER-1"}}),
+	})
+
+	if err := svc.RunThirdFileRevectorize(context.Background(), &documentdomain.ThirdFileRevectorizeInput{
+		OrganizationCode:  "ORG1",
+		UserID:            "U1",
+		ThirdPlatformType: sourcebindingdomain.ProviderTeamshare,
+		ThirdFileID:       "FILE-TS",
+		ThirdKnowledgeID:  "KB-TS",
+	}); err != nil {
+		t.Fatalf("RunThirdFileRevectorize returned error: %v", err)
+	}
+	if domain.deletedID != 45 {
+		t.Fatalf("expected moved-out teamshare document to be deleted, got %#v", domain)
+	}
+	if scheduler.scheduleCalls != 0 {
+		t.Fatalf("expected moved-out document not to resync, got %#v", scheduler.inputs)
+	}
+}
+
+func TestDocumentAppServiceRunThirdFileRevectorizeDeletesTeamshareDocumentWhenUnavailable(t *testing.T) {
+	t.Parallel()
+
+	existing := &docentity.KnowledgeBaseDocument{
+		ID:                46,
+		Code:              testDocumentCode,
+		KnowledgeBaseCode: testKnowledgeBaseCode,
+		OrganizationCode:  "ORG1",
+		SourceBindingID:   37,
+		ThirdPlatformType: sourcebindingdomain.ProviderTeamshare,
+		ThirdFileID:       "FILE-TS",
+		UpdatedUID:        "DOC-USER",
+	}
+	domain := &documentDomainServiceStub{
+		listRealtimeByThirdFileInOrgResult: []*docentity.KnowledgeBaseDocument{existing},
+	}
+	scheduler := &documentSyncSchedulerStub{}
+	resolver := &thirdPlatformResolverStub{nodeErr: thirdplatform.ErrDocumentUnavailable}
+	svc := newTeamshareCallbackService(t, domain, scheduler, resolver, []sourcebindingdomain.Binding{
+		newRealtimeTeamshareBinding(37, nil),
+	})
+
+	if err := svc.RunThirdFileRevectorize(context.Background(), &documentdomain.ThirdFileRevectorizeInput{
+		OrganizationCode:  "ORG1",
+		UserID:            "U1",
+		ThirdPlatformType: sourcebindingdomain.ProviderTeamshare,
+		ThirdFileID:       "FILE-TS",
+		ThirdKnowledgeID:  "KB-TS",
+	}); err != nil {
+		t.Fatalf("RunThirdFileRevectorize returned error: %v", err)
+	}
+	if domain.deletedID != 46 {
+		t.Fatalf("expected unavailable teamshare document to be deleted, got %#v", domain)
+	}
+	if scheduler.scheduleCalls != 0 {
+		t.Fatalf("expected unavailable document not to resync, got %#v", scheduler.inputs)
+	}
+}
+
 func TestDocumentAppServiceNotifyProjectFileChangeDeletesAndResyncsExistingDocs(t *testing.T) {
 	t.Parallel()
 
-	existing := &documentdomain.KnowledgeBaseDocument{
+	existing := &docentity.KnowledgeBaseDocument{
 		ID:                1,
 		Code:              testDocumentCode,
 		KnowledgeBaseCode: testKnowledgeBaseCode,
@@ -1761,15 +3221,179 @@ func TestDocumentAppServiceNotifyProjectFileChangeDeletesAndResyncsExistingDocs(
 	}
 }
 
-func TestDocumentAppServiceNotifyProjectFileChangeUsesEnterpriseSourceOverride(t *testing.T) {
+func TestDocumentAppServiceNotifyProjectFileChangeDeletesHardDeletedProjectFileDocument(t *testing.T) {
 	t.Parallel()
 
-	assertProjectFileChangeUsesEnterpriseSourceOverride(
+	existing := &docentity.KnowledgeBaseDocument{
+		ID:                77,
+		Code:              testDocumentCode,
+		KnowledgeBaseCode: testKnowledgeBaseCode,
+		OrganizationCode:  "ORG1",
+		SourceBindingID:   1,
+		ProjectID:         900,
+		ProjectFileID:     503,
+	}
+	domain := &documentDomainServiceStub{
+		listRealtimeByProjectFileInOrgResult: []*docentity.KnowledgeBaseDocument{existing},
+	}
+	fragmentSvc := &fragmentDestroyServiceStub{}
+	svc := appservice.NewDocumentAppServiceForTest(
+		t,
+		domain,
+		&knowledgeBaseReaderStub{
+			showByCodeAndOrgResult: &kbentity.KnowledgeBase{Code: testKnowledgeBaseCode, OrganizationCode: "ORG1"},
+			routeCollection:        "kb_custom",
+		},
+		&documentSyncSchedulerStub{},
+		fragmentSvc,
+	)
+	svc.SetProjectFileMetadataReader(&projectFileMetadataReaderStub{})
+
+	err := svc.NotifyProjectFileChange(context.Background(), &docdto.NotifyProjectFileChangeInput{
+		ProjectFileID:    503,
+		OrganizationCode: "ORG1",
+		ProjectID:        900,
+		Status:           projectfile.ResolveStatusDeleted,
+	})
+	if err != nil {
+		t.Fatalf("NotifyProjectFileChange returned error: %v", err)
+	}
+	if domain.deletedID != 77 {
+		t.Fatalf("expected hard-deleted project document to be destroyed, got %#v", domain)
+	}
+	if fragmentSvc.deletePointsByDocumentCalls != 1 || fragmentSvc.deleteByDocumentCalls != 1 {
+		t.Fatalf("expected fragment cleanup for hard-deleted project document, got %#v", fragmentSvc)
+	}
+}
+
+func TestDocumentAppServiceNotifyProjectFileChangeSkipsMissingMetaWithoutDeletedStatus(t *testing.T) {
+	t.Parallel()
+
+	existing := &docentity.KnowledgeBaseDocument{
+		ID:                78,
+		Code:              testDocumentCode,
+		KnowledgeBaseCode: testKnowledgeBaseCode,
+		OrganizationCode:  "ORG1",
+		SourceBindingID:   1,
+		ProjectID:         900,
+		ProjectFileID:     503,
+	}
+	domain := &documentDomainServiceStub{
+		listRealtimeByProjectFileInOrgResult: []*docentity.KnowledgeBaseDocument{existing},
+	}
+	scheduler := &documentSyncSchedulerStub{}
+	svc := appservice.NewDocumentAppServiceForTest(
+		t,
+		domain,
+		&knowledgeBaseReaderStub{},
+		scheduler,
+		&fragmentDestroyServiceStub{},
+	)
+	svc.SetProjectFileMetadataReader(&projectFileMetadataReaderStub{})
+
+	err := svc.NotifyProjectFileChange(context.Background(), &docdto.NotifyProjectFileChangeInput{
+		ProjectFileID:    503,
+		OrganizationCode: "ORG1",
+		ProjectID:        900,
+	})
+	if err != nil {
+		t.Fatalf("NotifyProjectFileChange returned error: %v", err)
+	}
+	if domain.deletedID != 0 || scheduler.scheduleCalls != 0 {
+		t.Fatalf("expected missing non-delete meta to be skipped, domain=%#v scheduler=%#v", domain, scheduler)
+	}
+}
+
+func TestDocumentAppServiceNotifyProjectFileChangeSkipsUnsupportedProjectFiles(t *testing.T) {
+	t.Parallel()
+
+	svc, domain, scheduler := newRealtimeProjectChangeService(t, nil, &projectfile.ResolveResult{
+		Status:           projectfile.ResolveStatusUnsupported,
+		OrganizationCode: "ORG1",
+		ProjectID:        900,
+		ProjectFileID:    503,
+		FileName:         "custom.svg",
+		FileExtension:    "svg",
+		DocumentFile:     map[string]any{"type": "project_file", "name": "custom.svg", "extension": "svg"},
+	})
+
+	if err := svc.NotifyProjectFileChange(context.Background(), &docdto.NotifyProjectFileChangeInput{ProjectFileID: 503}); err != nil {
+		t.Fatalf("NotifyProjectFileChange returned error: %v", err)
+	}
+	if len(domain.savedDocs) != 0 {
+		t.Fatalf("expected unsupported project file not to auto-create document, got %#v", domain.savedDocs)
+	}
+	if scheduler.scheduleCalls != 0 {
+		t.Fatalf("expected unsupported project file not to schedule sync, got %#v", scheduler.inputs)
+	}
+}
+
+func TestDocumentAppServiceNotifyProjectFileChangeDeletesExistingDocsWhenUnsupported(t *testing.T) {
+	t.Parallel()
+
+	existing := &docentity.KnowledgeBaseDocument{
+		ID:                1,
+		Code:              testDocumentCode,
+		KnowledgeBaseCode: testKnowledgeBaseCode,
+		OrganizationCode:  "ORG1",
+		SourceBindingID:   1,
+		ProjectID:         900,
+		ProjectFileID:     503,
+	}
+	svc, domain, scheduler := newRealtimeProjectChangeService(t, existing, &projectfile.ResolveResult{
+		Status:           projectfile.ResolveStatusUnsupported,
+		OrganizationCode: "ORG1",
+		ProjectID:        900,
+		ProjectFileID:    503,
+		FileName:         "custom.svg",
+		FileExtension:    "svg",
+		DocumentFile:     map[string]any{"type": "project_file", "name": "custom.svg", "extension": "svg"},
+	})
+
+	if err := svc.NotifyProjectFileChange(context.Background(), &docdto.NotifyProjectFileChangeInput{ProjectFileID: 503}); err != nil {
+		t.Fatalf("NotifyProjectFileChange returned error: %v", err)
+	}
+	if domain.deletedID != 1 {
+		t.Fatalf("expected unsupported project file to delete existing document, got %#v", domain)
+	}
+	if scheduler.scheduleCalls != 0 {
+		t.Fatalf("expected unsupported project file not to schedule resync, got %#v", scheduler.inputs)
+	}
+}
+
+func TestDocumentAppServiceNotifyProjectFileChangeNormalizesUnsupportedExtensionFromMeta(t *testing.T) {
+	t.Parallel()
+
+	svc, domain, scheduler := newRealtimeProjectChangeService(t, nil, &projectfile.ResolveResult{
+		Status:           projectfile.ResolveStatusActive,
+		OrganizationCode: "ORG1",
+		ProjectID:        900,
+		ProjectFileID:    503,
+		FileName:         "demo.js",
+		FileExtension:    "js",
+		DocumentFile:     map[string]any{"type": "project_file", "name": "demo.js", "extension": "js"},
+	})
+
+	if err := svc.NotifyProjectFileChange(context.Background(), &docdto.NotifyProjectFileChangeInput{ProjectFileID: 503}); err != nil {
+		t.Fatalf("NotifyProjectFileChange returned error: %v", err)
+	}
+	if len(domain.savedDocs) != 0 {
+		t.Fatalf("expected js project file not to auto-create document, got %#v", domain.savedDocs)
+	}
+	if scheduler.scheduleCalls != 0 {
+		t.Fatalf("expected js project file not to schedule sync, got %#v", scheduler.inputs)
+	}
+}
+
+func TestDocumentAppServiceNotifyProjectFileChangeDoesNotCarryEnterpriseSourceOverride(t *testing.T) {
+	t.Parallel()
+
+	assertProjectFileChangeDoesNotCarryEnterpriseSourceOverride(
 		t,
 		projectFileEnterpriseOverrideCase{
 			knowledgeBaseCode: "KB-ENT",
-			knowledgeBaseType: knowledgebase.KnowledgeBaseTypeDigitalEmployee,
-			sourceType:        int(knowledgebase.SourceTypeEnterpriseWiki),
+			knowledgeBaseType: kbentity.KnowledgeBaseTypeDigitalEmployee,
+			sourceType:        int(kbentity.SourceTypeEnterpriseWiki),
 			projectID:         900,
 			projectFileID:     504,
 			fileName:          "enterprise.md",
@@ -1778,15 +3402,15 @@ func TestDocumentAppServiceNotifyProjectFileChangeUsesEnterpriseSourceOverride(t
 	)
 }
 
-func TestDocumentAppServiceNotifyProjectFileChangeUsesEnterpriseSourceOverrideForFlowKnowledgeBase(t *testing.T) {
+func TestDocumentAppServiceNotifyProjectFileChangeDoesNotCarryEnterpriseSourceOverrideForFlowKnowledgeBase(t *testing.T) {
 	t.Parallel()
 
-	assertProjectFileChangeUsesEnterpriseSourceOverride(
+	assertProjectFileChangeDoesNotCarryEnterpriseSourceOverride(
 		t,
 		projectFileEnterpriseOverrideCase{
 			knowledgeBaseCode: "KB-FLOW-ENT",
-			knowledgeBaseType: knowledgebase.KnowledgeBaseTypeFlowVector,
-			sourceType:        int(knowledgebase.SourceTypeLegacyEnterpriseWiki),
+			knowledgeBaseType: kbentity.KnowledgeBaseTypeFlowVector,
+			sourceType:        int(kbentity.SourceTypeLegacyEnterpriseWiki),
 			projectID:         901,
 			projectFileID:     505,
 			fileName:          "flow-enterprise.md",
@@ -1797,7 +3421,7 @@ func TestDocumentAppServiceNotifyProjectFileChangeUsesEnterpriseSourceOverrideFo
 
 type projectFileEnterpriseOverrideCase struct {
 	knowledgeBaseCode string
-	knowledgeBaseType knowledgebase.Type
+	knowledgeBaseType kbentity.Type
 	sourceType        int
 	projectID         int64
 	projectFileID     int64
@@ -1805,7 +3429,7 @@ type projectFileEnterpriseOverrideCase struct {
 	content           string
 }
 
-func assertProjectFileChangeUsesEnterpriseSourceOverride(
+func assertProjectFileChangeDoesNotCarryEnterpriseSourceOverride(
 	t *testing.T,
 	tc projectFileEnterpriseOverrideCase,
 ) {
@@ -1818,11 +3442,14 @@ func assertProjectFileChangeUsesEnterpriseSourceOverride(
 	if len(domain.savedDocs) != 1 {
 		t.Fatalf("expected one auto-created document, got %#v", domain.savedDocs)
 	}
-	if scheduler.scheduleCalls != 1 || scheduler.inputs[0].SourceOverride == nil {
-		t.Fatalf("expected one create sync with source override, got %#v", scheduler.inputs)
+	if scheduler.scheduleCalls != 1 {
+		t.Fatalf("expected one create sync, got %#v", scheduler.inputs)
 	}
-	if scheduler.inputs[0].SourceOverride.Content != tc.content {
-		t.Fatalf("expected enterprise source override content %q, got %#v", tc.content, scheduler.inputs[0].SourceOverride)
+	if scheduler.inputs[0].RevectorizeSource != documentdomain.RevectorizeSourceProjectFileNotify {
+		t.Fatalf("expected project-file notify source, got %#v", scheduler.inputs[0])
+	}
+	if scheduler.inputs[0].SourceOverride != nil {
+		t.Fatalf("expected project-file fan-out not to carry source override, got %#v", scheduler.inputs[0].SourceOverride)
 	}
 }
 
@@ -1834,7 +3461,7 @@ func newProjectFileEnterpriseOverrideService(
 
 	domain := &documentDomainServiceStub{}
 	kbReader := &knowledgeBaseReaderStub{
-		showByCodeAndOrgResult: &knowledgebase.KnowledgeBase{
+		showByCodeAndOrgResult: &kbentity.KnowledgeBase{
 			Code:              tc.knowledgeBaseCode,
 			Model:             "text-embedding-3-small",
 			VectorDB:          "odin_qdrant",
@@ -1842,10 +3469,11 @@ func newProjectFileEnterpriseOverrideService(
 			SourceType:        &tc.sourceType,
 			KnowledgeBaseType: tc.knowledgeBaseType,
 		},
-		listResult: []*knowledgebase.KnowledgeBase{
+		listResult: []*kbentity.KnowledgeBase{
 			{
 				Code:              tc.knowledgeBaseCode,
 				OrganizationCode:  "ORG1",
+				Enabled:           true,
 				SourceType:        &tc.sourceType,
 				KnowledgeBaseType: tc.knowledgeBaseType,
 			},
@@ -1909,42 +3537,258 @@ func configureProjectFileEnterpriseOverrideService(
 	})
 }
 
-type documentDomainServiceStub struct {
-	showResult                   *documentdomain.KnowledgeBaseDocument
-	showErr                      error
-	showByCodeAndKBResult        *documentdomain.KnowledgeBaseDocument
-	showByCodeAndKBResults       map[string]*documentdomain.KnowledgeBaseDocument
-	showByCodeAndKBErr           error
-	findByKBAndThirdResult       *documentdomain.KnowledgeBaseDocument
-	findByKBAndThirdErr          error
-	findByKBAndProjectResult     *documentdomain.KnowledgeBaseDocument
-	findByKBAndProjectErr        error
-	listByProjectFileInOrgResult []*documentdomain.KnowledgeBaseDocument
-	listByProjectFileInOrgErr    error
-	listByThirdFileInOrgResult   []*documentdomain.KnowledgeBaseDocument
-	listByThirdFileInOrgErr      error
-	listByKBAndProjectResult     []*documentdomain.KnowledgeBaseDocument
-	listByKBAndProjectErr        error
-	listResult                   []*documentdomain.KnowledgeBaseDocument
-	listTotal                    int64
-	listErr                      error
-	countByKnowledgeResult       map[string]int64
-	countByKnowledgeErr          error
-	saveErr                      error
-	updateErr                    error
-	deleteErr                    error
+func newActiveProjectResolveResult(projectFileID int64, fileName string) *projectfile.ResolveResult {
+	return &projectfile.ResolveResult{
+		Status:           projectfile.ResolveStatusActive,
+		OrganizationCode: "ORG1",
+		ProjectID:        900,
+		ProjectFileID:    projectFileID,
+		FileName:         fileName,
+		FileExtension:    "md",
+		Content:          "project content",
+		ContentHash:      fmt.Sprintf("hash-%d", projectFileID),
+		DocType:          int(docentity.DocumentInputKindFile),
+		DocumentFile: map[string]any{
+			"type":      "external",
+			"name":      fileName,
+			"url":       fmt.Sprintf("project://%d", projectFileID),
+			"extension": "md",
+		},
+	}
+}
 
-	lastListQuery               *documentdomain.Query
+func newActiveProjectFileMeta(projectFileID, parentID int64, fileName string) *projectfile.Meta {
+	return &projectfile.Meta{
+		Status:           projectfile.ResolveStatusActive,
+		OrganizationCode: "ORG1",
+		ProjectID:        900,
+		ProjectFileID:    projectFileID,
+		ParentID:         parentID,
+		FileName:         fileName,
+		FileExtension:    "md",
+		UpdatedAt:        "2026-04-08 17:22:22",
+	}
+}
+
+func newTeamshareCallbackService(
+	tb testing.TB,
+	domain *documentDomainServiceStub,
+	scheduler *documentSyncSchedulerStub,
+	resolver *thirdPlatformResolverStub,
+	bindings []sourcebindingdomain.Binding,
+) *appservice.DocumentAppService {
+	tb.Helper()
+
+	kbReader := &knowledgeBaseReaderStub{
+		showByCodeAndOrgResult: &kbentity.KnowledgeBase{
+			Code:             testKnowledgeBaseCode,
+			Model:            "text-embedding-3-small",
+			VectorDB:         "odin_qdrant",
+			OrganizationCode: "ORG1",
+		},
+		routeCollection: "kb_custom",
+	}
+	svc := appservice.NewDocumentAppServiceForTest(tb, domain, kbReader, scheduler, &fragmentDestroyServiceStub{})
+	svc.SetSourceBindingRepository(&sourceBindingRepositoryStub{realtimeTeamshareBindings: bindings})
+	svc.SetThirdPlatformDocumentPortForTest(resolver)
+	svc.SetThirdPlatformProviders(thirdplatformprovider.NewRegistry(&thirdPlatformProviderStub{
+		platformType: sourcebindingdomain.ProviderTeamshare,
+	}))
+	return svc
+}
+
+func newRealtimeTeamshareBinding(
+	id int64,
+	targets []sourcebindingdomain.BindingTarget,
+) sourcebindingdomain.Binding {
+	return sourcebindingdomain.Binding{
+		ID:                id,
+		OrganizationCode:  "ORG1",
+		KnowledgeBaseCode: testKnowledgeBaseCode,
+		Provider:          sourcebindingdomain.ProviderTeamshare,
+		RootType:          sourcebindingdomain.RootTypeKnowledgeBase,
+		RootRef:           "KB-TS",
+		SyncMode:          sourcebindingdomain.SyncModeRealtime,
+		Enabled:           true,
+		UpdatedUID:        "U1",
+		Targets:           targets,
+	}
+}
+
+func newTeamshareNodeResolveResult(parentID string) *thirdplatform.NodeResolveResult {
+	const (
+		knowledgeBaseID = "KB-TS"
+		thirdFileID     = "FILE-TS"
+		name            = "doc.md"
+	)
+	return &thirdplatform.NodeResolveResult{
+		TreeNode: thirdplatform.TreeNode{
+			ID:              thirdFileID,
+			FileID:          thirdFileID,
+			KnowledgeBaseID: knowledgeBaseID,
+			ThirdFileID:     thirdFileID,
+			ParentID:        parentID,
+			Name:            name,
+			FileType:        "file",
+			Extension:       "md",
+			Path: []thirdplatform.PathNode{
+				{ID: knowledgeBaseID, Name: "企业知识库", Type: sourcebindingdomain.RootTypeKnowledgeBase},
+				{ID: parentID, Name: "folder", Type: sourcebindingdomain.TargetTypeFolder},
+				{ID: thirdFileID, Name: name, Type: sourcebindingdomain.TargetTypeFile},
+			},
+		},
+		DocumentFile: map[string]any{
+			"type":              "third_platform",
+			"name":              name,
+			"third_id":          thirdFileID,
+			"third_file_id":     thirdFileID,
+			"source_type":       sourcebindingdomain.ProviderTeamshare,
+			"platform_type":     sourcebindingdomain.ProviderTeamshare,
+			"knowledge_base_id": knowledgeBaseID,
+			"extension":         "md",
+		},
+	}
+}
+
+type documentDomainServiceStub struct {
+	showResult                           *docentity.KnowledgeBaseDocument
+	showErr                              error
+	showByCodeAndKBResult                *docentity.KnowledgeBaseDocument
+	showByCodeAndKBResults               map[string]*docentity.KnowledgeBaseDocument
+	showByCodeAndKBErr                   error
+	findByKBAndThirdResult               *docentity.KnowledgeBaseDocument
+	findByKBAndThirdErr                  error
+	findByKBAndProjectResult             *docentity.KnowledgeBaseDocument
+	findByKBAndProjectErr                error
+	listByProjectFileInOrgResult         []*docentity.KnowledgeBaseDocument
+	listByProjectFileInOrgErr            error
+	listRealtimeByProjectFileInOrgResult []*docentity.KnowledgeBaseDocument
+	listRealtimeByProjectFileInOrgErr    error
+	hasRealtimeProjectFileDocumentSet    bool
+	hasRealtimeProjectFileDocumentResult bool
+	hasRealtimeProjectFileDocumentErr    error
+	listByThirdFileInOrgResult           []*docentity.KnowledgeBaseDocument
+	listByThirdFileInOrgErr              error
+	listRealtimeByThirdFileInOrgResult   []*docentity.KnowledgeBaseDocument
+	listRealtimeByThirdFileInOrgErr      error
+	hasRealtimeThirdFileDocumentSet      bool
+	hasRealtimeThirdFileDocumentResult   bool
+	hasRealtimeThirdFileDocumentErr      error
+	listByKBAndProjectResult             []*docentity.KnowledgeBaseDocument
+	listByKBAndProjectErr                error
+	listResult                           []*docentity.KnowledgeBaseDocument
+	listTotal                            int64
+	listErr                              error
+	countByKnowledgeResult               map[string]int64
+	countByKnowledgeErr                  error
+	saveErr                              error
+	updateErr                            error
+	deleteErr                            error
+
+	lastListQuery               *docrepo.DocumentQuery
 	lastListByThirdFileOrg      string
 	lastListByThirdFilePlatform string
 	lastListByThirdFileID       string
 	deletedID                   int64
-	savedDocs                   []*documentdomain.KnowledgeBaseDocument
+	savedDocs                   []*docentity.KnowledgeBaseDocument
 	updateCalls                 int
-	lastUpdatedDoc              *documentdomain.KnowledgeBaseDocument
+	lastUpdatedDoc              *docentity.KnowledgeBaseDocument
 }
 
-func (s *documentDomainServiceStub) Save(_ context.Context, doc *documentdomain.KnowledgeBaseDocument) error {
+type documentPermissionReaderStub struct {
+	operations map[string]string
+	capture    *documentPermissionCapture
+}
+
+type documentPermissionCapture struct {
+	calls            int
+	organizationCode string
+	userID           string
+}
+
+type contactUserRepositoryStub struct {
+	activeUsers                 map[string]struct{}
+	usersByMagicID              map[string][]contactuserdomain.User
+	existsActiveUserErr         error
+	listActiveUserIDsErr        error
+	listActiveUsersByMagicIDErr error
+	listUsersByMagicIDsErr      error
+}
+
+func (s *contactUserRepositoryStub) ExistsActiveUser(
+	_ context.Context,
+	_ string,
+	userID string,
+) (bool, error) {
+	if s.existsActiveUserErr != nil {
+		return false, s.existsActiveUserErr
+	}
+	_, ok := s.activeUsers[strings.TrimSpace(userID)]
+	return ok, nil
+}
+
+func (s *contactUserRepositoryStub) ListActiveUserIDs(
+	_ context.Context,
+	_ string,
+	userIDs []string,
+) (map[string]struct{}, error) {
+	if s.listActiveUserIDsErr != nil {
+		return nil, s.listActiveUserIDsErr
+	}
+	result := make(map[string]struct{}, len(userIDs))
+	for _, userID := range userIDs {
+		userID = strings.TrimSpace(userID)
+		if _, ok := s.activeUsers[userID]; ok {
+			result[userID] = struct{}{}
+		}
+	}
+	return result, nil
+}
+
+func (s *contactUserRepositoryStub) ListActiveUsersByMagicID(
+	_ context.Context,
+	_ string,
+	magicID string,
+) ([]contactuserdomain.User, error) {
+	if s.listActiveUsersByMagicIDErr != nil {
+		return nil, s.listActiveUsersByMagicIDErr
+	}
+	return slices.Clone(s.usersByMagicID[strings.TrimSpace(magicID)]), nil
+}
+
+func (s *contactUserRepositoryStub) ListActiveUsersByMagicIDs(
+	_ context.Context,
+	_ string,
+	magicIDs []string,
+) (map[string][]contactuserdomain.User, error) {
+	if s.listUsersByMagicIDsErr != nil {
+		return nil, s.listUsersByMagicIDsErr
+	}
+	result := make(map[string][]contactuserdomain.User, len(magicIDs))
+	for _, magicID := range magicIDs {
+		magicID = strings.TrimSpace(magicID)
+		if users := s.usersByMagicID[magicID]; len(users) > 0 {
+			result[magicID] = slices.Clone(users)
+		}
+	}
+	return result, nil
+}
+
+func (s documentPermissionReaderStub) ListOperations(_ context.Context, organizationCode, userID string, _ []string) (map[string]string, error) {
+	if s.capture != nil {
+		s.capture.calls++
+		s.capture.organizationCode = organizationCode
+		s.capture.userID = userID
+	}
+	if s.operations == nil {
+		return map[string]string{}, nil
+	}
+	result := make(map[string]string, len(s.operations))
+	maps.Copy(result, s.operations)
+	return result, nil
+}
+
+func (s *documentDomainServiceStub) Save(_ context.Context, doc *docentity.KnowledgeBaseDocument) error {
 	if doc != nil {
 		cloned := *doc
 		s.savedDocs = append(s.savedDocs, &cloned)
@@ -1954,7 +3798,7 @@ func (s *documentDomainServiceStub) Save(_ context.Context, doc *documentdomain.
 	return s.saveErr
 }
 
-func (s *documentDomainServiceStub) Update(_ context.Context, doc *documentdomain.KnowledgeBaseDocument) error {
+func (s *documentDomainServiceStub) Update(_ context.Context, doc *docentity.KnowledgeBaseDocument) error {
 	s.updateCalls++
 	if doc != nil {
 		cloned := *doc
@@ -1965,22 +3809,56 @@ func (s *documentDomainServiceStub) Update(_ context.Context, doc *documentdomai
 	return s.updateErr
 }
 
-func (s *documentDomainServiceStub) Show(context.Context, string) (*documentdomain.KnowledgeBaseDocument, error) {
+func (s *documentDomainServiceStub) MarkSyncing(ctx context.Context, doc *docentity.KnowledgeBaseDocument) error {
+	if doc != nil {
+		doc.MarkSyncing()
+	}
+	return s.Update(ctx, doc)
+}
+
+func (s *documentDomainServiceStub) MarkSynced(ctx context.Context, doc *docentity.KnowledgeBaseDocument, wordCount int) error {
+	if doc != nil {
+		doc.MarkSynced(wordCount)
+	}
+	return s.Update(ctx, doc)
+}
+
+func (s *documentDomainServiceStub) MarkSyncedWithContent(ctx context.Context, doc *docentity.KnowledgeBaseDocument, content string) error {
+	return s.MarkSynced(ctx, doc, len([]rune(strings.TrimSpace(content))))
+}
+
+func (s *documentDomainServiceStub) MarkSyncFailed(ctx context.Context, doc *docentity.KnowledgeBaseDocument, message string) error {
+	if doc != nil {
+		doc.MarkSyncFailed(message)
+	}
+	return s.Update(ctx, doc)
+}
+
+func (s *documentDomainServiceStub) MarkSyncFailedWithError(
+	ctx context.Context,
+	doc *docentity.KnowledgeBaseDocument,
+	reason string,
+	err error,
+) error {
+	return s.MarkSyncFailed(ctx, doc, documentdomain.BuildSyncFailureMessage(reason, err))
+}
+
+func (s *documentDomainServiceStub) Show(context.Context, string) (*docentity.KnowledgeBaseDocument, error) {
 	return s.showResult, s.showErr
 }
 
-func (s *documentDomainServiceStub) ShowByCodeAndKnowledgeBase(_ context.Context, code, _ string) (*documentdomain.KnowledgeBaseDocument, error) {
+func (s *documentDomainServiceStub) ShowByCodeAndKnowledgeBase(_ context.Context, code, _ string) (*docentity.KnowledgeBaseDocument, error) {
 	if len(s.showByCodeAndKBResults) > 0 {
 		return s.showByCodeAndKBResults[code], s.showByCodeAndKBErr
 	}
 	return s.showByCodeAndKBResult, s.showByCodeAndKBErr
 }
 
-func (s *documentDomainServiceStub) FindByKnowledgeBaseAndThirdFile(context.Context, string, string, string) (*documentdomain.KnowledgeBaseDocument, error) {
+func (s *documentDomainServiceStub) FindByKnowledgeBaseAndThirdFile(context.Context, string, string, string) (*docentity.KnowledgeBaseDocument, error) {
 	return s.findByKBAndThirdResult, s.findByKBAndThirdErr
 }
 
-func (s *documentDomainServiceStub) FindByKnowledgeBaseAndProjectFile(context.Context, string, int64) (*documentdomain.KnowledgeBaseDocument, error) {
+func (s *documentDomainServiceStub) FindByKnowledgeBaseAndProjectFile(context.Context, string, int64) (*docentity.KnowledgeBaseDocument, error) {
 	if s.findByKBAndProjectErr != nil {
 		return nil, s.findByKBAndProjectErr
 	}
@@ -1990,15 +3868,39 @@ func (s *documentDomainServiceStub) FindByKnowledgeBaseAndProjectFile(context.Co
 	return s.findByKBAndProjectResult, nil
 }
 
-func (s *documentDomainServiceStub) ListByProjectFileInOrg(context.Context, string, int64) ([]*documentdomain.KnowledgeBaseDocument, error) {
+func (s *documentDomainServiceStub) ListByProjectFileInOrg(context.Context, string, int64) ([]*docentity.KnowledgeBaseDocument, error) {
 	if s.listByProjectFileInOrgErr != nil {
 		return nil, s.listByProjectFileInOrgErr
 	}
 	return s.listByProjectFileInOrgResult, nil
 }
 
+func (s *documentDomainServiceStub) ListRealtimeByProjectFileInOrg(context.Context, string, int64) ([]*docentity.KnowledgeBaseDocument, error) {
+	if s.listRealtimeByProjectFileInOrgErr != nil {
+		return nil, s.listRealtimeByProjectFileInOrgErr
+	}
+	if s.listRealtimeByProjectFileInOrgResult != nil {
+		return s.listRealtimeByProjectFileInOrgResult, nil
+	}
+	return s.listByProjectFileInOrgResult, nil
+}
+
+func (s *documentDomainServiceStub) HasRealtimeProjectFileDocumentInOrg(ctx context.Context, _ string, _ int64) (bool, error) {
+	if s.hasRealtimeProjectFileDocumentErr != nil {
+		return false, s.hasRealtimeProjectFileDocumentErr
+	}
+	if s.hasRealtimeProjectFileDocumentSet {
+		return s.hasRealtimeProjectFileDocumentResult, nil
+	}
+	if s.findByKBAndProjectResult != nil {
+		return true, nil
+	}
+	docs, err := s.ListRealtimeByProjectFileInOrg(ctx, "", 0)
+	return len(docs) > 0, err
+}
+
 func (s *documentDomainServiceStub) ResolveThirdFileDocumentPlan(_ context.Context, input documentdomain.ThirdFileDocumentPlanInput) (documentdomain.ThirdFileDocumentPlan, error) {
-	var docs []*documentdomain.KnowledgeBaseDocument
+	var docs []*docentity.KnowledgeBaseDocument
 	s.lastListByThirdFileOrg = input.OrganizationCode
 	s.lastListByThirdFilePlatform = input.ThirdPlatformType
 	s.lastListByThirdFileID = input.ThirdFileID
@@ -2020,19 +3922,78 @@ func (s *documentDomainServiceStub) ResolveThirdFileDocumentPlan(_ context.Conte
 	}, nil
 }
 
-func (s *documentDomainServiceStub) ListByThirdFileInOrg(_ context.Context, organizationCode, thirdPlatformType, thirdFileID string) ([]*documentdomain.KnowledgeBaseDocument, error) {
+func (s *documentDomainServiceStub) ResolveRealtimeThirdFileDocumentPlan(_ context.Context, input documentdomain.ThirdFileDocumentPlanInput) (documentdomain.ThirdFileDocumentPlan, error) {
+	s.lastListByThirdFileOrg = input.OrganizationCode
+	s.lastListByThirdFilePlatform = input.ThirdPlatformType
+	s.lastListByThirdFileID = input.ThirdFileID
+	if s.listRealtimeByThirdFileInOrgErr != nil {
+		return documentdomain.ThirdFileDocumentPlan{}, s.listRealtimeByThirdFileInOrgErr
+	}
+	docs := s.listRealtimeByThirdFileInOrgResult
+	if docs == nil {
+		if s.listByThirdFileInOrgErr != nil {
+			return documentdomain.ThirdFileDocumentPlan{}, s.listByThirdFileInOrgErr
+		}
+		docs = s.listByThirdFileInOrgResult
+	}
+	seed, err := documentdomain.BuildThirdFileRevectorizeSeed(&documentdomain.ThirdFileRevectorizeInput{
+		OrganizationCode:  input.OrganizationCode,
+		ThirdPlatformType: input.ThirdPlatformType,
+		ThirdFileID:       input.ThirdFileID,
+	}, docs)
+	if err != nil {
+		return documentdomain.ThirdFileDocumentPlan{}, fmt.Errorf("build third-file revectorize seed: %w", err)
+	}
+	return documentdomain.ThirdFileDocumentPlan{
+		Documents: docs,
+		Seed:      seed,
+	}, nil
+}
+
+func (s *documentDomainServiceStub) ListByThirdFileInOrg(_ context.Context, organizationCode, thirdPlatformType, thirdFileID string) ([]*docentity.KnowledgeBaseDocument, error) {
 	s.lastListByThirdFileOrg = organizationCode
 	s.lastListByThirdFilePlatform = thirdPlatformType
 	s.lastListByThirdFileID = thirdFileID
 	return s.listByThirdFileInOrgResult, s.listByThirdFileInOrgErr
 }
 
-func (s *documentDomainServiceStub) ListByKnowledgeBaseAndProject(context.Context, string, int64) ([]*documentdomain.KnowledgeBaseDocument, error) {
+func (s *documentDomainServiceStub) ListRealtimeByThirdFileInOrg(_ context.Context, organizationCode, thirdPlatformType, thirdFileID string) ([]*docentity.KnowledgeBaseDocument, error) {
+	s.lastListByThirdFileOrg = organizationCode
+	s.lastListByThirdFilePlatform = thirdPlatformType
+	s.lastListByThirdFileID = thirdFileID
+	if s.listRealtimeByThirdFileInOrgErr != nil {
+		return nil, s.listRealtimeByThirdFileInOrgErr
+	}
+	if s.listRealtimeByThirdFileInOrgResult != nil {
+		return s.listRealtimeByThirdFileInOrgResult, nil
+	}
+	return s.listByThirdFileInOrgResult, s.listByThirdFileInOrgErr
+}
+
+func (s *documentDomainServiceStub) HasRealtimeThirdFileDocumentInOrg(ctx context.Context, _, _, _ string) (bool, error) {
+	if s.hasRealtimeThirdFileDocumentErr != nil {
+		return false, s.hasRealtimeThirdFileDocumentErr
+	}
+	if s.hasRealtimeThirdFileDocumentSet {
+		return s.hasRealtimeThirdFileDocumentResult, nil
+	}
+	if s.findByKBAndThirdResult != nil || s.showByCodeAndKBResult != nil {
+		return true, nil
+	}
+	docs, err := s.ListRealtimeByThirdFileInOrg(ctx, "", "", "")
+	return len(docs) > 0, err
+}
+
+func (s *documentDomainServiceStub) ListByKnowledgeBaseAndProject(context.Context, string, int64) ([]*docentity.KnowledgeBaseDocument, error) {
 	return s.listByKBAndProjectResult, s.listByKBAndProjectErr
 }
 
-func (s *documentDomainServiceStub) List(_ context.Context, query *documentdomain.Query) ([]*documentdomain.KnowledgeBaseDocument, int64, error) {
+func (s *documentDomainServiceStub) List(_ context.Context, query *docrepo.DocumentQuery) ([]*docentity.KnowledgeBaseDocument, int64, error) {
 	s.lastListQuery = query
+	return s.listResult, s.listTotal, s.listErr
+}
+
+func (s *documentDomainServiceStub) ListByKnowledgeBase(context.Context, string, int, int) ([]*docentity.KnowledgeBaseDocument, int64, error) {
 	return s.listResult, s.listTotal, s.listErr
 }
 
@@ -2045,13 +4006,18 @@ func (s *documentDomainServiceStub) Delete(_ context.Context, id int64) error {
 	return s.deleteErr
 }
 
-func (s *documentDomainServiceStub) UpdateSyncStatus(context.Context, *documentdomain.KnowledgeBaseDocument) error {
+func (s *documentDomainServiceStub) UpdateSyncStatus(context.Context, *docentity.KnowledgeBaseDocument) error {
 	return s.updateErr
 }
 
 type sourceBindingRepositoryStub struct {
-	realtimeBindings []sourcebindingdomain.Binding
-	sourceItems      []*sourcebindingdomain.SourceItem
+	realtimeBindings                 []sourcebindingdomain.Binding
+	realtimeTeamshareBindings        []sourcebindingdomain.Binding
+	listProjectBindingsCalls         int
+	listTeamshareBindingsCalls       int
+	sourceItems                      []*sourcebindingdomain.SourceItem
+	hasRealtimeProjectBindingForFile bool
+	hasRealtimeProjectBindingErr     error
 }
 
 type knowledgeBaseBindingRepositoryStub struct {
@@ -2062,7 +4028,7 @@ type knowledgeBaseBindingRepositoryStub struct {
 func (s *knowledgeBaseBindingRepositoryStub) ListBindIDsByKnowledgeBase(
 	_ context.Context,
 	knowledgeBaseCode string,
-	_ knowledgebase.BindingType,
+	_ kbentity.BindingType,
 ) ([]string, error) {
 	if s.err != nil {
 		return nil, s.err
@@ -2076,7 +4042,7 @@ func (s *knowledgeBaseBindingRepositoryStub) ListBindIDsByKnowledgeBase(
 func (s *knowledgeBaseBindingRepositoryStub) ListBindIDsByKnowledgeBases(
 	_ context.Context,
 	knowledgeBaseCodes []string,
-	_ knowledgebase.BindingType,
+	_ kbentity.BindingType,
 ) (map[string][]string, error) {
 	if s.err != nil {
 		return nil, s.err
@@ -2096,12 +4062,43 @@ func (s *sourceBindingRepositoryStub) SaveBindings(context.Context, string, []so
 	return nil, nil
 }
 
+func (s *sourceBindingRepositoryStub) ApplyKnowledgeBaseBindings(
+	context.Context,
+	sourcebindingrepository.ApplyKnowledgeBaseBindingsInput,
+) ([]sourcebindingdomain.Binding, error) {
+	return nil, nil
+}
+
 func (s *sourceBindingRepositoryStub) ListBindingsByKnowledgeBase(context.Context, string) ([]sourcebindingdomain.Binding, error) {
 	return nil, nil
 }
 
+func (s *sourceBindingRepositoryStub) ListBindingsByKnowledgeBases(_ context.Context, knowledgeBaseCodes []string) (map[string][]sourcebindingdomain.Binding, error) {
+	result := make(map[string][]sourcebindingdomain.Binding, len(knowledgeBaseCodes))
+	for _, knowledgeBaseCode := range knowledgeBaseCodes {
+		result[knowledgeBaseCode] = nil
+	}
+	return result, nil
+}
+
 func (s *sourceBindingRepositoryStub) ListRealtimeProjectBindingsByProject(context.Context, string, int64) ([]sourcebindingdomain.Binding, error) {
+	s.listProjectBindingsCalls++
 	return slices.Clone(s.realtimeBindings), nil
+}
+
+func (s *sourceBindingRepositoryStub) ListRealtimeTeamshareBindingsByKnowledgeBase(context.Context, string, string, string) ([]sourcebindingdomain.Binding, error) {
+	s.listTeamshareBindingsCalls++
+	if s.realtimeTeamshareBindings != nil {
+		return slices.Clone(s.realtimeTeamshareBindings), nil
+	}
+	return slices.Clone(s.realtimeBindings), nil
+}
+
+func (s *sourceBindingRepositoryStub) HasRealtimeProjectBindingForFile(context.Context, string, int64, int64) (bool, error) {
+	if s.hasRealtimeProjectBindingErr != nil {
+		return false, s.hasRealtimeProjectBindingErr
+	}
+	return s.hasRealtimeProjectBindingForFile || len(s.realtimeBindings) > 0, nil
 }
 
 func (s *sourceBindingRepositoryStub) UpsertSourceItem(_ context.Context, item sourcebindingdomain.SourceItem) (*sourcebindingdomain.SourceItem, error) {
@@ -2109,6 +4106,21 @@ func (s *sourceBindingRepositoryStub) UpsertSourceItem(_ context.Context, item s
 	cloned := item
 	s.sourceItems = append(s.sourceItems, &cloned)
 	return &cloned, nil
+}
+
+func (s *sourceBindingRepositoryStub) UpsertSourceItems(
+	ctx context.Context,
+	items []sourcebindingdomain.SourceItem,
+) ([]*sourcebindingdomain.SourceItem, error) {
+	result := make([]*sourcebindingdomain.SourceItem, 0, len(items))
+	for _, item := range items {
+		saved, err := s.UpsertSourceItem(ctx, item)
+		if err != nil {
+			return nil, err
+		}
+		result = append(result, saved)
+	}
+	return result, nil
 }
 
 func (s *sourceBindingRepositoryStub) ReplaceBindingItems(context.Context, int64, []sourcebindingdomain.BindingItem) error {
@@ -2122,6 +4134,7 @@ func (s *sourceBindingRepositoryStub) ListBindingItemsByKnowledgeBase(context.Co
 type projectFileResolverStub struct {
 	resolveResults map[int64]*projectfile.ResolveResult
 	links          map[int64]string
+	linkErrs       map[int64]error
 }
 
 func (s *projectFileResolverStub) Resolve(_ context.Context, projectFileID int64) (*projectfile.ResolveResult, error) {
@@ -2133,6 +4146,9 @@ func (s *projectFileResolverStub) ListByProject(context.Context, int64) ([]proje
 }
 
 func (s *projectFileResolverStub) GetLink(_ context.Context, projectFileID int64, _ time.Duration) (string, error) {
+	if s.linkErrs != nil && s.linkErrs[projectFileID] != nil {
+		return "", s.linkErrs[projectFileID]
+	}
 	if s.links == nil {
 		return "", nil
 	}
@@ -2151,9 +4167,35 @@ func (s *projectFileMetadataReaderStub) FindByID(_ context.Context, projectFileI
 	return s.metas[projectFileID], nil
 }
 
+func (s *projectFileMetadataReaderStub) ListAncestorFolderIDs(_ context.Context, projectFileID int64) ([]int64, error) {
+	if s == nil || s.metas == nil || projectFileID <= 0 {
+		return nil, nil
+	}
+	meta := s.metas[projectFileID]
+	if meta == nil || meta.ParentID <= 0 {
+		return nil, nil
+	}
+	ids := make([]int64, 0, 8)
+	seen := make(map[int64]struct{}, 8)
+	parentID := meta.ParentID
+	for parentID > 0 && len(ids) < 64 {
+		if _, ok := seen[parentID]; ok {
+			break
+		}
+		seen[parentID] = struct{}{}
+		ids = append(ids, parentID)
+		parentMeta := s.metas[parentID]
+		if parentMeta == nil || parentMeta.ParentID <= 0 {
+			break
+		}
+		parentID = parentMeta.ParentID
+	}
+	return ids, nil
+}
+
 func newRealtimeProjectChangeService(
 	tb testing.TB,
-	existing *documentdomain.KnowledgeBaseDocument,
+	existing *docentity.KnowledgeBaseDocument,
 	resolved *projectfile.ResolveResult,
 ) (*appservice.DocumentAppService, *documentDomainServiceStub, *documentSyncSchedulerStub) {
 	tb.Helper()
@@ -2161,10 +4203,10 @@ func newRealtimeProjectChangeService(
 	domain := &documentDomainServiceStub{
 		showByCodeAndKBResult:        existing,
 		findByKBAndProjectResult:     existing,
-		listByProjectFileInOrgResult: []*documentdomain.KnowledgeBaseDocument{existing},
+		listByProjectFileInOrgResult: []*docentity.KnowledgeBaseDocument{existing},
 	}
 	kbReader := &knowledgeBaseReaderStub{
-		showByCodeAndOrgResult: &knowledgebase.KnowledgeBase{Code: testKnowledgeBaseCode, OrganizationCode: "ORG1"},
+		showByCodeAndOrgResult: &kbentity.KnowledgeBase{Code: testKnowledgeBaseCode, OrganizationCode: "ORG1"},
 		routeCollection:        "kb_custom",
 	}
 	scheduler := &documentSyncSchedulerStub{}
@@ -2203,6 +4245,183 @@ func newRealtimeProjectChangeService(
 		},
 	})
 	return svc, domain, scheduler
+}
+
+func TestDocumentAppServiceFinalizeKnowledgeRevectorizeTaskUpdatesKnowledgeBaseProgress(t *testing.T) {
+	t.Parallel()
+
+	kbReader := &knowledgeBaseReaderStub{
+		showByCodeAndOrgResult: &kbentity.KnowledgeBase{
+			Code:             testKnowledgeBaseCode,
+			OrganizationCode: "ORG-1",
+		},
+	}
+	svc := appservice.NewDocumentAppServiceForTest(t, &documentDomainServiceStub{}, kbReader, nil)
+	svc.SetKnowledgeRevectorizeProgressStoreForTest(&progressStoreFinalizeStub{
+		progress: &revectorizeshared.SessionProgress{
+			KnowledgeBaseCode: testKnowledgeBaseCode,
+			SessionID:         "SESSION-1",
+			ExpectedNum:       4,
+			CompletedNum:      2,
+		},
+		advanced: true,
+	})
+
+	if err := svc.FinalizeKnowledgeRevectorizeTask(context.Background(), &documentdomain.SyncDocumentInput{
+		OrganizationCode:     "ORG-1",
+		KnowledgeBaseCode:    testKnowledgeBaseCode,
+		Code:                 testDocumentCode,
+		RevectorizeSessionID: "SESSION-1",
+		BusinessParams:       &ctxmeta.BusinessParams{UserID: "USER-1"},
+	}); err != nil {
+		t.Fatalf("FinalizeKnowledgeRevectorizeTask returned error: %v", err)
+	}
+
+	if kbReader.lastUpdatedProgress == nil || kbReader.lastUpdatedProgress.ExpectedNum != 4 || kbReader.lastUpdatedProgress.CompletedNum != 2 {
+		t.Fatalf("expected knowledge base progress updated, got %#v", kbReader.lastUpdatedProgress)
+	}
+}
+
+func TestDocumentAppServiceFinalizeTerminalDocumentSyncTaskMarksFailedAndAdvancesProgress(t *testing.T) {
+	t.Parallel()
+
+	doc := &docentity.KnowledgeBaseDocument{
+		Code:              testDocumentCode,
+		KnowledgeBaseCode: testKnowledgeBaseCode,
+		OrganizationCode:  "ORG-1",
+		SyncStatus:        shared.SyncStatusSyncing,
+	}
+	domain := &documentDomainServiceStub{showByCodeAndKBResult: doc}
+	kbReader := &knowledgeBaseReaderStub{
+		showByCodeAndOrgResult: &kbentity.KnowledgeBase{
+			Code:             testKnowledgeBaseCode,
+			OrganizationCode: "ORG-1",
+		},
+	}
+	svc := appservice.NewDocumentAppServiceForTest(t, domain, kbReader, nil)
+	svc.SetKnowledgeRevectorizeProgressStoreForTest(&progressStoreFinalizeStub{
+		progress: &revectorizeshared.SessionProgress{
+			KnowledgeBaseCode: testKnowledgeBaseCode,
+			SessionID:         "SESSION-1",
+			ExpectedNum:       2,
+			CompletedNum:      1,
+		},
+		advanced: true,
+	})
+
+	err := svc.FinalizeTerminalDocumentSyncTask(context.Background(), &documentdomain.SyncDocumentInput{
+		OrganizationCode:     "ORG-1",
+		KnowledgeBaseCode:    testKnowledgeBaseCode,
+		Code:                 testDocumentCode,
+		RevectorizeSessionID: "SESSION-1",
+		BusinessParams:       &ctxmeta.BusinessParams{UserID: "USER-1"},
+	}, errTerminalSyncTimeout)
+	if err != nil {
+		t.Fatalf("FinalizeTerminalDocumentSyncTask returned error: %v", err)
+	}
+
+	if domain.lastUpdatedDoc == nil || domain.lastUpdatedDoc.SyncStatus != shared.SyncStatusSyncFailed {
+		t.Fatalf("expected document marked failed, got %#v", domain.lastUpdatedDoc)
+	}
+	if !strings.Contains(domain.lastUpdatedDoc.SyncStatusMessage, documentdomain.SyncFailureRetryExhausted) {
+		t.Fatalf("expected retry exhausted message, got %q", domain.lastUpdatedDoc.SyncStatusMessage)
+	}
+	if kbReader.lastUpdatedProgress == nil || kbReader.lastUpdatedProgress.CompletedNum != 1 {
+		t.Fatalf("expected progress advanced, got %#v", kbReader.lastUpdatedProgress)
+	}
+}
+
+func TestDocumentAppServiceFinalizeTerminalDocumentSyncTaskMarksFailedWhenActorMissing(t *testing.T) {
+	t.Parallel()
+
+	doc := &docentity.KnowledgeBaseDocument{
+		Code:              testDocumentCode,
+		KnowledgeBaseCode: testKnowledgeBaseCode,
+		OrganizationCode:  "ORG-1",
+		SyncStatus:        shared.SyncStatusSyncing,
+	}
+	domain := &documentDomainServiceStub{showByCodeAndKBResult: doc}
+	kbReader := &knowledgeBaseReaderStub{
+		showByCodeAndOrgResult: &kbentity.KnowledgeBase{
+			Code:             testKnowledgeBaseCode,
+			OrganizationCode: "ORG-1",
+		},
+	}
+	capture := &documentPermissionCapture{}
+	svc := appservice.NewDocumentAppServiceForTest(t, domain, kbReader, nil)
+	svc.SetKnowledgeBasePermissionReaderForTest(documentPermissionReaderStub{
+		operations: map[string]string{testKnowledgeBaseCode: "edit"},
+		capture:    capture,
+	})
+	svc.SetKnowledgeRevectorizeProgressStoreForTest(&progressStoreFinalizeStub{
+		progress: &revectorizeshared.SessionProgress{
+			KnowledgeBaseCode: testKnowledgeBaseCode,
+			SessionID:         "SESSION-1",
+			ExpectedNum:       2,
+			CompletedNum:      2,
+		},
+		advanced: true,
+	})
+
+	err := svc.FinalizeTerminalDocumentSyncTask(context.Background(), &documentdomain.SyncDocumentInput{
+		OrganizationCode:     "ORG-1",
+		KnowledgeBaseCode:    testKnowledgeBaseCode,
+		Code:                 testDocumentCode,
+		RevectorizeSessionID: "SESSION-1",
+	}, errTerminalSyncTimeout)
+	if err != nil {
+		t.Fatalf("FinalizeTerminalDocumentSyncTask returned error: %v", err)
+	}
+
+	if capture.calls != 0 {
+		t.Fatalf("expected permission reader skipped, got %#v", capture)
+	}
+	if domain.lastUpdatedDoc == nil || domain.lastUpdatedDoc.SyncStatus != shared.SyncStatusSyncFailed {
+		t.Fatalf("expected document marked failed, got %#v", domain.lastUpdatedDoc)
+	}
+	if kbReader.lastUpdatedProgress == nil || kbReader.lastUpdatedProgress.CompletedNum != 2 {
+		t.Fatalf("expected progress advanced, got %#v", kbReader.lastUpdatedProgress)
+	}
+}
+
+func TestDocumentAppServiceFinalizeTerminalDocumentSyncTaskAdvancesProgressWhenDocumentMissing(t *testing.T) {
+	t.Parallel()
+
+	domain := &documentDomainServiceStub{showByCodeAndKBErr: shared.ErrDocumentNotFound}
+	kbReader := &knowledgeBaseReaderStub{
+		showByCodeAndOrgResult: &kbentity.KnowledgeBase{
+			Code:             testKnowledgeBaseCode,
+			OrganizationCode: "ORG-1",
+		},
+	}
+	svc := appservice.NewDocumentAppServiceForTest(t, domain, kbReader, nil)
+	svc.SetKnowledgeRevectorizeProgressStoreForTest(&progressStoreFinalizeStub{
+		progress: &revectorizeshared.SessionProgress{
+			KnowledgeBaseCode: testKnowledgeBaseCode,
+			SessionID:         "SESSION-1",
+			ExpectedNum:       2,
+			CompletedNum:      2,
+		},
+		advanced: true,
+	})
+
+	err := svc.FinalizeTerminalDocumentSyncTask(context.Background(), &documentdomain.SyncDocumentInput{
+		OrganizationCode:     "ORG-1",
+		KnowledgeBaseCode:    testKnowledgeBaseCode,
+		Code:                 testDocumentCode,
+		RevectorizeSessionID: "SESSION-1",
+		BusinessParams:       &ctxmeta.BusinessParams{UserID: "USER-1"},
+	}, errTerminalSyncTimeout)
+	if err != nil {
+		t.Fatalf("FinalizeTerminalDocumentSyncTask returned error: %v", err)
+	}
+
+	if domain.lastUpdatedDoc != nil {
+		t.Fatalf("expected missing document not to be updated, got %#v", domain.lastUpdatedDoc)
+	}
+	if kbReader.lastUpdatedProgress == nil || kbReader.lastUpdatedProgress.CompletedNum != 2 {
+		t.Fatalf("expected progress advanced despite missing document, got %#v", kbReader.lastUpdatedProgress)
+	}
 }
 
 type fragmentDestroyServiceStub struct {
@@ -2251,11 +4470,16 @@ func (s *fragmentDestroyServiceStub) ListByDocument(context.Context, string, str
 	return nil, 0, nil
 }
 
+func (s *fragmentDestroyServiceStub) ListByDocumentAfterID(context.Context, string, string, int64, int) ([]*fragmodel.KnowledgeBaseFragment, error) {
+	s.listByDocumentCalls++
+	return nil, nil
+}
+
 func (*fragmentDestroyServiceStub) ListExistingPointIDs(context.Context, string, []string) (map[string]struct{}, error) {
 	return map[string]struct{}{}, nil
 }
 
-func (s *fragmentDestroyServiceStub) SyncFragmentBatch(context.Context, any, []*fragmodel.KnowledgeBaseFragment, *ctxmeta.BusinessParams) error {
+func (s *fragmentDestroyServiceStub) SyncFragmentBatch(context.Context, *sharedsnapshot.KnowledgeBaseRuntimeSnapshot, []*fragmodel.KnowledgeBaseFragment, *ctxmeta.BusinessParams) error {
 	s.syncFragmentBatchCalls++
 	return nil
 }
@@ -2302,46 +4526,90 @@ func (s *fragmentDestroyServiceStub) DestroyBatch(_ context.Context, fragments [
 	return nil
 }
 
-type knowledgeBaseReaderStub struct {
-	showByCodeAndOrgResult *knowledgebase.KnowledgeBase
-	showByCodeAndOrgErr    error
-	showResult             *knowledgebase.KnowledgeBase
-	showErr                error
-	listResult             []*knowledgebase.KnowledgeBase
-	listTotal              int64
-	listErr                error
-	lastListQuery          *knowledgebase.Query
-	routeCollection        string
-	routeModel             string
+type progressStoreFinalizeStub struct {
+	progress *revectorizeshared.SessionProgress
+	advanced bool
 }
 
-func (s *knowledgeBaseReaderStub) ShowByCodeAndOrg(_ context.Context, code, orgCode string) (*knowledgebase.KnowledgeBase, error) {
+func (*progressStoreFinalizeStub) StartSession(
+	context.Context,
+	string,
+	string,
+	[]string,
+) (*revectorizeshared.SessionProgress, error) {
+	return &revectorizeshared.SessionProgress{}, nil
+}
+
+func (s *progressStoreFinalizeStub) AdvanceDocument(
+	_ context.Context,
+	_ string,
+	_ string,
+	_ string,
+	persist func(progress *revectorizeshared.SessionProgress) error,
+) (bool, error) {
+	if !s.advanced {
+		return false, nil
+	}
+	if persist == nil {
+		return false, nil
+	}
+	return true, persist(s.progress)
+}
+
+type knowledgeBaseReaderStub struct {
+	showByCodeAndOrgResult    *kbentity.KnowledgeBase
+	showByCodeAndOrgErr       error
+	showResult                *kbentity.KnowledgeBase
+	showErr                   error
+	listResult                []*kbentity.KnowledgeBase
+	listTotal                 int64
+	listErr                   error
+	lastListQuery             *kbrepository.Query
+	routeCollection           string
+	routeModel                string
+	ensureCollectionExistsErr error
+	lastUpdatedProgress       *kbentity.KnowledgeBase
+	updateProgressErr         error
+}
+
+func (s *knowledgeBaseReaderStub) ShowByCodeAndOrg(_ context.Context, code, orgCode string) (*kbentity.KnowledgeBase, error) {
 	if s.showByCodeAndOrgResult != nil || s.showByCodeAndOrgErr != nil {
 		return s.showByCodeAndOrgResult, s.showByCodeAndOrgErr
 	}
-	return &knowledgebase.KnowledgeBase{
+	return &kbentity.KnowledgeBase{
 		Code:             code,
 		OrganizationCode: orgCode,
 		Model:            "text-embedding-3-small",
 	}, nil
 }
 
-func (s *knowledgeBaseReaderStub) Show(_ context.Context, code string) (*knowledgebase.KnowledgeBase, error) {
+func (s *knowledgeBaseReaderStub) Show(_ context.Context, code string) (*kbentity.KnowledgeBase, error) {
 	if s.showResult != nil || s.showErr != nil {
 		return s.showResult, s.showErr
 	}
-	return &knowledgebase.KnowledgeBase{
+	return &kbentity.KnowledgeBase{
 		Code:  code,
 		Model: "text-embedding-3-small",
 	}, nil
 }
 
-func (s *knowledgeBaseReaderStub) List(_ context.Context, query *knowledgebase.Query) ([]*knowledgebase.KnowledgeBase, int64, error) {
+func (s *knowledgeBaseReaderStub) List(_ context.Context, query *kbrepository.Query) ([]*kbentity.KnowledgeBase, int64, error) {
 	s.lastListQuery = query
+	if s.listResult == nil && s.listErr == nil && query != nil && len(query.Codes) > 0 {
+		results := make([]*kbentity.KnowledgeBase, 0, len(query.Codes))
+		for _, code := range query.Codes {
+			results = append(results, &kbentity.KnowledgeBase{
+				Code:    strings.TrimSpace(code),
+				Enabled: true,
+				Model:   "text-embedding-3-small",
+			})
+		}
+		return results, int64(len(results)), nil
+	}
 	return s.listResult, s.listTotal, s.listErr
 }
 
-func (s *knowledgeBaseReaderStub) ResolveRuntimeRoute(_ context.Context, kb *knowledgebase.KnowledgeBase) sharedroute.ResolvedRoute {
+func (s *knowledgeBaseReaderStub) ResolveRuntimeRoute(_ context.Context, kb *kbentity.KnowledgeBase) sharedroute.ResolvedRoute {
 	model := s.routeModel
 	if model == "" && kb != nil {
 		model = kb.Model
@@ -2360,6 +4628,18 @@ func (s *knowledgeBaseReaderStub) ResolveRuntimeRoute(_ context.Context, kb *kno
 	}
 }
 
+func (s *knowledgeBaseReaderStub) EnsureCollectionExists(context.Context, *kbentity.KnowledgeBase) error {
+	return s.ensureCollectionExistsErr
+}
+
+func (s *knowledgeBaseReaderStub) UpdateProgress(_ context.Context, kb *kbentity.KnowledgeBase) error {
+	if kb != nil {
+		cloned := *kb
+		s.lastUpdatedProgress = &cloned
+	}
+	return s.updateProgressErr
+}
+
 type documentSyncSchedulerStub struct {
 	scheduleCalls int
 	ctxs          []context.Context
@@ -2372,16 +4652,119 @@ func (s *documentSyncSchedulerStub) Schedule(ctx context.Context, input *documen
 	s.inputs = append(s.inputs, input)
 }
 
-type thirdFileSchedulerStub struct {
-	scheduleCalls int
-	ctxs          []context.Context
-	inputs        []*documentdomain.ThirdFileRevectorizeInput
+type sourceBindingCandidateCacheStub struct {
+	projectBindings   []sourcebindingdomain.Binding
+	projectHit        bool
+	teamshareHit      bool
+	teamshareBindings []sourcebindingdomain.Binding
+	kbStates          map[string]bool
+	getErr            error
+	setErr            error
+
+	projectGetCalls   int
+	projectSetCalls   int
+	teamshareGetCalls int
+	teamshareSetCalls int
+	kbGetCalls        int
+	kbSetCalls        int
 }
 
-func (s *thirdFileSchedulerStub) Schedule(ctx context.Context, input *documentdomain.ThirdFileRevectorizeInput) {
-	s.scheduleCalls++
-	s.ctxs = append(s.ctxs, ctx)
-	s.inputs = append(s.inputs, input)
+func (s *sourceBindingCandidateCacheStub) GetProjectBindings(
+	context.Context,
+	string,
+	int64,
+) ([]sourcebindingdomain.Binding, bool, error) {
+	s.projectGetCalls++
+	if s.getErr != nil {
+		return nil, false, s.getErr
+	}
+	return slices.Clone(s.projectBindings), s.projectHit, nil
+}
+
+func (s *sourceBindingCandidateCacheStub) SetProjectBindings(
+	_ context.Context,
+	_ string,
+	_ int64,
+	bindings []sourcebindingdomain.Binding,
+) error {
+	s.projectSetCalls++
+	if s.setErr != nil {
+		return s.setErr
+	}
+	s.projectBindings = slices.Clone(bindings)
+	s.projectHit = true
+	return nil
+}
+
+func (s *sourceBindingCandidateCacheStub) GetTeamshareBindings(
+	context.Context,
+	string,
+	string,
+	string,
+) ([]sourcebindingdomain.Binding, bool, error) {
+	s.teamshareGetCalls++
+	if s.getErr != nil {
+		return nil, false, s.getErr
+	}
+	return slices.Clone(s.teamshareBindings), s.teamshareHit, nil
+}
+
+func (s *sourceBindingCandidateCacheStub) SetTeamshareBindings(
+	_ context.Context,
+	_ string,
+	_ string,
+	_ string,
+	bindings []sourcebindingdomain.Binding,
+) error {
+	s.teamshareSetCalls++
+	if s.setErr != nil {
+		return s.setErr
+	}
+	s.teamshareBindings = slices.Clone(bindings)
+	s.teamshareHit = true
+	return nil
+}
+
+func (s *sourceBindingCandidateCacheStub) GetKnowledgeBaseEnabled(
+	_ context.Context,
+	_ string,
+	knowledgeBaseCodes []string,
+) (map[string]bool, []string, error) {
+	s.kbGetCalls++
+	if s.getErr != nil {
+		return nil, nil, s.getErr
+	}
+	cached := make(map[string]bool, len(knowledgeBaseCodes))
+	misses := make([]string, 0, len(knowledgeBaseCodes))
+	for _, code := range knowledgeBaseCodes {
+		code = strings.TrimSpace(code)
+		if code == "" {
+			continue
+		}
+		enabled, ok := s.kbStates[code]
+		if !ok {
+			misses = append(misses, code)
+			continue
+		}
+		cached[code] = enabled
+	}
+	return cached, misses, nil
+}
+
+func (s *sourceBindingCandidateCacheStub) SetKnowledgeBaseEnabled(
+	_ context.Context,
+	_ string,
+	states map[string]bool,
+) error {
+	s.kbSetCalls++
+	if s.setErr != nil {
+		return s.setErr
+	}
+	if s.kbStates == nil {
+		s.kbStates = map[string]bool{}
+	}
+	maps.Copy(s.kbStates, states)
+	return nil
 }
 
 type thirdPlatformProviderStub struct {
@@ -2397,8 +4780,8 @@ func (s *thirdPlatformProviderStub) PlatformType() string {
 func (s *thirdPlatformProviderStub) BuildInitialDocument(context.Context, thirdplatformprovider.BuildInitialDocumentInput) (*thirdplatformprovider.InitialDocumentSpec, error) {
 	return &thirdplatformprovider.InitialDocumentSpec{
 		Name:         "doc",
-		DocType:      int(documentdomain.DocTypeText),
-		DocumentFile: &documentdomain.File{Type: "third_platform"},
+		DocType:      int(docentity.DocumentInputKindText),
+		DocumentFile: &docentity.File{Type: "third_platform"},
 	}, nil
 }
 
@@ -2410,9 +4793,12 @@ func (s *thirdPlatformProviderStub) ResolveLatestContent(context.Context, thirdp
 }
 
 type thirdPlatformResolverStub struct {
-	result    *thirdplatform.DocumentResolveResult
-	err       error
-	lastInput *thirdplatform.DocumentResolveInput
+	result        *thirdplatform.DocumentResolveResult
+	err           error
+	nodeResult    *thirdplatform.NodeResolveResult
+	nodeErr       error
+	lastInput     *thirdplatform.DocumentResolveInput
+	lastNodeInput *thirdplatform.NodeResolveInput
 }
 
 func (s *thirdPlatformResolverStub) Resolve(_ context.Context, input thirdplatform.DocumentResolveInput) (*thirdplatform.DocumentResolveResult, error) {
@@ -2420,11 +4806,16 @@ func (s *thirdPlatformResolverStub) Resolve(_ context.Context, input thirdplatfo
 	return s.result, s.err
 }
 
+func (s *thirdPlatformResolverStub) ResolveNode(_ context.Context, input thirdplatform.NodeResolveInput) (*thirdplatform.NodeResolveResult, error) {
+	s.lastNodeInput = &input
+	return s.nodeResult, s.nodeErr
+}
+
 func newThirdPlatformRawContentResolveResult(content string) *thirdplatform.DocumentResolveResult {
 	return &thirdplatform.DocumentResolveResult{
 		SourceKind: thirdplatform.DocumentSourceKindRawContent,
 		RawContent: content,
-		DocType:    int(documentdomain.DocTypeText),
+		DocType:    int(docentity.DocumentInputKindText),
 		DocumentFile: map[string]any{
 			"type":          "third_platform",
 			"name":          "doc.md",
@@ -2436,7 +4827,7 @@ func newThirdPlatformRawContentResolveResult(content string) *thirdplatform.Docu
 }
 
 type documentParseServiceStub struct {
-	parseDocumentResult *documentdomain.ParsedDocument
+	parseDocumentResult *parseddocument.ParsedDocument
 	parseDocumentErr    error
 	readerCalls         int
 	urlCalls            int
@@ -2457,14 +4848,14 @@ func (s *documentParseServiceStub) Parse(context.Context, string, string) (strin
 	return "", nil
 }
 
-func (s *documentParseServiceStub) ParseDocument(context.Context, string, string) (*documentdomain.ParsedDocument, error) {
+func (s *documentParseServiceStub) ParseDocument(context.Context, string, string) (*parseddocument.ParsedDocument, error) {
 	if s.parseDocumentErr != nil {
 		return nil, s.parseDocumentErr
 	}
 	if s.parseDocumentResult != nil {
 		return s.parseDocumentResult, nil
 	}
-	return documentdomain.NewPlainTextParsedDocument("txt", ""), nil
+	return parseddocument.NewPlainTextParsedDocument("txt", ""), nil
 }
 
 func (s *documentParseServiceStub) ParseDocumentReaderWithOptions(
@@ -2473,7 +4864,7 @@ func (s *documentParseServiceStub) ParseDocumentReaderWithOptions(
 	file io.Reader,
 	fileType string,
 	_ documentdomain.ParseOptions,
-) (*documentdomain.ParsedDocument, error) {
+) (*parseddocument.ParsedDocument, error) {
 	s.readerCalls++
 	if s.parseDocumentErr != nil {
 		return nil, s.parseDocumentErr
@@ -2486,14 +4877,14 @@ func (s *documentParseServiceStub) ParseDocumentReaderWithOptions(
 	if s.parseDocumentResult != nil {
 		return s.parseDocumentResult, nil
 	}
-	return documentdomain.NewPlainTextParsedDocument(fileType, s.lastReaderContent), nil
+	return parseddocument.NewPlainTextParsedDocument(fileType, s.lastReaderContent), nil
 }
 
 func (s *documentParseServiceStub) ParseDocumentWithOptions(
 	ctx context.Context,
 	rawURL, ext string,
 	_ documentdomain.ParseOptions,
-) (*documentdomain.ParsedDocument, error) {
+) (*parseddocument.ParsedDocument, error) {
 	s.urlCalls++
 	return s.ParseDocument(ctx, rawURL, ext)
 }

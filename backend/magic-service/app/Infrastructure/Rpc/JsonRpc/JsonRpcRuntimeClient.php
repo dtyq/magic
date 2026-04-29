@@ -13,6 +13,8 @@ use App\Infrastructure\Rpc\Method\SvcMethods;
 use App\Infrastructure\Rpc\Protocol\Contract\DataFormatterInterface;
 use App\Infrastructure\Rpc\Protocol\Request as RpcRequest;
 use App\Infrastructure\Transport\Ipc\Contract\FramedTransportInterface;
+use App\Infrastructure\Transport\Ipc\Uds\DecodedFrameResult;
+use App\Infrastructure\Transport\Ipc\Uds\IpcFrameCodec;
 use App\Infrastructure\Util\Context\CoContext;
 use Hyperf\Codec\Json;
 use Hyperf\Coroutine\Coroutine;
@@ -44,6 +46,8 @@ class JsonRpcRuntimeClient
 
     private bool $heartbeatRunning = false;
 
+    private int $lastHandshakeServerLimitBytes = 0;
+
     private ?string $lastErrorMessage = null;
 
     private ?string $lastErrorType = null;
@@ -63,6 +67,9 @@ class JsonRpcRuntimeClient
     ) {
     }
 
+    /**
+     * @throws Throwable
+     */
     public function connect(bool $silent = false): bool
     {
         if ($this->connected && $this->ready && $this->transport->isConnected()) {
@@ -103,6 +110,8 @@ class JsonRpcRuntimeClient
                 'connect_ms' => $this->formatDurationMs($connectMs),
                 'hello_ms' => $this->formatDurationMs($helloMs),
                 'ready_ms' => $this->formatDurationMs($readyMs),
+                'client_limit_bytes' => $this->config->maxMessageBytes,
+                'server_limit_bytes' => $this->lastHandshakeServerLimitBytes,
             ]);
             $this->clearLastError();
             $this->lastConnectErrorSignature = null;
@@ -119,7 +128,7 @@ class JsonRpcRuntimeClient
                 if ($sameSignature && $withinLogWindow) {
                     ++$this->suppressedConnectErrorLogs;
                 } elseif ($sameSignature) {
-                    $this->logger->warning('RPC runtime connect still failing', [
+                    $this->logger->warning('goEngineException RPC runtime connect still failing', [
                         'endpoint' => $this->transport->getEndpointLabel(),
                         'error' => $e->getMessage(),
                         'suppressed_logs' => $this->suppressedConnectErrorLogs,
@@ -127,7 +136,7 @@ class JsonRpcRuntimeClient
                     $this->lastConnectErrorLoggedAt = $now;
                     $this->suppressedConnectErrorLogs = 0;
                 } else {
-                    $this->logger->error('RPC runtime connect failed', [
+                    $this->logger->error('goEngineException RPC runtime connect failed', [
                         'endpoint' => $this->transport->getEndpointLabel(),
                         'error' => $e->getMessage(),
                         'suppressed_logs' => $this->suppressedConnectErrorLogs,
@@ -137,11 +146,14 @@ class JsonRpcRuntimeClient
                 }
             }
             $this->lastConnectErrorSignature = $signature;
-            $this->transport->close();
+            $this->closeTransport($silent);
             return false;
         }
     }
 
+    /**
+     * @throws Throwable
+     */
     public function call(string $method, mixed $params = null, float $timeout = 30.0): mixed
     {
         return $this->sendRequest($method, $params, $timeout, true);
@@ -159,11 +171,8 @@ class JsonRpcRuntimeClient
         $this->ready = false;
         $this->heartbeatRunning = false;
 
-        $this->transport->close();
-
-        foreach ($this->pending as $channel) {
-            $channel->push(false);
-        }
+        $this->closeTransport($silent);
+        $this->releasePendingRequests();
         $this->pending = [];
 
         if (! $silent) {
@@ -195,11 +204,11 @@ class JsonRpcRuntimeClient
     {
         while ($this->running && $this->connected) {
             try {
-                $body = $this->transport->readFrame();
-                $this->handleMessage($body);
+                $frame = $this->transport->readFrame();
+                $this->handleMessage($frame->payload, $frame);
             } catch (Throwable $e) {
                 $this->rememberError('read_loop', $e);
-                $this->logger->error('RPC runtime read loop error', [
+                $this->logger->error('goEngineException RPC runtime read loop error', [
                     'endpoint' => $this->transport->getEndpointLabel(),
                     'error' => $e->getMessage(),
                 ]);
@@ -209,7 +218,7 @@ class JsonRpcRuntimeClient
         }
     }
 
-    private function handleMessage(string $json): void
+    private function handleMessage(string $json, ?DecodedFrameResult $decodedFrame = null): void
     {
         try {
             $data = Json::decode($json);
@@ -220,19 +229,22 @@ class JsonRpcRuntimeClient
             if (isset($data['method'])) {
                 $this->handleServerRequest($data, $json);
             } elseif (isset($data['id'])) {
-                $this->handleResponse($data);
+                $this->handleResponse($data, $decodedFrame);
             }
         } catch (Throwable $e) {
             $this->rememberError('message_handle', $e);
-            $this->logger->error('RPC runtime message handle error', ['error' => $e->getMessage()]);
+            $this->logger->error('goEngineException RPC runtime message handle error', ['error' => $e->getMessage()]);
         }
     }
 
-    private function handleResponse(array $data): void
+    private function handleResponse(array $data, ?DecodedFrameResult $decodedFrame = null): void
     {
         $id = $data['id'] ?? null;
         if ($id !== null && isset($this->pending[$id])) {
-            $this->pending[$id]->push($data);
+            $this->pending[$id]->push([
+                'response' => $data,
+                'decoded_frame' => $decodedFrame,
+            ]);
         } elseif ($id !== null) {
             $this->logger->debug('RPC runtime response with unknown id', [
                 'id' => $id,
@@ -259,27 +271,81 @@ class JsonRpcRuntimeClient
         $handler = $this->handlers[$method] ?? null;
 
         if ($handler) {
-            go(function () use ($handler, $params, $id, $method) {
-                $start = microtime(true);
+            go(function () use ($handler, $params, $id, $method, $start) {
+                $handlerStartedAt = microtime(true);
                 try {
                     $result = $handler($params);
-                    if ($id !== null) {
-                        $this->sendResponse($id, $result);
-                    }
-                    $this->logResponse('recv', $method, $id, $result, $start);
+                    $logPayload = $this->buildResultPayload($id, $result) ?? $result;
+                    $responsePayload = $this->buildResultPayload($id, $result);
+                    $this->dispatchServerResponse(
+                        $method,
+                        $id,
+                        $logPayload,
+                        $responsePayload,
+                        $start,
+                        (microtime(true) - $handlerStartedAt) * 1000.0
+                    );
                 } catch (Throwable $e) {
-                    if ($id !== null) {
-                        $this->sendError($id, -32603, $e->getMessage());
-                    }
-                    $this->logResponse('recv', $method, $id, $e->getMessage(), $start);
+                    $logPayload = $this->buildErrorPayload($id, -32603, $e->getMessage()) ?? $e->getMessage();
+                    $responsePayload = $this->buildErrorPayload($id, -32603, $e->getMessage());
+                    $this->dispatchServerResponse(
+                        $method,
+                        $id,
+                        $logPayload,
+                        $responsePayload,
+                        $start,
+                        (microtime(true) - $handlerStartedAt) * 1000.0
+                    );
                 }
             });
         } elseif ($id !== null) {
-            $this->sendError($id, -32601, sprintf('Method not found: %s', $method));
-            $this->logResponse('recv', $method, $id, ['code' => -32601, 'message' => sprintf('Method not found: %s', $method)], $start);
+            $errorPayload = $this->buildErrorPayload($id, -32601, sprintf('Method not found: %s', $method));
+            $this->dispatchServerResponse($method, $id, $errorPayload, $errorPayload, $start, 0.0);
         }
     }
 
+    private function dispatchServerResponse(
+        string $method,
+        mixed $id,
+        mixed $logPayload,
+        ?array $responsePayload,
+        float $requestStartedAt,
+        float $handlerDurationMs
+    ): void {
+        go(function () use ($method, $id, $logPayload, $responsePayload, $requestStartedAt, $handlerDurationMs) {
+            $sendStartedAt = microtime(true);
+            $encodedPayload = null;
+
+            if ($responsePayload !== null) {
+                try {
+                    $encodedPayload = $this->sendPacket($responsePayload);
+                } catch (Throwable $e) {
+                    $this->logger->error('goEngineException RPC send response failed', [
+                        'method' => $method,
+                        'id' => $id,
+                        'error' => $e->getMessage(),
+                    ]);
+                }
+            }
+
+            $this->logResponse(
+                'recv',
+                $method,
+                $id,
+                $logPayload,
+                $requestStartedAt,
+                $encodedPayload,
+                [
+                    'handler_duration_ms' => $this->formatDurationMs($handlerDurationMs),
+                    'send_duration_ms' => $this->formatDurationMs((microtime(true) - $sendStartedAt) * 1000.0),
+                ]
+            );
+        });
+    }
+
+    /**
+     * @throws Throwable
+     */
     private function sendRequest(string $method, mixed $params, float $timeout, bool $requireReady): mixed
     {
         if (! $this->connected || ! $this->transport->isConnected()) {
@@ -328,14 +394,20 @@ class JsonRpcRuntimeClient
                 throw $timeoutError;
             }
 
+            $decodedFrame = null;
+            if (is_array($response) && array_key_exists('response', $response)) {
+                $decodedFrame = $response['decoded_frame'] instanceof DecodedFrameResult ? $response['decoded_frame'] : null;
+                $response = $response['response'];
+            }
+
             if (isset($response['error'])) {
                 $remoteError = $this->buildRemoteErrorException($response);
                 $this->rememberError('request_remote_error', $remoteError);
-                $this->logResponse('send', $method, $id, $response['error'], $start);
+                $this->logResponse('send', $method, $id, $response, $start, null, [], $decodedFrame);
                 throw $remoteError;
             }
 
-            $this->logResponse('send', $method, $id, $response['result'] ?? null, $start);
+            $this->logResponse('send', $method, $id, $response, $start, null, [], $decodedFrame);
             return $response['result'] ?? null;
         } finally {
             unset($this->pending[$id]);
@@ -354,12 +426,16 @@ class JsonRpcRuntimeClient
         ];
 
         try {
-            $this->sendRequest(SvcMethods::IPC_HELLO, $params, max(1.0, $this->config->readTimeout), false);
+            $result = $this->sendRequest(SvcMethods::IPC_HELLO, $params, max(1.0, $this->config->readTimeout), false);
+            $this->lastHandshakeServerLimitBytes = is_array($result) ? (int) ($result['max_message_bytes'] ?? 0) : 0;
             return true;
         } catch (Throwable $e) {
             $this->rememberError('handshake', $e);
             if (! $silent) {
-                $this->logger->error('RPC runtime handshake failed', ['error' => $e->getMessage()]);
+                $this->logger->error('goEngineException RPC runtime handshake failed', [
+                    'client_limit_bytes' => $this->config->maxMessageBytes,
+                    'error' => $e->getMessage(),
+                ]);
             }
             return false;
         }
@@ -382,7 +458,7 @@ class JsonRpcRuntimeClient
                     $this->sendRequest(SvcMethods::IPC_PING, null, max(1.0, $this->config->heartbeatTimeout), false);
                 } catch (Throwable $e) {
                     $this->rememberError('heartbeat', $e);
-                    $this->logger->warning('RPC runtime heartbeat failed', ['error' => $e->getMessage()]);
+                    $this->logger->warning('goEngineException RPC runtime heartbeat failed', ['error' => $e->getMessage()]);
                     $this->close();
                     break;
                 }
@@ -419,31 +495,37 @@ class JsonRpcRuntimeClient
         return round($durationMs, 2);
     }
 
-    private function encodePayload(mixed $payload, ?string $encodedPayload = null): array
+    private function encodePayload(mixed $payload, ?string $encodedPayload = null, ?DecodedFrameResult $decodedFrame = null): array
     {
-        if ($encodedPayload !== null) {
-            $json = $encodedPayload;
-            $bytes = strlen($json);
+        if ($decodedFrame !== null) {
+            $bytes = strlen($decodedFrame->payload);
             $truncated = false;
+            $payloadForLog = $decodedFrame->payload;
             if ($bytes > self::LOG_PAYLOAD_LIMIT) {
-                $json = '...(truncated)';
+                $payloadForLog = '...(truncated)';
                 $truncated = true;
             }
-            return [$json, $bytes, $truncated];
+
+            return [
+                $payloadForLog,
+                $bytes,
+                $truncated,
+                $decodedFrame->rawJsonBytes,
+                $decodedFrame->frameBytes,
+                $decodedFrame->frameCodec,
+            ];
+        }
+
+        if ($encodedPayload !== null) {
+            return $this->summarizeEncodedPayload($encodedPayload);
         }
 
         if ($payload === null) {
-            return ['null', 0, false];
+            return ['null', 0, false, 0, 0, ''];
         }
 
         $json = Json::encode($payload);
-        $bytes = strlen($json);
-        $truncated = false;
-        if ($bytes > self::LOG_PAYLOAD_LIMIT) {
-            $json = '...(truncated)';
-            $truncated = true;
-        }
-        return [$json, $bytes, $truncated];
+        return $this->summarizeEncodedPayload($json);
     }
 
     private function logRequest(string $direction, string $method, mixed $id, mixed $payload, ?string $encodedPayload = null): void
@@ -451,63 +533,94 @@ class JsonRpcRuntimeClient
         if (! $this->shouldLogMethod($method)) {
             return;
         }
-        [$text, $bytes, $truncated] = $this->encodePayload($payload, $encodedPayload);
+        [$text, $bytes, $truncated, $rawJsonBytes, $frameBytes, $frameCodec] = $this->encodePayload($payload, $encodedPayload);
         $this->logger->info('RPC request', [
             'direction' => $direction,
             'method' => $method,
             'id' => $id,
             'payload_log_limit' => self::LOG_PAYLOAD_LIMIT,
             'request_bytes' => $bytes,
+            'raw_json_bytes' => $rawJsonBytes,
+            'frame_bytes' => $frameBytes,
+            'frame_codec' => $frameCodec,
             'request_truncated' => $truncated,
             'request' => $text,
         ]);
     }
 
-    private function logResponse(string $direction, string $method, mixed $id, mixed $payload, float $start, ?string $encodedPayload = null): void
-    {
+    private function logResponse(
+        string $direction,
+        string $method,
+        mixed $id,
+        mixed $payload,
+        float $start,
+        ?string $encodedPayload = null,
+        array $extraContext = [],
+        ?DecodedFrameResult $decodedFrame = null,
+    ): void {
         if (! $this->shouldLogMethod($method)) {
             return;
         }
-        [$text, $bytes, $truncated] = $this->encodePayload($payload, $encodedPayload);
+        [$text, $bytes, $truncated, $rawJsonBytes, $frameBytes, $frameCodec] = $this->encodePayload($payload, $encodedPayload, $decodedFrame);
         $durationMs = (microtime(true) - $start) * 1000.0;
-        $this->logger->info('RPC response', [
+
+        $context = [
             'direction' => $direction,
             'method' => $method,
             'id' => $id,
             'payload_log_limit' => self::LOG_PAYLOAD_LIMIT,
             'response_bytes' => $bytes,
+            'raw_json_bytes' => $rawJsonBytes,
+            'frame_bytes' => $frameBytes,
+            'frame_codec' => $frameCodec,
             'response_truncated' => $truncated,
             'duration_ms' => $this->formatDurationMs($durationMs),
             'response' => $text,
-        ]);
+        ];
+
+        if ($extraContext !== []) {
+            $context = array_merge($context, $extraContext);
+        }
+
+        $this->logger->info('RPC response', $context);
     }
 
     private function sendResponse(mixed $id, mixed $result): void
     {
-        $payload = [
+        $payload = $this->buildResultPayload($id, $result);
+        try {
+            if ($payload !== null) {
+                $this->sendPacket($payload);
+            }
+        } catch (Throwable $e) {
+            $this->logger->error('goEngineException RPC send response failed', ['error' => $e->getMessage()]);
+        }
+    }
+
+    private function buildResultPayload(mixed $id, mixed $result): ?array
+    {
+        if ($id === null) {
+            return null;
+        }
+
+        return [
             'jsonrpc' => '2.0',
             'id' => $id,
             'result' => $result,
         ];
-        try {
-            $this->sendPacket($payload);
-        } catch (Throwable $e) {
-            $this->logger->error('RPC send response failed', ['error' => $e->getMessage()]);
-        }
     }
 
-    private function sendError(mixed $id, int $code, string $message): void
+    private function buildErrorPayload(mixed $id, int $code, string $message): ?array
     {
-        $payload = [
+        if ($id === null) {
+            return null;
+        }
+
+        return [
             'jsonrpc' => '2.0',
             'id' => $id,
             'error' => ['code' => $code, 'message' => $message],
         ];
-        try {
-            $this->sendPacket($payload);
-        } catch (Throwable $e) {
-            $this->logger->error('RPC send error failed', ['error' => $e->getMessage()]);
-        }
     }
 
     private function sendPacket(array $payload): string
@@ -515,6 +628,27 @@ class JsonRpcRuntimeClient
         $json = Json::encode($payload);
         $this->transport->writeFrame($json);
         return $json;
+    }
+
+    private function summarizeEncodedPayload(string $json): array
+    {
+        $bytes = strlen($json);
+        $truncated = false;
+        $payloadForLog = $json;
+        $frameSummary = IpcFrameCodec::summarizeJson($json);
+        if ($bytes > self::LOG_PAYLOAD_LIMIT) {
+            $payloadForLog = '...(truncated)';
+            $truncated = true;
+        }
+
+        return [
+            $payloadForLog,
+            $bytes,
+            $truncated,
+            $frameSummary['raw_json_bytes'],
+            $frameSummary['frame_bytes'],
+            $frameSummary['frame_codec'],
+        ];
     }
 
     /**
@@ -554,5 +688,32 @@ class JsonRpcRuntimeClient
         $message = (string) ($error['message'] ?? 'Unknown error');
         $code = (int) ($error['code'] ?? -1);
         return new BusinessException($message, $code);
+    }
+
+    private function closeTransport(bool $silent = false): void
+    {
+        try {
+            $this->transport->close();
+        } catch (Throwable $e) {
+            $this->rememberError('close_transport', $e);
+            if (! $silent) {
+                $this->logger->warning('goEngineException RPC runtime transport close failed', ['error' => $e->getMessage()]);
+            }
+        }
+    }
+
+    private function releasePendingRequests(): void
+    {
+        foreach ($this->pending as $id => $channel) {
+            try {
+                $channel->push(false);
+            } catch (Throwable $e) {
+                $this->rememberError('release_pending', $e);
+                $this->logger->warning('goEngineException RPC runtime release pending request failed', [
+                    'id' => $id,
+                    'error' => $e->getMessage(),
+                ]);
+            }
+        }
     }
 }

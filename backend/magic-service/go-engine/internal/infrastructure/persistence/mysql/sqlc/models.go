@@ -6,22 +6,21 @@ package mysqlsqlc
 
 import (
 	"database/sql"
-	"encoding/json"
 	"time"
 )
 
 type EmbeddingCache struct {
-	ID              int64           `json:"id"`
-	TextHash        string          `json:"text_hash"`
-	TextPreview     string          `json:"text_preview"`
-	TextLength      int32           `json:"text_length"`
-	Embedding       json.RawMessage `json:"embedding"`
-	EmbeddingModel  string          `json:"embedding_model"`
-	VectorDimension int32           `json:"vector_dimension"`
-	AccessCount     int32           `json:"access_count"`
-	LastAccessedAt  time.Time       `json:"last_accessed_at"`
-	CreatedAt       time.Time       `json:"created_at"`
-	UpdatedAt       time.Time       `json:"updated_at"`
+	ID              int64     `json:"id"`
+	TextHash        string    `json:"text_hash"`
+	TextPreview     string    `json:"text_preview"`
+	TextLength      int32     `json:"text_length"`
+	Embedding       []byte    `json:"embedding"`
+	EmbeddingModel  string    `json:"embedding_model"`
+	VectorDimension int32     `json:"vector_dimension"`
+	AccessCount     int32     `json:"access_count"`
+	LastAccessedAt  time.Time `json:"last_accessed_at"`
+	CreatedAt       time.Time `json:"created_at"`
+	UpdatedAt       time.Time `json:"updated_at"`
 }
 
 type KnowledgeBaseBinding struct {
@@ -37,53 +36,53 @@ type KnowledgeBaseBinding struct {
 }
 
 type KnowledgeBaseDocument struct {
-	ID                int64           `json:"id"`
-	OrganizationCode  string          `json:"organization_code"`
-	KnowledgeBaseCode string          `json:"knowledge_base_code"`
-	SourceBindingID   int64           `json:"source_binding_id"`
-	SourceItemID      int64           `json:"source_item_id"`
-	AutoAdded         bool            `json:"auto_added"`
-	Name              string          `json:"name"`
-	Description       string          `json:"description"`
-	Code              string          `json:"code"`
-	Version           uint32          `json:"version"`
-	Enabled           bool            `json:"enabled"`
-	DocType           uint32          `json:"doc_type"`
-	DocMetadata       json.RawMessage `json:"doc_metadata"`
-	DocumentFile      json.RawMessage `json:"document_file"`
-	SyncStatus        int32           `json:"sync_status"`
-	SyncTimes         int32           `json:"sync_times"`
-	SyncStatusMessage string          `json:"sync_status_message"`
-	EmbeddingModel    string          `json:"embedding_model"`
-	VectorDb          string          `json:"vector_db"`
-	RetrieveConfig    json.RawMessage `json:"retrieve_config"`
-	FragmentConfig    json.RawMessage `json:"fragment_config"`
-	EmbeddingConfig   json.RawMessage `json:"embedding_config"`
-	VectorDbConfig    json.RawMessage `json:"vector_db_config"`
-	WordCount         uint64          `json:"word_count"`
-	CreatedUid        string          `json:"created_uid"`
-	UpdatedUid        string          `json:"updated_uid"`
-	CreatedAt         time.Time       `json:"created_at"`
-	UpdatedAt         time.Time       `json:"updated_at"`
-	DeletedAt         sql.NullTime    `json:"deleted_at"`
-	ThirdPlatformType sql.NullString  `json:"third_platform_type"`
-	ThirdFileID       sql.NullString  `json:"third_file_id"`
+	ID                int64          `json:"id"`
+	OrganizationCode  string         `json:"organization_code"`
+	KnowledgeBaseCode string         `json:"knowledge_base_code"`
+	SourceBindingID   int64          `json:"source_binding_id"`
+	SourceItemID      int64          `json:"source_item_id"`
+	AutoAdded         bool           `json:"auto_added"`
+	Name              string         `json:"name"`
+	Description       string         `json:"description"`
+	Code              string         `json:"code"`
+	Version           uint32         `json:"version"`
+	Enabled           bool           `json:"enabled"`
+	DocType           uint32         `json:"doc_type"`
+	DocMetadata       []byte         `json:"doc_metadata"`
+	DocumentFile      []byte         `json:"document_file"`
+	SyncStatus        int32          `json:"sync_status"`
+	SyncTimes         int32          `json:"sync_times"`
+	SyncStatusMessage string         `json:"sync_status_message"`
+	EmbeddingModel    string         `json:"embedding_model"`
+	VectorDb          string         `json:"vector_db"`
+	RetrieveConfig    []byte         `json:"retrieve_config"`
+	FragmentConfig    []byte         `json:"fragment_config"`
+	EmbeddingConfig   []byte         `json:"embedding_config"`
+	VectorDbConfig    []byte         `json:"vector_db_config"`
+	WordCount         uint64         `json:"word_count"`
+	CreatedUid        string         `json:"created_uid"`
+	UpdatedUid        string         `json:"updated_uid"`
+	CreatedAt         time.Time      `json:"created_at"`
+	UpdatedAt         time.Time      `json:"updated_at"`
+	DeletedAt         sql.NullTime   `json:"deleted_at"`
+	ThirdPlatformType sql.NullString `json:"third_platform_type"`
+	ThirdFileID       sql.NullString `json:"third_file_id"`
 }
 
 type KnowledgeSourceBinding struct {
-	ID                int64           `json:"id"`
-	OrganizationCode  string          `json:"organization_code"`
-	KnowledgeBaseCode string          `json:"knowledge_base_code"`
-	Provider          string          `json:"provider"`
-	RootType          string          `json:"root_type"`
-	RootRef           string          `json:"root_ref"`
-	SyncMode          string          `json:"sync_mode"`
-	SyncConfig        json.RawMessage `json:"sync_config"`
-	Enabled           bool            `json:"enabled"`
-	CreatedUid        string          `json:"created_uid"`
-	UpdatedUid        string          `json:"updated_uid"`
-	CreatedAt         time.Time       `json:"created_at"`
-	UpdatedAt         time.Time       `json:"updated_at"`
+	ID                int64     `json:"id"`
+	OrganizationCode  string    `json:"organization_code"`
+	KnowledgeBaseCode string    `json:"knowledge_base_code"`
+	Provider          string    `json:"provider"`
+	RootType          string    `json:"root_type"`
+	RootRef           string    `json:"root_ref"`
+	SyncMode          string    `json:"sync_mode"`
+	SyncConfig        []byte    `json:"sync_config"`
+	Enabled           bool      `json:"enabled"`
+	CreatedUid        string    `json:"created_uid"`
+	UpdatedUid        string    `json:"updated_uid"`
+	CreatedAt         time.Time `json:"created_at"`
+	UpdatedAt         time.Time `json:"updated_at"`
 }
 
 type KnowledgeSourceBindingItem struct {
@@ -106,93 +105,103 @@ type KnowledgeSourceBindingTarget struct {
 }
 
 type KnowledgeSourceItem struct {
-	ID               int64           `json:"id"`
-	OrganizationCode string          `json:"organization_code"`
-	Provider         string          `json:"provider"`
-	RootType         string          `json:"root_type"`
-	RootRef          string          `json:"root_ref"`
-	GroupRef         string          `json:"group_ref"`
-	ItemType         string          `json:"item_type"`
-	ItemRef          string          `json:"item_ref"`
-	DisplayName      string          `json:"display_name"`
-	Extension        string          `json:"extension"`
-	ContentHash      string          `json:"content_hash"`
-	SnapshotMeta     json.RawMessage `json:"snapshot_meta"`
-	LastResolvedAt   sql.NullTime    `json:"last_resolved_at"`
-	CreatedAt        time.Time       `json:"created_at"`
-	UpdatedAt        time.Time       `json:"updated_at"`
+	ID               int64        `json:"id"`
+	OrganizationCode string       `json:"organization_code"`
+	Provider         string       `json:"provider"`
+	RootType         string       `json:"root_type"`
+	RootRef          string       `json:"root_ref"`
+	GroupRef         string       `json:"group_ref"`
+	ItemType         string       `json:"item_type"`
+	ItemRef          string       `json:"item_ref"`
+	DisplayName      string       `json:"display_name"`
+	Extension        string       `json:"extension"`
+	ContentHash      string       `json:"content_hash"`
+	SnapshotMeta     []byte       `json:"snapshot_meta"`
+	LastResolvedAt   sql.NullTime `json:"last_resolved_at"`
+	CreatedAt        time.Time    `json:"created_at"`
+	UpdatedAt        time.Time    `json:"updated_at"`
+}
+
+type MagicContactUser struct {
+	ID               uint64       `json:"id"`
+	MagicID          string       `json:"magic_id"`
+	OrganizationCode string       `json:"organization_code"`
+	UserID           string       `json:"user_id"`
+	Status           int8         `json:"status"`
+	DeletedAt        sql.NullTime `json:"deleted_at"`
 }
 
 type MagicFlowKnowledge struct {
-	ID                int64           `json:"id"`
-	Code              string          `json:"code"`
-	Version           int32           `json:"version"`
-	Name              string          `json:"name"`
-	Description       string          `json:"description"`
-	Type              int32           `json:"type"`
-	Enabled           bool            `json:"enabled"`
-	BusinessID        string          `json:"business_id"`
-	SyncStatus        int32           `json:"sync_status"`
-	SyncStatusMessage string          `json:"sync_status_message"`
-	Model             string          `json:"model"`
-	VectorDb          string          `json:"vector_db"`
-	OrganizationCode  string          `json:"organization_code"`
-	CreatedUid        string          `json:"created_uid"`
-	UpdatedUid        string          `json:"updated_uid"`
-	ExpectedNum       int32           `json:"expected_num"`
-	CompletedNum      int32           `json:"completed_num"`
-	RetrieveConfig    json.RawMessage `json:"retrieve_config"`
-	FragmentConfig    json.RawMessage `json:"fragment_config"`
-	EmbeddingConfig   json.RawMessage `json:"embedding_config"`
-	WordCount         int64           `json:"word_count"`
-	Icon              string          `json:"icon"`
-	SourceType        sql.NullInt32   `json:"source_type"`
-	KnowledgeBaseType string          `json:"knowledge_base_type"`
-	CreatedAt         time.Time       `json:"created_at"`
-	UpdatedAt         time.Time       `json:"updated_at"`
-	DeletedAt         sql.NullTime    `json:"deleted_at"`
+	ID                int64         `json:"id"`
+	Code              string        `json:"code"`
+	Version           int32         `json:"version"`
+	Name              string        `json:"name"`
+	Description       string        `json:"description"`
+	Type              int32         `json:"type"`
+	Enabled           bool          `json:"enabled"`
+	BusinessID        string        `json:"business_id"`
+	SyncStatus        int32         `json:"sync_status"`
+	SyncStatusMessage string        `json:"sync_status_message"`
+	Model             string        `json:"model"`
+	VectorDb          string        `json:"vector_db"`
+	OrganizationCode  string        `json:"organization_code"`
+	CreatedUid        string        `json:"created_uid"`
+	UpdatedUid        string        `json:"updated_uid"`
+	ExpectedNum       int32         `json:"expected_num"`
+	CompletedNum      int32         `json:"completed_num"`
+	RetrieveConfig    []byte        `json:"retrieve_config"`
+	FragmentConfig    []byte        `json:"fragment_config"`
+	EmbeddingConfig   []byte        `json:"embedding_config"`
+	WordCount         int64         `json:"word_count"`
+	Icon              string        `json:"icon"`
+	SourceType        sql.NullInt32 `json:"source_type"`
+	KnowledgeBaseType string        `json:"knowledge_base_type"`
+	CreatedAt         time.Time     `json:"created_at"`
+	UpdatedAt         time.Time     `json:"updated_at"`
+	DeletedAt         sql.NullTime  `json:"deleted_at"`
 }
 
 type MagicFlowKnowledgeFragment struct {
-	ID                int64           `json:"id"`
-	KnowledgeCode     string          `json:"knowledge_code"`
-	DocumentCode      string          `json:"document_code"`
-	DocumentName      string          `json:"document_name"`
-	ParentFragmentID  sql.NullInt64   `json:"parent_fragment_id"`
-	Version           uint32          `json:"version"`
-	Content           string          `json:"content"`
-	Metadata          json.RawMessage `json:"metadata"`
-	BusinessID        string          `json:"business_id"`
-	SyncStatus        int32           `json:"sync_status"`
-	SyncTimes         int32           `json:"sync_times"`
-	SyncStatusMessage string          `json:"sync_status_message"`
-	PointID           string          `json:"point_id"`
-	Vector            sql.NullString  `json:"vector"`
-	WordCount         uint64          `json:"word_count"`
-	CreatedUid        string          `json:"created_uid"`
-	UpdatedUid        string          `json:"updated_uid"`
-	CreatedAt         time.Time       `json:"created_at"`
-	UpdatedAt         time.Time       `json:"updated_at"`
-	DeletedAt         sql.NullTime    `json:"deleted_at"`
+	ID                int64          `json:"id"`
+	KnowledgeCode     string         `json:"knowledge_code"`
+	DocumentCode      string         `json:"document_code"`
+	ParentFragmentID  sql.NullInt64  `json:"parent_fragment_id"`
+	Version           uint32         `json:"version"`
+	Content           string         `json:"content"`
+	Metadata          []byte         `json:"metadata"`
+	BusinessID        string         `json:"business_id"`
+	SyncStatus        int32          `json:"sync_status"`
+	SyncTimes         int32          `json:"sync_times"`
+	SyncStatusMessage string         `json:"sync_status_message"`
+	PointID           string         `json:"point_id"`
+	Vector            sql.NullString `json:"vector"`
+	WordCount         uint64         `json:"word_count"`
+	CreatedUid        string         `json:"created_uid"`
+	UpdatedUid        string         `json:"updated_uid"`
+	CreatedAt         time.Time      `json:"created_at"`
+	UpdatedAt         time.Time      `json:"updated_at"`
+	DeletedAt         sql.NullTime   `json:"deleted_at"`
 }
 
-type MagicSuperAgentProjectFile struct {
-	FileID           uint64    `json:"file_id"`
-	UserID           string    `json:"user_id"`
-	OrganizationCode string    `json:"organization_code"`
-	ProjectID        uint64    `json:"project_id"`
-	TopicID          int64     `json:"topic_id"`
-	TaskID           int64     `json:"task_id"`
-	FileType         string    `json:"file_type"`
-	FileName         string    `json:"file_name"`
-	FileExtension    string    `json:"file_extension"`
-	FileKey          string    `json:"file_key"`
-	FileSize         uint64    `json:"file_size"`
-	ExternalUrl      string    `json:"external_url"`
-	StorageType      string    `json:"storage_type"`
-	IsHidden         bool      `json:"is_hidden"`
-	CreatedAt        time.Time `json:"created_at"`
-	UpdatedAt        time.Time `json:"updated_at"`
+type MagicSuperAgentProject struct {
+	ID                     int64         `json:"id"`
+	UserID                 string        `json:"user_id"`
+	UserOrganizationCode   string        `json:"user_organization_code"`
+	WorkspaceID            sql.NullInt64 `json:"workspace_id"`
+	IsCollaborationEnabled int8          `json:"is_collaboration_enabled"`
+	DeletedAt              sql.NullTime  `json:"deleted_at"`
+}
+
+type MagicSuperAgentProjectMember struct {
+	ID               int64        `json:"id"`
+	ProjectID        int64        `json:"project_id"`
+	TargetType       string       `json:"target_type"`
+	TargetID         string       `json:"target_id"`
+	Role             string       `json:"role"`
+	OrganizationCode string       `json:"organization_code"`
+	Status           int8         `json:"status"`
+	InvitedBy        string       `json:"invited_by"`
+	DeletedAt        sql.NullTime `json:"deleted_at"`
 }
 
 type MagicSuperAgentTaskFile struct {
@@ -220,6 +229,13 @@ type MagicSuperAgentTaskFile struct {
 	CreatedAt             time.Time      `json:"created_at"`
 	UpdatedAt             time.Time      `json:"updated_at"`
 	DeletedAt             sql.NullTime   `json:"deleted_at"`
+}
+
+type MagicSuperAgentWorkspace struct {
+	ID                   int64        `json:"id"`
+	UserID               string       `json:"user_id"`
+	UserOrganizationCode string       `json:"user_organization_code"`
+	DeletedAt            sql.NullTime `json:"deleted_at"`
 }
 
 type MagicSuperMagicAgent struct {

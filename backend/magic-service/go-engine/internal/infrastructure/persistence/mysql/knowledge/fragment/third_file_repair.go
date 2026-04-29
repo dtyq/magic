@@ -2,6 +2,8 @@ package fragmentrepo
 
 import (
 	"context"
+	"database/sql"
+	"errors"
 	"fmt"
 	"strings"
 	"time"
@@ -15,16 +17,31 @@ import (
 func (repo *FragmentRepository) ListThirdFileRepairOrganizationCodes(
 	ctx context.Context,
 ) ([]string, error) {
-	rows, err := repo.queries.ListThirdFileRepairOrganizationCodes(ctx)
+	knowledgeCodes, err := repo.queries.ListThirdFileRepairKnowledgeCodes(ctx)
 	if err != nil {
-		return nil, fmt.Errorf("failed to list third file repair organization codes: %w", err)
+		return nil, fmt.Errorf("failed to list third file repair knowledge codes: %w", err)
+	}
+	if len(knowledgeCodes) == 0 {
+		return []string{}, nil
 	}
 
-	result := make([]string, 0, len(rows))
-	for _, row := range rows {
-		if trimmed := strings.TrimSpace(row); trimmed != "" {
-			result = append(result, trimmed)
+	organizationCodes, err := repo.queries.ListActiveKnowledgeBaseOrganizationsByCodes(ctx, knowledgeCodes)
+	if err != nil {
+		return nil, fmt.Errorf("failed to list active knowledge base organizations: %w", err)
+	}
+
+	result := make([]string, 0, len(organizationCodes))
+	seen := make(map[string]struct{}, len(organizationCodes))
+	for _, organizationCode := range organizationCodes {
+		organizationCode = strings.TrimSpace(organizationCode)
+		if organizationCode == "" {
+			continue
 		}
+		if _, ok := seen[organizationCode]; ok {
+			continue
+		}
+		seen[organizationCode] = struct{}{}
+		result = append(result, organizationCode)
 	}
 	return result, nil
 }
@@ -42,37 +59,32 @@ func (repo *FragmentRepository) ListThirdFileRepairGroups(
 	if err != nil {
 		return nil, fmt.Errorf("invalid offset: %w", err)
 	}
-	rows, err := repo.queries.ListThirdFileRepairGroups(ctx, mysqlsqlc.ListThirdFileRepairGroupsParams{
-		OrganizationCode: query.OrganizationCode,
-		Limit:            limit,
-		Offset:           offset,
+
+	knowledgeCodes, err := repo.listActiveKnowledgeCodesByOrganization(ctx, query.OrganizationCode)
+	if err != nil {
+		return nil, fmt.Errorf("failed to list active knowledge codes by organization: %w", err)
+	}
+	if len(knowledgeCodes) == 0 {
+		return []*thirdfilemappingpkg.RepairGroup{}, nil
+	}
+
+	rows, err := repo.queries.ListThirdFileRepairGroupsByKnowledgeCodes(ctx, mysqlsqlc.ListThirdFileRepairGroupsByKnowledgeCodesParams{
+		KnowledgeCodes: knowledgeCodes,
+		Limit:          limit,
+		Offset:         offset,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("failed to list third file repair groups: %w", err)
 	}
 
-	results := make([]*thirdfilemappingpkg.RepairGroup, 0, query.Limit)
+	results := make([]*thirdfilemappingpkg.RepairGroup, 0, len(rows))
 	for _, row := range rows {
-		missingCount, convErr := convert.ParseInt64(row.MissingDocumentCodeCount)
+		group, convErr := toThirdFileRepairGroup(row)
 		if convErr != nil {
-			return nil, fmt.Errorf("parse missing document code count: %w", convErr)
+			return nil, convErr
 		}
-		results = append(results, &thirdfilemappingpkg.RepairGroup{
-			KnowledgeCode:            strings.TrimSpace(row.KnowledgeCode),
-			ThirdFileID:              cleanQueryText(string(row.ThirdFileID)),
-			KnowledgeBaseID:          cleanQueryText(anyToString(row.KnowledgeBaseID)),
-			GroupRef:                 cleanQueryText(anyToString(row.GroupRef)),
-			ThirdFileType:            cleanQueryText(anyToString(row.ThirdFileType)),
-			DocumentCode:             cleanQueryText(anyToString(row.DocumentCode)),
-			DocumentName:             cleanQueryText(anyToString(row.DocumentName)),
-			PreviewURL:               cleanQueryText(anyToString(row.PreviewUrl)),
-			CreatedUID:               cleanQueryText(anyToString(row.CreatedUid)),
-			UpdatedUID:               cleanQueryText(anyToString(row.UpdatedUid)),
-			FragmentCount:            row.FragmentCount,
-			MissingDocumentCodeCount: missingCount,
-		})
+		results = append(results, group)
 	}
-
 	return results, nil
 }
 
@@ -81,20 +93,70 @@ func (repo *FragmentRepository) BackfillDocumentCodeByThirdFile(
 	ctx context.Context,
 	input thirdfilemappingpkg.BackfillByThirdFileInput,
 ) (int64, error) {
-	result, err := repo.queries.BackfillDocumentCodeByThirdFile(ctx, mysqlsqlc.BackfillDocumentCodeByThirdFileParams{
-		DocumentCode:     input.DocumentCode,
-		UpdatedAt:        time.Now(),
-		OrganizationCode: input.OrganizationCode,
-		KnowledgeCode:    input.KnowledgeCode,
-		ThirdFileID:      input.ThirdFileID,
+	active, err := repo.knowledgeBaseActiveInOrganization(ctx, input.KnowledgeCode, input.OrganizationCode)
+	if err != nil {
+		return 0, fmt.Errorf("failed to check knowledge base activity: %w", err)
+	}
+	if !active {
+		return 0, nil
+	}
+
+	rows, err := repo.queries.BackfillFragmentDocumentCodeByThirdFile(ctx, mysqlsqlc.BackfillFragmentDocumentCodeByThirdFileParams{
+		DocumentCode:  strings.TrimSpace(input.DocumentCode),
+		UpdatedAt:     time.Now(),
+		KnowledgeCode: strings.TrimSpace(input.KnowledgeCode),
+		ThirdFileID:   strings.TrimSpace(input.ThirdFileID),
 	})
 	if err != nil {
-		return 0, fmt.Errorf("failed to backfill document code by third file: %w", err)
+		return 0, fmt.Errorf("backfill fragment document code by third file: %w", err)
 	}
-	return result, nil
+	return rows, nil
 }
 
-func anyToString(value any) string {
+func (repo *FragmentRepository) knowledgeBaseActiveInOrganization(
+	ctx context.Context,
+	knowledgeCode string,
+	organizationCode string,
+) (bool, error) {
+	_, err := repo.queries.FindKnowledgeBaseByCodeAndOrg(ctx, mysqlsqlc.FindKnowledgeBaseByCodeAndOrgParams{
+		Code:             strings.TrimSpace(knowledgeCode),
+		OrganizationCode: strings.TrimSpace(organizationCode),
+	})
+	if err == nil {
+		return true, nil
+	}
+	if errors.Is(err, sql.ErrNoRows) {
+		return false, nil
+	}
+	return false, fmt.Errorf("query active knowledge base in organization: %w", err)
+}
+
+func toThirdFileRepairGroup(row mysqlsqlc.ListThirdFileRepairGroupsByKnowledgeCodesRow) (*thirdfilemappingpkg.RepairGroup, error) {
+	missingDocumentCodeCount, err := convert.ParseInt64(row.MissingDocumentCodeCount)
+	if err != nil {
+		return nil, fmt.Errorf("parse missing_document_code_count: %w", err)
+	}
+	return &thirdfilemappingpkg.RepairGroup{
+		KnowledgeCode:            strings.TrimSpace(row.KnowledgeCode),
+		ThirdFileID:              cleanQueryText(string(row.ThirdFileID)),
+		KnowledgeBaseID:          cleanQueryText(stringValue(row.KnowledgeBaseID)),
+		GroupRef:                 cleanQueryText(stringValue(row.GroupRef)),
+		ThirdFileType:            cleanQueryText(stringValue(row.ThirdFileType)),
+		DocumentCode:             cleanQueryText(stringValue(row.DocumentCode)),
+		DocumentName:             cleanQueryText(stringValue(row.DocumentName)),
+		PreviewURL:               cleanQueryText(stringValue(row.PreviewUrl)),
+		CreatedUID:               cleanQueryText(stringValue(row.CreatedUid)),
+		UpdatedUID:               cleanQueryText(stringValue(row.UpdatedUid)),
+		FragmentCount:            row.FragmentCount,
+		MissingDocumentCodeCount: missingDocumentCodeCount,
+	}, nil
+}
+
+func cleanQueryText(value string) string {
+	return strings.Trim(strings.TrimSpace(value), "\"")
+}
+
+func stringValue(value any) string {
 	switch typed := value.(type) {
 	case nil:
 		return ""
@@ -105,8 +167,4 @@ func anyToString(value any) string {
 	default:
 		return fmt.Sprint(typed)
 	}
-}
-
-func cleanQueryText(value string) string {
-	return strings.Trim(strings.TrimSpace(value), "\"")
 }

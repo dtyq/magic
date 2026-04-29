@@ -6,10 +6,11 @@ import (
 	"strings"
 	"time"
 
+	docentity "magic/internal/domain/knowledge/document/entity"
 	document "magic/internal/domain/knowledge/document/service"
 	fragmodel "magic/internal/domain/knowledge/fragment/model"
 	fragdomain "magic/internal/domain/knowledge/fragment/service"
-	knowledgebasedomain "magic/internal/domain/knowledge/knowledgebase/service"
+	kbentity "magic/internal/domain/knowledge/knowledgebase/entity"
 	"magic/internal/pkg/ctxmeta"
 	"magic/internal/pkg/knowledgeroute"
 )
@@ -20,8 +21,8 @@ const (
 
 func (s *DocumentAppService) resyncFragmentsIncrementally(
 	ctx context.Context,
-	doc *document.KnowledgeBaseDocument,
-	kb *knowledgebasedomain.KnowledgeBase,
+	doc *docentity.KnowledgeBaseDocument,
+	kb *kbentity.KnowledgeBase,
 	collectionName string,
 	fragments []*fragmodel.KnowledgeBaseFragment,
 	businessParams *ctxmeta.BusinessParams,
@@ -123,7 +124,7 @@ func (s *DocumentAppService) maybeApplyMissingPointBackfill(
 func (s *DocumentAppService) applyFragmentResyncPlan(
 	ctx context.Context,
 	trace *documentSyncTracer,
-	kb *knowledgebasedomain.KnowledgeBase,
+	kb *kbentity.KnowledgeBase,
 	collectionName string,
 	plan fragdomain.FragmentResyncPlan,
 	businessParams *ctxmeta.BusinessParams,
@@ -174,7 +175,7 @@ func (s *DocumentAppService) saveAddedFragments(
 func (s *DocumentAppService) syncChangedOrAddedFragments(
 	ctx context.Context,
 	trace *documentSyncTracer,
-	kb *knowledgebasedomain.KnowledgeBase,
+	kb *kbentity.KnowledgeBase,
 	collectionName string,
 	plan fragdomain.FragmentResyncPlan,
 	businessParams *ctxmeta.BusinessParams,
@@ -184,7 +185,7 @@ func (s *DocumentAppService) syncChangedOrAddedFragments(
 	fragmentsToSync = append(fragmentsToSync, plan.Added...)
 
 	startedAt := time.Now()
-	if err := s.fragmentService.SyncFragmentBatch(ctx, kb, fragmentsToSync, businessParams); err != nil {
+	if err := s.fragmentService.SyncFragmentBatch(ctx, knowledgeBaseSnapshotFromDomain(kb), fragmentsToSync, businessParams); err != nil {
 		trace.log(
 			ctx,
 			"sync_changed_or_added_fragments",
@@ -294,14 +295,16 @@ func (s *DocumentAppService) listAllFragmentsByDocument(
 	documentCode string,
 ) ([]*fragmodel.KnowledgeBaseFragment, error) {
 	all := make([]*fragmodel.KnowledgeBaseFragment, 0, fragmentResyncPageSize)
-	for offset := 0; ; offset += fragmentResyncPageSize {
-		fragments, total, err := s.fragmentService.ListByDocument(ctx, knowledgeCode, documentCode, offset, fragmentResyncPageSize)
+	var lastID int64
+	for {
+		fragments, err := s.fragmentService.ListByDocumentAfterID(ctx, knowledgeCode, documentCode, lastID, fragmentResyncPageSize)
 		if err != nil {
 			return nil, fmt.Errorf("list fragments by document: %w", err)
 		}
 		all = append(all, fragments...)
-		if int64(len(all)) >= total || len(fragments) == 0 {
+		if len(fragments) == 0 {
 			return all, nil
 		}
+		lastID = fragments[len(fragments)-1].ID
 	}
 }

@@ -7,8 +7,8 @@ import (
 	"strconv"
 	"strings"
 
-	documentdomain "magic/internal/domain/knowledge/document/service"
 	"magic/internal/domain/knowledge/shared"
+	parseddocument "magic/internal/domain/knowledge/shared/parseddocument"
 	"magic/internal/infrastructure/logging"
 	"magic/internal/pkg/tokenizer"
 )
@@ -22,7 +22,7 @@ type tabularFieldEntry struct {
 }
 
 type parsedDocumentChunkInput struct {
-	Parsed           *documentdomain.ParsedDocument
+	Parsed           *parseddocument.ParsedDocument
 	SourceFileType   string
 	RequestedMode    shared.FragmentMode
 	FragmentConfig   *shared.FragmentConfig
@@ -33,7 +33,7 @@ type parsedDocumentChunkInput struct {
 }
 
 func splitParsedDocumentToChunks(ctx context.Context, input parsedDocumentChunkInput) ([]tokenChunk, string, error) {
-	if input.Parsed == nil || input.Parsed.SourceType != documentdomain.ParsedDocumentSourceTabular || len(input.Parsed.Blocks) == 0 {
+	if input.Parsed == nil || input.Parsed.SourceType != parseddocument.SourceTabular || len(input.Parsed.Blocks) == 0 {
 		content := ""
 		if input.Parsed != nil {
 			content = normalizeContent(input.Parsed.BestEffortText())
@@ -56,7 +56,7 @@ func splitParsedDocumentToChunks(ctx context.Context, input parsedDocumentChunkI
 }
 
 func splitTabularBlocks(
-	blocks []documentdomain.ParsedBlock,
+	blocks []parseddocument.ParsedBlock,
 	segmentConfig previewSegmentConfig,
 	model string,
 	tokenizerService *tokenizer.Service,
@@ -64,11 +64,11 @@ func splitTabularBlocks(
 	chunks := make([]tokenChunk, 0, len(blocks))
 	limit := normalizeSegmentChunkSize(segmentConfig.ChunkSize)
 	for _, block := range blocks {
-		if block.Type == documentdomain.ParsedBlockTypeTableSummary && isExcelLikeTabularSource(metadataString(block.Metadata, documentdomain.ParsedMetaSourceFormat)) {
+		if block.Type == parseddocument.BlockTypeTableSummary && isExcelLikeTabularSource(metadataString(block.Metadata, parseddocument.MetaSourceFormat)) {
 			continue
 		}
 		switch block.Type {
-		case documentdomain.ParsedBlockTypeTableRow:
+		case parseddocument.BlockTypeTableRow:
 			rowChunks := splitTabularRowBlock(block, limit, model, tokenizerService)
 			chunks = append(chunks, rowChunks...)
 		default:
@@ -78,7 +78,7 @@ func splitTabularBlocks(
 	return chunks
 }
 
-func buildGenericTabularChunk(block documentdomain.ParsedBlock, model string, tokenizerService *tokenizer.Service) tokenChunk {
+func buildGenericTabularChunk(block parseddocument.ParsedBlock, model string, tokenizerService *tokenizer.Service) tokenChunk {
 	metadata := cloneChunkMetadata(block.Metadata)
 	content := strings.TrimSpace(block.Content)
 	if content == "" {
@@ -89,20 +89,20 @@ func buildGenericTabularChunk(block documentdomain.ParsedBlock, model string, to
 		TokenCount:         countTextTokens(content, model, tokenizerService),
 		SectionPath:        buildTabularSectionPath(metadata),
 		SectionLevel:       1,
-		SectionTitle:       metadataString(metadata, documentdomain.ParsedMetaTableTitle),
+		SectionTitle:       metadataString(metadata, parseddocument.MetaTableTitle),
 		EffectiveSplitMode: splitModeTableStructured,
 		Metadata:           metadata,
 	}
 }
 
 func splitTabularRowBlock(
-	block documentdomain.ParsedBlock,
+	block parseddocument.ParsedBlock,
 	limit int,
 	model string,
 	tokenizerService *tokenizer.Service,
 ) []tokenChunk {
 	metadata := cloneChunkMetadata(block.Metadata)
-	fields := extractTabularFieldEntries(metadata[documentdomain.ParsedMetaFields])
+	fields := extractTabularFieldEntries(metadata[parseddocument.MetaFields])
 	if len(fields) == 0 {
 		return []tokenChunk{buildGenericTabularChunk(block, model, tokenizerService)}
 	}
@@ -112,10 +112,10 @@ func splitTabularRowBlock(
 	chunks := make([]tokenChunk, 0, len(fieldGroups))
 	for index, group := range fieldGroups {
 		chunkMetadata := cloneChunkMetadata(metadata)
-		chunkMetadata[documentdomain.ParsedMetaRowSubchunkIndex] = index
-		chunkMetadata[documentdomain.ParsedMetaFields] = buildTabularFieldMetadata(group.fields)
-		chunkMetadata[documentdomain.ParsedMetaHeaderPaths] = collectTabularFieldHeaders(group.fields)
-		chunkMetadata[documentdomain.ParsedMetaCellRefs] = collectTabularFieldCellRefs(group.fields)
+		chunkMetadata[parseddocument.MetaRowSubchunkIndex] = index
+		chunkMetadata[parseddocument.MetaFields] = buildTabularFieldMetadata(group.fields)
+		chunkMetadata[parseddocument.MetaHeaderPaths] = collectTabularFieldHeaders(group.fields)
+		chunkMetadata[parseddocument.MetaCellRefs] = collectTabularFieldCellRefs(group.fields)
 
 		content := prefix + buildTabularRowBody(group.fields)
 		chunks = append(chunks, tokenChunk{
@@ -123,7 +123,7 @@ func splitTabularRowBlock(
 			TokenCount:         countTextTokens(content, model, tokenizerService),
 			SectionPath:        buildTabularSectionPath(chunkMetadata),
 			SectionLevel:       1,
-			SectionTitle:       metadataString(chunkMetadata, documentdomain.ParsedMetaTableTitle),
+			SectionTitle:       metadataString(chunkMetadata, parseddocument.MetaTableTitle),
 			SectionChunkIndex:  index,
 			EffectiveSplitMode: splitModeTableStructured,
 			Metadata:           chunkMetadata,
@@ -172,20 +172,20 @@ func groupTabularFields(
 }
 
 func buildTabularRowPrefix(metadata map[string]any) string {
-	if isExcelLikeTabularSource(metadataString(metadata, documentdomain.ParsedMetaSourceFormat)) {
+	if isExcelLikeTabularSource(metadataString(metadata, parseddocument.MetaSourceFormat)) {
 		return buildExcelLikeTabularRowPrefix(metadata)
 	}
 	var builder strings.Builder
-	if fileName := metadataString(metadata, documentdomain.ParsedMetaFileName); fileName != "" {
+	if fileName := metadataString(metadata, parseddocument.MetaFileName); fileName != "" {
 		_, _ = fmt.Fprintf(&builder, "文件名: %s\n", fileName)
 	}
-	_, _ = fmt.Fprintf(&builder, "来源格式: %s\n", metadataString(metadata, documentdomain.ParsedMetaSourceFormat))
-	_, _ = fmt.Fprintf(&builder, "工作表: %s\n", metadataString(metadata, documentdomain.ParsedMetaSheetName))
-	_, _ = fmt.Fprintf(&builder, "表格: %s\n", metadataString(metadata, documentdomain.ParsedMetaTableTitle))
-	if rowIndex := metadataInt(metadata, documentdomain.ParsedMetaRowIndex); rowIndex > 0 {
+	_, _ = fmt.Fprintf(&builder, "来源格式: %s\n", metadataString(metadata, parseddocument.MetaSourceFormat))
+	_, _ = fmt.Fprintf(&builder, "工作表: %s\n", metadataString(metadata, parseddocument.MetaSheetName))
+	_, _ = fmt.Fprintf(&builder, "表格: %s\n", metadataString(metadata, parseddocument.MetaTableTitle))
+	if rowIndex := metadataInt(metadata, parseddocument.MetaRowIndex); rowIndex > 0 {
 		_, _ = fmt.Fprintf(&builder, "行号: %d\n", rowIndex)
 	}
-	if primaryKeys := metadataStringList(metadata, documentdomain.ParsedMetaPrimaryKeys); len(primaryKeys) > 0 {
+	if primaryKeys := metadataStringList(metadata, parseddocument.MetaPrimaryKeys); len(primaryKeys) > 0 {
 		_, _ = fmt.Fprintf(&builder, "主键: %s\n", strings.Join(primaryKeys, "; "))
 	}
 	builder.WriteString("字段:\n")
@@ -194,16 +194,16 @@ func buildTabularRowPrefix(metadata map[string]any) string {
 
 func buildExcelLikeTabularRowPrefix(metadata map[string]any) string {
 	var builder strings.Builder
-	if fileName := metadataString(metadata, documentdomain.ParsedMetaFileName); fileName != "" {
+	if fileName := metadataString(metadata, parseddocument.MetaFileName); fileName != "" {
 		_, _ = fmt.Fprintf(&builder, "文件名: %s\n", fileName)
 	}
-	if sheetName := metadataString(metadata, documentdomain.ParsedMetaSheetName); sheetName != "" {
+	if sheetName := metadataString(metadata, parseddocument.MetaSheetName); sheetName != "" {
 		_, _ = fmt.Fprintf(&builder, "工作表: %s\n", sheetName)
 	}
-	if tableTitle := metadataString(metadata, documentdomain.ParsedMetaTableTitle); tableTitle != "" {
+	if tableTitle := metadataString(metadata, parseddocument.MetaTableTitle); tableTitle != "" {
 		_, _ = fmt.Fprintf(&builder, "表格: %s\n", tableTitle)
 	}
-	if rowIndex := metadataInt(metadata, documentdomain.ParsedMetaRowIndex); rowIndex > 0 {
+	if rowIndex := metadataInt(metadata, parseddocument.MetaRowIndex); rowIndex > 0 {
 		_, _ = fmt.Fprintf(&builder, "行号: %d\n", rowIndex)
 	}
 	return builder.String()
@@ -211,34 +211,34 @@ func buildExcelLikeTabularRowPrefix(metadata map[string]any) string {
 
 func buildTabularSummaryContent(metadata map[string]any) string {
 	var builder strings.Builder
-	if fileName := metadataString(metadata, documentdomain.ParsedMetaFileName); fileName != "" {
+	if fileName := metadataString(metadata, parseddocument.MetaFileName); fileName != "" {
 		_, _ = fmt.Fprintf(&builder, "文件名: %s\n", fileName)
 	}
-	if sourceFormat := metadataString(metadata, documentdomain.ParsedMetaSourceFormat); sourceFormat != "" {
+	if sourceFormat := metadataString(metadata, parseddocument.MetaSourceFormat); sourceFormat != "" {
 		_, _ = fmt.Fprintf(&builder, "来源格式: %s\n", sourceFormat)
 	}
-	if sheetName := metadataString(metadata, documentdomain.ParsedMetaSheetName); sheetName != "" {
+	if sheetName := metadataString(metadata, parseddocument.MetaSheetName); sheetName != "" {
 		_, _ = fmt.Fprintf(&builder, "工作表: %s\n", sheetName)
 	}
-	if tableTitle := metadataString(metadata, documentdomain.ParsedMetaTableTitle); tableTitle != "" {
+	if tableTitle := metadataString(metadata, parseddocument.MetaTableTitle); tableTitle != "" {
 		_, _ = fmt.Fprintf(&builder, "表格: %s\n", tableTitle)
 	}
 	builder.WriteString("类型: 表摘要\n")
-	if rowCount := metadataInt(metadata, documentdomain.ParsedMetaTableRowCount); rowCount > 0 {
+	if rowCount := metadataInt(metadata, parseddocument.MetaTableRowCount); rowCount > 0 {
 		_, _ = fmt.Fprintf(&builder, "总行数: %d\n", rowCount)
 	}
-	if primaryKeyHeaders := metadataStringList(metadata, documentdomain.ParsedMetaPrimaryKeyHeaders); len(primaryKeyHeaders) > 0 {
+	if primaryKeyHeaders := metadataStringList(metadata, parseddocument.MetaPrimaryKeyHeaders); len(primaryKeyHeaders) > 0 {
 		_, _ = fmt.Fprintf(&builder, "主键列: %s\n", strings.Join(primaryKeyHeaders, ", "))
 	}
-	if headerPaths := metadataStringList(metadata, documentdomain.ParsedMetaHeaderPaths); len(headerPaths) > 0 {
+	if headerPaths := metadataStringList(metadata, parseddocument.MetaHeaderPaths); len(headerPaths) > 0 {
 		_, _ = fmt.Fprintf(&builder, "字段列表: %s\n", strings.Join(headerPaths, ", "))
 	}
 	return strings.TrimSpace(builder.String())
 }
 
 func buildTabularSectionPath(metadata map[string]any) string {
-	sheetName := metadataString(metadata, documentdomain.ParsedMetaSheetName)
-	tableTitle := metadataString(metadata, documentdomain.ParsedMetaTableTitle)
+	sheetName := metadataString(metadata, parseddocument.MetaSheetName)
+	tableTitle := metadataString(metadata, parseddocument.MetaTableTitle)
 	switch {
 	case sheetName != "" && tableTitle != "":
 		return sheetName + " > " + tableTitle

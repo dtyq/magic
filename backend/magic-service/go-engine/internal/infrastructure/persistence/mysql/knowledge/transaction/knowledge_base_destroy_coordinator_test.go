@@ -32,8 +32,8 @@ func TestKnowledgeBaseDestroyCoordinatorDestroyCommits(t *testing.T) {
 	coordinator := transaction.NewKnowledgeBaseDestroyCoordinator(mysqlclient.NewSQLCClientWithDB(db, nil, false))
 
 	mock.ExpectBegin()
-	expectDeleteSourceBindingItemsByKnowledgeBase(mock, testDestroyKnowledgeBaseCode).WillReturnResult(sqlmock.NewResult(0, 2))
 	expectDeleteSourceBindingTargetsByKnowledgeBase(mock, testDestroyKnowledgeBaseCode).WillReturnResult(sqlmock.NewResult(0, 1))
+	expectDeleteSourceBindingItemsByKnowledgeBase(mock, testDestroyKnowledgeBaseCode).WillReturnResult(sqlmock.NewResult(0, 2))
 	expectDeleteSourceBindingsByKnowledgeBase(mock, testDestroyKnowledgeBaseCode).WillReturnResult(sqlmock.NewResult(0, 1))
 	expectDeleteKnowledgeBaseBindingsByCode(mock, testDestroyKnowledgeBaseCode).WillReturnResult(sqlmock.NewResult(0, 3))
 	expectDeleteFragmentsByKnowledgeBase(mock, testDestroyKnowledgeBaseCode).WillReturnResult(sqlmock.NewResult(0, 5))
@@ -61,8 +61,8 @@ func TestKnowledgeBaseDestroyCoordinatorDestroyRollsBackOnDeleteError(t *testing
 	coordinator := transaction.NewKnowledgeBaseDestroyCoordinator(mysqlclient.NewSQLCClientWithDB(db, nil, false))
 
 	mock.ExpectBegin()
-	expectDeleteSourceBindingItemsByKnowledgeBase(mock, testDestroyKnowledgeBaseCode).WillReturnResult(sqlmock.NewResult(0, 2))
 	expectDeleteSourceBindingTargetsByKnowledgeBase(mock, testDestroyKnowledgeBaseCode).WillReturnResult(sqlmock.NewResult(0, 1))
+	expectDeleteSourceBindingItemsByKnowledgeBase(mock, testDestroyKnowledgeBaseCode).WillReturnResult(sqlmock.NewResult(0, 2))
 	expectDeleteSourceBindingsByKnowledgeBase(mock, testDestroyKnowledgeBaseCode).WillReturnResult(sqlmock.NewResult(0, 1))
 	expectDeleteKnowledgeBaseBindingsByCode(mock, testDestroyKnowledgeBaseCode).WillReturnError(assertCoordinatorErr())
 	mock.ExpectRollback()
@@ -80,18 +80,20 @@ func sqlPattern(query string) string {
 }
 
 func expectDeleteSourceBindingItemsByKnowledgeBase(mock sqlmock.Sqlmock, knowledgeBaseCode string) *sqlmock.ExpectedExec {
-	return mock.ExpectExec(sqlPattern(`DELETE FROM knowledge_source_binding_items
-WHERE binding_id IN (
-    SELECT id FROM knowledge_source_bindings WHERE knowledge_base_code = ?
-)`)).
+	return mock.ExpectExec(sqlPattern(`DELETE knowledge_source_binding_items
+FROM knowledge_source_binding_items
+INNER JOIN knowledge_source_bindings
+    ON knowledge_source_bindings.id = knowledge_source_binding_items.binding_id
+WHERE knowledge_source_bindings.knowledge_base_code = ?`)).
 		WithArgs(knowledgeBaseCode)
 }
 
 func expectDeleteSourceBindingTargetsByKnowledgeBase(mock sqlmock.Sqlmock, knowledgeBaseCode string) *sqlmock.ExpectedExec {
-	return mock.ExpectExec(sqlPattern(`DELETE t
-FROM knowledge_source_bindings b
-STRAIGHT_JOIN knowledge_source_binding_targets t ON t.binding_id = b.id
-WHERE b.knowledge_base_code = ?`)).
+	return mock.ExpectExec(sqlPattern(`DELETE knowledge_source_binding_targets
+FROM knowledge_source_binding_targets
+INNER JOIN knowledge_source_bindings
+    ON knowledge_source_bindings.id = knowledge_source_binding_targets.binding_id
+WHERE knowledge_source_bindings.knowledge_base_code = ?`)).
 		WithArgs(knowledgeBaseCode)
 }
 

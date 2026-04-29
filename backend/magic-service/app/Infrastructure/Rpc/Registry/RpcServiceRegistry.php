@@ -28,7 +28,7 @@ class RpcServiceRegistry
     {
         $services = AnnotationCollector::getClassesByAnnotation(RpcService::class);
         if (empty($services)) {
-            $this->logger->warning('No RPC services found by annotation');
+            $this->logger->warning('goEngineException No RPC services found by annotation');
             return;
         }
 
@@ -53,13 +53,13 @@ class RpcServiceRegistry
             }
 
             if (! class_exists($class)) {
-                $this->logger->warning('RPC service class not found', ['class' => $class]);
+                $this->logger->warning('goEngineException RPC service class not found', ['class' => $class]);
                 continue;
             }
 
             $serviceName = trim($serviceAnnotation->getName());
             if ($serviceName === '') {
-                $this->logger->warning('RPC service name empty', ['class' => $class]);
+                $this->logger->warning('goEngineException RPC service name empty', ['class' => $class]);
                 continue;
             }
 
@@ -68,7 +68,7 @@ class RpcServiceRegistry
             foreach ($methodsByClass[$class] ?? [] as [$method, $methodAnnotation]) {
                 $methodName = trim($methodAnnotation->getName());
                 if ($methodName === '') {
-                    $this->logger->warning('RPC method name empty', ['class' => $class, 'method' => $method]);
+                    $this->logger->warning('goEngineException RPC method name empty', ['class' => $class, 'method' => $method]);
                     continue;
                 }
 

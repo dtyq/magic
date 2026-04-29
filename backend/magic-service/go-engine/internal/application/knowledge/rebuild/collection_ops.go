@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	rebuilddto "magic/internal/application/knowledge/rebuild/dto"
+	knowledgebasedomain "magic/internal/domain/knowledge/knowledgebase/service"
 	domainrebuild "magic/internal/domain/knowledge/rebuild"
 	sharedroute "magic/internal/domain/knowledge/shared/route"
 )
@@ -19,6 +20,9 @@ func (r *Runner) runInplace(ctx context.Context, runID string, opts rebuilddto.R
 		if err := r.ensureLogicalAliasPointsTo(ctx, result.ActiveCollection, activePhysicalCollection); err != nil {
 			return fmt.Errorf("ensure active alias before inplace resync: %w", err)
 		}
+	}
+	if err := r.ensureCollectionPayloadIndexes(ctx, activePhysicalCollection); err != nil {
+		return fmt.Errorf("ensure inplace collection payload indexes: %w", err)
 	}
 
 	if err := r.saveJob(ctx, runID, "running", "inplace_reset_status", "", nil); err != nil {
@@ -61,7 +65,7 @@ func (r *Runner) runInplace(ctx context.Context, runID string, opts rebuilddto.R
 		}
 		metaDim = detectedDim
 	}
-	if err := r.upsertCollectionMeta(ctx, domainrebuild.CollectionMeta{
+	if err := r.upsertCollectionMeta(ctx, sharedroute.CollectionMeta{
 		CollectionName:         result.ActiveCollection,
 		PhysicalCollectionName: activePhysicalCollection,
 		Model:                  result.TargetModel,
@@ -133,7 +137,7 @@ func (r *Runner) runBlueGreen(ctx context.Context, runID string, opts rebuilddto
 	if err := r.ensureLogicalAliasPointsTo(ctx, result.ActiveCollection, newCollection); err != nil {
 		return fmt.Errorf("swap active alias to shadow collection: %w", err)
 	}
-	if err := r.upsertCollectionMeta(ctx, domainrebuild.CollectionMeta{
+	if err := r.upsertCollectionMeta(ctx, sharedroute.CollectionMeta{
 		CollectionName:         result.ActiveCollection,
 		PhysicalCollectionName: newCollection,
 		Model:                  result.TargetModel,
@@ -159,7 +163,7 @@ func (r *Runner) runBlueGreen(ctx context.Context, runID string, opts rebuilddto
 	return nil
 }
 
-func (r *Runner) upsertCollectionMeta(ctx context.Context, meta domainrebuild.CollectionMeta) error {
+func (r *Runner) upsertCollectionMeta(ctx context.Context, meta sharedroute.CollectionMeta) error {
 	if r.collectionMeta == nil {
 		return sharedroute.ErrCollectionMetaWriterNotConfigured
 	}
@@ -193,7 +197,7 @@ func (r *Runner) prepareTargetCollection(ctx context.Context, collectionName str
 		if createErr := r.collections.CreateCollection(ctx, collectionName, targetDimension); createErr != nil {
 			return fmt.Errorf("create target collection: %w", createErr)
 		}
-		return nil
+		return r.ensureCollectionPayloadIndexes(ctx, collectionName)
 	}
 
 	info, infoErr := r.collections.GetCollectionInfo(ctx, collectionName)
@@ -209,7 +213,7 @@ func (r *Runner) prepareTargetCollection(ctx context.Context, collectionName str
 			info.VectorSize,
 		)
 	}
-	return nil
+	return r.ensureCollectionPayloadIndexes(ctx, collectionName)
 }
 
 func (r *Runner) prepareReusableTargetSlot(ctx context.Context, collectionName string, targetDimension int64) error {
@@ -237,10 +241,23 @@ func (r *Runner) prepareReusableTargetSlot(ctx context.Context, collectionName s
 		if err := r.collections.DeletePointsByFilter(ctx, collectionName); err != nil {
 			return fmt.Errorf("clear reusable target slot points %s: %w", collectionName, err)
 		}
-		return nil
+		return r.ensureCollectionPayloadIndexes(ctx, collectionName)
 	default:
+		return r.ensureCollectionPayloadIndexes(ctx, collectionName)
+	}
+}
+
+func (r *Runner) ensureCollectionPayloadIndexes(ctx context.Context, collectionName string) error {
+	if strings.TrimSpace(collectionName) == "" {
 		return nil
 	}
+	if r.payloadIndexes == nil {
+		return errPayloadIndexEnsurerNil
+	}
+	if err := r.payloadIndexes.EnsurePayloadIndexes(ctx, collectionName, knowledgebasedomain.ExpectedPayloadIndexSpecs()); err != nil {
+		return fmt.Errorf("ensure payload indexes for %s: %w", collectionName, err)
+	}
+	return nil
 }
 
 func (r *Runner) cleanupPreviousCollection(
@@ -260,7 +277,7 @@ func (r *Runner) cleanupPreviousCollection(
 	if existsErr != nil {
 		result.DeletePreviousCollectionWarning = existsErr.Error()
 		if r.logger != nil {
-			r.logger.WarnContext(ctx, "Check previous collection existence failed after cutover", "previous_collection", previous, "error", existsErr)
+			r.logger.KnowledgeWarnContext(ctx, "Check previous collection existence failed after cutover", "previous_collection", previous, "error", existsErr)
 		}
 		return
 	}
@@ -275,7 +292,7 @@ func (r *Runner) cleanupPreviousCollection(
 	}
 	result.DeletePreviousCollectionWarning = err.Error()
 	if r.logger != nil {
-		r.logger.WarnContext(ctx, "Delete previous collection failed after cutover", "previous_collection", previous, "error", err)
+		r.logger.KnowledgeWarnContext(ctx, "Delete previous collection failed after cutover", "previous_collection", previous, "error", err)
 	}
 }
 
@@ -293,7 +310,7 @@ func (r *Runner) prepareStandbySlot(
 			result.StandbyCollectionWarning = err.Error()
 		}
 		if r.logger != nil {
-			r.logger.WarnContext(
+			r.logger.KnowledgeWarnContext(
 				ctx,
 				"Prepare standby collection failed after cutover",
 				"standby_collection", standbyCollection,
@@ -341,7 +358,7 @@ func (r *Runner) rollbackAliasCutover(ctx context.Context, alias, previousPhysic
 	if err == nil || r.logger == nil {
 		return
 	}
-	r.logger.WarnContext(
+	r.logger.KnowledgeWarnContext(
 		ctx,
 		"Rollback active alias after collection meta failure failed",
 		"alias", alias,
@@ -404,7 +421,7 @@ func (r *Runner) deleteConflictingLegacyLogicalCollection(ctx context.Context, a
 	}
 
 	if r.logger != nil {
-		r.logger.WarnContext(
+		r.logger.KnowledgeWarnContext(
 			ctx,
 			"Deleted legacy collection occupying logical alias name before alias creation",
 			"alias", alias,
@@ -427,6 +444,6 @@ func (r *Runner) cleanupCollectionAndTerms(ctx context.Context, collectionName, 
 		return
 	}
 	if err := r.deleteCollectionAndTerms(ctx, collectionName); err != nil && r.logger != nil {
-		r.logger.WarnContext(ctx, logMessage, "collection", collectionName, "error", err)
+		r.logger.KnowledgeWarnContext(ctx, logMessage, "collection", collectionName, "error", err)
 	}
 }

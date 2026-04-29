@@ -16,8 +16,8 @@ import (
 var errUnexpectedDocumentListResultType = errors.New("unexpected document list result type")
 
 type documentQueryApplicationService interface {
-	Show(ctx context.Context, code, knowledgeBaseCode, organizationCode string) (*docdto.DocumentDTO, error)
-	GetOriginalFileLink(ctx context.Context, code, knowledgeBaseCode, organizationCode string) (*docdto.OriginalFileLinkDTO, error)
+	Show(ctx context.Context, code, knowledgeBaseCode, organizationCode, userID string) (*docdto.DocumentDTO, error)
+	GetOriginalFileLink(ctx context.Context, code, knowledgeBaseCode, organizationCode, userID string) (*docdto.OriginalFileLinkDTO, error)
 	List(ctx context.Context, input *docdto.ListDocumentInput) (*pagehelper.Result, error)
 	GetByThirdFileID(ctx context.Context, input *docdto.GetDocumentsByThirdFileIDInput) ([]*docdto.DocumentDTO, error)
 	CountByKnowledgeBaseCodes(ctx context.Context, organizationCode string, knowledgeBaseCodes []string) (map[string]int64, error)
@@ -32,11 +32,10 @@ type documentUpdateApplicationService interface {
 }
 
 type documentDestroyApplicationService interface {
-	Destroy(ctx context.Context, code, knowledgeBaseCode, organizationCode string) error
+	Destroy(ctx context.Context, code, knowledgeBaseCode, organizationCode, userID string) error
 }
 
 type documentSyncApplicationService interface {
-	Sync(ctx context.Context, input *documentapp.SyncDocumentInput) error
 	ScheduleSync(ctx context.Context, input *documentapp.SyncDocumentInput)
 }
 
@@ -132,6 +131,10 @@ func newDocumentRPCService(
 
 // CreateRPC 创建文档（RPC 版本）
 func (h *DocumentRPCService) CreateRPC(ctx context.Context, req *dto.CreateDocumentRequest) (*dto.DocumentResponse, error) {
+	ctx = ctxmeta.WithAccessActor(ctx, ctxmeta.AccessActor{
+		OrganizationCode: req.OrganizationCode,
+		UserID:           req.UserID,
+	})
 	input := &docdto.CreateDocumentInput{
 		OrganizationCode:  req.OrganizationCode,
 		UserID:            req.UserID,
@@ -151,12 +154,12 @@ func (h *DocumentRPCService) CreateRPC(ctx context.Context, req *dto.CreateDocum
 		EmbeddingConfig:   req.EmbeddingConfig,
 		VectorDBConfig:    req.VectorDBConfig,
 		AutoSync:          true,
-		WaitForSyncResult: true,
+		WaitForSyncResult: false,
 	}
 
 	result, err := h.createService.Create(ctx, input)
 	if err != nil {
-		h.logger.ErrorContext(ctx, "Failed to create document", "error", err)
+		h.logger.KnowledgeErrorContext(ctx, "Failed to create document", "error", err)
 		return nil, mapBusinessError(err)
 	}
 
@@ -165,6 +168,10 @@ func (h *DocumentRPCService) CreateRPC(ctx context.Context, req *dto.CreateDocum
 
 // UpdateRPC 更新文档（RPC 版本）
 func (h *DocumentRPCService) UpdateRPC(ctx context.Context, req *dto.UpdateDocumentRequest) (*dto.DocumentResponse, error) {
+	ctx = ctxmeta.WithAccessActor(ctx, ctxmeta.AccessActor{
+		OrganizationCode: req.OrganizationCode,
+		UserID:           req.UserID,
+	})
 	input := &docdto.UpdateDocumentInput{
 		OrganizationCode:  req.OrganizationCode,
 		UserID:            req.UserID,
@@ -180,12 +187,12 @@ func (h *DocumentRPCService) UpdateRPC(ctx context.Context, req *dto.UpdateDocum
 		RetrieveConfig:    req.RetrieveConfig,
 		FragmentConfig:    req.FragmentConfig,
 		WordCount:         req.WordCount,
-		WaitForSyncResult: true,
+		WaitForSyncResult: false,
 	}
 
 	result, err := h.updateService.Update(ctx, input)
 	if err != nil {
-		h.logger.ErrorContext(ctx, "Failed to update document", "error", err)
+		h.logger.KnowledgeErrorContext(ctx, "Failed to update document", "error", err)
 		return nil, mapBusinessError(err)
 	}
 
@@ -194,11 +201,13 @@ func (h *DocumentRPCService) UpdateRPC(ctx context.Context, req *dto.UpdateDocum
 
 // ShowRPC 查询文档详情（RPC 版本）
 func (h *DocumentRPCService) ShowRPC(ctx context.Context, req *dto.ShowDocumentRequest) (*dto.DocumentResponse, error) {
+	ctx = withAccessActorFromDataIsolation(ctx, req.DataIsolation)
 	result, err := h.queryService.Show(
 		ctx,
 		req.Code,
 		req.KnowledgeBaseCode,
 		req.DataIsolation.ResolveOrganizationCode(),
+		req.DataIsolation.UserID,
 	)
 	if err != nil {
 		return nil, mapBusinessError(err)
@@ -212,11 +221,13 @@ func (h *DocumentRPCService) GetOriginalFileLinkRPC(
 	ctx context.Context,
 	req *dto.GetOriginalFileLinkRequest,
 ) (*dto.OriginalFileLinkResponse, error) {
+	ctx = withAccessActorFromDataIsolation(ctx, req.DataIsolation)
 	result, err := h.queryService.GetOriginalFileLink(
 		ctx,
 		req.Code,
 		req.KnowledgeBaseCode,
 		req.DataIsolation.ResolveOrganizationCode(),
+		req.DataIsolation.UserID,
 	)
 	if err != nil {
 		return nil, mapBusinessError(err)
@@ -233,8 +244,15 @@ func (h *DocumentRPCService) GetOriginalFileLinkRPC(
 
 // ListRPC 查询文档列表（RPC 版本）
 func (h *DocumentRPCService) ListRPC(ctx context.Context, req *dto.ListDocumentRequest) (*dto.DocumentPageResponse, error) {
+	ctx = withAccessActorFromDataIsolation(ctx, dto.DataIsolation{
+		OrganizationCode:              req.OrganizationCode,
+		UserID:                        req.DataIsolation.UserID,
+		ThirdPlatformUserID:           req.DataIsolation.ThirdPlatformUserID,
+		ThirdPlatformOrganizationCode: req.DataIsolation.ThirdPlatformOrganizationCode,
+	})
 	input := &docdto.ListDocumentInput{
 		OrganizationCode:  req.OrganizationCode,
+		UserID:            req.DataIsolation.UserID,
 		KnowledgeBaseCode: req.KnowledgeBaseCode,
 		Name:              req.Name,
 		DocType:           req.DocType,
@@ -246,7 +264,7 @@ func (h *DocumentRPCService) ListRPC(ctx context.Context, req *dto.ListDocumentR
 
 	result, err := h.queryService.List(ctx, input)
 	if err != nil {
-		h.logger.ErrorContext(ctx, "Failed to list documents", "error", err)
+		h.logger.KnowledgeErrorContext(ctx, "Failed to list documents", "error", err)
 		return nil, mapBusinessError(err)
 	}
 
@@ -278,7 +296,7 @@ func (h *DocumentRPCService) GetByThirdFileIdRPC(
 		ThirdFileID:       req.ThirdFileID,
 	})
 	if err != nil {
-		h.logger.ErrorContext(ctx, "Failed to get documents by third file id", "error", err)
+		h.logger.KnowledgeErrorContext(ctx, "Failed to get documents by third file id", "error", err)
 		return nil, mapBusinessError(err)
 	}
 
@@ -289,7 +307,7 @@ func (h *DocumentRPCService) GetByThirdFileIdRPC(
 func (h *DocumentRPCService) CountByKnowledgeBaseCodesRPC(ctx context.Context, req *dto.CountByKnowledgeBaseCodesRequest) (map[string]int64, error) {
 	result, err := h.queryService.CountByKnowledgeBaseCodes(ctx, req.DataIsolation.ResolveOrganizationCode(), req.KnowledgeBaseCodes)
 	if err != nil {
-		h.logger.ErrorContext(ctx, "Failed to count documents by knowledge base codes", "error", err)
+		h.logger.KnowledgeErrorContext(ctx, "Failed to count documents by knowledge base codes", "error", err)
 		return nil, mapBusinessError(err)
 	}
 
@@ -298,13 +316,15 @@ func (h *DocumentRPCService) CountByKnowledgeBaseCodesRPC(ctx context.Context, r
 
 // DestroyRPC 删除文档（RPC 版本）
 func (h *DocumentRPCService) DestroyRPC(ctx context.Context, req *dto.DestroyDocumentRequest) (*map[string]bool, error) {
+	ctx = withAccessActorFromDataIsolation(ctx, req.DataIsolation)
 	if err := h.destroyService.Destroy(
 		ctx,
 		req.Code,
 		req.KnowledgeBaseCode,
 		req.DataIsolation.ResolveOrganizationCode(),
+		req.DataIsolation.UserID,
 	); err != nil {
-		h.logger.ErrorContext(ctx, "Failed to destroy document", "error", err)
+		h.logger.KnowledgeErrorContext(ctx, "Failed to destroy document", "error", err)
 		return nil, mapBusinessError(err)
 	}
 
@@ -313,16 +333,14 @@ func (h *DocumentRPCService) DestroyRPC(ctx context.Context, req *dto.DestroyDoc
 
 // SyncRPC 同步文档（RPC 版本）
 func (h *DocumentRPCService) SyncRPC(ctx context.Context, req *dto.SyncDocumentRequest) (*map[string]bool, error) {
-	async := req.Async || req.Mode == documentapp.SyncModeResync
-	if req.Sync {
-		async = false
-	}
+	ctx = withAccessActorFromDataIsolation(ctx, req.DataIsolation)
 	input := &documentapp.SyncDocumentInput{
 		OrganizationCode:  req.DataIsolation.ResolveOrganizationCode(),
 		KnowledgeBaseCode: req.KnowledgeBaseCode,
 		Code:              req.Code,
 		Mode:              req.Mode,
-		Async:             async,
+		Async:             true,
+		RevectorizeSource: req.RevectorizeSource,
 		BusinessParams: &ctxmeta.BusinessParams{
 			OrganizationCode: req.BusinessParams.ResolveOrganizationCode(),
 			UserID:           req.BusinessParams.UserID,
@@ -330,16 +348,7 @@ func (h *DocumentRPCService) SyncRPC(ctx context.Context, req *dto.SyncDocumentR
 		},
 	}
 
-	if async {
-		h.syncService.ScheduleSync(ctx, input)
-		return &map[string]bool{"success": true}, nil
-	}
-
-	if err := h.syncService.Sync(ctx, input); err != nil {
-		h.logger.ErrorContext(ctx, "Failed to sync document", "error", err)
-		return nil, mapBusinessError(err)
-	}
-
+	h.syncService.ScheduleSync(ctx, input)
 	return &map[string]bool{"success": true}, nil
 }
 
@@ -348,15 +357,19 @@ func (h *DocumentRPCService) ReVectorizedByThirdFileIdRPC(
 	ctx context.Context,
 	req *dto.ReVectorizedByThirdFileIdRequest,
 ) (*map[string]bool, error) {
+	ctx = withAccessActorFromDataIsolation(ctx, req.DataIsolation)
 	input := &docdto.ReVectorizedByThirdFileIDInput{
-		OrganizationCode:  req.DataIsolation.ResolveOrganizationCode(),
-		UserID:            req.DataIsolation.UserID,
-		ThirdPlatformType: req.ThirdPlatformType,
-		ThirdFileID:       req.ThirdFileID,
+		OrganizationCode:              req.DataIsolation.ResolveOrganizationCode(),
+		UserID:                        req.DataIsolation.UserID,
+		ThirdPlatformUserID:           req.DataIsolation.ThirdPlatformUserID,
+		ThirdPlatformOrganizationCode: req.DataIsolation.ThirdPlatformOrganizationCode,
+		ThirdPlatformType:             req.ThirdPlatformType,
+		ThirdFileID:                   req.ThirdFileID,
+		ThirdKnowledgeID:              req.ThirdKnowledgeID,
 	}
 
 	if err := h.thirdFileRevectorize.ReVectorizedByThirdFileID(ctx, input); err != nil {
-		h.logger.ErrorContext(ctx, "Failed to re-vectorize document by third file id", "error", err)
+		h.logger.KnowledgeErrorContext(ctx, "Failed to re-vectorize document by third file id", "error", err)
 		return nil, mapBusinessError(err)
 	}
 
@@ -369,9 +382,12 @@ func (h *DocumentRPCService) NotifyProjectFileChangeRPC(
 	req *dto.NotifyProjectFileChangeRequest,
 ) (*map[string]bool, error) {
 	if err := h.projectFileChangeService.NotifyProjectFileChange(ctx, &docdto.NotifyProjectFileChangeInput{
-		ProjectFileID: req.ProjectFileID,
+		ProjectFileID:    req.ProjectFileID,
+		OrganizationCode: req.OrganizationCode,
+		ProjectID:        req.ProjectID,
+		Status:           req.Status,
 	}); err != nil {
-		h.logger.ErrorContext(ctx, "Failed to notify project file change", "project_file_id", req.ProjectFileID, "error", err)
+		h.logger.KnowledgeErrorContext(ctx, "Failed to notify project file change", "project_file_id", req.ProjectFileID, "error", err)
 		return nil, mapBusinessError(err)
 	}
 	return &map[string]bool{"success": true}, nil

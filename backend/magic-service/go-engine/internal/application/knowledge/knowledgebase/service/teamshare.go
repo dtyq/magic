@@ -10,10 +10,12 @@ import (
 	"github.com/redis/go-redis/v9"
 
 	kbdto "magic/internal/application/knowledge/knowledgebase/dto"
+	revectorizeshared "magic/internal/application/knowledge/shared/revectorize"
 	"magic/internal/constants"
-	knowledgebasedomain "magic/internal/domain/knowledge/knowledgebase/service"
+	kbentity "magic/internal/domain/knowledge/knowledgebase/entity"
+	kbrepository "magic/internal/domain/knowledge/knowledgebase/repository"
 	"magic/internal/domain/knowledge/shared"
-	sourcebindingdomain "magic/internal/domain/knowledge/sourcebinding/service"
+	sourcebindingdomain "magic/internal/domain/knowledge/sourcebinding/entity"
 	"magic/internal/pkg/thirdplatform"
 )
 
@@ -166,11 +168,16 @@ func (m *RedisTeamshareTempCodeMapper) reverseKey(knowledgeCode string) string {
 	return teamshareTempCodeReverseKeyPrefix + knowledgeCode
 }
 
-// TeamshareStartVector 触发 Teamshare 知识库向量化接管。
-func (s *KnowledgeBaseAppService) TeamshareStartVector(
+// PrepareTeamshareKnowledgeRevectorize 只负责 Teamshare 知识库侧的接管与 prepare。
+//
+// 这里故意不继续触发文档批量重向量化。
+// Teamshare start-vector 的“知识库级批量异步重向量化”已经下沉到独立的 revectorize app，
+// knowledgebase app 只保留知识库侧的接管、source binding prepare/materialize 和权限处理。
+// 它的作用范围只限于当前 knowledge_id 对应的单个内部知识库，不负责 third-file 级别的跨知识库广播。
+func (s *KnowledgeBaseAppService) PrepareTeamshareKnowledgeRevectorize(
 	ctx context.Context,
-	input *kbdto.TeamshareStartVectorInput,
-) (*kbdto.TeamshareStartVectorResult, error) {
+	input *revectorizeshared.TeamshareStartInput,
+) (*revectorizeshared.TeamshareStartResult, error) {
 	if input == nil {
 		return nil, shared.ErrKnowledgeBaseNotFound
 	}
@@ -193,20 +200,43 @@ func (s *KnowledgeBaseAppService) TeamshareStartVector(
 	if err != nil {
 		return nil, err
 	}
-	if created {
-		if err := s.grantKnowledgeBaseOwner(ctx, knowledgeBase, &kbdto.CreateKnowledgeBaseInput{
-			OrganizationCode: input.OrganizationCode,
-			UserID:           input.UserID,
-		}); err != nil {
+	writeUserID := knowledgeBaseUpdatedUserID(knowledgeBase)
+	if err := s.grantKnowledgeBaseOwner(ctx, knowledgeBase, &kbdto.CreateKnowledgeBaseInput{
+		OrganizationCode: input.OrganizationCode,
+		UserID:           writeUserID,
+	}); err != nil {
+		if created {
 			_ = s.DestroyCommandApp().destroyKnowledgeBase(ctx, knowledgeBase)
-			return nil, err
 		}
-	}
-
-	if err := s.prepareTeamshareKnowledgeRebuild(ctx, knowledgeBase, input.UserID); err != nil {
 		return nil, err
 	}
-	return &kbdto.TeamshareStartVectorResult{KnowledgeCode: knowledgeBase.Code}, nil
+
+	if err := s.prepareTeamshareKnowledgeRebuild(ctx, knowledgeBase, writeUserID); err != nil {
+		return nil, err
+	}
+	return &revectorizeshared.TeamshareStartResult{KnowledgeCode: knowledgeBase.Code}, nil
+}
+
+// TeamshareStartVector 保留为兼容旧调用点的薄包装。
+//
+// 新的 RPC 入口不再直接依赖 knowledgebase app 承接整个 start-vector 用例，
+// 而是由独立的 knowledge revectorize app 统一编排知识库 prepare 和文档批量异步重向量化。
+func (s *KnowledgeBaseAppService) TeamshareStartVector(
+	ctx context.Context,
+	input *kbdto.TeamshareStartVectorInput,
+) (*kbdto.TeamshareStartVectorResult, error) {
+	result, err := s.PrepareTeamshareKnowledgeRevectorize(ctx, &revectorizeshared.TeamshareStartInput{
+		OrganizationCode: input.OrganizationCode,
+		UserID:           input.UserID,
+		KnowledgeID:      input.KnowledgeID,
+	})
+	if err != nil {
+		return nil, err
+	}
+	return &kbdto.TeamshareStartVectorResult{
+		ID:            result.ID,
+		KnowledgeCode: result.KnowledgeCode,
+	}, nil
 }
 
 // TeamshareManageable 返回当前用户可管理的 Teamshare 知识库列表。
@@ -221,7 +251,13 @@ func (s *KnowledgeBaseAppService) TeamshareManageable(
 		return nil, ErrKnowledgeBaseThirdPlatformExpanderRequired
 	}
 
-	knowledgeItems, err := s.thirdPlatformExpander.ListKnowledgeBases(ctx, input.OrganizationCode, input.UserID)
+	actor := resolveKnowledgeBaseAccessActor(ctx, input.OrganizationCode, input.UserID)
+	knowledgeItems, err := s.thirdPlatformExpander.ListKnowledgeBases(ctx, thirdplatform.KnowledgeBaseListInput{
+		OrganizationCode:              actor.OrganizationCode,
+		UserID:                        actor.UserID,
+		ThirdPlatformUserID:           actor.ThirdPlatformUserID,
+		ThirdPlatformOrganizationCode: actor.ThirdPlatformOrganizationCode,
+	})
 	if err != nil {
 		return nil, fmt.Errorf("list teamshare manageable knowledge bases: %w", err)
 	}
@@ -318,7 +354,7 @@ func (s *KnowledgeBaseAppService) TeamshareManageableProgress(
 		businessIDs = append(businessIDs, businessID)
 	}
 
-	knowledgeByBusinessID := map[string]*knowledgebasedomain.KnowledgeBase{}
+	knowledgeByBusinessID := map[string]*kbentity.KnowledgeBase{}
 	if len(businessIDs) > 0 {
 		knowledgeByBusinessID, err = s.listTeamshareKnowledgeByBusinessIDs(ctx, input.OrganizationCode, businessIDs)
 		if err != nil {
@@ -360,7 +396,13 @@ func (s *KnowledgeBaseAppService) requireManageableTeamshareKnowledge(
 	userID string,
 	knowledgeID string,
 ) (*thirdplatform.KnowledgeBaseItem, error) {
-	knowledgeItems, err := s.thirdPlatformExpander.ListKnowledgeBases(ctx, organizationCode, userID)
+	actor := resolveKnowledgeBaseAccessActor(ctx, organizationCode, userID)
+	knowledgeItems, err := s.thirdPlatformExpander.ListKnowledgeBases(ctx, thirdplatform.KnowledgeBaseListInput{
+		OrganizationCode:              actor.OrganizationCode,
+		UserID:                        actor.UserID,
+		ThirdPlatformUserID:           actor.ThirdPlatformUserID,
+		ThirdPlatformOrganizationCode: actor.ThirdPlatformOrganizationCode,
+	})
 	if err != nil {
 		return nil, fmt.Errorf("list teamshare manageable knowledge bases: %w", err)
 	}
@@ -380,7 +422,7 @@ func (s *KnowledgeBaseAppService) upsertTeamshareKnowledge(
 	organizationCode string,
 	userID string,
 	item *thirdplatform.KnowledgeBaseItem,
-) (*knowledgebasedomain.KnowledgeBase, bool, error) {
+) (*kbentity.KnowledgeBase, bool, error) {
 	if item == nil {
 		return nil, false, shared.ErrKnowledgeBaseNotFound
 	}
@@ -401,21 +443,31 @@ func (s *KnowledgeBaseAppService) upsertTeamshareKnowledge(
 	if err != nil {
 		return nil, false, err
 	}
+	writeUserID, err := s.resolveWriteUserForKnowledgeBase(
+		ctx,
+		organizationCode,
+		userID,
+		currentKnowledge,
+		"teamshare start-vector",
+	)
+	if err != nil {
+		return nil, false, err
+	}
 	if currentKnowledge == nil {
-		knowledgeBase := knowledgebasedomain.BuildKnowledgeBaseForCreate(&knowledgebasedomain.CreateInput{
+		knowledgeBase := kbentity.BuildKnowledgeBaseForCreate(&kbentity.CreateInput{
 			Name:              name,
 			Description:       description,
 			Type:              teamshareKnowledgeType,
-			KnowledgeBaseType: knowledgebasedomain.KnowledgeBaseTypeFlowVector,
+			KnowledgeBaseType: kbentity.KnowledgeBaseTypeFlowVector,
 			BusinessID:        knowledgeID,
 			OrganizationCode:  organizationCode,
-			UserID:            userID,
+			UserID:            writeUserID,
 			SourceType:        &sourceType,
 		})
 		route := s.domainService.ResolveRuntimeRoute(ctx, knowledgeBase)
 		knowledgeBase.ApplyResolvedRoute(route)
 
-		bindings := s.buildSourceBindings(knowledgeBase, organizationCode, userID, bindingInputs)
+		bindings := s.buildSourceBindings(knowledgeBase, organizationCode, writeUserID, bindingInputs)
 		if err := s.persistTeamshareKnowledgeCreate(ctx, knowledgeBase, bindings); err != nil {
 			return nil, false, err
 		}
@@ -425,12 +477,12 @@ func (s *KnowledgeBaseAppService) upsertTeamshareKnowledge(
 	currentKnowledge.Name = name
 	currentKnowledge.Description = description
 	currentKnowledge.SourceType = &sourceType
-	currentKnowledge.KnowledgeBaseType = knowledgebasedomain.KnowledgeBaseTypeFlowVector
-	currentKnowledge.UpdatedUID = strings.TrimSpace(userID)
-	knowledgebasedomain.NormalizeKnowledgeBaseConfigs(currentKnowledge)
+	currentKnowledge.KnowledgeBaseType = kbentity.KnowledgeBaseTypeFlowVector
+	currentKnowledge.UpdatedUID = writeUserID
+	kbentity.NormalizeKnowledgeBaseConfigs(currentKnowledge)
 	currentKnowledge.ApplyResolvedRoute(s.domainService.ResolveRuntimeRoute(ctx, currentKnowledge))
 
-	bindings := s.buildSourceBindings(currentKnowledge, organizationCode, userID, bindingInputs)
+	bindings := s.buildSourceBindings(currentKnowledge, organizationCode, writeUserID, bindingInputs)
 	if err := s.persistTeamshareKnowledgeUpdate(ctx, currentKnowledge, bindings); err != nil {
 		return nil, false, err
 	}
@@ -439,7 +491,7 @@ func (s *KnowledgeBaseAppService) upsertTeamshareKnowledge(
 
 func (s *KnowledgeBaseAppService) persistTeamshareKnowledgeCreate(
 	ctx context.Context,
-	knowledgeBase *knowledgebasedomain.KnowledgeBase,
+	knowledgeBase *kbentity.KnowledgeBase,
 	bindings []sourcebindingdomain.Binding,
 ) error {
 	if knowledgeBase == nil {
@@ -465,7 +517,7 @@ func (s *KnowledgeBaseAppService) persistTeamshareKnowledgeCreate(
 
 func (s *KnowledgeBaseAppService) persistTeamshareKnowledgeUpdate(
 	ctx context.Context,
-	knowledgeBase *knowledgebasedomain.KnowledgeBase,
+	knowledgeBase *kbentity.KnowledgeBase,
 	bindings []sourcebindingdomain.Binding,
 ) error {
 	if knowledgeBase == nil {
@@ -488,7 +540,7 @@ func (s *KnowledgeBaseAppService) persistTeamshareKnowledgeUpdate(
 
 func (s *KnowledgeBaseAppService) prepareTeamshareKnowledgeRebuild(
 	ctx context.Context,
-	knowledgeBase *knowledgebasedomain.KnowledgeBase,
+	knowledgeBase *kbentity.KnowledgeBase,
 	userID string,
 ) error {
 	flow, err := s.requireDocumentFlow()
@@ -510,11 +562,11 @@ func (s *KnowledgeBaseAppService) listTeamshareKnowledgeByBusinessIDs(
 	ctx context.Context,
 	organizationCode string,
 	businessIDs []string,
-) (map[string]*knowledgebasedomain.KnowledgeBase, error) {
+) (map[string]*kbentity.KnowledgeBase, error) {
 	normalizedBusinessIDs := dedupeNonEmptyStrings(businessIDs)
-	return s.listTeamshareKnowledge(ctx, organizationCode, &knowledgebasedomain.Query{
+	return s.listTeamshareKnowledge(ctx, organizationCode, &kbrepository.Query{
 		BusinessIDs: normalizedBusinessIDs,
-	}, "business ids", func(item *knowledgebasedomain.KnowledgeBase) string {
+	}, "business ids", func(item *kbentity.KnowledgeBase) string {
 		return strings.TrimSpace(item.BusinessID)
 	})
 }
@@ -523,11 +575,27 @@ func (s *KnowledgeBaseAppService) listTeamshareKnowledgeByCodes(
 	ctx context.Context,
 	organizationCode string,
 	codes []string,
-) (map[string]*knowledgebasedomain.KnowledgeBase, error) {
+) (map[string]*kbentity.KnowledgeBase, error) {
 	normalizedCodes := dedupeNonEmptyStrings(codes)
-	return s.listTeamshareKnowledge(ctx, organizationCode, &knowledgebasedomain.Query{
+	return s.listTeamshareKnowledge(ctx, organizationCode, &kbrepository.Query{
 		Codes: normalizedCodes,
-	}, "codes", func(item *knowledgebasedomain.KnowledgeBase) string {
+	}, "codes", func(item *kbentity.KnowledgeBase) string {
+		return strings.TrimSpace(item.Code)
+	})
+}
+
+func (s *KnowledgeBaseAppService) listTeamshareKnowledgeByCodesAndBusinessIDs(
+	ctx context.Context,
+	organizationCode string,
+	codes []string,
+	businessIDs []string,
+) (map[string]*kbentity.KnowledgeBase, error) {
+	normalizedCodes := dedupeNonEmptyStrings(codes)
+	normalizedBusinessIDs := dedupeNonEmptyStrings(businessIDs)
+	return s.listTeamshareKnowledge(ctx, organizationCode, &kbrepository.Query{
+		Codes:       normalizedCodes,
+		BusinessIDs: normalizedBusinessIDs,
+	}, "codes and business ids", func(item *kbentity.KnowledgeBase) string {
 		return strings.TrimSpace(item.Code)
 	})
 }
@@ -535,15 +603,15 @@ func (s *KnowledgeBaseAppService) listTeamshareKnowledgeByCodes(
 func (s *KnowledgeBaseAppService) listTeamshareKnowledge(
 	ctx context.Context,
 	organizationCode string,
-	query *knowledgebasedomain.Query,
+	query *kbrepository.Query,
 	filterName string,
-	keyFunc func(*knowledgebasedomain.KnowledgeBase) string,
-) (map[string]*knowledgebasedomain.KnowledgeBase, error) {
+	keyFunc func(*kbentity.KnowledgeBase) string,
+) (map[string]*kbentity.KnowledgeBase, error) {
 	if keyFunc == nil {
-		return map[string]*knowledgebasedomain.KnowledgeBase{}, nil
+		return map[string]*kbentity.KnowledgeBase{}, nil
 	}
 	typeValue := teamshareKnowledgeType
-	listQuery := &knowledgebasedomain.Query{
+	listQuery := &kbrepository.Query{
 		OrganizationCode: strings.TrimSpace(organizationCode),
 		Type:             &typeValue,
 		Offset:           0,
@@ -554,14 +622,14 @@ func (s *KnowledgeBaseAppService) listTeamshareKnowledge(
 	}
 	listQuery.Limit = max(len(listQuery.Codes), len(listQuery.BusinessIDs))
 	if listQuery.Limit == 0 {
-		return map[string]*knowledgebasedomain.KnowledgeBase{}, nil
+		return map[string]*kbentity.KnowledgeBase{}, nil
 	}
 	items, _, err := s.domainService.List(ctx, listQuery)
 	if err != nil {
 		return nil, fmt.Errorf("list teamshare knowledge bases by %s: %w", filterName, err)
 	}
 
-	result := make(map[string]*knowledgebasedomain.KnowledgeBase, len(items))
+	result := make(map[string]*kbentity.KnowledgeBase, len(items))
 	for _, item := range items {
 		if item == nil {
 			continue
@@ -579,7 +647,7 @@ func (s *KnowledgeBaseAppService) findTeamshareKnowledgeByBusinessID(
 	ctx context.Context,
 	organizationCode string,
 	businessID string,
-) (*knowledgebasedomain.KnowledgeBase, error) {
+) (*kbentity.KnowledgeBase, error) {
 	knowledgeByBusinessID, err := s.listTeamshareKnowledgeByBusinessIDs(ctx, organizationCode, []string{businessID})
 	if err != nil {
 		return nil, err
@@ -590,7 +658,7 @@ func (s *KnowledgeBaseAppService) findTeamshareKnowledgeByBusinessID(
 func teamshareProgressDTO(
 	requestKnowledgeCode string,
 	defaultKnowledgeCode string,
-	knowledgeBase *knowledgebasedomain.KnowledgeBase,
+	knowledgeBase *kbentity.KnowledgeBase,
 ) *kbdto.TeamshareKnowledgeProgressDTO {
 	knowledgeCode := strings.TrimSpace(requestKnowledgeCode)
 	if knowledgeCode == "" {
@@ -615,11 +683,11 @@ func teamshareProgressDTO(
 	}
 }
 
-func teamshareVectorStatusFromKnowledge(knowledgeBase *knowledgebasedomain.KnowledgeBase) int {
+func teamshareVectorStatusFromKnowledge(knowledgeBase *kbentity.KnowledgeBase) int {
 	if knowledgeBase == nil {
 		return teamshareVectorStatusPending
 	}
-	if knowledgeBase.ExpectedNum == knowledgeBase.CompletedNum {
+	if knowledgeBase.IsVectorizationCompleted() {
 		return teamshareVectorStatusCompleted
 	}
 	return teamshareVectorStatusProcessing

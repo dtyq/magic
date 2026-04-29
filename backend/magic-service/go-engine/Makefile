@@ -32,7 +32,7 @@ WIRE_VERSION ?= v0.7.0
 DEADCODE_VERSION ?= v0.41.0
 AIR_VERSION ?= latest
 GOLANGCI_LINT_VERSION ?= latest
-GOFUMPT_VERSION ?= latest
+GOFUMPT_VERSION ?= v0.9.2
 GCI_VERSION ?= latest
 GOTESTSUM_VERSION ?= latest
 GOIMPORTS_VERSION ?= latest
@@ -199,7 +199,7 @@ lint: $(GOLANGCI_LINT_BIN) $(DEADCODE_BIN) $(WIRE_BIN) $(SQLC_BIN)
 	wait $$LINT_BIN_PID || lint_bin_status=$$?; \
 	if [ $$sqlc_status -ne 0 ]; then exit $$sqlc_status; fi; \
 	if [ $$lint_bin_status -ne 0 ]; then exit $$lint_bin_status; fi; \
-	/usr/bin/time -p sh -c 'PATH="$(TOOLS_BIN_DIR):$$PATH" "$(LINT_BIN)"'
+	/usr/bin/time -p sh -c 'PATH="$(TOOLS_BIN_DIR):$$PATH" "$(LINT_BIN)" --no-smart-cache'
 
 fmt: $(GOFUMPT_BIN) $(GCI_BIN)
 	@echo "Formatting Go code..."

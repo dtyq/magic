@@ -9,11 +9,23 @@ import (
 )
 
 type payloadLogSummary struct {
-	Bytes int
+	Bytes        int
+	RawJSONBytes int
+	FrameBytes   int
+	FrameCodec   string
 }
 
 func shouldLogMethod(method string) bool {
 	return method != methodHello && method != methodPing
+}
+
+func frameSummaryToPayloadLogSummary(frameSummary ipcFrameSummary) payloadLogSummary {
+	return payloadLogSummary{
+		Bytes:        frameSummary.RawJSONBytes,
+		RawJSONBytes: frameSummary.RawJSONBytes,
+		FrameBytes:   frameSummary.FrameBytes,
+		FrameCodec:   frameSummary.Codec,
+	}
 }
 
 func encodePayload(payload any) payloadLogSummary {
@@ -37,9 +49,16 @@ func encodePayload(payload any) payloadLogSummary {
 	}
 
 	size := len(raw)
-	return payloadLogSummary{
-		Bytes: size,
+	summary := payloadLogSummary{
+		Bytes:        size,
+		RawJSONBytes: size,
 	}
+	frameSummary, err := summarizeIPCFrame(raw)
+	if err == nil {
+		summary.FrameBytes = frameSummary.FrameBytes
+		summary.FrameCodec = frameSummary.Codec
+	}
+	return summary
 }
 
 func rpcErrorPayload(err error) any {

@@ -8,19 +8,20 @@ import (
 
 	confighelper "magic/internal/application/knowledge/helper/config"
 	kbdto "magic/internal/application/knowledge/knowledgebase/dto"
-	"magic/internal/domain/knowledge/knowledgebase/service"
-	sourcebindingdomain "magic/internal/domain/knowledge/sourcebinding/service"
+	kbaccess "magic/internal/domain/knowledge/access/service"
+	kbentity "magic/internal/domain/knowledge/knowledgebase/entity"
+	sourcebindingdomain "magic/internal/domain/knowledge/sourcebinding/entity"
 	"magic/internal/infrastructure/logging"
 )
 
 // EntityToDTOForTest 供测试执行 DTO 转换。
-func EntityToDTOForTest(svc *KnowledgeBaseAppService, kb *knowledgebase.KnowledgeBase) *kbdto.KnowledgeBaseDTO {
+func EntityToDTOForTest(svc *KnowledgeBaseAppService, kb *kbentity.KnowledgeBase) *kbdto.KnowledgeBaseDTO {
 	return svc.entityToDTO(kb)
 }
 
 // EntityToDTOWithContextForTest 供测试执行带上下文的 DTO 转换。
-func EntityToDTOWithContextForTest(ctx context.Context, svc *KnowledgeBaseAppService, kb *knowledgebase.KnowledgeBase) (*kbdto.KnowledgeBaseDTO, error) {
-	return svc.entityToDTOWithContext(ctx, kb)
+func EntityToDTOWithContextForTest(ctx context.Context, svc *KnowledgeBaseAppService, kb *kbentity.KnowledgeBase) (*kbdto.KnowledgeBaseDTO, error) {
+	return svc.entityToDTOWithContext(ctx, kb, "")
 }
 
 // PopulateFragmentCountsForTest 供测试补充片段统计。
@@ -39,11 +40,11 @@ func EnsureKnowledgeBaseCodeForTest(code string) string {
 }
 
 // InputToEntityForTest 供测试执行输入到实体的转换。
-func InputToEntityForTest(svc *KnowledgeBaseAppService, input *kbdto.CreateKnowledgeBaseInput) *knowledgebase.KnowledgeBase {
+func InputToEntityForTest(svc *KnowledgeBaseAppService, input *kbdto.CreateKnowledgeBaseInput) *kbentity.KnowledgeBase {
 	if input == nil {
 		return nil
 	}
-	return knowledgebase.BuildKnowledgeBaseForCreate(&knowledgebase.CreateInput{
+	return kbentity.BuildKnowledgeBaseForCreate(&kbentity.CreateInput{
 		Code:             input.Code,
 		Name:             input.Name,
 		Description:      input.Description,
@@ -63,7 +64,7 @@ func InputToEntityForTest(svc *KnowledgeBaseAppService, input *kbdto.CreateKnowl
 
 // ValidateAndNormalizeSourceBindingsForTest 供测试执行来源绑定归一化与语义校验。
 func ValidateAndNormalizeSourceBindingsForTest(
-	knowledgeBaseType knowledgebase.Type,
+	knowledgeBaseType kbentity.Type,
 	sourceType *int,
 	bindings []kbdto.SourceBindingInput,
 ) ([]sourcebindingdomain.Binding, error) {
@@ -72,7 +73,7 @@ func ValidateAndNormalizeSourceBindingsForTest(
 
 // NormalizedCreateCommandForTest 表示创建命令归一化后的最小测试视图。
 type NormalizedCreateCommandForTest struct {
-	KnowledgeBaseType knowledgebase.Type
+	KnowledgeBaseType kbentity.Type
 	SourceType        *int
 	AgentCodes        []string
 	SourceBindings    []sourcebindingdomain.Binding
@@ -101,9 +102,10 @@ func NormalizeCreateCommandForTest(
 
 // NormalizedUpdateCommandForTest 表示更新命令归一化后的最小测试视图。
 type NormalizedUpdateCommandForTest struct {
-	CurrentKnowledgeBaseType knowledgebase.Type
-	KnowledgeBaseType        knowledgebase.Type
+	CurrentKnowledgeBaseType kbentity.Type
+	KnowledgeBaseType        kbentity.Type
 	SourceType               *int
+	ValidationSourceType     *int
 	AgentCodes               []string
 	SourceBindings           []sourcebindingdomain.Binding
 	ReplaceSource            bool
@@ -115,7 +117,7 @@ func NormalizeUpdateCommandForTest(
 	ctx context.Context,
 	svc *KnowledgeBaseAppService,
 	input *kbdto.UpdateKnowledgeBaseInput,
-	kb *knowledgebase.KnowledgeBase,
+	kb *kbentity.KnowledgeBase,
 ) (*NormalizedUpdateCommandForTest, error) {
 	command, err := svc.UpdateCommandApp().normalizeUpdateCommand(ctx, input, kb)
 	if err != nil {
@@ -128,6 +130,7 @@ func NormalizeUpdateCommandForTest(
 		CurrentKnowledgeBaseType: command.currentKnowledgeBaseType,
 		KnowledgeBaseType:        command.knowledgeBaseType,
 		SourceType:               cloneIntPtr(command.sourceType),
+		ValidationSourceType:     cloneIntPtr(command.validationSourceType),
 		AgentCodes:               append([]string(nil), command.agentCodes...),
 		SourceBindings:           append([]sourcebindingdomain.Binding(nil), command.sourceBindings...),
 		ReplaceSource:            command.replaceSource,
@@ -156,13 +159,14 @@ func NewKnowledgeBaseAppServiceForTest(
 		}
 	}
 	svc := &KnowledgeBaseAppService{
-		domainService:         ds,
-		ownerGrantPort:        noopKnowledgeBaseOwnerGrantPort{},
-		permissionReader:      noopKnowledgeBasePermissionReader{},
-		officialOrgChecker:    noopKnowledgeBasePermissionReader{},
-		fragmentCounter:       fragmentCounter,
-		logger:                logger,
-		defaultEmbeddingModel: defaultEmbeddingModel,
+		domainService:                ds,
+		permissionReader:             noopKnowledgeBasePermissionReader{},
+		permissionWriter:             noopKnowledgeBasePermissionWriter{},
+		officialOrgChecker:           noopKnowledgeBasePermissionReader{},
+		fragmentCounter:              fragmentCounter,
+		sourceBindingTreeRootLocator: newSourceBindingTreeRootLocator(),
+		logger:                       logger,
+		defaultEmbeddingModel:        defaultEmbeddingModel,
 	}
 	if documentManager == nil {
 		return svc
@@ -217,6 +221,20 @@ func (s legacyKnowledgeBaseManagedDocumentStore) DestroyManagedDocument(
 	return nil
 }
 
+func (s legacyKnowledgeBaseManagedDocumentStore) DestroyManagedDocumentsByCodes(
+	ctx context.Context,
+	knowledgeBaseCode string,
+	organizationCode string,
+	codes []string,
+) error {
+	for _, code := range codes {
+		if err := s.manager.DestroyManagedDocument(ctx, code, knowledgeBaseCode); err != nil {
+			return fmt.Errorf("legacy destroy managed documents by codes: %w", err)
+		}
+	}
+	return nil
+}
+
 func (s legacyKnowledgeBaseManagedDocumentStore) DestroyKnowledgeBaseDocuments(
 	ctx context.Context,
 	knowledgeBaseCode string,
@@ -243,6 +261,35 @@ func (s legacyKnowledgeBaseManagedDocumentStore) ListManagedDocumentsByKnowledge
 	return results, nil
 }
 
+func (s legacyKnowledgeBaseManagedDocumentStore) ListManagedDocumentsBySourceBindingIDs(
+	ctx context.Context,
+	knowledgeBaseCode string,
+	sourceBindingIDs []int64,
+) ([]*ManagedDocument, error) {
+	results, err := s.manager.ListManagedDocumentsByKnowledgeBase(ctx, knowledgeBaseCode)
+	if err != nil {
+		return nil, fmt.Errorf("legacy list managed documents by source binding ids: %w", err)
+	}
+	if len(sourceBindingIDs) == 0 {
+		return []*ManagedDocument{}, nil
+	}
+	allowed := make(map[int64]struct{}, len(sourceBindingIDs))
+	for _, bindingID := range sourceBindingIDs {
+		allowed[bindingID] = struct{}{}
+	}
+	filtered := make([]*ManagedDocument, 0, len(results))
+	for _, doc := range results {
+		if doc == nil {
+			continue
+		}
+		if _, exists := allowed[doc.SourceBindingID]; !exists {
+			continue
+		}
+		filtered = append(filtered, doc)
+	}
+	return filtered, nil
+}
+
 func cloneIntPtr(value *int) *int {
 	if value == nil {
 		return nil
@@ -261,7 +308,7 @@ func KnowledgeBaseCodePrefixForTest() string {
 	return knowledgeBaseCodePrefix
 }
 
-type noopKnowledgeBaseOwnerGrantPort struct{}
+type noopKnowledgeBasePermissionWriter struct{}
 
 type noopKnowledgeBasePermissionReader struct{}
 
@@ -285,21 +332,14 @@ func (noopKnowledgeBasePermissionReader) IsOfficialOrganizationMember(
 	return true, nil
 }
 
-func (noopKnowledgeBaseOwnerGrantPort) GrantKnowledgeBaseOwner(
-	context.Context,
-	string,
-	string,
-	string,
-	string,
-) error {
+func (noopKnowledgeBasePermissionWriter) Initialize(context.Context, kbaccess.Actor, kbaccess.InitializeInput) error {
 	return nil
 }
 
-func (noopKnowledgeBaseOwnerGrantPort) DeleteKnowledgeBasePermissions(
-	context.Context,
-	string,
-	string,
-	string,
-) error {
+func (noopKnowledgeBasePermissionWriter) GrantOwner(context.Context, kbaccess.Actor, string, string) error {
+	return nil
+}
+
+func (noopKnowledgeBasePermissionWriter) Cleanup(context.Context, kbaccess.Actor, string) error {
 	return nil
 }

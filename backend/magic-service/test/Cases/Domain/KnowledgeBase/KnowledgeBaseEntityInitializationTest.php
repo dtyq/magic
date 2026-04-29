@@ -25,4 +25,13 @@ class KnowledgeBaseEntityInitializationTest extends TestCase
         $this->assertInstanceOf(DateTime::class, $entity->getCreatedAt());
         $this->assertInstanceOf(DateTime::class, $entity->getUpdatedAt());
     }
+
+    public function testStringIdShouldBeAcceptedDuringHydration(): void
+    {
+        $entity = new KnowledgeBaseEntity([
+            'id' => '123',
+        ]);
+
+        $this->assertSame(123, $entity->getId());
+    }
 }

@@ -4,8 +4,8 @@ package splitter
 import (
 	"context"
 
-	documentdomain "magic/internal/domain/knowledge/document/service"
 	"magic/internal/domain/knowledge/shared"
+	parseddocument "magic/internal/domain/knowledge/shared/parseddocument"
 	"magic/internal/infrastructure/logging"
 	"magic/internal/pkg/tokenizer"
 )
@@ -56,7 +56,7 @@ type AutoSplitPipelineInput struct {
 
 // ParsedDocumentChunkInput 表示解析文档切片 pipeline 输入。
 type ParsedDocumentChunkInput struct {
-	Parsed           *documentdomain.ParsedDocument
+	Parsed           *parseddocument.ParsedDocument
 	SourceFileType   string
 	RequestedMode    shared.FragmentMode
 	FragmentConfig   *shared.FragmentConfig

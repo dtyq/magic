@@ -14,11 +14,6 @@ import (
 )
 
 const (
-	// FragmentSemanticMetadataContractVersionV1 表示片段语义 metadata 的当前契约版本。
-	FragmentSemanticMetadataContractVersionV1 = "v1"
-
-	// MetadataContractVersionKey 表示 metadata 契约版本字段名。
-	MetadataContractVersionKey = "metadata_contract_version"
 	// MetadataFallbackFlagsKey 表示 metadata 回填标记字段名。
 	MetadataFallbackFlagsKey = "fallback_flags"
 	metadataExtKey           = "ext"
@@ -45,8 +40,8 @@ const (
 	contextSectionPathKey   = "context_section_path"
 )
 
-// FragmentSemanticMetadataV1 定义片段语义 metadata 的 v1 契约。
-type FragmentSemanticMetadataV1 struct {
+// FragmentSemanticMetadata 定义片段语义 metadata 的标准结构。
+type FragmentSemanticMetadata struct {
 	ChunkIndex           int      `json:"chunk_index"`
 	ContentHash          string   `json:"content_hash"`
 	SplitVersion         string   `json:"split_version"`
@@ -77,14 +72,13 @@ type FragmentSemanticMetadataDefaults struct {
 
 // FragmentMetadataRestoreResult 表示 metadata 规范化与回填结果。
 type FragmentMetadataRestoreResult struct {
-	ContractVersion string
-	FallbackFlags   []string
-	Metadata        map[string]any
-	Semantic        FragmentSemanticMetadataV1
+	FallbackFlags []string
+	Metadata      map[string]any
+	Semantic      FragmentSemanticMetadata
 }
 
-// BuildFragmentSemanticMetadataV1 按 v1 契约构建并规范化片段 metadata。
-func BuildFragmentSemanticMetadataV1(
+// BuildFragmentSemanticMetadata 构建并规范化片段 metadata。
+func BuildFragmentSemanticMetadata(
 	base map[string]any,
 	defaults FragmentSemanticMetadataDefaults,
 	extra map[string]any,
@@ -93,17 +87,17 @@ func BuildFragmentSemanticMetadataV1(
 	if len(extra) > 0 {
 		maps.Copy(merged, extra)
 	}
-	return NormalizeFragmentSemanticMetadataV1(merged, defaults).Metadata
+	return NormalizeFragmentSemanticMetadata(merged, defaults).Metadata
 }
 
-// NormalizeFragmentSemanticMetadataV1 将原始 metadata 规范化为 v1 契约。
-func NormalizeFragmentSemanticMetadataV1(
+// NormalizeFragmentSemanticMetadata 将原始 metadata 规范化为标准结构。
+func NormalizeFragmentSemanticMetadata(
 	raw map[string]any,
 	defaults FragmentSemanticMetadataDefaults,
 ) FragmentMetadataRestoreResult {
 	source := cloneMetadataMap(raw)
 	ext := metadataNestedMap(source, metadataExtKey)
-	semantic := FragmentSemanticMetadataV1{
+	semantic := FragmentSemanticMetadata{
 		ChunkIndex:           cmp.Or(metadataIntValue(source, ext, chunkIndexKey), defaults.ChunkIndex),
 		ContentHash:          cmp.Or(metadataStringValue(source, ext, contentHashKey), strings.TrimSpace(defaults.ContentHash)),
 		SplitVersion:         cmp.Or(metadataStringValue(source, ext, splitVersionKey), firstNonEmptyString(defaults.SplitVersion, manualSplitVersionV1)),
@@ -124,9 +118,9 @@ func NormalizeFragmentSemanticMetadataV1(
 			delete(normalized, alias)
 		}
 	}
+	delete(normalized, "metadata_contract_version")
 	delete(normalized, MetadataFallbackFlagsKey)
 
-	normalized[MetadataContractVersionKey] = FragmentSemanticMetadataContractVersionV1
 	normalized[chunkIndexKey] = semantic.ChunkIndex
 	normalized[contentHashKey] = semantic.ContentHash
 	normalized[splitVersionKey] = semantic.SplitVersion
@@ -151,19 +145,17 @@ func NormalizeFragmentSemanticMetadataV1(
 	}
 
 	return FragmentMetadataRestoreResult{
-		ContractVersion: FragmentSemanticMetadataContractVersionV1,
-		Metadata:        normalized,
-		Semantic:        semantic,
+		Metadata: normalized,
+		Semantic: semantic,
 	}
 }
 
 // BuildFragmentPayloadMetadata 将存库 metadata 投影为向量 payload metadata。
 func BuildFragmentPayloadMetadata(metadata map[string]any, fallbackFlags []string) map[string]any {
-	normalized := NormalizeFragmentSemanticMetadataV1(metadata, FragmentSemanticMetadataDefaults{})
+	normalized := NormalizeFragmentSemanticMetadata(metadata, FragmentSemanticMetadataDefaults{})
 	payloadMetadata := map[string]any{
-		MetadataContractVersionKey: normalized.ContractVersion,
-		sectionLevelKey:            normalized.Semantic.SectionLevel,
-		createdAtTSKey:             normalized.Semantic.CreatedAtTS,
+		sectionLevelKey: normalized.Semantic.SectionLevel,
+		createdAtTSKey:  normalized.Semantic.CreatedAtTS,
 	}
 	if len(normalized.Semantic.Tags) > 0 {
 		payloadMetadata[tagsKey] = normalized.Semantic.Tags
@@ -180,7 +172,7 @@ func BuildFragmentPayloadMetadata(metadata map[string]any, fallbackFlags []strin
 		if isPayloadMetadataDuplicateKey(key) {
 			continue
 		}
-		if key == MetadataContractVersionKey || key == MetadataFallbackFlagsKey {
+		if key == MetadataFallbackFlagsKey {
 			continue
 		}
 		ext[key] = value
@@ -191,16 +183,15 @@ func BuildFragmentPayloadMetadata(metadata map[string]any, fallbackFlags []strin
 	return payloadMetadata
 }
 
-// ApplyFragmentMetadataContractV1 对片段实体执行 metadata 规范化与字段回填。
-func ApplyFragmentMetadataContractV1(fragment *fragmodel.KnowledgeBaseFragment) FragmentMetadataRestoreResult {
+// ApplyFragmentMetadataContract 对片段实体执行 metadata 规范化与字段回填。
+func ApplyFragmentMetadataContract(fragment *fragmodel.KnowledgeBaseFragment) FragmentMetadataRestoreResult {
 	if fragment == nil {
 		return FragmentMetadataRestoreResult{
-			ContractVersion: FragmentSemanticMetadataContractVersionV1,
-			Metadata:        map[string]any{MetadataContractVersionKey: FragmentSemanticMetadataContractVersionV1},
+			Metadata: map[string]any{},
 		}
 	}
 
-	restore := NormalizeFragmentSemanticMetadataV1(fragment.Metadata, FragmentSemanticMetadataDefaults{
+	restore := NormalizeFragmentSemanticMetadata(fragment.Metadata, FragmentSemanticMetadataDefaults{
 		ChunkIndex:           fragment.ChunkIndex,
 		ContentHash:          strings.TrimSpace(fragment.ContentHash),
 		SplitVersion:         strings.TrimSpace(fragment.SplitVersion),
@@ -216,14 +207,12 @@ func ApplyFragmentMetadataContractV1(fragment *fragmodel.KnowledgeBaseFragment) 
 
 	restore.FallbackFlags = applyFragmentMetadataFallbacks(fragment, restore)
 	restore.Metadata = cloneMetadataMap(restore.Metadata)
-	restore.Metadata[MetadataContractVersionKey] = restore.ContractVersion
 	if len(restore.FallbackFlags) > 0 {
 		restore.Metadata[MetadataFallbackFlagsKey] = restore.FallbackFlags
 	} else {
 		delete(restore.Metadata, MetadataFallbackFlagsKey)
 	}
 	fragment.Metadata = restore.Metadata
-	fragment.MetadataContractVersion = restore.ContractVersion
 	fragment.FallbackFlags = restore.FallbackFlags
 
 	return restore
@@ -235,7 +224,7 @@ func BuildFragmentPayload(fragment *fragmodel.KnowledgeBaseFragment) *fragmodel.
 		return nil
 	}
 
-	restore := ApplyFragmentMetadataContractV1(fragment)
+	restore := ApplyFragmentMetadataContract(fragment)
 	return &fragmodel.FragmentPayload{
 		OrganizationCode: fragment.OrganizationCode,
 		KnowledgeCode:    fragment.KnowledgeCode,
@@ -261,7 +250,7 @@ func ApplyPayloadMetadataContract(payload *fragmodel.FragmentPayload) []string {
 		return nil
 	}
 
-	restore := NormalizeFragmentSemanticMetadataV1(payload.Metadata, FragmentSemanticMetadataDefaults{
+	restore := NormalizeFragmentSemanticMetadata(payload.Metadata, FragmentSemanticMetadataDefaults{
 		ChunkIndex:   payload.ChunkIndex,
 		ContentHash:  payload.ContentHash,
 		SplitVersion: payload.SplitVersion,

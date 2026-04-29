@@ -36,7 +36,7 @@ func TestMagicTextHandler_FormatAndNoColorInBuffer(t *testing.T) {
 		t.Fatalf("buffer output should not contain ANSI color codes: %q", line)
 	}
 
-	pattern := `^\[ERROR\]\[req_abc\]\[\d+\]\[\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}\]\[rpc\.client\]\[RPC runtime connect failed\]\{.*\}$`
+	pattern := `^\[ERROR\]\[req_abc\]\[\d+\]\[\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}\]\[rpc\.client\]\[goEngineException: RPC runtime connect failed\]\{.*\}$`
 	if ok := regexp.MustCompile(pattern).MatchString(line); !ok {
 		t.Fatalf("unexpected log format: %q", line)
 	}

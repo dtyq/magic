@@ -5,14 +5,16 @@ import (
 	"strings"
 	"time"
 
+	docentity "magic/internal/domain/knowledge/document/entity"
 	"magic/internal/domain/knowledge/shared"
+	parseddocument "magic/internal/domain/knowledge/shared/parseddocument"
 	"magic/internal/pkg/ctxmeta"
 )
 
 // ThirdFileRevectorizeSeed 描述第三方文件重向量化前置规划结果。
 type ThirdFileRevectorizeSeed struct {
 	SourceCacheKey string
-	SeedDocument   *KnowledgeBaseDocument
+	SeedDocument   *docentity.KnowledgeBaseDocument
 }
 
 // SourceSnapshotInput 描述构造稳定源快照所需输入。
@@ -20,6 +22,7 @@ type SourceSnapshotInput struct {
 	Content            string
 	DocType            int
 	DocumentFile       map[string]any
+	ParsedDocument     *parseddocument.ParsedDocument
 	Source             string
 	ContentHash        string
 	FetchedAtUnixMilli int64
@@ -32,15 +35,18 @@ func NormalizeThirdFileRevectorizeInput(input *ThirdFileRevectorizeInput) *Third
 		return nil
 	}
 	return &ThirdFileRevectorizeInput{
-		OrganizationCode:  strings.TrimSpace(input.OrganizationCode),
-		UserID:            strings.TrimSpace(input.UserID),
-		ThirdPlatformType: strings.ToLower(strings.TrimSpace(input.ThirdPlatformType)),
-		ThirdFileID:       strings.TrimSpace(input.ThirdFileID),
+		OrganizationCode:              strings.TrimSpace(input.OrganizationCode),
+		UserID:                        strings.TrimSpace(input.UserID),
+		ThirdPlatformUserID:           strings.TrimSpace(input.ThirdPlatformUserID),
+		ThirdPlatformOrganizationCode: strings.TrimSpace(input.ThirdPlatformOrganizationCode),
+		ThirdPlatformType:             strings.ToLower(strings.TrimSpace(input.ThirdPlatformType)),
+		ThirdFileID:                   strings.TrimSpace(input.ThirdFileID),
+		ThirdKnowledgeID:              strings.TrimSpace(input.ThirdKnowledgeID),
 	}
 }
 
 // FirstUsableDocument 选择可用于代表第三方文件的文档。
-func FirstUsableDocument(docs []*KnowledgeBaseDocument) *KnowledgeBaseDocument {
+func FirstUsableDocument(docs []*docentity.KnowledgeBaseDocument) *docentity.KnowledgeBaseDocument {
 	for _, doc := range docs {
 		if doc == nil || strings.TrimSpace(doc.KnowledgeBaseCode) == "" || strings.TrimSpace(doc.Code) == "" {
 			continue
@@ -53,7 +59,7 @@ func FirstUsableDocument(docs []*KnowledgeBaseDocument) *KnowledgeBaseDocument {
 // BuildThirdFileRevectorizeSeed 生成第三方文件重向量化的稳定 seed。
 func BuildThirdFileRevectorizeSeed(
 	input *ThirdFileRevectorizeInput,
-	docs []*KnowledgeBaseDocument,
+	docs []*docentity.KnowledgeBaseDocument,
 ) (*ThirdFileRevectorizeSeed, error) {
 	if input == nil {
 		return nil, shared.ErrDocumentNotFound
@@ -68,31 +74,29 @@ func BuildThirdFileRevectorizeSeed(
 	}, nil
 }
 
-// ResolveMappedDocumentUserID 解析用于调度同步的用户 ID。
-func ResolveMappedDocumentUserID(defaultUserID string, doc *KnowledgeBaseDocument) string {
-	if strings.TrimSpace(defaultUserID) != "" {
-		return strings.TrimSpace(defaultUserID)
-	}
+// ResolveMappedDocumentUserID 解析用于调度同步和第三方文件读取的 Magic 用户 ID。
+func ResolveMappedDocumentUserID(doc *docentity.KnowledgeBaseDocument) string {
 	if doc == nil {
 		return ""
 	}
-	return strings.TrimSpace(doc.UpdatedUID)
+	if userID := strings.TrimSpace(doc.UpdatedUID); userID != "" {
+		return userID
+	}
+	if userID := strings.TrimSpace(doc.CreatedUID); userID != "" {
+		return userID
+	}
+	return ""
 }
 
 // BuildThirdFileSyncRequests 根据第三方源快照构造所有文档同步请求。
 func BuildThirdFileSyncRequests(
 	input *ThirdFileRevectorizeInput,
-	docs []*KnowledgeBaseDocument,
-	seedDoc *KnowledgeBaseDocument,
+	docs []*docentity.KnowledgeBaseDocument,
+	seedDoc *docentity.KnowledgeBaseDocument,
 	snapshot *ResolvedSourceSnapshot,
 ) []*SyncDocumentInput {
 	if input == nil || snapshot == nil {
 		return nil
-	}
-
-	defaultUserID := strings.TrimSpace(input.UserID)
-	if defaultUserID == "" && seedDoc != nil {
-		defaultUserID = strings.TrimSpace(seedDoc.UpdatedUID)
 	}
 
 	requests := make([]*SyncDocumentInput, 0, len(docs))
@@ -110,11 +114,18 @@ func BuildThirdFileSyncRequests(
 				Content:            snapshot.Content,
 				DocType:            snapshot.DocType,
 				DocumentFile:       cloneDocumentFilePayload(snapshot.DocumentFile),
+				ParsedDocument:     parseddocument.CloneParsedDocument(snapshot.ParsedDocument),
 				Source:             snapshot.Source,
 				ContentHash:        snapshot.ContentHash,
 				FetchedAtUnixMilli: snapshot.FetchedAtUnixMilli,
 			},
-			BusinessParams: buildSyncBusinessParams(strings.TrimSpace(input.OrganizationCode), ResolveMappedDocumentUserID(defaultUserID, mappedDoc), strings.TrimSpace(mappedDoc.KnowledgeBaseCode)),
+			BusinessParams: buildSyncBusinessParams(
+				strings.TrimSpace(input.OrganizationCode),
+				ResolveMappedDocumentUserID(mappedDoc),
+				strings.TrimSpace(mappedDoc.KnowledgeBaseCode),
+				strings.TrimSpace(input.ThirdPlatformUserID),
+				strings.TrimSpace(input.ThirdPlatformOrganizationCode),
+			),
 		})
 	}
 	return requests
@@ -123,7 +134,7 @@ func BuildThirdFileSyncRequests(
 // BuildThirdFileRevectorizeRequests 根据 seed 和源快照构造重向量化调度请求。
 func BuildThirdFileRevectorizeRequests(
 	input *ThirdFileRevectorizeInput,
-	docs []*KnowledgeBaseDocument,
+	docs []*docentity.KnowledgeBaseDocument,
 	seed *ThirdFileRevectorizeSeed,
 	snapshot *ResolvedSourceSnapshot,
 ) []*SyncDocumentInput {
@@ -135,7 +146,13 @@ func BuildThirdFileRevectorizeRequests(
 
 // BuildResolvedSourceSnapshot 构造稳定的源内容快照。
 func BuildResolvedSourceSnapshot(input SourceSnapshotInput) *ResolvedSourceSnapshot {
+	clonedParsed := parseddocument.CloneParsedDocument(input.ParsedDocument)
 	normalizedContent := NormalizeDocumentContentForFileType(resolveSourceSnapshotFileType(input.DocumentFile), input.Content)
+	if clonedParsed != nil {
+		if result, err := BuildSyncContentFromParsedDocument(clonedParsed); err == nil {
+			normalizedContent = result.Content
+		}
+	}
 	contentHash := strings.TrimSpace(input.ContentHash)
 	fetchedAtUnixMilli := input.FetchedAtUnixMilli
 	if strings.TrimSpace(contentHash) == "" && normalizedContent != "" {
@@ -149,6 +166,7 @@ func BuildResolvedSourceSnapshot(input SourceSnapshotInput) *ResolvedSourceSnaps
 		ContentHash:        strings.TrimSpace(contentHash),
 		DocType:            input.DocType,
 		DocumentFile:       cloneDocumentFilePayload(input.DocumentFile),
+		ParsedDocument:     clonedParsed,
 		Source:             strings.TrimSpace(input.Source),
 		FetchedAtUnixMilli: fetchedAtUnixMilli,
 	}
@@ -165,11 +183,19 @@ func resolveSourceSnapshotFileType(documentFile map[string]any) string {
 	return ResolveDocumentFileExtension(file, "")
 }
 
-func buildSyncBusinessParams(organizationCode, userID, businessID string) *ctxmeta.BusinessParams {
+func buildSyncBusinessParams(
+	organizationCode string,
+	userID string,
+	businessID string,
+	thirdPlatformUserID string,
+	thirdPlatformOrganizationCode string,
+) *ctxmeta.BusinessParams {
 	return &ctxmeta.BusinessParams{
-		OrganizationCode: strings.TrimSpace(organizationCode),
-		UserID:           strings.TrimSpace(userID),
-		BusinessID:       strings.TrimSpace(businessID),
+		OrganizationCode:              strings.TrimSpace(organizationCode),
+		UserID:                        strings.TrimSpace(userID),
+		BusinessID:                    strings.TrimSpace(businessID),
+		ThirdPlatformUserID:           strings.TrimSpace(thirdPlatformUserID),
+		ThirdPlatformOrganizationCode: strings.TrimSpace(thirdPlatformOrganizationCode),
 	}
 }
 

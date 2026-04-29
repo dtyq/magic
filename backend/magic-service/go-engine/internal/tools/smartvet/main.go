@@ -71,9 +71,10 @@ const (
 
 // Options configures the incremental go vet runner.
 type Options struct {
-	VetToolPath string
-	CacheDir    string
-	RootDir     string
+	VetToolPath  string
+	CacheDir     string
+	RootDir      string
+	DisableCache bool
 }
 
 // Runner executes incremental go vet checks.
@@ -143,6 +144,9 @@ func NewRunner(opts Options, logger *slog.Logger, stdout, stderr io.Writer) *Run
 // Run executes the incremental go vet workflow.
 func (r *Runner) Run() error {
 	start := time.Now()
+	if r.opts.DisableCache {
+		return r.runWithoutCache(start)
+	}
 
 	analyzerHash, err := r.fileHash(r.opts.VetToolPath)
 	if err != nil {
@@ -180,6 +184,15 @@ func (r *Runner) Run() error {
 
 	r.persistCache(newCaches, changedPkgs)
 	if err := persistRepoCache(repoState.cachePath, repoState.current); err != nil {
+		return err
+	}
+	r.logger.Info("Done", logkey.Duration, time.Since(start).Round(time.Millisecond))
+	return nil
+}
+
+func (r *Runner) runWithoutCache(start time.Time) error {
+	r.logger.Info("Running full analysis without smart cache")
+	if err := r.runGoVet("./..."); err != nil {
 		return err
 	}
 	r.logger.Info("Done", logkey.Duration, time.Since(start).Round(time.Millisecond))

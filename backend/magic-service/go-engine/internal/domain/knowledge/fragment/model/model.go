@@ -11,34 +11,33 @@ import (
 
 // KnowledgeBaseFragment 知识库片段实体。
 type KnowledgeBaseFragment struct {
-	ID                      int64                   `json:"id"`
-	OrganizationCode        string                  `json:"organization_code"`
-	KnowledgeCode           string                  `json:"knowledge_code"`
-	DocumentCode            string                  `json:"document_code"`
-	DocumentName            string                  `json:"document_name"`
-	DocumentType            int                     `json:"document_type"`
-	Content                 string                  `json:"content"`
-	Metadata                map[string]any          `json:"metadata"`
-	BusinessID              string                  `json:"business_id"`
-	SyncStatus              sharedentity.SyncStatus `json:"sync_status"`
-	SyncTimes               int                     `json:"sync_times"`
-	SyncStatusMessage       string                  `json:"sync_status_message"`
-	PointID                 string                  `json:"point_id"`
-	Vector                  []float64               `json:"vector"`
-	WordCount               int                     `json:"word_count"`
-	ChunkIndex              int                     `json:"chunk_index"`
-	ContentHash             string                  `json:"content_hash"`
-	SplitVersion            string                  `json:"split_version"`
-	SectionPath             string                  `json:"section_path"`
-	SectionTitle            string                  `json:"section_title"`
-	SectionLevel            int                     `json:"section_level"`
-	CreatedUID              string                  `json:"created_uid"`
-	UpdatedUID              string                  `json:"updated_uid"`
-	CreatedAt               time.Time               `json:"created_at"`
-	UpdatedAt               time.Time               `json:"updated_at"`
-	DeletedAt               *time.Time              `json:"deleted_at"`
-	MetadataContractVersion string                  `json:"metadata_contract_version"`
-	FallbackFlags           []string                `json:"fallback_flags,omitempty"`
+	ID                int64                   `json:"id"`
+	OrganizationCode  string                  `json:"organization_code"`
+	KnowledgeCode     string                  `json:"knowledge_code"`
+	DocumentCode      string                  `json:"document_code"`
+	DocumentName      string                  `json:"document_name"`
+	DocumentType      int                     `json:"document_type"`
+	Content           string                  `json:"content"`
+	Metadata          map[string]any          `json:"metadata"`
+	BusinessID        string                  `json:"business_id"`
+	SyncStatus        sharedentity.SyncStatus `json:"sync_status"`
+	SyncTimes         int                     `json:"sync_times"`
+	SyncStatusMessage string                  `json:"sync_status_message"`
+	PointID           string                  `json:"point_id"`
+	Vector            []float64               `json:"vector"`
+	WordCount         int                     `json:"word_count"`
+	ChunkIndex        int                     `json:"chunk_index"`
+	ContentHash       string                  `json:"content_hash"`
+	SplitVersion      string                  `json:"split_version"`
+	SectionPath       string                  `json:"section_path"`
+	SectionTitle      string                  `json:"section_title"`
+	SectionLevel      int                     `json:"section_level"`
+	CreatedUID        string                  `json:"created_uid"`
+	UpdatedUID        string                  `json:"updated_uid"`
+	CreatedAt         time.Time               `json:"created_at"`
+	UpdatedAt         time.Time               `json:"updated_at"`
+	DeletedAt         *time.Time              `json:"deleted_at"`
+	FallbackFlags     []string                `json:"fallback_flags,omitempty"`
 }
 
 // FragmentPayload 定义存储到向量数据库的载荷结构。

@@ -10,7 +10,7 @@ import (
 	gmtext "github.com/yuin/goldmark/text"
 	"golang.org/x/net/html"
 
-	documentdomain "magic/internal/domain/knowledge/document/service"
+	documentdomain "magic/internal/domain/knowledge/document/metadata"
 )
 
 // MarkdownParser 解析 Markdown 文档。
@@ -94,12 +94,15 @@ func (p *MarkdownParser) ParseDocumentWithOptions(
 	}
 	root := goldmark.DefaultParser().Parse(gmtext.NewReader(content))
 	ocrHelper := newRichTextImageOCRHelper(p.ocrClient, p.maxOCRPerFile, options)
-	blocks := make([]string, 0)
-	for node := root.FirstChild(); node != nil; node = node.NextSibling() {
-		blocks = append(blocks, p.renderBlock(ctx, fileURL, content, node, ocrHelper)...)
-	}
+	enhancementBlocks := p.collectMarkdownEnhancementBlocks(ctx, fileURL, content, root, ocrHelper)
+	blocks := make([]string, 0, len(enhancementBlocks)+1)
+	blocks = append(blocks, string(content))
+	blocks = append(blocks, enhancementBlocks...)
 	parsed := documentdomain.NewPlainTextParsedDocument(fileType, strings.Join(filterNonEmptyStrings(blocks), "\n\n"))
 	ocrHelper.apply(parsed)
+	if err := failIfEmptyDueToOCROverload(parsed, ocrHelper); err != nil {
+		return nil, err
+	}
 	return parsed, nil
 }
 
@@ -113,106 +116,39 @@ func (p *MarkdownParser) NeedsResolvedURL() bool {
 	return false
 }
 
-func (p *MarkdownParser) renderBlock(
+func (p *MarkdownParser) collectMarkdownEnhancementBlocks(
 	ctx context.Context,
 	fileURL string,
 	source []byte,
 	node gmast.Node,
 	ocrHelper *embeddedImageOCRHelper,
 ) []string {
-	switch typed := node.(type) {
-	case *gmast.Heading:
-		text := strings.TrimSpace(p.renderInline(ctx, fileURL, source, typed, ocrHelper))
-		if text == "" {
-			return nil
-		}
-		return []string{strings.Repeat("#", typed.Level) + " " + text}
-	case *gmast.Paragraph:
-		text := strings.TrimSpace(p.renderInline(ctx, fileURL, source, typed, ocrHelper))
-		if text == "" {
-			return nil
-		}
-		return []string{text}
-	case *gmast.TextBlock:
-		text := strings.TrimSpace(p.renderInline(ctx, fileURL, source, typed, ocrHelper))
-		if text == "" {
-			text = strings.TrimSpace(extractGoldmarkLines(source, typed.Lines()))
-		}
-		if text == "" {
-			return nil
-		}
-		return []string{text}
-	case *gmast.List:
-		items := make([]string, 0)
-		for item := typed.FirstChild(); item != nil; item = item.NextSibling() {
-			itemParts := make([]string, 0)
-			for child := item.FirstChild(); child != nil; child = child.NextSibling() {
-				itemParts = append(itemParts, p.renderBlock(ctx, fileURL, source, child, ocrHelper)...)
-			}
-			itemText := strings.TrimSpace(strings.Join(filterNonEmptyStrings(itemParts), "\n"))
-			if itemText != "" {
-				items = append(items, "- "+itemText)
-			}
-		}
-		return items
-	case *gmast.FencedCodeBlock:
-		return []string{strings.TrimSpace(extractGoldmarkLines(source, typed.Lines()))}
-	case *gmast.CodeBlock:
-		return []string{strings.TrimSpace(extractGoldmarkLines(source, typed.Lines()))}
-	case *gmast.HTMLBlock:
-		htmlSource := strings.TrimSpace(extractMarkdownHTMLBlock(source, typed))
-		if htmlSource == "" {
-			return nil
-		}
-		return p.renderHTMLFragment(ctx, fileURL, htmlSource, ocrHelper)
-	default:
-		blocks := make([]string, 0)
-		for child := node.FirstChild(); child != nil; child = child.NextSibling() {
-			blocks = append(blocks, p.renderBlock(ctx, fileURL, source, child, ocrHelper)...)
-		}
-		return blocks
+	if node == nil {
+		return nil
 	}
-}
 
-func (p *MarkdownParser) renderInline(
-	ctx context.Context,
-	fileURL string,
-	source []byte,
-	node gmast.Node,
-	ocrHelper *embeddedImageOCRHelper,
-) string {
-	var builder strings.Builder
+	blocks := make([]string, 0)
 	for child := node.FirstChild(); child != nil; child = child.NextSibling() {
 		switch typed := child.(type) {
-		case *gmast.Text:
-			builder.Write(typed.Segment.Value(source))
-			if typed.HardLineBreak() || typed.SoftLineBreak() {
-				builder.WriteByte('\n')
-			}
-		case *gmast.CodeSpan:
-			appendInlineSegment(&builder, extractMarkdownInlineNodeText(source, typed))
-		case *gmast.String:
-			builder.Write(typed.Value)
 		case *gmast.Image:
 			if imageText := p.assetLoader.resolveReferencedImageText(ctx, fileURL, string(typed.Destination), ocrHelper); imageText != "" {
-				appendInlineSegment(&builder, imageText)
+				blocks = append(blocks, imageText)
+			}
+		case *gmast.HTMLBlock:
+			htmlSource := strings.TrimSpace(extractMarkdownHTMLBlock(source, typed))
+			if htmlSource != "" {
+				blocks = append(blocks, p.renderHTMLFragment(ctx, fileURL, htmlSource, ocrHelper)...)
 			}
 		case *gmast.RawHTML:
-			if htmlText := strings.Join(
-				filterNonEmptyStrings(
-					p.renderHTMLFragment(ctx, fileURL, string(typed.Segments.Value(source)), ocrHelper),
-				),
-				"\n",
-			); htmlText != "" {
-				appendInlineSegment(&builder, htmlText)
+			htmlSource := strings.TrimSpace(string(typed.Segments.Value(source)))
+			if htmlSource != "" {
+				blocks = append(blocks, p.renderHTMLFragment(ctx, fileURL, htmlSource, ocrHelper)...)
 			}
 		default:
-			if nested := strings.TrimSpace(p.renderInline(ctx, fileURL, source, child, ocrHelper)); nested != "" {
-				appendInlineSegment(&builder, nested)
-			}
+			blocks = append(blocks, p.collectMarkdownEnhancementBlocks(ctx, fileURL, source, child, ocrHelper)...)
 		}
 	}
-	return strings.TrimSpace(builder.String())
+	return filterNonEmptyStrings(blocks)
 }
 
 func (p *MarkdownParser) renderHTMLFragment(
@@ -238,40 +174,4 @@ func extractMarkdownHTMLBlock(source []byte, node *gmast.HTMLBlock) string {
 		content = append(content, node.ClosureLine.Value(source)...)
 	}
 	return strings.TrimSpace(string(content))
-}
-
-func extractMarkdownInlineNodeText(source []byte, node gmast.Node) string {
-	if node == nil {
-		return ""
-	}
-
-	var builder strings.Builder
-	for child := node.FirstChild(); child != nil; child = child.NextSibling() {
-		switch typed := child.(type) {
-		case *gmast.Text:
-			builder.Write(typed.Value(source))
-			if typed.HardLineBreak() || typed.SoftLineBreak() {
-				builder.WriteByte('\n')
-			}
-		case *gmast.String:
-			builder.Write(typed.Value)
-		default:
-			if nested := extractMarkdownInlineNodeText(source, child); nested != "" {
-				appendInlineSegment(&builder, nested)
-			}
-		}
-	}
-	return strings.TrimSpace(builder.String())
-}
-
-func extractGoldmarkLines(source []byte, lines *gmtext.Segments) string {
-	if lines == nil {
-		return ""
-	}
-	parts := make([]string, 0, lines.Len())
-	for index := range lines.Len() {
-		segment := lines.At(index)
-		parts = append(parts, string(segment.Value(source)))
-	}
-	return strings.TrimSpace(strings.Join(parts, "\n"))
 }

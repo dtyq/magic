@@ -8,9 +8,10 @@ import (
 
 	fragdto "magic/internal/application/knowledge/fragment/dto"
 	thirdplatformprovider "magic/internal/application/knowledge/shared/thirdplatformprovider"
+	fragmodel "magic/internal/domain/knowledge/fragment/model"
 	fragdomain "magic/internal/domain/knowledge/fragment/service"
-	knowledgebasedomain "magic/internal/domain/knowledge/knowledgebase/service"
 	"magic/internal/domain/knowledge/shared"
+	sharedsnapshot "magic/internal/domain/knowledge/shared/snapshot"
 )
 
 func isDocumentNotFoundError(err error) bool {
@@ -25,7 +26,7 @@ func isDocumentNotFoundError(err error) bool {
 
 func (s *FragmentAppService) buildManualWriteLifecycle(
 	ctx context.Context,
-	kb *knowledgebasedomain.KnowledgeBase,
+	kb *sharedsnapshot.KnowledgeBaseRuntimeSnapshot,
 	input *fragdto.CreateFragmentInput,
 ) (*fragdomain.ManualWriteLifecycleResult, error) {
 	result, err := fragdomain.BuildManualWriteLifecycle(ctx, fragdomain.ManualWriteLifecycleInput{
@@ -54,7 +55,7 @@ func (s *FragmentAppService) loadManualWriteDocumentByCode(
 	ctx context.Context,
 	knowledgeCode string,
 	documentCode string,
-) (*fragdomain.KnowledgeBaseDocument, error) {
+) (*fragmodel.KnowledgeBaseDocument, error) {
 	if s == nil || s.documentService == nil {
 		return nil, fragdomain.ErrManualWriteDocumentLoaderNil
 	}
@@ -75,7 +76,7 @@ func (s *FragmentAppService) findManualWriteLegacyDocument(
 	knowledgeCode string,
 	thirdPlatformType string,
 	thirdFileID string,
-) (*fragdomain.KnowledgeBaseDocument, error) {
+) (*fragmodel.KnowledgeBaseDocument, error) {
 	if s == nil || s.legacyThirdPlatformCompat == nil {
 		return nil, fragdomain.ErrManualWriteLegacyDocumentLoaderNil
 	}
@@ -115,7 +116,7 @@ func (c *LegacyThirdPlatformFragmentCompat) FindDocumentByThirdFile(
 	knowledgeBaseCode string,
 	platformType string,
 	thirdFileID string,
-) (*fragdomain.KnowledgeBaseDocument, error) {
+) (*fragmodel.KnowledgeBaseDocument, error) {
 	if c == nil || c.documentService == nil {
 		return nil, fragdomain.ErrManualWriteLegacyDocumentLoaderNil
 	}

@@ -16,11 +16,26 @@ use App\Infrastructure\Rpc\Method\SvcMethods;
 class ProjectFileRpcClient extends AbstractRpcClient
 {
     #[RpcMethod(name: SvcMethods::METHOD_NOTIFY_CHANGE)]
-    public function notifyChange(int $projectFileId): bool
-    {
-        $this->callRpc(__FUNCTION__, [
+    public function notifyChange(
+        int $projectFileId,
+        ?string $organizationCode = null,
+        ?int $projectId = null,
+        ?string $status = null,
+    ): bool {
+        $params = [
             'project_file_id' => $projectFileId,
-        ]);
+        ];
+        if ($organizationCode !== null && trim($organizationCode) !== '') {
+            $params['organization_code'] = $organizationCode;
+        }
+        if ($projectId !== null && $projectId > 0) {
+            $params['project_id'] = $projectId;
+        }
+        if ($status !== null && trim($status) !== '') {
+            $params['status'] = $status;
+        }
+
+        $this->callRpc(__FUNCTION__, $params);
         return true;
     }
 }

@@ -5,6 +5,9 @@ import (
 	"math"
 	"slices"
 	"strings"
+
+	fragmodel "magic/internal/domain/knowledge/fragment/model"
+	"magic/internal/domain/knowledge/shared"
 )
 
 const (
@@ -14,9 +17,6 @@ const (
 	tableTitleFieldWeight  = 2.0
 	defaultFieldWeight     = 1.0
 	wordTokenWeight        = 1.0
-	alphaNumTokenWeight    = 1.0
-	bigramTokenWeight      = 0.7
-	singleRuneTokenWeight  = 0.5
 )
 
 type retrievalFieldText struct {
@@ -29,32 +29,29 @@ type sparseTermWeight struct {
 	value float32
 }
 
-func buildCandidateAnalysisSnapshots(
-	results []*VectorSearchResult[FragmentPayload],
-	analyzer retrievalAnalyzer,
-) []candidateAnalysisSnapshot {
-	snapshots := make([]candidateAnalysisSnapshot, len(results))
-	for i, result := range results {
-		snapshots[i] = buildCandidateAnalysisSnapshot(result, analyzer)
-	}
-	return snapshots
-}
-
 func buildCandidateAnalysisSnapshot(
-	result *VectorSearchResult[FragmentPayload],
+	result *shared.VectorSearchResult[fragmodel.FragmentPayload],
 	analyzer retrievalAnalyzer,
 ) candidateAnalysisSnapshot {
+	fieldTexts := resultSparseFieldTextsWithAnalyzer(result, analyzer)
 	snapshot := candidateAnalysisSnapshot{
-		fieldTexts:     resultSparseFieldTexts(result),
-		fieldTokenHits: make(map[string]map[string]struct{}),
+		fieldTexts:           fieldTexts,
+		normalizedFieldTexts: make([]string, 0, len(fieldTexts)),
+		docTokenSet:          make(map[string]struct{}),
+		docTermFrequency:     make(map[string]int),
+		tokenPositions:       make(map[string][]int),
+		fieldTokenHits:       make(map[string]map[string]struct{}),
 	}
 	if result == nil {
 		return snapshot
 	}
 
 	docTokens := make([]string, 0, keywordRetrievalPartsCapacity*termCapacityMultiplier)
-	for _, fieldText := range snapshot.fieldTexts {
-		tokens := analyzer.analyzeText(fieldText.Text, "", true)
+	for _, fieldText := range fieldTexts {
+		if normalizedFieldText := normalizeFieldTextForExactPhraseMatch(fieldText.Text); normalizedFieldText != "" {
+			snapshot.normalizedFieldTexts = append(snapshot.normalizedFieldTexts, normalizedFieldText)
+		}
+		tokens := analyzer.analyzeSparseText(fieldText.Text, fieldText.Field, true)
 		if len(tokens) == 0 {
 			continue
 		}
@@ -68,6 +65,9 @@ func buildCandidateAnalysisSnapshot(
 		}
 		for _, token := range tokens {
 			docTokens = append(docTokens, token.Term)
+			snapshot.docTokenSet[token.Term] = struct{}{}
+			snapshot.docTermFrequency[token.Term]++
+			snapshot.tokenPositions[token.Term] = append(snapshot.tokenPositions[token.Term], len(docTokens)-1)
 			if fieldTerms != nil {
 				fieldTerms[token.Term] = struct{}{}
 			}
@@ -87,28 +87,28 @@ func isFieldMatchField(field string) bool {
 	}
 }
 
-func buildRankingTermsFromResultWithAnalyzer(result *VectorSearchResult[FragmentPayload], analyzer retrievalAnalyzer) []string {
+func buildRankingTermsFromResultWithAnalyzer(result *shared.VectorSearchResult[fragmodel.FragmentPayload], analyzer retrievalAnalyzer) []string {
 	if result == nil {
 		return nil
 	}
 
 	terms := make([]string, 0, keywordRetrievalPartsCapacity*termCapacityMultiplier)
-	for _, fieldText := range resultSparseFieldTexts(result) {
-		for _, token := range analyzer.analyzeText(fieldText.Text, "", true) {
+	for _, fieldText := range resultAnalysisFieldTexts(result, analyzer) {
+		for _, token := range analyzer.analyzeSparseText(fieldText.Text, fieldText.Field, true) {
 			terms = append(terms, token.Term)
 		}
 	}
 	return terms
 }
 
-func buildFieldTokenHitsWithAnalyzer(result *VectorSearchResult[FragmentPayload], analyzer retrievalAnalyzer) map[string]map[string]struct{} {
+func buildFieldTokenHitsWithAnalyzer(result *shared.VectorSearchResult[fragmodel.FragmentPayload], analyzer retrievalAnalyzer) map[string]map[string]struct{} {
 	fieldTerms := make(map[string]map[string]struct{})
 	if result == nil {
 		return fieldTerms
 	}
 
-	for _, fieldText := range resultSparseFieldTexts(result) {
-		tokens := analyzer.analyzeText(fieldText.Text, "", true)
+	for _, fieldText := range resultAnalysisFieldTexts(result, analyzer) {
+		tokens := analyzer.analyzeSparseText(fieldText.Text, fieldText.Field, true)
 		if len(tokens) == 0 {
 			continue
 		}
@@ -122,55 +122,62 @@ func buildFieldTokenHitsWithAnalyzer(result *VectorSearchResult[FragmentPayload]
 	return fieldTerms
 }
 
-func resultSparseFieldTexts(result *VectorSearchResult[FragmentPayload]) []retrievalFieldText {
-	if result == nil {
-		return nil
-	}
+func resultSparseFieldTexts(result *shared.VectorSearchResult[fragmodel.FragmentPayload]) []retrievalFieldText {
+	return resultSparseFieldTextsWithAnalyzer(result, newRetrievalAnalyzer())
+}
 
-	fields := make([]retrievalFieldText, 0, keywordRetrievalPartsCapacity+fieldTokenCapacity)
-	appendFieldText(&fields, retrievalFieldTitle, coalesceNonEmpty(result.Payload.SectionTitle, metadataStringValue(result.Payload.Metadata, "section_title")))
-	appendFieldText(&fields, retrievalFieldPath, coalesceNonEmpty(result.Payload.SectionPath, metadataStringValue(result.Payload.Metadata, "section_path")))
-	appendFieldText(&fields, retrievalFieldDocumentName, result.Payload.DocumentName)
-	appendFieldText(&fields, retrievalFieldContent, result.Content)
-	appendFieldText(&fields, retrievalFieldTableTitle, metadataStringValue(result.Payload.Metadata, ParsedMetaTableTitle))
-	appendFieldList(&fields, retrievalFieldTableKey, metadataStringListValue(result.Payload.Metadata, ParsedMetaPrimaryKeys))
-	appendFieldList(&fields, retrievalFieldTableKey, metadataStringListValue(result.Payload.Metadata, ParsedMetaPrimaryKeyHeaders))
-	appendFieldList(&fields, retrievalFieldHeader, metadataStringListValue(result.Payload.Metadata, ParsedMetaHeaderPaths))
-	return fields
+func resultSparseFieldTextsWithAnalyzer(
+	result *shared.VectorSearchResult[fragmodel.FragmentPayload],
+	analyzer retrievalAnalyzer,
+) []retrievalFieldText {
+	_ = analyzer
+	return buildResultSparseSource(result).fieldTexts()
+}
+
+func resultAnalysisFieldTexts(
+	result *shared.VectorSearchResult[fragmodel.FragmentPayload],
+	analyzer retrievalAnalyzer,
+) []retrievalFieldText {
+	return resultSparseFieldTextsWithAnalyzer(result, analyzer)
 }
 
 // BuildSparseVectorFromFragment 构建客户端 sparse backend 使用的稀疏向量。
-func BuildSparseVectorFromFragment(fragment *KnowledgeBaseFragment) *SparseVector {
+func BuildSparseVectorFromFragment(fragment *fragmodel.KnowledgeBaseFragment) *shared.SparseVector {
 	return buildSparseVectorFromFragmentWithAnalyzer(fragment, newRetrievalAnalyzer())
 }
 
 // BuildSparseVectorFromFragment 使用共享检索分词器构建客户端 sparse backend 使用的稀疏向量。
-func (s *Service) BuildSparseVectorFromFragment(fragment *KnowledgeBaseFragment) *SparseVector {
+func (s *Service) BuildSparseVectorFromFragment(fragment *fragmodel.KnowledgeBaseFragment) *shared.SparseVector {
 	return buildSparseVectorFromFragmentWithAnalyzer(fragment, s.newRetrievalAnalyzer())
 }
 
 func buildSparseVectorFromFragmentWithAnalyzer(
-	fragment *KnowledgeBaseFragment,
+	fragment *fragmodel.KnowledgeBaseFragment,
 	analyzer retrievalAnalyzer,
-) *SparseVector {
+) *shared.SparseVector {
 	if fragment == nil {
 		return nil
 	}
 	accumulator := make(map[uint32]float64, keywordRetrievalTextPartCapacity*termCapacityMultiplier)
-	for _, fieldText := range fragmentSparseFieldTexts(fragment, analyzer) {
-		tokens := analyzer.analyzeText(fieldText.Text, fieldText.Field, false)
+	for _, fieldText := range buildFragmentSparseSource(fragment, analyzer).fieldTexts() {
+		tokens := analyzer.analyzeSparseText(fieldText.Text, fieldText.Field, false)
 		accumulateSparseTokens(accumulator, tokens, true)
 	}
 	return finalizeSparseVector(accumulator)
 }
 
 // BuildSparseVectorFromQuery 构建查询侧 sparse vector。
-func BuildSparseVectorFromQuery(query string) *SparseVector {
+func BuildSparseVectorFromQuery(query string) *shared.SparseVector {
 	return buildSparseVectorFromQueryWithAnalyzer(query, newRetrievalAnalyzer())
 }
 
-func buildSparseVectorFromQueryWithAnalyzer(query string, analyzer retrievalAnalyzer) *SparseVector {
-	tokens := buildSparseQueryTokens(query, analyzer)
+func buildSparseVectorFromQueryWithAnalyzer(query string, analyzer retrievalAnalyzer) *shared.SparseVector {
+	profile := buildSimilarityQueryProfile(query, "", analyzer)
+	return buildSparseVectorFromQueryProfile(profile, analyzer)
+}
+
+func buildSparseVectorFromQueryProfile(profile similarityQueryProfile, analyzer retrievalAnalyzer) *shared.SparseVector {
+	tokens := buildSparseQueryTokens(profile, analyzer)
 	if len(tokens) == 0 {
 		return nil
 	}
@@ -179,26 +186,11 @@ func buildSparseVectorFromQueryWithAnalyzer(query string, analyzer retrievalAnal
 	return finalizeSparseVector(accumulator)
 }
 
-func buildSparseQueryTokens(query string, analyzer retrievalAnalyzer) []AnalyzedToken {
-	return analyzer.analyzeText(query, "", true)
-}
-
-func fragmentSparseFieldTexts(fragment *KnowledgeBaseFragment, analyzer retrievalAnalyzer) []retrievalFieldText {
-	if fragment == nil {
-		return nil
+func buildSparseQueryTokens(profile similarityQueryProfile, analyzer retrievalAnalyzer) []AnalyzedToken {
+	if len(profile.SparseTokens) > 0 {
+		return compactAnalyzedTokens(profile.SparseTokens)
 	}
-
-	sectionPath, _ := resolveSectionPath(fragment.SectionPath, fragment.Metadata)
-	fields := make([]retrievalFieldText, 0, keywordRetrievalTextPartCapacity+fieldTokenCapacity)
-	appendFieldText(&fields, retrievalFieldTitle, coalesceNonEmpty(fragment.SectionTitle, metadataStringValue(fragment.Metadata, "section_title")))
-	appendFieldText(&fields, retrievalFieldTableTitle, metadataStringValue(fragment.Metadata, ParsedMetaTableTitle))
-	appendFieldText(&fields, retrievalFieldPath, trimSectionPathByTokenBudgetWithAnalyzer(strings.TrimSpace(sectionPath), sectionPathTokenBudget, analyzer))
-	appendFieldText(&fields, retrievalFieldDocumentName, fragment.DocumentName)
-	appendFieldList(&fields, retrievalFieldTableKey, metadataStringListValue(fragment.Metadata, ParsedMetaPrimaryKeys))
-	appendFieldList(&fields, retrievalFieldTableKey, metadataStringListValue(fragment.Metadata, ParsedMetaPrimaryKeyHeaders))
-	appendFieldList(&fields, retrievalFieldHeader, metadataStringListValue(fragment.Metadata, ParsedMetaHeaderPaths))
-	appendFieldText(&fields, retrievalFieldContent, fragment.Content)
-	return fields
+	return buildSparseQueryTokensForProfile(profile.RawQuery, analyzer)
 }
 
 func accumulateSparseTokens(accumulator map[uint32]float64, tokens []AnalyzedToken, useFieldWeights bool) {
@@ -207,7 +199,7 @@ func accumulateSparseTokens(accumulator map[uint32]float64, tokens []AnalyzedTok
 		if term == "" {
 			continue
 		}
-		weight := tokenSourceWeight(token.Source)
+		weight := tokenSourceWeight()
 		if useFieldWeights {
 			weight *= fieldWeight(token.Field)
 		}
@@ -218,7 +210,7 @@ func accumulateSparseTokens(accumulator map[uint32]float64, tokens []AnalyzedTok
 	}
 }
 
-func finalizeSparseVector(accumulator map[uint32]float64) *SparseVector {
+func finalizeSparseVector(accumulator map[uint32]float64) *shared.SparseVector {
 	if len(accumulator) == 0 {
 		return nil
 	}
@@ -254,61 +246,24 @@ func finalizeSparseVector(accumulator map[uint32]float64) *SparseVector {
 		indices[i] = entry.index
 		values[i] = entry.value
 	}
-	return &SparseVector{
+	return &shared.SparseVector{
 		Indices: indices,
 		Values:  values,
 	}
 }
 
 func fieldWeight(field string) float64 {
-	switch strings.TrimSpace(field) {
-	case retrievalFieldTitle:
-		return titleFieldWeight
-	case retrievalFieldTableTitle:
-		return tableTitleFieldWeight
-	case retrievalFieldPath, retrievalFieldDocumentName, retrievalFieldTableKey, retrievalFieldHeader, retrievalFieldContent:
-		return defaultFieldWeight
-	default:
-		return defaultFieldWeight
-	}
+	return sparseSourceBandWeight(field)
 }
 
-func tokenSourceWeight(source string) float64 {
-	switch strings.TrimSpace(source) {
-	case tokenSourceWord:
-		return wordTokenWeight
-	case tokenSourceAlphaNum:
-		return alphaNumTokenWeight
-	case tokenSourceBigram:
-		return bigramTokenWeight
-	case tokenSourceSingleRune:
-		return singleRuneTokenWeight
-	default:
-		return wordTokenWeight
-	}
+func tokenSourceWeight() float64 {
+	return wordTokenWeight
 }
 
 func hashSparseTerm(term string) uint32 {
 	hasher := fnv.New32a()
 	_, _ = hasher.Write([]byte(term))
 	return hasher.Sum32()
-}
-
-func appendFieldText(fields *[]retrievalFieldText, field, text string) {
-	text = strings.TrimSpace(text)
-	if text == "" {
-		return
-	}
-	*fields = append(*fields, retrievalFieldText{
-		Field: field,
-		Text:  text,
-	})
-}
-
-func appendFieldList(fields *[]retrievalFieldText, field string, values []string) {
-	for _, value := range values {
-		appendFieldText(fields, field, value)
-	}
 }
 
 func coalesceNonEmpty(values ...string) string {

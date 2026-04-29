@@ -12,6 +12,8 @@ use App\Application\Flow\ExecuteManager\ExecutionData\ExecutionType;
 use App\Application\Flow\ExecuteManager\ExecutionData\TriggerData;
 use App\Application\Flow\ExecuteManager\NodeRunner\NodeRunnerFactory;
 use App\Application\Kernel\SuperPermissionEnum;
+use App\Application\KnowledgeBase\DTO\DataIsolationDTO;
+use App\Application\KnowledgeBase\DTO\KnowledgeBaseRequestDTO;
 use App\Domain\Chat\DTO\Message\ChatMessage\TextMessage;
 use App\Domain\Contact\Entity\MagicUserEntity;
 use App\Domain\Contact\Entity\ValueObject\DataIsolation as ContactDataIsolation;
@@ -29,8 +31,7 @@ use App\Domain\Flow\Entity\ValueObject\Query\MagicFlowToolSetQuery;
 use App\Domain\Flow\Entity\ValueObject\Type;
 use App\Domain\Flow\Event\MagicFlowChangeEnabledEvent;
 use App\Domain\KnowledgeBase\Entity\KnowledgeBaseEntity;
-use App\Domain\KnowledgeBase\Entity\ValueObject\KnowledgeType;
-use App\Domain\KnowledgeBase\Entity\ValueObject\Query\KnowledgeBaseQuery;
+use App\Domain\KnowledgeBase\Port\KnowledgeBaseGateway;
 use App\Domain\Permission\Entity\ValueObject\OperationPermission\Operation;
 use App\Domain\Permission\Entity\ValueObject\OperationPermission\ResourceType;
 use App\ErrorCode\FlowErrorCode;
@@ -52,6 +53,8 @@ use Qbhy\HyperfAuth\Authenticatable;
 
 class MagicFlowAppService extends AbstractFlowAppService
 {
+    private const int FLOW_KNOWLEDGE_PAGE_SIZE = 500;
+
     public function nodeVersions(): array
     {
         return NodeParamsConfigFactory::getVersionList();
@@ -384,44 +387,39 @@ class MagicFlowAppService extends AbstractFlowAppService
      */
     public function queryKnowledge(Authenticatable $authorization): array
     {
-        $page = Page::createNoPage();
         $dataIsolation = $this->createFlowDataIsolation($authorization);
-        $permissionDataIsolation = $this->createPermissionDataIsolation($dataIsolation);
-
-        $resources = $this->operationPermissionAppService->getResourceOperationByUserIds(
-            $permissionDataIsolation,
-            ResourceType::Knowledge,
-            [$authorization->getId()]
-        )[$authorization->getId()] ?? [];
-
-        $query = new KnowledgeBaseQuery();
-        $query->setCodes(array_keys($resources));
-        // 目前仅获取自建文本的知识库
-        $query->setTypes([KnowledgeType::UserKnowledgeBase->value]);
-        $query->setEnabled(true);
-        $knowledgeData = $this->magicFlowKnowledgeDomainService->queries($this->createKnowledgeBaseDataIsolation($dataIsolation), $query, $page);
+        $knowledgeDataIsolation = $this->createKnowledgeBaseDataIsolation($dataIsolation);
+        /** @var KnowledgeBaseGateway $gateway */
+        $gateway = di(KnowledgeBaseGateway::class);
+        $requestDataIsolation = new DataIsolationDTO(
+            organizationCode: $knowledgeDataIsolation->getCurrentOrganizationCode(),
+            userId: $knowledgeDataIsolation->getCurrentUserId(),
+        );
+        $knowledgeList = array_map(
+            static fn (array $item) => new KnowledgeBaseEntity($item),
+            $this->listFlowKnowledgeBasesByTypes($gateway, $requestDataIsolation, $this->knowledgeBaseStrategy->getQueryKnowledgeTypes())
+        );
 
         $userTopicKnowledge = KnowledgeBaseEntity::createCurrentTopicTemplate($dataIsolation->getCurrentOrganizationCode(), $dataIsolation->getCurrentUserId());
         $userConversationKnowledge = KnowledgeBaseEntity::createConversationTemplate($dataIsolation->getCurrentOrganizationCode(), $dataIsolation->getCurrentUserId());
-        $knowledgeData['list'] = array_merge([$userTopicKnowledge, $userConversationKnowledge], $knowledgeData['list']);
+        $knowledgeList = array_merge([$userTopicKnowledge, $userConversationKnowledge], $knowledgeList);
 
         $userIds = [];
-        foreach ($knowledgeData['list'] as $knowledge) {
+        foreach ($knowledgeList as $knowledge) {
             $userIds[] = $knowledge->getCreator();
             $userIds[] = $knowledge->getModifier();
             if ($knowledge->getCode() === ConstValue::KNOWLEDGE_USER_CURRENT_TOPIC) {
                 $knowledge->setUserOperation(Operation::Owner->value);
-            } else {
-                $knowledge->setUserOperation(($resources[$knowledge->getCode()] ?? Operation::None)->value);
             }
             $knowledge->setSourceType($this->knowledgeBaseStrategy->getOrCreateDefaultSourceType($knowledge));
         }
-        $knowledgeData['users'] = $this->magicUserDomainService->getByUserIds($this->createContactDataIsolation($dataIsolation), $userIds);
+        $users = $this->magicUserDomainService->getByUserIds($this->createContactDataIsolation($dataIsolation), $userIds);
 
-        // 重新计算总数
-        $knowledgeData['total'] = count($knowledgeData['list']);
-
-        return $knowledgeData;
+        return [
+            'total' => count($knowledgeList),
+            'list' => $knowledgeList,
+            'users' => $users,
+        ];
     }
 
     /**
@@ -479,5 +477,73 @@ class MagicFlowAppService extends AbstractFlowAppService
         return [
             'expression_data_source' => $expressionDataSource->toArray(),
         ];
+    }
+
+    /**
+     * @param array<int|string> $types
+     * @return array<array<string, mixed>>
+     */
+    private function listFlowKnowledgeBasesByTypes(
+        KnowledgeBaseGateway $gateway,
+        DataIsolationDTO $dataIsolation,
+        array $types
+    ): array {
+        $normalizedTypes = array_values(array_unique(array_map(
+            static fn (mixed $type): int => (int) $type,
+            array_filter($types, static fn (int|string $type): bool => $type !== '')
+        )));
+
+        if ($normalizedTypes === []) {
+            return $this->listFlowKnowledgeBasesPage($gateway, $dataIsolation, null);
+        }
+
+        $knowledgeByCode = [];
+        foreach ($normalizedTypes as $type) {
+            foreach ($this->listFlowKnowledgeBasesPage($gateway, $dataIsolation, $type) as $item) {
+                $code = (string) ($item['code'] ?? '');
+                if ($code === '') {
+                    continue;
+                }
+                $knowledgeByCode[$code] = $item;
+            }
+        }
+
+        return array_values($knowledgeByCode);
+    }
+
+    /**
+     * @return array<array<string, mixed>>
+     */
+    private function listFlowKnowledgeBasesPage(
+        KnowledgeBaseGateway $gateway,
+        DataIsolationDTO $dataIsolation,
+        ?int $type
+    ): array {
+        $offset = 0;
+        $items = [];
+
+        do {
+            $result = $gateway->list(KnowledgeBaseRequestDTO::forList([
+                'enabled' => true,
+                'type' => $type,
+                'offset' => $offset,
+                'limit' => self::FLOW_KNOWLEDGE_PAGE_SIZE,
+            ], $dataIsolation));
+            $pageItems = array_values(array_filter(
+                $result['list'] ?? [],
+                static fn (mixed $item): bool => is_array($item)
+            ));
+            foreach ($pageItems as $pageItem) {
+                $items[] = $pageItem;
+            }
+            if ($pageItems === []) {
+                break;
+            }
+
+            $offset += count($pageItems);
+            $total = (int) ($result['total'] ?? 0);
+        } while ($total <= 0 || $offset < $total);
+
+        return $items;
     }
 }

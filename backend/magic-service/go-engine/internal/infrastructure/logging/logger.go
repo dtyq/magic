@@ -21,6 +21,8 @@ import (
 const (
 	// keyValuePairSize 表示键值对元素数量（key + value）
 	keyValuePairSize = 2
+	// engineExceptionPrefix 表示 go-engine warning/error 日志统一前缀。
+	engineExceptionPrefix = "goEngineException"
 )
 
 // SugaredLogger 使用 slog 模拟 zap 的 SugaredLogger 方法。
@@ -42,17 +44,27 @@ func (s *SugaredLogger) InfoContext(ctx context.Context, msg string, keysAndValu
 
 // WarnContext 记录带上下文与结构化字段的 warning 日志。
 func (s *SugaredLogger) WarnContext(ctx context.Context, msg string, keysAndValues ...any) {
-	s.logCtx(ctx, slog.LevelWarn, msg, keysAndValues...)
+	s.logCtx(ctx, slog.LevelWarn, PrefixEngineException(msg), keysAndValues...)
+}
+
+// KnowledgeWarnContext 兼容旧调用，统一补充 go-engine 异常前缀。
+func (s *SugaredLogger) KnowledgeWarnContext(ctx context.Context, msg string, keysAndValues ...any) {
+	s.WarnContext(ctx, msg, keysAndValues...)
 }
 
 // ErrorContext 记录带上下文与结构化字段的 error 日志。
 func (s *SugaredLogger) ErrorContext(ctx context.Context, msg string, keysAndValues ...any) {
-	s.logCtx(ctx, slog.LevelError, msg, keysAndValues...)
+	s.logCtx(ctx, slog.LevelError, PrefixEngineException(msg), keysAndValues...)
+}
+
+// KnowledgeErrorContext 兼容旧调用，统一补充 go-engine 异常前缀。
+func (s *SugaredLogger) KnowledgeErrorContext(ctx context.Context, msg string, keysAndValues ...any) {
+	s.ErrorContext(ctx, msg, keysAndValues...)
 }
 
 // FatalContext 记录带上下文的 error 日志并终止进程。
 func (s *SugaredLogger) FatalContext(ctx context.Context, msg string, keysAndValues ...any) {
-	s.logCtx(ctx, slog.LevelError, msg, keysAndValues...)
+	s.logCtx(ctx, slog.LevelError, PrefixEngineException(msg), keysAndValues...)
 	os.Exit(1)
 }
 
@@ -68,18 +80,40 @@ func (s *SugaredLogger) Infow(msg string, keysAndValues ...any) {
 
 // Warnw 记录带键值对的 warning 日志（无上下文）。
 func (s *SugaredLogger) Warnw(msg string, keysAndValues ...any) {
-	s.logCtx(context.Background(), slog.LevelWarn, msg, keysAndValues...)
+	s.logCtx(context.Background(), slog.LevelWarn, PrefixEngineException(msg), keysAndValues...)
+}
+
+// KnowledgeWarnw 兼容旧调用，统一补充 go-engine 异常前缀。
+func (s *SugaredLogger) KnowledgeWarnw(msg string, keysAndValues ...any) {
+	s.Warnw(msg, keysAndValues...)
 }
 
 // Errorw 记录带键值对的 error 日志（无上下文）。
 func (s *SugaredLogger) Errorw(msg string, keysAndValues ...any) {
-	s.logCtx(context.Background(), slog.LevelError, msg, keysAndValues...)
+	s.logCtx(context.Background(), slog.LevelError, PrefixEngineException(msg), keysAndValues...)
+}
+
+// KnowledgeErrorw 兼容旧调用，统一补充 go-engine 异常前缀。
+func (s *SugaredLogger) KnowledgeErrorw(msg string, keysAndValues ...any) {
+	s.Errorw(msg, keysAndValues...)
 }
 
 // Fatalw 记录 error 日志并终止进程（无上下文）。
 func (s *SugaredLogger) Fatalw(msg string, keysAndValues ...any) {
-	s.logCtx(context.Background(), slog.LevelError, msg, keysAndValues...)
+	s.logCtx(context.Background(), slog.LevelError, PrefixEngineException(msg), keysAndValues...)
 	os.Exit(1)
+}
+
+// PrefixEngineException 为 go-engine warning/error 日志补充固定前缀。
+func PrefixEngineException(msg string) string {
+	trimmed := strings.TrimSpace(msg)
+	if trimmed == "" {
+		return engineExceptionPrefix
+	}
+	if strings.HasPrefix(trimmed, engineExceptionPrefix) {
+		return trimmed
+	}
+	return engineExceptionPrefix + ": " + trimmed
 }
 
 //nolint:contextcheck // 该方法是日志入口，允许接收并兜底处理外部传入的 ctx。

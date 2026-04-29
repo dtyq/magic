@@ -4,6 +4,8 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"net/url"
+	"strings"
 	"time"
 
 	// 为 database/sql 注册 MySQL 驱动
@@ -23,15 +25,23 @@ type SQLCClient struct {
 	logSQL  bool
 }
 
+const defaultMySQLDSNParams = "charset=utf8mb4&parseTime=true&loc=Local"
+
+// BuildDSN 根据配置构造 MySQL DSN，并补齐与 PHP 一致的本地时区/字符集解析参数。
+func BuildDSN(cfg *autoloadcfg.MySQLConfig) string {
+	return fmt.Sprintf("%s:%s@tcp(%s:%d)/%s?%s",
+		cfg.Username,
+		cfg.AuthValue,
+		cfg.Host,
+		cfg.Port,
+		cfg.Database,
+		normalizeMySQLDSNParams(cfg.Params),
+	)
+}
+
 // NewSQLCClient 使用 database/sql 创建新的 MySQL 客户端。
 func NewSQLCClient(cfg *autoloadcfg.MySQLConfig, logger *logging.SugaredLogger) (*SQLCClient, error) {
-	params := cfg.Params
-	if params == "" {
-		params = "charset=utf8mb4&parseTime=True&loc=Local"
-	}
-	dsn := fmt.Sprintf("%s:%s@tcp(%s:%d)/%s?%s",
-		cfg.Username, cfg.AuthValue, cfg.Host, cfg.Port, cfg.Database, params)
-
+	dsn := BuildDSN(cfg)
 	db, err := sql.Open("mysql", dsn)
 	if err != nil {
 		return nil, fmt.Errorf("failed to open MySQL connection: %w", err)
@@ -130,4 +140,62 @@ func (c *SQLCClient) Close() error {
 		return fmt.Errorf("failed to close MySQL connection: %w", err)
 	}
 	return nil
+}
+
+// normalizeMySQLDSNParams 只补齐客户端本地解析参数，不改 MySQL session time_zone。
+func normalizeMySQLDSNParams(raw string) string {
+	raw = strings.TrimSpace(raw)
+	if raw == "" {
+		return defaultMySQLDSNParams
+	}
+
+	values, err := url.ParseQuery(raw)
+	if err != nil {
+		return appendMissingMySQLParams(raw)
+	}
+
+	ensureMySQLParam(values, "charset", "utf8mb4")
+	ensureMySQLParam(values, "parseTime", "true")
+	ensureMySQLParam(values, "loc", "Local")
+	return values.Encode()
+}
+
+func appendMissingMySQLParams(raw string) string {
+	params := raw
+	if !containsMySQLParam(raw, "charset") {
+		params += "&charset=utf8mb4"
+	}
+	if !containsMySQLParam(raw, "parseTime") {
+		params += "&parseTime=true"
+	}
+	if !containsMySQLParam(raw, "loc") {
+		params += "&loc=Local"
+	}
+	return strings.TrimPrefix(params, "&")
+}
+
+func ensureMySQLParam(values url.Values, key, value string) {
+	if hasMySQLParam(values, key) {
+		return
+	}
+	values.Set(key, value)
+}
+
+func hasMySQLParam(values url.Values, key string) bool {
+	for currentKey := range values {
+		if strings.EqualFold(currentKey, key) {
+			return true
+		}
+	}
+	return false
+}
+
+func containsMySQLParam(raw, key string) bool {
+	for part := range strings.SplitSeq(raw, "&") {
+		currentKey, _, _ := strings.Cut(part, "=")
+		if strings.EqualFold(strings.TrimSpace(currentKey), key) {
+			return true
+		}
+	}
+	return false
 }

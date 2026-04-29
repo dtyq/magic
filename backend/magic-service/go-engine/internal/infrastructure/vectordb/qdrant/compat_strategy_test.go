@@ -4,6 +4,7 @@ import (
 	"testing"
 	"time"
 
+	shared "magic/internal/domain/knowledge/shared"
 	qdrantpkg "magic/internal/infrastructure/vectordb/qdrant"
 )
 
@@ -107,5 +108,47 @@ func TestCompatibilityStrategyTreatsUnknownVersionAsModernByDefault(t *testing.T
 	documentPlan := qdrantpkg.CurrentSparseSearchPlanForTest(client, "document")
 	if documentPlan.Primary != testQueryPointsAPI || documentPlan.ImmediateUnsupported {
 		t.Fatalf("unexpected document plan: %#v", documentPlan)
+	}
+}
+
+func TestCompatibilityStrategyDowngradesQdrantBackendWithoutNativeBM25(t *testing.T) {
+	t.Parallel()
+
+	client := newClient()
+	qdrantpkg.SetCapabilityForTest(client, qdrantpkg.CapabilitySnapshotForTest{
+		Version:           "1.12.2",
+		QuerySupported:    true,
+		SelectedSparseAPI: testQueryPointsAPI,
+		ProbeStatus:       "ready",
+		LastProbeAt:       time.Now(),
+	})
+
+	selection := client.SelectSparseBackend(shared.SparseBackendQdrantBM25ZHV1)
+	if selection.Effective != shared.SparseBackendClientBM25QdrantIDFV1 {
+		t.Fatalf("unexpected sparse backend selection: %#v", selection)
+	}
+	if selection.Reason != shared.SparseBackendSelectionReasonNativeBM25Unsupported {
+		t.Fatalf("unexpected sparse backend selection reason: %#v", selection)
+	}
+}
+
+func TestCompatibilityStrategyAllowsQdrantBackendWithNativeBM25(t *testing.T) {
+	t.Parallel()
+
+	client := newClient()
+	qdrantpkg.SetCapabilityForTest(client, qdrantpkg.CapabilitySnapshotForTest{
+		Version:           "1.15.2",
+		QuerySupported:    true,
+		SelectedSparseAPI: testQueryPointsAPI,
+		ProbeStatus:       "ready",
+		LastProbeAt:       time.Now(),
+	})
+
+	selection := client.SelectSparseBackend(shared.SparseBackendQdrantBM25ZHV1)
+	if selection.Effective != shared.SparseBackendQdrantBM25ZHV1 {
+		t.Fatalf("unexpected sparse backend selection: %#v", selection)
+	}
+	if selection.Reason != shared.SparseBackendSelectionReasonExplicitRequested {
+		t.Fatalf("unexpected sparse backend selection reason: %#v", selection)
 	}
 }

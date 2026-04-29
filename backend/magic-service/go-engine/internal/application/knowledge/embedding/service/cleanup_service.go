@@ -86,14 +86,12 @@ func NewEmbeddingCacheCleanupService(
 
 // StartCleanupDaemon 启动清理守护进程
 func (s *EmbeddingCacheCleanupService) StartCleanupDaemon(ctx context.Context) error {
-	s.logger.DebugContext(ctx, "Starting embedding cache cleanup daemon")
-
 	// 调度清理任务
 	if s.config.AutoCleanupEnabled {
 		spec := "@every " + s.config.CleanupInterval.String()
 		if _, err := s.scheduler.AddFunc(spec, func() {
 			if err := s.runScheduledCleanup(ctx); err != nil {
-				s.logger.ErrorContext(ctx, "Cleanup job failed", logkey.Error, err)
+				s.logger.KnowledgeErrorContext(ctx, "Cleanup job failed", logkey.Error, err)
 			} else {
 				s.logger.InfoContext(ctx, "Completed scheduled cleanup job")
 			}
@@ -138,7 +136,7 @@ func (s *EmbeddingCacheCleanupService) ManualCleanup(ctx context.Context, criter
 	// 获取清理后的统计
 	afterStats, err := s.embeddingDomain.GetCacheStatistics(ctx)
 	if err != nil {
-		s.logger.WarnContext(ctx, "failed to get after cleanup statistics", logkey.Error, err)
+		s.logger.KnowledgeWarnContext(ctx, "failed to get after cleanup statistics", logkey.Error, err)
 	}
 
 	duration := time.Since(start)
@@ -222,14 +220,14 @@ func (s *EmbeddingCacheCleanupService) runScheduledCleanup(ctx context.Context) 
 		if err != nil {
 			fields = append(fields, logkey.Error, err)
 		}
-		s.logger.WarnContext(ctx, "Skip scheduled cache cleanup because redis lock is unavailable", fields...)
+		s.logger.KnowledgeWarnContext(ctx, "Skip scheduled cache cleanup because redis lock is unavailable", fields...)
 		return nil
 	case lockpkg.SinglePodJobStatusAbortedLockLost:
 		fields := []any{"lock_key", constants.EmbeddingCacheCleanupJobLockKey}
 		if err != nil {
 			fields = append(fields, logkey.Error, err)
 		}
-		s.logger.WarnContext(ctx, "Abort scheduled cache cleanup because lock ownership was lost", fields...)
+		s.logger.KnowledgeWarnContext(ctx, "Abort scheduled cache cleanup because lock ownership was lost", fields...)
 		return nil
 	default:
 		if err != nil {
@@ -255,7 +253,7 @@ func (s *EmbeddingCacheCleanupService) performScheduledCleanupWithRetry(ctx cont
 
 		if err != nil {
 			lastErr = err
-			s.logger.ErrorContext(ctx, "Cleanup attempt failed", "attempt", attempt, logkey.Error, err)
+			s.logger.KnowledgeErrorContext(ctx, "Cleanup attempt failed", "attempt", attempt, logkey.Error, err)
 
 			if attempt < maxRetries {
 				waitTime := time.Duration(attempt*attempt) * time.Second // 指数退避

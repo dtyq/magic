@@ -61,7 +61,7 @@ class UdsFramedTransport implements FramedTransportInterface
         return $this->socket !== null && $this->socket->isAvailable();
     }
 
-    public function readFrame(): string
+    public function readFrame(): DecodedFrameResult
     {
         if (! $this->socket) {
             throw new RuntimeException('IPC socket not available');
@@ -89,28 +89,34 @@ class UdsFramedTransport implements FramedTransportInterface
             }
 
             $this->oversizeBurst = 0;
-            return $body;
+            $decoded = IpcFrameCodec::decodeFrameWithSummary($body);
+
+            return new DecodedFrameResult(
+                payload: $decoded['payload'],
+                rawJsonBytes: $decoded['raw_json_bytes'],
+                frameBytes: $bodyLength,
+                frameCodec: $decoded['frame_codec'],
+            );
         }
     }
 
     public function writeFrame(string $payload): void
     {
-        $payloadLength = strlen($payload);
-        if ($this->config->maxMessageBytes > 0 && $payloadLength > $this->config->maxMessageBytes) {
-            throw new RuntimeException('IPC payload too large');
-        }
         if (! $this->socket) {
             throw new RuntimeException('IPC socket not available');
         }
 
-        $header = pack('N', $payloadLength);
-        if ($payloadLength <= self::SINGLE_PACKET_CUTOFF) {
-            $this->socket->send($header . $payload);
+        $frameBody = IpcFrameCodec::encodeFrame($payload, $this->config->maxMessageBytes);
+        $frameLength = strlen($frameBody);
+
+        $header = pack('N', $frameLength);
+        if ($frameLength <= self::SINGLE_PACKET_CUTOFF) {
+            $this->socket->send($header . $frameBody);
             return;
         }
 
         // 使用 writev 风格接口避免大包拼接；Swow 在失败时会抛异常。
-        $this->socket->write([$header, $payload]);
+        $this->socket->write([$header, $frameBody]);
     }
 
     public function getEndpointLabel(): string
@@ -142,7 +148,7 @@ class UdsFramedTransport implements FramedTransportInterface
         $discardCap = $max * $multiplier;
 
         if ($bodyLength > $discardCap) {
-            $this->logger->error('IPC oversize frame exceeds discard cap', [
+            $this->logger->error('goEngineException IPC oversize frame exceeds discard cap', [
                 'length' => $bodyLength,
                 'max' => $max,
                 'discard_cap' => $discardCap,
@@ -153,7 +159,7 @@ class UdsFramedTransport implements FramedTransportInterface
         try {
             $this->discardBytes($bodyLength);
         } catch (Throwable $e) {
-            $this->logger->error('IPC oversize frame discard failed', [
+            $this->logger->error('goEngineException IPC oversize frame discard failed', [
                 'length' => $bodyLength,
                 'max' => $max,
                 'discard_cap' => $discardCap,
@@ -162,7 +168,7 @@ class UdsFramedTransport implements FramedTransportInterface
             return false;
         }
 
-        $this->logger->warning('IPC oversize frame discarded, keep connection', [
+        $this->logger->warning('goEngineException IPC oversize frame discarded, keep connection', [
             'length' => $bodyLength,
             'max' => $max,
             'discard_cap' => $discardCap,
@@ -170,7 +176,7 @@ class UdsFramedTransport implements FramedTransportInterface
 
         ++$this->oversizeBurst;
         if ($this->config->oversizeMaxBurst > 0 && $this->oversizeBurst >= $this->config->oversizeMaxBurst) {
-            $this->logger->warning('IPC oversize burst exceeded, closing connection', [
+            $this->logger->warning('goEngineException IPC oversize burst exceeded, closing connection', [
                 'burst' => $this->oversizeBurst,
                 'limit' => $this->config->oversizeMaxBurst,
             ]);

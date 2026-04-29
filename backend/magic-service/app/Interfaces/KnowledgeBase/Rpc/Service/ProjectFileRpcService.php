@@ -10,6 +10,7 @@ namespace App\Interfaces\KnowledgeBase\Rpc\Service;
 use App\Application\Kernel\Proxy\FileParserProxy;
 use App\Domain\Contact\Entity\ValueObject\DataIsolation;
 use App\Domain\KnowledgeBase\Entity\ValueObject\DocType;
+use App\Infrastructure\Core\File\Parser\FileParser;
 use App\Infrastructure\Rpc\Annotation\RpcMethod;
 use App\Infrastructure\Rpc\Annotation\RpcService;
 use App\Infrastructure\Rpc\Method\SvcMethods;
@@ -28,6 +29,7 @@ readonly class ProjectFileRpcService
         private TaskFileDomainService $taskFileDomainService,
         private ProjectDomainService $projectDomainService,
         private WorkspaceDomainService $workspaceDomainService,
+        private FileParserProxy $fileParserProxy,
         private LoggerInterface $logger,
     ) {
     }
@@ -64,32 +66,25 @@ readonly class ProjectFileRpcService
                 ];
             }
 
-            $documentFile = $this->buildDocumentFilePayload($fileEntity, $projectEntity->getWorkDir());
+            $workDir = $projectEntity->getWorkDir();
+            $documentFile = $this->buildDocumentFilePayload($fileEntity, $workDir);
             $content = '';
             if (! $fileEntity->getIsDirectory()) {
+                if (! FileParser::supportsExtension($fileEntity->getFileExtension())) {
+                    return [
+                        'code' => 0,
+                        'message' => 'success',
+                        'data' => $this->buildResolvePayload($fileEntity, $documentFile, 'unsupported', ''),
+                    ];
+                }
                 $url = $this->taskFileDomainService->getFilePreSignedUrl($fileEntity->getOrganizationCode(), $fileEntity);
-                $content = di(FileParserProxy::class)->parse($url, true);
+                $content = $this->fileParserProxy->parse($url, true);
             }
 
             return [
                 'code' => 0,
                 'message' => 'success',
-                'data' => [
-                    'status' => 'active',
-                    'organization_code' => $fileEntity->getOrganizationCode(),
-                    'project_id' => $fileEntity->getProjectId(),
-                    'project_file_id' => $fileEntity->getFileId(),
-                    'file_key' => $fileEntity->getFileKey(),
-                    'relative_file_path' => $documentFile['relative_file_path'],
-                    'file_name' => $fileEntity->getFileName(),
-                    'file_extension' => $fileEntity->getFileExtension(),
-                    'is_directory' => $fileEntity->getIsDirectory(),
-                    'updated_at' => $fileEntity->getUpdatedAt(),
-                    'content' => $content,
-                    'content_hash' => sha1($content),
-                    'doc_type' => $this->resolveDocType($fileEntity->getFileExtension()),
-                    'document_file' => $documentFile,
-                ],
+                'data' => $this->buildResolvePayload($fileEntity, $documentFile, 'active', $content),
             ];
         } catch (Throwable $throwable) {
             $this->logger->error('IPC ProjectFile resolve failed', [
@@ -393,6 +388,30 @@ readonly class ProjectFileRpcService
             'project_file_id' => (int) $fileItem->fileId,
             'file_key' => $fileItem->fileKey,
             'relative_file_path' => $fileItem->relativeFilePath,
+        ];
+    }
+
+    private function buildResolvePayload(
+        TaskFileEntity $fileEntity,
+        array $documentFile,
+        string $status,
+        string $content,
+    ): array {
+        return [
+            'status' => $status,
+            'organization_code' => $fileEntity->getOrganizationCode(),
+            'project_id' => $fileEntity->getProjectId(),
+            'project_file_id' => $fileEntity->getFileId(),
+            'file_key' => $fileEntity->getFileKey(),
+            'relative_file_path' => $documentFile['relative_file_path'],
+            'file_name' => $fileEntity->getFileName(),
+            'file_extension' => $fileEntity->getFileExtension(),
+            'is_directory' => $fileEntity->getIsDirectory(),
+            'updated_at' => $fileEntity->getUpdatedAt(),
+            'content' => $content,
+            'content_hash' => $content === '' ? '' : sha1($content),
+            'doc_type' => $this->resolveDocType($fileEntity->getFileExtension()),
+            'document_file' => $documentFile,
         ];
     }
 

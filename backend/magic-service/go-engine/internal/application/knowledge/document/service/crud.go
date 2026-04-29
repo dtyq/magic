@@ -9,11 +9,14 @@ import (
 	confighelper "magic/internal/application/knowledge/helper/config"
 	docfilehelper "magic/internal/application/knowledge/helper/docfile"
 	pagehelper "magic/internal/application/knowledge/helper/page"
+	revectorizeshared "magic/internal/application/knowledge/shared/revectorize"
 	thirdplatformprovider "magic/internal/application/knowledge/shared/thirdplatformprovider"
+	docentity "magic/internal/domain/knowledge/document/entity"
+	docrepo "magic/internal/domain/knowledge/document/repository"
 	documentdomain "magic/internal/domain/knowledge/document/service"
-	knowledgebasedomain "magic/internal/domain/knowledge/knowledgebase/service"
+	kbentity "magic/internal/domain/knowledge/knowledgebase/entity"
+	kbrepository "magic/internal/domain/knowledge/knowledgebase/repository"
 	"magic/internal/domain/knowledge/shared"
-	sourcebindingdomain "magic/internal/domain/knowledge/sourcebinding/service"
 )
 
 // Create 创建文档
@@ -28,9 +31,15 @@ func (s *DocumentAppService) createManagedDocument(
 	if input == nil {
 		return nil, errManagedDocumentInputRequired
 	}
+	if err := s.requireActiveUser(ctx, input.OrganizationCode, input.UserID, "create managed document"); err != nil {
+		return nil, err
+	}
 	kb, err := s.kbService.ShowByCodeAndOrg(ctx, input.KnowledgeBaseCode, input.OrganizationCode)
 	if err != nil {
 		return nil, fmt.Errorf("failed to find knowledge base: %w", err)
+	}
+	if err := s.authorizeKnowledgeBaseAction(ctx, input.OrganizationCode, input.UserID, kb.Code, "edit"); err != nil {
+		return nil, err
 	}
 	if err := s.validateManualDocumentCreateAllowed(ctx, kb, input); err != nil {
 		return nil, err
@@ -39,7 +48,7 @@ func (s *DocumentAppService) createManagedDocument(
 	effectiveModel := route.Model
 	requestedEmbeddingModel := strings.TrimSpace(input.EmbeddingModel)
 	if requestedEmbeddingModel != "" && requestedEmbeddingModel != effectiveModel && s.logger != nil {
-		s.logger.WarnContext(
+		s.logger.KnowledgeWarnContext(
 			ctx,
 			"Document embedding model from request is ignored, force using effective route model",
 			"requested_model", requestedEmbeddingModel,
@@ -66,9 +75,12 @@ func (s *DocumentAppService) Update(ctx context.Context, input *docdto.UpdateDoc
 // Show 查询文档详情
 func (s *DocumentAppService) Show(
 	ctx context.Context,
-	code, knowledgeBaseCode, organizationCode string,
+	code, knowledgeBaseCode, organizationCode, userID string,
 ) (*docdto.DocumentDTO, error) {
 	if err := validateDocumentKnowledgeBaseCode(knowledgeBaseCode); err != nil {
+		return nil, err
+	}
+	if err := s.authorizeKnowledgeBaseAction(ctx, organizationCode, userID, knowledgeBaseCode, "read"); err != nil {
 		return nil, err
 	}
 
@@ -87,6 +99,11 @@ func (s *DocumentAppService) Show(
 
 // List 查询文档列表
 func (s *DocumentAppService) List(ctx context.Context, input *docdto.ListDocumentInput) (*pagehelper.Result, error) {
+	if input != nil {
+		if err := s.authorizeKnowledgeBaseAction(ctx, input.OrganizationCode, input.UserID, input.KnowledgeBaseCode, "read"); err != nil {
+			return nil, err
+		}
+	}
 	if input != nil {
 		allowed, err := s.isKnowledgeBaseAccessibleInAgentScope(
 			ctx,
@@ -107,7 +124,7 @@ func (s *DocumentAppService) List(ctx context.Context, input *docdto.ListDocumen
 		syncStatus = &st
 	}
 
-	query := &documentdomain.Query{
+	query := &docrepo.DocumentQuery{
 		OrganizationCode:  input.OrganizationCode,
 		KnowledgeBaseCode: input.KnowledgeBaseCode,
 		Name:              input.Name,
@@ -140,12 +157,12 @@ func (s *DocumentAppService) CountByKnowledgeBaseCodes(ctx context.Context, orga
 // Destroy 删除文档
 func (s *DocumentAppService) Destroy(
 	ctx context.Context,
-	code, knowledgeBaseCode, organizationCode string,
+	code, knowledgeBaseCode, organizationCode, userID string,
 ) error {
-	return NewDocumentDestroyAppService(s).Destroy(ctx, code, knowledgeBaseCode, organizationCode)
+	return NewDocumentDestroyAppService(s).Destroy(ctx, code, knowledgeBaseCode, organizationCode, userID)
 }
 
-func (s *DocumentAppService) destroyDocument(ctx context.Context, doc *documentdomain.KnowledgeBaseDocument) error {
+func (s *DocumentAppService) destroyDocument(ctx context.Context, doc *docentity.KnowledgeBaseDocument) error {
 	if doc == nil {
 		return nil
 	}
@@ -182,12 +199,15 @@ func (s *DocumentAppService) SetSyncScheduler(scheduler documentSyncScheduler) {
 	s.syncScheduler = scheduler
 }
 
-// SetThirdFileRevectorizeScheduler 注入第三方文件重向量化调度器。
-func (s *DocumentAppService) SetThirdFileRevectorizeScheduler(scheduler thirdFileRevectorizeScheduler) {
+// SetKnowledgeRevectorizeProgressStore 注入知识库重向量化 session 进度存储。
+//
+// document app 只负责在单文档任务到达终态时推进所属知识库 session 的 completed_num，
+// 不负责决定“本轮知识库级重向量化”包含哪些文档，这个集合由 revectorize app 决定。
+func (s *DocumentAppService) SetKnowledgeRevectorizeProgressStore(store revectorizeshared.ProgressStore) {
 	if s == nil {
 		return
 	}
-	s.thirdFileScheduler = scheduler
+	s.revectorizeProgressStore = store
 }
 
 // SetThirdPlatformProviders 注入第三方平台 provider registry。
@@ -199,7 +219,7 @@ func (s *DocumentAppService) SetThirdPlatformProviders(registry *thirdplatformpr
 }
 
 // SetSourceBindingRepository 注入来源绑定仓储。
-func (s *DocumentAppService) SetSourceBindingRepository(repo sourcebindingdomain.Repository) {
+func (s *DocumentAppService) SetSourceBindingRepository(repo sourceBindingRepository) {
 	if s == nil {
 		return
 	}
@@ -215,7 +235,7 @@ func (s *DocumentAppService) SetKnowledgeBaseBindingRepository(repo knowledgeBas
 }
 
 // SetProjectFileResolver 注入项目文件解析端口。
-func (s *DocumentAppService) SetProjectFileResolver(port projectFileResolver) {
+func (s *DocumentAppService) SetProjectFileResolver(port documentdomain.ProjectFileResolver) {
 	if s == nil {
 		return
 	}
@@ -223,7 +243,7 @@ func (s *DocumentAppService) SetProjectFileResolver(port projectFileResolver) {
 }
 
 // SetProjectFileMetadataReader 注入项目文件轻量元数据读取器。
-func (s *DocumentAppService) SetProjectFileMetadataReader(reader projectFileMetadataReader) {
+func (s *DocumentAppService) SetProjectFileMetadataReader(reader documentdomain.ProjectFileMetadataReader) {
 	if s == nil {
 		return
 	}
@@ -231,7 +251,7 @@ func (s *DocumentAppService) SetProjectFileMetadataReader(reader projectFileMeta
 }
 
 // SetProjectFileContentAccessor 注入项目文件内容访问端口。
-func (s *DocumentAppService) SetProjectFileContentAccessor(accessor projectFileContentAccessor) {
+func (s *DocumentAppService) SetProjectFileContentAccessor(accessor documentdomain.ProjectFileContentAccessor) {
 	if s == nil {
 		return
 	}
@@ -246,7 +266,7 @@ func (s *DocumentAppService) SetOriginalFileLinkProvider(provider originalFileLi
 	s.fileLinkProvider = provider
 }
 
-func (s *DocumentAppService) inputToEntity(input *documentdomain.CreateManagedDocumentInput, kb *knowledgebasedomain.KnowledgeBase, effectiveModel string) *documentdomain.KnowledgeBaseDocument {
+func (s *DocumentAppService) inputToEntity(input *documentdomain.CreateManagedDocumentInput, kb *kbentity.KnowledgeBase, effectiveModel string) *docentity.KnowledgeBaseDocument {
 	return documentdomain.BuildDocumentForCreate(knowledgeBaseSnapshotFromDomain(kb), effectiveModel, input)
 }
 
@@ -266,7 +286,11 @@ func createDocumentInputToManaged(input *docdto.CreateDocumentInput) *documentdo
 		Name:              input.Name,
 		Description:       input.Description,
 		DocType:           input.DocType,
-		DocMetadata:       confighelper.ApplyStrategyConfigToMetadata(input.DocMetadata, input.StrategyConfig),
+		DocMetadata: confighelper.ApplyStrategyConfigToMetadataForKnowledgeBaseType(
+			input.DocMetadata,
+			input.KnowledgeBaseType,
+			input.StrategyConfig,
+		),
 		DocumentFile:      documentFileDTOToDomain(input.DocumentFile),
 		ThirdPlatformType: input.ThirdPlatformType,
 		ThirdFileID:       input.ThirdFileID,
@@ -280,7 +304,7 @@ func createDocumentInputToManaged(input *docdto.CreateDocumentInput) *documentdo
 	}
 }
 
-func (s *DocumentAppService) entityToDTO(e *documentdomain.KnowledgeBaseDocument) *docdto.DocumentDTO {
+func (s *DocumentAppService) entityToDTO(e *docentity.KnowledgeBaseDocument) *docdto.DocumentDTO {
 	return EntityToDTO(e)
 }
 
@@ -291,12 +315,13 @@ type knowledgeBaseRouteKey struct {
 
 type knowledgeBaseDTOContext struct {
 	effectiveModel    string
-	knowledgeBaseType knowledgebasedomain.Type
+	knowledgeBaseType kbentity.Type
+	sourceType        *int
 }
 
 func (s *DocumentAppService) entitiesToDTOsWithContext(
 	ctx context.Context,
-	docs []*documentdomain.KnowledgeBaseDocument,
+	docs []*docentity.KnowledgeBaseDocument,
 ) []*docdto.DocumentDTO {
 	list := make([]*docdto.DocumentDTO, len(docs))
 	if len(docs) == 0 {
@@ -322,7 +347,7 @@ func (s *DocumentAppService) entitiesToDTOsWithContext(
 }
 
 func (s *DocumentAppService) entityToDTOWithKnowledgeBaseContext(
-	e *documentdomain.KnowledgeBaseDocument,
+	e *docentity.KnowledgeBaseDocument,
 	dtoContext knowledgeBaseDTOContext,
 ) *docdto.DocumentDTO {
 	dto := s.entityToDTO(e)
@@ -332,12 +357,12 @@ func (s *DocumentAppService) entityToDTOWithKnowledgeBaseContext(
 	if strings.TrimSpace(dtoContext.effectiveModel) != "" {
 		dto = ApplyEffectiveModel(dto, dtoContext.effectiveModel)
 	}
-	return ApplyKnowledgeBaseType(dto, dtoContext.knowledgeBaseType)
+	return ApplyKnowledgeBaseContext(dto, dtoContext.knowledgeBaseType, dtoContext.sourceType)
 }
 
 func (s *DocumentAppService) batchResolveKnowledgeBaseContexts(
 	ctx context.Context,
-	docs []*documentdomain.KnowledgeBaseDocument,
+	docs []*docentity.KnowledgeBaseDocument,
 ) map[knowledgeBaseRouteKey]knowledgeBaseDTOContext {
 	contexts := make(map[knowledgeBaseRouteKey]knowledgeBaseDTOContext, len(docs))
 	if s == nil || s.kbService == nil || len(docs) == 0 {
@@ -365,7 +390,7 @@ func (s *DocumentAppService) batchResolveKnowledgeBaseContexts(
 	}
 
 	for organizationCode, knowledgeBaseCodes := range codesByOrg {
-		kbs, _, err := s.kbService.List(ctx, &knowledgebasedomain.Query{
+		kbs, _, err := s.kbService.List(ctx, &kbrepository.Query{
 			OrganizationCode: organizationCode,
 			Codes:            knowledgeBaseCodes,
 			Offset:           0,
@@ -384,14 +409,15 @@ func (s *DocumentAppService) batchResolveKnowledgeBaseContexts(
 			}
 			contexts[key] = knowledgeBaseDTOContext{
 				effectiveModel:    s.kbService.ResolveRuntimeRoute(ctx, kb).Model,
-				knowledgeBaseType: knowledgebasedomain.NormalizeKnowledgeBaseTypeOrDefault(kb.KnowledgeBaseType),
+				knowledgeBaseType: kbentity.NormalizeKnowledgeBaseTypeOrDefault(kb.KnowledgeBaseType),
+				sourceType:        cloneKnowledgeBaseSourceType(kb.SourceType),
 			}
 		}
 	}
 	return contexts
 }
 
-func (s *DocumentAppService) entityToDTOWithContext(ctx context.Context, e *documentdomain.KnowledgeBaseDocument) *docdto.DocumentDTO {
+func (s *DocumentAppService) entityToDTOWithContext(ctx context.Context, e *docentity.KnowledgeBaseDocument) *docdto.DocumentDTO {
 	dto := s.entityToDTO(e)
 	if dto == nil {
 		return nil
@@ -408,14 +434,23 @@ func (s *DocumentAppService) entityToDTOWithContext(ctx context.Context, e *docu
 	if strings.TrimSpace(route.Model) != "" {
 		dto = ApplyEffectiveModel(dto, route.Model)
 	}
-	return ApplyKnowledgeBaseType(dto, kb.KnowledgeBaseType)
+	return ApplyKnowledgeBaseContext(dto, kb.KnowledgeBaseType, kb.SourceType)
 }
 
-func documentFileDTOToDomain(documentFile *docfilehelper.DocumentFileDTO) *documentdomain.File {
+func cloneKnowledgeBaseSourceType(sourceType *int) *int {
+	if sourceType == nil {
+		return nil
+	}
+	cloned := *sourceType
+	return &cloned
+}
+
+func documentFileDTOToDomain(documentFile *docfilehelper.DocumentFileDTO) *docentity.File {
 	return docfilehelper.ToDomainFile(documentFile)
 }
 
 func normalizeUpdateDocumentMetadata(
+	knowledgeBaseType string,
 	current map[string]any,
 	incoming map[string]any,
 	strategy *confighelper.StrategyConfigDTO,
@@ -426,11 +461,15 @@ func normalizeUpdateDocumentMetadata(
 	}
 
 	if strategy != nil {
-		return confighelper.ApplyStrategyConfigToMetadata(base, strategy)
+		return confighelper.ApplyStrategyConfigToMetadataForKnowledgeBaseType(base, knowledgeBaseType, strategy)
 	}
 
 	if _, ok := current[documentdomain.ParseStrategyConfigKey]; ok {
-		return confighelper.ApplyStrategyConfigToMetadata(base, confighelper.StrategyConfigDTOFromMetadata(current))
+		return confighelper.ApplyStrategyConfigToMetadataForKnowledgeBaseType(
+			base,
+			knowledgeBaseType,
+			confighelper.StrategyConfigDTOFromMetadataForKnowledgeBaseType(knowledgeBaseType, current),
+		)
 	}
-	return confighelper.ApplyStrategyConfigToMetadata(base, nil)
+	return confighelper.ApplyStrategyConfigToMetadataForKnowledgeBaseType(base, knowledgeBaseType, nil)
 }

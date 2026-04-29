@@ -8,6 +8,8 @@ declare(strict_types=1);
 namespace App\Infrastructure\Rpc\JsonRpc\Client\Knowledge;
 
 use App\Application\KnowledgeBase\DTO\FragmentRequestDTO;
+use App\Application\KnowledgeBase\DTO\RpcHttpPassthroughResult;
+use App\Application\KnowledgeBase\Port\FragmentHttpPassthroughPort;
 use App\Domain\KnowledgeBase\Port\FragmentGateway;
 use App\Infrastructure\Rpc\Annotation\RpcClient;
 use App\Infrastructure\Rpc\Annotation\RpcMethod;
@@ -21,7 +23,7 @@ use JsonException;
  * 通过 IPC 调用 Go Engine 处理切片管理相关操作
  */
 #[RpcClient(name: SvcMethods::SERVICE_KNOWLEDGE_FRAGMENT)]
-class FragmentRpcClient extends AbstractRpcClient implements FragmentGateway
+class FragmentRpcClient extends AbstractRpcClient implements FragmentGateway, FragmentHttpPassthroughPort
 {
     /**
      * 创建切片.
@@ -29,25 +31,7 @@ class FragmentRpcClient extends AbstractRpcClient implements FragmentGateway
     #[RpcMethod(name: SvcMethods::METHOD_CREATE)]
     public function create(FragmentRequestDTO $request): array
     {
-        $data = $request->payload;
-        $params = [
-            'data_isolation' => $request->dataIsolation->toArray(),
-            'business_params' => $request->businessParams?->toArray() ?? [],
-            'knowledge_code' => (string) ($data['knowledge_code'] ?? ''),
-            'document_code' => (string) ($data['document_code'] ?? ''),
-            // 兼容旧 Go/PHP 协议
-            'organization_code' => (string) ($data['organization_code'] ?? ($request->dataIsolation->organizationCode ?? '')),
-            'created_uid' => (string) ($data['created_uid'] ?? ($request->dataIsolation->userId ?? '')),
-        ];
-        $this->copyIfKeyExists($params, $data, 'content', transform: static fn ($value) => (string) $value);
-        if (array_key_exists('metadata', $data)) {
-            $params['metadata'] = $this->normalizeMetadata($data['metadata']);
-        }
-        $this->copyIfKeyExists($params, $data, 'business_id', transform: static fn ($value) => (string) $value);
-        $this->copyIfKeyExists($params, $data, 'file_id', transform: static fn ($value) => (string) $value);
-        $this->copyIfKeyExists($params, $data, 'id', transform: static fn ($value) => (int) $value);
-
-        return $this->callRpc(__FUNCTION__, $params);
+        return $this->callRpc(__FUNCTION__, $this->buildCreateParams($request, true));
     }
 
     /**
@@ -56,21 +40,7 @@ class FragmentRpcClient extends AbstractRpcClient implements FragmentGateway
     #[RpcMethod(name: SvcMethods::METHOD_RUNTIME_CREATE)]
     public function runtimeCreate(FragmentRequestDTO $request): array
     {
-        $data = $request->payload;
-        $params = [
-            'data_isolation' => $request->dataIsolation->toArray(),
-            'business_params' => $request->businessParams?->toArray() ?? [],
-            'knowledge_code' => (string) ($data['knowledge_code'] ?? ''),
-            'document_code' => (string) ($data['document_code'] ?? ''),
-        ];
-        $this->copyIfKeyExists($params, $data, 'content', transform: static fn ($value) => (string) $value);
-        if (array_key_exists('metadata', $data)) {
-            $params['metadata'] = $this->normalizeMetadata($data['metadata']);
-        }
-        $this->copyIfKeyExists($params, $data, 'business_id', transform: static fn ($value) => (string) $value);
-        $this->copyIfKeyExists($params, $data, 'id', transform: static fn ($value) => (int) $value);
-
-        return $this->callRpc(__FUNCTION__, $params);
+        return $this->callRpc(__FUNCTION__, $this->buildCreateParams($request, false));
     }
 
     /**
@@ -152,8 +122,6 @@ class FragmentRpcClient extends AbstractRpcClient implements FragmentGateway
             'knowledge_code' => (string) $request->knowledgeCode,
             'data_isolation' => $request->dataIsolation->toArray(),
             'business_params' => $request->businessParams?->toArray() ?? [],
-            // 兼容旧 Go/PHP 协议
-            'id' => (int) $request->id,
         ]);
     }
 
@@ -163,18 +131,7 @@ class FragmentRpcClient extends AbstractRpcClient implements FragmentGateway
     #[RpcMethod(name: SvcMethods::METHOD_SIMILARITY)]
     public function similarity(FragmentRequestDTO $request): array
     {
-        $params = [
-            'data_isolation' => $request->dataIsolation->toArray(),
-            'knowledge_code' => (string) $request->knowledgeCode,
-            'query' => $request->queryText,
-            'top_k' => $request->topK,
-            'debug' => $request->debug,
-            'business_params' => $request->businessParams?->toArray() ?? [],
-        ];
-        if ($request->scoreThreshold !== null) {
-            $params['score_threshold'] = $request->scoreThreshold;
-        }
-        return $this->callRpc(__FUNCTION__, $params);
+        return $this->callRpc(__FUNCTION__, $this->buildSimilarityParams($request, false));
     }
 
     /**
@@ -218,37 +175,132 @@ class FragmentRpcClient extends AbstractRpcClient implements FragmentGateway
     #[RpcMethod(name: SvcMethods::METHOD_PREVIEW)]
     public function preview(FragmentRequestDTO $request): array
     {
-        $documentFile = $this->normalizeDocumentFile($request->documentFile);
-        return $this->callRpc(__FUNCTION__, [
-            'document_file' => $documentFile === [] ? null : $documentFile,
+        return $this->callRpc(__FUNCTION__, $this->buildPreviewParams($request, false));
+    }
+
+    #[RpcMethod(name: SvcMethods::METHOD_QUERIES_HTTP)]
+    public function listPassthrough(FragmentRequestDTO $request): RpcHttpPassthroughResult
+    {
+        return $this->callRpcPassthrough(__FUNCTION__, $this->buildListParams($request, true));
+    }
+
+    #[RpcMethod(name: SvcMethods::METHOD_SIMILARITY_HTTP)]
+    public function similarityPassthrough(FragmentRequestDTO $request): RpcHttpPassthroughResult
+    {
+        return $this->callRpcPassthrough(__FUNCTION__, $this->buildSimilarityParams($request, true));
+    }
+
+    #[RpcMethod(name: SvcMethods::METHOD_PREVIEW_HTTP)]
+    public function previewPassthrough(FragmentRequestDTO $request): RpcHttpPassthroughResult
+    {
+        return $this->callRpcPassthrough(__FUNCTION__, $this->buildPreviewParams($request, true));
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function buildPreviewParams(FragmentRequestDTO $request, bool $includeAcceptEncoding): array
+    {
+        $params = [
+            'document_file' => $request->documentFile === [] ? null : $request->documentFile,
             'strategy_config' => $request->strategyConfig,
             'fragment_config' => $request->fragmentConfig,
             'data_isolation' => $request->dataIsolation->toArray(),
-        ]);
+        ];
+        if ($request->documentCode !== null && $request->documentCode !== '') {
+            $params['document_code'] = $request->documentCode;
+        }
+
+        if ($includeAcceptEncoding) {
+            $params['accept_encoding'] = $request->acceptEncoding;
+        }
+
+        return $params;
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function buildCreateParams(FragmentRequestDTO $request, bool $includeFileId): array
+    {
+        $data = $request->payload;
+        $params = [
+            'data_isolation' => $request->dataIsolation->toArray(),
+            'business_params' => $request->businessParams?->toArray() ?? [],
+            'knowledge_code' => (string) ($data['knowledge_code'] ?? ''),
+            'document_code' => (string) ($data['document_code'] ?? ''),
+        ];
+        $this->copyIfKeyExists($params, $data, 'content', transform: static fn ($value) => (string) $value);
+        if (array_key_exists('metadata', $data)) {
+            $params['metadata'] = $this->normalizeMetadata($data['metadata']);
+        }
+        $this->copyIfKeyExists($params, $data, 'business_id', transform: static fn ($value) => (string) $value);
+        if ($includeFileId) {
+            $this->copyIfKeyExists($params, $data, 'file_id', transform: static fn ($value) => (string) $value);
+        }
+        $this->copyIfKeyExists($params, $data, 'id');
+
+        return $params;
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function buildListParams(FragmentRequestDTO $request, bool $includeAcceptEncoding): array
+    {
+        $params = $this->listCallParams($request);
+        if ($includeAcceptEncoding) {
+            $params['accept_encoding'] = $request->acceptEncoding;
+        }
+
+        return $params;
     }
 
     private function listCall(FragmentRequestDTO $request, string $method): array
     {
+        return $this->callRpc($method, $this->listCallParams($request));
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function listCallParams(FragmentRequestDTO $request): array
+    {
         $query = $request->query;
-        ['offset' => $normalizedOffset, 'limit' => $normalizedLimit] = $this->resolvePagination($query);
         $params = [
             'data_isolation' => $request->dataIsolation->toArray(),
             'knowledge_code' => $query['knowledge_code'] ?? '',
             'document_code' => $query['document_code'] ?? '',
-            'page' => [
-                'offset' => $normalizedOffset,
-                'limit' => $normalizedLimit,
-            ],
-            'offset' => $normalizedOffset,
-            'limit' => $normalizedLimit,
         ];
-        if (array_key_exists('content', $query)) {
-            $params['content'] = (string) $query['content'];
+        foreach (['content', 'sync_status', 'version', 'page', 'page_size', 'offset', 'limit'] as $field) {
+            if (array_key_exists($field, $query)) {
+                $params[$field] = $query[$field];
+            }
         }
-        if (array_key_exists('sync_status', $query)) {
-            $params['sync_status'] = $query['sync_status'] === null ? null : (int) $query['sync_status'];
+        return $params;
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function buildSimilarityParams(FragmentRequestDTO $request, bool $includeAcceptEncoding): array
+    {
+        $params = [
+            'data_isolation' => $request->dataIsolation->toArray(),
+            'knowledge_code' => (string) $request->knowledgeCode,
+            'query' => $request->queryText,
+            'top_k' => $request->topK,
+            'debug' => $request->debug,
+            'business_params' => $request->businessParams?->toArray() ?? [],
+        ];
+        if ($request->scoreThreshold !== null) {
+            $params['score_threshold'] = $request->scoreThreshold;
         }
-        return $this->callRpc($method, $params);
+        if ($includeAcceptEncoding) {
+            $params['accept_encoding'] = $request->acceptEncoding;
+        }
+
+        return $params;
     }
 
     /**
@@ -276,35 +328,6 @@ class FragmentRpcClient extends AbstractRpcClient implements FragmentGateway
     }
 
     /**
-     * @param array<string, mixed> $documentFile
-     * @return array<string, mixed>
-     */
-    private function normalizeDocumentFile(array $documentFile): array
-    {
-        if ($documentFile === []) {
-            return [];
-        }
-
-        return [
-            'type' => $this->normalizeDocumentFileType($documentFile['type'] ?? null),
-            'name' => (string) ($documentFile['name'] ?? ''),
-            'url' => (string) ($documentFile['url'] ?? ($documentFile['file_link']['url'] ?? $documentFile['key'] ?? '')),
-            'size' => (int) ($documentFile['size'] ?? 0),
-            'extension' => (string) ($documentFile['extension'] ?? ($documentFile['third_file_extension_name'] ?? '')),
-            'third_id' => (string) ($documentFile['third_id'] ?? ($documentFile['third_file_id'] ?? '')),
-            'source_type' => (string) ($documentFile['source_type'] ?? ($documentFile['platform_type'] ?? '')),
-            'third_file_id' => (string) ($documentFile['third_file_id'] ?? ''),
-            'platform_type' => (string) ($documentFile['platform_type'] ?? ''),
-            'doc_type' => isset($documentFile['doc_type']) ? (int) $documentFile['doc_type'] : null,
-            'key' => (string) ($documentFile['key'] ?? ''),
-            'file_link' => $documentFile['file_link'] ?? null,
-            'third_file_type' => (string) ($documentFile['third_file_type'] ?? ''),
-            'third_file_extension_name' => (string) ($documentFile['third_file_extension_name'] ?? ''),
-            'knowledge_base_id' => (string) ($documentFile['knowledge_base_id'] ?? ''),
-        ];
-    }
-
-    /**
      * @param array<string, mixed> $metadata
      * @return array<string, mixed>|object
      */
@@ -324,46 +347,5 @@ class FragmentRpcClient extends AbstractRpcClient implements FragmentGateway
     private function normalizeObjectPayload(array $payload): array|object
     {
         return $this->normalizeMetadataArray($payload);
-    }
-
-    private function normalizeDocumentFileType(mixed $typeRaw): string
-    {
-        if (is_string($typeRaw) && ! is_numeric($typeRaw)) {
-            return $typeRaw;
-        }
-
-        if (is_int($typeRaw)) {
-            return match ($typeRaw) {
-                1 => 'external',
-                2 => 'third_platform',
-                default => '',
-            };
-        }
-
-        if (is_numeric($typeRaw)) {
-            return match ((int) $typeRaw) {
-                1 => 'external',
-                2 => 'third_platform',
-                default => '',
-            };
-        }
-
-        return '';
-    }
-
-    /**
-     * @param array<string, mixed> $query
-     * @return array{offset: int, limit: int}
-     */
-    private function resolvePagination(array $query): array
-    {
-        $limit = max(1, (int) ($query['limit'] ?? $query['page_size'] ?? 10));
-        $page = max(1, (int) ($query['page'] ?? 1));
-        $offset = (int) ($query['offset'] ?? (($page - 1) * $limit));
-
-        return [
-            'offset' => max(0, $offset),
-            'limit' => $limit,
-        ];
     }
 }

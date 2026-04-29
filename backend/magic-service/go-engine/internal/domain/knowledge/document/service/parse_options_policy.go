@@ -1,6 +1,10 @@
 package document
 
-import "strings"
+import (
+	"strings"
+
+	docentity "magic/internal/domain/knowledge/document/entity"
+)
 
 const (
 	// ParseStrategyConfigKey 表示文档元数据里的解析策略配置字段。
@@ -31,7 +35,7 @@ func DefaultParseOptions() ParseOptions {
 }
 
 // ResolveDocumentParseOptions 从文档元数据解析实际生效的解析选项。
-func ResolveDocumentParseOptions(doc *KnowledgeBaseDocument) ParseOptions {
+func ResolveDocumentParseOptions(doc *docentity.KnowledgeBaseDocument) ParseOptions {
 	if doc == nil {
 		return DefaultParseOptions()
 	}

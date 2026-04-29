@@ -10,7 +10,6 @@ import (
 	"io"
 	"math"
 	"net"
-	"runtime/debug"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -18,6 +17,7 @@ import (
 	"magic/internal/pkg/ctxmeta"
 	common "magic/internal/pkg/jsonrpc"
 	"magic/internal/pkg/logkey"
+	"magic/internal/pkg/runguard"
 	"magic/pkg/convert"
 )
 
@@ -80,15 +80,23 @@ type helloResult struct {
 	WriteTimeout      int    `json:"write_timeout"`
 }
 
+type pendingCall struct {
+	ch        chan *common.Response
+	method    string
+	startTime time.Time
+}
+
 // Session 表示一个客户端会话
 type Session struct {
 	ID     int64
 	conn   net.Conn
 	server *Server
 	sendMu sync.Mutex
+	// 仅复用出站编码对象，避免热路径重复创建 gzip writer/buffer。
+	framePools *ipcFramePools
 
 	// 等待响应的请求
-	pending   map[string]chan *common.Response
+	pending   map[string]pendingCall
 	pendingMu sync.RWMutex
 	nextReqID atomic.Int64
 
@@ -106,11 +114,12 @@ type Session struct {
 // newSession 创建新会话
 func newSession(id int64, conn net.Conn, server *Server) *Session {
 	s := &Session{
-		ID:       id,
-		conn:     conn,
-		server:   server,
-		pending:  make(map[string]chan *common.Response),
-		closedCh: make(chan struct{}),
+		ID:         id,
+		conn:       conn,
+		server:     server,
+		framePools: newIPCFramePools(),
+		pending:    make(map[string]pendingCall),
+		closedCh:   make(chan struct{}),
 	}
 	s.touch()
 	return s
@@ -168,10 +177,21 @@ func (s *Session) readLoop(ctx context.Context) {
 			return
 		}
 
+		rawJSON, frameSummary, err := decodeIPCFrame(bodyBuf)
+		if err != nil {
+			s.server.logger.WarnContext(ctx, "解码 IPC 帧失败",
+				"sessionId", s.ID,
+				"frame_bytes", len(bodyBuf),
+				"error", err,
+			)
+			releaseBodyBuffer()
+			return
+		}
+
 		// 3. 处理消息
 		s.oversizeBurst = 0
 		s.touch()
-		s.handleMessage(ctx, bodyBuf)
+		s.handleMessage(ctx, rawJSON, frameSummary)
 		releaseBodyBuffer()
 	}
 }
@@ -238,30 +258,43 @@ func (s *Session) close() {
 		_ = s.conn.Close()
 
 		s.pendingMu.Lock()
-		for _, ch := range s.pending {
-			close(ch)
+		for _, call := range s.pending {
+			close(call.ch)
 		}
-		s.pending = make(map[string]chan *common.Response)
+		s.pending = make(map[string]pendingCall)
 		s.pendingMu.Unlock()
 	}
 }
 
 // SupportsMethod 判断客户端是否声明支持该方法。
 func (s *Session) SupportsMethod(method string) bool {
-	if !s.handshaked.Load() {
+	return s.SupportsMethods(method)
+}
+
+// SupportsMethods 判断客户端是否完成握手并声明支持全部指定方法。
+// 不传 methods 时表示任意已握手客户端。
+func (s *Session) SupportsMethods(methods ...string) bool {
+	if s == nil || s.closed.Load() || !s.handshaked.Load() {
 		return false
+	}
+	if len(methods) == 0 {
+		return true
 	}
 	s.infoMu.RLock()
 	defer s.infoMu.RUnlock()
 	if len(s.info.Capabilities) == 0 {
 		return false
 	}
-	_, ok := s.info.Capabilities[method]
-	return ok
+	for _, method := range methods {
+		if _, ok := s.info.Capabilities[method]; !ok {
+			return false
+		}
+	}
+	return true
 }
 
 // handleMessage 处理收到的消息
-func (s *Session) handleMessage(ctx context.Context, data []byte) {
+func (s *Session) handleMessage(ctx context.Context, data []byte, frameSummary ipcFrameSummary) {
 	var envelope messageEnvelope
 	if err := json.Unmarshal(data, &envelope); err != nil {
 		s.server.logger.WarnContext(ctx, "无法解析消息", "error", err)
@@ -281,7 +314,7 @@ func (s *Session) handleMessage(ctx context.Context, data []byte) {
 			Context: envelope.Context,
 			ID:      envelope.ID,
 		}
-		s.handleRequest(ctx, req)
+		s.handleRequest(ctx, req, frameSummary)
 		return
 	}
 
@@ -301,11 +334,11 @@ func (s *Session) handleMessage(ctx context.Context, data []byte) {
 		Error:   envelope.Error,
 		ID:      envelope.ID,
 	}
-	s.handleResponse(ctx, resp)
+	s.handleResponse(ctx, resp, frameSummary)
 }
 
 // handleResponse 处理响应
-func (s *Session) handleResponse(ctx context.Context, resp *common.Response) {
+func (s *Session) handleResponse(ctx context.Context, resp *common.Response, frameSummary ipcFrameSummary) {
 	key, ok := pendingKey(resp.ID)
 	if !ok {
 		s.server.logger.WarnContext(ctx, "收到无效 ID 的响应", "id", resp.ID, "sessionId", s.ID)
@@ -313,22 +346,31 @@ func (s *Session) handleResponse(ctx context.Context, resp *common.Response) {
 	}
 
 	s.pendingMu.RLock()
-	ch, ok := s.pending[key]
+	call, ok := s.pending[key]
 	s.pendingMu.RUnlock()
 
 	if !ok {
 		s.server.logger.WarnContext(ctx, "收到未知 ID 的响应", "id", resp.ID, "sessionId", s.ID)
 		return
 	}
+	if call.method != "" && !call.startTime.IsZero() {
+		meta := responseLogMeta{
+			msg:       "IPC response",
+			direction: DirectionSend,
+			method:    call.method,
+			id:        resp.ID,
+		}
+		s.logResponse(ctx, meta, time.Since(call.startTime).Seconds()*1000, frameSummaryToPayloadLogSummary(frameSummary))
+	}
 
 	select {
-	case ch <- resp:
+	case call.ch <- resp:
 	default:
 	}
 }
 
 // handleRequest 处理请求
-func (s *Session) handleRequest(ctx context.Context, req *common.Request) {
+func (s *Session) handleRequest(ctx context.Context, req *common.Request, frameSummary ipcFrameSummary) {
 	requestID := requestIDFromRequestContext(req)
 	if requestID != "" {
 		ctx = ctxmeta.WithRequestID(ctx, requestID)
@@ -341,7 +383,7 @@ func (s *Session) handleRequest(ctx context.Context, req *common.Request) {
 		method:    req.Method,
 		id:        req.ID,
 	}
-	s.logRequest(ctx, meta, req.Params)
+	s.logRequest(ctx, meta, frameSummaryToPayloadLogSummary(frameSummary))
 
 	if s.handleSystemRequest(ctx, req, startTime) {
 		return
@@ -356,8 +398,20 @@ func (s *Session) handleRequest(ctx context.Context, req *common.Request) {
 		return
 	}
 
-	// 异步处理
-	go s.executeHandler(ctx, req, handler, startTime)
+	runguard.Go(
+		ctx,
+		runguard.Options{
+			Scope:  "rpc.handler",
+			Policy: runguard.Continue,
+			Fields: s.rpcPanicFields(req),
+			OnPanic: func(ctx context.Context, report runguard.Report) {
+				logPanicReport(ctx, s.server.logger, report)
+			},
+		},
+		func() {
+			s.executeHandler(ctx, req, handler, startTime)
+		},
+	)
 }
 
 type requestLogMeta struct {
@@ -374,12 +428,10 @@ type responseLogMeta struct {
 	id        any
 }
 
-func (s *Session) logRequest(ctx context.Context, meta requestLogMeta, params any) {
-	if !shouldLogMethod(meta.method) {
+func (s *Session) logRequest(ctx context.Context, meta requestLogMeta, payloadSummary payloadLogSummary) {
+	if s == nil || s.server == nil || s.server.logger == nil || !shouldLogMethod(meta.method) {
 		return
 	}
-
-	payloadSummary := encodePayload(params)
 	keyvals := make([]any, 0, requestLogFieldsCap)
 	keyvals = append(
 		keyvals,
@@ -387,31 +439,81 @@ func (s *Session) logRequest(ctx context.Context, meta requestLogMeta, params an
 		"method", meta.method,
 		"id", meta.id,
 		"request_bytes", payloadSummary.Bytes,
+		"raw_json_bytes", payloadSummary.RawJSONBytes,
+		"frame_bytes", payloadSummary.FrameBytes,
+		"frame_codec", payloadSummary.FrameCodec,
 	)
 	s.server.logger.InfoContext(ctx, meta.msg, keyvals...)
 }
 
-func (s *Session) logResponse(ctx context.Context, meta responseLogMeta, durationMs float64, payload any) {
-	if !shouldLogMethod(meta.method) {
+func (s *Session) logResponse(ctx context.Context, meta responseLogMeta, durationMs float64, payloadSummary payloadLogSummary) {
+	if s == nil || s.server == nil || s.server.logger == nil || !shouldLogMethod(meta.method) {
 		return
 	}
-
-	payloadSummary := encodePayload(payload)
-	s.server.logger.InfoContext(ctx, meta.msg,
+	keyvals := []any{
 		"direction", meta.direction,
 		"method", meta.method,
 		"id", meta.id,
 		"response_bytes", payloadSummary.Bytes,
+		"raw_json_bytes", payloadSummary.RawJSONBytes,
+		"frame_bytes", payloadSummary.FrameBytes,
+		"frame_codec", payloadSummary.FrameCodec,
 		logkey.DurationMS, logkey.RoundDurationMS(durationMs),
+	}
+	if meta.method == "svc.knowledge.fragment.preview" {
+		keyvals = append(
+			keyvals,
+			"json_before_gzip_bytes", payloadSummary.RawJSONBytes,
+			"frame_after_gzip_bytes", payloadSummary.FrameBytes,
+			"send_limit_bytes", s.resolveMaxOutboundBytes(),
+		)
+	}
+	s.server.logger.InfoContext(ctx, meta.msg, keyvals...)
+}
+
+func (s *Session) logPacketSend(ctx context.Context, direction, method string, id any, duration time.Duration, payloadSummary payloadLogSummary) {
+	if s == nil || s.server == nil || s.server.logger == nil || !shouldLogMethod(method) {
+		return
+	}
+	s.server.logger.DebugContext(
+		ctx,
+		"IPC packet send/encode completed",
+		"direction", direction,
+		"method", method,
+		"id", id,
+		logkey.DurationMS, logkey.DurationToMS(duration),
+		"raw_json_bytes", payloadSummary.RawJSONBytes,
+		"frame_bytes", payloadSummary.FrameBytes,
+		"frame_codec", payloadSummary.FrameCodec,
 	)
 }
 
-func (s *Session) handleSystemRequest(ctx context.Context, req *common.Request, startTime time.Time) bool {
+func (s *Session) handleSystemRequest(ctx context.Context, req *common.Request, startTime time.Time) (handled bool) {
 	switch req.Method {
 	case methodHello:
+		handled = true
+		defer runguard.Recover(ctx, runguard.Options{
+			Scope:  "rpc.system_request",
+			Policy: runguard.CloseScope,
+			Fields: s.rpcPanicFields(req),
+			OnPanic: func(ctx context.Context, report runguard.Report) {
+				logPanicReport(ctx, s.server.logger, report)
+				s.handleSystemRequestPanic(ctx, req, startTime)
+			},
+		})
 		s.handleHello(ctx, req, startTime)
 		return true
 	case methodPing:
+		handled = true
+		defer runguard.Recover(ctx, runguard.Options{
+			Scope:  "rpc.system_request",
+			Policy: runguard.CloseScope,
+			Fields: s.rpcPanicFields(req),
+			OnPanic: func(ctx context.Context, report runguard.Report) {
+				logPanicReport(ctx, s.server.logger, report)
+				s.handleSystemRequestPanic(ctx, req, startTime)
+			},
+		})
 		s.handlePing(ctx, req, startTime)
 		return true
 	}
@@ -430,11 +532,9 @@ func (s *Session) ensureHandshake(ctx context.Context, req *common.Request, star
 			method:    req.Method,
 			id:        req.ID,
 		}
-		s.logResponse(ctx, meta, time.Since(startTime).Seconds()*1000, map[string]any{
-			"code":    ErrCodeHandshakeRequired,
-			"message": "handshake required",
-		})
-		s.sendError(ctx, req.ID, ErrCodeHandshakeRequired, "handshake required", nil)
+		if err := s.sendErrorPacket(ctx, meta, time.Since(startTime).Seconds()*1000, ErrCodeHandshakeRequired, "handshake required"); err != nil {
+			s.server.logger.ErrorContext(ctx, "发送错误响应失败", "error", err)
+		}
 	}
 	s.server.metrics.RPCCallsTotal.WithLabelValues(req.Method, DirectionRecv, StatusError).Inc()
 	return false
@@ -453,11 +553,9 @@ func (s *Session) findHandler(ctx context.Context, req *common.Request, startTim
 				method:    req.Method,
 				id:        req.ID,
 			}
-			s.logResponse(ctx, meta, time.Since(startTime).Seconds()*1000, map[string]any{
-				"code":    common.MethodNotFound,
-				"message": "method not found: " + req.Method,
-			})
-			s.sendError(ctx, req.ID, common.MethodNotFound, "method not found: "+req.Method, nil)
+			if err := s.sendErrorPacket(ctx, meta, time.Since(startTime).Seconds()*1000, common.MethodNotFound, "method not found: "+req.Method); err != nil {
+				s.server.logger.ErrorContext(ctx, "发送错误响应失败", "error", err)
+			}
 			s.server.metrics.RPCCallsTotal.WithLabelValues(req.Method, DirectionRecv, StatusError).Inc()
 		}
 		return nil, false
@@ -466,22 +564,26 @@ func (s *Session) findHandler(ctx context.Context, req *common.Request, startTim
 }
 
 func (s *Session) executeHandler(ctx context.Context, req *common.Request, handler common.ServerHandler, startTime time.Time) {
-	// Panic 恢复
-	defer func() {
-		if r := recover(); r != nil {
-			stack := debug.Stack()
-			s.server.logger.ErrorContext(ctx, "Handler panic recovered",
-				"method", req.Method,
-				"panic", r,
-				"stack", string(stack),
-			)
-
+	defer runguard.Recover(ctx, runguard.Options{
+		Scope:  "rpc.handler",
+		Policy: runguard.Continue,
+		Fields: s.rpcPanicFields(req),
+		OnPanic: func(ctx context.Context, report runguard.Report) {
+			logPanicReport(ctx, s.server.logger, report)
 			if !req.IsNotification() {
-				s.sendError(ctx, req.ID, common.ErrCodeInternalError, common.GetErrorMessage(common.ErrCodeInternalError), nil)
+				meta := responseLogMeta{
+					msg:       "IPC response",
+					direction: DirectionRecv,
+					method:    req.Method,
+					id:        req.ID,
+				}
+				if err := s.sendErrorPacket(ctx, meta, time.Since(startTime).Seconds()*1000, common.ErrCodeInternalError, common.GetErrorMessage(common.ErrCodeInternalError)); err != nil {
+					s.server.logger.ErrorContext(ctx, "发送错误响应失败", "error", err)
+				}
 			}
-			s.server.metrics.RPCCallsTotal.WithLabelValues(req.Method, DirectionRecv, StatusError).Inc()
-		}
-	}()
+			s.recordRPCCallError(req.Method, DirectionRecv)
+		},
+	})
 
 	result, err := handler(ctx, req.Method, req.Params)
 
@@ -499,7 +601,9 @@ func (s *Session) executeHandler(ctx context.Context, req *common.Request, handl
 		method:    req.Method,
 		id:        req.ID,
 	}
-	s.logResponse(ctx, meta, time.Since(startTime).Seconds()*1000, payload)
+	if req.IsNotification() {
+		s.logResponse(ctx, meta, time.Since(startTime).Seconds()*1000, encodePayload(payload))
+	}
 
 	if req.IsNotification() {
 		return
@@ -507,22 +611,61 @@ func (s *Session) executeHandler(ctx context.Context, req *common.Request, handl
 
 	if err != nil {
 		s.server.metrics.RPCCallsTotal.WithLabelValues(req.Method, DirectionRecv, StatusError).Inc()
-
-		var rpcErr *common.Error
-		var bizErr *common.BusinessError
-		switch {
-		case errors.As(err, &rpcErr):
-			s.sendError(ctx, req.ID, rpcErr.Code, rpcErr.Message, rpcErr.Data)
-		case errors.As(err, &bizErr):
-			s.sendError(ctx, req.ID, bizErr.Code, bizErr.Message, bizErr.Data)
-		default:
-			s.sendError(ctx, req.ID, common.ErrCodeInternalError, common.GetErrorMessage(common.ErrCodeInternalError), nil)
+		resp := buildResponseFromError(req.ID, err)
+		if sendErr := s.sendResponsePacket(ctx, meta, time.Since(startTime).Seconds()*1000, resp); sendErr != nil {
+			s.server.logger.ErrorContext(ctx, "发送错误响应失败", "error", sendErr)
 		}
 		return
 	}
 
+	resp, respErr := common.NewResponse(req.ID, result)
+	if respErr != nil {
+		s.server.metrics.RPCCallsTotal.WithLabelValues(req.Method, DirectionRecv, StatusError).Inc()
+		if sendErr := s.sendErrorPacket(ctx, meta, time.Since(startTime).Seconds()*1000, common.InternalError, respErr.Error()); sendErr != nil {
+			s.server.logger.ErrorContext(ctx, "发送错误响应失败", "error", sendErr)
+		}
+		return
+	}
 	s.server.metrics.RPCCallsTotal.WithLabelValues(req.Method, DirectionRecv, StatusSuccess).Inc()
-	s.sendResult(ctx, req.ID, result)
+	if err := s.sendResponsePacket(ctx, meta, time.Since(startTime).Seconds()*1000, resp); err != nil {
+		s.server.logger.ErrorContext(ctx, "发送响应失败", "error", err)
+	}
+}
+
+func (s *Session) rpcPanicFields(req *common.Request) []any {
+	fields := []any{
+		"session_id", s.ID,
+		"direction", DirectionRecv,
+	}
+	if req != nil {
+		fields = append(fields, "method", req.Method, "id", req.ID)
+	}
+	return fields
+}
+
+func (s *Session) handleSystemRequestPanic(ctx context.Context, req *common.Request, startTime time.Time) {
+	if req != nil && !req.IsNotification() {
+		meta := responseLogMeta{
+			msg:       "IPC response",
+			direction: DirectionRecv,
+			method:    req.Method,
+			id:        req.ID,
+		}
+		if err := s.sendErrorPacket(ctx, meta, time.Since(startTime).Seconds()*1000, common.ErrCodeInternalError, common.GetErrorMessage(common.ErrCodeInternalError)); err != nil {
+			s.server.logger.ErrorContext(ctx, "发送错误响应失败", "error", err)
+		}
+	}
+	if req != nil {
+		s.recordRPCCallError(req.Method, DirectionRecv)
+	}
+	s.close()
+}
+
+func (s *Session) recordRPCCallError(method, direction string) {
+	if s == nil || s.server == nil || s.server.metrics == nil {
+		return
+	}
+	s.server.metrics.RPCCallsTotal.WithLabelValues(method, direction, StatusError).Inc()
 }
 
 func (s *Session) handleHello(ctx context.Context, req *common.Request, startTime time.Time) {
@@ -569,10 +712,14 @@ func (s *Session) handleHello(ctx context.Context, req *common.Request, startTim
 	s.handshaked.Store(true)
 	s.touch()
 	s.startHeartbeatLoop(ctx)
+	s.server.notifyStateChanged()
 	if !alreadyHandshaked {
 		s.server.logger.InfoContext(ctx, "New IPC client connected",
 			"id", s.ID,
 			"pid", params.PID,
+			"client_declared_limit_bytes", params.MaxMessageBytes,
+			"client_limit_bytes", maxMessageBytes,
+			"server_limit_bytes", s.server.config.MaxMessageBytes,
 		)
 	}
 
@@ -651,7 +798,6 @@ func (s *Session) callWithTimeout(ctx context.Context, method string, params any
 		method:    method,
 		id:        id,
 	}
-	s.logRequest(ctx, meta, rawParams)
 
 	// 创建响应通道
 	respCh := make(chan *common.Response, 1)
@@ -667,7 +813,11 @@ func (s *Session) callWithTimeout(ctx context.Context, method string, params any
 		s.server.metrics.RPCCallsTotal.WithLabelValues(method, DirectionSend, StatusError).Inc()
 		return nil, errOverloaded
 	}
-	s.pending[key] = respCh
+	s.pending[key] = pendingCall{
+		ch:        respCh,
+		method:    method,
+		startTime: startTime,
+	}
 	s.pendingMu.Unlock()
 
 	// 更新待处理请求数
@@ -681,7 +831,10 @@ func (s *Session) callWithTimeout(ctx context.Context, method string, params any
 	}()
 
 	// 发送请求
-	if err := s.sendPacket(req); err != nil {
+	requestSummary, sendDuration, err := s.sendPacketWithSummary(req)
+	s.logRequest(ctx, meta, requestSummary)
+	s.logPacketSend(ctx, DirectionSend, method, id, sendDuration, requestSummary)
+	if err != nil {
 		s.server.metrics.RPCCallsTotal.WithLabelValues(method, DirectionSend, StatusError).Inc()
 		if errors.Is(err, ErrMessageTooLarge) {
 			return nil, errPayloadTooLarge
@@ -700,7 +853,7 @@ func (s *Session) waitForResponse(ctx context.Context, method string, id any, re
 	// 等待响应或超时
 	select {
 	case resp, ok := <-respCh:
-		return s.handleResponseSuccess(ctx, method, id, startTime, resp, ok)
+		return s.handleResponseSuccess(method, startTime, resp, ok)
 	case <-ctx.Done():
 		return nil, s.handleResponseContextDone(ctx, method, id, startTime, timeout)
 	case <-s.closedCh:
@@ -708,7 +861,7 @@ func (s *Session) waitForResponse(ctx context.Context, method string, id any, re
 	}
 }
 
-func (s *Session) handleResponseSuccess(ctx context.Context, method string, id any, startTime time.Time, resp *common.Response, ok bool) (json.RawMessage, error) {
+func (s *Session) handleResponseSuccess(method string, startTime time.Time, resp *common.Response, ok bool) (json.RawMessage, error) {
 	duration := time.Since(startTime).Seconds()
 	s.server.metrics.RPCCallDuration.WithLabelValues(method, DirectionSend).Observe(duration)
 
@@ -719,25 +872,10 @@ func (s *Session) handleResponseSuccess(ctx context.Context, method string, id a
 
 	if resp.Error != nil {
 		s.server.metrics.RPCCallsTotal.WithLabelValues(method, DirectionSend, StatusError).Inc()
-		payload := rpcErrorPayload(resp.Error)
-		meta := responseLogMeta{
-			msg:       "IPC response",
-			direction: DirectionSend,
-			method:    method,
-			id:        id,
-		}
-		s.logResponse(ctx, meta, duration*1000, payload)
 		return nil, resp.Error
 	}
 
 	s.server.metrics.RPCCallsTotal.WithLabelValues(method, DirectionSend, StatusSuccess).Inc()
-	meta := responseLogMeta{
-		msg:       "IPC response",
-		direction: DirectionSend,
-		method:    method,
-		id:        id,
-	}
-	s.logResponse(ctx, meta, duration*1000, resp.Result)
 	return resp.Result, nil
 }
 
@@ -764,7 +902,7 @@ func (s *Session) handleResponseTimeout(ctx context.Context, method string, id a
 		method:    method,
 		id:        id,
 	}
-	s.logResponse(ctx, meta, durationMs, "timeout")
+	s.logResponse(ctx, meta, durationMs, encodePayload("timeout"))
 	return fmt.Errorf("%w: method=%s, timeout=%v", errCallTimeout, method, timeout)
 }
 
@@ -778,7 +916,7 @@ func (s *Session) handleResponseCanceled(ctx context.Context, method string, id 
 		method:    method,
 		id:        id,
 	}
-	s.logResponse(ctx, meta, durationMs, "canceled")
+	s.logResponse(ctx, meta, durationMs, encodePayload("canceled"))
 	return fmt.Errorf("RPC call canceled: method=%s: %w", method, context.Canceled)
 }
 
@@ -791,8 +929,35 @@ func (s *Session) handleResponseClosed(ctx context.Context, method string, id an
 		method:    method,
 		id:        id,
 	}
-	s.logResponse(ctx, meta, durationMs, "connection_closed")
+	s.logResponse(ctx, meta, durationMs, encodePayload("connection_closed"))
 	return errConnectionClosedWhileWaiting
+}
+
+func buildResponseFromError(id any, err error) *common.Response {
+	var rpcErr *common.Error
+	var bizErr *common.BusinessError
+	switch {
+	case errors.As(err, &rpcErr):
+		return common.NewErrorResponse(id, rpcErr.Code, rpcErr.Message, rpcErr.Data)
+	case errors.As(err, &bizErr):
+		return common.NewErrorResponse(id, bizErr.Code, bizErr.Message, bizErr.Data)
+	default:
+		return common.NewErrorResponse(id, common.ErrCodeInternalError, common.GetErrorMessage(common.ErrCodeInternalError), nil)
+	}
+}
+
+func (s *Session) sendResponsePacket(ctx context.Context, meta responseLogMeta, durationMs float64, resp *common.Response) error {
+	if resp == nil {
+		return nil
+	}
+	payloadSummary, sendDuration, err := s.sendPacketWithSummary(resp)
+	s.logResponse(ctx, meta, durationMs, payloadSummary)
+	s.logPacketSend(ctx, meta.direction, meta.method, meta.id, sendDuration, payloadSummary)
+	return err
+}
+
+func (s *Session) sendErrorPacket(ctx context.Context, meta responseLogMeta, durationMs float64, code int, message string) error {
+	return s.sendResponsePacket(ctx, meta, durationMs, common.NewErrorResponse(meta.id, code, message, nil))
 }
 
 func (s *Session) sendResult(ctx context.Context, id, result any) {
@@ -816,6 +981,12 @@ func (s *Session) sendError(ctx context.Context, id any, code int, message strin
 
 // sendPacket 统一发送包（Head+Body）
 func (s *Session) sendPacket(payload any) error {
+	_, _, err := s.sendPacketWithSummary(payload)
+	return err
+}
+
+func (s *Session) sendPacketWithSummary(payload any) (payloadLogSummary, time.Duration, error) {
+	startedAt := time.Now()
 	var data []byte
 	var err error
 
@@ -824,27 +995,30 @@ func (s *Session) sendPacket(payload any) error {
 	} else if resp, ok := payload.(*common.Response); ok {
 		data, err = resp.Encode()
 	} else {
-		return ErrUnknownPayloadType
+		return payloadLogSummary{}, time.Since(startedAt), ErrUnknownPayloadType
 	}
 
 	if err != nil {
-		return fmt.Errorf("encode failed: %w", err)
+		return payloadLogSummary{}, time.Since(startedAt), fmt.Errorf("encode failed: %w", err)
 	}
 
-	maxOutboundBytes := s.server.config.MaxMessageBytes
-	s.infoMu.RLock()
-	if s.info.MaxMessageBytes > 0 && (maxOutboundBytes == 0 || s.info.MaxMessageBytes < maxOutboundBytes) {
-		maxOutboundBytes = s.info.MaxMessageBytes
+	maxOutboundBytes := s.resolveMaxOutboundBytes()
+	frameBody, frameSummary, err := encodeIPCFrameWithPools(data, maxOutboundBytes, s.framePools)
+	payloadSummary := frameSummaryToPayloadLogSummary(frameSummary)
+	if payloadSummary.Bytes == 0 {
+		payloadSummary.Bytes = len(data)
 	}
-	s.infoMu.RUnlock()
-	if maxOutboundBytes > 0 && len(data) > maxOutboundBytes {
-		return ErrMessageTooLarge
+	if err != nil {
+		if errors.Is(err, ErrMessageTooLarge) {
+			return payloadSummary, time.Since(startedAt), err
+		}
+		return payloadSummary, time.Since(startedAt), fmt.Errorf("encode ipc frame failed: %w", err)
 	}
 
 	// 转换前检查整数溢出
-	length, err := convert.SafeIntToUint32(len(data), "payload")
+	length, err := convert.SafeIntToUint32(len(frameBody), "payload")
 	if err != nil {
-		return ErrMessageTooLarge
+		return payloadSummary, time.Since(startedAt), ErrMessageTooLarge
 	}
 
 	var header [headerSize]byte
@@ -858,16 +1032,26 @@ func (s *Session) sendPacket(payload any) error {
 	}
 
 	// 使用 writev 一次性写入 header + body，减少系统调用开销。
-	buffers := net.Buffers{header[:], data}
+	buffers := net.Buffers{header[:], frameBody}
 	written, err := buffers.WriteTo(s.conn)
 	if err != nil {
-		return fmt.Errorf("%w: write frame failed: %w", errWriteMessageFailed, err)
+		return payloadSummary, time.Since(startedAt), fmt.Errorf("%w: write frame failed: %w", errWriteMessageFailed, err)
 	}
-	if written != int64(len(header)+len(data)) {
-		return fmt.Errorf("%w: short write: written=%d expected=%d", errWriteMessageFailed, written, len(header)+len(data))
+	if written != int64(len(header)+len(frameBody)) {
+		return payloadSummary, time.Since(startedAt), fmt.Errorf("%w: short write: written=%d expected=%d", errWriteMessageFailed, written, len(header)+len(frameBody))
 	}
 
-	return nil
+	return payloadSummary, time.Since(startedAt), nil
+}
+
+func (s *Session) resolveMaxOutboundBytes() int {
+	maxOutboundBytes := s.server.config.MaxMessageBytes
+	s.infoMu.RLock()
+	defer s.infoMu.RUnlock()
+	if s.info.MaxMessageBytes > 0 && (maxOutboundBytes == 0 || s.info.MaxMessageBytes < maxOutboundBytes) {
+		maxOutboundBytes = s.info.MaxMessageBytes
+	}
+	return maxOutboundBytes
 }
 
 func (s *Session) startHeartbeatLoop(ctx context.Context) {
@@ -876,38 +1060,62 @@ func (s *Session) startHeartbeatLoop(ctx context.Context) {
 	}
 	s.heartbeatOnce.Do(func() {
 		go func() {
-			ticker := time.NewTicker(s.server.config.HeartbeatInterval)
-			defer ticker.Stop()
-			var lastHeartbeatDebugAt time.Time
-			for {
-				select {
-				case <-ticker.C:
-					timeout := s.server.config.HeartbeatTimeout
-					if timeout <= 0 {
-						timeout = s.server.config.CallTimeout
-					}
-					heartbeatStart := time.Now()
-					if _, err := s.callWithTimeout(ctx, methodPing, nil, timeout); err != nil {
-						s.server.logger.WarnContext(ctx, "heartbeat failed", "sessionId", s.ID, "error", err)
-						s.close()
-						return
-					}
-					now := time.Now()
-					if lastHeartbeatDebugAt.IsZero() || now.Sub(lastHeartbeatDebugAt) >= heartbeatDebugEvery {
-						lastHeartbeatDebugAt = now
-						durationMs := time.Since(heartbeatStart).Seconds() * 1000
-						s.server.logger.DebugContext(ctx, "IPC heartbeat ok",
-							"sessionId", s.ID,
-							"method", methodPing,
-							logkey.DurationMS, logkey.RoundDurationMS(durationMs),
-						)
-					}
-				case <-s.closedCh:
-					return
-				}
-			}
+			defer runguard.Recover(ctx, runguard.Options{
+				Scope:  "rpc.session.heartbeat",
+				Policy: runguard.CloseScope,
+				Fields: []any{
+					"session_id", s.ID,
+					"method", methodPing,
+					"direction", DirectionSend,
+				},
+				OnPanic: func(ctx context.Context, report runguard.Report) {
+					logPanicReport(ctx, s.server.logger, report)
+					s.close()
+				},
+			})
+			s.runHeartbeatLoop(ctx)
 		}()
 	})
+}
+
+func (s *Session) runHeartbeatLoop(ctx context.Context) {
+	ticker := time.NewTicker(s.server.config.HeartbeatInterval)
+	defer ticker.Stop()
+	var lastHeartbeatDebugAt time.Time
+	for {
+		select {
+		case <-ticker.C:
+			if !s.sendHeartbeat(ctx, &lastHeartbeatDebugAt) {
+				return
+			}
+		case <-s.closedCh:
+			return
+		}
+	}
+}
+
+func (s *Session) sendHeartbeat(ctx context.Context, lastHeartbeatDebugAt *time.Time) bool {
+	timeout := s.server.config.HeartbeatTimeout
+	if timeout <= 0 {
+		timeout = s.server.config.CallTimeout
+	}
+	heartbeatStart := time.Now()
+	if _, err := s.callWithTimeout(ctx, methodPing, nil, timeout); err != nil {
+		s.server.logger.WarnContext(ctx, "heartbeat failed", "sessionId", s.ID, "error", err)
+		s.close()
+		return false
+	}
+	now := time.Now()
+	if lastHeartbeatDebugAt.IsZero() || now.Sub(*lastHeartbeatDebugAt) >= heartbeatDebugEvery {
+		*lastHeartbeatDebugAt = now
+		durationMs := time.Since(heartbeatStart).Seconds() * 1000
+		s.server.logger.DebugContext(ctx, "IPC heartbeat ok",
+			"sessionId", s.ID,
+			"method", methodPing,
+			logkey.DurationMS, logkey.RoundDurationMS(durationMs),
+		)
+	}
+	return true
 }
 
 func (s *Session) marshalParams(method string, params any) (json.RawMessage, error) {

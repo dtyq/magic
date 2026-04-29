@@ -1,8 +1,7 @@
 package document
 
 import (
-	"reflect"
-
+	docentity "magic/internal/domain/knowledge/document/entity"
 	"magic/internal/domain/knowledge/shared"
 )
 
@@ -13,7 +12,7 @@ type EffectiveConfigState struct {
 }
 
 // CaptureEffectiveConfigState 捕获文档当前实际生效的配置状态。
-func CaptureEffectiveConfigState(doc *KnowledgeBaseDocument) EffectiveConfigState {
+func CaptureEffectiveConfigState(doc *docentity.KnowledgeBaseDocument) EffectiveConfigState {
 	if doc == nil {
 		return EffectiveConfigState{
 			ParseOptions: DefaultParseOptions(),
@@ -26,8 +25,13 @@ func CaptureEffectiveConfigState(doc *KnowledgeBaseDocument) EffectiveConfigStat
 }
 
 // ShouldResyncAfterConfigUpdate 判断更新后的实际配置是否需要触发重同步。
-func ShouldResyncAfterConfigUpdate(before EffectiveConfigState, after *KnowledgeBaseDocument) bool {
+func ShouldResyncAfterConfigUpdate(before EffectiveConfigState, after *docentity.KnowledgeBaseDocument) bool {
 	afterState := CaptureEffectiveConfigState(after)
 	return before.ParseOptions != afterState.ParseOptions ||
-		!reflect.DeepEqual(before.FragmentConfig, afterState.FragmentConfig)
+		!shared.FragmentConfigEqual(before.FragmentConfig, afterState.FragmentConfig)
+}
+
+// ShouldRecoveryResyncForNonSyncedDocument 判断非成功文档是否需要走恢复性重同步。
+func ShouldRecoveryResyncForNonSyncedDocument(doc *docentity.KnowledgeBaseDocument) bool {
+	return doc != nil && doc.SyncStatus != shared.SyncStatusSynced
 }

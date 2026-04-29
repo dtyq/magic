@@ -1,30 +1,16 @@
 package retrieval
 
+import "magic/internal/domain/knowledge/shared"
+
 const (
 	// RetrievalPipelineVersionV1 标记检索管线版本。
 	RetrievalPipelineVersionV1 PipelineVersion = "v1"
-
-	lexicalScoreWeight        float64 = 0.06
-	sparseScoreWeight         float64 = 0.04
-	sectionPathScoreWeight    float64 = 0.04
-	termCoverageScoreWeight   float64 = 0.08
-	phraseScoreWeight         float64 = 0.10
-	proximityScoreWeight      float64 = 0.03
-	fieldMatchScoreWeight     float64 = 0.07
-	titleMatchScoreWeight     float64 = 0.06
-	tabularFieldScoreWeight   float64 = 0.02
-	rerankPhraseBoost         float64 = 0.05
-	rerankProximityBoost      float64 = 0.03
-	rerankFieldBoost          float64 = 0.03
-	rerankTitleBoost          float64 = 0.03
-	minResultSupportScore     float64 = 0.2
-	minShortQuerySupportScore float64 = 0.25
 )
 
 // SimilaritySearchOptions 相似度搜索增强参数。
 type SimilaritySearchOptions struct {
 	Filters    *SimilarityFilters
-	HardFilter *VectorFilter
+	HardFilter *shared.VectorFilter
 	Debug      bool
 }
 
@@ -57,8 +43,8 @@ type QueryRewriteResult struct {
 
 // FilterPlan 过滤计划（用于双阶段检索与调试）。
 type FilterPlan struct {
-	Hard *VectorFilter
-	Soft *VectorFilter
+	Hard *shared.VectorFilter
+	Soft *shared.VectorFilter
 }
 
 // FilterPlanTrace 调试输出使用的过滤计划。
@@ -73,8 +59,12 @@ type ScoreBreakdown struct {
 	HybridAlpha          float64 `json:"hybrid_alpha"`
 	HybridScore          float64 `json:"hybrid_score"`
 	HybridNorm           float64 `json:"hybrid_norm"`
+	FusionScoreNorm      float64 `json:"fusion_score_norm"`
+	DenseScoreNorm       float64 `json:"dense_score_norm"`
 	LexicalNorm          float64 `json:"lexical_norm"`
 	SparseNorm           float64 `json:"sparse_norm"`
+	DenseContribution    float64 `json:"dense_contribution"`
+	SparseContribution   float64 `json:"sparse_contribution"`
 	SectionPathMatch     float64 `json:"section_path_match"`
 	TermCoverage         float64 `json:"term_coverage"`
 	PhraseMatch          float64 `json:"phrase_match"`
@@ -84,10 +74,54 @@ type ScoreBreakdown struct {
 	TabularHit           float64 `json:"tabular_hit"`
 	SupportScore         float64 `json:"support_score"`
 	SecondaryRankScore   float64 `json:"secondary_rank_score"`
+	RerankScore          float64 `json:"rerank_score"`
 	DenseScore           float64 `json:"dense_score"`
 	SparseScore          float64 `json:"sparse_score"`
 	RRFScore             float64 `json:"rrf_score"`
-	DenseCutoffThreshold float64 `json:"dense_cutoff_threshold"`
-	DenseCutoffApplied   bool    `json:"dense_cutoff_applied"`
 	RankingScore         float64 `json:"ranking_score"`
+	QueryType            string  `json:"query_type"`
+	ChannelPresence      string  `json:"channel_presence"`
+	LegacyWeightUpgraded bool    `json:"legacy_weight_upgraded"`
+}
+
+// ChannelScore 表示某一召回通道的排序位次与原始通道分数。
+type ChannelScore struct {
+	Rank  *int    `json:"rank,omitempty"`
+	Score float64 `json:"score"`
+}
+
+// BM25Query 表示 sparse/BM25 query 观察信息。
+type BM25Query struct {
+	Backend         string   `json:"backend"`
+	RawQuery        string   `json:"raw_query"`
+	QueryType       string   `json:"query_type"`
+	SparseQueryText string   `json:"sparse_query_text"`
+	CleanedTerms    []string `json:"cleaned_terms"`
+	AlphaNumTerms   []string `json:"alpha_num_terms"`
+	KeywordTerms    []string `json:"keyword_terms"`
+	Terms           []string `json:"terms"`
+}
+
+// RankingDebug 表示调试场景下的排序细项。
+type RankingDebug struct {
+	QueryType      string         `json:"query_type"`
+	RerankScore    float64        `json:"rerank_score"`
+	SupportScore   float64        `json:"support_score"`
+	ScoreBreakdown ScoreBreakdown `json:"score_breakdown"`
+}
+
+// Ranking 表示对外暴露的检索排序信息。
+type Ranking struct {
+	PipelineVersion      string        `json:"pipeline_version"`
+	FusionAlgorithm      string        `json:"fusion_algorithm"`
+	HybridAlpha          float64       `json:"hybrid_alpha"`
+	ChannelPresence      string        `json:"channel_presence"`
+	LegacyWeightUpgraded bool          `json:"legacy_weight_upgraded"`
+	FusionScore          float64       `json:"fusion_score"`
+	FusionScoreNorm      float64       `json:"fusion_score_norm"`
+	RRFScore             float64       `json:"rrf_score"`
+	Dense                *ChannelScore `json:"dense,omitempty"`
+	Sparse               *ChannelScore `json:"sparse,omitempty"`
+	BM25Query            BM25Query     `json:"bm25_query"`
+	Debug                *RankingDebug `json:"debug,omitempty"`
 }

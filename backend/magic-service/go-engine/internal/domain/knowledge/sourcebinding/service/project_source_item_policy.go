@@ -6,6 +6,7 @@ import (
 	"strings"
 	"time"
 
+	sourcebindingentity "magic/internal/domain/knowledge/sourcebinding/entity"
 	"magic/internal/pkg/projectfile"
 )
 
@@ -22,20 +23,20 @@ type ProjectSourceItemInput struct {
 }
 
 // BuildProjectSourceItem 基于项目文件解析结果构造来源项。
-func BuildProjectSourceItem(input ProjectSourceItemInput) (SourceItem, error) {
+func BuildProjectSourceItem(input ProjectSourceItemInput) (sourcebindingentity.SourceItem, error) {
 	if input.Resolved == nil {
-		return SourceItem{}, errProjectFileResolveResultRequired
+		return sourcebindingentity.SourceItem{}, errProjectFileResolveResultRequired
 	}
 	resolvedAt := input.ResolvedAt
 	if resolvedAt.IsZero() {
 		resolvedAt = time.Now()
 	}
-	return SourceItem{
+	return sourcebindingentity.SourceItem{
 		OrganizationCode: strings.TrimSpace(input.OrganizationCode),
-		Provider:         ProviderProject,
-		RootType:         RootTypeProject,
+		Provider:         sourcebindingentity.ProviderProject,
+		RootType:         sourcebindingentity.RootTypeProject,
 		RootRef:          strings.TrimSpace(input.RootRef),
-		ItemType:         RootTypeFile,
+		ItemType:         sourcebindingentity.RootTypeFile,
 		ItemRef:          FormatProjectFileRef(input.Resolved.ProjectFileID),
 		DisplayName:      strings.TrimSpace(ResolveProjectFileDocumentName(input.Resolved)),
 		Extension:        strings.TrimSpace(input.Resolved.FileExtension),

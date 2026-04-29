@@ -120,6 +120,104 @@ func unmarshalCompatStruct[T any](data []byte, fieldName string, out *T) error {
 	return nil
 }
 
+func unmarshalCompatRawObject(data []byte, fieldName string) (map[string]json.RawMessage, error) {
+	raw := map[string]json.RawMessage{}
+	if err := pkgjsoncompat.UnmarshalObjectOrEmpty(data, map[string]json.RawMessage{}, &raw); err != nil {
+		return nil, fmt.Errorf("unmarshal %s: %w", fieldName, err)
+	}
+	return raw, nil
+}
+
+func decodeCompatStringField(raw map[string]json.RawMessage, key string) (string, error) {
+	field, ok := raw[key]
+	if !ok {
+		return "", nil
+	}
+	if pkgjsoncompat.IsEmptyObjectLikeJSON(field) {
+		return "", nil
+	}
+
+	var value string
+	if err := json.Unmarshal(field, &value); err != nil {
+		return "", fmt.Errorf("unmarshal %s: %w", key, err)
+	}
+	return value, nil
+}
+
+func decodeCompatIntField(raw map[string]json.RawMessage, key string) (int, error) {
+	field, ok := raw[key]
+	if !ok {
+		return 0, nil
+	}
+	value, _, err := pkgjsoncompat.DecodeOptionalInt(field, key)
+	if err != nil {
+		return 0, fmt.Errorf("decode %s: %w", key, err)
+	}
+	if value == nil {
+		return 0, nil
+	}
+	return *value, nil
+}
+
+func decodeCompatFloat64Field(raw map[string]json.RawMessage, key string) (float64, error) {
+	field, ok := raw[key]
+	if !ok {
+		return 0, nil
+	}
+	value, _, err := pkgjsoncompat.DecodeOptionalFloat64(field, key)
+	if err != nil {
+		return 0, fmt.Errorf("decode %s: %w", key, err)
+	}
+	if value == nil {
+		return 0, nil
+	}
+	return *value, nil
+}
+
+func decodeCompatBoolField(raw map[string]json.RawMessage, key string) (bool, error) {
+	field, ok := raw[key]
+	if !ok {
+		return false, nil
+	}
+	value, _, err := pkgjsoncompat.DecodeOptionalBool(field, key)
+	if err != nil {
+		return false, fmt.Errorf("decode %s: %w", key, err)
+	}
+	if value == nil {
+		return false, nil
+	}
+	return *value, nil
+}
+
+func decodeCompatIntSliceField(raw map[string]json.RawMessage, key string) ([]int, error) {
+	field, ok := raw[key]
+	if !ok || pkgjsoncompat.IsEmptyObjectLikeJSON(field) {
+		return nil, nil
+	}
+
+	var values []int
+	if err := json.Unmarshal(field, &values); err != nil {
+		return nil, fmt.Errorf("unmarshal %s: %w", key, err)
+	}
+	return values, nil
+}
+
+func decodeCompatOptionalObjectField[T any](raw map[string]json.RawMessage, key string) (*T, bool, error) {
+	field, ok := raw[key]
+	if !ok {
+		return nil, false, nil
+	}
+	if pkgjsoncompat.IsEmptyObjectLikeJSON(field) {
+		var zero T
+		return &zero, true, nil
+	}
+	value, err := pkgjsoncompat.UnmarshalObjectPtrOrNil[T](field)
+	if err != nil {
+		return nil, false, fmt.Errorf("decode %s: %w", key, err)
+	}
+	return value, true, nil
+}
+
 // RetrieveConfigDTO 检索配置 DTO。
 type RetrieveConfigDTO struct {
 	Version               int                      `json:"version,omitempty"`
@@ -139,12 +237,79 @@ type RetrieveConfigDTO struct {
 
 // UnmarshalJSON 兼容历史空对象脏值。
 func (c *RetrieveConfigDTO) UnmarshalJSON(data []byte) error {
-	type alias RetrieveConfigDTO
-	var decoded alias
-	if err := unmarshalCompatStruct(data, "retrieve config", &decoded); err != nil {
+	raw, err := unmarshalCompatRawObject(data, "retrieve config")
+	if err != nil {
 		return err
 	}
-	*c = RetrieveConfigDTO(decoded)
+
+	version, err := decodeCompatIntField(raw, "version")
+	if err != nil {
+		return err
+	}
+	searchMethod, err := decodeCompatStringField(raw, "search_method")
+	if err != nil {
+		return err
+	}
+	topK, err := decodeCompatIntField(raw, "top_k")
+	if err != nil {
+		return err
+	}
+	scoreThreshold, err := decodeCompatFloat64Field(raw, "score_threshold")
+	if err != nil {
+		return err
+	}
+	scoreThresholdEnabled, err := decodeCompatBoolField(raw, "score_threshold_enabled")
+	if err != nil {
+		return err
+	}
+	rerankingMode, err := decodeCompatStringField(raw, "reranking_mode")
+	if err != nil {
+		return err
+	}
+	rerankingEnable, err := decodeCompatBoolField(raw, "reranking_enable")
+	if err != nil {
+		return err
+	}
+	weights, _, err := decodeCompatOptionalObjectField[RetrieveWeightsDTO](raw, "weights")
+	if err != nil {
+		return err
+	}
+	rerankingModel, _, err := decodeCompatOptionalObjectField[RerankingModelConfigDTO](raw, "reranking_model")
+	if err != nil {
+		return err
+	}
+	rerankEnabled, err := decodeCompatBoolField(raw, "rerank_enabled")
+	if err != nil {
+		return err
+	}
+	hybridAlpha, err := decodeCompatFloat64Field(raw, "hybrid_alpha")
+	if err != nil {
+		return err
+	}
+	hybridBeta, err := decodeCompatFloat64Field(raw, "hybrid_beta")
+	if err != nil {
+		return err
+	}
+	hybridTopKMultiplier, err := decodeCompatIntField(raw, "hybrid_top_k_multiplier")
+	if err != nil {
+		return err
+	}
+
+	*c = RetrieveConfigDTO{
+		Version:               version,
+		SearchMethod:          searchMethod,
+		TopK:                  topK,
+		ScoreThreshold:        scoreThreshold,
+		ScoreThresholdEnabled: scoreThresholdEnabled,
+		RerankingMode:         rerankingMode,
+		RerankingEnable:       rerankingEnable,
+		Weights:               weights,
+		RerankingModel:        rerankingModel,
+		RerankEnabled:         rerankEnabled,
+		HybridAlpha:           hybridAlpha,
+		HybridBeta:            hybridBeta,
+		HybridTopKMultiplier:  hybridTopKMultiplier,
+	}
 	return nil
 }
 
@@ -175,12 +340,29 @@ type VectorWeightSettingDTO struct {
 
 // UnmarshalJSON 兼容历史空对象脏值。
 func (c *VectorWeightSettingDTO) UnmarshalJSON(data []byte) error {
-	type alias VectorWeightSettingDTO
-	var decoded alias
-	if err := unmarshalCompatStruct(data, "vector weight setting", &decoded); err != nil {
+	raw, err := unmarshalCompatRawObject(data, "vector weight setting")
+	if err != nil {
 		return err
 	}
-	*c = VectorWeightSettingDTO(decoded)
+
+	vectorWeight, err := decodeCompatFloat64Field(raw, "vector_weight")
+	if err != nil {
+		return err
+	}
+	embeddingModelName, err := decodeCompatStringField(raw, "embedding_model_name")
+	if err != nil {
+		return err
+	}
+	embeddingProviderName, err := decodeCompatStringField(raw, "embedding_provider_name")
+	if err != nil {
+		return err
+	}
+
+	*c = VectorWeightSettingDTO{
+		VectorWeight:          vectorWeight,
+		EmbeddingModelName:    embeddingModelName,
+		EmbeddingProviderName: embeddingProviderName,
+	}
 	return nil
 }
 
@@ -191,12 +373,16 @@ type KeywordWeightSettingDTO struct {
 
 // UnmarshalJSON 兼容历史空对象脏值。
 func (c *KeywordWeightSettingDTO) UnmarshalJSON(data []byte) error {
-	type alias KeywordWeightSettingDTO
-	var decoded alias
-	if err := unmarshalCompatStruct(data, "keyword weight setting", &decoded); err != nil {
+	raw, err := unmarshalCompatRawObject(data, "keyword weight setting")
+	if err != nil {
 		return err
 	}
-	*c = KeywordWeightSettingDTO(decoded)
+
+	keywordWeight, err := decodeCompatFloat64Field(raw, "keyword_weight")
+	if err != nil {
+		return err
+	}
+	*c = KeywordWeightSettingDTO{KeywordWeight: keywordWeight}
 	return nil
 }
 
@@ -211,12 +397,39 @@ type GraphWeightSettingDTO struct {
 
 // UnmarshalJSON 兼容历史空对象脏值。
 func (c *GraphWeightSettingDTO) UnmarshalJSON(data []byte) error {
-	type alias GraphWeightSettingDTO
-	var decoded alias
-	if err := unmarshalCompatStruct(data, "graph weight setting", &decoded); err != nil {
+	raw, err := unmarshalCompatRawObject(data, "graph weight setting")
+	if err != nil {
 		return err
 	}
-	*c = GraphWeightSettingDTO(decoded)
+
+	relationWeight, err := decodeCompatFloat64Field(raw, "relation_weight")
+	if err != nil {
+		return err
+	}
+	maxDepth, err := decodeCompatIntField(raw, "max_depth")
+	if err != nil {
+		return err
+	}
+	includeProperties, err := decodeCompatBoolField(raw, "include_properties")
+	if err != nil {
+		return err
+	}
+	timeout, err := decodeCompatFloat64Field(raw, "timeout")
+	if err != nil {
+		return err
+	}
+	retryCount, err := decodeCompatIntField(raw, "retry_count")
+	if err != nil {
+		return err
+	}
+
+	*c = GraphWeightSettingDTO{
+		RelationWeight:    relationWeight,
+		MaxDepth:          maxDepth,
+		IncludeProperties: includeProperties,
+		Timeout:           timeout,
+		RetryCount:        retryCount,
+	}
 	return nil
 }
 
@@ -247,12 +460,34 @@ type StrategyConfigDTO struct {
 
 // UnmarshalJSON 兼容历史空对象脏值。
 func (c *StrategyConfigDTO) UnmarshalJSON(data []byte) error {
-	type alias StrategyConfigDTO
-	var decoded alias
-	if err := unmarshalCompatStruct(data, "strategy config", &decoded); err != nil {
+	raw, err := unmarshalCompatRawObject(data, "strategy config")
+	if err != nil {
 		return err
 	}
-	*c = StrategyConfigDTO(decoded)
+
+	parsingType, err := decodeCompatIntField(raw, "parsing_type")
+	if err != nil {
+		return err
+	}
+	imageExtraction, err := decodeCompatBoolField(raw, "image_extraction")
+	if err != nil {
+		return err
+	}
+	tableExtraction, err := decodeCompatBoolField(raw, "table_extraction")
+	if err != nil {
+		return err
+	}
+	imageOCR, err := decodeCompatBoolField(raw, "image_ocr")
+	if err != nil {
+		return err
+	}
+
+	*c = StrategyConfigDTO{
+		ParsingType:     parsingType,
+		ImageExtraction: imageExtraction,
+		TableExtraction: tableExtraction,
+		ImageOCR:        imageOCR,
+	}
 	return nil
 }
 
@@ -265,12 +500,29 @@ type FragmentConfigDTO struct {
 
 // UnmarshalJSON 兼容历史空对象脏值。
 func (c *FragmentConfigDTO) UnmarshalJSON(data []byte) error {
-	type alias FragmentConfigDTO
-	var decoded alias
-	if err := unmarshalCompatStruct(data, "fragment config", &decoded); err != nil {
+	raw, err := unmarshalCompatRawObject(data, "fragment config")
+	if err != nil {
 		return err
 	}
-	*c = FragmentConfigDTO(decoded)
+
+	mode, err := decodeCompatIntField(raw, "mode")
+	if err != nil {
+		return err
+	}
+	normal, _, err := decodeCompatOptionalObjectField[NormalFragmentConfigDTO](raw, "normal")
+	if err != nil {
+		return err
+	}
+	hierarchy, _, err := decodeCompatOptionalObjectField[HierarchyFragmentConfigDTO](raw, "hierarchy")
+	if err != nil {
+		return err
+	}
+
+	*c = FragmentConfigDTO{
+		Mode:      mode,
+		Normal:    normal,
+		Hierarchy: hierarchy,
+	}
 	return nil
 }
 
@@ -282,12 +534,24 @@ type NormalFragmentConfigDTO struct {
 
 // UnmarshalJSON 兼容历史空对象脏值。
 func (c *NormalFragmentConfigDTO) UnmarshalJSON(data []byte) error {
-	type alias NormalFragmentConfigDTO
-	var decoded alias
-	if err := unmarshalCompatStruct(data, "normal fragment config", &decoded); err != nil {
+	raw, err := unmarshalCompatRawObject(data, "normal fragment config")
+	if err != nil {
 		return err
 	}
-	*c = NormalFragmentConfigDTO(decoded)
+
+	textPreprocessRule, err := decodeCompatIntSliceField(raw, "text_preprocess_rule")
+	if err != nil {
+		return err
+	}
+	segmentRule, _, err := decodeCompatOptionalObjectField[SegmentRuleDTO](raw, "segment_rule")
+	if err != nil {
+		return err
+	}
+
+	*c = NormalFragmentConfigDTO{
+		TextPreprocessRule: textPreprocessRule,
+		SegmentRule:        segmentRule,
+	}
 	return nil
 }
 
@@ -301,12 +565,34 @@ type SegmentRuleDTO struct {
 
 // UnmarshalJSON 兼容历史空对象脏值。
 func (c *SegmentRuleDTO) UnmarshalJSON(data []byte) error {
-	type alias SegmentRuleDTO
-	var decoded alias
-	if err := unmarshalCompatStruct(data, "segment rule", &decoded); err != nil {
+	raw, err := unmarshalCompatRawObject(data, "segment rule")
+	if err != nil {
 		return err
 	}
-	*c = SegmentRuleDTO(decoded)
+
+	separator, err := decodeCompatStringField(raw, "separator")
+	if err != nil {
+		return err
+	}
+	chunkSize, err := decodeCompatIntField(raw, "chunk_size")
+	if err != nil {
+		return err
+	}
+	chunkOverlap, err := decodeCompatIntField(raw, "chunk_overlap")
+	if err != nil {
+		return err
+	}
+	chunkOverlapUnit, err := decodeCompatStringField(raw, "chunk_overlap_unit")
+	if err != nil {
+		return err
+	}
+
+	*c = SegmentRuleDTO{
+		Separator:        separator,
+		ChunkSize:        chunkSize,
+		ChunkOverlap:     chunkOverlap,
+		ChunkOverlapUnit: chunkOverlapUnit,
+	}
 	return nil
 }
 
@@ -319,12 +605,29 @@ type HierarchyFragmentConfigDTO struct {
 
 // UnmarshalJSON 兼容历史空对象脏值。
 func (c *HierarchyFragmentConfigDTO) UnmarshalJSON(data []byte) error {
-	type alias HierarchyFragmentConfigDTO
-	var decoded alias
-	if err := unmarshalCompatStruct(data, "hierarchy fragment config", &decoded); err != nil {
+	raw, err := unmarshalCompatRawObject(data, "hierarchy fragment config")
+	if err != nil {
 		return err
 	}
-	*c = HierarchyFragmentConfigDTO(decoded)
+
+	maxLevel, err := decodeCompatIntField(raw, "max_level")
+	if err != nil {
+		return err
+	}
+	textPreprocessRule, err := decodeCompatIntSliceField(raw, "text_preprocess_rule")
+	if err != nil {
+		return err
+	}
+	keepHierarchyInfo, err := decodeCompatBoolField(raw, "keep_hierarchy_info")
+	if err != nil {
+		return err
+	}
+
+	*c = HierarchyFragmentConfigDTO{
+		MaxLevel:           maxLevel,
+		TextPreprocessRule: textPreprocessRule,
+		KeepHierarchyInfo:  keepHierarchyInfo,
+	}
 	return nil
 }
 

@@ -6,8 +6,10 @@ import (
 	"slices"
 	"testing"
 
+	docentity "magic/internal/domain/knowledge/document/entity"
 	documentdomain "magic/internal/domain/knowledge/document/service"
 	"magic/internal/domain/knowledge/shared"
+	parseddocument "magic/internal/domain/knowledge/shared/parseddocument"
 	sharedsnapshot "magic/internal/domain/knowledge/shared/snapshot"
 	"magic/internal/pkg/ctxmeta"
 )
@@ -21,27 +23,27 @@ type syncLifecycleStoreStub struct {
 	lastFailedMessage string
 }
 
-func (s *syncLifecycleStoreStub) Update(_ context.Context, _ *documentdomain.KnowledgeBaseDocument) error {
+func (s *syncLifecycleStoreStub) Update(_ context.Context, _ *docentity.KnowledgeBaseDocument) error {
 	s.updateCalls++
 	s.appendEvent("update")
 	return nil
 }
 
-func (s *syncLifecycleStoreStub) MarkSyncing(_ context.Context, doc *documentdomain.KnowledgeBaseDocument) error {
+func (s *syncLifecycleStoreStub) MarkSyncing(_ context.Context, doc *docentity.KnowledgeBaseDocument) error {
 	s.markSyncingCalls++
 	s.appendEvent("mark_syncing")
 	doc.MarkSyncing()
 	return nil
 }
 
-func (s *syncLifecycleStoreStub) MarkSynced(_ context.Context, doc *documentdomain.KnowledgeBaseDocument, wordCount int) error {
+func (s *syncLifecycleStoreStub) MarkSynced(_ context.Context, doc *docentity.KnowledgeBaseDocument, wordCount int) error {
 	s.markSyncedCalls++
 	s.appendEvent("mark_synced")
 	doc.MarkSynced(wordCount)
 	return nil
 }
 
-func (s *syncLifecycleStoreStub) MarkSyncFailed(_ context.Context, doc *documentdomain.KnowledgeBaseDocument, message string) error {
+func (s *syncLifecycleStoreStub) MarkSyncFailed(_ context.Context, doc *docentity.KnowledgeBaseDocument, message string) error {
 	s.markFailedCalls++
 	s.lastFailedMessage = message
 	s.appendEvent("mark_failed")
@@ -66,7 +68,7 @@ type syncLifecycleContentStub struct {
 
 func (s *syncLifecycleContentStub) ResolveDocumentFileExtension(
 	_ context.Context,
-	_ *documentdomain.KnowledgeBaseDocument,
+	_ *docentity.KnowledgeBaseDocument,
 	stage documentdomain.SyncDocumentFileExtensionStage,
 ) string {
 	switch stage {
@@ -79,14 +81,14 @@ func (s *syncLifecycleContentStub) ResolveDocumentFileExtension(
 	}
 }
 
-func (s *syncLifecycleContentStub) PreflightSource(_ context.Context, _ *documentdomain.KnowledgeBaseDocument, _ *documentdomain.SourceOverride) error {
+func (s *syncLifecycleContentStub) PreflightSource(_ context.Context, _ *docentity.KnowledgeBaseDocument, _ *documentdomain.SourceOverride) error {
 	s.appendEvent("preflight")
 	return nil
 }
 
 func (s *syncLifecycleContentStub) ParseContent(
 	_ context.Context,
-	_ *documentdomain.KnowledgeBaseDocument,
+	_ *docentity.KnowledgeBaseDocument,
 	_ *ctxmeta.BusinessParams,
 	_ *documentdomain.SourceOverride,
 ) (documentdomain.SyncContentResult, error) {
@@ -137,19 +139,19 @@ func TestSyncLifecycleServiceSyncCreateFlow(t *testing.T) {
 	t.Parallel()
 
 	events := make([]string, 0, 6)
-	doc := &documentdomain.KnowledgeBaseDocument{
+	doc := &docentity.KnowledgeBaseDocument{
 		Code:              "DOC-1",
 		OrganizationCode:  "ORG-1",
 		KnowledgeBaseCode: "KB-1",
-		DocumentFile:      &documentdomain.File{Name: "doc.md", URL: "https://example.com/doc.md", Extension: "md"},
+		DocumentFile:      &docentity.File{Name: "doc.md", URL: "https://example.com/doc.md", Extension: "md"},
 	}
 	store := &syncLifecycleStoreStub{events: &events}
 	content := &syncLifecycleContentStub{
 		events: &events,
 		parseResult: documentdomain.SyncContentResult{
-			Parsed: &documentdomain.ParsedDocument{
+			Parsed: &parseddocument.ParsedDocument{
 				PlainText:    "alpha\n\nbeta",
-				DocumentMeta: map[string]any{documentdomain.ParsedMetaSourceFormat: "md"},
+				DocumentMeta: map[string]any{parseddocument.MetaSourceFormat: "md"},
 			},
 			Content: "alpha\n\nbeta",
 		},
@@ -177,7 +179,7 @@ func TestSyncLifecycleServiceSyncCreateFlow(t *testing.T) {
 	if doc.SyncStatus != shared.SyncStatusSynced || doc.WordCount != len([]rune("alpha\n\nbeta")) {
 		t.Fatalf("unexpected doc state: %#v", doc)
 	}
-	if got := doc.DocMetadata[documentdomain.ParsedMetaSourceFormat]; got != "md" {
+	if got := doc.DocMetadata[parseddocument.MetaSourceFormat]; got != "md" {
 		t.Fatalf("expected parsed metadata merged, got %#v", doc.DocMetadata)
 	}
 	if fragments.lastSyncMode != documentdomain.SyncModeCreate {
@@ -201,7 +203,7 @@ func TestSyncLifecycleServicePersistsSourceOverrideBeforePreflight(t *testing.T)
 	t.Parallel()
 
 	events := make([]string, 0, 7)
-	doc := &documentdomain.KnowledgeBaseDocument{
+	doc := &docentity.KnowledgeBaseDocument{
 		Code:              "DOC-OVERRIDE",
 		OrganizationCode:  "ORG-1",
 		KnowledgeBaseCode: "KB-1",
@@ -212,7 +214,7 @@ func TestSyncLifecycleServicePersistsSourceOverrideBeforePreflight(t *testing.T)
 		persistExtension: "md",
 		syncExtension:    "md",
 		parseResult: documentdomain.SyncContentResult{
-			Parsed:  documentdomain.NewPlainTextParsedDocument("md", "override"),
+			Parsed:  parseddocument.NewPlainTextParsedDocument("md", "override"),
 			Content: "override",
 		},
 	}
@@ -229,7 +231,7 @@ func TestSyncLifecycleServicePersistsSourceOverrideBeforePreflight(t *testing.T)
 			Model: "text-embedding-3-small",
 		},
 		SourceOverride: &documentdomain.SourceOverride{
-			DocType: int(documentdomain.DocTypeText),
+			DocType: int(docentity.DocumentInputKindText),
 			DocumentFile: map[string]any{
 				"name": "override.md",
 			},
@@ -242,7 +244,7 @@ func TestSyncLifecycleServicePersistsSourceOverrideBeforePreflight(t *testing.T)
 	if store.updateCalls != 1 {
 		t.Fatalf("expected override persisted once, got %d", store.updateCalls)
 	}
-	if doc.DocType != int(documentdomain.DocTypeText) || doc.DocumentFile == nil || doc.DocumentFile.Extension != "md" {
+	if doc.DocType != int(docentity.DocumentInputKindText) || doc.DocumentFile == nil || doc.DocumentFile.Extension != "md" {
 		t.Fatalf("expected override applied to document, got %#v", doc)
 	}
 	if len(events) == 0 || events[0] != "update" {
@@ -253,11 +255,11 @@ func TestSyncLifecycleServicePersistsSourceOverrideBeforePreflight(t *testing.T)
 func TestSyncLifecycleServiceMarksFailedWithStageReason(t *testing.T) {
 	t.Parallel()
 
-	doc := &documentdomain.KnowledgeBaseDocument{
+	doc := &docentity.KnowledgeBaseDocument{
 		Code:              "DOC-FAIL",
 		OrganizationCode:  "ORG-1",
 		KnowledgeBaseCode: "KB-1",
-		DocumentFile:      &documentdomain.File{Name: "doc.md", URL: "https://example.com/doc.md", Extension: "md"},
+		DocumentFile:      &docentity.File{Name: "doc.md", URL: "https://example.com/doc.md", Extension: "md"},
 	}
 	store := &syncLifecycleStoreStub{}
 	content := &syncLifecycleContentStub{

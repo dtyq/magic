@@ -182,7 +182,8 @@ dev:
 		sleep 1; \
 		waited=$$((waited + 1)); \
 	done; \
-	php bin/hyperf.php server:watch
+	echo "Starting PHP watcher with IPC_ENGINE_AUTO_START=false; Go is managed only by air."; \
+	IPC_ENGINE_AUTO_START=false php bin/hyperf.php server:watch
 
 dev-no-restart: GO_HOT_RELOAD=0
 dev-no-restart: dev

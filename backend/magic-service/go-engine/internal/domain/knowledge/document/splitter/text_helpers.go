@@ -3,7 +3,13 @@ package splitter
 import (
 	"crypto/sha256"
 	"encoding/hex"
+	"regexp"
 	"strings"
+)
+
+var (
+	markdownMagicCompressibleOpenTagRegex  = regexp.MustCompile(`(?is)<\s*MagicCompressibleContent\b[^>]*>`)
+	markdownMagicCompressibleCloseTagRegex = regexp.MustCompile(`(?is)<\s*/\s*MagicCompressibleContent\s*>`)
 )
 
 func normalizeContent(content string) string {
@@ -24,6 +30,18 @@ func normalizeContent(content string) string {
 		result = append(result, line)
 	}
 	return strings.Join(result, "\n")
+}
+
+func stripMarkdownMagicCompressibleContentTags(content, sourceFileType string) string {
+	if normalizeHierarchySourceFileType(sourceFileType) != "md" {
+		return content
+	}
+
+	// Teamshare 云文档转 Markdown 会用 MagicCompressibleContent 包住 oss-file。
+	// 分片时只移除外层标签，保留标签内内容，避免自定义 HTML 块影响后续 Markdown 标题识别。
+	content = markdownMagicCompressibleOpenTagRegex.ReplaceAllString(content, "")
+	content = markdownMagicCompressibleCloseTagRegex.ReplaceAllString(content, "")
+	return content
 }
 
 func normalizeHierarchySourceFileType(sourceFileType string) string {

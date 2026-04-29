@@ -3,44 +3,65 @@ package mysqlsqlc_test
 import (
 	"os"
 	"path/filepath"
+	"regexp"
 	"runtime"
 	"strings"
 	"testing"
 )
 
-func TestKnowledgeBaseQueriesUseJSONNullFallback(t *testing.T) {
+func TestGeneratedModelsUseByteSlicesForMySQLJSONColumns(t *testing.T) {
 	t.Parallel()
-	fallbacks := []string{
-		"COALESCE(retrieve_config, CAST('null' AS JSON)) AS retrieve_config",
-		"COALESCE(fragment_config, CAST('null' AS JSON)) AS fragment_config",
-		"COALESCE(embedding_config, CAST('null' AS JSON)) AS embedding_config",
-	}
 
-	queryFile := readQueryFile(t, "knowledge_base.sql.go")
-	assertContainsAll(t, "knowledge_base.sql.go", queryFile, fallbacks)
+	modelsFile := readGeneratedFile(t, "models.go")
+	assertMatchesAll(t, "models.go", modelsFile, []string{
+		`(?m)^\s*Embedding\s+\[\]byte\s+`,
+		`(?m)^\s*DocMetadata\s+\[\]byte\s+`,
+		`(?m)^\s*DocumentFile\s+\[\]byte\s+`,
+		`(?m)^\s*RetrieveConfig\s+\[\]byte\s+`,
+		`(?m)^\s*FragmentConfig\s+\[\]byte\s+`,
+		`(?m)^\s*EmbeddingConfig\s+\[\]byte\s+`,
+		`(?m)^\s*VectorDbConfig\s+\[\]byte\s+`,
+		`(?m)^\s*SyncConfig\s+\[\]byte\s+`,
+		`(?m)^\s*SnapshotMeta\s+\[\]byte\s+`,
+		`(?m)^\s*Metadata\s+\[\]byte\s+`,
+	})
+	if strings.Contains(modelsFile, "json.RawMessage") {
+		t.Fatal("models.go should not use json.RawMessage for MySQL JSON columns")
+	}
+}
+
+func TestFindKnowledgeBaseCollectionMetaUsesRawByteJSON(t *testing.T) {
+	t.Parallel()
+
+	queryFile := readGeneratedFile(t, "knowledge_base.sql.go")
+	assertMatchesAll(t, "knowledge_base.sql.go", queryFile, []string{
+		`type FindKnowledgeBaseCollectionMetaRow struct \{`,
+		`(?m)^\s*EmbeddingConfig\s+\[\]byte\s+`,
+	})
+	if strings.Contains(queryFile, "SELECT model,\n       COALESCE(embedding_config, CAST('{}' AS JSON)) AS embedding_config") {
+		t.Fatal("FindKnowledgeBaseCollectionMeta should read raw embedding_config without SQL fallback")
+	}
 }
 
 func TestDocumentQueriesUseSourceBindingColumns(t *testing.T) {
 	t.Parallel()
-	snippets := []string{
+
+	queryFile := readGeneratedFile(t, "document.sql.go")
+	assertContainsAll(t, "document.sql.go", queryFile, []string{
 		"source_binding_id",
 		"source_item_id",
-		"FindDocumentByKnowledgeBaseAndProjectFile",
+		"ListDocumentsBySourceFileID",
 		"FindDocumentByThirdFile",
-	}
-
-	queryFile := readQueryFile(t, "document.sql.go")
-	assertContainsAll(t, "document.sql.go", queryFile, snippets)
+	})
 }
 
-func TestFragmentQueriesUseJSONNullFallback(t *testing.T) {
+func TestFragmentQueriesUseDirectMetadataColumn(t *testing.T) {
 	t.Parallel()
-	fallbacks := []string{
-		"COALESCE(metadata, CAST('null' AS JSON)) AS metadata",
-	}
 
-	queryFile := readQueryFile(t, "fragment.sql.go")
-	assertContainsAll(t, "fragment.sql.go", queryFile, fallbacks)
+	queryFile := readGeneratedFile(t, "fragment.sql.go")
+	if strings.Contains(queryFile, "COALESCE(metadata, CAST('null' AS JSON)) AS metadata") {
+		t.Fatal("fragment.sql.go should use direct metadata column access")
+	}
 }
 
 func assertContainsAll(t *testing.T, queryName, query string, snippets []string) {
@@ -48,12 +69,26 @@ func assertContainsAll(t *testing.T, queryName, query string, snippets []string)
 
 	for _, snippet := range snippets {
 		if !strings.Contains(query, snippet) {
-			t.Fatalf("%s missing NULL fallback snippet: %s", queryName, snippet)
+			t.Fatalf("%s missing snippet: %s", queryName, snippet)
 		}
 	}
 }
 
-func readQueryFile(t *testing.T, fileName string) string {
+func assertMatchesAll(t *testing.T, fileName, content string, patterns []string) {
+	t.Helper()
+
+	for _, pattern := range patterns {
+		matched, err := regexp.MatchString(pattern, content)
+		if err != nil {
+			t.Fatalf("invalid pattern %q: %v", pattern, err)
+		}
+		if !matched {
+			t.Fatalf("%s missing pattern: %s", fileName, pattern)
+		}
+	}
+}
+
+func readGeneratedFile(t *testing.T, fileName string) string {
 	t.Helper()
 
 	_, thisFile, _, ok := runtime.Caller(0)

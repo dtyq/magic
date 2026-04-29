@@ -3,6 +3,9 @@ package retrieval
 import (
 	"regexp"
 	"strings"
+
+	fragmodel "magic/internal/domain/knowledge/fragment/model"
+	"magic/internal/domain/knowledge/shared"
 )
 
 const (
@@ -19,23 +22,13 @@ const (
 
 var whitespaceRegex = regexp.MustCompile(`\s+`)
 
-type retrievalTextMeta struct {
-	SectionPath       string
-	SectionTitle      string
-	SectionPathSource string
-}
-
-func buildRetrievalTextFromFragmentWithAnalyzer(fragment *KnowledgeBaseFragment, analyzer retrievalAnalyzer) (string, retrievalTextMeta) {
+func buildRetrievalTextFromFragmentWithAnalyzer(fragment *fragmodel.KnowledgeBaseFragment, analyzer retrievalAnalyzer) string {
 	if fragment == nil {
-		return "", retrievalTextMeta{SectionPathSource: "none"}
+		return ""
 	}
-	sectionPath, source := resolveSectionPath(fragment.SectionPath, fragment.Metadata)
+	sectionPath := resolveSectionPath(fragment.SectionPath, fragment.Metadata)
 	sectionTitle := metadataStringValue(fragment.Metadata, "section_title")
-	return buildRetrievalTextWithAnalyzer(sectionPath, sectionTitle, fragment.Content, analyzer), retrievalTextMeta{
-		SectionPath:       sectionPath,
-		SectionTitle:      sectionTitle,
-		SectionPathSource: source,
-	}
+	return buildRetrievalTextWithAnalyzer(sectionPath, sectionTitle, fragment.Content, analyzer)
 }
 
 func buildRetrievalTextWithAnalyzer(sectionPath, sectionTitle, content string, analyzer retrievalAnalyzer) string {
@@ -65,51 +58,28 @@ func buildRetrievalTextWithAnalyzer(sectionPath, sectionTitle, content string, a
 }
 
 // BuildKeywordRetrievalTextFromFragment 构建中文优先的 BM25 稀疏检索文本。
-func BuildKeywordRetrievalTextFromFragment(fragment *KnowledgeBaseFragment) string {
+func BuildKeywordRetrievalTextFromFragment(fragment *fragmodel.KnowledgeBaseFragment) string {
 	return buildKeywordRetrievalTextFromFragmentWithAnalyzer(fragment, newRetrievalAnalyzer())
 }
 
 // BuildKeywordRetrievalTextFromFragment 使用共享检索分词器构建中文优先的 BM25 稀疏检索文本。
-func (s *Service) BuildKeywordRetrievalTextFromFragment(fragment *KnowledgeBaseFragment) string {
+func (s *Service) BuildKeywordRetrievalTextFromFragment(fragment *fragmodel.KnowledgeBaseFragment) string {
 	return buildKeywordRetrievalTextFromFragmentWithAnalyzer(fragment, s.newRetrievalAnalyzer())
 }
 
-func buildKeywordRetrievalTextFromFragmentWithAnalyzer(fragment *KnowledgeBaseFragment, analyzer retrievalAnalyzer) string {
-	if fragment == nil {
-		return ""
-	}
-
-	sectionPath, _ := resolveSectionPath(fragment.SectionPath, fragment.Metadata)
-	sectionPath = trimSectionPathByTokenBudgetWithAnalyzer(strings.TrimSpace(sectionPath), sectionPathTokenBudget, analyzer)
-	sectionTitle := coalesceNonEmpty(fragment.SectionTitle, metadataStringValue(fragment.Metadata, "section_title"))
-	documentName := strings.TrimSpace(fragment.DocumentName)
-	tableTitle := strings.TrimSpace(metadataStringValue(fragment.Metadata, ParsedMetaTableTitle))
-	content := strings.TrimSpace(fragment.Content)
-	primaryKeys := metadataStringListValue(fragment.Metadata, ParsedMetaPrimaryKeys)
-	primaryKeyHeaders := metadataStringListValue(fragment.Metadata, ParsedMetaPrimaryKeyHeaders)
-	headerPaths := metadataStringListValue(fragment.Metadata, ParsedMetaHeaderPaths)
-
-	parts := make([]string, 0, keywordRetrievalTextPartCapacity)
-	seen := make(map[string]struct{}, keywordRetrievalSeenCapacity)
-	appendKeywordTextRepeat(&parts, seen, sectionTitle, 2)
-	appendKeywordTextRepeat(&parts, seen, tableTitle, 2)
-	appendKeywordTextRepeat(&parts, seen, sectionPath, 1)
-	appendKeywordTextRepeat(&parts, seen, documentName, 1)
-	appendKeywordTextValues(&parts, seen, primaryKeys)
-	appendKeywordTextValues(&parts, seen, primaryKeyHeaders)
-	appendKeywordTextValues(&parts, seen, headerPaths)
-	appendKeywordTextRepeat(&parts, seen, content, 1)
-
-	return normalizeWhitespace(strings.Join(parts, "\n"))
+func buildKeywordRetrievalTextFromFragmentWithAnalyzer(fragment *fragmodel.KnowledgeBaseFragment, analyzer retrievalAnalyzer) string {
+	return buildManagedSparseDocumentText(buildFragmentSparseSource(fragment, analyzer), analyzer)
 }
 
-// DefaultSparseDocumentForText 构造默认的 Qdrant BM25 稀疏文本。
-func DefaultSparseDocumentForText(text string) *SparseDocument {
+// DefaultSparseDocumentForText 构造交给 Qdrant 原生 BM25 inference 的稀疏文本。
+//
+// 注意：这里使用的是 Qdrant `qdrant/bm25` + multilingual tokenizer，不是本地 gse 分词链路。
+func DefaultSparseDocumentForText(text string) *shared.SparseDocument {
 	normalized := normalizeWhitespace(text)
 	if normalized == "" {
 		return nil
 	}
-	return &SparseDocument{
+	return &shared.SparseDocument{
 		Text:  normalized,
 		Model: DefaultSparseModelName,
 		Options: map[string]any{
@@ -121,66 +91,46 @@ func DefaultSparseDocumentForText(text string) *SparseDocument {
 }
 
 // BuildSparseInputFromFragment 根据 sparse backend 构造片段写入所需的 sparse 输入。
-func BuildSparseInputFromFragment(fragment *KnowledgeBaseFragment, sparseBackend string) *SparseInput {
+func BuildSparseInputFromFragment(fragment *fragmodel.KnowledgeBaseFragment, sparseBackend string) *shared.SparseInput {
 	return buildSparseInputFromFragmentWithAnalyzer(fragment, sparseBackend, newRetrievalAnalyzer())
 }
 
 // BuildSparseInputFromFragment 使用共享检索分词器构造片段写入所需的 sparse 输入。
-func (s *Service) BuildSparseInputFromFragment(fragment *KnowledgeBaseFragment, sparseBackend string) *SparseInput {
+func (s *Service) BuildSparseInputFromFragment(fragment *fragmodel.KnowledgeBaseFragment, sparseBackend string) *shared.SparseInput {
 	return buildSparseInputFromFragmentWithAnalyzer(fragment, sparseBackend, s.newRetrievalAnalyzer())
 }
 
 func buildSparseInputFromFragmentWithAnalyzer(
-	fragment *KnowledgeBaseFragment,
+	fragment *fragmodel.KnowledgeBaseFragment,
 	sparseBackend string,
 	analyzer retrievalAnalyzer,
-) *SparseInput {
+) *shared.SparseInput {
 	switch NormalizeSparseBackend(sparseBackend) {
 	case SparseBackendQdrantBM25ZHV1:
 		document := DefaultSparseDocumentForText(buildKeywordRetrievalTextFromFragmentWithAnalyzer(fragment, analyzer))
 		if document == nil {
 			return nil
 		}
-		return &SparseInput{Document: document}
+		return &shared.SparseInput{Document: document}
 	case SparseBackendClientBM25QdrantIDFV1:
 		vector := buildSparseVectorFromFragmentWithAnalyzer(fragment, analyzer)
 		if vector == nil {
 			return nil
 		}
-		return &SparseInput{Vector: vector}
+		return &shared.SparseInput{Vector: vector}
 	default:
 		return nil
 	}
 }
 
-func appendKeywordTextRepeat(parts *[]string, seen map[string]struct{}, text string, repeat int) {
-	normalized := normalizeWhitespace(text)
-	if normalized == "" || repeat <= 0 {
-		return
-	}
-	if _, exists := seen[normalized]; exists {
-		return
-	}
-	seen[normalized] = struct{}{}
-	for range repeat {
-		*parts = append(*parts, normalized)
-	}
-}
-
-func appendKeywordTextValues(parts *[]string, seen map[string]struct{}, values []string) {
-	for _, value := range values {
-		appendKeywordTextRepeat(parts, seen, value, 1)
-	}
-}
-
-func resolveSectionPath(entityPath string, metadata map[string]any) (string, string) {
+func resolveSectionPath(entityPath string, metadata map[string]any) string {
 	if path := strings.TrimSpace(entityPath); path != "" {
-		return path, "entity"
+		return path
 	}
 	if fallback := strings.TrimSpace(metadataStringValue(metadata, "section_path")); fallback != "" {
-		return fallback, "metadata_fallback"
+		return fallback
 	}
-	return "", "none"
+	return ""
 }
 
 func trimSectionPathByTokenBudgetWithAnalyzer(path string, budget int, analyzer retrievalAnalyzer) string {

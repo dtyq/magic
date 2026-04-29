@@ -22,9 +22,11 @@ var (
 type BusinessParams struct {
 	OrganizationCode string `json:"organization_code"` // 组织编码
 	// OrganizationID 兼容旧字段，优先级低于 OrganizationCode。
-	OrganizationID string `json:"organization_id,omitempty"`
-	UserID         string `json:"user_id"`     // 用户标识
-	BusinessID     string `json:"business_id"` // 业务/事务标识
+	OrganizationID                string `json:"organization_id,omitempty"`
+	UserID                        string `json:"user_id"`     // 用户标识
+	BusinessID                    string `json:"business_id"` // 业务/事务标识
+	ThirdPlatformUserID           string `json:"third_platform_user_id,omitempty"`
+	ThirdPlatformOrganizationCode string `json:"third_platform_organization_code,omitempty"`
 }
 
 // ToMap 使用常量键将 BusinessParams 转为 map
