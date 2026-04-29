@@ -672,7 +672,9 @@ class AgentDispatcher(Base):
             agent: Agent实例
         """
         try:
-            current_model_id = message.model_id or agent.llm_id
+            # 提前读取上一次 session，为所有来自第三方消息时未携带的字段提供回落值
+            prev_session = agent.chat_history.get_current_session_config()
+
             current_image_model_id = None
             current_image_model_sizes = None
             current_video_model_id = None
@@ -718,13 +720,26 @@ class AgentDispatcher(Base):
                 if agent_code_val and isinstance(agent_code_val, str) and agent_code_val.strip():
                     current_agent_code = agent_code_val.strip()
 
-            # 当前消息未携带时，从上一次 session 回落
-            if not current_agent_mode or not current_agent_code:
-                prev_session = agent.chat_history.get_current_session_config()
-                if not current_agent_mode:
-                    current_agent_mode = prev_session.agent_mode
-                if not current_agent_code:
-                    current_agent_code = prev_session.agent_code
+            # 消息未携带的字段，全部回落到上一次 session，避免第三方 IM 消息将已有配置清空
+            current_model_id = message.model_id or prev_session.model_id or agent.llm_id
+            if not current_image_model_id:
+                current_image_model_id = prev_session.image_model_id
+            if not current_image_model_sizes:
+                current_image_model_sizes = (
+                    [s.to_dict() for s in prev_session.image_model_sizes]
+                    if prev_session.image_model_sizes is not None
+                    else None
+                )
+            if not current_video_model_id:
+                current_video_model_id = prev_session.video_model_id
+            if current_video_generation_config is None:
+                current_video_generation_config = prev_session.video_generation_config
+            if current_mcp_servers is None:
+                current_mcp_servers = prev_session.mcp_servers
+            if not current_agent_mode:
+                current_agent_mode = prev_session.agent_mode
+            if not current_agent_code:
+                current_agent_code = prev_session.agent_code
 
             agent.chat_history.save_session_config(
                 current_model_id,
