@@ -843,6 +843,8 @@ storage:
 sandbox:
   id: "${SANDBOX_ID:-}"
   app_env: "${APP_ENV:-dev}"
+  # 是否为中国大陆部署，与 app_env 正交。默认 false 即海外；中国大陆集群设置 MAINLAND=true。
+  mainland: "${MAINLAND:-false}"
   magic_authorization: "${MAGIC_AUTHORIZATION}"
   fetch_workspace: "${FETCH_WORKSPACE:-True}"
   agent_idle_timeout: "${AGENT_IDLE_TIMEOUT:-1200}"
