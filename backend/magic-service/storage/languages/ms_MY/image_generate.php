@@ -67,6 +67,18 @@ return [
     'remove_background_provider_not_configured' => 'Penyedia perkhidmatan buang latar belakang belum dikonfigurasi atau belum diaktifkan',
     'remove_background_only_image_allowed' => 'Hanya fail imej dibenarkan',
     'remove_background_image_too_large' => 'Saiz imej tidak boleh melebihi 20MB',
+    'image_model_settings' => [
+        'quality' => [
+            'label' => 'Kualiti',
+            'description' => 'Mengawal tahap kualiti imej yang dijana',
+            'options' => [
+                'auto' => 'Auto',
+                'high' => 'Tinggi',
+                'medium' => 'Sederhana',
+                'low' => 'Rendah',
+            ],
+        ],
+    ],
     # 水印相关
     'image_watermark' => 'Dijana oleh Maiji AI',
 ];

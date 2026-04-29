@@ -53,10 +53,10 @@ use App\Infrastructure\ExternalAPI\ImageGenerateAPI\ImageGenerateFactory;
 use App\Infrastructure\ExternalAPI\ImageGenerateAPI\ImageGenerateModelType;
 use App\Infrastructure\ExternalAPI\ImageGenerateAPI\ImageGenerateType;
 use App\Infrastructure\ExternalAPI\ImageGenerateAPI\ImageModel;
+use App\Infrastructure\ExternalAPI\ImageGenerateAPI\ImageModelConfig;
 use App\Infrastructure\ExternalAPI\ImageGenerateAPI\Model\MiracleVision\MiracleVisionModel;
 use App\Infrastructure\ExternalAPI\ImageGenerateAPI\Request\MiracleVisionModelRequest;
 use App\Infrastructure\ExternalAPI\ImageGenerateAPI\Response\OpenAIFormatResponse;
-use App\Infrastructure\ExternalAPI\ImageGenerateAPI\SizeManager;
 use App\Infrastructure\ExternalAPI\ImageSearch\DTO\ImageSearchResponseDTO;
 use App\Infrastructure\ExternalAPI\ImageSearch\Factory\ImageSearchEngineAdapterFactory;
 use App\Infrastructure\ExternalAPI\MagicAIApi\MagicAILocalModel;
@@ -205,15 +205,12 @@ class LLMAppService extends AbstractLLMAppService
                      * 3. 使用 model_id 进行模糊匹配（如豆包4.0/4.5）
                      */
                     $entryAttributes = $entry->getAttributes();
-                    $imageModelConfig = SizeManager::matchConfig(
+                    $imageModelConfig = ImageModelConfig::fromModel(
                         $entryAttributes->getName(),
                         $entryAttributes->getKey()
                     );
                     if ($imageModelConfig !== null) {
-                        $info['image_size_config'] = [
-                            'sizes' => $imageModelConfig['sizes'] ?? [],
-                            'max_reference_images' => $imageModelConfig['max_reference_images'] ?? 0,
-                        ];
+                        $info['image_size_config'] = $imageModelConfig->toArray();
                     }
                 } else {
                     /** @var AbstractModel $odinImpl */

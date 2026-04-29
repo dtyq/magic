@@ -83,6 +83,18 @@ return [
     'remove_background_provider_not_configured' => 'Background removal provider is not configured or enabled',
     'remove_background_only_image_allowed' => 'Only image files are allowed',
     'remove_background_image_too_large' => 'Image size cannot exceed 20MB',
+    'image_model_settings' => [
+        'quality' => [
+            'label' => 'Quality',
+            'description' => 'Controls the generated image quality level',
+            'options' => [
+                'auto' => 'Auto',
+                'high' => 'High',
+                'medium' => 'Medium',
+                'low' => 'Low',
+            ],
+        ],
+    ],
     # watermark
     'image_watermark' => 'website/static/img/watermark_en.png',
 ];
