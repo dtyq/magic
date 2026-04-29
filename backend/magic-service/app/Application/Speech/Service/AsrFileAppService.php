@@ -399,10 +399,11 @@ class AsrFileAppService extends AbstractAppService
         string $projectId,
         string $userId,
         string $taskKey,
-        ?string $generatedTitle = null
+        ?string $generatedTitle = null,
+        int $topicId = 0
     ): array {
-        $hiddenDir = $this->directoryService->createHiddenDirectory($organizationCode, $projectId, $userId, $taskKey);
-        $displayDir = $this->directoryService->createDisplayDirectory($organizationCode, $projectId, $userId, $generatedTitle);
+        $hiddenDir = $this->directoryService->createHiddenDirectory($organizationCode, $projectId, $userId, $taskKey, $topicId);
+        $displayDir = $this->directoryService->createDisplayDirectory($organizationCode, $projectId, $userId, $generatedTitle, $topicId);
         return [$hiddenDir, $displayDir];
     }
 
@@ -431,7 +432,7 @@ class AsrFileAppService extends AbstractAppService
         $this->validationService->getAccessibleProjectWithEditor((int) $projectId, $userId, $organizationCode);
 
         // 准备录音目录
-        return $this->prepareRecordingDirectories($organizationCode, $projectId, $userId, $taskKey, $generatedTitle);
+        return $this->prepareRecordingDirectories($organizationCode, $projectId, $userId, $taskKey, $generatedTitle, (int) $topicId);
     }
 
     /**

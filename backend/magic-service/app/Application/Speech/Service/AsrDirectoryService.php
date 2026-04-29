@@ -48,10 +48,11 @@ class AsrDirectoryService extends AbstractAppService
         string $organizationCode,
         string $projectId,
         string $userId,
-        string $taskKey
+        string $taskKey,
+        int $topicId = 0
     ): AsrRecordingDirectoryDTO {
         // Ensure .asr_recordings parent directory exists and get its ID
-        $recordingsDir = $this->createRecordingsDirectory($organizationCode, $projectId, $userId);
+        $recordingsDir = $this->createRecordingsDirectory($organizationCode, $projectId, $userId, $topicId);
 
         $relativePath = AsrPaths::getHiddenDirPath($taskKey);
 
@@ -66,7 +67,8 @@ class AsrDirectoryService extends AbstractAppService
             logMessage: '创建隐藏录音目录失败',
             failedProjectError: AsrErrorCode::CreateHiddenDirectoryFailedProject,
             failedError: AsrErrorCode::CreateHiddenDirectoryFailedError,
-            parentDirectoryId: $recordingsDir->directoryId
+            parentDirectoryId: $recordingsDir->directoryId,
+            topicId: $topicId
         );
     }
 
@@ -77,12 +79,14 @@ class AsrDirectoryService extends AbstractAppService
      * @param string $organizationCode 组织编码
      * @param string $projectId 项目ID
      * @param string $userId 用户ID
+     * @param int $topicId 话题ID
      * @return AsrRecordingDirectoryDTO 目录DTO
      */
     public function createStatesDirectory(
         string $organizationCode,
         string $projectId,
-        string $userId
+        string $userId,
+        int $topicId = 0
     ): AsrRecordingDirectoryDTO {
         $relativePath = AsrPaths::getStatesDirPath();
 
@@ -96,7 +100,8 @@ class AsrDirectoryService extends AbstractAppService
             errorContext: ['project_id' => $projectId],
             logMessage: '创建 .asr_states 目录失败',
             failedProjectError: AsrErrorCode::CreateStatesDirectoryFailedProject,
-            failedError: AsrErrorCode::CreateStatesDirectoryFailedError
+            failedError: AsrErrorCode::CreateStatesDirectoryFailedError,
+            topicId: $topicId
         );
     }
 
@@ -107,12 +112,14 @@ class AsrDirectoryService extends AbstractAppService
      * @param string $organizationCode 组织编码
      * @param string $projectId 项目ID
      * @param string $userId 用户ID
+     * @param int $topicId 话题ID
      * @return AsrRecordingDirectoryDTO 目录DTO
      */
     public function createRecordingsDirectory(
         string $organizationCode,
         string $projectId,
-        string $userId
+        string $userId,
+        int $topicId = 0
     ): AsrRecordingDirectoryDTO {
         $relativePath = AsrPaths::getRecordingsDirPath();
 
@@ -126,7 +133,8 @@ class AsrDirectoryService extends AbstractAppService
             errorContext: ['project_id' => $projectId],
             logMessage: '创建 .asr_recordings 目录失败',
             failedProjectError: AsrErrorCode::CreateStatesDirectoryFailedProject,
-            failedError: AsrErrorCode::CreateStatesDirectoryFailedError
+            failedError: AsrErrorCode::CreateStatesDirectoryFailedError,
+            topicId: $topicId
         );
     }
 
@@ -153,7 +161,8 @@ class AsrDirectoryService extends AbstractAppService
         string $organizationCode,
         string $projectId,
         string $userId,
-        ?string $generatedTitle = null
+        ?string $generatedTitle = null,
+        int $topicId = 0
     ): AsrRecordingDirectoryDTO {
         $relativePath = $this->generateDirectoryName($generatedTitle);
 
@@ -167,7 +176,8 @@ class AsrDirectoryService extends AbstractAppService
             errorContext: ['project_id' => $projectId],
             logMessage: '创建显示录音目录失败',
             failedProjectError: AsrErrorCode::CreateDisplayDirectoryFailedProject,
-            failedError: AsrErrorCode::CreateDisplayDirectoryFailedError
+            failedError: AsrErrorCode::CreateDisplayDirectoryFailedError,
+            topicId: $topicId
         );
     }
 
@@ -340,7 +350,8 @@ class AsrDirectoryService extends AbstractAppService
         string $logMessage,
         AsrErrorCode $failedProjectError,
         AsrErrorCode $failedError,
-        ?int $parentDirectoryId = null
+        ?int $parentDirectoryId = null,
+        int $topicId = 0
     ): AsrRecordingDirectoryDTO {
         try {
             // 1. 确保项目工作区根目录存在
@@ -386,7 +397,8 @@ class AsrDirectoryService extends AbstractAppService
                 $workDir,
                 $effectiveParentId,
                 $role,
-                taskKey: $taskKey
+                taskKey: $taskKey,
+                topicId: $topicId
             );
 
             // 5. 插入或忽略

@@ -56,7 +56,8 @@ class AsrPresetFileService extends AbstractAppService
         int $displayDirId,
         string $hiddenDir,
         int $hiddenDirId,
-        string $taskKey
+        string $taskKey,
+        int $topicId = 0
     ): array {
         // 获取项目信息
         $projectEntity = $this->getAccessibleProjectWithEditor($projectId, $userId, $organizationCode);
@@ -74,7 +75,8 @@ class AsrPresetFileService extends AbstractAppService
             $displayDirId,
             $taskKey,
             $fullPrefix,
-            $workDir
+            $workDir,
+            $topicId
         );
 
         // 创建流式识别文件（放在隐藏目录，用户不可见）
@@ -86,7 +88,8 @@ class AsrPresetFileService extends AbstractAppService
             $hiddenDirId,
             $taskKey,
             $fullPrefix,
-            $workDir
+            $workDir,
+            $topicId
         );
 
         // 创建标记文件（放在隐藏目录，用户不可见）
@@ -98,7 +101,8 @@ class AsrPresetFileService extends AbstractAppService
             $hiddenDirId,
             $taskKey,
             $fullPrefix,
-            $workDir
+            $workDir,
+            $topicId
         );
 
         $this->logger->info('创建预设文件成功', [
@@ -222,7 +226,8 @@ class AsrPresetFileService extends AbstractAppService
         int $displayDirId,
         string $taskKey,
         string $fullPrefix,
-        string $workDir
+        string $workDir,
+        int $topicId = 0
     ): TaskFileEntity {
         // ⚠️ 使用 CoContext 和 di() 获取正确的语言和翻译
         $language = CoContext::getLanguage();
@@ -244,7 +249,8 @@ class AsrPresetFileService extends AbstractAppService
             taskKey: $taskKey,
             fullPrefix: $fullPrefix,
             workDir: $workDir,
-            logPrefix: '预设笔记文件'
+            logPrefix: '预设笔记文件',
+            topicId: $topicId
         );
     }
 
@@ -259,7 +265,8 @@ class AsrPresetFileService extends AbstractAppService
         int $hiddenDirId,
         string $taskKey,
         string $fullPrefix,
-        string $workDir
+        string $workDir,
+        int $topicId = 0
     ): TaskFileEntity {
         // ⚠️ 使用 CoContext 和 di() 获取正确的语言和翻译
         $language = CoContext::getLanguage();
@@ -281,7 +288,8 @@ class AsrPresetFileService extends AbstractAppService
             taskKey: $taskKey,
             fullPrefix: $fullPrefix,
             workDir: $workDir,
-            logPrefix: '预设流式识别文件'
+            logPrefix: '预设流式识别文件',
+            topicId: $topicId
         );
     }
 
@@ -296,7 +304,8 @@ class AsrPresetFileService extends AbstractAppService
         int $hiddenDirId,
         string $taskKey,
         string $fullPrefix,
-        string $workDir
+        string $workDir,
+        int $topicId = 0
     ): TaskFileEntity {
         // ⚠️ 使用 CoContext 和 di() 获取正确的语言和翻译
         $language = CoContext::getLanguage();
@@ -318,7 +327,8 @@ class AsrPresetFileService extends AbstractAppService
             taskKey: $taskKey,
             fullPrefix: $fullPrefix,
             workDir: $workDir,
-            logPrefix: '预设标记文件'
+            logPrefix: '预设标记文件',
+            topicId: $topicId
         );
     }
 
@@ -337,7 +347,8 @@ class AsrPresetFileService extends AbstractAppService
         string $taskKey,
         string $fullPrefix,
         string $workDir,
-        string $logPrefix
+        string $logPrefix,
+        int $topicId = 0
     ): TaskFileEntity {
         // 完整 file_key
         $fileKey = AsrAssembler::buildFileKey($fullPrefix, $workDir, $relativePath);
@@ -361,7 +372,7 @@ class AsrPresetFileService extends AbstractAppService
             'user_id' => $userId,
             'organization_code' => $organizationCode,
             'project_id' => $projectId,
-            'topic_id' => 0,
+            'topic_id' => $topicId,
             'task_id' => 0,
             'file_type' => 'user_upload',
             'file_name' => $fileName,

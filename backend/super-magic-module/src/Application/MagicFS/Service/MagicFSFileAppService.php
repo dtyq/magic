@@ -125,11 +125,12 @@ class MagicFSFileAppService
             $requestDTO->parent_id,
             $requestDTO->is_directory,
             $messageMetadata->getSuperMagicTaskId(), // 传递任务ID
-            null,                                   // sortValue
-            null,                                   // fileType
-            null,                                   // source
-            $requestDTO->getFileMetadata(),         // 持久化的插件 flag，如 local_shadow
-            $requestDTO->getReuseDeletedFileId()    // rollback 重放时请求复用已软删除同名的 file_id
+            null,                                    // sortValue
+            null,                                    // fileType
+            null,                                    // source
+            $requestDTO->getFileMetadata(),          // 持久化的插件 flag，如 local_shadow
+            $requestDTO->getReuseDeletedFileId(),    // rollback 重放时请求复用已软删除同名的 file_id
+            (int) $messageMetadata->getTopicId()     // 直接透传 topic_id，作为 task 查不到时的 fallback
         );
 
         // Dispatch file uploaded event so downstream subscribers are notified
