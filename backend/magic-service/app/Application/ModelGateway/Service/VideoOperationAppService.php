@@ -7,8 +7,11 @@ declare(strict_types=1);
 
 namespace App\Application\ModelGateway\Service;
 
+use App\Application\ModelGateway\Component\Points\DTO\PointEstimateResult;
+use App\Application\ModelGateway\Component\Points\DTO\VideoPointEstimateRequest;
 use App\Application\ModelGateway\Component\Points\PointComponentInterface;
 use App\Application\ModelGateway\Mapper\ModelGatewayMapper;
+use App\Application\ModelGateway\Service\Video\VideoInputMediaMetadataResolver;
 use App\Domain\File\Service\FileDomainService;
 use App\Domain\ImageGenerate\ValueObject\ImageGenerateSourceEnum;
 use App\Domain\ModelGateway\Contract\VideoMediaProbeInterface;
@@ -16,6 +19,7 @@ use App\Domain\ModelGateway\Entity\AccessTokenEntity;
 use App\Domain\ModelGateway\Entity\Dto\CreateVideoDTO;
 use App\Domain\ModelGateway\Entity\Dto\VideoOperationResponseDTO;
 use App\Domain\ModelGateway\Entity\ValueObject\ModelGatewayDataIsolation;
+use App\Domain\ModelGateway\Entity\ValueObject\VideoGenerationConfig;
 use App\Domain\ModelGateway\Entity\ValueObject\VideoMediaMetadata;
 use App\Domain\ModelGateway\Entity\ValueObject\VideoOperationStatus;
 use App\Domain\ModelGateway\Entity\VideoQueueOperationEntity;
@@ -25,6 +29,7 @@ use App\Domain\ModelGateway\Service\QueueOperationExecutionDomainService;
 use App\Domain\ModelGateway\Service\VideoBillingDetailsResolver;
 use App\Domain\ModelGateway\Service\VideoGenerationConfigDomainService;
 use App\Domain\ModelGateway\Service\VideoQueueDomainService;
+use App\Domain\Provider\Entity\ValueObject\ProviderCode;
 use App\ErrorCode\MagicApiErrorCode;
 use App\Infrastructure\Core\Exception\ExceptionBuilder;
 use App\Infrastructure\Core\Traits\HasLogger;
@@ -72,7 +77,47 @@ readonly class VideoOperationAppService
         private FileDomainService $fileDomainService,
         private VideoBillingDetailsResolver $videoBillingDetailsResolver,
         private VideoMediaProbeInterface $videoMediaProbe,
+        private VideoInputMediaMetadataResolver $videoInputMediaMetadataResolver,
     ) {
+    }
+
+    public function estimate(string $accessToken, CreateVideoDTO $requestDTO): PointEstimateResult
+    {
+        $dataIsolation = $this->llmAppService->createModelGatewayDataIsolationByAccessToken($accessToken, $requestDTO->getBusinessParams());
+        $videoModelEntry = $this->modelGatewayMapper->getOrganizationVideoModel($dataIsolation, $requestDTO->getModel());
+        $videoModel = $videoModelEntry?->getVideoModel();
+        if ($videoModel === null) {
+            ExceptionBuilder::throw(MagicApiErrorCode::MODEL_NOT_SUPPORT);
+        }
+
+        // 预估和真实提交使用同一份模型能力配置，防止费用展示和实际执行参数不一致。
+        $videoGenerationConfig = $this->videoGenerationConfigDomainService->resolve(
+            $videoModel->getModelVersion(),
+            $requestDTO->getModel(),
+            $videoModel->getProviderCode(),
+        );
+        if ($videoGenerationConfig === null) {
+            ExceptionBuilder::throw(MagicApiErrorCode::ValidateFailed, 'unsupported_option: model_id');
+        }
+
+        $estimateRequest = $this->buildVideoPointEstimateRequest(
+            $dataIsolation,
+            $requestDTO,
+            $videoModel->getProviderCode(),
+            $videoModel->getProviderModelId(),
+            $videoGenerationConfig,
+        );
+        $result = $this->pointComponent->estimateVideoPoints($estimateRequest, $dataIsolation);
+        $this->logger->info('video point estimate calculated', [
+            'organization_code' => $dataIsolation->getCurrentOrganizationCode(),
+            'user_id' => $dataIsolation->getCurrentUserId(),
+            'model_id' => $requestDTO->getModel(),
+            'provider_code' => $videoModel->getProviderCode(),
+            'points' => $result->getPoints(),
+            'detail' => $result->getDetail(),
+        ]);
+
+        return $result;
     }
 
     /**
@@ -112,17 +157,38 @@ readonly class VideoOperationAppService
         );
         $auditProviderName = (string) ($videoModelEntry?->getAttributes()->getProviderName() ?? '');
         $operation->setAuditProviderName($auditProviderName);
-        $config = $this->queueOperationExecutionDomainService->getConfig($operation);
+
+        // 获取个人并发数量限制
+        $personalVideoGenerationConcurrencyLimit = $dataIsolation->getSubscriptionManager()->getPersonalVideoGenerationConcurrencyLimit();
+
+        // 占用新槽位前先清理已结束或已失效的旧槽位，避免任务已结束仍占用并发名额。
+        $this->videoQueueDomainService->cleanupActiveOperationsBeforeClaim($operation);
+
+        // 先保存 operation hash，再写入并发槽位，避免并发清理把正在提交 provider 的任务误判为无效槽位。
+        $this->videoQueueDomainService->saveOperation($operation);
+
         try {
+            // 提交 provider 前先按套餐占用个人视频运行槽位
+            $this->videoQueueDomainService->claimUserActiveOperation($operation, $personalVideoGenerationConcurrencyLimit);
+
+            $config = $this->queueOperationExecutionDomainService->getConfig($operation);
             $providerTaskId = $this->queueOperationExecutionDomainService->submit($operation, $config);
         } catch (ProviderVideoException $throwable) {
             $this->videoQueueDomainService->finishExecutionFailure($operation, $throwable->getMessage());
+            // provider 明确拒绝提交后任务不会继续运行，需要立即释放本次占用的个人槽位。
+            $this->videoQueueDomainService->releaseUserActiveOperation($operation);
             $this->dispatchVideoGenerateFailedEvent(
                 $dataIsolation,
                 $operation,
                 $requestDTO->getBusinessParams(),
             );
+            $this->videoQueueDomainService->deleteOperation($operation);
             ExceptionBuilder::throw(MagicApiErrorCode::ValidateFailed, $throwable->getMessage(), throwable: $throwable);
+        } catch (Throwable $throwable) {
+            // 非业务异常会中断提交流程，释放槽位避免残留运行态阻塞后续提交。
+            $this->videoQueueDomainService->releaseUserActiveOperation($operation);
+            $this->videoQueueDomainService->deleteOperation($operation);
+            throw $throwable;
         }
         $this->logger->info('video operation submitted', [
             'operation_id' => $operation->getId(),
@@ -191,6 +257,8 @@ readonly class VideoOperationAppService
                     $this->dispatchVideoGenerateFailedEvent($dataIsolation, $operation, $businessParams);
                 }
                 $this->videoQueueDomainService->saveOperation($operation);
+                // provider 查询后如果任务进入终态，立即释放个人视频运行槽位。
+                $this->videoQueueDomainService->releaseUserActiveOperationIfDone($operation);
             } catch (ProviderVideoException $throwable) {
                 $this->logger->warning('video provider query failed', [
                     'operation_id' => $operation->getId(),
@@ -202,8 +270,12 @@ readonly class VideoOperationAppService
                 $this->videoQueueDomainService->finishExecutionFailure($operation, $throwable->getMessage());
                 $this->dispatchVideoGenerateFailedEvent($dataIsolation, $operation, $businessParams);
                 $this->videoQueueDomainService->saveOperation($operation);
+                // 查询 provider 失败会把任务标记为失败，也需要释放个人视频运行槽位。
+                $this->videoQueueDomainService->releaseUserActiveOperationIfDone($operation);
             }
         }
+        // 兜底处理：任务查询前已是终态时不会进入 provider 查询分支，这里负责释放残留槽位。
+        $this->videoQueueDomainService->releaseUserActiveOperationIfDone($operation);
 
         $response = $this->videoQueueDomainService->buildOperationResponse(
             $operation,
@@ -213,6 +285,67 @@ readonly class VideoOperationAppService
         $response->setOutput($this->resolveResponseOutput($operation, $response->getOutput()));
 
         return $response;
+    }
+
+    /**
+     * 基于真实提交前的规范化结果。
+     */
+    private function buildVideoPointEstimateRequest(
+        ModelGatewayDataIsolation $dataIsolation,
+        CreateVideoDTO $requestDTO,
+        ProviderCode $providerCode,
+        string $providerModelId,
+        VideoGenerationConfig $videoGenerationConfig
+    ): VideoPointEstimateRequest {
+        // 预估和提交共用同一套规范化，避免默认时长、分辨率和 provider 能力校验不一致。
+        $normalizedRequest = $this->videoQueueDomainService->normalizeRequestForEstimate(
+            $requestDTO,
+            $providerCode,
+            $videoGenerationConfig
+        );
+        $outputDetails = $this->videoBillingDetailsResolver->resolveFromRequest($normalizedRequest, $videoGenerationConfig);
+        $referenceVideos = is_array($normalizedRequest['inputs']['reference_videos'] ?? null)
+            ? $normalizedRequest['inputs']['reference_videos']
+            : [];
+        $inputMetadata = $this->resolveEstimateInputMetadata($dataIsolation, $requestDTO, $referenceVideos);
+
+        return new VideoPointEstimateRequest(
+            $requestDTO->getModel(),
+            $providerModelId,
+            (string) ($outputDetails['resolution'] ?? ''),
+            (int) ($outputDetails['duration_seconds'] ?? 0),
+            (int) ($outputDetails['width'] ?? 0),
+            (int) ($outputDetails['height'] ?? 0),
+            (int) $inputMetadata['total_duration_seconds'],
+            (int) $inputMetadata['reference_video_count'] > 0,
+            $requestDTO->getBusinessParams(),
+        );
+    }
+
+    /**
+     * 解析参考视频元数据；没有参考视频时返回 0。
+     * 工作区路径仍要求 project_id，外部 URL 则由 resolver 直接下载探测。
+     *
+     * @param list<array<string, mixed>> $referenceVideos
+     * @return array{total_duration_seconds: int, reference_video_count: int}
+     */
+    private function resolveEstimateInputMetadata(
+        ModelGatewayDataIsolation $dataIsolation,
+        CreateVideoDTO $requestDTO,
+        array $referenceVideos
+    ): array {
+        if ($referenceVideos === []) {
+            return [
+                'total_duration_seconds' => 0,
+                'reference_video_count' => 0,
+            ];
+        }
+
+        return $this->videoInputMediaMetadataResolver->resolve(
+            $dataIsolation,
+            $requestDTO->getProjectId(),
+            $referenceVideos
+        );
     }
 
     /**

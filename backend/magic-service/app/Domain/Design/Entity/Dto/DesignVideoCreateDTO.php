@@ -402,7 +402,108 @@ class DesignVideoCreateDTO extends AbstractDTO
         $this->assertAllowedKeys($this->generation, self::GENERATION_ALLOWED_KEYS, 'generation');
         $this->assertAllowedKeys($this->callbacks, self::CALLBACK_ALLOWED_KEYS, 'callbacks');
         $this->assertAllowedKeys($this->execution, self::EXECUTION_ALLOWED_KEYS, 'execution');
+        $this->assertVideoInputFields();
+        $this->assertGenerationFields();
+        $this->assertCallbackAndExecutionFields();
+        $this->assertExtensionFields();
+    }
 
+    public function validForEstimate(): void
+    {
+        if (($this->projectId ?? 0) <= 0) {
+            ExceptionBuilder::throw(MagicApiErrorCode::ValidateFailed, 'project_id is required');
+        }
+        if ($this->modelId === '') {
+            ExceptionBuilder::throw(MagicApiErrorCode::MODEL_NOT_SUPPORT);
+        }
+        if (! in_array($this->task, self::SUPPORTED_TASKS, true)) {
+            ExceptionBuilder::throw(MagicApiErrorCode::ValidateFailed, 'task is invalid');
+        }
+        if ($this->prompt === '') {
+            ExceptionBuilder::throw(MagicApiErrorCode::ValidateFailed, 'prompt is required');
+        }
+
+        foreach (self::TOP_LEVEL_ARRAY_FIELDS as $field) {
+            $this->assertTopLevelArrayField($field);
+        }
+
+        $this->assertAllowedKeys($this->rawData, self::ROOT_ALLOWED_KEYS, 'root');
+        $this->assertAllowedKeys($this->inputs, self::INPUT_ALLOWED_KEYS, 'inputs');
+        $this->assertAllowedKeys($this->generation, self::GENERATION_ALLOWED_KEYS, 'generation');
+        $this->assertAllowedKeys($this->callbacks, self::CALLBACK_ALLOWED_KEYS, 'callbacks');
+        $this->assertAllowedKeys($this->execution, self::EXECUTION_ALLOWED_KEYS, 'execution');
+        $this->assertVideoInputFields();
+        $this->assertGenerationFields();
+        $this->assertCallbackAndExecutionFields();
+        $this->assertExtensionFields();
+    }
+
+    /**
+     * 构建模型网关请求基础 payload，只包含 DTO 自身承载的网关字段。
+     *
+     * @return array<string, mixed>
+     */
+    public function toModelGatewayPayload(): array
+    {
+        $payload = [
+            'model_id' => $this->getModelId(),
+            'task' => $this->getTask(),
+            'input_mode' => $this->getInputMode(),
+            'prompt' => $this->getPrompt(),
+            'inputs' => $this->getInputs(),
+            'generation' => $this->getGeneration(),
+            'callbacks' => $this->getCallbacks(),
+            'execution' => $this->getExecution(),
+            'extensions' => $this->getExtensions(),
+        ];
+
+        if ($this->getTopicId() !== '') {
+            $payload['topic_id'] = $this->getTopicId();
+        }
+        if ($this->getTaskId() !== '') {
+            $payload['task_id'] = $this->getTaskId();
+        }
+
+        return $payload;
+    }
+
+    public function getType(): string
+    {
+        return 'video';
+    }
+
+    private function assertAllowedKeys(array $data, array $allowedKeys, string $path): void
+    {
+        foreach (array_keys($data) as $key) {
+            if (! is_string($key) || ! in_array($key, $allowedKeys, true)) {
+                ExceptionBuilder::throw(MagicApiErrorCode::ValidateFailed, sprintf('%s.%s is not supported', $path, $key));
+            }
+        }
+    }
+
+    private function assertTopLevelArrayField(string $field): void
+    {
+        if (! array_key_exists($field, $this->rawData) || $this->rawData[$field] === null) {
+            return;
+        }
+
+        $value = $this->rawData[$field];
+        if (is_array($value)) {
+            return;
+        }
+
+        if (! is_string($value) || ! json_validate($value)) {
+            ExceptionBuilder::throw(MagicApiErrorCode::ValidateFailed, sprintf('%s must be an array or valid json object', $field));
+        }
+
+        $decoded = Json::decode($value, true);
+        if (! is_array($decoded)) {
+            ExceptionBuilder::throw(MagicApiErrorCode::ValidateFailed, sprintf('%s must be an array or valid json object', $field));
+        }
+    }
+
+    private function assertVideoInputFields(): void
+    {
         $seenRoles = [];
         foreach ($this->getFrames() as $index => $frame) {
             if (! is_array($frame)) {
@@ -451,7 +552,10 @@ class DesignVideoCreateDTO extends AbstractDTO
         $this->assertMediaObject($this->inputs['mask'] ?? null, 'inputs.mask');
         $this->assertMediaObjectList($this->getReferenceVideos(), 'inputs.reference_videos');
         $this->assertMediaObjectList($this->getReferenceAudios(), 'inputs.reference_audios');
+    }
 
+    private function assertGenerationFields(): void
+    {
         $this->assertOptionalStringField($this->generation, 'aspect_ratio', 'generation.aspect_ratio', 20);
         $this->assertOptionalStringField($this->generation, 'size', 'generation.size', 50);
         $this->assertOptionalStringField($this->generation, 'mode', 'generation.mode', 20);
@@ -471,7 +575,10 @@ class DesignVideoCreateDTO extends AbstractDTO
         $this->assertOptionalStringField($this->generation, 'resize_mode', 'generation.resize_mode', 50);
         $this->assertOptionalBoolField($this->generation, 'camera_fixed', 'generation.camera_fixed');
         $this->assertOptionalBoolField($this->generation, 'return_last_frame', 'generation.return_last_frame');
+    }
 
+    private function assertCallbackAndExecutionFields(): void
+    {
         $this->assertOptionalStringField($this->callbacks, 'webhook_url', 'callbacks.webhook_url', 4096);
         $this->assertOptionalStringField($this->execution, 'service_tier', 'execution.service_tier', 20);
         if (array_key_exists('service_tier', $this->execution)
@@ -480,46 +587,14 @@ class DesignVideoCreateDTO extends AbstractDTO
             ExceptionBuilder::throw(MagicApiErrorCode::ValidateFailed, 'execution.service_tier is invalid');
         }
         $this->assertOptionalPositiveIntField($this->execution, 'expires_after_seconds', 'execution.expires_after_seconds');
+    }
 
+    private function assertExtensionFields(): void
+    {
         foreach ($this->extensions as $namespace => $extension) {
             if (! is_array($extension)) {
                 ExceptionBuilder::throw(MagicApiErrorCode::ValidateFailed, sprintf('extensions.%s must be an object', $namespace));
             }
-        }
-    }
-
-    public function getType(): string
-    {
-        return 'video';
-    }
-
-    private function assertAllowedKeys(array $data, array $allowedKeys, string $path): void
-    {
-        foreach (array_keys($data) as $key) {
-            if (! is_string($key) || ! in_array($key, $allowedKeys, true)) {
-                ExceptionBuilder::throw(MagicApiErrorCode::ValidateFailed, sprintf('%s.%s is not supported', $path, $key));
-            }
-        }
-    }
-
-    private function assertTopLevelArrayField(string $field): void
-    {
-        if (! array_key_exists($field, $this->rawData) || $this->rawData[$field] === null) {
-            return;
-        }
-
-        $value = $this->rawData[$field];
-        if (is_array($value)) {
-            return;
-        }
-
-        if (! is_string($value) || ! json_validate($value)) {
-            ExceptionBuilder::throw(MagicApiErrorCode::ValidateFailed, sprintf('%s must be an array or valid json object', $field));
-        }
-
-        $decoded = Json::decode($value, true);
-        if (! is_array($decoded)) {
-            ExceptionBuilder::throw(MagicApiErrorCode::ValidateFailed, sprintf('%s must be an array or valid json object', $field));
         }
     }
 

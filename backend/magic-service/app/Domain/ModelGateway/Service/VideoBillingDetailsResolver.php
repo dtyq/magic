@@ -7,9 +7,13 @@ declare(strict_types=1);
 
 namespace App\Domain\ModelGateway\Service;
 
+use App\Domain\ModelGateway\Entity\ValueObject\VideoGenerationConfig;
 use App\Domain\ModelGateway\Entity\ValueObject\VideoMediaMetadata;
 use App\Domain\ModelGateway\Entity\VideoQueueOperationEntity;
 
+/**
+ * 统一解析视频计费维度，避免预估、实际扣费和 provider 结果兜底各算一套。
+ */
 readonly class VideoBillingDetailsResolver
 {
     /**
@@ -32,6 +36,8 @@ readonly class VideoBillingDetailsResolver
     ];
 
     /**
+     * 从下载后的视频元数据解析实际计费维度。
+     *
      * @return array{duration_seconds: int, resolution: ?string, size: string, width: int, height: int}
      */
     public function resolveFromMetadata(VideoMediaMetadata $metadata): array
@@ -49,6 +55,8 @@ readonly class VideoBillingDetailsResolver
     }
 
     /**
+     * provider 结果缺少可下载视频时，从任务请求和 provider payload 里兜底解析计费维度。
+     *
      * @return array{duration_seconds: int, resolution: ?string, size: ?string, width: ?int, height: ?int}
      */
     public function resolveFromFallback(VideoQueueOperationEntity $operation): array
@@ -70,6 +78,41 @@ readonly class VideoBillingDetailsResolver
         ];
     }
 
+    /**
+     * 根据规范化请求预解析输出视频计费维度，预估接口和实际计费共用同一套分辨率兜底。
+     *
+     * @return array{duration_seconds: int, resolution: ?string, size: ?string, width: ?int, height: ?int}
+     */
+    public function resolveFromRequest(array $request, VideoGenerationConfig $videoGenerationConfig): array
+    {
+        $generation = is_array($request['generation'] ?? null) ? $request['generation'] : [];
+        $resolution = $this->resolveResolutionCandidate([
+            $generation['resolution'] ?? null,
+            $this->resolveResolutionFromConfiguredSize($generation, $videoGenerationConfig),
+        ]);
+        $dimensions = $this->normalizeDimensions(
+            $generation['width'] ?? null,
+            $generation['height'] ?? null,
+            $generation['size'] ?? null,
+        ) ?? $this->resolveDimensionsFromConfiguredSize($generation, $resolution, $videoGenerationConfig);
+
+        if ($dimensions !== null && $resolution === null) {
+            $resolution = $this->mapResolutionFromDimensions($dimensions['width'], $dimensions['height']);
+        }
+        $resolvedDimensions = $dimensions ?? $this->buildDimensionsFromResolution($resolution);
+
+        return [
+            'duration_seconds' => $this->normalizePositiveInt($generation['duration_seconds'] ?? null) ?? 0,
+            'resolution' => $resolution,
+            'size' => $resolvedDimensions['size'],
+            'width' => $resolvedDimensions['width'],
+            'height' => $resolvedDimensions['height'],
+        ];
+    }
+
+    /**
+     * 将视频时长折算成计费秒数，接近整数时避免浮点误差多算一秒。
+     */
     private function roundDurationSeconds(float $durationSeconds): int
     {
         $rounded = round($durationSeconds);
@@ -80,6 +123,9 @@ readonly class VideoBillingDetailsResolver
         return max(1, (int) ceil($durationSeconds));
     }
 
+    /**
+     * 按可信度顺序从任务请求、provider payload 和 Seedance prompt 参数里解析输出时长。
+     */
     private function resolveDurationSeconds(VideoQueueOperationEntity $operation, array $providerPayload): int
     {
         foreach ([
@@ -99,6 +145,8 @@ readonly class VideoBillingDetailsResolver
     }
 
     /**
+     * 优先解析显式宽高或 size 字段，能拿到真实尺寸时不依赖分辨率档位。
+     *
      * @return null|array{size: string, width: int, height: int}
      */
     private function resolveExplicitDimensions(VideoQueueOperationEntity $operation, array $providerPayload): ?array
@@ -139,6 +187,9 @@ readonly class VideoBillingDetailsResolver
         return null;
     }
 
+    /**
+     * 已知宽高时优先映射标准分辨率，映射失败再读取请求或 provider 的分辨率字段。
+     */
     private function resolveResolutionForDimensions(
         VideoQueueOperationEntity $operation,
         array $providerPayload,
@@ -152,6 +203,9 @@ readonly class VideoBillingDetailsResolver
         ]);
     }
 
+    /**
+     * 宽高缺失时，从多种 provider 字段里兜底解析分辨率。
+     */
     private function resolveFallbackResolution(VideoQueueOperationEntity $operation, array $providerPayload): ?string
     {
         return $this->resolveResolutionCandidate([
@@ -168,6 +222,8 @@ readonly class VideoBillingDetailsResolver
     }
 
     /**
+     * 从候选值中取第一个合法分辨率。
+     *
      * @param list<mixed> $candidates
      */
     private function resolveResolutionCandidate(array $candidates): ?string
@@ -183,6 +239,8 @@ readonly class VideoBillingDetailsResolver
     }
 
     /**
+     * 根据标准分辨率档位返回默认宽高。
+     *
      * @return array{size: ?string, width: ?int, height: ?int}
      */
     private function buildDimensionsFromResolution(?string $resolution): array
@@ -200,6 +258,88 @@ readonly class VideoBillingDetailsResolver
         return self::BILLING_RESOLUTION_DIMENSIONS[$resolution] ?? $emptyDimensions;
     }
 
+    /**
+     * 根据请求中的 size 或 aspect_ratio 从模型配置里反推出分辨率档位。
+     */
+    private function resolveResolutionFromConfiguredSize(array $generation, VideoGenerationConfig $videoGenerationConfig): ?string
+    {
+        $sizeOption = $this->findConfiguredSizeOption($generation, null, $videoGenerationConfig);
+        if ($sizeOption === null) {
+            return null;
+        }
+
+        return $this->normalizeResolution($sizeOption['resolution'] ?? null);
+    }
+
+    /**
+     * 根据请求和分辨率从模型配置的 size 选项里反查输出宽高。
+     *
+     * @return null|array{size: string, width: int, height: int}
+     */
+    private function resolveDimensionsFromConfiguredSize(
+        array $generation,
+        ?string $resolution,
+        VideoGenerationConfig $videoGenerationConfig
+    ): ?array {
+        $sizeOption = $this->findConfiguredSizeOption($generation, $resolution, $videoGenerationConfig);
+        if ($sizeOption === null) {
+            return null;
+        }
+
+        $width = $this->normalizePositiveInt($sizeOption['width'] ?? null);
+        $height = $this->normalizePositiveInt($sizeOption['height'] ?? null);
+        if ($width === null || $height === null) {
+            return null;
+        }
+
+        return [
+            'size' => sprintf('%dx%d', $width, $height),
+            'width' => $width,
+            'height' => $height,
+        ];
+    }
+
+    /**
+     * 在模型 generation.sizes 配置里匹配用户选择的 size 或 aspect_ratio。
+     *
+     * @return null|array<string, mixed>
+     */
+    private function findConfiguredSizeOption(
+        array $generation,
+        ?string $resolution,
+        VideoGenerationConfig $videoGenerationConfig
+    ): ?array {
+        $config = $videoGenerationConfig->toArray();
+        $configGeneration = is_array($config['generation'] ?? null) ? $config['generation'] : [];
+        $sizes = is_array($configGeneration['sizes'] ?? null) ? $configGeneration['sizes'] : [];
+        $requestedSize = strtolower(trim((string) ($generation['size'] ?? '')));
+        $requestedAspectRatio = strtolower(trim((string) ($generation['aspect_ratio'] ?? '')));
+
+        foreach ($sizes as $sizeOption) {
+            if (! is_array($sizeOption)) {
+                continue;
+            }
+
+            $optionResolution = $this->normalizeResolution($sizeOption['resolution'] ?? null);
+            if ($resolution !== null && $optionResolution !== $resolution) {
+                continue;
+            }
+
+            if ($requestedSize !== '' && strtolower(trim((string) ($sizeOption['value'] ?? ''))) === $requestedSize) {
+                return $sizeOption;
+            }
+
+            if ($requestedAspectRatio !== '' && strtolower(trim((string) ($sizeOption['label'] ?? ''))) === $requestedAspectRatio) {
+                return $sizeOption;
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * 将宽高映射到标准计费分辨率，横竖屏尺寸等价处理。
+     */
     private function mapResolutionFromDimensions(int $width, int $height): ?string
     {
         foreach (self::BILLING_RESOLUTION_DIMENSIONS as $resolution => $dimensions) {
@@ -215,6 +355,8 @@ readonly class VideoBillingDetailsResolver
     }
 
     /**
+     * 规范化宽高或 1280x720 形式的 size 字段。
+     *
      * @return null|array{size: string, width: int, height: int}
      */
     private function normalizeDimensions(mixed $width, mixed $height, mixed $size): ?array
@@ -250,6 +392,9 @@ readonly class VideoBillingDetailsResolver
         ];
     }
 
+    /**
+     * 无影 provider 的 size 可能直接传 720p/4k，这里单独识别为分辨率。
+     */
     private function resolveResolutionFromWuyinSize(mixed $size): ?string
     {
         if (! is_string($size)) {
@@ -260,6 +405,9 @@ readonly class VideoBillingDetailsResolver
         return preg_match('/^\d+[pk]$/i', $normalized) === 1 ? strtolower($normalized) : null;
     }
 
+    /**
+     * 可灵 provider 使用 mode 表达清晰度，计费前需要转换成统一分辨率。
+     */
     private function resolveResolutionFromKelingMode(array $providerPayload): ?string
     {
         $mode = $this->normalizeOptionalString($providerPayload['mode'] ?? null);
@@ -270,6 +418,9 @@ readonly class VideoBillingDetailsResolver
         return self::KELING_MODE_TO_RESOLUTION[strtolower($mode)] ?? null;
     }
 
+    /**
+     * Seedance provider 会把 dur/rs 等参数拼在 prompt 里，兜底计费时需要解析出来。
+     */
     private function extractSeedancePromptOption(array $providerPayload, string $option): ?string
     {
         $content = $providerPayload['content'] ?? null;
@@ -292,6 +443,9 @@ readonly class VideoBillingDetailsResolver
         return null;
     }
 
+    /**
+     * 规范化可选字符串，空字符串统一视为 null。
+     */
     private function normalizeOptionalString(mixed $value): ?string
     {
         if (! is_string($value)) {
@@ -302,6 +456,9 @@ readonly class VideoBillingDetailsResolver
         return $normalized === '' ? null : $normalized;
     }
 
+    /**
+     * 只接受计费系统已知的标准分辨率。
+     */
     private function normalizeResolution(mixed $value): ?string
     {
         $normalized = $this->normalizeOptionalString($value);
@@ -314,6 +471,9 @@ readonly class VideoBillingDetailsResolver
         return array_key_exists($normalized, self::BILLING_RESOLUTION_DIMENSIONS) ? $normalized : null;
     }
 
+    /**
+     * 规范化正整数配置或请求值，非法值统一返回 null。
+     */
     private function normalizePositiveInt(mixed $value): ?int
     {
         if (is_string($value) && is_numeric($value)) {

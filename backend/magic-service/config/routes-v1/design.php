@@ -36,6 +36,8 @@ Router::addGroup('/api/v1', static function () {
         // 生成视频
         Router::post('/generate-video', [DesignApi::class, 'generateVideo']);
 
+        Router::post('/estimate-video-points', [DesignApi::class, 'estimateVideoPoints']);
+
         // 查询视频生成结果
         Router::get('/video-generation-result', [DesignApi::class, 'queryVideoGenerationResult']);
     }, ['middleware' => [RequestContextMiddleware::class]]);
