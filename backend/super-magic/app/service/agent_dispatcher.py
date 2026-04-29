@@ -672,9 +672,11 @@ class AgentDispatcher(Base):
             agent: Agent实例
         """
         try:
-            # 提前读取上一次 session，为所有来自第三方消息时未携带的字段提供回落值
-            prev_session = agent.chat_history.get_current_session_config()
+            # 非前端 chat 消息（第三方 IM 渠道等）不更新 session 配置，避免覆盖已有的模型/版本等设置
+            if not message.update_session:
+                return
 
+            current_model_id = message.model_id or agent.llm_id
             current_image_model_id = None
             current_image_model_sizes = None
             current_video_model_id = None
@@ -720,41 +722,6 @@ class AgentDispatcher(Base):
                 if agent_code_val and isinstance(agent_code_val, str) and agent_code_val.strip():
                     current_agent_code = agent_code_val.strip()
 
-            # 消息未携带的字段，全部回落到上一次 session，避免第三方 IM 消息将已有配置清空
-            current_model_id = message.model_id or prev_session.model_id or agent.llm_id
-            if not current_image_model_id:
-                current_image_model_id = prev_session.image_model_id
-            if not current_image_model_sizes:
-                current_image_model_sizes = (
-                    [s.to_dict() for s in prev_session.image_model_sizes]
-                    if prev_session.image_model_sizes is not None
-                    else None
-                )
-            if not current_video_model_id:
-                current_video_model_id = prev_session.video_model_id
-            if current_video_generation_config is None:
-                current_video_generation_config = prev_session.video_generation_config
-            if current_mcp_servers is None:
-                current_mcp_servers = prev_session.mcp_servers
-            if not current_agent_mode:
-                current_agent_mode = prev_session.agent_mode
-            if not current_agent_code:
-                current_agent_code = prev_session.agent_code
-
-            # 优先使用消息显式携带的 message_version；
-            # 未携带时回落到上一次 session，避免第三方 IM 消息触发默认 "v1" 覆盖已有的 "v2"
-            msg_message_version = (
-                message.dynamic_config.get("message_version")
-                if message.dynamic_config
-                else None
-            )
-            if msg_message_version:
-                current_message_version = msg_message_version
-            elif prev_session.message_version:
-                current_message_version = prev_session.message_version
-            else:
-                current_message_version = agent_context.get_message_version() if agent_context else None
-
             agent.chat_history.save_session_config(
                 current_model_id,
                 current_image_model_id,
@@ -762,7 +729,7 @@ class AgentDispatcher(Base):
                 current_video_model_id,
                 current_video_generation_config,
                 current_mcp_servers,
-                message_version=current_message_version,
+                message_version=agent_context.get_message_version() if agent_context else None,
                 agent_mode=current_agent_mode,
                 agent_code=current_agent_code,
             )
