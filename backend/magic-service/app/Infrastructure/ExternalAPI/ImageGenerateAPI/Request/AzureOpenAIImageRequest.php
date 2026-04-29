@@ -7,13 +7,13 @@ declare(strict_types=1);
 
 namespace App\Infrastructure\ExternalAPI\ImageGenerateAPI\Request;
 
-class AzureOpenAIImageGenerateRequest extends ImageGenerateRequest
+class AzureOpenAIImageRequest extends ImageGenerateRequest
 {
-    private string $quality = 'medium';
+    private array $referenceImages = [];
+
+    private string $quality = 'auto';
 
     private int $n = 1;
-
-    private array $referenceImages = [];
 
     public function getReferenceImages(): array
     {
@@ -62,6 +62,7 @@ class AzureOpenAIImageGenerateRequest extends ImageGenerateRequest
             'size' => $this->size,
             'quality' => $this->quality,
             'n' => $this->n,
+            'reference_images' => $this->referenceImages,
         ];
     }
 }

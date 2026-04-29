@@ -279,6 +279,7 @@ return [
                     ['label' => '2:3', 'value' => '1024x1536', 'scale' => null],
                     ['label' => '3:2', 'value' => '1536x1024', 'scale' => null],
                 ],
+                'max_reference_images' => 14,
             ],
         ],
 
@@ -295,6 +296,64 @@ return [
                     ['label' => '2:3', 'value' => '1024x1536', 'scale' => null],
                     ['label' => '3:2', 'value' => '1536x1024', 'scale' => null],
                 ],
+                'max_reference_images' => 14,
+            ],
+        ],
+
+        // ==========================================================
+        // Wangsu GPT Image
+        // ==========================================================
+        [
+            'match' => [
+                ['field' => 'model_version', 'value' => 'gpt-image-2', 'match_type' => 'fuzzy'],
+            ],
+            'config' => [
+                // 沿用同文件其他模型的标准比例标签，避免前端看到 7:4 / 7:3 这类“尺寸即比例”的特殊写法。
+                // 同一比例按 1K -> 2K -> 4K 排列，ratio label 默认命中首个已声明档位，也就是 1K。
+                // 业务若传入 1344x576、1792x1024 这类未显式列出的精确尺寸，仍会由 total_pixels_range 原样兜底。
+                // 这里的 4K 沿用前端已有高分档位语义，具体宽高仍需受 gpt-image-2 官方像素上限约束。
+                'sizes' => [
+                    // 1:1
+                    ['label' => '1:1', 'value' => '1024x1024', 'scale' => '1K'],
+                    ['label' => '1:1', 'value' => '2048x2048', 'scale' => '2K'],
+                    ['label' => '1:1', 'value' => '2880x2880', 'scale' => '4K'],
+                    // 2:3
+                    ['label' => '2:3', 'value' => '1024x1536', 'scale' => '1K'],
+                    ['label' => '2:3', 'value' => '1664x2496', 'scale' => '2K'],
+                    ['label' => '2:3', 'value' => '2336x3504', 'scale' => '4K'],
+                    // 3:2
+                    ['label' => '3:2', 'value' => '1536x1024', 'scale' => '1K'],
+                    ['label' => '3:2', 'value' => '2496x1664', 'scale' => '2K'],
+                    ['label' => '3:2', 'value' => '3504x2336', 'scale' => '4K'],
+                    // 3:4
+                    ['label' => '3:4', 'value' => '864x1152', 'scale' => '1K'],
+                    ['label' => '3:4', 'value' => '1728x2304', 'scale' => '2K'],
+                    ['label' => '3:4', 'value' => '2448x3264', 'scale' => '4K'],
+                    // 4:3
+                    ['label' => '4:3', 'value' => '1152x864', 'scale' => '1K'],
+                    ['label' => '4:3', 'value' => '2304x1728', 'scale' => '2K'],
+                    ['label' => '4:3', 'value' => '3264x2448', 'scale' => '4K'],
+                    // 9:16
+                    ['label' => '9:16', 'value' => '864x1536', 'scale' => '1K'],
+                    ['label' => '9:16', 'value' => '1440x2560', 'scale' => '2K'],
+                    ['label' => '9:16', 'value' => '2160x3840', 'scale' => '4K'],
+                    // 16:9
+                    ['label' => '16:9', 'value' => '1536x864', 'scale' => '1K'],
+                    ['label' => '16:9', 'value' => '2560x1440', 'scale' => '2K'],
+                    ['label' => '16:9', 'value' => '3840x2160', 'scale' => '4K'],
+                    // 21:9
+                    ['label' => '21:9', 'value' => '1344x576', 'scale' => '1K'],
+                    ['label' => '21:9', 'value' => '2688x1152', 'scale' => '2K'],
+                    ['label' => '21:9', 'value' => '3696x1584', 'scale' => '4K'],
+                ],
+                // 对未显式列出的任意尺寸做总像素约束，保持在 gpt-image-2 官方允许范围内。
+                'total_pixels_range' => [
+                    'min' => 655360,
+                    'max' => 8294400,
+                ],
+                'max_reference_images' => 14,
+                // 避免 2:3 这类已声明比例被直接解析成 682x1024 之类的“换算尺寸”。
+                'prefer_declared_sizes' => true,
             ],
         ],
     ],
