@@ -141,33 +141,6 @@
                 <!-- 消息输入区域 -->
                 <div class="message-input-panel" id="messageInputPanel">
                     <div class="input-controls-row">
-                        <!-- 高级模式开关 -->
-                        <div class="advanced-mode-toggle">
-                            <label class="toggle-switch-label">高级模式</label>
-                            <label class="toggle-switch">
-                                <input type="checkbox" id="advancedModeToggle">
-                                <span class="toggle-switch-slider"></span>
-                            </label>
-                        </div>
-
-                        <!-- IM 渠道模拟开关 -->
-                        <div class="advanced-mode-toggle">
-                            <label class="toggle-switch-label">IM 渠道</label>
-                            <label class="toggle-switch">
-                                <input type="checkbox" id="imModeToggle">
-                                <span class="toggle-switch-slider"></span>
-                            </label>
-                        </div>
-
-                        <!-- 原始事件显示开关 -->
-                        <div class="advanced-mode-toggle">
-                            <label class="toggle-switch-label">原始事件</label>
-                            <label class="toggle-switch">
-                                <input type="checkbox" id="rawEventsToggle">
-                                <span class="toggle-switch-slider"></span>
-                            </label>
-                        </div>
-
                         <!-- IM 渠道类型（仅 IM 模式显示） -->
                         <div class="model-config" id="imChannelGroup" style="display:none">
                             <select id="imChannelSelect" class="agent-mode-select">
@@ -259,26 +232,52 @@
 
                         <div class="primary-actions">
                             <button id="sendBtn" class="btn primary send-btn">发送</button>
-                            <span class="send-hint" id="sendHint"></span>
                         </div>
                     </div>
 
                     <div class="secondary-actions">
+                        <div class="secondary-toggle-group" aria-label="低频调试开关">
+                            <!-- 高级模式开关 -->
+                            <div class="advanced-mode-toggle compact-toggle">
+                                <label class="toggle-switch-label">高级模式</label>
+                                <label class="toggle-switch">
+                                    <input type="checkbox" id="advancedModeToggle">
+                                    <span class="toggle-switch-slider"></span>
+                                </label>
+                            </div>
+
+                            <!-- IM 渠道模拟开关 -->
+                            <div class="advanced-mode-toggle compact-toggle">
+                                <label class="toggle-switch-label">IM 渠道</label>
+                                <label class="toggle-switch">
+                                    <input type="checkbox" id="imModeToggle">
+                                    <span class="toggle-switch-slider"></span>
+                                </label>
+                            </div>
+
+                            <!-- 原始事件显示开关 -->
+                            <div class="advanced-mode-toggle compact-toggle">
+                                <label class="toggle-switch-label">原始事件</label>
+                                <label class="toggle-switch">
+                                    <input type="checkbox" id="rawEventsToggle">
+                                    <span class="toggle-switch-slider"></span>
+                                </label>
+                            </div>
+                        </div>
                         <button id="historyBtn" class="btn secondary small">历史消息</button>
-                        <button id="loadExampleBtn" class="btn secondary small">加载示例</button>
-                        <button id="continueBtn" class="btn secondary small">继续</button>
-                        <button id="followUpBtn" class="btn secondary small">发送追问</button>
                         <button id="interruptBtn" class="btn danger small">中断任务</button>
                         <button id="clearChatBtn" class="btn secondary small">清除对话</button>
+                        <span class="send-hint" id="sendHint"></span>
                     </div>
 
-                    <!-- 历史消息下拉框 -->
-                    <div id="messageHistoryDropdown" class="history-dropdown">
-                        <!-- 历史消息项将通过JavaScript动态生成 -->
-                    </div>
                 </div>
             </div>
         </div>
+    </div>
+
+    <!-- 历史消息弹窗 -->
+    <div id="messageHistoryDropdown" class="history-dropdown">
+        <!-- 历史消息项将通过 JavaScript 动态生成 -->
     </div>
 
     <!-- MCP JSON 全屏编辑弹窗 -->

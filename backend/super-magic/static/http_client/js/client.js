@@ -201,17 +201,11 @@ function renderClientEntry(entry, options = {}) {
     appendMessageNode(messageDiv, options);
 }
 
-// 定义示例文本常量
-const EXAMPLE_TEXT = "我需要4月15日至23日从广东出发的北京7天行程，我和未婚妻的预算是2500-5000人民币。我们喜欢历史遗迹、隐藏的宝石和中国文化。我们想看看北京的长城，徒步探索城市。我打算在这次旅行中求婚，需要一个特殊的地点推荐。请提供详细的行程和简单的HTML旅行手册，包括地图，景点描述，必要的旅行提示，我们可以在整个旅程中参考。";
-
 // DOM 元素
 const serverUrlInput = document.getElementById('serverUrl');
 const messageInput = document.getElementById('messageInput');
 const sendBtn = document.getElementById('sendBtn');
-const followUpBtn = document.getElementById('followUpBtn');
-const continueBtn = document.getElementById('continueBtn');
 const interruptBtn = document.getElementById('interruptBtn');
-const loadExampleBtn = document.getElementById('loadExampleBtn');
 const messageList = document.getElementById('messageList');
 const uploadConfigContent = document.getElementById('uploadConfigContent');
 const configFileInput = document.getElementById('configFile');
@@ -539,7 +533,6 @@ const MessageType = {
 // 上下文类型枚举
 const ContextType = {
     NORMAL: "normal",
-    FOLLOW_UP: "follow_up",
     INTERRUPT: "interrupt"
 };
 
@@ -883,7 +876,7 @@ function positionOpenCustomSelect() {
 function positionCustomSelectPanel(state) {
     const rect = state.trigger.getBoundingClientRect();
     const viewportHeight = window.innerHeight || document.documentElement.clientHeight;
-    const preferWidth = state.select.id === 'modelIdSelect' ? 520 : 360;
+    const preferWidth = state.select.id === 'modelIdSelect' ? 420 : 300;
     const width = Math.min(Math.max(rect.width, preferWidth), window.innerWidth - 24);
     const left = Math.min(Math.max(12, rect.left), window.innerWidth - width - 12);
     const belowSpace = viewportHeight - rect.bottom - 8;
@@ -993,12 +986,6 @@ document.addEventListener('DOMContentLoaded', () => {
     // 消息发送按钮事件
     sendBtn.addEventListener('click', () => sendMessage(ContextType.NORMAL));
 
-    // 追问按钮事件
-    followUpBtn.addEventListener('click', () => sendMessage(ContextType.FOLLOW_UP));
-
-    // 继续按钮事件
-    continueBtn.addEventListener('click', () => sendContinue());
-
     // 中断按钮事件
     interruptBtn.addEventListener('click', () => sendInterrupt());
 
@@ -1014,9 +1001,6 @@ document.addEventListener('DOMContentLoaded', () => {
             });
         });
     }
-
-    // 加载示例文本按钮事件
-    loadExampleBtn.addEventListener('click', loadExampleText);
 
     // Agent模式切换事件
     if (agentModeSelect) {
@@ -1076,9 +1060,7 @@ document.addEventListener('DOMContentLoaded', () => {
     // 历史消息按钮事件
     const historyButton = document.getElementById('historyBtn');
     if (historyButton) {
-        console.log("找到历史按钮，添加事件监听");
         historyButton.addEventListener('click', function (e) {
-            console.log("历史按钮被点击");
             e.preventDefault();
             e.stopPropagation();
             toggleHistoryDropdown(true);
@@ -1441,30 +1423,6 @@ async function sendInterrupt() {
     await sendHttpMessage(interruptMessage);
 }
 
-// 发送继续消息
-async function sendContinue() {
-    const continueMessage = {
-        message_id: generateTimestampId(),
-        type: "continue"
-    };
-
-    // 显示客户端消息
-    showClientMessage({
-        type: "continue",
-        prompt: "[继续]"
-    });
-    showAssistantActivity('thinking');
-
-    // 发送HTTP请求
-    const responseData = await sendHttpMessage(continueMessage);
-    if (!responseData || responseData.code !== 1000) {
-        hideAssistantActivity();
-    }
-
-    // 显示系统消息
-    showSystemMessage("继续请求已发送");
-}
-
 // 发送初始化消息
 async function sendInitMessage() {
     // 检查是否已上传配置文件
@@ -1726,8 +1684,6 @@ function generateTimestampId() {
 function toggleMessageControls(enabled) {
     if (!enabled) closeMentionPicker();
     sendBtn.disabled = !enabled;
-    followUpBtn.disabled = !enabled;
-    continueBtn.disabled = !enabled;
     interruptBtn.disabled = !enabled;
     messageInput.disabled = !enabled;
 
@@ -2125,12 +2081,6 @@ function createConnectionStatusLog() {
     return state;
 }
 
-// 加载示例文本
-function loadExampleText() {
-    messageInput.value = EXAMPLE_TEXT;
-    showSystemMessage("已加载示例文本");
-}
-
 // 切换高级模式
 function toggleAdvancedMode() {
     isAdvancedMode = advancedModeToggle.checked;
@@ -2162,30 +2112,44 @@ function initRawEventsToggle() {
     rawEventsToggle.addEventListener('change', () => {
         showRawEvents = rawEventsToggle.checked;
         localStorage.setItem(RAW_EVENTS_TOGGLE_KEY, String(showRawEvents));
-        if (!showRawEvents) {
-            if (eventTraceLog?.wrapper?.parentNode) {
-                eventTraceLog.wrapper.parentNode.removeChild(eventTraceLog.wrapper);
-            }
-            closeActiveEventTraceLog();
-            eventTraceObjectSeen = new WeakSet();
-        } else {
-            renderStoredEventLogs();
-        }
+        rerenderChatLog();
     });
 }
 
-function renderStoredEventLogs() {
-    if (!showRawEvents) return;
-    if (eventTraceLog?.wrapper?.parentNode) {
-        eventTraceLog.wrapper.parentNode.removeChild(eventTraceLog.wrapper);
-    }
+function rerenderChatLog() {
+    const shouldStickToBottom = isMessageViewportAtBottom();
+    const previousScrollTop = messagesContainer ? messagesContainer.scrollTop : 0;
+    hideAssistantActivity();
     closeActiveEventTraceLog();
+    connectionStatusLog = null;
+    connectionStatusItems = [];
+    eventTraceLog = null;
     eventTraceObjectSeen = new WeakSet();
+    eventLogObjectSeen = new WeakSet();
+    systemMessageRegistry.clear();
+    streamMessageRegistry.clear();
+    toolCallRegistry.clear();
+    rawStreamRegistry.forEach(state => {
+        if (state.timer) clearTimeout(state.timer);
+    });
+    rawStreamRegistry.clear();
+    if (messageList) messageList.innerHTML = '';
+
+    isRestoring = true;
     for (const entry of chatLog) {
-        if (entry?.type === 'event') {
-            showEventLog(entry.data, true);
-        }
+        renderLogEntry(entry);
     }
+    isRestoring = false;
+
+    requestAnimationFrame(() => {
+        if (!messagesContainer) return;
+        if (shouldStickToBottom) {
+            scrollToBottom({ force: true });
+        } else {
+            messagesContainer.scrollTop = previousScrollTop;
+            updateScrollButtonPosition();
+        }
+    });
 }
 
 // 切换语言
@@ -2292,82 +2256,136 @@ function saveMessageToHistory(message) {
     }
 }
 
+function createHistoryModalHeader(title, subtitle, options = {}) {
+    const header = document.createElement('div');
+    header.className = 'history-modal-header';
+
+    const titleBox = document.createElement('div');
+    titleBox.className = 'history-modal-title';
+
+    const titleEl = document.createElement('strong');
+    titleEl.textContent = title;
+
+    const subtitleEl = document.createElement('span');
+    subtitleEl.textContent = subtitle;
+
+    titleBox.appendChild(titleEl);
+    titleBox.appendChild(subtitleEl);
+
+    const actions = document.createElement('div');
+    actions.className = 'history-modal-actions';
+
+    if (options.showClear) {
+        const clearButton = document.createElement('button');
+        clearButton.type = 'button';
+        clearButton.className = 'history-action-btn danger';
+        clearButton.textContent = '清空';
+        clearButton.addEventListener('click', function (e) {
+            e.stopPropagation();
+            showConfirmDialog('确定要清空所有历史消息吗？', function () {
+                clearMessageHistory();
+                toggleHistoryDropdown(false);
+                showSystemMessage('历史消息已清空');
+            });
+        });
+        actions.appendChild(clearButton);
+    }
+
+    const closeButton = document.createElement('button');
+    closeButton.type = 'button';
+    closeButton.className = 'history-close-btn';
+    closeButton.setAttribute('aria-label', '关闭历史消息');
+    closeButton.textContent = '×';
+    closeButton.addEventListener('click', function (e) {
+        e.stopPropagation();
+        toggleHistoryDropdown(false);
+    });
+    actions.appendChild(closeButton);
+
+    header.appendChild(titleBox);
+    header.appendChild(actions);
+    return header;
+}
+
 // 显示历史消息
 function showMessageHistory() {
     const dropdown = document.getElementById('messageHistoryDropdown');
 
-    // 清空现有内容
     dropdown.innerHTML = '';
+
+    const dialog = document.createElement('div');
+    dialog.className = 'history-modal-dialog';
+    dialog.setAttribute('role', 'dialog');
+    dialog.setAttribute('aria-modal', 'true');
+    dialog.setAttribute('aria-label', '历史消息');
+
+    const subtitle = messageHistory.length > 0
+        ? `保留最近 ${messageHistory.length} 条消息，点击卡片可填入输入框`
+        : '发送过的消息会保存在这里';
+
+    dialog.appendChild(createHistoryModalHeader('历史消息', subtitle, {
+        showClear: messageHistory.length > 0,
+    }));
+
+    const list = document.createElement('div');
+    list.className = 'history-list';
 
     if (messageHistory.length === 0) {
         const emptyItem = document.createElement('div');
         emptyItem.className = 'history-item empty';
         emptyItem.textContent = '暂无历史消息';
-        dropdown.appendChild(emptyItem);
-        return;
+        list.appendChild(emptyItem);
+    } else {
+        messageHistory.forEach((historyMessage, index) => {
+            const historyItem = document.createElement('div');
+            historyItem.className = 'history-item';
+
+            const messageDiv = document.createElement('div');
+            messageDiv.className = 'history-message';
+            messageDiv.textContent = historyMessage;
+
+            const actions = document.createElement('div');
+            actions.className = 'history-actions';
+
+            const editBtn = document.createElement('button');
+            editBtn.type = 'button';
+            editBtn.className = 'history-btn edit';
+            editBtn.textContent = '编辑';
+            editBtn.addEventListener('click', function (e) {
+                e.stopPropagation();
+                editHistoryItem(index);
+            });
+
+            const deleteBtn = document.createElement('button');
+            deleteBtn.type = 'button';
+            deleteBtn.className = 'history-btn delete';
+            deleteBtn.textContent = '删除';
+            deleteBtn.addEventListener('click', function (e) {
+                e.stopPropagation();
+                showConfirmDialog('确定要删除这条历史消息吗？', function () {
+                    deleteHistoryItem(index);
+                    showMessageHistory();
+                    showSystemMessage('历史消息已删除');
+                });
+            });
+
+            actions.appendChild(editBtn);
+            actions.appendChild(deleteBtn);
+
+            historyItem.appendChild(messageDiv);
+            historyItem.appendChild(actions);
+            historyItem.addEventListener('click', function () {
+                messageInput.value = historyMessage;
+                toggleHistoryDropdown(false);
+                showSystemMessage('已加载历史消息');
+            });
+
+            list.appendChild(historyItem);
+        });
     }
 
-    // 添加清空按钮
-    const clearButton = document.createElement('div');
-    clearButton.className = 'history-item clear-all';
-    clearButton.innerHTML = '<span>🗑️ 清空所有历史</span>';
-    clearButton.addEventListener('click', function (e) {
-        e.stopPropagation();
-        showConfirmDialog('确定要清空所有历史消息吗？', function () {
-            clearMessageHistory();
-            toggleHistoryDropdown(false);
-            showSystemMessage('历史消息已清空');
-        });
-    });
-    dropdown.appendChild(clearButton);
-
-    // 添加历史消息项
-    messageHistory.forEach((historyMessage, index) => {
-        const historyItem = document.createElement('div');
-        historyItem.className = 'history-item';
-
-        const messagePreview = historyMessage.length > 50 ?
-            historyMessage.substring(0, 50) + '...' : historyMessage;
-
-        historyItem.innerHTML = `
-      <div class="history-message" title="${historyMessage}">
-        ${messagePreview}
-      </div>
-      <div class="history-actions">
-        <button class="history-btn edit" title="编辑">✏️</button>
-        <button class="history-btn delete" title="删除">🗑️</button>
-      </div>
-    `;
-
-        // 点击消息内容使用该消息
-        const messageDiv = historyItem.querySelector('.history-message');
-        messageDiv.addEventListener('click', function (e) {
-            e.stopPropagation();
-            messageInput.value = historyMessage;
-            toggleHistoryDropdown(false);
-            showSystemMessage('已加载历史消息');
-        });
-
-        // 编辑按钮
-        const editBtn = historyItem.querySelector('.edit');
-        editBtn.addEventListener('click', function (e) {
-            e.stopPropagation();
-            editHistoryItem(index);
-        });
-
-        // 删除按钮
-        const deleteBtn = historyItem.querySelector('.delete');
-        deleteBtn.addEventListener('click', function (e) {
-            e.stopPropagation();
-            showConfirmDialog('确定要删除这条历史消息吗？', function () {
-                deleteHistoryItem(index);
-                showMessageHistory(); // 刷新显示
-                showSystemMessage('历史消息已删除');
-            });
-        });
-
-        dropdown.appendChild(historyItem);
-    });
+    dialog.appendChild(list);
+    dropdown.appendChild(dialog);
 }
 
 // 清空历史记录
@@ -2391,7 +2409,15 @@ function editHistoryItem(index) {
     const originalMessage = messageHistory[index];
     const dropdown = document.getElementById('messageHistoryDropdown');
 
-    // 创建编辑界面
+    dropdown.innerHTML = '';
+
+    const dialog = document.createElement('div');
+    dialog.className = 'history-modal-dialog';
+    dialog.setAttribute('role', 'dialog');
+    dialog.setAttribute('aria-modal', 'true');
+    dialog.setAttribute('aria-label', '编辑历史消息');
+    dialog.appendChild(createHistoryModalHeader('编辑历史消息', '保存后会更新这条历史记录'));
+
     const editContainer = document.createElement('div');
     editContainer.className = 'edit-container';
 
@@ -2443,9 +2469,8 @@ function editHistoryItem(index) {
     editContainer.appendChild(textarea);
     editContainer.appendChild(buttonContainer);
 
-    // 替换dropdown内容
-    dropdown.innerHTML = '';
-    dropdown.appendChild(editContainer);
+    dialog.appendChild(editContainer);
+    dropdown.appendChild(dialog);
 
     // 聚焦到textarea并选中文本
     textarea.focus();
@@ -2457,15 +2482,15 @@ function toggleHistoryDropdown(show) {
     const dropdown = document.getElementById('messageHistoryDropdown');
 
     if (show) {
-        dropdown.style.display = 'block';
-        // 添加点击外部关闭的事件监听器
+        dropdown.classList.add('show');
         setTimeout(() => {
             document.addEventListener('click', closeHistoryDropdownOnClickOutside);
+            document.addEventListener('keydown', handleHistoryModalKeydown);
         }, 100);
     } else {
-        dropdown.style.display = 'none';
-        // 移除事件监听器
+        dropdown.classList.remove('show');
         document.removeEventListener('click', closeHistoryDropdownOnClickOutside);
+        document.removeEventListener('keydown', handleHistoryModalKeydown);
     }
 }
 
@@ -2473,8 +2498,23 @@ function toggleHistoryDropdown(show) {
 function closeHistoryDropdownOnClickOutside(event) {
     const dropdown = document.getElementById('messageHistoryDropdown');
     const historyBtn = document.getElementById('historyBtn');
+    const dialog = dropdown.querySelector('.history-modal-dialog');
 
-    if (!dropdown.contains(event.target) && event.target !== historyBtn) {
+    if (event.target.closest('.confirm-overlay')) {
+        return;
+    }
+
+    if (dialog && !dialog.contains(event.target) && event.target !== historyBtn) {
+        return;
+    }
+
+    if (event.target === historyBtn) {
+        toggleHistoryDropdown(false);
+    }
+}
+
+function handleHistoryModalKeydown(event) {
+    if (event.key === 'Escape') {
         toggleHistoryDropdown(false);
     }
 }
@@ -5648,13 +5688,6 @@ if (filePreviewClose) {
         hideFilePreview();
     });
 }
-
-document.addEventListener('keydown', (event) => {
-    if (event.key === 'Escape' && filePreviewWorkbench && !filePreviewWorkbench.hidden) {
-        event.preventDefault();
-        hideFilePreview();
-    }
-});
 
 if (filePreviewOpenBtn) {
     filePreviewOpenBtn.addEventListener('click', () => openCurrentPreviewInNewTab());

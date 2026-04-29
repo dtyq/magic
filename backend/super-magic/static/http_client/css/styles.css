@@ -264,26 +264,26 @@ input[type="text"]:focus {
 .custom-select {
     position: relative;
     flex-shrink: 0;
-    width: 180px;
+    width: 140px;
 }
 
 #agentModeGroup .custom-select,
 #modelIdGroup .custom-select {
-    width: 320px;
+    width: 220px;
 }
 
 #imageModelGroup .custom-select {
-    width: 260px;
+    width: 190px;
 }
 
 #agentCodeGroup .custom-select {
-    width: 150px;
+    width: 120px;
 }
 
 #imChannelGroup .custom-select,
 #languageGroup .custom-select,
 #messageVersionGroup .custom-select {
-    width: 150px;
+    width: 120px;
 }
 
 .custom-select-trigger {
@@ -1622,35 +1622,42 @@ input[type="checkbox"] {
     flex-direction: column;
     align-items: center;
     justify-content: flex-end;
-    gap: 5px;
     flex-shrink: 0;
-    padding-bottom: 2px;
+    width: 70px;
+    padding: 0 0 2px;
 }
 
 .send-btn {
-    width: 64px;
-    height: 36px;
-    padding: 0;
-    border: none;
-    border-radius: var(--radius-control);
+    width: 60px;
+    height: 32px;
+    padding: 0 12px;
+    border: 1px solid rgba(0, 122, 255, 0.12);
+    border-radius: 999px;
     font-size: 13px;
     font-weight: 600;
     letter-spacing: -0.01em;
     background: #007aff;
-    box-shadow: 0 8px 18px rgba(0, 122, 255, 0.16);
+    box-shadow: 0 3px 10px rgba(0, 122, 255, 0.14);
+    transition: background-color 0.16s ease, box-shadow 0.16s ease, transform 0.16s ease;
 }
 
 .send-btn:hover {
     background: #006fe6;
-    box-shadow: 0 10px 22px rgba(0, 122, 255, 0.2);
+    box-shadow: 0 5px 14px rgba(0, 122, 255, 0.18);
+    transform: translateY(-1px);
+}
+
+.send-btn:active {
+    transform: translateY(0);
+    box-shadow: 0 2px 8px rgba(0, 122, 255, 0.12);
 }
 
 .send-hint {
-    max-width: 72px;
-    font-size: 10px;
-    color: #a1a1a6;
-    text-align: center;
-    line-height: 1.3;
+    margin-left: auto;
+    font-size: 10.5px;
+    color: #b0b0b6;
+    line-height: 1.4;
+    white-space: nowrap;
 }
 
 textarea {
@@ -1721,6 +1728,7 @@ textarea:focus {
 
 .secondary-actions {
     display: flex;
+    align-items: center;
     gap: 8px;
     flex-wrap: wrap;
     justify-content: flex-start;
@@ -1731,6 +1739,48 @@ textarea:focus {
     padding: 4px 10px;
     font-size: 12px;
     border-radius: 9px;
+}
+
+.secondary-toggle-group {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
+    margin-right: 2px;
+}
+
+.secondary-actions .compact-toggle {
+    gap: 5px;
+    margin-bottom: 0;
+    padding-bottom: 0;
+    border-bottom: none;
+    color: var(--wechat-text-gray);
+}
+
+.secondary-actions .compact-toggle .toggle-switch-label {
+    font-size: 11.5px;
+    font-weight: 500;
+    color: var(--wechat-text-gray);
+}
+
+.secondary-actions .compact-toggle .toggle-switch {
+    width: 30px;
+    height: 17px;
+}
+
+.secondary-actions .compact-toggle .toggle-switch-slider {
+    border-radius: 17px;
+}
+
+.secondary-actions .compact-toggle .toggle-switch-slider:before {
+    width: 13px;
+    height: 13px;
+    left: 2px;
+    bottom: 2px;
+}
+
+.secondary-actions .compact-toggle .toggle-switch input:checked + .toggle-switch-slider:before {
+    transform: translateX(13px);
 }
 
 .button-group {
@@ -1790,182 +1840,228 @@ textarea:focus {
     font-size: 13px;
 }
 
-/* 历史消息下拉框 */
+/* 历史消息弹窗 */
 .history-dropdown {
     position: fixed;
-    /* 改为fixed定位，确保可见 */
-    top: 50%;
-    left: 50%;
-    transform: translate(-50%, -50%);
-    /* 居中显示 */
-    width: 400px;
-    max-height: 500px;
-    overflow-y: auto;
-    background-color: var(--wechat-panel-bg);
-    border: 2px solid var(--wechat-green);
-    /* 保持绿色边框 */
-    border-radius: 5px;
-    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.2);
+    inset: 0;
     z-index: 9999;
-    /* 确保最高层级 */
     display: none;
+    align-items: center;
+    justify-content: center;
+    padding: 28px;
+    background: rgba(245, 245, 247, 0.28);
+    backdrop-filter: blur(4px);
+    -webkit-backdrop-filter: blur(4px);
 }
 
 .history-dropdown.show {
-    display: block;
-    animation: fadeIn 0.2s ease-in-out;
+    display: flex;
 }
 
-@keyframes fadeIn {
+.history-modal-dialog {
+    width: min(720px, calc(100vw - 40px));
+    max-height: min(680px, calc(100vh - 56px));
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    border: 1px solid rgba(0, 0, 0, 0.08);
+    border-radius: 22px;
+    background: #fff;
+    box-shadow: 0 24px 70px rgba(0, 0, 0, 0.18);
+    animation: historyModalIn 0.18s ease-out;
+}
+
+@keyframes historyModalIn {
     from {
         opacity: 0;
-        transform: translate(-50%, -60%);
+        transform: translateY(10px) scale(0.98);
     }
 
     to {
         opacity: 1;
-        transform: translate(-50%, -50%);
+        transform: translateY(0) scale(1);
     }
 }
 
-/* 历史消息项 */
-.history-item {
-    padding: 12px 15px;
-    border-bottom: 1px solid var(--wechat-border);
-    cursor: pointer;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    color: var(--wechat-text-dark);
-    transition: background-color 0.2s;
+.history-modal-header {
     display: flex;
-    justify-content: space-between;
     align-items: center;
+    justify-content: space-between;
+    gap: 14px;
+    padding: 18px 20px 14px;
+    border-bottom: 1px solid rgba(0, 0, 0, 0.06);
+}
+
+.history-modal-title {
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+    min-width: 0;
+}
+
+.history-modal-title strong {
+    font-size: 16px;
+    font-weight: 650;
+    letter-spacing: -0.02em;
+    color: #1d1d1f;
+}
+
+.history-modal-title span {
+    font-size: 12px;
+    color: #8a8a8f;
+}
+
+.history-modal-actions {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-shrink: 0;
+}
+
+.history-action-btn {
+    height: 30px;
+    padding: 0 11px;
+    border: 1px solid rgba(0, 0, 0, 0.08);
+    border-radius: 999px;
+    background: rgba(247, 247, 248, 0.9);
+    color: #3c3c43;
+    font-size: 12px;
+    cursor: pointer;
+    transition: background-color 0.16s ease, color 0.16s ease, border-color 0.16s ease;
+}
+
+.history-action-btn:hover {
+    background: #f0f0f2;
+    border-color: rgba(0, 0, 0, 0.12);
+}
+
+.history-action-btn.danger {
+    color: #d70015;
+}
+
+.history-close-btn {
+    width: 30px;
+    height: 30px;
+    padding: 0;
+    border: 0;
+    border-radius: 50%;
+    background: rgba(120, 120, 128, 0.12);
+    color: #6e6e73;
+    font-size: 18px;
+    line-height: 30px;
+    cursor: pointer;
+}
+
+.history-close-btn:hover {
+    background: rgba(120, 120, 128, 0.2);
+}
+
+.history-list {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    padding: 14px;
+    overflow-y: auto;
+}
+
+.history-item {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 12px;
+    align-items: center;
+    padding: 13px 14px;
+    border: 1px solid rgba(0, 0, 0, 0.06);
+    border-radius: 16px;
+    background: #fbfbfc;
+    color: var(--wechat-text-dark);
+    cursor: pointer;
+    transition: background-color 0.16s ease, border-color 0.16s ease, transform 0.16s ease;
 }
 
 .history-item:hover {
-    background-color: #f0f0f0;
+    background: #f6f6f7;
+    border-color: rgba(0, 0, 0, 0.1);
+    transform: translateY(-1px);
 }
 
 .history-item.empty {
-    color: var(--wechat-text-gray);
-    cursor: default;
-    text-align: center;
-    padding: 20px;
     display: block;
-    /* 覆盖flex布局，因为空记录不需要显示删除按钮 */
+    padding: 42px 16px;
+    color: #8a8a8f;
+    text-align: center;
+    cursor: default;
+    background: #fafafa;
 }
 
-/* 历史消息文本样式 */
-.message-text {
-    flex: 1;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
+.history-message {
+    min-width: 0;
+    white-space: normal;
+    overflow-wrap: anywhere;
+    color: #1d1d1f;
+    font-size: 13px;
+    line-height: 1.55;
 }
 
-/* 历史消息按钮容器 */
-.history-btn-container {
+.history-actions {
     display: flex;
     align-items: center;
-}
-
-/* 删除按钮样式 */
-.delete-btn {
-    background-color: transparent;
-    color: var(--wechat-text-gray);
-    border: none;
-    font-size: 16px;
-    width: 24px;
-    height: 24px;
-    line-height: 24px;
-    text-align: center;
-    border-radius: 50%;
-    cursor: pointer;
-    margin-left: 8px;
-    padding: 0;
-    transition: all 0.2s;
-    visibility: hidden;
-    /* 默认隐藏，鼠标悬停时显示 */
-}
-
-/* 编辑按钮样式 */
-.edit-btn {
-    background-color: transparent;
-    color: var(--wechat-text-gray);
-    border: none;
-    font-size: 16px;
-    width: 24px;
-    height: 24px;
-    line-height: 24px;
-    text-align: center;
-    border-radius: 50%;
-    cursor: pointer;
-    margin-left: 4px;
-    padding: 0;
-    transition: all 0.2s;
-    visibility: hidden;
-    /* 默认隐藏，鼠标悬停时显示 */
-}
-
-/* 鼠标悬停在历史项上时显示按钮 */
-.history-item:hover .delete-btn,
-.history-item:hover .edit-btn {
-    visibility: visible;
-}
-
-/* 鼠标悬停在删除按钮上时的样式 */
-.delete-btn:hover {
-    background-color: var(--wechat-danger);
-    color: white;
-}
-
-/* 鼠标悬停在编辑按钮上时的样式 */
-.edit-btn:hover {
-    background-color: var(--wechat-green);
-    color: white;
-}
-
-/* 历史消息编辑框样式 */
-.edit-history-input {
-    width: 100%;
-    padding: 6px;
-    border: 1px solid var(--wechat-green);
-    border-radius: 3px;
-    font-size: 14px;
-    margin-bottom: 6px;
-    resize: vertical;
-    min-height: 60px;
-}
-
-/* 编辑按钮容器 */
-.edit-btn-container {
-    display: flex;
     gap: 6px;
-    justify-content: flex-end;
 }
 
-.history-controls {
-    padding: 10px;
+.history-btn {
+    height: 28px;
+    padding: 0 10px;
+    border: 1px solid rgba(0, 0, 0, 0.08);
+    border-radius: 999px;
+    background: #fff;
+    color: #3c3c43;
+    font-size: 12px;
+    cursor: pointer;
+}
+
+.history-btn:hover {
+    background: #f2f2f4;
+}
+
+.history-btn.delete {
+    color: #d70015;
+}
+
+.edit-container {
     display: flex;
-    justify-content: center;
-    /* 改为居中对齐，因为只有一个按钮 */
-    border-bottom: 1px solid var(--wechat-border);
-    background-color: #f9f9f9;
+    flex-direction: column;
+    gap: 12px;
+    padding: 14px;
+}
+
+.edit-textarea {
+    width: 100%;
+    min-height: 180px;
+    padding: 12px 13px;
+    border: 1px solid rgba(0, 0, 0, 0.12);
+    border-radius: 14px;
+    background: #fbfbfc;
+    color: #1d1d1f;
+    font-size: 13px;
+    line-height: 1.55;
+    resize: vertical;
+}
+
+.edit-textarea:focus {
+    outline: none;
+    border-color: rgba(0, 122, 255, 0.5);
+    box-shadow: 0 0 0 3px rgba(0, 122, 255, 0.12);
+}
+
+.edit-buttons {
+    display: flex;
+    justify-content: flex-end;
+    gap: 8px;
 }
 
 .btn.small {
     padding: 4px 8px;
     font-size: 12px;
-}
-
-/* 历史记录标题 */
-.history-title {
-    padding: 15px;
-    text-align: center;
-    font-weight: bold;
-    border-bottom: 1px solid var(--wechat-border);
-    background-color: #f6f6f6;
 }
 
 /* 确认对话框背景遮罩 */
@@ -3684,8 +3780,7 @@ input[type="file"] {
 .custom-select-panel,
 textarea,
 input[type="text"],
-.custom-select-trigger,
-.history-dropdown {
+.custom-select-trigger {
     border-radius: var(--radius-card);
 }
 
