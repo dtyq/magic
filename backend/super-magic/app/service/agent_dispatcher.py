@@ -478,14 +478,18 @@ class AgentDispatcher(Base):
         last = await self.get_last_dispatch_message() or {}
         if not last:
             return
+        # model_id：当前未携带时从 last 取，确保第三方 IM 消息延续上次选择的模型
+        if not message.model_id and last.get("model_id"):
+            message.model_id = last["model_id"]
         # agent_mode：当前未显式携带（None）时从 last 取
         if message.agent_mode is None and last.get("agent_mode"):
             message.agent_mode = last["agent_mode"]
-        # agent_code：当前未携带时从 last 取
-        current_agent_code = (message.dynamic_config or {}).get("agent_code")
-        last_agent_code = (last.get("dynamic_config") or {}).get("agent_code")
-        if not current_agent_code and last_agent_code:
-            message.dynamic_config = {**(message.dynamic_config or {}), "agent_code": last_agent_code}
+        # dynamic_config：以 last 为基础，当前消息显式携带的字段优先，
+        # 其余字段（image_model / video_model / message_version 等）从 last 补全
+        last_dc = last.get("dynamic_config") or {}
+        current_dc = message.dynamic_config or {}
+        if last_dc:
+            message.dynamic_config = {**last_dc, **current_dc}
         # agent：当前未携带时从 last 取（沙箱复用场景下 continuation 消息可能不带 agent）
         if message.agent is None and last.get("agent"):
             try:
@@ -501,6 +505,12 @@ class AgentDispatcher(Base):
         # 合并策略：以上次快照为基础，新值非 None 才覆盖，防止空值抹掉已存的有效配置
         existing = await self.get_last_dispatch_message() or {}
         merged = {**existing, **{k: v for k, v in new_data.items() if v is not None}}
+        # dynamic_config 做深合并：第三方 IM 消息只携带 agent_code 等部分字段，
+        # 避免整个 key 覆盖导致 image_model / video_model 等配置丢失
+        existing_dc = existing.get("dynamic_config") or {}
+        new_dc = new_data.get("dynamic_config") or {}
+        if existing_dc or new_dc:
+            merged["dynamic_config"] = {**existing_dc, **new_dc}
         try:
             await async_write_json(self._last_dispatch_message_file(), merged, indent=2, ensure_ascii=False)
         except Exception as e:
@@ -612,6 +622,19 @@ class AgentDispatcher(Base):
         # fill 后仍为 None 说明历史快照也没有，归一化为默认模式
         if message.agent_mode is None:
             message.agent_mode = AgentMode.GENERAL
+
+        # 如果 agent_context 还没有 dynamic_model_id（前端消息已在 messages.py 里 set），
+        # 且消息携带了 model_id（可能来自前端或 fill 补全），则在此设置，确保第三方 IM 消息也能使用正确模型
+        if message.model_id and not self.agent_context.has_dynamic_model_id():
+            self.agent_context.set_dynamic_model_id(message.model_id)
+            logger.info(f"[AgentDispatcher] 从消息 model_id 设置动态模型: {message.model_id}")
+        # image_model_id：从 dynamic_config.image_model.model_id 读取并 set 进 context
+        image_model_config = (message.dynamic_config or {}).get("image_model")
+        if image_model_config and isinstance(image_model_config, dict):
+            image_model_id = image_model_config.get("model_id")
+            if image_model_id:
+                self.agent_context.set_dynamic_image_model_id(image_model_id)
+                logger.info(f"[AgentDispatcher] 从消息 dynamic_config 设置图片模型: {image_model_id}")
 
         self.agent_context.set_chat_client_message(message)
 
