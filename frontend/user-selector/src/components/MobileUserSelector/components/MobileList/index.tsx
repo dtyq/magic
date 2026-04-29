@@ -35,6 +35,7 @@ const MobileList = ({
 	disableUser = false,
 	pathOptions,
 	updateSegment,
+	renderItemRight,
 	onItemClick,
 }: MobileListProps) => {
 	const [selectedPath, setSelectedPath] = useControllableValue<SelectedPath[]>(pathOptions, {
@@ -82,6 +83,7 @@ const MobileList = ({
 						maxCount={maxCount}
 						disableUser={disableUser}
 						isMobile
+						renderItemRight={renderItemRight}
 					/>
 				)
 			case SegmentType.UserGroup:
@@ -96,6 +98,7 @@ const MobileList = ({
 						loadMore={segmentData?.[segment]?.loadMore}
 						disableUser={disableUser}
 						isMobile
+						renderItemRight={renderItemRight}
 						onItemClick={innerOnItemClick}
 					/>
 				)
@@ -111,6 +114,7 @@ const MobileList = ({
 						maxCount={maxCount}
 						disableUser={disableUser}
 						isMobile
+						renderItemRight={renderItemRight}
 						onItemClick={innerOnItemClick}
 					/>
 				)
@@ -124,6 +128,7 @@ const MobileList = ({
 		disableUser,
 		data,
 		innerOnItemClick,
+		renderItemRight,
 	])
 
 	return (

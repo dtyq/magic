@@ -1,4 +1,4 @@
-import { memo } from "react"
+import { memo, type ReactNode } from "react"
 import { IconChevronRight, IconUsers } from "@tabler/icons-react"
 import {
 	NodeType,
@@ -15,10 +15,17 @@ interface Props {
 	data: Department | UserGroup
 	showArrow?: boolean
 	isMobile?: boolean
+	rightContent?: ReactNode
 	onItemClick?: (node: TreeNode) => void
 }
 
-function DepartmentItem({ data, showArrow = true, isMobile = false, onItemClick }: Props) {
+function DepartmentItem({
+	data,
+	showArrow = true,
+	isMobile = false,
+	rightContent,
+	onItemClick,
+}: Props) {
 	const { getLocale } = useAppearance()
 	const locale = getLocale()
 
@@ -66,24 +73,31 @@ function DepartmentItem({ data, showArrow = true, isMobile = false, onItemClick 
 						)}
 					</div>
 				</div>
-				{isMobile ? (
-					<div
-						className={cn(
-							"flex items-center gap-0.5 shrink-0 text-sm font-medium text-primary",
-							!showArrow && "text-muted-foreground",
-						)}
-					>
-						<IconChevronRight size={16} stroke={2} className="text-current" />
-					</div>
-				) : (
-					showArrow && (
-						<IconChevronRight
-							size={16}
-							className="shrink-0 text-muted-foreground"
-							stroke={2}
-						/>
-					)
-				)}
+				<div className="flex shrink-0 items-center gap-2">
+					{rightContent && (
+						<div className="text-xs leading-4 text-muted-foreground">
+							{rightContent}
+						</div>
+					)}
+					{isMobile ? (
+						<div
+							className={cn(
+								"flex items-center gap-0.5 shrink-0 text-sm font-medium text-primary",
+								!showArrow && "text-muted-foreground",
+							)}
+						>
+							<IconChevronRight size={16} stroke={2} className="text-current" />
+						</div>
+					) : (
+						showArrow && (
+							<IconChevronRight
+								size={16}
+								className="shrink-0 text-muted-foreground"
+								stroke={2}
+							/>
+						)
+					)}
+				</div>
 			</div>
 		</TooltipProvider>
 	)

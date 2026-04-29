@@ -6,6 +6,7 @@ import {
 	type SelectedPath,
 	type TreeNode,
 	type CheckboxOptions,
+	type RenderListItemRight,
 	SegmentType,
 } from "@/components/UserSelector/types"
 import SelectorBreadcrumb from "@/components/OrganizationPanel/components/BreadCurmb"
@@ -43,6 +44,8 @@ export interface CommonOrganizationPanelProps {
 	hasMore?: boolean
 	/** 加载更多数据 */
 	loadMore?: () => void
+	/** 自定义渲染列表项右侧内容 */
+	renderItemRight?: RenderListItemRight
 }
 
 export type OrganizationPanelProps = CommonOrganizationPanelProps & BaseProps
@@ -61,6 +64,7 @@ function OrganizationPanel({
 	pathOptions,
 	hasMore,
 	loadMore,
+	renderItemRight,
 }: OrganizationPanelProps) {
 	const { getLocale } = useAppearance()
 	const locale = getLocale()
@@ -146,6 +150,7 @@ function OrganizationPanel({
 				disableUser={disableUser}
 				hasMore={hasMore}
 				loadMore={loadMore}
+				renderItemRight={renderItemRight}
 				onItemClick={innerOnItemClick}
 				emptyComponent={
 					<Empty
