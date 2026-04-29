@@ -23,12 +23,5 @@ class AddImageGenerationConfigToMagicDesignImageGenerationTasksTable extends Mig
 
     public function down(): void
     {
-        if (! Schema::hasColumn('magic_design_image_generation_tasks', 'image_generation_config')) {
-            return;
-        }
-
-        Schema::table('magic_design_image_generation_tasks', function (Blueprint $table) {
-            $table->dropColumn('image_generation_config');
-        });
     }
 }
