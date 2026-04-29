@@ -94,7 +94,8 @@ class ReplyEventManager:
         use_stream_mode: bool = False,
         exception: Optional[Exception] = None,
         content_type: str = "content",
-        content: str = ""
+        content: str = "",
+        correlation_id: Optional[str] = None,
     ) -> None:
         """触发智能体回复完成后事件
 
@@ -146,7 +147,10 @@ class ReplyEventManager:
                 use_stream_mode=use_stream_mode,
                 success=success,
                 error=error_message,
-                content_type=content_type
+                content_type=content_type,
+                # 若调用方显式提供 correlation_id（如 V2 流式降级场景），
+                # 直接写入 event_data，dispatch_event 会跳过 CorrelationIdManager 自动消耗
+                correlation_id=correlation_id,
             )
 
             # 触发事件

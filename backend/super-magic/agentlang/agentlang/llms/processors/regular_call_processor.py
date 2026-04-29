@@ -144,6 +144,26 @@ class RegularCallProcessor:
                 f"has_reasoning={has_reasoning}, has_content={has_content}, has_tool_calls={has_tool_calls}"
             )
 
+            # 检测 V2 流式降级场景：
+            # V2 流式 chunk 以 request_id 作为 correlation_id 推送前端，
+            # 降级为非流式时需沿用同一 correlation_id，否则前端会将 chunk 和最终消息视为两条独立消息。
+            # 检测条件：有已保存的流式 correlation_id，且 CorrelationIdManager 中无活跃的 AGENT_REPLY
+            # correlation（V1 流式失败会留下活跃 correlation，V2 不会触发 BEFORE_AGENT_REPLY 故为空）。
+            stream_fallback_cid: Optional[str] = None
+            if agent_context:
+                from agentlang.event import get_correlation_manager, EventPairType
+                cm = get_correlation_manager()
+                if not cm.get_active_correlation_id(EventPairType.AGENT_REPLY):
+                    saved_cid = agent_context.get_metadata().get("_stream_fallback_correlation_id")
+                    if saved_cid:
+                        stream_fallback_cid = saved_cid
+                        # 使用后立即清除，避免影响后续独立非流式调用
+                        agent_context.set_metadata("_stream_fallback_correlation_id", None)
+                        logger.info(
+                            f"[{request_id}] 检测到 V2 流式降级场景，"
+                            f"非流式回复将复用流式 correlation_id={stream_fallback_cid}"
+                        )
+
             # ===== 处理 reasoning_content =====
             if has_reasoning:
                 # 1. 触发 BEFORE_AGENT_THINK（内部会检查是否已在思考中）
@@ -191,27 +211,46 @@ class RegularCallProcessor:
                 )
                 logger.debug(f"[{request_id}] 非流式：检测到 content，触发 AFTER_AGENT_THINK")
 
-                # 2. 触发 before_agent_reply(content_type=content)
-                await ReplyEventManager.trigger_before_reply(
-                    agent_context=agent_context,
-                    model_id=model_id,
-                    model_name=model_name,
-                    request_id=request_id,
-                    use_stream_mode=False,
-                    content_type="content"
-                )
+                if stream_fallback_cid:
+                    # V2 流式降级：跳过 trigger_before_reply（V2 中该事件无实际前端消息），
+                    # 直接用原流式 correlation_id 触发 after_agent_reply，保证前端 chunk 与最终消息匹配
+                    await ReplyEventManager.trigger_after_reply(
+                        agent_context=agent_context,
+                        model_id=model_id,
+                        model_name=model_name,
+                        request_id=request_id,
+                        response=response,
+                        execution_time=elapsed_time,
+                        use_stream_mode=False,
+                        content_type="content",
+                        correlation_id=stream_fallback_cid,
+                    )
+                    logger.debug(
+                        f"[{request_id}] 非流式（V2 降级）：content REPLY 事件已触发，"
+                        f"correlation_id={stream_fallback_cid}"
+                    )
+                else:
+                    # 2. 触发 before_agent_reply(content_type=content)
+                    await ReplyEventManager.trigger_before_reply(
+                        agent_context=agent_context,
+                        model_id=model_id,
+                        model_name=model_name,
+                        request_id=request_id,
+                        use_stream_mode=False,
+                        content_type="content"
+                    )
 
-                # 3. 触发 after_agent_reply(content_type=content)
-                await ReplyEventManager.trigger_after_reply(
-                    agent_context=agent_context,
-                    model_id=model_id,
-                    model_name=model_name,
-                    request_id=request_id,
-                    response=response,
-                    execution_time=elapsed_time,
-                    use_stream_mode=False,
-                    content_type="content"
-                )
+                    # 3. 触发 after_agent_reply(content_type=content)
+                    await ReplyEventManager.trigger_after_reply(
+                        agent_context=agent_context,
+                        model_id=model_id,
+                        model_name=model_name,
+                        request_id=request_id,
+                        response=response,
+                        execution_time=elapsed_time,
+                        use_stream_mode=False,
+                        content_type="content"
+                    )
                 logger.debug(f"[{request_id}] 非流式：content REPLY 事件已触发")
 
             # ===== 只有 tool_calls 的情况 =====
