@@ -9,7 +9,7 @@ from agentlang.event.event import EventType
 from agentlang.logger import get_logger
 
 from app.core.entity.event.third_party_message_event import ThirdPartyMessageReceivedEventData
-from app.core.entity.message.client_message import ChatClientMessage
+from app.core.entity.message.client_message import AgentMode, ChatClientMessage
 from app.path_manager import PathManager
 from app.utils.async_file_utils import async_read_json
 
@@ -90,6 +90,20 @@ def _build_rich_text_document(text: str) -> str:
     return json.dumps({"type": "doc", "content": paragraphs}, ensure_ascii=False)
 
 
+def _get_topic_pattern_from_chat_message(chat_message: ChatClientMessage) -> Optional[str]:
+    """从 ChatClientMessage 的 agent_mode 推导 topic_pattern，作为 init_client_message.agent.type 缺失时的兜底。"""
+    agent_mode = chat_message.agent_mode
+    if agent_mode is None:
+        return None
+    if isinstance(agent_mode, AgentMode):
+        return agent_mode.get_agent_type()
+    # 字符串形式，尝试转成 AgentMode 以获取标准 agent_type
+    try:
+        return AgentMode(agent_mode).get_agent_type()
+    except (ValueError, KeyError):
+        return _normalize_text(str(agent_mode))
+
+
 def _get_last_chat_runtime_config(last_chat_message: ChatClientMessage | None) -> tuple[str | None, bool, str | None]:
     if last_chat_message is None:
         return None, True, None
@@ -149,9 +163,12 @@ class ThirdPartyMessagePayloadBuilder:
             logger.warning(f"[ThirdPartyMessage] {channel} 空消息跳过持久化事件")
             return None
 
-        topic_pattern = _normalize_text(getattr(getattr(init_client_message, "agent", None), "type", None))
         last_chat_message = await _load_last_chat_message()
         model_id, enable_web_search, image_model_id = _get_last_chat_runtime_config(last_chat_message)
+
+        topic_pattern = _normalize_text(getattr(getattr(init_client_message, "agent", None), "type", None))
+        if not topic_pattern and last_chat_message is not None:
+            topic_pattern = _get_topic_pattern_from_chat_message(last_chat_message)
 
         missing_fields = [
             field_name
