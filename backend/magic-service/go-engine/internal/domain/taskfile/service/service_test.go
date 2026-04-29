@@ -3,6 +3,7 @@ package taskfile_test
 import (
 	"context"
 	"errors"
+	"strings"
 	"testing"
 
 	taskfiledomain "magic/internal/domain/taskfile/service"
@@ -22,6 +23,7 @@ type readerStub struct {
 	lastBatchParentID         int64
 	listChildrenByParentCalls int
 	listChildrenBatchCalls    int
+	repeatFullChildBatches    bool
 	err                       error
 }
 
@@ -71,6 +73,12 @@ func (s *readerStub) ListVisibleChildrenByParentAfter(
 	items := s.childrenByParentBatch[parentID]
 	if len(items) == 0 {
 		return nil, nil
+	}
+	if s.repeatFullChildBatches {
+		if limit <= 0 || limit > len(items) {
+			limit = len(items)
+		}
+		return append([]*projectfile.Meta(nil), items[:limit]...), nil
 	}
 	start := 0
 	if lastFileID > 0 {
@@ -233,6 +241,41 @@ func TestDomainServiceListVisibleLeafFileIDsByFolderPaginatesLargeSiblingSet(t *
 	}
 	if reader.listChildrenBatchCalls != 2 {
 		t.Fatalf("expected paginated child queries, got %d", reader.listChildrenBatchCalls)
+	}
+}
+
+func TestDomainServiceListVisibleLeafFileIDsByFolderRejectsStalledCursor(t *testing.T) {
+	t.Parallel()
+
+	children := make([]*projectfile.Meta, 0, 1000)
+	for idx := range 1000 {
+		children = append(children, &projectfile.Meta{
+			ProjectID:     200,
+			ProjectFileID: int64(idx + 1),
+			ParentID:      10,
+			Sort:          int64(idx + 1),
+		})
+	}
+	reader := &readerStub{
+		metasByID: map[int64]*projectfile.Meta{
+			10: {ProjectID: 200, ProjectFileID: 10, IsDirectory: true},
+		},
+		childrenByParentBatch: map[int64][]*projectfile.Meta{
+			10: children,
+		},
+		repeatFullChildBatches: true,
+	}
+
+	svc := taskfiledomain.NewDomainService(reader)
+	_, err := svc.ListVisibleLeafFileIDsByFolder(context.Background(), 10)
+	if err == nil {
+		t.Fatal("expected stalled cursor error")
+	}
+	if !strings.Contains(err.Error(), "cursor did not advance") || !strings.Contains(err.Error(), "parent_id=10") {
+		t.Fatalf("expected cursor context in error, got %v", err)
+	}
+	if reader.listChildrenBatchCalls != 2 {
+		t.Fatalf("expected exactly 2 batch child queries before failing, got %d", reader.listChildrenBatchCalls)
 	}
 }
 

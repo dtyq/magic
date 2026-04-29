@@ -452,8 +452,84 @@ func TestSimilarityDebugMetadataIncludesBM25QueryAndTokenPolicyDebug(t *testing.
 	if _, ok := results[0].Metadata["sparse_query_debug"]; ok {
 		t.Fatalf("expected sparse_query_debug to be removed, got %#v", results[0].Metadata)
 	}
-	if _, ok := results[0].Metadata["token_policy_debug"]; !ok {
-		t.Fatalf("expected token_policy_debug in metadata, got %#v", results[0].Metadata)
+	assertTokenPolicyDebugMetadata(t, results[0].Metadata)
+}
+
+func assertTokenPolicyDebugMetadata(t *testing.T, metadata map[string]any) {
+	t.Helper()
+
+	tokenPolicyDebug, ok := metadata["token_policy_debug"].(map[string]any)
+	if !ok {
+		t.Fatalf("expected token_policy_debug in metadata, got %#v", metadata)
+	}
+	assertTokenPolicyDebugTokens(t, tokenPolicyDebug)
+	assertTokenPolicyDebugOmitsPathFields(t, tokenPolicyDebug)
+	assertTokenPolicyDebugStatusFields(t, tokenPolicyDebug)
+	assertTokenPolicyDebugHasNoStringPaths(t, tokenPolicyDebug)
+}
+
+func assertTokenPolicyDebugTokens(t *testing.T, tokenPolicyDebug map[string]any) {
+	t.Helper()
+
+	for _, key := range []string{"raw_query_tokens", "retrieval_tokens"} {
+		tokens, ok := tokenPolicyDebug[key].([]string)
+		if !ok || len(tokens) == 0 {
+			t.Fatalf("expected %s tokens in token_policy_debug, got %#v", key, tokenPolicyDebug)
+		}
+	}
+	stopwordCount, ok := tokenPolicyDebug["stopword_count"].(int)
+	if !ok || stopwordCount <= 0 {
+		t.Fatalf("expected stopword_count in token_policy_debug, got %#v", tokenPolicyDebug)
+	}
+}
+
+func assertTokenPolicyDebugOmitsPathFields(t *testing.T, tokenPolicyDebug map[string]any) {
+	t.Helper()
+
+	for _, key := range []string{
+		"retrieval_stopwords",
+		"custom_terms",
+		"bundled_dict_dir",
+		"upstream_stop_word",
+		"upstream_stop_tokens",
+		"idf",
+		"tf_idf",
+		"tf_idf_origin",
+	} {
+		if _, exists := tokenPolicyDebug[key]; exists {
+			t.Fatalf("expected local path field %q to be omitted, got %#v", key, tokenPolicyDebug)
+		}
+	}
+}
+
+func assertTokenPolicyDebugStatusFields(t *testing.T, tokenPolicyDebug map[string]any) {
+	t.Helper()
+
+	for _, key := range []string{
+		"has_custom_terms",
+		"has_retrieval_stopwords",
+		"has_upstream_stop_word",
+		"has_upstream_stop_tokens",
+		"has_idf",
+		"has_tf_idf",
+		"has_tf_idf_origin",
+	} {
+		if _, ok := tokenPolicyDebug[key].(bool); !ok {
+			t.Fatalf("expected %s bool in token_policy_debug, got %#v", key, tokenPolicyDebug)
+		}
+	}
+	if source, ok := tokenPolicyDebug["dict_source"].(string); !ok || source != "bundled" {
+		t.Fatalf("expected bundled dict_source in token_policy_debug, got %#v", tokenPolicyDebug)
+	}
+}
+
+func assertTokenPolicyDebugHasNoStringPaths(t *testing.T, tokenPolicyDebug map[string]any) {
+	t.Helper()
+
+	for key, value := range tokenPolicyDebug {
+		if text, ok := value.(string); ok && strings.ContainsAny(text, `/\`) {
+			t.Fatalf("expected token_policy_debug string field %q to avoid local paths, got %q", key, text)
+		}
 	}
 }
 

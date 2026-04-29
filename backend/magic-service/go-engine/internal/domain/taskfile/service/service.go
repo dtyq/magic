@@ -13,6 +13,8 @@ import (
 // ErrTaskFileReaderRequired 表示缺少 task file reader 依赖。
 var ErrTaskFileReaderRequired = errors.New("task file reader is required")
 
+var errVisibleChildCursorNotAdvanced = errors.New("visible child cursor did not advance")
+
 const (
 	defaultTreeNodeLimit = 1000
 	defaultWalkBatchSize = 1000
@@ -324,16 +326,42 @@ func (s *DomainService) walkVisibleChildrenByParent(
 			}
 		}
 
-		lastChild := children[len(children)-1]
-		if lastChild == nil {
+		nextSort, nextFileID, ok := lastVisibleChildCursor(children)
+		if !ok {
 			return nextQueue, nil
 		}
-		lastSort = lastChild.Sort
-		lastFileID = lastChild.ProjectFileID
+		if !isVisibleChildCursorAfter(nextSort, nextFileID, lastSort, lastFileID) {
+			return nil, fmt.Errorf(
+				"%w: parent_id=%d old_sort=%d old_file_id=%d new_sort=%d new_file_id=%d",
+				errVisibleChildCursorNotAdvanced,
+				parentID,
+				lastSort,
+				lastFileID,
+				nextSort,
+				nextFileID,
+			)
+		}
+		lastSort = nextSort
+		lastFileID = nextFileID
 		if len(children) < defaultWalkBatchSize {
 			return nextQueue, nil
 		}
 	}
+}
+
+func lastVisibleChildCursor(children []*projectfile.Meta) (sort, fileID int64, ok bool) {
+	for idx := len(children) - 1; idx >= 0; idx-- {
+		child := children[idx]
+		if child == nil || child.ProjectFileID <= 0 {
+			continue
+		}
+		return child.Sort, child.ProjectFileID, true
+	}
+	return 0, 0, false
+}
+
+func isVisibleChildCursorAfter(sort, fileID, lastSort, lastFileID int64) bool {
+	return sort > lastSort || sort == lastSort && fileID > lastFileID
 }
 
 func (s *DomainService) collectVisibleChildBatch(

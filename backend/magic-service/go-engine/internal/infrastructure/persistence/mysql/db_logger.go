@@ -27,6 +27,11 @@ const (
 	slowSQLThreshold    = 5 * time.Millisecond
 	sqlLogPrefix        = "mysql"
 	sqlFoldColumnCount  = 5
+
+	sqlLogExcludedTableAsyncEventRecords         = "async_event_records"
+	sqlLogSensitiveTableMagicChatMessages        = "magic_chat_messages"
+	sqlLogSensitiveTableMagicChatMessageVersions = "magic_chat_message_versions"
+	sqlLogSensitiveTableMagicFlowMemoryHistory   = "magic_flow_memory_histories"
 )
 
 // DBLogger 包装 DBTX 接口以记录 SQL 查询日志
@@ -150,8 +155,11 @@ func (l *DBLogger) QueryRowContext(ctx context.Context, query string, args ...an
 }
 
 func buildSQLFields(op string, duration time.Duration, query string, args []any) []any {
-	sqlRendered := normalizeSQLForLog(renderSQLWithArgs(query, args))
-	return buildSQLFieldsFromRendered(op, duration, sqlRendered)
+	details, skip := buildSQLLogDetails(duration, query, args)
+	if skip {
+		return nil
+	}
+	return buildSQLFieldsFromRendered(op, duration, details.renderedSQL)
 }
 
 func buildSQLFieldsFromRendered(op string, duration time.Duration, sqlRendered string) []any {
@@ -183,12 +191,16 @@ func (l *DBLogger) logSQLResult(ctx context.Context, input sqlResultLogInput) {
 		return
 	}
 
-	if needsDebugLog && !needsSlowLog && !needsErrorLog {
-		l.logger.DebugContext(ctx, buildSQLSummaryMessage(input.duration, input.query, input.args))
+	details, skip := buildSQLLogDetails(input.duration, input.query, input.args)
+	if skip {
 		return
 	}
 
-	details := buildSQLLogDetails(input.duration, input.query, input.args)
+	if needsDebugLog && !needsSlowLog && !needsErrorLog {
+		l.logger.DebugContext(ctx, details.message)
+		return
+	}
+
 	fields := buildSQLFieldsFromRendered(input.op, input.duration, details.renderedSQL)
 	if needsSlowLog {
 		slowFields := append(slices.Clone(fields), logkey.SlowSQLThresholdMS, logkey.DurationToMS(slowSQLThreshold))
@@ -209,20 +221,375 @@ type sqlLogDetails struct {
 	renderedSQL string
 }
 
-func buildSQLLogDetails(duration time.Duration, query string, args []any) sqlLogDetails {
+func buildSQLLogDetails(duration time.Duration, query string, args []any) (sqlLogDetails, bool) {
 	renderedSQL := renderSQLWithArgs(query, args)
-	return sqlLogDetails{
-		message:     buildSQLLogMessage(duration, renderedSQL),
-		renderedSQL: normalizeSQLForLog(renderedSQL),
+	sqlForLog, skip := filterSQLForLog(renderedSQL)
+	if skip {
+		return sqlLogDetails{}, true
 	}
-}
-
-func buildSQLSummaryMessage(duration time.Duration, query string, args []any) string {
-	return buildSQLLogMessage(duration, renderSQLWithArgs(query, args))
+	return sqlLogDetails{
+		message:     buildSQLLogMessage(duration, sqlForLog),
+		renderedSQL: normalizeSQLForLog(sqlForLog),
+	}, false
 }
 
 func buildSQLLogMessage(duration time.Duration, renderedSQL string) string {
 	return fmt.Sprintf("[%s:%.2fms] %s", sqlLogPrefix, logkey.DurationToMS(duration), summarizeSQLForLog(renderedSQL))
+}
+
+func filterSQLForLog(renderedSQL string) (string, bool) {
+	compact := compactSQLForLog(stripLeadingSQLComments(renderedSQL))
+	if compact == "" {
+		return renderedSQL, false
+	}
+
+	if _, ok := findSQLLogTable(compact, []string{
+		sqlLogExcludedTableAsyncEventRecords,
+	}); ok {
+		return "", true
+	}
+
+	tableName, ok := findSQLLogTable(compact, []string{
+		sqlLogSensitiveTableMagicChatMessages,
+		sqlLogSensitiveTableMagicChatMessageVersions,
+		sqlLogSensitiveTableMagicFlowMemoryHistory,
+	})
+	if !ok {
+		return renderedSQL, false
+	}
+
+	return desensitizeSensitiveSQLForLog(compact, tableName), false
+}
+
+func desensitizeSensitiveSQLForLog(query, sensitiveTable string) string {
+	switch {
+	case hasLeadingSQLKeyword(query, "SELECT"):
+		return fmt.Sprintf("SELECT [敏感数据] FROM %s [查询已脱敏]", sensitiveTable)
+	case hasLeadingSQLKeyword(query, "INSERT"):
+		return desensitizeSensitiveInsertSQLForLog(query)
+	case hasLeadingSQLKeyword(query, "UPDATE"):
+		return desensitizeSensitiveUpdateSQLForLog(query)
+	default:
+		return query
+	}
+}
+
+func desensitizeSensitiveInsertSQLForLog(query string) string {
+	valuesIdx := findTopLevelWord(query, "VALUES")
+	if valuesIdx == -1 {
+		return query
+	}
+
+	prefix := strings.TrimSpace(query[:valuesIdx])
+	valuesExpr := strings.TrimSpace(query[valuesIdx+len("VALUES"):])
+	values, ok := firstParenthesizedSQLExpr(valuesExpr)
+	if !ok {
+		return prefix + " VALUES (***)"
+	}
+
+	firstValue, ok := firstSQLCSVValue(values)
+	if !ok {
+		return prefix + " VALUES (***)"
+	}
+
+	return prefix + " VALUES (" + firstValue + ", ***)"
+}
+
+func desensitizeSensitiveUpdateSQLForLog(query string) string {
+	tableName, ok := updateSQLTableName(query)
+	if !ok {
+		return "UPDATE [表名] SET [复杂数据已脱敏]"
+	}
+
+	whereClause := updateSQLWhereClause(query)
+	if hasComplexSQLLogValue(query) {
+		return fmt.Sprintf("UPDATE %s SET [复杂JSON数据已脱敏]%s", tableName, whereClause)
+	}
+
+	setClause, ok := updateSQLSetClause(query)
+	if !ok {
+		return fmt.Sprintf("UPDATE %s SET [数据已脱敏]%s", tableName, whereClause)
+	}
+
+	assignments := splitTopLevelSQLCSV(setClause)
+	redacted := make([]string, 0, len(assignments))
+	for _, assignment := range assignments {
+		fieldName, ok := assignmentFieldName(assignment)
+		if !ok {
+			return fmt.Sprintf("UPDATE %s SET [数据已脱敏]%s", tableName, whereClause)
+		}
+		redacted = append(redacted, fieldName+" = '***'")
+	}
+	if len(redacted) == 0 {
+		return fmt.Sprintf("UPDATE %s SET [数据已脱敏]%s", tableName, whereClause)
+	}
+
+	return fmt.Sprintf("UPDATE %s SET %s%s", tableName, strings.Join(redacted, ", "), whereClause)
+}
+
+func hasLeadingSQLKeyword(query, keyword string) bool {
+	query = strings.TrimSpace(stripLeadingSQLComments(query))
+	if len(query) < len(keyword) || !strings.EqualFold(query[:len(keyword)], keyword) {
+		return false
+	}
+	return len(query) == len(keyword) || !isSQLIdentifierByte(query[len(keyword)])
+}
+
+func findSQLLogTable(query string, tables []string) (string, bool) {
+	targets := make(map[string]string, len(tables))
+	for _, table := range tables {
+		targets[strings.ToLower(table)] = table
+	}
+
+	for _, token := range sqlIdentifierTokens(query) {
+		tableName := lastIdentifierSegment(stripBackticks(strings.Trim(token, ".")))
+		if tableName == "" {
+			continue
+		}
+		if matched, ok := targets[strings.ToLower(tableName)]; ok {
+			return matched, true
+		}
+	}
+	return "", false
+}
+
+func sqlIdentifierTokens(query string) []string {
+	tokens := make([]string, 0)
+	for i := 0; i < len(query); {
+		switch query[i] {
+		case '\'', '"':
+			i = skipSQLQuotedLiteral(query, i, query[i])
+		case '`':
+			token, next := readSQLBacktickIdentifier(query, i)
+			if token != "" {
+				tokens = append(tokens, token)
+			}
+			i = next
+		default:
+			if !isSQLIdentifierByte(query[i]) {
+				i++
+				continue
+			}
+			start := i
+			for i < len(query) && (isSQLIdentifierByte(query[i]) || query[i] == '.') {
+				i++
+			}
+			tokens = append(tokens, query[start:i])
+		}
+	}
+	return tokens
+}
+
+func readSQLBacktickIdentifier(query string, start int) (string, int) {
+	var builder strings.Builder
+	for i := start + 1; i < len(query); i++ {
+		if query[i] != '`' {
+			builder.WriteByte(query[i])
+			continue
+		}
+		if i+1 < len(query) && query[i+1] == '`' {
+			builder.WriteByte('`')
+			i++
+			continue
+		}
+		return builder.String(), i + 1
+	}
+	return builder.String(), len(query)
+}
+
+func skipSQLQuotedLiteral(query string, start int, quote byte) int {
+	for i := start + 1; i < len(query); i++ {
+		if query[i] != quote {
+			continue
+		}
+		if isRepeatedQuote(query, i, quote) {
+			i++
+			continue
+		}
+		if i > start && query[i-1] == '\\' {
+			continue
+		}
+		return i + 1
+	}
+	return len(query)
+}
+
+func updateSQLTableName(query string) (string, bool) {
+	updateIdx := findTopLevelWord(query, "UPDATE")
+	setIdx := findTopLevelWord(query, "SET")
+	if updateIdx == -1 || setIdx == -1 || updateIdx+len("UPDATE") >= setIdx {
+		return "", false
+	}
+
+	tableExpr := strings.TrimSpace(query[updateIdx+len("UPDATE") : setIdx])
+	tableName, ok := firstSQLToken(tableExpr)
+	return tableName, ok
+}
+
+func updateSQLSetClause(query string) (string, bool) {
+	setIdx := findTopLevelWord(query, "SET")
+	if setIdx == -1 {
+		return "", false
+	}
+	start := setIdx + len("SET")
+	whereIdx := findTopLevelWord(query[start:], "WHERE")
+	if whereIdx == -1 {
+		return strings.TrimSpace(query[start:]), true
+	}
+	return strings.TrimSpace(query[start : start+whereIdx]), true
+}
+
+func updateSQLWhereClause(query string) string {
+	whereIdx := findTopLevelWord(query, "WHERE")
+	if whereIdx == -1 {
+		return ""
+	}
+	return " WHERE " + strings.TrimSpace(query[whereIdx+len("WHERE"):])
+}
+
+func firstSQLToken(value string) (string, bool) {
+	value = strings.TrimSpace(value)
+	if value == "" {
+		return "", false
+	}
+
+	var quoted byte
+	for i := 0; i < len(value); i++ {
+		if quoted != 0 {
+			quoted, i = advanceQuotedState(value, i, quoted)
+			continue
+		}
+		switch value[i] {
+		case '\'', '"', '`':
+			quoted = value[i]
+		default:
+			if unicode.IsSpace(rune(value[i])) {
+				return strings.TrimSpace(value[:i]), true
+			}
+		}
+	}
+	return value, true
+}
+
+func firstParenthesizedSQLExpr(value string) (string, bool) {
+	value = strings.TrimSpace(value)
+	if value == "" || value[0] != '(' {
+		return "", false
+	}
+
+	end := findMatchingSQLParen(value, 0)
+	if end == -1 {
+		return "", false
+	}
+	return strings.TrimSpace(value[1:end]), true
+}
+
+func findMatchingSQLParen(value string, openIdx int) int {
+	var quoted byte
+	depth := 0
+	for i := openIdx; i < len(value); i++ {
+		if quoted != 0 {
+			quoted, i = advanceQuotedState(value, i, quoted)
+			continue
+		}
+		switch value[i] {
+		case '\'', '"', '`':
+			quoted = value[i]
+		case '(':
+			depth++
+		case ')':
+			depth--
+			if depth == 0 {
+				return i
+			}
+		}
+	}
+	return -1
+}
+
+func firstSQLCSVValue(value string) (string, bool) {
+	parts := splitTopLevelSQLCSV(value)
+	if len(parts) == 0 || parts[0] == "" {
+		return "", false
+	}
+	return parts[0], true
+}
+
+func splitTopLevelSQLCSV(value string) []string {
+	parts := make([]string, 0)
+	start := 0
+	var quoted byte
+	depth := 0
+	for i := 0; i < len(value); i++ {
+		if quoted != 0 {
+			quoted, i = advanceQuotedState(value, i, quoted)
+			continue
+		}
+
+		switch value[i] {
+		case '\'', '"', '`':
+			quoted = value[i]
+		case '(':
+			depth++
+		case ')':
+			if depth > 0 {
+				depth--
+			}
+		case ',':
+			if depth == 0 {
+				parts = append(parts, strings.TrimSpace(value[start:i]))
+				start = i + 1
+			}
+		}
+	}
+
+	tail := strings.TrimSpace(value[start:])
+	if tail != "" {
+		parts = append(parts, tail)
+	}
+	return parts
+}
+
+func assignmentFieldName(assignment string) (string, bool) {
+	equalIdx := findTopLevelAssignmentEqual(assignment)
+	if equalIdx <= 0 {
+		return "", false
+	}
+	fieldName := strings.TrimSpace(assignment[:equalIdx])
+	return fieldName, fieldName != ""
+}
+
+func findTopLevelAssignmentEqual(value string) int {
+	var quoted byte
+	depth := 0
+	for i := 0; i < len(value); i++ {
+		if quoted != 0 {
+			quoted, i = advanceQuotedState(value, i, quoted)
+			continue
+		}
+		switch value[i] {
+		case '\'', '"', '`':
+			quoted = value[i]
+		case '(':
+			depth++
+		case ')':
+			if depth > 0 {
+				depth--
+			}
+		case '=':
+			if depth == 0 {
+				return i
+			}
+		}
+	}
+	return -1
+}
+
+func hasComplexSQLLogValue(query string) bool {
+	if strings.Contains(strings.ToLower(query), "json") {
+		return true
+	}
+	return strings.ContainsAny(query, "{}[]\":")
 }
 
 func normalizeSQLForLog(query string) string {
@@ -468,6 +835,53 @@ func findTopLevelKeyword(query, keyword string) int {
 		}
 	}
 	return -1
+}
+
+func findTopLevelWord(query, word string) int {
+	if word == "" || len(query) < len(word) {
+		return -1
+	}
+
+	var quoted byte
+	depth := 0
+	for i := 0; i < len(query); i++ {
+		ch := query[i]
+		if quoted != 0 {
+			quoted, i = advanceQuotedState(query, i, quoted)
+			continue
+		}
+
+		switch ch {
+		case '\'', '"', '`':
+			quoted = ch
+		case '(':
+			depth++
+		case ')':
+			if depth > 0 {
+				depth--
+			}
+		default:
+			if depth == 0 && matchesSQLWordAt(query, word, i) {
+				return i
+			}
+		}
+	}
+	return -1
+}
+
+func matchesSQLWordAt(query, word string, idx int) bool {
+	if idx+len(word) > len(query) || !strings.EqualFold(query[idx:idx+len(word)], word) {
+		return false
+	}
+	if idx > 0 && isSQLIdentifierByte(query[idx-1]) {
+		return false
+	}
+	next := idx + len(word)
+	return next == len(query) || !isSQLIdentifierByte(query[next])
+}
+
+func isSQLIdentifierByte(ch byte) bool {
+	return ch == '_' || unicode.IsLetter(rune(ch)) || unicode.IsDigit(rune(ch))
 }
 
 func advanceQuotedState(query string, idx int, quoted byte) (byte, int) {

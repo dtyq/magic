@@ -2,8 +2,10 @@ package document
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
+	"log/slog"
 	"strings"
 
 	"magic/internal/domain/knowledge/shared"
@@ -43,8 +45,93 @@ type OCRAbilityConfig struct {
 type OCRProviderConfig struct {
 	Provider  string `json:"provider"`
 	Enable    bool   `json:"enable"`
-	AccessKey string `json:"access_key"`
-	SecretKey string `json:"secret_key"`
+	AccessKey string `json:"-"`
+	SecretKey string `json:"-"`
+}
+
+func (c OCRAbilityConfig) String() string {
+	return fmt.Sprintf(
+		"OCRAbilityConfig{Enabled:%t ProviderCode:%q ProviderCount:%d}",
+		c.Enabled,
+		c.ProviderCode,
+		len(c.Providers),
+	)
+}
+
+// GoString 返回不包含 OCR 凭据的调试字符串。
+func (c OCRAbilityConfig) GoString() string {
+	return c.String()
+}
+
+// LogValue 返回不包含 OCR 凭据的结构化日志值。
+func (c OCRAbilityConfig) LogValue() slog.Value {
+	return slog.GroupValue(
+		slog.Bool("enabled", c.Enabled),
+		slog.String("provider_code", c.ProviderCode),
+		slog.Int("provider_count", len(c.Providers)),
+	)
+}
+
+func (c OCRProviderConfig) String() string {
+	return fmt.Sprintf(
+		"OCRProviderConfig{Provider:%q Enable:%t CredentialsConfigured:%t}",
+		c.Provider,
+		c.Enable,
+		ocrCredentialsConfigured(c.AccessKey, c.SecretKey),
+	)
+}
+
+// GoString 返回不包含 OCR 凭据的调试字符串。
+func (c OCRProviderConfig) GoString() string {
+	return c.String()
+}
+
+// LogValue 返回不包含 OCR 凭据的结构化日志值。
+func (c OCRProviderConfig) LogValue() slog.Value {
+	return slog.GroupValue(
+		slog.String("provider", c.Provider),
+		slog.Bool("enable", c.Enable),
+		slog.Bool("credentials_configured", ocrCredentialsConfigured(c.AccessKey, c.SecretKey)),
+	)
+}
+
+// MarshalJSON 序列化时排除 OCR 凭据。
+func (c OCRProviderConfig) MarshalJSON() ([]byte, error) {
+	type safeOCRProviderConfig struct {
+		Provider string `json:"provider"`
+		Enable   bool   `json:"enable"`
+	}
+	payload, err := json.Marshal(safeOCRProviderConfig{
+		Provider: c.Provider,
+		Enable:   c.Enable,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("marshal ocr provider config: %w", err)
+	}
+	return payload, nil
+}
+
+// UnmarshalJSON 保留从内部 RPC 载入 OCR 凭据的能力。
+func (c *OCRProviderConfig) UnmarshalJSON(data []byte) error {
+	type wireOCRProviderConfig struct {
+		Provider  string `json:"provider"`
+		Enable    bool   `json:"enable"`
+		AccessKey string `json:"access_key"`
+		SecretKey string `json:"secret_key"`
+	}
+	var decoded wireOCRProviderConfig
+	if err := json.Unmarshal(data, &decoded); err != nil {
+		return fmt.Errorf("unmarshal ocr provider config: %w", err)
+	}
+	c.Provider = decoded.Provider
+	c.Enable = decoded.Enable
+	c.AccessKey = decoded.AccessKey
+	c.SecretKey = decoded.SecretKey
+	return nil
+}
+
+func ocrCredentialsConfigured(accessKey, secretKey string) bool {
+	return strings.TrimSpace(accessKey) != "" && strings.TrimSpace(secretKey) != ""
 }
 
 // OCROverloadedError 表示 OCR provider 当前限流或配额过载，适合稍后重试。

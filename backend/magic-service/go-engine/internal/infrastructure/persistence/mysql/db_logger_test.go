@@ -36,6 +36,83 @@ func TestRenderSQLWithArgs_IgnoresQuestionMarkInsideQuotes(t *testing.T) {
 	}
 }
 
+func TestFilterSQLForLog_DesensitizesSensitiveSelect(t *testing.T) {
+	t.Parallel()
+
+	got, skip := mysql.FilterSQLForLogForTest("SELECT id, content FROM `magic`.`magic_chat_messages` WHERE user_id = 'u-1' AND token = 'secret'")
+	if skip {
+		t.Fatal("expected sensitive select to be logged after desensitizing")
+	}
+
+	want := "SELECT [敏感数据] FROM magic_chat_messages [查询已脱敏]"
+	if got != want {
+		t.Fatalf("unexpected desensitized select:\nwant: %s\ngot:  %s", want, got)
+	}
+	if strings.Contains(got, "secret") || strings.Contains(got, "u-1") {
+		t.Fatalf("expected sensitive values to be removed, got %q", got)
+	}
+}
+
+func TestFilterSQLForLog_DesensitizesSensitiveInsert(t *testing.T) {
+	t.Parallel()
+
+	got, skip := mysql.FilterSQLForLogForTest("INSERT INTO `magic_chat_messages` (`id`, `message`, `sender`) VALUES (42, 'hello', 'u-1')")
+	if skip {
+		t.Fatal("expected sensitive insert to be logged after desensitizing")
+	}
+
+	want := "INSERT INTO `magic_chat_messages` (`id`, `message`, `sender`) VALUES (42, ***)"
+	if got != want {
+		t.Fatalf("unexpected desensitized insert:\nwant: %s\ngot:  %s", want, got)
+	}
+	if strings.Contains(got, "hello") || strings.Contains(got, "u-1") {
+		t.Fatalf("expected inserted values to be removed, got %q", got)
+	}
+}
+
+func TestFilterSQLForLog_DesensitizesSensitiveUpdate(t *testing.T) {
+	t.Parallel()
+
+	got, skip := mysql.FilterSQLForLogForTest("UPDATE magic_chat_message_versions SET content = 'hello', user_id = 'u-1' WHERE id = 9")
+	if skip {
+		t.Fatal("expected sensitive update to be logged after desensitizing")
+	}
+
+	want := "UPDATE magic_chat_message_versions SET content = '***', user_id = '***' WHERE id = 9"
+	if got != want {
+		t.Fatalf("unexpected desensitized update:\nwant: %s\ngot:  %s", want, got)
+	}
+	if strings.Contains(got, "hello") || strings.Contains(got, "u-1") {
+		t.Fatalf("expected updated values to be removed, got %q", got)
+	}
+}
+
+func TestFilterSQLForLog_DesensitizesSensitiveJSONUpdate(t *testing.T) {
+	t.Parallel()
+
+	got, skip := mysql.FilterSQLForLogForTest(`UPDATE magic_flow_memory_histories SET payload = '{"token":"secret"}' WHERE id = 9`)
+	if skip {
+		t.Fatal("expected sensitive json update to be logged after desensitizing")
+	}
+
+	want := "UPDATE magic_flow_memory_histories SET [复杂JSON数据已脱敏] WHERE id = 9"
+	if got != want {
+		t.Fatalf("unexpected desensitized json update:\nwant: %s\ngot:  %s", want, got)
+	}
+	if strings.Contains(got, "secret") || strings.Contains(got, "token") {
+		t.Fatalf("expected json payload to be removed, got %q", got)
+	}
+}
+
+func TestFilterSQLForLog_SkipsExcludedTable(t *testing.T) {
+	t.Parallel()
+
+	got, skip := mysql.FilterSQLForLogForTest("INSERT INTO `async_event_records` (`id`, `payload`) VALUES (1, 'secret')")
+	if !skip {
+		t.Fatalf("expected excluded table to be skipped, got sql %q", got)
+	}
+}
+
 func TestBuildSQLFields_TruncatesSlowRenderedSQL(t *testing.T) {
 	t.Parallel()
 

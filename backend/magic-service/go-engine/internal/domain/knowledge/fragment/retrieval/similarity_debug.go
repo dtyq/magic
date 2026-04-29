@@ -42,24 +42,17 @@ func resolveBM25QueryBackend(backend string) string {
 
 func (s *Service) buildTokenPolicyDebug(query string) map[string]any {
 	analyzer := s.newRetrievalAnalyzer()
-	debug := map[string]any{
-		"raw_query_tokens":     analyzer.tokenTerms(query),
-		"retrieval_tokens":     analyzer.retrievalTerms(query),
-		"retrieval_stopwords":  analyzer.policy.retrievalStopwords,
-		"custom_terms":         analyzer.policy.customTermsPath,
-		"bundled_dict_dir":     analyzer.policy.dictDir,
-		"stopword_count":       len(analyzer.policy.stopwords),
-		"upstream_stop_word":   analyzer.policy.upstreamStopWordPath,
-		"upstream_stop_tokens": analyzer.policy.upstreamStopTokensPath,
+	return map[string]any{
+		"raw_query_tokens":         analyzer.tokenTerms(query),
+		"retrieval_tokens":         analyzer.retrievalTerms(query),
+		"stopword_count":           len(analyzer.policy.stopwords),
+		"dict_source":              "bundled",
+		"has_custom_terms":         analyzer.policy.customTermsPath != "",
+		"has_retrieval_stopwords":  analyzer.policy.retrievalStopwords != "" || len(analyzer.policy.stopwords) > 0,
+		"has_upstream_stop_word":   analyzer.policy.upstreamStopWordPath != "",
+		"has_upstream_stop_tokens": analyzer.policy.upstreamStopTokensPath != "",
+		"has_idf":                  analyzer.policy.idfPath != "",
+		"has_tf_idf":               analyzer.policy.tfIDFPath != "",
+		"has_tf_idf_origin":        analyzer.policy.tfIDFOriginPath != "",
 	}
-	if analyzer.policy.idfPath != "" {
-		debug["idf"] = analyzer.policy.idfPath
-	}
-	if analyzer.policy.tfIDFPath != "" {
-		debug["tf_idf"] = analyzer.policy.tfIDFPath
-	}
-	if analyzer.policy.tfIDFOriginPath != "" {
-		debug["tf_idf_origin"] = analyzer.policy.tfIDFOriginPath
-	}
-	return debug
 }

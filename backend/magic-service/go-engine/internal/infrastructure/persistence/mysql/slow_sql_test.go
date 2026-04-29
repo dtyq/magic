@@ -214,6 +214,102 @@ func TestSQLCClientLogsQueryErrorWithFullSQL(t *testing.T) {
 	}
 }
 
+func TestSQLCClientLogsSensitiveQueryErrorWithDesensitizedSQL(t *testing.T) {
+	t.Parallel()
+
+	db, mock, err := sqlmock.New()
+	if err != nil {
+		t.Fatalf("sqlmock.New() error = %v", err)
+	}
+	t.Cleanup(func() {
+		_ = db.Close()
+	})
+
+	var logBuffer bytes.Buffer
+	logger := logging.NewFromConfigWithWriter(autoloadcfg.LoggingConfig{
+		Level:  autoloadcfg.LogLevel(slog.LevelInfo.String()),
+		Format: autoloadcfg.LogFormatJSON,
+	}, &logBuffer)
+	client := mysql.NewSQLCClientWithDB(db, logger, false)
+
+	query := "SELECT id, content FROM `magic_chat_messages` WHERE user_id = ?"
+	mock.ExpectQuery(regexp.QuoteMeta(query)).
+		WithArgs("user-secret").
+		WillReturnError(errMySQLQueryFailed)
+
+	rows, err := client.QueryContext(context.Background(), query, "user-secret")
+	if rows != nil {
+		t.Cleanup(func() {
+			_ = rows.Close()
+		})
+		if rowsErr := rows.Err(); rowsErr != nil && !errors.Is(rowsErr, errMySQLQueryFailed) {
+			t.Fatalf("unexpected rows.Err(): %v", rowsErr)
+		}
+	}
+	if !errors.Is(err, errMySQLQueryFailed) {
+		t.Fatalf("expected wrapped query error, got %v", err)
+	}
+
+	entries := decodeJSONLogEntries(t, &logBuffer)
+	if len(entries) != 1 {
+		t.Fatalf("expected 1 error sql log entry, got %d: %s", len(entries), logBuffer.String())
+	}
+
+	entry := entries[0]
+	wantSQL := "SELECT [敏感数据] FROM magic_chat_messages [查询已脱敏]"
+	msg, _ := entry["msg"].(string)
+	if !strings.Contains(msg, wantSQL) {
+		t.Fatalf("expected desensitized sql in message, got %q", msg)
+	}
+	sqlValue, _ := entry["sql"].(string)
+	if sqlValue != wantSQL {
+		t.Fatalf("expected desensitized sql field, got %q", sqlValue)
+	}
+	if strings.Contains(msg, "user-secret") || strings.Contains(sqlValue, "user-secret") {
+		t.Fatalf("expected sensitive query arg to be removed, got msg=%q sql=%q", msg, sqlValue)
+	}
+
+	if err := mock.ExpectationsWereMet(); err != nil {
+		t.Fatalf("unmet expectations: %v", err)
+	}
+}
+
+func TestSQLCClientSkipsExcludedTableSQLLog(t *testing.T) {
+	t.Parallel()
+
+	db, mock, err := sqlmock.New()
+	if err != nil {
+		t.Fatalf("sqlmock.New() error = %v", err)
+	}
+	t.Cleanup(func() {
+		_ = db.Close()
+	})
+
+	var logBuffer bytes.Buffer
+	logger := logging.NewFromConfigWithWriter(autoloadcfg.LoggingConfig{
+		Level:  autoloadcfg.LogLevel(slog.LevelInfo.String()),
+		Format: autoloadcfg.LogFormatJSON,
+	}, &logBuffer)
+	client := mysql.NewSQLCClientWithDB(db, logger, false)
+
+	query := "INSERT INTO `async_event_records` (`payload`) VALUES (?)"
+	mock.ExpectExec(regexp.QuoteMeta(query)).
+		WithArgs("secret").
+		WillReturnError(errMySQLQueryFailed)
+
+	_, err = client.ExecContext(context.Background(), query, "secret")
+	if !errors.Is(err, errMySQLQueryFailed) {
+		t.Fatalf("expected wrapped exec error, got %v", err)
+	}
+	if got := strings.TrimSpace(logBuffer.String()); got != "" {
+		t.Fatalf("expected no sql log for excluded table, got %s", got)
+	}
+
+	if err := mock.ExpectationsWereMet(); err != nil {
+		t.Fatalf("unmet expectations: %v", err)
+	}
+}
+
 func buildFoldedSelectSummaryForSlowSQLTest(tableSource, tail string) string {
 	return strings.Join([]string{"SELECT", "*", "FROM", tableSource}, " ") + tail
 }

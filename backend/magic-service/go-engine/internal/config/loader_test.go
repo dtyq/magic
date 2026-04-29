@@ -1,8 +1,10 @@
 package config_test
 
 import (
+	"encoding/json"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	config "magic/internal/config"
@@ -70,6 +72,33 @@ func TestNew_ConfigEnvSubstitution_DefaultFallback(t *testing.T) {
 	}
 	if cfg.Qdrant.Host != "localhost" {
 		t.Fatalf("expected qdrant.host to fallback to 'localhost', got %q", cfg.Qdrant.Host)
+	}
+}
+
+func TestNew_OCRConfigDoesNotExposeCredentials(t *testing.T) {
+	dir := t.TempDir()
+	cfgPath := filepath.Join(dir, "config.yaml")
+	content := []byte("ocr:\n  accessKey: ocr-access-secret\n  secretKey: ocr-secret-secret\n  endpoint: visual.example.com\n  region: cn-north-1\n  maxPerFile: 3\n")
+	if err := os.WriteFile(cfgPath, content, 0o600); err != nil {
+		t.Fatalf("write temp config: %v", err)
+	}
+
+	t.Setenv("CONFIG_FILE", cfgPath)
+
+	cfg := config.New()
+	ocrPayload, err := json.Marshal(cfg.OCR)
+	if err != nil {
+		t.Fatalf("marshal ocr config: %v", err)
+	}
+	rootPayload, err := json.Marshal(cfg)
+	if err != nil {
+		t.Fatalf("marshal root config: %v", err)
+	}
+
+	assertOCRConfigPayloadHasNoCredential(t, string(ocrPayload))
+	assertOCRConfigPayloadHasNoCredential(t, string(rootPayload))
+	if cfg.OCR.Endpoint != "visual.example.com" || cfg.OCR.Region != "cn-north-1" || cfg.OCR.MaxOCRPerFile != 3 {
+		t.Fatalf("expected non-sensitive ocr config to stay loaded, got %#v", cfg.OCR)
 	}
 }
 
@@ -245,6 +274,21 @@ func TestNew_QdrantBaseURIParse(t *testing.T) {
 	cfg := config.New()
 	if cfg.Qdrant.BaseURI != "http://10.0.0.2:6333" {
 		t.Fatalf("expected qdrant.baseUri parsed, got %q", cfg.Qdrant.BaseURI)
+	}
+}
+
+func assertOCRConfigPayloadHasNoCredential(t *testing.T, payload string) {
+	t.Helper()
+
+	for _, forbidden := range []string{
+		"ocr-access-secret",
+		"ocr-secret-secret",
+		"accessKey",
+		"secretKey",
+	} {
+		if strings.Contains(payload, forbidden) {
+			t.Fatalf("expected ocr config payload not to contain %q, got %s", forbidden, payload)
+		}
 	}
 }
 

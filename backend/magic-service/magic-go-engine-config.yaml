@@ -140,9 +140,7 @@ storage:
   type: ${FILE_DRIVER:=}
 
 ocr:
-  # 知识库 OCR 真值优先来自 PHP RPC，这里只保留与 PHP 配置一致的环境变量兜底
-  accessKey: ${VOLCENGINE_OCR_PDF_AK:=}
-  secretKey: ${VOLCENGINE_OCR_PDF_SK:=}
+  # 知识库 OCR 凭据真值来自 PHP RPC，Go 本地只保留运行参数
   endpoint: ${VOLC_ENDPOINT:=}
   region: ${VOLC_REGION:=}
   rateLimitEnabled: ${OCR_RATE_LIMIT_ENABLED:=true}

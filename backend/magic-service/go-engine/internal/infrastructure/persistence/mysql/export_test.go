@@ -17,3 +17,7 @@ func SummarizeSQLForLogForTest(query string) string {
 func BuildSQLLogMessageForTest(duration time.Duration, query string, args []any) string {
 	return buildSQLLogMessage(duration, renderSQLWithArgs(query, args))
 }
+
+func FilterSQLForLogForTest(renderedSQL string) (string, bool) {
+	return filterSQLForLog(renderedSQL)
+}
