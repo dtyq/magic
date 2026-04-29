@@ -43,6 +43,26 @@ def _normalize_text(value: Any) -> Optional[str]:
 
 
 
+async def _resolve_agent_name(agent_context: Any) -> str:
+    """获取真实 agent name。
+
+    agent 尚未创建时 agent_context.agent_name 为默认值 "magic"，
+    此时从 last_dispatch_message.json 的 dynamic_config.agent_code 补全。
+    """
+    agent_name = getattr(agent_context, "agent_name", "magic")
+    if agent_name != "magic":
+        return agent_name
+    try:
+        last_dispatch_file = PathManager.get_chat_history_dir() / "last_dispatch_message.json"
+        last = await async_read_json(last_dispatch_file)
+        agent_code = (last.get("dynamic_config") or {}).get("agent_code") if isinstance(last, dict) else None
+        if agent_code and isinstance(agent_code, str) and agent_code.strip():
+            return agent_code.strip()
+    except Exception:
+        pass
+    return agent_name
+
+
 async def _load_runtime_config_from_session(agent_context: Any) -> dict[str, Any]:
     """从持久化 session.json 读取上次会话的运行配置。
 
@@ -50,7 +70,7 @@ async def _load_runtime_config_from_session(agent_context: Any) -> dict[str, Any
     优先使用 current 块，null 字段回落到 last 块。
     """
     try:
-        agent_name = getattr(agent_context, "agent_name", "magic")
+        agent_name = await _resolve_agent_name(agent_context)
         agent_id = agent_context.get_agent_id() if hasattr(agent_context, "get_agent_id") else None
         session_file = PathManager.get_chat_session_file(agent_name, agent_id or "main")
         doc = await async_read_json(session_file)
