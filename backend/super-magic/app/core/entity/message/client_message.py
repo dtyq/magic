@@ -160,6 +160,10 @@ class ChatClientMessage(ClientMessage):
         default=None,
         description="Agent config from server. Carries type and profile (name/description/role). Null for default agent."
     )
+    update_session: bool = Field(
+        default=False,
+        description="是否在处理完本条消息后更新 session 配置（model_id/image_model 等）。仅前端 chat 消息设为 True，第三方 IM 渠道消息保持默认 False，避免覆盖已有配置。",
+    )
 
     @validator("mcp_config", pre=True)
     def validate_mcp_config(cls, v):

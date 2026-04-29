@@ -672,6 +672,10 @@ class AgentDispatcher(Base):
             agent: Agent实例
         """
         try:
+            # 非前端 chat 消息（第三方 IM 渠道等）不更新 session 配置，避免覆盖已有的模型/版本等设置
+            if not message.update_session:
+                return
+
             current_model_id = message.model_id or agent.llm_id
             current_image_model_id = None
             current_image_model_sizes = None
@@ -717,14 +721,6 @@ class AgentDispatcher(Base):
                 agent_code_val = message.dynamic_config.get("agent_code")
                 if agent_code_val and isinstance(agent_code_val, str) and agent_code_val.strip():
                     current_agent_code = agent_code_val.strip()
-
-            # 当前消息未携带时，从上一次 session 回落
-            if not current_agent_mode or not current_agent_code:
-                prev_session = agent.chat_history.get_current_session_config()
-                if not current_agent_mode:
-                    current_agent_mode = prev_session.agent_mode
-                if not current_agent_code:
-                    current_agent_code = prev_session.agent_code
 
             agent.chat_history.save_session_config(
                 current_model_id,

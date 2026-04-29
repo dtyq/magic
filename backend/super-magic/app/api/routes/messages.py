@@ -527,6 +527,7 @@ class MessageProcessor:
             # 直接修改prompt为"继续"
             last_message.prompt = "继续"
             last_message.context_type = ContextType.NORMAL  # 确保是NORMAL类型
+            last_message.update_session = True
 
             logger.info("处理继续指令，恢复上一条消息并设置prompt为'继续'")
 
@@ -669,7 +670,7 @@ async def process_message(
 
         if message_type == MessageType.CHAT.value:
             try:
-                chat_message = ChatClientMessage(**message_data)
+                chat_message = ChatClientMessage(**{**message_data, "update_session": True})
                 # 保存聊天消息
                 message_processor._save_chat_message(chat_message)
 
