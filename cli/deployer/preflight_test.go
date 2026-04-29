@@ -15,11 +15,8 @@ func deployerForDiskCheckTest(t *testing.T, dataDir string) (*spyLogger, *Prefli
 	t.Helper()
 	spy, lg := spyLoggerGroup()
 	d := &Deployer{
-		log: lg,
-		opts: Options{
-			DataDir: dataDir,
-			Log:     lg,
-		},
+		log:  lg,
+		opts: &options{dataDir: dataDir, log: lg},
 	}
 	s := &PreflightStage{
 		BaseStage: BaseStage{"preflight"},

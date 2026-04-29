@@ -7,10 +7,13 @@ declare(strict_types=1);
 
 namespace App\Application\KnowledgeBase\Event\Subscribe;
 
-use App\Application\KnowledgeBase\Service\KnowledgeBaseVectorAppService;
+use App\Application\KnowledgeBase\DTO\BusinessParamsDTO;
+use App\Application\KnowledgeBase\DTO\DataIsolationDTO;
+use App\Application\KnowledgeBase\DTO\DocumentRequestDTO;
 use App\Domain\KnowledgeBase\Entity\ValueObject\KnowledgeSyncStatus;
 use App\Domain\KnowledgeBase\Entity\ValueObject\KnowledgeType;
 use App\Domain\KnowledgeBase\Event\KnowledgeBaseDocumentSavedEvent;
+use App\Domain\KnowledgeBase\Port\DocumentGateway;
 use App\Domain\KnowledgeBase\Service\KnowledgeBaseDocumentDomainService;
 use App\Infrastructure\Core\Traits\HasLogger;
 use App\Infrastructure\Util\Locker\LockerInterface;
@@ -27,8 +30,9 @@ readonly class KnowledgeBaseDocumentReSyncSubscriber implements ListenerInterfac
 {
     use HasLogger;
 
-    public function __construct()
-    {
+    public function __construct(
+        private DocumentGateway $documentAppClient
+    ) {
     }
 
     public function listen(): array
@@ -77,43 +81,21 @@ readonly class KnowledgeBaseDocumentReSyncSubscriber implements ListenerInterfac
         }
         /** @var KnowledgeBaseDocumentDomainService $knowledgeBaseDocumentDomainService */
         $knowledgeBaseDocumentDomainService = di(KnowledgeBaseDocumentDomainService::class);
-        /** @var KnowledgeBaseVectorAppService $knowledgeBaseVectorAppService */
-        $knowledgeBaseVectorAppService = di(KnowledgeBaseVectorAppService::class);
-
-        // 自增版本号(抢锁)
-        $affectedRows = $knowledgeBaseDocumentDomainService->increaseVersion($dataIsolation, $documentEntity);
-        // 如果自增失败，说明已经重新向量化过了，提前结束
-        if ($affectedRows === 0) {
-            $this->logger->info('文档已重新向量化，跳过同步');
-            return;
-        }
-
-        // 检查配置
         try {
-            $knowledgeBaseVectorAppService->checkCollectionExists($knowledge);
-        } catch (Throwable $throwable) {
-            $this->logger->error($throwable->getMessage() . PHP_EOL . $throwable->getTraceAsString());
-            $documentEntity->setSyncStatus(KnowledgeSyncStatus::SyncFailed->value);
-            $documentEntity->setSyncStatusMessage($throwable->getMessage());
-            $knowledgeBaseDocumentDomainService->changeSyncStatus($dataIsolation, $documentEntity);
-            return;
-        }
-
-        // 销毁旧分段
-        try {
-            $knowledgeBaseVectorAppService->destroyOldFragments($dataIsolation, $knowledge, $documentEntity);
-        } catch (Throwable $throwable) {
-            $this->logger->error($throwable->getMessage() . PHP_EOL . $throwable->getTraceAsString());
-            $documentEntity->setSyncStatus(KnowledgeSyncStatus::DeleteFailed->value);
-            $documentEntity->setSyncStatusMessage($throwable->getMessage());
-            $knowledgeBaseDocumentDomainService->changeSyncStatus($dataIsolation, $documentEntity);
-            return;
-        }
-
-        // 同步文档
-        try {
-            $documentEntity->setVersion($documentEntity->getVersion() + 1);
-            $knowledgeBaseVectorAppService->syncDocument($dataIsolation, $knowledge, $documentEntity);
+            $this->documentAppClient->sync(DocumentRequestDTO::forSync(
+                $documentEntity->getCode(),
+                $knowledge->getCode(),
+                'resync',
+                new DataIsolationDTO(
+                    organizationCode: (string) $dataIsolation->getCurrentOrganizationCode(),
+                    userId: (string) $dataIsolation->getCurrentUserId(),
+                ),
+                new BusinessParamsDTO(
+                    organizationCode: (string) $dataIsolation->getCurrentOrganizationCode(),
+                    userId: (string) $dataIsolation->getCurrentUserId(),
+                    businessId: $knowledge->getCode(),
+                )
+            ));
         } catch (Throwable $throwable) {
             $this->logger->error($throwable->getMessage() . PHP_EOL . $throwable->getTraceAsString());
             $documentEntity->setSyncStatus(KnowledgeSyncStatus::SyncFailed->value);

@@ -8,9 +8,15 @@ declare(strict_types=1);
 namespace App\Domain\Contact\DTO;
 
 use App\Domain\Contact\Entity\AbstractEntity;
+use App\Domain\Contact\Entity\ValueObject\UserPreferences;
 
 class UserUpdateDTO extends AbstractEntity
 {
+    /**
+     * @var array<string, bool>
+     */
+    protected array $presentFields = [];
+
     /**
      * 用户头像URL.
      */
@@ -31,6 +37,16 @@ class UserUpdateDTO extends AbstractEntity
      */
     protected ?string $channel = null;
 
+    /**
+     * 用户所在时区(IANA).
+     */
+    protected ?string $timezone = null;
+
+    /**
+     * 用户偏好设置.
+     */
+    protected ?UserPreferences $preferences = null;
+
     public function getAvatarUrl(): ?string
     {
         return $this->avatarUrl;
@@ -38,6 +54,7 @@ class UserUpdateDTO extends AbstractEntity
 
     public function setAvatarUrl(?string $avatarUrl): void
     {
+        $this->markFieldPresent('avatar_url');
         $this->avatarUrl = $avatarUrl;
     }
 
@@ -48,6 +65,7 @@ class UserUpdateDTO extends AbstractEntity
 
     public function setNickname(?string $nickname): void
     {
+        $this->markFieldPresent('nickname');
         $this->nickname = $nickname;
     }
 
@@ -58,6 +76,7 @@ class UserUpdateDTO extends AbstractEntity
 
     public function setProfession(?string $profession): void
     {
+        $this->markFieldPresent('profession');
         $this->profession = $profession;
     }
 
@@ -68,7 +87,35 @@ class UserUpdateDTO extends AbstractEntity
 
     public function setChannel(?string $channel): void
     {
+        $this->markFieldPresent('channel');
         $this->channel = $channel;
+    }
+
+    public function getTimezone(): ?string
+    {
+        return $this->timezone;
+    }
+
+    public function setTimezone(?string $timezone): void
+    {
+        $this->markFieldPresent('timezone');
+        $this->timezone = $timezone;
+    }
+
+    public function getPreferences(): ?UserPreferences
+    {
+        return $this->preferences;
+    }
+
+    public function setPreferences(?UserPreferences $preferences): void
+    {
+        $this->markFieldPresent('preferences');
+        $this->preferences = $preferences;
+    }
+
+    public function isFieldPresent(string $field): bool
+    {
+        return $this->presentFields[$field] ?? false;
     }
 
     /**
@@ -78,22 +125,35 @@ class UserUpdateDTO extends AbstractEntity
     {
         $data = [];
 
-        if ($this->avatarUrl !== null) {
+        if ($this->isFieldPresent('avatar_url')) {
             $data['avatar_url'] = $this->avatarUrl;
         }
 
-        if ($this->nickname !== null) {
+        if ($this->isFieldPresent('nickname')) {
             $data['nickname'] = $this->nickname;
         }
 
-        if ($this->profession !== null) {
+        if ($this->isFieldPresent('profession')) {
             $data['profession'] = $this->profession;
         }
 
-        if ($this->channel !== null) {
+        if ($this->isFieldPresent('channel')) {
             $data['channel'] = $this->channel;
         }
 
+        if ($this->isFieldPresent('timezone')) {
+            $data['timezone'] = $this->timezone;
+        }
+
+        if ($this->isFieldPresent('preferences')) {
+            $data['preferences'] = $this->preferences;
+        }
+
         return $data;
+    }
+
+    private function markFieldPresent(string $field): void
+    {
+        $this->presentFields[$field] = true;
     }
 }

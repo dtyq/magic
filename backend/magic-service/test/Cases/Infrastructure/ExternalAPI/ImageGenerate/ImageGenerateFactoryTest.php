@@ -7,12 +7,13 @@ declare(strict_types=1);
 
 namespace HyperfTest\Cases\Infrastructure\ExternalAPI\ImageGenerate;
 
+use App\ErrorCode\ImageGenerateErrorCode;
+use App\Infrastructure\Core\Exception\BusinessException;
 use App\Infrastructure\ExternalAPI\ImageGenerateAPI\ImageGenerateFactory;
 use App\Infrastructure\ExternalAPI\ImageGenerateAPI\ImageGenerateModelType;
 use App\Infrastructure\ExternalAPI\ImageGenerateAPI\Model\Google\GoogleGeminiRequest;
 use App\Infrastructure\ExternalAPI\ImageGenerateAPI\Model\VolcengineArk\VolcengineArkRequest;
-use App\Infrastructure\ExternalAPI\ImageGenerateAPI\Request\AzureOpenAIImageEditRequest;
-use App\Infrastructure\ExternalAPI\ImageGenerateAPI\Request\AzureOpenAIImageGenerateRequest;
+use App\Infrastructure\ExternalAPI\ImageGenerateAPI\Request\AzureOpenAIImageRequest;
 use App\Infrastructure\ExternalAPI\ImageGenerateAPI\Request\FluxModelRequest;
 use App\Infrastructure\ExternalAPI\ImageGenerateAPI\Request\MidjourneyModelRequest;
 use App\Infrastructure\ExternalAPI\ImageGenerateAPI\Request\QwenImageModelRequest;
@@ -154,34 +155,26 @@ class ImageGenerateFactoryTest extends BaseTest
             $data
         );
 
-        $this->assertInstanceOf(AzureOpenAIImageGenerateRequest::class, $request);
+        $this->assertInstanceOf(AzureOpenAIImageRequest::class, $request);
         $this->assertEquals('1024', $request->getWidth());
         $this->assertEquals('1536', $request->getHeight());
         $this->assertEquals('1024x1536', $request->getSize());
     }
 
-    /**
-     * 测试 Azure OpenAI Image Edit 请求创建
-     * 使用配置文件中 AzureOpenAI-ImageEdit 的配置.
-     */
-    public function testAzureOpenAIImageEditRequest()
+    public function testAzureGptImage2RejectsSizesThatAreNotDivisibleBy16(): void
     {
-        $data = $this->getCommonData();
-        $data['size'] = '1:1'; // 应该匹配到 1024x1024
-        $data['mask_url'] = 'http://example.com/mask.png';
+        $this->expectException(BusinessException::class);
+        $this->expectExceptionCode(ImageGenerateErrorCode::UNSUPPORTED_IMAGE_SIZE->value);
 
-        $request = ImageGenerateFactory::createRequestType(
-            ImageGenerateModelType::AzureOpenAIImageEdit,
-            'AzureOpenAI-ImageEdit',
+        $data = $this->getCommonData();
+        $data['size'] = '819x1024';
+
+        ImageGenerateFactory::createRequestType(
+            ImageGenerateModelType::AzureOpenAIImageGenerate,
+            'gpt-image-2',
             null,
             $data
         );
-
-        $this->assertInstanceOf(AzureOpenAIImageEditRequest::class, $request);
-        $this->assertEquals('1024', $request->getWidth());
-        $this->assertEquals('1024', $request->getHeight());
-        $this->assertEquals('1024x1024', $request->getSize());
-        $this->assertEquals('http://example.com/mask.png', $request->getMaskUrl());
     }
 
     /**
@@ -1152,7 +1145,7 @@ class ImageGenerateFactoryTest extends BaseTest
                 $data
             );
 
-            $this->assertInstanceOf(AzureOpenAIImageGenerateRequest::class, $request, "Failed for size: {$testCase['size']}");
+            $this->assertInstanceOf(AzureOpenAIImageRequest::class, $request, "Failed for size: {$testCase['size']}");
             $this->assertEquals($testCase['width'], $request->getWidth(), "Width mismatch for size: {$testCase['size']}");
             $this->assertEquals($testCase['height'], $request->getHeight(), "Height mismatch for size: {$testCase['size']}");
             $this->assertEquals($testCase['sizeStr'], $request->getSize(), "Size string mismatch for size: {$testCase['size']}");
@@ -1162,36 +1155,6 @@ class ImageGenerateFactoryTest extends BaseTest
     // ==========================================================
     // Azure OpenAI Image Edit - 所有尺寸测试
     // ==========================================================
-
-    /**
-     * 测试 AzureOpenAI-ImageEdit 所有尺寸.
-     */
-    public function testAzureOpenAIImageEditAllSizes()
-    {
-        $sizes = [
-            ['size' => '1:1', 'width' => '1024', 'height' => '1024', 'sizeStr' => '1024x1024'],
-            ['size' => '2:3', 'width' => '1024', 'height' => '1536', 'sizeStr' => '1024x1536'],
-            ['size' => '3:2', 'width' => '1536', 'height' => '1024', 'sizeStr' => '1536x1024'],
-        ];
-
-        foreach ($sizes as $testCase) {
-            $data = $this->getCommonData();
-            $data['size'] = $testCase['size'];
-            $data['mask_url'] = 'http://example.com/mask.png';
-
-            $request = ImageGenerateFactory::createRequestType(
-                ImageGenerateModelType::AzureOpenAIImageEdit,
-                'AzureOpenAI-ImageEdit',
-                null,
-                $data
-            );
-
-            $this->assertInstanceOf(AzureOpenAIImageEditRequest::class, $request, "Failed for size: {$testCase['size']}");
-            $this->assertEquals($testCase['width'], $request->getWidth(), "Width mismatch for size: {$testCase['size']}");
-            $this->assertEquals($testCase['height'], $request->getHeight(), "Height mismatch for size: {$testCase['size']}");
-            $this->assertEquals($testCase['sizeStr'], $request->getSize(), "Size string mismatch for size: {$testCase['size']}");
-        }
-    }
 
     private function getCommonData(): array
     {

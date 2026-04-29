@@ -34,23 +34,22 @@ class SandboxPreWarmApi extends AbstractApi
     }
 
     /**
-     * 预启动沙箱.
+     * 预启动沙箱（三种场景三选一）.
      *
-     * 话题内场景请求示例:
-     * {
-     *   "topic_id": "123"
-     * }
+     * 为话题预热（topic_id）:
+     * { "topic_id": "123" }
      *
-     * 话题外场景请求示例:
-     * {
-     *   "workspace_id": "456"
-     * }
+     * 为工作区预热（workspace_id）:
+     * { "workspace_id": "456" }
+     *
+     * 为项目预热（project_id）:
+     * { "project_id": "789" }
      *
      * 响应示例:
      * {
      *   "topic_id": "123",
      *   "sandbox_id": "sandbox_xxx",
-     *   "status": "creating",
+     *   "status": "ready",
      *   "is_new": true,
      *   "is_hidden": false
      * }
@@ -64,40 +63,49 @@ class SandboxPreWarmApi extends AbstractApi
         // 获取请求参数
         $topicId = $this->request->input('topic_id');
         $workspaceId = $this->request->input('workspace_id');
+        $projectId = $this->request->input('project_id');
         $languageHeader = $this->request->getHeader('language')[0] ?? null;
         $language = null;
         if (! empty($languageHeader)) {
             $language = str_replace('-', '_', $languageHeader);
         }
 
-        // 参数验证：两者必须有且只有一个
-        if (empty($topicId) && empty($workspaceId)) {
-            ExceptionBuilder::throw(GenericErrorCode::ParameterMissing, 'topic_id or workspace_id is required');
+        // 参数验证：三者必须有且只有一个
+        $providedCount = (empty($topicId) ? 0 : 1) + (empty($workspaceId) ? 0 : 1) + (empty($projectId) ? 0 : 1);
+        if ($providedCount === 0) {
+            ExceptionBuilder::throw(GenericErrorCode::ParameterMissing, 'topic_id, workspace_id or project_id is required');
         }
-
-        if (! empty($topicId) && ! empty($workspaceId)) {
-            ExceptionBuilder::throw(GenericErrorCode::ParameterValidationFailed, 'topic_id and workspace_id cannot be both provided');
+        if ($providedCount > 1) {
+            ExceptionBuilder::throw(GenericErrorCode::ParameterValidationFailed, 'Only one of topic_id, workspace_id, project_id can be provided');
         }
 
         $this->logger->info('收到沙箱预启动请求', [
             'topic_id' => $topicId,
             'workspace_id' => $workspaceId,
+            'project_id' => $projectId,
             'language' => $language,
         ]);
 
         // 根据参数判断场景
         if (! empty($topicId)) {
-            // 话题内场景
-            $result = $this->sandboxPreWarmAppService->preWarmInTopic(
+            // 为话题预热
+            $result = $this->sandboxPreWarmAppService->preWarmForTopic(
                 $requestContext,
                 (int) $topicId,
                 $language
             );
-        } else {
-            // 话题外场景
-            $result = $this->sandboxPreWarmAppService->preWarmOutsideTopic(
+        } elseif (! empty($workspaceId)) {
+            // 为工作区预热
+            $result = $this->sandboxPreWarmAppService->preWarmForWorkspace(
                 $requestContext,
                 (int) $workspaceId,
+                $language
+            );
+        } else {
+            // 为项目预热
+            $result = $this->sandboxPreWarmAppService->preWarmForProject(
+                $requestContext,
+                (int) $projectId,
                 $language
             );
         }

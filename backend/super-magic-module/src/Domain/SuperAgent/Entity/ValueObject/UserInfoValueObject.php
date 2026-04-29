@@ -21,6 +21,8 @@ class UserInfoValueObject
      * @param string $workNumber 工号
      * @param string $position 职位
      * @param array $departments 部门信息数组
+     * @param string $email 邮箱
+     * @param string $phone 手机号
      */
     public function __construct(
         private string $id = '',
@@ -28,7 +30,9 @@ class UserInfoValueObject
         private string $realName = '',
         private string $workNumber = '',
         private string $position = '',
-        private array $departments = []
+        private array $departments = [],
+        private string $email = '',
+        private string $phone = ''
     ) {
         // Ensure departments are DepartmentInfoValueObject instances
         $this->departments = array_map(function ($dept) {
@@ -60,7 +64,9 @@ class UserInfoValueObject
             $data['real_name'] ?? '',
             $data['work_number'] ?? '',
             $data['position'] ?? '',
-            $departments
+            $departments,
+            $data['email'] ?? '',
+            $data['phone'] ?? ''
         );
     }
 
@@ -78,6 +84,8 @@ class UserInfoValueObject
             'work_number' => $this->workNumber,
             'position' => $this->position,
             'departments' => array_map(fn ($dept) => $dept->toArray(), $this->departments),
+            'email' => $this->email,
+            'phone' => $this->phone,
         ];
     }
 
@@ -105,6 +113,16 @@ class UserInfoValueObject
     public function getPosition(): string
     {
         return $this->position;
+    }
+
+    public function getEmail(): string
+    {
+        return $this->email;
+    }
+
+    public function getPhone(): string
+    {
+        return $this->phone;
     }
 
     /**
@@ -148,6 +166,20 @@ class UserInfoValueObject
     {
         $clone = clone $this;
         $clone->position = $position;
+        return $clone;
+    }
+
+    public function withEmail(string $email): self
+    {
+        $clone = clone $this;
+        $clone->email = $email;
+        return $clone;
+    }
+
+    public function withPhone(string $phone): self
+    {
+        $clone = clone $this;
+        $clone->phone = $phone;
         return $clone;
     }
 

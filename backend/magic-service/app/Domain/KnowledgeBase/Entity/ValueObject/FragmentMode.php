@@ -9,14 +9,16 @@ namespace App\Domain\KnowledgeBase\Entity\ValueObject;
 
 enum FragmentMode: int
 {
-    case NORMAL = 1;
-    case PARENT_CHILD = 2;
+    case CUSTOM = 1;
+    case AUTO = 2;
+    case HIERARCHY = 3;
 
     public function getDescription(): string
     {
         return match ($this) {
-            self::NORMAL => '通用模式',
-            self::PARENT_CHILD => '父子分段',
+            self::CUSTOM => '自定义',
+            self::AUTO => '自动分段与清洗',
+            self::HIERARCHY => '按层级分段',
         };
     }
 }

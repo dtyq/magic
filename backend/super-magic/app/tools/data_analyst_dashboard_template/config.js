@@ -1,5 +1,5 @@
 // Dashboard configuration
-const DASHBOARD_CONFIG = {
+window.DASHBOARD_CONFIG = {
   // Base font size
   BASE_FONT_SIZE: "12px",
   // Grid column count, defines horizontal division quantity
@@ -40,4 +40,171 @@ const DASHBOARD_CONFIG = {
   METRIC_CARD_ICON_TYPE: "circle",
 };
 
-window.DASHBOARD_CONFIG = DASHBOARD_CONFIG;
+// Get ECharts theme configuration, dashboardConfig is window.DASHBOARD_CONFIG
+window.GET_ECHARTS_THEME_CONFIG = function (dashboardConfig) {
+  var fontFamily = dashboardConfig.BODY_FONT_FAMILY;
+  var fontSize = parseFloat(dashboardConfig.BASE_FONT_SIZE);
+  var fontSizeSecondary = fontSize - 2;
+  var fontSizeWithPixel = `${fontSize}px`;
+  var fontSizeSecondaryWithPixel = `${fontSizeSecondary}px`;
+  var colorTextPrimary = dashboardConfig.COLORS_TEXT_PRIMARY;
+  var colorTextSecondary = dashboardConfig.COLORS_TEXT_SECONDARY;
+  var colorTextThird = dashboardConfig.COLORS_TEXT_THIRD;
+  var colorBorder = dashboardConfig.COLORS_BORDER;
+  var colorPrimary = dashboardConfig.COLORS_PRIMARY;
+  var color = dashboardConfig.ECHARTS_COLOR.slice();
+
+  return {
+    color,
+    backgroundColor: "transparent",
+    textStyle: {
+      color: colorTextPrimary,
+      fontFamily: fontFamily,
+      fontSize: fontSizeWithPixel,
+    },
+    title: {
+      textStyle: {
+        color: colorTextPrimary,
+        fontFamily: fontFamily,
+        fontSize: fontSizeWithPixel,
+      },
+      subtextStyle: {
+        color: colorTextThird,
+        fontFamily: fontFamily,
+        fontSize: fontSizeSecondaryWithPixel,
+      },
+    },
+    legend: {
+      type: "scroll",
+      itemWidth: 20,
+      itemHeight: 11.2,
+      textStyle: {
+        color: colorTextThird,
+        fontFamily: fontFamily,
+        fontSize: fontSizeWithPixel,
+      },
+    },
+    categoryAxis: {
+      axisLine: {
+        lineStyle: { color: colorBorder },
+      },
+      axisTick: {
+        lineStyle: { color: colorBorder },
+      },
+      axisLabel: {
+        color: colorTextThird,
+        fontFamily: fontFamily,
+        fontSize: fontSizeWithPixel,
+        hideOverlap: true,
+      },
+      nameTextStyle: {
+        color: colorTextThird,
+        fontFamily: fontFamily,
+        fontSize: fontSizeWithPixel,
+      },
+      splitLine: {
+        show: false,
+        lineStyle: { color: colorBorder },
+      },
+    },
+    valueAxis: {
+      alignTicks: true,
+      axisLine: {
+        lineStyle: { color: colorBorder },
+      },
+      axisTick: {
+        lineStyle: { color: colorBorder },
+      },
+      axisLabel: {
+        color: colorTextThird,
+        fontFamily: fontFamily,
+        fontSize: fontSizeWithPixel,
+        hideOverlap: true,
+      },
+      nameTextStyle: {
+        color: colorTextThird,
+        fontFamily: fontFamily,
+        fontSize: fontSizeWithPixel,
+      },
+      splitLine: {
+        lineStyle: { color: colorBorder },
+      },
+    },
+    toolbox: {
+      iconStyle: {
+        colorBorder: colorTextThird,
+      },
+      emphasis: {
+        iconStyle: {
+          colorBorder: colorBorder,
+        },
+      },
+    },
+    tooltip: {
+      appendTo: "body",
+      appendToBody: true,
+      renderMode: "html",
+      className: "echarts-tooltip",
+      backgroundColor: dashboardConfig.CARD_BACKGROUND,
+      padding: 6,
+      textStyle: {
+        fontFamily: fontFamily,
+        fontSize: fontSizeWithPixel,
+        color: colorTextThird,
+      },
+      axisPointer: {
+        label: {
+          backgroundColor: colorPrimary,
+        },
+      },
+    },
+    pie: {
+      label: {
+        color: colorTextSecondary,
+        fontFamily: fontFamily,
+        fontSize: fontSizeWithPixel,
+      },
+      labelLine: {
+        lineStyle: {
+          color: colorBorder,
+        },
+      },
+    },
+    bar: {
+      label: {
+        color: colorTextSecondary,
+        fontFamily: fontFamily,
+        fontSize: fontSizeWithPixel,
+      },
+    },
+    line: {
+      label: {
+        color: colorTextSecondary,
+        fontFamily: fontFamily,
+        fontSize: fontSizeWithPixel,
+      },
+    },
+    geo: {
+      label: {
+        color: colorTextSecondary,
+        fontFamily: fontFamily,
+        fontSize: fontSizeWithPixel,
+      },
+    },
+    scatter: {
+      label: {
+        color: colorTextSecondary,
+        fontFamily: fontFamily,
+        fontSize: fontSizeWithPixel,
+      },
+    },
+    visualMap: {
+      padding: 0,
+      textStyle: {
+        color: colorTextThird,
+        fontFamily: fontFamily,
+        fontSize: fontSizeSecondaryWithPixel,
+      },
+    },
+  };
+};

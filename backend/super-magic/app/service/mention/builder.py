@@ -51,7 +51,7 @@ class MentionContextBuilder:
         # 初始化上下文行
         context_lines = [
             "<mentions>",
-            "以下路径均相对于工作空间根目录：",
+            "All paths below are relative to the workspace root:",
         ]
 
         # 收集所有 tip 文本（保留顺序，后续去重）
@@ -74,7 +74,7 @@ class MentionContextBuilder:
                 context_lines.extend(lines)
             else:
                 # 未知类型的mention
-                context_lines.append(f"{i}. 引用: {mention}")
+                context_lines.append(f"{i}. reference: {mention}")
 
         # 添加结束标签
         context_lines.append("")
@@ -84,7 +84,7 @@ class MentionContextBuilder:
         tips = self._deduplicate_tips(tip_texts)
         if tips:
             context_lines.append("")
-            context_lines.append("在执行任务前，" + "，".join(tips) + "。")
+            context_lines.append("Before proceeding: " + " ".join(tips))
 
         return "\n".join(context_lines)
 

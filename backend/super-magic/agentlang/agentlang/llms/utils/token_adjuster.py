@@ -13,7 +13,7 @@ logger = get_logger(__name__)
 
 # 动态调整的 token 限制
 MIN_MAX_TOKENS = 2048  # 最小 max_tokens 值
-MAX_MAX_TOKENS = 1024 * 64  # 最大允许的 max_tokens 值 (65536)
+MAX_MAX_TOKENS = 64000  # 最大允许的 max_tokens 值 (64000)
 DEFAULT_SAFETY_BUFFER = 100  # token 估算的安全缓冲区
 
 

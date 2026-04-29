@@ -486,7 +486,9 @@ class VideoQueueDomainServiceTest extends TestCase
             'task' => 'extend',
             'prompt' => 'extend the clip',
             'inputs' => [
-                'video' => ['uri' => 'https://example.com/input.mp4'],
+                'reference_videos' => [
+                    ['uri' => 'https://example.com/input.mp4'],
+                ],
             ],
         ]);
         $requestDTO->valid();
@@ -499,6 +501,251 @@ class VideoQueueDomainServiceTest extends TestCase
             ProviderCode::Cloudsway,
             $requestDTO,
             $this->createConfigForModel($requestDTO->getModel(), ProviderCode::Cloudsway),
+        );
+    }
+
+    public function testCreateOperationKeepsReferenceVideoAudioMaskAndEditTaskInCanonicalRequest(): void
+    {
+        $service = new VideoQueueDomainService($this->createMock(VideoQueueOperationRepositoryInterface::class));
+        $requestDTO = new CreateVideoDTO([
+            'model_id' => 'doubao-seedance-2-0-260128',
+            'task' => 'edit',
+            'prompt' => 'replace the sky',
+            'inputs' => [
+                'reference_videos' => [
+                    ['uri' => 'https://example.com/source.mp4'],
+                ],
+                'mask' => ['uri' => 'https://example.com/mask.png'],
+                'reference_audios' => [
+                    ['uri' => 'https://example.com/voice.wav'],
+                ],
+            ],
+            'generation' => [
+                'resolution' => '1080p',
+                'duration_seconds' => 5,
+                'return_last_frame' => true,
+            ],
+            'extensions' => [
+                'seedance' => ['camera_movement' => 'truck left'],
+            ],
+        ]);
+        $requestDTO->valid();
+
+        $operation = $service->createOperation(
+            ModelGatewayDataIsolation::create('org-test', 'user-test'),
+            'doubao-seedance-2-0-260128',
+            'provider-model-seedance-v2',
+            ProviderCode::VolcengineArk,
+            $requestDTO,
+            new VideoGenerationConfig([
+                'supported_inputs' => ['text_prompt', 'image', 'reference_audios', 'reference_videos', 'mask', 'video_edit', 'video_extension', 'video_upscale'],
+                'reference_images' => ['max_count' => 4, 'reference_types' => ['asset'], 'style_supported' => false],
+                'generation' => ['durations' => [5, 10], 'resolutions' => ['720p', '1080p'], 'supports_generate_audio' => true],
+                'constraints' => [],
+            ]),
+        );
+
+        $this->assertSame('edit', $operation->getRawRequest()['task']);
+        $this->assertSame('https://example.com/source.mp4', $operation->getRawRequest()['inputs']['reference_videos'][0]['uri']);
+        $this->assertSame('https://example.com/mask.png', $operation->getRawRequest()['inputs']['mask']['uri']);
+        $this->assertSame('https://example.com/voice.wav', $operation->getRawRequest()['inputs']['reference_audios'][0]['uri']);
+        $this->assertSame(['seedance' => ['camera_movement' => 'truck left']], $operation->getRawRequest()['extensions']);
+    }
+
+    public function testCreateOperationNormalizesReferenceInputsAndInputModeIntoCanonicalInputs(): void
+    {
+        $service = new VideoQueueDomainService($this->createMock(VideoQueueOperationRepositoryInterface::class));
+        $requestDTO = new CreateVideoDTO([
+            'model_id' => 'doubao-seedance-2-0-260128',
+            'task' => 'generate',
+            'prompt' => '大家在唱歌跳舞',
+            'input_mode' => 'omni_reference',
+            'inputs' => [
+                'reference_images' => [
+                    ['uri' => 'https://example.com/ref.png'],
+                ],
+                'reference_videos' => [
+                    ['uri' => 'https://example.com/ref.mp4'],
+                ],
+                'reference_audios' => [
+                    ['uri' => 'https://example.com/ref.wav'],
+                ],
+            ],
+            'generation' => [
+                'duration_seconds' => 5,
+                'resolution' => '720p',
+            ],
+        ]);
+        $requestDTO->valid();
+
+        $operation = $service->createOperation(
+            ModelGatewayDataIsolation::create('org-test', 'user-test'),
+            'doubao-seedance-2-0-260128',
+            'provider-model-seedance-v2',
+            ProviderCode::VolcengineArk,
+            $requestDTO,
+            new VideoGenerationConfig([
+                'supported_inputs' => ['text_prompt', 'image', 'reference_images', 'reference_audios', 'reference_videos'],
+                'reference_images' => ['max_count' => 4, 'reference_types' => ['asset'], 'style_supported' => false],
+                'generation' => ['durations' => [5, 10], 'resolutions' => ['720p', '1080p']],
+                'constraints' => [],
+            ]),
+        );
+
+        $this->assertSame('omni_reference', $operation->getRawRequest()['input_mode']);
+        $inputs = $operation->getRawRequest()['inputs'];
+        $this->assertSame('https://example.com/ref.png', $inputs['reference_images'][0]['uri']);
+        $this->assertSame('https://example.com/ref.mp4', $inputs['reference_videos'][0]['uri']);
+        $this->assertSame('https://example.com/ref.wav', $inputs['reference_audios'][0]['uri']);
+        $this->assertArrayNotHasKey('frames', $inputs);
+    }
+
+    public function testCreateOperationAcceptsImageReferenceInputModeWithReferenceImages(): void
+    {
+        $service = new VideoQueueDomainService($this->createMock(VideoQueueOperationRepositoryInterface::class));
+        $requestDTO = new CreateVideoDTO([
+            'model_id' => 'doubao-seedance-2-0-260128',
+            'task' => 'generate',
+            'prompt' => '大家在看镜头',
+            'input_mode' => 'image_reference',
+            'inputs' => [
+                'reference_images' => [
+                    ['uri' => 'https://example.com/reference.png'],
+                ],
+            ],
+            'generation' => [
+                'duration_seconds' => 5,
+                'resolution' => '720p',
+            ],
+        ]);
+        $requestDTO->valid();
+
+        $operation = $service->createOperation(
+            ModelGatewayDataIsolation::create('org-test', 'user-test'),
+            'doubao-seedance-2-0-260128',
+            'provider-model-seedance-v2',
+            ProviderCode::VolcengineArk,
+            $requestDTO,
+            new VideoGenerationConfig([
+                'supported_inputs' => ['text_prompt', 'image', 'reference_images', 'reference_audios', 'reference_videos'],
+                'reference_images' => ['max_count' => 4, 'reference_types' => ['asset'], 'style_supported' => false],
+                'generation' => ['durations' => [5, 10], 'resolutions' => ['720p', '1080p']],
+                'constraints' => [],
+            ]),
+        );
+
+        $inputs = $operation->getRawRequest()['inputs'];
+        $this->assertSame('image_reference', $operation->getRawRequest()['input_mode']);
+        $this->assertSame('https://example.com/reference.png', $inputs['reference_images'][0]['uri']);
+        $this->assertArrayNotHasKey('reference_videos', $inputs);
+    }
+
+    public function testCreateOperationInfersInputModeFromInputs(): void
+    {
+        $service = new VideoQueueDomainService($this->createMock(VideoQueueOperationRepositoryInterface::class));
+
+        $imageReferenceRequest = new CreateVideoDTO([
+            'model_id' => 'doubao-seedance-2-0-260128',
+            'task' => 'generate',
+            'prompt' => '大家在看镜头',
+            'inputs' => [
+                'reference_images' => [
+                    ['uri' => 'https://example.com/reference.png'],
+                ],
+            ],
+        ]);
+        $imageReferenceRequest->valid();
+
+        $keyframeRequest = new CreateVideoDTO([
+            'model_id' => 'doubao-seedance-2-0-260128',
+            'task' => 'generate',
+            'prompt' => '大家在喝水',
+            'inputs' => [
+                'frames' => [
+                    ['role' => 'start', 'uri' => 'https://example.com/start.png'],
+                ],
+            ],
+        ]);
+        $keyframeRequest->valid();
+
+        $omniAudioRequest = new CreateVideoDTO([
+            'model_id' => 'doubao-seedance-2-0-260128',
+            'task' => 'generate',
+            'prompt' => '大家在唱歌',
+            'inputs' => [
+                'reference_audios' => [
+                    ['uri' => 'https://example.com/reference.wav'],
+                ],
+            ],
+        ]);
+        $omniAudioRequest->valid();
+
+        $config = new VideoGenerationConfig([
+            'supported_inputs' => ['text_prompt', 'image', 'reference_images', 'reference_audios', 'reference_videos'],
+            'reference_images' => ['max_count' => 4, 'reference_types' => ['asset'], 'style_supported' => false],
+            'generation' => ['durations' => [5, 10], 'resolutions' => ['720p', '1080p']],
+            'constraints' => [],
+        ]);
+
+        $imageReferenceOperation = $service->createOperation(
+            ModelGatewayDataIsolation::create('org-test', 'user-test'),
+            'doubao-seedance-2-0-260128',
+            'provider-model-seedance-v2',
+            ProviderCode::VolcengineArk,
+            $imageReferenceRequest,
+            $config,
+        );
+
+        $keyframeOperation = $service->createOperation(
+            ModelGatewayDataIsolation::create('org-test', 'user-test'),
+            'doubao-seedance-2-0-260128',
+            'provider-model-seedance-v2',
+            ProviderCode::VolcengineArk,
+            $keyframeRequest,
+            $config,
+        );
+
+        $omniAudioOperation = $service->createOperation(
+            ModelGatewayDataIsolation::create('org-test', 'user-test'),
+            'doubao-seedance-2-0-260128',
+            'provider-model-seedance-v2',
+            ProviderCode::VolcengineArk,
+            $omniAudioRequest,
+            $config,
+        );
+
+        $this->assertSame('image_reference', $imageReferenceOperation->getRawRequest()['input_mode']);
+        $this->assertSame('keyframe_guided', $keyframeOperation->getRawRequest()['input_mode']);
+        $this->assertSame('omni_reference', $omniAudioOperation->getRawRequest()['input_mode']);
+    }
+
+    public function testCreateOperationRejectsEditWithoutReferenceVideoInput(): void
+    {
+        $service = new VideoQueueDomainService($this->createMock(VideoQueueOperationRepositoryInterface::class));
+        $requestDTO = new CreateVideoDTO([
+            'model_id' => 'doubao-seedance-2-0-260128',
+            'task' => 'edit',
+            'prompt' => 'replace the sky',
+            'inputs' => [
+                'mask' => ['uri' => 'https://example.com/mask.png'],
+            ],
+        ]);
+        $requestDTO->valid();
+
+        $this->expectException(BusinessException::class);
+        $this->expectExceptionMessage('inputs.reference_videos is required');
+        $service->createOperation(
+            ModelGatewayDataIsolation::create('org-test', 'user-test'),
+            'doubao-seedance-2-0-260128',
+            'provider-model-seedance-v2',
+            ProviderCode::VolcengineArk,
+            $requestDTO,
+            new VideoGenerationConfig([
+                'supported_inputs' => ['text_prompt', 'image', 'mask', 'video_edit'],
+                'reference_images' => ['max_count' => 0, 'reference_types' => [], 'style_supported' => false],
+                'generation' => ['durations' => [5, 10], 'resolutions' => ['720p', '1080p']],
+                'constraints' => [],
+            ]),
         );
     }
 
@@ -671,6 +918,13 @@ class VideoQueueDomainServiceTest extends TestCase
                 'durations' => [4, 6, 8],
                 'default_duration_seconds' => 8,
                 'resolutions' => ['720p', '1080p', '4k'],
+                'sizes' => [
+                    ['label' => '16:9', 'value' => '1280x720', 'width' => 1280, 'height' => 720, 'resolution' => '720p'],
+                    ['label' => '16:9', 'value' => '1920x1080', 'width' => 1920, 'height' => 1080, 'resolution' => '1080p'],
+                    ['label' => '16:9', 'value' => '3840x2160', 'width' => 3840, 'height' => 2160, 'resolution' => '4k'],
+                    ['label' => '9:16', 'value' => '720x1280', 'width' => 720, 'height' => 1280, 'resolution' => '720p'],
+                    ['label' => '9:16', 'value' => '1080x1920', 'width' => 1080, 'height' => 1920, 'resolution' => '1080p'],
+                ],
                 'default_resolution' => '720p',
                 'supports_seed' => true,
                 'seed_range' => [0, 4294967295],
@@ -704,6 +958,13 @@ class VideoQueueDomainServiceTest extends TestCase
                 'durations' => [4, 6, 8],
                 'default_duration_seconds' => 8,
                 'resolutions' => ['720p', '1080p', '4k'],
+                'sizes' => [
+                    ['label' => '16:9', 'value' => '1280x720', 'width' => 1280, 'height' => 720, 'resolution' => '720p'],
+                    ['label' => '16:9', 'value' => '1920x1080', 'width' => 1920, 'height' => 1080, 'resolution' => '1080p'],
+                    ['label' => '16:9', 'value' => '3840x2160', 'width' => 3840, 'height' => 2160, 'resolution' => '4k'],
+                    ['label' => '9:16', 'value' => '720x1280', 'width' => 720, 'height' => 1280, 'resolution' => '720p'],
+                    ['label' => '9:16', 'value' => '1080x1920', 'width' => 1080, 'height' => 1920, 'resolution' => '1080p'],
+                ],
                 'default_resolution' => '720p',
                 'supports_seed' => true,
                 'seed_range' => [0, 4294967295],

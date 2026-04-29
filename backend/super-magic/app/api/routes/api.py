@@ -14,6 +14,7 @@ from app.api.routes.file_convert import router as file_convert_router
 from app.api.routes.checkpoint import router as checkpoint_router
 from app.api.routes.asr import router as asr_router
 from app.api.routes.sdk import router as sdk_router
+from app.api.routes.models import router as models_router
 
 
 # 创建主路由器，设置统一前缀
@@ -42,6 +43,9 @@ api_router.include_router(asr_router, tags=["语音识别"])
 
 # 注册 SDK 路由
 api_router.include_router(sdk_router, tags=["SDK"])
+
+# 注册模型列表路由
+api_router.include_router(models_router, tags=["模型列表"])
 
 @api_router.get("/health", tags=["系统"])
 async def health_check():

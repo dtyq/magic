@@ -5,6 +5,7 @@ import json
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple
 from agentlang.logger import get_logger
+from app.utils.async_file_utils import async_read_text, async_write_text
 
 logger = get_logger(__name__)
 
@@ -23,8 +24,8 @@ class MagicProjectValidator:
 
         校验标准参考 app/tools/data_analyst_dashboard_template/magic.project.js：
         - 存在 window.magicProjectConfig = {...}; 的对象赋值
-        - 对象内包含 version、type、name、sources、dataSources、geo 字段
-        - sources、dataSources 与 geo 为数组
+        - 对象内包含 version、type、name、dataSources、geo 字段
+        - dataSources 与 geo 为数组
         - 存在 window.magicProjectConfigure(window.magicProjectConfig);
         
         Args:
@@ -63,16 +64,14 @@ class MagicProjectValidator:
             obj_block = assign_match.group(1)
 
             # 必要字段
-            required_keys = ["version", "type", "name", "sources", "dataSources", "geo"]
+            required_keys = ["version", "type", "name", "dataSources", "geo"]
             for key in required_keys:
                 # 允许 key 带或不带引号
                 key_pattern = rf'["\']?{re.escape(key)}["\']?\s*:'
                 if not re.search(key_pattern, obj_block):
                     return False
 
-            # sources/dataSources/geo 为数组
-            if not re.search(r'["\']?sources["\']?\s*:\s*\[', obj_block):
-                return False
+            # dataSources/geo 为数组
             if not re.search(r'["\']?dataSources["\']?\s*:\s*\[', obj_block):
                 return False
             if not re.search(r'["\']?geo["\']?\s*:\s*\[', obj_block):
@@ -91,7 +90,7 @@ class MagicProjectValidator:
 
         策略：
         - 读取模板内容
-        - 尽力从原文件提取 dataSources 与 geo 的数组项，并回填到模板
+        - 尽力从原文件提取 dataSources、geo 的数组项，并回填到模板
         - 写回到项目 magic.project.js
         
         Args:
@@ -114,19 +113,11 @@ class MagicProjectValidator:
             with open(template_path, 'r', encoding='utf-8') as f:
                 template_content = f.read()
 
-            # 尽力提取原文件的三个数组内容
-            data_sources_inner = self._extract_array_inner(original_content, 'sources') or ''
+            # 尽力提取原文件的 dataSources、geo 数组内容
             cleaned_data_inner = self._extract_array_inner(original_content, 'dataSources') or ''
             geo_inner = self._extract_array_inner(original_content, 'geo') or ''
 
             repaired_content = template_content
-
-            # 回填 sources
-            repaired_content = re.sub(
-                r'(\"sources\":\s*)\[[^\]]*\]',
-                rf'\1[{data_sources_inner}]',
-                repaired_content
-            )
 
             # 回填 dataSources
             repaired_content = re.sub(
@@ -302,30 +293,60 @@ class MagicProjectValidator:
             index_html_path: index.html文件路径
         """
         try:
-            # 读取index.html文件
-            with open(index_html_path, 'r', encoding='utf-8') as f:
-                content = f.read()
+            content = await async_read_text(index_html_path)
+            updated_content, updated = self._replace_ready_flag(
+                content=content,
+                scope_pattern=r'window\.magicDashboard\s*=\s*\{',
+            )
+            if updated:
+                await async_write_text(index_html_path, updated_content)
 
-            # 如果已经是 ready: true，则静默返回，不打任何日志
-            ready_true_pattern = r'window\.magicDashboard\s*=\s*\{.*?ready:\s*true'
-            if re.search(ready_true_pattern, content, flags=re.DOTALL):
-                return
-
-            # 使用正则表达式替换window.magicDashboard中的ready配置
-            # 匹配 ready: false 模式并替换为 ready: true
-            pattern = r'(window\.magicDashboard\s*=\s*\{.*?ready:\s*)false'
-            replacement = r'\1true'
-
-            # 执行替换
-            updated_content, count = re.subn(pattern, replacement, content, flags=re.DOTALL)
-
-            if count > 0:
-                # 写入更新后的内容
-                with open(index_html_path, 'w', encoding='utf-8') as f:
-                    f.write(updated_content)
-            # 如果 count == 0 且也没有 ready:true，说明结构不符合预期，仍然视为静默跳过
+            magic_project_path = index_html_path.parent / "magic.project.js"
+            if magic_project_path.exists():
+                magic_project_content = await async_read_text(magic_project_path)
+                updated_magic_project_content, magic_project_updated = self._replace_ready_flag(
+                    content=magic_project_content,
+                    scope_pattern=r'window\.magicProjectConfig\s*=\s*\{',
+                )
+                if magic_project_updated:
+                    await async_write_text(magic_project_path, updated_magic_project_content)
+            # 如果结构符合预期但缺少 ready 字段，会自动补写 ready: true
 
         except Exception as e:
             # 只有真正的异常才记录日志，已是 ready:true 的情况不会进到这里
             logger.warning(f"设置dashboard就绪状态时出现错误，但不阻塞执行: {e}")
+
+    def _replace_ready_flag(self, content: str, scope_pattern: str) -> Tuple[str, bool]:
+        """将目标对象中的 ready 更新为 true，不存在时自动插入。
+
+        返回:
+            Tuple[str, bool]: (更新后的内容, 是否发生变更)
+        """
+        ready_true_pattern = rf'{scope_pattern}.*?ready:\s*true'
+        if re.search(ready_true_pattern, content, flags=re.DOTALL):
+            return content, False
+
+        ready_false_pattern = rf'({scope_pattern}.*?ready:\s*)false'
+        updated_content, count = re.subn(
+            ready_false_pattern,
+            r'\1true',
+            content,
+            flags=re.DOTALL,
+        )
+        if count > 0:
+            return updated_content, True
+
+        scope_match = re.search(scope_pattern, content, flags=re.DOTALL)
+        if not scope_match:
+            return content, False
+
+        following_content = content[scope_match.end():]
+        indent_match = re.search(r'\n([ \t]+)\S', following_content)
+        indent = indent_match.group(1) if indent_match else "  "
+        inserted_content = (
+            content[:scope_match.end()]
+            + f"\n{indent}ready: true,"
+            + content[scope_match.end():]
+        )
+        return inserted_content, True
 

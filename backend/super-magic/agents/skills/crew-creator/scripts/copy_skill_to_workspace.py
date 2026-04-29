@@ -19,19 +19,9 @@ import shutil
 import sys
 from pathlib import Path
 
-
-def _setup_project_root() -> Path:
-    """Walk up to find the project root and add it to sys.path."""
-    current = Path(__file__).resolve().parent
-    markers = {"setup.py", "script_runner"}
-    for _ in range(10):
-        if any((current / marker).exists() for marker in markers):
-            root = str(current)
-            if root not in sys.path:
-                sys.path.insert(0, root)
-            return current
-        current = current.parent
-    raise RuntimeError("Cannot locate project root (setup.py / script_runner not found)")
+# agents/skills/_shared/ 对所有 skill 脚本均在 parents[2] 下
+sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
+from _shared.bootstrap import get_project_root
 
 
 def main() -> int:
@@ -54,7 +44,7 @@ def main() -> int:
     )
     args = parser.parse_args()
 
-    project_root = _setup_project_root()
+    project_root = get_project_root()
 
     agents_dir = project_root / "agents"
     src = agents_dir / "skills" / args.skill_name

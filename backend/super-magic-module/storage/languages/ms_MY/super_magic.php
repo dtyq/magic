@@ -74,7 +74,7 @@ return [
         'publisher_type_invalid' => 'Invalid publisher type',
         'publish_target_value_required' => 'publish_target_value is required for current publish target type',
         'publish' => [
-            'identity_md_not_found' => 'Fail IDENTITY.md tiada. Sila mulakan pekerja terlebih dahulu, kemudian klik terbit',
+            'identity_md_not_found' => 'Penerbitan gagal: fail wajib :path tidak ditemui di bawah direktori akar projek. Sila tambah fail tersebut dan cuba lagi.',
         ],
     ],
     'task' => [

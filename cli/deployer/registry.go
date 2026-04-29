@@ -21,7 +21,7 @@ func newBootstrapRegistryStage(d *Deployer) *BootstrapRegistryStage {
 }
 
 func (s *BootstrapRegistryStage) Exec(ctx context.Context) error {
-	cfg := s.d.opts.Registry
+	cfg := s.d.opts.registry
 
 	dataDir, err := s.d.resolveRegistryDataDir(cfg.DataDir)
 	if err != nil {

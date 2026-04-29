@@ -28,7 +28,6 @@ from agentlang.llms.processors import ProcessorConfig, ProcessorManager
 from agentlang.llms.error_classifier import LLMErrorClassifier
 from agentlang.logger import get_logger
 from agentlang.utils.metadata import MetadataUtil
-from agentlang.utils.security import sanitize_api_key
 from agentlang.llms.utils.token_adjuster import get_current_tokens, adjust_max_tokens
 from agentlang.llms.utils.debug_logger import save_llm_debug_log, LLMDebugInfo
 
@@ -131,7 +130,7 @@ class LLMFactory:
         agent_context: Optional[AgentContextInterface] = None,
         processor_config: Optional[ProcessorConfig] = None,
         enable_llm_response_events: bool = False,
-        llm_call_retry_count: int = 0
+        extra_body: Optional[Dict[str, Any]] = None,
     ) -> ChatCompletion:
         """使用工具支持调用 LLM。
 
@@ -146,7 +145,6 @@ class LLMFactory:
             agent_context: Agent 上下文接口，可选。
             processor_config: 处理器配置，包含流式模式、推流配置等，可选。
             enable_llm_response_events: 是否开启LLM响应事件触发，默认为 False。
-            llm_call_retry_count: LLM call 重试次数，0表示第一次调用，>0表示重试调用，默认为 0。
 
         Returns:
             LLM 响应。
@@ -190,7 +188,7 @@ class LLMFactory:
             "top_p": llm_config.top_p,
         }
 
-        # 部分模型测试应用 max_tokens 参数
+        # 部分模型硬编码 max_tokens 覆盖
         if llm_config.name == "deepseek-reasoner" or llm_config.name == "deepseek-chat":
             request_params["max_tokens"] = 16384
 
@@ -222,6 +220,10 @@ class LLMFactory:
         for key, value in llm_config.extra_params.items():
             request_params[key] = value
 
+        # 添加调用方传入的 extra_body（如禁用思考模式）
+        if extra_body is not None:
+            request_params["extra_body"] = extra_body
+
         # 动态设置最新的 metadata 到请求头（每次调用都获取最新值）
         extra_headers = MetadataUtil.get_llm_request_headers()
         if extra_headers:
@@ -229,8 +231,7 @@ class LLMFactory:
             logger.debug(f"[{request_id}] 动态设置请求头: {list(extra_headers.keys())}")
 
         # 发送请求并获取响应
-        retry_info = f" (LLM call 重试第 {llm_call_retry_count} 次)" if llm_call_retry_count > 0 else ""
-        logger.info(f"[{request_id}] 发送聊天完成请求到 {display_model_id}:{llm_config.name}, 流式模式: {use_stream_mode}{retry_info}")
+        logger.info(f"[{request_id}] 发送聊天完成请求到 {display_model_id}:{llm_config.name}, 流式模式: {use_stream_mode}")
 
         # 执行 LLM 调用（统一管理流式/非流式及降级重试）
         response = None
@@ -245,29 +246,18 @@ class LLMFactory:
                 agent_context=agent_context,
                 request_id=request_id,
                 enable_llm_response_events=enable_llm_response_events,
-                llm_call_retry_count=llm_call_retry_count
             )
 
-            # 统一修复工具调用参数的JSON格式
-            if response and response.choices and len(response.choices) > 0:
-                message = response.choices[0].message
-                if message and message.tool_calls:
-                    from agentlang.utils.tool_param_utils import preprocess_tool_calls_batch
-                    # 保存修复前的原始参数，用于修复后对比日志
-                    original_arguments = [tc.function.arguments for tc in message.tool_calls]
-                    processed_count = preprocess_tool_calls_batch(message.tool_calls)
-                    if processed_count > 0:
-                        logger.info(f"[{request_id}] LLM响应修复了 {processed_count} 个工具调用的参数格式")
-                        for i, tc in enumerate(message.tool_calls):
-                            logger.info(f"[{request_id}] [修复前] Tool Call #{i}: id={tc.id}, name={tc.function.name}, arguments: {original_arguments[i]}")
-                            logger.info(f"[{request_id}] [修复后] Tool Call #{i} arguments: {tc.function.arguments}")
+            # 工具参数的 JSON 修复和截断检测统一在 agent.py 做，
+            # 避免 factory 层提前修复导致 agent 层丢失截断信息
 
             # 统一记录 token 使用情况
             cls.token_tracker.record_llm_usage(
                 response.usage,
                 model_id,
                 user_id=agent_context.get_user_id() if agent_context else None,
-                model_name=llm_config.name
+                model_name=llm_config.name,
+                resolved_model_id=llm_config.resolved_model_id or None
             )
 
             # 记录成功响应日志和耗时
@@ -287,8 +277,7 @@ class LLMFactory:
             elapsed_time = (end_time - start_time) * 1000  # 转换为毫秒
 
             # 简洁的错误日志
-            retry_info = f" (LLM call 重试第 {llm_call_retry_count} 次)" if llm_call_retry_count > 0 else ""
-            logger.critical(f"[{request_id}] 调用 LLM {display_model_id}:{llm_config.name} 时出错: {str(e)}，耗时: {elapsed_time:.2f}ms{retry_info}")
+            logger.critical(f"[{request_id}] 调用 LLM {display_model_id}:{llm_config.name} 时出错: {str(e)}，耗时: {elapsed_time:.2f}ms")
 
             raise
         finally:

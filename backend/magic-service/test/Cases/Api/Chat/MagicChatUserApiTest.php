@@ -15,6 +15,8 @@ use HyperfTest\Cases\Api\AbstractHttpTest;
  */
 class MagicChatUserApiTest extends AbstractHttpTest
 {
+    private const string GET_ACCOUNT_USERS_DETAIL_API = '/api/v1/contact/accounts/me/users';
+
     private const string UPDATE_USER_INFO_API = '/api/v1/contact/users/me';
 
     private const string GET_USER_UPDATE_PERMISSION_API = '/api/v1/contact/users/me/update-permission';
@@ -50,6 +52,7 @@ class MagicChatUserApiTest extends AbstractHttpTest
         $requestData = [
             'avatar_url' => 'https://example.com/avatar/new-avatar.jpg',
             'nickname' => '新昵称',
+            'timezone' => 'Asia/Shanghai',
         ];
 
         $headers = $this->getTestHeaders();
@@ -83,6 +86,7 @@ class MagicChatUserApiTest extends AbstractHttpTest
         $this->assertArrayHasKey('id', $userData, '响应应包含id字段');
         $this->assertArrayHasKey('avatar_url', $userData, '响应应包含avatar_url字段');
         $this->assertArrayHasKey('nickname', $userData, '响应应包含nickname字段');
+        $this->assertArrayHasKey('timezone', $userData, '响应应包含timezone字段');
         $this->assertArrayHasKey('organization_code', $userData, '响应应包含organization_code字段');
         $this->assertArrayHasKey('user_id', $userData, '响应应包含user_id字段');
         $this->assertArrayHasKey('created_at', $userData, '响应应包含created_at字段');
@@ -98,6 +102,33 @@ class MagicChatUserApiTest extends AbstractHttpTest
         // 验证更新的具体字段值
         $this->assertEquals($requestData['avatar_url'], $userData['avatar_url'], '头像URL更新失败');
         $this->assertEquals($requestData['nickname'], $userData['nickname'], '昵称更新失败');
+        $this->assertEquals($requestData['timezone'], $userData['timezone'], '时区更新失败');
+    }
+
+    /**
+     * 测试获取当前账号用户详情时返回 timezone 字段.
+     */
+    public function testGetAccountUsersDetailReturnsTimezone(): void
+    {
+        $this->performLogin();
+
+        $response = $this->get(self::GET_ACCOUNT_USERS_DETAIL_API, [], $this->getTestHeaders());
+
+        $this->assertIsArray($response, '响应应该是数组格式');
+
+        if (isset($response['code']) && ($response['code'] === 2179 || $response['code'] === 3035)) {
+            $this->markTestSkipped('接口认证失败');
+            return;
+        }
+
+        $payload = $response['data'] ?? $response;
+        $this->assertArrayHasKey('items', $payload, '响应应包含items字段');
+        $this->assertIsArray($payload['items'], 'items 应该是数组');
+        $this->assertNotEmpty($payload['items'], 'items 不应为空');
+
+        $userData = $payload['items'][0];
+        $this->assertIsArray($userData, '用户详情应为数组');
+        $this->assertArrayHasKey('timezone', $userData, '用户详情应包含timezone字段');
     }
 
     /**

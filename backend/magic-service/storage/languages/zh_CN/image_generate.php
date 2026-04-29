@@ -33,6 +33,7 @@ return [
     'invalid_aspect_ratio' => '图生图的尺寸比例差距过大，只能相差3倍',
     'image_url_is_empty' => '图片为空',
     'unsupported_image_size' => '不支持的图片尺寸 :size，支持的尺寸为：:supported_sizes',
+    'azure_image_size_must_be_divisible_by_16' => 'Azure 图片尺寸 :size 非法，宽度和高度都必须是 16 的倍数。',
     'unsupported_image_size_range' => '图片尺寸 :size 超出支持范围，宽度和高度必须在 :min_size-:max_size 像素之间',
 
     // Azure OpenAI 相关错误消息
@@ -55,6 +56,7 @@ return [
     'image_download_failed' => '无法下载图片',
     'watermark_output_failed' => '图片水印输出失败',
     'invalid_base64_image' => '无效的base64图片数据',
+    'unsupported_output_format' => '当前模型不支持输出格式 :format，支持的格式为：:supported',
     'no_valid_reference_image' => '无有效参考图像',
     'read_temp_file_failed' => '读取临时文件失败',
     'unsupported_image_data_type' => '不支持的图片数据类型，请使用 File API URI 或 Base64',
@@ -71,10 +73,17 @@ return [
     'file_upload_failed' => '文件上传失败: :error',
     'file_upload_response_missing_uri' => '文件上传响应中缺少 file.uri',
     'api_request_failed_with_error' => 'API 请求失败: :error',
+    'google_gemini_model_or_endpoint_not_found' => 'Google Gemini 模型或接口不存在（model: :model）',
+    'api_request_failed_after_retries' => 'API 请求重试后仍失败',
     'too_many_reference_images_limit_14' => '参考图片数量超过限制，最多允许 14 张',
     'too_many_reference_images_limit_3' => '参考图片数量超过限制，最多允许 3 张',
     'too_many_reference_images_limit' => '参考图片数量超过限制，最多允许 :limit 张',
     'too_many_images_limit_1' => '转高清功能仅支持 1 张图片',
+    'remove_background_image_required' => '去背景图片地址不能为空',
+    'remove_background_invalid_image_url' => '去背景图片地址格式无效',
+    'remove_background_provider_not_configured' => '去背景服务商未配置或未启用',
+    'remove_background_only_image_allowed' => '仅允许上传图片文件',
+    'remove_background_image_too_large' => '图片大小不能超过 20MB',
     # 水印相关
     'image_watermark' => 'website/static/img/watermark_zh.png',
 ];

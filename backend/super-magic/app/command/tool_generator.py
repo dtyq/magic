@@ -89,7 +89,7 @@ def _apply_global_parameter_logic(schema: Dict[str, Any], params_class) -> None:
     if 'required' not in schema:
         schema['required'] = []
 
-def generate_tool_definitions() -> bool:
+async def generate_tool_definitions() -> bool:
     """生成工具定义文件到固定位置 config/tool_definitions.json
 
     Returns:
@@ -100,14 +100,14 @@ def generate_tool_definitions() -> bool:
     try:
         # 使用工具工厂的统一实现，强制生成
         from app.tools.core.tool_factory import tool_factory
-        return tool_factory.generate_tool_definitions(force=True)
+        return await tool_factory.generate_tool_definitions(force=True)
 
     except Exception as e:
         logger.error(f"生成工具定义时发生错误: {e}", exc_info=True)
         return False
 
 
-def validate_tool_definitions() -> bool:
+async def validate_tool_definitions() -> bool:
     """验证工具定义文件 config/tool_definitions.json
 
     Returns:
@@ -120,8 +120,8 @@ def validate_tool_definitions() -> bool:
         manager = tool_definition_manager
 
         # 加载定义
-        manager.load_definitions()
-        definitions = manager.get_all_definitions()
+        await manager.load_definitions()
+        definitions = await manager.get_all_definitions()
 
         if not definitions:
             logger.error("没有找到任何工具定义")
@@ -160,13 +160,13 @@ def validate_tool_definitions() -> bool:
         return False
 
 
-def show_tool_definitions_stats() -> None:
+async def show_tool_definitions_stats() -> None:
     """显示工具定义统计信息 config/tool_definitions.json"""
     try:
         # 使用全局定义管理器
         manager = tool_definition_manager
 
-        stats = manager.get_stats()
+        stats = await manager.get_stats()
 
         logger.info("📊 工具定义统计信息:")
         logger.info(f"  定义文件: {stats['definition_file']}")

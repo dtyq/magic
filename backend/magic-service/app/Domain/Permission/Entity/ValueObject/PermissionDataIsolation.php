@@ -15,8 +15,8 @@ use App\Infrastructure\Core\DataIsolation\BaseDataIsolation;
  */
 class PermissionDataIsolation extends BaseDataIsolation
 {
-    public static function create(string $currentOrganizationCode = '', string $userId = ''): self
+    public static function create(string $currentOrganizationCode = '', string $userId = '', string $magicId = ''): self
     {
-        return new self($currentOrganizationCode, $userId);
+        return new self($currentOrganizationCode, $userId, $magicId);
     }
 }

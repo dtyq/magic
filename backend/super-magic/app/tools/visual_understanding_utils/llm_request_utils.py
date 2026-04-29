@@ -6,6 +6,7 @@ from datetime import datetime
 from agentlang.logger import get_logger
 from agentlang.llms.factory import LLMFactory
 from app.i18n import i18n
+from app.tools.media_utils import DISABLE_THINKING_BODY
 from app.utils.async_file_utils import async_exists
 from .models import BatchImageProcessingResults, SingleImageResult
 from .image_conversion_utils import local_file_to_base64
@@ -127,6 +128,7 @@ class LLMRequestHandler:
             response = await LLMFactory.call_with_tool_support(
                 model_id=model_id,
                 messages=messages,
+                extra_body=DISABLE_THINKING_BODY,
             )
             return response
 
@@ -156,6 +158,7 @@ class LLMRequestHandler:
                     response = await LLMFactory.call_with_tool_support(
                         model_id=model_id,
                         messages=fallback_messages,
+                        extra_body=DISABLE_THINKING_BODY,
                     )
                     return response
 

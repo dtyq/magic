@@ -39,6 +39,19 @@ class SizeManager
 
         $sizes = $config['sizes'] ?? [];
 
+        // 如果配置中有 total_pixels_range，走同比例像素换算逻辑，完全绕过 sizes 列表匹配
+        $pixelRange = $config['total_pixels_range'] ?? null;
+        if ($pixelRange !== null) {
+            [$w, $h] = self::parseToWidthHeight($size);
+            [$w, $h] = self::scaleToPixelRange((int) $w, (int) $h, $pixelRange);
+            return [
+                'width' => $w,
+                'height' => $h,
+                'ratio' => self::calculateRatio((int) $w, (int) $h),
+                'scale' => null,
+            ];
+        }
+
         // 1. 尝试匹配 label (如 "1:1", "16:9") 或 value (如 "1024x1024")
         $matchedSize = self::matchSizeOption($size, $sizes);
         if ($matchedSize !== null) {
@@ -46,7 +59,7 @@ class SizeManager
         }
 
         // 2. 如果是标准格式 1024x1024，但不在配置中，需要降级到配置中最接近的比例对应的尺寸
-        if (preg_match('/^(\d+)[x×](\d+)$/i', $size, $matches)) {
+        if (preg_match('/^(\d+)[x×](\d+)$/iu', $size, $matches)) {
             $width = (int) $matches[1];
             $height = (int) $matches[2];
             return self::fallbackStandardFormatConfig($width, $height, $sizes);
@@ -87,7 +100,7 @@ class SizeManager
         $size = trim($size);
 
         // 处理标准格式：1024x1024
-        if (preg_match('/^(\d+)[x×](\d+)$/i', $size, $matches)) {
+        if (preg_match('/^(\d+)[x×](\d+)$/iu', $size, $matches)) {
             return [(string) $matches[1], (string) $matches[2]];
         }
 
@@ -165,6 +178,11 @@ class SizeManager
         return ($width / $gcd) . ':' . ($height / $gcd);
     }
 
+    public static function isDivisibleBy16(int $width, int $height): bool
+    {
+        return $width % 16 === 0 && $height % 16 === 0;
+    }
+
     /**
      * 根据模型版本、名称和 model_id 匹配配置.
      * @param string $modelVersion 模型版本
@@ -185,11 +203,12 @@ class SizeManager
             foreach ($config['match'] ?? [] as $rule) {
                 $field = $rule['field'] ?? '';
                 $value = strtolower($rule['value'] ?? '');
+                $matchType = strtolower($rule['match_type'] ?? 'exact');
 
-                if ($field === 'model_version' && $modelVersion === $value) {
+                if ($field === 'model_version' && self::matchesRule($modelVersion, $value, $matchType)) {
                     return $config['config'] ?? null;
                 }
-                if ($field === 'model_id' && $modelId !== null && preg_match('/' . $rule['value'] . '/i', $modelId)) {
+                if ($field === 'model_id' && $modelId !== null && self::matchesRule($modelId, $value, $matchType)) {
                     return $config['config'] ?? null;
                 }
             }
@@ -398,6 +417,44 @@ class SizeManager
     }
 
     /**
+     * 将宽高同比例缩放，使总像素落入 [min, max] 区间.
+     *
+     * 总像素 P = width * height：
+     *   P < min  ->  scale = sqrt(min / P)，放大
+     *   P > max  ->  scale = sqrt(max / P)，缩小
+     *   min <= P <= max  ->  原样返回
+     *
+     * @param int $width 原始宽度
+     * @param int $height 原始高度
+     * @param array $pixelRange ['min' => int, 'max' => int]
+     * @return array [width_str, height_str]
+     */
+    private static function scaleToPixelRange(int $width, int $height, array $pixelRange): array
+    {
+        $min = (int) ($pixelRange['min'] ?? 0);
+        $max = (int) ($pixelRange['max'] ?? PHP_INT_MAX);
+        $pixels = $width * $height;
+
+        if ($pixels <= 0) {
+            return [(string) $width, (string) $height];
+        }
+
+        if ($pixels < $min) {
+            $scale = sqrt($min / $pixels);
+            // ceil 保证放大后总像素不低于 min
+            $width = (int) ceil($width * $scale);
+            $height = (int) ceil($height * $scale);
+        } elseif ($pixels > $max) {
+            $scale = sqrt($max / $pixels);
+            // floor 保证缩小后总像素不高于 max
+            $width = (int) floor($width * $scale);
+            $height = (int) floor($height * $scale);
+        }
+
+        return [(string) $width, (string) $height];
+    }
+
+    /**
      * 计算最大公约数.
      * @param int $a 第一个数
      * @param int $b 第二个数
@@ -417,5 +474,13 @@ class SizeManager
         }
 
         return $a;
+    }
+
+    private static function matchesRule(string $actualValue, string $expectedValue, string $matchType): bool
+    {
+        return match ($matchType) {
+            'fuzzy' => str_contains($actualValue, $expectedValue),
+            default => $actualValue === $expectedValue,
+        };
     }
 }

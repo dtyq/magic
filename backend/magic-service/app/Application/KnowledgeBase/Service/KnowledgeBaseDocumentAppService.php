@@ -7,164 +7,267 @@ declare(strict_types=1);
 
 namespace App\Application\KnowledgeBase\Service;
 
-use App\Domain\Flow\Entity\ValueObject\Query\KnowledgeBaseDocumentQuery;
+use App\Application\KnowledgeBase\DTO\DocumentRequestDTO;
+use App\Application\KnowledgeBase\DTO\KnowledgeBaseRawContextDTO;
 use App\Domain\KnowledgeBase\Entity\KnowledgeBaseDocumentEntity;
-use App\Domain\KnowledgeBase\Entity\KnowledgeBaseEntity;
-use App\Domain\KnowledgeBase\Entity\ValueObject\KnowledgeType;
-use App\Domain\KnowledgeBase\Entity\ValueObject\Query\KnowledgeBaseFragmentQuery;
-use App\Domain\KnowledgeBase\Event\KnowledgeBaseDocumentSavedEvent;
+use App\ErrorCode\FlowErrorCode;
 use App\ErrorCode\PermissionErrorCode;
-use App\Infrastructure\Core\Embeddings\VectorStores\VectorStoreDriver;
 use App\Infrastructure\Core\Exception\ExceptionBuilder;
-use App\Infrastructure\Core\ValueObject\Page;
-use Dtyq\AsyncEvent\AsyncEventUtil;
+use Hyperf\Coroutine\Coroutine;
 use Qbhy\HyperfAuth\Authenticatable;
 
 class KnowledgeBaseDocumentAppService extends AbstractKnowledgeAppService
 {
-    /**
-     * @return array<string, int> array<知识库code, 文档数量>
-     */
-    public function getDocumentCountByKnowledgeBaseCodes(Authenticatable $authorization, array $knowledgeBaseCodes): array
-    {
-        return $this->knowledgeBaseDocumentDomainService->getDocumentCountByKnowledgeBaseCodes($this->createKnowledgeBaseDataIsolation($authorization), $knowledgeBaseCodes);
-    }
+    private const int REVECTORIZED_SYNC_WAIT_TIMEOUT_SECONDS = 20;
 
-    /**
-     * 保存知识库文档.
-     */
-    public function save(Authenticatable $authorization, KnowledgeBaseDocumentEntity $documentEntity): KnowledgeBaseDocumentEntity
-    {
+    private const float REVECTORIZED_SYNC_POLL_INTERVAL_SECONDS = 0.5;
+
+    public function saveRaw(
+        Authenticatable $authorization,
+        array $payload,
+        string $knowledgeBaseCode,
+        ?string $code = null,
+    ): array {
         $dataIsolation = $this->createKnowledgeBaseDataIsolation($authorization);
-        $this->checkKnowledgeBaseOperation($dataIsolation, 'w', $documentEntity->getKnowledgeBaseCode(), $documentEntity->getCode());
-        $documentEntity->setCreatedUid($dataIsolation->getCurrentUserId());
-        $documentEntity->setUpdatedUid($dataIsolation->getCurrentUserId());
-        $knowledgeBaseEntity = $this->knowledgeBaseDomainService->show($dataIsolation, $documentEntity->getKnowledgeBaseCode());
+        $context = KnowledgeBaseRawContextDTO::fromDataIsolation($dataIsolation);
 
-        // 文档配置继承知识库(如果没有对应设置)
-        empty($knowledgeBaseEntity->getFragmentConfig()) && $documentEntity->setFragmentConfig($knowledgeBaseEntity->getFragmentConfig());
-        empty($documentEntity->getRetrieveConfig()) && $documentEntity->setRetrieveConfig($knowledgeBaseEntity->getRetrieveConfig());
+        $dataIsolationDTO = $context->dataIsolation();
+        $payload['knowledge_base_code'] = $knowledgeBaseCode;
+        $payload = $context->withOrganization($payload);
+        $payload = $context->withUserId($payload);
 
-        // 嵌入配置不可编辑
-        $documentEntity->setEmbeddingConfig($knowledgeBaseEntity->getEmbeddingConfig());
-        // 设置默认的嵌入模型和向量数据库
-        $documentEntity->setEmbeddingModel($knowledgeBaseEntity->getModel());
-        $documentEntity->setVectorDb(VectorStoreDriver::default()->value);
-        if (! $documentEntity->getCode()) {
-            // 新建文档
-            if ($documentEntity->getDocumentFile()) {
-                $documentFile = $this->documentFileStrategy->preProcessDocumentFile($dataIsolation, $documentEntity->getDocumentFile());
-                $documentEntity->setDocumentFile($documentFile);
-            }
-            return $this->knowledgeBaseDocumentDomainService->create($dataIsolation, $knowledgeBaseEntity, $documentEntity);
+        if ($code === null || $code === '') {
+            return $this->documentAppClient->create(DocumentRequestDTO::forCreate($payload, $dataIsolationDTO));
         }
-        return $this->knowledgeBaseDocumentDomainService->update($dataIsolation, $knowledgeBaseEntity, $documentEntity);
+
+        $payload['code'] = $code;
+        return $this->documentAppClient->update(DocumentRequestDTO::forUpdate(
+            $code,
+            $payload,
+            $dataIsolationDTO,
+            $knowledgeBaseCode
+        ));
     }
 
     /**
      * 查询知识库文档列表.
-     *
-     * @return array{total: int, list: array<KnowledgeBaseDocumentEntity>}
      */
-    public function query(Authenticatable $authorization, KnowledgeBaseDocumentQuery $query, Page $page): array
-    {
+    public function queryRaw(
+        Authenticatable $authorization,
+        array $query,
+        string $knowledgeBaseCode,
+    ): array {
         $dataIsolation = $this->createKnowledgeBaseDataIsolation($authorization);
+        $context = KnowledgeBaseRawContextDTO::fromDataIsolation($dataIsolation);
 
-        // 验证知识库的权限
-        $this->checkKnowledgeBaseOperation($dataIsolation, 'r', $query->getKnowledgeBaseCode(), $query->getCode());
-
-        // 兼容旧数据，新增默认文档
-        $fragmentQuery = new KnowledgeBaseFragmentQuery();
-        $fragmentQuery->setKnowledgeCode($query->getKnowledgeBaseCode());
-        $fragmentQuery->setIsDefaultDocumentCode(true);
-        $fragmentEntities = $this->knowledgeBaseFragmentDomainService->queries($dataIsolation, $fragmentQuery, new Page(1, 1));
-        if (! empty($fragmentEntities['list'])) {
-            $knowledgeBaseEntity = $this->knowledgeBaseDomainService->show($dataIsolation, $query->getKnowledgeBaseCode());
-            $this->knowledgeBaseStrategy->getOrCreateDefaultDocument($dataIsolation, $knowledgeBaseEntity);
-        }
-
-        // 调用领域服务查询文档
-        $entities = $this->knowledgeBaseDocumentDomainService->queries($dataIsolation, $query, $page);
-        $documentCodeFinalSyncStatusMap = $this->knowledgeBaseFragmentDomainService->getFinalSyncStatusByDocumentCodes(
-            $dataIsolation,
-            array_map(fn ($entity) => $entity->getCode(), $entities['list'])
-        );
-        // 获取文档同步状态
-        foreach ($entities['list'] as $entity) {
-            if (isset($documentCodeFinalSyncStatusMap[$entity->getCode()])) {
-                $entity->setSyncStatus($documentCodeFinalSyncStatusMap[$entity->getCode()]->value);
+        $rpcQuery = [
+            'organization_code' => $dataIsolation->getCurrentOrganizationCode(),
+            'knowledge_base_code' => $knowledgeBaseCode,
+        ];
+        foreach (['name', 'doc_type', 'enabled', 'sync_status', 'page', 'page_size', 'offset', 'limit'] as $field) {
+            if (array_key_exists($field, $query)) {
+                $rpcQuery[$field] = $query[$field];
             }
         }
-        return $entities;
-    }
-
-    public function reVectorizedByThirdFileId(Authenticatable $authorization, string $thirdPlatformType, string $thirdFileId): void
-    {
-        $dataIsolation = $this->createKnowledgeBaseDataIsolation($authorization);
-        $documents = $this->knowledgeBaseDocumentDomainService->getByThirdFileId($dataIsolation, $thirdPlatformType, $thirdFileId);
-        $knowledgeEntities = $this->knowledgeBaseDomainService->getByCodes($dataIsolation, array_column($documents, 'knowledge_base_code'));
-        /** @var array<string, KnowledgeBaseEntity> $knowledgeEntities */
-        $knowledgeEntities = array_column($knowledgeEntities, null, 'code');
-
-        foreach ($documents as $document) {
-            $knowledgeEntity = $knowledgeEntities[$document['knowledge_base_code']] ?? null;
-            if ($knowledgeEntity && $knowledgeEntity->getType() === KnowledgeType::UserKnowledgeBase->value) {
-                $event = new KnowledgeBaseDocumentSavedEvent($dataIsolation, $knowledgeEntity, $document, false);
-                AsyncEventUtil::dispatch($event);
-            }
-        }
+        return $this->documentAppClient->list(DocumentRequestDTO::forList($rpcQuery, $context->dataIsolation()));
     }
 
     /**
-     * 查看单个知识库文档详情.
+     * @noinspection PhpUnused
+     *
+     * @return array<KnowledgeBaseDocumentEntity>
      */
-    public function show(Authenticatable $authorization, string $knowledgeBaseCode, string $documentCode): KnowledgeBaseDocumentEntity
-    {
+    public function getByThirdFileId(
+        Authenticatable $authorization,
+        string $thirdPlatformType,
+        string $thirdFileId,
+        ?string $knowledgeBaseCode = null,
+    ): array {
         $dataIsolation = $this->createKnowledgeBaseDataIsolation($authorization);
-        $this->checkKnowledgeBaseOperation($dataIsolation, 'r', $knowledgeBaseCode, $documentCode);
+        $context = KnowledgeBaseRawContextDTO::fromDataIsolation($dataIsolation);
+        $documents = $this->documentAppClient->getByThirdFileId(DocumentRequestDTO::forGetByThirdFileId(
+            $thirdPlatformType,
+            $thirdFileId,
+            $context->dataIsolation(),
+            $knowledgeBaseCode,
+        ));
 
-        // 获取文档
-        $entity = $this->knowledgeBaseDocumentDomainService->show($dataIsolation, $knowledgeBaseCode, $documentCode);
-        $documentCodeFinalSyncStatusMap = $this->knowledgeBaseFragmentDomainService->getFinalSyncStatusByDocumentCodes($dataIsolation, [$documentCode]);
-        isset($documentCodeFinalSyncStatusMap[$documentCode]) && $entity->setSyncStatus($documentCodeFinalSyncStatusMap[$documentCode]->value);
-        return $entity;
+        return array_map(static fn (array $item) => new KnowledgeBaseDocumentEntity($item), $documents);
+    }
+
+    public function reVectorizedByThirdFileId(
+        Authenticatable $authorization,
+        string $thirdPlatformType,
+        string $thirdFileId,
+        ?string $thirdKnowledgeId = null
+    ): void {
+        $dataIsolation = $this->createKnowledgeBaseDataIsolation($authorization);
+        $context = KnowledgeBaseRawContextDTO::fromDataIsolation($dataIsolation);
+        $this->documentAppClient->reVectorizedByThirdFileId(DocumentRequestDTO::forReVectorizedByThirdFileId(
+            $thirdPlatformType,
+            $thirdFileId,
+            $context->dataIsolation(),
+            $thirdKnowledgeId,
+        ));
+    }
+
+    public function showRaw(
+        Authenticatable $authorization,
+        string $knowledgeBaseCode,
+        string $documentCode,
+    ): array {
+        $dataIsolation = $this->createKnowledgeBaseDataIsolation($authorization);
+        $context = KnowledgeBaseRawContextDTO::fromDataIsolation($dataIsolation);
+        return $this->documentAppClient->show(DocumentRequestDTO::forShow(
+            $documentCode,
+            $knowledgeBaseCode,
+            $context->dataIsolation(),
+        ));
+    }
+
+    /**
+     * @return array{available: bool, url: string, name: string, key: string, type: string}
+     */
+    public function originalFileLink(
+        Authenticatable $authorization,
+        string $knowledgeBaseCode,
+        string $documentCode,
+    ): array {
+        $dataIsolation = $this->createKnowledgeBaseDataIsolation($authorization);
+        $context = KnowledgeBaseRawContextDTO::fromDataIsolation($dataIsolation);
+
+        $result = $this->documentAppClient->getOriginalFileLink(DocumentRequestDTO::forOriginalFileLink(
+            $documentCode,
+            $knowledgeBaseCode,
+            $context->dataIsolation(),
+        ));
+
+        return [
+            'available' => (bool) ($result['available'] ?? false),
+            'url' => (string) ($result['url'] ?? ''),
+            'name' => (string) ($result['name'] ?? ''),
+            'key' => (string) ($result['key'] ?? ''),
+            'type' => (string) ($result['type'] ?? ''),
+        ];
     }
 
     /**
      * 删除知识库文档.
      */
-    public function destroy(Authenticatable $authorization, string $knowledgeBaseCode, string $documentCode): void
-    {
+    public function destroy(
+        Authenticatable $authorization,
+        string $knowledgeBaseCode,
+        string $documentCode,
+    ): void {
         $dataIsolation = $this->createKnowledgeBaseDataIsolation($authorization);
-        $this->checkKnowledgeBaseOperation($dataIsolation, 'del', $knowledgeBaseCode, $documentCode);
-        $knowledgeBaseEntity = $this->knowledgeBaseDomainService->show($dataIsolation, $knowledgeBaseCode);
-
-        // 调用领域服务删除文档
-        $this->knowledgeBaseDocumentDomainService->destroy($dataIsolation, $knowledgeBaseEntity, $documentCode);
+        $context = KnowledgeBaseRawContextDTO::fromDataIsolation($dataIsolation);
+        $this->documentAppClient->destroy(DocumentRequestDTO::forDestroy(
+            $documentCode,
+            $knowledgeBaseCode,
+            $context->dataIsolation(),
+        ));
     }
 
     /**
      * 重新向量化.
      */
-    public function reVectorized(Authenticatable $authorization, string $knowledgeBaseCode, string $documentCode): void
-    {
+    public function reVectorized(
+        Authenticatable $authorization,
+        string $knowledgeBaseCode,
+        string $documentCode,
+        array $payload = [],
+    ): void {
         $dataIsolation = $this->createKnowledgeBaseDataIsolation($authorization);
-        $this->checkKnowledgeBaseOperation($dataIsolation, 'manage', $knowledgeBaseCode, $documentCode);
-
-        // 调用领域服务重新向量化
-        $knowledgeBaseEntity = $this->knowledgeBaseDomainService->show($dataIsolation, $knowledgeBaseCode);
-        $documentEntity = $this->knowledgeBaseDocumentDomainService->show($dataIsolation, $knowledgeBaseCode, $documentCode);
+        $context = KnowledgeBaseRawContextDTO::fromDataIsolation($dataIsolation);
+        $dataIsolationDTO = $context->dataIsolation();
+        $documentEntity = new KnowledgeBaseDocumentEntity($this->documentAppClient->show(DocumentRequestDTO::forShow(
+            $documentCode,
+            $knowledgeBaseCode,
+            $dataIsolationDTO,
+        )));
         // 由于历史文档没有 document_file 字段，不能被重新向量化
         if (! $documentEntity->getDocumentFile()) {
             ExceptionBuilder::throw(PermissionErrorCode::Error, 'flow.knowledge_base.re_vectorized_not_support');
         }
-        // 分发事件，重新向量化
-        $documentSavedEvent = new KnowledgeBaseDocumentSavedEvent(
-            $dataIsolation,
-            $knowledgeBaseEntity,
-            $documentEntity,
-            false,
-        );
-        AsyncEventUtil::dispatch($documentSavedEvent);
+        // 这是“当前文档手动重试”的入口，URL 已经显式指定 knowledge_base_code + document_code。
+        // 这里绝不能再借 third-file 链路扩散到别的知识库，否则接口语义会从“单文档”变成“广播”。
+        $this->documentAppClient->sync(DocumentRequestDTO::forSync(
+            $documentCode,
+            $knowledgeBaseCode,
+            'resync',
+            $dataIsolationDTO,
+            $context->businessParams($knowledgeBaseCode),
+            DocumentRequestDTO::REVECTORIZE_SOURCE_SINGLE_DOCUMENT_MANUAL,
+        ));
+
+        if ($this->shouldWaitForReVectorizedSync($payload)) {
+            $this->waitForReVectorizedSyncStatusChanged(
+                $context,
+                $knowledgeBaseCode,
+                $documentCode,
+                $documentEntity->getSyncStatus(),
+            );
+        }
+    }
+
+    private function shouldWaitForReVectorizedSync(array $payload): bool
+    {
+        if (! array_key_exists('sync', $payload)) {
+            return false;
+        }
+
+        $sync = $payload['sync'];
+        if (is_bool($sync)) {
+            return $sync;
+        }
+        if (is_int($sync)) {
+            return $sync === 1;
+        }
+        if (is_float($sync)) {
+            return $sync === 1.0;
+        }
+        if (is_string($sync)) {
+            $parsed = filter_var($sync, FILTER_VALIDATE_BOOLEAN, FILTER_NULL_ON_FAILURE);
+            return $parsed ?? false;
+        }
+
+        return false;
+    }
+
+    private function waitForReVectorizedSyncStatusChanged(
+        KnowledgeBaseRawContextDTO $context,
+        string $knowledgeBaseCode,
+        string $documentCode,
+        int $beforeSyncStatus,
+    ): void {
+        $deadline = microtime(true) + self::REVECTORIZED_SYNC_WAIT_TIMEOUT_SECONDS;
+        $dataIsolationDTO = $context->dataIsolation();
+
+        while (microtime(true) < $deadline) {
+            $currentDocument = new KnowledgeBaseDocumentEntity($this->documentAppClient->show(DocumentRequestDTO::forShow(
+                $documentCode,
+                $knowledgeBaseCode,
+                $dataIsolationDTO,
+            )));
+            if ($currentDocument->getSyncStatus() !== $beforeSyncStatus) {
+                return;
+            }
+
+            $remainingSeconds = $deadline - microtime(true);
+            if ($remainingSeconds <= 0) {
+                break;
+            }
+            Coroutine::sleep(min(self::REVECTORIZED_SYNC_POLL_INTERVAL_SECONDS, $remainingSeconds));
+        }
+
+        $this->logger->warning('knowledge_base_document_re_vectorized_sync_wait_timeout', [
+            'organization_code' => $context->organizationCode,
+            'knowledge_base_code' => $knowledgeBaseCode,
+            'document_code' => $documentCode,
+            'before_status' => $beforeSyncStatus,
+            'timeout_seconds' => self::REVECTORIZED_SYNC_WAIT_TIMEOUT_SECONDS,
+        ]);
+
+        ExceptionBuilder::throw(FlowErrorCode::ExecuteFailed, 'common.request_timeout');
     }
 }

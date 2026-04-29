@@ -404,6 +404,18 @@ class ModelGatewayMapper extends ModelMapper
                     $orderedList[$modelId] = $list[$modelId];
                 }
             }
+
+            // env 模型不受订阅权限限制，始终追加到列表末尾
+            $envModelKeys = array_merge(
+                array_keys($this->getModels('chat')),
+                array_keys($this->getModels('embedding')),
+            );
+            foreach ($envModelKeys as $envKey) {
+                if (isset($list[$envKey]) && ! isset($orderedList[$envKey])) {
+                    $orderedList[$envKey] = $list[$envKey];
+                }
+            }
+
             $list = $orderedList;
         }
 
@@ -518,6 +530,7 @@ class ModelGatewayMapper extends ModelMapper
                 $resolvedImpl->getModelVersion(),
                 $resolvedImpl->getProviderModelId(),
                 $resolvedImpl->getProviderCode(),
+                $resolvedModelId,
             ),
         };
 
@@ -547,11 +560,12 @@ class ModelGatewayMapper extends ModelMapper
         } elseif ($providerModelEntity->getModelType()->isEmbedding()) {
             $embedding = true;
             $vectorSize = $providerModelEntity->getConfig()?->getVectorSize();
+            $multiModal = $providerModelEntity->getConfig()?->isSupportMultiModal() ?? false;
         }
 
         $key = $providerModelEntity->getModelId();
 
-        $implementation = $providerEntity->getProviderCode()->getImplementation();
+        $implementation = $providerEntity->getProviderCode()->getImplementationForModel($embedding, $multiModal);
         $providerConfigItem = $providerConfigEntity->getConfig();
         $implementationConfig = $providerEntity->getProviderCode()->getImplementationConfig($providerConfigItem, $providerModelEntity->getModelVersion());
 
@@ -583,12 +597,20 @@ class ModelGatewayMapper extends ModelMapper
             modelType: $providerModelEntity->getModelType()->value,
             description: $providerModelEntity->getLocalizedDescription($providerDataIsolation->getLanguage()),
             resolvedModelId: $key,
+            modelVersion: $providerModelEntity->getModelVersion(),
+            providerName: $providerName,
         );
 
         if ($providerModelEntity->getModelType()->isVLM()) {
             return new ModelEntry(
                 attributes: $attributes,
-                model: new ImageModel($providerConfigItem->toArray(), $providerModelEntity->getModelVersion(), (string) $providerModelEntity->getId(), $providerEntity->getProviderCode()),
+                model: new ImageModel(
+                    $providerConfigItem->toArray(),
+                    $providerModelEntity->getModelVersion(),
+                    (string) $providerModelEntity->getId(),
+                    $providerEntity->getProviderCode(),
+                    $providerModelEntity->getModelId()
+                ),
             );
         }
 

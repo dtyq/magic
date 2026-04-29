@@ -78,6 +78,10 @@ use Throwable;
 
 class SuperMagicAgentAppService extends AbstractSuperMagicAppService
 {
+    private const string REQUIRED_IDENTITY_PATH = '.magic/IDENTITY.md';
+
+    private const string KNOWLEDGE_SEARCH_TOOL_CODE = 'search_knowledge';
+
     #[Inject]
     protected SkillDomainService $skillDomainService;
 
@@ -170,20 +174,7 @@ class SuperMagicAgentAppService extends AbstractSuperMagicAppService
 
         // 2. 加载tool
         if ($withToolSchema) {
-            $remoteToolCodes = [];
-            foreach ($agent->getTools() as $tool) {
-                if ($tool->getType()->isRemote()) {
-                    $remoteToolCodes[] = $tool->getCode();
-                }
-            }
-            // 获取工具定义
-            $remoteTools = ToolsExecutor::getToolFlows($flowDataIsolation, $remoteToolCodes, true);
-            foreach ($agent->getTools() as $tool) {
-                $remoteTool = $remoteTools[$tool->getCode()] ?? null;
-                if ($remoteTool) {
-                    $tool->setSchema($remoteTool->getInput()->getForm()?->getForm()->toJsonSchema());
-                }
-            }
+            $this->hydrateToolSchemas($agent, $flowDataIsolation);
         }
 
         // 3. 批量查询技能详情
@@ -258,19 +249,7 @@ class SuperMagicAgentAppService extends AbstractSuperMagicAppService
         $agent = $this->buildAgentDetailFromVersion($versionEntity);
 
         if ($withToolSchema) {
-            $remoteToolCodes = [];
-            foreach ($agent->getTools() as $tool) {
-                if ($tool->getType()->isRemote()) {
-                    $remoteToolCodes[] = $tool->getCode();
-                }
-            }
-            $remoteTools = ToolsExecutor::getToolFlows($flowDataIsolation, $remoteToolCodes, true);
-            foreach ($agent->getTools() as $tool) {
-                $remoteTool = $remoteTools[$tool->getCode()] ?? null;
-                if ($remoteTool) {
-                    $tool->setSchema($remoteTool->getInput()->getForm()?->getForm()->toJsonSchema());
-                }
-            }
+            $this->hydrateToolSchemas($agent, $flowDataIsolation);
         }
 
         $versionSkills = $this->superMagicAgentSkillDomainService->getByAgentVersionId($dataIsolation, (int) $versionEntity->getId());
@@ -1306,6 +1285,54 @@ class SuperMagicAgentAppService extends AbstractSuperMagicAppService
         }
     }
 
+    private function hydrateToolSchemas(SuperMagicAgentEntity $agent, mixed $flowDataIsolation): void
+    {
+        $agent->setTools($agent->getTools());
+
+        $remoteToolCodes = [];
+        foreach ($agent->getTools() as $tool) {
+            if (! $tool->getType()->isRemote()) {
+                continue;
+            }
+            if ($this->isKnowledgeSearchTool($tool->getCode())) {
+                continue;
+            }
+            $remoteToolCodes[] = $tool->getCode();
+        }
+
+        $remoteTools = ToolsExecutor::getToolFlows($flowDataIsolation, $remoteToolCodes, true);
+        foreach ($agent->getTools() as $tool) {
+            if ($this->isKnowledgeSearchTool($tool->getCode())) {
+                $tool->setSchema($this->buildKnowledgeSearchToolSchema());
+                continue;
+            }
+            $remoteTool = $remoteTools[$tool->getCode()] ?? null;
+            if ($remoteTool) {
+                $tool->setSchema($remoteTool->getInput()->getForm()?->getForm()->toJsonSchema());
+            }
+        }
+    }
+
+    private function isKnowledgeSearchTool(string $toolCode): bool
+    {
+        return $toolCode === self::KNOWLEDGE_SEARCH_TOOL_CODE;
+    }
+
+    private function buildKnowledgeSearchToolSchema(): array
+    {
+        return [
+            'type' => 'object',
+            'properties' => [
+                'query' => [
+                    'type' => 'string',
+                    'description' => '用于检索相关知识上下文的查询语句。',
+                ],
+            ],
+            'required' => ['query'],
+            'additionalProperties' => false,
+        ];
+    }
+
     /**
      * 按指定 Agent code 集合查询“当前用户可见的已发布版本”。
      *
@@ -1720,12 +1747,13 @@ class SuperMagicAgentAppService extends AbstractSuperMagicAppService
     /**
      * Validate that IDENTITY.md exists in the agent project before publishing.
      */
-    private function validateIdentityMdExists(int $projectId, ?string $sourcePath): void
+    private function validateIdentityMdExists(int $projectId): void
     {
-        if (! $this->taskFileDomainService->existsFileByName($projectId, 'IDENTITY.md')) {
+        if (! $this->taskFileDomainService->existsStrictAgentIdentityFile($projectId)) {
             ExceptionBuilder::throw(
                 SuperAgentErrorCode::PUBLISH_IDENTITY_MD_NOT_FOUND,
-                'super_magic.agent.publish.identity_md_not_found'
+                'super_magic.agent.publish.identity_md_not_found',
+                ['path' => self::REQUIRED_IDENTITY_PATH]
             );
         }
     }
@@ -2223,7 +2251,7 @@ class SuperMagicAgentAppService extends AbstractSuperMagicAppService
             }
 
             $sourcePath = $this->resolvePublishExportSourcePath($agentEntity->getProjectId());
-            $this->validateIdentityMdExists($agentEntity->getProjectId(), $sourcePath);
+            $this->validateIdentityMdExists($agentEntity->getProjectId());
             $fileMetadata = $this->exportFileFromProject($authorization, $code, $agentEntity->getProjectId(), $sourcePath);
             $agentEntity->setFileKey($fileMetadata['file_key']);
         } else {

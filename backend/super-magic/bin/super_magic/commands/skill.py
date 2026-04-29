@@ -103,7 +103,7 @@ def list_skills(output_format: str, show_all: bool):
 def read_skills(names: str, output_format: str):
     """读取 skill 的完整内容
 
-    NAMES: skill 名称，支持逗号分隔的多个名称，例如: creating-slides,designing-canvas-images
+    NAMES: skill 名称，支持逗号分隔的多个名称，例如: creating-slides,canvas-designer
     """
     async def _read():
         try:

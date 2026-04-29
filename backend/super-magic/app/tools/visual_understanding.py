@@ -323,6 +323,28 @@ class VisualUnderstanding(BaseTool[VisualUnderstandingParams]):
         else:
             return i18n.translate("visual_understanding.multiple_images", category="tool.messages", count=image_count)
 
+    async def get_before_tool_call_friendly_action_and_remark(
+        self,
+        tool_name: str,
+        tool_context: ToolContext,
+        arguments: Dict[str, Any] = None
+    ) -> Dict:
+        """获取工具调用前的友好动作和备注"""
+        action = i18n.translate("visual_understanding_ing", category="tool.actions")
+
+        images = arguments.get("images", []) if arguments else []
+        image_count = len(images) if isinstance(images, list) else 0
+
+        if image_count == 1:
+            image_source_name = extract_image_source_name(images[0])
+            remark = i18n.translate("visual_understanding.analyzing", category="tool.messages", image_name=image_source_name)
+        elif image_count > 1:
+            remark = i18n.translate("visual_understanding.analyzing_multiple", category="tool.messages", count=image_count)
+        else:
+            remark = ""
+
+        return {"action": action, "remark": remark}
+
     async def get_after_tool_call_friendly_action_and_remark(self, tool_name: str, tool_context: ToolContext, result: ToolResult, execution_time: float, arguments: Dict[str, Any] = None) -> Dict:
         """获取工具调用后的友好动作和备注"""
         if not result.ok:

@@ -79,3 +79,5 @@ class HorizonState:
     context_usage_baseline_used_pct: int = 0   # 上次注入给 LLM 的 used_pct 整数百分比
     # 当前上下文窗口是否已经完成过 initial_context 注入
     initial_context_injected: bool = False
+    # 上次注入时间的日期部分（YYYY-MM-DD），同一天增量注入时省略周几/周数/时区
+    last_injected_date: str = ""

@@ -46,6 +46,11 @@ class CreateProjectRequestDTO extends AbstractRequestDTO
     public array $files = [];
 
     /**
+     * 动态参数，前端以对象形式传递（如 { message_version: "v2" }），存入话题 dynamic_params 字段.
+     */
+    public array $dynamicParams = [];
+
+    /**
      * Get workspace ID.
      */
     public function getWorkspaceId(): int
@@ -108,6 +113,16 @@ class CreateProjectRequestDTO extends AbstractRequestDTO
         return $this->files;
     }
 
+    public function getDynamicParams(): array
+    {
+        return $this->dynamicParams;
+    }
+
+    public function setDynamicParams(?array $dynamicParams): void
+    {
+        $this->dynamicParams = $dynamicParams ?? [];
+    }
+
     /**
      * Get validation rules.
      */
@@ -121,6 +136,7 @@ class CreateProjectRequestDTO extends AbstractRequestDTO
             'workdir' => 'nullable|string|max:255',
             'files' => 'nullable|array|max:50',
             'files.*' => 'string',
+            'dynamic_params' => 'nullable|array',
         ];
     }
 

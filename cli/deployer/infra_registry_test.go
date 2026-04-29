@@ -982,6 +982,7 @@ func TestInfraRegistry_RenderOverlay_ProducesValidYAML(t *testing.T) {
 func TestMagicStage_Prep_ReadsFromRegistry(t *testing.T) {
 	reg := newTestRegistry(t)
 	d := &Deployer{
+		opts: &options{},
 		merged: map[string]interface{}{
 			"infra": map[string]interface{}{
 				"minio": map[string]interface{}{
@@ -1035,6 +1036,7 @@ func TestMagicStage_Prep_ReadsFromRegistry(t *testing.T) {
 func TestMagicSandboxStage_Prep_ReadsMinIOFromRegistry(t *testing.T) {
 	reg := newTestRegistry(t)
 	d := &Deployer{
+		opts: &options{},
 		merged: map[string]interface{}{
 			"infra": map[string]interface{}{
 				"minio": map[string]interface{}{
@@ -1066,7 +1068,7 @@ func TestMagicSandboxStage_Prep_ReadsMinIOFromRegistry(t *testing.T) {
 // ── resolveInfraServiceEndpoint fallback (previously in magic_test.go) ───────
 
 func TestResolveInfraServiceEndpoint_FallbackWhenNoKubeClient(t *testing.T) {
-	d := &Deployer{}
+	d := &Deployer{opts: &options{}}
 	ep := resolveInfraServiceEndpoint(context.Background(), d, infraMySQLServiceName, []string{"mysql"}, defaultMySQLHost, defaultMySQLPort)
 	assert.Equal(t, defaultMySQLHost, ep.host)
 	assert.Equal(t, int32(defaultMySQLPort), ep.port)

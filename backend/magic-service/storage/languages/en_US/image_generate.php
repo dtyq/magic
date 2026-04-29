@@ -32,6 +32,7 @@ return [
     'invalid_aspect_ratio' => 'The difference in size ratio of Tucson diagram is too large, and can only be 3 times different',
     'image_url_is_empty' => 'Image url is empty',
     'unsupported_image_size' => 'Unsupported image size :size, supported sizes are: :supported_sizes',
+    'azure_image_size_must_be_divisible_by_16' => 'Azure image size :size is invalid. Width and height must both be divisible by 16.',
     'unsupported_image_size_range' => 'Image size :size is out of supported range, width and height must be between :min_size-:max_size pixels',
 
     // Azure OpenAI related error messages
@@ -70,10 +71,18 @@ return [
     'file_upload_failed' => 'File upload failed: :error',
     'file_upload_response_missing_uri' => 'Missing file.uri in file upload response',
     'api_request_failed_with_error' => 'API request failed: :error',
+    'google_gemini_model_or_endpoint_not_found' => 'Google Gemini model or endpoint not found (model: :model)',
+    'api_request_failed_after_retries' => 'API request failed after retries',
     'too_many_reference_images_limit_14' => 'Too many reference images, maximum allowed is 14',
     'too_many_reference_images_limit_3' => 'Too many reference images, maximum allowed is 3',
     'too_many_reference_images_limit' => 'Too many reference images, maximum allowed is :limit',
     'too_many_images_limit_1' => 'Image convert high definition only supports 1 image',
+    'unsupported_output_format' => 'The current model does not support output format :format, supported formats are: :supported',
+    'remove_background_image_required' => 'Image url is required for background removal',
+    'remove_background_invalid_image_url' => 'Invalid image url for background removal',
+    'remove_background_provider_not_configured' => 'Background removal provider is not configured or enabled',
+    'remove_background_only_image_allowed' => 'Only image files are allowed',
+    'remove_background_image_too_large' => 'Image size cannot exceed 20MB',
     # watermark
     'image_watermark' => 'website/static/img/watermark_en.png',
 ];

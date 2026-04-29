@@ -66,8 +66,14 @@ class HorizonStore:
     """原子写入的 JSON 持久化，与 ChatHistory 同目录。"""
 
     def __init__(self, chat_history_dir: str, agent_name: str, agent_id: str) -> None:
+        self.agent_name = agent_name
+        self.agent_id = agent_id
         self._path = Path(chat_history_dir) / f"{agent_name}<{agent_id}>.horizon.json"
         self._path.parent.mkdir(parents=True, exist_ok=True)
+
+    @property
+    def path(self) -> Path:
+        return self._path
 
     async def load(self) -> Optional[HorizonState]:
         if not await async_exists(self._path):
@@ -106,6 +112,7 @@ class HorizonStore:
             state.context_usage_baseline_total = int(data.get("context_usage_baseline_total", 0))
             state.context_usage_baseline_used_pct = int(data.get("context_usage_baseline_used_pct", 0))
             state.initial_context_injected = bool(data.get("initial_context_injected", False))
+            state.last_injected_date = data.get("last_injected_date", "")
             return state
         except Exception as e:
             logger.warning(f"[HorizonStore] 加载失败，使用空状态: {e}")
@@ -130,6 +137,7 @@ class HorizonStore:
             "context_usage_baseline_total": state.context_usage_baseline_total,
             "context_usage_baseline_used_pct": state.context_usage_baseline_used_pct,
             "initial_context_injected": state.initial_context_injected,
+            "last_injected_date": state.last_injected_date,
         }
         tmp = self._path.with_suffix(".tmp")
         try:

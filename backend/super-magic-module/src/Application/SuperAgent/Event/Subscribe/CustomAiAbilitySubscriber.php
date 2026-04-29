@@ -60,6 +60,11 @@ class CustomAiAbilitySubscriber implements ListenerInterface
                         'model_id' => $aiAbility->getConfig()['model_id'] ?? '',
                     ];
                     break;
+                case AiAbilityCode::VideoUnderstanding:
+                    $dynamicConfig['video_understanding'] = [
+                        'model_id' => $aiAbility->getConfig()['model_id'] ?? '',
+                    ];
+                    break;
                 case AiAbilityCode::ContentSummary:
                     $dynamicConfig['summarize'] = [
                         'model_id' => $aiAbility->getConfig()['model_id'] ?? '',

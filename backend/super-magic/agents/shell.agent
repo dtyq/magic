@@ -2,6 +2,7 @@
 llm: coder_llm
 tools:
   - shell_exec
+  - shell_await
   - list_dir
   - file_search
   - read_files

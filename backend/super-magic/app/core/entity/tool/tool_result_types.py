@@ -94,6 +94,7 @@ class TerminalToolResult(ToolResult):
     """终端命令执行工具的结构化结果"""
     command: str = Field(default="", description="执行的终端命令")
     exit_code: int = Field(default=0, description="命令执行的退出码，0表示成功")
+    horizon_hint: Optional[str] = Field(default=None, description="需要通过 horizon 推送给 LLM 的引导性提示，不随 content 返回")
 
     def set_command(self, command: str) -> None:
         """设置执行的终端命令

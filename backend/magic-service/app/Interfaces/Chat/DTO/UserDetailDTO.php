@@ -52,6 +52,10 @@ class UserDetailDTO extends AbstractDTO
 
     protected ?UserOption $option;
 
+    protected ?string $timezone = null;
+
+    protected ?array $preferences = null;
+
     public function __construct(array $data = [])
     {
         if (isset($data['option']) && is_numeric($data['option'])) {
@@ -68,6 +72,28 @@ class UserDetailDTO extends AbstractDTO
     public function setOption(?UserOption $option): void
     {
         $this->option = $option;
+    }
+
+    public function getTimezone(): ?string
+    {
+        return $this->timezone;
+    }
+
+    public function setTimezone(?string $timezone): UserDetailDTO
+    {
+        $this->timezone = $timezone;
+        return $this;
+    }
+
+    public function getPreferences(): ?array
+    {
+        return $this->preferences;
+    }
+
+    public function setPreferences(?array $preferences): UserDetailDTO
+    {
+        $this->preferences = $preferences;
+        return $this;
     }
 
     public function getCountryCode(): string

@@ -19,9 +19,9 @@ class KnowledgeBaseFragmentQuery extends Query
 
     public ?int $maxSyncTimes = null;
 
-    public bool $isDefaultDocumentCode = false;
-
     public ?int $version = null;
+
+    public ?string $content = null;
 
     public function getKnowledgeCode(): string
     {
@@ -75,17 +75,6 @@ class KnowledgeBaseFragmentQuery extends Query
         return $this;
     }
 
-    public function isDefaultDocumentCode(): bool
-    {
-        return $this->isDefaultDocumentCode;
-    }
-
-    public function setIsDefaultDocumentCode(bool $isDefaultDocumentCode): static
-    {
-        $this->isDefaultDocumentCode = $isDefaultDocumentCode;
-        return $this;
-    }
-
     public function getVersion(): ?int
     {
         return $this->version;
@@ -94,6 +83,17 @@ class KnowledgeBaseFragmentQuery extends Query
     public function setVersion(?int $version): static
     {
         $this->version = $version;
+        return $this;
+    }
+
+    public function getContent(): ?string
+    {
+        return $this->content;
+    }
+
+    public function setContent(?string $content): static
+    {
+        $this->content = $content;
         return $this;
     }
 }

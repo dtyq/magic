@@ -1,0 +1,522 @@
+<!DOCTYPE html>
+<html lang="zh-CN" class="antialiased">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <title>Magic Calendar</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <!-- 引入农历库 -->
+    <script src="https://unpkg.com/lunar-javascript/lunar.js"></script>
+    <script>
+        tailwind.config = {
+            darkMode: 'media',
+            theme: {
+                extend: {
+                    fontFamily: { sans: ['Inter', '-apple-system', 'BlinkMacSystemFont', 'system-ui', 'sans-serif'] },
+                }
+            }
+        }
+    </script>
+    <style>
+        @layer utilities {
+            .glass-panel {
+                @apply bg-white/90 dark:bg-[#1c1c1e]/90 backdrop-blur-[40px] border border-slate-200/80 dark:border-white/10 shadow-xl shadow-black/5 dark:shadow-black/40;
+            }
+            .glass-card {
+                @apply bg-white dark:bg-[#2c2c2e] border border-slate-200 dark:border-slate-700 shadow-sm hover:shadow-md transition-all duration-300;
+            }
+            .no-scrollbar::-webkit-scrollbar {
+                display: none;
+            }
+            .no-scrollbar {
+                -ms-overflow-style: none;
+                scrollbar-width: none;
+            }
+        }
+
+        body {
+            background-color: #f5f5f7;
+        }
+
+        @media (prefers-color-scheme: dark) {
+            body {
+                background-color: #000000;
+            }
+        }
+
+        ::-webkit-scrollbar { width: 4px; height: 4px; }
+        ::-webkit-scrollbar-track { background: transparent; }
+        ::-webkit-scrollbar-thumb { background: rgba(156, 163, 175, 0.4); border-radius: 4px; }
+        ::-webkit-scrollbar-thumb:hover { background: rgba(156, 163, 175, 0.7); }
+
+        @media (max-width: 767px) {
+            body {
+                padding: 0 !important;
+                overflow: hidden !important;
+            }
+            #app-root {
+                flex-direction: column;
+                height: 100dvh !important;
+                border-radius: 0;
+            }
+            #calendar-section {
+                flex: none;
+                height: 100dvh;
+                padding-bottom: 2rem;
+                overflow-y: auto;
+            }
+        }
+
+    </style>
+</head>
+<body class="min-h-screen text-slate-900 dark:text-slate-100 overflow-hidden p-4 md:p-6 lg:p-8 flex items-center justify-center">
+    
+    <!-- 主容器：电脑端全宽，不再默认占用右侧 -->
+    <div id="app-root" class="w-full max-w-[1600px] h-full md:h-[calc(100vh-3rem)] lg:h-[calc(100vh-4rem)] flex flex-col relative z-10 glass-panel md:rounded-[2rem] overflow-hidden">
+        
+        <!-- 日历区域 (全宽) -->
+        <main id="calendar-section" class="flex-1 flex flex-col relative z-20 transition-all duration-500 w-full"></main>
+    </div>
+
+    <!-- 事件详情气泡 (Popover) -->
+    <div id="event-popover-overlay" class="fixed inset-0 z-40 hidden" onclick="appActions.closeEventDetail()"></div>
+    <div id="event-popover" class="fixed z-50 hidden" style="width: 320px; max-width: calc(100vw - 32px);">
+        <div class="bg-white dark:bg-[#2c2c2e] rounded-2xl shadow-2xl w-full overflow-hidden border border-slate-200 dark:border-slate-700" id="event-popover-content">
+            <!-- 内容由 JS 注入 -->
+        </div>
+    </div>
+
+    <script>
+        let magicState = {
+            currentDate: new Date(),
+            selectedDate: new Date(),
+            viewMode: 'month', // 'month' | 'week'
+            config: null,
+            events: [],
+            categories: {}
+        };
+
+        const LOCALES = {
+            "zh_CN": {
+                monthNames: ["1月", "2月", "3月", "4月", "5月", "6月", "7月", "8月", "9月", "10月", "11月", "12月"],
+                dayNames: ['周日', '周一', '周二', '周三', '周四', '周五', '周六'],
+                dayNamesShort: ['日', '一', '二', '三', '四', '五', '六'],
+                lunarCalendar: "Lunar Calendar",
+                monthView: "月",
+                weekView: "周",
+                today: "(今天)",
+                allDay: "全天",
+                noEvents: "无日程安排",
+                defaultCategory: "默认",
+                yearSuffix: "年"
+            },
+            "en_US": {
+                monthNames: ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"],
+                dayNames: ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'],
+                dayNamesShort: ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'],
+                lunarCalendar: "Lunar Calendar",
+                monthView: "Month",
+                weekView: "Week",
+                today: "(Today)",
+                allDay: "All Day",
+                noEvents: "No Events",
+                defaultCategory: "Default",
+                yearSuffix: ""
+            }
+        };
+
+        const DEFAULT_LANG = "en_US";
+        let currentLang = DEFAULT_LANG;
+        let unsubscribeI18n = null;
+
+        function resolveLocale(lang) {
+            if (LOCALES[lang]) return lang;
+            if (lang && lang.startsWith("zh")) return "zh_CN";
+            if (lang && lang.startsWith("en")) return "en_US";
+            return DEFAULT_LANG;
+        }
+
+        function t(key) {
+            const val = LOCALES[currentLang][key];
+            return val !== undefined ? val : key;
+        }
+
+        function setupMagicI18nSubscribe() {
+            try {
+                if (!window.Magic?.i18n?.subscribe) {
+                    console.warn("[iframe-i18n] window.Magic.i18n.subscribe not available, using default");
+                    currentLang = resolveLocale(DEFAULT_LANG);
+                    return;
+                }
+                currentLang = resolveLocale(window.Magic.i18n.lang || DEFAULT_LANG);
+                unsubscribeI18n = window.Magic.i18n.subscribe((payload) => {
+                    const nextLang = payload?.lang || DEFAULT_LANG;
+                    const resolved = resolveLocale(nextLang);
+                    if (resolved !== currentLang) {
+                        currentLang = resolved;
+                        document.documentElement.lang = currentLang === 'zh_CN' ? 'zh-CN' : 'en';
+                        initUI();
+                    }
+                });
+            } catch (error) {
+                console.error("[iframe-i18n] subscribe failed:", error);
+                currentLang = resolveLocale(DEFAULT_LANG);
+            }
+        }
+
+        window.addEventListener("beforeunload", () => {
+            try {
+                if (typeof unsubscribeI18n === "function") unsubscribeI18n();
+            } catch (_) {}
+        });
+
+        window.magicProjectConfigure = async function(projConfig) {
+            magicState.config = projConfig;
+            if (projConfig.name) document.title = projConfig.name;
+            if (projConfig.categories) {
+                projConfig.categories.forEach(c => magicState.categories[c.id] = c);
+            }
+
+            if (projConfig.event_files && projConfig.event_files.length > 0) {
+                try {
+                    const fetchPromises = projConfig.event_files.map(file => 
+                        fetch(file).then(res => res.ok ? res.json() : [])
+                    );
+                    const results = await Promise.all(fetchPromises);
+                    magicState.events = results.flat();
+                } catch (err) {
+                    console.error("Failed to load events", err);
+                }
+            }
+            
+            setupMagicI18nSubscribe();
+            initUI();
+        };
+
+        function initUI() {
+            renderCalendar();
+        }
+
+        const appActions = { 
+            navigate: function(delta) {
+                if (magicState.viewMode === 'month') {
+                    magicState.currentDate.setMonth(magicState.currentDate.getMonth() + delta);
+                } else {
+                    magicState.selectedDate.setDate(magicState.selectedDate.getDate() + delta * 7);
+                    magicState.currentDate = new Date(magicState.selectedDate);
+                }
+                renderCalendar();
+            }, 
+            selectDate: function(year, month, day) {
+                magicState.selectedDate = new Date(year, month, day);
+                if (magicState.viewMode === 'month' && magicState.currentDate.getMonth() !== month) {
+                    magicState.currentDate = new Date(year, month, 1);
+                }
+                renderCalendar();
+            },
+            setViewMode: function(mode) {
+                magicState.viewMode = mode;
+                magicState.currentDate = new Date(magicState.selectedDate);
+                renderCalendar();
+            },
+            showEventDetail: function(e, idx, year, month, date) {
+                e.stopPropagation(); // 阻止事件冒泡
+                
+                // 提前获取点击元素的位置，因为重新渲染后该元素会丢失
+                const rect = e.currentTarget.getBoundingClientRect();
+                
+                // 如果传入了日期，则高亮该日期
+                if (year !== undefined && month !== undefined && date !== undefined) {
+                    magicState.selectedDate = new Date(year, month, date);
+                    if (magicState.viewMode === 'month' && magicState.currentDate.getMonth() !== month) {
+                        magicState.currentDate = new Date(year, month, 1);
+                    }
+                    renderCalendar();
+                }
+
+                const event = magicState.events[idx];
+                const cat = magicState.categories[event.category] || { color: '#8e8e93', name: t('defaultCategory') };
+                
+                const timeStr = event.all_day ? t('allDay') : `${event.start.substring(11, 16)} ${event.end ? '- ' + event.end.substring(11, 16) : ''}`;
+                const dateStr = event.start.substring(0, 10);
+
+                const modalHtml = `
+                    <div class="p-5 relative">
+                        <button onclick="appActions.closeEventDetail()" class="absolute top-3 right-3 w-7 h-7 flex items-center justify-center rounded-full bg-slate-100 dark:bg-slate-700 text-slate-500 hover:bg-slate-200 dark:hover:bg-slate-600 transition-colors">
+                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
+                        </button>
+                        <div class="flex items-center gap-3 mb-4 pr-8">
+                            <div class="w-3 h-3 rounded-full shadow-sm" style="background-color: ${cat.color}"></div>
+                            <h3 class="text-lg font-bold text-slate-900 dark:text-white leading-tight">${event.title}</h3>
+                        </div>
+                        <div class="space-y-3">
+                            <div class="flex items-start gap-2.5 text-sm">
+                                <svg class="w-4 h-4 text-slate-400 mt-0.5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+                                <div>
+                                    <div class="font-semibold text-slate-800 dark:text-slate-200">${dateStr}</div>
+                                    <div class="text-slate-500 dark:text-slate-400 mt-0.5">${timeStr}</div>
+                                </div>
+                            </div>
+                            <div class="flex items-center gap-2.5 text-sm">
+                                <svg class="w-4 h-4 text-slate-400 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z"></path></svg>
+                                <span class="px-2 py-0.5 rounded-md text-xs font-semibold" style="background-color: ${cat.color}15; color: ${cat.color}">${cat.name}</span>
+                            </div>
+                            ${event.description ? `
+                            <div class="flex items-start gap-2.5 text-sm pt-3 mt-3 border-t border-slate-100 dark:border-slate-700/50">
+                                <svg class="w-4 h-4 text-slate-400 mt-0.5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h7"></path></svg>
+                                <div class="text-slate-600 dark:text-slate-300 leading-relaxed">${event.description}</div>
+                            </div>` : ''}
+                        </div>
+                    </div>
+                `;
+                
+                const overlay = document.getElementById('event-popover-overlay');
+                const popover = document.getElementById('event-popover');
+                const content = document.getElementById('event-popover-content');
+                content.innerHTML = modalHtml;
+                
+                // 计算位置：跟随鼠标点击位置
+                const popoverWidth = 320;
+                popover.classList.remove('hidden');
+                popover.style.display = 'block';
+                const popoverHeight = popover.offsetHeight;
+                
+                // 获取点击坐标，兼容触摸事件
+                const clickX = e.clientX || (e.touches && e.touches[0].clientX) || rect.left + rect.width / 2;
+                const clickY = e.clientY || (e.touches && e.touches[0].clientY) || rect.top + rect.height / 2;
+                
+                // 默认显示在鼠标右下方
+                let left = clickX + 12;
+                let top = clickY + 12;
+                
+                // 如果右侧放不下，放到鼠标左侧
+                if (left + popoverWidth > window.innerWidth - 12) {
+                    left = clickX - popoverWidth - 12;
+                }
+                
+                // 如果底部放不下，放到鼠标上方
+                if (top + popoverHeight > window.innerHeight - 12) {
+                    top = clickY - popoverHeight - 12;
+                }
+                
+                // 最终的安全边界检查（例如手机端屏幕较小的情况）
+                if (left < 12) left = 12;
+                if (top < 12) top = 12;
+                
+                popover.style.top = top + 'px';
+                popover.style.left = left + 'px';
+                
+                overlay.classList.remove('hidden');
+            },
+            closeEventDetail: function() {
+                const overlay = document.getElementById('event-popover-overlay');
+                const popover = document.getElementById('event-popover');
+                
+                popover.style.display = 'none';
+                popover.classList.add('hidden');
+                overlay.classList.add('hidden');
+            }
+        };
+        window.appActions = appActions;
+
+        // 监听全局键盘事件，支持 ESC 键关闭弹窗
+        document.addEventListener('keydown', function(e) {
+            if (e.key === 'Escape' || e.keyCode === 27) {
+                const popover = document.getElementById('event-popover');
+                if (popover && !popover.classList.contains('hidden')) {
+                    appActions.closeEventDetail();
+                }
+            }
+        });
+
+        function renderCalendar() {
+            const { currentDate, selectedDate, viewMode } = magicState;
+            const year = currentDate.getFullYear();
+            const month = currentDate.getMonth();
+            
+            const monthNames = t('monthNames');
+            const dayNamesShort = t('dayNamesShort');
+            
+            const isMobileWeek = viewMode === 'week';
+            
+            let html = `
+                <div class="px-4 md:px-6 pt-6 pb-4 flex flex-col h-full">
+                    <div class="flex flex-col md:flex-row justify-between md:items-end mb-4 gap-4 shrink-0">
+                        <div>
+                            <h1 class="text-3xl md:text-4xl font-bold tracking-tight mb-1 text-slate-900 dark:text-white">${year}${t('yearSuffix')} ${monthNames[month]}</h1>
+                            ${currentLang === 'zh_CN' ? `
+                            <div class="text-slate-500 dark:text-slate-400 font-medium text-sm flex items-center gap-2">
+                                <span>${t('lunarCalendar')}</span>
+                            </div>` : ''}
+                        </div>
+                        <div class="flex items-center gap-3">
+                            <div class="flex bg-slate-200/60 dark:bg-[#2c2c2e] p-1 rounded-lg border border-slate-300/50 dark:border-slate-700">
+                                <button onclick="appActions.setViewMode('month')" class="px-4 py-1.5 text-xs font-medium rounded-md transition-all ${viewMode === 'month' ? 'bg-white dark:bg-[#3a3a3c] shadow-sm text-slate-900 dark:text-white' : 'text-slate-600 hover:text-slate-800 dark:text-slate-400 dark:hover:text-slate-200'}">${t('monthView')}</button>
+                                <button onclick="appActions.setViewMode('week')" class="px-4 py-1.5 text-xs font-medium rounded-md transition-all ${viewMode === 'week' ? 'bg-white dark:bg-[#3a3a3c] shadow-sm text-slate-900 dark:text-white' : 'text-slate-600 hover:text-slate-800 dark:text-slate-400 dark:hover:text-slate-200'}">${t('weekView')}</button>
+                            </div>
+                            <div class="flex gap-1">
+                                <button onclick="appActions.navigate(-1)" class="w-8 h-8 rounded-full flex items-center justify-center text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-[#2c2c2e] transition-all border border-transparent hover:border-slate-300 dark:hover:border-slate-600">
+                                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"></path></svg>
+                                </button>
+                                <button onclick="appActions.navigate(1)" class="w-8 h-8 rounded-full flex items-center justify-center text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-[#2c2c2e] transition-all border border-transparent hover:border-slate-300 dark:hover:border-slate-600">
+                                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"></path></svg>
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="flex-1 overflow-y-auto overflow-x-hidden no-scrollbar pb-4 relative flex flex-col">
+                        <div class="${isMobileWeek ? 'w-full' : 'w-full flex-1 flex flex-col'}">
+                            <div class="${isMobileWeek ? 'px-4 md:px-0' : 'flex-1 flex flex-col'}">
+                                <div class="${isMobileWeek ? 'hidden md:grid' : 'grid'} grid-cols-7 gap-1 md:gap-1.5 mb-1.5 text-center shrink-0">
+                                    ${dayNamesShort.map(d => 
+                                        `<div class="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase pb-1">${d}</div>`
+                                    ).join('')}
+                                </div>
+                                
+                                <div id="days-grid" class="${isMobileWeek ? 'flex flex-col gap-2 md:grid md:grid-cols-7 md:gap-1.5 md:flex-1 md:auto-rows-fr' : 'grid grid-cols-7 gap-0.5 md:gap-1.5 flex-1 auto-rows-fr'}">
+                                    ${generateDaysGrid(year, month, selectedDate, viewMode)}
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            `;
+            
+            document.getElementById('calendar-section').innerHTML = html;
+        }
+
+        function renderDayCell(dateObj, isWeekView) {
+            const year = dateObj.getFullYear();
+            const month = dateObj.getMonth();
+            const date = dateObj.getDate();
+            const dStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(date).padStart(2, '0')}`;
+            
+            const isSel = magicState.selectedDate.toDateString() === dateObj.toDateString();
+            const isToday = new Date().toDateString() === dateObj.toDateString();
+            const isOtherMonth = magicState.viewMode === 'month' && month !== magicState.currentDate.getMonth();
+            
+            const lunar = Lunar.fromDate(dateObj);
+            const solar = Solar.fromDate(dateObj);
+            const lunarFests = lunar.getFestivals();
+            const solarFests = solar.getFestivals();
+            const festival = solarFests.length > 0 ? solarFests[0] : (lunarFests.length > 0 ? lunarFests[0] : '');
+            const jieQi = lunar.getJieQi();
+            const lunarText = festival ? festival : (jieQi ? jieQi : (currentLang === 'zh_CN' ? lunar.getDayInChinese() : ''));
+            const isHoliday = festival !== '';
+            
+            const evs = magicState.events.filter(e => e.start.startsWith(dStr)).sort((a,b) => a.start.localeCompare(b.start));
+            
+            let eventsHtml = '';
+            if (evs.length > 0) {
+                // 手机端周视图：横向排列事件，高度自适应
+                // 其他情况：纵向排列
+                eventsHtml = `<div class="w-full flex ${isWeekView ? 'flex-row flex-wrap md:flex-col' : 'flex-col'} gap-1 md:gap-0.5 mt-2 md:mt-1 overflow-y-auto no-scrollbar flex-1 pb-1">`;
+                evs.forEach(e => {
+                    const cat = magicState.categories[e.category] || { color: '#8e8e93', name: '默认' };
+                    const timeStr = e.all_day ? '' : e.start.substring(11, 16) + ' ';
+                    const globalIdx = magicState.events.indexOf(e);
+                    
+                    if (e.all_day) {
+                        eventsHtml += `
+                            <div onclick="appActions.showEventDetail(event, ${globalIdx}, ${year}, ${month}, ${date})" class="px-1.5 py-0.5 rounded text-[10px] md:text-[11px] font-medium mb-0.5 transition-colors hover:brightness-95 truncate cursor-pointer ${isWeekView ? 'w-auto max-w-[calc(100%-0.5rem)] md:w-full' : 'w-full'}" 
+                                 style="background-color: ${cat.color}15; color: ${cat.color}; border-left: 2px solid ${cat.color}">
+                                ${e.title}
+                            </div>`;
+                    } else {
+                        eventsHtml += `
+                            <div onclick="appActions.showEventDetail(event, ${globalIdx}, ${year}, ${month}, ${date})" class="flex items-center gap-0.5 md:gap-1 px-0.5 md:px-1.5 py-0.5 text-[9px] md:text-[11px] hover:bg-black/5 dark:hover:bg-white/10 rounded transition-colors overflow-hidden cursor-pointer ${isWeekView ? 'w-auto max-w-[calc(100%-0.5rem)] md:w-full bg-slate-50 dark:bg-slate-800 md:bg-transparent md:dark:bg-transparent border border-slate-200 dark:border-slate-700 md:border-none' : 'w-full'} leading-tight">
+                                <div class="w-1 h-1 md:w-1.5 md:h-1.5 rounded-full shrink-0" style="background-color: ${cat.color}"></div>
+                                <span class="text-slate-500 dark:text-slate-400 font-medium shrink-0 hidden md:inline scale-90 origin-left md:scale-100">${timeStr.trim()}</span>
+                                <span class="text-slate-800 dark:text-slate-100 font-medium truncate flex-1 min-w-0">${e.title}</span>
+                            </div>`;
+                    }
+                });
+                eventsHtml += `</div>`;
+            }
+
+            // 手机端周视图高度自适应 (min-h-[80px] 或者内容撑开)，电脑端周视图固定高度
+            const heightClass = isWeekView ? "min-h-[80px] md:min-h-[400px] h-auto md:h-full" : "min-h-[4.5rem] md:min-h-[7.5rem] h-full";
+            const opacityClass = isOtherMonth ? "opacity-40" : "opacity-100";
+            
+            let stateClasses = "";
+            if (isSel) {
+                stateClasses = "bg-blue-50/60 dark:bg-blue-900/20 border-blue-300 dark:border-blue-700 shadow-sm z-10 ring-1 ring-blue-300 dark:ring-blue-700";
+            } else {
+                stateClasses = "bg-white/60 dark:bg-[#2c2c2e]/40 hover:bg-white dark:hover:bg-[#2c2c2e] border-slate-200/60 dark:border-slate-700/50 hover:border-slate-300 dark:hover:border-slate-600";
+            }
+            
+            const baseClasses = `flex flex-col p-1 md:p-2 ${heightClass} rounded-lg md:rounded-xl cursor-pointer transition-all duration-200 relative group border`;
+            
+            let dateNumHtml = '';
+            if (isToday) {
+                dateNumHtml = `<span class="w-5 h-5 md:w-6 md:h-6 rounded-full bg-blue-500 text-white flex items-center justify-center font-bold text-[11px] md:text-sm shadow-sm shadow-blue-500/30 shrink-0">${date}</span>`;
+            } else {
+                const dateColor = isSel ? "text-blue-600 dark:text-blue-400 font-bold" : "text-slate-800 dark:text-slate-200 font-semibold";
+                dateNumHtml = `<span class="w-5 h-5 md:w-6 md:h-6 flex items-center justify-center ${dateColor} text-[11px] md:text-sm shrink-0">${date}</span>`;
+            }
+
+            const lunarColor = isHoliday ? "text-red-500 font-medium" : "text-slate-400 dark:text-slate-500";
+
+            const dayNames = t('dayNames');
+            const dayName = dayNames[dateObj.getDay()];
+
+            return `
+                <div class="${baseClasses} ${stateClasses} ${opacityClass}" onclick="appActions.selectDate(${year}, ${month}, ${date})">
+                    <div class="flex justify-between items-start w-full px-0.5 mb-0.5 md:mb-0">
+                        <div class="flex items-center gap-1 md:gap-2">
+                            ${dateNumHtml}
+                            ${isWeekView ? `<span class="text-[10px] md:text-xs font-semibold text-slate-500 dark:text-slate-400 md:hidden">${dayName}</span>` : ''}
+                        </div>
+                        ${lunarText ? `<span class="text-[9px] md:text-[10px] mt-0.5 md:mt-1 truncate max-w-[60%] md:max-w-[65%] text-right ${lunarColor} leading-tight">${lunarText}</span>` : ''}
+                    </div>
+                    ${eventsHtml}
+                </div>
+            `;
+        }
+
+        function generateDaysGrid(year, month, selectedDate, viewMode) {
+            let html = '';
+            
+            if (viewMode === 'week') {
+                const dayOfWeek = selectedDate.getDay();
+                const startDate = new Date(selectedDate);
+                startDate.setDate(selectedDate.getDate() - dayOfWeek);
+                
+                for (let i = 0; i < 7; i++) {
+                    const d = new Date(startDate);
+                    d.setDate(startDate.getDate() + i);
+                    html += renderDayCell(d, true);
+                }
+            } else {
+                const firstDay = new Date(year, month, 1).getDay();
+                const daysInMonth = new Date(year, month + 1, 0).getDate();
+                const daysInPrevMonth = new Date(year, month, 0).getDate();
+                
+                for (let i = 0; i < firstDay; i++) {
+                    const d = new Date(year, month - 1, daysInPrevMonth - firstDay + i + 1);
+                    html += renderDayCell(d, false);
+                }
+
+                for (let i = 1; i <= daysInMonth; i++) {
+                    const d = new Date(year, month, i);
+                    html += renderDayCell(d, false);
+                }
+                
+                const total = firstDay + daysInMonth;
+                const rem = (7 - (total % 7)) % 7;
+                if (rem !== 7 && rem !== 0) {
+                    for (let i = 1; i <= rem; i++) {
+                        const d = new Date(year, month + 1, i);
+                        html += renderDayCell(d, false);
+                    }
+                }
+            }
+            return html;
+        }
+
+    </script>
+    <script src="./magic.project.js"></script>
+</body>
+</html>

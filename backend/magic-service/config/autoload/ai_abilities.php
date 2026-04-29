@@ -349,6 +349,84 @@ return [
             'status' => env('AI_ABILITY_IMAGE_CONVERT_HIGH_STATUS', true),
             'config' => [
                 'model_id' => env('AI_ABILITY_IMAGE_CONVERT_HIGH_MODEL_ID', null), // 对应service_provider_models.model_id
+                'prompt' => env('AI_ABILITY_IMAGE_CONVERT_HIGH_PROMPT', ''),
+            ],
+        ],
+
+        // 去背景
+        'image_remove_background' => [
+            'code' => 'image_remove_background',
+            'name' => [
+                'zh_CN' => '去背景',
+                'en_US' => 'Remove Background',
+            ],
+            'description' => [
+                'zh_CN' => '本能力覆盖平台所有图片去背景的应用场景，通过AI技术自动识别主体并去除图片背景，保留主体完整边缘。',
+                'en_US' => 'This capability covers all image background removal scenarios on the platform, automatically identifying subjects and removing backgrounds through AI technology while preserving clean subject edges.',
+            ],
+            'icon' => 'image-remove-background-icon',
+            'sort_order' => 16,
+            'status' => env('AI_ABILITY_IMAGE_REMOVE_BACKGROUND_STATUS', true),
+            'config' => [
+                'providers' => [
+                    [
+                        'name' => '官方代理服务',
+                        'enable' => env('AI_ABILITY_IMAGE_REMOVE_BACKGROUND_OFFICIAL_PROXY_ENABLE', env('AI_ABILITY_IMAGE_REMOVE_BACKGROUND_OFFICIAL_ENABLE', true)),
+                        'provider' => 'official_proxy',
+                        'url' => env('AI_ABILITY_IMAGE_REMOVE_BACKGROUND_OFFICIAL_PROXY_URL', env('AI_ABILITY_IMAGE_REMOVE_BACKGROUND_OFFICIAL_URL', '')),
+                        'api_key' => env('AI_ABILITY_IMAGE_REMOVE_BACKGROUND_OFFICIAL_PROXY_API_KEY', env('AI_ABILITY_IMAGE_REMOVE_BACKGROUND_OFFICIAL_API_KEY', '')),
+                        'timeout' => env('AI_ABILITY_IMAGE_REMOVE_BACKGROUND_OFFICIAL_PROXY_TIMEOUT', env('AI_ABILITY_IMAGE_REMOVE_BACKGROUND_OFFICIAL_TIMEOUT', 300)),
+                    ],
+                    [
+                        'name' => '官方服务',
+                        'enable' => env('AI_ABILITY_IMAGE_REMOVE_BACKGROUND_OFFICIAL_MODEL_SERVICE_ENABLE', env('AI_ABILITY_IMAGE_REMOVE_BACKGROUND_BUILTIN_ENABLE', false)),
+                        'provider' => 'official_model_service',
+                        'url' => env('AI_ABILITY_IMAGE_REMOVE_BACKGROUND_OFFICIAL_MODEL_SERVICE_URL', env('AI_ABILITY_IMAGE_REMOVE_BACKGROUND_BUILTIN_URL', '')),
+                        'model_name' => env('AI_ABILITY_IMAGE_REMOVE_BACKGROUND_OFFICIAL_MODEL_SERVICE_MODEL_NAME', env('AI_ABILITY_IMAGE_REMOVE_BACKGROUND_BUILTIN_MODEL_NAME', '')),
+                        'api_key' => env('AI_ABILITY_IMAGE_REMOVE_BACKGROUND_OFFICIAL_MODEL_SERVICE_API_KEY', env('AI_ABILITY_IMAGE_REMOVE_BACKGROUND_BUILTIN_API_KEY', '')),
+                        'timeout' => env('AI_ABILITY_IMAGE_REMOVE_BACKGROUND_OFFICIAL_MODEL_SERVICE_TIMEOUT', env('AI_ABILITY_IMAGE_REMOVE_BACKGROUND_BUILTIN_TIMEOUT', 300)),
+                    ],
+                ],
+            ],
+        ],
+
+        // 橡皮擦
+        'image_eraser' => [
+            'code' => 'image_eraser',
+            'name' => [
+                'zh_CN' => '橡皮擦',
+                'en_US' => 'Image Eraser',
+            ],
+            'description' => [
+                'zh_CN' => '本能力覆盖平台所有图片橡皮擦的应用场景，通过AI技术根据标记区域擦除图片内容，并以自然背景无缝填充。',
+                'en_US' => 'This capability covers all image eraser scenarios on the platform, removing marked regions from images through AI technology and filling them with seamless, natural backgrounds.',
+            ],
+            'icon' => 'image-eraser-icon',
+            'sort_order' => 17,
+            'status' => env('AI_ABILITY_IMAGE_ERASER_STATUS', true),
+            'config' => [
+                'model_id' => env('AI_ABILITY_IMAGE_ERASER_MODEL_ID', null),
+                'prompt' => env('AI_ABILITY_IMAGE_ERASER_PROMPT', ''),
+            ],
+        ],
+
+        // 扩图
+        'image_expand' => [
+            'code' => 'image_expand',
+            'name' => [
+                'zh_CN' => '扩图',
+                'en_US' => 'Image Expand',
+            ],
+            'description' => [
+                'zh_CN' => '本能力覆盖平台所有图片扩图的应用场景，通过AI技术将图片向外延伸，以符合原图风格、光照和透视的内容填充扩展区域。',
+                'en_US' => 'This capability covers all image outpainting scenarios on the platform, extending images outward through AI technology and filling expanded areas with content coherent with the original style, lighting, and perspective.',
+            ],
+            'icon' => 'image-expand-icon',
+            'sort_order' => 18,
+            'status' => env('AI_ABILITY_IMAGE_EXPAND_STATUS', true),
+            'config' => [
+                'model_id' => env('AI_ABILITY_IMAGE_EXPAND_MODEL_ID', null),
+                'prompt' => env('AI_ABILITY_IMAGE_EXPAND_PROMPT', ''),
             ],
         ],
 
@@ -390,6 +468,44 @@ return [
                         'request_url' => env('AI_ABILITY_IMAGE_SEARCH_CLOUDSWAY_URL', ''),
                     ],
                 ],
+            ],
+        ],
+
+        // 视频理解
+        'video_understanding' => [
+            'code' => 'video_understanding',
+            'name' => [
+                'zh_CN' => '视频理解',
+                'en_US' => 'Video Understanding',
+            ],
+            'description' => [
+                'zh_CN' => '本能力覆盖平台所有需要让大模型进行视频理解的应用场景，精准理解视频画面、动作、场景及与时间线相关的内容与关系。',
+                'en_US' => 'This capability covers all application scenarios that require AI models to perform video understanding on the platform, accurately understanding frames, motion, scenes, and timeline-related content and relationships in video.',
+            ],
+            'icon' => 'video-understanding-icon',
+            'sort_order' => 19,
+            'status' => env('AI_ABILITY_VIDEO_UNDERSTANDING_STATUS', true),
+            'config' => [
+                'model_id' => env('AI_ABILITY_VIDEO_UNDERSTANDING_MODEL_ID', null), // 对应service_provider_models.model_id
+            ],
+        ],
+
+        // 追加提问（对话追问建议）
+        'follow_up_questions' => [
+            'code' => 'follow_up_questions',
+            'name' => [
+                'zh_CN' => '追加提问',
+                'en_US' => 'Follow-up Questions',
+            ],
+            'description' => [
+                'zh_CN' => '本能力覆盖对话场景中根据历史上下文生成后续追问建议的应用场景，用于引导用户继续深入探讨。',
+                'en_US' => 'This capability covers scenarios where follow-up question suggestions are generated from conversation history to guide users to explore topics further.',
+            ],
+            'icon' => 'follow-up-questions-icon',
+            'sort_order' => 20,
+            'status' => env('AI_ABILITY_FOLLOW_UP_QUESTIONS_STATUS', true),
+            'config' => [
+                'model_id' => env('AI_ABILITY_FOLLOW_UP_QUESTIONS_MODEL_ID', null), // 对应service_provider_models.model_id
             ],
         ],
     ],

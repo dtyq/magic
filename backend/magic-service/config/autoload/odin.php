@@ -243,17 +243,22 @@ return [
             'embedding' => false,
             'multi_modal' => false,
             'vector_size' => 0,
+            'thinking_budget_levels' => [
+                'low' => 4096,
+                'medium' => 16384,
+                'high' => 32768,
+            ],
         ],
         'general_api_options' => [
             'timeout' => [
                 'connection' => 5.0,  // 连接超时（秒）
                 'write' => 10.0,      // 写入超时（秒）
-                'read' => 300.0,      // 读取超时（秒）
-                'total' => 350.0,     // 总体超时（秒）
+                'read' => 600.0,      // 读取超时（秒）
+                'total' => 660.0,     // 总体超时（秒）
                 'thinking' => 120.0,  // 思考超时（秒）
-                'stream_chunk' => 120.0, // 流式块间超时（秒）
-                'stream_first' => 60.0, // 流式首块超时（秒）
-                'stream_total' => 600.0, // 流式总超时（秒，默认10分钟）
+                'stream_chunk' => 300.0, // 流式块间超时（秒）
+                'stream_first' => 120.0, // 流式首块超时（秒）
+                'stream_total' => 900.0, // 流式总超时（秒）
             ],
             'custom_error_mapping_rules' => [],
             'logging' => [

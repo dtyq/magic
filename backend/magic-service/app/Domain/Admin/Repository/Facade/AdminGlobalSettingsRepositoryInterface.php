@@ -27,4 +27,6 @@ interface AdminGlobalSettingsRepositoryInterface
      * @return AdminGlobalSettingsEntity[]
      */
     public function updateSettingsBatch(array $entities): array;
+
+    public function deleteSettingsByTypeAndOrganization(AdminGlobalSettingsType $type, string $organization): void;
 }

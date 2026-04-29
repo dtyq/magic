@@ -169,8 +169,8 @@ class DownloadDashboardMaps(
                     failed_areas.append(f"{area_name}({e})")
 
             if failed_areas and not geo_config_items:
-                return ToolResult(
-                    error=f"All areas failed to download. Errors: {'; '.join(failed_areas)}"
+                return ToolResult.error(
+                    f"All areas failed to download. Errors: {'; '.join(failed_areas)}"
                 )
 
             if geo_config_items:

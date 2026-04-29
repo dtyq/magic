@@ -40,6 +40,8 @@ class UserModel extends Model
         'option',
         'profession',
         'channel',
+        'timezone',
+        'preferences',
     ];
 
     /**
@@ -52,5 +54,6 @@ class UserModel extends Model
         'created_at' => 'datetime',
         'updated_at' => 'datetime',
         'deleted_at' => 'datetime',
+        'preferences' => 'array',
     ];
 }

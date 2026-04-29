@@ -10,18 +10,15 @@ import (
 
 func TestResolveChartRefs_RewritesOCIRepoToHostEndpoint(t *testing.T) {
 	d := &Deployer{
-		opts: Options{
-			ChartRepo: "oci://magic-kind-registry:5000/magic-charts-open",
-			ChartSpecs: map[string]ChartSpec{
+		opts: &options{
+			chartRepo: ChartRepoConfig{URL: "oci://magic-kind-registry:5000/magic-charts-open"},
+			chartSpecs: map[string]ChartSpec{
 				"magic": {Name: "magic", Version: "0.0.1"},
 			},
-			Registry: registry.Config{
+			registry: registry.Config{
 				Name:     "magic-kind-registry",
 				HostPort: 35000,
 			},
-		},
-		chartSpecs: map[string]ChartSpec{
-			"magic": {Name: "magic", Version: "0.0.1"},
 		},
 	}
 
@@ -30,23 +27,20 @@ func TestResolveChartRefs_RewritesOCIRepoToHostEndpoint(t *testing.T) {
 
 	ref, ok := d.chartRefs["magic"]
 	require.True(t, ok)
-	assert.Equal(t, "oci://"+registry.HostEndpoint(d.opts.Registry)+"/magic-charts-open", ref.RepoURL)
+	assert.Equal(t, "oci://"+registry.HostEndpoint(d.opts.registry)+"/magic-charts-open", ref.RepoURL)
 }
 
 func TestResolveChartRefs_KeepOCIRepoWhenHostNotRegistryContainerEndpoint(t *testing.T) {
 	d := &Deployer{
-		opts: Options{
-			ChartRepo: "oci://example-registry:5000/magic-charts-open",
-			ChartSpecs: map[string]ChartSpec{
+		opts: &options{
+			chartRepo: ChartRepoConfig{URL: "oci://example-registry:5000/magic-charts-open"},
+			chartSpecs: map[string]ChartSpec{
 				"magic": {Name: "magic", Version: "0.0.1"},
 			},
-			Registry: registry.Config{
+			registry: registry.Config{
 				Name:     "magic-kind-registry",
 				HostPort: 35000,
 			},
-		},
-		chartSpecs: map[string]ChartSpec{
-			"magic": {Name: "magic", Version: "0.0.1"},
 		},
 	}
 
@@ -60,14 +54,16 @@ func TestResolveChartRefs_KeepOCIRepoWhenHostNotRegistryContainerEndpoint(t *tes
 
 func TestResolveChartRefs_HTTPRepoCarriesBasicAuth(t *testing.T) {
 	d := &Deployer{
-		opts: Options{
-			ChartRepo:     "https://git.example.com/org/charts",
-			ChartRepoUser: "user1",
-			ChartRepoPass: "pat-123",
-			PassCredsAll:  true,
-		},
-		chartSpecs: map[string]ChartSpec{
-			"infra": {Name: "infra", Version: "0.0.1"},
+		opts: &options{
+			chartRepo: ChartRepoConfig{
+				URL:                "https://git.example.com/org/charts",
+				Username:           "user1",
+				Password:           "pat-123",
+				PassCredentialsAll: true,
+			},
+			chartSpecs: map[string]ChartSpec{
+				"infra": {Name: "infra", Version: "0.0.1"},
+			},
 		},
 	}
 

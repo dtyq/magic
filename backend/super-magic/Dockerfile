@@ -8,11 +8,11 @@ ARG TARGETARCH
 # 环境变量
 ARG TZ=Asia/Shanghai
 ENV TZ=${TZ} \
-    LANG=C.UTF-8 \
-    LC_ALL=C.UTF-8 \
+    LANG=en_US.UTF-8 \
+    LC_CTYPE=en_US.UTF-8 \
     PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
-    TIKTOKEN_CACHE_DIR=/app/tiktoken_cache \
+    PYTHONUTF8=1 \
     AUTO_REGENERATE_TOOL_DEFINITIONS=false \
     UNZIP="-O UTF-8" \
     ZIPINFO="-O UTF-8"
@@ -43,6 +43,7 @@ RUN --mount=type=cache,id=debian-${DEBIAN_VERSION}-apt-${TARGETARCH},target=/var
         vim \
         patch \
         tzdata \
+        locales \
         ripgrep \
         tree \
         fontconfig \
@@ -53,7 +54,11 @@ RUN --mount=type=cache,id=debian-${DEBIAN_VERSION}-apt-${TARGETARCH},target=/var
         ffmpeg \
         tini \
         libheif-dev \
-        libheif1
+        libheif1 && \
+    # generate locale so Chinese filenames display correctly in interactive shells
+    sed -i 's/# en_US.UTF-8 UTF-8/en_US.UTF-8 UTF-8/' /etc/locale.gen && \
+    locale-gen en_US.UTF-8 && \
+    update-locale LANG=en_US.UTF-8 LC_ALL=en_US.UTF-8
 
 # 安装 LibreOffice（用于 .doc, .xls 和 .ppt 文件转换）
 RUN --mount=type=cache,id=debian-${DEBIAN_VERSION}-apt-${TARGETARCH},target=/var/cache/apt \
@@ -117,7 +122,10 @@ RUN --mount=type=cache,id=debian-${DEBIAN_VERSION}-apt-${TARGETARCH},target=/var
     ln -sf /usr/bin/bash /bin/sh && \
     # 让entrypoint执行bashrc
     echo -e "#!/usr/bin/bash\n. ~/.bashrc\nexec tini -- \"\$@\"" > /entrypoint.sh && \
-    chmod +x /entrypoint.sh
+    chmod +x /entrypoint.sh && \
+    # ensure locale is always set in interactive shells (e.g. kubectl exec -- bash)
+    echo 'export LANG=en_US.UTF-8' >> ~/.bashrc && \
+    echo 'export LC_CTYPE=en_US.UTF-8' >> ~/.bashrc
 
 # 设置工作目录
 WORKDIR /app
@@ -136,19 +144,14 @@ RUN --mount=type=cache,id=debian-${DEBIAN_VERSION}-pip-${TARGETARCH},target=/roo
     pip install \
         --prefer-binary \
         uv \
-        tiktoken \
         -r requirements.txt \
         -r requirements_sandbox.txt && \
     opentelemetry-bootstrap -a install && \
     python /app/deploy/setup_font.py
 
-# 安装项目并预加载 tiktoken
+# 安装项目
 COPY . .
-COPY scripts/preload_tiktoken.py /app/scripts/preload_tiktoken.py
-RUN mkdir -p /app/tiktoken_cache && \
-    chmod 777 /app/tiktoken_cache && \
-    pip install ./agentlang && \
-    python3 /app/scripts/preload_tiktoken.py && \
+RUN pip install ./agentlang && \
     python3 main.py tools generate
 
 # 还原镜像源

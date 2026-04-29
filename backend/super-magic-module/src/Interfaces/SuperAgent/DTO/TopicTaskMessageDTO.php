@@ -140,7 +140,7 @@ class TopicTaskMessageDTO
             'topic_id' => $topicId,
             'status' => $this->payload->getStatus() ?? 'pending',
             'content' => $this->payload->getContent() ?? '',
-            'raw_content' => '',
+            'raw_content' => $this->payload->getRawContent() !== null ? json_encode($this->payload->getRawContent(), JSON_UNESCAPED_UNICODE) : '',
             'steps' => $this->payload->getSteps() ?? null,
             'tool' => $this->payload->getTool() ?? null,
             'attachments' => $this->payload->getAttachments() ?? null,

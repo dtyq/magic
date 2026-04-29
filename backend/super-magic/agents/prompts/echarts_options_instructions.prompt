@@ -1,22 +1,18 @@
 <!--zh
-- 所有Echarts图表必须保证在HTML内容以及CSS样式解析完成后(window.onload)再进行echarts.init()，注意是window.onload，不要使用DOMContentLoaded
-- 当页面中有Echarts图表时，必须监听window.resize事件，resize事件触发时，调用所有图表的resize()方法
-- 图表容器充分利用可用空间，预留边距确保文字完整显示
+- echarts.init 须在 window.onload（或 load 监听）内执行，禁止内联脚本解析阶段顶层 init；不要用 DOMContentLoaded 代替 load。
+- onload 内 setOption 后须再异步 resize 一次（如双 requestAnimationFrame 或 setTimeout 0）；须监听 window.resize，对所有图表实例调用 resize()。
+- 图表容器须有明确高度；饼图类若竖排 legend，须保证容器宽度或调整 legend，避免挤出。
+- 绘图区须尽量占满容器：合理设置 grid（必要时 containLabel）、饼图/雷达等的 center 与 radius，在标签可读前提下减少四周无效留白。
 多轴对齐：
-- 确保同方向轴刻度数量一致，避免网格线错位
-- 通过min、max、interval参数实现刻度对齐
+- 同方向轴刻度数量一致，避免网格线错位；用 min、max、interval 对齐刻度
 视觉要求：
-- 坐标轴、网格线、标签保持对齐
-- 避免文字重叠和数据密集显示问题
-- 配色协调统一，布局合理不遮挡关键数据
+- 坐标轴、网格线、标签对齐；避免重叠与过密；配色统一，不遮挡关键数据
 -->
-- All ECharts charts must ensure echarts.init() only after HTML content and CSS styles are fully parsed (window.onload). Note: window.onload, not DOMContentLoaded.
-- When page contains ECharts charts, must listen to window.resize event. When resize triggers, call resize() method on all charts.
-- Chart containers should fully utilize available space, reserve margins to ensure complete text display.
+- Run echarts.init only inside window.onload (or load listener), not at top level while the inline script parses; do not use DOMContentLoaded instead of load.
+- After setOption inside onload, schedule one async resize (e.g. double requestAnimationFrame or setTimeout 0); listen to window.resize and call resize() on every chart instance.
+- Chart containers need explicit height; pie or doughnut with vertical legend needs enough width or adjusted legend to avoid overflow.
+- Maximize plot area within the container: tune grid (use containLabel when needed), pie or radar center and radius, and margins so labels stay readable without large empty bands.
 Multi-axis alignment:
-- Ensure same-direction axes have consistent tick counts to avoid grid line misalignment.
-- Use min, max, interval parameters to achieve tick alignment.
+- Same-direction axes: consistent tick counts; use min, max, interval to align ticks and avoid grid misalignment.
 Visual requirements:
-- Keep axes, grid lines, labels aligned.
-- Avoid text overlap and dense data display issues.
-- Harmonious and unified color scheme, reasonable layout not obscuring key data.
+- Align axes, grid, labels; avoid overlap and clutter; cohesive colors, do not obscure key data.
