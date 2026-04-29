@@ -1516,4 +1516,59 @@ class TaskFileRepository implements TaskFileRepositoryInterface
                 'updated_at' => date('Y-m-d H:i:s'),
             ]);
     }
+
+    /**
+     * Get existing file names under a parent directory, filtered by provided names.
+     */
+    public function getExistingFileNamesByParentId(int $parentId, array $fileNames): array
+    {
+        if (empty($fileNames)) {
+            return [];
+        }
+
+        return $this->model::query()
+            ->select(['file_name'])
+            ->where('parent_id', $parentId)
+            ->whereIn('file_name', $fileNames)
+            ->whereNull('deleted_at')
+            ->pluck('file_name')
+            ->toArray();
+    }
+
+    /**
+     * Batch insert WAV file records under a specific parent directory.
+     */
+    public function batchInsertWavFiles(DataIsolation $dataIsolation, int $projectId, int $parentId, array $wavFiles): void
+    {
+        if (empty($wavFiles)) {
+            return;
+        }
+
+        $insertData = [];
+        $now = date('Y-m-d H:i:s');
+
+        foreach ($wavFiles as $fileInfo) {
+            $insertData[] = [
+                'file_id' => IdGenerator::getSnowId(),
+                'user_id' => $dataIsolation->getCurrentUserId(),
+                'organization_code' => $dataIsolation->getCurrentOrganizationCode(),
+                'project_id' => $projectId,
+                'topic_id' => 0,
+                'task_id' => 0,
+                'parent_id' => $parentId,
+                'file_key' => $fileInfo['file_key'],
+                'file_name' => $fileInfo['file_name'],
+                'file_extension' => pathinfo($fileInfo['file_name'], PATHINFO_EXTENSION),
+                'file_type' => 'auto_sync',
+                'file_size' => $fileInfo['file_size'] ?? 0,
+                'storage_type' => 'workspace',
+                'is_hidden' => false,
+                'is_directory' => false,
+                'created_at' => $now,
+                'updated_at' => $now,
+            ];
+        }
+
+        $this->model::query()->insert($insertData);
+    }
 }

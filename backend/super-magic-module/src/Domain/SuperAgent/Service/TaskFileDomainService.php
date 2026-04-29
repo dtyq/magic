@@ -3495,6 +3495,31 @@ class TaskFileDomainService
         return $newFileEntity;
     }
 
+    /**
+     * Get existing WAV file names under a parent directory.
+     *
+     * @param int $parentId Parent directory file ID
+     * @param array $fileNames File names to check
+     * @return string[] Existing file names
+     */
+    public function getExistingWavFileNamesByParentId(int $parentId, array $fileNames): array
+    {
+        return $this->taskFileRepository->getExistingFileNamesByParentId($parentId, $fileNames);
+    }
+
+    /**
+     * Batch insert WAV file records under a specific parent directory.
+     *
+     * @param DataIsolation $dataIsolation Data isolation context
+     * @param int $projectId Project ID
+     * @param int $parentId Parent directory file ID
+     * @param array $wavFiles Array of [['file_name' => ..., 'file_key' => ..., 'file_size' => ...], ...]
+     */
+    public function batchInsertWavFiles(DataIsolation $dataIsolation, int $projectId, int $parentId, array $wavFiles): void
+    {
+        $this->taskFileRepository->batchInsertWavFiles($dataIsolation, $projectId, $parentId, $wavFiles);
+    }
+
     private function getMagicFSFileDomainService(): MagicFSFileDomainService
     {
         return di(MagicFSFileDomainService::class);

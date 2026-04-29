@@ -9,6 +9,7 @@ namespace Dtyq\SuperMagic\Application\SuperAgent\Service;
 
 use App\Application\File\Service\FileAppService;
 use App\Domain\Contact\Entity\ValueObject\DataIsolation;
+use App\Domain\File\Service\FileDomainService;
 use App\ErrorCode\GenericErrorCode;
 use App\Infrastructure\Core\Exception\BusinessException;
 use App\Infrastructure\Core\Exception\ExceptionBuilder;
@@ -64,6 +65,7 @@ use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\GetFileTreeRequestDTO;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\ProjectUploadTokenRequestDTO;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\ReplaceFileRequestDTO;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\SaveProjectFileRequestDTO;
+use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\ScanWavFilesRequestDTO;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\TopicUploadTokenRequestDTO;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Response\FileBatchOperationResponseDTO;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Response\FileBatchOperationStatusResponseDTO;
@@ -96,6 +98,7 @@ class FileManagementAppService extends AbstractAppService
         private readonly ProjectDomainService $projectDomainService,
         private readonly FileCollectionDomainService $fileCollectionDomainService,
         private readonly MagicFSFileDomainService $magicFSFileDomainService,
+        private readonly FileDomainService $fileDomainService,
         LoggerFactory $loggerFactory
     ) {
         $this->logger = $loggerFactory->get(get_class($this));
@@ -2095,6 +2098,111 @@ class FileManagementAppService extends AbstractAppService
             ]);
             ExceptionBuilder::throw(SuperAgentErrorCode::FILE_NOT_FOUND, trans('file.get_tree_failed'));
         }
+    }
+
+    /**
+     * Scan a directory in object storage for .wav files and persist any new ones
+     * to the task file table.
+     *
+     * @param RequestContext $requestContext Request context with user authorization
+     * @param ScanWavFilesRequestDTO $requestDTO Request parameters
+     * @return array Result summary
+     */
+    public function scanWavFiles(RequestContext $requestContext, ScanWavFilesRequestDTO $requestDTO): array
+    {
+        $userAuthorization = $requestContext->getUserAuthorization();
+        $userId = $userAuthorization->getId();
+        $orgCode = $userAuthorization->getOrganizationCode();
+        $projectId = (int) $requestDTO->getProjectId();
+        $relativePath = $requestDTO->getRelativePath();
+
+        // Validate that the project is accessible by the current user
+        $this->getAccessibleProject($projectId, $userId, $orgCode);
+
+        // Find the directory entity by relative path
+        $dirEntity = $this->taskFileDomainService->findEntityByRelativePath($projectId, $relativePath);
+        if ($dirEntity === null) {
+            return ['scanned' => 0, 'inserted' => 0, 'message' => 'Directory not found'];
+        }
+
+        // Check that the directory file_key contains the last segment of the relative path (file_name)
+        $fileName = basename(rtrim($relativePath, '/'));
+        if ($fileName !== '' && ! str_contains($dirEntity->getFileKey(), $fileName)) {
+            return ['scanned' => 0, 'inserted' => 0, 'message' => 'File key does not match directory name'];
+        }
+
+        // Scan object storage using the directory's file_key as the prefix.
+        // Strip the orgCode/appId prefix from file_key because getFilesFromCloudStorage
+        // (via listObjectsByCredential) prepends orgCode/appId internally.
+        //
+        // NOTE: getFilesFromCloudStorage → listObjectsByCredential → TosSimpleUpload
+        // defaults to max-keys=1000 with no pagination loop. If a directory contains
+        // more than 1000 files, only the first 1000 are returned. is_truncated is also
+        // not surfaced by TosSimpleUpload, so the caller cannot detect truncation.
+        // For the .wav scanning use case this is acceptable — 1000 files per directory
+        // is a reasonable upper bound. If needed, add pagination in getFilesFromCloudStorage.
+        $appId = config('kk_brd_service.app_id');
+        $orgPrefix = "{$orgCode}/{$appId}/";
+        $objectPrefix = str_starts_with($dirEntity->getFileKey(), $orgPrefix)
+            ? substr($dirEntity->getFileKey(), strlen($orgPrefix))
+            : $dirEntity->getFileKey();
+        $cloudFiles = $this->fileDomainService->getFilesFromCloudStorage($orgCode, $objectPrefix, StorageBucketType::SandBox);
+
+        // Filter only .wav files
+        $wavFiles = array_filter($cloudFiles, static function ($fileInfo) {
+            return strtolower(pathinfo($fileInfo->getFilename(), PATHINFO_EXTENSION)) === 'wav';
+        });
+
+        if (empty($wavFiles)) {
+            return ['scanned' => 0, 'inserted' => 0, 'message' => 'No WAV files found'];
+        }
+
+        // Build file info list for .wav files
+        $wavFileList = [];
+        foreach ($wavFiles as $fileInfo) {
+            $wavFileList[] = [
+                'file_name' => $fileInfo->getFilename(),
+                'file_key' => $fileInfo->getKey(),
+                'file_size' => $fileInfo->getSize() ?? 0,
+            ];
+        }
+
+        $wavFileNames = array_column($wavFileList, 'file_name');
+
+        // Query existing records under this parent directory to avoid duplicates
+        $existingNames = $this->taskFileDomainService->getExistingWavFileNamesByParentId(
+            $dirEntity->getFileId(),
+            $wavFileNames
+        );
+
+        $existingSet = array_flip($existingNames);
+
+        // Determine which files are new
+        $newWavFiles = array_filter($wavFileList, static function ($fileInfo) use ($existingSet) {
+            return ! isset($existingSet[$fileInfo['file_name']]);
+        });
+
+        if (empty($newWavFiles)) {
+            return ['scanned' => count($wavFileList), 'inserted' => 0, 'message' => 'All WAV files already exist'];
+        }
+
+        $dataIsolation = DataIsolation::create($orgCode, $userId);
+
+        $this->taskFileDomainService->batchInsertWavFiles(
+            $dataIsolation,
+            $projectId,
+            $dirEntity->getFileId(),
+            array_values($newWavFiles)
+        );
+
+        // Bump metadata version chain so MagicFS clients detect the directory change
+        $this->magicFSFileDomainService->incrementVersionChain((string) $dirEntity->getFileId());
+
+        return [
+            'scanned' => count($wavFileList),
+            'inserted' => count($newWavFiles),
+            'message' => 'WAV files scanned and saved successfully',
+        ];
     }
 
     /**

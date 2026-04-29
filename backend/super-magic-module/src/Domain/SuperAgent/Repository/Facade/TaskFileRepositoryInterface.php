@@ -461,4 +461,24 @@ interface TaskFileRepositoryInterface
      * @return int Number of affected rows
      */
     public function batchUpdateIsHidden(array $fileIds, bool $isHidden): int;
+
+    /**
+     * Get existing file names under a parent directory, filtered by provided names.
+     * Used to avoid duplicate insertions.
+     *
+     * @param int $parentId Parent directory file ID
+     * @param array $fileNames File names to check
+     * @return string[] Existing file names in the database
+     */
+    public function getExistingFileNamesByParentId(int $parentId, array $fileNames): array;
+
+    /**
+     * Batch insert WAV file records under a specific parent directory.
+     *
+     * @param DataIsolation $dataIsolation Data isolation context
+     * @param int $projectId Project ID
+     * @param int $parentId Parent directory file ID
+     * @param array $wavFiles Array of file info: [['file_name' => ..., 'file_key' => ..., 'file_size' => ...], ...]
+     */
+    public function batchInsertWavFiles(DataIsolation $dataIsolation, int $projectId, int $parentId, array $wavFiles): void;
 }
