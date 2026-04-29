@@ -147,22 +147,18 @@ class RegularCallProcessor:
             # 检测 V2 流式降级场景：
             # V2 流式 chunk 以 request_id 作为 correlation_id 推送前端，
             # 降级为非流式时需沿用同一 correlation_id，否则前端会将 chunk 和最终消息视为两条独立消息。
-            # 检测条件：有已保存的流式 correlation_id，且 CorrelationIdManager 中无活跃的 AGENT_REPLY
-            # correlation（V1 流式失败会留下活跃 correlation，V2 不会触发 BEFORE_AGENT_REPLY 故为空）。
+            # 检测条件：CorrelationIdManager 中保存了 stream_fallback_cid（由 processor_manager 在流式启动时写入），
+            # 且无活跃的 AGENT_REPLY correlation（V1 流式失败会留下活跃 correlation，V2 不会触发 BEFORE_AGENT_REPLY 故为空）。
+            from agentlang.event import get_correlation_manager, EventPairType
+            cm = get_correlation_manager()
             stream_fallback_cid: Optional[str] = None
-            if agent_context:
-                from agentlang.event import get_correlation_manager, EventPairType
-                cm = get_correlation_manager()
-                if not cm.get_active_correlation_id(EventPairType.AGENT_REPLY):
-                    saved_cid = agent_context.get_metadata().get("_stream_fallback_correlation_id")
-                    if saved_cid:
-                        stream_fallback_cid = saved_cid
-                        # 使用后立即清除，避免影响后续独立非流式调用
-                        agent_context.set_metadata("_stream_fallback_correlation_id", None)
-                        logger.info(
-                            f"[{request_id}] 检测到 V2 流式降级场景，"
-                            f"非流式回复将复用流式 correlation_id={stream_fallback_cid}"
-                        )
+            if not cm.get_active_correlation_id(EventPairType.AGENT_REPLY):
+                stream_fallback_cid = cm.pop_stream_fallback_cid()
+                if stream_fallback_cid:
+                    logger.info(
+                        f"[{request_id}] 检测到 V2 流式降级场景，"
+                        f"非流式回复将复用流式 correlation_id={stream_fallback_cid}"
+                    )
 
             # ===== 处理 reasoning_content =====
             if has_reasoning:

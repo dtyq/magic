@@ -105,6 +105,10 @@ class CorrelationIdManager:
         # 按事件类型存储当前活跃的 correlation_id（每种类型只有一个）
         # 注意：由于 asyncio 是单线程模型，不需要线程锁
         self._active_correlations: Dict[EventPairType, str] = {}
+        # V2 流式中断降级时保存的 correlation_id：
+        # V2 流式 chunk 以 request_id 作为 correlation_id 推送前端，
+        # 流式中断降级非流式时需沿用，否则前端会将 chunk 和最终消息视为两条消息。
+        self._stream_fallback_cid: Optional[str] = None
 
     def generate_for_before_event(self, event_pair_type: EventPairType) -> str:
         """
@@ -189,6 +193,23 @@ class CorrelationIdManager:
         logger.warning(f"无法为事件类型 {event_pair_type} 找到可消耗的 correlation_id")
         return None
 
+    def set_stream_fallback_cid(self, cid: Optional[str]) -> None:
+        """保存 V2 流式中断后的降级 correlation_id
+
+        Args:
+            cid: 流式请求的 request_id（将作为降级后非流式消息的 correlation_id），传 None 表示清除
+        """
+        self._stream_fallback_cid = cid
+
+    def pop_stream_fallback_cid(self) -> Optional[str]:
+        """取出并清除 V2 流式降级 correlation_id（仅使用一次）
+
+        Returns:
+            Optional[str]: 已保存的 correlation_id，如果没有则返回 None
+        """
+        cid = self._stream_fallback_cid
+        self._stream_fallback_cid = None
+        return cid
 
 
 # 全局单例实例
