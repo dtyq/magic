@@ -98,6 +98,13 @@ readonly class ProviderModelDomainService
         $organizationCode = $dataIsolation->getCurrentOrganizationCode();
         $providerModelDTO->setOrganizationCode($organizationCode);
 
+        if ($providerModelDTO->getModelType() === null) {
+            $providerModelDTO->setModelType($providerModelDTO->getCategory()?->defaultModelType());
+        }
+        if ($providerModelDTO->getModelType() === ModelType::EMBEDDING) {
+            $providerModelDTO->getConfig()?->setSupportEmbedding(true);
+        }
+
         if ($providerModelDTO->getId()) {
             // 更新模型：验证模型是否存在（getById会在不存在时抛出异常）
             $oldModelEntity = $this->providerModelRepository->getById($dataIsolation, $providerModelDTO->getId());
@@ -125,14 +132,6 @@ readonly class ProviderModelDomainService
         // 如果仍然没有category，则默认使用LLM
         if ($providerModelDTO->getCategory() === null) {
             $providerModelDTO->setCategory(Category::LLM);
-        }
-
-        if ($providerModelDTO->getModelType() === null) {
-            $providerModelDTO->setModelType($providerModelDTO->getCategory()?->defaultModelType());
-        }
-
-        if ($providerModelDTO->getModelType() === ModelType::EMBEDDING) {
-            $providerModelDTO->getConfig()?->setSupportEmbedding(true);
         }
 
         $modelEntity = $this->providerModelRepository->saveModel($dataIsolation, $providerModelDTO);
