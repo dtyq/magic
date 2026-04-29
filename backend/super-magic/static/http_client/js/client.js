@@ -1485,6 +1485,10 @@ async function clearRemoteChatHistory() {
             console.warn('清理历史文件失败:', json || response.status);
             return false;
         }
+        showEventLog({
+            label: 'debug clear-chat-history result',
+            ...(json || {}),
+        });
         return true;
     } catch (e) {
         console.warn('清理历史文件请求失败:', e);

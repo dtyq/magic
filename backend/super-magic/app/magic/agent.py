@@ -2313,14 +2313,22 @@ Since your subsequent output will be merged with pre-interruption content and di
             # 备份当前历史，与 compact 保持一致，避免数据丢失
             await self._backup_before_compact()
 
-            # 清空内存中的对话历史
-            self.chat_history.messages.clear()
+            from app.service.agent_runtime_reset_service import (
+                AgentRuntimeResetService,
+                ResetReason,
+            )
+
+            await AgentRuntimeResetService.reset_session_context(
+                self.agent_context,
+                reason=ResetReason.NEW_SESSION,
+                stop_run=False,
+                clear_chat_history=True,
+                reset_horizon=True,
+            )
 
             # 重新写入 system prompt（始终排第一）
             await self.chat_history.append_system_message(self.system_prompt)
 
-            # horizon 重置：下次 build_context_update 会输出完整 initial_context 给新上下文
-            await self.agent_context.horizon.on_context_reset()
             await self._rehydrate_media_models_after_context_reset()
 
             logger.info("Chat history reset for new session via /new")
