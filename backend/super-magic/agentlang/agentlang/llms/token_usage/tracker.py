@@ -107,7 +107,8 @@ class TokenUsageTracker:
     def record_llm_usage(self, response_usage: Any, model_id: str,
                          user_id: Optional[str] = None,
                          model_name: Optional[str] = None,
-                         resolved_model_id: Optional[str] = None) -> LlmUsageResponse:
+                         resolved_model_id: Optional[str] = None,
+                         report_manager: Optional['TokenUsageReport'] = None) -> LlmUsageResponse:
         """记录LLM使用情况，并生成报告
 
         Args:
@@ -115,6 +116,7 @@ class TokenUsageTracker:
             model_id: 模型ID
             user_id: 用户ID，可选
             model_name: 模型名称，可选
+            report_manager: 当前 Agent 会话专属的报告管理器，可选
 
         Returns:
             LlmUsageResponse: 记录结果
@@ -146,9 +148,10 @@ class TokenUsageTracker:
         # 添加使用记录到跟踪器
         self.add_usage(model_id, token_usage)
 
-        # 如果有报告管理器，则生成报告
-        if self._report_manager:
-            self._report_manager.update_and_save_usage(model_id, token_usage, resolved_model_id=resolved_model_id)
+        # 优先使用当前 Agent 会话的报告管理器，避免并发 Agent 共享全局文件名前缀。
+        active_report_manager = report_manager or self._report_manager
+        if active_report_manager:
+            active_report_manager.update_and_save_usage(model_id, token_usage, resolved_model_id=resolved_model_id)
 
         # 返回处理结果，实现LlmUsageResponse协议
         class UsageResult:
@@ -256,13 +259,14 @@ class TokenUsageTracker:
             # 但如果 TokenUsage 是 Pydantic 模型（通常是不可变的或推荐视为不可变），直接返回也可
             return copy.deepcopy(self._last_recorded_usage) if self._last_recorded_usage else None
 
-    def get_formatted_report(self) -> str:
+    def get_formatted_report(self, report_manager: Optional['TokenUsageReport'] = None) -> str:
         """获取格式化的报告（一步到位）
 
         Returns:
             str: 格式化后的token使用报告
         """
-        if not self._report_manager:
+        active_report_manager = report_manager or self._report_manager
+        if not active_report_manager:
             # 如果没有报告管理器，使用简单格式输出当前累计数据
             lines = ["Token使用统计（临时报告）："]
 
@@ -287,10 +291,10 @@ class TokenUsageTracker:
             return "\n".join(lines)
         else:
             # 使用报告管理器生成完整报告
-            cost_report = self._report_manager.get_cost_report()
-            return self._report_manager.format_report(cost_report)
+            cost_report = active_report_manager.get_cost_report()
+            return active_report_manager.format_report(cost_report)
 
-    def get_usage_report(self) -> 'TokenUsageCollection':
+    def get_usage_report(self, report_manager: Optional['TokenUsageReport'] = None) -> 'TokenUsageCollection':
         """
         获取token使用统计报告
 
@@ -300,8 +304,9 @@ class TokenUsageTracker:
         Returns:
             TokenUsageCollection: 包含所有模型token使用统计的汇总报告
         """
-        if self._report_manager:
-            cost_report = self._report_manager.get_cost_report()
+        active_report_manager = report_manager or self._report_manager
+        if active_report_manager:
+            cost_report = active_report_manager.get_cost_report()
             # 将CostReport转换为TokenUsageCollection
             return TokenUsageCollection.from_cost_report(cost_report)
         else:

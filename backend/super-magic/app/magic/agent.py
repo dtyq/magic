@@ -37,7 +37,7 @@ from agentlang.llms.factory import LLMFactory
 from agentlang.llms.processors.processor_config import ProcessorConfig
 from app.streaming.message_builder import LLMStreamingMessageBuilder
 from app.streaming.config_generator import StreamingConfigGenerator
-from agentlang.llms.token_usage.models import TokenUsage
+from agentlang.llms.token_usage.models import TokenUsage, TokenUsageCollection
 from agentlang.llms.token_usage.report import TokenUsageReport
 from agentlang.logger import get_logger
 from agentlang.tools.tool_result import ToolResult
@@ -271,8 +271,15 @@ class Agent(BaseAgent):
             self.agent_context.get_event_dispatcher(),  # 传递事件分发器
         )
 
-        # 将 token usage 报告文件名前缀与聊天历史文件保持一致
-        TokenUsageReport.get_instance().set_file_prefix(f"{self.agent_name}<{self.id}>")
+        # Token usage 文件必须跟随当前 Agent 的聊天历史目录，不能复用全局 mutable prefix。
+        token_usage_report_manager = TokenUsageReport.for_session(
+            file_prefix=f"{self.agent_name}<{self.id}>",
+            token_tracker=LLMFactory.token_tracker,
+            pricing=LLMFactory.pricing,
+            sandbox_id=self.agent_context.get_sandbox_id() or LLMFactory.sandbox_id,
+            report_dir=str(self.agent_context.chat_history_dir),
+        )
+        self.agent_context.set_token_usage_report_manager(token_usage_report_manager)
 
         # 将 chat_history 设置到 agent_context 中，确保工具可以访问
         self.agent_context.chat_history = self.chat_history
@@ -283,6 +290,31 @@ class Agent(BaseAgent):
         AgentContextRegistry.get_instance().register(self.agent_context)
         self._context_registered = True
         logger.info(f"Agent context 已注册: {self.agent_context.get_agent_session_label()}")
+
+    def print_token_usage(self) -> None:
+        """
+        打印当前 Agent 会话的 token 使用报告。
+
+        报告管理器从 AgentContext 读取，避免并发 subagent 共用全局 report prefix。
+        """
+        try:
+            report_manager = self.agent_context.get_token_usage_report_manager()
+            formatted_report = LLMFactory.token_tracker.get_formatted_report(
+                report_manager=report_manager
+            )
+            logger.info(f"===== Token 使用报告 ({self.agent_name}) =====")
+            logger.info(formatted_report)
+        except Exception as e:
+            logger.error(f"打印Token使用报告时出错: {e!s}")
+
+    def get_token_usage_report(self) -> TokenUsageCollection:
+        """获取当前 Agent 会话的 Token 使用报告。"""
+        try:
+            report_manager = self.agent_context.get_token_usage_report_manager()
+            return LLMFactory.token_tracker.get_usage_report(report_manager=report_manager)
+        except Exception as e:
+            logger.error(f"获取token使用报告时出错: {e!s}")
+            return TokenUsageCollection.create_summary_report([])
 
     def close(self) -> None:
         """关闭 Agent 并释放当前已注册的运行时资源。"""
@@ -1389,6 +1421,13 @@ class Agent(BaseAgent):
             return
         if reason is None:
             reason = self._build_pending_tool_interruption_message(assistant_message)
+        notices = self.agent_context.drain_interruption_notices()
+        if notices:
+            reason = "\n\n".join([
+                reason,
+                "Runtime interruption details:",
+                *notices,
+            ])
         await self._synthesize_error_tool_results(missing_tcs, reason)
 
     async def _handle_continue_request(self, second_last_message: AssistantMessage) -> SessionRestoreContext:

@@ -458,10 +458,13 @@ class MessageProcessor:
                 try:
                     async with self._interrupt_lock:
                         # 停止当前 run（不 reset：中断状态保留到下次 stop_run）
-                        await agent_context.stop_run(reason=message.remark or "用户主动中断")
+                        try:
+                            await agent_context.stop_run(reason=message.remark or "User interrupted the task.")
+                        except asyncio.CancelledError:
+                            logger.info("stop_run was cancelled while handling interrupt request; returning suspended state")
                         final_task_state = build_final_task_state(
                             FinalTaskStateCode.USER_INTERRUPTED,
-                            custom_message=message.remark or None,
+                            vendor_message=message.remark or "",
                         )
                         agent_context.set_final_task_state(final_task_state)
                         await agent_context.dispatch_event(

@@ -1585,7 +1585,7 @@ async function sendMessage(contextType = ContextType.NORMAL) {
 
 // 发送中断消息
 async function sendInterrupt() {
-    const interruptMessage = createChatMessage("", ContextType.INTERRUPT, "用户中断");
+    const interruptMessage = createChatMessage("", ContextType.INTERRUPT, "User interrupted the task.");
     hideAssistantActivity();
 
     // 显示客户端消息

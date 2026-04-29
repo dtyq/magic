@@ -65,13 +65,17 @@ class WaitForSubagents(BaseTool[WaitForSubagentsParams]):
             resolved.append((agent_id, state.agent_name, handle, None))
 
         # Phase 2: wait for all still-running tasks
-        running_tasks = {
-            handle.task
-            for (_, _, handle, err) in resolved
-            if err is None and handle is not None and handle.is_running()
+        running_task_refs: dict[asyncio.Task, tuple[str, str]] = {
+            handle.task: (agent_name, agent_id)
+            for (agent_id, agent_name, handle, err) in resolved
+            if err is None
+            and agent_name is not None
+            and handle is not None
+            and handle.is_running()
+            and handle.task is not None
         }
-        if running_tasks and params.timeout != 0:
-            await _wait_for_tasks(running_tasks, params.timeout, tool_context)
+        if running_task_refs and params.timeout != 0:
+            await _wait_for_tasks(running_task_refs, params.timeout, tool_context)
 
         # Phase 3: read final state for each resolved agent
         results: list[SubagentQueryResult] = []
@@ -201,7 +205,7 @@ class WaitForSubagents(BaseTool[WaitForSubagentsParams]):
 
 
 async def _wait_for_tasks(
-    tasks: set[asyncio.Task],
+    task_refs: dict[asyncio.Task, tuple[str, str]],
     timeout: float,
     tool_context: ToolContext,
 ) -> None:
@@ -209,10 +213,11 @@ async def _wait_for_tasks(
     超时后直接返回（不抛异常），调用方读当前状态即可。
     收到中断信号时抛 CancelledError。
     """
+    tasks = set(task_refs.keys())
     agent_context = tool_context.get_extension("agent_context")
     interruption_event = agent_context.get_interruption_event() if agent_context else None
 
-    # 用 wrapper task 包住所有 agent task，这样 cancel wrapper 不会影响 agent 本身
+    # 用 wrapper task 等待所有 agent task；父中断时会显式 interrupt 真实子任务。
     async def _wait_all() -> None:
         await asyncio.wait(tasks, return_when=asyncio.ALL_COMPLETED)
 
@@ -227,19 +232,74 @@ async def _wait_for_tasks(
         awaitables.add(interrupt_task)
 
     try:
-        if timeout < 0:
-            done, _ = await asyncio.wait(awaitables, return_when=asyncio.FIRST_COMPLETED)
-        else:
-            done, _ = await asyncio.wait(awaitables, timeout=timeout, return_when=asyncio.FIRST_COMPLETED)
-    finally:
-        # 清理 wrapper tasks（不影响实际 agent task）
-        wait_task.cancel()
-        if interrupt_task is not None:
-            interrupt_task.cancel()
+        try:
+            if timeout < 0:
+                done, _ = await asyncio.wait(awaitables, return_when=asyncio.FIRST_COMPLETED)
+            else:
+                done, _ = await asyncio.wait(awaitables, timeout=timeout, return_when=asyncio.FIRST_COMPLETED)
+        finally:
+            # 清理 wrapper tasks（不影响实际 agent task）
+            wait_task.cancel()
+            if interrupt_task is not None:
+                interrupt_task.cancel()
+    except asyncio.CancelledError:
+        if agent_context is not None:
+            reason = agent_context.get_interruption_reason() or "Parent agent was interrupted while waiting."
+            await asyncio.shield(_interrupt_subagents_and_record_notice(task_refs, agent_context, reason))
+        raise
 
     if interrupt_task is not None and interrupt_task in done:
+        reason = agent_context.get_interruption_reason() or "Parent agent was interrupted while waiting."
+        await _interrupt_subagents_and_record_notice(task_refs, agent_context, reason)
         raise asyncio.CancelledError("Interrupted while waiting for sub-agents")
     # 超时（wait_task 未完成）→ 直接返回，调用方会读到仍在 running 的状态
+
+
+async def _interrupt_subagents_and_record_notice(
+    task_refs: dict[asyncio.Task, tuple[str, str]],
+    agent_context,
+    reason: str,
+) -> None:
+    """中断被等待的子 Agent，并把结果写入父 Agent 的下一轮上下文。"""
+    interrupt_results = await asyncio.gather(*(
+        _interrupt_and_read_state(agent_name, agent_id, reason)
+        for agent_name, agent_id in task_refs.values()
+    ))
+    agent_context.append_interruption_notice(
+        _build_interrupted_subagent_notice(interrupt_results)
+    )
+
+
+async def _interrupt_and_read_state(agent_name: str, agent_id: str, reason: str) -> SubagentQueryResult:
+    """中断子 Agent 并读取最终状态，用于把运行时事实带回父 Agent 上下文。"""
+    await subagent_session_manager.interrupt_run(
+        agent_name,
+        agent_id,
+        reason=reason,
+        timeout=10.0,
+    )
+    state = await SubagentRuntimeStore.load_state(agent_name, agent_id)
+    return SubagentQueryResult(
+        agent_id=agent_id,
+        agent_name=state.agent_name,
+        status=state.status,
+        result=state.last_result,
+        error=state.last_error,
+    )
+
+
+def _build_interrupted_subagent_notice(results: list[SubagentQueryResult]) -> str:
+    lines = [
+        "Sub-agent cancellation summary:",
+    ]
+    for result in results:
+        label = f"{result.agent_name}/{result.agent_id}" if result.agent_name else result.agent_id
+        suffix = f", reason={result.error}" if result.error else ""
+        lines.append(f"- {label}: {result.status}{suffix}")
+    lines.append(
+        "The wait_for_subagents call was interrupted, and the child sub-agents tied to this parent run were also stopped."
+    )
+    return "\n".join(lines)
 
 
 _IN_FLIGHT_STATUSES = {
