@@ -199,8 +199,12 @@ class StreamingHelper:
             )
 
             # 动态添加 reasoning_content（如果存在）
-            if 'reasoning_content' in delta_dict:
-                setattr(delta, 'reasoning_content', delta_dict['reasoning_content'])
+            # 上游字段名各异，统一归一化到 reasoning_content 供下游消费
+            from .chunk_processor import REASONING_FIELD_ALIASES
+            for alias in REASONING_FIELD_ALIASES:
+                if alias in delta_dict and delta_dict[alias] is not None:
+                    setattr(delta, 'reasoning_content', delta_dict[alias])
+                    break
 
             # 构造 ChunkChoice
             normalized_choice = ChunkChoice(

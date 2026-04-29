@@ -1,8 +1,11 @@
 from app.i18n import i18n
 import asyncio
+import ctypes
+import gc
 import html
 import json
 import os
+import platform
 import random
 import string
 import subprocess
@@ -788,6 +791,26 @@ class Agent(BaseAgent):
                     agent_context=self.agent_context,
                     final_task_state=final_task_state,
                 ))
+        finally:
+            # 每次请求结束后回收内存碎片：强制 GC 并归还空闲 arena 给 OS
+            self._reclaim_memory()
+
+    @staticmethod
+    def _reclaim_memory() -> None:
+        """回收 Python 堆碎片，尝试将空闲内存归还给操作系统。
+
+        长会话中大量 JSON 序列化/反序列化会产生 pymalloc arena 碎片，
+        导致 RSS 只增不减。在每个请求间隙（用户不感知延迟）执行：
+        1. gc.collect() — 回收循环引用
+        2. malloc_trim(0) — 通知 glibc 归还空闲 arena（仅 Linux）
+        """
+        try:
+            gc.collect()
+            if platform.system() == "Linux":
+                libc = ctypes.CDLL("libc.so.6")
+                libc.malloc_trim(0)
+        except Exception:
+            pass
 
     async def run(self, query: str):
         """运行 agent"""
@@ -809,9 +832,12 @@ class Agent(BaseAgent):
         try:
             if self.chat_history._is_tool_call_sequence_complete():
                 self._sync_horizon_llm_model_info()
-                ctx_update = await self.agent_context.horizon.build_context_update()
-                await self.chat_history.append_user_message(ctx_update, show_in_ui=False, source="horizon")
-                logger.debug("[AgentHorizon] 已注入 user query 后 system_injected_context")
+                ctx_update = await self.agent_context.horizon.build_context_update(
+                    injection_point="before_first_llm"
+                )
+                if ctx_update:
+                    await self.chat_history.append_user_message(ctx_update, show_in_ui=False, source="horizon")
+                    logger.debug("[AgentHorizon] 已注入 user query 后 system_injected_context")
             else:
                 logger.warning("[AgentHorizon] 注入点1 跳过：历史末尾存在未完成的 tool call 序列，避免消息序列错误")
         except Exception as _horizon_err:
@@ -904,21 +930,21 @@ class Agent(BaseAgent):
         assistant_with_pending_tools = self._find_pending_tool_calls()
 
         if assistant_with_pending_tools:
-            if is_continue_request:
-                # 继续请求：跳过添加用户消息，直接恢复工具调用
-                logger.info("检测到'继续'请求且有pending工具调用，将跳过添加用户消息，直接恢复工具调用")
+            if is_continue_request and not self._is_response_interrupted(assistant_with_pending_tools):
+                # 工具调用参数完整（response 未在流式输出期间被中断），安全恢复执行
+                logger.info("检测到'继续'请求且工具调用参数完整，将直接恢复工具调用")
                 return SessionPrepResult(
                     pending_assistant_message=assistant_with_pending_tools,
                     user_message_added=False
                 )
             else:
-                # 非继续请求：添加中断消息，然后添加用户消息
-                logger.info("检测到pending工具调用但用户提出新请求，将添加中断消息")
-
-                # 为pending工具调用添加中断消息
-                await self._add_interruption_messages_for_pending_tools(assistant_with_pending_tools)
-
-                # 添加用户消息
+                # response 被中断（参数可能不完整）或用户提出新请求，合成中断 tool results 让 LLM 重新决策
+                reason = "原始响应被中断，工具调用参数可能不完整" if is_continue_request else "用户提出新请求"
+                logger.info(f"检测到pending工具调用，{reason}，将合成中断 tool results 让 LLM 重新决策")
+                await self._synthesize_interruption_tool_results(
+                    assistant_with_pending_tools,
+                    reason=self._build_pending_tool_interruption_message(assistant_with_pending_tools),
+                )
                 await self.chat_history.append_user_message(query)
                 return SessionPrepResult(user_message_added=True)
         else:
@@ -931,22 +957,6 @@ class Agent(BaseAgent):
             # 没有pending工具调用，正常添加用户消息
             await self.chat_history.append_user_message(query)
             return SessionPrepResult(user_message_added=True)
-
-    async def _add_interruption_messages_for_pending_tools(self, assistant_message: AssistantMessage) -> None:
-        """
-        为pending的工具调用添加中断消息
-
-        Args:
-            assistant_message: 包含pending工具调用的assistant消息
-        """
-        message_content = (
-            "The previous tool call was interrupted by a new user message. "
-            "Decide whether to resume the interrupted tool call with the same arguments, "
-            "or abandon it and respond to the new request instead."
-        )
-
-        # 为所有pending的工具调用添加中断消息
-        await self._add_interruption_messages(assistant_message.tool_calls, message_content)
 
     async def _handle_agent_loop(self, session_prep_result: SessionPrepResult) -> None:
         """处理 agent 循环 - 使用Context对象简化参数传递和状态管理"""
@@ -1094,8 +1104,9 @@ class Agent(BaseAgent):
                     # 下一个 await 即会抛出 CancelledError，导致历史无法落盘。
                     # 用 asyncio.shield 保护写入：即使 task 被 cancel，shielded task
                     # 仍会在事件循环内完成文件写入，CancelledError 自然向上传播。
-                    if self.agent_context.is_interruption_requested():
-                        await asyncio.shield(self._add_tool_calls_to_history(llm_context))
+                    is_interrupted = self.agent_context.is_interruption_requested()
+                    if is_interrupted:
+                        await asyncio.shield(self._add_tool_calls_to_history(llm_context, interrupted=True))
                     else:
                         await self._add_tool_calls_to_history(llm_context)
 
@@ -1148,9 +1159,12 @@ class Agent(BaseAgent):
                 try:
                     if tool_result.inject_horizon_after_tools:
                         self._sync_horizon_llm_model_info()
-                        ctx_update = await self.agent_context.horizon.build_context_update()
-                        await self.chat_history.append_user_message(ctx_update, show_in_ui=False, source="horizon")
-                        logger.debug("[AgentHorizon] 已注入 tool result 后 system_injected_context")
+                        ctx_update = await self.agent_context.horizon.build_context_update(
+                            injection_point="after_tool_result"
+                        )
+                        if ctx_update:
+                            await self.chat_history.append_user_message(ctx_update, show_in_ui=False, source="horizon")
+                            logger.debug("[AgentHorizon] 已注入 tool result 后 system_injected_context")
                 except Exception as _horizon_err:
                     logger.warning(f"[AgentHorizon] tool result 后注入失败: {_horizon_err}")
 
@@ -1218,36 +1232,6 @@ class Agent(BaseAgent):
                     # 用户提出了新请求
                     return await self._handle_new_request(second_last_message)
 
-            # 情况2：处理子 Agent 调用到一半被中断，用户又希望继续的情况
-            if not is_continue_request:
-                # 获取用户消息，只需要最多3条就够了
-                user_messages = []
-                for message in self.chat_history.messages:
-                    if message.role == "user":
-                        user_messages.append(message.content)
-                        if len(user_messages) >= 3:  # 只需要3条就够了
-                            break
-                # 只有当用户消息总数超过2条时才检查重复
-                if len(user_messages) > 2:
-                    # 获取前两条用户消息（不包括最后一条）
-                    previous_two_messages = user_messages[:-1]  # 取前2条
-                    # 检查最后一条用户消息是否与前两条中的任意一条匹配
-                    if last_user_query_content in previous_two_messages:
-                        logger.info("检测到最后一次用户输入与前两次用户输入中的某一次相同，视为用户希望继续")
-                        last_user_query_content = "继续"
-                        # 更新历史中的用户消息
-                        await self.chat_history.replace_last_user_message("继续")
-                        # 重新检查是否有pending的工具调用（如果有的话应该在预处理阶段已经处理了）
-                        assistant_with_pending_tools = self._find_pending_tool_calls()
-                        if assistant_with_pending_tools:
-                            logger.info("检测到重复请求模式且有pending的工具调用需要恢复，将移除重复消息并直接恢复工具调用")
-                            # 移除重复的用户消息，避免污染聊天记录
-                            self.chat_history.remove_last_message()
-                            return SessionRestoreContext(
-                                action=SessionRestoreAction.SKIP_LLM,
-                                assistant_message=assistant_with_pending_tools
-                            )
-
         # 不满足恢复条件
         logger.debug("最后消息非用户消息，或没有找到需要恢复的会话状态，跳过恢复会话状态检查")
         return SessionRestoreContext(action=SessionRestoreAction.CALL_LLM)
@@ -1294,60 +1278,136 @@ class Agent(BaseAgent):
 
         return None
 
+    @staticmethod
+    def _is_response_interrupted(assistant_message: AssistantMessage) -> bool:
+        """检测 assistant 响应是否在 LLM 流式输出期间被用户中断。
+        被中断意味着 tool call 参数可能不完整，不应直接重放。
+        """
+        return assistant_message.interrupted
+
+    def _get_missing_tool_calls(self, assistant_message: AssistantMessage) -> List[ToolCall]:
+        """从 assistant 消息中提取缺失 tool result 的 tool calls。"""
+        if not assistant_message.tool_calls:
+            return []
+
+        messages = self.chat_history.messages
+        # 找到该 assistant 消息在历史中的位置
+        msg_index = -1
+        for i, msg in enumerate(messages):
+            if msg is assistant_message:
+                msg_index = i
+                break
+
+        if msg_index < 0:
+            return list(assistant_message.tool_calls)
+
+        # 收集该消息之后已有的 tool result ids
+        found_ids: set[str] = set()
+        for j in range(msg_index + 1, len(messages)):
+            if hasattr(messages[j], 'tool_call_id') and messages[j].tool_call_id:
+                found_ids.add(messages[j].tool_call_id)
+
+        return [tc for tc in assistant_message.tool_calls if tc.id not in found_ids]
+
+    @staticmethod
+    def _build_stream_interrupted_tool_call_message() -> str:
+        """给模型的说明：tool call 在参数流式输出期间被打断，不能信任残缺参数。"""
+        return (
+            "This tool call was interrupted by the user before it finished streaming. "
+            "The tool was not executed. The arguments above may be incomplete because "
+            "only part of the tool call had streamed before the interruption."
+        )
+
+    def _build_execution_interrupted_tool_message(self, error: Exception) -> str:
+        """给模型的说明：tool call 参数已定稿，但执行过程未完成。"""
+        from openai import APITimeoutError, APIConnectionError, APIStatusError
+
+        for current in self._iter_exception_chain(error):
+            if isinstance(current, (asyncio.TimeoutError, TimeoutError, StreamChunkTimeoutError, APITimeoutError)):
+                return (
+                    "This tool execution stopped before completion because it timed out. "
+                    "The arguments above are complete, but the tool did not finish running."
+                )
+
+            if isinstance(current, (ConnectionError, OSError, APIConnectionError)):
+                return (
+                    "This tool execution stopped before completion because of a connection "
+                    "or environment issue. The arguments above are complete, but the tool "
+                    "did not finish running."
+                )
+
+            if isinstance(current, PermissionError):
+                return (
+                    "This tool execution stopped before completion because access to a "
+                    "required resource was denied. The arguments above are complete, but "
+                    "the tool did not finish running."
+                )
+
+            if isinstance(current, FileNotFoundError):
+                return (
+                    "This tool execution stopped before completion because a required "
+                    "resource was not found. The arguments above are complete, but the "
+                    "tool did not finish running."
+                )
+
+            if isinstance(current, APIStatusError) and current.status_code in self._NON_RETRYABLE_STATUS_CODES:
+                return (
+                    "This tool execution stopped before completion because of a "
+                    "configuration or permission issue. The arguments above are complete, "
+                    "but the tool did not finish running."
+                )
+
+        return (
+            "This tool execution stopped before completion because of a runtime failure. "
+            "The arguments above are complete, but the tool did not finish running."
+        )
+
+    @staticmethod
+    def _build_pending_running_tool_interrupted_message() -> str:
+        """给模型的说明：tool call 参数完整，但工具执行中被新的用户消息打断。"""
+        return (
+            "This tool call was interrupted by the user while the tool was running. "
+            "The arguments above are complete, but the tool did not finish running."
+        )
+
+    def _build_pending_tool_interruption_message(self, assistant_message: AssistantMessage) -> str:
+        """根据 pending tool 的阶段选择正确的中断提示文案。"""
+        if self._is_response_interrupted(assistant_message):
+            return self._build_stream_interrupted_tool_call_message()
+        return self._build_pending_running_tool_interrupted_message()
+
+    async def _synthesize_interruption_tool_results(
+        self,
+        assistant_message: AssistantMessage,
+        reason: Optional[str] = None,
+    ) -> None:
+        """为被中断的 pending tool calls 合成 tool result，让 LLM 知道中断原因。
+        只为缺失 result 的 tool call 补充，不影响已有结果。
+        """
+        missing_tcs = self._get_missing_tool_calls(assistant_message)
+        if not missing_tcs:
+            return
+        if reason is None:
+            reason = self._build_pending_tool_interruption_message(assistant_message)
+        await self._synthesize_error_tool_results(missing_tcs, reason)
+
     async def _handle_continue_request(self, second_last_message: AssistantMessage) -> SessionRestoreContext:
-        """处理用户请求继续：直接跳过 LLM，恢复上次工具调用。"""
-        logger.info("检测到用户请求继续，恢复上一次工具调用")
-        self.chat_history.remove_last_message()
+        """处理用户请求继续：仅当原始响应未被中断（工具参数完整）时才恢复执行。"""
+        if self._is_response_interrupted(second_last_message):
+            logger.info("检测到用户请求继续但原始响应被中断，工具调用参数可能不完整，走中断路径让 LLM 重新决策")
+            return await self._handle_new_request(second_last_message)
+        logger.info("检测到用户请求继续且工具调用参数完整，恢复上一次工具调用")
+        await self.chat_history.remove_last_message()
         return SessionRestoreContext(
             action=SessionRestoreAction.SKIP_LLM,
             assistant_message=second_last_message
         )
 
     async def _handle_new_request(self, second_last_message: AssistantMessage) -> SessionRestoreContext:
-        """
-        处理用户提出新请求的情况
-
-        Args:
-            second_last_message: 倒数第二条消息（带工具调用的助手消息）
-
-        Returns:
-            SessionRestoreContext: 会话恢复上下文
-        """
-        logger.info("检测到用户有新的请求，将中断之前的工具调用，并让 LLM 处理新请求")
-
-        message_content = (
-            "The previous tool call was interrupted by a new user message. "
-            "Decide whether to resume the interrupted tool call with the same arguments, "
-            "or abandon it and respond to the new request instead."
-        )
-
-        # 为所有工具调用添加中断消息
-        await self._add_interruption_messages(second_last_message.tool_calls, message_content)
-
-        # 继续 LLM 调用
+        """处理用户提出新请求或被中断的续作：合成中断 tool results 后让 LLM 处理。"""
+        logger.info("检测到未完成的工具调用，将合成中断 tool results 后让 LLM 处理")
+        await self._synthesize_interruption_tool_results(second_last_message)
         return SessionRestoreContext(action=SessionRestoreAction.CALL_LLM)
-
-    async def _add_interruption_messages(self, tool_calls: List[ToolCall], message_content: str) -> None:
-        """
-        为被中断的工具调用添加中断通知消息（使用Assistant消息以确保消息序列正确）
-
-        Args:
-            tool_calls: 工具调用列表
-            message_content: 提示消息内容
-        """
-        # 只需要添加一条Assistant消息来通知工具调用被中断
-        # 不需要为每个工具调用单独添加消息，避免消息重复
-        if tool_calls:
-            interrupt_assistant_msg = AssistantMessage(
-                content=f"Tool call interrupted: {message_content}"
-            )
-            try:
-                await self.chat_history.insert_message_before_last(interrupt_assistant_msg)
-                logger.info(f"✅ 成功插入工具中断通知消息，涉及 {len(tool_calls)} 个工具调用")
-            except ValueError as e:
-                logger.error(f"插入工具中断消息时出错 (ValueError): {e}")
-            except Exception as e:
-                logger.error(f"插入工具中断消息时发生未知错误: {e}", exc_info=True)
 
     async def _restore_session_state(self, assistant_message_to_restore: AssistantMessage) -> SessionRestoreContext:
         """
@@ -1918,15 +1978,9 @@ class Agent(BaseAgent):
         )
 
 
-    async def _add_tool_calls_to_history(self, llm_context: LLMResponseContext) -> None:
-        """
-        将工具调用响应添加到聊天历史
-
-        Args:
-            llm_context: LLM响应上下文，包含所有相关数据
-        """
+    async def _add_tool_calls_to_history(self, llm_context: LLMResponseContext, interrupted: bool = False) -> None:
+        """将工具调用响应添加到聊天历史。interrupted=True 表示此响应在流式输出期间被用户中断。"""
         try:
-            # 提取 reasoning_content（如果存在，用于思考模型）
             reasoning_content = getattr(llm_context.message, 'reasoning_content', None)
 
             await self.chat_history.append_assistant_message(
@@ -1935,7 +1989,8 @@ class Agent(BaseAgent):
                 duration_ms=llm_context.duration_ms,
                 token_usage=llm_context.token_usage,
                 request_id=llm_context.request_id,
-                reasoning_content=reasoning_content
+                reasoning_content=reasoning_content,
+                interrupted=interrupted,
             )
         except ValueError as e:
             logger.error(f"添加带工具调用的助手消息失败: {e}")
@@ -2474,9 +2529,7 @@ Since your subsequent output will be merged with pre-interruption content and di
         # 如果最后一条消息是带有工具调用的助手消息，为每个调用添加错误信息
         last_message = self.chat_history.get_last_message()
         if isinstance(last_message, AssistantMessage) and last_message.tool_calls:
-            # 使用多语言错误消息
-            general_error_message = i18n.translate("tool.execution_interrupted", category="tool.messages", error=str(exception)
-            )
+            general_error_message = self._build_execution_interrupted_tool_message(exception)
 
             for tool_call in last_message.tool_calls:
                 try:

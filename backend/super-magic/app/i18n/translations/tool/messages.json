@@ -1275,10 +1275,6 @@
         "zh_CN": "，AI 将尝试解决",
         "en_US": ", AI will attempt to resolve this"
     },
-    "tool.execution_interrupted": {
-        "zh_CN": "由于处理过程中出现意外错误 ({{error}})，工具调用被中断，请重新检查工具调用的参数是否正确。",
-        "en_US": "Tool execution was interrupted due to an unexpected error ({{error}}). Please check if the tool call parameters are correct."
-    },
     "task.completed": {
         "zh_CN": "任务完成",
         "en_US": "Task completed"
@@ -1418,6 +1414,70 @@
     "manage_cron.error": {
         "zh_CN": "定时任务操作失败: {{error}}",
         "en_US": "Cron job operation failed: {{error}}"
+    },
+    "create_calendar_project": {
+        "zh_CN": "创建日历项目",
+        "en_US": "Creating calendar project"
+    },
+    "create_calendar_project.created": {
+        "zh_CN": "已创建日历项目「{{name}}」",
+        "en_US": "Created calendar project '{{name}}'"
+    },
+    "create_calendar_project.error": {
+        "zh_CN": "日历项目创建失败: {{error}}",
+        "en_US": "Calendar project creation failed: {{error}}"
+    },
+    "manage_calendar.add_event": {
+        "zh_CN": "添加日程",
+        "en_US": "Adding event"
+    },
+    "manage_calendar.list_events": {
+        "zh_CN": "查询日程",
+        "en_US": "Listing events"
+    },
+    "manage_calendar.update_event": {
+        "zh_CN": "更新日程",
+        "en_US": "Updating event"
+    },
+    "manage_calendar.delete_event": {
+        "zh_CN": "删除日程",
+        "en_US": "Deleting event"
+    },
+    "manage_calendar.add_category": {
+        "zh_CN": "添加日程分类",
+        "en_US": "Adding category"
+    },
+    "manage_calendar.list_categories": {
+        "zh_CN": "查看日程分类",
+        "en_US": "Listing categories"
+    },
+    "manage_calendar.event_added": {
+        "zh_CN": "已添加日程「{{title}}」",
+        "en_US": "Added event '{{title}}'"
+    },
+    "manage_calendar.events_listed": {
+        "zh_CN": "已查询日程列表",
+        "en_US": "Listed events"
+    },
+    "manage_calendar.event_updated": {
+        "zh_CN": "已更新日程 {{event_id}}",
+        "en_US": "Updated event {{event_id}}"
+    },
+    "manage_calendar.event_deleted": {
+        "zh_CN": "已删除日程 {{event_id}}",
+        "en_US": "Deleted event {{event_id}}"
+    },
+    "manage_calendar.category_added": {
+        "zh_CN": "已添加分类「{{name}}」",
+        "en_US": "Added category '{{name}}'"
+    },
+    "manage_calendar.categories_listed": {
+        "zh_CN": "已查看日程分类",
+        "en_US": "Listed categories"
+    },
+    "manage_calendar.error": {
+        "zh_CN": "日程操作失败: {{error}}",
+        "en_US": "Calendar operation failed: {{error}}"
     },
     "channel.connect_wecom_bot.success": {
         "zh_CN": "已提交企业微信 Bot 连接（Bot ID：{{bot_id}}）",

@@ -107,9 +107,9 @@ class MagicServiceConfigLoader:
             # Extract API key (optional)
             api_key = MagicServiceConfigLoader._extract_api_key(config_data)
 
-            logger.info(f"Loaded Magic Service configuration from: {config_path}")
+            logger.debug(f"Loaded Magic Service configuration from: {config_path}")
             if config_data.get("batch_id"):
-                logger.info(f"Batch ID: {config_data.get('batch_id')}")
+                logger.debug(f"Batch ID: {config_data.get('batch_id')}")
 
             return MagicServiceConfig(
                 api_base_url=api_base_url,
@@ -140,9 +140,9 @@ class MagicServiceConfigLoader:
 
         api_key = os.getenv("MAGIC_API_SERVICE_KEY")
         if api_key:
-            logger.info("Loaded API key from MAGIC_API_SERVICE_KEY environment variable")
+            logger.debug("Loaded API key from MAGIC_API_SERVICE_KEY environment variable")
 
-        logger.info("Loaded Magic Service configuration from environment variables")
+        logger.debug("Loaded Magic Service configuration from environment variables")
 
         return MagicServiceConfig(
             api_base_url=api_base_url,
@@ -169,7 +169,7 @@ class MagicServiceConfigLoader:
         """
         try:
             # Try configuration file first
-            logger.info(f"Loading configuration from file: {config_file}")
+            logger.debug(f"Loading configuration from file: {config_file}")
             if config_file is None:
                 config_file = PathManager.get_init_client_message_file()
 
@@ -212,37 +212,37 @@ class MagicServiceConfigLoader:
         # If it's an absolute path, use it directly
         if config_path.is_absolute():
             if config_path.exists():
-                logger.info(f"使用指定的绝对路径配置文件: {config_path}")
+                logger.debug(f"使用指定的绝对路径配置文件: {config_path}")
                 return config_path.resolve()
         else:
             # For relative paths, try current directory first
             # logger.info(f"当前工作目录: {Path.cwd()}")
             # logger.info(f"检查相对路径: {config_path}")
             if config_path.exists():
-                logger.info(f"使用当前目录下的配置文件: {config_path}")
+                logger.debug(f"使用当前目录下的配置文件: {config_path}")
                 return config_path.resolve()
 
             # If not found in current directory, try from project root
             # Find project root by looking for common project markers
             current_dir = Path.cwd()
-            logger.info(f"从当前目录查找项目根目录: {current_dir}")
+            logger.debug(f"从当前目录查找项目根目录: {current_dir}")
             project_root = MagicServiceConfigLoader._find_project_root(current_dir)
 
             if project_root:
                 project_config_path = project_root / config_file
-                logger.info(f"尝试项目根目录下的路径: {project_config_path}")
+                logger.debug(f"尝试项目根目录下的路径: {project_config_path}")
                 if project_config_path.exists():
-                    logger.info(f"使用项目根目录下的配置文件: {project_config_path}")
+                    logger.debug(f"使用项目根目录下的配置文件: {project_config_path}")
                     return project_config_path.resolve()
                 else:
-                    logger.info(f"项目根目录下的配置文件不存在: {project_config_path}")
+                    logger.debug(f"项目根目录下的配置文件不存在: {project_config_path}")
             else:
-                logger.info("未找到项目根目录")
+                logger.debug("未找到项目根目录")
                 #将当前目录的上一级目录作为项目根目录
                 project_root = Path.cwd().parent
-                logger.info(f"使用当前目录的上一级目录作为项目根目录: {project_root}")
+                logger.debug(f"使用当前目录的上一级目录作为项目根目录: {project_root}")
                 fallback_config_path = project_root / config_file
-                logger.info(f"使用备用配置文件路径: {fallback_config_path}")
+                logger.debug(f"使用备用配置文件路径: {fallback_config_path}")
                 if fallback_config_path.exists():
                     return fallback_config_path.resolve()
                 else:
@@ -312,16 +312,16 @@ class MagicServiceConfigLoader:
         # Try magic_service_api_key first
         api_key = config_data.get("magic_service_api_key")
         if api_key:
-            logger.info("Using magic_service_api_key from configuration file")
+            logger.debug("Using magic_service_api_key from configuration file")
             return api_key
 
         # Fall back to environment variable
         env_api_key = os.getenv("MAGIC_API_SERVICE_KEY")
         if env_api_key:
-            logger.info("Using MAGIC_API_SERVICE_KEY environment variable")
+            logger.debug("Using MAGIC_API_SERVICE_KEY environment variable")
             return env_api_key
 
-        logger.info("No API key found in configuration file or environment")
+        logger.debug("No API key found in configuration file or environment")
         return None
 
     @staticmethod
@@ -330,13 +330,13 @@ class MagicServiceConfigLoader:
         # Try magic_service_host first
         magic_service_host = config_data.get("magic_service_host")
         if magic_service_host:
-            logger.info("Using magic_service_host from configuration file")
+            logger.debug("Using magic_service_host from configuration file")
             return magic_service_host
 
         # Fall back to environment variable
         api_base_url = os.getenv("MAGIC_API_SERVICE_BASE_URL")
         if api_base_url:
-            logger.info("Using MAGIC_API_SERVICE_BASE_URL environment variable")
+            logger.debug("Using MAGIC_API_SERVICE_BASE_URL environment variable")
             return api_base_url
 
         raise ConfigurationError(
