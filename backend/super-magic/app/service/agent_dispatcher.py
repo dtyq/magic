@@ -741,6 +741,20 @@ class AgentDispatcher(Base):
             if not current_agent_code:
                 current_agent_code = prev_session.agent_code
 
+            # 优先使用消息显式携带的 message_version；
+            # 未携带时回落到上一次 session，避免第三方 IM 消息触发默认 "v1" 覆盖已有的 "v2"
+            msg_message_version = (
+                message.dynamic_config.get("message_version")
+                if message.dynamic_config
+                else None
+            )
+            if msg_message_version:
+                current_message_version = msg_message_version
+            elif prev_session.message_version:
+                current_message_version = prev_session.message_version
+            else:
+                current_message_version = agent_context.get_message_version() if agent_context else None
+
             agent.chat_history.save_session_config(
                 current_model_id,
                 current_image_model_id,
@@ -748,7 +762,7 @@ class AgentDispatcher(Base):
                 current_video_model_id,
                 current_video_generation_config,
                 current_mcp_servers,
-                message_version=agent_context.get_message_version() if agent_context else None,
+                message_version=current_message_version,
                 agent_mode=current_agent_mode,
                 agent_code=current_agent_code,
             )
