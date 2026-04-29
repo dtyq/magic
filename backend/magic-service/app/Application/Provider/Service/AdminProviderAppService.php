@@ -351,6 +351,7 @@ readonly class AdminProviderAppService
         return match ($this->getConnectivityTestType($providerModelEntity->getCategory()->value, $providerModelEntity->getModelType()->value)) {
             NaturalLanguageProcessing::EMBEDDING => $this->embeddingConnectivityTest($modelPrimaryId, $authorization),
             NaturalLanguageProcessing::LLM => $this->llmConnectivityTest($modelPrimaryId, $authorization),
+            NaturalLanguageProcessing::VLM => $this->adminProviderDomainService->vlmConnectivityTest($modelPrimaryId, $authorization),
             default => throw new BusinessException(__('service_provider.connectivity_not_supported')),
         };
     }
@@ -747,6 +748,9 @@ readonly class AdminProviderAppService
     {
         if (Category::from($category) === Category::LLM) {
             return $modelType === ModelType::EMBEDDING->value ? NaturalLanguageProcessing::EMBEDDING : NaturalLanguageProcessing::LLM;
+        }
+        if (Category::from($category)->isVlm()) {
+            return NaturalLanguageProcessing::VLM;
         }
         return NaturalLanguageProcessing::DEFAULT;
     }

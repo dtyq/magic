@@ -10,7 +10,6 @@ namespace App\Infrastructure\ExternalAPI\ImageGenerateAPI;
 use App\ErrorCode\ImageGenerateErrorCode;
 use App\ErrorCode\ServiceProviderErrorCode;
 use App\Infrastructure\Core\Exception\ExceptionBuilder;
-use App\Infrastructure\ExternalAPI\ImageGenerateAPI\Model\AzureOpenAI\AzureOpenAIImageEditModel;
 use App\Infrastructure\ExternalAPI\ImageGenerateAPI\Model\AzureOpenAI\AzureOpenAIImageGenerateModel;
 use App\Infrastructure\ExternalAPI\ImageGenerateAPI\Model\Flux\FluxModel;
 use App\Infrastructure\ExternalAPI\ImageGenerateAPI\Model\Google\GoogleGeminiModel;
@@ -25,8 +24,7 @@ use App\Infrastructure\ExternalAPI\ImageGenerateAPI\Model\Volcengine\VolcengineI
 use App\Infrastructure\ExternalAPI\ImageGenerateAPI\Model\Volcengine\VolcengineModel;
 use App\Infrastructure\ExternalAPI\ImageGenerateAPI\Model\VolcengineArk\VolcengineArkModel;
 use App\Infrastructure\ExternalAPI\ImageGenerateAPI\Model\VolcengineArk\VolcengineArkRequest;
-use App\Infrastructure\ExternalAPI\ImageGenerateAPI\Request\AzureOpenAIImageEditRequest;
-use App\Infrastructure\ExternalAPI\ImageGenerateAPI\Request\AzureOpenAIImageGenerateRequest;
+use App\Infrastructure\ExternalAPI\ImageGenerateAPI\Request\AzureOpenAIImageRequest;
 use App\Infrastructure\ExternalAPI\ImageGenerateAPI\Request\FluxModelRequest;
 use App\Infrastructure\ExternalAPI\ImageGenerateAPI\Request\GPT4oModelRequest;
 use App\Infrastructure\ExternalAPI\ImageGenerateAPI\Request\ImageGenerateRequest;
@@ -51,12 +49,12 @@ class ImageGenerateFactory
             ImageGenerateModelType::Flux => new FluxModel($serviceProviderConfig),
             ImageGenerateModelType::MiracleVision => new MiracleVisionModel($serviceProviderConfig),
             ImageGenerateModelType::TTAPIGPT4o => new GPT4oModel($serviceProviderConfig),
-            ImageGenerateModelType::AzureOpenAIImageGenerate => new AzureOpenAIImageGenerateModel($serviceProviderConfig),
-            ImageGenerateModelType::AzureOpenAIImageEdit => new AzureOpenAIImageEditModel($serviceProviderConfig),
             ImageGenerateModelType::QwenImage => new QwenImageModel($serviceProviderConfig),
             ImageGenerateModelType::GoogleGemini => new GoogleGeminiModel($serviceProviderConfig),
             ImageGenerateModelType::VolcengineArk => new VolcengineArkModel($serviceProviderConfig),
             ImageGenerateModelType::OpenRouter => new OpenRouterModel($serviceProviderConfig),
+            ImageGenerateModelType::OpenAI => new AzureOpenAIImageGenerateModel($serviceProviderConfig),
+            ImageGenerateModelType::AzureOpenAIImageGenerate => new AzureOpenAIImageGenerateModel($serviceProviderConfig),
             default => throw new InvalidArgumentException('not support ' . $imageGenerateType->value),
         };
     }
@@ -70,12 +68,12 @@ class ImageGenerateFactory
             ImageGenerateModelType::Midjourney => self::createMidjourneyRequest($modelVersion, $modelId, $data),
             ImageGenerateModelType::Flux => self::createFluxRequest($modelVersion, $modelId, $data),
             ImageGenerateModelType::TTAPIGPT4o => self::createGPT4oRequest($modelVersion, $modelId, $data),
-            ImageGenerateModelType::AzureOpenAIImageGenerate => self::createAzureOpenAIImageGenerateRequest($modelVersion, $modelId, $data),
-            ImageGenerateModelType::AzureOpenAIImageEdit => self::createAzureOpenAIImageEditRequest($modelVersion, $modelId, $data),
             ImageGenerateModelType::QwenImage => self::createQwenImageRequest($modelVersion, $modelId, $data),
             ImageGenerateModelType::GoogleGemini => self::createGoogleGeminiRequest($modelVersion, $modelId, $data),
             ImageGenerateModelType::VolcengineArk => self::createVolcengineArkRequest($modelVersion, $modelId, $data),
             ImageGenerateModelType::OpenRouter => self::createOpenRouterRequest($modelVersion, $modelId, $data),
+            ImageGenerateModelType::OpenAI => self::createAzureOpenAIImageRequest($modelVersion, $modelId, $data),
+            ImageGenerateModelType::AzureOpenAIImageGenerate => self::createAzureOpenAIImageRequest($modelVersion, $modelId, $data),
             default => throw new InvalidArgumentException('not support ' . $imageGenerateType->value),
         };
     }
@@ -167,12 +165,28 @@ class ImageGenerateFactory
         return $request;
     }
 
-    private static function createAzureOpenAIImageGenerateRequest(string $modelVersion, ?string $modelId, array $data): AzureOpenAIImageGenerateRequest
+    private static function createAzureOpenAIImageRequest(string $modelVersion, ?string $modelId, array $data): AzureOpenAIImageRequest
     {
-        // 解析 size 参数为 width 和 height
-        [$width, $height] = SizeManager::getSizeFromConfig($data['size'] ?? '1024x1024', $modelVersion, $modelId);
+        $size = (string) ($data['size'] ?? '1024x1024');
 
-        $request = new AzureOpenAIImageGenerateRequest((string) $width, (string) $height, $data['user_prompt'], '');
+        // 解析 size 参数为 width 和 height
+        [$width, $height] = SizeManager::getSizeFromConfig($size, $modelVersion, $modelId);
+        $imageConfig = SizeManager::matchConfig($modelVersion, $modelId) ?? [];
+
+        // 校验尺寸是否正确
+        if (! SizeManager::isDivisibleBy16((int) $width, (int) $height)) {
+            $sizeContent = $width . 'x' . $height;
+            if ($sizeContent !== $size) {
+                $sizeContent = sprintf('%s(%s)', $size, $sizeContent);
+            }
+            ExceptionBuilder::throw(
+                ImageGenerateErrorCode::UNSUPPORTED_IMAGE_SIZE,
+                'image_generate.azure_image_size_must_be_divisible_by_16',
+                ['size' => $sizeContent]
+            );
+        }
+
+        $request = new AzureOpenAIImageRequest((string) $width, (string) $height, $data['user_prompt'] ?? $data['prompt'] ?? '', '');
         $request->setSize($width . 'x' . $height);
 
         if (isset($data['quality'])) {
@@ -180,50 +194,17 @@ class ImageGenerateFactory
         }
         if (isset($data['generate_num'])) {
             $request->setN((int) $data['generate_num']);
-        }
-        // Handle image URLs from different sources
-        if (isset($data['reference_images']) && is_array($data['reference_images'])) {
-            $request->setReferenceImages($data['reference_images']);
-        } elseif (isset($data['reference_images'])) {
-            // Backward compatibility for single image
-            $request->setReferenceImages([$data['reference_images']]);
-        } else {
-            // Default to empty array if no images provided
-            $request->setReferenceImages([]);
-        }
-
-        return $request;
-    }
-
-    private static function createAzureOpenAIImageEditRequest(string $modelVersion, ?string $modelId, array $data): AzureOpenAIImageEditRequest
-    {
-        // 解析 size 参数为 width 和 height
-        [$width, $height] = SizeManager::getSizeFromConfig($data['size'] ?? '1024x1024', $modelVersion, $modelId);
-
-        $request = new AzureOpenAIImageEditRequest((string) $width, (string) $height, $data['user_prompt'] ?? $data['prompt'] ?? '', '');
-        $request->setSize($width . 'x' . $height);
-
-        // Handle image URLs from different sources
-        if (isset($data['reference_images']) && is_array($data['reference_images'])) {
-            $request->setReferenceImages($data['reference_images']);
-        } elseif (isset($data['reference_images'])) {
-            // Backward compatibility for single image
-            $request->setReferenceImages([$data['reference_images']]);
-        } else {
-            // Default to empty array if no images provided
-            $request->setReferenceImages([]);
-        }
-
-        // Optional mask parameter
-        if (isset($data['mask_url'])) {
-            $request->setMaskUrl($data['mask_url']);
-        }
-
-        // Set number of images to generate
-        if (isset($data['generate_num'])) {
-            $request->setN((int) $data['generate_num']);
         } elseif (isset($data['n'])) {
             $request->setN((int) $data['n']);
+        }
+
+        if (isset($data['reference_images'])) {
+            $referenceImages = is_array($data['reference_images']) ? $data['reference_images'] : [$data['reference_images']];
+            $maxLimit = $imageConfig['max_reference_images'] ?? 14;
+            if (count($referenceImages) > $maxLimit) {
+                ExceptionBuilder::throw(ImageGenerateErrorCode::GENERAL_ERROR, __('image_generate.too_many_reference_images_limit', ['limit' => $maxLimit]));
+            }
+            $request->setReferenceImages($referenceImages);
         }
 
         return $request;
