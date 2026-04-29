@@ -20,7 +20,6 @@ use App\Domain\Mode\Entity\ValueQuery\ModeQuery;
 use App\Domain\Permission\Entity\ValueObject\OperationPermission\Operation;
 use App\Domain\Permission\Entity\ValueObject\OperationPermission\ResourceType;
 use App\Domain\Permission\Entity\ValueObject\ResourceVisibility\PrincipalType;
-use App\Domain\Permission\Entity\ValueObject\OperationPermission\ResourceType as OperationPermissionResourceType;
 use App\Domain\Permission\Entity\ValueObject\ResourceVisibility\ResourceType as ResourceVisibilityResourceType;
 use App\Domain\Permission\Entity\ValueObject\ResourceVisibility\VisibilityConfig;
 use App\Domain\Permission\Entity\ValueObject\ResourceVisibility\VisibilityDepartment;
@@ -1928,7 +1927,7 @@ class SuperMagicAgentAppService extends AbstractSuperMagicAppService
      */
     private function buildMineMentionSkills(SuperMagicAgentDataIsolation $dataIsolation, string $language): array
     {
-        $accessibleSkillCodes = $this->getAccessibleSkillCodes($dataIsolation);
+        $accessibleSkillCodes = $this->getAccessibleSkillCodesWithBuiltinFallback($dataIsolation);
 
         if ($accessibleSkillCodes === []) {
             return [];
@@ -2410,22 +2409,4 @@ class SuperMagicAgentAppService extends AbstractSuperMagicAppService
         }
         return $map;
     }
-
-
-
-    /**
-     * 获取用户可访问的技能代码。
-     *
-     * @return array<string>
-     */
-    private function getAccessibleSkillCodes(SuperMagicAgentDataIsolation $dataIsolation): array
-    {
-        /** @var array<string> $skillCodes */
-        return $this->resourceAccessPolicyService->getReadableResourceCodes(
-            $dataIsolation,
-            OperationPermissionResourceType::Skill,
-            ResourceVisibilityResourceType::SKILL
-        )['all_codes'] ?? [];
-    }
-
 }
