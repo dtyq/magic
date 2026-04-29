@@ -701,6 +701,31 @@ class AgentDispatcher(Base):
                         tools = manager.get_server_tools(server_name)
                         current_mcp_servers[server_name] = tools
 
+            current_agent_mode = None
+            msg_agent_mode = message.agent_mode
+            if msg_agent_mode is not None:
+                if isinstance(msg_agent_mode, AgentMode):
+                    current_agent_mode = msg_agent_mode.get_agent_type()
+                else:
+                    try:
+                        current_agent_mode = AgentMode(msg_agent_mode).get_agent_type()
+                    except (ValueError, KeyError):
+                        pass
+
+            current_agent_code = None
+            if message.dynamic_config:
+                agent_code_val = message.dynamic_config.get("agent_code")
+                if agent_code_val and isinstance(agent_code_val, str) and agent_code_val.strip():
+                    current_agent_code = agent_code_val.strip()
+
+            # 当前消息未携带时，从上一次 session 回落
+            if not current_agent_mode or not current_agent_code:
+                prev_session = agent.chat_history.get_current_session_config()
+                if not current_agent_mode:
+                    current_agent_mode = prev_session.agent_mode
+                if not current_agent_code:
+                    current_agent_code = prev_session.agent_code
+
             agent.chat_history.save_session_config(
                 current_model_id,
                 current_image_model_id,
@@ -709,6 +734,8 @@ class AgentDispatcher(Base):
                 current_video_generation_config,
                 current_mcp_servers,
                 message_version=agent_context.get_message_version() if agent_context else None,
+                agent_mode=current_agent_mode,
+                agent_code=current_agent_code,
             )
         except Exception as e:
             logger.debug(f"保存会话配置时出错: {e}")
