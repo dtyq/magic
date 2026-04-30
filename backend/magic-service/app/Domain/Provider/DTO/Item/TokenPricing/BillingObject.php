@@ -30,9 +30,17 @@ final class BillingObject
 
     public const CACHE_WRITE_COST = 'cache_write_cost';
 
+    public const IMAGE_INPUT_TOKEN = 'image_input_token';
+
+    public const IMAGE_INPUT_TOKEN_COST = 'image_input_token_cost';
+
     public const IMAGE_OUTPUT_TOKEN = 'image_output_token';
 
     public const IMAGE_OUTPUT_TOKEN_COST = 'image_output_token_cost';
+
+    public const THOUGHT_TOKEN = 'thought_token';
+
+    public const THOUGHT_TOKEN_COST = 'thought_token_cost';
 
     public const VIDEO_VISUAL_INPUT_OUTPUT_TOKEN = 'video_visual_input_output_token';
 
@@ -66,8 +74,12 @@ final class BillingObject
         self::OUTPUT_COST,
         self::CACHE_HIT_COST,
         self::CACHE_WRITE_COST,
+        self::IMAGE_INPUT_TOKEN,
+        self::IMAGE_INPUT_TOKEN_COST,
         self::IMAGE_OUTPUT_TOKEN,
         self::IMAGE_OUTPUT_TOKEN_COST,
+        self::THOUGHT_TOKEN,
+        self::THOUGHT_TOKEN_COST,
         self::VIDEO_VISUAL_INPUT_OUTPUT_TOKEN,
         self::VIDEO_VISUAL_INPUT_OUTPUT_TOKEN_COST,
         self::VIDEO_TEXT_INPUT_OUTPUT_TOKEN,
@@ -85,6 +97,10 @@ final class BillingObject
 
     private const string VIDEO_DURATION_PATTERN = '/^video_[a-z0-9x_]+_output_duration(?:_cost)?$/';
 
+    private const string VIDEO_VISUAL_TOKEN_PATTERN = '/^video_[a-z0-9x_]+_visual_input_output_token(?:_cost)?$/';
+
+    private const string VIDEO_TEXT_TOKEN_PATTERN = '/^video_[a-z0-9x_]+_text_input_output_token(?:_cost)?$/';
+
     public function __construct(public readonly string $value)
     {
     }
@@ -98,7 +114,9 @@ final class BillingObject
 
         if (in_array($normalized, self::STATIC_OBJECTS, true)
             || preg_match(self::IMAGE_COUNT_PATTERN, $normalized) === 1
-            || preg_match(self::VIDEO_DURATION_PATTERN, $normalized) === 1) {
+            || preg_match(self::VIDEO_DURATION_PATTERN, $normalized) === 1
+            || preg_match(self::VIDEO_VISUAL_TOKEN_PATTERN, $normalized) === 1
+            || preg_match(self::VIDEO_TEXT_TOKEN_PATTERN, $normalized) === 1) {
             return new self($normalized);
         }
 
@@ -112,12 +130,12 @@ final class BillingObject
 
     public static function imageCount(string $resolution): self
     {
-        return new self(sprintf('image_%s_output_count', self::normalizeResolutionKey($resolution)));
+        return new self(sprintf('image_%s_output_count', self::normalizeImageResolutionKey($resolution)));
     }
 
     public static function imageCountCost(string $resolution): self
     {
-        return new self(sprintf('image_%s_output_count_cost', self::normalizeResolutionKey($resolution)));
+        return new self(sprintf('image_%s_output_count_cost', self::normalizeImageResolutionKey($resolution)));
     }
 
     public static function oldImageCount(): array
@@ -135,6 +153,46 @@ final class BillingObject
         return new self(sprintf('video_%s_output_duration_cost', self::normalizeResolutionKey($resolution)));
     }
 
+    public static function videoVisualInputOutputToken(?string $resolution = null): self
+    {
+        $normalized = self::normalizeResolutionKey((string) $resolution);
+        if ($normalized === '') {
+            return new self(self::VIDEO_VISUAL_INPUT_OUTPUT_TOKEN);
+        }
+
+        return new self(sprintf('video_%s_visual_input_output_token', $normalized));
+    }
+
+    public static function videoVisualInputOutputTokenCost(?string $resolution = null): self
+    {
+        $normalized = self::normalizeResolutionKey((string) $resolution);
+        if ($normalized === '') {
+            return new self(self::VIDEO_VISUAL_INPUT_OUTPUT_TOKEN_COST);
+        }
+
+        return new self(sprintf('video_%s_visual_input_output_token_cost', $normalized));
+    }
+
+    public static function videoTextInputOutputToken(?string $resolution = null): self
+    {
+        $normalized = self::normalizeResolutionKey((string) $resolution);
+        if ($normalized === '') {
+            return new self(self::VIDEO_TEXT_INPUT_OUTPUT_TOKEN);
+        }
+
+        return new self(sprintf('video_%s_text_input_output_token', $normalized));
+    }
+
+    public static function videoTextInputOutputTokenCost(?string $resolution = null): self
+    {
+        $normalized = self::normalizeResolutionKey((string) $resolution);
+        if ($normalized === '') {
+            return new self(self::VIDEO_TEXT_INPUT_OUTPUT_TOKEN_COST);
+        }
+
+        return new self(sprintf('video_%s_text_input_output_token_cost', $normalized));
+    }
+
     public function isTextObject(): bool
     {
         return in_array($this->value, self::TEXT_OBJECTS, true);
@@ -143,6 +201,11 @@ final class BillingObject
     public function isCostObject(): bool
     {
         return str_ends_with($this->value, '_cost');
+    }
+
+    public function isTokenFamilyObject(): bool
+    {
+        return $this->isTokenFamily();
     }
 
     public function toFlatConfigField(): ?string
@@ -218,13 +281,19 @@ final class BillingObject
             self::OUTPUT_COST,
             self::CACHE_HIT_COST,
             self::CACHE_WRITE_COST,
+            self::IMAGE_INPUT_TOKEN,
+            self::IMAGE_INPUT_TOKEN_COST,
             self::IMAGE_OUTPUT_TOKEN,
             self::IMAGE_OUTPUT_TOKEN_COST,
+            self::THOUGHT_TOKEN,
+            self::THOUGHT_TOKEN_COST,
             self::VIDEO_VISUAL_INPUT_OUTPUT_TOKEN,
             self::VIDEO_VISUAL_INPUT_OUTPUT_TOKEN_COST,
             self::VIDEO_TEXT_INPUT_OUTPUT_TOKEN,
             self::VIDEO_TEXT_INPUT_OUTPUT_TOKEN_COST,
-        ], true);
+        ], true)
+            || $this->isVideoVisualTokenObject()
+            || $this->isVideoTextTokenObject();
     }
 
     private function resolveTextUsageValue(TokenUsageDto $usage): int
@@ -244,8 +313,29 @@ final class BillingObject
 
     private function resolveImageUsageValue(ImageUsageDto $usage): int
     {
+        if (in_array($this->value, [self::IMAGE_INPUT_TOKEN, self::IMAGE_INPUT_TOKEN_COST], true)) {
+            return max(0, $usage->promptTokens > 0 ? $usage->promptTokens : ($usage->tokenUsage?->getInputTokens() ?? 0));
+        }
+
         if (in_array($this->value, [self::IMAGE_OUTPUT_TOKEN, self::IMAGE_OUTPUT_TOKEN_COST], true)) {
             return $usage->tokenUsage?->getOutputTokens() ?? 0;
+        }
+
+        if (in_array($this->value, [self::THOUGHT_TOKEN, self::THOUGHT_TOKEN_COST], true)) {
+            return max(0, $usage->thoughtTokens);
+        }
+
+        if (in_array($this->value, self::OLD_IMAGE_OBJECTS, true)) {
+            return $usage->imageCount;
+        }
+
+        if (! $this->isImageCountObject()) {
+            return 0;
+        }
+
+        $resolution = self::normalizeImageResolutionKey($usage->resolution ?? '');
+        if ($resolution !== $this->extractResolutionKey('image_', '_output_count')) {
+            return 0;
         }
 
         return $usage->imageCount;
@@ -253,6 +343,10 @@ final class BillingObject
 
     private function resolveVideoUsageValue(VideoUsageDto $usage): int
     {
+        if (in_array($this->value, [self::THOUGHT_TOKEN, self::THOUGHT_TOKEN_COST], true)) {
+            return max(0, $usage->thoughtTokens);
+        }
+
         if (in_array($this->value, [self::VIDEO_VISUAL_INPUT_OUTPUT_TOKEN, self::VIDEO_VISUAL_INPUT_OUTPUT_TOKEN_COST], true)) {
             return $usage->hasVisualInput ? max(0, (int) $usage->totalTokens) : 0;
         }
@@ -261,11 +355,32 @@ final class BillingObject
             return $usage->hasVisualInput ? 0 : max(0, (int) $usage->totalTokens);
         }
 
+        $resolution = self::normalizeResolutionKey($usage->quality !== '' ? $usage->quality : 'default');
+
+        if ($this->isVideoVisualTokenObject()) {
+            if (! $usage->hasVisualInput) {
+                return 0;
+            }
+
+            return $resolution === $this->extractResolutionKey('video_', '_visual_input_output_token')
+                ? max(0, (int) $usage->totalTokens)
+                : 0;
+        }
+
+        if ($this->isVideoTextTokenObject()) {
+            if ($usage->hasVisualInput) {
+                return 0;
+            }
+
+            return $resolution === $this->extractResolutionKey('video_', '_text_input_output_token')
+                ? max(0, (int) $usage->totalTokens)
+                : 0;
+        }
+
         if (! $this->isVideoDurationObject()) {
             return 0;
         }
 
-        $resolution = self::normalizeResolutionKey($usage->quality !== '' ? $usage->quality : 'default');
         if ($resolution !== $this->extractResolutionKey('video_', '_output_duration')) {
             return 0;
         }
@@ -276,6 +391,21 @@ final class BillingObject
     private function isVideoDurationObject(): bool
     {
         return preg_match(self::VIDEO_DURATION_PATTERN, $this->value) === 1;
+    }
+
+    private function isImageCountObject(): bool
+    {
+        return preg_match(self::IMAGE_COUNT_PATTERN, $this->value) === 1;
+    }
+
+    private function isVideoVisualTokenObject(): bool
+    {
+        return preg_match(self::VIDEO_VISUAL_TOKEN_PATTERN, $this->value) === 1;
+    }
+
+    private function isVideoTextTokenObject(): bool
+    {
+        return preg_match(self::VIDEO_TEXT_TOKEN_PATTERN, $this->value) === 1;
     }
 
     private function extractResolutionKey(string $prefix, string $suffix): string
@@ -293,5 +423,27 @@ final class BillingObject
         $normalized = strtolower(trim($resolution));
         $normalized = str_replace(['-', ' '], '_', $normalized);
         return preg_replace('/[^a-z0-9x_]/', '', $normalized) ?? '';
+    }
+
+    private static function normalizeImageResolutionKey(string $resolution): string
+    {
+        $normalized = self::normalizeResolutionKey($resolution);
+        if ($normalized === '' || $normalized === 'default') {
+            return '1k';
+        }
+
+        if (str_contains($normalized, '4096') || preg_match('/(?:^|_)4k(?:_|$)/', $normalized) === 1) {
+            return '4k';
+        }
+
+        if (str_contains($normalized, '2048') || preg_match('/(?:^|_)2k(?:_|$)/', $normalized) === 1) {
+            return '2k';
+        }
+
+        if (str_contains($normalized, '1024') || preg_match('/(?:^|_)1k(?:_|$)/', $normalized) === 1) {
+            return '1k';
+        }
+
+        return $normalized;
     }
 }
