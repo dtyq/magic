@@ -98,20 +98,21 @@ func splitContentWithEffectiveModePipeline(
 	input autoSplitPipelineInput,
 ) ([]tokenChunk, splitModeResolution, error) {
 	requestedMode := normalizeRequestedMode(input.RequestedMode)
+	content := stripMarkdownMagicCompressibleContentTags(input.Content, input.SourceFileType)
 	resolution := splitModeResolution{
 		RequestedMode: requestedMode,
 		EffectiveMode: shared.FragmentModeCustom,
 	}
 
 	if requestedMode != shared.FragmentModeCustom {
-		detection := resolveHierarchyDetection(input.Content, input.SourceFileType)
+		detection := resolveHierarchyDetection(content, input.SourceFileType)
 		headings := detection.Headings
 		resolution.HierarchyDetector = detection.Detector
 		hierarchyDetected, _ := evaluateHierarchy(headings)
 		if hierarchyDetected {
 			hierarchyCfg := resolveHierarchyConfig(input.FragmentConfig, input.NormalSegmentConfig.TextPreprocessRule)
 			chunks, err := splitContentByHierarchyPipeline(hierarchyPipelineInput{
-				Content:          input.Content,
+				Content:          content,
 				Headings:         headings,
 				Config:           hierarchyCfg,
 				Model:            input.Model,
@@ -135,7 +136,7 @@ func splitContentWithEffectiveModePipeline(
 
 	chunks, err := splitContentByTokenPipeline(
 		ctx,
-		input.Content,
+		content,
 		input.NormalSegmentConfig,
 		input.Model,
 		input.TokenizerService,

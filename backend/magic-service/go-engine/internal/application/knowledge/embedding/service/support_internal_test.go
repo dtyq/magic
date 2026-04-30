@@ -47,10 +47,6 @@ type internalEmbeddingAnalysisRepoStub struct {
 	cleanupCount     int64
 	cleanupErr       error
 	cleanupCalls     int
-	searchResult     []*embeddingdomain.Cache
-	searchTotal      int64
-	getByModel       []*embeddingdomain.Cache
-	leastAccessed    []*embeddingdomain.Cache
 	deleteByHashErr  error
 	batchDeleteErr   error
 	cleanupBlock     <-chan struct{}
@@ -143,22 +139,6 @@ func (s *internalEmbeddingAnalysisRepoStub) GetCacheStatistics(context.Context) 
 		return s.afterStats, nil
 	}
 	return &embeddingdomain.CacheStatistics{}, nil
-}
-
-func (s *internalEmbeddingAnalysisRepoStub) SearchCaches(context.Context, *embeddingdomain.CacheQuery) ([]*embeddingdomain.Cache, int64, error) {
-	return s.searchResult, s.searchTotal, nil
-}
-
-func (s *internalEmbeddingAnalysisRepoStub) GetCachesByModel(context.Context, string, int, int) ([]*embeddingdomain.Cache, error) {
-	return s.getByModel, nil
-}
-
-func (s *internalEmbeddingAnalysisRepoStub) CountByModel(context.Context, string) (int64, error) {
-	return 0, nil
-}
-
-func (s *internalEmbeddingAnalysisRepoStub) GetLeastAccessed(context.Context, int) ([]*embeddingdomain.Cache, error) {
-	return s.leastAccessed, nil
 }
 
 func TestEmbeddingCacheCleanupServiceManualCleanup(t *testing.T) {

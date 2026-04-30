@@ -34,8 +34,9 @@ const (
 
 // Options configures the incremental analyzer build runner.
 type Options struct {
-	RootDir   string
-	CacheFile string
+	RootDir      string
+	CacheFile    string
+	DisableCache bool
 }
 
 // Runner builds the analyzer binary only when tracked inputs have changed.
@@ -104,6 +105,9 @@ func (r *Runner) Run(ctx context.Context) error {
 	if ctx == nil {
 		return errContextRequired
 	}
+	if r.opts.DisableCache {
+		return r.executeWithoutCache(ctx)
+	}
 
 	trackedFiles, err := r.loadTracked(r.opts.RootDir)
 	if err != nil {
@@ -145,6 +149,19 @@ func (r *Runner) Run(ctx context.Context) error {
 
 	if err := persistCache(r.opts.CacheFile, currentState, r.atomicWrite); err != nil {
 		return err
+	}
+
+	_, _ = fmt.Fprintln(r.stdout, "✓ Layerdeps analyzer ready")
+	return nil
+}
+
+func (r *Runner) executeWithoutCache(ctx context.Context) error {
+	output, err := r.runBuild(ctx)
+	if trimmed := strings.TrimSpace(output); trimmed != "" {
+		_, _ = fmt.Fprintln(r.stderr, trimmed)
+	}
+	if err != nil {
+		return fmt.Errorf("build analyzer: %w", err)
 	}
 
 	_, _ = fmt.Fprintln(r.stdout, "✓ Layerdeps analyzer ready")

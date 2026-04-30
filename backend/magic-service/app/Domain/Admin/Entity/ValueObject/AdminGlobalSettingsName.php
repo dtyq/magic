@@ -21,6 +21,9 @@ enum AdminGlobalSettingsName: string
     // 模型权限控制
     case MODEL_ACCESS_PERMISSION_CONTROL = 'model_access_permission_control';
 
+    // 功能权限控制
+    case FUNCTION_PERMISSION_CONTROL = 'function_permission_control';
+
     // 获取助理全局设置类型
     public static function getByType(AdminGlobalSettingsType $type): string
     {
@@ -29,6 +32,7 @@ enum AdminGlobalSettingsName: string
             AdminGlobalSettingsType::THIRD_PARTY_PUBLISH => self::THIRD_PARTY_PUBLISH->value,
             AdminGlobalSettingsType::DEFAULT_FRIEND => self::DEFAULT_FRIEND->value,
             AdminGlobalSettingsType::MODEL_ACCESS_PERMISSION_CONTROL => self::MODEL_ACCESS_PERMISSION_CONTROL->value,
+            AdminGlobalSettingsType::FUNCTION_PERMISSION_CONTROL => self::FUNCTION_PERMISSION_CONTROL->value,
         };
     }
 }

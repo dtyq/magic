@@ -104,6 +104,7 @@ readonly class VideoOperationAppService
             $dataIsolation,
             $requestDTO,
             $videoModel->getProviderCode(),
+            $videoModel->getProviderModelId(),
             $videoGenerationConfig,
         );
         $result = $this->pointComponent->estimateVideoPoints($estimateRequest, $dataIsolation);
@@ -111,6 +112,7 @@ readonly class VideoOperationAppService
             'organization_code' => $dataIsolation->getCurrentOrganizationCode(),
             'user_id' => $dataIsolation->getCurrentUserId(),
             'model_id' => $requestDTO->getModel(),
+            'provider_code' => $videoModel->getProviderCode(),
             'points' => $result->getPoints(),
             'detail' => $result->getDetail(),
         ]);
@@ -292,6 +294,7 @@ readonly class VideoOperationAppService
         ModelGatewayDataIsolation $dataIsolation,
         CreateVideoDTO $requestDTO,
         ProviderCode $providerCode,
+        string $providerModelId,
         VideoGenerationConfig $videoGenerationConfig
     ): VideoPointEstimateRequest {
         // 预估和提交共用同一套规范化，避免默认时长、分辨率和 provider 能力校验不一致。
@@ -308,6 +311,7 @@ readonly class VideoOperationAppService
 
         return new VideoPointEstimateRequest(
             $requestDTO->getModel(),
+            $providerModelId,
             (string) ($outputDetails['resolution'] ?? ''),
             (int) ($outputDetails['duration_seconds'] ?? 0),
             (int) ($outputDetails['width'] ?? 0),

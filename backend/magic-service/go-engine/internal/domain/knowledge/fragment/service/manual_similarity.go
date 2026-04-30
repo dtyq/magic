@@ -9,6 +9,7 @@ import (
 	fragmodel "magic/internal/domain/knowledge/fragment/model"
 	fragretrieval "magic/internal/domain/knowledge/fragment/retrieval"
 	"magic/internal/domain/knowledge/shared"
+	sharedsnapshot "magic/internal/domain/knowledge/shared/snapshot"
 	"magic/internal/pkg/ctxmeta"
 )
 
@@ -40,9 +41,9 @@ type SimilarityRequestInput struct {
 }
 
 // BuildManualDocument 构造手工片段所属文档。
-func BuildManualDocument(kb any, input ManualFragmentInput) *KnowledgeBaseDocument {
-	kbSnapshot := snapshotKnowledgeBase(kb)
-	doc := NewDocument(
+func BuildManualDocument(kb *sharedsnapshot.KnowledgeBaseRuntimeSnapshot, input ManualFragmentInput) *fragmodel.KnowledgeBaseDocument {
+	kbSnapshot := fragmodel.SnapshotKnowledgeBase(kb)
+	doc := fragmodel.NewDocument(
 		input.KnowledgeCode,
 		input.DocumentCode,
 		input.DocumentCode,
@@ -51,7 +52,7 @@ func BuildManualDocument(kb any, input ManualFragmentInput) *KnowledgeBaseDocume
 		input.OrganizationCode,
 	)
 	doc.SyncStatus = shared.SyncStatusSynced
-	doc.EmbeddingModel = resolveKnowledgeBaseEmbeddingModel(kb)
+	doc.EmbeddingModel = fragmodel.ResolveKnowledgeBaseEmbeddingModel(kb)
 	doc.VectorDB = kbSnapshot.VectorDB
 	doc.RetrieveConfig = kbSnapshot.RetrieveConfig
 	doc.FragmentConfig = kbSnapshot.FragmentConfig
@@ -62,7 +63,7 @@ func BuildManualDocument(kb any, input ManualFragmentInput) *KnowledgeBaseDocume
 }
 
 // BuildManualFragment 构造手工新增片段。
-func BuildManualFragment(doc *KnowledgeBaseDocument, input ManualFragmentInput) *fragmodel.KnowledgeBaseFragment {
+func BuildManualFragment(doc *fragmodel.KnowledgeBaseDocument, input ManualFragmentInput) *fragmodel.KnowledgeBaseFragment {
 	fragment := fragmodel.NewFragment(
 		input.KnowledgeCode,
 		doc.Code,
@@ -76,7 +77,7 @@ func BuildManualFragment(doc *KnowledgeBaseDocument, input ManualFragmentInput) 
 	fragment.DocumentType = doc.DocType
 	fragment.ContentHash = hashText(fragment.Content)
 	fragment.SplitVersion = manualFragmentSplitVersion
-	fragment.Metadata = fragmetadata.BuildFragmentSemanticMetadataV1(fragment.Metadata, fragmetadata.FragmentSemanticMetadataDefaults{
+	fragment.Metadata = fragmetadata.BuildFragmentSemanticMetadata(fragment.Metadata, fragmetadata.FragmentSemanticMetadataDefaults{
 		ChunkIndex:           fragment.ChunkIndex,
 		ContentHash:          fragment.ContentHash,
 		SplitVersion:         fragment.SplitVersion,
@@ -96,8 +97,8 @@ func BuildManualFragment(doc *KnowledgeBaseDocument, input ManualFragmentInput) 
 }
 
 // BuildSimilarityRequest 根据知识库配置构建检索请求。
-func BuildSimilarityRequest(kb any, input SimilarityRequestInput) fragretrieval.SimilarityRequest {
-	kbSnapshot := snapshotKnowledgeBase(kb)
+func BuildSimilarityRequest(kb *sharedsnapshot.KnowledgeBaseRuntimeSnapshot, input SimilarityRequestInput) fragretrieval.SimilarityRequest {
+	kbSnapshot := fragmodel.SnapshotKnowledgeBase(kb)
 	resultThreshold := 0.0
 	switch {
 	case input.ScoreThreshold > 0:

@@ -75,7 +75,6 @@ a = Analysis(
     # 需要被动态加载的隐性组件包
     hiddenimports=[
         *extra_hiddenimports,
-        'tiktoken_ext.openai_public', 'tiktoken_ext',
         # 使得包可以被动态 import 进来
         'pydantic',
         'pydantic_core',

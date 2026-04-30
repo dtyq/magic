@@ -46,6 +46,18 @@ func TestParseOptionsAcceptsEmptyArgs(t *testing.T) {
 	}
 }
 
+func TestParseOptionsParsesNoSmartCache(t *testing.T) {
+	t.Parallel()
+
+	opts, err := lintcmd.ParseOptions([]string{"--no-smart-cache"})
+	if err != nil {
+		t.Fatalf("ParseOptions returned error: %v", err)
+	}
+	if !opts.NoSmartCache {
+		t.Fatal("expected NoSmartCache to be true")
+	}
+}
+
 func TestRunExecutesVetAfterVettool(t *testing.T) {
 	t.Parallel()
 	synctest.Test(t, func(t *testing.T) {

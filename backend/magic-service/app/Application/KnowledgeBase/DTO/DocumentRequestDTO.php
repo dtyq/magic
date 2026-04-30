@@ -9,6 +9,14 @@ namespace App\Application\KnowledgeBase\DTO;
 
 readonly class DocumentRequestDTO
 {
+    public const string REVECTORIZE_SOURCE_SINGLE_DOCUMENT_MANUAL = 'single_document_manual';
+
+    public const string REVECTORIZE_SOURCE_THIRD_FILE_BROADCAST = 'third_file_broadcast';
+
+    public const string REVECTORIZE_SOURCE_PROJECT_FILE_NOTIFY = 'project_file_notify';
+
+    public const string REVECTORIZE_SOURCE_TEAMSHARE_KNOWLEDGE_START_VECTOR = 'teamshare_knowledge_start_vector';
+
     public function __construct(
         public DataIsolationDTO $dataIsolation,
         public ?string $code = null,
@@ -22,7 +30,7 @@ readonly class DocumentRequestDTO
         public array $documentFile = [],
         public array $fragmentConfig = [],
         public ?BusinessParamsDTO $businessParams = null,
-        public ?bool $sync = null,
+        public ?string $revectorizeSource = null,
     ) {
     }
 
@@ -94,7 +102,7 @@ readonly class DocumentRequestDTO
         string $mode,
         DataIsolationDTO $dataIsolation,
         BusinessParamsDTO $businessParams,
-        ?bool $sync = null,
+        ?string $revectorizeSource = null,
     ): self {
         return new self(
             dataIsolation: $dataIsolation,
@@ -102,7 +110,7 @@ readonly class DocumentRequestDTO
             knowledgeBaseCode: $knowledgeBaseCode,
             mode: $mode,
             businessParams: $businessParams,
-            sync: $sync,
+            revectorizeSource: $revectorizeSource,
         );
     }
 

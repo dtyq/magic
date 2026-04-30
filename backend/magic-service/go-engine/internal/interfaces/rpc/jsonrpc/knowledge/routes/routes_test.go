@@ -32,10 +32,13 @@ func fragmentMethods() []string {
 		constants.MethodFragmentCreate,
 		constants.MethodFragmentShow,
 		constants.MethodFragmentList,
+		constants.MethodFragmentListHTTP,
 		constants.MethodFragmentDestroy,
 		constants.MethodFragmentSync,
 		constants.MethodFragmentSimilarity,
+		constants.MethodFragmentSimilarityHTTP,
 		constants.MethodFragmentPreview,
+		constants.MethodFragmentPreviewHTTP,
 	}
 }
 

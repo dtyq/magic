@@ -36,8 +36,8 @@
         "en_US": "The agent has not been initialized yet. Please initialize the workspace first."
     },
     "messages.internal_dispatch_failed": {
-        "zh_CN": "当前请求处理失败，请联系管理员。",
-        "en_US": "Failed to dispatch the request internally. Please contact the administrator."
+        "zh_CN": "当前请求处理失败，请联系系统管理员。",
+        "en_US": "Failed to dispatch the request internally. Please contact the system administrator."
     },
     "messages.message_processing_failed": {
         "zh_CN": "任务执行异常，请稍后再试。",
@@ -60,8 +60,8 @@
         "en_US": "The AI model service encountered an error while processing your request. Please try again later, or try switching to a different model."
     },
     "messages.llm_provider_config_error": {
-        "zh_CN": "AI 模型配置异常，无法处理请求，请联系系统管理员或切换其他模型后重试。",
-        "en_US": "AI model configuration error. The request cannot be processed. Please contact the system administrator, or try switching to a different model."
+        "zh_CN": "AI 模型配置出现异常。请稍后重试或切换其他模型。如仍无法解决，请联系系统管理员。",
+        "en_US": "AI model configuration error. Please try again later or switch to another model. If the issue persists, contact the system administrator."
     },
     "agent_profile.desc_with_role": {
         "zh_CN": "你叫{name}，是一名{role}。{description}",

@@ -6,12 +6,13 @@ import (
 	"maps"
 	"testing"
 
-	sourcebinding "magic/internal/domain/knowledge/sourcebinding/service"
+	sourcebinding "magic/internal/domain/knowledge/sourcebinding/entity"
+	sourcebindingservice "magic/internal/domain/knowledge/sourcebinding/service"
 	thirdfilemappingpkg "magic/internal/pkg/thirdfilemapping"
 )
 
 type repairKnowledgeBaseLoaderStub struct {
-	result *sourcebinding.RepairKnowledgeBase
+	result *sourcebindingservice.RepairKnowledgeBase
 	err    error
 }
 
@@ -19,7 +20,7 @@ func (s *repairKnowledgeBaseLoaderStub) LoadRepairKnowledgeBase(
 	context.Context,
 	string,
 	string,
-) (*sourcebinding.RepairKnowledgeBase, error) {
+) (*sourcebindingservice.RepairKnowledgeBase, error) {
 	if s.err != nil {
 		return nil, s.err
 	}
@@ -106,13 +107,13 @@ func (s *repairDocumentStoreStub) DestroyKnowledgeBaseDocuments(
 }
 
 type repairMaterializerStub struct {
-	lastInput sourcebinding.MaterializationInput
+	lastInput sourcebindingservice.MaterializationInput
 	result    int
 }
 
 func (s *repairMaterializerStub) Materialize(
 	_ context.Context,
-	input sourcebinding.MaterializationInput,
+	input sourcebindingservice.MaterializationInput,
 ) (int, error) {
 	s.lastInput = input
 	return s.result, nil
@@ -121,14 +122,14 @@ func (s *repairMaterializerStub) Materialize(
 type repairBackfillerStub struct {
 	rows      map[string]int64
 	errByFile map[string]error
-	inputs    []sourcebinding.RepairBackfillInput
+	inputs    []sourcebindingservice.RepairBackfillInput
 }
 
 var errRepairBackfillFailed = errors.New("backfill failed")
 
 func (s *repairBackfillerStub) BackfillDocumentCodeByThirdFile(
 	_ context.Context,
-	input sourcebinding.RepairBackfillInput,
+	input sourcebindingservice.RepairBackfillInput,
 ) (int64, error) {
 	s.inputs = append(s.inputs, input)
 	if err := s.errByFile[input.ThirdFileID]; err != nil {
@@ -149,9 +150,9 @@ func TestRepairServiceReplacesBindingsAndRebuildsLegacyDocuments(t *testing.T) {
 		rows: map[string]int64{"FILE-1": 2},
 	}
 
-	svc := sourcebinding.NewRepairService(
+	svc := sourcebindingservice.NewRepairService(
 		&repairKnowledgeBaseLoaderStub{
-			result: &sourcebinding.RepairKnowledgeBase{
+			result: &sourcebindingservice.RepairKnowledgeBase{
 				Code:             "KB-1",
 				OrganizationCode: "ORG-1",
 				CreatedUID:       "owner-1",
@@ -164,7 +165,7 @@ func TestRepairServiceReplacesBindingsAndRebuildsLegacyDocuments(t *testing.T) {
 		backfiller,
 	)
 
-	result, err := svc.RepairKnowledge(context.Background(), sourcebinding.RepairKnowledgeInput{
+	result, err := svc.RepairKnowledge(context.Background(), sourcebindingservice.RepairKnowledgeInput{
 		OrganizationCode:  "ORG-1",
 		KnowledgeBaseCode: "KB-1",
 		UserID:            "user-1",
@@ -223,9 +224,9 @@ func TestRepairServiceAppendsBindingsAndCollectsSoftFailures(t *testing.T) {
 		errByFile: map[string]error{"FILE-NEW": errRepairBackfillFailed},
 	}
 
-	svc := sourcebinding.NewRepairService(
+	svc := sourcebindingservice.NewRepairService(
 		&repairKnowledgeBaseLoaderStub{
-			result: &sourcebinding.RepairKnowledgeBase{
+			result: &sourcebindingservice.RepairKnowledgeBase{
 				Code:             "KB-1",
 				OrganizationCode: "ORG-1",
 			},
@@ -236,7 +237,7 @@ func TestRepairServiceAppendsBindingsAndCollectsSoftFailures(t *testing.T) {
 		backfiller,
 	)
 
-	result, err := svc.RepairKnowledge(context.Background(), sourcebinding.RepairKnowledgeInput{
+	result, err := svc.RepairKnowledge(context.Background(), sourcebindingservice.RepairKnowledgeInput{
 		OrganizationCode:  "ORG-1",
 		KnowledgeBaseCode: "KB-1",
 		UserID:            "user-1",
@@ -265,7 +266,7 @@ func TestRepairServiceAppendsBindingsAndCollectsSoftFailures(t *testing.T) {
 	if result.Failures[0].ThirdFileID != "FILE-NEW" || !errors.Is(result.Failures[0].Err, errRepairBackfillFailed) {
 		t.Fatalf("expected FILE-NEW backfill failure, got %#v", result.Failures[0])
 	}
-	if result.Failures[1].ThirdFileID != "FILE-NO-DOC" || !errors.Is(result.Failures[1].Err, sourcebinding.ErrRepairSourceBindingDocumentNotMapped) {
+	if result.Failures[1].ThirdFileID != "FILE-NO-DOC" || !errors.Is(result.Failures[1].Err, sourcebindingservice.ErrRepairSourceBindingDocumentNotMapped) {
 		t.Fatalf("expected FILE-NO-DOC mapping failure, got %#v", result.Failures[1])
 	}
 }

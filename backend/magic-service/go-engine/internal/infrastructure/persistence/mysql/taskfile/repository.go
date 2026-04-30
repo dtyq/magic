@@ -25,6 +25,8 @@ type Repository struct {
 	queries *mysqlsqlc.Queries
 }
 
+const defaultTaskFileChildPageSize = 1000
+
 // NewRepository 创建 task file MySQL 仓储。
 func NewRepository(client *mysqlclient.SQLCClient) *Repository {
 	var queries *mysqlsqlc.Queries
@@ -45,13 +47,6 @@ func (r *Repository) FindByID(ctx context.Context, projectFileID int64) (meta *p
 	}
 
 	meta, err = r.findByIDFromTaskFiles(ctx, projectFileID)
-	if err == nil {
-		return meta, nil
-	}
-	if !errors.Is(err, sql.ErrNoRows) {
-		return nil, err
-	}
-	meta, err = r.findByIDFromProjectFiles(ctx, projectFileID)
 	if errors.Is(err, sql.ErrNoRows) {
 		var zeroMeta *projectfile.Meta
 		return zeroMeta, nil
@@ -82,7 +77,7 @@ func (r *Repository) FindRootDirectoryByProjectID(ctx context.Context, projectID
 	if err != nil {
 		return nil, fmt.Errorf("find task file root directory: %w", err)
 	}
-	return mapTaskFileRootDirectoryByProjectIDRowToMeta(item), nil
+	return mapTaskFileToMeta(item), nil
 }
 
 // ListVisibleChildrenByParent 列出目录下可见的直接子节点。
@@ -99,7 +94,7 @@ func (r *Repository) ListVisibleChildrenByParent(
 		return []*projectfile.Meta{}, nil
 	}
 	if limit <= 0 {
-		limit = 1000
+		limit = defaultTaskFileChildPageSize
 	}
 
 	projectIDUint64, err := positiveInt64ToUint64(projectID, "project_id")
@@ -121,44 +116,47 @@ func (r *Repository) ListVisibleChildrenByParent(
 	return mapTaskFileChildrenByParentRowsToMetas(items), nil
 }
 
-// ListVisibleChildrenByParents 批量列出多个目录下的可见子节点。
-func (r *Repository) ListVisibleChildrenByParents(
+// ListVisibleChildrenByParentAfter 按稳定游标翻页列出目录下的可见子节点。
+func (r *Repository) ListVisibleChildrenByParentAfter(
 	ctx context.Context,
 	projectID int64,
-	parentIDs []int64,
+	parentID int64,
+	lastSort int64,
+	lastFileID int64,
 	limit int,
 ) ([]*projectfile.Meta, error) {
 	if r == nil || r.client == nil {
 		return nil, errTaskFileRepositoryNil
 	}
-	parentIDs = normalizePositiveIDs(parentIDs)
-	if projectID <= 0 || len(parentIDs) == 0 {
+	if projectID <= 0 || parentID <= 0 {
 		return []*projectfile.Meta{}, nil
 	}
 	if limit <= 0 {
-		limit = 1000
-	}
-
-	parentIDParams := make([]sql.NullInt64, 0, len(parentIDs))
-	for _, parentID := range parentIDs {
-		parentIDParams = append(parentIDParams, sql.NullInt64{
-			Int64: parentID,
-			Valid: true,
-		})
+		limit = defaultTaskFileChildPageSize
 	}
 	projectIDUint64, err := positiveInt64ToUint64(projectID, "project_id")
 	if err != nil {
 		return nil, fmt.Errorf("convert project id: %w", err)
 	}
-	items, err := r.queries.ListVisibleTaskFileChildrenByParents(ctx, mysqlsqlc.ListVisibleTaskFileChildrenByParentsParams{
+	lastFileIDUint64, err := positiveInt64ToUint64(lastFileID, "last_file_id")
+	if err != nil {
+		return nil, fmt.Errorf("convert last file id: %w", err)
+	}
+	items, err := r.queries.ListVisibleTaskFileChildrenByParentAfter(ctx, mysqlsqlc.ListVisibleTaskFileChildrenByParentAfterParams{
 		ProjectID: projectIDUint64,
-		ParentIds: parentIDParams,
-		Limit:     int32(limit),
+		ParentID: sql.NullInt64{
+			Int64: parentID,
+			Valid: true,
+		},
+		Sort:   lastSort,
+		Sort_2: lastSort,
+		FileID: lastFileIDUint64,
+		Limit:  int32(limit),
 	})
 	if err != nil {
-		return nil, fmt.Errorf("list visible task file children by parents: %w", err)
+		return nil, fmt.Errorf("list visible task file children by parent after: %w", err)
 	}
-	return mapTaskFileChildrenByParentsRowsToMetas(items), nil
+	return mapTaskFileChildrenByParentRowsToMetas(items), nil
 }
 
 func (r *Repository) findByIDFromTaskFiles(ctx context.Context, projectFileID int64) (*projectfile.Meta, error) {
@@ -171,23 +169,10 @@ func (r *Repository) findByIDFromTaskFiles(ctx context.Context, projectFileID in
 	if err != nil {
 		return nil, fmt.Errorf("find task file meta by id: %w", err)
 	}
-	return mapTaskFileMetaByIDRowToMeta(item), nil
+	return mapTaskFileToMeta(item), nil
 }
 
-func (r *Repository) findByIDFromProjectFiles(ctx context.Context, projectFileID int64) (*projectfile.Meta, error) {
-	projectFileIDUint64, err := positiveInt64ToUint64(projectFileID, "project_file_id")
-	if err != nil {
-		return nil, fmt.Errorf("convert project file id: %w", err)
-	}
-
-	item, err := r.queries.FindProjectFileMetaByID(ctx, projectFileIDUint64)
-	if err != nil {
-		return nil, fmt.Errorf("find project file meta by id: %w", err)
-	}
-	return mapProjectFileMetaByIDRowToMeta(item), nil
-}
-
-func mapTaskFileMetaByIDRowToMeta(row mysqlsqlc.FindTaskFileMetaByIDRow) *projectfile.Meta {
+func mapTaskFileToMeta(row mysqlsqlc.MagicSuperAgentTaskFile) *projectfile.Meta {
 	return buildMeta(metaRecord{
 		organizationCode: row.OrganizationCode,
 		projectID:        row.ProjectID,
@@ -198,80 +183,17 @@ func mapTaskFileMetaByIDRowToMeta(row mysqlsqlc.FindTaskFileMetaByIDRow) *projec
 		fileSize:         row.FileSize,
 		isDirectory:      row.IsDirectory,
 		isHidden:         row.IsHidden,
+		sort:             row.Sort,
 		updatedAt:        row.UpdatedAt,
 		deletedAt:        row.DeletedAt,
 		parentID:         row.ParentID,
 	})
 }
 
-func mapTaskFileRootDirectoryByProjectIDRowToMeta(row mysqlsqlc.FindTaskFileRootDirectoryByProjectIDRow) *projectfile.Meta {
-	return buildMeta(metaRecord{
-		organizationCode: row.OrganizationCode,
-		projectID:        row.ProjectID,
-		fileID:           row.FileID,
-		fileKey:          row.FileKey,
-		fileName:         row.FileName,
-		fileExtension:    row.FileExtension,
-		fileSize:         row.FileSize,
-		isDirectory:      row.IsDirectory,
-		isHidden:         row.IsHidden,
-		updatedAt:        row.UpdatedAt,
-		deletedAt:        row.DeletedAt,
-		parentID:         row.ParentID,
-	})
-}
-
-func mapProjectFileMetaByIDRowToMeta(row mysqlsqlc.FindProjectFileMetaByIDRow) *projectfile.Meta {
-	return buildMeta(metaRecord{
-		organizationCode: row.OrganizationCode,
-		projectID:        row.ProjectID,
-		fileID:           row.FileID,
-		fileKey:          row.FileKey,
-		fileName:         row.FileName,
-		fileExtension:    row.FileExtension,
-		fileSize:         row.FileSize,
-		updatedAt:        row.UpdatedAt,
-	})
-}
-
-func mapTaskFileChildrenByParentRowsToMetas(rows []mysqlsqlc.ListVisibleTaskFileChildrenByParentRow) []*projectfile.Meta {
+func mapTaskFileChildrenByParentRowsToMetas(rows []mysqlsqlc.MagicSuperAgentTaskFile) []*projectfile.Meta {
 	items := make([]*projectfile.Meta, 0, len(rows))
 	for _, row := range rows {
-		items = append(items, buildMeta(metaRecord{
-			organizationCode: row.OrganizationCode,
-			projectID:        row.ProjectID,
-			fileID:           row.FileID,
-			fileKey:          row.FileKey,
-			fileName:         row.FileName,
-			fileExtension:    row.FileExtension,
-			fileSize:         row.FileSize,
-			isDirectory:      row.IsDirectory,
-			isHidden:         row.IsHidden,
-			updatedAt:        row.UpdatedAt,
-			deletedAt:        row.DeletedAt,
-			parentID:         row.ParentID,
-		}))
-	}
-	return items
-}
-
-func mapTaskFileChildrenByParentsRowsToMetas(rows []mysqlsqlc.ListVisibleTaskFileChildrenByParentsRow) []*projectfile.Meta {
-	items := make([]*projectfile.Meta, 0, len(rows))
-	for _, row := range rows {
-		items = append(items, buildMeta(metaRecord{
-			organizationCode: row.OrganizationCode,
-			projectID:        row.ProjectID,
-			fileID:           row.FileID,
-			fileKey:          row.FileKey,
-			fileName:         row.FileName,
-			fileExtension:    row.FileExtension,
-			fileSize:         row.FileSize,
-			isDirectory:      row.IsDirectory,
-			isHidden:         row.IsHidden,
-			updatedAt:        row.UpdatedAt,
-			deletedAt:        row.DeletedAt,
-			parentID:         row.ParentID,
-		}))
+		items = append(items, mapTaskFileToMeta(row))
 	}
 	return items
 }
@@ -286,9 +208,10 @@ type metaRecord struct {
 	fileSize         uint64
 	isDirectory      bool
 	isHidden         bool
+	sort             int64
 	updatedAt        time.Time
 	deletedAt        sql.NullTime
-	parentID         uint64
+	parentID         sql.NullInt64
 }
 
 func buildMeta(record metaRecord) *projectfile.Meta {
@@ -303,8 +226,9 @@ func buildMeta(record metaRecord) *projectfile.Meta {
 		FileSize:         convert.ClampToInt64(record.fileSize),
 		IsDirectory:      record.isDirectory,
 		IsHidden:         record.isHidden,
+		Sort:             record.sort,
 		UpdatedAt:        record.updatedAt.Format("2006-01-02 15:04:05"),
-		ParentID:         convert.ClampToInt64(record.parentID),
+		ParentID:         nullInt64OrZero(record.parentID),
 	}
 	meta.RelativeFilePath = projectfile.InferRelativeFilePath(meta.FileKey)
 	if record.deletedAt.Valid {
@@ -314,28 +238,16 @@ func buildMeta(record metaRecord) *projectfile.Meta {
 	return meta
 }
 
+func nullInt64OrZero(value sql.NullInt64) int64 {
+	if !value.Valid {
+		return 0
+	}
+	return value.Int64
+}
+
 func positiveInt64ToUint64(value int64, fieldName string) (uint64, error) {
 	if value < 0 {
 		return 0, fmt.Errorf("%w: %s: %d", errNegativeInt64Value, fieldName, value)
 	}
 	return uint64(value), nil
-}
-
-func normalizePositiveIDs(ids []int64) []int64 {
-	if len(ids) == 0 {
-		return nil
-	}
-	result := make([]int64, 0, len(ids))
-	seen := make(map[int64]struct{}, len(ids))
-	for _, id := range ids {
-		if id <= 0 {
-			continue
-		}
-		if _, exists := seen[id]; exists {
-			continue
-		}
-		seen[id] = struct{}{}
-		result = append(result, id)
-	}
-	return result
 }

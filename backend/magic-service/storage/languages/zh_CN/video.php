@@ -21,6 +21,7 @@ return [
         'generic' => '视频生成失败，请检查输入内容或稍后重试。',
         'user_concurrency_limit' => '您的视频生成任务已达到同时运行上限（最多 :limit 个），请等待已有任务完成后再提交。',
         'organization_concurrency_limit' => '当前组织的视频生成任务已达到同时运行上限（最多 :limit 个），请等待组织内已有任务完成后再提交。',
+        'model_resolution_not_supported' => '当前模型（:model）暂不支持 :resolution，请改为 :supported 后重试。',
 
         // volcengine ark
         'SensitiveContentDetected' => '输入或生成内容可能包含敏感信息，请调整提示词或素材后重试。',

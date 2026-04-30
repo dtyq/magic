@@ -15,7 +15,7 @@ import (
 	"baliance.com/gooxml/common"
 	"baliance.com/gooxml/document"
 
-	documentdomain "magic/internal/domain/knowledge/document/service"
+	documentdomain "magic/internal/domain/knowledge/document/metadata"
 	documentsplitter "magic/internal/domain/knowledge/document/splitter"
 	parser "magic/internal/infrastructure/parser"
 	"magic/internal/pkg/tokenizer"

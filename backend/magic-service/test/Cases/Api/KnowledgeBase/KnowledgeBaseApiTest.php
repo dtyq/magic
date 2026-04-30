@@ -688,21 +688,6 @@ class KnowledgeBaseApiTest extends HttpTestCase
         $this->assertSame(1000, $res['code'], $res['message']);
     }
 
-    public function testReVectorizedSync()
-    {
-        $knowledgeBase = $this->createKnowledgeBase();
-        $code = $knowledgeBase['code'];
-        $document = $this->createDocument([], $code);
-        $documentCode = $document['code'];
-
-        $res = $this->post(
-            sprintf('%s/%s/documents/%s/re-vectorized', self::API, $code, $documentCode),
-            ['sync' => true],
-            $this->getCommonHeaders()
-        );
-        $this->assertSame(1000, $res['code'], $res['message']);
-    }
-
     public function testFragmentQueriesShouldReturnDocumentNodes()
     {
         $knowledgeBase = $this->createKnowledgeBase();

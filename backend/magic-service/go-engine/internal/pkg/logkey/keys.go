@@ -26,6 +26,8 @@ const (
 	ArgsCount = "args_count"
 	// SlowSQLThresholdMS 是慢 SQL 阈值毫秒键。
 	SlowSQLThresholdMS = "slow_sql_threshold_ms"
+	// SlowQdrantThresholdMS 是慢 Qdrant 阈值毫秒键。
+	SlowQdrantThresholdMS = "slow_qdrant_threshold_ms"
 	// PayloadBytes 是日志负载字节数键
 	PayloadBytes = "payload_bytes"
 	// PayloadSHA256 是日志负载哈希键

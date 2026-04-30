@@ -7,15 +7,11 @@ declare(strict_types=1);
 
 namespace App\Application\ModelGateway\Component\Points\DTO;
 
-/**
- * magic-service 对外统一的视频积分预估请求，屏蔽底层计费实现细节。
- */
 readonly class VideoPointEstimateRequest
 {
     /**
-     * 保存视频预估所需的输出规格、输入参考视频时长和业务上下文。
-     *
      * @param string $modelId 视频模型 ID，用于匹配 billing.php 中的模型价格配置。
+     * @param string $providerModelId 模型提供方模型 ID，用于匹配模型配置
      * @param string $resolution 输出视频分辨率档位，例如 480p、720p
      * @param int $outputDurationSeconds 输出视频时长，单位秒
      * @param int $outputWidth 输出视频宽度，Seedance token 公式按宽高估算像素量
@@ -26,6 +22,7 @@ readonly class VideoPointEstimateRequest
      */
     public function __construct(
         private string $modelId,
+        private string $providerModelId,
         private string $resolution,
         private int $outputDurationSeconds,
         private int $outputWidth,
@@ -110,6 +107,11 @@ readonly class VideoPointEstimateRequest
         return $this->businessParams;
     }
 
+    public function getProviderModelId(): string
+    {
+        return $this->providerModelId;
+    }
+
     /**
      * 转换为日志和调试使用的请求快照。
      *
@@ -120,6 +122,7 @@ readonly class VideoPointEstimateRequest
         return [
             'resource_type' => $this->getResourceType(),
             'model_id' => $this->modelId,
+            'provider_model_id' => $this->providerModelId,
             'resolution' => $this->resolution,
             'output_duration_seconds' => $this->outputDurationSeconds,
             'output_width' => $this->outputWidth,

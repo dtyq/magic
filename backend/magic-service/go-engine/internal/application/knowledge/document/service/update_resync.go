@@ -2,17 +2,20 @@ package docapp
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strings"
 
 	texthelper "magic/internal/application/knowledge/helper/text"
+	docentity "magic/internal/domain/knowledge/document/entity"
 	documentdomain "magic/internal/domain/knowledge/document/service"
+	parseddocument "magic/internal/domain/knowledge/shared/parseddocument"
 	"magic/internal/pkg/ctxmeta"
 )
 
 func (s *DocumentAppService) scheduleDocumentUpdateResync(
 	ctx context.Context,
-	doc *documentdomain.KnowledgeBaseDocument,
+	doc *docentity.KnowledgeBaseDocument,
 	userID string,
 ) {
 	request := s.buildDocumentUpdateResyncRequest(ctx, doc, userID)
@@ -24,7 +27,7 @@ func (s *DocumentAppService) scheduleDocumentUpdateResync(
 
 func (s *DocumentAppService) buildDocumentUpdateResyncRequest(
 	ctx context.Context,
-	doc *documentdomain.KnowledgeBaseDocument,
+	doc *docentity.KnowledgeBaseDocument,
 	userID string,
 ) *documentdomain.SyncDocumentInput {
 	if s == nil || doc == nil {
@@ -50,7 +53,7 @@ func (s *DocumentAppService) buildDocumentUpdateResyncRequest(
 
 	override, found, err := s.resolveDocumentUpdateSourceOverride(ctx, doc, request.BusinessParams)
 	if err != nil && s.logger != nil {
-		s.logger.WarnContext(
+		s.logger.KnowledgeWarnContext(
 			ctx,
 			"Resolve latest third-platform source override for document update failed, fallback to single-document resync",
 			"organization_code", doc.OrganizationCode,
@@ -72,7 +75,7 @@ func (s *DocumentAppService) buildDocumentUpdateResyncRequest(
 
 func (s *DocumentAppService) resolveDocumentUpdateSourceOverride(
 	ctx context.Context,
-	doc *documentdomain.KnowledgeBaseDocument,
+	doc *docentity.KnowledgeBaseDocument,
 	businessParams *ctxmeta.BusinessParams,
 ) (*documentdomain.SourceOverride, bool, error) {
 	if s == nil || doc == nil {
@@ -87,7 +90,7 @@ func (s *DocumentAppService) resolveDocumentUpdateSourceOverride(
 
 func (s *DocumentAppService) resolveDocumentUpdateSourceOverrideWithSnapshot(
 	ctx context.Context,
-	doc *documentdomain.KnowledgeBaseDocument,
+	doc *docentity.KnowledgeBaseDocument,
 	businessParams *ctxmeta.BusinessParams,
 ) (*documentdomain.SourceOverride, bool, error) {
 	if s == nil || doc == nil {
@@ -107,7 +110,7 @@ func (s *DocumentAppService) resolveDocumentUpdateSourceOverrideWithSnapshot(
 	if err := s.ensureThirdPlatformProvider(input.ThirdPlatformType); err != nil {
 		return nil, false, err
 	}
-	seed, err := documentdomain.BuildThirdFileRevectorizeSeed(input, []*documentdomain.KnowledgeBaseDocument{doc})
+	seed, err := documentdomain.BuildThirdFileRevectorizeSeed(input, []*docentity.KnowledgeBaseDocument{doc})
 	if err != nil {
 		return nil, false, fmt.Errorf("build third-platform revectorize seed: %w", err)
 	}
@@ -126,43 +129,126 @@ func sourceSnapshotToOverride(snapshot *documentdomain.ResolvedSourceSnapshot) *
 	if snapshot == nil {
 		return nil
 	}
+	if strings.TrimSpace(snapshot.Content) == "" && snapshot.ParsedDocument == nil {
+		return nil
+	}
 	return &documentdomain.SourceOverride{
-		Content:            snapshot.Content,
-		DocType:            snapshot.DocType,
-		DocumentFile:       documentdomain.CloneDocumentFilePayload(snapshot.DocumentFile),
+		Content:      snapshot.Content,
+		DocType:      snapshot.DocType,
+		DocumentFile: documentdomain.CloneDocumentFilePayload(snapshot.DocumentFile),
+		// override 后面会继续参与重同步流程，不能和 snapshot 共用同一份 ParsedDocument，
+		// 否则下游改了 override，回头就会把 snapshot 一起改脏。
+		ParsedDocument:     parseddocument.CloneParsedDocument(snapshot.ParsedDocument),
 		Source:             snapshot.Source,
 		ContentHash:        snapshot.ContentHash,
 		FetchedAtUnixMilli: snapshot.FetchedAtUnixMilli,
 	}
 }
 
+func shouldPrepareSingleDocumentThirdPlatformResync(input *documentdomain.SyncDocumentInput) bool {
+	if input == nil {
+		return false
+	}
+	if input.SingleDocumentThirdPlatformResync {
+		return true
+	}
+	return documentdomain.RevectorizeSourcePrefersSingleDocumentThirdPlatformResync(input.RevectorizeSource)
+}
+
 func (s *DocumentAppService) prepareSingleDocumentThirdPlatformResync(
 	ctx context.Context,
-	doc *documentdomain.KnowledgeBaseDocument,
+	doc *docentity.KnowledgeBaseDocument,
 	input *documentdomain.SyncDocumentInput,
-) {
-	if s == nil || doc == nil || input == nil || !input.SingleDocumentThirdPlatformResync || input.SourceOverride != nil {
-		return
+) (bool, error) {
+	if s == nil || doc == nil || input == nil || !shouldPrepareSingleDocumentThirdPlatformResync(input) || input.SourceOverride != nil {
+		return false, nil
 	}
 
 	override, found, err := s.resolveDocumentUpdateSourceOverride(ctx, doc, input.BusinessParams)
 	if err != nil {
-		if s.logger != nil {
-			s.logger.WarnContext(
-				ctx,
-				"Resolve latest third-platform source override during single-document resync failed, fallback to direct document resolve",
-				"organization_code", doc.OrganizationCode,
-				"knowledge_base_code", doc.KnowledgeBaseCode,
-				"document_code", doc.Code,
-				"third_platform_type", doc.ThirdPlatformType,
-				"third_file_id", doc.ThirdFileID,
-				"error", err,
-			)
-		}
-		return
+		return s.handleSingleDocumentThirdPlatformResyncSourceResolveError(ctx, doc, input, err)
 	}
 
 	if found {
 		input.SourceOverride = override
 	}
+	return false, nil
+}
+
+func (s *DocumentAppService) handleSingleDocumentThirdPlatformResyncSourceResolveError(
+	ctx context.Context,
+	doc *docentity.KnowledgeBaseDocument,
+	input *documentdomain.SyncDocumentInput,
+	err error,
+) (bool, error) {
+	if isDocumentReadUserMissingError(err) {
+		s.logSkippedSingleDocumentThirdPlatformResync(ctx, doc, err)
+		return true, nil
+	}
+	if shouldDestroySingleDocumentThirdPlatformResyncOnUnsupportedFileType(input, err) {
+		// third-file 变更通知已经退化成“每文档一条 document_sync MQ”。
+		// producer 不再提前解析 latest source 并统一删文档，因此要把“latest 文件已不支持时删除映射文档”
+		// 的旧语义迁到单文档 consumer 里完成，才能在改成按文档 MQ 后保持业务结果不变。
+		if destroyErr := s.destroyDocument(ctx, doc); destroyErr != nil {
+			return false, destroyErr
+		}
+		return true, nil
+	}
+	s.logFallbackSingleDocumentThirdPlatformResyncSourceResolveError(ctx, doc, err)
+	return false, nil
+}
+
+func shouldDestroySingleDocumentThirdPlatformResyncOnUnsupportedFileType(
+	input *documentdomain.SyncDocumentInput,
+	err error,
+) bool {
+	if input == nil {
+		return false
+	}
+	return errors.Is(err, documentdomain.ErrUnsupportedKnowledgeBaseFileType) &&
+		documentdomain.NormalizeRevectorizeSource(input.RevectorizeSource) == documentdomain.RevectorizeSourceThirdFileBroadcast
+}
+
+func (s *DocumentAppService) logFallbackSingleDocumentThirdPlatformResyncSourceResolveError(
+	ctx context.Context,
+	doc *docentity.KnowledgeBaseDocument,
+	err error,
+) {
+	if s == nil || s.logger == nil || doc == nil {
+		return
+	}
+	s.logger.KnowledgeWarnContext(
+		ctx,
+		"Resolve latest third-platform source override during single-document resync failed, fallback to direct document resolve",
+		"organization_code", doc.OrganizationCode,
+		"knowledge_base_code", doc.KnowledgeBaseCode,
+		"document_code", doc.Code,
+		"third_platform_type", doc.ThirdPlatformType,
+		"third_file_id", doc.ThirdFileID,
+		"error", err,
+	)
+}
+
+func (s *DocumentAppService) logSkippedSingleDocumentThirdPlatformResync(
+	ctx context.Context,
+	doc *docentity.KnowledgeBaseDocument,
+	err error,
+) {
+	if s == nil || s.logger == nil || doc == nil {
+		return
+	}
+	s.logger.KnowledgeWarnContext(
+		ctx,
+		"Skip single-document third-platform resync because read user is missing",
+		"organization_code", doc.OrganizationCode,
+		"knowledge_base_code", doc.KnowledgeBaseCode,
+		"document_code", doc.Code,
+		"third_platform_type", doc.ThirdPlatformType,
+		"third_file_id", doc.ThirdFileID,
+		"created_uid", doc.CreatedUID,
+		"updated_uid", doc.UpdatedUID,
+		"source_binding_id", doc.SourceBindingID,
+		"skip_reason", "document_read_user_missing",
+		"error", err,
+	)
 }

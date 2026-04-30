@@ -9,7 +9,7 @@ import (
 	"strings"
 	"time"
 
-	"magic/internal/infrastructure/logging"
+	parseddocument "magic/internal/domain/knowledge/shared/parseddocument"
 	"magic/internal/pkg/filetype"
 )
 
@@ -24,35 +24,69 @@ var ErrResolvedFileURLEmpty = errors.New("resolved file url is empty")
 
 // ParseService 文档解析领域服务。
 type ParseService struct {
-	fileFetcher FileFetcher
-	parsers     []Parser
-	logger      *logging.SugaredLogger
+	fileFetcher    FileFetcher
+	parsers        []Parser
+	logger         parseLogger
+	resourceLimits ResourceLimits
 }
+
+type parseLogger interface {
+	InfoContext(ctx context.Context, msg string, keysAndValues ...any)
+	KnowledgeWarnContext(ctx context.Context, msg string, keysAndValues ...any)
+}
+
+type noopParseLogger struct{}
+
+func (noopParseLogger) InfoContext(context.Context, string, ...any) {}
+
+func (noopParseLogger) KnowledgeWarnContext(context.Context, string, ...any) {}
 
 // NewParseService 创建文档解析领域服务。
 func NewParseService(
 	fileFetcher FileFetcher,
 	parsers []Parser,
-	logger *logging.SugaredLogger,
+	logger parseLogger,
 ) *ParseService {
+	return NewParseServiceWithLimits(fileFetcher, parsers, logger, DefaultResourceLimits())
+}
+
+// NewParseServiceWithLimits 创建带资源限制的文档解析领域服务。
+func NewParseServiceWithLimits(
+	fileFetcher FileFetcher,
+	parsers []Parser,
+	logger parseLogger,
+	resourceLimits ResourceLimits,
+) *ParseService {
+	if logger == nil {
+		logger = noopParseLogger{}
+	}
 	return &ParseService{
-		fileFetcher: fileFetcher,
-		parsers:     parsers,
-		logger:      logger,
+		fileFetcher:    fileFetcher,
+		parsers:        parsers,
+		logger:         logger,
+		resourceLimits: NormalizeResourceLimits(resourceLimits),
 	}
 }
 
 // NewParseServiceWithParsers 使用可变参数创建文档解析服务。
 func NewParseServiceWithParsers(
 	fileFetcher FileFetcher,
-	logger *logging.SugaredLogger,
+	logger parseLogger,
 	parsers ...Parser,
 ) *ParseService {
 	return NewParseService(fileFetcher, parsers, logger)
 }
 
+// ResourceLimits 返回解析服务当前生效的资源限制。
+func (s *ParseService) ResourceLimits() ResourceLimits {
+	if s == nil {
+		return DefaultResourceLimits()
+	}
+	return NormalizeResourceLimits(s.resourceLimits)
+}
+
 // ParseDocument 解析文档并返回统一结构化结果。
-func (s *ParseService) ParseDocument(ctx context.Context, fileURL, fileType string) (*ParsedDocument, error) {
+func (s *ParseService) ParseDocument(ctx context.Context, fileURL, fileType string) (*parseddocument.ParsedDocument, error) {
 	return s.ParseDocumentWithOptions(ctx, fileURL, fileType, DefaultParseOptions())
 }
 
@@ -61,7 +95,7 @@ func (s *ParseService) ParseDocumentWithOptions(
 	ctx context.Context,
 	fileURL, fileType string,
 	options ParseOptions,
-) (*ParsedDocument, error) {
+) (*parseddocument.ParsedDocument, error) {
 	normalizedFileType, err := s.resolveNormalizedFileType(ctx, fileURL, fileType)
 	if err != nil {
 		return nil, err
@@ -82,7 +116,7 @@ func (s *ParseService) ParseDocumentReader(
 	fileURL string,
 	file io.Reader,
 	fileType string,
-) (*ParsedDocument, error) {
+) (*parseddocument.ParsedDocument, error) {
 	return s.ParseDocumentReaderWithOptions(ctx, fileURL, file, fileType, DefaultParseOptions())
 }
 
@@ -93,7 +127,7 @@ func (s *ParseService) ParseDocumentReaderWithOptions(
 	file io.Reader,
 	fileType string,
 	options ParseOptions,
-) (*ParsedDocument, error) {
+) (*parseddocument.ParsedDocument, error) {
 	normalizedFileType, err := s.resolveNormalizedFileType(ctx, fileURL, fileType)
 	if err != nil {
 		return nil, err
@@ -102,7 +136,7 @@ func (s *ParseService) ParseDocumentReaderWithOptions(
 	if err != nil {
 		return nil, err
 	}
-	return s.parseWithReader(ctx, parser, fileURL, file, normalizedFileType, options)
+	return s.parseWithReader(ctx, parser, fileURL, NewSourceSizeLimitedReader(file, s.ResourceLimits()), normalizedFileType, options)
 }
 
 // Parse 解析文档纯文本内容。
@@ -155,12 +189,15 @@ func (s *ParseService) prepareParse(
 	}
 
 	s.logger.InfoContext(ctx, "Starting document parsing", "url", fileURL, "type", normalizedFileType)
+	if err := s.precheckSourceSize(ctx, fileURL); err != nil {
+		return nil, "", nil, err
+	}
 
 	resolvedURL := ""
 	if parser.NeedsResolvedURL() && fileURL != "" {
 		link, err := s.fileFetcher.GetLink(ctx, fileURL, "GET", 10*time.Minute)
 		if err != nil {
-			s.logger.WarnContext(ctx, "Failed to resolve file URL", "error", err, "url", fileURL)
+			s.logger.KnowledgeWarnContext(ctx, "Failed to resolve file URL", "error", err, "url", fileURL)
 			return nil, "", nil, fmt.Errorf("failed to resolve file url: %w", err)
 		}
 		if link == "" {
@@ -173,7 +210,7 @@ func (s *ParseService) prepareParse(
 	if err != nil {
 		return nil, "", nil, fmt.Errorf("failed to fetch file: %w", err)
 	}
-	return parser, resolvedURL, reader, nil
+	return parser, resolvedURL, NewSourceSizeLimitedReadCloser(reader, s.ResourceLimits()), nil
 }
 
 func (s *ParseService) resolveParser(normalizedFileType string) (Parser, error) {
@@ -211,12 +248,36 @@ func (s *ParseService) parseWithReader(
 	reader io.Reader,
 	normalizedFileType string,
 	options ParseOptions,
-) (*ParsedDocument, error) {
+) (*parseddocument.ParsedDocument, error) {
 	parsed, err := parseDocumentWithParser(ctx, parser, parserSource, reader, normalizedFileType, options)
 	if err != nil {
 		return nil, err
 	}
-	return finalizeParsedDocument(parsed, normalizedFileType), nil
+	finalized := finalizeParsedDocument(parsed, normalizedFileType)
+	if err := CheckParsedResourceLimits(finalized, s.ResourceLimits()); err != nil {
+		return nil, err
+	}
+	return finalized, nil
+}
+
+func (s *ParseService) precheckSourceSize(ctx context.Context, fileURL string) error {
+	size, ok := s.trySourceSize(ctx, fileURL)
+	if !ok {
+		return nil
+	}
+	return CheckDocumentSourceSize(size, s.ResourceLimits())
+}
+
+func (s *ParseService) trySourceSize(ctx context.Context, fileURL string) (int64, bool) {
+	sizeReader, ok := s.fileFetcher.(FileSizeReader)
+	if !ok {
+		return 0, false
+	}
+	size, err := sizeReader.FileSize(ctx, fileURL)
+	if err != nil {
+		return 0, false
+	}
+	return size, true
 }
 
 func parseDocumentWithParser(
@@ -226,7 +287,7 @@ func parseDocumentWithParser(
 	reader io.Reader,
 	normalizedFileType string,
 	options ParseOptions,
-) (*ParsedDocument, error) {
+) (*parseddocument.ParsedDocument, error) {
 	if parsed, handled, err := parseStructuredDocumentWithParser(ctx, parser, parserSource, reader, normalizedFileType, options); handled {
 		return parsed, err
 	}
@@ -243,7 +304,7 @@ func parseStructuredDocumentWithParser(
 	reader io.Reader,
 	normalizedFileType string,
 	options ParseOptions,
-) (*ParsedDocument, bool, error) {
+) (*parseddocument.ParsedDocument, bool, error) {
 	if configurableParser, ok := parser.(StructuredDocumentParserWithOptions); ok {
 		parsed, err := configurableParser.ParseDocumentWithOptions(ctx, parserSource, reader, normalizedFileType, options)
 		if err != nil {
@@ -269,7 +330,7 @@ func parsePlainTextDocumentWithOptions(
 	reader io.Reader,
 	normalizedFileType string,
 	options ParseOptions,
-) (*ParsedDocument, bool, error) {
+) (*parseddocument.ParsedDocument, bool, error) {
 	configurableParser, ok := parser.(ParserWithOptions)
 	if !ok {
 		return nil, false, nil
@@ -278,7 +339,7 @@ func parsePlainTextDocumentWithOptions(
 	if err != nil {
 		return nil, true, fmt.Errorf("parser failed: %w", err)
 	}
-	return NewPlainTextParsedDocument(normalizedFileType, content), true, nil
+	return parseddocument.NewPlainTextParsedDocument(normalizedFileType, content), true, nil
 }
 
 func parsePlainTextDocument(
@@ -287,23 +348,23 @@ func parsePlainTextDocument(
 	parserSource string,
 	reader io.Reader,
 	normalizedFileType string,
-) (*ParsedDocument, error) {
+) (*parseddocument.ParsedDocument, error) {
 	content, err := parser.Parse(ctx, parserSource, reader, normalizedFileType)
 	if err != nil {
 		return nil, fmt.Errorf("parser failed: %w", err)
 	}
-	return NewPlainTextParsedDocument(normalizedFileType, content), nil
+	return parseddocument.NewPlainTextParsedDocument(normalizedFileType, content), nil
 }
 
-func finalizeParsedDocument(parsed *ParsedDocument, normalizedFileType string) *ParsedDocument {
+func finalizeParsedDocument(parsed *parseddocument.ParsedDocument, normalizedFileType string) *parseddocument.ParsedDocument {
 	if parsed == nil {
-		return NewPlainTextParsedDocument(normalizedFileType, "")
+		return parseddocument.NewPlainTextParsedDocument(normalizedFileType, "")
 	}
 	if parsed.DocumentMeta == nil {
 		parsed.DocumentMeta = map[string]any{}
 	}
-	if _, ok := parsed.DocumentMeta[ParsedMetaSourceFormat]; !ok {
-		parsed.DocumentMeta[ParsedMetaSourceFormat] = normalizedFileType
+	if _, ok := parsed.DocumentMeta[parseddocument.MetaSourceFormat]; !ok {
+		parsed.DocumentMeta[parseddocument.MetaSourceFormat] = normalizedFileType
 	}
 	return parsed
 }

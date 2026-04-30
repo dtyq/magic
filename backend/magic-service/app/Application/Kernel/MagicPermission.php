@@ -235,12 +235,14 @@ class MagicPermission implements MagicPermissionInterface
                 continue;
             }
 
-            $pathNodes = $this->resolvePermissionPathNodes($permission);
-            if ($pathNodes === []) {
+            $pathNodeSets = $this->resolvePermissionPathNodeSets($permission);
+            if ($pathNodeSets === []) {
                 continue;
             }
 
-            $this->appendPermissionToTree($tree, $pathNodes, $permission);
+            foreach ($pathNodeSets as $pathNodes) {
+                $this->appendPermissionToTree($tree, $pathNodes, $permission);
+            }
         }
 
         return array_values($this->normalizeTree($tree));
@@ -475,34 +477,22 @@ class MagicPermission implements MagicPermissionInterface
      * 解析权限在树中的路径节点（优先使用菜单映射配置，未命中则回退旧逻辑）。
      *
      * @param array{permission_key:string,resource:string,resource_label:string,operation_label:string} $permission
-     * @return array<int, array{index_key:string,label:string,permission_key:string}>
+     * @return array<int, array<int, array{index_key:string,label:string,permission_key:string}>>
      */
-    private function resolvePermissionPathNodes(array $permission): array
+    private function resolvePermissionPathNodeSets(array $permission): array
     {
-        $mappedPath = $this->getMappedResourcePath($permission['resource']);
-        if ($mappedPath !== null) {
-            $pathNodes = [];
-            $accumKeys = [];
-            foreach ($mappedPath as $node) {
-                if (! is_array($node)) {
-                    $pathNodes = [];
-                    break;
+        $mappedPaths = $this->getMappedResourcePaths($permission['resource']);
+        if ($mappedPaths !== []) {
+            $pathNodeSets = [];
+            foreach ($mappedPaths as $mappedPath) {
+                $pathNodes = $this->buildMappedPathNodes($mappedPath);
+                if ($pathNodes !== []) {
+                    $pathNodeSets[] = $pathNodes;
                 }
-                $key = isset($node['key']) ? (string) $node['key'] : '';
-                $label = isset($node['label']) ? (string) $node['label'] : '';
-                if ($key === '' || $label === '') {
-                    $pathNodes = [];
-                    break;
-                }
-                $accumKeys[] = $key;
-                $pathNodes[] = [
-                    'index_key' => $key,
-                    'label' => $label,
-                    'permission_key' => 'menu.' . implode('.', $accumKeys),
-                ];
             }
-            if ($pathNodes !== []) {
-                return $pathNodes;
+
+            if ($pathNodeSets !== []) {
+                return $pathNodeSets;
             }
         }
 
@@ -543,7 +533,7 @@ class MagicPermission implements MagicPermissionInterface
             ];
         }
 
-        return $pathNodes;
+        return [$pathNodes];
     }
 
     /**
@@ -613,15 +603,68 @@ class MagicPermission implements MagicPermissionInterface
     /**
      * 获取某 resource 映射的菜单路径节点。
      */
-    private function getMappedResourcePath(string $resource): ?array
+    private function getMappedResourcePaths(string $resource): array
     {
+        $paths = [];
+
         $resourceMapping = $this->getResourceMenuMapping($resource);
-        if ($resourceMapping === null) {
-            return null;
+        if ($resourceMapping !== null) {
+            $path = $resourceMapping['path'] ?? null;
+            if (is_array($path)) {
+                $paths[] = $path;
+            }
         }
 
-        $path = $resourceMapping['path'] ?? null;
-        return is_array($path) ? $path : null;
+        $aliasMapping = config('permission_menu.resource_menu_alias_mapping', []);
+        if (! is_array($aliasMapping)) {
+            return $paths;
+        }
+
+        $resourceAliases = $aliasMapping[$resource] ?? null;
+        if (! is_array($resourceAliases)) {
+            return $paths;
+        }
+
+        foreach ($resourceAliases as $resourceAlias) {
+            if (! is_array($resourceAlias)) {
+                continue;
+            }
+
+            $path = $resourceAlias['path'] ?? null;
+            if (is_array($path)) {
+                $paths[] = $path;
+            }
+        }
+
+        return $paths;
+    }
+
+    /**
+     * @param array<int, mixed> $mappedPath
+     * @return array<int, array{index_key:string,label:string,permission_key:string}>
+     */
+    private function buildMappedPathNodes(array $mappedPath): array
+    {
+        $pathNodes = [];
+        $accumKeys = [];
+        foreach ($mappedPath as $node) {
+            if (! is_array($node)) {
+                return [];
+            }
+            $key = isset($node['key']) ? (string) $node['key'] : '';
+            $label = isset($node['label']) ? (string) $node['label'] : '';
+            if ($key === '' || $label === '') {
+                return [];
+            }
+            $accumKeys[] = $key;
+            $pathNodes[] = [
+                'index_key' => $key,
+                'label' => $label,
+                'permission_key' => 'menu.' . implode('.', $accumKeys),
+            ];
+        }
+
+        return $pathNodes;
     }
 
     /**

@@ -5,8 +5,8 @@ import (
 	"testing"
 
 	appservice "magic/internal/application/knowledge/document/service"
-	"magic/internal/domain/knowledge/document/service"
-	"magic/internal/domain/knowledge/knowledgebase/service"
+	docentity "magic/internal/domain/knowledge/document/entity"
+	kbentity "magic/internal/domain/knowledge/knowledgebase/entity"
 	domainshared "magic/internal/domain/knowledge/shared"
 )
 
@@ -17,16 +17,26 @@ func TestDocumentEntityToDTOWithContext_UsesEffectiveRouteModel(t *testing.T) {
 	svc := appservice.NewDocumentAppServiceForTest(t,
 		&documentDomainServiceStub{},
 		&knowledgeBaseReaderStub{
-			showByCodeAndOrgResult: &knowledgebase.KnowledgeBase{Code: "KB1", Model: effectiveEmbeddingModel},
-			showResult:             &knowledgebase.KnowledgeBase{Code: "KB1", Model: effectiveEmbeddingModel},
+			showByCodeAndOrgResult: &kbentity.KnowledgeBase{Code: "KB1", Model: effectiveEmbeddingModel},
+			showResult:             &kbentity.KnowledgeBase{Code: "KB1", Model: effectiveEmbeddingModel},
 			routeModel:             effectiveEmbeddingModel,
 		},
 		nil,
 	)
-	doc := &document.KnowledgeBaseDocument{
+	doc := &docentity.KnowledgeBaseDocument{
 		KnowledgeBaseCode: "KB1",
 		EmbeddingModel:    "text-embedding-3-small",
 		EmbeddingConfig:   &domainshared.EmbeddingConfig{ModelID: "text-embedding-3-small"},
+		FragmentConfig: &domainshared.FragmentConfig{
+			Mode: domainshared.FragmentModeCustom,
+			Normal: &domainshared.NormalFragmentConfig{
+				SegmentRule: &domainshared.SegmentRule{
+					Separator:    "\n\n",
+					ChunkSize:    500,
+					ChunkOverlap: 50,
+				},
+			},
+		},
 	}
 
 	dto := appservice.DocumentEntityToDTOWithContextForTest(context.Background(), svc, doc)
@@ -38,5 +48,11 @@ func TestDocumentEntityToDTOWithContext_UsesEffectiveRouteModel(t *testing.T) {
 	}
 	if dto.EmbeddingConfig == nil || dto.EmbeddingConfig.ModelID != effectiveEmbeddingModel {
 		t.Fatalf("expected embedding_config.model_id overridden, got %#v", dto.EmbeddingConfig)
+	}
+	if dto.FragmentConfig == nil || dto.FragmentConfig.Normal == nil {
+		t.Fatalf("expected fragment config kept, got %#v", dto.FragmentConfig)
+	}
+	if dto.FragmentConfig.Normal.TextPreprocessRule == nil || len(dto.FragmentConfig.Normal.TextPreprocessRule) != 0 {
+		t.Fatalf("expected normal text preprocess rule to be empty slice, got %#v", dto.FragmentConfig.Normal.TextPreprocessRule)
 	}
 }

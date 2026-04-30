@@ -41,14 +41,14 @@ func decodeLogEntries(t *testing.T, buffer *bytes.Buffer) []map[string]any {
 	return entries
 }
 
-func requireLogEntryByMessage(t *testing.T, entries []map[string]any, msg string) map[string]any {
+func requireLogEntryByOperation(t *testing.T, entries []map[string]any, operation string) map[string]any {
 	t.Helper()
 	for _, entry := range entries {
-		if entry["msg"] == msg {
+		if entry["operation"] == operation {
 			return entry
 		}
 	}
-	t.Fatalf("log entry %q not found in %#v", msg, entries)
+	t.Fatalf("log entry with operation %q not found in %#v", operation, entries)
 	return nil
 }
 
@@ -72,15 +72,15 @@ func TestClientDefaultsToAssumedModernCapability(t *testing.T) {
 	}
 
 	selection := client.DefaultSparseBackend()
-	if selection.Effective != shared.SparseBackendQdrantBM25ZHV1 {
-		t.Fatalf("expected default sparse backend %q, got %#v", shared.SparseBackendQdrantBM25ZHV1, selection)
+	if selection.Effective != shared.SparseBackendClientBM25QdrantIDFV1 {
+		t.Fatalf("expected default sparse backend %q, got %#v", shared.SparseBackendClientBM25QdrantIDFV1, selection)
 	}
 	if selection.Reason != shared.SparseBackendSelectionReasonCapabilityDefault {
 		t.Fatalf("unexpected selection reason: %#v", selection.Reason)
 	}
 }
 
-func TestClientSelectSparseBackendAllowsQdrantBackendWhenQuerySupported(t *testing.T) {
+func TestClientSelectSparseBackendAllowsQdrantBackendWhenNativeBM25Supported(t *testing.T) {
 	t.Parallel()
 
 	client := newClientWithLogBuffer(
@@ -91,7 +91,7 @@ func TestClientSelectSparseBackendAllowsQdrantBackendWhenQuerySupported(t *testi
 		100,
 	)
 	qdrantpkg.SetCapabilityForTest(client, qdrantpkg.CapabilitySnapshotForTest{
-		Version:           "1.13.2",
+		Version:           "1.15.2",
 		QuerySupported:    true,
 		SelectedSparseAPI: "query_points",
 		ProbeStatus:       "ready",
@@ -103,6 +103,33 @@ func TestClientSelectSparseBackendAllowsQdrantBackendWhenQuerySupported(t *testi
 		t.Fatalf("expected qdrant sparse backend, got %#v", selection)
 	}
 	if selection.Reason != shared.SparseBackendSelectionReasonExplicitRequested {
+		t.Fatalf("unexpected selection reason: %#v", selection.Reason)
+	}
+}
+
+func TestClientSelectSparseBackendDowngradesWhenNativeBM25UnsupportedDespiteQuerySupport(t *testing.T) {
+	t.Parallel()
+
+	client := newClientWithLogBuffer(
+		newCollectionsClientForLoggingTests(),
+		fakePointsClient{},
+		&bytes.Buffer{},
+		false,
+		100,
+	)
+	qdrantpkg.SetCapabilityForTest(client, qdrantpkg.CapabilitySnapshotForTest{
+		Version:           "1.12.2",
+		QuerySupported:    true,
+		SelectedSparseAPI: "query_points",
+		ProbeStatus:       "ready",
+		LastProbeAt:       time.Now(),
+	})
+
+	selection := client.SelectSparseBackend(shared.SparseBackendQdrantBM25ZHV1)
+	if selection.Effective != shared.SparseBackendClientBM25QdrantIDFV1 {
+		t.Fatalf("expected downgraded sparse backend %q, got %#v", shared.SparseBackendClientBM25QdrantIDFV1, selection)
+	}
+	if selection.Reason != shared.SparseBackendSelectionReasonNativeBM25Unsupported {
 		t.Fatalf("unexpected selection reason: %#v", selection.Reason)
 	}
 }

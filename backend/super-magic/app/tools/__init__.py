@@ -55,6 +55,7 @@ from app.tools.upgrade_sandbox import UpgradeSandbox
 from app.tools.use_browser import UseBrowser
 from app.tools.write_file import WriteFile
 from app.tools.manage_cron import ManageCron
+from app.tools.magic_calendar import ManageCalendar, CreateCalendarProject
 from app.tools.abstract_file_tool import AbstractFileTool
 from app.tools.append_to_file import AppendToFile
 from app.tools.convert_pdf import ConvertPdf
@@ -188,6 +189,8 @@ __all__ = [
     "VideoUnderstanding",
     "WriteFile",
     "ManageCron",
+    "ManageCalendar",
+    "CreateCalendarProject",
     "excel_plugin",
     "docx_plugin",
 

@@ -13,25 +13,28 @@ import (
 	"time"
 
 	documentdomain "magic/internal/domain/knowledge/document/service"
+	parseddocument "magic/internal/domain/knowledge/shared/parseddocument"
 	"magic/internal/infrastructure/logging"
 )
 
 var (
-	errParseFetchNotImplemented   = errors.New("fetch not implemented")
-	errParseGetLinkNotImplemented = errors.New("get link not implemented")
-	errParseStatNotImplemented    = errors.New("stat not implemented")
-	errParseUnexpectedFileType    = errors.New("unexpected file type")
-	errParseFetchFailed           = errors.New("fetch failed")
-	errParseObjectNotFound        = errors.New("object not found")
-	errParseUnexpectedResolvedURL = errors.New("unexpected resolved url")
+	errParseFetchNotImplemented    = errors.New("fetch not implemented")
+	errParseGetLinkNotImplemented  = errors.New("get link not implemented")
+	errParseStatNotImplemented     = errors.New("stat not implemented")
+	errParseUnexpectedFileType     = errors.New("unexpected file type")
+	errParseFetchFailed            = errors.New("fetch failed")
+	errParseObjectNotFound         = errors.New("object not found")
+	errParseUnexpectedResolvedURL  = errors.New("unexpected resolved url")
+	errParseFileSizeNotImplemented = errors.New("file size not implemented")
 )
 
 const parseTestHelloContent = "hello"
 
 type parseTestFetcher struct {
-	fetchFn   func(context.Context, string) (io.ReadCloser, error)
-	getLinkFn func(context.Context, string, string, time.Duration) (string, error)
-	statFn    func(context.Context, string) error
+	fetchFn    func(context.Context, string) (io.ReadCloser, error)
+	getLinkFn  func(context.Context, string, string, time.Duration) (string, error)
+	statFn     func(context.Context, string) error
+	fileSizeFn func(context.Context, string) (int64, error)
 }
 
 func (m *parseTestFetcher) Fetch(ctx context.Context, path string) (io.ReadCloser, error) {
@@ -55,11 +58,18 @@ func (m *parseTestFetcher) Stat(ctx context.Context, path string) error {
 	return m.statFn(ctx, path)
 }
 
+func (m *parseTestFetcher) FileSize(ctx context.Context, path string) (int64, error) {
+	if m.fileSizeFn == nil {
+		return 0, errParseFileSizeNotImplemented
+	}
+	return m.fileSizeFn(ctx, path)
+}
+
 type parseTestParser struct {
 	supported       string
 	needsURL        bool
 	parseFn         func(context.Context, string, io.Reader, string) (string, error)
-	parseDocumentFn func(context.Context, string, io.Reader, string) (*documentdomain.ParsedDocument, error)
+	parseDocumentFn func(context.Context, string, io.Reader, string) (*parseddocument.ParsedDocument, error)
 }
 
 type parseTestParserWithOptions struct {
@@ -89,7 +99,7 @@ func (p *parseTestParser) NeedsResolvedURL() bool {
 	return p.needsURL
 }
 
-func (p *parseTestParser) ParseDocument(ctx context.Context, fileURL string, file io.Reader, fileType string) (*documentdomain.ParsedDocument, error) {
+func (p *parseTestParser) ParseDocument(ctx context.Context, fileURL string, file io.Reader, fileType string) (*parseddocument.ParsedDocument, error) {
 	if p.parseDocumentFn != nil {
 		return p.parseDocumentFn(ctx, fileURL, file, fileType)
 	}
@@ -97,7 +107,7 @@ func (p *parseTestParser) ParseDocument(ctx context.Context, fileURL string, fil
 	if err != nil {
 		return nil, err
 	}
-	return documentdomain.NewPlainTextParsedDocument(fileType, content), nil
+	return parseddocument.NewPlainTextParsedDocument(fileType, content), nil
 }
 
 func (p *parseTestParserWithOptions) ParseDocumentWithOptions(
@@ -106,7 +116,7 @@ func (p *parseTestParserWithOptions) ParseDocumentWithOptions(
 	file io.Reader,
 	fileType string,
 	options documentdomain.ParseOptions,
-) (*documentdomain.ParsedDocument, error) {
+) (*parseddocument.ParsedDocument, error) {
 	copied := options
 	p.lastOptions = &copied
 	return p.ParseDocument(ctx, fileURL, file, fileType)
@@ -386,13 +396,13 @@ func TestDocumentParseServiceParseDocument_UsesStructuredParserOutput(t *testing
 	svc := documentdomain.NewParseService(fetcher, []documentdomain.Parser{
 		&parseTestParser{
 			supported: "csv",
-			parseDocumentFn: func(context.Context, string, io.Reader, string) (*documentdomain.ParsedDocument, error) {
-				return &documentdomain.ParsedDocument{
-					SourceType: documentdomain.ParsedDocumentSourceTabular,
+			parseDocumentFn: func(context.Context, string, io.Reader, string) (*parseddocument.ParsedDocument, error) {
+				return &parseddocument.ParsedDocument{
+					SourceType: parseddocument.SourceTabular,
 					PlainText:  "table text",
-					Blocks: []documentdomain.ParsedBlock{
+					Blocks: []parseddocument.ParsedBlock{
 						{
-							Type:    documentdomain.ParsedBlockTypeTableSummary,
+							Type:    parseddocument.BlockTypeTableSummary,
 							Content: "summary",
 						},
 					},
@@ -405,10 +415,10 @@ func TestDocumentParseServiceParseDocument_UsesStructuredParserOutput(t *testing
 	if err != nil {
 		t.Fatalf("ParseDocument returned error: %v", err)
 	}
-	if parsed == nil || parsed.SourceType != documentdomain.ParsedDocumentSourceTabular {
+	if parsed == nil || parsed.SourceType != parseddocument.SourceTabular {
 		t.Fatalf("expected structured parsed document, got %#v", parsed)
 	}
-	if parsed.DocumentMeta[documentdomain.ParsedMetaSourceFormat] != "csv" {
+	if parsed.DocumentMeta[parseddocument.MetaSourceFormat] != "csv" {
 		t.Fatalf("expected source format metadata, got %#v", parsed.DocumentMeta)
 	}
 }
@@ -424,12 +434,12 @@ func TestDocumentParseServiceParse_UsesBestEffortTextFromStructuredDocument(t *t
 	svc := documentdomain.NewParseService(fetcher, []documentdomain.Parser{
 		&parseTestParser{
 			supported: "csv",
-			parseDocumentFn: func(context.Context, string, io.Reader, string) (*documentdomain.ParsedDocument, error) {
-				return &documentdomain.ParsedDocument{
-					SourceType: documentdomain.ParsedDocumentSourceTabular,
-					Blocks: []documentdomain.ParsedBlock{
-						{Type: documentdomain.ParsedBlockTypeTableSummary, Content: "summary"},
-						{Type: documentdomain.ParsedBlockTypeTableRow, Content: "row"},
+			parseDocumentFn: func(context.Context, string, io.Reader, string) (*parseddocument.ParsedDocument, error) {
+				return &parseddocument.ParsedDocument{
+					SourceType: parseddocument.SourceTabular,
+					Blocks: []parseddocument.ParsedBlock{
+						{Type: parseddocument.BlockTypeTableSummary, Content: "summary"},
+						{Type: parseddocument.BlockTypeTableRow, Content: "row"},
 					},
 				}, nil
 			},
@@ -456,8 +466,8 @@ func TestDocumentParseServiceParseDocumentWithOptions_ForwardsParseOptions(t *te
 	parserWithOptions := &parseTestParserWithOptions{
 		parseTestParser: &parseTestParser{
 			supported: "md",
-			parseDocumentFn: func(context.Context, string, io.Reader, string) (*documentdomain.ParsedDocument, error) {
-				return documentdomain.NewPlainTextParsedDocument("md", "ok"), nil
+			parseDocumentFn: func(context.Context, string, io.Reader, string) (*parseddocument.ParsedDocument, error) {
+				return parseddocument.NewPlainTextParsedDocument("md", "ok"), nil
 			},
 		},
 	}
@@ -478,5 +488,86 @@ func TestDocumentParseServiceParseDocumentWithOptions_ForwardsParseOptions(t *te
 	}
 	if parserWithOptions.lastOptions == nil || *parserWithOptions.lastOptions != options {
 		t.Fatalf("expected options forwarded to parser, got %#v", parserWithOptions.lastOptions)
+	}
+}
+
+func TestDocumentParseService_SourceSizePrecheckFailsBeforeFetch(t *testing.T) {
+	t.Parallel()
+
+	var fetchCalled atomic.Bool
+	fetcher := &parseTestFetcher{
+		fileSizeFn: func(context.Context, string) (int64, error) {
+			return 6, nil
+		},
+		fetchFn: func(context.Context, string) (io.ReadCloser, error) {
+			fetchCalled.Store(true)
+			return io.NopCloser(strings.NewReader("ignored")), nil
+		},
+	}
+	svc := documentdomain.NewParseServiceWithLimits(
+		fetcher,
+		[]documentdomain.Parser{&parseTestParser{supported: "txt"}},
+		logging.New(),
+		documentdomain.ResourceLimits{MaxSourceBytes: 5},
+	)
+
+	_, err := svc.ParseDocumentWithOptions(context.Background(), "DT001/large.txt", "txt", documentdomain.DefaultParseOptions())
+	if !errors.Is(err, documentdomain.ErrDocumentResourceLimitExceeded) {
+		t.Fatalf("expected resource limit error, got %v", err)
+	}
+	if fetchCalled.Load() {
+		t.Fatalf("expected fetch skipped after source size precheck")
+	}
+}
+
+func TestDocumentParseService_SourceSizeLimitedReaderFailsDuringRead(t *testing.T) {
+	t.Parallel()
+
+	fetcher := &parseTestFetcher{
+		fetchFn: func(context.Context, string) (io.ReadCloser, error) {
+			return io.NopCloser(strings.NewReader("hello")), nil
+		},
+	}
+	svc := documentdomain.NewParseServiceWithLimits(
+		fetcher,
+		[]documentdomain.Parser{&parseTestParser{supported: "txt"}},
+		logging.New(),
+		documentdomain.ResourceLimits{MaxSourceBytes: 4},
+	)
+
+	_, err := svc.ParseDocumentWithOptions(context.Background(), "DT001/large.txt", "txt", documentdomain.DefaultParseOptions())
+	if !errors.Is(err, documentdomain.ErrDocumentResourceLimitExceeded) {
+		t.Fatalf("expected resource limit error, got %v", err)
+	}
+}
+
+func TestDocumentParseService_ParsedDocumentPlainTextLimit(t *testing.T) {
+	t.Parallel()
+
+	fetcher := &parseTestFetcher{
+		fetchFn: func(context.Context, string) (io.ReadCloser, error) {
+			return io.NopCloser(strings.NewReader("short")), nil
+		},
+	}
+	svc := documentdomain.NewParseServiceWithLimits(
+		fetcher,
+		[]documentdomain.Parser{
+			&parseTestParser{
+				supported: "txt",
+				parseDocumentFn: func(context.Context, string, io.Reader, string) (*parseddocument.ParsedDocument, error) {
+					return parseddocument.NewPlainTextParsedDocument("txt", "abcdef"), nil
+				},
+			},
+		},
+		logging.New(),
+		documentdomain.ResourceLimits{
+			MaxSourceBytes:    1024,
+			MaxPlainTextChars: 5,
+		},
+	)
+
+	_, err := svc.ParseDocumentWithOptions(context.Background(), "DT001/text.txt", "txt", documentdomain.DefaultParseOptions())
+	if !errors.Is(err, documentdomain.ErrDocumentResourceLimitExceeded) {
+		t.Fatalf("expected resource limit error, got %v", err)
 	}
 }

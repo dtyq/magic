@@ -8,7 +8,7 @@ import (
 	"strings"
 	"testing"
 
-	documentdomain "magic/internal/domain/knowledge/document/service"
+	documentdomain "magic/internal/domain/knowledge/document/metadata"
 	parser "magic/internal/infrastructure/parser"
 )
 
@@ -73,6 +73,20 @@ func TestPDFHybridParser_ParseDocumentFallsBackToOCRWhenNativeTextEmpty(t *testi
 	}
 	if got := parsed.DocumentMeta[documentdomain.ParsedMetaEmbeddedImageOCRSuccessCount]; got != 1 {
 		t.Fatalf("expected 1 OCR success, got %#v", got)
+	}
+}
+
+func TestPDFHybridParser_ParseDocumentReturnsOverloadWhenNativeTextEmptyAndOCRLimited(t *testing.T) {
+	t.Parallel()
+
+	ocr := &fakePDFOCR{err: documentdomain.NewOCROverloadedError(documentdomain.OCRProviderVolcengine, errPDFOCROCRUnavailable)}
+	_, err := parser.NewPDFHybridParserWithLimit(ocr, 20).
+		ParseDocument(context.Background(), "https://example.com/scan.pdf", bytes.NewReader(buildTestPDF("")), "pdf")
+	if err == nil {
+		t.Fatal("expected overload error")
+	}
+	if !documentdomain.IsOCROverloaded(err) {
+		t.Fatalf("expected OCR overload error, got %v", err)
 	}
 }
 

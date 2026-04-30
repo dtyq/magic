@@ -11,10 +11,11 @@ import (
 	documentdomain "magic/internal/domain/knowledge/document/service"
 	embeddingdomain "magic/internal/domain/knowledge/embedding"
 	fragmodel "magic/internal/domain/knowledge/fragment/model"
-	knowledgebasedomain "magic/internal/domain/knowledge/knowledgebase/service"
+	kbentity "magic/internal/domain/knowledge/knowledgebase/entity"
 	"magic/internal/domain/knowledge/shared"
 	ipcclient "magic/internal/infrastructure/rpc/jsonrpc/client"
 	jsonrpc "magic/internal/pkg/jsonrpc"
+	"magic/internal/pkg/thirdplatform"
 )
 
 var (
@@ -172,6 +173,12 @@ func genericValidationErrorCases() []businessErrorCase {
 			wantCode:      jsonrpc.ErrCodeInvalidParams,
 			wantUseRawMsg: true,
 		},
+		{
+			name:          "third platform identity missing -> validate failed",
+			err:           thirdplatform.ErrIdentityMissing,
+			wantCode:      jsonrpc.ErrCodeInvalidParams,
+			wantUseRawMsg: true,
+		},
 	}
 }
 
@@ -197,31 +204,31 @@ func knowledgeBaseValidationErrorCases() []businessErrorCase {
 		},
 		{
 			name:          "invalid knowledge base source type -> validate failed",
-			err:           knowledgebasedomain.ErrInvalidSourceType,
+			err:           kbentity.ErrInvalidSourceType,
 			wantCode:      jsonrpc.ErrCodeInvalidParams,
 			wantUseRawMsg: true,
 		},
 		{
 			name:          "invalid knowledge base type -> validate failed",
-			err:           knowledgebasedomain.ErrInvalidKnowledgeBaseType,
+			err:           kbentity.ErrInvalidKnowledgeBaseType,
 			wantCode:      jsonrpc.ErrCodeInvalidParams,
 			wantUseRawMsg: true,
 		},
 		{
 			name:          "explicit flow source type required -> validate failed",
-			err:           knowledgebasedomain.ErrExplicitFlowSourceTypeRequired,
+			err:           kbentity.ErrExplicitFlowSourceTypeRequired,
 			wantCode:      jsonrpc.ErrCodeInvalidParams,
 			wantUseRawMsg: true,
 		},
 		{
 			name:          "digital employee source type required -> validate failed",
-			err:           knowledgebasedomain.ErrDigitalEmployeeSourceTypeRequired,
+			err:           kbentity.ErrDigitalEmployeeSourceTypeRequired,
 			wantCode:      jsonrpc.ErrCodeInvalidParams,
 			wantUseRawMsg: true,
 		},
 		{
 			name:          "ambiguous flow source type -> validate failed",
-			err:           knowledgebasedomain.ErrAmbiguousFlowSourceType,
+			err:           kbentity.ErrAmbiguousFlowSourceType,
 			wantCode:      jsonrpc.ErrCodeInvalidParams,
 			wantUseRawMsg: true,
 		},
@@ -233,6 +240,12 @@ func permissionValidationErrorCases() []businessErrorCase {
 		{
 			name:          "document org mismatch -> access denied",
 			err:           documentapp.ErrDocumentOrgMismatch,
+			wantCode:      jsonrpc.ErrCodePermissionDenied,
+			wantUseRawMsg: true,
+		},
+		{
+			name:          "third platform permission denied -> access denied",
+			err:           fmt.Errorf("list tree nodes: %w", thirdplatform.ErrPermissionDenied),
 			wantCode:      jsonrpc.ErrCodePermissionDenied,
 			wantUseRawMsg: true,
 		},

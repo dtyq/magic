@@ -269,8 +269,9 @@ readonly class DesignGenerationTaskDomainService
 
     private function sanitizePublicErrorCode(string $errorCode): ?string
     {
-        $errorMessage = trans('video.errors.' . $errorCode);
-        return $errorMessage === $errorCode ? null : $errorMessage;
+        $errorKey = 'video.errors.' . $errorCode;
+        $errorMessage = trans($errorKey);
+        return $errorMessage === $errorKey ? null : $errorMessage;
     }
 
     private function sanitizePublicErrorMessage(?string $message): string

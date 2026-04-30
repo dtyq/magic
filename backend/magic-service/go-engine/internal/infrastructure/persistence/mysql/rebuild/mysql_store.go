@@ -19,33 +19,16 @@ import (
 	mysqljsoncompat "magic/internal/infrastructure/persistence/mysql/jsoncompat"
 	mysqlsqlc "magic/internal/infrastructure/persistence/mysql/sqlc"
 	rediscollectionmeta "magic/internal/infrastructure/persistence/redis/collectionmeta"
+	"magic/pkg/convert"
 )
 
 const (
-	pendingSyncStatus        = 0
-	listDocumentsBatchArgCap = 6
-	scopeColumnNameCode      = "code"
+	pendingSyncStatus                 = 0
+	documentBatchCandidateMultiplier  = 4
+	documentBatchCandidateMaxPageSize = 1000
 )
 
 var errInvalidRebuildScope = errors.New("invalid rebuild scope")
-
-type scopeColumnQualifier uint8
-
-const (
-	scopeQualifierKnowledgeBaseRoot scopeColumnQualifier = iota
-	scopeQualifierKnowledgeBaseAlias
-	scopeQualifierDocumentRoot
-	scopeQualifierDocumentAlias
-)
-
-type scopeColumn uint8
-
-const (
-	scopeColumnOrganizationCode scopeColumn = iota
-	scopeColumnRootCode
-	scopeColumnDocumentKnowledgeBaseCode
-	scopeColumnDocumentCode
-)
 
 type collectionEmbeddingConfig struct {
 	CollectionName         string `json:"collection_name"`
@@ -105,90 +88,264 @@ func NewMySQLStoreWithLoggerAndCollectionMetaCache(
 
 // ResetSyncStatus 将知识库和文档同步状态重置为待同步。
 func (s *MySQLStore) ResetSyncStatus(ctx context.Context, scope domainrebuild.Scope) (domainrebuild.MigrationStats, error) {
-	return s.runScopedMigration(
-		ctx,
-		scope,
-		scopedMigrationSpec{
-			kbBaseQuery: `UPDATE magic_flow_knowledge
-SET sync_status = ?, sync_status_message = '', updated_at = NOW()
-WHERE deleted_at IS NULL
-  AND code <> ?`,
-			docBaseQuery: `UPDATE knowledge_base_documents
-SET sync_status = ?, sync_status_message = '', updated_at = NOW()
-WHERE deleted_at IS NULL
-  AND knowledge_base_code <> ?`,
-			kbErrPrefix:  "update magic_flow_knowledge",
-			docErrPrefix: "update knowledge_base_documents",
-		},
-		[]any{pendingSyncStatus, constants.KnowledgeBaseCollectionMetaCode},
-	)
+	return s.runScopedMigration(ctx, scope, func(queries *mysqlsqlc.Queries, normalized domainrebuild.Scope) (int64, int64, error) {
+		return s.resetSyncStatusByScope(ctx, queries, normalized)
+	})
 }
 
 // UpdateModel 批量更新知识库与文档的 embedding 模型镜像字段。
 func (s *MySQLStore) UpdateModel(ctx context.Context, scope domainrebuild.Scope, model string) (domainrebuild.MigrationStats, error) {
-	return s.runScopedMigration(
-		ctx,
-		scope,
-		scopedMigrationSpec{
-			kbBaseQuery: `UPDATE magic_flow_knowledge
-SET model = ?,
-    embedding_config = JSON_SET(COALESCE(embedding_config, JSON_OBJECT()), '$.model_id', ?),
-    updated_at = NOW()
-WHERE deleted_at IS NULL
-  AND code <> ?`,
-			docBaseQuery: `UPDATE knowledge_base_documents
-SET embedding_model = ?,
-    embedding_config = JSON_SET(COALESCE(embedding_config, JSON_OBJECT()), '$.model_id', ?),
-    updated_at = NOW()
-WHERE deleted_at IS NULL
-  AND knowledge_base_code <> ?`,
-			kbErrPrefix:  "update magic_flow_knowledge model",
-			docErrPrefix: "update knowledge_base_documents model",
-		},
-		[]any{model, model, constants.KnowledgeBaseCollectionMetaCode},
-	)
+	return s.runScopedMigration(ctx, scope, func(queries *mysqlsqlc.Queries, normalized domainrebuild.Scope) (int64, int64, error) {
+		return s.updateModelByScope(ctx, queries, normalized, model)
+	})
+}
+
+func (s *MySQLStore) resetSyncStatusByScope(
+	ctx context.Context,
+	queries *mysqlsqlc.Queries,
+	scope domainrebuild.Scope,
+) (int64, int64, error) {
+	switch scope.Mode {
+	case domainrebuild.ScopeModeAll:
+		return s.resetSyncStatusAll(ctx, queries)
+	case domainrebuild.ScopeModeOrganization:
+		return s.resetSyncStatusByOrganization(ctx, queries, scope.OrganizationCode)
+	case domainrebuild.ScopeModeKnowledgeBase:
+		return s.resetSyncStatusByKnowledgeBase(ctx, queries, scope)
+	case domainrebuild.ScopeModeDocument:
+		return s.resetSyncStatusByDocument(ctx, queries, scope)
+	default:
+		return 0, 0, fmt.Errorf("%w: mode=%s", errInvalidRebuildScope, scope.Mode)
+	}
+}
+
+func (s *MySQLStore) resetSyncStatusAll(ctx context.Context, queries *mysqlsqlc.Queries) (int64, int64, error) {
+	kbRows, err := queries.ResetKnowledgeBaseSyncStatusAll(ctx)
+	if err != nil {
+		return 0, 0, fmt.Errorf("update magic_flow_knowledge: %w", err)
+	}
+	docRows, err := queries.ResetDocumentSyncStatusAll(ctx)
+	if err != nil {
+		return 0, 0, fmt.Errorf("update knowledge_base_documents: %w", err)
+	}
+	return kbRows, docRows, nil
+}
+
+func (s *MySQLStore) resetSyncStatusByOrganization(
+	ctx context.Context,
+	queries *mysqlsqlc.Queries,
+	organizationCode string,
+) (int64, int64, error) {
+	kbRows, err := queries.ResetKnowledgeBaseSyncStatusByOrganization(ctx, organizationCode)
+	if err != nil {
+		return 0, 0, fmt.Errorf("update magic_flow_knowledge: %w", err)
+	}
+	docRows, err := queries.ResetDocumentSyncStatusByOrganization(ctx, organizationCode)
+	if err != nil {
+		return 0, 0, fmt.Errorf("update knowledge_base_documents: %w", err)
+	}
+	return kbRows, docRows, nil
+}
+
+func (s *MySQLStore) resetSyncStatusByKnowledgeBase(
+	ctx context.Context,
+	queries *mysqlsqlc.Queries,
+	scope domainrebuild.Scope,
+) (int64, int64, error) {
+	kbRows, err := queries.ResetKnowledgeBaseSyncStatusByKnowledgeBase(ctx, mysqlsqlc.ResetKnowledgeBaseSyncStatusByKnowledgeBaseParams{
+		OrganizationCode: scope.OrganizationCode,
+		Code:             scope.KnowledgeBaseCode,
+	})
+	if err != nil {
+		return 0, 0, fmt.Errorf("update magic_flow_knowledge: %w", err)
+	}
+	docRows, err := queries.ResetDocumentSyncStatusByKnowledgeBase(ctx, mysqlsqlc.ResetDocumentSyncStatusByKnowledgeBaseParams{
+		OrganizationCode:  scope.OrganizationCode,
+		KnowledgeBaseCode: scope.KnowledgeBaseCode,
+	})
+	if err != nil {
+		return 0, 0, fmt.Errorf("update knowledge_base_documents: %w", err)
+	}
+	return kbRows, docRows, nil
+}
+
+func (s *MySQLStore) resetSyncStatusByDocument(
+	ctx context.Context,
+	queries *mysqlsqlc.Queries,
+	scope domainrebuild.Scope,
+) (int64, int64, error) {
+	kbRows, err := queries.ResetKnowledgeBaseSyncStatusByKnowledgeBase(ctx, mysqlsqlc.ResetKnowledgeBaseSyncStatusByKnowledgeBaseParams{
+		OrganizationCode: scope.OrganizationCode,
+		Code:             scope.KnowledgeBaseCode,
+	})
+	if err != nil {
+		return 0, 0, fmt.Errorf("update magic_flow_knowledge: %w", err)
+	}
+	docRows, err := queries.ResetDocumentSyncStatusByDocument(ctx, mysqlsqlc.ResetDocumentSyncStatusByDocumentParams{
+		OrganizationCode:  scope.OrganizationCode,
+		KnowledgeBaseCode: scope.KnowledgeBaseCode,
+		Code:              scope.DocumentCode,
+	})
+	if err != nil {
+		return 0, 0, fmt.Errorf("update knowledge_base_documents: %w", err)
+	}
+	return kbRows, docRows, nil
+}
+
+func (s *MySQLStore) updateModelByScope(
+	ctx context.Context,
+	queries *mysqlsqlc.Queries,
+	scope domainrebuild.Scope,
+	model string,
+) (int64, int64, error) {
+	switch scope.Mode {
+	case domainrebuild.ScopeModeAll:
+		return s.updateModelAll(ctx, queries, model)
+	case domainrebuild.ScopeModeOrganization:
+		return s.updateModelByOrganization(ctx, queries, scope.OrganizationCode, model)
+	case domainrebuild.ScopeModeKnowledgeBase:
+		return s.updateModelByKnowledgeBase(ctx, queries, scope, model)
+	case domainrebuild.ScopeModeDocument:
+		return s.updateModelByDocument(ctx, queries, scope, model)
+	default:
+		return 0, 0, fmt.Errorf("%w: mode=%s", errInvalidRebuildScope, scope.Mode)
+	}
+}
+
+func (s *MySQLStore) updateModelAll(
+	ctx context.Context,
+	queries *mysqlsqlc.Queries,
+	model string,
+) (int64, int64, error) {
+	kbRows, err := queries.UpdateKnowledgeBaseModelAll(ctx, mysqlsqlc.UpdateKnowledgeBaseModelAllParams{
+		Model: model,
+	})
+	if err != nil {
+		return 0, 0, fmt.Errorf("update magic_flow_knowledge model: %w", err)
+	}
+	docRows, err := queries.UpdateDocumentModelAll(ctx, mysqlsqlc.UpdateDocumentModelAllParams{
+		Model: model,
+	})
+	if err != nil {
+		return 0, 0, fmt.Errorf("update knowledge_base_documents model: %w", err)
+	}
+	return kbRows, docRows, nil
+}
+
+func (s *MySQLStore) updateModelByOrganization(
+	ctx context.Context,
+	queries *mysqlsqlc.Queries,
+	organizationCode string,
+	model string,
+) (int64, int64, error) {
+	kbRows, err := queries.UpdateKnowledgeBaseModelByOrganization(ctx, mysqlsqlc.UpdateKnowledgeBaseModelByOrganizationParams{
+		Model:            model,
+		OrganizationCode: organizationCode,
+	})
+	if err != nil {
+		return 0, 0, fmt.Errorf("update magic_flow_knowledge model: %w", err)
+	}
+	docRows, err := queries.UpdateDocumentModelByOrganization(ctx, mysqlsqlc.UpdateDocumentModelByOrganizationParams{
+		Model:            model,
+		OrganizationCode: organizationCode,
+	})
+	if err != nil {
+		return 0, 0, fmt.Errorf("update knowledge_base_documents model: %w", err)
+	}
+	return kbRows, docRows, nil
+}
+
+func (s *MySQLStore) updateModelByKnowledgeBase(
+	ctx context.Context,
+	queries *mysqlsqlc.Queries,
+	scope domainrebuild.Scope,
+	model string,
+) (int64, int64, error) {
+	kbRows, err := queries.UpdateKnowledgeBaseModelByKnowledgeBase(ctx, mysqlsqlc.UpdateKnowledgeBaseModelByKnowledgeBaseParams{
+		Model:            model,
+		OrganizationCode: scope.OrganizationCode,
+		Code:             scope.KnowledgeBaseCode,
+	})
+	if err != nil {
+		return 0, 0, fmt.Errorf("update magic_flow_knowledge model: %w", err)
+	}
+	docRows, err := queries.UpdateDocumentModelByKnowledgeBase(ctx, mysqlsqlc.UpdateDocumentModelByKnowledgeBaseParams{
+		Model:             model,
+		OrganizationCode:  scope.OrganizationCode,
+		KnowledgeBaseCode: scope.KnowledgeBaseCode,
+	})
+	if err != nil {
+		return 0, 0, fmt.Errorf("update knowledge_base_documents model: %w", err)
+	}
+	return kbRows, docRows, nil
+}
+
+func (s *MySQLStore) updateModelByDocument(
+	ctx context.Context,
+	queries *mysqlsqlc.Queries,
+	scope domainrebuild.Scope,
+	model string,
+) (int64, int64, error) {
+	kbRows, err := queries.UpdateKnowledgeBaseModelByKnowledgeBase(ctx, mysqlsqlc.UpdateKnowledgeBaseModelByKnowledgeBaseParams{
+		Model:            model,
+		OrganizationCode: scope.OrganizationCode,
+		Code:             scope.KnowledgeBaseCode,
+	})
+	if err != nil {
+		return 0, 0, fmt.Errorf("update magic_flow_knowledge model: %w", err)
+	}
+	docRows, err := queries.UpdateDocumentModelByDocument(ctx, mysqlsqlc.UpdateDocumentModelByDocumentParams{
+		Model:             model,
+		OrganizationCode:  scope.OrganizationCode,
+		KnowledgeBaseCode: scope.KnowledgeBaseCode,
+		Code:              scope.DocumentCode,
+	})
+	if err != nil {
+		return 0, 0, fmt.Errorf("update knowledge_base_documents model: %w", err)
+	}
+	return kbRows, docRows, nil
 }
 
 // GetCollectionMeta 读取集合元数据保留记录。
-func (s *MySQLStore) GetCollectionMeta(ctx context.Context) (domainrebuild.CollectionMeta, error) {
+func (s *MySQLStore) GetCollectionMeta(ctx context.Context) (sharedroute.CollectionMeta, error) {
 	if meta, hit := s.readCollectionMetaCache(ctx); hit {
 		return meta, nil
 	}
 	return s.queryCollectionMeta(ctx)
 }
 
-func (s *MySQLStore) readCollectionMetaCache(ctx context.Context) (domainrebuild.CollectionMeta, bool) {
+func (s *MySQLStore) readCollectionMetaCache(ctx context.Context) (sharedroute.CollectionMeta, bool) {
 	if s.collectionMetaCache == nil {
-		return domainrebuild.CollectionMeta{}, false
+		return sharedroute.CollectionMeta{}, false
 	}
 	meta, hit, err := s.collectionMetaCache.Get(ctx)
 	if err != nil {
 		s.collectionMetaCache.Warn(ctx, "Read collection meta cache failed, fallback to MySQL", err)
-		return domainrebuild.CollectionMeta{}, false
+		return sharedroute.CollectionMeta{}, false
 	}
 	return meta, hit
 }
 
-func (s *MySQLStore) queryCollectionMeta(ctx context.Context) (domainrebuild.CollectionMeta, error) {
+func (s *MySQLStore) queryCollectionMeta(ctx context.Context) (sharedroute.CollectionMeta, error) {
 	row, err := s.queries.FindKnowledgeBaseCollectionMeta(ctx, constants.KnowledgeBaseCollectionMetaCode)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
-			meta := domainrebuild.CollectionMeta{}
+			meta := sharedroute.CollectionMeta{}
 			s.writeCollectionMetaCache(ctx, meta, "Write collection meta negative cache failed")
 			return meta, nil
 		}
-		return domainrebuild.CollectionMeta{}, fmt.Errorf("query collection meta: %w", err)
+		return sharedroute.CollectionMeta{}, fmt.Errorf("query collection meta: %w", err)
 	}
 
 	config, err := mysqljsoncompat.DecodeObjectPtr[collectionEmbeddingConfig](row.EmbeddingConfig, "embedding_config")
 	if err != nil {
-		return domainrebuild.CollectionMeta{}, fmt.Errorf("decode collection meta embedding_config: %w", err)
+		return sharedroute.CollectionMeta{}, fmt.Errorf("decode collection meta embedding_config: %w", err)
 	}
 	if config == nil {
 		config = &collectionEmbeddingConfig{}
 	}
 
-	meta := domainrebuild.CollectionMeta{
+	meta := sharedroute.CollectionMeta{
 		CollectionName:         strings.TrimSpace(config.CollectionName),
 		PhysicalCollectionName: strings.TrimSpace(config.PhysicalCollectionName),
 		Model:                  strings.TrimSpace(row.Model),
@@ -202,7 +359,7 @@ func (s *MySQLStore) queryCollectionMeta(ctx context.Context) (domainrebuild.Col
 
 func (s *MySQLStore) writeCollectionMetaCache(
 	ctx context.Context,
-	meta domainrebuild.CollectionMeta,
+	meta sharedroute.CollectionMeta,
 	message string,
 ) {
 	if s.collectionMetaCache == nil {
@@ -214,7 +371,7 @@ func (s *MySQLStore) writeCollectionMetaCache(
 }
 
 // UpsertCollectionMeta 写入集合元数据保留记录。
-func (s *MySQLStore) UpsertCollectionMeta(ctx context.Context, meta domainrebuild.CollectionMeta) error {
+func (s *MySQLStore) UpsertCollectionMeta(ctx context.Context, meta sharedroute.CollectionMeta) error {
 	configJSON, err := json.Marshal(collectionEmbeddingConfig{
 		CollectionName:         strings.TrimSpace(meta.CollectionName),
 		PhysicalCollectionName: strings.TrimSpace(meta.PhysicalCollectionName),
@@ -241,7 +398,7 @@ func (s *MySQLStore) UpsertCollectionMeta(ctx context.Context, meta domainrebuil
 	return nil
 }
 
-func toSharedCollectionMeta(meta domainrebuild.CollectionMeta) sharedroute.CollectionMeta {
+func toSharedCollectionMeta(meta sharedroute.CollectionMeta) sharedroute.CollectionMeta {
 	return meta
 }
 
@@ -251,51 +408,168 @@ func (s *MySQLStore) ListDocumentsBatch(ctx context.Context, scope domainrebuild
 	if err != nil {
 		return nil, err
 	}
-
-	query := `SELECT d.id,
-       d.organization_code,
-       d.knowledge_base_code,
-       d.code,
-       COALESCE(NULLIF(d.updated_uid, ''), d.created_uid, '') AS user_id
-FROM knowledge_base_documents d
-INNER JOIN magic_flow_knowledge k
-  ON k.code = d.knowledge_base_code
- AND k.deleted_at IS NULL
-WHERE d.deleted_at IS NULL
-  AND d.id > ?
-  AND d.knowledge_base_code <> ''
-  AND d.code <> ''
-  AND k.code <> ?
-`
-	args := make([]any, 0, listDocumentsBatchArgCap)
-	args = append(args, afterID, constants.KnowledgeBaseCollectionMetaCode)
-	query, args = appendKnowledgeBaseScopeFilter(query, scope, scopeQualifierKnowledgeBaseAlias, args)
-	query, args = appendDocumentScopeFilter(query, scope, scopeQualifierDocumentAlias, args)
-	query += `
-ORDER BY d.id ASC
-LIMIT ?`
-	args = append(args, batchSize)
-
-	rows, err := s.dbtx.QueryContext(ctx, query, args...)
-	if err != nil {
-		return nil, fmt.Errorf("query documents batch: %w", err)
+	if batchSize <= 0 {
+		return []domainrebuild.DocumentTask{}, nil
 	}
-	defer func() {
-		_ = rows.Close()
-	}()
+
+	candidateLimit := min(
+		max(batchSize*documentBatchCandidateMultiplier, batchSize),
+		documentBatchCandidateMaxPageSize,
+	)
 
 	tasks := make([]domainrebuild.DocumentTask, 0, batchSize)
-	for rows.Next() {
-		var task domainrebuild.DocumentTask
-		if scanErr := rows.Scan(&task.ID, &task.OrganizationCode, &task.KnowledgeBaseCode, &task.DocumentCode, &task.UserID); scanErr != nil {
-			return nil, fmt.Errorf("scan document batch row: %w", scanErr)
+	nextAfterID := afterID
+	for len(tasks) < batchSize {
+		candidates, err := s.listDocumentBatchCandidates(ctx, scope, nextAfterID, candidateLimit)
+		if err != nil {
+			return nil, err
 		}
-		tasks = append(tasks, task)
-	}
-	if rowsErr := rows.Err(); rowsErr != nil {
-		return nil, fmt.Errorf("iterate document batch rows: %w", rowsErr)
+		if len(candidates) == 0 {
+			break
+		}
+
+		activeKnowledgeCodes, err := s.listActiveKnowledgeBaseCodes(ctx, scope, candidates)
+		if err != nil {
+			return nil, err
+		}
+		for _, candidate := range candidates {
+			nextAfterID = candidate.ID
+			if _, ok := activeKnowledgeCodes[candidate.KnowledgeBaseCode]; !ok {
+				continue
+			}
+			tasks = append(tasks, candidate)
+			if len(tasks) >= batchSize {
+				break
+			}
+		}
+		if len(candidates) < candidateLimit {
+			break
+		}
 	}
 	return tasks, nil
+}
+
+func (s *MySQLStore) listDocumentBatchCandidates(
+	ctx context.Context,
+	scope domainrebuild.Scope,
+	afterID int64,
+	limit int,
+) ([]domainrebuild.DocumentTask, error) {
+	limit32, err := convert.SafeIntToInt32(limit, "limit")
+	if err != nil {
+		return nil, fmt.Errorf("invalid limit: %w", err)
+	}
+
+	switch scope.Mode {
+	case domainrebuild.ScopeModeAll:
+		rows, err := s.queries.ListRebuildDocumentsBatchAll(ctx, mysqlsqlc.ListRebuildDocumentsBatchAllParams{
+			AfterID: afterID,
+			Limit:   limit32,
+		})
+		if err != nil {
+			return nil, fmt.Errorf("query document batch candidates: %w", err)
+		}
+		return mapRebuildDocumentTasksFromAllRows(rows), nil
+	case domainrebuild.ScopeModeOrganization:
+		rows, err := s.queries.ListRebuildDocumentsBatchByOrganization(ctx, mysqlsqlc.ListRebuildDocumentsBatchByOrganizationParams{
+			AfterID:          afterID,
+			OrganizationCode: scope.OrganizationCode,
+			Limit:            limit32,
+		})
+		if err != nil {
+			return nil, fmt.Errorf("query document batch candidates: %w", err)
+		}
+		return mapRebuildDocumentTasksFromOrganizationRows(rows), nil
+	case domainrebuild.ScopeModeKnowledgeBase:
+		rows, err := s.queries.ListRebuildDocumentsBatchByKnowledgeBase(ctx, mysqlsqlc.ListRebuildDocumentsBatchByKnowledgeBaseParams{
+			AfterID:           afterID,
+			OrganizationCode:  scope.OrganizationCode,
+			KnowledgeBaseCode: scope.KnowledgeBaseCode,
+			Limit:             limit32,
+		})
+		if err != nil {
+			return nil, fmt.Errorf("query document batch candidates: %w", err)
+		}
+		return mapRebuildDocumentTasksFromKnowledgeBaseRows(rows), nil
+	case domainrebuild.ScopeModeDocument:
+		rows, err := s.queries.ListRebuildDocumentsBatchByDocument(ctx, mysqlsqlc.ListRebuildDocumentsBatchByDocumentParams{
+			AfterID:           afterID,
+			OrganizationCode:  scope.OrganizationCode,
+			KnowledgeBaseCode: scope.KnowledgeBaseCode,
+			Code:              scope.DocumentCode,
+			Limit:             limit32,
+		})
+		if err != nil {
+			return nil, fmt.Errorf("query document batch candidates: %w", err)
+		}
+		return mapRebuildDocumentTasksFromDocumentRows(rows), nil
+	default:
+		return nil, fmt.Errorf("%w: mode=%s", errInvalidRebuildScope, scope.Mode)
+	}
+}
+
+func (s *MySQLStore) listActiveKnowledgeBaseCodes(
+	ctx context.Context,
+	scope domainrebuild.Scope,
+	candidates []domainrebuild.DocumentTask,
+) (map[string]struct{}, error) {
+	knowledgeCodes := uniqueKnowledgeBaseCodes(candidates)
+	if len(knowledgeCodes) == 0 {
+		return map[string]struct{}{}, nil
+	}
+
+	var (
+		rows []string
+		err  error
+	)
+	switch scope.Mode {
+	case domainrebuild.ScopeModeAll:
+		rows, err = s.queries.ListActiveKnowledgeBaseCodesByCodes(ctx, knowledgeCodes)
+	case domainrebuild.ScopeModeOrganization:
+		rows, err = s.queries.ListActiveKnowledgeBaseCodesByOrganizationAndCodes(ctx, mysqlsqlc.ListActiveKnowledgeBaseCodesByOrganizationAndCodesParams{
+			OrganizationCode: scope.OrganizationCode,
+			Codes:            knowledgeCodes,
+		})
+	case domainrebuild.ScopeModeKnowledgeBase, domainrebuild.ScopeModeDocument:
+		_, err = s.queries.FindKnowledgeBaseByCodeAndOrg(ctx, mysqlsqlc.FindKnowledgeBaseByCodeAndOrgParams{
+			Code:             scope.KnowledgeBaseCode,
+			OrganizationCode: scope.OrganizationCode,
+		})
+		if err == nil {
+			rows = []string{scope.KnowledgeBaseCode}
+		}
+	default:
+		return nil, fmt.Errorf("%w: mode=%s", errInvalidRebuildScope, scope.Mode)
+	}
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return map[string]struct{}{}, nil
+		}
+		return nil, fmt.Errorf("query active knowledge base codes: %w", err)
+	}
+
+	result := make(map[string]struct{}, len(rows))
+	for _, code := range rows {
+		result[strings.TrimSpace(code)] = struct{}{}
+	}
+	return result, nil
+}
+
+func uniqueKnowledgeBaseCodes(candidates []domainrebuild.DocumentTask) []string {
+	seen := make(map[string]struct{}, len(candidates))
+	result := make([]string, 0, len(candidates))
+	for _, candidate := range candidates {
+		knowledgeCode := strings.TrimSpace(candidate.KnowledgeBaseCode)
+		if knowledgeCode == "" {
+			continue
+		}
+		if _, ok := seen[knowledgeCode]; ok {
+			continue
+		}
+		seen[knowledgeCode] = struct{}{}
+		result = append(result, knowledgeCode)
+	}
+	return result
 }
 
 func (s *MySQLStore) normalizeScope(scope domainrebuild.Scope) (domainrebuild.Scope, error) {
@@ -341,18 +615,10 @@ func (s *MySQLStore) normalizeScope(scope domainrebuild.Scope) (domainrebuild.Sc
 	}
 }
 
-type scopedMigrationSpec struct {
-	kbBaseQuery  string
-	docBaseQuery string
-	kbErrPrefix  string
-	docErrPrefix string
-}
-
 func (s *MySQLStore) runScopedMigration(
 	ctx context.Context,
 	scope domainrebuild.Scope,
-	spec scopedMigrationSpec,
-	args []any,
+	run func(*mysqlsqlc.Queries, domainrebuild.Scope) (int64, int64, error),
 ) (domainrebuild.MigrationStats, error) {
 	scope, err := s.normalizeScope(scope)
 	if err != nil {
@@ -371,37 +637,13 @@ func (s *MySQLStore) runScopedMigration(
 	if s.logger != nil {
 		txdbtx = mysqlclient.NewDBLogger(tx, s.logger)
 	}
-
-	kbQuery, kbArgs := buildKnowledgeBaseScopeUpdateQuery(spec.kbBaseQuery, scope, cloneArgs(args))
-	kbRes, err := txdbtx.ExecContext(ctx, kbQuery, kbArgs...)
+	kbRows, docRows, err := run(mysqlsqlc.New(txdbtx), scope)
 	if err != nil {
-		return domainrebuild.MigrationStats{}, fmt.Errorf("%s: %w", spec.kbErrPrefix, err)
-	}
-
-	docQuery, docArgs := buildDocumentScopeUpdateQuery(spec.docBaseQuery, scope, cloneArgs(args))
-	docRes, err := txdbtx.ExecContext(ctx, docQuery, docArgs...)
-	if err != nil {
-		return domainrebuild.MigrationStats{}, fmt.Errorf("%s: %w", spec.docErrPrefix, err)
+		return domainrebuild.MigrationStats{}, err
 	}
 
 	if err := tx.Commit(); err != nil {
 		return domainrebuild.MigrationStats{}, fmt.Errorf("commit tx: %w", err)
-	}
-	return migrationStatsFromResults(kbRes, docRes)
-}
-
-func cloneArgs(args []any) []any {
-	return append([]any(nil), args...)
-}
-
-func migrationStatsFromResults(kbRes, docRes sql.Result) (domainrebuild.MigrationStats, error) {
-	kbRows, err := kbRes.RowsAffected()
-	if err != nil {
-		return domainrebuild.MigrationStats{}, fmt.Errorf("knowledge base rows affected: %w", err)
-	}
-	docRows, err := docRes.RowsAffected()
-	if err != nil {
-		return domainrebuild.MigrationStats{}, fmt.Errorf("document rows affected: %w", err)
 	}
 	return domainrebuild.MigrationStats{
 		KnowledgeBaseRows: kbRows,
@@ -410,17 +652,18 @@ func migrationStatsFromResults(kbRes, docRes sql.Result) (domainrebuild.Migratio
 }
 
 func buildKnowledgeBaseScopeUpdateQuery(baseQuery string, scope domainrebuild.Scope, args []any) (string, []any) {
-	return appendKnowledgeBaseScopeFilter(baseQuery, scope, scopeQualifierKnowledgeBaseRoot, args)
+	return appendKnowledgeBaseScopeFilter(baseQuery, scope, "magic_flow_knowledge.organization_code", "magic_flow_knowledge.code", args)
 }
 
 func buildDocumentScopeUpdateQuery(baseQuery string, scope domainrebuild.Scope, args []any) (string, []any) {
-	return appendDocumentScopeFilter(baseQuery, scope, scopeQualifierDocumentRoot, args)
+	return appendDocumentScopeFilter(baseQuery, scope, "organization_code", "knowledge_base_code", "code", args)
 }
 
 func appendKnowledgeBaseScopeFilter(
 	baseQuery string,
 	scope domainrebuild.Scope,
-	qualifier scopeColumnQualifier,
+	orgColumn string,
+	kbCodeColumn string,
 	args []any,
 ) (string, []any) {
 	if scope.Mode != domainrebuild.ScopeModeOrganization &&
@@ -432,12 +675,12 @@ func appendKnowledgeBaseScopeFilter(
 	var builder strings.Builder
 	builder.WriteString(baseQuery)
 	builder.WriteString("\n  AND ")
-	builder.WriteString(qualifyScopeColumn(qualifier, scopeColumnOrganizationCode))
+	builder.WriteString(orgColumn)
 	builder.WriteString(" = ?")
 	args = append(args, scope.OrganizationCode)
 	if scope.Mode == domainrebuild.ScopeModeKnowledgeBase || scope.Mode == domainrebuild.ScopeModeDocument {
 		builder.WriteString("\n  AND ")
-		builder.WriteString(qualifyScopeColumn(qualifier, scopeColumnRootCode))
+		builder.WriteString(kbCodeColumn)
 		builder.WriteString(" = ?")
 		args = append(args, scope.KnowledgeBaseCode)
 	}
@@ -447,7 +690,9 @@ func appendKnowledgeBaseScopeFilter(
 func appendDocumentScopeFilter(
 	baseQuery string,
 	scope domainrebuild.Scope,
-	qualifier scopeColumnQualifier,
+	orgColumn string,
+	kbCodeColumn string,
+	docCodeColumn string,
 	args []any,
 ) (string, []any) {
 	if scope.Mode != domainrebuild.ScopeModeOrganization &&
@@ -459,51 +704,110 @@ func appendDocumentScopeFilter(
 	var builder strings.Builder
 	builder.WriteString(baseQuery)
 	builder.WriteString("\n  AND ")
-	builder.WriteString(qualifyScopeColumn(qualifier, scopeColumnOrganizationCode))
+	builder.WriteString(orgColumn)
 	builder.WriteString(" = ?")
 	args = append(args, scope.OrganizationCode)
 	if scope.Mode == domainrebuild.ScopeModeKnowledgeBase || scope.Mode == domainrebuild.ScopeModeDocument {
 		builder.WriteString("\n  AND ")
-		builder.WriteString(qualifyScopeColumn(qualifier, scopeColumnDocumentKnowledgeBaseCode))
+		builder.WriteString(kbCodeColumn)
 		builder.WriteString(" = ?")
 		args = append(args, scope.KnowledgeBaseCode)
 	}
 	if scope.Mode == domainrebuild.ScopeModeDocument {
 		builder.WriteString("\n  AND ")
-		builder.WriteString(qualifyScopeColumn(qualifier, scopeColumnDocumentCode))
+		builder.WriteString(docCodeColumn)
 		builder.WriteString(" = ?")
 		args = append(args, scope.DocumentCode)
 	}
 	return builder.String(), args
 }
 
-func qualifyScopeColumn(qualifier scopeColumnQualifier, column scopeColumn) string {
-	columnName := scopeColumnName(column)
-	switch qualifier {
-	case scopeQualifierKnowledgeBaseAlias:
-		return "k." + columnName
-	case scopeQualifierDocumentAlias:
-		return "d." + columnName
-	case scopeQualifierKnowledgeBaseRoot:
-		return "magic_flow_knowledge." + columnName
-	case scopeQualifierDocumentRoot:
-		return columnName
-	default:
-		return columnName
+func mapRebuildDocumentTask(
+	id int64,
+	organizationCode string,
+	knowledgeBaseCode string,
+	documentCode string,
+	updatedUID string,
+	createdUID string,
+) domainrebuild.DocumentTask {
+	return domainrebuild.DocumentTask{
+		ID:                id,
+		OrganizationCode:  organizationCode,
+		KnowledgeBaseCode: knowledgeBaseCode,
+		DocumentCode:      documentCode,
+		UserID:            resolveRebuildDocumentTaskUserID(updatedUID, createdUID),
 	}
 }
 
-func scopeColumnName(column scopeColumn) string {
-	switch column {
-	case scopeColumnOrganizationCode:
-		return "organization_code"
-	case scopeColumnRootCode:
-		return scopeColumnNameCode
-	case scopeColumnDocumentKnowledgeBaseCode:
-		return "knowledge_base_code"
-	case scopeColumnDocumentCode:
-		return scopeColumnNameCode
-	default:
-		return scopeColumnNameCode
+func mapRebuildDocumentTasksFromAllRows(rows []mysqlsqlc.ListRebuildDocumentsBatchAllRow) []domainrebuild.DocumentTask {
+	tasks := make([]domainrebuild.DocumentTask, 0, len(rows))
+	for _, row := range rows {
+		tasks = append(tasks, mapRebuildDocumentTask(
+			row.ID,
+			row.OrganizationCode,
+			row.KnowledgeBaseCode,
+			row.Code,
+			row.UpdatedUid,
+			row.CreatedUid,
+		))
 	}
+	return tasks
+}
+
+func mapRebuildDocumentTasksFromOrganizationRows(
+	rows []mysqlsqlc.ListRebuildDocumentsBatchByOrganizationRow,
+) []domainrebuild.DocumentTask {
+	tasks := make([]domainrebuild.DocumentTask, 0, len(rows))
+	for _, row := range rows {
+		tasks = append(tasks, mapRebuildDocumentTask(
+			row.ID,
+			row.OrganizationCode,
+			row.KnowledgeBaseCode,
+			row.Code,
+			row.UpdatedUid,
+			row.CreatedUid,
+		))
+	}
+	return tasks
+}
+
+func mapRebuildDocumentTasksFromKnowledgeBaseRows(
+	rows []mysqlsqlc.ListRebuildDocumentsBatchByKnowledgeBaseRow,
+) []domainrebuild.DocumentTask {
+	tasks := make([]domainrebuild.DocumentTask, 0, len(rows))
+	for _, row := range rows {
+		tasks = append(tasks, mapRebuildDocumentTask(
+			row.ID,
+			row.OrganizationCode,
+			row.KnowledgeBaseCode,
+			row.Code,
+			row.UpdatedUid,
+			row.CreatedUid,
+		))
+	}
+	return tasks
+}
+
+func mapRebuildDocumentTasksFromDocumentRows(
+	rows []mysqlsqlc.ListRebuildDocumentsBatchByDocumentRow,
+) []domainrebuild.DocumentTask {
+	tasks := make([]domainrebuild.DocumentTask, 0, len(rows))
+	for _, row := range rows {
+		tasks = append(tasks, mapRebuildDocumentTask(
+			row.ID,
+			row.OrganizationCode,
+			row.KnowledgeBaseCode,
+			row.Code,
+			row.UpdatedUid,
+			row.CreatedUid,
+		))
+	}
+	return tasks
+}
+
+func resolveRebuildDocumentTaskUserID(updatedUID, createdUID string) string {
+	if strings.TrimSpace(updatedUID) != "" {
+		return updatedUID
+	}
+	return createdUID
 }

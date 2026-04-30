@@ -22,6 +22,7 @@ func (h *KnowledgeBaseRPCService) Handlers() map[string]jsonrpc.ServerHandler {
 		constants.MethodKnowledgeTeamshareManageableProgress: jsonrpc.WrapTyped(h.TeamshareManageableProgressRPC),
 		constants.MethodKnowledgeBaseNodes:                   jsonrpc.WrapTyped(h.ListSourceBindingNodesRPC),
 		constants.MethodKnowledgeBaseDestroy:                 jsonrpc.WrapTyped(h.DestroyRPC),
+		constants.MethodKnowledgeBaseRebuildPermissions:      jsonrpc.WrapTyped(h.RebuildPermissionsRPC),
 		constants.MethodKnowledgeBaseRebuild:                 jsonrpc.WrapTyped(h.RebuildRPC),
 		constants.MethodKnowledgeBaseRepairSourceBindings:    jsonrpc.WrapTyped(h.RepairSourceBindingsRPC),
 		constants.MethodKnowledgeBaseRebuildCleanup:          jsonrpc.WrapTyped(h.RebuildCleanupRPC),
@@ -39,14 +40,17 @@ func (h *FragmentRPCService) Handlers() map[string]jsonrpc.ServerHandler {
 		constants.MethodFragmentRuntimeCreate:                  jsonrpc.WrapTyped(h.RuntimeCreateRPC),
 		constants.MethodFragmentShow:                           jsonrpc.WrapTyped(h.ShowRPC),
 		constants.MethodFragmentList:                           jsonrpc.WrapTyped(h.ListRPC),
+		constants.MethodFragmentListHTTP:                       jsonrpc.WrapTyped(h.ListHTTPRPC),
 		constants.MethodFragmentDestroy:                        jsonrpc.WrapTyped(h.DestroyRPC),
 		constants.MethodFragmentRuntimeDestroyByBusinessID:     jsonrpc.WrapTyped(h.RuntimeDestroyByBusinessIDRPC),
 		constants.MethodFragmentRuntimeDestroyByMetadataFilter: jsonrpc.WrapTyped(h.RuntimeDestroyByMetadataFilterRPC),
 		constants.MethodFragmentSync:                           jsonrpc.WrapTyped(h.SyncRPC),
 		constants.MethodFragmentSimilarity:                     jsonrpc.WrapTyped(h.SimilarityRPC),
+		constants.MethodFragmentSimilarityHTTP:                 jsonrpc.WrapTyped(h.SimilarityHTTPRPC),
 		constants.MethodFragmentRuntimeSimilarity:              jsonrpc.WrapTyped(h.RuntimeSimilarityRPC),
 		constants.MethodFragmentSimilarityByAgent:              jsonrpc.WrapTyped(h.SimilarityByAgentRPC),
 		constants.MethodFragmentPreview:                        jsonrpc.WrapTyped(h.PreviewRPC),
+		constants.MethodFragmentPreviewHTTP:                    jsonrpc.WrapTyped(h.PreviewHTTPRPC),
 	}
 }
 

@@ -3,7 +3,7 @@ package docparser
 import (
 	"strings"
 
-	documentdomain "magic/internal/domain/knowledge/document/service"
+	documentdomain "magic/internal/domain/knowledge/document/metadata"
 )
 
 func newRichTextImageOCRHelper(
@@ -15,6 +15,16 @@ func newRichTextImageOCRHelper(
 		return nil
 	}
 	return newEmbeddedImageOCRHelper(ocrClient, maxOCRPerFile)
+}
+
+func failIfEmptyDueToOCROverload(parsed *documentdomain.ParsedDocument, ocrHelper *embeddedImageOCRHelper) error {
+	if ocrHelper == nil || !ocrHelper.HasOverload() || parsed == nil {
+		return nil
+	}
+	if strings.TrimSpace(parsed.BestEffortText()) != "" {
+		return nil
+	}
+	return ocrHelper.overloadError()
 }
 
 func appendInlineSegment(builder *strings.Builder, value string) {

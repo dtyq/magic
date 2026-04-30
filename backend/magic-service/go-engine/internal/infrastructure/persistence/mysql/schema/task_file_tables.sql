@@ -24,22 +24,3 @@ CREATE TABLE IF NOT EXISTS magic_super_agent_task_files (
     updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
     deleted_at DATETIME NULL
 );
-
-CREATE TABLE IF NOT EXISTS magic_super_agent_project_files (
-    file_id BIGINT UNSIGNED NOT NULL PRIMARY KEY,
-    user_id VARCHAR(128) NOT NULL DEFAULT '',
-    organization_code VARCHAR(64) NOT NULL DEFAULT '',
-    project_id BIGINT UNSIGNED NOT NULL DEFAULT 0,
-    topic_id BIGINT NOT NULL DEFAULT 0,
-    task_id BIGINT NOT NULL DEFAULT 0,
-    file_type VARCHAR(32) NOT NULL DEFAULT '',
-    file_name VARCHAR(256) NOT NULL DEFAULT '',
-    file_extension VARCHAR(32) NOT NULL DEFAULT '',
-    file_key VARCHAR(1024) NOT NULL DEFAULT '',
-    file_size BIGINT UNSIGNED NOT NULL DEFAULT 0,
-    external_url VARCHAR(1024) NOT NULL DEFAULT '',
-    storage_type VARCHAR(32) NOT NULL DEFAULT 'workspace',
-    is_hidden BOOLEAN NOT NULL DEFAULT FALSE,
-    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
-);

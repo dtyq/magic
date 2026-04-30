@@ -9,7 +9,7 @@ import (
 	"strings"
 	"time"
 
-	knowledgebasedomain "magic/internal/domain/knowledge/knowledgebase/service"
+	kbentity "magic/internal/domain/knowledge/knowledgebase/entity"
 	mysqlclient "magic/internal/infrastructure/persistence/mysql"
 	mysqlsqlc "magic/internal/infrastructure/persistence/mysql/sqlc"
 )
@@ -25,7 +25,7 @@ var errNilKnowledgeBaseBindingRepository = errors.New("knowledge base binding re
 // ReplaceBindingsTxInput 描述事务内全量替换绑定对象的参数。
 type ReplaceBindingsTxInput struct {
 	KnowledgeBaseCode string
-	BindType          knowledgebasedomain.BindingType
+	BindType          kbentity.BindingType
 	OrganizationCode  string
 	UserID            string
 	BindIDs           []string
@@ -44,7 +44,7 @@ func NewRepository(client *mysqlclient.SQLCClient) *Repository {
 func (r *Repository) ReplaceBindings(
 	ctx context.Context,
 	knowledgeBaseCode string,
-	bindType knowledgebasedomain.BindingType,
+	bindType kbentity.BindingType,
 	organizationCode string,
 	userID string,
 	bindIDs []string,
@@ -91,7 +91,7 @@ func (r *Repository) ReplaceBindingsWithTx(
 	seen := make(map[string]struct{}, len(input.BindIDs))
 	queries := r.queries.WithTx(tx)
 	for _, bindID := range input.BindIDs {
-		trimmed := knowledgebasedomain.NormalizeBindID(bindID)
+		trimmed := kbentity.NormalizeBindID(bindID)
 		if trimmed == "" {
 			continue
 		}
@@ -126,7 +126,7 @@ func (r *Repository) ReplaceBindingsWithTx(
 func (r *Repository) ListBindIDsByKnowledgeBase(
 	ctx context.Context,
 	knowledgeBaseCode string,
-	bindType knowledgebasedomain.BindingType,
+	bindType kbentity.BindingType,
 ) ([]string, error) {
 	rows, err := r.queries.ListKnowledgeBaseBindingIDs(ctx, mysqlsqlc.ListKnowledgeBaseBindingIDsParams{
 		KnowledgeBaseCode: strings.TrimSpace(knowledgeBaseCode),
@@ -146,11 +146,40 @@ func (r *Repository) ListBindIDsByKnowledgeBase(
 	return result, nil
 }
 
+// ListBindIDsByKnowledgeBaseInOrg 查询组织内单个知识库下指定类型的绑定对象。
+func (r *Repository) ListBindIDsByKnowledgeBaseInOrg(
+	ctx context.Context,
+	organizationCode string,
+	knowledgeBaseCode string,
+	bindType kbentity.BindingType,
+) ([]string, error) {
+	rows, err := r.queries.ListKnowledgeBaseBindingIDsByOrgAndCode(
+		ctx,
+		mysqlsqlc.ListKnowledgeBaseBindingIDsByOrgAndCodeParams{
+			OrganizationCode:  strings.TrimSpace(organizationCode),
+			KnowledgeBaseCode: strings.TrimSpace(knowledgeBaseCode),
+			BindType:          string(bindType),
+		},
+	)
+	if err != nil {
+		return nil, fmt.Errorf("query organization knowledge base bindings: %w", err)
+	}
+
+	result := make([]string, 0, len(rows))
+	for _, bindID := range rows {
+		trimmed := strings.TrimSpace(bindID)
+		if trimmed != "" {
+			result = append(result, trimmed)
+		}
+	}
+	return result, nil
+}
+
 // ListBindIDsByKnowledgeBases 批量查询知识库绑定对象，避免 N+1。
 func (r *Repository) ListBindIDsByKnowledgeBases(
 	ctx context.Context,
 	knowledgeBaseCodes []string,
-	bindType knowledgebasedomain.BindingType,
+	bindType kbentity.BindingType,
 ) (map[string][]string, error) {
 	result := make(map[string][]string, len(knowledgeBaseCodes))
 	normalizedCodes := make([]string, 0, len(knowledgeBaseCodes))
@@ -189,13 +218,13 @@ func (r *Repository) ListBindIDsByKnowledgeBases(
 // ListKnowledgeBaseCodesByBindID 反向查询指定绑定对象下的知识库编码列表。
 func (r *Repository) ListKnowledgeBaseCodesByBindID(
 	ctx context.Context,
-	bindType knowledgebasedomain.BindingType,
+	bindType kbentity.BindingType,
 	bindID string,
 	organizationCode string,
 ) ([]string, error) {
 	rows, err := r.queries.ListKnowledgeBaseCodesByBindID(ctx, mysqlsqlc.ListKnowledgeBaseCodesByBindIDParams{
 		BindType:         string(bindType),
-		BindID:           knowledgebasedomain.NormalizeBindID(bindID),
+		BindID:           kbentity.NormalizeBindID(bindID),
 		OrganizationCode: strings.TrimSpace(organizationCode),
 	})
 	if err != nil {
@@ -222,7 +251,7 @@ func (r *Repository) deleteBindingsByKnowledgeBaseAndType(
 	ctx context.Context,
 	tx *sql.Tx,
 	knowledgeBaseCode string,
-	bindType knowledgebasedomain.BindingType,
+	bindType kbentity.BindingType,
 ) error {
 	if _, err := r.queries.WithTx(tx).DeleteKnowledgeBaseBindingsByCodeAndType(ctx, mysqlsqlc.DeleteKnowledgeBaseBindingsByCodeAndTypeParams{
 		KnowledgeBaseCode: strings.TrimSpace(knowledgeBaseCode),

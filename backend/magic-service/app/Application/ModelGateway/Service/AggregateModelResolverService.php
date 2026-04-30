@@ -16,7 +16,9 @@ use App\Domain\Provider\Entity\ValueObject\ProviderDataIsolation;
 use App\Domain\Provider\Repository\Facade\ProviderModelRepositoryInterface;
 use App\ErrorCode\ServiceProviderErrorCode;
 use App\Infrastructure\Core\Exception\ExceptionBuilder;
+use Hyperf\Logger\LoggerFactory;
 use InvalidArgumentException;
+use Psr\Log\LoggerInterface;
 
 use function Hyperf\Translation\__;
 
@@ -24,11 +26,15 @@ use function Hyperf\Translation\__;
  * 聚合模型解析服务.
  * 用于解析动态模型（聚合模型），根据策略返回真实模型ID.
  */
-readonly class AggregateModelResolverService
+class AggregateModelResolverService
 {
+    private LoggerInterface $logger;
+
     public function __construct(
-        private ProviderModelRepositoryInterface $providerModelRepository
+        private readonly ProviderModelRepositoryInterface $providerModelRepository,
+        LoggerFactory $loggerFactory,
     ) {
+        $this->logger = $loggerFactory->get(static::class);
     }
 
     /**
@@ -78,25 +84,43 @@ readonly class AggregateModelResolverService
         array &$visitedModelIds = []
     ): ?string {
         $dynamicModelId = $dynamicModel->getModelId();
-        if ($dynamicModelId === '' || isset($visitedModelIds[$dynamicModelId])) {
+
+        if ($dynamicModelId === '') {
+            $this->logger->warning('聚合模型解析：model_id 为空，跳过解析');
+            return null;
+        }
+
+        if (isset($visitedModelIds[$dynamicModelId])) {
+            $this->logger->warning('聚合模型解析：检测到循环引用，终止解析', [
+                'model_id' => $dynamicModelId,
+                'visited_chain' => array_keys($visitedModelIds),
+            ]);
             return null;
         }
         $visitedModelIds[$dynamicModelId] = true;
 
         $config = $dynamicModel->getAggregateConfig();
         if (! $config) {
+            $this->logger->warning('聚合模型解析：聚合配置为空', ['model_id' => $dynamicModelId]);
             return null;
         }
 
         $models = $config['models'] ?? [];
         if (empty($models)) {
+            $this->logger->warning('聚合模型解析：候选子模型列表为空', ['model_id' => $dynamicModelId]);
             return null;
         }
 
         $strategy = $config['strategy'] ?? 'permission_fallback';
         $strategyConfig = $config['strategy_config'] ?? ['order' => 'asc'];
 
-        return $this->resolveByStrategy(
+        $this->logger->info('聚合模型解析：开始解析', [
+            'model_id' => $dynamicModelId,
+            'strategy' => $strategy,
+            'candidate_count' => count($models),
+        ]);
+
+        $resolved = $this->resolveByStrategy(
             $strategy,
             $models,
             $strategyConfig,
@@ -105,6 +129,20 @@ readonly class AggregateModelResolverService
             $accessContext,
             $visitedModelIds
         );
+
+        if ($resolved !== null) {
+            $this->logger->info('聚合模型解析：解析成功', [
+                'dynamic_model_id' => $dynamicModelId,
+                'resolved_model_id' => $resolved,
+            ]);
+        } else {
+            $this->logger->warning('聚合模型解析：无可用子模型', [
+                'dynamic_model_id' => $dynamicModelId,
+                'strategy' => $strategy,
+            ]);
+        }
+
+        return $resolved;
     }
 
     protected function getProviderModel(string $modelId, ModelGatewayDataIsolation $dataIsolation): ?ProviderModelEntity
@@ -167,11 +205,9 @@ readonly class AggregateModelResolverService
     ): ?string {
         $order = $strategyConfig['order'] ?? 'asc';
 
-        // 根据顺序方向决定遍历顺序
         $modelsToCheck = $order === 'desc' ? array_reverse($models) : $models;
 
         foreach ($modelsToCheck as $modelItem) {
-            // 支持对象数组和字符串数组两种格式（向后兼容）
             $subModelId = $this->extractModelId($modelItem);
 
             if (! $subModelId) {
@@ -179,15 +215,24 @@ readonly class AggregateModelResolverService
             }
 
             if (! $dataIsolation->getSubscriptionManager()->isValidModelAvailable($subModelId, $modelType)) {
+                $this->logger->info('聚合模型解析：子模型订阅不可用，跳过', [
+                    'sub_model_id' => $subModelId,
+                ]);
                 continue;
             }
 
             if ($accessContext?->isRestricted() && ! $accessContext->canAccess($subModelId)) {
+                $this->logger->info('聚合模型解析：子模型无访问权限，跳过', [
+                    'sub_model_id' => $subModelId,
+                ]);
                 continue;
             }
 
             $subModel = $this->getProviderModel($subModelId, $dataIsolation);
             if (! $subModel?->isDynamicModel()) {
+                $this->logger->info('聚合模型解析：命中真实子模型', [
+                    'sub_model_id' => $subModelId,
+                ]);
                 return $subModelId;
             }
 

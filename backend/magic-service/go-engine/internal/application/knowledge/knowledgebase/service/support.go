@@ -7,7 +7,7 @@ import (
 
 	confighelper "magic/internal/application/knowledge/helper/config"
 	kbdto "magic/internal/application/knowledge/knowledgebase/dto"
-	knowledgebasedomain "magic/internal/domain/knowledge/knowledgebase/service"
+	kbentity "magic/internal/domain/knowledge/knowledgebase/entity"
 	"magic/internal/pkg/timeformat"
 )
 
@@ -17,11 +17,11 @@ const (
 )
 
 func normalizeVectorDB(vectorDB string) string {
-	return knowledgebasedomain.NormalizeVectorDB(vectorDB)
+	return kbentity.NormalizeVectorDB(vectorDB)
 }
 
 func ensureKnowledgeBaseCode(code string) string {
-	return knowledgebasedomain.EnsureKnowledgeBaseCode(code)
+	return kbentity.EnsureKnowledgeBaseCode(code)
 }
 
 func (s *KnowledgeBaseAppService) populateFragmentCounts(ctx context.Context, dto *kbdto.KnowledgeBaseDTO) {
@@ -143,7 +143,7 @@ func (s *KnowledgeBaseAppService) warnCountFailure(ctx context.Context, field, k
 	if s.logger == nil {
 		return
 	}
-	s.logger.WarnContext(
+	s.logger.KnowledgeWarnContext(
 		ctx,
 		"Failed to populate knowledge base count field",
 		"field", field,
@@ -164,7 +164,7 @@ func convertCount(value int64, field string) (int, error) {
 }
 
 // EntityToDTO 将知识库实体映射为查询 DTO。
-func EntityToDTO(e *knowledgebasedomain.KnowledgeBase) *kbdto.KnowledgeBaseDTO {
+func EntityToDTO(e *kbentity.KnowledgeBase) *kbdto.KnowledgeBaseDTO {
 	if e == nil {
 		return nil
 	}
@@ -195,7 +195,7 @@ func EntityToDTO(e *knowledgebasedomain.KnowledgeBase) *kbdto.KnowledgeBaseDTO {
 		Icon:              e.Icon,
 		EmbeddingConfig:   confighelper.EmbeddingConfigEntityToDTO(e.EmbeddingConfig),
 		SourceType:        e.SourceType,
-		KnowledgeBaseType: string(knowledgebasedomain.NormalizeKnowledgeBaseTypeOrDefault(e.KnowledgeBaseType)),
+		KnowledgeBaseType: string(kbentity.NormalizeKnowledgeBaseTypeOrDefault(e.KnowledgeBaseType)),
 		AgentCodes:        []string{},
 		CreatedAt:         timeformat.FormatAPIDatetime(e.CreatedAt),
 		UpdatedAt:         timeformat.FormatAPIDatetime(e.UpdatedAt),

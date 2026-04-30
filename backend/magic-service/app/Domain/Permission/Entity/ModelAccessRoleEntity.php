@@ -7,7 +7,7 @@ declare(strict_types=1);
 
 namespace App\Domain\Permission\Entity;
 
-use App\Domain\Permission\Entity\ValueObject\ModelAccessRoleBindingScopeType;
+use App\Domain\Permission\Entity\ValueObject\BindingScopeType;
 use App\ErrorCode\PermissionErrorCode;
 use App\Infrastructure\Core\AbstractEntity;
 use App\Infrastructure\Core\Exception\ExceptionBuilder;
@@ -39,7 +39,7 @@ class ModelAccessRoleEntity extends AbstractEntity
 
     protected bool $allUsers = false;
 
-    protected string $exclusionScopeType = ModelAccessRoleBindingScopeType::Specific->value;
+    protected string $exclusionScopeType = BindingScopeType::Specific->value;
 
     protected array $excludedUserIds = [];
 
@@ -93,7 +93,7 @@ class ModelAccessRoleEntity extends AbstractEntity
             $this->departmentIds = [];
         }
 
-        if ($this->exclusionScopeType !== ModelAccessRoleBindingScopeType::Specific->value) {
+        if ($this->exclusionScopeType !== BindingScopeType::Specific->value) {
             ExceptionBuilder::throw(PermissionErrorCode::ValidateFailed, 'exclusion_scope type must be specific');
         }
     }

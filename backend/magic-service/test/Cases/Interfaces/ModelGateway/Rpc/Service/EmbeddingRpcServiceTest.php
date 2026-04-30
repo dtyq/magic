@@ -10,12 +10,15 @@ namespace HyperfTest\Cases\Interfaces\ModelGateway\Rpc\Service;
 use App\Application\ModelGateway\Service\LLMAppService;
 use App\Domain\ModelGateway\Entity\Dto\EmbeddingsDTO;
 use App\Domain\ModelGateway\Entity\ValueObject\ModelListType;
+use App\ErrorCode\MagicApiErrorCode;
 use App\Infrastructure\Core\Exception\BusinessException;
 use App\Interfaces\ModelGateway\Rpc\Service\EmbeddingRpcService;
 use GuzzleHttp\Psr7\Response as PsrResponse;
 use Hyperf\Odin\Api\Response\EmbeddingResponse;
 use Hyperf\Odin\Api\Response\Usage;
 use Hyperf\Odin\Contract\Api\Response\ResponseInterface;
+use Hyperf\Odin\Exception\LLMException\LLMNetworkException;
+use Hyperf\Odin\Exception\LLMException\Network\LLMConnectionTimeoutException;
 use PHPUnit\Framework\TestCase;
 use Psr\Log\LoggerInterface;
 
@@ -95,6 +98,61 @@ class EmbeddingRpcServiceTest extends TestCase
         $this->assertSame(0, $result['data']['data'][0]['index']);
     }
 
+    public function testComputeShouldProcessArrayInputWithSingleTextCalls(): void
+    {
+        $logger = $this->createMock(LoggerInterface::class);
+        $llmAppService = $this->createMock(LLMAppService::class);
+
+        $llmAppService->expects($this->exactly(2))
+            ->method('embeddings')
+            ->with($this->callback(function ($dto): bool {
+                if (! $dto instanceof EmbeddingsDTO) {
+                    return false;
+                }
+
+                return in_array($dto->getInput(), ['hello', 'world'], true)
+                    && $dto->getAccessToken() === 'token_xxx'
+                    && ($dto->getBusinessParams()['organization_code'] ?? '') === 'DT001';
+            }))
+            ->willReturnOnConsecutiveCalls(
+                new EmbeddingResponse(new PsrResponse(
+                    200,
+                    ['Content-Type' => 'application/json'],
+                    '{"object":"list","data":[{"object":"embedding","embedding":[0.1,0.2],"index":0}],"model":"text-embedding-3-large","usage":{"prompt_tokens":1,"total_tokens":1}}'
+                )),
+                new EmbeddingResponse(new PsrResponse(
+                    200,
+                    ['Content-Type' => 'application/json'],
+                    '{"object":"list","data":[{"object":"embedding","embedding":[0.3,0.4],"index":0}],"model":"text-embedding-3-large","usage":{"prompt_tokens":1,"total_tokens":1}}'
+                )),
+            );
+
+        $service = new EmbeddingRpcService($llmAppService, $logger);
+        $result = $service->compute([
+            'model' => 'text-embedding-3-large',
+            'input' => ['hello', 'world'],
+            'access_token' => 'token_xxx',
+            'business_params' => [
+                'organization_code' => 'DT001',
+            ],
+        ]);
+
+        $this->assertSame(0, $result['code']);
+        $this->assertSame('success', $result['message']);
+        $this->assertSame([
+            [
+                'object' => 'embedding',
+                'embedding' => [0.1, 0.2],
+                'index' => 0,
+            ],
+            [
+                'object' => 'embedding',
+                'embedding' => [0.3, 0.4],
+                'index' => 1,
+            ],
+        ], $result['data']['data']);
+    }
+
     public function testComputeShouldReturn500WhenResponseIsNotEmbeddingResponse(): void
     {
         $logger = $this->createMock(LoggerInterface::class);
@@ -152,6 +210,54 @@ class EmbeddingRpcServiceTest extends TestCase
         $this->assertSame(500, $result['code']);
         $this->assertSame('API令牌不存在', $result['message']);
         $this->assertSame(4000, $result['error_code']);
+    }
+
+    public function testComputeShouldMapLlmConnectionTimeoutToModelNetworkError(): void
+    {
+        $logger = $this->createMock(LoggerInterface::class);
+        $logger->expects($this->once())->method('error');
+
+        $llmAppService = $this->createMock(LLMAppService::class);
+        $llmAppService->expects($this->once())
+            ->method('embeddings')
+            ->willThrowException(new LLMConnectionTimeoutException('Connection to LLM service timed out'));
+
+        $service = new EmbeddingRpcService($llmAppService, $logger);
+        $result = $service->compute([
+            'model' => 'text-embedding-3-large',
+            'input' => ['hello'],
+            'access_token' => 'token_xxx',
+        ]);
+
+        $this->assertSame(500, $result['code']);
+        $this->assertSame('Connection to LLM service timed out', $result['message']);
+        $this->assertSame(MagicApiErrorCode::MODEL_NETWORK_ERROR->value, $result['error_code']);
+    }
+
+    public function testComputeShouldMapWrappedLlmNetworkExceptionToModelNetworkError(): void
+    {
+        $logger = $this->createMock(LoggerInterface::class);
+        $logger->expects($this->once())->method('error');
+
+        $llmAppService = $this->createMock(LLMAppService::class);
+        $llmAppService->expects($this->once())
+            ->method('embeddings')
+            ->willThrowException(new BusinessException(
+                'Connection to LLM service timed out',
+                MagicApiErrorCode::MODEL_RESPONSE_FAIL->value,
+                new LLMNetworkException('Connection to LLM service timed out')
+            ));
+
+        $service = new EmbeddingRpcService($llmAppService, $logger);
+        $result = $service->compute([
+            'model' => 'text-embedding-3-large',
+            'input' => ['hello'],
+            'access_token' => 'token_xxx',
+        ]);
+
+        $this->assertSame(500, $result['code']);
+        $this->assertSame('Connection to LLM service timed out', $result['message']);
+        $this->assertSame(MagicApiErrorCode::MODEL_NETWORK_ERROR->value, $result['error_code']);
     }
 
     public function testListProvidersShouldExposeBusinessErrorCodeWhenBusinessExceptionThrown(): void

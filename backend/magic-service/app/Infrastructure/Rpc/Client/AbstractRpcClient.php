@@ -7,10 +7,10 @@ declare(strict_types=1);
 
 namespace App\Infrastructure\Rpc\Client;
 
+use App\Application\KnowledgeBase\DTO\RpcHttpPassthroughResult;
 use App\Infrastructure\Rpc\Annotation\RpcClient;
 use App\Infrastructure\Rpc\Annotation\RpcMethod;
 use App\Infrastructure\Rpc\JsonRpc\RpcClientManager;
-use JsonException;
 use ReflectionClass;
 use ReflectionMethod;
 use RuntimeException;
@@ -49,44 +49,16 @@ abstract class AbstractRpcClient
         return $result;
     }
 
-    /**
-     * @return array<string, mixed>|object
-     */
-    protected function normalizeMetadataPayload(mixed $metadata): array|object
+    protected function callRpcPassthrough(string $methodName, array $params = []): RpcHttpPassthroughResult
     {
-        if (is_array($metadata)) {
-            return $metadata === [] ? (object) [] : $metadata;
+        $rpcMethod = $this->resolveRpcMethod($methodName);
+        $result = $this->client->call($rpcMethod, $params);
+
+        if (! is_array($result)) {
+            throw new RuntimeException(sprintf('Invalid %s passthrough result', $rpcMethod));
         }
 
-        if (is_string($metadata) && $metadata !== '') {
-            try {
-                $decoded = json_decode($metadata, true, 512, JSON_THROW_ON_ERROR);
-            } catch (JsonException) {
-                return (object) [];
-            }
-
-            if (is_array($decoded)) {
-                return $decoded === [] ? (object) [] : $decoded;
-            }
-        }
-
-        return (object) [];
-    }
-
-    /**
-     * @param array<string, mixed> $query
-     * @return array{limit: int, offset: int}
-     */
-    protected function resolvePageWindow(array $query): array
-    {
-        $limit = (int) ($query['limit'] ?? $query['page_size'] ?? 10);
-        $page = max(1, (int) ($query['page'] ?? 1));
-        $offset = (int) ($query['offset'] ?? (($page - 1) * $limit));
-
-        return [
-            'limit' => max(1, $limit),
-            'offset' => max(0, $offset),
-        ];
+        return RpcHttpPassthroughResult::fromArray($result);
     }
 
     /**
@@ -107,15 +79,6 @@ abstract class AbstractRpcClient
         $target[$targetKey ?? $sourceKey] = $transform === null
             ? $source[$sourceKey]
             : $transform($source[$sourceKey]);
-    }
-
-    /**
-     * @param array<string, mixed> $source
-     * @param array<int, string> $keys
-     */
-    protected function hasAnyKey(array $source, array $keys): bool
-    {
-        return array_any($keys, static fn ($key) => array_key_exists($key, $source));
     }
 
     private function resolveRpcMethod(string $methodName): string

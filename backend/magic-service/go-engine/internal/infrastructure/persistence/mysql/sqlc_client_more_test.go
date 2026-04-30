@@ -50,6 +50,44 @@ func newMySQLTestContext(t *testing.T) mysqlTestContext {
 	}
 }
 
+func TestBuildDSNAddsLocalTimezoneParams(t *testing.T) {
+	t.Parallel()
+
+	cfg := &autoloadcfg.MySQLConfig{
+		Host:      "127.0.0.1",
+		Port:      3306,
+		Database:  "magic",
+		Username:  "root",
+		AuthValue: "secret",
+		Params:    "parseTime=true&multiStatements=true",
+	}
+
+	dsn := mysql.BuildDSN(cfg)
+	want := "root:secret@tcp(127.0.0.1:3306)/magic?charset=utf8mb4&loc=Local&multiStatements=true&parseTime=true"
+	if dsn != want {
+		t.Fatalf("BuildDSN() = %q, want %q", dsn, want)
+	}
+}
+
+func TestBuildDSNPreservesExplicitLocation(t *testing.T) {
+	t.Parallel()
+
+	cfg := &autoloadcfg.MySQLConfig{
+		Host:      "127.0.0.1",
+		Port:      3306,
+		Database:  "magic",
+		Username:  "root",
+		AuthValue: "secret",
+		Params:    "parseTime=true&loc=UTC",
+	}
+
+	dsn := mysql.BuildDSN(cfg)
+	want := "root:secret@tcp(127.0.0.1:3306)/magic?charset=utf8mb4&loc=UTC&parseTime=true"
+	if dsn != want {
+		t.Fatalf("BuildDSN() = %q, want %q", dsn, want)
+	}
+}
+
 func TestDBLoggerOperations(t *testing.T) {
 	t.Parallel()
 

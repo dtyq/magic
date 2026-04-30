@@ -68,8 +68,4 @@ type EmbeddingCacheAnalysisRepository interface {
 	CountExpiredCaches(ctx context.Context, criteria *embentity.EmbeddingCacheCleanupCriteria) (int64, error)
 	CleanupExpiredCaches(ctx context.Context, criteria *embentity.EmbeddingCacheCleanupCriteria) (int64, error)
 	GetCacheStatistics(ctx context.Context) (*embentity.EmbeddingCacheStatistics, error)
-	GetCachesByModel(ctx context.Context, model string, offset, limit int) ([]*embentity.EmbeddingCache, error)
-	CountByModel(ctx context.Context, model string) (int64, error)
-	GetLeastAccessed(ctx context.Context, limit int) ([]*embentity.EmbeddingCache, error)
-	SearchCaches(ctx context.Context, query *embentity.EmbeddingCacheQuery) ([]*embentity.EmbeddingCache, int64, error)
 }

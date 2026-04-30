@@ -5,7 +5,9 @@ import (
 	"maps"
 	"strings"
 
+	docentity "magic/internal/domain/knowledge/document/entity"
 	"magic/internal/domain/knowledge/shared"
+	parseddocument "magic/internal/domain/knowledge/shared/parseddocument"
 )
 
 const (
@@ -23,6 +25,12 @@ const (
 	SyncFailureSaveFragments = "save fragments failed"
 	// SyncFailureSyncVector 表示向量同步失败。
 	SyncFailureSyncVector = "sync vector failed"
+	// SyncFailureAuthorization 表示同步前权限主体或鉴权失败。
+	SyncFailureAuthorization = "authorization failed"
+	// SyncFailureRetryExhausted 表示异步同步任务重试耗尽。
+	SyncFailureRetryExhausted = "document sync retry exhausted"
+	// SyncFailureResourceLimitExceeded 表示文档同步命中资源限制。
+	SyncFailureResourceLimitExceeded = "resource limit exceeded"
 )
 
 // SourcePrecheckPlan 描述同步前源校验执行计划。
@@ -33,13 +41,13 @@ type SourcePrecheckPlan struct {
 
 // SyncContentResult 描述内容解析链路输出。
 type SyncContentResult struct {
-	Parsed  *ParsedDocument
+	Parsed  *parseddocument.ParsedDocument
 	Content string
 }
 
 // BuildSourcePrecheckPlan 构造同步前源校验计划。
 func BuildSourcePrecheckPlan(
-	doc *KnowledgeBaseDocument,
+	doc *docentity.KnowledgeBaseDocument,
 	override *SourceOverride,
 	hasThirdPlatformResolver bool,
 ) (SourcePrecheckPlan, error) {
@@ -59,16 +67,16 @@ func BuildSourcePrecheckPlan(
 }
 
 // ApplySourceOverrideForSync 将 source override 应用到文档，并补齐扩展名。
-func ApplySourceOverrideForSync(doc *KnowledgeBaseDocument, override *SourceOverride, detectedExtension string) bool {
+func ApplySourceOverrideForSync(doc *docentity.KnowledgeBaseDocument, override *SourceOverride, detectedExtension string) bool {
 	if doc == nil || override == nil {
 		return false
 	}
-	changed := doc.ApplySourceOverride(override)
+	changed := ApplySourceOverride(doc, override)
 	return ApplyResolvedDocumentFileExtension(doc, detectedExtension) || changed
 }
 
 // ApplyResolvedDocumentFileExtension 根据检测结果回填文档扩展名。
-func ApplyResolvedDocumentFileExtension(doc *KnowledgeBaseDocument, detectedExtension string) bool {
+func ApplyResolvedDocumentFileExtension(doc *docentity.KnowledgeBaseDocument, detectedExtension string) bool {
 	if doc == nil || doc.DocumentFile == nil {
 		return false
 	}
@@ -81,9 +89,18 @@ func ApplyResolvedDocumentFileExtension(doc *KnowledgeBaseDocument, detectedExte
 }
 
 // BuildSyncContentFromSourceOverride 基于 source override 构造同步内容结果。
-func BuildSyncContentFromSourceOverride(doc *KnowledgeBaseDocument, override *SourceOverride) (SyncContentResult, error) {
+func BuildSyncContentFromSourceOverride(doc *docentity.KnowledgeBaseDocument, override *SourceOverride) (SyncContentResult, error) {
 	if override == nil {
 		return SyncContentResult{}, shared.ErrDocumentFileEmpty
+	}
+	if override.ParsedDocument != nil {
+		// override 传进来后，当前链路还会继续加工 ParsedDocument。
+		// 这里先 clone，避免把调用方手里的那份 override 一起改脏。
+		parsed := parseddocument.CloneParsedDocument(override.ParsedDocument)
+		if result, err := BuildSyncContentFromParsedDocument(parsed); err == nil {
+			result.Parsed = parsed
+			return result, nil
+		}
 	}
 	parsed, content := BuildParsedDocumentFromContent(doc, override.Content)
 	if content == "" {
@@ -96,7 +113,7 @@ func BuildSyncContentFromSourceOverride(doc *KnowledgeBaseDocument, override *So
 }
 
 // BuildSyncContentFromParsedDocument 基于解析器结果构造同步内容结果。
-func BuildSyncContentFromParsedDocument(parsed *ParsedDocument) (SyncContentResult, error) {
+func BuildSyncContentFromParsedDocument(parsed *parseddocument.ParsedDocument) (SyncContentResult, error) {
 	if parsed == nil {
 		return SyncContentResult{}, shared.ErrDocumentFileEmpty
 	}
@@ -111,7 +128,7 @@ func BuildSyncContentFromParsedDocument(parsed *ParsedDocument) (SyncContentResu
 }
 
 // MergeParsedDocumentMeta 将解析得到的文档 metadata 合并回文档实体，保留已有业务 metadata。
-func MergeParsedDocumentMeta(doc *KnowledgeBaseDocument, parsed *ParsedDocument) {
+func MergeParsedDocumentMeta(doc *docentity.KnowledgeBaseDocument, parsed *parseddocument.ParsedDocument) {
 	if doc == nil || parsed == nil || len(parsed.DocumentMeta) == 0 {
 		return
 	}

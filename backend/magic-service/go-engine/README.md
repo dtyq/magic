@@ -123,8 +123,7 @@ make test
   - `infrastructure -> domain`
   - `di -> application/domain/interfaces/infrastructure`
 - 详细约定见：
-  - `docs/ddd_layering_and_di.md`
-  - `docs/wire_di_guidelines.md`
+  - `docs/knowledge_base_unified_overview.md`
 - 自定义分层分析器（layerdeps）：
   - 构建：`go build -o bin/layerdeps ./cmd/layerdeps`
   - 扫描：`./bin/layerdeps ./...`
@@ -133,8 +132,6 @@ make test
 ## 📊 数据库迁移
 
 MySQL 表结构迁移统一放在 PHP 项目的 [migrations](../migrations) 目录，通过 `php bin/hyperf.php migrate` 执行。Go 侧不再提供独立的迁移命令。
-
-详细信息请参考：[数据库迁移指南](docs/database_migration_guide.md)
 
 ---
 

@@ -16,6 +16,7 @@ import (
 	docfilehelper "magic/internal/application/knowledge/helper/docfile"
 	texthelper "magic/internal/application/knowledge/helper/text"
 	thirdplatformsource "magic/internal/application/knowledge/shared/thirdplatformsource"
+	docentity "magic/internal/domain/knowledge/document/entity"
 	documentdomain "magic/internal/domain/knowledge/document/service"
 	documentsplitter "magic/internal/domain/knowledge/document/splitter"
 	fragmetadata "magic/internal/domain/knowledge/fragment/metadata"
@@ -23,6 +24,7 @@ import (
 	fragretrieval "magic/internal/domain/knowledge/fragment/retrieval"
 	fragdomain "magic/internal/domain/knowledge/fragment/service"
 	"magic/internal/domain/knowledge/shared"
+	parseddocument "magic/internal/domain/knowledge/shared/parseddocument"
 	"magic/internal/pkg/thirdplatform"
 	"magic/internal/pkg/timeformat"
 )
@@ -33,12 +35,14 @@ var (
 )
 
 func buildPreviewRequestKey(input *fragdto.PreviewFragmentInput) string {
-	if input == nil || input.DocumentFile == nil {
+	if input == nil {
 		sum := sha256.Sum256([]byte("empty"))
 		return hex.EncodeToString(sum[:])
 	}
 	var builder strings.Builder
 	builder.WriteString(previewPlanFromInput(input, false).RequestKey)
+	builder.WriteString("|document_code=")
+	builder.WriteString(strings.TrimSpace(input.DocumentCode))
 	builder.WriteString("|strategy=")
 	builder.WriteString(normalizePreviewStrategyConfigKey(input.StrategyConfig))
 	sum := sha256.Sum256([]byte(builder.String()))
@@ -51,12 +55,24 @@ func previewPlanFromInput(input *fragdto.PreviewFragmentInput, hasThirdPlatformR
 	}
 	return fragdomain.ResolvePreviewPlan(
 		previewDomainFileFromDTO(input.DocumentFile),
-		confighelper.FragmentConfigDTOToEntity(input.FragmentConfig),
+		resolveEffectivePreviewFragmentConfig(input),
 		hasThirdPlatformResolver,
 	)
 }
 
-func previewDomainFileFromDTO(file *docfilehelper.DocumentFileDTO) *fragdomain.File {
+func resolveEffectivePreviewFragmentConfig(input *fragdto.PreviewFragmentInput) *shared.FragmentConfig {
+	if input == nil {
+		return nil
+	}
+	if input.StrategyConfig == nil {
+		// 当前产品约定：flow 向量知识库预览不会传 strategy_config，数字员工知识库预览会传。
+		// 这里仅收口执行态分片模式，不改请求/回显里的 fragment_config。
+		return shared.DefaultFragmentConfig()
+	}
+	return confighelper.FragmentConfigDTOToEntity(input.FragmentConfig)
+}
+
+func previewDomainFileFromDTO(file *docfilehelper.DocumentFileDTO) *fragmodel.DocumentFile {
 	domainFile := docfilehelper.ToDomainFile(file)
 	if domainFile == nil || file == nil {
 		return fragDocumentFileFromDomain(domainFile)
@@ -67,8 +83,38 @@ func previewDomainFileFromDTO(file *docfilehelper.DocumentFileDTO) *fragdomain.F
 	return fragDocumentFileFromDomain(domainFile)
 }
 
+func previewDomainFileFromEntity(file *docentity.File) *fragmodel.DocumentFile {
+	domainFile := fragDocumentFileFromDomain(file)
+	if domainFile == nil || file == nil {
+		return domainFile
+	}
+	if strings.TrimSpace(domainFile.URL) == "" && strings.TrimSpace(file.FileKey) != "" {
+		domainFile.URL = strings.TrimSpace(file.FileKey)
+	}
+	return domainFile
+}
+
+func previewRequestHasUsableSource(file *docfilehelper.DocumentFileDTO) bool {
+	if file == nil {
+		return false
+	}
+	if strings.TrimSpace(file.URL) != "" || strings.TrimSpace(file.Key) != "" {
+		return true
+	}
+	if file.FileLink != nil && strings.TrimSpace(file.FileLink.URL) != "" {
+		return true
+	}
+	if strings.TrimSpace(file.ThirdID) != "" || strings.TrimSpace(file.SourceType) != "" {
+		return true
+	}
+	return file.ProjectFileID > 0
+}
+
 func normalizePreviewStrategyConfigKey(cfg *confighelper.StrategyConfigDTO) string {
-	options := confighelper.StrategyConfigDTOToParseOptions(cfg)
+	options := confighelper.StrategyConfigDTOToParseOptionsForKnowledgeBaseType(
+		resolvePreviewKnowledgeBaseType(cfg),
+		cfg,
+	)
 	return fmt.Sprintf(
 		"parsing_type=%d,image_extraction=%t,table_extraction=%t,image_ocr=%t",
 		options.ParsingType,
@@ -78,10 +124,102 @@ func normalizePreviewStrategyConfigKey(cfg *confighelper.StrategyConfigDTO) stri
 	)
 }
 
-func (s *FragmentAppService) resolvePreviewContent(ctx context.Context, input *fragdto.PreviewFragmentInput) (*documentdomain.ParsedDocument, string, error) {
+func (s *FragmentAppService) resolvePreviewDocument(
+	ctx context.Context,
+	input *fragdto.PreviewFragmentInput,
+) *docentity.KnowledgeBaseDocument {
+	if s == nil || s.documentService == nil || input == nil {
+		return nil
+	}
+
+	documentCode := strings.TrimSpace(input.DocumentCode)
+	if documentCode == "" {
+		return nil
+	}
+
+	document, err := s.documentService.Show(ctx, documentCode)
+	if err != nil {
+		if s.logger != nil {
+			s.logger.KnowledgeWarnContext(ctx, "Resolve preview document by code failed, fallback to request source", "document_code", documentCode, "error", err)
+		}
+		return nil
+	}
+	if document == nil {
+		return nil
+	}
+	if !document.BelongsToOrganization(input.OrganizationCode) {
+		if s.logger != nil {
+			s.logger.KnowledgeWarnContext(ctx, "Preview document organization mismatch, fallback to request source", "document_code", documentCode, "document_organization_code", document.OrganizationCode, "request_organization_code", input.OrganizationCode)
+		}
+		return nil
+	}
+	return document
+}
+
+func isProjectPreviewDocument(doc *docentity.KnowledgeBaseDocument) bool {
+	if doc == nil {
+		return false
+	}
+	if doc.ProjectFileID > 0 {
+		return true
+	}
+	if doc.DocumentFile == nil {
+		return false
+	}
+	if strings.EqualFold(documentdomain.NormalizeDocumentFileType(doc.DocumentFile.Type), "project_file") {
+		return true
+	}
+	return strings.EqualFold(strings.TrimSpace(doc.DocumentFile.SourceType), "project")
+}
+
+func (s *FragmentAppService) resolveProjectFilePreviewContent(
+	ctx context.Context,
+	doc *docentity.KnowledgeBaseDocument,
+	parseOptions documentdomain.ParseOptions,
+) (*parseddocument.ParsedDocument, string, error) {
+	link, err := documentdomain.ResolveProjectFileContentLink(ctx, s.projectFileContentPort, doc.ProjectFileID, 10*time.Minute)
+	if err != nil {
+		return nil, "", fmt.Errorf("resolve project file preview source: %w", err)
+	}
+	if link == "" {
+		return nil, "", shared.ErrDocumentFileEmpty
+	}
+
+	fileName := ""
+	fileExtension := ""
+	if doc != nil && doc.DocumentFile != nil {
+		fileName = strings.TrimSpace(doc.DocumentFile.Name)
+		fileExtension = strings.TrimSpace(doc.DocumentFile.Extension)
+	}
+
+	parsedDocument, err := s.parseService.ParseDocumentWithOptions(ctx, link, fileExtension, parseOptions)
+	if err != nil {
+		return nil, "", fmt.Errorf("failed to parse document: %w", err)
+	}
+	documentdomain.ApplyPreferredParsedDocumentFileName(parsedDocument, fileName)
+	return parsedDocument, texthelper.NormalizeHierarchySourceFileType(fileExtension), nil
+}
+
+func (s *FragmentAppService) resolvePreviewContent(ctx context.Context, input *fragdto.PreviewFragmentInput) (*parseddocument.ParsedDocument, string, error) {
+	parseOptions := confighelper.StrategyConfigDTOToParseOptionsForKnowledgeBaseType(
+		resolvePreviewKnowledgeBaseType(input.StrategyConfig),
+		input.StrategyConfig,
+	)
+	resolvedDocument := s.resolvePreviewDocument(ctx, input)
+	if isProjectPreviewDocument(resolvedDocument) {
+		return s.resolveProjectFilePreviewContent(ctx, resolvedDocument, parseOptions)
+	}
+
 	plan := previewPlanFromInput(input, s != nil && s.thirdPlatformDocumentPort != nil)
 	documentFile := plan.DocumentFile
-	parseOptions := confighelper.StrategyConfigDTOToParseOptions(input.StrategyConfig)
+	if resolvedDocument != nil && !previewRequestHasUsableSource(input.DocumentFile) {
+		documentFile = previewDomainFileFromEntity(resolvedDocument.DocumentFile)
+		plan = fragdomain.ResolvePreviewPlan(
+			documentFile,
+			resolveEffectivePreviewFragmentConfig(input),
+			s != nil && s.thirdPlatformDocumentPort != nil,
+		)
+	}
 	if plan.TryThirdPlatform {
 		parsedDocument, resolvedDocumentFile, err := s.resolveThirdPlatformPreviewContent(ctx, input, documentFile, parseOptions)
 		if err == nil {
@@ -91,7 +229,7 @@ func (s *FragmentAppService) resolvePreviewContent(ctx context.Context, input *f
 			return nil, "", err
 		}
 		if s.logger != nil {
-			s.logger.WarnContext(ctx, "Resolve third-platform preview failed, fallback to URL parsing", "error", err)
+			s.logger.KnowledgeWarnContext(ctx, "Resolve third-platform preview failed, fallback to URL parsing", "error", err)
 		}
 		documentFile = resolvedDocumentFile
 	}
@@ -107,12 +245,19 @@ func (s *FragmentAppService) resolvePreviewContent(ctx context.Context, input *f
 	return parsedDocument, texthelper.NormalizeHierarchySourceFileType(documentFile.Extension), nil
 }
 
+func resolvePreviewKnowledgeBaseType(cfg *confighelper.StrategyConfigDTO) string {
+	if cfg == nil {
+		return "flow_vector"
+	}
+	return "digital_employee"
+}
+
 func (s *FragmentAppService) resolveThirdPlatformPreviewContent(
 	ctx context.Context,
 	input *fragdto.PreviewFragmentInput,
-	documentFile *fragdomain.File,
+	documentFile *fragmodel.DocumentFile,
 	parseOptions documentdomain.ParseOptions,
-) (*documentdomain.ParsedDocument, *fragdomain.File, error) {
+) (*parseddocument.ParsedDocument, *fragmodel.DocumentFile, error) {
 	resolvedResult, err := s.thirdPlatformDocumentPort.Resolve(ctx, thirdplatform.DocumentResolveInput{
 		OrganizationCode:  input.OrganizationCode,
 		UserID:            input.UserID,
@@ -140,7 +285,7 @@ func (s *FragmentAppService) resolveThirdPlatformPreviewContent(
 
 // Preview 解析并切片预览（不落库）
 func (s *FragmentAppService) Preview(ctx context.Context, input *fragdto.PreviewFragmentInput) ([]*fragdto.FragmentDTO, error) {
-	if input == nil || input.DocumentFile == nil {
+	if input == nil || (input.DocumentFile == nil && strings.TrimSpace(input.DocumentCode) == "") {
 		return nil, shared.ErrDocumentFileEmpty
 	}
 
@@ -178,7 +323,7 @@ func (s *FragmentAppService) previewInternal(ctx context.Context, input *fragdto
 
 // PreviewV2 预览文档切片并返回结构化预览节点。
 func (s *FragmentAppService) PreviewV2(ctx context.Context, input *fragdto.PreviewFragmentInput) (*fragdto.FragmentPageResultDTO, error) {
-	if input == nil || input.DocumentFile == nil {
+	if input == nil || (input.DocumentFile == nil && strings.TrimSpace(input.DocumentCode) == "") {
 		return nil, shared.ErrDocumentFileEmpty
 	}
 
@@ -230,7 +375,7 @@ func buildPreviewFragmentDTOs(chunks []documentsplitter.TokenChunk, splitVersion
 		if len(chunk.Metadata) > 0 {
 			maps.Copy(extraMetadata, chunk.Metadata)
 		}
-		meta := fragmetadata.BuildFragmentSemanticMetadataV1(nil, fragmetadata.FragmentSemanticMetadataDefaults{
+		meta := fragmetadata.BuildFragmentSemanticMetadata(nil, fragmetadata.FragmentSemanticMetadataDefaults{
 			ChunkIndex:           i,
 			ContentHash:          texthelper.HashText(chunk.Content),
 			SplitVersion:         splitVersion,
@@ -240,12 +385,13 @@ func buildPreviewFragmentDTOs(chunks []documentsplitter.TokenChunk, splitVersion
 			SectionLevel:         chunk.SectionLevel,
 			CreatedAtTS:          createdAtUnix,
 		}, extraMetadata)
+		sanitizedMetadata := sanitizeFragmentResponseMetadata(meta)
 		dtos = append(dtos, &fragdto.FragmentDTO{
 			ID:            0,
 			KnowledgeCode: "",
 			DocumentCode:  "",
-			Content:       fragmetadata.BuildFragmentDisplayContent(chunk.Content, meta, chunk.SectionPath, chunk.SectionTitle),
-			Metadata:      meta,
+			Content:       fragmetadata.BuildFragmentDisplayContent(chunk.Content, sanitizedMetadata, chunk.SectionPath, chunk.SectionTitle),
+			Metadata:      sanitizedMetadata,
 			WordCount:     len([]rune(chunk.Content)),
 		})
 	}
@@ -286,10 +432,15 @@ func buildPreviewPageResult(documentTitle string, chunks []documentsplitter.Toke
 }
 
 func previewDocumentTitle(input *fragdto.PreviewFragmentInput) string {
-	if input == nil || input.DocumentFile == nil {
+	if input == nil {
 		return ""
 	}
-	return strings.TrimSpace(input.DocumentFile.Name)
+	if input.DocumentFile != nil {
+		if title := strings.TrimSpace(input.DocumentFile.Name); title != "" {
+			return title
+		}
+	}
+	return strings.TrimSpace(input.DocumentCode)
 }
 
 func metadataStringValue(metadata map[string]any, key string) string {
@@ -375,7 +526,7 @@ func EntityToDTO(e *fragmodel.KnowledgeBaseFragment) *fragdto.FragmentDTO {
 		DocumentName:      e.DocumentName,
 		DocumentType:      e.DocumentType,
 		Content:           fragmetadata.BuildFragmentDisplayContent(e.Content, e.Metadata, e.SectionPath, e.SectionTitle),
-		Metadata:          e.Metadata,
+		Metadata:          sanitizeFragmentResponseMetadata(e.Metadata),
 		SyncStatus:        int(e.SyncStatus),
 		SyncStatusMessage: e.SyncStatusMessage,
 		PointID:           e.PointID,

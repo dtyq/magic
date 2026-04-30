@@ -35,6 +35,7 @@ services:
   rabbitmq:
     image: rabbitmq:3-management
     container_name: magic-rabbitmq
+    restart: always
     ports:
       - "5672:5672"   # AMQP
       - "15672:15672" # 管理UI
@@ -55,9 +56,11 @@ services:
   mysql:
     image: mysql:8.0
     container_name: magic-mysql
+    restart: always
     ports:
       - "3306:3306"
     environment:
+      - TZ=Asia/Shanghai
       - MYSQL_ROOT_PASSWORD=dev123456
       - MYSQL_DATABASE=magic_migrations
       - MYSQL_USER=magic
@@ -75,7 +78,9 @@ services:
       timeout: 10s
       retries: 3
       start_period: 30s
-    command: --default-authentication-plugin=mysql_native_password
+    command:
+      - --default-authentication-plugin=mysql_native_password
+      - --default-time-zone=+08:00
 
 volumes:
   qdrant_data:
@@ -83,8 +88,10 @@ volumes:
   qdrant_config:
     driver: local
   mysql_data:
+    name: magic-service-go-engine_mysql_data
     driver: local
   mysql_logs:
+    name: magic-service-go-engine_mysql_logs
     driver: local
 
 networks:

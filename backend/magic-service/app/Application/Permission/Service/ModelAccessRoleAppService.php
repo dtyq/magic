@@ -12,7 +12,7 @@ use App\Application\Provider\Service\AdminProviderAppService;
 use App\Domain\Contact\Entity\ValueObject\DataIsolation as ContactDataIsolation;
 use App\Domain\Contact\Service\MagicDepartmentDomainService;
 use App\Domain\Permission\Entity\ModelAccessRoleEntity;
-use App\Domain\Permission\Entity\ValueObject\ModelAccessRoleBindingScopeType;
+use App\Domain\Permission\Entity\ValueObject\BindingScopeType;
 use App\Domain\Permission\Entity\ValueObject\PermissionControlStatus;
 use App\Domain\Permission\Entity\ValueObject\PermissionDataIsolation;
 use App\Domain\Permission\Service\ModelAccessRoleDomainService;
@@ -210,8 +210,8 @@ class ModelAccessRoleAppService extends AbstractPermissionAppService
     {
         return [
             'type' => $role->isAllUsers()
-                ? ModelAccessRoleBindingScopeType::OrganizationAll->value
-                : ModelAccessRoleBindingScopeType::Specific->value,
+                ? BindingScopeType::OrganizationAll->value
+                : BindingScopeType::Specific->value,
         ];
     }
 
@@ -223,12 +223,12 @@ class ModelAccessRoleAppService extends AbstractPermissionAppService
     ): array {
         if ($role->isAllUsers()) {
             return [
-                'type' => ModelAccessRoleBindingScopeType::OrganizationAll->value,
+                'type' => BindingScopeType::OrganizationAll->value,
             ];
         }
 
         return [
-            'type' => ModelAccessRoleBindingScopeType::Specific->value,
+            'type' => BindingScopeType::Specific->value,
             'user_ids' => $role->getUserIds(),
             'department_ids' => $role->getDepartmentIds(),
             'user_items' => array_map(static function (string $userId) use ($userInfo) {
@@ -259,7 +259,7 @@ class ModelAccessRoleAppService extends AbstractPermissionAppService
         array $departmentFullPaths
     ): array {
         return [
-            'type' => ModelAccessRoleBindingScopeType::Specific->value,
+            'type' => BindingScopeType::Specific->value,
             'user_ids' => $role->getExcludedUserIds(),
             'department_ids' => $role->getExcludedDepartmentIds(),
             'user_items' => array_map(static function (string $userId) use ($userInfo) {

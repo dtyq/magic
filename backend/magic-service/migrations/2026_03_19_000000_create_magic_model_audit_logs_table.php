@@ -16,6 +16,10 @@ class CreateMagicModelAuditLogsTable extends Migration
      */
     public function up(): void
     {
+        if (Schema::hasTable('magic_model_audit_logs')) {
+            return;
+        }
+
         Schema::create('magic_model_audit_logs', function (Blueprint $table) {
             $table->bigIncrements('id')->comment('主键ID');
             $table->string('user_id', 64)->default('')->comment('Magic 用户 ID');

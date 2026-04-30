@@ -80,6 +80,25 @@ func TestCheckService_CloseReturnsCloserError(t *testing.T) {
 	}
 }
 
+func TestCheckService_CloseContinuesAfterCloserError(t *testing.T) {
+	t.Parallel()
+
+	first := &fakeCloser{err: errFail}
+	second := &fakeCloser{}
+	svc := health.NewHealthCheckService(nil, first, second)
+
+	err := svc.Close(context.Background())
+	if !errors.Is(err, errFail) {
+		t.Fatalf("expected joined closer error, got %v", err)
+	}
+	if !first.closed {
+		t.Fatal("expected first closer to be called")
+	}
+	if !second.closed {
+		t.Fatal("expected second closer to be called even after error")
+	}
+}
+
 type fakeCloser struct {
 	closed bool
 	err    error

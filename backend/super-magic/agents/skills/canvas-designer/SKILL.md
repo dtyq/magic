@@ -13,17 +13,17 @@ Covers all canvas design fundamentals: project management, multimedia principles
 
 All Python code in this skill runs via `run_sdk_snippet`:
 
-```python
+```tool
 run_sdk_snippet(
     python_code="""
 from sdk.tool import tool
 result = tool.call('create_canvas', {"project_path": "my-design"})
-print(result)
+print(result.content)
 """
 )
 ```
 
-**Result object:** fields are `result.ok` (bool), `result.content` (str), `result.data` (dict). Access structured data via `result.data`, not `result['key']` — the Result object is not subscriptable.
+**Result object:** fields are `result.ok` (bool) and `result.content` (str). Always read tool output from `result.content` — it contains all relevant information including element IDs and error messages. The Result object is not subscriptable; do not use `result['key']`.
 
 ---
 
@@ -85,7 +85,7 @@ Returns: `{ project_path, project_name }`
 | `reference_images` | No | Reference image paths (workspace-relative). Images inside the project use project-relative paths, e.g. `images/cat.jpg`; images outside the project use workspace-relative paths, e.g. `other-project/images/ref.png`. Omit or pass `[]` for text-only generation |
 | `element_id` | No | Existing element ID to overwrite (for retrying a failed placeholder) |
 
-Returns: `{ created_elements: [{ id, name, type }], succeeded_count, failed_count }`
+Returns: succeeded element names via `result.content`; when a task fails, `result.content` includes the `element_id` of the failed placeholder for retry.
 
 ---
 
@@ -348,6 +348,7 @@ result = tool.call('generate_canvas_images', {
         }
     ]
 })
+print(result.content)
 ```
 
 ### Image-to-image (with references)
@@ -368,7 +369,7 @@ from sdk.tool import tool
 # visual_understanding has already been called on "images/cat.jpg"
 # and returned a description of the cat
 
-tool.call('generate_canvas_images', {
+result = tool.call('generate_canvas_images', {
     "project_path": "my-design",
     "tasks": [{
         "name": "cat-red-ear",
@@ -376,12 +377,13 @@ tool.call('generate_canvas_images', {
         "reference_images": ["images/cat.jpg"]
     }]
 })
+print(result.content)
 ```
 
 **Multiple references — element swap:**
 
 ```python
-tool.call('generate_canvas_images', {
+result = tool.call('generate_canvas_images', {
     "project_path": "my-design",
     "tasks": [{
         "name": "banner-hero-swap",
@@ -393,12 +395,13 @@ tool.call('generate_canvas_images', {
         ]
     }]
 })
+print(result.content)
 ```
 
 **Style transfer:**
 
 ```python
-tool.call('generate_canvas_images', {
+result = tool.call('generate_canvas_images', {
     "project_path": "my-design",
     "tasks": [{
         "name": "product-lifestyle",
@@ -406,22 +409,36 @@ tool.call('generate_canvas_images', {
         "reference_images": [product_src, style_ref_src]
     }]
 })
+print(result.content)
 ```
 
 ### Retrying failed tasks
 
-When a task fails, the result content includes the `element_id` of the failed placeholder. Pass it back in `element_id` to overwrite the placeholder in-place:
+When a task fails, print `result.content` to see the `element_id` of the failed placeholder. Pass it back in `element_id` to overwrite the placeholder in-place:
 
 ```python
-tool.call('generate_canvas_images', {
+result = tool.call('generate_canvas_images', {
+    "project_path": "my-design",
+    "tasks": [{"name": "cat-red-ear", "prompt": "...", "reference_images": ["images/cat.jpg"]}]
+})
+print(result.content)
+# Output on failure: Failed (to retry in place, pass element_id in the next call):
+# - name="cat-red-ear", element_id="elem_xxxxxxxxxxxx", reason: ...
+```
+
+Read the `element_id` from the output above and pass it in the retry call:
+
+```python
+result = tool.call('generate_canvas_images', {
     "project_path": "my-design",
     "tasks": [{
         "name": "cat-red-ear",
         "prompt": "...",
         "reference_images": ["images/cat.jpg"],
-        "element_id": "elem_xxxxxxxxxxxx"   # from the failed task's result
+        "element_id": "elem_xxxxxxxxxxxx"   # copied from the failed result above
     }]
 })
+print(result.content)
 ```
 
 ### Batching (> 6 images)
@@ -449,7 +466,7 @@ Constraints: No background props. The garment design, proportions, and surface d
         "reference_images": ["uploads/original-reference.jpg"]
     }]
 })
-
+print(result.content)
 anchor_path = result.data["created_elements"][0]["src"]  # path to the anchor image
 ```
 
@@ -458,7 +475,7 @@ anchor_path = result.data["created_elements"][0]["src"]  # path to the anchor im
 Pass the anchor image as `reference_images[0]` for every remaining view. All tasks in this call can run concurrently because they all share the same anchor. Do not chain views off each other (side view referencing back view referencing front view) — drift accumulates with each step.
 
 ```python
-tool.call('generate_canvas_images', {
+result = tool.call('generate_canvas_images', {
     "project_path": "my-design",
     "tasks": [
         {
@@ -479,6 +496,7 @@ Constraints: Garment design and proportions must match the first image exactly."
         }
     ]
 })
+print(result.content)
 ```
 
 **Key rules:**

@@ -1,7 +1,10 @@
 package document_test
 
 import (
+	"encoding/json"
 	"errors"
+	"fmt"
+	"strings"
 	"testing"
 
 	documentdomain "magic/internal/domain/knowledge/document/service"
@@ -117,5 +120,63 @@ func TestOCRAbilityConfigResolveVolcengineConfig_Errors(t *testing.T) {
 				t.Fatalf("expected %v, got %v", tc.want, err)
 			}
 		})
+	}
+}
+
+func TestOCRAbilityConfigSerializationDoesNotExposeCredentials(t *testing.T) {
+	t.Parallel()
+
+	cfg := &documentdomain.OCRAbilityConfig{
+		Enabled:      true,
+		ProviderCode: documentdomain.OCRProviderVolcengine,
+		Providers: []documentdomain.OCRProviderConfig{
+			{
+				Provider:  documentdomain.OCRProviderVolcengine,
+				Enable:    true,
+				AccessKey: "ocr-access-secret",
+				SecretKey: "ocr-secret-secret",
+			},
+		},
+	}
+
+	abilityPayload, err := json.Marshal(cfg)
+	if err != nil {
+		t.Fatalf("marshal ocr ability config: %v", err)
+	}
+	providerPayload, err := json.Marshal(cfg.Providers[0])
+	if err != nil {
+		t.Fatalf("marshal ocr provider config: %v", err)
+	}
+	debugPayload := fmt.Sprintf("%+v %#v %+v %#v %s %s", cfg, cfg, cfg.Providers[0], cfg.Providers[0], cfg.LogValue(), cfg.Providers[0].LogValue())
+
+	assertNoOCRCredential(t, string(abilityPayload))
+	assertNoOCRCredential(t, string(providerPayload))
+	assertNoOCRCredential(t, debugPayload)
+}
+
+func TestOCRProviderConfigUnmarshalKeepsCredentialsForRuntime(t *testing.T) {
+	t.Parallel()
+
+	var cfg documentdomain.OCRProviderConfig
+	if err := json.Unmarshal([]byte(`{"provider":"Volcengine","enable":true,"access_key":"ak-runtime","secret_key":"sk-runtime"}`), &cfg); err != nil {
+		t.Fatalf("unmarshal ocr provider config: %v", err)
+	}
+	if cfg.AccessKey != "ak-runtime" || cfg.SecretKey != "sk-runtime" {
+		t.Fatalf("expected runtime credentials to be decoded, got %#v", cfg)
+	}
+}
+
+func assertNoOCRCredential(t *testing.T, payload string) {
+	t.Helper()
+
+	for _, forbidden := range []string{
+		"ocr-access-secret",
+		"ocr-secret-secret",
+		"access_key",
+		"secret_key",
+	} {
+		if strings.Contains(payload, forbidden) {
+			t.Fatalf("expected payload not to contain %q, got %s", forbidden, payload)
+		}
 	}
 }

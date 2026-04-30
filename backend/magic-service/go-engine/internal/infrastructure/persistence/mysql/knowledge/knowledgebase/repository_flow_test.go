@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"database/sql/driver"
 	"encoding/json"
+	"math"
 	"regexp"
 	"strings"
 	"testing"
@@ -13,8 +14,10 @@ import (
 	"github.com/DATA-DOG/go-sqlmock"
 
 	"magic/internal/constants"
-	"magic/internal/domain/knowledge/knowledgebase/service"
+	knowledgebase "magic/internal/domain/knowledge/knowledgebase/entity"
+	kbrepository "magic/internal/domain/knowledge/knowledgebase/repository"
 	"magic/internal/domain/knowledge/shared"
+	sharedroute "magic/internal/domain/knowledge/shared/route"
 	knowledgebaserepo "magic/internal/infrastructure/persistence/mysql/knowledge/knowledgebase"
 	mysqlsqlc "magic/internal/infrastructure/persistence/mysql/sqlc"
 	"magic/pkg/convert"
@@ -24,70 +27,17 @@ func sqlPattern(query string) string {
 	return `(?s)(?:-- name: .*?\n)?` + regexp.QuoteMeta(strings.TrimSpace(query))
 }
 
-func knowledgeBaseListFilterArgs(orgCode string) []driver.Value {
-	nullString := sql.NullString{}
-	nullInt32 := sql.NullInt32{}
-	nullBool := sql.NullBool{}
-	if orgCode == "" {
-		return []driver.Value{
-			nullString, nullString,
-			nullString, nullString,
-			nullInt32, nullInt32,
-			nullString, nullString,
-			nullBool, nullBool,
-			nullInt32, nullInt32,
-		}
-	}
-	org := sql.NullString{String: orgCode, Valid: true}
-	return []driver.Value{
-		org, org,
-		nullString, nullString,
-		nullInt32, nullInt32,
-		nullString, nullString,
-		nullBool, nullBool,
-		nullInt32, nullInt32,
-	}
+func sqlContains(fragment string) string {
+	return regexp.QuoteMeta(strings.TrimSpace(fragment))
 }
 
 func expectKnowledgeBaseListByOrg(
 	mock sqlmock.Sqlmock,
 	rowValues []driver.Value,
-	orgCode string,
-	limit int32,
-	offset int32,
 ) {
-	mock.ExpectQuery(sqlPattern(`SELECT COUNT(*)
-FROM magic_flow_knowledge
-WHERE deleted_at IS NULL
-  AND code <> '__qdrant_collection_meta__'
-  AND (? IS NULL OR organization_code = ?)
-  AND (? IS NULL OR name LIKE ?)
-  AND (? IS NULL OR type = ?)
-  AND (? IS NULL OR knowledge_base_type = ?)
-  AND (? IS NULL OR enabled = ?)
-  AND (? IS NULL OR sync_status = ?)`)).
-		WithArgs(knowledgeBaseListFilterArgs(orgCode)...).
+	mock.ExpectQuery(sqlContains("CountKnowledgeBasesByOrganization")).
 		WillReturnRows(sqlmock.NewRows([]string{"count"}).AddRow(1))
-	mock.ExpectQuery(sqlPattern(`SELECT id, code, version, name, description, type, enabled, business_id,
-       sync_status, sync_status_message, model, vector_db, organization_code,
-       created_uid, updated_uid, expected_num, completed_num,
-       COALESCE(retrieve_config, CAST('null' AS JSON)) AS retrieve_config,
-       COALESCE(fragment_config, CAST('null' AS JSON)) AS fragment_config,
-       COALESCE(embedding_config, CAST('null' AS JSON)) AS embedding_config,
-       word_count, icon,
-       source_type, knowledge_base_type, created_at, updated_at
-FROM magic_flow_knowledge
-WHERE deleted_at IS NULL
-  AND code <> '__qdrant_collection_meta__'
-  AND (? IS NULL OR organization_code = ?)
-  AND (? IS NULL OR name LIKE ?)
-  AND (? IS NULL OR type = ?)
-  AND (? IS NULL OR knowledge_base_type = ?)
-  AND (? IS NULL OR enabled = ?)
-  AND (? IS NULL OR sync_status = ?)
-ORDER BY id DESC
-LIMIT ? OFFSET ?`)).
-		WithArgs(append(knowledgeBaseListFilterArgs(orgCode), limit, offset)...).
+	mock.ExpectQuery(sqlContains("ListKnowledgeBasesByOrganization")).
 		WillReturnRows(sqlmock.NewRows(knowledgeBaseRowColumns()).AddRow(rowValues...))
 }
 
@@ -142,6 +92,57 @@ func TestFillKnowledgeBaseCommonRejectsInvalidJSON(t *testing.T) {
 	})
 	if err == nil {
 		t.Fatal("expected error")
+	}
+}
+
+func TestBaseRepositoryFindByCodeAcceptsEmptyShapeJSONPayloads(t *testing.T) {
+	t.Parallel()
+
+	cases := []struct {
+		name           string
+		payload        []byte
+		wantConfigsNil bool
+	}{
+		{name: "null", payload: nil, wantConfigsNil: true},
+		{name: "empty array", payload: []byte(`[]`), wantConfigsNil: true},
+		{name: "empty string", payload: []byte(`""`), wantConfigsNil: true},
+		{name: "quoted empty array", payload: []byte(`"[]"`), wantConfigsNil: true},
+		{name: "empty object", payload: []byte(`{}`), wantConfigsNil: false},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			db, mock, err := sqlmock.New()
+			if err != nil {
+				t.Fatalf("sqlmock.New: %v", err)
+			}
+			defer func() { _ = db.Close() }()
+
+			repo := knowledgebaserepo.NewBaseRepositoryWithDBForTest(db)
+			now := time.Date(2026, 3, 11, 10, 0, 0, 0, time.Local)
+			rowValues := knowledgeBaseRowValues(t, now)
+			rowValues[17] = tc.payload
+			rowValues[18] = tc.payload
+			rowValues[19] = tc.payload
+
+			mock.ExpectQuery(sqlContains("FindKnowledgeBaseByCode")).
+				WithArgs(testKnowledgeBaseCode).
+				WillReturnRows(sqlmock.NewRows(knowledgeBaseRowColumns()).AddRow(rowValues...))
+
+			kb, err := repo.FindByCode(context.Background(), testKnowledgeBaseCode)
+			if err != nil {
+				t.Fatalf("FindByCode returned error: %v", err)
+			}
+			if kb.Code != testKnowledgeBaseCode {
+				t.Fatalf("unexpected knowledge base: %#v", kb)
+			}
+			assertKnowledgeBaseConfigNilState(t, kb, tc.wantConfigsNil)
+			if err := mock.ExpectationsWereMet(); err != nil {
+				t.Fatalf("unmet expectations: %v", err)
+			}
+		})
 	}
 }
 
@@ -344,7 +345,8 @@ func TestBaseRepositoryGetCollectionMetaAndUpsertCollectionMeta(t *testing.T) {
 
 	repo := knowledgebaserepo.NewBaseRepositoryWithDBForTest(db)
 	configJSON := `{"collection_name":"shared_kb","vector_dimension":3072}`
-	mock.ExpectQuery(sqlPattern(`SELECT model, COALESCE(embedding_config, CAST('{}' AS JSON)) AS embedding_config
+	mock.ExpectQuery(sqlPattern(`SELECT model,
+       embedding_config
 FROM magic_flow_knowledge
 WHERE code = ?
   AND deleted_at IS NULL
@@ -391,7 +393,7 @@ ON DUPLICATE KEY UPDATE
 	if !meta.Exists || meta.CollectionName != "shared_kb" || meta.VectorDimension != 3072 {
 		t.Fatalf("unexpected meta: %#v", meta)
 	}
-	if err := repo.UpsertCollectionMeta(context.Background(), knowledgebase.CollectionMeta{
+	if err := repo.UpsertCollectionMeta(context.Background(), sharedroute.CollectionMeta{
 		CollectionName:  "shared_kb",
 		Model:           "text-embedding-3-large",
 		VectorDimension: 3072,
@@ -410,8 +412,11 @@ func TestBaseRepositoryGetCollectionMetaObjectCompatPayloads(t *testing.T) {
 		name    string
 		payload []byte
 	}{
+		{name: "null", payload: nil},
 		{name: "empty array", payload: []byte(`[]`)},
 		{name: "empty string", payload: []byte(`""`)},
+		{name: "quoted empty array", payload: []byte(`"[]"`)},
+		{name: "empty object", payload: []byte(`{}`)},
 	}
 
 	for _, tc := range cases {
@@ -425,7 +430,8 @@ func TestBaseRepositoryGetCollectionMetaObjectCompatPayloads(t *testing.T) {
 			defer func() { _ = db.Close() }()
 
 			repo := knowledgebaserepo.NewBaseRepositoryWithDBForTest(db)
-			mock.ExpectQuery(sqlPattern(`SELECT model, COALESCE(embedding_config, CAST('{}' AS JSON)) AS embedding_config
+			mock.ExpectQuery(sqlPattern(`SELECT model,
+       embedding_config
 FROM magic_flow_knowledge
 WHERE code = ?
   AND deleted_at IS NULL
@@ -457,7 +463,8 @@ func TestBaseRepositoryGetCollectionMetaReturnsEmptyWhenNotFound(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	repo := knowledgebaserepo.NewBaseRepositoryWithDBForTest(db)
-	mock.ExpectQuery(sqlPattern(`SELECT model, COALESCE(embedding_config, CAST('{}' AS JSON)) AS embedding_config
+	mock.ExpectQuery(sqlPattern(`SELECT model,
+       embedding_config
 FROM magic_flow_knowledge
 WHERE code = ?
   AND deleted_at IS NULL
@@ -490,23 +497,10 @@ func TestBaseRepositoryFindByCodeAndOrgAndList(t *testing.T) {
 	now := time.Date(2026, 3, 11, 12, 0, 0, 0, time.Local)
 	rowValues := knowledgeBaseRowValues(t, now)
 
-	mock.ExpectQuery(sqlPattern(`SELECT id, code, version, name, description, type, enabled, business_id,
-       sync_status, sync_status_message, model, vector_db, organization_code,
-       created_uid, updated_uid, expected_num, completed_num,
-       COALESCE(retrieve_config, CAST('null' AS JSON)) AS retrieve_config,
-       COALESCE(fragment_config, CAST('null' AS JSON)) AS fragment_config,
-       COALESCE(embedding_config, CAST('null' AS JSON)) AS embedding_config,
-       word_count, icon,
-       source_type, knowledge_base_type, created_at, updated_at
-FROM magic_flow_knowledge
-WHERE code = ?
-  AND organization_code = ?
-  AND deleted_at IS NULL
-  AND code <> '__qdrant_collection_meta__'
-LIMIT 1`)).
+	mock.ExpectQuery(sqlContains("FindKnowledgeBaseByCodeAndOrg")).
 		WithArgs("KB-1", "ORG-1").
 		WillReturnRows(sqlmock.NewRows(knowledgeBaseRowColumns()).AddRow(rowValues...))
-	expectKnowledgeBaseListByOrg(mock, rowValues, "ORG-1", 20, 0)
+	expectKnowledgeBaseListByOrg(mock, rowValues)
 
 	found, err := repo.FindByCodeAndOrg(context.Background(), "KB-1", "ORG-1")
 	if err != nil {
@@ -515,7 +509,7 @@ LIMIT 1`)).
 	if found.Code != testKnowledgeBaseCode || found.OrganizationCode != testKnowledgeBaseOrgCode {
 		t.Fatalf("unexpected found result: %#v", found)
 	}
-	list, total, err := repo.List(context.Background(), &knowledgebase.Query{
+	list, total, err := repo.List(context.Background(), &kbrepository.Query{
 		OrganizationCode: "ORG-1",
 		Limit:            20,
 	})
@@ -543,33 +537,10 @@ func TestBaseRepositoryFindByIDAndFindByCode(t *testing.T) {
 	now := time.Date(2026, 3, 11, 12, 30, 0, 0, time.Local)
 	rowValues := knowledgeBaseRowValues(t, now)
 
-	mock.ExpectQuery(sqlPattern(`SELECT id, code, version, name, description, type, enabled, business_id,
-       sync_status, sync_status_message, model, vector_db, organization_code,
-       created_uid, updated_uid, expected_num, completed_num,
-       COALESCE(retrieve_config, CAST('null' AS JSON)) AS retrieve_config,
-       COALESCE(fragment_config, CAST('null' AS JSON)) AS fragment_config,
-       COALESCE(embedding_config, CAST('null' AS JSON)) AS embedding_config,
-       word_count, icon,
-       source_type, knowledge_base_type, created_at, updated_at
-FROM magic_flow_knowledge
-WHERE id = ?
-  AND deleted_at IS NULL
-  AND code <> '__qdrant_collection_meta__'`)).
+	mock.ExpectQuery(sqlContains("FindKnowledgeBaseByID")).
 		WithArgs(int64(1)).
 		WillReturnRows(sqlmock.NewRows(knowledgeBaseRowColumns()).AddRow(rowValues...))
-	mock.ExpectQuery(sqlPattern(`SELECT id, code, version, name, description, type, enabled, business_id,
-       sync_status, sync_status_message, model, vector_db, organization_code,
-       created_uid, updated_uid, expected_num, completed_num,
-       COALESCE(retrieve_config, CAST('null' AS JSON)) AS retrieve_config,
-       COALESCE(fragment_config, CAST('null' AS JSON)) AS fragment_config,
-       COALESCE(embedding_config, CAST('null' AS JSON)) AS embedding_config,
-       word_count, icon,
-       source_type, knowledge_base_type, created_at, updated_at
-FROM magic_flow_knowledge
-WHERE code = ?
-  AND deleted_at IS NULL
-  AND code <> '__qdrant_collection_meta__'
-LIMIT 1`)).
+	mock.ExpectQuery(sqlContains("FindKnowledgeBaseByCode")).
 		WithArgs("KB-1").
 		WillReturnRows(sqlmock.NewRows(knowledgeBaseRowColumns()).AddRow(rowValues...))
 
@@ -602,45 +573,14 @@ func TestBaseRepositoryListByCodesAndBusinessIDs(t *testing.T) {
 	now := time.Date(2026, 3, 11, 13, 0, 0, 0, time.Local)
 	rowValues := knowledgeBaseRowValues(t, now)
 
-	mock.ExpectQuery(sqlPattern(`SELECT COUNT(*)
-FROM magic_flow_knowledge
-WHERE deleted_at IS NULL
-  AND code <> '__qdrant_collection_meta__'
-  AND (? IS NULL OR organization_code = ?)
-  AND (? IS NULL OR name LIKE ?)
-  AND (? IS NULL OR type = ?)
-  AND (? IS NULL OR knowledge_base_type = ?)
-  AND (? IS NULL OR enabled = ?)
-  AND (? IS NULL OR sync_status = ?)
-  AND code IN (?,?)
-  AND business_id IN (?)`)).
-		WithArgs(append(knowledgeBaseListFilterArgs(""), "KB-1", "KB-2", "BIZ-1")...).
+	mock.ExpectQuery(sqlContains("CountKnowledgeBasesByCodesAndBusinessIDsNoOrganization")).
+		WithArgs("%", int32(1), int32(2), string(knowledgebase.KnowledgeBaseTypeFlowVector), string(knowledgebase.KnowledgeBaseTypeDigitalEmployee), int8(0), int8(1), int32(0), int32(1), int32(2), int32(3), int32(4), int32(5), int32(6), "KB-1", "KB-2", "BIZ-1").
 		WillReturnRows(sqlmock.NewRows([]string{"count"}).AddRow(1))
-	mock.ExpectQuery(sqlPattern(`SELECT id, code, version, name, description, type, enabled, business_id,
-       sync_status, sync_status_message, model, vector_db, organization_code,
-       created_uid, updated_uid, expected_num, completed_num,
-       COALESCE(retrieve_config, CAST('null' AS JSON)) AS retrieve_config,
-       COALESCE(fragment_config, CAST('null' AS JSON)) AS fragment_config,
-       COALESCE(embedding_config, CAST('null' AS JSON)) AS embedding_config,
-       word_count, icon,
-       source_type, knowledge_base_type, created_at, updated_at
-FROM magic_flow_knowledge
-WHERE deleted_at IS NULL
-  AND code <> '__qdrant_collection_meta__'
-  AND (? IS NULL OR organization_code = ?)
-  AND (? IS NULL OR name LIKE ?)
-  AND (? IS NULL OR type = ?)
-  AND (? IS NULL OR knowledge_base_type = ?)
-  AND (? IS NULL OR enabled = ?)
-  AND (? IS NULL OR sync_status = ?)
-  AND code IN (?,?)
-  AND business_id IN (?)
-ORDER BY id DESC
-LIMIT ? OFFSET ?`)).
-		WithArgs(append(append(knowledgeBaseListFilterArgs(""), "KB-1", "KB-2", "BIZ-1"), int32(10), int32(0))...).
+	mock.ExpectQuery(sqlContains("ListKnowledgeBasesByCodesAndBusinessIDsNoOrganization")).
+		WithArgs("%", int32(1), int32(2), string(knowledgebase.KnowledgeBaseTypeFlowVector), string(knowledgebase.KnowledgeBaseTypeDigitalEmployee), int8(0), int8(1), int32(0), int32(1), int32(2), int32(3), int32(4), int32(5), int32(6), "KB-1", "KB-2", "BIZ-1", int32(10), int32(0)).
 		WillReturnRows(sqlmock.NewRows(knowledgeBaseRowColumns()).AddRow(rowValues...))
 
-	list, total, err := repo.List(context.Background(), &knowledgebase.Query{
+	list, total, err := repo.List(context.Background(), &kbrepository.Query{
 		Codes:       []string{"KB-1", "KB-2"},
 		BusinessIDs: []string{"BIZ-1"},
 		Limit:       10,
@@ -669,45 +609,50 @@ func TestBaseRepositoryListByCodes(t *testing.T) {
 	now := time.Date(2026, 3, 11, 13, 30, 0, 0, time.Local)
 	rowValues := knowledgeBaseRowValues(t, now)
 
-	mock.ExpectQuery(sqlPattern(`SELECT COUNT(*)
-FROM magic_flow_knowledge
-WHERE deleted_at IS NULL
-  AND code <> '__qdrant_collection_meta__'
-  AND (? IS NULL OR organization_code = ?)
-  AND (? IS NULL OR name LIKE ?)
-  AND (? IS NULL OR type = ?)
-  AND (? IS NULL OR knowledge_base_type = ?)
-  AND (? IS NULL OR enabled = ?)
-  AND (? IS NULL OR sync_status = ?)
-  AND code IN (?,?)`)).
-		WithArgs(append(knowledgeBaseListFilterArgs(""), "KB-1", "KB-2")...).
+	mock.ExpectQuery(sqlContains("CountKnowledgeBasesByCodes")).
 		WillReturnRows(sqlmock.NewRows([]string{"count"}).AddRow(1))
-	mock.ExpectQuery(sqlPattern(`SELECT id, code, version, name, description, type, enabled, business_id,
-       sync_status, sync_status_message, model, vector_db, organization_code,
-       created_uid, updated_uid, expected_num, completed_num,
-       COALESCE(retrieve_config, CAST('null' AS JSON)) AS retrieve_config,
-       COALESCE(fragment_config, CAST('null' AS JSON)) AS fragment_config,
-       COALESCE(embedding_config, CAST('null' AS JSON)) AS embedding_config,
-       word_count, icon,
-       source_type, knowledge_base_type, created_at, updated_at
-FROM magic_flow_knowledge
-WHERE deleted_at IS NULL
-  AND code <> '__qdrant_collection_meta__'
-  AND (? IS NULL OR organization_code = ?)
-  AND (? IS NULL OR name LIKE ?)
-  AND (? IS NULL OR type = ?)
-  AND (? IS NULL OR knowledge_base_type = ?)
-  AND (? IS NULL OR enabled = ?)
-  AND (? IS NULL OR sync_status = ?)
-  AND code IN (?,?)
-ORDER BY id DESC
-LIMIT ? OFFSET ?`)).
-		WithArgs(append(append(knowledgeBaseListFilterArgs(""), "KB-1", "KB-2"), int32(5), int32(0))...).
+	mock.ExpectQuery(sqlContains("ListKnowledgeBasesByCodes")).
 		WillReturnRows(sqlmock.NewRows(knowledgeBaseRowColumns()).AddRow(rowValues...))
 
-	list, total, err := repo.List(context.Background(), &knowledgebase.Query{
+	list, total, err := repo.List(context.Background(), &kbrepository.Query{
 		Codes: []string{"KB-1", "KB-2"},
 		Limit: 5,
+	})
+	if err != nil {
+		t.Fatalf("List returned error: %v", err)
+	}
+	if total != 1 || len(list) != 1 {
+		t.Fatalf("unexpected list result: total=%d list=%#v", total, list)
+	}
+	if err := mock.ExpectationsWereMet(); err != nil {
+		t.Fatalf("unmet expectations: %v", err)
+	}
+}
+
+func TestBaseRepositoryListByCodesInOrganization(t *testing.T) {
+	t.Parallel()
+
+	db, mock, err := sqlmock.New()
+	if err != nil {
+		t.Fatalf("sqlmock.New: %v", err)
+	}
+	defer func() { _ = db.Close() }()
+
+	repo := knowledgebaserepo.NewBaseRepositoryWithDBForTest(db)
+	now := time.Date(2026, 3, 11, 13, 35, 0, 0, time.Local)
+	rowValues := knowledgeBaseRowValues(t, now)
+
+	mock.ExpectQuery(sqlContains("CountKnowledgeBasesByOrganizationAndCodes")).
+		WithArgs("ORG-1", "%", int32(1), int32(2), string(knowledgebase.KnowledgeBaseTypeFlowVector), string(knowledgebase.KnowledgeBaseTypeDigitalEmployee), int8(0), int8(1), int32(0), int32(1), int32(2), int32(3), int32(4), int32(5), int32(6), "KB-1", "KB-2").
+		WillReturnRows(sqlmock.NewRows([]string{"count"}).AddRow(1))
+	mock.ExpectQuery(sqlContains("ListKnowledgeBasesByOrganizationAndCodes")).
+		WithArgs("ORG-1", "%", int32(1), int32(2), string(knowledgebase.KnowledgeBaseTypeFlowVector), string(knowledgebase.KnowledgeBaseTypeDigitalEmployee), int8(0), int8(1), int32(0), int32(1), int32(2), int32(3), int32(4), int32(5), int32(6), "KB-1", "KB-2", int32(5), int32(0)).
+		WillReturnRows(sqlmock.NewRows(knowledgeBaseRowColumns()).AddRow(rowValues...))
+
+	list, total, err := repo.List(context.Background(), &kbrepository.Query{
+		OrganizationCode: "ORG-1",
+		Codes:            []string{"KB-1", "KB-2"},
+		Limit:            5,
 	})
 	if err != nil {
 		t.Fatalf("List returned error: %v", err)
@@ -733,43 +678,14 @@ func TestBaseRepositoryListByBusinessIDs(t *testing.T) {
 	now := time.Date(2026, 3, 11, 13, 45, 0, 0, time.Local)
 	rowValues := knowledgeBaseRowValues(t, now)
 
-	mock.ExpectQuery(sqlPattern(`SELECT COUNT(*)
-FROM magic_flow_knowledge
-WHERE deleted_at IS NULL
-  AND code <> '__qdrant_collection_meta__'
-  AND (? IS NULL OR organization_code = ?)
-  AND (? IS NULL OR name LIKE ?)
-  AND (? IS NULL OR type = ?)
-  AND (? IS NULL OR knowledge_base_type = ?)
-  AND (? IS NULL OR enabled = ?)
-  AND (? IS NULL OR sync_status = ?)
-  AND business_id IN (?)`)).
-		WithArgs(append(knowledgeBaseListFilterArgs(""), "BIZ-1")...).
+	mock.ExpectQuery(sqlContains("CountKnowledgeBasesByBusinessIDsNoOrganization")).
+		WithArgs("%", int32(1), int32(2), string(knowledgebase.KnowledgeBaseTypeFlowVector), string(knowledgebase.KnowledgeBaseTypeDigitalEmployee), int8(0), int8(1), int32(0), int32(1), int32(2), int32(3), int32(4), int32(5), int32(6), "BIZ-1").
 		WillReturnRows(sqlmock.NewRows([]string{"count"}).AddRow(1))
-	mock.ExpectQuery(sqlPattern(`SELECT id, code, version, name, description, type, enabled, business_id,
-       sync_status, sync_status_message, model, vector_db, organization_code,
-       created_uid, updated_uid, expected_num, completed_num,
-       COALESCE(retrieve_config, CAST('null' AS JSON)) AS retrieve_config,
-       COALESCE(fragment_config, CAST('null' AS JSON)) AS fragment_config,
-       COALESCE(embedding_config, CAST('null' AS JSON)) AS embedding_config,
-       word_count, icon,
-       source_type, knowledge_base_type, created_at, updated_at
-FROM magic_flow_knowledge
-WHERE deleted_at IS NULL
-  AND code <> '__qdrant_collection_meta__'
-  AND (? IS NULL OR organization_code = ?)
-  AND (? IS NULL OR name LIKE ?)
-  AND (? IS NULL OR type = ?)
-  AND (? IS NULL OR knowledge_base_type = ?)
-  AND (? IS NULL OR enabled = ?)
-  AND (? IS NULL OR sync_status = ?)
-  AND business_id IN (?)
-ORDER BY id DESC
-LIMIT ? OFFSET ?`)).
-		WithArgs(append(append(knowledgeBaseListFilterArgs(""), "BIZ-1"), int32(5), int32(0))...).
+	mock.ExpectQuery(sqlContains("ListKnowledgeBasesByBusinessIDsNoOrganization")).
+		WithArgs("%", int32(1), int32(2), string(knowledgebase.KnowledgeBaseTypeFlowVector), string(knowledgebase.KnowledgeBaseTypeDigitalEmployee), int8(0), int8(1), int32(0), int32(1), int32(2), int32(3), int32(4), int32(5), int32(6), "BIZ-1", int32(5), int32(0)).
 		WillReturnRows(sqlmock.NewRows(knowledgeBaseRowColumns()).AddRow(rowValues...))
 
-	list, total, err := repo.List(context.Background(), &knowledgebase.Query{
+	list, total, err := repo.List(context.Background(), &kbrepository.Query{
 		BusinessIDs: []string{"BIZ-1"},
 		Limit:       5,
 	})
@@ -784,6 +700,28 @@ LIMIT ? OFFSET ?`)).
 	}
 }
 
+func TestBuildKnowledgeBasesParamsRejectsInvalidTypeAndSyncStatus(t *testing.T) {
+	t.Parallel()
+
+	repo := knowledgebaserepo.NewBaseRepositoryWithDBForTest(nil)
+
+	invalidType := int(math.MaxInt32) + 1
+	if _, _, err := knowledgebaserepo.BuildKnowledgeBasesParamsForTest(repo, &kbrepository.Query{
+		Type:  &invalidType,
+		Limit: 10,
+	}); err == nil || !strings.Contains(err.Error(), "invalid type") {
+		t.Fatalf("expected invalid type error, got %v", err)
+	}
+
+	invalidStatus := shared.SyncStatus(int(math.MaxInt32) + 1)
+	if _, _, err := knowledgebaserepo.BuildKnowledgeBasesParamsForTest(repo, &kbrepository.Query{
+		SyncStatus: &invalidStatus,
+		Limit:      10,
+	}); err == nil || !strings.Contains(err.Error(), "invalid sync_status") {
+		t.Fatalf("expected invalid sync_status error, got %v", err)
+	}
+}
+
 func TestBaseRepositoryListByCodesAndBusinessIDsBuilderHelpers(t *testing.T) {
 	t.Parallel()
 
@@ -791,7 +729,7 @@ func TestBaseRepositoryListByCodesAndBusinessIDsBuilderHelpers(t *testing.T) {
 	enabled := true
 	kbType := 2
 	status := shared.SyncStatusSyncing
-	countParams, listParams, err := knowledgebaserepo.BuildKnowledgeBasesParamsForTest(repo, &knowledgebase.Query{
+	countParams, listParams, err := knowledgebaserepo.BuildKnowledgeBasesParamsForTest(repo, &kbrepository.Query{
 		OrganizationCode: testKnowledgeBaseOrgCode,
 		Name:             "关键字",
 		Type:             &kbType,
@@ -803,15 +741,15 @@ func TestBaseRepositoryListByCodesAndBusinessIDsBuilderHelpers(t *testing.T) {
 	if err != nil {
 		t.Fatalf("buildKnowledgeBasesParams returned error: %v", err)
 	}
-	if !countParams.OrganizationCode.Valid || countParams.OrganizationCode.String != testKnowledgeBaseOrgCode {
+	if countParams.NameLike == "" {
 		t.Fatalf("unexpected count params: %#v", countParams)
 	}
 	if listParams.Limit != 10 || listParams.Offset != 5 {
 		t.Fatalf("unexpected list params: %#v", listParams)
 	}
 
-	bizCount := knowledgebaserepo.BuildCountByBusinessIDsParamsForTest(countParams, []string{testKnowledgeBaseBusinessID})
-	bizList := knowledgebaserepo.BuildListByBusinessIDsParamsForTest(listParams, []string{testKnowledgeBaseBusinessID})
+	bizCount := knowledgebaserepo.BuildCountByBusinessIDsParamsForTest(countParams, testKnowledgeBaseOrgCode, []string{testKnowledgeBaseBusinessID})
+	bizList := knowledgebaserepo.BuildListByBusinessIDsParamsForTest(listParams, testKnowledgeBaseOrgCode, []string{testKnowledgeBaseBusinessID})
 	codeCount := knowledgebaserepo.BuildCountByCodesParamsForTest(countParams, []string{testKnowledgeBaseCode})
 	codeList := knowledgebaserepo.BuildListByCodesParamsForTest(listParams, []string{testKnowledgeBaseCode})
 	if len(bizCount.BusinessIds) != 1 || len(bizList.BusinessIds) != 1 || len(codeCount.Codes) != 1 || len(codeList.Codes) != 1 {
@@ -926,7 +864,7 @@ func knowledgeBaseRowColumns() []string {
 		"sync_status", "sync_status_message", "model", "vector_db", "organization_code",
 		"created_uid", "updated_uid", "expected_num", "completed_num",
 		"retrieve_config", "fragment_config", "embedding_config",
-		"word_count", "icon", "source_type", "knowledge_base_type", "created_at", "updated_at",
+		"word_count", "icon", "source_type", "knowledge_base_type", "created_at", "updated_at", "deleted_at",
 	}
 }
 
@@ -959,6 +897,7 @@ func knowledgeBaseRowValues(t *testing.T, now time.Time) []driver.Value {
 		string(knowledgebase.KnowledgeBaseTypeFlowVector),
 		now,
 		now,
+		sql.NullTime{},
 	}
 }
 
@@ -968,6 +907,20 @@ func mustMapKB(t *testing.T, kb *knowledgebase.KnowledgeBase, err error) *knowle
 		t.Fatalf("mapping returned error: %v", err)
 	}
 	return kb
+}
+
+func assertKnowledgeBaseConfigNilState(t *testing.T, kb *knowledgebase.KnowledgeBase, wantConfigsNil bool) {
+	t.Helper()
+
+	if wantConfigsNil {
+		if kb.RetrieveConfig != nil || kb.FragmentConfig != nil || kb.EmbeddingConfig != nil {
+			t.Fatalf("expected nil configs, got retrieve=%#v fragment=%#v embedding=%#v", kb.RetrieveConfig, kb.FragmentConfig, kb.EmbeddingConfig)
+		}
+		return
+	}
+	if kb.RetrieveConfig == nil || kb.FragmentConfig == nil || kb.EmbeddingConfig == nil {
+		t.Fatalf("expected empty object payload to map to non-nil configs, got retrieve=%#v fragment=%#v embedding=%#v", kb.RetrieveConfig, kb.FragmentConfig, kb.EmbeddingConfig)
+	}
 }
 
 func checkMappedKB(t *testing.T, kb *knowledgebase.KnowledgeBase) {
@@ -1051,8 +1004,8 @@ func newKnowledgeBaseMapperFixture(t *testing.T) knowledgeBaseMapperFixture {
 	}
 }
 
-func findByIDRow(f knowledgeBaseMapperFixture) mysqlsqlc.FindKnowledgeBaseByIDRow {
-	return mysqlsqlc.FindKnowledgeBaseByIDRow{
+func findByIDRow(f knowledgeBaseMapperFixture) mysqlsqlc.MagicFlowKnowledge {
+	return mysqlsqlc.MagicFlowKnowledge{
 		ID:                f.id,
 		Code:              f.code,
 		Version:           f.version,
@@ -1082,8 +1035,8 @@ func findByIDRow(f knowledgeBaseMapperFixture) mysqlsqlc.FindKnowledgeBaseByIDRo
 	}
 }
 
-func findByCodeRow(f knowledgeBaseMapperFixture) mysqlsqlc.FindKnowledgeBaseByCodeRow {
-	return mysqlsqlc.FindKnowledgeBaseByCodeRow{
+func findByCodeRow(f knowledgeBaseMapperFixture) mysqlsqlc.MagicFlowKnowledge {
+	return mysqlsqlc.MagicFlowKnowledge{
 		ID:                f.id,
 		Code:              f.code,
 		Version:           f.version,
@@ -1113,8 +1066,8 @@ func findByCodeRow(f knowledgeBaseMapperFixture) mysqlsqlc.FindKnowledgeBaseByCo
 	}
 }
 
-func findByCodeAndOrgRow(f knowledgeBaseMapperFixture) mysqlsqlc.FindKnowledgeBaseByCodeAndOrgRow {
-	return mysqlsqlc.FindKnowledgeBaseByCodeAndOrgRow{
+func findByCodeAndOrgRow(f knowledgeBaseMapperFixture) mysqlsqlc.MagicFlowKnowledge {
+	return mysqlsqlc.MagicFlowKnowledge{
 		ID:                f.id,
 		Code:              f.code,
 		Version:           f.version,
@@ -1144,8 +1097,8 @@ func findByCodeAndOrgRow(f knowledgeBaseMapperFixture) mysqlsqlc.FindKnowledgeBa
 	}
 }
 
-func listRow(f knowledgeBaseMapperFixture) mysqlsqlc.ListKnowledgeBasesRow {
-	return mysqlsqlc.ListKnowledgeBasesRow{
+func listRow(f knowledgeBaseMapperFixture) mysqlsqlc.MagicFlowKnowledge {
+	return mysqlsqlc.MagicFlowKnowledge{
 		ID:                f.id,
 		Code:              f.code,
 		Version:           f.version,
@@ -1175,8 +1128,8 @@ func listRow(f knowledgeBaseMapperFixture) mysqlsqlc.ListKnowledgeBasesRow {
 	}
 }
 
-func listByCodesRow(f knowledgeBaseMapperFixture) mysqlsqlc.ListKnowledgeBasesByCodesRow {
-	return mysqlsqlc.ListKnowledgeBasesByCodesRow{
+func listByCodesRow(f knowledgeBaseMapperFixture) mysqlsqlc.MagicFlowKnowledge {
+	return mysqlsqlc.MagicFlowKnowledge{
 		ID:                f.id,
 		Code:              f.code,
 		Version:           f.version,
@@ -1206,8 +1159,8 @@ func listByCodesRow(f knowledgeBaseMapperFixture) mysqlsqlc.ListKnowledgeBasesBy
 	}
 }
 
-func listByBusinessIDsRow(f knowledgeBaseMapperFixture) mysqlsqlc.ListKnowledgeBasesByBusinessIDsRow {
-	return mysqlsqlc.ListKnowledgeBasesByBusinessIDsRow{
+func listByBusinessIDsRow(f knowledgeBaseMapperFixture) mysqlsqlc.MagicFlowKnowledge {
+	return mysqlsqlc.MagicFlowKnowledge{
 		ID:                f.id,
 		Code:              f.code,
 		Version:           f.version,
@@ -1237,8 +1190,8 @@ func listByBusinessIDsRow(f knowledgeBaseMapperFixture) mysqlsqlc.ListKnowledgeB
 	}
 }
 
-func listByCodesAndBusinessIDsRow(f knowledgeBaseMapperFixture) mysqlsqlc.ListKnowledgeBasesByCodesAndBusinessIDsRow {
-	return mysqlsqlc.ListKnowledgeBasesByCodesAndBusinessIDsRow{
+func listByCodesAndBusinessIDsRow(f knowledgeBaseMapperFixture) mysqlsqlc.MagicFlowKnowledge {
+	return mysqlsqlc.MagicFlowKnowledge{
 		ID:                f.id,
 		Code:              f.code,
 		Version:           f.version,

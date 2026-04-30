@@ -134,9 +134,20 @@ func TestRunOptionsNormalizeDefaultsConcurrencyBeforeClamp(t *testing.T) {
 
 	opts := rebuilddto.RunOptions{}
 
-	got := apprebuild.NormalizeRunOptionsWithMaxConcurrencyForTest(opts, false, 3)
-	if got.Concurrency != 3 {
-		t.Fatalf("expected defaulted concurrency to be clamped to 3, got %d", got.Concurrency)
+	got := apprebuild.NormalizeRunOptionsWithMaxConcurrencyForTest(opts, false, 8)
+	if got.Concurrency != 2 {
+		t.Fatalf("expected defaulted concurrency 2, got %d", got.Concurrency)
+	}
+}
+
+func TestRunOptionsNormalizeClampsDefaultConcurrencyWhenServerLimitLower(t *testing.T) {
+	t.Parallel()
+
+	opts := rebuilddto.RunOptions{}
+
+	got := apprebuild.NormalizeRunOptionsWithMaxConcurrencyForTest(opts, false, 1)
+	if got.Concurrency != 1 {
+		t.Fatalf("expected defaulted concurrency to be clamped to 1, got %d", got.Concurrency)
 	}
 }
 

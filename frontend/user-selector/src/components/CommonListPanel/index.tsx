@@ -1,6 +1,11 @@
 import { memo, type ReactElement, type ReactNode } from "react"
 import InfiniteList from "../InfiniteList"
-import { type TreeNode, type CheckboxOptions, NodeType } from "../UserSelector/types"
+import {
+	type TreeNode,
+	type CheckboxOptions,
+	type RenderListItemRight,
+	NodeType,
+} from "../UserSelector/types"
 import { isDepartment, isMember, isUserGroup } from "@/utils"
 import { useControllableValue, useMemoizedFn } from "ahooks"
 import MemberItem from "./components/MemberItem"
@@ -32,6 +37,8 @@ interface CommonListPanelProps<T> {
 	loadMore?: () => void
 	/* 点击item */
 	onItemClick?: (node: TreeNode) => void
+	/* 自定义渲染列表项右侧内容 */
+	renderItemRight?: RenderListItemRight
 }
 
 const CommonListPanel = <T extends TreeNode>({
@@ -45,6 +52,7 @@ const CommonListPanel = <T extends TreeNode>({
 	emptyComponent,
 	loadMore,
 	onItemClick,
+	renderItemRight,
 }: CommonListPanelProps<T>) => {
 	const { getLocale } = useAppearance()
 	const locale = getLocale()
@@ -120,6 +128,12 @@ const CommonListPanel = <T extends TreeNode>({
 	const renderItem = (item: T) => {
 		const isChecked = checkedList?.some((c) => c.id === item.id)
 		const disabled = isDisabled(item)
+		const itemCanNext = canNext(item)
+		const rightContent = renderItemRight?.(item, {
+			isChecked,
+			disabled: disabled ?? false,
+			canNext: itemCanNext,
+		})
 
 		return (
 			<div
@@ -128,6 +142,7 @@ const CommonListPanel = <T extends TreeNode>({
 					"hover:bg-accent transition-colors",
 					!isMobile && "px-2",
 					isMobile && "pl-2",
+					isChecked && "bg-accent",
 				)}
 			>
 				{isMobile ? (
@@ -149,13 +164,18 @@ const CommonListPanel = <T extends TreeNode>({
 				)}
 				<div className="h-full min-w-0 flex-1">
 					{isMember(item) ? (
-						<MemberItem data={item} onItemClick={handleItemClick} />
+						<MemberItem
+							data={item}
+							rightContent={rightContent}
+							onItemClick={handleItemClick}
+						/>
 					) : (
 						<DepartmentItem
 							data={item}
 							onItemClick={handleItemClick}
-							showArrow={canNext(item)}
+							showArrow={itemCanNext}
 							isMobile={isMobile}
+							rightContent={rightContent}
 						/>
 					)}
 				</div>

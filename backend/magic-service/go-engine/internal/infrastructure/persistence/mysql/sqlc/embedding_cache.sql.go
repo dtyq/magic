@@ -8,7 +8,6 @@ package mysqlsqlc
 import (
 	"context"
 	"database/sql"
-	"encoding/json"
 	"strings"
 	"time"
 )
@@ -49,12 +48,118 @@ func (q *Queries) BasicStats(ctx context.Context) (BasicStatsRow, error) {
 	return i, err
 }
 
-const countByModel = `-- name: CountByModel :one
-SELECT COUNT(*) FROM embedding_cache WHERE embedding_model = ?
+const countExpiredCachesByAccess = `-- name: CountExpiredCachesByAccess :one
+SELECT COUNT(*)
+FROM embedding_cache
+WHERE access_count < ?
 `
 
-func (q *Queries) CountByModel(ctx context.Context, embeddingModel string) (int64, error) {
-	row := q.db.QueryRowContext(ctx, countByModel, embeddingModel)
+func (q *Queries) CountExpiredCachesByAccess(ctx context.Context, maxAccessCount int32) (int64, error) {
+	row := q.db.QueryRowContext(ctx, countExpiredCachesByAccess, maxAccessCount)
+	var count int64
+	err := row.Scan(&count)
+	return count, err
+}
+
+const countExpiredCachesByAccessOrAge = `-- name: CountExpiredCachesByAccessOrAge :one
+SELECT COUNT(*)
+FROM embedding_cache
+WHERE access_count < ?
+   OR created_at < ?
+`
+
+type CountExpiredCachesByAccessOrAgeParams struct {
+	MaxAccessCount   int32     `json:"max_access_count"`
+	MaxCreatedBefore time.Time `json:"max_created_before"`
+}
+
+func (q *Queries) CountExpiredCachesByAccessOrAge(ctx context.Context, arg CountExpiredCachesByAccessOrAgeParams) (int64, error) {
+	row := q.db.QueryRowContext(ctx, countExpiredCachesByAccessOrAge, arg.MaxAccessCount, arg.MaxCreatedBefore)
+	var count int64
+	err := row.Scan(&count)
+	return count, err
+}
+
+const countExpiredCachesByAccessOrIdle = `-- name: CountExpiredCachesByAccessOrIdle :one
+SELECT COUNT(*)
+FROM embedding_cache
+WHERE access_count < ?
+   OR last_accessed_at < ?
+`
+
+type CountExpiredCachesByAccessOrIdleParams struct {
+	MaxAccessCount int32     `json:"max_access_count"`
+	MaxIdleBefore  time.Time `json:"max_idle_before"`
+}
+
+func (q *Queries) CountExpiredCachesByAccessOrIdle(ctx context.Context, arg CountExpiredCachesByAccessOrIdleParams) (int64, error) {
+	row := q.db.QueryRowContext(ctx, countExpiredCachesByAccessOrIdle, arg.MaxAccessCount, arg.MaxIdleBefore)
+	var count int64
+	err := row.Scan(&count)
+	return count, err
+}
+
+const countExpiredCachesByAccessOrIdleOrAge = `-- name: CountExpiredCachesByAccessOrIdleOrAge :one
+SELECT COUNT(*)
+FROM embedding_cache
+WHERE access_count < ?
+   OR last_accessed_at < ?
+   OR created_at < ?
+`
+
+type CountExpiredCachesByAccessOrIdleOrAgeParams struct {
+	MaxAccessCount   int32     `json:"max_access_count"`
+	MaxIdleBefore    time.Time `json:"max_idle_before"`
+	MaxCreatedBefore time.Time `json:"max_created_before"`
+}
+
+func (q *Queries) CountExpiredCachesByAccessOrIdleOrAge(ctx context.Context, arg CountExpiredCachesByAccessOrIdleOrAgeParams) (int64, error) {
+	row := q.db.QueryRowContext(ctx, countExpiredCachesByAccessOrIdleOrAge, arg.MaxAccessCount, arg.MaxIdleBefore, arg.MaxCreatedBefore)
+	var count int64
+	err := row.Scan(&count)
+	return count, err
+}
+
+const countExpiredCachesByAge = `-- name: CountExpiredCachesByAge :one
+SELECT COUNT(*)
+FROM embedding_cache
+WHERE created_at < ?
+`
+
+func (q *Queries) CountExpiredCachesByAge(ctx context.Context, maxCreatedBefore time.Time) (int64, error) {
+	row := q.db.QueryRowContext(ctx, countExpiredCachesByAge, maxCreatedBefore)
+	var count int64
+	err := row.Scan(&count)
+	return count, err
+}
+
+const countExpiredCachesByIdle = `-- name: CountExpiredCachesByIdle :one
+SELECT COUNT(*)
+FROM embedding_cache
+WHERE last_accessed_at < ?
+`
+
+func (q *Queries) CountExpiredCachesByIdle(ctx context.Context, maxIdleBefore time.Time) (int64, error) {
+	row := q.db.QueryRowContext(ctx, countExpiredCachesByIdle, maxIdleBefore)
+	var count int64
+	err := row.Scan(&count)
+	return count, err
+}
+
+const countExpiredCachesByIdleOrAge = `-- name: CountExpiredCachesByIdleOrAge :one
+SELECT COUNT(*)
+FROM embedding_cache
+WHERE last_accessed_at < ?
+   OR created_at < ?
+`
+
+type CountExpiredCachesByIdleOrAgeParams struct {
+	MaxIdleBefore    time.Time `json:"max_idle_before"`
+	MaxCreatedBefore time.Time `json:"max_created_before"`
+}
+
+func (q *Queries) CountExpiredCachesByIdleOrAge(ctx context.Context, arg CountExpiredCachesByIdleOrAgeParams) (int64, error) {
+	row := q.db.QueryRowContext(ctx, countExpiredCachesByIdleOrAge, arg.MaxIdleBefore, arg.MaxCreatedBefore)
 	var count int64
 	err := row.Scan(&count)
 	return count, err
@@ -119,8 +224,7 @@ func (q *Queries) EstimateStorage(ctx context.Context) (int64, error) {
 }
 
 const findCacheByHash = `-- name: FindCacheByHash :one
-SELECT id, text_hash, text_preview, text_length, embedding, embedding_model,
-       vector_dimension, access_count, last_accessed_at, created_at, updated_at
+SELECT id, text_hash, text_preview, text_length, embedding, embedding_model, vector_dimension, access_count, last_accessed_at, created_at, updated_at
 FROM embedding_cache
 WHERE text_hash = ?
   AND embedding_model = ?
@@ -152,8 +256,7 @@ func (q *Queries) FindCacheByHash(ctx context.Context, arg FindCacheByHashParams
 }
 
 const findCachesByHashes = `-- name: FindCachesByHashes :many
-SELECT id, text_hash, text_preview, text_length, embedding, embedding_model,
-       vector_dimension, access_count, last_accessed_at, created_at, updated_at
+SELECT id, text_hash, text_preview, text_length, embedding, embedding_model, vector_dimension, access_count, last_accessed_at, created_at, updated_at
 FROM embedding_cache
 WHERE text_hash IN (/*SLICE:text_hashes*/?)
   AND embedding_model = ?
@@ -210,99 +313,6 @@ func (q *Queries) FindCachesByHashes(ctx context.Context, arg FindCachesByHashes
 	return items, nil
 }
 
-const getCachesByModel = `-- name: GetCachesByModel :many
-SELECT id, text_hash, text_preview, text_length, embedding, embedding_model,
-       vector_dimension, access_count, last_accessed_at, created_at, updated_at
-FROM embedding_cache
-WHERE embedding_model = ?
-ORDER BY created_at DESC, id DESC
-LIMIT ? OFFSET ?
-`
-
-type GetCachesByModelParams struct {
-	EmbeddingModel string `json:"embedding_model"`
-	Limit          int32  `json:"limit"`
-	Offset         int32  `json:"offset"`
-}
-
-func (q *Queries) GetCachesByModel(ctx context.Context, arg GetCachesByModelParams) ([]EmbeddingCache, error) {
-	rows, err := q.db.QueryContext(ctx, getCachesByModel, arg.EmbeddingModel, arg.Limit, arg.Offset)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	items := []EmbeddingCache{}
-	for rows.Next() {
-		var i EmbeddingCache
-		if err := rows.Scan(
-			&i.ID,
-			&i.TextHash,
-			&i.TextPreview,
-			&i.TextLength,
-			&i.Embedding,
-			&i.EmbeddingModel,
-			&i.VectorDimension,
-			&i.AccessCount,
-			&i.LastAccessedAt,
-			&i.CreatedAt,
-			&i.UpdatedAt,
-		); err != nil {
-			return nil, err
-		}
-		items = append(items, i)
-	}
-	if err := rows.Close(); err != nil {
-		return nil, err
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
-}
-
-const getLeastAccessed = `-- name: GetLeastAccessed :many
-SELECT id, text_hash, text_preview, text_length, embedding, embedding_model,
-       vector_dimension, access_count, last_accessed_at, created_at, updated_at
-FROM embedding_cache
-ORDER BY last_accessed_at ASC, access_count ASC
-LIMIT ?
-`
-
-func (q *Queries) GetLeastAccessed(ctx context.Context, limit int32) ([]EmbeddingCache, error) {
-	rows, err := q.db.QueryContext(ctx, getLeastAccessed, limit)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	items := []EmbeddingCache{}
-	for rows.Next() {
-		var i EmbeddingCache
-		if err := rows.Scan(
-			&i.ID,
-			&i.TextHash,
-			&i.TextPreview,
-			&i.TextLength,
-			&i.Embedding,
-			&i.EmbeddingModel,
-			&i.VectorDimension,
-			&i.AccessCount,
-			&i.LastAccessedAt,
-			&i.CreatedAt,
-			&i.UpdatedAt,
-		); err != nil {
-			return nil, err
-		}
-		items = append(items, i)
-	}
-	if err := rows.Close(); err != nil {
-		return nil, err
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
-}
-
 const insertEmbeddingCache = `-- name: InsertEmbeddingCache :execresult
 INSERT INTO embedding_cache (
   text_hash, text_preview, text_length, embedding, embedding_model,
@@ -311,16 +321,16 @@ INSERT INTO embedding_cache (
 `
 
 type InsertEmbeddingCacheParams struct {
-	TextHash        string          `json:"text_hash"`
-	TextPreview     string          `json:"text_preview"`
-	TextLength      int32           `json:"text_length"`
-	Embedding       json.RawMessage `json:"embedding"`
-	EmbeddingModel  string          `json:"embedding_model"`
-	VectorDimension int32           `json:"vector_dimension"`
-	AccessCount     int32           `json:"access_count"`
-	LastAccessedAt  time.Time       `json:"last_accessed_at"`
-	CreatedAt       time.Time       `json:"created_at"`
-	UpdatedAt       time.Time       `json:"updated_at"`
+	TextHash        string    `json:"text_hash"`
+	TextPreview     string    `json:"text_preview"`
+	TextLength      int32     `json:"text_length"`
+	Embedding       []byte    `json:"embedding"`
+	EmbeddingModel  string    `json:"embedding_model"`
+	VectorDimension int32     `json:"vector_dimension"`
+	AccessCount     int32     `json:"access_count"`
+	LastAccessedAt  time.Time `json:"last_accessed_at"`
+	CreatedAt       time.Time `json:"created_at"`
+	UpdatedAt       time.Time `json:"updated_at"`
 }
 
 func (q *Queries) InsertEmbeddingCache(ctx context.Context, arg InsertEmbeddingCacheParams) (sql.Result, error) {
@@ -346,16 +356,16 @@ INSERT IGNORE INTO embedding_cache (
 `
 
 type InsertEmbeddingCacheIgnoreParams struct {
-	TextHash        string          `json:"text_hash"`
-	TextPreview     string          `json:"text_preview"`
-	TextLength      int32           `json:"text_length"`
-	Embedding       json.RawMessage `json:"embedding"`
-	EmbeddingModel  string          `json:"embedding_model"`
-	VectorDimension int32           `json:"vector_dimension"`
-	AccessCount     int32           `json:"access_count"`
-	LastAccessedAt  time.Time       `json:"last_accessed_at"`
-	CreatedAt       time.Time       `json:"created_at"`
-	UpdatedAt       time.Time       `json:"updated_at"`
+	TextHash        string    `json:"text_hash"`
+	TextPreview     string    `json:"text_preview"`
+	TextLength      int32     `json:"text_length"`
+	Embedding       []byte    `json:"embedding"`
+	EmbeddingModel  string    `json:"embedding_model"`
+	VectorDimension int32     `json:"vector_dimension"`
+	AccessCount     int32     `json:"access_count"`
+	LastAccessedAt  time.Time `json:"last_accessed_at"`
+	CreatedAt       time.Time `json:"created_at"`
+	UpdatedAt       time.Time `json:"updated_at"`
 }
 
 func (q *Queries) InsertEmbeddingCacheIgnore(ctx context.Context, arg InsertEmbeddingCacheIgnoreParams) (sql.Result, error) {
@@ -371,6 +381,670 @@ func (q *Queries) InsertEmbeddingCacheIgnore(ctx context.Context, arg InsertEmbe
 		arg.CreatedAt,
 		arg.UpdatedAt,
 	)
+}
+
+const listExpiredCacheIDsByAccess = `-- name: ListExpiredCacheIDsByAccess :many
+SELECT id
+FROM embedding_cache
+WHERE access_count < ?
+ORDER BY last_accessed_at ASC, access_count ASC, id ASC
+LIMIT ? OFFSET ?
+`
+
+type ListExpiredCacheIDsByAccessParams struct {
+	MaxAccessCount int32 `json:"max_access_count"`
+	Limit          int32 `json:"limit"`
+	Offset         int32 `json:"offset"`
+}
+
+func (q *Queries) ListExpiredCacheIDsByAccess(ctx context.Context, arg ListExpiredCacheIDsByAccessParams) ([]int64, error) {
+	rows, err := q.db.QueryContext(ctx, listExpiredCacheIDsByAccess, arg.MaxAccessCount, arg.Limit, arg.Offset)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []int64{}
+	for rows.Next() {
+		var id int64
+		if err := rows.Scan(&id); err != nil {
+			return nil, err
+		}
+		items = append(items, id)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listExpiredCacheIDsByAccessOrAge = `-- name: ListExpiredCacheIDsByAccessOrAge :many
+SELECT id
+FROM embedding_cache
+WHERE access_count < ?
+   OR created_at < ?
+ORDER BY last_accessed_at ASC, access_count ASC, id ASC
+LIMIT ? OFFSET ?
+`
+
+type ListExpiredCacheIDsByAccessOrAgeParams struct {
+	MaxAccessCount   int32     `json:"max_access_count"`
+	MaxCreatedBefore time.Time `json:"max_created_before"`
+	Limit            int32     `json:"limit"`
+	Offset           int32     `json:"offset"`
+}
+
+func (q *Queries) ListExpiredCacheIDsByAccessOrAge(ctx context.Context, arg ListExpiredCacheIDsByAccessOrAgeParams) ([]int64, error) {
+	rows, err := q.db.QueryContext(ctx, listExpiredCacheIDsByAccessOrAge,
+		arg.MaxAccessCount,
+		arg.MaxCreatedBefore,
+		arg.Limit,
+		arg.Offset,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []int64{}
+	for rows.Next() {
+		var id int64
+		if err := rows.Scan(&id); err != nil {
+			return nil, err
+		}
+		items = append(items, id)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listExpiredCacheIDsByAccessOrIdle = `-- name: ListExpiredCacheIDsByAccessOrIdle :many
+SELECT id
+FROM embedding_cache
+WHERE access_count < ?
+   OR last_accessed_at < ?
+ORDER BY last_accessed_at ASC, access_count ASC, id ASC
+LIMIT ? OFFSET ?
+`
+
+type ListExpiredCacheIDsByAccessOrIdleParams struct {
+	MaxAccessCount int32     `json:"max_access_count"`
+	MaxIdleBefore  time.Time `json:"max_idle_before"`
+	Limit          int32     `json:"limit"`
+	Offset         int32     `json:"offset"`
+}
+
+func (q *Queries) ListExpiredCacheIDsByAccessOrIdle(ctx context.Context, arg ListExpiredCacheIDsByAccessOrIdleParams) ([]int64, error) {
+	rows, err := q.db.QueryContext(ctx, listExpiredCacheIDsByAccessOrIdle,
+		arg.MaxAccessCount,
+		arg.MaxIdleBefore,
+		arg.Limit,
+		arg.Offset,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []int64{}
+	for rows.Next() {
+		var id int64
+		if err := rows.Scan(&id); err != nil {
+			return nil, err
+		}
+		items = append(items, id)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listExpiredCacheIDsByAccessOrIdleOrAge = `-- name: ListExpiredCacheIDsByAccessOrIdleOrAge :many
+SELECT id
+FROM embedding_cache
+WHERE access_count < ?
+   OR last_accessed_at < ?
+   OR created_at < ?
+ORDER BY last_accessed_at ASC, access_count ASC, id ASC
+LIMIT ? OFFSET ?
+`
+
+type ListExpiredCacheIDsByAccessOrIdleOrAgeParams struct {
+	MaxAccessCount   int32     `json:"max_access_count"`
+	MaxIdleBefore    time.Time `json:"max_idle_before"`
+	MaxCreatedBefore time.Time `json:"max_created_before"`
+	Limit            int32     `json:"limit"`
+	Offset           int32     `json:"offset"`
+}
+
+func (q *Queries) ListExpiredCacheIDsByAccessOrIdleOrAge(ctx context.Context, arg ListExpiredCacheIDsByAccessOrIdleOrAgeParams) ([]int64, error) {
+	rows, err := q.db.QueryContext(ctx, listExpiredCacheIDsByAccessOrIdleOrAge,
+		arg.MaxAccessCount,
+		arg.MaxIdleBefore,
+		arg.MaxCreatedBefore,
+		arg.Limit,
+		arg.Offset,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []int64{}
+	for rows.Next() {
+		var id int64
+		if err := rows.Scan(&id); err != nil {
+			return nil, err
+		}
+		items = append(items, id)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listExpiredCacheIDsByAge = `-- name: ListExpiredCacheIDsByAge :many
+SELECT id
+FROM embedding_cache
+WHERE created_at < ?
+ORDER BY last_accessed_at ASC, access_count ASC, id ASC
+LIMIT ? OFFSET ?
+`
+
+type ListExpiredCacheIDsByAgeParams struct {
+	MaxCreatedBefore time.Time `json:"max_created_before"`
+	Limit            int32     `json:"limit"`
+	Offset           int32     `json:"offset"`
+}
+
+func (q *Queries) ListExpiredCacheIDsByAge(ctx context.Context, arg ListExpiredCacheIDsByAgeParams) ([]int64, error) {
+	rows, err := q.db.QueryContext(ctx, listExpiredCacheIDsByAge, arg.MaxCreatedBefore, arg.Limit, arg.Offset)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []int64{}
+	for rows.Next() {
+		var id int64
+		if err := rows.Scan(&id); err != nil {
+			return nil, err
+		}
+		items = append(items, id)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listExpiredCacheIDsByIdle = `-- name: ListExpiredCacheIDsByIdle :many
+SELECT id
+FROM embedding_cache
+WHERE last_accessed_at < ?
+ORDER BY last_accessed_at ASC, access_count ASC, id ASC
+LIMIT ? OFFSET ?
+`
+
+type ListExpiredCacheIDsByIdleParams struct {
+	MaxIdleBefore time.Time `json:"max_idle_before"`
+	Limit         int32     `json:"limit"`
+	Offset        int32     `json:"offset"`
+}
+
+func (q *Queries) ListExpiredCacheIDsByIdle(ctx context.Context, arg ListExpiredCacheIDsByIdleParams) ([]int64, error) {
+	rows, err := q.db.QueryContext(ctx, listExpiredCacheIDsByIdle, arg.MaxIdleBefore, arg.Limit, arg.Offset)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []int64{}
+	for rows.Next() {
+		var id int64
+		if err := rows.Scan(&id); err != nil {
+			return nil, err
+		}
+		items = append(items, id)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listExpiredCacheIDsByIdleOrAge = `-- name: ListExpiredCacheIDsByIdleOrAge :many
+SELECT id
+FROM embedding_cache
+WHERE last_accessed_at < ?
+   OR created_at < ?
+ORDER BY last_accessed_at ASC, access_count ASC, id ASC
+LIMIT ? OFFSET ?
+`
+
+type ListExpiredCacheIDsByIdleOrAgeParams struct {
+	MaxIdleBefore    time.Time `json:"max_idle_before"`
+	MaxCreatedBefore time.Time `json:"max_created_before"`
+	Limit            int32     `json:"limit"`
+	Offset           int32     `json:"offset"`
+}
+
+func (q *Queries) ListExpiredCacheIDsByIdleOrAge(ctx context.Context, arg ListExpiredCacheIDsByIdleOrAgeParams) ([]int64, error) {
+	rows, err := q.db.QueryContext(ctx, listExpiredCacheIDsByIdleOrAge,
+		arg.MaxIdleBefore,
+		arg.MaxCreatedBefore,
+		arg.Limit,
+		arg.Offset,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []int64{}
+	for rows.Next() {
+		var id int64
+		if err := rows.Scan(&id); err != nil {
+			return nil, err
+		}
+		items = append(items, id)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listExpiredCachesByAccess = `-- name: ListExpiredCachesByAccess :many
+SELECT id, text_hash, text_preview, text_length, embedding, embedding_model, vector_dimension, access_count, last_accessed_at, created_at, updated_at
+FROM embedding_cache
+WHERE access_count < ?
+ORDER BY last_accessed_at ASC, access_count ASC, id ASC
+LIMIT ? OFFSET ?
+`
+
+type ListExpiredCachesByAccessParams struct {
+	MaxAccessCount int32 `json:"max_access_count"`
+	Limit          int32 `json:"limit"`
+	Offset         int32 `json:"offset"`
+}
+
+func (q *Queries) ListExpiredCachesByAccess(ctx context.Context, arg ListExpiredCachesByAccessParams) ([]EmbeddingCache, error) {
+	rows, err := q.db.QueryContext(ctx, listExpiredCachesByAccess, arg.MaxAccessCount, arg.Limit, arg.Offset)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []EmbeddingCache{}
+	for rows.Next() {
+		var i EmbeddingCache
+		if err := rows.Scan(
+			&i.ID,
+			&i.TextHash,
+			&i.TextPreview,
+			&i.TextLength,
+			&i.Embedding,
+			&i.EmbeddingModel,
+			&i.VectorDimension,
+			&i.AccessCount,
+			&i.LastAccessedAt,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listExpiredCachesByAccessOrAge = `-- name: ListExpiredCachesByAccessOrAge :many
+SELECT id, text_hash, text_preview, text_length, embedding, embedding_model, vector_dimension, access_count, last_accessed_at, created_at, updated_at
+FROM embedding_cache
+WHERE access_count < ?
+   OR created_at < ?
+ORDER BY last_accessed_at ASC, access_count ASC, id ASC
+LIMIT ? OFFSET ?
+`
+
+type ListExpiredCachesByAccessOrAgeParams struct {
+	MaxAccessCount   int32     `json:"max_access_count"`
+	MaxCreatedBefore time.Time `json:"max_created_before"`
+	Limit            int32     `json:"limit"`
+	Offset           int32     `json:"offset"`
+}
+
+func (q *Queries) ListExpiredCachesByAccessOrAge(ctx context.Context, arg ListExpiredCachesByAccessOrAgeParams) ([]EmbeddingCache, error) {
+	rows, err := q.db.QueryContext(ctx, listExpiredCachesByAccessOrAge,
+		arg.MaxAccessCount,
+		arg.MaxCreatedBefore,
+		arg.Limit,
+		arg.Offset,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []EmbeddingCache{}
+	for rows.Next() {
+		var i EmbeddingCache
+		if err := rows.Scan(
+			&i.ID,
+			&i.TextHash,
+			&i.TextPreview,
+			&i.TextLength,
+			&i.Embedding,
+			&i.EmbeddingModel,
+			&i.VectorDimension,
+			&i.AccessCount,
+			&i.LastAccessedAt,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listExpiredCachesByAccessOrIdle = `-- name: ListExpiredCachesByAccessOrIdle :many
+SELECT id, text_hash, text_preview, text_length, embedding, embedding_model, vector_dimension, access_count, last_accessed_at, created_at, updated_at
+FROM embedding_cache
+WHERE access_count < ?
+   OR last_accessed_at < ?
+ORDER BY last_accessed_at ASC, access_count ASC, id ASC
+LIMIT ? OFFSET ?
+`
+
+type ListExpiredCachesByAccessOrIdleParams struct {
+	MaxAccessCount int32     `json:"max_access_count"`
+	MaxIdleBefore  time.Time `json:"max_idle_before"`
+	Limit          int32     `json:"limit"`
+	Offset         int32     `json:"offset"`
+}
+
+func (q *Queries) ListExpiredCachesByAccessOrIdle(ctx context.Context, arg ListExpiredCachesByAccessOrIdleParams) ([]EmbeddingCache, error) {
+	rows, err := q.db.QueryContext(ctx, listExpiredCachesByAccessOrIdle,
+		arg.MaxAccessCount,
+		arg.MaxIdleBefore,
+		arg.Limit,
+		arg.Offset,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []EmbeddingCache{}
+	for rows.Next() {
+		var i EmbeddingCache
+		if err := rows.Scan(
+			&i.ID,
+			&i.TextHash,
+			&i.TextPreview,
+			&i.TextLength,
+			&i.Embedding,
+			&i.EmbeddingModel,
+			&i.VectorDimension,
+			&i.AccessCount,
+			&i.LastAccessedAt,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listExpiredCachesByAccessOrIdleOrAge = `-- name: ListExpiredCachesByAccessOrIdleOrAge :many
+SELECT id, text_hash, text_preview, text_length, embedding, embedding_model, vector_dimension, access_count, last_accessed_at, created_at, updated_at
+FROM embedding_cache
+WHERE access_count < ?
+   OR last_accessed_at < ?
+   OR created_at < ?
+ORDER BY last_accessed_at ASC, access_count ASC, id ASC
+LIMIT ? OFFSET ?
+`
+
+type ListExpiredCachesByAccessOrIdleOrAgeParams struct {
+	MaxAccessCount   int32     `json:"max_access_count"`
+	MaxIdleBefore    time.Time `json:"max_idle_before"`
+	MaxCreatedBefore time.Time `json:"max_created_before"`
+	Limit            int32     `json:"limit"`
+	Offset           int32     `json:"offset"`
+}
+
+func (q *Queries) ListExpiredCachesByAccessOrIdleOrAge(ctx context.Context, arg ListExpiredCachesByAccessOrIdleOrAgeParams) ([]EmbeddingCache, error) {
+	rows, err := q.db.QueryContext(ctx, listExpiredCachesByAccessOrIdleOrAge,
+		arg.MaxAccessCount,
+		arg.MaxIdleBefore,
+		arg.MaxCreatedBefore,
+		arg.Limit,
+		arg.Offset,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []EmbeddingCache{}
+	for rows.Next() {
+		var i EmbeddingCache
+		if err := rows.Scan(
+			&i.ID,
+			&i.TextHash,
+			&i.TextPreview,
+			&i.TextLength,
+			&i.Embedding,
+			&i.EmbeddingModel,
+			&i.VectorDimension,
+			&i.AccessCount,
+			&i.LastAccessedAt,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listExpiredCachesByAge = `-- name: ListExpiredCachesByAge :many
+SELECT id, text_hash, text_preview, text_length, embedding, embedding_model, vector_dimension, access_count, last_accessed_at, created_at, updated_at
+FROM embedding_cache
+WHERE created_at < ?
+ORDER BY last_accessed_at ASC, access_count ASC, id ASC
+LIMIT ? OFFSET ?
+`
+
+type ListExpiredCachesByAgeParams struct {
+	MaxCreatedBefore time.Time `json:"max_created_before"`
+	Limit            int32     `json:"limit"`
+	Offset           int32     `json:"offset"`
+}
+
+func (q *Queries) ListExpiredCachesByAge(ctx context.Context, arg ListExpiredCachesByAgeParams) ([]EmbeddingCache, error) {
+	rows, err := q.db.QueryContext(ctx, listExpiredCachesByAge, arg.MaxCreatedBefore, arg.Limit, arg.Offset)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []EmbeddingCache{}
+	for rows.Next() {
+		var i EmbeddingCache
+		if err := rows.Scan(
+			&i.ID,
+			&i.TextHash,
+			&i.TextPreview,
+			&i.TextLength,
+			&i.Embedding,
+			&i.EmbeddingModel,
+			&i.VectorDimension,
+			&i.AccessCount,
+			&i.LastAccessedAt,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listExpiredCachesByIdle = `-- name: ListExpiredCachesByIdle :many
+SELECT id, text_hash, text_preview, text_length, embedding, embedding_model, vector_dimension, access_count, last_accessed_at, created_at, updated_at
+FROM embedding_cache
+WHERE last_accessed_at < ?
+ORDER BY last_accessed_at ASC, access_count ASC, id ASC
+LIMIT ? OFFSET ?
+`
+
+type ListExpiredCachesByIdleParams struct {
+	MaxIdleBefore time.Time `json:"max_idle_before"`
+	Limit         int32     `json:"limit"`
+	Offset        int32     `json:"offset"`
+}
+
+func (q *Queries) ListExpiredCachesByIdle(ctx context.Context, arg ListExpiredCachesByIdleParams) ([]EmbeddingCache, error) {
+	rows, err := q.db.QueryContext(ctx, listExpiredCachesByIdle, arg.MaxIdleBefore, arg.Limit, arg.Offset)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []EmbeddingCache{}
+	for rows.Next() {
+		var i EmbeddingCache
+		if err := rows.Scan(
+			&i.ID,
+			&i.TextHash,
+			&i.TextPreview,
+			&i.TextLength,
+			&i.Embedding,
+			&i.EmbeddingModel,
+			&i.VectorDimension,
+			&i.AccessCount,
+			&i.LastAccessedAt,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listExpiredCachesByIdleOrAge = `-- name: ListExpiredCachesByIdleOrAge :many
+SELECT id, text_hash, text_preview, text_length, embedding, embedding_model, vector_dimension, access_count, last_accessed_at, created_at, updated_at
+FROM embedding_cache
+WHERE last_accessed_at < ?
+   OR created_at < ?
+ORDER BY last_accessed_at ASC, access_count ASC, id ASC
+LIMIT ? OFFSET ?
+`
+
+type ListExpiredCachesByIdleOrAgeParams struct {
+	MaxIdleBefore    time.Time `json:"max_idle_before"`
+	MaxCreatedBefore time.Time `json:"max_created_before"`
+	Limit            int32     `json:"limit"`
+	Offset           int32     `json:"offset"`
+}
+
+func (q *Queries) ListExpiredCachesByIdleOrAge(ctx context.Context, arg ListExpiredCachesByIdleOrAgeParams) ([]EmbeddingCache, error) {
+	rows, err := q.db.QueryContext(ctx, listExpiredCachesByIdleOrAge,
+		arg.MaxIdleBefore,
+		arg.MaxCreatedBefore,
+		arg.Limit,
+		arg.Offset,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []EmbeddingCache{}
+	for rows.Next() {
+		var i EmbeddingCache
+		if err := rows.Scan(
+			&i.ID,
+			&i.TextHash,
+			&i.TextPreview,
+			&i.TextLength,
+			&i.Embedding,
+			&i.EmbeddingModel,
+			&i.VectorDimension,
+			&i.AccessCount,
+			&i.LastAccessedAt,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }
 
 const modelStats = `-- name: ModelStats :many
@@ -459,16 +1133,16 @@ ON DUPLICATE KEY UPDATE
 `
 
 type UpsertOCRCacheParams struct {
-	TextHash        string          `json:"text_hash"`
-	TextPreview     string          `json:"text_preview"`
-	TextLength      int32           `json:"text_length"`
-	Embedding       json.RawMessage `json:"embedding"`
-	EmbeddingModel  string          `json:"embedding_model"`
-	VectorDimension int32           `json:"vector_dimension"`
-	AccessCount     int32           `json:"access_count"`
-	LastAccessedAt  time.Time       `json:"last_accessed_at"`
-	CreatedAt       time.Time       `json:"created_at"`
-	UpdatedAt       time.Time       `json:"updated_at"`
+	TextHash        string    `json:"text_hash"`
+	TextPreview     string    `json:"text_preview"`
+	TextLength      int32     `json:"text_length"`
+	Embedding       []byte    `json:"embedding"`
+	EmbeddingModel  string    `json:"embedding_model"`
+	VectorDimension int32     `json:"vector_dimension"`
+	AccessCount     int32     `json:"access_count"`
+	LastAccessedAt  time.Time `json:"last_accessed_at"`
+	CreatedAt       time.Time `json:"created_at"`
+	UpdatedAt       time.Time `json:"updated_at"`
 }
 
 func (q *Queries) UpsertOCRCache(ctx context.Context, arg UpsertOCRCacheParams) (sql.Result, error) {

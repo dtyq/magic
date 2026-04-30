@@ -6,17 +6,13 @@ import (
 	fragdomain "magic/internal/domain/knowledge/fragment/service"
 	"magic/internal/domain/knowledge/shared"
 	sharedroute "magic/internal/domain/knowledge/shared/route"
+	sharedsnapshot "magic/internal/domain/knowledge/shared/snapshot"
 )
 
 func TestBuildManualDocumentPrefersResolvedRouteModel(t *testing.T) {
 	t.Parallel()
 
-	kb := &struct {
-		Code            string
-		Model           string
-		EmbeddingConfig *shared.EmbeddingConfig
-		ResolvedRoute   *sharedroute.ResolvedRoute
-	}{
+	kb := &sharedsnapshot.KnowledgeBaseRuntimeSnapshot{
 		Code:            "KB1",
 		Model:           "stale-model",
 		EmbeddingConfig: &shared.EmbeddingConfig{ModelID: "config-model"},
@@ -39,11 +35,7 @@ func TestBuildManualDocumentPrefersResolvedRouteModel(t *testing.T) {
 func TestBuildLegacyThirdPlatformDocumentFallsBackToKnowledgeBaseModel(t *testing.T) {
 	t.Parallel()
 
-	kb := &struct {
-		Code            string
-		Model           string
-		EmbeddingConfig *shared.EmbeddingConfig
-	}{
+	kb := &sharedsnapshot.KnowledgeBaseRuntimeSnapshot{
 		Code:            "KB1",
 		Model:           "kb-model",
 		EmbeddingConfig: &shared.EmbeddingConfig{ModelID: "config-model"},

@@ -53,7 +53,7 @@ func (c *PHPProjectFileRPCClient) Resolve(ctx context.Context, projectFileID int
 		"project_file_id": projectFileID,
 	}, &result); err != nil {
 		if c.logger != nil {
-			c.logger.ErrorContext(ctx, "调用 PHP 项目文件解析失败", "project_file_id", projectFileID, "error", err)
+			c.logger.KnowledgeErrorContext(ctx, "调用 PHP 项目文件解析失败", "project_file_id", projectFileID, "error", err)
 		}
 		return nil, errors.Join(ErrPHPRequestFailed, err)
 	}
@@ -74,7 +74,7 @@ func (c *PHPProjectFileRPCClient) ListByProject(ctx context.Context, projectID i
 		"project_id": projectID,
 	}, &result); err != nil {
 		if c.logger != nil {
-			c.logger.ErrorContext(ctx, "调用 PHP 项目文件列表失败", "project_id", projectID, "error", err)
+			c.logger.KnowledgeErrorContext(ctx, "调用 PHP 项目文件列表失败", "project_id", projectID, "error", err)
 		}
 		return nil, errors.Join(ErrPHPRequestFailed, err)
 	}
@@ -106,7 +106,7 @@ func (c *PHPProjectFileRPCClient) ListWorkspaces(
 		"limit":  limit,
 	}, &result); err != nil {
 		if c.logger != nil {
-			c.logger.ErrorContext(ctx, "调用 PHP 工作区列表失败", "error", err)
+			c.logger.KnowledgeErrorContext(ctx, "调用 PHP 工作区列表失败", "error", err)
 		}
 		return nil, errors.Join(ErrPHPRequestFailed, err)
 	}
@@ -141,7 +141,7 @@ func (c *PHPProjectFileRPCClient) ListProjects(
 		"limit":        limit,
 	}, &result); err != nil {
 		if c.logger != nil {
-			c.logger.ErrorContext(ctx, "调用 PHP 项目列表失败", "workspace_id", workspaceID, "error", err)
+			c.logger.KnowledgeErrorContext(ctx, "调用 PHP 项目列表失败", "workspace_id", workspaceID, "error", err)
 		}
 		return nil, errors.Join(ErrPHPRequestFailed, err)
 	}
@@ -164,7 +164,7 @@ func (c *PHPProjectFileRPCClient) ListTreeNodes(ctx context.Context, parentType 
 		"parent_ref":  parentRef,
 	}, &result); err != nil {
 		if c.logger != nil {
-			c.logger.ErrorContext(ctx, "调用 PHP 项目树节点失败", "parent_type", parentType, "parent_ref", parentRef, "error", err)
+			c.logger.KnowledgeErrorContext(ctx, "调用 PHP 项目树节点失败", "parent_type", parentType, "parent_ref", parentRef, "error", err)
 		}
 		return nil, errors.Join(ErrPHPRequestFailed, err)
 	}
@@ -193,11 +193,14 @@ func (c *PHPProjectFileRPCClient) GetLink(ctx context.Context, projectFileID int
 		"expire_seconds":  expireSeconds,
 	}, &result); err != nil {
 		if c.logger != nil {
-			c.logger.ErrorContext(ctx, "调用 PHP 项目文件链接失败", "project_file_id", projectFileID, "error", err)
+			c.logger.KnowledgeErrorContext(ctx, "调用 PHP 项目文件链接失败", "project_file_id", projectFileID, "error", err)
 		}
 		return "", errors.Join(ErrPHPRequestFailed, err)
 	}
 	if result.Code != 0 {
+		if result.Code == http.StatusNotFound {
+			return "", fmt.Errorf("%w: code=%d, message=%s", projectfile.ErrFileUnavailable, result.Code, result.Message)
+		}
 		return "", fmt.Errorf("%w: code=%d, message=%s", ErrPHPRequestFailed, result.Code, result.Message)
 	}
 	return strings.TrimSpace(result.Data.URL), nil

@@ -78,7 +78,7 @@ func main() {
 	}
 
 	if err != nil {
-		logger.ErrorContext(ctx, "Bootstrap failed", "error", err)
+		logger.KnowledgeErrorContext(ctx, "Bootstrap failed", "error", err)
 		return
 	}
 

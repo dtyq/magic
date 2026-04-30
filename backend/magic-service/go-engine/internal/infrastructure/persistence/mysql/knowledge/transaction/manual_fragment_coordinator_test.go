@@ -9,7 +9,7 @@ import (
 	"github.com/DATA-DOG/go-sqlmock"
 	mysqlDriver "github.com/go-sql-driver/mysql"
 
-	"magic/internal/domain/knowledge/document/service"
+	docentity "magic/internal/domain/knowledge/document/entity"
 	fragmodel "magic/internal/domain/knowledge/fragment/model"
 	"magic/internal/domain/knowledge/shared"
 	mysqlclient "magic/internal/infrastructure/persistence/mysql"
@@ -36,7 +36,7 @@ func TestManualFragmentCoordinatorEnsureDocumentAndSaveFragmentWithExistingDocum
 	doc := sampleDocument()
 	doc.Code = testExistingDocumentCode
 	doc.Name = testExistingDocumentCode
-	doc.DocType = int(document.DocTypeFile)
+	doc.DocType = int(docentity.DocumentInputKindFile)
 	doc.OrganizationCode = "ORG1"
 	doc.KnowledgeBaseCode = "KB1"
 	fragment := sampleFragment()
@@ -55,7 +55,7 @@ func TestManualFragmentCoordinatorEnsureDocumentAndSaveFragmentWithExistingDocum
 	if resolvedDoc == nil || resolvedDoc.Code != testExistingDocumentCode || fragment.ID != 88 {
 		t.Fatalf("unexpected resolved doc=%#v fragment=%#v", resolvedDoc, fragment)
 	}
-	if fragment.DocumentName != testExistingDocumentCode || fragment.DocumentType != int(document.DocTypeFile) {
+	if fragment.DocumentName != testExistingDocumentCode || fragment.DocumentType != int(docentity.DocumentInputKindFile) {
 		t.Fatalf("unexpected fragment after save: %#v", fragment)
 	}
 	if err := mock.ExpectationsWereMet(); err != nil {
@@ -75,7 +75,7 @@ func TestManualFragmentCoordinatorEnsureDocumentAndSaveFragmentAutoCreatesDocume
 	}()
 
 	coordinator := transaction.NewManualFragmentCoordinator(mysqlclient.NewSQLCClientWithDB(db, nil, false), nil)
-	doc := document.NewDocument("KB1", testAutoCreatedDocCode, testAutoCreatedDocCode, document.DocTypeText, "U1", "ORG1")
+	doc := docentity.NewDocument("KB1", testAutoCreatedDocCode, testAutoCreatedDocCode, docentity.DocumentInputKindText, "U1", "ORG1")
 	doc.SyncStatus = shared.SyncStatusSynced
 	doc.EmbeddingModel = "text-embedding-3-small"
 	doc.VectorDB = "qdrant"
@@ -83,7 +83,7 @@ func TestManualFragmentCoordinatorEnsureDocumentAndSaveFragmentAutoCreatesDocume
 	fragment := fragmodel.NewFragment("KB1", testAutoCreatedDocCode, "manual content", map[string]any{"tag": "manual"}, "U1")
 	fragment.OrganizationCode = "ORG1"
 	fragment.DocumentName = testAutoCreatedDocCode
-	fragment.DocumentType = int(document.DocTypeText)
+	fragment.DocumentType = int(docentity.DocumentInputKindText)
 
 	mock.ExpectBegin()
 	expectDocumentFindByCodeAndKnowledgeBaseMiss(mock, testAutoCreatedDocCode, "KB1")
@@ -98,7 +98,7 @@ func TestManualFragmentCoordinatorEnsureDocumentAndSaveFragmentAutoCreatesDocume
 	if resolvedDoc == nil || resolvedDoc.ID != 21 || resolvedDoc.Code != testAutoCreatedDocCode {
 		t.Fatalf("unexpected resolved doc: %#v", resolvedDoc)
 	}
-	if fragment.ID != 22 || fragment.DocumentName != testAutoCreatedDocCode || fragment.DocumentType != int(document.DocTypeText) {
+	if fragment.ID != 22 || fragment.DocumentName != testAutoCreatedDocCode || fragment.DocumentType != int(docentity.DocumentInputKindText) {
 		t.Fatalf("unexpected fragment: %#v", fragment)
 	}
 	if err := mock.ExpectationsWereMet(); err != nil {
@@ -118,7 +118,7 @@ func TestManualFragmentCoordinatorEnsureDocumentAndSaveFragmentRollsBackOnFragme
 	}()
 
 	coordinator := transaction.NewManualFragmentCoordinator(mysqlclient.NewSQLCClientWithDB(db, nil, false), nil)
-	doc := document.NewDocument("KB1", testAutoCreatedDocCode, testAutoCreatedDocCode, document.DocTypeText, "U1", "ORG1")
+	doc := docentity.NewDocument("KB1", testAutoCreatedDocCode, testAutoCreatedDocCode, docentity.DocumentInputKindText, "U1", "ORG1")
 	doc.SyncStatus = shared.SyncStatusSynced
 	fragment := fragmodel.NewFragment("KB1", testAutoCreatedDocCode, "manual content", map[string]any{}, "U1")
 
@@ -155,7 +155,7 @@ func TestManualFragmentCoordinatorEnsureDocumentAndSaveFragmentFallsBackAfterDup
 	}()
 
 	coordinator := transaction.NewManualFragmentCoordinator(mysqlclient.NewSQLCClientWithDB(db, nil, false), nil)
-	doc := document.NewDocument("KB1", testAutoCreatedDocCode, testAutoCreatedDocCode, document.DocTypeText, "U1", "ORG1")
+	doc := docentity.NewDocument("KB1", testAutoCreatedDocCode, testAutoCreatedDocCode, docentity.DocumentInputKindText, "U1", "ORG1")
 	doc.SyncStatus = shared.SyncStatusSynced
 	fragment := fragmodel.NewFragment("KB1", testAutoCreatedDocCode, "manual content", map[string]any{}, "U1")
 
@@ -178,23 +178,14 @@ func TestManualFragmentCoordinatorEnsureDocumentAndSaveFragmentFallsBackAfterDup
 	}
 }
 
-func expectDocumentFindByCodeAndKnowledgeBaseHit(t *testing.T, mock sqlmock.Sqlmock, doc *document.KnowledgeBaseDocument) {
+func expectDocumentFindByCodeAndKnowledgeBaseHit(t *testing.T, mock sqlmock.Sqlmock, doc *docentity.KnowledgeBaseDocument) {
 	t.Helper()
-	mock.ExpectQuery(sqlPattern(`SELECT id, organization_code, knowledge_base_code, source_binding_id, source_item_id, auto_added, name, description, code,
-       enabled, doc_type, doc_metadata, document_file, sync_status, sync_times, sync_status_message, embedding_model, vector_db,
-       retrieve_config, fragment_config, embedding_config, vector_db_config, word_count, third_platform_type, third_file_id,
-       created_uid, updated_uid, created_at, updated_at, deleted_at
-FROM knowledge_base_documents
-WHERE code = ?
-  AND knowledge_base_code = ?
-  AND deleted_at IS NULL
-ORDER BY id DESC
-LIMIT 1`)).
+	mock.ExpectQuery(sqlContains("FindDocumentByCodeAndKnowledgeBase")).
 		WithArgs(doc.Code, doc.KnowledgeBaseCode).
 		WillReturnRows(sqlmock.NewRows(documentRowColumns()).AddRow(sampleDocumentRowValuesFromDocument(t, doc)...))
 }
 
-func expectDocumentInsert(t *testing.T, mock sqlmock.Sqlmock, doc *document.KnowledgeBaseDocument, id int64) {
+func expectDocumentInsert(t *testing.T, mock sqlmock.Sqlmock, doc *docentity.KnowledgeBaseDocument, id int64) {
 	t.Helper()
 	mock.ExpectExec(sqlPattern(`INSERT INTO knowledge_base_documents (
   organization_code, knowledge_base_code, source_binding_id, source_item_id, auto_added, name, description, code,
@@ -217,7 +208,7 @@ func expectDocumentInsert(t *testing.T, mock sqlmock.Sqlmock, doc *document.Know
 		WillReturnResult(sqlmock.NewResult(id, 1))
 }
 
-func expectDocumentInsertDuplicate(t *testing.T, mock sqlmock.Sqlmock, doc *document.KnowledgeBaseDocument) {
+func expectDocumentInsertDuplicate(t *testing.T, mock sqlmock.Sqlmock, doc *docentity.KnowledgeBaseDocument) {
 	t.Helper()
 	mock.ExpectExec(sqlPattern(`INSERT INTO knowledge_base_documents (
   organization_code, knowledge_base_code, source_binding_id, source_item_id, auto_added, name, description, code,
@@ -268,7 +259,7 @@ created_uid, updated_uid, created_at, updated_at
 		WillReturnResult(sqlmock.NewResult(id, 1))
 }
 
-func sampleDocumentRowValuesFromDocument(t *testing.T, doc *document.KnowledgeBaseDocument) []driver.Value {
+func sampleDocumentRowValuesFromDocument(t *testing.T, doc *docentity.KnowledgeBaseDocument) []driver.Value {
 	t.Helper()
 	rowValues := sampleDocumentRowValuesWithCode(t, doc.Code, sql.NullTime{})
 	rowValues[1] = doc.OrganizationCode
@@ -279,18 +270,18 @@ func sampleDocumentRowValuesFromDocument(t *testing.T, doc *document.KnowledgeBa
 	rowValues[6] = doc.Name
 	rowValues[7] = doc.Description
 	rowValues[8] = doc.Code
-	rowValues[10] = mustUint32Repo(t, doc.DocType)
-	rowValues[16] = doc.EmbeddingModel
-	rowValues[17] = doc.VectorDB
+	rowValues[11] = mustUint32Repo(t, doc.DocType)
+	rowValues[17] = doc.EmbeddingModel
+	rowValues[18] = doc.VectorDB
 	if doc.ThirdPlatformType == "" {
-		rowValues[23] = nil
+		rowValues[29] = nil
 	} else {
-		rowValues[23] = doc.ThirdPlatformType
+		rowValues[29] = doc.ThirdPlatformType
 	}
 	if doc.ThirdFileID == "" {
-		rowValues[24] = nil
+		rowValues[30] = nil
 	} else {
-		rowValues[24] = doc.ThirdFileID
+		rowValues[30] = doc.ThirdFileID
 	}
 	return rowValues
 }

@@ -4,10 +4,12 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"maps"
 	"strings"
 
 	fragmodel "magic/internal/domain/knowledge/fragment/model"
 	"magic/internal/domain/knowledge/shared"
+	sharedsnapshot "magic/internal/domain/knowledge/shared/snapshot"
 )
 
 var (
@@ -25,7 +27,7 @@ var (
 
 // ManualWriteLifecycleInput 描述一次手工 fragment 写入生命周期输入。
 type ManualWriteLifecycleInput struct {
-	KnowledgeBase any
+	KnowledgeBase *sharedsnapshot.KnowledgeBaseRuntimeSnapshot
 	Fragment      ManualFragmentInput
 }
 
@@ -41,15 +43,15 @@ type LegacyThirdPlatformDocumentSeed struct {
 
 // ManualWriteLifecyclePorts 定义手工写入生命周期依赖的文档端口。
 type ManualWriteLifecyclePorts struct {
-	LoadDocumentByCode              func(context.Context, string, string) (*KnowledgeBaseDocument, error)
-	FindDocumentByLegacyThirdFile   func(context.Context, string, string, string) (*KnowledgeBaseDocument, error)
+	LoadDocumentByCode              func(context.Context, string, string) (*fragmodel.KnowledgeBaseDocument, error)
+	FindDocumentByLegacyThirdFile   func(context.Context, string, string, string) (*fragmodel.KnowledgeBaseDocument, error)
 	BuildLegacyThirdPlatformDocSpec func(context.Context, LegacyThirdPlatformDocumentSeed) (*LegacyThirdPlatformDocumentSpec, error)
 }
 
 // ManualWriteLifecycleResult 描述生命周期输出。
 type ManualWriteLifecycleResult struct {
 	DocumentPlan CreateFragmentDocumentPlan
-	Document     *KnowledgeBaseDocument
+	Document     *fragmodel.KnowledgeBaseDocument
 	Fragment     *fragmodel.KnowledgeBaseFragment
 }
 
@@ -92,7 +94,7 @@ func resolveManualWriteLifecycleDocument(
 	input ManualWriteLifecycleInput,
 	plan CreateFragmentDocumentPlan,
 	ports ManualWriteLifecyclePorts,
-) (*KnowledgeBaseDocument, error) {
+) (*fragmodel.KnowledgeBaseDocument, error) {
 	switch plan.Strategy {
 	case CreateFragmentDocumentByCode:
 		return resolveManualWriteDocumentByCode(ctx, plan, input.Fragment.KnowledgeCode, ports)
@@ -108,7 +110,7 @@ func resolveManualWriteDocumentByCode(
 	plan CreateFragmentDocumentPlan,
 	knowledgeCode string,
 	ports ManualWriteLifecyclePorts,
-) (*KnowledgeBaseDocument, error) {
+) (*fragmodel.KnowledgeBaseDocument, error) {
 	if ports.LoadDocumentByCode == nil {
 		return nil, ErrManualWriteDocumentLoaderNil
 	}
@@ -132,7 +134,7 @@ func resolveManualWriteLegacyThirdPlatformDocument(
 	input ManualWriteLifecycleInput,
 	plan CreateFragmentDocumentPlan,
 	ports ManualWriteLifecyclePorts,
-) (*KnowledgeBaseDocument, error) {
+) (*fragmodel.KnowledgeBaseDocument, error) {
 	if strings.TrimSpace(plan.ThirdFileID) == "" {
 		return nil, shared.ErrFragmentDocumentCodeRequired
 	}
@@ -163,7 +165,7 @@ func resolveManualWriteLegacyThirdPlatformDocument(
 		ThirdFileID:       strings.TrimSpace(plan.ThirdFileID),
 		UserID:            strings.TrimSpace(input.Fragment.UserID),
 		OrganizationCode:  strings.TrimSpace(input.Fragment.OrganizationCode),
-		Metadata:          cloneMap(input.Fragment.Metadata),
+		Metadata:          maps.Clone(input.Fragment.Metadata),
 	})
 	if err != nil {
 		return nil, fmt.Errorf("build legacy third-platform document spec: %w", err)

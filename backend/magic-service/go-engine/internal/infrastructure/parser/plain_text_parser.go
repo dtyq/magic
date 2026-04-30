@@ -5,7 +5,7 @@ import (
 	"io"
 	"strings"
 
-	documentdomain "magic/internal/domain/knowledge/document/service"
+	documentdomain "magic/internal/domain/knowledge/document/metadata"
 )
 
 // PlainTextParser 解析纯文本文件。

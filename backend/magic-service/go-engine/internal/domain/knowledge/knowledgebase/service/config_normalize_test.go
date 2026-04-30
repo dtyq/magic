@@ -4,6 +4,7 @@ import (
 	"context"
 	"testing"
 
+	kbentity "magic/internal/domain/knowledge/knowledgebase/entity"
 	knowledgebasedomain "magic/internal/domain/knowledge/knowledgebase/service"
 	"magic/internal/domain/knowledge/shared"
 )
@@ -11,7 +12,7 @@ import (
 func TestBuildKnowledgeBaseForCreateNormalizesEmptyConfigs(t *testing.T) {
 	t.Parallel()
 
-	kb := knowledgebasedomain.BuildKnowledgeBaseForCreate(&knowledgebasedomain.CreateInput{
+	kb := kbentity.BuildKnowledgeBaseForCreate(&kbentity.CreateInput{
 		Name: "知识库",
 	})
 	if kb == nil {
@@ -30,12 +31,12 @@ func TestNormalizeKnowledgeBaseConfigsKeepsExistingConfigs(t *testing.T) {
 
 	retrieveConfig := &shared.RetrieveConfig{TopK: 3}
 	fragmentConfig := &shared.FragmentConfig{Mode: shared.FragmentModeHierarchy}
-	kb := &knowledgebasedomain.KnowledgeBase{
+	kb := &kbentity.KnowledgeBase{
 		RetrieveConfig: retrieveConfig,
 		FragmentConfig: fragmentConfig,
 	}
 
-	got := knowledgebasedomain.NormalizeKnowledgeBaseConfigs(kb)
+	got := kbentity.NormalizeKnowledgeBaseConfigs(kb)
 	if got != kb {
 		t.Fatal("expected in-place normalization")
 	}
@@ -52,7 +53,7 @@ func TestKnowledgeBaseDomainServiceSaveNormalizesEmptyConfigsBeforePersist(t *te
 	resolver := &stubEmbeddingDimensionResolver{dimension: 3072}
 	svc := knowledgebasedomain.NewDomainService(repo, vectorRepo, resolver, "", "", testKnowledgeBaseDomainLogger())
 
-	kb := &knowledgebasedomain.KnowledgeBase{Code: testKnowledgeBaseCode}
+	kb := &kbentity.KnowledgeBase{Code: testKnowledgeBaseCode}
 	if err := svc.Save(context.Background(), kb); err != nil {
 		t.Fatalf("Save returned error: %v", err)
 	}
@@ -70,7 +71,7 @@ func TestKnowledgeBaseDomainServiceUpdateNormalizesEmptyConfigsBeforePersist(t *
 	repo := &stubKnowledgeBaseRepository{}
 	svc := knowledgebasedomain.NewDomainService(repo, &stubVectorDBManagementRepository{}, nil, "", "", testKnowledgeBaseDomainLogger())
 
-	kb := &knowledgebasedomain.KnowledgeBase{Code: testKnowledgeBaseCode}
+	kb := &kbentity.KnowledgeBase{Code: testKnowledgeBaseCode}
 	if err := svc.Update(context.Background(), kb); err != nil {
 		t.Fatalf("Update returned error: %v", err)
 	}

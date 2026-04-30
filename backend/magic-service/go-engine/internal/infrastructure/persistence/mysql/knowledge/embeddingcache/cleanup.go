@@ -2,125 +2,82 @@ package embeddingcache
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"time"
 
-	sq "github.com/Masterminds/squirrel"
-
 	"magic/internal/domain/knowledge/embedding"
-	"magic/internal/pkg/logkey"
+	mysqlsqlc "magic/internal/infrastructure/persistence/mysql/sqlc"
 	"magic/pkg/convert"
 )
 
+type cleanupMask uint8
+
+const (
+	cleanupMaskAccess cleanupMask = 1 << iota
+	cleanupMaskIdle
+	cleanupMaskAge
+)
+
+type cleanupQueryPlan struct {
+	mask             cleanupMask
+	maxAccessCount   int32
+	maxIdleBefore    time.Time
+	maxCreatedBefore time.Time
+	limit            int32
+	offset           int32
+}
+
+var (
+	errCleanupLimitNegative   = errors.New("cleanup limit must be >= 0")
+	errCleanupOffsetNegative  = errors.New("cleanup offset must be >= 0")
+	errUnsupportedCleanupMask = errors.New("unsupported cleanup mask")
+)
+
 // FindExpiredCaches 查找过期的缓存记录
-func (repo *Repository) FindExpiredCaches(ctx context.Context, criteria *embedding.CacheCleanupCriteria, offset, limit int) ([]*embedding.Cache, error) {
-	now := time.Now()
-	orConds := sq.Or{}
-
-	if criteria.MinAccessCount > 0 {
-		orConds = append(orConds, sq.Lt{"access_count": criteria.MinAccessCount})
+func (repo *Repository) FindExpiredCaches(
+	ctx context.Context,
+	criteria *embedding.CacheCleanupCriteria,
+	offset, limit int,
+) ([]*embedding.Cache, error) {
+	plan, hasConditions, err := buildCleanupQueryPlan(criteria, time.Now(), offset, limit)
+	if err != nil {
+		return nil, err
 	}
-
-	if criteria.MaxIdleDuration > 0 {
-		idleThreshold := now.Add(-criteria.MaxIdleDuration)
-		orConds = append(orConds, sq.Lt{"last_accessed_at": idleThreshold})
-	}
-
-	if criteria.MaxCacheAge > 0 {
-		ageThreshold := now.Add(-criteria.MaxCacheAge)
-		orConds = append(orConds, sq.Lt{"created_at": ageThreshold})
-	}
-
-	if len(orConds) == 0 {
+	if !hasConditions {
 		return []*embedding.Cache{}, nil
 	}
 
-	limitU64, err := convert.SafeIntToUint64(limit, "limit")
-	if err != nil {
-		return nil, fmt.Errorf("invalid limit: %w", err)
-	}
-	offsetU64, err := convert.SafeIntToUint64(offset, "offset")
-	if err != nil {
-		return nil, fmt.Errorf("invalid offset: %w", err)
-	}
-
-	query := sq.Select("id", "text_hash", "text_preview", "text_length", "embedding", "embedding_model",
-		"vector_dimension", "access_count", "last_accessed_at", "created_at", "updated_at").
-		From("embedding_cache").
-		Where(orConds).
-		OrderBy("last_accessed_at ASC", "access_count ASC").
-		Limit(limitU64).
-		Offset(offsetU64).
-		PlaceholderFormat(sq.Question)
-
-	sqlStr, args, err := query.ToSql()
-	if err != nil {
-		return nil, fmt.Errorf("failed to build find expired caches query: %w", err)
-	}
-
-	rows, err := repo.client.QueryContext(ctx, sqlStr, args...)
+	rows, err := repo.listExpiredCaches(ctx, plan)
 	if err != nil {
 		return nil, fmt.Errorf("failed to find expired caches: %w", err)
 	}
-	defer func() {
-		if closeErr := rows.Close(); closeErr != nil {
-			repo.logger.WarnContext(ctx, "failed to close rows", logkey.Error, closeErr)
-		}
-	}()
 
-	var caches []*embedding.Cache
-	for rows.Next() {
-		cache, err := scanCacheRow(rows)
+	caches := make([]*embedding.Cache, 0, len(rows))
+	for _, row := range rows {
+		cache, err := sqlcCacheToEntity(row)
 		if err != nil {
-			return nil, fmt.Errorf("failed to scan cache row: %w", err)
+			return nil, err
 		}
 		caches = append(caches, cache)
-	}
-	if err := rows.Err(); err != nil {
-		return nil, fmt.Errorf("rows error: %w", err)
 	}
 	return caches, nil
 }
 
 // CountExpiredCaches 统计过期缓存的数量
 func (repo *Repository) CountExpiredCaches(ctx context.Context, criteria *embedding.CacheCleanupCriteria) (int64, error) {
-	now := time.Now()
-	orConds := sq.Or{}
-
-	if criteria.MinAccessCount > 0 {
-		orConds = append(orConds, sq.Lt{"access_count": criteria.MinAccessCount})
+	plan, hasConditions, err := buildCleanupQueryPlan(criteria, time.Now(), 0, 1)
+	if err != nil {
+		return 0, err
 	}
-
-	if criteria.MaxIdleDuration > 0 {
-		idleThreshold := now.Add(-criteria.MaxIdleDuration)
-		orConds = append(orConds, sq.Lt{"last_accessed_at": idleThreshold})
-	}
-
-	if criteria.MaxCacheAge > 0 {
-		ageThreshold := now.Add(-criteria.MaxCacheAge)
-		orConds = append(orConds, sq.Lt{"created_at": ageThreshold})
-	}
-
-	if len(orConds) == 0 {
+	if !hasConditions {
 		return 0, nil
 	}
 
-	query := sq.Select("COUNT(*)").
-		From("embedding_cache").
-		Where(orConds).
-		PlaceholderFormat(sq.Question)
-
-	sqlStr, args, err := query.ToSql()
+	count, err := repo.countExpiredCaches(ctx, plan)
 	if err != nil {
-		return 0, fmt.Errorf("failed to build count expired caches query: %w", err)
-	}
-
-	var count int64
-	row := repo.client.QueryRowContext(ctx, sqlStr, args...)
-	if err := row.Scan(&count); err != nil {
 		return 0, fmt.Errorf("failed to count expired caches: %w", err)
 	}
-
 	return count, nil
 }
 
@@ -138,7 +95,6 @@ func (repo *Repository) CleanupExpiredCaches(ctx context.Context, criteria *embe
 		if err != nil {
 			return totalDeleted, fmt.Errorf("failed to find expired cache ids: %w", err)
 		}
-
 		if len(ids) == 0 {
 			break
 		}
@@ -156,9 +112,12 @@ func (repo *Repository) CleanupExpiredCaches(ctx context.Context, criteria *embe
 	return totalDeleted, nil
 }
 
-func (repo *Repository) findExpiredCacheIDs(ctx context.Context, criteria *embedding.CacheCleanupCriteria, offset, limit int) ([]int64, error) {
-	now := time.Now()
-	sqlStr, args, hasConditions, err := buildFindExpiredCacheIDsQuery(criteria, now, offset, limit)
+func (repo *Repository) findExpiredCacheIDs(
+	ctx context.Context,
+	criteria *embedding.CacheCleanupCriteria,
+	offset, limit int,
+) ([]int64, error) {
+	plan, hasConditions, err := buildCleanupQueryPlan(criteria, time.Now(), offset, limit)
 	if err != nil {
 		return nil, err
 	}
@@ -166,72 +125,498 @@ func (repo *Repository) findExpiredCacheIDs(ctx context.Context, criteria *embed
 		return []int64{}, nil
 	}
 
-	rows, err := repo.client.QueryContext(ctx, sqlStr, args...)
+	ids, err := repo.listExpiredCacheIDs(ctx, plan)
 	if err != nil {
 		return nil, fmt.Errorf("failed to query expired cache ids: %w", err)
 	}
-	defer func() {
-		if closeErr := rows.Close(); closeErr != nil {
-			repo.logger.WarnContext(ctx, "failed to close rows", logkey.Error, closeErr)
-		}
-	}()
-
-	ids := make([]int64, 0, limit)
-	for rows.Next() {
-		var id int64
-		if err := rows.Scan(&id); err != nil {
-			return nil, fmt.Errorf("failed to scan expired cache id: %w", err)
-		}
-		ids = append(ids, id)
-	}
-	if err := rows.Err(); err != nil {
-		return nil, fmt.Errorf("rows error: %w", err)
-	}
-
 	return ids, nil
 }
 
-func buildFindExpiredCacheIDsQuery(
+func buildCleanupQueryPlan(
 	criteria *embedding.CacheCleanupCriteria,
 	now time.Time,
 	offset, limit int,
-) (string, []any, bool, error) {
-	orConds := sq.Or{}
+) (cleanupQueryPlan, bool, error) {
+	plan := cleanupQueryPlan{}
+	if criteria == nil {
+		return plan, false, nil
+	}
 
 	if criteria.MinAccessCount > 0 {
-		orConds = append(orConds, sq.Lt{"access_count": criteria.MinAccessCount})
+		maxAccessCount, err := convert.SafeIntToInt32(criteria.MinAccessCount, "min_access_count")
+		if err != nil {
+			return cleanupQueryPlan{}, false, fmt.Errorf("invalid min_access_count: %w", err)
+		}
+		plan.mask |= cleanupMaskAccess
+		plan.maxAccessCount = maxAccessCount
 	}
 	if criteria.MaxIdleDuration > 0 {
-		orConds = append(orConds, sq.Lt{"last_accessed_at": now.Add(-criteria.MaxIdleDuration)})
+		plan.mask |= cleanupMaskIdle
+		plan.maxIdleBefore = now.Add(-criteria.MaxIdleDuration)
 	}
 	if criteria.MaxCacheAge > 0 {
-		orConds = append(orConds, sq.Lt{"created_at": now.Add(-criteria.MaxCacheAge)})
+		plan.mask |= cleanupMaskAge
+		plan.maxCreatedBefore = now.Add(-criteria.MaxCacheAge)
 	}
-	if len(orConds) == 0 {
-		return "", nil, false, nil
+	if plan.mask == 0 {
+		return cleanupQueryPlan{}, false, nil
+	}
+	if limit < 0 {
+		return cleanupQueryPlan{}, false, errCleanupLimitNegative
+	}
+	if offset < 0 {
+		return cleanupQueryPlan{}, false, errCleanupOffsetNegative
 	}
 
-	limitU64, err := convert.SafeIntToUint64(limit, "limit")
+	limit32, err := convert.SafeIntToInt32(limit, "limit")
 	if err != nil {
-		return "", nil, false, fmt.Errorf("invalid limit: %w", err)
+		return cleanupQueryPlan{}, false, fmt.Errorf("invalid limit: %w", err)
 	}
-	offsetU64, err := convert.SafeIntToUint64(offset, "offset")
+	offset32, err := convert.SafeIntToInt32(offset, "offset")
 	if err != nil {
-		return "", nil, false, fmt.Errorf("invalid offset: %w", err)
+		return cleanupQueryPlan{}, false, fmt.Errorf("invalid offset: %w", err)
 	}
+	plan.limit = limit32
+	plan.offset = offset32
+	return plan, true, nil
+}
 
-	query := sq.Select("id").
-		From("embedding_cache").
-		Where(orConds).
-		OrderBy("last_accessed_at ASC", "access_count ASC", "id ASC").
-		Limit(limitU64).
-		Offset(offsetU64).
-		PlaceholderFormat(sq.Question)
+type cleanupDispatcher struct {
+	access          func() error
+	idle            func() error
+	age             func() error
+	accessOrIdle    func() error
+	accessOrAge     func() error
+	idleOrAge       func() error
+	accessIdleOrAge func() error
+}
 
-	sqlStr, args, err := query.ToSql()
+type cleanupLabels struct {
+	access          string
+	idle            string
+	age             string
+	accessOrIdle    string
+	accessOrAge     string
+	idleOrAge       string
+	accessIdleOrAge string
+}
+
+type cleanupQueries[T any] struct {
+	accessQuery          func(context.Context, cleanupQueryPlan) (T, error)
+	idleQuery            func(context.Context, cleanupQueryPlan) (T, error)
+	ageQuery             func(context.Context, cleanupQueryPlan) (T, error)
+	accessOrIdleQuery    func(context.Context, cleanupQueryPlan) (T, error)
+	accessOrAgeQuery     func(context.Context, cleanupQueryPlan) (T, error)
+	idleOrAgeQuery       func(context.Context, cleanupQueryPlan) (T, error)
+	accessIdleOrAgeQuery func(context.Context, cleanupQueryPlan) (T, error)
+}
+
+func dispatchCleanup(plan cleanupQueryPlan, dispatcher cleanupDispatcher) error {
+	switch plan.mask {
+	case cleanupMaskAccess:
+		return dispatcher.access()
+	case cleanupMaskIdle:
+		return dispatcher.idle()
+	case cleanupMaskAge:
+		return dispatcher.age()
+	case cleanupMaskAccess | cleanupMaskIdle:
+		return dispatcher.accessOrIdle()
+	case cleanupMaskAccess | cleanupMaskAge:
+		return dispatcher.accessOrAge()
+	case cleanupMaskIdle | cleanupMaskAge:
+		return dispatcher.idleOrAge()
+	case cleanupMaskAccess | cleanupMaskIdle | cleanupMaskAge:
+		return dispatcher.accessIdleOrAge()
+	default:
+		return fmt.Errorf("%w: %d", errUnsupportedCleanupMask, plan.mask)
+	}
+}
+
+func (repo *Repository) listExpiredCaches(ctx context.Context, plan cleanupQueryPlan) ([]mysqlsqlc.EmbeddingCache, error) {
+	var result []mysqlsqlc.EmbeddingCache
+	err := executeCleanupSelection(
+		ctx,
+		plan,
+		repo.expiredCacheQueries(),
+		newCleanupCacheLabels(),
+		func(rows []mysqlsqlc.EmbeddingCache) { result = rows },
+	)
 	if err != nil {
-		return "", nil, false, fmt.Errorf("failed to build find expired cache ids query: %w", err)
+		return nil, err
 	}
+	return result, nil
+}
 
-	return sqlStr, args, true, nil
+func (repo *Repository) countExpiredCaches(ctx context.Context, plan cleanupQueryPlan) (int64, error) {
+	var result int64
+	err := dispatchCleanup(plan, cleanupDispatcher{
+		access: func() error {
+			count, err := repo.client.Q().CountExpiredCachesByAccess(ctx, plan.maxAccessCount)
+			if err != nil {
+				return fmt.Errorf("count expired caches by access: %w", err)
+			}
+			result = count
+			return nil
+		},
+		idle: func() error {
+			count, err := repo.client.Q().CountExpiredCachesByIdle(ctx, plan.maxIdleBefore)
+			if err != nil {
+				return fmt.Errorf("count expired caches by idle: %w", err)
+			}
+			result = count
+			return nil
+		},
+		age: func() error {
+			count, err := repo.client.Q().CountExpiredCachesByAge(ctx, plan.maxCreatedBefore)
+			if err != nil {
+				return fmt.Errorf("count expired caches by age: %w", err)
+			}
+			result = count
+			return nil
+		},
+		accessOrIdle: func() error {
+			count, err := repo.client.Q().CountExpiredCachesByAccessOrIdle(ctx, mysqlsqlc.CountExpiredCachesByAccessOrIdleParams{MaxAccessCount: plan.maxAccessCount, MaxIdleBefore: plan.maxIdleBefore})
+			if err != nil {
+				return fmt.Errorf("count expired caches by access or idle: %w", err)
+			}
+			result = count
+			return nil
+		},
+		accessOrAge: func() error {
+			count, err := repo.client.Q().CountExpiredCachesByAccessOrAge(ctx, mysqlsqlc.CountExpiredCachesByAccessOrAgeParams{MaxAccessCount: plan.maxAccessCount, MaxCreatedBefore: plan.maxCreatedBefore})
+			if err != nil {
+				return fmt.Errorf("count expired caches by access or age: %w", err)
+			}
+			result = count
+			return nil
+		},
+		idleOrAge: func() error {
+			count, err := repo.client.Q().CountExpiredCachesByIdleOrAge(ctx, mysqlsqlc.CountExpiredCachesByIdleOrAgeParams{MaxIdleBefore: plan.maxIdleBefore, MaxCreatedBefore: plan.maxCreatedBefore})
+			if err != nil {
+				return fmt.Errorf("count expired caches by idle or age: %w", err)
+			}
+			result = count
+			return nil
+		},
+		accessIdleOrAge: func() error {
+			count, err := repo.client.Q().CountExpiredCachesByAccessOrIdleOrAge(ctx, mysqlsqlc.CountExpiredCachesByAccessOrIdleOrAgeParams{MaxAccessCount: plan.maxAccessCount, MaxIdleBefore: plan.maxIdleBefore, MaxCreatedBefore: plan.maxCreatedBefore})
+			if err != nil {
+				return fmt.Errorf("count expired caches by access or idle or age: %w", err)
+			}
+			result = count
+			return nil
+		},
+	})
+	if err != nil {
+		return 0, err
+	}
+	return result, nil
+}
+
+func (repo *Repository) listExpiredCacheIDs(ctx context.Context, plan cleanupQueryPlan) ([]int64, error) {
+	var result []int64
+	err := executeCleanupSelection(
+		ctx,
+		plan,
+		repo.expiredCacheIDQueries(),
+		newCleanupCacheIDLabels(),
+		func(ids []int64) { result = ids },
+	)
+	if err != nil {
+		return nil, err
+	}
+	return result, nil
+}
+
+func executeCleanupSelection[T any](
+	ctx context.Context,
+	plan cleanupQueryPlan,
+	queries cleanupQueries[T],
+	labels cleanupLabels,
+	set func(T),
+) error {
+	return dispatchCleanup(plan, cleanupDispatcher{
+		access: func() error {
+			value, err := queries.accessQuery(ctx, plan)
+			if err != nil {
+				return fmt.Errorf("%s: %w", labels.access, err)
+			}
+			set(value)
+			return nil
+		},
+		idle: func() error {
+			value, err := queries.idleQuery(ctx, plan)
+			if err != nil {
+				return fmt.Errorf("%s: %w", labels.idle, err)
+			}
+			set(value)
+			return nil
+		},
+		age: func() error {
+			value, err := queries.ageQuery(ctx, plan)
+			if err != nil {
+				return fmt.Errorf("%s: %w", labels.age, err)
+			}
+			set(value)
+			return nil
+		},
+		accessOrIdle: func() error {
+			value, err := queries.accessOrIdleQuery(ctx, plan)
+			if err != nil {
+				return fmt.Errorf("%s: %w", labels.accessOrIdle, err)
+			}
+			set(value)
+			return nil
+		},
+		accessOrAge: func() error {
+			value, err := queries.accessOrAgeQuery(ctx, plan)
+			if err != nil {
+				return fmt.Errorf("%s: %w", labels.accessOrAge, err)
+			}
+			set(value)
+			return nil
+		},
+		idleOrAge: func() error {
+			value, err := queries.idleOrAgeQuery(ctx, plan)
+			if err != nil {
+				return fmt.Errorf("%s: %w", labels.idleOrAge, err)
+			}
+			set(value)
+			return nil
+		},
+		accessIdleOrAge: func() error {
+			value, err := queries.accessIdleOrAgeQuery(ctx, plan)
+			if err != nil {
+				return fmt.Errorf("%s: %w", labels.accessIdleOrAge, err)
+			}
+			set(value)
+			return nil
+		},
+	})
+}
+
+func (repo *Repository) expiredCacheQueries() cleanupQueries[[]mysqlsqlc.EmbeddingCache] {
+	return cleanupQueries[[]mysqlsqlc.EmbeddingCache]{
+		accessQuery:          repo.queryExpiredCachesByAccess,
+		idleQuery:            repo.queryExpiredCachesByIdle,
+		ageQuery:             repo.queryExpiredCachesByAge,
+		accessOrIdleQuery:    repo.queryExpiredCachesByAccessOrIdle,
+		accessOrAgeQuery:     repo.queryExpiredCachesByAccessOrAge,
+		idleOrAgeQuery:       repo.queryExpiredCachesByIdleOrAge,
+		accessIdleOrAgeQuery: repo.queryExpiredCachesByAccessOrIdleOrAge,
+	}
+}
+
+func (repo *Repository) expiredCacheIDQueries() cleanupQueries[[]int64] {
+	return cleanupQueries[[]int64]{
+		accessQuery:          repo.queryExpiredCacheIDsByAccess,
+		idleQuery:            repo.queryExpiredCacheIDsByIdle,
+		ageQuery:             repo.queryExpiredCacheIDsByAge,
+		accessOrIdleQuery:    repo.queryExpiredCacheIDsByAccessOrIdle,
+		accessOrAgeQuery:     repo.queryExpiredCacheIDsByAccessOrAge,
+		idleOrAgeQuery:       repo.queryExpiredCacheIDsByIdleOrAge,
+		accessIdleOrAgeQuery: repo.queryExpiredCacheIDsByAccessOrIdleOrAge,
+	}
+}
+
+func newCleanupCacheLabels() cleanupLabels {
+	return cleanupLabels{
+		access:          "list expired caches by access",
+		idle:            "list expired caches by idle",
+		age:             "list expired caches by age",
+		accessOrIdle:    "list expired caches by access or idle",
+		accessOrAge:     "list expired caches by access or age",
+		idleOrAge:       "list expired caches by idle or age",
+		accessIdleOrAge: "list expired caches by access or idle or age",
+	}
+}
+
+func newCleanupCacheIDLabels() cleanupLabels {
+	return cleanupLabels{
+		access:          "list expired cache ids by access",
+		idle:            "list expired cache ids by idle",
+		age:             "list expired cache ids by age",
+		accessOrIdle:    "list expired cache ids by access or idle",
+		accessOrAge:     "list expired cache ids by access or age",
+		idleOrAge:       "list expired cache ids by idle or age",
+		accessIdleOrAge: "list expired cache ids by access or idle or age",
+	}
+}
+
+func (repo *Repository) queryExpiredCachesByAccess(ctx context.Context, plan cleanupQueryPlan) ([]mysqlsqlc.EmbeddingCache, error) {
+	rows, err := repo.client.Q().ListExpiredCachesByAccess(ctx, mysqlsqlc.ListExpiredCachesByAccessParams{
+		MaxAccessCount: plan.maxAccessCount,
+		Limit:          plan.limit,
+		Offset:         plan.offset,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("query expired caches by access: %w", err)
+	}
+	return rows, nil
+}
+
+func (repo *Repository) queryExpiredCachesByIdle(ctx context.Context, plan cleanupQueryPlan) ([]mysqlsqlc.EmbeddingCache, error) {
+	rows, err := repo.client.Q().ListExpiredCachesByIdle(ctx, mysqlsqlc.ListExpiredCachesByIdleParams{
+		MaxIdleBefore: plan.maxIdleBefore,
+		Limit:         plan.limit,
+		Offset:        plan.offset,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("query expired caches by idle: %w", err)
+	}
+	return rows, nil
+}
+
+func (repo *Repository) queryExpiredCachesByAge(ctx context.Context, plan cleanupQueryPlan) ([]mysqlsqlc.EmbeddingCache, error) {
+	rows, err := repo.client.Q().ListExpiredCachesByAge(ctx, mysqlsqlc.ListExpiredCachesByAgeParams{
+		MaxCreatedBefore: plan.maxCreatedBefore,
+		Limit:            plan.limit,
+		Offset:           plan.offset,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("query expired caches by age: %w", err)
+	}
+	return rows, nil
+}
+
+func (repo *Repository) queryExpiredCachesByAccessOrIdle(ctx context.Context, plan cleanupQueryPlan) ([]mysqlsqlc.EmbeddingCache, error) {
+	rows, err := repo.client.Q().ListExpiredCachesByAccessOrIdle(ctx, mysqlsqlc.ListExpiredCachesByAccessOrIdleParams{
+		MaxAccessCount: plan.maxAccessCount,
+		MaxIdleBefore:  plan.maxIdleBefore,
+		Limit:          plan.limit,
+		Offset:         plan.offset,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("query expired caches by access or idle: %w", err)
+	}
+	return rows, nil
+}
+
+func (repo *Repository) queryExpiredCachesByAccessOrAge(ctx context.Context, plan cleanupQueryPlan) ([]mysqlsqlc.EmbeddingCache, error) {
+	rows, err := repo.client.Q().ListExpiredCachesByAccessOrAge(ctx, mysqlsqlc.ListExpiredCachesByAccessOrAgeParams{
+		MaxAccessCount:   plan.maxAccessCount,
+		MaxCreatedBefore: plan.maxCreatedBefore,
+		Limit:            plan.limit,
+		Offset:           plan.offset,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("query expired caches by access or age: %w", err)
+	}
+	return rows, nil
+}
+
+func (repo *Repository) queryExpiredCachesByIdleOrAge(ctx context.Context, plan cleanupQueryPlan) ([]mysqlsqlc.EmbeddingCache, error) {
+	rows, err := repo.client.Q().ListExpiredCachesByIdleOrAge(ctx, mysqlsqlc.ListExpiredCachesByIdleOrAgeParams{
+		MaxIdleBefore:    plan.maxIdleBefore,
+		MaxCreatedBefore: plan.maxCreatedBefore,
+		Limit:            plan.limit,
+		Offset:           plan.offset,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("query expired caches by idle or age: %w", err)
+	}
+	return rows, nil
+}
+
+func (repo *Repository) queryExpiredCachesByAccessOrIdleOrAge(ctx context.Context, plan cleanupQueryPlan) ([]mysqlsqlc.EmbeddingCache, error) {
+	rows, err := repo.client.Q().ListExpiredCachesByAccessOrIdleOrAge(ctx, mysqlsqlc.ListExpiredCachesByAccessOrIdleOrAgeParams{
+		MaxAccessCount:   plan.maxAccessCount,
+		MaxIdleBefore:    plan.maxIdleBefore,
+		MaxCreatedBefore: plan.maxCreatedBefore,
+		Limit:            plan.limit,
+		Offset:           plan.offset,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("query expired caches by access or idle or age: %w", err)
+	}
+	return rows, nil
+}
+
+func (repo *Repository) queryExpiredCacheIDsByAccess(ctx context.Context, plan cleanupQueryPlan) ([]int64, error) {
+	ids, err := repo.client.Q().ListExpiredCacheIDsByAccess(ctx, mysqlsqlc.ListExpiredCacheIDsByAccessParams{
+		MaxAccessCount: plan.maxAccessCount,
+		Limit:          plan.limit,
+		Offset:         plan.offset,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("query expired cache ids by access: %w", err)
+	}
+	return ids, nil
+}
+
+func (repo *Repository) queryExpiredCacheIDsByIdle(ctx context.Context, plan cleanupQueryPlan) ([]int64, error) {
+	ids, err := repo.client.Q().ListExpiredCacheIDsByIdle(ctx, mysqlsqlc.ListExpiredCacheIDsByIdleParams{
+		MaxIdleBefore: plan.maxIdleBefore,
+		Limit:         plan.limit,
+		Offset:        plan.offset,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("query expired cache ids by idle: %w", err)
+	}
+	return ids, nil
+}
+
+func (repo *Repository) queryExpiredCacheIDsByAge(ctx context.Context, plan cleanupQueryPlan) ([]int64, error) {
+	ids, err := repo.client.Q().ListExpiredCacheIDsByAge(ctx, mysqlsqlc.ListExpiredCacheIDsByAgeParams{
+		MaxCreatedBefore: plan.maxCreatedBefore,
+		Limit:            plan.limit,
+		Offset:           plan.offset,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("query expired cache ids by age: %w", err)
+	}
+	return ids, nil
+}
+
+func (repo *Repository) queryExpiredCacheIDsByAccessOrIdle(ctx context.Context, plan cleanupQueryPlan) ([]int64, error) {
+	ids, err := repo.client.Q().ListExpiredCacheIDsByAccessOrIdle(ctx, mysqlsqlc.ListExpiredCacheIDsByAccessOrIdleParams{
+		MaxAccessCount: plan.maxAccessCount,
+		MaxIdleBefore:  plan.maxIdleBefore,
+		Limit:          plan.limit,
+		Offset:         plan.offset,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("query expired cache ids by access or idle: %w", err)
+	}
+	return ids, nil
+}
+
+func (repo *Repository) queryExpiredCacheIDsByAccessOrAge(ctx context.Context, plan cleanupQueryPlan) ([]int64, error) {
+	ids, err := repo.client.Q().ListExpiredCacheIDsByAccessOrAge(ctx, mysqlsqlc.ListExpiredCacheIDsByAccessOrAgeParams{
+		MaxAccessCount:   plan.maxAccessCount,
+		MaxCreatedBefore: plan.maxCreatedBefore,
+		Limit:            plan.limit,
+		Offset:           plan.offset,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("query expired cache ids by access or age: %w", err)
+	}
+	return ids, nil
+}
+
+func (repo *Repository) queryExpiredCacheIDsByIdleOrAge(ctx context.Context, plan cleanupQueryPlan) ([]int64, error) {
+	ids, err := repo.client.Q().ListExpiredCacheIDsByIdleOrAge(ctx, mysqlsqlc.ListExpiredCacheIDsByIdleOrAgeParams{
+		MaxIdleBefore:    plan.maxIdleBefore,
+		MaxCreatedBefore: plan.maxCreatedBefore,
+		Limit:            plan.limit,
+		Offset:           plan.offset,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("query expired cache ids by idle or age: %w", err)
+	}
+	return ids, nil
+}
+
+func (repo *Repository) queryExpiredCacheIDsByAccessOrIdleOrAge(ctx context.Context, plan cleanupQueryPlan) ([]int64, error) {
+	ids, err := repo.client.Q().ListExpiredCacheIDsByAccessOrIdleOrAge(ctx, mysqlsqlc.ListExpiredCacheIDsByAccessOrIdleOrAgeParams{
+		MaxAccessCount:   plan.maxAccessCount,
+		MaxIdleBefore:    plan.maxIdleBefore,
+		MaxCreatedBefore: plan.maxCreatedBefore,
+		Limit:            plan.limit,
+		Offset:           plan.offset,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("query expired cache ids by access or idle or age: %w", err)
+	}
+	return ids, nil
 }

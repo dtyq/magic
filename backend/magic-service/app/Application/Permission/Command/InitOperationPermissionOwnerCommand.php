@@ -7,6 +7,8 @@ declare(strict_types=1);
 
 namespace App\Application\Permission\Command;
 
+use App\Application\KnowledgeBase\DTO\DataIsolationDTO;
+use App\Application\KnowledgeBase\DTO\KnowledgeBaseRequestDTO;
 use App\Domain\Agent\Entity\ValueObject\Query\MagicAgentQuery;
 use App\Domain\Agent\Service\MagicAgentDomainService;
 use App\Domain\Flow\Entity\ValueObject\FlowDataIsolation;
@@ -15,8 +17,7 @@ use App\Domain\Flow\Entity\ValueObject\Query\MagicFlowToolSetQuery;
 use App\Domain\Flow\Entity\ValueObject\Type;
 use App\Domain\Flow\Service\MagicFlowDomainService;
 use App\Domain\Flow\Service\MagicFlowToolSetDomainService;
-use App\Domain\KnowledgeBase\Entity\ValueObject\Query\KnowledgeBaseQuery;
-use App\Domain\KnowledgeBase\Service\KnowledgeBaseDomainService;
+use App\Domain\KnowledgeBase\Port\KnowledgeBaseGateway;
 use App\Domain\Permission\Entity\ValueObject\OperationPermission\ResourceType;
 use App\Domain\Permission\Entity\ValueObject\PermissionDataIsolation;
 use App\Domain\Permission\Service\OperationPermissionDomainService;
@@ -99,16 +100,14 @@ class InitOperationPermissionOwnerCommand extends HyperfCommand
 
     private function initKnowledge(): void
     {
-        $service = $this->container->get(KnowledgeBaseDomainService::class);
-        $flowDataIsolation = FlowDataIsolation::create();
-        $resourceType = ResourceType::Knowledge;
-
-        $data = $service->queries($flowDataIsolation, new KnowledgeBaseQuery(), Page::createNoPage());
-        foreach ($data['list'] ?? [] as $knowledge) {
-            $resourceId = $knowledge->getCode();
-            $permissionDataIsolation = PermissionDataIsolation::create($knowledge->getOrganizationCode(), $knowledge->getCreator());
-            $this->operationPermissionDomainService->accessOwner($permissionDataIsolation, $resourceType, $resourceId, $knowledge->getCreator());
-            $this->output->info("Knowledge: {$resourceId}");
-        }
+        /** @var KnowledgeBaseGateway $gateway */
+        $gateway = $this->container->get(KnowledgeBaseGateway::class);
+        $result = $gateway->rebuildPermissions(KnowledgeBaseRequestDTO::forRebuildPermissions(
+            payload: [],
+            dataIsolation: new DataIsolationDTO(organizationCode: 'system', userId: 'system'),
+        ));
+        $scanned = (int) ($result['scanned'] ?? 0);
+        $initialized = (int) ($result['initialized'] ?? 0);
+        $this->output->info("Knowledge: scanned={$scanned}, initialized={$initialized}");
     }
 }

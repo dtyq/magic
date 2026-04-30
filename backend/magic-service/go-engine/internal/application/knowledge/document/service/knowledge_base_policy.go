@@ -4,13 +4,14 @@ import (
 	"context"
 	"fmt"
 
+	docentity "magic/internal/domain/knowledge/document/entity"
 	documentdomain "magic/internal/domain/knowledge/document/service"
-	knowledgebasedomain "magic/internal/domain/knowledge/knowledgebase/service"
+	kbentity "magic/internal/domain/knowledge/knowledgebase/entity"
 )
 
 func (s *DocumentAppService) validateManualDocumentCreateAllowed(
 	ctx context.Context,
-	kb *knowledgebasedomain.KnowledgeBase,
+	kb *kbentity.KnowledgeBase,
 	input *documentdomain.CreateManagedDocumentInput,
 ) error {
 	if kb == nil || input == nil {
@@ -23,7 +24,7 @@ func (s *DocumentAppService) validateManualDocumentCreateAllowed(
 
 	// 这里必须看知识库已落库的 knowledge_base_type，不能拿 raw source_type 猜当前产品线。
 	knowledgeBaseType := s.resolveKnowledgeBaseTypeForDocumentCreate(ctx, kb)
-	if err := knowledgebasedomain.ValidateManualDocumentCreateAllowed(knowledgeBaseType, kb.SourceType); err != nil {
+	if err := kbentity.ValidateManualDocumentCreateAllowed(knowledgeBaseType, kb.SourceType); err != nil {
 		return fmt.Errorf("validate manual document create for knowledge base %s: %w", kb.Code, err)
 	}
 	return nil
@@ -31,11 +32,35 @@ func (s *DocumentAppService) validateManualDocumentCreateAllowed(
 
 func (s *DocumentAppService) resolveKnowledgeBaseTypeForDocumentCreate(
 	ctx context.Context,
-	kb *knowledgebasedomain.KnowledgeBase,
-) knowledgebasedomain.Type {
+	kb *kbentity.KnowledgeBase,
+) kbentity.Type {
 	_ = ctx
 	if kb == nil {
-		return knowledgebasedomain.KnowledgeBaseTypeFlowVector
+		return kbentity.KnowledgeBaseTypeFlowVector
 	}
-	return knowledgebasedomain.NormalizeKnowledgeBaseTypeOrDefault(kb.KnowledgeBaseType)
+	return kbentity.NormalizeKnowledgeBaseTypeOrDefault(kb.KnowledgeBaseType)
+}
+
+func (s *DocumentAppService) validateSingleDocumentDeleteAllowed(
+	ctx context.Context,
+	doc *docentity.KnowledgeBaseDocument,
+) error {
+	if doc == nil {
+		return nil
+	}
+
+	kb, err := s.kbService.ShowByCodeAndOrg(ctx, doc.KnowledgeBaseCode, doc.OrganizationCode)
+	if err != nil {
+		return fmt.Errorf("failed to find knowledge base: %w", err)
+	}
+
+	semanticSourceType, ok, resolveErr := resolveKnowledgeBaseSemanticSourceType(kb)
+	if resolveErr != nil {
+		return fmt.Errorf("resolve semantic source type for document destroy: %w", resolveErr)
+	}
+	err = documentdomain.ValidateSingleDocumentDeleteAllowed(doc, string(semanticSourceType), ok)
+	if err != nil {
+		return fmt.Errorf("validate single document delete allowed for knowledge base %s: %w", kb.Code, err)
+	}
+	return nil
 }

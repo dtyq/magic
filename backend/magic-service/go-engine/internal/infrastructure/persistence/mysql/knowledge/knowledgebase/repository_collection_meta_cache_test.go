@@ -11,7 +11,7 @@ import (
 	"github.com/redis/go-redis/v9"
 
 	"magic/internal/constants"
-	knowledgebase "magic/internal/domain/knowledge/knowledgebase/service"
+	sharedroute "magic/internal/domain/knowledge/shared/route"
 	knowledgebaserepo "magic/internal/infrastructure/persistence/mysql/knowledge/knowledgebase"
 )
 
@@ -28,7 +28,8 @@ func TestBaseRepositoryGetCollectionMetaUsesRedisCache(t *testing.T) {
 	defer redisServer.Close()
 
 	repo := knowledgebaserepo.NewBaseRepositoryWithDBAndRedisForTest(db, redisClient)
-	mock.ExpectQuery(regexp.QuoteMeta(`SELECT model, COALESCE(embedding_config, CAST('{}' AS JSON)) AS embedding_config
+	mock.ExpectQuery(regexp.QuoteMeta(`SELECT model,
+       embedding_config
 FROM magic_flow_knowledge
 WHERE code = ?
   AND deleted_at IS NULL
@@ -69,7 +70,8 @@ func TestBaseRepositoryGetCollectionMetaCachesNoRows(t *testing.T) {
 	defer redisServer.Close()
 
 	repo := knowledgebaserepo.NewBaseRepositoryWithDBAndRedisForTest(db, redisClient)
-	mock.ExpectQuery(regexp.QuoteMeta(`SELECT model, COALESCE(embedding_config, CAST('{}' AS JSON)) AS embedding_config
+	mock.ExpectQuery(regexp.QuoteMeta(`SELECT model,
+       embedding_config
 FROM magic_flow_knowledge
 WHERE code = ?
   AND deleted_at IS NULL
@@ -107,7 +109,7 @@ func TestBaseRepositoryUpsertCollectionMetaRefreshesRedisCache(t *testing.T) {
 	defer redisServer.Close()
 
 	repo := knowledgebaserepo.NewBaseRepositoryWithDBAndRedisForTest(db, redisClient)
-	meta := knowledgebase.CollectionMeta{
+	meta := sharedroute.CollectionMeta{
 		CollectionName:         "shared_kb",
 		PhysicalCollectionName: "shared_kb_r2",
 		Model:                  "text-embedding-3-large",

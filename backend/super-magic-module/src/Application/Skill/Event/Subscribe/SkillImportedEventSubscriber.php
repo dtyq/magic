@@ -424,7 +424,7 @@ class SkillImportedEventSubscriber implements ListenerInterface
         $projectResult = $this->getProjectAppService()->createAgentProject(
             $requestContext,
             $projectRequestDTO,
-            ProjectMode::CUSTOM_SKILL
+            ProjectMode::SKILL_CREATOR
         );
 
         $projectId = (int) ($projectResult['project']['id'] ?? 0);

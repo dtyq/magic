@@ -30,4 +30,9 @@ enum Category: string
             self::EMBEDDING => '向量模型',
         };
     }
+
+    public function isVlm(): bool
+    {
+        return $this->value === self::VLM->value;
+    }
 }

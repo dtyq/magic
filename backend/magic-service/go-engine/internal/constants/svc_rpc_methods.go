@@ -34,8 +34,16 @@ const (
 	MethodKnowledgeTeamshareManageableProgress = "svc.knowledge.teamshare.manageableProgress"
 	// MethodKnowledgeBasePermissionListOperations 回调 PHP 批量查询当前用户对知识库的操作权限
 	MethodKnowledgeBasePermissionListOperations = "svc.knowledge.knowledgeBasePermission.listOperations"
+	// MethodKnowledgeBasePermissionInitialize 回调 PHP 初始化知识库 owner/admin 权限
+	MethodKnowledgeBasePermissionInitialize = "svc.knowledge.knowledgeBasePermission.initialize"
+	// MethodKnowledgeBasePermissionGrantOwner 回调 PHP 显式授予知识库 owner 权限
+	MethodKnowledgeBasePermissionGrantOwner = "svc.knowledge.knowledgeBasePermission.grantOwner"
+	// MethodKnowledgeBasePermissionCleanup 回调 PHP 清理知识库权限
+	MethodKnowledgeBasePermissionCleanup = "svc.knowledge.knowledgeBasePermission.cleanup"
 	// MethodKnowledgeBasePermissionCheckOfficialOrganizationMember 回调 PHP 校验是否为官方组织
 	MethodKnowledgeBasePermissionCheckOfficialOrganizationMember = "svc.knowledge.knowledgeBasePermission.checkOfficialOrganizationMember"
+	// MethodKnowledgeBaseRebuildPermissions 补齐知识库权限
+	MethodKnowledgeBaseRebuildPermissions = "svc.knowledge.knowledgeBase.rebuildPermissions"
 
 	// MethodFragmentCreate 创建片段
 	MethodFragmentCreate = "svc.knowledge.fragment.create"
@@ -43,12 +51,16 @@ const (
 	MethodFragmentShow = "svc.knowledge.fragment.show"
 	// MethodFragmentList 查询片段列表
 	MethodFragmentList = "svc.knowledge.fragment.queries"
+	// MethodFragmentListHTTP 查询片段列表并返回最终 HTTP body
+	MethodFragmentListHTTP = "svc.knowledge.fragment.queries_http"
 	// MethodFragmentDestroy 删除片段
 	MethodFragmentDestroy = "svc.knowledge.fragment.destroy"
 	// MethodFragmentSync 同步片段
 	MethodFragmentSync = "svc.knowledge.fragment.sync"
 	// MethodFragmentSimilarity 片段相似度搜索
 	MethodFragmentSimilarity = "svc.knowledge.fragment.similarity"
+	// MethodFragmentSimilarityHTTP 片段相似度搜索并返回最终 HTTP body
+	MethodFragmentSimilarityHTTP = "svc.knowledge.fragment.similarity_http"
 	// MethodFragmentRuntimeSimilarity flow/teamshare runtime 多知识库相似度搜索
 	MethodFragmentRuntimeSimilarity = "svc.knowledge.fragment.runtimeSimilarity"
 	// MethodFragmentSimilarityByAgent 数字员工维度片段相似度搜索
@@ -61,6 +73,8 @@ const (
 	MethodFragmentRuntimeDestroyByMetadataFilter = "svc.knowledge.fragment.runtimeDestroyByMetadataFilter"
 	// MethodFragmentPreview 片段预览
 	MethodFragmentPreview = "svc.knowledge.fragment.preview"
+	// MethodFragmentPreviewHTTP 片段预览并返回最终 HTTP body
+	MethodFragmentPreviewHTTP = "svc.knowledge.fragment.preview_http"
 
 	// MethodEmbeddingCompute 计算 Embedding
 	MethodEmbeddingCompute = "svc.knowledge.embedding.compute"
@@ -77,6 +91,8 @@ const (
 
 	// MethodKnowledgeThirdPlatformDocumentResolve 回调 PHP 解析第三方文档内容
 	MethodKnowledgeThirdPlatformDocumentResolve = "svc.knowledge.thirdPlatformDocument.resolve"
+	// MethodKnowledgeThirdPlatformDocumentResolveNode 回调 PHP 解析第三方单文件元信息
+	MethodKnowledgeThirdPlatformDocumentResolveNode = "svc.knowledge.thirdPlatformDocument.resolveNode"
 	// MethodKnowledgeThirdPlatformDocumentExpand 回调 PHP 展开第三方来源文件集合
 	MethodKnowledgeThirdPlatformDocumentExpand = "svc.knowledge.thirdPlatformDocument.expand"
 	// MethodKnowledgeThirdPlatformDocumentListKnowledgeBases 回调 PHP 列出可绑定企业知识库
@@ -101,10 +117,8 @@ const (
 	MethodKnowledgeProjectFileNotifyChange = "svc.knowledge.projectFile.notifyChange"
 	// MethodKnowledgeOCRConfig 回调 PHP 获取 OCR 配置真值
 	MethodKnowledgeOCRConfig = "svc.knowledge.ocr.config"
-	// MethodPermissionOperationAccessOwner 回调 PHP 授予资源 owner 权限
-	MethodPermissionOperationAccessOwner = "svc.permission.operationPermission.accessOwner"
-	// MethodPermissionOperationDeleteByResource 回调 PHP 删除资源权限
-	MethodPermissionOperationDeleteByResource = "svc.permission.operationPermission.deleteByResource"
+	// MethodKnowledgeOCRReportUsage 回调 PHP 上报 OCR 识别用量
+	MethodKnowledgeOCRReportUsage = "svc.knowledge.ocr.reportUsage"
 	// MethodKnowledgeSuperMagicAgentListManageableCodes 回调 PHP 批量校验当前用户可管理的数字员工
 	MethodKnowledgeSuperMagicAgentListManageableCodes = "svc.knowledge.superMagicAgent.listManageableCodes"
 	// MethodKnowledgeSuperMagicAgentListAccessibleCodes 回调 PHP 批量校验当前用户可访问的数字员工

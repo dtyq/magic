@@ -32,32 +32,6 @@ created_uid, updated_uid, created_at, updated_at
 ) VALUES `
 	fragmentUpdateBatchColumnCount     = 10
 	fragmentSyncStatusBatchColumnCount = 5
-	fragmentUpdateBatchPrefix          = `UPDATE magic_flow_knowledge_fragment AS target
-JOIN (`
-	fragmentUpdateBatchSuffix = `
-) AS source ON target.id = source.id
-SET target.content = source.content,
-    target.metadata = source.metadata,
-    target.point_id = source.point_id,
-    target.word_count = source.word_count,
-    target.sync_status = source.sync_status,
-    target.sync_times = source.sync_times,
-    target.sync_status_message = source.sync_status_message,
-    target.updated_uid = source.updated_uid,
-    target.updated_at = source.updated_at
-WHERE target.deleted_at IS NULL`
-	fragmentDeleteByIDsPrefix = `DELETE FROM magic_flow_knowledge_fragment
-WHERE id IN (`
-	fragmentDeleteByIDsSuffix     = `)`
-	fragmentSyncStatusBatchPrefix = `UPDATE magic_flow_knowledge_fragment AS target
-JOIN (`
-	fragmentSyncStatusBatchSuffix = `
-) AS source ON target.id = source.id
-SET target.sync_status = source.sync_status,
-    target.sync_times = source.sync_times,
-    target.sync_status_message = source.sync_status_message,
-    target.updated_at = source.updated_at
-WHERE target.deleted_at IS NULL`
 )
 
 // Save 保存片段
@@ -163,7 +137,7 @@ func buildFragmentInsertRow(fragment *fragmodel.KnowledgeBaseFragment, now time.
 
 	fragment.CreatedAt = now
 	fragment.UpdatedAt = now
-	fragmetadata.ApplyFragmentMetadataContractV1(fragment)
+	fragmetadata.ApplyFragmentMetadataContract(fragment)
 
 	metadataJSON, err := json.Marshal(fragment.Metadata)
 	if err != nil {
@@ -248,16 +222,21 @@ func (repo *FragmentRepository) updateFragmentChunk(ctx context.Context, fragmen
 		}
 		rows[i] = row
 	}
-
-	query := buildFragmentUpdateBatchSQL(len(rows))
-	if _, err := repo.client.ExecContext(ctx, query, flattenFragmentUpdateArgs(rows)...); err != nil {
-		return fmt.Errorf("failed to batch update fragments: %w", err)
-	}
-	return nil
+	return repo.execFragmentUpdateRows(ctx, rows)
 }
 
 type fragmentUpdateRow struct {
-	args [fragmentUpdateBatchColumnCount]any
+	args              [fragmentUpdateBatchColumnCount]any
+	content           string
+	metadata          []byte
+	pointID           string
+	wordCount         uint64
+	syncStatus        int32
+	syncTimes         int32
+	syncStatusMessage string
+	updatedUID        string
+	updatedAt         time.Time
+	id                int64
 }
 
 func buildFragmentUpdateRow(fragment *fragmodel.KnowledgeBaseFragment) (fragmentUpdateRow, error) {
@@ -266,7 +245,7 @@ func buildFragmentUpdateRow(fragment *fragmodel.KnowledgeBaseFragment) (fragment
 	}
 
 	fragment.UpdatedAt = time.Now()
-	fragmetadata.ApplyFragmentMetadataContractV1(fragment)
+	fragmetadata.ApplyFragmentMetadataContract(fragment)
 
 	metadataJSON, err := json.Marshal(fragment.Metadata)
 	if err != nil {
@@ -287,7 +266,6 @@ func buildFragmentUpdateRow(fragment *fragmodel.KnowledgeBaseFragment) (fragment
 
 	return fragmentUpdateRow{
 		args: [fragmentUpdateBatchColumnCount]any{
-			fragment.ID,
 			fragment.Content,
 			metadataJSON,
 			fragment.PointID,
@@ -297,39 +275,19 @@ func buildFragmentUpdateRow(fragment *fragmodel.KnowledgeBaseFragment) (fragment
 			fragment.SyncStatusMessage,
 			fragment.UpdatedUID,
 			fragment.UpdatedAt,
+			fragment.ID,
 		},
+		content:           fragment.Content,
+		metadata:          metadataJSON,
+		pointID:           fragment.PointID,
+		wordCount:         wordCount,
+		syncStatus:        syncStatus,
+		syncTimes:         syncTimes,
+		syncStatusMessage: fragment.SyncStatusMessage,
+		updatedUID:        fragment.UpdatedUID,
+		updatedAt:         fragment.UpdatedAt,
+		id:                fragment.ID,
 	}, nil
-}
-
-func buildFragmentUpdateBatchSQL(rowCount int) string {
-	var builder strings.Builder
-	builder.Grow(len(fragmentUpdateBatchPrefix) + len(fragmentUpdateBatchSuffix) + rowCount*256)
-	builder.WriteString(fragmentUpdateBatchPrefix)
-	for rowIndex := range rowCount {
-		if rowIndex > 0 {
-			builder.WriteString("\nUNION ALL ")
-		}
-		builder.WriteString(`SELECT ? AS id,
-       ? AS content,
-       ? AS metadata,
-       ? AS point_id,
-       ? AS word_count,
-       ? AS sync_status,
-       ? AS sync_times,
-       ? AS sync_status_message,
-       ? AS updated_uid,
-       ? AS updated_at`)
-	}
-	builder.WriteString(fragmentUpdateBatchSuffix)
-	return builder.String()
-}
-
-func flattenFragmentUpdateArgs(rows []fragmentUpdateRow) []any {
-	args := make([]any, 0, len(rows)*fragmentUpdateBatchColumnCount)
-	for _, row := range rows {
-		args = append(args, row.args[:]...)
-	}
-	return args
 }
 
 // UpdateSyncStatusBatch 批量回写分片同步状态。
@@ -350,7 +308,12 @@ func (repo *FragmentRepository) UpdateSyncStatusBatch(ctx context.Context, fragm
 }
 
 type fragmentSyncStatusRow struct {
-	args [fragmentSyncStatusBatchColumnCount]any
+	args              [fragmentSyncStatusBatchColumnCount]any
+	syncStatus        int32
+	syncTimes         int32
+	syncStatusMessage string
+	updatedAt         time.Time
+	id                int64
 }
 
 func (repo *FragmentRepository) updateSyncStatusChunk(ctx context.Context, fragments []*fragmodel.KnowledgeBaseFragment) error {
@@ -366,52 +329,93 @@ func (repo *FragmentRepository) updateSyncStatusChunk(ctx context.Context, fragm
 		}
 		rows[i] = fragmentSyncStatusRow{
 			args: [fragmentSyncStatusBatchColumnCount]any{
-				fragment.ID,
 				syncStatus,
 				syncTimes,
 				fragment.SyncStatusMessage,
 				fragment.UpdatedAt,
+				fragment.ID,
 			},
+			syncStatus:        syncStatus,
+			syncTimes:         syncTimes,
+			syncStatusMessage: fragment.SyncStatusMessage,
+			updatedAt:         fragment.UpdatedAt,
+			id:                fragment.ID,
 		}
 	}
+	return repo.execFragmentSyncStatusRows(ctx, rows)
+}
 
-	query := buildFragmentSyncStatusBatchSQL(len(rows))
-	if _, err := repo.client.ExecContext(ctx, query, flattenFragmentSyncStatusArgs(rows)...); err != nil {
-		return fmt.Errorf("failed to batch update sync status: %w", err)
+func (repo *FragmentRepository) execFragmentUpdateRows(
+	ctx context.Context,
+	rows []fragmentUpdateRow,
+) (err error) {
+	tx, err := repo.db.BeginTx(ctx, nil)
+	if err != nil {
+		return fmt.Errorf("begin fragment update tx: %w", err)
+	}
+	defer func() {
+		if err != nil {
+			_ = tx.Rollback()
+		}
+	}()
+	queries := repo.queries.WithTx(tx)
+	for _, row := range rows {
+		if _, err = queries.UpdateFragment(ctx, mysqlsqlc.UpdateFragmentParams{
+			Content:           row.content,
+			Metadata:          row.metadata,
+			PointID:           row.pointID,
+			WordCount:         row.wordCount,
+			SyncStatus:        row.syncStatus,
+			SyncTimes:         row.syncTimes,
+			SyncStatusMessage: row.syncStatusMessage,
+			UpdatedUid:        row.updatedUID,
+			UpdatedAt:         row.updatedAt,
+			ID:                row.id,
+		}); err != nil {
+			return fmt.Errorf("exec fragment update via sqlc: %w", err)
+		}
+	}
+	if err = tx.Commit(); err != nil {
+		return fmt.Errorf("commit fragment update tx: %w", err)
 	}
 	return nil
 }
 
-func buildFragmentSyncStatusBatchSQL(rowCount int) string {
-	var builder strings.Builder
-	builder.Grow(len(fragmentSyncStatusBatchPrefix) + len(fragmentSyncStatusBatchSuffix) + rowCount*160)
-	builder.WriteString(fragmentSyncStatusBatchPrefix)
-	for rowIndex := range rowCount {
-		if rowIndex > 0 {
-			builder.WriteString("\nUNION ALL ")
+func (repo *FragmentRepository) execFragmentSyncStatusRows(
+	ctx context.Context,
+	rows []fragmentSyncStatusRow,
+) (err error) {
+	tx, err := repo.db.BeginTx(ctx, nil)
+	if err != nil {
+		return fmt.Errorf("begin fragment sync status tx: %w", err)
+	}
+	defer func() {
+		if err != nil {
+			_ = tx.Rollback()
 		}
-		builder.WriteString(`SELECT ? AS id,
-       ? AS sync_status,
-       ? AS sync_times,
-       ? AS sync_status_message,
-       ? AS updated_at`)
-	}
-	builder.WriteString(fragmentSyncStatusBatchSuffix)
-	return builder.String()
-}
-
-func flattenFragmentSyncStatusArgs(rows []fragmentSyncStatusRow) []any {
-	args := make([]any, 0, len(rows)*fragmentSyncStatusBatchColumnCount)
+	}()
+	queries := repo.queries.WithTx(tx)
 	for _, row := range rows {
-		args = append(args, row.args[:]...)
+		if _, err = queries.UpdateFragmentSyncStatus(ctx, mysqlsqlc.UpdateFragmentSyncStatusParams{
+			SyncStatus:        row.syncStatus,
+			SyncTimes:         row.syncTimes,
+			SyncStatusMessage: row.syncStatusMessage,
+			UpdatedAt:         row.updatedAt,
+			ID:                row.id,
+		}); err != nil {
+			return fmt.Errorf("exec fragment sync status via sqlc: %w", err)
+		}
 	}
-	return args
+	if err = tx.Commit(); err != nil {
+		return fmt.Errorf("commit fragment sync status tx: %w", err)
+	}
+	return nil
 }
 
 // Update 更新片段
 func (repo *FragmentRepository) Update(ctx context.Context, fragment *fragmodel.KnowledgeBaseFragment) error {
 	fragment.UpdatedAt = time.Now()
-	fragmetadata.ApplyFragmentMetadataContractV1(fragment)
+	fragmetadata.ApplyFragmentMetadataContract(fragment)
 	metadataJSON, err := json.Marshal(fragment.Metadata)
 	if err != nil {
 		return fmt.Errorf("failed to marshal metadata: %w", err)
@@ -420,15 +424,26 @@ func (repo *FragmentRepository) Update(ctx context.Context, fragment *fragmodel.
 	if err != nil {
 		return fmt.Errorf("invalid word_count: %w", err)
 	}
+	syncStatus, err := convert.SafeIntToInt32(int(fragment.SyncStatus), "sync_status")
+	if err != nil {
+		return fmt.Errorf("invalid sync_status: %w", err)
+	}
+	syncTimes, err := convert.SafeIntToInt32(fragment.SyncTimes, "sync_times")
+	if err != nil {
+		return fmt.Errorf("invalid sync_times: %w", err)
+	}
 
 	_, err = repo.queries.UpdateFragment(ctx, mysqlsqlc.UpdateFragmentParams{
-		Content:    fragment.Content,
-		Metadata:   metadataJSON,
-		PointID:    fragment.PointID,
-		WordCount:  wordCount,
-		UpdatedUid: fragment.UpdatedUID,
-		UpdatedAt:  fragment.UpdatedAt,
-		ID:         fragment.ID,
+		Content:           fragment.Content,
+		Metadata:          metadataJSON,
+		SyncStatus:        syncStatus,
+		SyncTimes:         syncTimes,
+		SyncStatusMessage: fragment.SyncStatusMessage,
+		PointID:           fragment.PointID,
+		WordCount:         wordCount,
+		UpdatedUid:        fragment.UpdatedUID,
+		UpdatedAt:         fragment.UpdatedAt,
+		ID:                fragment.ID,
 	})
 	if err != nil {
 		return fmt.Errorf("failed to update fragment: %w", err)
@@ -451,20 +466,8 @@ func (repo *FragmentRepository) DeleteByIDs(ctx context.Context, ids []int64) er
 	if len(ids) == 0 {
 		return nil
 	}
-
-	maxRows := knowledgeShared.MaxBulkInsertRows(1)
-	for start := 0; start < len(ids); start += maxRows {
-		end := min(start+maxRows, len(ids))
-		chunk := ids[start:end]
-		args := make([]any, 0, len(chunk))
-		for _, id := range chunk {
-			args = append(args, id)
-		}
-
-		query := fragmentDeleteByIDsPrefix + knowledgeShared.BuildInClausePlaceholders(len(chunk)) + fragmentDeleteByIDsSuffix
-		if _, err := repo.client.ExecContext(ctx, query, args...); err != nil {
-			return fmt.Errorf("failed to batch delete fragments: %w", err)
-		}
+	if _, err := repo.queries.DeleteFragmentsByIDs(ctx, ids); err != nil {
+		return fmt.Errorf("failed to batch delete fragments: %w", err)
 	}
 	return nil
 }
@@ -477,6 +480,21 @@ func (repo *FragmentRepository) DeleteByDocument(ctx context.Context, knowledgeC
 	})
 	if err != nil {
 		return fmt.Errorf("failed to delete fragments by document: %w", err)
+	}
+	return nil
+}
+
+// DeleteByDocumentCodes 根据知识库和文档编码批量删除所有片段。
+func (repo *FragmentRepository) DeleteByDocumentCodes(ctx context.Context, knowledgeCode string, documentCodes []string) error {
+	if len(documentCodes) == 0 {
+		return nil
+	}
+	_, err := repo.queries.DeleteFragmentsByDocumentCodes(ctx, mysqlsqlc.DeleteFragmentsByDocumentCodesParams{
+		KnowledgeCode: strings.TrimSpace(knowledgeCode),
+		DocumentCodes: documentCodes,
+	})
+	if err != nil {
+		return fmt.Errorf("failed to delete fragments by document codes: %w", err)
 	}
 	return nil
 }
@@ -528,22 +546,15 @@ func (repo *FragmentRepository) BackfillDocumentCode(ctx context.Context, ids []
 		return 0, nil
 	}
 
-	args := make([]any, 0, len(ids)+2)
-	args = append(args, documentCode, time.Now())
-	for _, id := range ids {
-		args = append(args, id)
-	}
-
-	query := backfillDocumentCodePrefix + knowledgeShared.BuildInClausePlaceholders(len(ids)) + backfillDocumentCodeSuffix
-	result, err := repo.client.ExecContext(ctx, query, args...)
+	result, err := repo.queries.BackfillFragmentDocumentCodeByIDs(ctx, mysqlsqlc.BackfillFragmentDocumentCodeByIDsParams{
+		DocumentCode: documentCode,
+		UpdatedAt:    time.Now(),
+		Ids:          ids,
+	})
 	if err != nil {
 		return 0, fmt.Errorf("failed to backfill fragment document code: %w", err)
 	}
-	affected, err := result.RowsAffected()
-	if err != nil {
-		return 0, fmt.Errorf("failed to read affected rows: %w", err)
-	}
-	return affected, nil
+	return result, nil
 }
 
 // ValidateDocumentCode 校验片段是否带有可落库的文档编码。
@@ -576,7 +587,7 @@ func BuildInsertParams(fragment *fragmodel.KnowledgeBaseFragment, now time.Time)
 
 	fragment.CreatedAt = now
 	fragment.UpdatedAt = now
-	fragmetadata.ApplyFragmentMetadataContractV1(fragment)
+	fragmetadata.ApplyFragmentMetadataContract(fragment)
 
 	metadataJSON, err := json.Marshal(fragment.Metadata)
 	if err != nil {

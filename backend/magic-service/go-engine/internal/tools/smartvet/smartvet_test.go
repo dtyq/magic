@@ -211,6 +211,61 @@ func Test_run_Integration(t *testing.T) {
 	}
 }
 
+func TestRunDisableCacheIgnoresExistingRepoCache(t *testing.T) {
+	t.Parallel()
+
+	tmpDir := t.TempDir()
+	cacheDir := filepath.Join(tmpDir, "cache")
+	vetToolPath := filepath.Join(tmpDir, "dummy_vettool")
+	_ = os.WriteFile(vetToolPath, []byte("binary"), 0o600)
+	_ = os.WriteFile(filepath.Join(tmpDir, "a.go"), []byte("package a"), 0o600)
+
+	logger := slog.New(slog.DiscardHandler)
+
+	cachedRunner := smartvet.NewRunner(smartvet.Options{
+		VetToolPath: vetToolPath,
+		CacheDir:    cacheDir,
+		RootDir:     tmpDir,
+	}, logger, io.Discard, io.Discard)
+	cachedRunner.SetTestListPackages(func() ([]smartvet.PackageInfo, error) {
+		return []smartvet.PackageInfo{{ImportPath: "pkg/a", Dir: tmpDir}}, nil
+	})
+	cachedRunner.SetTestRunGoVet(func(args ...string) error { return nil })
+	if err := cachedRunner.Run(); err != nil {
+		t.Fatalf("prime cached run failed: %v", err)
+	}
+
+	disableRunner := smartvet.NewRunner(smartvet.Options{
+		VetToolPath:  vetToolPath,
+		CacheDir:     cacheDir,
+		RootDir:      tmpDir,
+		DisableCache: true,
+	}, logger, io.Discard, io.Discard)
+	disableRunner.SetTestListPackages(func() ([]smartvet.PackageInfo, error) {
+		return []smartvet.PackageInfo{{ImportPath: "pkg/a", Dir: tmpDir}}, nil
+	})
+
+	vetCalls := 0
+	disableRunner.SetTestRunGoVet(func(args ...string) error {
+		vetCalls++
+		return nil
+	})
+
+	if err := disableRunner.Run(); err != nil {
+		t.Fatalf("run with disabled cache failed: %v", err)
+	}
+	if vetCalls != 1 {
+		t.Fatalf("expected disabled cache run to execute go vet once, got %d", vetCalls)
+	}
+
+	if err := disableRunner.Run(); err != nil {
+		t.Fatalf("second run with disabled cache failed: %v", err)
+	}
+	if vetCalls != 2 {
+		t.Fatalf("expected disabled cache run to execute on every run, got %d", vetCalls)
+	}
+}
+
 // 使用 “TestHelperProcess” 模式 mock exec.Command
 func Test_listPackages(t *testing.T) {
 	t.Parallel()

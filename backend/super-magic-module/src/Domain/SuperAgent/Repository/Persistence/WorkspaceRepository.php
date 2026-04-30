@@ -308,6 +308,21 @@ class WorkspaceRepository extends AbstractRepository implements WorkspaceReposit
     }
 
     /**
+     * 根据用户、组织和工作区类型查找工作区.
+     */
+    public function getWorkspaceByUserAndType(string $userId, string $organizationCode, string $workspaceType): ?WorkspaceEntity
+    {
+        $model = $this->model::query()
+            ->where('user_id', $userId)
+            ->where('user_organization_code', $organizationCode)
+            ->where('workspace_type', $workspaceType)
+            ->whereNull('deleted_at')
+            ->first();
+
+        return $this->modelToEntity($model);
+    }
+
+    /**
      * 将模型对象转换为实体对象
      *
      * @param null|WorkspaceModel $model 模型对象

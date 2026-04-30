@@ -27,6 +27,7 @@ import (
 	fragmodel "magic/internal/domain/knowledge/fragment/model"
 	shared "magic/internal/domain/knowledge/shared"
 	"magic/internal/infrastructure/logging"
+	"magic/internal/pkg/logkey"
 	"magic/pkg/convert"
 )
 
@@ -54,7 +55,9 @@ const (
 	defaultLogSlowThresholdMs  = 100
 	qdrantTimingBaseFieldCount = 8
 	qdrantStartBaseFieldCount  = 4
+	qdrantLogPrefix            = "qdrant"
 	qdrantAssumedVersionGTE112 = ">=1.12.2"
+	qdrantNativeBM25MinVersion = "1.15.2"
 	qdrantCapabilityStatus     = "assumed_gte_1_12_2"
 	qdrantSparseModeNone       = "none"
 	qdrantSparseModeDocument   = "document"
@@ -253,7 +256,9 @@ func (c *Client) logOperationTiming(ctx context.Context, operation string, start
 		return
 	}
 
-	durationMs := time.Since(startedAt).Milliseconds()
+	duration := time.Since(startedAt)
+	durationMs := duration.Milliseconds()
+	message := buildQdrantLogMessage(duration, operation, keysAndValues...)
 	fields := make([]any, 0, len(keysAndValues)+qdrantTimingBaseFieldCount)
 	fields = append(fields,
 		"component", "qdrant",
@@ -263,14 +268,15 @@ func (c *Client) logOperationTiming(ctx context.Context, operation string, start
 	fields = append(fields, keysAndValues...)
 	if err != nil {
 		fields = append(fields, "error", err.Error())
-		c.logger.WarnContext(ctx, "Qdrant operation failed", fields...)
+		c.logger.KnowledgeWarnContext(ctx, message, fields...)
 		return
 	}
 	if durationMs >= int64(c.slowLogMs) {
-		c.logger.WarnContext(ctx, "Qdrant operation slow", fields...)
+		fields = append(fields, logkey.SlowQdrantThresholdMS, logkey.DurationToMS(time.Duration(c.slowLogMs)*time.Millisecond))
+		c.logger.KnowledgeWarnContext(ctx, message, fields...)
 		return
 	}
-	c.logger.DebugContext(ctx, "Qdrant operation success", fields...)
+	c.logger.DebugContext(ctx, message, fields...)
 }
 
 func (c *Client) logOperationStarted(ctx context.Context, operation string, keysAndValues ...any) {
@@ -282,6 +288,66 @@ func (c *Client) logOperationStarted(ctx context.Context, operation string, keys
 	fields = append(fields, "component", "qdrant", "operation", operation)
 	fields = append(fields, keysAndValues...)
 	c.logger.InfoContext(ctx, "Qdrant operation started", fields...)
+}
+
+func buildQdrantLogMessage(duration time.Duration, operation string, keysAndValues ...any) string {
+	return fmt.Sprintf("[%s:%.2fms] %s", qdrantLogPrefix, logkey.DurationToMS(duration), summarizeQdrantOperationForLog(operation, keysAndValues...))
+}
+
+func summarizeQdrantOperationForLog(operation string, keysAndValues ...any) string {
+	operation = strings.TrimSpace(operation)
+	if operation == "" {
+		operation = "unknown_operation"
+	}
+
+	parts := []string{operation}
+	if collection, ok := qdrantSummaryFieldValue(keysAndValues, "collection"); ok {
+		parts = append(parts, "collection="+collection)
+	}
+	for _, key := range [...]string{"point_id", "point_count", "result_count", "top_k", "transport", "selected_sparse_api"} {
+		if value, ok := qdrantSummaryFieldValue(keysAndValues, key); ok {
+			parts = append(parts, key+"="+value)
+		}
+	}
+	return strings.Join(parts, " ")
+}
+
+func qdrantSummaryFieldValue(keysAndValues []any, target string) (string, bool) {
+	lastKeyIndex := len(keysAndValues) - 2
+	if len(keysAndValues)%2 != 0 {
+		lastKeyIndex = len(keysAndValues) - 3
+	}
+	for i := lastKeyIndex; i >= 0; i -= 2 {
+		key, ok := keysAndValues[i].(string)
+		if !ok || key != target {
+			continue
+		}
+		return formatQdrantSummaryValue(keysAndValues[i+1])
+	}
+	return "", false
+}
+
+func formatQdrantSummaryValue(value any) (string, bool) {
+	if value == nil {
+		return "", false
+	}
+
+	switch typed := value.(type) {
+	case string:
+		typed = strings.TrimSpace(typed)
+		if typed == "" {
+			return "", false
+		}
+		return typed, true
+	case fmt.Stringer:
+		text := strings.TrimSpace(typed.String())
+		if text == "" {
+			return "", false
+		}
+		return text, true
+	default:
+		return fmt.Sprint(value), true
+	}
 }
 
 func qdrantSparseMode(input *fragmodel.SparseInput) string {
@@ -369,6 +435,70 @@ func qdrantSearchLimit(topK int) (uint64, error) {
 	return limit, nil
 }
 
+// EnsurePayloadIndexes 确保集合具备指定 payload 索引。
+func (c *Client) EnsurePayloadIndexes(ctx context.Context, collection string, specs []shared.PayloadIndexSpec) error {
+	startedAt := time.Now()
+	normalizedSpecs, err := normalizePayloadIndexSpecs(specs)
+	if err != nil {
+		return err
+	}
+	if len(normalizedSpecs) == 0 {
+		return nil
+	}
+
+	c.schemaMu.Lock()
+	defer c.schemaMu.Unlock()
+
+	resp, err := c.collections.Get(c.authContext(ctx), &pb.GetCollectionInfoRequest{CollectionName: collection})
+	if err != nil {
+		if status.Code(err) == codes.NotFound {
+			return ErrCollectionNotFound
+		}
+		err = fmt.Errorf("failed to load collection schema %s: %w", collection, err)
+		c.logOperationTiming(ctx, "ensure_payload_indexes", startedAt, err,
+			"collection", collection,
+			"requested_count", len(normalizedSpecs),
+		)
+		return err
+	}
+
+	existing := payloadSchemaKeySet(resp.GetResult())
+	createdFields := make([]string, 0, len(normalizedSpecs))
+	for _, spec := range normalizedSpecs {
+		if _, ok := existing[spec.FieldName]; ok {
+			continue
+		}
+		request, buildErr := buildCreateFieldIndexRequest(collection, spec)
+		if buildErr != nil {
+			return buildErr
+		}
+		if _, createErr := c.points.CreateFieldIndex(c.authContext(ctx), request); createErr != nil {
+			if status.Code(createErr) == codes.AlreadyExists {
+				existing[spec.FieldName] = struct{}{}
+				continue
+			}
+			err = fmt.Errorf("create payload index %s on %s: %w", spec.FieldName, collection, createErr)
+			c.logOperationTiming(ctx, "ensure_payload_indexes", startedAt, err,
+				"collection", collection,
+				"requested_count", len(normalizedSpecs),
+				"existing_count", len(existing),
+				"created_count", len(createdFields),
+			)
+			return err
+		}
+		existing[spec.FieldName] = struct{}{}
+		createdFields = append(createdFields, spec.FieldName)
+	}
+
+	c.logOperationTiming(ctx, "ensure_payload_indexes", startedAt, nil,
+		"collection", collection,
+		"requested_count", len(normalizedSpecs),
+		"existing_count", len(existing)-len(createdFields),
+		"created_count", len(createdFields),
+	)
+	return nil
+}
+
 // CreateCollection 创建一个新的向量集合
 func (c *Client) CreateCollection(ctx context.Context, name string, vectorSize int64) error {
 	c.schemaMu.Lock()
@@ -406,6 +536,77 @@ func (c *Client) CreateCollection(ctx context.Context, name string, vectorSize i
 
 	c.logger.InfoContext(ctx, "Created Qdrant collection", "name", name, "vectorSize", vectorSize)
 	return nil
+}
+
+func normalizePayloadIndexSpecs(specs []shared.PayloadIndexSpec) ([]shared.PayloadIndexSpec, error) {
+	if len(specs) == 0 {
+		return nil, nil
+	}
+
+	seen := make(map[string]struct{}, len(specs))
+	normalized := make([]shared.PayloadIndexSpec, 0, len(specs))
+	for _, spec := range specs {
+		spec = spec.Normalize()
+		if !spec.Valid() {
+			return nil, fmt.Errorf("%w: invalid payload index spec %+v", ErrInvalidInput, spec)
+		}
+		if _, ok := seen[spec.FieldName]; ok {
+			continue
+		}
+		seen[spec.FieldName] = struct{}{}
+		normalized = append(normalized, spec)
+	}
+	return normalized, nil
+}
+
+func payloadSchemaKeySet(info *pb.CollectionInfo) map[string]struct{} {
+	keys := make(map[string]struct{})
+	if info == nil {
+		return keys
+	}
+	for key := range info.GetPayloadSchema() {
+		trimmed := strings.TrimSpace(key)
+		if trimmed == "" {
+			continue
+		}
+		keys[trimmed] = struct{}{}
+	}
+	return keys
+}
+
+func extractPayloadSchemaKeys(info *pb.CollectionInfo) []string {
+	keys := make([]string, 0, len(info.GetPayloadSchema()))
+	for key := range payloadSchemaKeySet(info) {
+		keys = append(keys, key)
+	}
+	slices.Sort(keys)
+	return keys
+}
+
+func buildCreateFieldIndexRequest(collection string, spec shared.PayloadIndexSpec) (*pb.CreateFieldIndexCollection, error) {
+	payloadFieldType, params, err := qdrantPayloadIndexDefinition(spec)
+	if err != nil {
+		return nil, err
+	}
+	wait := true
+	return &pb.CreateFieldIndexCollection{
+		CollectionName:   collection,
+		Wait:             &wait,
+		FieldName:        spec.FieldName,
+		FieldType:        &payloadFieldType,
+		FieldIndexParams: params,
+	}, nil
+}
+
+func qdrantPayloadIndexDefinition(spec shared.PayloadIndexSpec) (pb.FieldType, *pb.PayloadIndexParams, error) {
+	switch spec.Kind {
+	case shared.PayloadIndexKindKeyword:
+		return pb.FieldType_FieldTypeKeyword, pb.NewPayloadIndexParamsKeyword(&pb.KeywordIndexParams{}), nil
+	case shared.PayloadIndexKindInteger:
+		return pb.FieldType_FieldTypeInteger, pb.NewPayloadIndexParamsInt(&pb.IntegerIndexParams{}), nil
+	default:
+		return pb.FieldType_FieldTypeKeyword, nil, fmt.Errorf("%w: unsupported payload index kind %q", ErrInvalidInput, spec.Kind)
+	}
 }
 
 // CollectionExists 检查集合是否存在
@@ -540,6 +741,7 @@ func (c *Client) GetCollectionInfo(ctx context.Context, name string) (*fragmodel
 		Points:              points,
 		HasNamedDenseVector: hasNamedDenseVector(resp.GetResult()),
 		HasSparseVector:     hasSparseVector(resp.GetResult()),
+		PayloadSchemaKeys:   extractPayloadSchemaKeys(resp.GetResult()),
 	}, nil
 }
 
@@ -556,7 +758,7 @@ func (c *Client) resolveCollectionPointsCount(ctx context.Context, name string, 
 	restPoints, ok, err := c.fetchCollectionPointsCountViaREST(ctx, name)
 	if err != nil {
 		if c != nil && c.logger != nil {
-			c.logger.WarnContext(
+			c.logger.KnowledgeWarnContext(
 				ctx,
 				"Fallback to REST collection points count failed",
 				"collection", name,
@@ -1130,6 +1332,9 @@ func (c *Client) ListExistingPointIDs(ctx context.Context, collection string, po
 		WithVectors:    &pb.WithVectorsSelector{SelectorOptions: &pb.WithVectorsSelector_Enable{Enable: false}},
 	})
 	if err != nil {
+		if status.Code(err) == codes.NotFound {
+			return nil, ErrCollectionNotFound
+		}
 		return nil, fmt.Errorf("failed to get points: %w", err)
 	}
 

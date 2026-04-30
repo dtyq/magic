@@ -81,6 +81,14 @@ async def lifespan(app: FastAPI):
     except Exception as e:
         logger.error(f"启动时迁移任务失败: {e}")
 
+    # 初始化工具定义缓存；失败时内部回退到运行时工具扫描，不阻塞服务启动。
+    try:
+        from app.tools.core.tool_factory import tool_factory
+        await tool_factory.ensure_definitions_initialized()
+        logger.info("工具定义初始化流程完成")
+    except Exception as e:
+        logger.error(f"工具定义缓存初始化出现未预期异常: {e}")
+
     # 执行启动时残留文件清理检查
     await cleanup_stale_files_on_startup()
 

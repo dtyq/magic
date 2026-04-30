@@ -1,5 +1,5 @@
 import type { SelectedPath, TreeNode, Pagination, OrganizationNode } from "@dtyq/user-selector"
-import { UserSelector } from "@dtyq/user-selector"
+import { NodeType, UserSelector } from "@dtyq/user-selector"
 import { useMemoizedFn } from "ahooks"
 import { useMemo, useState } from "react"
 import { mockData, mockUsers, mockDepartments, mockUsers2 } from "../const"
@@ -105,6 +105,23 @@ function Demo2({ open, onClose }: { open: boolean; onClose: () => void }) {
 			onSelectChange={handleSelectChange}
 			onSearchChange={handleSearchChange}
 			onBreadcrumbClick={handleBreadcrumbClick}
+			renderItemRight={(node, { isChecked, disabled, canNext }) => {
+				if (isChecked) {
+					return <span className="font-medium text-primary">已选择</span>
+				}
+
+				if (disabled) {
+					return <span>不可选</span>
+				}
+
+				if (node.dataType === NodeType.Department) {
+					return (
+						<span>{canNext ? `${node.employee_sum ?? 0}人，可进入` : "已选部门"}</span>
+					)
+				}
+
+				return <span>可选择</span>
+			}}
 		/>
 	)
 }

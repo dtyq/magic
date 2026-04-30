@@ -12,6 +12,8 @@ type FragmentDTO struct {
 	ID                int64          `json:"id"`
 	OrganizationCode  string         `json:"organization_code"`
 	KnowledgeCode     string         `json:"knowledge_code"`
+	KnowledgeBaseType string         `json:"-"`
+	SourceType        *int           `json:"-"`
 	Creator           string         `json:"creator"`
 	Modifier          string         `json:"modifier"`
 	DocumentCode      string         `json:"document_code"`
@@ -32,18 +34,22 @@ type FragmentDTO struct {
 
 // FragmentListItemDTO 表示对外暴露的片段列表项。
 type FragmentListItemDTO struct {
-	ID                int64          `json:"id"`
-	KnowledgeBaseCode string         `json:"knowledge_base_code"`
-	KnowledgeCode     string         `json:"knowledge_code"`
-	OrganizationCode  string         `json:"organization_code"`
-	Creator           string         `json:"creator"`
-	Modifier          string         `json:"modifier"`
-	CreatedUID        string         `json:"created_uid"`
-	UpdatedUID        string         `json:"updated_uid"`
-	DocumentCode      string         `json:"document_code"`
-	BusinessID        string         `json:"business_id"`
-	DocumentName      string         `json:"document_name"`
-	DocumentType      int            `json:"document_type"`
+	ID                int64  `json:"id"`
+	KnowledgeBaseCode string `json:"knowledge_base_code"`
+	KnowledgeCode     string `json:"knowledge_code"`
+	OrganizationCode  string `json:"organization_code"`
+	Creator           string `json:"creator"`
+	Modifier          string `json:"modifier"`
+	CreatedUID        string `json:"created_uid"`
+	UpdatedUID        string `json:"updated_uid"`
+	DocumentCode      string `json:"document_code"`
+	BusinessID        string `json:"business_id"`
+	DocumentName      string `json:"document_name"`
+	DocumentType      int    `json:"document_type"`
+	KnowledgeBaseType string `json:"-"`
+	SourceType        *int   `json:"-"`
+	// DocType 是历史兼容字段；RPC 兼容响应层会基于 KnowledgeBaseType/SourceType
+	// 重新投影顶层 doc_type。DocumentType 继续表示内部精确文件类型。
 	DocType           int            `json:"doc_type"`
 	Content           string         `json:"content"`
 	Metadata          map[string]any `json:"metadata"`
@@ -88,8 +94,12 @@ type SimilarityResultDTO struct {
 	DocumentCode      string         `json:"document_code"`
 	DocumentName      string         `json:"document_name"`
 	DocumentType      int            `json:"document_type"`
-	DocType           int            `json:"doc_type"`
-	BusinessID        string         `json:"business_id"`
+	KnowledgeBaseType string         `json:"-"`
+	SourceType        *int           `json:"-"`
+	// DocType 是历史兼容字段；RPC 兼容响应层会基于 KnowledgeBaseType/SourceType
+	// 重新投影顶层 doc_type。DocumentType 继续表示内部精确文件类型。
+	DocType    int    `json:"doc_type"`
+	BusinessID string `json:"business_id"`
 }
 
 // AgentSimilarityResultDTO 表示数字员工维度的知识检索结果。
@@ -114,6 +124,7 @@ type CreateFragmentInput struct {
 // ListFragmentInput 表示片段列表查询请求。
 type ListFragmentInput struct {
 	OrganizationCode string
+	UserID           string
 	KnowledgeCode    string
 	DocumentCode     string
 	Content          string
@@ -211,6 +222,7 @@ type SimilarityTimeRangeInput struct {
 type PreviewFragmentInput struct {
 	OrganizationCode string
 	UserID           string
+	DocumentCode     string
 	DocumentFile     *docfilehelper.DocumentFileDTO
 	StrategyConfig   *confighelper.StrategyConfigDTO
 	FragmentConfig   *confighelper.FragmentConfigDTO

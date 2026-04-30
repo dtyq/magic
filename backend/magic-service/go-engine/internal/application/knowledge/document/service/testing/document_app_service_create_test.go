@@ -3,15 +3,15 @@ package docapp_test
 import (
 	"context"
 	"errors"
-	"strings"
 	"testing"
 
 	docdto "magic/internal/application/knowledge/document/dto"
 	appservice "magic/internal/application/knowledge/document/service"
 	confighelper "magic/internal/application/knowledge/helper/config"
 	docfilehelper "magic/internal/application/knowledge/helper/docfile"
+	docentity "magic/internal/domain/knowledge/document/entity"
 	documentdomain "magic/internal/domain/knowledge/document/service"
-	knowledgebase "magic/internal/domain/knowledge/knowledgebase/service"
+	kbentity "magic/internal/domain/knowledge/knowledgebase/entity"
 	shared "magic/internal/domain/knowledge/shared"
 )
 
@@ -22,8 +22,6 @@ const (
 	customContentFileName      = "custom-content.md"
 	customContentFileKey       = "DT001/open/demo/custom-content.md"
 )
-
-var errCreateSyncParseBoom = errors.New("parse boom")
 
 func TestDocumentAppServiceCreateUsesFragmentConfigAndSchedulesSync(t *testing.T) {
 	t.Parallel()
@@ -73,7 +71,7 @@ func TestDocumentCreate_AutoSyncSchedulesBackgroundSync(t *testing.T) {
 	svc := appservice.NewDocumentAppServiceForTest(t,
 		&documentDomainServiceStub{},
 		&knowledgeBaseReaderStub{
-			showByCodeAndOrgResult: &knowledgebase.KnowledgeBase{
+			showByCodeAndOrgResult: &kbentity.KnowledgeBase{
 				Code:     "KB1",
 				Model:    "text-embedding-3-small",
 				VectorDB: "odin_qdrant",
@@ -102,12 +100,15 @@ func TestDocumentCreate_AutoSyncSchedulesBackgroundSync(t *testing.T) {
 	if scheduler.inputs[0].Mode != documentdomain.SyncModeCreate {
 		t.Fatalf("expected sync mode=create, got %q", scheduler.inputs[0].Mode)
 	}
+	if !scheduler.inputs[0].Async {
+		t.Fatalf("expected scheduled create sync to be async, got %#v", scheduler.inputs[0])
+	}
 	if scheduler.inputs[0].Code != documentDTO.Code {
 		t.Fatalf("expected scheduled code %q, got %q", documentDTO.Code, scheduler.inputs[0].Code)
 	}
 }
 
-func TestDocumentCreate_WaitForSyncResultReturnsSyncedDocument(t *testing.T) {
+func TestDocumentCreate_WaitForSyncResultStillSchedulesBackgroundSync(t *testing.T) {
 	t.Parallel()
 
 	domain := &documentDomainServiceStub{}
@@ -120,9 +121,6 @@ func TestDocumentCreate_WaitForSyncResultReturnsSyncedDocument(t *testing.T) {
 		scheduler,
 		fragmentSvc,
 	)
-	svc.SetParseServiceForTest(&documentParseServiceStub{
-		parseDocumentResult: documentdomain.NewPlainTextParsedDocument("md", "create sync success"),
-	})
 
 	input := newCustomContentCreateInput()
 	input.WaitForSyncResult = true
@@ -134,54 +132,40 @@ func TestDocumentCreate_WaitForSyncResultReturnsSyncedDocument(t *testing.T) {
 	if documentDTO == nil {
 		t.Fatal("expected created document dto")
 	}
-	if scheduler.scheduleCalls != 0 {
-		t.Fatalf("expected inline sync not to schedule background work, got %d", scheduler.scheduleCalls)
+	if scheduler.scheduleCalls != 1 || len(scheduler.inputs) != 1 {
+		t.Fatalf("expected wait-for-sync create to schedule background work, got calls=%d inputs=%d", scheduler.scheduleCalls, len(scheduler.inputs))
 	}
-	if fragmentSvc.syncFragmentBatchCalls != 1 {
-		t.Fatalf("expected one fragment sync batch, got %d", fragmentSvc.syncFragmentBatchCalls)
+	if !scheduler.inputs[0].Async || scheduler.inputs[0].Mode != documentdomain.SyncModeCreate {
+		t.Fatalf("unexpected scheduled sync input: %#v", scheduler.inputs[0])
 	}
-	if documentDTO.SyncStatus != int(shared.SyncStatusSynced) {
-		t.Fatalf("expected synced status, got %#v", documentDTO)
-	}
-	if documentDTO.SyncStatusMessage != "" {
-		t.Fatalf("expected empty sync message, got %#v", documentDTO)
+	if fragmentSvc.syncFragmentBatchCalls != 0 {
+		t.Fatalf("expected no inline fragment sync, got %d", fragmentSvc.syncFragmentBatchCalls)
 	}
 }
 
-func TestDocumentCreate_WaitForSyncResultReturnsFailedDocumentState(t *testing.T) {
+func TestDocumentAppServiceScheduleSyncForcesAsyncWithoutMutatingInput(t *testing.T) {
 	t.Parallel()
 
-	domain := &documentDomainServiceStub{}
 	scheduler := &documentSyncSchedulerStub{}
-	svc := appservice.NewDocumentAppServiceForTest(
-		t,
-		domain,
-		newCustomContentKnowledgeBaseReader(),
-		scheduler,
-		&fragmentDestroyServiceStub{},
-	)
-	svc.SetParseServiceForTest(&documentParseServiceStub{
-		parseDocumentErr: errCreateSyncParseBoom,
-	})
+	svc := appservice.NewDocumentAppServiceForTest(t, &documentDomainServiceStub{}, newCustomContentKnowledgeBaseReader(), scheduler)
 
-	input := newCustomContentCreateInput()
-	input.WaitForSyncResult = true
+	input := &documentdomain.SyncDocumentInput{
+		OrganizationCode:  customContentOrgCode,
+		KnowledgeBaseCode: customContentKnowledgeCode,
+		Code:              "DOC-1",
+		Mode:              documentdomain.SyncModeCreate,
+		Async:             false,
+	}
+	svc.ScheduleSync(context.Background(), input)
 
-	documentDTO, err := svc.Create(context.Background(), input)
-	if err != nil {
-		t.Fatalf("expected nil error, got %v", err)
+	if scheduler.scheduleCalls != 1 || len(scheduler.inputs) != 1 {
+		t.Fatalf("expected one scheduled input, got calls=%d inputs=%d", scheduler.scheduleCalls, len(scheduler.inputs))
 	}
-	if documentDTO == nil {
-		t.Fatal("expected created document dto")
+	if !scheduler.inputs[0].Async {
+		t.Fatalf("expected scheduled input to be forced async, got %#v", scheduler.inputs[0])
 	}
-	if scheduler.scheduleCalls != 0 {
-		t.Fatalf("expected inline sync not to schedule background work, got %d", scheduler.scheduleCalls)
-	}
-	if documentDTO.SyncStatus != int(shared.SyncStatusSyncFailed) {
-		t.Fatalf("expected sync failed status, got %#v", documentDTO)
-	}
-	if !strings.Contains(documentDTO.SyncStatusMessage, errCreateSyncParseBoom.Error()) {
-		t.Fatalf("expected sync failure message to contain parse error, got %#v", documentDTO)
+	if input.Async {
+		t.Fatalf("expected original input not to be mutated, got %#v", input)
 	}
 }
 
@@ -192,7 +176,7 @@ func TestDocumentCreate_FailureDoesNotScheduleSync(t *testing.T) {
 	svc := appservice.NewDocumentAppServiceForTest(t,
 		&documentDomainServiceStub{saveErr: errDocumentUpdateFailed},
 		&knowledgeBaseReaderStub{
-			showByCodeAndOrgResult: &knowledgebase.KnowledgeBase{
+			showByCodeAndOrgResult: &kbentity.KnowledgeBase{
 				Code:     "KB1",
 				Model:    "text-embedding-3-small",
 				VectorDB: "odin_qdrant",
@@ -220,15 +204,16 @@ func TestDocumentCreate_FailureDoesNotScheduleSync(t *testing.T) {
 func TestDocumentAppServiceCreateRejectsManualDocumentForSourceBoundDigitalEmployeeKnowledgeBase(t *testing.T) {
 	t.Parallel()
 
+	projectSourceType := int(kbentity.SourceTypeProject)
 	domain := &documentDomainServiceStub{}
 	svc := appservice.NewDocumentAppServiceForTest(t, domain, &knowledgeBaseReaderStub{
-		showByCodeAndOrgResult: &knowledgebase.KnowledgeBase{
+		showByCodeAndOrgResult: &kbentity.KnowledgeBase{
 			Code:              customContentKnowledgeCode,
 			OrganizationCode:  customContentOrgCode,
 			Model:             "kb-model",
 			VectorDB:          "odin_qdrant",
-			SourceType:        new(int(knowledgebase.SourceTypeProject)),
-			KnowledgeBaseType: knowledgebase.KnowledgeBaseTypeDigitalEmployee,
+			SourceType:        &projectSourceType,
+			KnowledgeBaseType: kbentity.KnowledgeBaseTypeDigitalEmployee,
 		},
 		routeModel: "effective-model",
 	}, nil)
@@ -239,7 +224,7 @@ func TestDocumentAppServiceCreateRejectsManualDocumentForSourceBoundDigitalEmplo
 	})
 
 	_, err := svc.Create(context.Background(), newCustomContentCreateInput())
-	if !errors.Is(err, knowledgebase.ErrManualDocumentCreateNotAllowed) {
+	if !errors.Is(err, kbentity.ErrManualDocumentCreateNotAllowed) {
 		t.Fatalf("expected ErrManualDocumentCreateNotAllowed, got %v", err)
 	}
 	if len(domain.savedDocs) != 0 {
@@ -250,15 +235,16 @@ func TestDocumentAppServiceCreateRejectsManualDocumentForSourceBoundDigitalEmplo
 func TestDocumentAppServiceCreateManagedDocumentAllowsSourceBoundAutoCreate(t *testing.T) {
 	t.Parallel()
 
+	projectSourceType := int(kbentity.SourceTypeProject)
 	domain := &documentDomainServiceStub{}
 	svc := appservice.NewDocumentAppServiceForTest(t, domain, &knowledgeBaseReaderStub{
-		showByCodeAndOrgResult: &knowledgebase.KnowledgeBase{
+		showByCodeAndOrgResult: &kbentity.KnowledgeBase{
 			Code:              customContentKnowledgeCode,
 			OrganizationCode:  customContentOrgCode,
 			Model:             "kb-model",
 			VectorDB:          "odin_qdrant",
-			SourceType:        new(int(knowledgebase.SourceTypeProject)),
-			KnowledgeBaseType: knowledgebase.KnowledgeBaseTypeDigitalEmployee,
+			SourceType:        &projectSourceType,
+			KnowledgeBaseType: kbentity.KnowledgeBaseTypeDigitalEmployee,
 		},
 		routeModel: "effective-model",
 	}, nil)
@@ -280,8 +266,8 @@ func TestDocumentAppServiceCreateManagedDocumentAllowsSourceBoundAutoCreate(t *t
 		SourceItemID:      1,
 		AutoAdded:         true,
 		Name:              customContentFileName,
-		DocType:           int(documentdomain.DocTypeText),
-		DocumentFile: &documentdomain.File{
+		DocType:           int(docentity.DocumentInputKindText),
+		DocumentFile: &docentity.File{
 			Name: customContentFileName,
 			URL:  customContentFileKey,
 		},
@@ -299,7 +285,7 @@ func TestDocumentAppServiceCreateManagedDocumentAllowsSourceBoundAutoCreate(t *t
 
 func newCustomContentKnowledgeBaseReader() *knowledgeBaseReaderStub {
 	return &knowledgeBaseReaderStub{
-		showByCodeAndOrgResult: &knowledgebase.KnowledgeBase{
+		showByCodeAndOrgResult: &kbentity.KnowledgeBase{
 			Code:             customContentKnowledgeCode,
 			OrganizationCode: customContentOrgCode,
 			Model:            "kb-model",
@@ -318,7 +304,7 @@ func newCustomContentCreateInput() *docdto.CreateDocumentInput {
 		UserID:            customContentUserID,
 		KnowledgeBaseCode: customContentKnowledgeCode,
 		Name:              customContentFileName,
-		DocType:           int(documentdomain.DocTypeText),
+		DocType:           int(docentity.DocumentInputKindText),
 		DocMetadata: map[string]any{
 			"source": "custom_content",
 		},
@@ -341,7 +327,7 @@ func newCustomContentCreateInput() *docdto.CreateDocumentInput {
 	}
 }
 
-func assertCreatedManagedDocument(t *testing.T, saved *documentdomain.KnowledgeBaseDocument) {
+func assertCreatedManagedDocument(t *testing.T, saved *docentity.KnowledgeBaseDocument) {
 	t.Helper()
 
 	if saved.DocumentFile == nil || saved.DocumentFile.URL != customContentFileKey {
@@ -378,5 +364,8 @@ func assertCreateScheduledSync(t *testing.T, scheduler *documentSyncSchedulerStu
 	}
 	if scheduler.inputs[0].Code == "" {
 		t.Fatalf("expected scheduled document code, got %#v", scheduler.inputs[0])
+	}
+	if !scheduler.inputs[0].Async {
+		t.Fatalf("expected scheduled create sync to be async, got %#v", scheduler.inputs[0])
 	}
 }

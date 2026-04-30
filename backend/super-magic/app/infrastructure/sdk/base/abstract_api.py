@@ -247,9 +247,13 @@ class AbstractApi(ABC):
         """
         parsed_url = urlparse(url)
         if not parsed_url.netloc:
-            # Relative URL, combine with base URL
+            # Relative URL, combine with base URL.
+            # Ensure base ends with '/' and url has no leading '/' so that
+            # urljoin preserves any sub-path prefix in base_url (e.g. /_/magic-service).
             base_url = self._get_base_url()
-            return urljoin(base_url, url)
+            if not base_url.endswith('/'):
+                base_url += '/'
+            return urljoin(base_url, url.lstrip('/'))
         else:
             # Absolute URL
             return url

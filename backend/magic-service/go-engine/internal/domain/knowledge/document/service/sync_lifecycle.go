@@ -7,7 +7,9 @@ import (
 	"strings"
 	"time"
 
+	docentity "magic/internal/domain/knowledge/document/entity"
 	"magic/internal/domain/knowledge/shared"
+	parseddocument "magic/internal/domain/knowledge/shared/parseddocument"
 	sharedsnapshot "magic/internal/domain/knowledge/shared/snapshot"
 	"magic/internal/pkg/ctxmeta"
 )
@@ -37,23 +39,23 @@ const (
 
 // SyncLifecycleDocumentStore 定义同步生命周期需要的文档状态持久化能力。
 type SyncLifecycleDocumentStore interface {
-	Update(ctx context.Context, doc *KnowledgeBaseDocument) error
-	MarkSyncing(ctx context.Context, doc *KnowledgeBaseDocument) error
-	MarkSynced(ctx context.Context, doc *KnowledgeBaseDocument, wordCount int) error
-	MarkSyncFailed(ctx context.Context, doc *KnowledgeBaseDocument, message string) error
+	Update(ctx context.Context, doc *docentity.KnowledgeBaseDocument) error
+	MarkSyncing(ctx context.Context, doc *docentity.KnowledgeBaseDocument) error
+	MarkSynced(ctx context.Context, doc *docentity.KnowledgeBaseDocument, wordCount int) error
+	MarkSyncFailed(ctx context.Context, doc *docentity.KnowledgeBaseDocument, message string) error
 }
 
 // SyncLifecycleContentOperator 定义同步生命周期需要的内容解析能力。
 type SyncLifecycleContentOperator interface {
 	ResolveDocumentFileExtension(
 		ctx context.Context,
-		doc *KnowledgeBaseDocument,
+		doc *docentity.KnowledgeBaseDocument,
 		stage SyncDocumentFileExtensionStage,
 	) string
-	PreflightSource(ctx context.Context, doc *KnowledgeBaseDocument, override *SourceOverride) error
+	PreflightSource(ctx context.Context, doc *docentity.KnowledgeBaseDocument, override *SourceOverride) error
 	ParseContent(
 		ctx context.Context,
-		doc *KnowledgeBaseDocument,
+		doc *docentity.KnowledgeBaseDocument,
 		businessParams *ctxmeta.BusinessParams,
 		override *SourceOverride,
 	) (SyncContentResult, error)
@@ -61,9 +63,9 @@ type SyncLifecycleContentOperator interface {
 
 // SyncBuildFragmentsInput 描述切片构建输入。
 type SyncBuildFragmentsInput struct {
-	Document      *KnowledgeBaseDocument
+	Document      *docentity.KnowledgeBaseDocument
 	KnowledgeBase *sharedsnapshot.KnowledgeBaseRuntimeSnapshot
-	Parsed        *ParsedDocument
+	Parsed        *parseddocument.ParsedDocument
 }
 
 // SyncFragmentBatch 表示一次同步链路构建出的全部片段。
@@ -74,7 +76,7 @@ type SyncFragmentBatch struct {
 
 // SyncFragmentsInput 描述片段同步输入。
 type SyncFragmentsInput struct {
-	Document       *KnowledgeBaseDocument
+	Document       *docentity.KnowledgeBaseDocument
 	Mode           string
 	FragmentBatch  SyncFragmentBatch
 	BusinessParams *ctxmeta.BusinessParams
@@ -88,7 +90,7 @@ type SyncLifecycleFragmentOperator interface {
 
 // SyncLifecycleInput 描述一次文档同步生命周期所需的上下文。
 type SyncLifecycleInput struct {
-	Document       *KnowledgeBaseDocument
+	Document       *docentity.KnowledgeBaseDocument
 	KnowledgeBase  *sharedsnapshot.KnowledgeBaseRuntimeSnapshot
 	Mode           string
 	BusinessParams *ctxmeta.BusinessParams
@@ -186,7 +188,7 @@ func (s *SyncLifecycleService) validateInput(input SyncLifecycleInput) error {
 
 func (s *SyncLifecycleService) prepareSource(
 	ctx context.Context,
-	doc *KnowledgeBaseDocument,
+	doc *docentity.KnowledgeBaseDocument,
 	override *SourceOverride,
 ) error {
 	if err := s.persistSourceOverride(ctx, doc, override); err != nil {
@@ -204,7 +206,7 @@ func (s *SyncLifecycleService) prepareSource(
 
 func (s *SyncLifecycleService) persistSourceOverride(
 	ctx context.Context,
-	doc *KnowledgeBaseDocument,
+	doc *docentity.KnowledgeBaseDocument,
 	override *SourceOverride,
 ) error {
 	if override == nil {
@@ -227,7 +229,7 @@ func (s *SyncLifecycleService) persistSourceOverride(
 
 func (s *SyncLifecycleService) failSync(
 	ctx context.Context,
-	doc *KnowledgeBaseDocument,
+	doc *docentity.KnowledgeBaseDocument,
 	fallbackReason string,
 	err error,
 ) error {

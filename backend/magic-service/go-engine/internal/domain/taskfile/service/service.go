@@ -13,10 +13,11 @@ import (
 // ErrTaskFileReaderRequired 表示缺少 task file reader 依赖。
 var ErrTaskFileReaderRequired = errors.New("task file reader is required")
 
+var errVisibleChildCursorNotAdvanced = errors.New("visible child cursor did not advance")
+
 const (
 	defaultTreeNodeLimit = 1000
 	defaultWalkBatchSize = 1000
-	defaultWalkMaxDepth  = 10
 )
 
 // Reader 定义 task file 领域对可见文件的读取能力。
@@ -29,10 +30,12 @@ type Reader interface {
 		parentID int64,
 		limit int,
 	) ([]*projectfile.Meta, error)
-	ListVisibleChildrenByParents(
+	ListVisibleChildrenByParentAfter(
 		ctx context.Context,
 		projectID int64,
-		parentIDs []int64,
+		parentID int64,
+		lastSort int64,
+		lastFileID int64,
 		limit int,
 	) ([]*projectfile.Meta, error)
 }
@@ -52,6 +55,13 @@ type visibleChildBatch struct {
 	fileIDs   []int64
 }
 
+type visibleLeafWalkState struct {
+	cache       *visibilityCache
+	seenFolders map[int64]struct{}
+	seenFiles   map[int64]struct{}
+	visitor     func(projectFileID int64) (bool, error)
+}
+
 // NewDomainService 创建 task file 领域服务。
 func NewDomainService(reader Reader) *DomainService {
 	return &DomainService{reader: reader}
@@ -64,6 +74,11 @@ func (s *DomainService) IsVisibleFile(ctx context.Context, projectFileID int64) 
 		return false, err
 	}
 	return meta != nil && !meta.IsDirectory, nil
+}
+
+// LoadVisibleMeta 加载当前对知识库侧可见的 task file 轻量元数据。
+func (s *DomainService) LoadVisibleMeta(ctx context.Context, projectFileID int64) (*projectfile.Meta, error) {
+	return s.loadVisibleMeta(ctx, projectFileID)
 }
 
 // ListVisibleTreeNodesByProject 列出项目根目录下当前可见的直接子节点。
@@ -108,7 +123,7 @@ func (s *DomainService) ListVisibleLeafFileIDsByProject(
 	if root == nil {
 		return []int64{}, nil
 	}
-	return s.walkVisibleLeafFileIDs(ctx, root.ProjectID, root.ProjectFileID)
+	return s.collectVisibleLeafFileIDs(ctx, root.ProjectID, root.ProjectFileID)
 }
 
 // ListVisibleLeafFileIDsByFolder 列出目录下当前可见的全部叶子文件 ID。
@@ -123,7 +138,39 @@ func (s *DomainService) ListVisibleLeafFileIDsByFolder(
 	if folder == nil {
 		return []int64{}, nil
 	}
-	return s.walkVisibleLeafFileIDs(ctx, folder.ProjectID, folder.ProjectFileID)
+	return s.collectVisibleLeafFileIDs(ctx, folder.ProjectID, folder.ProjectFileID)
+}
+
+// WalkVisibleLeafFileIDsByProject 按稳定顺序遍历项目中当前可见的叶子文件 ID。
+func (s *DomainService) WalkVisibleLeafFileIDsByProject(
+	ctx context.Context,
+	projectID int64,
+	visitor func(projectFileID int64) (bool, error),
+) error {
+	root, err := s.findVisibleRootDirectory(ctx, projectID)
+	if err != nil {
+		return err
+	}
+	if root == nil {
+		return nil
+	}
+	return s.walkVisibleLeafFileIDs(ctx, root.ProjectID, root.ProjectFileID, visitor)
+}
+
+// WalkVisibleLeafFileIDsByFolder 按稳定顺序遍历目录下当前可见的叶子文件 ID。
+func (s *DomainService) WalkVisibleLeafFileIDsByFolder(
+	ctx context.Context,
+	folderID int64,
+	visitor func(projectFileID int64) (bool, error),
+) error {
+	folder, err := s.findVisibleDirectory(ctx, folderID)
+	if err != nil {
+		return err
+	}
+	if folder == nil {
+		return nil
+	}
+	return s.walkVisibleLeafFileIDs(ctx, folder.ProjectID, folder.ProjectFileID, visitor)
 }
 
 // MetaToTreeNode 将轻量元数据映射为树节点。
@@ -179,13 +226,30 @@ func (s *DomainService) listVisibleTreeNodes(
 	return nodes, nil
 }
 
-func (s *DomainService) walkVisibleLeafFileIDs(
+func (s *DomainService) collectVisibleLeafFileIDs(
 	ctx context.Context,
 	projectID int64,
 	rootParentID int64,
 ) ([]int64, error) {
+	fileIDs := make([]int64, 0)
+	err := s.walkVisibleLeafFileIDs(ctx, projectID, rootParentID, func(projectFileID int64) (bool, error) {
+		fileIDs = append(fileIDs, projectFileID)
+		return true, nil
+	})
+	if err != nil {
+		return nil, err
+	}
+	return fileIDs, nil
+}
+
+func (s *DomainService) walkVisibleLeafFileIDs(
+	ctx context.Context,
+	projectID int64,
+	rootParentID int64,
+	visitor func(projectFileID int64) (bool, error),
+) error {
 	if s == nil || s.reader == nil {
-		return nil, ErrTaskFileReaderRequired
+		return ErrTaskFileReaderRequired
 	}
 
 	cache := newVisibilityCache()
@@ -195,29 +259,109 @@ func (s *DomainService) walkVisibleLeafFileIDs(
 		IsDirectory:   true,
 	})
 
+	state := visibleLeafWalkState{
+		cache:       cache,
+		seenFolders: map[int64]struct{}{rootParentID: {}},
+		seenFiles:   make(map[int64]struct{}),
+		visitor:     visitor,
+	}
 	queue := []int64{rootParentID}
-	seenFolders := map[int64]struct{}{rootParentID: {}}
-	seenFiles := make(map[int64]struct{})
-	fileIDs := make([]int64, 0)
+	for len(queue) > 0 {
+		parentID := queue[0]
+		queue = queue[1:]
 
-	for depth := 0; depth < defaultWalkMaxDepth && len(queue) > 0; depth++ {
-		children, err := s.reader.ListVisibleChildrenByParents(ctx, projectID, queue, defaultWalkBatchSize)
+		nextFolders, err := s.walkVisibleChildrenByParent(ctx, projectID, parentID, state)
+		if err != nil {
+			return err
+		}
+		queue = append(queue, nextFolders...)
+	}
+
+	return nil
+}
+
+func (s *DomainService) walkVisibleChildrenByParent(
+	ctx context.Context,
+	projectID int64,
+	parentID int64,
+	state visibleLeafWalkState,
+) ([]int64, error) {
+	var (
+		lastSort   int64
+		lastFileID int64
+		nextQueue  []int64
+	)
+
+	for {
+		children, err := s.reader.ListVisibleChildrenByParentAfter(
+			ctx,
+			projectID,
+			parentID,
+			lastSort,
+			lastFileID,
+			defaultWalkBatchSize,
+		)
 		if err != nil {
 			return nil, fmt.Errorf("list visible descendants: %w", err)
 		}
 		if len(children) == 0 {
-			break
+			return nextQueue, nil
 		}
 
-		batch, err := s.collectVisibleChildBatch(ctx, children, cache, seenFolders, seenFiles)
+		batch, err := s.collectVisibleChildBatch(ctx, children, state.cache, state.seenFolders, state.seenFiles)
 		if err != nil {
 			return nil, err
 		}
-		fileIDs = append(fileIDs, batch.fileIDs...)
-		queue = batch.nextQueue
-	}
+		nextQueue = append(nextQueue, batch.nextQueue...)
+		for _, fileID := range batch.fileIDs {
+			if state.visitor == nil {
+				continue
+			}
+			keepWalking, visitErr := state.visitor(fileID)
+			if visitErr != nil {
+				return nil, visitErr
+			}
+			if !keepWalking {
+				return nextQueue, nil
+			}
+		}
 
-	return fileIDs, nil
+		nextSort, nextFileID, ok := lastVisibleChildCursor(children)
+		if !ok {
+			return nextQueue, nil
+		}
+		if !isVisibleChildCursorAfter(nextSort, nextFileID, lastSort, lastFileID) {
+			return nil, fmt.Errorf(
+				"%w: parent_id=%d old_sort=%d old_file_id=%d new_sort=%d new_file_id=%d",
+				errVisibleChildCursorNotAdvanced,
+				parentID,
+				lastSort,
+				lastFileID,
+				nextSort,
+				nextFileID,
+			)
+		}
+		lastSort = nextSort
+		lastFileID = nextFileID
+		if len(children) < defaultWalkBatchSize {
+			return nextQueue, nil
+		}
+	}
+}
+
+func lastVisibleChildCursor(children []*projectfile.Meta) (sort, fileID int64, ok bool) {
+	for idx := len(children) - 1; idx >= 0; idx-- {
+		child := children[idx]
+		if child == nil || child.ProjectFileID <= 0 {
+			continue
+		}
+		return child.Sort, child.ProjectFileID, true
+	}
+	return 0, 0, false
+}
+
+func isVisibleChildCursorAfter(sort, fileID, lastSort, lastFileID int64) bool {
+	return sort > lastSort || sort == lastSort && fileID > lastFileID
 }
 
 func (s *DomainService) collectVisibleChildBatch(

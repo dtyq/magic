@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"maps"
 
 	"magic/internal/constants"
 	"magic/internal/infrastructure/logging"
@@ -70,7 +71,7 @@ func (c *PHPKnowledgeBasePermissionRPCClient) ListOperations(
 		"knowledge_codes": knowledgeCodes,
 	}, &result); err != nil {
 		if c.logger != nil {
-			c.logger.ErrorContext(ctx, "调用 PHP 知识库权限查询失败", "organization_code", organizationCode, "user_id", userID, "knowledge_codes", knowledgeCodes, "error", err)
+			c.logger.KnowledgeErrorContext(ctx, "调用 PHP 知识库权限查询失败", "organization_code", organizationCode, "user_id", userID, "knowledge_codes", knowledgeCodes, "error", err)
 		}
 		return nil, errors.Join(ErrPHPRequestFailed, err)
 	}
@@ -100,7 +101,7 @@ func (c *PHPKnowledgeBasePermissionRPCClient) IsOfficialOrganizationMember(
 		},
 	}, &result); err != nil {
 		if c.logger != nil {
-			c.logger.ErrorContext(ctx, "调用 PHP 官方组织校验失败", "organization_code", organizationCode, "error", err)
+			c.logger.KnowledgeErrorContext(ctx, "调用 PHP 官方组织校验失败", "organization_code", organizationCode, "error", err)
 		}
 		return false, errors.Join(ErrPHPRequestFailed, err)
 	}
@@ -109,4 +110,99 @@ func (c *PHPKnowledgeBasePermissionRPCClient) IsOfficialOrganizationMember(
 	}
 
 	return result.Data.IsOfficialMember, nil
+}
+
+// Initialize 初始化知识库 owner/admin 权限。
+func (c *PHPKnowledgeBasePermissionRPCClient) Initialize(
+	ctx context.Context,
+	organizationCode string,
+	currentUserID string,
+	payload map[string]any,
+) error {
+	if c == nil || c.server == nil || c.server.GetRPCClientCount() == 0 {
+		return ErrNoClientConnected
+	}
+
+	params := map[string]any{
+		"data_isolation": map[string]any{
+			"organization_code": organizationCode,
+			"user_id":           currentUserID,
+		},
+	}
+	maps.Copy(params, payload)
+
+	knowledgeBaseCode, _ := payload["knowledge_base_code"].(string)
+	var result knowledgeBasePermissionRPCResponse[any]
+	if err := unixsocket.CallRPCTypedWithContext(ctx, c.server, constants.MethodKnowledgeBasePermissionInitialize, params, &result); err != nil {
+		if c.logger != nil {
+			c.logger.KnowledgeErrorContext(ctx, "调用 PHP 知识库权限初始化失败", "organization_code", organizationCode, "current_user_id", currentUserID, "knowledge_base_code", knowledgeBaseCode, "error", err)
+		}
+		return errors.Join(ErrPHPRequestFailed, err)
+	}
+	if result.Code != 0 {
+		return fmt.Errorf("%w: code=%d, message=%s", ErrPHPRequestFailed, result.Code, result.Message)
+	}
+	return nil
+}
+
+// GrantOwner 显式授予知识库 owner 权限。
+func (c *PHPKnowledgeBasePermissionRPCClient) GrantOwner(
+	ctx context.Context,
+	organizationCode string,
+	currentUserID string,
+	knowledgeBaseCode string,
+	ownerUserID string,
+) error {
+	if c == nil || c.server == nil || c.server.GetRPCClientCount() == 0 {
+		return ErrNoClientConnected
+	}
+
+	var result knowledgeBasePermissionRPCResponse[any]
+	if err := unixsocket.CallRPCTypedWithContext(ctx, c.server, constants.MethodKnowledgeBasePermissionGrantOwner, map[string]any{
+		"data_isolation": map[string]any{
+			"organization_code": organizationCode,
+			"user_id":           currentUserID,
+		},
+		"knowledge_base_code": knowledgeBaseCode,
+		"owner_user_id":       ownerUserID,
+	}, &result); err != nil {
+		if c.logger != nil {
+			c.logger.KnowledgeErrorContext(ctx, "调用 PHP 知识库 owner 授权失败", "organization_code", organizationCode, "current_user_id", currentUserID, "knowledge_base_code", knowledgeBaseCode, "error", err)
+		}
+		return errors.Join(ErrPHPRequestFailed, err)
+	}
+	if result.Code != 0 {
+		return fmt.Errorf("%w: code=%d, message=%s", ErrPHPRequestFailed, result.Code, result.Message)
+	}
+	return nil
+}
+
+// Cleanup 删除知识库资源权限。
+func (c *PHPKnowledgeBasePermissionRPCClient) Cleanup(
+	ctx context.Context,
+	organizationCode string,
+	currentUserID string,
+	knowledgeBaseCode string,
+) error {
+	if c == nil || c.server == nil || c.server.GetRPCClientCount() == 0 {
+		return ErrNoClientConnected
+	}
+
+	var result knowledgeBasePermissionRPCResponse[any]
+	if err := unixsocket.CallRPCTypedWithContext(ctx, c.server, constants.MethodKnowledgeBasePermissionCleanup, map[string]any{
+		"data_isolation": map[string]any{
+			"organization_code": organizationCode,
+			"user_id":           currentUserID,
+		},
+		"knowledge_base_code": knowledgeBaseCode,
+	}, &result); err != nil {
+		if c.logger != nil {
+			c.logger.KnowledgeErrorContext(ctx, "调用 PHP 知识库权限清理失败", "organization_code", organizationCode, "current_user_id", currentUserID, "knowledge_base_code", knowledgeBaseCode, "error", err)
+		}
+		return errors.Join(ErrPHPRequestFailed, err)
+	}
+	if result.Code != 0 {
+		return fmt.Errorf("%w: code=%d, message=%s", ErrPHPRequestFailed, result.Code, result.Message)
+	}
+	return nil
 }

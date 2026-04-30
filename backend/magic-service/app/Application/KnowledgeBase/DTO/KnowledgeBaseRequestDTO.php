@@ -57,6 +57,11 @@ readonly class KnowledgeBaseRequestDTO
         return new self(dataIsolation: $dataIsolation, payload: $payload);
     }
 
+    public static function forRebuildPermissions(array $payload, DataIsolationDTO $dataIsolation): self
+    {
+        return new self(dataIsolation: $dataIsolation, payload: $payload);
+    }
+
     public static function forRepairSourceBindings(array $payload, DataIsolationDTO $dataIsolation): self
     {
         return new self(dataIsolation: $dataIsolation, payload: $payload);

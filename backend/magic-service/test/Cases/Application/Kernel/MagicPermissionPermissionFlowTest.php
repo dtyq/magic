@@ -26,6 +26,8 @@ class MagicPermissionPermissionFlowTest extends HttpTestCase
 
     private array $originResourceMenuMapping;
 
+    private array $originResourceMenuAliasMapping;
+
     protected function setUp(): void
     {
         parent::setUp();
@@ -34,12 +36,15 @@ class MagicPermissionPermissionFlowTest extends HttpTestCase
         $this->originFallbackLegacyTree = (bool) $this->config->get('permission_menu.fallback_legacy_tree', false);
         $mapping = $this->config->get('permission_menu.resource_menu_mapping', []);
         $this->originResourceMenuMapping = is_array($mapping) ? $mapping : [];
+        $aliasMapping = $this->config->get('permission_menu.resource_menu_alias_mapping', []);
+        $this->originResourceMenuAliasMapping = is_array($aliasMapping) ? $aliasMapping : [];
     }
 
     protected function tearDown(): void
     {
         $this->config->set('permission_menu.fallback_legacy_tree', $this->originFallbackLegacyTree);
         $this->config->set('permission_menu.resource_menu_mapping', $this->originResourceMenuMapping);
+        $this->config->set('permission_menu.resource_menu_alias_mapping', $this->originResourceMenuAliasMapping);
         parent::tearDown();
     }
 
@@ -160,6 +165,40 @@ class MagicPermissionPermissionFlowTest extends HttpTestCase
         );
     }
 
+    public function testGetPermissionTreeCanAppendAliasPathsForSameResource(): void
+    {
+        $this->config->set('permission_menu.fallback_legacy_tree', false);
+        $this->config->set('permission_menu.resource_menu_mapping', [
+            MagicResourceEnum::WORKSPACE_AI_MODEL->value => [
+                'path' => [
+                    ['key' => 'root_workspace', 'label' => 'Workspace'],
+                    ['key' => 'model_manage', 'label' => 'Model'],
+                ],
+                'tag' => 'Model',
+            ],
+        ]);
+        $this->config->set('permission_menu.resource_menu_alias_mapping', [
+            MagicResourceEnum::WORKSPACE_AI_MODEL->value => [
+                [
+                    'path' => [
+                        ['key' => 'root_workspace', 'label' => 'Workspace'],
+                        ['key' => 'video_model', 'label' => 'Video'],
+                    ],
+                ],
+            ],
+        ]);
+
+        $tree = $this->permission->getPermissionTree(false);
+        $permissionKey = $this->permission->buildPermission(
+            MagicResourceEnum::WORKSPACE_AI_MODEL->value,
+            MagicOperationEnum::QUERY->value
+        );
+
+        $this->assertTrue($this->containsPermissionKey($tree, 'menu.root_workspace.model_manage'));
+        $this->assertTrue($this->containsPermissionKey($tree, 'menu.root_workspace.video_model'));
+        $this->assertSame(2, $this->countPermissionKey($tree, $permissionKey));
+    }
+
     public function testGetPermissionTreePlatformVisibilityDependsOnOrganizationType(): void
     {
         $platformPermission = $this->permission->buildPermission(
@@ -240,5 +279,29 @@ class MagicPermissionPermissionFlowTest extends HttpTestCase
         }
 
         return false;
+    }
+
+    /**
+     * @param array<int, mixed> $nodes
+     */
+    private function countPermissionKey(array $nodes, string $permissionKey): int
+    {
+        $count = 0;
+        foreach ($nodes as $node) {
+            if (! is_array($node)) {
+                continue;
+            }
+
+            if (($node['permission_key'] ?? '') === $permissionKey) {
+                ++$count;
+            }
+
+            $children = $node['children'] ?? [];
+            if (is_array($children)) {
+                $count += $this->countPermissionKey($children, $permissionKey);
+            }
+        }
+
+        return $count;
     }
 }

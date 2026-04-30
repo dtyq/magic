@@ -53,6 +53,7 @@ function UserSelector(props: UserSelectorProps, ref: Ref<UserSelectorRef>) {
 		renderRightTop,
 		renderRightBottom,
 		renderRightBySegment,
+		renderItemRight,
 		onOpenChange,
 	} = props
 
@@ -136,6 +137,7 @@ function UserSelector(props: UserSelectorProps, ref: Ref<UserSelectorRef>) {
 					checkboxOptions={organizationCheckboxOptions}
 					pathOptions={pathOptions}
 					disableUser={disableUser}
+					renderItemRight={renderItemRight}
 					onItemClick={(node) => onItemClick?.(node, seg)}
 					{...otherOptions}
 				/>
@@ -157,6 +159,7 @@ function UserSelector(props: UserSelectorProps, ref: Ref<UserSelectorRef>) {
 						checkboxOptions={organizationCheckboxOptions}
 						maxCount={maxCount}
 						disableUser={disableUser}
+						renderItemRight={renderItemRight}
 					/>
 				)
 			case SegmentType.Resigned:
@@ -169,6 +172,7 @@ function UserSelector(props: UserSelectorProps, ref: Ref<UserSelectorRef>) {
 						hasMore={segmentData?.[segment]?.hasMore}
 						loadMore={segmentData?.[segment]?.loadMore}
 						disableUser={disableUser}
+						renderItemRight={renderItemRight}
 						onItemClick={(node) => onItemClick?.(node, segment)}
 					/>
 				)
@@ -273,6 +277,7 @@ function UserSelector(props: UserSelectorProps, ref: Ref<UserSelectorRef>) {
 						maxCount={maxCount}
 						disableUser={disableUser}
 						showSearch={segment !== SegmentType.ShareToGroup}
+						renderItemRight={renderItemRight}
 					>
 						{segmentData ? (
 							<div className="flex h-full flex-col gap-1.5 overflow-hidden">

@@ -163,7 +163,11 @@ func TestSessionSendPacketAndCallWithTimeoutBranches(t *testing.T) {
 	if _, err := io.ReadFull(clientConn, body); err != nil {
 		t.Fatalf("read body: %v", err)
 	}
-	if _, err := common.DecodeResponse(body); err != nil {
+	decodedBody, err := jsonrpc.DecodeIPCFrameForTest(body)
+	if err != nil {
+		t.Fatalf("DecodeIPCFrameForTest() error = %v", err)
+	}
+	if _, err := common.DecodeResponse(decodedBody); err != nil {
 		t.Fatalf("DecodeResponse() error = %v", err)
 	}
 	<-done
@@ -210,6 +214,104 @@ func TestServerCallByMethodWithNoCapableClient(t *testing.T) {
 
 	if _, err := server.CallByMethod("demo.echo", nil); err == nil {
 		t.Fatal("expected no capable client error")
+	}
+}
+
+func TestServerCapabilityReadinessTracksHandshakeAndDisconnect(t *testing.T) {
+	t.Parallel()
+
+	serverConn, clientConn := net.Pipe()
+	t.Cleanup(func() {
+		_ = serverConn.Close()
+		_ = clientConn.Close()
+	})
+
+	server := jsonrpc.NewServerForTest(newRPCLogger(), jsonrpc.DefaultRuntimeConfig())
+	session := jsonrpc.NewSessionForTest(13, serverConn, server)
+	jsonrpc.AttachSessionForTest(server, session, true)
+
+	if server.HasCapableClient() {
+		t.Fatal("unhandshaked session should not be ready")
+	}
+	if server.HasCapableClient("demo.echo") {
+		t.Fatal("unhandshaked session should not be capable")
+	}
+
+	jsonrpc.SetSessionCapabilitiesForTest(session, "demo.other")
+	if !server.HasCapableClient() {
+		t.Fatal("handshaked session should satisfy empty capability wait")
+	}
+	if server.HasCapableClient("demo.echo") {
+		t.Fatal("session without target capability should not be ready")
+	}
+
+	jsonrpc.SetSessionCapabilitiesForTest(session, "demo.echo", "demo.other")
+	if !server.HasCapableClient("demo.echo") {
+		t.Fatal("session with target capability should be ready")
+	}
+	if !server.HasCapableClient("demo.echo", "demo.other") {
+		t.Fatal("session should satisfy all requested capabilities")
+	}
+
+	jsonrpc.DetachSessionForTest(server, session)
+	if server.HasCapableClient("demo.echo") {
+		t.Fatal("detached session should not be ready")
+	}
+}
+
+func TestServerWaitCapableClient(t *testing.T) {
+	t.Parallel()
+
+	serverConn, clientConn := net.Pipe()
+	t.Cleanup(func() {
+		_ = serverConn.Close()
+		_ = clientConn.Close()
+	})
+
+	server := jsonrpc.NewServerForTest(newRPCLogger(), jsonrpc.DefaultRuntimeConfig())
+	session := jsonrpc.NewSessionForTest(14, serverConn, server)
+	jsonrpc.AttachSessionForTest(server, session, true)
+
+	waitCtx, waitCancel := context.WithTimeout(context.Background(), time.Second)
+	defer waitCancel()
+	waitDone := make(chan error, 1)
+	go func() {
+		waitDone <- server.WaitCapableClient(waitCtx, "demo.echo")
+	}()
+
+	select {
+	case err := <-waitDone:
+		t.Fatalf("WaitCapableClient returned before readiness: %v", err)
+	case <-time.After(20 * time.Millisecond):
+	}
+
+	jsonrpc.SetSessionCapabilitiesForTest(session, "demo.echo")
+
+	select {
+	case err := <-waitDone:
+		if err != nil {
+			t.Fatalf("WaitCapableClient returned error: %v", err)
+		}
+	case <-time.After(time.Second):
+		t.Fatal("timed out waiting for capable client")
+	}
+
+	immediateCtx, immediateCancel := context.WithTimeout(context.Background(), time.Second)
+	defer immediateCancel()
+	if err := server.WaitCapableClient(immediateCtx, "demo.echo"); err != nil {
+		t.Fatalf("ready WaitCapableClient returned error: %v", err)
+	}
+}
+
+func TestServerWaitCapableClientCancels(t *testing.T) {
+	t.Parallel()
+
+	server := jsonrpc.NewServerForTest(newRPCLogger(), jsonrpc.DefaultRuntimeConfig())
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+
+	if err := server.WaitCapableClient(ctx, "demo.echo"); !errors.Is(err, context.Canceled) {
+		t.Fatalf("expected context.Canceled, got %v", err)
 	}
 }
 

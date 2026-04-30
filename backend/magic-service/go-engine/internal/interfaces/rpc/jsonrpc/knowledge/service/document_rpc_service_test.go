@@ -61,14 +61,17 @@ type mockDocumentAppService struct {
 	lastShowCode          string
 	lastShowKBCode        string
 	lastShowOrgCode       string
+	lastShowUserID        string
 	lastOriginalLinkCode  string
 	lastOriginalLinkKB    string
 	lastOriginalLinkOrg   string
+	lastOriginalLinkUser  string
 	lastCountOrgCode      string
 	lastCountKBCodes      []string
 	lastDestroyCode       string
 	lastDestroyKBCode     string
 	lastDestroyOrgCode    string
+	lastDestroyUserID     string
 	lastReVectorizedInput *docdto.ReVectorizedByThirdFileIDInput
 	lastProjectFileInput  *docdto.NotifyProjectFileChangeInput
 }
@@ -95,10 +98,11 @@ func (m *mockDocumentAppService) Update(_ context.Context, input *docdto.UpdateD
 	return &docdto.DocumentDTO{}, nil
 }
 
-func (m *mockDocumentAppService) Show(_ context.Context, code, knowledgeBaseCode, organizationCode string) (*docdto.DocumentDTO, error) {
+func (m *mockDocumentAppService) Show(_ context.Context, code, knowledgeBaseCode, organizationCode, userID string) (*docdto.DocumentDTO, error) {
 	m.lastShowCode = code
 	m.lastShowKBCode = knowledgeBaseCode
 	m.lastShowOrgCode = organizationCode
+	m.lastShowUserID = userID
 	if m.showErr != nil {
 		return nil, m.showErr
 	}
@@ -110,11 +114,12 @@ func (m *mockDocumentAppService) Show(_ context.Context, code, knowledgeBaseCode
 
 func (m *mockDocumentAppService) GetOriginalFileLink(
 	_ context.Context,
-	code, knowledgeBaseCode, organizationCode string,
+	code, knowledgeBaseCode, organizationCode, userID string,
 ) (*docdto.OriginalFileLinkDTO, error) {
 	m.lastOriginalLinkCode = code
 	m.lastOriginalLinkKB = knowledgeBaseCode
 	m.lastOriginalLinkOrg = organizationCode
+	m.lastOriginalLinkUser = userID
 	if m.originalFileLinkErr != nil {
 		return nil, m.originalFileLinkErr
 	}
@@ -165,10 +170,11 @@ func (m *mockDocumentAppService) CountByKnowledgeBaseCodes(_ context.Context, or
 	return map[string]int64{"KB1": 3}, nil
 }
 
-func (m *mockDocumentAppService) Destroy(_ context.Context, code, knowledgeBaseCode, organizationCode string) error {
+func (m *mockDocumentAppService) Destroy(_ context.Context, code, knowledgeBaseCode, organizationCode, userID string) error {
 	m.lastDestroyCode = code
 	m.lastDestroyKBCode = knowledgeBaseCode
 	m.lastDestroyOrgCode = organizationCode
+	m.lastDestroyUserID = userID
 	return m.destroyErr
 }
 
@@ -216,8 +222,8 @@ func TestUpdateRPCPassesKnowledgeBaseCode(t *testing.T) {
 	if appSvc.lastUpdateInput.KnowledgeBaseCode != testDocumentKBCode {
 		t.Fatalf("expected knowledge base code %s, got %q", testDocumentKBCode, appSvc.lastUpdateInput.KnowledgeBaseCode)
 	}
-	if !appSvc.lastUpdateInput.WaitForSyncResult {
-		t.Fatal("expected update RPC to wait for sync result")
+	if appSvc.lastUpdateInput.WaitForSyncResult {
+		t.Fatal("expected update RPC to schedule resync asynchronously")
 	}
 }
 
@@ -255,8 +261,8 @@ func TestCreateRPCEnablesAutoSync(t *testing.T) {
 	if !appSvc.lastCreateInput.AutoSync {
 		t.Fatal("expected create RPC to enable auto sync")
 	}
-	if !appSvc.lastCreateInput.WaitForSyncResult {
-		t.Fatal("expected create RPC to wait for sync result")
+	if appSvc.lastCreateInput.WaitForSyncResult {
+		t.Fatal("expected create RPC to schedule sync asynchronously")
 	}
 }
 
@@ -379,6 +385,105 @@ func TestDocumentRPCIgnoresAgentScopeFields(t *testing.T) {
 	}
 }
 
+func TestDocumentListAndSyncRPCCompatAcceptStringScalars(t *testing.T) {
+	t.Parallel()
+
+	appSvc := &mockDocumentAppService{
+		listResp: &pagehelper.Result{},
+	}
+	handler := knowledgesvc.NewDocumentRPCServiceWithDependencies(appSvc, logging.New())
+
+	list := jsonrpc.WrapTyped(handler.ListRPC)
+	if _, err := list(context.Background(), "svc.knowledge.document.queries", json.RawMessage(`{
+		"data_isolation": {"organization_code": "ORG1", "user_id": "U1"},
+		"organization_code": "ORG1",
+		"knowledge_base_code": "KB1",
+		"sync_status": "2",
+		"page": "3",
+		"page_size": "25"
+	}`)); err != nil {
+		t.Fatalf("expected list string pagination compat, got %v", err)
+	}
+	if appSvc.lastListInput == nil || appSvc.lastListInput.Offset != 50 || appSvc.lastListInput.Limit != 25 {
+		t.Fatalf("expected string pagination mapped to offset/limit=50/25, got %#v", appSvc.lastListInput)
+	}
+
+	syncDocument := jsonrpc.WrapTyped(handler.SyncRPC)
+	if _, err := syncDocument(context.Background(), "svc.knowledge.document.sync", json.RawMessage(`{
+		"data_isolation": {"organization_code": "ORG1", "user_id": "U1"},
+		"business_params": {"organization_code": "ORG1", "user_id": "U1"},
+		"knowledge_base_code": "KB1",
+		"code": "DOC1",
+		"sync": "false"
+	}`)); err != nil {
+		t.Fatalf("expected sync string bool compat, got %v", err)
+	}
+	if appSvc.syncCalls != 0 {
+		t.Fatalf("expected sync not to be called, got %d", appSvc.syncCalls)
+	}
+	if appSvc.scheduleCalls != 1 || appSvc.lastScheduledInput == nil || !appSvc.lastScheduledInput.Async {
+		t.Fatalf("expected compat sync request to schedule asynchronously, got calls=%d input=%#v", appSvc.scheduleCalls, appSvc.lastScheduledInput)
+	}
+}
+
+func TestNotifyProjectFileChangeRPCCompatAcceptsStringProjectFileID(t *testing.T) {
+	t.Parallel()
+
+	appSvc := &mockDocumentAppService{}
+	handler := knowledgesvc.NewDocumentRPCServiceWithDependencies(appSvc, logging.New())
+	notifyChange := jsonrpc.WrapTyped(handler.NotifyProjectFileChangeRPC)
+
+	if _, err := notifyChange(context.Background(), "svc.knowledge.projectFile.notifyChange", json.RawMessage(`{
+		"project_file_id": "42"
+	}`)); err != nil {
+		t.Fatalf("expected project_file_id string compat, got %v", err)
+	}
+	if appSvc.lastProjectFileInput == nil || appSvc.lastProjectFileInput.ProjectFileID != 42 {
+		t.Fatalf("expected project_file_id=42, got %#v", appSvc.lastProjectFileInput)
+	}
+}
+
+func TestNotifyProjectFileChangeRPCCompatPreservesLargeNumericProjectFileID(t *testing.T) {
+	t.Parallel()
+
+	appSvc := &mockDocumentAppService{}
+	handler := knowledgesvc.NewDocumentRPCServiceWithDependencies(appSvc, logging.New())
+	notifyChange := jsonrpc.WrapTyped(handler.NotifyProjectFileChangeRPC)
+
+	if _, err := notifyChange(context.Background(), "svc.knowledge.projectFile.notifyChange", json.RawMessage(`{
+		"project_file_id": 904787325064802305
+	}`)); err != nil {
+		t.Fatalf("expected large numeric project_file_id compat, got %v", err)
+	}
+	if appSvc.lastProjectFileInput == nil || appSvc.lastProjectFileInput.ProjectFileID != 904787325064802305 {
+		t.Fatalf("expected project_file_id=904787325064802305, got %#v", appSvc.lastProjectFileInput)
+	}
+}
+
+func TestNotifyProjectFileChangeRPCCompatPassesDeletedContext(t *testing.T) {
+	t.Parallel()
+
+	appSvc := &mockDocumentAppService{}
+	handler := knowledgesvc.NewDocumentRPCServiceWithDependencies(appSvc, logging.New())
+	notifyChange := jsonrpc.WrapTyped(handler.NotifyProjectFileChangeRPC)
+
+	if _, err := notifyChange(context.Background(), "svc.knowledge.projectFile.notifyChange", json.RawMessage(`{
+		"project_file_id": "42",
+		"organization_code": "ORG1",
+		"project_id": "900",
+		"status": "deleted"
+	}`)); err != nil {
+		t.Fatalf("expected deleted context compat, got %v", err)
+	}
+	if appSvc.lastProjectFileInput == nil ||
+		appSvc.lastProjectFileInput.ProjectFileID != 42 ||
+		appSvc.lastProjectFileInput.OrganizationCode != testDocumentOrgCode ||
+		appSvc.lastProjectFileInput.ProjectID != 900 ||
+		appSvc.lastProjectFileInput.Status != "deleted" {
+		t.Fatalf("expected deleted context preserved, got %#v", appSvc.lastProjectFileInput)
+	}
+}
+
 func TestDocumentCreateRPCResponseContractCompat(t *testing.T) {
 	t.Parallel()
 
@@ -438,6 +543,9 @@ func TestShowRPCPassesKnowledgeBaseCodeAndOrganization(t *testing.T) {
 	if appSvc.lastShowOrgCode != testDocumentOrgCode {
 		t.Fatalf("expected organization code ORG1, got %q", appSvc.lastShowOrgCode)
 	}
+	if appSvc.lastShowUserID != "U1" {
+		t.Fatalf("expected user id U1, got %q", appSvc.lastShowUserID)
+	}
 }
 
 func TestGetOriginalFileLinkRPCPassesExpectedPayload(t *testing.T) {
@@ -457,8 +565,8 @@ func TestGetOriginalFileLinkRPCPassesExpectedPayload(t *testing.T) {
 	if err != nil {
 		t.Fatalf("expected nil error, got %v", err)
 	}
-	if appSvc.lastOriginalLinkCode != testDocumentCode || appSvc.lastOriginalLinkKB != testDocumentKBCode || appSvc.lastOriginalLinkOrg != testDocumentOrgCode {
-		t.Fatalf("unexpected original-file-link input: code=%q kb=%q org=%q", appSvc.lastOriginalLinkCode, appSvc.lastOriginalLinkKB, appSvc.lastOriginalLinkOrg)
+	if appSvc.lastOriginalLinkCode != testDocumentCode || appSvc.lastOriginalLinkKB != testDocumentKBCode || appSvc.lastOriginalLinkOrg != testDocumentOrgCode || appSvc.lastOriginalLinkUser != "U1" {
+		t.Fatalf("unexpected original-file-link input: code=%q kb=%q org=%q user=%q", appSvc.lastOriginalLinkCode, appSvc.lastOriginalLinkKB, appSvc.lastOriginalLinkOrg, appSvc.lastOriginalLinkUser)
 	}
 	if result == nil || !result.Available || result.Type != "external" {
 		t.Fatalf("unexpected result: %#v", result)
@@ -575,6 +683,7 @@ func TestSyncRPCPassesBusinessParams(t *testing.T) {
 		KnowledgeBaseCode: "KB1",
 		Code:              "DOC1",
 		Mode:              "create",
+		RevectorizeSource: documentapp.RevectorizeSourceSingleDocumentManual,
 		DataIsolation: dto.DataIsolation{
 			OrganizationCode: "ORG1",
 			UserID:           "U1",
@@ -591,16 +700,25 @@ func TestSyncRPCPassesBusinessParams(t *testing.T) {
 	if result == nil || !(*result)["success"] {
 		t.Fatalf("expected success result, got %#v", result)
 	}
-	if appSvc.lastSyncInput == nil {
-		t.Fatal("expected sync input captured")
+	if appSvc.syncCalls != 0 {
+		t.Fatalf("expected sync not to be called, got %d", appSvc.syncCalls)
 	}
-	if appSvc.lastSyncInput.BusinessParams == nil || appSvc.lastSyncInput.BusinessParams.UserID != "U1" {
-		t.Fatalf("unexpected business params: %#v", appSvc.lastSyncInput.BusinessParams)
+	if appSvc.scheduleCalls != 1 || appSvc.lastScheduledInput == nil {
+		t.Fatalf("expected scheduled sync input captured, got calls=%d input=%#v", appSvc.scheduleCalls, appSvc.lastScheduledInput)
+	}
+	if !appSvc.lastScheduledInput.Async {
+		t.Fatalf("expected scheduled sync input to be async, got %#v", appSvc.lastScheduledInput)
+	}
+	if appSvc.lastScheduledInput.BusinessParams == nil || appSvc.lastScheduledInput.BusinessParams.UserID != "U1" {
+		t.Fatalf("unexpected business params: %#v", appSvc.lastScheduledInput.BusinessParams)
+	}
+	if appSvc.lastScheduledInput.RevectorizeSource != documentapp.RevectorizeSourceSingleDocumentManual {
+		t.Fatalf("unexpected revectorize source: %#v", appSvc.lastScheduledInput)
 	}
 }
 
-func TestSyncRPCResyncSchedulesWithoutAsyncFlag(t *testing.T) {
-	t.Parallel()
+func assertSyncRPCResyncSchedulesAsyncByDefault(t *testing.T, expectedAsyncDesc string) {
+	t.Helper()
 
 	appSvc := &mockDocumentAppService{}
 	handler := knowledgesvc.NewDocumentRPCServiceWithDependencies(appSvc, logging.New())
@@ -632,8 +750,14 @@ func TestSyncRPCResyncSchedulesWithoutAsyncFlag(t *testing.T) {
 		t.Fatalf("expected sync not to be called, got %d", appSvc.syncCalls)
 	}
 	if appSvc.lastScheduledInput == nil || !appSvc.lastScheduledInput.Async {
-		t.Fatalf("expected async scheduled input, got %#v", appSvc.lastScheduledInput)
+		t.Fatalf("expected %s scheduled input, got %#v", expectedAsyncDesc, appSvc.lastScheduledInput)
 	}
+}
+
+func TestSyncRPCResyncSchedulesWithoutAsyncFlag(t *testing.T) {
+	t.Parallel()
+
+	assertSyncRPCResyncSchedulesAsyncByDefault(t, "async")
 }
 
 func TestSyncRPCResyncKeepsRequestIDForSchedule(t *testing.T) {
@@ -668,17 +792,21 @@ func TestSyncRPCResyncKeepsRequestIDForSchedule(t *testing.T) {
 	}
 }
 
-func TestSyncRPCResyncRunsSynchronouslyWithSyncFlag(t *testing.T) {
+func TestSyncRPCResyncSchedulesAsynchronouslyByDefault(t *testing.T) {
 	t.Parallel()
 
-	appSvc := &mockDocumentAppService{}
+	assertSyncRPCResyncSchedulesAsyncByDefault(t, "asynchronous")
+}
+
+func TestSyncRPCAlwaysSchedulesAndIgnoresInlineSyncError(t *testing.T) {
+	t.Parallel()
+
+	appSvc := &mockDocumentAppService{syncErr: errors.Join(documentapp.ErrDocumentSourcePrecheckFailed, errBucketNotFound)}
 	handler := knowledgesvc.NewDocumentRPCServiceWithDependencies(appSvc, logging.New())
 
 	result, err := handler.SyncRPC(context.Background(), &dto.SyncDocumentRequest{
 		KnowledgeBaseCode: "KB1",
 		Code:              "DOC1",
-		Mode:              "resync",
-		Sync:              true,
 		DataIsolation: dto.DataIsolation{
 			OrganizationCode: "ORG1",
 			UserID:           "U1",
@@ -695,46 +823,11 @@ func TestSyncRPCResyncRunsSynchronouslyWithSyncFlag(t *testing.T) {
 	if result == nil || !(*result)["success"] {
 		t.Fatalf("expected success result, got %#v", result)
 	}
-	if appSvc.scheduleCalls != 0 {
-		t.Fatalf("expected schedule not to be called, got %d", appSvc.scheduleCalls)
+	if appSvc.syncCalls != 0 {
+		t.Fatalf("expected inline sync not to be called, got %d", appSvc.syncCalls)
 	}
-	if appSvc.syncCalls != 1 {
-		t.Fatalf("expected sync to be called once, got %d", appSvc.syncCalls)
-	}
-	if appSvc.lastSyncInput == nil || appSvc.lastSyncInput.Async {
-		t.Fatalf("expected synchronous input, got %#v", appSvc.lastSyncInput)
-	}
-}
-
-func TestSyncRPCMapsBusinessError(t *testing.T) {
-	t.Parallel()
-
-	appSvc := &mockDocumentAppService{syncErr: errors.Join(documentapp.ErrDocumentSourcePrecheckFailed, errBucketNotFound)}
-	handler := knowledgesvc.NewDocumentRPCServiceWithDependencies(appSvc, logging.New())
-
-	_, err := handler.SyncRPC(context.Background(), &dto.SyncDocumentRequest{
-		KnowledgeBaseCode: "KB1",
-		Code:              "DOC1",
-		DataIsolation: dto.DataIsolation{
-			OrganizationCode: "ORG1",
-			UserID:           "U1",
-		},
-		BusinessParams: dto.BusinessParams{
-			OrganizationCode: "ORG1",
-			UserID:           "U1",
-			BusinessID:       "KB1",
-		},
-	})
-	if err == nil {
-		t.Fatal("expected error but got nil")
-	}
-
-	var bizErr *jsonrpc.BusinessError
-	if !errors.As(err, &bizErr) {
-		t.Fatalf("expected business error, got %T", err)
-	}
-	if bizErr.Code != jsonrpc.ErrCodeSyncFailed {
-		t.Fatalf("expected sync failed code, got %d", bizErr.Code)
+	if appSvc.scheduleCalls != 1 || appSvc.lastScheduledInput == nil || !appSvc.lastScheduledInput.Async {
+		t.Fatalf("expected async schedule, got calls=%d input=%#v", appSvc.scheduleCalls, appSvc.lastScheduledInput)
 	}
 }
 
@@ -746,8 +839,10 @@ func TestReVectorizedByThirdFileIdRPCMapsInput(t *testing.T) {
 
 	result, err := handler.ReVectorizedByThirdFileIdRPC(context.Background(), &dto.ReVectorizedByThirdFileIdRequest{
 		DataIsolation: dto.DataIsolation{
-			OrganizationCode: "ORG1",
-			UserID:           "U1",
+			OrganizationCode:              "ORG1",
+			UserID:                        "U1",
+			ThirdPlatformUserID:           "TP-U1",
+			ThirdPlatformOrganizationCode: "TP-ORG1",
 		},
 		ThirdPlatformType: "teamshare",
 		ThirdFileID:       "FILE-1",
@@ -763,6 +858,8 @@ func TestReVectorizedByThirdFileIdRPCMapsInput(t *testing.T) {
 	}
 	if appSvc.lastReVectorizedInput.OrganizationCode != testDocumentOrgCode ||
 		appSvc.lastReVectorizedInput.UserID != "U1" ||
+		appSvc.lastReVectorizedInput.ThirdPlatformUserID != "TP-U1" ||
+		appSvc.lastReVectorizedInput.ThirdPlatformOrganizationCode != "TP-ORG1" ||
 		appSvc.lastReVectorizedInput.ThirdPlatformType != "teamshare" ||
 		appSvc.lastReVectorizedInput.ThirdFileID != "FILE-1" {
 		t.Fatalf("unexpected input: %#v", appSvc.lastReVectorizedInput)
@@ -852,8 +949,37 @@ func TestDocumentListAndCountAndDestroyRPC(t *testing.T) {
 	if result == nil || !(*result)["success"] {
 		t.Fatalf("unexpected destroy result: %#v", result)
 	}
-	if appSvc.lastDestroyCode != "DOC1" || appSvc.lastDestroyKBCode != testDocumentKBCode || appSvc.lastDestroyOrgCode != testDocumentOrgCode {
+	if appSvc.lastDestroyCode != "DOC1" || appSvc.lastDestroyKBCode != testDocumentKBCode || appSvc.lastDestroyOrgCode != testDocumentOrgCode || appSvc.lastDestroyUserID != "" {
 		t.Fatalf("unexpected destroy input: %#v", appSvc)
+	}
+}
+
+func TestDocumentDestroyRPCMapsManagedDeleteError(t *testing.T) {
+	t.Parallel()
+
+	appSvc := &mockDocumentAppService{
+		destroyErr: documentapp.ErrManagedDocumentSingleDeleteNotAllowed,
+	}
+	handler := knowledgesvc.NewDocumentRPCServiceWithDependencies(appSvc, logging.New())
+
+	_, err := handler.DestroyRPC(context.Background(), &dto.DestroyDocumentRequest{
+		DataIsolation:     dto.DataIsolation{OrganizationCode: "ORG1"},
+		Code:              testDocumentCode,
+		KnowledgeBaseCode: testDocumentKBCode,
+	})
+	if err == nil {
+		t.Fatal("expected destroy error")
+	}
+
+	var bizErr *jsonrpc.BusinessError
+	if !errors.As(err, &bizErr) {
+		t.Fatalf("expected business error, got %T %v", err, err)
+	}
+	if bizErr.Code != jsonrpc.ErrCodeInvalidParams {
+		t.Fatalf("expected invalid params, got %#v", bizErr)
+	}
+	if bizErr.Message != documentapp.ErrManagedDocumentSingleDeleteNotAllowed.Error() {
+		t.Fatalf("unexpected business message: %#v", bizErr)
 	}
 }
 

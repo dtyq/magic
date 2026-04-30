@@ -3,6 +3,7 @@ package document
 import (
 	"strings"
 
+	docentity "magic/internal/domain/knowledge/document/entity"
 	"magic/internal/domain/knowledge/shared"
 	sharedsnapshot "magic/internal/domain/knowledge/shared/snapshot"
 	"magic/internal/pkg/tokenizer"
@@ -22,9 +23,16 @@ type SyncSegmentConfig struct {
 	TextPreprocessRule []int
 }
 
+// SyncSplitPlan 表示正式同步链路实际传给 splitter 的有效切片策略。
+type SyncSplitPlan struct {
+	RequestedMode  shared.FragmentMode
+	FragmentConfig *shared.FragmentConfig
+	SegmentConfig  SyncSegmentConfig
+}
+
 // BuildSyncSegmentConfig 根据文档和知识库配置构造同步切片配置。
 func BuildSyncSegmentConfig(
-	doc *KnowledgeBaseDocument,
+	doc *docentity.KnowledgeBaseDocument,
 	kb *sharedsnapshot.KnowledgeBaseRuntimeSnapshot,
 ) SyncSegmentConfig {
 	kb = sharedsnapshot.NormalizeKnowledgeBaseSnapshotConfigs(kb)
@@ -45,7 +53,7 @@ func BuildSyncSegmentConfig(
 
 // ResolveSyncRequestedModeAndConfig 解析同步时实际生效的切片模式与配置。
 func ResolveSyncRequestedModeAndConfig(
-	doc *KnowledgeBaseDocument,
+	doc *docentity.KnowledgeBaseDocument,
 	kb *sharedsnapshot.KnowledgeBaseRuntimeSnapshot,
 ) (shared.FragmentMode, *shared.FragmentConfig) {
 	kb = sharedsnapshot.NormalizeKnowledgeBaseSnapshotConfigs(kb)
@@ -58,6 +66,31 @@ func ResolveSyncRequestedModeAndConfig(
 		return normalizeRequestedMode(cfg.Mode), cfg
 	default:
 		return shared.FragmentModeAuto, nil
+	}
+}
+
+// ResolveEffectiveSyncSplitPlan 解析正式同步链路实际生效的切片模式与配置。
+//
+// flow 向量知识库执行态统一走 auto，落库的 document / knowledge base fragment_config 保持不变。
+func ResolveEffectiveSyncSplitPlan(
+	doc *docentity.KnowledgeBaseDocument,
+	kb *sharedsnapshot.KnowledgeBaseRuntimeSnapshot,
+	forceAuto bool,
+) SyncSplitPlan {
+	if forceAuto {
+		return SyncSplitPlan{
+			RequestedMode:  shared.FragmentModeAuto,
+			FragmentConfig: shared.DefaultFragmentConfig(),
+			SegmentConfig:  BuildSyncSegmentConfig(nil, nil),
+		}
+	}
+
+	segmentConfig := BuildSyncSegmentConfig(doc, kb)
+	requestedMode, fragmentConfig := ResolveSyncRequestedModeAndConfig(doc, kb)
+	return SyncSplitPlan{
+		RequestedMode:  requestedMode,
+		FragmentConfig: fragmentConfig,
+		SegmentConfig:  segmentConfig,
 	}
 }
 

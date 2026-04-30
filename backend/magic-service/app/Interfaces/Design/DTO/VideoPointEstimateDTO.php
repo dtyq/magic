@@ -50,17 +50,11 @@ class VideoPointEstimateDTO
         return $this;
     }
 
-    /**
-     * 返回用户侧展示或余额校验使用的积分。
-     */
     public function getPoints(): int
     {
         return $this->points;
     }
 
-    /**
-     * 设置用户侧展示或余额校验使用的积分。
-     */
     public function setPoints(int $points): self
     {
         $this->points = $points;

@@ -7,26 +7,28 @@ import (
 	"errors"
 	"fmt"
 	"net"
+	"os"
 	"sync"
 	"sync/atomic"
 	"time"
 
 	"magic/internal/infrastructure/logging"
 	common "magic/internal/pkg/jsonrpc"
+	"magic/internal/pkg/runguard"
 )
 
 // 默认配置
 const (
-	DefaultCallTimeout          = 30 * time.Second // 默认 RPC 调用超时
-	DefaultReadTimeout          = 30 * time.Second // 默认读超时
-	DefaultWriteTimeout         = 10 * time.Second // 写超时
-	DefaultHeartbeatInterval    = 10 * time.Second // 心跳间隔
-	DefaultHeartbeatTimeout     = 30 * time.Second // 心跳超时
-	DefaultProtocolVersion      = 1                // 默认协议版本
-	DefaultMaxMessageBytes      = 10 * 1024 * 1024 // 默认最大消息大小 (10MB)
-	DefaultMaxPendingRequests   = 1024             // 默认最大等待响应数
-	DefaultDiscardCapMultiplier = 4                // 超限丢弃上限倍数
-	DefaultDiscardChunkSize     = 32 * 1024        // 超限丢弃分块大小
+	DefaultCallTimeout          = 30 * time.Second  // 默认 RPC 调用超时
+	DefaultReadTimeout          = 30 * time.Second  // 默认读超时
+	DefaultWriteTimeout         = 10 * time.Second  // 写超时
+	DefaultHeartbeatInterval    = 10 * time.Second  // 心跳间隔
+	DefaultHeartbeatTimeout     = 30 * time.Second  // 心跳超时
+	DefaultProtocolVersion      = ipcFrameVersionV2 // 默认协议版本
+	DefaultMaxMessageBytes      = 30 * 1024 * 1024  // 默认最大消息大小 (30MB, on-wire)
+	DefaultMaxPendingRequests   = 1024              // 默认最大等待响应数
+	DefaultDiscardCapMultiplier = 4                 // 超限丢弃上限倍数
+	DefaultDiscardChunkSize     = 32 * 1024         // 超限丢弃分块大小
 )
 
 var (
@@ -101,7 +103,10 @@ type Server struct {
 	// 主客户端指针（用于单客户端场景）
 	primaryClient atomic.Pointer[Session]
 
-	stopCh chan struct{}
+	stateChangedMu sync.Mutex
+	stateChanged   chan struct{}
+	stopCh         chan struct{}
+	panicExit      func(int)
 }
 
 // NewServer 创建新的 JSON-RPC runtime 服务器。
@@ -110,12 +115,14 @@ func NewServer(logger *logging.SugaredLogger, cfg *RuntimeConfig) *Server {
 		cfg = DefaultRuntimeConfig()
 	}
 	return &Server{
-		logger:   logger,
-		config:   cfg,
-		metrics:  NewMetrics(),
-		handlers: make(map[string]common.ServerHandler),
-		clients:  make(map[int64]*Session),
-		stopCh:   make(chan struct{}),
+		logger:       logger,
+		config:       cfg,
+		metrics:      NewMetrics(),
+		handlers:     make(map[string]common.ServerHandler),
+		clients:      make(map[int64]*Session),
+		stateChanged: make(chan struct{}),
+		stopCh:       make(chan struct{}),
+		panicExit:    os.Exit,
 	}
 }
 
@@ -136,11 +143,33 @@ func (s *Server) Serve(listener net.Listener, endpointLabel string) error {
 		endpointLabel = "unknown"
 	}
 	s.endpointLabel = endpointLabel
-	s.logger.InfoContext(context.Background(), "RPC runtime started", "endpoint", s.endpointLabel)
 
-	go s.acceptLoop()
+	s.startAcceptLoop(endpointLabel)
 
 	return nil
+}
+
+func (s *Server) startAcceptLoop(endpointLabel string) {
+	go func() {
+		defer runguard.Recover(context.Background(), runguard.Options{
+			Scope:  "rpc.accept_loop",
+			Policy: runguard.ExitProcess,
+			Fields: []any{"endpoint", endpointLabel},
+			OnPanic: func(ctx context.Context, report runguard.Report) {
+				logPanicReport(ctx, s.logger, report)
+			},
+			Exit: s.exitProcess,
+		})
+		s.acceptLoop()
+	}()
+}
+
+func (s *Server) exitProcess(code int) {
+	if s.panicExit != nil {
+		s.panicExit(code)
+		return
+	}
+	os.Exit(code)
 }
 
 // Stop 停止服务器
@@ -186,11 +215,32 @@ func (s *Server) handleNewConnection(conn net.Conn) {
 
 	s.metrics.RPCActiveConnections.Inc()
 
-	go func() {
-		session.readLoop(context.Background())
+	runguard.Go(
+		context.Background(),
+		runguard.Options{
+			Scope:  "rpc.session.read_loop",
+			Policy: runguard.CloseScope,
+			Fields: []any{
+				"session_id", session.ID,
+				"endpoint", s.endpointLabel,
+				"direction", DirectionRecv,
+			},
+			OnPanic: func(ctx context.Context, report runguard.Report) {
+				logPanicReport(ctx, s.logger, report)
+			},
+		},
+		func() {
+			defer s.cleanupConnection(session)
+			session.readLoop(context.Background())
+		},
+	)
+}
 
-		s.cleanupConnection(session)
-	}()
+func logPanicReport(ctx context.Context, logger *logging.SugaredLogger, report runguard.Report) {
+	if logger == nil {
+		return
+	}
+	logger.ErrorContext(ctx, "Goroutine panic recovered", report.Fields...)
 }
 
 func (s *Server) cleanupConnection(session *Session) {
@@ -208,6 +258,7 @@ func (s *Server) cleanupConnection(session *Session) {
 	s.clientsMu.Unlock()
 
 	s.metrics.RPCActiveConnections.Dec()
+	s.notifyStateChanged()
 	if session.handshaked.Load() {
 		s.logger.InfoContext(context.Background(), "IPC client disconnected", "id", session.ID)
 		return
@@ -280,20 +331,76 @@ func (s *Server) CallFirstRawWithTimeout(method string, params any, timeout time
 }
 
 func (s *Server) selectClientForMethod(method string) *Session {
+	return s.selectClientForMethods(method)
+}
+
+func (s *Server) selectClientForMethods(methods ...string) *Session {
 	s.clientsMu.RLock()
 	defer s.clientsMu.RUnlock()
 
 	primary := s.primaryClient.Load()
-	if primary != nil && primary.SupportsMethod(method) {
+	if primary != nil && primary.SupportsMethods(methods...) {
 		return primary
 	}
 
 	for _, client := range s.clients {
-		if client.SupportsMethod(method) {
+		if client.SupportsMethods(methods...) {
 			return client
 		}
 	}
 	return nil
+}
+
+// HasCapableClient 判断是否已有完成握手并声明指定能力的客户端。
+// 不传 methods 时表示任意已握手客户端。
+func (s *Server) HasCapableClient(methods ...string) bool {
+	if s == nil {
+		return false
+	}
+	return s.selectClientForMethods(methods...) != nil
+}
+
+// WaitCapableClient 等待出现完成握手并声明指定能力的客户端。
+func (s *Server) WaitCapableClient(ctx context.Context, methods ...string) error {
+	if ctx == nil {
+		return errNilContext
+	}
+	if s == nil {
+		return errNoCapableClients
+	}
+
+	for {
+		changed := s.subscribeStateChanged()
+		if s.HasCapableClient(methods...) {
+			return nil
+		}
+		select {
+		case <-changed:
+		case <-ctx.Done():
+			return fmt.Errorf("wait capable IPC client: %w", ctx.Err())
+		}
+	}
+}
+
+func (s *Server) subscribeStateChanged() <-chan struct{} {
+	s.stateChangedMu.Lock()
+	defer s.stateChangedMu.Unlock()
+
+	if s.stateChanged == nil {
+		s.stateChanged = make(chan struct{})
+	}
+	return s.stateChanged
+}
+
+func (s *Server) notifyStateChanged() {
+	s.stateChangedMu.Lock()
+	changed := s.stateChanged
+	s.stateChanged = make(chan struct{})
+	s.stateChangedMu.Unlock()
+
+	if changed != nil {
+		close(changed)
+	}
 }
 
 // GetClientCount 获取连接的客户端数量

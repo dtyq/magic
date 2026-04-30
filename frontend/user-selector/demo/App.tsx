@@ -36,11 +36,11 @@ function App() {
 		},
 		{
 			id: 2,
-			title: language === "zh_CN" ? "暗黑选择器【无分段】" : "Dark Selector [No Segmented]",
+			title: language === "zh_CN" ? "暗黑选择器【右侧文案】" : "Dark Selector [Right Copy]",
 			description:
 				language === "zh_CN"
-					? "暗黑主题下的极致体验，展示纯净的选择面板。"
-					: "Optimized dark theme experience featuring a clean selection panel.",
+					? "演示用户/部门行右侧文案，包含已选择、不可选、可进入等状态。"
+					: "Shows right-side row copy for selected, disabled, and navigable items.",
 			component: Demo2,
 			useVisible: false,
 		},

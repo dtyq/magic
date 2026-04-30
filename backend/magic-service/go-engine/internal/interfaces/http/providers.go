@@ -17,6 +17,7 @@ type ServerRuntimeDeps struct {
 // ServerBackgroundDeps 聚合 HTTP 服务所需的后台任务依赖。
 type ServerBackgroundDeps struct {
 	cacheCleanupService *embeddingapp.EmbeddingCacheCleanupService
+	taskQueueService    TaskQueueService
 	retrievalWarmup     RetrievalWarmupService
 }
 
@@ -52,9 +53,11 @@ func ProvideServerRuntimeDeps(
 func ProvideServerBackgroundDeps(
 	cacheCleanupService *embeddingapp.EmbeddingCacheCleanupService,
 	retrievalWarmup RetrievalWarmupService,
+	taskQueueService TaskQueueService,
 ) ServerBackgroundDeps {
 	return ServerBackgroundDeps{
 		cacheCleanupService: cacheCleanupService,
+		taskQueueService:    taskQueueService,
 		retrievalWarmup:     retrievalWarmup,
 	}
 }
@@ -71,6 +74,7 @@ func ProvideServerDependencies(
 	return &ServerDependencies{
 		Config:              config,
 		CacheCleanupService: backgroundDeps.cacheCleanupService,
+		TaskQueueService:    backgroundDeps.taskQueueService,
 		RetrievalWarmup:     backgroundDeps.retrievalWarmup,
 		InfraServices:       infraServices,
 		Logger:              logger,

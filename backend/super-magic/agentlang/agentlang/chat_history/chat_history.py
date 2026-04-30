@@ -4,8 +4,10 @@
 """
 
 import asyncio
+import hashlib
 import json
 import os
+import re
 from dataclasses import asdict, dataclass
 from datetime import datetime
 from typing import Any, Dict, List, Optional, Union
@@ -22,6 +24,7 @@ from agentlang.chat_history.chat_history_models import (
     AssistantMessage, ToolMessage, ChatMessage,
     FunctionCall, ToolCall
 )
+from agentlang.chat_history.session_config import SessionConfig
 from agentlang.logger import get_logger
 
 # 导入事件相关模块
@@ -38,6 +41,53 @@ logger = get_logger(__name__)
 # Horizon 注入消息的安全上限；超过此值说明历史中存在异常膨胀的 diff bomb，
 # 需要在 load 时自动修复以避免后续每轮都把垃圾内容发给 LLM
 _HORIZON_MSG_CONTENT_MAX_CHARS = 32 * 1024  # 32 KB
+_HORIZON_DIAGNOSTIC_BLOCK_TAGS = (
+    "current_time",
+    "initial_context",
+    "workspace_files",
+    "context_usage",
+    "model_info",
+    "workspace_files_changed",
+    "long_term_memory_changed",
+    "user_preferred_language_changed",
+    "file_changes",
+    "notifications",
+    "magiclaw_startup",
+)
+
+
+def _sha256_short(content: str) -> str:
+    return hashlib.sha256(content.encode("utf-8")).hexdigest()[:12]
+
+
+def _tag_total_len(content: str, tag: str) -> int:
+    normal_pattern = rf"<{tag}(?:\s[^>]*)?>.*?</{tag}>"
+    self_closing_pattern = rf"<{tag}(?:\s[^>]*)?/>"
+    normal_total = sum(len(match.group(0)) for match in re.finditer(normal_pattern, content, re.DOTALL))
+    self_closing_total = sum(len(match.group(0)) for match in re.finditer(self_closing_pattern, content))
+    return normal_total + self_closing_total
+
+
+def _format_horizon_block_lengths(content: str) -> str:
+    parts = [f"{tag}:{_tag_total_len(content, tag):,}" for tag in _HORIZON_DIAGNOSTIC_BLOCK_TAGS]
+    return "{" + ", ".join(parts) + "}"
+
+
+def _largest_xml_block(content: str, tag: str, path_attr: str) -> tuple[int, str, int]:
+    count = 0
+    largest_value = "none"
+    largest_len = 0
+    pattern = rf"<{tag}\b([^>]*)>.*?</{tag}>"
+    attr_pattern = rf'{path_attr}="([^"]+)"'
+    for match in re.finditer(pattern, content, re.DOTALL):
+        count += 1
+        block_len = len(match.group(0))
+        if block_len <= largest_len:
+            continue
+        largest_len = block_len
+        attr_match = re.search(attr_pattern, match.group(1))
+        largest_value = attr_match.group(1) if attr_match else "unknown"
+    return count, largest_value, largest_len
 
 
 @dataclass
@@ -249,6 +299,8 @@ class ChatHistory:
             "video_generation_config": None,
             "mcp_servers": None,
             "message_version": None,
+            "agent_mode": None,
+            "agent_code": None,
         }
 
     def _load_session_document(self) -> Dict[str, Any]:
@@ -281,33 +333,35 @@ class ChatHistory:
         with open(config_file, 'w', encoding='utf-8') as f:
             json.dump(document, f, ensure_ascii=False, indent=2)
 
-    def get_last_session_config(self) -> Dict[str, Any]:
+    def get_last_session_config(self) -> SessionConfig:
         """
         获取上次保存的会话配置（last）。
 
         Returns:
-            Dict[str, Any]: 包含 model_id、image/video model 配置和 mcp_servers 的字典
+            SessionConfig: 上次会话的结构化配置
         """
         try:
             last_config = self._load_session_document().get("last", {})
-            return {
-                "model_id": last_config.get("model_id"),
-                "image_model_id": last_config.get("image_model_id"),
-                "image_model_sizes": last_config.get("image_model_sizes"),
-                "video_model_id": last_config.get("video_model_id"),
-                "video_generation_config": last_config.get("video_generation_config"),
-                "mcp_servers": last_config.get("mcp_servers")
-            }
+            if isinstance(last_config, dict):
+                return SessionConfig.from_dict(last_config)
         except Exception as e:
             logger.debug(f"读取会话配置失败: {e}")
-        return {
-            "model_id": None,
-            "image_model_id": None,
-            "image_model_sizes": None,
-            "video_model_id": None,
-            "video_generation_config": None,
-            "mcp_servers": None,
-        }
+        return SessionConfig()
+
+    def get_current_session_config(self) -> SessionConfig:
+        """
+        获取当前保存的会话配置（current），即最近一次写入的值。
+
+        Returns:
+            SessionConfig: 当前会话的结构化配置
+        """
+        try:
+            current_config = self._load_session_document().get("current", {})
+            if isinstance(current_config, dict):
+                return SessionConfig.from_dict(current_config)
+        except Exception as e:
+            logger.debug(f"读取当前会话配置失败: {e}")
+        return SessionConfig()
 
     def get_last_message_version(self) -> Optional[str]:
         """
@@ -333,6 +387,8 @@ class ChatHistory:
         video_generation_config: Optional[Dict[str, Any]] = None,
         mcp_servers: Optional[Dict[str, List[str]]] = None,
         message_version: Optional[str] = None,
+        agent_mode: Optional[str] = None,
+        agent_code: Optional[str] = None,
     ) -> None:
         """
         保存当前会话配置。
@@ -350,6 +406,8 @@ class ChatHistory:
             video_generation_config: 当前视频生成模型 featured 配置
             mcp_servers: 当前可用的 MCP 服务器及其工具列表
             message_version: 当前消息版本号，如 "v1"、"v2"
+            agent_mode: Agent 运行模式，用于第三方 IM 消息持久化时映射为 topic_pattern
+            agent_code: 自定义 Agent 编码（custom_agent/magiclaw 场景）
         """
         try:
             current_config = {
@@ -360,6 +418,8 @@ class ChatHistory:
                 "video_generation_config": video_generation_config,
                 "mcp_servers": mcp_servers,
                 "message_version": message_version,
+                "agent_mode": agent_mode,
+                "agent_code": agent_code,
             }
             existing_config = self._load_session_document()
             last_config = existing_config.get("current", {})
@@ -369,7 +429,7 @@ class ChatHistory:
             logger.debug(
                 f"会话配置已保存: current model_id={model_id}, image_model_id={image_model_id}, "
                 f"video_model_id={video_model_id}, mcp_servers={len(mcp_servers) if mcp_servers else 0} servers, "
-                f"message_version={message_version}"
+                f"message_version={message_version}, agent_mode={agent_mode}, agent_code={agent_code}"
             )
         except Exception as e:
             logger.warning(f"保存会话配置失败: {e}")
@@ -490,11 +550,14 @@ class ChatHistory:
                         logger.error(f"加载历史时处理消息出错: {msg_dict}，错误: {e}", exc_info=True)
 
                 self.messages = loaded_messages
-                self._sanitize_oversized_messages()
-                fixes = self._sanitize_message_sequences()
-                if fixes > 0:
+                oversized_fixes = self._sanitize_oversized_messages()
+                sequence_fixes = self._sanitize_message_sequences()
+                if oversized_fixes + sequence_fixes > 0:
                     await self.save()
-                    logger.info(f"[ChatHistory] 序列修复已落盘")
+                    logger.info(
+                        f"[ChatHistory] load 修复已落盘: "
+                        f"oversized_horizon={oversized_fixes}, sequence={sequence_fixes}"
+                    )
                 logger.info(f"成功从 {self._history_file_path} 加载 {len(self.messages)} 条聊天记录。")
             else:
                 logger.warning(f"聊天记录文件格式无效 (不是列表): {self._history_file_path}")
@@ -663,31 +726,62 @@ class ChatHistory:
 
         return message
 
-    def _sanitize_oversized_messages(self) -> None:
+    def _log_removed_oversized_horizon_message(
+        self,
+        msg: UserMessage,
+        message_index: int,
+        content_len: int,
+    ) -> None:
+        content = msg.content
+        file_count, largest_file_path, largest_file_len = _largest_xml_block(content, "file", "path")
+        notification_count, largest_notification_source, largest_notification_len = _largest_xml_block(
+            content, "notification", "source"
+        )
+        logger.warning(
+            "[ChatHistory] removed oversized historical horizon message: "
+            f"agent_name={self.agent_name} "
+            f"agent_id={self.agent_id} "
+            f"history_file={self._history_file_path} "
+            f"message_index={message_index} "
+            f"created_at={getattr(msg, 'created_at', '')!r} "
+            f"content_len={content_len:,} "
+            f"limit={_HORIZON_MSG_CONTENT_MAX_CHARS:,} "
+            f"sha256={_sha256_short(content)} "
+            f"blocks={_format_horizon_block_lengths(content)} "
+            f"file_changes_count={file_count} "
+            f"largest_file_path={largest_file_path} "
+            f"largest_file_block_len={largest_file_len:,} "
+            f"notification_count={notification_count} "
+            f"largest_notification_source={largest_notification_source} "
+            f"largest_notification_len={largest_notification_len:,}"
+        )
+
+    def _sanitize_oversized_messages(self) -> int:
         """Load 时自动修复历史中异常膨胀的 horizon 注入消息。
 
         之前的 diff bug 可能导致 5MB+ 的内容被持久化到 source="horizon" 的 UserMessage 中，
         后续每轮 LLM 调用都会带上这些垃圾内容，直接撑爆上下文。
         修复后下次 save() 会自动落盘。
         """
-        for msg in self.messages:
+        sanitized_messages: List[ChatMessage] = []
+        fixes = 0
+        for idx, msg in enumerate(self.messages):
             if not isinstance(msg, UserMessage):
+                sanitized_messages.append(msg)
                 continue
             if getattr(msg, "source", None) != "horizon":
+                sanitized_messages.append(msg)
                 continue
             content_len = len(msg.content)
             if content_len <= _HORIZON_MSG_CONTENT_MAX_CHARS:
+                sanitized_messages.append(msg)
                 continue
-            msg.content = (
-                "<system_injected_context>\n"
-                "[auto-repaired: oversized historical context removed "
-                f"({content_len:,} chars, limit {_HORIZON_MSG_CONTENT_MAX_CHARS:,})]\n"
-                "</system_injected_context>"
-            )
-            logger.warning(
-                f"[ChatHistory] 修复异常膨胀的 horizon 消息: "
-                f"{content_len:,} chars → sanitized"
-            )
+            fixes += 1
+            self._log_removed_oversized_horizon_message(msg, idx, content_len)
+
+        if fixes > 0:
+            self.messages = sanitized_messages
+        return fixes
 
     def _sanitize_message_sequences(self) -> int:
         """Load 时对 self.messages 执行全量序列修复并持久化。
@@ -1093,7 +1187,8 @@ class ChatHistory:
                                  # --- 仅接受 TokenUsage 对象 ---
                                  token_usage: Optional[TokenUsage] = None,
                                  request_id: Optional[str] = None,
-                                 reasoning_content: Optional[str] = None
+                                 reasoning_content: Optional[str] = None,
+                                 interrupted: bool = False,
                                  ) -> None:
         """
         添加一条助手消息。
@@ -1175,7 +1270,8 @@ class ChatHistory:
             duration_ms=duration_ms,
             token_usage=token_usage,
             request_id=request_id,
-            reasoning_content=reasoning_content
+            reasoning_content=reasoning_content,
+            interrupted=interrupted,
         )
         await self.add_message(message)
 

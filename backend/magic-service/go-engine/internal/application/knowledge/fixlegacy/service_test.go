@@ -8,9 +8,9 @@ import (
 	"testing"
 
 	fixlegacy "magic/internal/application/knowledge/fixlegacy"
-	"magic/internal/domain/knowledge/document/service"
+	docentity "magic/internal/domain/knowledge/document/entity"
 	fragmodel "magic/internal/domain/knowledge/fragment/model"
-	"magic/internal/domain/knowledge/knowledgebase/service"
+	kbentity "magic/internal/domain/knowledge/knowledgebase/entity"
 	sharedsnapshot "magic/internal/domain/knowledge/shared/snapshot"
 	"magic/internal/infrastructure/logging"
 	"magic/internal/pkg/ctxmeta"
@@ -32,7 +32,7 @@ func TestRunnerDryRunDoesNotMutateData(t *testing.T) {
 	}
 	runner := fixlegacy.NewRunner(
 		fragmentRepo,
-		&fakeKnowledgeBaseReader{knowledgeBases: map[string]*knowledgebase.KnowledgeBase{
+		&fakeKnowledgeBaseReader{knowledgeBases: map[string]*kbentity.KnowledgeBase{
 			"kb-1": {Code: "kb-1", OrganizationCode: "org-1"},
 		}},
 		&fakeDefaultDocumentEnsurer{},
@@ -63,7 +63,7 @@ func TestRunnerRepairsMultipleKnowledgeBasesAndSyncsPayload(t *testing.T) {
 			{ID: 3, KnowledgeCode: "kb-2", DocumentCode: "", Content: "c"},
 		},
 	}
-	knowledgeReader := &fakeKnowledgeBaseReader{knowledgeBases: map[string]*knowledgebase.KnowledgeBase{
+	knowledgeReader := &fakeKnowledgeBaseReader{knowledgeBases: map[string]*kbentity.KnowledgeBase{
 		"kb-1": {Code: "kb-1", OrganizationCode: "org-1", CreatedUID: "u-1", UpdatedUID: "u-1", Model: "m1", VectorDB: "qdrant"},
 		"kb-2": {Code: "kb-2", OrganizationCode: "org-1", CreatedUID: "u-1", UpdatedUID: "u-1", Model: "m1", VectorDB: "qdrant"},
 	}}
@@ -101,7 +101,7 @@ func TestRunnerIsIdempotentAndStartIDWorks(t *testing.T) {
 			{ID: 3, KnowledgeCode: "kb-1", DocumentCode: "", Content: "repair-2"},
 		},
 	}
-	knowledgeReader := &fakeKnowledgeBaseReader{knowledgeBases: map[string]*knowledgebase.KnowledgeBase{
+	knowledgeReader := &fakeKnowledgeBaseReader{knowledgeBases: map[string]*kbentity.KnowledgeBase{
 		"kb-1": {Code: "kb-1", OrganizationCode: "org-1", CreatedUID: "u-1", UpdatedUID: "u-1", Model: "m1", VectorDB: "qdrant"},
 	}}
 	docEnsurer := &fakeDefaultDocumentEnsurer{}
@@ -136,7 +136,7 @@ func TestRunnerReturnsFailuresButContinues(t *testing.T) {
 	}
 	runner := fixlegacy.NewRunner(
 		fragmentRepo,
-		&fakeKnowledgeBaseReader{knowledgeBases: map[string]*knowledgebase.KnowledgeBase{
+		&fakeKnowledgeBaseReader{knowledgeBases: map[string]*kbentity.KnowledgeBase{
 			"kb-1": {Code: "kb-1", OrganizationCode: "org-1", CreatedUID: "u-1", UpdatedUID: "u-1"},
 			"kb-2": {Code: "kb-2", OrganizationCode: "org-1", CreatedUID: "u-1", UpdatedUID: "u-1"},
 		}},
@@ -232,10 +232,10 @@ func (f *fakeFragmentRepository) FindByIDs(_ context.Context, ids []int64) ([]*f
 }
 
 type fakeKnowledgeBaseReader struct {
-	knowledgeBases map[string]*knowledgebase.KnowledgeBase
+	knowledgeBases map[string]*kbentity.KnowledgeBase
 }
 
-func (f *fakeKnowledgeBaseReader) Show(_ context.Context, code string) (*knowledgebase.KnowledgeBase, error) {
+func (f *fakeKnowledgeBaseReader) Show(_ context.Context, code string) (*kbentity.KnowledgeBase, error) {
 	kb, ok := f.knowledgeBases[code]
 	if !ok {
 		return nil, errTestKnowledgeBaseNotFound
@@ -243,7 +243,7 @@ func (f *fakeKnowledgeBaseReader) Show(_ context.Context, code string) (*knowled
 	return cloneKnowledgeBase(kb), nil
 }
 
-func (f *fakeKnowledgeBaseReader) ShowByCodeAndOrg(_ context.Context, code, orgCode string) (*knowledgebase.KnowledgeBase, error) {
+func (f *fakeKnowledgeBaseReader) ShowByCodeAndOrg(_ context.Context, code, orgCode string) (*kbentity.KnowledgeBase, error) {
 	kb, ok := f.knowledgeBases[code]
 	if !ok || kb.OrganizationCode != orgCode {
 		return nil, errTestKnowledgeBaseNotFound
@@ -252,17 +252,17 @@ func (f *fakeKnowledgeBaseReader) ShowByCodeAndOrg(_ context.Context, code, orgC
 }
 
 type fakeDefaultDocumentEnsurer struct {
-	documents   map[string]*document.KnowledgeBaseDocument
+	documents   map[string]*docentity.KnowledgeBaseDocument
 	createCalls map[string]int
 	mu          sync.Mutex
 }
 
-func (f *fakeDefaultDocumentEnsurer) EnsureDefaultDocument(_ context.Context, kb *sharedsnapshot.KnowledgeBaseRuntimeSnapshot) (*document.KnowledgeBaseDocument, bool, error) {
+func (f *fakeDefaultDocumentEnsurer) EnsureDefaultDocument(_ context.Context, kb *sharedsnapshot.KnowledgeBaseRuntimeSnapshot) (*docentity.KnowledgeBaseDocument, bool, error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 
 	if f.documents == nil {
-		f.documents = map[string]*document.KnowledgeBaseDocument{}
+		f.documents = map[string]*docentity.KnowledgeBaseDocument{}
 	}
 	if f.createCalls == nil {
 		f.createCalls = map[string]int{}
@@ -270,8 +270,8 @@ func (f *fakeDefaultDocumentEnsurer) EnsureDefaultDocument(_ context.Context, kb
 	if doc, ok := f.documents[kb.Code]; ok {
 		return cloneDocument(doc), false, nil
 	}
-	doc := document.NewDocument(kb.Code, "未命名文档.txt", kb.DefaultDocumentCode(), document.DocTypeText, kb.CreatedUID, kb.OrganizationCode)
-	doc.DocType = int(document.DocTypeText)
+	doc := docentity.NewDocument(kb.Code, "未命名文档.txt", kb.DefaultDocumentCode(), docentity.DocumentInputKindText, kb.CreatedUID, kb.OrganizationCode)
+	doc.DocType = int(docentity.DocumentInputKindText)
 	f.documents[kb.Code] = doc
 	f.createCalls[kb.Code]++
 	return cloneDocument(doc), true, nil
@@ -283,9 +283,8 @@ type fakeFragmentSyncer struct {
 	mu                  sync.Mutex
 }
 
-func (f *fakeFragmentSyncer) SyncFragmentBatch(_ context.Context, kb any, fragments []*fragmodel.KnowledgeBaseFragment, _ *ctxmeta.BusinessParams) error {
-	kbSnapshot, _ := kb.(*knowledgebase.KnowledgeBase)
-	if kbSnapshot != nil && kbSnapshot.Code == f.failKnowledgeCode {
+func (f *fakeFragmentSyncer) SyncFragmentBatch(_ context.Context, kb *sharedsnapshot.KnowledgeBaseRuntimeSnapshot, fragments []*fragmodel.KnowledgeBaseFragment, _ *ctxmeta.BusinessParams) error {
+	if kb != nil && kb.Code == f.failKnowledgeCode {
 		return errTestSyncFailed
 	}
 	f.mu.Lock()
@@ -304,7 +303,7 @@ func cloneFragment(fragment *fragmodel.KnowledgeBaseFragment) *fragmodel.Knowled
 	return &cloned
 }
 
-func cloneKnowledgeBase(kb *knowledgebase.KnowledgeBase) *knowledgebase.KnowledgeBase {
+func cloneKnowledgeBase(kb *kbentity.KnowledgeBase) *kbentity.KnowledgeBase {
 	if kb == nil {
 		return nil
 	}
@@ -312,7 +311,7 @@ func cloneKnowledgeBase(kb *knowledgebase.KnowledgeBase) *knowledgebase.Knowledg
 	return &cloned
 }
 
-func cloneDocument(doc *document.KnowledgeBaseDocument) *document.KnowledgeBaseDocument {
+func cloneDocument(doc *docentity.KnowledgeBaseDocument) *docentity.KnowledgeBaseDocument {
 	if doc == nil {
 		return nil
 	}

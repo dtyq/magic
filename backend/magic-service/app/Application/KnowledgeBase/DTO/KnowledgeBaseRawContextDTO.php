@@ -14,6 +14,8 @@ readonly class KnowledgeBaseRawContextDTO
     public function __construct(
         public string $organizationCode,
         public string $userId,
+        public string $thirdPlatformUserId = '',
+        public string $thirdPlatformOrganizationCode = '',
     ) {
     }
 
@@ -22,6 +24,8 @@ readonly class KnowledgeBaseRawContextDTO
         return new self(
             organizationCode: $dataIsolation->getCurrentOrganizationCode(),
             userId: $dataIsolation->getCurrentUserId(),
+            thirdPlatformUserId: $dataIsolation->getThirdPlatformUserId(),
+            thirdPlatformOrganizationCode: $dataIsolation->getThirdPlatformOrganizationCode(),
         );
     }
 
@@ -30,6 +34,8 @@ readonly class KnowledgeBaseRawContextDTO
         return new DataIsolationDTO(
             organizationCode: $this->organizationCode,
             userId: $this->userId,
+            thirdPlatformUserId: $this->thirdPlatformUserId,
+            thirdPlatformOrganizationCode: $this->thirdPlatformOrganizationCode,
         );
     }
 
@@ -45,6 +51,12 @@ readonly class KnowledgeBaseRawContextDTO
     public function withOrganization(array $payload): array
     {
         $payload['organization_code'] = $this->organizationCode;
+        return $payload;
+    }
+
+    public function withUserId(array $payload): array
+    {
+        $payload['user_id'] = $this->userId;
         return $payload;
     }
 

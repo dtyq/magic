@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	rebuild "magic/internal/domain/knowledge/rebuild"
+	sharedroute "magic/internal/domain/knowledge/shared/route"
 )
 
 func TestNormalizeExecutionOptionsAndScope(t *testing.T) {
@@ -32,10 +33,10 @@ func TestRebuildPolicyRoutingHelpers(t *testing.T) {
 	if scope.Mode != rebuild.ScopeModeAll || !escalated || reason != rebuild.ScopeEscalationBootstrap {
 		t.Fatalf("unexpected effective scope: %#v escalated=%v reason=%q", scope, escalated, reason)
 	}
-	if got := rebuild.ResolveRequestedTargetModel("", rebuild.CollectionMeta{Model: "m1"}); got != "m1" {
+	if got := rebuild.ResolveRequestedTargetModel("", sharedroute.CollectionMeta{Model: "m1"}); got != "m1" {
 		t.Fatalf("unexpected target model: %q", got)
 	}
-	if got := rebuild.SelectMode(rebuild.ModeAuto, rebuild.CollectionMeta{Exists: true, Model: "m1", SparseBackend: "bm25"}, "m1", "bm42"); got != rebuild.ModeBlueGreen {
+	if got := rebuild.SelectMode(rebuild.ModeAuto, sharedroute.CollectionMeta{Exists: true, Model: "m1", SparseBackend: "bm25"}, "m1", "bm42"); got != rebuild.ModeBlueGreen {
 		t.Fatalf("expected sparse backend mismatch to force bluegreen, got %q", got)
 	}
 	if got := rebuild.ResolveFixedBlueGreenTarget("active", true, "active", "shadow"); got != "shadow" {
@@ -50,7 +51,7 @@ func TestResolveActiveCollectionStateAndValidation(t *testing.T) {
 	t.Parallel()
 
 	state := rebuild.ResolveActiveCollectionState(
-		rebuild.CollectionMeta{Exists: true, Model: "m1", VectorDimension: 1536, PhysicalCollectionName: "legacy"},
+		sharedroute.CollectionMeta{Exists: true, Model: "m1", VectorDimension: 1536, PhysicalCollectionName: "legacy"},
 		"alias",
 		"",
 		&rebuild.VectorCollectionInfo{VectorSize: 3072, HasNamedDenseVector: true, HasSparseVector: true},

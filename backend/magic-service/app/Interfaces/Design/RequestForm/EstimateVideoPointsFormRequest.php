@@ -9,9 +9,6 @@ namespace App\Interfaces\Design\RequestForm;
 
 class EstimateVideoPointsFormRequest extends GenerateVideoFormRequest
 {
-    /**
-     * 预估接口复用生成视频参数校验，但不要求任务 ID 和输出目录字段。
-     */
     public function rules(): array
     {
         $rules = parent::rules();

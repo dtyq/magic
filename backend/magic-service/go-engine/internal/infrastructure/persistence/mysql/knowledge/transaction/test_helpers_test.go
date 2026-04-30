@@ -4,21 +4,23 @@ import (
 	"database/sql"
 	"database/sql/driver"
 	"encoding/json"
+	"regexp"
+	"strings"
 	"testing"
 	"time"
 
 	"github.com/DATA-DOG/go-sqlmock"
 
-	"magic/internal/domain/knowledge/document/service"
+	docentity "magic/internal/domain/knowledge/document/entity"
 	fragmodel "magic/internal/domain/knowledge/fragment/model"
 	"magic/internal/domain/knowledge/shared"
 	sharedentity "magic/internal/domain/knowledge/shared/entity"
 	"magic/pkg/convert"
 )
 
-func sampleDocument() *document.KnowledgeBaseDocument {
+func sampleDocument() *docentity.KnowledgeBaseDocument {
 	now := time.Date(2026, 3, 11, 9, 0, 0, 0, time.Local)
-	return &document.KnowledgeBaseDocument{
+	return &docentity.KnowledgeBaseDocument{
 		ID:                1,
 		OrganizationCode:  "ORG1",
 		KnowledgeBaseCode: "KB1",
@@ -29,9 +31,9 @@ func sampleDocument() *document.KnowledgeBaseDocument {
 		Description:       "desc",
 		Code:              "DOC1",
 		Enabled:           true,
-		DocType:           int(document.DocTypeFile),
+		DocType:           int(docentity.DocumentInputKindFile),
 		DocMetadata:       map[string]any{"lang": "zh"},
-		DocumentFile:      &document.File{Name: "doc.md", URL: "bucket/doc.md", Extension: "md"},
+		DocumentFile:      &docentity.File{Name: "doc.md", URL: "bucket/doc.md", Extension: "md"},
 		ThirdPlatformType: "drive",
 		ThirdFileID:       "TF-1",
 		SyncStatus:        shared.SyncStatusSynced,
@@ -67,16 +69,7 @@ func sampleFragment() *fragmodel.KnowledgeBaseFragment {
 }
 
 func expectDocumentFindByCodeAndKnowledgeBaseMiss(mock sqlmock.Sqlmock, code, knowledgeBaseCode string) {
-	mock.ExpectQuery(sqlPattern(`SELECT id, organization_code, knowledge_base_code, source_binding_id, source_item_id, auto_added, name, description, code,
-       enabled, doc_type, doc_metadata, document_file, sync_status, sync_times, sync_status_message, embedding_model, vector_db,
-       retrieve_config, fragment_config, embedding_config, vector_db_config, word_count, third_platform_type, third_file_id,
-       created_uid, updated_uid, created_at, updated_at, deleted_at
-FROM knowledge_base_documents
-WHERE code = ?
-  AND knowledge_base_code = ?
-  AND deleted_at IS NULL
-ORDER BY id DESC
-LIMIT 1`)).
+	mock.ExpectQuery(sqlContains("FindDocumentByCodeAndKnowledgeBase")).
 		WithArgs(code, knowledgeBaseCode).
 		WillReturnError(sql.ErrNoRows)
 }
@@ -84,10 +77,10 @@ LIMIT 1`)).
 func documentRowColumns() []string {
 	return []string{
 		"id", "organization_code", "knowledge_base_code", "source_binding_id", "source_item_id", "auto_added", "name", "description", "code",
-		"enabled", "doc_type", "doc_metadata", "document_file",
+		"version", "enabled", "doc_type", "doc_metadata", "document_file",
 		"sync_status", "sync_times", "sync_status_message", "embedding_model", "vector_db",
-		"retrieve_config", "fragment_config", "embedding_config", "vector_db_config", "word_count", "third_platform_type", "third_file_id",
-		"created_uid", "updated_uid", "created_at", "updated_at", "deleted_at",
+		"retrieve_config", "fragment_config", "embedding_config", "vector_db_config", "word_count",
+		"created_uid", "updated_uid", "created_at", "updated_at", "deleted_at", "third_platform_type", "third_file_id",
 	}
 }
 
@@ -97,12 +90,15 @@ func sampleDocumentRowValuesWithCode(t *testing.T, code string, deletedAt sql.Nu
 	doc.Code = code
 	return []driver.Value{
 		doc.ID, doc.OrganizationCode, doc.KnowledgeBaseCode, doc.SourceBindingID, doc.SourceItemID, doc.AutoAdded, doc.Name, doc.Description, doc.Code,
-		doc.Enabled, mustUint32Repo(t, doc.DocType), mustJSON(t, doc.DocMetadata), mustJSON(t, doc.DocumentFile),
+		uint32(1), doc.Enabled, mustUint32Repo(t, doc.DocType), mustJSON(t, doc.DocMetadata), mustJSON(t, doc.DocumentFile),
 		mustInt32Repo(t, int(doc.SyncStatus)), mustInt32Repo(t, doc.SyncTimes), doc.SyncStatusMessage, doc.EmbeddingModel, doc.VectorDB,
 		mustJSON(t, doc.RetrieveConfig), mustJSON(t, doc.FragmentConfig), mustJSON(t, doc.EmbeddingConfig), mustJSON(t, doc.VectorDBConfig), mustUint64Repo(t, doc.WordCount),
-		doc.ThirdPlatformType, doc.ThirdFileID,
-		doc.CreatedUID, doc.UpdatedUID, doc.CreatedAt, doc.UpdatedAt, deletedAt,
+		doc.CreatedUID, doc.UpdatedUID, doc.CreatedAt, doc.UpdatedAt, deletedAt, doc.ThirdPlatformType, doc.ThirdFileID,
 	}
+}
+
+func sqlContains(fragment string) string {
+	return regexp.QuoteMeta(strings.TrimSpace(fragment))
 }
 
 func mustJSON(t *testing.T, value any) []byte {

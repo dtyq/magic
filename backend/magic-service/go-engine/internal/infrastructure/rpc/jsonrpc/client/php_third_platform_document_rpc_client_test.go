@@ -11,11 +11,14 @@ import (
 	"magic/internal/pkg/thirdplatform"
 )
 
+func newThirdPlatformDocumentServerForTest() *unixsocket.Server {
+	return unixsocket.NewServerForTest(nil, logging.New())
+}
+
 func TestPHPThirdPlatformDocumentRPCClientResolveNoClient(t *testing.T) {
 	t.Parallel()
 
-	server := unixsocket.NewServer(nil, logging.New())
-	client := ipcclient.NewPHPThirdPlatformDocumentRPCClient(server, logging.New())
+	client := ipcclient.NewPHPThirdPlatformDocumentRPCClient(newThirdPlatformDocumentServerForTest(), logging.New(), nil)
 
 	if client == nil {
 		t.Fatal("expected client to be created")

@@ -11,6 +11,7 @@ import (
 	diinfra "magic/internal/di/infra"
 	direbuild "magic/internal/di/rebuild"
 	"magic/internal/infrastructure/health"
+	"magic/internal/infrastructure/knowledge/documentsync"
 	metrics "magic/internal/infrastructure/metrics"
 	"magic/internal/infrastructure/transport/ipc/unixsocket"
 	httpserver "magic/internal/interfaces/http"
@@ -51,6 +52,7 @@ func InitializeApplication() (*httpserver.Server, func(), error) {
 		httpserver.NewServerWithDependencies,
 
 		// 处理器
+		rpchandler.ProvideKnowledgeBaseRPCDeps,
 		rpchandler.ProvideKnowledgeBaseRPCService,
 		rpchandler.NewFragmentRPCService,
 		rpchandler.NewDocumentRPCService,
@@ -63,6 +65,7 @@ func InitializeApplication() (*httpserver.Server, func(), error) {
 		wire.Bind(new(httpserver.MetricsService), new(*metrics.Metrics)),
 		wire.Bind(new(httpserver.RPCServer), new(*unixsocket.Server)),
 		wire.Bind(new(httpserver.RetrievalWarmupService), new(*fragmentapp.FragmentAppService)),
+		wire.Bind(new(httpserver.TaskQueueService), new(*documentsync.Runtime)),
 	)
 	return nil, nil, nil
 }

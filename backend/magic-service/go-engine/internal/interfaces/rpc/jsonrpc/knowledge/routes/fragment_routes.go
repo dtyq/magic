@@ -15,13 +15,16 @@ func RegisterFragmentRoutes(router RPCRouter, h HandlerProvider) {
 		constants.MethodFragmentRuntimeCreate,
 		constants.MethodFragmentShow,
 		constants.MethodFragmentList,
+		constants.MethodFragmentListHTTP,
 		constants.MethodFragmentDestroy,
 		constants.MethodFragmentRuntimeDestroyByBusinessID,
 		constants.MethodFragmentRuntimeDestroyByMetadataFilter,
 		constants.MethodFragmentSync,
 		constants.MethodFragmentSimilarity,
+		constants.MethodFragmentSimilarityHTTP,
 		constants.MethodFragmentRuntimeSimilarity,
 		constants.MethodFragmentSimilarityByAgent,
 		constants.MethodFragmentPreview,
+		constants.MethodFragmentPreviewHTTP,
 	})
 }
