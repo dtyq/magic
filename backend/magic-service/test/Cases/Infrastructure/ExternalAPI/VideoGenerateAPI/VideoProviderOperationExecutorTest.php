@@ -16,6 +16,12 @@ use App\Infrastructure\ExternalAPI\VideoGenerateAPI\CloudswaySeedanceVideoAdapte
 use App\Infrastructure\ExternalAPI\VideoGenerateAPI\CloudswayVeoVideoAdapter;
 use App\Infrastructure\ExternalAPI\VideoGenerateAPI\CloudswayVideoAdapterRouter;
 use App\Infrastructure\ExternalAPI\VideoGenerateAPI\CloudswayVideoClient;
+use App\Infrastructure\ExternalAPI\VideoGenerateAPI\Keling\Adapter\KelingOmniVideoAdapter;
+use App\Infrastructure\ExternalAPI\VideoGenerateAPI\Keling\Adapter\KelingVideoAdapterRouter;
+use App\Infrastructure\ExternalAPI\VideoGenerateAPI\Keling\Capability\KelingOmniGenerationCapabilityProvider;
+use App\Infrastructure\ExternalAPI\VideoGenerateAPI\Keling\KelingTransportFactory;
+use App\Infrastructure\ExternalAPI\VideoGenerateAPI\Keling\KelingVideoClient;
+use App\Infrastructure\ExternalAPI\VideoGenerateAPI\Keling\Transport\ApiKeyKelingTransport;
 use App\Infrastructure\ExternalAPI\VideoGenerateAPI\VideoGenerateFactory;
 use App\Infrastructure\ExternalAPI\VideoGenerateAPI\VideoProviderOperationExecutor;
 use App\Infrastructure\ExternalAPI\VideoGenerateAPI\VolcengineArkSeedanceVideoAdapter;
@@ -81,6 +87,7 @@ class VideoProviderOperationExecutorTest extends TestCase
         $executor = new VideoProviderOperationExecutor(
             new VideoGenerateFactory(
                 $this->createCloudswayRouter($clientFactory),
+                $this->createKelingRouter($this->createMock(ClientFactory::class)),
                 new VolcengineArkSeedanceVideoAdapter(new VolcengineArkVideoClient($this->createMock(ClientFactory::class))),
             ),
         );
@@ -103,6 +110,7 @@ class VideoProviderOperationExecutorTest extends TestCase
         $executor = new VideoProviderOperationExecutor(
             new VideoGenerateFactory(
                 $this->createCloudswayRouter($this->createMock(ClientFactory::class)),
+                $this->createKelingRouter($this->createMock(ClientFactory::class)),
                 new VolcengineArkSeedanceVideoAdapter(new VolcengineArkVideoClient($this->createMock(ClientFactory::class))),
             ),
         );
@@ -196,6 +204,7 @@ class VideoProviderOperationExecutorTest extends TestCase
         $executor = new VideoProviderOperationExecutor(
             new VideoGenerateFactory(
                 $this->createCloudswayRouter($this->createMock(ClientFactory::class)),
+                $this->createKelingRouter($this->createMock(ClientFactory::class)),
                 new VolcengineArkSeedanceVideoAdapter(new VolcengineArkVideoClient($clientFactory)),
             ),
         );
@@ -242,6 +251,7 @@ class VideoProviderOperationExecutorTest extends TestCase
         $executor = new VideoProviderOperationExecutor(
             new VideoGenerateFactory(
                 $this->createCloudswayRouter($this->createMock(ClientFactory::class)),
+                $this->createKelingRouter($this->createMock(ClientFactory::class)),
                 new VolcengineArkSeedanceVideoAdapter(new VolcengineArkVideoClient($clientFactory)),
             ),
         );
@@ -285,6 +295,20 @@ class VideoProviderOperationExecutorTest extends TestCase
             new CloudswayVeoVideoAdapter(new CloudswayVideoClient($clientFactory)),
             new CloudswaySeedanceVideoAdapter(new CloudswayVideoClient($clientFactory)),
             new CloudswayKelingVideoAdapter(new CloudswayVideoClient($clientFactory)),
+        );
+    }
+
+    private function createKelingRouter(ClientFactory $clientFactory): KelingVideoAdapterRouter
+    {
+        return new KelingVideoAdapterRouter(
+            new KelingOmniVideoAdapter(
+                new KelingOmniGenerationCapabilityProvider(),
+                new KelingTransportFactory(
+                    new ApiKeyKelingTransport(
+                        new KelingVideoClient($clientFactory)
+                    )
+                )
+            )
         );
     }
 }

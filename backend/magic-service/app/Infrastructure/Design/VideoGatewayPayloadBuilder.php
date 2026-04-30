@@ -11,6 +11,7 @@ use App\Domain\Design\Contract\VideoGatewayPayloadBuilderInterface;
 use App\Domain\Design\Entity\DesignGenerationTaskEntity;
 use App\Domain\Design\Factory\PathFactory;
 use App\Domain\File\Service\FileDomainService;
+use App\Domain\ModelGateway\Entity\ValueObject\VideoInputMode;
 use App\ErrorCode\DesignErrorCode;
 use App\Infrastructure\Core\Exception\ExceptionBuilder;
 use App\Infrastructure\Core\ValueObject\StorageBucketType;
@@ -192,7 +193,10 @@ readonly class VideoGatewayPayloadBuilder implements VideoGatewayPayloadBuilderI
      */
     private function rewritePromptReferenceMentions(string $prompt, string $inputMode, array $rawInputs): string
     {
-        if (! in_array(trim($inputMode), ['omni_reference', 'image_reference'], true)) {
+        if (! in_array(trim($inputMode), [
+            VideoInputMode::OmniReference->value,
+            VideoInputMode::ImageReference->value,
+        ], true)) {
             return $prompt;
         }
 

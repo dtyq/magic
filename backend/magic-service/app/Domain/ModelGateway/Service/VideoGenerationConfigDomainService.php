@@ -385,6 +385,10 @@ readonly class VideoGenerationConfigDomainService
                 $item['description'] = trim($config['description']);
             }
 
+            if (is_string($config['task'] ?? null) && trim($config['task']) !== '') {
+                $item['task'] = trim($config['task']);
+            }
+
             $supportedFields = self::normalizeStringList($config['supported_fields'] ?? []);
             if ($supportedFields !== []) {
                 $item['supported_fields'] = $supportedFields;

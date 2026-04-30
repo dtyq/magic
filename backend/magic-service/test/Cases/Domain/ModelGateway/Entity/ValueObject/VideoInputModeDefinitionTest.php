@@ -7,6 +7,7 @@ declare(strict_types=1);
 
 namespace HyperfTest\Cases\Domain\ModelGateway\Entity\ValueObject;
 
+use App\Domain\ModelGateway\Entity\ValueObject\VideoInputMode;
 use App\Domain\ModelGateway\Entity\ValueObject\VideoInputModeDefinition;
 use App\Domain\ModelGateway\Entity\ValueObject\VideoTaskType;
 use PHPUnit\Framework\TestCase;
@@ -61,11 +62,11 @@ class VideoInputModeDefinitionTest extends TestCase
     public function testVideoEditDefinitionUsesEditTask(): void
     {
         $definition = VideoInputModeDefinition::videoEdit(
-            description: 'video_edit',
+            description: VideoInputMode::VideoEdit->value,
             maxCount: 1,
         )->toArray();
 
-        $this->assertSame('video_edit', $definition['description']);
+        $this->assertSame(VideoInputMode::VideoEdit->value, $definition['description']);
         $this->assertSame(['reference_videos'], $definition['supported_fields']);
         $this->assertSame(1, $definition['max_count']);
         $this->assertSame(VideoTaskType::Edit->value, $definition['task']);

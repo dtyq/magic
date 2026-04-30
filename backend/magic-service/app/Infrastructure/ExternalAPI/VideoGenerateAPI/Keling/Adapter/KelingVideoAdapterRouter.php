@@ -22,12 +22,12 @@ readonly class KelingVideoAdapterRouter implements VideoGenerationProviderAdapte
 
     public function supportsModel(string $modelVersion, string $modelId): bool
     {
-        return $this->kelingOmniVideoAdapter->supportsModel($modelVersion, $modelId);
+        return $this->resolveAdapter($modelVersion, $modelId) !== null;
     }
 
     public function resolveGenerationConfig(string $modelVersion, string $modelId): ?VideoGenerationConfig
     {
-        return $this->kelingOmniVideoAdapter->resolveGenerationConfig($modelVersion, $modelId);
+        return $this->resolveAdapter($modelVersion, $modelId)?->resolveGenerationConfig($modelVersion, $modelId);
     }
 
     public function buildProviderPayload(VideoQueueOperationEntity $operation): array
@@ -47,8 +47,9 @@ readonly class KelingVideoAdapterRouter implements VideoGenerationProviderAdapte
 
     private function resolveOperationAdapter(VideoQueueOperationEntity $operation): VideoGenerationProviderAdapterInterface
     {
-        if ($this->kelingOmniVideoAdapter->supportsModel($operation->getModelVersion(), $operation->getModel())) {
-            return $this->kelingOmniVideoAdapter;
+        $adapter = $this->resolveAdapter($operation->getModelVersion(), $operation->getModel());
+        if ($adapter !== null) {
+            return $adapter;
         }
 
         throw new RuntimeException(sprintf(
@@ -56,5 +57,30 @@ readonly class KelingVideoAdapterRouter implements VideoGenerationProviderAdapte
             $operation->getModel(),
             $operation->getModelVersion(),
         ));
+    }
+
+    private function resolveAdapter(string $modelVersion, string $modelId): ?VideoGenerationProviderAdapterInterface
+    {
+        foreach ($this->adapters() as $adapter) {
+            if (! $adapter instanceof VideoGenerationProviderAdapterInterface) {
+                continue;
+            }
+
+            if ($adapter->supportsModel($modelVersion, $modelId)) {
+                return $adapter;
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * @return array<int, VideoGenerationProviderAdapterInterface>
+     */
+    private function adapters(): array
+    {
+        return [
+            $this->kelingOmniVideoAdapter,
+        ];
     }
 }

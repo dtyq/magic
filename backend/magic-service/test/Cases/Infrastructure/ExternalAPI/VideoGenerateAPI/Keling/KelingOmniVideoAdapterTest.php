@@ -7,12 +7,14 @@ declare(strict_types=1);
 
 namespace HyperfTest\Cases\Infrastructure\ExternalAPI\VideoGenerateAPI\Keling;
 
+use App\Domain\ModelGateway\Entity\ValueObject\VideoInputMode;
 use App\Domain\ModelGateway\Entity\ValueObject\VideoOperationStatus;
 use App\Domain\ModelGateway\Entity\VideoQueueOperationEntity;
 use App\Infrastructure\ExternalAPI\VideoGenerateAPI\Keling\Adapter\KelingOmniVideoAdapter;
+use App\Infrastructure\ExternalAPI\VideoGenerateAPI\Keling\Capability\KelingOmniGenerationCapabilityProvider;
 use App\Infrastructure\ExternalAPI\VideoGenerateAPI\Keling\KelingTransportFactory;
-use App\Infrastructure\ExternalAPI\VideoGenerateAPI\Keling\Transport\ApiKeyKelingTransport;
 use App\Infrastructure\ExternalAPI\VideoGenerateAPI\Keling\KelingVideoClient;
+use App\Infrastructure\ExternalAPI\VideoGenerateAPI\Keling\Transport\ApiKeyKelingTransport;
 use Hyperf\Context\ApplicationContext;
 use Hyperf\Guzzle\ClientFactory;
 use PHPUnit\Framework\TestCase;
@@ -31,17 +33,6 @@ class KelingOmniVideoAdapterTest extends TestCase
         }
     }
 
-    private function createAdapter(): KelingOmniVideoAdapter
-    {
-        return new KelingOmniVideoAdapter(
-            new KelingTransportFactory(
-                new ApiKeyKelingTransport(
-                    new KelingVideoClient($this->createMock(ClientFactory::class))
-                )
-            )
-        );
-    }
-
     public function testResolveGenerationConfigExposesOmniDefaults(): void
     {
         $adapter = $this->createAdapter();
@@ -50,15 +41,15 @@ class KelingOmniVideoAdapterTest extends TestCase
 
         $this->assertNotNull($config);
         $data = $config->toArray();
-        $this->assertSame(['text_prompt', 'image', 'last_frame', 'reference_images', 'reference_videos', 'video_edit'], $data['supported_inputs']);
+        $this->assertSame(['text_prompt', 'image', 'last_frame', 'reference_images', 'reference_videos', VideoInputMode::VideoEdit->value], $data['supported_inputs']);
         $this->assertSame(5, $data['generation']['default_duration_seconds']);
         $this->assertSame('720p', $data['generation']['default_resolution']);
         $this->assertSame(
-            ['standard', 'image_reference', 'omni_reference', 'video_edit', 'keyframe_guided'],
+            ['standard', 'image_reference', 'omni_reference', VideoInputMode::VideoEdit->value, 'keyframe_guided'],
             array_keys($data['input_modes'])
         );
         $this->assertSame('generate', $data['input_modes']['omni_reference']['task']);
-        $this->assertSame('edit', $data['input_modes']['video_edit']['task']);
+        $this->assertSame('edit', $data['input_modes'][VideoInputMode::VideoEdit->value]['task']);
     }
 
     public function testResolveGenerationConfigSupportsOmniAliasModelId(): void
@@ -202,5 +193,17 @@ class KelingOmniVideoAdapterTest extends TestCase
         $this->assertSame('base', $payload['video_list'][0]['refer_type']);
         $this->assertArrayNotHasKey('duration', $payload);
         $this->assertSame('off', $payload['sound']);
+    }
+
+    private function createAdapter(): KelingOmniVideoAdapter
+    {
+        return new KelingOmniVideoAdapter(
+            new KelingOmniGenerationCapabilityProvider(),
+            new KelingTransportFactory(
+                new ApiKeyKelingTransport(
+                    new KelingVideoClient($this->createMock(ClientFactory::class))
+                )
+            )
+        );
     }
 }

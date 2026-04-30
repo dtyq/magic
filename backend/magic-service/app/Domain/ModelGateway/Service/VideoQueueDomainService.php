@@ -15,7 +15,9 @@ use App\Domain\ModelGateway\Entity\ValueObject\ModelGatewayDataIsolation;
 use App\Domain\ModelGateway\Entity\ValueObject\VideoExecutionSyncResult;
 use App\Domain\ModelGateway\Entity\ValueObject\VideoGatewayEndpoint;
 use App\Domain\ModelGateway\Entity\ValueObject\VideoGenerationConfig;
+use App\Domain\ModelGateway\Entity\ValueObject\VideoInputMode;
 use App\Domain\ModelGateway\Entity\ValueObject\VideoOperationStatus;
+use App\Domain\ModelGateway\Entity\ValueObject\VideoTaskType;
 use App\Domain\ModelGateway\Entity\VideoQueueOperationEntity;
 use App\Domain\ModelGateway\Repository\VideoQueueOperationRepositoryInterface;
 use App\Domain\Provider\Entity\ValueObject\ProviderCode;
@@ -37,31 +39,6 @@ use RuntimeException;
  */
 readonly class VideoQueueDomainService
 {
-    private const string TASK_GENERATE = 'generate';
-
-    private const string TASK_EXTEND = 'extend';
-
-    private const string TASK_EDIT = 'edit';
-
-    private const string TASK_UPSCALE = 'upscale';
-
-    // input_mode 只负责表达输入编排方式：
-    // standard 普通文生，image_reference 参考图，omni_reference 全能参考，keyframe_guided 首尾帧。
-    private const string COMPOSITION_MODE_STANDARD = 'standard';
-
-    private const string COMPOSITION_MODE_IMAGE_REFERENCE = 'image_reference';
-
-    private const string COMPOSITION_MODE_OMNI_REFERENCE = 'omni_reference';
-
-    private const string COMPOSITION_MODE_KEYFRAME_GUIDED = 'keyframe_guided';
-
-    private const array SUPPORTED_TASKS = [
-        self::TASK_GENERATE,
-        self::TASK_EXTEND,
-        self::TASK_EDIT,
-        self::TASK_UPSCALE,
-    ];
-
     private const array SERVICE_TIERS = ['default', 'flex'];
 
     private const string RESULT_STATUS_PROCESSING = 'processing';
@@ -720,10 +697,10 @@ readonly class VideoQueueDomainService
     private function assertCapability(string $task, array $supportedInputs): void
     {
         $requiredCapability = match ($task) {
-            self::TASK_GENERATE => 'text_prompt',
-            self::TASK_EXTEND => 'video_extension',
-            self::TASK_EDIT => 'video_edit',
-            self::TASK_UPSCALE => 'video_upscale',
+            VideoTaskType::Generate->value => 'text_prompt',
+            VideoTaskType::Extend->value => 'video_extension',
+            VideoTaskType::Edit->value => VideoInputMode::VideoEdit->value,
+            VideoTaskType::Upscale->value => 'video_upscale',
             default => throw new RuntimeException('unknown task'),
         };
 
@@ -734,7 +711,11 @@ readonly class VideoQueueDomainService
 
     private function assertTaskRequirements(string $task, array $referenceVideoInputs): void
     {
-        if (($task === self::TASK_EXTEND || $task === self::TASK_EDIT || $task === self::TASK_UPSCALE) && $referenceVideoInputs === []) {
+        if (in_array($task, [
+            VideoTaskType::Extend->value,
+            VideoTaskType::Edit->value,
+            VideoTaskType::Upscale->value,
+        ], true) && $referenceVideoInputs === []) {
             ExceptionBuilder::throw(MagicApiErrorCode::ValidateFailed, 'inputs.reference_videos is required');
         }
     }
@@ -750,10 +731,10 @@ readonly class VideoQueueDomainService
         $mode = strtolower(trim((string) $value));
         if ($mode !== '') {
             if (! in_array($mode, [
-                self::COMPOSITION_MODE_STANDARD,
-                self::COMPOSITION_MODE_IMAGE_REFERENCE,
-                self::COMPOSITION_MODE_OMNI_REFERENCE,
-                self::COMPOSITION_MODE_KEYFRAME_GUIDED,
+                VideoInputMode::Standard->value,
+                VideoInputMode::ImageReference->value,
+                VideoInputMode::OmniReference->value,
+                VideoInputMode::KeyframeGuided->value,
             ], true)) {
                 ExceptionBuilder::throw(MagicApiErrorCode::ValidateFailed, 'input_mode is invalid');
             }
@@ -761,21 +742,21 @@ readonly class VideoQueueDomainService
             return $mode;
         }
 
-        if ($task !== self::TASK_GENERATE) {
-            return self::COMPOSITION_MODE_STANDARD;
+        if ($task !== VideoTaskType::Generate->value) {
+            return VideoInputMode::Standard->value;
         }
 
         if ($frames !== []) {
-            return self::COMPOSITION_MODE_KEYFRAME_GUIDED;
+            return VideoInputMode::KeyframeGuided->value;
         }
         if ($referenceVideoInputs !== [] || $referenceAudioInputs !== []) {
-            return self::COMPOSITION_MODE_OMNI_REFERENCE;
+            return VideoInputMode::OmniReference->value;
         }
         if ($referenceImages !== []) {
-            return self::COMPOSITION_MODE_IMAGE_REFERENCE;
+            return VideoInputMode::ImageReference->value;
         }
 
-        return self::COMPOSITION_MODE_STANDARD;
+        return VideoInputMode::Standard->value;
     }
 
     /**
@@ -789,15 +770,15 @@ readonly class VideoQueueDomainService
         array $referenceVideoInputs,
         array $referenceAudioInputs
     ): void {
-        if ($compositionMode === self::COMPOSITION_MODE_STANDARD) {
+        if ($compositionMode === VideoInputMode::Standard->value) {
             return;
         }
 
-        if ($task !== self::TASK_GENERATE) {
+        if ($task !== VideoTaskType::Generate->value) {
             ExceptionBuilder::throw(MagicApiErrorCode::ValidateFailed, 'input_mode is invalid');
         }
 
-        if ($compositionMode === self::COMPOSITION_MODE_IMAGE_REFERENCE) {
+        if ($compositionMode === VideoInputMode::ImageReference->value) {
             if ($referenceImages === []) {
                 ExceptionBuilder::throw(MagicApiErrorCode::ValidateFailed, 'inputs.reference_images is required');
             }
@@ -808,7 +789,7 @@ readonly class VideoQueueDomainService
             return;
         }
 
-        if ($compositionMode === self::COMPOSITION_MODE_OMNI_REFERENCE) {
+        if ($compositionMode === VideoInputMode::OmniReference->value) {
             if ($referenceImages === [] && $referenceVideoInputs === [] && $referenceAudioInputs === []) {
                 ExceptionBuilder::throw(MagicApiErrorCode::ValidateFailed, 'omni_reference inputs are required');
             }
@@ -1076,7 +1057,7 @@ readonly class VideoQueueDomainService
     private function normalizeTask(mixed $value): string
     {
         $normalized = is_string($value) ? trim($value) : '';
-        if (! in_array($normalized, self::SUPPORTED_TASKS, true)) {
+        if (! VideoTaskType::isValid($normalized)) {
             ExceptionBuilder::throw(MagicApiErrorCode::ValidateFailed, 'task is invalid');
         }
 

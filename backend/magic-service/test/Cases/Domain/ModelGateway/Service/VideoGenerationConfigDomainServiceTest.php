@@ -9,6 +9,7 @@ namespace HyperfTest\Cases\Domain\ModelGateway\Service;
 
 use App\Domain\ModelGateway\Entity\ValueObject\VideoGenerationConfig;
 use App\Domain\ModelGateway\Entity\ValueObject\VideoGenerationConfigCandidate;
+use App\Domain\ModelGateway\Entity\ValueObject\VideoInputMode;
 use App\Domain\ModelGateway\Service\VideoGenerationConfigDomainService;
 use App\Domain\Provider\Entity\ValueObject\ProviderCode;
 use App\Infrastructure\ExternalAPI\VideoGenerateAPI\CloudswayKelingVideoAdapter;
@@ -16,6 +17,12 @@ use App\Infrastructure\ExternalAPI\VideoGenerateAPI\CloudswaySeedanceVideoAdapte
 use App\Infrastructure\ExternalAPI\VideoGenerateAPI\CloudswayVeoVideoAdapter;
 use App\Infrastructure\ExternalAPI\VideoGenerateAPI\CloudswayVideoAdapterRouter;
 use App\Infrastructure\ExternalAPI\VideoGenerateAPI\CloudswayVideoClient;
+use App\Infrastructure\ExternalAPI\VideoGenerateAPI\Keling\Adapter\KelingOmniVideoAdapter;
+use App\Infrastructure\ExternalAPI\VideoGenerateAPI\Keling\Adapter\KelingVideoAdapterRouter;
+use App\Infrastructure\ExternalAPI\VideoGenerateAPI\Keling\Capability\KelingOmniGenerationCapabilityProvider;
+use App\Infrastructure\ExternalAPI\VideoGenerateAPI\Keling\KelingTransportFactory;
+use App\Infrastructure\ExternalAPI\VideoGenerateAPI\Keling\KelingVideoClient;
+use App\Infrastructure\ExternalAPI\VideoGenerateAPI\Keling\Transport\ApiKeyKelingTransport;
 use App\Infrastructure\ExternalAPI\VideoGenerateAPI\VideoGenerateFactory;
 use App\Infrastructure\ExternalAPI\VideoGenerateAPI\VolcengineArkSeedanceVideoAdapter;
 use App\Infrastructure\ExternalAPI\VideoGenerateAPI\VolcengineArkVideoClient;
@@ -66,7 +73,7 @@ class VideoGenerationConfigDomainServiceTest extends TestCase
         $this->assertContains('reference_videos', $config->toArray()['supported_inputs']);
         $this->assertContains('reference_audios', $config->toArray()['supported_inputs']);
         $this->assertNotContains('video', $config->toArray()['supported_inputs']);
-        $this->assertContains('video_edit', $config->toArray()['supported_inputs']);
+        $this->assertContains(VideoInputMode::VideoEdit->value, $config->toArray()['supported_inputs']);
         $this->assertContains('video_extension', $config->toArray()['supported_inputs']);
         $this->assertContains('video_upscale', $config->toArray()['supported_inputs']);
         $this->assertSame(['16:9', '4:3', '1:1', '3:4', '9:16', '21:9'], $config->toArray()['generation']['aspect_ratios']);
@@ -249,6 +256,16 @@ class VideoGenerationConfigDomainServiceTest extends TestCase
                     new CloudswayVeoVideoAdapter(new CloudswayVideoClient($this->createMock(ClientFactory::class))),
                     new CloudswaySeedanceVideoAdapter(new CloudswayVideoClient($this->createMock(ClientFactory::class))),
                     new CloudswayKelingVideoAdapter(new CloudswayVideoClient($this->createMock(ClientFactory::class))),
+                ),
+                new KelingVideoAdapterRouter(
+                    new KelingOmniVideoAdapter(
+                        new KelingOmniGenerationCapabilityProvider(),
+                        new KelingTransportFactory(
+                            new ApiKeyKelingTransport(
+                                new KelingVideoClient($this->createMock(ClientFactory::class))
+                            )
+                        )
+                    )
                 ),
                 new VolcengineArkSeedanceVideoAdapter(new VolcengineArkVideoClient($this->createMock(ClientFactory::class))),
             )

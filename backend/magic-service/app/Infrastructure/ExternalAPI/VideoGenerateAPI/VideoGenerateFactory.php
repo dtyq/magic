@@ -10,6 +10,7 @@ namespace App\Infrastructure\ExternalAPI\VideoGenerateAPI;
 use App\Domain\ModelGateway\Contract\VideoGenerationProviderAdapterFactoryInterface;
 use App\Domain\ModelGateway\Contract\VideoGenerationProviderAdapterInterface;
 use App\Domain\Provider\Entity\ValueObject\ProviderCode;
+use App\Infrastructure\ExternalAPI\VideoGenerateAPI\Keling\Adapter\KelingVideoAdapterRouter;
 
 /**
  * 视频 provider adapter 工厂。
@@ -21,6 +22,7 @@ readonly class VideoGenerateFactory implements VideoGenerationProviderAdapterFac
 {
     public function __construct(
         private CloudswayVideoAdapterRouter $cloudswayVideoAdapterRouter,
+        private KelingVideoAdapterRouter $kelingVideoAdapterRouter,
         private VolcengineArkSeedanceVideoAdapter $volcengineArkSeedanceVideoAdapter,
     ) {
     }
@@ -29,6 +31,7 @@ readonly class VideoGenerateFactory implements VideoGenerationProviderAdapterFac
     {
         return match ($providerType) {
             VideoGenerateProviderType::Cloudsway => $this->cloudswayVideoAdapterRouter,
+            VideoGenerateProviderType::Keling => $this->kelingVideoAdapterRouter,
             VideoGenerateProviderType::VolcengineArk => $this->volcengineArkSeedanceVideoAdapter,
         };
     }
