@@ -90,6 +90,11 @@ class TaskFileItemDTO extends AbstractDTO
     public ?array $displayConfig = null;
 
     /**
+     * 冗余字段，与 display_config 值相同.
+     */
+    public ?array $metadata = null;
+
+    /**
      * 排序值.
      */
     public int $sort = 0;
@@ -139,6 +144,7 @@ class TaskFileItemDTO extends AbstractDTO
         } else {
             $dto->displayConfig = null;
         }
+        $dto->metadata = $dto->displayConfig;
         // relative_file_path: 优先使用预计算的路径，其次从 file_key 推导
         if ($relativeFilePath !== null) {
             $dto->relativeFilePath = $relativeFilePath;
@@ -199,6 +205,7 @@ class TaskFileItemDTO extends AbstractDTO
         } else {
             $dto->displayConfig = null;
         }
+        $dto->metadata = $dto->displayConfig;
 
         return $dto;
     }
@@ -225,6 +232,7 @@ class TaskFileItemDTO extends AbstractDTO
             'updated_at' => $this->updatedAt,
             'is_directory' => $this->isDirectory,
             'display_config' => $this->displayConfig,
+            'metadata' => $this->metadata,
             'sort' => $this->sort,
             'parent_id' => $this->parentId,
             'source' => $this->source->value,
