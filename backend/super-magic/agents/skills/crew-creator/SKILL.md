@@ -22,6 +22,14 @@ description-cn: |
 管理 `.magic/` 下的 4 个核心员工定义文件，帮助用户查看、编辑和优化员工的身份、指令、性格和工具配置。
 当工作区尚无员工定义文件时，还负责引导用户完成首次初始化。
 
+## 语言生成策略
+
+系统会注入 `<user_preferred_language>` 表示用户偏好语言。生成员工文件时遵循：
+
+**默认单语言模式**：以用户偏好语言生成所有内容，不使用 `<!--zh -->` 双语格式，YAML header 只用单语言字段。
+
+**仅在用户明确要求多语言时**才启用双语模式。双语格式以用户偏好语言为主语言（非注释部分），辅助语言放在注释中。
+
 ## 员工初始化流程
 
 当 `.magic/IDENTITY.md` 不存在时，说明工作区尚未创建员工，需要引导用户初始化。
@@ -32,12 +40,16 @@ description-cn: |
 
 ### 信息采集（通过对话向用户提问）
 
-按以下顺序向用户收集信息，每次可合并多个问题，但不要一次问太多：
+按以下顺序向用户收集信息，每次可合并多个问题，但不要一次问太多。
+
+**信息采集前，先确认用户偏好语言**：查看 `<user_preferred_language>`，以该语言与用户交流并采集信息。
 
 **第一轮（必填信息）**：
-1. **员工名称**：中文名和英文名（如：研究助手 / Research Assistant）
-2. **员工角色/职能**：中文和英文（如：学术研究员 / Academic Researcher）
-3. **一句话描述**：这个员工主要做什么？（中英文）
+1. **员工名称**：用用户偏好语言提问（如中文用户问"想给员工起什么名字？"）
+2. **员工角色/职能**：（如"这个员工主要承担什么角色？"）
+3. **一句话描述**：这个员工主要做什么？
+
+**仅当用户明确要求多语言时**（如"需要中英文双语"），才额外询问对应的翻译。
 
 **第二轮（推荐但可选）**：
 4. **角色定义**：更详细地描述这个员工的能力、专长、工作方式（会写入 IDENTITY.md 正文）
@@ -52,16 +64,25 @@ description-cn: |
 
 收集完信息后，将配置写入 JSON 文件，调用初始化脚本生成员工定义文件：
 
+**单语言模式（默认）**：
 ```python
-# 1. 将收集到的信息写入 JSON 配置
+# 1. 将收集到的信息写入 JSON 配置（不需要 _cn 后缀字段）
 write_file(
     path=".crew_init_config.json",
-    content='{"name": "Research Assistant", "name_cn": "研究助手", "role": "Academic Researcher", "role_cn": "学术研究员", "description": "...", "description_cn": "...", "role_body": "...", "role_body_cn": "...", "instructions": "...", "instructions_cn": "...", "personality": "...", "personality_cn": "..."}'
+    content='{"name": "研究助手", "role": "学术研究员", "description": "专业的学术研究助手", "role_body": "你是一名学术研究员...", "instructions": "...", "personality": "..."}'
 )
 
 # 2. 调用初始化脚本
 shell_exec(
     command="python scripts/init_crew.py --config .workspace/.crew_init_config.json"
+)
+```
+
+**仅当用户明确要求多语言时**，才补充辅助语言字段（如 `name_en`, `role_body_en` 等）：
+```python
+write_file(
+    path=".crew_init_config.json",
+    content='{"name": "研究助手", "name_en": "Research Assistant", "role": "学术研究员", "role_en": "Academic Researcher", "description": "专业的学术研究助手", "description_en": "A professional research assistant", ...}'
 )
 ```
 
@@ -83,6 +104,14 @@ shell_exec(
 Manages the 4 core employee definition files under `.magic/`, helping users view, edit, and optimize their employee's identity, instructions, personality, and tool configuration.
 Also handles first-time employee initialization when the workspace has no definition files.
 
+## Language Generation Strategy
+
+The system injects `<user_preferred_language>` indicating the user's preferred language. Follow these rules when generating employee files:
+
+**Default single-language mode**: Generate all content in the user's preferred language, without `<!--zh -->` bilingual format. YAML header uses single-language fields only.
+
+**Only enable bilingual mode when the user explicitly requests multiple languages**. In bilingual format, use the user's preferred language as primary (non-commented), with the auxiliary language in comments.
+
 ## Employee Initialization Flow
 
 When `.magic/IDENTITY.md` does not exist, the workspace has no employee yet and you should guide the user through initialization.
@@ -93,12 +122,16 @@ Use `list_dir` to check `.magic/`. If `IDENTITY.md` is missing, enter the initia
 
 ### Information Gathering (ask the user conversationally)
 
-Collect information in rounds; you may combine questions but don't overwhelm the user:
+Collect information in rounds; you may combine questions but don't overwhelm the user.
+
+**Before gathering, check user's preferred language**: Look at `<user_preferred_language>`. Communicate and collect information in that language.
 
 **Round 1 (required)**:
-1. **Employee name**: Chinese and English (e.g. 研究助手 / Research Assistant)
-2. **Employee role**: Chinese and English (e.g. 学术研究员 / Academic Researcher)
-3. **One-line description**: What does this employee mainly do? (bilingual)
+1. **Employee name**: Ask in the user's preferred language (e.g., for English users: "What name would you like to give your employee?")
+2. **Employee role**: (e.g., "What role will this employee take on?")
+3. **One-line description**: What does this employee mainly do?
+
+**Only ask for translations when the user explicitly requests multiple languages** (e.g., "need bilingual support", "要支持中英文").
 
 **Round 2 (recommended but optional)**:
 4. **Role definition**: A richer description of capabilities, expertise, and working style (goes into IDENTITY.md body)
@@ -113,16 +146,25 @@ If the user signals intent to skip ("先这样", "later", etc.), proceed immedia
 
 After collecting info, write a JSON config and call the init script:
 
+**Single-language mode (default)**:
 ```python
-# 1. Write collected info as JSON config
+# 1. Write collected info as JSON config (no _en suffix variants needed)
 write_file(
     path=".crew_init_config.json",
-    content='{"name": "Research Assistant", "name_cn": "研究助手", "role": "Academic Researcher", "role_cn": "学术研究员", "description": "...", "description_cn": "...", "role_body": "...", "role_body_cn": "...", "instructions": "...", "instructions_cn": "...", "personality": "...", "personality_cn": "..."}'
+    content='{"name": "Research Assistant", "role": "Academic Researcher", "description": "A professional research assistant", "role_body": "You are an academic researcher...", "instructions": "...", "personality": "..."}'
 )
 
 # 2. Call the init script
 shell_exec(
     command="python scripts/init_crew.py --config .workspace/.crew_init_config.json"
+)
+```
+
+**Only when the user explicitly requests multiple languages**, supplement with auxiliary language fields (e.g., `name_cn`, `role_body_cn`, etc.):
+```python
+write_file(
+    path=".crew_init_config.json",
+    content='{"name": "Research Assistant", "name_cn": "研究助手", "role": "Academic Researcher", "role_cn": "学术研究员", "description": "A professional research assistant", "description_cn": "专业的学术研究助手", ...}'
 )
 ```
 
@@ -169,7 +211,7 @@ The script generates files based on the config (TOOLS.md and SKILLS.md are inten
 |--------|------|------|
 | 角色明确性 | ✅ | ... |
 | 指令具体性 | ✅ | ... |
-| 双语完整性 | ✅ | ... |
+| 语言一致性（多语言时检查） | ✅ | ... |
 | 格式规范性 | ✅ | ... |
 | ... | ... | ... |
 ```
@@ -181,16 +223,17 @@ The script generates files based on the config (TOOLS.md and SKILLS.md are inten
 IDENTITY.md 包含 YAML header（元数据）和正文（角色定义）两部分。
 
 **YAML header 字段**：
-- `name` / `name_cn` — 员工名称（英文/中文）
-- `role` / `role_cn` — 员工角色（英文/中文）
-- `description` / `description_cn` — 员工描述（英文/中文）
+- `name` — 员工名称（用户偏好语言）
+- `role` — 员工角色
+- `description` — 员工描述
+- 仅多语言模式下才添加辅助语言字段：`name_cn`/`name_en`, `role_cn`/`role_en`, `description_cn`/`description_en`
 
-**正文部分**：使用 `<!--zh ... -->` 块级注释格式编写中英双语角色定义。
+**正文部分**：单语言模式直接编写。多语言模式使用 `<!--xx -->` 注释格式，用户偏好语言为活跃内容。
 
 **编辑要点**：
 - 角色定义要具体，避免空泛描述（如"你是一个 AI 助手"）
 - 明确专长领域、目标用户和使用场景
-- 中英文内容必须语义对等，不可简化或遗漏
+- 多语言模式下，各语言内容必须语义对等，不可简化或遗漏
 
 ### AGENTS.md — 工作流指令
 
@@ -275,22 +318,22 @@ shell_exec(
 )
 ```
 
-## 双语规范
+## 多语言内容格式
 
-所有编辑内容必须遵循中英双语规范：
+**默认单语言模式**：staff 文件直接使用用户偏好语言编写，不使用 `<!--zh -->` 注释格式。
+
+**仅当用户明确要求多语言时**，使用以下双语格式。用户偏好语言为主语言（非注释部分），辅助语言放在注释块中：
 
 ```markdown
 <!--zh
-中文内容
-可以多行
+中文内容（辅助语言在注释中）
 -->
-English content
-Can be multiple lines
+English content（主语言为活跃内容）
 ```
 
-- 中文在上（HTML 注释内），英文在下
+- 用户偏好语言在下（活跃内容），辅助语言在上（HTML 注释内）
 - 按逻辑段落分块，不逐行对照
-- 中文有的信息，英文必须有，不可简化或遗漏
+- 主语言有的信息，辅助语言必须有，不可简化或遗漏
 
 ## 参考文档
 
@@ -335,7 +378,7 @@ After each edit, present:
 |------------|--------|-------|
 | Role clarity | pass | ... |
 | Instruction specificity | pass | ... |
-| Bilingual completeness | pass | ... |
+| Language consistency (check if multilingual) | pass | ... |
 | Format compliance | pass | ... |
 | ... | ... | ... |
 ```
@@ -346,14 +389,14 @@ After each edit, present:
 
 Contains YAML header (metadata) and body (role definition).
 
-**YAML header fields**: `name`/`name_cn`, `role`/`role_cn`, `description`/`description_cn`
+**YAML header fields**: `name`, `role`, `description` in the user's preferred language. Only in multilingual mode, add auxiliary language variants: `name_cn`/`name_en`, `role_cn`/`role_en`, `description_cn`/`description_en`.
 
-**Body**: Use `<!--zh ... -->` block comment format for bilingual role definition.
+**Body**: Write directly in single-language mode. In multilingual mode, use `<!--xx -->` comment format with the user's preferred language as active content.
 
 **Key points**:
 - Role definition must be specific; avoid vague descriptions like "you are an AI assistant"
 - Define expertise domains, target users, and usage scenarios
-- Chinese and English content must be semantically equivalent
+- In multilingual mode, all language versions must be semantically equivalent
 
 ### AGENTS.md — Workflow Instructions
 
@@ -414,17 +457,17 @@ shell_exec(
 )
 ```
 
-## Bilingual Standard
+## Multilingual Content Format
 
-All edited content must follow the bilingual convention:
+**Default single-language mode**: Write staff files directly in the user's preferred language, without `<!--zh -->` comment format.
+
+**Only when the user explicitly requests multiple languages**, use the following bilingual format. The user's preferred language is the primary (non-commented) content; the auxiliary language goes inside comment blocks:
 
 ```markdown
 <!--zh
-Chinese content
-Multiple lines allowed
+Chinese content (auxiliary language in comments)
 -->
-English content
-Multiple lines allowed
+English content (primary language as active content)
 ```
 
 ## Reference Documents
