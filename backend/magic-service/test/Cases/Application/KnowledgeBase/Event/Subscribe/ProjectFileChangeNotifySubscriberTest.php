@@ -72,7 +72,7 @@ class ProjectFileChangeNotifySubscriberTest extends TestCase
     {
         $calls = [];
         $client = $this->createMock(ProjectFileRpcClient::class);
-        $client->expects($this->exactly(2))
+        $client->expects($this->exactly(3))
             ->method('notifyChange')
             ->willReturnCallback(static function (
                 int $projectFileId,
@@ -86,14 +86,21 @@ class ProjectFileChangeNotifySubscriberTest extends TestCase
 
         $subscriber = new ProjectFileChangeNotifySubscriber($client);
         $subscriber->process(new FilesBatchDeletedEvent(
+            [
+                self::createTaskFileEntity(501, false),
+                self::createTaskFileEntity(502, false),
+            ],
+            [self::createTaskFileEntity(503, true)],
+            'U1',
+            'ORG1',
             900,
-            [501, 0, 502],
             self::createAuthorization('U1', 'ORG1')
         ));
 
         $this->assertSame([
             [501, 'ORG1', 900, 'deleted'],
             [502, 'ORG1', 900, 'deleted'],
+            [503, 'ORG1', 900, 'deleted'],
         ], $calls);
     }
 

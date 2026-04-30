@@ -10,7 +10,6 @@ namespace Dtyq\SuperMagic\Application\SuperAgent\Service;
 use App\Application\File\Service\FileAppService;
 use App\Domain\Contact\Entity\ValueObject\DataIsolation;
 use App\Domain\File\Service\FileDomainService;
-use App\Domain\File\Repository\Persistence\Facade\CloudFileRepositoryInterface;
 use App\ErrorCode\GenericErrorCode;
 use App\Infrastructure\Core\Exception\BusinessException;
 use App\Infrastructure\Core\Exception\ExceptionBuilder;
@@ -91,7 +90,6 @@ class FileManagementAppService extends AbstractAppService
         private readonly TopicDomainService $topicDomainService,
         private readonly TaskFileDomainService $taskFileDomainService,
         private readonly TaskFileVersionDomainService $taskFileVersionDomainService,
-        private readonly CloudFileRepositoryInterface $cloudFileRepository,
         private readonly ResourceShareDomainService $resourceShareDomainService,
         private readonly FileBatchOperationStatusManager $batchOperationStatusManager,
         private readonly LockerInterface $locker,
@@ -589,27 +587,24 @@ class FileManagementAppService extends AbstractAppService
         $dataIsolation = $this->createDataIsolation($userAuthorization);
 
         try {
-            // 1. 使用 MagicFS 获取文件实体
+            // 1. Fetch the file entity through MagicFS (covers both files and directories).
             $fileEntity = $this->magicFSFileDomainService->getFileById((string) $fileId);
 
-            // 2. 检查项目权限（需要 EDITOR 角色）
+            // 2. Verify project access (EDITOR role required).
             $this->getAccessibleProjectWithEditor(
                 $fileEntity->getProjectId(),
                 $dataIsolation->getCurrentUserId(),
                 $dataIsolation->getCurrentOrganizationCode()
             );
 
-            // 3. 调用 MagicFS 删除
+            // 3. Soft-delete the entry itself only.
+            //    For directories, descendants are intentionally left intact: this endpoint
+            //    is a single-node deletion and does not propagate to children.
             $this->magicFSFileDomainService->deleteFile((string) $fileId);
 
-            // Dispatch appropriate event based on entity type
+            // 4. Dispatch the matching event so notification / asset subscribers can react.
             if ($fileEntity->getIsDirectory()) {
-                $deletedFileIds = $this->taskFileDomainService->getDirectoryFileIds($dataIsolation, $fileEntity);
-                $deletedCount = $this->taskFileDomainService->deleteDirectoryFiles($dataIsolation, $projectEntity->getWorkDir(), $projectEntity->getId(), $fileEntity->getFileKey(), $projectEntity->getUserOrganizationCode());
-                // 发布目录已删除事件
-                $directoryDeletedEvent = new DirectoryDeletedEvent($fileEntity, $userAuthorization);
-                $this->eventDispatcher->dispatch($directoryDeletedEvent);
-                $this->dispatchFilesBatchDeletedEvent($projectEntity->getId(), $deletedFileIds, $userAuthorization);
+                $this->eventDispatcher->dispatch(new DirectoryDeletedEvent($fileEntity, $userAuthorization));
             } else {
                 $this->eventDispatcher->dispatch(new FileDeletedEvent(
                     $fileEntity,
@@ -714,29 +709,9 @@ class FileManagementAppService extends AbstractAppService
                 count($fileIds)
             ));
 
-            // Separate files and directories for the event
-            $deletedFiles = [];
-            $deletedDirs = [];
-            foreach ($fileEntities as $entity) {
-                if ($entity->getIsDirectory()) {
-                    $deletedDirs[] = $entity;
-                } else {
-                    $deletedFiles[] = $entity;
-                }
-            }
+            // Dispatch batch-deleted event so WebSocket / knowledge-base subscribers can react.
+            $this->dispatchFilesBatchDeletedEvent($projectId, $fileEntities, $userAuthorization);
 
-            // Dispatch batch-deleted event so WebSocket notifications are pushed to clients
-            $batchDeletedEvent = new FilesBatchDeletedEvent(
-                $deletedFiles,
-                $deletedDirs,
-                $userAuthorization->getId(),
-                $userAuthorization->getOrganizationCode(),
-                $projectId,
-                $userAuthorization
-            );
-            $this->eventDispatcher->dispatch($batchDeletedEvent);
-
-            // 返回删除结果
             return [
                 'project_id' => $projectId,
                 'file_ids' => $fileIds,
@@ -2211,6 +2186,68 @@ class FileManagementAppService extends AbstractAppService
     }
 
     /**
+     * @param array<int, null|TaskFileEntity> $fileEntities
+     */
+    protected function dispatchFileUploadedEvents(array $fileEntities, MagicUserAuthorization $userAuthorization): void
+    {
+        foreach ($fileEntities as $fileEntity) {
+            $this->dispatchFileUploadedEvent($fileEntity, $userAuthorization);
+        }
+    }
+
+    protected function dispatchFileUploadedEvent(?TaskFileEntity $fileEntity, MagicUserAuthorization $userAuthorization): void
+    {
+        if ($fileEntity === null) {
+            return;
+        }
+
+        $fileUploadedEvent = new FileUploadedEvent(
+            $fileEntity,
+            $userAuthorization->getId(),
+            $userAuthorization->getOrganizationCode()
+        );
+        $this->eventDispatcher->dispatch($fileUploadedEvent);
+    }
+
+    /**
+     * Publish a batch-deleted event from a heterogeneous list of TaskFileEntity instances.
+     *
+     * The helper splits the entities into files and directories so the event payload
+     * matches the constructor contract of {@see FilesBatchDeletedEvent}. Non-entity
+     * elements (e.g. nulls returned by some lookups) are filtered out defensively.
+     *
+     * @param array<int, null|TaskFileEntity> $entities
+     */
+    protected function dispatchFilesBatchDeletedEvent(int $projectId, array $entities, MagicUserAuthorization $userAuthorization): void
+    {
+        $files = [];
+        $directories = [];
+        foreach ($entities as $entity) {
+            if (! $entity instanceof TaskFileEntity) {
+                continue;
+            }
+            if ($entity->getIsDirectory()) {
+                $directories[] = $entity;
+            } else {
+                $files[] = $entity;
+            }
+        }
+
+        if ($files === [] && $directories === []) {
+            return;
+        }
+
+        $this->eventDispatcher->dispatch(new FilesBatchDeletedEvent(
+            $files,
+            $directories,
+            $userAuthorization->getId(),
+            $userAuthorization->getOrganizationCode(),
+            $projectId,
+            $userAuthorization,
+        ));
+    }
+
+    /**
      * Synchronous batch move for the same project + same organization scenario.
      *
      * Mirrors the inline branch of single-file moveFile(): each top-level file id is updated via
@@ -2316,74 +2353,6 @@ class FileManagementAppService extends AbstractAppService
         $fileMap = RelativeFilePathUtil::indexByFileId($filesWithParents);
 
         return RelativeFilePathUtil::buildPathByParentChain($entity, $fileMap);
-    }
-
-    /**
-     * @param array<int, null|TaskFileEntity> $fileEntities
-     */
-    protected function dispatchFileUploadedEvents(array $fileEntities, MagicUserAuthorization $userAuthorization): void
-    {
-        foreach ($fileEntities as $fileEntity) {
-            $this->dispatchFileUploadedEvent($fileEntity, $userAuthorization);
-        }
-    }
-
-    protected function dispatchFileUploadedEvent(?TaskFileEntity $fileEntity, MagicUserAuthorization $userAuthorization): void
-    {
-        if ($fileEntity === null) {
-            return;
-        }
-
-        $fileUploadedEvent = new FileUploadedEvent(
-            $fileEntity,
-            $userAuthorization->getId(),
-            $userAuthorization->getOrganizationCode()
-        );
-        $this->eventDispatcher->dispatch($fileUploadedEvent);
-    }
-
-    /**
-     * @param array<int, mixed> $fileIds
-     */
-    protected function dispatchFilesBatchDeletedEvent(int $projectId, array $fileIds, MagicUserAuthorization $userAuthorization): void
-    {
-        $fileIds = $this->normalizeFileIds($fileIds);
-        if (empty($fileIds)) {
-            return;
-        }
-
-        $this->eventDispatcher->dispatch(new FilesBatchDeletedEvent($projectId, $fileIds, $userAuthorization));
-    }
-
-    /**
-     * @param array<int, TaskFileEntity> $fileEntities
-     * @return array<int, int>
-     */
-    private function collectFileIds(array $fileEntities): array
-    {
-        $fileIds = [];
-        foreach ($fileEntities as $fileEntity) {
-            $fileIds[] = $fileEntity->getFileId();
-        }
-
-        return $this->normalizeFileIds($fileIds);
-    }
-
-    /**
-     * @param array<int, mixed> $fileIds
-     * @return array<int, int>
-     */
-    private function normalizeFileIds(array $fileIds): array
-    {
-        $normalized = [];
-        foreach ($fileIds as $fileId) {
-            $fileId = (int) $fileId;
-            if ($fileId > 0) {
-                $normalized[$fileId] = $fileId;
-            }
-        }
-
-        return array_values($normalized);
     }
 
     /**
