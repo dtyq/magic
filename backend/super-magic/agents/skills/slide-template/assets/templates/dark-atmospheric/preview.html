@@ -1,0 +1,710 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Dark Neon Glow v2.0 — Template Preview</title>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Noto+Sans+SC:wght@400;700&display=swap" rel="stylesheet">
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body {
+  font-family: 'Space Grotesk', 'Noto Sans SC', sans-serif;
+  background: #060610;
+  color: #EEF2FF;
+  padding: 48px 56px;
+  min-height: 100vh;
+}
+
+/* ── Page header ── */
+.page-header { margin-bottom: 52px; }
+.page-header h1 {
+  font-size: 38px; font-weight: 700;
+  background: linear-gradient(135deg, #C4AFFF 0%, #9D6FFF 45%, #7C3AED 100%);
+  -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;
+  filter: drop-shadow(0 0 28px rgba(157,111,255,0.55));
+  letter-spacing: -0.02em; margin-bottom: 10px;
+}
+.page-header .sub {
+  font-size: 15px; color: #3D4A6B;
+  display: flex; align-items: center; gap: 16px;
+}
+.page-header .sub span { color: #22D3EE; font-weight: 600; }
+.version-badge {
+  display: inline-flex; align-items: center; gap: 6px;
+  padding: 4px 12px; border-radius: 4px;
+  background: rgba(157,111,255,0.14); border: 1px solid rgba(157,111,255,0.4);
+  color: #C4AFFF; font-size: 13px; font-weight: 700;
+  letter-spacing: 0.06em;
+}
+
+/* ── Section title ── */
+.section-title {
+  font-size: 11px; font-weight: 700; color: #22D3EE;
+  text-transform: uppercase; letter-spacing: 0.18em;
+  margin-bottom: 20px;
+  display: flex; align-items: center; gap: 12px;
+}
+.section-title::before {
+  content: ''; display: block;
+  width: 24px; height: 1px;
+  background: #22D3EE; box-shadow: 0 0 8px rgba(34,211,238,0.5);
+}
+.section-title::after {
+  content: ''; flex: 1; height: 1px;
+  background: linear-gradient(90deg, rgba(34,211,238,0.2), transparent);
+}
+
+/* ── Swatches ── */
+.swatches { display: flex; gap: 14px; margin-bottom: 52px; flex-wrap: wrap; }
+.swatch { display: flex; flex-direction: column; align-items: center; gap: 7px; }
+.swatch-color {
+  width: 58px; height: 58px; border-radius: 10px;
+  border: 1px solid rgba(238,242,255,0.07);
+  box-shadow: 0 4px 16px rgba(0,0,0,0.4);
+  position: relative; overflow: hidden;
+}
+.swatch-color.glow-p { box-shadow: 0 0 16px rgba(157,111,255,0.4), 0 4px 16px rgba(0,0,0,0.4); }
+.swatch-color.glow-c { box-shadow: 0 0 16px rgba(34,211,238,0.4),  0 4px 16px rgba(0,0,0,0.4); }
+.swatch-color.glow-r { box-shadow: 0 0 16px rgba(244,114,182,0.4), 0 4px 16px rgba(0,0,0,0.4); }
+.swatch-color.glow-a { box-shadow: 0 0 16px rgba(251,191,36,0.35),  0 4px 16px rgba(0,0,0,0.4); }
+.swatch-hex { font-family: monospace; font-size: 11px; color: #3D4A6B; }
+.swatch-name { font-size: 11px; color: #8892B0; text-align: center; }
+
+/* ── Layout thumbnails ── */
+.layouts-grid { display: grid; grid-template-columns: repeat(4,1fr); gap: 22px; margin-bottom: 56px; }
+.slide-thumb {
+  aspect-ratio: 16/9;
+  background: #0A0A18;
+  border: 1px solid rgba(238,242,255,0.07);
+  border-radius: 10px;
+  position: relative; overflow: hidden;
+  cursor: pointer;
+  transition: all 0.25s;
+}
+.slide-thumb:hover {
+  transform: scale(1.025) translateY(-3px);
+  border-color: rgba(157,111,255,0.45);
+  box-shadow: 0 0 24px rgba(157,111,255,0.18), 0 12px 32px rgba(0,0,0,0.5);
+}
+.slide-label {
+  position: absolute; bottom: 0; left: 0; right: 0;
+  background: rgba(6,6,16,0.92);
+  color: #8892B0; font-size: 9px; font-weight: 600;
+  padding: 5px 9px;
+  text-transform: uppercase; letter-spacing: 0.09em;
+  border-top: 1px solid rgba(238,242,255,0.06);
+}
+
+/* ── Component showcase area ── */
+.components-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; margin-bottom: 56px; }
+.comp-box {
+  background: #0A0A18;
+  border: 1px solid rgba(238,242,255,0.07);
+  border-radius: 12px; padding: 26px;
+}
+.comp-title {
+  font-size: 10px; font-weight: 700; color: #22D3EE;
+  text-transform: uppercase; letter-spacing: 0.14em;
+  margin-bottom: 18px;
+  border-bottom: 1px solid rgba(34,211,238,0.12);
+  padding-bottom: 10px;
+  display: flex; align-items: center; gap: 8px;
+}
+.comp-title::before {
+  content: ''; width: 3px; height: 14px;
+  background: #22D3EE; border-radius: 2px;
+  box-shadow: 0 0 8px rgba(34,211,238,0.5);
+}
+
+/* ── Interaction examples ── */
+.interaction-grid { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 22px; margin-bottom: 56px; }
+.inter-box {
+  background: #0A0A18;
+  border: 1px solid rgba(238,242,255,0.07);
+  border-radius: 12px; padding: 24px;
+}
+
+/* ── Animation definitions ── */
+@keyframes wave-pulse {
+  0%, 100% { transform: scaleY(0.4); opacity: 0.4; }
+  50%       { transform: scaleY(1.0); opacity: 0.9; }
+}
+@keyframes glow-pulse {
+  0%, 100% { box-shadow: 0 0 8px rgba(157,111,255,0.3); }
+  50%       { box-shadow: 0 0 20px rgba(157,111,255,0.7), 0 0 40px rgba(157,111,255,0.3); }
+}
+@keyframes da-fade-in {
+  from { opacity: 0; transform: translateY(12px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+@keyframes scan-line {
+  from { transform: translateX(-100%); }
+  to   { transform: translateX(200%); }
+}
+@keyframes particle-pulse {
+  0%, 100% { opacity: 0.4; transform: scale(1); }
+  50%       { opacity: 1.0; transform: scale(1.8); }
+}
+</style>
+</head>
+<body>
+
+<!-- Page header -->
+<div class="page-header">
+  <h1>Dark-Atmospheric <span class="version-badge">v2.0</span></h1>
+  <p class="sub">Dark Neon Glow · Cinematic dark aesthetic + deep neon glow + atmospheric fog · Use cases:<span>film content / entertainment presentations / music content / premium brands / tech launches</span></p>
+</div>
+
+<!-- ── Color palette ── -->
+<p class="section-title">Color Palette</p>
+<div class="swatches">
+  <div class="swatch"><div class="swatch-color" style="background:#060610"></div><div class="swatch-hex">#060610</div><div class="swatch-name">Void Black</div></div>
+  <div class="swatch"><div class="swatch-color" style="background:#0A0A18"></div><div class="swatch-hex">#0A0A18</div><div class="swatch-name">Deep Purple Black</div></div>
+  <div class="swatch"><div class="swatch-color" style="background:#13132A"></div><div class="swatch-hex">#13132A</div><div class="swatch-name">Card Base</div></div>
+  <div class="swatch"><div class="swatch-color" style="background:#1E1E3E"></div><div class="swatch-hex">#1E1E3E</div><div class="swatch-name">Elevated Layer</div></div>
+  <div class="swatch"><div class="swatch-color glow-p" style="background:#9D6FFF"></div><div class="swatch-hex">#9D6FFF</div><div class="swatch-name">Deep Purple</div></div>
+  <div class="swatch"><div class="swatch-color glow-c" style="background:#22D3EE"></div><div class="swatch-hex">#22D3EE</div><div class="swatch-name">Ice Cyan</div></div>
+  <div class="swatch"><div class="swatch-color glow-r" style="background:#F472B6"></div><div class="swatch-hex">#F472B6</div><div class="swatch-name">Rose Pink</div></div>
+  <div class="swatch"><div class="swatch-color glow-a" style="background:#FBBF24"></div><div class="swatch-hex">#FBBF24</div><div class="swatch-name">Amber Gold</div></div>
+  <div class="swatch"><div class="swatch-color" style="background:#34D399"></div><div class="swatch-hex">#34D399</div><div class="swatch-name">Emerald Green</div></div>
+  <div class="swatch"><div class="swatch-color" style="background:#818CF8"></div><div class="swatch-hex">#818CF8</div><div class="swatch-name">Indigo</div></div>
+  <div class="swatch"><div class="swatch-color" style="background:#EEF2FF"></div><div class="swatch-hex">#EEF2FF</div><div class="swatch-name">Near-white Primary</div></div>
+  <div class="swatch"><div class="swatch-color" style="background:#8892B0"></div><div class="swatch-hex">#8892B0</div><div class="swatch-name">Cool Gray Secondary</div></div>
+</div>
+
+<!-- ── Layout page types ── -->
+<p class="section-title">Layout Page Types (8)</p>
+<div class="layouts-grid">
+
+  <!-- 1. Cover Cover Page -->
+  <div class="slide-thumb">
+    <div style="width:100%;height:100%;background:#0A0A18;padding:7% 8%;display:flex;flex-direction:column;justify-content:center;font-family:'Space Grotesk',sans-serif;background-image:radial-gradient(ellipse at 15% 55%,rgba(157,111,255,0.14) 0%,transparent 55%),radial-gradient(ellipse at 85% 15%,rgba(34,211,238,0.09) 0%,transparent 50%);position:relative;overflow:hidden;">
+      <!-- Particles -->
+      <div style="position:absolute;width:4px;height:4px;border-radius:50%;background:#9D6FFF;box-shadow:0 0 8px rgba(157,111,255,0.7);top:18%;left:82%;opacity:0.7"></div>
+      <div style="position:absolute;width:3px;height:3px;border-radius:50%;background:#22D3EE;box-shadow:0 0 6px rgba(34,211,238,0.7);top:72%;left:10%;opacity:0.6"></div>
+      <div style="position:absolute;width:2px;height:2px;border-radius:50%;background:#F472B6;box-shadow:0 0 6px rgba(244,114,182,0.7);top:40%;right:7%;opacity:0.5"></div>
+      <!-- Eyebrow -->
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px">
+        <div style="flex:1;height:1px;background:linear-gradient(90deg,transparent,rgba(34,211,238,0.6));box-shadow:0 0 6px rgba(34,211,238,0.3)"></div>
+        <div style="font-size:4px;font-weight:700;color:#22D3EE;text-transform:uppercase;letter-spacing:0.2em;text-shadow:0 0 8px rgba(34,211,238,0.5)">WORLD PREMIERE</div>
+        <div style="flex:1;height:1px;background:linear-gradient(90deg,rgba(34,211,238,0.6),transparent);box-shadow:0 0 6px rgba(34,211,238,0.3)"></div>
+      </div>
+      <!-- Main title -->
+      <div style="font-size:19px;font-weight:700;color:#EEF2FF;line-height:1.05;letter-spacing:-0.025em;margin-bottom:5px">DARK<br>HORIZON</div>
+      <!-- Subtitle -->
+      <div style="font-size:4.5px;color:#8892B0;line-height:1.65;margin-bottom:9px;max-width:72%">电影感暗调美学，深邃霓虹光效与大气雾效的完美融合，营造极致沉浸感</div>
+      <!-- Meta info -->
+      <div style="display:flex;align-items:center;gap:8px">
+        <div style="font-size:3.5px;color:#3D4A6B;letter-spacing:0.10em">2026 · PREMIUM EDITION</div>
+        <div style="width:4px;height:4px;border-radius:50%;background:#9D6FFF;box-shadow:0 0 8px rgba(157,111,255,0.7)"></div>
+        <div style="font-size:3.5px;color:#3D4A6B">DARK-ATMOSPHERIC</div>
+      </div>
+    </div>
+    <div class="slide-label">Cover — Cover Page</div>
+  </div>
+
+  <!-- 2. Spotlight Spotlight Page -->
+  <div class="slide-thumb">
+    <div style="width:100%;height:100%;background:#0A0A18;padding:7% 8%;display:flex;flex-direction:column;font-family:'Space Grotesk',sans-serif;background-image:radial-gradient(ellipse at 50% 42%,rgba(157,111,255,0.18) 0%,rgba(157,111,255,0.05) 35%,transparent 65%);">
+      <div style="font-size:3.5px;font-weight:700;color:#9D6FFF;text-transform:uppercase;letter-spacing:0.18em;text-shadow:0 0 8px rgba(157,111,255,0.5);margin-bottom:4px;display:flex;align-items:center;gap:5px"><span style="display:block;width:14px;height:1px;background:#9D6FFF;box-shadow:0 0 6px rgba(157,111,255,0.5)"></span>SPOTLIGHT</div>
+      <div style="font-size:22px;font-weight:700;background:linear-gradient(135deg,#9D6FFF,#22D3EE);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;line-height:1.1;letter-spacing:-0.02em;margin-bottom:4px">98.6%</div>
+      <div style="font-size:4px;color:#8892B0;margin-bottom:7px">全球观众满意度评分</div>
+      <div style="flex:1;display:flex;gap:4px">
+        <div style="flex:1;padding:5px 6px;background:#13132A;border:1px solid rgba(238,242,255,0.07);border-radius:4px;position:relative;overflow:hidden">
+          <div style="position:absolute;top:0;left:0;right:0;height:2px;background:#9D6FFF;box-shadow:0 0 6px rgba(157,111,255,0.5)"></div>
+          <div style="font-size:3px;font-weight:600;color:#C4AFFF;margin-bottom:2px">VISUAL IMPACT</div>
+          <div style="font-size:2.8px;color:#3D4A6B;line-height:1.5">视觉冲击力评分极高</div>
+        </div>
+        <div style="flex:1;padding:5px 6px;background:#13132A;border:1px solid rgba(238,242,255,0.07);border-radius:4px;position:relative;overflow:hidden">
+          <div style="position:absolute;top:0;left:0;right:0;height:2px;background:#22D3EE;box-shadow:0 0 6px rgba(34,211,238,0.5)"></div>
+          <div style="font-size:3px;font-weight:600;color:#6EE7F5;margin-bottom:2px">ATMOSPHERE</div>
+          <div style="font-size:2.8px;color:#3D4A6B;line-height:1.5">大气感营造出色</div>
+        </div>
+        <div style="flex:1;padding:5px 6px;background:#13132A;border:1px solid rgba(238,242,255,0.07);border-radius:4px;position:relative;overflow:hidden">
+          <div style="position:absolute;top:0;left:0;right:0;height:2px;background:#F472B6;box-shadow:0 0 6px rgba(244,114,182,0.5)"></div>
+          <div style="font-size:3px;font-weight:600;color:#FCA5C5;margin-bottom:2px">EMOTION</div>
+          <div style="font-size:2.8px;color:#3D4A6B;line-height:1.5">情感共鸣度深邃</div>
+        </div>
+      </div>
+    </div>
+    <div class="slide-label">Spotlight — Spotlight Page</div>
+  </div>
+
+  <!-- 3. Dashboard Neon Dashboard Page -->
+  <div class="slide-thumb">
+    <div style="width:100%;height:100%;background:#0A0A18;padding:6% 7%;display:flex;flex-direction:column;font-family:'Space Grotesk',sans-serif;background-image:radial-gradient(ellipse at 30% 60%,rgba(34,211,238,0.07) 0%,transparent 50%);">
+      <div style="font-size:3.5px;font-weight:700;color:#22D3EE;text-transform:uppercase;letter-spacing:0.14em;margin-bottom:5px">BOX OFFICE METRICS</div>
+      <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:3.5px;margin-bottom:4px">
+        <div style="padding:5px;background:#13132A;border:1px solid rgba(238,242,255,0.06);border-radius:3px;text-align:center;position:relative;overflow:hidden">
+          <div style="position:absolute;bottom:0;left:0;right:0;height:1px;background:linear-gradient(90deg,transparent,#9D6FFF,transparent);box-shadow:0 0 6px rgba(157,111,255,0.4)"></div>
+          <div style="font-size:14px;font-weight:700;color:#9D6FFF;text-shadow:0 0 10px rgba(157,111,255,0.5);line-height:1">$2.9B</div>
+          <div style="font-size:2.8px;color:#3D4A6B;margin-top:1.5px;text-transform:uppercase;letter-spacing:0.06em">GLOBAL BOX</div>
+        </div>
+        <div style="padding:5px;background:#13132A;border:1px solid rgba(238,242,255,0.06);border-radius:3px;text-align:center;position:relative;overflow:hidden">
+          <div style="position:absolute;bottom:0;left:0;right:0;height:1px;background:linear-gradient(90deg,transparent,#22D3EE,transparent);box-shadow:0 0 6px rgba(34,211,238,0.4)"></div>
+          <div style="font-size:14px;font-weight:700;color:#22D3EE;text-shadow:0 0 10px rgba(34,211,238,0.5);line-height:1">187</div>
+          <div style="font-size:2.8px;color:#3D4A6B;margin-top:1.5px;text-transform:uppercase;letter-spacing:0.06em">COUNTRIES</div>
+        </div>
+        <div style="padding:5px;background:#13132A;border:1px solid rgba(238,242,255,0.06);border-radius:3px;text-align:center;position:relative;overflow:hidden">
+          <div style="position:absolute;bottom:0;left:0;right:0;height:1px;background:linear-gradient(90deg,transparent,#F472B6,transparent);box-shadow:0 0 6px rgba(244,114,182,0.4)"></div>
+          <div style="font-size:14px;font-weight:700;color:#F472B6;text-shadow:0 0 10px rgba(244,114,182,0.5);line-height:1">11</div>
+          <div style="font-size:2.8px;color:#3D4A6B;margin-top:1.5px;text-transform:uppercase;letter-spacing:0.06em">OSCARS</div>
+        </div>
+      </div>
+      <div style="flex:1;padding:4px 5px;background:#13132A;border:1px solid rgba(238,242,255,0.06);border-radius:3px">
+        <div style="font-size:2.8px;font-weight:600;color:#8892B0;text-transform:uppercase;letter-spacing:0.08em;margin-bottom:3px">AUDIENCE RATING</div>
+        <div style="display:flex;flex-direction:column;gap:2.5px">
+          <div><div style="display:flex;justify-content:space-between;font-size:2.5px;color:#3D4A6B;margin-bottom:1px"><span>STORY</span><span style="color:#9D6FFF">96%</span></div><div style="height:2.5px;background:rgba(238,242,255,0.05);border-radius:9999px;overflow:hidden"><div style="height:100%;width:96%;background:linear-gradient(90deg,#7C3AED,#9D6FFF);box-shadow:0 0 4px rgba(157,111,255,0.4)"></div></div></div>
+          <div><div style="display:flex;justify-content:space-between;font-size:2.5px;color:#3D4A6B;margin-bottom:1px"><span>VISUAL</span><span style="color:#22D3EE">94%</span></div><div style="height:2.5px;background:rgba(238,242,255,0.05);border-radius:9999px;overflow:hidden"><div style="height:100%;width:94%;background:linear-gradient(90deg,#0891B2,#22D3EE);box-shadow:0 0 4px rgba(34,211,238,0.4)"></div></div></div>
+          <div><div style="display:flex;justify-content:space-between;font-size:2.5px;color:#3D4A6B;margin-bottom:1px"><span>EMOTION</span><span style="color:#FBBF24">89%</span></div><div style="height:2.5px;background:rgba(238,242,255,0.05);border-radius:9999px;overflow:hidden"><div style="height:100%;width:89%;background:linear-gradient(90deg,#D97706,#FBBF24);box-shadow:0 0 4px rgba(251,191,36,0.4)"></div></div></div>
+        </div>
+      </div>
+    </div>
+    <div class="slide-label">Dashboard — Neon Dashboard Page</div>
+  </div>
+
+  <!-- 4. Feature Feature Page -->
+  <div class="slide-thumb">
+    <div style="width:100%;height:100%;background:#0A0A18;padding:7% 8%;display:flex;flex-direction:column;font-family:'Space Grotesk',sans-serif;background-image:radial-gradient(ellipse at 80% 30%,rgba(244,114,182,0.08) 0%,transparent 50%);">
+      <div style="font-size:3.5px;font-weight:700;color:#F472B6;text-transform:uppercase;letter-spacing:0.16em;margin-bottom:4px;display:flex;align-items:center;gap:5px"><span style="display:block;width:12px;height:1px;background:#F472B6;box-shadow:0 0 5px rgba(244,114,182,0.5)"></span>FILM ANALYSIS</div>
+      <div style="font-size:12px;font-weight:700;color:#EEF2FF;line-height:1.15;margin-bottom:5px">深度电影<br>解析维度</div>
+      <div style="display:flex;flex-direction:column;gap:2.5px;flex:1">
+        <div style="display:flex;align-items:center;gap:4px;padding:4px 5px;background:#13132A;border:1px solid rgba(238,242,255,0.06);border-radius:3px">
+          <div style="width:5px;height:5px;border-radius:50%;background:#9D6FFF;box-shadow:0 0 5px rgba(157,111,255,0.6);flex-shrink:0"></div>
+          <div><div style="font-size:3px;font-weight:600;color:#C4AFFF;margin-bottom:0.5px">叙事结构</div><div style="font-size:2.5px;color:#3D4A6B;line-height:1.4">三幕式经典叙事，英雄旅程架构</div></div>
+        </div>
+        <div style="display:flex;align-items:center;gap:4px;padding:4px 5px;background:#13132A;border:1px solid rgba(238,242,255,0.06);border-radius:3px">
+          <div style="width:5px;height:5px;border-radius:50%;background:#22D3EE;box-shadow:0 0 5px rgba(34,211,238,0.6);flex-shrink:0"></div>
+          <div><div style="font-size:3px;font-weight:600;color:#6EE7F5;margin-bottom:0.5px">视觉语言</div><div style="font-size:2.5px;color:#3D4A6B;line-height:1.4">运镜美学，色彩心理学运用</div></div>
+        </div>
+        <div style="display:flex;align-items:center;gap:4px;padding:4px 5px;background:#13132A;border:1px solid rgba(238,242,255,0.06);border-radius:3px">
+          <div style="width:5px;height:5px;border-radius:50%;background:#F472B6;box-shadow:0 0 5px rgba(244,114,182,0.6);flex-shrink:0"></div>
+          <div><div style="font-size:3px;font-weight:600;color:#FCA5C5;margin-bottom:0.5px">情感弧线</div><div style="font-size:2.5px;color:#3D4A6B;line-height:1.4">角色成长，情感共鸣设计</div></div>
+        </div>
+        <div style="display:flex;align-items:center;gap:4px;padding:4px 5px;background:#13132A;border:1px solid rgba(238,242,255,0.06);border-radius:3px">
+          <div style="width:5px;height:5px;border-radius:50%;background:#FBBF24;box-shadow:0 0 5px rgba(251,191,36,0.6);flex-shrink:0"></div>
+          <div><div style="font-size:3px;font-weight:600;color:#FDE68A;margin-bottom:0.5px">音效设计</div><div style="font-size:2.5px;color:#3D4A6B;line-height:1.4">空间音频，沉浸式声场构建</div></div>
+        </div>
+      </div>
+    </div>
+    <div class="slide-label">Feature — Feature Page</div>
+  </div>
+
+  <!-- 5. Timeline Dark Timeline Page -->
+  <div class="slide-thumb">
+    <div style="width:100%;height:100%;background:#0A0A18;padding:7% 8%;display:flex;flex-direction:column;font-family:'Space Grotesk',sans-serif;">
+      <div style="font-size:3.5px;font-weight:700;color:#22D3EE;text-transform:uppercase;letter-spacing:0.14em;margin-bottom:5px">PRODUCTION TIMELINE</div>
+      <div style="font-size:10px;font-weight:700;color:#EEF2FF;line-height:1.2;margin-bottom:6px;letter-spacing:-0.01em">制作历程</div>
+      <!-- Timeline -->
+      <div style="flex:1;display:flex;flex-direction:column;gap:3px;position:relative;padding-left:10px">
+        <div style="position:absolute;left:4px;top:0;bottom:0;width:1px;background:linear-gradient(to bottom,transparent,rgba(157,111,255,0.5),rgba(34,211,238,0.4),transparent)"></div>
+        <div style="display:flex;align-items:flex-start;gap:5px;position:relative">
+          <div style="position:absolute;left:-9px;top:3px;width:8px;height:8px;border-radius:50%;background:#9D6FFF;box-shadow:0 0 8px rgba(157,111,255,0.7);border:1.5px solid #0A0A18;z-index:1"></div>
+          <div style="padding:3.5px 5px;background:#13132A;border:1px solid rgba(238,242,255,0.06);border-radius:3px;flex:1">
+            <div style="font-size:3px;font-weight:700;color:#22D3EE;letter-spacing:0.06em">2019</div>
+            <div style="font-size:3px;font-weight:600;color:#EEF2FF;margin:1px 0">剧本开发</div>
+            <div style="font-size:2.5px;color:#3D4A6B;line-height:1.4">历时18个月完成剧本打磨</div>
+          </div>
+        </div>
+        <div style="display:flex;align-items:flex-start;gap:5px;position:relative">
+          <div style="position:absolute;left:-9px;top:3px;width:8px;height:8px;border-radius:50%;background:#22D3EE;box-shadow:0 0 8px rgba(34,211,238,0.7);border:1.5px solid #0A0A18;z-index:1"></div>
+          <div style="padding:3.5px 5px;background:#13132A;border:1px solid rgba(238,242,255,0.06);border-radius:3px;flex:1">
+            <div style="font-size:3px;font-weight:700;color:#22D3EE;letter-spacing:0.06em">2021</div>
+            <div style="font-size:3px;font-weight:600;color:#EEF2FF;margin:1px 0">主体拍摄</div>
+            <div style="font-size:2.5px;color:#3D4A6B;line-height:1.4">全球14个城市取景，280天拍摄</div>
+          </div>
+        </div>
+        <div style="display:flex;align-items:flex-start;gap:5px;position:relative">
+          <div style="position:absolute;left:-9px;top:3px;width:10px;height:10px;border-radius:50%;background:#9D6FFF;box-shadow:0 0 12px rgba(157,111,255,0.9);border:1.5px solid #0A0A18;z-index:1"></div>
+          <div style="padding:3.5px 5px;background:#1A1A35;border:1px solid rgba(157,111,255,0.3);border-radius:3px;flex:1">
+            <div style="font-size:3px;font-weight:700;color:#22D3EE;letter-spacing:0.06em">2023</div>
+            <div style="font-size:3px;font-weight:600;color:#EEF2FF;margin:1px 0">全球公映</div>
+            <div style="font-size:2.5px;color:#8892B0;line-height:1.4">首周末票房破纪录</div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="slide-label">Timeline — Dark Timeline Page</div>
+  </div>
+
+  <!-- 6. Cinematic Cinematic Narrative Page -->
+  <div class="slide-thumb">
+    <div style="width:100%;height:100%;background:#060610;display:flex;flex-direction:column;font-family:'Space Grotesk',sans-serif;position:relative;overflow:hidden;">
+      <!-- Cinematic letterbox bars -->
+      <div style="position:absolute;top:0;left:0;right:0;height:16%;background:rgba(0,0,0,0.8)"></div>
+      <div style="position:absolute;bottom:0;left:0;right:0;height:16%;background:rgba(0,0,0,0.8)"></div>
+      <!-- Center content -->
+      <div style="flex:1;display:flex;align-items:center;justify-content:center;flex-direction:column;padding:18% 10%;background-image:radial-gradient(ellipse at 50% 50%,rgba(157,111,255,0.20) 0%,transparent 65%)">
+        <div style="font-size:3.5px;font-weight:700;color:#9D6FFF;text-transform:uppercase;letter-spacing:0.20em;text-shadow:0 0 8px rgba(157,111,255,0.6);margin-bottom:5px">THE DIRECTOR'S VISION</div>
+        <div style="font-size:14px;font-weight:700;color:#EEF2FF;text-align:center;line-height:1.15;letter-spacing:-0.015em;margin-bottom:4px">"每一帧<br>都是诗"</div>
+        <div style="font-size:3.5px;color:#3D4A6B;font-style:italic;letter-spacing:0.06em">— 导演手记，2023</div>
+      </div>
+      <!-- Film strip -->
+      <div style="position:absolute;bottom:16%;left:0;right:0;height:8px;display:flex;overflow:hidden;border-top:1px solid rgba(238,242,255,0.05);border-bottom:1px solid rgba(238,242,255,0.05)">
+        <div style="flex:1;background:rgba(238,242,255,0.02)"></div>
+      </div>
+    </div>
+    <div class="slide-label">Cinematic — Cinematic Narrative Page</div>
+  </div>
+
+  <!-- 7. Section Section Page -->
+  <div class="slide-thumb">
+    <div style="width:100%;height:100%;background:#0A0A18;font-family:'Space Grotesk',sans-serif;position:relative;overflow:hidden;">
+      <!-- Large background number -->
+      <div style="position:absolute;top:5%;right:4%;font-size:55px;font-weight:700;color:rgba(157,111,255,0.05);line-height:1;letter-spacing:-0.04em;user-select:none;z-index:0">01</div>
+      <!-- Left image area (absolute, 62% width, fades rightward) -->
+      <div style="position:absolute;left:0;top:0;width:62%;height:100%;overflow:hidden;">
+        <div style="width:100%;height:100%;background:linear-gradient(135deg,#1a1a2e 0%,#2d1b4e 40%,#1a2a3a 70%,#0d1117 100%);opacity:0.85;"></div>
+        <!-- Simulated image texture -->
+        <div style="position:absolute;inset:0;background:radial-gradient(ellipse at 40% 50%,rgba(251,191,36,0.15) 0%,transparent 60%),radial-gradient(ellipse at 70% 30%,rgba(157,111,255,0.10) 0%,transparent 50%);"></div>
+        <!-- Right gradient blend -->
+        <div style="position:absolute;inset:0;background:linear-gradient(90deg,rgba(10,10,24,0.1) 0%,rgba(10,10,24,0.0) 30%,rgba(10,10,24,0.5) 70%,rgba(10,10,24,1.0) 100%);pointer-events:none;"></div>
+        <!-- Image caption -->
+        <div style="position:absolute;bottom:5%;left:5%;font-size:2.5px;color:rgba(238,242,255,0.3);letter-spacing:0.10em;text-transform:uppercase;">1920s · SILENT FILM PALACE</div>
+      </div>
+      <!-- Right content area -->
+      <div style="position:absolute;right:0;top:0;width:52%;height:100%;display:flex;flex-direction:column;justify-content:center;padding:6% 7% 6% 4%;gap:4%;z-index:1;">
+        <!-- Section info box -->
+        <div style="padding:8px 10px;background:#13132A;border:1px solid rgba(238,242,255,0.07);border-radius:5px;position:relative;overflow:hidden;">
+          <div style="position:absolute;top:0;left:0;right:0;height:2px;background:linear-gradient(90deg,#9D6FFF,#22D3EE);box-shadow:0 0 8px rgba(157,111,255,0.4);"></div>
+          <div style="font-size:2.8px;font-weight:700;color:#9D6FFF;text-transform:uppercase;letter-spacing:0.16em;margin-bottom:3px;">CHAPTER 01</div>
+          <div style="font-size:11px;font-weight:700;color:#EEF2FF;line-height:1.15;margin-bottom:2px;">光影叙事<br><span style="font-size:4px;color:#8892B0;font-weight:400;">1895 — 1927</span></div>
+          <div style="font-size:2.8px;color:#3D4A6B;line-height:1.5;">探索电影语言中光与影的深层对话</div>
+        </div>
+        <!-- Tags -->
+        <div style="display:flex;gap:2.5px;flex-wrap:wrap;">
+          <span style="padding:1.5px 5px;border-radius:9999px;border:1px solid rgba(157,111,255,0.45);color:#C4AFFF;font-size:2.5px;background:rgba(157,111,255,0.10);">默片美学</span>
+          <span style="padding:1.5px 5px;border-radius:9999px;border:1px solid rgba(34,211,238,0.45);color:#6EE7F5;font-size:2.5px;background:rgba(34,211,238,0.09);">卓别林</span>
+          <span style="padding:1.5px 5px;border-radius:9999px;border:1px solid rgba(244,114,182,0.45);color:#FCA5C5;font-size:2.5px;background:rgba(244,114,182,0.09);">表现主义</span>
+        </div>
+        <!-- List items -->
+        <div style="display:flex;flex-direction:column;gap:2px;">
+          <div style="padding:3px 5px;background:rgba(238,242,255,0.04);border:1px solid rgba(238,242,255,0.08);border-radius:3px;display:flex;align-items:center;gap:4px;">
+            <span style="width:4px;height:4px;border-radius:50%;background:#9D6FFF;flex-shrink:0;"></span>
+            <span style="font-size:2.8px;color:#8892B0;">默片艺术的诞生与繁荣</span>
+          </div>
+          <div style="padding:3px 5px;background:rgba(238,242,255,0.04);border:1px solid rgba(238,242,255,0.08);border-radius:3px;display:flex;align-items:center;gap:4px;">
+            <span style="width:4px;height:4px;border-radius:50%;background:#22D3EE;flex-shrink:0;"></span>
+            <span style="font-size:2.8px;color:#8892B0;">无声语言的视觉表达</span>
+          </div>
+          <div style="padding:3px 5px;background:rgba(238,242,255,0.04);border:1px solid rgba(238,242,255,0.08);border-radius:3px;display:flex;align-items:center;gap:4px;">
+            <span style="width:4px;height:4px;border-radius:50%;background:#F472B6;flex-shrink:0;"></span>
+            <span style="font-size:2.8px;color:#8892B0;">蒙太奇理论的诞生</span>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="slide-label">Section — Section Page</div>
+  </div>
+
+  <!-- 8. Closing Closing Page -->
+  <div class="slide-thumb">
+    <div style="width:100%;height:100%;background:#0A0A18;padding:7% 8%;display:flex;flex-direction:column;align-items:center;justify-content:center;font-family:'Space Grotesk',sans-serif;background-image:radial-gradient(ellipse at 50% 50%,rgba(157,111,255,0.14) 0%,transparent 60%),radial-gradient(ellipse at 20% 80%,rgba(34,211,238,0.08) 0%,transparent 45%);position:relative;overflow:hidden;">
+      <!-- Particles -->
+      <div style="position:absolute;width:3px;height:3px;border-radius:50%;background:#9D6FFF;box-shadow:0 0 6px rgba(157,111,255,0.7);top:20%;left:15%;opacity:0.6"></div>
+      <div style="position:absolute;width:2px;height:2px;border-radius:50%;background:#22D3EE;box-shadow:0 0 5px rgba(34,211,238,0.7);top:65%;right:18%;opacity:0.5"></div>
+      <div style="position:absolute;width:2px;height:2px;border-radius:50%;background:#F472B6;box-shadow:0 0 5px rgba(244,114,182,0.7);top:30%;right:10%;opacity:0.4"></div>
+      <!-- FIN -->
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:7px;width:75%">
+        <div style="flex:1;height:1px;background:linear-gradient(90deg,transparent,rgba(157,111,255,0.6));box-shadow:0 0 6px rgba(157,111,255,0.3)"></div>
+        <div style="font-size:4px;font-weight:700;color:#9D6FFF;text-transform:uppercase;letter-spacing:0.22em;text-shadow:0 0 8px rgba(157,111,255,0.5)">FIN</div>
+        <div style="flex:1;height:1px;background:linear-gradient(90deg,rgba(157,111,255,0.6),transparent);box-shadow:0 0 6px rgba(157,111,255,0.3)"></div>
+      </div>
+      <div style="font-size:18px;font-weight:700;color:#EEF2FF;text-align:center;line-height:1.05;letter-spacing:-0.025em;margin-bottom:5px">谢谢<br>观看</div>
+      <div style="font-size:3px;color:#3D4A6B;letter-spacing:0.12em;margin-bottom:7px">DARK-ATMOSPHERIC · 2026 · PREMIUM</div>
+      <!-- Waveform -->
+      <div style="display:flex;align-items:center;gap:2px;height:14px;margin-bottom:6px">
+        <div style="width:3px;background:#9D6FFF;box-shadow:0 0 4px rgba(157,111,255,0.5);border-radius:1px;opacity:0.6;height:5px"></div>
+        <div style="width:3px;background:#9D6FFF;box-shadow:0 0 4px rgba(157,111,255,0.5);border-radius:1px;opacity:0.6;height:10px"></div>
+        <div style="width:3px;background:#9D6FFF;box-shadow:0 0 4px rgba(157,111,255,0.5);border-radius:1px;opacity:0.6;height:14px"></div>
+        <div style="width:3px;background:#9D6FFF;box-shadow:0 0 4px rgba(157,111,255,0.5);border-radius:1px;opacity:0.6;height:9px"></div>
+        <div style="width:3px;background:#22D3EE;box-shadow:0 0 4px rgba(34,211,238,0.5);border-radius:1px;opacity:0.6;height:12px"></div>
+        <div style="width:3px;background:#22D3EE;box-shadow:0 0 4px rgba(34,211,238,0.5);border-radius:1px;opacity:0.6;height:8px"></div>
+        <div style="width:3px;background:#22D3EE;box-shadow:0 0 4px rgba(34,211,238,0.5);border-radius:1px;opacity:0.6;height:5px"></div>
+      </div>
+      <div style="display:flex;gap:5px">
+        <div style="padding:2.5px 7px;border:1px solid rgba(157,111,255,0.4);border-radius:9999px;font-size:2.8px;color:#C4AFFF">CONTACT</div>
+        <div style="padding:2.5px 7px;border:1px solid rgba(34,211,238,0.4);border-radius:9999px;font-size:2.8px;color:#6EE7F5">WEBSITE</div>
+        <div style="padding:2.5px 7px;border:1px solid rgba(244,114,182,0.4);border-radius:9999px;font-size:2.8px;color:#FCA5C5">SOCIAL</div>
+      </div>
+    </div>
+    <div class="slide-label">Closing — Closing Page</div>
+  </div>
+
+</div>
+
+<!-- ── Core component showcase ── -->
+<p class="section-title">Core Component Showcase</p>
+<div class="components-grid">
+
+  <!-- Card variants -->
+  <div class="comp-box">
+    <div class="comp-title">Neon Card Variants</div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:12px">
+      <div style="padding:12px;background:#13132A;border:1px solid rgba(238,242,255,0.07);border-radius:10px;position:relative;overflow:hidden">
+        <div style="position:absolute;top:0;left:0;right:0;height:2px;background:#9D6FFF;box-shadow:0 0 10px rgba(157,111,255,0.5)"></div>
+        <div style="font-size:12px;font-weight:600;color:#C4AFFF;margin-bottom:6px">Purple Top Line</div>
+        <div style="font-size:12px;color:#3D4A6B;line-height:1.6">Top neon line decoration</div>
+      </div>
+      <div style="padding:12px;background:#13132A;border:1px solid rgba(238,242,255,0.07);border-radius:10px;position:relative;overflow:hidden">
+        <div style="position:absolute;top:0;left:0;right:0;height:2px;background:linear-gradient(90deg,#9D6FFF,#22D3EE);box-shadow:0 0 10px rgba(157,111,255,0.4)"></div>
+        <div style="font-size:12px;font-weight:600;color:#6EE7F5;margin-bottom:6px">Gradient Top Line</div>
+        <div style="font-size:12px;color:#3D4A6B;line-height:1.6">Purple-to-cyan gradient decoration</div>
+      </div>
+      <div style="padding:12px;background:#13132A;border-left:3px solid #22D3EE;box-shadow:-3px 0 16px rgba(34,211,238,0.12);border-radius:0 10px 10px 0">
+        <div style="font-size:12px;font-weight:600;color:#6EE7F5;margin-bottom:6px">Cyan Left Line</div>
+        <div style="font-size:12px;color:#3D4A6B;line-height:1.6">Glowing side vertical line</div>
+      </div>
+      <div style="padding:12px;background:rgba(238,242,255,0.04);border:1px solid rgba(238,242,255,0.12);border-radius:10px;backdrop-filter:blur(8px)">
+        <div style="font-size:12px;font-weight:600;color:#EEF2FF;margin-bottom:6px">Glassmorphism</div>
+        <div style="font-size:12px;color:#3D4A6B;line-height:1.6">Frosted-glass textured background</div>
+      </div>
+    </div>
+    <!-- Glow card -->
+    <div style="padding:12px;background:#13132A;border:1px solid rgba(157,111,255,0.45);border-radius:10px;box-shadow:0 0 16px rgba(157,111,255,0.10)">
+      <div style="font-size:12px;font-weight:600;color:#C4AFFF;margin-bottom:5px">Full Glow Border Card</div>
+      <div style="font-size:12px;color:#3D4A6B;line-height:1.6">The entire border has a soft purple glow for a stronger premium feel.</div>
+    </div>
+  </div>
+
+  <!-- KPI + progress bars -->
+  <div class="comp-box">
+    <div class="comp-title">KPI Data & Progress Bars</div>
+    <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-bottom:12px">
+      <div style="padding:12px 8px;background:#13132A;border:1px solid rgba(238,242,255,0.06);border-radius:10px;text-align:center;position:relative;overflow:hidden">
+        <div style="position:absolute;bottom:0;left:0;right:0;height:1px;background:linear-gradient(90deg,transparent,#9D6FFF,transparent);box-shadow:0 0 6px rgba(157,111,255,0.4)"></div>
+        <div style="font-size:26px;font-weight:700;color:#9D6FFF;text-shadow:0 0 16px rgba(157,111,255,0.5);line-height:1;margin-bottom:5px">98%</div>
+        <div style="font-size:9px;color:#3D4A6B;text-transform:uppercase;letter-spacing:0.08em">RATING</div>
+      </div>
+      <div style="padding:12px 8px;background:#13132A;border:1px solid rgba(238,242,255,0.06);border-radius:10px;text-align:center;position:relative;overflow:hidden">
+        <div style="position:absolute;bottom:0;left:0;right:0;height:1px;background:linear-gradient(90deg,transparent,#22D3EE,transparent);box-shadow:0 0 6px rgba(34,211,238,0.4)"></div>
+        <div style="font-size:26px;font-weight:700;color:#22D3EE;text-shadow:0 0 16px rgba(34,211,238,0.5);line-height:1;margin-bottom:5px">$2.9B</div>
+        <div style="font-size:9px;color:#3D4A6B;text-transform:uppercase;letter-spacing:0.08em">BOX OFFICE</div>
+      </div>
+      <div style="padding:12px 8px;background:#13132A;border:1px solid rgba(238,242,255,0.06);border-radius:10px;text-align:center;position:relative;overflow:hidden">
+        <div style="position:absolute;bottom:0;left:0;right:0;height:1px;background:linear-gradient(90deg,transparent,#F472B6,transparent);box-shadow:0 0 6px rgba(244,114,182,0.4)"></div>
+        <div style="font-size:26px;font-weight:700;color:#F472B6;text-shadow:0 0 16px rgba(244,114,182,0.5);line-height:1;margin-bottom:5px">11</div>
+        <div style="font-size:9px;color:#3D4A6B;text-transform:uppercase;letter-spacing:0.08em">OSCARS</div>
+      </div>
+    </div>
+    <div style="display:flex;flex-direction:column;gap:9px">
+      <div>
+        <div style="display:flex;justify-content:space-between;font-size:12px;color:#3D4A6B;margin-bottom:4px"><span>STORY</span><span style="color:#9D6FFF">96%</span></div>
+        <div style="height:5px;background:rgba(238,242,255,0.05);border-radius:9999px;overflow:hidden"><div style="height:100%;width:96%;background:linear-gradient(90deg,#7C3AED,#9D6FFF);box-shadow:0 0 6px rgba(157,111,255,0.4);border-radius:9999px"></div></div>
+      </div>
+      <div>
+        <div style="display:flex;justify-content:space-between;font-size:12px;color:#3D4A6B;margin-bottom:4px"><span>VISUAL</span><span style="color:#22D3EE">94%</span></div>
+        <div style="height:5px;background:rgba(238,242,255,0.05);border-radius:9999px;overflow:hidden"><div style="height:100%;width:94%;background:linear-gradient(90deg,#0891B2,#22D3EE);box-shadow:0 0 6px rgba(34,211,238,0.4);border-radius:9999px"></div></div>
+      </div>
+      <div>
+        <div style="display:flex;justify-content:space-between;font-size:12px;color:#3D4A6B;margin-bottom:4px"><span>EMOTION</span><span style="color:#F472B6">89%</span></div>
+        <div style="height:5px;background:rgba(238,242,255,0.05);border-radius:9999px;overflow:hidden"><div style="height:100%;width:89%;background:linear-gradient(90deg,#DB2777,#F472B6);box-shadow:0 0 6px rgba(244,114,182,0.4);border-radius:9999px"></div></div>
+      </div>
+      <div>
+        <div style="display:flex;justify-content:space-between;font-size:12px;color:#3D4A6B;margin-bottom:4px"><span>SOUNDTRACK</span><span style="color:#FBBF24">92%</span></div>
+        <div style="height:5px;background:rgba(238,242,255,0.05);border-radius:9999px;overflow:hidden"><div style="height:100%;width:92%;background:linear-gradient(90deg,#D97706,#FBBF24);box-shadow:0 0 6px rgba(251,191,36,0.4);border-radius:9999px"></div></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Tags and badges -->
+  <div class="comp-box">
+    <div class="comp-title">Tags & Badges</div>
+    <div style="margin-bottom:14px">
+      <div style="font-size:10px;color:#3D4A6B;text-transform:uppercase;letter-spacing:0.10em;margin-bottom:8px">Round tags (da-tag)</div>
+      <div style="display:flex;gap:7px;flex-wrap:wrap">
+        <span style="display:inline-flex;align-items:center;gap:6px;padding:6px 14px;border-radius:9999px;border:1px solid rgba(157,111,255,0.45);color:#C4AFFF;font-size:12px;background:rgba(157,111,255,0.10)"><span style="width:6px;height:6px;border-radius:50%;background:#9D6FFF;box-shadow:0 0 7px rgba(157,111,255,0.6)"></span>Deep Purple</span>
+        <span style="display:inline-flex;align-items:center;gap:6px;padding:6px 14px;border-radius:9999px;border:1px solid rgba(34,211,238,0.45);color:#6EE7F5;font-size:12px;background:rgba(34,211,238,0.09)"><span style="width:6px;height:6px;border-radius:50%;background:#22D3EE;box-shadow:0 0 7px rgba(34,211,238,0.6)"></span>Ice Cyan</span>
+        <span style="display:inline-flex;align-items:center;gap:6px;padding:6px 14px;border-radius:9999px;border:1px solid rgba(244,114,182,0.45);color:#FCA5C5;font-size:12px;background:rgba(244,114,182,0.09)"><span style="width:6px;height:6px;border-radius:50%;background:#F472B6;box-shadow:0 0 7px rgba(244,114,182,0.6)"></span>Rose Pink</span>
+        <span style="display:inline-flex;align-items:center;gap:6px;padding:6px 14px;border-radius:9999px;border:1px solid rgba(251,191,36,0.45);color:#FDE68A;font-size:12px;background:rgba(251,191,36,0.09)"><span style="width:6px;height:6px;border-radius:50%;background:#FBBF24;box-shadow:0 0 7px rgba(251,191,36,0.5)"></span>Amber Gold</span>
+        <span style="display:inline-flex;align-items:center;gap:6px;padding:6px 14px;border-radius:9999px;border:1px solid rgba(52,211,153,0.45);color:#6EE7B7;font-size:12px;background:rgba(52,211,153,0.09)"><span style="width:6px;height:6px;border-radius:50%;background:#34D399"></span>Emerald Green</span>
+      </div>
+    </div>
+    <div>
+      <div style="font-size:10px;color:#3D4A6B;text-transform:uppercase;letter-spacing:0.10em;margin-bottom:8px">Rectangular badges (da-badge)</div>
+      <div style="display:flex;gap:7px;flex-wrap:wrap">
+        <span style="display:inline-flex;align-items:center;padding:4px 11px;border-radius:4px;background:rgba(157,111,255,0.18);color:#BFA3FF;font-size:12px;font-weight:700;letter-spacing:0.06em;border:1px solid rgba(157,111,255,0.4)">AWARD</span>
+        <span style="display:inline-flex;align-items:center;padding:4px 11px;border-radius:4px;background:rgba(34,211,238,0.15);color:#6EE7F5;font-size:12px;font-weight:700;letter-spacing:0.06em;border:1px solid rgba(34,211,238,0.4)">PREMIERE</span>
+        <span style="display:inline-flex;align-items:center;padding:4px 11px;border-radius:4px;background:rgba(251,191,36,0.15);color:#FDE68A;font-size:12px;font-weight:700;letter-spacing:0.06em;border:1px solid rgba(251,191,36,0.4)">GOLD</span>
+        <span style="display:inline-flex;align-items:center;padding:4px 11px;border-radius:4px;background:rgba(244,114,182,0.15);color:#FCA5C5;font-size:12px;font-weight:700;letter-spacing:0.06em;border:1px solid rgba(244,114,182,0.4)">HOT</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- Titles + quote -->
+  <div class="comp-box">
+    <div class="comp-title">Neon Titles & Quote Box</div>
+    <div style="margin-bottom:14px">
+      <div style="font-size:26px;font-weight:700;color:#9D6FFF;text-shadow:0 0 20px rgba(157,111,255,0.45),0 0 40px rgba(157,111,255,0.15);margin-bottom:5px;line-height:1.2;letter-spacing:-0.02em">NEON GLOW</div>
+      <div style="font-size:22px;font-weight:700;color:#22D3EE;text-shadow:0 0 20px rgba(34,211,238,0.45),0 0 40px rgba(34,211,238,0.15);margin-bottom:5px;line-height:1.2">ICE CYAN</div>
+      <div style="font-size:20px;font-weight:700;background:linear-gradient(135deg,#9D6FFF,#22D3EE);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;line-height:1.2;margin-bottom:5px">GRADIENT TITLE</div>
+      <div style="font-size:18px;font-weight:700;background:linear-gradient(135deg,#9D6FFF,#F472B6);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;line-height:1.2">PURPLE → ROSE</div>
+    </div>
+    <div style="padding:14px 18px;background:#13132A;border-left:3px solid #9D6FFF;box-shadow:-4px 0 20px rgba(157,111,255,0.15);border-radius:0 10px 10px 0;position:relative">
+      <div style="position:absolute;top:-8px;left:16px;font-size:52px;font-weight:700;color:rgba(157,111,255,0.10);line-height:1;font-family:'Space Grotesk',sans-serif">"</div>
+      <div style="font-size:14px;font-weight:500;color:#EEF2FF;line-height:1.65;font-style:italic">"在黑暗中，光芒才显得格外耀眼。每一道霓虹都是现代都市的诗行。"</div>
+      <div style="font-size:11px;color:#3D4A6B;margin-top:8px;letter-spacing:0.07em">— DARK-ATMOSPHERIC v2.0</div>
+    </div>
+  </div>
+
+  <!-- Steps + list -->
+  <div class="comp-box">
+    <div class="comp-title">Step Components & List</div>
+    <div style="display:flex;flex-direction:column;gap:11px;margin-bottom:14px">
+      <div style="display:flex;align-items:flex-start;gap:11px">
+        <div style="width:34px;height:34px;border-radius:50%;border:1px solid rgba(157,111,255,0.5);background:rgba(157,111,255,0.10);display:flex;align-items:center;justify-content:center;font-size:14px;font-weight:700;color:#9D6FFF;text-shadow:0 0 8px rgba(157,111,255,0.5);flex-shrink:0">01</div>
+        <div><div style="font-size:14px;font-weight:600;color:#EEF2FF;margin-bottom:2px">构建视觉框架</div><div style="font-size:12px;color:#3D4A6B;line-height:1.6">确立暗调美学的核心视觉语言体系</div></div>
+      </div>
+      <div style="display:flex;align-items:flex-start;gap:11px">
+        <div style="width:34px;height:34px;border-radius:50%;border:1px solid rgba(34,211,238,0.5);background:rgba(34,211,238,0.10);display:flex;align-items:center;justify-content:center;font-size:14px;font-weight:700;color:#22D3EE;text-shadow:0 0 8px rgba(34,211,238,0.5);flex-shrink:0">02</div>
+        <div><div style="font-size:14px;font-weight:600;color:#EEF2FF;margin-bottom:2px">注入霓虹光效</div><div style="font-size:12px;color:#3D4A6B;line-height:1.6">克制地运用发光效果增强视觉层次</div></div>
+      </div>
+      <div style="display:flex;align-items:flex-start;gap:11px">
+        <div style="width:34px;height:34px;border-radius:50%;border:1px solid rgba(244,114,182,0.5);background:rgba(244,114,182,0.10);display:flex;align-items:center;justify-content:center;font-size:14px;font-weight:700;color:#F472B6;text-shadow:0 0 8px rgba(244,114,182,0.5);flex-shrink:0">03</div>
+        <div><div style="font-size:14px;font-weight:600;color:#EEF2FF;margin-bottom:2px">营造大气氛围</div><div style="font-size:12px;color:#3D4A6B;line-height:1.6">通过渐变与雾效创造电影级沉浸感</div></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Timeline + dividers -->
+  <div class="comp-box">
+    <div class="comp-title">Timeline & Dividers</div>
+    <!-- Vertical timeline -->
+    <div style="display:flex;flex-direction:column;gap:0;position:relative;padding-left:22px;margin-bottom:16px">
+      <div style="position:absolute;left:6px;top:0;bottom:0;width:1px;background:linear-gradient(to bottom,transparent,rgba(157,111,255,0.5),rgba(34,211,238,0.4),transparent)"></div>
+      <div style="display:flex;align-items:flex-start;gap:10px;padding-bottom:12px;position:relative">
+        <div style="position:absolute;left:-16px;top:3px;width:10px;height:10px;border-radius:50%;background:#9D6FFF;box-shadow:0 0 8px rgba(157,111,255,0.7);border:2px solid #060610"></div>
+        <div><div style="font-size:11px;font-weight:700;color:#22D3EE;letter-spacing:0.05em">1994</div><div style="font-size:12px;font-weight:600;color:#EEF2FF">《肖申克的救赎》</div><div style="font-size:11px;color:#3D4A6B;line-height:1.5">人类电影史的不朽丰碑</div></div>
+      </div>
+      <div style="display:flex;align-items:flex-start;gap:10px;padding-bottom:12px;position:relative">
+        <div style="position:absolute;left:-16px;top:3px;width:10px;height:10px;border-radius:50%;background:#22D3EE;box-shadow:0 0 8px rgba(34,211,238,0.7);border:2px solid #060610"></div>
+        <div><div style="font-size:11px;font-weight:700;color:#22D3EE;letter-spacing:0.05em">2001</div><div style="font-size:12px;font-weight:600;color:#EEF2FF">《指环王》三部曲</div><div style="font-size:11px;color:#3D4A6B;line-height:1.5">史诗奇幻的视觉革命</div></div>
+      </div>
+      <div style="display:flex;align-items:flex-start;gap:10px;position:relative">
+        <div style="position:absolute;left:-16px;top:3px;width:12px;height:12px;border-radius:50%;background:#9D6FFF;box-shadow:0 0 12px rgba(157,111,255,0.9);border:2px solid #060610"></div>
+        <div><div style="font-size:11px;font-weight:700;color:#22D3EE;letter-spacing:0.05em">2023</div><div style="font-size:12px;font-weight:600;color:#EEF2FF">《奥本海默》</div><div style="font-size:11px;color:#3D4A6B;line-height:1.5">传记史诗的新高峰</div></div>
+      </div>
+    </div>
+    <!-- Divider variants -->
+    <div style="font-size:10px;color:#3D4A6B;text-transform:uppercase;letter-spacing:0.10em;margin-bottom:8px">Divider Variants</div>
+    <div style="width:100%;height:1px;background:linear-gradient(90deg,transparent,rgba(157,111,255,0.5),transparent);margin-bottom:6px"></div>
+    <div style="width:100%;height:1px;background:linear-gradient(90deg,transparent,rgba(34,211,238,0.5),transparent);margin-bottom:6px"></div>
+    <div style="width:100%;height:1px;background:rgba(238,242,255,0.07)"></div>
+  </div>
+
+</div>
+
+<!-- ── Interaction effect examples ── -->
+<p class="section-title">Interaction Effect Examples</p>
+<div class="interaction-grid">
+
+  <!-- Hover glow -->
+  <div class="inter-box">
+    <div class="comp-title" style="color:#9D6FFF;"><div style="width:3px;height:14px;background:#9D6FFF;border-radius:2px;box-shadow:0 0 8px rgba(157,111,255,0.5)"></div>Hover Glow Effect</div>
+    <div style="display:flex;flex-direction:column;gap:8px">
+      <div style="padding:12px;background:#13132A;border:1px solid rgba(238,242,255,0.07);border-radius:10px;cursor:pointer;transition:all 0.25s;font-size:13px;color:#8892B0"
+           onmouseover="this.style.boxShadow='0 0 20px rgba(157,111,255,0.25)';this.style.borderColor='rgba(157,111,255,0.5)';this.style.transform='translateY(-2px)'"
+           onmouseout="this.style.boxShadow='';this.style.borderColor='rgba(238,242,255,0.07)';this.style.transform=''">
+        🖱️ Hover → purple glow
+      </div>
+      <div style="padding:12px;background:#13132A;border:1px solid rgba(238,242,255,0.07);border-radius:10px;cursor:pointer;transition:all 0.25s;font-size:13px;color:#8892B0"
+           onmouseover="this.style.boxShadow='0 0 20px rgba(34,211,238,0.22)';this.style.borderColor='rgba(34,211,238,0.5)';this.style.transform='translateY(-2px)'"
+           onmouseout="this.style.boxShadow='';this.style.borderColor='rgba(238,242,255,0.07)';this.style.transform=''">
+        🖱️ Hover → cyan glow
+      </div>
+    </div>
+  </div>
+
+  <!-- Animated waveform -->
+  <div class="inter-box">
+    <div class="comp-title" style="color:#22D3EE;"><div style="width:3px;height:14px;background:#22D3EE;border-radius:2px;box-shadow:0 0 8px rgba(34,211,238,0.5)"></div>Animated Waveform</div>
+    <div style="margin-bottom:14px">
+      <div style="font-size:11px;color:#3D4A6B;margin-bottom:8px;text-transform:uppercase;letter-spacing:0.08em">Purple waveform</div>
+      <div style="display:flex;align-items:center;gap:4px;height:36px">
+        <div style="width:5px;background:#9D6FFF;box-shadow:0 0 6px rgba(157,111,255,0.5);border-radius:2px;opacity:0.7;animation:wave-pulse 1.2s ease-in-out infinite;animation-delay:0s;height:14px"></div>
+        <div style="width:5px;background:#9D6FFF;box-shadow:0 0 6px rgba(157,111,255,0.5);border-radius:2px;opacity:0.7;animation:wave-pulse 1.2s ease-in-out infinite;animation-delay:0.1s;height:22px"></div>
+        <div style="width:5px;background:#9D6FFF;box-shadow:0 0 6px rgba(157,111,255,0.5);border-radius:2px;opacity:0.7;animation:wave-pulse 1.2s ease-in-out infinite;animation-delay:0.2s;height:30px"></div>
+        <div style="width:5px;background:#9D6FFF;box-shadow:0 0 6px rgba(157,111,255,0.5);border-radius:2px;opacity:0.7;animation:wave-pulse 1.2s ease-in-out infinite;animation-delay:0.3s;height:36px"></div>
+        <div style="width:5px;background:#9D6FFF;box-shadow:0 0 6px rgba(157,111,255,0.5);border-radius:2px;opacity:0.7;animation:wave-pulse 1.2s ease-in-out infinite;animation-delay:0.4s;height:28px"></div>
+        <div style="width:5px;background:#9D6FFF;box-shadow:0 0 6px rgba(157,111,255,0.5);border-radius:2px;opacity:0.7;animation:wave-pulse 1.2s ease-in-out infinite;animation-delay:0.3s;height:22px"></div>
+        <div style="width:5px;background:#9D6FFF;box-shadow:0 0 6px rgba(157,111,255,0.5);border-radius:2px;opacity:0.7;animation:wave-pulse 1.2s ease-in-out infinite;animation-delay:0.2s;height:16px"></div>
+        <div style="width:5px;background:#9D6FFF;box-shadow:0 0 6px rgba(157,111,255,0.5);border-radius:2px;opacity:0.7;animation:wave-pulse 1.2s ease-in-out infinite;animation-delay:0.1s;height:10px"></div>
+      </div>
+    </div>
+    <div>
+      <div style="font-size:11px;color:#3D4A6B;margin-bottom:8px;text-transform:uppercase;letter-spacing:0.08em">Mixed-color waveform</div>
+      <div style="display:flex;align-items:center;gap:4px;height:36px">
+        <div style="width:5px;background:#9D6FFF;box-shadow:0 0 5px rgba(157,111,255,0.5);border-radius:2px;opacity:0.7;animation:wave-pulse 1.4s ease-in-out infinite;animation-delay:0s;height:12px"></div>
+        <div style="width:5px;background:#9D6FFF;box-shadow:0 0 5px rgba(157,111,255,0.5);border-radius:2px;opacity:0.7;animation:wave-pulse 1.4s ease-in-out infinite;animation-delay:0.1s;height:20px"></div>
+        <div style="width:5px;background:#22D3EE;box-shadow:0 0 5px rgba(34,211,238,0.5);border-radius:2px;opacity:0.7;animation:wave-pulse 1.4s ease-in-out infinite;animation-delay:0.2s;height:32px"></div>
+        <div style="width:5px;background:#22D3EE;box-shadow:0 0 5px rgba(34,211,238,0.5);border-radius:2px;opacity:0.7;animation:wave-pulse 1.4s ease-in-out infinite;animation-delay:0.3s;height:36px"></div>
+        <div style="width:5px;background:#22D3EE;box-shadow:0 0 5px rgba(34,211,238,0.5);border-radius:2px;opacity:0.7;animation:wave-pulse 1.4s ease-in-out infinite;animation-delay:0.4s;height:26px"></div>
+        <div style="width:5px;background:#F472B6;box-shadow:0 0 5px rgba(244,114,182,0.5);border-radius:2px;opacity:0.7;animation:wave-pulse 1.4s ease-in-out infinite;animation-delay:0.3s;height:18px"></div>
+        <div style="width:5px;background:#F472B6;box-shadow:0 0 5px rgba(244,114,182,0.5);border-radius:2px;opacity:0.7;animation:wave-pulse 1.4s ease-in-out infinite;animation-delay:0.2s;height:12px"></div>
+        <div style="width:5px;background:#FBBF24;box-shadow:0 0 5px rgba(251,191,36,0.4);border-radius:2px;opacity:0.7;animation:wave-pulse 1.4s ease-in-out infinite;animation-delay:0.1s;height:8px"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Particle pulse + scan light -->
+  <div class="inter-box">
+    <div class="comp-title" style="color:#F472B6;"><div style="width:3px;height:14px;background:#F472B6;border-radius:2px;box-shadow:0 0 8px rgba(244,114,182,0.5)"></div>Particle Pulse & Scan Light</div>
+    <!-- Particle group -->
+    <div style="position:relative;height:60px;margin-bottom:14px;background:#060610;border-radius:8px;overflow:hidden">
+      <div style="position:absolute;width:6px;height:6px;border-radius:50%;background:#9D6FFF;top:30%;left:15%;animation:particle-pulse 2.5s ease-in-out infinite;animation-delay:0s"></div>
+      <div style="position:absolute;width:4px;height:4px;border-radius:50%;background:#22D3EE;top:55%;left:35%;animation:particle-pulse 2.5s ease-in-out infinite;animation-delay:0.5s"></div>
+      <div style="position:absolute;width:7px;height:7px;border-radius:50%;background:#F472B6;top:20%;left:60%;animation:particle-pulse 2.5s ease-in-out infinite;animation-delay:1s"></div>
+      <div style="position:absolute;width:3px;height:3px;border-radius:50%;background:#FBBF24;top:65%;left:75%;animation:particle-pulse 2.5s ease-in-out infinite;animation-delay:1.5s"></div>
+      <div style="position:absolute;width:5px;height:5px;border-radius:50%;background:#34D399;top:40%;left:88%;animation:particle-pulse 2.5s ease-in-out infinite;animation-delay:0.8s"></div>
+      <div style="font-size:10px;color:#3D4A6B;position:absolute;bottom:6px;left:10px;letter-spacing:0.08em;text-transform:uppercase">Particle pulse animation</div>
+    </div>
+    <!-- Scan light effect -->
+    <div style="font-size:11px;color:#3D4A6B;margin-bottom:8px;text-transform:uppercase;letter-spacing:0.08em">Scan Light Effect</div>
+    <div style="padding:12px;background:#13132A;border:1px solid rgba(238,242,255,0.07);border-radius:8px;position:relative;overflow:hidden">
+      <div style="position:absolute;top:0;bottom:0;width:40%;background:linear-gradient(90deg,transparent,rgba(157,111,255,0.08),transparent);animation:scan-line 3s linear infinite;pointer-events:none"></div>
+      <div style="font-size:13px;color:#8892B0">Scan light preview — the light sweeps from left to right</div>
+    </div>
+  </div>
+
+</div>
+
+<!-- ── Gradient presets ── -->
+<p class="section-title">Gradient Presets</p>
+<div style="display:flex;gap:14px;margin-bottom:52px;flex-wrap:wrap">
+  <div style="display:flex;flex-direction:column;gap:6px;align-items:center">
+    <div style="width:120px;height:36px;border-radius:8px;background:linear-gradient(135deg,#9D6FFF,#22D3EE);box-shadow:0 4px 16px rgba(157,111,255,0.2)"></div>
+    <div style="font-size:11px;color:#3D4A6B;text-align:center">Purple -> Cyan</div>
+  </div>
+  <div style="display:flex;flex-direction:column;gap:6px;align-items:center">
+    <div style="width:120px;height:36px;border-radius:8px;background:linear-gradient(135deg,#9D6FFF,#F472B6);box-shadow:0 4px 16px rgba(157,111,255,0.2)"></div>
+    <div style="font-size:11px;color:#3D4A6B;text-align:center">Purple -> Rose</div>
+  </div>
+  <div style="display:flex;flex-direction:column;gap:6px;align-items:center">
+    <div style="width:120px;height:36px;border-radius:8px;background:linear-gradient(135deg,#22D3EE,#34D399);box-shadow:0 4px 16px rgba(34,211,238,0.2)"></div>
+    <div style="font-size:11px;color:#3D4A6B;text-align:center">Cyan -> Emerald</div>
+  </div>
+  <div style="display:flex;flex-direction:column;gap:6px;align-items:center">
+    <div style="width:120px;height:36px;border-radius:8px;background:linear-gradient(135deg,#FBBF24,#F472B6);box-shadow:0 4px 16px rgba(251,191,36,0.2)"></div>
+    <div style="font-size:11px;color:#3D4A6B;text-align:center">Amber -> Rose</div>
+  </div>
+  <div style="display:flex;flex-direction:column;gap:6px;align-items:center">
+    <div style="width:120px;height:36px;border-radius:8px;background:linear-gradient(135deg,#9D6FFF,#22D3EE,#F472B6)"></div>
+    <div style="font-size:11px;color:#3D4A6B;text-align:center">Three-color Gradient</div>
+  </div>
+  <div style="display:flex;flex-direction:column;gap:6px;align-items:center">
+    <div style="width:120px;height:36px;border-radius:8px;background:linear-gradient(145deg,#13132A,#0F0F22)"></div>
+    <div style="font-size:11px;color:#3D4A6B;text-align:center">Dark Card</div>
+  </div>
+</div>
+
+<!-- Footer -->
+<div style="border-top:1px solid rgba(238,242,255,0.06);padding-top:24px;display:flex;justify-content:space-between;align-items:center">
+  <div style="font-size:12px;color:#3D4A6B">Dark-Atmospheric Template v2.0 · Dark Neon Glow · 41KB CSS · 24 component classes</div>
+  <div style="display:flex;gap:10px">
+    <span style="display:inline-flex;align-items:center;gap:5px;padding:5px 12px;border-radius:9999px;border:1px solid rgba(157,111,255,0.4);color:#C4AFFF;font-size:11px;background:rgba(157,111,255,0.08)"><span style="width:5px;height:5px;border-radius:50%;background:#9D6FFF;box-shadow:0 0 6px rgba(157,111,255,0.6)"></span>Film Content</span>
+    <span style="display:inline-flex;align-items:center;gap:5px;padding:5px 12px;border-radius:9999px;border:1px solid rgba(34,211,238,0.4);color:#6EE7F5;font-size:11px;background:rgba(34,211,238,0.08)"><span style="width:5px;height:5px;border-radius:50%;background:#22D3EE;box-shadow:0 0 6px rgba(34,211,238,0.6)"></span>Premium Brand</span>
+    <span style="display:inline-flex;align-items:center;gap:5px;padding:5px 12px;border-radius:9999px;border:1px solid rgba(244,114,182,0.4);color:#FCA5C5;font-size:11px;background:rgba(244,114,182,0.08)"><span style="width:5px;height:5px;border-radius:50%;background:#F472B6;box-shadow:0 0 6px rgba(244,114,182,0.6)"></span>Tech Launch</span>
+  </div>
+</div>
+
+</body>
+</html>

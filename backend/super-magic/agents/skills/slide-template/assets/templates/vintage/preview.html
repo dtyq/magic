@@ -1,0 +1,1214 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="utf-8" />
+  <title>Parchment Scroll — Template Preview</title>
+  <link
+    href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,600;0,700;1,400&family=EB+Garamond:ital,wght@0,400;0,500;1,400&family=Noto+Serif+SC:wght@400;600;700&display=swap"
+    rel="stylesheet" />
+  <link rel="stylesheet" href="theme.css" />
+  <style>
+    /* ── Preview page base styles ── */
+    body {
+      font-family: 'EB Garamond', 'Noto Serif SC', serif;
+      background: #EDE0CC;
+      margin: 0;
+      padding: 48px 56px 64px;
+      color: #3D2914;
+    }
+
+    /* Header area */
+    .preview-header {
+      margin-bottom: 40px;
+      border-bottom: 1px solid rgba(201, 162, 39, 0.35);
+      padding-bottom: 28px;
+    }
+
+    .preview-title {
+      font-family: 'Playfair Display', serif;
+      font-size: 38px;
+      font-weight: 700;
+      color: #3D2914;
+      margin: 0 0 8px;
+    }
+
+    .preview-title span {
+      color: #C9A227;
+    }
+
+    .preview-subtitle {
+      font-size: 16px;
+      color: #6B4423;
+      font-style: italic;
+    }
+
+    .preview-badge {
+      display: inline-block;
+      margin-top: 12px;
+      font-size: 13px;
+      font-weight: 600;
+      color: #fff;
+      background: #3D2914;
+      padding: 4px 14px;
+      letter-spacing: 0.08em;
+    }
+
+    /* Section labels */
+    .section {
+      margin-bottom: 36px;
+    }
+
+    .section-label {
+      font-family: 'EB Garamond', serif;
+      font-style: italic;
+      font-size: 13px;
+      font-weight: 600;
+      color: #C9A227;
+      text-transform: uppercase;
+      letter-spacing: 0.18em;
+      border-left: 3px solid #C9A227;
+      padding-left: 10px;
+      margin-bottom: 18px;
+    }
+
+    /* Color swatches */
+    .swatches {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 14px;
+      align-items: flex-end;
+    }
+
+    .swatch-item {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 5px;
+    }
+
+    .swatch {
+      width: 56px;
+      height: 56px;
+      border-radius: 3px;
+      border: 1px solid rgba(61, 41, 20, 0.2);
+    }
+
+    .swatch-hex {
+      font-size: 11px;
+      color: #6B4423;
+      font-family: monospace;
+    }
+
+    .swatch-name {
+      font-size: 11px;
+      color: #9C7A5A;
+    }
+
+    .swatch-sep {
+      width: 1px;
+      height: 56px;
+      background: rgba(61, 41, 20, 0.15);
+      margin: 0 4px;
+      align-self: center;
+    }
+
+    /* Slide grid */
+    .slides-grid {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 18px;
+    }
+
+    .slide-wrap {
+      min-width: 0;
+      overflow: hidden;
+    }
+
+    .slide-label {
+      font-size: 11px;
+      color: #9C7A5A;
+      margin-bottom: 7px;
+      text-transform: uppercase;
+      letter-spacing: 0.07em;
+      font-style: italic;
+    }
+
+    .slide {
+      width: 100%;
+      aspect-ratio: 16/9;
+      position: relative;
+      overflow: hidden;
+      border-radius: 3px;
+      border: 1px solid rgba(201, 162, 39, 0.35);
+      background: #F5E6D3;
+      box-sizing: border-box;
+      box-shadow: 0 3px 12px rgba(61, 41, 20, 0.15);
+    }
+
+    /* Component showcase */
+    .components {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 20px;
+      align-items: flex-start;
+    }
+  </style>
+</head>
+
+<body>
+
+  <!-- ── Header ── -->
+  <div class="preview-header">
+    <div class="preview-title">Parchment Scroll · <span>Vintage Manuscript</span></div>
+    <div class="preview-subtitle">Historical presentations · travel expeditions · museum exhibits · heritage brand
+      stories · civilization narratives</div>
+    <div class="preview-badge">Vintage · Explorer Style</div>
+  </div>
+
+  <!-- ── Color System ── -->
+  <div class="section">
+    <div class="section-label">Color Palette</div>
+    <div class="swatches">
+      <!-- Background colors -->
+      <div class="swatch-item"><span class="swatch" style="background:#F5E6D3;"></span><span
+          class="swatch-hex">#F5E6D3</span><span class="swatch-name">Parchment Base</span></div>
+      <div class="swatch-item"><span class="swatch" style="background:#FFF8DC;"></span><span
+          class="swatch-hex">#FFF8DC</span><span class="swatch-name">Secondary Base</span></div>
+      <div class="swatch-item"><span class="swatch" style="background:#FDF6EC;"></span><span
+          class="swatch-hex">#FDF6EC</span><span class="swatch-name">Card Base</span></div>
+      <div class="swatch-item"><span class="swatch" style="background:#F0D9BE;"></span><span
+          class="swatch-hex">#F0D9BE</span><span class="swatch-name">Parchment Texture</span></div>
+      <div class="swatch-sep"></div>
+      <!-- Dark colors -->
+      <div class="swatch-item"><span class="swatch" style="background:#2C1A0E;"></span><span
+          class="swatch-hex">#2C1A0E</span><span class="swatch-name">Dark Brown Base</span></div>
+      <div class="swatch-item"><span class="swatch" style="background:#3D2914;"></span><span
+          class="swatch-hex">#3D2914</span><span class="swatch-name">Primary Text</span></div>
+      <div class="swatch-item"><span class="swatch" style="background:#6B4423;"></span><span
+          class="swatch-hex">#6B4423</span><span class="swatch-name">Secondary Text</span></div>
+      <div class="swatch-item"><span class="swatch" style="background:#9C7A5A;"></span><span
+          class="swatch-hex">#9C7A5A</span><span class="swatch-name">Muted Text</span></div>
+      <div class="swatch-sep"></div>
+      <!-- Accent colors -->
+      <div class="swatch-item"><span class="swatch" style="background:#C9A227;"></span><span
+          class="swatch-hex">#C9A227</span><span class="swatch-name">Primary Gold</span></div>
+      <div class="swatch-item"><span class="swatch" style="background:#2D5A3D;"></span><span
+          class="swatch-hex">#2D5A3D</span><span class="swatch-name">Forest Green</span></div>
+      <div class="swatch-item"><span class="swatch" style="background:#1E3A5F;"></span><span
+          class="swatch-hex">#1E3A5F</span><span class="swatch-name">Deep Sea Blue</span></div>
+      <div class="swatch-item"><span class="swatch" style="background:#722F37;"></span><span
+          class="swatch-hex">#722F37</span><span class="swatch-name">Wine Red</span></div>
+      <div class="swatch-item"><span class="swatch" style="background:#8B4513;"></span><span
+          class="swatch-hex">#8B4513</span><span class="swatch-name">Rust Brown</span></div>
+    </div>
+  </div>
+
+  <!-- ── 10-Page Layout Thumbnails ── -->
+  <div class="section">
+    <div class="section-label">10-Page Slide Layouts</div>
+    <div class="slides-grid">
+
+      <!-- 1. Cover page -->
+      <div class="slide-wrap">
+        <div class="slide-label">01 Cover</div>
+        <div class="slide" style="background:#2C1A0E;">
+          <!-- Simulated background layer -->
+          <div
+            style="position:absolute;inset:0;background:linear-gradient(135deg,rgba(44,26,14,0.85) 0%,rgba(44,26,14,0.55) 50%,rgba(61,41,20,0.80) 100%);">
+          </div>
+          <!-- Corner ornaments -->
+          <div
+            style="position:absolute;top:5%;left:3%;width:10%;height:18%;border-top:1px solid rgba(201,162,39,0.5);border-left:1px solid rgba(201,162,39,0.5);">
+          </div>
+          <div
+            style="position:absolute;top:5%;right:3%;width:10%;height:18%;border-top:1px solid rgba(201,162,39,0.5);border-right:1px solid rgba(201,162,39,0.5);">
+          </div>
+          <div
+            style="position:absolute;bottom:5%;left:3%;width:10%;height:18%;border-bottom:1px solid rgba(201,162,39,0.5);border-left:1px solid rgba(201,162,39,0.5);">
+          </div>
+          <div
+            style="position:absolute;bottom:5%;right:3%;width:10%;height:18%;border-bottom:1px solid rgba(201,162,39,0.5);border-right:1px solid rgba(201,162,39,0.5);">
+          </div>
+          <!-- Center frame -->
+          <div
+            style="position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);width:72%;border:1px solid rgba(201,162,39,0.45);padding:6% 8%;text-align:center;">
+            <div
+              style="font-size:6px;color:rgba(201,162,39,0.8);letter-spacing:0.2em;text-transform:uppercase;margin-bottom:5px;font-style:italic;">
+              Historia · Commercium · Cultura</div>
+            <div
+              style="font-family:'Playfair Display',serif;font-size:18px;font-weight:700;color:#F5E6D3;line-height:1.1;letter-spacing:0.06em;margin-bottom:3px;">
+              The Silk Road</div>
+            <div style="font-size:7px;font-style:italic;color:rgba(245,230,211,0.7);margin-bottom:5px;">A millennium
+              legend where Eastern and Western civilizations met
+            </div>
+            <div
+              style="width:30%;height:1px;background:linear-gradient(90deg,transparent,#C9A227,transparent);margin:0 auto 5px;">
+            </div>
+            <div style="font-size:5.5px;color:rgba(201,162,39,0.7);letter-spacing:0.1em;">138 BC · Zhang Qian Opens the
+              Western Regions</div>
+          </div>
+          <!-- Bottom color strip -->
+          <div
+            style="position:absolute;bottom:0;left:0;right:0;height:3px;background:linear-gradient(90deg,transparent,#C9A227 30%,#722F37 50%,#C9A227 70%,transparent);opacity:0.7;">
+          </div>
+        </div>
+      </div>
+
+      <!-- 2. Chapter page -->
+      <div class="slide-wrap">
+        <div class="slide-label">02 Chapter</div>
+        <div class="slide" style="background:#2C1A0E;display:flex;align-items:center;justify-content:center;">
+          <!-- Background texture -->
+          <div
+            style="position:absolute;inset:0;background:radial-gradient(ellipse at 20% 50%,rgba(201,162,39,0.08) 0%,transparent 60%),radial-gradient(ellipse at 80% 50%,rgba(114,47,55,0.08) 0%,transparent 60%);">
+          </div>
+          <!-- Corners -->
+          <div
+            style="position:absolute;top:6%;left:4%;width:9%;height:16%;border-top:1px solid rgba(201,162,39,0.35);border-left:1px solid rgba(201,162,39,0.35);">
+          </div>
+          <div
+            style="position:absolute;top:6%;right:4%;width:9%;height:16%;border-top:1px solid rgba(201,162,39,0.35);border-right:1px solid rgba(201,162,39,0.35);">
+          </div>
+          <div
+            style="position:absolute;bottom:6%;left:4%;width:9%;height:16%;border-bottom:1px solid rgba(201,162,39,0.35);border-left:1px solid rgba(201,162,39,0.35);">
+          </div>
+          <div
+            style="position:absolute;bottom:6%;right:4%;width:9%;height:16%;border-bottom:1px solid rgba(201,162,39,0.35);border-right:1px solid rgba(201,162,39,0.35);">
+          </div>
+          <!-- Center content -->
+          <div style="text-align:center;position:relative;z-index:2;">
+            <div
+              style="font-family:'Playfair Display',serif;font-size:28px;font-weight:700;color:rgba(201,162,39,0.22);line-height:1;margin-bottom:-5px;letter-spacing:0.1em;">
+              I</div>
+            <div
+              style="font-size:5.5px;font-style:italic;color:rgba(201,162,39,0.7);letter-spacing:0.25em;text-transform:uppercase;margin-bottom:4px;">
+              Caput Primum · Chapter One</div>
+            <div
+              style="border:1px solid rgba(201,162,39,0.5);display:inline-block;padding:5% 12%;position:relative;margin-bottom:5px;">
+              <div
+                style="font-family:'Playfair Display',serif;font-size:13px;font-weight:700;color:#F5E6D3;letter-spacing:0.06em;">
+                Opening the Western Regions</div>
+            </div>
+            <div style="font-size:6px;font-style:italic;color:rgba(245,230,211,0.55);">Zhang Qian's mission and the
+              birth of the Silk Road</div>
+            <div
+              style="width:25%;height:1px;background:linear-gradient(90deg,transparent,#C9A227,transparent);margin:5px auto 0;">
+            </div>
+          </div>
+          <!-- Bottom color strip -->
+          <div
+            style="position:absolute;bottom:0;left:0;right:0;height:2.5px;background:linear-gradient(90deg,transparent,#C9A227 30%,#722F37 50%,#C9A227 70%,transparent);opacity:0.5;">
+          </div>
+        </div>
+      </div>
+
+      <!-- 3. Banner and content page -->
+      <div class="slide-wrap">
+        <div class="slide-label">03 Banner + Content</div>
+        <div class="slide" style="background:#2C1A0E;display:flex;flex-direction:column;">
+          <!-- Top image banner -->
+          <div
+            style="height:40%;position:relative;overflow:hidden;flex-shrink:0;background:linear-gradient(to bottom,rgba(44,26,14,0.6) 0%,transparent 40%,rgba(44,26,14,0.9) 100%);">
+            <div
+              style="position:absolute;inset:0;background:linear-gradient(135deg,#3D2914,#6B4423,#2C1A0E);opacity:0.6;">
+            </div>
+            <!-- Banner title -->
+            <div style="position:absolute;bottom:6%;left:7%;z-index:2;display:flex;align-items:flex-end;gap:4%;">
+              <div>
+                <div
+                  style="font-size:5px;color:rgba(201,162,39,0.8);font-style:italic;letter-spacing:0.15em;margin-bottom:3px;">
+                  138 BC · The Jianyuan Era of Emperor Wu of Han</div>
+                <div style="font-family:'Playfair Display',serif;font-size:11px;font-weight:700;color:#F5E6D3;">Zhang
+                  Qian Opens the Western Regions
+                </div>
+                <div style="font-size:5.5px;font-style:italic;color:rgba(245,230,211,0.6);margin-top:2px;">One envoy,
+                  thirteen years of perilous travel
+                </div>
+              </div>
+              <div style="width:1px;height:25%;background:linear-gradient(to bottom,transparent,#C9A227,transparent);">
+              </div>
+              <div
+                style="font-family:'Playfair Display',serif;font-size:14px;font-weight:700;color:rgba(201,162,39,0.9);">
+                138 BC</div>
+            </div>
+          </div>
+          <!-- Bottom three-column area -->
+          <div style="flex:1;display:flex;border-top:1px solid rgba(201,162,39,0.2);">
+            <!-- Narrative column -->
+            <div style="flex:1.15;padding:3% 3% 3% 5%;display:flex;flex-direction:column;gap:3%;">
+              <div style="font-size:4.5px;font-style:italic;color:#9C7A5A;letter-spacing:0.15em;">Historia · Mission
+                Chronicle</div>
+              <div style="font-size:5px;color:rgba(245,230,211,0.75);line-height:1.7;">Emperor Wu sent Zhang Qian west
+                with over one hundred people to ally with the Yuezhi against the Xiongnu...</div>
+              <!-- Route strip -->
+              <div style="display:flex;align-items:center;gap:2%;margin-top:auto;">
+                <div style="display:flex;flex-direction:column;align-items:center;">
+                  <div style="width:5px;height:5px;border-radius:50%;background:#C9A227;"></div>
+                  <div style="font-size:4px;color:rgba(245,230,211,0.65);margin-top:2px;">Chang'an</div>
+                </div>
+                <div style="flex:1;height:1px;background:rgba(201,162,39,0.3);"></div>
+                <div style="display:flex;flex-direction:column;align-items:center;">
+                  <div style="width:5px;height:5px;border-radius:50%;background:#D4846A;"></div>
+                  <div style="font-size:4px;color:rgba(245,230,211,0.65);margin-top:2px;">Hexi</div>
+                </div>
+                <div style="flex:1;height:1px;background:rgba(201,162,39,0.3);"></div>
+                <div style="display:flex;flex-direction:column;align-items:center;">
+                  <div style="width:5px;height:5px;border-radius:50%;background:#2D5A3D;"></div>
+                  <div style="font-size:4px;color:rgba(245,230,211,0.65);margin-top:2px;">Yuezhi</div>
+                </div>
+              </div>
+            </div>
+            <div
+              style="width:1px;background:linear-gradient(to bottom,transparent,rgba(201,162,39,0.25) 20%,rgba(201,162,39,0.25) 80%,transparent);margin:5% 0;">
+            </div>
+            <!-- Data cards -->
+            <div style="width:28%;padding:3%;display:flex;flex-direction:column;gap:3%;">
+              <div style="font-size:4.5px;font-style:italic;color:#9C7A5A;letter-spacing:0.15em;">Numeri · Data</div>
+              <div style="display:grid;grid-template-columns:1fr 1fr;gap:2%;">
+                <div
+                  style="background:rgba(245,230,211,0.04);border:1px solid rgba(201,162,39,0.18);padding:4% 5%;border-radius:1px;position:relative;overflow:hidden;">
+                  <div
+                    style="position:absolute;top:0;left:0;right:0;height:1px;background:linear-gradient(to right,#C9A227,transparent);">
+                  </div>
+                  <div style="font-family:'Playfair Display',serif;font-size:9px;font-weight:700;color:#C9A227;">13<span
+                      style="font-size:4.5px;"> yrs</span></div>
+                  <div style="font-size:4px;color:rgba(245,230,211,0.5);margin-top:1px;">First mission</div>
+                </div>
+                <div
+                  style="background:rgba(245,230,211,0.04);border:1px solid rgba(201,162,39,0.18);padding:4% 5%;border-radius:1px;position:relative;overflow:hidden;">
+                  <div
+                    style="position:absolute;top:0;left:0;right:0;height:1px;background:linear-gradient(to right,#C9A227,transparent);">
+                  </div>
+                  <div style="font-family:'Playfair Display',serif;font-size:9px;font-weight:700;color:#C9A227;">36<span
+                      style="font-size:4.5px;"> states</span></div>
+                  <div style="font-size:4px;color:rgba(245,230,211,0.5);margin-top:1px;">Western Regions</div>
+                </div>
+              </div>
+            </div>
+            <div
+              style="width:1px;background:linear-gradient(to bottom,transparent,rgba(201,162,39,0.25) 20%,rgba(201,162,39,0.25) 80%,transparent);margin:5% 0;">
+            </div>
+            <!-- Significance column -->
+            <div style="width:30%;padding:3% 5% 3% 3%;display:flex;flex-direction:column;gap:3%;">
+              <div style="font-size:5px;font-weight:700;color:#C9A227;display:flex;align-items:center;gap:2%;">◆ A
+                Trailblazing Mission
+              </div>
+              <div style="display:flex;flex-direction:column;gap:2%;">
+                <div style="display:flex;gap:2%;padding:2% 3%;border-bottom:1px solid rgba(201,162,39,0.1);">
+                  <div
+                    style="font-family:'Playfair Display',serif;font-size:6px;font-weight:700;color:rgba(201,162,39,0.2);width:8%;flex-shrink:0;">
+                    I</div>
+                  <div style="font-size:4.5px;color:rgba(245,230,211,0.75);">Opened a corridor between East and West
+                  </div>
+                </div>
+                <div style="display:flex;gap:2%;padding:2% 3%;border-bottom:1px solid rgba(201,162,39,0.1);">
+                  <div
+                    style="font-family:'Playfair Display',serif;font-size:6px;font-weight:700;color:rgba(201,162,39,0.2);width:8%;flex-shrink:0;">
+                    II</div>
+                  <div style="font-size:4.5px;color:rgba(245,230,211,0.75);">Began the exchange of species and goods
+                  </div>
+                </div>
+                <div style="display:flex;gap:2%;padding:2% 3%;">
+                  <div
+                    style="font-family:'Playfair Display',serif;font-size:6px;font-weight:700;color:rgba(201,162,39,0.2);width:8%;flex-shrink:0;">
+                    III</div>
+                  <div style="font-size:4.5px;color:rgba(245,230,211,0.75);">Laid the diplomatic basis for the Silk Road
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 4. Map and route explainer page -->
+      <div class="slide-wrap">
+        <div class="slide-label">04 Map + Routes</div>
+        <div class="slide"
+          style="background:#F5E6D3;background-image:radial-gradient(ellipse at 15% 25%,rgba(180,120,60,0.09) 0%,transparent 50%),radial-gradient(ellipse at 85% 75%,rgba(140,90,40,0.07) 0%,transparent 50%);display:flex;flex-direction:column;">
+          <!-- Header bar -->
+          <div
+            style="padding:4% 6% 2%;border-bottom:1px solid rgba(61,41,20,0.15);display:flex;align-items:flex-end;justify-content:space-between;flex-shrink:0;">
+            <div>
+              <div style="font-size:4.5px;font-style:italic;color:#9C7A5A;letter-spacing:0.12em;margin-bottom:2px;">
+                Itinerarium · Route Map</div>
+              <div
+                style="font-family:'Playfair Display',serif;font-size:9px;font-weight:700;color:#3D2914;padding-bottom:3px;position:relative;">
+                Three Silk Road Routes<span
+                  style="position:absolute;bottom:0;left:0;width:20px;height:1px;background:#C9A227;display:block;"></span>
+              </div>
+            </div>
+            <div style="font-size:4px;font-style:italic;color:#9C7A5A;text-align:right;">Starting from Chang'an,
+              crossing vast distances<br />to connect East and West</div>
+          </div>
+          <!-- Body -->
+          <div style="flex:1;display:flex;overflow:hidden;">
+            <!-- SVG map area -->
+            <div style="width:60%;padding:2% 1% 2% 4%;position:relative;">
+              <svg width="100%" height="100%" viewBox="0 0 400 200" xmlns="http://www.w3.org/2000/svg">
+                <rect width="400" height="200" fill="rgba(245,230,211,0.3)" rx="2" />
+                <!-- Routes -->
+                <path d="M 30 60 Q 80 45 130 55 Q 180 65 230 50 Q 280 42 330 55 Q 365 62 385 58" fill="none"
+                  stroke="#2D5A3D" stroke-width="2" opacity="0.85" />
+                <path d="M 30 100 Q 80 95 125 100 Q 170 105 200 98 Q 240 92 280 102 Q 330 110 385 104" fill="none"
+                  stroke="#1E3A5F" stroke-width="2" opacity="0.85" />
+                <path
+                  d="M 30 148 Q 70 152 112 146 Q 152 140 185 148 Q 225 156 265 150 Q 315 144 353 152 Q 372 155 385 152"
+                  fill="none" stroke="#722F37" stroke-width="2" opacity="0.85" />
+                <!-- Cities -->
+                <circle cx="30" cy="100" r="5" fill="#C9A227" stroke="#3D2914" stroke-width="0.8" />
+                <text x="30" y="114" text-anchor="middle" font-family="Noto Serif SC,serif" font-size="7" fill="#3D2914"
+                  font-weight="600">Chang'an</text>
+                <circle cx="113" cy="100" r="3.5" fill="#C9A227" stroke="#3D2914" stroke-width="0.8" opacity="0.8" />
+                <text x="113" y="112" text-anchor="middle" font-family="Noto Serif SC,serif" font-size="6"
+                  fill="#6B4423">Dunhuang</text>
+                <circle cx="245" cy="100" r="4" fill="#C9A227" stroke="#3D2914" stroke-width="0.8" opacity="0.9" />
+                <text x="245" y="112" text-anchor="middle" font-family="Noto Serif SC,serif" font-size="6"
+                  fill="#6B4423">Samarkand</text>
+                <circle cx="385" cy="102" r="5" fill="#C9A227" stroke="#3D2914" stroke-width="0.8" />
+                <text x="385" y="116" text-anchor="middle" font-family="Noto Serif SC,serif" font-size="7"
+                  fill="#3D2914" font-weight="600">Constantinople</text>
+                <!-- Compass -->
+                <g transform="translate(370,32)">
+                  <circle cx="0" cy="0" r="16" fill="none" stroke="rgba(201,162,39,0.4)" stroke-width="0.8" />
+                  <polygon points="0,-12 2,0 0,12 -2,0" fill="#C9A227" opacity="0.7" />
+                  <text x="0" y="-17" text-anchor="middle" font-family="EB Garamond,serif" font-size="6"
+                    fill="rgba(201,162,39,0.7)">N</text>
+                </g>
+              </svg>
+            </div>
+            <!-- Route descriptions -->
+            <div style="flex:1;padding:3% 4% 3% 1%;display:flex;flex-direction:column;justify-content:center;gap:4%;">
+              <div
+                style="background:rgba(253,246,236,0.85);border-left:3px solid #2D5A3D;padding:3% 4%;border-radius:0 1px 1px 0;">
+                <div
+                  style="display:inline-block;font-size:4px;color:#fff;background:#2D5A3D;padding:1px 5px;border-radius:1px;margin-bottom:3px;">
+                  Northern Steppe</div>
+                <div style="font-family:'Playfair Display',serif;font-size:6px;font-weight:700;color:#3D2914;">Northern
+                  Route · Steppe Road
+                </div>
+                <div style="font-size:4.5px;color:#6B4423;margin-top:1px;">Chang'an → Dzungarian Basin → Black Sea Coast
+                </div>
+              </div>
+              <div
+                style="background:rgba(253,246,236,0.85);border-left:3px solid #1E3A5F;padding:3% 4%;border-radius:0 1px 1px 0;">
+                <div
+                  style="display:inline-block;font-size:4px;color:#fff;background:#1E3A5F;padding:1px 5px;border-radius:1px;margin-bottom:3px;">
+                  Central Oasis</div>
+                <div style="font-family:'Playfair Display',serif;font-size:6px;font-weight:700;color:#3D2914;">Central
+                  Route · Oasis Road
+                </div>
+                <div style="font-size:4.5px;color:#6B4423;margin-top:1px;">Chang'an → Dunhuang → Samarkand →
+                  Constantinople</div>
+              </div>
+              <div
+                style="background:rgba(253,246,236,0.85);border-left:3px solid #722F37;padding:3% 4%;border-radius:0 1px 1px 0;">
+                <div
+                  style="display:inline-block;font-size:4px;color:#fff;background:#722F37;padding:1px 5px;border-radius:1px;margin-bottom:3px;">
+                  Southern Mountain</div>
+                <div style="font-family:'Playfair Display',serif;font-size:6px;font-weight:700;color:#3D2914;">Southern
+                  Route · Mountain Road
+                </div>
+                <div style="font-size:4.5px;color:#6B4423;margin-top:1px;">Chang'an → Qinghai-Tibet Plateau → India →
+                  Roman Empire</div>
+              </div>
+            </div>
+          </div>
+          <!-- Legend -->
+          <div
+            style="padding:2% 4%;border-top:1px solid rgba(61,41,20,0.12);display:flex;gap:4%;align-items:center;flex-shrink:0;">
+            <div style="display:flex;align-items:center;gap:3%;">
+              <div style="width:16px;height:2px;background:#2D5A3D;border-radius:1px;"></div><span
+                style="font-size:4.5px;color:#6B4423;">Northern Route</span>
+            </div>
+            <div style="display:flex;align-items:center;gap:3%;">
+              <div style="width:16px;height:2px;background:#1E3A5F;border-radius:1px;"></div><span
+                style="font-size:4.5px;color:#6B4423;">Central Route</span>
+            </div>
+            <div style="display:flex;align-items:center;gap:3%;">
+              <div style="width:16px;height:2px;background:#722F37;border-radius:1px;"></div><span
+                style="font-size:4.5px;color:#6B4423;">Southern Route</span>
+            </div>
+            <div style="margin-left:auto;font-size:4.5px;font-style:italic;color:#9C7A5A;">Approx. 7,000 km · Across
+              Eurasia</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 5. Specimen grid page -->
+      <div class="slide-wrap">
+        <div class="slide-label">05 Specimen Grid</div>
+        <div class="slide"
+          style="background:#F5E6D3;background-image:radial-gradient(ellipse at 20% 30%,rgba(180,120,60,0.08) 0%,transparent 50%),radial-gradient(ellipse at 80% 70%,rgba(140,90,40,0.06) 0%,transparent 50%);display:flex;flex-direction:column;position:relative;">
+          <!-- Header bar -->
+          <div
+            style="padding:4% 6% 2%;border-bottom:1px solid rgba(61,41,20,0.15);display:flex;align-items:flex-end;justify-content:space-between;flex-shrink:0;position:relative;z-index:1;">
+            <div>
+              <div style="font-size:4.5px;font-style:italic;color:#9C7A5A;letter-spacing:0.12em;margin-bottom:2px;">
+                Specimen Catalogus · Trade Catalog</div>
+              <div
+                style="font-family:'Playfair Display',serif;font-size:9px;font-weight:700;color:#3D2914;padding-bottom:3px;position:relative;">
+                Six Major Silk Road Goods<span
+                  style="position:absolute;bottom:0;left:0;width:20px;height:1px;background:#C9A227;display:block;"></span>
+              </div>
+            </div>
+            <div style="font-size:4px;font-style:italic;color:#9C7A5A;text-align:right;">East and West traded what each
+              needed</div>
+          </div>
+          <!-- Six-card grid -->
+          <div style="flex:1;display:grid;grid-template-columns:repeat(6,1fr);padding:0;position:relative;z-index:1;">
+            <!-- Silk -->
+            <div
+              style="background:#FDF6EC;border:1px solid rgba(201,162,39,0.3);border-radius:1px;padding:5% 4% 4%;display:flex;flex-direction:column;align-items:center;text-align:center;position:relative;margin:3% 2%;">
+              <div style="position:absolute;top:4%;right:5%;font-size:3.5px;font-style:italic;color:#9C7A5A;">No.001
+              </div>
+              <div style="font-size:14px;margin-bottom:3%;filter:sepia(0.4);">🧵</div>
+              <div
+                style="font-family:'Playfair Display',serif;font-size:6px;font-weight:700;color:#3D2914;margin-bottom:1%;">
+                Silk</div>
+              <div style="font-size:4px;font-style:italic;color:#9C7A5A;margin-bottom:3%;">Sericum</div>
+              <div style="width:15px;height:1px;background:#C9A227;margin:0 auto 3%;"></div>
+              <div style="font-size:4px;color:#6B4423;line-height:1.5;">A Chinese luxury valued like gold</div>
+              <div
+                style="margin-top:auto;font-size:3.5px;color:#fff;background:#2D5A3D;padding:1px 5px;border-radius:1px;margin-top:4%;">
+                East → West</div>
+            </div>
+            <!-- Porcelain -->
+            <div
+              style="background:#FDF6EC;border:1px solid rgba(201,162,39,0.3);border-radius:1px;padding:5% 4% 4%;display:flex;flex-direction:column;align-items:center;text-align:center;position:relative;margin:3% 2%;">
+              <div style="position:absolute;top:4%;right:5%;font-size:3.5px;font-style:italic;color:#9C7A5A;">No.002
+              </div>
+              <div style="font-size:14px;margin-bottom:3%;filter:sepia(0.4);">🏺</div>
+              <div
+                style="font-family:'Playfair Display',serif;font-size:6px;font-weight:700;color:#3D2914;margin-bottom:1%;">
+                Porcelain</div>
+              <div style="font-size:4px;font-style:italic;color:#9C7A5A;margin-bottom:3%;">Porcelana</div>
+              <div style="width:15px;height:1px;background:#C9A227;margin:0 auto 3%;"></div>
+              <div style="font-size:4px;color:#6B4423;line-height:1.5;">Tang sancai ceramics captivated Western Asia
+              </div>
+              <div
+                style="margin-top:auto;font-size:3.5px;color:#fff;background:#2D5A3D;padding:1px 5px;border-radius:1px;margin-top:4%;">
+                East → West</div>
+            </div>
+            <!-- Spices -->
+            <div
+              style="background:#FDF6EC;border:1px solid rgba(201,162,39,0.3);border-radius:1px;padding:5% 4% 4%;display:flex;flex-direction:column;align-items:center;text-align:center;position:relative;margin:3% 2%;">
+              <div style="position:absolute;top:4%;right:5%;font-size:3.5px;font-style:italic;color:#9C7A5A;">No.003
+              </div>
+              <div style="font-size:14px;margin-bottom:3%;filter:sepia(0.4);">🌿</div>
+              <div
+                style="font-family:'Playfair Display',serif;font-size:6px;font-weight:700;color:#3D2914;margin-bottom:1%;">
+                Spices</div>
+              <div style="font-size:4px;font-style:italic;color:#9C7A5A;margin-bottom:3%;">Aromata</div>
+              <div style="width:15px;height:1px;background:#C9A227;margin:0 auto 3%;"></div>
+              <div style="font-size:4px;color:#6B4423;line-height:1.5;">Pepper and cinnamon were valued like currency
+              </div>
+              <div
+                style="margin-top:auto;font-size:3.5px;color:#fff;background:#1E3A5F;padding:1px 5px;border-radius:1px;margin-top:4%;">
+                West → East</div>
+            </div>
+            <!-- Glassware -->
+            <div
+              style="background:#FDF6EC;border:1px solid rgba(201,162,39,0.3);border-radius:1px;padding:5% 4% 4%;display:flex;flex-direction:column;align-items:center;text-align:center;position:relative;margin:3% 2%;">
+              <div style="position:absolute;top:4%;right:5%;font-size:3.5px;font-style:italic;color:#9C7A5A;">No.004
+              </div>
+              <div style="font-size:14px;margin-bottom:3%;filter:sepia(0.4);">💎</div>
+              <div
+                style="font-family:'Playfair Display',serif;font-size:6px;font-weight:700;color:#3D2914;margin-bottom:1%;">
+                Glassware</div>
+              <div style="font-size:4px;font-style:italic;color:#9C7A5A;margin-bottom:3%;">Vitrum</div>
+              <div style="width:15px;height:1px;background:#C9A227;margin:0 auto 3%;"></div>
+              <div style="font-size:4px;color:#6B4423;line-height:1.5;">Roman blown glass was treated as treasure</div>
+              <div
+                style="margin-top:auto;font-size:3.5px;color:#fff;background:#1E3A5F;padding:1px 5px;border-radius:1px;margin-top:4%;">
+                West → East</div>
+            </div>
+            <!-- Gold and silver -->
+            <div
+              style="background:#FDF6EC;border:1px solid rgba(201,162,39,0.3);border-radius:1px;padding:5% 4% 4%;display:flex;flex-direction:column;align-items:center;text-align:center;position:relative;margin:3% 2%;">
+              <div style="position:absolute;top:4%;right:5%;font-size:3.5px;font-style:italic;color:#9C7A5A;">No.005
+              </div>
+              <div style="font-size:14px;margin-bottom:3%;filter:sepia(0.4);">🪙</div>
+              <div
+                style="font-family:'Playfair Display',serif;font-size:6px;font-weight:700;color:#3D2914;margin-bottom:1%;">
+                Gold & Silver</div>
+              <div style="font-size:4px;font-style:italic;color:#9C7A5A;margin-bottom:3%;">Aurum</div>
+              <div style="width:15px;height:1px;background:#C9A227;margin:0 auto 3%;"></div>
+              <div style="font-size:4px;color:#6B4423;line-height:1.5;">Hard currency that circulated both ways</div>
+              <div
+                style="margin-top:auto;font-size:3.5px;color:#fff;background:#2D5A3D;padding:1px 5px;border-radius:1px;margin-top:4%;">
+                Two-Way Flow</div>
+            </div>
+            <!-- Ferghana horse -->
+            <div
+              style="background:#FDF6EC;border:1px solid rgba(201,162,39,0.3);border-radius:1px;padding:5% 4% 4%;display:flex;flex-direction:column;align-items:center;text-align:center;position:relative;margin:3% 2%;">
+              <div style="position:absolute;top:4%;right:5%;font-size:3.5px;font-style:italic;color:#9C7A5A;">No.006
+              </div>
+              <div style="font-size:14px;margin-bottom:3%;filter:sepia(0.4);">🐎</div>
+              <div
+                style="font-family:'Playfair Display',serif;font-size:6px;font-weight:700;color:#3D2914;margin-bottom:1%;">
+                Ferghana Horse</div>
+              <div style="font-size:4px;font-style:italic;color:#9C7A5A;margin-bottom:3%;">Equus Ferghana</div>
+              <div style="width:15px;height:1px;background:#C9A227;margin:0 auto 3%;"></div>
+              <div style="font-size:4px;color:#6B4423;line-height:1.5;">A famed Dayuan horse said to travel vast
+                distances</div>
+              <div
+                style="margin-top:auto;font-size:3.5px;color:#fff;background:#1E3A5F;padding:1px 5px;border-radius:1px;margin-top:4%;">
+                West → East</div>
+            </div>
+          </div>
+          <!-- Footer -->
+          <div
+            style="padding:1.5% 6%;border-top:1px solid rgba(61,41,20,0.12);font-size:4.5px;font-style:italic;color:#9C7A5A;text-align:center;flex-shrink:0;">
+            Omnia mercimonia per viam sericam fluunt · All goods flow through the Silk Road
+          </div>
+        </div>
+      </div>
+
+      <!-- 6. Two-column cultural exchange page -->
+      <div class="slide-wrap">
+        <div class="slide-label">06 Two-Column Compare</div>
+        <div class="slide"
+          style="background:#F5E6D3;background-image:radial-gradient(ellipse at 20% 30%,rgba(180,120,60,0.08) 0%,transparent 50%),radial-gradient(ellipse at 80% 70%,rgba(140,90,40,0.06) 0%,transparent 50%);display:flex;flex-direction:column;">
+          <!-- Header bar -->
+          <div
+            style="padding:4% 6% 2%;border-bottom:1px solid rgba(61,41,20,0.15);display:flex;align-items:flex-end;justify-content:space-between;flex-shrink:0;">
+            <div>
+              <div style="font-size:4.5px;font-style:italic;color:#9C7A5A;letter-spacing:0.12em;margin-bottom:2px;">
+                Commutatio Culturae · Cultural Exchange</div>
+              <div
+                style="font-family:'Playfair Display',serif;font-size:9px;font-weight:700;color:#3D2914;padding-bottom:3px;position:relative;">
+                East-West Cultural Exchange<span
+                  style="position:absolute;bottom:0;left:0;width:20px;height:1px;background:#C9A227;display:block;"></span>
+              </div>
+            </div>
+            <div style="font-size:4px;font-style:italic;color:#9C7A5A;text-align:right;">The Silk Road was not only a
+              trade route, but a bridge for civilizational dialogue</div>
+          </div>
+          <!-- Two-column body -->
+          <div style="flex:1;display:flex;overflow:hidden;">
+            <!-- Left column, East to West -->
+            <div
+              style="flex:1;padding:3% 3% 3% 5%;display:flex;flex-direction:column;gap:4%;border-right:1px solid rgba(201,162,39,0.4);">
+              <div style="display:flex;align-items:center;gap:3%;margin-bottom:2%;">
+                <span style="font-family:'Playfair Display',serif;font-size:7px;font-weight:700;color:#2D5A3D;">East →
+                  West</span>
+                <span style="font-size:5px;color:#9C7A5A;font-style:italic;">Chinese civilization moves west</span>
+              </div>
+              <div
+                style="display:flex;align-items:flex-start;gap:3%;padding:3% 4%;background:rgba(253,246,236,0.7);border-left:2px solid #2D5A3D;border-radius:0 1px 1px 0;">
+                <div style="font-size:10px;flex-shrink:0;">🧨</div>
+                <div>
+                  <div
+                    style="font-family:'Playfair Display',serif;font-size:5.5px;font-weight:700;color:#3D2914;margin-bottom:1px;">
+                    Four Great Inventions</div>
+                  <div style="font-size:4px;color:#6B4423;line-height:1.5;">Papermaking, printing, gunpowder, and the
+                    compass traveled west along the Silk Road</div>
+                </div>
+              </div>
+              <div
+                style="display:flex;align-items:flex-start;gap:3%;padding:3% 4%;background:rgba(253,246,236,0.7);border-left:2px solid #2D5A3D;border-radius:0 1px 1px 0;">
+                <div style="font-size:10px;flex-shrink:0;">🎵</div>
+                <div>
+                  <div
+                    style="font-family:'Playfair Display',serif;font-size:5.5px;font-weight:700;color:#3D2914;margin-bottom:1px;">
+                    Music and Dance</div>
+                  <div style="font-size:4px;color:#6B4423;line-height:1.5;">Western-region music and dance became
+                    fashionable in the Tang court</div>
+                </div>
+              </div>
+            </div>
+            <!-- Center divider -->
+            <div style="width:5%;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3%;">
+              <div
+                style="flex:1;width:1px;background:linear-gradient(to bottom,transparent,rgba(201,162,39,0.4),transparent);">
+              </div>
+              <div style="font-family:'Playfair Display',serif;font-size:8px;color:#C9A227;">◆</div>
+              <div
+                style="flex:1;width:1px;background:linear-gradient(to bottom,transparent,rgba(201,162,39,0.4),transparent);">
+              </div>
+            </div>
+            <!-- Right column, West to East -->
+            <div style="flex:1;padding:3% 5% 3% 3%;display:flex;flex-direction:column;gap:4%;">
+              <div style="display:flex;align-items:center;gap:3%;margin-bottom:2%;">
+                <span style="font-family:'Playfair Display',serif;font-size:7px;font-weight:700;color:#1E3A5F;">West →
+                  East</span>
+                <span style="font-size:5px;color:#9C7A5A;font-style:italic;">Western-region culture moves east</span>
+              </div>
+              <div
+                style="display:flex;align-items:flex-start;gap:3%;padding:3% 4%;background:rgba(253,246,236,0.7);border-left:2px solid #1E3A5F;border-radius:0 1px 1px 0;">
+                <div style="font-size:10px;flex-shrink:0;">☸️</div>
+                <div>
+                  <div
+                    style="font-family:'Playfair Display',serif;font-size:5.5px;font-weight:700;color:#3D2914;margin-bottom:1px;">
+                    Buddhism Moves East</div>
+                  <div style="font-size:4px;color:#6B4423;line-height:1.5;">Buddhism entered China from India through
+                    Central Asia along the Silk Road</div>
+                </div>
+              </div>
+              <div
+                style="display:flex;align-items:flex-start;gap:3%;padding:3% 4%;background:rgba(253,246,236,0.7);border-left:2px solid #1E3A5F;border-radius:0 1px 1px 0;">
+                <div style="font-size:10px;flex-shrink:0;">🎨</div>
+                <div>
+                  <div
+                    style="font-family:'Playfair Display',serif;font-size:5.5px;font-weight:700;color:#3D2914;margin-bottom:1px;">
+                    Artistic Styles</div>
+                  <div style="font-size:4px;color:#6B4423;line-height:1.5;">Gandharan art shaped the murals of Dunhuang
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+          <!-- Image strip -->
+          <div
+            style="height:15%;overflow:hidden;position:relative;border-top:1px solid rgba(201,162,39,0.3);flex-shrink:0;background:linear-gradient(135deg,#6B4423,#3D2914,#8B4513);">
+            <div
+              style="position:absolute;bottom:3%;right:4%;font-size:4px;font-style:italic;color:rgba(253,246,236,0.7);">
+              Mogao Caves of Dunhuang · An artistic treasury where civilizations met</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 7. Timeline page -->
+      <div class="slide-wrap">
+        <div class="slide-label">07 Historical Timeline</div>
+        <div class="slide"
+          style="background:#F5E6D3;background-image:radial-gradient(ellipse at 15% 25%,rgba(180,120,60,0.09) 0%,transparent 50%),radial-gradient(ellipse at 85% 75%,rgba(140,90,40,0.07) 0%,transparent 50%);display:flex;flex-direction:column;position:relative;">
+          <!-- Simulated bottom background image -->
+          <div
+            style="position:absolute;bottom:0;left:0;right:0;height:25%;background:linear-gradient(to bottom,#F5E6D3,rgba(180,120,60,0.15));z-index:0;">
+          </div>
+          <!-- Header bar -->
+          <div
+            style="padding:4% 6% 2%;border-bottom:1px solid rgba(61,41,20,0.15);display:flex;align-items:flex-end;justify-content:space-between;flex-shrink:0;position:relative;z-index:1;">
+            <div>
+              <div style="font-size:4.5px;font-style:italic;color:#9C7A5A;letter-spacing:0.12em;margin-bottom:2px;">
+                Chronologia · Historical Timeline</div>
+              <div
+                style="font-family:'Playfair Display',serif;font-size:9px;font-weight:700;color:#3D2914;padding-bottom:3px;position:relative;">
+                Major Events of the Silk Road<span
+                  style="position:absolute;bottom:0;left:0;width:20px;height:1px;background:#C9A227;display:block;"></span>
+              </div>
+            </div>
+            <div style="font-size:4px;font-style:italic;color:#9C7A5A;text-align:right;">From Zhang Qian's mission to
+              the Age of Discovery</div>
+          </div>
+          <!-- Timeline -->
+          <div
+            style="flex:1;padding:0 5%;display:flex;flex-direction:column;justify-content:center;position:relative;z-index:1;">
+            <!-- Horizontal axis -->
+            <div
+              style="position:absolute;left:5%;right:5%;top:50%;height:1px;background:linear-gradient(90deg,transparent,rgba(61,41,20,0.25) 5%,rgba(61,41,20,0.25) 95%,transparent);transform:translateY(-50%);">
+            </div>
+            <!-- Nodes -->
+            <div style="display:flex;justify-content:space-between;align-items:center;height:80%;position:relative;">
+              <!-- Node 1, top -->
+              <div style="display:flex;flex-direction:column-reverse;align-items:center;width:13%;padding-bottom:40%;">
+                <div
+                  style="position:absolute;top:50%;left:50%;margin-top:-4px;margin-left:-4px;width:8px;height:8px;background:#C9A227;transform:rotate(45deg);box-shadow:0 0 0 2px rgba(201,162,39,0.2);">
+                </div>
+                <div style="width:1px;height:35%;background:rgba(201,162,39,0.4);position:absolute;top:50%;left:50%;">
+                </div>
+                <div style="text-align:center;margin-bottom:4%;">
+                  <div style="font-family:'Playfair Display',serif;font-size:5.5px;font-weight:700;color:#3D2914;">138
+                    BC
+                  </div>
+                  <div style="font-size:4.5px;font-weight:600;color:#3D2914;">Zhang Qian Sent West</div>
+                </div>
+              </div>
+              <!-- Node 2, bottom -->
+              <div style="display:flex;flex-direction:column;align-items:center;width:13%;padding-top:40%;">
+                <div
+                  style="position:absolute;top:50%;left:50%;margin-top:-4px;margin-left:-4px;width:8px;height:8px;background:#C9A227;transform:rotate(45deg);box-shadow:0 0 0 2px rgba(201,162,39,0.2);">
+                </div>
+                <div
+                  style="width:1px;height:35%;background:rgba(201,162,39,0.4);position:absolute;bottom:50%;left:50%;">
+                </div>
+                <div style="text-align:center;margin-top:4%;">
+                  <div style="font-family:'Playfair Display',serif;font-size:5.5px;font-weight:700;color:#3D2914;">
+                    618-907</div>
+                  <div style="font-size:4.5px;font-weight:600;color:#3D2914;">Tang Silk Road Golden Age</div>
+                </div>
+              </div>
+              <!-- Node 3, top -->
+              <div style="display:flex;flex-direction:column-reverse;align-items:center;width:13%;padding-bottom:40%;">
+                <div
+                  style="position:absolute;top:50%;left:50%;margin-top:-4px;margin-left:-4px;width:8px;height:8px;background:#C9A227;transform:rotate(45deg);box-shadow:0 0 0 2px rgba(201,162,39,0.2);">
+                </div>
+                <div style="width:1px;height:35%;background:rgba(201,162,39,0.4);position:absolute;top:50%;left:50%;">
+                </div>
+                <div style="text-align:center;margin-bottom:4%;">
+                  <div style="font-family:'Playfair Display',serif;font-size:5.5px;font-weight:700;color:#3D2914;">1271
+                  </div>
+                  <div style="font-size:4.5px;font-weight:600;color:#3D2914;">Marco Polo Travels East</div>
+                </div>
+              </div>
+              <!-- Node 4, bottom -->
+              <div style="display:flex;flex-direction:column;align-items:center;width:13%;padding-top:40%;">
+                <div
+                  style="position:absolute;top:50%;left:50%;margin-top:-4px;margin-left:-4px;width:8px;height:8px;background:#C9A227;transform:rotate(45deg);box-shadow:0 0 0 2px rgba(201,162,39,0.2);">
+                </div>
+                <div
+                  style="width:1px;height:35%;background:rgba(201,162,39,0.4);position:absolute;bottom:50%;left:50%;">
+                </div>
+                <div style="text-align:center;margin-top:4%;">
+                  <div style="font-family:'Playfair Display',serif;font-size:5.5px;font-weight:700;color:#3D2914;">Late
+                    15th c.
+                  </div>
+                  <div style="font-size:4.5px;font-weight:600;color:#3D2914;">Age of Discovery Begins</div>
+                </div>
+              </div>
+            </div>
+          </div>
+          <!-- Footer -->
+          <div
+            style="padding:2% 6%;border-top:1px solid rgba(61,41,20,0.12);display:flex;justify-content:space-between;align-items:center;flex-shrink:0;position:relative;z-index:1;">
+            <span style="font-size:4.5px;font-style:italic;color:#9C7A5A;">Tempus fugit, via manet · Time passes, the
+              road remains</span>
+            <span style="font-family:'Playfair Display',serif;font-size:6px;font-weight:700;color:#C9A227;">138 BC -
+              15th c.
+              · Nearly 1,600 years</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- 8. Three-city card page -->
+      <div class="slide-wrap">
+        <div class="slide-label">08 City Cards</div>
+        <div class="slide"
+          style="background:#F5E6D3;background-image:radial-gradient(ellipse at 20% 30%,rgba(180,120,60,0.08) 0%,transparent 50%),radial-gradient(ellipse at 80% 70%,rgba(140,90,40,0.06) 0%,transparent 50%);display:flex;flex-direction:column;">
+          <!-- Header bar -->
+          <div
+            style="padding:4% 6% 2%;border-bottom:1px solid rgba(61,41,20,0.15);display:flex;align-items:flex-end;justify-content:space-between;flex-shrink:0;">
+            <div>
+              <div style="font-size:4.5px;font-style:italic;color:#9C7A5A;letter-spacing:0.12em;margin-bottom:2px;">
+                Urbes Magnae · Silk Road Cities</div>
+              <div
+                style="font-family:'Playfair Display',serif;font-size:9px;font-weight:700;color:#3D2914;padding-bottom:3px;position:relative;">
+                Three Silk Road Hub Cities<span
+                  style="position:absolute;bottom:0;left:0;width:20px;height:1px;background:#C9A227;display:block;"></span>
+              </div>
+            </div>
+            <div style="font-size:4px;font-style:italic;color:#9C7A5A;text-align:right;">Eastern start, central jewel,
+              western terminus</div>
+          </div>
+          <!-- Three cities -->
+          <div style="flex:1;display:flex;">
+            <!-- Chang'an -->
+            <div
+              style="flex:1;padding:4% 4%;display:flex;flex-direction:column;border-right:1px solid rgba(61,41,20,0.12);">
+              <div
+                style="font-family:'Playfair Display',serif;font-size:16px;font-weight:700;color:rgba(201,162,39,0.15);line-height:1;margin-bottom:-3%;">
+                I</div>
+              <div style="font-size:4px;font-style:italic;color:#9C7A5A;letter-spacing:0.1em;margin-bottom:2%;">Eastern
+                Terminal · Eastern Start</div>
+              <div
+                style="font-family:'Playfair Display',serif;font-size:9px;font-weight:700;color:#3D2914;margin-bottom:1%;">
+                Chang'an</div>
+              <div style="font-size:4px;font-style:italic;color:#9C7A5A;margin-bottom:2%;">Chang'an · Today's Xi'an
+              </div>
+              <div style="width:20px;height:2px;background:#2D5A3D;margin-bottom:3%;"></div>
+              <!-- Image area -->
+              <div
+                style="width:100%;height:30%;border:1px solid rgba(201,162,39,0.25);border-radius:1px;overflow:hidden;margin-bottom:3%;background:linear-gradient(135deg,#6B4423,#3D2914);display:flex;align-items:center;justify-content:center;">
+                <span style="font-size:4px;color:rgba(245,230,211,0.5);font-style:italic;">Tang Chang'an City</span>
+              </div>
+              <div style="font-size:4.5px;color:#6B4423;line-height:1.7;flex:1;">Capital of the Han and Tang dynasties,
+                eastern start of the Silk Road, and one of the world's largest cosmopolitan cities in the Tang era.
+              </div>
+              <div style="display:flex;flex-wrap:wrap;gap:2%;">
+                <span style="font-size:3.5px;color:#fff;background:#2D5A3D;padding:1px 4px;border-radius:1px;">Silk Road
+                  Start</span>
+                <span style="font-size:3.5px;color:#fff;background:#6B4423;padding:1px 4px;border-radius:1px;">Han-Tang
+                  Capital</span>
+              </div>
+            </div>
+            <!-- Samarkand -->
+            <div
+              style="flex:1;padding:4% 4%;display:flex;flex-direction:column;border-right:1px solid rgba(61,41,20,0.12);">
+              <div
+                style="font-family:'Playfair Display',serif;font-size:16px;font-weight:700;color:rgba(201,162,39,0.15);line-height:1;margin-bottom:-3%;">
+                II</div>
+              <div style="font-size:4px;font-style:italic;color:#9C7A5A;letter-spacing:0.1em;margin-bottom:2%;">Central
+                Oasis · Central Jewel</div>
+              <div
+                style="font-family:'Playfair Display',serif;font-size:9px;font-weight:700;color:#3D2914;margin-bottom:1%;">
+                Samarkand</div>
+              <div style="font-size:4px;font-style:italic;color:#9C7A5A;margin-bottom:2%;">Samarkand · Today's
+                Uzbekistan</div>
+              <div style="width:20px;height:2px;background:#C9A227;margin-bottom:3%;"></div>
+              <div
+                style="width:100%;height:30%;border:1px solid rgba(201,162,39,0.25);border-radius:1px;overflow:hidden;margin-bottom:3%;background:linear-gradient(135deg,#1E3A5F,#2D5A3D);display:flex;align-items:center;justify-content:center;">
+                <span style="font-size:4px;color:rgba(245,230,211,0.5);font-style:italic;">Registan Square</span>
+              </div>
+              <div style="font-size:4.5px;color:#6B4423;line-height:1.7;flex:1;">A vital Central Asian commercial hub,
+                midway station for East-West trade, and famed "Pearl of the East."</div>
+              <div style="display:flex;flex-wrap:wrap;gap:2%;">
+                <span style="font-size:3.5px;color:#fff;background:#1E3A5F;padding:1px 4px;border-radius:1px;">Central
+                  Asian Hub</span>
+                <span style="font-size:3.5px;color:#fff;background:#6B4423;padding:1px 4px;border-radius:1px;">Pearl of
+                  the East</span>
+              </div>
+            </div>
+            <!-- Constantinople -->
+            <div style="flex:1;padding:4% 4%;display:flex;flex-direction:column;">
+              <div
+                style="font-family:'Playfair Display',serif;font-size:16px;font-weight:700;color:rgba(201,162,39,0.15);line-height:1;margin-bottom:-3%;">
+                III</div>
+              <div style="font-size:4px;font-style:italic;color:#9C7A5A;letter-spacing:0.1em;margin-bottom:2%;">Western
+                Terminal · Western Terminus</div>
+              <div
+                style="font-family:'Playfair Display',serif;font-size:9px;font-weight:700;color:#3D2914;margin-bottom:1%;">
+                Constantinople</div>
+              <div style="font-size:4px;font-style:italic;color:#9C7A5A;margin-bottom:2%;">Constantinople · Today's
+                Istanbul</div>
+              <div style="width:20px;height:2px;background:#722F37;margin-bottom:3%;"></div>
+              <div
+                style="width:100%;height:30%;border:1px solid rgba(201,162,39,0.25);border-radius:1px;overflow:hidden;margin-bottom:3%;background:linear-gradient(135deg,#722F37,#3D2914);display:flex;align-items:center;justify-content:center;">
+                <span style="font-size:4px;color:rgba(245,230,211,0.5);font-style:italic;">Hagia Sophia</span>
+              </div>
+              <div style="font-size:4.5px;color:#6B4423;line-height:1.7;flex:1;">A millennium imperial city spanning
+                Eurasia, the western trade terminus where Eastern and Western civilizations met.</div>
+              <div style="display:flex;flex-wrap:wrap;gap:2%;">
+                <span style="font-size:3.5px;color:#fff;background:#722F37;padding:1px 4px;border-radius:1px;">Silk Road
+                  End</span>
+                <span style="font-size:3.5px;color:#fff;background:#6B4423;padding:1px 4px;border-radius:1px;">Eurasian
+                  Gateway</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 9. Second chapter page -->
+      <div class="slide-wrap">
+        <div class="slide-label">09 Chapter Variant</div>
+        <div class="slide" style="background:#2C1A0E;display:flex;align-items:center;justify-content:center;">
+          <div
+            style="position:absolute;inset:0;background:radial-gradient(ellipse at 30% 50%,rgba(201,162,39,0.07) 0%,transparent 55%),radial-gradient(ellipse at 70% 50%,rgba(45,90,61,0.07) 0%,transparent 55%);">
+          </div>
+          <div
+            style="position:absolute;top:6%;left:4%;width:9%;height:16%;border-top:1px solid rgba(201,162,39,0.35);border-left:1px solid rgba(201,162,39,0.35);">
+          </div>
+          <div
+            style="position:absolute;top:6%;right:4%;width:9%;height:16%;border-top:1px solid rgba(201,162,39,0.35);border-right:1px solid rgba(201,162,39,0.35);">
+          </div>
+          <div
+            style="position:absolute;bottom:6%;left:4%;width:9%;height:16%;border-bottom:1px solid rgba(201,162,39,0.35);border-left:1px solid rgba(201,162,39,0.35);">
+          </div>
+          <div
+            style="position:absolute;bottom:6%;right:4%;width:9%;height:16%;border-bottom:1px solid rgba(201,162,39,0.35);border-right:1px solid rgba(201,162,39,0.35);">
+          </div>
+          <div style="text-align:center;position:relative;z-index:2;">
+            <div
+              style="font-family:'Playfair Display',serif;font-size:28px;font-weight:700;color:rgba(201,162,39,0.22);line-height:1;margin-bottom:-5px;letter-spacing:0.1em;">
+              II</div>
+            <div
+              style="font-size:5.5px;font-style:italic;color:rgba(201,162,39,0.7);letter-spacing:0.25em;text-transform:uppercase;margin-bottom:4px;">
+              Caput Secundum · Chapter Two</div>
+            <div
+              style="border:1px solid rgba(201,162,39,0.5);display:inline-block;padding:5% 12%;position:relative;margin-bottom:5px;">
+              <div
+                style="font-family:'Playfair Display',serif;font-size:13px;font-weight:700;color:#F5E6D3;letter-spacing:0.06em;">
+                Trade and Exchange</div>
+            </div>
+            <div style="font-size:6px;font-style:italic;color:rgba(245,230,211,0.55);">The movement of goods and wealth
+              between East and West</div>
+            <div
+              style="width:25%;height:1px;background:linear-gradient(90deg,transparent,#C9A227,transparent);margin:5px auto 0;">
+            </div>
+          </div>
+          <div
+            style="position:absolute;bottom:0;left:0;right:0;height:2.5px;background:linear-gradient(90deg,transparent,#C9A227 30%,#722F37 50%,#C9A227 70%,transparent);opacity:0.5;">
+          </div>
+        </div>
+      </div>
+
+      <!-- 10. Back cover page -->
+      <div class="slide-wrap">
+        <div class="slide-label">10 Back Cover</div>
+        <div class="slide"
+          style="background:#F5E6D3;background-image:radial-gradient(ellipse at 20% 30%,rgba(180,120,60,0.10) 0%,transparent 55%),radial-gradient(ellipse at 80% 70%,rgba(140,90,40,0.08) 0%,transparent 55%);display:flex;flex-direction:column;align-items:center;justify-content:center;position:relative;">
+          <!-- Background image -->
+          <div
+            style="position:absolute;inset:0;background:linear-gradient(135deg,rgba(180,120,60,0.08),rgba(140,90,40,0.05));z-index:0;">
+          </div>
+          <!-- Top and bottom color strips -->
+          <div
+            style="position:absolute;top:0;left:0;right:0;height:2px;background:linear-gradient(90deg,transparent,#C9A227 30%,#722F37 50%,#C9A227 70%,transparent);opacity:0.5;">
+          </div>
+          <div
+            style="position:absolute;bottom:0;left:0;right:0;height:2px;background:linear-gradient(90deg,transparent,#C9A227 30%,#722F37 50%,#C9A227 70%,transparent);opacity:0.5;">
+          </div>
+          <!-- Corners -->
+          <div
+            style="position:absolute;top:5%;left:3%;width:9%;height:18%;border-top:1px solid rgba(201,162,39,0.35);border-left:1px solid rgba(201,162,39,0.35);">
+          </div>
+          <div
+            style="position:absolute;top:5%;right:3%;width:9%;height:18%;border-top:1px solid rgba(201,162,39,0.35);border-right:1px solid rgba(201,162,39,0.35);">
+          </div>
+          <div
+            style="position:absolute;bottom:5%;left:3%;width:9%;height:18%;border-bottom:1px solid rgba(201,162,39,0.35);border-left:1px solid rgba(201,162,39,0.35);">
+          </div>
+          <div
+            style="position:absolute;bottom:5%;right:3%;width:9%;height:18%;border-bottom:1px solid rgba(201,162,39,0.35);border-right:1px solid rgba(201,162,39,0.35);">
+          </div>
+          <!-- Compass -->
+          <svg width="7%" viewBox="-50 -50 100 100" xmlns="http://www.w3.org/2000/svg"
+            style="margin-bottom:3%;position:relative;z-index:1;">
+            <circle cx="0" cy="0" r="46" fill="none" stroke="rgba(201,162,39,0.35)" stroke-width="1.5" />
+            <circle cx="0" cy="0" r="5" fill="#C9A227" opacity="0.6" />
+            <polygon points="0,-34 4,0 0,34 -4,0" fill="#C9A227" opacity="0.7" />
+            <polygon points="0,-34 4,0 0,34 -4,0" fill="#722F37" opacity="0.5" transform="rotate(180)" />
+            <text x="0" y="-38" text-anchor="middle" font-family="EB Garamond,serif" font-size="14"
+              fill="rgba(201,162,39,0.7)">N</text>
+          </svg>
+          <!-- Closing frame -->
+          <div
+            style="border:1px solid rgba(201,162,39,0.4);padding:4% 8%;text-align:center;position:relative;max-width:80%;z-index:1;">
+            <div style="font-size:6.5px;font-style:italic;color:#3D2914;line-height:1.9;margin-bottom:4%;">
+              "The Silk Road was not merely a trade route,<br />but a thread of destiny that wove human civilizations
+              together.<br />It teaches us that openness brings prosperity, and exchange nurtures civilization."</div>
+            <div
+              style="width:25%;height:1px;background:linear-gradient(90deg,transparent,#C9A227,transparent);margin:0 auto 4%;">
+            </div>
+            <div style="font-size:5px;font-style:italic;color:#9C7A5A;letter-spacing:0.08em;">Via Serica · Silk Road ·
+              138 BC
+              — 15th Century</div>
+          </div>
+          <!-- Bottom data -->
+          <div style="position:absolute;bottom:8%;display:flex;gap:5%;align-items:center;z-index:1;">
+            <div style="text-align:center;">
+              <div style="font-family:'Playfair Display',serif;font-size:8px;font-weight:700;color:#C9A227;">7,000 km
+              </div>
+              <div style="font-size:4px;color:#9C7A5A;">Overland Silk Road</div>
+            </div>
+            <div style="width:1px;height:18px;background:rgba(201,162,39,0.3);"></div>
+            <div style="text-align:center;">
+              <div style="font-family:'Playfair Display',serif;font-size:8px;font-weight:700;color:#C9A227;">1,600 yrs
+              </div>
+              <div style="font-size:4px;color:#9C7A5A;">Silk Road Legacy</div>
+            </div>
+            <div style="width:1px;height:18px;background:rgba(201,162,39,0.3);"></div>
+            <div style="text-align:center;">
+              <div style="font-family:'Playfair Display',serif;font-size:8px;font-weight:700;color:#C9A227;">50+ states
+              </div>
+              <div style="font-size:4px;color:#9C7A5A;">Ancient Civilizations</div>
+            </div>
+            <div style="width:1px;height:18px;background:rgba(201,162,39,0.3);"></div>
+            <div style="text-align:center;">
+              <div style="font-family:'Playfair Display',serif;font-size:8px;font-weight:700;color:#C9A227;">2014</div>
+              <div style="font-size:4px;color:#9C7A5A;">World Heritage Listing</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+    </div><!-- /slides-grid -->
+  </div>
+
+  <!-- ── Core Component Showcase ── -->
+  <div class="section">
+    <div class="section-label">Core Components</div>
+    <div class="components">
+
+      <!-- Vintage content cards -->
+      <div style="display:flex;flex-direction:column;gap:10px;min-width:220px;">
+        <div style="font-size:11px;color:#9C7A5A;font-style:italic;margin-bottom:4px;letter-spacing:0.1em;">VINTAGE
+          CARDS</div>
+        <div class="vintage-card green" style="padding:16px 20px;">
+          <div
+            style="font-family:'Playfair Display',serif;font-size:15px;font-weight:700;color:#3D2914;margin-bottom:4px;">
+            Forest Green Accent Card</div>
+          <div style="font-size:13px;color:#6B4423;font-style:italic;line-height:1.5;">For highlighting outbound content
+            from the East</div>
+        </div>
+        <div class="vintage-card navy" style="padding:16px 20px;">
+          <div
+            style="font-family:'Playfair Display',serif;font-size:15px;font-weight:700;color:#3D2914;margin-bottom:4px;">
+            Deep Sea Blue Accent Card</div>
+          <div style="font-size:13px;color:#6B4423;font-style:italic;line-height:1.5;">For highlighting inbound content
+            from the West</div>
+        </div>
+        <div class="vintage-card wine" style="padding:16px 20px;">
+          <div
+            style="font-family:'Playfair Display',serif;font-size:15px;font-weight:700;color:#3D2914;margin-bottom:4px;">
+            Wine Red Accent Card</div>
+          <div style="font-size:13px;color:#6B4423;font-style:italic;line-height:1.5;">For important warnings or
+            historical event notes</div>
+        </div>
+      </div>
+
+      <!-- KPI data cards -->
+      <div style="display:flex;flex-direction:column;gap:10px;min-width:160px;">
+        <div style="font-size:11px;color:#9C7A5A;font-style:italic;margin-bottom:4px;letter-spacing:0.1em;">KPI CARDS
+        </div>
+        <div class="vintage-kpi" style="min-width:150px;">
+          <span class="vintage-kpi-number">7,000</span>
+          <span class="vintage-kpi-unit"> km</span>
+          <span class="vintage-kpi-label">Overland Silk Road</span>
+        </div>
+        <div class="vintage-kpi" style="min-width:150px;">
+          <span class="vintage-kpi-number navy">1,600</span>
+          <span class="vintage-kpi-unit"> yrs</span>
+          <span class="vintage-kpi-label">Silk Road Legacy</span>
+        </div>
+      </div>
+
+      <!-- Label components -->
+      <div style="display:flex;flex-direction:column;gap:10px;min-width:160px;">
+        <div style="font-size:11px;color:#9C7A5A;font-style:italic;margin-bottom:4px;letter-spacing:0.1em;">MAP LABELS
+        </div>
+        <span class="map-label">Central Oasis</span>
+        <span class="map-label green">Northern Steppe</span>
+        <span class="map-label wine">Southern Mountain</span>
+        <span class="map-label gold">Trade Goods</span>
+        <div style="margin-top:4px;">
+          <span class="vintage-section-tag">Chapter One</span>
+        </div>
+      </div>
+
+      <!-- Quote blocks -->
+      <div style="display:flex;flex-direction:column;gap:10px;max-width:300px;">
+        <div style="font-size:11px;color:#9C7A5A;font-style:italic;margin-bottom:4px;letter-spacing:0.1em;">QUOTE BLOCKS
+        </div>
+        <div class="vintage-quote">
+          "The Silk Road was one of history's greatest routes of civilizational dialogue."
+        </div>
+        <div style="padding:16px 20px;border-left:3px solid #722F37;background:rgba(114,47,55,0.04);">
+          <div class="annotation">Qian never lost the Han envoy's staff</div>
+          <div style="font-size:13px;color:#9C7A5A;font-style:italic;margin-top:6px;">— Records of the Grand Historian,
+            Account of Dayuan</div>
+        </div>
+      </div>
+
+      <!-- Vintage frame ornaments -->
+      <div style="display:flex;flex-direction:column;gap:10px;min-width:200px;">
+        <div style="font-size:11px;color:#9C7A5A;font-style:italic;margin-bottom:4px;letter-spacing:0.1em;">VINTAGE
+          FRAMES</div>
+        <div class="vintage-frame" style="padding:16px 24px;text-align:center;">
+          <div style="font-family:'Playfair Display',serif;font-size:16px;color:#3D2914;font-weight:700;">Opening the
+            Western Regions</div>
+          <div style="font-size:13px;color:#6B4423;font-style:italic;margin-top:4px;">Zhang Qian's Mission</div>
+        </div>
+        <div class="vintage-double-frame" style="padding:14px 20px;text-align:center;">
+          <div style="font-size:13px;color:#6B4423;font-style:italic;">Double-line frame style</div>
+        </div>
+      </div>
+
+      <!-- Dividers -->
+      <div style="display:flex;flex-direction:column;gap:16px;min-width:200px;">
+        <div style="font-size:11px;color:#9C7A5A;font-style:italic;margin-bottom:4px;letter-spacing:0.1em;">DIVIDERS
+        </div>
+        <div class="vintage-divider-gold"></div>
+        <div class="vintage-divider-ornate"><span>◆</span></div>
+        <div class="vintage-divider"></div>
+      </div>
+
+    </div>
+  </div>
+
+</body>
+
+</html>

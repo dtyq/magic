@@ -1,0 +1,1279 @@
+/* ============================================================
+   edu-activity-orange · Energetic Classroom Orange Theme CSS
+   Use cases: educational interaction handbooks / classroom activity design / team training / workshop materials
+   Main palette: bright white base #f8fafc + deep navy cover #0f172a + energetic orange #f97316
+   ============================================================ */
+
+/* ── CSS Variables ──────────────────────────────────────────── */
+:root {
+  /* Background */
+  --bg-primary: #f8fafc;
+  --bg-dark: #0f172a;
+  --bg-card: #ffffff;
+  --bg-card-dark: #1e293b;
+  --bg-accent-soft: #fff7ed;
+
+  /* Accent color - energetic orange */
+  --color-primary: #f97316;
+  --color-primary-light: rgba(249, 115, 22, 0.12);
+  --color-primary-border: rgba(249, 115, 22, 0.35);
+  --color-primary-deep: #ea580c;
+  --color-primary-pale: #fb923c;
+  --color-primary-bg-btn: rgba(249, 115, 22, 0.08);
+
+  /* Supporting colors */
+  --color-accent-purple: #7c3aed;
+  --color-accent-green: #22c55e;
+  --color-accent-green-bg: #f0fdf4;
+  --color-accent-green-text: #166534;
+  --color-accent-amber: #d97706;
+  --color-accent-teal: #059669;
+
+  /* Text */
+  --text-primary: #1e293b;
+  --text-body: #334155;
+  --text-secondary: #475569;
+  --text-muted: #64748b;
+  --text-light: #94a3b8;
+  --text-on-dark: #e2e8f0;
+  --text-on-dark-muted: #94a3b8;
+  --text-on-dark-dim: #cbd5e1;
+
+  /* Borders */
+  --border-card: rgba(0, 0, 0, 0.06);
+  --border-accent: #f97316;
+
+  /* Shadow */
+  --shadow-card: 0 4px 24px rgba(0, 0, 0, 0.06);
+  --shadow-sm: 0 2px 10px rgba(0, 0, 0, 0.05);
+  --shadow-xs: 0 2px 8px rgba(0, 0, 0, 0.06);
+  --shadow-xxs: 0 2px 8px rgba(0, 0, 0, 0.04);
+
+  /* Radius */
+  --radius-card: 20px;
+  --radius-item: 14px;
+  --radius-sm: 12px;
+  --radius-xs: 10px;
+  --radius-badge: 100px;
+  --radius-num: 12px;
+  --radius-img: 16px;
+
+  /* Font sizes */
+  --font-hero: 72px;
+  --font-title: 64px;
+  --font-act: 60px;
+  --font-h2: 40px;
+  --font-h3: 32px;
+  --font-h4: 28px;
+  --font-h5: 26px;
+  --font-body: 24px;
+  --font-sm: 22px;
+  --font-xs: 20px;
+  --font-2xs: 19px;
+  --font-3xs: 18px;
+}
+
+/* ── Reset ──────────────────────────────────────────────────── */
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+html,
+body {
+  width: 1920px;
+  height: 1080px;
+  overflow: hidden;
+  font-family: "Noto Sans SC", "PingFang SC", "Microsoft YaHei", sans-serif;
+  background: var(--bg-primary);
+}
+
+.slide-container {
+  width: 1920px;
+  height: 1080px;
+  position: relative;
+  overflow: hidden;
+}
+
+/* ── Typography Helpers ─────────────────────────────────────── */
+.text-hero {
+  font-size: var(--font-hero);
+  font-weight: 900;
+  color: var(--text-primary);
+  line-height: 1.15;
+}
+.text-title {
+  font-size: var(--font-title);
+  font-weight: 900;
+  color: var(--text-primary);
+  line-height: 1.15;
+}
+.text-act {
+  font-size: var(--font-act);
+  font-weight: 900;
+  color: var(--text-primary);
+  line-height: 1.15;
+}
+.text-h2 {
+  font-size: var(--font-h2);
+  font-weight: 700;
+  color: var(--text-primary);
+}
+.text-h3 {
+  font-size: var(--font-h3);
+  font-weight: 700;
+  color: var(--text-primary);
+}
+.text-h4 {
+  font-size: var(--font-h4);
+  font-weight: 700;
+  color: var(--text-primary);
+}
+.text-h5 {
+  font-size: var(--font-h5);
+  font-weight: 700;
+  color: var(--text-primary);
+}
+.text-body {
+  font-size: var(--font-body);
+  font-weight: 400;
+  color: var(--text-secondary);
+  line-height: 1.7;
+}
+.text-sm {
+  font-size: var(--font-sm);
+  font-weight: 400;
+  color: var(--text-muted);
+  line-height: 1.65;
+}
+.text-xs {
+  font-size: var(--font-xs);
+  font-weight: 400;
+  color: var(--text-muted);
+}
+.text-2xs {
+  font-size: var(--font-2xs);
+  font-weight: 400;
+  color: var(--text-muted);
+  line-height: 1.5;
+}
+.text-label {
+  font-size: var(--font-xs);
+  font-weight: 600;
+  color: var(--color-primary);
+  letter-spacing: 0.1em;
+}
+.text-accent {
+  color: var(--color-primary);
+}
+.text-on-dark {
+  color: var(--text-on-dark);
+}
+.text-on-dark-dim {
+  color: var(--text-on-dark-dim);
+}
+
+/* ── Decorative elements ────────────────────────────────────── */
+
+/* Orange title divider */
+.title-bar {
+  width: 60px;
+  height: 5px;
+  background: var(--color-primary);
+  border-radius: 3px;
+  margin-top: 12px;
+  margin-bottom: 48px;
+}
+.title-bar-sm {
+  width: 40px;
+  height: 4px;
+  background: var(--color-primary);
+  border-radius: 2px;
+  margin-top: 8px;
+  margin-bottom: 24px;
+}
+
+/* Cover image mask */
+.cover-overlay {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    135deg,
+    rgba(249, 115, 22, 0.55) 0%,
+    rgba(15, 23, 42, 0.6) 100%
+  );
+}
+
+/* Cover left quote */
+.cover-quote {
+  font-size: 32px;
+  color: rgba(255, 255, 255, 0.9);
+  font-weight: 500;
+  line-height: 1.7;
+  border-left: 4px solid var(--color-primary);
+  padding-left: 24px;
+  margin-bottom: 28px;
+}
+.cover-quote-sub {
+  font-size: 22px;
+  color: rgba(255, 255, 255, 0.55);
+}
+
+/* Activity detail image mask (rightward gradient ) */
+.activity-img-overlay {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    to right,
+    rgba(15, 23, 42, 0.2) 0%,
+    rgba(15, 23, 42, 0) 100%
+  );
+}
+
+/* Closing page background glow */
+.bg-glow-1 {
+  position: absolute;
+  width: 800px;
+  height: 800px;
+  border-radius: 50%;
+  background: radial-gradient(
+    circle,
+    rgba(249, 115, 22, 0.12) 0%,
+    transparent 70%
+  );
+  top: -200px;
+  right: -100px;
+  pointer-events: none;
+}
+.bg-glow-2 {
+  position: absolute;
+  width: 600px;
+  height: 600px;
+  border-radius: 50%;
+  background: radial-gradient(
+    circle,
+    rgba(249, 115, 22, 0.08) 0%,
+    transparent 70%
+  );
+  bottom: -150px;
+  left: -100px;
+  pointer-events: none;
+}
+
+/* ── Components ─────────────────────────────────────────────── */
+
+/* Main card with left orange border, used for principle/content cards */
+.card {
+  background: var(--bg-card);
+  border-radius: var(--radius-card);
+  padding: 44px 48px;
+  border-left: 6px solid var(--color-primary);
+  box-shadow: var(--shadow-card);
+}
+.card-sm {
+  background: var(--bg-card);
+  border-radius: var(--radius-item);
+  padding: 22px 28px;
+  border-left: 4px solid var(--color-primary);
+  box-shadow: var(--shadow-sm);
+}
+
+/* Plain white card (no left border ) */
+.card-plain {
+  background: var(--bg-card);
+  border-radius: var(--radius-item);
+  padding: 22px 28px;
+  box-shadow: var(--shadow-sm);
+}
+
+/* Dark info box (goal/scenario box ) */
+.card-dark {
+  background: var(--bg-card-dark);
+  border-radius: var(--radius-item);
+  padding: 20px 28px;
+  display: flex;
+  align-items: flex-start;
+  gap: 14px;
+}
+
+/* Soft orange hint box */
+.card-soft {
+  background: var(--bg-accent-soft);
+  border-radius: var(--radius-item);
+  padding: 20px 28px;
+  border-left: 5px solid var(--color-primary);
+}
+
+/* Solid orange goal box (variant ) */
+.card-orange {
+  background: var(--color-primary);
+  border-radius: var(--radius-item);
+  padding: 20px 28px;
+  display: flex;
+  align-items: flex-start;
+  gap: 14px;
+}
+
+/* Activity card (top orange bar ) */
+.act-card {
+  background: var(--bg-card);
+  border-radius: var(--radius-card);
+  padding: 32px 28px;
+  box-shadow: var(--shadow-card);
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  position: relative;
+  overflow: hidden;
+}
+.act-card::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 5px;
+  background: var(--color-primary);
+}
+
+/* Step card (top orange bar，horizontal layout ) */
+.step-card {
+  background: var(--bg-card);
+  border-radius: var(--radius-item);
+  padding: 22px 24px;
+  box-shadow: var(--shadow-sm);
+  border-top: 4px solid var(--color-primary);
+}
+.step-card-sm {
+  flex: 1;
+  background: var(--bg-card);
+  border-radius: var(--radius-item);
+  padding: 14px 18px;
+  box-shadow: var(--shadow-xs);
+  border-top: 3px solid var(--color-primary);
+}
+
+/* Role card (left orange border ) */
+.role-card {
+  background: var(--bg-card);
+  border-radius: var(--radius-item);
+  padding: 20px 22px;
+  box-shadow: var(--shadow-sm);
+  border-left: 4px solid var(--color-primary);
+}
+
+/* Theory intro box (green palette ) */
+.theory-box {
+  background: var(--color-accent-green-bg);
+  border-radius: var(--radius-sm);
+  padding: 16px 22px;
+  border-left: 4px solid var(--color-accent-green);
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+}
+.theory-text {
+  font-size: var(--font-sm);
+  color: var(--color-accent-green-text);
+  line-height: 1.6;
+}
+.theory-text strong {
+  color: #15803d;
+}
+
+/* Debrief prompt box */
+.debrief-box {
+  background: var(--bg-accent-soft);
+  border-radius: var(--radius-sm);
+  padding: 18px 24px;
+  border-left: 5px solid var(--color-primary);
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+}
+.debrief-text {
+  font-size: var(--font-sm);
+  color: var(--color-accent-purple);
+  font-style: italic;
+  line-height: 1.65;
+}
+
+/* Requirement item (Soft orange background, left orange border ) */
+.req-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  background: var(--bg-accent-soft);
+  border-radius: var(--radius-xs);
+  padding: 14px 18px;
+  border-left: 4px solid var(--color-primary);
+}
+.req-text {
+  font-size: var(--font-sm);
+  color: #92400e;
+  line-height: 1.55;
+}
+.req-text strong {
+  color: var(--color-primary-deep);
+}
+
+/* Stat box */
+.stat-box {
+  text-align: center;
+  background: var(--bg-card);
+  border-radius: var(--radius-item);
+  padding: 20px 32px;
+  box-shadow: var(--shadow-xs);
+}
+.stat-num {
+  font-size: 48px;
+  font-weight: 900;
+  color: var(--color-primary);
+  line-height: 1;
+}
+.stat-label {
+  font-size: var(--font-xs);
+  color: var(--text-muted);
+  margin-top: 4px;
+}
+
+/* Rounded labels / badges */
+.badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  background: var(--color-primary-light);
+  border: 1px solid var(--color-primary-border);
+  color: var(--color-primary-pale);
+  font-size: var(--font-xs);
+  font-weight: 500;
+  padding: 8px 20px;
+  border-radius: var(--radius-badge);
+}
+
+/* Activity number badge (fixed on the left image ) */
+.activity-badge {
+  position: absolute;
+  top: 48px;
+  left: 40px;
+  background: var(--color-primary);
+  color: #fff;
+  font-size: var(--font-sm);
+  font-weight: 700;
+  padding: 10px 24px;
+  border-radius: var(--radius-badge);
+}
+
+/* Activity pill (Closing page ) */
+.act-pill {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: var(--radius-item);
+  padding: 16px 28px;
+}
+.act-pill .pill-icon {
+  font-size: 28px;
+  color: var(--color-primary);
+}
+.act-pill .pill-num {
+  font-size: var(--font-3xs);
+  color: var(--text-muted);
+  font-weight: 600;
+}
+.act-pill .pill-name {
+  font-size: var(--font-sm);
+  color: var(--text-on-dark);
+  font-weight: 700;
+}
+
+/* Activity tag (overview duration/type ) */
+.act-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: var(--bg-accent-soft);
+  color: var(--color-primary-deep);
+  font-size: var(--font-2xs);
+  padding: 5px 12px;
+  border-radius: 6px;
+  width: fit-content;
+}
+.act-time {
+  font-size: var(--font-xs);
+  color: var(--text-light);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+/* Metadata chip */
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  background: var(--bg-card);
+  border-radius: var(--radius-xs);
+  padding: 10px 18px;
+  box-shadow: var(--shadow-xs);
+  font-size: var(--font-sm);
+  color: var(--text-secondary);
+  white-space: nowrap;
+}
+.chip i {
+  color: var(--color-primary);
+}
+
+/* Large number badge for steps and numbers */
+.num-badge {
+  width: 48px;
+  height: 48px;
+  background: var(--color-primary);
+  border-radius: var(--radius-num);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #fff;
+  font-size: var(--font-sm);
+  font-weight: 700;
+  flex-shrink: 0;
+}
+
+/* Number badge (center ) */
+.num-badge-md {
+  width: 36px;
+  height: 36px;
+  background: var(--color-primary);
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #fff;
+  font-size: var(--font-3xs);
+  font-weight: 700;
+  flex-shrink: 0;
+}
+
+/* Small number badge for checklist items */
+.num-badge-sm {
+  width: 28px;
+  height: 28px;
+  background: var(--color-primary);
+  border-radius: 6px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #fff;
+  font-size: 16px;
+  font-weight: 700;
+  flex-shrink: 0;
+}
+
+/* Circular number (flow step ) */
+.num-circle {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  background: var(--color-primary);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #fff;
+  font-size: var(--font-3xs);
+  font-weight: 700;
+  flex-shrink: 0;
+}
+.num-circle-sm {
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  background: var(--color-primary);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #fff;
+  font-size: 16px;
+  font-weight: 700;
+  flex-shrink: 0;
+}
+
+/* Icon container */
+.icon-box {
+  width: 44px;
+  height: 44px;
+  background: var(--color-primary-light);
+  border-radius: var(--radius-xs);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--color-primary);
+  font-size: 20px;
+  flex-shrink: 0;
+}
+
+/* KPI card */
+.kpi-card {
+  background: var(--bg-card);
+  border-radius: var(--radius-card);
+  padding: 40px 36px;
+  box-shadow: var(--shadow-card);
+  text-align: center;
+}
+.kpi-number {
+  font-size: var(--font-hero);
+  font-weight: 900;
+  color: var(--color-primary);
+  line-height: 1;
+}
+.kpi-unit {
+  font-size: var(--font-h4);
+  font-weight: 700;
+  color: var(--color-primary);
+}
+.kpi-label {
+  font-size: var(--font-sm);
+  color: var(--text-muted);
+  margin-top: 12px;
+}
+
+/* Flow step row */
+.flow-step {
+  display: flex;
+  align-items: flex-start;
+  gap: 16px;
+  background: var(--bg-card);
+  border-radius: var(--radius-item);
+  padding: 16px 20px;
+  box-shadow: var(--shadow-sm);
+}
+.flow-step-title {
+  font-size: var(--font-sm);
+  font-weight: 700;
+  color: var(--text-primary);
+}
+.flow-step-desc {
+  font-size: var(--font-xs);
+  color: var(--text-muted);
+  line-height: 1.55;
+  margin-top: 2px;
+}
+.flow-step-num {
+  font-size: var(--font-3xs);
+  color: var(--color-primary);
+  font-weight: 700;
+  margin-bottom: 4px;
+}
+
+/* Item card (checklist type ) */
+.item-card {
+  background: var(--bg-card);
+  border-radius: var(--radius-xs);
+  padding: 12px 16px;
+  box-shadow: var(--shadow-xs);
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.item-name {
+  font-size: var(--font-xs);
+  color: var(--text-body);
+}
+
+/* Progress bar */
+.score-bar-wrap {
+  height: 20px;
+  background: #f1f5f9;
+  border-radius: 10px;
+  overflow: hidden;
+}
+.score-bar {
+  height: 100%;
+  border-radius: 10px;
+  background: var(--color-primary);
+}
+.score-row {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  background: var(--bg-card);
+  border-radius: var(--radius-xs);
+  padding: 14px 20px;
+  box-shadow: var(--shadow-xs);
+}
+.score-label {
+  font-size: var(--font-sm);
+  color: var(--text-body);
+  font-weight: 600;
+  flex: 1;
+}
+.score-pct {
+  font-size: var(--font-sm);
+  font-weight: 700;
+  color: var(--color-primary);
+  width: 60px;
+  text-align: right;
+}
+
+/* SBI framework card */
+.sbi-cards {
+  display: flex;
+  gap: 14px;
+}
+.sbi-card {
+  flex: 1;
+  border-radius: var(--radius-item);
+  padding: 22px 20px;
+  text-align: center;
+}
+.sbi-card.s {
+  background: #fff7ed;
+  border: 2px solid #fed7aa;
+}
+.sbi-card.b {
+  background: #fef3c7;
+  border: 2px solid #fde68a;
+}
+.sbi-card.i {
+  background: #ecfdf5;
+  border: 2px solid #a7f3d0;
+}
+.sbi-letter {
+  font-size: 52px;
+  font-weight: 900;
+  margin-bottom: 8px;
+}
+.sbi-card.s .sbi-letter {
+  color: var(--color-primary-deep);
+}
+.sbi-card.b .sbi-letter {
+  color: var(--color-accent-amber);
+}
+.sbi-card.i .sbi-letter {
+  color: var(--color-accent-teal);
+}
+.sbi-word {
+  font-size: var(--font-sm);
+  font-weight: 700;
+  color: var(--text-primary);
+  margin-bottom: 6px;
+}
+.sbi-desc {
+  font-size: var(--font-2xs);
+  color: var(--text-muted);
+  line-height: 1.5;
+}
+
+/* Example box */
+.example-box {
+  border-radius: var(--radius-sm);
+  padding: 16px 20px;
+  margin-bottom: 10px;
+}
+.example-box.positive {
+  background: #f0fdf4;
+  border-left: 4px solid #22c55e;
+}
+.example-box.improve {
+  background: #fef2f2;
+  border-left: 4px solid #ef4444;
+}
+.example-type {
+  font-size: var(--font-3xs);
+  font-weight: 700;
+  margin-bottom: 6px;
+}
+.example-box.positive .example-type {
+  color: #16a34a;
+}
+.example-box.improve .example-type {
+  color: #dc2626;
+}
+.example-text {
+  font-size: var(--font-2xs);
+  color: var(--text-secondary);
+  line-height: 1.6;
+}
+.example-text em {
+  font-style: normal;
+  font-weight: 700;
+}
+
+/* Role table */
+.roles-table {
+  width: 100%;
+  border-collapse: separate;
+  border-spacing: 0 8px;
+  margin-bottom: 20px;
+}
+.roles-table th {
+  font-size: var(--font-xs);
+  color: var(--text-muted);
+  font-weight: 600;
+  padding: 0 16px 6px;
+  text-align: left;
+}
+.roles-table td {
+  font-size: var(--font-sm);
+  color: var(--text-body);
+  padding: 14px 16px;
+  background: var(--bg-card);
+  box-shadow: var(--shadow-xxs);
+}
+.roles-table td:first-child {
+  border-radius: 10px 0 0 10px;
+  font-weight: 700;
+  color: var(--color-primary);
+}
+.roles-table td:last-child {
+  border-radius: 0 10px 10px 0;
+  color: var(--text-muted);
+  font-style: italic;
+}
+
+/* Principle card (Closing page ) */
+.principle-card-dark {
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(249, 115, 22, 0.2);
+  border-radius: var(--radius-item);
+  padding: 24px 32px;
+  text-align: center;
+  width: 280px;
+}
+.principle-icon {
+  font-size: 36px;
+  color: var(--color-primary);
+  margin-bottom: 12px;
+}
+.principle-text-dark {
+  font-size: var(--font-sm);
+  color: var(--text-on-dark-dim);
+  line-height: 1.6;
+}
+
+/* Bottom info bar (Closing page ) */
+.bottom-bar {
+  display: flex;
+  align-items: center;
+  gap: 32px;
+  padding: 20px 48px;
+  background: var(--color-primary-bg-btn);
+  border: 1px solid rgba(249, 115, 22, 0.2);
+  border-radius: var(--radius-badge);
+}
+.bottom-item {
+  font-size: var(--font-xs);
+  color: var(--text-muted);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.bottom-item i {
+  color: var(--color-primary);
+}
+.bottom-divider {
+  width: 1px;
+  height: 20px;
+  background: rgba(249, 115, 22, 0.3);
+}
+
+/* Highlighted quote box (inside principle cards ) */
+.principle-highlight {
+  margin-top: 20px;
+  background: var(--bg-accent-soft);
+  border-radius: var(--radius-sm);
+  padding: 20px 24px;
+  font-size: 26px;
+  font-weight: 700;
+  color: var(--color-primary-deep);
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+/* ── Layout Grids ────────────────────────────────────────────── */
+.grid-2 {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 32px;
+}
+.grid-3 {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr;
+  gap: 28px;
+}
+.grid-4 {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 24px;
+}
+.grid-6 {
+  display: grid;
+  grid-template-columns: repeat(6, 1fr);
+  gap: 24px;
+}
+.grid-2-items {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 14px;
+}
+.grid-3-items {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 16px;
+}
+.grid-3-sm {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 10px;
+}
+.col {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+.col-sm {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+.col-xs {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+/* ── Slide Layout Bases ──────────────────────────────────────── */
+
+/* Light content page base */
+.slide-light {
+  background: var(--bg-primary);
+  display: flex;
+  flex-direction: column;
+  padding: 64px 120px 56px;
+}
+
+/* Dark page base */
+.slide-dark {
+  background: var(--bg-dark);
+  display: flex;
+  flex-direction: column;
+  padding: 64px 120px 56px;
+}
+
+/* Dark centered page for closing or section pages */
+.slide-dark-center {
+  background: var(--bg-dark);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+}
+
+/* ── Type 1: Cover split layout ────────────────────────────────────────── */
+.slide-cover {
+  display: flex;
+}
+.cover-left {
+  width: 900px;
+  height: 1080px;
+  flex-shrink: 0;
+  position: relative;
+  overflow: hidden;
+}
+.cover-left img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  opacity: 0.75;
+}
+.cover-left-content {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  padding: 60px;
+}
+.cover-right {
+  flex: 1;
+  height: 1080px;
+  background: var(--bg-dark);
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  padding: 80px 90px;
+  position: relative;
+}
+.cover-meta-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 20px;
+  margin-bottom: 60px;
+}
+.cover-meta-item {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+.cover-meta-label {
+  font-size: var(--font-xs);
+  color: var(--text-muted);
+}
+.cover-meta-value {
+  font-size: var(--font-body);
+  color: var(--text-on-dark);
+  font-weight: 500;
+}
+.cover-version {
+  position: absolute;
+  bottom: 48px;
+  right: 90px;
+  font-size: var(--font-xs);
+  color: #475569;
+}
+.cover-badges {
+  display: flex;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+.cover-badge-item {
+  background: rgba(249, 115, 22, 0.1);
+  border: 1px solid rgba(249, 115, 22, 0.25);
+  color: var(--color-primary-pale);
+  font-size: var(--font-sm);
+  padding: 8px 18px;
+  border-radius: 8px;
+}
+
+/* ── Type 2: Two-column content page (white background ) ─────────────────────────────── */
+.slide-content {
+  background: var(--bg-primary);
+  display: flex;
+  flex-direction: column;
+  padding: 72px 120px 60px;
+}
+.page-header {
+  margin-bottom: 52px;
+}
+.page-label {
+  font-size: var(--font-xs);
+  color: var(--color-primary);
+  font-weight: 500;
+  letter-spacing: 0.1em;
+  margin-bottom: 12px;
+}
+.page-title {
+  font-size: var(--font-title);
+  font-weight: 900;
+  color: var(--text-primary);
+  margin-bottom: 8px;
+}
+.page-title span {
+  color: var(--color-primary);
+}
+
+/* ── Type 3: Activity overview page ─────────────────────────────────────── */
+.overview-header {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  margin-bottom: 48px;
+}
+.overview-stats {
+  display: flex;
+  gap: 32px;
+}
+.act-card-icon {
+  font-size: 44px;
+  color: var(--color-primary);
+  margin: 4px 0;
+}
+.act-card-num {
+  font-size: var(--font-sm);
+  font-weight: 700;
+  color: var(--text-light);
+}
+.act-card-name {
+  font-size: var(--font-h3);
+  font-weight: 700;
+  color: var(--text-primary);
+  line-height: 1.3;
+}
+.act-card-theme {
+  font-size: var(--font-sm);
+  color: var(--text-muted);
+  line-height: 1.5;
+  flex: 1;
+}
+.act-card-meta {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+/* ── Type 4/5: Activity detail page ───────────────────────────────────── */
+.slide-activity {
+  display: flex;
+}
+.activity-img-col {
+  width: 560px;
+  flex-shrink: 0;
+  position: relative;
+  overflow: hidden;
+}
+.activity-img-col img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.activity-content {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  padding: 56px 72px 52px 64px;
+}
+.activity-top-row {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  margin-bottom: 32px;
+}
+.activity-meta-chips {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  align-items: flex-end;
+}
+
+/* Activity detail page with header and two-column content, without image */
+.slide-detail {
+  background: var(--bg-primary);
+  display: flex;
+  flex-direction: column;
+  padding: 60px 100px 52px;
+}
+.detail-header {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  margin-bottom: 36px;
+}
+.detail-meta-row {
+  display: flex;
+  gap: 16px;
+  align-items: center;
+}
+.detail-main {
+  flex: 1;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 32px;
+  min-height: 0;
+}
+
+/* ── Type 6: Role-play / table page ────────────────────────────────── */
+.slide-roleplay {
+  display: flex;
+}
+.roleplay-img-col {
+  width: 520px;
+  flex-shrink: 0;
+  position: relative;
+  overflow: hidden;
+}
+.roleplay-img-col img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.roleplay-content {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  padding: 52px 68px 48px 60px;
+  overflow: hidden;
+}
+.roleplay-top-row {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  margin-bottom: 28px;
+}
+.roleplay-meta {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  align-items: flex-end;
+}
+.flow-row {
+  display: flex;
+  gap: 14px;
+  margin-bottom: 18px;
+}
+
+/* ── Type 7: Framework page ─────────────────────────────────────── */
+.slide-framework {
+  background: var(--bg-primary);
+  display: flex;
+  flex-direction: column;
+  padding: 56px 100px 48px;
+}
+.framework-header {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  margin-bottom: 32px;
+}
+.framework-main {
+  flex: 1;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 32px;
+  min-height: 0;
+}
+
+/* ── Type 8: Closing page ─────────────────────────────────────────── */
+.closing-inner {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0;
+  width: 1400px;
+  position: relative;
+  z-index: 1;
+}
+.closing-quote {
+  font-size: var(--font-title);
+  font-weight: 900;
+  color: #ffffff;
+  text-align: center;
+  line-height: 1.3;
+  margin-bottom: 16px;
+}
+.closing-quote span {
+  color: var(--color-primary);
+}
+.closing-sub {
+  font-size: 28px;
+  color: var(--text-on-dark-muted);
+  text-align: center;
+  margin-bottom: 56px;
+  line-height: 1.6;
+}
+.closing-pills {
+  display: flex;
+  gap: 20px;
+  justify-content: center;
+  margin-bottom: 56px;
+}
+.closing-principles {
+  display: flex;
+  gap: 24px;
+  justify-content: center;
+  margin-bottom: 52px;
+}

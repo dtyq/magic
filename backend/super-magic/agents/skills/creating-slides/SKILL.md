@@ -9,14 +9,17 @@ description-cn: 幻灯片/PPT制作技能，提供完整的幻灯片创建、编
 <!--zh
 # HTML幻灯片制作技能
 -->
+
 # Creating Slides Skill
 
 <!--zh: 提供完整的HTML幻灯片制作能力，包括项目创建、内容设计、技术规范、工作流程和最佳实践。-->
+
 Provides complete HTML slide creation capabilities, including project creation, content design, technical specifications, workflows, and best practices.
 
 <!--zh
 ## 核心能力
 -->
+
 ## Core Capabilities
 
 <!--zh
@@ -27,6 +30,7 @@ Provides complete HTML slide creation capabilities, including project creation, 
 - **数据分析** - 支持 Python 脚本进行数据分析处理
 - **项目管理** - 支持幻灯片项目的编辑、重构、移动和重命名
 -->
+
 - **Project Creation** - Create complete slide project structure
 - **Page Creation** - Create slide pages conforming to specifications
 - **Content Research** - Obtain reference materials and data
@@ -39,6 +43,7 @@ Provides complete HTML slide creation capabilities, including project creation, 
 <!--zh
 ## 代码执行方式（关键）
 -->
+
 ## Code Execution Method (Critical)
 
 <!--zh
@@ -46,9 +51,11 @@ Provides complete HTML slide creation capabilities, including project creation, 
 
 **正确示例**：
 -->
+
 All Python code examples in this skill **must be executed via the `run_sdk_snippet` tool** in Agent environment.
 
 **Correct example**:
+
 ```python
 # Correct! Must use run_sdk_snippet to execute
 run_sdk_snippet(
@@ -65,6 +72,7 @@ result = tool.call('create_slide_project', {
 <!--zh
 本文档中所有 `from sdk.tool import tool` 开头的代码块，均遵循此规则，通过 `run_sdk_snippet` 的 `python_code` 参数传入执行。
 -->
+
 All code blocks in this document starting with `from sdk.tool import tool` follow this rule: pass them via the `python_code` parameter of `run_sdk_snippet` for execution.
 
 ---
@@ -72,6 +80,7 @@ All code blocks in this document starting with `from sdk.tool import tool` follo
 <!--zh
 ## 默认要求
 -->
+
 ## Default Requirements
 
 <!--zh
@@ -81,7 +90,9 @@ All code blocks in this document starting with `from sdk.tool import tool` follo
 - **幻灯片思维**：1920×1080固定画布，横向布局优先，避免纵向溢出
 - **商务简洁风格**，遵循字号规范，强制Tailwind优先
 -->
+
 When user has no explicit requirements, follow these defaults:
+
 - **Page count**: Determine appropriate page count based on content, each page ≤100 lines of code
 - **Content density**: One key point per page, text ≤150 words, images ≤1
 - **Slide mindset**: 1920×1080 fixed canvas, prioritize horizontal layout, avoid vertical overflow
@@ -92,11 +103,13 @@ When user has no explicit requirements, follow these defaults:
 <!--zh
 ## 技术规格
 -->
+
 ## Technical Specifications
 
 <!--zh
 ### 尺寸与实现
 -->
+
 ### Size and Implementation
 
 <!--zh
@@ -105,6 +118,7 @@ When user has no explicit requirements, follow these defaults:
 - **静态固定页面**：任何设备尺寸浏览都是相同效果，不做自适应，禁止响应式设计
 - **网页底部必须加入** `<script src="slide-bridge.js"></script>` 脚本，用于页面间通信
 -->
+
 - **Fixed size**: 1920px×1080px, strictly no overflow, width and height must be explicitly set in html and body tags
 - **Implementation**: HTML + CSS + JavaScript
 - **Static fixed page**: Same effect on any device size, no adaptation, responsive design prohibited
@@ -113,6 +127,7 @@ When user has no explicit requirements, follow these defaults:
 <!--zh
 ### CSS框架与资源
 -->
+
 ### CSS Frameworks and Resources
 
 <!--zh
@@ -121,6 +136,7 @@ When user has no explicit requirements, follow these defaults:
 - **Google Fonts**: https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@400;500;700&display=swap (必选)
 - **ECharts**: https://cdnjs.cloudflare.com/ajax/libs/echarts/5.6.0/echarts.min.js (必要时使用)
 -->
+
 - **TailwindCSS**: https://cdn.tailwindcss.com/3.4.17 (required, note: this CDN uses JIT browser compilation mode, returns JS code, use `<script>` tag)
 - **FontAwesome**: https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.7.2/css/all.min.css (required)
 - **Google Fonts**: https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@400;500;700&display=swap (required)
@@ -129,6 +145,7 @@ When user has no explicit requirements, follow these defaults:
 <!--zh
 ### 技术约束
 -->
+
 ### Technical Constraints
 
 <!--zh
@@ -141,6 +158,7 @@ When user has no explicit requirements, follow these defaults:
 - **JavaScript代码内联在`<body>`底部，CSS内联在`<head>`中，SVG图形直接内联**
 - **图表实现**：图表、仪表盘等任何Echarts支持的内容都必须使用Echarts实现，禁止自己写HTML、CSS、SVG代码
 -->
+
 - **File generation**: Only generate static HTML files
 - **Responsive design prohibited**: Strictly no media queries, pages don't change with screen size
 - **Content overload prohibited**: Avoid excessively long text, too many list items, oversized images; split into multiple pages when single page has too much content
@@ -153,18 +171,21 @@ When user has no explicit requirements, follow these defaults:
 <!--zh
 ### Tailwind强制规范
 -->
+
 ### Tailwind Mandatory Specification
 
 <!--zh
 - **最大化使用Tailwind类**：布局flex/grid、间距p-*/m-*、字号text-*、颜色text-*/bg-*、装饰rounded-*/shadow-*等
 - **最小化自定义CSS**：仅限复杂渐变、伪元素等Tailwind无法实现的场景
 -->
-- **Maximize use of Tailwind classes**: Layout flex/grid, spacing p-*/m-*, font size text-*, colors text-*/bg-*, decoration rounded-*/shadow-*, etc.
+
+- **Maximize use of Tailwind classes**: Layout flex/grid, spacing p-_/m-_, font size text-_, colors text-_/bg-_, decoration rounded-_/shadow-\*, etc.
 - **Minimize custom CSS**: Limited to complex gradients, pseudo-elements and other scenarios Tailwind cannot implement
 
 <!--zh
 ### 字号规范（1920×1080画布必须大字号）
 -->
+
 ### Font Size Specification (1920×1080 canvas requires large fonts)
 
 <!--zh
@@ -176,6 +197,7 @@ When user has no explicit requirements, follow these defaults:
 - **严禁18px (text-lg)及以下**，除非用户明确要求
 - **原则**：宁可字大内容少分多页，不要字小内容挤一页
 -->
+
 - **Page main title**: 64-72px (text-6xl/7xl) - Prefer 64px and above
 - **Section title/Card main title**: 40-52px (text-5xl) - Don't go below 40px
 - **Subtitle/Card subtitle**: 30-36px (text-3xl/4xl) - Prefer 32px and above
@@ -187,11 +209,13 @@ When user has no explicit requirements, follow these defaults:
 <!--zh
 ### 视觉层级
 -->
+
 ### Visual Hierarchy
 
 <!--zh
 字号对比（主标题与正文相差3-4级）+ 字重对比（标题font-bold/black）+ 颜色对比（标题text-gray-900，正文text-gray-600/700）+ 空间对比（重要元素mb-8/10/12）+ 装饰元素（数字标签、色块、竖条）
 -->
+
 Font size contrast (main title differs from body by 3-4 levels) + weight contrast (title font-bold/black) + color contrast (title text-gray-900, body text-gray-600/700) + spatial contrast (important elements mb-8/10/12) + decorative elements (number labels, color blocks, vertical bars)
 
 ---
@@ -199,11 +223,13 @@ Font size contrast (main title differs from body by 3-4 levels) + weight contras
 <!--zh
 ## 设计原则
 -->
+
 ## Design Principles
 
 <!--zh
 ### 内容设计思维
 -->
+
 ### Content Design Mindset
 
 <!--zh
@@ -211,6 +237,7 @@ Font size contrast (main title differs from body by 3-4 levels) + weight contras
 - **信息层级**：通过字体大小、颜色深浅、空间位置建立清晰信息层级，通过阴影和变换创造深度感
 - **视觉表达**：使用FontAwesome或Emoji图标增强视觉表达
 -->
+
 - **One key point per page**: Each slide conveys only one core message, maintain focused attention
 - **Information hierarchy**: Establish clear information hierarchy through font size, color depth, spatial position, create depth through shadows and transforms
 - **Visual expression**: Use FontAwesome or Emoji icons to enhance visual expression
@@ -218,6 +245,7 @@ Font size contrast (main title differs from body by 3-4 levels) + weight contras
 <!--zh
 ### 配图要求
 -->
+
 ### Image Requirements
 
 <!--zh
@@ -231,19 +259,23 @@ Font size contrast (main title differs from body by 3-4 levels) + weight contras
     * 正确："扎克伯格天价挖人"（具体事件） 错误："AI人才竞争"（抽象、普遍、不具体的）
 - **禁止使用placeholder图片**，必须使用image_search工具返回的高质量图片
 -->
+
 - **Image ratio**: 70% of slides must contain high-quality images, e.g., 7 out of 10 slides must contain images
+- When an image is the main visual anchor, make it part of the layout rather than a tiny corner illustration. It should usually occupy about one third to one half of the main content area.
+- Slides without images still need a strong visual anchor, such as a chart, matrix, color block, large number, geometric decoration, card grid, or flow diagram. Avoid pages with only a title and sparse body text.
 - **Search keywords**: Must contain at least one subject keyword, prohibited to use abstract, general, non-specific keywords
   - Search format: `[Subject keyword] [Specific scene description]`
   - Extract at least 1-3 subject keywords related to slide content
   - Keyword examples:
-    * Correct: "IShowSpeed China tour Beijing Great Wall" Wrong: "Beijing Great Wall"
-    * Correct: "Elon Musk portrait" Wrong: "Tech giant portrait"
-    * Correct: "Zuckerberg astronomical talent poaching" (specific event) Wrong: "AI talent competition" (abstract, general, non-specific)
+    - Correct: "IShowSpeed China tour Beijing Great Wall" Wrong: "Beijing Great Wall"
+    - Correct: "Elon Musk portrait" Wrong: "Tech giant portrait"
+    - Correct: "Zuckerberg astronomical talent poaching" (specific event) Wrong: "AI talent competition" (abstract, general, non-specific)
 - **Prohibited to use placeholder images**, must use high-quality images returned by image_search tool
 
 <!--zh
 ### 设计风格
 -->
+
 ### Design Style
 
 <!--zh
@@ -261,13 +293,16 @@ Font size contrast (main title differs from body by 3-4 levels) + weight contras
 - **媒体出版**：TED Talks, National Geographic
 - **教育学术**：Stanford University, MIT
 -->
+
 **Default style**: Minimalist business style
-- **Primary colors**: Black/white/gray (text-gray-*)
+
+- **Primary colors**: Black/white/gray (text-gray-\*)
 - **Accent colors**: Orange/red/green/blue (max 1-2 per page)
 - **Background**: Mainly white/light gray, dark background for contrast
 - **Prohibited**: Excessive use of blue, purple, gradients
 
 **Style selection**: Based on content theme and target audience, derive from minimalist business style, imitate popular PPT design styles including but not limited to:
+
 - **Tech**: Apple Keynote, Google Material Design, Microsoft Fluent Design
 - **Business**: McKinsey Consulting, Huawei Enterprise, Alibaba Enterprise
 - **Consumer brands**: Xiaomi, Netflix, Nike
@@ -278,6 +313,7 @@ Font size contrast (main title differs from body by 3-4 levels) + weight contras
 <!--zh
 ### 布局设计核心原则
 -->
+
 ### Layout Design Core Principles
 
 <!--zh
@@ -291,24 +327,27 @@ Font size contrast (main title differs from body by 3-4 levels) + weight contras
 - **横向分割**：单行最多6列，避免过于细碎的分割导致内容拥挤
 - **禁止纵向无限延伸**：尽可能利用横向空间，如：横向时间轴而不是纵向时间轴
 -->
+
 - **Precise zoning planning**: Precise zoning planning based on 1920×1080 canvas
 - **Priority layout modes**: Single column centered, left-right split, three-point grid, standard three-section, card-style, timeline (only horizontal timeline allowed), comparison split-screen and dashboard classic PPT layout modes
 - **Especially recommend left-right split layout** (like 60/40 or 50/50), fully utilize horizontal space, avoid vertical stacking causing height overflow
 - **Zoning planning**:
-  * Header area: Fixed height about 10% (like h-24)
-  * Middle content area: Occupies main space, can flexibly divide into 2×2, 3×3 grid, max 9-grid
-  * Footer area: Fixed height about 5% (below h-16), images not allowed
+  - Header area: Fixed height about 10% (like h-24)
+  - Middle content area: Occupies main space, can flexibly divide into 2×2, 3×3 grid, max 9-grid
+  - Footer area: Fixed height about 5% (below h-16), images not allowed
 - **Horizontal division**: Max 6 columns per row, avoid overly fragmented division causing content crowding
 - **Vertical infinite extension prohibited**: Maximize horizontal space use, e.g., horizontal timeline not vertical timeline
 
 <!--zh
 使用预定义网格（grid-cols-2/3、grid-rows-2）配合gap-4/6/8统一间距，通过col-span-2、row-span-2灵活控制元素占据空间，避免像素值定义网格大小，使用fr单位或百分比；Flex布局使用TailwindCSS比例宽度类（w-1/2、w-1/3、w-2/3）禁止硬编码像素，善用flex-1、justify-between、items-center等实现响应式布局和内容均衡分布。
 -->
+
 Use predefined grid (grid-cols-2/3, grid-rows-2) with gap-4/6/8 unified spacing, flexibly control element space occupation through col-span-2, row-span-2, avoid pixel values defining grid size, use fr units or percentages; Flex layout uses TailwindCSS proportional width classes (w-1/2, w-1/3, w-2/3) prohibited hardcoded pixels, leverage flex-1, justify-between, items-center to achieve responsive layout and balanced content distribution.
 
 <!--zh
 ### 高度控制技巧（关键）
 -->
+
 ### Height Control Technique (Critical)
 
 <!--zh
@@ -324,6 +363,7 @@ Use predefined grid (grid-cols-2/3, grid-rows-2) with gap-4/6/8 unified spacing,
 
 请在设计时一步一步思考以上几点，确保实现完美的页面布局与高度控制。若用户没有相悖的要求，则必须默认使用此方式进行页面布局与高度控制。
 -->
+
 **[Hard Requirement] Page height must strictly not exceed 1080px, this is a non-negotiable specification!**
 
 If content is too much for a single page, **must split into multiple pages**, absolutely not allowed to let single page exceed 1080px height.
@@ -339,21 +379,40 @@ Please think through above points step by step during design, ensure perfect pag
 <!--zh
 ### 图片使用技巧
 -->
+
 ### Image Usage Technique
 
 <!--zh
 图片在幻灯片制作中是非常危险、难以控制的元素，需要规划与图片比例近似的空间来摆放图片，并通过容器元素承载图片，让图片撑满容器即可。容器宽高应该使用相对单位（如百分比、fr单位）或Grid布局的自动分配机制，而不是固定、常被计算错误的像素值，否则图片常常会超出画布，导致布局混乱。
 -->
+
 Images are very dangerous, hard-to-control elements in slide creation. Need to plan space with similar aspect ratio to place images, carry images through container elements, let images fill container. Container width and height should use relative units (like percentages, fr units) or Grid layout's automatic allocation mechanism, not fixed, often miscalculated pixel values, otherwise images often overflow canvas causing layout chaos.
+
+Content-related images may also be used as local section backgrounds to add depth. Put an independent overlay layer above the background image and keep text/cards in a separate foreground layer. Do not apply `opacity` to a container that also holds text.
+
+```html
+<div
+  class="relative"
+  style="background-image:url('images/xxx.jpg');
+     background-size:cover;background-position:center;"
+>
+  <div class="absolute inset-0" style="background:rgba(14,20,32,0.60);"></div>
+  <div class="relative z-10"><!-- content --></div>
+</div>
+```
+
+Use background images selectively. Avoid repeating the same full-image treatment on most consecutive slides; alternate with charts, cards, diagrams, or clean graphic pages.
 
 <!--zh
 ### 默认设计思维
 -->
+
 ### Default Design Mindset
 
 <!--zh
 幻灯片整体有高级感，使用丰富的装饰元素，符合业界主流审美实践，但是不要引入太多复杂性的东西。注意幻灯片的高度控制与排版工整，不要在一页里塞入太多内容，这是关键。
 -->
+
 Slides overall have premium feel, use rich decorative elements, conform to industry mainstream aesthetic practices, but don't introduce too much complexity. Note slide height control and neat typography, don't cram too much content in one page, this is key.
 
 ---
@@ -361,6 +420,7 @@ Slides overall have premium feel, use rich decorative elements, conform to indus
 <!--zh
 ## ECharts 配置要求
 -->
+
 ## ECharts Configuration Requirements
 
 <!--zh
@@ -377,15 +437,18 @@ Slides overall have premium feel, use rich decorative elements, conform to indus
 - 避免文字重叠和数据密集显示问题
 - 配色协调统一，布局合理不遮挡关键数据
 -->
+
 - All ECharts charts must ensure echarts.init() only after HTML content and CSS styles are fully parsed (window.onload). Note: window.onload, not DOMContentLoaded.
 - When page contains ECharts charts, must listen to window.resize event. When resize triggers, call resize() method on all charts.
 - Chart containers should fully utilize available space, reserve margins to ensure complete text display.
 
 **Multi-axis alignment:**
+
 - Ensure same-direction axes have consistent tick counts to avoid grid line misalignment.
 - Use min, max, interval parameters to achieve tick alignment.
 
 **Visual requirements:**
+
 - Keep axes, grid lines, labels aligned.
 - Avoid text overlap and dense data display issues.
 - Harmonious and unified color scheme, reasonable layout not obscuring key data.
@@ -395,6 +458,7 @@ Slides overall have premium feel, use rich decorative elements, conform to indus
 <!--zh
 ## 数据分析处理
 -->
+
 ## Data Analysis Processing
 
 <!--zh
@@ -405,7 +469,9 @@ Slides overall have premium feel, use rich decorative elements, conform to indus
 - Python脚本的处理结果应当精炼，脚本的作用是计算和提炼核心数据，而不是返回大量过程数据，通常在百字到千字级别，最多不超过5000字
 - 遵循最新的Python主流编程实践，确保代码健壮性，尽可能一次性运行成功
 -->
+
 When scenarios involve data analysis, write Python scripts for analysis:
+
 - **Python scripts are solely for data analysis processing, not data visualization**. Use ECharts for visualization. Strictly prohibited to write chart rendering code in Python scripts.
 - For data files like Excel, CSV, use read_files to read first 10 lines to understand structure, then use Python scripts for data analysis.
 - For Excel files with multiple sheets or large size, always use Python scripts for analysis. First use script to view data structure and sheet structure, then perform analysis.
@@ -417,42 +483,59 @@ When scenarios involve data analysis, write Python scripts for analysis:
 <!--zh
 ## 幻灯片HTML模板
 -->
+
 ## Slide HTML Template
 
 <!--zh
 参考以下模板创建幻灯片页面。每页都是独立的HTML文件，风格需保持一致但可有适当差异，注释内容仅供理解，实际开发时请省略。
 -->
+
 Reference the following template to create slide pages. Each page is an independent HTML file, style should be consistent but can have appropriate variations, comments are for your understanding only, omit in actual development.
 
 ```html
 <!DOCTYPE html>
 <html lang="zh">
-<head>
-    <meta charset="utf-8"/>
-    <meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+  <head>
+    <meta charset="utf-8" />
+    <meta content="width=device-width, initial-scale=1.0" name="viewport" />
     <title>Slide Title</title>
     <script src="https://cdn.tailwindcss.com/3.4.17"></script>
-    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.7.2/css/all.min.css" rel="stylesheet"/>
-    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@400;500;700&display=swap" rel="stylesheet"/>
+    <link
+      href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.7.2/css/all.min.css"
+      rel="stylesheet"
+    />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@400;500;700&display=swap"
+      rel="stylesheet"
+    />
     <style>
-        html, body {
-            width: 1920px;
-            height: 1080px; /* DO NOT set height or max-height, allow extreme cases to exceed */
-            font-family: 'Noto Sans SC', -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', sans-serif;
-            /* more styles can be added here... */
-        }
+      html,
+      body {
+        width: 1920px;
+        height: 1080px; /* DO NOT set height or max-height, allow extreme cases to exceed */
+        font-family:
+          "Noto Sans SC",
+          -apple-system,
+          BlinkMacSystemFont,
+          "Segoe UI",
+          "PingFang SC",
+          "Hiragino Sans GB",
+          "Microsoft YaHei",
+          sans-serif;
+        /* more styles can be added here... */
+      }
 
-        .slide-container {
-            width: 1920px;
-            height: 1080px;
-            /* padding: Adjust according to design needs */
-            /* more styles can be added here... */
-        }
+      .slide-container {
+        width: 1920px;
+        height: 1080px;
+        /* padding: Adjust according to design needs */
+        /* more styles can be added here... */
+      }
     </style>
-</head>
-<body>
+  </head>
+  <body>
     <div class="slide-container">
-        <!-- Page content goes here -->
+      <!-- Page content goes here -->
     </div>
     <!--
     IMPORTANT: This script must be included in every generated slide page.
@@ -460,7 +543,7 @@ Reference the following template to create slide pages. Each page is an independ
     It enables keyboard navigation and title synchronization with the parent page.
     -->
     <script src="slide-bridge.js"></script>
-</body>
+  </body>
 </html>
 ```
 
@@ -469,16 +552,19 @@ Reference the following template to create slide pages. Each page is an independ
 <!--zh
 ## 快速开始
 -->
+
 ## Quick Start
 
 <!--zh
 > **提醒**：以下所有代码示例均需通过 `run_sdk_snippet(python_code="...")` 执行，请参考文档顶部的"代码执行方式"章节。
 -->
+
 > **Reminder**: All code examples below must be executed via `run_sdk_snippet(python_code="...")`. Refer to the "Code Execution Method" section at the top of this document.
 
 <!--zh
 ### 创建幻灯片项目
 -->
+
 ### Create Slide Project
 
 ```python
@@ -538,6 +624,7 @@ result = tool.call('create_slide_project', {
 <!--zh
 ### 创建单个幻灯片页面
 -->
+
 ### Create Single Slide Page
 
 ```python
@@ -616,6 +703,7 @@ result = tool.call('create_slide', {
 <!--zh
 ### 搜索配图素材
 -->
+
 ### Search Image Materials
 
 ```python
@@ -655,6 +743,7 @@ result = tool.call('image_search', {
 <!--zh
 ### 互联网内容检索
 -->
+
 ### Web Content Retrieval
 
 ```python
@@ -692,11 +781,13 @@ search_result = tool.call('web_search', {
 <!--zh
 ## 核心工具及参数说明
 -->
+
 ## Core Tools and Parameters
 
 <!--zh
 ### create_slide_project - 创建幻灯片项目
 -->
+
 ### create_slide_project - Create Slide Project
 
 <!--zh
@@ -708,13 +799,14 @@ search_result = tool.call('web_search', {
 | `slide_images_content` | 否 | string | 配图素材库内容（Markdown格式），为空则不创建文件 |
 | `todo_list` | 否 | string | 任务规划内容（Markdown格式），为空则不创建文件 |
 -->
-| Parameter | Required | Type | Description |
-|------|------|------|------|
-| `project_path` | Yes | string | Project relative path (folder name), e.g., `"ChatGPT-Development-Report"` |
-| `slide_count` | No | number | Slide page count, default 0 (empty project or determined by slides_array) |
-| `slides_array` | Yes | array | List of slide filenames, can be empty array `[]` |
-| `slide_images_content` | No | string | Image material library content (Markdown format), empty means not creating file |
-| `todo_list` | No | string | Task planning content (Markdown format), empty means not creating file |
+
+| Parameter              | Required | Type   | Description                                                                     |
+| ---------------------- | -------- | ------ | ------------------------------------------------------------------------------- |
+| `project_path`         | Yes      | string | Project relative path (folder name), e.g., `"ChatGPT-Development-Report"`       |
+| `slide_count`          | No       | number | Slide page count, default 0 (empty project or determined by slides_array)       |
+| `slides_array`         | Yes      | array  | List of slide filenames, can be empty array `[]`                                |
+| `slide_images_content` | No       | string | Image material library content (Markdown format), empty means not creating file |
+| `todo_list`            | No       | string | Task planning content (Markdown format), empty means not creating file          |
 
 <!--zh
 **工具功能：**
@@ -725,7 +817,9 @@ search_result = tool.call('web_search', {
 - 创建 `images/` 文件夹
 - 如果提供了 `slide_images_content`，会自动下载图片到 `images/` 文件夹
 -->
+
 **Tool Functions:**
+
 - Create project folder structure
 - Auto-generate `index.html` (presentation controller)
 - Auto-generate `magic.project.js` (project config)
@@ -736,6 +830,7 @@ search_result = tool.call('web_search', {
 <!--zh
 ### create_slide - 创建幻灯片页面
 -->
+
 ### create_slide - Create Slide Page
 
 <!--zh
@@ -748,14 +843,15 @@ search_result = tool.call('web_search', {
 | `analysis_js` | 是 | string | 布局分析 JavaScript 函数体（不含function声明） |
 | `insert_after_slide` | 是 | string | 插入位置：`""` 插入第一页，文件名插入到该文件之后 |
 -->
-| Parameter | Required | Type | Description |
-|------|------|------|------|
-| `file_path` | Yes | string | Slide file path (relative to working directory), e.g., `"project-name/page.html"` |
-| `content` | Yes | string | Complete HTML content |
-| `max_width` | Yes | number | Expected max width (usually 1920) |
-| `max_height` | Yes | number | Expected max height (usually 1080) |
-| `analysis_js` | Yes | string | Layout analysis JavaScript function body (without function declaration) |
-| `insert_after_slide` | Yes | string | Insert position: `""` for first page, filename to insert after that file |
+
+| Parameter            | Required | Type   | Description                                                                       |
+| -------------------- | -------- | ------ | --------------------------------------------------------------------------------- |
+| `file_path`          | Yes      | string | Slide file path (relative to working directory), e.g., `"project-name/page.html"` |
+| `content`            | Yes      | string | Complete HTML content                                                             |
+| `max_width`          | Yes      | number | Expected max width (usually 1920)                                                 |
+| `max_height`         | Yes      | number | Expected max height (usually 1080)                                                |
+| `analysis_js`        | Yes      | string | Layout analysis JavaScript function body (without function declaration)           |
+| `insert_after_slide` | Yes      | string | Insert position: `""` for first page, filename to insert after that file          |
 
 <!--zh
 **工具功能：**
@@ -764,7 +860,9 @@ search_result = tool.call('web_search', {
 - 检测布局问题、高度溢出、图片拉伸、小字号
 - 根据 `insert_after_slide` 自动更新 slides 数组
 -->
+
 **Tool Functions:**
+
 - Write HTML file
 - Load via browser and execute `analysis_js` for quality check
 - Detect layout issues, height overflow, image stretch, small fonts
@@ -782,19 +880,23 @@ search_result = tool.call('web_search', {
 - 自动更新 slides 数组
 
 -->
+
 **analysis_js Instructions:**
+
 - Function body content (without `function()` declaration)
 - Can access `maxWidth`, `maxHeight`
 - Use `return` for result
 - Focus on detecting element overflow
 
 **insert_after_slide Instructions:**
+
 - `""` for first page, filename to insert after
 - Auto-updates slides array
 
 <!--zh
 ### image_search - 批量搜索配图
 -->
+
 ### image_search - Batch Search Images
 
 <!--zh
@@ -803,10 +905,11 @@ search_result = tool.call('web_search', {
 | `topic_id` | 是 | string | 搜索主题标识符，用于去重 |
 | `requirements_xml` | 是 | string | XML格式的搜索需求配置 |
 -->
-| Parameter | Required | Type | Description |
-|------|------|------|------|
-| `topic_id` | Yes | string | Search topic identifier for deduplication |
-| `requirements_xml` | Yes | string | XML format search requirements configuration |
+
+| Parameter          | Required | Type   | Description                                  |
+| ------------------ | -------- | ------ | -------------------------------------------- |
+| `topic_id`         | Yes      | string | Search topic identifier for deduplication    |
+| `requirements_xml` | Yes      | string | XML format search requirements configuration |
 
 <!--zh
 **requirements_xml 格式：**
@@ -818,8 +921,10 @@ search_result = tool.call('web_search', {
 - `expected_aspect_ratio` - 期望宽高比，如 `16:9`, `9:16`, `1:1`（必填）
 - `count` - 图片数量（可选，默认20，最多50）
 -->
+
 **requirements_xml Format:**
 Each `<requirement>` contains:
+
 - `name` - Requirement name (required)
 - `query` - Search keywords (required)
 - `visual_understanding_prompt` - Visual analysis prompt (required)
@@ -834,7 +939,9 @@ Each `<requirement>` contains:
 - 根据搜索意图选择语言（中文/英文/混合）
 - 视觉分析无法评估清晰度，只能分析内容
 -->
+
 **Key Principles:**
+
 - Each requirement must provide clear search keywords
 - Keywords must include subject words, prohibit pure generic terms
 - Choose language based on search intent (Chinese/English/mixed)
@@ -843,6 +950,7 @@ Each `<requirement>` contains:
 <!--zh
 ### web_search - 网页搜索
 -->
+
 ### web_search - Web Search
 
 <!--zh
@@ -851,10 +959,11 @@ Each `<requirement>` contains:
 | `topic_id` | 是 | string | 搜索主题标识符，用于去重 |
 | `requirements_xml` | 是 | string | XML格式的搜索需求配置 |
 -->
-| Parameter | Required | Type | Description |
-|------|------|------|------|
-| `topic_id` | Yes | string | Search topic identifier for deduplication |
-| `requirements_xml` | Yes | string | XML format search requirements configuration |
+
+| Parameter          | Required | Type   | Description                                  |
+| ------------------ | -------- | ------ | -------------------------------------------- |
+| `topic_id`         | Yes      | string | Search topic identifier for deduplication    |
+| `requirements_xml` | Yes      | string | XML format search requirements configuration |
 
 <!--zh
 **requirements_xml 格式：**
@@ -867,8 +976,10 @@ Each `<requirement>` contains:
 - `region` - 搜索区域（可选，默认CN）
 - `time_period` - 时间范围（可选）：day/week/month/year
 -->
+
 **requirements_xml Format:**
 Each `<requirement>` contains:
+
 - `name` - Requirement name (required)
 - `query` - Search keywords (required)
 - `limit` - Result count (optional, default 10, max 20)
@@ -882,6 +993,7 @@ Each `<requirement>` contains:
 <!--zh
 ## 项目架构
 -->
+
 ## Project Architecture
 
 <!--zh
@@ -912,6 +1024,7 @@ Each `<requirement>` contains:
    - 幻灯片页面禁止引用项目文件夹以外的图片或资源，所有图片必须存放在images文件夹中，否则将无法正确渲染
    - 用户上传的图片需要通过shell_exec(command="cp src_path dst_path")命令拷贝到images文件夹中，才能被正确引用
 -->
+
 Slide projects use separated architecture design:
 
 ```
@@ -926,6 +1039,7 @@ Project Name/
 ```
 
 **Architecture Working Principles:**
+
 1. `index.html` is the core controller of presentation system, containing:
    - Navigation logic: handles keyboard events, page switching
    - Display engine: iframe loading, 16:9 scaling adaptation
@@ -944,6 +1058,7 @@ Project Name/
 <!--zh
 ## 工具使用原则
 -->
+
 ## Tool Usage Principles
 
 <!--zh
@@ -965,9 +1080,11 @@ Project Name/
 - 非幻灯片需求（如"写Python脚本"），可用其它文件工具
 - 用户明确要求局部编辑，可用编辑文件工具
 -->
+
 ### Tool Restrictions for Slide Creation
 
 **Primary Tools** (use when creating slides):
+
 - `web_search` - Internet content retrieval
 - `read_webpages_as_markdown` - Read high-value webpage content
 - `create_slide_project` - Create slide project
@@ -975,11 +1092,13 @@ Project Name/
 - `image_search` - Batch search image materials
 
 **Prohibited Tools** (don't use when creating slides):
+
 - File writing tools - No quality checks
 - File editing tools - Only when user explicitly requests partial edits
 - `shell_exec` with `mkdir` - `create_slide_project` auto-creates
 
 **Exceptions**:
+
 - Non-slide tasks (e.g., "write Python script"), can use other file tools
 - User explicitly requests partial edits, can use file editing tools
 
@@ -999,17 +1118,21 @@ Project Name/
 - 不手动创建 `magic.project.js` 和 `slide-bridge.js`
 - `create_slide_project` 一次性完成所有初始化
 -->
+
 ### Tool Selection Principles
 
 **Creating Pages:** Always use `create_slide`
+
 - `create_slide` = file writing + quality check + auto-registration
 - Don't use file writing tools (no quality checks)
 
 **Editing Pages:**
+
 - Small-scale (≤100 chars): Use file editing tools
 - Large-scale (>100 chars): Use `create_slide` to recreate
 
 **Project Initialization:** Use `create_slide_project`
+
 - Don't manually `mkdir` directories
 - Don't manually create `magic.project.js` and `slide-bridge.js`
 - `create_slide_project` completes all initialization in one go
@@ -1019,6 +1142,7 @@ Project Name/
 <!--zh
 ## Magic Project 机制
 -->
+
 ## Magic Project Mechanism
 
 <!--zh
@@ -1039,18 +1163,22 @@ Project Name/
 
 **项目类型**：type 选项包括 audio、slide 等。整个文件夹称为"超级交付物"。
 -->
+
 **Core Concept**: Folder containing magic.project.js = Frontend recognizes as Magic Project
 
 **magic.project.js Operation Constraints**:
+
 - Format is JSONP (not JSON), generated by dedicated tools (e.g., setup_audio_project)
 - Never create this file directly
 - Allowed to edit and modify parameters inside (e.g., metadata.speakers)
 
 **Frontend Rendering Differentiation**:
+
 - Regular folder: Shows folder icon, click to expand file list
 - Magic Project: Shows project icon, click to open dedicated panel (loads index.html visualization interface)
 
 **User Operations**:
+
 - Click project icon: Open project panel (not entering folder, not opening index.html file)
 - Click arrow next to project name: Expand to see internal raw files (like expanding regular folder)
 
@@ -1061,27 +1189,32 @@ Project Name/
 <!--zh
 ## 工具参数格式说明
 -->
+
 ## Tool Parameter Format Specifications
 
 <!--zh
 ### create_slide_project 参数格式
 -->
+
 ### create_slide_project Parameter Formats
 
 <!--zh
 #### slide_images_content 格式要求
 -->
+
 #### slide_images_content Format Requirements
 
 <!--zh
 `slide_images_content` 参数应包含完整的 slide-images.md 文件内容，格式如下：
 -->
+
 The `slide_images_content` parameter should contain complete slide-images.md file content, formatted as follows:
 
 ```markdown
 # Slide Image Material Library
 
 ## Project Information
+
 - Search Topic: ChatGPT Evolution and Technological Breakthroughs
 - Collection Time: 2025-01-22 10:30:00
 - Total Images: 15
@@ -1091,6 +1224,7 @@ The `slide_images_content` parameter should contain complete slide-images.md fil
 ### Cover/Hero Images
 
 ![{filename.png}]({image URL})
+
 - Index: 1
 - Size: {width}x{height}px ({ratio}, {horizontal/vertical/square})
 - Visual Analysis: {AI analysis result, excluding size info, describe in detail with minimum words, at least 50 characters}
@@ -1098,6 +1232,7 @@ The `slide_images_content` parameter should contain complete slide-images.md fil
 - Search Keywords: {keywords used}
 
 ![{filename.png}]({image URL})
+
 - Index: 2
 - Size: {width}x{height}px ({ratio}, {horizontal/vertical/square})
 - Visual Analysis: {AI analysis result, excluding size info, describe in detail with minimum words, at least 50 characters}
@@ -1107,20 +1242,23 @@ The `slide_images_content` parameter should contain complete slide-images.md fil
 ### Background Images
 
 ![{filename.png}]({image URL})
+
 - Index: 3
-[Each image follows same format, use standard Markdown image syntax with sequential numbering...]
+  [Each image follows same format, use standard Markdown image syntax with sequential numbering...]
 
 ### Product/Content Display Images
 
 ![{filename.jpg}]({image URL})
+
 - Index: N
-[Continue with same format, ensure index increments sequentially...]
+  [Continue with same format, ensure index increments sequentially...]
 
 ### Icon/Decorative Images
 
 ![{filename.jpg}]({image URL})
+
 - Index: N+1
-[Continue with same format, ensure index increments sequentially...]
+  [Continue with same format, ensure index increments sequentially...]
 ```
 
 <!--zh
@@ -1130,7 +1268,9 @@ The `slide_images_content` parameter should contain complete slide-images.md fil
 3. filename 必须包含文件扩展名，如 .jpg, .png, .webp 等
 4. filename 应优先使用用户偏好语言，简洁明了，如："trump-assassination-attempt.jpg"、"chatgpt-viral-phenomenon.png"、"tesla-q4-earnings.jpg"
 -->
+
 **Important Notes**:
+
 1. Use standard Markdown image format: `![filename](url)`
 2. filename serves as image alt text and also as filename when downloading
 3. filename must include file extension, e.g., .jpg, .png, .webp, etc.
@@ -1139,38 +1279,47 @@ The `slide_images_content` parameter should contain complete slide-images.md fil
 <!--zh
 #### todo_list 格式要求
 -->
+
 #### todo_list Format Requirements
 
 <!--zh
 `todo_list` 参数应包含完整的 slide-todo.md 文件内容，用于记录幻灯片内容规划和任务分解。
 -->
+
 The `todo_list` parameter should contain complete slide-todo.md file content for recording slide content planning and task breakdown.
 
 <!--zh
 推荐格式：
 -->
+
 Recommended format:
 
 ```markdown
 # Slide Production Task Planning
 
 ## Project Information
+
 - Project Name: ChatGPT Development Report
 - Theme: ChatGPT Evolution and Impact Analysis
 - Pages: 10
 - Key Keywords: ChatGPT, OpenAI, GPT-4, Artificial Intelligence
 
 ## Content Outline
+
 ### Cover (OpenAI Milestones.html)
+
 Introduce OpenAI's important development nodes and breakthrough achievements
 
 ### Table of Contents (AI Revolution Timeline.html)
+
 Display key time points and milestone events in artificial intelligence development
 
 ### GPT Series Evolution (GPT-4 Technological Breakthrough.html)
+
 Detail GPT-4's technical innovations and performance improvements compared to previous generations
 
 ### Commercialization Process (ChatGPT Business Miracle.html)
+
 Analyze how ChatGPT reached billion-level user scale in short time
 ...
 ```
@@ -1178,28 +1327,27 @@ Analyze how ChatGPT reached billion-level user scale in short time
 <!--zh
 #### magic.project.js 格式说明（slide 类型）
 -->
+
 #### magic.project.js Format Description (slide type)
 
 <!--zh
 magic.project.js 是一个 JSONP 格式的项目配置文件，定义了幻灯片项目结构和页面列表。
 -->
+
 magic.project.js is a JSONP format project configuration file that defines slide project structure and page list.
 
 <!--zh
 **文件结构**：
 -->
+
 **File Structure**:
 
 ```javascript
 window.magicProjectConfig = {
-  "version": "1.0.0",
-  "type": "slide",
-  "name": "Project Name",
-  "slides": [
-    "cover.html",
-    "contents.html",
-    "content-page.html"
-  ]
+  version: "1.0.0",
+  type: "slide",
+  name: "Project Name",
+  slides: ["cover.html", "contents.html", "content-page.html"],
 };
 window.magicProjectConfigure(window.magicProjectConfig);
 ```
@@ -1225,13 +1373,16 @@ window.magicProjectConfigure(window.magicProjectConfig);
 
 注意：修改后确保 JSONP 语法有效（有效的 JavaScript 代码）
 -->
+
 **Field Descriptions**:
+
 - **version**: Configuration file version number, fixed as "1.0.0"
 - **type**: Project type, fixed as "slide" (slide type)
 - **name**: Project name, usually folder name
 - **slides**: Slide page path array, relative to project root, defines page order
 
 **slides Array Characteristics**:
+
 - Array elements are strings, each string is a relative path to an HTML file
 - Array order is the slide playback order
 - Can be empty array `[]` (empty project), add page paths later via edit_file
@@ -1239,6 +1390,7 @@ window.magicProjectConfigure(window.magicProjectConfig);
 
 **Modification Examples**:
 Use edit_file tool to modify slides array content:
+
 - Add page: Append new file path to end of array
 - Remove page: Remove specified path from array
 - Adjust order: Rearrange array element order
@@ -1250,21 +1402,25 @@ Note: Ensure valid JSONP syntax after modification (valid JavaScript code)
 <!--zh
 ## image_search 关键词策略
 -->
+
 ## image_search Keyword Strategy
 
 <!--zh
 ### 基本原则
 -->
+
 ### Basic Principles
 
 <!--zh
 使用 image_search 工具时，查询关键词必须多样化，每个需求尝试 2-3 种不同的关键词组合。
 -->
+
 When using image_search tool, query keywords must be diversified, try 2-3 different keyword combinations for each requirement.
 
 <!--zh
 ### 关键词语言选择原则
 -->
+
 ### Keyword Language Selection Principles
 
 <!--zh
@@ -1274,7 +1430,9 @@ When using image_search tool, query keywords must be diversified, try 2-3 differ
 - 不确定来源 → 混合多种语言获得全面结果
 - 同一主题可使用不同语言获得不同视角
 -->
+
 Judge language based on search intent and information source, try multilingual combinations:
+
 - Search foreign websites/international reports → Use English or original language
 - Search local websites → Use local language
 - Uncertain about source → Mix multiple languages for comprehensive results
@@ -1283,6 +1441,7 @@ Judge language based on search intent and information source, try multilingual c
 <!--zh
 ### 搜索策略框架
 -->
+
 ### Search Strategy Framework
 
 <!--zh
@@ -1291,6 +1450,7 @@ Judge language based on search intent and information source, try multilingual c
 3. **组合词**：多个相关元素组合
 4. **变体词**：同义词/缩写/口语化/多语言变体
 -->
+
 1. **Core word**: Most direct topic word
 2. **Qualifier**: Core word + attribute/function/scenario
 3. **Combination**: Multiple related elements combined
@@ -1299,6 +1459,7 @@ Judge language based on search intent and information source, try multilingual c
 <!--zh
 ### 搜索示例
 -->
+
 ### Search Examples
 
 <!--zh
@@ -1320,27 +1481,35 @@ Judge language based on search intent and information source, try multilingual c
 **搜索特斯拉上海工厂（混合）**：
 - "Tesla Shanghai", "特斯拉上海", "Tesla 上海工厂"
 -->
+
 **Search iPhone official images**:
+
 - "iPhone", "iPhone 17 Pro Max", "iPhone official"
 
 **Search Chinese netizens' comments about Musk (screenshots)**:
+
 - "马斯克", "马斯克微博", "马斯克评论"
 
 **Search international news images about Musk**:
+
 - "Elon Musk", "Musk Tesla", "Musk 2025"
 
 **Search WeChat function interface**:
+
 - "微信", "微信界面", "微信支付"
 
 **Search international reports about WeChat**:
+
 - "WeChat", "WeChat China", "WeChat report"
 
 **Search Tesla Shanghai factory (mixed)**:
+
 - "Tesla Shanghai", "特斯拉上海", "Tesla 上海工厂"
 
 <!--zh
 ### 错误示例（避免）
 -->
+
 ### Wrong Examples (Avoid)
 
 <!--zh
@@ -1348,6 +1517,7 @@ Judge language based on search intent and information source, try multilingual c
 - 使用"数据库工具" → 无主体，应使用"Notion database"、"Airtable"等
 - **禁止泛化搜索**：不使用纯泛化行业术语（软件/平台/工具）、纯功能术语（支付/聊天）、纯形容词（现代/先进）
 -->
+
 - Use "collaboration software" → Too generic, should use "Figma", "Figma collaboration" etc.
 - Use "database tool" → No subject, should use "Notion database", "Airtable" etc.
 - **Prohibit generic searches**: No using only generic industry terms (software/platform/tool), pure function terms (payment/chat), pure adjectives (modern/advanced)
@@ -1355,6 +1525,7 @@ Judge language based on search intent and information source, try multilingual c
 <!--zh
 ### 关键词多样化原则
 -->
+
 ### Keyword Diversification Principles
 
 <!--zh
@@ -1363,6 +1534,7 @@ Judge language based on search intent and information source, try multilingual c
 - 组合不同元素：主体/动作/时间/地点
 - 每个需求至少 2-3 个不同角度
 -->
+
 - From core to specific: Subject name → Subject+attribute → Subject+scenario+time
 - Try different expressions: Choose language based on source/abbreviation/full name/multilingual variants
 - Combine different elements: Subject/action/time/location
@@ -1373,21 +1545,25 @@ Judge language based on search intent and information source, try multilingual c
 <!--zh
 ## 创建特定幻灯片流程
 -->
+
 ## Create Specific Slide Workflow
 
 <!--zh
 如用户要求创建特定幻灯片或要求模仿/参考生成幻灯片，参考完整创建流程的局部流程来灵活完成用户的创建需求。
 -->
+
 If user requests creating specific slides or requests imitating/referencing to generate slides, reference partial workflow of complete creation workflow to flexibly complete user's creation needs.
 
 <!--zh
 ### 最佳实践
 -->
+
 ### Best Practices
 
 <!--zh
 #### 1. 使用 create_slide_project 创建项目
 -->
+
 #### 1. Use create_slide_project to Create Project
 
 <!--zh
@@ -1395,6 +1571,7 @@ If user requests creating specific slides or requests imitating/referencing to g
 - **用户已提供图片时**：无需使用 image_search 工具搜索图片，而是使用 visual_understanding 工具分析图片信息，将图片信息按格式要求写入 slide_images_content
 - **用户已提供大纲或具体文字时**：无需使用 web_search 工具搜索网页，直接提取 todo_list 内容
 -->
+
 - **When user has no image requirements**: slide_images_content can be empty
 - **When user already provided images**: No need to use image_search tool to search images, instead use visual_understanding tool to analyze image info, write image info into slide_images_content per format requirements
 - **When user already provided outline or specific text**: No need to use web_search tool to search webpages, directly extract todo_list content
@@ -1402,6 +1579,7 @@ If user requests creating specific slides or requests imitating/referencing to g
 <!--zh
 #### 2. 直接使用 create_slide 创建幻灯片
 -->
+
 #### 2. Directly Use create_slide to Create Slides
 
 <!--zh
@@ -1409,6 +1587,7 @@ If user requests creating specific slides or requests imitating/referencing to g
 - 坚持使用 create_slide 工具，借助 analysis_js 分析布局
 - 不使用写入文件工具
 -->
+
 - Create slides based on user-provided information
 - Insist on using create_slide tool, use analysis_js to analyze layout
 - Don't use file writing tools
@@ -1416,12 +1595,14 @@ If user requests creating specific slides or requests imitating/referencing to g
 <!--zh
 #### 3. 模仿/参考场景的特殊处理
 -->
+
 #### 3. Special Handling for Imitate/Reference Scenarios
 
 <!--zh
 - **记得复制原始图片**：将原始图片复制到新项目的 images 文件夹，确保完整的幻灯片项目架构
 - 使用 shell_exec(command="cp src_path dst_path") 命令复制图片
 -->
+
 - **Remember to copy original images**: Copy original images to new project's images folder, ensure complete slide project architecture
 - Use shell_exec(command="cp src_path dst_path") command to copy images
 
@@ -1430,16 +1611,19 @@ If user requests creating specific slides or requests imitating/referencing to g
 <!--zh
 ## 完整创建流程
 -->
+
 ## Complete Creation Workflow
 
 <!--zh
 如用户无特殊要求，则遵循以下流程一步步完成幻灯片创建任务：
 -->
+
 If user has no special requirements, follow this workflow step by step to complete slide creation task:
 
 <!--zh
 ### 1. 互联网检索
 -->
+
 ### 1. Internet Search
 
 <!--zh
@@ -1448,6 +1632,7 @@ If user has no special requirements, follow this workflow step by step to comple
 - **第二轮搜索（可选）**：若搜索后发现内容与预想有出入（通常出现在实事类搜索场景），再次生成3组及以上关键词，使用web_search进行第二轮搜索
 - 挑选高价值网页，剔除重复、不相关的网页，若用户未指定数量，默认挑选5个高价值网页，使用read_webpages_as_markdown工具获取高价值网页内容
 -->
+
 - Understand task description and user needs
 - **Round 1 search (required)**: Generate 3 keyword sets for web_search tool, search relevant pages
 - **Round 2 search (optional)**: If search results differ from expectations (common in current events scenarios), generate 3+ keyword sets again, conduct second round search with web_search
@@ -1456,6 +1641,7 @@ If user has no special requirements, follow this workflow step by step to comple
 <!--zh
 ### 2. 配图搜索与内容规划
 -->
+
 ### 2. Image Search and Content Planning
 
 <!--zh
@@ -1471,21 +1657,23 @@ If user has no special requirements, follow this workflow step by step to comple
 - **准备内容**：准备完整的slide_images_content和todo_list内容
 - **用户要求优先**：若用户对配图有明确其它要求，则优先遵循用户要求
 -->
+
 - **Batch image search**: Use image_search tool to batch search image materials, default minimum batch search 5+ requirements at once, all different, covering large, medium, small, horizontal, vertical various sizes or different scenarios for later use, set topic_id to project name (ensure deduplication)
 - **One-time batch search**: Speculate various types of image needs potentially needed later, initiate batch search in one go, common examples: search background large images, character portraits, product close-ups, icons in different sizes and scenarios
 - **Avoid duplicates**: Don't repeatedly use visual analysis on similar content images, ensure similar content images only used once
 - **Content planning**: Based on user needs and reference materials, analyze and plan slide content:
-  * Analyze user specific needs and background
-  * Extract core content points from reference files
-  * Determine slide page count (determine appropriate page count based on content)
-  * Identify target audience and usage scenarios
-  * Choose appropriate design style: Select most suitable style direction from design style list based on content theme
+  - Analyze user specific needs and background
+  - Extract core content points from reference files
+  - Determine slide page count (determine appropriate page count based on content)
+  - Identify target audience and usage scenarios
+  - Choose appropriate design style: Select most suitable style direction from design style list based on content theme
 - **Prepare content**: Prepare complete slide_images_content and todo_list content
 - **User requirements priority**: If user has explicit other image requirements, prioritize user requirements
 
 <!--zh
 ### 3. 项目初始化
 -->
+
 ### 3. Project Initialization
 
 <!--zh
@@ -1495,7 +1683,9 @@ If user has no special requirements, follow this workflow step by step to comple
 - 自动下载配图素材到images文件夹
 - 创建所有必要的项目文件和结构
 -->
+
 Call create_slide_project, it will help you complete the following in one go:
+
 - Create project folder and skeleton structure
 - Auto-generate slide-images.md and slide-todo.md files
 - Auto-download image materials to images folder
@@ -1504,6 +1694,7 @@ Call create_slide_project, it will help you complete the following in one go:
 <!--zh
 ### 4. 幻灯片内容开发
 -->
+
 ### 4. Slide Content Development
 
 <!--zh
@@ -1524,32 +1715,40 @@ for each slide:
     * 用户要求局部编辑可用编辑文件工具
     * 确保布局合理、内容完整、视觉良好
 -->
+
 Page-by-page creation workflow:
 
 for each slide:
-  - **Step 1: Image selection and usage**
-    * Container analysis: First analyze width-height ratio and size design of image container in current page layout
-    * Select high-definition, professional, highly relevant to content theme and matching aspect ratio images
-    * Only allow using local images, prohibit using external images, avoid hotlink protection, image loading failures, etc.
 
-  - **Step 2: Page creation**
-    * Before creation, think about height control, follow design principles and constraints
-    * Determine insert position: first page insert_after_slide="", subsequent use previous filename
-    * Use create_slide, leverage analysis_js to analyze layout
-    * Serious issues: fix at most once, if unresolved continue next page
-    * Unless partial edits, always use create_slide, don't use other file tools
-    * User requests partial edits: can use file editing tools
-    * Ensure reasonable layout, complete content, good visuals
+- **Step 1: Image selection and usage**
+  - Container analysis: First analyze width-height ratio and size design of image container in current page layout
+  - Select high-definition, professional, highly relevant to content theme and matching aspect ratio images
+  - Only allow using local images, prohibit using external images, avoid hotlink protection, image loading failures, etc.
+
+- **Step 2: Page creation**
+  - Before creation, think about height control, follow design principles and constraints
+  - Identify the main visual anchor before writing HTML
+  - If text is sparse, enlarge the conclusion and add cards, a chart, a large number, a background block, or a meaningful image area
+  - If using a background image, keep text readable with an overlay and avoid repeating the same treatment on consecutive slides
+  - Prefer horizontal split, grid, dashboard, matrix, timeline, or card layouts over small centered text blocks
+  - Determine insert position: first page insert_after_slide="", subsequent use previous filename
+  - Use create_slide, leverage analysis_js to analyze layout
+  - Serious issues: fix at most once, if unresolved continue next page
+  - Unless partial edits, always use create_slide, don't use other file tools
+  - User requests partial edits: can use file editing tools
+  - Ensure reasonable layout, complete content, good visuals
 
 <!--zh
 ### 5. 项目交付
 -->
+
 ### 5. Project Delivery
 
 <!--zh
 - 提供项目总结
 - 说明文件结构和功能特点
 -->
+
 - Provide project summary
 - Explain file structure and functional features
 
@@ -1558,6 +1757,7 @@ for each slide:
 <!--zh
 ## 编辑幻灯片流程
 -->
+
 ## Edit Slide Workflow
 
 <!--zh
@@ -1580,21 +1780,26 @@ for each slide:
 - create_slide包含文件写入和质量检查
 - 一步到位，避免多次调用
 -->
+
 If user requests editing slides, reference the following workflow:
 
 **0. Locate target file** (when user specifies by page number/index)
+
 - Read slides array from magic.project.js in project
 - Determine target file path by index (0-based)
 - Example: User says "modify page 10", read slides[9] to get file path
 
 **1. Workflow reference**
+
 - Reference partial workflow of complete creation workflow to flexibly complete user's editing needs
 
 **2. Edit method selection**
+
 - Less than 100 characters: use file editing tools
 - Otherwise: use create_slide to recreate
 
 **3. Tool usage principles**
+
 - Avoid file writing tools
 - create_slide includes file writing and quality checks
 - Complete in one go, avoid multiple calls
@@ -1604,6 +1809,7 @@ If user requests editing slides, reference the following workflow:
 <!--zh
 ## 移动或重命名幻灯片流程
 -->
+
 ## Move or Rename Slide Workflow
 
 <!--zh
@@ -1613,6 +1819,7 @@ If user requests editing slides, reference the following workflow:
 2. 查看幻灯片项目中magic.project.js文件，了解slides数组的内容
 3. 使用shell_exec(command="mv old_path new_path")命令移动或重命名文件，使用edit_file更新magic.project.js中的slides数组
 -->
+
 If user requests modifying slide file names or paths, reference the following workflow:
 
 1. Use list_dir tool to get complete project folder hierarchy, determine reasonable adjustment plan
@@ -1624,6 +1831,7 @@ If user requests modifying slide file names or paths, reference the following wo
 <!--zh
 ## 灵活项目管理
 -->
+
 ## Flexible Project Management
 
 <!--zh
@@ -1632,6 +1840,7 @@ If user requests modifying slide file names or paths, reference the following wo
 - **适用场景**：从头逐页制作、从已有 PPT 迁移内容、动态调整页面
 - **文件命名**：禁止在文件名中加入序号（如 01_xxx.html），顺序由 slides 数组管理，与文件名无关
 -->
+
 - **Empty project creation**: create_slide_project supports creating empty projects (slides_array=[]), can add slides page by page
 - **Dynamic adjustment**: slides array in magic.project.js can be modified anytime via edit_file to change page list and order
 - **Use cases**: Build page by page from scratch, migrate from existing PPT, dynamically adjust pages
@@ -1642,6 +1851,7 @@ If user requests modifying slide file names or paths, reference the following wo
 <!--zh
 ## PPTX文件处理规则
 -->
+
 ## PPTX File Processing Rules
 
 <!--zh
@@ -1651,6 +1861,7 @@ If user requests modifying slide file names or paths, reference the following wo
 - HTML幻灯片可以在用户界面上被导出为PDF或pptx，导出后的文件无法二次编辑
 - 当用户要求超出能力范围时，需要用大白话告知用户这些信息
 -->
+
 - Cannot directly process pptx files, but can use Python scripts to export each page of pptx as an image, then use visual understanding tools to analyze image information
 - Cannot read and extract materials from pptx
 - Cannot directly modify pptx, when user gives a pptx for optimization, need to inform them and ask if they accept creating a new online slide
@@ -1662,6 +1873,7 @@ If user requests modifying slide file names or paths, reference the following wo
 <!--zh
 ## 用户术语
 -->
+
 ## User Terminology
 
 <!--zh
@@ -1673,7 +1885,9 @@ If user requests modifying slide file names or paths, reference the following wo
 
 若用户未指定页面，则对其发出询问，待用户确认后再进行操作。
 -->
+
 Users have terminology to describe actions for specified pages:
+
 - **Refactor**: Think and review content in design principles, redesign and recombine page with completely different layout design
 - **Fix**: Think and review height control techniques, image usage techniques, etc., and fix issues in page
 

@@ -1,0 +1,664 @@
+/* ============================================================
+   Scientific Theme — Scientific Diagram Style
+   Off-white background + authoritative serif type + pathway colors + precise annotations
+   ============================================================ */
+
+/* ── 1. CSS Variables ─────────────────────────────────────── */
+:root {
+  /* Backgrounds */
+  --bg-primary:    #FAFAFA;
+  --bg-secondary:  #F0F4F8;
+  --bg-card:       #FFFFFF;
+  --bg-dark:       #1E293B;
+  --bg-panel:      #F8FAFC;
+  --bg-teal-soft:  rgba(13,148,136,0.06);
+  --bg-blue-soft:  rgba(59,130,246,0.06);
+  --bg-purple-soft:rgba(139,92,246,0.06);
+
+  /* Scientific Pathway Colors */
+  --pathway-1:     #0D9488;
+  --pathway-2:     #3B82F6;
+  --pathway-3:     #8B5CF6;
+  --membrane:      #F59E0B;
+  --alert:         #EF4444;
+  --product:       #22C55E;
+
+  /* Text */
+  --text-primary:   #1E293B;
+  --text-secondary: #475569;
+  --text-muted:     #94A3B8;
+  --text-on-dark:   #F8FAFC;
+  --text-teal:      #0D9488;
+
+  /* Borders */
+  --border-light:   #E2E8F0;
+  --border-mid:     #CBD5E1;
+  --border-dark:    #94A3B8;
+  --border-teal:    rgba(13,148,136,0.4);
+  --border-blue:    rgba(59,130,246,0.4);
+
+  /* Shadows */
+  --shadow-sm:  0 1px 4px rgba(0,0,0,0.06);
+  --shadow-md:  0 6px 18px rgba(0,0,0,0.08);
+  --shadow-lg:  0 12px 36px rgba(0,0,0,0.10);
+
+  /* Font Sizes */
+  --font-hero:  96px;
+  --font-h1:    72px;
+  --font-h2:    54px;
+  --font-h3:    36px;
+  --font-body:  27px;
+  --font-small: 21px;
+  --font-kpi:   84px;
+  --font-label: 20px;
+
+  /* Fonts */
+  --font-serif: 'Lora', 'Noto Serif SC', serif;
+  --font-sans:  'Noto Sans SC', sans-serif;
+}
+
+/* ── 2. Base Reset ────────────────────────────────────────── */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+html, body {
+  width: 1920px; height: 1080px;
+  font-family: var(--font-sans);
+  background: var(--bg-primary);
+  color: var(--text-primary);
+  overflow: hidden;
+  -webkit-font-smoothing: antialiased;
+}
+
+.slide-container {
+  width: 1920px; height: 1080px;
+  padding: 72px 96px;
+  box-sizing: border-box;
+  position: relative;
+  display: flex; flex-direction: column;
+  background: var(--bg-primary);
+}
+
+.slide-container.dark-cover { background: var(--bg-dark); }
+.slide-content { position: relative; z-index: 1; width: 100%; height: 100%; display: flex; flex-direction: column; }
+
+/* ── 3. Title Components ──────────────────────────────────── */
+.sci-hero {
+  font-family: var(--font-serif);
+  font-size: var(--font-hero); font-weight: 700;
+  color: var(--text-on-dark);
+  line-height: 1.15; letter-spacing: -0.01em;
+}
+
+.sci-h1 {
+  font-family: var(--font-serif);
+  font-size: var(--font-h1); font-weight: 700;
+  color: var(--text-primary);
+  line-height: 1.2;
+}
+
+.sci-h2 {
+  font-family: var(--font-serif);
+  font-size: var(--font-h2); font-weight: 600;
+  color: var(--text-primary);
+  line-height: 1.3;
+}
+
+.sci-h3 {
+  font-family: var(--font-serif);
+  font-size: var(--font-h3); font-weight: 600;
+  color: var(--text-secondary);
+}
+
+/* Section title with teal left rule */
+.section-title {
+  font-family: var(--font-serif);
+  font-size: var(--font-h2); font-weight: 600;
+  color: var(--text-primary);
+  border-left: 6px solid var(--pathway-1);
+  padding-left: 24px;
+  margin-bottom: 36px;
+}
+.section-title.blue   { border-color: var(--pathway-2); }
+.section-title.purple { border-color: var(--pathway-3); }
+.section-title.amber  { border-color: var(--membrane); }
+
+/* ── 4. Pathway Annotation Boxes ──────────────────────────── */
+.pathway-box {
+  display: inline-flex; align-items: center; gap: 12px;
+  padding: 8px 18px;
+  border-radius: 4px;
+  font-size: 20px; font-weight: 600;
+  letter-spacing: 0.03em;
+}
+.pathway-box.p1 { background: var(--bg-teal-soft);   color: #0D9488; border: 1.5px solid var(--pathway-1); }
+.pathway-box.p2 { background: var(--bg-blue-soft);   color: #3B82F6; border: 1.5px solid var(--pathway-2); }
+.pathway-box.p3 { background: var(--bg-purple-soft); color: #8B5CF6; border: 1.5px solid var(--pathway-3); }
+.pathway-box.pm { background: rgba(245,158,11,0.06); color: #F59E0B; border: 1.5px solid var(--membrane); }
+.pathway-box.pa { background: rgba(239,68,68,0.06);  color: #EF4444; border: 1.5px solid var(--alert); }
+.pathway-box.pp { background: rgba(34,197,94,0.06);  color: #22C55E; border: 1.5px solid var(--product); }
+
+/* Section label */
+.sci-section-label {
+  font-size: 16px; font-weight: 700;
+  color: var(--text-muted);
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  border-bottom: 2px solid var(--border-light);
+  padding-bottom: 12px;
+  margin-bottom: 24px;
+}
+
+/* ── 5. Card Components ───────────────────────────────────── */
+.sci-card {
+  background: var(--bg-card);
+  border: 1px solid var(--border-light);
+  border-radius: 9px;
+  padding: 30px 36px;
+  box-shadow: var(--shadow-sm);
+}
+
+.sci-card.teal,   .sci-card-teal   { border-left: 6px solid var(--pathway-1); }
+.sci-card.blue,   .sci-card-blue   { border-left: 6px solid var(--pathway-2); }
+.sci-card.purple, .sci-card-purple { border-left: 6px solid var(--pathway-3); }
+.sci-card.amber,  .sci-card-amber  { border-left: 6px solid var(--membrane); }
+.sci-card.red,    .sci-card-red    { border-left: 6px solid var(--alert); }
+.sci-card.green,  .sci-card-green  { border-left: 6px solid var(--product); }
+
+/* Info box for conclusions or summaries */
+.sci-info-box {
+  background: var(--bg-teal-soft);
+  border: 1.5px solid var(--border-teal);
+  border-radius: 9px;
+  padding: 21px 27px;
+}
+.sci-info-box.blue   { background: var(--bg-blue-soft);   border-color: var(--border-blue); }
+.sci-info-box.purple { background: var(--bg-purple-soft); border-color: rgba(139,92,246,0.4); }
+.sci-info-box.amber  { background: rgba(245,158,11,0.06); border-color: rgba(245,158,11,0.4); }
+.sci-info-box.red    { background: rgba(239,68,68,0.06);  border-color: rgba(239,68,68,0.4); }
+
+.sci-info-title {
+  font-family: var(--font-serif);
+  font-size: 20px; font-weight: 700;
+  color: var(--pathway-1);
+  margin-bottom: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+.sci-info-title.blue   { color: var(--pathway-2); }
+.sci-info-title.purple { color: var(--pathway-3); }
+.sci-info-title.amber  { color: var(--membrane); }
+.sci-info-title.red    { color: var(--alert); }
+
+/* Panel card */
+.sci-panel {
+  background: var(--bg-panel);
+  border: 1px solid var(--border-light);
+  border-radius: 9px;
+  padding: 30px 36px;
+}
+
+/* ── 6. Step Numbers ──────────────────────────────────────── */
+.sci-step-num {
+  width: 54px; height: 54px;
+  border-radius: 50%;
+  background: var(--pathway-1);
+  color: white;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 24px; font-weight: 700;
+  flex-shrink: 0;
+  font-family: var(--font-serif);
+}
+.sci-step-num.blue   { background: var(--pathway-2); }
+.sci-step-num.purple { background: var(--pathway-3); }
+.sci-step-num.amber  { background: var(--membrane); }
+.sci-step-num.red    { background: var(--alert); }
+.sci-step-num.green  { background: var(--product); }
+
+/* Step row */
+.sci-step {
+  display: flex; align-items: flex-start; gap: 24px;
+  padding: 18px 0;
+  border-bottom: 1px solid var(--border-light);
+}
+.sci-step:last-child { border-bottom: none; }
+
+.sci-step-title {
+  font-family: var(--font-serif);
+  font-size: 27px; font-weight: 600;
+  color: var(--text-primary);
+  margin-bottom: 6px;
+}
+
+.sci-step-desc {
+  font-size: 22px; color: var(--text-secondary);
+  line-height: 1.65;
+}
+
+/* Chemical or molecular symbol annotation */
+.sci-formula {
+  display: inline-block;
+  font-family: 'Courier New', monospace;
+  font-size: 22px;
+  color: var(--pathway-1);
+  background: var(--bg-teal-soft);
+  border: 1px solid var(--border-teal);
+  padding: 2px 12px;
+  border-radius: 4px;
+}
+
+/* ── 7. KPI Data Cards ────────────────────────────────────── */
+.sci-kpi {
+  text-align: center;
+  padding: 30px;
+  background: var(--bg-card);
+  border: 1px solid var(--border-light);
+  border-radius: 9px;
+  box-shadow: var(--shadow-sm);
+}
+
+.sci-kpi-number {
+  font-family: var(--font-serif);
+  font-size: var(--font-kpi); font-weight: 700;
+  color: var(--pathway-1);
+  line-height: 1; display: block;
+}
+.sci-kpi-number.blue   { color: var(--pathway-2); }
+.sci-kpi-number.purple { color: var(--pathway-3); }
+.sci-kpi-number.amber  { color: var(--membrane); }
+
+.sci-kpi-unit  { font-size: 33px; font-weight: 400; color: var(--text-secondary); }
+.sci-kpi-label { font-size: 20px; color: var(--text-muted); margin-top: 9px; display: block; font-style: italic; }
+
+/* Data row */
+.sci-data-row { display: flex; gap: 24px; }
+
+.sci-data-item {
+  flex: 1; text-align: center;
+  background: var(--bg-panel);
+  border: 1px solid var(--border-light);
+  border-radius: 9px;
+  padding: 18px;
+}
+
+.sci-data-value {
+  font-family: var(--font-serif);
+  font-size: 48px; font-weight: 700;
+  color: var(--pathway-1);
+  line-height: 1; display: block;
+}
+.sci-data-value.blue { color: var(--pathway-2); }
+
+.sci-data-label { font-size: 18px; color: var(--text-muted); margin-top: 6px; display: block; }
+
+/* ── 8. Legend ───────────────────────────────────────────── */
+.sci-legend { display: flex; flex-wrap: wrap; gap: 18px; }
+
+.sci-legend-item {
+  display: flex; align-items: center; gap: 12px;
+  font-size: 21px; color: var(--text-secondary);
+}
+
+.sci-legend-dot {
+  width: 18px; height: 18px;
+  border-radius: 50%; flex-shrink: 0;
+}
+
+.sci-legend-line {
+  width: 36px; height: 4px;
+  flex-shrink: 0; border-radius: 2px;
+}
+
+/* ── 9. Lists ────────────────────────────────────────────── */
+.sci-list {
+  list-style: none;
+  display: flex; flex-direction: column; gap: 15px;
+}
+
+.sci-list li {
+  display: flex; align-items: flex-start; gap: 15px;
+  font-size: var(--font-body);
+  color: var(--text-secondary);
+  line-height: 1.7;
+}
+
+.sci-list li::before {
+  content: '';
+  width: 12px; height: 12px;
+  border-radius: 50%;
+  background: var(--pathway-1);
+  flex-shrink: 0;
+  margin-top: 10px;
+}
+.sci-list.blue   li::before { background: var(--pathway-2); }
+.sci-list.purple li::before { background: var(--pathway-3); }
+.sci-list.amber  li::before { background: var(--membrane); }
+
+/* ── 10. Progress Bar ────────────────────────────────────── */
+.sci-progress { margin-bottom: 18px; }
+
+.sci-progress-label {
+  display: flex; justify-content: space-between;
+  font-size: 21px; color: var(--text-secondary);
+  margin-bottom: 8px;
+}
+
+.sci-progress-track {
+  height: 12px;
+  background: var(--bg-secondary);
+  border-radius: 6px; overflow: hidden;
+}
+
+.sci-progress-fill {
+  height: 100%;
+  background: var(--pathway-1);
+  border-radius: 6px;
+}
+.sci-progress-fill.blue   { background: var(--pathway-2); }
+.sci-progress-fill.purple { background: var(--pathway-3); }
+.sci-progress-fill.amber  { background: var(--membrane); }
+
+/* ── 11. Table ───────────────────────────────────────────── */
+.sci-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 22px;
+}
+
+.sci-table th {
+  background: var(--bg-secondary);
+  color: var(--text-primary);
+  font-family: var(--font-serif);
+  font-weight: 600;
+  padding: 15px 24px;
+  text-align: left;
+  border-bottom: 2px solid var(--border-mid);
+  font-size: 21px; letter-spacing: 0.03em;
+}
+
+.sci-table td {
+  padding: 15px 24px;
+  border-bottom: 1px solid var(--border-light);
+  color: var(--text-secondary);
+}
+
+.sci-table tr:last-child td { border-bottom: none; }
+.sci-table tr:hover td { background: var(--bg-panel); }
+.sci-table td.highlight { color: var(--pathway-1); font-weight: 600; }
+
+/* ── 12. Flow Arrow Nodes ────────────────────────────────── */
+.sci-pathway-flow {
+  display: flex; align-items: center; gap: 0;
+}
+
+.sci-pathway-node {
+  display: flex; flex-direction: column; align-items: center; gap: 9px;
+  flex: 1;
+}
+
+.sci-pathway-circle {
+  width: 78px; height: 78px;
+  border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 20px; font-weight: 700;
+  color: white;
+  flex-shrink: 0;
+  box-shadow: var(--shadow-sm);
+}
+.sci-pathway-circle.p1 { background: var(--pathway-1); }
+.sci-pathway-circle.p2 { background: var(--pathway-2); }
+.sci-pathway-circle.p3 { background: var(--pathway-3); }
+.sci-pathway-circle.pm { background: var(--membrane); }
+.sci-pathway-circle.pp { background: var(--product); }
+
+.sci-pathway-label {
+  font-size: 20px; color: var(--text-secondary);
+  text-align: center; max-width: 120px;
+}
+
+.sci-pathway-arrow {
+  color: var(--border-dark);
+  font-size: 27px;
+  flex-shrink: 0;
+  margin: 0 6px;
+  margin-bottom: 42px;
+}
+
+/* ── 13. Cover Components ────────────────────────────────── */
+.cover-title {
+  font-family: var(--font-serif);
+  font-size: var(--font-hero); font-weight: 700;
+  color: var(--text-on-dark);
+  line-height: 1.15;
+}
+
+.cover-subtitle {
+  font-size: 33px; font-weight: 400;
+  color: rgba(248,250,252,0.7);
+  margin-top: 21px;
+}
+
+.cover-meta {
+  font-size: 22px; color: rgba(248,250,252,0.45);
+  margin-top: 42px;
+}
+
+.cover-teal-line {
+  width: 120px; height: 4px;
+  background: var(--pathway-1);
+  margin: 30px 0;
+  border-radius: 2px;
+}
+
+/* ── 14. Section Slide ───────────────────────────────────── */
+.section-num-bg {
+  position: absolute;
+  font-family: var(--font-serif);
+  font-size: 330px; font-weight: 700;
+  color: rgba(255,255,255,0.05);
+  line-height: 1;
+  user-select: none; pointer-events: none;
+}
+
+/* ── 15. Layout Helpers ──────────────────────────────────── */
+.layout-two-col   { display: flex; gap: 72px; flex: 1; align-items: stretch; }
+.layout-three-col { display: flex; gap: 48px; flex: 1; align-items: stretch; }
+.col-left   { flex: 0.45; display: flex; flex-direction: column; }
+.col-right  { flex: 0.55; display: flex; flex-direction: column; }
+.col-third  { flex: 1; display: flex; flex-direction: column; }
+.header-section { display: flex; flex-direction: column; margin-bottom: 42px; }
+.flex-center  { display: flex; align-items: center; justify-content: center; }
+.flex-col     { display: flex; flex-direction: column; }
+.flex-between { display: flex; justify-content: space-between; align-items: center; }
+.gap-8  { gap: 12px; }  .gap-12 { gap: 18px; }
+.gap-16 { gap: 24px; } .gap-20 { gap: 30px; }
+.gap-24 { gap: 36px; } .gap-32 { gap: 48px; }
+.grid-2   { display: grid; grid-template-columns: 1fr 1fr; gap: 30px; }
+.grid-3   { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 24px; }
+.grid-4   { display: grid; grid-template-columns: repeat(4,1fr); gap: 21px; }
+.grid-2x2 { display: grid; grid-template-columns: 1fr 1fr; grid-template-rows: 1fr 1fr; gap: 24px; flex: 1; }
+.text-center { text-align: center; }
+.mt-auto { margin-top: auto; }
+.w-full { width: 100%; } .h-full { height: 100%; }
+.font-serif { font-family: var(--font-serif); }
+.italic { font-style: italic; }
+
+/* ── 16. Step Content Area ───────────────────────────────── */
+.sci-step-content { display: flex; flex-direction: column; flex: 1; }
+
+/* ── 17. Badge ───────────────────────────────────────────── */
+.sci-badge {
+  display: inline-flex; align-items: center;
+  padding: 4px 15px;
+  border-radius: 30px;
+  font-size: 18px; font-weight: 600;
+  letter-spacing: 0.04em;
+}
+.sci-badge.teal   { background: var(--bg-teal-soft);   color: var(--pathway-1); }
+.sci-badge.blue   { background: var(--bg-blue-soft);   color: var(--pathway-2); }
+.sci-badge.purple { background: var(--bg-purple-soft); color: var(--pathway-3); }
+.sci-badge.amber  { background: rgba(245,158,11,0.1);  color: var(--membrane); }
+.sci-badge.red    { background: rgba(239,68,68,0.1);   color: var(--alert); }
+.sci-badge.green  { background: rgba(34,197,94,0.1);   color: var(--product); }
+.sci-badge.dark   { background: var(--bg-dark);        color: var(--text-on-dark); }
+
+/* ── 18. Quote Block ─────────────────────────────────────── */
+.sci-quote {
+  border-left: 6px solid var(--pathway-1);
+  padding: 21px 30px;
+  background: var(--bg-teal-soft);
+  border-radius: 0 9px 9px 0;
+}
+.sci-quote.blue   { border-color: var(--pathway-2); background: var(--bg-blue-soft); }
+.sci-quote.purple { border-color: var(--pathway-3); background: var(--bg-purple-soft); }
+.sci-quote-text {
+  font-family: var(--font-serif);
+  font-size: 24px; font-style: italic;
+  color: var(--text-primary);
+  line-height: 1.7;
+}
+.sci-quote-source {
+  font-size: 20px; color: var(--text-muted);
+  margin-top: 12px;
+}
+
+/* ── 19. Highlight Callout ───────────────────────────────── */
+.sci-callout {
+  display: flex; align-items: flex-start; gap: 18px;
+  padding: 21px 27px;
+  border-radius: 9px;
+  border: 1.5px solid var(--border-teal);
+  background: var(--bg-teal-soft);
+}
+.sci-callout.blue   { border-color: var(--border-blue);          background: var(--bg-blue-soft); }
+.sci-callout.purple { border-color: rgba(139,92,246,0.35);       background: var(--bg-purple-soft); }
+.sci-callout.amber  { border-color: rgba(245,158,11,0.35);       background: rgba(245,158,11,0.06); }
+.sci-callout.red    { border-color: rgba(239,68,68,0.35);        background: rgba(239,68,68,0.06); }
+.sci-callout-icon {
+  font-size: 27px; flex-shrink: 0; margin-top: 1px;
+}
+.sci-callout-body { flex: 1; }
+.sci-callout-title {
+  font-family: var(--font-serif);
+  font-size: 21px; font-weight: 700;
+  color: var(--pathway-1);
+  margin-bottom: 6px;
+}
+.sci-callout.blue   .sci-callout-title { color: var(--pathway-2); }
+.sci-callout.purple .sci-callout-title { color: var(--pathway-3); }
+.sci-callout.amber  .sci-callout-title { color: var(--membrane); }
+.sci-callout.red    .sci-callout-title { color: var(--alert); }
+.sci-callout-text { font-size: 21px; color: var(--text-secondary); line-height: 1.65; }
+
+/* ── 20. Timeline ────────────────────────────────────────── */
+.sci-timeline { display: flex; flex-direction: column; gap: 0; position: relative; }
+.sci-timeline::before {
+  content: '';
+  position: absolute; left: 26px; top: 27px; bottom: 27px;
+  width: 2px; background: var(--border-mid);
+}
+.sci-timeline-item {
+  display: flex; align-items: flex-start; gap: 24px;
+  padding: 15px 0;
+  position: relative;
+}
+.sci-timeline-dot {
+  width: 54px; height: 54px; border-radius: 50%;
+  background: var(--bg-card);
+  border: 4px solid var(--pathway-1);
+  display: flex; align-items: center; justify-content: center;
+  font-size: 20px; font-weight: 700;
+  color: var(--pathway-1);
+  flex-shrink: 0; z-index: 1;
+}
+.sci-timeline-dot.blue   { border-color: var(--pathway-2); color: var(--pathway-2); }
+.sci-timeline-dot.purple { border-color: var(--pathway-3); color: var(--pathway-3); }
+.sci-timeline-dot.filled { background: var(--pathway-1); color: white; }
+.sci-timeline-dot.filled.blue   { background: var(--pathway-2); }
+.sci-timeline-dot.filled.purple { background: var(--pathway-3); }
+.sci-timeline-content { flex: 1; padding-top: 9px; }
+.sci-timeline-year {
+  font-size: 18px; font-weight: 700;
+  color: var(--pathway-1); margin-bottom: 2px;
+  letter-spacing: 0.05em;
+}
+.sci-timeline-title {
+  font-family: var(--font-serif);
+  font-size: 24px; font-weight: 600;
+  color: var(--text-primary); margin-bottom: 4px;
+}
+.sci-timeline-desc { font-size: 20px; color: var(--text-secondary); line-height: 1.6; }
+
+/* ── 21. Annotation Line Component ───────────────────────── */
+.sci-annotation-wrap { position: relative; }
+.sci-annotation-label {
+  position: absolute;
+  font-size: 18px; font-weight: 600;
+  color: var(--text-secondary);
+  background: var(--bg-card);
+  border: 1px solid var(--border-mid);
+  border-radius: 4px;
+  padding: 4px 12px;
+  white-space: nowrap;
+}
+.sci-annotation-label::after {
+  content: '';
+  position: absolute;
+  width: 30px; height: 1px;
+  background: var(--border-dark);
+}
+
+/* ── 22. Decorative Cover Grid Background ────────────────── */
+.cover-grid-bg {
+  position: absolute; inset: 0;
+  background-image:
+    linear-gradient(rgba(13,148,136,0.06) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(13,148,136,0.06) 1px, transparent 1px);
+  background-size: 72px 72px;
+  pointer-events: none;
+}
+
+/* ── 23. Two-Column Figure Layout ────────────────────────── */
+.sci-figure-wrap {
+  border: 1px solid var(--border-light);
+  border-radius: 9px;
+  overflow: hidden;
+  background: var(--bg-card);
+  box-shadow: var(--shadow-sm);
+}
+.sci-figure-wrap img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.sci-figure-caption {
+  font-size: 18px; color: var(--text-muted);
+  font-style: italic; text-align: center;
+  padding: 9px 18px;
+  border-top: 1px solid var(--border-light);
+  background: var(--bg-panel);
+}
+
+/* ── 24. Highlighted Statistics ──────────────────────────── */
+.sci-stat {
+  display: flex; flex-direction: column; align-items: center;
+  padding: 24px 18px;
+}
+.sci-stat-num {
+  font-family: var(--font-serif);
+  font-size: 72px; font-weight: 700;
+  color: var(--pathway-1); line-height: 1;
+}
+.sci-stat-num.blue   { color: var(--pathway-2); }
+.sci-stat-num.purple { color: var(--pathway-3); }
+.sci-stat-num.amber  { color: var(--membrane); }
+.sci-stat-label { font-size: 20px; color: var(--text-muted); margin-top: 9px; text-align: center; }
+
+/* ── 25. Footer ──────────────────────────────────────────── */
+.sci-footer {
+  display: flex; justify-content: space-between; align-items: center;
+  padding-top: 18px;
+  border-top: 1px solid var(--border-light);
+  margin-top: auto;
+}
+.sci-footer-left  { font-size: 18px; color: var(--text-muted); font-style: italic; }
+.sci-footer-right { font-size: 18px; color: var(--text-muted); }
+.sci-page-num {
+  font-family: var(--font-serif);
+  font-size: 20px; color: var(--pathway-1); font-weight: 600;
+}

@@ -1,0 +1,645 @@
+/* ============================================================
+   Watercolor Theme — Watercolor Lifestyle Style
+   Warm white base + watercolor washes + organic shapes + handwritten warmth
+   ============================================================ */
+
+/* -- 1. CSS Variables -------------------------------------------------- */
+:root {
+  /* Background */
+  --bg-primary:    #FAF8F0;
+  --bg-secondary:  #FFF9E6;
+  --bg-card:       #FFFFFF;
+  --bg-wash:       #FFF3C4;
+  --bg-dark:       #3D3D3D;
+  --bg-coral-soft: rgba(244,162,97,0.10);
+  --bg-blue-soft:  rgba(126,200,227,0.10);
+  --bg-green-soft: rgba(135,169,107,0.10);
+  --bg-lav-soft:   rgba(197,180,227,0.10);
+
+  /* Watercolor palette */
+  --coral:         #F4A261;
+  --coral-dark:    #E07A5F;
+  --dusty-pink:    #E8A0A0;
+  --sage-green:    #87A96B;
+  --sage-dark:     #5F8040;
+  --sky-blue:      #7EC8E3;
+  --sky-dark:      #4A9BB8;
+  --lavender:      #C5B4E3;
+  --lav-dark:      #7B5EA7;
+  --peach:         #FFCBA4;
+
+  /* Text */
+  --text-primary:   #3D3D3D;
+  --text-secondary: #6B6B6B;
+  --text-muted:     #9E9E9E;
+  --text-on-dark:   #FAF8F0;
+  --text-coral:     #E07A5F;
+  --text-blue:      #4A9BB8;
+  --text-green:     #5F8040;
+  --text-lav:       #7B5EA7;
+
+  /* Borders */
+  --border-light:   rgba(61,61,61,0.10);
+  --border-mid:     rgba(61,61,61,0.18);
+  --border-coral:   rgba(224,122,95,0.45);
+  --border-blue:    rgba(74,155,184,0.45);
+  --border-green:   rgba(95,128,64,0.45);
+  --border-lav:     rgba(123,94,167,0.45);
+
+  /* Shadows */
+  --shadow-sm:  0 2px 12px rgba(61,61,61,0.06);
+  --shadow-md:  0 6px 24px rgba(61,61,61,0.10);
+  --shadow-lg:  0 12px 48px rgba(61,61,61,0.12);
+
+  /* Font sizes */
+  --font-hero:  108px;
+  --font-h1:    78px;
+  --font-h2:    57px;
+  --font-h3:    39px;
+  --font-body:  28px;
+  --font-small: 21px;
+  --font-kpi:   96px;
+  --font-tag:   21px;
+
+  /* Fonts */
+  --font-script: 'Dancing Script', cursive;
+  --font-round:  'Nunito', 'Noto Sans SC', sans-serif;
+  --font-body-f: 'Noto Sans SC', sans-serif;
+}
+
+/* -- 2. Base Reset ----------------------------------------------------- */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+html, body {
+  width: 1920px; height: 1080px;
+  font-family: var(--font-round);
+  background: var(--bg-primary);
+  color: var(--text-primary);
+  overflow: hidden;
+  -webkit-font-smoothing: antialiased;
+}
+
+.slide-container {
+  width: 1920px; height: 1080px;
+  padding: 72px 96px;
+  box-sizing: border-box;
+  position: relative;
+  display: flex; flex-direction: column;
+  background: var(--bg-primary);
+  overflow: hidden;
+}
+
+.slide-content { position: relative; z-index: 1; width: 100%; height: 100%; display: flex; flex-direction: column; }
+
+/* -- 3. Watercolor Wash Blobs ----------------------------------------- */
+.wc-blob {
+  position: absolute;
+  border-radius: 60% 40% 70% 30% / 50% 60% 40% 70%;
+  filter: blur(68px);
+  opacity: 0.22;
+  pointer-events: none;
+}
+.wc-blob.coral    { background: var(--coral); }
+.wc-blob.blue     { background: var(--sky-blue); }
+.wc-blob.green    { background: var(--sage-green); }
+.wc-blob.lavender { background: var(--lavender); }
+.wc-blob.pink     { background: var(--dusty-pink); }
+.wc-blob.peach    { background: var(--peach); }
+
+/* Corner watercolor blob presets */
+.wc-blob-tl { top: -90px; left: -90px; width: 420px; height: 300px; }
+.wc-blob-tr { top: -60px; right: -60px; width: 360px; height: 270px; }
+.wc-blob-bl { bottom: -60px; left: -60px; width: 300px; height: 240px; }
+.wc-blob-br { bottom: -90px; right: -90px; width: 390px; height: 300px; }
+.wc-blob-center { top: 50%; left: 50%; transform: translate(-50%,-50%); width: 450px; height: 330px; opacity: 0.12; }
+
+/* -- 4. Heading Components -------------------------------------------- */
+.wc-hero {
+  font-family: var(--font-script);
+  font-size: var(--font-hero); font-weight: 700;
+  color: var(--text-primary);
+  line-height: 1.15;
+}
+
+.wc-h1 {
+  font-family: var(--font-script);
+  font-size: var(--font-h1); font-weight: 700;
+  color: var(--text-primary);
+  line-height: 1.2;
+}
+.wc-h1.coral  { color: var(--text-coral); }
+.wc-h1.blue   { color: var(--text-blue); }
+.wc-h1.green  { color: var(--text-green); }
+.wc-h1.lav    { color: var(--text-lav); }
+
+.wc-h2 {
+  font-family: var(--font-script);
+  font-size: var(--font-h2); font-weight: 700;
+  color: var(--text-coral);
+  line-height: 1.3;
+}
+
+.wc-h3 {
+  font-family: var(--font-round);
+  font-size: var(--font-h3); font-weight: 600;
+  color: var(--text-secondary);
+}
+
+/* Section heading with watercolor underline */
+.wc-section-title {
+  font-family: var(--font-script);
+  font-size: var(--font-h2); font-weight: 700;
+  color: var(--text-coral);
+  position: relative;
+  padding-bottom: 15px;
+  margin-bottom: 36px;
+}
+.wc-section-title::after {
+  content: '';
+  position: absolute; bottom: 0; left: 0;
+  width: 120px; height: 4px;
+  background: linear-gradient(to right, var(--coral), rgba(244,162,97,0.15));
+  border-radius: 4px;
+  filter: blur(0.5px);
+}
+.wc-section-title.blue::after  { background: linear-gradient(to right, var(--sky-blue), rgba(126,200,227,0.15)); }
+.wc-section-title.green::after { background: linear-gradient(to right, var(--sage-green), rgba(135,169,107,0.15)); }
+
+.wc-subtitle {
+  font-family: var(--font-round);
+  font-size: 30px; font-weight: 400;
+  color: var(--text-secondary);
+  margin-bottom: 36px;
+}
+
+/* -- 5. Card Components ----------------------------------------------- */
+.wc-card {
+  background: var(--bg-card);
+  border-radius: 21px;
+  padding: 30px 36px;
+  box-shadow: var(--shadow-sm);
+  border: 1px solid var(--border-light);
+}
+
+/* Colored watercolor card */
+.wc-card.coral    { background: var(--bg-coral-soft); border: 1px solid var(--border-coral); }
+.wc-card.blue     { background: var(--bg-blue-soft);  border: 1px solid var(--border-blue); }
+.wc-card.green    { background: var(--bg-green-soft); border: 1px solid var(--border-green); }
+.wc-card.lavender { background: var(--bg-lav-soft);   border: 1px solid var(--border-lav); }
+
+/* Circular icon card */
+.wc-icon-card {
+  display: flex; flex-direction: column; align-items: center; gap: 15px;
+  padding: 30px 24px;
+  background: var(--bg-card);
+  border-radius: 24px;
+  box-shadow: var(--shadow-sm);
+  border: 1px solid var(--border-light);
+}
+
+.wc-icon-circle {
+  width: 96px; height: 96px;
+  border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 42px;
+  box-shadow: var(--shadow-sm);
+}
+.wc-icon-circle.coral    { background: rgba(244,162,97,0.25); }
+.wc-icon-circle.blue     { background: rgba(126,200,227,0.25); }
+.wc-icon-circle.green    { background: rgba(135,169,107,0.25); }
+.wc-icon-circle.lavender { background: rgba(197,180,227,0.25); }
+.wc-icon-circle.pink     { background: rgba(232,160,160,0.25); }
+.wc-icon-circle.peach    { background: rgba(255,203,164,0.35); }
+
+.wc-icon-title {
+  font-family: var(--font-script);
+  font-size: 30px; font-weight: 700;
+  color: var(--text-primary);
+  text-align: center;
+}
+
+.wc-icon-desc {
+  font-size: 21px; color: var(--text-secondary);
+  text-align: center; line-height: 1.6;
+}
+
+/* Story card (large image + text) */
+.wc-story-card {
+  background: var(--bg-card);
+  border-radius: 24px;
+  overflow: hidden;
+  box-shadow: var(--shadow-md);
+  border: 1px solid var(--border-light);
+}
+
+.wc-story-img {
+  width: 100%; aspect-ratio: 16/9;
+  object-fit: cover;
+  display: block;
+}
+
+.wc-story-body { padding: 24px 30px; }
+
+/* -- 6. Tag Components ------------------------------------------------- */
+.wc-tag {
+  display: inline-block;
+  padding: 8px 21px;
+  border-radius: 30px;
+  font-size: var(--font-tag); font-weight: 600;
+  font-family: var(--font-round);
+}
+.wc-tag.coral    { background: rgba(244,162,97,0.18);  color: var(--coral-dark); }
+.wc-tag.blue     { background: rgba(126,200,227,0.18); color: var(--sky-dark);   }
+.wc-tag.green    { background: rgba(135,169,107,0.18); color: var(--sage-dark);  }
+.wc-tag.lavender { background: rgba(197,180,227,0.18); color: var(--lav-dark);   }
+.wc-tag.pink     { background: rgba(232,160,160,0.18); color: #B05555;           }
+.wc-tag.peach    { background: rgba(255,203,164,0.25); color: #C47A3A;           }
+
+/* Section tag */
+.wc-section-tag {
+  display: inline-block;
+  font-family: var(--font-script);
+  font-size: 24px; font-weight: 700;
+  color: var(--text-coral);
+  border-bottom: 2px solid var(--coral);
+  padding-bottom: 2px;
+  margin-bottom: 18px;
+}
+
+/* -- 7. KPI Data Card -------------------------------------------------- */
+.wc-kpi {
+  text-align: center;
+  padding: 30px;
+  background: var(--bg-card);
+  border-radius: 21px;
+  box-shadow: var(--shadow-sm);
+  border: 1px solid var(--border-light);
+}
+
+.wc-kpi-number {
+  font-family: var(--font-script);
+  font-size: var(--font-kpi); font-weight: 700;
+  color: var(--coral);
+  line-height: 1; display: block;
+}
+.wc-kpi-number.blue  { color: var(--sky-dark); }
+.wc-kpi-number.green { color: var(--sage-dark); }
+.wc-kpi-number.lav   { color: var(--lav-dark); }
+
+.wc-kpi-unit  { font-size: 39px; font-weight: 400; color: var(--text-secondary); }
+.wc-kpi-label { font-size: 21px; color: var(--text-muted); margin-top: 12px; display: block; }
+
+/* Data row */
+.wc-data-row { display: flex; gap: 24px; }
+
+.wc-data-item {
+  flex: 1; text-align: center;
+  background: var(--bg-coral-soft);
+  border: 1px solid var(--border-coral);
+  border-radius: 18px;
+  padding: 18px;
+}
+.wc-data-item.blue  { background: var(--bg-blue-soft);  border-color: var(--border-blue); }
+.wc-data-item.green { background: var(--bg-green-soft); border-color: var(--border-green); }
+
+.wc-data-value {
+  font-family: var(--font-script);
+  font-size: 54px; font-weight: 700;
+  color: var(--coral-dark);
+  line-height: 1; display: block;
+}
+.wc-data-value.blue  { color: var(--sky-dark); }
+.wc-data-value.green { color: var(--sage-dark); }
+
+.wc-data-label { font-size: 20px; color: var(--text-muted); margin-top: 6px; display: block; }
+
+/* -- 8. Step Components ----------------------------------------------- */
+.wc-steps { display: flex; flex-direction: column; gap: 21px; }
+
+.wc-step { display: flex; align-items: flex-start; gap: 21px; }
+
+.wc-step-num {
+  width: 60px; height: 60px;
+  border-radius: 50%;
+  background: rgba(244,162,97,0.18);
+  border: 2px solid var(--coral);
+  color: var(--coral-dark);
+  display: flex; align-items: center; justify-content: center;
+  font-family: var(--font-script);
+  font-size: 33px; font-weight: 700;
+  flex-shrink: 0;
+}
+.wc-step-num.blue  { background: rgba(126,200,227,0.18); border-color: var(--sky-blue);   color: var(--sky-dark); }
+.wc-step-num.green { background: rgba(135,169,107,0.18); border-color: var(--sage-green); color: var(--sage-dark); }
+.wc-step-num.lav   { background: rgba(197,180,227,0.18); border-color: var(--lavender);   color: var(--lav-dark); }
+
+.wc-step-title {
+  font-family: var(--font-round);
+  font-size: 27px; font-weight: 600;
+  color: var(--text-primary);
+  margin-bottom: 6px;
+}
+
+.wc-step-desc {
+  font-size: 22px; color: var(--text-secondary);
+  line-height: 1.65;
+}
+
+/* -- 9. Lists ---------------------------------------------------------- */
+.wc-list {
+  list-style: none;
+  display: flex; flex-direction: column; gap: 15px;
+}
+
+.wc-list li {
+  display: flex; align-items: flex-start; gap: 15px;
+  font-size: var(--font-body);
+  color: var(--text-secondary);
+  line-height: 1.7;
+}
+
+.wc-list li::before {
+  content: '✿';
+  color: var(--coral);
+  font-size: 21px;
+  flex-shrink: 0;
+  margin-top: 4px;
+}
+.wc-list.blue  li::before { color: var(--sky-dark);  content: '❋'; }
+.wc-list.green li::before { color: var(--sage-dark); content: '✦'; }
+.wc-list.lav   li::before { color: var(--lav-dark);  content: '✧'; }
+
+/* -- 10. Progress Bar -------------------------------------------------- */
+.wc-progress { margin-bottom: 18px; }
+
+.wc-progress-label {
+  display: flex; justify-content: space-between;
+  font-size: 21px; color: var(--text-secondary);
+  margin-bottom: 9px;
+}
+
+.wc-progress-track {
+  height: 15px;
+  background: rgba(61,61,61,0.07);
+  border-radius: 15px; overflow: hidden;
+}
+
+.wc-progress-fill {
+  height: 100%;
+  background: linear-gradient(to right, var(--coral), var(--dusty-pink));
+  border-radius: 15px;
+}
+.wc-progress-fill.blue  { background: linear-gradient(to right, var(--sky-blue), var(--lavender)); }
+.wc-progress-fill.green { background: linear-gradient(to right, var(--sage-green), var(--sky-blue)); }
+.wc-progress-fill.lav   { background: linear-gradient(to right, var(--lavender), var(--dusty-pink)); }
+
+/* -- 11. Quote Box ----------------------------------------------------- */
+.wc-quote {
+  background: var(--bg-coral-soft);
+  border-left: 6px solid var(--coral);
+  border-radius: 0 21px 21px 0;
+  padding: 24px 36px;
+  font-family: var(--font-script);
+  font-size: 39px;
+  color: var(--text-primary);
+}
+.wc-quote.blue  { background: var(--bg-blue-soft);  border-color: var(--sky-blue); }
+.wc-quote.green { background: var(--bg-green-soft); border-color: var(--sage-green); }
+
+/* -- 12. Divider ------------------------------------------------------- */
+.wc-divider {
+  height: 4px;
+  background: linear-gradient(to right, transparent, var(--coral), var(--dusty-pink), transparent);
+  border-radius: 4px;
+  filter: blur(0.5px);
+  margin: 24px 0;
+  opacity: 0.55;
+}
+.wc-divider.blue  { background: linear-gradient(to right, transparent, var(--sky-blue), var(--lavender), transparent); }
+.wc-divider.green { background: linear-gradient(to right, transparent, var(--sage-green), var(--sky-blue), transparent); }
+
+/* -- 13. Cover Components --------------------------------------------- */
+.cover-title {
+  font-family: var(--font-script);
+  font-size: var(--font-hero); font-weight: 700;
+  color: var(--text-primary);
+  line-height: 1.2;
+}
+
+.cover-subtitle {
+  font-family: var(--font-round);
+  font-size: 33px; font-weight: 400;
+  color: var(--text-secondary);
+  margin-top: 21px;
+}
+
+.cover-meta {
+  font-size: 22px; color: var(--text-muted);
+  margin-top: 36px;
+}
+
+/* -- 14. Section Page -------------------------------------------------- */
+.section-num-bg {
+  position: absolute;
+  font-family: var(--font-script);
+  font-size: 330px; font-weight: 700;
+  color: rgba(244,162,97,0.08);
+  line-height: 1;
+  user-select: none; pointer-events: none;
+}
+
+/* -- 15. Layout Utilities --------------------------------------------- */
+.layout-two-col   { display: flex; gap: 72px; flex: 1; align-items: stretch; }
+.layout-three-col { display: flex; gap: 48px; flex: 1; align-items: stretch; }
+.col-left   { flex: 0.45; display: flex; flex-direction: column; }
+.col-right  { flex: 0.55; display: flex; flex-direction: column; }
+.col-third  { flex: 1; display: flex; flex-direction: column; }
+.header-section { display: flex; flex-direction: column; margin-bottom: 36px; }
+.flex-center  { display: flex; align-items: center; justify-content: center; }
+.flex-col     { display: flex; flex-direction: column; }
+.flex-between { display: flex; justify-content: space-between; align-items: center; }
+.gap-8  { gap: 12px; }  .gap-12 { gap: 18px; }
+.gap-16 { gap: 24px; } .gap-20 { gap: 30px; }
+.gap-24 { gap: 36px; } .gap-32 { gap: 48px; }
+.grid-2   { display: grid; grid-template-columns: 1fr 1fr; gap: 30px; }
+.grid-3   { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 24px; }
+.grid-4   { display: grid; grid-template-columns: repeat(4,1fr); gap: 21px; }
+.grid-2x2 { display: grid; grid-template-columns: 1fr 1fr; grid-template-rows: 1fr 1fr; gap: 24px; flex: 1; }
+.text-center { text-align: center; }
+.mt-auto { margin-top: auto; }
+.w-full { width: 100%; } .h-full { height: 100%; }
+.font-script { font-family: var(--font-script); }
+
+/* ── Watercolor Timeline ── */
+.wc-timeline {
+  display: flex;
+  position: relative;
+  align-items: flex-start;
+  gap: 0;
+}
+.wc-timeline::before {
+  content: "";
+  position: absolute;
+  top: 14px;
+  left: 0; right: 0;
+  height: 2px;
+  background: linear-gradient(to right, #F4A261, #E8A0A0, #7EC8E3);
+  opacity: 0.4;
+}
+.wc-tl-item {
+  flex: 1;
+  padding-top: 40px;
+  position: relative;
+}
+.wc-tl-dot {
+  position: absolute;
+  top: 6px;
+  left: 0;
+  width: 16px; height: 16px;
+  border-radius: 50%;
+  border: 2.5px solid #F4A261;
+  background: #FAF8F0;
+}
+.wc-tl-dot.coral  { border-color: #F4A261; background: #F4A261; }
+.wc-tl-dot.pink   { border-color: #E8A0A0; background: #E8A0A0; }
+.wc-tl-dot.blue   { border-color: #7EC8E3; background: #7EC8E3; }
+.wc-tl-dot.green  { border-color: #87A96B; background: #87A96B; }
+.wc-tl-year {
+  font-family: 'Dancing Script', cursive;
+  font-size: max(14px, 1.1vw);
+  font-weight: 700;
+  color: #E07A5F;
+  margin-bottom: 6px;
+}
+.wc-tl-title {
+  font-family: 'Nunito', 'Noto Sans SC', sans-serif;
+  font-size: max(13px, 1vw);
+  font-weight: 700;
+  color: #3D3D3D;
+  margin-bottom: 4px;
+  line-height: 1.3;
+}
+.wc-tl-body {
+  font-family: 'Nunito', 'Noto Sans SC', sans-serif;
+  font-size: max(11px, 0.9vw);
+  color: #6B6B6B;
+  line-height: 1.55;
+}
+
+/* ── Watercolor Callout ── */
+.wc-callout {
+  padding: 20px 24px;
+  background: rgba(244, 162, 97, 0.08);
+  border-left: 3px solid #F4A261;
+  border-radius: 0 12px 12px 0;
+  font-family: 'Nunito', 'Noto Sans SC', sans-serif;
+  font-size: max(14px, 1.1vw);
+  color: #3D3D3D;
+  line-height: 1.7;
+}
+.wc-callout.blue {
+  background: rgba(126, 200, 227, 0.1);
+  border-left-color: #7EC8E3;
+}
+.wc-callout.green {
+  background: rgba(135, 169, 107, 0.1);
+  border-left-color: #87A96B;
+}
+.wc-callout-src {
+  font-family: 'Dancing Script', cursive;
+  font-size: max(12px, 1vw);
+  color: #E07A5F;
+  margin-top: 8px;
+}
+
+/* ── Watercolor data row ── */
+.wc-row {
+  display: grid;
+  grid-template-columns: 3fr 5fr 2fr;
+  gap: 2vw;
+  padding: 16px 0;
+  border-bottom: 1px dashed rgba(244, 162, 97, 0.35);
+  align-items: center;
+}
+.wc-row:first-of-type {
+  border-top: 1px dashed rgba(244, 162, 97, 0.35);
+}
+.wc-row-key {
+  font-family: 'Dancing Script', cursive;
+  font-weight: 700;
+  font-size: max(14px, 1.1vw);
+  color: #3D3D3D;
+}
+.wc-row-val {
+  font-family: 'Nunito', 'Noto Sans SC', sans-serif;
+  font-size: max(13px, 1vw);
+  color: #6B6B6B;
+  line-height: 1.5;
+}
+.wc-row-meta {
+  font-family: 'Nunito', monospace;
+  font-size: max(12px, 0.9vw);
+  color: #E07A5F;
+  text-align: right;
+  font-weight: 700;
+}
+
+/* ── Full watercolor step flow ── */
+.wc-step-flow {
+  display: flex;
+  align-items: flex-start;
+  gap: 0;
+  position: relative;
+}
+.wc-step-flow::before {
+  content: "";
+  position: absolute;
+  top: 22px;
+  left: 22px;
+  right: 22px;
+  height: 2px;
+  background: linear-gradient(to right, #F4A261, #87A96B);
+  opacity: 0.3;
+}
+.wc-flow-item {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  position: relative;
+  z-index: 1;
+}
+.wc-flow-num {
+  width: 44px; height: 44px;
+  border-radius: 50%;
+  border: 2.5px solid #F4A261;
+  background: #FAF8F0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-family: 'Dancing Script', cursive;
+  font-size: 20px;
+  font-weight: 700;
+  color: #E07A5F;
+}
+.wc-flow-num.coral    { border-color: #F4A261; color: #E07A5F; }
+.wc-flow-num.blue     { border-color: #7EC8E3; color: #4A9BB8; }
+.wc-flow-num.green    { border-color: #87A96B; color: #5F8040; }
+.wc-flow-num.lavender { border-color: #C5B4E3; color: #7B5EA7; }
+.wc-flow-title {
+  font-family: 'Nunito', 'Noto Sans SC', sans-serif;
+  font-size: max(13px, 1vw);
+  font-weight: 700;
+  color: #3D3D3D;
+  text-align: center;
+  line-height: 1.3;
+}
+.wc-flow-body {
+  font-family: 'Nunito', 'Noto Sans SC', sans-serif;
+  font-size: max(11px, 0.85vw);
+  color: #6B6B6B;
+  text-align: center;
+  line-height: 1.55;
+  padding: 0 8px;
+}

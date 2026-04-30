@@ -1,0 +1,735 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Museum Art Edu — Template Preview</title>
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@300;400;500;700;900&family=Noto+Serif+SC:wght@400;600;700&display=swap" rel="stylesheet"/>
+  <link rel="stylesheet" href="theme.css"/>
+  <style>
+    /* === Preview Page Styles === */
+    html, body {
+      width: auto; height: auto;
+      overflow: auto;
+      background: #F2EFE9;
+      font-family: 'Noto Sans SC', sans-serif;
+    }
+    .preview-page {
+      max-width: 1440px;
+      margin: 0 auto;
+      padding: 60px 48px 80px;
+    }
+
+    /* Header */
+    .preview-header {
+      display: flex; align-items: flex-end;
+      gap: 24px; margin-bottom: 56px;
+      padding-bottom: 32px;
+      border-bottom: 2px solid #EDEAE5;
+    }
+    .preview-header .template-name {
+      font-size: 48px; font-weight: 900;
+      color: #1A1A1A; letter-spacing: -0.02em;
+      line-height: 1;
+    }
+    .preview-header .template-name span {
+      font-size: 22px; font-weight: 300;
+      color: #C0392B; letter-spacing: 0.15em;
+      display: block; margin-bottom: 8px;
+    }
+    .preview-header .template-desc {
+      font-size: 18px; color: #888;
+      line-height: 1.7; max-width: 500px;
+      margin-left: auto; text-align: right;
+    }
+
+    /* Color Swatches */
+    .section-heading {
+      font-size: 14px; color: #C0392B;
+      letter-spacing: 4px; font-weight: 600;
+      margin-bottom: 24px; margin-top: 56px;
+      text-transform: uppercase;
+    }
+    .swatches {
+      display: flex; flex-wrap: wrap; gap: 16px;
+      margin-bottom: 0;
+    }
+    .swatch {
+      display: flex; flex-direction: column;
+      align-items: center; gap: 8px;
+    }
+    .swatch-color {
+      width: 80px; height: 80px;
+      border-radius: 4px;
+      border: 1px solid rgba(0,0,0,0.06);
+    }
+    .swatch-name  { font-size: 13px; color: #666; letter-spacing: 0.5px; text-align: center; }
+    .swatch-value { font-size: 12px; color: #999; font-family: monospace; }
+
+    /* Slide Thumbnails */
+    .slides-grid {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 24px;
+    }
+    .slide-thumb {
+      display: flex; flex-direction: column; gap: 10px;
+    }
+    .slide-frame {
+      aspect-ratio: 16/9;
+      border-radius: 6px;
+      overflow: hidden;
+      box-shadow: 0 4px 20px rgba(0,0,0,0.12);
+      position: relative;
+      cursor: pointer;
+      transition: transform 0.2s, box-shadow 0.2s;
+    }
+    .slide-frame:hover {
+      transform: translateY(-3px);
+      box-shadow: 0 8px 32px rgba(0,0,0,0.18);
+    }
+    /* Scale the 1920×1080 content to fit thumbnail */
+    .slide-frame .slide-inner {
+      position: absolute;
+      top: 0; left: 0;
+      width: 1920px; height: 1080px;
+      transform-origin: top left;
+    }
+    .slide-label {
+      font-size: 13px; font-weight: 600; color: #555;
+      letter-spacing: 1px;
+    }
+    .slide-type {
+      font-size: 12px; color: #999;
+    }
+
+    /* Components Section */
+    .components-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 24px;
+    }
+    .component-card {
+      background: white;
+      border-radius: 8px;
+      padding: 28px;
+      box-shadow: 0 2px 12px rgba(0,0,0,0.06);
+    }
+    .component-title {
+      font-size: 14px; color: #C0392B;
+      letter-spacing: 3px; font-weight: 600;
+      margin-bottom: 20px; text-transform: uppercase;
+    }
+  </style>
+  <script>
+    window.addEventListener('load', function() {
+      // Compute scale for each slide frame
+      document.querySelectorAll('.slide-frame').forEach(function(frame) {
+        var inner = frame.querySelector('.slide-inner');
+        if (!inner) return;
+        var scale = frame.offsetWidth / 1920;
+        inner.style.transform = 'scale(' + scale + ')';
+        frame.style.height = (1080 * scale) + 'px';
+      });
+      window.addEventListener('resize', function() {
+        document.querySelectorAll('.slide-frame').forEach(function(frame) {
+          var inner = frame.querySelector('.slide-inner');
+          if (!inner) return;
+          var scale = frame.offsetWidth / 1920;
+          inner.style.transform = 'scale(' + scale + ')';
+          frame.style.height = (1080 * scale) + 'px';
+        });
+      });
+    });
+  </script>
+</head>
+<body>
+<div class="preview-page">
+
+  <!-- ===== Header ===== -->
+  <div class="preview-header">
+    <div class="template-name">
+      <span>museum-art-edu</span>
+      Beige Academy Hall
+    </div>
+    <div class="template-desc">
+      University art appreciation general education course · museum label aesthetic<br/>
+      Warm beige × ink black × academy red · dual-type narrative system
+    </div>
+  </div>
+
+  <!-- ===== Color Swatches ===== -->
+  <div class="section-heading">Color Palette · Color System</div>
+  <div class="swatches">
+    <div class="swatch">
+      <div class="swatch-color" style="background:#FAF8F5;"></div>
+      <div class="swatch-name">Primary Background</div>
+      <div class="swatch-value">#FAF8F5</div>
+    </div>
+    <div class="swatch">
+      <div class="swatch-color" style="background:#F8F5F0;"></div>
+      <div class="swatch-name">Secondary Background</div>
+      <div class="swatch-value">#F8F5F0</div>
+    </div>
+    <div class="swatch">
+      <div class="swatch-color" style="background:#1A1A1A;"></div>
+      <div class="swatch-name">Ink Black Background</div>
+      <div class="swatch-value">#1A1A1A</div>
+    </div>
+    <div class="swatch">
+      <div class="swatch-color" style="background:#141414;"></div>
+      <div class="swatch-name">Deeper Background</div>
+      <div class="swatch-value">#141414</div>
+    </div>
+    <div class="swatch">
+      <div class="swatch-color" style="background:#C0392B;"></div>
+      <div class="swatch-name">Academy Red</div>
+      <div class="swatch-value">#C0392B</div>
+    </div>
+    <div class="swatch">
+      <div class="swatch-color" style="background:#FDF0EE;"></div>
+      <div class="swatch-name">Pale Red Icon Background</div>
+      <div class="swatch-value">#FDF0EE</div>
+    </div>
+    <div class="swatch">
+      <div class="swatch-color" style="background:#FFFFFF; border:1px solid #EDEAE5;"></div>
+      <div class="swatch-name">Card White</div>
+      <div class="swatch-value">#FFFFFF</div>
+    </div>
+    <div class="swatch">
+      <div class="swatch-color" style="background:#EDEAE5;"></div>
+      <div class="swatch-name">Light Border</div>
+      <div class="swatch-value">#EDEAE5</div>
+    </div>
+    <div class="swatch">
+      <div class="swatch-color" style="background:#2C3E8C;"></div>
+      <div class="swatch-name">Dimension Blue</div>
+      <div class="swatch-value">#2C3E8C</div>
+    </div>
+    <div class="swatch">
+      <div class="swatch-color" style="background:#27AE60;"></div>
+      <div class="swatch-name">Dimension Green</div>
+      <div class="swatch-value">#27AE60</div>
+    </div>
+    <div class="swatch">
+      <div class="swatch-color" style="background:#E67E22;"></div>
+      <div class="swatch-name">Dimension Orange</div>
+      <div class="swatch-value">#E67E22</div>
+    </div>
+    <div class="swatch">
+      <div class="swatch-color" style="background:#8B6914;"></div>
+      <div class="swatch-name">Golden Brown</div>
+      <div class="swatch-value">#8B6914</div>
+    </div>
+    <div class="swatch">
+      <div class="swatch-color" style="background:#F0EBE2;"></div>
+      <div class="swatch-name">Ink Panel</div>
+      <div class="swatch-value">#F0EBE2</div>
+    </div>
+    <div class="swatch">
+      <div class="swatch-color" style="background:#F0EDE8;"></div>
+      <div class="swatch-name">Ghost Number</div>
+      <div class="swatch-value">#F0EDE8</div>
+    </div>
+  </div>
+
+  <!-- ===== Slide Thumbnails ===== -->
+  <div class="section-heading">Layout Types · 8 Dedicated Layouts</div>
+  <div class="slides-grid">
+
+    <!-- Type 1: cover-split classic cover with image left and text right -->
+    <div class="slide-thumb">
+      <div class="slide-frame">
+        <div class="slide-inner" style="display:flex; background:#FAF8F5;">
+          <!-- Left image placeholder -->
+          <div style="width:620px;height:1080px;background:linear-gradient(135deg,#2C2C2C 0%,#4A4A4A 50%,#2C2C2C 100%);flex-shrink:0;position:relative;display:flex;align-items:center;justify-content:center;">
+            <div style="font-size:48px;color:rgba(255,255,255,0.15);font-style:italic;">名画</div>
+            <div style="position:absolute;inset:0;background:linear-gradient(to right,rgba(0,0,0,0.1) 0%,rgba(250,248,245,0.5) 100%);"></div>
+          </div>
+          <!-- Right side -->
+          <div style="flex:1;display:flex;flex-direction:column;justify-content:center;padding:80px 100px 80px 80px;position:relative;">
+            <div style="position:absolute;top:60px;right:100px;text-align:right;">
+              <div style="font-size:120px;font-weight:900;color:#F0EDE8;line-height:1;letter-spacing:-0.05em;">01</div>
+              <div style="font-size:20px;color:#C0392B;letter-spacing:0.2em;margin-top:-16px;">CHAPTER ONE</div>
+            </div>
+            <div style="background:#C0392B;color:white;font-size:20px;font-weight:500;padding:8px 20px;letter-spacing:0.1em;margin-bottom:32px;display:inline-block;width:fit-content;">通识教育 · 艺术鉴赏</div>
+            <div style="font-size:96px;font-weight:900;color:#1A1A1A;line-height:1;letter-spacing:-0.02em;margin-bottom:16px;">课程导论</div>
+            <div style="font-size:36px;font-weight:300;color:#555;letter-spacing:0.15em;margin-bottom:60px;">走进艺术的世界</div>
+            <div style="width:100%;height:1px;background:#DDD;margin-bottom:48px;"></div>
+            <div style="display:flex;gap:48px;">
+              <div><div style="font-size:18px;color:#999;">适用对象</div><div style="font-size:24px;font-weight:500;color:#333;">全校本科生</div></div>
+              <div><div style="font-size:18px;color:#999;">课程版本</div><div style="font-size:24px;font-weight:500;color:#333;">v1 · 2026</div></div>
+            </div>
+            <div style="position:absolute;bottom:48px;right:100px;display:flex;align-items:center;gap:12px;">
+              <div style="width:8px;height:8px;border-radius:50%;background:#C0392B;"></div>
+              <div style="width:8px;height:8px;border-radius:50%;background:#C0392B;opacity:0.5;"></div>
+              <div style="width:8px;height:8px;border-radius:50%;background:#C0392B;opacity:0.25;"></div>
+              <span style="font-size:18px;color:#BBB;letter-spacing:0.1em;">ART APPRECIATION</span>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="slide-label">Type 1 · cover-split</div>
+      <div class="slide-type">Classic cover with image left and text right</div>
+    </div>
+
+    <!-- Type 2: top-bar-split top title bar with image left and text right -->
+    <div class="slide-thumb">
+      <div class="slide-frame">
+        <div class="slide-inner" style="display:flex;flex-direction:column;background:#FAF8F5;">
+          <div style="height:120px;background:#FAF8F5;display:flex;align-items:center;padding:0 100px;border-bottom:2px solid #EDEAE5;flex-shrink:0;">
+            <span style="font-size:18px;color:#C0392B;letter-spacing:0.2em;font-weight:500;margin-right:32px;">OVERVIEW</span>
+            <span style="font-size:52px;font-weight:700;color:#1A1A1A;">课程概述</span>
+            <span style="margin-left:auto;font-size:20px;color:#CCC;">02 / 10</span>
+          </div>
+          <div style="flex:1;display:flex;overflow:hidden;">
+            <div style="width:780px;flex-shrink:0;position:relative;background:linear-gradient(135deg,#3A3A3A,#5A5A5A);display:flex;align-items:center;justify-content:center;">
+              <div style="font-size:36px;color:rgba(255,255,255,0.12);font-style:italic;">艺术图片</div>
+              <div style="position:absolute;inset:0;background:linear-gradient(to right,transparent 60%,#FAF8F5 100%);"></div>
+            </div>
+            <div style="flex:1;padding:64px 100px 64px 72px;display:flex;flex-direction:column;justify-content:center;">
+              <p style="font-size:28px;font-weight:300;color:#666;line-height:1.8;margin-bottom:52px;">欢迎来到<span style="color:#C0392B;font-weight:500;">艺术鉴赏</span>课堂！<br/>从古代到现代，从东方到西方，<br/>一起探索艺术的多样性。</p>
+              <div style="font-size:22px;color:#999;letter-spacing:0.15em;margin-bottom:28px;display:flex;align-items:center;gap:12px;"><span style="display:inline-block;width:32px;height:2px;background:#C0392B;"></span>课程覆盖范围</div>
+              <div style="display:grid;grid-template-columns:1fr 1fr;gap:20px;">
+                <div style="display:flex;align-items:center;gap:16px;background:white;border:1px solid #EDEAE5;padding:20px 24px;"><div style="width:48px;height:48px;background:#FDF0EE;display:flex;align-items:center;justify-content:center;color:#C0392B;font-size:22px;">🎨</div><div><div style="font-size:24px;font-weight:600;color:#2C2C2C;">绘画艺术</div><div style="font-size:18px;color:#999;">中国 · 西方</div></div></div>
+                <div style="display:flex;align-items:center;gap:16px;background:white;border:1px solid #EDEAE5;padding:20px 24px;"><div style="width:48px;height:48px;background:#FDF0EE;display:flex;align-items:center;justify-content:center;color:#C0392B;font-size:22px;">🎵</div><div><div style="font-size:24px;font-weight:600;color:#2C2C2C;">音乐鉴赏</div><div style="font-size:18px;color:#999;">旋律 · 节奏</div></div></div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="slide-label">Type 2 · top-bar-split</div>
+      <div class="slide-type">Top title bar + image left and text right</div>
+    </div>
+
+    <!-- Type 3: definition-flow top title with definition left and flow right -->
+    <div class="slide-thumb">
+      <div class="slide-frame">
+        <div class="slide-inner" style="display:flex;flex-direction:column;background:#F8F5F0;">
+          <div style="height:220px;background:#F8F5F0;display:flex;align-items:center;padding:0 140px;flex-shrink:0;position:relative;">
+            <div style="position:absolute;bottom:0;left:140px;right:140px;height:1px;background:rgba(26,26,26,0.1);"></div>
+            <div>
+              <div style="font-size:16px;color:#C0392B;letter-spacing:4px;margin-bottom:14px;">What is Appreciation?</div>
+              <div style="font-size:68px;font-weight:700;color:#1A1A1A;letter-spacing:4px;font-family:'Noto Serif SC',serif;">什么是"鉴赏"？</div>
+              <div style="font-size:26px;color:#888;letter-spacing:2px;margin-top:12px;">三层递进模型</div>
+            </div>
+            <div style="margin-left:auto;font-size:16px;color:rgba(26,26,26,0.2);letter-spacing:2px;align-self:flex-start;padding-top:56px;">03 / 10</div>
+          </div>
+          <div style="flex:1;display:flex;padding:52px 140px;gap:64px;align-items:stretch;">
+            <div style="width:580px;flex-shrink:0;display:flex;flex-direction:column;justify-content:center;gap:28px;">
+              <div style="background:#1A1A1A;border-radius:4px;padding:36px 40px;">
+                <div style="font-size:18px;color:rgba(255,255,255,0.35);letter-spacing:3px;margin-bottom:14px;">DEFINITION</div>
+                <div style="font-size:26px;color:#F8F5F0;line-height:1.75;font-weight:500;">鉴赏 <span style="color:#C0392B;font-weight:700;">≠</span> "看懂"<br/>鉴赏 <span style="color:#C0392B;font-weight:700;">≠</span> "喜欢"</div>
+              </div>
+              <div style="background:rgba(192,57,43,0.06);border:1px solid rgba(192,57,43,0.2);border-radius:4px;padding:28px 36px;">
+                <div style="font-size:24px;color:#444;line-height:1.8;">鉴赏是一种<strong style="color:#C0392B;">有意识的感知过程</strong>，包含三个递进层次。</div>
+              </div>
+            </div>
+            <div style="flex:1;display:flex;flex-direction:column;justify-content:center;">
+              <div style="font-size:18px;color:rgba(26,26,26,0.35);letter-spacing:3px;margin-bottom:24px;">APPRECIATION · 三层次模型</div>
+              <div style="display:flex;align-items:stretch;gap:0;">
+                <div style="flex:1;background:white;border-radius:4px;padding:40px 32px 36px;box-shadow:0 2px 12px rgba(0,0,0,0.06);border-top:4px solid #C0392B;">
+                  <div style="font-size:32px;color:rgba(192,57,43,0.15);margin-bottom:20px;">👁</div>
+                  <div style="font-size:13px;color:rgba(192,57,43,0.5);letter-spacing:2px;margin-bottom:16px;">LAYER 01</div>
+                  <div style="font-size:36px;font-weight:700;color:#1A1A1A;letter-spacing:2px;margin-bottom:16px;">感知层</div>
+                  <div style="font-size:16px;color:rgba(26,26,26,0.3);letter-spacing:2px;margin-bottom:20px;">Perception</div>
+                  <div style="font-size:22px;color:#C0392B;font-weight:600;margin-bottom:12px;">我看到了什么？</div>
+                  <div style="font-size:20px;color:#666;line-height:1.7;">捕捉形式元素</div>
+                </div>
+                <div style="width:48px;display:flex;align-items:center;justify-content:center;flex-shrink:0;"><span style="font-size:24px;color:rgba(192,57,43,0.4);">→</span></div>
+                <div style="flex:1;background:white;border-radius:4px;padding:40px 32px 36px;box-shadow:0 2px 12px rgba(0,0,0,0.06);border-top:4px solid rgba(192,57,43,0.5);">
+                  <div style="font-size:32px;color:rgba(192,57,43,0.15);margin-bottom:20px;">📖</div>
+                  <div style="font-size:13px;color:rgba(192,57,43,0.5);letter-spacing:2px;margin-bottom:16px;">LAYER 02</div>
+                  <div style="font-size:36px;font-weight:700;color:#1A1A1A;letter-spacing:2px;margin-bottom:16px;">理解层</div>
+                  <div style="font-size:16px;color:rgba(26,26,26,0.3);letter-spacing:2px;margin-bottom:20px;">Comprehension</div>
+                  <div style="font-size:22px;color:#C0392B;font-weight:600;margin-bottom:12px;">它意味着什么？</div>
+                  <div style="font-size:20px;color:#666;line-height:1.7;">结合历史文化背景</div>
+                </div>
+                <div style="width:48px;display:flex;align-items:center;justify-content:center;flex-shrink:0;"><span style="font-size:24px;color:rgba(192,57,43,0.4);">→</span></div>
+                <div style="flex:1;background:white;border-radius:4px;padding:40px 32px 36px;box-shadow:0 2px 12px rgba(0,0,0,0.06);border-top:4px solid rgba(192,57,43,0.2);">
+                  <div style="font-size:32px;color:rgba(192,57,43,0.15);margin-bottom:20px;">⚖</div>
+                  <div style="font-size:13px;color:rgba(192,57,43,0.5);letter-spacing:2px;margin-bottom:16px;">LAYER 03</div>
+                  <div style="font-size:36px;font-weight:700;color:#1A1A1A;letter-spacing:2px;margin-bottom:16px;">评价层</div>
+                  <div style="font-size:16px;color:rgba(26,26,26,0.3);letter-spacing:2px;margin-bottom:20px;">Evaluation</div>
+                  <div style="font-size:22px;color:#C0392B;font-weight:600;margin-bottom:12px;">你怎么看？</div>
+                  <div style="font-size:20px;color:#666;line-height:1.7;">形成独立判断</div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="slide-label">Type 3 · definition-flow</div>
+      <div class="slide-type">Top title + definition left and flow right</div>
+    </div>
+
+    <!-- Type 4: dark-panel-steps dark left panel with step cards right -->
+    <div class="slide-thumb">
+      <div class="slide-frame">
+        <div class="slide-inner" style="display:flex;background:#F8F5F0;">
+          <div style="width:500px;flex-shrink:0;background:#1A1A1A;display:flex;flex-direction:column;justify-content:center;padding:0 60px;position:relative;">
+            <div style="position:absolute;top:0;left:0;right:0;height:4px;background:#C0392B;"></div>
+            <div style="display:inline-flex;align-items:center;gap:10px;background:rgba(192,57,43,0.15);border:1px solid rgba(192,57,43,0.3);border-radius:2px;padding:8px 20px;margin-bottom:32px;width:fit-content;">
+              <span style="font-size:16px;color:rgba(192,57,43,0.9);letter-spacing:3px;">课堂活动</span>
+            </div>
+            <div style="font-size:52px;font-weight:700;color:#F8F5F0;letter-spacing:3px;line-height:1.25;margin-bottom:28px;font-family:'Noto Serif SC',serif;">第一印象<br/>实验</div>
+            <div style="width:48px;height:3px;background:#C0392B;margin-bottom:28px;"></div>
+            <div style="font-size:15px;color:rgba(255,255,255,0.3);letter-spacing:3px;margin-bottom:12px;">活动目的</div>
+            <div style="font-size:22px;color:rgba(248,245,240,0.65);line-height:1.75;">体验直觉感知与有意识鉴赏之间的差异</div>
+          </div>
+          <div style="flex:1;display:flex;flex-direction:column;padding:64px 100px 64px 72px;gap:36px;">
+            <div>
+              <div style="font-size:16px;color:rgba(26,26,26,0.35);letter-spacing:4px;margin-bottom:24px;">ACTIVITY STEPS · 活动步骤</div>
+              <div style="display:flex;gap:20px;align-items:stretch;">
+                <div style="flex:1;background:white;border-radius:4px;padding:28px 28px 24px;box-shadow:0 2px 10px rgba(0,0,0,0.05);">
+                  <div style="font-size:48px;font-weight:700;color:rgba(192,57,43,0.1);font-family:'Noto Serif SC',serif;line-height:1;margin-bottom:12px;">01</div>
+                  <div style="font-size:22px;font-weight:700;color:#1A1A1A;margin-bottom:10px;">第一印象</div>
+                  <div style="font-size:20px;color:#777;line-height:1.65;">展示作品，学生写下第一印象</div>
+                </div>
+                <div style="width:36px;display:flex;align-items:center;justify-content:center;flex-shrink:0;color:rgba(192,57,43,0.3);font-size:20px;">›</div>
+                <div style="flex:1;background:white;border-radius:4px;padding:28px 28px 24px;box-shadow:0 2px 10px rgba(0,0,0,0.05);">
+                  <div style="font-size:48px;font-weight:700;color:rgba(192,57,43,0.1);font-family:'Noto Serif SC',serif;line-height:1;margin-bottom:12px;">02</div>
+                  <div style="font-size:22px;font-weight:700;color:#1A1A1A;margin-bottom:10px;">背景介绍</div>
+                  <div style="font-size:20px;color:#777;line-height:1.65;">介绍作品背景与意图</div>
+                </div>
+                <div style="width:36px;display:flex;align-items:center;justify-content:center;flex-shrink:0;color:rgba(192,57,43,0.3);font-size:20px;">›</div>
+                <div style="flex:1;background:white;border-radius:4px;padding:28px 28px 24px;box-shadow:0 2px 10px rgba(0,0,0,0.05);">
+                  <div style="font-size:48px;font-weight:700;color:rgba(192,57,43,0.1);font-family:'Noto Serif SC',serif;line-height:1;margin-bottom:12px;">03</div>
+                  <div style="font-size:22px;font-weight:700;color:#1A1A1A;margin-bottom:10px;">再次观看</div>
+                  <div style="font-size:20px;color:#777;line-height:1.65;">重新感受作品变化</div>
+                </div>
+              </div>
+            </div>
+            <div>
+              <div style="font-size:16px;color:rgba(26,26,26,0.35);letter-spacing:4px;margin-bottom:24px;">REFERENCE WORKS · 参考作品</div>
+              <div style="display:flex;gap:20px;">
+                <div style="flex:1;display:flex;align-items:center;gap:20px;background:rgba(192,57,43,0.04);border:1px solid rgba(192,57,43,0.15);border-radius:4px;padding:20px 28px;">
+                  <div style="font-size:28px;color:rgba(192,57,43,0.5);">🖼</div>
+                  <div><div style="font-size:14px;color:#C0392B;letter-spacing:2px;margin-bottom:4px;">绘画</div><div style="font-size:22px;font-weight:600;color:#1A1A1A;">蒙克《呐喊》</div></div>
+                </div>
+                <div style="flex:1;display:flex;align-items:center;gap:20px;background:rgba(192,57,43,0.04);border:1px solid rgba(192,57,43,0.15);border-radius:4px;padding:20px 28px;">
+                  <div style="font-size:28px;color:rgba(192,57,43,0.5);">🎵</div>
+                  <div><div style="font-size:14px;color:#C0392B;letter-spacing:2px;margin-bottom:4px;">音乐</div><div style="font-size:22px;font-weight:600;color:#1A1A1A;">贝多芬第五交响曲</div></div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="slide-label">Type 4 · dark-panel-steps</div>
+      <div class="slide-type">Dark left panel + step cards right</div>
+    </div>
+
+    <!-- Type 5: dark-question-list five-question method list page -->
+    <div class="slide-thumb">
+      <div class="slide-frame">
+        <div class="slide-inner" style="display:flex;flex-direction:column;background:#1A1A1A;">
+          <div style="height:196px;background:#1A1A1A;display:flex;align-items:center;padding:0 140px;flex-shrink:0;position:relative;">
+            <div style="position:absolute;bottom:0;left:0;right:0;height:1px;background:rgba(255,255,255,0.07);"></div>
+            <div>
+              <div style="font-size:16px;color:rgba(192,57,43,0.8);letter-spacing:4px;margin-bottom:14px;">The Five-Question Method</div>
+              <div style="font-size:64px;font-weight:700;color:#F8F5F0;letter-spacing:4px;font-family:'Noto Serif SC',serif;">艺术鉴赏"五问法"</div>
+              <div style="font-size:24px;color:rgba(248,245,240,0.4);letter-spacing:2px;margin-top:10px;">面对任何一件艺术作品，用五个问题引导鉴赏</div>
+            </div>
+            <div style="margin-left:auto;font-size:16px;color:rgba(255,255,255,0.15);letter-spacing:2px;align-self:flex-start;padding-top:52px;">04 / 10</div>
+          </div>
+          <div style="flex:1;display:flex;overflow:hidden;">
+            <div style="width:480px;flex-shrink:0;position:relative;background:linear-gradient(135deg,#2A2A2A,#3A3A3A);display:flex;align-items:center;justify-content:center;">
+              <div style="font-size:28px;color:rgba(255,255,255,0.08);font-style:italic;">艺术图片</div>
+              <div style="position:absolute;inset:0;background:linear-gradient(to right,transparent 60%,#1A1A1A 100%);"></div>
+              <div style="position:absolute;bottom:28px;left:28px;font-size:17px;color:rgba(255,255,255,0.4);">贝多芬《第五交响曲》</div>
+            </div>
+            <div style="flex:1;display:flex;flex-direction:column;justify-content:center;padding:40px 140px 40px 56px;gap:18px;">
+              <div style="display:flex;align-items:center;gap:32px;background:rgba(192,57,43,0.08);border-radius:4px;padding:22px 36px;border-left:3px solid #C0392B;">
+                <div style="font-size:40px;font-weight:700;color:#C0392B;width:56px;font-family:'Noto Serif SC',serif;line-height:1;">01</div>
+                <div style="width:1px;height:48px;background:rgba(255,255,255,0.08);"></div>
+                <div style="flex:1;"><div style="font-size:15px;color:rgba(192,57,43,0.7);letter-spacing:2px;margin-bottom:6px;">FORM DESCRIPTION · 形式描述</div><div style="font-size:26px;font-weight:600;color:#F8F5F0;letter-spacing:1px;">我看到 / 听到了什么？</div></div>
+              </div>
+              <div style="display:flex;align-items:center;gap:32px;background:rgba(255,255,255,0.04);border-radius:4px;padding:22px 36px;border-left:3px solid rgba(192,57,43,0.2);">
+                <div style="font-size:40px;font-weight:700;color:rgba(192,57,43,0.3);width:56px;font-family:'Noto Serif SC',serif;line-height:1;">02</div>
+                <div style="width:1px;height:48px;background:rgba(255,255,255,0.08);"></div>
+                <div style="flex:1;"><div style="font-size:15px;color:rgba(255,255,255,0.3);letter-spacing:2px;margin-bottom:6px;">HISTORICAL CONTEXT · 历史语境</div><div style="font-size:26px;font-weight:600;color:rgba(248,245,240,0.5);letter-spacing:1px;">这件作品是在什么背景下创作的？</div></div>
+              </div>
+              <div style="display:flex;align-items:center;gap:32px;background:rgba(255,255,255,0.04);border-radius:4px;padding:22px 36px;border-left:3px solid rgba(192,57,43,0.2);">
+                <div style="font-size:40px;font-weight:700;color:rgba(192,57,43,0.3);width:56px;font-family:'Noto Serif SC',serif;line-height:1;">03</div>
+                <div style="width:1px;height:48px;background:rgba(255,255,255,0.08);"></div>
+                <div style="flex:1;"><div style="font-size:15px;color:rgba(255,255,255,0.3);letter-spacing:2px;margin-bottom:6px;">INTENT ANALYSIS · 意图分析</div><div style="font-size:26px;font-weight:600;color:rgba(248,245,240,0.5);letter-spacing:1px;">创作者想表达什么？</div></div>
+              </div>
+              <div style="display:flex;align-items:center;gap:32px;background:rgba(255,255,255,0.04);border-radius:4px;padding:22px 36px;border-left:3px solid rgba(192,57,43,0.2);">
+                <div style="font-size:40px;font-weight:700;color:rgba(192,57,43,0.3);width:56px;font-family:'Noto Serif SC',serif;line-height:1;">05</div>
+                <div style="width:1px;height:48px;background:rgba(255,255,255,0.08);"></div>
+                <div style="flex:1;"><div style="font-size:15px;color:rgba(255,255,255,0.3);letter-spacing:2px;margin-bottom:6px;">INDEPENDENT JUDGMENT · 独立判断</div><div style="font-size:26px;font-weight:600;color:rgba(248,245,240,0.5);letter-spacing:1px;">我如何评价这件作品的价值？</div></div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="slide-label">Type 5 · dark-question-list</div>
+      <div class="slide-type">Five-question method list page (dark)</div>
+    </div>
+
+    <!-- Type 6: dark-sidebar-table dark left sidebar with table right -->
+    <div class="slide-thumb">
+      <div class="slide-frame">
+        <div class="slide-inner" style="display:flex;background:#F8F5F0;">
+          <div style="width:420px;height:1080px;background:#1A1A1A;display:flex;flex-direction:column;justify-content:center;padding:0 56px;flex-shrink:0;position:relative;">
+            <div style="position:absolute;top:0;left:0;width:4px;height:100%;background:linear-gradient(to bottom,transparent,#C0392B 30%,#C0392B 70%,transparent);"></div>
+            <div style="font-size:15px;color:rgba(255,255,255,0.3);letter-spacing:4px;margin-bottom:20px;">Course Structure</div>
+            <div style="font-size:56px;font-weight:700;color:#F8F5F0;letter-spacing:3px;line-height:1.2;margin-bottom:32px;font-family:'Noto Serif SC',serif;">课程<br/>结构<br/>总览</div>
+            <div style="width:48px;height:3px;background:#C0392B;margin-bottom:32px;"></div>
+            <div style="font-size:64px;font-weight:700;color:#C0392B;font-family:'Noto Serif SC',serif;line-height:1;">24</div>
+            <div style="font-size:22px;color:rgba(255,255,255,0.5);margin-top:4px;">学时 · 8章节</div>
+          </div>
+          <div style="flex:1;height:1080px;display:flex;flex-direction:column;padding:60px 80px 60px 64px;">
+            <div style="display:grid;grid-template-columns:100px 1fr 120px;margin-bottom:12px;padding:0 24px;">
+              <div style="font-size:17px;color:rgba(26,26,26,0.4);letter-spacing:2px;">章节</div>
+              <div style="font-size:17px;color:rgba(26,26,26,0.4);letter-spacing:2px;">主题</div>
+              <div style="font-size:17px;color:rgba(26,26,26,0.4);letter-spacing:2px;text-align:center;">学时</div>
+            </div>
+            <div style="display:grid;grid-template-columns:100px 1fr 120px;padding:0 24px;height:96px;align-items:center;border-radius:4px;margin-bottom:8px;background:#1A1A1A;box-shadow:0 1px 6px rgba(0,0,0,0.05);">
+              <div style="font-size:20px;font-weight:700;color:#C0392B;letter-spacing:1px;">第一章</div>
+              <div><div style="font-size:24px;font-weight:500;color:#F8F5F0;letter-spacing:1px;">课程导论：什么是艺术鉴赏？</div><div style="font-size:18px;color:rgba(248,245,240,0.4);margin-top:3px;">当前章节</div></div>
+              <div style="font-size:22px;font-weight:700;color:#C0392B;text-align:center;">2</div>
+            </div>
+            <div style="display:grid;grid-template-columns:100px 1fr 120px;padding:0 24px;height:96px;align-items:center;border-radius:4px;margin-bottom:8px;background:white;box-shadow:0 1px 6px rgba(0,0,0,0.05);">
+              <div style="font-size:20px;font-weight:700;color:#C0392B;">第二章</div>
+              <div style="font-size:24px;font-weight:500;color:#1A1A1A;">视觉艺术基础：线条、色彩与构图</div>
+              <div style="font-size:22px;font-weight:700;color:#555;text-align:center;">4</div>
+            </div>
+            <div style="display:grid;grid-template-columns:100px 1fr 120px;padding:0 24px;height:96px;align-items:center;border-radius:4px;margin-bottom:8px;background:white;box-shadow:0 1px 6px rgba(0,0,0,0.05);">
+              <div style="font-size:20px;font-weight:700;color:#C0392B;">第三章</div>
+              <div style="font-size:24px;font-weight:500;color:#1A1A1A;">中国绘画：笔墨精神与意境之美</div>
+              <div style="font-size:22px;font-weight:700;color:#555;text-align:center;">4</div>
+            </div>
+            <div style="display:grid;grid-template-columns:100px 1fr 120px;padding:0 24px;height:96px;align-items:center;border-radius:4px;margin-bottom:8px;background:white;box-shadow:0 1px 6px rgba(0,0,0,0.05);">
+              <div style="font-size:20px;font-weight:700;color:#C0392B;">第四章</div>
+              <div style="font-size:24px;font-weight:500;color:#1A1A1A;">西方绘画：从文艺复兴到现代主义</div>
+              <div style="font-size:22px;font-weight:700;color:#555;text-align:center;">4</div>
+            </div>
+            <div style="display:grid;grid-template-columns:100px 1fr 120px;padding:0 24px;height:96px;align-items:center;border-radius:4px;background:white;box-shadow:0 1px 6px rgba(0,0,0,0.05);">
+              <div style="font-size:20px;font-weight:700;color:#C0392B;">第五章</div>
+              <div style="font-size:24px;font-weight:500;color:#1A1A1A;">音乐鉴赏：旋律、节奏与情感</div>
+              <div style="font-size:22px;font-weight:700;color:#555;text-align:center;">4</div>
+            </div>
+            <div style="margin-top:16px;display:grid;grid-template-columns:100px 1fr 120px;padding:0 24px;height:56px;align-items:center;border-top:2px solid rgba(192,57,43,0.3);">
+              <div style="font-size:20px;font-weight:700;color:#C0392B;letter-spacing:2px;grid-column:1/3;">合计</div>
+              <div style="font-size:28px;font-weight:700;color:#C0392B;text-align:center;">24 学时</div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="slide-label">Type 6 · dark-sidebar-table</div>
+      <div class="slide-type">Dark left sidebar + table list right</div>
+    </div>
+
+    <!-- Type 7: three-column-resources three-column resource page -->
+    <div class="slide-thumb">
+      <div class="slide-frame">
+        <div class="slide-inner" style="display:flex;flex-direction:column;background:#FAF8F5;">
+          <div style="height:120px;background:#FAF8F5;display:flex;align-items:center;padding:0 100px;border-bottom:2px solid #EDEAE5;flex-shrink:0;">
+            <span style="font-size:18px;color:#C0392B;letter-spacing:0.2em;font-weight:500;margin-right:32px;">RESOURCES</span>
+            <span style="font-size:52px;font-weight:700;color:#1A1A1A;">学习资源与拓展</span>
+            <span style="margin-left:auto;font-size:20px;color:#CCC;">09 / 10</span>
+          </div>
+          <div style="flex:1;display:grid;grid-template-columns:repeat(3,1fr);gap:0;">
+            <div style="display:flex;flex-direction:column;border-right:1px solid #EDEAE5;overflow:hidden;">
+              <div style="padding:40px 56px 32px;border-bottom:1px solid #EDEAE5;flex-shrink:0;">
+                <div style="width:64px;height:64px;display:flex;align-items:center;justify-content:center;font-size:28px;margin-bottom:20px;background:#FDF0EE;color:#C0392B;">📚</div>
+                <div style="font-size:32px;font-weight:700;color:#1A1A1A;margin-bottom:6px;">推荐阅读</div>
+                <div style="font-size:19px;color:#999;">RECOMMENDED BOOKS</div>
+              </div>
+              <div style="flex:1;padding:32px 56px;display:flex;flex-direction:column;gap:24px;">
+                <div style="display:flex;align-items:flex-start;gap:18px;"><div style="width:8px;height:8px;border-radius:50%;background:#C0392B;flex-shrink:0;margin-top:10px;"></div><div><div style="font-size:24px;font-weight:600;color:#2C2C2C;">《艺术的故事》</div><div style="font-size:19px;color:#999;">E.H. 贡布里希 著</div></div></div>
+                <div style="display:flex;align-items:flex-start;gap:18px;"><div style="width:8px;height:8px;border-radius:50%;background:#C0392B;flex-shrink:0;margin-top:10px;"></div><div><div style="font-size:24px;font-weight:600;color:#2C2C2C;">《观看之道》</div><div style="font-size:19px;color:#999;">约翰·伯格 著</div></div></div>
+                <div style="display:flex;align-items:flex-start;gap:18px;"><div style="width:8px;height:8px;border-radius:50%;background:#C0392B;flex-shrink:0;margin-top:10px;"></div><div><div style="font-size:24px;font-weight:600;color:#2C2C2C;">《美的历程》</div><div style="font-size:19px;color:#999;">李泽厚 著</div></div></div>
+              </div>
+            </div>
+            <div style="display:flex;flex-direction:column;border-right:1px solid #EDEAE5;overflow:hidden;">
+              <div style="padding:40px 56px 32px;border-bottom:1px solid #EDEAE5;flex-shrink:0;">
+                <div style="width:64px;height:64px;display:flex;align-items:center;justify-content:center;font-size:28px;margin-bottom:20px;background:#EEF5EE;color:#27AE60;">🌐</div>
+                <div style="font-size:32px;font-weight:700;color:#1A1A1A;margin-bottom:6px;">线上资源</div>
+                <div style="font-size:19px;color:#999;">ONLINE RESOURCES</div>
+              </div>
+              <div style="flex:1;padding:32px 56px;display:flex;flex-direction:column;gap:16px;">
+                <div style="display:flex;align-items:center;gap:16px;padding:14px 18px;background:white;border:1px solid #EDEAE5;"><div style="width:44px;height:44px;flex-shrink:0;display:flex;align-items:center;justify-content:center;font-size:20px;color:white;background:#C0392B;">🏛</div><div style="font-size:22px;font-weight:500;color:#2C2C2C;">故宫博物院数字馆藏</div></div>
+                <div style="display:flex;align-items:center;gap:16px;padding:14px 18px;background:white;border:1px solid #EDEAE5;"><div style="width:44px;height:44px;flex-shrink:0;display:flex;align-items:center;justify-content:center;font-size:20px;color:white;background:#C0392B;">🗼</div><div style="font-size:22px;font-weight:500;color:#2C2C2C;">卢浮宫虚拟游览</div></div>
+                <div style="display:flex;align-items:center;gap:16px;padding:14px 18px;background:white;border:1px solid #EDEAE5;"><div style="width:44px;height:44px;flex-shrink:0;display:flex;align-items:center;justify-content:center;font-size:20px;color:white;background:#C0392B;">🎨</div><div style="font-size:22px;font-weight:500;color:#2C2C2C;">MoMA 在线收藏</div></div>
+              </div>
+            </div>
+            <div style="display:flex;flex-direction:column;overflow:hidden;">
+              <div style="padding:40px 56px 32px;border-bottom:1px solid #EDEAE5;flex-shrink:0;">
+                <div style="width:64px;height:64px;display:flex;align-items:center;justify-content:center;font-size:28px;margin-bottom:20px;background:#EEF0FB;color:#3A4FA0;">📍</div>
+                <div style="font-size:32px;font-weight:700;color:#1A1A1A;margin-bottom:6px;">实地体验</div>
+                <div style="font-size:19px;color:#999;">IN-PERSON EXPERIENCE</div>
+              </div>
+              <div style="flex:1;padding:32px 56px;display:flex;flex-direction:column;gap:0;">
+                <div style="display:flex;align-items:center;gap:18px;padding:16px 0;border-bottom:1px dashed #E0DDD8;"><div style="width:52px;height:52px;flex-shrink:0;display:flex;align-items:center;justify-content:center;font-size:22px;color:#C0392B;background:#FDF0EE;">🖼</div><div><div style="font-size:24px;font-weight:500;color:#2C2C2C;">本地美术馆 · 博物馆</div><div style="font-size:19px;color:#999;margin-top:3px;">感受真实作品的尺度</div></div></div>
+                <div style="display:flex;align-items:center;gap:18px;padding:16px 0;border-bottom:1px dashed #E0DDD8;"><div style="width:52px;height:52px;flex-shrink:0;display:flex;align-items:center;justify-content:center;font-size:22px;color:#C0392B;background:#FDF0EE;">🎵</div><div><div style="font-size:24px;font-weight:500;color:#2C2C2C;">音乐厅 · 剧院演出</div><div style="font-size:19px;color:#999;margin-top:3px;">沉浸式聆听现场演奏</div></div></div>
+                <div style="display:flex;align-items:center;gap:18px;padding:16px 0;"><div style="width:52px;height:52px;flex-shrink:0;display:flex;align-items:center;justify-content:center;font-size:22px;color:#C0392B;background:#FDF0EE;">🏛</div><div><div style="font-size:24px;font-weight:500;color:#2C2C2C;">历史建筑 · 现代建筑</div><div style="font-size:19px;color:#999;margin-top:3px;">体验空间叙事之美</div></div></div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="slide-label">Type 7 · three-column-resources</div>
+      <div class="slide-type">Three-column resource page</div>
+    </div>
+
+    <!-- Type 8: dark-discussion-preview dark two-column closing page -->
+    <div class="slide-thumb">
+      <div class="slide-frame">
+        <div class="slide-inner" style="display:flex;background:#1A1A1A;">
+          <div style="flex:1;padding:80px 80px 80px 100px;display:flex;flex-direction:column;justify-content:center;border-right:1px solid #2E2E2E;">
+            <div style="display:inline-flex;align-items:center;gap:12px;font-size:18px;color:#C0392B;letter-spacing:0.25em;font-weight:600;margin-bottom:32px;"><span style="display:inline-block;width:32px;height:2px;background:#C0392B;"></span>DISCUSSION</div>
+            <div style="font-size:56px;font-weight:900;color:#FFFFFF;line-height:1.1;margin-bottom:56px;">思考与讨论</div>
+            <div style="display:flex;flex-direction:column;gap:28px;">
+              <div style="display:flex;align-items:flex-start;gap:24px;padding:28px 32px;background:#242424;border-left:4px solid #C0392B;">
+                <div style="font-size:40px;font-weight:900;color:#C0392B;line-height:1;flex-shrink:0;width:36px;">Q1</div>
+                <div style="font-size:24px;font-weight:300;color:#D0CEC9;line-height:1.7;flex:1;">在你的人生经历中，哪件艺术作品曾给你留下深刻印象？为什么？</div>
+              </div>
+              <div style="display:flex;align-items:flex-start;gap:24px;padding:28px 32px;background:#242424;border-left:4px solid #C0392B;">
+                <div style="font-size:40px;font-weight:900;color:#C0392B;line-height:1;flex-shrink:0;width:36px;">Q2</div>
+                <div style="font-size:24px;font-weight:300;color:#D0CEC9;line-height:1.7;flex:1;">你认为艺术鉴赏能力是否重要？它对个人成长有什么意义？</div>
+              </div>
+              <div style="display:flex;align-items:flex-start;gap:24px;padding:28px 32px;background:#242424;border-left:4px solid #C0392B;">
+                <div style="font-size:40px;font-weight:900;color:#C0392B;line-height:1;flex-shrink:0;width:36px;">Q3</div>
+                <div style="font-size:24px;font-weight:300;color:#D0CEC9;line-height:1.7;flex:1;">如何看待"艺术是否有标准答案"这一问题？</div>
+              </div>
+            </div>
+          </div>
+          <div style="width:560px;flex-shrink:0;display:flex;flex-direction:column;background:#141414;">
+            <div style="padding:56px 56px 40px;border-bottom:1px solid #2E2E2E;flex-shrink:0;">
+              <div style="font-size:16px;color:#555;letter-spacing:0.25em;margin-bottom:16px;">NEXT LESSON</div>
+              <div style="font-size:28px;font-weight:700;color:#888;margin-bottom:4px;">下节课预告</div>
+              <div style="font-size:22px;color:#C0392B;letter-spacing:0.1em;">第二章 · 视觉艺术基础</div>
+            </div>
+            <div style="flex:1;padding:40px 56px;display:flex;flex-direction:column;justify-content:center;">
+              <div style="font-size:40px;font-weight:700;color:#FFFFFF;line-height:1.3;margin-bottom:28px;">如何观察和理解<br/>艺术的语言？</div>
+              <div style="display:flex;flex-direction:column;gap:18px;">
+                <div style="display:flex;align-items:center;gap:16px;"><div style="width:6px;height:6px;border-radius:50%;background:#C0392B;flex-shrink:0;"></div><div style="font-size:22px;color:#888;font-weight:300;">线条与形状的表现力</div></div>
+                <div style="display:flex;align-items:center;gap:16px;"><div style="width:6px;height:6px;border-radius:50%;background:#C0392B;flex-shrink:0;"></div><div style="font-size:22px;color:#888;font-weight:300;">色彩的情感与象征</div></div>
+                <div style="display:flex;align-items:center;gap:16px;"><div style="width:6px;height:6px;border-radius:50%;background:#C0392B;flex-shrink:0;"></div><div style="font-size:22px;color:#888;font-weight:300;">构图与空间的张力</div></div>
+              </div>
+              <div style="margin-top:48px;padding:20px 28px;background:#C0392B;display:flex;align-items:center;gap:16px;">
+                <div style="font-size:24px;color:white;">→</div>
+                <div style="font-size:22px;font-weight:600;color:white;">期待与你继续探索</div>
+              </div>
+            </div>
+            <div style="padding:24px 56px;border-top:1px solid #2E2E2E;display:flex;align-items:center;justify-content:space-between;flex-shrink:0;">
+              <span style="font-size:18px;color:#444;letter-spacing:0.1em;">艺术鉴赏 · 第01章</span>
+              <span style="font-size:20px;color:#444;">10 / 10</span>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="slide-label">Type 8 · dark-discussion-preview</div>
+      <div class="slide-type">Dark two-column closing page</div>
+    </div>
+
+  </div><!-- /slides-grid -->
+
+  <!-- ===== Core Components ===== -->
+  <div class="section-heading">Core Components · Component Gallery</div>
+  <div class="components-grid">
+
+    <!-- Card system -->
+    <div class="component-card">
+      <div class="component-title">Goal Cards</div>
+      <div style="display:flex;gap:12px;">
+        <div style="flex:1;background:white;border-radius:4px;padding:20px 16px;border-top:4px solid #C0392B;box-shadow:0 2px 12px rgba(0,0,0,0.06);">
+          <div style="font-family:'Noto Serif SC',serif;font-size:28px;font-weight:700;color:rgba(192,57,43,0.12);margin-bottom:10px;">01</div>
+          <div style="font-size:18px;font-weight:700;color:#C0392B;letter-spacing:2px;margin-bottom:8px;">识别</div>
+          <div style="font-size:13px;font-weight:600;color:#1A1A1A;margin-bottom:8px;">主要艺术门类的基本语言</div>
+          <div style="font-size:12px;color:#666;line-height:1.7;">绘画、音乐、建筑的表现手法</div>
+        </div>
+        <div style="flex:1;background:white;border-radius:4px;padding:20px 16px;border-top:4px solid rgba(192,57,43,0.25);box-shadow:0 2px 12px rgba(0,0,0,0.06);">
+          <div style="font-family:'Noto Serif SC',serif;font-size:28px;font-weight:700;color:rgba(192,57,43,0.12);margin-bottom:10px;">02</div>
+          <div style="font-size:18px;font-weight:700;color:#C0392B;letter-spacing:2px;margin-bottom:8px;">描述</div>
+          <div style="font-size:13px;font-weight:600;color:#1A1A1A;margin-bottom:8px;">作品形式特征与内在情感</div>
+          <div style="font-size:12px;color:#666;line-height:1.7;">分析情感表达与文化背景</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Multi-color dimension cards -->
+    <div class="component-card">
+      <div class="component-title">Dimension Cards</div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
+        <div style="background:white;border-radius:4px;padding:16px;box-shadow:0 2px 8px rgba(0,0,0,0.05);position:relative;overflow:hidden;">
+          <div style="position:absolute;top:0;left:0;right:0;height:3px;background:#C0392B;"></div>
+          <div style="font-size:20px;color:#C0392B;margin-bottom:6px;">🌱</div>
+          <div style="font-size:11px;color:#C0392B;letter-spacing:2px;margin-bottom:6px;font-weight:600;">PERSONAL GROWTH</div>
+          <div style="font-size:14px;font-weight:700;color:#1A1A1A;">个人成长</div>
+          <div style="font-size:11px;color:#666;line-height:1.6;margin-top:4px;">提升情感感知能力</div>
+        </div>
+        <div style="background:white;border-radius:4px;padding:16px;box-shadow:0 2px 8px rgba(0,0,0,0.05);position:relative;overflow:hidden;">
+          <div style="position:absolute;top:0;left:0;right:0;height:3px;background:#2C3E8C;"></div>
+          <div style="font-size:20px;color:#2C3E8C;margin-bottom:6px;">🌍</div>
+          <div style="font-size:11px;color:#2C3E8C;letter-spacing:2px;margin-bottom:6px;font-weight:600;">CULTURAL LITERACY</div>
+          <div style="font-size:14px;font-weight:700;color:#1A1A1A;">文化理解</div>
+          <div style="font-size:11px;color:#666;line-height:1.6;margin-top:4px;">读懂艺术即读懂历史</div>
+        </div>
+        <div style="background:white;border-radius:4px;padding:16px;box-shadow:0 2px 8px rgba(0,0,0,0.05);position:relative;overflow:hidden;">
+          <div style="position:absolute;top:0;left:0;right:0;height:3px;background:#27AE60;"></div>
+          <div style="font-size:20px;color:#27AE60;margin-bottom:6px;">💡</div>
+          <div style="font-size:11px;color:#27AE60;letter-spacing:2px;margin-bottom:6px;font-weight:600;">CREATIVITY</div>
+          <div style="font-size:14px;font-weight:700;color:#1A1A1A;">创造力培养</div>
+          <div style="font-size:11px;color:#666;line-height:1.6;margin-top:4px;">激发跨领域想象力</div>
+        </div>
+        <div style="background:white;border-radius:4px;padding:16px;box-shadow:0 2px 8px rgba(0,0,0,0.05);position:relative;overflow:hidden;">
+          <div style="position:absolute;top:0;left:0;right:0;height:3px;background:#E67E22;"></div>
+          <div style="font-size:20px;color:#E67E22;margin-bottom:6px;">👥</div>
+          <div style="font-size:11px;color:#E67E22;letter-spacing:2px;margin-bottom:6px;font-weight:600;">SOCIAL CONNECTION</div>
+          <div style="font-size:14px;font-weight:700;color:#1A1A1A;">社会交往</div>
+          <div style="font-size:11px;color:#666;line-height:1.6;margin-top:4px;">共同审美话语</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Decorative element gallery -->
+    <div class="component-card">
+      <div class="component-title">Decorative Elements</div>
+      <div style="display:flex;flex-direction:column;gap:20px;">
+        <!-- Accent line -->
+        <div>
+          <div style="font-size:12px;color:#999;margin-bottom:8px;letter-spacing:1px;">accent-line · accent line</div>
+          <div style="width:56px;height:3px;background:#C0392B;"></div>
+        </div>
+        <!-- Top red bar -->
+        <div>
+          <div style="font-size:12px;color:#999;margin-bottom:8px;letter-spacing:1px;">left-deco-top · top red bar</div>
+          <div style="background:#1A1A1A;padding:12px 16px;border-radius:4px;position:relative;">
+            <div style="position:absolute;top:0;left:0;right:0;height:4px;background:#C0392B;border-radius:4px 4px 0 0;"></div>
+            <div style="font-size:14px;color:rgba(255,255,255,0.5);margin-top:4px;">Dark panel top decoration</div>
+          </div>
+        </div>
+        <!-- Bottom decorative dots -->
+        <div>
+          <div style="font-size:12px;color:#999;margin-bottom:8px;letter-spacing:1px;">bottom-deco · decorative dot row</div>
+          <div style="display:flex;align-items:center;gap:8px;">
+            <div style="width:8px;height:8px;border-radius:50%;background:#C0392B;"></div>
+            <div style="width:8px;height:8px;border-radius:50%;background:#C0392B;opacity:0.5;"></div>
+            <div style="width:8px;height:8px;border-radius:50%;background:#C0392B;opacity:0.25;"></div>
+            <span style="font-size:13px;color:#BBB;letter-spacing:0.1em;">ART APPRECIATION</span>
+          </div>
+        </div>
+        <!-- Activity badge -->
+        <div>
+          <div style="font-size:12px;color:#999;margin-bottom:8px;letter-spacing:1px;">activity-badge · activity badge</div>
+          <div style="display:inline-flex;align-items:center;gap:8px;background:rgba(192,57,43,0.15);border:1px solid rgba(192,57,43,0.3);border-radius:2px;padding:6px 14px;">
+            <span style="font-size:13px;color:rgba(192,57,43,0.9);letter-spacing:2px;">课堂活动</span>
+          </div>
+        </div>
+        <!-- page-tag -->
+        <div>
+          <div style="font-size:12px;color:#999;margin-bottom:8px;letter-spacing:1px;">page-tag · English page tag</div>
+          <div style="font-size:14px;color:#C0392B;letter-spacing:4px;font-weight:500;">OVERVIEW</div>
+        </div>
+      </div>
+    </div>
+
+  </div><!-- /components-grid -->
+
+</div><!-- /preview-page -->
+</body>
+</html>

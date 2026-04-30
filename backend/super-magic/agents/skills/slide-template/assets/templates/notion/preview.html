@@ -1,0 +1,330 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>Notion SaaS Dashboard — Template Preview</title>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Noto+Sans+SC:wght@400;500;700&display=swap" rel="stylesheet"/>
+<link rel="stylesheet" href="theme.css"/>
+<style>
+  body { background: #E8E8E6; padding: 40px; font-family: var(--font-sans); }
+  .preview-title { font-size: 28px; font-weight: 700; color: #1F1F1F; margin-bottom: 8px; }
+  .preview-desc  { font-size: 15px; color: #6B6B6B; margin-bottom: 40px; }
+  .section-label-outer { font-size: 12px; font-weight: 600; color: #9B9B9B; letter-spacing: 0.1em; text-transform: uppercase; margin: 40px 0 16px; }
+  .swatches { display: flex; gap: 12px; flex-wrap: wrap; margin-bottom: 32px; }
+  .swatch { width: 80px; }
+  .swatch-color { height: 52px; border-radius: 6px; border: 1px solid rgba(0,0,0,0.06); margin-bottom: 6px; }
+  .swatch-name  { font-size: 11px; font-weight: 600; color: #6B6B6B; }
+  .swatch-hex   { font-size: 11px; color: #9B9B9B; font-family: monospace; }
+  .layout-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 20px; margin-bottom: 40px; }
+  .layout-thumb {
+    aspect-ratio: 16/9; border-radius: 8px; overflow: hidden;
+    border: 1px solid #E5E5E5; box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+    position: relative; background: #F7F7F5;
+  }
+  .slide-label {
+    position: absolute; bottom: 0; left: 0; right: 0;
+    text-align: center; font-size: 9px; font-weight: 600;
+    color: #6B6B6B; letter-spacing: 0.05em;
+    background: rgba(247,247,245,0.92); padding: 4px 0;
+  }
+</style>
+</head>
+<body>
+
+<div class="preview-title">📋 Notion — SaaS Dashboard Template</div>
+<div class="preview-desc">Light gray base #F7F7F5 · white cards · thin borders · blue accent #2383E2 | Best for SaaS product demos, feature introductions, dashboards, and B2B proposals</div>
+
+<!-- Color swatches -->
+<div class="section-label-outer">Color Swatches</div>
+<div class="swatches">
+  <div class="swatch"><div class="swatch-color" style="background:#F7F7F5;"></div><div class="swatch-name">Light Gray Base</div><div class="swatch-hex">#F7F7F5</div></div>
+  <div class="swatch"><div class="swatch-color" style="background:#FFFFFF;border:1px solid #E5E5E5;"></div><div class="swatch-name">Card White</div><div class="swatch-hex">#FFFFFF</div></div>
+  <div class="swatch"><div class="swatch-color" style="background:#2383E2;"></div><div class="swatch-name">Notion Blue</div><div class="swatch-hex">#2383E2</div></div>
+  <div class="swatch"><div class="swatch-color" style="background:#191919;"></div><div class="swatch-name">Deep Black</div><div class="swatch-hex">#191919</div></div>
+  <div class="swatch"><div class="swatch-color" style="background:#0F7B6C;"></div><div class="swatch-name">Success Green</div><div class="swatch-hex">#0F7B6C</div></div>
+  <div class="swatch"><div class="swatch-color" style="background:#E03E3E;"></div><div class="swatch-name">Warning Red</div><div class="swatch-hex">#E03E3E</div></div>
+  <div class="swatch"><div class="swatch-color" style="background:#DFAB01;"></div><div class="swatch-name">Attention Yellow</div><div class="swatch-hex">#DFAB01</div></div>
+  <div class="swatch"><div class="swatch-color" style="background:#6940A5;"></div><div class="swatch-name">Purple</div><div class="swatch-hex">#6940A5</div></div>
+</div>
+
+<!-- 8 layout thumbnails -->
+<div class="section-label-outer">Dedicated Layout Types (8)</div>
+<div class="layout-grid">
+
+  <!-- 1. Cover slide -->
+  <div class="layout-thumb" style="background:#191919;">
+    <div style="position:absolute;top:0;left:0;right:0;height:22%;background:rgba(25,25,25,0.96);border-bottom:1px solid rgba(255,255,255,0.08);display:flex;align-items:center;padding:0 10px;gap:8px;">
+      <span style="font-size:8px;font-weight:700;color:#fff;">Notion</span>
+      <span style="font-size:7px;color:rgba(255,255,255,0.5);">产品</span>
+      <span style="font-size:7px;color:rgba(255,255,255,0.5);">定价</span>
+      <span style="flex:1;"></span>
+      <span style="background:#2383E2;color:#fff;font-size:6px;padding:2px 7px;border-radius:3px;">免费试用</span>
+    </div>
+    <div style="position:absolute;top:22%;left:0;bottom:0;width:55%;padding:10px 12px;display:flex;flex-direction:column;justify-content:center;gap:6px;">
+      <div style="font-size:13px;font-weight:700;color:#fff;line-height:1.2;letter-spacing:-0.01em;">一站式<br/>团队协作平台</div>
+      <div style="font-size:6px;color:rgba(255,255,255,0.55);line-height:1.5;">整合文档、项目、知识库<br/>提升团队效率 3x</div>
+      <div style="display:flex;gap:5px;margin-top:4px;">
+        <span style="background:#2383E2;color:#fff;font-size:6px;padding:3px 8px;border-radius:3px;font-weight:600;">开始使用</span>
+        <span style="border:1px solid rgba(255,255,255,0.3);color:rgba(255,255,255,0.7);font-size:6px;padding:3px 8px;border-radius:3px;">了解更多</span>
+      </div>
+    </div>
+    <div style="position:absolute;top:22%;right:0;bottom:0;width:45%;padding:8px;display:flex;align-items:center;justify-content:center;">
+      <div style="width:90%;height:80%;background:#fff;border-radius:6px;box-shadow:0 4px 16px rgba(0,0,0,0.3);padding:6px;overflow:hidden;">
+        <div style="height:8px;background:#F7F7F5;border-radius:2px;margin-bottom:4px;display:flex;gap:2px;align-items:center;padding:0 4px;">
+          <div style="width:4px;height:4px;border-radius:50%;background:#E5E5E5;"></div>
+          <div style="flex:1;height:3px;background:#E5E5E5;border-radius:1px;"></div>
+        </div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:3px;">
+          <div style="background:#F7F7F5;border-radius:3px;padding:4px;"><div style="font-size:8px;font-weight:700;color:#2383E2;">2,847</div><div style="font-size:4px;color:#9B9B9B;">月活用户</div></div>
+          <div style="background:#F7F7F5;border-radius:3px;padding:4px;"><div style="font-size:8px;font-weight:700;color:#0F7B6C;">94%</div><div style="font-size:4px;color:#9B9B9B;">满意度</div></div>
+        </div>
+      </div>
+    </div>
+    <div class="slide-label" style="color:#9B9B9B;background:rgba(25,25,25,0.85);">1. Cover</div>
+  </div>
+
+  <!-- 2. Feature overview slide -->
+  <div class="layout-thumb">
+    <div style="position:absolute;top:10px;left:12px;right:12px;">
+      <div style="font-size:10px;font-weight:700;color:#1F1F1F;margin-bottom:2px;">核心功能</div>
+      <div style="font-size:6px;color:#9B9B9B;">六大模块助力团队提效</div>
+    </div>
+    <div style="position:absolute;top:34px;left:10px;right:10px;bottom:12px;display:grid;grid-template-columns:1fr 1fr 1fr;grid-template-rows:1fr 1fr;gap:5px;">
+      <div style="background:#fff;border:1px solid #E5E5E5;border-radius:5px;padding:5px;"><div style="font-size:10px;margin-bottom:2px;">📝</div><div style="font-size:6px;font-weight:600;color:#1F1F1F;">文档管理</div><div style="font-size:5px;color:#9B9B9B;margin-top:1px;">实时协作编辑</div></div>
+      <div style="background:#fff;border:1px solid #E5E5E5;border-radius:5px;padding:5px;"><div style="font-size:10px;margin-bottom:2px;">📊</div><div style="font-size:6px;font-weight:600;color:#1F1F1F;">数据看板</div><div style="font-size:5px;color:#9B9B9B;margin-top:1px;">可视化分析</div></div>
+      <div style="background:#fff;border:1px solid #2383E2;border-radius:5px;padding:5px;box-shadow:0 0 0 1px rgba(35,131,226,0.15);"><div style="font-size:10px;margin-bottom:2px;">🤖</div><div style="font-size:6px;font-weight:600;color:#2383E2;">AI 助手</div><div style="font-size:5px;color:#9B9B9B;margin-top:1px;">智能提效</div></div>
+      <div style="background:#fff;border:1px solid #E5E5E5;border-radius:5px;padding:5px;"><div style="font-size:10px;margin-bottom:2px;">📅</div><div style="font-size:6px;font-weight:600;color:#1F1F1F;">项目管理</div><div style="font-size:5px;color:#9B9B9B;margin-top:1px;">甘特图视图</div></div>
+      <div style="background:#fff;border:1px solid #E5E5E5;border-radius:5px;padding:5px;"><div style="font-size:10px;margin-bottom:2px;">🔗</div><div style="font-size:6px;font-weight:600;color:#1F1F1F;">集成生态</div><div style="font-size:5px;color:#9B9B9B;margin-top:1px;">100+ 应用</div></div>
+      <div style="background:#fff;border:1px solid #E5E5E5;border-radius:5px;padding:5px;"><div style="font-size:10px;margin-bottom:2px;">🔒</div><div style="font-size:6px;font-weight:600;color:#1F1F1F;">权限管理</div><div style="font-size:5px;color:#9B9B9B;margin-top:1px;">细粒度控制</div></div>
+    </div>
+    <div class="slide-label">2. Features</div>
+  </div>
+
+  <!-- 3. Data dashboard slide -->
+  <div class="layout-thumb">
+    <div style="position:absolute;top:8px;left:10px;right:10px;display:grid;grid-template-columns:repeat(4,1fr);gap:4px;">
+      <div style="background:#fff;border:1px solid #E5E5E5;border-radius:4px;padding:4px 5px;"><div style="font-size:9px;font-weight:700;color:#1F1F1F;">2,847</div><div style="font-size:4px;color:#9B9B9B;">月活</div><div style="font-size:5px;color:#0F7B6C;margin-top:1px;">↑12%</div></div>
+      <div style="background:#fff;border:1px solid #E5E5E5;border-radius:4px;padding:4px 5px;"><div style="font-size:9px;font-weight:700;color:#1F1F1F;">94%</div><div style="font-size:4px;color:#9B9B9B;">留存</div><div style="font-size:5px;color:#0F7B6C;margin-top:1px;">↑3%</div></div>
+      <div style="background:#fff;border:1px solid #E5E5E5;border-radius:4px;padding:4px 5px;"><div style="font-size:9px;font-weight:700;color:#1F1F1F;">¥128k</div><div style="font-size:4px;color:#9B9B9B;">MRR</div><div style="font-size:5px;color:#0F7B6C;margin-top:1px;">↑28%</div></div>
+      <div style="background:#fff;border:1px solid #E5E5E5;border-radius:4px;padding:4px 5px;"><div style="font-size:9px;font-weight:700;color:#E03E3E;">4.2%</div><div style="font-size:4px;color:#9B9B9B;">流失</div><div style="font-size:5px;color:#E03E3E;margin-top:1px;">↓0.8%</div></div>
+    </div>
+    <div style="position:absolute;top:52px;left:10px;right:10px;bottom:12px;display:grid;grid-template-columns:60% 40%;gap:5px;">
+      <div style="background:#fff;border:1px solid #E5E5E5;border-radius:4px;display:flex;align-items:center;justify-content:center;"><div style="font-size:6px;color:#9B9B9B;">[ ECharts 折线图 ]</div></div>
+      <div style="background:#fff;border:1px solid #E5E5E5;border-radius:4px;padding:5px;display:flex;flex-direction:column;gap:3px;">
+        <div style="font-size:5px;font-weight:600;color:#9B9B9B;letter-spacing:0.05em;text-transform:uppercase;margin-bottom:2px;">TOP 功能</div>
+        <div style="display:flex;flex-direction:column;gap:3px;">
+          <div><div style="display:flex;justify-content:space-between;font-size:5px;color:#6B6B6B;margin-bottom:1px;"><span>文档</span><span>68%</span></div><div style="height:3px;background:#EFEFED;border-radius:2px;overflow:hidden;"><div style="width:68%;height:100%;background:#2383E2;border-radius:2px;"></div></div></div>
+          <div><div style="display:flex;justify-content:space-between;font-size:5px;color:#6B6B6B;margin-bottom:1px;"><span>看板</span><span>45%</span></div><div style="height:3px;background:#EFEFED;border-radius:2px;overflow:hidden;"><div style="width:45%;height:100%;background:#0F7B6C;border-radius:2px;"></div></div></div>
+          <div><div style="display:flex;justify-content:space-between;font-size:5px;color:#6B6B6B;margin-bottom:1px;"><span>AI</span><span>38%</span></div><div style="height:3px;background:#EFEFED;border-radius:2px;overflow:hidden;"><div style="width:38%;height:100%;background:#6940A5;border-radius:2px;"></div></div></div>
+        </div>
+      </div>
+    </div>
+    <div class="slide-label">3. Dashboard</div>
+  </div>
+
+  <!-- 4. Product comparison slide -->
+  <div class="layout-thumb">
+    <div style="position:absolute;top:10px;left:12px;font-size:9px;font-weight:700;color:#1F1F1F;">选择适合的方案</div>
+    <div style="position:absolute;top:28px;left:8px;right:8px;bottom:12px;display:grid;grid-template-columns:1fr 1fr 1fr;gap:4px;">
+      <div style="background:#fff;border:1px solid #E5E5E5;border-radius:5px;padding:6px;">
+        <div style="font-size:6px;color:#9B9B9B;margin-bottom:2px;">免费版</div>
+        <div style="font-size:11px;font-weight:700;color:#1F1F1F;">¥0</div>
+        <div style="height:1px;background:#E5E5E5;margin:4px 0;"></div>
+        <div style="font-size:5px;color:#1F1F1F;margin-bottom:1px;">✓ 5个成员</div>
+        <div style="font-size:5px;color:#1F1F1F;margin-bottom:1px;">✓ 基础功能</div>
+        <div style="font-size:5px;color:#9B9B9B;">— 高级分析</div>
+      </div>
+      <div style="background:#fff;border:2px solid #2383E2;border-radius:5px;padding:6px;box-shadow:0 0 0 2px rgba(35,131,226,0.12);">
+        <div style="font-size:6px;color:#2383E2;font-weight:600;margin-bottom:2px;">Pro ⭐</div>
+        <div style="font-size:11px;font-weight:700;color:#1F1F1F;">¥99<span style="font-size:5px;font-weight:400;color:#9B9B9B;">/月</span></div>
+        <div style="height:1px;background:#E5E5E5;margin:4px 0;"></div>
+        <div style="font-size:5px;color:#1F1F1F;margin-bottom:1px;">✓ 无限成员</div>
+        <div style="font-size:5px;color:#1F1F1F;margin-bottom:1px;">✓ 全部功能</div>
+        <div style="font-size:5px;color:#1F1F1F;">✓ 高级分析</div>
+      </div>
+      <div style="background:#fff;border:1px solid #E5E5E5;border-radius:5px;padding:6px;">
+        <div style="font-size:6px;color:#9B9B9B;margin-bottom:2px;">企业版</div>
+        <div style="font-size:8px;font-weight:700;color:#1F1F1F;">联系销售</div>
+        <div style="height:1px;background:#E5E5E5;margin:4px 0;"></div>
+        <div style="font-size:5px;color:#1F1F1F;margin-bottom:1px;">✓ 定制部署</div>
+        <div style="font-size:5px;color:#1F1F1F;margin-bottom:1px;">✓ SLA 保障</div>
+        <div style="font-size:5px;color:#1F1F1F;">✓ 专属支持</div>
+      </div>
+    </div>
+    <div class="slide-label">4. Comparison</div>
+  </div>
+
+  <!-- 5. Workflow slide -->
+  <div class="layout-thumb">
+    <div style="position:absolute;top:10px;left:12px;font-size:9px;font-weight:700;color:#1F1F1F;">快速上手流程</div>
+    <div style="position:absolute;top:30px;left:8px;right:8px;bottom:12px;display:flex;align-items:center;gap:3px;">
+      <div style="flex:1;display:flex;flex-direction:column;align-items:center;gap:3px;">
+        <div style="width:18px;height:18px;border-radius:50%;background:#2383E2;color:#fff;font-size:8px;font-weight:700;display:flex;align-items:center;justify-content:center;">1</div>
+        <div style="font-size:5.5px;font-weight:600;color:#1F1F1F;text-align:center;">注册账号</div>
+        <span class="status-tag status-green" style="font-size:5px;padding:1px 5px;">已完成</span>
+      </div>
+      <div style="color:#D0D0D0;font-size:10px;margin-top:-12px;">→</div>
+      <div style="flex:1;display:flex;flex-direction:column;align-items:center;gap:3px;">
+        <div style="width:18px;height:18px;border-radius:50%;background:#2383E2;color:#fff;font-size:8px;font-weight:700;display:flex;align-items:center;justify-content:center;">2</div>
+        <div style="font-size:5.5px;font-weight:600;color:#1F1F1F;text-align:center;">创建工作区</div>
+        <span class="status-tag status-blue" style="font-size:5px;padding:1px 5px;">进行中</span>
+      </div>
+      <div style="color:#D0D0D0;font-size:10px;margin-top:-12px;">→</div>
+      <div style="flex:1;display:flex;flex-direction:column;align-items:center;gap:3px;">
+        <div style="width:18px;height:18px;border-radius:50%;background:#EFEFED;color:#9B9B9B;font-size:8px;font-weight:700;display:flex;align-items:center;justify-content:center;">3</div>
+        <div style="font-size:5.5px;font-weight:600;color:#9B9B9B;text-align:center;">邀请成员</div>
+        <span class="status-tag status-gray" style="font-size:5px;padding:1px 5px;">待开始</span>
+      </div>
+      <div style="color:#D0D0D0;font-size:10px;margin-top:-12px;">→</div>
+      <div style="flex:1;display:flex;flex-direction:column;align-items:center;gap:3px;">
+        <div style="width:18px;height:18px;border-radius:50%;background:#EFEFED;color:#9B9B9B;font-size:8px;font-weight:700;display:flex;align-items:center;justify-content:center;">4</div>
+        <div style="font-size:5.5px;font-weight:600;color:#9B9B9B;text-align:center;">开始协作</div>
+        <span class="status-tag status-gray" style="font-size:5px;padding:1px 5px;">待开始</span>
+      </div>
+    </div>
+    <div class="slide-label">5. Workflow</div>
+  </div>
+
+  <!-- 6. Project status slide -->
+  <div class="layout-thumb">
+    <div style="position:absolute;top:8px;left:10px;right:10px;bottom:12px;">
+      <div style="font-size:9px;font-weight:700;color:#1F1F1F;margin-bottom:6px;">项目状态总览</div>
+      <div style="background:#fff;border:1px solid #E5E5E5;border-radius:5px;overflow:hidden;">
+        <div style="display:grid;grid-template-columns:2fr 1fr 1fr 1fr;background:#F7F7F5;border-bottom:1px solid #E5E5E5;padding:3px 6px;">
+          <div style="font-size:4px;color:#9B9B9B;font-weight:600;text-transform:uppercase;">项目</div>
+          <div style="font-size:4px;color:#9B9B9B;font-weight:600;text-transform:uppercase;">负责人</div>
+          <div style="font-size:4px;color:#9B9B9B;font-weight:600;text-transform:uppercase;">状态</div>
+          <div style="font-size:4px;color:#9B9B9B;font-weight:600;text-transform:uppercase;">进度</div>
+        </div>
+        <div style="display:grid;grid-template-columns:2fr 1fr 1fr 1fr;padding:3px 6px;border-bottom:1px solid #F0F0EE;align-items:center;">
+          <div style="font-size:5px;font-weight:500;color:#1F1F1F;">用户中心重构</div>
+          <div style="font-size:5px;color:#6B6B6B;">张三</div>
+          <span class="status-green" style="font-size:4px;padding:1px 4px;border-radius:3px;background:#EEFBF3;color:#0F7B6C;">已完成</span>
+          <div style="height:3px;background:#EFEFED;border-radius:2px;overflow:hidden;"><div style="width:100%;height:100%;background:#0F7B6C;border-radius:2px;"></div></div>
+        </div>
+        <div style="display:grid;grid-template-columns:2fr 1fr 1fr 1fr;padding:3px 6px;border-bottom:1px solid #F0F0EE;align-items:center;">
+          <div style="font-size:5px;font-weight:500;color:#1F1F1F;">支付模块升级</div>
+          <div style="font-size:5px;color:#6B6B6B;">李四</div>
+          <span style="font-size:4px;padding:1px 4px;border-radius:3px;background:#EBF5FF;color:#2383E2;">进行中</span>
+          <div style="height:3px;background:#EFEFED;border-radius:2px;overflow:hidden;"><div style="width:65%;height:100%;background:#2383E2;border-radius:2px;"></div></div>
+        </div>
+        <div style="display:grid;grid-template-columns:2fr 1fr 1fr 1fr;padding:3px 6px;align-items:center;">
+          <div style="font-size:5px;font-weight:500;color:#1F1F1F;">数据分析看板</div>
+          <div style="font-size:5px;color:#6B6B6B;">王五</div>
+          <span style="font-size:4px;padding:1px 4px;border-radius:3px;background:#FFF0F0;color:#E03E3E;">阻塞</span>
+          <div style="height:3px;background:#EFEFED;border-radius:2px;overflow:hidden;"><div style="width:20%;height:100%;background:#E03E3E;border-radius:2px;"></div></div>
+        </div>
+      </div>
+    </div>
+    <div class="slide-label">6. Status</div>
+  </div>
+
+  <!-- 7. Section slide -->
+  <div class="layout-thumb" style="background:#191919;">
+    <div style="position:absolute;top:0;left:0;right:0;height:22%;background:rgba(25,25,25,0.96);border-bottom:1px solid rgba(255,255,255,0.08);display:flex;align-items:center;padding:0 10px;gap:8px;">
+      <span style="font-size:8px;font-weight:700;color:#fff;">Notion</span>
+    </div>
+    <div style="position:absolute;top:22%;left:0;bottom:0;right:0;display:flex;align-items:center;padding:0 14px;gap:10px;">
+      <div>
+        <div style="font-size:36px;font-weight:700;color:rgba(255,255,255,0.05);line-height:1;font-family:monospace;">02</div>
+        <div style="font-size:13px;font-weight:700;color:#fff;line-height:1.2;margin-top:4px;">数据分析<br/>与增长策略</div>
+        <div style="display:flex;gap:3px;margin-top:6px;">
+          <span style="background:#EBF5FF;color:#2383E2;font-size:5px;padding:1px 5px;border-radius:3px;">DAU</span>
+          <span style="background:#EEFBF3;color:#0F7B6C;font-size:5px;padding:1px 5px;border-radius:3px;">留存</span>
+          <span style="background:#F5F0FF;color:#6940A5;font-size:5px;padding:1px 5px;border-radius:3px;">LTV</span>
+        </div>
+      </div>
+    </div>
+    <div class="slide-label" style="color:#9B9B9B;background:rgba(25,25,25,0.85);">7. Section</div>
+  </div>
+
+  <!-- 8. Closing CTA slide -->
+  <div class="layout-thumb" style="background:#191919;">
+    <div style="position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);text-align:center;width:85%;">
+      <div style="font-size:14px;font-weight:700;color:#fff;line-height:1.2;margin-bottom:8px;">立即开始<br/>免费试用 14 天</div>
+      <div style="font-size:6px;color:rgba(255,255,255,0.5);margin-bottom:10px;">无需信用卡 · 随时取消 · 全功能体验</div>
+      <div style="display:flex;gap:5px;justify-content:center;">
+        <span style="background:#2383E2;color:#fff;font-size:6px;padding:4px 12px;border-radius:4px;font-weight:600;">免费开始</span>
+        <span style="border:1px solid rgba(255,255,255,0.3);color:rgba(255,255,255,0.7);font-size:6px;padding:4px 12px;border-radius:4px;">联系销售</span>
+      </div>
+    </div>
+    <div class="slide-label" style="color:#9B9B9B;background:rgba(25,25,25,0.85);">8. Closing / CTA</div>
+  </div>
+
+</div>
+
+<!-- Core component gallery -->
+<div class="section-label-outer">Core Component Gallery</div>
+<div style="background:#F7F7F5;padding:40px;border-radius:10px;border:1px solid #E5E5E5;">
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:28px;">
+
+    <!-- Left column -->
+    <div class="flex-col gap-4">
+      <div>
+        <div style="font-size:36px;font-weight:700;color:#1F1F1F;letter-spacing:-0.02em;line-height:1.1;">一站式团队<br/>协作平台</div>
+        <div style="font-size:16px;color:#6B6B6B;margin-top:12px;line-height:1.7;">整合文档、项目、知识库与 AI，帮助团队提升效率 3 倍，让每个人专注于真正重要的工作。</div>
+      </div>
+
+      <div class="grid-4" style="gap:12px;">
+        <div class="kpi-card">
+          <div class="kpi-value" style="font-size:32px;">2,847</div>
+          <div class="kpi-label">月活用户</div>
+          <div class="kpi-delta up">↑ 12.4%</div>
+        </div>
+        <div class="kpi-card">
+          <div class="kpi-value" style="font-size:32px;">94%</div>
+          <div class="kpi-label">用户满意度</div>
+          <div class="kpi-delta up">↑ 3%</div>
+        </div>
+        <div class="kpi-card">
+          <div class="kpi-value" style="font-size:32px;">¥128k</div>
+          <div class="kpi-label">月收入 MRR</div>
+          <div class="kpi-delta up">↑ 28%</div>
+        </div>
+        <div class="kpi-card">
+          <div class="kpi-value" style="font-size:32px; color:var(--red);">4.2%</div>
+          <div class="kpi-label">用户流失率</div>
+          <div class="kpi-delta down">↓ 0.8%</div>
+        </div>
+      </div>
+
+      <div class="notion-card flat">
+        <div style="font-size:13px;font-weight:600;color:#9B9B9B;letter-spacing:0.06em;text-transform:uppercase;margin-bottom:12px;">功能使用进度</div>
+        <div class="flex-col gap-3">
+          <div><div class="flex justify-between mb-2"><span style="font-size:14px;color:#1F1F1F;font-weight:500;">文档管理</span><span style="font-size:14px;color:#6B6B6B;">68%</span></div><div class="progress-wrap"><div class="progress-bar" style="width:68%;"></div></div></div>
+          <div><div class="flex justify-between mb-2"><span style="font-size:14px;color:#1F1F1F;font-weight:500;">项目看板</span><span style="font-size:14px;color:#6B6B6B;">45%</span></div><div class="progress-wrap"><div class="progress-bar green" style="width:45%;"></div></div></div>
+          <div><div class="flex justify-between mb-2"><span style="font-size:14px;color:#1F1F1F;font-weight:500;">AI 助手</span><span style="font-size:14px;color:#6B6B6B;">38%</span></div><div class="progress-wrap"><div class="progress-bar" style="width:38%;background:var(--purple);"></div></div></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Right column -->
+    <div class="flex-col gap-4">
+      <div class="notion-card">
+        <div style="font-size:13px;font-weight:600;color:#9B9B9B;letter-spacing:0.06em;text-transform:uppercase;margin-bottom:14px;">项目状态</div>
+        <table class="notion-table">
+          <thead><tr><th>项目</th><th>负责人</th><th>状态</th><th>截止</th></tr></thead>
+          <tbody>
+            <tr><td class="td-primary">用户中心重构</td><td>张三</td><td><span class="status-tag status-green">已完成</span></td><td>04/15</td></tr>
+            <tr><td class="td-primary">支付模块升级</td><td>李四</td><td><span class="status-tag status-blue">进行中</span></td><td>04/30</td></tr>
+            <tr><td class="td-primary">数据分析看板</td><td>王五</td><td><span class="status-tag status-red">阻塞</span></td><td>05/10</td></tr>
+            <tr><td class="td-primary">AI 推荐系统</td><td>赵六</td><td><span class="status-tag status-yellow">待评审</span></td><td>05/20</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="notion-card">
+        <div style="font-size:13px;font-weight:600;color:#9B9B9B;letter-spacing:0.06em;text-transform:uppercase;margin-bottom:14px;">项目详情</div>
+        <div class="property-row"><span class="prop-key">负责人</span><span class="prop-value">李四</span></div>
+        <div class="property-row"><span class="prop-key">优先级</span><span class="prop-value"><span class="status-tag status-red">高</span></span></div>
+        <div class="property-row"><span class="prop-key">截止日期</span><span class="prop-value">2026年4月30日</span></div>
+        <div class="property-row"><span class="prop-key">标签</span><span class="prop-value"><span class="tag">后端</span> <span class="tag">支付</span></span></div>
+        <div class="property-row"><span class="prop-key">完成度</span><span class="prop-value" style="width:100%;"><div class="progress-wrap mt-2"><div class="progress-bar" style="width:65%;"></div></div></span></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+</body>
+</html>

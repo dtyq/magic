@@ -1,0 +1,260 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>Chalkboard — Template Preview</title>
+<link href="https://fonts.googleapis.com/css2?family=Caveat:wght@400;600;700&family=Noto+Sans+SC:wght@400;500;700&display=swap" rel="stylesheet"/>
+<link rel="stylesheet" href="theme.css"/>
+<style>
+  body { background: #111; font-family: 'Noto Sans SC', sans-serif; padding: 40px; color: #ccc; }
+  h1 { font-family: 'Caveat', cursive; font-size: 36px; color: #FFE566; margin-bottom: 8px; }
+  .meta { font-size: 14px; color: #888; margin-bottom: 32px; }
+  /* Swatches */
+  .swatches { display: flex; gap: 12px; flex-wrap: wrap; margin-bottom: 40px; }
+  .swatch { width: 80px; text-align: center; }
+  .swatch-color { width: 80px; height: 56px; border-radius: 6px; margin-bottom: 6px; border: 1px solid rgba(255,255,255,0.1); }
+  .swatch-hex { font-size: 11px; color: #888; }
+  .swatch-name { font-size: 12px; color: #ccc; }
+  /* Layout thumbnails */
+  h2 { font-size: 18px; color: #ccc; margin: 32px 0 16px; border-left: 3px solid #FFE566; padding-left: 12px; }
+  .layouts { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; margin-bottom: 40px; }
+  .layout-thumb { aspect-ratio: 16/9; border-radius: 6px; overflow: hidden; position: relative; border: 1px solid rgba(255,255,255,0.1); cursor: pointer; transition: transform .2s; }
+  .layout-thumb:hover { transform: scale(1.03); }
+  .slide-label { position: absolute; bottom: 0; left: 0; right: 0; background: rgba(0,0,0,0.7); color: #ccc; font-size: 11px; padding: 4px 8px; text-align: center; }
+  /* Component showcase */
+  .components { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; }
+  .comp-box { background: #1A1A1A; border: 1px solid rgba(255,255,255,0.1); border-radius: 8px; padding: 24px; }
+  .comp-title { font-size: 13px; color: #888; letter-spacing: .08em; text-transform: uppercase; margin-bottom: 16px; }
+</style>
+</head>
+<body>
+<h1>Chalkboard Style</h1>
+<p class="meta">Dark chalkboard background · Layered chalk colors · Hand-drawn doodle accents · Educational narrative structure</p>
+
+<!-- Swatches -->
+<h2>Color Swatches</h2>
+<div class="swatches">
+  <div class="swatch"><div class="swatch-color" style="background:#1A1A1A;"></div><div class="swatch-hex">#1A1A1A</div><div class="swatch-name">Board Black</div></div>
+  <div class="swatch"><div class="swatch-color" style="background:#1C2B1C;"></div><div class="swatch-hex">#1C2B1C</div><div class="swatch-name">Green Board</div></div>
+  <div class="swatch"><div class="swatch-color" style="background:#F5F5F5;border:1px solid #333;"></div><div class="swatch-hex">#F5F5F5</div><div class="swatch-name">Chalk White</div></div>
+  <div class="swatch"><div class="swatch-color" style="background:#FFE566;"></div><div class="swatch-hex">#FFE566</div><div class="swatch-name">Chalk Yellow</div></div>
+  <div class="swatch"><div class="swatch-color" style="background:#FF9999;"></div><div class="swatch-hex">#FF9999</div><div class="swatch-name">Chalk Pink</div></div>
+  <div class="swatch"><div class="swatch-color" style="background:#66B3FF;"></div><div class="swatch-hex">#66B3FF</div><div class="swatch-name">Chalk Blue</div></div>
+  <div class="swatch"><div class="swatch-color" style="background:#90EE90;"></div><div class="swatch-hex">#90EE90</div><div class="swatch-name">Chalk Green</div></div>
+  <div class="swatch"><div class="swatch-color" style="background:#FFB366;"></div><div class="swatch-hex">#FFB366</div><div class="swatch-name">Chalk Orange</div></div>
+</div>
+
+<!-- Layout thumbnails -->
+<h2>8 Dedicated Layout Types</h2>
+<div class="layouts">
+
+  <!-- 1. Cover -->
+  <div class="layout-thumb">
+    <div style="width:100%;height:100%;background:#1A1A1A;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:12px;gap:6px;">
+      <div style="font-size:9px;color:#FFE566;border:1px solid #FFE566;padding:2px 8px;letter-spacing:.1em;font-family:Caveat,cursive;">TODAY'S TOPIC</div>
+      <div style="font-family:Caveat,cursive;font-size:22px;font-weight:700;color:#F5F5F5;text-align:center;line-height:1.2;">黑板粉笔风<br/>演示模板</div>
+      <div style="font-family:Caveat,cursive;font-size:11px;color:#66B3FF;">Chalkboard Style</div>
+      <div style="display:flex;gap:6px;margin-top:4px;">
+        <span style="color:#FFE566;font-size:14px;">✦</span><span style="color:#FF9999;font-size:14px;">★</span><span style="color:#90EE90;font-size:14px;">✧</span>
+      </div>
+    </div>
+    <div class="slide-label">Cover Page</div>
+  </div>
+
+  <!-- 2. Concept -->
+  <div class="layout-thumb">
+    <div style="width:100%;height:100%;background:#1A1A1A;display:flex;gap:8px;padding:10px;">
+      <div style="flex:0 0 38%;display:flex;align-items:center;justify-content:center;">
+        <div style="font-family:Caveat,cursive;font-size:28px;font-weight:700;color:#FFE566;border:2px solid #FFE566;border-radius:50%;padding:8px 14px;transform:rotate(-2deg);filter:blur(0.3px);">核心</div>
+      </div>
+      <div style="flex:1;display:flex;flex-direction:column;justify-content:center;gap:6px;">
+        <div style="display:flex;align-items:flex-start;gap:5px;"><span style="color:#FFE566;font-size:10px;">✦</span><span style="font-size:9px;color:#D4D4D4;">第一个关键要点说明</span></div>
+        <div style="display:flex;align-items:flex-start;gap:5px;"><span style="color:#66B3FF;font-size:10px;">✦</span><span style="font-size:9px;color:#D4D4D4;">第二个关键要点说明</span></div>
+        <div style="display:flex;align-items:flex-start;gap:5px;"><span style="color:#90EE90;font-size:10px;">✦</span><span style="font-size:9px;color:#D4D4D4;">第三个关键要点说明</span></div>
+        <div style="height:1px;background:rgba(255,255,255,0.15);margin:4px 0;"></div>
+        <div style="font-size:8px;color:#888;">图注说明文字</div>
+      </div>
+    </div>
+    <div class="slide-label">Concept Explanation Page</div>
+  </div>
+
+  <!-- 3. Process -->
+  <div class="layout-thumb">
+    <div style="width:100%;height:100%;background:#1A1A1A;padding:10px;display:flex;flex-direction:column;gap:8px;">
+      <div style="font-family:Caveat,cursive;font-size:14px;color:#FFE566;border-bottom:2px solid #FFE566;padding-bottom:3px;">流程推演</div>
+      <div style="display:flex;align-items:center;gap:6px;flex:1;">
+        <div style="display:flex;flex-direction:column;align-items:center;gap:4px;flex:1;" id="steps">
+          <div style="width:28px;height:28px;border:2px solid #FFE566;border-radius:50%;display:flex;align-items:center;justify-content:center;font-family:Caveat,cursive;font-size:13px;color:#FFE566;transform:rotate(-1deg);">1</div>
+          <div style="font-size:8px;color:#D4D4D4;text-align:center;">步骤一</div>
+        </div>
+        <div style="color:#FFE566;font-size:10px;">→</div>
+        <div style="display:flex;flex-direction:column;align-items:center;gap:4px;flex:1;">
+          <div style="width:28px;height:28px;border:2px solid #66B3FF;border-radius:50%;display:flex;align-items:center;justify-content:center;font-family:Caveat,cursive;font-size:13px;color:#66B3FF;transform:rotate(1deg);">2</div>
+          <div style="font-size:8px;color:#D4D4D4;text-align:center;">步骤二</div>
+        </div>
+        <div style="color:#66B3FF;font-size:10px;">→</div>
+        <div style="display:flex;flex-direction:column;align-items:center;gap:4px;flex:1;">
+          <div style="width:28px;height:28px;border:2px solid #90EE90;border-radius:50%;display:flex;align-items:center;justify-content:center;font-family:Caveat,cursive;font-size:13px;color:#90EE90;transform:rotate(-0.5deg);">3</div>
+          <div style="font-size:8px;color:#D4D4D4;text-align:center;">步骤三</div>
+        </div>
+      </div>
+    </div>
+    <div class="slide-label">Process Walkthrough Page</div>
+  </div>
+
+  <!-- 4. Compare -->
+  <div class="layout-thumb">
+    <div style="width:100%;height:100%;background:#1A1A1A;display:grid;grid-template-columns:1fr 1fr;padding:10px;gap:0;">
+      <div style="border-right:1px dashed rgba(255,255,255,0.3);padding-right:8px;">
+        <div style="font-family:Caveat,cursive;font-size:13px;color:#FF9999;margin-bottom:6px;">方案 A</div>
+        <div style="font-size:8px;color:#D4D4D4;line-height:1.6;">· 要点一<br/>· 要点二<br/>· 要点三</div>
+      </div>
+      <div style="padding-left:8px;">
+        <div style="font-family:Caveat,cursive;font-size:13px;color:#66B3FF;margin-bottom:6px;">方案 B</div>
+        <div style="font-size:8px;color:#D4D4D4;line-height:1.6;">· 要点一<br/>· 要点二<br/>· 要点三</div>
+      </div>
+    </div>
+    <div class="slide-label">Compare Blackboard Page</div>
+  </div>
+
+  <!-- 5. Data -->
+  <div class="layout-thumb">
+    <div style="width:100%;height:100%;background:#1A1A1A;padding:10px;display:flex;flex-direction:column;gap:6px;">
+      <div style="font-family:Caveat,cursive;font-size:13px;color:#FFE566;">数据黑板</div>
+      <div style="display:flex;gap:8px;flex:1;">
+        <div style="flex:0 0 35%;display:flex;flex-direction:column;gap:6px;justify-content:center;">
+          <div style="text-align:center;"><div style="font-family:Caveat,cursive;font-size:26px;font-weight:700;color:#FFE566;text-shadow:0 0 10px rgba(255,229,102,0.4);">87%</div><div style="font-size:8px;color:#888;">完成率</div></div>
+          <div style="text-align:center;"><div style="font-family:Caveat,cursive;font-size:20px;font-weight:700;color:#66B3FF;">2.4K</div><div style="font-size:8px;color:#888;">用户数</div></div>
+        </div>
+        <div style="flex:1;background:rgba(255,255,255,0.03);border-radius:4px;display:flex;align-items:flex-end;padding:8px;gap:4px;">
+          <div style="flex:1;background:#FFE566;height:60%;border-radius:2px 2px 0 0;opacity:0.8;"></div>
+          <div style="flex:1;background:#66B3FF;height:80%;border-radius:2px 2px 0 0;opacity:0.8;"></div>
+          <div style="flex:1;background:#90EE90;height:50%;border-radius:2px 2px 0 0;opacity:0.8;"></div>
+          <div style="flex:1;background:#FF9999;height:70%;border-radius:2px 2px 0 0;opacity:0.8;"></div>
+        </div>
+      </div>
+    </div>
+    <div class="slide-label">Data Blackboard Page</div>
+  </div>
+
+  <!-- 6. Quiz -->
+  <div class="layout-thumb">
+    <div style="width:100%;height:100%;background:#1A1A1A;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:12px;gap:8px;">
+      <div style="font-family:Caveat,cursive;font-size:40px;color:rgba(255,255,255,0.1);line-height:1;">?</div>
+      <div style="font-family:Caveat,cursive;font-size:16px;font-weight:700;color:#FFE566;text-align:center;">什么是核心概念？</div>
+      <div style="border-top:1px dashed rgba(255,255,255,0.3);width:80%;padding-top:6px;text-align:center;">
+        <span style="font-family:Caveat,cursive;font-size:11px;color:#90EE90;">ANSWER: </span>
+        <span style="font-size:9px;color:#D4D4D4;">答案内容填写在这里</span>
+      </div>
+    </div>
+    <div class="slide-label">Quiz Interaction Page</div>
+  </div>
+
+  <!-- 7. Section -->
+  <div class="layout-thumb">
+    <div style="width:100%;height:100%;background:#1C2B1C;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:12px;position:relative;">
+      <div style="position:absolute;font-family:Caveat,cursive;font-size:80px;font-weight:700;color:rgba(255,255,255,0.06);line-height:1;">02</div>
+      <div style="font-family:Caveat,cursive;font-size:10px;color:#FFB366;letter-spacing:.1em;margin-bottom:6px;z-index:1;">CHAPTER</div>
+      <div style="font-family:Caveat,cursive;font-size:18px;font-weight:700;color:#F5F5F5;text-align:center;z-index:1;border:1.5px solid rgba(255,255,255,0.3);padding:6px 16px;transform:rotate(-0.5deg);">第二章节标题</div>
+    </div>
+    <div class="slide-label">Section Page</div>
+  </div>
+
+  <!-- 8. Closing -->
+  <div class="layout-thumb">
+    <div style="width:100%;height:100%;background:#1A1A1A;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:12px;gap:8px;">
+      <div style="font-family:Caveat,cursive;font-size:30px;font-weight:700;color:#F5F5F5;">THANK YOU</div>
+      <div style="font-family:Caveat,cursive;font-size:11px;color:#66B3FF;">感谢聆听</div>
+      <div style="display:flex;gap:10px;margin-top:4px;">
+        <span style="color:#FFE566;font-size:12px;">★</span>
+        <span style="color:#FF9999;font-size:12px;">✦</span>
+        <span style="color:#90EE90;font-size:12px;">✧</span>
+        <span style="color:#66B3FF;font-size:12px;">★</span>
+        <span style="color:#FFB366;font-size:12px;">✦</span>
+      </div>
+      <div style="font-size:9px;color:#888;margin-top:4px;">contact@example.com</div>
+    </div>
+    <div class="slide-label">Closing Page</div>
+  </div>
+
+</div>
+
+<!-- Core component showcase -->
+<h2>Core Component Showcase</h2>
+<div class="components">
+  <div class="comp-box">
+    <div class="comp-title">Chalk Cards & Tags</div>
+    <div style="display:flex;flex-direction:column;gap:12px;">
+      <div class="chalk-card chalk-card-yellow" style="padding:12px 16px;">
+        <div style="font-family:Caveat,cursive;font-size:18px;color:#FFE566;">黄色强调卡片</div>
+        <div style="font-size:14px;color:#D4D4D4;margin-top:4px;">重要内容用黄色粉笔标注</div>
+      </div>
+      <div class="chalk-card chalk-card-blue" style="padding:12px 16px;">
+        <div style="font-family:Caveat,cursive;font-size:18px;color:#66B3FF;">蓝色信息卡片</div>
+        <div style="font-size:14px;color:#D4D4D4;margin-top:4px;">补充说明用蓝色粉笔</div>
+      </div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:4px;">
+        <span class="chalk-tag chalk-tag-yellow">知识点</span>
+        <span class="chalk-tag chalk-tag-blue">延伸阅读</span>
+        <span class="chalk-tag chalk-tag-green">重点掌握</span>
+      </div>
+    </div>
+  </div>
+  <div class="comp-box">
+    <div class="comp-title">KPI Data & Progress Bars</div>
+    <div style="display:flex;gap:24px;margin-bottom:16px;">
+      <div class="chalk-kpi">
+        <span class="chalk-kpi-number">87%</span>
+        <span class="chalk-kpi-label">Completion Rate</span>
+      </div>
+      <div class="chalk-kpi">
+        <span class="chalk-kpi-number" style="color:#66B3FF;text-shadow:0 0 20px rgba(102,179,255,0.4);">2.4K</span>
+        <span class="chalk-kpi-label">参与人数</span>
+      </div>
+    </div>
+    <div class="chalk-progress">
+      <div class="chalk-progress-label"><span>模块 A</span><span style="color:#FFE566;">75%</span></div>
+      <div class="chalk-progress-track"><div class="chalk-progress-fill" style="width:75%;"></div></div>
+    </div>
+    <div class="chalk-progress">
+      <div class="chalk-progress-label"><span>模块 B</span><span style="color:#66B3FF;">52%</span></div>
+      <div class="chalk-progress-track"><div class="chalk-progress-fill blue" style="width:52%;"></div></div>
+    </div>
+  </div>
+  <div class="comp-box">
+    <div class="comp-title">Chalk Circles & Lists</div>
+    <div style="display:flex;gap:12px;margin-bottom:16px;">
+      <span class="chalk-circle">核心</span>
+      <span class="chalk-circle chalk-circle-yellow">重点</span>
+      <span class="chalk-circle chalk-circle-blue">扩展</span>
+    </div>
+    <ul class="chalk-list">
+      <li>第一个关键知识点内容</li>
+      <li>第二个关键知识点内容</li>
+      <li>第三个关键知识点内容</li>
+    </ul>
+  </div>
+  <div class="comp-box">
+    <div class="comp-title">Quote Box & Process Steps</div>
+    <div class="chalk-quote" style="font-size:16px;margin-bottom:16px;">"学而不思则罔，思而不学则殆。"</div>
+    <div style="display:flex;flex-direction:column;gap:10px;">
+      <div class="chalk-step">
+        <div class="chalk-step-num" style="width:36px;height:36px;font-size:18px;">1</div>
+        <div class="chalk-step-content">
+          <div class="chalk-step-title" style="font-size:16px;">第一步：理解概念</div>
+          <div class="chalk-step-desc" style="font-size:12px;">建立基础认知框架</div>
+        </div>
+      </div>
+      <div class="chalk-step">
+        <div class="chalk-step-num" style="width:36px;height:36px;font-size:18px;border-color:#66B3FF;color:#66B3FF;">2</div>
+        <div class="chalk-step-content">
+          <div class="chalk-step-title" style="font-size:16px;color:#66B3FF;">第二步：实践应用</div>
+          <div class="chalk-step-desc" style="font-size:12px;">通过练习巩固知识</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+</body>
+</html>

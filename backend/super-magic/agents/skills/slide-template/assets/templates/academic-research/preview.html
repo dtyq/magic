@@ -1,0 +1,386 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8"/>
+<title>Academic Research — Template Preview v2</title>
+<link rel="stylesheet" href="theme.css"/>
+<style>
+body {
+  font-family: 'Segoe UI','PingFang SC','Microsoft YaHei',sans-serif;
+  background: #EEF2F8;
+  margin: 0; padding: 40px;
+  color: var(--text-primary);
+}
+.preview-header { margin-bottom: 36px; }
+.preview-title { font-size: 36px; font-weight: 800; color: var(--navy); margin: 0 0 8px; }
+.preview-title span { color: var(--blue); }
+.preview-subtitle { font-size: 15px; color: var(--text-secondary); }
+.section { margin-bottom: 32px; }
+.section-label {
+  font-size: 12px; font-weight: 700; color: var(--blue);
+  text-transform: uppercase; letter-spacing: 0.1em;
+  border-left: 3px solid var(--teal); padding-left: 10px;
+  margin-bottom: 16px;
+}
+.swatches { display: flex; flex-wrap: wrap; gap: 12px; }
+.swatch-item { display: flex; flex-direction: column; align-items: center; gap: 4px; }
+.swatch { width: 52px; height: 52px; border-radius: 6px; border: 1px solid var(--border-light); }
+.swatch-hex { font-size: 11px; color: var(--text-secondary); font-family: monospace; }
+.swatch-name { font-size: 11px; color: var(--text-muted); }
+.slides-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; }
+.slide-wrap { min-width: 0; overflow: hidden; }
+.slide-label { font-size: 11px; color: var(--text-muted); margin-bottom: 6px;
+  text-transform: uppercase; letter-spacing: 0.06em; }
+.slide { width: 100%; aspect-ratio: 16/9; position: relative; overflow: hidden;
+  border-radius: 4px; border: 1px solid var(--border-light);
+  background: var(--bg-primary); box-sizing: border-box;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.07); }
+.components { display: flex; flex-wrap: wrap; gap: 16px; align-items: flex-start; }
+</style>
+</head>
+<body>
+
+<div class="preview-header">
+  <div class="preview-title">Academic Research · <span>Academic Research</span></div>
+  <div class="preview-subtitle">For thesis defenses · academic reports · research sharing · conference talks · research outcome showcases</div>
+</div>
+
+<!-- Color System -->
+<div class="section">
+  <div class="section-label">Color System</div>
+  <div class="swatches">
+    <div class="swatch-item"><span class="swatch" style="background:#FFFFFF;"></span><span class="swatch-hex">#FFFFFF</span><span class="swatch-name">Primary BG</span></div>
+    <div class="swatch-item"><span class="swatch" style="background:#F0F4F9;"></span><span class="swatch-hex">#F0F4F9</span><span class="swatch-name">Secondary BG</span></div>
+    <div class="swatch-item"><span class="swatch" style="background:#E8F4FD;"></span><span class="swatch-hex">#E8F4FD</span><span class="swatch-name">Accent BG</span></div>
+    <div class="swatch-item"><span class="swatch" style="background:#E6FAF8;"></span><span class="swatch-hex">#E6FAF8</span><span class="swatch-name">Teal BG</span></div>
+    <div style="width:1px;background:var(--border-light);margin:0 4px;"></div>
+    <div class="swatch-item"><span class="swatch" style="background:#0F2444;"></span><span class="swatch-hex">#0F2444</span><span class="swatch-name">Deep Navy</span></div>
+    <div class="swatch-item"><span class="swatch" style="background:#1A6DC0;"></span><span class="swatch-hex">#1A6DC0</span><span class="swatch-name">Primary Blue</span></div>
+    <div class="swatch-item"><span class="swatch" style="background:#3B8FE8;"></span><span class="swatch-hex">#3B8FE8</span><span class="swatch-name">Mid Blue</span></div>
+    <div class="swatch-item"><span class="swatch" style="background:#1A8A7A;"></span><span class="swatch-hex">#1A8A7A</span><span class="swatch-name">Teal</span></div>
+    <div style="width:1px;background:var(--border-light);margin:0 4px;"></div>
+    <div class="swatch-item"><span class="swatch" style="background:#1A7A4A;"></span><span class="swatch-hex">#1A7A4A</span><span class="swatch-name">Positive Green</span></div>
+    <div class="swatch-item"><span class="swatch" style="background:#B02020;"></span><span class="swatch-hex">#B02020</span><span class="swatch-name">Negative Red</span></div>
+    <div class="swatch-item"><span class="swatch" style="background:#F9E84A;border-color:#E0CC00;"></span><span class="swatch-hex">#F9E84A</span><span class="swatch-name">Highlight Yellow</span></div>
+  </div>
+</div>
+
+<!-- Layout Page Preview -->
+<div class="section">
+  <div class="section-label">8 Dedicated Layout Pages</div>
+  <div class="slides-grid">
+
+    <!-- 1. Cover Page -->
+    <div class="slide-wrap">
+      <div class="slide-label">① Cover Page</div>
+      <div class="slide">
+        <!-- Top deep-blue banner -->
+        <div style="position:absolute;top:0;left:0;right:0;height:22%;background:#0F2444;display:flex;align-items:center;padding:0 14px;justify-content:space-between;">
+          <div style="font-size:6.5px;color:rgba(255,255,255,0.7);">示例大学 · 计算机科学与技术系</div>
+          <div style="font-size:6px;color:rgba(255,255,255,0.5);">CONF 2025</div>
+        </div>
+        <!-- Main content -->
+        <div style="position:absolute;top:22%;bottom:14%;left:0;right:0;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:8px 16px;text-align:center;">
+          <div style="font-size:11px;font-weight:800;color:#0F2444;line-height:1.2;margin-bottom:5px;">基于大语言模型的<br>智能分析研究</div>
+          <div style="font-size:6.5px;color:var(--text-secondary);margin-bottom:6px;">作者甲¹ · 作者乙² · 作者丙¹</div>
+          <div style="font-size:5.5px;color:var(--text-muted);">¹示例大学  ²示例学院</div>
+        </div>
+        <!-- Bottom information bar -->
+        <div style="position:absolute;bottom:0;left:0;right:0;height:14%;background:var(--bg-secondary);border-top:2px solid var(--blue);display:flex;align-items:center;padding:0 14px;justify-content:space-between;">
+          <div style="font-size:5.5px;color:var(--text-muted);">导师：指导教授</div>
+          <div style="font-size:5.5px;color:var(--text-muted);">2025年4月26日</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 2. Research Background Page -->
+    <div class="slide-wrap">
+      <div class="slide-label">② Research Background</div>
+      <div class="slide">
+        <div style="position:absolute;top:0;left:0;right:0;height:13%;background:var(--bg-secondary);border-bottom:1px solid var(--border-light);display:flex;align-items:center;padding:0 12px;justify-content:space-between;">
+          <div style="font-size:8px;font-weight:700;color:var(--navy);">
+            <span style="display:inline-block;width:2.5px;height:0.9em;background:var(--blue);margin-right:5px;vertical-align:middle;"></span>研究背景
+          </div>
+          <div style="font-size:6px;color:var(--text-muted);">第一章</div>
+        </div>
+        <div style="position:absolute;top:13%;bottom:10%;left:0;right:0;display:flex;gap:6px;padding:8px 10px;">
+          <!-- Left key points -->
+          <div style="flex:55%;display:flex;flex-direction:column;gap:4px;">
+            <div style="display:flex;align-items:flex-start;gap:5px;">
+              <div style="flex-shrink:0;width:14px;height:14px;border-radius:50%;background:var(--blue);color:#fff;font-size:7px;font-weight:700;display:flex;align-items:center;justify-content:center;">1</div>
+              <div style="font-size:6px;color:var(--text-secondary);line-height:1.4;">研究领域数据年增长率超过30%</div>
+            </div>
+            <div style="display:flex;align-items:flex-start;gap:5px;">
+              <div style="flex-shrink:0;width:14px;height:14px;border-radius:50%;background:var(--blue);color:#fff;font-size:7px;font-weight:700;display:flex;align-items:center;justify-content:center;">2</div>
+              <div style="font-size:6px;color:var(--text-secondary);line-height:1.4;">传统方法准确率不足75%</div>
+            </div>
+            <div style="border-left:3px solid var(--teal);background:var(--bg-teal-soft);padding:4px 6px;border-radius:0 3px 3px 0;margin-top:2px;">
+              <div style="font-size:5.5px;color:var(--text-secondary);font-style:italic;">"亟需高效的AI辅助分析方案"</div>
+            </div>
+          </div>
+          <!-- Right chart -->
+          <div style="flex:45%;background:var(--bg-secondary);border-radius:4px;border:1px solid var(--border-light);display:flex;align-items:center;justify-content:center;">
+            <span style="font-size:6px;color:var(--text-muted);">ECharts 趋势图</span>
+          </div>
+        </div>
+        <div style="position:absolute;bottom:0;left:0;right:0;height:10%;background:var(--bg-secondary);border-top:1px solid var(--border-light);display:flex;align-items:center;padding:0 12px;justify-content:space-between;">
+          <span style="font-size:5.5px;color:var(--text-muted);">示例大学 · 2025</span>
+          <span style="font-size:5.5px;color:var(--text-muted);">3 / 18</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- 3. Research Method Flow Page -->
+    <div class="slide-wrap">
+      <div class="slide-label">③ Methodology</div>
+      <div class="slide">
+        <div style="position:absolute;top:0;left:0;right:0;height:13%;background:var(--bg-secondary);border-bottom:1px solid var(--border-light);display:flex;align-items:center;padding:0 12px;">
+          <div style="font-size:8px;font-weight:700;color:var(--navy);">
+            <span style="display:inline-block;width:2.5px;height:0.9em;background:var(--teal);margin-right:5px;vertical-align:middle;"></span>研究方法
+          </div>
+        </div>
+        <div style="position:absolute;top:13%;bottom:10%;left:0;right:0;padding:8px 10px;display:flex;flex-direction:column;gap:6px;">
+          <!-- Flowchart -->
+          <div style="display:flex;align-items:center;justify-content:space-between;flex:1;">
+            <div style="background:#fff;border:1.5px solid var(--blue);border-radius:3px;padding:5px 7px;text-align:center;position:relative;flex:1;">
+              <div style="position:absolute;top:-7px;left:50%;transform:translateX(-50%);width:14px;height:14px;border-radius:50%;background:var(--blue);color:#fff;font-size:6px;font-weight:700;display:flex;align-items:center;justify-content:center;">1</div>
+              <div style="font-size:6px;font-weight:600;color:var(--navy);margin-top:4px;">数据收集</div>
+            </div>
+            <div style="width:12px;height:1.5px;background:var(--border-medium);position:relative;flex-shrink:0;">
+              <div style="position:absolute;right:-4px;top:-3px;border:4px solid transparent;border-left-color:var(--border-medium);"></div>
+            </div>
+            <div style="background:#fff;border:1.5px solid var(--blue);border-radius:3px;padding:5px 7px;text-align:center;position:relative;flex:1;">
+              <div style="position:absolute;top:-7px;left:50%;transform:translateX(-50%);width:14px;height:14px;border-radius:50%;background:var(--blue);color:#fff;font-size:6px;font-weight:700;display:flex;align-items:center;justify-content:center;">2</div>
+              <div style="font-size:6px;font-weight:600;color:var(--navy);margin-top:4px;">预处理</div>
+            </div>
+            <div style="width:12px;height:1.5px;background:var(--border-medium);position:relative;flex-shrink:0;">
+              <div style="position:absolute;right:-4px;top:-3px;border:4px solid transparent;border-left-color:var(--border-medium);"></div>
+            </div>
+            <div style="background:var(--bg-accent);border:1.5px solid var(--blue);border-radius:3px;padding:5px 7px;text-align:center;position:relative;flex:1;">
+              <div style="position:absolute;top:-7px;left:50%;transform:translateX(-50%);width:14px;height:14px;border-radius:50%;background:var(--teal);color:#fff;font-size:6px;font-weight:700;display:flex;align-items:center;justify-content:center;">3</div>
+              <div style="font-size:6px;font-weight:600;color:var(--navy);margin-top:4px;">模型训练</div>
+            </div>
+            <div style="width:12px;height:1.5px;background:var(--border-medium);position:relative;flex-shrink:0;">
+              <div style="position:absolute;right:-4px;top:-3px;border:4px solid transparent;border-left-color:var(--border-medium);"></div>
+            </div>
+            <div style="background:#fff;border:1.5px solid var(--blue);border-radius:3px;padding:5px 7px;text-align:center;position:relative;flex:1;">
+              <div style="position:absolute;top:-7px;left:50%;transform:translateX(-50%);width:14px;height:14px;border-radius:50%;background:var(--blue);color:#fff;font-size:6px;font-weight:700;display:flex;align-items:center;justify-content:center;">4</div>
+              <div style="font-size:6px;font-weight:600;color:var(--navy);margin-top:4px;">评估</div>
+            </div>
+          </div>
+        </div>
+        <div style="position:absolute;bottom:0;left:0;right:0;height:10%;background:var(--bg-secondary);border-top:1px solid var(--border-light);display:flex;align-items:center;padding:0 12px;justify-content:space-between;">
+          <span style="font-size:5.5px;color:var(--text-muted);">示例大学 · 2025</span>
+          <span style="font-size:5.5px;color:var(--text-muted);">6 / 18</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- 4. Experiment Results Page -->
+    <div class="slide-wrap">
+      <div class="slide-label">④ Results</div>
+      <div class="slide">
+        <div style="position:absolute;top:0;left:0;right:0;height:13%;background:var(--bg-secondary);border-bottom:1px solid var(--border-light);display:flex;align-items:center;padding:0 12px;">
+          <div style="font-size:8px;font-weight:700;color:var(--navy);">
+            <span style="display:inline-block;width:2.5px;height:0.9em;background:var(--blue);margin-right:5px;vertical-align:middle;"></span>实验结果
+          </div>
+        </div>
+        <div style="position:absolute;top:13%;bottom:10%;left:0;right:0;padding:6px 8px;display:flex;flex-direction:column;gap:4px;">
+          <!-- KPI cards -->
+          <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:4px;">
+            <div style="background:var(--bg-secondary);border-radius:3px;padding:4px 6px;border-left:3px solid var(--positive);">
+              <div style="font-size:13px;font-weight:800;color:var(--blue);line-height:1;">94.2<span style="font-size:6px;">%</span></div>
+              <div style="font-size:5px;color:var(--text-muted);">准确率</div>
+            </div>
+            <div style="background:var(--bg-secondary);border-radius:3px;padding:4px 6px;border-left:3px solid var(--blue);">
+              <div style="font-size:13px;font-weight:800;color:var(--teal);line-height:1;">0.91</div>
+              <div style="font-size:5px;color:var(--text-muted);">F1 Score</div>
+            </div>
+            <div style="background:var(--bg-secondary);border-radius:3px;padding:4px 6px;border-left:3px solid var(--teal);">
+              <div style="font-size:13px;font-weight:800;color:var(--blue);line-height:1;">↑19<span style="font-size:6px;">pp</span></div>
+              <div style="font-size:5px;color:var(--text-muted);">超越基线</div>
+            </div>
+          </div>
+          <!-- Chart area -->
+          <div style="flex:1;background:var(--bg-secondary);border-radius:3px;border:1px solid var(--border-light);display:flex;align-items:center;justify-content:center;">
+            <span style="font-size:6px;color:var(--text-muted);">ECharts 对比图</span>
+          </div>
+        </div>
+        <div style="position:absolute;bottom:0;left:0;right:0;height:10%;background:var(--bg-secondary);border-top:1px solid var(--border-light);display:flex;align-items:center;padding:0 12px;justify-content:space-between;">
+          <span style="font-size:5.5px;color:var(--text-muted);">示例大学 · 2025</span>
+          <span style="font-size:5.5px;color:var(--text-muted);">9 / 18</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- 5. Comparison Analysis Page -->
+    <div class="slide-wrap">
+      <div class="slide-label">⑤ Comparison Analysis</div>
+      <div class="slide">
+        <div style="position:absolute;top:0;left:0;right:0;height:13%;background:var(--bg-secondary);border-bottom:1px solid var(--border-light);display:flex;align-items:center;padding:0 12px;">
+          <div style="font-size:8px;font-weight:700;color:var(--navy);">
+            <span style="display:inline-block;width:2.5px;height:0.9em;background:var(--teal);margin-right:5px;vertical-align:middle;"></span>与SOTA对比
+          </div>
+        </div>
+        <div style="position:absolute;top:13%;bottom:10%;left:0;right:0;padding:6px 8px;">
+          <table style="width:100%;border-collapse:collapse;font-size:6px;">
+            <thead>
+              <tr style="background:#0F2444;">
+                <th style="padding:4px 6px;color:#fff;text-align:left;font-weight:700;">方法</th>
+                <th style="padding:4px 6px;color:#fff;text-align:center;">ACC</th>
+                <th style="padding:4px 6px;color:#fff;text-align:center;">F1</th>
+                <th style="padding:4px 6px;color:#fff;text-align:center;">AUC</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr style="background:var(--bg-accent);border:1px solid var(--border-blue);">
+                <td style="padding:4px 6px;font-weight:700;color:var(--navy);">本文方法</td>
+                <td style="padding:4px 6px;text-align:center;color:var(--positive);font-weight:800;">94.2%</td>
+                <td style="padding:4px 6px;text-align:center;color:var(--positive);font-weight:800;">0.91</td>
+                <td style="padding:4px 6px;text-align:center;color:var(--positive);font-weight:800;">0.97</td>
+              </tr>
+              <tr style="background:#fff;">
+                <td style="padding:4px 6px;color:var(--text-secondary);">ResNet-50</td>
+                <td style="padding:4px 6px;text-align:center;color:var(--text-secondary);">82.1%</td>
+                <td style="padding:4px 6px;text-align:center;color:var(--text-secondary);">0.79</td>
+                <td style="padding:4px 6px;text-align:center;color:var(--text-secondary);">0.85</td>
+              </tr>
+              <tr style="background:var(--bg-secondary);">
+                <td style="padding:4px 6px;color:var(--text-secondary);">ViT-Base</td>
+                <td style="padding:4px 6px;text-align:center;color:var(--text-secondary);">88.7%</td>
+                <td style="padding:4px 6px;text-align:center;color:var(--text-secondary);">0.85</td>
+                <td style="padding:4px 6px;text-align:center;color:var(--text-secondary);">0.91</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        <div style="position:absolute;bottom:0;left:0;right:0;height:10%;background:var(--bg-secondary);border-top:1px solid var(--border-light);display:flex;align-items:center;padding:0 12px;justify-content:space-between;">
+          <span style="font-size:5.5px;color:var(--text-muted);">示例大学 · 2025</span>
+          <span style="font-size:5.5px;color:var(--text-muted);">11 / 18</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- 6. Literature Review Page -->
+    <div class="slide-wrap">
+      <div class="slide-label">⑥ Literature Review</div>
+      <div class="slide">
+        <div style="position:absolute;top:0;left:0;right:0;height:13%;background:var(--bg-secondary);border-bottom:1px solid var(--border-light);display:flex;align-items:center;padding:0 12px;">
+          <div style="font-size:8px;font-weight:700;color:var(--navy);">
+            <span style="display:inline-block;width:2.5px;height:0.9em;background:var(--teal);margin-right:5px;vertical-align:middle;"></span>相关工作
+          </div>
+        </div>
+        <div style="position:absolute;top:13%;bottom:10%;left:0;right:0;padding:6px 8px;display:flex;flex-direction:column;gap:4px;">
+          <div style="background:var(--bg-secondary);border-radius:3px;padding:5px 7px;border-left:3px solid var(--teal);">
+            <div style="font-size:6px;font-weight:700;color:var(--teal);">[1]</div>
+            <div style="font-size:5.5px;color:var(--text-secondary);line-height:1.4;">Author et al. (2022). Example Research Title. <span style="font-style:italic;">CONF 2022.</span></div>
+          </div>
+          <div style="background:var(--bg-secondary);border-radius:3px;padding:5px 7px;border-left:3px solid var(--blue);">
+            <div style="font-size:6px;font-weight:700;color:var(--blue);">[2]</div>
+            <div style="font-size:5.5px;color:var(--text-secondary);line-height:1.4;">Author et al. (2021). Example Method Paper Title. <span style="font-style:italic;">CONF 2021.</span></div>
+          </div>
+          <div style="background:var(--bg-secondary);border-radius:3px;padding:5px 7px;border-left:3px solid var(--teal);">
+            <div style="font-size:6px;font-weight:700;color:var(--teal);">[3]</div>
+            <div style="font-size:5.5px;color:var(--text-secondary);line-height:1.4;">Author et al. (2023). Example Survey Paper Title. <span style="font-style:italic;">Journal Name.</span></div>
+          </div>
+        </div>
+        <div style="position:absolute;bottom:0;left:0;right:0;height:10%;background:var(--bg-secondary);border-top:1px solid var(--border-light);display:flex;align-items:center;padding:0 12px;justify-content:space-between;">
+          <span style="font-size:5.5px;color:var(--text-muted);">示例大学 · 2025</span>
+          <span style="font-size:5.5px;color:var(--text-muted);">4 / 18</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- 7. Section Page -->
+    <div class="slide-wrap">
+      <div class="slide-label">⑦ Section Page</div>
+      <div class="slide" style="background:#0F2444;">
+        <div style="position:absolute;top:0;left:0;right:0;height:3px;background:#1A6DC0;"></div>
+        <div style="position:absolute;right:8px;bottom:-8px;font-size:72px;font-weight:900;color:rgba(255,255,255,0.05);letter-spacing:-0.05em;line-height:1;">03</div>
+        <div style="position:absolute;inset:0;display:flex;align-items:center;padding:0 18px;">
+          <div>
+            <div style="font-size:18px;font-weight:900;color:rgba(59,143,232,0.8);line-height:1;">03</div>
+            <div style="height:2px;width:24px;background:#1A6DC0;margin:5px 0;"></div>
+            <div style="font-size:13px;font-weight:700;color:#FFFFFF;">实验结果</div>
+            <div style="font-size:6px;color:rgba(255,255,255,0.35);margin-top:3px;">Experimental Results</div>
+          </div>
+        </div>
+        <div style="position:absolute;bottom:0;left:0;right:0;height:10%;background:rgba(255,255,255,0.04);border-top:1px solid rgba(255,255,255,0.08);display:flex;align-items:center;padding:0 12px;justify-content:space-between;">
+          <span style="font-size:5.5px;color:rgba(255,255,255,0.25);">示例大学 · 2025</span>
+          <span style="font-size:5.5px;color:rgba(255,255,255,0.25);">3 / 4</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- 8. Conclusion Page -->
+    <div class="slide-wrap">
+      <div class="slide-label">⑧ Conclusion and Outlook</div>
+      <div class="slide">
+        <div style="position:absolute;top:0;left:0;right:0;height:13%;background:var(--bg-secondary);border-bottom:1px solid var(--border-light);display:flex;align-items:center;padding:0 12px;">
+          <div style="font-size:8px;font-weight:700;color:var(--navy);">
+            <span style="display:inline-block;width:2.5px;height:0.9em;background:var(--blue);margin-right:5px;vertical-align:middle;"></span>结论与展望
+          </div>
+        </div>
+        <div style="position:absolute;top:13%;bottom:10%;left:0;right:0;padding:6px 8px;display:flex;gap:6px;">
+          <div style="flex:1;display:flex;flex-direction:column;gap:4px;">
+            <div style="font-size:6.5px;font-weight:700;color:var(--navy);margin-bottom:2px;">关键发现</div>
+            <div style="display:flex;align-items:flex-start;gap:4px;">
+              <div style="flex-shrink:0;width:12px;height:12px;border-radius:50%;background:var(--blue);color:#fff;font-size:6px;font-weight:700;display:flex;align-items:center;justify-content:center;">1</div>
+              <div style="font-size:5.5px;color:var(--text-secondary);line-height:1.4;">本方法在三个数据集上均超越SOTA</div>
+            </div>
+            <div style="display:flex;align-items:flex-start;gap:4px;">
+              <div style="flex-shrink:0;width:12px;height:12px;border-radius:50%;background:var(--blue);color:#fff;font-size:6px;font-weight:700;display:flex;align-items:center;justify-content:center;">2</div>
+              <div style="font-size:5.5px;color:var(--text-secondary);line-height:1.4;">跨模态融合有效提升诊断精度</div>
+            </div>
+            <div style="border-left:3px solid var(--blue);background:var(--bg-accent);padding:4px 5px;border-radius:0 3px 3px 0;margin-top:2px;">
+              <div style="font-size:5.5px;color:var(--text-secondary);font-style:italic;">"为AI辅助分析提供新范式"</div>
+            </div>
+          </div>
+          <div style="flex:1;display:flex;flex-direction:column;gap:4px;">
+            <div style="font-size:6.5px;font-weight:700;color:var(--teal);margin-bottom:2px;">未来展望</div>
+            <div style="background:var(--bg-teal-soft);border:1px solid var(--border-teal);border-radius:3px;padding:5px 6px;">
+              <div style="font-size:5.5px;color:var(--text-secondary);line-height:1.5;">· 扩展至更多影像模态<br>· 探索联邦学习隐私保护<br>· 临床试验验证</div>
+            </div>
+          </div>
+        </div>
+        <div style="position:absolute;bottom:0;left:0;right:0;height:10%;background:var(--bg-secondary);border-top:1px solid var(--border-light);display:flex;align-items:center;padding:0 12px;justify-content:space-between;">
+          <span style="font-size:5.5px;color:var(--text-muted);">示例大学 · 2025</span>
+          <span style="font-size:5.5px;color:var(--text-muted);">16 / 18</span>
+        </div>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<!-- Component Showcase -->
+<div class="section">
+  <div class="section-label">Core Components</div>
+  <div class="components">
+    <!-- Result card -->
+    <div style="background:var(--bg-secondary);border:1px solid var(--border-light);border-radius:6px;padding:20px 24px;min-width:150px;border-left:4px solid var(--positive);">
+      <div style="font-size:11px;color:var(--text-muted);margin-bottom:6px;">准确率 ACC</div>
+      <div style="font-size:40px;font-weight:800;color:var(--blue);line-height:1;">94.2%</div>
+      <div style="font-size:13px;color:var(--positive);margin-top:4px;">↑ +19pp vs baseline</div>
+    </div>
+    <!-- Quote block -->
+    <div style="display:flex;flex-direction:column;gap:10px;max-width:260px;">
+      <div style="border-left:4px solid var(--teal);background:var(--bg-teal-soft);padding:12px 16px;border-radius:0 6px 6px 0;">
+        <div style="font-size:13px;color:var(--text-secondary);font-style:italic;line-height:1.6;">"本研究提出的方法在目标领域取得了显著突破。"</div>
+      </div>
+      <div style="border-left:4px solid var(--blue);background:var(--bg-accent);padding:12px 16px;border-radius:0 6px 6px 0;">
+        <div style="font-size:13px;color:var(--text-secondary);font-style:italic;line-height:1.6;">重要结论框（蓝色竖线）</div>
+      </div>
+    </div>
+    <!-- Badges -->
+    <div style="display:flex;flex-direction:column;gap:8px;">
+      <span style="display:inline-block;font-size:13px;font-weight:700;padding:4px 12px;border-radius:4px;background:var(--bg-accent);color:var(--blue);border:1px solid var(--border-blue);">研究方向</span>
+      <span style="display:inline-block;font-size:13px;font-weight:700;padding:4px 12px;border-radius:4px;background:var(--bg-teal-soft);color:var(--teal);border:1px solid var(--border-teal);">方法论</span>
+      <span style="display:inline-block;font-size:13px;font-weight:700;padding:4px 12px;border-radius:4px;background:var(--positive-bg);color:var(--positive);">显著提升</span>
+      <span style="display:inline-block;font-size:13px;font-weight:700;padding:4px 12px;border-radius:4px;background:var(--negative-bg);color:var(--negative);">有待改进</span>
+    </div>
+  </div>
+</div>
+
+</body>
+</html>

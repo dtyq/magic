@@ -1,0 +1,570 @@
+/* ============================================================
+   Neo-Brutalism Bold — theme.css
+   Neo-brutalist slide theme stylesheet
+   ============================================================ */
+
+/* ── 1. CSS Variables ─────────────────────────────────────── */
+:root {
+  /* Backgrounds */
+  --bg-primary:    #F4F4F0;
+  --bg-card:       #FFFFFF;
+  --bg-dark:       #000000;
+  --bg-yellow:     #FFD700;
+  --bg-gray:       #F0F0F0;
+
+  /* Brand Colors */
+  --color-primary:   #D92D20;
+  --color-black:     #000000;
+  --color-yellow:    #FFD700;
+
+  /* Text */
+  --text-primary:    #000000;
+  --text-secondary:  #333333;
+  --text-muted:      #666666;
+  --text-on-dark:    #FFFFFF;
+  --text-on-yellow:  #000000;
+
+  /* Borders */
+  --border-thin:   4px solid #000000;
+  --border-normal: 5px solid #000000;
+  --border-thick:  8px solid #000000;
+  --border-red:    4px solid #D92D20;
+
+  /* Shadows (offset solid) */
+  --shadow-sm:   6px 6px 0 #000000;
+  --shadow-md:   10px 10px 0 #000000;
+  --shadow-lg:   16px 16px 0 #000000;
+  --shadow-red:  10px 10px 0 #D92D20;
+
+  /* Radius */
+  --radius-none: 0px;
+
+  /* Font Sizes */
+  --font-hero:    140px;
+  --font-h1:      64px;
+  --font-h2:      52px;
+  --font-h3:      40px;
+  --font-body:    24px;
+  --font-small:   20px;
+  --font-tag:     22px;
+  --font-data:    36px;
+}
+
+/* ── 2. Base Reset ────────────────────────────────────────── */
+html, body {
+  width: 1920px;
+  height: 1080px;
+  font-family: 'Noto Sans SC', sans-serif;
+  background-color: var(--bg-primary);
+  overflow: hidden;
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+.slide-container {
+  width: 1920px;
+  height: 1080px;
+  padding: 80px;
+  box-sizing: border-box;
+  position: relative;
+  display: flex;
+  flex-direction: column;
+}
+
+* { box-sizing: border-box; }
+
+/* ── 3. Decorative Elements ───────────────────────────────── */
+
+/* Black section tag */
+.section-tag {
+  display: inline-block;
+  background-color: var(--color-black);
+  color: var(--text-on-dark);
+  padding: 6px 20px;
+  font-size: var(--font-tag);
+  font-weight: 700;
+  border: var(--border-thin);
+  align-self: flex-start;
+  letter-spacing: 1px;
+}
+
+/* Subtitle with red left border */
+.subtitle-bar {
+  font-size: 32px;
+  font-weight: 700;
+  color: #444;
+  border-left: 6px solid var(--color-primary);
+  padding-left: 20px;
+  margin-top: 10px;
+  line-height: 1.4;
+}
+
+/* Yellow highlighted text */
+.highlight-text {
+  background-color: var(--color-yellow);
+  padding: 0 8px;
+  font-weight: 700;
+}
+
+/* Gray highlighted text */
+.strong-point {
+  font-weight: 700;
+  background: #eee;
+  padding: 0 4px;
+}
+
+/* Quote block */
+.quote-box {
+  border-left: 10px solid var(--color-primary);
+  padding-left: 18px;
+  font-size: 26px;
+  font-weight: 700;
+  color: var(--text-primary);
+  line-height: 1.4;
+  font-style: italic;
+}
+
+/* Red decorative triangle */
+.deco-triangle {
+  display: inline-block;
+  color: var(--color-primary);
+  margin-right: 12px;
+}
+
+/* ── 4. Title Styles ──────────────────────────────────────── */
+.title-hero {
+  font-size: var(--font-hero);
+  font-weight: 900;
+  color: var(--text-primary);
+  letter-spacing: -2px;
+  line-height: 1;
+}
+
+.title-h1 {
+  font-size: var(--font-h1);
+  font-weight: 900;
+  color: var(--text-primary);
+  letter-spacing: -2px;
+  line-height: 1.2;
+  margin: 0;
+}
+
+.title-h2 {
+  font-size: var(--font-h2);
+  font-weight: 900;
+  color: var(--text-primary);
+  line-height: 1.2;
+}
+
+/* ── 5. Card Components ───────────────────────────────────── */
+
+/* Base Neo card (white background, black border, solid shadow) */
+.neo-card {
+  background: var(--bg-card);
+  border: var(--border-normal);
+  box-shadow: var(--shadow-md);
+  padding: 32px;
+}
+
+/* Large info box for covers */
+.neo-brutalism-box {
+  background-color: var(--bg-card);
+  border: 8px solid var(--color-black);
+  box-shadow: var(--shadow-lg);
+  padding: 32px 48px;
+  display: inline-block;
+}
+
+/* Dark card */
+.neo-card-dark {
+  background: var(--bg-dark);
+  color: var(--text-on-dark);
+  border: var(--border-normal);
+  box-shadow: var(--shadow-md);
+  padding: 32px;
+}
+
+/* Yellow emphasis card */
+.neo-card-yellow {
+  background: var(--bg-yellow);
+  border: var(--border-normal);
+  box-shadow: var(--shadow-md);
+  padding: 32px;
+}
+
+/* Gray secondary card */
+.neo-card-gray {
+  background: var(--bg-gray);
+  border: var(--border-normal);
+  box-shadow: var(--shadow-md);
+  padding: 32px;
+}
+
+/* Red emphasis card */
+.neo-card-red {
+  background: var(--bg-card);
+  border: 4px solid var(--color-primary);
+  box-shadow: var(--shadow-red);
+  padding: 32px;
+}
+
+/* ── 6. Panorama Grid Cards (scope-card) ──────────────────── */
+.scope-card {
+  background-color: var(--bg-card);
+  border: 5px solid var(--color-black);
+  box-shadow: var(--shadow-md);
+  padding: 20px 24px;
+  display: flex;
+  flex-direction: column;
+  position: relative;
+}
+
+.scope-card.accent-red {
+  border-color: var(--color-primary);
+  box-shadow: var(--shadow-red);
+}
+.scope-card.accent-red .scope-title { color: var(--color-primary); }
+.scope-card.accent-red .scope-sub   { color: var(--color-primary); border-bottom-color: #ffcccb; }
+
+.scope-card.accent-black {
+  background-color: var(--bg-dark);
+  color: var(--text-on-dark);
+}
+.scope-card.accent-black .scope-title { color: var(--text-on-dark); }
+.scope-card.accent-black .scope-sub   { color: #999; border-bottom-color: #333; }
+.scope-card.accent-black .scope-desc  { color: #ccc; }
+
+.scope-card.accent-yellow {
+  background-color: var(--bg-yellow);
+}
+.scope-card.accent-yellow .scope-desc { font-weight: 700; }
+
+.scope-card.accent-gray {
+  background-color: var(--bg-gray);
+}
+
+.scope-title {
+  font-size: 52px;
+  font-weight: 900;
+  color: var(--text-primary);
+  line-height: 1;
+  margin-bottom: 4px;
+}
+
+.scope-sub {
+  font-size: 20px;
+  font-weight: 700;
+  color: #666;
+  margin-bottom: 12px;
+  padding-bottom: 12px;
+  border-bottom: 3px solid #eee;
+}
+
+.scope-desc {
+  font-size: 22px;
+  color: var(--text-secondary);
+  font-weight: 500;
+  line-height: 1.4;
+  flex: 1;
+}
+
+.scope-icon {
+  font-size: 48px;
+  color: var(--color-black);
+  opacity: 0.08;
+  position: absolute;
+  top: 20px;
+  right: 20px;
+  transform: rotate(-10deg);
+  pointer-events: none;
+}
+
+/* ── 7. Data Components ───────────────────────────────────── */
+
+/* Black data block with gold text */
+.data-item {
+  border: 3px solid var(--color-black);
+  padding: 12px 18px;
+  background: var(--bg-dark);
+  color: var(--text-on-dark);
+  flex: 1;
+}
+
+.data-value {
+  font-size: var(--font-data);
+  font-weight: 900;
+  color: var(--color-yellow);
+  line-height: 1;
+}
+
+.data-label {
+  font-size: 15px;
+  opacity: 0.8;
+  margin-top: 6px;
+}
+
+/* Data row container */
+.data-row {
+  display: flex;
+  gap: 20px;
+}
+
+/* ── 8. Insight Card (insight-card) ───────────────────────── */
+.insight-card {
+  background: var(--bg-card);
+  border: 4px solid var(--color-black);
+  padding: 24px;
+  margin-bottom: 20px;
+  box-shadow: 8px 8px 0 #ccc;
+}
+
+.insight-title {
+  font-size: 22px;
+  font-weight: 900;
+  margin-bottom: 12px;
+  color: var(--color-primary);
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.insight-text {
+  font-size: 20px;
+  line-height: 1.6;
+  color: var(--text-secondary);
+}
+
+/* ── 9. Image Container ───────────────────────────────────── */
+
+/* Slightly rotated image container */
+.image-wrapper {
+  border: 8px solid var(--color-black);
+  box-shadow: 20px 20px 0 var(--color-black);
+  background-color: var(--bg-card);
+  padding: 10px;
+  position: relative;
+  transform: rotate(1deg);
+}
+
+.image-wrapper img {
+  width: 100%;
+  height: auto;
+  object-fit: contain;
+  display: block;
+  border: 2px solid #eee;
+}
+
+/* Red sticker label */
+.image-tag {
+  position: absolute;
+  top: -20px;
+  right: 30px;
+  background-color: var(--color-primary);
+  color: var(--text-on-dark);
+  padding: 8px 24px;
+  font-size: 20px;
+  font-weight: 900;
+  border: 4px solid var(--color-black);
+  transform: rotate(2deg);
+  z-index: 10;
+}
+
+/* ── 10. Layout Helpers ──────────────────────────────────── */
+
+/* Two-column layout */
+.layout-two-col {
+  display: flex;
+  gap: 60px;
+  flex: 1;
+  align-items: stretch;
+}
+
+.col-left  { flex: 0.45; display: flex; flex-direction: column; }
+.col-right { flex: 0.55; display: flex; flex-direction: column; }
+
+/* Three-column layout */
+.layout-three-col {
+  display: flex;
+  gap: 40px;
+  flex: 1;
+  align-items: stretch;
+}
+
+.col-third { flex: 1; display: flex; flex-direction: column; }
+
+/* 3x3 grid */
+.layout-grid-3x3 {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  grid-template-rows: repeat(3, 1fr);
+  gap: 24px;
+  flex: 1;
+}
+
+/* 2x2 grid */
+.layout-grid-2x2 {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  grid-template-rows: repeat(2, 1fr);
+  gap: 24px;
+  flex: 1;
+}
+
+/* Header section */
+.header-section {
+  display: flex;
+  flex-direction: column;
+  margin-bottom: 32px;
+}
+
+/* ── 11. Comparison Box (comparison-box) ─────────────────── */
+.comparison-box {
+  flex: 1;
+  background: var(--bg-dark);
+  color: var(--text-on-dark);
+  padding: 30px;
+  border: 4px solid var(--color-black);
+  box-shadow: var(--shadow-red);
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  position: relative;
+  overflow: hidden;
+}
+
+.comparison-box.light {
+  background: var(--bg-card);
+  color: var(--text-primary);
+  box-shadow: var(--shadow-md);
+}
+
+.box-icon  { font-size: 60px; margin-bottom: 20px; }
+.box-title { font-size: 36px; font-weight: 900; margin-bottom: 15px; }
+.box-content { font-size: 24px; line-height: 1.5; opacity: 0.9; }
+
+/* Connector arrow */
+.arrow-down {
+  align-self: center;
+  font-size: 40px;
+  color: var(--color-black);
+  margin: -15px 0;
+  z-index: 10;
+}
+
+/* Decorative quote mark */
+.quote-mark {
+  position: absolute;
+  font-size: 120px;
+  opacity: 0.1;
+  font-family: serif;
+  top: 20px;
+  right: 20px;
+}
+
+/* ── 12. Badges / Tags ───────────────────────────────────── */
+.badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 48px;
+  height: 48px;
+  background: var(--color-black);
+  color: var(--text-on-dark);
+  font-size: 22px;
+  font-weight: 900;
+  border: 3px solid var(--color-black);
+  flex-shrink: 0;
+}
+
+.badge-red {
+  background: var(--color-primary);
+  border-color: var(--color-primary);
+}
+
+/* ── 13. Timeline ────────────────────────────────────────── */
+.timeline {
+  display: flex;
+  align-items: flex-start;
+  gap: 0;
+  flex: 1;
+  position: relative;
+}
+
+.timeline-item {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  position: relative;
+}
+
+.timeline-node {
+  width: 48px;
+  height: 48px;
+  background: var(--color-black);
+  border: 4px solid var(--color-black);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-on-dark);
+  font-weight: 900;
+  font-size: 20px;
+  z-index: 2;
+  position: relative;
+}
+
+.timeline-line {
+  position: absolute;
+  top: 24px;
+  left: 50%;
+  right: -50%;
+  height: 4px;
+  background: var(--color-black);
+  z-index: 1;
+}
+
+.timeline-card {
+  margin-top: 20px;
+  width: 90%;
+}
+
+/* ── 14. Progress Bar ────────────────────────────────────── */
+.progress-bar-wrap {
+  background: #eee;
+  border: 3px solid var(--color-black);
+  height: 24px;
+  width: 100%;
+}
+
+.progress-bar-fill {
+  height: 100%;
+  background: var(--color-primary);
+}
+
+/* ── 15. Table ───────────────────────────────────────────── */
+.neo-table {
+  width: 100%;
+  border-collapse: collapse;
+  border: var(--border-normal);
+}
+
+.neo-table th {
+  background: var(--bg-dark);
+  color: var(--text-on-dark);
+  padding: 14px 20px;
+  font-size: 22px;
+  font-weight: 700;
+  text-align: left;
+  border: 3px solid var(--color-black);
+}
+
+.neo-table td {
+  padding: 12px 20px;
+  font-size: 20px;
+  border: 3px solid var(--color-black);
+  color: var(--text-secondary);
+}
+
+.neo-table tr:nth-child(even) td { background: var(--bg-gray); }
+.neo-table tr:hover td { background: #fff9e0; }

@@ -1,0 +1,637 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+<meta charset="utf-8"/>
+<title>Gradient Fashion · Gradient Fashion — Template Preview v3</title>
+<link rel="stylesheet" href="theme.css"/>
+<style>
+/* ── 预览页专属布局 ── */
+body {
+  font-family: 'Segoe UI','PingFang SC','Microsoft YaHei',sans-serif;
+  background: #08041C;
+  background-image:
+    radial-gradient(ellipse at 10% 20%, rgba(74,0,224,0.18) 0%, transparent 50%),
+    radial-gradient(ellipse at 90% 80%, rgba(200,80,192,0.12) 0%, transparent 50%);
+  margin: 0; padding: 48px 56px;
+  color: #EDE8FF;
+  min-height: 100vh;
+}
+
+/* 顶部 Header */
+.preview-header {
+  display: flex; align-items: flex-end; justify-content: space-between;
+  margin-bottom: 48px; padding-bottom: 24px;
+  border-bottom: 1px solid rgba(255,255,255,0.07);
+}
+.preview-title {
+  font-size: 38px; font-weight: 900; margin: 0 0 6px;
+  background: var(--grad-text);
+  -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+  letter-spacing: -0.02em;
+}
+.preview-subtitle { font-size: 14px; color: var(--text-hint); letter-spacing: 0.04em; }
+.preview-badge {
+  display: inline-flex; align-items: center; gap: 6px;
+  padding: 6px 14px; border-radius: 9999px;
+  background: var(--bg-glass-md); backdrop-filter: blur(10px);
+  border: 1px solid var(--border-glass);
+  font-size: 12px; font-weight: 700; color: var(--violet);
+  letter-spacing: 0.06em;
+}
+.preview-badge::before { content:''; width:7px; height:7px; border-radius:50%; background:var(--mint); box-shadow:0 0 6px var(--mint); }
+
+/* 区块标题 */
+.section { margin-bottom: 40px; }
+.section-label {
+  font-size: 11px; font-weight: 700; color: var(--violet);
+  text-transform: uppercase; letter-spacing: 0.12em;
+  display: flex; align-items: center; gap: 10px;
+  margin-bottom: 20px;
+}
+.section-label::before {
+  content:''; width:3px; height:14px; border-radius:2px;
+  background: var(--grad-purple);
+}
+.section-label::after {
+  content:''; flex:1; height:1px;
+  background: linear-gradient(90deg, rgba(139,92,246,0.25), transparent);
+}
+
+/* Swatches */
+.swatches { display: flex; flex-wrap: wrap; gap: 14px; }
+.swatch-item { display: flex; flex-direction: column; align-items: center; gap: 5px; }
+.swatch {
+  width: 56px; height: 56px; border-radius: 12px;
+  border: 1px solid rgba(255,255,255,0.08);
+  box-shadow: 0 4px 12px rgba(0,0,0,0.25);
+  transition: transform 0.2s;
+}
+.swatch:hover { transform: scale(1.1) translateY(-2px); }
+.swatch-hex { font-size: 10px; color: var(--text-hint); font-family: monospace; }
+.swatch-name { font-size: 11px; color: rgba(255,255,255,0.5); }
+.swatch-divider { width:1px; background:rgba(255,255,255,0.08); margin:0 4px; align-self:stretch; }
+
+/* Slide Thumbnails网格 */
+.slides-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 20px; }
+.slide-wrap {}
+.slide-label {
+  font-size: 10px; color: var(--text-hint); margin-bottom: 7px;
+  text-transform: uppercase; letter-spacing: 0.08em;
+}
+.slide {
+  width: 100%; aspect-ratio: 16/9; position: relative; overflow: hidden;
+  border-radius: 12px; border: 1px solid rgba(255,255,255,0.08);
+  background: var(--bg-soft); box-sizing: border-box;
+  box-shadow: 0 8px 28px rgba(0,0,0,0.35), 0 2px 8px rgba(74,0,224,0.15);
+  transition: transform 0.25s, box-shadow 0.25s;
+}
+.slide:hover {
+  transform: translateY(-4px) scale(1.01);
+  box-shadow: 0 16px 40px rgba(0,0,0,0.4), 0 4px 16px rgba(74,0,224,0.25);
+}
+
+/* Component showcase */
+.comp-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 20px; }
+.comp-card {
+  background: rgba(255,255,255,0.04);
+  border: 1px solid rgba(255,255,255,0.07);
+  border-top-color: rgba(255,255,255,0.12);
+  border-radius: 16px; padding: 22px;
+  display: flex; flex-direction: column; gap: 14px;
+}
+.comp-card-title {
+  font-size: 11px; font-weight: 700; color: var(--violet);
+  text-transform: uppercase; letter-spacing: 0.1em;
+}
+
+/* 对比：旧 vs 新 */
+.compare-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+.compare-card {
+  border-radius: 16px; padding: 20px;
+  border: 1px solid rgba(255,255,255,0.07);
+}
+.compare-label {
+  font-size: 10px; font-weight: 700; letter-spacing: 0.1em;
+  text-transform: uppercase; margin-bottom: 12px;
+}
+.compare-old { background: rgba(255,255,255,0.03); }
+.compare-new { background: rgba(74,0,224,0.08); border-color: rgba(139,92,246,0.2); }
+.compare-old .compare-label { color: rgba(255,255,255,0.3); }
+.compare-new .compare-label { color: var(--violet); }
+</style>
+</head>
+<body>
+
+<!-- ===== HEADER ===== -->
+<div class="preview-header">
+  <div>
+    <div class="preview-title">Gradient Fashion · Gradient Fashion</div>
+    <div class="preview-subtitle">互联网产品发布 · 新媒体运营 · 年轻品牌 · 社交媒体 · App推介</div>
+  </div>
+  <div class="preview-badge">v3 · Color Upgrade</div>
+</div>
+
+<!-- ===== 1. Color System ===== -->
+<div class="section">
+  <div class="section-label">v3 升级Color System</div>
+  <div class="swatches">
+    <!-- Gradients系 -->
+    <div class="swatch-item"><span class="swatch" style="background:linear-gradient(135deg,#4A00E0,#8B5CF6,#C850C0,#E8C96A);"></span><span class="swatch-hex">Main v3</span><span class="swatch-name">Main gradient</span></div>
+    <div class="swatch-item"><span class="swatch" style="background:linear-gradient(135deg,#4A00E0,#8B5CF6,#C850C0);"></span><span class="swatch-hex">Purple</span><span class="swatch-name">Deep purple-pink</span></div>
+    <div class="swatch-item"><span class="swatch" style="background:linear-gradient(135deg,#F472B6,#E8C96A);"></span><span class="swatch-hex">Warm</span><span class="swatch-name">Warm pink-gold</span></div>
+    <div class="swatch-item"><span class="swatch" style="background:linear-gradient(135deg,#38BDF8,#6C63FF);"></span><span class="swatch-hex">Cool</span><span class="swatch-name">Sky blue-purple</span></div>
+    <div class="swatch-item"><span class="swatch" style="background:linear-gradient(135deg,#34D399,#22D3EE);"></span><span class="swatch-hex">Mint</span><span class="swatch-name">Emerald-cyan</span></div>
+    <div class="swatch-item"><span class="swatch" style="background:linear-gradient(135deg,#312E81,#4A00E0);"></span><span class="swatch-hex">Indigo</span><span class="swatch-name">Indigo</span></div>
+    <div class="swatch-divider"></div>
+    <!-- Fixed colors -->
+    <div class="swatch-item"><span class="swatch" style="background:#6D28D9;"></span><span class="swatch-hex">#6D28D9</span><span class="swatch-name">Deep saturated purple</span></div>
+    <div class="swatch-item"><span class="swatch" style="background:#8B5CF6;"></span><span class="swatch-hex">#8B5CF6</span><span class="swatch-name">Mid purple</span></div>
+    <div class="swatch-item"><span class="swatch" style="background:#C850C0;"></span><span class="swatch-hex">#C850C0</span><span class="swatch-name">Brand pink</span></div>
+    <div class="swatch-item"><span class="swatch" style="background:#E8C96A;"></span><span class="swatch-hex">#E8C96A</span><span class="swatch-name">Matte gold★</span></div>
+    <div class="swatch-item"><span class="swatch" style="background:#F472B6;"></span><span class="swatch-hex">#F472B6</span><span class="swatch-name">Soft coral</span></div>
+    <div class="swatch-item"><span class="swatch" style="background:#34D399;"></span><span class="swatch-hex">#34D399</span><span class="swatch-name">Fresh green</span></div>
+    <div class="swatch-divider"></div>
+    <!-- Background colors -->
+    <div class="swatch-item"><span class="swatch" style="background:#0D0825;"></span><span class="swatch-hex">#0D0825</span><span class="swatch-name">Nebula purple★</span></div>
+    <div class="swatch-item"><span class="swatch" style="background:#160D35;"></span><span class="swatch-hex">#160D35</span><span class="swatch-name">Secondary deep purple</span></div>
+    <div class="swatch-item"><span class="swatch" style="background:#FDFCFF;border-color:rgba(109,40,217,0.15);"></span><span class="swatch-hex">#FDFCFF</span><span class="swatch-name">Creamy white-purple★</span></div>
+    <div class="swatch-item"><span class="swatch" style="background:#F8F5FF;border-color:rgba(109,40,217,0.15);"></span><span class="swatch-hex">#F8F5FF</span><span class="swatch-name">Card background</span></div>
+    <div class="swatch-item"><span class="swatch" style="background:rgba(255,255,255,0.16);backdrop-filter:blur(8px);"></span><span class="swatch-hex">Glass★</span><span class="swatch-name">Glass</span></div>
+  </div>
+</div>
+
+<!-- ===== 2. 配色对比 (旧 vs 新 ) ===== -->
+<div class="section">
+  <div class="section-label">Color Upgrade Comparison</div>
+  <div class="compare-grid">
+    <div class="compare-card compare-old">
+      <div class="compare-label">v2 旧配色</div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;">
+        <span style="padding:5px 12px;border-radius:9999px;background:linear-gradient(135deg,#6C63FF,#C850C0,#FFBD59);font-size:12px;color:#fff;">主渐变 (平均饱和 )</span>
+        <span style="padding:5px 12px;border-radius:9999px;background:#FFBD59;font-size:12px;color:#333;">刺眼黄</span>
+        <span style="padding:5px 12px;border-radius:9999px;background:#12082A;font-size:12px;color:#fff;">普通deep purple</span>
+        <span style="padding:5px 12px;border-radius:9999px;background:#FAF8FF;border:1px solid #EDE8FF;font-size:12px;color:#9B8EC4;">浅白底</span>
+      </div>
+      <div style="font-size:11px;color:rgba(255,255,255,0.3);line-height:1.8;margin-top:4px;">
+        ✗ Gradients三色等权重，视觉噪音大<br>
+        ✗ #FFBD59 饱和度过height, 显廉价<br>
+        ✗ 深色Background #12082A 层次单薄<br>
+        ✗ Shadow单一紫色，立体感弱
+      </div>
+    </div>
+    <div class="compare-card compare-new">
+      <div class="compare-label">v3 新配色 ✦</div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;">
+        <span style="padding:5px 12px;border-radius:9999px;background:linear-gradient(135deg,#4A00E0,#8B5CF6,#C850C0,#E8C96A);font-size:12px;color:#fff;">主渐变 (deep purple锚点 )</span>
+        <span style="padding:5px 12px;border-radius:9999px;background:#E8C96A;font-size:12px;color:#3D2000;">Matte gold</span>
+        <span style="padding:5px 12px;border-radius:9999px;background:#0D0825;font-size:12px;color:#F0EAFF;">Nebula purple</span>
+        <span style="padding:5px 12px;border-radius:9999px;background:#FDFCFF;border:1px solid #EDE6FF;font-size:12px;color:#6D28D9;">Creamy white-purple</span>
+      </div>
+      <div style="font-size:11px;color:rgba(200,180,255,0.7);line-height:1.8;margin-top:4px;">
+        ✓ 加入 #4A00E0 deep purple锚点, Gradients有深度<br>
+        ✓ Matte gold #E8C96A 低饱和，更高级<br>
+        ✓ Nebula purple #0D0825 更深邃, Rich layering<br>
+        ✓ two-color shadow (紫+粉偏移 ), 立体感强
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ===== 3. Slide Thumbnails ===== -->
+<div class="section">
+  <div class="section-label">8种专属布局页</div>
+  <div class="slides-grid">
+
+    <!-- 1. Cover page -->
+    <div class="slide-wrap">
+      <div class="slide-label">① Cover page Cover</div>
+      <div class="slide" style="background:#0D0825;">
+        <!-- 4层光晕 (v3新增accents光 ) -->
+        <div style="position:absolute;top:-45px;left:-45px;width:170px;height:170px;border-radius:50%;background:linear-gradient(135deg,#4A00E0,#8B5CF6);opacity:0.28;filter:blur(32px);pointer-events:none;"></div>
+        <div style="position:absolute;bottom:-55px;right:-35px;width:130px;height:130px;border-radius:50%;background:linear-gradient(135deg,#F472B6,#E8C96A);opacity:0.22;filter:blur(28px);pointer-events:none;"></div>
+        <div style="position:absolute;top:-20px;right:30px;width:80px;height:80px;border-radius:50%;background:linear-gradient(135deg,#312E81,#4A00E0);opacity:0.20;filter:blur(20px);pointer-events:none;"></div>
+        <div style="position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:5px;padding:12px;">
+          <div style="font-size:6.5px;font-weight:700;padding:2.5px 9px;border-radius:9999px;background:linear-gradient(135deg,#4A00E0,#8B5CF6,#C850C0);color:#fff;letter-spacing:0.06em;box-shadow:0 2px 8px rgba(74,0,224,0.4);">NEW LAUNCH 2025</div>
+          <div style="font-size:16px;font-weight:900;background:linear-gradient(135deg,#8B5CF6,#C850C0,#E8C96A);-webkit-background-clip:text;-webkit-text-fill-color:transparent;text-align:center;line-height:1.15;letter-spacing:-0.01em;">下一代智能<br>生活助手</div>
+          <div style="font-size:6px;color:rgba(240,234,255,0.45);letter-spacing:0.04em;">重新定义你的每一天</div>
+        </div>
+        <!-- 底部玻璃条 (top-edge highlight ) -->
+        <div style="position:absolute;bottom:0;left:0;right:0;height:14px;background:rgba(255,255,255,0.07);backdrop-filter:blur(8px);border-top:1px solid rgba(255,255,255,0.12);display:flex;align-items:center;padding:0 10px;justify-content:space-between;">
+          <span style="font-size:5px;color:rgba(240,234,255,0.35);">SuperApp · v3.0</span>
+          <span style="font-size:5px;color:rgba(240,234,255,0.35);">2025.06</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- 2. 产品功能页 -->
+    <div class="slide-wrap">
+      <div class="slide-label">② 产品功能 Features</div>
+      <div class="slide" style="background:#FDFCFF;">
+        <div style="position:absolute;inset:0;
+          background:radial-gradient(ellipse at 15% 15%, rgba(109,40,217,0.05) 0%, transparent 55%),
+                     radial-gradient(ellipse at 85% 85%, rgba(200,80,192,0.04) 0%, transparent 50%);
+          padding:10px 12px;">
+          <div style="font-size:9px;font-weight:800;background:linear-gradient(135deg,#4A00E0,#8B5CF6,#C850C0);-webkit-background-clip:text;-webkit-text-fill-color:transparent;margin-bottom:8px;letter-spacing:-0.01em;">核心功能</div>
+          <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:5px;">
+            <!-- 卡片1 -->
+            <div style="background:#fff;border-radius:8px;padding:7px;box-shadow:0 3px 10px rgba(74,0,224,0.10),0 1px 3px rgba(200,80,192,0.07);border:1px solid #EDE6FF;position:relative;overflow:hidden;">
+              <div style="position:absolute;top:0;left:0;right:0;height:2.5px;background:linear-gradient(90deg,#4A00E0,#8B5CF6,#C850C0);border-radius:2px 2px 0 0;"></div>
+              <div style="position:absolute;top:2.5px;left:0;right:0;height:10px;background:linear-gradient(180deg,rgba(74,0,224,0.04),transparent);"></div>
+              <div style="width:18px;height:18px;border-radius:5px;background:linear-gradient(135deg,#4A00E0,#8B5CF6);margin-bottom:4px;box-shadow:0 3px 8px rgba(74,0,224,0.30);"></div>
+              <div style="font-size:6.5px;font-weight:700;color:#0D0825;">AI 助手</div>
+              <div style="font-size:5.5px;color:#8B7EC8;">智能对话</div>
+            </div>
+            <!-- 卡片2 -->
+            <div style="background:#fff;border-radius:8px;padding:7px;box-shadow:0 3px 10px rgba(74,0,224,0.10),0 1px 3px rgba(200,80,192,0.07);border:1px solid #EDE6FF;position:relative;overflow:hidden;">
+              <div style="position:absolute;top:0;left:0;right:0;height:2.5px;background:linear-gradient(90deg,#F472B6,#E8C96A);border-radius:2px 2px 0 0;"></div>
+              <div style="position:absolute;top:2.5px;left:0;right:0;height:10px;background:linear-gradient(180deg,rgba(244,114,182,0.04),transparent);"></div>
+              <div style="width:18px;height:18px;border-radius:5px;background:linear-gradient(135deg,#F472B6,#E8C96A);margin-bottom:4px;box-shadow:0 3px 8px rgba(244,114,182,0.30);"></div>
+              <div style="font-size:6.5px;font-weight:700;color:#0D0825;">个性推荐</div>
+              <div style="font-size:5.5px;color:#8B7EC8;">精准匹配</div>
+            </div>
+            <!-- 卡片3 -->
+            <div style="background:#fff;border-radius:8px;padding:7px;box-shadow:0 3px 10px rgba(74,0,224,0.10),0 1px 3px rgba(200,80,192,0.07);border:1px solid #EDE6FF;position:relative;overflow:hidden;">
+              <div style="position:absolute;top:0;left:0;right:0;height:2.5px;background:linear-gradient(90deg,#34D399,#22D3EE);border-radius:2px 2px 0 0;"></div>
+              <div style="position:absolute;top:2.5px;left:0;right:0;height:10px;background:linear-gradient(180deg,rgba(52,211,153,0.04),transparent);"></div>
+              <div style="width:18px;height:18px;border-radius:5px;background:linear-gradient(135deg,#34D399,#22D3EE);margin-bottom:4px;box-shadow:0 3px 8px rgba(52,211,153,0.30);"></div>
+              <div style="font-size:6.5px;font-weight:700;color:#0D0825;">健康追踪</div>
+              <div style="font-size:5.5px;color:#8B7EC8;">全天监测</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 3. Data story page -->
+    <div class="slide-wrap">
+      <div class="slide-label">③ 数据故事 Data Story</div>
+      <div class="slide">
+        <div style="position:absolute;inset:0;display:flex;">
+          <div style="width:42%;background:linear-gradient(155deg,#4A00E0,#8B5CF6,#C850C0);display:flex;flex-direction:column;align-items:center;justify-content:center;padding:10px;position:relative;overflow:hidden;">
+            <div style="position:absolute;top:-20px;left:-20px;width:80px;height:80px;border-radius:50%;background:rgba(255,255,255,0.1);filter:blur(15px);"></div>
+            <div style="font-size:22px;font-weight:900;color:#fff;line-height:1;position:relative;">500<span style="font-size:11px;">万+</span></div>
+            <div style="font-size:6px;color:rgba(255,255,255,0.65);margin-top:3px;position:relative;">活跃用户</div>
+            <div style="position:absolute;bottom:5px;left:0;right:0;text-align:center;font-size:5px;color:rgba(255,255,255,0.35);">↑ 37% 环比增长</div>
+          </div>
+          <div style="flex:1;background:#FDFCFF;padding:8px 10px;display:flex;flex-direction:column;justify-content:center;gap:5px;">
+            <div style="font-size:7px;font-weight:700;color:#0D0825;">增长趋势</div>
+            <div style="flex:1;background:#F8F5FF;border-radius:6px;border:1px solid #EDE6FF;display:flex;align-items:center;justify-content:center;">
+              <span style="font-size:6px;color:#8B7EC8;">ECharts 图表</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 4. Reviews page -->
+    <div class="slide-wrap">
+      <div class="slide-label">④ 用户评价 Reviews</div>
+      <div class="slide" style="background:#FDFCFF;">
+        <div style="position:absolute;inset:0;padding:8px 10px;">
+          <div style="font-size:8px;font-weight:800;background:linear-gradient(135deg,#4A00E0,#8B5CF6,#C850C0);-webkit-background-clip:text;-webkit-text-fill-color:transparent;margin-bottom:6px;">用户真实评价</div>
+          <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:5px;">
+            <div style="background:#fff;border-radius:8px;padding:6px;box-shadow:0 3px 10px rgba(74,0,224,0.10),0 1px 3px rgba(200,80,192,0.07);border:1px solid #EDE6FF;">
+              <div style="display:flex;align-items:center;gap:4px;margin-bottom:4px;">
+                <div style="width:14px;height:14px;border-radius:50%;background:linear-gradient(135deg,#4A00E0,#8B5CF6);box-shadow:0 2px 6px rgba(74,0,224,0.3);"></div>
+                <div style="font-size:6px;font-weight:700;color:#0D0825;">小明</div>
+              </div>
+              <div style="font-size:8px;color:#E8C96A;">★★★★★</div>
+              <div style="font-size:5.5px;color:#4C3D7A;line-height:1.4;margin-top:2px;">"非常好用，每天必开"</div>
+            </div>
+            <div style="background:#fff;border-radius:8px;padding:6px;box-shadow:0 3px 10px rgba(74,0,224,0.10),0 1px 3px rgba(200,80,192,0.07);border:1px solid #EDE6FF;">
+              <div style="display:flex;align-items:center;gap:4px;margin-bottom:4px;">
+                <div style="width:14px;height:14px;border-radius:50%;background:linear-gradient(135deg,#F472B6,#E8C96A);box-shadow:0 2px 6px rgba(244,114,182,0.3);"></div>
+                <div style="font-size:6px;font-weight:700;color:#0D0825;">小红</div>
+              </div>
+              <div style="font-size:8px;color:#E8C96A;">★★★★★</div>
+              <div style="font-size:5.5px;color:#4C3D7A;line-height:1.4;margin-top:2px;">"界面太美了！"</div>
+            </div>
+            <div style="background:#fff;border-radius:8px;padding:6px;box-shadow:0 3px 10px rgba(74,0,224,0.10),0 1px 3px rgba(200,80,192,0.07);border:1px solid #EDE6FF;">
+              <div style="display:flex;align-items:center;gap:4px;margin-bottom:4px;">
+                <div style="width:14px;height:14px;border-radius:50%;background:linear-gradient(135deg,#34D399,#22D3EE);box-shadow:0 2px 6px rgba(52,211,153,0.3);"></div>
+                <div style="font-size:6px;font-weight:700;color:#0D0825;">小张</div>
+              </div>
+              <div style="font-size:8px;color:#E8C96A;">★★★★☆</div>
+              <div style="font-size:5.5px;color:#4C3D7A;line-height:1.4;margin-top:2px;">"功能强大推荐"</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 5. Comparison page -->
+    <div class="slide-wrap">
+      <div class="slide-label">⑤ 产品对比 Comparison</div>
+      <div class="slide" style="background:#FDFCFF;">
+        <div style="position:absolute;inset:0;padding:8px 10px;">
+          <div style="font-size:8px;font-weight:800;background:linear-gradient(135deg,#4A00E0,#C850C0);-webkit-background-clip:text;-webkit-text-fill-color:transparent;margin-bottom:6px;">产品对比</div>
+          <table style="width:100%;border-collapse:collapse;font-size:6px;">
+            <thead>
+              <tr>
+                <th style="padding:3px 5px;text-align:left;color:#8B7EC8;font-weight:600;">功能</th>
+                <th style="padding:3px 5px;background:linear-gradient(135deg,#4A00E0,#8B5CF6,#C850C0);color:#fff;border-radius:5px 5px 0 0;text-align:center;box-shadow:0 2px 8px rgba(74,0,224,0.25);">SuperApp</th>
+                <th style="padding:3px 5px;color:#8B7EC8;text-align:center;">竞品A</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr style="background:#fff;">
+                <td style="padding:3px 5px;color:#4C3D7A;">AI 助手</td>
+                <td style="padding:3px 5px;text-align:center;color:#6D28D9;font-weight:800;">✓</td>
+                <td style="padding:3px 5px;text-align:center;color:#8B7EC8;">✗</td>
+              </tr>
+              <tr style="background:#F8F5FF;">
+                <td style="padding:3px 5px;color:#4C3D7A;">个性推荐</td>
+                <td style="padding:3px 5px;text-align:center;color:#6D28D9;font-weight:800;">✓</td>
+                <td style="padding:3px 5px;text-align:center;color:#8B7EC8;">△</td>
+              </tr>
+              <tr style="background:#fff;">
+                <td style="padding:3px 5px;color:#4C3D7A;">离线使用</td>
+                <td style="padding:3px 5px;text-align:center;color:#6D28D9;font-weight:800;">✓</td>
+                <td style="padding:3px 5px;text-align:center;color:#8B7EC8;">✗</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <!-- 6. Dashboard page -->
+    <div class="slide-wrap">
+      <div class="slide-label">⑥ 数字看板 Dashboard</div>
+      <div class="slide" style="background:#FDFCFF;">
+        <div style="position:absolute;inset:0;padding:8px 10px;display:flex;flex-direction:column;gap:5px;">
+          <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:4px;">
+            <!-- KPI v3: top-edge highlight -->
+            <div style="background:linear-gradient(135deg,#4A00E0,#8B5CF6,#C850C0);border-radius:7px;padding:5px 6px;position:relative;overflow:hidden;box-shadow:0 4px 12px rgba(74,0,224,0.25),0 1px 4px rgba(200,80,192,0.15);">
+              <div style="position:absolute;top:0;left:10%;right:10%;height:1px;background:linear-gradient(90deg,transparent,rgba(255,255,255,0.45),transparent);"></div>
+              <div style="font-size:12px;font-weight:900;color:#fff;line-height:1;">500<span style="font-size:6px;">万</span></div>
+              <div style="font-size:5px;color:rgba(255,255,255,0.65);">用户数</div>
+            </div>
+            <div style="background:linear-gradient(135deg,#F472B6,#E8C96A);border-radius:7px;padding:5px 6px;position:relative;overflow:hidden;box-shadow:0 4px 12px rgba(244,114,182,0.25);">
+              <div style="position:absolute;top:0;left:10%;right:10%;height:1px;background:linear-gradient(90deg,transparent,rgba(255,255,255,0.45),transparent);"></div>
+              <div style="font-size:12px;font-weight:900;color:#fff;line-height:1;">98<span style="font-size:6px;">%</span></div>
+              <div style="font-size:5px;color:rgba(255,255,255,0.65);">满意度</div>
+            </div>
+            <div style="background:linear-gradient(135deg,#38BDF8,#6C63FF);border-radius:7px;padding:5px 6px;position:relative;overflow:hidden;box-shadow:0 4px 12px rgba(56,189,248,0.25);">
+              <div style="position:absolute;top:0;left:10%;right:10%;height:1px;background:linear-gradient(90deg,transparent,rgba(255,255,255,0.45),transparent);"></div>
+              <div style="font-size:12px;font-weight:900;color:#fff;line-height:1;">4.9<span style="font-size:6px;">分</span></div>
+              <div style="font-size:5px;color:rgba(255,255,255,0.65);">应用评分</div>
+            </div>
+            <div style="background:linear-gradient(135deg,#34D399,#22D3EE);border-radius:7px;padding:5px 6px;position:relative;overflow:hidden;box-shadow:0 4px 12px rgba(52,211,153,0.25);">
+              <div style="position:absolute;top:0;left:10%;right:10%;height:1px;background:linear-gradient(90deg,transparent,rgba(255,255,255,0.45),transparent);"></div>
+              <div style="font-size:12px;font-weight:900;color:#fff;line-height:1;">↑37<span style="font-size:6px;">%</span></div>
+              <div style="font-size:5px;color:rgba(255,255,255,0.65);">月增长</div>
+            </div>
+          </div>
+          <div style="flex:1;background:#fff;border-radius:7px;border:1px solid #EDE6FF;display:flex;align-items:center;justify-content:center;box-shadow:0 2px 8px rgba(74,0,224,0.06);">
+            <span style="font-size:6px;color:#8B7EC8;">ECharts 图表区域</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 7. Section page -->
+    <div class="slide-wrap">
+      <div class="slide-label">⑦ Section page Section</div>
+      <div class="slide" style="background:linear-gradient(145deg,#4A00E0,#8B5CF6,#C850C0,#E8C96A);">
+        <div style="position:absolute;top:-40px;left:-40px;width:140px;height:140px;border-radius:50%;background:rgba(255,255,255,0.12);filter:blur(22px);pointer-events:none;"></div>
+        <div style="position:absolute;bottom:-50px;right:-30px;width:120px;height:120px;border-radius:50%;background:rgba(255,255,255,0.08);filter:blur(20px);pointer-events:none;"></div>
+        <div style="position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;">
+          <div style="background:rgba(8,4,28,0.35);backdrop-filter:blur(12px) saturate(160%);border:1px solid rgba(255,255,255,0.18);border-top-color:rgba(255,255,255,0.35);border-radius:10px;padding:8px 18px;text-align:center;box-shadow:0 8px 24px rgba(0,0,0,0.2);">
+            <div style="font-size:7px;color:rgba(255,255,255,0.6);margin-bottom:2px;letter-spacing:0.1em;">CHAPTER 02</div>
+            <div style="font-size:14px;font-weight:900;color:#fff;letter-spacing:-0.01em;">产品功能</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 8. Ending page -->
+    <div class="slide-wrap">
+      <div class="slide-label">⑧ Ending page Ending</div>
+      <div class="slide" style="background:#0D0825;">
+        <div style="position:absolute;top:-50px;left:-50px;width:190px;height:190px;border-radius:50%;background:linear-gradient(135deg,#4A00E0,#8B5CF6);opacity:0.30;filter:blur(42px);pointer-events:none;"></div>
+        <div style="position:absolute;bottom:-60px;right:-40px;width:160px;height:160px;border-radius:50%;background:linear-gradient(135deg,#F472B6,#E8C96A);opacity:0.25;filter:blur(38px);pointer-events:none;"></div>
+        <div style="position:absolute;top:20px;right:20px;width:70px;height:70px;border-radius:50%;background:linear-gradient(135deg,#312E81,#4A00E0);opacity:0.20;filter:blur(18px);pointer-events:none;"></div>
+        <div style="position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;padding:12px;">
+          <div style="font-size:18px;font-weight:900;background:linear-gradient(135deg,#8B5CF6,#C850C0,#E8C96A);-webkit-background-clip:text;-webkit-text-fill-color:transparent;letter-spacing:-0.01em;">立即体验</div>
+          <div style="font-size:6px;color:rgba(240,234,255,0.45);letter-spacing:0.04em;">下载 SuperApp, 开启智能生活</div>
+          <div style="display:flex;gap:6px;margin-top:2px;">
+            <div style="padding:3.5px 10px;border-radius:9999px;background:linear-gradient(135deg,#4A00E0,#8B5CF6,#C850C0);font-size:5.5px;color:#fff;font-weight:700;box-shadow:0 3px 10px rgba(74,0,224,0.35);">App Store</div>
+            <div style="padding:3.5px 10px;border-radius:9999px;background:linear-gradient(135deg,#FBBF24,#E8C96A);font-size:5.5px;color:#3D2000;font-weight:800;box-shadow:0 3px 10px rgba(232,201,106,0.35);">Google Play</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<!-- ===== 4. 组件展示 ===== -->
+<div class="section">
+  <div class="section-label">Core Component Library</div>
+  <div class="comp-grid">
+
+    <!-- Buttons组 -->
+    <div class="comp-card">
+      <div class="comp-card-title">交互Buttons</div>
+      <button class="btn btn-primary anim-grad" style="font-size:13px;padding:10px 20px;">主操作 · Gradient CTA</button>
+      <button class="btn btn-gold" style="font-size:13px;padding:10px 20px;">Gold CTA · Premium</button>
+      <button class="btn btn-outline" style="font-size:13px;padding:10px 20px;">次要操作 · Outline</button>
+      <div style="padding:12px;background:linear-gradient(135deg,#4A00E0,#C850C0);border-radius:10px;display:flex;gap:8px;justify-content:center;">
+        <button class="btn btn-glass" style="font-size:12px;padding:8px 16px;">Glass Light</button>
+        <button class="btn btn-outline-light" style="font-size:12px;padding:8px 16px;">Outline</button>
+      </div>
+    </div>
+
+    <!-- Progress bar + 头像 -->
+    <div class="comp-card">
+      <div class="comp-card-title">进度 & 头像</div>
+      <div class="progress-wrapper">
+        <div class="progress-header" style="color:rgba(255,255,255,0.6);"><span>用户留存</span><span style="color:#8B5CF6;">85%</span></div>
+        <div class="progress-track" style="background:rgba(255,255,255,0.08);">
+          <div class="progress-fill" style="width:85%;"></div>
+        </div>
+      </div>
+      <div class="progress-wrapper">
+        <div class="progress-header" style="color:rgba(255,255,255,0.6);"><span>付费转化</span><span style="color:#F472B6;">42%</span></div>
+        <div class="progress-track" style="background:rgba(255,255,255,0.08);">
+          <div class="progress-fill warm" style="width:42%;"></div>
+        </div>
+      </div>
+      <div class="progress-wrapper">
+        <div class="progress-header" style="color:rgba(255,255,255,0.6);"><span>活跃度</span><span style="color:#34D399;">68%</span></div>
+        <div class="progress-track" style="background:rgba(255,255,255,0.08);">
+          <div class="progress-fill mint" style="width:68%;"></div>
+        </div>
+      </div>
+      <div style="margin-top:4px;">
+        <div style="font-size:11px;color:rgba(255,255,255,0.4);margin-bottom:8px;">头像组 (悬浮展开 )</div>
+        <div class="avatar-group" style="--bg-soft:#1E1448;">
+          <div class="avatar" style="background:linear-gradient(135deg,#4A00E0,#8B5CF6);border-color:#160D35;">A</div>
+          <div class="avatar" style="background:linear-gradient(135deg,#F472B6,#E8C96A);border-color:#160D35;">B</div>
+          <div class="avatar" style="background:linear-gradient(135deg,#34D399,#22D3EE);border-color:#160D35;">C</div>
+          <div class="avatar" style="background:#1E1448;color:#8B5CF6;border:2px solid #4A00E0;font-size:11px;border-color:#160D35;">+3</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- pill label -->
+    <div class="comp-card">
+      <div class="comp-card-title">pill label</div>
+      <div style="display:flex;flex-wrap:wrap;gap:7px;">
+        <span class="pill pill-main" style="font-size:12px;padding:5px 14px;">Main gradient</span>
+        <span class="pill pill-purple" style="font-size:12px;padding:5px 14px;">deep purple</span>
+        <span class="pill pill-warm" style="font-size:12px;padding:5px 14px;">Warm pink-gold</span>
+        <span class="pill pill-cool" style="font-size:12px;padding:5px 14px;">天蓝</span>
+        <span class="pill pill-gold" style="font-size:12px;padding:5px 14px;">Matte gold ✦</span>
+        <span class="pill pill-dark" style="font-size:12px;padding:5px 14px;">深色</span>
+        <span class="pill pill-outline" style="font-size:12px;padding:5px 14px;background:transparent;border:1.5px solid #8B5CF6;color:#8B5CF6;">outline</span>
+      </div>
+      <div style="margin-top:4px;">
+        <div style="font-size:11px;color:rgba(255,255,255,0.4);margin-bottom:8px;">数字徽章</div>
+        <div style="display:flex;gap:8px;align-items:center;">
+          <div class="badge-number">1</div>
+          <div class="badge-number" style="background:linear-gradient(135deg,#F472B6,#E8C96A);">2</div>
+          <div class="badge-number" style="background:linear-gradient(135deg,#34D399,#22D3EE);">3</div>
+          <div style="display:flex;align-items:center;gap:4px;margin-left:8px;">
+            <div class="badge-dot"></div>
+            <span style="font-size:11px;color:rgba(255,255,255,0.5);">在线</span>
+          </div>
+          <div style="display:flex;align-items:center;gap:4px;">
+            <div class="badge-dot" style="background:#E8C96A;box-shadow:0 0 6px #E8C96A;"></div>
+            <span style="font-size:11px;color:rgba(255,255,255,0.5);">忙碌</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 动效 & 悬浮 -->
+    <div class="comp-card" style="background:#0D0825;border-color:rgba(255,255,255,0.06);position:relative;overflow:hidden;">
+      <div style="position:absolute;top:-40px;left:-40px;width:120px;height:120px;background:linear-gradient(135deg,#4A00E0,#8B5CF6);opacity:0.25;filter:blur(30px);pointer-events:none;"></div>
+      <div class="comp-card-title" style="position:relative;">动效 & 交互</div>
+      <div class="anim-float glass-card-dark hover-glow" style="padding:14px;border-radius:12px;text-align:center;cursor:pointer;position:relative;">
+        <div class="anim-pulse" style="width:10px;height:10px;border-radius:50%;background:#34D399;margin:0 auto 8px;box-shadow:0 0 8px #34D399;"></div>
+        <div style="font-size:12px;font-weight:700;color:#F0EAFF;">Floating + Pulse</div>
+        <div style="font-size:10px;color:rgba(240,234,255,0.4);margin-top:3px;">悬浮触发发光Borders</div>
+      </div>
+      <div class="hover-lift" style="background:rgba(109,40,217,0.15);border:1px solid rgba(139,92,246,0.25);border-top-color:rgba(139,92,246,0.5);border-radius:12px;padding:12px;cursor:pointer;position:relative;margin-top:4px;">
+        <div style="font-size:12px;font-weight:700;color:#C4B8E8;">Hover Lift</div>
+        <div style="font-size:10px;color:rgba(196,184,232,0.5);margin-top:2px;">上浮 6px + 双色Shadow</div>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<!-- ===== 5. 新增组件: Tab / Steps / Toast ===== -->
+<div class="section">
+  <div class="section-label">New Interactive Components</div>
+  <div class="comp-grid">
+
+    <!-- Tab switcher -->
+    <div class="comp-card">
+      <div class="comp-card-title">Tab switcher</div>
+      <div style="background:#FDFCFF;border-radius:12px;padding:16px;">
+        <div class="tab-group">
+          <div class="tab-item active">概览</div>
+          <div class="tab-item">功能</div>
+          <div class="tab-item">数据</div>
+        </div>
+        <div style="margin-top:12px;font-size:12px;color:#4C3D7A;line-height:1.6;">
+          当前选中「概览」页签，内容区随之切换. GradientsBackground激活态, Radius胶囊设计. 
+        </div>
+      </div>
+    </div>
+
+    <!-- 步骤指示器 -->
+    <div class="comp-card">
+      <div class="comp-card-title">步骤指示器</div>
+      <div style="background:#FDFCFF;border-radius:12px;padding:16px;">
+        <div class="steps">
+          <div class="step-item">
+            <div class="step-dot done">✓</div>
+          </div>
+          <div class="step-line done" style="min-width:28px;"></div>
+          <div class="step-item">
+            <div class="step-dot active">2</div>
+          </div>
+          <div class="step-line" style="min-width:28px;"></div>
+          <div class="step-item">
+            <div class="step-dot">3</div>
+          </div>
+        </div>
+        <div style="display:flex;justify-content:space-between;margin-top:6px;">
+          <span class="step-label done" style="font-size:11px;color:#34D399;">注册</span>
+          <span class="step-label active" style="font-size:11px;color:#6D28D9;">配置</span>
+          <span class="step-label" style="font-size:11px;color:#8B7EC8;">完成</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Toast notification -->
+    <div class="comp-card">
+      <div class="comp-card-title">通知 Toast</div>
+      <div style="display:flex;flex-direction:column;gap:8px;">
+        <div class="toast toast-success" style="font-size:12px;">
+          <div class="toast-icon">✓</div>
+          <div>操作成功，数据已保存</div>
+        </div>
+        <div class="toast toast-warn" style="font-size:12px;">
+          <div class="toast-icon">!</div>
+          <div>请注意，剩余空间不足</div>
+        </div>
+        <div class="toast toast-info" style="font-size:12px;">
+          <div class="toast-icon">i</div>
+          <div>新Version v3.1 已发布</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Tooltip 工具提示 -->
+    <div class="comp-card">
+      <div class="comp-card-title">Tooltip</div>
+      <div style="background:#FDFCFF;border-radius:12px;padding:20px 16px;display:flex;gap:16px;justify-content:center;flex-wrap:wrap;">
+        <div class="tooltip-wrap">
+          <button class="btn btn-primary" style="font-size:12px;padding:8px 16px;">悬浮查看</button>
+          <div class="tooltip">这是一个工具提示说明</div>
+        </div>
+        <div class="tooltip-wrap">
+          <span class="pill pill-purple" style="font-size:12px;padding:5px 14px;cursor:pointer;">标签提示</span>
+          <div class="tooltip">Gradients标签的补充说明</div>
+        </div>
+      </div>
+      <div style="font-size:11px;color:rgba(255,255,255,0.35);text-align:center;">鼠标悬浮触发浮层</div>
+    </div>
+
+  </div>
+</div>
+
+<!-- ===== 6. Shadow System Showcase ===== -->
+<div class="section">
+  <div class="section-label">v3 双色Shadow体系</div>
+  <div style="display:flex;gap:20px;flex-wrap:wrap;">
+    <div style="background:#FDFCFF;border-radius:16px;padding:20px 24px;box-shadow:0 4px 16px rgba(74,0,224,0.12),0 1px 4px rgba(200,80,192,0.08),0 0 0 1px rgba(109,40,217,0.04);min-width:160px;">
+      <div style="font-size:12px;font-weight:700;color:#0D0825;margin-bottom:4px;">shadow-card</div>
+      <div style="font-size:10px;color:#8B7EC8;">紫+粉双色，细腻立体</div>
+    </div>
+    <div style="background:#FDFCFF;border-radius:16px;padding:20px 24px;box-shadow:0 16px 48px rgba(74,0,224,0.22),0 6px 20px rgba(200,80,192,0.15),0 2px 8px rgba(0,0,0,0.10);min-width:160px;">
+      <div style="font-size:12px;font-weight:700;color:#0D0825;margin-bottom:4px;">shadow-float</div>
+      <div style="font-size:10px;color:#8B7EC8;">悬浮卡片，扩散感强</div>
+    </div>
+    <div style="background:#FDFCFF;border-radius:16px;padding:20px 24px;box-shadow:0 0 24px rgba(139,92,246,0.45),0 0 60px rgba(200,80,192,0.25),0 0 100px rgba(74,0,224,0.15);min-width:160px;">
+      <div style="font-size:12px;font-weight:700;color:#0D0825;margin-bottom:4px;">shadow-glow</div>
+      <div style="font-size:10px;color:#8B7EC8;">发光强调, three-layer spread</div>
+    </div>
+    <div style="background:#160D35;border-radius:16px;padding:20px 24px;box-shadow:0 8px 32px rgba(0,0,0,0.35),0 2px 8px rgba(74,0,224,0.20);border:1px solid rgba(255,255,255,0.08);border-top-color:rgba(255,255,255,0.14);min-width:160px;">
+      <div style="font-size:12px;font-weight:700;color:#F0EAFF;margin-bottom:4px;">shadow-dark-card</div>
+      <div style="font-size:10px;color:rgba(240,234,255,0.4);">Dark card + top-edge highlight</div>
+    </div>
+    <div style="background:#FDFCFF;border-radius:16px;padding:20px 24px;box-shadow:0 8px 24px rgba(232,201,106,0.35),0 2px 8px rgba(232,201,106,0.20);min-width:160px;">
+      <div style="font-size:12px;font-weight:700;color:#3D2000;margin-bottom:4px;">shadow-gold</div>
+      <div style="font-size:10px;color:#8B7EC8;">Matte goldShadow, CTA专用</div>
+    </div>
+  </div>
+</div>
+
+</body>
+</html>

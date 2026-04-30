@@ -1,0 +1,41 @@
+{
+  "skill_name": "slide-template",
+  "evals": [
+    {
+      "id": 1,
+      "prompt": "帮我用科技深色风格做一个 AI 发展趋势的 PPT，10页左右",
+      "expected_output": "先加载 slide-template，根据“科技深色风格”推荐 3-5 个模板，并使用 ask_user 询问用户选择；选项需包含模板名称、简短描述和目录名，例如深夜代码室（tech-dark）：深蓝黑底 + 电光青，适合 AI、架构、代码、技术发布；同时提供不使用模板的选项，不直接开始生成",
+      "files": []
+    },
+    {
+      "id": 2,
+      "prompt": "我要做一个季度业绩汇报 PPT，想要商务简约风格，内容关于 2025 年 Q1 销售数据",
+      "expected_output": "先加载 slide-template，根据“季度业绩汇报”和“商务简约风格”推荐 3-5 个模板，并使用 ask_user 询问用户选择；选项需包含模板名称、简短描述和目录名，例如职场白皮书（business-minimal）：白底 + 专业蓝，适合企业汇报、季度总结、商业提案；同时提供不使用模板的选项，不直接开始生成",
+      "files": []
+    },
+    {
+      "id": 3,
+      "prompt": "先给我看看有哪些 PPT 模板可以选，我还没决定用哪个",
+      "expected_output": "加载 slide-template，使用 ask_user 展示 3-5 套可选模板；每个选项需包含模板名称、简短描述和目录名，并告知用户可打开对应 preview.html 文件预览；同时提供不使用模板的选项，不直接开始制作幻灯片",
+      "files": []
+    },
+    {
+      "id": 4,
+      "prompt": "帮我做一个论文答辩 PPT，学术风格，主题是机器学习在医疗影像诊断中的应用",
+      "expected_output": "先加载 slide-template，根据“论文答辩”和“学术风格”推荐 3-5 个模板，并使用 ask_user 询问用户选择；选项需包含模板名称、简短描述和目录名，例如论文蓝图册（academic-research）：白底 + 深海军蓝 + 青绿，适合论文答辩、学术报告、研究分享；同时提供不使用模板的选项，不直接开始生成",
+      "files": []
+    },
+    {
+      "id": 5,
+      "prompt": "做一个互联网产品发布会 PPT，要时尚一点，有渐变感，介绍我们的新 App",
+      "expected_output": "先加载 slide-template，根据“互联网产品发布会”“时尚”和“渐变感”推荐 3-5 个模板，并使用 ask_user 询问用户选择；选项需包含模板名称、简短描述和目录名，例如玻璃糖果风（gradient-fashion）：紫粉橙黄渐变 + 玻璃拟态，适合互联网产品、新媒体、年轻品牌、App 推介；同时提供不使用模板的选项，不直接开始生成",
+      "files": []
+    },
+    {
+      "id": 6,
+      "prompt": "帮我做一个公司战略 PPT，模板风格我想要黑金奢华、细线网格、杂志封面感、大标题压迫感",
+      "expected_output": "加载 slide-template，识别用户正在描述自定义模板风格；按 Workflow B 的文字描述分支生成新的模板目录，包含 visual-spec.md、theme.css、preview.html；随后读取生成的 visual-spec.md，将 theme.css 复制到 PPT 项目根目录，并使用该新模板生成 PPT，不强行套用内置模板推荐",
+      "files": []
+    }
+  ]
+}

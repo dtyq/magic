@@ -1,0 +1,418 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8"/>
+<title>Neon Geometric — Template Preview v2</title>
+<link rel="stylesheet" href="theme.css"/>
+<style>
+body {
+  font-family: 'Segoe UI','PingFang SC','Microsoft YaHei',sans-serif;
+  background: #F0EEF8;
+  margin: 0; padding: 40px;
+  color: var(--text-primary);
+}
+.preview-header { margin-bottom: 36px; }
+.preview-title { font-size: 36px; font-weight: 900; margin: 0 0 8px; }
+.preview-title .o { color: var(--orange); }
+.preview-title .p { color: var(--purple); }
+.preview-subtitle { font-size: 15px; color: var(--text-secondary); }
+.section { margin-bottom: 32px; }
+.section-label {
+  font-size: 12px; font-weight: 900; color: var(--text-primary);
+  text-transform: uppercase; letter-spacing: 0.1em;
+  border-left: 4px solid var(--orange); padding-left: 10px;
+  margin-bottom: 16px;
+}
+.swatches { display: flex; flex-wrap: wrap; gap: 12px; }
+.swatch-item { display: flex; flex-direction: column; align-items: center; gap: 4px; }
+.swatch { width: 52px; height: 52px; border-radius: 0; border: 2px solid var(--text-primary); }
+.swatch-hex { font-size: 11px; color: var(--text-secondary); font-family: monospace; }
+.swatch-name { font-size: 11px; color: var(--text-muted); }
+.slides-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; }
+.slide-wrap { }
+.slide-label { font-size: 11px; color: var(--text-muted); margin-bottom: 6px;
+  text-transform: uppercase; letter-spacing: 0.06em; font-weight: 700; }
+.slide { width: 100%; aspect-ratio: 16/9; position: relative; overflow: hidden;
+  border-radius: 0; border: 2px solid var(--text-primary);
+  background: var(--bg-white); box-sizing: border-box;
+  box-shadow: 4px 4px 0 var(--orange); }
+.components { display: flex; flex-wrap: wrap; gap: 16px; align-items: flex-start; }
+</style>
+</head>
+<body>
+
+<div class="preview-header">
+  <div class="preview-title"><span class="o">Creative</span><span class="p">Flat</span> · Creative Flat</div>
+  <div class="preview-subtitle">For creative proposals · Brand pitches · New media operations · Advertising planning · Product concepts</div>
+</div>
+
+<!-- Color system -->
+<div class="section">
+  <div class="section-label">Color System</div>
+  <div class="swatches">
+    <div class="swatch-item"><span class="swatch" style="background:#FF4D1C;border-color:#FF4D1C;"></span><span class="swatch-hex">#FF4D1C</span><span class="swatch-name">Flame Orange</span></div>
+    <div class="swatch-item"><span class="swatch" style="background:#FF7043;border-color:#FF7043;"></span><span class="swatch-hex">#FF7043</span><span class="swatch-name">Mid Orange</span></div>
+    <div class="swatch-item"><span class="swatch" style="background:#FFF0EB;"></span><span class="swatch-hex">#FFF0EB</span><span class="swatch-name">Light Orange Base</span></div>
+    <div class="swatch-item"><span class="swatch" style="background:#6C27D9;border-color:#6C27D9;"></span><span class="swatch-hex">#6C27D9</span><span class="swatch-name">Creative Purple</span></div>
+    <div class="swatch-item"><span class="swatch" style="background:#9B59E8;border-color:#9B59E8;"></span><span class="swatch-hex">#9B59E8</span><span class="swatch-name">Mid Purple</span></div>
+    <div class="swatch-item"><span class="swatch" style="background:#FFD000;border-color:#FFD000;"></span><span class="swatch-hex">#FFD000</span><span class="swatch-name">Bright Yellow</span></div>
+    <div class="swatch-item"><span class="swatch" style="background:#00C9A7;border-color:#00C9A7;"></span><span class="swatch-hex">#00C9A7</span><span class="swatch-name">Teal Green</span></div>
+    <div style="width:1px;background:var(--border-color);margin:0 4px;"></div>
+    <div class="swatch-item"><span class="swatch" style="background:#1A1025;border-color:#1A1025;"></span><span class="swatch-hex">#1A1025</span><span class="swatch-name">Deep Purple Black</span></div>
+    <div class="swatch-item"><span class="swatch" style="background:#FFFFFF;"></span><span class="swatch-hex">#FFFFFF</span><span class="swatch-name">Pure White</span></div>
+    <div class="swatch-item"><span class="swatch" style="background:#F8F7F5;"></span><span class="swatch-hex">#F8F7F5</span><span class="swatch-name">Warm White Base</span></div>
+  </div>
+</div>
+
+<!-- Layout page preview -->
+<div class="section">
+  <div class="section-label">8 Dedicated Layout Types</div>
+  <div class="slides-grid">
+
+    <!-- 1. Cover page -->
+    <div class="slide-wrap">
+      <div class="slide-label">① Cover Page</div>
+      <div class="slide" style="background:#1A1025;">
+        <!-- Left orange diagonal cut -->
+        <div style="position:absolute;top:0;left:0;bottom:0;width:42%;background:#FF4D1C;clip-path:polygon(0 0,100% 0,88% 100%,0 100%);display:flex;align-items:center;padding:12px 14px;">
+          <div>
+            <div style="font-size:8px;font-weight:900;color:#fff;letter-spacing:0.1em;">BRAND</div>
+            <div style="font-size:7px;color:rgba(255,255,255,0.7);">STUDIO</div>
+          </div>
+        </div>
+        <!-- Right-side content -->
+        <div style="position:absolute;top:0;right:0;bottom:0;left:38%;display:flex;flex-direction:column;justify-content:center;padding:12px 14px;">
+          <div style="font-size:16px;font-weight:900;color:#fff;line-height:1.1;margin-bottom:6px;">品牌重塑<br>策略提案</div>
+          <div style="font-size:6.5px;color:rgba(255,255,255,0.5);margin-bottom:6px;">2025年度创意方向</div>
+          <div style="height:2px;background:#FFD000;width:40px;"></div>
+        </div>
+        <!-- Lower-right circle decoration -->
+        <div style="position:absolute;bottom:-20px;right:-20px;width:60px;height:60px;border-radius:50%;background:#6C27D9;opacity:0.3;"></div>
+      </div>
+    </div>
+
+    <!-- 2. Mood board page -->
+    <div class="slide-wrap">
+      <div class="slide-label">② Mood Board</div>
+      <div class="slide" style="border-color:var(--text-primary);box-shadow:4px 4px 0 var(--purple);">
+        <!-- 3x2 grid -->
+        <div style="position:absolute;inset:0;display:grid;grid-template-columns:1fr 1fr 1fr;grid-template-rows:1fr 1fr;gap:0;">
+          <div style="background:#FF4D1C;opacity:0.85;"></div>
+          <div style="background:#1A1025;"></div>
+          <div style="background:#6C27D9;opacity:0.85;"></div>
+          <div style="background:#FFD000;"></div>
+          <div style="background:#FF4D1C;opacity:0.5;"></div>
+          <div style="background:#1A1025;opacity:0.7;"></div>
+        </div>
+        <!-- Top-left label -->
+        <div style="position:absolute;top:8px;left:8px;background:#FF4D1C;color:#fff;font-size:6px;font-weight:900;padding:3px 8px;text-transform:uppercase;letter-spacing:0.1em;">MOOD BOARD</div>
+        <!-- Bottom description -->
+        <div style="position:absolute;bottom:0;left:0;right:0;background:#1A1025;padding:5px 10px;">
+          <div style="font-size:6px;color:rgba(255,255,255,0.6);">活力 · 前卫 · 大胆 · 年轻</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 3. Quote page -->
+    <div class="slide-wrap">
+      <div class="slide-label">③ Quote</div>
+      <div class="slide" style="background:#1A1025;border-color:#1A1025;box-shadow:4px 4px 0 var(--orange);">
+        <!-- Dot matrix texture -->
+        <div style="position:absolute;inset:0;background-image:radial-gradient(#FF4D1C 1px,transparent 1px);background-size:14px 14px;opacity:0.06;"></div>
+        <!-- Large quote mark -->
+        <div style="position:absolute;top:6px;left:12px;font-size:50px;font-weight:900;color:#FF4D1C;opacity:0.2;font-family:Georgia,serif;line-height:0.8;">"</div>
+        <!-- Quote -->
+        <div style="position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:16px 20px;text-align:center;">
+          <div style="font-size:9px;font-weight:600;color:#fff;line-height:1.5;margin-bottom:8px;">"创意不是装饰，<br>而是解决问题的方式。"</div>
+          <div style="height:1px;width:40px;background:#FF4D1C;margin-bottom:6px;"></div>
+          <div style="font-size:6px;color:rgba(255,255,255,0.5);">— 某位设计大师</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 4. Brand colors page -->
+    <div class="slide-wrap">
+      <div class="slide-label">④ Brand Colors</div>
+      <div class="slide">
+        <div style="position:absolute;inset:0;padding:10px 12px;">
+          <div style="font-size:8px;font-weight:900;color:var(--text-primary);margin-bottom:8px;border-left:4px solid var(--orange);padding-left:6px;">品牌视觉规范</div>
+          <!-- Horizontal color blocks -->
+          <div style="display:flex;height:36px;margin-bottom:6px;">
+            <div style="flex:1;background:#FF4D1C;"></div>
+            <div style="flex:1;background:#6C27D9;"></div>
+            <div style="flex:1;background:#FFD000;"></div>
+            <div style="flex:1;background:#1A1025;"></div>
+            <div style="flex:1;background:#F8F7F5;border:1px solid var(--border-color);"></div>
+          </div>
+          <div style="display:flex;gap:0;margin-bottom:8px;">
+            <div style="flex:1;font-size:5px;color:var(--text-muted);text-align:center;">Primary</div>
+            <div style="flex:1;font-size:5px;color:var(--text-muted);text-align:center;">Secondary</div>
+            <div style="flex:1;font-size:5px;color:var(--text-muted);text-align:center;">Accent</div>
+            <div style="flex:1;font-size:5px;color:var(--text-muted);text-align:center;">Dark</div>
+            <div style="flex:1;font-size:5px;color:var(--text-muted);text-align:center;">Light</div>
+          </div>
+          <!-- Font display -->
+          <div style="border-top:2px solid var(--text-primary);padding-top:6px;">
+            <div style="font-size:14px;font-weight:900;color:var(--text-primary);line-height:1;">Aa 品牌字体</div>
+            <div style="font-size:7px;color:var(--text-muted);">Noto Sans SC · Bold 900</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 5. Split compare page -->
+    <div class="slide-wrap">
+      <div class="slide-label">⑤ Split Compare</div>
+      <div class="slide" style="box-shadow:4px 4px 0 var(--purple);">
+        <div style="position:absolute;inset:0;display:flex;">
+          <!-- Left orange -->
+          <div style="flex:1;background:#FF4D1C;display:flex;flex-direction:column;justify-content:center;padding:10px 12px;">
+            <div style="font-size:8px;font-weight:900;color:#fff;margin-bottom:4px;">方案 A</div>
+            <div style="font-size:6px;color:rgba(255,255,255,0.8);line-height:1.5;">· 激进增长策略<br>· 高投入高回报<br>· 短期见效</div>
+          </div>
+          <!-- Center VS -->
+          <div style="width:20px;background:#fff;display:flex;align-items:center;justify-content:center;z-index:1;">
+            <div style="font-size:6px;font-weight:900;color:var(--text-primary);writing-mode:vertical-lr;">VS</div>
+          </div>
+          <!-- Right purple -->
+          <div style="flex:1;background:#6C27D9;display:flex;flex-direction:column;justify-content:center;padding:10px 12px;">
+            <div style="font-size:8px;font-weight:900;color:#fff;margin-bottom:4px;">方案 B</div>
+            <div style="font-size:6px;color:rgba(255,255,255,0.8);line-height:1.5;">· 稳健渗透策略<br>· 低风险持续<br>· 长期积累</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 6. Data card grid -->
+    <div class="slide-wrap">
+      <div class="slide-label">⑥ Card Grid</div>
+      <div class="slide">
+        <div style="position:absolute;inset:0;display:grid;grid-template-columns:1fr 1fr 1fr;grid-template-rows:1fr 1fr;gap:0;">
+          <div style="background:#FF4D1C;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:6px;">
+            <div style="font-size:20px;font-weight:900;color:#fff;line-height:1;">98%</div>
+            <div style="font-size:5.5px;color:rgba(255,255,255,0.8);">客户满意度</div>
+          </div>
+          <div style="background:#1A1025;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:6px;">
+            <div style="font-size:20px;font-weight:900;color:#fff;line-height:1;">500+</div>
+            <div style="font-size:5.5px;color:rgba(255,255,255,0.5);">服务品牌</div>
+          </div>
+          <div style="background:#6C27D9;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:6px;">
+            <div style="font-size:20px;font-weight:900;color:#fff;line-height:1;">10年</div>
+            <div style="font-size:5.5px;color:rgba(255,255,255,0.8);">行业经验</div>
+          </div>
+          <div style="background:#FFD000;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:6px;">
+            <div style="font-size:20px;font-weight:900;color:var(--text-primary);line-height:1;">3×</div>
+            <div style="font-size:5.5px;color:var(--text-secondary);">ROI 提升</div>
+          </div>
+          <div style="background:#F8F7F5;border:1px solid var(--border-color);display:flex;flex-direction:column;align-items:center;justify-content:center;padding:6px;">
+            <div style="font-size:20px;font-weight:900;color:var(--orange);line-height:1;">48h</div>
+            <div style="font-size:5.5px;color:var(--text-muted);">交付周期</div>
+          </div>
+          <div style="background:#FF4D1C;opacity:0.7;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:6px;">
+            <div style="font-size:20px;font-weight:900;color:#fff;line-height:1;">No.1</div>
+            <div style="font-size:5.5px;color:rgba(255,255,255,0.9);">行业排名</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 7. Section page -->
+    <div class="slide-wrap">
+      <div class="slide-label">⑦ Section</div>
+      <div class="slide" style="background:#1A1025;border-color:#1A1025;box-shadow:4px 4px 0 var(--orange);">
+        <div style="position:absolute;inset:0;background-image:radial-gradient(rgba(255,77,28,0.08) 1.5px,transparent 1.5px);background-size:14px 14px;"></div>
+        <!-- Large background number -->
+        <div style="position:absolute;right:-5px;bottom:-10px;font-size:80px;font-weight:900;color:rgba(255,255,255,0.04);line-height:1;letter-spacing:-0.05em;">03</div>
+        <!-- Center content -->
+        <div style="position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;">
+          <div style="background:#FF4D1C;color:#fff;font-size:7px;font-weight:900;padding:3px 10px;text-transform:uppercase;letter-spacing:0.1em;">CHAPTER 03</div>
+          <div style="font-size:14px;font-weight:900;color:#fff;">执行策略</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 8. Ending page -->
+    <div class="slide-wrap">
+      <div class="slide-label">⑧ Ending</div>
+      <div class="slide" style="background:#1A1025;border-color:#1A1025;box-shadow:4px 4px 0 var(--purple);">
+        <div style="position:absolute;top:0;left:0;bottom:0;width:42%;background:#FF4D1C;clip-path:polygon(0 0,100% 0,88% 100%,0 100%);display:flex;align-items:center;justify-content:center;">
+          <div style="font-size:9px;font-weight:900;color:#fff;text-align:center;line-height:1.3;">让创意<br>改变世界</div>
+        </div>
+        <div style="position:absolute;top:0;right:0;bottom:0;left:40%;display:flex;flex-direction:column;justify-content:center;padding:10px 12px;">
+          <div style="font-size:10px;font-weight:900;color:#fff;margin-bottom:6px;">合作洽谈</div>
+          <div style="font-size:6.5px;color:rgba(255,255,255,0.6);margin-bottom:4px;">hello@creative.studio</div>
+          <div style="height:2px;background:#FFD000;width:30px;margin-top:4px;"></div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<!-- Component showcase -->
+<div class="section">
+  <div class="section-label">Core Components</div>
+  <div class="components">
+    <!-- KPI card (offset shadow) -->
+    <div style="background:var(--bg-light);border:3px solid var(--text-primary);box-shadow:6px 6px 0 var(--orange);padding:20px 24px;min-width:150px;">
+      <div style="font-size:11px;font-weight:700;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.08em;margin-bottom:6px;">品牌曝光</div>
+      <div style="font-size:40px;font-weight:900;color:var(--orange);line-height:1;">2.4M</div>
+      <div style="font-size:13px;color:var(--text-secondary);margin-top:4px;">月均触达人次</div>
+    </div>
+    <!-- Colored cards -->
+    <div style="display:flex;flex-direction:column;gap:8px;">
+      <div style="background:var(--orange);color:#fff;padding:10px 16px;font-size:14px;font-weight:900;">橙色实心卡片</div>
+      <div style="background:var(--purple);color:#fff;padding:10px 16px;font-size:14px;font-weight:900;">紫色实心卡片</div>
+      <div style="background:var(--yellow);color:var(--text-primary);padding:10px 16px;font-size:14px;font-weight:900;">明黄实心卡片</div>
+    </div>
+    <!-- Rectangular tags -->
+    <div style="display:flex;flex-direction:column;gap:8px;">
+      <span style="display:inline-block;font-size:13px;font-weight:900;padding:5px 14px;background:var(--orange);color:#fff;text-transform:uppercase;letter-spacing:0.1em;">PRIMARY</span>
+      <span style="display:inline-block;font-size:13px;font-weight:900;padding:5px 14px;background:var(--purple);color:#fff;text-transform:uppercase;letter-spacing:0.1em;">SECONDARY</span>
+      <span style="display:inline-block;font-size:13px;font-weight:900;padding:5px 14px;background:var(--yellow);color:var(--text-primary);text-transform:uppercase;letter-spacing:0.1em;">ACCENT</span>
+      <span style="display:inline-block;font-size:13px;font-weight:900;padding:5px 14px;border:2px solid var(--orange);color:var(--orange);text-transform:uppercase;letter-spacing:0.1em;">OUTLINE</span>
+    </div>
+    <!-- Key point list -->
+    <div style="display:flex;flex-direction:column;gap:10px;min-width:200px;">
+      <div style="display:flex;align-items:flex-start;gap:12px;">
+        <div style="flex-shrink:0;width:32px;height:32px;background:var(--orange);color:#fff;font-size:16px;font-weight:900;display:flex;align-items:center;justify-content:center;">1</div>
+        <div style="font-size:14px;color:var(--text-secondary);padding-top:6px;">大胆使用色块，建立视觉冲击</div>
+      </div>
+      <div style="display:flex;align-items:flex-start;gap:12px;">
+        <div style="flex-shrink:0;width:32px;height:32px;background:var(--purple);color:#fff;font-size:16px;font-weight:900;display:flex;align-items:center;justify-content:center;">2</div>
+        <div style="font-size:14px;color:var(--text-secondary);padding-top:6px;">几何构成，拒绝普通排版</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ── Extended Components ── -->
+<div class="section">
+  <div class="section-label">Extended Components</div>
+  <div style="display:flex;flex-direction:column;gap:32px;">
+
+    <div>
+      <div style="font-size:11px;font-weight:900;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.08em;margin-bottom:12px;">Horizontal Timeline · cf-timeline</div>
+      <div class="cf-timeline">
+        <div class="cf-tl-item">
+          <div class="cf-tl-dot orange"></div>
+          <div class="cf-tl-year">2022</div>
+          <div class="cf-tl-title">品牌创立</div>
+          <div class="cf-tl-body">以创意重塑传统行业认知</div>
+        </div>
+        <div class="cf-tl-item">
+          <div class="cf-tl-dot purple"></div>
+          <div class="cf-tl-year">2023</div>
+          <div class="cf-tl-title">爆发增长</div>
+          <div class="cf-tl-body">服务品牌突破 200 家</div>
+        </div>
+        <div class="cf-tl-item">
+          <div class="cf-tl-dot yellow"></div>
+          <div class="cf-tl-year">2024</div>
+          <div class="cf-tl-title">行业认可</div>
+          <div class="cf-tl-body">荣获年度最佳创意机构</div>
+        </div>
+        <div class="cf-tl-item">
+          <div class="cf-tl-dot teal"></div>
+          <div class="cf-tl-year">2025</div>
+          <div class="cf-tl-title">全球扩张</div>
+          <div class="cf-tl-body">进入亚太及欧洲市场</div>
+        </div>
+      </div>
+    </div>
+
+    <div>
+      <div style="font-size:11px;font-weight:900;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.08em;margin-bottom:12px;">Progress Bars · cf-progress</div>
+      <div class="cf-progress-item">
+        <span class="cf-progress-label">品牌识别度</span>
+        <div class="cf-progress-track"><div class="cf-progress-fill" style="width:92%;"></div></div>
+        <span class="cf-progress-val">92%</span>
+      </div>
+      <div class="cf-progress-item">
+        <span class="cf-progress-label">客户复购率</span>
+        <div class="cf-progress-track"><div class="cf-progress-fill purple" style="width:78%;"></div></div>
+        <span class="cf-progress-val">78%</span>
+      </div>
+      <div class="cf-progress-item">
+        <span class="cf-progress-label">NPS 满意度</span>
+        <div class="cf-progress-track"><div class="cf-progress-fill teal" style="width:85%;"></div></div>
+        <span class="cf-progress-val">85%</span>
+      </div>
+    </div>
+
+    <div>
+      <div style="font-size:11px;font-weight:900;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.08em;margin-bottom:12px;">Callout · cf-callout</div>
+      <div class="cf-callout" style="max-width:700px;">
+        创意不是装饰，而是解决问题的方式。每一个大胆的设计决策背后，都是对用户需求的深刻洞察。
+        <div class="cf-callout-src">— Creative Studio 设计准则</div>
+      </div>
+    </div>
+
+    <div>
+      <div style="font-size:11px;font-weight:900;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.08em;margin-bottom:12px;">Data Table · cf-table</div>
+      <table class="cf-table">
+        <thead>
+          <tr>
+            <th>创意方向</th>
+            <th>客户满意度</th>
+            <th>转化提升</th>
+            <th>交付周期</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td class="primary">品牌重塑</td>
+            <td class="orange">98%</td>
+            <td>↑ 45%</td>
+            <td>4 周</td>
+          </tr>
+          <tr>
+            <td class="primary">视觉识别系统</td>
+            <td class="orange">95%</td>
+            <td>↑ 32%</td>
+            <td>3 周</td>
+          </tr>
+          <tr>
+            <td>营销物料</td>
+            <td>91%</td>
+            <td>↑ 28%</td>
+            <td>2 周</td>
+          </tr>
+          <tr>
+            <td>数字内容</td>
+            <td>89%</td>
+            <td class="purple">↑ 55%</td>
+            <td>1 周</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div>
+      <div style="font-size:11px;font-weight:900;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.08em;margin-bottom:12px;">Compare Block · cf-compare</div>
+      <div class="cf-compare" style="max-width:800px;">
+        <div class="cf-compare-col orange-side">
+          <div class="cf-compare-label">方案 A · 激进增长</div>
+          <ul class="cf-compare-list">
+            <li>高投入高回报策略</li>
+            <li>短期集中爆发曝光</li>
+            <li>高风险但见效快</li>
+          </ul>
+        </div>
+        <div class="cf-compare-divider"></div>
+        <div class="cf-compare-col purple-side">
+          <div class="cf-compare-label">方案 B · 稳健渗透</div>
+          <ul class="cf-compare-list">
+            <li>低风险持续渗透</li>
+            <li>口碑积累长期价值</li>
+            <li>品牌信任逐步建立</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+</body>
+</html>

@@ -1,0 +1,685 @@
+/* ============================================================
+   Tech Dark — Theme Styles v2
+   Use cases: technical talks, product launches, AI/internet presentations, architecture reviews, system design
+   Design concept: immersive technology · layered lighting · data visualization first · futuristic interface
+
+   Usage (include in slide HTML):
+   <link rel="stylesheet" href="theme.css"/>
+   ============================================================ */
+
+:root {
+  /* ----------------------------------------------------------
+     Background layers (dark to light, building visual depth)
+     ---------------------------------------------------------- */
+  --bg-base: #070b14; /* Deepest base: near-black navy, main page background */
+  --bg-surface: #0d1525; /* Card/panel background */
+  --bg-elevated: #162035; /* Floating/highlight blocks */
+  --bg-overlay: #1e2d47; /* Popover/contrast blocks */
+  --bg-glass: rgba(255, 255, 255, 0.04); /* Glassmorphism */
+  --bg-glass-md: rgba(255, 255, 255, 0.07); /* Medium glass */
+
+  /* ----------------------------------------------------------
+     Text colors
+     ---------------------------------------------------------- */
+  --text-primary: #edf2fa; /* Primary text: cool white */
+  --text-secondary: #7b90b2; /* Secondary text: blue gray */
+  --text-muted: #3d5070; /* Muted: dark blue gray */
+  --text-on-dark: #edf2fa;
+
+  /* ----------------------------------------------------------
+     Neon accents (core visual language)
+     Use at most two accent colors per page to avoid visual noise
+     ---------------------------------------------------------- */
+  --neon-cyan: #00e5ff; /* Primary accent: electric cyan */
+  --neon-blue: #4d8eff; /* Secondary accent: tech blue */
+  --neon-purple: #9b6fff; /* Third accent: quantum purple */
+  --neon-green: #00e5a0; /* Success/online: emerald green */
+  --neon-orange: #ff8c42; /* Warning/hotspot: tech orange */
+  --neon-red: #ff4d6d; /* Error/danger: alert red */
+
+  /* ----------------------------------------------------------
+     Gradient presets
+     ---------------------------------------------------------- */
+  --grad-cyan-blue: linear-gradient(135deg, #00e5ff 0%, #4d8eff 100%);
+  --grad-blue-purple: linear-gradient(135deg, #4d8eff 0%, #9b6fff 100%);
+  --grad-cyan-green: linear-gradient(135deg, #00e5ff 0%, #00e5a0 100%);
+  --grad-warm: linear-gradient(135deg, #ff8c42 0%, #ff4d6d 100%);
+  --grad-surface: linear-gradient(180deg, #0d1525 0%, #070b14 100%);
+
+  /* ----------------------------------------------------------
+     Borders
+     ---------------------------------------------------------- */
+  --border-glow: rgba(0, 229, 255, 0.25); /* Glowing border: cyan */
+  --border-purple: rgba(155, 111, 255, 0.25); /* Glowing border: purple */
+  --border-subtle: rgba(255, 255, 255, 0.07); /* Subtle divider */
+  --border-medium: rgba(255, 255, 255, 0.12); /* Medium divider */
+
+  /* ----------------------------------------------------------
+     Lighting shadows
+     ---------------------------------------------------------- */
+  --glow-cyan:
+    0 0 24px rgba(0, 229, 255, 0.35), 0 0 48px rgba(0, 229, 255, 0.15);
+  --glow-blue:
+    0 0 24px rgba(77, 142, 255, 0.35), 0 0 48px rgba(77, 142, 255, 0.15);
+  --glow-purple:
+    0 0 24px rgba(155, 111, 255, 0.35), 0 0 48px rgba(155, 111, 255, 0.15);
+  --glow-green: 0 0 20px rgba(0, 229, 160, 0.4);
+  --shadow-card: 0 8px 32px rgba(0, 0, 0, 0.4), 0 2px 8px rgba(0, 0, 0, 0.3);
+}
+
+/* ============================================================
+   Typography Spec (1920x1080 canvas)
+
+   Hero title      : 68-80px  weight:900  Gradient text (cyan→blue) or pure white
+              letter-spacing: -0.03em
+   Content heading : 44-56px  weight:700  color:--neon-cyan
+              text-shadow: 0 0 24px rgba(0,229,255,0.5)
+   Subtitle        : 28-36px  weight:500  color:--text-secondary
+   Body content    : 22-26px  weight:400  color:--text-primary  line-height:1.75
+   Data highlight  : 60-80px  weight:900  Neon color + glow shadow
+   Helper label    : 16-20px  weight:500  color:--text-muted  letter-spacing:0.08em uppercase
+   Code font       : 20-24px  JetBrains Mono / Fira Code / monospace
+
+   Font stack: 'Noto Sans SC', -apple-system, 'PingFang SC', 'Microsoft YaHei', sans-serif
+   ============================================================ */
+
+/* ============================================================
+   Base slide styles (required for every HTML page)
+
+   1920×1080 dark canvas on --bg-base; cooler white text stack below.
+   Implemented: html, body, .slide, .slide-tech-body (40px 64px + ~64px footer reserve).
+   ============================================================ */
+
+html,
+body {
+  width: 1920px;
+  height: 1080px;
+  overflow: hidden;
+  margin: 0;
+  padding: 0;
+  font-family:
+    "Noto Sans SC",
+    -apple-system,
+    "PingFang SC",
+    "Microsoft YaHei",
+    sans-serif;
+  background: var(--bg-base);
+  color: var(--text-primary);
+}
+
+.slide {
+  width: 1920px;
+  height: 1080px;
+  position: relative;
+  overflow: hidden;
+  box-sizing: border-box;
+}
+
+/* Main zone: padding 40px 64px; reserve ~64px for .footer-bar */
+.slide-tech-body {
+  box-sizing: border-box;
+  width: 100%;
+  height: 100%;
+  padding: 40px 64px 104px;
+}
+
+/* ============================================================
+   Background Decoration Spec (choose by page type)
+
+   A  Cyan grid mesh → .texture-grid-cyan
+   B  Hero radial washes → .glow-radial-lg, .glow-radial-sm
+   C  Scan-line overlay → .texture-scan-lines (pointer-events none on layered use)
+   D  L-corner bracket sample → .deco-corner-tl-cyan (repeat/rotate for four corners in markup)
+   E  Giant section index watermark → .section-glow-number
+   ============================================================ */
+
+.texture-grid-cyan {
+  background-image:
+    linear-gradient(rgba(0, 229, 255, 0.03) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(0, 229, 255, 0.03) 1px, transparent 1px);
+  background-size: 48px 48px;
+}
+
+.texture-scan-lines {
+  background: repeating-linear-gradient(
+    0deg,
+    transparent,
+    transparent 3px,
+    rgba(0, 229, 255, 0.015) 3px,
+    rgba(0, 229, 255, 0.015) 4px
+  );
+  pointer-events: none;
+}
+
+.deco-corner-tl-cyan {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 120px;
+  height: 120px;
+  border-top: 2px solid var(--neon-cyan);
+  border-left: 2px solid var(--neon-cyan);
+  box-shadow: inset 0 0 20px rgba(0, 229, 255, 0.1);
+  pointer-events: none;
+}
+
+.section-glow-number {
+  font-size: 320px;
+  font-weight: 900;
+  color: rgba(0, 229, 255, 0.03);
+  position: absolute;
+  right: -20px;
+  bottom: -40px;
+  letter-spacing: -0.05em;
+  pointer-events: none;
+}
+
+.glow-radial-lg {
+  position: absolute;
+  pointer-events: none;
+  width: 800px;
+  height: 600px;
+  left: 20%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  background: radial-gradient(
+    ellipse 800px 600px at 20% 50%,
+    rgba(0, 229, 255, 0.1) 0%,
+    transparent 70%
+  );
+}
+
+.glow-radial-sm {
+  position: absolute;
+  pointer-events: none;
+  width: 400px;
+  height: 300px;
+  right: 0;
+  bottom: 0;
+  background: radial-gradient(
+    ellipse 400px 300px at 80% 80%,
+    rgba(155, 111, 255, 0.08) 0%,
+    transparent 70%
+  );
+}
+
+/* ============================================================
+   Card Spec
+
+   Four presets in CSS: .card-tech (default panel), .card-tech-glow (accent border/glow),
+   .card-tech-top-accent (gradient strip via ::before), .card-tech-glass (frosted).
+   ============================================================ */
+
+.card-tech {
+  background: var(--bg-surface);
+  border: 1px solid var(--border-subtle);
+  border-radius: 12px;
+  box-shadow: var(--shadow-card);
+}
+
+.card-tech-glow {
+  background: var(--bg-elevated);
+  border: 1px solid var(--border-glow);
+  border-radius: 12px;
+  box-shadow:
+    var(--shadow-card),
+    0 0 30px rgba(0, 229, 255, 0.06);
+}
+
+.card-tech-glass {
+  background: var(--bg-glass-md);
+  backdrop-filter: blur(16px) saturate(180%);
+  border: 1px solid var(--border-glow);
+  border-radius: 16px;
+}
+
+.card-tech-top-accent {
+  border-top: 2px solid transparent;
+  background-clip: padding-box;
+  position: relative;
+  background: var(--bg-surface);
+  border-radius: 12px;
+  box-shadow: var(--shadow-card);
+}
+
+.card-tech-top-accent::before {
+  content: "";
+  position: absolute;
+  top: -2px;
+  left: 0;
+  right: 0;
+  height: 2px;
+  background: var(--grad-cyan-blue);
+  border-radius: 2px 2px 0 0;
+}
+
+/* ============================================================
+   Dedicated Component Library
+
+   Full rules in CSS: KPI (.kpi-card, ::before, .kpi-value, .kpi-label, .kpi-trend-*),
+   architecture tiles (.arch-box, .arch-cyan|blue|purple|green), status (.badge, .badge-*),
+   progress (.progress-track, .progress-cyan|purple), dividers (.divider-cyan, .divider-subtle),
+   code (.code-block, .code-*), terminal (.terminal, .terminal-*), table (.data-table),
+   compare (.compare-*), chrome (.status-bar*), footer row (.footer-bar, .page-num, .page-progress).
+   ============================================================ */
+
+.kpi-card {
+  background: var(--bg-elevated);
+  border: 1px solid var(--border-glow);
+  border-radius: 12px;
+  padding: 32px 36px;
+  box-shadow: var(--shadow-card);
+  position: relative;
+  overflow: hidden;
+}
+
+.kpi-card::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 2px;
+  background: var(--grad-cyan-blue);
+}
+
+.kpi-value {
+  font-size: 72px;
+  font-weight: 900;
+  line-height: 1;
+  background: var(--grad-cyan-blue);
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  filter: drop-shadow(0 0 12px rgba(0, 229, 255, 0.4));
+}
+
+.kpi-label {
+  font-size: 18px;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+}
+
+.kpi-trend-up {
+  color: var(--neon-green);
+  font-size: 22px;
+  font-weight: 700;
+}
+
+.kpi-trend-down {
+  color: var(--neon-red);
+  font-size: 22px;
+  font-weight: 700;
+}
+
+.arch-box {
+  border-radius: 8px;
+  padding: 14px 20px;
+  text-align: center;
+  font-size: 20px;
+  font-weight: 600;
+}
+
+.arch-cyan {
+  background: rgba(0, 229, 255, 0.08);
+  border: 1px solid rgba(0, 229, 255, 0.3);
+  color: var(--neon-cyan);
+}
+
+.arch-blue {
+  background: rgba(77, 142, 255, 0.08);
+  border: 1px solid rgba(77, 142, 255, 0.3);
+  color: var(--neon-blue);
+}
+
+.arch-purple {
+  background: rgba(155, 111, 255, 0.08);
+  border: 1px solid rgba(155, 111, 255, 0.3);
+  color: var(--neon-purple);
+}
+
+.arch-green {
+  background: rgba(0, 229, 160, 0.08);
+  border: 1px solid rgba(0, 229, 160, 0.3);
+  color: var(--neon-green);
+}
+
+.badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 16px;
+  font-weight: 700;
+  padding: 5px 14px;
+  border-radius: 4px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+.badge-online {
+  background: rgba(0, 229, 160, 0.12);
+  border: 1px solid rgba(0, 229, 160, 0.3);
+  color: var(--neon-green);
+}
+
+.badge-active {
+  background: rgba(0, 229, 255, 0.12);
+  border: 1px solid rgba(0, 229, 255, 0.3);
+  color: var(--neon-cyan);
+}
+
+.badge-warn {
+  background: rgba(255, 140, 66, 0.12);
+  border: 1px solid rgba(255, 140, 66, 0.3);
+  color: var(--neon-orange);
+}
+
+.badge-error {
+  background: rgba(255, 77, 109, 0.12);
+  border: 1px solid rgba(255, 77, 109, 0.3);
+  color: var(--neon-red);
+}
+
+.badge-dot::before {
+  content: "";
+  display: inline-block;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: currentColor;
+  box-shadow: 0 0 6px currentColor;
+}
+
+.progress-track {
+  height: 6px;
+  background: rgba(255, 255, 255, 0.06);
+  border-radius: 3px;
+  overflow: hidden;
+}
+
+.progress-cyan {
+  height: 100%;
+  background: var(--grad-cyan-blue);
+  box-shadow: 0 0 10px rgba(0, 229, 255, 0.6);
+  border-radius: 3px;
+}
+
+.progress-purple {
+  height: 100%;
+  background: var(--grad-blue-purple);
+  box-shadow: 0 0 10px rgba(155, 111, 255, 0.6);
+  border-radius: 3px;
+}
+
+.divider-cyan {
+  height: 1px;
+  background: linear-gradient(
+    90deg,
+    transparent,
+    var(--neon-cyan),
+    transparent
+  );
+}
+
+.divider-subtle {
+  height: 1px;
+  background: var(--border-subtle);
+}
+
+.code-block {
+  background: #060a12;
+  border: 1px solid var(--border-subtle);
+  border-radius: 10px;
+  padding: 24px 28px;
+  font-family: "JetBrains Mono", "Fira Code", "Cascadia Code", monospace;
+  font-size: 20px;
+  line-height: 1.7;
+}
+
+.code-keyword {
+  color: #9b6fff;
+}
+
+.code-string {
+  color: #00e5a0;
+}
+
+.code-comment {
+  color: var(--text-muted);
+  font-style: italic;
+}
+
+.code-number {
+  color: #ff8c42;
+}
+
+.code-func {
+  color: #4d8eff;
+}
+
+.terminal {
+  background: #030508;
+  border: 1px solid var(--border-medium);
+  border-radius: 10px;
+  padding: 20px 24px;
+  font-family: "JetBrains Mono", monospace;
+  font-size: 20px;
+}
+
+.terminal-prompt {
+  color: var(--neon-green);
+}
+
+.terminal-cmd {
+  color: var(--text-primary);
+}
+
+.terminal-output {
+  color: var(--text-secondary);
+}
+
+.data-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.data-table thead tr {
+  background: var(--bg-overlay);
+}
+
+.data-table thead th {
+  padding: 14px 20px;
+  font-size: 18px;
+  font-weight: 700;
+  color: var(--neon-cyan);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  border-bottom: 1px solid var(--border-glow);
+  text-align: left;
+}
+
+.data-table tbody tr {
+  border-bottom: 1px solid var(--border-subtle);
+}
+
+.data-table tbody tr:hover {
+  background: var(--bg-glass-md);
+}
+
+.data-table tbody td {
+  padding: 14px 20px;
+  font-size: 20px;
+  color: var(--text-primary);
+}
+
+.compare-bar-wrap {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  margin-bottom: 12px;
+}
+
+.compare-label {
+  width: 200px;
+  font-size: 20px;
+  color: var(--text-secondary);
+  text-align: right;
+}
+
+.compare-track {
+  flex: 1;
+  height: 10px;
+  background: rgba(255, 255, 255, 0.06);
+  border-radius: 5px;
+}
+
+.compare-fill-a {
+  height: 100%;
+  background: var(--grad-cyan-blue);
+  border-radius: 5px;
+  box-shadow: 0 0 12px rgba(0, 229, 255, 0.5);
+}
+
+.compare-fill-b {
+  height: 100%;
+  background: rgba(255, 255, 255, 0.15);
+  border-radius: 5px;
+}
+
+.status-bar {
+  height: 56px;
+  padding: 0 60px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  border-bottom: 1px solid var(--border-subtle);
+  background: var(--bg-surface);
+  box-sizing: border-box;
+}
+
+.status-bar-logo {
+  font-size: 20px;
+  font-weight: 800;
+  letter-spacing: 0.1em;
+  background: var(--grad-cyan-blue);
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+
+.status-bar-info {
+  font-size: 16px;
+  color: var(--text-muted);
+}
+
+.footer-bar {
+  height: 64px;
+  padding: 0 60px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  border-top: 1px solid var(--border-subtle);
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  background: var(--bg-base);
+  box-sizing: border-box;
+}
+
+.page-num {
+  font-size: 18px;
+  color: var(--text-muted);
+  font-weight: 700;
+}
+
+.page-progress {
+  width: 120px;
+}
+
+/* ============================================================
+   Layout Spec (fixed 1920x1080 canvas)
+
+   Bands: status bar 56px (.status-bar), primary canvas .slide-tech-body (40px 64px), footer 64px (.footer-bar).
+   Grids / splits: .grid-cols-3-tech, .grid-cols-4-tech, .flex-split-58-42, .stack-arch-layers.
+   ============================================================ */
+
+.grid-cols-3-tech {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr;
+  gap: 28px;
+}
+
+.grid-cols-4-tech {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 24px;
+}
+
+.flex-split-58-42 {
+  display: flex;
+  width: 100%;
+  height: 100%;
+}
+
+.flex-split-58-42 > :first-child {
+  flex: 0 0 58%;
+  min-width: 0;
+}
+
+.flex-split-58-42 > :last-child {
+  flex: 0 0 42%;
+  min-width: 0;
+}
+
+.stack-arch-layers {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+/* ============================================================
+   Dedicated Layout Page Types (unique to tech-dark)
+
+   1. Cover page
+      - Fullscreen dark background + grid texture + two radial glows
+      - Four corner line ornaments (L-shaped)
+      - Left: large gradient hero title (80px) + subtitle + tag badges
+      - Right: geometric decorations (concentric circles/hex grid/digit matrix)
+      - Bottom: gradient divider + team/date information
+
+   2. System architecture page (Architecture)
+      - Top: page title + system version badge
+      - Main: layered architecture diagram (top→bottom: frontend/API/services/data)
+        Each layer uses a differently colored arch-box, with arrows between layers
+      - Right: legend panel
+
+   3. Code demo page
+      - Left: code-block (60% width), with line numbers and syntax highlighting
+      - Right: key-point cards (3-4 items), each with a circular number
+      - Top: file path breadcrumb
+
+   4. Benchmark page
+      - Top: comparison title + test environment badge
+      - Main: horizontal comparison bars (compare-bar), A/B two-color comparison
+      - Right: radar chart (ECharts)
+      - Bottom: conclusion summary card (glowing border)
+
+   5. Dashboard page
+      - Top: four KPI cards in a row
+      - Below: left line chart (60%) + right pie/donut chart (40%)
+
+   6. Timeline page
+      - Horizontal timeline (centered line + alternating nodes above and below)
+      - Each node: circular neon marker + year + event card
+
+   7. Section page
+      - Fullscreen dark background + large glowing background number
+      - Center: section number (neon cyan) + section name (large white text)
+      - Four corner line ornaments
+
+   8. Ending page
+      - Center: gradient hero title + QR code/contact information
+      - Background: layered radial glows
+   ============================================================ */

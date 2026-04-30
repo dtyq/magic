@@ -1,0 +1,887 @@
+/* ============================================================
+  Ink Classic (Ink Classic) — theme styles v1
+  Use cases: academic reports, thesis defenses, research sharing, humanities research
+  Design concept: the timeless dialogue between ink and paper · typography as decoration · structured whitespace
+
+  Usage:<link rel="stylesheet" href="theme.css"/>
+  ============================================================ */
+
+:root {
+  /* ----------------------------------------------------------
+   Core palette: ink and paper
+   ---------------------------------------------------------- */
+  --ink: #0a0a0b;
+  --ink-rgb: 10, 10, 11;
+  --ink-tint: #18181a;
+
+  --paper: #f1efea;
+  --paper-rgb: 241, 239, 234;
+  --paper-tint: #e8e5de;
+
+  --sepia: #8b7d6b;
+  --sepia-light: #a89f91;
+  --sepia-muted: #c4bdb0;
+
+  /* ----------------------------------------------------------
+   Font stacks
+   ---------------------------------------------------------- */
+  --serif-zh: "Noto Serif SC", "Songti SC", "SimSun", serif;
+  --serif-en: "Playfair Display", "Georgia", serif;
+  --sans-zh:
+    "Noto Sans SC", -apple-system, "PingFang SC", "Microsoft YaHei", sans-serif;
+  --mono: "IBM Plex Mono", "SF Mono", "Fira Code", monospace;
+
+  /* ----------------------------------------------------------
+   Chart palette (restrained ink tones)
+   ---------------------------------------------------------- */
+  --chart-1: #0a0a0b;
+  --chart-2: #8b7d6b;
+  --chart-3: #5c4a3a;
+  --chart-4: #a89f91;
+  --chart-5: #c4bdb0;
+  --chart-6: #e8e5de;
+}
+
+/* ============================================================
+  Base slide styles (1920x1080 canvas)
+  ============================================================ */
+html,
+body {
+  width: 1920px;
+  height: 1080px;
+  overflow: hidden;
+  margin: 0;
+  font-family: var(--sans-zh);
+}
+
+.slide-container {
+  width: 1920px;
+  height: 1080px;
+  position: relative;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+.slide-container.light {
+  background: var(--paper);
+  color: var(--ink);
+}
+.slide-container.dark {
+  background: var(--ink);
+  color: var(--paper);
+}
+
+/* First cover: full-bleed image + ink scrim (--cover-bg-image required) */
+.slide-container.dark.cover-photo {
+  position: relative;
+  isolation: isolate;
+}
+.slide-container.dark.cover-photo::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  background-color: var(--ink);
+  background-image: var(--cover-bg-image);
+  background-size: cover;
+  background-position: center;
+  background-repeat: no-repeat;
+}
+.slide-container.dark.cover-photo::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  pointer-events: none;
+  background: var(--cover-scrim, rgba(var(--ink-rgb), 0.55));
+}
+
+/* ============================================================
+  Typography rules (1920x1080 canvas)
+  ============================================================ */
+
+/* English chapter title */
+.h-hero-en {
+  font-family: var(--serif-en);
+  font-weight: 800;
+  font-size: clamp(3rem, 8.5vw, 8.5vw);
+  line-height: 1;
+  letter-spacing: -0.02em;
+}
+
+/* Chinese chapter title */
+.h-hero-zh {
+  font-family: var(--serif-zh);
+  font-weight: 700;
+  font-size: clamp(2.5rem, 6.5vw, 6.5vw);
+  line-height: 1.05;
+  letter-spacing: -0.01em;
+}
+
+/* Large content title */
+.h-xl {
+  font-family: var(--serif-zh);
+  font-weight: 700;
+  font-size: clamp(1.6rem, 3.6vw, 3.6vw);
+  line-height: 1.2;
+  margin-bottom: 2vh;
+}
+
+/* Small content title */
+.h-md {
+  font-family: var(--serif-zh);
+  font-weight: 700;
+  font-size: 36px;
+  line-height: 1.3;
+}
+
+/* Lead text */
+.lead {
+  font-family: var(--sans-zh);
+  font-size: 24px;
+  line-height: 1.8;
+  opacity: 0.68;
+}
+
+/* Body copy */
+.body-text {
+  font-family: var(--sans-zh);
+  font-size: 22px;
+  line-height: 1.75;
+  opacity: 0.65;
+}
+
+/* Labels / metadata */
+.kicker {
+  font-family: var(--mono);
+  font-size: 11px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  opacity: 0.5;
+  margin-bottom: 1.5vh;
+}
+
+.meta-row {
+  font-family: var(--mono);
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  opacity: 0.45;
+}
+
+/* ============================================================
+  Page structure components
+  ============================================================ */
+
+/* Top navigation bar */
+.chrome {
+  position: relative;
+  z-index: 2;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 2.4vh 3.5vw;
+  font-family: var(--mono);
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  opacity: 0.5;
+  border-bottom: 1px solid rgba(var(--ink-rgb), 0.12);
+}
+.slide-container.dark .chrome {
+  border-color: rgba(var(--paper-rgb), 0.12);
+}
+
+/* Main content area */
+.frame {
+  position: relative;
+  z-index: 2;
+  flex: 1;
+  padding: 0 3.5vw 2vh;
+}
+
+/* Bottom info bar */
+.foot {
+  position: relative;
+  z-index: 2;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 1.8vh 3.5vw;
+  font-family: var(--mono);
+  font-size: 10px;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+  opacity: 0.42;
+  border-top: 1px solid rgba(var(--ink-rgb), 0.12);
+}
+.slide-container.dark .foot {
+  border-color: rgba(var(--paper-rgb), 0.12);
+}
+
+/* ============================================================
+  Layout grids
+  ============================================================ */
+
+.grid-2 {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 4vw;
+  align-items: start;
+}
+.grid-3 {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 2.5vw;
+}
+.grid-6 {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 2vw 3vw;
+}
+.grid-2-7-5 {
+  display: grid;
+  grid-template-columns: 2fr 7fr 5fr;
+  gap: 3vw;
+  align-items: start;
+}
+
+/* ============================================================
+  Dedicated component library
+  ============================================================ */
+
+/* Stat card */
+.stat-card {
+  padding: 2.5vh 1.8vw;
+  border: 1px solid rgba(var(--ink-rgb), 0.15);
+}
+.slide-container.dark .stat-card {
+  border-color: rgba(var(--paper-rgb), 0.18);
+}
+.stat-label {
+  font-family: var(--mono);
+  font-size: 10px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  opacity: 0.45;
+  margin-bottom: 0.8vh;
+}
+.stat-nb {
+  font-family: var(--serif-en);
+  font-weight: 800;
+  font-size: clamp(1.8rem, 4vw, 4vw);
+  line-height: 1;
+}
+.stat-unit {
+  font-size: 0.45em;
+  font-weight: 400;
+  opacity: 0.6;
+}
+.stat-note {
+  font-family: var(--sans-zh);
+  font-size: 18px;
+  opacity: 0.5;
+  margin-top: 0.6vh;
+}
+
+/* Row list */
+.rowline {
+  display: grid;
+  grid-template-columns: 3fr 5fr 2fr;
+  gap: 2vw;
+  padding: 1.8vh 0;
+  border-bottom: 1px solid rgba(var(--ink-rgb), 0.1);
+  align-items: baseline;
+}
+.rowline:first-child {
+  border-top: 1px solid rgba(var(--ink-rgb), 0.1);
+}
+.slide-container.dark .rowline,
+.slide-container.dark .rowline:first-child {
+  border-color: rgba(var(--paper-rgb), 0.12);
+}
+.row-k {
+  font-family: var(--serif-zh);
+  font-weight: 700;
+  font-size: 22px;
+}
+.row-v {
+  font-family: var(--sans-zh);
+  font-size: 20px;
+  opacity: 0.65;
+  line-height: 1.5;
+}
+.row-m {
+  font-family: var(--mono);
+  font-size: 10px;
+  opacity: 0.4;
+  letter-spacing: 0.06em;
+  text-align: right;
+}
+
+/* Callout */
+.callout {
+  padding: 2.5vh 2vw;
+  border-left: 3px solid currentColor;
+  background: rgba(var(--ink-rgb), 0.05);
+  font-family: var(--serif-zh);
+  font-size: 22px;
+  line-height: 1.7;
+}
+.slide-container.dark .callout {
+  background: rgba(var(--paper-rgb), 0.06);
+}
+.callout-src {
+  font-family: var(--mono);
+  font-size: 10px;
+  opacity: 0.4;
+  margin-top: 1vh;
+  letter-spacing: 0.06em;
+}
+
+/* Image frame */
+.frame-img {
+  width: 100%;
+  overflow: hidden;
+  background: rgba(var(--ink-rgb), 0.06);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.slide-container.dark .frame-img {
+  background: rgba(var(--paper-rgb), 0.08);
+}
+.frame-img img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.r-16x9 {
+  aspect-ratio: 16 / 9;
+}
+.r-4x3 {
+  aspect-ratio: 4 / 3;
+}
+
+/* Footnote */
+.footnote {
+  font-family: var(--mono);
+  font-size: 9px;
+  opacity: 0.35;
+  letter-spacing: 0.05em;
+  margin-top: 0.8vh;
+}
+
+/* Ghost oversized text decoration */
+.ghost {
+  position: absolute;
+  z-index: 1;
+  font-family: var(--serif-en);
+  font-weight: 800;
+  font-size: 34vw;
+  line-height: 1;
+  opacity: 0.035;
+  pointer-events: none;
+  letter-spacing: -0.04em;
+  color: currentColor;
+}
+
+/* ============================================================
+  Decorative element presets
+  ============================================================ */
+
+/* Large number decoration */
+.num-deco {
+  font-family: var(--serif-en);
+  font-weight: 800;
+  font-size: clamp(1.5rem, 3vw, 3vw);
+  opacity: 0.18;
+  margin-bottom: 1.5vh;
+  line-height: 1;
+}
+
+/* Conclusion quote block */
+.quote-block {
+  font-family: var(--serif-zh);
+  font-weight: 700;
+  font-size: clamp(1.6rem, 4.2vw, 4.2vw);
+  line-height: 1.25;
+}
+
+/* Recommendation item (with left vertical rule) */
+.suggest-item {
+  padding: 2vh 1.5vw;
+  border-left: 3px solid rgba(var(--paper-rgb), 0.4);
+}
+.slide-container.light .suggest-item {
+  border-left: 3px solid rgba(var(--ink-rgb), 0.25);
+}
+
+/* ============================================================
+  ★ Extended component library
+  ============================================================ */
+
+/* ── Badge / tag ── */
+.badge {
+  display: inline-block;
+  font-family: var(--mono);
+  font-size: 11px;
+  font-weight: 500;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  padding: 4px 14px;
+  border: 1px solid currentColor;
+}
+.badge-outline {
+  background: transparent;
+  border: 1px solid rgba(var(--ink-rgb), 0.3);
+  color: var(--ink);
+}
+.badge-fill {
+  background: var(--ink);
+  color: var(--paper);
+  border: 1px solid var(--ink);
+}
+.slide-container.dark .badge-outline {
+  border-color: rgba(var(--paper-rgb), 0.35);
+  color: var(--paper);
+}
+
+/* ── Point list (with numbered decoration)── */
+.point-list {
+  display: flex;
+  flex-direction: column;
+  gap: 2vh;
+}
+.point-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 1.2vw;
+}
+.point-num {
+  font-family: var(--serif-en);
+  font-weight: 800;
+  font-size: 28px;
+  opacity: 0.2;
+  line-height: 1;
+  flex-shrink: 0;
+  margin-top: 2px;
+}
+.point-text {
+  font-family: var(--sans-zh);
+  font-size: 22px;
+  line-height: 1.7;
+  opacity: 0.75;
+}
+
+/* ── Research method node ── */
+.method-flow {
+  display: flex;
+  align-items: flex-start;
+  gap: 0;
+}
+.method-node {
+  flex: 1;
+  position: relative;
+  padding: 2.5vh 1.5vw 2vh;
+  border-top: 2px solid var(--ink);
+}
+.slide-container.dark .method-node {
+  border-top-color: var(--paper);
+}
+.method-node-num {
+  font-family: var(--serif-en);
+  font-weight: 800;
+  font-size: clamp(1.5rem, 3vw, 3vw);
+  opacity: 0.15;
+  line-height: 1;
+  margin-bottom: 1.5vh;
+}
+.method-node-title {
+  font-family: var(--serif-zh);
+  font-weight: 700;
+  font-size: 24px;
+  margin-bottom: 1vh;
+}
+.method-node-body {
+  font-family: var(--sans-zh);
+  font-size: 20px;
+  line-height: 1.65;
+  opacity: 0.65;
+}
+.method-node-meta {
+  font-family: var(--mono);
+  font-size: 10px;
+  opacity: 0.38;
+  letter-spacing: 0.06em;
+  margin-top: 1.5vh;
+}
+.method-arrow {
+  width: 2vw;
+  flex-shrink: 0;
+  align-self: center;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-family: var(--mono);
+  font-size: 18px;
+  opacity: 0.25;
+  margin-top: -1vh;
+}
+
+/* ── Data table (academic style)── */
+.ink-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-family: var(--sans-zh);
+  font-size: 20px;
+}
+.ink-table caption {
+  font-family: var(--mono);
+  font-size: 13px;
+  color: var(--sepia);
+  text-align: left;
+  margin-bottom: 8px;
+  letter-spacing: 0.04em;
+}
+.ink-table thead tr {
+  border-bottom: 2px solid var(--ink);
+}
+.slide-container.dark .ink-table thead tr {
+  border-bottom-color: var(--paper);
+}
+.ink-table thead th {
+  padding: 14px 20px;
+  font-family: var(--serif-zh);
+  font-weight: 700;
+  font-size: 20px;
+  text-align: left;
+}
+.ink-table tbody tr {
+  border-bottom: 1px solid rgba(var(--ink-rgb), 0.1);
+}
+.slide-container.dark .ink-table tbody tr {
+  border-bottom-color: rgba(var(--paper-rgb), 0.12);
+}
+.ink-table tbody tr:hover {
+  background: rgba(var(--ink-rgb), 0.03);
+}
+.ink-table tbody td {
+  padding: 12px 20px;
+  font-size: 20px;
+  opacity: 0.75;
+  line-height: 1.5;
+}
+.ink-table td.best {
+  font-family: var(--serif-zh);
+  font-weight: 700;
+  opacity: 1;
+}
+.ink-table td.muted {
+  opacity: 0.4;
+  font-family: var(--mono);
+  font-size: 16px;
+}
+
+/* ── Timeline (horizontal)── */
+.timeline {
+  display: flex;
+  align-items: flex-start;
+  position: relative;
+  gap: 0;
+}
+.timeline::before {
+  content: "";
+  position: absolute;
+  top: 14px;
+  left: 0;
+  right: 0;
+  height: 1px;
+  background: rgba(var(--ink-rgb), 0.15);
+}
+.slide-container.dark .timeline::before {
+  background: rgba(var(--paper-rgb), 0.15);
+}
+.tl-item {
+  flex: 1;
+  padding-top: 3.5vh;
+  position: relative;
+}
+.tl-dot {
+  position: absolute;
+  top: 8px;
+  left: 0;
+  width: 12px;
+  height: 12px;
+  border: 2px solid var(--ink);
+  background: var(--paper);
+}
+.slide-container.dark .tl-dot {
+  border-color: var(--paper);
+  background: var(--ink);
+}
+.tl-dot.filled {
+  background: var(--ink);
+}
+.slide-container.dark .tl-dot.filled {
+  background: var(--paper);
+}
+.tl-year {
+  font-family: var(--serif-en);
+  font-weight: 800;
+  font-size: 22px;
+  opacity: 0.4;
+  margin-bottom: 0.5vh;
+}
+.tl-title {
+  font-family: var(--serif-zh);
+  font-weight: 700;
+  font-size: 22px;
+  margin-bottom: 0.5vh;
+  line-height: 1.3;
+}
+.tl-body {
+  font-family: var(--sans-zh);
+  font-size: 18px;
+  opacity: 0.6;
+  line-height: 1.55;
+}
+
+/* ── Progress bar ── */
+.progress-item {
+  display: flex;
+  align-items: center;
+  gap: 2vw;
+  margin-bottom: 2vh;
+}
+.progress-label {
+  font-family: var(--serif-zh);
+  font-weight: 700;
+  font-size: 22px;
+  width: 12vw;
+  flex-shrink: 0;
+}
+.progress-track {
+  flex: 1;
+  height: 6px;
+  background: rgba(var(--ink-rgb), 0.1);
+  position: relative;
+}
+.slide-container.dark .progress-track {
+  background: rgba(var(--paper-rgb), 0.12);
+}
+.progress-fill {
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  background: var(--ink);
+}
+.slide-container.dark .progress-fill {
+  background: var(--paper);
+}
+.progress-val {
+  font-family: var(--serif-en);
+  font-weight: 800;
+  font-size: 22px;
+  width: 5vw;
+  text-align: right;
+  flex-shrink: 0;
+}
+
+/* ── Section cover (dark full-screen)── */
+.section-cover {
+  width: 100%;
+  height: 100%;
+  background: var(--ink);
+  color: var(--paper);
+  display: flex;
+  align-items: center;
+  padding: 0 6vw;
+  position: relative;
+  overflow: hidden;
+}
+.section-cover-num {
+  font-family: var(--serif-en);
+  font-weight: 800;
+  font-size: 22vw;
+  line-height: 1;
+  position: absolute;
+  right: -2vw;
+  bottom: -4vh;
+  opacity: 0.04;
+  letter-spacing: -0.04em;
+  color: var(--paper);
+  pointer-events: none;
+}
+.section-cover-label {
+  font-family: var(--mono);
+  font-size: 13px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  opacity: 0.4;
+  margin-bottom: 2.5vh;
+}
+.section-cover-title {
+  font-family: var(--serif-zh);
+  font-weight: 700;
+  font-size: clamp(2.5rem, 6vw, 6vw);
+  line-height: 1.1;
+  letter-spacing: -0.01em;
+}
+.section-cover-sub {
+  font-family: var(--sans-zh);
+  font-size: 22px;
+  opacity: 0.5;
+  margin-top: 2vh;
+  line-height: 1.7;
+  max-width: 50vw;
+}
+
+/* ── Citation card ── */
+.citation-card {
+  padding: 2vh 1.8vw;
+  border-left: 2px solid rgba(var(--ink-rgb), 0.2);
+  background: rgba(var(--ink-rgb), 0.03);
+  margin-bottom: 1.5vh;
+}
+.slide-container.dark .citation-card {
+  border-left-color: rgba(var(--paper-rgb), 0.2);
+  background: rgba(var(--paper-rgb), 0.04);
+}
+.citation-num {
+  font-family: var(--mono);
+  font-size: 11px;
+  opacity: 0.4;
+  letter-spacing: 0.06em;
+  margin-bottom: 0.5vh;
+}
+.citation-title {
+  font-family: var(--serif-zh);
+  font-weight: 700;
+  font-size: 20px;
+  line-height: 1.4;
+  margin-bottom: 0.4vh;
+}
+.citation-meta {
+  font-family: var(--mono);
+  font-size: 13px;
+  opacity: 0.45;
+  letter-spacing: 0.03em;
+}
+
+/* ── Two-column comparison block ── */
+.compare-block {
+  display: grid;
+  grid-template-columns: 1fr 1px 1fr;
+  gap: 0;
+  align-items: stretch;
+}
+.compare-divider {
+  background: rgba(var(--ink-rgb), 0.12);
+  margin: 0 2.5vw;
+}
+.slide-container.dark .compare-divider {
+  background: rgba(var(--paper-rgb), 0.12);
+}
+.compare-side {
+  padding: 0 2vw;
+}
+.compare-label {
+  font-family: var(--mono);
+  font-size: 11px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  opacity: 0.4;
+  margin-bottom: 1.5vh;
+  padding-bottom: 1.2vh;
+  border-bottom: 1px solid rgba(var(--ink-rgb), 0.1);
+}
+.slide-container.dark .compare-label {
+  border-bottom-color: rgba(var(--paper-rgb), 0.1);
+}
+
+/* ── KPI large data card ── */
+.kpi-card {
+  padding: 3vh 2vw;
+  border-top: 3px solid var(--ink);
+}
+.slide-container.dark .kpi-card {
+  border-top-color: var(--paper);
+}
+.kpi-value {
+  font-family: var(--serif-en);
+  font-weight: 800;
+  font-size: clamp(2.5rem, 5.5vw, 5.5vw);
+  line-height: 1;
+  letter-spacing: -0.02em;
+}
+.kpi-unit {
+  font-family: var(--mono);
+  font-size: 18px;
+  opacity: 0.5;
+  margin-left: 0.4em;
+}
+.kpi-label {
+  font-family: var(--mono);
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  opacity: 0.4;
+  margin-top: 1vh;
+}
+.kpi-desc {
+  font-family: var(--sans-zh);
+  font-size: 20px;
+  opacity: 0.6;
+  margin-top: 0.6vh;
+  line-height: 1.5;
+}
+
+/* ── Divider ── */
+.ink-divider {
+  border: none;
+  border-top: 1px solid rgba(var(--ink-rgb), 0.12);
+  margin: 2vh 0;
+}
+.slide-container.dark .ink-divider {
+  border-top-color: rgba(var(--paper-rgb), 0.12);
+}
+.ink-divider-bold {
+  border: none;
+  border-top: 2px solid var(--ink);
+  margin: 2vh 0;
+}
+.slide-container.dark .ink-divider-bold {
+  border-top-color: var(--paper);
+}
+
+/* ── Figure caption ── */
+.fig-caption {
+  font-family: var(--mono);
+  font-size: 12px;
+  opacity: 0.4;
+  letter-spacing: 0.04em;
+  margin-top: 1vh;
+  line-height: 1.5;
+}
+
+/* ============================================================
+  Layout specification (1920x1080)
+  ============================================================ */
+
+/*
+  Standard three areas:
+   chrome  about 6-7vh
+   frame  remaining space (flex:1)
+   foot   about 4-5vh
+
+  Common grids:
+   left text / right image (5:6) : grid-template-columns: 5fr 6fr
+   left text / right image (4:6) : grid-template-columns: 4fr 6fr
+   equal two columns     : grid-2(1fr 1fr)
+   three-column method     : grid-3 + method-flow
+   six-stat grid     : grid-6
+   horizontal timeline    : timeline
+   two-column comparison     : compare-block
+*/

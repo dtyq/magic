@@ -1,0 +1,551 @@
+/* ============================================================
+   Chalkboard Theme
+   Blackboard background + chalk palette + hand-drawn doodles + educational storytelling
+   ============================================================ */
+
+/* ── 1. CSS Variables ─────────────────────────────────────────── */
+:root {
+  /* Backgrounds */
+  --bg-primary:      #1A1A1A;   /* Blackboard black */
+  --bg-green:        #1C2B1C;   /* Traditional green board */
+  --bg-card:         #252525;   /* Deep card black */
+  --bg-highlight:    #2A2A2A;   /* Highlight area */
+  --bg-chalk-box:    rgba(255,255,255,0.04); /* Chalk area background */
+
+  /* Chalk colors */
+  --chalk-white:     #F5F5F5;
+  --chalk-yellow:    #FFE566;
+  --chalk-pink:      #FF9999;
+  --chalk-blue:      #66B3FF;
+  --chalk-green:     #90EE90;
+  --chalk-orange:    #FFB366;
+  --chalk-purple:    #D4A0FF;
+
+  /* Text */
+  --text-primary:    #F5F5F5;
+  --text-secondary:  #D4D4D4;
+  --text-muted:      #888888;
+  --text-yellow:     #FFE566;
+  --text-blue:       #66B3FF;
+
+  /* Borders */
+  --border-chalk:    rgba(245,245,245,0.2);
+  --border-bright:   rgba(245,245,245,0.45);
+  --border-yellow:   rgba(255,229,102,0.6);
+  --border-blue:     rgba(102,179,255,0.6);
+  --border-dashed:   2px dashed rgba(245,245,245,0.35);
+
+  /* Shadows (chalk glow) */
+  --shadow-chalk:    0 0 12px rgba(255,229,102,0.25);
+  --shadow-blue:     0 0 18px rgba(102,179,255,0.35);
+  --shadow-soft:     0 2px 18px rgba(0,0,0,0.4);
+
+  /* Font sizes */
+  --font-hero:   108px;
+  --font-h1:     78px;
+  --font-h2:     60px;
+  --font-h3:     42px;
+  --font-body:   30px;
+  --font-small:  24px;
+  --font-kpi:    108px;
+  --font-tag:    24px;
+
+  /* Fonts */
+  --font-chalk:  'Caveat', 'ZCOOL KuaiLe', cursive;
+  --font-body-f: 'Noto Sans SC', sans-serif;
+}
+
+/* ── 2. Base Reset ─────────────────────────────────────────── */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+html, body {
+  width: 1920px; height: 1080px;
+  font-family: var(--font-body-f);
+  background: var(--bg-primary);
+  color: var(--text-primary);
+  overflow: hidden;
+  -webkit-font-smoothing: antialiased;
+}
+
+.slide-container {
+  width: 1920px; height: 1080px;
+  padding: 78px 96px;
+  box-sizing: border-box;
+  position: relative;
+  display: flex; flex-direction: column;
+  background-color: var(--bg-primary);
+  background-image:
+    repeating-linear-gradient(0deg, transparent, transparent 2px,
+      rgba(255,255,255,0.012) 2px, rgba(255,255,255,0.012) 6px),
+    repeating-linear-gradient(90deg, transparent, transparent 60px,
+      rgba(255,255,255,0.008) 60px, rgba(255,255,255,0.008) 62px);
+}
+
+.slide-container.green-board { background-color: var(--bg-green); }
+
+/* Chalk noise texture layer */
+.slide-container::before {
+  content: '';
+  position: absolute; inset: 0; z-index: 0;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='300' height='300'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='4' stitchTiles='stitch'/%3E%3CfeColorMatrix type='saturate' values='0'/%3E%3C/filter%3E%3Crect width='300' height='300' filter='url(%23n)' opacity='0.035'/%3E%3C/svg%3E");
+  pointer-events: none;
+}
+
+.slide-content { position: relative; z-index: 1; width: 100%; height: 100%; display: flex; flex-direction: column; }
+
+/* ── 3. Heading Components ─────────────────────────────────────────── */
+.chalk-hero {
+  font-family: var(--font-chalk);
+  font-size: var(--font-hero);
+  font-weight: 700;
+  color: var(--chalk-white);
+  line-height: 1.1;
+  letter-spacing: 0.02em;
+  filter: blur(0.2px);
+}
+
+.chalk-h1 {
+  font-family: var(--font-chalk);
+  font-size: var(--font-h1);
+  font-weight: 700;
+  color: var(--chalk-yellow);
+  line-height: 1.2;
+  letter-spacing: 0.02em;
+}
+
+.chalk-h1.white  { color: var(--chalk-white); }
+.chalk-h1.blue   { color: var(--chalk-blue); }
+.chalk-h1.green  { color: var(--chalk-green); }
+.chalk-h1.pink   { color: var(--chalk-pink); }
+
+.chalk-h2 {
+  font-family: var(--font-chalk);
+  font-size: var(--font-h2);
+  font-weight: 600;
+  color: var(--chalk-white);
+  line-height: 1.3;
+}
+
+.chalk-h3 {
+  font-family: var(--font-chalk);
+  font-size: var(--font-h3);
+  font-weight: 600;
+  color: var(--text-secondary);
+}
+
+/* Chalk underline heading */
+.chalk-underline {
+  display: inline-block;
+  border-bottom: 4px solid var(--chalk-yellow);
+  padding-bottom: 8px;
+  filter: blur(0.3px);
+}
+.chalk-underline.blue  { border-color: var(--chalk-blue); }
+.chalk-underline.pink  { border-color: var(--chalk-pink); }
+.chalk-underline.green { border-color: var(--chalk-green); }
+
+/* ── 4. Today Topic Label ─────────────────────────────────────── */
+.today-topic {
+  display: inline-block;
+  border: 2px solid var(--chalk-yellow);
+  padding: 8px 24px;
+  font-family: var(--font-chalk);
+  font-size: 24px; font-weight: 600;
+  color: var(--chalk-yellow);
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  filter: blur(0.2px);
+  align-self: flex-start;
+}
+
+.today-topic.blue  { border-color: var(--chalk-blue);  color: var(--chalk-blue); }
+.today-topic.pink  { border-color: var(--chalk-pink);  color: var(--chalk-pink); }
+.today-topic.green { border-color: var(--chalk-green); color: var(--chalk-green); }
+
+/* ── 5. Chalk Circle Annotation ─────────────────────────────────────── */
+.chalk-circle {
+  display: inline-flex; align-items: center; justify-content: center;
+  border: 4px solid var(--chalk-pink);
+  border-radius: 50%;
+  padding: 9px 24px;
+  filter: blur(0.2px);
+  transform: rotate(-1.5deg);
+  color: var(--chalk-pink);
+  font-family: var(--font-chalk);
+  font-size: 33px; font-weight: 600;
+}
+.chalk-circle.yellow { border-color: var(--chalk-yellow); color: var(--chalk-yellow); transform: rotate(1deg); }
+.chalk-circle.blue   { border-color: var(--chalk-blue);   color: var(--chalk-blue);   transform: rotate(-0.5deg); }
+.chalk-circle.green  { border-color: var(--chalk-green);  color: var(--chalk-green);  transform: rotate(2deg); }
+
+/* Chalk rectangle frame */
+.chalk-rect {
+  display: inline-block;
+  border: 2px solid var(--chalk-yellow);
+  padding: 9px 24px;
+  font-family: var(--font-chalk);
+  font-size: 30px;
+  color: var(--chalk-yellow);
+  filter: blur(0.2px);
+  transform: rotate(-0.5deg);
+}
+
+/* ── 6. Card Components ─────────────────────────────────────────── */
+
+/* Basic chalk card */
+.chalk-card {
+  background: var(--bg-card);
+  border: 1px solid var(--border-chalk);
+  border-radius: 4px;
+  padding: 30px 36px;
+}
+
+/* Colored left-border cards */
+.chalk-card-yellow { border-left: 6px solid var(--chalk-yellow); background: rgba(255,229,102,0.05); }
+.chalk-card-blue   { border-left: 6px solid var(--chalk-blue);   background: rgba(102,179,255,0.05); }
+.chalk-card-green  { border-left: 6px solid var(--chalk-green);  background: rgba(144,238,144,0.05); }
+.chalk-card-pink   { border-left: 6px solid var(--chalk-pink);   background: rgba(255,153,153,0.05); }
+.chalk-card-orange { border-left: 6px solid var(--chalk-orange); background: rgba(255,179,102,0.05); }
+.chalk-card-purple { border-left: 6px solid var(--chalk-purple); background: rgba(212,160,255,0.05); }
+
+/* Dashed chalk card */
+.chalk-card-dashed {
+  background: transparent;
+  border: 2px dashed rgba(255,229,102,0.45);
+  border-radius: 4px;
+  padding: 30px 36px;
+}
+.chalk-card-dashed.blue  { border-color: rgba(102,179,255,0.45); }
+.chalk-card-dashed.pink  { border-color: rgba(255,153,153,0.45); }
+.chalk-card-dashed.green { border-color: rgba(144,238,144,0.45); }
+
+/* Dark emphasis card (cover info block) */
+.chalk-card-dark {
+  background: rgba(0,0,0,0.4);
+  border: 1px solid var(--border-bright);
+  padding: 30px 36px;
+}
+
+/* ── 7. Tags and Badges ─────────────────────────────────────────── */
+.chalk-tag {
+  display: inline-block;
+  font-family: var(--font-chalk);
+  font-size: var(--font-tag);
+  font-weight: 600;
+  padding: 4px 18px;
+  border: 1.5px solid var(--border-chalk);
+  border-radius: 2px;
+  color: var(--text-secondary);
+  letter-spacing: 0.05em;
+}
+.chalk-tag.yellow { border-color: var(--chalk-yellow); color: var(--chalk-yellow); }
+.chalk-tag.blue   { border-color: var(--chalk-blue);   color: var(--chalk-blue);   }
+.chalk-tag.green  { border-color: var(--chalk-green);  color: var(--chalk-green);  }
+.chalk-tag.pink   { border-color: var(--chalk-pink);   color: var(--chalk-pink);   }
+.chalk-tag.orange { border-color: var(--chalk-orange); color: var(--chalk-orange); }
+
+/* Solid chalk badge */
+.chalk-badge {
+  display: inline-block;
+  font-family: var(--font-chalk);
+  font-size: 21px; font-weight: 700;
+  padding: 6px 18px;
+  border-radius: 2px;
+}
+.chalk-badge.yellow { background: rgba(255,229,102,0.2); color: var(--chalk-yellow); }
+.chalk-badge.blue   { background: rgba(102,179,255,0.2); color: var(--chalk-blue);   }
+.chalk-badge.green  { background: rgba(144,238,144,0.2); color: var(--chalk-green);  }
+.chalk-badge.pink   { background: rgba(255,153,153,0.2); color: var(--chalk-pink);   }
+
+/* ── 8. KPI Data Components ─────────────────────────────────────── */
+.chalk-kpi { text-align: center; padding: 24px; }
+
+.chalk-kpi-number {
+  font-family: var(--font-chalk);
+  font-size: var(--font-kpi);
+  font-weight: 700;
+  color: var(--chalk-yellow);
+  line-height: 1;
+  text-shadow: 0 0 30px rgba(255,229,102,0.4);
+  display: block;
+}
+.chalk-kpi-number.blue   { color: var(--chalk-blue);   text-shadow: 0 0 30px rgba(102,179,255,0.4); }
+.chalk-kpi-number.green  { color: var(--chalk-green);  text-shadow: 0 0 30px rgba(144,238,144,0.4); }
+.chalk-kpi-number.pink   { color: var(--chalk-pink);   text-shadow: 0 0 30px rgba(255,153,153,0.4); }
+.chalk-kpi-number.orange { color: var(--chalk-orange); text-shadow: 0 0 30px rgba(255,179,102,0.4); }
+
+.chalk-kpi-label {
+  font-size: 22px; color: var(--text-muted);
+  margin-top: 12px; display: block;
+  font-family: var(--font-body-f);
+}
+
+.chalk-kpi-unit {
+  font-size: 48px; font-weight: 400;
+  color: var(--text-secondary);
+}
+
+/* Data row */
+.chalk-data-row {
+  display: flex; gap: 24px;
+}
+
+.chalk-data-item {
+  flex: 1;
+  background: rgba(0,0,0,0.3);
+  border: 1px solid var(--border-chalk);
+  padding: 18px 24px;
+  text-align: center;
+}
+
+.chalk-data-value {
+  font-family: var(--font-chalk);
+  font-size: 54px; font-weight: 700;
+  color: var(--chalk-yellow);
+  line-height: 1;
+  display: block;
+}
+
+.chalk-data-label {
+  font-size: 20px; color: var(--text-muted);
+  margin-top: 6px; display: block;
+}
+
+/* ── 9. List Components ─────────────────────────────────────────── */
+.chalk-list {
+  list-style: none;
+  display: flex; flex-direction: column; gap: 18px;
+}
+
+.chalk-list li {
+  display: flex; align-items: flex-start; gap: 18px;
+  font-size: var(--font-body);
+  color: var(--text-secondary);
+  line-height: 1.65;
+  font-family: var(--font-body-f);
+}
+
+.chalk-list li::before {
+  content: '✦';
+  color: var(--chalk-yellow);
+  font-size: 24px;
+  flex-shrink: 0;
+  margin-top: 4px;
+}
+.chalk-list.blue   li::before { color: var(--chalk-blue);   content: '◆'; }
+.chalk-list.green  li::before { color: var(--chalk-green);  content: '✧'; }
+.chalk-list.pink   li::before { color: var(--chalk-pink);   content: '★'; }
+.chalk-list.orange li::before { color: var(--chalk-orange); content: '▸'; }
+
+/* Numbered chalk list */
+.chalk-num-list {
+  list-style: none;
+  display: flex; flex-direction: column; gap: 21px;
+  counter-reset: chalk-counter;
+}
+
+.chalk-num-list li {
+  display: flex; align-items: flex-start; gap: 21px;
+  font-size: var(--font-body);
+  color: var(--text-secondary);
+  line-height: 1.65;
+  counter-increment: chalk-counter;
+}
+
+.chalk-num-list li::before {
+  content: counter(chalk-counter);
+  font-family: var(--font-chalk);
+  font-size: 30px; font-weight: 700;
+  color: var(--chalk-yellow);
+  width: 48px; height: 48px;
+  border: 2px solid var(--chalk-yellow);
+  border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+  flex-shrink: 0;
+  filter: blur(0.2px);
+  transform: rotate(-1deg);
+}
+
+/* ── 10. Process Steps ─────────────────────────────────────────── */
+.chalk-step {
+  display: flex; align-items: flex-start; gap: 24px;
+  padding: 15px 0;
+  border-bottom: var(--border-dashed);
+}
+.chalk-step:last-child { border-bottom: none; }
+
+.chalk-step-num {
+  width: 66px; height: 66px;
+  border: 4px solid var(--chalk-yellow);
+  border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+  font-family: var(--font-chalk);
+  font-size: 33px; font-weight: 700;
+  color: var(--chalk-yellow);
+  flex-shrink: 0;
+  filter: blur(0.2px);
+  transform: rotate(-1deg);
+}
+.chalk-step-num.blue   { border-color: var(--chalk-blue);   color: var(--chalk-blue);   transform: rotate(1deg); }
+.chalk-step-num.green  { border-color: var(--chalk-green);  color: var(--chalk-green);  transform: rotate(-0.5deg); }
+.chalk-step-num.pink   { border-color: var(--chalk-pink);   color: var(--chalk-pink);   transform: rotate(1.5deg); }
+.chalk-step-num.orange { border-color: var(--chalk-orange); color: var(--chalk-orange); transform: rotate(-1deg); }
+
+.chalk-step-title {
+  font-family: var(--font-chalk);
+  font-size: 33px; font-weight: 600;
+  color: var(--chalk-white);
+  margin-bottom: 6px;
+}
+
+.chalk-step-desc {
+  font-size: 24px; color: var(--text-muted);
+  line-height: 1.6;
+}
+
+/* ── 11. Progress Bars ──────────────────────────────────────────── */
+.chalk-progress { margin-bottom: 21px; }
+
+.chalk-progress-label {
+  display: flex; justify-content: space-between;
+  font-size: 22px; color: var(--text-secondary);
+  margin-bottom: 8px;
+  font-family: var(--font-chalk);
+}
+
+.chalk-progress-track {
+  height: 15px;
+  background: rgba(255,255,255,0.08);
+  border-radius: 2px;
+  overflow: hidden;
+  border: 1px solid var(--border-chalk);
+}
+
+.chalk-progress-fill {
+  height: 100%;
+  background: var(--chalk-yellow);
+  border-radius: 1px;
+  filter: blur(0.3px);
+}
+.chalk-progress-fill.blue   { background: var(--chalk-blue); }
+.chalk-progress-fill.green  { background: var(--chalk-green); }
+.chalk-progress-fill.pink   { background: var(--chalk-pink); }
+.chalk-progress-fill.orange { background: var(--chalk-orange); }
+
+/* ── 12. Quote Box ──────────────────────────────────────────── */
+.chalk-quote {
+  border-left: 6px solid var(--chalk-yellow);
+  padding: 21px 30px;
+  font-family: var(--font-chalk);
+  font-size: 36px; font-style: italic;
+  color: var(--chalk-white);
+  background: rgba(255,229,102,0.04);
+  filter: blur(0.2px);
+}
+.chalk-quote.blue  { border-color: var(--chalk-blue);  background: rgba(102,179,255,0.04); }
+.chalk-quote.green { border-color: var(--chalk-green); background: rgba(144,238,144,0.04); }
+
+/* ── 13. Two-Column Comparison ─────────────────────────────────────────── */
+.chalk-compare {
+  display: grid; grid-template-columns: 1fr 1fr;
+  gap: 0; height: 100%;
+}
+.chalk-compare-left  { border-right: var(--border-dashed); padding-right: 54px; }
+.chalk-compare-right { padding-left: 54px; }
+
+.chalk-compare-heading {
+  font-family: var(--font-chalk);
+  font-size: 39px; font-weight: 700;
+  margin-bottom: 24px;
+  padding-bottom: 12px;
+  border-bottom: 2px solid var(--border-chalk);
+}
+
+/* ── 14. Dividers ──────────────────────────────────────────── */
+.chalk-divider {
+  width: 100%; height: 1px;
+  background: var(--border-chalk);
+  margin: 24px 0;
+  filter: blur(0.3px);
+}
+.chalk-divider-dashed {
+  border: none;
+  border-top: var(--border-dashed);
+  margin: 24px 0;
+}
+
+/* ── 15. Cover Components ─────────────────────────────────────────── */
+.cover-title {
+  font-family: var(--font-chalk);
+  font-size: 108px; font-weight: 700;
+  color: var(--chalk-white);
+  line-height: 1.15;
+  letter-spacing: 0.02em;
+  text-align: center;
+}
+
+.cover-subtitle {
+  font-family: var(--font-chalk);
+  font-size: 42px; font-weight: 400;
+  color: var(--chalk-blue);
+  text-align: center;
+  margin-top: 21px;
+}
+
+.cover-meta {
+  font-size: 26px; color: var(--text-muted);
+  text-align: center; margin-top: 42px;
+  font-family: var(--font-chalk);
+}
+
+/* Doodle star decoration */
+.chalk-stars {
+  display: flex; gap: 15px; align-items: center;
+}
+.chalk-stars span { font-size: 24px; }
+
+/* ── 16. Section Page ──────────────────────────────────────────── */
+.section-num-bg {
+  position: absolute;
+  font-family: var(--font-chalk);
+  font-size: 300px; font-weight: 700;
+  color: rgba(255,255,255,0.04);
+  line-height: 1;
+  user-select: none;
+  pointer-events: none;
+}
+
+.section-title-box {
+  display: inline-block;
+  border: 2px solid rgba(255,255,255,0.3);
+  padding: 12px 36px;
+  font-family: var(--font-chalk);
+  font-size: 54px; font-weight: 700;
+  color: var(--chalk-white);
+  transform: rotate(-0.5deg);
+  filter: blur(0.2px);
+}
+
+/* ── 17. Layout Helpers ─────────────────────────────────────────── */
+.layout-two-col   { display: flex; gap: 72px; flex: 1; align-items: stretch; }
+.layout-three-col { display: flex; gap: 48px; flex: 1; align-items: stretch; }
+.col-left   { flex: 0.45; display: flex; flex-direction: column; }
+.col-right  { flex: 0.55; display: flex; flex-direction: column; }
+.col-third  { flex: 1; display: flex; flex-direction: column; }
+.header-section { display: flex; flex-direction: column; margin-bottom: 42px; }
+.flex-center  { display: flex; align-items: center; justify-content: center; }
+.flex-col     { display: flex; flex-direction: column; }
+.flex-between { display: flex; justify-content: space-between; align-items: center; }
+.gap-8  { gap: 12px; }  .gap-12 { gap: 18px; }
+.gap-16 { gap: 24px; } .gap-20 { gap: 30px; }
+.gap-24 { gap: 36px; } .gap-32 { gap: 48px; }
+.grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 30px; }
+.grid-3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 24px; }
+.grid-4 { display: grid; grid-template-columns: repeat(4,1fr); gap: 21px; }
+.grid-2x2 { display: grid; grid-template-columns: 1fr 1fr; grid-template-rows: 1fr 1fr; gap: 24px; flex: 1; }
+.text-center { text-align: center; }
+.mt-auto { margin-top: auto; }
+.w-full { width: 100%; } .h-full { height: 100%; }
+.font-chalk { font-family: var(--font-chalk); }
+.italic { font-style: italic; }
+.opacity-60 { opacity: 0.6; }
