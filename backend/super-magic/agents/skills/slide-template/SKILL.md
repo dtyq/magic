@@ -50,25 +50,38 @@ Use this skill to choose a built-in slide template,create a custom template from
 
 Do not resolve this skill's bundled templates under `.magic/skills/slide-template/`. After `read_skills(skill_names=["slide-template"])`, read the absolute skill root from the `<skill_dir>` tag (or parent of `<location>`). In examples below, `<skill_dir>` is that directory. Use `read_files` and `cp` sources only as fully qualified paths: `<skill_dir>/` plus the relative paths listed in this skill.
 
-1.Load selected spec:
+1.Load selected spec and preview gallery:
 
 ```
-read_files(files=[{"file_path":"<skill_dir>/assets/templates/<dir>/visual-spec.md"}])
+read_files(files=[
+  {"file_path":"<skill_dir>/assets/templates/<dir>/visual-spec.md"},
+  {"file_path":"<skill_dir>/assets/templates/<dir>/preview.html"}
+])
 ```
 
-2.Treat both `visual-spec.md` and `theme.css` as authoritative. `theme.css` owns variables,fonts,decorations,components,layout helpers,and fixed canvas reset. `visual-spec.md` owns typography,Google Fonts link,layout types,ECharts rules,and image style guidance. 3.Create project with `create_slide_project`,then copy CSS to project root before creating slide pages (use absolute source path):
+2.Treat `preview.html` as the template example gallery. Before writing slides, inspect its Color Palette/Color System, Layout Page Types, and Core/Extended Components sections. Extract concrete page structures, component patterns, color-role usage, spacing rhythm, and visual anchors. For each slide, choose the closest preview layout or component pattern and adapt it to the user's content.
+
+3.Do not copy preview wrapper styles such as `preview-header`, `slides-grid`, `slide-wrap`, or tiny thumbnail sizing into final slide pages. Do not link `preview.html` from generated slides. The preview demonstrates composition and proportions; final slides must still be fixed 1920x1080 pages using local `theme.css`, template CSS variables/classes, and the Google Fonts link from `visual-spec.md`.
+
+4.Authority order: `theme.css` owns final CSS variables, fonts, decorations, components, layout helpers, and fixed canvas reset. `visual-spec.md` owns design rules, typography, Google Fonts link, layout types, ECharts rules, and image style guidance. `preview.html` demonstrates how to apply them. If `preview.html` conflicts with `theme.css` or `visual-spec.md`, follow `theme.css`/`visual-spec.md` and use preview only as composition guidance.
+
+5.Before creating slide pages, summarize the template internally: palette roles, layout inventory from `.slide-label`, component inventory from Core/Extended Components, composition rules such as header/footer, grid columns, visual anchors, and the adaptation rule for replacing demo content while preserving structure, color roles, and rhythm.
+
+6.Create project with `create_slide_project`,then copy CSS to project root before creating slide pages (use absolute source path):
 
 ```
 shell_exec(command="cp <skill_dir>/assets/templates/<dir>/theme.css <project>/theme.css")
 ```
 
-4.Each slide HTML must include local CSS and the Google Fonts `<link>` declared in `visual-spec.md`:
+7.Each slide HTML must include local CSS and the Google Fonts `<link>` declared in `visual-spec.md`:
 
 ```html
 <link rel="stylesheet" href="theme.css" />
 ```
 
-5.Load `creating-slides` and generate slides. Keep every slide fixed at 1920x1080; do not use responsive design. Use only template CSS variables,components,dedicated layout types,ECharts rules,and image guidance from `visual-spec.md`/`theme.css`. Prefer a matching dedicated layout from `visual-spec.md`; if none fits, compose the page from template components,decorations,and layout helpers instead of generic centered text. Each slide should have one clear visual anchor, such as an image area,chart,matrix,large number,color block,or template-specific decoration. 6.Never link to skill files or assets outside the PPT project. All images/assets used by slides must be inside the PPT project,usually under `images/`.
+8.Load `creating-slides` and generate slides. Keep every slide fixed at 1920x1080; do not use responsive design. Use only template CSS variables,components,dedicated layout types,ECharts rules,and image guidance from `visual-spec.md`/`theme.css`. Prefer a matching dedicated layout from `visual-spec.md` or `preview.html`; if none fits, compose the page from template components,decorations,and layout helpers instead of generic centered text. Each slide should have one clear visual anchor, such as an image area,chart,matrix,large number,color block,or template-specific decoration.
+
+9.Never link to skill files or assets outside the PPT project. All images/assets used by slides must be inside the PPT project,usually under `images/`.
 
 ## Image Rules
 
