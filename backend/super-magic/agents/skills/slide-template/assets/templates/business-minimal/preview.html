@@ -1,366 +1,538 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
-<meta charset="utf-8"/>
-<title>Business Minimal — Template Preview v2</title>
-<link rel="stylesheet" href="theme.css"/>
-<style>
-body {
-  font-family: 'Segoe UI','PingFang SC','Microsoft YaHei',sans-serif;
-  background: #F0F2F5;
-  margin: 0; padding: 40px;
-  color: var(--text-primary);
-}
-.preview-header { margin-bottom: 36px; }
-.preview-title { font-size: 36px; font-weight: 800; color: var(--text-primary); margin: 0 0 8px; }
-.preview-title span { color: var(--brand-blue); }
-.preview-subtitle { font-size: 15px; color: var(--text-secondary); }
-.section { margin-bottom: 32px; }
-.section-label {
-  font-size: 12px; font-weight: 700; color: var(--brand-blue);
-  text-transform: uppercase; letter-spacing: 0.1em;
-  border-left: 3px solid var(--brand-blue); padding-left: 10px;
-  margin-bottom: 16px;
-}
-.swatches { display: flex; flex-wrap: wrap; gap: 12px; }
-.swatch-item { display: flex; flex-direction: column; align-items: center; gap: 4px; }
-.swatch { width: 52px; height: 52px; border-radius: 4px; border: 1px solid var(--border-light); }
-.swatch-hex { font-size: 11px; color: var(--text-secondary); font-family: monospace; }
-.swatch-name { font-size: 11px; color: var(--text-muted); }
-.slides-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; }
-.slide-wrap { }
-.slide-label { font-size: 11px; color: var(--text-muted); margin-bottom: 6px;
-  text-transform: uppercase; letter-spacing: 0.06em; }
-.slide { width: 100%; aspect-ratio: 16/9; position: relative; overflow: hidden;
-  border-radius: 4px; border: 1px solid var(--border-light);
-  background: var(--bg-primary); box-sizing: border-box;
-  box-shadow: 0 2px 8px rgba(0,0,0,0.08); }
-.components { display: flex; flex-wrap: wrap; gap: 16px; align-items: flex-start; }
-</style>
+  <meta charset="utf-8" />
+  <title>Business Minimal — Template Preview v2</title>
+  <link rel="stylesheet" href="theme.css" />
+  <style>
+    html,
+    body {
+      width: auto;
+      height: auto;
+      min-height: 100%;
+      overflow: visible;
+    }
+
+    body {
+      font-family: 'Inter', 'Noto Sans SC', 'Segoe UI', sans-serif;
+      background: #E8ECF0;
+      margin: 0;
+      padding: 40px;
+      color: var(--text-primary);
+    }
+
+    .preview-header {
+      margin-bottom: 40px;
+    }
+
+    .preview-title {
+      font-size: 28px;
+      font-weight: 700;
+      color: var(--text-primary);
+      margin: 0 0 8px;
+    }
+
+    .preview-title span {
+      color: var(--brand-blue);
+    }
+
+    .preview-subtitle {
+      font-size: 15px;
+      color: var(--text-muted);
+    }
+
+    .section {
+      margin-bottom: 40px;
+    }
+
+    .section-label {
+      font-size: 13px;
+      font-weight: 600;
+      color: var(--text-muted);
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      border-left: 0;
+      padding-left: 0;
+      margin: 40px 0 16px;
+    }
+
+    .swatches {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 12px;
+      margin-bottom: 32px;
+    }
+
+    .swatch-item {
+      width: 80px;
+      display: flex;
+      flex-direction: column;
+      align-items: flex-start;
+      gap: 0;
+    }
+
+    .swatch {
+      width: 80px;
+      height: 52px;
+      border-radius: 6px;
+      border: 1px solid rgba(0, 0, 0, 0.08);
+      margin-bottom: 6px;
+    }
+
+    .swatch-name {
+      order: 2;
+      font-size: 11px;
+      font-weight: 600;
+      color: var(--text-secondary);
+    }
+
+    .swatch-hex {
+      order: 3;
+      font-size: 11px;
+      color: var(--text-muted);
+      font-family: monospace;
+    }
+
+    .slides-grid {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 20px;
+      margin-bottom: 40px;
+    }
+
+    .slide-wrap {
+      min-width: 0;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .slide-label {
+      position: absolute;
+      bottom: 8px;
+      left: 0;
+      right: 0;
+      z-index: 5;
+      text-align: center;
+      font-size: 10px;
+      font-weight: 600;
+      color: var(--text-secondary);
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+      background: rgba(255, 255, 255, 0.9);
+      padding: 3px 0;
+    }
+
+    .slide {
+      width: 100%;
+      height: auto;
+      aspect-ratio: 16/9;
+      position: relative;
+      overflow: hidden;
+      border-radius: 6px;
+      border: 1.5px solid var(--border-light);
+      background: var(--bg-primary);
+      box-sizing: border-box;
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+    }
+
+    .components {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 16px;
+      align-items: flex-start;
+      background: var(--bg-primary);
+      background-image:
+        linear-gradient(var(--border-light) 1px, transparent 1px),
+        linear-gradient(90deg, var(--border-light) 1px, transparent 1px);
+      background-size: 40px 40px;
+      padding: 40px;
+      border-radius: 8px;
+      border: 1px solid var(--border-light);
+    }
+  </style>
 </head>
+
 <body>
 
-<div class="preview-header">
-  <div class="preview-title">Business Minimal · <span>Business Minimal</span></div>
-  <div class="preview-subtitle">For corporate reports · quarterly summaries · strategy reports · business proposals · investor roadshows</div>
-</div>
-
-<!-- Color System -->
-<div class="section">
-  <div class="section-label">Color System</div>
-  <div class="swatches">
-    <div class="swatch-item"><span class="swatch" style="background:#FFFFFF;"></span><span class="swatch-hex">#FFFFFF</span><span class="swatch-name">Primary BG</span></div>
-    <div class="swatch-item"><span class="swatch" style="background:#F7F8FA;"></span><span class="swatch-hex">#F7F8FA</span><span class="swatch-name">Secondary BG</span></div>
-    <div class="swatch-item"><span class="swatch" style="background:#141820;"></span><span class="swatch-hex">#141820</span><span class="swatch-name">Dark Page</span></div>
-    <div class="swatch-item"><span class="swatch" style="background:#141820;"></span><span class="swatch-hex">#141820</span><span class="swatch-name">Primary Text</span></div>
-    <div class="swatch-item"><span class="swatch" style="background:#52586A;"></span><span class="swatch-hex">#52586A</span><span class="swatch-name">Secondary Text</span></div>
-    <div class="swatch-item"><span class="swatch" style="background:#9299AA;"></span><span class="swatch-hex">#9299AA</span><span class="swatch-name">Muted</span></div>
-    <div style="width:1px;background:var(--border-light);margin:0 4px;"></div>
-    <div class="swatch-item"><span class="swatch" style="background:#1A56DB;"></span><span class="swatch-hex">#1A56DB</span><span class="swatch-name">Brand Blue</span></div>
-    <div class="swatch-item"><span class="swatch" style="background:#3B7FEF;"></span><span class="swatch-hex">#3B7FEF</span><span class="swatch-name">Mid Blue</span></div>
-    <div class="swatch-item"><span class="swatch" style="background:#EBF2FF;"></span><span class="swatch-hex">#EBF2FF</span><span class="swatch-name">Light Blue BG</span></div>
-    <div style="width:1px;background:var(--border-light);margin:0 4px;"></div>
-    <div class="swatch-item"><span class="swatch" style="background:#0D7A4E;"></span><span class="swatch-hex">#0D7A4E</span><span class="swatch-name">Growth Green</span></div>
-    <div class="swatch-item"><span class="swatch" style="background:#C0392B;"></span><span class="swatch-hex">#C0392B</span><span class="swatch-name">Decline Red</span></div>
-    <div class="swatch-item"><span class="swatch" style="background:#92600A;"></span><span class="swatch-hex">#92600A</span><span class="swatch-name">Flat Orange</span></div>
+  <div class="preview-header">
+    <div class="preview-title">Business Minimal · <span>Business Minimal</span></div>
+    <div class="preview-subtitle">For corporate reports · quarterly summaries · strategy reports · business proposals ·
+      investor roadshows</div>
   </div>
-</div>
 
-<!-- Layout Page Preview -->
-<div class="section">
-  <div class="section-label">8 Dedicated Layout Pages</div>
-  <div class="slides-grid">
-
-    <!-- 1. Cover Page -->
-    <div class="slide-wrap">
-      <div class="slide-label">① Cover Page</div>
-      <div class="slide">
-        <div style="position:absolute;top:0;left:0;right:0;height:5px;background:#1A56DB;"></div>
-        <div style="position:absolute;inset:0;display:flex;">
-          <!-- Left content -->
-          <div style="flex:55%;padding:16px 20px;display:flex;flex-direction:column;justify-content:center;">
-            <div style="font-size:7px;color:var(--text-muted);margin-bottom:8px;">2025 Q1 战略汇报</div>
-            <div style="font-size:16px;font-weight:800;color:var(--text-primary);line-height:1.2;margin-bottom:8px;">年度业绩回顾<br>与战略展望</div>
-            <div style="height:1px;background:var(--border-light);margin:6px 0;"></div>
-            <div style="font-size:6.5px;color:var(--text-secondary);">演讲者 · 首席执行官</div>
-            <div style="font-size:6px;color:var(--text-muted);">2025年4月26日</div>
-          </div>
-          <!-- Right dark block -->
-          <div style="flex:45%;background:#141820;display:flex;align-items:center;justify-content:center;">
-            <div style="font-size:36px;font-weight:900;color:rgba(255,255,255,0.06);letter-spacing:-0.05em;">2025</div>
-          </div>
-        </div>
-        <!-- Bottom -->
-        <div style="position:absolute;bottom:0;left:0;right:0;height:12px;border-top:1px solid var(--border-light);display:flex;align-items:center;padding:0 14px;justify-content:space-between;">
-          <span style="font-size:5.5px;color:var(--text-muted);">示例公司 · 机密</span>
-          <span style="font-size:5.5px;color:var(--text-muted);">1 / 16</span>
-        </div>
-      </div>
+  <!-- Color System -->
+  <div class="section">
+    <div class="section-label">Color System</div>
+    <div class="swatches">
+      <div class="swatch-item"><span class="swatch" style="background:#FFFFFF;"></span><span
+          class="swatch-hex">#FFFFFF</span><span class="swatch-name">Primary BG</span></div>
+      <div class="swatch-item"><span class="swatch" style="background:#F7F8FA;"></span><span
+          class="swatch-hex">#F7F8FA</span><span class="swatch-name">Secondary BG</span></div>
+      <div class="swatch-item"><span class="swatch" style="background:#141820;"></span><span
+          class="swatch-hex">#141820</span><span class="swatch-name">Dark Page</span></div>
+      <div class="swatch-item"><span class="swatch" style="background:#141820;"></span><span
+          class="swatch-hex">#141820</span><span class="swatch-name">Primary Text</span></div>
+      <div class="swatch-item"><span class="swatch" style="background:#52586A;"></span><span
+          class="swatch-hex">#52586A</span><span class="swatch-name">Secondary Text</span></div>
+      <div class="swatch-item"><span class="swatch" style="background:#9299AA;"></span><span
+          class="swatch-hex">#9299AA</span><span class="swatch-name">Muted</span></div>
+      <div style="width:1px;background:var(--border-light);margin:0 4px;"></div>
+      <div class="swatch-item"><span class="swatch" style="background:#1A56DB;"></span><span
+          class="swatch-hex">#1A56DB</span><span class="swatch-name">Brand Blue</span></div>
+      <div class="swatch-item"><span class="swatch" style="background:#3B7FEF;"></span><span
+          class="swatch-hex">#3B7FEF</span><span class="swatch-name">Mid Blue</span></div>
+      <div class="swatch-item"><span class="swatch" style="background:#EBF2FF;"></span><span
+          class="swatch-hex">#EBF2FF</span><span class="swatch-name">Light Blue BG</span></div>
+      <div style="width:1px;background:var(--border-light);margin:0 4px;"></div>
+      <div class="swatch-item"><span class="swatch" style="background:#0D7A4E;"></span><span
+          class="swatch-hex">#0D7A4E</span><span class="swatch-name">Growth Green</span></div>
+      <div class="swatch-item"><span class="swatch" style="background:#C0392B;"></span><span
+          class="swatch-hex">#C0392B</span><span class="swatch-name">Decline Red</span></div>
+      <div class="swatch-item"><span class="swatch" style="background:#92600A;"></span><span
+          class="swatch-hex">#92600A</span><span class="swatch-name">Flat Orange</span></div>
     </div>
+  </div>
 
-    <!-- 2. Agenda Page -->
-    <div class="slide-wrap">
-      <div class="slide-label">② Agenda Page</div>
-      <div class="slide">
-        <div style="position:absolute;inset:0;display:flex;">
-          <!-- Left dark panel -->
-          <div style="width:32%;background:#141820;position:relative;overflow:hidden;">
-            <div style="position:absolute;top:0;left:0;right:0;height:3px;background:#1A56DB;"></div>
-            <div style="padding:14px 12px;">
-              <div style="font-size:14px;font-weight:900;color:rgba(255,255,255,0.08);letter-spacing:0.05em;line-height:1;">AGENDA</div>
-              <div style="font-size:7px;color:rgba(255,255,255,0.5);margin-top:6px;">目录</div>
-            </div>
-          </div>
-          <!-- Right agenda -->
-          <div style="flex:1;padding:12px 14px;display:flex;flex-direction:column;gap:5px;">
-            <div style="display:flex;align-items:center;gap:8px;padding:4px 8px;background:var(--brand-blue-light);border-left:3px solid var(--brand-blue);">
-              <span style="font-size:11px;font-weight:800;color:var(--brand-blue);">01</span>
-              <span style="font-size:7px;color:var(--text-primary);font-weight:600;">业绩回顾</span>
-            </div>
-            <div style="display:flex;align-items:center;gap:8px;padding:4px 8px;">
-              <span style="font-size:11px;font-weight:800;color:var(--text-muted);">02</span>
-              <span style="font-size:7px;color:var(--text-secondary);">市场分析</span>
-            </div>
-            <div style="display:flex;align-items:center;gap:8px;padding:4px 8px;">
-              <span style="font-size:11px;font-weight:800;color:var(--text-muted);">03</span>
-              <span style="font-size:7px;color:var(--text-secondary);">战略规划</span>
-            </div>
-            <div style="display:flex;align-items:center;gap:8px;padding:4px 8px;">
-              <span style="font-size:11px;font-weight:800;color:var(--text-muted);">04</span>
-              <span style="font-size:7px;color:var(--text-secondary);">资源配置</span>
-            </div>
-          </div>
-        </div>
-      </div>
-    </div>
+  <!-- Layout Page Preview -->
+  <div class="section">
+    <div class="section-label">8 Dedicated Layout Pages</div>
+    <div class="slides-grid">
 
-    <!-- 3. KPI Dashboard -->
-    <div class="slide-wrap">
-      <div class="slide-label">③ KPI Dashboard</div>
-      <div class="slide">
-        <div style="position:absolute;inset:0;padding:10px 12px;display:flex;flex-direction:column;gap:6px;">
-          <div style="font-size:8px;font-weight:700;color:var(--text-primary);">
-            <span style="display:inline-block;width:3px;height:0.9em;background:#1A56DB;margin-right:6px;vertical-align:middle;"></span>Q1 核心指标
-          </div>
-          <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:5px;">
-            <div style="background:var(--bg-secondary);border-top:2px solid var(--brand-blue);border-radius:2px;padding:5px 6px;">
-              <div style="font-size:14px;font-weight:800;color:var(--brand-blue);">¥2.4<span style="font-size:7px;">亿</span></div>
-              <div style="font-size:5.5px;color:var(--text-muted);">营业收入</div>
-              <div style="font-size:5.5px;color:var(--status-up);">↑ +18.3%</div>
+      <!-- 1. Cover Page -->
+      <div class="slide-wrap">
+        <div class="slide-label">① Cover Page</div>
+        <div class="slide">
+          <div style="position:absolute;top:0;left:0;right:0;height:5px;background:#1A56DB;"></div>
+          <div style="position:absolute;inset:0;display:flex;">
+            <!-- Left content -->
+            <div style="flex:55%;padding:16px 20px;display:flex;flex-direction:column;justify-content:center;">
+              <div style="font-size:7px;color:var(--text-muted);margin-bottom:8px;">2025 Q1 战略汇报</div>
+              <div style="font-size:16px;font-weight:800;color:var(--text-primary);line-height:1.2;margin-bottom:8px;">
+                年度业绩回顾<br>与战略展望</div>
+              <div style="height:1px;background:var(--border-light);margin:6px 0;"></div>
+              <div style="font-size:6.5px;color:var(--text-secondary);">演讲者 · 首席执行官</div>
+              <div style="font-size:6px;color:var(--text-muted);">2025年4月26日</div>
             </div>
-            <div style="background:var(--bg-secondary);border-top:2px solid var(--brand-blue);border-radius:2px;padding:5px 6px;">
-              <div style="font-size:14px;font-weight:800;color:var(--brand-blue);">38<span style="font-size:7px;">%</span></div>
-              <div style="font-size:5.5px;color:var(--text-muted);">毛利率</div>
-              <div style="font-size:5.5px;color:var(--status-up);">↑ +2.1pp</div>
-            </div>
-            <div style="background:var(--bg-secondary);border-top:2px solid var(--brand-blue);border-radius:2px;padding:5px 6px;">
-              <div style="font-size:14px;font-weight:800;color:var(--brand-blue);">1.2<span style="font-size:7px;">万</span></div>
-              <div style="font-size:5.5px;color:var(--text-muted);">新增客户</div>
-              <div style="font-size:5.5px;color:var(--status-down);">↓ -3.5%</div>
-            </div>
-            <div style="background:var(--bg-secondary);border-top:2px solid var(--brand-blue);border-radius:2px;padding:5px 6px;">
-              <div style="font-size:14px;font-weight:800;color:var(--brand-blue);">92<span style="font-size:7px;">%</span></div>
-              <div style="font-size:5.5px;color:var(--text-muted);">客户满意度</div>
-              <div style="font-size:5.5px;color:var(--status-up);">↑ +4pp</div>
+            <!-- Right dark block -->
+            <div style="flex:45%;background:#141820;display:flex;align-items:center;justify-content:center;">
+              <div style="font-size:36px;font-weight:900;color:rgba(255,255,255,0.06);letter-spacing:-0.05em;">2025
+              </div>
             </div>
           </div>
-          <div style="flex:1;background:var(--bg-secondary);border-radius:2px;border:1px solid var(--border-light);display:flex;align-items:center;justify-content:center;">
-            <span style="font-size:7px;color:var(--text-muted);">ECharts 柱状图区域</span>
+          <!-- Bottom -->
+          <div
+            style="position:absolute;bottom:0;left:0;right:0;height:12px;border-top:1px solid var(--border-light);display:flex;align-items:center;padding:0 14px;justify-content:space-between;">
+            <span style="font-size:5.5px;color:var(--text-muted);">示例公司 · 机密</span>
+            <span style="font-size:5.5px;color:var(--text-muted);">1 / 16</span>
           </div>
         </div>
       </div>
-    </div>
 
-    <!-- 4. McKinsey Matrix -->
-    <div class="slide-wrap">
-      <div class="slide-label">④ McKinsey Matrix</div>
-      <div class="slide">
-        <div style="position:absolute;inset:0;padding:10px 12px;">
-          <div style="font-size:8px;font-weight:700;color:var(--text-primary);margin-bottom:6px;">
-            <span style="display:inline-block;width:3px;height:0.9em;background:#1A56DB;margin-right:6px;vertical-align:middle;"></span>业务优先级矩阵
-          </div>
-          <div style="display:grid;grid-template-columns:1fr 1fr;grid-template-rows:1fr 1fr;gap:4px;height:calc(100% - 30px);">
-            <div style="border:1px solid var(--border-light);padding:6px 8px;background:var(--brand-blue-light);border-top:2px solid var(--brand-blue);">
-              <div style="font-size:6.5px;font-weight:700;color:var(--brand-blue);">明星业务</div>
-              <div style="font-size:5.5px;color:var(--text-secondary);margin-top:2px;">高增长 · 高份额</div>
+      <!-- 2. Agenda Page -->
+      <div class="slide-wrap">
+        <div class="slide-label">② Agenda Page</div>
+        <div class="slide">
+          <div style="position:absolute;inset:0;display:flex;">
+            <!-- Left dark panel -->
+            <div style="width:32%;background:#141820;position:relative;overflow:hidden;">
+              <div style="position:absolute;top:0;left:0;right:0;height:3px;background:#1A56DB;"></div>
+              <div style="padding:14px 12px;">
+                <div
+                  style="font-size:14px;font-weight:900;color:rgba(255,255,255,0.08);letter-spacing:0.05em;line-height:1;">
+                  AGENDA</div>
+                <div style="font-size:7px;color:rgba(255,255,255,0.5);margin-top:6px;">目录</div>
+              </div>
             </div>
-            <div style="border:1px solid var(--border-light);padding:6px 8px;">
-              <div style="font-size:6.5px;font-weight:700;color:var(--text-primary);">问题业务</div>
-              <div style="font-size:5.5px;color:var(--text-secondary);margin-top:2px;">高增长 · 低份额</div>
-            </div>
-            <div style="border:1px solid var(--border-light);padding:6px 8px;">
-              <div style="font-size:6.5px;font-weight:700;color:var(--text-primary);">现金牛</div>
-              <div style="font-size:5.5px;color:var(--text-secondary);margin-top:2px;">低增长 · 高份额</div>
-            </div>
-            <div style="border:1px solid var(--border-light);padding:6px 8px;background:var(--bg-secondary);">
-              <div style="font-size:6.5px;font-weight:700;color:var(--text-muted);">瘦狗业务</div>
-              <div style="font-size:5.5px;color:var(--text-muted);margin-top:2px;">低增长 · 低份额</div>
+            <!-- Right agenda -->
+            <div style="flex:1;padding:12px 14px;display:flex;flex-direction:column;gap:5px;">
+              <div
+                style="display:flex;align-items:center;gap:8px;padding:4px 8px;background:var(--brand-blue-light);border-left:3px solid var(--brand-blue);">
+                <span style="font-size:11px;font-weight:800;color:var(--brand-blue);">01</span>
+                <span style="font-size:7px;color:var(--text-primary);font-weight:600;">业绩回顾</span>
+              </div>
+              <div style="display:flex;align-items:center;gap:8px;padding:4px 8px;">
+                <span style="font-size:11px;font-weight:800;color:var(--text-muted);">02</span>
+                <span style="font-size:7px;color:var(--text-secondary);">市场分析</span>
+              </div>
+              <div style="display:flex;align-items:center;gap:8px;padding:4px 8px;">
+                <span style="font-size:11px;font-weight:800;color:var(--text-muted);">03</span>
+                <span style="font-size:7px;color:var(--text-secondary);">战略规划</span>
+              </div>
+              <div style="display:flex;align-items:center;gap:8px;padding:4px 8px;">
+                <span style="font-size:11px;font-weight:800;color:var(--text-muted);">04</span>
+                <span style="font-size:7px;color:var(--text-secondary);">资源配置</span>
+              </div>
             </div>
           </div>
         </div>
       </div>
-    </div>
 
-    <!-- 5. SWOT -->
-    <div class="slide-wrap">
-      <div class="slide-label">⑤ SWOT Quadrants</div>
-      <div class="slide">
-        <div style="position:absolute;inset:0;padding:10px 12px;">
-          <div style="font-size:8px;font-weight:700;color:var(--text-primary);margin-bottom:6px;">
-            <span style="display:inline-block;width:3px;height:0.9em;background:#1A56DB;margin-right:6px;vertical-align:middle;"></span>SWOT 分析
-          </div>
-          <div style="display:grid;grid-template-columns:1fr 1fr;grid-template-rows:1fr 1fr;gap:4px;height:calc(100% - 30px);">
-            <div style="border-top:2px solid #0D7A4E;background:#E6F7F0;padding:5px 7px;">
-              <div style="font-size:7px;font-weight:800;color:#0D7A4E;">S 优势</div>
-              <div style="font-size:5.5px;color:var(--text-secondary);margin-top:2px;">· 品牌认知度高<br>· 技术壁垒深</div>
-            </div>
-            <div style="border-top:2px solid #C0392B;background:#FDECEA;padding:5px 7px;">
-              <div style="font-size:7px;font-weight:800;color:#C0392B;">W 劣势</div>
-              <div style="font-size:5.5px;color:var(--text-secondary);margin-top:2px;">· 人才储备不足<br>· 成本结构偏高</div>
-            </div>
-            <div style="border-top:2px solid #1A56DB;background:#EBF2FF;padding:5px 7px;">
-              <div style="font-size:7px;font-weight:800;color:#1A56DB;">O 机会</div>
-              <div style="font-size:5.5px;color:var(--text-secondary);margin-top:2px;">· 市场快速扩张<br>· 政策利好</div>
-            </div>
-            <div style="border-top:2px solid #92600A;background:#FEF3E2;padding:5px 7px;">
-              <div style="font-size:7px;font-weight:800;color:#92600A;">T 威胁</div>
-              <div style="font-size:5.5px;color:var(--text-secondary);margin-top:2px;">· 竞争加剧<br>· 监管趋严</div>
-            </div>
-          </div>
-        </div>
-      </div>
-    </div>
-
-    <!-- 6. Financial Waterfall Page -->
-    <div class="slide-wrap">
-      <div class="slide-label">⑥ Financial Waterfall</div>
-      <div class="slide">
-        <div style="position:absolute;inset:0;padding:10px 12px;display:flex;gap:8px;">
-          <div style="flex:1;display:flex;flex-direction:column;gap:4px;">
+      <!-- 3. KPI Dashboard -->
+      <div class="slide-wrap">
+        <div class="slide-label">③ KPI Dashboard</div>
+        <div class="slide">
+          <div style="position:absolute;inset:0;padding:10px 12px;display:flex;flex-direction:column;gap:6px;">
             <div style="font-size:8px;font-weight:700;color:var(--text-primary);">
-              <span style="display:inline-block;width:3px;height:0.9em;background:#1A56DB;margin-right:6px;vertical-align:middle;"></span>收入结构拆解
+              <span
+                style="display:inline-block;width:3px;height:0.9em;background:#1A56DB;margin-right:6px;vertical-align:middle;"></span>Q1
+              核心指标
             </div>
-            <div style="flex:1;background:var(--bg-secondary);border:1px solid var(--border-light);border-radius:2px;display:flex;align-items:flex-end;padding:6px;gap:4px;">
-              <div style="flex:1;display:flex;flex-direction:column;align-items:center;gap:2px;">
-                <div style="width:100%;height:60px;background:#1A56DB;border-radius:1px;"></div>
-                <div style="font-size:5px;color:var(--text-muted);">基础</div>
+            <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:5px;">
+              <div
+                style="background:var(--bg-secondary);border-top:2px solid var(--brand-blue);border-radius:2px;padding:5px 6px;">
+                <div style="font-size:14px;font-weight:800;color:var(--brand-blue);">¥2.4<span
+                    style="font-size:7px;">亿</span></div>
+                <div style="font-size:5.5px;color:var(--text-muted);">营业收入</div>
+                <div style="font-size:5.5px;color:var(--status-up);">↑ +18.3%</div>
               </div>
-              <div style="flex:1;display:flex;flex-direction:column;align-items:center;gap:2px;">
-                <div style="width:100%;height:20px;background:#0D7A4E;border-radius:1px;"></div>
-                <div style="font-size:5px;color:var(--text-muted);">+新品</div>
+              <div
+                style="background:var(--bg-secondary);border-top:2px solid var(--brand-blue);border-radius:2px;padding:5px 6px;">
+                <div style="font-size:14px;font-weight:800;color:var(--brand-blue);">38<span
+                    style="font-size:7px;">%</span></div>
+                <div style="font-size:5.5px;color:var(--text-muted);">毛利率</div>
+                <div style="font-size:5.5px;color:var(--status-up);">↑ +2.1pp</div>
               </div>
-              <div style="flex:1;display:flex;flex-direction:column;align-items:center;gap:2px;">
-                <div style="width:100%;height:10px;background:#C0392B;border-radius:1px;"></div>
-                <div style="font-size:5px;color:var(--text-muted);">-流失</div>
+              <div
+                style="background:var(--bg-secondary);border-top:2px solid var(--brand-blue);border-radius:2px;padding:5px 6px;">
+                <div style="font-size:14px;font-weight:800;color:var(--brand-blue);">1.2<span
+                    style="font-size:7px;">万</span></div>
+                <div style="font-size:5.5px;color:var(--text-muted);">新增客户</div>
+                <div style="font-size:5.5px;color:var(--status-down);">↓ -3.5%</div>
               </div>
-              <div style="flex:1;display:flex;flex-direction:column;align-items:center;gap:2px;">
-                <div style="width:100%;height:70px;background:#1A56DB;border-radius:1px;opacity:0.7;"></div>
-                <div style="font-size:5px;color:var(--text-muted);">合计</div>
+              <div
+                style="background:var(--bg-secondary);border-top:2px solid var(--brand-blue);border-radius:2px;padding:5px 6px;">
+                <div style="font-size:14px;font-weight:800;color:var(--brand-blue);">92<span
+                    style="font-size:7px;">%</span></div>
+                <div style="font-size:5.5px;color:var(--text-muted);">客户满意度</div>
+                <div style="font-size:5.5px;color:var(--status-up);">↑ +4pp</div>
               </div>
             </div>
-          </div>
-          <div style="width:60px;display:flex;flex-direction:column;gap:4px;justify-content:center;">
-            <div style="background:var(--bg-secondary);border-top:2px solid var(--brand-blue);border-radius:2px;padding:4px 5px;">
-              <div style="font-size:10px;font-weight:800;color:var(--brand-blue);">¥2.4亿</div>
-              <div style="font-size:5px;color:var(--text-muted);">总收入</div>
-            </div>
-            <div style="background:var(--bg-secondary);border-top:2px solid var(--status-up);border-radius:2px;padding:4px 5px;">
-              <div style="font-size:10px;font-weight:800;color:var(--status-up);">+18%</div>
-              <div style="font-size:5px;color:var(--text-muted);">同比</div>
+            <div
+              style="flex:1;background:var(--bg-secondary);border-radius:2px;border:1px solid var(--border-light);display:flex;align-items:center;justify-content:center;">
+              <span style="font-size:7px;color:var(--text-muted);">ECharts 柱状图区域</span>
             </div>
           </div>
         </div>
       </div>
-    </div>
 
-    <!-- 7. Section Page -->
-    <div class="slide-wrap">
-      <div class="slide-label">⑦ Section Page</div>
-      <div class="slide" style="background:#141820;">
-        <div style="position:absolute;top:0;left:0;right:0;height:3px;background:#1A56DB;"></div>
-        <div style="position:absolute;right:10px;bottom:-5px;font-size:70px;font-weight:900;color:rgba(255,255,255,0.04);letter-spacing:-0.05em;line-height:1;">02</div>
-        <div style="position:absolute;inset:0;display:flex;align-items:center;padding:0 20px;">
-          <div>
-            <div style="font-size:20px;font-weight:900;color:#1A56DB;line-height:1;">02</div>
-            <div style="height:2px;width:30px;background:#1A56DB;margin:6px 0;"></div>
-            <div style="font-size:14px;font-weight:700;color:#FFFFFF;">市场分析</div>
-            <div style="font-size:6.5px;color:rgba(255,255,255,0.4);margin-top:4px;">Market Analysis</div>
+      <!-- 4. McKinsey Matrix -->
+      <div class="slide-wrap">
+        <div class="slide-label">④ McKinsey Matrix</div>
+        <div class="slide">
+          <div style="position:absolute;inset:0;padding:10px 12px;">
+            <div style="font-size:8px;font-weight:700;color:var(--text-primary);margin-bottom:6px;">
+              <span
+                style="display:inline-block;width:3px;height:0.9em;background:#1A56DB;margin-right:6px;vertical-align:middle;"></span>业务优先级矩阵
+            </div>
+            <div
+              style="display:grid;grid-template-columns:1fr 1fr;grid-template-rows:1fr 1fr;gap:4px;height:calc(100% - 30px);">
+              <div
+                style="border:1px solid var(--border-light);padding:6px 8px;background:var(--brand-blue-light);border-top:2px solid var(--brand-blue);">
+                <div style="font-size:6.5px;font-weight:700;color:var(--brand-blue);">明星业务</div>
+                <div style="font-size:5.5px;color:var(--text-secondary);margin-top:2px;">高增长 · 高份额</div>
+              </div>
+              <div style="border:1px solid var(--border-light);padding:6px 8px;">
+                <div style="font-size:6.5px;font-weight:700;color:var(--text-primary);">问题业务</div>
+                <div style="font-size:5.5px;color:var(--text-secondary);margin-top:2px;">高增长 · 低份额</div>
+              </div>
+              <div style="border:1px solid var(--border-light);padding:6px 8px;">
+                <div style="font-size:6.5px;font-weight:700;color:var(--text-primary);">现金牛</div>
+                <div style="font-size:5.5px;color:var(--text-secondary);margin-top:2px;">低增长 · 高份额</div>
+              </div>
+              <div style="border:1px solid var(--border-light);padding:6px 8px;background:var(--bg-secondary);">
+                <div style="font-size:6.5px;font-weight:700;color:var(--text-muted);">瘦狗业务</div>
+                <div style="font-size:5.5px;color:var(--text-muted);margin-top:2px;">低增长 · 低份额</div>
+              </div>
+            </div>
           </div>
         </div>
-        <div style="position:absolute;bottom:0;left:0;right:0;height:12px;border-top:1px solid rgba(255,255,255,0.08);display:flex;align-items:center;padding:0 14px;justify-content:space-between;">
-          <span style="font-size:5.5px;color:rgba(255,255,255,0.3);">示例公司</span>
-          <span style="font-size:5.5px;color:rgba(255,255,255,0.3);">2 / 4</span>
-        </div>
       </div>
-    </div>
 
-    <!-- 8. Ending Page -->
-    <div class="slide-wrap">
-      <div class="slide-label">⑧ Ending Page</div>
-      <div class="slide">
-        <div style="position:absolute;top:0;left:0;right:0;height:5px;background:#1A56DB;"></div>
-        <div style="position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px;padding:16px;">
-          <div style="font-size:14px;font-weight:800;color:var(--text-primary);">感谢聆听</div>
-          <div style="height:1px;width:60px;background:var(--border-light);"></div>
-          <div style="border-left:3px solid var(--brand-blue);background:var(--brand-blue-light);padding:6px 10px;width:100%;">
-            <div style="font-size:6px;color:var(--text-muted);">联系方式</div>
-            <div style="font-size:7px;color:var(--brand-blue);font-weight:600;">contact@example.com</div>
+      <!-- 5. SWOT -->
+      <div class="slide-wrap">
+        <div class="slide-label">⑤ SWOT Quadrants</div>
+        <div class="slide">
+          <div style="position:absolute;inset:0;padding:10px 12px;">
+            <div style="font-size:8px;font-weight:700;color:var(--text-primary);margin-bottom:6px;">
+              <span
+                style="display:inline-block;width:3px;height:0.9em;background:#1A56DB;margin-right:6px;vertical-align:middle;"></span>SWOT
+              分析
+            </div>
+            <div
+              style="display:grid;grid-template-columns:1fr 1fr;grid-template-rows:1fr 1fr;gap:4px;height:calc(100% - 30px);">
+              <div style="border-top:2px solid #0D7A4E;background:#E6F7F0;padding:5px 7px;">
+                <div style="font-size:7px;font-weight:800;color:#0D7A4E;">S 优势</div>
+                <div style="font-size:5.5px;color:var(--text-secondary);margin-top:2px;">· 品牌认知度高<br>· 技术壁垒深</div>
+              </div>
+              <div style="border-top:2px solid #C0392B;background:#FDECEA;padding:5px 7px;">
+                <div style="font-size:7px;font-weight:800;color:#C0392B;">W 劣势</div>
+                <div style="font-size:5.5px;color:var(--text-secondary);margin-top:2px;">· 人才储备不足<br>· 成本结构偏高</div>
+              </div>
+              <div style="border-top:2px solid #1A56DB;background:#EBF2FF;padding:5px 7px;">
+                <div style="font-size:7px;font-weight:800;color:#1A56DB;">O 机会</div>
+                <div style="font-size:5.5px;color:var(--text-secondary);margin-top:2px;">· 市场快速扩张<br>· 政策利好</div>
+              </div>
+              <div style="border-top:2px solid #92600A;background:#FEF3E2;padding:5px 7px;">
+                <div style="font-size:7px;font-weight:800;color:#92600A;">T 威胁</div>
+                <div style="font-size:5.5px;color:var(--text-secondary);margin-top:2px;">· 竞争加剧<br>· 监管趋严</div>
+              </div>
+            </div>
           </div>
         </div>
-        <div style="position:absolute;bottom:0;left:0;right:0;height:12px;border-top:1px solid var(--border-light);display:flex;align-items:center;padding:0 14px;justify-content:space-between;">
-          <span style="font-size:5.5px;color:var(--text-muted);">示例公司 · 2025</span>
-          <span style="font-size:5.5px;color:var(--text-muted);">保密文件</span>
+      </div>
+
+      <!-- 6. Financial Waterfall Page -->
+      <div class="slide-wrap">
+        <div class="slide-label">⑥ Financial Waterfall</div>
+        <div class="slide">
+          <div style="position:absolute;inset:0;padding:10px 12px;display:flex;gap:8px;">
+            <div style="flex:1;display:flex;flex-direction:column;gap:4px;">
+              <div style="font-size:8px;font-weight:700;color:var(--text-primary);">
+                <span
+                  style="display:inline-block;width:3px;height:0.9em;background:#1A56DB;margin-right:6px;vertical-align:middle;"></span>收入结构拆解
+              </div>
+              <div
+                style="flex:1;background:var(--bg-secondary);border:1px solid var(--border-light);border-radius:2px;display:flex;align-items:flex-end;padding:6px;gap:4px;">
+                <div style="flex:1;display:flex;flex-direction:column;align-items:center;gap:2px;">
+                  <div style="width:100%;height:60px;background:#1A56DB;border-radius:1px;"></div>
+                  <div style="font-size:5px;color:var(--text-muted);">基础</div>
+                </div>
+                <div style="flex:1;display:flex;flex-direction:column;align-items:center;gap:2px;">
+                  <div style="width:100%;height:20px;background:#0D7A4E;border-radius:1px;"></div>
+                  <div style="font-size:5px;color:var(--text-muted);">+新品</div>
+                </div>
+                <div style="flex:1;display:flex;flex-direction:column;align-items:center;gap:2px;">
+                  <div style="width:100%;height:10px;background:#C0392B;border-radius:1px;"></div>
+                  <div style="font-size:5px;color:var(--text-muted);">-流失</div>
+                </div>
+                <div style="flex:1;display:flex;flex-direction:column;align-items:center;gap:2px;">
+                  <div style="width:100%;height:70px;background:#1A56DB;border-radius:1px;opacity:0.7;"></div>
+                  <div style="font-size:5px;color:var(--text-muted);">合计</div>
+                </div>
+              </div>
+            </div>
+            <div style="width:60px;display:flex;flex-direction:column;gap:4px;justify-content:center;">
+              <div
+                style="background:var(--bg-secondary);border-top:2px solid var(--brand-blue);border-radius:2px;padding:4px 5px;">
+                <div style="font-size:10px;font-weight:800;color:var(--brand-blue);">¥2.4亿</div>
+                <div style="font-size:5px;color:var(--text-muted);">总收入</div>
+              </div>
+              <div
+                style="background:var(--bg-secondary);border-top:2px solid var(--status-up);border-radius:2px;padding:4px 5px;">
+                <div style="font-size:10px;font-weight:800;color:var(--status-up);">+18%</div>
+                <div style="font-size:5px;color:var(--text-muted);">同比</div>
+              </div>
+            </div>
+          </div>
         </div>
       </div>
-    </div>
 
+      <!-- 7. Section Page -->
+      <div class="slide-wrap">
+        <div class="slide-label">⑦ Section Page</div>
+        <div class="slide" style="background:#141820;">
+          <div style="position:absolute;top:0;left:0;right:0;height:3px;background:#1A56DB;"></div>
+          <div
+            style="position:absolute;right:10px;bottom:-5px;font-size:70px;font-weight:900;color:rgba(255,255,255,0.04);letter-spacing:-0.05em;line-height:1;">
+            02</div>
+          <div style="position:absolute;inset:0;display:flex;align-items:center;padding:0 20px;">
+            <div>
+              <div style="font-size:20px;font-weight:900;color:#1A56DB;line-height:1;">02</div>
+              <div style="height:2px;width:30px;background:#1A56DB;margin:6px 0;"></div>
+              <div style="font-size:14px;font-weight:700;color:#FFFFFF;">市场分析</div>
+              <div style="font-size:6.5px;color:rgba(255,255,255,0.4);margin-top:4px;">Market Analysis</div>
+            </div>
+          </div>
+          <div
+            style="position:absolute;bottom:0;left:0;right:0;height:12px;border-top:1px solid rgba(255,255,255,0.08);display:flex;align-items:center;padding:0 14px;justify-content:space-between;">
+            <span style="font-size:5.5px;color:rgba(255,255,255,0.3);">示例公司</span>
+            <span style="font-size:5.5px;color:rgba(255,255,255,0.3);">2 / 4</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- 8. Ending Page -->
+      <div class="slide-wrap">
+        <div class="slide-label">⑧ Ending Page</div>
+        <div class="slide">
+          <div style="position:absolute;top:0;left:0;right:0;height:5px;background:#1A56DB;"></div>
+          <div
+            style="position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px;padding:16px;">
+            <div style="font-size:14px;font-weight:800;color:var(--text-primary);">感谢聆听</div>
+            <div style="height:1px;width:60px;background:var(--border-light);"></div>
+            <div
+              style="border-left:3px solid var(--brand-blue);background:var(--brand-blue-light);padding:6px 10px;width:100%;">
+              <div style="font-size:6px;color:var(--text-muted);">联系方式</div>
+              <div style="font-size:7px;color:var(--brand-blue);font-weight:600;">contact@example.com</div>
+            </div>
+          </div>
+          <div
+            style="position:absolute;bottom:0;left:0;right:0;height:12px;border-top:1px solid var(--border-light);display:flex;align-items:center;padding:0 14px;justify-content:space-between;">
+            <span style="font-size:5.5px;color:var(--text-muted);">示例公司 · 2025</span>
+            <span style="font-size:5.5px;color:var(--text-muted);">保密文件</span>
+          </div>
+        </div>
+      </div>
+
+    </div>
   </div>
-</div>
 
-<!-- Component Showcase -->
-<div class="section">
-  <div class="section-label">Core Components</div>
-  <div class="components">
-    <!-- KPI card -->
-    <div style="background:var(--bg-secondary);border-top:3px solid var(--brand-blue);border-radius:4px;padding:20px 24px;min-width:150px;box-shadow:0 1px 3px rgba(0,0,0,0.06);">
-      <div style="font-size:11px;color:var(--text-muted);margin-bottom:6px;">营业收入</div>
-      <div style="font-size:36px;font-weight:800;color:var(--brand-blue);line-height:1;">¥2.4亿</div>
-      <div style="font-size:13px;color:var(--status-up);margin-top:4px;">↑ +18.3% 同比</div>
-    </div>
-    <!-- Badges -->
-    <div style="display:flex;flex-direction:column;gap:8px;">
-      <span style="display:inline-block;font-size:13px;font-weight:700;padding:4px 12px;border-radius:4px;background:#E6F7F0;color:#0D7A4E;">↑ 增长</span>
-      <span style="display:inline-block;font-size:13px;font-weight:700;padding:4px 12px;border-radius:4px;background:#FDECEA;color:#C0392B;">↓ 下降</span>
-      <span style="display:inline-block;font-size:13px;font-weight:700;padding:4px 12px;border-radius:4px;background:#FEF3E2;color:#92600A;">→ 持平</span>
-      <span style="display:inline-block;font-size:13px;font-weight:700;padding:4px 12px;border-radius:4px;background:var(--brand-blue-light);color:var(--brand-blue);">重点关注</span>
-    </div>
-    <!-- Quote block -->
-    <div style="border-left:5px solid var(--brand-blue);background:var(--brand-blue-light);padding:14px 18px;border-radius:0 4px 4px 0;max-width:240px;">
-      <div style="font-size:14px;color:var(--text-secondary);font-style:italic;line-height:1.6;">"2025年是战略转型的关键之年，我们将聚焦核心业务，加速数字化升级。"</div>
-    </div>
-    <!-- Progress bars -->
-    <div style="display:flex;flex-direction:column;gap:10px;min-width:180px;">
-      <div>
-        <div style="display:flex;justify-content:space-between;margin-bottom:4px;">
-          <span style="font-size:12px;color:var(--text-secondary);">目标完成率</span>
-          <span style="font-size:12px;font-weight:700;color:var(--brand-blue);">87%</span>
-        </div>
-        <div style="height:8px;background:var(--border-light);border-radius:4px;overflow:hidden;">
-          <div style="width:87%;height:100%;background:var(--brand-blue);border-radius:4px;"></div>
-        </div>
+  <!-- Component Showcase -->
+  <div class="section">
+    <div class="section-label">Core Components</div>
+    <div class="components">
+      <!-- KPI card -->
+      <div
+        style="background:var(--bg-secondary);border-top:3px solid var(--brand-blue);border-radius:4px;padding:20px 24px;min-width:150px;box-shadow:0 1px 3px rgba(0,0,0,0.06);">
+        <div style="font-size:11px;color:var(--text-muted);margin-bottom:6px;">营业收入</div>
+        <div style="font-size:36px;font-weight:800;color:var(--brand-blue);line-height:1;">¥2.4亿</div>
+        <div style="font-size:13px;color:var(--status-up);margin-top:4px;">↑ +18.3% 同比</div>
       </div>
-      <div>
-        <div style="display:flex;justify-content:space-between;margin-bottom:4px;">
-          <span style="font-size:12px;color:var(--text-secondary);">客户留存</span>
-          <span style="font-size:12px;font-weight:700;color:var(--status-up);">92%</span>
+      <!-- Badges -->
+      <div style="display:flex;flex-direction:column;gap:8px;">
+        <span
+          style="display:inline-block;font-size:13px;font-weight:700;padding:4px 12px;border-radius:4px;background:#E6F7F0;color:#0D7A4E;">↑
+          增长</span>
+        <span
+          style="display:inline-block;font-size:13px;font-weight:700;padding:4px 12px;border-radius:4px;background:#FDECEA;color:#C0392B;">↓
+          下降</span>
+        <span
+          style="display:inline-block;font-size:13px;font-weight:700;padding:4px 12px;border-radius:4px;background:#FEF3E2;color:#92600A;">→
+          持平</span>
+        <span
+          style="display:inline-block;font-size:13px;font-weight:700;padding:4px 12px;border-radius:4px;background:var(--brand-blue-light);color:var(--brand-blue);">重点关注</span>
+      </div>
+      <!-- Quote block -->
+      <div
+        style="border-left:5px solid var(--brand-blue);background:var(--brand-blue-light);padding:14px 18px;border-radius:0 4px 4px 0;max-width:240px;">
+        <div style="font-size:14px;color:var(--text-secondary);font-style:italic;line-height:1.6;">
+          "2025年是战略转型的关键之年，我们将聚焦核心业务，加速数字化升级。"</div>
+      </div>
+      <!-- Progress bars -->
+      <div style="display:flex;flex-direction:column;gap:10px;min-width:180px;">
+        <div>
+          <div style="display:flex;justify-content:space-between;margin-bottom:4px;">
+            <span style="font-size:12px;color:var(--text-secondary);">目标完成率</span>
+            <span style="font-size:12px;font-weight:700;color:var(--brand-blue);">87%</span>
+          </div>
+          <div style="height:8px;background:var(--border-light);border-radius:4px;overflow:hidden;">
+            <div style="width:87%;height:100%;background:var(--brand-blue);border-radius:4px;"></div>
+          </div>
         </div>
-        <div style="height:8px;background:var(--border-light);border-radius:4px;overflow:hidden;">
-          <div style="width:92%;height:100%;background:var(--status-up);border-radius:4px;"></div>
+        <div>
+          <div style="display:flex;justify-content:space-between;margin-bottom:4px;">
+            <span style="font-size:12px;color:var(--text-secondary);">客户留存</span>
+            <span style="font-size:12px;font-weight:700;color:var(--status-up);">92%</span>
+          </div>
+          <div style="height:8px;background:var(--border-light);border-radius:4px;overflow:hidden;">
+            <div style="width:92%;height:100%;background:var(--status-up);border-radius:4px;"></div>
+          </div>
         </div>
       </div>
     </div>
   </div>
-</div>
 
 </body>
+
 </html>

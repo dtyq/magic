@@ -10,24 +10,32 @@
   <link rel="stylesheet" href="theme.css" />
   <style>
     /* ── Preview page base styles ── */
+    html,
+    body {
+      width: auto;
+      height: auto;
+      min-height: 100%;
+      overflow: visible;
+    }
+
     body {
       font-family: 'EB Garamond', 'Noto Serif SC', serif;
-      background: #EDE0CC;
+      background: #E8ECF0;
       margin: 0;
-      padding: 48px 56px 64px;
+      padding: 40px;
       color: #3D2914;
     }
 
     /* Header area */
     .preview-header {
       margin-bottom: 40px;
-      border-bottom: 1px solid rgba(201, 162, 39, 0.35);
-      padding-bottom: 28px;
+      border-bottom: 0;
+      padding-bottom: 0;
     }
 
     .preview-title {
       font-family: 'Playfair Display', serif;
-      font-size: 38px;
+      font-size: 28px;
       font-weight: 700;
       color: #3D2914;
       margin: 0 0 8px;
@@ -38,7 +46,7 @@
     }
 
     .preview-subtitle {
-      font-size: 16px;
+      font-size: 15px;
       color: #6B4423;
       font-style: italic;
     }
@@ -56,53 +64,59 @@
 
     /* Section labels */
     .section {
-      margin-bottom: 36px;
+      margin-bottom: 40px;
     }
 
     .section-label {
-      font-family: 'EB Garamond', serif;
-      font-style: italic;
+      font-family: 'Noto Serif SC', serif;
+      font-style: normal;
       font-size: 13px;
       font-weight: 600;
-      color: #C9A227;
+      color: #64748B;
       text-transform: uppercase;
-      letter-spacing: 0.18em;
-      border-left: 3px solid #C9A227;
-      padding-left: 10px;
-      margin-bottom: 18px;
+      letter-spacing: 0.1em;
+      border-left: 0;
+      padding-left: 0;
+      margin: 40px 0 16px;
     }
 
     /* Color swatches */
     .swatches {
       display: flex;
       flex-wrap: wrap;
-      gap: 14px;
-      align-items: flex-end;
+      gap: 12px;
+      align-items: flex-start;
+      margin-bottom: 32px;
     }
 
     .swatch-item {
+      width: 80px;
       display: flex;
       flex-direction: column;
-      align-items: center;
-      gap: 5px;
+      align-items: flex-start;
+      gap: 0;
     }
 
     .swatch {
-      width: 56px;
-      height: 56px;
+      width: 80px;
+      height: 52px;
       border-radius: 3px;
       border: 1px solid rgba(61, 41, 20, 0.2);
+      margin-bottom: 6px;
     }
 
     .swatch-hex {
+      order: 3;
       font-size: 11px;
-      color: #6B4423;
+      color: #9C7A5A;
       font-family: monospace;
     }
 
     .swatch-name {
+      order: 2;
       font-size: 11px;
-      color: #9C7A5A;
+      color: #6B4423;
+      font-weight: 600;
     }
 
     .swatch-sep {
@@ -117,25 +131,36 @@
     .slides-grid {
       display: grid;
       grid-template-columns: repeat(4, 1fr);
-      gap: 18px;
+      gap: 20px;
+      margin-bottom: 40px;
     }
 
     .slide-wrap {
       min-width: 0;
+      position: relative;
       overflow: hidden;
     }
 
     .slide-label {
-      font-size: 11px;
-      color: #9C7A5A;
-      margin-bottom: 7px;
+      position: absolute;
+      bottom: 8px;
+      left: 0;
+      right: 0;
+      z-index: 5;
+      text-align: center;
+      font-size: 10px;
+      font-weight: 600;
+      color: #6B4423;
+      background: rgba(245, 230, 211, 0.9);
+      padding: 3px 0;
       text-transform: uppercase;
-      letter-spacing: 0.07em;
+      letter-spacing: 0.06em;
       font-style: italic;
     }
 
     .slide {
       width: 100%;
+      height: auto;
       aspect-ratio: 16/9;
       position: relative;
       overflow: hidden;

@@ -1,389 +1,654 @@
 <!DOCTYPE html>
 <html lang="zh">
+
 <head>
-<meta charset="utf-8"/>
-<title>Late-Night Code Studio — Template Preview v2</title>
-<link rel="stylesheet" href="theme.css"/>
-<style>
-body {
-  font-family: 'Segoe UI','PingFang SC','Microsoft YaHei',sans-serif;
-  background: #04070F;
-  margin: 0; padding: 40px;
-  color: var(--text-primary);
-}
-.preview-header { margin-bottom: 36px; }
-.preview-title {
-  font-size: 40px; font-weight: 900; margin: 0 0 8px;
-  background: var(--grad-cyan-blue);
-  -webkit-background-clip: text; -webkit-text-fill-color: transparent;
-}
-.preview-subtitle { font-size: 16px; color: var(--text-secondary); }
-.section { margin-bottom: 32px; }
-.section-label {
-  font-size: 13px; font-weight: 700; color: var(--neon-cyan);
-  text-transform: uppercase; letter-spacing: 0.1em;
-  border-left: 3px solid var(--neon-cyan); padding-left: 10px;
-  margin-bottom: 16px;
-}
-/* Swatches */
-.swatches { display: flex; flex-wrap: wrap; gap: 12px; }
-.swatch-item { display: flex; flex-direction: column; align-items: center; gap: 4px; }
-.swatch { width: 56px; height: 56px; border-radius: 8px; border: 1px solid var(--border-subtle); }
-.swatch-hex { font-size: 11px; color: var(--text-secondary); font-family: monospace; }
-.swatch-name { font-size: 11px; color: var(--text-muted); }
-/* Slide thumbnails */
-.slides-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; }
-.slide-wrap { min-width: 0; overflow: hidden; }
-.slide-label { font-size: 11px; color: var(--text-muted); margin-bottom: 6px;
-  text-transform: uppercase; letter-spacing: 0.06em; }
-.slide { width: 100%; aspect-ratio: 16/9; position: relative; overflow: hidden;
-  border-radius: 8px; border: 1px solid var(--border-subtle);
-  background: var(--bg-base); box-sizing: border-box; }
-/* Component showcase */
-.components { display: flex; flex-wrap: wrap; gap: 16px; align-items: flex-start; }
-</style>
+  <meta charset="utf-8" />
+  <title>Late-Night Code Studio — Template Preview v2</title>
+  <link rel="stylesheet" href="theme.css" />
+  <style>
+    html,
+    body {
+      width: auto;
+      height: auto;
+      min-height: 100%;
+      overflow: visible;
+    }
+
+    body {
+      font-family: 'Inter', 'Noto Sans SC', 'Segoe UI', sans-serif;
+      background: #04070F;
+      margin: 0;
+      padding: 40px;
+      color: var(--text-primary);
+    }
+
+    .preview-header {
+      margin-bottom: 40px;
+    }
+
+    .preview-title {
+      font-size: 28px;
+      font-weight: 900;
+      margin: 0 0 8px;
+      background: var(--grad-cyan-blue);
+      background-clip: text;
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+
+    .preview-subtitle {
+      font-size: 15px;
+      color: var(--text-secondary);
+    }
+
+    .section {
+      margin-bottom: 40px;
+    }
+
+    .section-label {
+      font-size: 13px;
+      font-weight: 600;
+      color: var(--text-secondary);
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      border-left: 0;
+      padding-left: 0;
+      margin: 40px 0 16px;
+    }
+
+    /* Swatches */
+    .swatches {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 12px;
+      margin-bottom: 32px;
+    }
+
+    .swatch-item {
+      width: 80px;
+      display: flex;
+      flex-direction: column;
+      align-items: flex-start;
+      gap: 0;
+    }
+
+    .swatch {
+      width: 80px;
+      height: 52px;
+      border-radius: 6px;
+      border: 1px solid var(--border-subtle);
+      margin-bottom: 6px;
+    }
+
+    .swatch-name {
+      order: 2;
+      font-size: 11px;
+      font-weight: 600;
+      color: var(--text-secondary);
+    }
+
+    .swatch-hex {
+      order: 3;
+      font-size: 11px;
+      color: var(--text-muted);
+      font-family: monospace;
+    }
+
+    /* Slide thumbnails */
+    .slides-grid {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 20px;
+      margin-bottom: 40px;
+    }
+
+    .slide-wrap {
+      min-width: 0;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .slide-label {
+      position: absolute;
+      bottom: 8px;
+      left: 0;
+      right: 0;
+      z-index: 5;
+      text-align: center;
+      font-size: 10px;
+      font-weight: 600;
+      color: var(--text-secondary);
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      background: rgba(7, 11, 20, 0.82);
+      padding: 3px 0;
+    }
+
+    .slide {
+      width: 100%;
+      height: auto;
+      aspect-ratio: 16/9;
+      position: relative;
+      overflow: hidden;
+      border-radius: 8px;
+      border: 1px solid var(--border-subtle);
+      background: var(--bg-base);
+      box-sizing: border-box;
+    }
+
+    /* Component showcase */
+    .components {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 16px;
+      align-items: flex-start;
+    }
+  </style>
 </head>
+
 <body>
 
-<!-- Header -->
-<div class="preview-header">
-  <div class="preview-title">Tech Dark</div>
-  <div class="preview-subtitle">For technical talks · product launches · AI/internet presentations · architecture reviews · system design</div>
-</div>
-
-<!-- Color system -->
-<div class="section">
-  <div class="section-label">Color System</div>
-  <div class="swatches">
-    <div class="swatch-item"><span class="swatch" style="background:#070B14;"></span><span class="swatch-hex">#070B14</span><span class="swatch-name">Base</span></div>
-    <div class="swatch-item"><span class="swatch" style="background:#0D1525;"></span><span class="swatch-hex">#0D1525</span><span class="swatch-name">Panel</span></div>
-    <div class="swatch-item"><span class="swatch" style="background:#162035;"></span><span class="swatch-hex">#162035</span><span class="swatch-name">Highlight</span></div>
-    <div class="swatch-item"><span class="swatch" style="background:#1E2D47;"></span><span class="swatch-hex">#1E2D47</span><span class="swatch-name">Overlay</span></div>
-    <div class="swatch-item"><span class="swatch" style="background:#EDF2FA;"></span><span class="swatch-hex">#EDF2FA</span><span class="swatch-name">Primary Text</span></div>
-    <div class="swatch-item"><span class="swatch" style="background:#7B90B2;"></span><span class="swatch-hex">#7B90B2</span><span class="swatch-name">Secondary Text</span></div>
-    <div style="width:1px;background:var(--border-subtle);margin:0 4px;"></div>
-    <div class="swatch-item"><span class="swatch" style="background:#00E5FF;box-shadow:0 0 14px rgba(0,229,255,0.7);"></span><span class="swatch-hex">#00E5FF</span><span class="swatch-name">Electric Cyan</span></div>
-    <div class="swatch-item"><span class="swatch" style="background:#4D8EFF;box-shadow:0 0 12px rgba(77,142,255,0.6);"></span><span class="swatch-hex">#4D8EFF</span><span class="swatch-name">Tech Blue</span></div>
-    <div class="swatch-item"><span class="swatch" style="background:#9B6FFF;box-shadow:0 0 12px rgba(155,111,255,0.5);"></span><span class="swatch-hex">#9B6FFF</span><span class="swatch-name">Quantum Purple</span></div>
-    <div class="swatch-item"><span class="swatch" style="background:#00E5A0;box-shadow:0 0 12px rgba(0,229,160,0.5);"></span><span class="swatch-hex">#00E5A0</span><span class="swatch-name">Emerald Green</span></div>
-    <div class="swatch-item"><span class="swatch" style="background:#FF8C42;"></span><span class="swatch-hex">#FF8C42</span><span class="swatch-name">Tech Orange</span></div>
-    <div class="swatch-item"><span class="swatch" style="background:#FF4D6D;"></span><span class="swatch-hex">#FF4D6D</span><span class="swatch-name">Alert Red</span></div>
+  <!-- Header -->
+  <div class="preview-header">
+    <div class="preview-title">Tech Dark</div>
+    <div class="preview-subtitle">For technical talks · product launches · AI/internet presentations · architecture
+      reviews · system design</div>
   </div>
-</div>
 
-<!-- Layout page preview -->
-<div class="section">
-  <div class="section-label">8 Dedicated Layout Pages</div>
-  <div class="slides-grid">
-
-    <!-- 1. Cover page -->
-    <div class="slide-wrap">
-      <div class="slide-label">① Cover</div>
-      <div class="slide">
-        <!-- Grid texture -->
-        <div style="position:absolute;inset:0;background-image:linear-gradient(rgba(0,229,255,0.03) 1px,transparent 1px),linear-gradient(90deg,rgba(0,229,255,0.03) 1px,transparent 1px);background-size:24px 24px;"></div>
-        <!-- Glows -->
-        <div style="position:absolute;top:-30px;left:-30px;width:200px;height:200px;border-radius:50%;background:radial-gradient(ellipse,rgba(0,229,255,0.12),transparent 70%);"></div>
-        <div style="position:absolute;bottom:-40px;right:-20px;width:150px;height:150px;border-radius:50%;background:radial-gradient(ellipse,rgba(155,111,255,0.10),transparent 70%);"></div>
-        <!-- Corner ornaments -->
-        <div style="position:absolute;top:0;left:0;width:28px;height:28px;border-top:2px solid #00E5FF;border-left:2px solid #00E5FF;"></div>
-        <div style="position:absolute;top:0;right:0;width:28px;height:28px;border-top:2px solid #00E5FF;border-right:2px solid #00E5FF;"></div>
-        <div style="position:absolute;bottom:0;left:0;width:28px;height:28px;border-bottom:2px solid rgba(0,229,255,0.4);border-left:2px solid rgba(0,229,255,0.4);"></div>
-        <div style="position:absolute;bottom:0;right:0;width:28px;height:28px;border-bottom:2px solid rgba(0,229,255,0.4);border-right:2px solid rgba(0,229,255,0.4);"></div>
-        <!-- Content -->
-        <div style="position:absolute;inset:0;display:flex;align-items:center;padding:16px 20px;">
-          <div style="flex:1;">
-            <div style="font-size:9px;color:var(--neon-cyan);letter-spacing:0.1em;text-transform:uppercase;margin-bottom:6px;">AI SUMMIT 2025</div>
-            <div style="font-size:16px;font-weight:900;background:linear-gradient(135deg,#00E5FF,#4D8EFF);-webkit-background-clip:text;-webkit-text-fill-color:transparent;line-height:1.1;margin-bottom:6px;">大模型时代的<br>系统架构演进</div>
-            <div style="height:1px;background:linear-gradient(90deg,transparent,#00E5FF,transparent);margin:6px 0;"></div>
-            <div style="font-size:7px;color:var(--text-secondary);">演讲者 · 技术架构师</div>
-          </div>
-          <div style="width:80px;height:80px;border-radius:50%;border:1px solid var(--border-glow);display:flex;align-items:center;justify-content:center;background:var(--bg-elevated);margin-left:12px;flex-shrink:0;">
-            <div style="width:40px;height:40px;border-radius:50%;background:var(--grad-cyan-blue);opacity:0.6;"></div>
-          </div>
-        </div>
-        <!-- Bottom status bar -->
-        <div style="position:absolute;bottom:0;left:0;right:0;height:14px;background:var(--bg-surface);border-top:1px solid var(--border-subtle);display:flex;align-items:center;padding:0 12px;justify-content:space-between;">
-          <span style="font-size:6px;color:var(--text-muted);">示例公司 · v2.0</span>
-          <span style="font-size:6px;color:var(--text-muted);">01 / 12</span>
-        </div>
-      </div>
-    </div>
-
-    <!-- 2. System architecture page -->
-    <div class="slide-wrap">
-      <div class="slide-label">② Architecture</div>
-      <div class="slide">
-        <div style="position:absolute;inset:0;background-image:linear-gradient(rgba(0,229,255,0.025) 1px,transparent 1px),linear-gradient(90deg,rgba(0,229,255,0.025) 1px,transparent 1px);background-size:20px 20px;"></div>
-        <div style="position:absolute;inset:0;padding:10px 12px;display:flex;flex-direction:column;gap:5px;">
-          <div style="font-size:9px;font-weight:700;color:var(--neon-cyan);margin-bottom:2px;">系统架构图</div>
-          <!-- Frontend layer -->
-          <div style="display:flex;gap:4px;">
-            <div style="flex:1;background:rgba(0,229,255,0.08);border:1px solid rgba(0,229,255,0.3);border-radius:3px;padding:3px 5px;text-align:center;font-size:6px;color:var(--neon-cyan);">Web App</div>
-            <div style="flex:1;background:rgba(0,229,255,0.08);border:1px solid rgba(0,229,255,0.3);border-radius:3px;padding:3px 5px;text-align:center;font-size:6px;color:var(--neon-cyan);">Mobile</div>
-            <div style="flex:1;background:rgba(0,229,255,0.08);border:1px solid rgba(0,229,255,0.3);border-radius:3px;padding:3px 5px;text-align:center;font-size:6px;color:var(--neon-cyan);">CLI</div>
-          </div>
-          <div style="text-align:center;font-size:7px;color:var(--text-muted);">↓</div>
-          <!-- API layer -->
-          <div style="background:rgba(77,142,255,0.08);border:1px solid rgba(77,142,255,0.3);border-radius:3px;padding:3px 8px;text-align:center;font-size:6px;color:var(--neon-blue);">API Gateway · Load Balancer</div>
-          <div style="text-align:center;font-size:7px;color:var(--text-muted);">↓</div>
-          <!-- Service layer -->
-          <div style="display:flex;gap:4px;">
-            <div style="flex:1;background:rgba(155,111,255,0.08);border:1px solid rgba(155,111,255,0.3);border-radius:3px;padding:3px 5px;text-align:center;font-size:6px;color:var(--neon-purple);">Auth</div>
-            <div style="flex:1;background:rgba(155,111,255,0.08);border:1px solid rgba(155,111,255,0.3);border-radius:3px;padding:3px 5px;text-align:center;font-size:6px;color:var(--neon-purple);">Core</div>
-            <div style="flex:1;background:rgba(155,111,255,0.08);border:1px solid rgba(155,111,255,0.3);border-radius:3px;padding:3px 5px;text-align:center;font-size:6px;color:var(--neon-purple);">AI</div>
-          </div>
-          <div style="text-align:center;font-size:7px;color:var(--text-muted);">↓</div>
-          <!-- Data layer -->
-          <div style="display:flex;gap:4px;">
-            <div style="flex:1;background:rgba(0,229,160,0.08);border:1px solid rgba(0,229,160,0.3);border-radius:3px;padding:3px 5px;text-align:center;font-size:6px;color:var(--neon-green);">PostgreSQL</div>
-            <div style="flex:1;background:rgba(0,229,160,0.08);border:1px solid rgba(0,229,160,0.3);border-radius:3px;padding:3px 5px;text-align:center;font-size:6px;color:var(--neon-green);">Redis</div>
-            <div style="flex:1;background:rgba(0,229,160,0.08);border:1px solid rgba(0,229,160,0.3);border-radius:3px;padding:3px 5px;text-align:center;font-size:6px;color:var(--neon-green);">S3</div>
-          </div>
-        </div>
-      </div>
-    </div>
-
-    <!-- 3. Code demo page -->
-    <div class="slide-wrap">
-      <div class="slide-label">③ Code Demo</div>
-      <div class="slide">
-        <div style="position:absolute;inset:0;background:var(--bg-base);display:flex;gap:8px;padding:10px;">
-          <!-- Left code panel -->
-          <div style="flex:3;background:#060A12;border:1px solid var(--border-subtle);border-radius:5px;padding:8px;overflow:hidden;">
-            <div style="font-size:5.5px;color:var(--text-muted);margin-bottom:5px;font-family:monospace;">src/api/inference.ts</div>
-            <div style="font-size:5.5px;font-family:monospace;line-height:1.7;color:var(--text-secondary);">
-              <span style="color:#3D5070;">1 </span><span style="color:#9B6FFF;">async function</span> <span style="color:#4D8EFF;">runInference</span>(<br>
-              <span style="color:#3D5070;">2 </span>&nbsp;&nbsp;<span style="color:#EDF2FA;">model</span>: <span style="color:#00E5A0;">string</span>,<br>
-              <span style="color:#3D5070;">3 </span>&nbsp;&nbsp;<span style="color:#EDF2FA;">input</span>: <span style="color:#00E5A0;">Tensor</span><br>
-              <span style="color:#3D5070;">4 </span>) {<br>
-              <span style="color:#3D5070;">5 </span>&nbsp;&nbsp;<span style="color:#9B6FFF;">const</span> <span style="color:#EDF2FA;">result</span> = <span style="color:#9B6FFF;">await</span><br>
-              <span style="color:#3D5070;">6 </span>&nbsp;&nbsp;&nbsp;&nbsp;<span style="color:#4D8EFF;">engine</span>.<span style="color:#4D8EFF;">predict</span>({<br>
-              <span style="color:#3D5070;">7 </span>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span style="color:#EDF2FA;">model</span>, <span style="color:#EDF2FA;">input</span><br>
-              <span style="color:#3D5070;">8 </span>&nbsp;&nbsp;&nbsp;&nbsp;});<br>
-              <span style="color:#3D5070;">9 </span>&nbsp;&nbsp;<span style="color:#9B6FFF;">return</span> <span style="color:#EDF2FA;">result</span>;<br>
-              <span style="color:#3D5070;">10</span> }
-            </div>
-          </div>
-          <!-- Right notes -->
-          <div style="flex:2;display:flex;flex-direction:column;gap:5px;">
-            <div style="font-size:7px;font-weight:700;color:var(--neon-cyan);">关键特性</div>
-            <div style="background:var(--bg-elevated);border:1px solid var(--border-glow);border-radius:4px;padding:5px 6px;">
-              <div style="font-size:5.5px;color:var(--neon-cyan);font-weight:700;">① 异步推理</div>
-              <div style="font-size:5px;color:var(--text-secondary);">非阻塞执行，支持并发</div>
-            </div>
-            <div style="background:var(--bg-elevated);border:1px solid var(--border-subtle);border-radius:4px;padding:5px 6px;">
-              <div style="font-size:5.5px;color:var(--neon-blue);font-weight:700;">② 类型安全</div>
-              <div style="font-size:5px;color:var(--text-secondary);">TypeScript 全覆盖</div>
-            </div>
-            <div style="background:var(--bg-elevated);border:1px solid var(--border-subtle);border-radius:4px;padding:5px 6px;">
-              <div style="font-size:5.5px;color:var(--neon-purple);font-weight:700;">③ 统一接口</div>
-              <div style="font-size:5px;color:var(--text-secondary);">多模型适配器模式</div>
-            </div>
-          </div>
-        </div>
-      </div>
-    </div>
-
-    <!-- 4. Benchmark page -->
-    <div class="slide-wrap">
-      <div class="slide-label">④ Benchmark</div>
-      <div class="slide">
-        <div style="position:absolute;inset:0;padding:10px 12px;">
-          <div style="font-size:9px;font-weight:700;color:var(--neon-cyan);margin-bottom:8px;">性能对比测试</div>
-          <div style="display:flex;flex-direction:column;gap:5px;">
-            <div style="display:flex;align-items:center;gap:6px;">
-              <span style="font-size:6px;color:var(--text-secondary);width:40px;text-align:right;flex-shrink:0;">吞吐量</span>
-              <div style="flex:1;height:6px;background:rgba(255,255,255,0.06);border-radius:3px;overflow:hidden;">
-                <div style="width:85%;height:100%;background:linear-gradient(90deg,#00E5FF,#4D8EFF);box-shadow:0 0 8px rgba(0,229,255,0.5);border-radius:3px;"></div>
-              </div>
-              <span style="font-size:6px;color:var(--neon-cyan);width:20px;">85%</span>
-            </div>
-            <div style="display:flex;align-items:center;gap:6px;">
-              <span style="font-size:6px;color:var(--text-secondary);width:40px;text-align:right;flex-shrink:0;">延迟</span>
-              <div style="flex:1;height:6px;background:rgba(255,255,255,0.06);border-radius:3px;overflow:hidden;">
-                <div style="width:60%;height:100%;background:rgba(255,255,255,0.15);border-radius:3px;"></div>
-              </div>
-              <span style="font-size:6px;color:var(--text-muted);width:20px;">60%</span>
-            </div>
-            <div style="display:flex;align-items:center;gap:6px;">
-              <span style="font-size:6px;color:var(--text-secondary);width:40px;text-align:right;flex-shrink:0;">内存</span>
-              <div style="flex:1;height:6px;background:rgba(255,255,255,0.06);border-radius:3px;overflow:hidden;">
-                <div style="width:72%;height:100%;background:linear-gradient(90deg,#4D8EFF,#9B6FFF);box-shadow:0 0 8px rgba(77,142,255,0.5);border-radius:3px;"></div>
-              </div>
-              <span style="font-size:6px;color:var(--neon-blue);width:20px;">72%</span>
-            </div>
-            <div style="display:flex;align-items:center;gap:6px;">
-              <span style="font-size:6px;color:var(--text-secondary);width:40px;text-align:right;flex-shrink:0;">准确率</span>
-              <div style="flex:1;height:6px;background:rgba(255,255,255,0.06);border-radius:3px;overflow:hidden;">
-                <div style="width:92%;height:100%;background:linear-gradient(90deg,#00E5A0,#00E5FF);box-shadow:0 0 8px rgba(0,229,160,0.5);border-radius:3px;"></div>
-              </div>
-              <span style="font-size:6px;color:var(--neon-green);width:20px;">92%</span>
-            </div>
-          </div>
-          <div style="margin-top:8px;background:var(--bg-elevated);border:1px solid var(--border-glow);border-radius:4px;padding:5px 8px;">
-            <div style="font-size:6px;color:var(--neon-cyan);">✓ 综合性能领先基线 <span style="font-size:8px;font-weight:900;">37%</span></div>
-          </div>
-        </div>
-      </div>
-    </div>
-
-    <!-- 5. Dashboard page -->
-    <div class="slide-wrap">
-      <div class="slide-label">⑤ Dashboard</div>
-      <div class="slide">
-        <div style="position:absolute;inset:0;padding:10px 12px;display:flex;flex-direction:column;gap:6px;">
-          <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:5px;">
-            <div style="background:var(--bg-elevated);border:1px solid var(--border-glow);border-radius:4px;padding:5px 6px;position:relative;overflow:hidden;">
-              <div style="position:absolute;top:0;left:0;right:0;height:1.5px;background:linear-gradient(90deg,#00E5FF,#4D8EFF);"></div>
-              <div style="font-size:12px;font-weight:900;color:var(--neon-cyan);">98.7<span style="font-size:7px;">%</span></div>
-              <div style="font-size:5.5px;color:var(--text-muted);">可用率</div>
-            </div>
-            <div style="background:var(--bg-elevated);border:1px solid rgba(77,142,255,0.25);border-radius:4px;padding:5px 6px;position:relative;overflow:hidden;">
-              <div style="position:absolute;top:0;left:0;right:0;height:1.5px;background:linear-gradient(90deg,#4D8EFF,#9B6FFF);"></div>
-              <div style="font-size:12px;font-weight:900;color:var(--neon-blue);">2.4<span style="font-size:7px;">ms</span></div>
-              <div style="font-size:5.5px;color:var(--text-muted);">P99延迟</div>
-            </div>
-            <div style="background:var(--bg-elevated);border:1px solid rgba(0,229,160,0.25);border-radius:4px;padding:5px 6px;position:relative;overflow:hidden;">
-              <div style="position:absolute;top:0;left:0;right:0;height:1.5px;background:linear-gradient(90deg,#00E5A0,#00E5FF);"></div>
-              <div style="font-size:12px;font-weight:900;color:var(--neon-green);">1.2<span style="font-size:7px;">M</span></div>
-              <div style="font-size:5.5px;color:var(--text-muted);">日请求量</div>
-            </div>
-            <div style="background:var(--bg-elevated);border:1px solid rgba(155,111,255,0.25);border-radius:4px;padding:5px 6px;position:relative;overflow:hidden;">
-              <div style="position:absolute;top:0;left:0;right:0;height:1.5px;background:linear-gradient(90deg,#9B6FFF,#4D8EFF);"></div>
-              <div style="font-size:12px;font-weight:900;color:var(--neon-purple);">↑24<span style="font-size:7px;">%</span></div>
-              <div style="font-size:5.5px;color:var(--text-muted);">环比增长</div>
-            </div>
-          </div>
-          <div style="flex:1;background:var(--bg-surface);border:1px solid var(--border-subtle);border-radius:4px;display:flex;align-items:center;justify-content:center;">
-            <span style="font-size:7px;color:var(--text-muted);">ECharts 折线图区域</span>
-          </div>
-        </div>
-      </div>
-    </div>
-
-    <!-- 6. Timeline page -->
-    <div class="slide-wrap">
-      <div class="slide-label">⑥ Timeline</div>
-      <div class="slide">
-        <div style="position:absolute;inset:0;display:flex;flex-direction:column;justify-content:center;padding:10px 16px;">
-          <div style="font-size:9px;font-weight:700;color:var(--neon-cyan);margin-bottom:10px;">发展里程碑</div>
-          <!-- Timeline -->
-          <div style="position:relative;display:flex;align-items:center;justify-content:space-between;">
-            <div style="position:absolute;left:0;right:0;height:1.5px;background:linear-gradient(90deg,#00E5FF,#4D8EFF,#9B6FFF);top:50%;transform:translateY(-50%);"></div>
-            <!-- Node 1 -->
-            <div style="position:relative;display:flex;flex-direction:column;align-items:center;gap:4px;">
-              <div style="font-size:5.5px;color:var(--text-secondary);margin-bottom:2px;">v1.0</div>
-              <div style="width:10px;height:10px;border-radius:50%;background:var(--neon-cyan);box-shadow:0 0 8px rgba(0,229,255,0.7);z-index:1;"></div>
-              <div style="font-size:5px;color:var(--text-muted);margin-top:2px;">2022.Q1</div>
-            </div>
-            <div style="position:relative;display:flex;flex-direction:column;align-items:center;gap:4px;">
-              <div style="font-size:5.5px;color:var(--text-secondary);margin-bottom:2px;">v2.0</div>
-              <div style="width:10px;height:10px;border-radius:50%;background:var(--neon-blue);box-shadow:0 0 8px rgba(77,142,255,0.7);z-index:1;"></div>
-              <div style="font-size:5px;color:var(--text-muted);margin-top:2px;">2023.Q2</div>
-            </div>
-            <div style="position:relative;display:flex;flex-direction:column;align-items:center;gap:4px;">
-              <div style="font-size:5.5px;color:var(--text-secondary);margin-bottom:2px;">v3.0</div>
-              <div style="width:10px;height:10px;border-radius:50%;background:var(--neon-purple);box-shadow:0 0 8px rgba(155,111,255,0.7);z-index:1;"></div>
-              <div style="font-size:5px;color:var(--text-muted);margin-top:2px;">2024.Q1</div>
-            </div>
-            <div style="position:relative;display:flex;flex-direction:column;align-items:center;gap:4px;">
-              <div style="font-size:5.5px;color:var(--neon-green);font-weight:700;margin-bottom:2px;">NOW</div>
-              <div style="width:12px;height:12px;border-radius:50%;background:var(--neon-green);box-shadow:0 0 10px rgba(0,229,160,0.8);z-index:1;"></div>
-              <div style="font-size:5px;color:var(--neon-green);margin-top:2px;">2025.Q2</div>
-            </div>
-          </div>
-        </div>
-      </div>
-    </div>
-
-    <!-- 7. Section page -->
-    <div class="slide-wrap">
-      <div class="slide-label">⑦ Section</div>
-      <div class="slide">
-        <div style="position:absolute;inset:0;">
-          <div style="position:absolute;top:-20px;left:-20px;width:120px;height:120px;border-radius:50%;background:radial-gradient(ellipse,rgba(0,229,255,0.12),transparent 70%);"></div>
-          <div style="position:absolute;bottom:-30px;right:-10px;width:90px;height:90px;border-radius:50%;background:radial-gradient(ellipse,rgba(155,111,255,0.10),transparent 70%);"></div>
-          <div style="position:absolute;top:0;left:0;width:20px;height:20px;border-top:1.5px solid #00E5FF;border-left:1.5px solid #00E5FF;"></div>
-          <div style="position:absolute;top:0;right:0;width:20px;height:20px;border-top:1.5px solid #00E5FF;border-right:1.5px solid #00E5FF;"></div>
-          <div style="position:absolute;bottom:0;left:0;width:20px;height:20px;border-bottom:1.5px solid rgba(0,229,255,0.4);border-left:1.5px solid rgba(0,229,255,0.4);"></div>
-          <div style="position:absolute;bottom:0;right:0;width:20px;height:20px;border-bottom:1.5px solid rgba(0,229,255,0.4);border-right:1.5px solid rgba(0,229,255,0.4);"></div>
-          <!-- Large background number -->
-          <div style="position:absolute;right:-5px;bottom:-10px;font-size:80px;font-weight:900;color:rgba(0,229,255,0.03);line-height:1;letter-spacing:-0.05em;">02</div>
-          <!-- Center content -->
-          <div style="position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;">
-            <div style="font-size:9px;font-weight:900;background:linear-gradient(135deg,#00E5FF,#4D8EFF);-webkit-background-clip:text;-webkit-text-fill-color:transparent;letter-spacing:0.1em;">CHAPTER 02</div>
-            <div style="height:1px;width:60px;background:linear-gradient(90deg,transparent,#00E5FF,transparent);"></div>
-            <div style="font-size:13px;font-weight:700;color:#EDF2FA;text-align:center;">技术架构设计</div>
-          </div>
-        </div>
-      </div>
-    </div>
-
-    <!-- 8. Ending page -->
-    <div class="slide-wrap">
-      <div class="slide-label">⑧ Ending</div>
-      <div class="slide">
-        <div style="position:absolute;inset:0;">
-          <div style="position:absolute;top:-30px;left:-30px;width:150px;height:150px;border-radius:50%;background:radial-gradient(ellipse,rgba(0,229,255,0.15),transparent 70%);"></div>
-          <div style="position:absolute;bottom:-40px;right:-20px;width:120px;height:120px;border-radius:50%;background:radial-gradient(ellipse,rgba(155,111,255,0.12),transparent 70%);"></div>
-          <div style="position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;">
-            <div style="font-size:18px;font-weight:900;background:linear-gradient(135deg,#00E5FF,#4D8EFF,#9B6FFF);-webkit-background-clip:text;-webkit-text-fill-color:transparent;">Thank You</div>
-            <div style="height:1px;width:80px;background:linear-gradient(90deg,transparent,#00E5FF,transparent);"></div>
-            <div style="background:var(--bg-elevated);border:1px solid var(--border-glow);border-radius:5px;padding:6px 12px;text-align:center;">
-              <div style="font-size:6px;color:var(--text-muted);">联系方式</div>
-              <div style="font-size:7px;color:var(--neon-cyan);">hello@example.com</div>
-            </div>
-          </div>
-        </div>
-      </div>
-    </div>
-
-  </div>
-</div>
-
-<!-- Component showcase -->
-<div class="section">
-  <div class="section-label">Core Components</div>
-  <div class="components">
-    <!-- KPI card -->
-    <div style="background:var(--bg-elevated);border:1px solid var(--border-glow);border-radius:12px;padding:20px 24px;position:relative;overflow:hidden;min-width:160px;">
-      <div style="position:absolute;top:0;left:0;right:0;height:2px;background:linear-gradient(90deg,#00E5FF,#4D8EFF);"></div>
-      <div style="font-size:11px;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.08em;margin-bottom:6px;">KPI Card</div>
-      <div style="font-size:36px;font-weight:900;background:linear-gradient(135deg,#00E5FF,#4D8EFF);-webkit-background-clip:text;-webkit-text-fill-color:transparent;line-height:1;">98.7%</div>
-      <div style="font-size:12px;color:var(--neon-green);margin-top:4px;">↑ +2.3%</div>
-    </div>
-    <!-- Badges -->
-    <div style="display:flex;flex-direction:column;gap:8px;">
-      <span style="display:inline-flex;align-items:center;gap:6px;font-size:13px;font-weight:700;padding:5px 14px;border-radius:4px;background:rgba(0,229,160,0.12);border:1px solid rgba(0,229,160,0.3);color:#00E5A0;">● ONLINE</span>
-      <span style="display:inline-flex;align-items:center;gap:6px;font-size:13px;font-weight:700;padding:5px 14px;border-radius:4px;background:rgba(0,229,255,0.12);border:1px solid rgba(0,229,255,0.3);color:#00E5FF;">● ACTIVE</span>
-      <span style="display:inline-flex;align-items:center;gap:6px;font-size:13px;font-weight:700;padding:5px 14px;border-radius:4px;background:rgba(255,140,66,0.12);border:1px solid rgba(255,140,66,0.3);color:#FF8C42;">● WARN</span>
-      <span style="display:inline-flex;align-items:center;gap:6px;font-size:13px;font-weight:700;padding:5px 14px;border-radius:4px;background:rgba(255,77,109,0.12);border:1px solid rgba(255,77,109,0.3);color:#FF4D6D;">● ERROR</span>
-    </div>
-    <!-- Code block -->
-    <div style="background:#060A12;border:1px solid var(--border-subtle);border-radius:10px;padding:16px 20px;font-family:monospace;font-size:13px;line-height:1.7;min-width:240px;">
-      <span style="color:#9B6FFF;">const</span> <span style="color:#EDF2FA;">result</span> = <span style="color:#9B6FFF;">await</span><br>
-      &nbsp;&nbsp;<span style="color:#4D8EFF;">model</span>.<span style="color:#4D8EFF;">predict</span>({<br>
-      &nbsp;&nbsp;&nbsp;&nbsp;<span style="color:#EDF2FA;">input</span>: <span style="color:#00E5A0;">"Hello"</span><br>
-      &nbsp;&nbsp;});
-    </div>
-    <!-- Progress bars -->
-    <div style="display:flex;flex-direction:column;gap:10px;min-width:180px;">
-      <div>
-        <div style="font-size:12px;color:var(--text-muted);margin-bottom:4px;">推理速度</div>
-        <div style="height:6px;background:rgba(255,255,255,0.06);border-radius:3px;overflow:hidden;">
-          <div style="width:85%;height:100%;background:linear-gradient(90deg,#00E5FF,#4D8EFF);box-shadow:0 0 10px rgba(0,229,255,0.6);border-radius:3px;"></div>
-        </div>
-      </div>
-      <div>
-        <div style="font-size:12px;color:var(--text-muted);margin-bottom:4px;">模型准确率</div>
-        <div style="height:6px;background:rgba(255,255,255,0.06);border-radius:3px;overflow:hidden;">
-          <div style="width:92%;height:100%;background:linear-gradient(90deg,#9B6FFF,#4D8EFF);box-shadow:0 0 10px rgba(155,111,255,0.6);border-radius:3px;"></div>
-        </div>
-      </div>
+  <!-- Color system -->
+  <div class="section">
+    <div class="section-label">Color System</div>
+    <div class="swatches">
+      <div class="swatch-item"><span class="swatch" style="background:#070B14;"></span><span
+          class="swatch-hex">#070B14</span><span class="swatch-name">Base</span></div>
+      <div class="swatch-item"><span class="swatch" style="background:#0D1525;"></span><span
+          class="swatch-hex">#0D1525</span><span class="swatch-name">Panel</span></div>
+      <div class="swatch-item"><span class="swatch" style="background:#162035;"></span><span
+          class="swatch-hex">#162035</span><span class="swatch-name">Highlight</span></div>
+      <div class="swatch-item"><span class="swatch" style="background:#1E2D47;"></span><span
+          class="swatch-hex">#1E2D47</span><span class="swatch-name">Overlay</span></div>
+      <div class="swatch-item"><span class="swatch" style="background:#EDF2FA;"></span><span
+          class="swatch-hex">#EDF2FA</span><span class="swatch-name">Primary Text</span></div>
+      <div class="swatch-item"><span class="swatch" style="background:#7B90B2;"></span><span
+          class="swatch-hex">#7B90B2</span><span class="swatch-name">Secondary Text</span></div>
+      <div style="width:1px;background:var(--border-subtle);margin:0 4px;"></div>
+      <div class="swatch-item"><span class="swatch"
+          style="background:#00E5FF;box-shadow:0 0 14px rgba(0,229,255,0.7);"></span><span
+          class="swatch-hex">#00E5FF</span><span class="swatch-name">Electric Cyan</span></div>
+      <div class="swatch-item"><span class="swatch"
+          style="background:#4D8EFF;box-shadow:0 0 12px rgba(77,142,255,0.6);"></span><span
+          class="swatch-hex">#4D8EFF</span><span class="swatch-name">Tech Blue</span></div>
+      <div class="swatch-item"><span class="swatch"
+          style="background:#9B6FFF;box-shadow:0 0 12px rgba(155,111,255,0.5);"></span><span
+          class="swatch-hex">#9B6FFF</span><span class="swatch-name">Quantum Purple</span></div>
+      <div class="swatch-item"><span class="swatch"
+          style="background:#00E5A0;box-shadow:0 0 12px rgba(0,229,160,0.5);"></span><span
+          class="swatch-hex">#00E5A0</span><span class="swatch-name">Emerald Green</span></div>
+      <div class="swatch-item"><span class="swatch" style="background:#FF8C42;"></span><span
+          class="swatch-hex">#FF8C42</span><span class="swatch-name">Tech Orange</span></div>
+      <div class="swatch-item"><span class="swatch" style="background:#FF4D6D;"></span><span
+          class="swatch-hex">#FF4D6D</span><span class="swatch-name">Alert Red</span></div>
     </div>
   </div>
-</div>
+
+  <!-- Layout page preview -->
+  <div class="section">
+    <div class="section-label">8 Dedicated Layout Pages</div>
+    <div class="slides-grid">
+
+      <!-- 1. Cover page -->
+      <div class="slide-wrap">
+        <div class="slide-label">① Cover</div>
+        <div class="slide">
+          <!-- Grid texture -->
+          <div
+            style="position:absolute;inset:0;background-image:linear-gradient(rgba(0,229,255,0.03) 1px,transparent 1px),linear-gradient(90deg,rgba(0,229,255,0.03) 1px,transparent 1px);background-size:24px 24px;">
+          </div>
+          <!-- Glows -->
+          <div
+            style="position:absolute;top:-30px;left:-30px;width:200px;height:200px;border-radius:50%;background:radial-gradient(ellipse,rgba(0,229,255,0.12),transparent 70%);">
+          </div>
+          <div
+            style="position:absolute;bottom:-40px;right:-20px;width:150px;height:150px;border-radius:50%;background:radial-gradient(ellipse,rgba(155,111,255,0.10),transparent 70%);">
+          </div>
+          <!-- Corner ornaments -->
+          <div
+            style="position:absolute;top:0;left:0;width:28px;height:28px;border-top:2px solid #00E5FF;border-left:2px solid #00E5FF;">
+          </div>
+          <div
+            style="position:absolute;top:0;right:0;width:28px;height:28px;border-top:2px solid #00E5FF;border-right:2px solid #00E5FF;">
+          </div>
+          <div
+            style="position:absolute;bottom:0;left:0;width:28px;height:28px;border-bottom:2px solid rgba(0,229,255,0.4);border-left:2px solid rgba(0,229,255,0.4);">
+          </div>
+          <div
+            style="position:absolute;bottom:0;right:0;width:28px;height:28px;border-bottom:2px solid rgba(0,229,255,0.4);border-right:2px solid rgba(0,229,255,0.4);">
+          </div>
+          <!-- Content -->
+          <div style="position:absolute;inset:0;display:flex;align-items:center;padding:16px 20px;">
+            <div style="flex:1;">
+              <div
+                style="font-size:9px;color:var(--neon-cyan);letter-spacing:0.1em;text-transform:uppercase;margin-bottom:6px;">
+                AI SUMMIT 2025</div>
+              <div
+                style="font-size:16px;font-weight:900;background:linear-gradient(135deg,#00E5FF,#4D8EFF);background-clip:text;-webkit-background-clip:text;-webkit-text-fill-color:transparent;line-height:1.1;margin-bottom:6px;">
+                大模型时代的<br>系统架构演进</div>
+              <div style="height:1px;background:linear-gradient(90deg,transparent,#00E5FF,transparent);margin:6px 0;">
+              </div>
+              <div style="font-size:7px;color:var(--text-secondary);">演讲者 · 技术架构师</div>
+            </div>
+            <div
+              style="width:80px;height:80px;border-radius:50%;border:1px solid var(--border-glow);display:flex;align-items:center;justify-content:center;background:var(--bg-elevated);margin-left:12px;flex-shrink:0;">
+              <div style="width:40px;height:40px;border-radius:50%;background:var(--grad-cyan-blue);opacity:0.6;"></div>
+            </div>
+          </div>
+          <!-- Bottom status bar -->
+          <div
+            style="position:absolute;bottom:0;left:0;right:0;height:14px;background:var(--bg-surface);border-top:1px solid var(--border-subtle);display:flex;align-items:center;padding:0 12px;justify-content:space-between;">
+            <span style="font-size:6px;color:var(--text-muted);">示例公司 · v2.0</span>
+            <span style="font-size:6px;color:var(--text-muted);">01 / 12</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- 2. System architecture page -->
+      <div class="slide-wrap">
+        <div class="slide-label">② Architecture</div>
+        <div class="slide">
+          <div
+            style="position:absolute;inset:0;background-image:linear-gradient(rgba(0,229,255,0.025) 1px,transparent 1px),linear-gradient(90deg,rgba(0,229,255,0.025) 1px,transparent 1px);background-size:20px 20px;">
+          </div>
+          <div style="position:absolute;inset:0;padding:10px 12px;display:flex;flex-direction:column;gap:5px;">
+            <div style="font-size:9px;font-weight:700;color:var(--neon-cyan);margin-bottom:2px;">系统架构图</div>
+            <!-- Frontend layer -->
+            <div style="display:flex;gap:4px;">
+              <div
+                style="flex:1;background:rgba(0,229,255,0.08);border:1px solid rgba(0,229,255,0.3);border-radius:3px;padding:3px 5px;text-align:center;font-size:6px;color:var(--neon-cyan);">
+                Web App</div>
+              <div
+                style="flex:1;background:rgba(0,229,255,0.08);border:1px solid rgba(0,229,255,0.3);border-radius:3px;padding:3px 5px;text-align:center;font-size:6px;color:var(--neon-cyan);">
+                Mobile</div>
+              <div
+                style="flex:1;background:rgba(0,229,255,0.08);border:1px solid rgba(0,229,255,0.3);border-radius:3px;padding:3px 5px;text-align:center;font-size:6px;color:var(--neon-cyan);">
+                CLI</div>
+            </div>
+            <div style="text-align:center;font-size:7px;color:var(--text-muted);">↓</div>
+            <!-- API layer -->
+            <div
+              style="background:rgba(77,142,255,0.08);border:1px solid rgba(77,142,255,0.3);border-radius:3px;padding:3px 8px;text-align:center;font-size:6px;color:var(--neon-blue);">
+              API Gateway · Load Balancer</div>
+            <div style="text-align:center;font-size:7px;color:var(--text-muted);">↓</div>
+            <!-- Service layer -->
+            <div style="display:flex;gap:4px;">
+              <div
+                style="flex:1;background:rgba(155,111,255,0.08);border:1px solid rgba(155,111,255,0.3);border-radius:3px;padding:3px 5px;text-align:center;font-size:6px;color:var(--neon-purple);">
+                Auth</div>
+              <div
+                style="flex:1;background:rgba(155,111,255,0.08);border:1px solid rgba(155,111,255,0.3);border-radius:3px;padding:3px 5px;text-align:center;font-size:6px;color:var(--neon-purple);">
+                Core</div>
+              <div
+                style="flex:1;background:rgba(155,111,255,0.08);border:1px solid rgba(155,111,255,0.3);border-radius:3px;padding:3px 5px;text-align:center;font-size:6px;color:var(--neon-purple);">
+                AI</div>
+            </div>
+            <div style="text-align:center;font-size:7px;color:var(--text-muted);">↓</div>
+            <!-- Data layer -->
+            <div style="display:flex;gap:4px;">
+              <div
+                style="flex:1;background:rgba(0,229,160,0.08);border:1px solid rgba(0,229,160,0.3);border-radius:3px;padding:3px 5px;text-align:center;font-size:6px;color:var(--neon-green);">
+                PostgreSQL</div>
+              <div
+                style="flex:1;background:rgba(0,229,160,0.08);border:1px solid rgba(0,229,160,0.3);border-radius:3px;padding:3px 5px;text-align:center;font-size:6px;color:var(--neon-green);">
+                Redis</div>
+              <div
+                style="flex:1;background:rgba(0,229,160,0.08);border:1px solid rgba(0,229,160,0.3);border-radius:3px;padding:3px 5px;text-align:center;font-size:6px;color:var(--neon-green);">
+                S3</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 3. Code demo page -->
+      <div class="slide-wrap">
+        <div class="slide-label">③ Code Demo</div>
+        <div class="slide">
+          <div style="position:absolute;inset:0;background:var(--bg-base);display:flex;gap:8px;padding:10px;">
+            <!-- Left code panel -->
+            <div
+              style="flex:3;background:#060A12;border:1px solid var(--border-subtle);border-radius:5px;padding:8px;overflow:hidden;">
+              <div style="font-size:5.5px;color:var(--text-muted);margin-bottom:5px;font-family:monospace;">
+                src/api/inference.ts</div>
+              <div style="font-size:5.5px;font-family:monospace;line-height:1.7;color:var(--text-secondary);">
+                <span style="color:#3D5070;">1 </span><span style="color:#9B6FFF;">async function</span> <span
+                  style="color:#4D8EFF;">runInference</span>(<br>
+                <span style="color:#3D5070;">2 </span>&nbsp;&nbsp;<span style="color:#EDF2FA;">model</span>: <span
+                  style="color:#00E5A0;">string</span>,<br>
+                <span style="color:#3D5070;">3 </span>&nbsp;&nbsp;<span style="color:#EDF2FA;">input</span>: <span
+                  style="color:#00E5A0;">Tensor</span><br>
+                <span style="color:#3D5070;">4 </span>) {<br>
+                <span style="color:#3D5070;">5 </span>&nbsp;&nbsp;<span style="color:#9B6FFF;">const</span> <span
+                  style="color:#EDF2FA;">result</span> = <span style="color:#9B6FFF;">await</span><br>
+                <span style="color:#3D5070;">6 </span>&nbsp;&nbsp;&nbsp;&nbsp;<span
+                  style="color:#4D8EFF;">engine</span>.<span style="color:#4D8EFF;">predict</span>({<br>
+                <span style="color:#3D5070;">7 </span>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span
+                  style="color:#EDF2FA;">model</span>, <span style="color:#EDF2FA;">input</span><br>
+                <span style="color:#3D5070;">8 </span>&nbsp;&nbsp;&nbsp;&nbsp;});<br>
+                <span style="color:#3D5070;">9 </span>&nbsp;&nbsp;<span style="color:#9B6FFF;">return</span> <span
+                  style="color:#EDF2FA;">result</span>;<br>
+                <span style="color:#3D5070;">10</span> }
+              </div>
+            </div>
+            <!-- Right notes -->
+            <div style="flex:2;display:flex;flex-direction:column;gap:5px;">
+              <div style="font-size:7px;font-weight:700;color:var(--neon-cyan);">关键特性</div>
+              <div
+                style="background:var(--bg-elevated);border:1px solid var(--border-glow);border-radius:4px;padding:5px 6px;">
+                <div style="font-size:5.5px;color:var(--neon-cyan);font-weight:700;">① 异步推理</div>
+                <div style="font-size:5px;color:var(--text-secondary);">非阻塞执行，支持并发</div>
+              </div>
+              <div
+                style="background:var(--bg-elevated);border:1px solid var(--border-subtle);border-radius:4px;padding:5px 6px;">
+                <div style="font-size:5.5px;color:var(--neon-blue);font-weight:700;">② 类型安全</div>
+                <div style="font-size:5px;color:var(--text-secondary);">TypeScript 全覆盖</div>
+              </div>
+              <div
+                style="background:var(--bg-elevated);border:1px solid var(--border-subtle);border-radius:4px;padding:5px 6px;">
+                <div style="font-size:5.5px;color:var(--neon-purple);font-weight:700;">③ 统一接口</div>
+                <div style="font-size:5px;color:var(--text-secondary);">多模型适配器模式</div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 4. Benchmark page -->
+      <div class="slide-wrap">
+        <div class="slide-label">④ Benchmark</div>
+        <div class="slide">
+          <div style="position:absolute;inset:0;padding:10px 12px;">
+            <div style="font-size:9px;font-weight:700;color:var(--neon-cyan);margin-bottom:8px;">性能对比测试</div>
+            <div style="display:flex;flex-direction:column;gap:5px;">
+              <div style="display:flex;align-items:center;gap:6px;">
+                <span
+                  style="font-size:6px;color:var(--text-secondary);width:40px;text-align:right;flex-shrink:0;">吞吐量</span>
+                <div style="flex:1;height:6px;background:rgba(255,255,255,0.06);border-radius:3px;overflow:hidden;">
+                  <div
+                    style="width:85%;height:100%;background:linear-gradient(90deg,#00E5FF,#4D8EFF);box-shadow:0 0 8px rgba(0,229,255,0.5);border-radius:3px;">
+                  </div>
+                </div>
+                <span style="font-size:6px;color:var(--neon-cyan);width:20px;">85%</span>
+              </div>
+              <div style="display:flex;align-items:center;gap:6px;">
+                <span
+                  style="font-size:6px;color:var(--text-secondary);width:40px;text-align:right;flex-shrink:0;">延迟</span>
+                <div style="flex:1;height:6px;background:rgba(255,255,255,0.06);border-radius:3px;overflow:hidden;">
+                  <div style="width:60%;height:100%;background:rgba(255,255,255,0.15);border-radius:3px;"></div>
+                </div>
+                <span style="font-size:6px;color:var(--text-muted);width:20px;">60%</span>
+              </div>
+              <div style="display:flex;align-items:center;gap:6px;">
+                <span
+                  style="font-size:6px;color:var(--text-secondary);width:40px;text-align:right;flex-shrink:0;">内存</span>
+                <div style="flex:1;height:6px;background:rgba(255,255,255,0.06);border-radius:3px;overflow:hidden;">
+                  <div
+                    style="width:72%;height:100%;background:linear-gradient(90deg,#4D8EFF,#9B6FFF);box-shadow:0 0 8px rgba(77,142,255,0.5);border-radius:3px;">
+                  </div>
+                </div>
+                <span style="font-size:6px;color:var(--neon-blue);width:20px;">72%</span>
+              </div>
+              <div style="display:flex;align-items:center;gap:6px;">
+                <span
+                  style="font-size:6px;color:var(--text-secondary);width:40px;text-align:right;flex-shrink:0;">准确率</span>
+                <div style="flex:1;height:6px;background:rgba(255,255,255,0.06);border-radius:3px;overflow:hidden;">
+                  <div
+                    style="width:92%;height:100%;background:linear-gradient(90deg,#00E5A0,#00E5FF);box-shadow:0 0 8px rgba(0,229,160,0.5);border-radius:3px;">
+                  </div>
+                </div>
+                <span style="font-size:6px;color:var(--neon-green);width:20px;">92%</span>
+              </div>
+            </div>
+            <div
+              style="margin-top:8px;background:var(--bg-elevated);border:1px solid var(--border-glow);border-radius:4px;padding:5px 8px;">
+              <div style="font-size:6px;color:var(--neon-cyan);">✓ 综合性能领先基线 <span
+                  style="font-size:8px;font-weight:900;">37%</span></div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 5. Dashboard page -->
+      <div class="slide-wrap">
+        <div class="slide-label">⑤ Dashboard</div>
+        <div class="slide">
+          <div style="position:absolute;inset:0;padding:10px 12px;display:flex;flex-direction:column;gap:6px;">
+            <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:5px;">
+              <div
+                style="background:var(--bg-elevated);border:1px solid var(--border-glow);border-radius:4px;padding:5px 6px;position:relative;overflow:hidden;">
+                <div
+                  style="position:absolute;top:0;left:0;right:0;height:1.5px;background:linear-gradient(90deg,#00E5FF,#4D8EFF);">
+                </div>
+                <div style="font-size:12px;font-weight:900;color:var(--neon-cyan);">98.7<span
+                    style="font-size:7px;">%</span></div>
+                <div style="font-size:5.5px;color:var(--text-muted);">可用率</div>
+              </div>
+              <div
+                style="background:var(--bg-elevated);border:1px solid rgba(77,142,255,0.25);border-radius:4px;padding:5px 6px;position:relative;overflow:hidden;">
+                <div
+                  style="position:absolute;top:0;left:0;right:0;height:1.5px;background:linear-gradient(90deg,#4D8EFF,#9B6FFF);">
+                </div>
+                <div style="font-size:12px;font-weight:900;color:var(--neon-blue);">2.4<span
+                    style="font-size:7px;">ms</span></div>
+                <div style="font-size:5.5px;color:var(--text-muted);">P99延迟</div>
+              </div>
+              <div
+                style="background:var(--bg-elevated);border:1px solid rgba(0,229,160,0.25);border-radius:4px;padding:5px 6px;position:relative;overflow:hidden;">
+                <div
+                  style="position:absolute;top:0;left:0;right:0;height:1.5px;background:linear-gradient(90deg,#00E5A0,#00E5FF);">
+                </div>
+                <div style="font-size:12px;font-weight:900;color:var(--neon-green);">1.2<span
+                    style="font-size:7px;">M</span></div>
+                <div style="font-size:5.5px;color:var(--text-muted);">日请求量</div>
+              </div>
+              <div
+                style="background:var(--bg-elevated);border:1px solid rgba(155,111,255,0.25);border-radius:4px;padding:5px 6px;position:relative;overflow:hidden;">
+                <div
+                  style="position:absolute;top:0;left:0;right:0;height:1.5px;background:linear-gradient(90deg,#9B6FFF,#4D8EFF);">
+                </div>
+                <div style="font-size:12px;font-weight:900;color:var(--neon-purple);">↑24<span
+                    style="font-size:7px;">%</span></div>
+                <div style="font-size:5.5px;color:var(--text-muted);">环比增长</div>
+              </div>
+            </div>
+            <div
+              style="flex:1;background:var(--bg-surface);border:1px solid var(--border-subtle);border-radius:4px;display:flex;align-items:center;justify-content:center;">
+              <span style="font-size:7px;color:var(--text-muted);">ECharts 折线图区域</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 6. Timeline page -->
+      <div class="slide-wrap">
+        <div class="slide-label">⑥ Timeline</div>
+        <div class="slide">
+          <div
+            style="position:absolute;inset:0;display:flex;flex-direction:column;justify-content:center;padding:10px 16px;">
+            <div style="font-size:9px;font-weight:700;color:var(--neon-cyan);margin-bottom:10px;">发展里程碑</div>
+            <!-- Timeline -->
+            <div style="position:relative;display:flex;align-items:center;justify-content:space-between;">
+              <div
+                style="position:absolute;left:0;right:0;height:1.5px;background:linear-gradient(90deg,#00E5FF,#4D8EFF,#9B6FFF);top:50%;transform:translateY(-50%);">
+              </div>
+              <!-- Node 1 -->
+              <div style="position:relative;display:flex;flex-direction:column;align-items:center;gap:4px;">
+                <div style="font-size:5.5px;color:var(--text-secondary);margin-bottom:2px;">v1.0</div>
+                <div
+                  style="width:10px;height:10px;border-radius:50%;background:var(--neon-cyan);box-shadow:0 0 8px rgba(0,229,255,0.7);z-index:1;">
+                </div>
+                <div style="font-size:5px;color:var(--text-muted);margin-top:2px;">2022.Q1</div>
+              </div>
+              <div style="position:relative;display:flex;flex-direction:column;align-items:center;gap:4px;">
+                <div style="font-size:5.5px;color:var(--text-secondary);margin-bottom:2px;">v2.0</div>
+                <div
+                  style="width:10px;height:10px;border-radius:50%;background:var(--neon-blue);box-shadow:0 0 8px rgba(77,142,255,0.7);z-index:1;">
+                </div>
+                <div style="font-size:5px;color:var(--text-muted);margin-top:2px;">2023.Q2</div>
+              </div>
+              <div style="position:relative;display:flex;flex-direction:column;align-items:center;gap:4px;">
+                <div style="font-size:5.5px;color:var(--text-secondary);margin-bottom:2px;">v3.0</div>
+                <div
+                  style="width:10px;height:10px;border-radius:50%;background:var(--neon-purple);box-shadow:0 0 8px rgba(155,111,255,0.7);z-index:1;">
+                </div>
+                <div style="font-size:5px;color:var(--text-muted);margin-top:2px;">2024.Q1</div>
+              </div>
+              <div style="position:relative;display:flex;flex-direction:column;align-items:center;gap:4px;">
+                <div style="font-size:5.5px;color:var(--neon-green);font-weight:700;margin-bottom:2px;">NOW</div>
+                <div
+                  style="width:12px;height:12px;border-radius:50%;background:var(--neon-green);box-shadow:0 0 10px rgba(0,229,160,0.8);z-index:1;">
+                </div>
+                <div style="font-size:5px;color:var(--neon-green);margin-top:2px;">2025.Q2</div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 7. Section page -->
+      <div class="slide-wrap">
+        <div class="slide-label">⑦ Section</div>
+        <div class="slide">
+          <div style="position:absolute;inset:0;">
+            <div
+              style="position:absolute;top:-20px;left:-20px;width:120px;height:120px;border-radius:50%;background:radial-gradient(ellipse,rgba(0,229,255,0.12),transparent 70%);">
+            </div>
+            <div
+              style="position:absolute;bottom:-30px;right:-10px;width:90px;height:90px;border-radius:50%;background:radial-gradient(ellipse,rgba(155,111,255,0.10),transparent 70%);">
+            </div>
+            <div
+              style="position:absolute;top:0;left:0;width:20px;height:20px;border-top:1.5px solid #00E5FF;border-left:1.5px solid #00E5FF;">
+            </div>
+            <div
+              style="position:absolute;top:0;right:0;width:20px;height:20px;border-top:1.5px solid #00E5FF;border-right:1.5px solid #00E5FF;">
+            </div>
+            <div
+              style="position:absolute;bottom:0;left:0;width:20px;height:20px;border-bottom:1.5px solid rgba(0,229,255,0.4);border-left:1.5px solid rgba(0,229,255,0.4);">
+            </div>
+            <div
+              style="position:absolute;bottom:0;right:0;width:20px;height:20px;border-bottom:1.5px solid rgba(0,229,255,0.4);border-right:1.5px solid rgba(0,229,255,0.4);">
+            </div>
+            <!-- Large background number -->
+            <div
+              style="position:absolute;right:-5px;bottom:-10px;font-size:80px;font-weight:900;color:rgba(0,229,255,0.03);line-height:1;letter-spacing:-0.05em;">
+              02</div>
+            <!-- Center content -->
+            <div
+              style="position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;">
+              <div
+                style="font-size:9px;font-weight:900;background:linear-gradient(135deg,#00E5FF,#4D8EFF);background-clip:text;-webkit-background-clip:text;-webkit-text-fill-color:transparent;letter-spacing:0.1em;">
+                CHAPTER 02</div>
+              <div style="height:1px;width:60px;background:linear-gradient(90deg,transparent,#00E5FF,transparent);">
+              </div>
+              <div style="font-size:13px;font-weight:700;color:#EDF2FA;text-align:center;">技术架构设计</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 8. Ending page -->
+      <div class="slide-wrap">
+        <div class="slide-label">⑧ Ending</div>
+        <div class="slide">
+          <div style="position:absolute;inset:0;">
+            <div
+              style="position:absolute;top:-30px;left:-30px;width:150px;height:150px;border-radius:50%;background:radial-gradient(ellipse,rgba(0,229,255,0.15),transparent 70%);">
+            </div>
+            <div
+              style="position:absolute;bottom:-40px;right:-20px;width:120px;height:120px;border-radius:50%;background:radial-gradient(ellipse,rgba(155,111,255,0.12),transparent 70%);">
+            </div>
+            <div
+              style="position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;">
+              <div
+                style="font-size:18px;font-weight:900;background:linear-gradient(135deg,#00E5FF,#4D8EFF,#9B6FFF);background-clip:text;-webkit-background-clip:text;-webkit-text-fill-color:transparent;">
+                Thank You</div>
+              <div style="height:1px;width:80px;background:linear-gradient(90deg,transparent,#00E5FF,transparent);">
+              </div>
+              <div
+                style="background:var(--bg-elevated);border:1px solid var(--border-glow);border-radius:5px;padding:6px 12px;text-align:center;">
+                <div style="font-size:6px;color:var(--text-muted);">联系方式</div>
+                <div style="font-size:7px;color:var(--neon-cyan);">hello@example.com</div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- Component showcase -->
+  <div class="section">
+    <div class="section-label">Core Components</div>
+    <div class="components">
+      <!-- KPI card -->
+      <div
+        style="background:var(--bg-elevated);border:1px solid var(--border-glow);border-radius:12px;padding:20px 24px;position:relative;overflow:hidden;min-width:160px;">
+        <div
+          style="position:absolute;top:0;left:0;right:0;height:2px;background:linear-gradient(90deg,#00E5FF,#4D8EFF);">
+        </div>
+        <div
+          style="font-size:11px;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.08em;margin-bottom:6px;">
+          KPI Card</div>
+        <div
+          style="font-size:36px;font-weight:900;background:linear-gradient(135deg,#00E5FF,#4D8EFF);background-clip:text;-webkit-background-clip:text;-webkit-text-fill-color:transparent;line-height:1;">
+          98.7%</div>
+        <div style="font-size:12px;color:var(--neon-green);margin-top:4px;">↑ +2.3%</div>
+      </div>
+      <!-- Badges -->
+      <div style="display:flex;flex-direction:column;gap:8px;">
+        <span
+          style="display:inline-flex;align-items:center;gap:6px;font-size:13px;font-weight:700;padding:5px 14px;border-radius:4px;background:rgba(0,229,160,0.12);border:1px solid rgba(0,229,160,0.3);color:#00E5A0;">●
+          ONLINE</span>
+        <span
+          style="display:inline-flex;align-items:center;gap:6px;font-size:13px;font-weight:700;padding:5px 14px;border-radius:4px;background:rgba(0,229,255,0.12);border:1px solid rgba(0,229,255,0.3);color:#00E5FF;">●
+          ACTIVE</span>
+        <span
+          style="display:inline-flex;align-items:center;gap:6px;font-size:13px;font-weight:700;padding:5px 14px;border-radius:4px;background:rgba(255,140,66,0.12);border:1px solid rgba(255,140,66,0.3);color:#FF8C42;">●
+          WARN</span>
+        <span
+          style="display:inline-flex;align-items:center;gap:6px;font-size:13px;font-weight:700;padding:5px 14px;border-radius:4px;background:rgba(255,77,109,0.12);border:1px solid rgba(255,77,109,0.3);color:#FF4D6D;">●
+          ERROR</span>
+      </div>
+      <!-- Code block -->
+      <div
+        style="background:#060A12;border:1px solid var(--border-subtle);border-radius:10px;padding:16px 20px;font-family:monospace;font-size:13px;line-height:1.7;min-width:240px;">
+        <span style="color:#9B6FFF;">const</span> <span style="color:#EDF2FA;">result</span> = <span
+          style="color:#9B6FFF;">await</span><br>
+        &nbsp;&nbsp;<span style="color:#4D8EFF;">model</span>.<span style="color:#4D8EFF;">predict</span>({<br>
+        &nbsp;&nbsp;&nbsp;&nbsp;<span style="color:#EDF2FA;">input</span>: <span
+          style="color:#00E5A0;">"Hello"</span><br>
+        &nbsp;&nbsp;});
+      </div>
+      <!-- Progress bars -->
+      <div style="display:flex;flex-direction:column;gap:10px;min-width:180px;">
+        <div>
+          <div style="font-size:12px;color:var(--text-muted);margin-bottom:4px;">推理速度</div>
+          <div style="height:6px;background:rgba(255,255,255,0.06);border-radius:3px;overflow:hidden;">
+            <div
+              style="width:85%;height:100%;background:linear-gradient(90deg,#00E5FF,#4D8EFF);box-shadow:0 0 10px rgba(0,229,255,0.6);border-radius:3px;">
+            </div>
+          </div>
+        </div>
+        <div>
+          <div style="font-size:12px;color:var(--text-muted);margin-bottom:4px;">模型准确率</div>
+          <div style="height:6px;background:rgba(255,255,255,0.06);border-radius:3px;overflow:hidden;">
+            <div
+              style="width:92%;height:100%;background:linear-gradient(90deg,#9B6FFF,#4D8EFF);box-shadow:0 0 10px rgba(155,111,255,0.6);border-radius:3px;">
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
 
 </body>
+
 </html>

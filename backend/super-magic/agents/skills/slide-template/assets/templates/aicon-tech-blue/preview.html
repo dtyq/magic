@@ -4,6 +4,7 @@
 <head>
   <meta charset="utf-8" />
   <title>Rotating Halo Blue — Template Preview</title>
+  <link rel="stylesheet" href="theme.css" />
   <style>
     :root {
       --bg-primary: #ffffff;
@@ -20,20 +21,28 @@
     }
 
     body {
-      font-family: 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif;
-      background: #EEF2F8;
+      font-family: 'Inter', 'Noto Sans SC', 'Segoe UI', sans-serif;
+      background: #E8ECF0;
       margin: 0;
       padding: 40px;
       color: var(--text-primary);
     }
 
+    html,
+    body {
+      width: auto;
+      height: auto;
+      min-height: 100%;
+      overflow: visible;
+    }
+
     .preview-header {
-      margin-bottom: 36px;
+      margin-bottom: 40px;
     }
 
     .preview-title {
-      font-size: 36px;
-      font-weight: 800;
+      font-size: 28px;
+      font-weight: 700;
       color: #1a1a1a;
       margin: 0 0 8px;
     }
@@ -48,75 +57,97 @@
     }
 
     .section {
-      margin-bottom: 32px;
+      margin-bottom: 40px;
     }
 
     .section-label {
-      font-size: 12px;
-      font-weight: 700;
-      color: #2F80ED;
-      text-transform: uppercase;
+      font-size: 13px;
+      font-weight: 600;
+      color: #5a6c7d;
       letter-spacing: 0.1em;
-      border-left: 3px solid #60A5FA;
-      padding-left: 10px;
-      margin-bottom: 16px;
+      text-transform: uppercase;
+      border-left: 0;
+      padding-left: 0;
+      margin: 40px 0 16px;
     }
 
     .swatches {
       display: flex;
-      flex-wrap: wrap;
       gap: 12px;
+      flex-wrap: wrap;
+      margin-bottom: 32px;
     }
 
     .swatch-item {
+      width: 80px;
       display: flex;
       flex-direction: column;
-      align-items: center;
-      gap: 4px;
+      align-items: flex-start;
+      gap: 0;
     }
 
     .swatch {
-      width: 52px;
+      width: 80px;
       height: 52px;
       border-radius: 6px;
-      border: 1px solid #e5eaf0;
+      border: 1px solid rgba(0, 0, 0, 0.08);
+      margin-bottom: 6px;
     }
 
     .swatch-hex {
+      order: 3;
       font-size: 11px;
-      color: #5a6c7d;
+      color: #8fa3b8;
       font-family: monospace;
     }
 
     .swatch-name {
+      order: 2;
       font-size: 11px;
-      color: #8fa3b8;
+      font-weight: 600;
+      color: #5a6c7d;
     }
 
     .slides-grid {
       display: grid;
       grid-template-columns: repeat(4, 1fr);
-      gap: 16px;
+      gap: 20px;
+      margin-bottom: 40px;
     }
 
     .slide-label {
-      font-size: 11px;
-      color: #8fa3b8;
-      margin-bottom: 6px;
-      text-transform: uppercase;
+      position: absolute;
+      bottom: 8px;
+      left: 0;
+      right: 0;
+      z-index: 5;
+      text-align: center;
+      font-size: 10px;
+      font-weight: 600;
+      color: #5a6c7d;
       letter-spacing: 0.06em;
+      text-transform: uppercase;
+      background: rgba(255, 255, 255, 0.9);
+      padding: 3px 0;
+    }
+
+    .slide-wrap {
+      min-width: 0;
+      position: relative;
+      overflow: hidden;
     }
 
     .slide {
       width: 100%;
+      height: auto;
       aspect-ratio: 16/9;
       position: relative;
       overflow: hidden;
-      border-radius: 4px;
-      border: 1px solid #e5eaf0;
+      border-radius: 6px;
+      border: 1.5px solid #e5eaf0;
       background: #ffffff;
       box-sizing: border-box;
-      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.07);
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
     }
 
     .components {
@@ -124,9 +155,16 @@
       flex-wrap: wrap;
       gap: 16px;
       align-items: flex-start;
+      background: #ffffff;
+      background-image:
+        linear-gradient(#e5eaf0 1px, transparent 1px),
+        linear-gradient(90deg, #e5eaf0 1px, transparent 1px);
+      background-size: 40px 40px;
+      padding: 40px;
+      border-radius: 8px;
+      border: 1px solid #e5eaf0;
     }
   </style>
-  <link rel="stylesheet" href="theme.css" />
 </head>
 
 <body>

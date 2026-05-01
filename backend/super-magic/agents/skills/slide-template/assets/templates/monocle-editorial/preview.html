@@ -1,845 +1,1227 @@
 <!DOCTYPE html>
 <html lang="zh-CN">
+
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Editorial Redline — Template Preview</title>
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,600;0,700;1,400;1,600;1,700&family=DM+Sans:wght@300;400;500;600&family=DM+Mono:wght@400;500&family=Noto+Serif+SC:wght@600;700&family=Noto+Sans+SC:wght@400;500&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="theme.css">
-<style>
- * { box-sizing: border-box; margin: 0; padding: 0; }
- body {
-  font-family: 'DM Sans', 'Noto Sans SC', sans-serif;
-  background: #F7F5F2;
-  color: #1A1A1A;
-  padding: 48px;
-  min-height: 100vh;
- }
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Editorial Redline — Template Preview</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link
+    href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,600;0,700;1,400;1,600;1,700&family=DM+Sans:wght@300;400;500;600&family=DM+Mono:wght@400;500&family=Noto+Serif+SC:wght@600;700&family=Noto+Sans+SC:wght@400;500&display=swap"
+    rel="stylesheet">
+  <link rel="stylesheet" href="theme.css">
+  <style>
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
 
- /* ── Page header ── */
- .preview-header {
-  display: flex; justify-content: space-between; align-items: flex-end;
-  border-bottom: 2px solid #1A1A1A;
-  padding-bottom: 20px; margin-bottom: 48px;
- }
- .preview-header .brand {
-  font-family: 'DM Mono', monospace;
-  font-size: 13px; letter-spacing: 0.22em; text-transform: uppercase;
- }
- .preview-header h1 {
-  font-family: 'Cormorant Garamond', serif;
-  font-size: 48px; font-weight: 700; font-style: italic;
-  letter-spacing: -0.02em; line-height: 1;
- }
- .preview-header .subtitle {
-  font-family: 'DM Mono', monospace;
-  font-size: 11px; color: #8A8A8A;
-  letter-spacing: 0.12em; text-transform: uppercase;
- }
+    html,
+    body {
+      width: auto;
+      height: auto;
+      min-height: 100%;
+      overflow: visible;
+    }
 
- /* ── Section title ── */
- .section-title {
-  font-family: 'DM Mono', monospace;
-  font-size: 10px; letter-spacing: 0.18em;
-  text-transform: uppercase; color: #C8102E;
-  margin-bottom: 24px;
- }
+    body {
+      font-family: 'DM Sans', 'Noto Sans SC', sans-serif;
+      background: #E8ECF0;
+      color: #1A1A1A;
+      padding: 40px;
+      min-height: 100vh;
+    }
 
- /* ── Color Palette ── */
- .color-section { margin-bottom: 56px; }
- .swatches {
-  display: flex; flex-wrap: wrap; gap: 16px;
- }
- .swatch {
-  display: flex; flex-direction: column; align-items: center; gap: 8px;
-  width: 100px;
- }
- .swatch-block {
-  width: 100px; height: 64px;
-  border: 1px solid rgba(0,0,0,0.08);
- }
- .swatch-name {
-  font-family: 'DM Mono', monospace;
-  font-size: 9px; color: #8A8A8A;
-  letter-spacing: 0.08em; text-align: center;
-  text-transform: uppercase;
- }
- .swatch-hex {
-  font-family: 'DM Mono', monospace;
-  font-size: 10px; color: #4A4A4A;
-  letter-spacing: 0.04em;
- }
+    /* ── Page header ── */
+    .preview-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-end;
+      border-bottom: 0;
+      padding-bottom: 0;
+      margin-bottom: 40px;
+    }
 
- /* ── Layout thumbnail grid ── */
- .layouts-section { margin-bottom: 56px; }
- .layouts-grid {
-  display: grid;
-  grid-template-columns: repeat(4, 1fr);
-  gap: 24px;
- }
- .layout-thumb {
-  aspect-ratio: 16/9;
-  position: relative; overflow: hidden;
-  border: 1px solid #D4D0CB;
-  cursor: pointer;
-  transition: border-color 0.2s;
- }
- .layout-thumb:hover { border-color: #C8102E; }
- .slide-label {
-  font-family: 'DM Mono', monospace;
-  font-size: 10px; color: #8A8A8A;
-  letter-spacing: 0.1em; text-transform: uppercase;
-  margin-top: 10px;
- }
- .layout-wrapper { display: flex; flex-direction: column; }
+    .preview-header .brand {
+      font-family: 'DM Mono', monospace;
+      font-size: 13px;
+      letter-spacing: 0.22em;
+      text-transform: uppercase;
+    }
 
- /* ── Component showcase ── */
- .components-section { margin-bottom: 56px; }
- .components-grid {
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: 32px;
- }
- .component-item { display: flex; flex-direction: column; gap: 12px; }
- .component-label {
-  font-family: 'DM Mono', monospace;
-  font-size: 9px; color: #8A8A8A;
-  letter-spacing: 0.12em; text-transform: uppercase;
- }
+    .preview-header h1 {
+      font-family: 'Cormorant Garamond', serif;
+      font-size: 36px;
+      font-weight: 700;
+      font-style: italic;
+      letter-spacing: -0.02em;
+      line-height: 1;
+    }
 
- /* ================================================================
+    .preview-header .subtitle {
+      font-family: 'DM Mono', monospace;
+      font-size: 11px;
+      color: #8A8A8A;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+    }
+
+    /* ── Section title ── */
+    .section-title {
+      font-family: 'DM Mono', monospace;
+      font-size: 13px;
+      font-weight: 600;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      color: #8A8A8A;
+      margin: 40px 0 16px;
+    }
+
+    /* ── Color Palette ── */
+    .color-section {
+      margin-bottom: 40px;
+    }
+
+    .swatches {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 12px;
+      margin-bottom: 32px;
+    }
+
+    .swatch {
+      display: flex;
+      flex-direction: column;
+      align-items: flex-start;
+      gap: 0;
+      width: 80px;
+    }
+
+    .swatch-block {
+      width: 80px;
+      height: 52px;
+      border: 1px solid rgba(0, 0, 0, 0.08);
+      margin-bottom: 6px;
+    }
+
+    .swatch-name {
+      order: 2;
+      font-family: 'DM Mono', monospace;
+      font-size: 9px;
+      color: #4A4A4A;
+      letter-spacing: 0.08em;
+      text-align: left;
+      text-transform: uppercase;
+    }
+
+    .swatch-hex {
+      order: 3;
+      font-family: 'DM Mono', monospace;
+      font-size: 10px;
+      color: #8A8A8A;
+      letter-spacing: 0.04em;
+    }
+
+    /* ── Layout thumbnail grid ── */
+    .layouts-section {
+      margin-bottom: 40px;
+    }
+
+    .layouts-grid {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 20px;
+    }
+
+    .layout-thumb {
+      aspect-ratio: 16/9;
+      position: relative;
+      overflow: hidden;
+      border: 1.5px solid #D4D0CB;
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+      cursor: pointer;
+      transition: border-color 0.2s;
+    }
+
+    .layout-thumb:hover {
+      border-color: #C8102E;
+    }
+
+    .slide-label {
+      position: absolute;
+      bottom: 8px;
+      left: 0;
+      right: 0;
+      z-index: 5;
+      font-family: 'DM Mono', monospace;
+      font-size: 9px;
+      color: #4A4A4A;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      text-align: center;
+      margin-top: 0;
+      background: rgba(247, 245, 242, 0.9);
+      padding: 3px 0;
+    }
+
+    .layout-wrapper {
+      display: flex;
+      flex-direction: column;
+      position: relative;
+    }
+
+    /* ── Component showcase ── */
+    .components-section {
+      margin-bottom: 56px;
+    }
+
+    .components-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 32px;
+    }
+
+    .component-item {
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+
+    .component-label {
+      font-family: 'DM Mono', monospace;
+      font-size: 9px;
+      color: #8A8A8A;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+    }
+
+    /* ================================================================
    Thumbnail internal styles (scaled-down slides)
  ================================================================ */
- .thumb-inner {
-  width: 100%; height: 100%;
-  display: flex; flex-direction: column;
-  font-size: 0; /* prevents whitespace gaps */
-  transform-origin: top left;
- }
+    .thumb-inner {
+      width: 100%;
+      height: 100%;
+      display: flex;
+      flex-direction: column;
+      font-size: 0;
+      /* prevents whitespace gaps */
+      transform-origin: top left;
+    }
 
- /* Generic masthead */
- .t-bar {
-  height: 7%; flex-shrink: 0;
-  display: flex; justify-content: space-between; align-items: center;
-  padding: 0 4%;
-  font-family: 'DM Mono', monospace; font-size: 5px;
-  letter-spacing: 0.1em; text-transform: uppercase;
-  border-bottom: 1.5px solid #1A1A1A;
-  font-size: 5px;
- }
- .t-bar.dark { border-bottom-color: rgba(255,255,255,0.15); }
- .t-bar .t-brand { font-size: 5.5px; letter-spacing: 0.2em; }
- .t-bar .t-red { color: #C8102E; }
- .t-bar .t-muted { color: #8A8A8A; }
- .t-bar.dark .t-muted { color: #888; }
+    /* Generic masthead */
+    .t-bar {
+      height: 7%;
+      flex-shrink: 0;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 0 4%;
+      font-family: 'DM Mono', monospace;
+      font-size: 5px;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      border-bottom: 1.5px solid #1A1A1A;
+      font-size: 5px;
+    }
 
- /* foot */
- .t-foot {
-  height: 6%; flex-shrink: 0;
-  border-top: 1px solid #D4D0CB;
-  display: flex; justify-content: space-between; align-items: center;
-  padding: 0 4%;
-  font-family: 'DM Mono', monospace; font-size: 4px;
-  color: #8A8A8A; letter-spacing: 0.08em;
- }
- .t-foot.dark { border-top-color: rgba(255,255,255,0.1); color: #888; }
+    .t-bar.dark {
+      border-bottom-color: rgba(255, 255, 255, 0.15);
+    }
 
- .t-body { flex: 1; display: flex; overflow: hidden; }
- .t-pad { padding: 4% 4%; flex: 1; display: flex; flex-direction: column; }
+    .t-bar .t-brand {
+      font-size: 5.5px;
+      letter-spacing: 0.2em;
+    }
 
- /* Text block */
- .t-red-tag {
-  display: inline-block; background: #C8102E;
-  color: #fff; font-family: 'DM Mono', monospace;
-  font-size: 4px; letter-spacing: 0.12em;
-  padding: 1px 4px; text-transform: uppercase; margin-bottom: 3%;
- }
- .t-h1-en {
-  font-family: 'Cormorant Garamond', serif;
-  font-style: italic; font-weight: 700;
-  font-size: 22px; line-height: 0.95;
-  letter-spacing: -0.02em; margin-bottom: 3%;
- }
- .t-h1-zh {
-  font-family: 'Noto Serif SC', serif;
-  font-weight: 700; font-size: 16px;
-  line-height: 1.05; margin-bottom: 3%;
- }
- .t-h2 {
-  font-family: 'Cormorant Garamond', serif;
-  font-weight: 600; font-size: 12px; line-height: 1.15;
-  margin-bottom: 2%;
- }
- .t-lead {
-  font-family: 'DM Sans', sans-serif;
-  font-size: 5px; line-height: 1.6;
-  color: #4A4A4A; margin-bottom: 2%;
- }
- .t-body-text {
-  font-family: 'DM Sans', sans-serif;
-  font-size: 4.5px; line-height: 1.7;
-  color: #4A4A4A; opacity: 0.85;
- }
- .t-meta {
-  font-family: 'DM Mono', monospace;
-  font-size: 4px; letter-spacing: 0.1em;
-  text-transform: uppercase; color: #8A8A8A;
- }
- .t-stat-nb {
-  font-family: 'Cormorant Garamond', serif;
-  font-weight: 700; font-size: 18px; line-height: 1;
-  letter-spacing: -0.02em;
- }
- .t-pull {
-  font-family: 'Cormorant Garamond', serif;
-  font-style: italic; font-weight: 600;
-  font-size: 8px; line-height: 1.35;
-  border-top: 1.5px solid #1A1A1A;
-  border-bottom: 1px solid #D4D0CB;
-  padding: 2% 0; margin: 2% 0;
- }
- .t-rule { border: none; border-top: 1px solid #D4D0CB; margin: 2% 0; }
- .t-rule.strong { border-top: 1.5px solid #1A1A1A; }
- .t-col-rule { width: 1px; background: #D4D0CB; align-self: stretch; margin: 0 2%; flex-shrink: 0; }
- .t-img { background: #EEEBE6; border: 1px solid #D4D0CB; }
+    .t-bar .t-red {
+      color: #C8102E;
+    }
 
- /* ── 1. Cover Dark ── */
- .thumb-cover { background: #111111; color: #F7F5F2; }
- .thumb-cover .t-h1-en { color: #F7F5F2; }
- .thumb-cover .t-h1-zh { color: #F7F5F2; }
- .thumb-cover .t-lead { color: rgba(247,245,242,0.6); }
- .thumb-cover .t-meta { color: #888; }
- .thumb-cover .t-pull { border-top-color: rgba(255,255,255,0.3); border-bottom-color: rgba(255,255,255,0.1); color: #F7F5F2; }
- .cover-red-block { width: 5px; background: #C8102E; align-self: stretch; flex-shrink: 0; }
- .cover-red-line { height: 2px; background: #C8102E; width: 30px; margin: 3% 0; }
+    .t-bar .t-muted {
+      color: #8A8A8A;
+    }
 
- /* ── 2. Contents Page ── */
- .thumb-contents { background: #FFFFFF; color: #1A1A1A; }
- .t-ghost {
-  position: absolute; font-family: 'Cormorant Garamond', serif;
-  font-weight: 700; font-size: 80px; line-height: 0.85;
-  opacity: 0.025; pointer-events: none;
-  letter-spacing: -0.05em;
- }
- .t-content-row {
-  display: grid; grid-template-columns: 3fr 5fr 1fr;
-  gap: 4%; padding: 1.5% 0;
-  border-bottom: 1px solid #EEEBE6;
-  align-items: start; font-size: 4px;
- }
- .t-content-row .r-num { color: #C8102E; font-family: 'DM Mono', monospace; }
- .t-content-row .r-title { font-family: 'Cormorant Garamond', serif; font-weight: 600; font-size: 5px; }
- .t-content-row .r-pg { font-family: 'DM Mono', monospace; color: #8A8A8A; text-align: right; }
+    .t-bar.dark .t-muted {
+      color: #888;
+    }
 
- /* ── 3. Feature Page ── */
- .thumb-feature { background: #FFFFFF; color: #1A1A1A; }
+    /* foot */
+    .t-foot {
+      height: 6%;
+      flex-shrink: 0;
+      border-top: 1px solid #D4D0CB;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 0 4%;
+      font-family: 'DM Mono', monospace;
+      font-size: 4px;
+      color: #8A8A8A;
+      letter-spacing: 0.08em;
+    }
 
- /* ── 4. Data Report Page ── */
- .thumb-data { background: #F7F5F2; color: #1A1A1A; }
- .t-stat-card {
-  border: 1px solid #D4D0CB; padding: 4% 6%;
-  display: flex; flex-direction: column; gap: 4%;
-  background: #FFFFFF;
- }
- .t-stat-label { font-family: 'DM Mono', monospace; font-size: 4px; color: #8A8A8A; letter-spacing: 0.1em; text-transform: uppercase; }
- .t-stat-note { font-family: 'DM Sans', sans-serif; font-size: 4px; color: #8A8A8A; line-height: 1.5; border-top: 1px solid #EEEBE6; padding-top: 3%; }
+    .t-foot.dark {
+      border-top-color: rgba(255, 255, 255, 0.1);
+      color: #888;
+    }
 
- /* ── 5. City Dispatch ── */
- .thumb-city { background: #FFFFFF; color: #1A1A1A; }
- .t-city-banner {
-  position: relative; overflow: hidden; flex-shrink: 0;
-  height: 38%;
-  background: #EEEBE6;
- }
- .t-city-label {
-  position: absolute; bottom: 6%; left: 4%;
-  font-family: 'Cormorant Garamond', serif;
-  font-style: italic; font-weight: 700;
-  font-size: 10px; color: #fff;
-  text-shadow: 0 1px 6px rgba(0,0,0,0.5);
- }
+    .t-body {
+      flex: 1;
+      display: flex;
+      overflow: hidden;
+    }
 
- /* ── 6. Interview Page ── */
- .thumb-interview { background: #FFFFFF; color: #1A1A1A; }
- .t-qa { margin-bottom: 3%; }
- .t-q-label { font-family: 'DM Mono', monospace; font-size: 4px; color: #C8102E; letter-spacing: 0.1em; text-transform: uppercase; margin-bottom: 1%; }
- .t-a-label { font-family: 'DM Mono', monospace; font-size: 4px; color: #8A8A8A; letter-spacing: 0.1em; text-transform: uppercase; margin-bottom: 1%; }
- .t-q-text { font-family: 'DM Sans', sans-serif; font-size: 4.5px; font-weight: 500; line-height: 1.5; }
- .t-a-text { font-family: 'DM Sans', sans-serif; font-size: 4.5px; color: #4A4A4A; line-height: 1.6; }
+    .t-pad {
+      padding: 4% 4%;
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+    }
 
- /* ── 7. Opinion Page ── */
- .thumb-opinion { background: #F7F5F2; color: #1A1A1A; }
+    /* Text block */
+    .t-red-tag {
+      display: inline-block;
+      background: #C8102E;
+      color: #fff;
+      font-family: 'DM Mono', monospace;
+      font-size: 4px;
+      letter-spacing: 0.12em;
+      padding: 1px 4px;
+      text-transform: uppercase;
+      margin-bottom: 3%;
+    }
 
- /* ── 8. Sign-off Dark Page ── */
- .thumb-signoff { background: #111111; color: #F7F5F2; }
- .signoff-red-block { position: absolute; bottom: 8%; right: 4%; width: 12px; height: 12px; background: #C8102E; }
-</style>
+    .t-h1-en {
+      font-family: 'Cormorant Garamond', serif;
+      font-style: italic;
+      font-weight: 700;
+      font-size: 22px;
+      line-height: 0.95;
+      letter-spacing: -0.02em;
+      margin-bottom: 3%;
+    }
+
+    .t-h1-zh {
+      font-family: 'Noto Serif SC', serif;
+      font-weight: 700;
+      font-size: 16px;
+      line-height: 1.05;
+      margin-bottom: 3%;
+    }
+
+    .t-h2 {
+      font-family: 'Cormorant Garamond', serif;
+      font-weight: 600;
+      font-size: 12px;
+      line-height: 1.15;
+      margin-bottom: 2%;
+    }
+
+    .t-lead {
+      font-family: 'DM Sans', sans-serif;
+      font-size: 5px;
+      line-height: 1.6;
+      color: #4A4A4A;
+      margin-bottom: 2%;
+    }
+
+    .t-body-text {
+      font-family: 'DM Sans', sans-serif;
+      font-size: 4.5px;
+      line-height: 1.7;
+      color: #4A4A4A;
+      opacity: 0.85;
+    }
+
+    .t-meta {
+      font-family: 'DM Mono', monospace;
+      font-size: 4px;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      color: #8A8A8A;
+    }
+
+    .t-stat-nb {
+      font-family: 'Cormorant Garamond', serif;
+      font-weight: 700;
+      font-size: 18px;
+      line-height: 1;
+      letter-spacing: -0.02em;
+    }
+
+    .t-pull {
+      font-family: 'Cormorant Garamond', serif;
+      font-style: italic;
+      font-weight: 600;
+      font-size: 8px;
+      line-height: 1.35;
+      border-top: 1.5px solid #1A1A1A;
+      border-bottom: 1px solid #D4D0CB;
+      padding: 2% 0;
+      margin: 2% 0;
+    }
+
+    .t-rule {
+      border: none;
+      border-top: 1px solid #D4D0CB;
+      margin: 2% 0;
+    }
+
+    .t-rule.strong {
+      border-top: 1.5px solid #1A1A1A;
+    }
+
+    .t-col-rule {
+      width: 1px;
+      background: #D4D0CB;
+      align-self: stretch;
+      margin: 0 2%;
+      flex-shrink: 0;
+    }
+
+    .t-img {
+      background: #EEEBE6;
+      border: 1px solid #D4D0CB;
+    }
+
+    /* ── 1. Cover Dark ── */
+    .thumb-cover {
+      background: #111111;
+      color: #F7F5F2;
+    }
+
+    .thumb-cover .t-h1-en {
+      color: #F7F5F2;
+    }
+
+    .thumb-cover .t-h1-zh {
+      color: #F7F5F2;
+    }
+
+    .thumb-cover .t-lead {
+      color: rgba(247, 245, 242, 0.6);
+    }
+
+    .thumb-cover .t-meta {
+      color: #888;
+    }
+
+    .thumb-cover .t-pull {
+      border-top-color: rgba(255, 255, 255, 0.3);
+      border-bottom-color: rgba(255, 255, 255, 0.1);
+      color: #F7F5F2;
+    }
+
+    .cover-red-block {
+      width: 5px;
+      background: #C8102E;
+      align-self: stretch;
+      flex-shrink: 0;
+    }
+
+    .cover-red-line {
+      height: 2px;
+      background: #C8102E;
+      width: 30px;
+      margin: 3% 0;
+    }
+
+    /* ── 2. Contents Page ── */
+    .thumb-contents {
+      background: #FFFFFF;
+      color: #1A1A1A;
+    }
+
+    .t-ghost {
+      position: absolute;
+      font-family: 'Cormorant Garamond', serif;
+      font-weight: 700;
+      font-size: 80px;
+      line-height: 0.85;
+      opacity: 0.025;
+      pointer-events: none;
+      letter-spacing: -0.05em;
+    }
+
+    .t-content-row {
+      display: grid;
+      grid-template-columns: 3fr 5fr 1fr;
+      gap: 4%;
+      padding: 1.5% 0;
+      border-bottom: 1px solid #EEEBE6;
+      align-items: start;
+      font-size: 4px;
+    }
+
+    .t-content-row .r-num {
+      color: #C8102E;
+      font-family: 'DM Mono', monospace;
+    }
+
+    .t-content-row .r-title {
+      font-family: 'Cormorant Garamond', serif;
+      font-weight: 600;
+      font-size: 5px;
+    }
+
+    .t-content-row .r-pg {
+      font-family: 'DM Mono', monospace;
+      color: #8A8A8A;
+      text-align: right;
+    }
+
+    /* ── 3. Feature Page ── */
+    .thumb-feature {
+      background: #FFFFFF;
+      color: #1A1A1A;
+    }
+
+    /* ── 4. Data Report Page ── */
+    .thumb-data {
+      background: #F7F5F2;
+      color: #1A1A1A;
+    }
+
+    .t-stat-card {
+      border: 1px solid #D4D0CB;
+      padding: 4% 6%;
+      display: flex;
+      flex-direction: column;
+      gap: 4%;
+      background: #FFFFFF;
+    }
+
+    .t-stat-label {
+      font-family: 'DM Mono', monospace;
+      font-size: 4px;
+      color: #8A8A8A;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+    }
+
+    .t-stat-note {
+      font-family: 'DM Sans', sans-serif;
+      font-size: 4px;
+      color: #8A8A8A;
+      line-height: 1.5;
+      border-top: 1px solid #EEEBE6;
+      padding-top: 3%;
+    }
+
+    /* ── 5. City Dispatch ── */
+    .thumb-city {
+      background: #FFFFFF;
+      color: #1A1A1A;
+    }
+
+    .t-city-banner {
+      position: relative;
+      overflow: hidden;
+      flex-shrink: 0;
+      height: 38%;
+      background: #EEEBE6;
+    }
+
+    .t-city-label {
+      position: absolute;
+      bottom: 6%;
+      left: 4%;
+      font-family: 'Cormorant Garamond', serif;
+      font-style: italic;
+      font-weight: 700;
+      font-size: 10px;
+      color: #fff;
+      text-shadow: 0 1px 6px rgba(0, 0, 0, 0.5);
+    }
+
+    /* ── 6. Interview Page ── */
+    .thumb-interview {
+      background: #FFFFFF;
+      color: #1A1A1A;
+    }
+
+    .t-qa {
+      margin-bottom: 3%;
+    }
+
+    .t-q-label {
+      font-family: 'DM Mono', monospace;
+      font-size: 4px;
+      color: #C8102E;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      margin-bottom: 1%;
+    }
+
+    .t-a-label {
+      font-family: 'DM Mono', monospace;
+      font-size: 4px;
+      color: #8A8A8A;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      margin-bottom: 1%;
+    }
+
+    .t-q-text {
+      font-family: 'DM Sans', sans-serif;
+      font-size: 4.5px;
+      font-weight: 500;
+      line-height: 1.5;
+    }
+
+    .t-a-text {
+      font-family: 'DM Sans', sans-serif;
+      font-size: 4.5px;
+      color: #4A4A4A;
+      line-height: 1.6;
+    }
+
+    /* ── 7. Opinion Page ── */
+    .thumb-opinion {
+      background: #F7F5F2;
+      color: #1A1A1A;
+    }
+
+    /* ── 8. Sign-off Dark Page ── */
+    .thumb-signoff {
+      background: #111111;
+      color: #F7F5F2;
+    }
+
+    .signoff-red-block {
+      position: absolute;
+      bottom: 8%;
+      right: 4%;
+      width: 12px;
+      height: 12px;
+      background: #C8102E;
+    }
+  </style>
 </head>
+
 <body>
 
-<!-- ── Page header ── -->
-<div class="preview-header">
- <div>
-  <div class="brand">Monocle Editorial</div>
-  <div class="subtitle">Template Preview · Global Affairs & Culture</div>
- </div>
- <h1>Monocle<br>Editorial</h1>
-</div>
-
-<!-- ── Color Palette ── -->
-<div class="color-section">
- <div class="section-title">Color Palette · Color Specification</div>
- <div class="swatches">
-  <div class="swatch">
-   <div class="swatch-block" style="background:#FFFFFF;"></div>
-   <div class="swatch-name">White</div>
-   <div class="swatch-hex">#FFFFFF</div>
-  </div>
-  <div class="swatch">
-   <div class="swatch-block" style="background:#F7F5F2;"></div>
-   <div class="swatch-name">Off White</div>
-   <div class="swatch-hex">#F7F5F2</div>
-  </div>
-  <div class="swatch">
-   <div class="swatch-block" style="background:#EEEBE6;"></div>
-   <div class="swatch-name">Warm Gray</div>
-   <div class="swatch-hex">#EEEBE6</div>
-  </div>
-  <div class="swatch">
-   <div class="swatch-block" style="background:#D4D0CB;"></div>
-   <div class="swatch-name">Border Mid</div>
-   <div class="swatch-hex">#D4D0CB</div>
-  </div>
-  <div class="swatch">
-   <div class="swatch-block" style="background:#8A8A8A;"></div>
-   <div class="swatch-name">Text Muted</div>
-   <div class="swatch-hex">#8A8A8A</div>
-  </div>
-  <div class="swatch">
-   <div class="swatch-block" style="background:#4A4A4A;"></div>
-   <div class="swatch-name">Text Secondary</div>
-   <div class="swatch-hex">#4A4A4A</div>
-  </div>
-  <div class="swatch">
-   <div class="swatch-block" style="background:#1A1A1A;"></div>
-   <div class="swatch-name">Ink Black</div>
-   <div class="swatch-hex">#1A1A1A</div>
-  </div>
-  <div class="swatch">
-   <div class="swatch-block" style="background:#111111;"></div>
-   <div class="swatch-name">Cover BG</div>
-   <div class="swatch-hex">#111111</div>
-  </div>
-  <div class="swatch">
-   <div class="swatch-block" style="background:#C8102E;"></div>
-   <div class="swatch-name">Editorial Red ★</div>
-   <div class="swatch-hex">#C8102E</div>
-  </div>
- </div>
-</div>
-
-<!-- ── 8 layout thumbnails ── -->
-<div class="layouts-section">
- <div class="section-title">Layout Types · 8 Dedicated Layout Pages</div>
- <div class="layouts-grid">
-
-  <!-- 1. Cover Dark -->
-  <div class="layout-wrapper">
-   <div class="layout-thumb thumb-cover">
-    <div class="thumb-inner" style="position:relative;">
-     <!-- masthead dark -->
-     <div class="t-bar dark" style="border-bottom-color:rgba(255,255,255,0.12);">
-      <span class="t-red" style="font-size:4px;">ISSUE 193 · MAY 2026</span>
-      <span class="t-brand" style="color:#F7F5F2;">MONOCLE</span>
-      <span class="t-muted">GLOBAL AFFAIRS</span>
-     </div>
-     <div class="t-body">
-      <div class="cover-red-block"></div>
-      <div class="t-pad" style="padding-left:5%;">
-       <div class="t-red-tag">Cover Story</div>
-       <div class="t-h1-en" style="font-size:18px;">The World<br>Remade</div>
-       <div class="cover-red-line"></div>
-       <div class="t-lead" style="color:rgba(247,245,242,0.55);">A special report on global affairs,<br>design and the cities shaping tomorrow.</div>
-       <div style="flex:1;"></div>
-       <div class="t-meta" style="color:#888;">Tyler Brûlé · Zürich, 2026</div>
-      </div>
-     </div>
-     <div class="t-foot dark" style="border-top-color:rgba(255,255,255,0.08);">
-      <span>Monocle Magazine</span>
-      <span style="color:#C8102E;">●</span>
-      <span>Est. 2007</span>
-     </div>
+  <!-- ── Page header ── -->
+  <div class="preview-header">
+    <div>
+      <div class="brand">Monocle Editorial</div>
+      <div class="subtitle">Template Preview · Global Affairs & Culture</div>
     </div>
-   </div>
-   <div class="slide-label">01 · Cover Dark · Cover page</div>
+    <h1>Monocle<br>Editorial</h1>
   </div>
 
-  <!-- 2. Contents Page -->
-  <div class="layout-wrapper">
-   <div class="layout-thumb thumb-contents">
-    <div class="thumb-inner" style="position:relative;">
-     <div class="t-ghost" style="right:-5%;bottom:-10%;color:#1A1A1A;">C</div>
-     <div class="t-bar">
-      <span class="t-red">Issue 193</span>
-      <span class="t-brand">MONOCLE</span>
-      <span class="t-muted">Contents</span>
-     </div>
-     <div class="t-body">
-      <div class="t-pad" style="width:38%;border-right:1px solid #EEEBE6;">
-       <div class="t-meta" style="margin-bottom:4%;">This Issue</div>
-       <div class="t-h2" style="font-size:10px;">Global Affairs,<br>Design & Culture</div>
-       <div style="margin-top:4%;font-family:'DM Sans',sans-serif;font-size:4px;color:#4A4A4A;line-height:1.6;">From Milan's design week to<br>Dubai's hotel renaissance,<br>we report from the frontlines.</div>
+  <!-- ── Color Palette ── -->
+  <div class="color-section">
+    <div class="section-title">Color Palette · Color Specification</div>
+    <div class="swatches">
+      <div class="swatch">
+        <div class="swatch-block" style="background:#FFFFFF;"></div>
+        <div class="swatch-name">White</div>
+        <div class="swatch-hex">#FFFFFF</div>
       </div>
-      <div class="t-pad" style="flex:1;">
-       <div class="t-meta" style="margin-bottom:3%;">In This Issue</div>
-       <div class="t-content-row" style="border-top:1px solid #D4D0CB;">
-        <span class="r-num">01 · Affairs</span>
-        <span class="r-title">Dubai Hotels</span>
-        <span class="r-pg">12</span>
-       </div>
-       <div class="t-content-row">
-        <span class="r-num">02 · Design</span>
-        <span class="r-title">Milan Design Week</span>
-        <span class="r-pg">28</span>
-       </div>
-       <div class="t-content-row">
-        <span class="r-num">03 · Travel</span>
-        <span class="r-title">City Dispatch: Seoul</span>
-        <span class="r-pg">44</span>
-       </div>
-       <div class="t-content-row">
-        <span class="r-num">04 · Business</span>
-        <span class="r-title">Cathay Pacific</span>
-        <span class="r-pg">58</span>
-       </div>
+      <div class="swatch">
+        <div class="swatch-block" style="background:#F7F5F2;"></div>
+        <div class="swatch-name">Off White</div>
+        <div class="swatch-hex">#F7F5F2</div>
       </div>
-     </div>
-     <div class="t-foot">
-      <span>Monocle · Issue 193</span>
-      <span>May 2026</span>
-     </div>
+      <div class="swatch">
+        <div class="swatch-block" style="background:#EEEBE6;"></div>
+        <div class="swatch-name">Warm Gray</div>
+        <div class="swatch-hex">#EEEBE6</div>
+      </div>
+      <div class="swatch">
+        <div class="swatch-block" style="background:#D4D0CB;"></div>
+        <div class="swatch-name">Border Mid</div>
+        <div class="swatch-hex">#D4D0CB</div>
+      </div>
+      <div class="swatch">
+        <div class="swatch-block" style="background:#8A8A8A;"></div>
+        <div class="swatch-name">Text Muted</div>
+        <div class="swatch-hex">#8A8A8A</div>
+      </div>
+      <div class="swatch">
+        <div class="swatch-block" style="background:#4A4A4A;"></div>
+        <div class="swatch-name">Text Secondary</div>
+        <div class="swatch-hex">#4A4A4A</div>
+      </div>
+      <div class="swatch">
+        <div class="swatch-block" style="background:#1A1A1A;"></div>
+        <div class="swatch-name">Ink Black</div>
+        <div class="swatch-hex">#1A1A1A</div>
+      </div>
+      <div class="swatch">
+        <div class="swatch-block" style="background:#111111;"></div>
+        <div class="swatch-name">Cover BG</div>
+        <div class="swatch-hex">#111111</div>
+      </div>
+      <div class="swatch">
+        <div class="swatch-block" style="background:#C8102E;"></div>
+        <div class="swatch-name">Editorial Red ★</div>
+        <div class="swatch-hex">#C8102E</div>
+      </div>
     </div>
-   </div>
-   <div class="slide-label">02 · Contents</div>
   </div>
 
-  <!-- 3. Feature Article Page -->
-  <div class="layout-wrapper">
-   <div class="layout-thumb thumb-feature">
-    <div class="thumb-inner">
-     <div class="t-bar">
-      <span class="t-red">Feature</span>
-      <span class="t-brand">MONOCLE</span>
-      <span class="t-muted">Affairs</span>
-     </div>
-     <div class="t-body">
-      <div class="t-pad" style="width:55%;border-right:1px solid #EEEBE6;">
-       <div class="t-red-tag">In Depth</div>
-       <div class="t-h2" style="margin-bottom:3%;">How Dubai Bets<br>on Recovery</div>
-       <div class="t-body-text" style="margin-bottom:3%;">As regional tensions ease, the emirate's hoteliers are wagering on a post-crisis boom. Burj Al Arab closes for its most ambitious renovation yet.</div>
-       <div class="t-pull">"The city never really stopped believing in itself. That's the thing about Dubai."</div>
-       <div class="t-body-text">Developers say the luxury property market will continue its upward trajectory through 2026, citing record tourist arrivals.</div>
-      </div>
-      <div style="width:45%;display:flex;flex-direction:column;">
-       <div class="t-img" style="flex:1;margin:3% 3% 1% 0;"></div>
-       <div class="t-meta" style="padding:0 3% 2% 0;font-size:3.5px;">Burj Al Arab · Dubai, Feb 2026<br>Photo: Walaa Alshaer / Bloomberg</div>
-      </div>
-     </div>
-     <div class="t-foot">
-      <span>Affairs · Dubai</span>
-      <span>Issue 193</span>
-     </div>
-    </div>
-   </div>
-   <div class="slide-label">03 · Feature Article · Feature article page</div>
-  </div>
+  <!-- ── 8 layout thumbnails ── -->
+  <div class="layouts-section">
+    <div class="section-title">Layout Types · 8 Dedicated Layout Pages</div>
+    <div class="layouts-grid">
 
-  <!-- 4. Data Report Page -->
-  <div class="layout-wrapper">
-   <div class="layout-thumb thumb-data">
-    <div class="thumb-inner">
-     <div class="t-bar">
-      <span class="t-red">Data</span>
-      <span class="t-brand">MONOCLE</span>
-      <span class="t-muted">Report</span>
-     </div>
-     <div class="t-body">
-      <div class="t-pad" style="width:100%;display:flex;flex-direction:column;">
-       <div style="margin-bottom:3%;">
-        <div class="t-red-tag">By The Numbers</div>
-        <div class="t-h2" style="margin-top:2%;">Global Design Economy 2026</div>
-       </div>
-       <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:3%;flex:1;">
-        <div class="t-stat-card">
-         <div class="t-stat-label">Design Export Value</div>
-         <div class="t-stat-nb" style="font-size:16px;">$2.4T</div>
-         <div class="t-stat-note">Global creative industry output, up 12% YoY</div>
+      <!-- 1. Cover Dark -->
+      <div class="layout-wrapper">
+        <div class="layout-thumb thumb-cover">
+          <div class="thumb-inner" style="position:relative;">
+            <!-- masthead dark -->
+            <div class="t-bar dark" style="border-bottom-color:rgba(255,255,255,0.12);">
+              <span class="t-red" style="font-size:4px;">ISSUE 193 · MAY 2026</span>
+              <span class="t-brand" style="color:#F7F5F2;">MONOCLE</span>
+              <span class="t-muted">GLOBAL AFFAIRS</span>
+            </div>
+            <div class="t-body">
+              <div class="cover-red-block"></div>
+              <div class="t-pad" style="padding-left:5%;">
+                <div class="t-red-tag">Cover Story</div>
+                <div class="t-h1-en" style="font-size:18px;">The World<br>Remade</div>
+                <div class="cover-red-line"></div>
+                <div class="t-lead" style="color:rgba(247,245,242,0.55);">A special report on global affairs,<br>design
+                  and the cities shaping tomorrow.</div>
+                <div style="flex:1;"></div>
+                <div class="t-meta" style="color:#888;">Tyler Brûlé · Zürich, 2026</div>
+              </div>
+            </div>
+            <div class="t-foot dark" style="border-top-color:rgba(255,255,255,0.08);">
+              <span>Monocle Magazine</span>
+              <span style="color:#C8102E;">●</span>
+              <span>Est. 2007</span>
+            </div>
+          </div>
         </div>
-        <div class="t-stat-card">
-         <div class="t-stat-label">Cities Surveyed</div>
-         <div class="t-stat-nb" style="font-size:16px;color:#C8102E;">47</div>
-         <div class="t-stat-note">Across 6 continents in our annual index</div>
+        <div class="slide-label">01 · Cover Dark · Cover page</div>
+      </div>
+
+      <!-- 2. Contents Page -->
+      <div class="layout-wrapper">
+        <div class="layout-thumb thumb-contents">
+          <div class="thumb-inner" style="position:relative;">
+            <div class="t-ghost" style="right:-5%;bottom:-10%;color:#1A1A1A;">C</div>
+            <div class="t-bar">
+              <span class="t-red">Issue 193</span>
+              <span class="t-brand">MONOCLE</span>
+              <span class="t-muted">Contents</span>
+            </div>
+            <div class="t-body">
+              <div class="t-pad" style="width:38%;border-right:1px solid #EEEBE6;">
+                <div class="t-meta" style="margin-bottom:4%;">This Issue</div>
+                <div class="t-h2" style="font-size:10px;">Global Affairs,<br>Design & Culture</div>
+                <div
+                  style="margin-top:4%;font-family:'DM Sans',sans-serif;font-size:4px;color:#4A4A4A;line-height:1.6;">
+                  From Milan's design week to<br>Dubai's hotel renaissance,<br>we report from the frontlines.</div>
+              </div>
+              <div class="t-pad" style="flex:1;">
+                <div class="t-meta" style="margin-bottom:3%;">In This Issue</div>
+                <div class="t-content-row" style="border-top:1px solid #D4D0CB;">
+                  <span class="r-num">01 · Affairs</span>
+                  <span class="r-title">Dubai Hotels</span>
+                  <span class="r-pg">12</span>
+                </div>
+                <div class="t-content-row">
+                  <span class="r-num">02 · Design</span>
+                  <span class="r-title">Milan Design Week</span>
+                  <span class="r-pg">28</span>
+                </div>
+                <div class="t-content-row">
+                  <span class="r-num">03 · Travel</span>
+                  <span class="r-title">City Dispatch: Seoul</span>
+                  <span class="r-pg">44</span>
+                </div>
+                <div class="t-content-row">
+                  <span class="r-num">04 · Business</span>
+                  <span class="r-title">Cathay Pacific</span>
+                  <span class="r-pg">58</span>
+                </div>
+              </div>
+            </div>
+            <div class="t-foot">
+              <span>Monocle · Issue 193</span>
+              <span>May 2026</span>
+            </div>
+          </div>
         </div>
-        <div class="t-stat-card">
-         <div class="t-stat-label">Design Graduates</div>
-         <div class="t-stat-nb" style="font-size:16px;">890K</div>
-         <div class="t-stat-note">Entering the workforce globally this year</div>
+        <div class="slide-label">02 · Contents</div>
+      </div>
+
+      <!-- 3. Feature Article Page -->
+      <div class="layout-wrapper">
+        <div class="layout-thumb thumb-feature">
+          <div class="thumb-inner">
+            <div class="t-bar">
+              <span class="t-red">Feature</span>
+              <span class="t-brand">MONOCLE</span>
+              <span class="t-muted">Affairs</span>
+            </div>
+            <div class="t-body">
+              <div class="t-pad" style="width:55%;border-right:1px solid #EEEBE6;">
+                <div class="t-red-tag">In Depth</div>
+                <div class="t-h2" style="margin-bottom:3%;">How Dubai Bets<br>on Recovery</div>
+                <div class="t-body-text" style="margin-bottom:3%;">As regional tensions ease, the emirate's hoteliers
+                  are wagering on a post-crisis boom. Burj Al Arab closes for its most ambitious renovation yet.</div>
+                <div class="t-pull">"The city never really stopped believing in itself. That's the thing about Dubai."
+                </div>
+                <div class="t-body-text">Developers say the luxury property market will continue its upward trajectory
+                  through 2026, citing record tourist arrivals.</div>
+              </div>
+              <div style="width:45%;display:flex;flex-direction:column;">
+                <div class="t-img" style="flex:1;margin:3% 3% 1% 0;"></div>
+                <div class="t-meta" style="padding:0 3% 2% 0;font-size:3.5px;">Burj Al Arab · Dubai, Feb 2026<br>Photo:
+                  Walaa Alshaer / Bloomberg</div>
+              </div>
+            </div>
+            <div class="t-foot">
+              <span>Affairs · Dubai</span>
+              <span>Issue 193</span>
+            </div>
+          </div>
         </div>
-       </div>
+        <div class="slide-label">03 · Feature Article · Feature article page</div>
       </div>
-     </div>
-     <div class="t-foot">
-      <span>Source: Monocle Design Index 2026</span>
-      <span>Issue 193</span>
-     </div>
-    </div>
-   </div>
-   <div class="slide-label">04 · Data Report</div>
-  </div>
 
-  <!-- 5. City feature page City Dispatch -->
-  <div class="layout-wrapper">
-   <div class="layout-thumb thumb-city">
-    <div class="thumb-inner">
-     <div class="t-bar">
-      <span class="t-red">City Dispatch</span>
-      <span class="t-brand">MONOCLE</span>
-      <span class="t-muted">Travel</span>
-     </div>
-     <div class="t-body" style="flex-direction:column;">
-      <div class="t-city-banner">
-       <div style="width:100%;height:100%;background:linear-gradient(135deg,#EEEBE6 0%,#D4D0CB 100%);"></div>
-       <div class="t-city-label">Seoul</div>
-       <div style="position:absolute;bottom:6%;right:4%;font-family:'DM Mono',monospace;font-size:4px;color:rgba(255,255,255,0.6);letter-spacing:0.1em;">37.5665° N</div>
+      <!-- 4. Data Report Page -->
+      <div class="layout-wrapper">
+        <div class="layout-thumb thumb-data">
+          <div class="thumb-inner">
+            <div class="t-bar">
+              <span class="t-red">Data</span>
+              <span class="t-brand">MONOCLE</span>
+              <span class="t-muted">Report</span>
+            </div>
+            <div class="t-body">
+              <div class="t-pad" style="width:100%;display:flex;flex-direction:column;">
+                <div style="margin-bottom:3%;">
+                  <div class="t-red-tag">By The Numbers</div>
+                  <div class="t-h2" style="margin-top:2%;">Global Design Economy 2026</div>
+                </div>
+                <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:3%;flex:1;">
+                  <div class="t-stat-card">
+                    <div class="t-stat-label">Design Export Value</div>
+                    <div class="t-stat-nb" style="font-size:16px;">$2.4T</div>
+                    <div class="t-stat-note">Global creative industry output, up 12% YoY</div>
+                  </div>
+                  <div class="t-stat-card">
+                    <div class="t-stat-label">Cities Surveyed</div>
+                    <div class="t-stat-nb" style="font-size:16px;color:#C8102E;">47</div>
+                    <div class="t-stat-note">Across 6 continents in our annual index</div>
+                  </div>
+                  <div class="t-stat-card">
+                    <div class="t-stat-label">Design Graduates</div>
+                    <div class="t-stat-nb" style="font-size:16px;">890K</div>
+                    <div class="t-stat-note">Entering the workforce globally this year</div>
+                  </div>
+                </div>
+              </div>
+            </div>
+            <div class="t-foot">
+              <span>Source: Monocle Design Index 2026</span>
+              <span>Issue 193</span>
+            </div>
+          </div>
+        </div>
+        <div class="slide-label">04 · Data Report</div>
       </div>
-      <div style="flex:1;display:grid;grid-template-columns:1fr 1fr;gap:0;">
-       <div class="t-pad" style="border-right:1px solid #EEEBE6;">
-        <div class="t-red-tag" style="margin-bottom:3%;">Dispatch</div>
-        <div class="t-body-text">The Swiss Embassy's new Seoul residence, designed in the spirit of the traditional hanok, has become a symbol of architectural diplomacy.</div>
-       </div>
-       <div class="t-pad">
-        <div class="t-meta" style="margin-bottom:3%;">Key Facts</div>
-        <div style="border:1px solid #D4D0CB;padding:3%;margin-bottom:2%;font-family:'DM Sans',sans-serif;font-size:4px;color:#4A4A4A;">Population: 9.7M</div>
-        <div style="border:1px solid #D4D0CB;padding:3%;margin-bottom:2%;font-family:'DM Sans',sans-serif;font-size:4px;color:#4A4A4A;">GDP Growth: +3.2%</div>
-        <div style="border:1px solid #D4D0CB;padding:3%;font-family:'DM Sans',sans-serif;font-size:4px;color:#4A4A4A;">Design Rank: #8 Global</div>
-       </div>
+
+      <!-- 5. City feature page City Dispatch -->
+      <div class="layout-wrapper">
+        <div class="layout-thumb thumb-city">
+          <div class="thumb-inner">
+            <div class="t-bar">
+              <span class="t-red">City Dispatch</span>
+              <span class="t-brand">MONOCLE</span>
+              <span class="t-muted">Travel</span>
+            </div>
+            <div class="t-body" style="flex-direction:column;">
+              <div class="t-city-banner">
+                <div style="width:100%;height:100%;background:linear-gradient(135deg,#EEEBE6 0%,#D4D0CB 100%);"></div>
+                <div class="t-city-label">Seoul</div>
+                <div
+                  style="position:absolute;bottom:6%;right:4%;font-family:'DM Mono',monospace;font-size:4px;color:rgba(255,255,255,0.6);letter-spacing:0.1em;">
+                  37.5665° N</div>
+              </div>
+              <div style="flex:1;display:grid;grid-template-columns:1fr 1fr;gap:0;">
+                <div class="t-pad" style="border-right:1px solid #EEEBE6;">
+                  <div class="t-red-tag" style="margin-bottom:3%;">Dispatch</div>
+                  <div class="t-body-text">The Swiss Embassy's new Seoul residence, designed in the spirit of the
+                    traditional hanok, has become a symbol of architectural diplomacy.</div>
+                </div>
+                <div class="t-pad">
+                  <div class="t-meta" style="margin-bottom:3%;">Key Facts</div>
+                  <div
+                    style="border:1px solid #D4D0CB;padding:3%;margin-bottom:2%;font-family:'DM Sans',sans-serif;font-size:4px;color:#4A4A4A;">
+                    Population: 9.7M</div>
+                  <div
+                    style="border:1px solid #D4D0CB;padding:3%;margin-bottom:2%;font-family:'DM Sans',sans-serif;font-size:4px;color:#4A4A4A;">
+                    GDP Growth: +3.2%</div>
+                  <div
+                    style="border:1px solid #D4D0CB;padding:3%;font-family:'DM Sans',sans-serif;font-size:4px;color:#4A4A4A;">
+                    Design Rank: #8 Global</div>
+                </div>
+              </div>
+            </div>
+            <div class="t-foot">
+              <span>City Dispatch · Seoul</span>
+              <span>Issue 193</span>
+            </div>
+          </div>
+        </div>
+        <div class="slide-label">05 · City Dispatch</div>
       </div>
-     </div>
-     <div class="t-foot">
-      <span>City Dispatch · Seoul</span>
-      <span>Issue 193</span>
-     </div>
-    </div>
-   </div>
-   <div class="slide-label">05 · City Dispatch</div>
-  </div>
 
-  <!-- 6. Interview Page -->
-  <div class="layout-wrapper">
-   <div class="layout-thumb thumb-interview">
-    <div class="thumb-inner">
-     <div class="t-bar">
-      <span class="t-red">Interview</span>
-      <span class="t-brand">MONOCLE</span>
-      <span class="t-muted">Design</span>
-     </div>
-     <div class="t-body">
-      <div style="width:33%;display:flex;flex-direction:column;border-right:1px solid #EEEBE6;">
-       <div class="t-img" style="flex:1;margin:3%;"></div>
-       <div style="padding:0 3% 3%;display:flex;flex-direction:column;gap:1%;">
-        <div style="font-family:'DM Sans',sans-serif;font-size:5px;font-weight:600;">Gilda Bojardi</div>
-        <div class="t-meta" style="font-size:3.5px;">Editor, Interni Magazine</div>
-        <div class="t-meta" style="font-size:3.5px;color:#C8102E;">Milan, April 2026</div>
-       </div>
+      <!-- 6. Interview Page -->
+      <div class="layout-wrapper">
+        <div class="layout-thumb thumb-interview">
+          <div class="thumb-inner">
+            <div class="t-bar">
+              <span class="t-red">Interview</span>
+              <span class="t-brand">MONOCLE</span>
+              <span class="t-muted">Design</span>
+            </div>
+            <div class="t-body">
+              <div style="width:33%;display:flex;flex-direction:column;border-right:1px solid #EEEBE6;">
+                <div class="t-img" style="flex:1;margin:3%;"></div>
+                <div style="padding:0 3% 3%;display:flex;flex-direction:column;gap:1%;">
+                  <div style="font-family:'DM Sans',sans-serif;font-size:5px;font-weight:600;">Gilda Bojardi</div>
+                  <div class="t-meta" style="font-size:3.5px;">Editor, Interni Magazine</div>
+                  <div class="t-meta" style="font-size:3.5px;color:#C8102E;">Milan, April 2026</div>
+                </div>
+              </div>
+              <div class="t-pad" style="flex:1;">
+                <div class="t-red-tag" style="margin-bottom:3%;">In Conversation</div>
+                <div class="t-h2" style="margin-bottom:4%;font-size:9px;">"Design Must<br>Earn Its Place"</div>
+                <div class="t-qa">
+                  <div class="t-q-label">Q —</div>
+                  <div class="t-q-text">What defined Milan Design Week 2026?</div>
+                </div>
+                <div class="t-qa">
+                  <div class="t-a-label">A —</div>
+                  <div class="t-a-text">A return to craft. Less spectacle, more substance. The best pieces told stories
+                    about materials and makers.</div>
+                </div>
+              </div>
+            </div>
+            <div class="t-foot">
+              <span>Interview · Design</span>
+              <span>Issue 193</span>
+            </div>
+          </div>
+        </div>
+        <div class="slide-label">06 · Interview</div>
       </div>
-      <div class="t-pad" style="flex:1;">
-       <div class="t-red-tag" style="margin-bottom:3%;">In Conversation</div>
-       <div class="t-h2" style="margin-bottom:4%;font-size:9px;">"Design Must<br>Earn Its Place"</div>
-       <div class="t-qa">
-        <div class="t-q-label">Q —</div>
-        <div class="t-q-text">What defined Milan Design Week 2026?</div>
-       </div>
-       <div class="t-qa">
-        <div class="t-a-label">A —</div>
-        <div class="t-a-text">A return to craft. Less spectacle, more substance. The best pieces told stories about materials and makers.</div>
-       </div>
+
+      <!-- 7. Opinion Page -->
+      <div class="layout-wrapper">
+        <div class="layout-thumb thumb-opinion">
+          <div class="thumb-inner">
+            <div class="t-bar">
+              <span class="t-red">Opinion</span>
+              <span class="t-brand">MONOCLE</span>
+              <span class="t-muted">Perspective</span>
+            </div>
+            <div class="t-body" style="align-items:center;justify-content:center;">
+              <div style="padding:0 10%;display:flex;flex-direction:column;align-items:flex-start;width:100%;">
+                <div class="t-red-tag" style="margin-bottom:4%;">Editor's View</div>
+                <div class="t-pull" style="font-size:9px;width:100%;">
+                  "The cities that will thrive in the next decade are not the ones with the tallest towers, but the ones
+                  with the most liveable streets."
+                </div>
+                <div style="margin-top:4%;display:flex;gap:6%;align-items:center;">
+                  <div class="t-meta">Tyler Brûlé</div>
+                  <div style="width:1px;height:10px;background:#D4D0CB;"></div>
+                  <div class="t-meta">Editor in Chief, Monocle</div>
+                  <div style="width:1px;height:10px;background:#D4D0CB;"></div>
+                  <div class="t-meta" style="color:#C8102E;">Issue 193</div>
+                </div>
+              </div>
+            </div>
+            <div class="t-foot">
+              <span>Opinion · Perspective</span>
+              <span>Issue 193</span>
+            </div>
+          </div>
+        </div>
+        <div class="slide-label">07 · Opinion</div>
       </div>
-     </div>
-     <div class="t-foot">
-      <span>Interview · Design</span>
-      <span>Issue 193</span>
-     </div>
-    </div>
-   </div>
-   <div class="slide-label">06 · Interview</div>
-  </div>
 
-  <!-- 7. Opinion Page -->
-  <div class="layout-wrapper">
-   <div class="layout-thumb thumb-opinion">
-    <div class="thumb-inner">
-     <div class="t-bar">
-      <span class="t-red">Opinion</span>
-      <span class="t-brand">MONOCLE</span>
-      <span class="t-muted">Perspective</span>
-     </div>
-     <div class="t-body" style="align-items:center;justify-content:center;">
-      <div style="padding:0 10%;display:flex;flex-direction:column;align-items:flex-start;width:100%;">
-       <div class="t-red-tag" style="margin-bottom:4%;">Editor's View</div>
-       <div class="t-pull" style="font-size:9px;width:100%;">
-        "The cities that will thrive in the next decade are not the ones with the tallest towers, but the ones with the most liveable streets."
-       </div>
-       <div style="margin-top:4%;display:flex;gap:6%;align-items:center;">
-        <div class="t-meta">Tyler Brûlé</div>
-        <div style="width:1px;height:10px;background:#D4D0CB;"></div>
-        <div class="t-meta">Editor in Chief, Monocle</div>
-        <div style="width:1px;height:10px;background:#D4D0CB;"></div>
-        <div class="t-meta" style="color:#C8102E;">Issue 193</div>
-       </div>
+      <!-- 8. Sign-off Dark Page -->
+      <div class="layout-wrapper">
+        <div class="layout-thumb thumb-signoff" style="position:relative;">
+          <div class="thumb-inner" style="position:relative;">
+            <div class="t-ghost dark-ghost" style="right:-8%;bottom:-12%;color:#F7F5F2;opacity:0.04;">M</div>
+            <div class="t-bar dark" style="border-bottom-color:rgba(255,255,255,0.1);">
+              <span class="t-red">Sign Off</span>
+              <span class="t-brand" style="color:#F7F5F2;">MONOCLE</span>
+              <span class="t-muted">Until Next Time</span>
+            </div>
+            <div class="t-body" style="align-items:center;justify-content:center;position:relative;">
+              <div style="padding:0 8%;display:flex;flex-direction:column;align-items:flex-start;width:100%;z-index:1;">
+                <div class="t-meta" style="color:#888;margin-bottom:3%;">Thank You For Reading</div>
+                <div
+                  style="font-family:'Cormorant Garamond',serif;font-style:italic;font-weight:700;font-size:22px;color:#F7F5F2;line-height:0.95;letter-spacing:-0.02em;margin-bottom:4%;">
+                  Until the<br>Next Issue</div>
+                <div class="cover-red-line"></div>
+                <div
+                  style="font-family:'DM Sans',sans-serif;font-size:4.5px;color:rgba(247,245,242,0.5);line-height:1.7;margin-top:3%;">
+                  monocle.com · @monoclemag<br>Subscribe at monocle.com/subscribe</div>
+              </div>
+              <div class="signoff-red-block"></div>
+            </div>
+            <div class="t-foot dark" style="border-top-color:rgba(255,255,255,0.08);">
+              <span style="color:#888;">Monocle Magazine · Est. 2007</span>
+              <span style="color:#C8102E;">Issue 193 · May 2026</span>
+            </div>
+          </div>
+        </div>
+        <div class="slide-label">08 · Sign-off Dark</div>
       </div>
-     </div>
-     <div class="t-foot">
-      <span>Opinion · Perspective</span>
-      <span>Issue 193</span>
-     </div>
+
     </div>
-   </div>
-   <div class="slide-label">07 · Opinion</div>
   </div>
 
-  <!-- 8. Sign-off Dark Page -->
-  <div class="layout-wrapper">
-   <div class="layout-thumb thumb-signoff" style="position:relative;">
-    <div class="thumb-inner" style="position:relative;">
-     <div class="t-ghost dark-ghost" style="right:-8%;bottom:-12%;color:#F7F5F2;opacity:0.04;">M</div>
-     <div class="t-bar dark" style="border-bottom-color:rgba(255,255,255,0.1);">
-      <span class="t-red">Sign Off</span>
-      <span class="t-brand" style="color:#F7F5F2;">MONOCLE</span>
-      <span class="t-muted">Until Next Time</span>
-     </div>
-     <div class="t-body" style="align-items:center;justify-content:center;position:relative;">
-      <div style="padding:0 8%;display:flex;flex-direction:column;align-items:flex-start;width:100%;z-index:1;">
-       <div class="t-meta" style="color:#888;margin-bottom:3%;">Thank You For Reading</div>
-       <div style="font-family:'Cormorant Garamond',serif;font-style:italic;font-weight:700;font-size:22px;color:#F7F5F2;line-height:0.95;letter-spacing:-0.02em;margin-bottom:4%;">Until the<br>Next Issue</div>
-       <div class="cover-red-line"></div>
-       <div style="font-family:'DM Sans',sans-serif;font-size:4.5px;color:rgba(247,245,242,0.5);line-height:1.7;margin-top:3%;">monocle.com · @monoclemag<br>Subscribe at monocle.com/subscribe</div>
+  <!-- ── Core Component Showcase ── -->
+  <div class="components-section">
+    <div class="section-title">Core Components</div>
+    <div class="components-grid">
+
+      <!-- Tag group -->
+      <div class="component-item">
+        <div class="component-label">Tags · Badges</div>
+        <div style="display:flex;flex-wrap:wrap;gap:10px;align-items:center;">
+          <span class="red-tag">Cover Story</span>
+          <span class="black-tag">Affairs</span>
+          <span class="outline-tag">Design</span>
+          <span class="red-tag">Interview</span>
+          <span class="outline-tag">Travel</span>
+        </div>
       </div>
-      <div class="signoff-red-block"></div>
-     </div>
-     <div class="t-foot dark" style="border-top-color:rgba(255,255,255,0.08);">
-      <span style="color:#888;">Monocle Magazine · Est. 2007</span>
-      <span style="color:#C8102E;">Issue 193 · May 2026</span>
-     </div>
+
+      <!-- Typography scale -->
+      <div class="component-item">
+        <div class="component-label">Typography · Typography scale</div>
+        <div style="display:flex;flex-direction:column;gap:6px;">
+          <div
+            style="font-family:'Cormorant Garamond',serif;font-size:32px;font-weight:700;font-style:italic;line-height:1;letter-spacing:-0.02em;">
+            Cover Headline</div>
+          <div style="font-family:'Cormorant Garamond',serif;font-size:22px;font-weight:600;line-height:1.1;">Section
+            Title</div>
+          <div style="font-family:'DM Sans',sans-serif;font-size:15px;color:#4A4A4A;line-height:1.6;">Body copy with
+            comfortable leading for extended reading in presentation contexts.</div>
+          <div
+            style="font-family:'DM Mono',monospace;font-size:11px;color:#C8102E;letter-spacing:0.12em;text-transform:uppercase;">
+            Issue 193 · Tag Label</div>
+        </div>
+      </div>
+
+      <!-- Pull Quote -->
+      <div class="component-item">
+        <div class="component-label">Pull Quote · pull-quote</div>
+        <blockquote class="pull-quote">
+          "Good design is as little design as possible."
+        </blockquote>
+        <div
+          style="font-family:var(--mono);font-size:10px;color:var(--text-muted);letter-spacing:0.08em;margin-top:8px;">—
+          Dieter Rams · Designer</div>
+      </div>
+
+      <!-- Stat card -->
+      <div class="component-item">
+        <div class="component-label">Stat Card · Stat card</div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
+          <div style="border:1px solid #D4D0CB;padding:16px 18px;background:#fff;">
+            <div
+              style="font-family:'DM Mono',monospace;font-size:10px;color:#8A8A8A;letter-spacing:0.1em;text-transform:uppercase;margin-bottom:6px;">
+              Cities Ranked</div>
+            <div
+              style="font-family:'Cormorant Garamond',serif;font-weight:700;font-size:36px;line-height:1;letter-spacing:-0.02em;">
+              47</div>
+            <div
+              style="font-family:'DM Sans',sans-serif;font-size:12px;color:#8A8A8A;margin-top:6px;border-top:1px solid #EEEBE6;padding-top:6px;">
+              Annual Monocle Quality of Life Index</div>
+          </div>
+          <div style="border:1px solid #D4D0CB;padding:16px 18px;background:#fff;">
+            <div
+              style="font-family:'DM Mono',monospace;font-size:10px;color:#8A8A8A;letter-spacing:0.1em;text-transform:uppercase;margin-bottom:6px;">
+              Growth</div>
+            <div
+              style="font-family:'Cormorant Garamond',serif;font-weight:700;font-size:36px;line-height:1;letter-spacing:-0.02em;color:#C8102E;">
+              +12%</div>
+            <div
+              style="font-family:'DM Sans',sans-serif;font-size:12px;color:#8A8A8A;margin-top:6px;border-top:1px solid #EEEBE6;padding-top:6px;">
+              Creative industry export value YoY</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Progress bar -->
+      <div class="component-item">
+        <div class="component-label">Progress Bar</div>
+        <div style="display:flex;flex-direction:column;gap:12px;">
+          <div style="display:grid;grid-template-columns:120px 1fr 40px;gap:12px;align-items:center;">
+            <div style="font-family:'DM Sans',sans-serif;font-size:13px;color:#4A4A4A;">Tokyo</div>
+            <div style="height:2px;background:#EEEBE6;position:relative;">
+              <div style="position:absolute;left:0;top:0;bottom:0;width:88%;background:#1A1A1A;"></div>
+            </div>
+            <div style="font-family:'DM Mono',monospace;font-size:11px;color:#8A8A8A;text-align:right;">88</div>
+          </div>
+          <div style="display:grid;grid-template-columns:120px 1fr 40px;gap:12px;align-items:center;">
+            <div style="font-family:'DM Sans',sans-serif;font-size:13px;color:#4A4A4A;">Zürich</div>
+            <div style="height:2px;background:#EEEBE6;position:relative;">
+              <div style="position:absolute;left:0;top:0;bottom:0;width:85%;background:#C8102E;"></div>
+            </div>
+            <div style="font-family:'DM Mono',monospace;font-size:11px;color:#8A8A8A;text-align:right;">85</div>
+          </div>
+          <div style="display:grid;grid-template-columns:120px 1fr 40px;gap:12px;align-items:center;">
+            <div style="font-family:'DM Sans',sans-serif;font-size:13px;color:#4A4A4A;">Copenhagen</div>
+            <div style="height:2px;background:#EEEBE6;position:relative;">
+              <div style="position:absolute;left:0;top:0;bottom:0;width:82%;background:#1A1A1A;"></div>
+            </div>
+            <div style="font-family:'DM Mono',monospace;font-size:11px;color:#8A8A8A;text-align:right;">82</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Left-rule callout -->
+      <div class="component-item">
+        <div class="component-label">Callout · callout</div>
+        <div class="callout">
+          The Swiss Embassy in Seoul, designed in the spirit of the traditional hanok courtyard house, represents a new
+          model for architectural diplomacy.
+        </div>
+      </div>
+
+      <!-- Horizontal Timeline -->
+      <div class="component-item" style="grid-column: 1 / -1;">
+        <div class="component-label">Horizontal Timeline · editorial-timeline</div>
+        <div class="editorial-timeline">
+          <div class="tl-col">
+            <div class="tl-dot filled"></div>
+            <div class="tl-year">2018</div>
+            <div class="tl-head">Brand Founded</div>
+            <div class="tl-body">Launched in Tokyo with a print-first ethos</div>
+          </div>
+          <div class="tl-col">
+            <div class="tl-dot filled"></div>
+            <div class="tl-year">2020</div>
+            <div class="tl-head">Digital Pivot</div>
+            <div class="tl-body">Expanded to digital; 12 city bureaux opened</div>
+          </div>
+          <div class="tl-col">
+            <div class="tl-dot red"></div>
+            <div class="tl-year">2024</div>
+            <div class="tl-head">Global Reach</div>
+            <div class="tl-body">Readership surpassed 2 million in 40 countries</div>
+          </div>
+          <div class="tl-col">
+            <div class="tl-dot"></div>
+            <div class="tl-year">2026</div>
+            <div class="tl-head">Next Chapter</div>
+            <div class="tl-body">Expanding into Southeast Asia and Latam</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Data Table -->
+      <div class="component-item" style="grid-column: 1 / -1;">
+        <div class="component-label">Data Table · editorial-table</div>
+        <table class="editorial-table">
+          <caption>Quality of Life Index 2026 · Selected Cities</caption>
+          <thead>
+            <tr>
+              <th>City</th>
+              <th>Score</th>
+              <th>Safety</th>
+              <th>Design</th>
+              <th>Trend</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td class="highlight">Tokyo</td>
+              <td class="highlight">88</td>
+              <td>96</td>
+              <td>92</td>
+              <td class="red">↑ +2</td>
+            </tr>
+            <tr>
+              <td class="highlight">Zürich</td>
+              <td class="highlight">85</td>
+              <td>98</td>
+              <td>87</td>
+              <td>→ 0</td>
+            </tr>
+            <tr>
+              <td class="highlight">Copenhagen</td>
+              <td class="highlight">82</td>
+              <td>91</td>
+              <td>89</td>
+              <td class="red">↑ +1</td>
+            </tr>
+            <tr>
+              <td>Vienna</td>
+              <td>80</td>
+              <td>97</td>
+              <td>83</td>
+              <td>→ 0</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <!-- Multi-stat Grid -->
+      <div class="component-item" style="grid-column: 1 / -1;">
+        <div class="component-label">Multi-stat Grid · stat-card × 4</div>
+        <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:16px;">
+          <div class="stat-card">
+            <div class="stat-label">Cities Surveyed</div>
+            <div class="stat-nb">47</div>
+            <div class="stat-unit" style="font-family:var(--sans);font-size:12px;color:var(--text-muted);">global cities
+            </div>
+            <div class="stat-note">Annual Quality of Life index</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-label">Design Export</div>
+            <div class="stat-nb" style="color:var(--editorial-red);">$2.4T</div>
+            <div class="stat-unit" style="font-family:var(--sans);font-size:12px;color:var(--text-muted);">USD</div>
+            <div class="stat-note">Global creative industry output</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-label">New Graduates</div>
+            <div class="stat-nb">890K</div>
+            <div class="stat-unit" style="font-family:var(--sans);font-size:12px;color:var(--text-muted);">per year
+            </div>
+            <div class="stat-note">Entering the workforce globally</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-label">YoY Growth</div>
+            <div class="stat-nb">+12%</div>
+            <div class="stat-unit" style="font-family:var(--sans);font-size:12px;color:var(--text-muted);">creative
+              sector</div>
+            <div class="stat-note">Year-on-year industry growth rate</div>
+          </div>
+        </div>
+      </div>
+
     </div>
-   </div>
-   <div class="slide-label">08 · Sign-off Dark</div>
   </div>
 
- </div>
-</div>
-
-<!-- ── Core Component Showcase ── -->
-<div class="components-section">
- <div class="section-title">Core Components</div>
- <div class="components-grid">
-
-  <!-- Tag group -->
-  <div class="component-item">
-   <div class="component-label">Tags · Badges</div>
-   <div style="display:flex;flex-wrap:wrap;gap:10px;align-items:center;">
-    <span class="red-tag">Cover Story</span>
-    <span class="black-tag">Affairs</span>
-    <span class="outline-tag">Design</span>
-    <span class="red-tag">Interview</span>
-    <span class="outline-tag">Travel</span>
-   </div>
+  <!-- ── Footer ── -->
+  <div
+    style="border-top:2px solid #1A1A1A;padding-top:20px;display:flex;justify-content:space-between;align-items:center;">
+    <div
+      style="font-family:'DM Mono',monospace;font-size:10px;color:#8A8A8A;letter-spacing:0.1em;text-transform:uppercase;">
+      Monocle Editorial Template · v1.0</div>
+    <div
+      style="font-family:'DM Mono',monospace;font-size:10px;color:#C8102E;letter-spacing:0.1em;text-transform:uppercase;">
+      Slide Template Manager</div>
   </div>
-
-  <!-- Typography scale -->
-  <div class="component-item">
-   <div class="component-label">Typography · Typography scale</div>
-   <div style="display:flex;flex-direction:column;gap:6px;">
-    <div style="font-family:'Cormorant Garamond',serif;font-size:32px;font-weight:700;font-style:italic;line-height:1;letter-spacing:-0.02em;">Cover Headline</div>
-    <div style="font-family:'Cormorant Garamond',serif;font-size:22px;font-weight:600;line-height:1.1;">Section Title</div>
-    <div style="font-family:'DM Sans',sans-serif;font-size:15px;color:#4A4A4A;line-height:1.6;">Body copy with comfortable leading for extended reading in presentation contexts.</div>
-    <div style="font-family:'DM Mono',monospace;font-size:11px;color:#C8102E;letter-spacing:0.12em;text-transform:uppercase;">Issue 193 · Tag Label</div>
-   </div>
-  </div>
-
-  <!-- Pull Quote -->
-  <div class="component-item">
-   <div class="component-label">Pull Quote · pull-quote</div>
-   <blockquote class="pull-quote">
-    "Good design is as little design as possible."
-   </blockquote>
-   <div style="font-family:var(--mono);font-size:10px;color:var(--text-muted);letter-spacing:0.08em;margin-top:8px;">— Dieter Rams · Designer</div>
-  </div>
-
-  <!-- Stat card -->
-  <div class="component-item">
-   <div class="component-label">Stat Card · Stat card</div>
-   <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
-    <div style="border:1px solid #D4D0CB;padding:16px 18px;background:#fff;">
-     <div style="font-family:'DM Mono',monospace;font-size:10px;color:#8A8A8A;letter-spacing:0.1em;text-transform:uppercase;margin-bottom:6px;">Cities Ranked</div>
-     <div style="font-family:'Cormorant Garamond',serif;font-weight:700;font-size:36px;line-height:1;letter-spacing:-0.02em;">47</div>
-     <div style="font-family:'DM Sans',sans-serif;font-size:12px;color:#8A8A8A;margin-top:6px;border-top:1px solid #EEEBE6;padding-top:6px;">Annual Monocle Quality of Life Index</div>
-    </div>
-    <div style="border:1px solid #D4D0CB;padding:16px 18px;background:#fff;">
-     <div style="font-family:'DM Mono',monospace;font-size:10px;color:#8A8A8A;letter-spacing:0.1em;text-transform:uppercase;margin-bottom:6px;">Growth</div>
-     <div style="font-family:'Cormorant Garamond',serif;font-weight:700;font-size:36px;line-height:1;letter-spacing:-0.02em;color:#C8102E;">+12%</div>
-     <div style="font-family:'DM Sans',sans-serif;font-size:12px;color:#8A8A8A;margin-top:6px;border-top:1px solid #EEEBE6;padding-top:6px;">Creative industry export value YoY</div>
-    </div>
-   </div>
-  </div>
-
-  <!-- Progress bar -->
-  <div class="component-item">
-   <div class="component-label">Progress Bar</div>
-   <div style="display:flex;flex-direction:column;gap:12px;">
-    <div style="display:grid;grid-template-columns:120px 1fr 40px;gap:12px;align-items:center;">
-     <div style="font-family:'DM Sans',sans-serif;font-size:13px;color:#4A4A4A;">Tokyo</div>
-     <div style="height:2px;background:#EEEBE6;position:relative;"><div style="position:absolute;left:0;top:0;bottom:0;width:88%;background:#1A1A1A;"></div></div>
-     <div style="font-family:'DM Mono',monospace;font-size:11px;color:#8A8A8A;text-align:right;">88</div>
-    </div>
-    <div style="display:grid;grid-template-columns:120px 1fr 40px;gap:12px;align-items:center;">
-     <div style="font-family:'DM Sans',sans-serif;font-size:13px;color:#4A4A4A;">Zürich</div>
-     <div style="height:2px;background:#EEEBE6;position:relative;"><div style="position:absolute;left:0;top:0;bottom:0;width:85%;background:#C8102E;"></div></div>
-     <div style="font-family:'DM Mono',monospace;font-size:11px;color:#8A8A8A;text-align:right;">85</div>
-    </div>
-    <div style="display:grid;grid-template-columns:120px 1fr 40px;gap:12px;align-items:center;">
-     <div style="font-family:'DM Sans',sans-serif;font-size:13px;color:#4A4A4A;">Copenhagen</div>
-     <div style="height:2px;background:#EEEBE6;position:relative;"><div style="position:absolute;left:0;top:0;bottom:0;width:82%;background:#1A1A1A;"></div></div>
-     <div style="font-family:'DM Mono',monospace;font-size:11px;color:#8A8A8A;text-align:right;">82</div>
-    </div>
-   </div>
-  </div>
-
-  <!-- Left-rule callout -->
-  <div class="component-item">
-   <div class="component-label">Callout · callout</div>
-   <div class="callout">
-    The Swiss Embassy in Seoul, designed in the spirit of the traditional hanok courtyard house, represents a new model for architectural diplomacy.
-   </div>
-  </div>
-
-  <!-- Horizontal Timeline -->
-  <div class="component-item" style="grid-column: 1 / -1;">
-   <div class="component-label">Horizontal Timeline · editorial-timeline</div>
-   <div class="editorial-timeline">
-    <div class="tl-col">
-     <div class="tl-dot filled"></div>
-     <div class="tl-year">2018</div>
-     <div class="tl-head">Brand Founded</div>
-     <div class="tl-body">Launched in Tokyo with a print-first ethos</div>
-    </div>
-    <div class="tl-col">
-     <div class="tl-dot filled"></div>
-     <div class="tl-year">2020</div>
-     <div class="tl-head">Digital Pivot</div>
-     <div class="tl-body">Expanded to digital; 12 city bureaux opened</div>
-    </div>
-    <div class="tl-col">
-     <div class="tl-dot red"></div>
-     <div class="tl-year">2024</div>
-     <div class="tl-head">Global Reach</div>
-     <div class="tl-body">Readership surpassed 2 million in 40 countries</div>
-    </div>
-    <div class="tl-col">
-     <div class="tl-dot"></div>
-     <div class="tl-year">2026</div>
-     <div class="tl-head">Next Chapter</div>
-     <div class="tl-body">Expanding into Southeast Asia and Latam</div>
-    </div>
-   </div>
-  </div>
-
-  <!-- Data Table -->
-  <div class="component-item" style="grid-column: 1 / -1;">
-   <div class="component-label">Data Table · editorial-table</div>
-   <table class="editorial-table">
-    <caption>Quality of Life Index 2026 · Selected Cities</caption>
-    <thead>
-     <tr>
-      <th>City</th>
-      <th>Score</th>
-      <th>Safety</th>
-      <th>Design</th>
-      <th>Trend</th>
-     </tr>
-    </thead>
-    <tbody>
-     <tr>
-      <td class="highlight">Tokyo</td>
-      <td class="highlight">88</td>
-      <td>96</td>
-      <td>92</td>
-      <td class="red">↑ +2</td>
-     </tr>
-     <tr>
-      <td class="highlight">Zürich</td>
-      <td class="highlight">85</td>
-      <td>98</td>
-      <td>87</td>
-      <td>→ 0</td>
-     </tr>
-     <tr>
-      <td class="highlight">Copenhagen</td>
-      <td class="highlight">82</td>
-      <td>91</td>
-      <td>89</td>
-      <td class="red">↑ +1</td>
-     </tr>
-     <tr>
-      <td>Vienna</td>
-      <td>80</td>
-      <td>97</td>
-      <td>83</td>
-      <td>→ 0</td>
-     </tr>
-    </tbody>
-   </table>
-  </div>
-
-  <!-- Multi-stat Grid -->
-  <div class="component-item" style="grid-column: 1 / -1;">
-   <div class="component-label">Multi-stat Grid · stat-card × 4</div>
-   <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:16px;">
-    <div class="stat-card">
-     <div class="stat-label">Cities Surveyed</div>
-     <div class="stat-nb">47</div>
-     <div class="stat-unit" style="font-family:var(--sans);font-size:12px;color:var(--text-muted);">global cities</div>
-     <div class="stat-note">Annual Quality of Life index</div>
-    </div>
-    <div class="stat-card">
-     <div class="stat-label">Design Export</div>
-     <div class="stat-nb" style="color:var(--editorial-red);">$2.4T</div>
-     <div class="stat-unit" style="font-family:var(--sans);font-size:12px;color:var(--text-muted);">USD</div>
-     <div class="stat-note">Global creative industry output</div>
-    </div>
-    <div class="stat-card">
-     <div class="stat-label">New Graduates</div>
-     <div class="stat-nb">890K</div>
-     <div class="stat-unit" style="font-family:var(--sans);font-size:12px;color:var(--text-muted);">per year</div>
-     <div class="stat-note">Entering the workforce globally</div>
-    </div>
-    <div class="stat-card">
-     <div class="stat-label">YoY Growth</div>
-     <div class="stat-nb">+12%</div>
-     <div class="stat-unit" style="font-family:var(--sans);font-size:12px;color:var(--text-muted);">creative sector</div>
-     <div class="stat-note">Year-on-year industry growth rate</div>
-    </div>
-   </div>
-  </div>
-
- </div>
-</div>
-
-<!-- ── Footer ── -->
-<div style="border-top:2px solid #1A1A1A;padding-top:20px;display:flex;justify-content:space-between;align-items:center;">
- <div style="font-family:'DM Mono',monospace;font-size:10px;color:#8A8A8A;letter-spacing:0.1em;text-transform:uppercase;">Monocle Editorial Template · v1.0</div>
- <div style="font-family:'DM Mono',monospace;font-size:10px;color:#C8102E;letter-spacing:0.1em;text-transform:uppercase;">Slide Template Manager</div>
-</div>
 
 </body>
+
 </html>
