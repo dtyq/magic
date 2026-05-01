@@ -683,3 +683,191 @@ body {
       - Center: gradient hero title + QR code/contact information
       - Background: layered radial glows
    ============================================================ */
+
+/* ============================================================
+   Advanced Tech Operations Components
+   ============================================================ */
+.tech-advanced-section {
+  margin-top: 48px;
+  padding: 32px;
+  background:
+    radial-gradient(circle at 90% 0%, rgba(0, 229, 255, 0.09), transparent 28%),
+    var(--bg-surface);
+  border: 1px solid var(--border-subtle);
+  border-radius: 16px;
+  box-shadow: var(--shadow-card);
+}
+.tech-advanced-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1.1fr) minmax(0, 0.9fr);
+  gap: 20px;
+}
+.ops-panel {
+  position: relative;
+  min-width: 0;
+  padding: 22px;
+  background: rgba(255,255,255,0.035);
+  border: 1px solid var(--border-subtle);
+  border-radius: 14px;
+  overflow: hidden;
+}
+.ops-panel.glow {
+  border-color: var(--border-glow);
+  box-shadow: inset 0 0 30px rgba(0,229,255,0.035);
+}
+.ops-kicker {
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--neon-cyan);
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  margin-bottom: 10px;
+}
+.ops-title {
+  font-size: 24px;
+  font-weight: 800;
+  line-height: 1.15;
+  color: var(--text-primary);
+  margin-bottom: 10px;
+}
+.ops-desc {
+  font-size: 14px;
+  line-height: 1.7;
+  color: var(--text-secondary);
+}
+.console-window {
+  margin-top: 18px;
+  background: #060a12;
+  border: 1px solid var(--border-subtle);
+  border-radius: 10px;
+  overflow: hidden;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+}
+.console-topbar {
+  display: flex;
+  gap: 6px;
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--border-subtle);
+}
+.console-topbar span {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--text-muted);
+}
+.console-body {
+  display: grid;
+  gap: 8px;
+  padding: 14px;
+  font-size: 12px;
+  color: var(--text-secondary);
+}
+.console-body strong {
+  color: var(--neon-green);
+  font-weight: 700;
+}
+.node-map {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+  margin-top: 18px;
+  position: relative;
+}
+.node-card {
+  padding: 14px;
+  border: 1px solid rgba(0,229,255,0.20);
+  border-radius: 10px;
+  background: rgba(0,229,255,0.045);
+}
+.node-card.purple {
+  border-color: rgba(155,111,255,0.22);
+  background: rgba(155,111,255,0.045);
+}
+.node-card.green {
+  border-color: rgba(0,229,160,0.22);
+  background: rgba(0,229,160,0.045);
+}
+.node-label {
+  font-size: 13px;
+  font-weight: 800;
+  color: var(--text-primary);
+}
+.node-meta {
+  margin-top: 6px;
+  font-size: 11px;
+  color: var(--text-secondary);
+}
+.incident-feed {
+  display: grid;
+  gap: 0;
+  margin-top: 16px;
+}
+.incident-row {
+  display: grid;
+  grid-template-columns: 12px 1fr auto;
+  gap: 12px;
+  padding: 12px 0;
+  border-bottom: 1px solid var(--border-subtle);
+  align-items: start;
+}
+.incident-row:last-child {
+  border-bottom: 0;
+}
+.incident-dot {
+  width: 9px;
+  height: 9px;
+  margin-top: 5px;
+  border-radius: 50%;
+  background: var(--neon-cyan);
+  box-shadow: 0 0 12px rgba(0,229,255,0.7);
+}
+.incident-dot.orange {
+  background: var(--neon-orange);
+  box-shadow: 0 0 12px rgba(255,140,66,0.6);
+}
+.incident-dot.green {
+  background: var(--neon-green);
+  box-shadow: 0 0 12px rgba(0,229,160,0.55);
+}
+.incident-title {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--text-primary);
+}
+.incident-desc {
+  margin-top: 3px;
+  font-size: 12px;
+  color: var(--text-secondary);
+}
+.incident-time {
+  font-size: 11px;
+  color: var(--text-muted);
+}
+.benchmark-matrix {
+  display: grid;
+  grid-template-columns: 1fr auto auto;
+  margin-top: 16px;
+  border: 1px solid var(--border-subtle);
+  border-radius: 10px;
+  overflow: hidden;
+}
+.benchmark-matrix > div {
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--border-subtle);
+  font-size: 12px;
+  color: var(--text-secondary);
+}
+.benchmark-matrix > div:nth-last-child(-n + 3) {
+  border-bottom: 0;
+}
+.benchmark-matrix .head {
+  color: var(--neon-cyan);
+  background: rgba(0,229,255,0.06);
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+.benchmark-matrix .strong {
+  color: var(--text-primary);
+  font-weight: 800;
+}

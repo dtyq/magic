@@ -366,3 +366,14 @@ series: [
 ```
 vintage illustration of [specific subject], aged parchment paper background, sepia and warm brown tones, antique engraving style, hand-drawn details, explorer journal aesthetic, forest green and navy blue accents, gold highlights, no modern elements, historical document feel
 ```
+
+---
+
+## 9. Advanced Components Added in 2026 Redesign
+
+- **Archive label (`archive-label`)**: catalogue-style metadata component for figures, events, artifacts, and historical places.
+- **Wax seal (`archive-seal`)**: circular emphasis mark for authority, collection stamps, chapter seals, and document provenance.
+- **Route map card (`route-map-card`)**: dotted historical route diagram for trade paths, travel routes, expedition timelines, and cultural exchange.
+- **Ledger table (`ledger-table`)**: dark archival table for goods, origin, route, years, or source evidence.
+- **Field note (`field-note`)**: italic observational note for recovered evidence, historian commentary, or travel journal excerpts.
+- **Specimen plate (`specimen-strip`, `specimen-mini`)**: small artifact gallery for materials, coins, maps, textiles, and symbolic objects.

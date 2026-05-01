@@ -1031,3 +1031,194 @@ html, body {
   letter-spacing: 4px;
   margin-bottom: 24px;
 }
+
+/* ============================================================
+   11. Advanced Museum Education Components
+   ============================================================ */
+.museum-advanced-section {
+  margin-top: 48px;
+  padding: 36px;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-light);
+}
+.museum-advanced-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1.05fr) minmax(0, 0.95fr);
+  gap: 24px;
+}
+.museum-panel {
+  background: var(--bg-card);
+  border: 1px solid var(--border-light);
+  border-radius: var(--radius-card);
+  padding: 28px;
+  box-shadow: var(--shadow-card-light);
+  min-width: 0;
+}
+.museum-panel.dark {
+  background: var(--bg-dark);
+  border-color: var(--bg-dark-deeper);
+  color: var(--text-on-dark);
+}
+.museum-kicker {
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.18em;
+  color: var(--accent);
+  text-transform: uppercase;
+  margin-bottom: 12px;
+}
+.museum-title {
+  font-family: var(--font-serif);
+  font-size: 32px;
+  font-weight: 700;
+  line-height: 1.2;
+  color: var(--text-primary);
+  margin-bottom: 12px;
+}
+.museum-panel.dark .museum-title {
+  color: var(--text-on-dark);
+}
+.museum-desc {
+  font-size: 15px;
+  line-height: 1.75;
+  color: var(--text-muted);
+}
+.museum-panel.dark .museum-desc {
+  color: var(--text-on-dark-muted);
+}
+.art-label-card {
+  display: grid;
+  grid-template-columns: 86px 1fr;
+  gap: 18px;
+  margin-top: 22px;
+  padding-top: 18px;
+  border-top: 1px solid var(--border-light);
+}
+.art-label-index {
+  font-family: var(--font-serif);
+  font-size: 48px;
+  font-weight: 900;
+  color: var(--accent-ghost);
+  line-height: 1;
+}
+.art-label-name {
+  font-family: var(--font-serif);
+  font-size: 24px;
+  font-weight: 700;
+  color: var(--text-primary);
+}
+.art-label-meta {
+  margin-top: 6px;
+  font-size: 13px;
+  color: var(--text-placeholder);
+  letter-spacing: 0.06em;
+}
+.curator-note {
+  margin-top: 22px;
+  padding: 22px;
+  background: var(--accent-light);
+  border-left: 4px solid var(--accent);
+}
+.curator-note strong {
+  display: block;
+  margin-bottom: 8px;
+  font-size: 13px;
+  color: var(--accent);
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+.curator-note span {
+  font-family: var(--font-serif);
+  font-size: 21px;
+  line-height: 1.55;
+  color: var(--text-secondary);
+}
+.exhibit-route {
+  display: grid;
+  gap: 14px;
+  margin-top: 22px;
+}
+.route-step {
+  display: grid;
+  grid-template-columns: 34px 1fr auto;
+  gap: 14px;
+  align-items: center;
+  padding: 14px 0;
+  border-bottom: 1px dashed var(--divider-dashed);
+}
+.route-step:last-child {
+  border-bottom: 0;
+}
+.route-num {
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--accent);
+  color: #fff;
+  font-weight: 700;
+}
+.route-title {
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--text-secondary);
+}
+.route-meta {
+  font-size: 13px;
+  color: var(--text-placeholder);
+}
+.route-time {
+  font-size: 13px;
+  color: var(--accent);
+  font-weight: 600;
+}
+.seminar-prompts {
+  display: grid;
+  gap: 12px;
+  margin-top: 20px;
+}
+.seminar-prompt {
+  display: grid;
+  grid-template-columns: 42px 1fr;
+  gap: 14px;
+  align-items: start;
+  padding: 16px;
+  background: rgba(255,255,255,0.04);
+  border: 1px solid var(--border-dark);
+}
+.seminar-prompt .q {
+  color: var(--accent);
+  font-size: 20px;
+  font-weight: 900;
+}
+.seminar-prompt .text {
+  color: var(--text-discussion);
+  font-size: 15px;
+  line-height: 1.7;
+}
+.object-meta-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+  margin-top: 20px;
+}
+.object-meta {
+  padding: 16px;
+  background: var(--bg-ink-panel);
+  border: 1px solid var(--border-light);
+}
+.object-meta .label {
+  font-size: 12px;
+  color: var(--text-placeholder);
+  margin-bottom: 6px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+.object-meta .value {
+  font-family: var(--font-serif);
+  font-size: 20px;
+  font-weight: 700;
+  color: var(--text-primary);
+}
