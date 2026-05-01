@@ -110,8 +110,11 @@ class VolcengineArkSeedanceVideoAdapterTest extends TestCase
             rawRequest: [
                 'model_id' => 'doubao-seedance-2-0-260128',
                 'task' => 'edit',
-                'prompt' => 'replace the sky with sunset clouds',
+                'prompt' => '{{image_1}} 跟随 {{video_1}}，再配合 {{audio_1}} 替换天空为晚霞',
                 'inputs' => [
+                    'reference_images' => [
+                        ['uri' => 'https://example.com/ref.png'],
+                    ],
                     'reference_videos' => [
                         ['uri' => 'https://example.com/source.mp4'],
                     ],
@@ -146,12 +149,14 @@ class VolcengineArkSeedanceVideoAdapterTest extends TestCase
 
         $this->assertSame('doubao-seedance-2-0-260128', $payload['model']);
         $this->assertSame('edit', $payload['task']);
-        $this->assertSame('replace the sky with sunset clouds', $payload['content'][0]['text']);
-        $this->assertSame('https://example.com/source.mp4', $payload['content'][1]['video_url']['url']);
-        $this->assertSame('reference_video', $payload['content'][1]['role']);
-        $this->assertSame('https://example.com/voice.wav', $payload['content'][2]['audio_url']['url']);
-        $this->assertSame('reference_audio', $payload['content'][2]['role']);
-        $this->assertSame('https://example.com/mask.png', $payload['content'][3]['mask_url']['url']);
+        $this->assertSame('@图片1 跟随 @视频1，再配合 @音频1 替换天空为晚霞', $payload['content'][0]['text']);
+        $this->assertSame('https://example.com/ref.png', $payload['content'][1]['image_url']['url']);
+        $this->assertSame('reference_image', $payload['content'][1]['role']);
+        $this->assertSame('https://example.com/source.mp4', $payload['content'][2]['video_url']['url']);
+        $this->assertSame('reference_video', $payload['content'][2]['role']);
+        $this->assertSame('https://example.com/voice.wav', $payload['content'][3]['audio_url']['url']);
+        $this->assertSame('reference_audio', $payload['content'][3]['role']);
+        $this->assertSame('https://example.com/mask.png', $payload['content'][4]['mask_url']['url']);
         $this->assertSame('https://callback.example.com/video', $payload['callback_url']);
         $this->assertArrayNotHasKey('service_tier', $payload);
         $this->assertSame(7200, $payload['execution_expires_after']);

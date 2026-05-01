@@ -45,6 +45,7 @@ readonly class KelingOmniGenerationCapabilityProvider implements KelingGeneratio
     private const array MODE_TO_RESOLUTION = [
         'std' => '720p',
         'pro' => '1080p',
+        '4k' => '4k',
     ];
 
     /**
@@ -55,6 +56,24 @@ readonly class KelingOmniGenerationCapabilityProvider implements KelingGeneratio
     private const array RESOLUTION_TO_MODE = [
         '720p' => 'std',
         '1080p' => 'pro',
+        '4k' => '4k',
+    ];
+
+    /**
+     * 当前对前端下发的尺寸选项，按分辨率和比例展开。
+     *
+     * @var list<array{label: string, value: string, width: int, height: int, resolution: string}>
+     */
+    private const array SUPPORTED_SIZES = [
+        ['label' => '16:9', 'value' => '1280x720', 'width' => 1280, 'height' => 720, 'resolution' => '720p'],
+        ['label' => '9:16', 'value' => '720x1280', 'width' => 720, 'height' => 1280, 'resolution' => '720p'],
+        ['label' => '1:1', 'value' => '960x960', 'width' => 960, 'height' => 960, 'resolution' => '720p'],
+        ['label' => '16:9', 'value' => '1920x1080', 'width' => 1920, 'height' => 1080, 'resolution' => '1080p'],
+        ['label' => '9:16', 'value' => '1080x1920', 'width' => 1080, 'height' => 1920, 'resolution' => '1080p'],
+        ['label' => '1:1', 'value' => '1440x1440', 'width' => 1440, 'height' => 1440, 'resolution' => '1080p'],
+        ['label' => '16:9', 'value' => '3840x2160', 'width' => 3840, 'height' => 2160, 'resolution' => '4k'],
+        ['label' => '9:16', 'value' => '2160x3840', 'width' => 2160, 'height' => 3840, 'resolution' => '4k'],
+        ['label' => '1:1', 'value' => '2880x2880', 'width' => 2880, 'height' => 2880, 'resolution' => '4k'],
     ];
 
     public function supportsModel(string $modelVersion, string $modelId): bool
@@ -88,7 +107,8 @@ readonly class KelingOmniGenerationCapabilityProvider implements KelingGeneratio
                 'aspect_ratios' => ['16:9', '9:16', '1:1'],
                 'durations' => [3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15],
                 'default_duration_seconds' => self::DEFAULT_DURATION_SECONDS,
-                'resolutions' => ['720p', '1080p'],
+                'resolutions' => ['720p', '1080p', '4k'],
+                'sizes' => self::SUPPORTED_SIZES,
                 'default_resolution' => self::MODE_TO_RESOLUTION[self::DEFAULT_MODE],
                 'supports_seed' => false,
                 'supports_watermark' => true,

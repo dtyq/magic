@@ -141,17 +141,7 @@ class VideoGatewayPayloadBuilderTest extends TestCase
 
         $payload = $builder->build($entity);
 
-        $this->assertSame(
-            '素材索引（右侧是用户上传的原始文件名，仅用于标识素材）：' . "\n"
-            . '- 图片1：生成动物世界图_20260118220318 (2).jpg' . "\n"
-            . '- 图片2：生成动物世界图_20260118220318 (1).jpg' . "\n"
-            . '- 视频1：钉钉录屏_2026-04-16 231755.mp4' . "\n"
-            . '- 视频2：video_20260415_223740.mp4' . "\n"
-            . '- 音频1：森格-看山不是山，看山还是山 (片段版)_副本.mp3' . "\n\n"
-            . '任务描述（请按素材编号理解下面的引用）：' . "\n"
-            . '@音频1 你好 @音频1111 @视频1 将人物+唱歌 @视频2 @图片1 @图片2212',
-            $payload['prompt']
-        );
+        $this->assertSame('@音频1 你好 @音频1111 @视频1 将人物+唱歌 @视频2 @图片1 @图片2212', $payload['prompt']);
     }
 
     public function testBuildFormatsPromptForImageReferenceMode(): void
@@ -183,13 +173,7 @@ class VideoGatewayPayloadBuilderTest extends TestCase
 
         $payload = $builder->build($entity);
 
-        $this->assertSame(
-            '素材索引（右侧是用户上传的原始文件名，仅用于标识素材）：' . "\n"
-            . '- 图片1：生成动物世界图_20260118220318 (2).jpg' . "\n\n"
-            . '任务描述（请按素材编号理解下面的引用）：' . "\n"
-            . '@图片1 让它动起来',
-            $payload['prompt']
-        );
+        $this->assertSame('@图片1 让它动起来', $payload['prompt']);
     }
 
     public function testBuildFormatsPromptForImageReferenceModeWithDuplicateFileNames(): void
@@ -223,13 +207,7 @@ class VideoGatewayPayloadBuilderTest extends TestCase
 
         $payload = $builder->build($entity);
 
-        $this->assertSame(
-            '素材索引（右侧是用户上传的原始文件名，仅用于标识素材）：' . "\n"
-            . '- 图片1：生成动物世界图_20260118220318 (2).jpg' . "\n\n"
-            . '任务描述（请按素材编号理解下面的引用）：' . "\n"
-            . '@图片1 和 @图片1 一起动起来',
-            $payload['prompt']
-        );
+        $this->assertSame('@图片1 和 @图片1 一起动起来', $payload['prompt']);
     }
 
     public function testBuildDoesNotRewritePromptMentionsOutsideReferenceModes(): void
@@ -297,15 +275,7 @@ class VideoGatewayPayloadBuilderTest extends TestCase
 
         $payload = $builder->build($entity);
 
-        $this->assertSame(
-            '素材索引（右侧是用户上传的原始文件名，仅用于标识素材）：' . "\n"
-            . '- 图片1：素材A.png' . "\n"
-            . '- 视频1：素材A.mp4' . "\n"
-            . '- 音频1：素材A.mp3' . "\n\n"
-            . '任务描述（请按素材编号理解下面的引用）：' . "\n"
-            . '@音频1 配合 @视频1 和 @图片1',
-            $payload['prompt']
-        );
+        $this->assertSame('@音频1 配合 @视频1 和 @图片1', $payload['prompt']);
     }
 
     /**

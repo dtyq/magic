@@ -94,7 +94,7 @@ class KelingOmniVideoAdapterTest extends TestCase
             status: VideoOperationStatus::QUEUED,
             seq: 1,
             rawRequest: [
-                'prompt' => '让 <<<image_1>>> 的主体在 <<<video_1>>> 的动态里奔跑',
+                'prompt' => '让 {{image_1}} 的主体在 {{video_1}} 的动态里奔跑',
                 'inputs' => [
                     'frames' => [
                         ['role' => 'start', 'uri' => 'https://localhost/start.png'],
@@ -152,6 +152,8 @@ class KelingOmniVideoAdapterTest extends TestCase
         $this->assertSame('off', $payload['sound']);
         $this->assertFalse($payload['watermark_info']['enabled']);
         $this->assertSame('task-ext-1', $payload['external_task_id']);
+        $this->assertStringContainsString('<<<image_1>>>', $payload['prompt']);
+        $this->assertStringContainsString('<<<video_1>>>', $payload['prompt']);
         $this->assertStringContainsString('负向约束：不要闪烁', $payload['prompt']);
     }
 

@@ -14,6 +14,7 @@ use App\Domain\ModelGateway\Entity\ValueObject\VideoTaskType;
 use App\Domain\ModelGateway\Entity\VideoQueueOperationEntity;
 use App\Infrastructure\ExternalAPI\VideoGenerateAPI\Keling\Capability\KelingOmniGenerationCapabilityProvider;
 use App\Infrastructure\ExternalAPI\VideoGenerateAPI\Keling\KelingTransportFactory;
+use App\Infrastructure\ExternalAPI\VideoGenerateAPI\Prompt\KelingPromptReferenceFormatter;
 use App\Infrastructure\ExternalAPI\VideoGenerateAPI\ProviderVideoException;
 
 readonly class KelingOmniVideoAdapter implements VideoGenerationProviderAdapterInterface
@@ -46,7 +47,7 @@ readonly class KelingOmniVideoAdapter implements VideoGenerationProviderAdapterI
 
         $payload = array_filter([
             'model_name' => trim($operation->getModelVersion()) !== '' ? $operation->getModelVersion() : 'kling-v3-omni',
-            'prompt' => (string) ($request['prompt'] ?? ''),
+            'prompt' => (new KelingPromptReferenceFormatter())->format((string) ($request['prompt'] ?? '')),
             'multi_shot' => $this->normalizeOptionalBool($extensions['multi_shot'] ?? null),
             'shot_type' => $this->normalizeOptionalString($extensions['shot_type'] ?? null),
             'multi_prompt' => is_array($extensions['multi_prompt'] ?? null) ? array_values($extensions['multi_prompt']) : [],
@@ -226,7 +227,7 @@ readonly class KelingOmniVideoAdapter implements VideoGenerationProviderAdapterI
             return 'off';
         }
 
-        $generateAudio = $this->normalizeOptionalBool($generation['generate_audio'] ?? null);
+        $generateAudio = $this->normalizeOptionalBool($generation['generate_audio'] ?? true);
         if ($generateAudio === null) {
             return null;
         }

@@ -525,11 +525,14 @@ readonly class VideoQueueDomainService
         );
         $extensions = is_array($requestData['extensions'] ?? null) ? $requestData['extensions'] : [];
 
+        $prompt = (string) ($requestData['prompt'] ?? '');
+        $prompt = $this->normalizePromptReferenceTokens($prompt);
+
         return [
             'model_id' => (string) ($requestData['model_id'] ?? ''),
             'task' => $task,
             'input_mode' => $compositionMode,
-            'prompt' => (string) ($requestData['prompt'] ?? ''),
+            'prompt' => $prompt,
             'inputs' => array_filter([
                 'frames' => $frames,
                 'reference_images' => $referenceImages,
@@ -1403,5 +1406,28 @@ readonly class VideoQueueDomainService
         }
 
         return array_values(array_unique($result));
+    }
+
+    /**
+     * 将提示词中的 @图片1 / @image1 等转换成标准的{{image_$1}}格式。
+     * 底层adapter会继续转换为厂商特定的格式。
+     */
+    private function normalizePromptReferenceTokens(string $prompt): string
+    {
+        $patterns = [
+            '/@图片(\d+)/u' => '{{image_$1}}',
+            '/@image(\d+)/iu' => '{{image_$1}}',
+            '/@视频(\d+)/u' => '{{video_$1}}',
+            '/@video(\d+)/iu' => '{{video_$1}}',
+            '/@音频(\d+)/u' => '{{audio_$1}}',
+            '/@audio(\d+)/iu' => '{{audio_$1}}',
+        ];
+
+        $normalized = $prompt;
+        foreach ($patterns as $pattern => $replacement) {
+            $normalized = (string) preg_replace($pattern, $replacement, $normalized);
+        }
+
+        return $normalized;
     }
 }
