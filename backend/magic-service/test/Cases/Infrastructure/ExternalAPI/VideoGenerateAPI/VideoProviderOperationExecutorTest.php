@@ -51,13 +51,13 @@ class VideoProviderOperationExecutorTest extends TestCase
                 ],
             ],
         );
-        $config = new QueueExecutorConfig('https://genaiapi.cloudsway.net', 'secret', 3, 20);
+        $config = new QueueExecutorConfig('https://localhost', 'secret', 3, 20);
 
         $httpClient = $this->createMock(Client::class);
         $httpClient->expects($this->once())
             ->method('post')
             ->with(
-                'https://genaiapi.cloudsway.net/v1/ai/LCnVzCkkMnVulyrz/veo/videos/generate',
+                'https://localhost/v1/ai/LCnVzCkkMnVulyrz/veo/videos/generate',
                 [
                     'headers' => [
                         'Authorization' => 'Bearer secret',

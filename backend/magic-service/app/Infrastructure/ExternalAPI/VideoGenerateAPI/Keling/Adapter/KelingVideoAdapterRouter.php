@@ -17,6 +17,7 @@ readonly class KelingVideoAdapterRouter implements VideoGenerationProviderAdapte
 {
     public function __construct(
         private KelingOmniVideoAdapter $kelingOmniVideoAdapter,
+        private ?KelingV3VideoAdapter $kelingV3VideoAdapter = null,
     ) {
     }
 
@@ -81,6 +82,7 @@ readonly class KelingVideoAdapterRouter implements VideoGenerationProviderAdapte
     {
         return [
             $this->kelingOmniVideoAdapter,
+            $this->kelingV3VideoAdapter,
         ];
     }
 }

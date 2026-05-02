@@ -39,8 +39,34 @@ readonly class ApiKeyKelingTransport implements KelingTransportInterface
         );
     }
 
+    public function submitV3Video(QueueExecutorConfig $config, array $payload, bool $hasImageInput, array $logContext = []): array
+    {
+        return $this->client->post(
+            $config->getBaseUrl(),
+            $config->getApiKey(),
+            $this->buildV3VideoPath($hasImageInput),
+            $payload,
+            $logContext,
+        );
+    }
+
+    public function queryV3Video(QueueExecutorConfig $config, string $taskId, bool $hasImageInput, array $logContext = []): array
+    {
+        return $this->client->get(
+            $config->getBaseUrl(),
+            $config->getApiKey(),
+            $this->buildV3VideoPath($hasImageInput) . '/' . rawurlencode($taskId),
+            $logContext,
+        );
+    }
+
     private function buildOmniVideoPath(): string
     {
         return '/kling/videos/omni-video';
+    }
+
+    private function buildV3VideoPath(bool $hasImageInput): string
+    {
+        return $hasImageInput ? '/kling/videos/image2video' : '/kling/videos/text2video';
     }
 }

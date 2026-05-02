@@ -141,7 +141,7 @@ class VideoOperationAppServiceTest extends TestCase
         $operationRepository = new InMemoryVideoQueueOperationRepository();
         $videoQueueDomainService = new VideoQueueDomainService($operationRepository);
         $executionDomainService = new QueueOperationExecutionDomainService(
-            new FixedQueueExecutorConfigRepository(new QueueExecutorConfig('https://genaiapi.cloudsway.net', 'secret', 3, 20)),
+            new FixedQueueExecutorConfigRepository(new QueueExecutorConfig('https://localhost', 'secret', 3, 20)),
             new RecordingQueueOperationExecutor(submitResult: 'provider-task-1'),
         );
 
@@ -591,7 +591,7 @@ class VideoOperationAppServiceTest extends TestCase
             $llmAppService,
             new VideoQueueDomainService(new InMemoryVideoQueueOperationRepository()),
             new QueueOperationExecutionDomainService(
-                new FixedQueueExecutorConfigRepository(new QueueExecutorConfig('https://genaiapi.cloudsway.net', 'secret', 3, 20)),
+                new FixedQueueExecutorConfigRepository(new QueueExecutorConfig('https://localhost', 'secret', 3, 20)),
                 new RecordingQueueOperationExecutor(submitResult: 'unused'),
             ),
             $pointComponent,
@@ -674,7 +674,7 @@ class VideoOperationAppServiceTest extends TestCase
         $operationRepository = new InMemoryVideoQueueOperationRepository();
         $videoQueueDomainService = new VideoQueueDomainService($operationRepository);
         $executionDomainService = new QueueOperationExecutionDomainService(
-            new FixedQueueExecutorConfigRepository(new QueueExecutorConfig('https://genaiapi.cloudsway.net', 'secret', 3, 20)),
+            new FixedQueueExecutorConfigRepository(new QueueExecutorConfig('https://localhost', 'secret', 3, 20)),
             new RecordingQueueOperationExecutor(
                 submitResult: 'provider-task-veo-default',
                 queryResult: [
@@ -743,7 +743,7 @@ class VideoOperationAppServiceTest extends TestCase
         $operationRepository = new InMemoryVideoQueueOperationRepository();
         $videoQueueDomainService = new VideoQueueDomainService($operationRepository);
         $executionDomainService = new QueueOperationExecutionDomainService(
-            new FixedQueueExecutorConfigRepository(new QueueExecutorConfig('https://genaiapi.cloudsway.net', 'secret', 3, 20)),
+            new FixedQueueExecutorConfigRepository(new QueueExecutorConfig('https://localhost', 'secret', 3, 20)),
             new RecordingQueueOperationExecutor(
                 submitResult: 'provider-task-seedance-default',
                 queryResult: [
@@ -812,7 +812,7 @@ class VideoOperationAppServiceTest extends TestCase
         $operationRepository = new InMemoryVideoQueueOperationRepository();
         $videoQueueDomainService = new VideoQueueDomainService($operationRepository);
         $executionDomainService = new QueueOperationExecutionDomainService(
-            new FixedQueueExecutorConfigRepository(new QueueExecutorConfig('https://genaiapi.cloudsway.net', 'secret', 3, 20)),
+            new FixedQueueExecutorConfigRepository(new QueueExecutorConfig('https://localhost', 'secret', 3, 20)),
             new RecordingQueueOperationExecutor(
                 submitResult: 'provider-task-keling-default',
                 queryResult: [
@@ -1023,7 +1023,7 @@ class VideoOperationAppServiceTest extends TestCase
         $operationRepository = new InMemoryVideoQueueOperationRepository();
         $operationRepository->operations[$operation->getId()] = $operation;
         $executionDomainService = new QueueOperationExecutionDomainService(
-            new FixedQueueExecutorConfigRepository(new QueueExecutorConfig('https://genaiapi.cloudsway.net', 'secret', 3, 20)),
+            new FixedQueueExecutorConfigRepository(new QueueExecutorConfig('https://localhost', 'secret', 3, 20)),
             new RecordingQueueOperationExecutor(
                 submitResult: 'unused',
                 queryResult: [
@@ -1096,7 +1096,7 @@ class VideoOperationAppServiceTest extends TestCase
         $operationRepository = new InMemoryVideoQueueOperationRepository();
         $operationRepository->operations[$operation->getId()] = $operation;
         $executionDomainService = new QueueOperationExecutionDomainService(
-            new FixedQueueExecutorConfigRepository(new QueueExecutorConfig('https://genaiapi.cloudsway.net', 'secret', 3, 20)),
+            new FixedQueueExecutorConfigRepository(new QueueExecutorConfig('https://localhost', 'secret', 3, 20)),
             new RecordingQueueOperationExecutor(
                 submitResult: 'unused',
                 queryResult: [
@@ -1177,7 +1177,7 @@ class VideoOperationAppServiceTest extends TestCase
         $operationRepository = new InMemoryVideoQueueOperationRepository();
         $operationRepository->operations[$operation->getId()] = $operation;
         $executionDomainService = new QueueOperationExecutionDomainService(
-            new FixedQueueExecutorConfigRepository(new QueueExecutorConfig('https://genaiapi.cloudsway.net', 'secret', 3, 20)),
+            new FixedQueueExecutorConfigRepository(new QueueExecutorConfig('https://localhost', 'secret', 3, 20)),
             new RecordingQueueOperationExecutor(
                 submitResult: 'unused',
                 queryResult: [
@@ -1256,7 +1256,7 @@ class VideoOperationAppServiceTest extends TestCase
         $operationRepository->operations['op-2'] = $operation;
         $videoQueueDomainService = new VideoQueueDomainService($operationRepository);
         $executionDomainService = new QueueOperationExecutionDomainService(
-            new FixedQueueExecutorConfigRepository(new QueueExecutorConfig('https://genaiapi.cloudsway.net', 'secret', 3, 20)),
+            new FixedQueueExecutorConfigRepository(new QueueExecutorConfig('https://localhost', 'secret', 3, 20)),
             new RecordingQueueOperationExecutor(
                 submitResult: 'provider-task-ignored',
                 queryResult: [
@@ -1367,7 +1367,7 @@ class VideoOperationAppServiceTest extends TestCase
         $operationRepository->operations['op-keling-billing'] = $operation;
         $videoQueueDomainService = new VideoQueueDomainService($operationRepository);
         $executionDomainService = new QueueOperationExecutionDomainService(
-            new FixedQueueExecutorConfigRepository(new QueueExecutorConfig('https://genaiapi.cloudsway.net', 'secret', 3, 20)),
+            new FixedQueueExecutorConfigRepository(new QueueExecutorConfig('https://localhost', 'secret', 3, 20)),
             new RecordingQueueOperationExecutor(
                 submitResult: 'provider-task-ignored',
                 queryResult: [
@@ -1437,7 +1437,7 @@ class VideoOperationAppServiceTest extends TestCase
         $operationRepository = new InMemoryVideoQueueOperationRepository();
         $operationRepository->operations['op-3'] = $operation;
         $executionDomainService = new QueueOperationExecutionDomainService(
-            new FixedQueueExecutorConfigRepository(new QueueExecutorConfig('https://genaiapi.cloudsway.net', 'secret', 3, 20)),
+            new FixedQueueExecutorConfigRepository(new QueueExecutorConfig('https://localhost', 'secret', 3, 20)),
             new RecordingQueueOperationExecutor(
                 submitResult: 'provider-task-ignored',
                 queryResult: [
@@ -1523,7 +1523,7 @@ class VideoOperationAppServiceTest extends TestCase
             queryResult: ['status' => 'processing'],
         );
         $executionDomainService = new QueueOperationExecutionDomainService(
-            new FixedQueueExecutorConfigRepository(new QueueExecutorConfig('https://genaiapi.cloudsway.net', 'secret', 3, 20)),
+            new FixedQueueExecutorConfigRepository(new QueueExecutorConfig('https://localhost', 'secret', 3, 20)),
             $executor,
         );
 
@@ -1586,7 +1586,7 @@ class VideoOperationAppServiceTest extends TestCase
             $llmAppService,
             new VideoQueueDomainService(new InMemoryVideoQueueOperationRepository()),
             new QueueOperationExecutionDomainService(
-                new FixedQueueExecutorConfigRepository(new QueueExecutorConfig('https://genaiapi.cloudsway.net', 'secret', 3, 20)),
+                new FixedQueueExecutorConfigRepository(new QueueExecutorConfig('https://localhost', 'secret', 3, 20)),
                 new RecordingQueueOperationExecutor(
                     submitResult: 'unused',
                     submitThrowable: new ProviderVideoException('provider says duration_seconds=9 is invalid'),
@@ -1627,7 +1627,7 @@ class VideoOperationAppServiceTest extends TestCase
             $llmAppService,
             new VideoQueueDomainService($operationRepository),
             new QueueOperationExecutionDomainService(
-                new FixedQueueExecutorConfigRepository(new QueueExecutorConfig('https://genaiapi.cloudsway.net', 'secret', 3, 20)),
+                new FixedQueueExecutorConfigRepository(new QueueExecutorConfig('https://localhost', 'secret', 3, 20)),
                 new RecordingQueueOperationExecutor(
                     submitResult: 'unused',
                     queryThrowable: new ProviderVideoException('provider says operationName is invalid'),
@@ -1753,7 +1753,7 @@ class VideoOperationAppServiceTest extends TestCase
             $llmAppService,
             new VideoQueueDomainService($operationRepository),
             new QueueOperationExecutionDomainService(
-                new FixedQueueExecutorConfigRepository(new QueueExecutorConfig('https://genaiapi.cloudsway.net', 'secret', 3, 20)),
+                new FixedQueueExecutorConfigRepository(new QueueExecutorConfig('https://localhost', 'secret', 3, 20)),
                 $executor,
             ),
             $pointComponent,
