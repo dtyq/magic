@@ -191,6 +191,70 @@ We offer enhanced management capabilities and features for teams and enterprises
 
 ---
 
+
+## ❓ FAQ
+
+### Platform Overview
+
+**What is Magic?**
+Magic is an enterprise-grade open-source AI Agent platform that combines a Generalist AI Agent, Workflow Engine, IM integration, and online collaborative office system. It's designed for organizations that need security, control, and direct business outcomes from AI automation.
+
+**How is Magic different from personal AI assistants?**
+Personal AI tools (like OpenClaw) work great for individuals but face challenges at enterprise scale: data scattered across accounts, no budget controls, output limited to plain text, and no approval gates for risky actions. Magic solves these with centralized data management, per-department budget caps, sandbox isolation, human-in-the-loop approval workflows, and deliverable outputs (dashboards, reports, PPTs, Excel).
+
+### Deployment & Setup
+
+**What deployment options are available?**
+- **Self-hosted**: Full control, run on your own infrastructure using Docker Compose
+- **Cloud service**: [Magic](https://www.letsmagic.cn) (China) and [MagiCrew](https://www.magicrew.ai) (International) — zero configuration
+- **Enterprise Edition**: Private deployment with dedicated model integration and deep custom integration
+
+**What are the system requirements for self-hosting?**
+Docker and Docker Compose are required. Recommended: 8+ CPU cores, 16GB+ RAM, 50GB+ storage. See the [Quick Start guide](#-quick-start) for detailed instructions.
+
+### LLM & Model Configuration
+
+**Which LLM providers are supported?**
+Magic supports multiple LLM providers through its model configuration system. You can configure providers via environment variables or the admin dashboard. Common providers include OpenAI, Anthropic, and local models.
+
+**Can I use my own API keys?**
+Yes. Each user or department can configure their own LLM API keys. The platform also supports centralized key management for enterprise deployments.
+
+### Security & Compliance
+
+**How does Magic ensure data security?**
+- Every Agent runs inside a proprietary sandbox container, isolated in a separate VPC
+- Sidecar network proxy manages traffic independently per user
+- Complete resource and data isolation across tenants
+- Strict plugin security review catches malicious code before publishing
+- Enterprise data stays within your trusted boundary
+
+**What is the approval workflow?**
+High-risk operations (like deleting data or sending emails) trigger an approval workflow. Routine actions run autonomously; destructive ones require explicit human confirmation. This keeps decision authority with people.
+
+### Cost Control
+
+**How can I control AI spending?**
+Magic provides granular cost control with daily budgets per department, per user, and per Agent. AI spending becomes predictable and controllable — every dollar justified.
+
+### Team Collaboration
+
+**How does team collaboration work?**
+Magic supports team-wide collaboration with role-based access control, shared Agent marketplaces, and department-level resource management. Internal expertise is packaged into digital employees, reusable across departments — knowledge never walks out the door.
+
+### Troubleshooting
+
+**The Agent fails to start. What should I check?**
+1. Verify Docker and Docker Compose are running
+2. Check environment variables are correctly set (especially LLM API keys)
+3. Review logs: `docker compose logs -f magic`
+4. Ensure sufficient system resources (CPU, RAM, disk space)
+
+**I'm getting rate limit errors from the LLM provider.**
+Configure budget caps and rate limits in the admin dashboard. You can set per-user, per-department, and per-Agent limits to prevent unexpected API costs.
+
+**How do I update Magic to the latest version?**
+Pull the latest Docker images and restart: `docker compose pull && docker compose up -d`. Check the [releases page](https://github.com/dtyq/magic/releases) for changelog and migration notes.
 ## Contribution
 
 To contribute code, see the [Contribution Guide](https://github.com/dtyq/magic/blob/master/CONTRIBUTING.md) / [贡献指南（中文）](https://github.com/dtyq/magic/blob/master/CONTRIBUTING_CN.md). You're also welcome to support Magic through social media, events, and conferences — the project grows with community involvement.
