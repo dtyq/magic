@@ -103,6 +103,14 @@ Video generation size, optional. Prefer values declared in featured generation.s
         default_factory=list,
         description="<!--zh: 参考图路径或 URL-->Reference image paths or URLs"
     )
+    reference_video_paths: List[str] = Field(
+        default_factory=list,
+        description="<!--zh: 参考视频路径或 URL-->Reference video paths or URLs"
+    )
+    reference_audio_paths: List[str] = Field(
+        default_factory=list,
+        description="<!--zh: 参考音频路径或 URL-->Reference audio paths or URLs"
+    )
     frame_start_path: str = Field("", description="<!--zh: 起始帧路径或 URL-->Start frame path or URL")
     frame_end_path: str = Field("", description="<!--zh: 结束帧路径或 URL-->End frame path or URL")
     duration_seconds: Optional[int] = Field(default=None, description="<!--zh: 视频时长（秒），可选-->Video duration in seconds, optional")
@@ -236,6 +244,8 @@ class GenerateCanvasVideos(BaseGenerateCanvasElements[GenerateCanvasVideosParams
                 video_name=task.name,
                 output_path=resolved_output_path,
                 reference_image_paths=task.reference_image_paths,
+                reference_video_paths=task.reference_video_paths,
+                reference_audio_paths=task.reference_audio_paths,
                 frame_start_path=task.frame_start_path,
                 frame_end_path=task.frame_end_path,
                 size=task.size,
@@ -471,6 +481,8 @@ class GenerateCanvasVideos(BaseGenerateCanvasElements[GenerateCanvasVideosParams
             "seed": task.seed,
             "watermark": task.watermark,
             "reference_images": list(task.reference_image_paths),
+            "reference_videos": list(task.reference_video_paths),
+            "reference_audios": list(task.reference_audio_paths),
             "frames": [
                 item
                 for item in (

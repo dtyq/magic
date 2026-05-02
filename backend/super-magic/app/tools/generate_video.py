@@ -114,6 +114,8 @@ def _summarize_video_request_payload(payload: Optional[Dict[str, Any]]) -> Optio
     generation = payload.get("generation") if isinstance(payload.get("generation"), dict) else {}
     business_params = payload.get("business_params") if isinstance(payload.get("business_params"), dict) else {}
     reference_images = inputs.get("reference_images")
+    reference_videos = inputs.get("reference_videos")
+    reference_audios = inputs.get("reference_audios")
 
     return {
         "keys": sorted(payload.keys()),
@@ -122,6 +124,8 @@ def _summarize_video_request_payload(payload: Optional[Dict[str, Any]]) -> Optio
         "prompt_length": len(payload["prompt"]) if isinstance(payload.get("prompt"), str) else None,
         "inputs_keys": sorted(inputs.keys()),
         "reference_image_count": len(reference_images) if isinstance(reference_images, list) else 0,
+        "reference_video_count": len(reference_videos) if isinstance(reference_videos, list) else 0,
+        "reference_audio_count": len(reference_audios) if isinstance(reference_audios, list) else 0,
         "has_frame_start": any(isinstance(frame, dict) and frame.get("role") == "start" for frame in inputs.get("frames", [])),
         "has_frame_end": any(isinstance(frame, dict) and frame.get("role") == "end" for frame in inputs.get("frames", [])),
         "generation": generation,
@@ -176,6 +180,16 @@ Output directory relative to workspace root. Default: videos"""
         default_factory=list,
         description="""<!--zh: 参考图片路径或 URL 列表。相对路径会先转 Base64 data URL，再传给 magic-service-->
 Reference image paths or URLs. Relative paths are converted to Base64 data URLs before calling magic-service"""
+    )
+    reference_video_paths: List[str] = Field(
+        default_factory=list,
+        description="""<!--zh: 参考视频路径或 URL 列表。相对路径会先转 Base64 data URL，再传给 magic-service-->
+Reference video paths or URLs. Relative paths are converted to Base64 data URLs before calling magic-service"""
+    )
+    reference_audio_paths: List[str] = Field(
+        default_factory=list,
+        description="""<!--zh: 参考音频路径或 URL 列表。相对路径会先转 Base64 data URL，再传给 magic-service-->
+Reference audio paths or URLs. Relative paths are converted to Base64 data URLs before calling magic-service"""
     )
     frame_start_path: str = Field(
         "",
@@ -261,10 +275,11 @@ class GenerateVideo(AbstractFileTool[GenerateVideoParams], WorkspaceTool[Generat
 
     用于根据文本提示词、参考图或首尾帧生成视频，自动处理任务创建、轮询查询、文件下载和结果元数据保存。
 
-    支持三种常见模式：
+    支持四种常见模式：
     1. 纯文本生视频：仅提供 prompt，生成完整视频内容
     2. 参考图引导生成：提供 reference_image_paths，约束主体风格、构图或视觉元素
-    3. 首尾帧控制生成：提供 frame_start_path / frame_end_path，生成带有明确镜头过渡的视频
+    3. 多素材参考生成：提供 reference_video_paths / reference_audio_paths，与 prompt 中的素材引用一起使用
+    4. 首尾帧控制生成：提供 frame_start_path / frame_end_path，生成带有明确镜头过渡的视频
 
     关键用法：
     - 文生视频：prompt="黄昏海边，镜头缓慢推进，电影感光影"
@@ -282,10 +297,11 @@ class GenerateVideo(AbstractFileTool[GenerateVideoParams], WorkspaceTool[Generat
 
     Used to generate videos from text prompts, reference images, or start/end frames, automatically handling job creation, polling, file download, and result metadata persistence.
 
-    Supports three common modes:
+    Supports four common modes:
     1. Text-to-video: Provide prompt only to generate a full video
     2. Reference-guided generation: Provide reference_image_paths to constrain style, composition, or visual elements
-    3. Start/end frame controlled generation: Provide frame_start_path / frame_end_path to create videos with explicit transition control
+    3. Multi-reference generation: Provide reference_video_paths / reference_audio_paths for motion or audio-guided prompts
+    4. Start/end frame controlled generation: Provide frame_start_path / frame_end_path to create videos with explicit transition control
 
     Key usage:
     - Text-to-video: prompt="Sunset by the sea, slow push-in camera movement, cinematic lighting"
@@ -501,6 +517,18 @@ class GenerateVideo(AbstractFileTool[GenerateVideoParams], WorkspaceTool[Generat
             inputs["reference_images"] = [
                 {"uri": await self._resolve_input_uri(path)}
                 for path in params.reference_image_paths
+            ]
+
+        if params.reference_video_paths:
+            inputs["reference_videos"] = [
+                {"uri": await self._resolve_input_uri(path)}
+                for path in params.reference_video_paths
+            ]
+
+        if params.reference_audio_paths:
+            inputs["reference_audios"] = [
+                {"uri": await self._resolve_input_uri(path)}
+                for path in params.reference_audio_paths
             ]
 
         frames = []
@@ -1188,6 +1216,8 @@ class GenerateVideo(AbstractFileTool[GenerateVideoParams], WorkspaceTool[Generat
             "seed": applied_generation.get("seed"),
             "watermark": applied_generation.get("watermark"),
             "reference_images": params.reference_image_paths,
+            "reference_videos": params.reference_video_paths,
+            "reference_audios": params.reference_audio_paths,
             "frames": frames,
             "file_dir": params.output_path or DEFAULT_VIDEO_OUTPUT_DIR,
             "extensions": params.extensions,
