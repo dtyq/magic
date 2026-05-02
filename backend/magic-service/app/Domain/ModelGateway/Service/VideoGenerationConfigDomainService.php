@@ -415,6 +415,10 @@ readonly class VideoGenerationConfigDomainService
                 $item['max_count'] = max(0, (int) ($totalCount['max'] ?? 0));
             }
 
+            if (is_array($config['variants'] ?? null) && $config['variants'] !== []) {
+                $item['variants'] = array_values($config['variants']);
+            }
+
             $normalized[$mode] = $item;
         }
 

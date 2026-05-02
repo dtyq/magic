@@ -10,6 +10,7 @@ namespace App\Infrastructure\ExternalAPI\VideoGenerateAPI\Keling\Capability;
 use App\Domain\ModelGateway\Entity\ValueObject\VideoGenerationConfig;
 use App\Domain\ModelGateway\Entity\ValueObject\VideoInputMode;
 use App\Domain\ModelGateway\Entity\ValueObject\VideoInputModeDefinition;
+use Hyperf\Contract\TranslatorInterface;
 
 readonly class KelingOmniGenerationCapabilityProvider implements KelingGenerationCapabilityProviderInterface
 {
@@ -96,12 +97,6 @@ readonly class KelingOmniGenerationCapabilityProvider implements KelingGeneratio
         return new VideoGenerationConfig([
             // Keling Omni 当前支持文本、图片、首尾帧、参考图、参考视频与视频编辑输入。
             'supported_inputs' => ['text_prompt', 'image', 'last_frame', 'reference_images', 'reference_videos', VideoInputMode::VideoEdit->value],
-            // 参考图最多 7 张，同时支持素材图与风格图两种引用方式。
-            'reference_images' => [
-                'max_count' => 7,
-                'reference_types' => ['asset', 'style'],
-                'style_supported' => true,
-            ],
             // 生成参数使用当前可灵 Omni 的公开能力边界。
             'generation' => [
                 'aspect_ratios' => ['16:9', '9:16', '1:1'],
@@ -122,29 +117,43 @@ readonly class KelingOmniGenerationCapabilityProvider implements KelingGeneratio
             ],
             // input_modes 给前端展示用，同时携带提交时需要的 task 信息。
             'input_modes' => [
-                VideoInputMode::Standard->value => VideoInputModeDefinition::standard('standard')->toArray(),
-                VideoInputMode::ImageReference->value => VideoInputModeDefinition::imageReference(
-                    description: 'image_reference',
-                    maxCount: 7,
-                    referenceTypes: ['asset', 'style'],
-                    styleSupported: true,
+                VideoInputMode::Standard->value => VideoInputModeDefinition::standard(
+                    $this->translateInputMode('standard'),
                 )->toArray(),
                 VideoInputMode::OmniReference->value => VideoInputModeDefinition::omniReference(
-                    description: 'omni_reference',
+                    description: $this->translateInputMode('omni_reference', [
+                        'max_count' => 7,
+                    ]),
                     supportedFields: ['reference_images', 'reference_videos'],
-                    maxCount: 12,
+                    maxCount: 7,
+                    variants: [
+                        [
+                            'code' => 'images_only',
+                            'description' => $this->translateInputMode('omni_reference.images_only'),
+                            'limits' => [
+                                'reference_images' => ['min' => 1, 'max' => 7],
+                                'reference_videos' => ['max' => 0],
+                            ],
+                        ],
+                        [
+                            'code' => 'image_and_video',
+                            'description' => $this->translateInputMode('omni_reference.image_and_video'),
+                            'limits' => [
+                                'reference_images' => ['min' => 1, 'max' => 6],
+                                'reference_videos' => ['min' => 1, 'max' => 1],
+                            ],
+                        ],
+                    ],
                 )->toArray(),
                 VideoInputMode::VideoEdit->value => VideoInputModeDefinition::videoEdit(
-                    description: VideoInputMode::VideoEdit->value,
+                    description: $this->translateInputMode(VideoInputMode::VideoEdit->value),
                     maxCount: 1,
                 )->toArray(),
                 VideoInputMode::KeyframeGuided->value => VideoInputModeDefinition::keyframeGuided(
-                    description: 'keyframe_guided',
+                    description: $this->translateInputMode('keyframe_guided.start_end'),
                     frameRoles: ['start', 'end'],
                 )->toArray(),
             ],
-            // 预留给后续更细的模型约束，目前暂为空。
-            'constraints' => [],
         ]);
     }
 
@@ -171,5 +180,10 @@ readonly class KelingOmniGenerationCapabilityProvider implements KelingGeneratio
         }
 
         return (string) $duration;
+    }
+
+    private function translateInputMode(string $key, array $replace = []): string
+    {
+        return di(TranslatorInterface::class)->trans('video.input_modes.' . $key, $replace);
     }
 }

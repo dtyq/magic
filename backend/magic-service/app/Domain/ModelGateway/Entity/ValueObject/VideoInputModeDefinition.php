@@ -59,18 +59,29 @@ final readonly class VideoInputModeDefinition
 
     /**
      * @param list<string> $supportedFields
+     * @param list<array{
+     *     code: string,
+     *     description: string,
+     *     limits: array<string, array{min?: int, max?: int}>
+     * }> $variants
      */
     public static function omniReference(
         string $description,
         array $supportedFields,
         int $maxCount,
+        array $variants = [],
         string $task = VideoTaskType::Generate->value,
     ): self {
+        $extra = ['max_count' => $maxCount];
+        if ($variants !== []) {
+            $extra['variants'] = array_values($variants);
+        }
+
         return new self(
             description: $description,
             supportedFields: array_values($supportedFields),
             task: $task,
-            extra: ['max_count' => $maxCount],
+            extra: $extra,
         );
     }
 
