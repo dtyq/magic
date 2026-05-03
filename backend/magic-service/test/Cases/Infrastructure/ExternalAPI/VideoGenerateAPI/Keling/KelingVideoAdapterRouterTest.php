@@ -9,6 +9,8 @@ namespace HyperfTest\Cases\Infrastructure\ExternalAPI\VideoGenerateAPI\Keling;
 
 use App\Domain\ModelGateway\Entity\ValueObject\VideoOperationStatus;
 use App\Domain\ModelGateway\Entity\VideoQueueOperationEntity;
+use App\ErrorCode\MagicApiErrorCode;
+use App\Infrastructure\Core\Exception\BusinessException;
 use App\Infrastructure\ExternalAPI\VideoGenerateAPI\Keling\Adapter\KelingOmniVideoAdapter;
 use App\Infrastructure\ExternalAPI\VideoGenerateAPI\Keling\Adapter\KelingV3VideoAdapter;
 use App\Infrastructure\ExternalAPI\VideoGenerateAPI\Keling\Adapter\KelingVideoAdapterRouter;
@@ -17,8 +19,14 @@ use App\Infrastructure\ExternalAPI\VideoGenerateAPI\Keling\Capability\KelingV3Ge
 use App\Infrastructure\ExternalAPI\VideoGenerateAPI\Keling\KelingTransportFactory;
 use App\Infrastructure\ExternalAPI\VideoGenerateAPI\Keling\KelingVideoClient;
 use App\Infrastructure\ExternalAPI\VideoGenerateAPI\Keling\Transport\ApiKeyKelingTransport;
+use Hyperf\Context\ApplicationContext;
+use Hyperf\Contract\ConfigInterface;
+use Hyperf\Contract\TranslatorInterface;
 use Hyperf\Guzzle\ClientFactory;
+use Hyperf\Logger\LoggerFactory;
 use PHPUnit\Framework\TestCase;
+use Psr\Container\ContainerInterface;
+use Psr\Log\LoggerInterface;
 use RuntimeException;
 
 /**
@@ -26,6 +34,79 @@ use RuntimeException;
  */
 class KelingVideoAdapterRouterTest extends TestCase
 {
+    protected function setUp(): void
+    {
+        parent::setUp();
+
+        $logger = $this->createMock(LoggerInterface::class);
+
+        $loggerFactory = $this->createMock(LoggerFactory::class);
+        $loggerFactory->method('get')->willReturn($logger);
+
+        $config = $this->createMock(ConfigInterface::class);
+        $config->method('get')->willReturnCallback(static function (string $key, mixed $default = null): mixed {
+            return match ($key) {
+                'error_message' => [
+                    'exception_class' => BusinessException::class,
+                    'error_code_mapper' => [
+                        MagicApiErrorCode::class => [4000, 4999],
+                    ],
+                ],
+                default => $default,
+            };
+        });
+
+        $translator = new class implements TranslatorInterface {
+            public function trans(string $key, array $replace = [], ?string $locale = null): string
+            {
+                return $key;
+            }
+
+            public function transChoice(string $key, $number, array $replace = [], ?string $locale = null): string
+            {
+                return $key;
+            }
+
+            public function getLocale(): string
+            {
+                return 'zh_CN';
+            }
+
+            public function setLocale(string $locale)
+            {
+                return $this;
+            }
+        };
+
+        ApplicationContext::setContainer(new readonly class($loggerFactory, $config, $translator) implements ContainerInterface {
+            public function __construct(
+                private LoggerFactory $loggerFactory,
+                private ConfigInterface $config,
+                private TranslatorInterface $translator,
+            ) {
+            }
+
+            public function get(string $id): mixed
+            {
+                return match ($id) {
+                    LoggerFactory::class => $this->loggerFactory,
+                    ConfigInterface::class => $this->config,
+                    TranslatorInterface::class => $this->translator,
+                    default => null,
+                };
+            }
+
+            public function has(string $id): bool
+            {
+                return in_array($id, [
+                    LoggerFactory::class,
+                    ConfigInterface::class,
+                    TranslatorInterface::class,
+                ], true);
+            }
+        });
+    }
+
     public function testSupportsModelMatchesAnyRegisteredAdapter(): void
     {
         $router = $this->createRouter();
@@ -63,6 +144,26 @@ class KelingVideoAdapterRouterTest extends TestCase
 
         $payload = $router->buildProviderPayload($operation);
         $this->assertSame('kling-v3', $payload['model_name']);
+    }
+
+    public function testBuildProviderPayloadRejectsUnsupportedReferenceAudios(): void
+    {
+        $router = $this->createRouter();
+        $operation = $this->createOperation('keling-video', 'kling-v3-omni');
+        $operation->setRawRequest([
+            'prompt' => '{{audio_1}} 配合画面节奏',
+            'inputs' => [
+                'reference_audios' => [
+                    ['uri' => 'https://localhost/ref.mp3'],
+                ],
+            ],
+            'generation' => [],
+        ]);
+
+        $this->expectException(BusinessException::class);
+        $this->expectExceptionMessage('inputs.reference_audios is invalid');
+
+        $router->buildProviderPayload($operation);
     }
 
     public function testBuildProviderPayloadThrowsWhenNoAdapterMatches(): void

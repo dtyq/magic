@@ -11,6 +11,8 @@ use App\Domain\ModelGateway\Contract\VideoGenerationProviderAdapterInterface;
 use App\Domain\ModelGateway\Entity\ValueObject\QueueExecutorConfig;
 use App\Domain\ModelGateway\Entity\ValueObject\VideoGenerationConfig;
 use App\Domain\ModelGateway\Entity\VideoQueueOperationEntity;
+use App\ErrorCode\MagicApiErrorCode;
+use App\Infrastructure\Core\Exception\ExceptionBuilder;
 use RuntimeException;
 
 readonly class KelingVideoAdapterRouter implements VideoGenerationProviderAdapterInterface
@@ -33,7 +35,11 @@ readonly class KelingVideoAdapterRouter implements VideoGenerationProviderAdapte
 
     public function buildProviderPayload(VideoQueueOperationEntity $operation): array
     {
-        return $this->resolveOperationAdapter($operation)->buildProviderPayload($operation);
+        $adapter = $this->resolveOperationAdapter($operation);
+        // keling暂不支持有音频文件
+        $this->assertInputCompatibility($operation, $adapter);
+
+        return $adapter->buildProviderPayload($operation);
     }
 
     public function submit(VideoQueueOperationEntity $operation, QueueExecutorConfig $config): string
@@ -84,5 +90,23 @@ readonly class KelingVideoAdapterRouter implements VideoGenerationProviderAdapte
             $this->kelingOmniVideoAdapter,
             $this->kelingV3VideoAdapter,
         ];
+    }
+
+    /**
+     * keling暂不支持有音频文件.
+     */
+    private function assertInputCompatibility(
+        VideoQueueOperationEntity $operation,
+        VideoGenerationProviderAdapterInterface $adapter
+    ): void {
+        $inputs = is_array($operation->getRawRequest()['inputs'] ?? null) ? $operation->getRawRequest()['inputs'] : [];
+        $referenceAudios = is_array($inputs['reference_audios'] ?? null) ? $inputs['reference_audios'] : [];
+        if ($referenceAudios === []) {
+            return;
+        }
+
+        if ($adapter instanceof KelingOmniVideoAdapter || $adapter instanceof KelingV3VideoAdapter) {
+            ExceptionBuilder::throw(MagicApiErrorCode::ValidateFailed, 'inputs.reference_audios is invalid');
+        }
     }
 }

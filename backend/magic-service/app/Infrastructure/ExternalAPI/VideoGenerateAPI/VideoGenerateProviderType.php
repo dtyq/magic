@@ -13,6 +13,7 @@ use InvalidArgumentException;
 enum VideoGenerateProviderType: string
 {
     case Cloudsway = 'Cloudsway';
+    case DashScope = 'DashScope';
     case Keling = 'Keling';
     case VolcengineArk = 'VolcengineArk';
 
@@ -20,6 +21,7 @@ enum VideoGenerateProviderType: string
     {
         return match ($providerCode) {
             ProviderCode::Cloudsway => self::Cloudsway,
+            ProviderCode::DashScope => self::DashScope,
             ProviderCode::Keling => self::Keling,
             ProviderCode::VolcengineArk => self::VolcengineArk,
             default => throw new InvalidArgumentException(sprintf(

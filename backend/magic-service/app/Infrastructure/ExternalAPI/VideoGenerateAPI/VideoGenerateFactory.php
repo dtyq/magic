@@ -10,6 +10,7 @@ namespace App\Infrastructure\ExternalAPI\VideoGenerateAPI;
 use App\Domain\ModelGateway\Contract\VideoGenerationProviderAdapterFactoryInterface;
 use App\Domain\ModelGateway\Contract\VideoGenerationProviderAdapterInterface;
 use App\Domain\Provider\Entity\ValueObject\ProviderCode;
+use App\Infrastructure\ExternalAPI\VideoGenerateAPI\DashScope\Adapter\DashScopeVideoAdapterRouter;
 use App\Infrastructure\ExternalAPI\VideoGenerateAPI\Keling\Adapter\KelingVideoAdapterRouter;
 
 /**
@@ -24,6 +25,7 @@ readonly class VideoGenerateFactory implements VideoGenerationProviderAdapterFac
         private CloudswayVideoAdapterRouter $cloudswayVideoAdapterRouter,
         private KelingVideoAdapterRouter $kelingVideoAdapterRouter,
         private VolcengineArkSeedanceVideoAdapter $volcengineArkSeedanceVideoAdapter,
+        private DashScopeVideoAdapterRouter $dashScopeVideoAdapterRouter,
     ) {
     }
 
@@ -31,6 +33,7 @@ readonly class VideoGenerateFactory implements VideoGenerationProviderAdapterFac
     {
         return match ($providerType) {
             VideoGenerateProviderType::Cloudsway => $this->cloudswayVideoAdapterRouter,
+            VideoGenerateProviderType::DashScope => $this->dashScopeVideoAdapterRouter,
             VideoGenerateProviderType::Keling => $this->kelingVideoAdapterRouter,
             VideoGenerateProviderType::VolcengineArk => $this->volcengineArkSeedanceVideoAdapter,
         };

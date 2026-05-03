@@ -427,7 +427,7 @@ class VideoQueueDomainServiceTest extends TestCase
         $this->assertSame('{{image_1}} 跟随 {{video_1}} 并配合 {{audio_1}} 的节奏', $operation->getRawRequest()['prompt']);
     }
 
-    public function testCreateOperationRejectsKelingReferenceAudiosInFirstPhase(): void
+    public function testCreateOperationKeepsKelingReferenceAudiosForProviderLayerValidation(): void
     {
         $service = new VideoQueueDomainService($this->createMock(VideoQueueOperationRepositoryInterface::class));
         $requestDTO = new CreateVideoDTO([
@@ -443,10 +443,7 @@ class VideoQueueDomainServiceTest extends TestCase
         ]);
         $requestDTO->valid();
 
-        $this->expectException(BusinessException::class);
-        $this->expectExceptionMessage('inputs.reference_audios is invalid');
-
-        $service->createOperation(
+        $operation = $service->createOperation(
             ModelGatewayDataIsolation::create('org-test', 'user-test'),
             'kling-v3-omni',
             'provider-model-keling-omni',
@@ -454,6 +451,9 @@ class VideoQueueDomainServiceTest extends TestCase
             $requestDTO,
             $this->createKelingOmniConfig(),
         );
+
+        $this->assertSame('{{audio_1}} 配合画面节奏', $operation->getRawRequest()['prompt']);
+        $this->assertSame('https://localhost/ref.mp3', $operation->getRawRequest()['inputs']['reference_audios'][0]['uri']);
     }
 
     public function testCreateOperationKeepsExplicitCloudswayVeoDurationAndResolution(): void
@@ -526,6 +526,31 @@ class VideoQueueDomainServiceTest extends TestCase
         $this->assertArrayNotHasKey('compression_quality', $operation->getRawRequest()['generation']);
         $this->assertArrayNotHasKey('service_tier', $operation->getRawRequest()['execution']);
         $this->assertSame(300, $operation->getRawRequest()['execution']['expires_after_seconds']);
+    }
+
+    public function testCreateOperationPreservesEnhancePromptWhenModelSupportsIt(): void
+    {
+        $service = new VideoQueueDomainService($this->createMock(VideoQueueOperationRepositoryInterface::class));
+        $requestDTO = new CreateVideoDTO([
+            'model_id' => 'veo-3.1-fast-generate-preview',
+            'task' => 'generate',
+            'prompt' => 'make the shot',
+            'generation' => [
+                'enhance_prompt' => true,
+            ],
+        ]);
+        $requestDTO->valid();
+
+        $operation = $service->createOperation(
+            ModelGatewayDataIsolation::create('org-test', 'user-test'),
+            'LCnVzCkkMnVulyrz',
+            'provider-model-veo',
+            ProviderCode::Cloudsway,
+            $requestDTO,
+            $this->createConfigForModel($requestDTO->getModel(), ProviderCode::Cloudsway),
+        );
+
+        $this->assertTrue($operation->getRawRequest()['generation']['enhance_prompt']);
     }
 
     public function testCreateOperationDefaultsKelingDurationAndResolutionWhenGenerationMissing(): void

@@ -48,6 +48,10 @@ use App\Infrastructure\ExternalAPI\VideoGenerateAPI\CloudswaySeedanceVideoAdapte
 use App\Infrastructure\ExternalAPI\VideoGenerateAPI\CloudswayVeoVideoAdapter;
 use App\Infrastructure\ExternalAPI\VideoGenerateAPI\CloudswayVideoAdapterRouter;
 use App\Infrastructure\ExternalAPI\VideoGenerateAPI\CloudswayVideoClient;
+use App\Infrastructure\ExternalAPI\VideoGenerateAPI\DashScope\Adapter\DashScopeVideoAdapterRouter;
+use App\Infrastructure\ExternalAPI\VideoGenerateAPI\DashScope\Adapter\Wan27VideoAdapter;
+use App\Infrastructure\ExternalAPI\VideoGenerateAPI\DashScope\Capability\Wan27GenerationCapabilityProvider;
+use App\Infrastructure\ExternalAPI\VideoGenerateAPI\DashScope\DashScopeTransportInterface;
 use App\Infrastructure\ExternalAPI\VideoGenerateAPI\Keling\Adapter\KelingOmniVideoAdapter;
 use App\Infrastructure\ExternalAPI\VideoGenerateAPI\Keling\Adapter\KelingVideoAdapterRouter;
 use App\Infrastructure\ExternalAPI\VideoGenerateAPI\Keling\Capability\KelingOmniGenerationCapabilityProvider;
@@ -950,6 +954,10 @@ class VideoOperationAppServiceTest extends TestCase
                         )
                     ),
                     new VolcengineArkSeedanceVideoAdapter(new VolcengineArkVideoClient($clientFactory)),
+                    new DashScopeVideoAdapterRouter(new Wan27VideoAdapter(
+                        new Wan27GenerationCapabilityProvider(),
+                        $this->createMock(DashScopeTransportInterface::class),
+                    )),
                 ),
             ),
         );
@@ -1866,6 +1874,10 @@ class VideoOperationAppServiceTest extends TestCase
                     )
                 ),
                 new VolcengineArkSeedanceVideoAdapter(new VolcengineArkVideoClient($this->createMock(ClientFactory::class))),
+                new DashScopeVideoAdapterRouter(new Wan27VideoAdapter(
+                    new Wan27GenerationCapabilityProvider(),
+                    $this->createMock(DashScopeTransportInterface::class),
+                )),
             )
         );
     }
