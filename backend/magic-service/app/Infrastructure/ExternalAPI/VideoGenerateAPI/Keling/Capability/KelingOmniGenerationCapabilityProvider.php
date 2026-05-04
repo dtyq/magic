@@ -95,8 +95,6 @@ readonly class KelingOmniGenerationCapabilityProvider implements KelingGeneratio
         }
 
         return new VideoGenerationConfig([
-            // Keling Omni 当前支持文本、图片、首尾帧、参考图、参考视频与视频编辑输入。
-            'supported_inputs' => ['text_prompt', 'image', 'last_frame', 'reference_images', 'reference_videos', VideoInputMode::VideoEdit->value],
             // 生成参数使用当前可灵 Omni 的公开能力边界。
             'generation' => [
                 'aspect_ratios' => ['16:9', '9:16', '1:1'],
@@ -129,18 +127,18 @@ readonly class KelingOmniGenerationCapabilityProvider implements KelingGeneratio
                     variants: [
                         [
                             'code' => 'images_only',
-                            'description' => $this->translateInputMode('omni_reference.images_only'),
+                            'description' => $this->translateInputMode('omni_reference_mode.images_only'),
                             'limits' => [
-                                'reference_images' => ['min' => 1, 'max' => 7],
+                                'reference_images' => ['min' => 0, 'max' => 7],
                                 'reference_videos' => ['max' => 0],
                             ],
                         ],
                         [
                             'code' => 'image_and_video',
-                            'description' => $this->translateInputMode('omni_reference.image_and_video'),
+                            'description' => $this->translateInputMode('omni_reference_mode.image_and_video'),
                             'limits' => [
-                                'reference_images' => ['min' => 1, 'max' => 6],
-                                'reference_videos' => ['min' => 1, 'max' => 1],
+                                'reference_images' => ['min' => 0, 'max' => 6],
+                                'reference_videos' => ['min' => 0, 'max' => 1],
                             ],
                         ],
                     ],

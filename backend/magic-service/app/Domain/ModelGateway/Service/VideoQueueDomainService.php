@@ -429,9 +429,6 @@ readonly class VideoQueueDomainService
         ProviderCode $providerCode,
         VideoGenerationConfig $videoGenerationConfig
     ): array {
-        $config = $videoGenerationConfig->toArray();
-        $supportedInputs = is_array($config['supported_inputs'] ?? null) ? $config['supported_inputs'] : [];
-
         // 先把输入清洗成稳定结构。
         $frames = [];
         foreach ($requestData['inputs']['frames'] ?? [] as $frame) {
@@ -514,7 +511,7 @@ readonly class VideoQueueDomainService
         );
         // 统一约定后，所有需要视频素材的任务都从 reference_videos 取输入。
         $this->assertTaskRequirements($task, $referenceVideoInputs);
-        $this->assertCapability($task, $supportedInputs);
+        $this->assertCapability($task);
         $this->assertCompositionModeRequirements(
             $task,
             $compositionMode,
@@ -697,19 +694,15 @@ readonly class VideoQueueDomainService
         return self::KELING_DIMENSIONS_TO_RESOLUTION[$dimensions] ?? null;
     }
 
-    private function assertCapability(string $task, array $supportedInputs): void
+    private function assertCapability(string $task): void
     {
-        $requiredCapability = match ($task) {
+        match ($task) {
             VideoTaskType::Generate->value => 'text_prompt',
             VideoTaskType::Extend->value => 'video_extension',
             VideoTaskType::Edit->value => VideoInputMode::VideoEdit->value,
             VideoTaskType::Upscale->value => 'video_upscale',
             default => throw new RuntimeException('unknown task'),
         };
-
-        if (! in_array($requiredCapability, $supportedInputs, true)) {
-            ExceptionBuilder::throw(MagicApiErrorCode::ValidateFailed, 'unsupported_option: task');
-        }
     }
 
     private function assertTaskRequirements(string $task, array $referenceVideoInputs): void

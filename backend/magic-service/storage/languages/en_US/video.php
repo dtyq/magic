@@ -8,8 +8,10 @@ return [
     'input_modes' => [
         'standard' => 'Standard text-to-video mode without any reference assets.',
         'omni_reference' => 'Upload 1 to :max_count reference images to generate a video, with up to 1 reference video. Example: combine the subject from @image 1 with the motion from @video 1 to create an atmospheric short film.',
-        'omni_reference.images_only' => 'Upload reference images only, with support for up to 7 images.',
-        'omni_reference.image_and_video' => 'When uploading reference images together with 1 reference video, up to 6 reference images are supported.',
+        'omni_reference_mode' => [
+            'images_only' => 'Upload reference images only, with support for up to 7 images.',
+            'image_and_video' => 'When uploading reference images together with 1 reference video, up to 6 reference images are supported.',
+        ],
         'keyframe_guided' => [
             'start_end' => 'First and last frame mode: lock the starting scene with the first frame and the ending scene with the last frame, then let AI complete the motion story in between.',
             'start_only' => 'First frame only mode: lock the starting scene with the first frame, then let AI animate the scene into a coherent video story.',

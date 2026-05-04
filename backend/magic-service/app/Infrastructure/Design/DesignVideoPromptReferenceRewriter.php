@@ -7,8 +7,6 @@ declare(strict_types=1);
 
 namespace App\Infrastructure\Design;
 
-use App\Domain\ModelGateway\Entity\ValueObject\VideoInputMode;
-
 readonly class DesignVideoPromptReferenceRewriter
 {
     private const string INPUT_KEY_REFERENCE_IMAGES = 'reference_images';
@@ -24,15 +22,8 @@ readonly class DesignVideoPromptReferenceRewriter
      *
      * @param array<string, mixed> $rawInputs
      */
-    public function rewrite(string $prompt, string $inputMode, array $rawInputs): string
+    public function rewrite(string $prompt, array $rawInputs): string
     {
-        if (! in_array(trim($inputMode), [
-            VideoInputMode::OmniReference->value,
-            VideoInputMode::ImageReference->value,
-        ], true)) {
-            return $prompt;
-        }
-
         $referenceMappings = array_merge(
             $this->buildReferenceMentionMappings(
                 is_array($rawInputs[self::INPUT_KEY_REFERENCE_IMAGES] ?? null) ? $rawInputs[self::INPUT_KEY_REFERENCE_IMAGES] : [],

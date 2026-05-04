@@ -92,7 +92,6 @@ readonly class KelingV3GenerationCapabilityProvider implements KelingGenerationC
         }
 
         return new VideoGenerationConfig([
-            'supported_inputs' => ['text_prompt', 'image', 'last_frame'],
             'generation' => [
                 'aspect_ratios' => self::SUPPORTED_ASPECT_RATIOS,
                 'durations' => self::SUPPORTED_DURATIONS,

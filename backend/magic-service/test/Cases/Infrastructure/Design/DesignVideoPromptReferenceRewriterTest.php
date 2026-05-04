@@ -21,7 +21,6 @@ class DesignVideoPromptReferenceRewriterTest extends TestCase
 
         $prompt = $rewriter->rewrite(
             '@素材A.mp3 配合 @素材A.mp4 和 @素材A.png',
-            'omni_reference',
             [
                 'reference_images' => [
                     ['uri' => '/1212/images/素材A.png'],
@@ -44,7 +43,6 @@ class DesignVideoPromptReferenceRewriterTest extends TestCase
 
         $prompt = $rewriter->rewrite(
             '@素材A.png',
-            'keyframe_guided',
             [
                 'reference_images' => [
                     ['uri' => '/1212/images/素材A.png'],

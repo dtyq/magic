@@ -54,6 +54,7 @@ enum VideoInputMode: string
     {
         return [
             self::Standard->value,
+            self::VideoEdit->value,
             self::ImageReference->value,
             self::OmniReference->value,
             self::KeyframeGuided->value,

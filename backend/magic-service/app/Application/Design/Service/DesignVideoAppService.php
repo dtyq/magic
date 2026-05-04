@@ -229,7 +229,14 @@ class DesignVideoAppService extends DesignAppService
      */
     private function supportsImageInputUrl(VideoCatalogModelDefinition $modelDefinition): bool
     {
-        return $modelDefinition->getProviderCode() === ProviderCode::VolcengineArk->value;
+        return in_array(
+            $modelDefinition->getProviderCode(),
+            [
+                ProviderCode::VolcengineArk->value,
+                ProviderCode::Keling->value,
+                ProviderCode::DashScope->value,
+            ]
+        );
     }
 
     /**

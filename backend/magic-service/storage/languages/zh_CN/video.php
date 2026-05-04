@@ -8,8 +8,10 @@ return [
     'input_modes' => [
         'standard' => '普通文生视频模式，不依赖任何参考素材。',
         'omni_reference' => '上传 1~:max_count 张参考图片生成视频；若同时上传 1 个参考视频，则参考图片最多 6 张。示例：综合 @图片 1 的主体与 @视频 1 的动态，生成一段氛围感短片。',
-        'omni_reference.images_only' => '仅上传参考图片，最多支持 7 张。',
-        'omni_reference.image_and_video' => '同时上传参考图片和 1 个参考视频时，参考图片最多支持 6 张。',
+        'omni_reference_mode' => [
+            'images_only' => '仅上传参考图片，最多支持 7 张。',
+            'image_and_video' => '同时上传参考图片和 1 个参考视频时，参考图片最多支持 6 张。',
+        ],
         'keyframe_guided' => [
             'start_end' => '用首帧定格起点，尾帧定格终点，搭配文字描述，让 AI 补全从起点到终点的动态故事。',
             'start_only' => '用首帧定格起点，搭配文字描述，让 AI 为画面赋予动态，生成连贯的视频故事。',

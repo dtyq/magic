@@ -58,7 +58,6 @@ readonly class VideoGatewayPayloadBuilder implements VideoGatewayPayloadBuilderI
         $payload['inputs'] = $this->buildInputs($entity);
         $payload['prompt'] = $this->promptReferenceRewriter->rewrite(
             (string) ($payload['prompt'] ?? ''),
-            (string) ($payload['input_mode'] ?? ''),
             is_array($entity->getRequestPayload()['inputs'] ?? null) ? $entity->getRequestPayload()['inputs'] : [],
         );
 
