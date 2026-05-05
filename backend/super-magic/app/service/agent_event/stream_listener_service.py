@@ -512,12 +512,12 @@ class StreamListenerService:
             for stream_id, stream in list(agent_context.streams.items()):
                 try:
                     if stream.should_ignore_event(event.event_type):
-                        logger.info(f"跳过往流中写入消息，stream type: {type(stream)}, 事件类型: {event.event_type}")
+                        logger.debug(f"跳过往流中写入消息，stream type: {type(stream)}, 事件类型: {event.event_type}")
                         continue
 
-                    logger.info(f"开始往流中写入消息, stream type: {type(stream)}")
+                    logger.debug(f"开始往流中写入消息, stream type: {type(stream)}")
                     await stream.write(message_json)
-                    logger.info(f"成功往流中写入消息, stream type: {type(stream)}")
+                    logger.debug(f"成功往流中写入消息, stream type: {type(stream)}")
                 except Exception as e:
                     logger.error(f"堆栈信息: {traceback.format_exc()}")
                     logger.error(f"失败往流中写入消息: {e!s}, 删除流, stream type: {type(stream)}")
