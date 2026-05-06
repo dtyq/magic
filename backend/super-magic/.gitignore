@@ -87,6 +87,7 @@ config/tool_definitions.json
 .checkpoints/
 .cursor/
 .refers/
+.user/
 
 # 临时文件
 tmp/

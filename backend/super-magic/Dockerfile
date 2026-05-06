@@ -109,6 +109,16 @@ RUN --mount=type=cache,id=debian-${DEBIAN_VERSION}-npm-${TARGETARCH},target=/roo
 ENV NVM_DIR=/root/.nvm
 ENV PNPM_HOME=/root/.local/share/pnpm
 
+# 安装 lark-cli 及飞书 skills
+RUN --mount=type=cache,id=debian-${DEBIAN_VERSION}-npm-${TARGETARCH},target=/root/.npm \
+    . ~/.bashrc && \
+    pnpm --registry="${NPM_REGISTRY}" \
+        --cache=/root/.npm \
+        install -g @larksuite/cli && \
+    npx --registry="${NPM_REGISTRY}" skills add larksuite/cli -g -y && \
+    echo "========== lark-cli 版本信息 ==========" && \
+    lark-cli --version
+
 # 杂项配置
 COPY deploy/ /app/deploy/
 RUN --mount=type=cache,id=debian-${DEBIAN_VERSION}-apt-${TARGETARCH},target=/var/cache/apt \
