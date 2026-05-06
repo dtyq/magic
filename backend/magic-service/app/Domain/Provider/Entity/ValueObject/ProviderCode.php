@@ -19,8 +19,8 @@ use Hyperf\Odin\Model\DashScopeModel;
 use Hyperf\Odin\Model\DeepSeekModel;
 use Hyperf\Odin\Model\DoubaoModel;
 use Hyperf\Odin\Model\GeminiModel;
+use Hyperf\Odin\Model\KimiModel;
 use Hyperf\Odin\Model\OpenAIModel;
-use Hyperf\Odin\Model\VolcengineMultiModalEmbeddingModel;
 
 enum ProviderCode: string
 {
@@ -59,15 +59,14 @@ enum ProviderCode: string
     public function getImplementationForModel(bool $embedding = false, bool $multiModal = false): string
     {
         return match ($this) {
-            self::Volcengine => self::requireImplementationClass(
-                ($embedding && $multiModal) ? VolcengineMultiModalEmbeddingModel::class : DoubaoModel::class
-            ),
+            self::Volcengine => self::requireImplementationClass(DoubaoModel::class),
             self::MicrosoftAzure => self::requireImplementationClass(AzureOpenAIModel::class),
             self::AWSBedrock => self::requireImplementationClass(AwsBedrockModel::class),
             self::Gemini => self::requireImplementationClass(GeminiModel::class),
             self::DeepSeek => self::requireImplementationClass(DeepSeekModel::class),
             self::DashScope => self::requireImplementationClass(DashScopeModel::class),
             self::Anthropic => self::requireImplementationClass(AnthropicModel::class),
+            self::Moonshot => self::requireImplementationClass(KimiModel::class),
             default => self::requireImplementationClass(OpenAIModel::class),
         };
     }
