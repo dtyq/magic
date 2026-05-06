@@ -121,8 +121,7 @@ RUN --mount=type=cache,id=debian-${DEBIAN_VERSION}-npm-${TARGETARCH},target=/roo
     npx --registry="${NPM_REGISTRY}" skills add larksuite/cli -g -y && \
     echo "========== lark-cli 版本信息 ==========" && \
     lark-cli --version && \
-    pnpm --registry="${NPM_REGISTRY}" \
-        --cache=/root/.npm \
+    UNZIP= npm --registry="${NPM_REGISTRY}" \
         install -g dingtalk-workspace-cli && \
     echo "========== dws 版本信息 ==========" && \
     dws version
