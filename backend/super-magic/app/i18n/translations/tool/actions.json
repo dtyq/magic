@@ -398,5 +398,9 @@
     "ask_user": {
         "zh_CN": "向用户提问",
         "en_US": "Ask user"
+    },
+    "search_knowledge": {
+        "zh_CN": "知识检索",
+        "en_US": "Search knowledge"
     }
 }
