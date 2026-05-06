@@ -5,7 +5,7 @@
 # 避免容器重启后配置丢失
 # IS_DOCKER 由镜像构建时注入，USER_HOME_DIR 指定持久化根目录（可通过环境变量覆盖）
 if [ -n "${IS_DOCKER}" ] && [ -n "${USER_HOME_DIR}" ]; then
-    for config_dir in .lark-cli; do
+    for config_dir in .lark-cli .dws; do
         target="${USER_HOME_DIR}/${config_dir}"
         link="${HOME}/${config_dir}"
         mkdir -p "${target}"
