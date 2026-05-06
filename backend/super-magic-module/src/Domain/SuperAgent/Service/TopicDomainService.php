@@ -1282,7 +1282,8 @@ class TopicDomainService
     {
         return match ($status) {
             TaskStatus::RUNNING->value => TaskStatus::RUNNING->value,
-            TaskStatus::WAITING->value, null, '' => TaskStatus::WAITING->value,
+            TaskStatus::WAITING->value => TaskStatus::WAITING->value,
+            TaskStatus::WAITING_FOR_USER->value => TaskStatus::WAITING_FOR_USER->value,
             default => TaskStatus::FINISHED->value,
         };
     }
