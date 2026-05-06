@@ -7,6 +7,7 @@ ARG TARGETARCH
 
 # 环境变量
 ARG TZ=Asia/Shanghai
+ARG USER_HOME_DIR=/app/.user
 ENV TZ=${TZ} \
     LANG=en_US.UTF-8 \
     LC_CTYPE=en_US.UTF-8 \
@@ -15,7 +16,9 @@ ENV TZ=${TZ} \
     PYTHONUTF8=1 \
     AUTO_REGENERATE_TOOL_DEFINITIONS=false \
     UNZIP="-O UTF-8" \
-    ZIPINFO="-O UTF-8"
+    ZIPINFO="-O UTF-8" \
+    IS_DOCKER=true \
+    USER_HOME_DIR=${USER_HOME_DIR}
 
 SHELL ["/bin/bash", "-c"]
 
@@ -130,8 +133,8 @@ RUN --mount=type=cache,id=debian-${DEBIAN_VERSION}-apt-${TARGETARCH},target=/var
     echo "${TZ}" > /etc/timezone && \
     # 用bash做默认shell 不要用坑爹dash
     ln -sf /usr/bin/bash /bin/sh && \
-    # 让entrypoint执行bashrc
-    echo -e "#!/usr/bin/bash\n. ~/.bashrc\nexec tini -- \"\$@\"" > /entrypoint.sh && \
+    # 让entrypoint执行bashrc，并在 Docker 环境中建立持久化目录软链接
+    cp /app/deploy/entrypoint.sh /entrypoint.sh && \
     chmod +x /entrypoint.sh && \
     # ensure locale is always set in interactive shells (e.g. kubectl exec -- bash)
     echo 'export LANG=en_US.UTF-8' >> ~/.bashrc && \

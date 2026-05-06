@@ -49,9 +49,6 @@ coverage.xml
 local_settings.py
 db.sqlite3
 db.sqlite3-journal
-.chat_history/
-.workspace/
-.checkpoints/
 
 # IDE 相关
 .idea/
@@ -113,7 +110,6 @@ qdrant_data/
 *.bak
 *.backup
 CLAUDE.md
-agents/SMA-*
 Makefile
 .python-version
 
