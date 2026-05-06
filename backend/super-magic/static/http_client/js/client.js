@@ -25,8 +25,12 @@ let socketIoClient = null;
 let socketIoConfigKey = '';
 let isSocketIoConnected = false;
 let socketIoReconnectTimer = null;
+let socketIoReconnectAttempt = 0;
+const SOCKETIO_RECONNECT_BASE_MS = 1000;
+const SOCKETIO_RECONNECT_MAX_MS = 30000;
 let socketIoHeartbeatTimer = null;
 let socketIoPingInterval = 25000;
+let socketIoPingTimeout = 20000;
 let socketIoAuthContext = {};
 
 // 确保 WebSocket 已连接，未连接则自动发起连接并等待
@@ -289,7 +293,7 @@ function renderLogEntry(entry) {
         case 'client':    renderClientEntry(entry); break;
         case 'ai':        showAIMessage(entry.content, entry.timestamp, true); break;
         case 'thinking':  showThinkingMessage(entry.content, entry.timestamp, true); break;
-        case 'tool_call': showToolCallMessage(entry.tool, entry.eventType, entry.timestamp, true); break;
+        case 'tool_call': showToolCallMessage(entry.tool, entry.eventType, entry.timestamp, true, { modelContent: entry.modelContent || '' }); break;
         case 'event':     showEventLog(entry.data, true); break;
         case 'system':    showSystemMessage(entry.text, true, { key: entry.key }); break;
     }
@@ -912,6 +916,14 @@ function toggleCustomSelect(select) {
         state.search.style.display = 'none';
         state.trigger.focus({ preventScroll: true });
     }
+
+    // 自动滚动到当前选中项
+    requestAnimationFrame(() => {
+        const selectedEl = state.list.querySelector('.custom-select-option.selected');
+        if (selectedEl) {
+            selectedEl.scrollIntoView({ block: 'center', behavior: 'instant' });
+        }
+    });
 }
 
 function refreshCustomSelect(select) {
@@ -926,6 +938,26 @@ function refreshCustomSelect(select) {
     if (select.style.display === 'none' || select.disabled) {
         closeCustomSelect(state);
     }
+}
+
+// 近期选择记录管理（按 select id 分组，最多保留 3 个）
+const RECENT_SELECT_KEY_PREFIX = 'customSelect.recent.';
+const RECENT_SELECT_MAX = 3;
+
+function getRecentSelections(selectId) {
+    if (!selectId) return [];
+    try {
+        return JSON.parse(localStorage.getItem(RECENT_SELECT_KEY_PREFIX + selectId) || '[]');
+    } catch { return []; }
+}
+
+function addRecentSelection(selectId, value) {
+    if (!selectId || !value) return;
+    let recent = getRecentSelections(selectId);
+    recent = recent.filter(v => v !== value);
+    recent.unshift(value);
+    if (recent.length > RECENT_SELECT_MAX) recent.length = RECENT_SELECT_MAX;
+    localStorage.setItem(RECENT_SELECT_KEY_PREFIX + selectId, JSON.stringify(recent));
 }
 
 function renderCustomSelectOptions(state, keyword) {
@@ -947,34 +979,62 @@ function renderCustomSelectOptions(state, keyword) {
         return;
     }
 
-    matchedOptions.forEach(option => {
-        const item = document.createElement('button');
-        item.type = 'button';
-        item.className = 'custom-select-option';
-        item.title = option.textContent;
-        item.disabled = option.disabled;
-        item.classList.toggle('selected', option.value === state.select.value);
-
-        const { title, detail } = splitCustomSelectLabel(option.textContent);
-        const titleEl = document.createElement('span');
-        titleEl.className = 'custom-select-option-title';
-        titleEl.textContent = title;
-        item.appendChild(titleEl);
-        if (detail) {
-            const detailEl = document.createElement('span');
-            detailEl.className = 'custom-select-option-detail';
-            detailEl.textContent = detail;
-            item.appendChild(detailEl);
+    // 近期选择分区（仅无搜索关键词且选项数 > 5 时显示）
+    const recentValues = getRecentSelections(state.select.id);
+    const currentValue = state.select.value;
+    if (!normalizedKeyword && recentValues.length > 0 && options.length > 5) {
+        // 过滤出仍存在于当前选项且不是当前选中项的近期值
+        const recentOptions = recentValues
+            .filter(v => v !== currentValue)
+            .map(v => options.find(o => o.value === v))
+            .filter(Boolean);
+        if (recentOptions.length > 0) {
+            const sectionLabel = document.createElement('div');
+            sectionLabel.className = 'custom-select-section-label';
+            sectionLabel.textContent = '最近使用';
+            state.list.appendChild(sectionLabel);
+            recentOptions.forEach(option => {
+                state.list.appendChild(buildCustomSelectOptionItem(state, option));
+            });
+            const divider = document.createElement('div');
+            divider.className = 'custom-select-divider';
+            state.list.appendChild(divider);
         }
+    }
 
-        item.addEventListener('click', () => {
-            state.select.value = option.value;
-            state.select.dispatchEvent(new Event('change', { bubbles: true }));
-            refreshCustomSelect(state.select);
-            closeCustomSelect(state);
-        });
-        state.list.appendChild(item);
+    matchedOptions.forEach(option => {
+        state.list.appendChild(buildCustomSelectOptionItem(state, option));
     });
+}
+
+function buildCustomSelectOptionItem(state, option) {
+    const item = document.createElement('button');
+    item.type = 'button';
+    item.className = 'custom-select-option';
+    item.title = option.textContent;
+    item.disabled = option.disabled;
+    item.classList.toggle('selected', option.value === state.select.value);
+
+    const { title, detail } = splitCustomSelectLabel(option.textContent);
+    const titleEl = document.createElement('span');
+    titleEl.className = 'custom-select-option-title';
+    titleEl.textContent = title;
+    item.appendChild(titleEl);
+    if (detail) {
+        const detailEl = document.createElement('span');
+        detailEl.className = 'custom-select-option-detail';
+        detailEl.textContent = detail;
+        item.appendChild(detailEl);
+    }
+
+    item.addEventListener('click', () => {
+        state.select.value = option.value;
+        state.select.dispatchEvent(new Event('change', { bubbles: true }));
+        addRecentSelection(state.select.id, option.value);
+        refreshCustomSelect(state.select);
+        closeCustomSelect(state);
+    });
+    return item;
 }
 
 function splitCustomSelectLabel(label) {
@@ -1137,6 +1197,13 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // Agent模式切换事件
     if (agentModeSelect) {
+        // 从 localStorage 恢复上次选择的 Agent 模式
+        const savedAgentMode = localStorage.getItem('selectedAgentMode');
+        if (savedAgentMode && agentModeSelect.querySelector(`option[value="${savedAgentMode}"]`)) {
+            agentModeSelect.value = savedAgentMode;
+            changeAgentMode(); // 同步 currentAgentMode 变量
+            refreshCustomSelect(agentModeSelect); // 刷新自定义下拉框显示
+        }
         agentModeSelect.addEventListener('change', changeAgentMode);
     }
 
@@ -1519,7 +1586,8 @@ async function sendMessage(contextType = ContextType.NORMAL) {
     try {
         await ensureWebSocketConnected();
     } catch (e) {
-        return; // 连接失败时终止，错误已由 ensureWebSocketConnected 提示
+        showSystemMessage('消息发送失败：无法连接到服务器，请确认服务已启动');
+        return;
     }
 
     // 高级模式：直接发送原始 JSON
@@ -1609,6 +1677,7 @@ async function sendInitMessage() {
     try {
         await ensureWebSocketConnected();
     } catch (e) {
+        showSystemMessage('初始化失败：无法连接到服务器，请确认服务已启动');
         return;
     }
 
@@ -1844,6 +1913,19 @@ function createChatMessage(prompt, contextType = ContextType.NORMAL, remark = nu
     const mcpCfg = buildMcpConfig();
     if (mcpCfg) {
         message.mcp_config = mcpCfg;
+    }
+
+    // 按模式注入 Agent Profile（本地调试用，线上由管理后台配置）
+    const agentProfileOverrides = {
+        'ip-manager': {
+            name: 'KJ',
+            role: 'Brand Empire Manager',
+            description: 'Your personal brand empire manager — part executive producer, part talent manager, part media strategist. Manages brands the way a generational mogul runs a family empire.'
+        }
+    };
+    const profileOverride = agentProfileOverrides[currentAgentMode];
+    if (profileOverride) {
+        message.agent = { profile: profileOverride };
     }
 
     return message;
@@ -2328,6 +2410,7 @@ function changeMessageVersion() {
 function changeAgentMode() {
     const selectedMode = agentModeSelect.value;
     currentAgentMode = selectedMode;
+    localStorage.setItem('selectedAgentMode', selectedMode);
 
     if (agentCodeGroup) {
         agentCodeGroup.style.display = selectedMode === 'magiclaw' ? '' : 'none';
@@ -2774,10 +2857,25 @@ function handleWebSocketOpen(event) {
 
 function scheduleSocketIoReconnectFromConfig() {
     if (socketIoReconnectTimer) clearTimeout(socketIoReconnectTimer);
+    socketIoReconnectAttempt = 0;
     socketIoReconnectTimer = setTimeout(() => {
         socketIoReconnectTimer = null;
         connectSocketIoStreamFromConfig();
     }, 500);
+}
+
+function scheduleSocketIoAutoReconnect() {
+    if (socketIoReconnectTimer) return; // 已有重连计划
+    const delay = Math.min(
+        SOCKETIO_RECONNECT_BASE_MS * Math.pow(2, socketIoReconnectAttempt),
+        SOCKETIO_RECONNECT_MAX_MS
+    );
+    socketIoReconnectAttempt++;
+    showConnectionStatusMessage(`Socket.IO 将在 ${(delay / 1000).toFixed(1)}s 后重连...`);
+    socketIoReconnectTimer = setTimeout(() => {
+        socketIoReconnectTimer = null;
+        connectSocketIoStreamFromConfig();
+    }, delay);
 }
 
 function connectSocketIoStreamFromConfig(configData = null) {
@@ -2785,7 +2883,9 @@ function connectSocketIoStreamFromConfig(configData = null) {
     if (!streamConfig) return;
 
     const nextKey = `${streamConfig.baseUrl}|${streamConfig.socketioPath}`;
-    if (socketIoClient && socketIoConfigKey === nextKey) return;
+    // 已连接且 key 相同则跳过；若 client 已关闭则允许重连
+    if (socketIoClient && socketIoConfigKey === nextKey
+        && socketIoClient.readyState === WebSocket.OPEN) return;
 
     disconnectSocketIoStream();
     socketIoConfigKey = nextKey;
@@ -2797,6 +2897,7 @@ function connectSocketIoStreamFromConfig(configData = null) {
 
         socketIoClient.onopen = () => {
             isSocketIoConnected = true;
+            socketIoReconnectAttempt = 0;
             showConnectionStatusMessage("Socket.IO 流式通道已连接");
         };
         socketIoClient.onclose = () => {
@@ -2804,19 +2905,27 @@ function connectSocketIoStreamFromConfig(configData = null) {
             stopSocketIoHeartbeat();
             hideAssistantActivity();
             showConnectionStatusMessage("Socket.IO 流式通道已断开");
+            scheduleSocketIoAutoReconnect();
         };
         socketIoClient.onerror = () => {
             isSocketIoConnected = false;
             hideAssistantActivity();
-            showConnectionStatusMessage("Socket.IO 流式通道连接失败");
+            // onclose 会紧跟触发，重连由 onclose 负责
         };
         socketIoClient.onmessage = handleSocketIoPacketMessage;
     } catch (error) {
         showConnectionStatusMessage(`Socket.IO 流式通道初始化失败: ${error.message}`);
+        scheduleSocketIoAutoReconnect();
     }
 }
 
 function disconnectSocketIoStream() {
+    // 取消待执行的重连计划
+    if (socketIoReconnectTimer) {
+        clearTimeout(socketIoReconnectTimer);
+        socketIoReconnectTimer = null;
+    }
+    socketIoReconnectAttempt = 0;
     if (!socketIoClient) return;
     stopSocketIoHeartbeat();
     socketIoClient.onopen = null;
@@ -2832,28 +2941,38 @@ function buildSocketIoWebSocketUrl(streamConfig) {
     const path = streamConfig.socketioPath.endsWith('/')
         ? streamConfig.socketioPath
         : `${streamConfig.socketioPath}/`;
-    return `${streamConfig.baseUrl}${path}?EIO=3&transport=websocket&timestamp=${Date.now()}`;
+    return `${streamConfig.baseUrl}${path}?EIO=4&transport=websocket&timestamp=${Date.now()}`;
 }
 
 function startSocketIoHeartbeat() {
+    // EIO=4: 服务端主动发 ping('2')，客户端回 pong('3')。
+    // 这里启动超时监控：若超过 pingInterval + pingTimeout 未收到服务端 ping，则认为连接已死。
     stopSocketIoHeartbeat();
-    socketIoHeartbeatTimer = setInterval(() => {
+    resetSocketIoPingWatchdog();
+}
+
+function resetSocketIoPingWatchdog() {
+    if (socketIoHeartbeatTimer) clearTimeout(socketIoHeartbeatTimer);
+    socketIoHeartbeatTimer = setTimeout(() => {
+        // 超时未收到服务端 ping，断开重连
         if (socketIoClient && socketIoClient.readyState === WebSocket.OPEN) {
-            socketIoClient.send('2');
+            console.warn('Socket.IO ping watchdog timeout, closing connection');
+            socketIoClient.close();
         }
-    }, socketIoPingInterval);
+    }, socketIoPingInterval + (socketIoPingTimeout || 20000));
 }
 
 function stopSocketIoHeartbeat() {
     if (socketIoHeartbeatTimer) {
-        clearInterval(socketIoHeartbeatTimer);
+        clearTimeout(socketIoHeartbeatTimer);
         socketIoHeartbeatTimer = null;
     }
 }
 
 function connectSocketIoNamespace() {
     if (socketIoClient && socketIoClient.readyState === WebSocket.OPEN) {
-        socketIoClient.send('40/im');
+        // Socket.IO v3/v4 (EIO=4): namespace CONNECT 包格式为 40/namespace,
+        socketIoClient.send('40/im,');
     }
 }
 
@@ -2957,7 +3076,16 @@ function handleSocketIoPacketMessage(event) {
         handleSocketIoOpenPacket(data);
         return;
     }
+    if (engineIoPacketType === '2') {
+        // EIO=4: 服务端发来 ping，客户端必须回 pong
+        if (socketIoClient && socketIoClient.readyState === WebSocket.OPEN) {
+            socketIoClient.send('3');
+        }
+        resetSocketIoPingWatchdog();
+        return;
+    }
     if (engineIoPacketType === '3') {
+        // pong（EIO=3 兼容，正常忽略）
         return;
     }
     if (engineIoPacketType !== '4') {
@@ -2988,8 +3116,12 @@ function handleSocketIoOpenPacket(data) {
         if (Number.isFinite(openPayload.pingInterval)) {
             socketIoPingInterval = openPayload.pingInterval;
         }
+        if (Number.isFinite(openPayload.pingTimeout)) {
+            socketIoPingTimeout = openPayload.pingTimeout;
+        }
     } catch (e) {
         socketIoPingInterval = 25000;
+        socketIoPingTimeout = 20000;
     }
     startSocketIoHeartbeat();
     connectSocketIoNamespace();
@@ -4067,7 +4199,11 @@ function renderAskUserCard(data, container) {
 // 显示工具调用消息块（before_tool_call / after_tool_call）
 function showToolCallMessage(tool, eventType, timestamp, _noLog = false, options = {}) {
     if (isCodeModeToolMessage(tool)) return;
-    if (!_noLog) pushLog({ type: 'tool_call', tool, eventType, timestamp });
+    if (!_noLog) {
+        const logEntry = { type: 'tool_call', tool, eventType, timestamp };
+        if (options.modelContent) logEntry.modelContent = options.modelContent;
+        pushLog(logEntry);
+    }
 
     const timeStr = timestamp
         ? new Date(timestamp * 1000).toLocaleTimeString()
