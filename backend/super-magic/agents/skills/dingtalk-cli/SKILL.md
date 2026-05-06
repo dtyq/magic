@@ -1,6 +1,6 @@
 ---
 name: dingtalk-cli
-description: Use when the user wants to interact with DingTalk in any way — including but not limited to: sending messages or DING alerts; managing group chats; querying contacts or org structure; reading, creating, or editing DingTalk docs; managing cloud drive files; operating AI tables (aitable); handling OA approvals; reviewing attendance; managing todos; submitting daily/weekly reports (logs); querying AI meeting minutes; reading mail; browsing calendar events or booking meeting rooms.
+description: "Use when the user wants to interact with DingTalk in any way — including but not limited to: sending messages or DING alerts; managing group chats; querying contacts or org structure; reading, creating, or editing DingTalk docs; managing cloud drive files; operating AI tables (aitable); handling OA approvals; reviewing attendance; managing todos; submitting daily/weekly reports (logs); querying AI meeting minutes; reading mail; browsing calendar events or booking meeting rooms."
 
 name-cn: 钉钉能力入口
 description-cn: 当用户需要以任何方式操作钉钉时——包括但不限于：发消息/DING、管群聊、查通讯录、读写钉钉文档、管云盘文件、操作AI表格、OA审批、查考勤、管待办、提交日志/日报/周报、查询AI听记纪要、收发邮件、管日历/会议室等。

@@ -1,6 +1,6 @@
 ---
 name: lark-cli
-description: Use when the user wants to interact with Lark (Feishu) in any way — including but not limited to: listing, viewing, searching, or managing cloud documents/files; sending or receiving messages; managing calendars or events; querying contacts or org structure; reading, creating, or editing docs, spreadsheets, or Base tables; handling approvals; reviewing attendance; managing tasks or todos; browsing wiki or whiteboards; reading mail, minutes, or VC notes; or creating custom Lark CLI skills. Load this skill first to find the right sub-skill.
+description: "Use when the user wants to interact with Lark (Feishu) in any way — including but not limited to: listing, viewing, searching, or managing cloud documents/files; sending or receiving messages; managing calendars or events; querying contacts or org structure; reading, creating, or editing docs, spreadsheets, or Base tables; handling approvals; reviewing attendance; managing tasks or todos; browsing wiki or whiteboards; reading mail, minutes, or VC notes; or creating custom Lark CLI skills. Load this skill first to find the right sub-skill."
 
 name-cn: 飞书能力入口
 description-cn: 当用户需要以任何方式操作飞书时——包括但不限于：查看/列举/搜索云文档或文件、发消息、管日历、查通讯录、读取/创建/编辑文档或多维表格或电子表格、审批、考勤、任务、知识库、画板、邮件、妙记、视频会议记录等，先加载本 skill，找到对应子 skill 再继续。
