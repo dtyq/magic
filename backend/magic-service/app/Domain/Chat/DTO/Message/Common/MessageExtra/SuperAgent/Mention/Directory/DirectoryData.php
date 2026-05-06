@@ -28,7 +28,11 @@ final class DirectoryData extends AbstractDTO implements MentionDataInterface
 
     public function getDirectoryPath(): ?string
     {
-        return $this->directoryPath ?? null;
+        $directoryPath = $this->directoryPath ?? null;
+        if ($directoryPath === null) {
+            return null;
+        }
+        return $this->normalizePath($directoryPath);
     }
 
     public function getDirectoryName(): ?string
