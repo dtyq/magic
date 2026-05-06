@@ -1,4 +1,3 @@
-import asyncio
 import json
 from typing import Any, Dict, List, Optional
 
@@ -32,6 +31,11 @@ Video source list, can be video URLs or local file paths, supports multiple vide
         ...,
         description="""<!--zh: 关于视频的问题或分析需求，需要详尽且准确，若用户提供了视频分析需求，则需要对用户的分析需求进行逐字引用，并提供必要的分析背景信息-->
 Question or analysis requirements about the video, needs to be thorough and accurate. If user provides video analysis requirements, quote user's analysis requirements verbatim and provide necessary analysis background information"""
+    )
+    confirmed: bool = Field(
+        default=False,
+        description="""<!--zh: 长视频确认标记。当视频超过 3 分钟时工具会返回确认提示，用 ask_user 获得用户同意后设为 true 重新调用-->
+Long video confirmation flag. When video exceeds 3 minutes the tool returns a confirmation prompt; set to true after getting user consent via ask_user"""
     )
 
 
@@ -151,11 +155,18 @@ class VideoUnderstanding(BaseTool[VideoUnderstandingParams]):
         if batch.success_count == 0:
             return ToolResult.error(f"所有视频处理失败 ({batch.failed_count} 个视频)")
 
-        # LLM 调用与元信息提取并发执行，互不阻塞
+        # 先探测视频元信息，用于长视频预警和结果展示
+        metadata_list = await probe_all_videos(videos)
+
+        # 长视频确认检查：任一视频超过 3 分钟且未确认时，要求 agent 先向用户确认
+        if not params.confirmed:
+            warning = self._check_long_video_warning(metadata_list, videos)
+            if warning:
+                return warning
+
+        # LLM 调用（元信息已提前获取，无需并发）
         try:
-            llm_task = VideoLLMRequestHandler.call_with_fallback(model_id, query, batch, timeout)
-            metadata_task = probe_all_videos(videos)
-            response, metadata_list = await asyncio.gather(llm_task, metadata_task)
+            response = await VideoLLMRequestHandler.call_with_fallback(model_id, query, batch, timeout)
         except Exception as e:
             logger.error(f"视频理解 LLM 调用失败 (模型: {model_id}): {e}")
             return ToolResult.error("视频理解服务暂时不可用，请稍后重试")
@@ -180,6 +191,57 @@ class VideoUnderstanding(BaseTool[VideoUnderstandingParams]):
                 "video_names": video_names,
             }
         )
+
+    # 长视频确认阈值（秒）
+    LONG_VIDEO_THRESHOLD_SECONDS = 180
+
+    def _check_long_video_warning(self, metadata_list, videos) -> Optional[ToolResult]:
+        """检查是否有视频超过时长阈值，返回确认提示或 None。"""
+        long_videos: List[tuple] = []
+        for meta, source in zip(metadata_list, videos):
+            if meta.duration_seconds and meta.duration_seconds > self.LONG_VIDEO_THRESHOLD_SECONDS:
+                long_videos.append((meta, source))
+
+        if not long_videos:
+            return None
+
+        # 构建详情信息
+        details = []
+        total_duration = 0.0
+        for meta, source in long_videos:
+            name = extract_media_source_name(source)
+            details.append(f"- {name}: {meta.duration_str}")
+            total_duration += meta.duration_seconds or 0
+
+        # 估算处理时间（经验值：约为视频时长的 30%~60%）
+        est_minutes_low = max(1, int(total_duration * 0.3 / 60))
+        est_minutes_high = max(2, int(total_duration * 0.6 / 60))
+
+        video_list_str = "\n".join(details)
+        content = (
+            f"CONFIRMATION REQUIRED: The following video(s) exceed 3 minutes:\n"
+            f"{video_list_str}\n\n"
+            f"Estimated processing time: {est_minutes_low}-{est_minutes_high} minutes. "
+            f"This operation consumes significant time and tokens.\n\n"
+            f"Action required: Use ask_user to confirm with the user whether to proceed. "
+            f"If confirmed, call video_understanding again with confirmed=true."
+        )
+        return ToolResult(content=content)
+
+    def get_prompt_hint(self) -> str:
+        return """\
+<!--zh
+长视频预警机制：
+- 当视频时长超过 3 分钟时，工具会返回确认提示而非直接分析
+- 收到确认提示后，必须用 ask_user 向用户说明视频时长和预计耗时，询问是否继续
+- 用户确认后，设置 confirmed=true 重新调用本工具
+- 如果你事先就知道视频较长（如用户提到时长、或从视频标题推断），应主动在调用前用 ask_user 确认
+-->
+Long video safeguard:
+- When video duration exceeds 3 minutes, this tool returns a confirmation prompt instead of analyzing
+- Upon receiving the prompt, you MUST use ask_user to inform the user about video duration and estimated time, asking whether to proceed
+- After user confirms, call this tool again with confirmed=true
+- If you already know the video is long (e.g. user mentioned duration or inferable from title), proactively confirm with ask_user before calling this tool"""
 
     async def get_tool_detail(
         self,

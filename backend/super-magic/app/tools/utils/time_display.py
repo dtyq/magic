@@ -38,6 +38,10 @@ def _parse_datetime(value: object) -> datetime | None:
             return None
         if text.isdigit():
             return _datetime_from_timestamp(float(text))
+        # RFC 2822 变体: "Mon May 04 19:30:00 +0000 2026"（Twitter/X、部分社交平台 API 常用）
+        dt = _datetime_from_rfc2822(text)
+        if dt:
+            return dt
         return _datetime_from_iso(text)
 
     return None
@@ -60,6 +64,15 @@ def _datetime_from_iso(text: str) -> datetime | None:
     if parsed.tzinfo is None:
         return parsed.replace(tzinfo=UTC)
     return parsed
+
+
+def _datetime_from_rfc2822(text: str) -> datetime | None:
+    """解析 RFC 2822 变体时间: 'Mon May 04 19:30:00 +0000 2026'"""
+    try:
+        parsed = datetime.strptime(text, "%a %b %d %H:%M:%S %z %Y")
+        return parsed
+    except ValueError:
+        return None
 
 
 def _load_timezone(timezone_name: str) -> ZoneInfo:

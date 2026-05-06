@@ -9,6 +9,13 @@ from agentlang.logger import get_logger
 
 logger = get_logger(__name__)
 
+# ffprobe 探测配置
+PROBE_TIMEOUT_LOCAL = 10        # 本地文件探测超时（秒）
+PROBE_TIMEOUT_URL = 20          # URL 探测超时（秒）
+PROBE_ANALYZE_DURATION = 2000000  # URL 分析时长上限（微秒），2 秒足以获取时长信息
+PROBE_SIZE = 1000000              # URL 探测数据量上限（字节），1MB 头部数据
+PROBE_USER_AGENT = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36"
+
 
 @dataclass
 class VideoMetadataInfo:
@@ -86,24 +93,35 @@ async def probe_video_metadata(source: str) -> VideoMetadataInfo:
     if source.startswith("data:"):
         return info
 
+    is_url = source.startswith("http://") or source.startswith("https://")
+
+    # 构建 ffprobe 参数
+    args = ["ffprobe", "-v", "quiet", "-print_format", "json", "-show_streams", "-show_format"]
+    if is_url:
+        # URL 探测：设 user-agent 避免被 CDN 拒绝，限制探测数据量加速读取
+        args += [
+            "-user_agent", PROBE_USER_AGENT,
+            "-analyzeduration", str(PROBE_ANALYZE_DURATION),
+            "-probesize", str(PROBE_SIZE),
+        ]
+    args.append(source)
+
+    # URL 探测需要更长超时（建立连接 + 下载头部数据）
+    timeout = PROBE_TIMEOUT_URL if is_url else PROBE_TIMEOUT_LOCAL
+
     try:
         proc = await asyncio.create_subprocess_exec(
-            "ffprobe",
-            "-v", "quiet",
-            "-print_format", "json",
-            "-show_streams",
-            "-show_format",
-            source,
+            *args,
             stdout=asyncio.subprocess.PIPE,
             stderr=asyncio.subprocess.PIPE,
         )
-        stdout, _ = await asyncio.wait_for(proc.communicate(), timeout=10)
+        stdout, _ = await asyncio.wait_for(proc.communicate(), timeout=timeout)
         data = json.loads(stdout.decode("utf-8", errors="replace"))
     except FileNotFoundError:
         logger.debug("ffprobe 未安装，跳过视频元信息提取")
         return info
     except asyncio.TimeoutError:
-        logger.warning(f"ffprobe 超时: {source}")
+        logger.warning(f"ffprobe 超时 ({timeout}s): {source}")
         return info
     except Exception as e:
         logger.warning(f"ffprobe 解析失败: {source}: {e}")

@@ -427,6 +427,22 @@ input[type="text"]:focus {
     text-align: center;
 }
 
+.custom-select-section-label {
+    padding: 6px 12px 4px;
+    font-size: 11px;
+    font-weight: 600;
+    color: var(--wechat-text-gray);
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    user-select: none;
+}
+
+.custom-select-divider {
+    height: 1px;
+    margin: 4px 10px;
+    background: var(--wechat-border);
+}
+
 .btn {
     padding: 8px 14px;
     border: 1px solid transparent;
