@@ -186,7 +186,8 @@ class VolcEngineUploader(AbstractStorage, BaseFileProcessor):
 
         # 计算分片大小
         part_size = self._calculate_part_size(file_size)
-        logger.info(f"计算出的分片大小: {part_size} bytes")
+        total_parts = (file_size + part_size - 1) // part_size
+        logger.info(f"计算出的分片大小: {part_size} bytes, 总分片数: {total_parts}")
 
         # 初始化分片上传
         loop = asyncio.get_event_loop()
@@ -198,11 +199,12 @@ class VolcEngineUploader(AbstractStorage, BaseFileProcessor):
         if not upload_id:
             raise UploadException(UploadExceptionCode.NETWORK_ERROR, "初始化分片上传失败：未获取到upload_id")
 
-        logger.info(f"初始化分片上传成功，upload_id: {upload_id}")
+        logger.debug(f"初始化分片上传成功，upload_id: {upload_id}")
 
         parts = []
         part_number = 1
         offset = 0
+        next_progress_percent = 10
 
         try:
             while offset < file_size:
@@ -217,7 +219,7 @@ class VolcEngineUploader(AbstractStorage, BaseFileProcessor):
                 retry_count = 0
                 while retry_count < self.MAX_RETRIES:
                     try:
-                        logger.info(f"上传分片 {part_number}, 偏移量: {offset}, 大小: {part_size_current}")
+                        logger.debug(f"上传分片 {part_number}, 偏移量: {offset}, 大小: {part_size_current}")
 
                         part_result = await loop.run_in_executor(
                             None,
@@ -232,7 +234,7 @@ class VolcEngineUploader(AbstractStorage, BaseFileProcessor):
 
                         # 创建CompletePart对象
                         parts.append(CompletePart(etag=part_result.etag, part_number=part_number))
-                        logger.info(f"分片 {part_number} 上传成功，ETag: {part_result.etag}")
+                        logger.debug(f"分片 {part_number} 上传成功，ETag: {part_result.etag}")
                         break
 
                     except Exception as e:
@@ -246,6 +248,11 @@ class VolcEngineUploader(AbstractStorage, BaseFileProcessor):
                         await asyncio.sleep(wait_time)
 
                 offset += part_size_current
+                progress_percent = int(offset * 100 / file_size)
+                if progress_percent >= next_progress_percent or offset >= file_size:
+                    logger.info(f"分片上传进度: {progress_percent}% ({part_number}/{total_parts})")
+                    while next_progress_percent <= progress_percent:
+                        next_progress_percent += 10
                 part_number += 1
 
             # 完成分片上传

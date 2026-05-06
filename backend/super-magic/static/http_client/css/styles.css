@@ -264,26 +264,26 @@ input[type="text"]:focus {
 .custom-select {
     position: relative;
     flex-shrink: 0;
-    width: 180px;
+    width: 140px;
 }
 
 #agentModeGroup .custom-select,
 #modelIdGroup .custom-select {
-    width: 320px;
+    width: 220px;
 }
 
 #imageModelGroup .custom-select {
-    width: 260px;
+    width: 190px;
 }
 
 #agentCodeGroup .custom-select {
-    width: 150px;
+    width: 120px;
 }
 
 #imChannelGroup .custom-select,
 #languageGroup .custom-select,
 #messageVersionGroup .custom-select {
-    width: 150px;
+    width: 120px;
 }
 
 .custom-select-trigger {
@@ -934,22 +934,9 @@ input[type="checkbox"] {
 .copy-action {
     border: 1px solid rgba(60, 60, 67, 0.08);
     background: rgba(255, 255, 255, 0.5);
-    opacity: 0;
-    visibility: hidden;
+    opacity: 1;
+    visibility: visible;
     transition: background-color 0.15s ease, border-color 0.15s ease, color 0.15s ease;
-}
-
-.message.ai .copy-action {
-    opacity: 1;
-    visibility: visible;
-}
-
-.message:hover .copy-action,
-.tool-call-header:hover .copy-action,
-.event-trace-box:hover > .event-trace-header .copy-action,
-.event-log-summary:hover .copy-action {
-    opacity: 1;
-    visibility: visible;
 }
 
 .copy-action:hover {
@@ -1115,7 +1102,7 @@ input[type="checkbox"] {
 /* 工具调用折叠块 */
 .tool-call-block {
     align-self: flex-start;
-    max-width: 85%;
+    max-width: min(760px, 82%);
     margin: 2px 0;
 }
 
@@ -1123,10 +1110,14 @@ input[type="checkbox"] {
     display: inline-flex;
     align-items: center;
     gap: 6px;
+    max-width: 100%;
     padding: 3px 10px;
+    box-sizing: border-box;
     font-size: 12px;
     border-radius: 4px;
     user-select: none;
+    white-space: nowrap;
+    overflow: hidden;
 }
 
 .tool-call-block.tool-call-running .tool-call-header {
@@ -1180,16 +1171,27 @@ input[type="checkbox"] {
 
 .tool-call-action {
     font-weight: 500;
+    flex: 0 0 auto;
+    min-width: 0;
+    max-width: none;
+    overflow: hidden;
+    white-space: nowrap;
 }
 
 .tool-call-remark {
     opacity: 0.75;
+    flex: 1 1 auto;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
 }
 
 .tool-call-time {
     opacity: 0.45;
     font-size: 10px;
     margin-left: 2px;
+    flex-shrink: 0;
 }
 
 .tool-call-arrow {
@@ -1488,20 +1490,13 @@ input[type="checkbox"] {
     height: 16px;
     margin-left: 2px;
     padding: 0;
-    opacity: 0;
-    border-color: transparent;
-    visibility: hidden;
-    pointer-events: none;
+    opacity: 1;
+    border-color: rgba(60, 60, 67, 0.1);
+    visibility: visible;
+    pointer-events: auto;
     font-size: 10px;
     line-height: 14px;
     transition: opacity 0.15s ease, border-color 0.15s ease, color 0.15s ease, background-color 0.15s ease;
-}
-
-.event-log-summary:hover .copy-action {
-    opacity: 1;
-    visibility: visible;
-    border-color: rgba(60, 60, 67, 0.1);
-    pointer-events: auto;
 }
 
 .event-log-detail {
@@ -1539,16 +1534,24 @@ input[type="checkbox"] {
 
 .input-and-actions {
     display: flex;
-    gap: 12px;
+    flex-direction: column;
+    position: relative;
+    gap: 8px;
     flex: 1;
     min-height: 0;
     margin-bottom: 8px;
+    padding: 10px 12px 12px;
+    border: 1px solid rgba(60, 60, 67, 0.12);
+    border-radius: 18px;
+    background: rgba(255, 255, 255, 0.86);
+    box-shadow: 0 2px 12px rgba(0, 0, 0, 0.04);
+    container-type: inline-size;
 }
 
 .input-area-wrapper {
     position: relative;
     flex: 1;
-    min-height: 0;
+    min-height: 92px;
     display: flex;
     flex-direction: column;
 }
@@ -1619,48 +1622,60 @@ input[type="checkbox"] {
 
 .primary-actions {
     display: flex;
-    flex-direction: column;
     align-items: center;
     justify-content: flex-end;
-    gap: 5px;
+    gap: 8px;
     flex-shrink: 0;
-    padding-bottom: 2px;
+    padding: 0;
 }
 
 .send-btn {
-    width: 64px;
+    width: 36px;
     height: 36px;
     padding: 0;
-    border: none;
-    border-radius: var(--radius-control);
-    font-size: 13px;
-    font-weight: 600;
-    letter-spacing: -0.01em;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border: 1px solid rgba(0, 122, 255, 0.12);
+    border-radius: 12px;
     background: #007aff;
-    box-shadow: 0 8px 18px rgba(0, 122, 255, 0.16);
+    box-shadow: 0 3px 10px rgba(0, 122, 255, 0.14);
+    transition: background-color 0.16s ease, box-shadow 0.16s ease, transform 0.16s ease;
+}
+
+.send-btn svg {
+    width: 20px;
+    height: 20px;
+    fill: currentColor;
 }
 
 .send-btn:hover {
     background: #006fe6;
-    box-shadow: 0 10px 22px rgba(0, 122, 255, 0.2);
+    box-shadow: 0 5px 14px rgba(0, 122, 255, 0.18);
+    transform: translateY(-1px);
+}
+
+.send-btn:active {
+    transform: translateY(0);
+    box-shadow: 0 2px 8px rgba(0, 122, 255, 0.12);
 }
 
 .send-hint {
-    max-width: 72px;
-    font-size: 10px;
-    color: #a1a1a6;
-    text-align: center;
-    line-height: 1.3;
+    font-size: 10.5px;
+    color: #b0b0b6;
+    line-height: 1.25;
+    white-space: nowrap;
+    text-align: right;
 }
 
 textarea {
     width: 100%;
     flex: 1;
-    min-height: 0;
-    padding: 12px 13px;
-    border: 1px solid var(--wechat-border);
-    border-radius: 14px;
-    background: rgba(255, 255, 255, 0.78);
+    min-height: 92px;
+    padding: 4px 8px;
+    border: none;
+    border-radius: 0;
+    background: transparent;
     color: var(--wechat-text-dark);
     resize: none;
     font-size: 13.5px;
@@ -1668,9 +1683,8 @@ textarea {
 }
 
 textarea:focus {
-    border-color: var(--wechat-green);
-    background: rgba(255, 255, 255, 0.96);
-    box-shadow: 0 0 0 4px var(--apple-focus-ring);
+    background: transparent;
+    box-shadow: none;
     outline: none;
 }
 
@@ -1719,18 +1733,106 @@ textarea:focus {
     width: 150px;
 }
 
-.secondary-actions {
+.input-card-footer {
     display: flex;
-    gap: 8px;
-    flex-wrap: wrap;
-    justify-content: flex-start;
-    padding-top: 4px;
+    align-items: center;
+    gap: 10px;
+    flex-shrink: 0;
+    min-width: 0;
+    overflow: hidden;
 }
 
-.secondary-actions .btn {
+.input-footer-scroll {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex: 1 1 auto;
+    min-width: 0;
+    overflow-x: auto;
+    overflow-y: hidden;
+    scrollbar-width: none;
+}
+
+.input-footer-scroll::-webkit-scrollbar {
+    display: none;
+}
+
+.input-footer-left,
+.input-footer-middle,
+.primary-actions {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.input-footer-left {
+    flex-wrap: nowrap;
+    flex-shrink: 0;
+    justify-content: flex-start;
+    min-width: 0;
+}
+
+.input-footer-middle {
+    flex-shrink: 0;
+    justify-content: center;
+}
+
+.primary-actions {
+    flex-shrink: 0;
+}
+
+.input-footer-left .btn,
+.input-footer-middle .btn {
+    height: 32px;
     padding: 4px 10px;
     font-size: 12px;
     border-radius: 9px;
+    white-space: nowrap;
+}
+
+.secondary-toggle-group {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: nowrap;
+    flex-shrink: 0;
+    margin-right: 2px;
+}
+
+.input-footer-left .compact-toggle {
+    min-height: 32px;
+    gap: 5px;
+    margin-bottom: 0;
+    padding-bottom: 0;
+    border-bottom: none;
+    color: var(--wechat-text-gray);
+    white-space: nowrap;
+}
+
+.input-footer-left .compact-toggle .toggle-switch-label {
+    font-size: 11.5px;
+    font-weight: 500;
+    color: var(--wechat-text-gray);
+}
+
+.input-footer-left .compact-toggle .toggle-switch {
+    width: 30px;
+    height: 17px;
+}
+
+.input-footer-left .compact-toggle .toggle-switch-slider {
+    border-radius: 17px;
+}
+
+.input-footer-left .compact-toggle .toggle-switch-slider:before {
+    width: 13px;
+    height: 13px;
+    left: 2px;
+    bottom: 2px;
+}
+
+.input-footer-left .compact-toggle .toggle-switch input:checked + .toggle-switch-slider:before {
+    transform: translateX(13px);
 }
 
 .button-group {
@@ -1762,6 +1864,7 @@ textarea:focus {
         flex-direction: column;
         align-items: stretch;
     }
+
 }
 
 .checkbox-group {
@@ -1790,182 +1893,228 @@ textarea:focus {
     font-size: 13px;
 }
 
-/* 历史消息下拉框 */
+/* 历史消息弹窗 */
 .history-dropdown {
     position: fixed;
-    /* 改为fixed定位，确保可见 */
-    top: 50%;
-    left: 50%;
-    transform: translate(-50%, -50%);
-    /* 居中显示 */
-    width: 400px;
-    max-height: 500px;
-    overflow-y: auto;
-    background-color: var(--wechat-panel-bg);
-    border: 2px solid var(--wechat-green);
-    /* 保持绿色边框 */
-    border-radius: 5px;
-    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.2);
+    inset: 0;
     z-index: 9999;
-    /* 确保最高层级 */
     display: none;
+    align-items: center;
+    justify-content: center;
+    padding: 28px;
+    background: rgba(245, 245, 247, 0.28);
+    backdrop-filter: blur(4px);
+    -webkit-backdrop-filter: blur(4px);
 }
 
 .history-dropdown.show {
-    display: block;
-    animation: fadeIn 0.2s ease-in-out;
+    display: flex;
 }
 
-@keyframes fadeIn {
+.history-modal-dialog {
+    width: min(720px, calc(100vw - 40px));
+    max-height: min(680px, calc(100vh - 56px));
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    border: 1px solid rgba(0, 0, 0, 0.08);
+    border-radius: 22px;
+    background: #fff;
+    box-shadow: 0 24px 70px rgba(0, 0, 0, 0.18);
+    animation: historyModalIn 0.18s ease-out;
+}
+
+@keyframes historyModalIn {
     from {
         opacity: 0;
-        transform: translate(-50%, -60%);
+        transform: translateY(10px) scale(0.98);
     }
 
     to {
         opacity: 1;
-        transform: translate(-50%, -50%);
+        transform: translateY(0) scale(1);
     }
 }
 
-/* 历史消息项 */
-.history-item {
-    padding: 12px 15px;
-    border-bottom: 1px solid var(--wechat-border);
-    cursor: pointer;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    color: var(--wechat-text-dark);
-    transition: background-color 0.2s;
+.history-modal-header {
     display: flex;
-    justify-content: space-between;
     align-items: center;
+    justify-content: space-between;
+    gap: 14px;
+    padding: 18px 20px 14px;
+    border-bottom: 1px solid rgba(0, 0, 0, 0.06);
+}
+
+.history-modal-title {
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+    min-width: 0;
+}
+
+.history-modal-title strong {
+    font-size: 16px;
+    font-weight: 650;
+    letter-spacing: -0.02em;
+    color: #1d1d1f;
+}
+
+.history-modal-title span {
+    font-size: 12px;
+    color: #8a8a8f;
+}
+
+.history-modal-actions {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-shrink: 0;
+}
+
+.history-action-btn {
+    height: 30px;
+    padding: 0 11px;
+    border: 1px solid rgba(0, 0, 0, 0.08);
+    border-radius: 999px;
+    background: rgba(247, 247, 248, 0.9);
+    color: #3c3c43;
+    font-size: 12px;
+    cursor: pointer;
+    transition: background-color 0.16s ease, color 0.16s ease, border-color 0.16s ease;
+}
+
+.history-action-btn:hover {
+    background: #f0f0f2;
+    border-color: rgba(0, 0, 0, 0.12);
+}
+
+.history-action-btn.danger {
+    color: #d70015;
+}
+
+.history-close-btn {
+    width: 30px;
+    height: 30px;
+    padding: 0;
+    border: 0;
+    border-radius: 50%;
+    background: rgba(120, 120, 128, 0.12);
+    color: #6e6e73;
+    font-size: 18px;
+    line-height: 30px;
+    cursor: pointer;
+}
+
+.history-close-btn:hover {
+    background: rgba(120, 120, 128, 0.2);
+}
+
+.history-list {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    padding: 14px;
+    overflow-y: auto;
+}
+
+.history-item {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 12px;
+    align-items: center;
+    padding: 13px 14px;
+    border: 1px solid rgba(0, 0, 0, 0.06);
+    border-radius: 16px;
+    background: #fbfbfc;
+    color: var(--wechat-text-dark);
+    cursor: pointer;
+    transition: background-color 0.16s ease, border-color 0.16s ease, transform 0.16s ease;
 }
 
 .history-item:hover {
-    background-color: #f0f0f0;
+    background: #f6f6f7;
+    border-color: rgba(0, 0, 0, 0.1);
+    transform: translateY(-1px);
 }
 
 .history-item.empty {
-    color: var(--wechat-text-gray);
-    cursor: default;
-    text-align: center;
-    padding: 20px;
     display: block;
-    /* 覆盖flex布局，因为空记录不需要显示删除按钮 */
+    padding: 42px 16px;
+    color: #8a8a8f;
+    text-align: center;
+    cursor: default;
+    background: #fafafa;
 }
 
-/* 历史消息文本样式 */
-.message-text {
-    flex: 1;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
+.history-message {
+    min-width: 0;
+    white-space: normal;
+    overflow-wrap: anywhere;
+    color: #1d1d1f;
+    font-size: 13px;
+    line-height: 1.55;
 }
 
-/* 历史消息按钮容器 */
-.history-btn-container {
+.history-actions {
     display: flex;
     align-items: center;
-}
-
-/* 删除按钮样式 */
-.delete-btn {
-    background-color: transparent;
-    color: var(--wechat-text-gray);
-    border: none;
-    font-size: 16px;
-    width: 24px;
-    height: 24px;
-    line-height: 24px;
-    text-align: center;
-    border-radius: 50%;
-    cursor: pointer;
-    margin-left: 8px;
-    padding: 0;
-    transition: all 0.2s;
-    visibility: hidden;
-    /* 默认隐藏，鼠标悬停时显示 */
-}
-
-/* 编辑按钮样式 */
-.edit-btn {
-    background-color: transparent;
-    color: var(--wechat-text-gray);
-    border: none;
-    font-size: 16px;
-    width: 24px;
-    height: 24px;
-    line-height: 24px;
-    text-align: center;
-    border-radius: 50%;
-    cursor: pointer;
-    margin-left: 4px;
-    padding: 0;
-    transition: all 0.2s;
-    visibility: hidden;
-    /* 默认隐藏，鼠标悬停时显示 */
-}
-
-/* 鼠标悬停在历史项上时显示按钮 */
-.history-item:hover .delete-btn,
-.history-item:hover .edit-btn {
-    visibility: visible;
-}
-
-/* 鼠标悬停在删除按钮上时的样式 */
-.delete-btn:hover {
-    background-color: var(--wechat-danger);
-    color: white;
-}
-
-/* 鼠标悬停在编辑按钮上时的样式 */
-.edit-btn:hover {
-    background-color: var(--wechat-green);
-    color: white;
-}
-
-/* 历史消息编辑框样式 */
-.edit-history-input {
-    width: 100%;
-    padding: 6px;
-    border: 1px solid var(--wechat-green);
-    border-radius: 3px;
-    font-size: 14px;
-    margin-bottom: 6px;
-    resize: vertical;
-    min-height: 60px;
-}
-
-/* 编辑按钮容器 */
-.edit-btn-container {
-    display: flex;
     gap: 6px;
-    justify-content: flex-end;
 }
 
-.history-controls {
-    padding: 10px;
+.history-btn {
+    height: 28px;
+    padding: 0 10px;
+    border: 1px solid rgba(0, 0, 0, 0.08);
+    border-radius: 999px;
+    background: #fff;
+    color: #3c3c43;
+    font-size: 12px;
+    cursor: pointer;
+}
+
+.history-btn:hover {
+    background: #f2f2f4;
+}
+
+.history-btn.delete {
+    color: #d70015;
+}
+
+.edit-container {
     display: flex;
-    justify-content: center;
-    /* 改为居中对齐，因为只有一个按钮 */
-    border-bottom: 1px solid var(--wechat-border);
-    background-color: #f9f9f9;
+    flex-direction: column;
+    gap: 12px;
+    padding: 14px;
+}
+
+.edit-textarea {
+    width: 100%;
+    min-height: 180px;
+    padding: 12px 13px;
+    border: 1px solid rgba(0, 0, 0, 0.12);
+    border-radius: 14px;
+    background: #fbfbfc;
+    color: #1d1d1f;
+    font-size: 13px;
+    line-height: 1.55;
+    resize: vertical;
+}
+
+.edit-textarea:focus {
+    outline: none;
+    border-color: rgba(0, 122, 255, 0.5);
+    box-shadow: 0 0 0 3px rgba(0, 122, 255, 0.12);
+}
+
+.edit-buttons {
+    display: flex;
+    justify-content: flex-end;
+    gap: 8px;
 }
 
 .btn.small {
     padding: 4px 8px;
     font-size: 12px;
-}
-
-/* 历史记录标题 */
-.history-title {
-    padding: 15px;
-    text-align: center;
-    font-weight: bold;
-    border-bottom: 1px solid var(--wechat-border);
-    background-color: #f6f6f6;
 }
 
 /* 确认对话框背景遮罩 */
@@ -2715,7 +2864,7 @@ input[type="file"] {
 .ft-context-menu {
     position: fixed;
     z-index: 10000;
-    background: var(--wechat-panel-bg);
+    background: #fff;
     border: 1px solid var(--wechat-border);
     border-radius: 6px;
     box-shadow: 0 4px 14px rgba(0, 0, 0, 0.12);
@@ -3001,6 +3150,7 @@ input[type="file"] {
     flex: 1;
     min-width: 0;
     overflow: auto;
+    overscroll-behavior: none;
     padding: 16px;
     background: rgba(248, 248, 250, 0.76);
     min-height: 120px;
@@ -3105,6 +3255,22 @@ input[type="file"] {
     font-size: 10.5px;
 }
 
+.file-preview-copy-btn {
+    flex-shrink: 0;
+    white-space: nowrap;
+    height: 22px;
+    padding: 2px 7px;
+    border-radius: 999px;
+    font-size: 11px;
+    line-height: 1;
+}
+
+.file-preview-copy-btn.copied {
+    background: rgba(0, 122, 255, 0.1);
+    border-color: rgba(0, 122, 255, 0.18);
+    color: #0066cc;
+}
+
 @media (max-width: 640px) {
     .file-preview-meta {
         align-items: flex-start;
@@ -3144,6 +3310,157 @@ input[type="file"] {
     background:
         radial-gradient(circle at 20% 0%, rgba(255, 255, 255, 0.9), rgba(255, 255, 255, 0) 30%),
         rgba(242, 242, 247, 0.82);
+}
+
+.file-preview-body-tool-detail {
+    overflow: hidden;
+}
+
+.file-preview-tool-detail-split {
+    display: flex;
+    flex-direction: column;
+    gap: 0;
+    width: min(900px, 100%);
+    height: 100%;
+    min-height: 0;
+    margin: 0 auto;
+}
+
+.file-preview-tool-detail-panel {
+    min-height: 0;
+    overflow: auto;
+    overscroll-behavior: none;
+    border: 1px solid rgba(60, 60, 67, 0.06);
+    border-radius: 12px;
+    background: rgba(255, 255, 255, 0.96);
+    box-shadow: var(--apple-shadow-soft);
+}
+
+.file-preview-tool-detail-resizer {
+    flex: 0 0 14px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: row-resize;
+    position: relative;
+    z-index: 2;
+}
+
+.file-preview-tool-detail-resizer::before {
+    content: '';
+    width: 58px;
+    height: 4px;
+    border-radius: 999px;
+    background: rgba(60, 60, 67, 0.22);
+}
+
+.file-preview-tool-detail-user {
+    flex: 1 1 0;
+}
+
+.file-preview-tool-detail-model {
+    flex: 1 1 0;
+    min-height: 112px;
+}
+
+.file-preview-tool-detail-model.collapsed {
+    flex: 0 0 42px !important;
+    min-height: 42px;
+    overflow: hidden;
+}
+
+.file-preview-tool-detail-model.collapsed > :not(.file-preview-tool-detail-panel-title) {
+    display: none !important;
+}
+
+.file-preview-tool-detail-panel-title {
+    position: sticky;
+    top: 0;
+    z-index: 1;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    padding: 9px 14px;
+    border-bottom: 1px solid #e5e5ea;
+    background: rgba(255, 255, 255, 0.94);
+    color: var(--wechat-text-gray);
+    font-size: 12px;
+    font-weight: 580;
+    backdrop-filter: blur(14px);
+    -webkit-backdrop-filter: blur(14px);
+}
+
+.file-preview-tool-detail-view-switch {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 2px;
+    border: 1px solid #e5e5ea;
+    border-radius: 999px;
+    background: #f5f5f7;
+}
+
+.file-preview-tool-detail-panel-actions {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    flex-shrink: 0;
+}
+
+.file-preview-tool-detail-view-btn {
+    border: 0;
+    border-radius: 999px;
+    background: transparent;
+    color: var(--wechat-text-gray);
+    cursor: pointer;
+    font-size: 11px;
+    line-height: 1;
+    padding: 4px 8px;
+}
+
+.file-preview-tool-detail-view-btn.active {
+    background: #fff;
+    color: var(--wechat-text-dark);
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.08);
+}
+
+.file-preview-tool-detail-copy-btn {
+    border: 1px solid #e5e5ea;
+    background: #f5f5f7;
+}
+
+.file-preview-tool-detail-copy-btn:disabled {
+    cursor: default;
+    opacity: 0.48;
+}
+
+.file-preview-tool-detail-panel .file-preview-markdown {
+    width: 100%;
+    min-height: 0;
+    border: 0;
+    border-radius: 0;
+    box-shadow: none;
+}
+
+.file-preview-model-content {
+    margin: 0;
+    padding: 16px 18px 22px;
+    color: var(--wechat-text-dark);
+    font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+    font-size: 12px;
+    line-height: 1.6;
+    white-space: pre-wrap;
+    word-break: break-word;
+}
+
+.file-preview-model-empty {
+    color: var(--wechat-text-gray);
+    font-family: inherit;
+}
+
+.file-preview-tool-source-content {
+    background: #fff;
 }
 
 .file-preview-image {
@@ -3684,8 +4001,7 @@ input[type="file"] {
 .custom-select-panel,
 textarea,
 input[type="text"],
-.custom-select-trigger,
-.history-dropdown {
+.custom-select-trigger {
     border-radius: var(--radius-card);
 }
 

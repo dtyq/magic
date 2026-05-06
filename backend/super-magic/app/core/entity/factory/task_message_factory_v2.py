@@ -31,6 +31,7 @@ from agentlang.llms.token_usage.models import TokenUsageCollection
 from agentlang.logger import get_logger
 from agentlang.utils.snowflake import Snowflake
 from app.core.context.agent_context import AgentContext
+from app.core.config.debug_config import is_local_debug_mode_enabled
 from app.core.entity.attachment import Attachment, AttachmentTag
 from app.core.entity.event.event import (
     AfterClientChatEventData,
@@ -239,6 +240,18 @@ class TaskMessageFactoryV2(TaskMessageFactoryProtocol):
             tool_id=tool_id, name=name, action=action, status=status,
             remark=remark, detail=detail, attachments=attachments,
         ).model_dump(mode="json", exclude_none=True)
+
+    @staticmethod
+    def _should_include_debug_tool_result_content(agent_context: AgentContext) -> bool:
+        """仅在本地调试模式且客户端显式声明时，把 ToolResult.content 透传给调试客户端。"""
+        if not is_local_debug_mode_enabled():
+            return False
+
+        chat_message = agent_context.get_chat_client_message()
+        dynamic_config = getattr(chat_message, "dynamic_config", None) or {}
+        if not isinstance(dynamic_config, dict):
+            return False
+        return dynamic_config.get("enable_debug_tool_result_content") is True
 
     @classmethod
     async def _build_running_tool_call_item(
@@ -835,6 +848,7 @@ class TaskMessageFactoryV2(TaskMessageFactoryProtocol):
             role="tool",
             correlation_id=correlation_id,
             tool_call_id=event.data.tool_call.id,
+            content=result.content if cls._should_include_debug_tool_result_content(agent_context) else None,
             tool=tool_obj.model_dump(mode="json", exclude_none=True),
             status="running",
         )

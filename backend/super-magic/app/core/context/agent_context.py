@@ -33,6 +33,7 @@ from app.core.context.run_interruption import RunCancelState, RunCleanupRegistry
 from app.core.entity.final_task_state import FinalTaskState
 from loguru import logger
 from app.infrastructure.storage.types import PlatformType
+from agentlang.llms.token_usage.models import TokenUsageCollection
 from agentlang.llms.token_usage.report import TokenUsageReport
 
 # 获取日志记录器
@@ -159,6 +160,7 @@ class AgentContext(BaseAgentContext):
         self._run_cancel_state: RunCancelState = RunCancelState()
         self._run_cleanup_registry: RunCleanupRegistry = RunCleanupRegistry()
         self._run_cancellation_handle: RunCancellationHandle = RunCancellationHandle()
+        self._stop_run_task: Optional[asyncio.Task] = None
 
         # AgentHorizon 懒初始化，per-agent 上下文工程基础设施
         self._horizon: Optional["AgentHorizon"] = None
@@ -269,7 +271,8 @@ class AgentContext(BaseAgentContext):
             "sandbox_id": ("", str),
             "project_archive_info": (None, Optional[ProjectArchiveInfo]),
             "organization_code": (None, Optional[str]),
-            "final_token_usage_report": (None, Optional[TokenUsageReport]),
+            "token_usage_report_manager": (None, Optional[TokenUsageReport]),
+            "final_token_usage_report": (None, Optional[TokenUsageCollection]),
             "final_response": (None, Optional[str]),
             "final_task_state": (None, Optional[FinalTaskState]),
             "finish_task_files": (None, Optional[List[str]]),
@@ -278,6 +281,8 @@ class AgentContext(BaseAgentContext):
             # 中断控制
             "interruption_requested": (False, bool),  # 终止信号
             "interruption_reason": (None, Optional[str]),
+            # 上一轮中断产生的运行时事实，下一轮合成 interrupted tool result 时带入模型上下文
+            "interruption_notices": ([], List[str]),
             "cancel_blocker_count": (0, int),  # 阻止cancel的操作计数，默认0
             # 思考状态管理
             "is_thinking_flag": (False, bool),  # 是否真正在思考（由流式内容决定）
@@ -900,17 +905,30 @@ class AgentContext(BaseAgentContext):
         """
         return self.__str__()
 
-    def set_token_usage_report(self, report: TokenUsageReport) -> None:
+    def set_token_usage_report_manager(self, report: TokenUsageReport) -> None:
+        """设置当前 Agent 会话专属的 token 使用报告管理器。"""
+        self.shared_context.update_field("token_usage_report_manager", report)
+        logger.debug("已更新 token 使用报告管理器")
+
+    def get_token_usage_report_manager(self) -> Optional[TokenUsageReport]:
+        """获取当前 Agent 会话专属的 token 使用报告管理器。"""
+        if not self.shared_context.has_field("token_usage_report_manager"):
+            return None
+        return self.shared_context.get_field("token_usage_report_manager")
+
+    def set_token_usage_report(self, report: TokenUsageCollection) -> None:
         """设置 token 使用报告
 
         Args:
-            report: token 使用报告实例
+            report: token 使用报告汇总
         """
         self.shared_context.update_field("final_token_usage_report", report)
         logger.debug("已更新 token 使用报告")
 
-    def get_token_usage_report(self) -> Optional[TokenUsageReport]:
+    def get_token_usage_report(self) -> Optional[TokenUsageCollection]:
         """获取最终的 Token 使用报告"""
+        if not self.shared_context.has_field("final_token_usage_report"):
+            return None
         return self.shared_context.get_field("final_token_usage_report")
 
     def set_final_response(self, response: Optional[str]) -> None:
@@ -1015,7 +1033,7 @@ class AgentContext(BaseAgentContext):
 
     # ====== 中断控制相关方法 ======
 
-    def set_interruption_request(self, requested: bool, reason: str = "用户主动中断") -> None:
+    def set_interruption_request(self, requested: bool, reason: str = "User interrupted the task.") -> None:
         """设置/恢复终止信号
 
         Args:
@@ -1058,6 +1076,22 @@ class AgentContext(BaseAgentContext):
             asyncio.Event: 中断事件对象，可用于 await event.wait()
         """
         return self._interruption_event
+
+    def append_interruption_notice(self, notice: str) -> None:
+        """记录本轮中断产生的运行时事实，供下一轮合成 ToolResult 时注入模型上下文。"""
+        text = notice.strip() if isinstance(notice, str) else ""
+        if not text:
+            return
+        notices = list(self.shared_context.get_field("interruption_notices") or [])
+        if text not in notices:
+            notices.append(text)
+        self.shared_context.update_field("interruption_notices", notices)
+
+    def drain_interruption_notices(self) -> list[str]:
+        """取出并清空中断事实，避免同一事实重复进入后续上下文。"""
+        notices = list(self.shared_context.get_field("interruption_notices") or [])
+        self.shared_context.update_field("interruption_notices", [])
+        return notices
 
     def increment_cancel_blocker(self) -> None:
         """增加阻止cancel的操作计数"""
@@ -1133,9 +1167,21 @@ class AgentContext(BaseAgentContext):
         4. 执行 worker cancel
         5. 标记完成
         """
+        if self._stop_run_task and not self._stop_run_task.done():
+            logger.debug(f"[AgentContext] stop_run already in progress, waiting (reason={reason})")
+            await asyncio.shield(self._stop_run_task)
+            return
+
+        self._stop_run_task = asyncio.create_task(self._stop_run_impl(reason))
+        try:
+            await asyncio.shield(self._stop_run_task)
+        finally:
+            if self._stop_run_task.done():
+                self._stop_run_task = None
+
+    async def _stop_run_impl(self, reason: str) -> None:
+        """执行当前 run 的实际停止流程；stop_run() 负责单飞等待。"""
         if self._run_cancel_state.cleanup_started and not self._run_cancel_state.cleanup_finished:
-            # 正在执行中，忽略重复请求
-            logger.debug(f"[AgentContext] stop_run already in progress, skip (reason={reason})")
             return
 
         if self._run_cancel_state.cleanup_started and self._run_cancel_state.cleanup_finished:

@@ -5,10 +5,11 @@ Provides non-intrusive telemetry setup with automatic instrumentation
 """
 import os
 import logging
+import time
 from typing import Optional
 from opentelemetry import trace, metrics
 from opentelemetry.sdk.trace import TracerProvider
-from opentelemetry.sdk.trace.export import BatchSpanProcessor, ConsoleSpanExporter
+from opentelemetry.sdk.trace.export import BatchSpanProcessor, ConsoleSpanExporter, SpanExporter, SpanExportResult
 from opentelemetry.sdk.metrics import MeterProvider
 from opentelemetry.sdk.metrics.export import PeriodicExportingMetricReader, ConsoleMetricExporter
 from opentelemetry.sdk.resources import Resource
@@ -58,6 +59,34 @@ except ImportError:
 _tracer_provider: Optional[TracerProvider] = None
 _meter_provider: Optional[MeterProvider] = None
 _initialized = False
+_OTEL_EXPORT_WARNING_INTERVAL_SECONDS = 60
+
+
+class _SafeSpanExporter(SpanExporter):
+    """把遥测导出失败收敛成限频 warning，避免第三方超时栈淹没业务日志。"""
+
+    def __init__(self, exporter) -> None:
+        self._exporter = exporter
+        self._last_warning_at = 0.0
+
+    def export(self, spans):
+        try:
+            return self._exporter.export(spans)
+        except Exception as e:
+            now = time.monotonic()
+            if now - self._last_warning_at >= _OTEL_EXPORT_WARNING_INTERVAL_SECONDS:
+                self._last_warning_at = now
+                logger.warning(f"[OpenTelemetry] Span export failed; telemetry is degraded: {e}")
+            return SpanExportResult.FAILURE
+
+    def shutdown(self):
+        return self._exporter.shutdown()
+
+    def force_flush(self, timeout_millis: int = 30000) -> bool:
+        force_flush = getattr(self._exporter, "force_flush", None)
+        if force_flush is None:
+            return True
+        return bool(force_flush(timeout_millis))
 
 
 def is_telemetry_enabled() -> bool:
@@ -195,7 +224,7 @@ def setup_telemetry(
         logger.warning("[OpenTelemetry] No traces endpoint configured, using console exporter")
         span_exporter = ConsoleSpanExporter()
 
-    _tracer_provider.add_span_processor(BatchSpanProcessor(span_exporter))
+    _tracer_provider.add_span_processor(BatchSpanProcessor(_SafeSpanExporter(span_exporter)))
     trace.set_tracer_provider(_tracer_provider)
 
     # Install non-invasive LLM cost tracking (best-effort)

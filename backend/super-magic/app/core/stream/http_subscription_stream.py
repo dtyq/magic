@@ -188,7 +188,6 @@ class HTTPSubscriptionStream(Stream):
             try:
                 # 发送请求
                 logger.debug(f"正在进行第 {current_attempt} 次请求尝试...")
-                print(url)
                 async with self._session.request(
                     method=method,
                     url=url,
@@ -270,7 +269,7 @@ class HTTPSubscriptionStream(Stream):
                 if "Content-Type" not in headers:
                     headers["Content-Type"] = "application/json"
 
-            logger.info(f"[{request_id}] 开始HTTP请求: {self._config.method} {self._config.url}")
+            logger.debug(f"[{request_id}] 开始HTTP请求: {self._config.method} {self._config.url}")
 
             # 发送请求，使用自定义重试逻辑
             success, response = await self._send_request_with_retry(
@@ -280,16 +279,18 @@ class HTTPSubscriptionStream(Stream):
                 data=processed_data
             )
 
-            logger.info(f"[{request_id}] HTTP请求响应: {response.status}")
-
             if not success:
                 raise IOError("Failed to write to HTTP endpoint after retries")
+            if response is None:
+                raise IOError("Failed to write to HTTP endpoint: no response")
 
             # 检查最终响应状态
             if response.status >= 400:
                 error_text = await response.text()
                 logger.error(f"HTTP subscription failed with status {response.status}: {error_text}")
                 raise IOError(f"Failed to write to HTTP endpoint: Status {response.status}")
+
+            logger.debug(f"[{request_id}] HTTP请求响应: {response.status}")
 
             return len(data)
 

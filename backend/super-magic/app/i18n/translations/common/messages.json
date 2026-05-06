@@ -24,8 +24,8 @@
         "en_US": "The concurrent task limit has been reached. Please try again later."
     },
     "messages.user_interrupted": {
-        "zh_CN": "任务已中断。",
-        "en_US": "The task has been interrupted."
+        "zh_CN": "任务已中断",
+        "en_US": "The task has been interrupted"
     },
     "messages.session_restore_failed": {
         "zh_CN": "恢复会话状态失败，请重新发送消息。",

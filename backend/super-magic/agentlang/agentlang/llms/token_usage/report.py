@@ -32,7 +32,20 @@ class TokenUsageReport:
     """
 
     # 保存全局的报告实例，按sandbox_id索引
-    _instances = {}
+    _instances: Dict[str, 'TokenUsageReport'] = {}
+
+    @staticmethod
+    def _create_default_pricing() -> ModelPricing:
+        try:
+            # 尝试从配置中加载模型价格
+            models_config = config.get("models", {})
+            pricing = ModelPricing(models_config=models_config)
+            logger.info("已从配置加载模型价格信息")
+            return pricing
+        except Exception as e:
+            # 配置获取失败时，使用默认价格
+            logger.warning(f"无法从配置加载模型价格，使用默认价格: {e}")
+            return ModelPricing()
 
     @classmethod
     def get_instance(cls, sandbox_id: str = "default", token_tracker: Optional[Any] = None,
@@ -52,15 +65,7 @@ class TokenUsageReport:
         if sandbox_id not in cls._instances:
             # 没有提供pricing时创建默认实例
             if pricing is None:
-                try:
-                    # 尝试从配置中加载模型价格
-                    models_config = config.get("models", {})
-                    pricing = ModelPricing(models_config=models_config)
-                    logger.info("已从配置加载模型价格信息")
-                except Exception as e:
-                    # 配置获取失败时，使用默认价格
-                    logger.warning(f"无法从配置加载模型价格，使用默认价格: {e}")
-                    pricing = ModelPricing()
+                pricing = cls._create_default_pricing()
 
             # 创建实例
             cls._instances[sandbox_id] = cls(token_tracker, pricing, sandbox_id, report_dir)
@@ -70,6 +75,16 @@ class TokenUsageReport:
                 token_tracker.set_report_manager(cls._instances[sandbox_id])
 
         return cls._instances[sandbox_id]
+
+    @classmethod
+    def for_session(cls, *, file_prefix: str, token_tracker: Optional[Any],
+                    pricing: Optional[ModelPricing] = None, sandbox_id: str = "default",
+                    report_dir: Optional[str] = None) -> 'TokenUsageReport':
+        """创建当前 Agent 会话专属的报告实例，不注册为全局 singleton。"""
+        active_pricing = pricing if pricing is not None else cls._create_default_pricing()
+        report = cls(token_tracker, active_pricing, sandbox_id, report_dir)
+        report.set_file_prefix(file_prefix)
+        return report
 
     def __init__(self, token_tracker: 'TokenUsageTracker', pricing: ModelPricing,
                 sandbox_id: str = "default", report_dir: Optional[str] = None):

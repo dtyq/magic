@@ -166,6 +166,36 @@ class CallSubagent(BaseTool[CallSubagentParams]):
                 handle.task = task
                 handle.agent_context = new_agent_context
 
+                parent_context_id = parent.context_id if parent else ""
+                child_ref = None
+                if parent_context_id and parent is not None:
+                    child_ref = await subagent_session_manager.register_child_run(
+                        parent_context_id,
+                        params.agent_name,
+                        params.agent_id,
+                    )
+
+                    async def _interrupt_child_on_parent_stop() -> None:
+                        await subagent_session_manager.interrupt_run(
+                            params.agent_name,
+                            params.agent_id,
+                            reason=parent.get_interruption_reason() or "parent agent stopped",
+                            timeout=10.0,
+                        )
+
+                    parent.register_run_cleanup(
+                        f"subagent:{params.agent_name}:{params.agent_id}",
+                        _interrupt_child_on_parent_stop,
+                    )
+
+                if parent_context_id and child_ref is not None:
+                    def _schedule_unregister(_task: asyncio.Task) -> None:
+                        asyncio.create_task(
+                            subagent_session_manager.unregister_child_run(parent_context_id, child_ref)
+                        )
+
+                    task.add_done_callback(_schedule_unregister)
+
             if params.background:
                 return _success_result(_build_payload(
                     state=state,
