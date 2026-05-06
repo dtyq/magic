@@ -578,6 +578,54 @@ class TopicAppService extends AbstractAppService
     }
 
     /**
+     * Get topic name by topic ID, for share scenarios.
+     *
+     * @param int $topicId Topic ID
+     * @return string Topic name, or empty string if not found
+     */
+    public function getTopicDetail(int $topicId): string
+    {
+        $topicEntity = $this->workspaceDomainService->getTopicById($topicId);
+        if (empty($topicEntity)) {
+            return '';
+        }
+        return $topicEntity->getTopicName();
+    }
+
+    /**
+     * Get topic messages with project info, for share scenarios.
+     *
+     * @param int $topicId Topic ID
+     * @param int $page Page number
+     * @param int $pageSize Page size
+     * @param string $sortDirection Sort direction
+     * @return array Message list with total count and project info
+     */
+    public function getMessagesByTopicId(int $topicId, int $page = 1, int $pageSize = 20, string $sortDirection = 'asc'): array
+    {
+        $result = $this->taskDomainService->getMessagesByTopicId($topicId, $page, $pageSize, true, $sortDirection);
+
+        $messages = [];
+        foreach ($result['list'] as $message) {
+            $messages[] = new MessageItemDTO($message->toArray());
+        }
+
+        $data = [
+            'list' => $messages,
+            'total' => $result['total'],
+        ];
+
+        $topicEntity = $this->topicDomainService->getTopicWithDeleted($topicId);
+        if ($topicEntity !== null) {
+            $data['project_id'] = (string) $topicEntity->getProjectId();
+            $projectEntity = $this->getAccessibleProject($topicEntity->getProjectId(), $topicEntity->getUserId(), $topicEntity->getUserOrganizationCode());
+            $data['project_name'] = $projectEntity->getProjectName();
+        }
+
+        return $data;
+    }
+
+    /**
      * 获取用户话题附件 URL. (管理后台使用).
      *
      * @param string $topicId 话题 ID

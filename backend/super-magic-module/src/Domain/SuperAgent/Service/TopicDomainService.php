@@ -368,7 +368,14 @@ class TopicDomainService
         $topicEntity->setUpdatedAt(date('Y-m-d H:i:s'));
 
         // 保存更新
-        return $this->topicRepository->updateTopic($topicEntity);
+        $result = $this->topicRepository->updateTopic($topicEntity);
+
+        // Cascade soft-delete all messages belonging to this topic
+        if ($result) {
+            $this->taskMessageRepository->deleteMessageByTopicId($id);
+        }
+
+        return $result;
     }
 
     /**

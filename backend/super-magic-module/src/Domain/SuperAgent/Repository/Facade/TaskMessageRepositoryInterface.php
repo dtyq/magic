@@ -176,4 +176,12 @@ interface TaskMessageRepositoryInterface
      * @param null|int $imSeqId IM序列ID，为空时不更新
      */
     public function updateMessageSeqId(int $id, ?int $imSeqId): void;
+
+    /**
+     * Soft-delete all messages belonging to the given topic.
+     *
+     * @param int $topicId Topic ID
+     * @return int Number of rows updated
+     */
+    public function deleteMessageByTopicId(int $topicId): int;
 }
