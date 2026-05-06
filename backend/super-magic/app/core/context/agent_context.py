@@ -293,7 +293,7 @@ class AgentContext(BaseAgentContext):
             # Agent Master 管理
             "agent_code": (None, Optional[str]),  # 当前自定义 Agent 的 agent_code
             # 消息版本协商（v1 / v2），由 set_chat_client_message 提取 dynamic_config.message_version 写入
-            "message_version": ("v1", str),
+            "message_version": ("v2", str),
             # v2 批量 tool_calls 暂存状态
             "pending_reply_state": (None, Optional[PendingReplyState]),
         })
@@ -1236,7 +1236,7 @@ class AgentContext(BaseAgentContext):
 
     def get_message_version(self) -> str:
         """获取当前会话的消息版本号，默认 'v1'。"""
-        return self.shared_context.get_field("message_version") or "v1"
+        return self.shared_context.get_field("message_version") or "v2"
 
     def set_message_version(self, version: str) -> None:
         """显式设置消息结构版本，在 chat 消息到达后、init 事件触发前提前写入。

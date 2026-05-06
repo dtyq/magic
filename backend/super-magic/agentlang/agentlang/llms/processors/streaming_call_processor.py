@@ -143,7 +143,7 @@ class StreamingCallProcessor:
                 )
 
                 # 根据 message_version 从注册表获取对应的流式处理器
-                _message_version = agent_context.get_message_version() if agent_context else "v1"
+                _message_version = agent_context.get_message_version() if agent_context else "v2"
 
                 from agentlang.llms.processors.streaming_handler_registry import get_handler_by_version
                 _handler = get_handler_by_version(_message_version)
