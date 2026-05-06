@@ -41,7 +41,6 @@ skills:
 {{ @include(path="./prompts/static_context.prompt") }}
 </static_context>
 
-
 <user_custom_instructions>
 
 ```markdown
