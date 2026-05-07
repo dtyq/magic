@@ -446,6 +446,13 @@ class TaskMessageRepository implements TaskMessageRepositoryInterface
             ->update(['im_seq_id' => $imSeqId]);
     }
 
+    public function hasMessagesByTopicId(int $topicId): bool
+    {
+        return $this->model::query()
+            ->where('topic_id', $topicId)
+            ->exists();
+    }
+
     /**
      * Soft-delete all messages belonging to the given topic.
      */

@@ -39,6 +39,7 @@ use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\ProjectMode;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\TaskContext;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\UserInfoValueObject;
 use Dtyq\SuperMagic\Domain\SuperAgent\Exception\WorkspaceReadyTimeoutException;
+use Dtyq\SuperMagic\Domain\SuperAgent\Repository\Facade\TaskMessageRepositoryInterface;
 use Dtyq\SuperMagic\Infrastructure\ExternalAPI\SandboxOS\Agent\Constant\WorkspaceStatus;
 use Dtyq\SuperMagic\Infrastructure\ExternalAPI\SandboxOS\Agent\Request\ChatMessageRequest;
 use Dtyq\SuperMagic\Infrastructure\ExternalAPI\SandboxOS\Agent\Request\CheckpointRollbackCheckRequest;
@@ -85,6 +86,7 @@ class AgentDomainService
         private readonly MagicTokenRepositoryInterface $magicTokenRepository,
         private readonly LockerInterface $locker,
         private readonly TopicDomainService $topicDomainService,
+        private readonly TaskMessageRepositoryInterface $taskMessageRepository,
     ) {
         $this->logger = $loggerFactory->get('sandbox');
     }
@@ -167,12 +169,10 @@ class AgentDomainService
         $fullWorkDir = WorkDirectoryUtil::getFullWorkdir($fullPrefix, $projectEntity->getWorkDir());
         $agentInitContext->setChatHistoryDir($fullChatWorkDir);
         $agentInitContext->setWorkDir($fullWorkDir);
-        // 设置是否需要拉取聊天记录
-        if (! empty($topicEntity->getCurrentTaskId())) {
-            $agentInitContext->setFetchHistory(true);
-        } else {
-            $agentInitContext->setFetchHistory(false);
-        }
+        // 设置是否需要拉取聊天记录：通过话题消息表判断是否已有历史消息
+        $topicId = (int) $topicEntity->getId();
+        $topicHasHistory = $topicId > 0 && $this->taskMessageRepository->hasMessagesByTopicId($topicId);
+        $agentInitContext->setFetchHistory($topicHasHistory);
 
         // 将话题的 dynamic_params 作为 dynamic_config 下发，使 sandbox 在 init 阶段即可获取 message_version 等配置
         $dynamicParams = $topicEntity->getDynamicParams();

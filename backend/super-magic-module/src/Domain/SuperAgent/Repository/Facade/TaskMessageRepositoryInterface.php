@@ -178,6 +178,14 @@ interface TaskMessageRepositoryInterface
     public function updateMessageSeqId(int $id, ?int $imSeqId): void;
 
     /**
+     * Check if a topic has any messages.
+     *
+     * @param int $topicId Topic ID
+     * @return bool True if messages exist, false otherwise
+     */
+    public function hasMessagesByTopicId(int $topicId): bool;
+
+    /**
      * Soft-delete all messages belonging to the given topic.
      *
      * @param int $topicId Topic ID

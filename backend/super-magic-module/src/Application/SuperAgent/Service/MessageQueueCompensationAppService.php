@@ -21,7 +21,6 @@ use Carbon\Carbon;
 use Dtyq\SuperMagic\Domain\SuperAgent\Constant\AgentConstant;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\MessageQueueEntity;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\MessageQueueStatus;
-use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\TaskStatus;
 use Dtyq\SuperMagic\Domain\SuperAgent\Service\MessageQueueDomainService;
 use Dtyq\SuperMagic\Domain\SuperAgent\Service\TopicDomainService;
 use Hyperf\Logger\LoggerFactory;
@@ -161,56 +160,76 @@ class MessageQueueCompensationAppService extends AbstractAppService
             $topicEntity = $this->topicDomainService->getTopicById($topicId);
 
             if (! $topicEntity) {
-                $this->logger->warning('Topic not found, skip processing', ['topic_id' => $topicId]);
+                $this->logger->warning('Compensation: topic not found, skip processing', ['topic_id' => $topicId]);
                 return 'skipped';
             }
 
             $topicStatus = $topicEntity->getCurrentTaskStatus();
 
-            // If topic is running, delay messages directly without fetching message details
-            if ($topicStatus->value === TaskStatus::RUNNING->value) {
+            // Guard: skip processing for ANY active status (WAITING, RUNNING, WAITING_FOR_USER).
+            // Previously only RUNNING was checked, which allowed compensation to fire while the topic
+            // was in WAITING_FOR_USER (Human-in-the-Loop) or in the brief window after a queued
+            // message was sent but before the agent updated the status to RUNNING.
+            if ($topicStatus !== null && $topicStatus->isActive()) {
                 $this->messageQueueDomainService->delayTopicMessages($topicId, self::DELAY_MINUTES);
-                $this->logger->info('Topic is running, delayed messages by {delay} minutes', [
+                $this->logger->info('Compensation: topic is active, delayed messages', [
                     'topic_id' => $topicId,
-                    'delay' => self::DELAY_MINUTES,
+                    'topic_status' => $topicStatus->value,
+                    'delay_minutes' => self::DELAY_MINUTES,
                 ]);
                 return 'delayed';
             }
 
-            // Only process if topic status is finished or suitable for processing
-            //            if ($topicStatus?->value !== 'finished') {
-            //                $this->logger->warning('Topic status is not suitable for processing, skip', [
-            //                    'topic_id' => $topicId,
-            //                    'status' => $topicStatus?->value ?? 'unknown'
-            //                ]);
-            //                return 'skipped';
-            //            }
+            $this->logger->info('Compensation: topic is in non-active state, checking for pending messages', [
+                'topic_id' => $topicId,
+                'topic_status' => $topicStatus !== null ? $topicStatus->value : 'unknown',
+            ]);
 
-            // 2.2 Topic status OK, get message details (Application layer → Domain layer → Repository layer)
-            // Use current time as filter to get messages that should be executed now
-            $message = $this->messageQueueDomainService->getEarliestMessageByTopic($topicId, date('Y-m-d H:i:s'));
-            if (! $message) {
-                $this->logger->debug('No pending messages for topic', ['topic_id' => $topicId]);
+            // 2.2 Idempotency check: if there is already an IN_PROGRESS message, a previous run
+            // sent this message but may not have finished updating its status yet (e.g. process
+            // crash or network timeout). Skip to avoid sending the same message twice.
+            $inProgressMessage = $this->messageQueueDomainService->getInProgressMessageByTopic($topicId);
+            if ($inProgressMessage) {
+                $this->logger->warning('Compensation: found IN_PROGRESS message, skip to avoid duplicate delivery', [
+                    'topic_id' => $topicId,
+                    'in_progress_message_id' => $inProgressMessage->getId(),
+                    'in_progress_execute_time' => $inProgressMessage->getExecuteTime(),
+                ]);
                 return 'skipped';
             }
 
-            // 2.3 Convert message content (Application layer directly calls)
+            // 2.3 Topic status OK, get message details (Application layer → Domain layer → Repository layer)
+            // Use current time as filter to get messages that should be executed now
+            $message = $this->messageQueueDomainService->getEarliestMessageByTopic($topicId, date('Y-m-d H:i:s'));
+            if (! $message) {
+                $this->logger->debug('Compensation: no pending messages for topic', ['topic_id' => $topicId]);
+                return 'skipped';
+            }
+
+            $this->logger->info('Compensation: found pending message to process', [
+                'topic_id' => $topicId,
+                'message_id' => $message->getId(),
+                'message_type' => $message->getMessageType(),
+                'except_execute_time' => $message->getExceptExecuteTime(),
+            ]);
+
+            // 2.4 Convert message content (Application layer directly calls)
             $chatMessageType = ChatMessageType::from($message->getMessageType());
             $messageStruct = MessageAssembler::getChatMessageStruct(
                 $chatMessageType,
                 $message->getMessageContentAsArray()
             );
 
-            // 2.4 Update status to in progress (Application layer → Domain layer → Repository layer)
+            // 2.5 Update status to in progress (Application layer → Domain layer → Repository layer)
             $this->messageQueueDomainService->updateStatus(
                 $message->getId(),
                 MessageQueueStatus::IN_PROGRESS
             );
 
-            // 2.5 Call send interface (Application layer → Application layer)
+            // 2.6 Call send interface (Application layer → Application layer)
             $sendResult = $this->sendMessageToAgent($topicEntity->getChatTopicId(), $message, $messageStruct);
 
-            // 2.6 Update final status (Application layer → Domain layer → Repository layer)
+            // 2.7 Update final status (Application layer → Domain layer → Repository layer)
             $finalStatus = $sendResult['success'] ? MessageQueueStatus::COMPLETED : MessageQueueStatus::FAILED;
             $this->messageQueueDomainService->updateStatus(
                 $message->getId(),
@@ -218,18 +237,20 @@ class MessageQueueCompensationAppService extends AbstractAppService
                 $sendResult['error_message']
             );
 
-            $this->logger->info('Message processing completed', [
+            $this->logger->info('Compensation: message processing completed', [
                 'message_id' => $message->getId(),
                 'topic_id' => $topicId,
                 'success' => $sendResult['success'],
                 'error_message' => $sendResult['error_message'],
+                'final_status' => $finalStatus->value,
             ]);
 
             return $sendResult['success'] ? 'success' : 'failed';
         } catch (Throwable $e) {
-            $this->logger->error('Topic processing exception', [
+            $this->logger->error('Compensation: topic processing exception', [
                 'topic_id' => $topicId,
                 'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString(),
             ]);
             return 'failed';
         }
