@@ -12,48 +12,99 @@ use Dtyq\BillingManager\Infrastructure\Util\ImageCalculate\ImageUsageDto;
 use Dtyq\BillingManager\Infrastructure\Util\TokenCalculate\TokenUsageDto;
 use Dtyq\BillingManager\Infrastructure\Util\VideoCalculate\VideoUsageDto;
 
+/**
+ * 统一描述所有可配置的计费对象。
+ *
+ * 说明：
+ * - 文本类对象是固定常量；
+ * - 图片按张、视频按时长、视频分辨率 token 走“动态对象族”；
+ * - BillingType 负责声明对象归属，BillingObject 只负责值对象行为和 usage 取值。
+ */
 final class BillingObject
 {
+    /**
+     * TextTokens: 文本输入 token 售价。
+     */
     public const INPUT_TOKEN = 'input_token';
 
+    /**
+     * TextTokens: 文本输出 token 售价。
+     */
     public const OUTPUT_TOKEN = 'output_token';
 
+    /**
+     * TextTokens: 缓存命中 token 售价。
+     */
     public const CACHE_HIT_TOKEN = 'cache_hit_token';
 
+    /**
+     * TextTokens: 缓存写入 token 售价。
+     */
     public const CACHE_WRITE_TOKEN = 'cache_write_token';
 
+    /**
+     * TextTokens: 文本输入 token 成本。
+     */
     public const INPUT_COST = 'input_cost';
 
+    /**
+     * TextTokens: 文本输出 token 成本。
+     */
     public const OUTPUT_COST = 'output_cost';
 
+    /**
+     * TextTokens: 缓存命中 token 成本。
+     */
     public const CACHE_HIT_COST = 'cache_hit_cost';
 
+    /**
+     * TextTokens: 缓存写入 token 成本。
+     */
     public const CACHE_WRITE_COST = 'cache_write_cost';
 
+    /**
+     * ImageTokens: 图片输入 token 售价。
+     */
     public const IMAGE_INPUT_TOKEN = 'image_input_token';
 
+    /**
+     * ImageTokens: 图片输入 token 成本。
+     */
     public const IMAGE_INPUT_TOKEN_COST = 'image_input_token_cost';
 
+    /**
+     * ImageTokens: 图片输出 token 售价。
+     */
     public const IMAGE_OUTPUT_TOKEN = 'image_output_token';
 
+    /**
+     * ImageTokens: 图片输出 token 成本。
+     */
     public const IMAGE_OUTPUT_TOKEN_COST = 'image_output_token_cost';
 
+    /**
+     * ImageTokens / VideoTokens: 通用思考 token 售价。
+     */
     public const THOUGHT_TOKEN = 'thought_token';
 
+    /**
+     * ImageTokens / VideoTokens: 通用思考 token 成本。
+     */
     public const THOUGHT_TOKEN_COST = 'thought_token_cost';
 
-    public const VIDEO_VISUAL_INPUT_OUTPUT_TOKEN = 'video_visual_input_output_token';
-
-    public const VIDEO_VISUAL_INPUT_OUTPUT_TOKEN_COST = 'video_visual_input_output_token_cost';
-
-    public const VIDEO_TEXT_INPUT_OUTPUT_TOKEN = 'video_text_input_output_token';
-
-    public const VIDEO_TEXT_INPUT_OUTPUT_TOKEN_COST = 'video_text_input_output_token_cost';
-
+    /**
+     * ImageCount: 历史兼容对象，旧 Times 路径仍然使用它映射到 time_pricing。
+     */
     public const OLD_IMAGE_COUNT = 'old_image_count';
 
+    /**
+     * ImageCount: 历史兼容对象成本。
+     */
     public const OLD_IMAGE_COUNT_COST = 'old_image_count_cost';
 
+    /**
+     * TextTokens 固定对象。
+     */
     private const array TEXT_OBJECTS = [
         self::INPUT_TOKEN,
         self::OUTPUT_TOKEN,
@@ -65,6 +116,9 @@ final class BillingObject
         self::CACHE_WRITE_COST,
     ];
 
+    /**
+     * 静态对象：不依赖分辨率、输入扩展维度即可唯一命名。
+     */
     private const array STATIC_OBJECTS = [
         self::INPUT_TOKEN,
         self::OUTPUT_TOKEN,
@@ -80,10 +134,6 @@ final class BillingObject
         self::IMAGE_OUTPUT_TOKEN_COST,
         self::THOUGHT_TOKEN,
         self::THOUGHT_TOKEN_COST,
-        self::VIDEO_VISUAL_INPUT_OUTPUT_TOKEN,
-        self::VIDEO_VISUAL_INPUT_OUTPUT_TOKEN_COST,
-        self::VIDEO_TEXT_INPUT_OUTPUT_TOKEN,
-        self::VIDEO_TEXT_INPUT_OUTPUT_TOKEN_COST,
         self::OLD_IMAGE_COUNT,
         self::OLD_IMAGE_COUNT_COST,
     ];
@@ -93,13 +143,35 @@ final class BillingObject
         self::OLD_IMAGE_COUNT_COST,
     ];
 
+    /**
+     * ImageCount 动态对象族：image_{1k|2k|4k}_output_count[_cost].
+     */
     private const string IMAGE_COUNT_PATTERN = '/^image_[a-z0-9x_]+_output_count(?:_cost)?$/';
 
+    /**
+     * VideoDuration 基础对象族：video_{resolution}_output_duration[_cost].
+     */
     private const string VIDEO_DURATION_PATTERN = '/^video_[a-z0-9x_]+_output_duration(?:_cost)?$/';
 
-    private const string VIDEO_VISUAL_TOKEN_PATTERN = '/^video_[a-z0-9x_]+_visual_input_output_token(?:_cost)?$/';
+    /**
+     * VideoDuration 参考视频对象族：video_{resolution}_reference_video_output_duration[_cost].
+     */
+    private const string VIDEO_REFERENCE_VIDEO_DURATION_PATTERN = '/^video_[a-z0-9x_]+_reference_video_output_duration(?:_cost)?$/';
 
-    private const string VIDEO_TEXT_TOKEN_PATTERN = '/^video_[a-z0-9x_]+_text_input_output_token(?:_cost)?$/';
+    /**
+     * VideoDuration 音频扩展对象族：video_{resolution}_audio_output_duration[_cost].
+     */
+    private const string VIDEO_AUDIO_DURATION_PATTERN = '/^video_[a-z0-9x_]+_audio_output_duration(?:_cost)?$/';
+
+    /**
+     * VideoTokens 分辨率对象族：video_{resolution}_output_token[_cost].
+     */
+    private const string VIDEO_TOKEN_PATTERN = '/^video_[a-z0-9x_]+_output_token(?:_cost)?$/';
+
+    /**
+     * VideoTokens 分辨率 + 参考视频对象族：video_{resolution}_reference_video_output_token[_cost].
+     */
+    private const string VIDEO_REFERENCE_VIDEO_TOKEN_PATTERN = '/^video_[a-z0-9x_]+_reference_video_output_token(?:_cost)?$/';
 
     public function __construct(public readonly string $value)
     {
@@ -115,97 +187,120 @@ final class BillingObject
         if (in_array($normalized, self::STATIC_OBJECTS, true)
             || preg_match(self::IMAGE_COUNT_PATTERN, $normalized) === 1
             || preg_match(self::VIDEO_DURATION_PATTERN, $normalized) === 1
-            || preg_match(self::VIDEO_VISUAL_TOKEN_PATTERN, $normalized) === 1
-            || preg_match(self::VIDEO_TEXT_TOKEN_PATTERN, $normalized) === 1) {
+            || preg_match(self::VIDEO_REFERENCE_VIDEO_DURATION_PATTERN, $normalized) === 1
+            || preg_match(self::VIDEO_AUDIO_DURATION_PATTERN, $normalized) === 1
+            || preg_match(self::VIDEO_TOKEN_PATTERN, $normalized) === 1
+            || preg_match(self::VIDEO_REFERENCE_VIDEO_TOKEN_PATTERN, $normalized) === 1) {
             return new self($normalized);
         }
 
         return null;
     }
 
+    /**
+     * TextTokens 对应的固定对象集。
+     *
+     * @return self[]
+     */
     public static function textObjects(): array
     {
         return array_map(static fn (string $value): self => new self($value), self::TEXT_OBJECTS);
     }
 
+    /**
+     * ImageCount: 构造按张计费对象。
+     */
     public static function imageCount(string $resolution): self
     {
         return new self(sprintf('image_%s_output_count', self::normalizeImageResolutionKey($resolution)));
     }
 
+    /**
+     * ImageCount: 构造按张计费成本对象。
+     */
     public static function imageCountCost(string $resolution): self
     {
         return new self(sprintf('image_%s_output_count_cost', self::normalizeImageResolutionKey($resolution)));
     }
 
+    /**
+     * ImageCount: 历史兼容旧对象。
+     *
+     * @return self[]
+     */
     public static function oldImageCount(): array
     {
         return array_map(static fn (string $value): self => new self($value), self::OLD_IMAGE_OBJECTS);
     }
 
+    /**
+     * VideoDuration: 仅按分辨率计费。
+     */
     public static function videoDuration(string $resolution): self
     {
-        return new self(sprintf('video_%s_output_duration', self::normalizeResolutionKey($resolution)));
+        return new self(sprintf('video_%s_output_duration', self::normalizeVideoResolutionKey($resolution)));
     }
 
     public static function videoDurationCost(string $resolution): self
     {
-        return new self(sprintf('video_%s_output_duration_cost', self::normalizeResolutionKey($resolution)));
+        return new self(sprintf('video_%s_output_duration_cost', self::normalizeVideoResolutionKey($resolution)));
     }
 
-    public static function videoVisualInputOutputToken(?string $resolution = null): self
+    /**
+     * VideoDuration: 分辨率 + 参考视频扩展。
+     */
+    public static function videoReferenceVideoDuration(string $resolution): self
     {
-        $normalized = self::normalizeResolutionKey((string) $resolution);
-        if ($normalized === '') {
-            return new self(self::VIDEO_VISUAL_INPUT_OUTPUT_TOKEN);
-        }
-
-        return new self(sprintf('video_%s_visual_input_output_token', $normalized));
+        return new self(sprintf('video_%s_reference_video_output_duration', self::normalizeVideoResolutionKey($resolution)));
     }
 
-    public static function videoVisualInputOutputTokenCost(?string $resolution = null): self
+    public static function videoReferenceVideoDurationCost(string $resolution): self
     {
-        $normalized = self::normalizeResolutionKey((string) $resolution);
-        if ($normalized === '') {
-            return new self(self::VIDEO_VISUAL_INPUT_OUTPUT_TOKEN_COST);
-        }
-
-        return new self(sprintf('video_%s_visual_input_output_token_cost', $normalized));
+        return new self(sprintf('video_%s_reference_video_output_duration_cost', self::normalizeVideoResolutionKey($resolution)));
     }
 
-    public static function videoTextInputOutputToken(?string $resolution = null): self
+    /**
+     * VideoDuration: 分辨率 + 音频输入扩展。
+     */
+    public static function videoAudioDuration(string $resolution): self
     {
-        $normalized = self::normalizeResolutionKey((string) $resolution);
-        if ($normalized === '') {
-            return new self(self::VIDEO_TEXT_INPUT_OUTPUT_TOKEN);
-        }
-
-        return new self(sprintf('video_%s_text_input_output_token', $normalized));
+        return new self(sprintf('video_%s_audio_output_duration', self::normalizeVideoResolutionKey($resolution)));
     }
 
-    public static function videoTextInputOutputTokenCost(?string $resolution = null): self
+    public static function videoAudioDurationCost(string $resolution): self
     {
-        $normalized = self::normalizeResolutionKey((string) $resolution);
-        if ($normalized === '') {
-            return new self(self::VIDEO_TEXT_INPUT_OUTPUT_TOKEN_COST);
-        }
-
-        return new self(sprintf('video_%s_text_input_output_token_cost', $normalized));
+        return new self(sprintf('video_%s_audio_output_duration_cost', self::normalizeVideoResolutionKey($resolution)));
     }
 
-    public function isTextObject(): bool
+    /**
+     * VideoTokens: 仅按分辨率计费的 token。
+     */
+    public static function videoToken(string $resolution): self
     {
-        return in_array($this->value, self::TEXT_OBJECTS, true);
+        return new self(sprintf('video_%s_output_token', self::normalizeVideoResolutionKey($resolution)));
+    }
+
+    public static function videoTokenCost(string $resolution): self
+    {
+        return new self(sprintf('video_%s_output_token_cost', self::normalizeVideoResolutionKey($resolution)));
+    }
+
+    /**
+     * VideoTokens: 分辨率 + 参考视频 token。
+     */
+    public static function videoReferenceVideoToken(string $resolution): self
+    {
+        return new self(sprintf('video_%s_reference_video_output_token', self::normalizeVideoResolutionKey($resolution)));
+    }
+
+    public static function videoReferenceVideoTokenCost(string $resolution): self
+    {
+        return new self(sprintf('video_%s_reference_video_output_token_cost', self::normalizeVideoResolutionKey($resolution)));
     }
 
     public function isCostObject(): bool
     {
         return str_ends_with($this->value, '_cost');
-    }
-
-    public function isTokenFamilyObject(): bool
-    {
-        return $this->isTokenFamily();
     }
 
     public function toFlatConfigField(): ?string
@@ -246,7 +341,7 @@ final class BillingObject
             return '1000000';
         }
 
-        if ($this->isVideoDurationObject()) {
+        if ($this->isVideoBaseDurationObject() || $this->isVideoReferenceVideoDurationObject() || $this->isVideoAudioDurationObject()) {
             return '1000';
         }
 
@@ -287,13 +382,9 @@ final class BillingObject
             self::IMAGE_OUTPUT_TOKEN_COST,
             self::THOUGHT_TOKEN,
             self::THOUGHT_TOKEN_COST,
-            self::VIDEO_VISUAL_INPUT_OUTPUT_TOKEN,
-            self::VIDEO_VISUAL_INPUT_OUTPUT_TOKEN_COST,
-            self::VIDEO_TEXT_INPUT_OUTPUT_TOKEN,
-            self::VIDEO_TEXT_INPUT_OUTPUT_TOKEN_COST,
         ], true)
-            || $this->isVideoVisualTokenObject()
-            || $this->isVideoTextTokenObject();
+            || $this->isVideoTokenObject()
+            || $this->isVideoReferenceVideoTokenObject();
     }
 
     private function resolveTextUsageValue(TokenUsageDto $usage): int
@@ -318,7 +409,7 @@ final class BillingObject
         }
 
         if (in_array($this->value, [self::IMAGE_OUTPUT_TOKEN, self::IMAGE_OUTPUT_TOKEN_COST], true)) {
-            return $usage->tokenUsage?->getOutputTokens() ?? 0;
+            return max(0, $usage->tokenUsage?->getOutputTokens() ?? 0);
         }
 
         if (in_array($this->value, [self::THOUGHT_TOKEN, self::THOUGHT_TOKEN_COST], true)) {
@@ -326,7 +417,7 @@ final class BillingObject
         }
 
         if (in_array($this->value, self::OLD_IMAGE_OBJECTS, true)) {
-            return $usage->imageCount;
+            return max(0, $usage->imageCount);
         }
 
         if (! $this->isImageCountObject()) {
@@ -338,59 +429,64 @@ final class BillingObject
             return 0;
         }
 
-        return $usage->imageCount;
+        return max(0, $usage->imageCount);
     }
 
     private function resolveVideoUsageValue(VideoUsageDto $usage): int
     {
-        if (in_array($this->value, [self::THOUGHT_TOKEN, self::THOUGHT_TOKEN_COST], true)) {
-            return max(0, $usage->thoughtTokens);
-        }
-
-        if (in_array($this->value, [self::VIDEO_VISUAL_INPUT_OUTPUT_TOKEN, self::VIDEO_VISUAL_INPUT_OUTPUT_TOKEN_COST], true)) {
-            return $usage->hasVisualInput ? max(0, (int) $usage->totalTokens) : 0;
-        }
-
-        if (in_array($this->value, [self::VIDEO_TEXT_INPUT_OUTPUT_TOKEN, self::VIDEO_TEXT_INPUT_OUTPUT_TOKEN_COST], true)) {
-            return $usage->hasVisualInput ? 0 : max(0, (int) $usage->totalTokens);
-        }
-
         $resolution = self::normalizeResolutionKey($usage->quality !== '' ? $usage->quality : 'default');
 
-        if ($this->isVideoVisualTokenObject()) {
-            if (! $usage->hasVisualInput) {
+        if ($this->isVideoReferenceVideoTokenObject()) {
+            if (($usage->referenceVideoCount ?? 0) <= 0) {
                 return 0;
             }
 
-            return $resolution === $this->extractResolutionKey('video_', '_visual_input_output_token')
+            return $resolution === $this->extractResolutionKey('video_', '_reference_video_output_token')
                 ? max(0, (int) $usage->totalTokens)
                 : 0;
         }
 
-        if ($this->isVideoTextTokenObject()) {
-            if ($usage->hasVisualInput) {
+        if ($this->isVideoTokenObject()) {
+            if (($usage->referenceVideoCount ?? 0) > 0) {
                 return 0;
             }
 
-            return $resolution === $this->extractResolutionKey('video_', '_text_input_output_token')
+            return $resolution === $this->extractResolutionKey('video_', '_output_token')
                 ? max(0, (int) $usage->totalTokens)
                 : 0;
         }
 
-        if (! $this->isVideoDurationObject()) {
+        if ($this->isVideoReferenceVideoDurationObject()) {
+            if (($usage->referenceVideoCount ?? 0) <= 0) {
+                return 0;
+            }
+
+            return $resolution === $this->extractResolutionKey('video_', '_reference_video_output_duration')
+                ? max(0, $usage->durationInMilliseconds)
+                : 0;
+        }
+
+        if ($this->isVideoAudioDurationObject()) {
+            if (($usage->referenceAudioCount ?? 0) <= 0 || ($usage->referenceVideoCount ?? 0) > 0) {
+                return 0;
+            }
+
+            return $resolution === $this->extractResolutionKey('video_', '_audio_output_duration')
+                ? max(0, $usage->durationInMilliseconds)
+                : 0;
+        }
+
+        if (! $this->isVideoBaseDurationObject()) {
             return 0;
         }
 
-        if ($resolution !== $this->extractResolutionKey('video_', '_output_duration')) {
+        if (($usage->referenceVideoCount ?? 0) > 0 || ($usage->referenceAudioCount ?? 0) > 0) {
             return 0;
         }
 
-        return max(0, $usage->durationInMilliseconds);
-    }
-
-    private function isVideoDurationObject(): bool
-    {
-        return preg_match(self::VIDEO_DURATION_PATTERN, $this->value) === 1;
+        return $resolution === $this->extractResolutionKey('video_', '_output_duration')
+            ? max(0, $usage->durationInMilliseconds)
+            : 0;
     }
 
     private function isImageCountObject(): bool
@@ -398,14 +494,29 @@ final class BillingObject
         return preg_match(self::IMAGE_COUNT_PATTERN, $this->value) === 1;
     }
 
-    private function isVideoVisualTokenObject(): bool
+    private function isVideoBaseDurationObject(): bool
     {
-        return preg_match(self::VIDEO_VISUAL_TOKEN_PATTERN, $this->value) === 1;
+        return preg_match(self::VIDEO_DURATION_PATTERN, $this->value) === 1;
     }
 
-    private function isVideoTextTokenObject(): bool
+    private function isVideoReferenceVideoDurationObject(): bool
     {
-        return preg_match(self::VIDEO_TEXT_TOKEN_PATTERN, $this->value) === 1;
+        return preg_match(self::VIDEO_REFERENCE_VIDEO_DURATION_PATTERN, $this->value) === 1;
+    }
+
+    private function isVideoAudioDurationObject(): bool
+    {
+        return preg_match(self::VIDEO_AUDIO_DURATION_PATTERN, $this->value) === 1;
+    }
+
+    private function isVideoTokenObject(): bool
+    {
+        return preg_match(self::VIDEO_TOKEN_PATTERN, $this->value) === 1;
+    }
+
+    private function isVideoReferenceVideoTokenObject(): bool
+    {
+        return preg_match(self::VIDEO_REFERENCE_VIDEO_TOKEN_PATTERN, $this->value) === 1;
     }
 
     private function extractResolutionKey(string $prefix, string $suffix): string
@@ -423,6 +534,12 @@ final class BillingObject
         $normalized = strtolower(trim($resolution));
         $normalized = str_replace(['-', ' '], '_', $normalized);
         return preg_replace('/[^a-z0-9x_]/', '', $normalized) ?? '';
+    }
+
+    private static function normalizeVideoResolutionKey(string $resolution): string
+    {
+        $normalized = self::normalizeResolutionKey($resolution);
+        return $normalized === '' ? 'default' : $normalized;
     }
 
     private static function normalizeImageResolutionKey(string $resolution): string

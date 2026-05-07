@@ -7,6 +7,12 @@ declare(strict_types=1);
 
 namespace App\Domain\Provider\DTO\Item;
 
+use App\Domain\Provider\DTO\Item\TokenPricing\BillingObject;
+use Dtyq\BillingManager\Infrastructure\Util\Billing\AbstractBillingUsageDto;
+use Dtyq\BillingManager\Infrastructure\Util\ImageCalculate\ImageUsageDto;
+use Dtyq\BillingManager\Infrastructure\Util\TokenCalculate\TokenUsageDto;
+use Dtyq\BillingManager\Infrastructure\Util\VideoCalculate\VideoUsageDto;
+
 enum BillingType: string
 {
     case Tokens = 'Tokens'; // token 计价
@@ -15,8 +21,11 @@ enum BillingType: string
     case TextTokens = 'TextTokens'; // 文本模型 token 计费
     case ImageCount = 'ImageCount'; // 图片按张计费
     case ImageTokens = 'ImageTokens'; // 图片 token 计费
-    case VideoDuration = 'VideoDuration'; // 视频按时长计费
-    case VideoTokens = 'VideoTokens'; // 视频 token 计费
+    case VideoResolutionDuration = 'VideoResolutionDuration'; // 视频按时长计费：分辨率
+    case VideoResolutionAudioDuration = 'VideoResolutionAudioDuration'; // 视频按时长计费：分辨率 + 音频
+    case VideoResolutionReferenceVideoDuration = 'VideoResolutionReferenceVideoDuration'; // 视频按时长计费：分辨率 + 参考视频
+    case VideoResolutionTokens = 'VideoResolutionTokens'; // 视频 token 计费：分辨率
+    case VideoResolutionReferenceVideoTokens = 'VideoResolutionReferenceVideoTokens'; // 视频 token 计费：分辨率 + 参考视频
 
     public function isTokens(): bool
     {
@@ -28,33 +37,108 @@ enum BillingType: string
         return $this->value === self::Times->value;
     }
 
-    public function isPerSecond(): bool
-    {
-        return $this->value === self::Per_Second->value;
-    }
-
     public function isTextToken(): bool
     {
         return in_array($this, [self::Tokens, self::TextTokens], true);
     }
 
-    public function isImageCount(): bool
+    /**
+     * 由 BillingType 根据 usage 直接给出本次应参与计算的 BillingObject。
+     *
+     * @return BillingObject[]
+     */
+    public function resolveBillingObjects(AbstractBillingUsageDto $usage): array
     {
-        return in_array($this, [self::ImageCount, self::Times], true);
+        return match (true) {
+            $usage instanceof TokenUsageDto => $this->resolveTokenBillingObjects(),
+            $usage instanceof ImageUsageDto => $this->resolveImageBillingObjects($usage),
+            $usage instanceof VideoUsageDto => $this->resolveVideoBillingObjects($usage),
+            default => [],
+        };
     }
 
-    public function isImageToken(): bool
+    /**
+     * @return BillingObject[]
+     */
+    private function resolveTokenBillingObjects(): array
     {
-        return $this === self::ImageTokens;
+        return $this->isTextToken()
+            ? BillingObject::textObjects()
+            : [];
     }
 
-    public function isVideoDuration(): bool
+    /**
+     * @return BillingObject[]
+     */
+    private function resolveImageBillingObjects(ImageUsageDto $usage): array
     {
-        return in_array($this, [self::VideoDuration, self::Per_Second], true);
+        if ($this === self::Times) {
+            return BillingObject::oldImageCount();
+        }
+
+        if ($this === self::ImageCount) {
+            $resolution = $usage->resolution ?: 'default';
+            return [
+                BillingObject::imageCount($resolution),
+                BillingObject::imageCountCost($resolution),
+            ];
+        }
+
+        if ($this === self::ImageTokens || ($this === self::Tokens && ($usage->tokenUsage instanceof TokenUsageDto || $usage->promptTokens > 0 || $usage->thoughtTokens > 0))) {
+            return array_filter([
+                BillingObject::tryFrom(BillingObject::IMAGE_INPUT_TOKEN),
+                BillingObject::tryFrom(BillingObject::IMAGE_INPUT_TOKEN_COST),
+                BillingObject::tryFrom(BillingObject::IMAGE_OUTPUT_TOKEN),
+                BillingObject::tryFrom(BillingObject::IMAGE_OUTPUT_TOKEN_COST),
+                BillingObject::tryFrom(BillingObject::THOUGHT_TOKEN),
+                BillingObject::tryFrom(BillingObject::THOUGHT_TOKEN_COST),
+            ]);
+        }
+
+        return [];
     }
 
-    public function isVideoToken(): bool
+    /**
+     * @return BillingObject[]
+     */
+    private function resolveVideoBillingObjects(VideoUsageDto $usage): array
     {
-        return $this === self::VideoTokens;
+        if ($this === self::VideoResolutionTokens) {
+            return [
+                BillingObject::videoToken($usage->quality),
+                BillingObject::videoTokenCost($usage->quality),
+            ];
+        }
+
+        if ($this === self::VideoResolutionReferenceVideoTokens) {
+            return [
+                BillingObject::videoReferenceVideoToken($usage->quality),
+                BillingObject::videoReferenceVideoTokenCost($usage->quality),
+            ];
+        }
+
+        $resolution = $usage->quality !== '' ? $usage->quality : 'default';
+        if ($this === self::VideoResolutionReferenceVideoDuration) {
+            return [
+                BillingObject::videoReferenceVideoDuration($resolution),
+                BillingObject::videoReferenceVideoDurationCost($resolution),
+            ];
+        }
+
+        if ($this === self::VideoResolutionAudioDuration) {
+            return [
+                BillingObject::videoAudioDuration($resolution),
+                BillingObject::videoAudioDurationCost($resolution),
+            ];
+        }
+
+        if (! in_array($this, [self::Per_Second, self::VideoResolutionDuration], true)) {
+            return [];
+        }
+
+        return [
+            BillingObject::videoDuration($resolution),
+            BillingObject::videoDurationCost($resolution),
+        ];
     }
 }
