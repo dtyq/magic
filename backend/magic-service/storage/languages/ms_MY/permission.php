@@ -73,6 +73,10 @@ return [
                 'name' => 'Terbitkan Ejen ke Pasukan',
                 'description' => 'Pintu masuk untuk menerbitkan ejen kepada pasukan.',
             ],
+            'magic_claw_access' => [
+                'name' => 'Akses Magic Claw',
+                'description' => 'Pintu masuk untuk mengakses modul Magic Claw.',
+            ],
             'magic_claw_create' => [
                 'name' => 'Cipta Magic Claw',
                 'description' => 'Pintu masuk untuk mencipta Magic Claw.',

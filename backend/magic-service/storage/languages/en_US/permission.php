@@ -78,6 +78,10 @@ return [
                 'name' => 'Agent Team Publishing',
                 'description' => 'Entry for publishing an agent to the team.',
             ],
+            'magic_claw_access' => [
+                'name' => 'Magic Claw Access',
+                'description' => 'Entry for accessing the Magic Claw module.',
+            ],
             'magic_claw_create' => [
                 'name' => 'Magic Claw Creation',
                 'description' => 'Entry for creating Magic Claw.',
