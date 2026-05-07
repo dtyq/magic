@@ -17,6 +17,7 @@ from app.tools.video_understanding_utils import (
     format_video_source_info,
     probe_all_videos,
 )
+from app.tools.video_understanding_utils.llm_request_utils import get_model_video_size_limit_mb, is_size_limit_error
 
 logger = get_logger(__name__)
 
@@ -158,6 +159,11 @@ class VideoUnderstanding(BaseTool[VideoUnderstandingParams]):
         # 先探测视频元信息，用于长视频预警和结果展示
         metadata_list = await probe_all_videos(videos)
 
+        # 大小预检查：若 ffprobe 获取到文件大小，提前判断是否超出模型限制，避免无效 LLM 调用
+        size_check_error = self._check_video_size_limit(metadata_list, videos, model_id)
+        if size_check_error:
+            return size_check_error
+
         # 长视频确认检查：任一视频超过 3 分钟且未确认时，要求 agent 先向用户确认
         if not params.confirmed:
             warning = self._check_long_video_warning(metadata_list, videos)
@@ -169,7 +175,9 @@ class VideoUnderstanding(BaseTool[VideoUnderstandingParams]):
             response = await VideoLLMRequestHandler.call_with_fallback(model_id, query, batch, timeout)
         except Exception as e:
             logger.error(f"视频理解 LLM 调用失败 (模型: {model_id}): {e}")
-            return ToolResult.error("视频理解服务暂时不可用，请稍后重试")
+            if is_size_limit_error(e):
+                return self._make_size_limit_error(model_id)
+            return ToolResult.error(str(e))
 
         if not response or not response.choices or len(response.choices) == 0:
             return ToolResult.error("没有从模型收到有效响应")
@@ -194,6 +202,44 @@ class VideoUnderstanding(BaseTool[VideoUnderstandingParams]):
 
     # 长视频确认阈值（秒）
     LONG_VIDEO_THRESHOLD_SECONDS = 180
+
+    def _make_size_limit_error(self, model_id: str, oversized_str: str = "") -> ToolResult:
+        """构建视频大小超限的统一错误结果。"""
+        size_limit_mb = get_model_video_size_limit_mb(model_id)
+        limit_str = f"{size_limit_mb:.0f}MB" if size_limit_mb else "模型限制"
+        detail = f"（{oversized_str}）" if oversized_str else ""
+        return ToolResult.error(
+            f"VIDEO SIZE LIMIT EXCEEDED: The video(s){detail} exceed the {limit_str} limit. "
+            f"Use ask_user to inform the user and let them choose how to proceed: "
+            f"(1) you download and compress the video with FFmpeg then re-analyze, "
+            f"(2) user provides a shorter clip, "
+            f"(3) user provides an already-compressed version."
+        )
+
+    def _check_video_size_limit(self, metadata_list, videos, model_id: str) -> Optional[ToolResult]:
+        """检查视频文件大小是否超出模型限制。
+
+        仅在 ffprobe 成功获取到文件大小时才进行检查，获取失败时返回 None（交由 LLM 调用失败时兜底）。
+        """
+        size_limit_mb = get_model_video_size_limit_mb(model_id)
+        if size_limit_mb is None:
+            return None
+
+        size_limit_bytes = size_limit_mb * 1024 * 1024
+        oversized = []
+        for meta, source in zip(metadata_list, videos):
+            if meta.file_size_bytes and meta.file_size_bytes > size_limit_bytes:
+                name = extract_media_source_name(source)
+                oversized.append(f"{name}（{meta.file_size_str}）")
+
+        if not oversized:
+            return None
+
+        oversized_str = "、".join(oversized)
+        logger.warning(
+            f"视频文件超过大小限制（{size_limit_mb:.0f}MB）：{oversized_str}"
+        )
+        return self._make_size_limit_error(model_id, oversized_str)
 
     def _check_long_video_warning(self, metadata_list, videos) -> Optional[ToolResult]:
         """检查是否有视频超过时长阈值，返回确认提示或 None。"""
@@ -236,12 +282,28 @@ class VideoUnderstanding(BaseTool[VideoUnderstandingParams]):
 - 收到确认提示后，必须用 ask_user 向用户说明视频时长和预计耗时，询问是否继续
 - 用户确认后，设置 confirmed=true 重新调用本工具
 - 如果你事先就知道视频较长（如用户提到时长、或从视频标题推断），应主动在调用前用 ask_user 确认
+
+视频大小超限机制：
+- 当视频文件超过模型大小限制时，工具会返回 VIDEO SIZE LIMIT EXCEEDED 提示
+- 收到该提示后，必须用 ask_user 告知用户视频文件过大无法直接分析，并提供以下处理建议供用户选择：
+  1. 由你（AI）下载视频后用 FFmpeg 压缩到限制以内，再重新分析
+  2. 提供视频的某一片段链接或本地路径（截取关键部分后重新分析）
+  3. 用户自行提供已压缩的较小版本
+- 用户确认选择后，再按用户意愿执行对应操作
 -->
 Long video safeguard:
 - When video duration exceeds 3 minutes, this tool returns a confirmation prompt instead of analyzing
 - Upon receiving the prompt, you MUST use ask_user to inform the user about video duration and estimated time, asking whether to proceed
 - After user confirms, call this tool again with confirmed=true
-- If you already know the video is long (e.g. user mentioned duration or inferable from title), proactively confirm with ask_user before calling this tool"""
+- If you already know the video is long (e.g. user mentioned duration or inferable from title), proactively confirm with ask_user before calling this tool
+
+Video size limit safeguard:
+- When video file exceeds the model's size limit, this tool returns a VIDEO SIZE LIMIT EXCEEDED prompt
+- Upon receiving this prompt, you MUST use ask_user to inform the user the video is too large to analyze directly and suggest the following options:
+  1. You (AI) download the video and compress it with FFmpeg to within the size limit, then re-analyze
+  2. The user provides a clip or segment (a shorter portion covering the key content)
+  3. The user provides an already-compressed smaller version
+- Wait for the user's choice before taking any action"""
 
     async def get_tool_detail(
         self,
