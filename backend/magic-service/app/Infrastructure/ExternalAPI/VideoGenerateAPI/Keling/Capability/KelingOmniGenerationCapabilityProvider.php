@@ -19,14 +19,14 @@ readonly class KelingOmniGenerationCapabilityProvider implements KelingGeneratio
      *
      * @var array<int, string>
      */
-    private const array MODEL_IDS = ['keling-video', 'kling-v3-omni'];
+    private const array MODEL_IDS = ['keling3-omni', 'kling3-omni', 'kling-3-omni', 'kling-v3-omni', 'MaaS_KeLing_30_video', 'MaaS_KeLing_3.0_video', 'MaaS_KeLing_3O_video'];
 
     /**
      * 当前 Keling Omni 支持的模型版本集合。
      *
      * @var array<int, string>
      */
-    private const array MODEL_VERSIONS = ['kling-v3-omni', 'maas_kl_o3'];
+    private const array MODEL_VERSIONS = ['kling3-omni', 'kling-v3-omni', 'maas_kl_o3', 'MaaS_KeLing_30_video', 'MaaS_KeLing_3.0_video', 'MaaS_KeLing_3O_video'];
 
     /**
      * 未显式传入时，默认按 5 秒生成。
