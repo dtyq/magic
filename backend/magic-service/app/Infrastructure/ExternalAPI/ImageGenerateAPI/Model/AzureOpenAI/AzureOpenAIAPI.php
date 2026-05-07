@@ -18,7 +18,7 @@ use Psr\Log\LoggerInterface;
 
 class AzureOpenAIAPI
 {
-    private const REQUEST_TIMEOUT = 600;
+    private const REQUEST_TIMEOUT = 1200;
 
     protected LoggerInterface $logger;
 
